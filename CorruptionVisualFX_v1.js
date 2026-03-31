@@ -21,19 +21,8 @@
  * 0.85-1.0: Extreme corruption + constant visual breakdown
  */
 
+import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
-// === THREE SAFE LOADER (v1.1) ===
-let THREE_SAFE = null;
-THREE_SAFE =
-  (typeof window !== 'undefined' && window.THREE) ||
-  (typeof globalThis !== 'undefined' && globalThis.THREE) ||
-  null;
-
-if (!THREE_SAFE) {
-  console.warn('[CorruptionVisualFX_v1] THREE not detected – enabling SAFE MODE.');
-}
-
-const THREE = THREE_SAFE;
 
 const CASCADE_CORRUPTION_THRESHOLD = 0.35;
 
@@ -72,6 +61,9 @@ export class CorruptionVisualFX_v1 {
     // Visual state tracking
     this.nodeVisualState = new Map(); // node -> { particleEmitTime, glowBaseIntensity, etc }
     this.activeParticles = [];
+    this.particleRoot = new THREE.Group();
+    this.particleRoot.name = 'CorruptionVisualFX_Particles';
+    this._particleGeometry = new THREE.TetrahedronGeometry(0.06, 0);
     
     // Performance settings
     this.updateInterval = 1 / 30; // 30Hz updates for performance
@@ -79,8 +71,11 @@ export class CorruptionVisualFX_v1 {
     // DEV NOTE: Corruption visuals require realtime (RAF) visual time per AtomaShaderTimingContract.
     // VisualTime is the canonical source (Phase 2A); external time/delta params are maintained for legacy signatures only.
     this.visualTime = VisualTime;
-    this.corruptionShaderVariant = THREE ? this._createCorruptionShaderVariant() : null;
+    this.corruptionShaderVariant = this._createCorruptionShaderVariant();
     this._semanticSubscriptions = [];
+    if (this.scene?.add) {
+      this.scene.add(this.particleRoot);
+    }
     this._bindSemanticBus();
     
     if (this.debugMode) {
@@ -94,17 +89,8 @@ export class CorruptionVisualFX_v1 {
   }
 
   _bindSemanticBus() {
-    const bus = this._getSemanticBus();
-    if (!bus) return;
-    const on = bus.on?.bind(bus) || bus.subscribe?.bind(bus);
-    if (!on) return;
-
-    const handleCorruptionSpike = (data = {}) => {
-      this.triggerCorruptionPulse(data.nodeId);
-    };
-
-    on('metric.corruption.spike', handleCorruptionSpike, { priority: bus.priority?.NORMAL });
-    this._semanticSubscriptions.push(['metric.corruption.spike', handleCorruptionSpike]);
+    // Corruption particle ownership moved to T2_CorruptionVisualIntegration_v1.
+    // Keep this shell free of semantic listeners to avoid duplicate particle spawns.
   }
 
   _resolveNodeById(nodeId) {
@@ -126,23 +112,67 @@ export class CorruptionVisualFX_v1 {
   }
 
   triggerCorruptionPulse(nodeId) {
-    if (!THREE) return;
-    const node = this._resolveNodeById(nodeId);
-    if (!node) return;
-
-    const baseCorruption = Math.max(
-      0,
-      Math.min(
-        1,
-        node?.userData?.metrics?.corruption ??
-        node?.userData?.corruption ??
-        0.7
-      )
-    );
-    const pulseLevel = Math.max(0.65, baseCorruption);
-    for (let i = 0; i < 4; i++) {
-      this.emitChaosParticle(node, pulseLevel, i < 2);
+    const t2 = globalThis?.game?.t2CorruptionVisualIntegration || globalThis?.window?.game?.t2CorruptionVisualIntegration || null;
+    if (t2?.triggerCorruptionPulse) {
+      return t2.triggerCorruptionPulse(nodeId);
     }
+    return false;
+  }
+
+  attachScene(scene) {
+    if (!scene?.add) return false;
+    this.scene = scene;
+    if (this.particleRoot.parent !== scene) {
+      this.particleRoot.parent?.remove(this.particleRoot);
+      scene.add(this.particleRoot);
+    }
+    return true;
+  }
+
+  _ensureParticleRoot() {
+    if (!this.particleRoot) {
+      this.particleRoot = new THREE.Group();
+      this.particleRoot.name = 'CorruptionVisualFX_Particles';
+    }
+    if (this.scene?.add && this.particleRoot.parent !== this.scene) {
+      this.attachScene(this.scene);
+    }
+  }
+
+  _createParticleMesh(particle) {
+    const material = new THREE.MeshBasicMaterial({
+      color: particle.color.clone(),
+      transparent: true,
+      opacity: 1,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false
+    });
+
+    const mesh = new THREE.Mesh(this._particleGeometry, material);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 9999;
+    mesh.position.copy(particle.position);
+    mesh.scale.setScalar(particle.size);
+    return mesh;
+  }
+
+  _disposeParticleMesh(particle) {
+    const mesh = particle?.mesh;
+    if (!mesh) return;
+    mesh.parent?.remove(mesh);
+    if (mesh.material?.dispose) mesh.material.dispose();
+    particle.mesh = null;
+  }
+
+  _syncParticleSystem(deltaTime) {
+    if (!this.activeParticles.length) return;
+    const now = Number.isFinite(this.visualTime?.now) ? this.visualTime.now : (performance.now() * 0.001);
+    if (Number.isFinite(this.lastUpdateTime) && now - this.lastUpdateTime < this.updateInterval) {
+      return;
+    }
+    this.lastUpdateTime = now;
+    this.updateParticles(deltaTime);
   }
 
   /**
@@ -169,36 +199,11 @@ export class CorruptionVisualFX_v1 {
    * Timing: expects realtime visual time (RAF). VisualTime is available for Phase 2 enforcement.
    */
   applyCorruptionEffects(nodeModel, deltaTime, time = 0) {
-    if (!nodeModel || !nodeModel.userData) return;
+    if (!nodeModel) return;
 
-    const corruptionLevel = (
-      nodeModel.userData?.metrics?.corruption ??
-      nodeModel.userData?.corruption ??
-      0
-    );
-
-    // Phase 2A: use canonical RAF visual time (VisualTime) for all internal timing (behavior-preserving).
-    const visualNow = this.visualTime.now;
-    const visualDelta = this.visualTime.delta;
-
-    // Uniform-only corruption shader updates (no runtime shader mutation).
-    this.applyShaderDistortion(nodeModel, corruptionLevel, visualDelta);
-
-    if (corruptionLevel <= 0) return; // No corruption, skip
-
-    // Get or create visual state
-    const visualState = this.getOrCreateNodeVisualState(nodeModel);
-
-    // Apply color distortion
-    this.applyCorruptionColor(nodeModel, corruptionLevel);
-
-    // Apply glow flicker
-    this.applyGlowFlicker(nodeModel, corruptionLevel, visualNow, visualState);
-
-    // Spawn chaos particles
-    if (this._hasCascadeCorruptionLink(nodeModel) && corruptionLevel > CASCADE_CORRUPTION_THRESHOLD) {
-      this.spawnChaosParticles(nodeModel, corruptionLevel, visualDelta, visualState);
-    }
+    // Corruption color/shader/glow effects have been disabled.
+    // Keep only baseline restoration so pre-existing mutations do not linger.
+    this.restoreNodeVisualBaseline(nodeModel);
   }
 
   _hasCascadeCorruptionLink(nodeModel) {
@@ -648,9 +653,14 @@ export class CorruptionVisualFX_v1 {
       age: 0,
       life: 1.0,
       maxLife: 0.5 + Math.random() * 0.5,
+      baseColor: new THREE.Color(1.0, 0.2 * corruptionLevel, 0.6 * corruptionLevel),
       color: new THREE.Color(1.0, 0.2 * corruptionLevel, 0.6 * corruptionLevel),
       size: 0.1 + Math.random() * 0.1
     };
+
+    this._ensureParticleRoot();
+    particle.mesh = this._createParticleMesh(particle);
+    this.particleRoot.add(particle.mesh);
 
     this.activeParticles.push(particle);
     particle.startPosition = particle.position.clone();
@@ -666,7 +676,10 @@ export class CorruptionVisualFX_v1 {
    */
   updateParticles(deltaTime) {
     // VisualTime.delta keeps particle integration aligned with RAF cadence.
-    const dt = this.visualTime.delta;
+    const dt = Number.isFinite(deltaTime) && deltaTime > 0 ? deltaTime : this.visualTime.delta;
+    if (!this.activeParticles.length) return;
+
+    this._ensureParticleRoot();
 
     for (let i = this.activeParticles.length - 1; i >= 0; i--) {
       const particle = this.activeParticles[i];
@@ -696,10 +709,22 @@ export class CorruptionVisualFX_v1 {
       );
 
       // Fade out
-      particle.color.multiplyScalar(particle.life);
+      particle.color.copy(particle.baseColor || particle.color).multiplyScalar(particle.life);
+      if (particle.mesh?.material?.color) {
+        particle.mesh.material.color.copy(particle.color);
+        particle.mesh.material.opacity = Math.max(0, Math.min(1, particle.life));
+      }
+      if (particle.mesh) {
+        particle.mesh.position.copy(particle.position);
+        particle.mesh.scale.setScalar(particle.size * (0.6 + 0.4 * Math.max(0, particle.life)));
+        particle.mesh.rotation.x += (particle.baseVelocity?.x || 0) * dt;
+        particle.mesh.rotation.y += (particle.baseVelocity?.y || 0) * dt;
+        particle.mesh.rotation.z += (particle.baseVelocity?.z || 0) * dt;
+      }
 
       // Remove dead particles
       if (particle.life <= 0) {
+        this._disposeParticleMesh(particle);
         this.activeParticles.splice(i, 1);
       }
     }
@@ -730,10 +755,14 @@ export class CorruptionVisualFX_v1 {
    * Render corruption particles (visual debug/demonstration)
    */
   renderCorruptionParticles(scene, camera, renderer) {
-    if (!THREE || !scene || !this.activeParticles.length) return;
+    if (!this.activeParticles.length) return;
+    if (scene) {
+      this.attachScene(scene);
+    } else if (this.scene) {
+      this._ensureParticleRoot();
+    }
 
-    // This would be called from main render loop if particle visualization desired
-    // For now, particles are tracked but not rendered (they can be added to visual system later)
+    this._syncParticleSystem();
   }
 
   /**
@@ -802,6 +831,18 @@ export class CorruptionVisualFX_v1 {
       }
     }
     this._semanticSubscriptions = [];
+
+    for (const particle of this.activeParticles) {
+      this._disposeParticleMesh(particle);
+    }
+    this.activeParticles.length = 0;
+
+    if (this.particleRoot) {
+      this.particleRoot.parent?.remove(this.particleRoot);
+    }
+    if (this._particleGeometry?.dispose) {
+      this._particleGeometry.dispose();
+    }
   }
 }
 

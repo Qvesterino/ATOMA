@@ -63,6 +63,7 @@ const CONFIG = {
     
     // Spawn frequency - POLISH: Slower spawn rate for calmer accumulation
     ECHO_SPAWN_INTERVAL: 0.2,         // POLISHED: increased from 0.15 (fewer echoes)
+    MIN_VISIBLE_ECHO_SCORE: 0.38,     // Visible floor for stable composites
     
     // Lifetime calculation - POLISH: Longer persistence, smoother range
     BASE_ECHO_LIFETIME: 1.4,          // POLISHED: increased from 1.2 (longer base)
@@ -135,7 +136,7 @@ class EchoInstance {
      * @param {number} corruption - Canonical corruption (0-1) from node.userData.corruption
      * @param {number} currentVisualTime - Current visual time
      */
-    spawn(position, compositeGeometry, harmony, corruption, currentVisualTime, synergy = 0.5, stability = 0.5) {
+    spawn(position, compositeGeometry, harmony, corruption, currentVisualTime, synergy = 0.5, stability = 0.5, visualProfile = null) {
         this.active = true;
         this.mesh.visible = true;
         this.position.copy(position);
@@ -148,12 +149,46 @@ class EchoInstance {
         this._spawnTime = currentVisualTime;
         
         // Calculate lifetime based on state
-        this.lifetime = this.calculateLifetime();
+        const profile = visualProfile || {};
+        const lifetimeBoost = Number.isFinite(profile.lifetimeBoost) ? profile.lifetimeBoost : 1.0;
+        this.lifetime = THREE.MathUtils.clamp(
+            this.calculateLifetime() * lifetimeBoost,
+            CONFIG.MIN_ECHO_LIFETIME,
+            CONFIG.MAX_ECHO_LIFETIME
+        );
         
         // Set initial opacity
-        this.targetOpacity = CONFIG.BASE_ECHO_OPACITY;
+        const visibilityLift = THREE.MathUtils.clamp(
+            0.12 +
+            harmony * 0.08 +
+            synergy * 0.14 +
+            stability * 0.12 -
+            corruption * 0.1,
+            0.0,
+            0.28
+        );
+        const profileOpacityBoost = Number.isFinite(profile.opacityBoost) ? profile.opacityBoost : 0.0;
+        const profileScaleBoost = Number.isFinite(profile.scaleBoost) ? profile.scaleBoost : 0.0;
+        this.targetOpacity = THREE.MathUtils.clamp(
+            CONFIG.BASE_ECHO_OPACITY + visibilityLift + profileOpacityBoost,
+            CONFIG.BASE_ECHO_OPACITY,
+            0.72
+        );
         this.currentOpacity = this.targetOpacity;
         this.mesh.material.opacity = this.targetOpacity;
+        this.mesh.material.color.setRGB(
+            0.88 + harmony * 0.08 + stability * 0.05,
+            0.88 + synergy * 0.06 + stability * 0.05,
+            0.90 + synergy * 0.05 + stability * 0.06
+        );
+        this.mesh.scale.setScalar(
+            0.9 +
+            harmony * 0.08 +
+            synergy * 0.16 +
+            stability * 0.14 -
+            corruption * 0.06 +
+            profileScaleBoost
+        );
         
         // Update geometry if provided (for simplified silhouette)
         if (compositeGeometry && compositeGeometry !== this.mesh.geometry) {
@@ -322,10 +357,10 @@ export class ResonanceEchoTrailSystem {
         console.log('[ResonanceEchoTrailSystem] Initialized');
     }
 
-    _logLifecycle(key, message, details = null) {
+    _logLifecycle(key, message, details = null, intervalMs = RESONANCE_ECHO_LOG_THROTTLE_MS) {
         const now = Date.now();
         const last = this._lifecycleLogTimes.get(key) || 0;
-        if (now - last < RESONANCE_ECHO_LOG_THROTTLE_MS) return;
+        if (now - last < intervalMs) return;
 
         this._lifecycleLogTimes.set(key, now);
         if (details) {
@@ -398,10 +433,10 @@ export class ResonanceEchoTrailSystem {
         const metrics = this._resolveEchoTrailMetrics(clampedIntensity);
         const eventState = lifecyclePayload?.state || lifecycleIntent?.state || lifecycleSnapshot?.state || null;
         if (eventState) {
-            metrics.harmony = Number.isFinite(eventState.harmony) ? Math.max(0, Math.min(1, eventState.harmony)) : metrics.harmony;
-            metrics.synergy = Number.isFinite(eventState.synergy) ? Math.max(0, Math.min(1, eventState.synergy)) : metrics.synergy;
-            metrics.corruption = Number.isFinite(eventState.corruption) ? Math.max(0, Math.min(1, eventState.corruption)) : metrics.corruption;
-            metrics.stability = Number.isFinite(eventState.stability) ? Math.max(0, Math.min(1, eventState.stability)) : metrics.stability;
+            metrics.harmony = this._readMetric(eventState, ['harmony', 'harmonyBalance', 'harmonyLevel', 'avgHarmony'], metrics.harmony);
+            metrics.synergy = this._readMetric(eventState, ['synergy', 'averageSynergy', 'synergyNorm', 'avgSynergy'], metrics.synergy);
+            metrics.corruption = this._readMetric(eventState, ['corruption', 'corruptionBalance', 'corruptionLevel', 'avgCorruption'], metrics.corruption);
+            metrics.stability = this._readMetric(eventState, ['stability', 'stabilityIndex', 'stabilityNorm', 'avgStability'], metrics.stability);
         }
         return {
             center,
@@ -534,29 +569,36 @@ export class ResonanceEchoTrailSystem {
                 const state = composite.state;
                 if (state) {
                     const metrics = this._resolveCompositeMetrics(state);
-                    const harmonyGate = metrics.harmony;
-                    const stabilityGate = metrics.stability;
-                    const corruptionGate = 1.0 - metrics.corruption * 0.65;
-                    const synergyBoost = 0.9 + metrics.synergy * 0.1;
-                    const spawnChance = THREE.MathUtils.clamp(harmonyGate * stabilityGate * corruptionGate * synergyBoost, 0, 1);
-                    
-                    if (Math.random() < spawnChance) {
-                        this.spawnEcho(
-                            composite.mesh.position,
-                            composite.mesh.geometry,
-                            metrics.harmony,
-                            metrics.corruption,
-                            currentVisualTime
-                        );
+                    const band = this._getEchoVisibilityBand(metrics);
+                    const spawnCount = Math.min(
+                        Math.max(0, band.spawnCount),
+                        CONFIG.MAX_ECHOES_PER_ZONE - echoSpawnCount
+                    );
+
+                    if (spawnCount > 0) {
+                        for (let i = 0; i < spawnCount; i += 1) {
+                            this.spawnEcho(
+                                composite.mesh.position,
+                                composite.mesh.geometry,
+                                metrics.harmony,
+                                metrics.corruption,
+                                currentVisualTime,
+                                metrics.synergy,
+                                metrics.stability,
+                                band
+                            );
+                        }
                         this._logLifecycle(`echo-spawn:${composite.id || composite.mesh.uuid}`, 'echo spawned from composite', {
                             compositeId: composite.id || composite.mesh.uuid,
                             harmony: metrics.harmony,
                             corruption: metrics.corruption,
                             synergy: metrics.synergy,
                             stability: metrics.stability,
+                            visibilityScore: band.visibilityScore,
+                            spawnCount,
                             activeEchoes: this.echoInstances.filter((echo) => echo.active).length
                         });
-                        echoSpawnCount++;
+                        echoSpawnCount += spawnCount;
                     }
                 }
                 
@@ -569,15 +611,15 @@ export class ResonanceEchoTrailSystem {
             trackedComposites: this.compositeTrackers.size,
             activeEchoes: this.echoInstances.filter((echo) => echo.active).length,
             spawnedThisTick: echoSpawnCount
-        });
+        }, 20000);
     }
     
     // Canonical composite metrics: harmony, corruption, synergy, stability
-    spawnEcho(position, geometry, harmony, corruption, currentVisualTime, synergy = 0.5, stability = 0.5) {
+    spawnEcho(position, geometry, harmony, corruption, currentVisualTime, synergy = 0.5, stability = 0.5, visualProfile = null) {
         // Find available echo instance
         for (let echo of this.echoInstances) {
             if (!echo.active) {
-                echo.spawn(position, geometry, harmony, corruption, currentVisualTime, synergy, stability);
+                echo.spawn(position, geometry, harmony, corruption, currentVisualTime, synergy, stability, visualProfile);
                 return;
             }
         }
@@ -600,10 +642,10 @@ export class ResonanceEchoTrailSystem {
         if (!pooledGeometry) return;
 
         const resolvedMetrics = metrics ? {
-            harmony: Number.isFinite(metrics.harmony) ? Math.max(0, Math.min(1, metrics.harmony)) : undefined,
-            synergy: Number.isFinite(metrics.synergy) ? Math.max(0, Math.min(1, metrics.synergy)) : undefined,
-            corruption: Number.isFinite(metrics.corruption) ? Math.max(0, Math.min(1, metrics.corruption)) : undefined,
-            stability: Number.isFinite(metrics.stability) ? Math.max(0, Math.min(1, metrics.stability)) : undefined
+            harmony: this._readMetric(metrics, ['harmony', 'harmonyBalance', 'harmonyLevel', 'avgHarmony'], undefined),
+            synergy: this._readMetric(metrics, ['synergy', 'averageSynergy', 'synergyNorm', 'avgSynergy'], undefined),
+            corruption: this._readMetric(metrics, ['corruption', 'corruptionBalance', 'corruptionLevel', 'avgCorruption'], undefined),
+            stability: this._readMetric(metrics, ['stability', 'stabilityIndex', 'stabilityNorm', 'avgStability'], undefined)
         } : null;
         const fallbackMetrics = this._resolveEchoTrailMetrics(clampedIntensity);
         const finalMetrics = {
@@ -611,6 +653,16 @@ export class ResonanceEchoTrailSystem {
             synergy: resolvedMetrics?.synergy ?? fallbackMetrics.synergy,
             corruption: resolvedMetrics?.corruption ?? fallbackMetrics.corruption,
             stability: resolvedMetrics?.stability ?? fallbackMetrics.stability
+        };
+        const band = this._getEchoVisibilityBand(finalMetrics);
+        const trailProfile = band.active ? band : {
+            active: true,
+            stage: 'fallback',
+            spawnCount: 1,
+            visibilityScore: band.visibilityScore,
+            opacityBoost: 0.05,
+            scaleBoost: 0.04,
+            lifetimeBoost: 0.96
         };
 
         this.spawnEcho(
@@ -621,21 +673,24 @@ export class ResonanceEchoTrailSystem {
             currentVisualTime
             ,
             finalMetrics.synergy,
-            finalMetrics.stability
+            finalMetrics.stability,
+            trailProfile
         );
     }
 
     _resolveCompositeMetrics(state = {}) {
-        const harmony = Number.isFinite(state?.harmony) ? state.harmony : 0.5;
-        const synergy = Number.isFinite(state?.synergy) ? state.synergy : 0.5;
-        const corruption = Number.isFinite(state?.corruption) ? state.corruption : 0;
-        const stability = Number.isFinite(state?.stability) ? state.stability : 0.5;
+        const harmony = this._readMetric(state, ['harmony', 'harmonyBalance', 'harmonyLevel', 'avgHarmony'], 0.5);
+        const synergy = this._readMetric(state, ['synergy', 'averageSynergy', 'synergyNorm', 'avgSynergy'], 0.5);
+        const corruption = this._readMetric(state, ['corruption', 'corruptionBalance', 'corruptionLevel', 'avgCorruption'], 0);
+        const stability = this._readMetric(state, ['stability', 'stabilityIndex', 'stabilityNorm', 'avgStability'], 0.5);
+        const loadPressure = this._readMetric(state, ['loadPressure', 'loadNorm', 'avgLoadPressure'], Math.max(0, 1 - harmony));
 
         return {
             harmony: THREE.MathUtils.clamp(harmony, 0, 1),
             synergy: THREE.MathUtils.clamp(synergy, 0, 1),
             corruption: THREE.MathUtils.clamp(corruption, 0, 1),
-            stability: THREE.MathUtils.clamp(stability, 0, 1)
+            stability: THREE.MathUtils.clamp(stability, 0, 1),
+            loadPressure: THREE.MathUtils.clamp(loadPressure, 0, 1)
         };
     }
 
@@ -643,10 +698,62 @@ export class ResonanceEchoTrailSystem {
         const clampedIntensity = THREE.MathUtils.clamp(Number.isFinite(intensity) ? intensity : 0.5, 0, 1);
 
         return {
-            harmony: 0.5 + clampedIntensity * 0.5,
-            synergy: 0.35 + clampedIntensity * 0.45,
-            corruption: 0.5 - clampedIntensity * 0.3,
-            stability: 0.4 + clampedIntensity * 0.45
+            harmony: 0.48 + clampedIntensity * 0.46,
+            synergy: 0.38 + clampedIntensity * 0.5,
+            corruption: 0.48 - clampedIntensity * 0.32,
+            stability: 0.42 + clampedIntensity * 0.46
+        };
+    }
+
+    _readMetric(source, keys, fallback) {
+        if (!source) return fallback;
+        for (const key of keys) {
+            const value = source?.[key];
+            if (Number.isFinite(value)) {
+                return Math.max(0, Math.min(1, value));
+            }
+        }
+        return fallback;
+    }
+
+    _getEchoVisibilityBand(metrics = {}) {
+        const harmony = THREE.MathUtils.clamp(metrics.harmony ?? 0.5, 0, 1);
+        const synergy = THREE.MathUtils.clamp(metrics.synergy ?? 0.5, 0, 1);
+        const stability = THREE.MathUtils.clamp(metrics.stability ?? 0.5, 0, 1);
+        const corruption = THREE.MathUtils.clamp(metrics.corruption ?? 0, 0, 1);
+        const loadPressure = THREE.MathUtils.clamp(metrics.loadPressure ?? Math.max(0, 1 - harmony), 0, 1);
+
+        const visibilityScore = THREE.MathUtils.clamp(
+            harmony * 0.34 +
+            synergy * 0.34 +
+            stability * 0.26 +
+            loadPressure * 0.08 -
+            corruption * 0.16,
+            0,
+            1
+        );
+
+        let spawnCount = 0;
+        let stage = 'silent';
+        if (visibilityScore >= 0.8) {
+            spawnCount = 3;
+            stage = 'locked';
+        } else if (visibilityScore >= 0.6) {
+            spawnCount = 2;
+            stage = 'strong';
+        } else if (visibilityScore >= (CONFIG.MIN_VISIBLE_ECHO_SCORE ?? 0.38)) {
+            spawnCount = 1;
+            stage = 'visible';
+        }
+
+        return {
+            active: spawnCount > 0,
+            stage,
+            spawnCount,
+            visibilityScore,
+            opacityBoost: 0.12 + visibilityScore * 0.16,
+            scaleBoost: 0.08 + visibilityScore * 0.14,
+            lifetimeBoost: 0.9 + visibilityScore * 0.18
         };
     }
     

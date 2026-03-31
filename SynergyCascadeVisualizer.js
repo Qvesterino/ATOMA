@@ -137,6 +137,7 @@ export class SynergyCascadeVisualizer {
     
     // Update active cascades
     this.updateActiveCascades(deltaTime);
+    this._updateCascadeHistoryHeartbeats(deltaTime);
     
     // Update cascade particles
     this.updateCascadeParticles(deltaTime);
@@ -149,6 +150,62 @@ export class SynergyCascadeVisualizer {
     
     this.stats.lastUpdateTime = performance.now() - startTime;
     this.stats.activeCascades = this.activeCascades.length;
+  }
+
+  _updateCascadeHistoryHeartbeats(deltaTime) {
+    if (this.cascadeHistory.size === 0) return;
+
+    for (const [link, history] of this.cascadeHistory.entries()) {
+      if (!link?.mesh) continue;
+
+      const linkId = this._resolveLinkId(link);
+      if (!linkId) continue;
+
+      const linkIntensity = this._clamp01(Math.max(
+        this._readLinkSynergy(link),
+        link?.userData?.cascadeIntensity ?? 0,
+        link?.userData?.flowState?.intensity ?? 0,
+        history?.cascadeIntensity ?? 0
+      ));
+      const band = this._getSynergyCascadeBand(linkIntensity) ?? this._getVisibleCascadeFloorBand(linkIntensity);
+      if (!band) continue;
+
+      const sourcePos = this._asVector3(
+        link?.source?.position ??
+        link?.sourceNode?.position ??
+        link?.nodeA?.position ??
+        null
+      );
+      const targetPos = this._asVector3(
+        link?.target?.position ??
+        link?.targetNode?.position ??
+        link?.nodeB?.position ??
+        null
+      );
+      const anchor = sourcePos && targetPos
+        ? new THREE.Vector3().addVectors(sourcePos, targetPos).multiplyScalar(0.5)
+        : this._asVector3(history?.anchor ?? null) ?? sourcePos ?? targetPos ?? null;
+      if (!anchor) continue;
+
+      if (this.config.visualizations.rippleEffect && this._canTriggerLinkEffect(this._rippleCooldownByLinkId, linkId, band.rippleCooldownSeconds)) {
+        this._spawnRippleCluster(anchor, Math.max(0.1, linkIntensity), band.rippleCount, band);
+      }
+
+      if (this.config.visualizations.burstParticles && this._canTriggerLinkEffect(this._burstCooldownByLinkId, linkId, band.burstCooldownSeconds)) {
+        this.spawnBurstParticles(anchor, Math.max(0.2, linkIntensity) * band.burstIntensityMultiplier, {
+          link,
+          cascadeIntensity: linkIntensity,
+          intensity: linkIntensity
+        }, {
+          countMultiplier: band.burstCountMultiplier,
+          intensityMultiplier: band.burstIntensityMultiplier,
+          radiusMultiplier: band.burstRadiusMultiplier
+        });
+      }
+
+      history.anchor = anchor.clone ? anchor.clone() : anchor;
+      history.lastSeenAt = this._nowSeconds();
+    }
   }
   
   /**
@@ -236,11 +293,23 @@ export class SynergyCascadeVisualizer {
     const candidates = [
       source?.userData?.synergy,
       source?.userData?.metrics?.synergy,
+      source?.userData?.metrics?.averageSynergy,
+      source?.userData?.metrics?.avgSynergy,
+      source?.userData?.metrics?.synergyScore,
+      source?.userData?.visualMetrics?.synergy,
+      source?.userData?.visualMetrics?.synergyNorm,
+      source?.userData?.flowState?.intensity,
+      source?.userData?.phaseSyncStrength,
+      source?.userData?.waveIntensity,
       source?.synergy,
       source?.userData?.cascadeIntensity,
       linkOrEvent?.synergy,
       linkOrEvent?.cascadeIntensity,
-      linkOrEvent?.intensity
+      linkOrEvent?.intensity,
+      linkOrEvent?.phaseSyncStrength,
+      linkOrEvent?.phaseSyncStability,
+      linkOrEvent?.waveIntensity,
+      linkOrEvent?.smoothWaveIntensity
     ];
 
     for (const candidate of candidates) {
@@ -250,9 +319,13 @@ export class SynergyCascadeVisualizer {
       if (candidate && typeof candidate === 'object') {
         const nestedCandidates = [
           candidate.score,
+          candidate.averageSynergy,
+          candidate.avgSynergy,
           candidate.synergyNorm,
           candidate.value,
-          candidate.intensity
+          candidate.intensity,
+          candidate.phaseSyncStrength,
+          candidate.waveIntensity
         ];
         for (const nested of nestedCandidates) {
           if (typeof nested === 'number' && Number.isFinite(nested)) {
@@ -263,6 +336,33 @@ export class SynergyCascadeVisualizer {
     }
 
     return 0;
+  }
+
+  _resolveCascadeSignalIntensity(event = {}) {
+    const candidates = [
+      event.intensity,
+      event.value,
+      event.cascadeIntensity,
+      event.phaseSyncStrength,
+      event.phaseSyncStability,
+      event.waveIntensity,
+      event.smoothWaveIntensity,
+      event.link?.userData?.cascadeIntensity,
+      event.link?.userData?.flowState?.intensity,
+      event.link?.userData?.phaseSyncStrength,
+      event.link?.userData?.waveIntensity,
+      event.link?.userData?.smoothWaveIntensity
+    ];
+
+    let resolved = 0;
+    for (const candidate of candidates) {
+      const numeric = Number(candidate);
+      if (Number.isFinite(numeric)) {
+        resolved = Math.max(resolved, numeric);
+      }
+    }
+
+    return this._clamp01(resolved);
   }
 
   _getSynergyCascadeBand(synergy) {
@@ -316,6 +416,57 @@ export class SynergyCascadeVisualizer {
     }
 
     return null;
+  }
+
+  _getVisibleCascadeFloorBand(intensity) {
+    const value = this._clamp01(intensity);
+    if (value < 0.18) {
+      return null;
+    }
+
+    const rippleCount = value >= 0.7 ? 2 : 1;
+    const burstCooldownSeconds = value >= 0.7 ? 4.5 : 5.5;
+
+    return {
+      name: 'floor',
+      threshold: 0.18,
+      rippleCount,
+      rippleCooldownSeconds: 2.0,
+      rippleRadiusStep: value >= 0.7 ? 0.05 : 0.0,
+      rippleHeightStep: value >= 0.7 ? 0.015 : 0.0,
+      rippleOpacityStep: value >= 0.7 ? 0.1 : 0.0,
+      burstCooldownSeconds,
+      burstCountMultiplier: value >= 0.7 ? 1.05 : 0.9,
+      burstIntensityMultiplier: Math.max(0.85, value),
+      burstRadiusMultiplier: 1.0 + value * 0.08
+    };
+  }
+
+  _seedCascadeHistory(link, intensity = 0, anchor = null) {
+    if (!link) return null;
+    const linkId = this._resolveLinkId(link);
+    if (!linkId) return null;
+
+    if (!this.cascadeHistory.has(link)) {
+      this.cascadeHistory.set(link, {
+        linkId,
+        cascadeIntensity: 0,
+        trailIntensity: 0,
+        color: new THREE.Color(),
+        lastSeenAt: this._nowSeconds(),
+        lastHeartbeatAt: 0,
+        anchor: null
+      });
+    }
+
+    const history = this.cascadeHistory.get(link);
+    history.linkId = linkId;
+    history.cascadeIntensity = Math.max(history.cascadeIntensity || 0, this._clamp01(intensity));
+    history.lastSeenAt = this._nowSeconds();
+    if (anchor) {
+      history.anchor = this._asVector3(anchor) || history.anchor || null;
+    }
+    return history;
   }
 
   _canTriggerLinkEffect(store, linkId, cooldownSeconds) {
@@ -804,18 +955,19 @@ export class SynergyCascadeVisualizer {
     const { cascadeId, intensity, anchor, link } = context;
     if (link) {
       const linkId = this._resolveLinkId(link);
-      const synergy = this._readLinkSynergy(link);
-      const band = this._getSynergyCascadeBand(synergy);
+      const visualIntensity = Math.max(this._readLinkSynergy(link), this._resolveCascadeSignalIntensity(event));
+      const band = this._getSynergyCascadeBand(visualIntensity) ?? this._getVisibleCascadeFloorBand(visualIntensity);
       if (!band) return;
 
-      this._getOrCreateCascade(cascadeId, Math.max(0.1, synergy));
+      this._getOrCreateCascade(cascadeId, Math.max(0.1, visualIntensity));
+      this._seedCascadeHistory(link, visualIntensity, anchor);
 
       if (this.config.visualizations.rippleEffect && this._canTriggerLinkEffect(this._rippleCooldownByLinkId, linkId, band.rippleCooldownSeconds)) {
-        this._spawnRippleCluster(anchor, Math.max(0.1, synergy), band.rippleCount, band);
+        this._spawnRippleCluster(anchor, Math.max(0.1, visualIntensity), band.rippleCount, band);
       }
 
       if (this.config.visualizations.burstParticles && this._canTriggerLinkEffect(this._burstCooldownByLinkId, linkId, band.burstCooldownSeconds)) {
-        this.spawnBurstParticles(anchor, Math.max(0.25, synergy) * band.burstIntensityMultiplier, event, {
+        this.spawnBurstParticles(anchor, Math.max(0.2, visualIntensity) * band.burstIntensityMultiplier, event, {
           countMultiplier: band.burstCountMultiplier,
           intensityMultiplier: band.burstIntensityMultiplier,
           radiusMultiplier: band.burstRadiusMultiplier
@@ -841,15 +993,16 @@ export class SynergyCascadeVisualizer {
 
     if (link) {
       const linkId = this._resolveLinkId(link);
-      const synergy = this._readLinkSynergy(link);
-      const band = this._getSynergyCascadeBand(synergy);
+      const visualIntensity = Math.max(this._readLinkSynergy(link), this._resolveCascadeSignalIntensity(event));
+      const band = this._getSynergyCascadeBand(visualIntensity) ?? this._getVisibleCascadeFloorBand(visualIntensity);
       if (!band) return;
 
-      const cascade = this._getOrCreateCascade(cascadeId, Math.max(0.1, synergy));
+      const cascade = this._getOrCreateCascade(cascadeId, Math.max(0.1, visualIntensity));
+      this._seedCascadeHistory(link, visualIntensity, anchor);
       cascade.hops.push({
         link,
         linkId,
-        intensity: Math.max(0.1, synergy),
+        intensity: Math.max(0.1, visualIntensity),
         age: 0,
         duration: this.config.hopLifetime,
         startPosition,
@@ -859,10 +1012,10 @@ export class SynergyCascadeVisualizer {
       });
 
       if (anchor && this.config.visualizations.rippleEffect && this._canTriggerLinkEffect(this._rippleCooldownByLinkId, linkId, band.rippleCooldownSeconds)) {
-        this._spawnRippleCluster(anchor, Math.max(0.1, synergy), band.rippleCount, band);
+        this._spawnRippleCluster(anchor, Math.max(0.1, visualIntensity), band.rippleCount, band);
       }
       if (anchor && this.config.visualizations.burstParticles && this._canTriggerLinkEffect(this._burstCooldownByLinkId, linkId, band.burstCooldownSeconds)) {
-        this.spawnBurstParticles(anchor, Math.max(0.25, synergy) * band.burstIntensityMultiplier, event, {
+        this.spawnBurstParticles(anchor, Math.max(0.2, visualIntensity) * band.burstIntensityMultiplier, event, {
           countMultiplier: band.burstCountMultiplier,
           intensityMultiplier: band.burstIntensityMultiplier,
           radiusMultiplier: band.burstRadiusMultiplier
@@ -983,6 +1136,7 @@ export class SynergyCascadeVisualizer {
     if (!link.userData) link.userData = {};
     
     // Get or create cascade history for this link
+    this._seedCascadeHistory(link, propagation.intensity);
     if (!this.cascadeHistory.has(link)) {
       this.cascadeHistory.set(link, {
         linkId: this._resolveLinkId(link),
@@ -1124,7 +1278,7 @@ export class SynergyCascadeVisualizer {
    */
   spawnFlowParticles(propagation, cascade) {
     const emissionBoost = this._resolveCascadeEmissionBoost(propagation);
-    const particleCount = Math.ceil(this.config.particleCount * propagation.intensity * 0.85 * emissionBoost);
+    const particleCount = Math.max(4, Math.ceil(this.config.particleCount * propagation.intensity * 0.95 * emissionBoost));
     const startPos = propagation.startPosition
       ?? propagation.startNode?.position
       ?? propagation.link?.source?.position
@@ -1181,12 +1335,13 @@ export class SynergyCascadeVisualizer {
         (Math.random() - 0.5) * 0.12
       );
       
-      particle.intensity = propagation.intensity;
+      particle.intensity = Math.max(0.3, propagation.intensity);
       particle.color = this.config.waveColor.clone().lerp(this.config.cascadeColor, Math.random() * 0.35);
       if (particle.mesh) {
         particle.mesh.visible = true;
+        particle.mesh.renderOrder = 1000;
         if (particle.mesh.material) {
-          particle.mesh.material.opacity = Math.min(1.0, 0.95 * particle.intensity + 0.18);
+          particle.mesh.material.opacity = Math.min(1.0, 0.45 + 0.55 * particle.intensity);
         }
         if (particle.mesh.material?.color && particle.color) {
           particle.mesh.material.color.copy(particle.color);
@@ -1244,8 +1399,9 @@ export class SynergyCascadeVisualizer {
       if (particle.mesh) {
         particle.mesh.visible = true;
         particle.mesh.position.copy(position);
+        particle.mesh.renderOrder = 1000;
         if (particle.mesh.material) {
-          particle.mesh.material.opacity = Math.min(1.0, 0.52 + particle.intensity * 0.48);
+          particle.mesh.material.opacity = Math.min(1.0, 0.62 + particle.intensity * 0.38);
         }
         if (particle.mesh.material?.color && particle.color) {
           particle.mesh.material.color.copy(particle.color);
@@ -1288,7 +1444,7 @@ export class SynergyCascadeVisualizer {
         if (particle.mesh.material.color && particle.color) {
           particle.mesh.material.color.copy(particle.color).lerp(this.config.fadeColor, 1.0 - fadeRatio);
         }
-        particle.mesh.material.opacity = Math.min(1.0, fadeRatio * 0.88 * particle.intensity + 0.08);
+        particle.mesh.material.opacity = Math.min(1.0, 0.12 + fadeRatio * 0.9 * particle.intensity);
         
         // Size decreases with age
         const scale = 0.9 - (particle.age / particle.lifetime) * 0.45;
@@ -1331,12 +1487,17 @@ export class SynergyCascadeVisualizer {
       color: this.config.waveColor,
       linewidth: 2,
       transparent: true,
-      opacity: Math.min(1.0, intensity * 0.9 * Math.max(0.1, Number(options.opacityScale ?? 1.0) || 1.0))
+      opacity: Math.min(1.0, (0.26 + intensity * 0.74) * Math.max(0.1, Number(options.opacityScale ?? 1.0) || 1.0)),
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false
     });
     
     const rippleLine = new THREE.Line(ringGeometry, rippleMaterial);
     rippleLine.position.copy(position);
     rippleLine.position.y += Number(options.verticalOffset ?? 0) || 0;
+    rippleLine.renderOrder = 999;
+    rippleLine.frustumCulled = false;
     
     ripple.mesh = rippleLine;
     this.scene.add(rippleLine);
@@ -1369,7 +1530,7 @@ export class SynergyCascadeVisualizer {
       
       if (ripple.mesh) {
         ripple.mesh.scale.setScalar(radius / 0.01);
-        ripple.mesh.material.opacity = fadeRatio * ripple.intensity * 0.6;
+        ripple.mesh.material.opacity = Math.min(1.0, 0.14 + fadeRatio * ripple.intensity * 0.72);
       }
     }
   }
@@ -1396,10 +1557,13 @@ export class SynergyCascadeVisualizer {
         transparent: true,
         opacity: 1.0,
         blending: THREE.AdditiveBlending,
-        depthWrite: false
+        depthWrite: false,
+        depthTest: false
       });
       const mesh = new THREE.Mesh(geometry, material);
       mesh.visible = true;
+      mesh.renderOrder = 1000;
+      mesh.frustumCulled = false;
       this.scene.add(mesh);
       
       return {

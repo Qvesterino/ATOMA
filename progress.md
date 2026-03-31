@@ -29,3 +29,18 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
 - Runtime verification for the antinode pass: 6 links created successfully in the browser, standing-wave debug overlay reported `R:18 | T:6 | A:1` with `P:6`, `amp:2.32`, `peak:2.73`, and screenshot `output/broken-mobius-check.png` showed the segmented antinode visuals active in-scene.
 - Trap-zone motion polish: softened the secondary orbit in the trap zone so the smaller torus uses a slower, more predictable drift and less phase noise while the primary torus remains unchanged.
 - Runtime verification for the trap-zone polish: `node --check StandingWaveVisualRenderer_Session131.js` passed and screenshot `output/trapzone-secondary-tune.png` confirmed the calmer secondary orbit still renders with active traps.
+
+## 2026-03-30
+- `LinkResonanceFlowSystem_Session124.js` now has a stability-driven visible floor on top of the existing load-pressure flow. Stable links seed deterministic pulse bursts instead of staying ambient-only.
+- `ResonanceEchoTrailSystem.js` now reads canonical fusion-state aliases (`harmonyBalance`, `averageSynergy`, `stability`, etc.) instead of falling back to default values, which was a real source of inconsistency.
+- The echo trail spawn path is now visible-first: composite states are banded into deterministic echo counts instead of relying on a low random spawn chance.
+- The burst path (`spawnEchoTrail`) now also uses the same visibility profile so wave/burst events do not go silent at moderate intensity.
+- Browser smoke on the module directly confirmed the new behavior: a synthetic fusion state with `averageSynergy=0.44`, `harmonyBalance=0.62`, `stability=0.71` produced active echoes with stronger opacity/scale, and the status readout showed active echo pooling working.
+- Console logging from the live app is still very noisy in the Playwright smoke, but the new echo system logs now show real spawn activity instead of a dormant summary.
+
+## 2026-03-31
+- Root cause for `LinkResonanceFlowSystem_Session124` staying at `linksWithFlow = 0`: `main.js` was calling `linkRendererConduit.updateLinkResonanceFlow()`, but the conduit instance in this runtime did not have `linkResonanceFlowSystem` wired in, so the call was a silent no-op.
+- Fixed by wiring `this.linkRendererConduit.linkResonanceFlowSystem` and `this.linkRendererConduit.linkResonanceSystem` to the canonical flow system during setup, and by falling back to the direct system update when the conduit has no attached flow authority.
+- Second root cause: the flow system was reading `loadPressure` and `stability` only from `link.userData.metrics`, but the live links had those metrics hydrated on their endpoint nodes, not on the link object itself.
+- Fixed by making `_readLinkPressureMetrics()` endpoint-aware and by switching the flow update cadence to a `deltaTime` accumulator so the visual spawn loop keeps moving even if VisualTime/frameId is not reliable in this path.
+- Browser smoke after the fix: creating 10 links produced `linksWithFlow = 10`, `pulseSpawnCount = 68` immediately after creation, and `pulseSpawnCount = 374` after 10 seconds. `cascadeVisualizer`, `resonanceEchoTrailSystem`, and `wavePatternSystem` also stayed active in the same run.

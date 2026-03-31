@@ -5513,7 +5513,7 @@ const makeWaveSlice = () => {
      */
     updatePictograms(deltaTime, time) {
         const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
-        if (!this._pictogramUpdateTickLast || now - this._pictogramUpdateTickLast >= 1000) {
+        if (!this._pictogramUpdateTickLast || now - this._pictogramUpdateTickLast >= 20000) {
             this._pictogramUpdateTickLast = now;
             console.error('[LinkRendererConduit] pictogram tick', {
                 enabled: this.pictogramSystem?.enabled === true,

@@ -74,7 +74,13 @@ export class WaveInterferencePatternSystem_Session132 {
             // Interference mesh rendering
             interferenceResolution: 16,       // Segments for interference mesh
             maxInterferenceMeshes: 50,        // Pool size
-            interferenceRenderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_WAVES),
+            interferenceRenderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
+            visualUpdateHz: 30,               // Explicit render pacing for this system
+            beatMotionScale: 0.72,            // Slightly slower beat animation
+            spikeCount: 8,                    // Protrusions on the sphere
+            spikeLength: 0.92,                // Spike reach from center
+            spikeRadius: 0.11,                // Spike base radius
+            shellOpacity: 0.12,               // Thin structural shell
             
             // Beat frequency patterns
             beatFrequencyRange: [0.5, 4.0],   // Min-max Hz from frequency differences
@@ -107,10 +113,16 @@ export class WaveInterferencePatternSystem_Session132 {
         
         // Object pools
         this.interferenceMeshPool = [];
+        this._visualAccumulator = 0;
+        this._visualStep = 1 / Math.max(1, this.config.visualUpdateHz);
+        this._spikeDirections = this._buildSpikeDirections();
         
         // Material cache
         this.constructiveMaterial = null;
         this.destructiveMaterial = null;
+        this._coreGeometry = null;
+        this._shellGeometry = null;
+        this._spikeGeometry = null;
         
         this.time = 0;
         this.initialized = false;
@@ -146,24 +158,27 @@ export class WaveInterferencePatternSystem_Session132 {
             blending: THREE.AdditiveBlending
         });
         
+        this._coreGeometry = new THREE.IcosahedronGeometry(0.85, 2);
+        this._shellGeometry = new THREE.IcosahedronGeometry(1.0, 1);
+        this._spikeGeometry = new THREE.ConeGeometry(0.12, this.config.spikeLength, 5, 1, false);
+        
         // Pre-allocate interference mesh pool
         for (let i = 0; i < this.config.maxInterferenceMeshes; i++) {
-            const geometry = new THREE.CylinderGeometry(
-                1, 1, 1,
-                this.config.interferenceResolution,
-                4, false
-            );
-            const mesh = new THREE.Mesh(geometry, this.constructiveMaterial.clone());
-            mesh.visible = false;
-            mesh.renderOrder = this.config.interferenceRenderOrder;
-            this.scene.add(mesh);
+            const meshItem = this._createInterferenceVisualItem();
+            meshItem.mesh.visible = false;
+            meshItem.mesh.renderOrder = this.config.interferenceRenderOrder;
+            this.scene.add(meshItem.mesh);
             this.interferenceMeshPool.push({
-                mesh: mesh,
+                ...meshItem,
                 active: false,
                 zone: null,
                 type: 'constructive',
                 intensity: 1,
-                birthTime: 0
+                birthTime: 0,
+                baseColor: this.config.constructiveColor.clone(),
+                baseOpacity: this.config.constructiveOpacity,
+                colorIntensity: 1,
+                opacityFactor: 1
             });
         }
         
@@ -177,6 +192,12 @@ export class WaveInterferencePatternSystem_Session132 {
      */
     update(deltaTime, currentTime) {
         if (!this.initialized) this.setup();
+        this._visualAccumulator += Math.max(0, Number(deltaTime) || 0);
+        if (this._visualAccumulator < this._visualStep) {
+            this.time = currentTime;
+            return;
+        }
+        this._visualAccumulator %= this._visualStep;
         
         this.time = currentTime;
         
@@ -494,39 +515,38 @@ export class WaveInterferencePatternSystem_Session132 {
             meshItem.zone = zone;
             meshItem.type = zone.type;
             meshItem.birthTime = zone.birthTime;
-            
+            meshItem.baseColor = (zone.type === 'constructive'
+                ? this.config.constructiveColor
+                : this.config.destructiveColor).clone();
+
             // Position mesh at convergence point
             meshItem.mesh.position.copy(zone.convergencePoint);
+            meshItem.baseOpacity = zone.type === 'constructive'
+                ? this.config.constructiveOpacity
+                : this.config.destructiveOpacity;
             
             // Scale based on intensity and beat - use proper world-space scale
-            const beatAmplitude = Math.sin(pattern.beatPhase);
-            const scaleFactor = Math.max(0.5, zone.intensity * (1 + beatAmplitude * this.config.beatAmplification));
-            // CylinderGeometry(1,1,1) creates a cylinder with radius1 and height1- scale appropriately
-            meshItem.mesh.scale.set(scaleFactor * 1.5, scaleFactor * 2.0, scaleFactor * 1.5);
+            const beatAmplitude = Math.sin(pattern.beatPhase * this.config.beatMotionScale);
+            const scaleFactor = Math.max(0.52, zone.intensity * (0.92 + beatAmplitude * this.config.beatAmplification));
+            const wobble = 1 + Math.abs(beatAmplitude) * 0.12;
+            meshItem.mesh.scale.set(scaleFactor * wobble, scaleFactor * (0.95 + Math.abs(beatAmplitude) * 0.18), scaleFactor * wobble);
+            meshItem.mesh.rotation.y = this.time * 0.22 + beatAmplitude * 0.55;
+            meshItem.mesh.rotation.x = this.time * 0.14 + beatAmplitude * 0.25;
+            meshItem.mesh.rotation.z = this.time * 0.09 + beatAmplitude * 0.15;
 
-            const material = meshItem.mesh.material;
-            
-            // Apply material based on interference type - MeshBasicMaterial with additive blending
             if (zone.type === 'constructive') {
                 const colorIntensity = Math.min(1, this.config.constructiveGlow * zone.intensity);
-                material.color.setRGB(
-                    this.config.constructiveColor.r * colorIntensity,
-                    this.config.constructiveColor.g * colorIntensity,
-                    this.config.constructiveColor.b * colorIntensity
-                );
+                meshItem.colorIntensity = colorIntensity;
                 meshItem.intensity = zone.intensity * this.config.constructiveAmplification;
             } else {
                 const colorIntensity = Math.min(1, this.config.destructiveGlow * zone.intensity);
-                material.color.setRGB(
-                    this.config.destructiveColor.r * colorIntensity,
-                    this.config.destructiveColor.g * colorIntensity,
-                    this.config.destructiveColor.b * colorIntensity
-                );
+                meshItem.colorIntensity = colorIntensity;
                 meshItem.intensity = zone.intensity * this.config.destructiveDamping;
             }
             
             // Set material opacity based on lifecycle
-            this._setMeshLifecycleOpacity(meshItem);
+            meshItem.opacityFactor = this._setMeshLifecycleOpacity(meshItem);
+            this._applyInterferenceMaterialState(meshItem, 1 + Math.abs(beatAmplitude) * 0.18);
             
             // Check LOD
             if (this.config.enableLOD) {
@@ -558,28 +578,7 @@ export class WaveInterferencePatternSystem_Session132 {
             opacityFactor = lifespan / this.config.emergenceTime;
         }
         
-        // Apply to material
-        const baseOpacity = meshItem.zone.type === 'constructive' 
-            ? this.config.constructiveOpacity 
-            : this.config.destructiveOpacity;
-        
-        meshItem.mesh.material.opacity = baseOpacity * opacityFactor;
-        
-        // Modulate color intensity for MeshBasicMaterial with additive blending
-        const baseGlow = meshItem.zone.type === 'constructive'
-            ? this.config.constructiveGlow
-            : this.config.destructiveGlow;
-        
-        const baseColor = meshItem.zone.type === 'constructive'
-            ? this.config.constructiveColor
-            : this.config.destructiveColor;
-        
-        const colorIntensity = Math.min(1, baseGlow * opacityFactor);
-        meshItem.mesh.material.color.setRGB(
-            baseColor.r * colorIntensity,
-            baseColor.g * colorIntensity,
-            baseColor.b * colorIntensity
-        );
+        return opacityFactor;
     }
 
     /**
@@ -632,18 +631,8 @@ export class WaveInterferencePatternSystem_Session132 {
             
             // Apply modulation
             const modulation = harmonyFactor * corruptionFactor * (1 + instabilityNoise) * (1 + synergyFactor);
-            
-            material.opacity *= modulation;
-            // For MeshBasicMaterial with additive blending, modulate color intensity
-            const baseColor = meshItem.zone.type === 'constructive'
-                ? this.config.constructiveColor
-                : this.config.destructiveColor;
-            const colorIntensity = Math.min(1, modulation);
-            material.color.setRGB(
-                baseColor.r * colorIntensity,
-                baseColor.g * colorIntensity,
-                baseColor.b * colorIntensity
-            );
+
+            this._applyInterferenceMaterialState(meshItem, modulation);
         });
     }
 
@@ -706,11 +695,12 @@ export class WaveInterferencePatternSystem_Session132 {
             if (item.mesh && item.mesh.parent) {
                 item.mesh.parent.remove(item.mesh);
             }
-            if (item.mesh.geometry) {
-                item.mesh.geometry.dispose();
-            }
-            if (item.mesh.material) {
-                item.mesh.material.dispose();
+            if (item.mesh?.traverse) {
+                item.mesh.traverse((child) => {
+                    if (child?.material) {
+                        child.material.dispose();
+                    }
+                });
             }
         });
         this.interferenceMeshPool = [];
@@ -722,8 +712,112 @@ export class WaveInterferencePatternSystem_Session132 {
         if (this.destructiveMaterial) {
             this.destructiveMaterial.dispose();
         }
+        if (this._coreGeometry) this._coreGeometry.dispose();
+        if (this._shellGeometry) this._shellGeometry.dispose();
+        if (this._spikeGeometry) this._spikeGeometry.dispose();
         
         this.zoneLifecycles.clear();
+    }
+
+    _createInterferenceVisualItem() {
+        const group = new THREE.Group();
+        group.matrixAutoUpdate = true;
+        group.renderOrder = this.config.interferenceRenderOrder;
+
+        const coreMaterial = this.constructiveMaterial.clone();
+        coreMaterial.opacity = this.config.constructiveOpacity;
+        const shellMaterial = this.constructiveMaterial.clone();
+        shellMaterial.opacity = this.config.shellOpacity;
+        const spikeMaterial = this.constructiveMaterial.clone();
+        spikeMaterial.opacity = this.config.constructiveOpacity * 0.95;
+
+        const coreMesh = new THREE.Mesh(this._coreGeometry, coreMaterial);
+        coreMesh.renderOrder = this.config.interferenceRenderOrder;
+        group.add(coreMesh);
+
+        const shellMesh = new THREE.Mesh(this._shellGeometry, shellMaterial);
+        shellMesh.renderOrder = this.config.interferenceRenderOrder + 1;
+        shellMesh.material.wireframe = true;
+        group.add(shellMesh);
+
+        const spikeMeshes = [];
+        const spikeBase = new THREE.Vector3(0, 1, 0);
+        const spikeCount = Math.max(1, this.config.spikeCount);
+        for (let i = 0; i < spikeCount; i++) {
+            const direction = this._spikeDirections[i % this._spikeDirections.length];
+            if (!direction) continue;
+            const spikeMesh = new THREE.Mesh(this._spikeGeometry, spikeMaterial);
+            spikeMesh.renderOrder = this.config.interferenceRenderOrder + 2;
+            spikeMesh.position.copy(direction).multiplyScalar(0.72);
+            spikeMesh.quaternion.setFromUnitVectors(spikeBase, direction.clone().normalize());
+            spikeMesh.scale.set(1, 0.8 + (i % 3) * 0.12, 1);
+            group.add(spikeMesh);
+            spikeMeshes.push(spikeMesh);
+        }
+
+        return {
+            mesh: group,
+            parts: [
+                { mesh: coreMesh, role: 'core', material: coreMesh.material },
+                { mesh: shellMesh, role: 'shell', material: shellMesh.material },
+                ...spikeMeshes.map((mesh) => ({ mesh, role: 'spike', material: mesh.material }))
+            ]
+        };
+    }
+
+    _applyInterferenceMaterialState(meshItem, modulation = 1) {
+        if (!meshItem?.parts?.length) return;
+
+        const baseColor = meshItem.baseColor ?? (
+            meshItem.zone?.type === 'constructive'
+                ? this.config.constructiveColor
+                : this.config.destructiveColor
+        );
+        const opacityFactor = Math.max(0.06, meshItem.opacityFactor ?? 1);
+        const colorIntensity = Math.min(1, (meshItem.colorIntensity ?? 1) * modulation);
+
+        meshItem.parts.forEach(({ material, role }) => {
+            if (!material) return;
+            const colorScale = role === 'core'
+                ? 1.0
+                : role === 'shell'
+                    ? 0.55
+                    : 0.88;
+            const opacityScale = role === 'core'
+                ? 1.0
+                : role === 'shell'
+                    ? 0.65
+                    : 0.92;
+
+            if (material.color) {
+                material.color.setRGB(
+                    baseColor.r * colorIntensity * colorScale,
+                    baseColor.g * colorIntensity * colorScale,
+                    baseColor.b * colorIntensity * colorScale
+                );
+            }
+
+            if (material.opacity !== undefined) {
+                material.opacity = Math.max(
+                    0.02,
+                    (meshItem.baseOpacity ?? this.config.constructiveOpacity) * opacityFactor * opacityScale * modulation
+                );
+            }
+        });
+    }
+
+    _buildSpikeDirections() {
+        const directions = [
+            new THREE.Vector3(1, 0, 0),
+            new THREE.Vector3(-1, 0, 0),
+            new THREE.Vector3(0, 1, 0),
+            new THREE.Vector3(0, -1, 0),
+            new THREE.Vector3(0, 0, 1),
+            new THREE.Vector3(0, 0, -1),
+            new THREE.Vector3(0.78, 0.62, 0),
+            new THREE.Vector3(-0.78, 0.62, 0)
+        ];
+        return directions.map((dir) => dir.normalize());
     }
 
     _getLinkEndpoints(link) {

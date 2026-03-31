@@ -116,6 +116,18 @@ Lesson:
 - prefer passive listeners on the true runtime authority layer
 - avoid `main.js` wrappers around `createLink/removeLink` or `setPrimaryNode/clearPrimaryNode`
 
+Canonical debug-only link creation path:
+
+- `NodeLinkingSystem.createLinkById(sourceNodeId, targetNodeId)` is the thin runtime helper
+- `window.__DEBUG.createLinkById(idA, idB)` is only a passthrough to the same authority
+- no duplicate link construction logic should live in `main.js`
+
+Canonical link-flow metric lesson:
+
+- `LinkResonanceFlowSystem_Session124` must derive load/stability from link endpoints when `link.userData.metrics` is sparse or zeroed
+- do not assume `link.userData.metrics` is the authoritative source for flow spawning
+- the flow system should remain tolerant of partial link metric hydration during creation
+
 ## Runtime Test Boot
 
 Confirmed default runtime validation entrypoint:

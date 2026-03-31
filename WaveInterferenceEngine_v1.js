@@ -173,6 +173,10 @@ export class WaveInterferenceEngine_v1 {
         this._packetInjections = new Map();
         this._packetCounter = 0;
         this._baseWaveSpeed = options.baseWaveSpeed ?? 4.0;
+        this._travelSpeedScale = options.travelSpeedScale ?? 0.72;
+        this._packetUpdateHz = options.packetUpdateHz ?? 30;
+        this._packetStep = 1 / Math.max(1, this._packetUpdateHz);
+        this._packetAccumulator = 0;
         this._packetSpread = options.packetSpread ?? 0.08;
         this._packetTtlSec = options.packetTtlSec ?? 2.5;
     }
@@ -332,12 +336,16 @@ export class WaveInterferenceEngine_v1 {
         this._syncBurstLifecycle();
         const dt = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0;
         if (this._travelPackets.length === 0) return false;
+        this._packetAccumulator += dt;
+        if (this._packetAccumulator < this._packetStep) return true;
+
+        const travelDelta = Math.max(this._packetStep, Math.floor(this._packetAccumulator / this._packetStep) * this._packetStep);
+        this._packetAccumulator = this._packetAccumulator % this._packetStep;
 
         const now = this.timeSource.now();
         for (let i = this._travelPackets.length - 1; i >= 0; i--) {
             const packet = this._travelPackets[i];
-            const step = dt > 0 ? dt : 0.016;
-            packet.position += packet.velocity * step;
+            packet.position += packet.velocity * travelDelta;
             this.injectWaveEnergy(packet.linkId, packet.position, packet.amplitude, packet.linkLength);
             if (packet.position > packet.linkLength || (now - packet.createdAt) > this._packetTtlSec) {
                 this._travelPackets.splice(i, 1);
@@ -426,7 +434,7 @@ export class WaveInterferenceEngine_v1 {
             id: `packet_${++this._packetCounter}`,
             linkId,
             position: 0,
-            velocity: this._baseWaveSpeed,
+            velocity: this._baseWaveSpeed * this._travelSpeedScale,
             amplitude: clamp01(intent.energy ?? 1.0),
             linkLength: Math.max(0.001, linkLength),
             createdAt: this.timeSource.now()

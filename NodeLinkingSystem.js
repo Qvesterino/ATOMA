@@ -8411,6 +8411,25 @@ getLinksForNode(node) {
   }
 
   /**
+   * Canonical debug/runtime helper for link creation by stable node IDs.
+   * Thin wrapper only: resolves nodes and forwards to createLink().
+   */
+  createLinkById(sourceNodeId, targetNodeId) {
+    const sourceNode = this._resolveNodeById(sourceNodeId);
+    const targetNode = this._resolveNodeById(targetNodeId);
+    if (!sourceNode || !targetNode) {
+      console.warn('[NodeLinkingSystem] createLinkById failed - missing nodes', {
+        sourceNodeId,
+        targetNodeId,
+        sourceFound: Boolean(sourceNode),
+        targetFound: Boolean(targetNode)
+      });
+      return null;
+    }
+    return this.createLink(sourceNode, targetNode);
+  }
+
+  /**
    * Run AI advisory analysis on the current network state.
    * READ-ONLY. DEBUG / QA ONLY. No authority, no side effects.
    * Never called automatically unless QA flag is set.

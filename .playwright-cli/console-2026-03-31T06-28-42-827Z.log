@@ -1,0 +1,24 @@
+[    2769ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[    2770ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[    2775ms] [WARNING] [CorruptionVisualFX_v1] THREE not detected – enabling SAFE MODE. @ http://127.0.0.1:5500/CorruptionVisualFX_v1.js:32
+[    3934ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[    3934ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[    4274ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[    4274ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[    4275ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[    6354ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[    6418ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[    6418ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[    6418ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[   24299ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[   24299ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[   24299ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[   26685ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 15, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[   44307ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[   44307ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[   44307ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[   46706ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 17, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[   64305ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[   64334ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[   64335ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[   66707ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 11, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30

@@ -285,10 +285,10 @@ export class GlyphFusionZoneManager {
         console.log('[GlyphFusionZoneManager] Initialized');
     }
 
-    _logLifecycle(key, message, details = null) {
+    _logLifecycle(key, message, details = null, intervalMs = COMPOSITE_LIFECYCLE_LOG_THROTTLE_MS) {
         const now = Date.now();
         const last = this._lifecycleLogTimes.get(key) || 0;
-        if (now - last < COMPOSITE_LIFECYCLE_LOG_THROTTLE_MS) return;
+        if (now - last < intervalMs) return;
 
         this._lifecycleLogTimes.set(key, now);
         if (details) {
@@ -1044,7 +1044,7 @@ export class GlyphFusionZoneManager {
             activeComposites: activeCount,
             attachedVisuals: attachedCount,
             activeZones: this.zones.filter((zone) => zone.active).length
-        });
+        }, 20000);
     }
 
     // ========================================================================

@@ -49,10 +49,10 @@ export class LinkSemanticPictogramSystem_WithFusion {
         console.log('[WithFusion] Initialized with fusion support');
     }
 
-    _logLifecycle(key, message, details = null) {
+    _logLifecycle(key, message, details = null, intervalMs = 1000) {
         const now = Date.now();
         const last = this._lifecycleLogTimes.get(key) || 0;
-        if (now - last < 1000) return;
+        if (now - last < intervalMs) return;
 
         this._lifecycleLogTimes.set(key, now);
         if (details) {
@@ -161,7 +161,7 @@ export class LinkSemanticPictogramSystem_WithFusion {
             activeZones,
             activeComposites,
             fusionEnabled: this.fusionZoneManager?.enabled !== false
-        });
+        }, 20000);
     }
 
     // ========================================================================

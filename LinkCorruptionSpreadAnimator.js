@@ -64,8 +64,7 @@ export class LinkCorruptionSpreadAnimator {
       spreadDuration: 2000,           // 2s for wave to travel source → target
       waveDuration: 800,              // Wave front width duration
       spreadStartThreshold: CASCADE_CORRUPTION_THRESHOLD, // Corruption level that triggers spread
-      sustainRepeatThreshold: 0.12,   // Keep pulse cadence alive while corruption remains meaningfully present
-      lingerDurationMs: 12000,        // Visual latch: keep burst cadence alive for a while after activation
+      inactiveResetThreshold: 0.08,   // Drop below this to cancel lingering sweep state cleanly
       triggerDeltaThreshold: 0.04,    // Minimum rise needed to trigger a new sweep
       retriggerCooldownMs: 550,       // Debounce to keep sweeps readable (avoid flicker spam)
       pulsePauseMs: 1800,             // Requested cadence: spread / pause / spread
@@ -175,7 +174,6 @@ export class LinkCorruptionSpreadAnimator {
       previousCorruption: 0,
       lastTriggerTime: -Infinity,
       lastCycleEndTime: -Infinity,
-      lingerUntil: -Infinity,
       isAnimating: false,
       dust: null
     });
@@ -205,7 +203,15 @@ export class LinkCorruptionSpreadAnimator {
 
     state.time = (state.time || 0) + safeDelta;
     
-    if (corruptionLevel <= 0 && !state?.isAnimating) {
+    if (corruptionLevel <= this.config.inactiveResetThreshold) {
+      state.previousCorruption = corruptionLevel;
+      state.wavePhase = 0;
+      state.dustTravelPhase = 0;
+      state.intensity = 0;
+      if (state.isAnimating) {
+        state.isAnimating = false;
+        state.lastCycleEndTime = nowMs;
+      }
       this._disposeDustState(state);
       return null;
     }
@@ -215,11 +221,8 @@ export class LinkCorruptionSpreadAnimator {
     // Trigger spread animation on meaningful corruption rise, with cooldown
     const corruptionDelta = corruptionLevel - state.previousCorruption;
     const aboveThreshold = corruptionLevel > CASCADE_CORRUPTION_THRESHOLD;
-    const sustainEligible = corruptionLevel >= this.config.sustainRepeatThreshold;
-    const lingerActive = nowMs <= (state.lingerUntil || -Infinity);
     const risingEnough = corruptionDelta >= this.config.triggerDeltaThreshold;
     const cooldownElapsed = (nowMs - state.lastTriggerTime) >= this.config.retriggerCooldownMs;
-    const pulsePauseElapsed = (nowMs - state.lastCycleEndTime) >= this.config.pulsePauseMs;
     const forceRetrigger = corruptionDelta >= this.config.forceRetriggerDelta;
 
     if (aboveThreshold && risingEnough && (cooldownElapsed || forceRetrigger)) {
@@ -227,14 +230,9 @@ export class LinkCorruptionSpreadAnimator {
       state.startTime = nowMs;
       state.wavePhase = 0;
       state.lastTriggerTime = nowMs;
-      state.lingerUntil = nowMs + this.config.lingerDurationMs;
     }
 
-    if (aboveThreshold) {
-      state.lingerUntil = Math.max(state.lingerUntil || -Infinity, nowMs + this.config.lingerDurationMs);
-    }
-
-    if ((sustainEligible || lingerActive) && !state.isAnimating && pulsePauseElapsed) {
+    if (aboveThreshold && !state.isAnimating && cooldownElapsed) {
       state.isAnimating = true;
       state.startTime = nowMs;
       state.wavePhase = 0;
@@ -244,7 +242,7 @@ export class LinkCorruptionSpreadAnimator {
     // Debug-only periodic sweep retrigger for visual verification.
     if (
       debugCfg.forceSweep &&
-      (corruptionLevel >= debugCfg.minCorruption || lingerActive) &&
+      corruptionLevel >= debugCfg.minCorruption &&
       (nowMs - state.lastTriggerTime) >= debugCfg.sweepIntervalMs
     ) {
       state.isAnimating = true;
@@ -254,7 +252,7 @@ export class LinkCorruptionSpreadAnimator {
     }
     state.previousCorruption = corruptionLevel;
 
-    if (sustainEligible || lingerActive) {
+    if (state.isAnimating) {
       state.dustTravelPhase = ((state.dustTravelPhase || 0) + safeDelta * this.config.dustTravelSpeed) % 1;
     }
     
@@ -283,7 +281,7 @@ export class LinkCorruptionSpreadAnimator {
       debugVisibilityBoost: debugCfg.visibilityBoost
     });
 
-    this._updateDustWave(link, state, corruptionLevel, { lingerActive, sustainEligible });
+    this._updateDustWave(link, state, corruptionLevel);
     
     return state;
   }

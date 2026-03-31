@@ -1,0 +1,42 @@
+Total messages: 43 (Errors: 9, Warnings: 3)
+Returning 37 messages for level "info"
+
+[LOG] Live reload enabled. @ http://127.0.0.1:5500/index.html:198
+[LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[WARNING] [CorruptionVisualFX_v1] THREE not detected – enabling SAFE MODE. @ http://127.0.0.1:5500/CorruptionVisualFX_v1.js:32
+[LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1449
+[TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1449
+[TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30

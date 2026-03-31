@@ -14,6 +14,7 @@
  * FEATURES:
  * 1. Directional Pulses: Energy packets traveling along links
  * 2. Load Pressure Reactivity: Pulse speed increases with link loadPressure
+ * 3. Stability Floor: Stable links seed deterministic visible bursts
  * 3. Multi-Pulse Support: Multiple energy packets per link
  * 4. Profile Encoding: Pulse intensity reflects canonical link metrics
  * 5. State Colors: Load pressure / corruption modulation
@@ -26,7 +27,7 @@
  * ✅ GPU-driven rendering (custom line shader)
  * ✅ CPU-driven pulse positioning (bezier curve following)
  * ✅ Per-link pulse pool (reused across frames)
- * ✅ Deterministic spawning (based on loadPressure metrics)
+ * ✅ Deterministic spawning (based on loadPressure + stability metrics)
  * 
  * @author VFX Technical Director — ATOMA Project Session 124
  * @version 1.0.0
@@ -71,6 +72,18 @@ export class LinkResonanceFlowSystem_Session124 {
       overloadSheathBoost: config.overloadSheathBoost ?? 0.38,
       overloadTrailBoost: config.overloadTrailBoost ?? 0.52,
       overloadJitter: config.overloadJitter ?? 0.075,
+
+      // Stability floor
+      stabilityVisualStart: config.stabilityVisualStart ?? 0.4,
+      stabilityMediumThreshold: config.stabilityMediumThreshold ?? 0.6,
+      stabilityStrongThreshold: config.stabilityStrongThreshold ?? 0.8,
+      stabilityPulseCooldown: config.stabilityPulseCooldown ?? 2.0,
+      stabilityPulseSpeedMult: config.stabilityPulseSpeedMult ?? 0.22,
+      stabilityPulseRadiusMult: config.stabilityPulseRadiusMult ?? 0.14,
+      stabilityPulseSheathBoost: config.stabilityPulseSheathBoost ?? 0.18,
+      stabilityPulseTrailBoost: config.stabilityPulseTrailBoost ?? 0.16,
+      stabilityIntensityBoost: config.stabilityIntensityBoost ?? 0.28,
+      stabilityOpacityBoost: config.stabilityOpacityBoost ?? 0.24,
       
       // Pulse appearance
       pulseRadiusBase: config.pulseRadiusBase ?? 0.28,
@@ -147,17 +160,43 @@ export class LinkResonanceFlowSystem_Session124 {
 
   _readLinkPressureMetrics(link) {
     const metrics = link?.userData?.metrics || {};
+    const sourceMetrics = link?.source?.userData?.metrics || link?.sourceNode?.userData?.metrics || {};
+    const targetMetrics = link?.target?.userData?.metrics || link?.targetNode?.userData?.metrics || {};
+    const endpointAvg = (key, fallback = 0) => {
+      const a = Number.isFinite(sourceMetrics?.[key]) ? sourceMetrics[key] : null;
+      const b = Number.isFinite(targetMetrics?.[key]) ? targetMetrics[key] : null;
+      if (a === null && b === null) return fallback;
+      if (a === null) return b;
+      if (b === null) return a;
+      return (a + b) * 0.5;
+    };
     const loadPressure = clamp01(
       metrics.loadPressure ??
       link?.userData?.loadPressure ??
+      link?.userData?.flowState?.loadPressure ??
+      endpointAvg('loadPressure', 0) ??
+      endpointAvg('load', 0) ??
       0
+    );
+    const stability = clamp01(
+      metrics.stability ??
+      link?.userData?.stability ??
+      link?.userData?.flowState?.stability ??
+      endpointAvg('stability', 0) ??
+      (Number.isFinite(metrics.instability) ? 1 - metrics.instability : 0)
+    );
+    const synergy = clamp01(
+      metrics.synergy ??
+      link?.userData?.synergy ??
+      link?.userData?.flowState?.synergy ??
+      endpointAvg('synergy', 0)
     );
 
     return {
       loadPressure,
       corruption: clamp01(metrics.corruption ?? 0),
-      synergy: clamp01(metrics.synergy ?? 0),
-      stability: clamp01(metrics.stability ?? 1)
+      synergy,
+      stability
     };
   }
 
@@ -173,6 +212,42 @@ export class LinkResonanceFlowSystem_Session124 {
       overloadMix,
       visualStart,
       overloadStart
+    };
+  }
+
+  _getStabilityProfile(stability) {
+    const visualStart = Math.max(0.01, this.config.stabilityVisualStart ?? 0.4);
+    const mediumStart = Math.max(visualStart + 0.01, this.config.stabilityMediumThreshold ?? 0.6);
+    const strongStart = Math.max(mediumStart + 0.01, this.config.stabilityStrongThreshold ?? 0.8);
+
+    const floorMix = clamp01((stability - visualStart) / (1.0 - visualStart));
+    const mediumMix = clamp01((stability - mediumStart) / (1.0 - mediumStart));
+    const strongMix = clamp01((stability - strongStart) / (1.0 - strongStart));
+
+    let burstCount = 0;
+    let stage = 'subtle';
+
+    if (stability >= strongStart) {
+      burstCount = 3;
+      stage = 'locked';
+    } else if (stability >= mediumStart) {
+      burstCount = 2;
+      stage = 'stable';
+    } else if (stability >= visualStart) {
+      burstCount = 1;
+      stage = 'steady';
+    }
+
+    return {
+      active: burstCount > 0,
+      stage,
+      burstCount,
+      floorMix,
+      mediumMix,
+      strongMix,
+      visualStart,
+      mediumStart,
+      strongStart
     };
   }
   
@@ -238,18 +313,15 @@ export class LinkResonanceFlowSystem_Session124 {
    */
   update(deltaTime, links, camera) {
     if (!this.config.enabled || !Array.isArray(links) || links.length === 0) return;
-
-    if (this._timeOrigin === undefined) {
-      this._timeOrigin = Number.isFinite(VisualTime.now) ? VisualTime.now : ((performance?.now?.() ?? Date.now()) / 1000);
-    }
-    const currentFrameId = VisualTime.frameId ?? 0;
-    if (this._lastUpdateFrameId === currentFrameId) {
+    const deltaVisual = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0;
+    const currentFrameId = Number.isFinite(VisualTime.frameId) ? VisualTime.frameId : null;
+    if (currentFrameId !== null && this._lastUpdateFrameId === currentFrameId && deltaVisual <= 0) {
       return;
     }
+
     this._lastUpdateFrameId = currentFrameId;
-    const visualNow = Number.isFinite(VisualTime.now) ? VisualTime.now : ((performance?.now?.() ?? Date.now()) / 1000);
-    const currentVisualTime = visualNow - this._timeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
-    const deltaVisual = this._lastVisualTime !== undefined ? currentVisualTime - this._lastVisualTime : 0;
+    this._elapsedTime = (this._elapsedTime ?? 0) + deltaVisual;
+    const currentVisualTime = this._elapsedTime;
     this._lastVisualTime = currentVisualTime;
 
     // Update spawn accumulators and spawn new pulses
@@ -274,7 +346,7 @@ export class LinkResonanceFlowSystem_Session124 {
   }
   
   /**
-   * Update pulse spawning based on link load pressure
+   * Update pulse spawning based on link load pressure and stability floor
    */
   _updateSpawning(currentVisualTime, links) {
     for (const link of links) {
@@ -283,30 +355,49 @@ export class LinkResonanceFlowSystem_Session124 {
       const linkId = link.id;
       const metrics = this._readLinkPressureMetrics(link);
       const loadPressure = metrics.loadPressure;
+      const stabilityProfile = this._getStabilityProfile(metrics.stability);
       const pressureProfile = this._getLoadPressureProfile(loadPressure);
+      const hasLoadFlow = loadPressure >= 0.08;
       
-      // Skip inactive links
-      if (loadPressure < 0.08) continue;
-      
+      if (!hasLoadFlow && !stabilityProfile.active) continue;
+
       // Get or create spawn accumulator
       if (!this.spawnAccumulators.has(linkId)) {
-        this.spawnAccumulators.set(linkId, { accumulator: 0, lastTime: currentVisualTime });
+        this.spawnAccumulators.set(linkId, {
+          accumulator: 0,
+          lastTime: currentVisualTime,
+          lastStabilityBurstTime: Number.NEGATIVE_INFINITY
+        });
       }
-      
-      // Calculate spawn rate
-      const overloadBoost = pressureProfile.overloadMix * this.config.overloadSpawnBoost;
-      const loadFactor = 0.22 + Math.pow(loadPressure, 1.08) * this.config.loadPressureSpawnBoost + overloadBoost;
-      const spawnRate = this.config.baseSpawnRate * loadFactor;
-      
+
       const accumulatorEntry = this.spawnAccumulators.get(linkId);
       const delta = currentVisualTime - (accumulatorEntry.lastTime ?? currentVisualTime);
-      accumulatorEntry.accumulator += delta * spawnRate;
       accumulatorEntry.lastTime = currentVisualTime;
       
-      // Spawn pulses
-      while (accumulatorEntry.accumulator >= 1.0) {
-        this._spawnPulse(link);
-        accumulatorEntry.accumulator -= 1.0;
+      if (hasLoadFlow) {
+        // Calculate ambient flow spawn rate from load pressure
+        const overloadBoost = pressureProfile.overloadMix * this.config.overloadSpawnBoost;
+        const loadFactor = 0.22 + Math.pow(loadPressure, 1.08) * this.config.loadPressureSpawnBoost + overloadBoost;
+        const spawnRate = this.config.baseSpawnRate * loadFactor;
+
+        accumulatorEntry.accumulator += delta * spawnRate;
+
+        // Spawn pulses
+        while (accumulatorEntry.accumulator >= 1.0) {
+          this._spawnPulse(link);
+          accumulatorEntry.accumulator -= 1.0;
+        }
+      }
+
+      if (stabilityProfile.active) {
+        const cooldown = Math.max(0.1, this.config.stabilityPulseCooldown ?? 2.0);
+        const lastBurst = accumulatorEntry.lastStabilityBurstTime ?? Number.NEGATIVE_INFINITY;
+        if (currentVisualTime - lastBurst >= cooldown) {
+          for (let i = 0; i < stabilityProfile.burstCount; i += 1) {
+            this._spawnPulse(link);
+          }
+          accumulatorEntry.lastStabilityBurstTime = currentVisualTime;
+        }
       }
     }
   }
@@ -323,6 +414,8 @@ export class LinkResonanceFlowSystem_Session124 {
     const loadPressure = metrics.loadPressure;
     const corruption = metrics.corruption;
     const synergy = metrics.synergy;
+    const stabilityProfile = this._getStabilityProfile(metrics.stability);
+    const stabilityMix = stabilityProfile.floorMix;
     const pressureProfile = this._getLoadPressureProfile(loadPressure);
     const overpressure = clamp01(loadPressure * (1.0 - metrics.stability * 0.35));
     const overloadMix = pressureProfile.overloadMix;
@@ -345,20 +438,40 @@ export class LinkResonanceFlowSystem_Session124 {
       
       // Speed based on load pressure
       speed: this.config.pulseSpeedBase + 
-             loadPressure * this.config.pulseSpeedLoadPressureMult,
+             loadPressure * this.config.pulseSpeedLoadPressureMult +
+             stabilityMix * this.config.stabilityPulseSpeedMult,
       overloadMix,
       
       // Appearance
       radius: Math.min(
-        this.config.pulseRadiusBase + loadPressure * this.config.pulseRadiusLoadPressureMult,
+        this.config.pulseRadiusBase +
+        loadPressure * this.config.pulseRadiusLoadPressureMult +
+        stabilityMix * this.config.stabilityPulseRadiusMult,
         this.config.pulseMaxRadius
       ),
 
-      sheathOpacity: Math.min(1.0, this.config.pulseSheathOpacity + loadPressure * 0.22 + overloadMix * 0.22),
-      trailOpacity: Math.min(1.0, this.config.pulseTrailOpacity + overpressure * 0.24 + overloadMix * 0.28),
-      trailLength: this.config.pulseTrailLengthBase + loadPressure * this.config.pulseTrailLengthLoadMult + overloadMix * 0.22,
+      sheathOpacity: Math.min(1.0,
+        this.config.pulseSheathOpacity +
+        loadPressure * 0.22 +
+        overloadMix * 0.22 +
+        stabilityMix * this.config.stabilityPulseSheathBoost
+      ),
+      trailOpacity: Math.min(1.0,
+        this.config.pulseTrailOpacity +
+        overpressure * 0.24 +
+        overloadMix * 0.28 +
+        stabilityMix * this.config.stabilityPulseTrailBoost
+      ),
+      trailLength: this.config.pulseTrailLengthBase +
+        loadPressure * this.config.pulseTrailLengthLoadMult +
+        overloadMix * 0.22 +
+        stabilityMix * this.config.stabilityPulseTrailBoost,
       intensity: Math.max(0.3, Math.min(1.0,
-        this.config.baseIntensity + loadPressure * this.config.loadPressureIntensityFactor + overpressure * 0.18 + overloadMix * this.config.overloadIntensityBoost
+        this.config.baseIntensity +
+        loadPressure * this.config.loadPressureIntensityFactor +
+        overpressure * 0.18 +
+        overloadMix * this.config.overloadIntensityBoost +
+        stabilityMix * this.config.stabilityIntensityBoost
       )),
       
       // State
@@ -373,6 +486,9 @@ export class LinkResonanceFlowSystem_Session124 {
       synergy,
       corruption,
       loadPressure,
+      stability: metrics.stability,
+      stabilityMix,
+      stabilityStage: stabilityProfile.stage,
       overpressure,
     };
     
@@ -428,15 +544,16 @@ export class LinkResonanceFlowSystem_Session124 {
       const direction = this._getLinkDirection(pulse.link, pulse.direction);
       const overloadMix = pulse.overloadMix ?? 0;
       const bandMix = this._getLoadPressureProfile(pulse.loadPressure ?? 0).pressurizedMix;
+      const stabilityMix = pulse.stabilityMix ?? 0;
       const linkSeed = getLinkSeed(pulse.linkId);
       
       // Calculate pulse appearance
       const color = this._getPulseColor(pulse);
       const opacity = this._getPulseOpacity(pulse) * (pulse.lodSuppression ?? 1.0);
-      const size = pulse.radius * (1.0 + Math.sin(pulse.life * Math.PI * 2) * 0.16 + overloadMix * 0.14);
-      const sheathSize = size * (1.34 + pulse.loadPressure * 0.28 + bandMix * 0.16 + overloadMix * this.config.overloadSheathBoost);
-      const trailSize = size * (0.42 + pulse.loadPressure * 0.12 - overloadMix * 0.12);
-      const trailLength = pulse.trailLength * (0.62 + pulse.loadPressure * 0.28 + overloadMix * this.config.overloadTrailBoost) * (1.0 + Math.sin(pulse.life * Math.PI) * 0.08);
+      const size = pulse.radius * (1.0 + Math.sin(pulse.life * Math.PI * 2) * 0.16 + overloadMix * 0.14 + stabilityMix * 0.1);
+      const sheathSize = size * (1.34 + pulse.loadPressure * 0.28 + bandMix * 0.16 + overloadMix * this.config.overloadSheathBoost + stabilityMix * 0.18);
+      const trailSize = size * (0.42 + pulse.loadPressure * 0.12 - overloadMix * 0.12 + stabilityMix * 0.08);
+      const trailLength = pulse.trailLength * (0.62 + pulse.loadPressure * 0.28 + overloadMix * this.config.overloadTrailBoost + stabilityMix * 0.16) * (1.0 + Math.sin(pulse.life * Math.PI) * 0.08);
       const jitter = overloadMix * this.config.overloadJitter;
       
       // Apply transforms and uniforms
@@ -455,23 +572,23 @@ export class LinkResonanceFlowSystem_Session124 {
         const uniforms = parts.core.material.uniforms;
         if (uniforms.uColor) uniforms.uColor.value.copy(color);
         if (uniforms.uOpacity) uniforms.uOpacity.value = opacity * (1.0 + overloadMix * 0.18);
-        if (uniforms.uGlowSize) uniforms.uGlowSize.value = this.config.pulseGlowIntensity * (1.0 + pulse.loadPressure * 0.2 + overloadMix * 0.4);
+        if (uniforms.uGlowSize) uniforms.uGlowSize.value = this.config.pulseGlowIntensity * (1.0 + pulse.loadPressure * 0.2 + overloadMix * 0.4 + stabilityMix * 0.24);
       }
       if (parts.sheath) {
         parts.sheath.position.set(0, 0, 0);
         parts.sheath.scale.setScalar(sheathSize);
         const sheathUniforms = parts.sheath.material.uniforms;
-        if (sheathUniforms.uColor) sheathUniforms.uColor.value.copy(color).lerp(new THREE.Color(0xffffff), 0.16 + pulse.loadPressure * 0.18 + overloadMix * 0.24);
+        if (sheathUniforms.uColor) sheathUniforms.uColor.value.copy(color).lerp(new THREE.Color(0xffffff), 0.16 + pulse.loadPressure * 0.18 + overloadMix * 0.24 + stabilityMix * 0.18);
         if (sheathUniforms.uOpacity) sheathUniforms.uOpacity.value = opacity * pulse.sheathOpacity * (1.0 + overloadMix * 0.28);
-        if (sheathUniforms.uGlowSize) sheathUniforms.uGlowSize.value = this.config.pulseGlowIntensity * (0.82 + pulse.loadPressure * 0.25 + overloadMix * 0.38);
+        if (sheathUniforms.uGlowSize) sheathUniforms.uGlowSize.value = this.config.pulseGlowIntensity * (0.82 + pulse.loadPressure * 0.25 + overloadMix * 0.38 + stabilityMix * 0.22);
       }
       if (parts.trail) {
         parts.trail.position.set(0, -0.5 * trailLength - size * 0.18, 0);
         parts.trail.scale.set(trailSize, trailLength, trailSize);
         const trailUniforms = parts.trail.material.uniforms;
-        if (trailUniforms.uColor) trailUniforms.uColor.value.copy(color).lerp(new THREE.Color(0x86ffff), 0.2 + overloadMix * 0.22);
+        if (trailUniforms.uColor) trailUniforms.uColor.value.copy(color).lerp(new THREE.Color(0x86ffff), 0.2 + overloadMix * 0.22 + stabilityMix * 0.12);
         if (trailUniforms.uOpacity) trailUniforms.uOpacity.value = opacity * pulse.trailOpacity * (1.0 + overloadMix * 0.18);
-        if (trailUniforms.uGlowSize) trailUniforms.uGlowSize.value = this.config.pulseGlowIntensity * (0.54 + overloadMix * 0.18);
+        if (trailUniforms.uGlowSize) trailUniforms.uGlowSize.value = this.config.pulseGlowIntensity * (0.54 + overloadMix * 0.18 + stabilityMix * 0.16);
       }
       if (parts.overloadA) {
         const showOverload = overloadMix > 0.001;
@@ -526,6 +643,7 @@ export class LinkResonanceFlowSystem_Session124 {
     const pressureHot = Math.pow(loadPressure, 1.24);
     const pressureCool = 1.0 - loadPressure;
     const overloadMix = pulse.overloadMix ?? 0;
+    const stabilityMix = pulse.stabilityMix ?? 0;
     const bandMix = this._getLoadPressureProfile(loadPressure).pressurizedMix;
 
     color.setHSL(
@@ -542,6 +660,11 @@ export class LinkResonanceFlowSystem_Session124 {
 
     if (bandMix > 0.0) {
       color.lerp(new THREE.Color(0xf4fbff), bandMix * 0.18);
+    }
+
+    if (stabilityMix > 0.0) {
+      color.lerp(new THREE.Color(0xf8ffff), stabilityMix * 0.16);
+      color.multiplyScalar(1.0 + stabilityMix * 0.08);
     }
 
     if (overloadMix > 0.0) {
@@ -583,9 +706,11 @@ export class LinkResonanceFlowSystem_Session124 {
 
     const bandMix = this._getLoadPressureProfile(pulse.loadPressure ?? 0).pressurizedMix;
     const bandBoost = 0.72 + bandMix * 0.34 + pulse.overloadMix * 0.68;
-    const pressureBoost = bandBoost + pulse.loadPressure * 0.32;
+    const stabilityMix = pulse.stabilityMix ?? 0;
+    const pressureBoost = bandBoost + pulse.loadPressure * 0.32 + stabilityMix * 0.18;
+    const stabilityBoost = 0.84 + stabilityMix * this.config.stabilityOpacityBoost;
 
-    return fadeIn * fadeOut * baseOpacity * corruptionDampen * pressureBoost;
+    return fadeIn * fadeOut * baseOpacity * corruptionDampen * pressureBoost * stabilityBoost;
   }
   
   /**

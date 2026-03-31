@@ -6952,6 +6952,12 @@ window.__ATOMA_SCENE__ = this.scene;
             this.cascadePropagationVisuals = null;
             this.phase5CascadePropagationVisuals = null;
 
+            if (this.t2CorruptionVisualIntegration && typeof this.t2CorruptionVisualIntegration.dispose === 'function') {
+                this.t2CorruptionVisualIntegration.dispose();
+                console.log('[main.js] T2_CorruptionVisualIntegration disposed');
+            }
+            this.t2CorruptionVisualIntegration = null;
+
             if (this.corruptionVisualFX && typeof this.corruptionVisualFX.dispose === 'function') {
                 this.corruptionVisualFX.dispose();
                 console.log('[main.js] CorruptionVisualFX disposed');
@@ -7394,6 +7400,7 @@ window.__ATOMA_SCENE__ = this.scene;
             this.renderer,
             this.aiNodes
         );
+        this.linkRendererConduit = this.linkingSystem?.conduitRenderer || this.linkRendererConduit || null;
         if (this.harmonicHealing) {
             this.harmonicHealing.linkingSystem = this.linkingSystem;
         }
@@ -7403,6 +7410,11 @@ window.__ATOMA_SCENE__ = this.scene;
         if (this.linkingSystem?.conduitRenderer) {
             this.linkingSystem.conduitRenderer.waveShaderBridge =
                 this.waveShaderBridge || this.linkingSystem.conduitRenderer.waveShaderBridge;
+        }
+        if (this.linkRendererConduit && this.linkResonanceFlowSystem) {
+            this.linkRendererConduit.linkResonanceFlowSystem = this.linkResonanceFlowSystem;
+            this.linkRendererConduit.linkResonanceSystem = this.linkResonanceSystem || this.linkResonanceFlowSystem;
+            this.linkResonanceFlowSystem.world = this.linkRendererConduit.linkSystem || this.linkingSystem || this.world || this.linkResonanceFlowSystem.world;
         }
         this.linkingSystem.semanticBus = this.semanticBus;
         this.linkingSystem.isReady = true;
@@ -8959,7 +8971,8 @@ window.__ATOMA_SCENE__ = this.scene;
             this.t2CorruptionVisualIntegration = new T2_CorruptionVisualIntegration_v1(
                 this.scene,
                 this.linkingSystem,
-                null  // CorruptionVisualFX reference (optional)
+                null,  // CorruptionVisualFX reference (optional)
+                this.aiNodes
             );
             console.log('[main.js] T2_CorruptionVisualIntegration_v1 initialized ✓');
         } catch (err) {
@@ -10658,7 +10671,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     }
 
     linkResonanceFlowSystemTick(deltaTime) {
-        if (this.linkRendererConduit?.updateLinkResonanceFlow) {
+        if (this.linkRendererConduit?.updateLinkResonanceFlow && this.linkRendererConduit?.linkResonanceFlowSystem) {
             this.linkRendererConduit.updateLinkResonanceFlow(
                 deltaTime,
                 VisualTime.now,
@@ -14989,6 +15002,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     }
                 );
             }
+            if (this.linkRendererConduit) {
+                this.linkRendererConduit.linkResonanceFlowSystem = this.linkResonanceFlowSystem;
+                this.linkRendererConduit.linkResonanceSystem = this.linkResonanceSystem;
+                this.linkResonanceFlowSystem.world = this.linkRendererConduit.linkSystem || this.linkingSystem || this.world || this.linkResonanceFlowSystem.world;
+            }
             // Canonical alias for downstream systems expecting linkResonanceSystem contract.
             this.linkResonanceSystem = this.linkResonanceFlowSystem;
 
@@ -15218,6 +15236,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     setupDebugCommands() {
         // Store game reference for global access
         window.atoma = this;
+        window.__DEBUG = window.__DEBUG || {};
+        window.__DEBUG.getLinkingSystem = () => this.linkingSystem ?? this.nodeLinkingSystem ?? this.nodeLinking ?? null;
+        window.__DEBUG.createLinkById = (idA, idB) => window.__DEBUG.getLinkingSystem()?.createLinkById?.(idA, idB) ?? null;
+        window.__DEBUG.createLink = (nodeA, nodeB) => window.__DEBUG.getLinkingSystem()?.createLink?.(nodeA, nodeB) ?? null;
+        window.__DEBUG.getNodeById = (id) => window.__DEBUG.getLinkingSystem()?._resolveNodeById?.(id) ?? null;
 
         // Recursive Glyph Messaging 4.0 commands
         window.toggleRecursiveChains = () => {
@@ -15352,6 +15375,10 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         };
 
         console.log('✓ Debug commands available:');
+        console.log('  - __DEBUG.createLinkById(idA, idB) — canonical thin wrapper over NodeLinkingSystem.createLink()');
+        console.log('  - __DEBUG.createLink(nodeA, nodeB) — direct runtime passthrough');
+        console.log('  - __DEBUG.getNodeById(id) — resolve a node from the runtime lookup');
+        console.log('  - __DEBUG.getLinkingSystem() — current link authority instance');
         console.log('  - toggleRecursiveChains()');
         console.log('  - debugRecursiveMessages()');
         console.log('  - clearRecursiveGlyphs()');
