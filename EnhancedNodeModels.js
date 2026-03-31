@@ -146,6 +146,7 @@ const CONTROL_V2_CACHE = {
 const CONTROL_V2_MATERIALS = new Map(); // keyed by color hex
 
 // CONTROL v2 legacy caches (Cybernetic Dominion Core)
+// Live compatibility path, not dead code: keep the LEGACY name until all callers migrate.
 const CONTROL_V2_LEGACY_CACHE = {
   coreGeometry: null,
   coreEdgesGeometry: null,
@@ -930,6 +931,7 @@ function _getControlV2Materials(color) {
 }
 
 // ---------- CONTROL v2 legacy helpers (Cybernetic Dominion Core) ----------
+// Live compatibility helpers for the legacy control geometry/material path.
 function _getControlV2Geometries_Legacy() {
   if (!CONTROL_V2_LEGACY_CACHE.coreGeometry) {
     CONTROL_V2_LEGACY_CACHE.coreGeometry = new THREE.IcosahedronGeometry(0.55, 1);

@@ -13,12 +13,57 @@ import * as Tone from 'tone';
 export class AtomaAudioSystem {
     constructor() {
         this.initialized = false;
-        this.enabled = true;
+        this.storageKey = 'atoma.audio.enabled';
+        this.enabled = this._readEnabledPreference();
         this.lastTriggerAt = new Map();
         
         // All Tone.js synths and effects will be created in createSynths()
         // This prevents AudioContext warning before user gesture
         console.log('[Audio] System Constructed (Waiting for user interaction)');
+    }
+
+    _readEnabledPreference() {
+        try {
+            if (typeof localStorage === 'undefined') return true;
+            const stored = localStorage.getItem(this.storageKey);
+            if (stored === null) return true;
+            return stored !== '0' && stored !== 'false';
+        } catch {
+            return true;
+        }
+    }
+
+    _setDestinationMute(muted) {
+        const destination = typeof Tone.getDestination === 'function'
+            ? Tone.getDestination()
+            : Tone.Destination;
+        if (destination && 'mute' in destination) {
+            destination.mute = muted;
+        }
+    }
+
+    setEnabled(enabled) {
+        const nextEnabled = enabled !== false;
+        this.enabled = nextEnabled;
+
+        try {
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem(this.storageKey, nextEnabled ? '1' : '0');
+            }
+        } catch {
+            // ignore persistence failures
+        }
+
+        if (!nextEnabled) {
+            this.lastTriggerAt.clear();
+        }
+
+        this._setDestinationMute(!nextEnabled);
+        return this.enabled;
+    }
+
+    toggleEnabled() {
+        return this.setEnabled(!this.enabled);
     }
 
     canTrigger(key, cooldownMs) {
@@ -271,6 +316,8 @@ export class AtomaAudioSystem {
         }).connect(this.masterReverb).start();
         this.synergySynth.disconnect();
         this.synergySynth.connect(this.synergyFilter);
+
+        this._setDestinationMute(!this.enabled);
     }
 
     /**
@@ -279,6 +326,7 @@ export class AtomaAudioSystem {
      */
     async start() {
         if (this.initialized) return;
+        if (!this.enabled) return false;
         
         // First, start the AudioContext (requires user gesture)
         await Tone.start();
@@ -291,11 +339,12 @@ export class AtomaAudioSystem {
         
         // Play a very faint "boot" sound to confirm
         this.playSelection(true); 
+        return true;
     }
 
     // --- TASK 1: Node Selection (Listening) ---
     playSelection(isBoot = false) {
-        if (!this.initialized && !isBoot) return;
+        if (!this.initialized || !this.enabled) return;
         if (!isBoot && !this.canTrigger('selection', 45)) return;
         // Soft sine ping, slightly high but soft
         // Slightly lower and softer than before to avoid harshness on small speakers
@@ -304,7 +353,7 @@ export class AtomaAudioSystem {
 
     // --- TASK 1.5: Node Hover Enter (Glyph Flyover) ---
     playHoverEnter() {
-        if (!this.initialized) return;
+        if (!this.initialized || !this.enabled) return;
         if (!this.canTrigger('hoverEnter', 140)) return;
         const now = Tone.now();
         this.hoverSynth.triggerAttackRelease("A5", "32n", now, 0.3);
@@ -312,13 +361,13 @@ export class AtomaAudioSystem {
     }
 
     playHoverExit() {
-        if (!this.initialized) return;
+        if (!this.initialized || !this.enabled) return;
         if (!this.canTrigger('hoverExit', 120)) return;
         this.hoverExitSynth.triggerAttackRelease("E4", "32n", undefined, 0.1);
     }
 
     playPrimaryNodeSet() {
-        if (!this.initialized) return;
+        if (!this.initialized || !this.enabled) return;
         if (!this.canTrigger('primaryNodeSet', 180)) return;
         const now = Tone.now();
         this.primarySetSynth.triggerAttackRelease("C4", "16n", now, 0.28);
@@ -326,14 +375,14 @@ export class AtomaAudioSystem {
     }
 
     playInvalidLinkAttempt() {
-        if (!this.initialized) return;
+        if (!this.initialized || !this.enabled) return;
         if (!this.canTrigger('invalidLinkAttempt', 100)) return;
         this.invalidLinkSynth.triggerAttackRelease("B3", "32n", undefined, 0.2);
     }
 
     // --- TASK 2: Node Deselection (Settling) ---
     playDeselection() {
-        if (!this.initialized) return;
+        if (!this.initialized || !this.enabled) return;
         if (!this.canTrigger('deselection', 45)) return;
         // Lower pitch, still clearly audible for runtime verification
         this.selectionSynth.triggerAttackRelease("E4", "16n", undefined, 0.45);
@@ -341,7 +390,7 @@ export class AtomaAudioSystem {
 
     // --- TASK 3: Link Creation (Agreement) ---
     playLinkCreated() {
-        if (!this.initialized) return;
+        if (!this.initialized || !this.enabled) return;
         if (!this.canTrigger('linkCreated', 60)) return;
         // Harmonic interval (Perfect 5th) to signify stability/agreement
         // "C5" + "G5"
@@ -351,7 +400,7 @@ export class AtomaAudioSystem {
 
     // --- TASK 4: Link Breaking (Diffusing) ---
     playLinkBroken() {
-        if (!this.initialized) return;
+        if (!this.initialized || !this.enabled) return;
         if (!this.canTrigger('linkBroken', 80)) return;
         // Filtered noise sweep down
         this.unlinkFilter.frequency.value = 1800;
@@ -361,7 +410,7 @@ export class AtomaAudioSystem {
 
     // --- TASK 5: Synergy Activation (Harmonic Bloom) ---
     playSynergyActive() {
-        if (!this.initialized) return;
+        if (!this.initialized || !this.enabled) return;
         // Major 9th chord for "Clarity" and "Expansion"
         // C4, E4, G4, B4, D5
         const chord = ["C4", "G4", "D5"]; 
@@ -370,7 +419,7 @@ export class AtomaAudioSystem {
 
     // --- TASK 6: Synergy Fading (Dissipate) ---
     playSynergyFade() {
-        if (!this.initialized) return;
+        if (!this.initialized || !this.enabled) return;
         // Single lingering low tone fading out
         this.synergySynth.triggerAttackRelease(["C3"], "1n", undefined, 0.2);
     }

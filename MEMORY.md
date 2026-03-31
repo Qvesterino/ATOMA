@@ -131,6 +131,10 @@ Canonical link-flow metric lesson:
 Canonical cascade-seed lesson:
 
 - `SynergyCascadeVisualizer` should seed its birth lifecycle from the canonical `link.created` event with the live link object
+- `SynergyCascadeVisualizer` should also keep a heartbeat-driven flow repeat path keyed by canonical link IDs, so the visual is not create-only
+- `SynergyCascadeVisualizer.flowParticles` is now a batch `THREE.Points` emitter; burst particles remain mesh-based for readability, and this split is the preferred balance of performance and visual quality
+- `SynergyCascadeVisualizer` cascade bands are intentionally low-threshold now (`0.1 / 0.2 / 0.3`) so low-synergy links still visibly spawn instead of looking dormant
+- `window.__DEBUG.triggerCascadeAtNodeId(nodeId, intensity)` is the preferred thin console helper for manual cascade spawning when testing the visualizer
 - do not rely only on a transient `onLinkCreated` callback path for cascade history seeding
 - cascade history should be retained with age-based cleanup and link liveness checks, not random per-frame history deletion
 

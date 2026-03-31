@@ -6,6 +6,7 @@ import { NodeSpatialIndex, acceleratedRaycast } from './NodeSpatialIndex.js';
 // Stub function for compatibility
 const freezeNodeCoreState = (nodeModel) => { /* no-op */ };
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { createLogger, isDebugEnabled } from './src/utils/DebugLogger.js';
 
 function isLinkSpawnEnabled() {
   if (typeof window === 'undefined') return false;
@@ -392,6 +393,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     this.activationHysteresis = 2; // PHASE VD-3 FIX: Prevent flickering at threshold
     this.connectionDistance = 15;
     this.debugMode = false;  // Set to true for spawn debug logging
+    
+    // Debug logger
+    this._logger = createLogger('AINodes');
 
     // Spawn range helpers for fallback recovery
     this.minSpawnDistance = 15;
@@ -704,6 +708,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     this.activityCounters = { active: 0, semiActive: 0, dormant: 0 };
     this._edgeCageFadeAccumulator = 0;
     this._edgeCageWorldPos = new THREE.Vector3();
+    this._edgeCageObjects = [];
 
     // Runtime spawn intent rotation to avoid INPUT lock-in
     this._runtimeSpawnIndex = 0;
@@ -925,7 +930,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       try {
         observer.fn(node, context);
       } catch (err) {
-        console.warn(`[AINodes] post-spawn observer '${name}' failed:`, err?.message || err);
+        this._logger.warn(`[PostSpawnObserver] '${name}' failed:`, err?.message || err);
       }
     }
   }
@@ -2197,6 +2202,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
           if (!nodeModel.userData.overlays[edgeKey]) {
             child.add(edgeLines);
             nodeModel.userData.overlays[edgeKey] = edgeLines;
+            if (!this._edgeCageObjects.includes(edgeLines)) {
+              this._edgeCageObjects.push(edgeLines);
+            }
           }
         }
       });
@@ -2950,7 +2958,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    */
   updateEdgeCageDistanceFade(deltaTime, camera) {
     if (!camera?.position) return;
-    if (!Array.isArray(this.nodes) || this.nodes.length === 0) return;
+    if (!Array.isArray(this._edgeCageObjects) || this._edgeCageObjects.length === 0) return;
 
     this._edgeCageFadeAccumulator += (Number.isFinite(deltaTime) ? deltaTime : 0);
     const tickInterval = 1 / 30; // visual cadence target
@@ -2976,30 +2984,31 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     };
 
     const worldPos = this._edgeCageWorldPos || (this._edgeCageWorldPos = new THREE.Vector3());
-    for (const node of this.nodes) {
-      if (!node?.traverse) continue;
-      node.traverse((obj) => {
-        if (!obj?.userData || obj.userData.isEdgeCage !== true) return;
-        if (!obj.material) return;
+    const activeEdgeCages = [];
+    for (const obj of this._edgeCageObjects) {
+      if (!obj?.material || !obj?.parent) continue;
 
-        obj.getWorldPosition(worldPos);
-        const distance = camera.position.distanceTo(worldPos);
-        const fade = smoothstep(far, near, distance);
+      obj.getWorldPosition(worldPos);
+      const distance = camera.position.distanceTo(worldPos);
+      const fade = smoothstep(far, near, distance);
 
-        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-        for (const mat of mats) {
-          if (!mat) continue;
-          const mud = mat.userData || (mat.userData = {});
-          if (!Number.isFinite(mud.__edgeCageBaseOpacity)) {
-            mud.__edgeCageBaseOpacity = Number.isFinite(mat.opacity) ? mat.opacity : 1.0;
-          }
-          const targetOpacity = Math.max(minOpacityFloor, Math.min(1.0, mud.__edgeCageBaseOpacity * fade));
-          mat.transparent = true;
-          mat.depthWrite = false;
-          mat.opacity = targetOpacity;
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const mat of mats) {
+        if (!mat) continue;
+        const mud = mat.userData || (mat.userData = {});
+        if (!Number.isFinite(mud.__edgeCageBaseOpacity)) {
+          mud.__edgeCageBaseOpacity = Number.isFinite(mat.opacity) ? mat.opacity : 1.0;
         }
-      });
+        const targetOpacity = Math.max(minOpacityFloor, Math.min(1.0, mud.__edgeCageBaseOpacity * fade));
+        mat.transparent = true;
+        mat.depthWrite = false;
+        mat.opacity = targetOpacity;
+      }
+
+      activeEdgeCages.push(obj);
     }
+    this._edgeCageObjects.length = 0;
+    this._edgeCageObjects.push(...activeEdgeCages);
   }
   
   /**
@@ -3783,7 +3792,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     if (scaleNonFinite) issues.push('scale-non-finite');
 
     if (issues.length > 0) {
-      console.warn(`[SpawnFinalize] visibility-risk id=${node.uuid || 'unknown'} cat=${category || 'unknown'} issues=${issues.join(',')}`);
+      this._logger.warn(`[VisibilityRisk] id=${node.uuid || 'unknown'} cat=${category || 'unknown'} issues=${issues.join(',')}`);
     }
 
     if (renderableCount === 0) {
@@ -4671,7 +4680,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   /**
    * Register link event (triggers potential spawn)
    */
-  maybeSpawnNodeOnLinkCreated() {
+  maybeSpawnNodeFromLinkCreation() {
     if (this.spawnState.phase !== 'RUNTIME') return;
     if (this.spawningConfig?.disableRuntimeSpawn === true) return;
     if (Number.isFinite(this.hardSpawnCap) && this.getNodeCount() >= this.hardSpawnCap) return;
@@ -4685,7 +4694,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
     if (window.ATOMA_FLAGS?.debug?.linkSpawn === true && shouldLogSpawn()) {
-      console.warn('[LINK-SPAWN] maybeSpawnNodeOnLinkCreated called (link -> spawn trigger)', {
+      console.warn('[LINK-SPAWN] maybeSpawnNodeFromLinkCreation called (link -> spawn trigger)', {
         currentTime: Date.now(),
         lastLinkTime: this.spawningConfig.lastLinkTime,
         linkSpawnCooldown: this.spawningConfig.linkSpawnCooldown,
@@ -4716,6 +4725,13 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         // Update last spawn time for analytics
       }
     }
+  }
+
+  /**
+   * Legacy alias preserved for older callsites.
+   */
+  maybeSpawnNodeOnLinkCreated() {
+    return this.maybeSpawnNodeFromLinkCreation();
   }
   
   /**
@@ -4826,6 +4842,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     this.activeNodes.clear();
     this.materializingNodes.clear();
     interactiveNodes.length = 0;
+    if (Array.isArray(this._edgeCageObjects)) this._edgeCageObjects.length = 0;
     
     // [SESSION 110] Clear registry
     this.nodeRegistry.clear();

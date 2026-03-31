@@ -486,7 +486,10 @@ export class NodeLinkingSystem {
     this.onPrimaryNodeSetCallbacks = [];
     this.onInvalidLinkAttemptCallbacks = [];
     
-    // Link lifecycle callbacks (for UISelectedHUD and visual subsystems)
+    // Link lifecycle support has two shapes for now:
+    // - linkCreatedCallbacks / onLinkCreatedCallbacks: callback registry for existing listeners
+    // - eventCoordinator / semantic bus: newer event path for downstream systems
+    // Keep both until legacy listeners are fully migrated.
     this.linkCreatedCallbacks = [];
     Object.defineProperty(this, 'onLinkCreatedCallbacks', {
       configurable: true,
@@ -581,8 +584,8 @@ export class NodeLinkingSystem {
     this.linkStateVisualLanguage = new LinkStateVisualLanguageIntegration(this, { debugMode: false });
 
     // Register callback for new link creation
-    if (typeof this.onLinkCreated === 'function') {
-      this.onLinkCreated((source, target, link) => {
+    if (typeof this.registerLinkCreatedCallback === 'function') {
+      this.registerLinkCreatedCallback((source, target, link) => {
         const resolvedLink = link || source || target;
         if (this.linkStateVisualLanguage) {
           this.linkStateVisualLanguage.registerLink(resolvedLink);
@@ -2107,7 +2110,7 @@ export class NodeLinkingSystem {
   /**
    * Register callback for link creation events
    */
-  onLinkCreated(callback, options = {}) {
+  registerLinkCreatedCallback(callback, options = {}) {
     if (typeof callback === 'function') {
       if (options && typeof options === 'object') {
         if (typeof options.layerKey === 'string' && options.layerKey) {
@@ -2132,6 +2135,14 @@ export class NodeLinkingSystem {
   }
 
   /**
+   * Legacy alias for registerLinkCreatedCallback.
+   * Keep this until downstream callers are migrated.
+   */
+  onLinkCreated(callback, options = {}) {
+    return this.registerLinkCreatedCallback(callback, options);
+  }
+
+  /**
    * Register callback for link update events
    */
   onLinkUpdated(callback) {
@@ -2143,10 +2154,18 @@ export class NodeLinkingSystem {
   /**
   * Register callback for link removal events
   */
-  onLinkRemoved(callback) {
+  registerLinkRemovedCallback(callback) {
     if (typeof callback === 'function') {
       this.onLinkRemovedCallbacks.push(callback);
     }
+  }
+
+  /**
+   * Legacy alias for registerLinkRemovedCallback.
+   * Keep this until downstream callers are migrated.
+   */
+  onLinkRemoved(callback) {
+    return this.registerLinkRemovedCallback(callback);
   }
 
   /**
@@ -2801,8 +2820,8 @@ export class NodeLinkingSystem {
       }
       
       // Trigger event-based node spawning
-      if (this.aiNodes && this.aiNodes.maybeSpawnNodeOnLinkCreated) {
-        this.aiNodes.maybeSpawnNodeOnLinkCreated();
+      if (this.aiNodes && this.aiNodes.maybeSpawnNodeFromLinkCreation) {
+        this.aiNodes.maybeSpawnNodeFromLinkCreation();
       }
       
       // Calculate synergy for logging and visual feedback
@@ -4623,7 +4642,9 @@ getLinksForNode(node) {
       console.warn('[NodeLinkingSystem] onLinkCreated skipped - invalid nodes detected');
     }
 
-    // UI/system callbacks
+    // Lifecycle fan-out:
+    // - callback registry: legacy-compatible listeners attached via linkCreatedCallbacks
+    // - newer event path: eventCoordinator / semantic bus consumers
     this._fireLinkCreatedCallbacks(sourceNode, targetNode, link);
 
     // [Phase 2] Trigger Event Coordinator (suppresses node auras during link creation)

@@ -148,6 +148,73 @@ function getCachedVisualMetrics(scope = globalThis) {
     };
 }
 
+function getLinkCreateCallbackTimingRegistry(scope = globalThis) {
+    const existingRegistry = scope?.__ATOMA_LINK_CREATE_CALLBACK_TIMINGS__;
+    if (existingRegistry) {
+        return existingRegistry;
+    }
+
+    const rowsByLabel = new Map();
+    const registry = {
+        record(label, elapsedMs) {
+            if (!label || !Number.isFinite(elapsedMs)) return;
+
+            const existingRow = rowsByLabel.get(label) || {
+                label,
+                count: 0,
+                totalMs: 0,
+                minMs: Number.POSITIVE_INFINITY,
+                maxMs: 0,
+                lastMs: 0
+            };
+
+            existingRow.count += 1;
+            existingRow.totalMs += elapsedMs;
+            existingRow.minMs = Math.min(existingRow.minMs, elapsedMs);
+            existingRow.maxMs = Math.max(existingRow.maxMs, elapsedMs);
+            existingRow.lastMs = elapsedMs;
+            rowsByLabel.set(label, existingRow);
+        },
+        getRows() {
+            return Array.from(rowsByLabel.values())
+                .map((row) => ({
+                    label: row.label,
+                    count: row.count,
+                    totalMs: Number(row.totalMs.toFixed(3)),
+                    avgMs: Number((row.totalMs / row.count).toFixed(3)),
+                    minMs: Number(row.minMs.toFixed(3)),
+                    maxMs: Number(row.maxMs.toFixed(3)),
+                    lastMs: Number(row.lastMs.toFixed(3))
+                }))
+                .sort((left, right) => right.avgMs - left.avgMs || right.totalMs - left.totalMs);
+        },
+        clear() {
+            rowsByLabel.clear();
+        }
+    };
+
+    scope.__ATOMA_LINK_CREATE_CALLBACK_TIMINGS__ = registry;
+    scope.getLinkCreateCallbackTimingTable = () => registry.getRows();
+    scope.clearLinkCreateCallbackTimings = () => registry.clear();
+    return registry;
+}
+
+function timeLinkCreateCallback(label, callback) {
+    return (...args) => {
+        if (globalThis?.__ATOMA_LINK_CREATE_TIMING_ENABLED__ === false) {
+            return callback(...args);
+        }
+
+        const timingRegistry = getLinkCreateCallbackTimingRegistry();
+        const startedAt = performance.now();
+        try {
+            return callback(...args);
+        } finally {
+            timingRegistry.record(label, performance.now() - startedAt);
+        }
+    };
+}
+
 if (typeof window !== 'undefined') {
     // Link growth reactivation defaults
     window.ATOMA_LINK_SPAWN_ENABLED = true;
@@ -3858,7 +3925,7 @@ class AtomaGame {
             this.linkDegradationSystem?.update?.(dt);
         }, 'simulation.linkDegradationSystem');
         this.frameScheduler.register('simulation', (dt) => {
-            if (this.audioSystem?.initialized && this.audioModulation && this.nodeDynamicMetrics) {
+            if (this.audioSystem?.initialized && this.audioSystem.enabled !== false && this.audioModulation && this.nodeDynamicMetrics) {
                 this.audioModulation.update(dt, {
                     synergy: this.nodeDynamicMetrics.avgSynergy || 0,
                     harmony: this.nodeDynamicMetrics.avgHarmony || 50,
@@ -4569,6 +4636,10 @@ this.setHudDirty('nodeInspect');
         // Early audio diagnostics API (available even if later debug setup is interrupted).
         window.startAtomaAudio = async () => {
             if (!this.audioSystem) return false;
+            if (this.audioSystem.enabled === false) {
+                console.warn('[ATOMA AUDIO] Disabled - start blocked');
+                return false;
+            }
             try {
                 await this.audioSystem.start();
                 if (!this.audioModulation) {
@@ -4588,6 +4659,7 @@ this.setHudDirty('nodeInspect');
             exists: !!this.audioSystem,
             initialized: !!this.audioSystem?.initialized,
             enabled: !!this.audioSystem?.enabled,
+            muted: !!window.Tone?.getDestination?.()?.mute,
             toneState: (window.Tone?.getContext?.().state ?? 'unknown'),
             modulationReady: !!this.audioModulation,
             harmonicReady: !!this.harmonicAudio?.initialized
@@ -4595,6 +4667,7 @@ this.setHudDirty('nodeInspect');
         window.testAudio = (soundName = 'selection') => {
             const audio = this.audioSystem;
             if (!audio) return console.warn('[ATOMA AUDIO] audioSystem missing');
+            if (audio.enabled === false) return console.warn('[ATOMA AUDIO] Disabled - test blocked');
             const sounds = {
                 hover: () => audio.playHoverEnter?.(),
                 hover_exit: () => audio.playHoverExit?.(),
@@ -4656,6 +4729,7 @@ this.setHudDirty('nodeInspect');
         // Start audio on first user interaction (pointerdown, click, or keydown)
         const startAudioOnFirstInteraction = async () => {
             if (!this.audioSystem) return;
+            if (this.audioSystem.enabled === false) return false;
             if (this.audioSystem.initialized) return;
             if (this.audioStartInProgress) return;
             this.audioStartInProgress = true;
@@ -4750,7 +4824,44 @@ this.setHudDirty('nodeInspect');
                 this._nodeDynamicMetricsBridge = value;
             }
         });
-        
+
+        // ====================================================================
+        // NETWORK STATE PROPERTY: Unified metrics interface for visual systems
+        // ====================================================================
+        // Provides canonical network metrics to healing, recovery, and other visual systems
+        // Maps nodeDynamicMetrics to canonical field names expected by visual systems
+        Object.defineProperty(this, 'networkState', {
+            configurable: true,
+            enumerable: true,
+            get: () => {
+                const metrics = this.nodeDynamicMetrics || {};
+                const harmony = metrics.avgHarmony ?? 0;
+                const synergy = metrics.avgSynergy ?? 0;
+                const corruption = metrics.avgCorruption ?? 0;
+                const stability = metrics.avgStability ?? 0.5;
+                const loadPressure = metrics.avgLoadPressure ?? 0;
+
+                return {
+                    // Canonical fields
+                    harmony,
+                    synergy,
+                    corruption,
+                    stability,
+                    loadPressure,
+                    networkStress: 1 - stability,
+                    // Alternative field names for compatibility
+                    harmonyFlow: harmony,
+                    networkSynergy: synergy,
+                    corruptionLevel: corruption,
+                    avgHarmony: harmony,
+                    avgSynergy: synergy,
+                    avgCorruption: corruption,
+                    avgStability: stability,
+                    avgLoadPressure: loadPressure
+                };
+            }
+        });
+
         // ====================================================================
         // TIER 2 VISUAL INTEGRATION: Visual System Wiring
         // ====================================================================
@@ -7435,6 +7546,7 @@ window.__ATOMA_SCENE__ = this.scene;
         if (this.linkingSystem?.onNodeSelected && !this.linkingSystem.__audioSelectionAuthorityBound) {
             const playSelectionAudio = (type) => {
                 if (!this.audioSystem) return;
+                if (this.audioSystem.enabled === false) return;
                 const play = () => {
                     if (!this.audioSystem?.initialized) return;
                     if (type === 'select') {
@@ -7469,17 +7581,9 @@ window.__ATOMA_SCENE__ = this.scene;
         if (this.linkingSystem?.onNodeHoverStart && !this.linkingSystem.__audioHoverAuthorityBound) {
             const playHoverAudio = () => {
                 if (!this.audioSystem) return;
-                const play = () => {
-                    if (!this.audioSystem?.initialized) return;
-                    this.audioSystem.playHoverEnter?.();
-                };
-                if (this.audioSystem.initialized) {
-                    play();
-                    return;
-                }
-                this.ensureAudioStarted?.()
-                    .then(() => play())
-                    .catch(() => {});
+                if (this.audioSystem.enabled === false) return;
+                if (!this.audioSystem.initialized) return;
+                this.audioSystem.playHoverEnter?.();
             };
 
             this.linkingSystem.onNodeHoverStart(() => playHoverAudio());
@@ -7488,17 +7592,9 @@ window.__ATOMA_SCENE__ = this.scene;
         if (this.linkingSystem?.onNodeHoverEnd && !this.linkingSystem.__audioHoverExitAuthorityBound) {
             const playHoverExitAudio = () => {
                 if (!this.audioSystem) return;
-                const play = () => {
-                    if (!this.audioSystem?.initialized) return;
-                    this.audioSystem.playHoverExit?.();
-                };
-                if (this.audioSystem.initialized) {
-                    play();
-                    return;
-                }
-                this.ensureAudioStarted?.()
-                    .then(() => play())
-                    .catch(() => {});
+                if (this.audioSystem.enabled === false) return;
+                if (!this.audioSystem.initialized) return;
+                this.audioSystem.playHoverExit?.();
             };
 
             this.linkingSystem.onNodeHoverEnd(() => playHoverExitAudio());
@@ -7507,6 +7603,7 @@ window.__ATOMA_SCENE__ = this.scene;
         if (this.linkingSystem?.onPrimaryNodeSet && !this.linkingSystem.__audioPrimarySetAuthorityBound) {
             const playPrimarySetAudio = () => {
                 if (!this.audioSystem) return;
+                if (this.audioSystem.enabled === false) return;
                 const play = () => {
                     if (!this.audioSystem?.initialized) return;
                     this.audioSystem.playPrimaryNodeSet?.();
@@ -7526,6 +7623,7 @@ window.__ATOMA_SCENE__ = this.scene;
         if (this.linkingSystem?.onInvalidLinkAttempt && !this.linkingSystem.__audioInvalidLinkAuthorityBound) {
             const playInvalidLinkAudio = () => {
                 if (!this.audioSystem) return;
+                if (this.audioSystem.enabled === false) return;
                 const play = () => {
                     if (!this.audioSystem?.initialized) return;
                     this.audioSystem.playInvalidLinkAttempt?.();
@@ -7542,9 +7640,10 @@ window.__ATOMA_SCENE__ = this.scene;
             this.linkingSystem.onInvalidLinkAttempt(() => playInvalidLinkAudio());
             this.linkingSystem.__audioInvalidLinkAuthorityBound = true;
         }
-        if (this.linkingSystem?.onLinkCreated && !this.linkingSystem.__audioLinkAuthorityBound) {
+        if (this.linkingSystem?.registerLinkCreatedCallback && !this.linkingSystem.__audioLinkAuthorityBound) {
             const playLinkAudio = (type) => {
                 if (!this.audioSystem) return;
+                if (this.audioSystem.enabled === false) return;
                 const play = () => {
                     if (!this.audioSystem?.initialized) return;
                     if (type === 'create') {
@@ -7562,11 +7661,11 @@ window.__ATOMA_SCENE__ = this.scene;
                     .catch(() => {});
             };
 
-            this.linkingSystem.onLinkCreated(() => playLinkAudio('create'), {
+            this.linkingSystem.registerLinkCreatedCallback(() => playLinkAudio('create'), {
                 layerKey: 'LINK_IMPACTS',
                 immediate: true
             });
-            this.linkingSystem.onLinkRemoved(() => playLinkAudio('remove'), {
+            this.linkingSystem.registerLinkRemovedCallback(() => playLinkAudio('remove'), {
                 layerKey: 'LINK_IMPACTS',
                 immediate: true
             });
@@ -7574,8 +7673,8 @@ window.__ATOMA_SCENE__ = this.scene;
         }
         const hasCascadeBridgeCallback = Array.isArray(this.linkingSystem?.linkCreatedCallbacks)
             && this.linkingSystem.linkCreatedCallbacks.some((callback) => callback?.__linkWorkLayer === 'LINK_CASCADE');
-        if (this.linkingSystem?.onLinkCreated && (!this.linkingSystem.__tripleCascadeVisualBridgeBound || !hasCascadeBridgeCallback)) {
-            this.linkingSystem.onLinkCreated((sourceNode, targetNode, link) => {
+        if (this.linkingSystem?.registerLinkCreatedCallback && (!this.linkingSystem.__tripleCascadeVisualBridgeBound || !hasCascadeBridgeCallback)) {
+            this.linkingSystem.registerLinkCreatedCallback(timeLinkCreateCallback('LINK_CASCADE cascade bridge', (sourceNode, targetNode, link) => {
                 if (!this.semanticBus?.emit || !sourceNode || !targetNode) return;
 
                 const sourcePos = sourceNode.position || sourceNode.userData?.position || null;
@@ -7678,14 +7777,14 @@ window.__ATOMA_SCENE__ = this.scene;
                     this.semanticBus.emit('cascade.start', payload, { priority, policy: immediatePolicy });
                     this.semanticBus.emit('cascade.hop', payload, { priority, policy: immediatePolicy });
                 }
-            }, {
+            }), {
                 layerKey: 'LINK_CASCADE',
                 immediate: true
             });
             this.linkingSystem.__tripleCascadeVisualBridgeBound = true;
         }
-        if (this.linkingSystem?.onLinkRemoved && !this.linkingSystem.__visualOrphanCleanupBound) {
-            this.linkingSystem.onLinkRemoved((sourceNode, targetNode, link) => {
+        if (this.linkingSystem?.registerLinkRemovedCallback && !this.linkingSystem.__visualOrphanCleanupBound) {
+            this.linkingSystem.registerLinkRemovedCallback((sourceNode, targetNode, link) => {
                 const linkId = link?.userData?.id ?? link?.id ?? link?.uuid ?? null;
                 const pictogramSystem =
                     this.linkingSystem?.conduitRenderer?.pictogramSystem ||
@@ -7731,10 +7830,10 @@ window.__ATOMA_SCENE__ = this.scene;
             this.synergyHighwayVisuals3D = SynergyHighwayVisuals3D_1_0;
             this.synergyHighwayVisuals3D.init(this.scene, this.camera, this.renderer, this.linkingSystem, this.aiNodes);
             window.SynergyHighwayVisuals3D_1_0 = this.synergyHighwayVisuals3D;
-            this.linkingSystem.onLinkCreated?.(() => this.synergyHighwayVisuals3D?.scheduleRebuild?.(), {
+            this.linkingSystem.registerLinkCreatedCallback?.(() => this.synergyHighwayVisuals3D?.scheduleRebuild?.(), {
                 layerKey: 'LINK_GLOW'
             });
-            this.linkingSystem.onLinkRemoved?.(() => this.synergyHighwayVisuals3D?.scheduleRebuild?.(), {
+            this.linkingSystem.registerLinkRemovedCallback?.(() => this.synergyHighwayVisuals3D?.scheduleRebuild?.(), {
                 layerKey: 'LINK_GLOW'
             });
             this.synergyHighwayVisuals3D.refreshFromHighways?.();
@@ -13920,16 +14019,16 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 }
             }
 
-            if (this.linkingSystem?.onLinkCreated) {
-                this.linkingSystem.onLinkCreated((link) => {
+            if (this.linkingSystem?.registerLinkCreatedCallback) {
+                this.linkingSystem.registerLinkCreatedCallback(timeLinkCreateCallback('LINK_GLOW linkAura.registerLink', (link) => {
                     this.linkAuraSystem?.registerLink?.(link);
-                }, {
+                }), {
                     layerKey: 'LINK_GLOW'
                 });
             }
 
-            if (this.linkingSystem?.onLinkRemoved) {
-                this.linkingSystem.onLinkRemoved((link) => {
+            if (this.linkingSystem?.registerLinkRemovedCallback) {
+                this.linkingSystem.registerLinkRemovedCallback((link) => {
                     this.linkAuraSystem?.unregisterLink?.(link);
                 }, {
                     layerKey: 'LINK_GLOW'
@@ -13999,8 +14098,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 }
             }
 
-            if (this.linkingSystem?.onLinkCreated && !this.linkingSystem.__waveInterferenceBirthBridgeBound) {
-                this.linkingSystem.onLinkCreated((sourceNode, targetNode, link) => {
+            if (this.linkingSystem?.registerLinkCreatedCallback && !this.linkingSystem.__waveInterferenceBirthBridgeBound) {
+                this.linkingSystem.registerLinkCreatedCallback(timeLinkCreateCallback('LINK_WAVE waveInterference.seedLinkBirth', (sourceNode, targetNode, link) => {
                     this.waveInterference?.seedLinkBirth?.(link ?? {
                         sourceNode,
                         targetNode
@@ -14014,15 +14113,15 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                         targetPosition: targetNode?.position ? { x: targetNode.position.x, y: targetNode.position.y, z: targetNode.position.z } : null,
                         intensity: link?.userData?.synergy?.score ?? link?.synergyScore ?? link?.userData?.metrics?.synergy ?? 0
                     });
-                }, {
+                }), {
                     layerKey: 'LINK_WAVE',
                     immediate: true
                 });
                 this.linkingSystem.__waveInterferenceBirthBridgeBound = true;
             }
 
-            if (this.linkingSystem?.onLinkRemoved && !this.linkingSystem.__waveInterferenceCleanupBridgeBound) {
-                this.linkingSystem.onLinkRemoved((sourceNode, targetNode, link) => {
+            if (this.linkingSystem?.registerLinkRemovedCallback && !this.linkingSystem.__waveInterferenceCleanupBridgeBound) {
+                this.linkingSystem.registerLinkRemovedCallback((sourceNode, targetNode, link) => {
                     this.waveInterference?.clearLink?.(link ?? link?.id ?? null, sourceNode, targetNode);
                 }, {
                     layerKey: 'LINK_WAVE'
@@ -14863,8 +14962,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
         
         // Register callback for new link creation
-        if (this.linkingSystem && this.linkingSystem.onLinkCreated) {
-            this.linkingSystem.onLinkCreated((link) => {
+        if (this.linkingSystem && this.linkingSystem.registerLinkCreatedCallback) {
+            this.linkingSystem.registerLinkCreatedCallback((link) => {
                 if (this.harmonicResonanceCoupling) {
                     this.harmonicResonanceCoupling.registerLink(link);
                 }
@@ -14874,8 +14973,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
         
         // Register callback for link removal
-        if (this.linkingSystem && this.linkingSystem.onLinkRemoved) {
-            this.linkingSystem.onLinkRemoved((link) => {
+        if (this.linkingSystem && this.linkingSystem.registerLinkRemovedCallback) {
+            this.linkingSystem.registerLinkRemovedCallback((link) => {
                 if (this.harmonicResonanceCoupling) {
                     this.harmonicResonanceCoupling.unregisterLink(link);
                 }
@@ -15294,6 +15393,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         window.__DEBUG.createLinkById = (idA, idB) => window.__DEBUG.getLinkingSystem()?.createLinkById?.(idA, idB) ?? null;
         window.__DEBUG.createLink = (nodeA, nodeB) => window.__DEBUG.getLinkingSystem()?.createLink?.(nodeA, nodeB) ?? null;
         window.__DEBUG.getNodeById = (id) => window.__DEBUG.getLinkingSystem()?._resolveNodeById?.(id) ?? null;
+        window.__DEBUG.triggerCascadeAtNodeId = (nodeId, intensity = 1.0) => {
+            const node = window.__DEBUG.getNodeById(nodeId);
+            if (!node) return null;
+            window.atoma?.cascadeVisualizer?.triggerCascadeAtNode?.(node, intensity);
+            return node;
+        };
+        window.__DEBUG.spawnSynergyCascadeAtNodeId = window.__DEBUG.triggerCascadeAtNodeId;
 
         // Recursive Glyph Messaging 4.0 commands
         window.toggleRecursiveChains = () => {
@@ -16864,12 +16970,39 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // ========== ATOMA AUDIO SYSTEM DEBUG COMMANDS ==========
 
         // Enable/disable audio system
-        window.toggleAudio = function () {
-            if (window.game && window.game.audioSystem) {
-                window.game.audioSystem.enabled = !window.game.audioSystem.enabled;
-                console.log(`🔊 Audio System ${window.game.audioSystem.enabled ? 'ENABLED' : 'DISABLED'}`);
+        window.setAudioEnabled = function (enabled) {
+            if (!window.game?.audioSystem) return false;
+
+            const nextEnabled = enabled !== false;
+            const audioSystem = window.game.audioSystem;
+            audioSystem.setEnabled?.(nextEnabled);
+
+            if (window.game.audioModulation?.setEnabled) {
+                window.game.audioModulation.setEnabled(nextEnabled && audioSystem.initialized);
             }
+            if (window.game.harmonicAudio?.setEnabled) {
+                window.game.harmonicAudio.setEnabled(nextEnabled && audioSystem.initialized);
+            }
+            if (window.game.zoneAudioReactivity?.setEnabled) {
+                window.game.zoneAudioReactivity.setEnabled(nextEnabled && audioSystem.initialized);
+            }
+
+            console.log(`🔊 Audio System ${nextEnabled ? 'ENABLED' : 'DISABLED'}`);
+            return nextEnabled;
         };
+
+        window.toggleAudio = function () {
+            if (!window.game?.audioSystem) return false;
+            return window.setAudioEnabled?.(!window.game.audioSystem.enabled);
+        };
+
+        document.addEventListener('keydown', (event) => {
+            if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.code !== 'KeyM') return;
+            const tagName = String(event.target?.tagName || '').toUpperCase();
+            if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return;
+            event.preventDefault();
+            window.toggleAudio?.();
+        });
 
         // Start audio context (required on first interaction)
         // Note: AudioContext is started on first user gesture via event listeners in constructor
@@ -16883,6 +17016,10 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
             
             const audio = window.game.audioSystem;
+            if (audio.enabled === false) {
+                console.warn('⚠ Audio System disabled');
+                return;
+            }
             const sounds = {
                 'hover': () => audio.playHoverEnter?.(),
                 'hover_exit': () => audio.playHoverExit?.(),
@@ -16917,6 +17054,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 console.group('🔊 ATOMA Audio System Status');
                 console.log('Initialized:', audio.initialized);
                 console.log('Enabled:', audio.enabled);
+                console.log('Muted:', !!window.Tone?.getDestination?.()?.mute);
                 console.log('Synergy Threshold:', window.game.synergyActivationThreshold);
                 console.log('Current Synergy State:', window.game.previousSynergyState);
                 console.groupEnd();
