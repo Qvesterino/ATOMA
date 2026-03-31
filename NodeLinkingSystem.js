@@ -487,7 +487,15 @@ export class NodeLinkingSystem {
     this.onInvalidLinkAttemptCallbacks = [];
     
     // Link lifecycle callbacks (for UISelectedHUD and visual subsystems)
-    this.onLinkCreatedCallbacks = [];
+    this.linkCreatedCallbacks = [];
+    Object.defineProperty(this, 'onLinkCreatedCallbacks', {
+      configurable: true,
+      enumerable: false,
+      get: () => this.linkCreatedCallbacks,
+      set: (callbacks) => {
+        this.linkCreatedCallbacks = Array.isArray(callbacks) ? callbacks : [];
+      }
+    });
     this.onLinkUpdatedCallbacks = [];
     this.onLinkRemovedCallbacks = [];
     this.onLinkDestroyedCallbacks = [];
@@ -1916,8 +1924,8 @@ export class NodeLinkingSystem {
   _fireLinkCreatedCallbacks(source, target, link = null) {
     const traceEnabled = this._isLinkTraceEnabled();
     const traceStart = traceEnabled ? performance.now() : 0;
-    const orderedCallbacks = Array.isArray(this.onLinkCreatedCallbacks)
-      ? [...this.onLinkCreatedCallbacks]
+    const orderedCallbacks = Array.isArray(this.linkCreatedCallbacks)
+      ? [...this.linkCreatedCallbacks]
           .map((callback, index) => ({
             callback,
             index,
@@ -2119,7 +2127,7 @@ export class NodeLinkingSystem {
               ? callback.name.trim()
               : 'onLinkCreated');
       }
-      this.onLinkCreatedCallbacks.push(callback);
+      this.linkCreatedCallbacks.push(callback);
     }
   }
 
@@ -2793,8 +2801,8 @@ export class NodeLinkingSystem {
       }
       
       // Trigger event-based node spawning
-      if (this.aiNodes && this.aiNodes.onLinkCreated) {
-        this.aiNodes.onLinkCreated();
+      if (this.aiNodes && this.aiNodes.maybeSpawnNodeOnLinkCreated) {
+        this.aiNodes.maybeSpawnNodeOnLinkCreated();
       }
       
       // Calculate synergy for logging and visual feedback
@@ -7966,8 +7974,8 @@ getLinksForNode(node) {
       if (Array.isArray(this.onInvalidLinkAttemptCallbacks)) {
         this.onInvalidLinkAttemptCallbacks.length = 0;
       }
-      if (Array.isArray(this.onLinkCreatedCallbacks)) {
-        this.onLinkCreatedCallbacks.length = 0;
+      if (Array.isArray(this.linkCreatedCallbacks)) {
+        this.linkCreatedCallbacks.length = 0;
       }
       if (Array.isArray(this._deferredLinkCreatedCallbacks)) {
         this._deferredLinkCreatedCallbacks.length = 0;

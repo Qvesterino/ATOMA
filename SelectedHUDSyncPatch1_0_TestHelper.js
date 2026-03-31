@@ -88,7 +88,7 @@ export class SelectedHUDSyncPatchTestHelper {
     const checks = {
       onSelectExists: Array.isArray(linkingSystem?.onSelectCallbacks),
       onDeselectExists: Array.isArray(linkingSystem?.onDeselectCallbacks),
-      onLinkCreatedExists: Array.isArray(linkingSystem?.onLinkCreatedCallbacks),
+      linkCreatedExists: Array.isArray(linkingSystem?.linkCreatedCallbacks),
       onLinkRemovedExists: Array.isArray(linkingSystem?.onLinkRemovedCallbacks),
       patchesApplied: this.patch._stats.patchesApplied >= 4,
     };
@@ -96,7 +96,7 @@ export class SelectedHUDSyncPatchTestHelper {
     const passed = Object.values(checks).every(v => v);
     console.log(`  onSelectCallbacks: ${checks.onSelectExists ? '✓' : '✗'}`);
     console.log(`  onDeselectCallbacks: ${checks.onDeselectExists ? '✓' : '✗'}`);
-    console.log(`  onLinkCreatedCallbacks: ${checks.onLinkCreatedExists ? '✓' : '✗'}`);
+    console.log(`  linkCreatedCallbacks: ${checks.linkCreatedExists ? '✓' : '✗'}`);
     console.log(`  onLinkRemovedCallbacks: ${checks.onLinkRemovedExists ? '✓' : '✗'}`);
     console.log(`  Patches applied (4+): ${checks.patchesApplied ? '✓' : '✗'}`);
     console.log(`  RESULT: ${passed ? '✓ PASS' : '✗ FAIL'}`);

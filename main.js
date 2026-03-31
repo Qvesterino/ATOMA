@@ -7572,8 +7572,8 @@ window.__ATOMA_SCENE__ = this.scene;
             });
             this.linkingSystem.__audioLinkAuthorityBound = true;
         }
-        const hasCascadeBridgeCallback = Array.isArray(this.linkingSystem?.onLinkCreatedCallbacks)
-            && this.linkingSystem.onLinkCreatedCallbacks.some((callback) => callback?.__linkWorkLayer === 'LINK_CASCADE');
+        const hasCascadeBridgeCallback = Array.isArray(this.linkingSystem?.linkCreatedCallbacks)
+            && this.linkingSystem.linkCreatedCallbacks.some((callback) => callback?.__linkWorkLayer === 'LINK_CASCADE');
         if (this.linkingSystem?.onLinkCreated && (!this.linkingSystem.__tripleCascadeVisualBridgeBound || !hasCascadeBridgeCallback)) {
             this.linkingSystem.onLinkCreated((sourceNode, targetNode, link) => {
                 if (!this.semanticBus?.emit || !sourceNode || !targetNode) return;

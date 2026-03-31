@@ -198,7 +198,7 @@ export class SelectedHUDSyncPatch1_0 {
     // Store original callback arrays
     const originalOnSelectCallbacks = [...(linkingSystem.onSelectCallbacks || [])];
     const originalOnDeselectCallbacks = [...(linkingSystem.onDeselectCallbacks || [])];
-    const originalOnLinkCreatedCallbacks = [...(linkingSystem.onLinkCreatedCallbacks || [])];
+    const originalLinkCreatedCallbacks = [...(linkingSystem.linkCreatedCallbacks || [])];
     const originalOnLinkRemovedCallbacks = [...(linkingSystem.onLinkRemovedCallbacks || [])];
 
     // Clear and rebuild with patches
@@ -228,7 +228,7 @@ export class SelectedHUDSyncPatch1_0 {
       };
     });
 
-    linkingSystem.onLinkCreatedCallbacks = originalOnLinkCreatedCallbacks.map((cb) => {
+    linkingSystem.linkCreatedCallbacks = originalLinkCreatedCallbacks.map((cb) => {
       const wrapper = (source, target) => {
         // Call original callback
         if (typeof cb === 'function') cb(source, target);

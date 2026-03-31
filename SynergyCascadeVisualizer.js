@@ -156,7 +156,7 @@ export class SynergyCascadeVisualizer {
     if (this.cascadeHistory.size === 0) return;
 
     for (const [link, history] of this.cascadeHistory.entries()) {
-      if (!link?.mesh) continue;
+      if (!link) continue;
 
       const linkId = this._resolveLinkId(link);
       if (!linkId) continue;
@@ -768,6 +768,41 @@ export class SynergyCascadeVisualizer {
     );
   }
 
+  _resolveLinkVisualTarget(link) {
+    if (!link) return null;
+
+    const directCandidates = [
+      link.mesh,
+      link.haloLine,
+      link.line,
+      link.linkMesh,
+      link.root,
+      link.object3D,
+      link.group,
+      link
+    ];
+
+    for (const candidate of directCandidates) {
+      if (!candidate) continue;
+      if (candidate.material) return candidate;
+      if (candidate.userData?.conduitState?.skinMesh?.material) {
+        return candidate.userData.conduitState.skinMesh;
+      }
+    }
+
+    if (link.group?.traverse) {
+      let found = null;
+      link.group.traverse((child) => {
+        if (!found && child?.material) {
+          found = child;
+        }
+      });
+      if (found) return found;
+    }
+
+    return null;
+  }
+
   _resolveLinkById(linkId) {
     const normalizedLinkId = this._resolveLinkId(linkId);
     if (!normalizedLinkId) return null;
@@ -1199,19 +1234,11 @@ export class SynergyCascadeVisualizer {
    * Apply visual cascade effects to a link
    */
   applyLinkCascadeEffects(link, propagation) {
-    if (!link || !link.mesh) return;
+    if (!link) return;
     if (!link.userData) link.userData = {};
     
     // Get or create cascade history for this link
     this._seedCascadeHistory(link, propagation.intensity);
-    if (!this.cascadeHistory.has(link)) {
-      this.cascadeHistory.set(link, {
-        linkId: this._resolveLinkId(link),
-        cascadeIntensity: 0,
-        color: new THREE.Color()
-      });
-    }
-    
     const history = this.cascadeHistory.get(link);
     if (history && !history.linkId) {
       history.linkId = this._resolveLinkId(link);
@@ -1255,8 +1282,9 @@ export class SynergyCascadeVisualizer {
     link.userData.cascadeWave.phase = wavePos;
     
     // Modify line width at wave position
-    if (link.mesh && link.mesh.material) {
-      const baseMaterial = link.mesh.material;
+    const visualTarget = this._resolveLinkVisualTarget(link);
+    if (visualTarget?.material) {
+      const baseMaterial = visualTarget.material;
       const waveWidth = this.config.waveWidth;
       
       // Highlight wave position with brighter color
@@ -1287,9 +1315,10 @@ export class SynergyCascadeVisualizer {
    * Apply cascade glow effect (progressive brightness)
    */
   applyCascadeGlowEffect(link, history, propagation) {
-    if (!link.mesh || !link.mesh.material) return;
-    
-    const material = link.mesh.material;
+    const visualTarget = this._resolveLinkVisualTarget(link);
+    if (!visualTarget?.material) return;
+
+    const material = visualTarget.material;
     const cascadeIntensity = propagation.intensity;
     history.trailIntensity = Math.max((history.trailIntensity || 0) * 0.92, cascadeIntensity);
     const trailIntensity = history.trailIntensity;
@@ -1317,9 +1346,10 @@ export class SynergyCascadeVisualizer {
    * Apply harmonic shimmer effect (oscillating color bands)
    */
   applyHarmonicShimmerEffect(link, history, propagation) {
-    if (!link.mesh || !link.mesh.material) return;
-    
-    const material = link.mesh.material;
+    const visualTarget = this._resolveLinkVisualTarget(link);
+    if (!visualTarget?.material) return;
+
+    const material = visualTarget.material;
     const position = propagation.position;
     const intensity = propagation.intensity;
     
@@ -1683,8 +1713,9 @@ export class SynergyCascadeVisualizer {
     
     // Clean up cascade history for completed links
     for (const [link, history] of this.cascadeHistory.entries()) {
-      if (link && link.mesh && link.mesh.material) {
-        const material = link.mesh.material;
+      const visualTarget = this._resolveLinkVisualTarget(link);
+      if (visualTarget?.material) {
+        const material = visualTarget.material;
         history.trailIntensity = Math.max(0, (history.trailIntensity || 0) * 0.9);
 
         // Keep a soft afterglow instead of hard reset

@@ -14,7 +14,6 @@ import { InputSensoryEnhanced } from './Atoma_nodes/InputSensoryEnhanced_Session
 import { ControlNodeSpecialGovernors } from './Atoma_nodes/ControlNodeSpecialGoverners_Session114.js';
 import { StorageNodesVisual } from './Atoma_nodes/StorageNodesVisual_Session116.js';
 import { safeCreateEdgesGeometry } from './src/three/GeometryBoundsSafe.js';
-import { AINodeModel } from './AINodeModel.js';
 import { NODE_VISUAL_REGISTRY, CATEGORY_POOLS } from './NodeVisualRegistry.js';
 
 function validateMeshGeometry(mesh, label = 'unknown') {

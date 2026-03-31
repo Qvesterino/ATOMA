@@ -179,7 +179,7 @@ export class CorruptionVisualFX_v1 {
   /**
    * Get or create visual state for a node
    */
-  getOrCreateNodeVisualState(nodeModel) {
+  getNodeVisualState(nodeModel) {
     if (this.nodeVisualState.has(nodeModel)) {
       return this.nodeVisualState.get(nodeModel);
     }
@@ -207,7 +207,7 @@ export class CorruptionVisualFX_v1 {
     this.restoreNodeVisualBaseline(nodeModel);
   }
 
-  _hasCascadeCorruptionLink(nodeModel) {
+  hasCascadeCorruptionLink(nodeModel) {
     const links = nodeModel?.userData?.links;
     if (!Array.isArray(links)) return false;
     return links.some((link) => (
@@ -577,7 +577,7 @@ export class CorruptionVisualFX_v1 {
     const now = performance.now();
 
     // Determine particle emission rate based on corruption
-    if (this._hasCascadeCorruptionLink(nodeModel) && corruptionLevel > CASCADE_CORRUPTION_THRESHOLD) {
+    if (this.hasCascadeCorruptionLink(nodeModel) && corruptionLevel > CASCADE_CORRUPTION_THRESHOLD) {
       const baseEmitRate = 5;  // particles per second at cascade corruption threshold
       const maxEmitRate = 30;  // particles per second at full corruption
       const thresholdRange = Math.max(0.001, 1.0 - CASCADE_CORRUPTION_THRESHOLD);

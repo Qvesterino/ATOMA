@@ -47,7 +47,7 @@ window.testEngineHealth = function() {
       
       // Check if callbacks are wired
       const hasLinkCallbacks = 
-        (window.nodeLinker.onLinkCreatedCallbacks?.length || 0) > 0 ||
+        (window.nodeLinker.linkCreatedCallbacks?.length || 0) > 0 ||
         (window.nodeLinker.onLinkRemovedCallbacks?.length || 0) > 0;
       
       if (!hasLinkCallbacks && links.length > 0) {

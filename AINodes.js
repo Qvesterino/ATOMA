@@ -7,9 +7,6 @@ import { NodeSpatialIndex, acceleratedRaycast } from './NodeSpatialIndex.js';
 const freezeNodeCoreState = (nodeModel) => { /* no-op */ };
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
-// Legacy aura overlays kill-switch
-const ENABLE_LEGACY_AURAS = false;
-
 function isLinkSpawnEnabled() {
   if (typeof window === 'undefined') return false;
   return window.ATOMA_FLAGS?.runtime?.linkSpawnEnabled === true;
@@ -2044,77 +2041,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       }
     }
     
-    // ========== ULTRA EDITION: INTENSE OUTER GLOW (200% boost) ==========
-    // Primary glow (2× larger and brighter)
-    let outerGlow = null;
-    // LEGACY_AURA_DISABLED
-    // This aura system is disabled to prevent visual stack conflicts.
-    // Core aura stack is:
-    // - hover (NodeAuraSystem_v1)
-    // - selected (_UISelectedNodeHighlight)
-    // - linked (NodeLinkedAuraSystem)
-    if (false && ENABLE_LEGACY_AURAS && vfxFlag('ATOMA_VFX_ENABLE_NODE_GLOW', true)) {
-      const outerGlowGeometry = new THREE.IcosahedronGeometry(1.2, 4);
-      const outerGlowMaterial = new THREE.MeshBasicMaterial({
-        color: layerColors.primary,
-        transparent: true,
-        opacity: 0.5,  // 200% boost from 0.25
-        // FIX: MeshBasicMaterial does NOT support emissive properties
-        fog: false
-      });
-      outerGlow = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
-      outerGlow.userData = {
-        vfxType: 'ultraOuterGlow',
-        isVFX: true,
-        isAura: true,  // ✅ PROTECTED: Cannot be mutated by link-state
-        visualLayer: 'AURA',
-        pulsePhase: Math.random() * Math.PI * 2
-      };
-      // PHASE 3C.1 remap → BASELINE_AURA
-      outerGlow.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');  // ✅ Aura renders last (behind core)
-      outerGlow.visible = false; // Neutralize decorative glow
-      outerGlow.userData.neutralized = true;
-      // Guard: Only add outer glow if not already present
-      if (!nodeModel.userData.overlays['outer-glow']) {
-        nodeModel.add(outerGlow);
-        nodeModel.userData.overlays['outer-glow'] = outerGlow;
-      }
-    }
-    
-    // Secondary halo (even larger, very soft)
-    // [Halo Cleanup v1.0] Reduced scale from 1.5→1.15 and opacity from 0.15→0.22 for better readability
-    let haloGlow = null;
-    // LEGACY_AURA_DISABLED
-    // This aura system is disabled to prevent visual stack conflicts.
-    // Core aura stack is:
-    // - hover (NodeAuraSystem_v1)
-    // - selected (_UISelectedNodeHighlight)
-    // - linked (NodeLinkedAuraSystem)
-    if (false && ENABLE_LEGACY_AURAS && vfxFlag('ATOMA_VFX_ENABLE_NODE_HALO', true)) {
-      const haloGeometry = new THREE.IcosahedronGeometry(1.15, 3);
-      const haloMaterial = new THREE.MeshBasicMaterial({
-        color: layerColors.secondary,
-        transparent: true,
-        opacity: 0.22,
-        fog: false
-      });
-      haloGlow = new THREE.Mesh(haloGeometry, haloMaterial);
-      haloGlow.userData = {
-        vfxType: 'ultraHalo',
-        isVFX: true,
-        isAura: true,  // ✅ PROTECTED: Cannot be mutated by link-state
-        visualLayer: 'AURA'
-      };
-      // PHASE 3C.1 remap → BASELINE_AURA
-      haloGlow.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');  // ✅ Aura renders last (behind core)
-      haloGlow.visible = false; // Neutralize decorative halo
-      haloGlow.userData.neutralized = true;
-      // Guard: Only add halo glow if not already present
-      if (!nodeModel.userData.overlays['halo-glow']) {
-        nodeModel.add(haloGlow);
-        nodeModel.userData.overlays['halo-glow'] = haloGlow;
-      }
-    }
+    // Legacy aura overlays were hard-disabled; the dead branch has been removed.
     
     // ============ SAFE VFX LAYER 5: HOLOGRAPHIC EDGE HIGHLIGHTS ============
     // FIX 2: EdgesGeometry NaN discard - prevent invalid geometries from entering scene
@@ -2377,8 +2304,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       isSpecial: isSpecial,
       
       // VFX Data
-      vfxGlow: outerGlow,
-      vfxHalo: haloGlow,
+      vfxGlow: null,
+      vfxHalo: null,
       vfxHolo: null,
       vfxRings: orbitRings,
       layerColors: layerColors,
@@ -4744,7 +4671,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   /**
    * Register link event (triggers potential spawn)
    */
-  onLinkCreated() {
+  maybeSpawnNodeOnLinkCreated() {
     if (this.spawnState.phase !== 'RUNTIME') return;
     if (this.spawningConfig?.disableRuntimeSpawn === true) return;
     if (Number.isFinite(this.hardSpawnCap) && this.getNodeCount() >= this.hardSpawnCap) return;
@@ -4758,7 +4685,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
     if (window.ATOMA_FLAGS?.debug?.linkSpawn === true && shouldLogSpawn()) {
-      console.warn('[LINK-SPAWN] onLinkCreated called (link -> spawn trigger)', {
+      console.warn('[LINK-SPAWN] maybeSpawnNodeOnLinkCreated called (link -> spawn trigger)', {
         currentTime: Date.now(),
         lastLinkTime: this.spawningConfig.lastLinkTime,
         linkSpawnCooldown: this.spawningConfig.linkSpawnCooldown,

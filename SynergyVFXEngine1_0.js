@@ -11,6 +11,11 @@
  * 4. Synergy Burst Events — Ring pulses on synergy changes
  * 5. Synergy Cluster Fields — Soft auras around node clusters
  * 
+ * Status:
+ * - Dormant legacy module in the current workspace runtime path
+ * - No active consumer found in the codebase as of 2026-03-31
+ * - Keep here as archive/compatibility until a real consumer is wired
+ *
  * Features:
  * - Real-time synergy data visualization (score, tier, trend, polarity)
  * - Smooth lerp transitions (0.1 factor)
