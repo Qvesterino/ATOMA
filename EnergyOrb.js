@@ -39,6 +39,7 @@ export class EnergyOrb {
     // Physics
     this.velocity = new THREE.Vector3();
     this.acceleration = new THREE.Vector3();
+    this._attractionDirection = new THREE.Vector3();
     this.isDragging = false;
     this.dragDistance = 0;
     this.attractionForce = 0.005;
@@ -157,7 +158,7 @@ export class EnergyOrb {
 
     if (distance < attractionRadius) {
       // Calculate attraction force
-      const direction = new THREE.Vector3()
+      const direction = this._attractionDirection
         .subVectors(playerPosition, this.mesh.position)
         .normalize();
 

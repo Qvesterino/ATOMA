@@ -10,6 +10,8 @@ export class EnvironmentalHazards {
     this.camera = camera;
     this.hazards = [];
     this.activeEffects = [];
+    this._hazardEffectScratch = new THREE.Vector3();
+    this._hazardDirectionScratch = new THREE.Vector3();
   }
   
   /**
@@ -178,7 +180,9 @@ export class EnvironmentalHazards {
    * Calculate hazard effect on position
    */
   getHazardEffect(position) {
-    let force = new THREE.Vector3();
+    const force = this._hazardEffectScratch || (this._hazardEffectScratch = new THREE.Vector3());
+    force.set(0, 0, 0);
+    const direction = this._hazardDirectionScratch || (this._hazardDirectionScratch = new THREE.Vector3());
     
     this.hazards.forEach(hazard => {
       if (!hazard.active) return;
@@ -188,9 +192,7 @@ export class EnvironmentalHazards {
       if (distance < hazard.radius) {
         if (hazard.type === 'electricalStorm') {
           // Repulsive force from storm
-          const direction = new THREE.Vector3()
-            .subVectors(position, hazard.position)
-            .normalize();
+          direction.subVectors(position, hazard.position).normalize();
           
           const strength = (1 - distance / hazard.radius) * hazard.intensity * 0.1;
           force.add(direction.multiplyScalar(strength));
@@ -202,9 +204,7 @@ export class EnvironmentalHazards {
         
         if (hazard.type === 'gravitationalAnomaly') {
           // Attractive force from anomaly
-          const direction = new THREE.Vector3()
-            .subVectors(hazard.position, position)
-            .normalize();
+          direction.subVectors(hazard.position, position).normalize();
           
           const strength = (1 - distance / hazard.radius) * hazard.strength * 0.15;
           force.add(direction.multiplyScalar(strength));

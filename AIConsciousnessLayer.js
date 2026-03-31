@@ -89,6 +89,10 @@ export class AIConsciousnessLayer {
     this.instanceID = Math.random();
     this._timeOrigin = undefined;
     this._lastVisualTime = undefined;
+    this._threadControlPoint1 = new THREE.Vector3();
+    this._threadControlPoint2 = new THREE.Vector3();
+    this._threadOffset1 = new THREE.Vector3();
+    this._threadOffset2 = new THREE.Vector3();
     
     this._initializeParticlePools();
     this._createGlobalField();
@@ -183,6 +187,7 @@ export class AIConsciousnessLayer {
     line.name = `NeuralThread_${link.id}`;
     line.userData.linkId = link.id;
     line.userData.link = link;
+    line.userData.threadPoints = points;
     
     this.consciousnessGroup.add(line);
     this.activeThoughts.threadMeshes.set(link.id, line);
@@ -192,9 +197,9 @@ export class AIConsciousnessLayer {
   /**
    * Generate smooth Bézier path for thread
    */
-  _generateThreadPath(link) {
-    const posA = link.nodeA.position.clone();
-    const posB = link.nodeB.position.clone();
+  _generateThreadPath(link, reusePoints = null) {
+    const posA = link.nodeA.position;
+    const posB = link.nodeB.position;
     const distance = posA.distanceTo(posB);
     
     // Dynamic control point offset based on distance and category
@@ -202,31 +207,29 @@ export class AIConsciousnessLayer {
     const categoryInfluence = this._getCategoryInfluence(link.nodeA, link.nodeB);
     
     // Create Bézier curve with 1-2 control points
-    const controlPoint1 = posA.clone().add(
-      new THREE.Vector3(
-        (Math.random() - 0.5) * offset,
-        Math.sin(this.time * 0.5) * offset * 0.5,
-        (Math.random() - 0.5) * offset
-      )
+    this._threadOffset1.set(
+      (Math.random() - 0.5) * offset,
+      Math.sin(this.time * 0.5) * offset * 0.5,
+      (Math.random() - 0.5) * offset
     );
-    
-    const controlPoint2 = posB.clone().add(
-      new THREE.Vector3(
-        (Math.random() - 0.5) * offset * categoryInfluence,
-        Math.cos(this.time * 0.5) * offset * 0.5,
-        (Math.random() - 0.5) * offset * categoryInfluence
-      )
+    this._threadOffset2.set(
+      (Math.random() - 0.5) * offset * categoryInfluence,
+      Math.cos(this.time * 0.5) * offset * 0.5,
+      (Math.random() - 0.5) * offset * categoryInfluence
     );
+    const controlPoint1 = this._threadControlPoint1.copy(posA).add(this._threadOffset1);
+    const controlPoint2 = this._threadControlPoint2.copy(posB).add(this._threadOffset2);
     
     // Generate curve points
-    const points = [];
-    const segments = Math.ceil(distance * 2);
+    const points = Array.isArray(reusePoints) ? reusePoints : [];
+    const segments = Math.max(1, Math.ceil(distance * 2));
+    points.length = segments + 1;
     
     for (let i = 0; i <= segments; i++) {
       const t = i / segments;
       // Cubic Bézier interpolation
-      const p = this._cubicBezier(posA, controlPoint1, controlPoint2, posB, t);
-      points.push(p);
+      const p = points[i] || (points[i] = new THREE.Vector3());
+      this._cubicBezier(posA, controlPoint1, controlPoint2, posB, t, p);
     }
     
     return points;
@@ -235,12 +238,12 @@ export class AIConsciousnessLayer {
   /**
    * Cubic Bézier interpolation
    */
-  _cubicBezier(p0, p1, p2, p3, t) {
+  _cubicBezier(p0, p1, p2, p3, t, target) {
     const mt = 1 - t;
     const mt2 = mt * mt;
     const t2 = t * t;
     
-    return new THREE.Vector3(
+    return target.set(
       mt2 * mt * p0.x + 3 * mt2 * t * p1.x + 3 * mt * t2 * p2.x + t2 * t * p3.x,
       mt2 * mt * p0.y + 3 * mt2 * t * p1.y + 3 * mt * t2 * p2.y + t2 * t * p3.y,
       mt2 * mt * p0.z + 3 * mt2 * t * p1.z + 3 * mt * t2 * p2.z + t2 * t * p3.z
@@ -488,7 +491,8 @@ export class AIConsciousnessLayer {
       
       // Update geometry periodically (every 2 frames to save performance)
       if (this.time % 2 < 1) {
-        const points = this._generateThreadPath(link);
+        const points = this._generateThreadPath(link, line.userData.threadPoints);
+        line.userData.threadPoints = points;
         line.geometry.setFromPoints(points);
       }
     }

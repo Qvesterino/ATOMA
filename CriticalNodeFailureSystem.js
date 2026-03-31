@@ -131,6 +131,15 @@ class SeverVisualEffect {
         this.startPos = new THREE.Vector3();
         this.endPos = new THREE.Vector3();
         this.centerPos = new THREE.Vector3();
+        this._directionScratch = new THREE.Vector3();
+        this.visualData = {
+            startPos: new THREE.Vector3(),
+            endPos: new THREE.Vector3(),
+            centerPos: new THREE.Vector3(),
+            intensity: 1.0,
+            phase: 'snap',
+            breakAmount: 0.0
+        };
         this.progress = 0.0;
         this.phase = 'snap'; // 'snap', 'recoil', 'scar'
         this.intensity = 1.0;
@@ -141,6 +150,12 @@ class SeverVisualEffect {
         this.startPos.set(0, 0, 0);
         this.endPos.set(0, 0, 0);
         this.centerPos.set(0, 0, 0);
+        this.visualData.startPos.set(0, 0, 0);
+        this.visualData.endPos.set(0, 0, 0);
+        this.visualData.centerPos.set(0, 0, 0);
+        this.visualData.intensity = 1.0;
+        this.visualData.phase = 'snap';
+        this.visualData.breakAmount = 0.0;
         this.progress = 0.0;
         this.phase = 'snap';
         this.intensity = 1.0;
@@ -189,13 +204,13 @@ class SeverVisualEffect {
         if (!this.active) return null;
 
         const t = this.progress;
-        let visualData = {
-            startPos: this.startPos.clone(),
-            endPos: this.endPos.clone(),
-            centerPos: this.centerPos.clone(),
-            intensity: this.intensity,
-            phase: this.phase
-        };
+        const visualData = this.visualData;
+        visualData.startPos.copy(this.startPos);
+        visualData.endPos.copy(this.endPos);
+        visualData.centerPos.copy(this.centerPos);
+        visualData.intensity = this.intensity;
+        visualData.phase = this.phase;
+        visualData.breakAmount = 0.0;
 
         switch (this.phase) {
             case 'snap':
@@ -207,7 +222,7 @@ class SeverVisualEffect {
             case 'recoil':
                 // Endpoints recoil away
                 const recoilT = 1.0 - Math.pow(1.0 - t, 2); // Ease out
-                const direction = new THREE.Vector3().subVectors(this.endPos, this.startPos).normalize();
+                const direction = this._directionScratch.subVectors(this.endPos, this.startPos).normalize();
                 visualData.startPos.addScaledVector(direction, -CONFIG.RECOIL_DISTANCE * recoilT);
                 visualData.endPos.addScaledVector(direction, CONFIG.RECOIL_DISTANCE * recoilT);
                 visualData.intensity = 1.0 - t * 0.5;

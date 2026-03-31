@@ -53,6 +53,7 @@ export class AutoLinkFeedbackUI1_0 {
     // Track HUD notifications
     this.hudNotificationQueue = [];
     this._maxHUDNotifications = 3; // Max concurrent HUD messages
+    this._tooltipScreenPos = new THREE.Vector3();
     
     // DOM overlay for tooltips
     this._setupTooltipOverlay();
@@ -231,9 +232,9 @@ export class AutoLinkFeedbackUI1_0 {
         if (!tooltip.parentElement) return; // Already removed
         
         // Get node screen position
-        const vector = new THREE.Vector3();
-        vector.setFromMatrixPosition(node.matrixWorld);
-        vector.project(window.game?.camera || new THREE.Camera());
+          const vector = this._tooltipScreenPos;
+          vector.setFromMatrixPosition(node.matrixWorld);
+          vector.project(window.game?.camera || new THREE.Camera());
         
         const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
         const y = -(vector.y * 0.5 - 0.5) * window.innerHeight - 30; // 30px above

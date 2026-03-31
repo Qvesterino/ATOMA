@@ -64,6 +64,7 @@ export class CorruptionVisualFX_v1 {
     this.particleRoot = new THREE.Group();
     this.particleRoot.name = 'CorruptionVisualFX_Particles';
     this._particleGeometry = new THREE.TetrahedronGeometry(0.06, 0);
+    this._particleSpawnOffset = new THREE.Vector3();
     
     // Performance settings
     this.updateInterval = 1 / 30; // 30Hz updates for performance
@@ -636,20 +637,20 @@ export class CorruptionVisualFX_v1 {
     }
 
     // Particle properties
+    const spawnOffset = this._particleSpawnOffset || (this._particleSpawnOffset = new THREE.Vector3());
+    spawnOffset.set(
+      (Math.random() - 0.5) * 0.3,
+      (Math.random() - 0.5) * 0.3,
+      (Math.random() - 0.5) * 0.3
+    );
     const particle = {
-      position: nodePos.add(
-        new THREE.Vector3(
-          (Math.random() - 0.5) * 0.3,
-          (Math.random() - 0.5) * 0.3,
-          (Math.random() - 0.5) * 0.3
-        )
-      ),
+      position: nodePos.add(spawnOffset),
       startPosition: null, // will be set to position after creation
-      baseVelocity: new THREE.Vector3(
-        (Math.random() - 0.5) * (isBurst ? 0.5 : 0.2),
-        (Math.random() - 0.5) * (isBurst ? 0.5 : 0.2),
-        (Math.random() - 0.5) * (isBurst ? 0.5 : 0.2)
-      ),
+      baseVelocity: {
+        x: (Math.random() - 0.5) * (isBurst ? 0.5 : 0.2),
+        y: (Math.random() - 0.5) * (isBurst ? 0.5 : 0.2),
+        z: (Math.random() - 0.5) * (isBurst ? 0.5 : 0.2)
+      },
       age: 0,
       life: 1.0,
       maxLife: 0.5 + Math.random() * 0.5,

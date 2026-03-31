@@ -971,6 +971,7 @@ export class CascadeParticleSystem_Session120 {
     const opacities = this.geometry.attributes.opacity.array;
     const sizes = this.geometry.attributes.size.array;
     const angles = this.geometry.attributes.angle.array;
+    const shapes = this.geometry.attributes.shapeIndex.array;
     
     let diedFromAge = 0;
     let diedFromUpdate = 0;
@@ -987,7 +988,7 @@ export class CascadeParticleSystem_Session120 {
           opacities,
           sizes,
           angles,
-          this.geometry.attributes.shapeIndex.array
+          shapes
         );
         continue;
       }
@@ -995,7 +996,7 @@ export class CascadeParticleSystem_Session120 {
       const age = currentCascadeTime - p.spawnTime;
       p.lifetime = age;
       if (age >= p.maxLifetime) {
-        this._releaseParticle(p, activeIndex, positions, colors, opacities, sizes, angles, this.geometry.attributes.shapeIndex.array);
+        this._releaseParticle(p, activeIndex, positions, colors, opacities, sizes, angles, shapes);
         diedFromAge++;
         continue;
       }
@@ -1003,7 +1004,7 @@ export class CascadeParticleSystem_Session120 {
       this._updateSingleParticle(p, deltaTime, currentCascadeTime);
       
       if (!p.active) {
-        this._releaseParticle(p, activeIndex, positions, colors, opacities, sizes, angles, this.geometry.attributes.shapeIndex.array);
+        this._releaseParticle(p, activeIndex, positions, colors, opacities, sizes, angles, shapes);
         diedFromUpdate++;
         continue;
       }
@@ -1129,7 +1130,7 @@ export class CascadeParticleSystem_Session120 {
   _resolveWorldPosition(node, outVec) {
     if (!node || !node.position) return null;
     const pos = (typeof node.getWorldPosition === 'function')
-      ? node.getWorldPosition(outVec || new THREE.Vector3())
+      ? node.getWorldPosition(outVec || this._tmpSourceWorldPos)
       : node.position;
     return this._isValidWorldPosition(pos) ? pos : null;
   }

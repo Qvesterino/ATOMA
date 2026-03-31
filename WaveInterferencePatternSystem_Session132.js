@@ -63,6 +63,10 @@ export class WaveInterferencePatternSystem_Session132 {
             constructiveGlow: 1.5,            // Emissive multiplier
             constructiveWidth: 0.08,          // Band width
             constructiveAmplification: 1.8,   // Amplitude multiplication factor
+            birthSeedPulseScale: 1.24,        // Extra scale for seed birth visuals
+            birthSeedSpikeBoost: 1.35,        // Extra spike length bias for seed births
+            birthSeedOpacityBoost: 1.15,      // Visibility lift for seed births
+            birthSeedPulseOpacity: 0.18,      // Torus pulse opacity for seed births
             
             // Destructive interference (cancellation)
             destructiveColor: new THREE.Color(0.2, 0.2, 0.3),   // Dark blue-grey
@@ -107,6 +111,7 @@ export class WaveInterferencePatternSystem_Session132 {
         // Runtime state
         this.interferenceZones = [];         // { linkIds, type, intensity, beatFrequency, zoneKey }
         this.collisionPairs = [];            // { convergencePoint, phaseDifference, intensity, beatFrequency, linkIds }
+        this.birthCollisionPairs = new Map(); // zoneKey -> seeded pair for link birth visuals
         this.interferenceMeshes = [];        // Active interference mesh overlays
         this.beatPatterns = [];              // { zone, beatFrequency, beatPhase }
         this.zoneLifecycles = new Map();     // zoneKey -> { birthTime, lastSeenTime }
@@ -161,6 +166,7 @@ export class WaveInterferencePatternSystem_Session132 {
         this._coreGeometry = new THREE.IcosahedronGeometry(0.85, 2);
         this._shellGeometry = new THREE.IcosahedronGeometry(1.0, 1);
         this._spikeGeometry = new THREE.ConeGeometry(0.12, this.config.spikeLength, 5, 1, false);
+        this._birthPulseGeometry = new THREE.TorusGeometry(1.14, 0.055, 5, 18);
         
         // Pre-allocate interference mesh pool
         for (let i = 0; i < this.config.maxInterferenceMeshes; i++) {
@@ -203,6 +209,10 @@ export class WaveInterferencePatternSystem_Session132 {
         
         // Step 1: Detect wave collisions
         this._detectWaveCollisions(deltaTime);
+        this._updateBirthCollisionPairs(deltaTime);
+        for (const birthPair of this.birthCollisionPairs.values()) {
+            this.collisionPairs.push(birthPair);
+        }
         
         // Step 2: Calculate interference zones
         this._calculateInterferenceZones(deltaTime);
@@ -283,6 +293,162 @@ export class WaveInterferencePatternSystem_Session132 {
         this.collisionPairs = this.collisionPairs.filter(pair => {
             return this.time - pair.collisionTime < this.config.collisionWindowSeconds;
         });
+    }
+
+    /**
+     * Seed a visible interference birth pattern from link creation.
+     * This keeps the system readable even before real reflection collisions appear.
+     */
+    seedLinkBirth(linkOrEvent = {}, signals = {}) {
+        const link = (linkOrEvent && typeof linkOrEvent === 'object' && (linkOrEvent.id || linkOrEvent.userData))
+            ? linkOrEvent
+            : (signals.link ?? signals.linkRef ?? null);
+        if (!link) return null;
+
+        const linkId = this._resolveLinkId(link);
+        if (!linkId) return null;
+
+        if (link.userData?.__waveInterferenceBirthSeeded === true) {
+            const existingKey = link.userData?.__waveInterferenceBirthZoneKey;
+            return existingKey ? this.birthCollisionPairs.get(existingKey) ?? null : null;
+        }
+
+        const endpoints = this._getLinkEndpoints(link);
+        const startPos = endpoints.startPos;
+        const endPos = endpoints.endPos;
+        const midpoint = (startPos && endPos)
+            ? new THREE.Vector3().addVectors(startPos, endPos).multiplyScalar(0.5)
+            : this._asVector3(
+                signals.anchor ??
+                signals.center ??
+                signals.position ??
+                link?.source?.position ??
+                link?.target?.position ??
+                null
+            );
+        if (!midpoint) return null;
+
+        const synergy = Number(
+            signals.synergy ??
+            signals.phaseSyncStrength ??
+            link?.synergyScore ??
+            link?.userData?.synergy?.score ??
+            link?.userData?.synergy?.synergyNorm ??
+            link?.userData?.metrics?.synergy ??
+            0
+        ) || 0;
+        const stability = Number(
+            signals.stability ??
+            signals.phaseSyncStability ??
+            link?.userData?.metrics?.harmony ??
+            link?.userData?.harmony ??
+            0
+        ) || 0;
+        const intensity = Math.max(0.18, Math.min(1, Math.max(
+            Number(signals.intensity ?? signals.value ?? link?.userData?.cascadeIntensity ?? 0) || 0,
+            synergy,
+            stability
+        )));
+        const constructiveBias = stability >= 0.6 || synergy >= 0.5;
+        const zoneType = signals.type || (constructiveBias ? 'constructive' : 'destructive');
+        const zoneKey = `birth:${zoneType}:${linkId}`;
+        const beatFrequency = Math.max(
+            this.config.beatFrequencyRange[0],
+            Math.min(
+                this.config.beatFrequencyRange[1],
+                Number(signals.beatFrequency ?? (0.75 + intensity * 2.15))
+            )
+        );
+        const phaseDifference = Number.isFinite(Number(signals.phaseDifference))
+            ? Math.max(0, Math.min(0.5, Number(signals.phaseDifference)))
+            : (constructiveBias ? 0.12 : 0.37);
+
+        const lifecycle = this.zoneLifecycles.get(zoneKey) || {
+            birthTime: this.time,
+            lastSeenTime: this.time
+        };
+        lifecycle.lastSeenTime = this.time;
+        this.zoneLifecycles.set(zoneKey, lifecycle);
+
+        const pair = {
+            convergencePoint: midpoint.clone ? midpoint.clone() : midpoint,
+            phaseDifference,
+            intensity,
+            beatFrequency,
+            linkIds: [linkId],
+            collisionTime: this.time,
+            zoneKey,
+            birthSeeded: true,
+            linkId
+        };
+
+        this.birthCollisionPairs.set(zoneKey, pair);
+        if (!link.userData) link.userData = {};
+        link.userData.__waveInterferenceBirthSeeded = true;
+        link.userData.__waveInterferenceBirthSeededAt = this.time;
+        link.userData.__waveInterferenceBirthZoneKey = zoneKey;
+        return pair;
+    }
+
+    /**
+     * Keep birth-seeded interference pairs alive while the link remains active.
+     */
+    _updateBirthCollisionPairs(deltaTime) {
+        if (this.birthCollisionPairs.size === 0) return;
+
+        const now = this.time;
+        const staleAge = Math.max(this.config.collisionWindowSeconds * 3, 12.0);
+
+        for (const [zoneKey, pair] of this.birthCollisionPairs.entries()) {
+            const link = this._resolveLinkById(pair.linkId);
+            if (!link || link.active === false) {
+                const age = now - (pair.collisionTime ?? now);
+                if (age > staleAge) {
+                    this.birthCollisionPairs.delete(zoneKey);
+                    this.zoneLifecycles.delete(zoneKey);
+                }
+                continue;
+            }
+
+            const endpoints = this._getLinkEndpoints(link);
+            const midpoint = (endpoints.startPos && endpoints.endPos)
+                ? new THREE.Vector3().addVectors(endpoints.startPos, endpoints.endPos).multiplyScalar(0.5)
+                : this._asVector3(
+                    link?.source?.position ??
+                    link?.target?.position ??
+                    pair.convergencePoint
+                );
+            if (midpoint) {
+                pair.convergencePoint = midpoint.clone ? midpoint.clone() : midpoint;
+            }
+
+            const linkSynergy = Number(
+                link?.synergyScore ??
+                link?.userData?.synergy?.score ??
+                link?.userData?.synergy?.synergyNorm ??
+                link?.userData?.metrics?.synergy ??
+                pair.intensity
+            ) || pair.intensity;
+            const linkStability = Number(
+                link?.userData?.metrics?.harmony ??
+                link?.userData?.harmony ??
+                pair.intensity
+            ) || pair.intensity;
+            pair.intensity = Math.max(0.18, Math.min(1, Math.max(linkSynergy, linkStability, pair.intensity)));
+            pair.beatFrequency = Math.max(
+                this.config.beatFrequencyRange[0],
+                Math.min(
+                    this.config.beatFrequencyRange[1],
+                    pair.beatFrequency + Math.sin(now * 0.85) * 0.04
+                )
+            );
+            pair.collisionTime = now;
+
+            const lifecycle = this.zoneLifecycles.get(zoneKey);
+            if (lifecycle) {
+                lifecycle.lastSeenTime = now;
+            }
+        }
     }
 
     /**
@@ -444,7 +610,9 @@ export class WaveInterferencePatternSystem_Session132 {
                     )
                 ),
                 birthTime: lifecycle.birthTime,
-                zoneKey
+                zoneKey,
+                birthSeeded: pair.birthSeeded === true,
+                birthSeedZoneKey: pair.zoneKey ?? null
             };
             
             this.interferenceZones.push(zone);
@@ -515,6 +683,8 @@ export class WaveInterferencePatternSystem_Session132 {
             meshItem.zone = zone;
             meshItem.type = zone.type;
             meshItem.birthTime = zone.birthTime;
+            meshItem.birthSeeded = zone.birthSeeded === true;
+            meshItem.birthSeedAge = Math.max(0, this.time - (zone.birthTime ?? this.time));
             meshItem.baseColor = (zone.type === 'constructive'
                 ? this.config.constructiveColor
                 : this.config.destructiveColor).clone();
@@ -527,7 +697,10 @@ export class WaveInterferencePatternSystem_Session132 {
             
             // Scale based on intensity and beat - use proper world-space scale
             const beatAmplitude = Math.sin(pattern.beatPhase * this.config.beatMotionScale);
-            const scaleFactor = Math.max(0.52, zone.intensity * (0.92 + beatAmplitude * this.config.beatAmplification));
+            const birthSeedLift = meshItem.birthSeeded
+                ? 1 + Math.max(0, 1 - Math.min(1, meshItem.birthSeedAge / Math.max(0.25, this.config.peakDuration))) * 0.24
+                : 1;
+            const scaleFactor = Math.max(0.52, zone.intensity * (0.92 + beatAmplitude * this.config.beatAmplification) * birthSeedLift);
             const wobble = 1 + Math.abs(beatAmplitude) * 0.12;
             meshItem.mesh.scale.set(scaleFactor * wobble, scaleFactor * (0.95 + Math.abs(beatAmplitude) * 0.18), scaleFactor * wobble);
             meshItem.mesh.rotation.y = this.time * 0.22 + beatAmplitude * 0.55;
@@ -536,17 +709,57 @@ export class WaveInterferencePatternSystem_Session132 {
 
             if (zone.type === 'constructive') {
                 const colorIntensity = Math.min(1, this.config.constructiveGlow * zone.intensity);
-                meshItem.colorIntensity = colorIntensity;
-                meshItem.intensity = zone.intensity * this.config.constructiveAmplification;
+                meshItem.colorIntensity = Math.min(1, colorIntensity * (meshItem.birthSeeded ? 1.1 : 1));
+                meshItem.intensity = zone.intensity * this.config.constructiveAmplification * (meshItem.birthSeeded ? 1.12 : 1);
             } else {
                 const colorIntensity = Math.min(1, this.config.destructiveGlow * zone.intensity);
-                meshItem.colorIntensity = colorIntensity;
-                meshItem.intensity = zone.intensity * this.config.destructiveDamping;
+                meshItem.colorIntensity = Math.min(1, colorIntensity * (meshItem.birthSeeded ? 1.06 : 1));
+                meshItem.intensity = zone.intensity * this.config.destructiveDamping * (meshItem.birthSeeded ? 1.06 : 1);
             }
             
             // Set material opacity based on lifecycle
             meshItem.opacityFactor = this._setMeshLifecycleOpacity(meshItem);
-            this._applyInterferenceMaterialState(meshItem, 1 + Math.abs(beatAmplitude) * 0.18);
+            const birthPulse = meshItem.birthSeeded
+                ? 1 + Math.max(0, 1 - Math.min(1, meshItem.birthSeedAge / Math.max(0.2, this.config.peakDuration))) * 0.35
+                : 1;
+            this._applyInterferenceMaterialState(meshItem, (1 + Math.abs(beatAmplitude) * 0.18) * birthPulse);
+
+            const pulsePart = meshItem.parts.find((part) => part.role === 'pulse');
+            if (pulsePart?.mesh) {
+                pulsePart.mesh.visible = meshItem.birthSeeded === true;
+                if (meshItem.birthSeeded) {
+                    const pulseScale = this.config.birthSeedPulseScale
+                        + Math.sin(this.time * 5.4) * 0.08
+                        + Math.max(0, 1 - Math.min(1, meshItem.birthSeedAge / Math.max(0.4, this.config.peakDuration))) * 0.18;
+                    pulsePart.mesh.scale.setScalar(Math.max(0.88, pulseScale));
+                    pulsePart.mesh.rotation.y = this.time * 0.64;
+                    pulsePart.mesh.rotation.z = this.time * 0.28;
+                    if (pulsePart.material?.opacity !== undefined) {
+                        pulsePart.material.opacity = Math.max(
+                            0.06,
+                            this.config.birthSeedPulseOpacity * (0.7 + Math.abs(beatAmplitude) * 0.75)
+                        );
+                    }
+                } else {
+                    pulsePart.mesh.scale.setScalar(0.01);
+                }
+            }
+
+            if (meshItem.birthSeeded) {
+                meshItem.parts.forEach(({ mesh, role }) => {
+                    if (!mesh || role !== 'spike') return;
+                    const basePosition = mesh.userData?.basePosition;
+                    const baseScale = mesh.userData?.baseScale;
+                    if (basePosition?.clone) {
+                        const spikePulse = 1 + Math.sin(this.time * 4.2 + basePosition.x * 2.1) * 0.12;
+                        mesh.position.copy(basePosition).multiplyScalar(this.config.birthSeedSpikeBoost * spikePulse * 0.78);
+                    }
+                    if (baseScale?.clone) {
+                        mesh.scale.copy(baseScale);
+                        mesh.scale.y *= 1.08 + Math.sin(this.time * 4.2 + mesh.position.x * 2.1) * 0.16;
+                    }
+                });
+            }
             
             // Check LOD
             if (this.config.enableLOD) {
@@ -571,14 +784,19 @@ export class WaveInterferencePatternSystem_Session132 {
     _setMeshLifecycleOpacity(meshItem) {
         const lifespan = this.time - meshItem.birthTime;
         
-        let opacityFactor = 1.0;
+        let opacityFactor = meshItem.birthSeeded ? 1.15 : 1.0;
         
         // Emergence phase
         if (lifespan < this.config.emergenceTime) {
-            opacityFactor = lifespan / this.config.emergenceTime;
+            opacityFactor = (lifespan / this.config.emergenceTime) * (meshItem.birthSeeded ? 1.15 : 1);
+        }
+
+        if (meshItem.birthSeeded) {
+            const seedBoost = 1 + Math.max(0, 1 - Math.min(1, lifespan / Math.max(0.25, this.config.peakDuration))) * this.config.birthSeedOpacityBoost;
+            opacityFactor *= seedBoost;
         }
         
-        return opacityFactor;
+        return Math.min(1.45, opacityFactor);
     }
 
     /**
@@ -649,6 +867,30 @@ export class WaveInterferencePatternSystem_Session132 {
         });
     }
 
+    clearLink(linkOrId, sourceNode = null, targetNode = null) {
+        const linkId = this._resolveLinkId(linkOrId);
+        if (!linkId) return 0;
+
+        let removed = 0;
+        for (const pair of this.birthCollisionPairs.values()) {
+            if (String(pair.linkId) === String(linkId) || pair.linkIds?.some((id) => String(id) === String(linkId))) {
+                pair.orphaned = true;
+                pair.orphanedAt = this.time;
+                removed++;
+            }
+        }
+
+        this.collisionPairs = this.collisionPairs.filter((pair) => {
+            if (!pair) return false;
+            return !(String(pair.linkId) === String(linkId) || pair.linkIds?.some((id) => String(id) === String(linkId)));
+        });
+        this.interferenceZones = this.interferenceZones.filter((zone) => {
+            if (!zone) return false;
+            return !(Array.isArray(zone.linkIds) && zone.linkIds.some((id) => String(id) === String(linkId)));
+        });
+        return removed;
+    }
+
     _getZoneKey(linkIds, zoneType) {
         const normalizedLinks = Array.isArray(linkIds)
             ? linkIds.filter(Boolean).map(String).sort().join('|')
@@ -679,6 +921,7 @@ export class WaveInterferencePatternSystem_Session132 {
         // Clear stale state
         this.interferenceZones = [];
         this.collisionPairs = [];
+        this.birthCollisionPairs.clear();
         this.interferenceMeshes = [];
         this.beatPatterns = [];
         this.zoneLifecycles.clear();
@@ -715,8 +958,10 @@ export class WaveInterferencePatternSystem_Session132 {
         if (this._coreGeometry) this._coreGeometry.dispose();
         if (this._shellGeometry) this._shellGeometry.dispose();
         if (this._spikeGeometry) this._spikeGeometry.dispose();
+        if (this._birthPulseGeometry) this._birthPulseGeometry.dispose();
         
         this.zoneLifecycles.clear();
+        this.birthCollisionPairs.clear();
     }
 
     _createInterferenceVisualItem() {
@@ -730,6 +975,8 @@ export class WaveInterferencePatternSystem_Session132 {
         shellMaterial.opacity = this.config.shellOpacity;
         const spikeMaterial = this.constructiveMaterial.clone();
         spikeMaterial.opacity = this.config.constructiveOpacity * 0.95;
+        const pulseMaterial = this.constructiveMaterial.clone();
+        pulseMaterial.opacity = this.config.birthSeedPulseOpacity;
 
         const coreMesh = new THREE.Mesh(this._coreGeometry, coreMaterial);
         coreMesh.renderOrder = this.config.interferenceRenderOrder;
@@ -751,15 +998,24 @@ export class WaveInterferencePatternSystem_Session132 {
             spikeMesh.position.copy(direction).multiplyScalar(0.72);
             spikeMesh.quaternion.setFromUnitVectors(spikeBase, direction.clone().normalize());
             spikeMesh.scale.set(1, 0.8 + (i % 3) * 0.12, 1);
+            spikeMesh.userData.basePosition = spikeMesh.position.clone();
+            spikeMesh.userData.baseScale = spikeMesh.scale.clone();
             group.add(spikeMesh);
             spikeMeshes.push(spikeMesh);
         }
+
+        const pulseMesh = new THREE.Mesh(this._birthPulseGeometry, pulseMaterial);
+        pulseMesh.renderOrder = this.config.interferenceRenderOrder + 3;
+        pulseMesh.rotation.x = Math.PI * 0.5;
+        pulseMesh.visible = false;
+        group.add(pulseMesh);
 
         return {
             mesh: group,
             parts: [
                 { mesh: coreMesh, role: 'core', material: coreMesh.material },
                 { mesh: shellMesh, role: 'shell', material: shellMesh.material },
+                { mesh: pulseMesh, role: 'pulse', material: pulseMesh.material },
                 ...spikeMeshes.map((mesh) => ({ mesh, role: 'spike', material: mesh.material }))
             ]
         };
@@ -782,12 +1038,16 @@ export class WaveInterferencePatternSystem_Session132 {
                 ? 1.0
                 : role === 'shell'
                     ? 0.55
-                    : 0.88;
+                    : role === 'pulse'
+                        ? 1.15
+                        : 0.88;
             const opacityScale = role === 'core'
                 ? 1.0
                 : role === 'shell'
                     ? 0.65
-                    : 0.92;
+                    : role === 'pulse'
+                        ? 1.2
+                        : 0.92;
 
             if (material.color) {
                 material.color.setRGB(
@@ -830,6 +1090,32 @@ export class WaveInterferencePatternSystem_Session132 {
             startPos: startNode?.position || null,
             endPos: endNode?.position || null
         };
+    }
+
+    _resolveLinkId(linkOrId) {
+        if (!linkOrId) return null;
+        if (typeof linkOrId === 'string' || typeof linkOrId === 'number') {
+            return String(linkOrId);
+        }
+        return (
+            linkOrId.userData?.id ??
+            linkOrId.userData?.linkId ??
+            linkOrId.id ??
+            linkOrId.uuid ??
+            null
+        );
+    }
+
+    _resolveLinkById(linkOrId) {
+        const linkId = this._resolveLinkId(linkOrId);
+        if (!linkId || !this.linkingSystem?.links || !Array.isArray(this.linkingSystem.links)) {
+            return null;
+        }
+
+        return this.linkingSystem.links.find((link) => {
+            if (!link) return false;
+            return String(this._resolveLinkId(link)) === String(linkId);
+        }) ?? null;
     }
 
     _getNodeId(node) {

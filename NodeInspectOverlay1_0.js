@@ -19,6 +19,7 @@
 
 import * as THREE from 'three';
 import { AtomaLanguageEngine2_0 } from './_AtomaLanguageEngine2_0.js';
+import { NodeSpatialIndex } from './NodeSpatialIndex.js';
 
 export class NodeInspectOverlay1_0 {
   constructor(scene, camera, renderer, linguisticOverlay = null, game = null, thoughtStormsSystem = null) {
@@ -35,6 +36,14 @@ export class NodeInspectOverlay1_0 {
     
     // Thought Storms System: For storm mood display (optional)
     this.thoughtStormsSystem = thoughtStormsSystem;
+    
+    // SPATIAL INDEX: Octree for accelerated proximity queries (O(log n) instead of O(n))
+    this.spatialIndex = new NodeSpatialIndex({
+      worldSize: 200,
+      maxDepth: 6,
+      maxObjectsPerNode: 8
+    });
+    this.spatialIndexBuilt = false;
     
     // Statistics tracking
     this.stats = {
@@ -279,33 +288,59 @@ export class NodeInspectOverlay1_0 {
   }
 
   /**
-   * Check proximity - find closest node within range
-   * UPDATED (Session 28): Extended to 5-meter hover range for better detection
-   * Uses raycast from camera toward cursor position for accuracy
-   */
-  checkProximity() {
-    const proximityRange = 5.0; // Extended to 5 meters (Session 28 fix)
-    const playerPos = this.camera.position;
-
-    let closestNode = null;
-    let closestDistance = proximityRange;
-
+    * Build or rebuild spatial index from scene nodes
+    * Called lazily when needed to avoid overhead
+    * @private
+    */
+  _buildSpatialIndex() {
+    if (this.spatialIndexBuilt) return;
+    
+    // Clear existing index
+    this.spatialIndex.clear();
+    
+    // Add all node objects from scene
     const allObjects = this.scene.children;
     allObjects.forEach(obj => {
       // Improved filter: check node-specific properties
       if (obj.userData && obj.userData.category && !obj.userData.isVFX) {
         // Check if object has geometry/bounds for proper distance calculation
         if (obj.geometry || obj.boundingBox || obj.children.length > 0) {
-          const distance = playerPos.distanceTo(obj.position);
-          
-          // Only show if within 5-meter hover range
-          if (distance < closestDistance && distance <= proximityRange) {
-            closestDistance = distance;
-            closestNode = obj;
-          }
+          this.spatialIndex.insert(obj);
         }
       }
     });
+    
+    this.spatialIndexBuilt = true;
+  }
+
+  /**
+    * Check proximity - find closest node within range
+    * UPDATED (Session 28): Extended to 5-meter hover range for better detection
+    * Uses spatial index for O(log n) query instead of O(n) iteration
+    */
+  checkProximity() {
+    // Build spatial index if not already built
+    this._buildSpatialIndex();
+    
+    const proximityRange = 5.0; // Extended to 5 meters (Session 28 fix)
+    const playerPos = this.camera.position;
+
+    // Query spatial index for nodes within proximity range
+    const candidates = this.spatialIndex.querySphere(playerPos, proximityRange);
+    
+    let closestNode = null;
+    let closestDistance = proximityRange;
+
+    // Find closest among candidates
+    for (const obj of candidates) {
+      const distance = playerPos.distanceTo(obj.position);
+      
+      // Only show if within 5-meter hover range
+      if (distance < closestDistance && distance <= proximityRange) {
+        closestDistance = distance;
+        closestNode = obj;
+      }
+    }
 
     return closestNode;
   }

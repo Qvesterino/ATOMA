@@ -9055,13 +9055,14 @@ static createControlNode0(group, color) {
         if (child.userData.isNeuralSignal && child.userData.parentCurve) {
           const curve = child.userData.parentCurve;
           const speed = child.userData.signalSpeed;
+          const pointScratch = child.userData.signalPointScratch || (child.userData.signalPointScratch = new THREE.Vector3());
           
           // Advance along curve
           child.userData.pathOffset = (child.userData.pathOffset + deltaTime * speed) % 1.0;
           
           // Get position on curve
-          const point = curve.getPoint(child.userData.pathOffset);
-          child.position.copy(point);
+          curve.getPoint(child.userData.pathOffset, pointScratch);
+          child.position.copy(pointScratch);
         }
       });
     }
@@ -9077,13 +9078,14 @@ static createControlNode0(group, color) {
         if (child.userData.isSignalPacket && child.userData.parentCurve) {
           const curve = child.userData.parentCurve;
           const speed = child.userData.packetSpeed || 0.2;
+          const pointScratch = child.userData.signalPointScratch || (child.userData.signalPointScratch = new THREE.Vector3());
           
           // Advance path offset
           child.userData.pathOffset = (child.userData.pathOffset + deltaTime * speed) % 1.0;
           
           // Get point on curve
-          const point = curve.getPoint(child.userData.pathOffset);
-          child.position.copy(point);
+          curve.getPoint(child.userData.pathOffset, pointScratch);
+          child.position.copy(pointScratch);
         }
       });
     }

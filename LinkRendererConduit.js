@@ -47,6 +47,7 @@ const remap = (v, in0, in1, out0, out1) => {
 };
 const _linkWorldPosA = new THREE.Vector3();
 const _linkWorldPosB = new THREE.Vector3();
+const _linkWaveVec = new THREE.Vector3();
 const getLinkWorldPosition = (node, target) => {
     if (!node) return target.set(0, 0, 0);
     if (typeof node.getWorldPosition === 'function') {
@@ -2028,16 +2029,21 @@ export class LinkRendererConduit {
             if (!(state.__lockedTargetCenter instanceof THREE.Vector3)) state.__lockedTargetCenter = targetPos.clone();
         }
 
-        const linkVec = new THREE.Vector3().subVectors(targetPos, sourcePos);
+        const linkVec = _linkWaveVec.copy(targetPos).sub(sourcePos);
         const linkDist = linkVec.length();
 
         // Calculate wave metrics
-        const waveDirection = linkDist > 0.0001 ? linkVec.clone().normalize() : new THREE.Vector3(1, 0, 0);
+        const linkUD = ensureUserData(link);
+        const waveDirection = linkUD.waveDirection || (linkUD.waveDirection = new THREE.Vector3());
+        if (linkDist > 0.0001) {
+            waveDirection.copy(linkVec).normalize();
+        } else {
+            waveDirection.set(1, 0, 0);
+        }
         const waveLength = Math.max(0.0001, linkDist || 1.0);
         const wavePhaseOffset = waveLength * 0.25;
 
         // Write to link.userData (canonical storage)
-        const linkUD = ensureUserData(link);
         linkUD.waveDirection = waveDirection;
         linkUD.waveLength = waveLength;
         linkUD.wavePhaseOffset = wavePhaseOffset;
@@ -2378,12 +2384,12 @@ export class LinkRendererConduit {
       this.trailParticles.setArrivalCallback((particle, link, _time) => {
         if (link?.target?.userData?.nodeId !== undefined) {
           const targetNodeId = link.target.userData.nodeId;
+                    const linkUD = ensureUserData(link);
 
           // Calculate incoming direction (source → target)
           // This biases the aura deformation toward the incoming link
-          const incomingDir = new THREE.Vector3()
-            .subVectors(link.target.position, link.source.position)
-            .normalize();
+                    const incomingDir = linkUD._corruptionIncomingDir || (linkUD._corruptionIncomingDir = new THREE.Vector3());
+                    incomingDir.subVectors(link.target.position, link.source.position).normalize();
 
           // Trigger corruption impact at target
           this.impactManager.triggerImpact(
@@ -2401,12 +2407,12 @@ export class LinkRendererConduit {
       this.healingParticles.setArrivalCallback((particle, link, _time) => {
         if (link?.source?.userData?.nodeId !== undefined) {
           const sourceNodeId = link.source.userData.nodeId;
+                    const linkUD = ensureUserData(link);
 
           // Calculate incoming direction (target → source, reversed)
           // Healing flows backward, so reverse the direction
-          const incomingDir = new THREE.Vector3()
-            .subVectors(link.source.position, link.target.position)
-            .normalize();
+                    const incomingDir = linkUD._healingIncomingDir || (linkUD._healingIncomingDir = new THREE.Vector3());
+                    incomingDir.subVectors(link.source.position, link.target.position).normalize();
 
           // Trigger harmony impact at source
           this.impactManager.triggerImpact(
@@ -2623,23 +2629,24 @@ export class LinkRendererConduit {
         const conduitState = group.userData.conduitState || (group.userData.conduitState = {});
         const sourceNode = link?.source || link?.sourceNode;
         const targetNode = link?.target || link?.targetNode;
-        const sourceCenter = getLinkWorldPosition(sourceNode, _linkWorldPosA).clone();
-        const targetCenter = getLinkWorldPosition(targetNode, _linkWorldPosB).clone();
-        const directionVec = new THREE.Vector3().subVectors(targetCenter, sourceCenter);
+        const sourceCenter = getLinkWorldPosition(sourceNode, _linkWorldPosA);
+        const targetCenter = getLinkWorldPosition(targetNode, _linkWorldPosB);
+        const linkUserData = ensureUserData(link);
+        const directionVec = _linkWaveVec.copy(targetCenter).sub(sourceCenter);
+        const waveDirection = linkUserData.waveDirection || (linkUserData.waveDirection = new THREE.Vector3());
         if (directionVec.lengthSq() > 1e-8) {
-            directionVec.normalize();
+            waveDirection.copy(directionVec).normalize();
         } else {
-            directionVec.set(1, 0, 0);
+            waveDirection.set(1, 0, 0);
         }
         const linkLength = sourceCenter.distanceTo(targetCenter) || 1.0;
         const wavePhaseOffset = linkLength * 0.25;
-        const linkUserData = ensureUserData(link);
-        linkUserData.waveDirection = directionVec;
+        linkUserData.waveDirection = waveDirection;
         linkUserData.waveLength = linkLength;
         linkUserData.wavePhaseOffset = wavePhaseOffset;
         const waveShaderBridge = this.waveShaderBridge || window.game?.waveShaderBridge;
         if (waveShaderBridge?.registerLinkDirection) {
-            waveShaderBridge.registerLinkDirection(link?.id, directionVec);
+            waveShaderBridge.registerLinkDirection(link?.id, waveDirection);
         }
         const sourceCat = link.source.userData.category || 'input';
         const targetCat = link.target.userData.category || 'input';
@@ -4366,6 +4373,7 @@ export class LinkRendererConduit {
 
         const geom = new THREE.BufferGeometry();
         geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geom.attributes.position.usage = THREE.DynamicDrawUsage;
 
         const color = new THREE.Color(state?.baseColor || 0x00ffcc);
         const mat = new THREE.PointsMaterial({

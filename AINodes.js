@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
+import { NodeSpatialIndex, acceleratedRaycast } from './NodeSpatialIndex.js';
 // REMOVED: NodeCoreMaterialAuthority - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 // Stub function for compatibility
 const freezeNodeCoreState = (nodeModel) => { /* no-op */ };
@@ -44,23 +45,31 @@ const FORBIDDEN_NODE_GEOMETRIES = new Set([
 
 export const interactiveNodes = [];
 
-function registerInteractiveMesh(mesh) {
+function registerInteractiveMesh(mesh, spatialIndex = null) {
   if (!mesh) return;
   if (interactiveNodes.includes(mesh)) return;
   interactiveNodes.push(mesh);
+  // Also insert into spatial index if provided
+  if (spatialIndex) {
+    spatialIndex.insert(mesh);
+  }
 }
 
-function unregisterInteractiveMesh(mesh) {
+function unregisterInteractiveMesh(mesh, spatialIndex = null) {
   if (!mesh) return;
   const idx = interactiveNodes.indexOf(mesh);
   if (idx === -1) return;
   interactiveNodes.splice(idx, 1);
+  // Also remove from spatial index if provided
+  if (spatialIndex) {
+    spatialIndex.remove(mesh);
+  }
 }
 
-function cleanupInteractiveMesh(node) {
+function cleanupInteractiveMesh(node, spatialIndex = null) {
   const mesh = node?.userData?.interactiveMesh;
   if (!mesh) return;
-  unregisterInteractiveMesh(mesh);
+  unregisterInteractiveMesh(mesh, spatialIndex);
   delete node.userData.interactiveMesh;
 }
 
@@ -417,6 +426,13 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     
     // VISUAL BOOTSTRAP 3.0: Synchronous visual initialization on spawn
     this.visualBootstrap = new NodeVisualBootstrap3_0({ debugMode: false });
+
+    // SPATIAL INDEX: Octree for accelerated raycasting (fix for O(n) raycast performance)
+    this.spatialIndex = new NodeSpatialIndex({
+      worldSize: 200,
+      maxDepth: 6,
+      maxObjectsPerNode: 8
+    });
     
     // Complete the rest of constructor initialization
     this._finishConstructorInit();
@@ -2994,10 +3010,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       connection.material = this._getSharedLinkMaterial(targetOpacity);
       
       // Update line positions (in case nodes move)
-      const positions = connection.geometry.attributes.position;
-      positions.setXYZ(0, node1.position.x, node1.position.y, node1.position.z);
-      positions.setXYZ(1, node2.position.x, node2.position.y, node2.position.z);
-      positions.needsUpdate = true;
+      const positionAttribute = connection.geometry.attributes.position;
+      positionAttribute.setXYZ(0, node1.position.x, node1.position.y, node1.position.z);
+      positionAttribute.setXYZ(1, node2.position.x, node2.position.y, node2.position.z);
+      positionAttribute.needsUpdate = true;
     });
   }
 
@@ -3032,7 +3048,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       return t * t * (3 - 2 * t);
     };
 
-    const worldPos = this._edgeCageWorldPos || new THREE.Vector3();
+    const worldPos = this._edgeCageWorldPos || (this._edgeCageWorldPos = new THREE.Vector3());
     for (const node of this.nodes) {
       if (!node?.traverse) continue;
       node.traverse((obj) => {
@@ -3639,9 +3655,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       );
       raycaster.far = 10;
       
-      // Check intersection with scene (basic geometry check)
-      globalThis.console?.log?.("[RAYCAST]", "AINodes.js", "targets:", interactiveNodes.length);
-      const intersects = raycaster.intersectObjects(interactiveNodes, false);
+      // Check intersection with scene using accelerated spatial index (O(log n) instead of O(n))
+      globalThis.console?.log?.("[RAYCAST]", "AINodes.js", "targets:", this.spatialIndex.size());
+      const intersects = acceleratedRaycast(raycaster, this.spatialIndex, false);
       const filtered = filterRaycastIntersections(intersects);
       
       // If we hit something close below, it's likely geometry - bad spawn
@@ -4355,7 +4371,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     const interactiveMesh = coreMesh || newNode;
     newNode.userData.interactiveMesh = interactiveMesh;
     newNode.mesh = newNode.mesh || interactiveMesh;
-    registerInteractiveMesh(interactiveMesh);
+    registerInteractiveMesh(interactiveMesh, this.spatialIndex);
     
     // Validate all critical tags are set
     if (!newNode.userData.category) {

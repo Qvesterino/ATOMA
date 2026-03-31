@@ -7638,6 +7638,9 @@ window.__ATOMA_SCENE__ = this.scene;
                 const payload = {
                     id: cascadeId,
                     cascadeId,
+                    link,
+                    linkRef: link,
+                    linkId: link?.id ?? link?.userData?.id ?? link?.uuid ?? null,
                     sourceNode,
                     targetNode,
                     source: sourceNode.userData?.nodeId ?? sourceNode.id ?? sourceNode.uuid ?? null,
@@ -7662,8 +7665,11 @@ window.__ATOMA_SCENE__ = this.scene;
                     cooldownMs: 0,
                     aggregationStrategy: 'latest'
                 };
-                this.cascadeVisualizer?.renderCascadeStart?.(payload);
-                this.cascadeVisualizer?.renderCascadeHop?.(payload);
+                this.cascadeVisualizer?._handleLinkCreated?.(payload);
+                if (link?.userData) {
+                    link.userData.__cascadeBirthSeeded = true;
+                    link.userData.__cascadeBirthSeededAt = performance.now();
+                }
                 payload.__cascadeDirectRendered = true;
                 if (typeof this.semanticBus.emitImmediate === 'function') {
                     this.semanticBus.emitImmediate('cascade.start', payload, { priority });
@@ -13986,7 +13992,54 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.waveInterferenceEngine || this.wavePatternSystem.waveEngine || null;
             
             this.waveInterference.setup();
-            
+
+            if (this.linkingSystem?.links && Array.isArray(this.linkingSystem.links)) {
+                for (const link of this.linkingSystem.links) {
+                    this.waveInterference.seedLinkBirth?.(link, { link, linkRef: link });
+                }
+            }
+
+            if (this.linkingSystem?.onLinkCreated && !this.linkingSystem.__waveInterferenceBirthBridgeBound) {
+                this.linkingSystem.onLinkCreated((sourceNode, targetNode, link) => {
+                    this.waveInterference?.seedLinkBirth?.(link ?? {
+                        sourceNode,
+                        targetNode
+                    }, {
+                        link,
+                        sourceNode,
+                        targetNode,
+                        sourceNodeId: sourceNode?.userData?.nodeId ?? sourceNode?.id ?? sourceNode?.uuid ?? null,
+                        targetNodeId: targetNode?.userData?.nodeId ?? targetNode?.id ?? targetNode?.uuid ?? null,
+                        sourcePosition: sourceNode?.position ? { x: sourceNode.position.x, y: sourceNode.position.y, z: sourceNode.position.z } : null,
+                        targetPosition: targetNode?.position ? { x: targetNode.position.x, y: targetNode.position.y, z: targetNode.position.z } : null,
+                        intensity: link?.userData?.synergy?.score ?? link?.synergyScore ?? link?.userData?.metrics?.synergy ?? 0
+                    });
+                }, {
+                    layerKey: 'LINK_WAVE',
+                    immediate: true
+                });
+                this.linkingSystem.__waveInterferenceBirthBridgeBound = true;
+            }
+
+            if (this.linkingSystem?.onLinkRemoved && !this.linkingSystem.__waveInterferenceCleanupBridgeBound) {
+                this.linkingSystem.onLinkRemoved((sourceNode, targetNode, link) => {
+                    this.waveInterference?.clearLink?.(link ?? link?.id ?? null, sourceNode, targetNode);
+                }, {
+                    layerKey: 'LINK_WAVE'
+                });
+                this.linkingSystem.__waveInterferenceCleanupBridgeBound = true;
+            }
+
+            if (this.semanticBus?.on && !this.__waveInterferenceSemanticBirthBound) {
+                this.semanticBus.on('link.created', (event = {}) => {
+                    this.waveInterference?.seedLinkBirth?.(event.link ?? event.linkRef ?? event, event);
+                });
+                this.semanticBus.on('network.link.destroyed', (event = {}) => {
+                    this.waveInterference?.clearLink?.(event.link ?? event.linkRef ?? event.linkId ?? null, event.sourceNode ?? null, event.targetNode ?? null);
+                });
+                this.__waveInterferenceSemanticBirthBound = true;
+            }
+
             console.log('[main.js] WaveInterferencePatternSystem initialized ✓');
             console.log('  - Detects wave collision points (converging paths)');
             console.log('  - Visualizes constructive interference (golden amplification)');

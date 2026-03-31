@@ -118,6 +118,7 @@ class LinkCascadeColorTint {
     this.currentColor = new THREE.Color(0xFFFFFF);  // Start white
     this.targetColor = new THREE.Color(0xFFFFFF);
     this.smoothedColor = new THREE.Color(0xFFFFFF);
+    this._linkMidpoint = new THREE.Vector3();
     
     // Conflict tracking
     this.conflictType = CONFLICT_TYPE.NONE;
@@ -361,7 +362,7 @@ export class CascadeParticleColorTinting_Session119 {
           }
           
           // Check if link is in conflict region
-          const linkMidpoint = new THREE.Vector3()
+          const linkMidpoint = this._linkMidpoint
             .addVectors(nodeA.position, nodeB.position)
             .multiplyScalar(0.5);
           const distToRegion = linkMidpoint.distanceTo(region.centerPos);

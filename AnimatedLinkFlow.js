@@ -58,6 +58,11 @@ export class AnimatedLinkFlow {
     // Materials for flow effects
     this.materials = this.createMaterials();
     this.time = 0;
+    this._packetPoint = new THREE.Vector3();
+    this._packetTangent = new THREE.Vector3();
+    this._packetNormal = new THREE.Vector3();
+    this._packetBinormal = new THREE.Vector3();
+    this._packetMatrix = new THREE.Matrix4();
   }
 
   init({ linkingSystem = null, semanticBus = null } = {}) {
@@ -410,22 +415,21 @@ export class AnimatedLinkFlow {
       if (!curve) continue;
       
       // Sample position from curve
-      const point = curve.getPoint(packet.position);
+      const point = curve.getPoint(packet.position, this._packetPoint);
       packet.mesh.position.copy(point);
       
       // Rotate packet for directional effect
-      const tangent = curve.getTangent(packet.position).normalize();
-      const normal = new THREE.Vector3(0, 1, 0);
+      const tangent = curve.getTangent(packet.position, this._packetTangent).normalize();
+      const normal = this._packetNormal.set(0, 1, 0);
       if (Math.abs(tangent.dot(normal)) > 0.99) {
         normal.set(1, 0, 0);
       }
-      const binormal = new THREE.Vector3().crossVectors(normal, tangent).normalize();
+      const binormal = this._packetBinormal.crossVectors(normal, tangent).normalize();
       normal.crossVectors(tangent, binormal);
       
       // Build rotation matrix from frame
-      const matrix = new THREE.Matrix4();
-      matrix.makeBasis(tangent, normal, binormal);
-      packet.mesh.quaternion.setFromRotationMatrix(matrix);
+      this._packetMatrix.makeBasis(tangent, normal, binormal);
+      packet.mesh.quaternion.setFromRotationMatrix(this._packetMatrix);
       
       // Pulse glow effect
       packet.glow += this.config.pulseFrequency * deltaTime;

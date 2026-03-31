@@ -205,6 +205,7 @@ export class SynergyCascadeVisualizer {
 
       history.anchor = anchor.clone ? anchor.clone() : anchor;
       history.lastSeenAt = this._nowSeconds();
+      history.lastHeartbeatAt = history.lastSeenAt;
     }
   }
   
@@ -227,11 +228,13 @@ export class SynergyCascadeVisualizer {
     this._semanticHandlers = {
       onCascadeHop: (event = {}) => this.renderCascadeHop(event),
       onCascadeStart: (event = {}) => this.renderCascadeStart(event),
-      onCascadeEnd: (event = {}) => this.renderCascadeEnd(event)
+      onCascadeEnd: (event = {}) => this.renderCascadeEnd(event),
+      onLinkCreated: (event = {}) => this._handleLinkCreated(event)
     };
     on('cascade.hop', this._semanticHandlers.onCascadeHop);
     on('cascade.start', this._semanticHandlers.onCascadeStart);
     on('cascade.end', this._semanticHandlers.onCascadeEnd);
+    on('link.created', this._semanticHandlers.onLinkCreated);
   }
 
   _unbindSemanticEvents() {
@@ -244,6 +247,7 @@ export class SynergyCascadeVisualizer {
       try { off('cascade.hop', handlers.onCascadeHop); } catch (_) {}
       try { off('cascade.start', handlers.onCascadeStart); } catch (_) {}
       try { off('cascade.end', handlers.onCascadeEnd); } catch (_) {}
+      try { off('link.created', handlers.onLinkCreated); } catch (_) {}
     }
 
     this._semanticBus = null;
@@ -454,7 +458,7 @@ export class SynergyCascadeVisualizer {
         trailIntensity: 0,
         color: new THREE.Color(),
         lastSeenAt: this._nowSeconds(),
-        lastHeartbeatAt: 0,
+        lastHeartbeatAt: this._nowSeconds(),
         anchor: null
       });
     }
@@ -518,7 +522,7 @@ export class SynergyCascadeVisualizer {
       return this._asVector3(object.position ?? object.anchor ?? object.center ?? object.origin ?? null);
     }
 
-    _resolveCascadeSpawnContext(event = {}, link = null, kind = 'start') {
+  _resolveCascadeSpawnContext(event = {}, link = null, kind = 'start') {
       const resolvedLink = link ?? event.link ?? event.linkRef ?? this._resolveLinkById(event.linkId ?? event.id);
       const sourceNode = event.sourceNode ?? event.source ?? resolvedLink?.sourceNode ?? resolvedLink?.source ?? null;
       const targetNode = event.targetNode ?? event.target ?? resolvedLink?.targetNode ?? resolvedLink?.target ?? null;
@@ -560,12 +564,75 @@ export class SynergyCascadeVisualizer {
       return {
         link: resolvedLink,
         cascadeId: event.cascadeId ?? event.id ?? this._resolveLinkId(resolvedLink) ?? `cascade-${++this.cascadeId}`,
-        intensity,
-        anchor,
-        sourcePosition,
-        targetPosition
-      };
+      intensity,
+      anchor,
+      sourcePosition,
+      targetPosition
+    };
+  }
+
+  _handleLinkCreated(event = {}) {
+    const link = event.link ?? event.linkRef ?? this._resolveLinkById(event.linkId ?? event.id ?? null);
+    if (!link) return;
+
+    if (link.userData?.__cascadeBirthSeeded === true) {
+      return;
     }
+
+    const context = this._resolveCascadeSpawnContext({
+      ...event,
+      link,
+      linkRef: link,
+      linkId: this._resolveLinkId(link) ?? event.linkId ?? event.id ?? null
+    }, link, 'start');
+    if (!context.anchor) return;
+
+    const visualIntensity = this._clamp01(Math.max(
+      this._readLinkSynergy(link),
+      this._resolveCascadeSignalIntensity(event),
+      this._resolveCascadeIntensity(event)
+    ));
+    const band = this._getSynergyCascadeBand(visualIntensity) ?? this._getVisibleCascadeFloorBand(visualIntensity);
+    if (!band) return;
+
+    const linkId = this._resolveLinkId(link);
+    const cascade = this._getOrCreateCascade(context.cascadeId, Math.max(0.1, visualIntensity));
+    const history = this._seedCascadeHistory(link, visualIntensity, context.anchor);
+    if (!history) return;
+
+    const hop = {
+      link,
+      linkId,
+      intensity: Math.max(0.1, visualIntensity),
+      age: 0,
+      duration: this.config.hopLifetime,
+      startPosition: context.sourcePosition,
+      targetPosition: context.targetPosition,
+      createdAt: Date.now(),
+      completed: false
+    };
+    cascade.hops.push(hop);
+
+    if (this.config.visualizations.rippleEffect && this._canTriggerLinkEffect(this._rippleCooldownByLinkId, linkId, band.rippleCooldownSeconds)) {
+      this._spawnRippleCluster(context.anchor, Math.max(0.1, visualIntensity), band.rippleCount, band);
+    }
+
+    if (this.config.visualizations.burstParticles && this._canTriggerLinkEffect(this._burstCooldownByLinkId, linkId, band.burstCooldownSeconds)) {
+      this.spawnBurstParticles(context.anchor, Math.max(0.2, visualIntensity) * band.burstIntensityMultiplier, {
+        link,
+        cascadeIntensity: visualIntensity,
+        intensity: visualIntensity
+      }, {
+        countMultiplier: band.burstCountMultiplier,
+        intensityMultiplier: band.burstIntensityMultiplier,
+        radiusMultiplier: band.burstRadiusMultiplier
+      });
+    }
+
+    if (!link.userData) link.userData = {};
+    link.userData.__cascadeBirthSeeded = true;
+    link.userData.__cascadeBirthSeededAt = this._nowSeconds();
+  }
 
   applyCascadeSignal(node, signals = {}) {
     if (!node) return;
@@ -1634,15 +1701,19 @@ export class SynergyCascadeVisualizer {
       }
     }
     
-    // Periodically clear old history entries
-    if (Math.random() < 0.01) { // 1% chance per frame
-      const maxHistoryAge = 5000; // 5 seconds
-      const now = Date.now();
-      
-      for (const [link, history] of this.cascadeHistory.entries()) {
-        if (!link || !link.active) {
-          this.cascadeHistory.delete(link);
-        }
+    // Retain history while the link is still alive or still getting heartbeats.
+    // Only purge entries that have gone stale long enough to be considered orphaned.
+    const maxHistoryAge = 5.0; // seconds
+    const now = this._nowSeconds();
+
+    for (const [link, history] of this.cascadeHistory.entries()) {
+      const resolvedLink = link ?? this._resolveLinkById(history?.linkId);
+      const lastHeartbeatAt = Number(history?.lastHeartbeatAt ?? history?.lastSeenAt ?? 0);
+      const age = now - lastHeartbeatAt;
+      const isLive = !!resolvedLink && resolvedLink.active !== false;
+
+      if (!isLive && age > maxHistoryAge) {
+        this.cascadeHistory.delete(link);
       }
     }
   }

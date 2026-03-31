@@ -128,6 +128,31 @@ Canonical link-flow metric lesson:
 - do not assume `link.userData.metrics` is the authoritative source for flow spawning
 - the flow system should remain tolerant of partial link metric hydration during creation
 
+Canonical cascade-seed lesson:
+
+- `SynergyCascadeVisualizer` should seed its birth lifecycle from the canonical `link.created` event with the live link object
+- do not rely only on a transient `onLinkCreated` callback path for cascade history seeding
+- cascade history should be retained with age-based cleanup and link liveness checks, not random per-frame history deletion
+
+Canonical wave-birth lesson:
+
+- `WaveInterferencePatternSystem_Session132` should seed birth interference from live link creation and keep orphaned birth pairs on a short grace lifecycle instead of deleting them immediately on unlink
+- do not depend only on center collision flashes; birth-seeded pairs are a first-class visible path
+- `main.js` should seed current links into wave interference setup and register link-created / link-removed bridge callbacks against the canonical linking authority
+
+Wave lifecycle smoke lesson:
+
+- when validating link lifetime in the browser, avoid editing files mid-smoke because dev-server live reload can reset the world and create a false zero-link state
+- a continuous Playwright session with no intervening edits kept 10 links alive for 30 seconds, so the earlier 10-second zero-state was a test artifact rather than a runtime cleanup timer
+
+Wave birth visual lesson:
+
+- `WaveInterferencePatternSystem_Session132` birth-seeded interference now gets a distinct torus pulse ring and stronger spike bias so link birth reads as a separate event instead of a generic center flash
+
+Standing wave polish lesson:
+
+- `StandingWaveVisualRenderer_Session131` trap zones now benefit from a small seed-like pulse ring so the standing-wave language stays aligned with the newer birth-seed interference visuals
+
 ## Runtime Test Boot
 
 Confirmed default runtime validation entrypoint:
