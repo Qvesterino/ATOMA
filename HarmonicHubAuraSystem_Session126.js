@@ -23,7 +23,7 @@
  * 5. Fragment Deformation: Aura fragments bend toward shared field without merging
  * 6. Harmony/Corruption Modulation: Field density/coherence responds to node state
  * 7. Synergy Amplification: High synergy increases phase coherence and pulse speed
- * 8. Instability Effects: Micro phase offsets, temporal decoherence
+ * 8. Stability Effects: Micro phase offsets, temporal decoherence
  * 9. LOD System: Far hubs collapse to glow volumes, near hubs show full structure
  * 10. Zero Allocations: Complete pooling, in-place updates
  * 
@@ -108,8 +108,8 @@ export class HarmonicHubAuraSystem_Session126 {
       synergyPulseAmplification: config.synergyPulseAmplification ?? 0.3,
       synergyCoherenceBoost: config.synergyCoherenceBoost ?? 0.15,
       
-      // Instability influence
-      instabilityPhaseOffsets: config.instabilityPhaseOffsets ?? 0.1,
+      // Stability influence
+      stabilityPhaseOffsets: config.stabilityPhaseOffsets ?? 0.1,
       
       // Fragment deformation
       fragmentBendStrength: config.fragmentBendStrength ?? 0.2,
@@ -526,9 +526,9 @@ export class HarmonicHubAuraSystem_Session126 {
         phaseState.current += (phaseState.target - phaseState.current) * convergence;
         
         // Apply slight offset for organic feel
-        const instabilityInfluence = this._readNodeInstability(node, 0);
-        phaseState.offset += (Math.random() - 0.5) * instabilityInfluence * 
-                            this.config.instabilityPhaseOffsets;
+        const stabilityInfluence = this._readNodeStability(node, 0);
+        phaseState.offset += (Math.random() - 0.5) * stabilityInfluence *
+                            this.config.stabilityPhaseOffsets;
         
         this.stats.phaseLockedNodes++;
       }
@@ -919,12 +919,12 @@ export class HarmonicHubAuraSystem_Session126 {
     return this._clamp01(value);
   }
 
-  _readNodeInstability(node, fallback = 0) {
+  _readNodeStability(node, fallback = 0) {
     const metrics = node?.userData?.metrics;
     const stability = Number.isFinite(metrics?.stability) ? metrics.stability : null;
     const value = stability !== null
-      ? (1 - stability)
-      : (metrics?.instability ?? node?.userData?.instability ?? fallback);
+      ? stability
+      : (1 - (metrics?.instability ?? node?.userData?.instability ?? fallback));
     return this._clamp01(value);
   }
 

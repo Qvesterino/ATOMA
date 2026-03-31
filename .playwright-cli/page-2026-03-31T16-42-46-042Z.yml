@@ -1,0 +1,99 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - generic [ref=e5]: AI STATUS
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e8]: Stability
+        - generic [ref=e9]: 100%
+      - generic [ref=e10]:
+        - generic [ref=e11]: Risk
+        - generic [ref=e12]: 0%
+      - generic:
+        - generic [ref=e13]:
+          - generic [ref=e14]: Recovery
+          - generic [ref=e15]: HIGH
+        - generic [ref=e16]:
+          - generic [ref=e17]: "Insight:"
+          - generic [ref=e18]: No primary node selected.
+  - 'button "AUDIO: ON" [pressed] [ref=e19] [cursor=pointer]'
+  - generic: "SELECTED: NONE"
+  - generic [ref=e20]:
+    - generic [ref=e21]:
+      - generic [ref=e22]: Core Metrics
+      - button "Toggle Core Metrics" [expanded] [ref=e23] [cursor=pointer]: ▲
+    - generic [ref=e24]:
+      - generic [ref=e25]:
+        - generic [ref=e26]: "NETWORK SYNERGY:"
+        - generic [ref=e27]: "0.000000"
+      - generic [ref=e29]:
+        - generic [ref=e30]: "HARMONY FLOW:"
+        - generic [ref=e31]: "0.000000"
+      - generic [ref=e33]:
+        - generic [ref=e34]: "NETWORK STRESS:"
+        - generic [ref=e35]: "0.000000"
+      - generic [ref=e37]:
+        - generic [ref=e38]: "CORRUPTION LEVEL:"
+        - generic [ref=e39]: "0.000000"
+      - generic [ref=e41]:
+        - generic [ref=e42]: "LOAD PRESSURE:"
+        - generic [ref=e43]: "0.000000"
+      - generic [ref=e45]: "NETWORK TIME: 00000"
+  - generic "links=0, resistant=5, pressure=0, reflections=0, zones=0, traps=0, state=none, radius=0.00, ampAvg=0.00, ampPeak=0.00, antinodes=0, ruptures=0, cascades=0, preZones=0, recoveryZones=0, wavePool=0, haloPool=0, activeParticles=0": "R:0 | T:0 | A:0 P:0 | amp:0.00 | peak:0.00 state:none | radius:0.00 rupt:0 | casc:0 | pre:0 recovery: zones:0 | waves:0 | halos:0 | parts:0"
+  - generic [ref=e46]:
+    - generic [ref=e47]:
+      - generic [ref=e48]: Node Categories
+      - button "Toggle Node Categories" [expanded] [ref=e49] [cursor=pointer]: ▲
+    - generic [ref=e50]:
+      - generic [ref=e53]: INPUT I
+      - generic [ref=e56]: PROCESS I
+      - generic [ref=e59]: INTEGRATION I
+      - generic [ref=e62]: ANALYTICS II
+      - generic [ref=e65]: STORAGE I
+      - generic [ref=e68]: CONTROL I
+      - generic [ref=e71]: SIGMA I
+      - generic [ref=e74]: EMOTIONAL II
+      - generic [ref=e77]: QUANTUM II
+      - generic [ref=e80]: MYTHIC I
+      - generic [ref=e83]: PRIME I
+      - generic [ref=e86]: ERROR I
+  - generic [ref=e87]:
+    - generic [ref=e88]: WORLD
+    - button "Fractal Valley" [ref=e89] [cursor=pointer]
+    - button "Quantum Island" [ref=e90] [cursor=pointer]
+    - button "Dream Desert" [ref=e91] [cursor=pointer]
+    - button "Chamber" [ref=e92] [cursor=pointer]
+    - button "Sigma Rift Chamber" [ref=e93] [cursor=pointer]
+  - generic [ref=e94]:
+    - generic [ref=e95]:
+      - generic [ref=e96]: AI Automation HUD
+      - button "Toggle AI Automation HUD" [expanded] [ref=e97] [cursor=pointer]: ▲
+    - generic [ref=e99]:
+      - generic [ref=e100]:
+        - generic [ref=e101]: Status
+        - generic [ref=e102]: "Status: ENABLED"
+        - generic [ref=e103]: "Mode: AUTOMATION_LIVE"
+        - generic [ref=e104]: "Last Update: 18:42:45"
+      - generic [ref=e105]:
+        - generic [ref=e106]: Engine Snapshot
+        - generic [ref=e107]: "Links Created: 0"
+        - generic [ref=e108]: "Links Collapsed: 0"
+        - generic [ref=e109]: "Recovery Ready: HIGH"
+      - generic [ref=e110]:
+        - generic [ref=e111]: Observation
+        - generic [ref=e112]: "Network State: stable"
+        - generic [ref=e113]:
+          - generic [ref=e114]:
+            - generic [ref=e115]: cascade.hop
+            - generic [ref=e116]: 0 total · 0.00/s
+          - generic [ref=e117]:
+            - generic [ref=e118]: cascadeIntensity
+            - generic [ref=e119]: 0% avg · 0% peak · 0/0 links
+          - generic [ref=e120]:
+            - generic [ref=e121]: waveBurst
+            - generic [ref=e122]: synergy · 6486 · cooldowns 0 · intents 1
+          - generic [ref=e123]:
+            - generic [ref=e124]: waveField
+            - generic [ref=e125]: synergy · suppressed · lifecycle 3
+      - generic [ref=e126]:
+        - generic [ref=e127]: Recommendations
+        - generic [ref=e129]: No recommendations available.

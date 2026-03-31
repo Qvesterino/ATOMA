@@ -135,6 +135,7 @@ Canonical cascade-seed lesson:
 - `SynergyCascadeVisualizer.flowParticles` is now a batch `THREE.Points` emitter; burst particles remain mesh-based for readability, and this split is the preferred balance of performance and visual quality
 - `SynergyCascadeVisualizer` cascade bands are intentionally low-threshold now (`0.1 / 0.2 / 0.3`) so low-synergy links still visibly spawn instead of looking dormant
 - `window.__DEBUG.triggerCascadeAtNodeId(nodeId, intensity)` is the preferred thin console helper for manual cascade spawning when testing the visualizer
+- `SynergyCascadeVisualizer` also has a forced burst beat every 3 seconds per live link; this is intentionally independent of synergy gating so burst visibility stays alive in runtime
 - do not rely only on a transient `onLinkCreated` callback path for cascade history seeding
 - cascade history should be retained with age-based cleanup and link liveness checks, not random per-frame history deletion
 
@@ -164,3 +165,12 @@ Confirmed default runtime validation entrypoint:
 - use `http://127.0.0.1:5500/index.html` for browser runtime tests and validation
 - prefer the local static server boot path over Vite when reproducing live runtime behavior
 - treat `5500/index.html` as the default verification target unless a task explicitly says otherwise
+## Synergy Cascade Visual Contract
+- `SynergyCascadeVisualizer` uses `flowParticles` as the recurring 3-second beat on live links.
+- `burstParticles` are kept smaller and metric-gated with a 5-second cooldown window.
+- This split is the preferred visual contract for synergy readability: flow carries the repeated signature, burst stays secondary.
+
+## Link Resonance Repeat Contract
+- `LinkResonanceFlowSystem_Session124` now repeats pulses on any live link with a fixed 3-second cadence.
+- Metrics are used for pulse styling and motion bias, not for spawn eligibility.
+- This system is intentionally link-only: if a link exists, it should pulse.

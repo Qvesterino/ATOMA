@@ -622,7 +622,7 @@ export class NodeLinkingSystem {
     this.thicknessSystem = new DynamicLinkThicknessSystem(scene, this.visuals);
     this.visualModules = {
       thickness: true,
-      flow: true,
+      flow: globalThis?.ATOMA_ENABLE_ANIMATED_LINK_FLOW !== false,
       beads: true,
       sparks: true,
       trails: true,
@@ -633,7 +633,9 @@ export class NodeLinkingSystem {
     };
     
     // [Session 112] Animated Link Flow - Data visualization between nodes
-    this.flowSystem = new AnimatedLinkFlow(scene, camera);
+    this.flowSystem = globalThis?.ATOMA_ENABLE_ANIMATED_LINK_FLOW === false
+      ? null
+      : new AnimatedLinkFlow(scene, camera);
     
     // [Phase 2] Link Event Visual Coordinator - Orchestrates visual suppression during events
     this.eventCoordinator = new LinkEventVisualCoordinator_v1();

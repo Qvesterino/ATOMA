@@ -1,0 +1,18 @@
+Total messages: 46 (Errors: 13, Warnings: 2)
+Returning 15 messages for level "warning"
+
+[WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 11, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30

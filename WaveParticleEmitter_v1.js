@@ -26,6 +26,9 @@ export class WaveParticleEmitter_v1 {
     this.config = {
       maxParticlesPerFamily: config.maxParticlesPerFamily ?? 2000,
       emissionRate: config.emissionRate ?? 1.0, // Multiplier on base emission
+      linkModeEmissionScale: config.linkModeEmissionScale ?? 0.25,
+      linkModeSpeedScale: config.linkModeSpeedScale ?? 0.25,
+      linkModeLifetimeScale: config.linkModeLifetimeScale ?? 2.0,
       constructiveThreshold: config.constructiveThreshold ?? 0.08,
       destructiveThreshold: config.destructiveThreshold ?? 0.10,
       standingWaveThreshold: config.standingWaveThreshold ?? 0.12,
@@ -1087,6 +1090,9 @@ export class WaveParticleEmitter_v1 {
       const scaled = 0.6 + normalizedStrength * 0.8;
       const emissionRateMul = Number(runtimeOptions.emissionRateMul ?? 1) || 1;
       const sourceCooldownMul = source === 'cascade' ? this.config.cascadeCooldownMultiplier : 1.0;
+      const linkModeEmissionScale = mode === 'link' ? this.config.linkModeEmissionScale : 1;
+      const linkModeSpeedScale = mode === 'link' ? this.config.linkModeSpeedScale : 1;
+      const linkModeLifetimeScale = mode === 'link' ? this.config.linkModeLifetimeScale : 1;
 
       // Check emission gate
       const lastEmission = this.emissionGate.constructiveBurst.get(emitterId) ?? -Infinity;
@@ -1099,7 +1105,7 @@ export class WaveParticleEmitter_v1 {
       // Emit 3-5 particles per burst
       const burstCount = Math.max(
         1,
-        Math.floor((3 + Math.random() * 2.99) * this.config.emissionRate * emissionRateMul * scaled)
+        Math.floor((3 + Math.random() * 2.99) * this.config.emissionRate * emissionRateMul * scaled * linkModeEmissionScale)
       );
 
       for (let i = 0; i < burstCount; i++) {
@@ -1144,8 +1150,9 @@ export class WaveParticleEmitter_v1 {
           this._applyEmissionOffset(particle.position, mode, 0.12, 0.35, direction);
           particle.data.buildOffset.copy(particle.position).sub(particle.data.formationCenter);
           particle.data.releaseVelocity.copy(this._sampleQuadraticBezierTangent(arcPath.start, arcPath.control, arcPath.end, startT)).normalize();
-          particle.data.releaseVelocity.multiplyScalar(6 + Math.random() * 4);
-          particle.velocity.copy(particle.data.releaseVelocity).multiplyScalar(0.08);
+          particle.data.releaseVelocity.multiplyScalar((6 + Math.random() * 4) * linkModeSpeedScale);
+          particle.velocity.copy(particle.data.releaseVelocity).multiplyScalar(0.08 * linkModeSpeedScale);
+          particle.maxLifetime *= linkModeLifetimeScale;
         } else {
           particle.data.formationCenter.copy(pos);
           particle.position.copy(pos);
@@ -1248,6 +1255,8 @@ export class WaveParticleEmitter_v1 {
       const scaled = 0.6 + normalizedStrength * 0.8;
       const emissionRateMul = Number(runtimeOptions.emissionRateMul ?? 1) || 1;
       const sourceCooldownMul = source === 'cascade' ? this.config.cascadeCooldownMultiplier : 1.0;
+      const linkModeEmissionScale = mode === 'link' ? this.config.linkModeEmissionScale : 1;
+      const linkModeSpeedScale = mode === 'link' ? this.config.linkModeSpeedScale : 1;
 
       // Check emission gate
       const lastEmission = this.emissionGate.standingWaveRipple.get(emitterId) ?? -Infinity;
@@ -1260,7 +1269,7 @@ export class WaveParticleEmitter_v1 {
       // Emit subtle local harmonic cues on nodes and more readable travel cues on links
       const rippleCount = Math.max(
         1,
-        Math.floor(((mode === 'link' ? 1 + Math.random() * 1.99 : 0.85 + Math.random() * 0.75)) * this.config.emissionRate * emissionRateMul * scaled)
+        Math.floor(((mode === 'link' ? 1 + Math.random() * 1.99 : 0.85 + Math.random() * 0.75)) * this.config.emissionRate * emissionRateMul * scaled * linkModeEmissionScale)
       );
 
       for (let i = 0; i < rippleCount; i++) {
@@ -1278,7 +1287,7 @@ export class WaveParticleEmitter_v1 {
           direction
         );
         if (mode === 'link') {
-          const speed = 1.5 + Math.random() * 2.0;
+          const speed = (1.5 + Math.random() * 2.0) * linkModeSpeedScale;
           this._setParticleVelocity(particle.velocity, mode, speed, direction, 0.12, 0.05);
         } else {
           particle.velocity.set(

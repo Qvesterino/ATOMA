@@ -2644,3 +2644,1117 @@ ERROR: 0:69: 'color' : redefinition
 [ 6977650ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
 [ 6977650ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
 [ 6979630ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 6992939ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 6992939ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 6993326ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 6993327ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 6993327ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 6993540ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 6993540ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 6993540ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 6995533ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7013590ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7013591ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7013591ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7015579ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7033629ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7033629ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7033629ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7035629ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7053672ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7053672ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7053673ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7055681ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7073746ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7073746ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7073746ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7075731ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 14, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7093784ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7093784ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7093785ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7095792ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 8, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7113247ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 7113247ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 7113853ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7113853ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7113854ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7114755ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7114756ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7114757ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7114816ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7127735ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 7127735ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 7128359ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7128360ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7128360ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7128865ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7128865ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7128865ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7129856ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7148886ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7148886ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7148886ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7149891ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7168912ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7168912ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7168912ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7169912ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7188976ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7188976ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7188976ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7189981ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 10, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7208983ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7208983ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7208984ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7209982ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 8, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7229015ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7229015ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7229015ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7230021ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 10, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7249055ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7249055ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7249055ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7250077ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 3, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7269085ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7269085ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7269085ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7270083ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 12, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7289109ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7289110ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7289110ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7290105ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 11, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7309174ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7309174ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7309174ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7310350ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 7, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7329189ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7329189ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7329191ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7331186ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 2, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7349197ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7349197ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7349197ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7351205ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7369241ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7369242ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7369242ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7371249ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7389296ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7389297ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7389297ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7391318ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7409354ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7409355ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7409355ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7411350ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7429421ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7429421ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7429421ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7431418ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7449611ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7449611ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7449611ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7451440ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7470458ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7470459ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7470459ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7471458ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7490516ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7490516ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7490516ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7491519ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7510552ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7510552ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7510552ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7511551ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 10, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7530617ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7530617ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7530618ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7531615ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 11, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7550653ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7550653ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7550653ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7551653ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 7, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7570725ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7570725ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7570725ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7571734ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 2, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7590807ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7590807ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7590808ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7591801ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7610852ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7610852ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7610852ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7611852ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 2, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7630874ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7630875ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7630875ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7631872ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 13, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7650934ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7650934ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7650934ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7651934ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 13, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7670983ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7670983ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7670983ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7671982ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 7, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7691031ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7691031ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7691031ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7692030ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 6, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7711084ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7711085ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7711085ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7712083ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 8, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7731133ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7731134ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7731134ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7732133ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 5, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7751193ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7751194ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7751194ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7752197ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 6, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7771225ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7771225ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7771225ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7772227ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 5, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7789621ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 7789622ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 7790064ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7790066ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7790066ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7791038ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7791039ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7791040ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7792785ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7801175ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 7801175ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 7801657ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7801657ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7801657ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7802893ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7802894ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7802894ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7803551ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7822615ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7822615ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7822616ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7823608ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7842648ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7842649ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7842649ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7843648ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7862078ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 7862078ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 7862598ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7862599ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7862599ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7863656ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7863660ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7863662ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7865599ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7884646ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7884647ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7884647ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7885651ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7904712ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7904712ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7904713ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7905719ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7924756ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7924757ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7924757ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7925764ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 10, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7944815ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7944816ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7944816ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 7945820ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 7, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8001803ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8001803ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8002170ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8002170ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8002171ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8002460ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8002461ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8002463ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8004417ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8016312ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8016312ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8016743ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8016743ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8016743ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8017481ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8017481ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8017481ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8018461ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8037485ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8037485ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8037485ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8038481ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8057677ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8057677ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8058075ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8058075ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8058080ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8058445ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8058446ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8058446ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8059434ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8068036ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8068036ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8068485ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8068485ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8068485ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8069394ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8069394ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8069394ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8069467ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8081889ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8081889ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8082253ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8082254ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8082254ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8082515ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8082515ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8082515ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8083501ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8102525ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8102525ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8102525ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8103529ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8122536ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8122536ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8122536ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8123534ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8142574ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8142574ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8142574ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8143577ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 8, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8162617ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8162617ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8162618ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8163614ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 6, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8174917ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8174917ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8175407ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8175408ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8175408ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8175649ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8175650ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8175651ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8177629ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8195649ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8195651ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8195651ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8205555ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8205556ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8206114ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8206115ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8206115ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8206478ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8206479ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8206479ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8207466ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8226509ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8226509ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8226510ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8227517ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8246562ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8246563ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8246563ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8247565ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8266612ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8266612ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8266612ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8267617ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 9, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8286653ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8286653ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8286654ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8287658ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 9, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8306834ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8306835ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8306836ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8307697ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 9, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8327758ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 3, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8327760ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8327761ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8327761ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8347801ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 10, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8347804ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8347805ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8347805ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8367881ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 6, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8367955ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8367955ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8367955ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8388035ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 7, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8388039ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8388039ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8388040ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8408953ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 5, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8408956ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8408956ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8408957ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8421167ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8421167ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8421541ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8421543ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8421543ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8421735ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8421736ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8421737ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8423701ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8431587ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8431587ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8432102ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8432110ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8432110ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8432737ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8432738ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8432738ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8433726ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8452751ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8452751ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8452751ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8453758ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8472791ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8472792ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8472792ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8473790ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 3, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8499954ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8499954ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8500435ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8500435ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8500435ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8501470ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8501471ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8501472ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8503537ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8510733ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8510733ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8511156ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8511156ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8511157ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8511514ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8511514ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8511514ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8512511ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8531553ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8531553ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8531553ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8532552ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8551627ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8551627ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8551628ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8560001ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8560002ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8560429ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8560429ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8560430ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8560772ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8560775ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8560776ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8561760ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8580825ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8580825ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8580825ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8581833ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8600879ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8600880ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8600880ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8601890ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8618869ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8618869ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8619506ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8619506ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8619506ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8619842ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8619843ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8619843ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8620843ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8626681ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8626682ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8627386ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8627387ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8627387ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8627850ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8627850ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8627851ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8628837ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8647896ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8647896ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8647896ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8648895ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8673258ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8673258ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8673767ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8673767ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8673768ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8674088ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8674089ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8674089ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8675097ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8680295ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8680295ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8681015ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8681015ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8681016ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8681130ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8681130ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8681131ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8682097ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8702107ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8702108ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8702108ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8702108ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8722156ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 5, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8722158ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8722158ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8722158ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8740031ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8740032ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8740712ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8740713ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8740713ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8741216ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8741217ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8741217ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8742188ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8761228ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8761228ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8761228ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8762229ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8781283ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8781285ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8781286ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8782288ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 3, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8801320ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8801320ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8801320ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8802320ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 10, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8821361ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8821361ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8821361ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8822360ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 11, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8841432ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8841432ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8841432ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8842430ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 8, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8861502ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8861503ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8861503ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8862552ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8888552ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8888553ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8888942ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8888943ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8888943ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8889041ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8889041ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8889042ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8889993ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8903838ms] Unexpected end of input
+[ 8911980ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8911981ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8912455ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8912455ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8912456ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8912792ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8912792ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8912792ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8914765ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8925619ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 8925619ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 8926000ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8926001ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8926001ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8926826ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8926827ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8926827ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8928814ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8946833ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8946833ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8946833ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8948827ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8966854ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8966855ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8966855ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8968854ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8986893ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8986893ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8986893ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 8988895ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 4, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9006903ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9006903ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9006903ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9008903ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 5, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9032333ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ 9032333ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ 9032997ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9032997ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9032998ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9033932ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9033933ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9033933ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9034888ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9054897ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9054899ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9054899ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9054900ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9074945ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9074947ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9074947ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9074947ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9094977ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 8, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9094979ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9094979ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9094979ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9114995ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 7, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9114997ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9114997ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9114997ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9134999ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 9, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9135002ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9135003ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9135003ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9155026ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 4, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9155029ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9155029ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9155029ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9175068ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9175070ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9175070ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9175070ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9195122ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9195125ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9195125ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9195125ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9215147ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9215148ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9215149ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9215149ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9235158ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 7, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9235160ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9235160ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9235160ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9255178ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 7, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9255180ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9255180ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9255180ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9275199ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 9, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9275200ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9275201ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9275201ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9295220ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 8, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9295221ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9295221ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9295221ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9315220ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 6, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9315221ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9315221ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9315221ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9335230ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9335231ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9335231ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9335231ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9355271ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9355272ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9355273ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9355273ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9375281ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9375282ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9375282ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9375282ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9395303ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9395305ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9395305ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9395305ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9415313ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9415314ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9415314ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9415314ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9435342ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9435344ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9435344ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9435344ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9455353ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9455354ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9455354ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9455355ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9475364ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9475365ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9475366ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9475366ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9495384ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 7, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9495385ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9495385ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9495385ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9515414ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 14, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9515415ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9515415ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9515415ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9535475ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 8, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9535476ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9535476ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9535477ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9555515ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 8, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9555516ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9555516ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9555516ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9575515ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 6, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9575516ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9575517ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9575517ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9595527ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 9, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9595529ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9595529ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9595529ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9615557ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 8, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9615559ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9615559ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9615559ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9635619ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 8, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9635620ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9635621ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9635621ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9655659ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 5, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9655661ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9655661ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9655661ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9675791ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 8, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9675793ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9675794ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9675794ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9695831ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 8, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9695833ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9695833ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9695833ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9715882ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 11, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9715884ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9715885ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9715885ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9735934ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 3, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9735935ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9735936ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9735936ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9756004ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 7, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9756006ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9756007ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9756007ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9776051ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 14, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9776053ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9776053ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9776053ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9796083ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 12, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9796085ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9796085ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9796085ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9816104ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 6, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9816106ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9816107ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9816107ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9836184ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 7, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9836187ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9836187ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9836187ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9856236ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 7, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9856238ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9856239ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9856239ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9876356ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 12, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9876399ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9876399ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9876399ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9897343ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 6, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9897346ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9897346ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9897346ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9917385ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 6, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9917386ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9917387ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9917387ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9937439ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 6, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9937443ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9937443ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9937443ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9957506ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 7, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9957508ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9957508ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9957508ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9977593ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 7, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9977595ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9977595ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9977595ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9997596ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 5, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9997598ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9997598ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ 9997598ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10017649ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 6, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10017651ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10017652ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10017652ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10037703ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 6, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10037706ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10037707ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10037707ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10057762ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 11, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10057765ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10057765ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10057765ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10077813ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 13, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10077816ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10077816ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10077816ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10097849ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 13, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10097851ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10097851ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10097851ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10117890ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 11, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10117892ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10117892ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10117892ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10137961ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 6, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10137963ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10137964ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10137964ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10157991ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 7, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10157993ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10157993ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10157993ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10178020ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 10, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10178022ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10178022ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10178022ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10198082ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 10, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10198084ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10198084ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10198084ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10218164ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 9, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10218168ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10218168ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10218168ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10238203ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 8, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10238204ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10238205ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10238205ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10259819ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[10259819ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[10259898ms] [ERROR] [LOADWORLD] ERROR quantum TypeError: Cannot read properties of undefined (reading 'clear')
+    at SynergyCascadeVisualizer.clearAllCascades (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2259:39)
+    at SynergyCascadeVisualizer.dispose (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2390:10)
+    at AtomaGame.createWorld (http://127.0.0.1:5500/main.js:7127:40)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:5500/main.js:6800:14)
+    at quantum (http://127.0.0.1:5500/main.js:4696:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:5500/main.js:10419:13)
+    at AtomaGame.animate (http://127.0.0.1:5500/main.js:11401:18)
+    at new AtomaGame (http://127.0.0.1:5500/main.js:5942:14)
+    at http://127.0.0.1:5500/main.js:18096:1 @ http://127.0.0.1:5500/main.js:30
+[10259900ms] TypeError: Cannot read properties of undefined (reading 'clear')
+    at SynergyCascadeVisualizer.clearAllCascades (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2259:39)
+    at SynergyCascadeVisualizer.dispose (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2390:10)
+    at AtomaGame.createWorld (http://127.0.0.1:5500/main.js:7127:40)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:5500/main.js:6800:14)
+    at quantum (http://127.0.0.1:5500/main.js:4696:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:5500/main.js:10419:13)
+    at AtomaGame.animate (http://127.0.0.1:5500/main.js:11401:18)
+    at new AtomaGame (http://127.0.0.1:5500/main.js:5942:14)
+    at http://127.0.0.1:5500/main.js:18096:1
+[10260050ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10260051ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10260052ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10261269ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10280319ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10280320ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10280321ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10281321ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10300387ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10300387ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10300388ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10301384ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10319927ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[10319927ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[10320037ms] [ERROR] [LOADWORLD] ERROR quantum TypeError: Cannot read properties of undefined (reading 'clear')
+    at SynergyCascadeVisualizer.clearAllCascades (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2259:39)
+    at SynergyCascadeVisualizer.dispose (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2390:10)
+    at AtomaGame.createWorld (http://127.0.0.1:5500/main.js:7127:40)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:5500/main.js:6800:14)
+    at quantum (http://127.0.0.1:5500/main.js:4696:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:5500/main.js:10419:13)
+    at AtomaGame.animate (http://127.0.0.1:5500/main.js:11401:18)
+    at new AtomaGame (http://127.0.0.1:5500/main.js:5942:14)
+    at http://127.0.0.1:5500/main.js:18096:1 @ http://127.0.0.1:5500/main.js:30
+[10320053ms] TypeError: Cannot read properties of undefined (reading 'clear')
+    at SynergyCascadeVisualizer.clearAllCascades (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2259:39)
+    at SynergyCascadeVisualizer.dispose (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2390:10)
+    at AtomaGame.createWorld (http://127.0.0.1:5500/main.js:7127:40)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:5500/main.js:6800:14)
+    at quantum (http://127.0.0.1:5500/main.js:4696:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:5500/main.js:10419:13)
+    at AtomaGame.animate (http://127.0.0.1:5500/main.js:11401:18)
+    at new AtomaGame (http://127.0.0.1:5500/main.js:5942:14)
+    at http://127.0.0.1:5500/main.js:18096:1
+[10320275ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10320275ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10320276ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10321605ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10340636ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10340636ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10340636ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10341635ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10359976ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[10359976ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[10360053ms] [ERROR] [LOADWORLD] ERROR quantum TypeError: Cannot read properties of undefined (reading 'clear')
+    at SynergyCascadeVisualizer.clearAllCascades (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2259:39)
+    at SynergyCascadeVisualizer.dispose (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2390:10)
+    at AtomaGame.createWorld (http://127.0.0.1:5500/main.js:7127:40)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:5500/main.js:6800:14)
+    at quantum (http://127.0.0.1:5500/main.js:4696:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:5500/main.js:10419:13)
+    at AtomaGame.animate (http://127.0.0.1:5500/main.js:11401:18)
+    at new AtomaGame (http://127.0.0.1:5500/main.js:5942:14)
+    at http://127.0.0.1:5500/main.js:18096:1 @ http://127.0.0.1:5500/main.js:30
+[10360053ms] TypeError: Cannot read properties of undefined (reading 'clear')
+    at SynergyCascadeVisualizer.clearAllCascades (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2259:39)
+    at SynergyCascadeVisualizer.dispose (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2390:10)
+    at AtomaGame.createWorld (http://127.0.0.1:5500/main.js:7127:40)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:5500/main.js:6800:14)
+    at quantum (http://127.0.0.1:5500/main.js:4696:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:5500/main.js:10419:13)
+    at AtomaGame.animate (http://127.0.0.1:5500/main.js:11401:18)
+    at new AtomaGame (http://127.0.0.1:5500/main.js:5942:14)
+    at http://127.0.0.1:5500/main.js:18096:1
+[10360271ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10360272ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10360272ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10361640ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10391965ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[10391965ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[10392063ms] [ERROR] [LOADWORLD] ERROR quantum TypeError: Cannot read properties of undefined (reading 'clear')
+    at SynergyCascadeVisualizer.clearAllCascades (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2262:39)
+    at SynergyCascadeVisualizer.dispose (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2393:10)
+    at AtomaGame.createWorld (http://127.0.0.1:5500/main.js:7127:40)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:5500/main.js:6800:14)
+    at quantum (http://127.0.0.1:5500/main.js:4696:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:5500/main.js:10419:13)
+    at AtomaGame.animate (http://127.0.0.1:5500/main.js:11401:18)
+    at new AtomaGame (http://127.0.0.1:5500/main.js:5942:14)
+    at http://127.0.0.1:5500/main.js:18096:1 @ http://127.0.0.1:5500/main.js:30
+[10392066ms] TypeError: Cannot read properties of undefined (reading 'clear')
+    at SynergyCascadeVisualizer.clearAllCascades (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2262:39)
+    at SynergyCascadeVisualizer.dispose (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2393:10)
+    at AtomaGame.createWorld (http://127.0.0.1:5500/main.js:7127:40)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:5500/main.js:6800:14)
+    at quantum (http://127.0.0.1:5500/main.js:4696:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:5500/main.js:10419:13)
+    at AtomaGame.animate (http://127.0.0.1:5500/main.js:11401:18)
+    at new AtomaGame (http://127.0.0.1:5500/main.js:5942:14)
+    at http://127.0.0.1:5500/main.js:18096:1
+[10392113ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10392114ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10392115ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10393350ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10411759ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[10411759ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[10411853ms] [ERROR] [LOADWORLD] ERROR quantum TypeError: Cannot read properties of undefined (reading 'clear')
+    at SynergyCascadeVisualizer.clearAllCascades (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2262:39)
+    at SynergyCascadeVisualizer.dispose (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2393:10)
+    at AtomaGame.createWorld (http://127.0.0.1:5500/main.js:7127:40)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:5500/main.js:6800:14)
+    at quantum (http://127.0.0.1:5500/main.js:4696:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:5500/main.js:10419:13)
+    at AtomaGame.animate (http://127.0.0.1:5500/main.js:11401:18)
+    at new AtomaGame (http://127.0.0.1:5500/main.js:5942:14)
+    at http://127.0.0.1:5500/main.js:18096:1 @ http://127.0.0.1:5500/main.js:30
+[10411860ms] TypeError: Cannot read properties of undefined (reading 'clear')
+    at SynergyCascadeVisualizer.clearAllCascades (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2262:39)
+    at SynergyCascadeVisualizer.dispose (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2393:10)
+    at AtomaGame.createWorld (http://127.0.0.1:5500/main.js:7127:40)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:5500/main.js:6800:14)
+    at quantum (http://127.0.0.1:5500/main.js:4696:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:5500/main.js:10419:13)
+    at AtomaGame.animate (http://127.0.0.1:5500/main.js:11401:18)
+    at new AtomaGame (http://127.0.0.1:5500/main.js:5942:14)
+    at http://127.0.0.1:5500/main.js:18096:1
+[10411915ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10411916ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10411916ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10412984ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10432478ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[10432478ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[10432579ms] [ERROR] [LOADWORLD] ERROR quantum TypeError: Cannot read properties of undefined (reading 'clear')
+    at SynergyCascadeVisualizer.clearAllCascades (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2262:39)
+    at SynergyCascadeVisualizer.dispose (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2393:10)
+    at AtomaGame.createWorld (http://127.0.0.1:5500/main.js:7127:40)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:5500/main.js:6800:14)
+    at quantum (http://127.0.0.1:5500/main.js:4696:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:5500/main.js:10419:13)
+    at AtomaGame.animate (http://127.0.0.1:5500/main.js:11401:18)
+    at new AtomaGame (http://127.0.0.1:5500/main.js:5942:14)
+    at http://127.0.0.1:5500/main.js:18096:1 @ http://127.0.0.1:5500/main.js:30
+[10432607ms] TypeError: Cannot read properties of undefined (reading 'clear')
+    at SynergyCascadeVisualizer.clearAllCascades (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2262:39)
+    at SynergyCascadeVisualizer.dispose (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2393:10)
+    at AtomaGame.createWorld (http://127.0.0.1:5500/main.js:7127:40)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:5500/main.js:6800:14)
+    at quantum (http://127.0.0.1:5500/main.js:4696:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:5500/main.js:10419:13)
+    at AtomaGame.animate (http://127.0.0.1:5500/main.js:11401:18)
+    at new AtomaGame (http://127.0.0.1:5500/main.js:5942:14)
+    at http://127.0.0.1:5500/main.js:18096:1
+[10432743ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10432743ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10432746ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10433972ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10456126ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[10456126ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[10456210ms] [ERROR] [LOADWORLD] ERROR quantum TypeError: Cannot read properties of undefined (reading 'clear')
+    at SynergyCascadeVisualizer.clearAllCascades (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2262:39)
+    at SynergyCascadeVisualizer.dispose (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2393:10)
+    at AtomaGame.createWorld (http://127.0.0.1:5500/main.js:7127:40)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:5500/main.js:6800:14)
+    at quantum (http://127.0.0.1:5500/main.js:4696:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:5500/main.js:10419:13)
+    at AtomaGame.animate (http://127.0.0.1:5500/main.js:11401:18)
+    at new AtomaGame (http://127.0.0.1:5500/main.js:5942:14)
+    at http://127.0.0.1:5500/main.js:18096:1 @ http://127.0.0.1:5500/main.js:30
+[10456212ms] TypeError: Cannot read properties of undefined (reading 'clear')
+    at SynergyCascadeVisualizer.clearAllCascades (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2262:39)
+    at SynergyCascadeVisualizer.dispose (http://127.0.0.1:5500/SynergyCascadeVisualizer.js:2393:10)
+    at AtomaGame.createWorld (http://127.0.0.1:5500/main.js:7127:40)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:5500/main.js:6800:14)
+    at quantum (http://127.0.0.1:5500/main.js:4696:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:5500/main.js:10419:13)
+    at AtomaGame.animate (http://127.0.0.1:5500/main.js:11401:18)
+    at new AtomaGame (http://127.0.0.1:5500/main.js:5942:14)
+    at http://127.0.0.1:5500/main.js:18096:1
+[10456260ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10456260ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10456261ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10457539ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10476605ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10476605ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10476606ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10477610ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10493629ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[10493630ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[10494230ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10494231ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10494231ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10495192ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10495194ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10495194ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10497165ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10515231ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10515231ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10515231ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10517234ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 2, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10535309ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10535309ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10535309ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10537299ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10564707ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[10564707ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[10565150ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10565151ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10565151ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10566231ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10566231ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10566233ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10569081ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10575879ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[10575879ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[10576458ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10576459ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10576459ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10576822ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10576822ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10576823ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10577810ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10596855ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10596856ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10596856ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10597852ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10616926ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10616926ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10616927ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10617921ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10637072ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10637072ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10637072ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10643194ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[10643194ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[10643717ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10643718ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10643718ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10644088ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10644088ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10644089ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10645030ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10665045ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10665049ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10665049ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10665050ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10685130ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10685135ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10685135ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10685136ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10691522ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[10691522ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[10691900ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10691900ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10691900ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10692229ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10692229ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10692229ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10693220ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10712315ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10712315ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10712315ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10713315ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10732378ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10732379ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10732379ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10733421ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 1, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10740811ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[10740811ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[10741311ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10741312ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10741312ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10741714ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10741715ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10741715ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10743644ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10761474ms] [ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[10761474ms] [ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[10762156ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10762156ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10762156ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10762753ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10762754ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10762754ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10764726ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10782795ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10782795ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10782796ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10784790ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10802858ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10802858ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10802859ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10804857ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10822949ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10822949ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10822949ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10824945ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 8, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10842988ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10842988ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10842988ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10844997ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 6, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10863067ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10863067ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10863067ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10865067ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 9, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[10883131ms] [ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[10883131ms] [ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[10883133ms] [ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[10885128ms] [ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 9, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30

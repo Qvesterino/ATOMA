@@ -62,6 +62,8 @@ export class LinkResonanceFlowSystem_Session124 {
     this.config = {
       // Pulse spawning
       baseSpawnRate: config.baseSpawnRate ?? 2.0,        // Pulses per second
+      repeatPulseIntervalSeconds: config.repeatPulseIntervalSeconds ?? 3.0,
+      manualRepeatPauseSeconds: config.manualRepeatPauseSeconds ?? 10.0,
       loadPressureSpawnBoost: config.loadPressureSpawnBoost ?? config.synergySpawnBoost ?? 1.6,
       pulseSpeedBase: config.pulseSpeedBase ?? 0.96,     // Units per second
       pulseSpeedLoadPressureMult: config.pulseSpeedLoadPressureMult ?? config.pulseSpeedSynergyMult ?? 0.95,
@@ -117,6 +119,11 @@ export class LinkResonanceFlowSystem_Session124 {
       maxTotalPulses: config.maxTotalPulses ?? 1024,
       enabled: config.enabled ?? true,
       debugMode: config.debugMode ?? false,
+      debugPulseVisuals: config.debugPulseVisuals ?? config.debugMode ?? false,
+      debugPulseScaleMult: config.debugPulseScaleMult ?? 6.0,
+      debugPulseGlowMult: config.debugPulseGlowMult ?? 4.5,
+      debugPulseOpacityMult: config.debugPulseOpacityMult ?? 1.5,
+      debugPulseTrailMult: config.debugPulseTrailMult ?? 4.0,
     };
     
     // Pulse pools per link
@@ -135,6 +142,7 @@ export class LinkResonanceFlowSystem_Session124 {
     
     // Spawn tracking
     this.spawnAccumulators = new Map(); // linkId → accumulated spawn time
+    this._repeatSuppressedUntilByLink = new WeakMap();
     this._timeOrigin = undefined;
     this._lastVisualTime = undefined;
     
@@ -148,6 +156,27 @@ export class LinkResonanceFlowSystem_Session124 {
     this.init();
     
     console.log('[Session 124] LinkResonanceFlowSystem initialized');
+  }
+
+  setDebugPulseVisuals(enabled, options = {}) {
+    this.config.debugPulseVisuals = !!enabled;
+
+    if (options && typeof options === 'object') {
+      if (Number.isFinite(options.scaleMult)) this.config.debugPulseScaleMult = Math.max(0.1, options.scaleMult);
+      if (Number.isFinite(options.glowMult)) this.config.debugPulseGlowMult = Math.max(0.1, options.glowMult);
+      if (Number.isFinite(options.opacityMult)) this.config.debugPulseOpacityMult = Math.max(0.1, options.opacityMult);
+      if (Number.isFinite(options.trailMult)) this.config.debugPulseTrailMult = Math.max(0.1, options.trailMult);
+    }
+
+    for (const pulse of this.globalPulses) {
+      pulse.debugPulse = this.config.debugPulseVisuals === true;
+    }
+
+    return this.config.debugPulseVisuals;
+  }
+
+  isDebugPulseVisualsEnabled() {
+    return this.config.debugPulseVisuals === true;
   }
 
   _getLinkSource(link) {
@@ -353,13 +382,9 @@ export class LinkResonanceFlowSystem_Session124 {
       if (!link || !link.userData || link.id === null || link.id === undefined) continue;
       
       const linkId = link.id;
-      const metrics = this._readLinkPressureMetrics(link);
-      const loadPressure = metrics.loadPressure;
-      const stabilityProfile = this._getStabilityProfile(metrics.stability);
-      const pressureProfile = this._getLoadPressureProfile(loadPressure);
-      const hasLoadFlow = loadPressure >= 0.08;
-      
-      if (!hasLoadFlow && !stabilityProfile.active) continue;
+      const repeatInterval = Math.max(0.15, this.config.repeatPulseIntervalSeconds ?? 3.0);
+      const suppressedUntil = this._repeatSuppressedUntilByLink.get(link) ?? Number.NEGATIVE_INFINITY;
+      if (currentVisualTime < suppressedUntil) continue;
 
       // Get or create spawn accumulator
       if (!this.spawnAccumulators.has(linkId)) {
@@ -373,31 +398,18 @@ export class LinkResonanceFlowSystem_Session124 {
       const accumulatorEntry = this.spawnAccumulators.get(linkId);
       const delta = currentVisualTime - (accumulatorEntry.lastTime ?? currentVisualTime);
       accumulatorEntry.lastTime = currentVisualTime;
-      
-      if (hasLoadFlow) {
-        // Calculate ambient flow spawn rate from load pressure
-        const overloadBoost = pressureProfile.overloadMix * this.config.overloadSpawnBoost;
-        const loadFactor = 0.22 + Math.pow(loadPressure, 1.08) * this.config.loadPressureSpawnBoost + overloadBoost;
-        const spawnRate = this.config.baseSpawnRate * loadFactor;
 
-        accumulatorEntry.accumulator += delta * spawnRate;
-
-        // Spawn pulses
-        while (accumulatorEntry.accumulator >= 1.0) {
-          this._spawnPulse(link);
-          accumulatorEntry.accumulator -= 1.0;
-        }
+      if (!Number.isFinite(accumulatorEntry.lastRepeatTime)) {
+        accumulatorEntry.lastRepeatTime = currentVisualTime - repeatInterval;
       }
 
-      if (stabilityProfile.active) {
-        const cooldown = Math.max(0.1, this.config.stabilityPulseCooldown ?? 2.0);
-        const lastBurst = accumulatorEntry.lastStabilityBurstTime ?? Number.NEGATIVE_INFINITY;
-        if (currentVisualTime - lastBurst >= cooldown) {
-          for (let i = 0; i < stabilityProfile.burstCount; i += 1) {
-            this._spawnPulse(link);
-          }
-          accumulatorEntry.lastStabilityBurstTime = currentVisualTime;
+      const elapsedSinceRepeat = currentVisualTime - accumulatorEntry.lastRepeatTime;
+      if (elapsedSinceRepeat >= repeatInterval) {
+        const repeatCount = Math.max(1, Math.floor(elapsedSinceRepeat / repeatInterval));
+        for (let i = 0; i < repeatCount; i += 1) {
+          this._spawnPulse(link);
         }
+        accumulatorEntry.lastRepeatTime += repeatCount * repeatInterval;
       }
     }
   }
@@ -419,6 +431,7 @@ export class LinkResonanceFlowSystem_Session124 {
     const pressureProfile = this._getLoadPressureProfile(loadPressure);
     const overpressure = clamp01(loadPressure * (1.0 - metrics.stability * 0.35));
     const overloadMix = pressureProfile.overloadMix;
+      const debugPulse = this.config.debugPulseVisuals === true;
     
     // Get or create pulse pool for this link
     if (!this.linkPulses.has(linkId)) {
@@ -448,20 +461,20 @@ export class LinkResonanceFlowSystem_Session124 {
         loadPressure * this.config.pulseRadiusLoadPressureMult +
         stabilityMix * this.config.stabilityPulseRadiusMult,
         this.config.pulseMaxRadius
-      ),
+      ) * (debugPulse ? 1.75 : 1.0),
 
       sheathOpacity: Math.min(1.0,
         this.config.pulseSheathOpacity +
         loadPressure * 0.22 +
         overloadMix * 0.22 +
         stabilityMix * this.config.stabilityPulseSheathBoost
-      ),
+      ) * (debugPulse ? 1.2 : 1.0),
       trailOpacity: Math.min(1.0,
         this.config.pulseTrailOpacity +
         overpressure * 0.24 +
         overloadMix * 0.28 +
         stabilityMix * this.config.stabilityPulseTrailBoost
-      ),
+      ) * (debugPulse ? 1.15 : 1.0),
       trailLength: this.config.pulseTrailLengthBase +
         loadPressure * this.config.pulseTrailLengthLoadMult +
         overloadMix * 0.22 +
@@ -472,11 +485,12 @@ export class LinkResonanceFlowSystem_Session124 {
         overpressure * 0.18 +
         overloadMix * this.config.overloadIntensityBoost +
         stabilityMix * this.config.stabilityIntensityBoost
-      )),
+      )) * (debugPulse ? 1.25 : 1.0),
       
       // State
       life: 0,
       lifetime: this.config.pulseLifetime,
+      debugPulse,
       active: true,
       
       // Flow direction
@@ -495,6 +509,38 @@ export class LinkResonanceFlowSystem_Session124 {
     pulses.push(pulse);
     this.globalPulses.push(pulse);
     this.stats.pulseSpawnCount++;
+  }
+
+  spawnSinglePulse(linkOrId, options = {}) {
+    const link = typeof linkOrId === 'object'
+      ? linkOrId
+      : this.world?.linkingSystem?._resolveLinkById?.(linkOrId)
+        || this.world?.linkingSystem?.links?.find?.((entry) => entry?.id === linkOrId || entry?.linkId === linkOrId)
+        || null;
+    if (!link) return null;
+
+    const linkId = link.id ?? link.linkId;
+    if (linkId === null || linkId === undefined) return null;
+
+    const previousDebug = this.config.debugPulseVisuals === true;
+    const shouldDebugPulse = options.debugPulse !== false;
+    if (shouldDebugPulse) {
+      this.config.debugPulseVisuals = true;
+    }
+
+    this._spawnPulse(link);
+
+    this.config.debugPulseVisuals = previousDebug;
+
+    const pauseSeconds = Number.isFinite(options.pauseSeconds)
+      ? Math.max(0, options.pauseSeconds)
+      : Math.max(0, this.config.manualRepeatPauseSeconds ?? 10.0);
+    if (pauseSeconds > 0) {
+      const currentTime = this._lastVisualTime ?? this._timeOrigin ?? 0;
+      this._repeatSuppressedUntilByLink.set(link, currentTime + pauseSeconds);
+    }
+
+    return this.linkPulses.get(linkId)?.at?.(-1) ?? null;
   }
   
   /**
@@ -546,14 +592,23 @@ export class LinkResonanceFlowSystem_Session124 {
       const bandMix = this._getLoadPressureProfile(pulse.loadPressure ?? 0).pressurizedMix;
       const stabilityMix = pulse.stabilityMix ?? 0;
       const linkSeed = getLinkSeed(pulse.linkId);
+      const debugPulse = this.config.debugPulseVisuals === true || pulse.debugPulse === true;
       
       // Calculate pulse appearance
-      const color = this._getPulseColor(pulse);
-      const opacity = this._getPulseOpacity(pulse) * (pulse.lodSuppression ?? 1.0);
-      const size = pulse.radius * (1.0 + Math.sin(pulse.life * Math.PI * 2) * 0.16 + overloadMix * 0.14 + stabilityMix * 0.1);
-      const sheathSize = size * (1.34 + pulse.loadPressure * 0.28 + bandMix * 0.16 + overloadMix * this.config.overloadSheathBoost + stabilityMix * 0.18);
-      const trailSize = size * (0.42 + pulse.loadPressure * 0.12 - overloadMix * 0.12 + stabilityMix * 0.08);
-      const trailLength = pulse.trailLength * (0.62 + pulse.loadPressure * 0.28 + overloadMix * this.config.overloadTrailBoost + stabilityMix * 0.16) * (1.0 + Math.sin(pulse.life * Math.PI) * 0.08);
+      const color = debugPulse ? new THREE.Color(1.0, 0.0, 0.0) : this._getPulseColor(pulse);
+      const opacity = (debugPulse
+        ? 1.0
+        : this._getPulseOpacity(pulse)) * (pulse.lodSuppression ?? 1.0);
+      const size = (pulse.radius * (1.0 + Math.sin(pulse.life * Math.PI * 2) * 0.16 + overloadMix * 0.14 + stabilityMix * 0.1))
+        * (debugPulse ? this.config.debugPulseScaleMult : 1.0);
+      const sheathSize = size * (debugPulse
+        ? 2.15
+        : (1.34 + pulse.loadPressure * 0.28 + bandMix * 0.16 + overloadMix * this.config.overloadSheathBoost + stabilityMix * 0.18));
+      const trailSize = size * (debugPulse
+        ? 1.15
+        : (0.42 + pulse.loadPressure * 0.12 - overloadMix * 0.12 + stabilityMix * 0.08));
+      const trailLength = (pulse.trailLength * (0.62 + pulse.loadPressure * 0.28 + overloadMix * this.config.overloadTrailBoost + stabilityMix * 0.16) * (1.0 + Math.sin(pulse.life * Math.PI) * 0.08))
+        * (debugPulse ? this.config.debugPulseTrailMult : 1.0);
       const jitter = overloadMix * this.config.overloadJitter;
       
       // Apply transforms and uniforms
@@ -571,24 +626,36 @@ export class LinkResonanceFlowSystem_Session124 {
         parts.core.scale.setScalar(size);
         const uniforms = parts.core.material.uniforms;
         if (uniforms.uColor) uniforms.uColor.value.copy(color);
-        if (uniforms.uOpacity) uniforms.uOpacity.value = opacity * (1.0 + overloadMix * 0.18);
-        if (uniforms.uGlowSize) uniforms.uGlowSize.value = this.config.pulseGlowIntensity * (1.0 + pulse.loadPressure * 0.2 + overloadMix * 0.4 + stabilityMix * 0.24);
+        if (uniforms.uOpacity) uniforms.uOpacity.value = opacity * (1.0 + overloadMix * 0.18) * (debugPulse ? 1.1 : 1.0);
+        if (uniforms.uGlowSize) uniforms.uGlowSize.value = this.config.pulseGlowIntensity * (1.0 + pulse.loadPressure * 0.2 + overloadMix * 0.4 + stabilityMix * 0.24) * (debugPulse ? this.config.debugPulseGlowMult : 1.0);
       }
       if (parts.sheath) {
         parts.sheath.position.set(0, 0, 0);
         parts.sheath.scale.setScalar(sheathSize);
         const sheathUniforms = parts.sheath.material.uniforms;
-        if (sheathUniforms.uColor) sheathUniforms.uColor.value.copy(color).lerp(new THREE.Color(0xffffff), 0.16 + pulse.loadPressure * 0.18 + overloadMix * 0.24 + stabilityMix * 0.18);
-        if (sheathUniforms.uOpacity) sheathUniforms.uOpacity.value = opacity * pulse.sheathOpacity * (1.0 + overloadMix * 0.28);
-        if (sheathUniforms.uGlowSize) sheathUniforms.uGlowSize.value = this.config.pulseGlowIntensity * (0.82 + pulse.loadPressure * 0.25 + overloadMix * 0.38 + stabilityMix * 0.22);
+        if (sheathUniforms.uColor) {
+          if (debugPulse) {
+            sheathUniforms.uColor.value.copy(new THREE.Color(1.0, 0.12, 0.12));
+          } else {
+            sheathUniforms.uColor.value.copy(color).lerp(new THREE.Color(0xffffff), 0.16 + pulse.loadPressure * 0.18 + overloadMix * 0.24 + stabilityMix * 0.18);
+          }
+        }
+        if (sheathUniforms.uOpacity) sheathUniforms.uOpacity.value = opacity * pulse.sheathOpacity * (1.0 + overloadMix * 0.28) * (debugPulse ? 1.1 : 1.0);
+        if (sheathUniforms.uGlowSize) sheathUniforms.uGlowSize.value = this.config.pulseGlowIntensity * (0.82 + pulse.loadPressure * 0.25 + overloadMix * 0.38 + stabilityMix * 0.22) * (debugPulse ? this.config.debugPulseGlowMult : 1.0);
       }
       if (parts.trail) {
         parts.trail.position.set(0, -0.5 * trailLength - size * 0.18, 0);
         parts.trail.scale.set(trailSize, trailLength, trailSize);
         const trailUniforms = parts.trail.material.uniforms;
-        if (trailUniforms.uColor) trailUniforms.uColor.value.copy(color).lerp(new THREE.Color(0x86ffff), 0.2 + overloadMix * 0.22 + stabilityMix * 0.12);
-        if (trailUniforms.uOpacity) trailUniforms.uOpacity.value = opacity * pulse.trailOpacity * (1.0 + overloadMix * 0.18);
-        if (trailUniforms.uGlowSize) trailUniforms.uGlowSize.value = this.config.pulseGlowIntensity * (0.54 + overloadMix * 0.18 + stabilityMix * 0.16);
+        if (trailUniforms.uColor) {
+          if (debugPulse) {
+            trailUniforms.uColor.value.copy(new THREE.Color(1.0, 0.24, 0.24));
+          } else {
+            trailUniforms.uColor.value.copy(color).lerp(new THREE.Color(0x86ffff), 0.2 + overloadMix * 0.22 + stabilityMix * 0.12);
+          }
+        }
+        if (trailUniforms.uOpacity) trailUniforms.uOpacity.value = opacity * pulse.trailOpacity * (1.0 + overloadMix * 0.18) * (debugPulse ? 1.18 : 1.0);
+        if (trailUniforms.uGlowSize) trailUniforms.uGlowSize.value = this.config.pulseGlowIntensity * (0.54 + overloadMix * 0.18 + stabilityMix * 0.16) * (debugPulse ? this.config.debugPulseGlowMult : 1.0);
       }
       if (parts.overloadA) {
         const showOverload = overloadMix > 0.001;
@@ -717,6 +784,7 @@ export class LinkResonanceFlowSystem_Session124 {
    * Create pulse rig (reuses material, not geometry)
    */
   _createPulseMesh() {
+    const debugPulse = this.config.debugPulseVisuals === true;
     const makeMaterial = (opacityScale, glowScale, color) => {
       const material = this.pulseMaterialTemplate.clone();
       material.uniforms = THREE.UniformsUtils.clone(this.pulseMaterialTemplate.uniforms);
@@ -726,30 +794,39 @@ export class LinkResonanceFlowSystem_Session124 {
       return material;
     };
 
+    const debugColors = debugPulse ? {
+      core: 0xff0000,
+      sheath: 0xff2020,
+      trail: 0xff6161,
+      overloadA: 0xff0000,
+      overloadB: 0xff5a5a,
+    } : null;
+
     const rig = new THREE.Group();
     rig.name = 'LinkResonancePulseRig';
     rig.visible = false;
+    rig.userData.debugPulseVisuals = debugPulse;
 
-    const core = new THREE.Mesh(this.pulseMeshGeometry, makeMaterial(1.0, 1.0, 0x9fffff));
+    const core = new THREE.Mesh(this.pulseMeshGeometry, makeMaterial(1.0, 1.0, debugColors?.core ?? 0x9fffff));
     core.name = 'LinkResonancePulseCore';
     core.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE');
     tagAllowedSphere(core, { role: 'vfx', source: 'LinkResonanceFlowSystem_Session124._createPulseMesh.core' });
     clampSphere(core);
 
-    const sheath = new THREE.Mesh(this.pulseSheathGeometry, makeMaterial(this.config.pulseSheathOpacity, 0.82, 0xd8c6ff));
+    const sheath = new THREE.Mesh(this.pulseSheathGeometry, makeMaterial(this.config.pulseSheathOpacity, 0.82, debugColors?.sheath ?? 0xd8c6ff));
     sheath.name = 'LinkResonancePulseSheath';
     sheath.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE');
 
-    const trail = new THREE.Mesh(this.pulseTrailGeometry, makeMaterial(this.config.pulseTrailOpacity, 0.52, 0x87f3ff));
+    const trail = new THREE.Mesh(this.pulseTrailGeometry, makeMaterial(this.config.pulseTrailOpacity, 0.52, debugColors?.trail ?? 0x87f3ff));
     trail.name = 'LinkResonancePulseTrail';
     trail.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE');
 
-    const overloadA = new THREE.Mesh(this.pulseTrailGeometry, makeMaterial(0.1, 0.68, 0xffcc99));
+    const overloadA = new THREE.Mesh(this.pulseTrailGeometry, makeMaterial(0.1, 0.68, debugColors?.overloadA ?? 0xffcc99));
     overloadA.name = 'LinkResonancePulseOverloadA';
     overloadA.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE');
     overloadA.visible = false;
 
-    const overloadB = new THREE.Mesh(this.pulseTrailGeometry, makeMaterial(0.08, 0.62, 0xff945f));
+    const overloadB = new THREE.Mesh(this.pulseTrailGeometry, makeMaterial(0.08, 0.62, debugColors?.overloadB ?? 0xff945f));
     overloadB.name = 'LinkResonancePulseOverloadB';
     overloadB.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE');
     overloadB.visible = false;
@@ -977,6 +1054,7 @@ export class LinkResonanceFlowSystem_Session124 {
     this.linkPulses.clear();
     this.spawnAccumulators.clear();
     this.stats.pulseSpawnCount = 0;
+    this._repeatSuppressedUntilByLink = new WeakMap();
     this._lastVisualTime = undefined;
     this._lastUpdateFrameId = undefined;
   }
@@ -1005,6 +1083,7 @@ export class LinkResonanceFlowSystem_Session124 {
     this.globalPulses = [];
     this.linkPulses.clear();
     this.spawnAccumulators.clear();
+    this._repeatSuppressedUntilByLink = new WeakMap();
   }
 }
 

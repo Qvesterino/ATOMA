@@ -57,3 +57,12 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
 - Cascade visibility thresholds were lowered to `0.1 / 0.2 / 0.3` for single/double/triple bands, with the visible floor reduced so low-synergy links still produce a readable effect instead of going silent.
 - Added `window.__DEBUG.triggerCascadeAtNodeId(nodeId, intensity)` and the alias `window.__DEBUG.spawnSynergyCascadeAtNodeId(nodeId, intensity)` as a thin console helper for manual cascade spawning without needing a node object.
 - The manual helper returns the resolved node on success, so it is easy to confirm from console that the spawn request actually hit the live runtime.
+- `SynergyCascadeVisualizer` now has a forced burst heartbeat every 3 seconds per live link, independent of synergy metrics, so burst visuals do not rely on threshold gating to remain visible.
+- Runtime smoke on 3 links confirmed the forced burst counter rising from `0` to `3` after ~4s and to `9` after ~8s, which matches the intended 3-second cadence.
+Original prompt: reduce synergy cascade visual clutter and make the repeated beat easier to read
+
+2026-03-31
+- Swapped the repeated 3s beat in `SynergyCascadeVisualizer` from `burstParticles` to `flowParticles`.
+- Reduced burst particle size/opacity and pushed burst back to metric-gated cooldowns at 5s.
+- Controlled smoke confirmed `forcedFlowSpawns=3`, `flowParticles=240`, `burstParticles=12` after three simulated heartbeats.
+- Current visual contract: `flowParticles` = recurring signature, `burstParticles` = smaller metric accent.

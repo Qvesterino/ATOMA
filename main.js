@@ -148,6 +148,141 @@ function getCachedVisualMetrics(scope = globalThis) {
     };
 }
 
+function mountAudioMuteToggleHUD(host = document.body) {
+    if (typeof document === 'undefined') return null;
+
+    const root = host || document.body;
+    if (!root) return null;
+
+    const existing = document.getElementById('atoma-audio-mute-toggle-root');
+    if (existing) {
+        window.__ATOMA_UPDATE_AUDIO_MUTE_TOGGLE__?.();
+        return existing;
+    }
+
+    const wrapper = document.createElement('div');
+    wrapper.id = 'atoma-audio-mute-toggle-root';
+    wrapper.style.position = 'fixed';
+    wrapper.style.top = '10px';
+    wrapper.style.left = '50%';
+    wrapper.style.transform = 'translateX(-50%)';
+    wrapper.style.zIndex = '2147483647';
+    wrapper.style.pointerEvents = 'none';
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.id = 'atoma-audio-mute-toggle';
+    button.style.pointerEvents = 'auto';
+    button.style.border = '1px solid rgba(120, 255, 255, 0.7)';
+    button.style.borderRadius = '999px';
+    button.style.padding = '8px 14px';
+    button.style.minWidth = '132px';
+    button.style.background = 'rgba(8, 16, 28, 0.88)';
+    button.style.color = '#c9ffff';
+    button.style.font = '600 12px/1.1 system-ui, sans-serif';
+    button.style.letterSpacing = '0.12em';
+    button.style.textTransform = 'uppercase';
+    button.style.cursor = 'pointer';
+    button.style.touchAction = 'manipulation';
+    button.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.35)';
+    button.style.backdropFilter = 'blur(10px)';
+    button.style.webkitBackdropFilter = 'blur(10px)';
+
+    const getAudioEnabledPreference = () => {
+        if (window.__ATOMA_AUDIO_ENABLED_PREFERENCE__ !== undefined) {
+            return window.__ATOMA_AUDIO_ENABLED_PREFERENCE__ !== false;
+        }
+
+        try {
+            if (typeof localStorage === 'undefined') return true;
+            const stored = localStorage.getItem('atoma.audio.enabled');
+            if (stored === null) return true;
+            return stored !== '0' && stored !== 'false';
+        } catch {
+            return true;
+        }
+    };
+
+    const update = () => {
+        const audio = window.game?.audioSystem || null;
+        const enabled = getAudioEnabledPreference();
+        const muted = !enabled || !!window.Tone?.getDestination?.()?.mute;
+
+        button.textContent = enabled ? 'AUDIO: ON' : 'AUDIO: OFF';
+        button.title = enabled ? 'Turn audio off' : 'Turn audio on';
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.style.cursor = 'pointer';
+        button.setAttribute('aria-pressed', String(!muted));
+    };
+
+    const applyAudioEnabled = (enabled) => {
+        const nextEnabled = enabled !== false;
+
+        const audioSystem = window.game?.audioSystem || null;
+        if (audioSystem?.setEnabled) {
+            try {
+                audioSystem.setEnabled(nextEnabled);
+            } catch {
+                // ignore audio-system specific failures and fall back to direct state writes
+            }
+        }
+
+        window.__ATOMA_AUDIO_ENABLED_PREFERENCE__ = nextEnabled;
+
+        try {
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('atoma.audio.enabled', nextEnabled ? '1' : '0');
+            }
+        } catch {
+            // ignore persistence failures
+        }
+
+        const destination = window.Tone?.getDestination?.() || window.Tone?.Destination || null;
+        if (destination && 'mute' in destination) {
+            destination.mute = !nextEnabled;
+        }
+
+        if (audioSystem) {
+            audioSystem.enabled = nextEnabled;
+        }
+
+        const audioReady = !!audioSystem?.initialized;
+
+        if (window.game?.audioModulation?.setEnabled) {
+            window.game.audioModulation.setEnabled(nextEnabled && audioReady);
+        }
+        if (window.game?.harmonicAudio?.setEnabled) {
+            window.game.harmonicAudio.setEnabled(nextEnabled && audioReady);
+        }
+        if (window.game?.zoneAudioReactivity?.setEnabled) {
+            window.game.zoneAudioReactivity.setEnabled(nextEnabled && audioReady);
+        }
+
+        window.__ATOMA_UPDATE_AUDIO_MUTE_TOGGLE__?.();
+        return nextEnabled;
+    };
+
+    const toggle = () => {
+        return applyAudioEnabled(!getAudioEnabledPreference());
+    };
+
+    window.setAudioEnabled = applyAudioEnabled;
+    window.toggleAudio = () => applyAudioEnabled(!getAudioEnabledPreference());
+
+    button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        toggle();
+    });
+
+    wrapper.appendChild(button);
+    root.appendChild(wrapper);
+    window.__ATOMA_UPDATE_AUDIO_MUTE_TOGGLE__ = update;
+    update();
+    return wrapper;
+}
+
 function getLinkCreateCallbackTimingRegistry(scope = globalThis) {
     const existingRegistry = scope?.__ATOMA_LINK_CREATE_CALLBACK_TIMINGS__;
     if (existingRegistry) {
@@ -206,18 +341,85 @@ function timeLinkCreateCallback(label, callback) {
         }
 
         const timingRegistry = getLinkCreateCallbackTimingRegistry();
+
+function ensureAudioToggleCommands() {
+    if (typeof window === 'undefined') return;
+
+    window.__ATOMA_AUDIO_ENABLED_PREFERENCE__ = window.__ATOMA_AUDIO_ENABLED_PREFERENCE__ ?? true;
+
+    window.setAudioEnabled = function (enabled) {
+        const nextEnabled = enabled !== false;
+
+        const audioSystem = window.game?.audioSystem || null;
+        if (audioSystem?.setEnabled) {
+            try {
+                audioSystem.setEnabled(nextEnabled);
+            } catch {
+                // ignore audio-system specific failures and fall back to direct state writes
+            }
+        }
+
+        window.__ATOMA_AUDIO_ENABLED_PREFERENCE__ = nextEnabled;
+
+        try {
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('atoma.audio.enabled', nextEnabled ? '1' : '0');
+            }
+        } catch {
+            // ignore persistence failures
+        }
+
+        const destination = window.Tone?.getDestination?.() || window.Tone?.Destination || null;
+        if (destination && 'mute' in destination) {
+            destination.mute = !nextEnabled;
+        }
+
+        if (audioSystem) {
+            audioSystem.enabled = nextEnabled;
+        }
+
+        const audioReady = !!audioSystem?.initialized;
+
+        if (window.game?.audioModulation?.setEnabled) {
+            window.game.audioModulation.setEnabled(nextEnabled && audioReady);
+        }
+        if (window.game?.harmonicAudio?.setEnabled) {
+            window.game.harmonicAudio.setEnabled(nextEnabled && audioReady);
+        }
+        if (window.game?.zoneAudioReactivity?.setEnabled) {
+            window.game.zoneAudioReactivity.setEnabled(nextEnabled && audioReady);
+        }
+
+        console.log(`🔊 Audio System ${nextEnabled ? 'ENABLED' : 'DISABLED'}`);
+        window.__ATOMA_UPDATE_AUDIO_MUTE_TOGGLE__?.();
+        return nextEnabled;
+    };
+
+    window.toggleAudio = function () {
+        const currentEnabled = window.__ATOMA_AUDIO_ENABLED_PREFERENCE__ !== undefined
+            ? window.__ATOMA_AUDIO_ENABLED_PREFERENCE__ !== false
+            : window.game?.audioSystem
+                ? window.game.audioSystem.enabled !== false
+                : true;
+        return window.setAudioEnabled?.(!currentEnabled);
+    };
+}
         const startedAt = performance.now();
         try {
             return callback(...args);
         } finally {
             timingRegistry.record(label, performance.now() - startedAt);
         }
+
+    ensureAudioToggleCommands();
     };
 }
 
 if (typeof window !== 'undefined') {
     // Link growth reactivation defaults
     window.ATOMA_LINK_SPAWN_ENABLED = true;
+    window.ATOMA_ENABLE_ANIMATED_LINK_FLOW = false;
+    window.__ATOMA_AUDIO_ENABLED_PREFERENCE__ = window.__ATOMA_AUDIO_ENABLED_PREFERENCE__ ?? true;
     // Enable diagnostics for first tests; can be turned off in console
     window.__SPAWN_DIAG = window.__SPAWN_DIAG ?? true;
     window.ATOMA_DEBUG_LINK_SPAWN = window.ATOMA_DEBUG_LINK_SPAWN ?? true;
@@ -6303,6 +6505,7 @@ window.__ATOMA_SCENE__ = this.scene;
         // Mount AI HUDs
         mountAIAutomationHUD(document.body);
         mountVariantBAdvisorHUD(document.body);
+        mountAudioMuteToggleHUD(document.body);
 
         // Initial paint (live reports are refreshed on the simulation scheduler)
         this._refreshAIHudReports?.();
@@ -15390,9 +15593,32 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         window.atoma = this;
         window.__DEBUG = window.__DEBUG || {};
         window.__DEBUG.getLinkingSystem = () => this.linkingSystem ?? this.nodeLinkingSystem ?? this.nodeLinking ?? null;
+        window.__DEBUG.getLinkResonanceFlowSystem = () => this.linkResonanceFlowSystem ?? this.linkRendererConduit?.linkResonanceFlowSystem ?? null;
         window.__DEBUG.createLinkById = (idA, idB) => window.__DEBUG.getLinkingSystem()?.createLinkById?.(idA, idB) ?? null;
         window.__DEBUG.createLink = (nodeA, nodeB) => window.__DEBUG.getLinkingSystem()?.createLink?.(nodeA, nodeB) ?? null;
         window.__DEBUG.getNodeById = (id) => window.__DEBUG.getLinkingSystem()?._resolveNodeById?.(id) ?? null;
+        window.__DEBUG.spawnLinkResonancePulseOnce = (linkIdOrLink, options = {}) => {
+            const system = window.__DEBUG.getLinkResonanceFlowSystem();
+            if (!system?.spawnSinglePulse) return null;
+            const link = typeof linkIdOrLink === 'object'
+                ? linkIdOrLink
+                : window.__DEBUG.getLinkingSystem()?._resolveLinkById?.(linkIdOrLink)
+                    || window.__DEBUG.getLinkingSystem()?.links?.find?.((entry) => entry?.id === linkIdOrLink || entry?.linkId === linkIdOrLink)
+                    || null;
+            if (!link) return null;
+            return system.spawnSinglePulse(link, options);
+        };
+        window.__DEBUG.setLinkResonancePulseDebug = (enabled, options = {}) => {
+            const system = window.__DEBUG.getLinkResonanceFlowSystem();
+            if (!system?.setDebugPulseVisuals) return null;
+            return system.setDebugPulseVisuals(enabled, options);
+        };
+        window.__DEBUG.toggleLinkResonancePulseDebug = (options = {}) => {
+            const system = window.__DEBUG.getLinkResonanceFlowSystem();
+            if (!system?.setDebugPulseVisuals) return null;
+            const enabled = !(system.config?.debugPulseVisuals === true);
+            return system.setDebugPulseVisuals(enabled, options);
+        };
         window.__DEBUG.triggerCascadeAtNodeId = (nodeId, intensity = 1.0) => {
             const node = window.__DEBUG.getNodeById(nodeId);
             if (!node) return null;
@@ -16971,29 +17197,60 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         // Enable/disable audio system
         window.setAudioEnabled = function (enabled) {
-            if (!window.game?.audioSystem) return false;
-
             const nextEnabled = enabled !== false;
-            const audioSystem = window.game.audioSystem;
-            audioSystem.setEnabled?.(nextEnabled);
 
-            if (window.game.audioModulation?.setEnabled) {
-                window.game.audioModulation.setEnabled(nextEnabled && audioSystem.initialized);
+            const audioSystem = window.game?.audioSystem || null;
+            if (audioSystem?.setEnabled) {
+                try {
+                    audioSystem.setEnabled(nextEnabled);
+                } catch {
+                    // ignore audio-system specific failures and fall back to direct state writes
+                }
             }
-            if (window.game.harmonicAudio?.setEnabled) {
-                window.game.harmonicAudio.setEnabled(nextEnabled && audioSystem.initialized);
+
+            window.__ATOMA_AUDIO_ENABLED_PREFERENCE__ = nextEnabled;
+
+            try {
+                if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem('atoma.audio.enabled', nextEnabled ? '1' : '0');
+                }
+            } catch {
+                // ignore persistence failures
             }
-            if (window.game.zoneAudioReactivity?.setEnabled) {
-                window.game.zoneAudioReactivity.setEnabled(nextEnabled && audioSystem.initialized);
+
+            const destination = window.Tone?.getDestination?.() || window.Tone?.Destination || null;
+            if (destination && 'mute' in destination) {
+                destination.mute = !nextEnabled;
+            }
+
+            if (audioSystem) {
+                audioSystem.enabled = nextEnabled;
+            }
+
+            const audioReady = !!audioSystem?.initialized;
+
+            if (window.game?.audioModulation?.setEnabled) {
+                window.game.audioModulation.setEnabled(nextEnabled && audioReady);
+            }
+            if (window.game?.harmonicAudio?.setEnabled) {
+                window.game.harmonicAudio.setEnabled(nextEnabled && audioReady);
+            }
+            if (window.game?.zoneAudioReactivity?.setEnabled) {
+                window.game.zoneAudioReactivity.setEnabled(nextEnabled && audioReady);
             }
 
             console.log(`🔊 Audio System ${nextEnabled ? 'ENABLED' : 'DISABLED'}`);
+            window.__ATOMA_UPDATE_AUDIO_MUTE_TOGGLE__?.();
             return nextEnabled;
         };
 
         window.toggleAudio = function () {
-            if (!window.game?.audioSystem) return false;
-            return window.setAudioEnabled?.(!window.game.audioSystem.enabled);
+            const currentEnabled = window.__ATOMA_AUDIO_ENABLED_PREFERENCE__ !== undefined
+                ? window.__ATOMA_AUDIO_ENABLED_PREFERENCE__ !== false
+                : window.game?.audioSystem
+                    ? window.game.audioSystem.enabled !== false
+                    : true;
+            return window.setAudioEnabled?.(!currentEnabled);
         };
 
         document.addEventListener('keydown', (event) => {
