@@ -21,7 +21,7 @@
  * - Harmony (PRIMARY): Clarity, smoothness, reduced flicker
  * - Synergy: Pulse energy, brightness
  * - Corruption: Distortion, uneven pulse, phase wobble
- * - Instability: Dampened visibility, breathing irregularity
+ * - Stability: Dampened visibility, breathing irregularity
  * - Resilience: Stability, faster recovery, reduced distortion
  * 
  * OVERLOAD/COLLAPSE/RECOVERY:
@@ -109,7 +109,7 @@ const HALO_VISUALS = {
   WAVE_SPEED: 1.5,                      // Units per second
   WAVE_AMPLITUDE: 0.3,                  // Intensity modulation (0-1)
   
-  // Distortion parameters (corruption/instability)
+  // Distortion parameters (corruption/stability)
   MAX_DISTORTION: 0.15,                 // Max radial distortion
   MAX_WOBBLE: 0.2,                      // Max phase wobble (radians)
   
@@ -409,7 +409,7 @@ export class HarmonicNodeResonanceHalos {
       currentColor: { ...HALO_COLORS.harmony },
       targetColor: { ...HALO_COLORS.harmony },
       
-      // Distortion (corruption/instability)
+      // Distortion (corruption/stability)
       distortionAmount: 0,
       wobbleAmount: 0,
       
@@ -514,7 +514,7 @@ export class HarmonicNodeResonanceHalos {
       harmony: 0.5,
       synergy: 0.5,
       corruption: 0,
-      instability: 0,
+      stability: 0,
       resilience: 0,
       isRecovering: false,
       isCollapsed: false,
@@ -646,8 +646,8 @@ export class HarmonicNodeResonanceHalos {
       // Corruption reduces intensity
       targetIntensity *= (1.0 - hubState.corruption * 0.3);
       
-      // Instability dampens intensity
-      targetIntensity *= (1.0 - hubState.instability * 0.4);
+      // Stability dampens intensity
+      targetIntensity *= (1.0 - hubState.stability * 0.4);
       targetIntensity *= lodScale;
     }
     
@@ -665,12 +665,12 @@ export class HarmonicNodeResonanceHalos {
     haloData.currentColor.g += (targetColor.g - haloData.currentColor.g) * easeAmount;
     haloData.currentColor.b += (targetColor.b - haloData.currentColor.b) * easeAmount;
     
-    // Update distortion (corruption + instability)
-    const targetDistortion = (hubState.corruption * 0.5 + hubState.instability * 0.5) * HALO_GEOMETRY.THICKNESS_SCALE;
+    // Update distortion (corruption + stability)
+    const targetDistortion = (hubState.corruption * 0.5 + hubState.stability * 0.5) * HALO_GEOMETRY.THICKNESS_SCALE;
     haloData.distortionAmount += (targetDistortion - haloData.distortionAmount) * easeAmount * 0.5;
     
-    // Update wobble (phase noise from corruption/instability)
-    const targetWobble = (hubState.corruption + hubState.instability) * 0.1;
+    // Update wobble (phase noise from corruption/stability)
+    const targetWobble = (hubState.corruption + hubState.stability) * 0.1;
     haloData.wobbleAmount += (targetWobble - haloData.wobbleAmount) * easeAmount;
     
     // Update resilience effect

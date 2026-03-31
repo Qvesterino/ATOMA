@@ -49,7 +49,7 @@ export class LinkDirectionalStreaks {
             segmentsPerStreak: 14,      // Ribbon resolution (low for perf)
             harmonyBoost: 0.08,         // Keep harmony modulation subtle to avoid white blowout
             corruptionDesaturation: 0.4, // Color desaturation from corruption
-            instabilityDampen: 0.7,     // Opacity scaling from instability
+            stabilityDampen: 0.7,     // Opacity scaling from stability
             activationThreshold: 2,     // Min active links for streak visibility (was 3, now 2)
         };
         
@@ -161,7 +161,7 @@ export class LinkDirectionalStreaks {
             ages: new Float32Array(baseStreakCount),         // Current age (seconds)
             // Corruption jitter per streak (stable noise)
             jitterPhases: new Float32Array(baseStreakCount),
-            // Instability suppression flags
+            // Stability suppression flags
             suppressed: new Uint8Array(baseStreakCount),
         };
         
@@ -173,7 +173,7 @@ export class LinkDirectionalStreaks {
             streaks.phases[i] = streaks.offsets[i];
             streaks.speeds[i] = 0.8;           // Default, will scale with synergy
             streaks.lengths[i] = 0.15;         // Default, will scale with harmony
-            streaks.lifetimes[i] = 2.0;        // Default, will scale with instability
+            streaks.lifetimes[i] = 2.0;        // Default, will scale with stability
             streaks.ages[i] = (i / baseStreakCount) * streaks.lifetimes[i]; // Stagger starts
             streaks.jitterPhases[i] = rng * Math.PI * 2;
             streaks.suppressed[i] = 0;
@@ -193,14 +193,14 @@ export class LinkDirectionalStreaks {
      * @param {number} synergy - Synergy level (0-1)
      * @param {number} harmony - Harmony level (0-1)
      * @param {number} corruption - Corruption level (0-1)
-     * @param {number} instability - Instability level (0-1)
+     * @param {number} stability - Stability level (0-1)
      * @param {THREE.Color} baseColor - Link base color
      * @param {THREE.Color} targetColor - Link target color (optional)
      * @param {Object} link - Link data object (for pulse injection)
      * @param {number} time - Current time
      * @param {number|Object} specialization - Link specialization bias (-1 to +1), or conduit frameState/options payload
      */
-    update(linkGroup, curve, deltaTime, synergy = 0.5, harmony = 1.0, corruption = 0.0, instability = 0.0, baseColor = null, targetColor = null, link = null, time = 0, specialization = 0) {
+    update(linkGroup, curve, deltaTime, synergy = 0.5, harmony = 1.0, corruption = 0.0, stability = 0.0, baseColor = null, targetColor = null, link = null, time = 0, specialization = 0) {
         if (!linkGroup || !linkGroup.userData.conduitState) return;
         if (!curve) return; // Defensive: no curve, skip
         const safeDelta = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0;
@@ -233,7 +233,7 @@ export class LinkDirectionalStreaks {
             synergy,
             harmony,
             corruption,
-            instability
+            stability
         );
         
         // Update harmonic hub phase synchronization
@@ -245,7 +245,7 @@ export class LinkDirectionalStreaks {
                 synergy,
                 harmony,
                 corruption,
-                instability,
+                stability,
                 time
             );
         }
@@ -258,7 +258,7 @@ export class LinkDirectionalStreaks {
                 synergy,
                 harmony,
                 corruption,
-                instability,
+                stability,
                 active: true,
                 mesh: streaks.mesh
             });
@@ -283,9 +283,9 @@ export class LinkDirectionalStreaks {
         const jitterAmount = corruption * 0.15; // Subtle lateral jitter
         const desaturation = corruption * this.config.corruptionDesaturation;
         
-        // Instability effects - DISABLED per user request
+        // Stability effects - DISABLED per user request
         // Opacity multipliers and suppressed flags removed
-        const instabilityFactor = 1.0; // Full lifetime (no shortening)
+        const stabilityFactor = 1.0; // Full lifetime (no shortening)
         const suppressionThreshold = 0; // No suppression
         
         // --- UPDATE EACH STREAK ---
@@ -318,7 +318,7 @@ export class LinkDirectionalStreaks {
             
             // Compute lifetime for this streak
             const baseLifetime = 2.0;
-            const scaledLifetime = baseLifetime * instabilityFactor;
+            const scaledLifetime = baseLifetime * stabilityFactor;
             
             // Restart if expired
             if (streaks.ages[i] >= scaledLifetime) {
@@ -352,12 +352,12 @@ export class LinkDirectionalStreaks {
                 opacity = (1.0 - phase) / 0.15;
             }
             
-            // Instability suppression - DISABLED per user request
+            // Stability suppression - DISABLED per user request
             // streaks.suppressed[i] remains 0 (no suppression)
-            // No instability damping applied
+            // No stability damping applied
             
-            // Apply overall instability damping - DISABLED
-            // opacity *= (1.0 - (instability * this.config.instabilityDampen));
+            // Apply overall stability damping - DISABLED
+            // opacity *= (1.0 - (stability * this.config.stabilityDampen));
             
             // --- BUILD RIBBON GEOMETRY ---
             // Sample curve at streak offset ± length
@@ -491,7 +491,7 @@ export class LinkDirectionalStreaks {
         // --- UPDATE MATERIAL WITH PULSE EFFECTS ---
         if (streaks.material) {
             let baseBrightness = harmonyBrightness;
-            let baseOpacity = 0.22 * (1.0 - (instability * 0.15));
+            let baseOpacity = 0.22 * (1.0 - (stability * 0.15));
 
             // Apply pulse effects to material
             if (pulseEffectData && pulseEffectData.hasPulse) {
@@ -510,7 +510,7 @@ export class LinkDirectionalStreaks {
                 this._streakOpacityLogTime = this._streakOpacityLogTime || 0;
                 this._streakOpacityLogTime += safeDelta;
                 if (this._streakOpacityLogTime > 1.0) {
-                    console.log('[DirectionalStreaks] Opacity:', baseOpacity.toFixed(3), 'instability:', instability.toFixed(3), 'harmony:', harmony.toFixed(3), 'synergy:', synergy.toFixed(3));
+                    console.log('[DirectionalStreaks] Opacity:', baseOpacity.toFixed(3), 'stability:', stability.toFixed(3), 'harmony:', harmony.toFixed(3), 'synergy:', synergy.toFixed(3));
                     this._streakOpacityLogTime = 0;
                 }
             }

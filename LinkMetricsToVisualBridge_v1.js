@@ -4,11 +4,12 @@
  */
 
 export class LinkMetricsToVisualBridge {
-  constructor(linkSystem, collapseSystem, corruptionSystem, neonLinkVisuals) {
+  constructor(linkSystem, collapseSystem, corruptionSystem, neonLinkVisuals, config = {}) {
     this.linkSystem = linkSystem;
     this.collapseSystem = collapseSystem;
     this.corruptionSystem = corruptionSystem;
     this.neonLinkVisuals = neonLinkVisuals;
+    this.frameScheduler = config.frameScheduler ?? null;
     this.linkMetricsCache = new Map();
     this.updateCount = 0;
     
@@ -75,21 +76,84 @@ export class LinkMetricsToVisualBridge {
     return metrics;
   }
 
-  _getDegradationStress(linkId) {
-    if (!this.linkSystem) return 0;
-    if (typeof this.linkSystem.getLinkQuality === 'function') {
-      const quality = this.linkSystem.getLinkQuality(linkId);
-      return Math.max(0, 1 - quality);
-    }
+  _resolveLink(linkId) {
+    if (!this.linkSystem || !linkId) return null;
+
     if (typeof this.linkSystem.getLink === 'function') {
       const link = this.linkSystem.getLink(linkId);
-      if (link?.userData?.quality) {
-        return Math.max(0, 1 - link.userData.quality);
-      }
-      if (link?.userData?.degradation?.severity) {
-        return link.userData.degradation.severity;
+      if (link) return link;
+    }
+
+    const links = this.linkSystem.links;
+    if (Array.isArray(links)) {
+      return links.find((link) => link?.id === linkId || link?.uuid === linkId || link?.userData?.linkId === linkId) || null;
+    }
+
+    if (links && typeof links.get === 'function') {
+      return links.get(linkId) || null;
+    }
+
+    return null;
+  }
+
+  _normalizeQualityTo01(source) {
+    if (source == null) return null;
+
+    if (typeof source === 'number' && Number.isFinite(source)) {
+      return Math.max(0, Math.min(1, source > 1 ? source / 100 : source));
+    }
+
+    if (typeof source === 'object') {
+      const candidates = [
+        source.normalizedScore,
+        source.score,
+        source.qualityScore,
+        source.structuralScore,
+        source.structural,
+        source.value
+      ];
+
+      for (const candidate of candidates) {
+        if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+          return Math.max(0, Math.min(1, candidate > 1 ? candidate / 100 : candidate));
+        }
       }
     }
+
+    return null;
+  }
+
+  _getDegradationStress(linkId) {
+    if (!this.linkSystem) return 0;
+
+    const link = this._resolveLink(linkId);
+
+    if (typeof this.linkSystem.getLinkQuality === 'function') {
+      const qualitySource = link ? this.linkSystem.getLinkQuality(link) : this.linkSystem.getLinkQuality(linkId);
+      const qualityNorm = this._normalizeQualityTo01(qualitySource);
+      if (Number.isFinite(qualityNorm)) {
+        return Math.max(0, 1 - qualityNorm);
+      }
+    }
+
+    const linkQuality = this._normalizeQualityTo01(link?.userData?.quality);
+    if (Number.isFinite(linkQuality)) {
+      return Math.max(0, 1 - linkQuality);
+    }
+
+    const degradationEfficiency = link?.userData?.degradation?.efficiency;
+    if (typeof degradationEfficiency === 'number' && Number.isFinite(degradationEfficiency)) {
+      const normalizedEfficiency = this._normalizeQualityTo01(degradationEfficiency);
+      if (Number.isFinite(normalizedEfficiency)) {
+        return Math.max(0, 1 - normalizedEfficiency);
+      }
+    }
+
+    const degradationSeverity = link?.userData?.degradation?.severity;
+    if (typeof degradationSeverity === 'number' && Number.isFinite(degradationSeverity)) {
+      return Math.max(0, Math.min(1, degradationSeverity));
+    }
+
     return 0;
   }
 
@@ -153,7 +217,7 @@ export class LinkMetricsToVisualBridge {
 
   update(deltaTime) {
     this.updateCount++;
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler?.shouldRunVisual?.() === false) return;
     if (this.updateCount % 60 === 0) {
       this.linkMetricsCache.clear();
     }

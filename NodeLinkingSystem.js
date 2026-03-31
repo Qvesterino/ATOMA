@@ -5739,7 +5739,7 @@ getLinksForNode(node) {
       harmony: (source.harmony + target.harmony) * 0.5,
       synergy: (source.synergy + target.synergy) * 0.5,
       corruption: Math.max(source.corruption, target.corruption),
-      energy: (source.energy || 0 + target.energy || 0) * 0.5,
+      energy: ((Number(source.energy) || 0) + (Number(target.energy) || 0)) * 0.5,
       __updatedAt: performance.now()
     };
 
@@ -6111,7 +6111,10 @@ getLinksForNode(node) {
     }
 
     const userData = link?.userData || {};
+    const visualState = userData.visualState || {};
     const userMetrics = userData.metrics || {};
+    const sourceVisualState = link?.source?.userData?.visualState || {};
+    const targetVisualState = link?.target?.userData?.visualState || {};
     const readMetric = (...values) => {
       for (const value of values) {
         if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -6120,11 +6123,15 @@ getLinksForNode(node) {
     };
 
     const sourceCorruption = readMetric(
+      sourceVisualState.corruptionLevel,
+      sourceVisualState.corruption,
       link?.source?.userData?.metrics?.corruption,
       link?.sourceNode?.userData?.metrics?.corruption,
       link?.nodeA?.userData?.metrics?.corruption
     );
     const targetCorruption = readMetric(
+      targetVisualState.corruptionLevel,
+      targetVisualState.corruption,
       link?.target?.userData?.metrics?.corruption,
       link?.targetNode?.userData?.metrics?.corruption,
       link?.nodeB?.userData?.metrics?.corruption
@@ -6135,11 +6142,15 @@ getLinksForNode(node) {
         : (sourceCorruption ?? targetCorruption);
 
     const sourceStability = readMetric(
+      sourceVisualState.stability,
+      sourceVisualState.stabilityLevel,
       link?.source?.userData?.metrics?.stability,
       link?.sourceNode?.userData?.metrics?.stability,
       link?.nodeA?.userData?.metrics?.stability
     );
     const targetStability = readMetric(
+      targetVisualState.stability,
+      targetVisualState.stabilityLevel,
       link?.target?.userData?.metrics?.stability,
       link?.targetNode?.userData?.metrics?.stability,
       link?.nodeB?.userData?.metrics?.stability
@@ -6149,6 +6160,8 @@ getLinksForNode(node) {
         ? (sourceStability + targetStability) * 0.5
         : (sourceStability ?? targetStability);
     const stability = readMetric(
+      visualState.stability,
+      visualState.stabilityLevel,
       userMetrics.stability,
       userData.stabilityLevel,
       userData.stability,
@@ -6160,6 +6173,8 @@ getLinksForNode(node) {
     const metrics = {
       synergy: getLinkSynergy(link) ?? 0.5,
       harmony: readMetric(
+        visualState.harmonyLevel,
+        visualState.harmony,
         userData.harmonyLevel,
         userData.harmony,
         userMetrics.harmony,
@@ -6167,6 +6182,8 @@ getLinksForNode(node) {
         link.harmony
       ) ?? 1.0,
       corruption: readMetric(
+        visualState.corruptionLevel,
+        visualState.corruption,
         userMetrics.corruption,
         userData.corruption,
         userData.corruptionLevel,
@@ -6176,6 +6193,8 @@ getLinksForNode(node) {
         getLinkCorruption(link)
       ) ?? 0.0,
       instability: readMetric(
+        visualState.instabilityLevel,
+        visualState.instability,
         userData.instabilityLevel,
         userData.instability,
         userMetrics.instability,
@@ -6185,12 +6204,15 @@ getLinksForNode(node) {
       ) ?? 0.0,
       stability: stability ?? 0.5,
       traffic: readMetric(
+        visualState.traffic?.load,
+        visualState.traffic,
         link.traffic?.load,
         userData.traffic?.load,
         userData.traffic,
         userMetrics.traffic
       ) ?? 0,
       loadPressure: readMetric(
+        visualState.loadPressure,
         link.loadPressure,
         userData.loadPressure,
         userMetrics.loadPressure,
@@ -6200,9 +6222,29 @@ getLinksForNode(node) {
       quality: readMetric(
         link.quality,
         userData.quality?.score,
+        userData.quality?.qualityScore,
         userData.quality,
         userMetrics.quality
-      ) ?? 0.5
+      ) ?? 0.5,
+      qualityNorm: (() => {
+        const raw = readMetric(
+          userData.quality?.normalizedScore,
+          link.quality,
+          userData.quality?.score,
+          userData.quality?.qualityScore,
+          userMetrics.quality
+        ) ?? 0.5;
+        return raw > 1 ? raw / 100 : raw;
+      })(),
+      qualityScore: (() => {
+        const value = readMetric(
+          link.quality,
+          userData.quality?.score,
+          userData.quality?.qualityScore,
+          userMetrics.quality
+        ) ?? 50;
+        return value > 1 ? value : value * 100;
+      })()
     };
 
     this._linkMetricsCache.set(linkId, { frame: this._linkMetricsFrame, metrics });

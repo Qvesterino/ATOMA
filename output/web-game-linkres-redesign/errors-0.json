@@ -1,0 +1,34 @@
+[
+  {
+    "type": "console.error",
+    "text": "✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue"
+  },
+  {
+    "type": "console.error",
+    "text": "[main.js] NetworkFatigueSystem initialized ✓"
+  },
+  {
+    "type": "console.error",
+    "text": "[LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0}"
+  },
+  {
+    "type": "console.error",
+    "text": "[GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0}"
+  },
+  {
+    "type": "console.error",
+    "text": "[LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0}"
+  },
+  {
+    "type": "console.error",
+    "text": "[LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0}"
+  },
+  {
+    "type": "console.error",
+    "text": "[LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0}"
+  },
+  {
+    "type": "console.error",
+    "text": "[ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0}"
+  }
+]

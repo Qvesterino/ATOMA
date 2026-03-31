@@ -13,7 +13,7 @@
  * RECOVERY DRIVERS (State Mapping):
  * - Harmony: Primary driver, controls recovery speed and re-lock force
  * - Synergy: Sustains energy flow during recovery (prevents stalling)
- * - Instability: Slows recovery and lags phase alignment
+ * - Stability: Slows recovery and lags phase alignment
  * - Corruption: Must fall below harmony to allow recovery
  * 
  * ARCHITECTURE:
@@ -84,7 +84,7 @@ export class HarmonicHubRecoveryController {
             
             // Phase variance recovery
             varianceRecoveryRate: 0.14,         // Speed of variance reduction
-            varianceRecoveryInstabilityLag: 0.04, // Instability slows variance recovery
+            varianceRecoveryStabilityLag: 0.04, // Stability slows variance recovery
             
             // Sync strength recovery
             syncRecoveryRate: 0.11,             // Speed of sync strength restoration
@@ -116,12 +116,12 @@ export class HarmonicHubRecoveryController {
      * Update recovery state based on node health
      * Called per-frame for hubs being tracked
      */
-    update(harmony = 1.0, corruption = 0.0, synergy = 0.5, instability = 0.0, deltaTime = 0.016, collapseFactor = 0.0) {
+    update(harmony = 1.0, corruption = 0.0, synergy = 0.5, stability = 0.0, deltaTime = 0.016, collapseFactor = 0.0) {
         // Clamp inputs
         harmony = Math.max(0, Math.min(1, harmony));
         corruption = Math.max(0, Math.min(1, corruption));
         synergy = Math.max(0, Math.min(1, synergy));
-        instability = Math.max(0, Math.min(1, instability));
+        stability = Math.max(0, Math.min(1, stability));
         deltaTime = Math.max(0, Math.min(0.1, deltaTime));
         collapseFactor = Math.max(0, Math.min(1, collapseFactor));
 
@@ -140,7 +140,7 @@ export class HarmonicHubRecoveryController {
 
         if (recoveryConditionMet) {
             // Update recovery progression
-            this.updateRecoveryProgression(harmony, corruption, synergy, instability, deltaTime, collapseFactor);
+            this.updateRecoveryProgression(harmony, corruption, synergy, stability, deltaTime, collapseFactor);
         } else {
             // Decay recovery state when condition not met
             this.targetRecoveryFactor = 0.0;
@@ -174,7 +174,7 @@ export class HarmonicHubRecoveryController {
     /**
      * Update recovery progression through phases
      */
-    updateRecoveryProgression(harmony, corruption, synergy, instability, deltaTime, collapseFactor) {
+    updateRecoveryProgression(harmony, corruption, synergy, stability, deltaTime, collapseFactor) {
         // Smooth toward target recovery factor
         const recoverySpeed = 0.08 * (1.0 + harmony * 0.5); // Harmony accelerates recovery
         this.recoveryFactor += (this.targetRecoveryFactor - this.recoveryFactor) * recoverySpeed;
@@ -220,21 +220,21 @@ export class HarmonicHubRecoveryController {
         }
 
         // Update phase variance recovery
-        this.updatePhaseVarianceRecovery(harmony, instability, deltaTime);
+        this.updatePhaseVarianceRecovery(harmony, stability, deltaTime);
 
         // Update sync strength recovery
-        this.updateSyncStrengthRecovery(harmony, synergy, instability, deltaTime);
+        this.updateSyncStrengthRecovery(harmony, synergy, stability, deltaTime);
     }
 
     /**
      * Reduce phase variance gradually
      */
-    updatePhaseVarianceRecovery(harmony, instability, deltaTime) {
-        // Calculate recovery rate modulated by harmony and instability
+    updatePhaseVarianceRecovery(harmony, stability, deltaTime) {
+        // Calculate recovery rate modulated by harmony and stability
         const baseRate = this.config.varianceRecoveryRate;
         const harmonyBoost = harmony * 0.4;
-        const instabilityPenalty = instability * this.config.varianceRecoveryInstabilityLag;
-        const effectiveRate = (baseRate + harmonyBoost - instabilityPenalty) * deltaTime;
+        const stabilityPenalty = stability * this.config.varianceRecoveryStabilityLag;
+        const effectiveRate = (baseRate + harmonyBoost - stabilityPenalty) * deltaTime;
 
         // Smooth phase variance toward zero
         const collapseVariance = this.collapseController?.phaseVariance ?? 0.0;
@@ -244,13 +244,13 @@ export class HarmonicHubRecoveryController {
     /**
      * Restore harmonic synchronization strength
      */
-    updateSyncStrengthRecovery(harmony, synergy, instability, deltaTime) {
+    updateSyncStrengthRecovery(harmony, synergy, stability, deltaTime) {
         // Calculate recovery rate modulated by harmony and synergy
         const baseRate = this.config.syncRecoveryRate;
         const harmonyBoost = harmony * this.config.syncRecoveryHarmonyBoost;
         const synergyBoost = synergy * this.config.syncRecoverySynergyBoost;
-        const instabilityPenalty = instability * 0.2;
-        const effectiveRate = (baseRate + harmonyBoost + synergyBoost - instabilityPenalty) * deltaTime;
+        const stabilityPenalty = stability * 0.2;
+        const effectiveRate = (baseRate + harmonyBoost + synergyBoost - stabilityPenalty) * deltaTime;
 
         // Restore sync strength toward healthy levels
         const currentStrength = this.harmonicController?.hubStrength ?? 0.0;

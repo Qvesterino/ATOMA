@@ -50,8 +50,8 @@
  *   - Direction becomes ambiguous
  *   - Saturation fluctuations introduced
  * 
- * Instability (0-1):
- *   - High instability: reduces gradient contrast
+ * Stability (0-1):
+ *   - High stability: reduces gradient contrast
  *   - Makes gradient harder to perceive
  *   - Adds visual uncertainty
  * 
@@ -73,12 +73,12 @@
  *   harmonySmoothness
  * )
  * 
- * instabilityNoise = 1 + sin(t × 8 + phase) × corruption × instability × 0.1
+ * stabilityNoise = 1 + sin(t × 8 + phase) × corruption × stability × 0.1
  * 
  * finalGradient = baseGradientStrength
  *               × (1 - corruption × 0.5)        // Corruption flattens
- *               × (1 - instability × 0.3)       // Instability reduces
- *               × instabilityNoise
+ *               × (1 - stability × 0.3)       // Stability reduces
+ *               × stabilityNoise
  * 
  * Brightness multiplier: 1.0 + finalGradient × 0.5   (at source)
  *                        1.0 - finalGradient × 0.2   (at target)
@@ -99,7 +99,7 @@
  *      - Link state changes (active/inactive)
  *      - Hub synergy changes
  *      - Link harmony/corruption changes
- *      - Network instability changes
+ *      - Network stability changes
  * 
  * 3. Shader integration:
  *    Option A (Vertex shader):
@@ -156,7 +156,7 @@ export class LinkDirectionalGradientPolish {
     this.baseGradientStrength = 0.08; // 8% baseline
     this.maxGradientStrength = 0.12; // 12% with synergy
     this.corruptionFlatteningFactor = 0.5;
-    this.instabilityReductionFactor = 0.3;
+    this.stabilityReductionFactor = 0.3;
     this.harmonySmoothnessMin = 0.7;
     this.harmonySmoothnessMax = 1.0;
 
@@ -196,7 +196,7 @@ export class LinkDirectionalGradientPolish {
     const synergy = link.userData?.synergy?.score ?? link?.synergyScore ?? 0;
     const harmony = link.harmony || (link.a?.harmony || 0) + (link.b?.harmony || 0) * 0.5;
     const corruption = link.corruption || 0;
-    const instability = link.instability || (link.a?.instability || 0) + (link.b?.instability || 0) * 0.5;
+    const stability = link.stability || (link.a?.stability || 0) + (link.b?.stability || 0) * 0.5;
 
     // Skip if link inactive or missing critical data
     if (!link.active && !link.mesh) {
@@ -208,17 +208,17 @@ export class LinkDirectionalGradientPolish {
     const gradientStrength =
       this.baseGradientStrength + synergy * (this.maxGradientStrength - this.baseGradientStrength);
 
-    // Apply corruption and instability dampening
+    // Apply corruption and stability dampening
     const corruptionDamping = 1 - corruption * this.corruptionFlatteningFactor;
-    const instabilityDamping = 1 - instability * this.instabilityReductionFactor;
-    const dampedGradientStrength = gradientStrength * corruptionDamping * instabilityDamping;
+    const stabilityDamping = 1 - stability * this.stabilityReductionFactor;
+    const dampedGradientStrength = gradientStrength * corruptionDamping * stabilityDamping;
 
     // Compute harmony smoothness (affects curve shape)
     const harmonySmoothness = this.harmonySmoothnessMin +
       harmony * (this.harmonySmoothnessMax - this.harmonySmoothnessMin);
 
     // Compute corruption-induced noise
-    const corruptionNoise = 1 + Math.sin(Math.random() * Math.PI * 2) * corruption * instability * 0.1;
+    const corruptionNoise = 1 + Math.sin(Math.random() * Math.PI * 2) * corruption * stability * 0.1;
 
     const finalGradientStrength = Math.max(0, dampedGradientStrength * corruptionNoise);
 
@@ -253,7 +253,7 @@ export class LinkDirectionalGradientPolish {
       synergy,
       harmony,
       corruption,
-      instability
+      stability
     });
 
     this.statsPerFrame.gradientsComputed++;
@@ -443,7 +443,7 @@ export class LinkDirectionalGradientPolish {
       synergy: (data.synergy || 0).toFixed(2),
       harmony: (data.harmony || 0).toFixed(2),
       corruption: (data.corruption || 0).toFixed(2),
-      instability: (data.instability || 0).toFixed(2)
+      stability: (data.stability || 0).toFixed(2)
     }));
   }
 
@@ -472,8 +472,8 @@ export class LinkDirectionalGradientPolish {
     this.corruptionFlatteningFactor = Math.max(0, Math.min(1, factor));
   }
 
-  setInstabilityReductionFactor(factor) {
-    this.instabilityReductionFactor = Math.max(0, Math.min(1, factor));
+  setStabilityReductionFactor(factor) {
+    this.stabilityReductionFactor = Math.max(0, Math.min(1, factor));
   }
 }
 

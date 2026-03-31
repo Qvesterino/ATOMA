@@ -65,6 +65,7 @@ export class VisualMetricModel {
     this.nodeDynamics = nodeDynamics;
     this.nodeQuality = nodeQuality;
     this.linkQuality = linkQuality;
+    this.frameScheduler = config.frameScheduler ?? null;
 
     // Configuration with sensible defaults
     this.config = {
@@ -92,7 +93,7 @@ export class VisualMetricModel {
    * @param {number} deltaTime - Time elapsed since last frame (in seconds)
    */
   update(deltaTime) {
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler?.shouldRunVisual?.() === false) return;
 
     const startMs = performance.now();
 
@@ -279,7 +280,10 @@ export class VisualMetricModel {
 
     if (nodeQualityData) {
       // Quality score is 0–100 scale, normalize to 0–1
-      result.qualityNorm = this._clamp01(nodeQualityData.score / 100);
+      const nodeQualityScore = nodeQualityData.normalizedScore ?? nodeQualityData.score ?? nodeQualityData.qualityScore;
+      if (typeof nodeQualityScore === 'number' && Number.isFinite(nodeQualityScore)) {
+        result.qualityNorm = this._clamp01(nodeQualityData.normalizedScore ?? (nodeQualityScore > 1 ? nodeQualityScore / 100 : nodeQualityScore));
+      }
 
       // Extract boolean quality level flags
       if (nodeQualityData.level) {
@@ -312,11 +316,14 @@ export class VisualMetricModel {
 
     if (linkQualityData) {
       // Quality score is 0–100 scale, normalize to 0–1
-      result.qualityNorm = this._clamp01(linkQualityData.score / 100);
+      const linkQualityScore = linkQualityData.normalizedScore ?? linkQualityData.score ?? linkQualityData.qualityScore;
+      if (typeof linkQualityScore === 'number' && Number.isFinite(linkQualityScore)) {
+        result.qualityNorm = this._clamp01(linkQualityData.normalizedScore ?? (linkQualityScore > 1 ? linkQualityScore / 100 : linkQualityScore));
+      }
 
       // Compute stress as inverse of structural quality
       // structuralScore is 0–100, so stress is 100 - structuralScore
-      const structuralScore = linkQualityData.structuralScore ?? 80;
+      const structuralScore = linkQualityData.structuralScore ?? linkQualityData.structural ?? 80;
       const stressRaw = 100 - structuralScore;
       result.stressNorm = this._clamp01(stressRaw / 100);
     }

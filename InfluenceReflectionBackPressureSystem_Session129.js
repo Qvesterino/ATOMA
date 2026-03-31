@@ -17,16 +17,16 @@
  * - Back-pressure communicates opposition
  * 
  * Architecture:
- * - Detects resistant nodes (harmony < corruption, high instability, flags)
+ * - Detects resistant nodes (harmony < corruption, high stability, flags)
  * - Tracks influence approaching resistant nodes
  * - Creates pressure buildup zones (link compression + glow)
  * - Emits reflection pulses backward along incoming link
- * - Modulates effects by harmony/corruption/instability/synergy
+ * - Modulates effects by harmony/corruption/stability/synergy
  * - Reuses pooled meshes, zero per-frame allocations
  * 
  * Integration:
  * - Works with HarmonicInfluencePropagationSystem (reads influence state)
- * - Works with AINodes (reads harmony/corruption/instability)
+ * - Works with AINodes (reads harmony/corruption/stability)
  * - Visual-only, no gameplay modifications
  * 
  * Status: PRODUCTION (Session 129)
@@ -68,7 +68,7 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
             // State modulation
             harmonyDamping: 0.6,              // Harmony reduces reflection by this factor
             corruptionBoost: 1.4,             // Corruption increases reflection by this factor
-            instabilitySpeedup: 0.8,          // Instability triggers reflection earlier
+            stabilitySpeedup: 0.8,          // Stability triggers reflection earlier
             synergyElasticity: 0.7,           // Synergy increases smoothness
             
             // Node surface feedback
@@ -178,8 +178,8 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
 
             const harmony = this._readNodeMetric(node, 'harmony', 0.5);
             const corruption = this._readNodeMetric(node, 'corruption', 0.5);
-            const stability = this._readNodeMetric(node, 'stability', 1);
-            const instability = this._readNodeMetric(node, 'instability', 0);
+            const stabilityValue = this._readNodeMetric(node, 'stability', 1);
+            const stability = this._readNodeMetric(node, 'stability', 0);
             const loadPressure = this._readNodeMetric(node, 'loadPressure', 0);
 
             this.resistantNodes.set(nodeId, {
@@ -189,7 +189,7 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
                 harmony,
                 corruption,
                 stability,
-                instability,
+                stability,
                 loadPressure,
                 activeLinkCount: linkedByCount,
                 isGated: false
@@ -215,13 +215,13 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
             
             const activeLinkCount = this._getNodeTopologyCountFromLinks(node, activeLinks);
             const hasTopology = activeLinkCount > 0;
-            const isResistant = isGated || instability > 0.3 || corruption > harmony || loadPressure > 0.6;
+            const isResistant = isGated || stabilityValue > 0.3 || corruption > harmony || loadPressure > 0.6;
             
             if (isResistant) {
                 const stressSignal = Math.max(
                     loadPressure,
                     1 - stability,
-                    instability,
+                    stability,
                     Math.max(0, corruption - harmony)
                 );
                 const resistance = Math.min(1, 

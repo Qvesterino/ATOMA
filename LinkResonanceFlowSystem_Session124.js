@@ -136,13 +136,16 @@ export class LinkResonanceFlowSystem_Session124 {
     this.pulseMeshGeometry = null;
     this.pulseSheathGeometry = null;
     this.pulseTrailGeometry = null;
+    this.pulseShardGeometry = null;
+    this.pulseHaloGeometry = null;
+    this.pulseSwirlGeometry = null;
     this.pulseMaterialTemplate = null;
     this.pulseMeshPool = [];
     this.pulseGroup = null;
     
     // Spawn tracking
     this.spawnAccumulators = new Map(); // linkId → accumulated spawn time
-    this._repeatSuppressedUntilByLink = new WeakMap();
+    this._repeatSuppressedUntilByLinkId = new Map();
     this._timeOrigin = undefined;
     this._lastVisualTime = undefined;
     
@@ -288,52 +291,147 @@ export class LinkResonanceFlowSystem_Session124 {
     this.pulseGroup = new THREE.Group();
     this.pulseGroup.name = 'LinkResonancePulses_Session124';
     this.pulseGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE');
+    this.pulseGroup.userData.isLinkResonanceFlow = true;
+    this.pulseGroup.userData.linkVisualFamily = 'resonanceFlow';
     this.scene?.add?.(this.pulseGroup);
     
     // Pre-allocate pulse meshes for efficient rendering
     this._initializePulseMeshes();
+  }
+
+  rebindScene(scene) {
+    if (!scene || scene === this.scene && this.pulseGroup?.parent === scene) {
+      return;
+    }
+
+    if (this.pulseGroup?.parent && this.pulseGroup.parent !== scene) {
+      this.pulseGroup.parent.remove(this.pulseGroup);
+    }
+
+    this.scene = scene;
+    if (this.scene && this.pulseGroup && this.pulseGroup.parent !== this.scene) {
+      this.scene.add(this.pulseGroup);
+    }
   }
   
   /**
    * Initialize pooled pulse meshes
    */
   _initializePulseMeshes() {
-    // Shared unit sphere geometry for pulse meshes (scaled per pulse)
-    this.pulseMeshGeometry = new THREE.SphereGeometry(1, 8, 8);
-    this.pulseSheathGeometry = new THREE.OctahedronGeometry(1, 0);
-    this.pulseTrailGeometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 6, 1, true);
-    
-    // Base shader material template (cloned per pulse; program shared)
+    // Shared geometries for pulse meshes.
+    // The resonance entity should read as unstable alien presence:
+    // low-poly base, but distorted through shader motion and shell layering.
+    this.pulseMeshGeometry = new THREE.IcosahedronGeometry(1, 1);
+    this.pulseSheathGeometry = new THREE.IcosahedronGeometry(1, 1);
+    this.pulseTrailGeometry = new THREE.CylinderGeometry(0.05, 0.012, 1, 7, 1, true);
+    this.pulseShardGeometry = new THREE.OctahedronGeometry(0.16, 0);
+    this.pulseHaloGeometry = new THREE.TorusGeometry(1, 0.048, 6, 44, Math.PI * 1.84);
+    this.pulseSwirlGeometry = new THREE.TorusKnotGeometry(0.52, 0.082, 56, 8, 2, 3);
+
+    // Shared shader material template. Every pulse part clones this shader and
+    // only varies uniforms, so the entity keeps one visual language.
     this.pulseMaterialTemplate = new THREE.ShaderMaterial({
       uniforms: {
-        uColor: { value: new THREE.Color(0x00ffff) },
+        uTime: { value: 0.0 },
+        uColor: { value: new THREE.Color(0x6ff6ff) },
+        uAccentColor: { value: new THREE.Color(0xffffff) },
+        uVoidColor: { value: new THREE.Color(0x080014) },
         uOpacity: { value: 1.0 },
         uGlowSize: { value: this.config.pulseGlowIntensity },
+        uDistortion: { value: 0.14 },
+        uNoiseScale: { value: 2.4 },
+        uNoiseSpeed: { value: 0.9 },
+        uPulsePhase: { value: 0.0 },
+        uPulseSeed: { value: 0.0 },
+        uFresnelPower: { value: 2.4 },
+        uIridescence: { value: 0.24 },
+        uVoidMix: { value: 0.28 },
+        uCorruption: { value: 0.0 },
+        uShellBreath: { value: 0.12 },
+        uShellBias: { value: 0.0 },
       },
       vertexShader: `
+        varying vec3 vWorldPos;
         varying vec3 vNormal;
+        varying float vNoise;
+        varying float vPulse;
+        uniform float uTime;
+        uniform float uDistortion;
+        uniform float uNoiseScale;
+        uniform float uNoiseSpeed;
+        uniform float uPulsePhase;
+        uniform float uPulseSeed;
+        uniform float uShellBreath;
+        uniform float uShellBias;
+
+        float spectralNoise(vec3 p) {
+          float a = sin(dot(p, vec3(1.41, 1.73, 1.11)) + uTime * uNoiseSpeed + uPulsePhase);
+          float b = sin(dot(p, vec3(2.11, 1.17, 2.67)) - uTime * (uNoiseSpeed * 1.37) + uPulseSeed * 11.0);
+          float c = sin(dot(p, vec3(0.91, 2.19, 1.53)) + uTime * (uNoiseSpeed * 0.73) + uShellBias * 7.1);
+          return (a + b * 0.6 + c * 0.35) * 0.5;
+        }
+
         void main() {
+          vec3 localPos = position;
+          float noiseSample = spectralNoise(localPos * uNoiseScale + normal * 0.33);
+          float pulseWave = 0.5 + 0.5 * sin(uTime * uNoiseSpeed * 1.7 + uPulsePhase + localPos.y * 3.4 + uPulseSeed * 6.28318530718);
+          float shellLift = uShellBreath * (0.5 + 0.5 * sin(uTime * 0.58 + uShellBias * 3.0));
+          float displacement = noiseSample * uDistortion + (pulseWave - 0.5) * shellLift;
+          vec3 displaced = position + normal * displacement;
+          vNoise = noiseSample;
+          vPulse = pulseWave;
           vNormal = normalize(normalMatrix * normal);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          vec4 worldPosition = modelMatrix * vec4(displaced, 1.0);
+          vWorldPos = worldPosition.xyz;
+          gl_Position = projectionMatrix * viewMatrix * worldPosition;
         }
       `,
       fragmentShader: `
         uniform vec3 uColor;
+        uniform vec3 uAccentColor;
+        uniform vec3 uVoidColor;
         uniform float uOpacity;
         uniform float uGlowSize;
+        uniform float uFresnelPower;
+        uniform float uIridescence;
+        uniform float uVoidMix;
+        uniform float uCorruption;
+        varying vec3 vWorldPos;
         varying vec3 vNormal;
-        
+        varying float vNoise;
+        varying float vPulse;
+
         void main() {
-          vec3 viewDir = normalize(cameraPosition - vec3(0.0));
-          float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), 2.0);
-          float glow = fresnel * uGlowSize;
-          
-          gl_FragColor = vec4(uColor, (0.5 + glow) * uOpacity);
+          vec3 viewDir = normalize(cameraPosition - vWorldPos);
+          float fresnel = pow(1.0 - abs(dot(normalize(vNormal), viewDir)), uFresnelPower);
+          float depthField = smoothstep(-0.55, 0.85, 1.0 - abs(vNoise));
+          float pulseGlow = 0.5 + 0.5 * sin(vPulse * 6.28318530718 + vNoise * 8.0);
+          float innerGlow = clamp(fresnel * 0.72 + depthField * 0.28 + pulseGlow * 0.1, 0.0, 1.0);
+
+          vec3 color = mix(uVoidColor, uColor, innerGlow);
+          color = mix(color, uAccentColor, clamp(fresnel * 0.55 + depthField * 0.15, 0.0, 1.0));
+
+          float iris = 0.5 + 0.5 * sin((vWorldPos.x * 1.7 + vWorldPos.y * 2.3 + vWorldPos.z * 1.9) + vPulse * 2.1);
+          vec3 ether = mix(vec3(0.54, 0.28, 1.0), vec3(1.0, 0.18, 0.72), iris);
+          color = mix(color, ether, uIridescence * (0.12 + fresnel * 0.42));
+
+          if (uCorruption > 0.0) {
+            color = mix(color, vec3(0.96, 0.16, 0.24), uCorruption * 0.24);
+            color = mix(color, vec3(0.62, 0.08, 0.95), uCorruption * 0.18);
+          }
+
+          float alpha = uOpacity * (0.12 + fresnel * uGlowSize + depthField * 0.18 + pulseGlow * 0.04);
+          color *= 0.76 + fresnel * 0.9 + depthField * 0.22;
+
+          gl_FragColor = vec4(color, alpha);
         }
       `,
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
+      depthTest: true,
+      side: THREE.DoubleSide,
+      fog: false,
     });
   }
   
@@ -381,9 +479,10 @@ export class LinkResonanceFlowSystem_Session124 {
     for (const link of links) {
       if (!link || !link.userData || link.id === null || link.id === undefined) continue;
       
-      const linkId = link.id;
+      const linkId = String(link.id ?? link.linkId ?? '');
+      if (!linkId) continue;
       const repeatInterval = Math.max(0.15, this.config.repeatPulseIntervalSeconds ?? 3.0);
-      const suppressedUntil = this._repeatSuppressedUntilByLink.get(link) ?? Number.NEGATIVE_INFINITY;
+      const suppressedUntil = this._repeatSuppressedUntilByLinkId.get(linkId) ?? Number.NEGATIVE_INFINITY;
       if (currentVisualTime < suppressedUntil) continue;
 
       // Get or create spawn accumulator
@@ -422,6 +521,7 @@ export class LinkResonanceFlowSystem_Session124 {
     
     const linkId = link?.id ?? link?.linkId;
     if (linkId === null || linkId === undefined) return;
+    const linkSeed = getLinkSeed(linkId);
     const metrics = this._readLinkPressureMetrics(link);
     const loadPressure = metrics.loadPressure;
     const corruption = metrics.corruption;
@@ -431,7 +531,8 @@ export class LinkResonanceFlowSystem_Session124 {
     const pressureProfile = this._getLoadPressureProfile(loadPressure);
     const overpressure = clamp01(loadPressure * (1.0 - metrics.stability * 0.35));
     const overloadMix = pressureProfile.overloadMix;
-      const debugPulse = this.config.debugPulseVisuals === true;
+    const debugPulse = this.config.debugPulseVisuals === true;
+    const anomalySeed = (linkSeed * 0.61803398875 + (this.stats.pulseSpawnCount + 1) * 0.173 + loadPressure * 0.11 + stabilityMix * 0.09 + overloadMix * 0.07) % 1;
     
     // Get or create pulse pool for this link
     if (!this.linkPulses.has(linkId)) {
@@ -450,9 +551,9 @@ export class LinkResonanceFlowSystem_Session124 {
       position: 0,
       
       // Speed based on load pressure
-      speed: this.config.pulseSpeedBase + 
+      speed: (this.config.pulseSpeedBase + 
              loadPressure * this.config.pulseSpeedLoadPressureMult +
-             stabilityMix * this.config.stabilityPulseSpeedMult,
+             stabilityMix * this.config.stabilityPulseSpeedMult) * (0.9 + anomalySeed * 0.08),
       overloadMix,
       
       // Appearance
@@ -495,6 +596,12 @@ export class LinkResonanceFlowSystem_Session124 {
       
       // Flow direction
       direction: this.config.bidirectional && Math.random() < this.config.pulseBidirectionalChance ? -1 : 1,
+
+      // Unstable presence identity
+      anomalySeed,
+      phaseSeed: anomalySeed * Math.PI * 2,
+      driftSeed: anomalySeed * 11.0,
+      twistSeed: anomalySeed * 17.0,
       
       // Metrics
       synergy,
@@ -537,7 +644,7 @@ export class LinkResonanceFlowSystem_Session124 {
       : Math.max(0, this.config.manualRepeatPauseSeconds ?? 10.0);
     if (pauseSeconds > 0) {
       const currentTime = this._lastVisualTime ?? this._timeOrigin ?? 0;
-      this._repeatSuppressedUntilByLink.set(link, currentTime + pauseSeconds);
+      this._repeatSuppressedUntilByLinkId.set(String(linkId), currentTime + pauseSeconds);
     }
 
     return this.linkPulses.get(linkId)?.at?.(-1) ?? null;
@@ -554,7 +661,9 @@ export class LinkResonanceFlowSystem_Session124 {
       // Update position along link
       const travelDistance = pulse.speed * deltaVisual;
       const linkLength = this._getLinkLength(pulse.link);
-      pulse.position += pulse.direction * (travelDistance / linkLength);
+      const motionSeed = pulse.anomalySeed ?? 0;
+      const motionGate = 0.84 + 0.1 * Math.sin(pulse.life * 0.84 + motionSeed * Math.PI * 6.0) + 0.06 * Math.sin(pulse.life * 0.23 + motionSeed * Math.PI * 12.0);
+      pulse.position += pulse.direction * (travelDistance / linkLength) * Math.max(0.55, motionGate);
       
       // Update lifetime
       pulse.life += deltaVisual;
@@ -578,107 +687,157 @@ export class LinkResonanceFlowSystem_Session124 {
     // Update or allocate meshes for active pulses (no per-frame reallocation)
     for (const pulse of this.globalPulses) {
       if (!pulse.active) continue;
-      
-      // Lazily allocate mesh once per pulse lifetime
+
       if (!pulse.mesh) {
         pulse.mesh = this.pulseMeshPool.pop() || this._createPulseMesh();
         this.pulseGroup?.add?.(pulse.mesh);
       }
-      
-      // Get world position along link
+
       const worldPos = this._getPositionAlongLink(pulse);
       const direction = this._getLinkDirection(pulse.link, pulse.direction);
       const overloadMix = pulse.overloadMix ?? 0;
       const bandMix = this._getLoadPressureProfile(pulse.loadPressure ?? 0).pressurizedMix;
       const stabilityMix = pulse.stabilityMix ?? 0;
-      const linkSeed = getLinkSeed(pulse.linkId);
+      const motionSeed = pulse.anomalySeed ?? getLinkSeed(pulse.linkId);
       const debugPulse = this.config.debugPulseVisuals === true || pulse.debugPulse === true;
-      
-      // Calculate pulse appearance
-      const color = debugPulse ? new THREE.Color(1.0, 0.0, 0.0) : this._getPulseColor(pulse);
-      const opacity = (debugPulse
-        ? 1.0
-        : this._getPulseOpacity(pulse)) * (pulse.lodSuppression ?? 1.0);
-      const size = (pulse.radius * (1.0 + Math.sin(pulse.life * Math.PI * 2) * 0.16 + overloadMix * 0.14 + stabilityMix * 0.1))
-        * (debugPulse ? this.config.debugPulseScaleMult : 1.0);
-      const sheathSize = size * (debugPulse
-        ? 2.15
-        : (1.34 + pulse.loadPressure * 0.28 + bandMix * 0.16 + overloadMix * this.config.overloadSheathBoost + stabilityMix * 0.18));
-      const trailSize = size * (debugPulse
-        ? 1.15
-        : (0.42 + pulse.loadPressure * 0.12 - overloadMix * 0.12 + stabilityMix * 0.08));
-      const trailLength = (pulse.trailLength * (0.62 + pulse.loadPressure * 0.28 + overloadMix * this.config.overloadTrailBoost + stabilityMix * 0.16) * (1.0 + Math.sin(pulse.life * Math.PI) * 0.08))
-        * (debugPulse ? this.config.debugPulseTrailMult : 1.0);
-      const jitter = overloadMix * this.config.overloadJitter;
-      
-      // Apply transforms and uniforms
+      const opacity = (debugPulse ? 1.0 : this._getPulseOpacity(pulse)) * (pulse.lodSuppression ?? 1.0);
+      const size = pulse.radius * (1.0 + Math.sin(pulse.life * Math.PI * 2) * 0.14 + overloadMix * 0.12 + stabilityMix * 0.08) * (debugPulse ? this.config.debugPulseScaleMult : 1.0);
+      const entityDrift = 0.02 + overloadMix * 0.035 + stabilityMix * 0.03;
+      const shellPulse = 1.0 + Math.sin(pulse.life * 1.45 + motionSeed * Math.PI * 6.0) * 0.04 + Math.sin(pulse.life * 0.33 + motionSeed * Math.PI * 12.0) * 0.025;
+
       pulse.mesh.visible = true;
       pulse.mesh.position.set(
-        worldPos.x + Math.sin(pulse.life * 21.0 + linkSeed * 6.283185307179586) * jitter,
-        worldPos.y + Math.cos(pulse.life * 17.0 + linkSeed * 4.1887902047863905) * jitter * 0.65,
-        worldPos.z + Math.sin(pulse.life * 19.0 + linkSeed * 8.377580409572781) * jitter * 0.72
+        worldPos.x + Math.sin(pulse.life * 9.0 + motionSeed * Math.PI * 8.0) * entityDrift,
+        worldPos.y + Math.cos(pulse.life * 7.0 + motionSeed * Math.PI * 6.0) * entityDrift * 0.7,
+        worldPos.z + Math.sin(pulse.life * 11.0 + motionSeed * Math.PI * 10.0) * entityDrift * 0.78
       );
       pulse.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+      pulse.mesh.rotateY(Math.sin(pulse.life * 0.95 + motionSeed * Math.PI * 5.0) * (0.08 + overloadMix * 0.05 + stabilityMix * 0.03));
+      pulse.mesh.rotateZ(Math.cos(pulse.life * 0.52 + motionSeed * Math.PI * 7.0) * 0.03);
 
       const parts = pulse.mesh.userData?.parts || {};
-      if (parts.core) {
-        parts.core.position.set(0, 0, 0);
-        parts.core.scale.setScalar(size);
-        const uniforms = parts.core.material.uniforms;
-        if (uniforms.uColor) uniforms.uColor.value.copy(color);
-        if (uniforms.uOpacity) uniforms.uOpacity.value = opacity * (1.0 + overloadMix * 0.18) * (debugPulse ? 1.1 : 1.0);
-        if (uniforms.uGlowSize) uniforms.uGlowSize.value = this.config.pulseGlowIntensity * (1.0 + pulse.loadPressure * 0.2 + overloadMix * 0.4 + stabilityMix * 0.24) * (debugPulse ? this.config.debugPulseGlowMult : 1.0);
-      }
-      if (parts.sheath) {
-        parts.sheath.position.set(0, 0, 0);
-        parts.sheath.scale.setScalar(sheathSize);
-        const sheathUniforms = parts.sheath.material.uniforms;
-        if (sheathUniforms.uColor) {
-          if (debugPulse) {
-            sheathUniforms.uColor.value.copy(new THREE.Color(1.0, 0.12, 0.12));
-          } else {
-            sheathUniforms.uColor.value.copy(color).lerp(new THREE.Color(0xffffff), 0.16 + pulse.loadPressure * 0.18 + overloadMix * 0.24 + stabilityMix * 0.18);
-          }
+      const partConfigs = pulse.mesh.userData?.partConfigs || {};
+      const baseDebugColor = debugPulse ? new THREE.Color(1.0, 0.03, 0.05) : null;
+      const baseDebugAccent = debugPulse ? new THREE.Color(1.0, 0.4, 0.4) : null;
+      const baseDebugVoid = debugPulse ? new THREE.Color(0.08, 0.0, 0.0) : null;
+
+      const applyPart = (key, options = {}) => {
+        const part = parts[key];
+        const spec = partConfigs[key];
+        if (!part || !spec) return;
+
+        const visible = options.visible ?? true;
+        part.visible = visible;
+        if (!visible) return;
+
+        const baseScale = spec.baseScale || [1, 1, 1];
+        const basePosition = spec.basePosition || [0, 0, 0];
+        const baseRotation = spec.baseRotation || [0, 0, 0];
+        const rotationSpeed = spec.rotationSpeed || [0, 0, 0];
+        const orbitStrength = spec.orbitStrength || [0, 0, 0];
+        const phase = pulse.life * (spec.orbitSpeed ?? 1.0) + (spec.phaseOffset ?? 0) + motionSeed * Math.PI * 2;
+        const wobbleA = Math.sin(phase * 1.13 + motionSeed * 5.0 + (spec.shellBias ?? 0) * 3.0);
+        const wobbleB = Math.cos(phase * 0.91 + motionSeed * 7.0 + (spec.shellBias ?? 0) * 4.0);
+        const wobbleC = Math.sin(phase * 1.37 + motionSeed * 9.0 + (spec.shellBias ?? 0) * 2.0);
+        const scaleMul = options.scaleMul ?? 1.0;
+        const driftMul = options.driftMul ?? 1.0;
+        const opacityMul = options.opacityMul ?? 1.0;
+        const glowMul = options.glowMul ?? 1.0;
+        const distortionMul = options.distortionMul ?? 1.0;
+        const noiseScaleMul = options.noiseScaleMul ?? 1.0;
+        const noiseSpeedMul = options.noiseSpeedMul ?? 1.0;
+
+        part.position.set(
+          basePosition[0] + orbitStrength[0] * wobbleA * driftMul,
+          basePosition[1] + orbitStrength[1] * wobbleB * driftMul,
+          basePosition[2] + orbitStrength[2] * wobbleC * driftMul
+        );
+        part.rotation.set(
+          baseRotation[0] + pulse.life * rotationSpeed[0] + wobbleA * 0.12,
+          baseRotation[1] + pulse.life * rotationSpeed[1] + wobbleB * 0.16,
+          baseRotation[2] + pulse.life * rotationSpeed[2] + wobbleC * 0.14
+        );
+        part.scale.set(
+          baseScale[0] * size * shellPulse * scaleMul,
+          baseScale[1] * size * shellPulse * scaleMul,
+          baseScale[2] * size * shellPulse * scaleMul
+        );
+
+        const uniforms = part.material?.uniforms || {};
+        if (uniforms.uTime) uniforms.uTime.value = pulse.life;
+        if (uniforms.uOpacity) uniforms.uOpacity.value = opacity * (spec.opacity ?? 1.0) * opacityMul * (debugPulse ? 1.08 : 1.0);
+        if (uniforms.uGlowSize) uniforms.uGlowSize.value = this.config.pulseGlowIntensity * (spec.glow ?? 1.0) * glowMul * (1.0 + pulse.loadPressure * 0.08 + overloadMix * 0.16 + stabilityMix * 0.1) * (debugPulse ? this.config.debugPulseGlowMult : 1.0);
+        if (uniforms.uDistortion) uniforms.uDistortion.value = (spec.distortion ?? 0.1) * distortionMul * (1.0 + overloadMix * 0.14 + stabilityMix * 0.08);
+        if (uniforms.uNoiseScale) uniforms.uNoiseScale.value = (spec.noiseScale ?? 2.0) * noiseScaleMul;
+        if (uniforms.uNoiseSpeed) uniforms.uNoiseSpeed.value = (spec.noiseSpeed ?? 1.0) * noiseSpeedMul;
+        if (uniforms.uPulsePhase) uniforms.uPulsePhase.value = phase;
+        if (uniforms.uPulseSeed) uniforms.uPulseSeed.value = motionSeed + (spec.shellBias ?? 0);
+        if (uniforms.uFresnelPower) uniforms.uFresnelPower.value = spec.fresnelPower ?? 2.4;
+        if (uniforms.uIridescence) uniforms.uIridescence.value = spec.iridescence ?? 0.2;
+        if (uniforms.uVoidMix) uniforms.uVoidMix.value = spec.voidMix ?? 0.2;
+        if (uniforms.uCorruption) uniforms.uCorruption.value = pulse.corruption ?? 0;
+        if (uniforms.uShellBreath) uniforms.uShellBreath.value = (spec.shellBreath ?? 0.1) * (1.0 + overloadMix * 0.1 + stabilityMix * 0.06);
+        if (uniforms.uShellBias) uniforms.uShellBias.value = (spec.shellBias ?? 0) + pulse.loadPressure * 0.1;
+        if (debugPulse) {
+          if (uniforms.uColor) uniforms.uColor.value.copy(baseDebugColor);
+          if (uniforms.uAccentColor) uniforms.uAccentColor.value.copy(baseDebugAccent);
+          if (uniforms.uVoidColor) uniforms.uVoidColor.value.copy(baseDebugVoid);
         }
-        if (sheathUniforms.uOpacity) sheathUniforms.uOpacity.value = opacity * pulse.sheathOpacity * (1.0 + overloadMix * 0.28) * (debugPulse ? 1.1 : 1.0);
-        if (sheathUniforms.uGlowSize) sheathUniforms.uGlowSize.value = this.config.pulseGlowIntensity * (0.82 + pulse.loadPressure * 0.25 + overloadMix * 0.38 + stabilityMix * 0.22) * (debugPulse ? this.config.debugPulseGlowMult : 1.0);
-      }
-      if (parts.trail) {
-        parts.trail.position.set(0, -0.5 * trailLength - size * 0.18, 0);
-        parts.trail.scale.set(trailSize, trailLength, trailSize);
-        const trailUniforms = parts.trail.material.uniforms;
-        if (trailUniforms.uColor) {
-          if (debugPulse) {
-            trailUniforms.uColor.value.copy(new THREE.Color(1.0, 0.24, 0.24));
-          } else {
-            trailUniforms.uColor.value.copy(color).lerp(new THREE.Color(0x86ffff), 0.2 + overloadMix * 0.22 + stabilityMix * 0.12);
-          }
-        }
-        if (trailUniforms.uOpacity) trailUniforms.uOpacity.value = opacity * pulse.trailOpacity * (1.0 + overloadMix * 0.18) * (debugPulse ? 1.18 : 1.0);
-        if (trailUniforms.uGlowSize) trailUniforms.uGlowSize.value = this.config.pulseGlowIntensity * (0.54 + overloadMix * 0.18 + stabilityMix * 0.16) * (debugPulse ? this.config.debugPulseGlowMult : 1.0);
-      }
-      if (parts.overloadA) {
-        const showOverload = overloadMix > 0.001;
-        parts.overloadA.visible = showOverload;
-        parts.overloadA.position.set(0.34, 0.06, 0.0);
-        parts.overloadA.rotation.set(0.15, 0.4, 0.15 + pulse.life * 1.6);
-        parts.overloadA.scale.setScalar(size * (0.12 + overloadMix * 0.36));
-        const overloadAUniforms = parts.overloadA.material.uniforms;
-        if (overloadAUniforms.uColor) overloadAUniforms.uColor.value.copy(color).lerp(new THREE.Color(0xffffff), 0.24);
-        if (overloadAUniforms.uOpacity) overloadAUniforms.uOpacity.value = opacity * overloadMix * 1.22;
-        if (overloadAUniforms.uGlowSize) overloadAUniforms.uGlowSize.value = this.config.pulseGlowIntensity * (0.72 + overloadMix * 0.42);
-      }
-      if (parts.overloadB) {
-        const showOverload = overloadMix > 0.001;
-        parts.overloadB.visible = showOverload;
-        parts.overloadB.position.set(-0.28, -0.04, 0.0);
-        parts.overloadB.rotation.set(-0.18, -0.48, -0.22 - pulse.life * 1.25);
-        parts.overloadB.scale.setScalar(size * (0.1 + overloadMix * 0.32));
-        const overloadBUniforms = parts.overloadB.material.uniforms;
-        if (overloadBUniforms.uColor) overloadBUniforms.uColor.value.copy(color).lerp(new THREE.Color(0xffb56a), 0.28);
-        if (overloadBUniforms.uOpacity) overloadBUniforms.uOpacity.value = opacity * overloadMix * 1.06;
-        if (overloadBUniforms.uGlowSize) overloadBUniforms.uGlowSize.value = this.config.pulseGlowIntensity * (0.68 + overloadMix * 0.38);
-      }
+      };
+
+      applyPart('core', {
+        scaleMul: 1.1,
+        glowMul: 1.05,
+        distortionMul: 1.0,
+        noiseScaleMul: 1.0,
+        noiseSpeedMul: 1.0,
+      });
+      applyPart('sheath', {
+        scaleMul: 1.0 + bandMix * 0.08,
+        driftMul: 1.0,
+      });
+      applyPart('trail', {
+        scaleMul: 1.0 + overloadMix * 0.04,
+        driftMul: 1.15,
+        glowMul: 0.92,
+        distortionMul: 0.9,
+        noiseScaleMul: 1.05,
+        noiseSpeedMul: 1.2,
+      });
+      applyPart('halo', {
+        scaleMul: 1.0 + stabilityMix * 0.05,
+        driftMul: 1.0,
+        glowMul: 0.88,
+        distortionMul: 1.0,
+        noiseScaleMul: 0.82,
+        noiseSpeedMul: 0.72,
+      });
+      applyPart('swirl', {
+        scaleMul: 1.0 + overloadMix * 0.02,
+        driftMul: 1.0,
+        glowMul: 0.95,
+        distortionMul: 1.05,
+        noiseScaleMul: 1.12,
+        noiseSpeedMul: 1.15,
+      });
+      applyPart('overloadA', {
+        visible: debugPulse || overloadMix > 0.02 || pulse.corruption > 0.06,
+        scaleMul: 1.0 + overloadMix * 0.2,
+        driftMul: 1.0 + overloadMix * 0.2,
+        glowMul: 0.82 + overloadMix * 0.5,
+        distortionMul: 0.95,
+        noiseScaleMul: 1.08,
+        noiseSpeedMul: 1.12,
+      });
+      applyPart('overloadB', {
+        visible: debugPulse || overloadMix > 0.02 || pulse.corruption > 0.06,
+        scaleMul: 1.0 + overloadMix * 0.16,
+        driftMul: 1.0 + overloadMix * 0.18,
+        glowMul: 0.78 + overloadMix * 0.46,
+        distortionMul: 0.92,
+        noiseScaleMul: 1.12,
+        noiseSpeedMul: 1.18,
+      });
     }
   }
   
@@ -785,58 +944,230 @@ export class LinkResonanceFlowSystem_Session124 {
    */
   _createPulseMesh() {
     const debugPulse = this.config.debugPulseVisuals === true;
-    const makeMaterial = (opacityScale, glowScale, color) => {
+    const makeMaterial = (options = {}) => {
       const material = this.pulseMaterialTemplate.clone();
       material.uniforms = THREE.UniformsUtils.clone(this.pulseMaterialTemplate.uniforms);
-      if (color) material.uniforms.uColor.value = new THREE.Color(color);
-      material.uniforms.uOpacity.value = opacityScale;
-      material.uniforms.uGlowSize.value = this.config.pulseGlowIntensity * glowScale;
+      const uniforms = material.uniforms;
+      if (Number.isFinite(options.opacity)) uniforms.uOpacity.value = options.opacity;
+      if (Number.isFinite(options.glow)) uniforms.uGlowSize.value = this.config.pulseGlowIntensity * options.glow;
+      if (Number.isFinite(options.distortion)) uniforms.uDistortion.value = options.distortion;
+      if (Number.isFinite(options.noiseScale)) uniforms.uNoiseScale.value = options.noiseScale;
+      if (Number.isFinite(options.noiseSpeed)) uniforms.uNoiseSpeed.value = options.noiseSpeed;
+      if (Number.isFinite(options.phase)) uniforms.uPulsePhase.value = options.phase;
+      if (Number.isFinite(options.seed)) uniforms.uPulseSeed.value = options.seed;
+      if (Number.isFinite(options.fresnelPower)) uniforms.uFresnelPower.value = options.fresnelPower;
+      if (Number.isFinite(options.iridescence)) uniforms.uIridescence.value = options.iridescence;
+      if (Number.isFinite(options.voidMix)) uniforms.uVoidMix.value = options.voidMix;
+      if (Number.isFinite(options.shellBreath)) uniforms.uShellBreath.value = options.shellBreath;
+      if (Number.isFinite(options.shellBias)) uniforms.uShellBias.value = options.shellBias;
+      if (options.color) uniforms.uColor.value = new THREE.Color(options.color);
+      if (options.accentColor) uniforms.uAccentColor.value = new THREE.Color(options.accentColor);
+      if (options.voidColor) uniforms.uVoidColor.value = new THREE.Color(options.voidColor);
       return material;
     };
 
     const debugColors = debugPulse ? {
       core: 0xff0000,
-      sheath: 0xff2020,
-      trail: 0xff6161,
-      overloadA: 0xff0000,
-      overloadB: 0xff5a5a,
+      sheath: 0xff3434,
+      trail: 0xff8080,
+      overloadA: 0xff3434,
+      overloadB: 0xff8080,
+      halo: 0xff2020,
+      swirl: 0xff7a7a,
     } : null;
 
     const rig = new THREE.Group();
     rig.name = 'LinkResonancePulseRig';
     rig.visible = false;
+    rig.userData.isLinkResonanceFlow = true;
+    rig.userData.linkVisualFamily = 'resonanceFlow';
     rig.userData.debugPulseVisuals = debugPulse;
 
-    const core = new THREE.Mesh(this.pulseMeshGeometry, makeMaterial(1.0, 1.0, debugColors?.core ?? 0x9fffff));
-    core.name = 'LinkResonancePulseCore';
-    core.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE');
-    tagAllowedSphere(core, { role: 'vfx', source: 'LinkResonanceFlowSystem_Session124._createPulseMesh.core' });
-    clampSphere(core);
+    const parts = {};
+    const partConfigs = {
+      core: {
+        baseScale: [0.36, 0.50, 0.36],
+        basePosition: [0, 0, 0],
+        baseRotation: [0, 0, 0],
+        rotationSpeed: [0.26, 0.34, 0.18],
+        orbitStrength: [0.05, 0.06, 0.05],
+        orbitSpeed: 0.84,
+        phaseOffset: 0.0,
+        distortion: 0.24,
+        noiseScale: 3.8,
+        noiseSpeed: 1.6,
+        opacity: 1.0,
+        glow: 1.55,
+        fresnelPower: 3.0,
+        iridescence: 0.36,
+        voidMix: 0.46,
+        shellBreath: 0.18,
+        shellBias: 0.12,
+        color: debugColors?.core ?? 0x78f8ff,
+        accentColor: debugColors?.core ?? 0xffffff,
+        voidColor: debugPulse ? 0x160000 : 0x070012,
+      },
+      sheath: {
+        baseScale: [0.74, 0.90, 0.74],
+        basePosition: [0, 0, 0],
+        baseRotation: [0.08, 0.18, 0.04],
+        rotationSpeed: [0.12, -0.16, 0.14],
+        orbitStrength: [0.08, 0.03, 0.07],
+        orbitSpeed: 0.62,
+        phaseOffset: 1.34,
+        distortion: 0.16,
+        noiseScale: 2.6,
+        noiseSpeed: 1.1,
+        opacity: 0.42,
+        glow: 1.08,
+        fresnelPower: 2.7,
+        iridescence: 0.3,
+        voidMix: 0.32,
+        shellBreath: 0.12,
+        shellBias: 0.41,
+        color: debugColors?.sheath ?? 0x6eeeff,
+        accentColor: debugColors?.sheath ?? 0xdffcff,
+        voidColor: debugPulse ? 0x120000 : 0x050010,
+      },
+      trail: {
+        baseScale: [0.10, 1.08, 0.06],
+        basePosition: [0, -0.34, 0],
+        baseRotation: [0.04, 0.2, 0.0],
+        rotationSpeed: [0.12, 0.42, 0.1],
+        orbitStrength: [0.03, 0.08, 0.03],
+        orbitSpeed: 1.6,
+        phaseOffset: 2.18,
+        distortion: 0.06,
+        noiseScale: 4.4,
+        noiseSpeed: 2.0,
+        opacity: 0.18,
+        glow: 0.9,
+        fresnelPower: 2.45,
+        iridescence: 0.2,
+        voidMix: 0.10,
+        shellBreath: 0.06,
+        shellBias: 0.18,
+        color: debugColors?.trail ?? 0xa7fbff,
+        accentColor: debugColors?.trail ?? 0xf1ffff,
+        voidColor: debugPulse ? 0x160000 : 0x070012,
+      },
+      overloadA: {
+        baseScale: [0.07, 0.36, 0.07],
+        basePosition: [0.28, 0.08, 0.02],
+        baseRotation: [0.12, 0.42, 0.18],
+        rotationSpeed: [0.26, 0.62, 0.16],
+        orbitStrength: [0.04, 0.02, 0.04],
+        orbitSpeed: 1.1,
+        phaseOffset: 0.74,
+        distortion: 0.05,
+        noiseScale: 4.8,
+        noiseSpeed: 2.2,
+        opacity: 0.14,
+        glow: 0.84,
+        fresnelPower: 2.35,
+        iridescence: 0.22,
+        voidMix: 0.08,
+        shellBreath: 0.05,
+        shellBias: 0.62,
+        color: debugColors?.overloadA ?? 0x8e7cff,
+        accentColor: debugColors?.overloadA ?? 0xffecff,
+        voidColor: debugPulse ? 0x160000 : 0x110018,
+      },
+      overloadB: {
+        baseScale: [0.06, 0.30, 0.06],
+        basePosition: [-0.24, -0.05, -0.02],
+        baseRotation: [-0.16, -0.38, -0.12],
+        rotationSpeed: [-0.20, -0.54, -0.14],
+        orbitStrength: [0.03, 0.03, 0.03],
+        orbitSpeed: 1.24,
+        phaseOffset: 2.66,
+        distortion: 0.045,
+        noiseScale: 5.2,
+        noiseSpeed: 2.35,
+        opacity: 0.12,
+        glow: 0.8,
+        fresnelPower: 2.25,
+        iridescence: 0.24,
+        voidMix: 0.08,
+        shellBreath: 0.04,
+        shellBias: 0.84,
+        color: debugColors?.overloadB ?? 0xb86dff,
+        accentColor: debugColors?.overloadB ?? 0xffe3ff,
+        voidColor: debugPulse ? 0x120000 : 0x130019,
+      },
+      halo: {
+        baseScale: [1.26, 0.74, 1.18],
+        basePosition: [0, 0.02, 0],
+        baseRotation: [0.16, 0.36, 0.0],
+        rotationSpeed: [0.06, 0.08, 0.04],
+        orbitStrength: [0.02, 0.02, 0.02],
+        orbitSpeed: 0.54,
+        phaseOffset: 0.42,
+        distortion: 0.12,
+        noiseScale: 1.8,
+        noiseSpeed: 0.72,
+        opacity: 0.20,
+        glow: 1.0,
+        fresnelPower: 3.4,
+        iridescence: 0.46,
+        voidMix: 0.16,
+        shellBreath: 0.05,
+        shellBias: 0.9,
+        color: debugColors?.halo ?? 0x8ef8ff,
+        accentColor: debugColors?.halo ?? 0xffffff,
+        voidColor: debugPulse ? 0x120000 : 0x05000d,
+      },
+      swirl: {
+        baseScale: [0.62, 0.62, 0.62],
+        basePosition: [0, 0, 0],
+        baseRotation: [0.56, 0.12, 0.34],
+        rotationSpeed: [0.42, 0.34, 0.26],
+        orbitStrength: [0.02, 0.02, 0.02],
+        orbitSpeed: 1.8,
+        phaseOffset: 3.52,
+        distortion: 0.16,
+        noiseScale: 3.2,
+        noiseSpeed: 1.55,
+        opacity: 0.17,
+        glow: 1.12,
+        fresnelPower: 2.9,
+        iridescence: 0.62,
+        voidMix: 0.12,
+        shellBreath: 0.09,
+        shellBias: 0.74,
+        color: debugColors?.swirl ?? 0xb58cff,
+        accentColor: debugColors?.swirl ?? 0xffd4ff,
+        voidColor: debugPulse ? 0x120000 : 0x12001a,
+      },
+    };
 
-    const sheath = new THREE.Mesh(this.pulseSheathGeometry, makeMaterial(this.config.pulseSheathOpacity, 0.82, debugColors?.sheath ?? 0xd8c6ff));
-    sheath.name = 'LinkResonancePulseSheath';
-    sheath.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE');
+    const addPart = (key, geometry, spec, name) => {
+      const material = makeMaterial(spec);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = name;
+      mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE');
+      mesh.userData.partKey = key;
+      mesh.userData.partSpec = spec;
+      mesh.userData.debugPulseVisuals = debugPulse;
+      parts[key] = mesh;
+      rig.add(mesh);
+      return mesh;
+    };
 
-    const trail = new THREE.Mesh(this.pulseTrailGeometry, makeMaterial(this.config.pulseTrailOpacity, 0.52, debugColors?.trail ?? 0x87f3ff));
-    trail.name = 'LinkResonancePulseTrail';
-    trail.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE');
+    addPart('core', this.pulseMeshGeometry, partConfigs.core, 'LinkResonancePulseCore');
+    addPart('sheath', this.pulseSheathGeometry, partConfigs.sheath, 'LinkResonancePulseSheath');
+    addPart('trail', this.pulseTrailGeometry, partConfigs.trail, 'LinkResonancePulseTrail');
+    addPart('overloadA', this.pulseShardGeometry, partConfigs.overloadA, 'LinkResonancePulseShardA');
+    addPart('overloadB', this.pulseShardGeometry, partConfigs.overloadB, 'LinkResonancePulseShardB');
+    addPart('halo', this.pulseHaloGeometry, partConfigs.halo, 'LinkResonancePulseHalo');
+    addPart('swirl', this.pulseSwirlGeometry, partConfigs.swirl, 'LinkResonancePulseSwirl');
 
-    const overloadA = new THREE.Mesh(this.pulseTrailGeometry, makeMaterial(0.1, 0.68, debugColors?.overloadA ?? 0xffcc99));
-    overloadA.name = 'LinkResonancePulseOverloadA';
-    overloadA.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE');
-    overloadA.visible = false;
-
-    const overloadB = new THREE.Mesh(this.pulseTrailGeometry, makeMaterial(0.08, 0.62, debugColors?.overloadB ?? 0xff945f));
-    overloadB.name = 'LinkResonancePulseOverloadB';
-    overloadB.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE');
-    overloadB.visible = false;
-
-    rig.add(overloadB);
-    rig.add(overloadA);
-    rig.add(trail);
-    rig.add(sheath);
-    rig.add(core);
-    rig.userData.parts = { core, sheath, trail, overloadA, overloadB };
+    rig.userData.parts = parts;
+    rig.userData.partConfigs = partConfigs;
+    if (parts.core) {
+      tagAllowedSphere(parts.core, { role: 'vfx', source: 'LinkResonanceFlowSystem_Session124._createPulseMesh.core' });
+      clampSphere(parts.core);
+    }
     return rig;
   }
 
@@ -1054,7 +1385,7 @@ export class LinkResonanceFlowSystem_Session124 {
     this.linkPulses.clear();
     this.spawnAccumulators.clear();
     this.stats.pulseSpawnCount = 0;
-    this._repeatSuppressedUntilByLink = new WeakMap();
+    this._repeatSuppressedUntilByLinkId = new Map();
     this._lastVisualTime = undefined;
     this._lastUpdateFrameId = undefined;
   }
@@ -1078,12 +1409,15 @@ export class LinkResonanceFlowSystem_Session124 {
     this.pulseMeshGeometry?.dispose?.();
     this.pulseSheathGeometry?.dispose?.();
     this.pulseTrailGeometry?.dispose?.();
+    this.pulseShardGeometry?.dispose?.();
+    this.pulseHaloGeometry?.dispose?.();
+    this.pulseSwirlGeometry?.dispose?.();
     this.pulseMaterialTemplate?.dispose?.();
     
     this.globalPulses = [];
     this.linkPulses.clear();
     this.spawnAccumulators.clear();
-    this._repeatSuppressedUntilByLink = new WeakMap();
+    this._repeatSuppressedUntilByLinkId = new Map();
   }
 }
 

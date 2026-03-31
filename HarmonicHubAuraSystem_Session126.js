@@ -861,12 +861,23 @@ export class HarmonicHubAuraSystem_Session126 {
     const metrics = node?.userData?.metrics;
     if (Number.isFinite(metrics?.stability)) return this._clamp01(metrics.stability);
 
-    const instability = Number.isFinite(metrics?.instability)
-      ? metrics.instability
-      : node?.userData?.instability;
-    if (Number.isFinite(instability)) return this._clamp01(1 - instability);
+    const stabilityFromInstability = Number.isFinite(metrics?.instability)
+      ? (1 - metrics.instability)
+      : Number.isFinite(node?.userData?.instability)
+        ? (1 - node?.userData?.instability)
+        : null;
+    if (stabilityFromInstability !== null) return this._clamp01(stabilityFromInstability);
 
     return this._clamp01(fallback);
+  }
+
+  _readNodeStabilityFromMetrics(node, fallback = 0) {
+    const metrics = node?.userData?.metrics;
+    const stability = Number.isFinite(metrics?.stability) ? metrics.stability : null;
+    const value = stability !== null
+      ? stability
+      : (1 - (metrics?.instability ?? node?.userData?.instability ?? fallback));
+    return this._clamp01(value);
   }
 
   _syncHubMetricMirror(hub) {
@@ -916,15 +927,6 @@ export class HarmonicHubAuraSystem_Session126 {
         : Number.isFinite(pulse?.userData?.synergy?.score)
           ? pulse.userData.synergy.score
           : fallback;
-    return this._clamp01(value);
-  }
-
-  _readNodeStability(node, fallback = 0) {
-    const metrics = node?.userData?.metrics;
-    const stability = Number.isFinite(metrics?.stability) ? metrics.stability : null;
-    const value = stability !== null
-      ? stability
-      : (1 - (metrics?.instability ?? node?.userData?.instability ?? fallback));
     return this._clamp01(value);
   }
 

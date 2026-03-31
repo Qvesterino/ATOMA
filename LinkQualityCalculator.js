@@ -36,6 +36,7 @@ export class LinkQualityCalculator {
     this.linkingSystem = linkingSystem;
     this.nodeDynamics = nodeDynamics;
     this.semanticBus = config.semanticBus || null;
+    this.frameScheduler = config.frameScheduler ?? null;
     
     // Configuration with sensible defaults
     this.config = {
@@ -72,7 +73,7 @@ export class LinkQualityCalculator {
     if (!this.linkingSystem || !this.linkingSystem.links) {
       return;
     }
-    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
+    if (this.frameScheduler?.shouldRunSimulation?.() === false) return;
     const now = Date.now();
     
     // Update all links
@@ -166,11 +167,16 @@ export class LinkQualityCalculator {
     
     // ========== 7. STORE RESULTS ==========
     quality.score = finalScore;
+    quality.qualityScore = finalScore;
+    quality.normalizedScore = finalScore / 100;
     quality.level = level;
+    quality.qualityLevel = level;
     quality.structural = structuralScore;
+    quality.structuralScore = structuralScore;
     quality.harmony = harmonyScore;
     quality.load = loadScore;
     quality.corruption = corruptionScore;
+    quality.degradation = 1 - quality.normalizedScore;
     quality.updatedAt = now;
 
     const intensity = this.calculateCascadeIntensity(link);
@@ -404,11 +410,16 @@ export class LinkQualityCalculator {
   _createBlankQuality() {
     return {
       score: 50,
+      qualityScore: 50,
+      normalizedScore: 0.5,
       level: "Medium",
+      qualityLevel: "Medium",
       structural: 80,
+      structuralScore: 80,
       harmony: 50,
       load: 60,
       corruption: 70,
+      degradation: 0.5,
       updatedAt: Date.now()
     };
   }

@@ -266,13 +266,17 @@ export class HarmonicHealingVisualSystem_Session134 {
         // Heal Link Stability (canonical path: userData.metrics.stability)
         const link = wave.link;
         if (link && link.userData) {
-            if (!link.userData.metrics) link.userData.metrics = {};
-            const currentStability = link.userData.metrics.stability ?? link.userData.stability ?? 0.5;
-            link.userData.metrics.stability = Math.min(1.0, currentStability + healingPower);
-            // Sync legacy path
-            if (typeof link.userData.stability !== 'undefined') {
-                link.userData.stability = link.userData.metrics.stability;
-            }
+            if (!link.userData.visualState) link.userData.visualState = {};
+            const currentStability = Number.isFinite(link.userData.visualState.stability)
+                ? link.userData.visualState.stability
+                : Number.isFinite(link.userData.metrics?.stability)
+                    ? link.userData.metrics.stability
+                    : Number.isFinite(link.userData.stability)
+                        ? link.userData.stability
+                        : 0.5;
+            link.userData.visualState.stability = Math.min(1.0, currentStability + healingPower);
+            link.userData.visualState.healingPower = healingPower;
+            link.userData.visualState.updatedAt = Date.now();
         }
         
         // Log occasionally for debug
@@ -346,11 +350,16 @@ export class HarmonicHealingVisualSystem_Session134 {
             if (!link?.source || !link?.target) continue;
 
             const metrics = link.userData?.metrics || {};
-            const stability = Number.isFinite(metrics.stability)
-                ? metrics.stability
-                : Number.isFinite(link.userData?.stability)
-                    ? link.userData.stability
-                    : 0.5;
+            const visualStability = Number.isFinite(link.userData?.visualState?.stability)
+                ? link.userData.visualState.stability
+                : null;
+            const stability = Number.isFinite(visualStability)
+                ? visualStability
+                : Number.isFinite(metrics.stability)
+                    ? metrics.stability
+                    : Number.isFinite(link.userData?.stability)
+                        ? link.userData.stability
+                        : 0.5;
             const corruption = Number.isFinite(metrics.corruption)
                 ? metrics.corruption
                 : Number.isFinite(link.userData?.corruption)

@@ -48,6 +48,7 @@ export class NodeQualityCalculator {
     this.linkingSystem = linkingSystem;
     this.nodeDynamics = nodeDynamics;
     this.linkQuality = linkQuality;
+    this.frameScheduler = config.frameScheduler ?? null;
     
     // Configuration with sensible defaults
     this.config = {
@@ -87,7 +88,7 @@ export class NodeQualityCalculator {
    * @param {number} deltaTime - Time elapsed since last frame (in seconds)
    */
   update(deltaTime) {
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler?.shouldRunVisual?.() === false) return;
     if (!this.aiNodes || !this.aiNodes.nodes) {
       return;
     }
@@ -159,7 +160,10 @@ export class NodeQualityCalculator {
     
     // Store results in node.userData.quality
     quality.score = score;
+    quality.qualityScore = score;
+    quality.normalizedScore = score / 100;
     quality.level = level;
+    quality.qualityLevel = level;
     quality.metrics = {
       stability: internal,
       harmony: energyComponent,
@@ -389,7 +393,10 @@ export class NodeQualityCalculator {
   _createBlankQuality() {
     return {
       score: 50,
+      qualityScore: 50,
+      normalizedScore: 0.5,
       level: 'Weak',
+      qualityLevel: 'Weak',
       metrics: {
       stability: 50,
       harmony: 50,

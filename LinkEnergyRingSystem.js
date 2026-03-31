@@ -93,7 +93,7 @@ export class LinkEnergyRingSystem {
             Math.floor(clamp01(metrics.synergy ?? 0) * 1000),
             Math.floor(clamp01(metrics.harmony ?? 0) * 1000),
             Math.floor(clamp01(metrics.corruption ?? 0) * 1000),
-            Math.floor(clamp01(metrics.stability ?? (1 - clamp01(metrics.instability ?? 0))) * 1000)
+            Math.floor(clamp01(metrics.stability ?? (1 - clamp01(metrics.stability ?? 0))) * 1000)
         ].join('|');
 
         const synergy = clamp01(metrics.synergy ?? 0);

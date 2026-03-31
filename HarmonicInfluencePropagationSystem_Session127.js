@@ -17,7 +17,7 @@
  * 2. Link Influence Flows: Semi-transparent streaming energy along links
  * 3. Propagation Waves: Time-based pulse emission from hubs
  * 4. Phase Synchronization: Waves align across hub with organic per-link delay
- * 5. State Modulation: Harmony/corruption/instability/synergy influence appearance
+ * 5. State Modulation: Harmony/corruption/stability/synergy influence appearance
  * 6. LOD System: Far nodes collapse to subtle glows, near nodes show full mesh
  * 7. Zero Allocations: Complete pooling and reuse
  * 8. Smooth Motion: Vertical drift + radial oscillation (not flicker)
@@ -103,7 +103,7 @@ export class HarmonicInfluencePropagationSystem_Session127 {
       // State influence
       harmonyCoherence: config.harmonyCoherence ?? 0.95,
       corruptionDampen: config.corruptionDampen ?? 0.4,
-      instabilityMaxPhaseJitter: config.instabilityMaxPhaseJitter ?? 0.3,
+      stabilityMaxPhaseJitter: config.stabilityMaxPhaseJitter ?? 0.3,
       
       // Synergy influence
       synergyFlowSpeed: config.synergyFlowSpeed ?? 0.5,
@@ -309,7 +309,7 @@ export class HarmonicInfluencePropagationSystem_Session127 {
           // Timing
           startTime: 0,
           duration: this._calculateWaveDuration(node, neighbor),
-          phaseOffset: (1 - clamp01(sourceStability)) * this.config.instabilityMaxPhaseJitter,
+          phaseOffset: (1 - clamp01(sourceStability)) * this.config.stabilityMaxPhaseJitter,
           
           // State
           active: true,
@@ -555,8 +555,8 @@ export class HarmonicInfluencePropagationSystem_Session127 {
       const breathingScale = 1.0 + oscillation * 0.1;
       mesh.scale.multiplyScalar(breathingScale);
 
-      const instability = 1 - clamp01(stability ?? 0);
-      mesh.rotation.y += Math.sin(time * 0.22 + instability) * this.config.instabilityMaxPhaseJitter * instability * 0.02;
+      const stabilityValue = 1 - clamp01(stability ?? 0);
+      mesh.rotation.y += Math.sin(time * 0.22 + stabilityValue) * this.config.stabilityMaxPhaseJitter * stabilityValue * 0.02;
       
       // Rotation drift for organic feel
       mesh.rotation.x += Math.sin(time * 0.3) * 0.01;

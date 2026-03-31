@@ -14,7 +14,7 @@
  * 
  * LAYERS:
  * - Layer A (Signal): Primary meaning (harmony/corruption/healing)
- * - Layer B (Modulator): Secondary modifiers (synergy/instability)
+ * - Layer B (Modulator): Secondary modifiers (synergy/stability)
  * - Layer C (Memory): Historical traces (faint, sparse)
  * 
  * FEATURES:
@@ -132,7 +132,7 @@ const CONFIG = {
     HARMONY_THRESHOLD: 0.25,
     CORRUPTION_THRESHOLD: 0.25,
     SYNERGY_THRESHOLD: 0.2,
-    INSTABILITY_THRESHOLD: 0.2,
+    STABILITY_THRESHOLD: 0.2,
     HEALING_THRESHOLD: 0.15,
     STANDING_WAVE_THRESHOLD: 0.15,
     RESISTANCE_THRESHOLD: 0.2
@@ -165,10 +165,10 @@ const PictogramStates = {
     SYNERGY_ALIGNED: 'TRIPLE_ARROW',
     SYNERGY_ENTANGLED: 'BRAIDED_LINE',
     
-    // Instability family
-    INSTABILITY_DISORDER: 'OFFSET_DOTS',
-    INSTABILITY_DESYNC: 'PHASE_SHIFTED_BARS',
-    INSTABILITY_INCOMPLETE: 'INCOMPLETE_SYMBOL',
+    // Stability family
+    STABILITY_DISORDER: 'OFFSET_DOTS',
+    STABILITY_DESYNC: 'PHASE_SHIFTED_BARS',
+    STABILITY_INCOMPLETE: 'INCOMPLETE_SYMBOL',
     
     // Healing family
     HEALING_RECOVERING: 'REFORMING_RING',
@@ -874,6 +874,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
     _readLinkMetric(link, key, fallback = 0) {
         if (!link) return fallback;
         const userData = link.userData || {};
+        const visualState = userData.visualState || {};
         const userMetrics = userData.metrics || {};
         const linkMetrics = link.metrics || {};
         const conduitMetrics = link.group?.userData?.conduitState?.metrics || {};
@@ -885,6 +886,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
                 break;
             case 'harmony':
                 value = this._readNumericMetric(
+                    visualState.harmony,
+                    visualState.harmonyLevel,
                     userData.harmony,
                     userData.harmonyLevel,
                     userMetrics.harmony,
@@ -896,6 +899,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
                 break;
             case 'corruption':
                 value = this._readNumericMetric(
+                    visualState.corruptionLevel,
+                    visualState.corruption,
                     userData.corruption,
                     userData.corruptionLevel,
                     userMetrics.corruption,
@@ -907,6 +912,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
                 break;
             case 'stability':
                 value = this._readNumericMetric(
+                    visualState.stability,
+                    visualState.stabilityLevel,
                     userData.stability,
                     userData.stabilityLevel,
                     userMetrics.stability,
@@ -918,6 +925,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
                 break;
             case 'instability':
                 value = this._readNumericMetric(
+                    visualState.instability,
+                    visualState.instabilityLevel,
                     userData.instability,
                     userData.instabilityLevel,
                     userMetrics.instability,
@@ -929,6 +938,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
                 break;
             case 'traffic':
                 value = this._readNumericMetric(
+                    visualState.traffic?.load,
+                    visualState.traffic,
                     link.traffic?.load,
                     userData.traffic?.load,
                     userData.traffic,
@@ -939,6 +950,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
                 break;
             case 'loadPressure':
                 value = this._readNumericMetric(
+                    visualState.loadPressure,
                     link.loadPressure,
                     userData.loadPressure,
                     userMetrics.loadPressure,
@@ -949,13 +961,23 @@ export class LinkSemanticPictogramSystem_Enhanced {
                 break;
             case 'quality':
                 value = this._readNumericMetric(
+                    visualState.quality?.normalizedScore,
+                    visualState.quality?.score,
+                    visualState.quality?.qualityScore,
+                    visualState.quality,
+                    userData.quality?.normalizedScore,
                     userData.quality?.score,
+                    userData.quality?.qualityScore,
                     userData.quality,
                     userMetrics.quality,
+                    linkMetrics.qualityNorm,
                     linkMetrics.quality,
                     conduitMetrics.quality,
                     link.quality
                 );
+                if (typeof value === 'number' && Number.isFinite(value)) {
+                    value = value > 1 ? value / 100 : value;
+                }
                 break;
             default:
                 value = this._readNumericMetric(
@@ -974,8 +996,10 @@ export class LinkSemanticPictogramSystem_Enhanced {
     _readNodeMetric(node, key, fallback = 0) {
         if (!node) return fallback;
         const userData = node.userData || {};
+        const visualState = userData.visualState || {};
         const metrics = userData.metrics || {};
         const value = this._readNumericMetric(
+            visualState[key],
             userData[key],
             metrics[key],
             node[key]

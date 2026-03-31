@@ -53,7 +53,7 @@ export class LinkPulseWaveInjector {
             synergySpeedMultiplier: 2.0,    // Max speed boost from synergy
             harmonyWidth: 1.2,              // Width boost from harmony
             corruptionPhaseShift: 0.3,      // Phase wobble from corruption
-            instabilityAmplitude: 0.6,      // Amplitude damping from instability
+            stabilityAmplitude: 0.6,      // Amplitude damping from stability
         };
         
         // Math cache
@@ -153,11 +153,11 @@ export class LinkPulseWaveInjector {
      * @param {number} synergy - Synergy level (0-1)
      * @param {number} harmony - Harmony level (0-1)
      * @param {number} corruption - Corruption level (0-1)
-     * @param {number} instability - Instability level (0-1)
+     * @param {number} stability - Stability level (0-1)
      * @param {number} time - Current time
      * @returns {Object} Pulse effect data for visual application
      */
-    update(linkGroup, curve, deltaTime, synergy = 0.5, harmony = 1.0, corruption = 0.0, instability = 0.0, time = 0) {
+    update(linkGroup, curve, deltaTime, synergy = 0.5, harmony = 1.0, corruption = 0.0, stability = 0.0, time = 0) {
         if (!linkGroup || !linkGroup.userData.conduitState || !curve) return null;
         
         const state = linkGroup.userData.conduitState;
@@ -190,7 +190,7 @@ export class LinkPulseWaveInjector {
                 synergy,
                 harmony,
                 corruption,
-                instability
+                stability
             );
         }
         
@@ -205,18 +205,18 @@ export class LinkPulseWaveInjector {
      * @param {number} time - Current time
      * @param {number} harmony - Harmony level (0-1)
      * @param {number} corruption - Corruption level (0-1)
-     * @param {number} instability - Instability level (0-1)
+     * @param {number} stability - Stability level (0-1)
      * @param {number} synergy - Synergy level (0-1)
      * @param {Map} nodeControllers - All node controllers
      * @param {Array} links - All link objects
      */
-    updateCascadePropagation(deltaTime, time, harmony = 1.0, corruption = 0.0, instability = 0.0, synergy = 0.5, nodeControllers = null, links = []) {
+    updateCascadePropagation(deltaTime, time, harmony = 1.0, corruption = 0.0, stability = 0.0, synergy = 0.5, nodeControllers = null, links = []) {
         this.cascadeManager.update(
             deltaTime,
             time,
             harmony,
             corruption,
-            instability,
+            stability,
             synergy,
             nodeControllers,
             links
@@ -255,7 +255,7 @@ export class LinkPulseWaveInjector {
      * Compute visual effect multipliers from all active pulses
      * @private
      */
-    _computePulseEffect(activePulses, curve, synergy, harmony, corruption, instability) {
+    _computePulseEffect(activePulses, curve, synergy, harmony, corruption, stability) {
         if (!activePulses || activePulses.length === 0) return null;
         
         // Pulse speed scales with synergy
@@ -285,7 +285,7 @@ export class LinkPulseWaveInjector {
                 pulse.nodeEnergy,
                 harmony,
                 corruption,
-                instability
+                stability
             );
             
             pulsePositionInfluence.push({
@@ -334,7 +334,7 @@ export class LinkPulseWaveInjector {
      * Compute pulse influence (amplitude) based on state
      * @private
      */
-    _computePulseInfluence(phase, nodeEnergy, harmony, corruption, instability) {
+    _computePulseInfluence(phase, nodeEnergy, harmony, corruption, stability) {
         // Bell curve over pulse lifetime
         const bellCurve = Math.sin(phase * Math.PI); // 0 → 1 → 0
         
@@ -348,8 +348,8 @@ export class LinkPulseWaveInjector {
         const corruptionWobble = 1.0 + Math.sin(phase * Math.PI * 3 + corruption * 5) * corruption * this.config.corruptionPhaseShift;
         influence *= corruptionWobble;
         
-        // Instability attenuates amplitude
-        influence *= (1.0 - (instability * this.config.instabilityAmplitude));
+        // Stability attenuates amplitude
+        influence *= (1.0 - (stability * this.config.stabilityAmplitude));
         
         return Math.max(0, influence);
     }

@@ -7729,6 +7729,7 @@ window.__ATOMA_SCENE__ = this.scene;
             this.linkRendererConduit.linkResonanceFlowSystem = this.linkResonanceFlowSystem;
             this.linkRendererConduit.linkResonanceSystem = this.linkResonanceSystem || this.linkResonanceFlowSystem;
             this.linkResonanceFlowSystem.world = this.linkRendererConduit.linkSystem || this.linkingSystem || this.world || this.linkResonanceFlowSystem.world;
+            this.linkResonanceFlowSystem.rebindScene?.(this.scene);
         }
         this.linkingSystem.semanticBus = this.semanticBus;
         this.linkingSystem.isReady = true;
@@ -15361,6 +15362,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.linkRendererConduit.linkResonanceFlowSystem = this.linkResonanceFlowSystem;
                 this.linkRendererConduit.linkResonanceSystem = this.linkResonanceSystem;
                 this.linkResonanceFlowSystem.world = this.linkRendererConduit.linkSystem || this.linkingSystem || this.world || this.linkResonanceFlowSystem.world;
+                this.linkResonanceFlowSystem.rebindScene?.(this.scene);
             }
             // Canonical alias for downstream systems expecting linkResonanceSystem contract.
             this.linkResonanceSystem = this.linkResonanceFlowSystem;
@@ -15608,6 +15610,79 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             if (!link) return null;
             return system.spawnSinglePulse(link, options);
         };
+        window.__DEBUG.setLinkResonanceOnly = (enabled = true) => {
+            const scene = window.atoma?.scene ?? null;
+            const resonanceSystem = window.__DEBUG.getLinkResonanceFlowSystem();
+            if (!scene || !resonanceSystem) return null;
+
+            const state = window.__DEBUG._linkResonanceOnlyState ||= {
+                active: false,
+                snapshots: new Map(),
+            };
+
+            const isResonanceFlowObject = (obj) => {
+                if (!obj) return false;
+                const name = String(obj.name || '');
+                const ud = obj.userData || {};
+                return ud.isLinkResonanceFlow === true ||
+                    ud.linkVisualFamily === 'resonanceFlow' ||
+                    ud.isLinkResonanceFlowPulse === true ||
+                    name === 'LinkResonancePulses_Session124' ||
+                    name.startsWith('LinkResonancePulse');
+            };
+
+            const shouldHide = (obj) => {
+                if (!obj || obj === scene) return false;
+                if (isResonanceFlowObject(obj)) return false;
+                const name = String(obj.name || '');
+                const ud = obj.userData || {};
+                return ud.isLinkVisual === true ||
+                    ud.isLinkGlow === true ||
+                    ud.isLinkCore === true ||
+                    ud.isLinkTrail === true ||
+                    ud.isNeuralCurve === true ||
+                    ud.isLinkGlyphFlow === true ||
+                    ud.isLinkAura === true ||
+                    ud.isFX === true ||
+                    ud.isParticle === true ||
+                    ud.isEffect === true ||
+                    name.startsWith('LinkVisuals_') ||
+                    name.startsWith('NeonLinkVisuals') ||
+                    name.startsWith('ExtremeLinkVisuals') ||
+                    name.startsWith('NeuralCurveLinkVisuals') ||
+                    name.startsWith('LinkTrail') ||
+                    name.startsWith('LinkPulse') ||
+                    name.startsWith('LinkSpark') ||
+                    name.startsWith('LinkHealing') ||
+                    name.startsWith('LinkCorruption') ||
+                    name.startsWith('LinkRingArc') ||
+                    name.startsWith('LinkFlow') ||
+                    name.includes('HarmonicResonanceCoupling') ||
+                    name.includes('MemoryTrail') ||
+                    name.includes('Cascade');
+            };
+
+            if (enabled) {
+                if (state.active) return true;
+                state.snapshots.clear();
+                scene.traverse((obj) => {
+                    if (!shouldHide(obj)) return;
+                    state.snapshots.set(obj, obj.visible);
+                    obj.visible = false;
+                });
+                state.active = true;
+                return true;
+            }
+
+            if (!state.active) return false;
+            for (const [obj, visible] of state.snapshots.entries()) {
+                if (obj) obj.visible = visible;
+            }
+            state.snapshots.clear();
+            state.active = false;
+            return false;
+        };
+        window.__DEBUG.clearLinkResonanceOnly = () => window.__DEBUG.setLinkResonanceOnly(false);
         window.__DEBUG.setLinkResonancePulseDebug = (enabled, options = {}) => {
             const system = window.__DEBUG.getLinkResonanceFlowSystem();
             if (!system?.setDebugPulseVisuals) return null;

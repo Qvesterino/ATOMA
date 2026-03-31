@@ -651,8 +651,8 @@ const adapter = this._createLinkSystemAdapter(
     }
 
     /**
-     * Canonical writer for link corruption/integrity metrics.
-     * Ensures all links have consistent corruption/integrity values.
+     * Canonical writer for link corruption metrics.
+     * Integrity is treated as a legacy compatibility alias, not a canonical metric.
      * Single-source write authority lives in MetricsRuntime_v1.
      */
     _canonicalWriteLinkCorruptionMetrics(linkList) {
@@ -678,9 +678,8 @@ const adapter = this._createLinkSystemAdapter(
             userData.corruptionLevel = nextCorruption;
             userData.corruption = nextCorruption;
 
-            // Canonical integrity write + legacy mirror
+            // Legacy integrity alias only (not part of canonical metric schema)
             const nextIntegrity = Number.isFinite(linkIntegrity) ? Math.max(0, Math.min(100, linkIntegrity)) : 100;
-            userData.metrics.integrity = nextIntegrity;
             userData.integrity = nextIntegrity;
 
             // Update corrupted flag based on corruption level

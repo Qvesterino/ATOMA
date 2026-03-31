@@ -369,13 +369,13 @@ export class LinkPrioritySystem {
 
   /**
    * Apply stability penalty to a link
-   * Hook for future corruption/instability tracking
+   * Hook for future corruption/stability tracking
    * 
    * @param {Object} link - Link to penalize
    * @param {number} penalty - Penalty value (0.0–0.7)
    * @returns {void}
    */
-  static applyInstabilityPenalty(link, penalty) {
+  static applySktabilityPenalty(link, penalty) {
     if (!link || !link.priority) {
       return;
     }

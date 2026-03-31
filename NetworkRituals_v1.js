@@ -209,11 +209,13 @@ class NetworkRituals {
   _syncLinkUserData(link, runtimeState) {
     if (!link) return;
     if (!link.userData) link.userData = {};
+    if (!link.userData.visualState) link.userData.visualState = {};
 
     if (runtimeState) {
-      link.userData.corruptionLevel = runtimeState.corruptionLevel;
-      link.userData.integrity = runtimeState.normalizedIntegrity;
-      link.userData.integrityState = runtimeState.state;
+      link.userData.visualState.corruptionLevel = runtimeState.corruptionLevel;
+      link.userData.visualState.integrity = runtimeState.normalizedIntegrity;
+      link.userData.visualState.integrityState = runtimeState.state;
+      link.userData.visualState.updatedAt = Date.now();
     }
   }
 

@@ -7,9 +7,9 @@ import * as THREE from 'three';
  * 
  * SYSTEM BEHAVIOR:
  * - Harmonic hubs (nodes with 3+ healthy links) synchronize pulse phases
- * - Connected links pulse in phase-locked rhythm
+ * - Connected links pulse in phase-locked rhythmy sme yp
  * - Synchronization strength scales with harmony, synergy, and hub activation
- * - Corruption/instability cause phase desynchronization (beat patterns)
+ * - Corruption/stability cause phase desynchronization (beat patterns)
  * - Visual effect: coherent energy flow vs. chaotic interference
  * 
  * ARCHITECTURE:
@@ -32,7 +32,7 @@ export class LinkPulsePhaseSync {
             baseStrength: 0.6,              // Base sync influence (0-1)
             harmonyBoost: 0.4,              // Harmony increases strength
             corruptionDamping: 0.8,         // Corruption reduces strength
-            instabilityDamping: 0.6,        // Instability reduces strength
+            stabilityDamping: 0.6,        // Stability reduces strength
             synergyBoost: 0.3,              // Synergy increases strength
             
             // Phase interpolation
@@ -94,10 +94,10 @@ export class LinkPulsePhaseSync {
      * @param {number} synergy - Synergy level (0-1)
      * @param {number} harmony - Harmony level (0-1)
      * @param {number} corruption - Corruption level (0-1)
-     * @param {number} instability - Instability level (0-1)
+     * @param {number} stability - Stability level (0-1)
      * @param {number} time - Current time
      */
-    update(linkGroup, pulseWaveInjector, deltaTime, synergy = 0.5, harmony = 1.0, corruption = 0.0, instability = 0.0, time = 0) {
+    update(linkGroup, pulseWaveInjector, deltaTime, synergy = 0.5, harmony = 1.0, corruption = 0.0, stability = 0.0, time = 0) {
         if (!linkGroup || !linkGroup.userData.conduitState) return;
         
         const state = linkGroup.userData.conduitState;
@@ -117,7 +117,7 @@ export class LinkPulsePhaseSync {
         const syncStrength = this._computeSyncStrength(
             harmony,
             corruption,
-            instability,
+            stability,
             synergy,
             hubController
         );
@@ -139,7 +139,7 @@ export class LinkPulsePhaseSync {
         const beatModulation = this._computeBeatModulation(
             time,
             corruption,
-            instability
+            stability
         );
         
         syncState.targetPhaseOffset = directionOffset + harmonicPhaseOffset + beatModulation;
@@ -314,7 +314,7 @@ export class LinkPulsePhaseSync {
      * Compute synchronization strength based on state
      * @private
      */
-    _computeSyncStrength(harmony, corruption, instability, synergy, hubController) {
+    _computeSyncStrength(harmony, corruption, stability, synergy, hubController) {
         if (!hubController || !hubController.isActive) return 0.0;
         
         // Base strength from hub controller
@@ -329,8 +329,8 @@ export class LinkPulsePhaseSync {
         // Corruption damping (up to -80%)
         strength *= (1.0 - (corruption * this.config.corruptionDamping));
         
-        // Instability damping (up to -60%)
-        strength *= (1.0 - (instability * this.config.instabilityDamping));
+        // Stability damping (up to -60%)
+        strength *= (1.0 - (stability * this.config.stabilityDamping));
         
         return Math.max(0.0, Math.min(1.0, strength));
     }
@@ -340,17 +340,17 @@ export class LinkPulsePhaseSync {
      * Creates visual "wobble" when network is unstable
      * @private
      */
-    _computeBeatModulation(time, corruption, instability) {
-        if (corruption < 0.2 && instability < 0.3) return 0.0; // Below threshold
+    _computeBeatModulation(time, corruption, stability) {
+        if (corruption < 0.2 && stability < 0.3) return 0.0; // Below threshold
         
-        // Desync amount increases with corruption/instability
-        const desyncAmount = (corruption * 0.4) + (instability * 0.3);
+        // Desync amount increases with corruption/stability
+        const desyncAmount = (corruption * 0.4) + (stability * 0.3);
         
         // Beat pattern: slow oscillation
         const beatPattern = Math.sin(time * Math.PI * 0.5) * desyncAmount * 0.5;
         
-        // Add faster jitter for high instability
-        const jitter = Math.sin(time * Math.PI * 3.0) * instability * 0.15;
+        // Add faster jitter for high stability
+        const jitter = Math.sin(time * Math.PI * 3.0) * stability * 0.15;
         
         return beatPattern + jitter;
     }

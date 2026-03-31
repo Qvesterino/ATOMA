@@ -20,7 +20,7 @@
  * 
  * INFLUENCE STRENGTH DERIVATION:
  * hubInfluenceStrength = hubStrength × (harmony × 0.5 + synergy × 0.5)
- *                        × (1 - corruption × 0.3) × (1 - instability × 0.4)
+ *                        × (1 - corruption × 0.3) × (1 - stability × 0.4)
  *                        × (0.7 + resilience × 0.3)
  * 
  * Result: 0-1 scalar representing overall hub influence capacity
@@ -51,7 +51,7 @@
  * - Harmony: Expands influence clarity, smooths transitions
  * - Synergy: Increases propagation strength (×1.2-1.5)
  * - Corruption: Distorts field, introduces phase lag
- * - Instability: Dampens reach, suppresses Zone 2 if high
+ * - Stability: Dampens reach, suppresses Zone 2 if high
  * - Resilience: Stabilizes under stress, prevents collapse
  * 
  * OVERLOAD/COLLAPSE/RECOVERY:
@@ -118,7 +118,7 @@ const INFLUENCE_PROPAGATION = {
   HARMONY_WEIGHT: 0.5,
   SYNERGY_WEIGHT: 0.5,
   CORRUPTION_REDUCTION: 0.3,
-  INSTABILITY_REDUCTION: 0.4,
+  STABILITY_REDUCTION: 0.4,
   RESILIENCE_BOOST_FACTOR: 0.3,
   
   // Visual modulation
@@ -132,8 +132,8 @@ const INFLUENCE_PROPAGATION = {
   CORRUPTION_PHASE_LAG: 0.3,   // Phase lag at max corruption
   CORRUPTION_ASYMMETRY: 0.2,   // Field distortion factor
   
-  // Instability effects
-  INSTABILITY_REACH_DAMPING: 0.4,  // How much instability suppresses reach
+  // Stability effects
+  STABILITY_REACH_DAMPING: 0.4,  // How much stability suppresses reach
   
   // Secondary node halo intensity
   ZONE_1_NODE_HALO_MAX: 0.15,  // Max secondary halo intensity
@@ -184,9 +184,9 @@ export class HubInfluencePropagation {
     const corruptionPenalty = 1.0 - (hubState.corruption || 0) * INFLUENCE_PROPAGATION.CORRUPTION_REDUCTION;
     strength *= corruptionPenalty;
     
-    // Apply instability reduction
-    const instabilityPenalty = 1.0 - (hubState.instability || 0) * INFLUENCE_PROPAGATION.INSTABILITY_REDUCTION;
-    strength *= instabilityPenalty;
+    // Apply stability reduction
+    const stabilityPenalty = 1.0 - (hubState.stability || 0) * INFLUENCE_PROPAGATION.STABILITY_REDUCTION;
+    strength *= stabilityPenalty;
     
     // Apply resilience boost
     const resilienceBoost = 0.7 + (hubState.resilience || 0) * INFLUENCE_PROPAGATION.RESILIENCE_BOOST_FACTOR;
@@ -284,7 +284,7 @@ export class HubInfluencePropagation {
       // State
       hubPhase: 0,
       corruption: 0,
-      instability: 0,
+      stability: 0,
       harmony: 0.5,
       synergy: 0.5,
       resilience: 0,
@@ -331,7 +331,7 @@ export class HubInfluencePropagation {
       // Cache hub state for visual effects
       influence.hubPhase = hubState.hubPhase || 0;
       influence.corruption = hubState.corruption || 0;
-      influence.instability = hubState.instability || 0;
+      influence.po = hubState.instability || 0;
       influence.harmony = hubState.harmony || 0.5;
       influence.synergy = hubState.synergy || 0.5;
       influence.resilience = hubState.resilience || 0;
@@ -368,8 +368,8 @@ export class HubInfluencePropagation {
       this.applyInfluenceToNode(nodeId, influence, true);
     });
     
-    // Apply influence to Zone 2 nodes (suppressed if instability high)
-    if (influence.instability < 0.7) {
+    // Apply influence to Zone 2 nodes (suppressed if stability high)
+    if (influence.stability < 0.7) {
       neighbors.zone2.forEach((nodeId) => {
         this.applyInfluenceToNode(nodeId, influence, false);
       });
@@ -404,7 +404,7 @@ export class HubInfluencePropagation {
       phase: hubInfluence.hubPhase,
       harmonyFactor: hubInfluence.harmony,
       corruption: hubInfluence.corruption,
-      instability: hubInfluence.instability,
+      stability: hubInfluence.stability,
       
       // Compute secondary halo intensity
       haloIntensity: isZone1 
@@ -440,7 +440,7 @@ export class HubInfluencePropagation {
     });
     
     // Apply weak Zone 2 influence to links connected to Zone 1 nodes
-    if (hubInfluence.instability < 0.7) {
+    if (hubInfluence.stability < 0.7) {
       hubInfluence.zone1Nodes.forEach((zone1NodeId) => {
         linkRegistry.forEach((link) => {
           if (!link || !link.userData) return;
@@ -512,7 +512,7 @@ export class HubInfluencePropagation {
       harmonyFactor: hubInfluence.harmony,
       synergyBoost: INFLUENCE_PROPAGATION.SYNERGY_STRENGTH_MULTIPLIER,
       corruption: hubInfluence.corruption,
-      instability: hubInfluence.instability,
+      stability: hubInfluence.stability,
       
       // Field distortion (corruption makes influence less smooth)
       fieldDistortion: hubInfluence.corruption * INFLUENCE_PROPAGATION.CORRUPTION_ASYMMETRY
@@ -563,7 +563,7 @@ export class HubInfluencePropagation {
       zone2Nodes: influence.zone2Nodes.length,
       phase: influence.hubPhase.toFixed(3),
       corruption: influence.corruption.toFixed(2),
-      instability: influence.instability.toFixed(2),
+      stability: influence.stability.toFixed(2),
       harmony: influence.harmony.toFixed(2),
       synergy: influence.synergy.toFixed(2),
       resilience: influence.resilience.toFixed(2)

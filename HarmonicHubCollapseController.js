@@ -6,7 +6,7 @@
  * SYSTEM BEHAVIOR:
  * - Tracks corruption-driven phase collapse in harmonic hubs
  * - Transitions smooth between healthy → overload → collapse states
- * - Drives visual effects: phase variance, halo instability, shockwaves
+ * - Drives visual effects: phase variance, halo stability, shockwaves
  * - Fully reversible: hub recovers when corruption decreases
  * - Zero gameplay impact, purely visual narrative
  * 
@@ -47,7 +47,7 @@ export class HarmonicHubCollapseController {
         this.lastShockwaveTime = 0.0;
         this.shockwaveQueue = []; // Active shockwaves
         
-        // Halo instability
+        // Halo stability
         this.haloAmplitude = 0.0;
         this.haloPhase = 0.0;
         
@@ -57,7 +57,7 @@ export class HarmonicHubCollapseController {
             corruptionThreshold: 0.6,        // Corruption must exceed this
             harmonyMinimum: 0.3,             // Harmony must drop below this ratio
             synergyMinimumForOverload: 0.5,  // Energy keeps flowing
-            instabilityThreshold: 0.5,       // Instability threshold for overload
+            stabilityThreshold: 0.5,        // Stability threshold for overload
             
             // Collapse progression
             collapseSmoothingRate: 0.06,     // Speed of collapse factor interpolation
@@ -65,7 +65,7 @@ export class HarmonicHubCollapseController {
             
             // Phase variance calculation
             baseVarianceScale: 0.3,          // Base phase variance from corruption
-            instabilityVarianceScale: 0.4,   // Instability adds to variance
+            stabilityVarianceScale: 0.4,    // Stability adds to variance
             synergyVarianceDamping: 0.6,     // Synergy suppresses variance
             
             // Shockwave generation
@@ -74,10 +74,10 @@ export class HarmonicHubCollapseController {
             shockwaveDuration: 0.4,          // How long each shockwave lasts
             shockwaveAmplitude: 0.15,        // Phase disturbance amplitude
             
-            // Halo instability
+            // Halo stability
             haloBaseAmplitude: 0.05,         // Base halo amplitude
             haloFrequency: 2.0,              // Halo oscillation frequency (Hz)
-            haloInstabilityScale: 0.8,       // Instability increases halo
+            haloStabilityScale: 0.8,         // Stability increases halo
         };
         
         // Shockwave state cache
@@ -91,15 +91,15 @@ export class HarmonicHubCollapseController {
     /**
      * Update collapse state based on node health metrics
      */
-    update(harmony = 1.0, corruption = 0.0, synergy = 0.5, instability = 0.0, deltaTime = 0.016) {
+    update(harmony = 1.0, corruption = 0.0, synergy = 0.5, stability = 0.0, deltaTime = 0.016) {
         // Clamp inputs
         harmony = Math.max(0, Math.min(1, harmony));
         corruption = Math.max(0, Math.min(1, corruption));
         synergy = Math.max(0, Math.min(1, synergy));
-        instability = Math.max(0, Math.min(1, instability));
+        stability = Math.max(0, Math.min(1, stability));
 
         // === 1. CHECK OVERLOAD ACTIVATION ===
-        this.isInOverload = this._checkOverloadConditions(harmony, corruption, synergy, instability);
+        this.isInOverload = this._checkOverloadConditions(harmony, corruption, synergy, stability);
 
         if (this.isInOverload) {
             this.overloadAge += deltaTime;
@@ -113,7 +113,7 @@ export class HarmonicHubCollapseController {
             harmony,
             corruption,
             synergy,
-            instability
+            stability
         );
 
         // Smooth interpolation
@@ -123,18 +123,18 @@ export class HarmonicHubCollapseController {
         // === 3. COMPUTE PHASE VARIANCE ===
         this.targetPhaseVariance = this._computePhaseVariance(
             corruption,
-            instability,
+            stability,
             synergy
         );
 
         this.phaseVariance += (this.targetPhaseVariance - this.phaseVariance) *
                              this.config.phaseVarianceSmoothingRate;
 
-        // === 4. UPDATE HALO INSTABILITY ===
-        this._updateHaloInstability(instability, deltaTime);
+        // === 4. UPDATE HALO STABILITY ===
+        this._updateHaloStability(stability, deltaTime);
 
         // === 5. GENERATE SHOCKWAVES ===
-        this._updateShockwaves(deltaTime, corruption, instability);
+        this._updateShockwaves(deltaTime, corruption, stability);
 
         // === 6. CLAMP VALUES ===
         this.collapseFactor = Math.max(0, Math.min(1, this.collapseFactor));
@@ -144,7 +144,7 @@ export class HarmonicHubCollapseController {
     /**
      * Check if hub should enter overload state
      */
-    _checkOverloadConditions(harmony, corruption, synergy, instability) {
+    _checkOverloadConditions(harmony, corruption, synergy, stability) {
         // Must have energy flowing (synergy > threshold)
         if (synergy < this.config.synergyMinimumForOverload) {
             return false;
@@ -160,19 +160,19 @@ export class HarmonicHubCollapseController {
             return false;
         }
 
-        // Either instability high or corruption very high
+        // Either stability high or corruption very high
         const harmonyRatio = harmony > 0 ? corruption / harmony : Infinity;
         const corruptionDominant = harmonyRatio > 1.5; // 1.5x corruption vs harmony
-        const instabilityHigh = instability > this.config.instabilityThreshold;
+        const stabilityHigh = stability > this.config.stabilityThreshold;
 
-        return corruptionDominant || instabilityHigh;
+        return corruptionDominant || stabilityHigh;
     }
 
     /**
      * Compute collapse factor (0 = healthy, 1 = fully collapsed)
      * Soft state transition based on corruption vs harmony
      */
-    _computeCollapseFactor(harmony, corruption, synergy, instability) {
+    _computeCollapseFactor(harmony, corruption, synergy, stability) {
         if (!this.isInOverload) {
             return 0.0; // Instant recovery when not in overload
         }
@@ -181,8 +181,8 @@ export class HarmonicHubCollapseController {
         const corruptionExcess = Math.max(0, corruption - harmony);
         let collapse = corruptionExcess; // 0 to 1
 
-        // Instability accelerates collapse
-        collapse += instability * 0.3; // Up to +0.3
+        // Stability accelerates collapse
+        collapse += stability * 0.3; // Up to +0.3
 
         // Synergy resistance slows collapse
         collapse *= (1.0 - synergy * 0.2); // Up to 20% reduction
@@ -198,7 +198,7 @@ export class HarmonicHubCollapseController {
      * Compute phase variance (angular deviation from hub phase)
      * Higher = more chaotic, links desynchronize
      */
-    _computePhaseVariance(corruption, instability, synergy) {
+    _computePhaseVariance(corruption, stability, synergy) {
         if (this.collapseFactor < 0.01) {
             return 0.0; // No variance when healthy
         }
@@ -206,8 +206,8 @@ export class HarmonicHubCollapseController {
         // Base variance from corruption
         let variance = corruption * this.config.baseVarianceScale;
 
-        // Instability amplifies variance
-        variance += instability * this.config.instabilityVarianceScale;
+        // Stability amplifies variance
+        variance += stability * this.config.stabilityVarianceScale;
 
         // Synergy suppresses variance
         variance *= (1.0 - synergy * this.config.synergyVarianceDamping);
@@ -223,13 +223,13 @@ export class HarmonicHubCollapseController {
     }
 
     /**
-     * Update halo instability oscillation
+     * Update halo stability oscillation
      */
-    _updateHaloInstability(instability, deltaTime) {
-        // Halo amplitude driven by collapse factor and instability
+    _updateHaloStability(stability, deltaTime) {
+        // Halo amplitude driven by collapse factor and stability
         this.targetHaloAmplitude = this.collapseFactor *
                                   this.config.haloBaseAmplitude *
-                                  (1.0 + instability * this.config.haloInstabilityScale);
+                                  (1.0 + stability * this.config.haloStabilityScale);
 
         // Smooth amplitude change
         this.haloAmplitude += (this.targetHaloAmplitude - this.haloAmplitude) * 0.1;
@@ -244,13 +244,13 @@ export class HarmonicHubCollapseController {
     /**
      * Generate and update shockwaves
      */
-    _updateShockwaves(deltaTime, corruption, instability) {
+    _updateShockwaves(deltaTime, corruption, stability) {
         // Update shockwave timer
         this._shockwaveTimer += deltaTime;
 
         // Generate new shockwave if timer exceeded
         if (this._shockwaveTimer >= this._nextShockwaveInterval && this.collapseFactor > 0.3) {
-            this._generateShockwave(corruption, instability);
+            this._generateShockwave(corruption, stability);
             this._shockwaveTimer = 0.0;
 
             // Next shockwave interval scales with collapse
@@ -273,10 +273,10 @@ export class HarmonicHubCollapseController {
     /**
      * Generate a new shockwave
      */
-    _generateShockwave(corruption, instability) {
+    _generateShockwave(corruption, stability) {
         const amplitude = this.config.shockwaveAmplitude *
                          (1.0 + corruption * 0.5) *
-                         (1.0 + instability * 0.3);
+                         (1.0 + stability * 0.3);
 
         this.shockwaveQueue.push({
             age: 0.0,
