@@ -135,6 +135,9 @@ export class HealingParticleSystem_Session136 {
             trailDensity: 5,       // Particles per unit distance
             lodDistance: 100,
             debugVisualBoost: true,
+            debugExtremeSpawnIndicator: false, // temporary debug mode for huge cube
+            debugSpawnProbe: true,
+            debugSpawnLogs: true,
             ...config
         };
         
@@ -144,6 +147,10 @@ export class HealingParticleSystem_Session136 {
         this.material = null;
         this.mesh = null;
         this.enabled = true;
+        this.debugCube = null;
+        this.debugCubeVisible = false;
+        this.debugProbe = null;
+        this.debugProbeHideAt = 0;
         
         // Internal tracking
         this.lastUpdateTime = 0;
@@ -151,6 +158,20 @@ export class HealingParticleSystem_Session136 {
         this.scarEmissions = new Map(); // scarId -> accumulated emission
         
         this.setup();
+    }
+
+    _ensureMeshAttached() {
+        if (this.mesh && this.scene && this.mesh.parent !== this.scene) {
+            this.scene.add(this.mesh);
+        }
+
+        if (this.config.debugExtremeSpawnIndicator && this.debugCube && this.scene && this.debugCube.parent !== this.scene) {
+            this.scene.add(this.debugCube);
+        }
+
+        if (this.config.debugSpawnProbe && this.debugProbe && this.scene && this.debugProbe.parent !== this.scene) {
+            this.scene.add(this.debugProbe);
+        }
     }
     
     setup() {
@@ -193,6 +214,33 @@ export class HealingParticleSystem_Session136 {
         this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_PARTICLES);
         
         this.scene.add(this.mesh);
+
+        // Temporary debug indicator: huge red cube per emit
+        if (this.config.debugExtremeSpawnIndicator) {
+            this.debugCube = new THREE.Mesh(
+                new THREE.BoxGeometry(80, 80, 80),
+                new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.95, depthWrite: false, depthTest: false })
+            );
+            this.debugCube.visible = true;
+            this.debugCube.renderOrder = 999;
+            this.scene.add(this.debugCube);
+        }
+
+        if (this.config.debugSpawnProbe) {
+            this.debugProbe = new THREE.Mesh(
+                new THREE.SphereGeometry(0.25, 10, 10),
+                new THREE.MeshBasicMaterial({
+                    color: 0xff4d7d,
+                    transparent: true,
+                    opacity: 0.92,
+                    depthWrite: false,
+                    depthTest: false
+                })
+            );
+            this.debugProbe.visible = false;
+            this.debugProbe.renderOrder = 999;
+            this.scene.add(this.debugProbe);
+        }
     }
     
     /**
@@ -234,7 +282,23 @@ export class HealingParticleSystem_Session136 {
         if (mode !== 'all' && mode !== 'healing') return;
         if (!this.mesh) return;
         if (!this.enabled) return;
+
+        this._ensureMeshAttached();
         
+        // Keep debug cube visible and always on top for confirmation
+        if (this.config.debugExtremeSpawnIndicator && this.debugCube) {
+            this.debugCube.visible = true;
+            if (!this.debugCube.visible) this.debugCube.visible = true;
+            // keep at origin if no emit yet
+            if (this.debugCube.position.length() < 0.001) {
+                this.debugCube.position.set(0, 0, 0);
+            }
+        }
+
+        if (this.config.debugSpawnProbe && this.debugProbe && this.debugProbe.visible && time >= this.debugProbeHideAt) {
+            this.debugProbe.visible = false;
+        }
+
         // Update uniforms
         this.material.uniforms.uTime.value = time;
         this.lastUpdateTime = time;
@@ -362,6 +426,27 @@ export class HealingParticleSystem_Session136 {
         // "Trails must follow the exact wave path" -> Stationary particles fading out,
         // effectively tracing the line.
         const vel = new THREE.Vector3(0,0,0); 
+
+        // debug log for spawn confirmation stays independent from the cube placeholder
+        if (this.config.debugSpawnLogs) {
+            console.error('[HealingParticleSystem DEBUG] emitHealingTrail spawned at', pos.toArray(), 'intensity', normalizedIntensity, 'time', time);
+        }
+
+        if (this.config.debugSpawnProbe && this.debugProbe) {
+            this.debugProbe.position.copy(pos);
+            this.debugProbe.scale.setScalar(0.65 + normalizedIntensity * 0.85);
+            this.debugProbe.visible = true;
+            this.debugProbeHideAt = time + 0.55;
+        }
+
+        if (this.config.debugExtremeSpawnIndicator) {
+            if (this.debugCube) {
+                this.debugCube.position.copy(pos);
+                this.debugCube.scale.set(40 + (normalizedIntensity * 30), 40 + (normalizedIntensity * 30), 40 + (normalizedIntensity * 30));
+                this.debugCube.visible = true;
+                this.debugCubeVisible = true;
+            }
+        }
         
         this.spawnParticle(pos, vel, color, size, life, time);
     }

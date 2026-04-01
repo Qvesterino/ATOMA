@@ -9,6 +9,7 @@
 
 import * as THREE from 'three';
 import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
+import { LinkPointFXBase } from './LinkPointFXBase.js';
 
 const POOL_SIZE = 480;
 const PER_LINK_CAP = 20;
@@ -23,6 +24,12 @@ function ensureUserData(obj) {
 export class LinkCorruptionParticleSystem {
   constructor(scene) {
     this.scene = scene;
+    this.pointFXBase = new LinkPointFXBase(this.scene, {
+      renderLayer: 'LINK_PARTICLES',
+      preset: 'corruption',
+      capacity: POOL_SIZE,
+      textureKind: 'ember'
+    });
 
     // Pool + per-link index map
     this.poolSize = POOL_SIZE;
@@ -43,7 +50,15 @@ export class LinkCorruptionParticleSystem {
     this.rotAttr = new Float32Array(POOL_SIZE); // rotation rate
     this.stretchAttr = new Float32Array(POOL_SIZE); // anisotropic stretch factor
 
-    this.geometry = new THREE.BufferGeometry();
+    this.geometry = this.pointFXBase.createGeometry({
+      aVelocity: { itemSize: 3 },
+      aJitter: { itemSize: 3 },
+      aLife: { itemSize: 2 },
+      aSeed: { itemSize: 1 },
+      aScale: { itemSize: 1 },
+      aRot: { itemSize: 1 },
+      aStretch: { itemSize: 1 }
+    });
     this.geometry.setAttribute('position', new THREE.BufferAttribute(this.startPos, 3).setUsage(THREE.DynamicDrawUsage));
     this.geometry.setAttribute('aVelocity', new THREE.BufferAttribute(this.velocity, 3).setUsage(THREE.DynamicDrawUsage));
     this.geometry.setAttribute('aJitter', new THREE.BufferAttribute(this.jitterDir, 3).setUsage(THREE.DynamicDrawUsage));
@@ -53,20 +68,8 @@ export class LinkCorruptionParticleSystem {
     this.geometry.setAttribute('aRot', new THREE.BufferAttribute(this.rotAttr, 1).setUsage(THREE.DynamicDrawUsage));
     this.geometry.setAttribute('aStretch', new THREE.BufferAttribute(this.stretchAttr, 1).setUsage(THREE.DynamicDrawUsage));
 
-    this.material = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      depthTest: true,
-      blending: THREE.AdditiveBlending,
-      uniforms: {
-        uTime: { value: 0 },
-        uBaseColor: { value: new THREE.Color(0xff1744) }, // debug neon red
-        uEdgeColor: { value: new THREE.Color(0xff5a36) }, // debug neon red edge
-        uOpacity: { value: 2.2 },
-        uSizeRange: { value: new THREE.Vector2(4.5, 10.5) },
-        uSoftNear: { value: 0.28 },
-        uSoftRange: { value: 0.55 }
-      },
+    this.material = this.pointFXBase.createMaterial({
+      preset: 'corruption',
       vertexShader: `
         attribute vec3 aVelocity;
         attribute vec3 aJitter;
@@ -170,7 +173,21 @@ export class LinkCorruptionParticleSystem {
           base += (flash + streak) * 0.35;
           gl_FragColor = vec4(base, alpha);
         }
-      `
+      `,
+      uniforms: {
+        uTime: { value: 0 },
+        uBaseColor: { value: new THREE.Color(0xff1744) },
+        uEdgeColor: { value: new THREE.Color(0xff5a36) },
+        uOpacity: { value: 2.2 },
+        uSizeRange: { value: new THREE.Vector2(4.5, 10.5) },
+        uSoftNear: { value: 0.28 },
+        uSoftRange: { value: 0.55 }
+      },
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: true,
+      toneMapped: false,
+      vertexColors: true
     });
 
     this.points = new THREE.Points(this.geometry, this.material);
@@ -178,7 +195,7 @@ export class LinkCorruptionParticleSystem {
     this.points.visible = true;
     applyLinkRenderLayer(this.points, 'LINK_PARTICLES');
     ensureUserData(this.points).isCorruptionParticles = true;
-    this.scene.add(this.points);
+    this.pointFXBase.ensureAttached(this.points);
     this._bindSemanticBus();
   }
 
@@ -284,9 +301,7 @@ export class LinkCorruptionParticleSystem {
     }
     this._semanticSubscriptions = [];
 
-    this.scene.remove(this.points);
-    this.geometry.dispose();
-    this.material.dispose();
+    this.pointFXBase?.disposePointCloud?.(this.points);
     this.linkIndices.clear();
     this.linkByPair.clear();
   }

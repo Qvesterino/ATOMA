@@ -88,11 +88,12 @@ export class HarmonicHealingVisualSystem_Session134 {
         this.particles = particleSystem;
         
         this.config = {
-            waveSpeed: 3.2,           // Units per second
-            spawnInterval: 1.5,      // Minimum seconds between spawns (slower)
-            harmonyThreshold: 0.18,   // Minimum healing drive to start spawning
-            maxWaves: 96,             // Performance limit
-            repairVisualsOnly: false, // Allow gameplay stats changes
+            waveSpeed: 3.2,            // Units per second
+            spawnInterval: 1.5,        // Minimum seconds between spawns (slower)
+            maxWaves: 96,              // Performance limit (total active waves)
+            linkSpawnOnly: true,       // Spawn only when links exist (true)
+            spawnPerLink: true,        // Spawn from every link each interval
+            repairVisualsOnly: false,  // Allow gameplay stats changes
             debugVisualBoost: true,
             ...config
         };
@@ -299,26 +300,60 @@ export class HarmonicHealingVisualSystem_Session134 {
      * Logic to decide if/where to spawn a new wave
      */
     _attemptSpawn(time, state) {
-        // Rate limiting
+        // Rate limiting by global interval
         if (time - this.lastSpawnTime < this.config.spawnInterval) return;
-        
-        // Cap count
-        if (this.waves.length >= this.config.maxWaves) return;
-        
-        const healingDrive = state?.healingDrive ?? state?.harmony ?? 0;
-        if (healingDrive < this.config.harmonyThreshold) return;
-        
-        // Determine spawn chance based on healing drive
-        // 0.3 -> 0 spawns (threshold)
-        // 1.0 -> max spawn rate
-        const normalizedChance = Math.max(
-            0,
-            Math.min(1, (healingDrive - this.config.harmonyThreshold) / (1.0 - this.config.harmonyThreshold))
-        );
-        const spawnChance = Math.max(0.25, Math.min(1, normalizedChance * 0.85 + 0.25));
-        if (Math.random() > spawnChance) return;
-        
-        this._spawnSingleWave(state, time);
+
+        // Cap active waves globally
+        if (this.waves.length >= this.config.maxWaves) {
+            this.lastSpawnTime = time;
+            return;
+        }
+
+        // Source links must exist
+        if (!this.linkingSystem || !Array.isArray(this.linkingSystem.links) || this.linkingSystem.links.length === 0) {
+            this.lastSpawnTime = time;
+            return;
+        }
+
+        // Spawn pulse per link if enabled, else spawn one wave from a random link
+        if (this.config.spawnPerLink) {
+            for (const link of this.linkingSystem.links) {
+                if (this.waves.length >= this.config.maxWaves) break;
+
+                const source = link.source || link.sourceNode || link.nodeA;
+                const target = link.target || link.targetNode || link.nodeB;
+                if (!source || !target) continue;
+
+                const reverse = Math.random() > 0.5;
+                const start = reverse ? target : source;
+                const end = reverse ? source : target;
+
+                const speed = this.config.waveSpeed * (0.95 + Math.random() * 0.1);
+                const intensity = 0.6 + Math.random() * 0.4;
+
+                const wave = new HealingWave(link, start, end, speed, intensity);
+                this.waves.push(wave);
+            }
+        } else {
+            const links = this.linkingSystem.links;
+            const link = links[Math.floor(Math.random() * links.length)];
+            const source = link.source || link.sourceNode || link.nodeA;
+            const target = link.target || link.targetNode || link.nodeB;
+            if (!source || !target) {
+                this.lastSpawnTime = time;
+                return;
+            }
+
+            const reverse = Math.random() > 0.5;
+            const start = reverse ? target : source;
+            const end = reverse ? source : target;
+            const speed = this.config.waveSpeed * (0.95 + Math.random() * 0.1);
+            const intensity = 0.6 + Math.random() * 0.4;
+
+            const wave = new HealingWave(link, start, end, speed, intensity);
+            this.waves.push(wave);
+        }
+
         this.lastSpawnTime = time;
     }
     

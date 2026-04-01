@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
+import { LinkPointFXBase } from './LinkPointFXBase.js';
 
 const SPARK_VS = `
 attribute float aSpawnTime;
@@ -146,6 +147,12 @@ export class LinkSparkSystem {
         if (DEBUG_SPARKS) console.log("SPARK SYSTEM CONSTRUCTED");
         this.scene = scene;
         this.maxSparks = maxSparks;
+        this.pointFXBase = new LinkPointFXBase(this.scene, {
+            renderLayer: 'LINK_SPARKS',
+            preset: 'spark',
+            capacity: this.maxSparks,
+            textureKind: 'spark'
+        });
         this.spawnIndex = 0;
         this._debugSpawned = 0;
 
@@ -174,11 +181,15 @@ export class LinkSparkSystem {
             spawnTimes[i] = -100.0;
         }
 
-        const geometry = new THREE.BufferGeometry();
-        // REQUIRED: position attribute for Three.js to render anything
-        const positions = new Float32Array(this.maxSparks * 3); // x, y, z for each spark
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        
+        const geometry = this.pointFXBase.createGeometry({
+            aSpawnTime: { itemSize: 1 },
+            aLifeTime: { itemSize: 1 },
+            aT: { itemSize: 1 },
+            aAngle: { itemSize: 1 },
+            aSpeed: { itemSize: 1 },
+            aSize: { itemSize: 1 }
+        });
+
         geometry.setAttribute('aSpawnTime', new THREE.BufferAttribute(spawnTimes, 1));
         geometry.setAttribute('aLifeTime', new THREE.BufferAttribute(lifeTimes, 1));
         geometry.setAttribute('aT', new THREE.BufferAttribute(tValues, 1));
@@ -202,8 +213,16 @@ export class LinkSparkSystem {
         };
 
         // Restore shader material for sparks
-        const material = getSparkMaterialBase().clone();
-        material.uniforms = this.uniforms;
+        const material = this.pointFXBase.createMaterial({
+            uniforms: this.uniforms,
+            vertexShader: SPARK_VS,
+            fragmentShader: SPARK_FS,
+            blending: THREE.AdditiveBlending,
+            depthTest: true,
+            depthWrite: false,
+            toneMapped: false,
+            vertexColors: false
+        });
 
         this.points = new THREE.Points(geometry, material);
         this.points.frustumCulled = false; // Always render
@@ -213,7 +232,7 @@ export class LinkSparkSystem {
         if (DEBUG_SPARKS) console.log('SPARK MESH', this.points);
         
         // Add to scene
-        this.scene.add(this.points);
+        this.pointFXBase.ensureAttached(this.points);
     }
 
     getMesh() {
@@ -405,11 +424,7 @@ export class LinkSparkSystem {
 
     dispose() {
         if (this.points) {
-            this.points.geometry.dispose();
-            this.points.material.dispose();
-            if (this.points.parent) {
-                this.points.parent.remove(this.points);
-            }
+            this.pointFXBase?.disposePointCloud?.(this.points);
         }
     }
 
