@@ -1186,19 +1186,15 @@ const adapter = this._createLinkSystemAdapter(
             result = this._aggregateNodeMetrics();
         }
 
-        // Publish to __ATOMA_LIVE_METRICS__
-        scope.__ATOMA_LIVE_METRICS__ = {
+        this._safePublishLiveMetrics({
             networkSynergy: this._clamp01(result.networkSynergy ?? result.synergy ?? 0),
             harmonyFlow: this._clamp01(result.harmonyFlow ?? result.harmony ?? 0),
             networkStress: this._clamp01(result.networkStress ?? (1 - (result.stability ?? 0))),
             corruptionLevel: this._clamp01(result.corruptionLevel ?? result.corruption ?? 0),
-            loadPressure: this._clamp01(result.loadPressure ?? 0)
-        };
-
-        // Debug guard - warn if LIVE METRICS not set
-        if (!scope.__ATOMA_LIVE_METRICS__) {
-            console.warn('[MetricsRuntime] LIVE METRICS NOT SET');
-        }
+            loadPressure: this._clamp01(result.loadPressure ?? result.load ?? result.pressure ?? 0),
+            nodeCount: Number.isFinite(result.nodeCount) ? result.nodeCount : 0,
+            linkCount: Number.isFinite(result.linkCount) ? result.linkCount : this._countLinks()
+        });
     }
 
     /**
@@ -1255,6 +1251,26 @@ const adapter = this._createLinkSystemAdapter(
     _aggregateNodeMetrics() {
         const nodesList = Array.isArray(this.nodes?.nodes) ? this.nodes.nodes : [];
         const nodeCount = nodesList.length;
+
+        const readNodeMetric = (node, canonicalKey, fallbackKeys = []) => {
+            const userData = node?.userData || {};
+            const metrics = userData.metrics || {};
+
+            const candidates = [
+                userData[canonicalKey],
+                metrics[canonicalKey]
+            ];
+
+            for (const fallbackKey of fallbackKeys) {
+                candidates.push(userData[fallbackKey], metrics[fallbackKey]);
+            }
+
+            for (const value of candidates) {
+                if (Number.isFinite(value)) return value;
+            }
+
+            return undefined;
+        };
         
         // Initialize accumulators
         let sumSynergy = 0;
@@ -1265,14 +1281,32 @@ const adapter = this._createLinkSystemAdapter(
         let validNodeCount = 0;
 
         for (const node of nodesList) {
-            const metrics = node?.userData?.metrics;
-            if (!metrics) continue;
+            const synergy = readNodeMetric(node, 'synergy', ['synergyLevel']);
+            const harmony = readNodeMetric(node, 'harmony', ['harmonyLevel']);
+            const stability = readNodeMetric(node, 'stability', ['stabilityLevel']);
+            const instability = readNodeMetric(node, 'instability', ['instabilityLevel']);
+            const corruption = readNodeMetric(node, 'corruption', ['corruptionLevel']);
+            const loadPressure = readNodeMetric(node, 'loadPressure', ['load', 'loadRatio', 'pressure']);
 
-            sumSynergy += this._clamp01(metrics.synergy);
-            sumHarmony += this._clamp01(metrics.harmony);
-            sumStress += this._clamp01(metrics.stability);
-            sumCorruption += this._clamp01(metrics.corruption);
-            sumLoadPressure += this._clamp01(metrics.loadPressure);
+            const resolvedStress = Number.isFinite(stability)
+                ? 1 - stability
+                : (Number.isFinite(instability) ? instability : undefined);
+
+            if (
+                synergy === undefined &&
+                harmony === undefined &&
+                resolvedStress === undefined &&
+                corruption === undefined &&
+                loadPressure === undefined
+            ) {
+                continue;
+            }
+
+            sumSynergy += this._clamp01(synergy ?? 0);
+            sumHarmony += this._clamp01(harmony ?? 0);
+            sumStress += this._clamp01(resolvedStress ?? 0);
+            sumCorruption += this._clamp01(corruption ?? 0);
+            sumLoadPressure += this._clamp01(loadPressure ?? 0);
             validNodeCount++;
         }
 
@@ -1287,6 +1321,7 @@ const adapter = this._createLinkSystemAdapter(
             networkSynergy: avgSynergy,
             harmonyFlow: avgHarmony,
             networkStress: avgStress,
+            stability: 1 - avgStress,
             corruptionLevel: avgCorruption,
             loadPressure: avgLoadPressure,
             nodeCount

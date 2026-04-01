@@ -212,6 +212,10 @@ class NetworkRituals {
     if (!link.userData.visualState) link.userData.visualState = {};
 
     if (runtimeState) {
+      link.userData.corruptionLevel = runtimeState.corruptionLevel;
+      link.userData.integrity = runtimeState.integrity;
+      link.userData.integrityState = runtimeState.state;
+
       link.userData.visualState.corruptionLevel = runtimeState.corruptionLevel;
       link.userData.visualState.integrity = runtimeState.normalizedIntegrity;
       link.userData.visualState.integrityState = runtimeState.state;

@@ -100,6 +100,19 @@ export class LinkResonanceFlowSystem_Session124 {
       // Pulse lifetime
       pulseLifetime: config.pulseLifetime ?? 2.0,         // Seconds before despawn
       pulseAlphaDecay: config.pulseAlphaDecay ?? 0.7,     // Fade at end
+
+      // Phase-jump lifecycle
+      phaseJumpEnabled: config.phaseJumpEnabled ?? true,
+      phaseFadeInSeconds: config.phaseFadeInSeconds ?? 0.18,
+      phaseFadeOutSeconds: config.phaseFadeOutSeconds ?? 0.24,
+      phaseReseedSeconds: config.phaseReseedSeconds ?? 0.18,
+      phaseHopWorldMin: config.phaseHopWorldMin ?? 1.85,
+      phaseHopWorldMax: config.phaseHopWorldMax ?? 4.8,
+      phaseJumpGapWorldMin: config.phaseJumpGapWorldMin ?? 0.55,
+      phaseJumpGapWorldMax: config.phaseJumpGapWorldMax ?? 1.35,
+      phaseTravelDurationMin: config.phaseTravelDurationMin ?? 0.14,
+      phaseTravelDurationMult: config.phaseTravelDurationMult ?? 0.96,
+      phaseTravelDurationJitter: config.phaseTravelDurationJitter ?? 0.28,
       
       // Intensity modulation
       baseIntensity: config.baseIntensity ?? 0.8,
@@ -280,6 +293,82 @@ export class LinkResonanceFlowSystem_Session124 {
       visualStart,
       mediumStart,
       strongStart
+    };
+  }
+
+  _buildPhaseJumpStep(pulse, startPosition) {
+    if (!pulse?.link) return null;
+
+    const linkLength = Math.max(0.0001, this._getLinkLength(pulse.link));
+    const direction = pulse.direction >= 0 ? 1 : -1;
+    const terminalT = direction > 0 ? 1.0 : 0.0;
+    const remainingT = direction > 0
+      ? Math.max(0, terminalT - startPosition)
+      : Math.max(0, startPosition - terminalT);
+
+    if (remainingT <= 0.0001) return null;
+
+    const segmentIndex = pulse.phaseSegmentIndex ?? 0;
+    const rawSeed = (pulse.anomalySeed ?? 0) * 9.137 + segmentIndex * 1.731 + (pulse.phaseSeed ?? 0) * 0.173;
+    const hopSeed = Math.sin(rawSeed * 1.21 + (pulse.driftSeed ?? 0) * 0.07) * 0.5 + 0.5;
+    const gapSeed = Math.sin(rawSeed * 1.73 + (pulse.twistSeed ?? 0) * 0.05 + 0.93) * 0.5 + 0.5;
+    const loadPressure = pulse.loadPressure ?? 0;
+    const stabilityMix = pulse.stabilityMix ?? 0;
+    const overpressure = pulse.overpressure ?? 0;
+
+    const hopWorldMin = Math.max(0.18, this.config.phaseHopWorldMin ?? 1.85);
+    const hopWorldMax = Math.max(hopWorldMin + 0.15, this.config.phaseHopWorldMax ?? 4.8);
+    const gapWorldMin = Math.max(0.04, this.config.phaseJumpGapWorldMin ?? 0.55);
+    const gapWorldMax = Math.max(gapWorldMin + 0.05, this.config.phaseJumpGapWorldMax ?? 1.35);
+
+    const hopWorldBase = hopWorldMin + hopSeed * (hopWorldMax - hopWorldMin);
+    const hopWorld = hopWorldBase * (0.88 + loadPressure * 0.16 + stabilityMix * 0.16 + overpressure * 0.06);
+    const remainingWorld = remainingT * linkLength;
+    const terminalSlackWorld = Math.max(0.24, linkLength * 0.055);
+    const complete = remainingWorld <= hopWorld + terminalSlackWorld;
+    const visibleWorld = complete ? remainingWorld : Math.min(remainingWorld, hopWorld);
+    const gapWorldBase = gapWorldMin + gapSeed * (gapWorldMax - gapWorldMin);
+    const gapWorld = complete ? 0 : Math.min(gapWorldBase, Math.max(0, remainingWorld - visibleWorld));
+
+    const visibleT = Math.min(remainingT, visibleWorld / linkLength);
+    const gapT = Math.min(Math.max(0, gapWorld / linkLength), Math.max(0, remainingT - visibleT));
+    const endT = direction > 0
+      ? Math.min(terminalT, startPosition + visibleT)
+      : Math.max(terminalT, startPosition - visibleT);
+    const nextStartT = complete
+      ? terminalT
+      : (direction > 0
+        ? Math.min(terminalT, endT + gapT)
+        : Math.max(terminalT, endT - gapT));
+
+    const fadeInDuration = Math.max(0.08, (this.config.phaseFadeInSeconds ?? 0.18) * (0.82 + hopSeed * 0.34));
+    const travelDuration = Math.max(
+      this.config.phaseTravelDurationMin ?? 0.14,
+      (visibleWorld / Math.max(0.12, pulse.speed)) *
+        (this.config.phaseTravelDurationMult ?? 0.96) *
+        (0.88 + hopSeed * (this.config.phaseTravelDurationJitter ?? 0.28))
+    );
+    const fadeOutDuration = Math.max(0.10, (this.config.phaseFadeOutSeconds ?? 0.24) * (0.86 + (1.0 - hopSeed) * 0.34));
+    const reseedDuration = complete
+      ? 0
+      : Math.max(0.08, (this.config.phaseReseedSeconds ?? 0.18) + gapWorld * 0.12);
+
+    return {
+      segmentIndex,
+      startT: startPosition,
+      endT,
+      nextStartT,
+      direction,
+      terminalT,
+      visibleWorld,
+      gapWorld,
+      fadeInDuration,
+      travelDuration,
+      fadeOutDuration,
+      reseedDuration,
+      complete,
+      hopSeed,
+      gapSeed,
     };
   }
   
@@ -485,6 +574,16 @@ export class LinkResonanceFlowSystem_Session124 {
       const suppressedUntil = this._repeatSuppressedUntilByLinkId.get(linkId) ?? Number.NEGATIVE_INFINITY;
       if (currentVisualTime < suppressedUntil) continue;
 
+      const linkPulses = this.linkPulses.get(linkId);
+      if (Array.isArray(linkPulses) && linkPulses.some((pulse) => pulse?.active)) {
+        if (this.spawnAccumulators.has(linkId)) {
+          const accumulatorEntry = this.spawnAccumulators.get(linkId);
+          accumulatorEntry.lastTime = currentVisualTime;
+          accumulatorEntry.lastRepeatTime = currentVisualTime;
+        }
+        continue;
+      }
+
       // Get or create spawn accumulator
       if (!this.spawnAccumulators.has(linkId)) {
         this.spawnAccumulators.set(linkId, {
@@ -533,6 +632,7 @@ export class LinkResonanceFlowSystem_Session124 {
     const overloadMix = pressureProfile.overloadMix;
     const debugPulse = this.config.debugPulseVisuals === true;
     const anomalySeed = (linkSeed * 0.61803398875 + (this.stats.pulseSpawnCount + 1) * 0.173 + loadPressure * 0.11 + stabilityMix * 0.09 + overloadMix * 0.07) % 1;
+    const direction = this.config.bidirectional && Math.random() < this.config.pulseBidirectionalChance ? -1 : 1;
     
     // Get or create pulse pool for this link
     if (!this.linkPulses.has(linkId)) {
@@ -543,12 +643,12 @@ export class LinkResonanceFlowSystem_Session124 {
     if (pulses.length >= this.config.maxPulsesPerLink) return;
     
     // Create pulse object
-      const pulse = {
+    const pulse = {
       linkId,
       link,
       
       // Position along link (0 = source, 1 = destination)
-      position: 0,
+      position: direction > 0 ? 0 : 1,
       
       // Speed based on load pressure
       speed: (this.config.pulseSpeedBase + 
@@ -595,13 +695,19 @@ export class LinkResonanceFlowSystem_Session124 {
       active: true,
       
       // Flow direction
-      direction: this.config.bidirectional && Math.random() < this.config.pulseBidirectionalChance ? -1 : 1,
+      direction,
 
       // Unstable presence identity
       anomalySeed,
       phaseSeed: anomalySeed * Math.PI * 2,
       driftSeed: anomalySeed * 11.0,
       twistSeed: anomalySeed * 17.0,
+      phaseState: 'fadeIn',
+      phaseElapsed: 0,
+      phaseAlpha: 0,
+      phaseSegmentIndex: 0,
+      phaseStep: null,
+      phaseRouted: false,
       
       // Metrics
       synergy,
@@ -612,6 +718,14 @@ export class LinkResonanceFlowSystem_Session124 {
       stabilityStage: stabilityProfile.stage,
       overpressure,
     };
+
+    pulse.phaseStep = this._buildPhaseJumpStep(pulse, pulse.position);
+    const routeGuard = this._getLinkLength(link) / Math.max(0.12, pulse.speed);
+    pulse.lifetime = Math.max(
+      this.config.pulseLifetime,
+      routeGuard * 2.75 + 1.2
+    );
+    pulse.phaseRouted = !!pulse.phaseStep?.complete;
     
     pulses.push(pulse);
     this.globalPulses.push(pulse);
@@ -657,25 +771,81 @@ export class LinkResonanceFlowSystem_Session124 {
     for (let i = this.globalPulses.length - 1; i >= 0; i--) {
       const pulse = this.globalPulses[i];
       if (!pulse.active) continue;
-      
-      // Update position along link
-      const travelDistance = pulse.speed * deltaVisual;
-      const linkLength = this._getLinkLength(pulse.link);
+
+      pulse.life += deltaVisual;
+      pulse.phaseElapsed = (pulse.phaseElapsed ?? 0) + deltaVisual;
       const motionSeed = pulse.anomalySeed ?? 0;
       const motionGate = 0.84 + 0.1 * Math.sin(pulse.life * 0.84 + motionSeed * Math.PI * 6.0) + 0.06 * Math.sin(pulse.life * 0.23 + motionSeed * Math.PI * 12.0);
-      pulse.position += pulse.direction * (travelDistance / linkLength) * Math.max(0.55, motionGate);
-      
-      // Update lifetime
-      pulse.life += deltaVisual;
-      
-      // Check if pulse reached end of link
-      if (pulse.position > 1.0 || pulse.position < 0.0) {
+      const phaseGate = Math.max(0.55, motionGate);
+
+      const step = pulse.phaseStep || this._buildPhaseJumpStep(pulse, pulse.position);
+      if (!step) {
         pulse.active = false;
+        continue;
       }
-      
-      // Check if exceeded lifetime
+
+      const phaseState = pulse.phaseState ?? 'fadeIn';
+      const segmentStartT = step.startT;
+      const segmentEndT = step.endT;
+      const nextStartT = step.nextStartT;
+
+      if (phaseState === 'fadeIn') {
+        pulse.position = segmentStartT;
+        const fadeT = clamp01(pulse.phaseElapsed / Math.max(0.001, step.fadeInDuration));
+        pulse.phaseAlpha = fadeT * fadeT * (3 - 2 * fadeT);
+        if (pulse.phaseElapsed >= step.fadeInDuration) {
+          pulse.phaseState = 'travel';
+          pulse.phaseElapsed = 0;
+          pulse.phaseAlpha = 1.0;
+        }
+      } else if (phaseState === 'travel') {
+        const travelT = clamp01(pulse.phaseElapsed / Math.max(0.001, step.travelDuration));
+        const travelEase = travelT * travelT * (3 - 2 * travelT);
+        pulse.position = segmentStartT + (segmentEndT - segmentStartT) * travelEase;
+        pulse.phaseAlpha = 1.0;
+        if (pulse.phaseElapsed >= step.travelDuration) {
+          pulse.phaseState = 'fadeOut';
+          pulse.phaseElapsed = 0;
+        }
+      } else if (phaseState === 'fadeOut') {
+        pulse.position = segmentEndT;
+        const fadeT = clamp01(pulse.phaseElapsed / Math.max(0.001, step.fadeOutDuration));
+        const fadeCurve = 1.0 - (fadeT * fadeT);
+        pulse.phaseAlpha = Math.max(0, fadeCurve);
+        if (pulse.phaseElapsed >= step.fadeOutDuration) {
+          if (step.complete) {
+            pulse.phaseAlpha = 0;
+            pulse.active = false;
+            continue;
+          }
+
+          pulse.phaseState = 'reseed';
+          pulse.phaseElapsed = 0;
+          pulse.phaseAlpha = 0;
+          pulse.position = nextStartT;
+          pulse.phaseSegmentIndex = (pulse.phaseSegmentIndex ?? 0) + 1;
+        }
+      } else if (phaseState === 'reseed') {
+        pulse.phaseAlpha = 0;
+        pulse.position = nextStartT;
+        if (pulse.phaseElapsed >= step.reseedDuration) {
+          const nextStep = this._buildPhaseJumpStep(pulse, nextStartT);
+          if (!nextStep) {
+            pulse.active = false;
+            continue;
+          }
+
+          pulse.phaseStep = nextStep;
+          pulse.phaseState = 'fadeIn';
+          pulse.phaseElapsed = 0;
+          pulse.phaseAlpha = 0;
+          pulse.position = nextStep.startT;
+        }
+      }
+
       if (pulse.life >= pulse.lifetime) {
         pulse.active = false;
+        continue;
       }
     }
   }
@@ -700,10 +870,14 @@ export class LinkResonanceFlowSystem_Session124 {
       const stabilityMix = pulse.stabilityMix ?? 0;
       const motionSeed = pulse.anomalySeed ?? getLinkSeed(pulse.linkId);
       const debugPulse = this.config.debugPulseVisuals === true || pulse.debugPulse === true;
+      const phaseState = pulse.phaseState ?? 'fadeIn';
+      const phaseAlpha = Number.isFinite(pulse.phaseAlpha) ? pulse.phaseAlpha : 1.0;
+      const phaseCollapse = phaseState === 'fadeOut' ? (1.0 - phaseAlpha) : 0;
+      const phaseEmergence = phaseState === 'fadeIn' ? phaseAlpha : 0;
       const opacity = (debugPulse ? 1.0 : this._getPulseOpacity(pulse)) * (pulse.lodSuppression ?? 1.0);
-      const size = pulse.radius * (1.0 + Math.sin(pulse.life * Math.PI * 2) * 0.14 + overloadMix * 0.12 + stabilityMix * 0.08) * (debugPulse ? this.config.debugPulseScaleMult : 1.0);
+      const size = pulse.radius * (1.0 + Math.sin(pulse.life * Math.PI * 2) * 0.14 + overloadMix * 0.12 + stabilityMix * 0.08) * (0.84 + phaseAlpha * 0.34 + phaseCollapse * 0.08) * (debugPulse ? this.config.debugPulseScaleMult : 1.0);
       const entityDrift = 0.02 + overloadMix * 0.035 + stabilityMix * 0.03;
-      const shellPulse = 1.0 + Math.sin(pulse.life * 1.45 + motionSeed * Math.PI * 6.0) * 0.04 + Math.sin(pulse.life * 0.33 + motionSeed * Math.PI * 12.0) * 0.025;
+      const shellPulse = 1.0 + Math.sin(pulse.life * 1.45 + motionSeed * Math.PI * 6.0) * 0.04 + Math.sin(pulse.life * 0.33 + motionSeed * Math.PI * 12.0) * 0.025 + phaseEmergence * 0.06 + phaseCollapse * 0.09;
 
       pulse.mesh.visible = true;
       pulse.mesh.position.set(
@@ -786,57 +960,58 @@ export class LinkResonanceFlowSystem_Session124 {
       };
 
       applyPart('core', {
-        scaleMul: 1.1,
-        glowMul: 1.05,
-        distortionMul: 1.0,
+        scaleMul: 1.08 + phaseEmergence * 0.16 + phaseCollapse * 0.08,
+        glowMul: 1.05 + phaseEmergence * 0.14,
+        distortionMul: 1.0 + phaseCollapse * 0.12,
         noiseScaleMul: 1.0,
-        noiseSpeedMul: 1.0,
+        noiseSpeedMul: 1.0 + phaseCollapse * 0.08,
       });
       applyPart('sheath', {
-        scaleMul: 1.0 + bandMix * 0.08,
+        scaleMul: 0.98 + bandMix * 0.08 + phaseCollapse * 0.06,
         driftMul: 1.0,
+        glowMul: 1.0 + phaseEmergence * 0.06,
       });
       applyPart('trail', {
-        scaleMul: 1.0 + overloadMix * 0.04,
+        scaleMul: 0.92 + overloadMix * 0.04 + phaseCollapse * 0.07,
         driftMul: 1.15,
-        glowMul: 0.92,
-        distortionMul: 0.9,
+        glowMul: 0.92 + phaseCollapse * 0.08,
+        distortionMul: 0.9 + phaseCollapse * 0.12,
         noiseScaleMul: 1.05,
-        noiseSpeedMul: 1.2,
+        noiseSpeedMul: 1.2 + phaseCollapse * 0.12,
       });
       applyPart('halo', {
-        scaleMul: 1.0 + stabilityMix * 0.05,
+        scaleMul: 0.96 + stabilityMix * 0.05 + phaseCollapse * 0.04,
         driftMul: 1.0,
-        glowMul: 0.88,
-        distortionMul: 1.0,
+        glowMul: 0.88 + phaseEmergence * 0.05,
+        distortionMul: 1.0 + phaseCollapse * 0.06,
         noiseScaleMul: 0.82,
         noiseSpeedMul: 0.72,
       });
       applyPart('swirl', {
-        scaleMul: 1.0 + overloadMix * 0.02,
+        scaleMul: 0.98 + overloadMix * 0.02 + phaseCollapse * 0.05,
         driftMul: 1.0,
-        glowMul: 0.95,
-        distortionMul: 1.05,
+        glowMul: 0.95 + phaseEmergence * 0.04,
+        distortionMul: 1.05 + phaseCollapse * 0.08,
         noiseScaleMul: 1.12,
-        noiseSpeedMul: 1.15,
+        noiseSpeedMul: 1.15 + phaseCollapse * 0.1,
       });
       applyPart('overloadA', {
-        visible: debugPulse || overloadMix > 0.02 || pulse.corruption > 0.06,
-        scaleMul: 1.0 + overloadMix * 0.2,
-        driftMul: 1.0 + overloadMix * 0.2,
-        glowMul: 0.82 + overloadMix * 0.5,
-        distortionMul: 0.95,
+        visible: debugPulse || overloadMix > 0.02 || pulse.corruption > 0.06 || phaseCollapse > 0.18,
+        scaleMul: 0.98 + overloadMix * 0.2 + phaseCollapse * 0.1,
+        driftMul: 1.0 + overloadMix * 0.2 + phaseCollapse * 0.08,
+        glowMul: 0.82 + overloadMix * 0.5 + phaseCollapse * 0.12,
+        distortionMul: 0.95 + phaseCollapse * 0.08,
         noiseScaleMul: 1.08,
-        noiseSpeedMul: 1.12,
+        noiseSpeedMul: 1.12 + phaseCollapse * 0.08,
       });
       applyPart('overloadB', {
-        visible: debugPulse || overloadMix > 0.02 || pulse.corruption > 0.06,
-        scaleMul: 1.0 + overloadMix * 0.16,
-        driftMul: 1.0 + overloadMix * 0.18,
-        glowMul: 0.78 + overloadMix * 0.46,
-        distortionMul: 0.92,
+        visible: debugPulse || overloadMix > 0.02 || pulse.corruption > 0.06 || phaseCollapse > 0.18,
+        scaleMul: 0.97 + overloadMix * 0.16 + phaseCollapse * 0.1,
+        driftMul: 1.0 + overloadMix * 0.18 + phaseCollapse * 0.08,
+        glowMul: 0.78 + overloadMix * 0.46 + phaseCollapse * 0.12,
+        distortionMul: 0.92 + phaseCollapse * 0.08,
         noiseScaleMul: 1.12,
-        noiseSpeedMul: 1.18,
+        noiseSpeedMul: 1.18 + phaseCollapse * 0.08,
       });
     }
   }
@@ -912,18 +1087,8 @@ export class LinkResonanceFlowSystem_Session124 {
    * Calculate pulse opacity with fade-out at ends
    */
   _getPulseOpacity(pulse) {
-    const lifeNormalized = pulse.life / pulse.lifetime;
-    
-    // Fade in at start
-    const fadeIn = Math.min(pulse.life * 3, 1.0);
-    
-    // Fade out at end
-    const fadeOutStart = 0.7;
-    let fadeOut = 1.0;
-    if (lifeNormalized > fadeOutStart) {
-      fadeOut = 1.0 - ((lifeNormalized - fadeOutStart) / (1.0 - fadeOutStart)) ** 2;
-    }
-    
+    const phaseAlpha = Number.isFinite(pulse.phaseAlpha) ? pulse.phaseAlpha : 1.0;
+
     // Apply intensity modulation
     const baseOpacity = pulse.intensity * this.config.pulseGlowIntensity;
     
@@ -936,7 +1101,7 @@ export class LinkResonanceFlowSystem_Session124 {
     const pressureBoost = bandBoost + pulse.loadPressure * 0.32 + stabilityMix * 0.18;
     const stabilityBoost = 0.84 + stabilityMix * this.config.stabilityOpacityBoost;
 
-    return fadeIn * fadeOut * baseOpacity * corruptionDampen * pressureBoost * stabilityBoost;
+    return phaseAlpha * baseOpacity * corruptionDampen * pressureBoost * stabilityBoost;
   }
   
   /**
