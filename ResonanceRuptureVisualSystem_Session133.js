@@ -1037,6 +1037,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         bind('metric:corruptionRise');
         bind('metric:stabilityDrop');
         bind('metric:loadPressureHigh');
+        bind('metric.phase.changed');
         bind('network:stressRise');
     }
 
@@ -1053,23 +1054,27 @@ export class ResonanceRuptureVisualSystem_Session133 {
     }
 
     _ingestSemanticPressure(tag, payload = {}) {
+        const semanticPayload = payload?.detail && typeof payload.detail === 'object'
+            ? payload.detail
+            : payload;
+
         switch (tag) {
             case 'link:collapsed': {
-                const linkId = this._resolveLinkId(payload);
+                const linkId = this._resolveLinkId(semanticPayload);
                 if (linkId !== null) this._addEventPressureToLink(linkId, 1.0, tag);
                 break;
             }
             case 'cascade.hop': {
-                const linkId = this._resolveLinkId(payload);
+                const linkId = this._resolveLinkId(semanticPayload);
                 if (linkId !== null) this._addEventPressureToLink(linkId, 0.45, tag);
                 break;
             }
             case 'metric.corruption.spike': {
-                this._addNodeIncidentLinkPressure(payload, 0.35, tag);
+                this._addNodeIncidentLinkPressure(semanticPayload, 0.35, tag);
                 break;
             }
             case 'metric:corruptionRise': {
-                this._addNodeIncidentLinkPressure(payload, 0.25, tag);
+                this._addNodeIncidentLinkPressure(semanticPayload, 0.25, tag);
                 break;
             }
             case 'metric:stabilityDrop': {
@@ -1082,6 +1087,18 @@ export class ResonanceRuptureVisualSystem_Session133 {
             }
             case 'network:stressRise': {
                 this.globalStressBias = THREE.MathUtils.clamp(this.globalStressBias + 0.18, 0, 0.5);
+                break;
+            }
+            case 'metric.phase.changed': {
+                const metric = `${semanticPayload?.metric || ''}`.toLowerCase();
+                const phase = `${semanticPayload?.phase || ''}`.toLowerCase();
+                if (metric === 'corruption' && phase === 'high') {
+                    this._addNodeIncidentLinkPressure(semanticPayload, 0.35, tag);
+                } else if (metric === 'stability' && phase === 'low') {
+                    this._addPressureToTopTrapLinks(0.2, tag, 4);
+                } else if (metric === 'loadpressure' && phase === 'high') {
+                    this._addPressureToTopTrapLinks(0.22, tag, 4);
+                }
                 break;
             }
             default:

@@ -9,6 +9,7 @@ export function setupWaveBurstRouter(game) {
         'link:synergyThreshold',
         'metric:synergySpike',
         'metric.synergy.burst',
+        'metric.phase.changed',
         'link:harmonicLock',
         'metric:harmonyPeak',
         'network:harmonyShift',
@@ -28,6 +29,7 @@ export function setupWaveBurstRouter(game) {
 
     const config = {
         cooldownSeconds: 1.5,
+        phaseDedupSeconds: 0.35,
         maxRecentIntents: 24
     };
 
@@ -35,6 +37,7 @@ export function setupWaveBurstRouter(game) {
         lastBurstTime: 0,
         lastBurstByKey: new Map(),
         regimeBySource: new Map(),
+        recentMetricSignals: new Map(),
         recentIntents: [],
         boundBus: null,
         subscribed: false,
@@ -71,6 +74,34 @@ export function setupWaveBurstRouter(game) {
         if (state.recentIntents.length > config.maxRecentIntents) {
             state.recentIntents.splice(0, state.recentIntents.length - config.maxRecentIntents);
         }
+    }
+
+    function normalizeMetricName(metric) {
+        return String(metric ?? '').trim().toLowerCase();
+    }
+
+    function getMetricSignalKey(metric, sourceId, phase) {
+        return `${normalizeMetricName(metric)}:${String(sourceId ?? '')}:${String(phase ?? '')}`;
+    }
+
+    function pruneRecentMetricSignals(nowSec) {
+        if (state.recentMetricSignals.size <= 96) return;
+        for (const [key, last] of state.recentMetricSignals.entries()) {
+            if ((nowSec - last) > config.phaseDedupSeconds * 2) {
+                state.recentMetricSignals.delete(key);
+            }
+        }
+    }
+
+    function shouldSkipMetricSignal(metric, sourceId, phase, nowSec) {
+        const key = getMetricSignalKey(metric, sourceId, phase);
+        const last = state.recentMetricSignals.get(key);
+        if (Number.isFinite(last) && (nowSec - last) < config.phaseDedupSeconds) {
+            return true;
+        }
+        state.recentMetricSignals.set(key, nowSec);
+        pruneRecentMetricSignals(nowSec);
+        return false;
     }
 
     function asVector3(candidate) {
@@ -293,6 +324,19 @@ export function setupWaveBurstRouter(game) {
         return type;
     }
 
+    function resolvePhaseRoute(metric, phase) {
+        const normalizedMetric = normalizeMetricName(metric);
+        const normalizedPhase = normalizeMetricName(phase);
+
+        if (!normalizedMetric || !normalizedPhase) return null;
+        if (normalizedMetric === 'synergy' && normalizedPhase === 'high') return { type: 'synergy', phase: 'high' };
+        if (normalizedMetric === 'harmony' && normalizedPhase === 'high') return { type: 'harmonic', phase: 'high' };
+        if (normalizedMetric === 'corruption' && normalizedPhase === 'high') return { type: 'corruption', phase: 'high' };
+        if (normalizedMetric === 'loadpressure' && normalizedPhase === 'high') return { type: 'stability', phase: 'high' };
+        if (normalizedMetric === 'stability' && normalizedPhase === 'low') return { type: 'stability', phase: 'low' };
+        return null;
+    }
+
     function resolveNodeRegimeForType(type, payload = {}) {
         const node = resolveSourceNode(payload);
         if (!node) return null;
@@ -333,6 +377,24 @@ export function setupWaveBurstRouter(game) {
     }
 
     function resolveCurrentRegime(type, payload = {}, eventTag = '') {
+        if (eventTag === 'metric.phase.changed') {
+            const phase = normalizeMetricName(payload.phase);
+            const value = clamp01(payload.value ?? payload.intensity ?? payload.strength ?? 0);
+
+            if (type === 'synergy') {
+                return resolveSynergyRegime(value, clamp01(payload.corruption ?? payload.corruptionLevel ?? 0));
+            }
+            if (type === 'harmonic') {
+                return resolveHarmonicRegime(value, clamp01(payload.stability ?? 1));
+            }
+            if (type === 'corruption') {
+                return resolveCorruptionRegime(value);
+            }
+            if (type === 'stability') {
+                return resolveStabilityRegime(1 - value, value, value);
+            }
+        }
+
         if (eventTag === 'cascade.hop' || eventTag === 'cascade.start' || eventTag === 'harmonic.cascade.start') {
             return resolveLinkRegimeForType(type, payload) || resolveNodeRegimeForType(type, payload);
         }
@@ -378,6 +440,37 @@ export function setupWaveBurstRouter(game) {
             targetNode,
             travel
         };
+    }
+
+    function handleSemanticMetricSignal(type, payload = {}, eventTag = '', phase = null) {
+        const semanticPayload = payload?.detail && typeof payload.detail === 'object'
+            ? payload.detail
+            : payload;
+
+        const resolvedPhase = phase ?? semanticPayload?.phase ?? null;
+        const sourceId = resolveSourceId(type, semanticPayload, eventTag);
+        const nowSec = performance.now() * 0.001;
+        if (resolvedPhase) {
+            const metricKey = semanticPayload?.metric ?? type;
+            if (shouldSkipMetricSignal(metricKey, sourceId, resolvedPhase, nowSec)) {
+                return;
+            }
+        }
+
+        emitIntent(type, semanticPayload, eventTag);
+    }
+
+    function handlePhaseChanged(payload = {}) {
+        const semanticPayload = payload?.detail && typeof payload.detail === 'object'
+            ? payload.detail
+            : payload;
+        const route = resolvePhaseRoute(semanticPayload?.metric, semanticPayload?.phase);
+        if (!route) return;
+
+        handleSemanticMetricSignal(route.type, {
+            ...semanticPayload,
+            semanticPhase: route.phase
+        }, 'metric.phase.changed', route.phase);
     }
 
     function resolveFromLinkPayload(link) {
@@ -508,7 +601,9 @@ export function setupWaveBurstRouter(game) {
                 semanticEvent: eventTag,
                 semanticType: type,
                 resolvedType,
-                conflictType: payload.conflictType || payload.link?.userData?.flowState?.type || null
+                conflictType: payload.conflictType || payload.link?.userData?.flowState?.type || null,
+                metric: payload.metric || null,
+                phase: payload.phase || payload.semanticPhase || null
             }
         };
 
@@ -554,13 +649,29 @@ export function setupWaveBurstRouter(game) {
             }
         };
 
+        const bindSignal = (tag, type, phase, priority) => {
+            const handler = (payload = {}) => handleSemanticMetricSignal(type, payload, tag, phase);
+            subscribeFn(tag, handler, { priority });
+            if (unsubscribeFn) {
+                state.unsubscribers.push(() => unsubscribeFn(tag, handler));
+            }
+        };
+
+        const bindPhaseChanged = (priority) => {
+            const handler = (payload = {}) => handlePhaseChanged(payload);
+            subscribeFn('metric.phase.changed', handler, { priority });
+            if (unsubscribeFn) {
+                state.unsubscribers.push(() => unsubscribeFn('metric.phase.changed', handler));
+            }
+        };
+
         // Synergy gameplay events
-        bind('node.synergy.high', 'synergy', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
-        bind('link:synergyThreshold', 'synergy', semanticBus.priority?.NORMAL);
-        bind('metric:synergySpike', 'synergy', semanticBus.priority?.NORMAL);
-        bind('metric.synergy.burst', 'synergy', semanticBus.priority?.NORMAL);
-        bind('link:harmonicLock', 'harmonic', semanticBus.priority?.NORMAL);
-        bind('metric:harmonyPeak', 'harmonic', semanticBus.priority?.NORMAL);
+        bindSignal('node.synergy.high', 'synergy', 'high', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
+        bindSignal('link:synergyThreshold', 'synergy', 'high', semanticBus.priority?.NORMAL);
+        bindSignal('metric:synergySpike', 'synergy', 'high', semanticBus.priority?.NORMAL);
+        bindSignal('metric.synergy.burst', 'synergy', 'high', semanticBus.priority?.NORMAL);
+        bindSignal('link:harmonicLock', 'harmonic', 'high', semanticBus.priority?.NORMAL);
+        bindSignal('metric:harmonyPeak', 'harmonic', 'high', semanticBus.priority?.NORMAL);
         bind('network:harmonyShift', 'harmonic', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
 
         // Cascade gameplay events
@@ -570,15 +681,17 @@ export function setupWaveBurstRouter(game) {
         bind('cascade.hop', 'cascade', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
 
         // Corruption gameplay events
-        bind('metric:stabilityDrop', 'stability', semanticBus.priority?.NORMAL);
-        bind('metric:loadPressureHigh', 'stability', semanticBus.priority?.NORMAL);
+        bindSignal('metric:stabilityDrop', 'stability', 'low', semanticBus.priority?.NORMAL);
+        bindSignal('metric:loadPressureHigh', 'stability', 'high', semanticBus.priority?.NORMAL);
         bind('network:stressRise', 'stability', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
-        bind('metric:corruptionRise', 'corruption', semanticBus.priority?.NORMAL);
-        bind('metric.corruption.spike', 'corruption', semanticBus.priority?.NORMAL);
+        bindSignal('metric:corruptionRise', 'corruption', 'high', semanticBus.priority?.NORMAL);
+        bindSignal('metric.corruption.spike', 'corruption', 'high', semanticBus.priority?.NORMAL);
         bind('metric.corruption.spread', 'corruption', semanticBus.priority?.NORMAL);
         bind('network:corruptionSpread', 'corruption', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
         bind('metrics.spike', 'corruption', semanticBus.priority?.CRITICAL ?? semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
         bind('link:collapsed', 'corruption', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
+
+        bindPhaseChanged(semanticBus.priority?.NORMAL);
 
         state.subscribed = true;
         state.boundBus = semanticBus;

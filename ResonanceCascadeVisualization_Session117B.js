@@ -1,12 +1,12 @@
 /**
  * ResonanceCascadeVisualization_Session117B.js
  * ============================================================================
- * Visualizes resonance cascades emanating from high-conflict zones through
- * the network, showing how conflict energy propagates along link pathways.
+ * Visualizes link-born resonance blooms and load-pressure surges through
+ * the network, showing how resonance energy propagates along link pathways.
  * 
  * VISUAL STORYTELLING:
- * When harmonic hubs conflict, the tension radiates outward in waves:
- * - Radial propagation: Energy expands from conflict center
+ * When links are born or network load spikes, the tension radiates outward:
+ * - Radial propagation: Energy expands from the spawn anchor
  * - Link propagation: Energy travels along network paths
  * - Node illumination: Affected nodes glow based on cascade intensity
  * - Link distortion: Affected links show ripple/kink effects
@@ -14,7 +14,7 @@
  * - Standing ripples: Cascades interact creating interference
  * 
  * ARCHITECTURE:
- * ✅ Pure visual adapter - reads conflict state, doesn't modify
+ * ✅ Pure visual adapter - reads semantic link and metric events, doesn't modify
  * ✅ Zero per-frame allocations (all cached)
  * ✅ Deterministic propagation (no randomness)
  * ✅ Smooth temporal adaptation
@@ -47,6 +47,8 @@ const CASCADE_CONFIG = {
   // Temporal parameters
   CASCADE_LIFETIME: 4.0,                      // Seconds before cascade dissipates
   RIPPLE_FREQUENCY: 2.0,                      // Hz for ripple oscillation
+  LINK_BIRTH_DELAY_SECONDS: 0.5,
+  LINK_BIRTH_COOLDOWN_SECONDS: 3.5,
   
   // Intensity modulation
   NODE_GLOW_MULTIPLIER: 1.8,                  // How much cascade affects node glow
@@ -129,11 +131,12 @@ export class ResonanceCascadeVisualization_Session117B {
     this.linkCascadeIntensity = new Map();
     this.nodeVisualState = new WeakMap();
     this.linkVisualState = new WeakMap();
+    this._pendingLinkBirthCascades = [];
+    this._linkBirthCooldowns = new Map();
     this._tmpNodeTint = new THREE.Color(0x4b1f78);
     this._tmpLinkTint = new THREE.Color(0x6a2ca0);
-    this._boundHandleCascadeStart = this.handleCascadeStart.bind(this);
-    this._boundHandleCascadeHop = this.handleCascadeHop.bind(this);
-    this._boundHandleCascadeEnd = this.handleCascadeEnd.bind(this);
+    this._boundHandleLinkCreated = this.handleLinkCreated.bind(this);
+    this._boundHandleLoadPressureHigh = this.handleLoadPressureHigh.bind(this);
     this._semanticEventsBound = false;
     this.init();
     
@@ -142,22 +145,19 @@ export class ResonanceCascadeVisualization_Session117B {
 
   _subscribeSemanticBus() {
     if (!this.semanticBus?.on || this._semanticEventsBound) return;
-    this.semanticBus.on('cascade.start', this._boundHandleCascadeStart);
-    this.semanticBus.on('cascade.hop', this._boundHandleCascadeHop);
-    this.semanticBus.on('cascade.end', this._boundHandleCascadeEnd);
+    this.semanticBus.on('link.created', this._boundHandleLinkCreated);
+    this.semanticBus.on('metric:loadPressureHigh', this._boundHandleLoadPressureHigh);
     this._semanticEventsBound = true;
   }
 
   _unsubscribeSemanticBus() {
     if (!this._semanticEventsBound) return;
     if (this.semanticBus?.unsubscribe) {
-      this.semanticBus.unsubscribe('cascade.start', this._boundHandleCascadeStart);
-      this.semanticBus.unsubscribe('cascade.hop', this._boundHandleCascadeHop);
-      this.semanticBus.unsubscribe('cascade.end', this._boundHandleCascadeEnd);
+      this.semanticBus.unsubscribe('link.created', this._boundHandleLinkCreated);
+      this.semanticBus.unsubscribe('metric:loadPressureHigh', this._boundHandleLoadPressureHigh);
     } else if (this.semanticBus?.off) {
-      this.semanticBus.off('cascade.start', this._boundHandleCascadeStart);
-      this.semanticBus.off('cascade.hop', this._boundHandleCascadeHop);
-      this.semanticBus.off('cascade.end', this._boundHandleCascadeEnd);
+      this.semanticBus.off('link.created', this._boundHandleLinkCreated);
+      this.semanticBus.off('metric:loadPressureHigh', this._boundHandleLoadPressureHigh);
     }
     this._semanticEventsBound = false;
   }
@@ -184,6 +184,36 @@ export class ResonanceCascadeVisualization_Session117B {
     return Math.max(0, Math.min(1, Number(value) || 0));
   }
 
+  _readFirstNumber(source, keys = []) {
+    if (!source || !Array.isArray(keys)) return null;
+    for (const key of keys) {
+      const numeric = Number(source?.[key]);
+      if (Number.isFinite(numeric)) return numeric;
+    }
+    return null;
+  }
+
+  _readNodeSignal(node) {
+    if (!node) return null;
+    const metrics = node?.userData?.metrics ?? node?.metrics ?? null;
+    return (
+      this._readFirstNumber(metrics, ['synergy', 'harmony', 'loadPressure']) ??
+      this._readFirstNumber(node?.userData, ['synergy', 'harmony', 'loadPressure']) ??
+      null
+    );
+  }
+
+  _readLinkSignal(link) {
+    if (!link) return null;
+    const metrics = link?.userData?.metrics ?? link?.metrics ?? null;
+    return (
+      this._readFirstNumber(metrics, ['synergy', 'harmony', 'loadPressure']) ??
+      this._readFirstNumber(link?.userData, ['synergy', 'harmony', 'loadPressure']) ??
+      this._readFirstNumber(link?.userData?.synergy, ['score']) ??
+      null
+    );
+  }
+
   _resolveLinkId(linkOrId) {
     if (!linkOrId) return null;
     if (typeof linkOrId === 'string' || typeof linkOrId === 'number') {
@@ -195,6 +225,22 @@ export class ResonanceCascadeVisualization_Session117B {
       linkOrId.userData?.linkId ??
       linkOrId.id ??
       linkOrId.uuid ??
+      null
+    );
+  }
+
+  _nowSeconds() {
+    return (typeof performance !== 'undefined' && typeof performance.now === 'function')
+      ? performance.now() / 1000
+      : Date.now() / 1000;
+  }
+
+  _getLinkBirthKey(event = {}) {
+    return this._resolveLinkId(
+      event?.link ??
+      event?.linkRef ??
+      event?.linkId ??
+      event?.id ??
       null
     );
   }
@@ -452,6 +498,7 @@ export class ResonanceCascadeVisualization_Session117B {
     if (!pos) return;
 
     const cascade = new CascadeWave(pos, impulseIntensity, 'radial');
+    cascade.trigger = event?.trigger ?? event?.type ?? event?.eventType ?? null;
     cascade.linkRef = event?.link ?? event?.linkRef ?? null;
     cascade.linkId = this._resolveLinkId(cascade.linkRef);
     cascade.sourceNodeId = event?.sourceNodeId ?? event?.sourceNode?.userData?.nodeId ?? event?.sourceNode?.id ?? event?.sourceNode?.uuid ?? null;
@@ -469,29 +516,213 @@ export class ResonanceCascadeVisualization_Session117B {
     return new THREE.Vector3(x, y, z);
   }
 
-  handleCascadeStart(event = {}) {
-    const intensity = Math.max(0.35, this._clamp01(event?.intensity ?? event?.value ?? event?.strength ?? 1));
-    const anchor = this._resolveCascadeAnchor(event);
-    this._spawnCascadeWaveFromEvent(event);
-    if (this._nodeHasLinks(event?.sourceNode) || event?.link) {
-      this._registerNodeVisual(event?.sourceNode, intensity);
+  _resolveLinkBirthIntensity(event = {}) {
+    const direct = this._readFirstNumber(event, ['intensity', 'value', 'strength']);
+    if (direct !== null) return direct;
+
+    const phaseStrength = this._readFirstNumber(event, ['phaseSyncStrength', 'syncStrength']);
+    const phaseStability = this._readFirstNumber(event, ['phaseSyncStability', 'syncStability']);
+    const phaseSamples = [phaseStrength, phaseStability].filter((value) => Number.isFinite(value));
+    if (phaseSamples.length > 0) {
+      const average = phaseSamples.reduce((sum, value) => sum + value, 0) / phaseSamples.length;
+      return this._clamp01(average);
     }
-    if (this._nodeHasLinks(event?.targetNode) || event?.link) {
-      this._registerNodeVisual(event?.targetNode, intensity);
+
+    const sourceSignal = this._readNodeSignal(event?.sourceNode);
+    const targetSignal = this._readNodeSignal(event?.targetNode);
+    const linkSignal = this._readLinkSignal(event?.link);
+    const samples = [sourceSignal, targetSignal, linkSignal].filter((value) => Number.isFinite(value));
+    if (samples.length > 0) {
+      const average = samples.reduce((sum, value) => sum + value, 0) / samples.length;
+      return this._clamp01(average);
     }
-    this._registerLinkVisual(event?.link, intensity);
+
+    return 0.35;
   }
 
-  handleCascadeHop(event = {}) {
-    const intensity = Math.max(0.25, this._clamp01(event?.intensity ?? event?.value ?? event?.strength ?? 1));
-    this._spawnCascadeWaveFromEvent(event);
-    if (this._nodeHasLinks(event?.sourceNode) || event?.link) {
-      this._registerNodeVisual(event?.sourceNode, intensity);
+  _resolveLoadPressureIntensity(event = {}) {
+    const direct = this._readFirstNumber(event, ['value', 'intensity', 'strength', 'loadPressure']);
+    if (direct !== null) return Math.max(0.35, this._clamp01(direct));
+
+    const sourceSignal = this._readNodeSignal(event?.sourceNode);
+    const targetSignal = this._readNodeSignal(event?.targetNode);
+    const samples = [sourceSignal, targetSignal].filter((value) => Number.isFinite(value));
+    if (samples.length > 0) {
+      const average = samples.reduce((sum, value) => sum + value, 0) / samples.length;
+      return Math.max(0.35, this._clamp01(average));
     }
-    if (this._nodeHasLinks(event?.targetNode) || event?.link) {
-      this._registerNodeVisual(event?.targetNode, intensity);
+
+    return 0.75;
+  }
+
+  _boostLatestCascade(intensity) {
+    if (!Array.isArray(this.activeCascades) || this.activeCascades.length === 0) {
+      return false;
     }
-    this._registerLinkVisual(event?.link, intensity);
+
+    const cascade = this.activeCascades[this.activeCascades.length - 1];
+    if (!cascade) return false;
+
+    const boostedIntensity = Math.max(0.35, this._clamp01(intensity));
+    cascade.originIntensity = Math.max(cascade.originIntensity, boostedIntensity);
+    cascade.intensity = Math.max(cascade.intensity, boostedIntensity);
+    cascade.lifetime = Math.max(cascade.lifetime, CASCADE_CONFIG.CASCADE_LIFETIME * 0.85);
+    return true;
+  }
+
+  _queueLinkBirthCascade(event = {}, intensity, payload = null) {
+    const now = this._nowSeconds();
+    const linkKey = this._getLinkBirthKey(event);
+
+    if (linkKey) {
+      const lastSpawnAt = Number(this._linkBirthCooldowns.get(linkKey) ?? -Infinity);
+      if (Number.isFinite(lastSpawnAt) && (now - lastSpawnAt) < CASCADE_CONFIG.LINK_BIRTH_COOLDOWN_SECONDS) {
+        return null;
+      }
+    }
+
+    const queuedPayload = payload ?? {
+      ...event,
+      trigger: 'link.created',
+      intensity,
+      value: intensity,
+      strength: intensity
+    };
+
+    const dueAt = now + CASCADE_CONFIG.LINK_BIRTH_DELAY_SECONDS;
+    const existingIndex = this._pendingLinkBirthCascades.findIndex((item) => {
+      if (linkKey && item.linkKey) return item.linkKey === linkKey;
+      return item.event?.link === event?.link && item.event?.link !== null;
+    });
+
+    const queuedItem = {
+      dueAt,
+      linkKey,
+      event: queuedPayload,
+      intensity,
+      linkRef: queuedPayload.link ?? queuedPayload.linkRef ?? null
+    };
+
+    if (existingIndex >= 0) {
+      this._pendingLinkBirthCascades[existingIndex] = queuedItem;
+    } else {
+      this._pendingLinkBirthCascades.push(queuedItem);
+    }
+
+    return queuedItem;
+  }
+
+  _flushPendingLinkBirthCascades() {
+    if (!Array.isArray(this._pendingLinkBirthCascades) || this._pendingLinkBirthCascades.length === 0) {
+      return;
+    }
+
+    const now = this._nowSeconds();
+    const remaining = [];
+
+    for (const pending of this._pendingLinkBirthCascades) {
+      if (!pending) continue;
+      if (pending.dueAt > now) {
+        remaining.push(pending);
+        continue;
+      }
+
+      const payload = pending.event ?? {};
+      const link = payload.link ?? payload.linkRef ?? null;
+      const linkKey = pending.linkKey ?? this._getLinkBirthKey(payload);
+      if (!link || !link.userData) {
+        continue;
+      }
+
+      if (link.userData.__resonanceCascadeBirthSeeded === true) {
+        if (linkKey) {
+          this._linkBirthCooldowns.set(linkKey, now);
+        }
+        continue;
+      }
+
+      const anchor = this._resolveCascadeAnchor(payload);
+      if (!anchor) {
+        remaining.push({
+          ...pending,
+          dueAt: now + 0.1
+        });
+        continue;
+      }
+
+      const cascade = this._spawnCascadeWaveFromEvent({
+        ...payload,
+        anchor,
+        trigger: 'link.created'
+      });
+      if (cascade) {
+        if (payload.sourceNode) {
+          this._registerNodeVisual(payload.sourceNode, pending.intensity);
+        }
+        if (payload.targetNode) {
+          this._registerNodeVisual(payload.targetNode, pending.intensity);
+        }
+        this._registerLinkVisual(link, pending.intensity);
+        link.userData.__resonanceCascadeBirthSeeded = true;
+        link.userData.__resonanceCascadeBirthSeededAt = now;
+        if (linkKey) {
+          this._linkBirthCooldowns.set(linkKey, now);
+        }
+        continue;
+      }
+
+      remaining.push({
+        ...pending,
+        dueAt: now + 0.1
+      });
+    }
+
+    this._pendingLinkBirthCascades = remaining;
+  }
+
+  handleLinkCreated(event = {}) {
+    const intensity = Math.max(0.35, this._resolveLinkBirthIntensity(event));
+    const payload = {
+      ...event,
+      trigger: 'link.created',
+      intensity,
+      value: intensity,
+      strength: intensity
+    };
+
+    const queued = this._queueLinkBirthCascade(event, intensity, payload);
+    if (!queued) return null;
+    return queued;
+  }
+
+  handleLoadPressureHigh(event = {}) {
+    const intensity = Math.max(0.35, this._resolveLoadPressureIntensity(event));
+    if (this._boostLatestCascade(intensity)) {
+      return this.activeCascades[this.activeCascades.length - 1] ?? null;
+    }
+
+    const payload = {
+      ...event,
+      trigger: 'metric:loadPressureHigh',
+      intensity,
+      value: intensity,
+      strength: intensity
+    };
+
+    const cascade = this._spawnCascadeWaveFromEvent(payload);
+    if (!cascade) return null;
+
+    if (payload.sourceNode) {
+      this._registerNodeVisual(payload.sourceNode, intensity);
+    }
+    if (payload.targetNode) {
+      this._registerNodeVisual(payload.targetNode, intensity);
+    }
+    if (payload.link) {
+      this._registerLinkVisual(payload.link, intensity);
+    }
+
+    return cascade;
   }
 
   handleCascadeEnd(event = {}) {
@@ -550,6 +781,15 @@ export class ResonanceCascadeVisualization_Session117B {
       );
     }
 
+    if (this._pendingLinkBirthCascades.length > 0) {
+      this._pendingLinkBirthCascades = this._pendingLinkBirthCascades.filter((pending) => {
+        if (!pending) return false;
+        if (linkRef && pending.event?.link === linkRef) return false;
+        if (linkId && pending.linkKey && String(pending.linkKey) === String(linkId)) return false;
+        return true;
+      });
+    }
+
     if (linkRef && this.linkCascadeIntensity.has(linkRef)) {
       this.linkCascadeIntensity.delete(linkRef);
     }
@@ -573,6 +813,8 @@ export class ResonanceCascadeVisualization_Session117B {
     if (!this.frameScheduler?.shouldRunVisual?.()) return;
 
     if (!this.enabled) return;
+
+    this._flushPendingLinkBirthCascades();
     
     // Update all active cascades
     const activeCascades = [];
@@ -711,7 +953,8 @@ export class ResonanceCascadeVisualization_Session117B {
         intensity: c.intensity,
         radius: c.currentRadius,
         age: c.age,
-        lifetime: c.lifetime
+        lifetime: c.lifetime,
+        trigger: c.trigger ?? null
       }))
     };
   }
@@ -752,6 +995,8 @@ export class ResonanceCascadeVisualization_Session117B {
     }
     this.nodeCascadeIntensity.clear();
     this.linkCascadeIntensity.clear();
+    this._pendingLinkBirthCascades = [];
+    this._linkBirthCooldowns.clear();
     this.semanticBus = null;
     this._semanticEventsBound = false;
   }

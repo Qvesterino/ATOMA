@@ -17,6 +17,7 @@
  * EVENT MAPPINGS:
  * - 'node.synergy.high' → cascadeIntensity = max(current, 0.7), conflictType = 'specialization_drift'
  * - 'metric:corruptionRise' / 'metric.corruption.spike' → cascadeIntensity = max(current, 0.9), conflictType = 'corruption'
+ * - 'metric.phase.changed' → normalized entry point for synergy/corruption high phases
  * - 'link:collapsed' → cascadeIntensity = 1.0, conflictType = 'destructive'
  * - 'node.hover' → cascadeIntensity = max(current, 0.3), conflictType = 'oscillatory_balance'
  * 
@@ -45,6 +46,8 @@ export class CascadeEventBridge_v1 {
     this._boundHandlers = null;
     this._dirtyLinks = new Set();
     this._activeLinks = new Set();
+    this._recentPhaseSignals = new Map();
+    this._phaseSignalDedupMs = config.phaseSignalDedupMs ?? 350;
 
     // State
     this._isInitialized = false;
@@ -83,6 +86,7 @@ export class CascadeEventBridge_v1 {
       handleMetricCorruptionRise: this._handleMetricCorruptionRise.bind(this),
       handleLinkCollapsed: this._handleLinkCollapsed.bind(this),
       handleNodeHover: this._handleNodeHover.bind(this),
+      handleMetricPhaseChanged: this._handleMetricPhaseChanged.bind(this),
       decayUpdate: this._decayUpdate.bind(this)
     };
   }
@@ -100,6 +104,7 @@ export class CascadeEventBridge_v1 {
       on('node.synergy.high', this._boundHandlers.handleNodeSynergyHigh);
       on('metric:corruptionRise', this._boundHandlers.handleMetricCorruptionRise);
       on('metric.corruption.spike', this._boundHandlers.handleMetricCorruptionRise);
+      on('metric.phase.changed', this._boundHandlers.handleMetricPhaseChanged);
       on('link:collapsed', this._boundHandlers.handleLinkCollapsed);
       on('node.hover', this._boundHandlers.handleNodeHover);
       
@@ -107,6 +112,7 @@ export class CascadeEventBridge_v1 {
         () => bus.off?.('node.synergy.high', this._boundHandlers.handleNodeSynergyHigh),
         () => bus.off?.('metric:corruptionRise', this._boundHandlers.handleMetricCorruptionRise),
         () => bus.off?.('metric.corruption.spike', this._boundHandlers.handleMetricCorruptionRise),
+        () => bus.off?.('metric.phase.changed', this._boundHandlers.handleMetricPhaseChanged),
         () => bus.off?.('link:collapsed', this._boundHandlers.handleLinkCollapsed),
         () => bus.off?.('node.hover', this._boundHandlers.handleNodeHover)
       );
@@ -115,10 +121,11 @@ export class CascadeEventBridge_v1 {
       const unsub1 = subscribe('node.synergy.high', this._boundHandlers.handleNodeSynergyHigh);
       const unsub2 = subscribe('metric:corruptionRise', this._boundHandlers.handleMetricCorruptionRise);
       const unsub3 = subscribe('metric.corruption.spike', this._boundHandlers.handleMetricCorruptionRise);
-      const unsub4 = subscribe('link:collapsed', this._boundHandlers.handleLinkCollapsed);
-      const unsub5 = subscribe('node.hover', this._boundHandlers.handleNodeHover);
+      const unsub4 = subscribe('metric.phase.changed', this._boundHandlers.handleMetricPhaseChanged);
+      const unsub5 = subscribe('link:collapsed', this._boundHandlers.handleLinkCollapsed);
+      const unsub6 = subscribe('node.hover', this._boundHandlers.handleNodeHover);
       
-      this._subscriptions.push(unsub1, unsub2, unsub3, unsub4, unsub5);
+      this._subscriptions.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6);
     }
   }
   
@@ -127,6 +134,38 @@ export class CascadeEventBridge_v1 {
 
     this._dirtyLinks.add(link);
     this._activeLinks.add(link);
+  }
+
+  _normalizeMetricName(metric) {
+    return String(metric ?? '').trim().toLowerCase();
+  }
+
+  _normalizePhaseName(phase) {
+    return String(phase ?? '').trim().toLowerCase();
+  }
+
+  _getPhaseSignalKey(metric, phase, nodeId) {
+    return `${this._normalizeMetricName(metric)}:${this._normalizePhaseName(phase)}:${String(nodeId ?? '')}`;
+  }
+
+  _shouldDedupPhaseSignal(metric, phase, nodeId) {
+    const now = Date.now();
+    const key = this._getPhaseSignalKey(metric, phase, nodeId);
+    const last = Number(this._recentPhaseSignals.get(key) ?? -Infinity);
+    if (Number.isFinite(last) && (now - last) < this._phaseSignalDedupMs) {
+      return true;
+    }
+
+    this._recentPhaseSignals.set(key, now);
+    if (this._recentPhaseSignals.size > 96) {
+      for (const [signalKey, seenAt] of this._recentPhaseSignals.entries()) {
+        if ((now - seenAt) > this._phaseSignalDedupMs * 2) {
+          this._recentPhaseSignals.delete(signalKey);
+        }
+      }
+    }
+
+    return false;
   }
 
   _primeCascadeTrackingFromExistingLinks() {
@@ -156,10 +195,11 @@ export class CascadeEventBridge_v1 {
   /**
    * Handle node.synergy.high event
    */
-  _handleNodeSynergyHigh(event = {}) {
+  _handleNodeSynergyHigh(event = {}, skipDedup = false) {
     if (!this.config.enabled) return;
 
     const nodeId = event.nodeId;
+    if (!skipDedup && this._shouldDedupPhaseSignal('synergy', 'high', nodeId)) return;
     const links = this._getLinksForNode(nodeId);
 
     for (const link of links) {
@@ -181,10 +221,11 @@ export class CascadeEventBridge_v1 {
   /**
    * Handle metric:corruptionRise event
    */
-  _handleMetricCorruptionRise(event = {}) {
+  _handleMetricCorruptionRise(event = {}, skipDedup = false) {
     if (!this.config.enabled) return;
 
     const nodeId = event.nodeId;
+    if (!skipDedup && this._shouldDedupPhaseSignal('corruption', 'high', nodeId)) return;
     const links = this._getLinksForNode(nodeId);
 
     for (const link of links) {
@@ -247,6 +288,26 @@ export class CascadeEventBridge_v1 {
       flowState.type = 'oscillatory_balance';
       flowState.energy = Math.max(flowState.energy ?? 0, 0.4);
       this._queueCascadeLink(link);
+    }
+  }
+
+  _handleMetricPhaseChanged(event = {}) {
+    if (!this.config.enabled) return;
+
+    const detail = event?.detail && typeof event.detail === 'object' ? event.detail : event;
+    const metric = this._normalizeMetricName(detail?.metric);
+    const phase = this._normalizePhaseName(detail?.phase);
+    const nodeId = detail?.nodeId ?? detail?.sourceNodeId ?? detail?.targetNodeId ?? null;
+    if (!metric || !phase || !nodeId) return;
+    if (this._shouldDedupPhaseSignal(metric, phase, nodeId)) return;
+
+    if (metric === 'synergy' && phase === 'high') {
+      this._handleNodeSynergyHigh(detail, true);
+      return;
+    }
+
+    if (metric === 'corruption' && phase === 'high') {
+      this._handleMetricCorruptionRise(detail, true);
     }
   }
   
@@ -593,6 +654,7 @@ export class CascadeEventBridge_v1 {
     this._subscriptions = [];
     this._dirtyLinks.clear();
     this._activeLinks.clear();
+    this._recentPhaseSignals.clear();
 
     // Clear handlers
     this._boundHandlers = null;
@@ -635,6 +697,7 @@ export class CascadeEventBridge_v1 {
       this._subscriptions = [];
       this._dirtyLinks.clear();
       this._activeLinks.clear();
+      this._recentPhaseSignals.clear();
 
       // Re-setup and re-subscribe to events
       this._setupEventHandlers();

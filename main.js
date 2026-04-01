@@ -1518,7 +1518,8 @@ class SemanticEventBus {
             ['metric:harmonyPeak', { cooldownMs: 150, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
             ['metric:stabilityDrop', { cooldownMs: 120, aggregateWithinMs: 240, aggregationStrategy: 'latest' }],
             ['metric:corruptionRise', { cooldownMs: 120, aggregateWithinMs: 240, aggregationStrategy: 'latest' }],
-            ['metric:loadPressureHigh', { cooldownMs: 180, aggregateWithinMs: 320, aggregationStrategy: 'latest' }]
+            ['metric:loadPressureHigh', { cooldownMs: 180, aggregateWithinMs: 320, aggregationStrategy: 'latest' }],
+            ['metric.phase.changed', { cooldownMs: 120, aggregateWithinMs: 260, aggregationStrategy: 'latest' }]
         ]);
         this.cooldownMap = new Map();
         // Phase E.3: aggregation buffers keyed by semantic tag

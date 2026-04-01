@@ -9,7 +9,7 @@ import * as THREE from 'three';
  * - Pulses propagate from one hub to neighboring hubs through the network
  * - Each cascade creates a "wave" effect across hub-connected regions
  * - Cascade speed scales with harmony and synergy
- * - Corruption/instability dampen cascade propagation
+ * - Corruption/stability dampen cascade propagation
  * - Visual effect: coordinated pulses flowing through hub network
  * 
  * ARCHITECTURE:
@@ -35,7 +35,7 @@ export class LinkCascadePulseManager {
             // State modulation
             harmonyCascadeBoost: 0.6,       // Harmony increases speed/reach
             corruptionCascadeDamping: 0.7, // Corruption slows/weakens cascade
-            instabilityCascadeDamping: 0.5, // Instability weakens cascade
+            stabilityCascadeDamping: 0.5, // Stability weakens cascade
             synergyCascadeBoost: 0.4,       // Synergy increases cascade power
             
             // Cascade effect visualization
@@ -158,12 +158,12 @@ export class LinkCascadePulseManager {
      * @param {number} time - Current time
      * @param {number} harmony - Game harmony (0-1)
      * @param {number} corruption - Game corruption (0-1)
-     * @param {number} instability - Game instability (0-1)
+     * @param {number} stability - Game stability (0-1)
      * @param {number} synergy - Game synergy (0-1)
      * @param {Map} nodeControllers - All node controllers
      * @param {Array} links - All link objects
      */
-    update(deltaTime, time, harmony = 1.0, corruption = 0.0, instability = 0.0, synergy = 0.5, nodeControllers = null, links = []) {
+    update(deltaTime, time, harmony = 1.0, corruption = 0.0, stability = 0.0, synergy = 0.5, nodeControllers = null, links = []) {
         // Age all active cascades
         for (let i = this.activeCascades.length - 1; i >= 0; i--) {
             const cascade = this.activeCascades[i];
@@ -181,13 +181,13 @@ export class LinkCascadePulseManager {
                 time,
                 harmony,
                 corruption,
-                instability,
+                stability,
                 synergy
             );
         }
         
         // Update cascade effects on links
-        this._updateLinkCascadeState(links, time, harmony, corruption, instability, synergy);
+        this._updateLinkCascadeState(links, time, harmony, corruption, stability, synergy);
     }
 
     /**
@@ -323,13 +323,13 @@ export class LinkCascadePulseManager {
      * Propagate cascade to connected hubs and links
      * @private
      */
-    _propagateCascade(cascade, time, harmony, corruption, instability, synergy) {
+    _propagateCascade(cascade, time, harmony, corruption, stability, synergy) {
         // Cascade speed scales with state
         let cascadeSpeed = this.config.cascadeSpeedBase;
         cascadeSpeed *= (1.0 + harmony * this.config.harmonyCascadeBoost);
         cascadeSpeed *= (1.0 + synergy * this.config.synergyCascadeBoost);
         cascadeSpeed *= (1.0 - (corruption * this.config.corruptionCascadeDamping));
-        cascadeSpeed *= (1.0 - (instability * this.config.instabilityCascadeDamping));
+        cascadeSpeed *= (1.0 - (stability * this.config.stabilityCascadeDamping));
         
         // For each target hub
         for (const target of cascade.targets) {
@@ -359,7 +359,7 @@ export class LinkCascadePulseManager {
      * Update cascade state on all links
      * @private
      */
-    _updateLinkCascadeState(links, time, harmony, corruption, instability, synergy) {
+    _updateLinkCascadeState(links, time, harmony, corruption, stability, synergy) {
         for (const link of links) {
             if (!link || !link.group) continue;
             

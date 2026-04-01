@@ -114,6 +114,12 @@ const SEMANTIC_THRESHOLDS = {
   loadPressure: 0.05,
 };
 const NODE_METRIC_UPDATED_EVENT_INTERVAL_MS = 100; // 10Hz max per node
+const METRIC_PHASE_THRESHOLDS = {
+  low: 0.25,
+  high: 0.75,
+  lowExit: 0.32,
+  highExit: 0.68
+};
 
 // Track last emitted values to avoid per-frame spam
 const lastEmittedMetricValue = new Map(); // key: `${nodeId}:${metric}` → value
@@ -139,6 +145,26 @@ function shouldEmit(metric, after, nodeId) {
 
 function recordEmit(metric, value, nodeId) {
   lastEmittedMetricValue.set(`${nodeId}:${metric}`, value);
+}
+
+function classifyMetricPhase(value, previousPhase = null) {
+  const normalized = clamp01(value);
+
+  if (previousPhase === 'high') {
+    if (normalized >= METRIC_PHASE_THRESHOLDS.highExit) return 'high';
+    if (normalized <= METRIC_PHASE_THRESHOLDS.low) return 'low';
+    return 'normal';
+  }
+
+  if (previousPhase === 'low') {
+    if (normalized <= METRIC_PHASE_THRESHOLDS.lowExit) return 'low';
+    if (normalized >= METRIC_PHASE_THRESHOLDS.high) return 'high';
+    return 'normal';
+  }
+
+  if (normalized >= METRIC_PHASE_THRESHOLDS.high) return 'high';
+  if (normalized <= METRIC_PHASE_THRESHOLDS.low) return 'low';
+  return 'normal';
 }
 
 function emitSemanticMetricEvent(metric, before, after, nodeId) {
@@ -183,6 +209,40 @@ function emitSemanticMetricEvent(metric, before, after, nodeId) {
   }
 }
 
+function emitMetricPhaseChanged(node, metric, before, after, targetId) {
+  const bus = getSemanticBus();
+  if (!bus?.emit || !node?.userData) return;
+
+  if (!node.userData.__metricEventState) {
+    node.userData.__metricEventState = {
+      synergyBurstActive: false,
+      corruptionSpikeActive: false,
+      metricPhases: {}
+    };
+  }
+
+  const state = node.userData.__metricEventState;
+  if (!state.metricPhases) {
+    state.metricPhases = {};
+  }
+
+  const previousPhase = state.metricPhases[metric] ?? null;
+  const nextPhase = classifyMetricPhase(after, previousPhase);
+  state.metricPhases[metric] = nextPhase;
+
+  if (previousPhase === null || previousPhase === nextPhase) {
+    return;
+  }
+
+  bus.emit('metric.phase.changed', {
+    nodeId: targetId,
+    metric,
+    phase: nextPhase,
+    previousPhase,
+    value: after
+  }, { priority: bus.priority?.NORMAL });
+}
+
 function emitNodeMetricUpdated(metric, value, nodeId) {
   const bus = getSemanticBus();
   if (!bus?.emit) return;
@@ -220,7 +280,8 @@ function emitNodeThresholdEvents(node) {
   if (!node.userData.__metricEventState) {
     node.userData.__metricEventState = {
       synergyBurstActive: false,
-      corruptionSpikeActive: false
+      corruptionSpikeActive: false,
+      metricPhases: {}
     };
   }
   const state = node.userData.__metricEventState;
@@ -247,7 +308,7 @@ function emitNodeThresholdEvents(node) {
   state.corruptionSpikeActive = corruptionActive;
 }
 
-function writeMetric(metrics, key, nextValue, targetId = 'unknown-node') {
+function writeMetric(metrics, key, nextValue, targetId = 'unknown-node', node = null) {
   const before = metrics[key];
   const after = clamp01(nextValue);
   if (before === after) return;
@@ -258,6 +319,7 @@ function writeMetric(metrics, key, nextValue, targetId = 'unknown-node') {
   }
   traceMetricMutation('NodeMetricEngine', `node.${key}`, before, after, targetId);
   emitNodeMetricUpdated(key, after, targetId);
+  emitMetricPhaseChanged(node, key, before, after, targetId);
   emitSemanticMetricEvent(key, before, after, targetId);
 }
 
@@ -509,10 +571,10 @@ function ensureMetrics(node) {
   return node.userData.metrics;
 }
 
-function adjust(metrics, key, delta, targetId = 'unknown-node') {
+function adjust(metrics, key, delta, targetId = 'unknown-node', node = null) {
   assertMetricAuthority('NodeMetricEngine', key);
   const clampedDelta = Math.max(-MAX_IMPULSE, Math.min(MAX_IMPULSE, delta));
-  writeMetric(metrics, key, (metrics[key] ?? 0) + clampedDelta, targetId);
+  writeMetric(metrics, key, (metrics[key] ?? 0) + clampedDelta, targetId, node);
 }
 
 function deriveSynergy(node, dtScale = 1) {
@@ -522,16 +584,16 @@ function deriveSynergy(node, dtScale = 1) {
   const target = deriveSynergyTarget(m);
   const smoothing = Math.min(1, SYNERGY_DERIVATION.smoothing * dtScale);
   const next = (m.synergy ?? 0) + (target - (m.synergy ?? 0)) * smoothing;
-  writeMetric(m, 'synergy', next, id);
+  writeMetric(m, 'synergy', next, id, node);
 }
 
-function applyCappedPositiveGain(metrics, key, baseGain, capByNode, capPerTick, targetId) {
+function applyCappedPositiveGain(metrics, key, baseGain, capByNode, capPerTick, targetId, node = null) {
   if (!metrics || !targetId || baseGain <= 0) return;
   const consumed = capByNode.get(targetId) ?? 0;
   if (consumed >= capPerTick) return;
   const allowed = Math.min(baseGain, capPerTick - consumed);
   if (allowed <= 0) return;
-  writeMetric(metrics, key, (metrics[key] ?? 0) + allowed, targetId);
+  writeMetric(metrics, key, (metrics[key] ?? 0) + allowed, targetId, node);
   capByNode.set(targetId, consumed + allowed);
 }
 
@@ -576,10 +638,10 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
     }
 
     const next = applyCrossMetricInteractions(m, base, dtScale);
-    writeMetric(m, 'harmony', next.harmony, id);
-    writeMetric(m, 'stability', next.stability, id);
-    writeMetric(m, 'corruption', next.corruption, id);
-    writeMetric(m, 'loadPressure', next.loadPressure, id);
+    writeMetric(m, 'harmony', next.harmony, id, node);
+    writeMetric(m, 'stability', next.stability, id, node);
+    writeMetric(m, 'corruption', next.corruption, id, node);
+    writeMetric(m, 'loadPressure', next.loadPressure, id, node);
     applyArchetypeClamp(node);
     syncLoadAliases(node);
   }
@@ -610,12 +672,12 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
       const equalizeStability = LINK_EQUALIZE.stability * strength * dtScale;
 
       const dH = ((mb.harmony ?? 0) - (ma.harmony ?? 0)) * equalizeHarmony;
-      writeMetric(ma, 'harmony', (ma.harmony ?? 0) + dH, idA);
-      writeMetric(mb, 'harmony', (mb.harmony ?? 0) - dH, idB);
+      writeMetric(ma, 'harmony', (ma.harmony ?? 0) + dH, idA, nodeA);
+      writeMetric(mb, 'harmony', (mb.harmony ?? 0) - dH, idB, nodeB);
 
       const dSt = ((mb.stability ?? 0) - (ma.stability ?? 0)) * equalizeStability;
-      writeMetric(ma, 'stability', (ma.stability ?? 0) + dSt, idA);
-      writeMetric(mb, 'stability', (mb.stability ?? 0) - dSt, idB);
+      writeMetric(ma, 'stability', (ma.stability ?? 0) + dSt, idA, nodeA);
+      writeMetric(mb, 'stability', (mb.stability ?? 0) - dSt, idB, nodeB);
 
       const synergyA = clamp01(ma.synergy ?? 0);
       const synergyB = clamp01(mb.synergy ?? 0);
@@ -632,7 +694,8 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
         harmonyGain,
         resonanceHarmonyApplied,
         SYNERGY_RESONANCE.maxHarmonyPerTick,
-        idA
+        idA,
+        nodeA
       );
       applyCappedPositiveGain(
         mb,
@@ -640,7 +703,8 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
         harmonyGain,
         resonanceHarmonyApplied,
         SYNERGY_RESONANCE.maxHarmonyPerTick,
-        idB
+        idB,
+        nodeB
       );
       applyCappedPositiveGain(
         ma,
@@ -648,7 +712,8 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
         stabilityGain,
         resonanceStabilityApplied,
         SYNERGY_RESONANCE.maxStabilityPerTick,
-        idA
+        idA,
+        nodeA
       );
       applyCappedPositiveGain(
         mb,
@@ -656,7 +721,8 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
         stabilityGain,
         resonanceStabilityApplied,
         SYNERGY_RESONANCE.maxStabilityPerTick,
-        idB
+        idB,
+        nodeB
       );
       syncLoadAliases(nodeA);
       syncLoadAliases(nodeB);
@@ -726,7 +792,7 @@ export function applyMetricImpulse(node, deltas = {}, options = {}) {
   const keys = ['harmony', 'stability', 'corruption', 'loadPressure'];
   for (const key of keys) {
     if (typeof deltas[key] === 'number' && Number.isFinite(deltas[key])) {
-      adjust(m, key, deltas[key] * impulseScale, id);
+      adjust(m, key, deltas[key] * impulseScale, id, node);
     }
   }
   if (typeof deltas.synergy === 'number' && Number.isFinite(deltas.synergy)) {
@@ -778,7 +844,7 @@ export function setMetric(node, metric, value, options = {}) {
   }
 
   const after = clamp01(nextValue);
-  writeMetric(m, canonicalMetric, after, id);
+  writeMetric(m, canonicalMetric, after, id, node);
   deriveSynergy(node);
   applyArchetypeClamp(node);
   syncLoadAliases(node);

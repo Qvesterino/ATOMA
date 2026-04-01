@@ -26,7 +26,11 @@
  * ✨ Harmony → Clean, crisp impulses
  * 🟢 Synergy → Increased intensity (brighter, longer)
  * 🔴 Corruption → Asymmetry + hue shift + jitter
- * ⚡ Instability → Suppressed impulses (shorter lifespan)
+ * ⚡ stability → Suppressed impulses (shorter lifespan)
+ * 
+ * SEMANTIC PHASE INPUT:
+ * - metric.phase.changed is the preferred normalized signal
+ * - legacy threshold events remain as compatibility fallback
  * 
  * ARCHITECTURE:
  * - ImpulseFactory: Creates impulse visuals from cached geometry
@@ -296,6 +300,8 @@ export class LinkMicroImpulseAdapter {
     this.debugMode = false;
     this.lastLinkCreatedTime = new Map();
     this.linkStateCache = new Map();
+    this.recentSemanticSignals = new Map();
+    this.semanticSignalDedupMs = 350;
   }
 
   setEventSource(source) {
@@ -359,6 +365,7 @@ export class LinkMicroImpulseAdapter {
     bind('metric:synergySpike', (payload) => this.onSynergyThreshold({ detail: this._normalizePayload(payload) }));
     bind('metric:harmonyPeak', (payload) => this.onHarmonicLock({ detail: this._normalizePayload(payload) }));
     bind('metric:corruptionRise', (payload) => this.onCorruptionSpread({ detail: this._normalizePayload(payload) }));
+    bind('metric.phase.changed', (payload) => this.onMetricPhaseChanged({ detail: this._normalizePayload(payload) }));
 
     if (this.debugMode) console.log('[LinkMicroImpulseAdapter] Hooked via semanticBus');
   }
@@ -380,6 +387,50 @@ export class LinkMicroImpulseAdapter {
       return event.detail || {};
     }
     return event || {};
+  }
+
+  _normalizeMetricName(metric) {
+    return String(metric ?? '').trim().toLowerCase();
+  }
+
+  _normalizePhaseName(phase) {
+    return String(phase ?? '').trim().toLowerCase();
+  }
+
+  _getSignalKey(metric, phase, linkId) {
+    return `${this._normalizeMetricName(metric)}:${this._normalizePhaseName(phase)}:${String(linkId ?? '')}`;
+  }
+
+  _shouldDedupSignal(metric, phase, linkId) {
+    const now = Date.now();
+    const key = this._getSignalKey(metric, phase, linkId);
+    const last = Number(this.recentSemanticSignals.get(key) ?? -Infinity);
+    if (Number.isFinite(last) && (now - last) < this.semanticSignalDedupMs) {
+      return true;
+    }
+
+    this.recentSemanticSignals.set(key, now);
+    if (this.recentSemanticSignals.size > 96) {
+      for (const [signalKey, seenAt] of this.recentSemanticSignals.entries()) {
+        if ((now - seenAt) > this.semanticSignalDedupMs * 2) {
+          this.recentSemanticSignals.delete(signalKey);
+        }
+      }
+    }
+
+    return false;
+  }
+
+  _resolveMetricPhaseRoute(metric, phase) {
+    const normalizedMetric = this._normalizeMetricName(metric);
+    const normalizedPhase = this._normalizePhaseName(phase);
+
+    if (normalizedPhase !== 'high' && normalizedPhase !== 'low') return null;
+    if (normalizedMetric === 'synergy' && normalizedPhase === 'high') return 'synergy';
+    if (normalizedMetric === 'harmony' && normalizedPhase === 'high') return 'harmonic';
+    if (normalizedMetric === 'corruption' && normalizedPhase === 'high') return 'corruption';
+    if (normalizedMetric === 'loadpressure' && normalizedPhase === 'high') return 'corruption';
+    return null;
   }
 
   _resolveLink(payload) {
@@ -448,11 +499,51 @@ export class LinkMicroImpulseAdapter {
     if (this.debugMode) console.log('[LinkMicroImpulseAdapter] Link created impulse', linkId);
   }
 
-  onHarmonicLock(event) {
+  onMetricPhaseChanged(event) {
+    if (!this.enabled) return;
+    const detail = this._normalizePayload(event);
+    const metric = this._normalizeMetricName(detail.metric);
+    const phase = this._normalizePhaseName(detail.phase);
+    const route = this._resolveMetricPhaseRoute(metric, phase);
+    if (!route) return;
+
+    const link = this._resolveLink(detail);
+    if (!link) return;
+
+    const linkId = link.userData?.id || link.uuid;
+    if (this._shouldDedupSignal(metric, phase, linkId)) return;
+
+    const routedDetail = {
+      ...detail,
+      metric,
+      phase,
+      semanticPhase: phase,
+      value: Number.isFinite(detail?.value) ? detail.value : detail?.intensity
+    };
+
+    if (route === 'synergy') {
+      this.onSynergyThreshold({ detail: routedDetail }, true);
+      return;
+    }
+
+    if (route === 'harmonic') {
+      this.onHarmonicLock({ detail: routedDetail }, true);
+      return;
+    }
+
+    if (route === 'corruption') {
+      this.onCorruptionSpread({ detail: routedDetail }, true);
+    }
+  }
+
+  onHarmonicLock(event, skipDedup = false) {
     if (!this.enabled) return;
     const detail = this._normalizePayload(event);
     const link = this._resolveLink(detail);
     if (!link) return;
+
+    const linkId = link.userData?.id || link.uuid;
+    if (!skipDedup && this._shouldDedupSignal('harmony', 'high', linkId)) return;
 
     const metricFallback = link?.userData?.metrics || link?.userData || {};
     const state = this._extractState(detail, {
@@ -473,11 +564,14 @@ export class LinkMicroImpulseAdapter {
     if (this.debugMode) console.log('[LinkMicroImpulseAdapter] Harmonic lock impulse');
   }
 
-  onSynergyThreshold(event) {
+  onSynergyThreshold(event, skipDedup = false) {
     if (!this.enabled) return;
     const detail = this._normalizePayload(event);
     const link = this._resolveLink(detail);
     if (!link) return;
+
+    const linkId = link.userData?.id || link.uuid;
+    if (!skipDedup && this._shouldDedupSignal('synergy', 'high', linkId)) return;
 
     const metricFallback = link?.userData?.metrics || link?.userData || {};
     const state = this._extractState(detail, {
@@ -498,11 +592,14 @@ export class LinkMicroImpulseAdapter {
     if (this.debugMode) console.log('[LinkMicroImpulseAdapter] Synergy threshold impulse');
   }
 
-  onCorruptionSpread(event) {
+  onCorruptionSpread(event, skipDedup = false) {
     if (!this.enabled) return;
     const detail = this._normalizePayload(event);
     const link = this._resolveLink(detail);
     if (!link) return;
+
+    const linkId = link.userData?.id || link.uuid;
+    if (!skipDedup && this._shouldDedupSignal('corruption', 'high', linkId)) return;
 
     const metricFallback = link?.userData?.metrics || link?.userData || {};
     const state = this._extractState(detail, {
@@ -540,6 +637,7 @@ export class LinkMicroImpulseAdapter {
     this.manager.clear();
     this.linkStateCache.clear();
     this.lastLinkCreatedTime.clear();
+    this.recentSemanticSignals.clear();
     this._unhookSemanticBusListeners();
   }
 

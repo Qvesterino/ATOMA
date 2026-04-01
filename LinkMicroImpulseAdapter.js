@@ -229,7 +229,7 @@ class ImpulseManager {
     // Harmony: clean cyan
     // Synergy: boosted brightness
     // Corruption: hue shift toward red
-    // Instability: dimmed
+    // stability: dimmed
     const baseColor = new THREE.Color(0x00ffff);
     if (corruption > 0.3) {
       baseColor.lerpColors(new THREE.Color(0x00ffff), new THREE.Color(0xff3366), corruption);
