@@ -67,7 +67,7 @@ void main() {
     
     // Fade over life
     alpha *= (1.0 - uLife); // Fade out as it ages
-    alpha *= 0.4; // Base transparency (very subtle)
+    alpha *= 0.55; // Base transparency (subtle, but readable)
     
     gl_FragColor = vec4(uColor, alpha);
 }
@@ -101,7 +101,7 @@ void main() {
     
     // Fade out over life
     alpha *= (1.0 - uLife);
-    alpha *= 0.5; // Base opacity
+    alpha *= 0.65; // Base opacity
     
     gl_FragColor = vec4(uColor, alpha);
 }
@@ -118,9 +118,9 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         this.config = {
             minRecoveryDuration: 3.0,
             maxRecoveryDuration: 8.0,
-            waveExpansionSpeed: 2.0,
-            stitchingInterval: 0.05, // High density for "tightening" look
-            maxActiveZones: 10,
+            waveExpansionSpeed: 1.8,
+            stitchingInterval: 0.075, // Still dense, but less CPU-heavy
+            maxActiveZones: 8,
             updateInterval: 1 / 60,
             renderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE)
         };
@@ -307,8 +307,13 @@ export class HarmonicRecoveryVisualSystem_Session138 {
     }
     
     _updateRecoveringZones(state, currentVisualTime) {
-        const harmony = Number.isFinite(state?.harmony) ? state.harmony : 0.5;
-        const synergy = Number.isFinite(state?.synergy) ? state.synergy : 0;
+        const clamp01 = (value) => {
+            const numeric = Number(value);
+            if (!Number.isFinite(numeric)) return 0;
+            return Math.max(0, Math.min(1, numeric));
+        };
+        const harmony = clamp01(state?.harmony ?? 0.5);
+        const synergy = clamp01(state?.synergy ?? 0);
         
         // Filter and update
         this.recoveringZones = this.recoveringZones.filter(zone => {

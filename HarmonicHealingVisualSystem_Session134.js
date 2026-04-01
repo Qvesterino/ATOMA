@@ -84,7 +84,7 @@ export class HarmonicHealingVisualSystem_Session134 {
             waveSpeed: 3.2,           // Units per second
             spawnInterval: 0.06,      // Minimum seconds between spawns
             harmonyThreshold: 0.18,   // Minimum healing drive to start spawning
-            maxWaves: 120,            // Performance limit
+            maxWaves: 96,             // Performance limit
             repairVisualsOnly: false, // Allow gameplay stats changes
             ...config
         };
@@ -329,7 +329,7 @@ export class HarmonicHealingVisualSystem_Session134 {
         
         // Wave properties
         const speed = this.config.waveSpeed * (0.8 + Math.random() * 0.4); // Var speed
-        const intensity = 0.45 + (healingState.healingDrive ?? healingState.harmony ?? 0) * 0.55; // Brighter/stronger with more healing drive
+        const intensity = 0.45 + Math.min(1, (healingState.healingDrive ?? healingState.harmony ?? 0)) * 0.55; // Brighter/stronger with more healing drive
         
         const wave = new HealingWave(targetLink, start, end, speed, intensity);
         this.waves.push(wave);

@@ -1514,12 +1514,15 @@ class SemanticEventBus {
             ['link:synergyThreshold', { cooldownMs: 160, aggregateWithinMs: 260, aggregationStrategy: 'latest' }],
             ['link:harmonicLock', { cooldownMs: 160, aggregateWithinMs: 260, aggregationStrategy: 'latest' }],
 
+            // Canonical metric phase layer: immediate, unbuffered routing for normalized metric states.
+            ['metric.phase.changed', { cooldownMs: 0, aggregateWithinMs: 0, aggregationStrategy: 'latest' }],
+
+            // Legacy metric thresholds: compatibility fallback, intentionally buffered.
             ['metric:synergySpike', { cooldownMs: 120, aggregateWithinMs: 240, aggregationStrategy: 'latest' }],
             ['metric:harmonyPeak', { cooldownMs: 150, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
             ['metric:stabilityDrop', { cooldownMs: 120, aggregateWithinMs: 240, aggregationStrategy: 'latest' }],
             ['metric:corruptionRise', { cooldownMs: 120, aggregateWithinMs: 240, aggregationStrategy: 'latest' }],
-            ['metric:loadPressureHigh', { cooldownMs: 180, aggregateWithinMs: 320, aggregationStrategy: 'latest' }],
-            ['metric.phase.changed', { cooldownMs: 120, aggregateWithinMs: 260, aggregationStrategy: 'latest' }]
+            ['metric:loadPressureHigh', { cooldownMs: 180, aggregateWithinMs: 320, aggregationStrategy: 'latest' }]
         ]);
         this.cooldownMap = new Map();
         // Phase E.3: aggregation buffers keyed by semantic tag

@@ -91,10 +91,10 @@ export class HealingParticleSystem_Session136 {
         this.audioSystem = audioSystem; // Integration: Audio System
         
         this.config = {
-            maxParticles: 5000,
-            sparkleRate: 1.5,      // Sparkles per scar per second (increased from 0.5 for better visibility)
+            maxParticles: 3500,
+            sparkleRate: 1.15,     // Sparkles per scar per second; keeps scars readable without over-spawning
             baseLifetime: 2.0,
-            baseSize: 0.15,
+            baseSize: 0.16,
             trailDensity: 5,       // Particles per unit distance
             lodDistance: 100,
             ...config
@@ -211,10 +211,16 @@ export class HealingParticleSystem_Session136 {
             this.scarEmissions.clear();
             return;
         }
+
+        const clamp01 = (value) => {
+            const numeric = Number(value);
+            if (!Number.isFinite(numeric)) return 0;
+            return Math.max(0, Math.min(1, numeric));
+        };
         
         // Modulation based on state
-        const harmony = Number.isFinite(state?.harmonyFlow) ? state.harmonyFlow : 0.5;
-        const corruption = Number.isFinite(state?.corruptionLevel) ? state.corruptionLevel : 0;
+        const harmony = clamp01(state?.harmonyFlow ?? 0.5);
+        const corruption = clamp01(state?.corruptionLevel ?? 0);
         
         // Higher harmony = coherent sparkles
         // Higher corruption = suppressed sparkles
@@ -276,7 +282,7 @@ export class HealingParticleSystem_Session136 {
         if ((state?.harmonyFlow ?? 0) > 0.6) color.setHex(0xaaffff); // Cyan tint for high harmony
         
         const lifetime = this.config.baseLifetime * (0.8 + Math.random() * 0.4);
-        const size = this.config.baseSize * (0.8 + Math.random() * 0.4);
+        const size = this.config.baseSize * (0.85 + Math.random() * 0.3);
         
         this.spawnParticle(localPos, vel, color, size, lifetime, time);
     }
@@ -287,13 +293,15 @@ export class HealingParticleSystem_Session136 {
      */
     emitHealingTrail(position, velocity, intensity, time) {
         if (!this.enabled) return;
+
+        const normalizedIntensity = Math.max(0, Math.min(1, Number(intensity) || 0));
         
         // Elongated appearance is simulated by velocity streaking in perception
         // or we could use specific textures. For Points, we rely on density.
         
         const color = new THREE.Color(0.9, 0.9, 1.0); // Neutral white-ish
-        const size = this.config.baseSize * (0.9 + intensity * 0.6);
-        const life = 0.7 + intensity * 0.8; // Stronger waves = longer-lived traces
+        const size = this.config.baseSize * (0.9 + normalizedIntensity * 0.55);
+        const life = 0.7 + normalizedIntensity * 0.7; // Stronger waves = longer-lived traces
         
         // Add slight spread
         const spread = new THREE.Vector3(
@@ -317,12 +325,14 @@ export class HealingParticleSystem_Session136 {
     emitSplash(position, intensity, time) {
         if (!this.enabled) return;
 
+        const normalizedIntensity = Math.max(0, Math.min(1, Number(intensity) || 0));
+
         // Trigger Audio (Harmonic Healing Tone)
         if (this.audioSystem && this.audioSystem.triggerHealingTone) {
-            this.audioSystem.triggerHealingTone(position, intensity);
+            this.audioSystem.triggerHealingTone(position, normalizedIntensity);
         }
 
-        const particleCount = Math.max(8, Math.floor(18 * intensity)); // Burst size based on intensity
+        const particleCount = Math.max(8, Math.floor(14 * normalizedIntensity)); // Burst size based on intensity
         
         for (let i = 0; i < particleCount; i++) {
             // Random direction in sphere
@@ -334,13 +344,13 @@ export class HealingParticleSystem_Session136 {
 
             // Speed variation
             const speed = 2.0 + Math.random() * 3.0; 
-            const vel = dir.multiplyScalar(speed * intensity);
+            const vel = dir.multiplyScalar(speed * normalizedIntensity);
 
             // Color: Golden/Cyan burst
             const color = new THREE.Color(1.0, 0.8, 0.4); // Gold base
             if (Math.random() > 0.5) color.setHex(0x00ffff); // Cyan accents
 
-            const size = this.config.baseSize * (1.0 + Math.random());
+            const size = this.config.baseSize * (0.95 + Math.random() * 0.9);
             const life = 0.5 + Math.random() * 0.5;
 
             // Start exactly at position

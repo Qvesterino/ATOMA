@@ -67,9 +67,35 @@ const SEMANTIC_DELTA = {
     corruptionLevel: 0.05,
     loadPressure: 0.05
 };
+const METRIC_PHASE_THRESHOLDS = {
+    low: 0.25,
+    high: 0.75,
+    lowExit: 0.32,
+    highExit: 0.68
+};
 const NODE_EVENT_COOLDOWN_MS = 2000;
 const NODE_METRIC_UPDATED_COOLDOWN_MS = 100; // 10 Hz per node
 const LINK_SPREAD_DELTA_MIN = 0.01;
+
+function classifyMetricPhase(value, previousPhase = null) {
+    const normalized = Math.max(0, Math.min(1, Number(value) || 0));
+
+    if (previousPhase === 'high') {
+        if (normalized >= METRIC_PHASE_THRESHOLDS.highExit) return 'high';
+        if (normalized <= METRIC_PHASE_THRESHOLDS.low) return 'low';
+        return 'normal';
+    }
+
+    if (previousPhase === 'low') {
+        if (normalized <= METRIC_PHASE_THRESHOLDS.lowExit) return 'low';
+        if (normalized >= METRIC_PHASE_THRESHOLDS.high) return 'high';
+        return 'normal';
+    }
+
+    if (normalized >= METRIC_PHASE_THRESHOLDS.high) return 'high';
+    if (normalized <= METRIC_PHASE_THRESHOLDS.low) return 'low';
+    return 'normal';
+}
 
 export class MetricsRuntime_v1 {
     /**
@@ -145,6 +171,13 @@ export class MetricsRuntime_v1 {
                 harmonyFlow: null,
                 networkStress: null,
                 corruptionLevel: null,
+                loadPressure: null
+            },
+            phases: {
+                synergy: null,
+                harmony: null,
+                stability: null,
+                corruption: null,
                 loadPressure: null
             },
             flags: {
@@ -1116,6 +1149,7 @@ const adapter = this._createLinkSystemAdapter(
         }
 
         this._emitGameplayTriggers(current, context);
+        this._emitMetricPhaseSignals(current, context);
         this._semanticSignalState.last = current;
     }
 
@@ -1163,6 +1197,53 @@ const adapter = this._createLinkSystemAdapter(
             semanticBus.emit('event:instabilityTrap', {
                 value: current.networkStress
             });
+        }
+    }
+
+    _emitMetricPhaseSignals(metricsPayload, context = {}) {
+        const semanticBus = globalThis?.semanticBus;
+        if (!semanticBus?.emit) return;
+
+        const now = typeof performance !== 'undefined' && typeof performance.now === 'function'
+            ? performance.now()
+            : Date.now();
+        const nodeCount = Number.isFinite(context.nodeCount) ? context.nodeCount : 0;
+        const linkCount = Number.isFinite(context.linkCount) ? context.linkCount : 0;
+        const phases = this._semanticSignalState?.phases;
+        if (!phases) return;
+
+        const entries = [
+            { metric: 'synergy', value: this._clamp01(metricsPayload?.networkSynergy) },
+            { metric: 'harmony', value: this._clamp01(metricsPayload?.harmonyFlow) },
+            { metric: 'stability', value: this._clamp01(1 - this._clamp01(metricsPayload?.networkStress)) },
+            { metric: 'corruption', value: this._clamp01(metricsPayload?.corruptionLevel) },
+            { metric: 'loadPressure', value: this._clamp01(metricsPayload?.loadPressure) }
+        ];
+
+        for (const entry of entries) {
+            const previousPhase = phases[entry.metric] ?? null;
+            const nextPhase = classifyMetricPhase(entry.value, previousPhase);
+            if (previousPhase === null) {
+                phases[entry.metric] = nextPhase;
+                continue;
+            }
+            if (nextPhase === previousPhase) {
+                continue;
+            }
+
+            phases[entry.metric] = nextPhase;
+            semanticBus.emit('metric.phase.changed', {
+                metric: entry.metric,
+                phase: nextPhase,
+                previousPhase,
+                value: entry.value,
+                nodeId: null,
+                nodeCount,
+                linkCount,
+                timestamp: now,
+                source: 'MetricsRuntime_v1',
+                scope: 'network'
+            }, { priority: semanticBus.priority?.NORMAL });
         }
     }
 

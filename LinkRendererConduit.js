@@ -1596,7 +1596,7 @@ export class LinkRendererConduit {
         const harmony = clamp01(metrics.harmony ?? 0);
         const corruption = clamp01(metrics.corruption ?? 0);
         const load = clamp01(metrics.loadPressure ?? 0);
-        const instability = clamp01(1.0 - (metrics.stability ?? 1));
+        const stability = clamp01(1.0 - (metrics.stability ?? 1));
         material.opacity = THREE.MathUtils.clamp(
             STRAND_FILAMENT_STYLE.BASE_OPACITY + load * 0.22 + corruption * 0.28 + synergy * 0.12,
             0.3,
@@ -1689,7 +1689,7 @@ export class LinkRendererConduit {
                 lengthScale[idx] *
                 (0.7 + harmony * 0.35 + load * 0.45) +
                 detach * STRAND_FILAMENT_STYLE.DETACH_BOOST;
-            const sway = (pulse - 0.5) * STRAND_FILAMENT_STYLE.SWAY_AMOUNT * (1.0 + instability * 0.6);
+            const sway = (pulse - 0.5) * STRAND_FILAMENT_STYLE.SWAY_AMOUNT * (1.0 + stability * 0.6);
             let jumpVisibility = 1.0;
 
             if (isBridge || isMicroJump) {
@@ -2094,24 +2094,24 @@ export class LinkRendererConduit {
 
         let frameHarmony = 0.5;
         let frameCorruption = 0;
-        let frameInstability = 0;
+        let frameStability = 0;
         if (this.nodeHarmonicManager?.update || this.nodeInterferenceManager?.update) {
             let sumHarmony = 0;
             let sumCorruption = 0;
-            let sumInstability = 0;
+            let sumStability = 0;
             let count = 0;
             for (const link of list) {
                 if (!link) continue;
                 const m = this._readLinkMetrics(link);
                 sumHarmony += (m?.harmony ?? 0.5);
                 sumCorruption += (m?.corruption ?? 0);
-                sumInstability += (m?.instability ?? (1 - (m?.stability ?? 1)));
+                sumStability += (m?.stability ?? (1 - (m?.stability ?? 1)));
                 count += 1;
             }
             const inv = count > 0 ? (1 / count) : 0;
             frameHarmony = count > 0 ? sumHarmony * inv : 0.5;
             frameCorruption = count > 0 ? sumCorruption * inv : 0;
-            frameInstability = count > 0 ? sumInstability * inv : 0;
+            frameStability = count > 0 ? sumStability * inv : 0;
         }
 
         if (this.nodeHarmonicManager?.update) {
@@ -2119,7 +2119,7 @@ export class LinkRendererConduit {
                 list,
                 frameHarmony,
                 frameCorruption,
-                frameInstability,
+                frameStability,
                 VisualTime.delta
             );
         }
@@ -2129,7 +2129,7 @@ export class LinkRendererConduit {
                 list,
                 frameHarmony,
                 frameCorruption,
-                frameInstability
+                frameStability
             );
         }
 
@@ -2497,11 +2497,11 @@ export class LinkRendererConduit {
      * @param {number} time - Current time
      * @param {number} harmony - Harmony level (0-1)
      * @param {number} corruption - Corruption level (0-1)
-     * @param {number} instability - Instability level (0-1)
+     * @param {number} stability - stability level (0-1)
      * @param {number} synergy - Synergy level (0-1)
      * @param {Array} links - All links
      */
-    updateCascadePropagation(deltaTime, time, harmony = 1.0, corruption = 0.0, instability = 0.0, synergy = 0.5, links = []) {
+    updateCascadePropagation(deltaTime, time, harmony = 1.0, corruption = 0.0, stability = 0.0, synergy = 0.5, links = []) {
         const visualDelta = VisualTime.delta;
         const visualNow = VisualTime.now;
         if (this.directionalStreaks && this.nodeHarmonicManager) {
@@ -2510,7 +2510,7 @@ export class LinkRendererConduit {
                 visualNow,
                 harmony,
                 corruption,
-                instability,
+                stability,
                 synergy,
                 this.nodeHarmonicManager.nodeControllers,
                 links
@@ -2538,16 +2538,16 @@ export class LinkRendererConduit {
      * Update all interference effects
      * Call this from the main render loop after all individual link updates
      */
-    updateNodeInterference(links, harmony = 1.0, corruption = 0.0, instability = 0.0) {
-        this.nodeInterferenceManager.update(links, harmony, corruption, instability);
+    updateNodeInterference(links, harmony = 1.0, corruption = 0.0, stability = 0.0) {
+        this.nodeInterferenceManager.update(links, harmony, corruption, stability);
     }
 
     /**
      * Update all harmonic sync effects
      * Call this from the main render loop after all individual link updates
      */
-    updateNodeHarmonySync(links, harmony = 1.0, corruption = 0.0, instability = 0.0, deltaTime = 0.016) {
-        this.nodeHarmonicManager.update(links, harmony, corruption, instability, deltaTime);
+    updateNodeHarmonySync(links, harmony = 1.0, corruption = 0.0, stability = 0.0, deltaTime = 0.016) {
+        this.nodeHarmonicManager.update(links, harmony, corruption, stability, deltaTime);
     }
 
     /**
@@ -3029,16 +3029,15 @@ export class LinkRendererConduit {
         // Harmonic sync update (links + aggregated metrics)
         if (this.nodeHarmonicManager) {
             trace('beforeNodeHarmonicManager');
-            const instabilityMetric = metrics?.instability;
-            const stabilityMetric = metrics?.stability;
-            const instabilityValue = (typeof instabilityMetric === 'number')
-                ? instabilityMetric
-                : (typeof stabilityMetric === 'number' ? 1 - stabilityMetric : 0.0);
+            const stabilityMetric = (typeof metrics?.stability === 'number')
+                ? metrics.stability
+                : (typeof metrics?.instability === 'number' ? 1 - metrics.instability : 0.0);
+            const stabilityValue = stabilityMetric;
             this.nodeHarmonicManager.update(
                 [link],
                 metrics?.harmony ?? 1.0,
                 metrics?.corruption ?? 0.0,
-                instabilityValue,
+                stabilityValue,
                 visualDelta
             );
             trace('afterNodeHarmonicManager');
@@ -3565,7 +3564,7 @@ export class LinkRendererConduit {
         const lodTrafficLoad = trafficLoad * lodVisualScale;
         const lodHarmony = (metrics.harmony ?? 0.5) * lodVisualScale;
         const lodCorruption = (metrics.corruption ?? 0.0) * lodVisualScale;
-        const lodInstability = (metrics.instability ?? 0.0) * lodVisualScale;
+        const lodStability = (metrics.stability ?? 0.0) * lodVisualScale;
 
         // Collect per-link material patches to apply once per frame (last-wins per property)
         const materialPatches = {
@@ -4165,19 +4164,19 @@ export class LinkRendererConduit {
             );
         }
 
-        // --- 8. Visual State Adaptation (Harmony/Corruption/Instability/Synergy Bridge) ---
+        // --- 8. Visual State Adaptation (Harmony/Corruption/stability/Synergy Bridge) ---
         if (heavyTick && state.visualStateAdapter) {
-            // Extract harmony/corruption/instability/synergy from pre-read metrics
+            // Extract harmony/corruption/stability/synergy from pre-read metrics
             const harmonyLevel = lodHarmony;
             const corruptionLevel = lodCorruption;
-            const instability = lodInstability;
+            const stability = lodStability;
             const synergyLevel = lodSynergy;
 
             state.visualStateAdapter.update(
                 link.group,
                 harmonyLevel,
                 corruptionLevel,
-                instability,
+                stability,
                 visualDelta,
                 synergyLevel,
                 frameState
@@ -4206,7 +4205,7 @@ export class LinkRendererConduit {
                 state.__directionalStreaksAccum = 0;
                 const harmonyLevel = lodHarmony;
                 const corruptionLevel = lodCorruption;
-                const instability = lodInstability;
+                const stability = lodStability;
                 const synergyLevel = lodSynergy;
 
                 const sourceColor = new THREE.Color(state.baseColor);
@@ -4221,7 +4220,7 @@ export class LinkRendererConduit {
                         synergyLevel,
                         harmonyLevel,
                         corruptionLevel,
-                        instability,
+                        stability,
                         sourceColor,
                         targetColor,
                         link,
@@ -4229,7 +4228,7 @@ export class LinkRendererConduit {
                         frameState
                     );
                     if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
-                        console.debug('[StreaksTick]', link.id, 'synergy:', synergyLevel, 'harmony:', harmonyLevel, 'corruption:', corruptionLevel, 'instability:', instability);
+                        console.debug('[StreaksTick]', link.id, 'synergy:', synergyLevel, 'harmony:', harmonyLevel, 'corruption:', corruptionLevel, 'stability:', stability);
                     }
                 } catch (err) {
                     if (typeof window !== 'undefined') {
@@ -4443,7 +4442,7 @@ export class LinkRendererConduit {
                 harmony: 0,
                 corruption: 0,
                 stability: 1,
-                instability: 0,
+                stability: 0,
                 loadPressure: 0
             };
         }
@@ -4453,7 +4452,7 @@ export class LinkRendererConduit {
             harmony: m.harmony ?? 0,
             corruption: m.corruption ?? 0,
             stability: m.stability ?? 1,
-            instability: 1 - (m.stability ?? 1),
+            stability: 1 - (m.stability ?? 1),
             loadPressure: m.loadPressure ?? 0
         };
     }
@@ -5618,3 +5617,6 @@ const makeWaveSlice = () => {
         // Other internal systems (waveTravelShaderPack, etc.) are not rebindable and assume stable references
     }
 }
+
+
+
