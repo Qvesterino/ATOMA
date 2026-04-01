@@ -89,7 +89,7 @@ export class HarmonicHealingVisualSystem_Session134 {
         
         this.config = {
             waveSpeed: 3.2,           // Units per second
-            spawnInterval: 0.06,      // Minimum seconds between spawns
+            spawnInterval: 1.5,      // Minimum seconds between spawns (slower)
             harmonyThreshold: 0.18,   // Minimum healing drive to start spawning
             maxWaves: 96,             // Performance limit
             repairVisualsOnly: false, // Allow gameplay stats changes

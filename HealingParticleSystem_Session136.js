@@ -38,8 +38,10 @@ attribute float lifetime;
 attribute vec3 velocity;
 attribute float size;
 attribute vec3 color;
+attribute float layer;
 varying vec3 vColor;
 varying float vAlpha;
+varying float vLayer;
 
 void main() {
     float age = uTime - birthTime;
@@ -56,26 +58,51 @@ void main() {
     // Physics: Simple linear velocity + slight rise
     vec3 pos = position + velocity * age;
     pos.y += 0.2 * age * age; // Gentle upward drift
-    
-    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+
+    // 4D hypercube stereographic projection
+    float layerNorm = (layer / 15.0) * 2.0 - 1.0;
+    float driveTime = uTime * 0.65 + layer * 0.4;
+    float c0 = cos(driveTime);
+    float s0 = sin(driveTime);
+    float c1 = cos(driveTime * 1.4 + 1.3);
+    float s1 = sin(driveTime * 1.4 + 1.3);
+
+    vec4 pos4 = vec4(pos, layerNorm);
+    vec4 rotated;
+    rotated.x = pos4.x * c0 - pos4.w * s0;
+    rotated.w = pos4.x * s0 + pos4.w * c0;
+    rotated.y = pos4.y * c1 - pos4.z * s1;
+    rotated.z = pos4.y * s1 + pos4.z * c1;
+
+    float denom = 1.0 - rotated.w;
+    denom = max(denom, 0.15);
+    vec3 hyperPos = rotated.xyz / denom;
+
+    // Blend between base and hypercube to keep continuity
+    vec3 finalPos = mix(pos, hyperPos * 0.65, 0.86);
+
+    vec4 mvPosition = modelViewMatrix * vec4(finalPos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
+
+    // Size attenuation with layer-dependent pulsation
+    float sizePulse = 1.0 + 0.35 * sin(uTime * 4.0 + layer * 0.5);
+    gl_PointSize = size * uScale * sizePulse * (300.0 / -mvPosition.z);
     
-    // Size attenuation
-    gl_PointSize = size * uScale * (300.0 / -mvPosition.z);
-    
-    // Fade in/out
+    // Fade in/out, preserved as pop effect
     float alpha = 1.0;
     if (progress < 0.1) alpha = progress * 10.0;
     else alpha = 1.0 - ((progress - 0.1) / 0.9);
     
     vAlpha = alpha;
-    vColor = color;
+    vLayer = layer / 15.0;
+    vColor = mix(color, vec3(0.35, 0.9, 1.0), 0.35 + 0.35 * sin(uTime * 0.8 + layer));
 }
 `;
 
 const SPARKLE_FRAGMENT_SHADER = `
 varying vec3 vColor;
 varying float vAlpha;
+varying float vLayer;
 
 void main() {
     // Debug-friendly square particle shape with hard readable edges.
@@ -85,7 +112,10 @@ void main() {
 
     float boxGlow = 1.0 - smoothstep(0.18, 0.5, d);
     float edgeGlow = smoothstep(0.48, 0.36, d);
-    vec3 boosted = vColor * (1.35 + edgeGlow * 0.65);
+
+    // Hypercube layer color shift
+    vec3 layerTint = mix(vec3(0.95, 0.65, 1.0), vec3(0.15, 1.0, 0.9), vLayer);
+    vec3 boosted = (vColor + layerTint * 0.8) * (1.25 + edgeGlow * 0.75);
 
     gl_FragColor = vec4(boosted, vAlpha * boxGlow);
 }
@@ -132,6 +162,7 @@ export class HealingParticleSystem_Session136 {
         const birthTimes = new Float32Array(particleCount);
         const lifetimes = new Float32Array(particleCount);
         const sizes = new Float32Array(particleCount);
+        const layers = new Float32Array(particleCount);
         
         // Fill with default invisible values
         birthTimes.fill(-1000);
@@ -143,6 +174,7 @@ export class HealingParticleSystem_Session136 {
         this.geometry.setAttribute('birthTime', new THREE.BufferAttribute(birthTimes, 1).setUsage(THREE.DynamicDrawUsage));
         this.geometry.setAttribute('lifetime', new THREE.BufferAttribute(lifetimes, 1).setUsage(THREE.DynamicDrawUsage));
         this.geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1).setUsage(THREE.DynamicDrawUsage));
+        this.geometry.setAttribute('layer', new THREE.BufferAttribute(layers, 1).setUsage(THREE.DynamicDrawUsage));
         
         this.material = new THREE.ShaderMaterial({
             vertexShader: SPARKLE_VERTEX_SHADER,
@@ -176,6 +208,10 @@ export class HealingParticleSystem_Session136 {
         this.geometry.attributes.birthTime.setX(i, startTime);
         this.geometry.attributes.lifetime.setX(i, life);
         this.geometry.attributes.size.setX(i, size);
+
+        // Hypercube layer index 0..15
+        const layerIndex = Math.floor(Math.random() * 16);
+        this.geometry.attributes.layer.setX(i, layerIndex);
         
         // Mark for update
         this.geometry.attributes.position.needsUpdate = true; // Optimization: set ranges?
@@ -184,6 +220,7 @@ export class HealingParticleSystem_Session136 {
         this.geometry.attributes.birthTime.needsUpdate = true;
         this.geometry.attributes.lifetime.needsUpdate = true;
         this.geometry.attributes.size.needsUpdate = true;
+        this.geometry.attributes.layer.needsUpdate = true;
         
         // Advance circular buffer
         this.particleIndex = (this.particleIndex + 1) % this.config.maxParticles;

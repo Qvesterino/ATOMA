@@ -262,16 +262,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         // Pre-allocate scar mesh pool - use proper base geometry, scale at runtime
         const maxScarMeshes = this.config.maxResonanceScarsMeshes ?? 20;
         for (let i = 0; i < maxScarMeshes; i++) {
-            let mesh;
-            if (this.config.debugVisualBoost) {
-                mesh = this._createFractureBloomScarRoot();
-            } else {
-                // Base geometry of 1x1, will be scaled appropriately at runtime
-                const geometry = new THREE.PlaneGeometry(1, 1);
-                mesh = new THREE.Mesh(geometry, this.scarMaterial.clone());
-                mesh.renderOrder = this.config.renderOrder;
-                this.scene.add(mesh);
-            }
+            const mesh = this._createScarParticleBurstRoot();
             mesh.visible = false;
             this.scarMeshPool.push({
                 mesh: mesh,
@@ -298,6 +289,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         this.time = currentTime;
         this._ensureSemanticBindings();
         this._ensureCanonicalLinkDefaults();
+        this._ensureScarMeshesAttached();
 
         // Step 1: Monitor standing waves for stress accumulation
         this._updateStressAccumulation(deltaTime);
@@ -788,6 +780,146 @@ export class ResonanceRuptureVisualSystem_Session133 {
         if (mesh.material) mesh.material.dispose();
     }
 
+    _getScarParticleTexture() {
+        if (this._scarParticleTexture) return this._scarParticleTexture;
+        const canvas = (typeof document !== 'undefined')
+            ? document.createElement('canvas')
+            : null;
+        if (!canvas) return null;
+
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+
+        const gradient = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
+        gradient.addColorStop(0.0, 'rgba(255,255,240,1.0)');
+        gradient.addColorStop(0.18, 'rgba(255,160,100,0.95)');
+        gradient.addColorStop(0.42, 'rgba(220,40,35,0.68)');
+        gradient.addColorStop(0.72, 'rgba(120,10,22,0.25)');
+        gradient.addColorStop(1.0, 'rgba(0,0,0,0.0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 64, 64);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.needsUpdate = true;
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.generateMipmaps = false;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        this._scarParticleTexture = texture;
+        return texture;
+    }
+
+    _createScarParticleBurstRoot() {
+        const root = new THREE.Points();
+        root.renderOrder = this.config.renderOrder + 1;
+        root.frustumCulled = false;
+        root.userData.particleScar = true;
+        root.userData.pointCloud = true;
+        root.userData.particles = [];
+        root.userData.tempPos = new THREE.Vector3();
+        root.userData.tempRight = new THREE.Vector3();
+        root.userData.tempUp = new THREE.Vector3();
+        root.userData.tempForward = new THREE.Vector3();
+        root.userData.baseOpacity = this.config.debugVisualBoost ? 0.90 : 0.76;
+        root.userData.particleCount = this.config.debugVisualBoost ? 32 : 24;
+        root.userData.sizeScale = this.config.debugVisualBoost ? 176.0 : 144.0;
+        root.userData.texture = this._getScarParticleTexture();
+
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(root.userData.particleCount * 3);
+        const colors = new Float32Array(root.userData.particleCount * 3);
+        const sizes = new Float32Array(root.userData.particleCount);
+        const alphas = new Float32Array(root.userData.particleCount);
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+        geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+        geometry.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1));
+        geometry.setDrawRange(0, root.userData.particleCount);
+
+        const material = new THREE.ShaderMaterial({
+            uniforms: {
+                uMap: { value: root.userData.texture },
+                uOpacity: { value: root.userData.baseOpacity },
+                uSizeScale: { value: root.userData.sizeScale }
+            },
+            vertexShader: `
+                attribute vec3 aColor;
+                attribute float aSize;
+                attribute float aAlpha;
+                varying vec3 vColor;
+                varying float vAlpha;
+                uniform float uSizeScale;
+                void main() {
+                    vColor = aColor;
+                    vAlpha = aAlpha;
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    float distScale = max(0.45, -mvPosition.z);
+                    gl_PointSize = aSize * uSizeScale / distScale;
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `,
+            fragmentShader: `
+                uniform sampler2D uMap;
+                uniform float uOpacity;
+                varying vec3 vColor;
+                varying float vAlpha;
+                void main() {
+                    vec4 tex = texture2D(uMap, gl_PointCoord);
+                    float alpha = tex.a * vAlpha * uOpacity;
+                    if (alpha < 0.02) discard;
+                    vec3 color = vColor * tex.rgb;
+                    gl_FragColor = vec4(color, alpha);
+                }
+            `,
+            transparent: true,
+            depthWrite: false,
+            depthTest: true,
+            blending: THREE.NormalBlending,
+            vertexColors: true,
+            toneMapped: false
+        });
+
+        root.geometry = geometry;
+        root.material = material;
+
+        const tierSpecs = [
+            { count: 4, size: 5.6, color: [1.0, 0.96, 0.90], opacity: 1.0, rise: 0.12, spread: 0.05, velocity: 0.10, jitter: 0.02 },
+            { count: 10, size: 3.8, color: [1.0, 0.42, 0.14], opacity: 0.92, rise: 0.18, spread: 0.10, velocity: 0.14, jitter: 0.03 },
+            { count: 10, size: 2.8, color: [0.58, 0.09, 0.15], opacity: 0.82, rise: 0.28, spread: 0.16, velocity: 0.18, jitter: 0.04 },
+            { count: 8, size: 2.0, color: [0.34, 0.03, 0.08], opacity: 0.66, rise: 0.36, spread: 0.22, velocity: 0.22, jitter: 0.05 }
+        ];
+
+        let index = 0;
+        for (const tier of tierSpecs) {
+            for (let i = 0; i < tier.count && index < root.userData.particleCount; i++, index++) {
+                const angle = (index / root.userData.particleCount) * Math.PI * 2 + Math.random() * 0.8;
+                const ringRadius = tier.spread + Math.random() * (tier.spread * 0.8);
+                const radial = Math.cos(angle) * ringRadius;
+                const lateral = (Math.random() - 0.35) * (tier.spread * 0.75);
+                const depth = Math.sin(angle) * ringRadius;
+                root.userData.particles.push({
+                    offset: new THREE.Vector3(radial, lateral, depth),
+                    velocity: new THREE.Vector3(
+                        Math.cos(angle) * tier.velocity + (Math.random() - 0.5) * tier.jitter,
+                        tier.rise + Math.random() * (tier.rise * 0.65),
+                        Math.sin(angle) * tier.velocity + (Math.random() - 0.5) * tier.jitter
+                    ),
+                    color: new THREE.Color().setRGB(tier.color[0], tier.color[1], tier.color[2]),
+                    size: tier.size + Math.random() * 0.8,
+                    alpha: tier.opacity,
+                    flutter: 0.007 + Math.random() * 0.022,
+                    phase: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        this.scene.add(root);
+        return root;
+    }
+
     /**
      * Create resonance scar on affected link
      */
@@ -811,15 +943,8 @@ export class ResonanceRuptureVisualSystem_Session133 {
             const scarCenter = new THREE.Vector3().addVectors(startPos, endPos).multiplyScalar(0.5);
             scarMesh.mesh.position.copy(scarCenter);
 
-            if (this.config.debugVisualBoost && scarMesh.mesh.userData?.fractureBloom) {
-                this._layoutFractureBloomScar(scarMesh.mesh, startPos, endPos, intensity, linkId);
-                const linkVector = new THREE.Vector3().subVectors(endPos, startPos);
-                const referenceUp = Math.abs(linkVector.y) > 0.92 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
-                const offsetRight = new THREE.Vector3().crossVectors(linkVector, referenceUp).normalize();
-                const offsetUp = new THREE.Vector3().crossVectors(offsetRight, linkVector).normalize();
-                scarMesh.mesh.position
-                    .addScaledVector(offsetRight, 0.08 + intensity * 0.05)
-                    .addScaledVector(offsetUp, 0.04 + intensity * 0.03);
+            if (scarMesh.mesh.userData?.particleScar) {
+                this._layoutScarParticleBurst(scarMesh.mesh, startPos, endPos, intensity, linkId);
             } else {
                 // Orient along link
                 scarMesh.mesh.lookAt(endPos);
@@ -857,10 +982,11 @@ export class ResonanceRuptureVisualSystem_Session133 {
             
             // Fade scar
             const opacity = this.config.debugVisualBoost
-                ? Math.max(0.18, this.config.scarOpacity * scar.intensity * (1 - progress) * 1.8)
+                ? Math.max(0.16, scar.intensity * (1 - progress) * 0.72)
                 : this.config.scarOpacity * scar.intensity * (1 - progress);
-            if (this.config.debugVisualBoost && scar.mesh.mesh.userData?.fractureBloom) {
-                this._setFractureBloomOpacity(scar.mesh.mesh, opacity);
+            if (scar.mesh.mesh.userData?.particleScar) {
+                this._updateScarParticleBurst(scar.mesh.mesh, scar, deltaTime);
+                this._setScarParticleOpacity(scar.mesh.mesh, opacity);
             } else if (scar.mesh.mesh.material) {
                 scar.mesh.mesh.material.opacity = opacity;
             }
@@ -1207,6 +1333,115 @@ export class ResonanceRuptureVisualSystem_Session133 {
         return root;
     }
 
+    _layoutScarParticleBurst(root, startPos, endPos, intensity, seed = 0) {
+        if (!root || !startPos || !endPos) return;
+        const center = new THREE.Vector3().addVectors(startPos, endPos).multiplyScalar(0.5);
+        const linkVector = new THREE.Vector3().subVectors(endPos, startPos);
+        const linkLength = linkVector.length();
+        if (linkLength <= 0) return;
+
+        root.position.copy(center);
+        root.position.y += 0.09 + intensity * 0.05;
+        root.userData.linkId = seed !== undefined && seed !== null ? String(seed) : root.userData.linkId;
+        root.userData.birthTime = this.time;
+        root.userData.intensity = intensity;
+        root.userData.linkLength = linkLength;
+        root.userData.center = center;
+        root.visible = true;
+        this._updateScarParticleBurst(root, {
+            linkId: root.userData.linkId,
+            birthTime: this.time,
+            intensity
+        }, 0);
+    }
+
+    _updateScarParticleBurst(root, scar, deltaTime) {
+        if (!root || !scar) return;
+        const particles = root.userData?.particles || [];
+        const geometry = root.geometry;
+        const positionAttr = geometry?.attributes?.position;
+        const colorAttr = geometry?.attributes?.aColor;
+        const sizeAttr = geometry?.attributes?.aSize;
+        const alphaAttr = geometry?.attributes?.aAlpha;
+        if (!positionAttr || !colorAttr || !sizeAttr || !alphaAttr || particles.length === 0) return;
+
+        const link = this._getLinkById(scar.linkId);
+        const startPos = this._getLinkSource(link)?.position;
+        const endPos = this._getLinkTarget(link)?.position;
+        const center = root.userData?.center || new THREE.Vector3();
+        if (startPos && endPos) {
+            center.copy(startPos).add(endPos).multiplyScalar(0.5);
+            root.userData.center = center;
+            root.position.copy(center);
+            root.position.y += 0.09 + (scar.intensity || 1) * 0.05;
+        }
+
+        const age = Math.max(0, this.time - (scar.birthTime || this.time));
+        const progress = this.config.scarDuration > 0
+            ? THREE.MathUtils.clamp(age / this.config.scarDuration, 0, 1)
+            : 1;
+        const intensity = THREE.MathUtils.clamp(scar.intensity || 1, 0.1, 2.0);
+        const rise = 0.18 + intensity * 0.16;
+        const tempPos = root.userData.tempPos;
+        const tempRight = root.userData.tempRight;
+        const tempUp = root.userData.tempUp;
+        const tempForward = root.userData.tempForward;
+        const forward = new THREE.Vector3(0, 0, 1);
+        const referenceUp = Math.abs(forward.y) > 0.92 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        const right = new THREE.Vector3().crossVectors(forward, referenceUp).normalize();
+        const up = new THREE.Vector3().crossVectors(right, forward).normalize();
+        const positionArray = positionAttr.array;
+        const colorArray = colorAttr.array;
+        const sizeArray = sizeAttr.array;
+        const alphaArray = alphaAttr.array;
+
+        particles.forEach((particle, index) => {
+            const phase = Number.isFinite(particle.phase) ? particle.phase : 0;
+            const drift = particle.offset.clone().addScaledVector(particle.velocity, age);
+            const pulse = Math.sin(age * (particle.flutter * 80 + 2.4) + phase);
+            const lift = age * rise + pulse * (0.03 + intensity * 0.015);
+            const lateral = pulse * (0.015 + particle.size * 0.0025);
+            const spiral = Math.cos(age * (particle.flutter * 55 + 1.8) + phase) * 0.02;
+
+            tempRight.copy(right).multiplyScalar(drift.x + lateral);
+            tempUp.copy(up).multiplyScalar(drift.y + lift);
+            tempForward.copy(forward).multiplyScalar(drift.z + spiral);
+            tempPos.copy(center).add(tempRight).add(tempUp).add(tempForward);
+
+            const base = index < 4 ? 1.25 : index < 14 ? 1.0 : 0.82;
+            const scale = Math.max(0.45, particle.size * (1 + Math.min(age * 0.06, 0.9)) * (1 - progress * 0.38) * base);
+            positionArray[index * 3 + 0] = tempPos.x - center.x;
+            positionArray[index * 3 + 1] = tempPos.y - center.y;
+            positionArray[index * 3 + 2] = tempPos.z - center.z;
+            colorArray[index * 3 + 0] = particle.color.r * (0.84 + intensity * 0.08);
+            colorArray[index * 3 + 1] = particle.color.g * (0.84 + intensity * 0.08);
+            colorArray[index * 3 + 2] = particle.color.b * (0.84 + intensity * 0.08);
+            sizeArray[index] = scale;
+            alphaArray[index] = THREE.MathUtils.clamp(
+                particle.alpha * (1 - progress) * (index < 4 ? 1.0 : 0.82),
+                0.06,
+                1
+            );
+        });
+
+        positionAttr.needsUpdate = true;
+        colorAttr.needsUpdate = true;
+        sizeAttr.needsUpdate = true;
+        alphaAttr.needsUpdate = true;
+        if (root.material?.uniforms?.uOpacity) {
+            root.material.uniforms.uOpacity.value = this.config.debugVisualBoost
+                ? Math.max(0.20, intensity * (1 - progress) * 0.70)
+                : Math.max(0.14, intensity * (1 - progress) * 0.55);
+        }
+        root.visible = true;
+    }
+
+    _setScarParticleOpacity(root, opacity) {
+        if (!root) return;
+        if (!root.material?.uniforms?.uOpacity) return;
+        root.material.uniforms.uOpacity.value = THREE.MathUtils.clamp(opacity, 0, 1);
+    }
+
     _createFractureShardGeometry(options = {}) {
         const topWidth = options.topWidth ?? 0.04;
         const shoulderWidth = options.shoulderWidth ?? 0.14;
@@ -1550,6 +1785,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         };
 
         bind('link:collapsed');
+        bind('link.created');
         bind('cascade.hop');
         bind('metric.corruption.spike');
         bind('metric:corruptionRise');
@@ -1578,6 +1814,11 @@ export class ResonanceRuptureVisualSystem_Session133 {
         this.debugStats.semanticHits[tag] = (this.debugStats.semanticHits[tag] || 0) + 1;
 
         switch (tag) {
+            case 'link.created': {
+                const linkId = this._resolveLinkId(semanticPayload);
+                if (linkId !== null) this._createResonanceScar(linkId, null, 1.0);
+                break;
+            }
             case 'link:collapsed': {
                 const linkId = this._resolveLinkId(semanticPayload);
                 if (linkId !== null) this._addEventPressureToLink(linkId, 1.0, tag);
@@ -1746,6 +1987,18 @@ export class ResonanceRuptureVisualSystem_Session133 {
         });
     }
 
+    _ensureScarMeshesAttached() {
+        if (!this.scene || !Array.isArray(this.scarMeshPool)) return;
+        this.scarMeshPool.forEach((item) => {
+            const mesh = item?.mesh;
+            if (!mesh) return;
+            if (mesh.parent !== this.scene) {
+                this.scene.add(mesh);
+            }
+            mesh.renderOrder = this.config.renderOrder + 2;
+        });
+    }
+
     _ensureCanonicalLinkDefaults() {
         const links = this.linkingSystem?.links || [];
         links.forEach((link) => {
@@ -1805,6 +2058,10 @@ export class ResonanceRuptureVisualSystem_Session133 {
         if (this.ruptureMaterial) this.ruptureMaterial.dispose();
         if (this.propagationMaterial) this.propagationMaterial.dispose();
         if (this.scarMaterial) this.scarMaterial.dispose();
+        if (this._scarParticleTexture) {
+            this._scarParticleTexture.dispose();
+            this._scarParticleTexture = null;
+        }
         
         // Clear maps
         this.stressAccumulation.clear();

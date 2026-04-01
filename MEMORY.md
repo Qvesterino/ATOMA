@@ -174,3 +174,8 @@ Confirmed default runtime validation entrypoint:
 - `LinkResonanceFlowSystem_Session124` now repeats pulses on any live link with a fixed 3-second cadence.
 - Metrics are used for pulse styling and motion bias, not for spawn eligibility.
 - This system is intentionally link-only: if a link exists, it should pulse.
+
+## Resonance Rupture Scar Lesson
+- `ResonanceRuptureVisualSystem_Session133` scar visuals now use a dedicated particle-burst root that must remain attached to the active scene graph during runtime.
+- If world lifecycle or cleanup logic detaches the scar root, the system should reattach it during update instead of relying on one-time setup attachment.
+- Link-born scar visuals are a separate path from rupture burst visuals; keep the scar root renderable and the rupture burst independent.

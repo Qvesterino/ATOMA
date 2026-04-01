@@ -4355,7 +4355,7 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.glyphFusionOverlay?.update?.(dt), 'visual.glyphFusionOverlay');
         this.frameScheduler.register('visual', (dt) => this.linkedGlyphSync?.update?.(dt, this.aiNodes, this.linkingSystem), 'visual.linkedGlyphSync');
         this.frameScheduler.register('visual', (dt) => this.cascadePropagationVisuals?.update?.(dt), 'visual.cascadePropagation');
-        this.frameScheduler.register('visual', () => this.cascadePropagationVisuals?.checkCascadeEvents?.(), 'visual.phase5CascadeEventCheck');
+        this.frameScheduler.register('simulation', () => this.cascadePropagationVisuals?.checkCascadeEvents?.(), 'simulation.phase5CascadeEventCheck');
         this.frameScheduler.register('visual', (dt) => this.evolvingLinkFX?.update?.(dt, null, null), 'visual.evolvingLinkFX');
         this.frameScheduler.register('visual', (dt) => this.linkVisualMoodSystem?.update?.(dt), 'visual.linkVisualMoodSystem');
         this.frameScheduler.register('visual', () => { if (this.linkDebugMode?.enabled) this.linkDebugMode.updateDebugVisuals(); }, 'visual.linkDebugMode');
@@ -4371,8 +4371,8 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.newNodeCategories?.update?.(dt, this.time), 'visual.newNodeCategories');
         // this.frameScheduler.register('visual', (dt) => this.extremeLinkVisuals?.update?.(dt), 'visual.extremeLinkVisuals');
         // this.frameScheduler.register('visual', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera), 'visual.extremeLinkVisuals4');
-        this.frameScheduler.register('visual', (dt) => this.mythicRitualController?.update?.(dt, this.aiNodes?.nodes), 'visual.mythicRitualController');
-        this.frameScheduler.register('visual', (dt) => this.phase8RitualOrchestration?.update?.(dt * 1000), 'visual.phase8RitualOrchestration');
+        this.frameScheduler.register('simulation', (dt) => this.mythicRitualController?.update?.(dt, this.aiNodes?.nodes), 'simulation.mythicRitualController');
+        this.frameScheduler.register('simulation', (dt) => this.phase8RitualOrchestration?.update?.(dt * 1000), 'simulation.phase8RitualOrchestration');
         this.frameScheduler.register('visual', (dt) => this.mythicSeedGlyph?.update?.(dt, this.camera), 'visual.mythicSeedGlyph');
         // Infra/diagnostic: keep in visual for now to avoid sim cadence mismatch
         this.frameScheduler.register('visual', () => this.microImpulseAdapter?.update?.(), 'visual.microImpulseAdapter');
@@ -4392,12 +4392,12 @@ class AtomaGame {
         // Cross-layer tick bridges
         this.frameScheduler.register('realtime', (dt) => this.nodeInteractionEngine?.update?.(dt), 'realtime.nodeInteraction');
         this.frameScheduler.register('realtime', (dt) => this.hitProxySystem?.update?.(dt), 'realtime.hitProxy');
-        this.frameScheduler.register('visual', () => {
+        this.frameScheduler.register('simulation', () => {
             if (this._runElasticityPending) {
                 this._runElasticityPending = false;
                 this.visualNetworkTimeElasticityTick(this._pendingElasticityDt);
             }
-        }, 'visual.visualNetworkTimeElasticity');
+        }, 'simulation.visualNetworkTimeElasticity');
         this.frameScheduler.register('visual', () => {
             if (!VISUAL_SYSTEMS_ENABLED) return;
             if (this._runSynergyPulsePending) {
@@ -4484,6 +4484,16 @@ class AtomaGame {
         }, 'visual.resonanceFeedback');
         this.frameScheduler.register('visual', (dt) => {
             if (this.resonanceRupture) {
+                if (this.resonanceRupture?.config?.debugVisualBoost && (this.time - (this._ruptureRuntimeHeartbeatAt ?? -Infinity) >= 2.0)) {
+                    this._ruptureRuntimeHeartbeatAt = this.time;
+                    console.log('[main.js] visual.resonanceRupture tick', {
+                        time: this.time,
+                        dt,
+                        initialized: !!this.resonanceRupture.initialized,
+                        activeTraps: this.resonanceRupture?.standingWaveTrapSystem?.oscillationTraps?.filter?.(t => t && t.active).length ?? null,
+                        links: this.linkingSystem?.links?.length ?? null
+                    });
+                }
                 this.resonanceRupture.update(dt, this.time);
             }
         }, 'visual.resonanceRupture');
@@ -11167,7 +11177,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('linkMetricsToVisualBridge', 'simulation.linkMetricsToVisualBridge', (dt) => this.linkMetricsToVisualBridge?.update?.(dt));
         regGuard('stressBasedParticleScaler', 'simulation.stressBasedParticleScaler', (dt) => this.stressBasedParticleScaler?.update?.(dt));
         regGuard('cascadeVisualizerTick', 'visual.cascadeVisualizer', (dt) => { if (!this._runCascadeVisualizerPending) this.cascadeVisualizerTick?.(dt); });
-        regGuard('visualNetworkTimeElasticity', 'visual.visualNetworkTimeElasticity', (_dt) => {
+        regGuard('visualNetworkTimeElasticity', 'simulation.visualNetworkTimeElasticity', (_dt) => {
             if (this._runElasticityPending) {
                 this._runElasticityPending = false;
                 this.visualNetworkTimeElasticityTick?.(this._pendingElasticityDt);
@@ -11376,8 +11386,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('nodePersonalitySystem', 'simulation.nodePersonalitySystem', (dt) => this.nodePersonalitySystem?.update?.(dt, this.aiNodes?.nodes));
         regGuard('nodeMicroEvents', 'visual.nodeMicroEvents', (dt) => this.nodeMicroEvents?.update?.(dt, this.aiNodes?.nodes));
         regGuard('worldPersonalityController', 'simulation.worldPersonalityController', (dt) => this.worldPersonalityController?.update?.(dt, this.aiNodes?.nodes));
-        regGuard('mythicRitualController', 'visual.mythicRitualController', (dt) => this.mythicRitualController?.update?.(dt, this.aiNodes?.nodes));
-        regGuard('phase8RitualOrchestration', 'visual.phase8RitualOrchestration', (dt) => this.phase8RitualOrchestration?.update?.(dt * 1000));
+        regGuard('mythicRitualController', 'simulation.mythicRitualController', (dt) => this.mythicRitualController?.update?.(dt, this.aiNodes?.nodes));
+        regGuard('phase8RitualOrchestration', 'simulation.phase8RitualOrchestration', (dt) => this.phase8RitualOrchestration?.update?.(dt * 1000));
         regGuard('mythicSeedGlyph', 'visual.mythicSeedGlyph', (dt) => this.mythicSeedGlyph?.update?.(dt, this.camera));
         regGuard('glyphLayer4', 'visual.glyphLayer4', (dt) => this.glyphLayer4?.update?.(dt));
         regGuard('semanticHoverGlyph', 'simulation.semanticHoverGlyph', () => this.updateHoverGlyphTarget?.());
