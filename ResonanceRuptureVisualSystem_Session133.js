@@ -43,6 +43,13 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
+function getAtomaVisualDebugMode() {
+    const mode = (typeof window !== 'undefined' && window.__ATOMA_VISUAL_DEBUG_MODE__)
+        || globalThis.__ATOMA_VISUAL_DEBUG_MODE__
+        || 'all';
+    return `${mode}`.toLowerCase();
+}
+
 export class ResonanceRuptureVisualSystem_Session133 {
     constructor(scene, standingWaveTrapSystem, reflectionSystem, linkingSystem, aiNodes, config = {}) {
         this.scene = scene;
@@ -104,7 +111,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
             
             // Resonance scar
             scarOpacity: 0.15,                // Base scar visibility
-            scarDuration: 60.0,               // Scar fade time (seconds)
+            scarDuration: 120.0,              // Scar fade time (seconds)
             scarColor: new THREE.Color(0.5, 0.3, 0.4),  // Purple-bruise
             scarDeformation: 0.1,             // Geometric deformation amount
             scarFrequencyDamping: 0.4,        // Oscillation damping in scar
@@ -129,6 +136,8 @@ export class ResonanceRuptureVisualSystem_Session133 {
             maxConcurrentRuptures: 5,         // Simultaneous ruptures allowed
             maxRupturePropagations: 20,       // Propagation pulses tracked
             maxResonanceScarsMeshes: 20,      // Scar mesh pool size
+            debugVisualBoost: true,
+            forceRuptureVfx: false,
             renderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
             enableLOD: true,
             lodDistance: 40,
@@ -151,6 +160,13 @@ export class ResonanceRuptureVisualSystem_Session133 {
         this.globalStressBias = 0;            // network-level event pressure bias
         this.semanticUnsubscribers = [];      // semantic bus unsubscriber callbacks
         this.boundSemanticBus = null;
+        this.debugStats = {
+            ruptureTriggers: 0,
+            propagationBursts: 0,
+            scarSpawns: 0,
+            semanticHits: Object.create(null),
+            lastTrigger: null
+        };
         
         // Object pools
         this.ruptureEventPool = [];
@@ -176,9 +192,9 @@ export class ResonanceRuptureVisualSystem_Session133 {
         
         // Create stress indicator material (red, tension) - additive blending for glow
         this.stressMaterial = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(1.0, 0.3, 0.2),  // Red-orange
+            color: new THREE.Color(0xff2f00),  // Neon red-orange
             transparent: true,
-            opacity: this.config.stressIndicatorOpacity,
+            opacity: this.config.debugVisualBoost ? Math.min(0.8, this.config.stressIndicatorOpacity + 0.2) : this.config.stressIndicatorOpacity,
             side: THREE.DoubleSide,
             depthWrite: false,
             blending: THREE.AdditiveBlending
@@ -186,9 +202,9 @@ export class ResonanceRuptureVisualSystem_Session133 {
         
         // Create rupture burst material (bright orange-red) - additive blending for glow
         this.ruptureMaterial = new THREE.MeshBasicMaterial({
-            color: this.config.ruptureBurstColor,
+            color: this.config.debugVisualBoost ? new THREE.Color(0xff00ff) : this.config.ruptureBurstColor,
             transparent: true,
-            opacity: 0.6,
+            opacity: this.config.debugVisualBoost ? 0.85 : 0.6,
             side: THREE.DoubleSide,
             depthWrite: false,
             blending: THREE.AdditiveBlending
@@ -196,9 +212,9 @@ export class ResonanceRuptureVisualSystem_Session133 {
         
         // Create propagation pulse material - additive blending for glow
         this.propagationMaterial = new THREE.MeshBasicMaterial({
-            color: this.config.ruptureBurstColor,
+            color: this.config.debugVisualBoost ? new THREE.Color(0x00ffff) : this.config.ruptureBurstColor,
             transparent: true,
-            opacity: 0.4,
+            opacity: this.config.debugVisualBoost ? 0.7 : 0.4,
             side: THREE.DoubleSide,
             depthWrite: false,
             blending: THREE.AdditiveBlending
@@ -206,9 +222,9 @@ export class ResonanceRuptureVisualSystem_Session133 {
         
         // Create resonance scar material (purple-bruise) - additive blending for subtle glow
         this.scarMaterial = new THREE.MeshBasicMaterial({
-            color: this.config.scarColor,
+            color: this.config.debugVisualBoost ? new THREE.Color(0xffff33) : this.config.scarColor,
             transparent: true,
-            opacity: this.config.scarOpacity,
+            opacity: this.config.debugVisualBoost ? Math.max(this.config.scarOpacity, 0.28) : this.config.scarOpacity,
             side: THREE.DoubleSide,
             depthWrite: false,
             blending: THREE.AdditiveBlending
@@ -246,12 +262,17 @@ export class ResonanceRuptureVisualSystem_Session133 {
         // Pre-allocate scar mesh pool - use proper base geometry, scale at runtime
         const maxScarMeshes = this.config.maxResonanceScarsMeshes ?? 20;
         for (let i = 0; i < maxScarMeshes; i++) {
-            // Base geometry of 1x1, will be scaled appropriately at runtime
-            const geometry = new THREE.PlaneGeometry(1, 1);
-            const mesh = new THREE.Mesh(geometry, this.scarMaterial.clone());
+            let mesh;
+            if (this.config.debugVisualBoost) {
+                mesh = this._createFractureBloomScarRoot();
+            } else {
+                // Base geometry of 1x1, will be scaled appropriately at runtime
+                const geometry = new THREE.PlaneGeometry(1, 1);
+                mesh = new THREE.Mesh(geometry, this.scarMaterial.clone());
+                mesh.renderOrder = this.config.renderOrder;
+                this.scene.add(mesh);
+            }
             mesh.visible = false;
-            mesh.renderOrder = this.config.renderOrder;
-            this.scene.add(mesh);
             this.scarMeshPool.push({
                 mesh: mesh,
                 active: false,
@@ -270,6 +291,8 @@ export class ResonanceRuptureVisualSystem_Session133 {
      * @param {number} currentTime - Total simulation time
      */
     update(deltaTime, currentTime) {
+        const mode = getAtomaVisualDebugMode();
+        if (mode !== 'all' && mode !== 'rupture') return;
         if (!this.initialized) this.setup();
 
         this.time = currentTime;
@@ -369,6 +392,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         if (!this.standingWaveTrapSystem) return;
         
         const traps = this.standingWaveTrapSystem.oscillationTraps || [];
+        const forceRupture = this.config.forceRuptureVfx === true;
         
         traps.forEach(trap => {
             if (!trap.active) return;
@@ -440,9 +464,15 @@ export class ResonanceRuptureVisualSystem_Session133 {
             );
             const ruptureRecent = this._isRuptureRecent(trapId);
 
-            if ((scoreExceeds || softAmplitudeAssist || amplitudeHardExceeds) && !ruptureRecent) {
+            if ((forceRupture || scoreExceeds || softAmplitudeAssist || amplitudeHardExceeds) && !ruptureRecent) {
                 // Trigger rupture
-                this._triggerRupture(trap, Math.max(stress, totalPressure, ruptureScore), deltaTime);
+                const forcedIntensity = Math.max(
+                    stress,
+                    totalPressure,
+                    ruptureScore,
+                    normalizedAmplitude
+                );
+                this._triggerRupture(trap, forceRupture ? Math.max(0.6, forcedIntensity) : Math.max(stress, totalPressure, ruptureScore), deltaTime);
             }
         });
     }
@@ -481,6 +511,12 @@ export class ResonanceRuptureVisualSystem_Session133 {
         rupture.life = 0;
         rupture.maxLife = this.config.ruptureDuration;
         rupture.intensity = Math.min(1, stress * 1.2);
+        this.debugStats.ruptureTriggers += 1;
+        this.debugStats.lastTrigger = {
+            trapId: String(trapId),
+            time: this.time,
+            intensity: rupture.intensity
+        };
         
         this.ruptures.push(rupture);
         this.ruptureOccurrences.set(trapId, this.time);
@@ -540,6 +576,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
     _executeRuptureEvents(deltaTime) {
         this.ruptures = this.ruptures.filter(rupture => {
             rupture.life += deltaTime;
+            const progress = rupture.maxLife > 0 ? rupture.life / rupture.maxLife : 1;
             
             // Create visual burst
             if (!rupture.burstMesh) {
@@ -548,27 +585,30 @@ export class ResonanceRuptureVisualSystem_Session133 {
             
             // Update burst appearance
             if (rupture.burstMesh) {
-                const progress = rupture.life / rupture.maxLife;
-                rupture.burstMesh.material.opacity = rupture.intensity * (1 - progress);
-                // For MeshBasicMaterial with additive blending, modulate color intensity
-                const colorIntensity = Math.min(1, this.config.ruptureBurstGlow * (1 - progress));
-                rupture.burstMesh.material.color.setRGB(
-                    this.config.ruptureBurstColor.r * colorIntensity,
-                    this.config.ruptureBurstColor.g * colorIntensity,
-                    this.config.ruptureBurstColor.b * colorIntensity
-                );
-                
-                // Scale burst outward
                 const scale = 1 + progress * 2;
-                rupture.burstMesh.scale.set(scale, scale, scale);
+                if (rupture.burstMesh.userData?.fractureBloom) {
+                    this._setFractureBloomOpacity(rupture.burstMesh, rupture.intensity * (1 - progress));
+                    rupture.burstMesh.scale.setScalar(scale);
+                } else {
+                    rupture.burstMesh.material.opacity = rupture.intensity * (1 - progress);
+                    // For MeshBasicMaterial with additive blending, modulate color intensity
+                    const colorIntensity = Math.min(1, this.config.ruptureBurstGlow * (1 - progress));
+                    rupture.burstMesh.material.color.setRGB(
+                        this.config.ruptureBurstColor.r * colorIntensity,
+                        this.config.ruptureBurstColor.g * colorIntensity,
+                        this.config.ruptureBurstColor.b * colorIntensity
+                    );
+                    
+                    // Scale burst outward
+                    rupture.burstMesh.scale.set(scale, scale, scale);
+                }
             }
             
             if (rupture.life >= rupture.maxLife) {
                 // FIX 1: Remove burst mesh from scene and reset pool item
                 if (rupture.burstMesh) {
                     this.scene.remove(rupture.burstMesh);
-                    rupture.burstMesh.geometry.dispose();
-                    rupture.burstMesh.material.dispose();
+                    this._disposeBurstMesh(rupture.burstMesh);
                     rupture.burstMesh = null;
                 }
                 rupture.active = false;
@@ -583,6 +623,15 @@ export class ResonanceRuptureVisualSystem_Session133 {
      * Create visual burst mesh for rupture
      */
     _createRuptureBurst(rupture) {
+        if (this.config.debugVisualBoost || this.config.forceRuptureVfx) {
+            const bloom = this._createFractureBloomScarRoot();
+            bloom.position.copy(rupture.convergencePoint);
+            bloom.renderOrder = this.config.renderOrder;
+            bloom.userData.ruptureBurst = true;
+            this.scene.add(bloom);
+            return bloom;
+        }
+
         const geometry = new THREE.IcosahedronGeometry(0.3, 3);
         const mesh = new THREE.Mesh(geometry, this.ruptureMaterial.clone());
         mesh.position.copy(rupture.convergencePoint);
@@ -621,7 +670,9 @@ export class ResonanceRuptureVisualSystem_Session133 {
             pulse.intensity = intensity * this.config.propagationDamping;
 
             // FIX 2: Create visual mesh for propagation pulse
-            const geo = new THREE.SphereGeometry(0.15, 6, 6);
+            const geo = this.config.debugVisualBoost
+                ? new THREE.OctahedronGeometry(0.18, 0)
+                : new THREE.SphereGeometry(0.15, 6, 6);
             const mat = this.propagationMaterial.clone();
             const mesh = new THREE.Mesh(geo, mat);
             mesh.renderOrder = this.config.renderOrder;
@@ -629,6 +680,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
             pulse.mesh = mesh;
             
             this.propagationPulses.push(pulse);
+            this.debugStats.propagationBursts += 1;
         }
     }
 
@@ -715,6 +767,27 @@ export class ResonanceRuptureVisualSystem_Session133 {
         pulse.active = false;
     }
 
+    _disposeBurstMesh(mesh) {
+        if (!mesh) return;
+        if (mesh.isGroup || mesh.isObject3D) {
+            mesh.traverse((child) => {
+                if (child?.geometry) {
+                    child.geometry.dispose();
+                }
+                if (child?.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach((mat) => mat?.dispose?.());
+                    } else {
+                        child.material.dispose?.();
+                    }
+                }
+            });
+            return;
+        }
+        if (mesh.geometry) mesh.geometry.dispose();
+        if (mesh.material) mesh.material.dispose();
+    }
+
     /**
      * Create resonance scar on affected link
      */
@@ -737,15 +810,26 @@ export class ResonanceRuptureVisualSystem_Session133 {
         if (startPos && endPos) {
             const scarCenter = new THREE.Vector3().addVectors(startPos, endPos).multiplyScalar(0.5);
             scarMesh.mesh.position.copy(scarCenter);
-            
-            // Orient along link
-            scarMesh.mesh.lookAt(endPos);
-            scarMesh.mesh.rotateX(Math.PI * 0.5);
-            
-            // Scale to link length with proper world-space dimensions
-            const linkLength = startPos.distanceTo(endPos);
-            // X = width along link, Y = thickness (perpendicular), Z = height
-            scarMesh.mesh.scale.set(Math.max(1, linkLength * 0.8), Math.max(0.5, linkLength * 0.1), 1);
+
+            if (this.config.debugVisualBoost && scarMesh.mesh.userData?.fractureBloom) {
+                this._layoutFractureBloomScar(scarMesh.mesh, startPos, endPos, intensity, linkId);
+                const linkVector = new THREE.Vector3().subVectors(endPos, startPos);
+                const referenceUp = Math.abs(linkVector.y) > 0.92 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+                const offsetRight = new THREE.Vector3().crossVectors(linkVector, referenceUp).normalize();
+                const offsetUp = new THREE.Vector3().crossVectors(offsetRight, linkVector).normalize();
+                scarMesh.mesh.position
+                    .addScaledVector(offsetRight, 0.08 + intensity * 0.05)
+                    .addScaledVector(offsetUp, 0.04 + intensity * 0.03);
+            } else {
+                // Orient along link
+                scarMesh.mesh.lookAt(endPos);
+                scarMesh.mesh.rotateX(Math.PI * 0.5);
+
+                // Scale to link length with proper world-space dimensions
+                const linkLength = startPos.distanceTo(endPos);
+                // X = width along link, Y = thickness (perpendicular), Z = height
+                scarMesh.mesh.scale.set(Math.max(1, linkLength * 0.8), Math.max(0.5, linkLength * 0.1), 1);
+            }
         }
         
         this.resonanceScars.push({
@@ -754,6 +838,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
             intensity: intensity,
             birthTime: this.time
         });
+        this.debugStats.scarSpawns += 1;
     }
 
     /**
@@ -771,8 +856,14 @@ export class ResonanceRuptureVisualSystem_Session133 {
             }
             
             // Fade scar
-            scar.mesh.mesh.material.opacity = 
-                this.config.scarOpacity * scar.intensity * (1 - progress);
+            const opacity = this.config.debugVisualBoost
+                ? Math.max(0.18, this.config.scarOpacity * scar.intensity * (1 - progress) * 1.8)
+                : this.config.scarOpacity * scar.intensity * (1 - progress);
+            if (this.config.debugVisualBoost && scar.mesh.mesh.userData?.fractureBloom) {
+                this._setFractureBloomOpacity(scar.mesh.mesh, opacity);
+            } else if (scar.mesh.mesh.material) {
+                scar.mesh.mesh.material.opacity = opacity;
+            }
             
             return true;
         });
@@ -844,6 +935,414 @@ export class ResonanceRuptureVisualSystem_Session133 {
         });
     }
 
+    _createFractureBloomScarRoot() {
+        const root = new THREE.Group();
+        root.renderOrder = this.config.renderOrder;
+        root.userData.fractureBloom = true;
+        root.userData.shards = [];
+
+        const shardSpecs = [
+            {
+                geometry: this._createFractureShardGeometry({
+                    topWidth: 0.06,
+                    shoulderWidth: 0.22,
+                    baseWidth: 0.42,
+                    topThickness: 0.04,
+                    shoulderThickness: 0.16,
+                    baseThickness: 0.24,
+                    topY: 0.94,
+                    midY: 0.10,
+                    baseY: -0.96,
+                    skewX: 0.03,
+                    skewZ: -0.04,
+                    twist: 0.32
+                }),
+                color: 0xffffff,
+                opacity: 0.98,
+                blending: THREE.NormalBlending,
+                pos: [0.0, 0.0, 0.0],
+                rot: [0.02, 0.0, 0.0],
+                scale: [0.52, 1.16, 0.46]
+            },
+            {
+                geometry: this._createFractureShardGeometry({
+                    topWidth: 0.05,
+                    shoulderWidth: 0.18,
+                    baseWidth: 0.34,
+                    topThickness: 0.03,
+                    shoulderThickness: 0.14,
+                    baseThickness: 0.20,
+                    topY: 0.88,
+                    midY: 0.06,
+                    baseY: -0.90,
+                    skewX: -0.02,
+                    skewZ: 0.05,
+                    twist: -0.28
+                }),
+                color: 0x00ffff,
+                opacity: 0.88,
+                blending: THREE.AdditiveBlending,
+                pos: [0.0, 0.0, 0.0],
+                rot: [0.0, 0.0, Math.PI * 0.43],
+                scale: [0.44, 1.02, 0.38]
+            },
+            {
+                geometry: this._createFractureShardGeometry({
+                    topWidth: 0.05,
+                    shoulderWidth: 0.16,
+                    baseWidth: 0.31,
+                    topThickness: 0.035,
+                    shoulderThickness: 0.12,
+                    baseThickness: 0.18,
+                    topY: 0.84,
+                    midY: 0.04,
+                    baseY: -0.84,
+                    skewX: 0.04,
+                    skewZ: 0.03,
+                    twist: 0.46
+                }),
+                color: 0xff00ff,
+                opacity: 0.86,
+                blending: THREE.AdditiveBlending,
+                pos: [0.0, 0.0, 0.0],
+                rot: [Math.PI * 0.54, 0.0, 0.0],
+                scale: [0.38, 0.90, 0.34]
+            },
+            {
+                geometry: this._createFractureShardGeometry({
+                    topWidth: 0.04,
+                    shoulderWidth: 0.15,
+                    baseWidth: 0.29,
+                    topThickness: 0.02,
+                    shoulderThickness: 0.10,
+                    baseThickness: 0.16,
+                    topY: 0.76,
+                    midY: 0.00,
+                    baseY: -0.86,
+                    skewX: 0.10,
+                    skewZ: -0.02,
+                    twist: 0.14
+                }),
+                color: 0xffffff,
+                opacity: 0.94,
+                blending: THREE.NormalBlending,
+                pos: [0.40, 0.24, 0.12],
+                rot: [0.42, 0.12, 1.18],
+                scale: [0.58, 1.32, 0.42]
+            },
+            {
+                geometry: this._createFractureShardGeometry({
+                    topWidth: 0.04,
+                    shoulderWidth: 0.14,
+                    baseWidth: 0.27,
+                    topThickness: 0.02,
+                    shoulderThickness: 0.10,
+                    baseThickness: 0.16,
+                    topY: 0.74,
+                    midY: -0.02,
+                    baseY: -0.84,
+                    skewX: -0.12,
+                    skewZ: 0.02,
+                    twist: -0.16
+                }),
+                color: 0x66f7ff,
+                opacity: 0.88,
+                blending: THREE.NormalBlending,
+                pos: [-0.42, -0.20, -0.14],
+                rot: [-0.36, -0.14, -1.42],
+                scale: [0.54, 1.18, 0.40]
+            },
+            {
+                geometry: this._createFractureShardGeometry({
+                    topWidth: 0.035,
+                    shoulderWidth: 0.13,
+                    baseWidth: 0.25,
+                    topThickness: 0.02,
+                    shoulderThickness: 0.09,
+                    baseThickness: 0.14,
+                    topY: 0.70,
+                    midY: -0.05,
+                    baseY: -0.78,
+                    skewX: 0.06,
+                    skewZ: 0.10,
+                    twist: 0.52
+                }),
+                color: 0xff66cc,
+                opacity: 0.82,
+                blending: THREE.AdditiveBlending,
+                pos: [0.20, -0.34, 0.24],
+                rot: [0.18, 0.26, 2.02],
+                scale: [0.50, 1.06, 0.36]
+            },
+            {
+                geometry: this._createFractureShardGeometry({
+                    topWidth: 0.035,
+                    shoulderWidth: 0.11,
+                    baseWidth: 0.24,
+                    topThickness: 0.02,
+                    shoulderThickness: 0.08,
+                    baseThickness: 0.13,
+                    topY: 0.68,
+                    midY: -0.06,
+                    baseY: -0.76,
+                    skewX: -0.08,
+                    skewZ: -0.06,
+                    twist: -0.38
+                }),
+                color: 0x00d6ff,
+                opacity: 0.78,
+                blending: THREE.AdditiveBlending,
+                pos: [-0.22, 0.34, 0.18],
+                rot: [-0.24, 0.12, -2.10],
+                scale: [0.48, 0.98, 0.34]
+            },
+            {
+                geometry: this._createFractureShardGeometry({
+                    topWidth: 0.03,
+                    shoulderWidth: 0.10,
+                    baseWidth: 0.20,
+                    topThickness: 0.02,
+                    shoulderThickness: 0.08,
+                    baseThickness: 0.12,
+                    topY: 0.62,
+                    midY: -0.08,
+                    baseY: -0.72,
+                    skewX: 0.09,
+                    skewZ: -0.01,
+                    twist: 0.26
+                }),
+                color: 0xffffff,
+                opacity: 0.76,
+                blending: THREE.NormalBlending,
+                pos: [0.54, 0.08, -0.10],
+                rot: [0.86, 0.18, 0.62],
+                scale: [0.42, 0.86, 0.30]
+            },
+            {
+                geometry: this._createFractureShardGeometry({
+                    topWidth: 0.03,
+                    shoulderWidth: 0.09,
+                    baseWidth: 0.18,
+                    topThickness: 0.02,
+                    shoulderThickness: 0.07,
+                    baseThickness: 0.10,
+                    topY: 0.60,
+                    midY: -0.08,
+                    baseY: -0.68,
+                    skewX: -0.10,
+                    skewZ: 0.03,
+                    twist: -0.30
+                }),
+                color: 0xb066ff,
+                opacity: 0.74,
+                blending: THREE.NormalBlending,
+                pos: [-0.50, 0.02, 0.16],
+                rot: [-0.90, -0.16, -0.94],
+                scale: [0.38, 0.80, 0.28]
+            },
+            {
+                geometry: this._createFractureShardGeometry({
+                    topWidth: 0.025,
+                    shoulderWidth: 0.08,
+                    baseWidth: 0.16,
+                    topThickness: 0.015,
+                    shoulderThickness: 0.06,
+                    baseThickness: 0.10,
+                    topY: 0.58,
+                    midY: -0.10,
+                    baseY: -0.66,
+                    skewX: 0.04,
+                    skewZ: 0.07,
+                    twist: 0.58
+                }),
+                color: 0x00ffff,
+                opacity: 0.80,
+                blending: THREE.AdditiveBlending,
+                pos: [0.10, 0.52, -0.06],
+                rot: [0.22, 0.30, 1.76],
+                scale: [0.34, 0.92, 0.26]
+            },
+            {
+                geometry: this._createFractureShardGeometry({
+                    topWidth: 0.025,
+                    shoulderWidth: 0.08,
+                    baseWidth: 0.16,
+                    topThickness: 0.015,
+                    shoulderThickness: 0.06,
+                    baseThickness: 0.10,
+                    topY: 0.56,
+                    midY: -0.10,
+                    baseY: -0.64,
+                    skewX: -0.04,
+                    skewZ: -0.07,
+                    twist: -0.60
+                }),
+                color: 0xff00ff,
+                opacity: 0.78,
+                blending: THREE.AdditiveBlending,
+                pos: [-0.10, -0.50, 0.06],
+                rot: [-0.28, -0.18, -2.22],
+                scale: [0.32, 0.90, 0.26]
+            }
+        ];
+
+        shardSpecs.forEach((spec, index) => {
+            const material = this.scarMaterial.clone();
+            material.color = new THREE.Color(spec.color);
+            material.opacity = this.config.debugVisualBoost ? spec.opacity : this.config.scarOpacity;
+            material.transparent = true;
+            material.depthWrite = false;
+            material.blending = spec.blending ?? THREE.AdditiveBlending;
+
+            const shard = new THREE.Mesh(spec.geometry, material);
+            shard.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+            shard.rotation.set(spec.rot[0], spec.rot[1], spec.rot[2]);
+            shard.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+            shard.renderOrder = this.config.renderOrder;
+            root.add(shard);
+            root.userData.shards.push(shard);
+        });
+
+        this.scene.add(root);
+        return root;
+    }
+
+    _createFractureShardGeometry(options = {}) {
+        const topWidth = options.topWidth ?? 0.04;
+        const shoulderWidth = options.shoulderWidth ?? 0.14;
+        const baseWidth = options.baseWidth ?? 0.26;
+        const topThickness = options.topThickness ?? 0.02;
+        const shoulderThickness = options.shoulderThickness ?? 0.08;
+        const baseThickness = options.baseThickness ?? 0.14;
+        const topY = options.topY ?? 0.8;
+        const midY = options.midY ?? 0.0;
+        const baseY = options.baseY ?? -0.8;
+        const skewX = options.skewX ?? 0;
+        const skewZ = options.skewZ ?? 0;
+        const twist = options.twist ?? 0;
+
+        const buildSlice = (radius, thickness, y, twistWeight) => {
+            const rotation = twist * twistWeight;
+            const cos = Math.cos(rotation);
+            const sin = Math.sin(rotation);
+            const raw = [
+                [-radius * 0.90, y, thickness * 0.22],
+                [radius * 0.24, y, -thickness * 0.88],
+                [radius * 0.72, y, thickness * 0.36]
+            ];
+
+            return raw.map(([x, sy, z]) => {
+                const rx = x * cos - z * sin;
+                const rz = x * sin + z * cos;
+                return [
+                    rx + skewX * sy,
+                    sy,
+                    rz + skewZ * sy
+                ];
+            });
+        };
+
+        const top = buildSlice(topWidth, topThickness, topY, 0.05);
+        const mid = buildSlice(shoulderWidth, shoulderThickness, midY, 0.5);
+        const base = buildSlice(baseWidth, baseThickness, baseY, 1.0);
+
+        const positions = [
+            ...top[0], ...top[1], ...top[2],
+            ...mid[0], ...mid[1], ...mid[2],
+            ...base[0], ...base[1], ...base[2]
+        ];
+
+        const indices = [
+            0, 1, 2,
+            3, 5, 4,
+            6, 7, 8,
+            0, 1, 4, 0, 4, 3,
+            1, 2, 5, 1, 5, 4,
+            2, 0, 3, 2, 3, 5,
+            3, 4, 7, 3, 7, 6,
+            4, 5, 8, 4, 8, 7,
+            5, 3, 6, 5, 6, 8
+        ];
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+        geometry.computeBoundingBox();
+        geometry.computeBoundingSphere();
+        return geometry;
+    }
+
+    _layoutFractureBloomScar(root, startPos, endPos, intensity, seed = 0) {
+        if (!root) return;
+        const center = new THREE.Vector3().addVectors(startPos, endPos).multiplyScalar(0.5);
+        const linkVector = new THREE.Vector3().subVectors(endPos, startPos);
+        const linkLength = linkVector.length();
+        if (linkLength <= 0) return;
+
+        const forward = linkVector.clone().normalize();
+        const referenceUp = Math.abs(forward.y) > 0.92 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        const right = new THREE.Vector3().crossVectors(forward, referenceUp).normalize();
+        const up = new THREE.Vector3().crossVectors(right, forward).normalize();
+        const seedValue = Number(seed || 0);
+        const swirl = (Math.sin(this.time * 7.0 + seedValue * 0.017) * 0.5 + 0.5);
+        const spread = Math.max(0.82, linkLength * 0.30);
+        const axialScale = Math.max(0.86, linkLength * 0.16);
+
+        root.position.copy(center);
+        root.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), forward);
+        root.scale.set(
+            Math.max(0.70, linkLength * 0.16),
+            axialScale,
+            Math.max(0.70, linkLength * 0.16)
+        );
+
+        const shards = root.userData?.shards || [];
+        shards.forEach((shard, index) => {
+            const angle = (index / Math.max(1, shards.length)) * Math.PI * 2 + swirl * Math.PI * 1.35;
+            const radius = spread * (0.52 + (index % 4) * 0.14);
+            const depth = (index % 3 - 1) * 0.28;
+            const lift = (index - (shards.length - 1) * 0.5) * 0.082;
+            const offset = new THREE.Vector3()
+                .addScaledVector(right, Math.cos(angle) * radius)
+                .addScaledVector(up, Math.sin(angle) * radius * 0.88)
+                .addScaledVector(forward, lift + depth * 0.42);
+            shard.position.copy(offset);
+            shard.rotation.x = (index % 3 - 1) * 0.55 + swirl * 0.24;
+            shard.rotation.y = angle * 0.44 + (index % 2 === 0 ? 0.58 : -0.50);
+            shard.rotation.z = angle + (index % 2 === 0 ? 0.92 : -1.02);
+            shard.scale.set(
+                0.96 + intensity * 0.68 + (index % 3) * 0.08,
+                1.10 + swirl * 0.72 + intensity * 0.42 + (index % 4) * 0.05,
+                0.82 + intensity * 0.28 + (index % 2) * 0.08
+            );
+
+            if (index < 3) {
+                shard.scale.y *= 1.18 + intensity * 0.14;
+                shard.scale.x *= 0.90;
+                shard.scale.z *= 0.90;
+            }
+
+            if (index >= 7) {
+                shard.scale.multiplyScalar(0.80 + intensity * 0.10);
+            }
+        });
+
+        root.visible = true;
+    }
+
+    _setFractureBloomOpacity(root, opacity) {
+        if (!root) return;
+        const clamped = THREE.MathUtils.clamp(opacity, 0, 1);
+        const shards = root.userData?.shards || [];
+        shards.forEach((shard, index) => {
+            if (shard?.material) {
+                const alpha = clamped * (0.66 + (index % 4) * 0.08);
+                shard.material.opacity = alpha;
+            }
+        });
+    }
+
     /**
      * Modulate rupture visuals by network state
      */
@@ -886,18 +1385,37 @@ export class ResonanceRuptureVisualSystem_Session133 {
             const synergyFactor = 1 + avgSynergy * this.config.synergyRuptureClarity;
             
             const modulation = harmonyFactor * corruptionFactor * synergyFactor;
-            // For MeshBasicMaterial with additive blending, modulate color intensity
-            const baseColor = this.config.ruptureBurstColor;
-            const currentIntensity = rupture.burstMesh.material.opacity;
-            const colorIntensity = Math.min(1, currentIntensity * modulation);
-            rupture.burstMesh.material.color.setRGB(
-                baseColor.r * colorIntensity,
-                baseColor.g * colorIntensity,
-                baseColor.b * colorIntensity
-            );
+            const progress = rupture.maxLife > 0 ? THREE.MathUtils.clamp(rupture.life / rupture.maxLife, 0, 1) : 0;
+            if (rupture.burstMesh.userData?.fractureBloom) {
+                this._setFractureBloomOpacity(rupture.burstMesh, rupture.intensity * (1 - progress) * modulation);
+            } else {
+                // For MeshBasicMaterial with additive blending, modulate color intensity
+                const baseColor = this.config.ruptureBurstColor;
+                const currentIntensity = rupture.burstMesh.material.opacity;
+                const colorIntensity = Math.min(1, currentIntensity * modulation);
+                rupture.burstMesh.material.color.setRGB(
+                    baseColor.r * colorIntensity,
+                    baseColor.g * colorIntensity,
+                    baseColor.b * colorIntensity
+                );
+            }
         });
         
         // Modulate scars — opacity is managed by _updateResonanceScars; skip per-frame multiplication here
+    }
+
+    getDebugStats() {
+        return {
+            ...this.debugStats,
+            activeRuptures: this.ruptures.length,
+            activePropagationPulses: this.propagationPulses.length,
+            activeScars: this.resonanceScars.length
+        };
+    }
+
+    setForceRuptureVfx(enabled = true) {
+        this.config.forceRuptureVfx = enabled === true;
+        return this.config.forceRuptureVfx;
     }
 
     /**
@@ -1057,6 +1575,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         const semanticPayload = payload?.detail && typeof payload.detail === 'object'
             ? payload.detail
             : payload;
+        this.debugStats.semanticHits[tag] = (this.debugStats.semanticHits[tag] || 0) + 1;
 
         switch (tag) {
             case 'link:collapsed': {
@@ -1277,12 +1796,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
             if (item.mesh && item.mesh.parent) {
                 item.mesh.parent.remove(item.mesh);
             }
-            if (item.mesh.geometry) {
-                item.mesh.geometry.dispose();
-            }
-            if (item.mesh.material) {
-                item.mesh.material.dispose();
-            }
+            this._disposeScarMesh(item.mesh);
         });
         this.scarMeshPool = [];
         
@@ -1299,6 +1813,31 @@ export class ResonanceRuptureVisualSystem_Session133 {
         this.nodeReactions.clear();
         this.eventPressureByLink.clear();
         this.globalStressBias = 0;
+    }
+
+    _disposeScarMesh(mesh) {
+        if (!mesh) return;
+        if (mesh.isGroup || mesh.isObject3D) {
+            mesh.traverse((child) => {
+                if (child?.geometry) {
+                    child.geometry.dispose();
+                }
+                if (child?.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach((mat) => mat?.dispose?.());
+                    } else {
+                        child.material.dispose?.();
+                    }
+                }
+            });
+            return;
+        }
+        if (mesh.geometry) {
+            mesh.geometry.dispose();
+        }
+        if (mesh.material) {
+            mesh.material.dispose();
+        }
     }
 
     /**

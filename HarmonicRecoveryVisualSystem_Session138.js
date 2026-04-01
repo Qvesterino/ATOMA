@@ -28,6 +28,13 @@ import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
+function getAtomaVisualDebugMode() {
+    const mode = (typeof window !== 'undefined' && window.__ATOMA_VISUAL_DEBUG_MODE__)
+        || globalThis.__ATOMA_VISUAL_DEBUG_MODE__
+        || 'all';
+    return `${mode}`.toLowerCase();
+}
+
 const COHERENCE_WAVE_VERTEX_SHADER = `
 varying vec2 vUv;
 varying vec3 vWorldPos;
@@ -48,26 +55,21 @@ uniform float uHarmony;
 varying vec2 vUv;
 
 void main() {
-    // Distance from center (0.5, 0.5)
-    float dist = length(vUv - vec2(0.5));
+    // Square debug-friendly recovery wave with readable border.
+    vec2 p = abs(vUv - vec2(0.5));
+    float dist = max(p.x, p.y);
     if (dist > 0.5) discard;
-    
-    // Ring effect
-    // As uLife increases, the ring expands (handled by mesh scale)
-    // Here we just draw a soft ring
-    
-    float ringWidth = 0.2 + (1.0 - uHarmony) * 0.1; // Thinner with high harmony
-    float edge = smoothstep(0.5, 0.5 - ringWidth, dist);
-    float centerHole = smoothstep(0.5 - ringWidth * 1.5, 0.5 - ringWidth * 0.5, dist);
-    
-    float alpha = edge * centerHole;
+
+    float boxFill = 1.0 - smoothstep(0.42, 0.16, dist);
+    float boxEdge = smoothstep(0.50, 0.36, dist);
+    float alpha = max(boxFill * 0.7, boxEdge);
     
     // Soft noise/distortion based on harmony (more harmony = smoother)
     // We simulate "spatial distortion" by varying alpha slightly
     
     // Fade over life
     alpha *= (1.0 - uLife); // Fade out as it ages
-    alpha *= 0.55; // Base transparency (subtle, but readable)
+    alpha *= 0.9; // Debug boost: punch through the scene
     
     gl_FragColor = vec4(uColor, alpha);
 }
@@ -89,19 +91,15 @@ uniform vec3 uColor;
 varying vec2 vUv;
 
 void main() {
-    float dist = length(vUv - vec2(0.5));
+    vec2 p = abs(vUv - vec2(0.5));
+    float dist = max(p.x, p.y);
     if (dist > 0.5) discard;
-    
-    // Soft halo expanding inward?
-    // "Fades inward rather than outward" -> Edge is distinct, center is soft?
-    // Or alpha gradient is inverted?
-    
-    // Let's make a soft cloud
-    float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
+
+    float alpha = 1.0 - smoothstep(0.06, 0.5, dist);
     
     // Fade out over life
     alpha *= (1.0 - uLife);
-    alpha *= 0.65; // Base opacity
+    alpha *= 0.95; // Debug boost: halos should read at a glance
     
     gl_FragColor = vec4(uColor, alpha);
 }
@@ -118,10 +116,11 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         this.config = {
             minRecoveryDuration: 3.0,
             maxRecoveryDuration: 8.0,
-            waveExpansionSpeed: 1.8,
-            stitchingInterval: 0.075, // Still dense, but less CPU-heavy
-            maxActiveZones: 8,
+            waveExpansionSpeed: 2.35,
+            stitchingInterval: 0.06, // Debug: more readable tightening path
+            maxActiveZones: 10,
             updateInterval: 1 / 60,
+            debugVisualBoost: true,
             renderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE)
         };
         
@@ -140,7 +139,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             uniforms: {
                 uTime: { value: 0 },
                 uLife: { value: 0 },
-                uColor: { value: new THREE.Color(0.8, 0.9, 1.0) }, // Soft white/blue
+                uColor: { value: new THREE.Color(0x00ffff) }, // Neon cyan
                 uHarmony: { value: 0.5 }
             },
             transparent: true,
@@ -154,7 +153,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             fragmentShader: RECOVERY_HALO_FRAGMENT_SHADER,
             uniforms: {
                 uLife: { value: 0 },
-                uColor: { value: new THREE.Color(1.0, 0.95, 0.8) } // Warm white
+                uColor: { value: new THREE.Color(0xffff33) } // Neon yellow
             },
             transparent: true,
             depthWrite: false,
@@ -216,6 +215,8 @@ export class HarmonicRecoveryVisualSystem_Session138 {
     }
     
     update(deltaTime, time, networkState) {
+        const mode = getAtomaVisualDebugMode();
+        if (mode !== 'all' && mode !== 'recovery') return;
         if (!this.enabled) return;
 
         const visualNow = Number.isFinite(VisualTime?.now)
@@ -337,7 +338,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                 const progress = zone.life / zone.maxLife;
                 
                 // Expand
-                const scale = 1.0 + zone.life * this.config.waveExpansionSpeed * (1.0 + synergy);
+                const scale = (1.25 + zone.life * this.config.waveExpansionSpeed * (1.0 + synergy)) * (this.config.debugVisualBoost ? 1.15 : 1.0);
                 mesh.scale.set(scale, scale, scale);
                 
                 // Update shader uniforms
@@ -390,7 +391,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                     pos2.add(offset.clone().negate()); // Opposite side spiral
                     
                     // Emit stationary particles that fade (leaving a trail)
-                    const intensity = 0.5 * harmony;
+                    const intensity = Math.min(1, 0.85 * harmony + 0.35);
                     
                     this.healingParticles.emitHealingTrail(pos1, new THREE.Vector3(0,0,0), intensity, currentVisualTime);
                     this.healingParticles.emitHealingTrail(pos2, new THREE.Vector3(0,0,0), intensity, currentVisualTime);

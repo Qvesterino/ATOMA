@@ -6222,6 +6222,18 @@ window.__ATOMA_CAMERA__ = this.camera;
         this.distanceLOD = new DistanceLODController(this.camera);
 window.ATOMA_DISTANCE_LOD = this.distanceLOD;
 window.__ATOMA_SCENE__ = this.scene;
+        const visualDebugState = window.__ATOMA_VISUAL_DEBUG__ || {};
+        visualDebugState.mode = visualDebugState.mode || 'all';
+        visualDebugState.setMode = (mode) => {
+            const next = typeof mode === 'string' && mode.trim() ? mode.trim().toLowerCase() : 'all';
+            visualDebugState.mode = next;
+            window.__ATOMA_VISUAL_DEBUG_MODE__ = next;
+            console.log(`[ATOMA VISUAL DEBUG] mode=${next}`);
+            return next;
+        };
+        visualDebugState.getMode = () => visualDebugState.mode || window.__ATOMA_VISUAL_DEBUG_MODE__ || 'all';
+        window.__ATOMA_VISUAL_DEBUG__ = visualDebugState;
+        window.__ATOMA_VISUAL_DEBUG_MODE__ = visualDebugState.getMode();
         // Renderer
         this.renderer = new THREE.WebGLRenderer({
             antialias: true,
@@ -14384,7 +14396,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     stressCompressionFactor: 1.3,
                     stressFrequencyIncrease: 1.5,
                     
-                    ruptureDuration: 0.15,
+                    ruptureDuration: 1.5,
                     ruptureBurst: 0.8,
                     ruptureBurstWidth: 0.2,
                     ruptureBurstGlow: 2.5,

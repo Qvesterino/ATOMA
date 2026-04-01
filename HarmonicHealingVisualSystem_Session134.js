@@ -1,6 +1,13 @@
 
 import * as THREE from 'three';
 
+function getAtomaVisualDebugMode() {
+    const mode = (typeof window !== 'undefined' && window.__ATOMA_VISUAL_DEBUG_MODE__)
+        || globalThis.__ATOMA_VISUAL_DEBUG_MODE__
+        || 'all';
+    return `${mode}`.toLowerCase();
+}
+
 /**
  * ============================================================================
  * HARMONIC HEALING VISUAL SYSTEM (Session 134)
@@ -86,6 +93,7 @@ export class HarmonicHealingVisualSystem_Session134 {
             harmonyThreshold: 0.18,   // Minimum healing drive to start spawning
             maxWaves: 96,             // Performance limit
             repairVisualsOnly: false, // Allow gameplay stats changes
+            debugVisualBoost: true,
             ...config
         };
         
@@ -101,6 +109,8 @@ export class HarmonicHealingVisualSystem_Session134 {
      * Main update loop
      */
     update(deltaTime, time, networkState) {
+        const mode = getAtomaVisualDebugMode();
+        if (mode !== 'all' && mode !== 'healing') return;
         if (this.frameScheduler && this.frameScheduler.shouldRunVisual?.() === false) return;
 
         const healingState = this._resolveHealingState(networkState);
@@ -329,7 +339,11 @@ export class HarmonicHealingVisualSystem_Session134 {
         
         // Wave properties
         const speed = this.config.waveSpeed * (0.8 + Math.random() * 0.4); // Var speed
-        const intensity = 0.45 + Math.min(1, (healingState.healingDrive ?? healingState.harmony ?? 0)) * 0.55; // Brighter/stronger with more healing drive
+        const debugBoost = this.config.debugVisualBoost ? 1.35 : 1.0;
+        const intensity = Math.min(
+            1,
+            (0.45 + Math.min(1, (healingState.healingDrive ?? healingState.harmony ?? 0)) * 0.55) * debugBoost
+        ); // Brighter/stronger with more healing drive
         
         const wave = new HealingWave(targetLink, start, end, speed, intensity);
         this.waves.push(wave);

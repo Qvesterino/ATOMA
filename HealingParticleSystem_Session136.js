@@ -2,6 +2,13 @@ import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { projectHudMetrics } from './SemanticMetricAdapter.js';
 
+function getAtomaVisualDebugMode() {
+    const mode = (typeof window !== 'undefined' && window.__ATOMA_VISUAL_DEBUG_MODE__)
+        || globalThis.__ATOMA_VISUAL_DEBUG_MODE__
+        || 'all';
+    return `${mode}`.toLowerCase();
+}
+
 /**
  * ============================================================================
  * HEALING PARTICLE SYSTEM (Session 136)
@@ -71,16 +78,16 @@ varying vec3 vColor;
 varying float vAlpha;
 
 void main() {
-    // Soft particle shape
-    vec2 xy = gl_PointCoord.xy - vec2(0.5);
-    float r = length(xy);
-    if (r > 0.5) discard;
-    
-    // Soft glow falloff
-    float glow = 1.0 - (r * 2.0);
-    glow = pow(glow, 1.5);
-    
-    gl_FragColor = vec4(vColor, vAlpha * glow);
+    // Debug-friendly square particle shape with hard readable edges.
+    vec2 p = abs(gl_PointCoord.xy - vec2(0.5));
+    float d = max(p.x, p.y);
+    if (d > 0.5) discard;
+
+    float boxGlow = 1.0 - smoothstep(0.18, 0.5, d);
+    float edgeGlow = smoothstep(0.48, 0.36, d);
+    vec3 boosted = vColor * (1.35 + edgeGlow * 0.65);
+
+    gl_FragColor = vec4(boosted, vAlpha * boxGlow);
 }
 `;
 
@@ -94,9 +101,10 @@ export class HealingParticleSystem_Session136 {
             maxParticles: 3500,
             sparkleRate: 1.15,     // Sparkles per scar per second; keeps scars readable without over-spawning
             baseLifetime: 2.0,
-            baseSize: 0.16,
+            baseSize: 0.24,
             trailDensity: 5,       // Particles per unit distance
             lodDistance: 100,
+            debugVisualBoost: true,
             ...config
         };
         
@@ -141,7 +149,7 @@ export class HealingParticleSystem_Session136 {
             fragmentShader: SPARKLE_FRAGMENT_SHADER,
             uniforms: {
                 uTime: { value: 0 },
-                uScale: { value: 1.0 }
+                uScale: { value: this.config.debugVisualBoost ? 1.75 : 1.0 }
             },
             transparent: true,
             depthWrite: false,
@@ -185,6 +193,8 @@ export class HealingParticleSystem_Session136 {
      * Update loop
      */
     update(deltaTime, time, networkState, camera) {
+        const mode = getAtomaVisualDebugMode();
+        if (mode !== 'all' && mode !== 'healing') return;
         if (!this.mesh) return;
         if (!this.enabled) return;
         
@@ -279,7 +289,7 @@ export class HealingParticleSystem_Session136 {
         
         // Color: Warm white/gold
         const color = new THREE.Color(1.0, 0.95, 0.8);
-        if ((state?.harmonyFlow ?? 0) > 0.6) color.setHex(0xaaffff); // Cyan tint for high harmony
+        if ((state?.harmonyFlow ?? 0) > 0.6) color.setHex(0x00ffff); // Neon cyan tint for high harmony
         
         const lifetime = this.config.baseLifetime * (0.8 + Math.random() * 0.4);
         const size = this.config.baseSize * (0.85 + Math.random() * 0.3);
@@ -299,8 +309,8 @@ export class HealingParticleSystem_Session136 {
         // Elongated appearance is simulated by velocity streaking in perception
         // or we could use specific textures. For Points, we rely on density.
         
-        const color = new THREE.Color(0.9, 0.9, 1.0); // Neutral white-ish
-        const size = this.config.baseSize * (0.9 + normalizedIntensity * 0.55);
+        const color = new THREE.Color(0x66f7ff); // Electric cyan
+        const size = this.config.baseSize * (1.2 + normalizedIntensity * 0.9);
         const life = 0.7 + normalizedIntensity * 0.7; // Stronger waves = longer-lived traces
         
         // Add slight spread
@@ -347,10 +357,10 @@ export class HealingParticleSystem_Session136 {
             const vel = dir.multiplyScalar(speed * normalizedIntensity);
 
             // Color: Golden/Cyan burst
-            const color = new THREE.Color(1.0, 0.8, 0.4); // Gold base
+            const color = new THREE.Color(1.0, 0.15, 0.95); // Neon magenta base
             if (Math.random() > 0.5) color.setHex(0x00ffff); // Cyan accents
 
-            const size = this.config.baseSize * (0.95 + Math.random() * 0.9);
+            const size = this.config.baseSize * (1.1 + Math.random() * 1.2);
             const life = 0.5 + Math.random() * 0.5;
 
             // Start exactly at position
