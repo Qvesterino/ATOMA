@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { projectHudMetrics } from './SemanticMetricAdapter.js';
+import { LinkPointFXBase } from './LinkPointFXBase.js';
 
 function getAtomaVisualDebugMode() {
     const mode = (typeof window !== 'undefined' && window.__ATOMA_VISUAL_DEBUG_MODE__)
@@ -135,6 +136,7 @@ export class HealingParticleSystem_Session136 {
             trailDensity: 5,       // Particles per unit distance
             lodDistance: 100,
             debugVisualBoost: true,
+            debugForceRedParticles: true,
             debugExtremeSpawnIndicator: false, // temporary debug mode for huge cube
             debugSpawnProbe: true,
             debugSpawnLogs: true,
@@ -151,6 +153,12 @@ export class HealingParticleSystem_Session136 {
         this.debugCubeVisible = false;
         this.debugProbe = null;
         this.debugProbeHideAt = 0;
+        this.pointFXBase = new LinkPointFXBase(this.scene, {
+            renderLayer: VisualHierarchyRegistry?.LAYER_LINK_PARTICLES ?? 'LINK_PARTICLES',
+            preset: 'healing',
+            capacity: this.config.maxParticles,
+            textureKind: 'healing'
+        });
         
         // Internal tracking
         this.lastUpdateTime = 0;
@@ -161,7 +169,9 @@ export class HealingParticleSystem_Session136 {
     }
 
     _ensureMeshAttached() {
-        if (this.mesh && this.scene && this.mesh.parent !== this.scene) {
+        if (this.pointFXBase && this.mesh) {
+            this.pointFXBase.ensureAttached(this.mesh);
+        } else if (this.mesh && this.scene && this.mesh.parent !== this.scene) {
             this.scene.add(this.mesh);
         }
 
@@ -188,7 +198,17 @@ export class HealingParticleSystem_Session136 {
         // Fill with default invisible values
         birthTimes.fill(-1000);
         
-        this.geometry = new THREE.BufferGeometry();
+        this.geometry = this.pointFXBase?.createGeometry
+            ? this.pointFXBase.createGeometry({
+                velocity: { itemSize: 3 },
+                color: { itemSize: 3 },
+                birthTime: { itemSize: 1 },
+                lifetime: { itemSize: 1 },
+                size: { itemSize: 1 },
+                layer: { itemSize: 1 }
+            })
+            : new THREE.BufferGeometry();
+
         this.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
         this.geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 3).setUsage(THREE.DynamicDrawUsage));
         this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3).setUsage(THREE.DynamicDrawUsage));
@@ -196,8 +216,21 @@ export class HealingParticleSystem_Session136 {
         this.geometry.setAttribute('lifetime', new THREE.BufferAttribute(lifetimes, 1).setUsage(THREE.DynamicDrawUsage));
         this.geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1).setUsage(THREE.DynamicDrawUsage));
         this.geometry.setAttribute('layer', new THREE.BufferAttribute(layers, 1).setUsage(THREE.DynamicDrawUsage));
-        
-        this.material = new THREE.ShaderMaterial({
+
+        this.material = this.pointFXBase?.createMaterial
+            ? this.pointFXBase.createMaterial({
+                vertexShader: SPARKLE_VERTEX_SHADER,
+                fragmentShader: SPARKLE_FRAGMENT_SHADER,
+                uniforms: {
+                    uTime: { value: 0 },
+                    uScale: { value: this.config.debugVisualBoost ? 1.75 : 1.0 }
+                },
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                vertexColors: false
+            })
+            : new THREE.ShaderMaterial({
             vertexShader: SPARKLE_VERTEX_SHADER,
             fragmentShader: SPARKLE_FRAGMENT_SHADER,
             uniforms: {
@@ -212,8 +245,11 @@ export class HealingParticleSystem_Session136 {
         this.mesh = new THREE.Points(this.geometry, this.material);
         this.mesh.frustumCulled = false; // Always update (particles move)
         this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_PARTICLES);
-        
-        this.scene.add(this.mesh);
+        if (this.pointFXBase) {
+            this.pointFXBase.ensureAttached(this.mesh);
+        } else {
+            this.scene.add(this.mesh);
+        }
 
         // Temporary debug indicator: huge red cube per emit
         if (this.config.debugExtremeSpawnIndicator) {
@@ -388,9 +424,13 @@ export class HealingParticleSystem_Session136 {
             (Math.random() - 0.5) * 0.2
         );
         
-        // Color: Warm white/gold
-        const color = new THREE.Color(1.0, 0.95, 0.8);
-        if ((state?.harmonyFlow ?? 0) > 0.6) color.setHex(0x00ffff); // Neon cyan tint for high harmony
+        // Color: Warm white/gold or forced red for debug.
+        const color = this.config.debugForceRedParticles
+            ? new THREE.Color(0xff0000)
+            : new THREE.Color(1.0, 0.95, 0.8);
+        if (!this.config.debugForceRedParticles && (state?.harmonyFlow ?? 0) > 0.6) {
+            color.setHex(0x00ffff); // Neon cyan tint for high harmony
+        }
         
         const lifetime = this.config.baseLifetime * (0.8 + Math.random() * 0.4);
         const size = this.config.baseSize * (0.85 + Math.random() * 0.3);
@@ -410,7 +450,7 @@ export class HealingParticleSystem_Session136 {
         // Elongated appearance is simulated by velocity streaking in perception
         // or we could use specific textures. For Points, we rely on density.
         
-        const color = colorOverride instanceof THREE.Color ? colorOverride : new THREE.Color(0x66f7ff); // Electric cyan by default
+        const color = this.config.debugForceRedParticles ? new THREE.Color(0xff0000) : (colorOverride instanceof THREE.Color ? colorOverride : new THREE.Color(0x66f7ff)); // experimental red override
         const size = this.config.baseSize * (0.18 + normalizedIntensity * 0.8); // Slightly smaller particles for clean trails
         const life = 0.5 + normalizedIntensity * 0.8; // Shorter lifetimes for faster motion
         
@@ -481,9 +521,13 @@ export class HealingParticleSystem_Session136 {
             const speed = 2.0 + Math.random() * 3.0; 
             const vel = dir.multiplyScalar(speed * normalizedIntensity);
 
-            // Color: Golden/Cyan burst
-            const color = new THREE.Color(1.0, 0.15, 0.95); // Neon magenta base
-            if (Math.random() > 0.5) color.setHex(0x00ffff); // Cyan accents
+            // Color: Golden/Cyan burst, optionally forced red for debug.
+            const color = this.config.debugForceRedParticles
+                ? new THREE.Color(0xff0000)
+                : new THREE.Color(1.0, 0.15, 0.95); // Neon magenta base
+            if (!this.config.debugForceRedParticles && Math.random() > 0.5) {
+                color.setHex(0x00ffff); // Cyan accents
+            }
 
             const size = this.config.baseSize * (1.1 + Math.random() * 1.2);
             const life = 0.5 + Math.random() * 0.5;
@@ -529,10 +573,15 @@ export class HealingParticleSystem_Session136 {
     
     dispose() {
         if (this.mesh) {
-            this.scene.remove(this.mesh);
-            this.geometry.dispose();
-            this.material.dispose();
+            if (this.pointFXBase?.disposePointCloud) {
+                this.pointFXBase.disposePointCloud(this.mesh);
+            } else {
+                this.scene.remove(this.mesh);
+                this.geometry.dispose();
+                this.material.dispose();
+            }
         }
+        this.pointFXBase = null;
         this.scarEmissions.clear();
         this.enabled = false;
     }

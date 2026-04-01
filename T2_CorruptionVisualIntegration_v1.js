@@ -38,12 +38,41 @@ export class T2_CorruptionVisualIntegration_v1 {
 
     this.particlePool = [];
     this._particleGeometry = new THREE.TetrahedronGeometry(0.1, 0);
+    this._particleMaterial = new THREE.MeshLambertMaterial({
+      color: 0xff0000,
+      emissive: 0xff0000,
+      emissiveIntensity: 0.8,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false
+    });
     this._semanticSubscriptions = [];
     this._tmpPullVector = new THREE.Vector3();
     this._tmpSourceWorldPos = new THREE.Vector3();
     this._tmpTargetWorldPos = new THREE.Vector3();
     this.particleRoot = new THREE.Group();
     this.particleRoot.name = 'T2_CorruptionParticlePool';
+
+    this.instancedMesh = new THREE.InstancedMesh(this._particleGeometry, this._particleMaterial, this.config.particlePoolSize);
+    this.instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.instancedMesh.frustumCulled = false;
+    this.instancedMesh.visible = true;
+    this.particleRoot.add(this.instancedMesh);
+
+    const auraMaterial = new THREE.MeshBasicMaterial({
+      color: 0x00ffff,
+      transparent: true,
+      opacity: 0.25,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    this.instancedAuraMesh = new THREE.InstancedMesh(this._particleGeometry, auraMaterial, this.config.particlePoolSize);
+    this.instancedAuraMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.instancedAuraMesh.frustumCulled = false;
+    this.instancedAuraMesh.visible = true;
+    this.particleRoot.add(this.instancedAuraMesh);
+
+    this.availableIndices = Array.from({length: this.config.particlePoolSize}, (_, i) => i).reverse();
 
     if (this.scene && typeof this.scene.add === 'function') {
       this.scene.add(this.particleRoot);
@@ -164,63 +193,28 @@ export class T2_CorruptionVisualIntegration_v1 {
     }
   }
 
-  _acquireParticleMesh(corruptionColor) {
+  _acquireParticleInstance(corruptionColor) {
     this._ensureParticleRoot();
+    if (this.availableIndices.length === 0) return null;
 
-    const mesh = this.particlePool.pop() || new THREE.Mesh(
-      this._particleGeometry,
-      new THREE.MeshLambertMaterial({
-        color: corruptionColor,
-        emissive: corruptionColor,
-        emissiveIntensity: 0.8,
-        transparent: true,
-        opacity: 0.9,
-        depthWrite: false
-      })
-    );
+    const index = this.availableIndices.pop();
+    this._updateInstanceMatrixAt(index, new THREE.Vector3(0,0,0), 0.001, 0, corruptionColor, true);
 
-    if (!mesh.material) {
-      mesh.material = new THREE.MeshLambertMaterial({
-        color: corruptionColor,
-        emissive: corruptionColor,
-        emissiveIntensity: 0.8,
-        transparent: true,
-        opacity: 0.9,
-        depthWrite: false
-      });
-    }
-
-    mesh.geometry = this._particleGeometry;
-    mesh.visible = true;
-    mesh.frustumCulled = false;
-    mesh.renderOrder = 9999;
-    mesh.material.color.copy(corruptionColor);
-    mesh.material.emissive?.copy(corruptionColor);
-    mesh.material.emissiveIntensity = 0.8;
-    mesh.material.opacity = 0.9;
-    return mesh;
+    return index;
   }
 
-  _releaseParticleMesh(mesh) {
-    if (!mesh) return;
-    mesh.parent?.remove(mesh);
-    mesh.visible = false;
-    mesh.userData = {};
-
-    if (this.particlePool.length < this.config.particlePoolSize) {
-      this.particlePool.push(mesh);
-      return;
-    }
-
-    mesh.material?.dispose?.();
+  _releaseParticleInstance(instanceId) {
+    if (instanceId === null || instanceId === undefined) return;
+    if (this.availableIndices.includes(instanceId)) return;
+    this.availableIndices.push(instanceId);
   }
 
   _spawnPooledParticle({ position, corruptionLevel, direction = null, targetAnchor = null, isBurst = false, lifetime = null }) {
     if (!position) return null;
 
     const corruptionColor = this.getCorruptionColor(corruptionLevel);
-    const mesh = this._acquireParticleMesh(corruptionColor);
-    mesh.position.copy(position);
+    const instanceId = this._acquireParticleInstance(corruptionColor);
+    if (instanceId === null) return null;
 
     const baseDir = direction && typeof direction.lengthSq === 'function' && direction.lengthSq() > 1e-6
       ? direction.clone()
@@ -240,27 +234,58 @@ export class T2_CorruptionVisualIntegration_v1 {
     );
 
     const particle = {
-      mesh,
+      instanceId,
+      position: position.clone(),
       velocity: driftDir.multiplyScalar(speed),
-      lifetime: lifetime ?? (1.0 + Math.random() * 0.5),
+      lifetime: lifetime ?? 0.6, // faster decay
       age: 0,
       createdAt: this.registry.time,
       baseScale: 1.0,
       seed,
       spin,
       targetAnchor: targetAnchor?.clone?.() ?? null,
-      trailBuffer: [mesh.position.clone()],
+      trailBuffer: [position.clone()],
       trailMax: 5,
       isBurstParticle: true,
       corruptionLevel
     };
 
-    mesh.userData.particle = particle;
-    this.particleRoot.add(mesh);
     this.registry.activeParticles.push(particle);
+    this._updateInstanceMatrix(particle);
     return particle;
   }
 
+  _updateInstanceMatrixAt(instanceId, position, scaleFactor, timeShift, color, isInitial = false) {
+    const dummy = new THREE.Object3D();
+    dummy.position.copy(position);
+    const scale = scaleFactor;
+    dummy.scale.setScalar(scale);
+    dummy.rotation.set((timeShift * 0.8) % (Math.PI*2), (timeShift * 0.6) % (Math.PI*2), (timeShift * 0.4) % (Math.PI*2));
+    dummy.updateMatrix();
+
+    this.instancedMesh.setMatrixAt(instanceId, dummy.matrix);
+    if (this.instancedAuraMesh) {
+      const auraDummy = new THREE.Object3D();
+      auraDummy.position.copy(position);
+      auraDummy.scale.setScalar(scale * 1.35); // slightly larger aura
+      auraDummy.rotation.copy(dummy.rotation);
+      auraDummy.updateMatrix();
+      this.instancedAuraMesh.setMatrixAt(instanceId, auraDummy.matrix);
+    }
+
+    if (this.instancedMesh.instanceColor && color) {
+      this.instancedMesh.setColorAt(instanceId, color);
+      this.instancedMesh.instanceColor.needsUpdate = true;
+    }
+
+    this.instancedMesh.instanceMatrix.needsUpdate = true;
+    if (this.instancedAuraMesh) this.instancedAuraMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  _updateInstanceMatrix(particle) {
+    const scale = particle.baseScale * (0.8 + Math.sin(this.registry.time * 6 + (particle.seed || 0)) * 0.3);
+    this._updateInstanceMatrixAt(particle.instanceId, particle.position, scale, this.registry.time, this.getCorruptionColor(particle.corruptionLevel));
+  }
   triggerCorruptionPulse(nodeId, corruptionLevel = null) {
     const node = this._resolveNodeById(nodeId);
     if (!node) return false;
@@ -449,14 +474,14 @@ export class T2_CorruptionVisualIntegration_v1 {
     const dt = Number.isFinite(deltaTime) && deltaTime > 0 ? deltaTime : 0;
     for (let i = this.registry.activeParticles.length - 1; i >= 0; i--) {
       const particle = this.registry.activeParticles[i];
-      const mesh = particle?.mesh;
-      if (!mesh) {
+      if (!particle) {
         this.registry.activeParticles.splice(i, 1);
         continue;
       }
 
-      if (this._getParticleLODLevel(mesh) >= 3) {
-        this._releaseParticleMesh(mesh);
+      const lodLevel = this._getParticleLODLevel({ position: particle.position });
+      if (lodLevel >= 3) {
+        this._releaseParticleInstance(particle.instanceId);
         this.registry.activeParticles.splice(i, 1);
         continue;
       }
@@ -465,10 +490,10 @@ export class T2_CorruptionVisualIntegration_v1 {
       const life = Math.max(0.0001, particle.lifetime || 1.0);
       const t = Math.max(0, Math.min(1, particle.age / life));
 
-      mesh.position.addScaledVector(particle.velocity, dt);
+      particle.position.addScaledVector(particle.velocity, dt);
 
       if (particle.targetAnchor) {
-        this._tmpPullVector.subVectors(particle.targetAnchor, mesh.position);
+        this._tmpPullVector.subVectors(particle.targetAnchor, particle.position);
         const distSq = this._tmpPullVector.lengthSq();
         if (distSq > 1e-6) {
           const pullStrength = 2.2;
@@ -479,32 +504,18 @@ export class T2_CorruptionVisualIntegration_v1 {
 
       const trail = particle.trailBuffer;
       if (Array.isArray(trail)) {
-        trail.push(mesh.position.clone());
+        trail.push(particle.position.clone());
         const trailMax = Math.max(1, particle.trailMax || 5);
         while (trail.length > trailMax) trail.shift();
       }
 
-      const fade = Math.pow(1.0 - t, 2.5);
-      mesh.material.opacity = 0.9 * fade;
-
-      const pulse01 = Math.sin(this.registry.time * 6 + (particle.seed || 0)) * 0.5 + 0.5;
-      const pulseScale = 0.8 + pulse01 * 0.3;
-      mesh.scale.setScalar((particle.baseScale || 1.0) * pulseScale);
-
-      if (mesh.material?.emissiveIntensity !== undefined) {
-        const flicker01 = Math.sin(this.registry.time * 14 + (particle.seed || 0) * 1.7) * 0.5 + 0.5;
-        const emissiveMult = 0.8 + flicker01 * 0.4;
-        mesh.material.emissiveIntensity = 0.8 * emissiveMult;
-      }
-
-      mesh.rotation.x += (particle.spin?.x || 0) * dt;
-      mesh.rotation.y += (particle.spin?.y || 0) * dt;
-      mesh.rotation.z += (particle.spin?.z || 0) * dt;
-
       if (particle.age >= particle.lifetime) {
-        this._releaseParticleMesh(mesh);
+        this._releaseParticleInstance(particle.instanceId);
         this.registry.activeParticles.splice(i, 1);
+        continue;
       }
+
+      this._updateInstanceMatrix(particle);
     }
   }
 

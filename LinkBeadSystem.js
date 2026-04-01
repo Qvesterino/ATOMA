@@ -26,7 +26,7 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
-import { applyBeadEffects, updateBeadEffects, removeBeadEffects } from './LinkBeadVisualEffects.js';
+import { LinkPointFXBase } from './LinkPointFXBase.js';
 
 // PHASE S-5: Variant property freezing for shader variant immunity
 const VARIANT_CRITICAL_PROPS = [
@@ -114,13 +114,13 @@ export const BEAD_CONFIG = {
   },
   
   // Speed range (units per second)
-  speedMin: 0.5,
-  speedMax: 2.5,
+  speedMin: 0.3,
+  speedMax: 1.5,
   
   // Spawn behavior
   spawn: {
     // Base spawn rate (beads per second at synergy=1.0, traffic=1.0)
-    baseRate: 10.0,
+    baseRate: 6.5,
     // Activity = (synergy + traffic) / 2 (plus external boost)
   },
   
@@ -145,7 +145,7 @@ export const BEAD_CONFIG = {
   fadeDistance: 0.1,
   
   // Pool size (max beads per link)
-  maxBeadsPerLink: 8,
+  maxBeadsPerLink: 6,
   
   // Scale opacity with synergy (higher synergy = more visible beads)
   synergyCoupling: {
@@ -446,53 +446,57 @@ export class LinkBeadPool {
  * Creates and manages mesh instances for beads
  */
 export class BeadRenderer {
-  constructor(scene) {
+  constructor(scene, link = null) {
     this.scene = scene;
-    
-    // Pre-create geometry for reuse
-    this.geometries = {
-      small: new THREE.IcosahedronGeometry(BEAD_CONFIG.sizes.small, 3),
-      medium: new THREE.IcosahedronGeometry(BEAD_CONFIG.sizes.medium, 3),
-      large: new THREE.IcosahedronGeometry(BEAD_CONFIG.sizes.large, 4)
-    };
-    
-    // Bounds are not needed here because bead meshes disable frustum culling.
-    Object.values(this.geometries).forEach(geo => {
-      if (geo) {
-        geo.boundingSphere = null;
-        geo.boundingBox = null;
+    this.link = link;
+    this.pointFXBase = new LinkPointFXBase(scene, {
+      renderLayer: 'LINK_BEADS',
+      preset: 'spark',
+      capacity: BEAD_CONFIG.maxBeadsPerLink,
+      textureKind: 'spark'
+    });
+
+    const cloud = this.pointFXBase.createPointCloud({
+      capacity: BEAD_CONFIG.maxBeadsPerLink,
+      renderLayer: 'LINK_BEADS',
+      preset: 'spark',
+      textureKind: 'spark',
+      attributeSchema: {
+        aColor: { itemSize: 3 },
+        aAlpha: { itemSize: 1 },
+        aSize: { itemSize: 1 }
+      },
+      materialOptions: {
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: true,
+        toneMapped: false,
+        vertexColors: false,
+        uniforms: {
+          uSizeScale: { value: 12.0 }
+        }
+      },
+      userData: {
+        isBeadPointCloud: true
       }
     });
-    
-    // PHASE S-5: Variant properties set at creation time, then frozen
-    // NO runtime mutations to transparent, depthWrite, depthTest, side, blending allowed
-    // Shared material template - cloned for each bead
-    this.material = new THREE.MeshStandardMaterial({
-      opacity: BEAD_CONFIG.opacity,
-      emissiveIntensity: BEAD_CONFIG.emissiveIntensity,
-      roughness: BEAD_CONFIG.roughness,
-      metalness: BEAD_CONFIG.metalness,
-      wireframe: false,
-      // Variant properties (frozen after creation):
-      transparent: true,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      depthTest: true,
-      blending: THREE.AdditiveBlending
-    });
-    // Freeze variant properties on the template material
-    if (!this.material.userData) {
-      Object.defineProperty(this.material, 'userData', { value: {}, writable: true, configurable: true });
-    }
-    this.material.userData.__owner = 'LinkBeadSystem';
-    this.material.userData.__domain = 'bead';
-    freezeMaterialFlags(this.material, 'LinkBeadSystem');
+
+    this.points = cloud.points;
+    this.geometry = cloud.geometry;
+    this.material = cloud.material;
+    this.positionAttr = this.geometry.getAttribute('position');
+    this.colorAttr = this.geometry.getAttribute('aColor');
+    this.alphaAttr = this.geometry.getAttribute('aAlpha');
+    this.sizeAttr = this.geometry.getAttribute('aSize');
 
     this._frameUp = new THREE.Vector3(0, 1, 0);
     this._frameForward = new THREE.Vector3(0, 0, 1);
     this._frameFallback = new THREE.Vector3(1, 0, 0);
     this._frameNormal = new THREE.Vector3();
     this._frameBinormal = new THREE.Vector3();
+
+    this._clearAllSlots();
   }
 
   _buildLaneFrame(direction, normal, binormal) {
@@ -503,66 +507,50 @@ export class BeadRenderer {
     binormal.crossVectors(direction, normal).normalize();
     normal.crossVectors(binormal, direction).normalize();
   }
-  
-  /**
-   * Create a bead mesh for a given bead object
-   */
-  createBeadMesh(bead, color) {
-    const geometry = this.geometries[bead.size];
-    const material = this.material.clone();
-    
-    const tint = color ? color.clone() : new THREE.Color(0x88ccff);
-    material.color.copy(tint);
-    material.emissive.copy(tint);
-    material.emissiveIntensity = BEAD_CONFIG.emissiveIntensity;
-    material.opacity = BEAD_CONFIG.opacity;
-    material.transparent = true;
-    material.depthWrite = false;
-    material.depthTest = true;
-    material.blending = THREE.AdditiveBlending;
-    material.needsUpdate = true;
-    
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.frustumCulled = false;
-    const beadsOrder = VisualHierarchyRegistry.getRenderOrder('LINK_BEADS');
-    mesh.renderOrder = beadsOrder;
-    const ud = mesh.userData || (Object.defineProperty(mesh, 'userData', { value: {}, writable: true, configurable: true }), mesh.userData);
-    Object.assign(ud, { bead: bead, isBead: true, link: this.link });
-    
-    // Apply optional visual effects (disabled by default)
-    applyBeadEffects(mesh);
-    
-    return mesh;
+
+  _clearAllSlots() {
+    const max = this.positionAttr?.count || BEAD_CONFIG.maxBeadsPerLink;
+    for (let i = 0; i < max; i += 1) {
+      this.clearSlot(i);
+    }
+    this.commit();
   }
-  
-  /**
-   * Update bead mesh position and color on curve
-   */
-  updateBeadPosition(mesh, curve, synergy, sourceColor, targetColor) {
-    const bead = mesh.userData.bead;
-    if (isCoreNodeMesh(mesh)) {
-      // Phase LRC-SAFE-CORE
-      // Do NOT modify core node material
+
+  clearSlot(slot) {
+    if (!Number.isFinite(slot) || slot < 0) return;
+    const i = slot | 0;
+    const p = i * 3;
+    if (this.positionAttr?.array) {
+      this.positionAttr.array[p] = 1e6;
+      this.positionAttr.array[p + 1] = 1e6;
+      this.positionAttr.array[p + 2] = 1e6;
+      this.positionAttr.needsUpdate = true;
+    }
+    if (this.colorAttr?.array) {
+      this.colorAttr.array[p] = 1.0;
+      this.colorAttr.array[p + 1] = 1.0;
+      this.colorAttr.array[p + 2] = 1.0;
+      this.colorAttr.needsUpdate = true;
+    }
+    if (this.alphaAttr?.array) {
+      this.alphaAttr.array[i] = 0.0;
+      this.alphaAttr.needsUpdate = true;
+    }
+    if (this.sizeAttr?.array) {
+      this.sizeAttr.array[i] = 0.0;
+      this.sizeAttr.needsUpdate = true;
+    }
+  }
+
+  writeSlot(slot, bead, curve, synergy, sourceColor, targetColor) {
+    if (!bead || !bead.isActive || !curve) {
+      this.clearSlot(slot);
       return;
     }
-    
-    if (!bead || !bead.isActive) {
-      mesh.visible = false;
-      return;
-    }
-    
-    // Get position on curve
+
+    const i = slot | 0;
     const t = bead.t;
     const pos = curve.getPointAt(t);
-    
-    // Update Color (Gradient from Source -> Target)
-    if (sourceColor && targetColor) {
-      // Linear interpolation based on progress t
-      mesh.material.color.lerpColors(sourceColor, targetColor, t);
-      mesh.material.emissive.lerpColors(sourceColor, targetColor, t);
-    }
-    
-    // Follow a stable helical lane so beads visually copy the braid instead of drifting.
     const tangent = curve.getTangentAt(t).normalize();
     const normal = this._frameNormal;
     const binormal = this._frameBinormal;
@@ -581,17 +569,21 @@ export class BeadRenderer {
 
     pos.addScaledVector(normal, Math.cos(helixAngle) * laneRadius);
     pos.addScaledVector(binormal, Math.sin(helixAngle) * laneRadius);
-    
-    mesh.position.copy(pos);
-    
-    // Align bead orientation with curve tangent direction
-    mesh.quaternion.setFromUnitVectors(this._frameForward, tangent);
-    // Subtle pulsation for flow intelligence
-    const pulse = 1.0 + Math.sin(bead.age * 8.0) * 0.15;
-    mesh.scale.setScalar(pulse);
-    
-    // Calculate base opacity with synergy coupling
-    let baseOpacity = BEAD_CONFIG.opacity;
+
+    const p = i * 3;
+    this.positionAttr.array[p] = pos.x;
+    this.positionAttr.array[p + 1] = pos.y;
+    this.positionAttr.array[p + 2] = pos.z;
+
+    const color = new THREE.Color(sourceColor || 0x88ccff);
+    if (sourceColor && targetColor) {
+      color.lerpColors(sourceColor, targetColor, t);
+    }
+    this.colorAttr.array[p] = color.r;
+    this.colorAttr.array[p + 1] = color.g;
+    this.colorAttr.array[p + 2] = color.b;
+
+    let baseAlpha = BEAD_CONFIG.opacity;
     if (BEAD_CONFIG.synergyCoupling.enabled) {
       const synergyFactor = THREE.MathUtils.mapLinear(
         synergy,
@@ -599,20 +591,32 @@ export class BeadRenderer {
         BEAD_CONFIG.synergyCoupling.minMultiplier,
         BEAD_CONFIG.synergyCoupling.maxMultiplier
       );
-      baseOpacity *= synergyFactor;
+      baseAlpha *= synergyFactor;
     }
-    baseOpacity = Math.max(0.2, baseOpacity);
-    
-    // Fade out near end
+    baseAlpha = Math.max(0.16, baseAlpha);
+
     const fadeStart = 1.0 - BEAD_CONFIG.fadeDistance;
     if (t > fadeStart) {
       const fadeAmount = (t - fadeStart) / BEAD_CONFIG.fadeDistance;
-      mesh.material.opacity = baseOpacity * (1.0 - fadeAmount);
-    } else {
-      mesh.material.opacity = baseOpacity;
+      baseAlpha *= (1.0 - fadeAmount);
     }
-    
-    mesh.visible = true;
+
+    const pulse = 1.0 + Math.sin(bead.age * 8.0) * 0.15;
+    const sizeScale = bead.size === 'large' ? 1.55 : bead.size === 'medium' ? 1.15 : 0.95;
+    this.alphaAttr.array[i] = baseAlpha;
+    this.sizeAttr.array[i] = (bead.radius * 32.0 + 1.4) * sizeScale * pulse;
+
+    this.positionAttr.needsUpdate = true;
+    this.colorAttr.needsUpdate = true;
+    this.alphaAttr.needsUpdate = true;
+    this.sizeAttr.needsUpdate = true;
+  }
+
+  commit() {
+    if (this.geometry?.attributes?.position) this.geometry.attributes.position.needsUpdate = true;
+    if (this.geometry?.attributes?.aColor) this.geometry.attributes.aColor.needsUpdate = true;
+    if (this.geometry?.attributes?.aAlpha) this.geometry.attributes.aAlpha.needsUpdate = true;
+    if (this.geometry?.attributes?.aSize) this.geometry.attributes.aSize.needsUpdate = true;
   }
 }
 
@@ -627,18 +631,19 @@ export class LinkBeadVisualizer {
     
     // Pool and renderer
     this.pool = new LinkBeadPool(link);
-    this.renderer = new BeadRenderer(scene);
+    this.renderer = new BeadRenderer(scene, link);
     this._fixedAccum = 0;
     
-    // Mesh group for beads
+    // Point group for beads
     this.group = new THREE.Group();
     {
       const ud = this.group.userData || (Object.defineProperty(this.group, 'userData', { value: {}, writable: true, configurable: true }), this.group.userData);
       Object.assign(ud, { isBeadGroup: true });
     }
-    
-    // Map: bead -> mesh
-    this.beadToMesh = new Map();
+
+    if (this.renderer.points) {
+      this.group.add(this.renderer.points);
+    }
     
     // Initialize colors
     this.updateColors();
@@ -678,7 +683,8 @@ export class LinkBeadVisualizer {
     // PHASE 4A: temporarily disabled to avoid overriding renderOrder into DEBUG space
     return;
     this.group?.traverse((child) => {
-      if (!child.isMesh || !child.material) return;
+      if (!child.isMesh && !child.isPoints) return;
+      if (!child.material) return;
       // PHASE 3B: normalized extreme renderOrder → DEBUG_OVERLAY
       child.renderOrder = VisualHierarchyRegistry.getRenderOrder('DEBUG_OVERLAY');
       child.visible = true;
@@ -727,13 +733,12 @@ export class LinkBeadVisualizer {
     
     // Safety check: need valid curve to render beads
     if (!this.link.curve) {
-      // Remove any existing meshes when curve is absent
-      for (const [, mesh] of this.beadToMesh) {
-        removeBeadEffects(mesh);
-        this.group.remove(mesh);
-        if (mesh.material) mesh.material.dispose();
+      // Hide all point slots when curve is absent
+      const maxSlots = this.pool.maxBeads;
+      for (let i = 0; i < maxSlots; i += 1) {
+        this.renderer.clearSlot(i);
       }
-      this.beadToMesh.clear();
+      this.renderer.commit();
       return;
     }
     
@@ -744,49 +749,25 @@ export class LinkBeadVisualizer {
     if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
       this._debugAcc += step;
       if (this._debugAcc >= 1.0) {
-        console.debug('[Beads]', this.link.id, 'active:', activeBead.length, 'meshes:', this.beadToMesh.size);
+        console.debug('[Beads]', this.link.id, 'active:', activeBead.length, 'points:', this.pool.maxBeads);
         this._debugAcc = 0;
       }
     }
     
-    // Update existing meshes
-    for (const [bead, mesh] of this.beadToMesh) {
-      if (!bead.isActive) {
-        // Remove inactive bead mesh
-        this.group.remove(mesh);
-        this.beadToMesh.delete(bead);
-        
-        // Remove visual effects (trails, etc.)
-        removeBeadEffects(mesh);
-        
-        // Clean up material
-        if (mesh.material) mesh.material.dispose();
-      } else {
-        // Update position and color gradient
-        this.renderer.updateBeadPosition(
-          mesh, 
-          this.link.curve, 
-          synergy, 
-          this.sourceColor, 
-          this.targetColor
-        );
-        
-        // Update visual effects (trails, pulsing, etc.)
-        updateBeadEffects(mesh, deltaTime);
-      }
+    // Update point slots directly from pooled beads
+    for (let i = 0; i < this.pool.beads.length; i += 1) {
+      const bead = this.pool.beads[i];
+      this.renderer.writeSlot(
+        i,
+        bead,
+        this.link.curve,
+        synergy,
+        this.sourceColor,
+        this.targetColor
+      );
     }
-    
-    // Add new bead meshes
-    for (const bead of activeBead) {
-      if (!this.beadToMesh.has(bead)) {
-        // Create mesh with initial source color
-        const mesh = this.renderer.createBeadMesh(bead, this.sourceColor);
-        if (mesh) {
-          this.group.add(mesh);
-          this.beadToMesh.set(bead, mesh);
-        }
-      }
-    }
+
+    this.renderer.commit();
 
     if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
       this._debugAcc += deltaTime;
@@ -831,14 +812,14 @@ export class LinkBeadVisualizer {
    * Cleanup resources
    */
   dispose() {
-    for (const [bead, mesh] of this.beadToMesh) {
-      // Remove visual effects first
-      removeBeadEffects(mesh);
-      mesh.geometry.dispose();
-      mesh.material.dispose();
-      this.group.remove(mesh);
+    if (this.renderer?.points && this.renderer.pointFXBase?.disposePointCloud) {
+      this.renderer.pointFXBase.disposePointCloud(this.renderer.points);
+    } else if (this.renderer?.points) {
+      this.group.remove(this.renderer.points);
+      this.renderer.geometry?.dispose?.();
+      this.renderer.material?.dispose?.();
     }
-    this.beadToMesh.clear();
+    this.renderer = null;
   }
 }
 

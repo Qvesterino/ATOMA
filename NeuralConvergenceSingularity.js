@@ -401,6 +401,7 @@ export class NeuralConvergenceSingularity {
         
         // Time tracking
         this._lifecycleLogTimes = new Map();
+        this.enableLifecycleLogs = false; // disable lifecycle logs by default
         this.time = 0;
         this.lastPulseTime = 0;
         
@@ -445,6 +446,8 @@ export class NeuralConvergenceSingularity {
     }
 
     _logLifecycle(key, message, details = null) {
+        if (!this.enableLifecycleLogs) return;
+
         const now = Date.now();
         const last = this._lifecycleLogTimes.get(key) || 0;
         if (now - last < SINGULARITY_LIFECYCLE_LOG_THROTTLE_MS) return;

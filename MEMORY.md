@@ -189,3 +189,13 @@ Confirmed default runtime validation entrypoint:
 - `HealingParticleSystem_Session136` debug proof particles must have a shader bypass path when they share the same `THREE.Points` warp as the main healing trail.
 - A debug probe that is rendered through the same hypercube-style projection can become visually indistinguishable even when it is correctly spawned.
 - For visible runtime confirmation, keep the probe inside the same point system but route it through a dedicated debug branch with direct-space placement and stronger size/alpha emphasis.
+
+## Strand Spark Contract
+- `LinkRendererConduit` strand-tip sparks are now `THREE.Points` objects created through `LinkPointFXBase`, so geometry/material/cleanup follow the shared point-FX scaffold while preserving the existing spark shader look.
+
+## Healing Point Scaffold
+- `HealingParticleSystem_Session136` healing trail particles now use `LinkPointFXBase` for shared geometry / material / attach / cleanup handling while preserving the existing shader look and debug probe behavior.
+
+## Bead Point Contract
+- `LinkBeadSystem` beads are now rendered as a shared `THREE.Points` cloud through `LinkPointFXBase` instead of individual meshes.
+- Bead runtime behavior was intentionally simplified: fewer beads per link, slower travel, and more spacing so bead trails stay secondary to the strand trails.

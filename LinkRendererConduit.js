@@ -24,6 +24,7 @@ import { createLinkAuraMaterial, createLinkAuraGeometry } from './shaders/LinkAu
 import { linkStateVertexShaderSimple, linkStateFragmentShaderSimple } from './LinkStateVisualLanguageIntegration.js';
 import { LinkTrailParticleSystem, LinkTrailEmitter } from './LinkTrailParticleSystem.js';
 import { LinkHealingParticleSystem, LinkHealingEmitter } from './LinkHealingParticleSystem.js';
+import { LinkPointFXBase } from './LinkPointFXBase.js';
 import { LinkExtensionConfig } from './LinkExtensionConfig.js';
 import { ImpactManagerCollection } from './NodeImpactManager.js';
 import { WaveTravelShaderPack_v1 } from './WaveTravelShaderPack_v1.js';
@@ -962,6 +963,14 @@ export class LinkRendererConduit {
         // Directional energy streaks system (visual only)
         this.directionalStreaks = new LinkDirectionalStreaks(scene);
 
+        // Shared point FX scaffold for strand-tip sparks.
+        this.strandSparkPointFXBase = new LinkPointFXBase(scene, {
+            renderLayer: 'LINK_STRANDS',
+            preset: 'spark',
+            capacity: 96,
+            textureKind: 'spark'
+        });
+
         // Directional resonance flow system (visual only)
         this.linkResonanceFlowSystem = new LinkResonanceFlowSystem_Session124(
             scene,
@@ -1161,13 +1170,19 @@ export class LinkRendererConduit {
         if (filamentState.mesh?.parent) {
             filamentState.mesh.parent.remove(filamentState.mesh);
         }
-        if (filamentState.sparkMesh?.parent) {
-            filamentState.sparkMesh.parent.remove(filamentState.sparkMesh);
+        if (filamentState.sparkMesh) {
+            if (this.strandSparkPointFXBase?.disposePointCloud) {
+                this.strandSparkPointFXBase.disposePointCloud(filamentState.sparkMesh);
+            } else {
+                if (filamentState.sparkMesh.parent) {
+                    filamentState.sparkMesh.parent.remove(filamentState.sparkMesh);
+                }
+                filamentState.sparkGeometry?.dispose?.();
+                filamentState.sparkMaterial?.dispose?.();
+            }
         }
         filamentState.geometry?.dispose?.();
         filamentState.material?.dispose?.();
-        filamentState.sparkGeometry?.dispose?.();
-        filamentState.sparkMaterial?.dispose?.();
         state.strandFilaments = null;
     }
 
@@ -1283,48 +1298,40 @@ export class LinkRendererConduit {
             sparkColor[s + 2] = 1.0;
         }
 
-        const sparkGeometry = new THREE.BufferGeometry();
-        const sparkPositionAttr = new THREE.BufferAttribute(sparkPositions, 3);
-        const sparkColorAttr = new THREE.BufferAttribute(sparkColor, 3);
-        const sparkShapeAttr = new THREE.BufferAttribute(sparkShape, 1);
-        const sparkSizeAttr = new THREE.BufferAttribute(sparkSize, 1);
-        const sparkAngleAttr = new THREE.BufferAttribute(sparkAngle, 1);
-        const sparkSpinAttr = new THREE.BufferAttribute(sparkSpin, 1);
-        const sparkBirthAttr = new THREE.BufferAttribute(sparkBirth, 1);
-        const sparkDurationAttr = new THREE.BufferAttribute(sparkDuration, 1);
-        const sparkGainAttr = new THREE.BufferAttribute(sparkGain, 1);
-        sparkPositionAttr.setUsage(THREE.DynamicDrawUsage);
-        sparkColorAttr.setUsage(THREE.DynamicDrawUsage);
-        sparkShapeAttr.setUsage(THREE.DynamicDrawUsage);
-        sparkSizeAttr.setUsage(THREE.DynamicDrawUsage);
-        sparkAngleAttr.setUsage(THREE.DynamicDrawUsage);
-        sparkSpinAttr.setUsage(THREE.DynamicDrawUsage);
-        sparkBirthAttr.setUsage(THREE.DynamicDrawUsage);
-        sparkDurationAttr.setUsage(THREE.DynamicDrawUsage);
-        sparkGainAttr.setUsage(THREE.DynamicDrawUsage);
-        sparkGeometry.setAttribute('position', sparkPositionAttr);
-        sparkGeometry.setAttribute('aColor', sparkColorAttr);
-        sparkGeometry.setAttribute('aShape', sparkShapeAttr);
-        sparkGeometry.setAttribute('aSize', sparkSizeAttr);
-        sparkGeometry.setAttribute('aAngle', sparkAngleAttr);
-        sparkGeometry.setAttribute('aSpin', sparkSpinAttr);
-        sparkGeometry.setAttribute('aBirth', sparkBirthAttr);
-        sparkGeometry.setAttribute('aDuration', sparkDurationAttr);
-        sparkGeometry.setAttribute('aGain', sparkGainAttr);
+        const sparkGeometry = this.strandSparkPointFXBase.createGeometry({
+            aColor: { itemSize: 3 },
+            aShape: { itemSize: 1 },
+            aSize: { itemSize: 1 },
+            aAngle: { itemSize: 1 },
+            aSpin: { itemSize: 1 },
+            aBirth: { itemSize: 1 },
+            aDuration: { itemSize: 1 },
+            aGain: { itemSize: 1 }
+        });
+        const sparkPositionAttr = sparkGeometry.getAttribute('position');
+        const sparkColorAttr = sparkGeometry.getAttribute('aColor');
+        const sparkShapeAttr = sparkGeometry.getAttribute('aShape');
+        const sparkSizeAttr = sparkGeometry.getAttribute('aSize');
+        const sparkAngleAttr = sparkGeometry.getAttribute('aAngle');
+        const sparkSpinAttr = sparkGeometry.getAttribute('aSpin');
+        const sparkBirthAttr = sparkGeometry.getAttribute('aBirth');
+        const sparkDurationAttr = sparkGeometry.getAttribute('aDuration');
+        const sparkGainAttr = sparkGeometry.getAttribute('aGain');
 
-        const sparkMaterial = new THREE.ShaderMaterial({
+        const sparkMaterial = this.strandSparkPointFXBase.createMaterial({
             vertexShader: strandSparkVertexShader,
             fragmentShader: strandSparkFragmentShader,
             transparent: true,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
             depthTest: true,
+            toneMapped: false,
+            vertexColors: false,
             uniforms: {
                 uTime: { value: 0 },
                 uGlobalOpacity: { value: 0.0 }
             }
         });
-        sparkMaterial.toneMapped = false;
         const sparkMesh = new THREE.Points(sparkGeometry, sparkMaterial);
         sparkMesh.frustumCulled = false;
         sparkMesh.raycast = () => null;
@@ -5588,6 +5595,9 @@ const makeWaveSlice = () => {
             this.linkResonanceFlowSystem.dispose();
             this.linkResonanceFlowSystem = null;
             this.linkResonanceSystem = null;
+        }
+        if (this.strandSparkPointFXBase) {
+            this.strandSparkPointFXBase = null;
         }
         if (this.flowTexture) {
             this.flowTexture.dispose();
