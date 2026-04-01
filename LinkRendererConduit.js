@@ -976,6 +976,7 @@ export class LinkRendererConduit {
 
         // Corruption spread animation system (visual only)
         this.corruptionSpreadAnimator = new LinkCorruptionSpreadAnimator();
+        this.corruptionSpreadAnimator.attachScene?.(scene);
 
         // Corruption particle system (visual only)
         this.corruptionParticleSystem = new LinkCorruptionParticleSystem(scene);

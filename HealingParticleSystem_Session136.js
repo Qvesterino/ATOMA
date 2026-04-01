@@ -402,7 +402,7 @@ export class HealingParticleSystem_Session136 {
      * Public API: Emit a healing trail particle
      * To be called by HarmonicHealingVisualSystem
      */
-    emitHealingTrail(position, velocity, intensity, time) {
+    emitHealingTrail(position, velocity, intensity, time, colorOverride = null) {
         if (!this.enabled) return;
 
         const normalizedIntensity = Math.max(0, Math.min(1, Number(intensity) || 0));
@@ -410,10 +410,19 @@ export class HealingParticleSystem_Session136 {
         // Elongated appearance is simulated by velocity streaking in perception
         // or we could use specific textures. For Points, we rely on density.
         
-        const color = new THREE.Color(0x66f7ff); // Electric cyan
-        const size = this.config.baseSize * (1.2 + normalizedIntensity * 0.9);
-        const life = 0.7 + normalizedIntensity * 0.7; // Stronger waves = longer-lived traces
+        const color = colorOverride instanceof THREE.Color ? colorOverride : new THREE.Color(0x66f7ff); // Electric cyan by default
+        const size = this.config.baseSize * (0.18 + normalizedIntensity * 0.8); // Slightly smaller particles for clean trails
+        const life = 0.5 + normalizedIntensity * 0.8; // Shorter lifetimes for faster motion
         
+        // Throttle debug log to max once per 30 seconds
+        if (!this.lastDebugLogTime) {
+            this.lastDebugLogTime = 0;
+        }
+        if (this.config.debugSpawnLogs && time - this.lastDebugLogTime >= 30) {
+            console.error('[HealingParticleSystem DEBUG] emitHealingTrail spawned at', position.toArray(), 'intensity', normalizedIntensity, 'time', time);
+            this.lastDebugLogTime = time;
+        }
+
         // Add slight spread
         const spread = new THREE.Vector3(
             (Math.random() - 0.5) * 0.1,
@@ -422,16 +431,10 @@ export class HealingParticleSystem_Session136 {
         );
         const pos = position.clone().add(spread);
         
-        // Trail stays roughly in place or drags behind?
-        // "Trails must follow the exact wave path" -> Stationary particles fading out,
-        // effectively tracing the line.
-        const vel = new THREE.Vector3(0,0,0); 
+        // Trail follows incoming velocity for more readable motion
+        const vel = velocity.clone().multiplyScalar(0.7);
 
-        // debug log for spawn confirmation stays independent from the cube placeholder
-        if (this.config.debugSpawnLogs) {
-            console.error('[HealingParticleSystem DEBUG] emitHealingTrail spawned at', pos.toArray(), 'intensity', normalizedIntensity, 'time', time);
-        }
-
+        // debugging log already throttled above; no repeated logs here
         if (this.config.debugSpawnProbe && this.debugProbe) {
             this.debugProbe.position.copy(pos);
             this.debugProbe.scale.setScalar(0.65 + normalizedIntensity * 0.85);

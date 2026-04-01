@@ -161,7 +161,7 @@ export class LinkSemanticPictogramSystem_WithFusion {
             activeZones,
             activeComposites,
             fusionEnabled: this.fusionZoneManager?.enabled !== false
-        }, 20000);
+        }, 30000);
     }
 
     // ========================================================================

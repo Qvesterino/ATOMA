@@ -25,7 +25,7 @@ import * as BufferGeometryUtils from './src/utils/BufferGeometryUtils.js';
 import { CompositeGlyphResonanceFeedback } from './CompositeGlyphResonanceFeedback.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
-const COMPOSITE_GENERATOR_LOG_THROTTLE_MS = 1000;
+const COMPOSITE_GENERATOR_LOG_THROTTLE_MS = 30000; // 30 seconds
 
 // ============================================================================
 // COMPOSITE GEOMETRY BUILDER
@@ -40,6 +40,7 @@ export class CompositeGlyphGenerator {
         this.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE);
         this.resonanceFeedback = new CompositeGlyphResonanceFeedback();
         this._lifecycleLogTimes = new Map();
+        this.enableLifecycleLogs = false; // disable lifecycle logging by default
 
         if (scene || camera || network) {
             this.initializeResonanceFeedback(scene, camera, network);
@@ -47,6 +48,8 @@ export class CompositeGlyphGenerator {
     }
 
     _logLifecycle(key, message, details = null) {
+        if (!this.enableLifecycleLogs) return;
+
         const now = Date.now();
         const last = this._lifecycleLogTimes.get(key) || 0;
         if (now - last < COMPOSITE_GENERATOR_LOG_THROTTLE_MS) return;

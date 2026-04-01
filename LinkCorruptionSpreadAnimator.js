@@ -16,6 +16,7 @@
  */
 
 import * as THREE from 'three';
+import { LinkPointFXBase } from './LinkPointFXBase.js';
 
 const CASCADE_CORRUPTION_THRESHOLD = 0.35;
 
@@ -58,6 +59,8 @@ export class LinkCorruptionSpreadAnimator {
       // Corrupted state (heavy infection)
       corrupted: new THREE.Color(0xff0044)  // Deep red-magenta
     };
+
+    this.pointFXBase = null;
     
     // Configuration
     this.config = {
@@ -102,32 +105,44 @@ export class LinkCorruptionSpreadAnimator {
     if (!ctx) return null;
 
     ctx.clearRect(0, 0, 128, 128);
-    ctx.strokeStyle = 'rgba(255,120,48,0.95)';
-    ctx.lineWidth = 8;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = 'rgba(255,248,235,0.98)';
+    ctx.lineWidth = 9;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.shadowColor = 'rgba(255,80,28,0.65)';
-    ctx.shadowBlur = 12;
+    ctx.shadowColor = 'rgba(255,110,42,0.88)';
+    ctx.shadowBlur = 16;
 
-    // Folded impossible glyph spine.
+    // Interlocked chain-link pair.
     ctx.beginPath();
-    ctx.moveTo(34, 34);
-    ctx.lineTo(88, 28);
-    ctx.lineTo(98, 58);
-    ctx.lineTo(54, 72);
-    ctx.lineTo(76, 96);
-    ctx.lineTo(38, 102);
-    ctx.lineTo(24, 70);
-    ctx.lineTo(60, 56);
-    ctx.closePath();
+    ctx.ellipse(52, 50, 24, 15, -0.56, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Klein-like self-return loop.
     ctx.beginPath();
-    ctx.moveTo(44, 48);
-    ctx.bezierCurveTo(18, 30, 22, 98, 62, 92);
-    ctx.bezierCurveTo(96, 88, 94, 34, 58, 42);
-    ctx.bezierCurveTo(42, 46, 48, 72, 74, 70);
+    ctx.ellipse(76, 64, 24, 15, -0.56, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.lineWidth = 4.5;
+    ctx.strokeStyle = 'rgba(255,155,72,0.96)';
+    ctx.shadowColor = 'rgba(255,100,38,0.92)';
+    ctx.shadowBlur = 10;
+
+    ctx.beginPath();
+    ctx.ellipse(52, 50, 17, 10.5, -0.56, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.ellipse(76, 64, 17, 10.5, -0.56, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = 'rgba(255,255,255,0.98)';
+    ctx.shadowBlur = 6;
+
+    ctx.beginPath();
+    ctx.moveTo(63, 42);
+    ctx.lineTo(67, 45);
+    ctx.lineTo(70, 56);
     ctx.stroke();
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -174,8 +189,19 @@ export class LinkCorruptionSpreadAnimator {
       previousCorruption: 0,
       lastTriggerTime: -Infinity,
       lastCycleEndTime: -Infinity,
+      nextRetriggerAtTime: -Infinity,
       isAnimating: false,
       dust: null
+    });
+  }
+
+  attachScene(scene) {
+    if (!scene) return;
+    this.pointFXBase = new LinkPointFXBase(scene, {
+      renderLayer: 'LINK_PARTICLES',
+      preset: 'corruption',
+      capacity: 18,
+      textureKind: 'ember'
     });
   }
   
@@ -212,6 +238,7 @@ export class LinkCorruptionSpreadAnimator {
         state.isAnimating = false;
         state.lastCycleEndTime = nowMs;
       }
+      state.nextRetriggerAtTime = nowMs + this.config.pulsePauseMs;
       this._disposeDustState(state);
       return null;
     }
@@ -224,31 +251,37 @@ export class LinkCorruptionSpreadAnimator {
     const risingEnough = corruptionDelta >= this.config.triggerDeltaThreshold;
     const cooldownElapsed = (nowMs - state.lastTriggerTime) >= this.config.retriggerCooldownMs;
     const forceRetrigger = corruptionDelta >= this.config.forceRetriggerDelta;
+    const pulsePauseElapsed = nowMs >= (state.nextRetriggerAtTime || -Infinity);
+    const canStartNewPulse = pulsePauseElapsed && cooldownElapsed;
 
-    if (aboveThreshold && risingEnough && (cooldownElapsed || forceRetrigger)) {
+    if (aboveThreshold && canStartNewPulse && (risingEnough || forceRetrigger)) {
       state.isAnimating = true;
       state.startTime = nowMs;
       state.wavePhase = 0;
       state.lastTriggerTime = nowMs;
+      state.nextRetriggerAtTime = Infinity;
     }
 
-    if (aboveThreshold && !state.isAnimating && cooldownElapsed) {
+    if (aboveThreshold && !state.isAnimating && canStartNewPulse) {
       state.isAnimating = true;
       state.startTime = nowMs;
       state.wavePhase = 0;
       state.lastTriggerTime = nowMs;
+      state.nextRetriggerAtTime = Infinity;
     }
 
     // Debug-only periodic sweep retrigger for visual verification.
     if (
       debugCfg.forceSweep &&
       corruptionLevel >= debugCfg.minCorruption &&
+      pulsePauseElapsed &&
       (nowMs - state.lastTriggerTime) >= debugCfg.sweepIntervalMs
     ) {
       state.isAnimating = true;
       state.startTime = nowMs;
       state.wavePhase = 0;
       state.lastTriggerTime = nowMs;
+      state.nextRetriggerAtTime = Infinity;
     }
     state.previousCorruption = corruptionLevel;
 
@@ -266,6 +299,7 @@ export class LinkCorruptionSpreadAnimator {
         state.isAnimating = false;
         state.lastCycleEndTime = nowMs;
         state.dustTravelPhase = 0;
+        state.nextRetriggerAtTime = nowMs + this.config.pulsePauseMs;
         this._disposeDustState(state);
       }
     }
@@ -294,12 +328,12 @@ export class LinkCorruptionSpreadAnimator {
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(count * 3), 3));
 
     const material = new THREE.PointsMaterial({
-      color: 0xff5a1f,
+      color: 0xffefd6,
       map: this.dustGlyphTexture,
       transparent: true,
       opacity: 0.0,
-      size: 0.08,
-      alphaTest: 0.18,
+      size: 0.1,
+      alphaTest: 0.08,
       depthWrite: false,
       depthTest: true,
       blending: THREE.AdditiveBlending
@@ -308,12 +342,18 @@ export class LinkCorruptionSpreadAnimator {
     const points = new THREE.Points(geometry, material);
     points.frustumCulled = false;
     points.visible = false;
-    link.group.add(points);
+    if (this.pointFXBase) {
+      this.pointFXBase.ensureAttached(points);
+    } else {
+      link.group.add(points);
+    }
 
     const seeds = [];
     for (let i = 0; i < count; i++) {
+      const tMin = 0.045;
+      const tMax = 0.955;
       seeds.push({
-        tOffset: i / Math.max(1, count - 1),
+        tOffset: tMin + (i / Math.max(1, count - 1)) * (tMax - tMin),
         lateral: (Math.random() - 0.5) * this.config.dustLateralSpread,
         vertical: Math.random() * this.config.dustHeight,
         phase: Math.random() * Math.PI * 2,
@@ -396,8 +436,8 @@ export class LinkCorruptionSpreadAnimator {
     }
 
     dust.geometry.attributes.position.needsUpdate = true;
-    dust.material.opacity = Math.min(0.9, 0.18 + corruptionLevel * 0.85);
-    dust.material.size = 0.05 + corruptionLevel * 0.06;
+    dust.material.opacity = Math.min(0.96, 0.3 + corruptionLevel * 0.98);
+    dust.material.size = 0.08 + corruptionLevel * 0.09;
   }
 
   _readCorruptionLevel(link, options = {}) {
@@ -546,6 +586,7 @@ export class LinkCorruptionSpreadAnimator {
       this.dustGlyphTexture.dispose();
       this.dustGlyphTexture = null;
     }
+    this.pointFXBase = null;
     this.animationStates.clear();
   }
 }

@@ -88,9 +88,9 @@ export class HarmonicHealingVisualSystem_Session134 {
         this.particles = particleSystem;
         
         this.config = {
-            waveSpeed: 3.2,            // Units per second
-            spawnInterval: 1.5,        // Minimum seconds between spawns (slower)
-            maxWaves: 96,              // Performance limit (total active waves)
+            waveSpeed: 4.25,           // Units per second (increased for quicker travel)
+            spawnInterval: 1.5,        // Minimum seconds between spawns
+            maxWaves: 120,             // Performance limit (total active waves)
             linkSpawnOnly: true,       // Spawn only when links exist (true)
             spawnPerLink: true,        // Spawn from every link each interval
             repairVisualsOnly: false,  // Allow gameplay stats changes
@@ -221,11 +221,13 @@ export class HarmonicHealingVisualSystem_Session134 {
                 
                 // Emit visual trail via Particle System
                 if (this.particles) {
+                    const trailVelocity = wave.currentDir.clone().multiplyScalar(wave.speed * 0.3);
                     this.particles.emitHealingTrail(
                         wave.currentPos,
-                        wave.currentDir,
+                        trailVelocity,
                         wave.intensity,
-                        time
+                        time,
+                        new THREE.Color(0x66f7ff) // primary healing color
                     );
                 }
             } else {

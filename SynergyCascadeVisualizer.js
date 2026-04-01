@@ -32,6 +32,7 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { LinkPointFXBase } from './LinkPointFXBase.js';
 
 export class SynergyCascadeVisualizer {
   constructor(scene, linkingSystem, camera) {
@@ -105,9 +106,22 @@ export class SynergyCascadeVisualizer {
     this.cascadeParticles = [];
     this.particlePool = [];
     this.maxPoolSize = 240;
+    this.burstParticleSystem = null;
+    this.burstPointFXBase = new LinkPointFXBase(this.scene, {
+      renderLayer: 'LINK_PARTICLES',
+      preset: 'spark',
+      capacity: this.config.maxActiveParticles ?? 240,
+      textureKind: 'spark'
+    });
     this.flowParticles = [];
     this.flowParticlePool = [];
     this.flowParticleSystem = null;
+    this.flowPointFXBase = new LinkPointFXBase(this.scene, {
+      renderLayer: 'LINK_PARTICLES',
+      preset: 'cascade',
+      capacity: this.config.maxActiveParticles ?? 240,
+      textureKind: 'cascade'
+    });
 
     // Ripple effect system
     this.ripples = [];
@@ -126,6 +140,7 @@ export class SynergyCascadeVisualizer {
     this.debugMode = false;
     
     console.log('✅ SynergyCascadeVisualizer initialized');
+    this._initBurstParticleSystem();
     this._initFlowParticleSystem();
     this.bindSemanticEvents();
     this.setupConsoleAPI();
@@ -911,6 +926,183 @@ export class SynergyCascadeVisualizer {
     return Math.max(0, Math.min(remaining, scaledCount));
   }
 
+  _createBurstTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.clearRect(0, 0, 64, 64);
+    ctx.globalCompositeOperation = 'lighter';
+
+    const center = 32;
+    const outer = ctx.createRadialGradient(center, center, 2, center, center, 30);
+    outer.addColorStop(0.0, 'rgba(255,255,255,1.0)');
+    outer.addColorStop(0.18, 'rgba(255,238,180,0.98)');
+    outer.addColorStop(0.42, 'rgba(255,162,64,0.70)');
+    outer.addColorStop(0.72, 'rgba(255,64,32,0.28)');
+    outer.addColorStop(1.0, 'rgba(0,0,0,0)');
+
+    ctx.fillStyle = outer;
+    ctx.fillRect(0, 0, 64, 64);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.96)';
+    ctx.lineWidth = 4.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = 'rgba(255,130,40,0.85)';
+    ctx.shadowBlur = 10;
+
+    ctx.beginPath();
+    ctx.arc(27, 30, 9.5, 0.15, Math.PI * 1.95);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(38, 34, 9.5, Math.PI * 1.1, Math.PI * 0.75, true);
+    ctx.stroke();
+
+    ctx.lineWidth = 2.0;
+    ctx.strokeStyle = 'rgba(255,255,255,0.88)';
+    ctx.beginPath();
+    ctx.moveTo(21, 26);
+    ctx.lineTo(44, 42);
+    ctx.stroke();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    return texture;
+  }
+
+  _initBurstParticleSystem() {
+    if (this.burstParticleSystem) return this.burstParticleSystem;
+
+    const maxParticles = Math.max(32, this.config.maxActiveParticles ?? 240);
+    for (let i = 0; i < maxParticles; i++) {
+      this.particlePool.push({
+        position: new THREE.Vector3(),
+        velocity: new THREE.Vector3(),
+        drift: new THREE.Vector3(),
+        active: false,
+        age: 0,
+        lifetime: 0,
+        intensity: 0,
+        size: 1,
+        color: new THREE.Color(),
+        link: null,
+        linkId: null,
+        cascadeId: null,
+        forcedBurst: false,
+        phase: 0
+      });
+    }
+
+    const geometry = this.burstPointFXBase?.createGeometry?.({
+      color: { itemSize: 3 },
+      alpha: { itemSize: 1 },
+      size: { itemSize: 1 }
+    }) || new THREE.BufferGeometry();
+    const positions = new Float32Array(maxParticles * 3);
+    const colors = new Float32Array(maxParticles * 3);
+    const alphas = new Float32Array(maxParticles);
+    const sizes = new Float32Array(maxParticles);
+
+    const positionAttr = new THREE.BufferAttribute(positions, 3);
+    const colorAttr = new THREE.BufferAttribute(colors, 3);
+    const alphaAttr = new THREE.BufferAttribute(alphas, 1);
+    const sizeAttr = new THREE.BufferAttribute(sizes, 1);
+
+    positionAttr.setUsage(THREE.DynamicDrawUsage);
+    colorAttr.setUsage(THREE.DynamicDrawUsage);
+    alphaAttr.setUsage(THREE.DynamicDrawUsage);
+    sizeAttr.setUsage(THREE.DynamicDrawUsage);
+
+    geometry.setAttribute('position', positionAttr);
+    geometry.setAttribute('color', colorAttr);
+    geometry.setAttribute('alpha', alphaAttr);
+    geometry.setAttribute('size', sizeAttr);
+    geometry.setDrawRange(0, 0);
+
+    const material = this.burstPointFXBase.createMaterial({
+      preset: 'spark',
+      blending: THREE.AdditiveBlending,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+      vertexColors: false,
+      uniforms: {
+        uBaseSize: { value: 60.0 }
+      },
+      vertexShader: `
+        attribute vec3 color;
+        attribute float alpha;
+        attribute float size;
+        varying vec3 vColor;
+        varying float vAlpha;
+        varying float vSize;
+        uniform float uBaseSize;
+        uniform float uSizeScale;
+        void main() {
+          vColor = color;
+          vAlpha = alpha;
+          vSize = size;
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          float sizeScale = max(0.42, size);
+          gl_PointSize = uBaseSize * uSizeScale * sizeScale / max(0.25, -mvPosition.z);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D uMap;
+        uniform float uOpacity;
+        uniform vec3 uBaseColor;
+        uniform vec3 uEdgeColor;
+        varying vec3 vColor;
+        varying float vAlpha;
+        varying float vSize;
+        void main() {
+          vec4 tex = texture2D(uMap, gl_PointCoord);
+          float alpha = tex.a * vAlpha * uOpacity;
+          if (alpha < 0.01) discard;
+          float rim = smoothstep(0.15, 0.85, tex.r);
+          vec3 color = mix(uBaseColor, uEdgeColor, rim);
+          color *= vColor;
+          color *= 1.0 + vSize * 0.08;
+          gl_FragColor = vec4(color, alpha);
+        }
+      `
+    });
+    material.transparent = true;
+    material.depthTest = false;
+    material.depthWrite = false;
+    material.blending = THREE.AdditiveBlending;
+    material.uniforms.uBaseSize = material.uniforms.uBaseSize || { value: 60.0 };
+
+    const points = new THREE.Points(geometry, material);
+    points.visible = true;
+    points.frustumCulled = false;
+    points.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_PARTICLES);
+    this.burstPointFXBase?.ensureAttached?.(points) || this.scene?.add?.(points);
+
+    this.burstParticleSystem = {
+      points,
+      geometry,
+      material,
+      maxParticles,
+      positions,
+      colors,
+      alphas,
+      sizes,
+      activeCount: 0
+    };
+
+    return this.burstParticleSystem;
+  }
+
   _createFlowTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 64;
@@ -953,7 +1145,11 @@ export class SynergyCascadeVisualizer {
       });
     }
 
-    const geometry = new THREE.BufferGeometry();
+    const geometry = this.flowPointFXBase?.createGeometry?.({
+      color: { itemSize: 3 },
+      alpha: { itemSize: 1 },
+      size: { itemSize: 1 }
+    }) || new THREE.BufferGeometry();
     const positions = new Float32Array(maxParticles * 3);
     const colors = new Float32Array(maxParticles * 3);
     const alphas = new Float32Array(maxParticles);
@@ -1018,7 +1214,7 @@ export class SynergyCascadeVisualizer {
     points.visible = true;
     points.frustumCulled = false;
     points.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_PARTICLES);
-    this.scene.add(points);
+    this.flowPointFXBase?.ensureAttached?.(points) || this.scene?.add?.(points);
 
     this.flowParticleSystem = {
       points,
@@ -1088,15 +1284,12 @@ export class SynergyCascadeVisualizer {
   _disposeFlowParticleSystem() {
     if (!this.flowParticleSystem) return;
 
-    const { points, geometry, material } = this.flowParticleSystem;
-    if (points) {
-      this.scene.remove(points);
+    const flowTexture = this.flowParticleSystem?.material?.uniforms?.map?.value ?? null;
+    this.flowPointFXBase?.disposePointCloud?.(this.flowParticleSystem);
+    if (flowTexture?.dispose) {
+      flowTexture.dispose();
     }
-    geometry?.dispose?.();
-    if (material?.uniforms?.map?.value?.dispose) {
-      material.uniforms.map.value.dispose();
-    }
-    material?.dispose?.();
+    this.flowPointFXBase = null;
 
     this.flowParticleSystem = null;
     this.flowParticles = [];
@@ -1298,6 +1491,15 @@ export class SynergyCascadeVisualizer {
       this.cascadeParticles.splice(i, 1);
       this.returnParticleToPool(particle);
       removed++;
+    }
+
+    if (this.burstParticleSystem?.geometry) {
+      this.burstParticleSystem.geometry.setDrawRange(0, 0);
+      this.burstParticleSystem.geometry.attributes.position.needsUpdate = true;
+      this.burstParticleSystem.geometry.attributes.color.needsUpdate = true;
+      this.burstParticleSystem.geometry.attributes.alpha.needsUpdate = true;
+      this.burstParticleSystem.geometry.attributes.size.needsUpdate = true;
+      this.burstParticleSystem.activeCount = 0;
     }
 
     return removed;
@@ -2001,20 +2203,9 @@ export class SynergyCascadeVisualizer {
       particle.baseScale = forcedBurst
         ? 3.0 + burstIntensity * 1.45
         : 0.88 + burstIntensity * 0.42;
-
-      if (particle.mesh) {
-        particle.mesh.visible = true;
-        particle.mesh.position.copy(position);
-        particle.mesh.scale.setScalar(Math.max(1.0, particle.baseScale || 1));
-        particle.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_PARTICLES);
-        particle.mesh.frustumCulled = true;
-        if (particle.mesh.material) {
-          particle.mesh.material.opacity = Math.min(1.0, forcedBurst ? 1.0 : 0.6 + particle.intensity * 0.34);
-        }
-        if (particle.mesh.material?.color && particle.color) {
-          particle.mesh.material.color.copy(particle.color);
-        }
-      }
+      particle.size = particle.baseScale;
+      particle.forcedBurst = forcedBurst;
+      particle.phase = Math.random() * Math.PI * 2;
 
       this.cascadeParticles.push(particle);
     }
@@ -2024,10 +2215,24 @@ export class SynergyCascadeVisualizer {
    * Update cascade particles
    */
   updateCascadeParticles(deltaTime) {
+    const system = this.burstParticleSystem;
+    if (!system) return;
+
+    const activeCountLimit = Math.max(0, Math.min(system.maxParticles, this.config.maxActiveParticles ?? system.maxParticles));
+    const positions = system.positions;
+    const colors = system.colors;
+    const alphas = system.alphas;
+    const sizes = system.sizes;
+    let activeCount = 0;
+
     for (let i = this.cascadeParticles.length - 1; i >= 0; i--) {
       const particle = this.cascadeParticles[i];
       
-      if (!particle.active) continue;
+      if (!particle?.active) {
+        this.cascadeParticles.splice(i, 1);
+        this.returnParticleToPool(particle);
+        continue;
+      }
       
       particle.age += deltaTime;
       
@@ -2039,28 +2244,41 @@ export class SynergyCascadeVisualizer {
       
       // Fade out
       const fadeRatio = 1.0 - (particle.age / particle.lifetime);
-      if (fadeRatio <= 0) {
+      if (fadeRatio <= 0 || activeCount >= activeCountLimit) {
         particle.active = false;
         this.cascadeParticles.splice(i, 1);
         this.returnParticleToPool(particle);
         continue;
       }
-      
-      // Update particle mesh
-      if (particle.mesh) {
-        particle.mesh.position.copy(particle.position);
-        if (particle.mesh.material.color && particle.color) {
-          particle.mesh.material.color.copy(particle.color).lerp(this.config.fadeColor, 1.0 - fadeRatio);
-        }
-        particle.mesh.material.opacity = Math.min(1.0, 0.12 + fadeRatio * 0.9 * particle.intensity);
-        
-        // Size decreases with age
-        const scale = Math.max(0.18, 0.9 - (particle.age / particle.lifetime) * 0.45);
-        particle.mesh.scale.setScalar(scale * Math.max(0.75, particle.baseScale || 1));
-      }
+
+      const fade = Math.max(0, fadeRatio);
+      const pulse = 0.84 + 0.16 * Math.sin((particle.age * 10.0) + (particle.phase || 0));
+      const color = particle.color || this.config.waveColor;
+      const baseSize = Math.max(0.18, particle.baseScale || particle.size || 1);
+      const size = baseSize * (0.82 + fade * 0.52) * (0.88 + particle.intensity * 0.28);
+
+      positions[activeCount * 3] = particle.position.x;
+      positions[activeCount * 3 + 1] = particle.position.y;
+      positions[activeCount * 3 + 2] = particle.position.z;
+
+      colors[activeCount * 3] = color.r;
+      colors[activeCount * 3 + 1] = color.g;
+      colors[activeCount * 3 + 2] = color.b;
+
+      alphas[activeCount] = Math.max(0, fade * fade * (particle.intensity * 0.92 + 0.26) * pulse);
+      sizes[activeCount] = Math.max(0.42, size);
+      activeCount++;
     }
-    
-    this.stats.particlesActive = this.cascadeParticles.length;
+
+    system.points.visible = activeCount > 0;
+    system.activeCount = activeCount;
+    system.geometry.setDrawRange(0, activeCount);
+    system.geometry.attributes.position.needsUpdate = true;
+    system.geometry.attributes.color.needsUpdate = true;
+    system.geometry.attributes.alpha.needsUpdate = true;
+    system.geometry.attributes.size.needsUpdate = true;
+
+    this.stats.particlesActive = this.cascadeParticles.length + this.flowParticles.length;
   }
   
   /**
@@ -2153,44 +2371,33 @@ export class SynergyCascadeVisualizer {
 
     if (this.particlePool.length > 0) {
       const particle = this.particlePool.pop();
-      if (particle?.mesh) {
-        particle.mesh.visible = true;
-        if (particle.mesh.material) {
-          particle.mesh.material.opacity = 0.9;
-        }
-        particle.mesh.scale.setScalar(1);
-      }
       particle.baseScale = 1;
+      particle.size = 1;
+      particle.active = false;
+      particle.age = 0;
+      particle.lifetime = 0;
+      particle.intensity = 0;
+      particle.forcedBurst = false;
       return particle;
     }
     
     if (this.cascadeParticles.length < this.maxPoolSize) {
-      const geometry = new THREE.SphereGeometry(0.06, 6, 6);
-      const material = new THREE.MeshBasicMaterial({
-        color: this.config.waveColor.clone(),
-        transparent: true,
-        opacity: 1.0,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        depthTest: false
-      });
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.visible = true;
-      mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_PARTICLES);
-      mesh.frustumCulled = true;
-      this.scene.add(mesh);
-      
       return {
         position: new THREE.Vector3(),
         velocity: new THREE.Vector3(),
         drift: new THREE.Vector3(),
-        mesh: mesh,
         active: false,
         lifetime: 0,
         age: 0,
         intensity: 0,
         color: new THREE.Color(),
-        baseScale: 1
+        size: 1,
+        baseScale: 1,
+        link: null,
+        linkId: null,
+        cascadeId: null,
+        forcedBurst: false,
+        phase: 0
       };
     }
     
@@ -2206,22 +2413,31 @@ export class SynergyCascadeVisualizer {
     particle.link = null;
     particle.linkId = null;
     particle.cascadeId = null;
-    if (particle.mesh) {
-      particle.mesh.visible = false;
-      if (particle.mesh.material) {
-        particle.mesh.material.opacity = 0;
-      }
-      particle.mesh.scale.setScalar(1);
-    }
+    particle.forcedBurst = false;
+    particle.size = 1;
     particle.baseScale = 1;
     
     if (this.particlePool.length < this.maxPoolSize) {
       this.particlePool.push(particle);
-    } else if (particle.mesh) {
-      this.scene.remove(particle.mesh);
-      particle.mesh.geometry.dispose();
-      particle.mesh.material.dispose();
     }
+  }
+
+  _disposeBurstParticleSystem() {
+    if (!this.burstParticleSystem) return;
+
+    const { points, geometry, material } = this.burstParticleSystem;
+    if (points) {
+      points.parent?.remove(points);
+    }
+    geometry?.dispose?.();
+    if (material?.uniforms?.uMap?.value?.dispose) {
+      material.uniforms.uMap.value.dispose();
+    }
+    material?.dispose?.();
+
+    this.burstParticleSystem = null;
+    this.cascadeParticles = [];
+    this.particlePool = [];
   }
   
   /**
@@ -2443,14 +2659,9 @@ cascadeDebug.help()                - Show this help
     this._unbindSemanticEvents();
 
     this.clearAllCascades();
+    this._disposeBurstParticleSystem();
     this._disposeFlowParticleSystem();
-
-    for (const particle of this.particlePool) {
-      if (!particle?.mesh) continue;
-      this.scene.remove(particle.mesh);
-      particle.mesh.geometry?.dispose?.();
-      particle.mesh.material?.dispose?.();
-    }
-    this.particlePool = [];
+    this.burstPointFXBase = null;
+    this.flowPointFXBase = null;
   }
 }

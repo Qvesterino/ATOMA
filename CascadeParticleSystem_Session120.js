@@ -34,6 +34,7 @@ import VisualTime from './src/time/VisualTime.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { resolveLinkCategoryColor } from './LinkCategoryColorContract.js';
 import { createLogger, isDebugEnabled } from './src/utils/DebugLogger.js';
+import { LinkPointFXBase } from './LinkPointFXBase.js';
 
 export class CascadeParticleSystem_Session120 {
   constructor(scene, config = {}) {
@@ -112,6 +113,12 @@ export class CascadeParticleSystem_Session120 {
     this.material = null;
     this.mesh = null;
     this.textureAtlas = null;
+    this.pointFXBase = new LinkPointFXBase(this.scene, {
+      renderLayer: 'LINK_CASCADE',
+      preset: 'cascade',
+      capacity: this.config.maxParticles,
+      textureKind: 'cascade'
+    });
     
     // Init
     this.init();
@@ -163,8 +170,13 @@ export class CascadeParticleSystem_Session120 {
     this.textureAtlas = this._generateTextureAtlas();
     
     // 2. Initialize Geometry
-    this.geometry = new THREE.BufferGeometry();
-    
+    this.geometry = this.pointFXBase.createGeometry({
+      opacity: { itemSize: 1 },
+      size: { itemSize: 1 },
+      shapeIndex: { itemSize: 1 },
+      angle: { itemSize: 1 }
+    });
+
     const positions = new Float32Array(this.config.maxParticles * 3);
     const colors = new Float32Array(this.config.maxParticles * 3);
     const opacities = new Float32Array(this.config.maxParticles);
@@ -279,7 +291,7 @@ export class CascadeParticleSystem_Session120 {
     this.mesh.frustumCulled = false; // Always render if active
     this.mesh.visible = true;
     this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_CASCADE);
-    this.scene.add(this.mesh);
+    this.pointFXBase.ensureAttached(this.mesh);
     
     this._logger.logIf(this.config.debugMode, 'Initialized and added to scene:', {
       maxParticles: this.config.maxParticles,
@@ -1468,9 +1480,7 @@ export class CascadeParticleSystem_Session120 {
     // Clear cascade hop cooldowns
     this._linkHopCooldowns.clear();
 
-    this.scene.remove(this.mesh);
-    this.geometry.dispose();
-    this.material.dispose();
+    this.pointFXBase?.disposePointCloud?.(this.mesh);
     this.textureAtlas.dispose();
   }
 }

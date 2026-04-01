@@ -169,6 +169,11 @@ Confirmed default runtime validation entrypoint:
 - `SynergyCascadeVisualizer` uses `flowParticles` as the recurring 3-second beat on live links.
 - `burstParticles` are kept smaller and metric-gated with a 5-second cooldown window.
 - This split is the preferred visual contract for synergy readability: flow carries the repeated signature, burst stays secondary.
+- `SynergyCascadeVisualizer.flowParticles` and `SynergyCascadeVisualizer.burstParticles` are both `THREE.Points` paths and now share the point-FX scaffold via `LinkPointFXBase`.
+- The burst path is intentionally still visually secondary to the ripple / wave / link glow language, but it no longer relies on per-particle mesh draw calls.
+
+## Corruption Glyph Contract
+- `LinkCorruptionSpreadAnimator` uses a bright chain-link glyph texture for dust wave markers so corruption reads as linked chain motion rather than a generic runic splat.
 
 ## Link Resonance Repeat Contract
 - `LinkResonanceFlowSystem_Session124` now repeats pulses on any live link with a fixed 3-second cadence.
@@ -179,3 +184,8 @@ Confirmed default runtime validation entrypoint:
 - `ResonanceRuptureVisualSystem_Session133` scar visuals now use a dedicated particle-burst root that must remain attached to the active scene graph during runtime.
 - If world lifecycle or cleanup logic detaches the scar root, the system should reattach it during update instead of relying on one-time setup attachment.
 - Link-born scar visuals are a separate path from rupture burst visuals; keep the scar root renderable and the rupture burst independent.
+
+## Healing Probe Lesson
+- `HealingParticleSystem_Session136` debug proof particles must have a shader bypass path when they share the same `THREE.Points` warp as the main healing trail.
+- A debug probe that is rendered through the same hypercube-style projection can become visually indistinguishable even when it is correctly spawned.
+- For visible runtime confirmation, keep the probe inside the same point system but route it through a dedicated debug branch with direct-space placement and stronger size/alpha emphasis.

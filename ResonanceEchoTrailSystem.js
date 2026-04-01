@@ -89,7 +89,7 @@ const CONFIG = {
     DEBUG_DRAW_ECHOES: false
 };
 
-const RESONANCE_ECHO_LOG_THROTTLE_MS = 1000;
+const RESONANCE_ECHO_LOG_THROTTLE_MS = 30000; // 30 seconds
 
 // ============================================================================
 // ECHO INSTANCE

@@ -19,6 +19,7 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { LinkPointFXBase } from './LinkPointFXBase.js';
 
 export class WaveParticleEmitter_v1 {
   constructor(config = {}) {
@@ -51,6 +52,7 @@ export class WaveParticleEmitter_v1 {
     // Three.js scene references
     this.scene = null;
     this.renderer = null;
+    this.pointFXBase = null;
 
     // Particle pools and systems (per family)
     this.systems = {
@@ -120,6 +122,12 @@ export class WaveParticleEmitter_v1 {
     try {
       this.renderer = renderer;
       this.scene = scene;
+      this.pointFXBase = new LinkPointFXBase(this.scene, {
+        renderLayer: 'LINK_PARTICLES',
+        preset: 'spark',
+        capacity: this.config.maxParticlesPerFamily,
+        textureKind: 'spark'
+      });
 
       if (!this.scene) {
         console.warn('[WaveParticleEmitter_v1] Scene not provided, skipping init');
@@ -181,7 +189,9 @@ export class WaveParticleEmitter_v1 {
     this.pools[systemKey] = poolParticles;
 
     // Create Points geometry and material
-    const geometry = new THREE.BufferGeometry();
+    const geometry = this.pointFXBase?.createGeometry({
+      alpha: { itemSize: 1 }
+    }) || new THREE.BufferGeometry();
     const positions = new Float32Array(maxParticles * 3);
     const colors = new Float32Array(maxParticles * 3);
     const alphas = new Float32Array(maxParticles);
@@ -207,7 +217,7 @@ export class WaveParticleEmitter_v1 {
     points.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
     points.frustumCulled = false;
     this.systems[systemKey] = { points, geometry, maxParticles };
-    this.scene.add(points);
+    this.pointFXBase?.ensureAttached(points) || this.scene.add(points);
   }
 
   /**
@@ -235,7 +245,9 @@ export class WaveParticleEmitter_v1 {
 
     this.pools.destructiveChaos = poolParticles;
 
-    const geometry = new THREE.BufferGeometry();
+    const geometry = this.pointFXBase?.createGeometry({
+      alpha: { itemSize: 1 }
+    }) || new THREE.BufferGeometry();
     const positions = new Float32Array(maxParticles * 3);
     const colors = new Float32Array(maxParticles * 3);
     const alphas = new Float32Array(maxParticles);
@@ -260,7 +272,7 @@ export class WaveParticleEmitter_v1 {
     points.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
     points.frustumCulled = false;
     this.systems.destructiveChaos = { points, geometry, maxParticles };
-    this.scene.add(points);
+    this.pointFXBase?.ensureAttached(points) || this.scene.add(points);
   }
 
   /**
@@ -291,7 +303,10 @@ export class WaveParticleEmitter_v1 {
 
     this.pools.standingWaveRipple = poolParticles;
 
-    const geometry = new THREE.BufferGeometry();
+    const geometry = this.pointFXBase?.createGeometry({
+      alpha: { itemSize: 1 },
+      scale: { itemSize: 1 }
+    }) || new THREE.BufferGeometry();
     const positions = new Float32Array(maxParticles * 3);
     const colors = new Float32Array(maxParticles * 3);
     const alphas = new Float32Array(maxParticles);
@@ -318,7 +333,7 @@ export class WaveParticleEmitter_v1 {
     points.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
     points.frustumCulled = false;
     this.systems.standingWaveRipple = { points, geometry, maxParticles };
-    this.scene.add(points);
+    this.pointFXBase?.ensureAttached(points) || this.scene.add(points);
   }
 
   /**
@@ -1840,7 +1855,7 @@ export class WaveParticleEmitter_v1 {
       Object.entries(this.systems).forEach(([key, system]) => {
         try {
           if (system?.points) {
-            this.scene?.remove(system.points);
+            this.pointFXBase?.disposePointCloud?.(system.points);
             system.geometry?.dispose();
             system.points?.material?.dispose();
             system.points?.material?.map?.dispose();

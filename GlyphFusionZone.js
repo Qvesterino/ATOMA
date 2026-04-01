@@ -63,7 +63,7 @@ const CONFIG = {
     POOL_SIZE: 20  // Composite glyphs
 };
 
-const COMPOSITE_LIFECYCLE_LOG_THROTTLE_MS = 1000;
+const COMPOSITE_LIFECYCLE_LOG_THROTTLE_MS = 30000;
 const FUSION_ENDPOINT_THRESHOLD = 0.18;
 
 // ============================================================================

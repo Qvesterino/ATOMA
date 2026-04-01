@@ -55,22 +55,22 @@ uniform float uHarmony;
 varying vec2 vUv;
 
 void main() {
-    // Square debug-friendly recovery wave with readable border.
-    vec2 p = abs(vUv - vec2(0.5));
-    float dist = max(p.x, p.y);
-    if (dist > 0.5) discard;
+    // Soft radial recovery wave with readable ring.
+    vec2 p = vUv - vec2(0.5);
+    float dist = length(p) * 2.0;
+    if (dist > 1.0) discard;
 
-    float boxFill = 1.0 - smoothstep(0.42, 0.16, dist);
-    float boxEdge = smoothstep(0.50, 0.36, dist);
-    float alpha = max(boxFill * 0.7, boxEdge);
+    float ringOuter = 1.0 - smoothstep(0.68, 0.95, dist);
+    float ringInner = smoothstep(0.10, 0.55, dist);
+    float alpha = max(ringOuter * 0.72, ringInner * 0.18);
     
     // Soft noise/distortion based on harmony (more harmony = smoother)
     // We simulate "spatial distortion" by varying alpha slightly
     
     // Fade over life
     alpha *= (1.0 - uLife); // Fade out as it ages
-    alpha *= 0.9; // Debug boost: punch through the scene
-    
+    alpha *= 0.42; // Keep recovery readable without burying healing particles
+
     gl_FragColor = vec4(uColor, alpha);
 }
 `;
@@ -91,15 +91,15 @@ uniform vec3 uColor;
 varying vec2 vUv;
 
 void main() {
-    vec2 p = abs(vUv - vec2(0.5));
-    float dist = max(p.x, p.y);
-    if (dist > 0.5) discard;
+    vec2 p = vUv - vec2(0.5);
+    float dist = length(p) * 2.0;
+    if (dist > 1.0) discard;
 
-    float alpha = 1.0 - smoothstep(0.06, 0.5, dist);
+    float alpha = 1.0 - smoothstep(0.05, 0.5, dist);
     
     // Fade out over life
     alpha *= (1.0 - uLife);
-    alpha *= 0.95; // Debug boost: halos should read at a glance
+    alpha *= 0.65; // Softer halo so it does not dominate the healing layer
     
     gl_FragColor = vec4(uColor, alpha);
 }
@@ -116,12 +116,14 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         this.config = {
             minRecoveryDuration: 3.0,
             maxRecoveryDuration: 8.0,
-            waveExpansionSpeed: 2.35,
-            stitchingInterval: 0.06, // Debug: more readable tightening path
+            waveExpansionSpeed: 1.65,
+            stitchingInterval: 0.09,
             maxActiveZones: 10,
             updateInterval: 1 / 60,
-            debugVisualBoost: true,
-            renderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE)
+            debugVisualBoost: false,
+            renderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
+            debugForceRecoveryPulse: false,   // Keep off by default so recovery does not spam the scene
+            debugForceRecoveryInterval: 2.0  // seconds
         };
         
         // State tracking
@@ -165,6 +167,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         
         this._timeOrigin = undefined;
         this._lastUpdateTime = undefined;
+        this._fallbackRecoveryTimer = 0;
         
         console.log('✨ [Session 138] HarmonicRecoveryVisualSystem initialized');
     }
@@ -238,6 +241,15 @@ export class HarmonicRecoveryVisualSystem_Session138 {
 
         // 1. Detect Rupture Completions
         this._detectRuptureEvents(currentVisualTime);
+
+        // Fallback: if no ruptures found and debug mode, force recovery pulses from links
+        if (this.config.debugForceRecoveryPulse) {
+            this._fallbackRecoveryTimer += sinceLast;
+            if (this._fallbackRecoveryTimer >= this.config.debugForceRecoveryInterval) {
+                this._fallbackRecoveryTimer = 0;
+                this._debugForceAllLinksRecovery(currentVisualTime);
+            }
+        }
         
         // 2. Update Recovering Zones
         this._updateRecoveringZones(networkState || {}, currentVisualTime);
@@ -338,7 +350,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                 const progress = zone.life / zone.maxLife;
                 
                 // Expand
-                const scale = (1.25 + zone.life * this.config.waveExpansionSpeed * (1.0 + synergy)) * (this.config.debugVisualBoost ? 1.15 : 1.0);
+                const scale = (1.02 + zone.life * this.config.waveExpansionSpeed * (1.0 + synergy)) * (this.config.debugVisualBoost ? 1.02 : 1.0);
                 mesh.scale.set(scale, scale, scale);
                 
                 // Update shader uniforms
@@ -393,8 +405,9 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                     // Emit stationary particles that fade (leaving a trail)
                     const intensity = Math.min(1, 0.85 * harmony + 0.35);
                     
-                    this.healingParticles.emitHealingTrail(pos1, new THREE.Vector3(0,0,0), intensity, currentVisualTime);
-                    this.healingParticles.emitHealingTrail(pos2, new THREE.Vector3(0,0,0), intensity, currentVisualTime);
+                    // Distinguish recovery re-stitch trails from main healing trails
+                    this.healingParticles.emitHealingTrail(pos1, new THREE.Vector3(0,0,0), intensity, currentVisualTime, new THREE.Color(0xffffff));
+                    this.healingParticles.emitHealingTrail(pos2, new THREE.Vector3(0,0,0), intensity, currentVisualTime, new THREE.Color(0xffcc00));
                 }
             }
             
@@ -479,6 +492,20 @@ export class HarmonicRecoveryVisualSystem_Session138 {
     _getLinkById(linkId) {
         if (!this.linkingSystem || !this.linkingSystem.links) return null;
         return this.linkingSystem.links.find(l => l && l.id === linkId);
+    }
+
+    _debugForceAllLinksRecovery(currentVisualTime) {
+        if (!this.linkingSystem || !Array.isArray(this.linkingSystem.links)) return;
+
+        for (const link of this.linkingSystem.links) {
+            if (!link || !link.source || !link.target) continue;
+            const linkId = link.id ?? link.linkId ?? null;
+            if (!linkId) continue;
+
+            this.triggerRecoveryPulse(linkId, currentVisualTime);
+        }
+
+        console.warn('[HarmonicRecovery] debugForceAllLinksRecovery triggered', this.linkingSystem.links.length, 'links');
     }
 
     getStats() {
