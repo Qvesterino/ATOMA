@@ -422,5 +422,5 @@ export function setupNetworkFatigueConsoleAPI(fatigueSystem, nodeDynamics) {
     }
   };
   
-  console.error('✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue');
+  console.info('✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue');
 }

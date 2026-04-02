@@ -183,6 +183,20 @@ const spawnDiagnostics = {
 
 // Debug flag helper for spawn logging
 const shouldLogSpawn = () => (typeof window !== 'undefined' && window.ATOMA_FLAGS?.debug?.spawnLogs === true);
+const __SPAWN_DEBUG_THROTTLES = new Map();
+const logSpawnDebugThrottled = (key, intervalMs, fn) => {
+  if (typeof window === 'undefined' || typeof fn !== 'function') return false;
+  const now = Date.now();
+  const last = __SPAWN_DEBUG_THROTTLES.get(key) || 0;
+  if (now - last < intervalMs) return false;
+  __SPAWN_DEBUG_THROTTLES.set(key, now);
+  try {
+    fn();
+  } catch (err) {
+    /* no-op */
+  }
+  return true;
+};
 
 function findSpawnIdentity(node){
   let src = null;
@@ -750,7 +764,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     
     // DEBUG: Log spawn cycle initialization
     if (window.ATOMA_FLAGS?.debug?.spawnCategory === true) {
-      console.log('[CYCLE_DEBUG] Spawn cycle initialized:', {
+      console.debug('[CYCLE_DEBUG] Spawn cycle initialized:', {
         cursor: this.spawnCycleState.cursor,
         order: this.spawnCycleState.order,
         timestamp: Date.now()
@@ -891,11 +905,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   _traceSpawn(stage, data = {}) {
     if (typeof window === 'undefined') return;
     if (window.__SPAWN_TRACE !== true) return;
-    try {
-      console.warn('[SPAWN_TRACE]', stage, data);
-    } catch (e) {
-      /* no-op */
-    }
+    logSpawnDebugThrottled(`trace:${stage}`, 1000, () => {
+      console.debug('[SPAWN_TRACE]', stage, data);
+    });
   }
 
   _updateSpawnHealth({ capBefore = 0, uniqueBefore = 0 } = {}) {
@@ -1022,7 +1034,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       created
     };
     if (shouldLogSpawn()) {
-      console.log('[LinkJobs]', this._linkJobStats);
+      logSpawnDebugThrottled('linkJobs', 1000, () => {
+        console.debug('[LinkJobs]', this._linkJobStats);
+      });
     }
   }
 
@@ -1064,12 +1078,14 @@ function purgeForbiddenNodePrimitives(visualRoot) {
 
       // DEBUG: Log category selection attempt
       if (window.ATOMA_FLAGS?.debug?.spawnCategory === true) {
-        console.log('[SPAWN_CATEGORY_DEBUG] Candidate:', {
-          candidate,
-          cursor,
-          valid: validation?.valid,
-          category: validation?.category,
-          reason: validation?.reason
+        logSpawnDebugThrottled('spawnCategory:candidate', 500, () => {
+          console.debug('[SPAWN_CATEGORY_DEBUG] Candidate:', {
+            candidate,
+            cursor,
+            valid: validation?.valid,
+            category: validation?.category,
+            reason: validation?.reason
+          });
         });
       }
 
@@ -1085,10 +1101,12 @@ function purgeForbiddenNodePrimitives(visualRoot) {
 
         // DEBUG: Log selected category
         if (window.ATOMA_FLAGS?.debug?.spawnCategory === true) {
-          console.log('[SPAWN_CATEGORY_DEBUG] Selected:', {
-            category: validation.category,
-            cursor,
-            nextCursor: (cursor + 1) % order.length
+          logSpawnDebugThrottled('spawnCategory:selected', 500, () => {
+            console.debug('[SPAWN_CATEGORY_DEBUG] Selected:', {
+              category: validation.category,
+              cursor,
+              nextCursor: (cursor + 1) % order.length
+            });
           });
         }
 
@@ -1163,7 +1181,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     const __diag = __ensureSpawnDiag();
     if (__diag && typeof __diag === 'object') __diag.createNodesEnter++;
     if (typeof window !== 'undefined' && window.ATOMA_FLAGS?.debug?.probeSpawn) {
-      console.log('[SPAWN_PROBE] createNodes enter phase=', this.spawnState.phase);
+      logSpawnDebugThrottled('spawnProbe', 2000, () => {
+        console.debug('[SPAWN_PROBE] createNodes enter phase=', this.spawnState.phase);
+      });
     }
     if (this.spawnState.phase !== 'INIT') {
       return; // hard skip duplicates
@@ -1647,14 +1667,16 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
     if (window.ATOMA_FLAGS?.debug?.linkSpawn === true) {
-      console.warn('[LINK-SPAWN] createNode called', {
-        category,
-        canonicalCategory,
-        position,
-        index,
-        isSpecial,
-        options,
-        stack: new Error().stack
+      logSpawnDebugThrottled('linkSpawn:createNode', 1000, () => {
+        console.debug('[LINK-SPAWN] createNode called', {
+          category,
+          canonicalCategory,
+          position,
+          index,
+          isSpecial,
+          options,
+          stack: new Error().stack
+        });
       });
     }
 
@@ -1717,11 +1739,13 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       
       // DEBUG: Log spawn abort due to empty pool
       if (window.ATOMA_FLAGS?.debug?.spawnCategory === true) {
-        console.log('[SPAWN_ABORT]', {
-          category: poolCategory,
-          reason: 'POOL_EMPTY',
-          poolSize: pool.length,
-          timestamp: Date.now()
+        logSpawnDebugThrottled(`spawnAbort:${poolCategory}`, 1000, () => {
+          console.debug('[SPAWN_ABORT]', {
+            category: poolCategory,
+            reason: 'POOL_EMPTY',
+            poolSize: pool.length,
+            timestamp: Date.now()
+          });
         });
       }
       
@@ -1743,13 +1767,15 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     const idx = Number.isFinite(counter) ? (counter % pool.length) : 0;
 
     if (shouldLogSpawn()) {
-      console.log('[SPAWN_DEBUG]', {
-        category,
-        counter,
-        poolLen: pool.length,
-        idx,
-        poolValue: pool[idx],
-        pool
+      logSpawnDebugThrottled('spawnDebug:pool', 1000, () => {
+        console.debug('[SPAWN_DEBUG]', {
+          category,
+          counter,
+          poolLen: pool.length,
+          idx,
+          poolValue: pool[idx],
+          pool
+        });
       });
     }
 
@@ -1757,15 +1783,17 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     
     // Runtime logging for category spawn debugging
     if (window.ATOMA_FLAGS?.debug?.spawnCategory === true) {
-      console.log('[SPAWN_DEBUG]', {
-        category: canonicalCategory,
-        poolCategory: poolCategory,
-        poolLen: pool.length,
-        counter,
-        idx,
-        selectedVisualCode,
-        availableFactories: CATEGORY_POOLS[poolCategory] || [],
-        timestamp: Date.now()
+      logSpawnDebugThrottled('spawnDebug:category', 1000, () => {
+        console.debug('[SPAWN_DEBUG]', {
+          category: canonicalCategory,
+          poolCategory: poolCategory,
+          poolLen: pool.length,
+          counter,
+          idx,
+          selectedVisualCode,
+          availableFactories: CATEGORY_POOLS[poolCategory] || [],
+          timestamp: Date.now()
+        });
       });
     }
     
@@ -1859,24 +1887,32 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         if (nodeModel) {
           copySpawnIdentity(nodeModel, nodeModel);
           // TEMP DEBUG: log any sphere/icosa shells attached to the node
-          nodeModel.traverse((o) => {
-            if (o?.geometry && (o.geometry.type === 'SphereGeometry' || o.geometry.type === 'IcosahedronGeometry')) {
-              console.log('SPHERE FOUND', {
-                name: o.name,
-                type: o.geometry.type,
-                params: o.geometry.parameters,
-                material: {
-                  transparent: o.material?.transparent,
-                  opacity: o.material?.opacity,
-                  depthWrite: o.material?.depthWrite,
-                  depthTest: o.material?.depthTest,
-                  visible: o.visible
-                },
-                parent: o.parent?.name || o.parent?.uuid,
-                nodeId: nodeModel.userData?.nodeId
+          if (window.ATOMA_FLAGS?.debug?.spawnVisualAudit === true) {
+            const auditNodeId = nodeModel.userData?.nodeId || nodeModel.uuid;
+            logSpawnDebugThrottled(`spawnVisualAudit:${auditNodeId}`, 5000, () => {
+              let logged = false;
+              nodeModel.traverse((o) => {
+                if (logged || !o?.geometry) return;
+                if (o.geometry.type === 'SphereGeometry' || o.geometry.type === 'IcosahedronGeometry') {
+                  logged = true;
+                  console.debug('SPHERE FOUND', {
+                    name: o.name,
+                    type: o.geometry.type,
+                    params: o.geometry.parameters,
+                    material: {
+                      transparent: o.material?.transparent,
+                      opacity: o.material?.opacity,
+                      depthWrite: o.material?.depthWrite,
+                      depthTest: o.material?.depthTest,
+                      visible: o.visible
+                    },
+                    parent: o.parent?.name || o.parent?.uuid,
+                    nodeId: nodeModel.userData?.nodeId
+                  });
+                }
               });
-            }
-          });
+            });
+          }
 
           // HARD LOCK: nodeId is canonical - throw if missing
           if (!nodeModel.userData.nodeId) {
@@ -1887,19 +1923,23 @@ function purgeForbiddenNodePrimitives(visualRoot) {
           const factoryName = nodeModel.userData?.factoryName ?? 'UNKNOWN';
           const childCount = nodeModel.children?.length ?? 0;
 
-          console.log(
-            '[SPAWN_TRACE]',
-            {
-              category,
-              visualCode: visualCodeLog,
-              factoryName,
-              childCount,
-              nodeId: nodeModel.userData?.nodeId ?? nodeModel.uuid
-            }
-          );
+          logSpawnDebugThrottled('spawnTrace:visual', 1000, () => {
+            console.debug(
+              '[SPAWN_TRACE]',
+              {
+                category,
+                visualCode: visualCodeLog,
+                factoryName,
+                childCount,
+                nodeId: nodeModel.userData?.nodeId ?? nodeModel.uuid
+              }
+            );
+          });
         } else {
           createFailReason = 'No canonical visual available';
-          console.warn('[SPAWN_TRACE_NULL]', { category, attempt });
+          logSpawnDebugThrottled(`spawnTrace:null:${category}`, 1000, () => {
+            console.debug('[SPAWN_TRACE_NULL]', { category, attempt });
+          });
         }
       } catch (err) {
         createFailReason = err?.message || 'EnhancedNodeModels.create threw';
@@ -3843,13 +3883,17 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
 
     // DEBUG: Log what's on userData BEFORE processing
-    console.log('[DEBUG_FINALIZE] BEFORE userData:', {
-      id: rootUserData.id,
-      nodeId: rootUserData.nodeId,
-      uuid: rootUserData.uuid,
-      category: rootUserData.category,
-      rawData: rootUserData
-    });
+    if (this.debugMode || window?.ATOMA_FLAGS?.debug?.spawnLogs === true) {
+      logSpawnDebugThrottled('debugFinalize', 1000, () => {
+        console.debug('[DEBUG_FINALIZE] BEFORE userData:', {
+          id: rootUserData.id,
+          nodeId: rootUserData.nodeId,
+          uuid: rootUserData.uuid,
+          category: rootUserData.category,
+          rawData: rootUserData
+        });
+      });
+    }
 
     // Mirror nodeId to id (legacy compatibility)
     if (!rootUserData.id && rootUserData.nodeId) {
@@ -3866,7 +3910,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     if (options.registryKey) {
       this.nodeRegistry.set(options.registryKey, node);
       if (typeof window !== 'undefined' && window.DEBUG_SINGLE_INSTANCE_NODES) {
-        console.log(`[SpawnRegistry] Registered unique node: ${options.registryKey}`);
+        logSpawnDebugThrottled(`spawnRegistry:${options.registryKey}`, 1000, () => {
+          console.debug(`[SpawnRegistry] Registered unique node: ${options.registryKey}`);
+        });
       }
     }
 
@@ -4046,22 +4092,26 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     return null;
   }
   if (shouldLogSpawn()) {
-    console.warn(
-      '[SPAWN TRACE]',
-      'count=', this.__spawnTraceCounter,
-      'category=', category,
-      'stack=', new Error().stack.split('\n').slice(2, 6).join(' | ')
-    );
+    logSpawnDebugThrottled('spawnTrace:count', 1000, () => {
+      console.debug(
+        '[SPAWN TRACE]',
+        'count=', this.__spawnTraceCounter,
+        'category=', category,
+        'stack=', new Error().stack.split('\n').slice(2, 6).join(' | ')
+      );
+    });
   }
     // ============================================================
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
     if (window.ATOMA_FLAGS?.debug?.linkSpawn === true) {
-      console.warn('[LINK-SPAWN] spawnNode called', {
-        category,
-        position,
-        forceArchetype,
-        stack: new Error().stack
+      logSpawnDebugThrottled('linkSpawn:spawnNode', 1000, () => {
+        console.debug('[LINK-SPAWN] spawnNode called', {
+          category,
+          position,
+          forceArchetype,
+          stack: new Error().stack
+        });
       });
     }
     const validation = this.validateSpawnRequest({ category, forceArchetype });
@@ -4079,11 +4129,13 @@ function purgeForbiddenNodePrimitives(visualRoot) {
 
     // DEBUG: Log final category used for spawn
     if (window.ATOMA_FLAGS?.debug?.spawnCategory === true) {
-      console.log('[SPAWN_CATEGORY_DEBUG] Final category for spawn:', {
-        requestedCategoryRaw: validation.requestedCategoryRaw,
-        finalCategory: validation.category,
-        isFallback: validation.isFallbackSpawn,
-        fallbackReason: validation.fallbackReason
+      logSpawnDebugThrottled('spawnCategory:final', 500, () => {
+        console.debug('[SPAWN_CATEGORY_DEBUG] Final category for spawn:', {
+          requestedCategoryRaw: validation.requestedCategoryRaw,
+          finalCategory: validation.category,
+          isFallback: validation.isFallbackSpawn,
+          fallbackReason: validation.fallbackReason
+        });
       });
     }
 
@@ -4189,7 +4241,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       // TEMP DEBUG: log boundingSphere radius if present
       const bs = newNode?.geometry?.boundingSphere || newNode?.children?.[0]?.geometry?.boundingSphere;
       if (shouldLogSpawn() && bs) {
-        console.warn('[SpawnDebug] boundingSphere', { radius: bs.radius });
+        logSpawnDebugThrottled('spawnDebug:boundingSphere', 1000, () => {
+          console.debug('[SpawnDebug] boundingSphere', { radius: bs.radius });
+        });
       }
     }
     if (false && (newNode.userData?.visualFailed === true || newNode.userData?.__visualFailed === true)) {
@@ -4369,18 +4423,20 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       });
     }
     if (window.ATOMA_DEBUG_SPAWN_LOGS) {
-      let meshCount = 0;
-      let geometryCount = 0;
-      finalizedNode.traverse(obj => {
-        if (obj.isMesh) {
-          meshCount++;
-          if (obj.geometry) geometryCount++;
-        }
-      });
-      console.log("[MythicSpawnStats]", {
-        category,
-        meshCount,
-        geometryCount
+      logSpawnDebugThrottled('mythicSpawnStats', 1000, () => {
+        let meshCount = 0;
+        let geometryCount = 0;
+        finalizedNode.traverse(obj => {
+          if (obj.isMesh) {
+            meshCount++;
+            if (obj.geometry) geometryCount++;
+          }
+        });
+        console.debug("[MythicSpawnStats]", {
+          category,
+          meshCount,
+          geometryCount
+        });
       });
     }
 
@@ -4437,12 +4493,14 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     
     // ========== STEP 11: DEBUG LOG (OPTIONAL) ==========
     if (this.debugMode) {
-      console.log('[AINodes] Spawned node', {
-        id: newNode.userData.id,
-        category: newNode.userData.category,
-        archetype: newNode.userData.archetype,
-        hasMetrics: !!newNode.userData.metrics,
-        position: `(${spawnPos.x.toFixed(1)}, ${spawnPos.y.toFixed(1)}, ${spawnPos.z.toFixed(1)})`,
+      logSpawnDebugThrottled('debugMode:spawnedNode', 1000, () => {
+        console.debug('[AINodes] Spawned node', {
+          id: newNode.userData.id,
+          category: newNode.userData.category,
+          archetype: newNode.userData.archetype,
+          hasMetrics: !!newNode.userData.metrics,
+          position: `(${spawnPos.x.toFixed(1)}, ${spawnPos.y.toFixed(1)}, ${spawnPos.z.toFixed(1)})`,
+        });
       });
     }
     
@@ -4686,7 +4744,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     if (Number.isFinite(this.hardSpawnCap) && this.getNodeCount() >= this.hardSpawnCap) return;
     if (!isLinkSpawnEnabled()) {
       if (typeof window !== 'undefined' && window.ATOMA_FLAGS?.debug?.linkSpawn === true) {
-        console.warn('[LINK-SPAWN] blocked (ATOMA_LINK_SPAWN_ENABLED !== true)');
+        logSpawnDebugThrottled('linkSpawn:blocked', 1000, () => {
+          console.debug('[LINK-SPAWN] blocked (ATOMA_LINK_SPAWN_ENABLED !== true)');
+        });
       }
       return;
     }
@@ -4694,12 +4754,14 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
     if (window.ATOMA_FLAGS?.debug?.linkSpawn === true && shouldLogSpawn()) {
-      console.warn('[LINK-SPAWN] maybeSpawnNodeFromLinkCreation called (link -> spawn trigger)', {
-        currentTime: Date.now(),
-        lastLinkTime: this.spawningConfig.lastLinkTime,
-        linkSpawnCooldown: this.spawningConfig.linkSpawnCooldown,
-        canSpawn: Date.now() - this.spawningConfig.lastLinkTime > this.spawningConfig.linkSpawnCooldown,
-        stack: new Error().stack
+      logSpawnDebugThrottled('linkSpawn:maybeSpawn', 1000, () => {
+        console.debug('[LINK-SPAWN] maybeSpawnNodeFromLinkCreation called (link -> spawn trigger)', {
+          currentTime: Date.now(),
+          lastLinkTime: this.spawningConfig.lastLinkTime,
+          linkSpawnCooldown: this.spawningConfig.linkSpawnCooldown,
+          canSpawn: Date.now() - this.spawningConfig.lastLinkTime > this.spawningConfig.linkSpawnCooldown,
+          stack: new Error().stack
+        });
       });
     }
 
@@ -4744,9 +4806,11 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
     if (window.ATOMA_FLAGS?.debug?.linkSpawn === true && shouldLogSpawn()) {
-      console.warn('[LINK-SPAWN] checkNetworkDensityAndSpawn called', {
-        currentNodeCount: this.nodes.length,
-        stack: new Error().stack
+      logSpawnDebugThrottled('linkSpawn:density', 1000, () => {
+        console.debug('[LINK-SPAWN] checkNetworkDensityAndSpawn called', {
+          currentNodeCount: this.nodes.length,
+          stack: new Error().stack
+        });
       });
     }
 

@@ -4,7 +4,7 @@
  * Practical integration patterns for using the morphing system
  */
 
-import { LinkCorruptionMorphingSystem } from './LinkCorruptionMorphingSystem.js';
+import { LinkCorruptionMorphingSystem } from '../LEGACY/LinkCorruptionMorphingSystem.js';
 
 // ============================================================================
 // EXAMPLE 1: Basic Integration in main.js

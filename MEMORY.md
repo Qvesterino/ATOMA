@@ -208,16 +208,32 @@ Confirmed default runtime validation entrypoint:
 - `LinkRingArcDischarges` now renders arcs as a core line plus a lightweight glow line, with glow strength controlled by a small parameter instead of a render-layer change.
 - The arc glow pass was later intensified again by raising the default glow strength and opacity scaling while keeping the same core-plus-glow structure.
 - `linewidth` tweaks on arc lines and filaments are treated as best-effort hints; the reliable visual change remains glow intensity and motion shaping.
+- `LinkPulseRing` and `LinkRingArcDischarges` now expose rebindable attach roots so they can reattach cleanly on world switch instead of relying on constructor-only attachment.
 
 ## Main Lookup Contract
 - `main.js` runtime node lookup helpers should prefer `aiNodes.nodes` or canonical registries over `scene.traverse(...)` when resolving nodes by id, code, or name.
 - The resonance-only debug visibility toggle now caches hide targets after its first scene scan, so repeated toggles avoid another full scene traversal.
 
 ## Link Braid Rebuild Contract
-- `LinkRendererConduit` braid geometry rebuilds now use a short cooldown so small link motion does not trigger a fresh `TubeGeometry` rebuild every eligible tick.
+- `LinkRendererConduit` braid geometry rebuilds are now bootstrap-only; after the initial build they no longer rebuild on node motion or radius drift.
+
+## Link Skin Rebuild Contract
+- `LinkRendererConduit` skin geometry rebuilds are also bootstrap-only; the runtime no longer recompiles the skin `TubeGeometry` after the initial build.
+
+## Link Bootstrap Timing Contract
+- `LinkRenderLayerPolicy` now also exposes the canonical bootstrap budget helper for link creation cadence.
+- `LinkRendererConduit.updateAll()` uses that budget to time-slice link bootstrap advancement instead of advancing every pending link implicitly on the same tick.
+
+## Link Bootstrap Staging Contract
+- `LinkRendererConduit` strand bootstrap now creates one strand per bootstrap tick instead of allocating all strand meshes and materials in a single frame.
+- Locked backbone Frenet frames are cached while the bootstrap is still in progress, so repeated update ticks do not recompute them for the same static curve.
 
 ## Link Trail Readability Contract
 - `LinkTrailParticleSystem` remains at its baseline particle sizing and opacity after the reverted visibility experiment; no hidden/collapsed pool tweak is currently part of the stable implementation.
+
+## Link Trail Attach Contract
+- `LinkTrailParticleSystem` now keeps a dedicated pool root that can be reattached on world switch via `rebind({ scene, worldRoot })`.
+- The trail pool should remain scene-attached through the current world root rather than relying on one-off constructor attachment.
 
 ## Link Healing Dual-Variant Contract
 - `LinkHealingParticleSystem` now uses a 50/50 split between the original knot sprite and a `Bloom Petal` sprite variant, both still rendered as a single `THREE.Points` pool.
@@ -228,3 +244,28 @@ Confirmed default runtime validation entrypoint:
 ## LinkMicroImpulse Adapter Contract
 - `LinkMicroImpulseAdapter_v1.js` is the active micro-impulse implementation; the older `LEGACY/LinkMicroImpulseAdapter.js` exists only as a legacy copy.
 - `LinkMicroImpulseAdapter_v1.js` now applies micro-impulse color/opacity at draw time via `onBeforeRender`, and the visuals are layered through `LINK_SPARKS` to keep spawn-time work low while shared materials stay stable.
+- `LinkMicroImpulseAdapter_v1.js` now keeps a dedicated impulse root group that is reattached on world switch via `rebind({ scene, worldRoot })`, so impulses survive scene/world root rebuilds more cleanly.
+
+## Glyph Fusion / Pictogram Log Contract
+- GlyphFusionZone lifecycle summaries are debug-only behind window.__DEBUG_GLYPH_FUSION_LOGS__.
+- LinkSemanticPictogramSystem_WithFusion heartbeat summaries are debug-only behind window.__DEBUG_PICTOGRAM_FUSION_LOGS__.
+- Both systems now emit console.debug instead of console.error when explicitly enabled, so normal runtime consoles stay cleaner.
+## Main Init Log Contract
+- Successful `NetworkFatigueSystem` and `LinkSemanticPictogramSystem` init messages in `main.js` use `console.info` instead of `console.error`, so normal runtime boot no longer reports them as errors.
+
+## Network Fatigue Console Contract
+- The Network Fatigue console API bootstrap message in NetworkFatigueSystem_v0.js now uses console.info instead of console.error, so successful init is no longer reported as an error in the normal runtime console.
+
+## Link Effect Scheduling Contract
+- `LinkRenderLayerPolicy` now owns both the link bootstrap budget and the canonical cadence policy for per-link effect families.
+- `LinkRendererConduit.updateAll()` increments a frame index and passes it to per-link updates so heavy effects can be phase-scheduled instead of all landing in the same frame.
+- `beads`, `beadTrails`, `pulseRing`, `arcDischarges`, and `ringPulseDustEmitter` are now cadence-gated through `LinkRenderLayerPolicy` instead of being forced through the same heavy tick branch.
+- Particle families now use `particleSystem` cadence 2 in `LinkRenderLayerPolicy`; that covers sparks, trail/healing particles, corruption particles, and pulse dust updates.
+- Current cadence map: `resonanceFlow` 1, `pulseRing`/`arcDischarges`/`ringPulseDustEmitter` 1, `beads`/`beadTrails` 1, `energyRingSystem`/`directionalStreaks` 2, trail/healing/corruption particle emitters and particle systems 2, `corruptionSpread` 1.
+- `impactManager` remains event-driven rather than cadence-driven; particle arrival callbacks trigger it directly.
+- Corruption spread/particle updates and trail/healing emitter updates should stay phase-aware, but the default bias now favors smoother 1-step visuals over aggressive time slicing.
+
+## Corruption Morph Legacy Contract
+- `LinkCorruptionMorphingSystem` has been moved to `LEGACY/LinkCorruptionMorphingSystem.js`.
+- `LinkRendererConduit` no longer imports, instantiates, updates, or disposes the corruption morphing system in the active runtime.
+- The active cadence policy no longer carries a `corruptionMorph` key; that effect is legacy-only now.

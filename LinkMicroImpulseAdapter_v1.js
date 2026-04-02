@@ -230,6 +230,32 @@ class ImpulseManager {
     this.scene = scene;
     this.factory = factory;
     this.activeImpulses = [];
+    this._attachRoot = scene || null;
+    this.root = new THREE.Group();
+    this.root.name = 'LinkMicroImpulseRoot';
+    this.root.renderOrder = MICRO_IMPULSE_RENDER_ORDER;
+    applyLinkRenderLayer(this.root, MICRO_IMPULSE_LAYER);
+    this.ensureAttached();
+  }
+
+  ensureAttached(attachRoot = this._attachRoot) {
+    if (!attachRoot || !this.root) return this.root;
+    this._attachRoot = attachRoot;
+    if (this.root.parent !== attachRoot) {
+      attachRoot.add(this.root);
+    }
+    return this.root;
+  }
+
+  rebind({ scene = this.scene, worldRoot = null } = {}) {
+    if (scene) {
+      this.scene = scene;
+    }
+    const nextRoot = worldRoot || scene || this._attachRoot;
+    if (nextRoot) {
+      this.ensureAttached(nextRoot);
+    }
+    return this;
   }
 
   /**
@@ -272,7 +298,7 @@ class ImpulseManager {
     scale *= corruption > 0.5 ? 0.6 : 1.0;
 
     const visual = this.factory.createImpulse(shape, worldPos, rotation, scale);
-    this.scene.add(visual);
+    this.root.add(visual);
 
     if (corruption > 0.5) {
       visual.position.x += (Math.random() - 0.5) * 0.1 * corruption;
@@ -315,7 +341,7 @@ class ImpulseManager {
 
       if (progress >= 1.0) {
         impulse.visual.onBeforeRender = null;
-        this.scene.remove(impulse.visual);
+        impulse.visual.parent?.remove(impulse.visual);
         toRemove.push(i);
       }
     }
@@ -331,9 +357,14 @@ class ImpulseManager {
   clear() {
     for (const impulse of this.activeImpulses) {
       impulse.visual.onBeforeRender = null;
-      this.scene.remove(impulse.visual);
+      impulse.visual.parent?.remove(impulse.visual);
     }
     this.activeImpulses = [];
+  }
+
+  dispose() {
+    this.clear();
+    this.root.parent?.remove(this.root);
   }
 }
 
@@ -355,6 +386,14 @@ export class LinkMicroImpulseAdapter {
     this.linkStateCache = new Map();
     this.recentSemanticSignals = new Map();
     this.semanticSignalDedupMs = 350;
+  }
+
+  rebind({ scene = this.scene, worldRoot = null } = {}) {
+    if (scene) {
+      this.scene = scene;
+    }
+    this.manager?.rebind?.({ scene, worldRoot });
+    return this;
   }
 
   setEventSource(source) {
@@ -696,7 +735,9 @@ export class LinkMicroImpulseAdapter {
 
   dispose() {
     this.clear();
+    this.factory?.dispose?.();
     this.factory = null;
+    this.manager?.dispose?.();
     this.manager = null;
     this.eventSource = null;
     this.linkingSystem = null;

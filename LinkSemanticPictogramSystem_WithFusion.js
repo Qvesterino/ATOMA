@@ -55,10 +55,11 @@ export class LinkSemanticPictogramSystem_WithFusion {
         if (now - last < intervalMs) return;
 
         this._lifecycleLogTimes.set(key, now);
+        if (typeof window !== 'undefined' && window.__DEBUG_PICTOGRAM_FUSION_LOGS__ !== true) return;
         if (details) {
-            console.error(`[LinkSemanticPictogramSystem_WithFusion] ${message}`, details);
+            console.debug(`[LinkSemanticPictogramSystem_WithFusion] ${message}`, details);
         } else {
-            console.error(`[LinkSemanticPictogramSystem_WithFusion] ${message}`);
+            console.debug(`[LinkSemanticPictogramSystem_WithFusion] ${message}`);
         }
     }
 

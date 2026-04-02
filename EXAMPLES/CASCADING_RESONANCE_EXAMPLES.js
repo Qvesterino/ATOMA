@@ -347,7 +347,7 @@ function exampleCompleteLinkVisualUpdate(link, linkMaterial, time) {
   const timePhase = time * 2 * Math.PI;
   linkMaterial.uniforms.uPhase.value = timePhase + cascadePhase;
 
-  // Apply link morphing from corruption (if using LinkCorruptionMorphingSystem)
+  // Apply legacy link morphing from corruption only if a legacy morphing system is still in play.
   if (link._cascadeStrength !== undefined) {
     // Cascade strength can reduce corruption appearance slightly
     const cascadeResilience = link.a?._cascadeStrength || link.b?._cascadeStrength || 0;

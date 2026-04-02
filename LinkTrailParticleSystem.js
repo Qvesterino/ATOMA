@@ -377,6 +377,7 @@ class TrailParticle {
 export class LinkTrailParticleSystem {
   constructor(scene, poolSize = 200) {
     this.scene = scene;
+    this._attachRoot = scene || null;
     this.poolSize = poolSize;
     this.particles = [];
     this.active = 0;
@@ -396,7 +397,8 @@ export class LinkTrailParticleSystem {
     const udPool = (this.poolGroup && typeof this.poolGroup.userData === 'object' && this.poolGroup.userData) ? this.poolGroup.userData : (() => { try { Object.defineProperty(this.poolGroup, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.poolGroup.userData || {}; })();
     Object.assign(udPool, { isTrailParticles: true });
     this.poolGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_PARTICLES);
-    this.scene.add(this.poolGroup);
+    this.root = this.poolGroup;
+    this.ensureAttached();
     
     // Impact callback (optional, called when particles arrive at destination)
     this.onParticleArrival = null;
@@ -676,13 +678,33 @@ export class LinkTrailParticleSystem {
     }
   }
 
+  ensureAttached(attachRoot = this._attachRoot) {
+    if (!attachRoot || !this.poolGroup) return this.poolGroup;
+    this._attachRoot = attachRoot;
+    if (this.poolGroup.parent !== attachRoot) {
+      attachRoot.add(this.poolGroup);
+    }
+    return this.poolGroup;
+  }
+
+  rebind({ scene = this.scene, worldRoot = null } = {}) {
+    if (scene) {
+      this.scene = scene;
+    }
+    const nextRoot = worldRoot || scene || this._attachRoot;
+    if (nextRoot) {
+      this.ensureAttached(nextRoot);
+    }
+    return this;
+  }
+
   /**
    * Dispose all resources
    */
   dispose() {
     this.emitAccumulators.clear();
-    if (this.scene && this.poolGroup) {
-      this.scene.remove(this.poolGroup);
+    if (this._attachRoot && this.poolGroup) {
+      this._attachRoot.remove(this.poolGroup);
     }
 
     for (let particle of this.particles) {

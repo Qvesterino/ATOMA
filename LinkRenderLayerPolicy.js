@@ -137,6 +137,36 @@ const LAYER_POLICY = {
   }
 };
 
+const LINK_BOOTSTRAP_POLICY = {
+  minBudget: 1,
+  maxBudget: 4,
+  perLinkSlope: 0.18,
+  heavyTickBias: 1.35,
+  visualTickBias: 1.0
+};
+
+const LINK_EFFECT_CADENCE_POLICY = {
+  harmonic: 1,
+  resonanceFlow: 1,
+  dock: 1,
+  sourceInjection: 1,
+  beads: 1,
+  beadTrails: 1,
+  energyRingSystem: 1,
+  directionalStreaks: 2,
+  pulseRing: 1,
+  arcDischarges: 1,
+  ringPulseDustEmitter: 1,
+  particleSystem: 2,
+  sparks: 2,
+  trailParticles: 2,
+  healingParticles: 2,
+  corruptionParticles: 2,
+  corruptionSpread: 1,
+  trailEmitter: 2,
+  healingEmitter: 2
+};
+
 function warn(message, details) {
   if (!(typeof window !== 'undefined' && window.ATOMA_FLAGS?.debug?.renderDiscipline === true)) return;
   console.warn(`[LinkRenderLayerPolicy] ${message}`, details || '');
@@ -148,6 +178,42 @@ function getPolicy(layerKey) {
     throw new Error(`Unknown link render layer: ${layerKey}`);
   }
   return policy;
+}
+
+export function getLinkBootstrapBudget(linkCount, frameFlags = {}) {
+  const count = Math.max(0, Number(linkCount) || 0);
+  if (count <= 0) return 0;
+
+  const heavyTick = frameFlags.heavyTick !== false;
+  const run30 = frameFlags.run30 !== false;
+  if (!run30) return 0;
+
+  const base = LINK_BOOTSTRAP_POLICY.minBudget;
+  const scaled = base + Math.floor(Math.max(0, count - 1) * LINK_BOOTSTRAP_POLICY.perLinkSlope);
+  const biased = Math.round(scaled * (heavyTick ? LINK_BOOTSTRAP_POLICY.heavyTickBias : LINK_BOOTSTRAP_POLICY.visualTickBias));
+  return Math.max(LINK_BOOTSTRAP_POLICY.minBudget, Math.min(LINK_BOOTSTRAP_POLICY.maxBudget, biased));
+}
+
+function hashLinkEffectKey(linkKey) {
+  const value = String(linkKey || 'link');
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = ((hash << 5) - hash) + value.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+export function shouldRunLinkEffect(linkKey, effectKey, frameFlags = {}, effectFrameIndex = 0) {
+  const run30 = frameFlags.run30 !== false;
+  if (!run30) return false;
+
+  const cadence = Math.max(1, Number(LINK_EFFECT_CADENCE_POLICY[effectKey]) || 1);
+  if (cadence <= 1) return true;
+
+  const frameIndex = Math.max(0, Number(effectFrameIndex) || 0);
+  const phase = hashLinkEffectKey(`${linkKey || 'link'}:${effectKey || 'effect'}`) % cadence;
+  return ((frameIndex + phase) % cadence) === 0;
 }
 
 function applyToMaterial(material, policy, overrides = {}) {

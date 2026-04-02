@@ -136,7 +136,12 @@ export class TIER4_CorruptionFeedbackVisuals {
     this.activeCorruptionSeeds = [];
     this.activeCascadeWarnings = [];
     this.harmonyFieldConsumer = config.harmonyFieldConsumer ?? null;
-    
+
+    // Corruption seed object pool for performance (reuse effect nodes)
+    this.config.useCorruptionSeedPool = config.useCorruptionSeedPool ?? true;
+    this.config.corruptionSeedPoolSize = config.corruptionSeedPoolSize ?? 24;
+    this.seedEffectPool = [];
+
     // Material pool for reuse
     this.materialPool = {
       cascadeWarning: new THREE.MeshBasicMaterial({
@@ -156,6 +161,9 @@ export class TIER4_CorruptionFeedbackVisuals {
       bloomHaloInner: new THREE.TorusGeometry(0.56, 0.02, 8, 72, Math.PI * 1.48),
       cascadeWarningRing: new THREE.TorusGeometry(0.5, 0.1, 16, 32)
     };
+
+    // initialize pool now that geometry is ready
+    this._initializeSeedEffectPool();
     
     // Statistics
     this.stats = {
@@ -170,6 +178,64 @@ export class TIER4_CorruptionFeedbackVisuals {
     const corruptionLevel = Number(link?.userData?.corruptionLevel);
     if (!Number.isFinite(corruptionLevel)) return 0;
     return Math.max(0, Math.min(1, corruptionLevel));
+  }
+
+  _createSeedEffect(corruptionLevel = 0) {
+    const structure = this._buildCorruptionSeedStructure(corruptionLevel);
+    const mesh = structure.group;
+    mesh.visible = false;
+
+    return {
+      mesh,
+      type: 'corruptionSeed',
+      node: null,
+      link: null,
+      fragmentRoot: structure.fragmentRoot,
+      core: structure.core,
+      spine: structure.spine,
+      haloOuter: structure.haloOuter,
+      haloInner: structure.haloInner,
+      fragments: structure.fragments,
+      connections: structure.connections,
+      lodSprite: structure.lodSprite,
+      startTime: 0,
+      time: 0,
+      duration: this.config.corruptionSeedDuration * 1000,
+      startScale: new THREE.Vector3(0.0, 0.0, 0.0),
+      endScale: new THREE.Vector3(0.0, 0.0, 0.0),
+      fromPool: false
+    };
+  }
+
+  _initializeSeedEffectPool() {
+    if (!this.config.useCorruptionSeedPool) return;
+
+    for (let i = 0; i < this.config.corruptionSeedPoolSize; i++) {
+      const effect = this._createSeedEffect(0);
+      effect.fromPool = true;
+      this.seedEffectPool.push(effect);
+    }
+  }
+
+  _resetSeedEffect(effect, node, link, corruptionLevel, bloomScaleMultiplier) {
+    effect.node = node;
+    effect.link = link;
+    effect.startTime = Date.now();
+    effect.time = 0;
+    effect.duration = this.config.corruptionSeedDuration * 1000;
+    effect.startScale.setScalar(0.08 * bloomScaleMultiplier);
+    effect.endScale.setScalar((1.08 + corruptionLevel * 0.16) * bloomScaleMultiplier);
+
+    effect.mesh.position.copy(node.position);
+    effect.mesh.position.z += 0.58;
+    effect.mesh.scale.copy(effect.startScale);
+    effect.mesh.visible = true;
+    effect.fragmentRoot.visible = true;
+    effect.lodSprite.visible = false;
+
+    for (const fragment of effect.fragments) {
+      fragment.mesh.material.uniforms.uCorruption.value = corruptionLevel;
+    }
   }
 
   _createCorruptionSeedMaterial(corruptionLevel = 0, profile = 'petal') {
@@ -420,6 +486,18 @@ export class TIER4_CorruptionFeedbackVisuals {
 
   _disposeCorruptionSeedEffect(effect) {
     if (!effect?.mesh) return;
+
+    if (effect.fromPool) {
+      effect.mesh.visible = false;
+      if (effect.mesh.parent) effect.mesh.parent.remove(effect.mesh);
+      effect.node = null;
+      effect.link = null;
+      effect.fragmentRoot.visible = true;
+      effect.lodSprite.visible = false;
+      this.seedEffectPool.push(effect);
+      return;
+    }
+
     this.scene.remove(effect.mesh);
 
     effect.mesh.traverse((child) => {
@@ -477,59 +555,33 @@ export class TIER4_CorruptionFeedbackVisuals {
    */
   displayCorruptionSeed(node, link = null) {
     if (!node || !this.config.showCorruptionSeedPulse) return;
-    
+
     try {
       const bloomScaleMultiplier = 1.5;
       const corruptionLevel = this._readSeedCorruptionLevel(link);
+
       if (this.activeCorruptionSeeds.length >= this.config.maxCorruptionSeeds) {
         const oldest = this.activeCorruptionSeeds.shift();
         this._disposeCorruptionSeedEffect(oldest);
       }
-      const structure = this._buildCorruptionSeedStructure(corruptionLevel);
-      const mesh = structure.group;
-      
-      // Position at node
-      mesh.position.copy(node.position);
-      mesh.position.z += 0.58; // Offset above node
-      
-      // Start invisible, scale and fade in
-      mesh.scale.set(0.08 * bloomScaleMultiplier, 0.08 * bloomScaleMultiplier, 0.08 * bloomScaleMultiplier);
-      mesh.userData.opacity = 0;
-      
-      this.scene.add(mesh);
-      
-      // Create animation data
-      const effect = {
-        mesh,
-        type: 'corruptionSeed',
-        node,
-        link,
-        fragmentRoot: structure.fragmentRoot,
-        core: structure.core,
-        spine: structure.spine,
-        haloOuter: structure.haloOuter,
-        haloInner: structure.haloInner,
-        fragments: structure.fragments,
-        connections: structure.connections,
-        lodSprite: structure.lodSprite,
-        startTime: Date.now(),
-        time: 0,
-        duration: this.config.corruptionSeedDuration * 1000, // Convert to ms
-        startScale: new THREE.Vector3(0.08 * bloomScaleMultiplier, 0.08 * bloomScaleMultiplier, 0.08 * bloomScaleMultiplier),
-        endScale: new THREE.Vector3(
-          (1.08 + corruptionLevel * 0.16) * bloomScaleMultiplier,
-          (1.08 + corruptionLevel * 0.16) * bloomScaleMultiplier,
-          (1.08 + corruptionLevel * 0.16) * bloomScaleMultiplier
-        )
-      };
-      
+
+      let effect = null;
+      if (this.config.useCorruptionSeedPool && this.seedEffectPool.length > 0) {
+        effect = this.seedEffectPool.pop();
+        this._resetSeedEffect(effect, node, link, corruptionLevel, bloomScaleMultiplier);
+        this.scene.add(effect.mesh);
+      } else {
+        effect = this._createSeedEffect(corruptionLevel);
+        this._resetSeedEffect(effect, node, link, corruptionLevel, bloomScaleMultiplier);
+        this.scene.add(effect.mesh);
+      }
+
       this.activeCorruptionSeeds.push(effect);
       this.stats.corruptionSeedsRendered++;
-      
+
       if (this.config.enableDebug) {
         console.log('[TIER4_CorruptionFeedbackVisuals] Corruption seed displayed at node');
       }
-      
     } catch (err) {
       console.warn('[TIER4_CorruptionFeedbackVisuals] displayCorruptionSeed error:', err);
     }
@@ -764,7 +816,17 @@ export class TIER4_CorruptionFeedbackVisuals {
    */
   dispose() {
     this.clear();
-    
+
+    // Dispose pooled seed effect meshes/materials
+    while (this.seedEffectPool.length > 0) {
+      const effect = this.seedEffectPool.pop();
+      if (effect.mesh.parent) effect.mesh.parent.remove(effect.mesh);
+      effect.mesh.traverse((child) => {
+        if (child.material?.dispose) child.material.dispose();
+        if (child.geometry?.dispose && (child.isLine || child.isLineSegments || child.isPoints)) child.geometry.dispose();
+      });
+    }
+
     // Dispose materials
     this.materialPool.cascadeWarning.dispose();
     

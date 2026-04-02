@@ -33,12 +33,14 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 export class LinkRingArcDischarges {
     constructor(scene) {
         this.scene = scene;
+        this._attachRoot = scene || null;
         this.activeArcs = []; // Array of active arc objects
         this.group = new THREE.Group();
         const ud = (this.group && typeof this.group.userData === 'object' && this.group.userData) ? this.group.userData : (() => { try { Object.defineProperty(this.group, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.group.userData || {}; })();
         Object.assign(ud, { isArcDischarges: true });
         
-        scene.add(this.group);
+        this.root = this.group;
+        this.ensureAttached(this._attachRoot);
         
         // Configuration (unchanged)
         this.config = {
@@ -84,6 +86,26 @@ export class LinkRingArcDischarges {
      */
     getGroup() {
         return this.group;
+    }
+
+    ensureAttached(attachRoot = this._attachRoot) {
+        if (!attachRoot || !this.group) return this.group;
+        this._attachRoot = attachRoot;
+        if (this.group.parent !== attachRoot) {
+            attachRoot.add(this.group);
+        }
+        return this.group;
+    }
+
+    rebind({ scene = this.scene, worldRoot = null } = {}) {
+        if (scene) {
+            this.scene = scene;
+        }
+        const nextRoot = worldRoot || scene || this._attachRoot;
+        if (nextRoot) {
+            this.ensureAttached(nextRoot);
+        }
+        return this;
     }
 
     /**
@@ -888,7 +910,7 @@ export class LinkRingArcDischarges {
         this.activePackets = [];
         this.packetPool = [];
         
-        this.scene.remove(this.group);
+        this.group.parent?.remove(this.group);
     }
 
     _initImpactSparkPool(count) {

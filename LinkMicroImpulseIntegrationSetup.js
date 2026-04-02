@@ -17,7 +17,9 @@ export function setupLinkMicroImpulseIntegration(game) {
   // =========================================================================
   // STEP 1: CREATE ADAPTER INSTANCE
   // =========================================================================
+  const attachRoot = game.worldRoot || game.scene;
   const adapter = new LinkMicroImpulseAdapter(game.scene);
+  adapter.rebind?.({ scene: game.scene, worldRoot: attachRoot });
   console.log('[LinkMicroImpulseIntegration] Adapter created ✓');
 
   // =========================================================================

@@ -4,6 +4,11 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
 - `ResonanceCascadeVisualization_Session117B` is now fully functional in runtime and visibly spawns a readable scene ripple.
 - The cascade now has a flat ripple plane and a thicker torus-based ring so it reads clearly without needing a link-specific debug path.
 - Manual runtime verification confirmed the cascade root is attached to the scene and the visual spawn path is live.
+- Investigated a reported lag / visual regression in the current session.
+- The clearest new cost was the storage-vault embellishment in `EnhancedNodeModels`: extra ring geometry, a point corona, and a per-frame animation hook were added to the storage builder.
+- Reverted that embellishment back to the lighter baseline (restored the memory shell and removed the extra corona / ring layer) to reduce draw cost and visual clutter.
+- Runtime reload after the revert looks cleaner; if lag still appears in dense link scenes, the next likely target is `LinkRendererConduit` bootstrap staging and debug logging.
+- `LinkRenderLayerPolicy` now also carries the link bootstrap budget helper, and `LinkRendererConduit.updateAll()` uses it to time-slice bootstrap advancement across frames.
 
 ## 2026-03-28
 - Composite glyphs now receive an orbit anchor and orbit parameters from `GlyphFusionZone`.
@@ -71,3 +76,11 @@ Original prompt: reduce synergy cascade visual clutter and make the repeated bea
 - Reduced burst particle size/opacity and pushed burst back to metric-gated cooldowns at 5s.
 - Controlled smoke confirmed `forcedFlowSpawns=3`, `flowParticles=240`, `burstParticles=12` after three simulated heartbeats.
 - Current visual contract: `flowParticles` = recurring signature, `burstParticles` = smaller metric accent.
+
+- Staggered the cheap heartbeat log win: LinkRendererConduit pictogram heartbeat is now debug-gated, and ResonanceEchoTrailSystem lifecycle/summary logs are now console.debug behind the render-discipline flag.
+
+- Silenced the last visible heartbeat spam by moving GlyphFusionZone and LinkSemanticPictogramSystem_WithFusion lifecycle summaries behind explicit debug flags and console.debug.
+
+- Switched the two successful main.js init messages (NetworkFatigueSystem and LinkSemanticPictogramSystem) from console.error to console.info, so the normal boot path no longer shows them as errors.
+
+- Cleaned the last remaining boot error by changing the Network Fatigue console API bootstrap message in NetworkFatigueSystem_v0.js from console.error to console.info.

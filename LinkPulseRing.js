@@ -32,6 +32,7 @@ const Z_AXIS = new THREE.Vector3(0, 0, 1);
 export class LinkPulseRing {
     constructor(scene) {
         this.scene = scene;
+        this._attachRoot = scene || null;
         
         // === SEGMENTED RING CONSTANTS ===
         const TORUS_RADIUS = 1.0;
@@ -128,6 +129,7 @@ export class LinkPulseRing {
         const ud = (this.mesh && typeof this.mesh.userData === 'object' && this.mesh.userData) ? this.mesh.userData : (() => { try { Object.defineProperty(this.mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.mesh.userData || {}; })();
         Object.assign(ud, { isPulseRing: true });
         this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 1;
+        this.root = this.mesh;
 
         // Outer additive aura
         this.auraMaterial = this.material.clone();
@@ -252,6 +254,8 @@ export class LinkPulseRing {
         this._initTrails();
         // DEBUG ISOLATION: aura layer disabled so segment split stays readable.
         // this.mesh.add(this.auraMesh);
+
+        this.ensureAttached(this._attachRoot);
     }
 
     /**
@@ -357,6 +361,26 @@ export class LinkPulseRing {
      */
     setArcSystem(arcSystem) {
         this.arcSystem = arcSystem;
+    }
+
+    ensureAttached(attachRoot = this._attachRoot) {
+        if (!attachRoot || !this.mesh) return this.mesh;
+        this._attachRoot = attachRoot;
+        if (this.mesh.parent !== attachRoot) {
+            attachRoot.add(this.mesh);
+        }
+        return this.mesh;
+    }
+
+    rebind({ scene = this.scene, worldRoot = null } = {}) {
+        if (scene) {
+            this.scene = scene;
+        }
+        const nextRoot = worldRoot || scene || this._attachRoot;
+        if (nextRoot) {
+            this.ensureAttached(nextRoot);
+        }
+        return this;
     }
 
     /**
@@ -711,5 +735,6 @@ export class LinkPulseRing {
         });
         
         // Do NOT dispose SHARED_RING_GEOMETRY (shared across all pulse rings)
+        this.mesh.parent?.remove(this.mesh);
     }
 }

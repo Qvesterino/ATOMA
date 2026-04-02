@@ -7165,6 +7165,28 @@ window.__ATOMA_SCENE__ = this.scene;
         }
 
         try {
+            if (this.linkTrailParticles && typeof this.linkTrailParticles.rebind === 'function') {
+                this.linkTrailParticles.rebind({
+                    scene: this.scene,
+                    worldRoot: this.worldRoot
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] LinkTrailParticleSystem rebind failed:', err?.message || err);
+        }
+
+        try {
+            if (this.microImpulseAdapter && typeof this.microImpulseAdapter.rebind === 'function') {
+                this.microImpulseAdapter.rebind({
+                    scene: this.scene,
+                    worldRoot: this.worldRoot
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] LinkMicroImpulseAdapter rebind failed:', err?.message || err);
+        }
+
+        try {
             const pictogramSystem = this.linkSemanticPictograms || this.linkPictogramSystem || this.linkingSystem?.conduitRenderer?.pictogramSystem || null;
             if (pictogramSystem && typeof pictogramSystem.resetForWorldSwitch === 'function') {
                 pictogramSystem.resetForWorldSwitch({
@@ -13989,7 +14011,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 window.ATOMA_NETWORK_FATIGUE = this.networkFatigueSystem;
             }
 
-            console.error('[main.js] NetworkFatigueSystem initialized ✓');
+            console.info('[main.js] NetworkFatigueSystem initialized ✓');
         } catch (err) {
             console.warn('[main.js] NetworkFatigueSystem init error:', err);
         }
@@ -14521,6 +14543,10 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     this.scene,
                     200 // poolSize
                 );
+                this.linkTrailParticles.rebind?.({
+                    scene: this.scene,
+                    worldRoot: this.worldRoot
+                });
                 console.log('[main.js] LinkTrailParticleSystem initialized ✓');
             }
 
@@ -14749,7 +14775,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 window.__PIC_SYSTEM__ = this.linkSemanticPictograms;
                 window.linkingSystem = this.linkingSystem;
             }
-            console.error('[main.js] LinkSemanticPictogramSystem initialized ✓ (conduit pictograms active)');
+            console.info('[main.js] LinkSemanticPictogramSystem initialized ✓ (conduit pictograms active)');
         } catch (err) {
             console.warn('[main.js] LinkSemanticPictogramSystem init error:', err);
         }

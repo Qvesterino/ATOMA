@@ -291,10 +291,11 @@ export class GlyphFusionZoneManager {
         if (now - last < intervalMs) return;
 
         this._lifecycleLogTimes.set(key, now);
+        if (typeof window !== 'undefined' && window.__DEBUG_GLYPH_FUSION_LOGS__ !== true) return;
         if (details) {
-            console.error(`[GlyphFusionZone] ${message}`, details);
+            console.debug(`[GlyphFusionZone] ${message}`, details);
         } else {
-            console.error(`[GlyphFusionZone] ${message}`);
+            console.debug(`[GlyphFusionZone] ${message}`);
         }
     }
 

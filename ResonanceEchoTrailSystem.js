@@ -363,10 +363,12 @@ export class ResonanceEchoTrailSystem {
         if (now - last < intervalMs) return;
 
         this._lifecycleLogTimes.set(key, now);
+        const shouldLog = typeof window !== 'undefined' && window.__DEBUG_ECHO_TRAIL_LOGS__ === true;
+        if (!shouldLog) return;
         if (details) {
-            console.error(`[ResonanceEchoTrailSystem] ${message}`, details);
+            console.debug(`[ResonanceEchoTrailSystem] ${message}`, details);
         } else {
-            console.error(`[ResonanceEchoTrailSystem] ${message}`);
+            console.debug(`[ResonanceEchoTrailSystem] ${message}`);
         }
     }
 

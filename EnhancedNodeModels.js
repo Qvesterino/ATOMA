@@ -4264,12 +4264,11 @@ static createStorageNode0(group, color) {
 
   /**
    * STORAGE: MNEMONIC_VAULT (NEW - Session 63)
-   * Protected memory core suspended inside faceted containment shell
-   * - Inner core: irregular crystal (not symmetric)
-   * - Outer shell: faceted containment frame (NOT a sphere)
-   * - Visible gap between core and shell
-   * - Core animation: very slow rotation
-   * - Shell animation: subtle counter-rotation
+   * Archive tension system holding memory under visible structural stress
+   * - Faceted core suspended inside a single open tension arc
+   * - Asymmetrical fragment cluster suggesting retained data shards
+   * - Tight micro-orbit close to the core for archival activity
+   * - No full shell, no cage, no spherical enclosure
    * 
    * VISUAL SAFETY: Static geometry, transform-only animation, immutable
    */
@@ -4277,17 +4276,44 @@ static createStorageNode0(group, color) {
     try {
       group.userData = group.userData || {};
       const colorHex = new THREE.Color(color).getHex();
+      const nodeKey = group?.userData?.nodeId || group?.userData?.visualCode?.toString() || String(colorHex);
+      const seed = Math.abs(hashString(nodeKey)) || 1;
+      const rng = _mythicSeededRng(seed);
 
       if (!this.__storageMnemonicVaultCache) {
-        const mainGeometry = new THREE.DodecahedronGeometry(0.72, 0);
+        const coreGeometry = new THREE.DodecahedronGeometry(0.58, 0);
+        coreGeometry.scale(1.0, 0.7, 0.9);
+
+        const arcCurve = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(-0.92, -0.18, 0.16),
+          new THREE.Vector3(-0.52, 0.34, -0.26),
+          new THREE.Vector3(0.02, 0.62, -0.34),
+          new THREE.Vector3(0.56, 0.16, 0.24),
+          new THREE.Vector3(0.9, -0.26, 0.42)
+        ], false, 'catmullrom', 0.42);
+
+        const microOrbitGeometry = new THREE.BufferGeometry();
+        const microOrbitCount = 16;
+        const microOrbitPositions = new Float32Array(microOrbitCount * 3);
+        for (let i = 0; i < microOrbitCount; i++) {
+          const angle = (i / microOrbitCount) * Math.PI * 2;
+          const radius = 0.3 + Math.sin(i * 1.73) * 0.028;
+          microOrbitPositions[i * 3 + 0] = Math.cos(angle) * radius;
+          microOrbitPositions[i * 3 + 1] = Math.cos(i * 2.11) * 0.035;
+          microOrbitPositions[i * 3 + 2] = Math.sin(angle) * (0.24 + Math.sin(i * 1.37) * 0.02);
+        }
+        microOrbitGeometry.setAttribute('position', new THREE.BufferAttribute(microOrbitPositions, 3));
+
         this.__storageMnemonicVaultCache = {
           geometries: {
-            mainGeometry,
-            edgesGeometry: new THREE.EdgesGeometry(mainGeometry),
-            ringGeometryA: new THREE.TorusGeometry(0.82, 0.028, 10, 48),
-            ringGeometryB: new THREE.TorusGeometry(0.58, 0.022, 10, 40),
-            particleGeometry: new THREE.BoxGeometry(0.07, 0.07, 0.07),
-            auraGeometry: new THREE.SphereGeometry(0.95, 16, 16)
+            coreGeometry,
+            mainArcGeometry: new THREE.TubeGeometry(arcCurve, 40, 0.055, 8, false),
+            fragmentGeometries: [
+              new THREE.OctahedronGeometry(0.13, 1),
+              new THREE.TetrahedronGeometry(0.16, 1),
+              new THREE.DodecahedronGeometry(0.11, 0)
+            ],
+            microOrbitGeometry
           },
           materials: new Map()
         };
@@ -4297,168 +4323,146 @@ static createStorageNode0(group, color) {
       let mats = cache.materials.get(colorHex);
       if (!mats) {
         mats = {
-          shellMat: new THREE.MeshStandardMaterial({
+          coreMat: new THREE.MeshStandardMaterial({
             color: colorHex,
-            metalness: 0.78,
-            roughness: 0.22,
+            metalness: 0.82,
+            roughness: 0.18,
             emissive: colorHex,
-            emissiveIntensity: 0.16,
+            emissiveIntensity: 0.92,
             transparent: true,
-            opacity: 0.52
+            opacity: 0.96
           }),
-          innerCoreMat: new THREE.MeshStandardMaterial({
+          arcMat: new THREE.MeshStandardMaterial({
             color: colorHex,
-            metalness: 0.62,
-            roughness: 0.16,
+            metalness: 0.34,
+            roughness: 0.28,
             emissive: colorHex,
-            emissiveIntensity: 0.6
-          }),
-          edgeMat: new THREE.LineBasicMaterial({
-            color: colorHex,
+            emissiveIntensity: 0.46,
             transparent: true,
-            opacity: 0.34
-          }),
-          ringMat: new THREE.MeshBasicMaterial({
-            color: colorHex,
-            transparent: true,
-            opacity: 0.38,
-            depthWrite: false
-          }),
-          particleMat: new THREE.MeshStandardMaterial({
-            color: colorHex,
-            metalness: 0.55,
-            roughness: 0.3,
-            emissive: colorHex,
-            emissiveIntensity: 0.28
-          }),
-          auraMat: new THREE.MeshBasicMaterial({
-            color: colorHex,
-            transparent: true,
-            opacity: 0.12,
+            opacity: 0.72,
             depthWrite: false,
-            side: THREE.BackSide
+            side: THREE.DoubleSide
+          }),
+          fragmentMat: new THREE.MeshStandardMaterial({
+            color: colorHex,
+            metalness: 0.58,
+            roughness: 0.24,
+            emissive: colorHex,
+            emissiveIntensity: 0.36,
+            transparent: true,
+            opacity: 0.84
+          }),
+          microOrbitMat: new THREE.PointsMaterial({
+            color: colorHex,
+            size: 0.028,
+            transparent: true,
+            opacity: 0.42,
+            depthWrite: false,
+            sizeAttenuation: true
           })
         };
         cache.materials.set(colorHex, mats);
       }
 
-      const outerShell = new THREE.Mesh(cache.geometries.mainGeometry, mats.shellMat);
-      outerShell.userData.isOuterShell = true;
-      outerShell.userData.visualCoreImmutable = true;
-      group.add(outerShell);
+      const core = new THREE.Mesh(cache.geometries.coreGeometry, mats.coreMat);
+      core.name = 'MnemonicVaultCore';
+      core.rotation.set(0.18 + rng() * 0.1, 0.22 + rng() * 0.35, -0.06 + rng() * 0.12);
+      core.userData.isInnerCore = true;
+      core.userData.isMnemonicCore = true;
+      core.userData.visualCoreImmutable = true;
+      core.userData.baseRotation = core.rotation.clone();
+      validateMeshGeometry(core, 'createStorageMnemonicVault:core');
+      group.add(core);
 
-      // MEMORY SHELL LAYER (outer echo)
-      const memoryShell = new THREE.Mesh(
-        cache.geometries.mainGeometry,
-        new THREE.MeshBasicMaterial({
-          color: colorHex,
-          transparent: true,
-          opacity: 0.08,
-          wireframe: true,
-          depthWrite: false
-        })
-      );
-      memoryShell.scale.setScalar(1.15);
-      memoryShell.userData.visualCoreImmutable = true;
-      group.add(memoryShell);
+      const mainArc = new THREE.Mesh(cache.geometries.mainArcGeometry, mats.arcMat);
+      mainArc.name = 'MnemonicVaultMainArc';
+      mainArc.position.set(0.08, 0.03, -0.06);
+      mainArc.rotation.set(Math.PI * 0.2, Math.PI * 0.31, -Math.PI * 0.16);
+      mainArc.scale.set(1.0, 0.96, 1.08);
+      mainArc.userData.isOuterShell = true;
+      mainArc.userData.isMainArc = true;
+      mainArc.userData.visualCoreImmutable = true;
+      mainArc.userData.baseRotation = mainArc.rotation.clone();
+      validateMeshGeometry(mainArc, 'createStorageMnemonicVault:mainArc');
+      group.add(mainArc);
 
-      // Inner emissive core based on the main shell geometry (scaled to 60%).
-      const innerCore = new THREE.Mesh(cache.geometries.mainGeometry, mats.innerCoreMat);
-      innerCore.scale.setScalar(0.6);
-      innerCore.userData.isInnerCore = true;
-      innerCore.userData.visualCoreImmutable = true;
-      group.add(innerCore);
-
-      const edgeOverlay = new THREE.LineSegments(cache.geometries.edgesGeometry, mats.edgeMat);
-      edgeOverlay.userData.visualCoreImmutable = true;
-      
-      // EDGE OVERLAY PULSE
-      edgeOverlay.onBeforeRender = () => {
-        const t = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
-        edgeOverlay.material.opacity = 0.22 + Math.sin(t * 2.0) * 0.1;
-      };
-      
-      group.add(edgeOverlay);
-
-      const ringA = new THREE.Mesh(cache.geometries.ringGeometryA, mats.ringMat);
-      ringA.rotation.x = Math.PI * 0.5;
-      ringA.userData.visualCoreImmutable = true;
-      group.add(ringA);
-
-      const ringB = new THREE.Mesh(cache.geometries.ringGeometryB, mats.ringMat);
-      ringB.rotation.z = Math.PI * 0.5;
-      ringB.userData.visualCoreImmutable = true;
-      group.add(ringB);
-
-      // VAULT SEAL RING (signature element)
-      const seal = new THREE.Mesh(
-        new THREE.TorusGeometry(0.42, 0.01, 8, 64),
-        new THREE.MeshBasicMaterial({
-          color: colorHex,
-          transparent: true,
-          opacity: 0.6,
-          depthWrite: false
-        })
-      );
-      seal.rotation.x = Math.PI * 0.5;
-      seal.userData.visualCoreImmutable = true;
-      group.add(seal);
-
-      const particleOrbit = new THREE.Group();
-      const particleCount = 6;
-      for (let i = 0; i < particleCount; i++) {
-        const particle = new THREE.Mesh(cache.geometries.particleGeometry, mats.particleMat);
-        const angle = (i / particleCount) * Math.PI * 2;
-        const radius = 0.33 + (i % 2 === 0 ? 0.05 : -0.03);
-        particle.position.set(
-          Math.cos(angle) * radius,
-          (i % 2 === 0 ? 0.08 : -0.08),
-          Math.sin(angle) * radius
+      const fragmentGroup = new THREE.Group();
+      fragmentGroup.name = 'MnemonicVaultFragments';
+      fragmentGroup.userData.visualCoreImmutable = true;
+      const fragmentCount = 5 + Math.floor(rng() * 3);
+      for (let i = 0; i < fragmentCount; i++) {
+        const fragmentGeometry = cache.geometries.fragmentGeometries[(i + Math.floor(rng() * cache.geometries.fragmentGeometries.length)) % cache.geometries.fragmentGeometries.length];
+        const fragment = new THREE.Mesh(fragmentGeometry, mats.fragmentMat);
+        const angle = (i / fragmentCount) * Math.PI * 2 + (rng() - 0.5) * 0.7;
+        const radiusX = 0.56 + rng() * 0.28;
+        const radiusZ = 0.42 + rng() * 0.24;
+        const basePosition = new THREE.Vector3(
+          Math.cos(angle) * radiusX,
+          -0.16 + rng() * 0.46,
+          Math.sin(angle) * radiusZ
         );
-        particle.userData.isStorageParticle = true;
-        particle.userData.baseY = particle.position.y;
-        particle.userData.phase = i * 0.7;
-        particle.userData.visualCoreImmutable = true;
-        particleOrbit.add(particle);
+        fragment.position.copy(basePosition);
+        fragment.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+        fragment.scale.set(0.72 + rng() * 0.45, 0.58 + rng() * 0.48, 0.7 + rng() * 0.42);
+        fragment.userData.isStorageFragment = true;
+        fragment.userData.visualCoreImmutable = true;
+        fragment.userData.basePosition = basePosition.clone();
+        fragment.userData.baseRotation = fragment.rotation.clone();
+        fragment.userData.driftPhase = rng() * Math.PI * 2;
+        fragment.userData.driftSpeed = 0.32 + rng() * 0.18;
+        fragment.userData.driftAmplitude = 0.012 + rng() * 0.016;
+        validateMeshGeometry(fragment, `createStorageMnemonicVault:fragment${i}`);
+        fragmentGroup.add(fragment);
       }
-      group.add(particleOrbit);
+      group.add(fragmentGroup);
 
-      const aura = new THREE.Mesh(cache.geometries.auraGeometry, mats.auraMat);
-      aura.userData.visualCoreImmutable = true;
-      group.add(aura);
+      const microOrbit = new THREE.Points(cache.geometries.microOrbitGeometry, mats.microOrbitMat);
+      microOrbit.name = 'MnemonicVaultMicroOrbit';
+      microOrbit.position.set(0.02, 0.02, -0.01);
+      microOrbit.rotation.set(Math.PI * 0.2, -Math.PI * 0.12, Math.PI * 0.08);
+      microOrbit.frustumCulled = false;
+      microOrbit.userData.isMicroOrbit = true;
+      microOrbit.userData.visualCoreImmutable = true;
+      microOrbit.userData.baseRotation = microOrbit.rotation.clone();
+      group.add(microOrbit);
 
-      // Local animation hook: only affects this builder's meshes.
-      outerShell.onBeforeRender = () => {
-        const t = ((typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001);
+      group.onBeforeRender = () => {
+        const t = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
 
-        ringA.rotation.y = t * 0.28;
-        ringB.rotation.y = -t * 0.22;
+        core.rotation.x = core.userData.baseRotation.x + Math.sin(t * 0.19) * 0.04;
+        core.rotation.y = core.userData.baseRotation.y + t * 0.075;
+        core.rotation.z = core.userData.baseRotation.z + Math.cos(t * 0.15) * 0.025;
 
-        particleOrbit.rotation.y = t * 0.18;
-        particleOrbit.children.forEach((p, idx) => {
-          const phase = t * 1.05 + (p.userData.phase || idx * 0.5);
-          // PARTICLES → MEMORY FRAGMENTS (subtler movement)
-          p.position.y = (p.userData.baseY || 0) + Math.sin(phase) * 0.01;
-          p.rotation.x = phase * 0.25;
-          p.rotation.z = -phase * 0.2;
+        mainArc.rotation.x = mainArc.userData.baseRotation.x + Math.sin(t * 0.12) * 0.02;
+        mainArc.rotation.y = mainArc.userData.baseRotation.y - t * 0.055;
+        mainArc.rotation.z = mainArc.userData.baseRotation.z + Math.cos(t * 0.17) * 0.03;
+
+        fragmentGroup.children.forEach((fragment, idx) => {
+          const phase = t * fragment.userData.driftSpeed + fragment.userData.driftPhase;
+          const amplitude = fragment.userData.driftAmplitude;
+          const basePosition = fragment.userData.basePosition;
+          const baseRotation = fragment.userData.baseRotation;
+          fragment.position.set(
+            basePosition.x + Math.sin(phase) * amplitude,
+            basePosition.y + Math.cos(phase * 1.13) * amplitude * 0.7,
+            basePosition.z + Math.sin(phase * 0.87) * amplitude * 0.85
+          );
+          fragment.rotation.x = baseRotation.x + Math.sin(phase * 0.7) * 0.08;
+          fragment.rotation.y = baseRotation.y + Math.cos(phase * 0.8) * 0.08 + idx * 0.01;
+          fragment.rotation.z = baseRotation.z + Math.sin(phase * 0.65) * 0.05;
         });
 
-        if (group.userData.storageBreath) {
-          if (group.userData.storageBreathBaseScale == null) {
-            group.userData.storageBreathBaseScale = group.scale.x || 1;
-          }
-          const base = group.userData.storageBreathBaseScale || 1;
-          const breath = 1 + Math.sin(t * 0.85) * 0.02;
-          group.scale.setScalar(base * breath);
-        }
+        microOrbit.rotation.x = microOrbit.userData.baseRotation.x + Math.sin(t * 0.18) * 0.03;
+        microOrbit.rotation.y = microOrbit.userData.baseRotation.y + t * 0.11;
+        microOrbit.rotation.z = microOrbit.userData.baseRotation.z + Math.cos(t * 0.14) * 0.02;
       };
 
       group.userData.mnemonicCoreRotationAxis = new THREE.Vector3(0.3, 1, -0.2).normalize();
-      group.userData.mnemonicCoreRotationSpeed = 0.08;
+      group.userData.mnemonicCoreRotationSpeed = 0.04;
       group.userData.mnemonicShellRotationAxis = new THREE.Vector3(-0.4, -0.8, 0.3).normalize();
-      group.userData.mnemonicShellRotationSpeed = -0.06;
-      group.userData.storageBreath = true;
-      group.userData.visualVariant = 'STORAGE_V2';
+      group.userData.mnemonicShellRotationSpeed = -0.03;
+      group.userData.storageBreath = false;
+      group.userData.visualVariant = 'STORAGE_ARCHIVE_TENSION';
       group.userData.visualCoreImmutable = true;
       group.userData.nodeGeometryName = 'STORAGE_MNEMONIC_VAULT';
 
@@ -4473,7 +4477,6 @@ static createStorageNode0(group, color) {
       return null;
     }
   }
-
   /**
    * STORAGE: ARCHIVE_SPINDLE (NEW - Session 63)
    * Layered data strata compressed into vertical spindle structure

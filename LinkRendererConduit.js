@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { debugWarn } from './Engine/Debug/DebugLog.js';
 import { TransparentStateAuthority } from './TransparentStateAuthority.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
-import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
+import { applyLinkRenderLayer, getLinkBootstrapBudget, shouldRunLinkEffect } from './LinkRenderLayerPolicy.js';
 import { LinkBeadVisualizer } from './LinkBeadSystem.js';
 import { LinkSparkSystem } from './LinkSparkSystem.js';
 import { LinkBeadTrailSystem } from './LinkBeadTrailSystem.js';
@@ -17,7 +17,6 @@ import { NodeHarmonicManager } from './NodeHarmonicManager.js';
 import { LinkDirectionalStreaks } from './LinkDirectionalStreaks.js';
 import { LinkCorruptionSpreadAnimator } from './LinkCorruptionSpreadAnimator.js';
 import { LinkCorruptionParticleSystem } from './LinkCorruptionParticleSystem.js';
-import { LinkCorruptionMorphingSystem } from './LinkCorruptionMorphingSystem.js';
 import { LinkResonanceFlowSystem_Session124 } from './LinkResonanceFlowSystem_Session124.js';
 import { TIER4_CorruptionFeedbackVisuals } from './TIER4_CorruptionFeedbackVisuals_v1.js';
 import { createLinkAuraMaterial, createLinkAuraGeometry } from './shaders/LinkAuraShader.js';
@@ -991,9 +990,6 @@ export class LinkRendererConduit {
 
         // Corruption particle system (visual only)
         this.corruptionParticleSystem = new LinkCorruptionParticleSystem(scene);
-
-        // Corruption morphing system (visual deformation)
-        this.corruptionMorphing = new LinkCorruptionMorphingSystem();
 
         // Tier 4 corruption feedback visuals are injected from main.js as a shared authority.
         this.corruptionFeedbackVisuals = null;
@@ -2087,7 +2083,7 @@ export class LinkRendererConduit {
     }
 
     /**
-     * Update all links (canonical list) - ensures beads/sparks tick every frame
+     * Update all links (canonical list) - coordinates frame scheduling for link effects
      */
     updateAll(links, deltaTime, time) {
         if (FORCE_VISUAL_DEBUG) {
@@ -2105,10 +2101,6 @@ export class LinkRendererConduit {
         }
 
         this.waveTravelShaderPack?.update?.(deltaTime);
-
-        if (this.corruptionMorphing?.update) {
-            this.corruptionMorphing.update(deltaTime, list);
-        }
 
         let frameHarmony = 0.5;
         let frameCorruption = 0;
@@ -2151,8 +2143,6 @@ export class LinkRendererConduit {
             );
         }
 
-        this.updateLinkResonanceFlow(deltaTime, time, list, this.camera);
-
         // Cadence gating
         this._acc30 += deltaTime;
         this._acc10 += deltaTime;
@@ -2160,6 +2150,17 @@ export class LinkRendererConduit {
         if (run30) this._acc30 -= (1 / 30);
         let run10 = this._acc10 >= 0.1;
         if (run10) this._acc10 -= 0.1;
+        const effectFrameIndex = run30
+            ? ((this._effectFrameIndex = (this._effectFrameIndex ?? 0) + 1))
+            : (this._effectFrameIndex ?? 0);
+        const particleFrameIndex = run30
+            ? ((this._particleFrameIndex = (this._particleFrameIndex ?? 0) + 1))
+            : (this._particleFrameIndex ?? 0);
+        const runResonanceFlowEffects = shouldRunLinkEffect('conduit', 'resonanceFlow', { run30 }, effectFrameIndex);
+
+        if (runResonanceFlowEffects) {
+            this.updateLinkResonanceFlow(deltaTime, time, list, this.camera);
+        }
 
         // Heavy link selection (LOD)
         const heavyAllowed = this._selectHeavyLinks(list, this.camera, this.heavyDistance, this.maxHeavyLinks);
@@ -2212,6 +2213,31 @@ export class LinkRendererConduit {
             deltaTime
         };
         let runHeavyCorruptionUpdate = run30 && (((this._corruptionFrameCounter = (this._corruptionFrameCounter ?? 0) + 1), this._corruptionFrameCounter % 2 === 0));
+        const pendingBootstrapLinks = [];
+
+        for (const link of list) {
+            const state = link?.group?.userData?.conduitState;
+            if (state?.bootstrap && state.bootstrap.complete !== true) pendingBootstrapLinks.push(link);
+        }
+
+        const bootstrapBudget = getLinkBootstrapBudget(pendingBootstrapLinks.length, {
+            run30,
+            heavyTick: run30
+        });
+        if (bootstrapBudget > 0 && pendingBootstrapLinks.length > 0) {
+            const cursor = this._bootstrapCursor || 0;
+            let processed = 0;
+            for (let i = 0; i < pendingBootstrapLinks.length && processed < bootstrapBudget; i += 1) {
+                const link = pendingBootstrapLinks[(cursor + i) % pendingBootstrapLinks.length];
+                const state = link?.group?.userData?.conduitState;
+                if (!state?.bootstrap || state.bootstrap.complete === true) continue;
+                this._advanceLinkBootstrap(link, state);
+                processed += 1;
+            }
+            this._bootstrapCursor = pendingBootstrapLinks.length > 0
+                ? ((cursor + processed) % pendingBootstrapLinks.length)
+                : 0;
+        }
 
         for (const link of list) {
             this.update(link, deltaTime, time, {
@@ -2219,7 +2245,10 @@ export class LinkRendererConduit {
                 flags: {
                     heavyTick: run30,
                     runHeavyCorruptionUpdate,
-                    geometryTick: run10
+                    geometryTick: run10,
+                    bootstrapAdvance: false,
+                    effectFrameIndex,
+                    particleFrameIndex
                 }
             });
         }
@@ -2230,10 +2259,10 @@ export class LinkRendererConduit {
         }
 
         // Shared healing particle system update
-        if (run30) this.updateHealingParticles(deltaTime, time);
+        if (run30 && shouldRunLinkEffect('conduit', 'particleSystem', { run30 }, particleFrameIndex)) this.updateHealingParticles(deltaTime, time);
 
         // PATCH 2: Update corruption particle systems
-        if (run30 && this.corruptionParticleSystem?.update) {
+        if (run30 && shouldRunLinkEffect('conduit', 'particleSystem', { run30 }, particleFrameIndex) && this.corruptionParticleSystem?.update) {
             this.corruptionParticleSystem.update(deltaTime, time);
         }
         // Spread animator is updated per-link in update(); global call removed
@@ -2304,11 +2333,6 @@ export class LinkRendererConduit {
 
         const spreadAnimating = !!spreadState?.isAnimating;
         const hasWaveTargets = strandDiagnostics.waveUniformTargets > 0;
-        const hasMorphTargets =
-            strandDiagnostics.morphBraidTargets > 0 ||
-            strandDiagnostics.morphEmissionTargets > 0 ||
-            strandDiagnostics.morphPulseTargets > 0 ||
-            strandDiagnostics.emissivePropertyTargets > 0;
         const trailActuallyEmitting =
             (runtime.trailEmitterTicks || 0) > 0 &&
             ((runtime.trailSharedCorruptionEmits || 0) > 0 || (runtime.healingEmitterTicks || 0) > 0);
@@ -2322,9 +2346,6 @@ export class LinkRendererConduit {
                 : 'dormant',
             corruptionSpread: (this.modules.corruptionFX && this.corruptionSpreadAnimator && (runtime.corruptionSpreadTicks || 0) > 0)
                 ? (spreadAnimating ? 'visibly-active' : 'ticking-idle')
-                : 'dormant',
-            corruptionMorph: (this.modules.corruptionFX && this.corruptionMorphing && (runtime.corruptionMorphTicks || 0) > 0)
-                ? (hasMorphTargets ? 'visibly-active' : 'ticking-no-morph-target')
                 : 'dormant',
             corruptionParticles: (this.modules.corruptionFX && this.corruptionParticleSystem && (runtime.corruptionParticleTicks || 0) > 0)
                 ? 'visibly-active'
@@ -2349,7 +2370,6 @@ export class LinkRendererConduit {
                 trailSharedCorruptionEmits: runtime.trailSharedCorruptionEmits || 0,
                 healingEmitterTicks: runtime.healingEmitterTicks || 0,
                 corruptionSpreadTicks: runtime.corruptionSpreadTicks || 0,
-                corruptionMorphTicks: runtime.corruptionMorphTicks || 0,
                 corruptionParticleTicks: runtime.corruptionParticleTicks || 0
             },
             triggerContext: {
@@ -2384,7 +2404,6 @@ export class LinkRendererConduit {
             lastSynergy: 0,
             lastTraffic: 0,
             corruptionSpreadTicks: 0,
-            corruptionMorphTicks: 0,
             corruptionParticleTicks: 0,
             trailEmitterTicks: 0,
             trailSharedCorruptionEmits: 0,
@@ -2575,7 +2594,8 @@ export class LinkRendererConduit {
     updateTrailParticles(deltaTime, time) {
         const visualDelta = VisualTime.delta;
         const visualNow = VisualTime.now;
-        if (this.trailParticles) {
+        const particleFrameIndex = this._trailParticleFrameIndex = (this._trailParticleFrameIndex ?? 0) + 1;
+        if (this.trailParticles && shouldRunLinkEffect('conduit', 'particleSystem', { run30: true }, particleFrameIndex)) {
             this.trailParticles.update(visualDelta, visualNow);
         }
     }
@@ -2587,7 +2607,8 @@ export class LinkRendererConduit {
     updateHealingParticles(deltaTime, time) {
         const visualDelta = VisualTime.delta;
         const visualNow = VisualTime.now;
-        if (this.healingParticles) {
+        const particleFrameIndex = this._healingParticleFrameIndex = (this._healingParticleFrameIndex ?? 0) + 1;
+        if (this.healingParticles && shouldRunLinkEffect('conduit', 'particleSystem', { run30: true }, particleFrameIndex)) {
             this.healingParticles.update(visualDelta, visualNow);
         }
     }
@@ -2873,6 +2894,7 @@ export class LinkRendererConduit {
                 if (state.pulseRing) break;
                 if (LinkPulseRing) {
                     state.pulseRing = new LinkPulseRing(this.scene);
+                    state.pulseRing.rebind?.({ scene: this.scene });
                     group.add(state.pulseRing.getMesh());
                     if (state.pulseRing.getTrailMeshes) {
                         const trailMeshes = state.pulseRing.getTrailMeshes();
@@ -2906,6 +2928,7 @@ export class LinkRendererConduit {
             case 5: { // Frame 5: arcDischarges
                 if (state.arcDischarges || !LinkRingArcDischarges) break;
                 state.arcDischarges = new LinkRingArcDischarges(this.scene);
+                state.arcDischarges.rebind?.({ scene: this.scene });
                 group.add(state.arcDischarges.getGroup());
                 if (state.pulseRing?.setArcSystem) state.pulseRing.setArcSystem(state.arcDischarges);
                 break;
@@ -2999,6 +3022,7 @@ export class LinkRendererConduit {
         // Corruption FX throttling is decided once per frame in updateAll(),
         // otherwise per-link alternation creates odd/even link-count artifacts.
         const runHeavyCorruptionUpdate = frameStateOverride?.flags?.runHeavyCorruptionUpdate ?? heavyTick;
+        const bootstrapAdvanceEnabled = frameStateOverride?.flags?.bootstrapAdvance !== false;
 
         trace('update:start', {
             hasFrameStateOverride: frameStateOverride !== null,
@@ -3010,7 +3034,9 @@ export class LinkRendererConduit {
             console.warn('[ConduitUpdate] Missing conduitState; rebuilt visuals for', link.id);
         }
 
-        this._advanceLinkBootstrap(link, state);
+        if (bootstrapAdvanceEnabled) {
+            this._advanceLinkBootstrap(link, state);
+        }
         trace('afterBootstrap', {
             bootstrapComplete: state?.bootstrap?.complete === true
         });
@@ -3025,13 +3051,29 @@ export class LinkRendererConduit {
             lastSynergy: 0,
             lastTraffic: 0,
             corruptionSpreadTicks: 0,
-            corruptionMorphTicks: 0,
             corruptionParticleTicks: 0,
             trailEmitterTicks: 0,
             trailSharedCorruptionEmits: 0,
             healingEmitterTicks: 0,
             energyWaveTicks: 0
         });
+        const effectFrameFlags = frameStateOverride?.flags || {};
+        const effectFrameIndex = effectFrameFlags.effectFrameIndex ?? Math.floor((visualTime || 0) * 30);
+        const linkEffectKey = link?.id || link?.uuid || link?.source?.userData?.nodeId || link?.target?.userData?.nodeId || state?.bootstrap?.id || 'link';
+        const runDockEffects = shouldRunLinkEffect(linkEffectKey, 'dock', effectFrameFlags, effectFrameIndex);
+        const runSourceInjectionEffects = shouldRunLinkEffect(linkEffectKey, 'sourceInjection', effectFrameFlags, effectFrameIndex);
+        const runBeadEffects = shouldRunLinkEffect(linkEffectKey, 'beads', effectFrameFlags, effectFrameIndex);
+        const runBeadTrailEffects = shouldRunLinkEffect(linkEffectKey, 'beadTrails', effectFrameFlags, effectFrameIndex);
+        const runEnergyRingEffects = shouldRunLinkEffect(linkEffectKey, 'energyRingSystem', effectFrameFlags, effectFrameIndex);
+        const runDirectionalStreaksEffects = shouldRunLinkEffect(linkEffectKey, 'directionalStreaks', effectFrameFlags, effectFrameIndex);
+        const runPulseRingEffects = shouldRunLinkEffect(linkEffectKey, 'pulseRing', effectFrameFlags, effectFrameIndex);
+        const runArcDischargeEffects = shouldRunLinkEffect(linkEffectKey, 'arcDischarges', effectFrameFlags, effectFrameIndex);
+        const runRingPulseDustEffects = shouldRunLinkEffect(linkEffectKey, 'ringPulseDustEmitter', effectFrameFlags, effectFrameIndex);
+        const runParticleSystemEffects = shouldRunLinkEffect(linkEffectKey, 'particleSystem', effectFrameFlags, effectFrameIndex);
+        const runCorruptionSpreadEffects = shouldRunLinkEffect(linkEffectKey, 'corruptionSpread', effectFrameFlags, effectFrameIndex);
+        const runCorruptionParticleEffects = shouldRunLinkEffect(linkEffectKey, 'corruptionParticles', effectFrameFlags, effectFrameIndex);
+        const runTrailEmitterEffects = shouldRunLinkEffect(linkEffectKey, 'trailEmitter', effectFrameFlags, effectFrameIndex);
+        const runHealingEmitterEffects = shouldRunLinkEffect(linkEffectKey, 'healingEmitter', effectFrameFlags, effectFrameIndex);
         const colorScratch = state.__colorScratch || (state.__colorScratch = {
             a: new THREE.Color(),
             b: new THREE.Color(),
@@ -3051,7 +3093,7 @@ export class LinkRendererConduit {
         runtime.collapseActive = collapseVisual.active;
 
         // Harmonic sync update (links + aggregated metrics)
-        if (this.nodeHarmonicManager) {
+        if (this.nodeHarmonicManager && shouldRunLinkEffect(linkEffectKey, 'harmonic', effectFrameFlags, effectFrameIndex)) {
             trace('beforeNodeHarmonicManager');
             const stabilityMetric = (typeof metrics?.stability === 'number')
                 ? metrics.stability
@@ -3069,7 +3111,7 @@ export class LinkRendererConduit {
 
         // Corruption VFX updates (spread + particles)
         if (this.modules.corruptionFX) {
-            if (this.corruptionSpreadAnimator && state.strands) {
+            if (runCorruptionSpreadEffects && this.corruptionSpreadAnimator && state.strands) {
                 trace('beforeCorruptionSpreadAnimator');
                 const spreadState = this.corruptionSpreadAnimator.update(link, deltaTime, state.strands, {
                     corruptionLevel: metrics?.corruption ?? 0,
@@ -3088,16 +3130,7 @@ export class LinkRendererConduit {
                 }
                     runtime.corruptionSpreadTicks += 1;
             }
-            if (runHeavyCorruptionUpdate && this.corruptionMorphing && state.strands) {
-                trace('beforeCorruptionMorphing');
-                this.corruptionMorphing.update(
-                    visualDelta,
-                    link
-                );
-                trace('afterCorruptionMorphing');
-                runtime.corruptionMorphTicks += 1;
-            }
-            if (runHeavyCorruptionUpdate && this.corruptionParticleSystem) {
+            if (runHeavyCorruptionUpdate && runCorruptionParticleEffects && this.corruptionParticleSystem) {
                 // Prefer canonical updater; fall back if alias differs
                 const updater = this.corruptionParticleSystem.updateLinkParticles
                     ? this.corruptionParticleSystem.updateLinkParticles.bind(this.corruptionParticleSystem)
@@ -3474,7 +3507,7 @@ export class LinkRendererConduit {
         }
 
         if (heavyTick) {
-            if (state.dockRing) {
+            if (runDockEffects && state.dockRing) {
                 trace('beforeUpdateDockRing');
                 updateDockRing(state.dockRing);
                 trace('afterUpdateDockRing');
@@ -3496,11 +3529,11 @@ export class LinkRendererConduit {
                 }
             }
 
-            if (state.dockGhost) {
+            if (runDockEffects && state.dockGhost) {
                 updateDockRing(state.dockGhost);
             }
 
-            if (state.sourceInjection) {
+            if (runSourceInjectionEffects && state.sourceInjection) {
                 trace('beforeSourceInjectionUpdate');
                 const sourceColor = colorScratch.a.set(state.baseColor || 0xffffff);
                 const injectionAnchor = sourcePortPos.clone();
@@ -3979,7 +4012,7 @@ export class LinkRendererConduit {
         // Emit organic trail particles using same noise as aura systems
         if (this.trailParticles && this.trailEmitters && link.id && this.modules.trails) {
             const emitter = this.trailEmitters.get(link.id);
-            if (heavyTick && emitter && lodAllowsParticles) {
+            if (heavyTick && runTrailEmitterEffects && emitter && lodAllowsParticles) {
                 const linkHarmony = metrics.harmony ?? 0.5;
                 const linkCorruption = metrics.corruption ?? 0.2;
 
@@ -3995,7 +4028,7 @@ export class LinkRendererConduit {
             }
 
             // Shared pool mapping: LinkCorruptionParticleSystem -> corruption trail source.
-            if (this.modules.corruptionFX && this.corruptionParticleSystem && runHeavyCorruptionUpdate) {
+            if (this.modules.corruptionFX && this.corruptionParticleSystem && runHeavyCorruptionUpdate && runTrailEmitterEffects && runParticleSystemEffects) {
                 const corruptionLevel = Math.max(0, Math.min(1, metrics.corruption ?? 0));
                 if (lodAllowsParticles && corruptionLevel > 0.08) {
                     this.trailParticles.emitFromSource?.({
@@ -4022,7 +4055,7 @@ export class LinkRendererConduit {
                     const linkCorruption = metrics.corruption ?? 0.2;
                     const tintColor = state.baseColorObj || (state.strands?.[0]?.material?.color);
 
-                    if (lodAllowsParticles && linkHarmony > linkCorruption) {
+                    if (lodAllowsParticles && linkHarmony > linkCorruption && runHealingEmitterEffects && runParticleSystemEffects) {
                         emitter.update(
                             visualDelta,
                             visualTime,
@@ -4056,7 +4089,7 @@ export class LinkRendererConduit {
             hasBeads: !!state.beads,
             hasBeadModule: !!this.modules.beads
         });
-        if (heavyTick && state.beads && this.modules.beads) {
+        if (heavyTick && runBeadEffects && state.beads && this.modules.beads) {
             // Re-assert render state to bypass global depth clamps
             if (state.beads.forceRenderState) {
                 state.beads.forceRenderState();
@@ -4087,10 +4120,10 @@ export class LinkRendererConduit {
                     );
                 }
             }, lodAllowsParticles);
-            if (heavyTick && state.trails) state.trails.update(visualTime, visualDelta, state.beads.beadToMesh, mainCurve, lodAllowsParticles);
+        if (heavyTick && runBeadTrailEffects && state.trails) state.trails.update(visualTime, visualDelta, state.beads.beadToMesh, mainCurve, lodAllowsParticles);
         }
 
-        if (heavyTick && state.rings) state.rings.update(visualTime);
+        if (heavyTick && runEnergyRingEffects && state.rings) state.rings.update(visualTime);
 
         if (heavyTick && state.sparks && this.modules.sparks) {
             const baseCol = (state.strands[0]?.material?.color) || state.baseColor || 0xffffff;
@@ -4107,7 +4140,7 @@ export class LinkRendererConduit {
                 });
             }
 
-            state.sparks.update(
+            if (runParticleSystemEffects) state.sparks.update(
                 visualTime,
                 visualDelta,
                 mainCurve,
@@ -4118,7 +4151,7 @@ export class LinkRendererConduit {
             state.sparks.uniforms.uThickness.value = activeRadius * 2 * vfx.widthMul;
 
             // Shared pool mapping: LinkSparkSystem -> spark trail source.
-            if (lodAllowsParticles) this.trailParticles?.emitFromSource?.({
+            if (lodAllowsParticles && runParticleSystemEffects) this.trailParticles?.emitFromSource?.({
                 type: 'spark',
                 link,
                 curve: mainCurve,
@@ -4131,7 +4164,7 @@ export class LinkRendererConduit {
             });
         }
 
-        if (heavyTick && state.pulseRing && this.modules.flow) {
+        if (heavyTick && runPulseRingEffects && state.pulseRing && this.modules.flow) {
             const targetCat = link.target.userData?.category || 'input';
             const targetColor = colorScratch.b.set(this.getCategoryColor(targetCat));
             const sourceColor = colorScratch.c.set(state.baseColor);
@@ -4145,7 +4178,7 @@ export class LinkRendererConduit {
                 targetColor
             );
 
-            if (state.pulseDust) {
+            if (runRingPulseDustEffects && state.pulseDust) {
                 state.pulseRing.mesh.getWorldPosition(this._pulseDustWorldPos);
                 state.pulseDust.update({
                     position: this._pulseDustWorldPos,
@@ -4170,7 +4203,7 @@ export class LinkRendererConduit {
         // so its emissive modulation is not overwritten by earlier patch owners.
 
         // --- 7. Arc Discharge Update (Ring-triggered Electric Sparks) ---
-        if (heavyTick && state.arcDischarges && state.pulseRing && this.modules.flow) {
+        if (heavyTick && runArcDischargeEffects && state.arcDischarges && state.pulseRing && this.modules.flow) {
                 const targetCat = link.target.userData?.category || 'input';
                 const targetColor = colorScratch.b.set(this.getCategoryColor(targetCat));
                 const ringColor = colorScratch.c.set(state.baseColor).lerp(targetColor, state.pulseRing.progress);
@@ -4226,7 +4259,7 @@ export class LinkRendererConduit {
         }
 
         // --- 9. Directional Energy Streaks (Synergy-driven flow visualization) ---
-        if (heavyTick && state.directionalStreaks && this.directionalStreaks && this.modules.streaks && lodAllowsSecondaryVfx) {
+        if (heavyTick && runDirectionalStreaksEffects && state.directionalStreaks && this.directionalStreaks && this.modules.streaks && lodAllowsSecondaryVfx) {
             const streakInterval = lod <= 0 ? (1 / 15) : (1 / 10);
             state.__directionalStreaksAccum = (state.__directionalStreaksAccum || 0) + visualDelta;
             if (state.__directionalStreaksAccum >= streakInterval) {
@@ -5551,12 +5584,14 @@ const makeWaveSlice = () => {
         const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
         if (!this._pictogramUpdateTickLast || now - this._pictogramUpdateTickLast >= 20000) {
             this._pictogramUpdateTickLast = now;
-            console.error('[LinkRendererConduit] pictogram tick', {
-                enabled: this.pictogramSystem?.enabled === true,
-                hasSystem: !!this.pictogramSystem,
-                aiNodes: Array.isArray(this.linkSystem?.aiNodes?.nodes) ? this.linkSystem.aiNodes.nodes.length : 0,
-                links: Array.isArray(this.linkSystem?.links) ? this.linkSystem.links.length : 0
-            });
+            if (typeof window !== 'undefined' && window.__DEBUG_PICTOGRAM_TICKS__ === true) {
+                console.debug('[LinkRendererConduit] pictogram tick', {
+                    enabled: this.pictogramSystem?.enabled === true,
+                    hasSystem: !!this.pictogramSystem,
+                    aiNodes: Array.isArray(this.linkSystem?.aiNodes?.nodes) ? this.linkSystem.aiNodes.nodes.length : 0,
+                    links: Array.isArray(this.linkSystem?.links) ? this.linkSystem.links.length : 0
+                });
+            }
         }
 
         if (this.pictogramSystem?.enabled) {
@@ -5596,9 +5631,6 @@ const makeWaveSlice = () => {
         }
         if (this.corruptionParticleSystem) {
             this.corruptionParticleSystem.dispose();
-        }
-        if (this.corruptionMorphing?.dispose) {
-            this.corruptionMorphing.dispose();
         }
         if (this.trailParticles) {
             this.trailParticles.dispose();

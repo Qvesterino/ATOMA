@@ -338,33 +338,10 @@ export class StandingWaveVisualRenderer_Session131 {
             halo.renderOrder = this.config.renderOrder;
             halo.rotation.x = -Math.PI * 0.5;
 
-            const pulseRing = new THREE.Mesh(
-                new THREE.TorusGeometry(
-                    Math.max(0.16, this.config.trapZonePulseRingRadius),
-                    Math.max(0.01, this.config.trapZonePulseRingThickness),
-                    5,
-                    24
-                ),
-                this.trapZonePulseMaterial.clone()
-            );
-            pulseRing.frustumCulled = false;
-            pulseRing.renderOrder = this.config.renderOrder;
-            pulseRing.rotation.x = Math.PI * 0.5;
-
-            const shock = new THREE.Mesh(
-                new THREE.RingGeometry(Math.max(0.30, this.config.trapZoneOrbitRadius * 0.9), Math.max(0.44, this.config.trapZoneOrbitRadius * 1.42), 32, 1),
-                this.trapZoneShockMaterial.clone()
-            );
-            shock.frustumCulled = false;
-            shock.renderOrder = this.config.renderOrder;
-            shock.rotation.x = -Math.PI * 0.5;
-
             group.add(core);
             group.add(orbitA);
             group.add(orbitB);
             group.add(halo);
-            group.add(pulseRing);
-            group.add(shock);
             this.root.add(group);
 
             this.trapZoneMeshPool.push({
@@ -374,8 +351,8 @@ export class StandingWaveVisualRenderer_Session131 {
                 orbitAMesh: orbitA,
                 orbitBMesh: orbitB,
                 haloMesh: halo,
-                pulseRingMesh: pulseRing,
-                shockMesh: shock,
+                pulseRingMesh: null,
+                shockMesh: null,
                 active: false,
                 linkId: null,
                 intensity: 1,
@@ -946,33 +923,6 @@ export class StandingWaveVisualRenderer_Session131 {
                 );
             }
 
-            if (trapZoneMesh.pulseRingMesh) {
-                const birthLikePulse = 0.82 + (pulse * 0.26) + (pressureBoost * 0.42);
-                trapZoneMesh.pulseRingMesh.rotation.z = pulsePhase * (this.config.trapZoneOrbitSpeed * 1.34);
-                trapZoneMesh.pulseRingMesh.rotation.y = pulsePhase * 0.17;
-                trapZoneMesh.pulseRingMesh.scale.setScalar(0.88 + birthLikePulse * 0.18);
-                trapZoneMesh.pulseRingMesh.material.opacity = Math.min(
-                    0.26,
-                    this.config.trapZonePulseRingOpacity * fadeStrength * (0.84 + pulse * 0.28 + pressureBoost * 0.75)
-                );
-                trapZoneMesh.pulseRingMesh.material.color.setRGB(
-                    0.88 + (pulse * 0.10) + (pressureBoost * 0.06),
-                    0.93 + (pulse * 0.06),
-                    1.0
-                );
-            }
-
-            // Shock ring: expansion / collapse cue.
-            if (trapZoneMesh.shockMesh) {
-                trapZoneMesh.shockMesh.rotation.z = pulsePhase * 0.18;
-                trapZoneMesh.shockMesh.scale.setScalar(1.08 + (pulse * 0.2));
-                trapZoneMesh.shockMesh.material.opacity = Math.min(0.18, this.config.trapZoneOpacityBase * 0.5 * fadeStrength * pulse);
-                trapZoneMesh.shockMesh.material.color.setRGB(
-                    0.96,
-                    0.94 + (pulse * 0.06),
-                    1.0
-                );
-            }
             
             touchedIndices.add(zoneIndex);
             renderedCount++;
@@ -992,8 +942,10 @@ export class StandingWaveVisualRenderer_Session131 {
                 if (zone.orbitAMesh?.material) zone.orbitAMesh.material.opacity = 0;
                 if (zone.orbitBMesh?.material) zone.orbitBMesh.material.opacity = 0;
                 if (zone.haloMesh?.material) zone.haloMesh.material.opacity = 0;
-                if (zone.pulseRingMesh?.material) zone.pulseRingMesh.material.opacity = 0;
-                if (zone.shockMesh?.material) zone.shockMesh.material.opacity = 0;
+                if (zone.coreMesh?.material) zone.coreMesh.material.opacity = 0;
+                if (zone.orbitAMesh?.material) zone.orbitAMesh.material.opacity = 0;
+                if (zone.orbitBMesh?.material) zone.orbitBMesh.material.opacity = 0;
+                if (zone.haloMesh?.material) zone.haloMesh.material.opacity = 0;
                 return;
             }
 
@@ -1003,8 +955,6 @@ export class StandingWaveVisualRenderer_Session131 {
             if (zone.orbitAMesh?.material) zone.orbitAMesh.material.opacity *= fade;
             if (zone.orbitBMesh?.material) zone.orbitBMesh.material.opacity *= fade;
             if (zone.haloMesh?.material) zone.haloMesh.material.opacity *= fade;
-            if (zone.pulseRingMesh?.material) zone.pulseRingMesh.material.opacity *= fade;
-            if (zone.shockMesh?.material) zone.shockMesh.material.opacity *= fade;
         });
 
         this.lastTrapZoneRenderCount = renderedCount;
