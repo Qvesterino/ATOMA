@@ -59,6 +59,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { CoreMetricsCalculator } from './CoreMetricsCalculator.js';
+import { buildMetricTierEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './src/metrics/MetricTierClassifier.js';
 
 export class HarmonicHubAuraSystem_Session126 {
   constructor(scene, worldRoot, world, nodeAuraSystem, linkResonanceSystem, config = {}) {
@@ -885,6 +886,7 @@ export class HarmonicHubAuraSystem_Session126 {
 
     hub.userData ||= {};
     hub.userData.metrics ||= {};
+    hub.userData.__metricEventState ||= {};
 
     const harmony = this._clamp01(hub.harmony ?? 0);
     const synergy = this._clamp01(hub.synergy ?? 0);
@@ -900,6 +902,43 @@ export class HarmonicHubAuraSystem_Session126 {
     hub.userData.synergy = synergy;
     hub.userData.corruption = corruption;
     hub.userData.stability = stability;
+
+    const semanticBus = this.semanticBus || globalThis?.semanticBus || null;
+    if (!semanticBus?.emit) return;
+
+    const hubId = hub.hubId || hub.id || hub.userData?.hubId || hub.userData?.id || 'unknown-hub';
+    const nodeId = hub.primaryNode?.userData?.nodeId || hub.primaryNode?.id || hub.primaryNode?.uuid || null;
+    const state = hub.userData.__metricEventState;
+    const tiers = state.metricTiers || (state.metricTiers = {});
+    const metrics = { synergy, harmony, stability, corruption };
+
+    for (const [metric, value] of Object.entries(metrics)) {
+      const previousTier = normalizeMetricTier(tiers[metric] ?? null);
+      const nextTier = classifyMetricTier(value, previousTier, getDefaultMetricThresholds(metric));
+      if (previousTier === null) {
+        tiers[metric] = nextTier;
+        continue;
+      }
+      if (nextTier === previousTier) continue;
+
+      tiers[metric] = nextTier;
+      const payload = {
+        scope: 'hub',
+        hubId,
+        nodeId,
+        metric,
+        tier: nextTier,
+        previousTier,
+        value,
+        source: 'HarmonicHubAuraSystem_Session126',
+        timestamp: Date.now()
+      };
+
+      // Internal hook only for tooling and diagnostics.
+      semanticBus.emit('metric.tier.changed', payload, { priority: semanticBus.priority?.NORMAL });
+      // Primary public surface for hub-level reactions.
+      semanticBus.emit(buildMetricTierEventName('hub', metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
+    }
   }
 
   _readLinkSynergy(link, fallback = 0) {

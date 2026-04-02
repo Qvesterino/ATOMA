@@ -106,11 +106,12 @@ void main() {
 `;
 
 export class HarmonicRecoveryVisualSystem_Session138 {
-    constructor(scene, ruptureSystem, healingParticleSystem, nodeLinkingSystem) {
+    constructor(scene, ruptureSystem, healingParticleSystem, nodeLinkingSystem, semanticBus = null) {
         this.scene = scene;
         this.ruptureSystem = ruptureSystem;
         this.healingParticles = healingParticleSystem;
         this.linkingSystem = nodeLinkingSystem;
+        this.semanticBus = semanticBus || globalThis?.semanticBus || null;
         this.enabled = true;
         
         this.config = {
@@ -122,17 +123,28 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             updateInterval: 1 / 60,
             debugVisualBoost: false,
             renderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
-            debugForceRecoveryPulse: false,   // Keep off by default so recovery does not spam the scene
-            debugForceRecoveryInterval: 2.0  // seconds
+            debugForceRecoveryPulse: false,
+            debugForceRecoveryInterval: 2.0,
+            waveCooldown: 6.0,
+            stitchingCooldown: 3.0,
+            haloCooldown: 5.0
         };
         
-        // State tracking
         this.activeRuptureIds = new Set();
-        this.recoveringZones = []; // { pos, linkId, life, maxLife, type }
+        this.recoveringZones = [];
         
-        // Pools
         this.waveMeshPool = [];
         this.haloMeshPool = [];
+        
+        this._waveCooldowns = new Map();
+        this._stitchingCooldowns = new Map();
+        this._haloCooldowns = new Map();
+        
+        this._eventDrivenEnabled = false;
+        this._unsubscribeHarmonyHigh = null;
+        this._unsubscribeHarmonyMid = null;
+        
+        this._setupEventSubscriptions();
         
         // Materials
         this.waveMaterial = new THREE.ShaderMaterial({
@@ -162,7 +174,6 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             blending: THREE.AdditiveBlending
         });
         
-        // Init pools
         this._initPools();
         
         this._timeOrigin = undefined;
@@ -170,6 +181,151 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         this._fallbackRecoveryTimer = 0;
         
         console.log('✨ [Session 138] HarmonicRecoveryVisualSystem initialized');
+    }
+
+    _setupEventSubscriptions() {
+        if (!this.semanticBus || typeof this.semanticBus.subscribe !== 'function') {
+            this._eventDrivenEnabled = false;
+            return;
+        }
+
+        this._onHarmonyHigh = (payload = {}) => {
+            this._handleHarmonyHigh(payload);
+        };
+        
+        this._onHarmonyMid = (payload = {}) => {
+            this._handleHarmonyMid(payload);
+        };
+
+        const unsubHigh = this.semanticBus.subscribe('link.harmony.high', this._onHarmonyHigh);
+        const unsubMid = this.semanticBus.subscribe('link.harmony.mid', this._onHarmonyMid);
+
+        if (typeof unsubHigh === 'function') {
+            this._unsubscribeHarmonyHigh = unsubHigh;
+        } else if (typeof this.semanticBus.unsubscribe === 'function') {
+            this._unsubscribeHarmonyHigh = () => {
+                this.semanticBus.unsubscribe('link.harmony.high', this._onHarmonyHigh);
+            };
+        }
+
+        if (typeof unsubMid === 'function') {
+            this._unsubscribeHarmonyMid = unsubMid;
+        } else if (typeof this.semanticBus.unsubscribe === 'function') {
+            this._unsubscribeHarmonyMid = () => {
+                this.semanticBus.unsubscribe('link.harmony.mid', this._onHarmonyMid);
+            };
+        }
+
+        this._eventDrivenEnabled = true;
+    }
+
+    _handleHarmonyHigh(payload = {}) {
+        const linkId = payload?.linkId;
+        const now = Number.isFinite(VisualTime?.now) ? VisualTime.now : performance.now() / 1000;
+        
+        if (!linkId) return;
+        
+        if (!this._checkCooldown(this._waveCooldowns, linkId, this.config.waveCooldown, now)) {
+            this._spawnCoherenceWave(linkId, now);
+            this._setCooldown(this._waveCooldowns, linkId, now);
+        }
+        
+        if (!this._checkCooldown(this._haloCooldowns, linkId, this.config.haloCooldown, now)) {
+            const link = this._getLinkById(linkId);
+            if (link) {
+                const endpoints = this._getLinkEndpoints(link);
+                if (endpoints.startNode) this._spawnHalo(endpoints.startNode, now);
+                if (endpoints.endNode) this._spawnHalo(endpoints.endNode, now);
+            }
+            this._setCooldown(this._haloCooldowns, linkId, now);
+        }
+    }
+
+    _handleHarmonyMid(payload = {}) {
+        const linkId = payload?.linkId;
+        const now = Number.isFinite(VisualTime?.now) ? VisualTime.now : performance.now() / 1000;
+        
+        if (!linkId) return;
+        
+        if (!this._checkCooldown(this._stitchingCooldowns, linkId, this.config.stitchingCooldown, now)) {
+            this._spawnReStitching(linkId, now);
+            this._setCooldown(this._stitchingCooldowns, linkId, now);
+        }
+    }
+
+    _checkCooldown(cooldownMap, id, cooldownDuration, now) {
+        const lastTime = cooldownMap.get(id);
+        if (lastTime === undefined) return false;
+        return (now - lastTime) < cooldownDuration;
+    }
+
+    _setCooldown(cooldownMap, id, now) {
+        cooldownMap.set(id, now);
+    }
+
+    _spawnCoherenceWave(linkId, currentVisualTime) {
+        const link = this._getLinkById(linkId);
+        if (!link) return false;
+
+        const endpoints = this._getLinkEndpoints(link);
+        const start = endpoints.startPos;
+        const end = endpoints.endPos;
+        if (!start || !end) return false;
+
+        const center = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+        const now = currentVisualTime ?? (VisualTime.now - this._timeOrigin);
+
+        if (this.recoveringZones.length < this.config.maxActiveZones) {
+            this.recoveringZones.push({
+                active: true,
+                pos: center,
+                linkId: linkId,
+                startNode: endpoints.startNode,
+                endNode: endpoints.endNode,
+                life: 0,
+                startTime: now,
+                maxLife: this.config.minRecoveryDuration + Math.random() * 2.0,
+                waveMeshIdx: -1,
+                lastStitchTime: now,
+                waveOnly: true
+            });
+            return true;
+        }
+        return false;
+    }
+
+    _spawnReStitching(linkId, currentVisualTime) {
+        const link = this._getLinkById(linkId);
+        if (!link) return false;
+
+        const endpoints = this._getLinkEndpoints(link);
+        if (!endpoints.startPos || !endpoints.endPos) return false;
+
+        const now = currentVisualTime ?? (VisualTime.now - this._timeOrigin);
+
+        if (this.healingParticles) {
+            const p1 = endpoints.startNode.position;
+            const p2 = endpoints.endNode.position;
+            
+            const scanProgress = (now % 2.0) / 2.0;
+            const t1 = scanProgress * 0.5;
+            const t2 = 1.0 - (scanProgress * 0.5);
+            
+            const pos1 = new THREE.Vector3().lerpVectors(p1, p2, t1);
+            const pos2 = new THREE.Vector3().lerpVectors(p1, p2, t2);
+            
+            const angle = now * 10.0;
+            const offset = new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0).multiplyScalar(0.1);
+            
+            pos1.add(offset);
+            pos2.add(offset.clone().negate());
+            
+            const intensity = 0.85;
+            
+            this.healingParticles.emitHealingTrail(pos1, new THREE.Vector3(0,0,0), intensity, now, new THREE.Color(0xffffff));
+            this.healingParticles.emitHealingTrail(pos2, new THREE.Vector3(0,0,0), intensity, now, new THREE.Color(0xffcc00));
+        }
+        return true;
     }
 
     rebindHealingParticleSystem(healingParticleSystem) {
@@ -370,44 +526,33 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                 }
             }
             
-            // 2. Link Re-Stitching (Particles)
-            const sinceLastStitch = currentVisualTime - (zone.lastStitchTime ?? zone.startTime);
-            if (sinceLastStitch >= this.config.stitchingInterval) {
-                zone.lastStitchTime = currentVisualTime;
-                
-                if (this.healingParticles) {
-                    // "Tightening" Visual: Dual inward scan (from both ends towards center)
-                    // Creates a "zipping" or "stitching" effect
+            // 2. Link Re-Stitching (Particles) - only if not waveOnly
+            if (!zone.waveOnly) {
+                const sinceLastStitch = currentVisualTime - (zone.lastStitchTime ?? zone.startTime);
+                if (sinceLastStitch >= this.config.stitchingInterval && this.healingParticles) {
+                    zone.lastStitchTime = currentVisualTime;
                     
-                    const p1 = zone.startNode.position;
-                    const p2 = zone.endNode.position;
-                    
-                    // 2-second scan loop
-                    const scanProgress = (zone.life % 2.0) / 2.0; 
-                    
-                    // Emit at TWO points moving inwards
-                    // t1 goes 0 -> 0.5
-                    // t2 goes 1 -> 0.5
-                    const t1 = scanProgress * 0.5;
-                    const t2 = 1.0 - (scanProgress * 0.5);
-                    
-                    const pos1 = new THREE.Vector3().lerpVectors(p1, p2, t1);
-                    const pos2 = new THREE.Vector3().lerpVectors(p1, p2, t2);
-                    
-                    // Add subtle spiral offset for "wrapping" look
-                    const angle = zone.life * 10.0;
-                    const offset = new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0).multiplyScalar(0.1);
-                    // Rotate offset to match link direction roughly (simplified: just add it)
-                    
-                    pos1.add(offset);
-                    pos2.add(offset.clone().negate()); // Opposite side spiral
-                    
-                    // Emit stationary particles that fade (leaving a trail)
-                    const intensity = Math.min(1, 0.85 * harmony + 0.35);
-                    
-                    // Distinguish recovery re-stitch trails from main healing trails
-                    this.healingParticles.emitHealingTrail(pos1, new THREE.Vector3(0,0,0), intensity, currentVisualTime, new THREE.Color(0xffffff));
-                    this.healingParticles.emitHealingTrail(pos2, new THREE.Vector3(0,0,0), intensity, currentVisualTime, new THREE.Color(0xffcc00));
+                    const p1 = zone.startNode?.position;
+                    const p2 = zone.endNode?.position;
+                    if (p1 && p2) {
+                        const scanProgress = (zone.life % 2.0) / 2.0;
+                        const t1 = scanProgress * 0.5;
+                        const t2 = 1.0 - (scanProgress * 0.5);
+                        
+                        const pos1 = new THREE.Vector3().lerpVectors(p1, p2, t1);
+                        const pos2 = new THREE.Vector3().lerpVectors(p1, p2, t2);
+                        
+                        const angle = zone.life * 10.0;
+                        const offset = new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0).multiplyScalar(0.1);
+                        
+                        pos1.add(offset);
+                        pos2.add(offset.clone().negate());
+                        
+                        const intensity = Math.min(1, 0.85 * harmony + 0.35);
+                        
+                        this.healingParticles.emitHealingTrail(pos1, new THREE.Vector3(0,0,0), intensity, currentVisualTime, new THREE.Color(0xffffff));
+                        this.healingParticles.emitHealingTrail(pos2, new THREE.Vector3(0,0,0), intensity, currentVisualTime, new THREE.Color(0xffcc00));
+                    }
                 }
             }
             
@@ -514,17 +659,26 @@ export class HarmonicRecoveryVisualSystem_Session138 {
 
         return {
             enabled: this.enabled,
+            eventDrivenEnabled: this._eventDrivenEnabled,
             activeRuptures: this.activeRuptureIds.size,
             recoveringZones: this.recoveringZones.length,
             wavePoolActive: waveActive,
             haloPoolActive: haloActive,
             hasHealingParticles: !!this.healingParticles,
+            cooldowns: {
+                wave: this._waveCooldowns.size,
+                stitching: this._stitchingCooldowns.size,
+                halo: this._haloCooldowns.size
+            },
             config: {
                 minRecoveryDuration: this.config.minRecoveryDuration,
                 maxRecoveryDuration: this.config.maxRecoveryDuration,
                 waveExpansionSpeed: this.config.waveExpansionSpeed,
                 stitchingInterval: this.config.stitchingInterval,
-                maxActiveZones: this.config.maxActiveZones
+                maxActiveZones: this.config.maxActiveZones,
+                waveCooldown: this.config.waveCooldown,
+                stitchingCooldown: this.config.stitchingCooldown,
+                haloCooldown: this.config.haloCooldown
             }
         };
     }
@@ -532,15 +686,22 @@ export class HarmonicRecoveryVisualSystem_Session138 {
     dispose() {
         // Clean up meshes
         this.waveMeshPool.forEach(item => {
-            this.scene.remove(item.mesh);
-            item.mesh.geometry.dispose();
-        });
-        this.haloMeshPool.forEach(item => {
-            this.scene.remove(item.mesh);
-            item.mesh.geometry.dispose();
-        });
-        
-        this.waveMaterial.dispose();
-        this.haloMaterial.dispose();
-    }
-}
+             this.scene.remove(item.mesh);
+             item.mesh.geometry.dispose();
+         });
+         this.haloMeshPool.forEach(item => {
+             this.scene.remove(item.mesh);
+             item.mesh.geometry.dispose();
+         });
+         
+         this.waveMaterial.dispose();
+         this.haloMaterial.dispose();
+         
+         if (typeof this._unsubscribeHarmonyHigh === 'function') {
+             this._unsubscribeHarmonyHigh();
+         }
+         if (typeof this._unsubscribeHarmonyMid === 'function') {
+             this._unsubscribeHarmonyMid();
+         }
+     }
+ }

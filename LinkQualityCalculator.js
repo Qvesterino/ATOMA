@@ -24,6 +24,8 @@
  * ============================================================================
  */
 
+import { buildMetricTierEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './src/metrics/MetricTierClassifier.js';
+
 export class LinkQualityCalculator {
   /**
    * Initialize the link quality calculator
@@ -63,6 +65,52 @@ export class LinkQualityCalculator {
     
     // Internal tracking
     this.linkQualityCache = new Map(); // linkId → { lastUpdate, previousScore }
+  }
+
+  _emitLinkMetricTierEvents(link, quality, now) {
+    const semanticBus = this.semanticBus || globalThis?.semanticBus || null;
+    if (!semanticBus?.emit || !link) return;
+
+    if (!link.userData) link.userData = {};
+    const state = link.userData.__metricEventState || (link.userData.__metricEventState = {});
+    const tiers = state.metricTiers || (state.metricTiers = {});
+    const linkId = this._getLinkId(link);
+
+    const entries = [
+      { metric: 'synergy', value: this._clamp01((quality?.score ?? 0) / 100) },
+      { metric: 'harmony', value: this._clamp01((quality?.harmony ?? 0) / 100) },
+      { metric: 'stability', value: this._clamp01((quality?.structural ?? 0) / 100) },
+      { metric: 'corruption', value: this._clamp01(1 - this._clamp01((quality?.corruption ?? 0) / 100)) },
+      { metric: 'loadPressure', value: this._clamp01(1 - this._clamp01((quality?.load ?? 0) / 100)) }
+    ];
+
+    for (const entry of entries) {
+      const previousTier = normalizeMetricTier(tiers[entry.metric] ?? null);
+      const nextTier = classifyMetricTier(entry.value, previousTier, getDefaultMetricThresholds(entry.metric));
+      if (previousTier === null) {
+        tiers[entry.metric] = nextTier;
+        continue;
+      }
+      if (nextTier === previousTier) continue;
+
+      tiers[entry.metric] = nextTier;
+      const payload = {
+        scope: 'link',
+        linkId,
+        metric: entry.metric,
+        tier: nextTier,
+        previousTier,
+        value: entry.value,
+        score: quality?.score ?? 0,
+        source: 'LinkQualityCalculator',
+        timestamp: now
+      };
+
+      // Internal hook only for tooling and diagnostics.
+      semanticBus.emit('metric.tier.changed', payload, { priority: semanticBus.priority?.NORMAL });
+      // Primary public surface for link-level reactions.
+      semanticBus.emit(buildMetricTierEventName('link', entry.metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
+    }
   }
   
   /**
@@ -211,6 +259,8 @@ export class LinkQualityCalculator {
         });
       }
     }
+
+    this._emitLinkMetricTierEvents(link, quality, now);
     
     // ========== 8. UPDATE CACHE ==========
     cache.previousScore = finalScore;

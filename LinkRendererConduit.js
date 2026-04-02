@@ -1900,6 +1900,7 @@ export class LinkRendererConduit {
             ? ((this._particleFrameIndex = (this._particleFrameIndex ?? 0) + 1))
             : (this._particleFrameIndex ?? 0);
         const runResonanceFlowEffects = shouldRunLinkEffect('conduit', 'resonanceFlow', { run30 }, effectFrameIndex);
+        const runParticleSystemEffects = shouldRunLinkEffect('conduit', 'particleSystem', { run30 }, particleFrameIndex);
 
         if (runResonanceFlowEffects) {
             this.updateLinkResonanceFlow(deltaTime, time, list, this.camera);
@@ -1907,7 +1908,13 @@ export class LinkRendererConduit {
 
         // Heavy link selection (LOD)
         const heavyAllowed = this._selectHeavyLinks(list, this.camera, this.heavyDistance, this.maxHeavyLinks);
-        const heavyLinks = heavyAllowed ? list.filter(l => heavyAllowed.has(l?.id)) : list;
+        const heavyLinks = heavyAllowed ? (this._heavyLinksScratch || (this._heavyLinksScratch = [])) : list;
+        if (heavyAllowed) {
+            heavyLinks.length = 0;
+            for (const link of list) {
+                if (heavyAllowed.has(link?.id)) heavyLinks.push(link);
+            }
+        }
 
         // Ensure pictograms stay enabled when we have links to render
         if (this.pictogramSystem && !this.pictogramSystem.enabled && list.length > 0) {
@@ -2002,10 +2009,10 @@ export class LinkRendererConduit {
         }
 
         // Shared healing particle system update
-        if (run30 && shouldRunLinkEffect('conduit', 'particleSystem', { run30 }, particleFrameIndex)) this.updateHealingParticles(deltaTime, time);
+        if (run30 && runParticleSystemEffects) this.updateHealingParticles(deltaTime, time);
 
         // PATCH 2: Update corruption particle systems
-        if (run30 && shouldRunLinkEffect('conduit', 'particleSystem', { run30 }, particleFrameIndex) && this.corruptionParticleSystem?.update) {
+        if (run30 && runParticleSystemEffects && this.corruptionParticleSystem?.update) {
             this.corruptionParticleSystem.update(deltaTime, time);
         }
         // Spread animator is updated per-link in update(); global call removed

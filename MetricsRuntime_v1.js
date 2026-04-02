@@ -48,6 +48,7 @@
 
 import { NetworkMembershipResolver } from './src/metrics/NetworkMembershipResolver.js';
 import { NetworkMetricsAggregator } from './src/metrics/NetworkMetricsAggregator.js';
+import { buildMetricTierEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './src/metrics/MetricTierClassifier.js';
 import { updateNodeMetrics } from './src/metrics/NodeMetricEngine.js';
 import { MetricValidationRuntime } from './MetricValidationRuntime.js';
 
@@ -67,35 +68,9 @@ const SEMANTIC_DELTA = {
     corruptionLevel: 0.05,
     loadPressure: 0.05
 };
-const METRIC_PHASE_THRESHOLDS = {
-    low: 0.25,
-    high: 0.75,
-    lowExit: 0.32,
-    highExit: 0.68
-};
 const NODE_EVENT_COOLDOWN_MS = 2000;
 const NODE_METRIC_UPDATED_COOLDOWN_MS = 100; // 10 Hz per node
 const LINK_SPREAD_DELTA_MIN = 0.01;
-
-function classifyMetricPhase(value, previousPhase = null) {
-    const normalized = Math.max(0, Math.min(1, Number(value) || 0));
-
-    if (previousPhase === 'high') {
-        if (normalized >= METRIC_PHASE_THRESHOLDS.highExit) return 'high';
-        if (normalized <= METRIC_PHASE_THRESHOLDS.low) return 'low';
-        return 'normal';
-    }
-
-    if (previousPhase === 'low') {
-        if (normalized <= METRIC_PHASE_THRESHOLDS.lowExit) return 'low';
-        if (normalized >= METRIC_PHASE_THRESHOLDS.high) return 'high';
-        return 'normal';
-    }
-
-    if (normalized >= METRIC_PHASE_THRESHOLDS.high) return 'high';
-    if (normalized <= METRIC_PHASE_THRESHOLDS.low) return 'low';
-    return 'normal';
-}
 
 export class MetricsRuntime_v1 {
     /**
@@ -173,7 +148,7 @@ export class MetricsRuntime_v1 {
                 corruptionLevel: null,
                 loadPressure: null
             },
-            phases: {
+            tiers: {
                 synergy: null,
                 harmony: null,
                 stability: null,
@@ -186,6 +161,7 @@ export class MetricsRuntime_v1 {
                 loadPressureHigh: false
             }
         };
+        this._semanticSignalState.phases = this._semanticSignalState.tiers;
 
         // Canonical field audit (orphan/stale detection for high-impact node fields)
         this._canonicalFieldAudit = {
@@ -579,16 +555,6 @@ const adapter = this._createLinkSystemAdapter(
             let changedMetric = null;
             let changedValue = null;
             const synergyValue = this._clamp01(metrics.synergy);
-
-            if (synergyValue > 0.60 && this._canEmitNodeCooldown(node, 'nodeSynergyHigh', nowMs, NODE_METRIC_UPDATED_COOLDOWN_MS)) {
-                semanticBus.emit('node.synergy.high', {
-                    nodeId,
-                    synergy: synergyValue,
-                    position: node?.position
-                        ? { x: node.position.x, y: node.position.y, z: node.position.z }
-                        : undefined
-                }, { priority: semanticBus.priority?.INTERACTIVE });
-            }
 
             for (const metric of metricKeys) {
                 const value = this._clamp01(metrics[metric]);
@@ -1149,7 +1115,7 @@ const adapter = this._createLinkSystemAdapter(
         }
 
         this._emitGameplayTriggers(current, context);
-        this._emitMetricPhaseSignals(current, context);
+        this._emitMetricTierSignals(current, context);
         this._semanticSignalState.last = current;
     }
 
@@ -1200,7 +1166,7 @@ const adapter = this._createLinkSystemAdapter(
         }
     }
 
-    _emitMetricPhaseSignals(metricsPayload, context = {}) {
+    _emitMetricTierSignals(metricsPayload, context = {}) {
         const semanticBus = globalThis?.semanticBus;
         if (!semanticBus?.emit) return;
 
@@ -1209,8 +1175,8 @@ const adapter = this._createLinkSystemAdapter(
             : Date.now();
         const nodeCount = Number.isFinite(context.nodeCount) ? context.nodeCount : 0;
         const linkCount = Number.isFinite(context.linkCount) ? context.linkCount : 0;
-        const phases = this._semanticSignalState?.phases;
-        if (!phases) return;
+        const tiers = this._semanticSignalState?.tiers || this._semanticSignalState?.phases;
+        if (!tiers) return;
 
         const entries = [
             { metric: 'synergy', value: this._clamp01(metricsPayload?.networkSynergy) },
@@ -1221,29 +1187,38 @@ const adapter = this._createLinkSystemAdapter(
         ];
 
         for (const entry of entries) {
-            const previousPhase = phases[entry.metric] ?? null;
-            const nextPhase = classifyMetricPhase(entry.value, previousPhase);
-            if (previousPhase === null) {
-                phases[entry.metric] = nextPhase;
+            const previousTier = normalizeMetricTier(tiers[entry.metric] ?? null);
+            const nextTier = classifyMetricTier(entry.value, previousTier, getDefaultMetricThresholds(entry.metric));
+            if (previousTier === null) {
+                tiers[entry.metric] = nextTier;
                 continue;
             }
-            if (nextPhase === previousPhase) {
+            if (nextTier === previousTier) {
                 continue;
             }
 
-            phases[entry.metric] = nextPhase;
-            semanticBus.emit('metric.phase.changed', {
+            tiers[entry.metric] = nextTier;
+            this._semanticSignalState.phases = tiers;
+            const payload = {
+                scope: 'global',
                 metric: entry.metric,
-                phase: nextPhase,
-                previousPhase,
+                tier: nextTier,
+                previousTier,
                 value: entry.value,
                 nodeId: null,
                 nodeCount,
                 linkCount,
                 timestamp: now,
                 source: 'MetricsRuntime_v1',
-                scope: 'network'
-            }, { priority: semanticBus.priority?.NORMAL });
+            };
+            // Internal hook only:
+            // - use this when tooling needs a generic tier transition feed
+            // - global consumers should still prefer explicit alias events
+            // - keep the event available for diagnostics, not as the main wiring path
+            semanticBus.emit('metric.tier.changed', payload, { priority: semanticBus.priority?.NORMAL });
+            // Primary public surface for global reactions:
+            // scoped metric alias events stay simpler for VFX and gameplay consumers
+            semanticBus.emit(buildMetricTierEventName('global', entry.metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
         }
     }
 
@@ -1323,6 +1298,14 @@ const adapter = this._createLinkSystemAdapter(
             nodeCount: scope.__ATOMA_LIVE_METRICS__.nodeCount,
             linkCount: scope.__ATOMA_LIVE_METRICS__.linkCount,
         };
+        scope.globalMetrics = {
+            synergy: scope.__ATOMA_LIVE_METRICS__.networkSynergy,
+            harmony: scope.__ATOMA_LIVE_METRICS__.harmonyFlow,
+            stability: this._clamp01(1 - scope.__ATOMA_LIVE_METRICS__.networkStress),
+            corruption: scope.__ATOMA_LIVE_METRICS__.corruptionLevel,
+            load: scope.__ATOMA_LIVE_METRICS__.loadPressure
+        };
+        scope.world.metrics.globalMetrics = { ...scope.globalMetrics };
     }
 
     /**

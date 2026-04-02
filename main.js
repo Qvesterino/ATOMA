@@ -1514,7 +1514,10 @@ class SemanticEventBus {
             ['link:synergyThreshold', { cooldownMs: 160, aggregateWithinMs: 260, aggregationStrategy: 'latest' }],
             ['link:harmonicLock', { cooldownMs: 160, aggregateWithinMs: 260, aggregationStrategy: 'latest' }],
 
-            // Canonical metric phase layer: immediate, unbuffered routing for normalized metric states.
+            // Internal tier hook: immediate, unbuffered routing for diagnostics/tooling only.
+            ['metric.tier.changed', { cooldownMs: 0, aggregateWithinMs: 0, aggregationStrategy: 'latest' }],
+
+            // Legacy adapter lane: keep the normalized phase shape alive only for old consumers.
             ['metric.phase.changed', { cooldownMs: 0, aggregateWithinMs: 0, aggregationStrategy: 'latest' }],
 
             // Legacy metric thresholds: compatibility fallback, intentionally buffered.

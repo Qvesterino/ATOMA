@@ -5,6 +5,7 @@
  */
 
 import { assertMetricAuthority, traceMetricMutation } from './MetricAuthorityGuard.js';
+import { buildMetricTierEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './MetricTierClassifier.js';
 
 const DEFAULT_METRICS = {
   synergy: 0,
@@ -114,12 +115,6 @@ const SEMANTIC_THRESHOLDS = {
   loadPressure: 0.05,
 };
 const NODE_METRIC_UPDATED_EVENT_INTERVAL_MS = 100; // 10Hz max per node
-const METRIC_PHASE_THRESHOLDS = {
-  low: 0.25,
-  high: 0.75,
-  lowExit: 0.32,
-  highExit: 0.68
-};
 
 // Track last emitted values to avoid per-frame spam
 const lastEmittedMetricValue = new Map(); // key: `${nodeId}:${metric}` → value
@@ -145,26 +140,6 @@ function shouldEmit(metric, after, nodeId) {
 
 function recordEmit(metric, value, nodeId) {
   lastEmittedMetricValue.set(`${nodeId}:${metric}`, value);
-}
-
-function classifyMetricPhase(value, previousPhase = null) {
-  const normalized = clamp01(value);
-
-  if (previousPhase === 'high') {
-    if (normalized >= METRIC_PHASE_THRESHOLDS.highExit) return 'high';
-    if (normalized <= METRIC_PHASE_THRESHOLDS.low) return 'low';
-    return 'normal';
-  }
-
-  if (previousPhase === 'low') {
-    if (normalized <= METRIC_PHASE_THRESHOLDS.lowExit) return 'low';
-    if (normalized >= METRIC_PHASE_THRESHOLDS.high) return 'high';
-    return 'normal';
-  }
-
-  if (normalized >= METRIC_PHASE_THRESHOLDS.high) return 'high';
-  if (normalized <= METRIC_PHASE_THRESHOLDS.low) return 'low';
-  return 'normal';
 }
 
 function emitSemanticMetricEvent(metric, before, after, nodeId) {
@@ -209,38 +184,50 @@ function emitSemanticMetricEvent(metric, before, after, nodeId) {
   }
 }
 
-function emitMetricPhaseChanged(node, metric, before, after, targetId) {
+function emitMetricTierChanged(node, metric, before, after, targetId) {
   const bus = getSemanticBus();
   if (!bus?.emit || !node?.userData) return;
 
   if (!node.userData.__metricEventState) {
+    const metricTiers = {};
     node.userData.__metricEventState = {
       synergyBurstActive: false,
       corruptionSpikeActive: false,
-      metricPhases: {}
+      metricTiers,
+      metricPhases: metricTiers
     };
   }
 
   const state = node.userData.__metricEventState;
-  if (!state.metricPhases) {
-    state.metricPhases = {};
-  }
+  state.metricTiers = state.metricTiers || state.metricPhases || {};
 
-  const previousPhase = state.metricPhases[metric] ?? null;
-  const nextPhase = classifyMetricPhase(after, previousPhase);
-  state.metricPhases[metric] = nextPhase;
+  const previousTier = normalizeMetricTier(state.metricTiers[metric] ?? null);
+  const nextTier = classifyMetricTier(after, previousTier, getDefaultMetricThresholds(metric));
+  state.metricTiers[metric] = nextTier;
+  state.metricPhases = state.metricTiers;
 
-  if (previousPhase === null || previousPhase === nextPhase) {
+  if (previousTier === null || previousTier === nextTier) {
     return;
   }
 
-  bus.emit('metric.phase.changed', {
+  const payload = {
+    scope: 'node',
     nodeId: targetId,
     metric,
-    phase: nextPhase,
-    previousPhase,
-    value: after
-  }, { priority: bus.priority?.NORMAL });
+    tier: nextTier,
+    previousTier,
+    value: after,
+    source: 'NodeMetricEngine'
+  };
+
+  // Internal hook only:
+  // - generic consumers and debug tooling can observe every tier transition here
+  // - gameplay/VFX should prefer the explicit metric alias events below
+  // - keep this event stable, but do not build new feature wiring on top of it
+  bus.emit('metric.tier.changed', payload, { priority: bus.priority?.NORMAL });
+  // Primary public surface:
+  // scoped alias events are easier to read and bind directly in visual systems
+  bus.emit(buildMetricTierEventName('node', metric, nextTier), payload, { priority: bus.priority?.NORMAL });
 }
 
 function emitNodeMetricUpdated(metric, value, nodeId) {
@@ -278,10 +265,12 @@ function emitNodeThresholdEvents(node) {
   if (!node?.userData) return;
   const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   if (!node.userData.__metricEventState) {
+    const metricTiers = {};
     node.userData.__metricEventState = {
       synergyBurstActive: false,
       corruptionSpikeActive: false,
-      metricPhases: {}
+      metricTiers,
+      metricPhases: metricTiers
     };
   }
   const state = node.userData.__metricEventState;
@@ -319,7 +308,7 @@ function writeMetric(metrics, key, nextValue, targetId = 'unknown-node', node = 
   }
   traceMetricMutation('NodeMetricEngine', `node.${key}`, before, after, targetId);
   emitNodeMetricUpdated(key, after, targetId);
-  emitMetricPhaseChanged(node, key, before, after, targetId);
+  emitMetricTierChanged(node, key, before, after, targetId);
   emitSemanticMetricEvent(key, before, after, targetId);
 }
 

@@ -385,7 +385,7 @@ export class LinkSparkSystem {
             aSpeed.setX(idx, speed);
 
             // Size
-            aSize.setX(idx, 1.2 + Math.random() * 2.2);
+            aSize.setX(idx, (1.2 + Math.random() * 2.2) * 1.5);
 
             // DEBUG: approximate position on curve to verify non-zero coords
             const t = aT.getX(idx);

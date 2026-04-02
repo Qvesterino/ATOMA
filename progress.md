@@ -96,3 +96,6 @@ Original prompt: reduce synergy cascade visual clutter and make the repeated bea
 - Strand-tip sparks now follow a LinkSparkSystem-like lifecycle: explicit LINK_SPARKS render order, frozen matrix, and opacity scaled by active spark count.
 - Strand-tip spark ownership moved out of `LinkRendererConduit` into `LinkTrailParticleSystem.js` as `LinkStrandTipSparkVisual`; the conduit now only delegates spawn/update while the spark buffers and scene attachment live in the trail subsystem.
 - Smoke test after the move passed syntax checks and loaded `http://127.0.0.1:5500/index.html` cleanly, but the screenshot did not include an active spark-emission link yet.
+- `LinkSparkSystem` point sprites were scaled up by 50% to read less tiny in-scene, without changing cadence or spawn rules.
+- Final conduit performance cleanup reused the heavy-links scratch array and cached the shared particle-system cadence boolean in `updateAll()` to avoid per-frame `filter()` churn and duplicate cadence checks.
+- Post-cleanup browser smoke on `http://127.0.0.1:5500/index.html` passed and the scene remained visually stable.
