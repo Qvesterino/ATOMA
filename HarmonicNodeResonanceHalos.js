@@ -219,29 +219,53 @@ function createHaloMaterial() {
  */
 export class HarmonicNodeResonanceHalos {
   constructor(semanticBus = null) {
-    // Per-node halo state tracking
-    this.nodeHalos = new Map(); // nodeId → { node, haloMesh, state, ... }
+    this.nodeHalos = new Map();
     
-    // Cached geometry (shared across all halos)
     this.cachedGeometry = null;
     this.cachedMaterial = null;
     
-    // Time tracking
     this.totalTime = 0;
     this.lastUpdateTime = 0;
     
-    // Stats
     this.activeHaloCount = 0;
 
-    // Event-driven harmony updates
     this.semanticBus = semanticBus || globalThis?.semanticBus || null;
     this.dirtyNodes = new Set();
     this.harmonyByNode = new Map();
     this._eventDrivenEnabled = false;
-    this._harmonyResonanceHandler = null;
-    this._unsubscribeHarmonyResonance = null;
+    
+    this._unsubscribeHarmonyHigh = null;
+    this._unsubscribeHarmonyMid = null;
+    this._unsubscribeHarmonyLow = null;
+    this._harmonyHighHandler = null;
+    this._harmonyMidHandler = null;
+    this._harmonyLowHandler = null;
+    
+    this._nodeCooldowns = new Map();
+    this._cooldowns = {
+      high: 2.0,
+      mid: 4.0,
+      low: 6.0
+    };
 
     this._setupHarmonySubscription();
+  }
+
+  _getCurrentTime() {
+    return (typeof performance !== 'undefined' ? performance.now() / 1000 : Date.now() / 1000);
+  }
+
+  _checkCooldown(nodeId, level) {
+    const key = `${nodeId}_${level}`;
+    const lastTime = this._nodeCooldowns.get(key);
+    if (lastTime === undefined) return false;
+    const now = this._getCurrentTime();
+    return (now - lastTime) < this._cooldowns[level];
+  }
+
+  _setCooldown(nodeId, level) {
+    const key = `${nodeId}_${level}`;
+    this._nodeCooldowns.set(key, this._getCurrentTime());
   }
 
   _setupHarmonySubscription() {
@@ -250,28 +274,76 @@ export class HarmonicNodeResonanceHalos {
       return;
     }
 
-    this._harmonyResonanceHandler = (payload = {}) => {
+    this._harmonyHighHandler = (payload = {}) => {
       const nodeId = payload?.nodeId;
       if (nodeId === undefined || nodeId === null) return;
 
       const id = String(nodeId);
+      if (this._checkCooldown(id, 'high')) return;
+
       const value = Number(payload?.value);
       if (Number.isFinite(value)) {
         this.harmonyByNode.set(id, Math.max(0, Math.min(1, value)));
       }
       this.dirtyNodes.add(id);
+      this._setCooldown(id, 'high');
+    };
+    
+    this._harmonyMidHandler = (payload = {}) => {
+      const nodeId = payload?.nodeId;
+      if (nodeId === undefined || nodeId === null) return;
+
+      const id = String(nodeId);
+      if (this._checkCooldown(id, 'mid')) return;
+
+      const value = Number(payload?.value);
+      if (Number.isFinite(value)) {
+        this.harmonyByNode.set(id, Math.max(0, Math.min(1, value)));
+      }
+      this.dirtyNodes.add(id);
+      this._setCooldown(id, 'mid');
+    };
+    
+    this._harmonyLowHandler = (payload = {}) => {
+      const nodeId = payload?.nodeId;
+      if (nodeId === undefined || nodeId === null) return;
+
+      const id = String(nodeId);
+      if (this._checkCooldown(id, 'low')) return;
+
+      const value = Number(payload?.value);
+      if (Number.isFinite(value)) {
+        this.harmonyByNode.set(id, Math.max(0, Math.min(1, value)));
+      }
+      this.dirtyNodes.add(id);
+      this._setCooldown(id, 'low');
     };
 
-    const maybeUnsubscribe = this.semanticBus.subscribe(
-      'event:harmonyResonance',
-      this._harmonyResonanceHandler
-    );
+    const unsubHigh = this.semanticBus.subscribe('node.harmony.high', this._harmonyHighHandler);
+    const unsubMid = this.semanticBus.subscribe('node.harmony.mid', this._harmonyMidHandler);
+    const unsubLow = this.semanticBus.subscribe('node.harmony.low', this._harmonyLowHandler);
 
-    if (typeof maybeUnsubscribe === 'function') {
-      this._unsubscribeHarmonyResonance = maybeUnsubscribe;
+    if (typeof unsubHigh === 'function') {
+      this._unsubscribeHarmonyHigh = unsubHigh;
     } else if (typeof this.semanticBus.unsubscribe === 'function') {
-      this._unsubscribeHarmonyResonance = () => {
-        this.semanticBus.unsubscribe('event:harmonyResonance', this._harmonyResonanceHandler);
+      this._unsubscribeHarmonyHigh = () => {
+        this.semanticBus.unsubscribe('node.harmony.high', this._harmonyHighHandler);
+      };
+    }
+
+    if (typeof unsubMid === 'function') {
+      this._unsubscribeHarmonyMid = unsubMid;
+    } else if (typeof this.semanticBus.unsubscribe === 'function') {
+      this._unsubscribeHarmonyMid = () => {
+        this.semanticBus.unsubscribe('node.harmony.mid', this._harmonyMidHandler);
+      };
+    }
+
+    if (typeof unsubLow === 'function') {
+      this._unsubscribeHarmonyLow = unsubLow;
+    } else if (typeof this.semanticBus.unsubscribe === 'function') {
+      this._unsubscribeHarmonyLow = () => {
+        this.semanticBus.unsubscribe('node.harmony.low', this._harmonyLowHandler);
       };
     }
 
@@ -870,7 +942,10 @@ export class HarmonicNodeResonanceHalos {
       trackedNodeCount: this.nodeHalos.size,
       totalTime: this.totalTime,
       cachedGeometry: this.cachedGeometry ? 'yes' : 'no',
-      cachedMaterial: this.cachedMaterial ? 'yes' : 'no'
+      cachedMaterial: this.cachedMaterial ? 'yes' : 'no',
+      eventDrivenEnabled: this._eventDrivenEnabled,
+      activeCooldowns: this._nodeCooldowns.size,
+      cooldownConfig: this._cooldowns
     };
   }
 
@@ -878,18 +953,31 @@ export class HarmonicNodeResonanceHalos {
    * Dispose all halos
    */
   dispose() {
-    if (typeof this._unsubscribeHarmonyResonance === 'function') {
+    if (typeof this._unsubscribeHarmonyHigh === 'function') {
       try {
-        this._unsubscribeHarmonyResonance();
-      } catch (e) {
-        // Skip silently
-      }
+        this._unsubscribeHarmonyHigh();
+      } catch (e) {}
+    }
+    if (typeof this._unsubscribeHarmonyMid === 'function') {
+      try {
+        this._unsubscribeHarmonyMid();
+      } catch (e) {}
+    }
+    if (typeof this._unsubscribeHarmonyLow === 'function') {
+      try {
+        this._unsubscribeHarmonyLow();
+      } catch (e) {}
     }
 
-    this._unsubscribeHarmonyResonance = null;
-    this._harmonyResonanceHandler = null;
+    this._unsubscribeHarmonyHigh = null;
+    this._unsubscribeHarmonyMid = null;
+    this._unsubscribeHarmonyLow = null;
+    this._harmonyHighHandler = null;
+    this._harmonyMidHandler = null;
+    this._harmonyLowHandler = null;
     this.dirtyNodes.clear();
     this.harmonyByNode.clear();
+    this._nodeCooldowns.clear();
     this._eventDrivenEnabled = false;
 
     this.nodeHalos.forEach((haloData) => {
@@ -900,14 +988,14 @@ export class HarmonicNodeResonanceHalos {
         haloData.node.remove(haloData.haloMesh);
       }
     });
-    
+
     this.nodeHalos.clear();
-    
+
     if (this.cachedGeometry) {
       this.cachedGeometry.dispose();
       this.cachedGeometry = null;
     }
-    
+
     if (this.cachedMaterial) {
       this.cachedMaterial.dispose();
       this.cachedMaterial = null;

@@ -1415,22 +1415,65 @@ import { AtomaDebugHUD_1_0 } from './AtomaDebugHUD_1_0.js';
  * Lightweight event bus for meaning-driven triggers.
  *
  * Canonical semantic naming:
- * - Format: `category.eventName` (e.g. `node.spawned`, `metric.corruptionRise`)
+ * - Format: `category.eventName` for general events and `scope.metric.tier` for metric tiers
+ *   (e.g. `node.spawned`, `node.harmony.high`, `global.loadPressure.high`)
  * - Categories:
- *   - `network:*` high-level network state transitions
- *   - `node:*` node lifecycle/selection/evolution transitions
- *   - `link:*` link lifecycle and semantic threshold transitions
- *   - `metric:*` canonical metric-derived semantic signals
+  *   - `network:*` high-level network state transitions
+  *   - `node:*` node lifecycle/selection/evolution transitions
+  *   - `link:*` link lifecycle and semantic threshold transitions
+ *   - `metric:*` legacy metric-derived compatibility signals
+ * Alias bridge:
+ * - legacy threshold / behavior tags are resolved to the canonical scoped tier surface
+ * - keep new consumer wiring on `scope.metric.tier`, not on `metric:*`
  *
  * Subscription guidance:
  * - Producers emit only on threshold crossing, meaningful delta, or state change.
  * - Consumers subscribe through `subscribe()` or alias `on()`.
  * - Keep payloads compact and immutable-at-callsite.
  */
+const SCOPED_METRIC_EVENT_SCOPES = new Set(['node', 'link', 'global', 'hub']);
+const SCOPED_METRIC_EVENT_NAMES = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure'];
+const SCOPED_METRIC_TIER_POLICY = Object.freeze({
+    cooldownMs: 0,
+    aggregateWithinMs: 0,
+    aggregationStrategy: 'latest'
+});
+
+function buildScopedMetricEventName(scope, metric, tier) {
+    const scopeName = String(scope || '').trim().toLowerCase();
+    return `${scopeName}.${metric}.${tier}`;
+}
+
+function resolveMetricAliasScope(payload, fallbackScope = 'node') {
+    const explicitScope = String(payload?.scope || '').trim().toLowerCase();
+    if (SCOPED_METRIC_EVENT_SCOPES.has(explicitScope)) {
+        return explicitScope;
+    }
+
+    const source = String(payload?.source || '').toLowerCase();
+    if (source.includes('metricsruntime')) return 'global';
+    if (source.includes('linkqualitycalculator')) return 'link';
+    if (source.includes('harmonichubaurasystem')) return 'hub';
+    if (source.includes('nodemetricengine') || source.includes('linkcorruptiontransmission')) return 'node';
+
+    if (payload?.hubId) return 'hub';
+    if (payload?.linkId) return 'link';
+    if (payload?.nodeId) return 'node';
+    if (Number.isFinite(payload?.nodeCount) || Number.isFinite(payload?.linkCount)) return 'global';
+
+    return fallbackScope;
+}
+
 class SemanticEventBus {
     constructor() {
         this.handlers = new Map();
         this.prefixListeners = [];
+        this.eventAliasRegistry = new Map();
+        this.metricAliasCatalog = {
+            tier: [],
+            behavior: [],
+            drop: []
+        };
         this.priority = {
             CRITICAL: 0,
             INTERACTIVE: 1,
@@ -1513,6 +1556,71 @@ class SemanticEventBus {
             ['link:collapsed', { cooldownMs: 120, aggregateWithinMs: 200, aggregationStrategy: 'latest' }],
             ['link:synergyThreshold', { cooldownMs: 160, aggregateWithinMs: 260, aggregationStrategy: 'latest' }],
             ['link:harmonicLock', { cooldownMs: 160, aggregateWithinMs: 260, aggregationStrategy: 'latest' }],
+
+            // Canonical scoped metric tiers: primary public surface for metric tier transitions.
+            ['node.synergy.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['node.synergy.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['node.synergy.high', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['node.harmony.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['node.harmony.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['node.harmony.high', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['node.stability.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['node.stability.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['node.stability.high', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['node.corruption.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['node.corruption.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['node.corruption.high', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['node.loadPressure.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['node.loadPressure.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['node.loadPressure.high', { ...SCOPED_METRIC_TIER_POLICY }],
+
+            ['global.synergy.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['global.synergy.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['global.synergy.high', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['global.harmony.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['global.harmony.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['global.harmony.high', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['global.stability.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['global.stability.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['global.stability.high', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['global.corruption.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['global.corruption.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['global.corruption.high', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['global.loadPressure.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['global.loadPressure.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['global.loadPressure.high', { ...SCOPED_METRIC_TIER_POLICY }],
+
+            ['link.synergy.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['link.synergy.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['link.synergy.high', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['link.harmony.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['link.harmony.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['link.harmony.high', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['link.stability.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['link.stability.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['link.stability.high', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['link.corruption.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['link.corruption.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['link.corruption.high', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['link.loadPressure.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['link.loadPressure.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['link.loadPressure.high', { ...SCOPED_METRIC_TIER_POLICY }],
+
+            ['hub.synergy.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['hub.synergy.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['hub.synergy.high', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['hub.harmony.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['hub.harmony.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['hub.harmony.high', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['hub.stability.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['hub.stability.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['hub.stability.high', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['hub.corruption.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['hub.corruption.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['hub.corruption.high', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['hub.loadPressure.low', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['hub.loadPressure.mid', { ...SCOPED_METRIC_TIER_POLICY }],
+            ['hub.loadPressure.high', { ...SCOPED_METRIC_TIER_POLICY }],
 
             // Internal tier hook: immediate, unbuffered routing for diagnostics/tooling only.
             ['metric.tier.changed', { cooldownMs: 0, aggregateWithinMs: 0, aggregationStrategy: 'latest' }],
@@ -1826,6 +1934,10 @@ class SemanticEventBus {
             loads: {},
             timestamp: performance.now()
         };
+
+        // Phase 1 metric alias bridge:
+        // legacy threshold events remain the producer-side signal; the bus fans them into the canonical scoped tier surface.
+        this._registerLegacyMetricTierAliases();
     }
     incrementEventCounter(tag, payload) {
         // Track cascade.hop for VFX pipeline verification
@@ -1889,6 +2001,71 @@ class SemanticEventBus {
     getEventCounters() {
         return { ...this.eventCounters };
     }
+    getMetricAliasCatalog() {
+        return {
+            tier: [...this.metricAliasCatalog.tier],
+            behavior: [...this.metricAliasCatalog.behavior],
+            drop: [...this.metricAliasCatalog.drop]
+        };
+    }
+    _registerScopedMetricTierPolicies() {
+        for (const scope of ['node', 'global', 'link', 'hub']) {
+            for (const metric of SCOPED_METRIC_EVENT_NAMES) {
+                for (const tier of ['low', 'mid', 'high']) {
+                    const tag = buildScopedMetricEventName(scope, metric, tier);
+                    if (!this.eventPolicies.has(tag)) {
+                        this.eventPolicies.set(tag, { ...SCOPED_METRIC_TIER_POLICY });
+                    }
+                }
+            }
+        }
+    }
+    _registerLegacyMetricTierAliases() {
+        const tierAliases = [
+            { legacyTag: 'metric:synergySpike', metric: 'synergy', tier: 'high', fallbackScope: 'node' },
+            { legacyTag: 'metric:harmonyPeak', metric: 'harmony', tier: 'high', fallbackScope: 'node' },
+            { legacyTag: 'metric:stabilityDrop', metric: 'stability', tier: 'low', fallbackScope: 'node' },
+            { legacyTag: 'metric:corruptionRise', metric: 'corruption', tier: 'high', fallbackScope: 'node' },
+            { legacyTag: 'metric:loadPressureHigh', metric: 'loadPressure', tier: 'high', fallbackScope: 'global' }
+        ];
+        const behaviorAliases = [
+            { legacyTag: 'metric.synergy.burst', metric: 'synergy', tier: 'high', fallbackScope: 'node' },
+            { legacyTag: 'metric.corruption.spike', metric: 'corruption', tier: 'high', fallbackScope: 'node' },
+            { legacyTag: 'synergy.fade', metric: 'synergy', tier: 'low', fallbackScope: 'global' }
+        ];
+
+        this._registerScopedMetricTierPolicies();
+
+        for (const alias of tierAliases) {
+            this.registerEventAlias(
+                alias.legacyTag,
+                (payload) => buildScopedMetricEventName(
+                    resolveMetricAliasScope(payload, alias.fallbackScope),
+                    alias.metric,
+                    alias.tier
+                ),
+                { category: 'tier' }
+            );
+        }
+
+        for (const alias of behaviorAliases) {
+            this.registerEventAlias(
+                alias.legacyTag,
+                (payload) => buildScopedMetricEventName(
+                    resolveMetricAliasScope(payload, alias.fallbackScope),
+                    alias.metric,
+                    alias.tier
+                ),
+                { category: 'behavior' }
+            );
+        }
+
+        this.registerEventAlias(
+            'metric.node.updated',
+            () => 'node.metric.updated',
+            { category: 'behavior' }
+        );
+    }
     animate() {
         requestAnimationFrame(() => this.animate());
         this.logEventAudit();
@@ -1921,7 +2098,67 @@ class SemanticEventBus {
     off(tag, handler) {
         this.unsubscribe(tag, handler);
     }
+    registerEventAlias(aliasTag, targetResolver, opts = {}) {
+        if (typeof aliasTag !== 'string' || !aliasTag) return;
+        const category = opts.category || 'tier';
+        const rule = {
+            category,
+            enabled: opts.enabled !== false,
+            targetResolver: typeof targetResolver === 'function'
+                ? targetResolver
+                : () => targetResolver
+        };
+        if (!this.eventAliasRegistry.has(aliasTag)) {
+            this.eventAliasRegistry.set(aliasTag, []);
+        }
+        this.eventAliasRegistry.get(aliasTag).push(rule);
+        const catalog = this.metricAliasCatalog?.[category];
+        if (Array.isArray(catalog) && !catalog.includes(aliasTag)) {
+            catalog.push(aliasTag);
+        }
+    }
+    resolveEventAliases(tag, payload, opts = {}) {
+        const rules = this.eventAliasRegistry.get(tag);
+        if (!rules || rules.length === 0) return [];
+        const targets = [];
+        const seen = new Set();
+        for (const rule of rules) {
+            if (!rule?.enabled) continue;
+            let resolved;
+            try {
+                resolved = rule.targetResolver(payload, opts, this);
+            } catch (err) {
+                console.warn('[SemanticEventBus] alias resolver failed for', tag, err);
+                continue;
+            }
+            const values = Array.isArray(resolved) ? resolved : [resolved];
+            for (const value of values) {
+                if (typeof value !== 'string' || !value) continue;
+                if (value === tag) continue;
+                if (seen.has(value)) continue;
+                seen.add(value);
+                targets.push(value);
+            }
+        }
+        return targets;
+    }
+    dispatchAliasTargets(targets, payload, opts = {}) {
+        if (!Array.isArray(targets) || targets.length === 0) return;
+        for (const target of targets) {
+            const nextOpts = {
+                ...opts,
+                expandAliases: false
+            };
+            if (opts.immediate) {
+                this.emitImmediate(target, payload, nextOpts);
+            } else {
+                this.emit(target, payload, nextOpts);
+            }
+        }
+    }
     emit(tag, payload, opts = {}) {
+        const allowAliasExpansion = opts.expandAliases !== false;
+        const aliasTargets = allowAliasExpansion ? this.resolveEventAliases(tag, payload, opts) : [];
         const exactHandlers = this.handlers.get(tag) || [];
         const prefixHandlers = [];
         for (const listener of this.prefixListeners) {
@@ -1935,8 +2172,7 @@ class SemanticEventBus {
         const list = exactHandlers.length > 0
             ? (prefixHandlers.length > 0 ? exactHandlers.concat(prefixHandlers) : exactHandlers)
             : prefixHandlers;
-        if (!list || list.length === 0) return;
-        this.incrementEventCounter(tag, payload);
+        if ((!list || list.length === 0) && aliasTargets.length === 0) return;
         const eventPriority = this.normalizePriority(opts.priority);
         const now = performance.now();
         const basePolicy = opts.policy || this.eventPolicies.get(tag);
@@ -1945,6 +2181,11 @@ class SemanticEventBus {
             if (opts.cooldownMs !== undefined) policy.cooldownMs = opts.cooldownMs;
             if (opts.cooldownKey !== undefined) policy.cooldownKey = opts.cooldownKey;
         }
+        const dispatchList = list && list.length > 0
+            ? list
+            : [{ fn: () => {}, priority: eventPriority }];
+
+        this.incrementEventCounter(tag, payload);
         // Phase E.4: suppression pre-check before aggregation/cooldown
         if (this.shouldSuppress(tag, policy, eventPriority)) {
             this.stats.suppressedEvents++;
@@ -1958,17 +2199,22 @@ class SemanticEventBus {
                 policy,
                 timestamp: now
             });
+            if (aliasTargets.length > 0) {
+                this.dispatchAliasTargets(aliasTargets, payload, { ...opts, immediate: true, expandAliases: false });
+            }
             return;
         }
         // Phase E.3: semantic aggregation before enqueue
         if (policy?.aggregateWithinMs) {
-            this.handleAggregateEmit(tag, payload, list, eventPriority, policy, now);
+            this.handleAggregateEmit(tag, payload, dispatchList, eventPriority, policy, now, aliasTargets);
             return;
         }
-        this.enqueueEventInstances(tag, payload, list, eventPriority, policy, now);
+        this.enqueueEventInstances(tag, payload, dispatchList, eventPriority, policy, now, aliasTargets);
     }
 
     emitImmediate(tag, payload, opts = {}) {
+        const allowAliasExpansion = opts.expandAliases !== false;
+        const aliasTargets = allowAliasExpansion ? this.resolveEventAliases(tag, payload, opts) : [];
         const exactHandlers = this.handlers.get(tag) || [];
         const prefixHandlers = [];
         for (const listener of this.prefixListeners) {
@@ -1983,27 +2229,33 @@ class SemanticEventBus {
         const list = exactHandlers.length > 0
             ? (prefixHandlers.length > 0 ? exactHandlers.concat(prefixHandlers) : exactHandlers)
             : prefixHandlers;
-        if (!list || list.length === 0) return;
+        if ((!list || list.length === 0) && aliasTargets.length === 0) return;
 
-        this.incrementEventCounter(tag, payload);
-        const ordered = list
-            .map((handler, index) => ({
-                fn: handler.fn,
-                priority: this.normalizePriority(handler.priority),
-                index
-            }))
-            .sort((left, right) => left.priority - right.priority || left.index - right.index);
+        if (list && list.length > 0) {
+            this.incrementEventCounter(tag, payload);
+            const ordered = list
+                .map((handler, index) => ({
+                    fn: handler.fn,
+                    priority: this.normalizePriority(handler.priority),
+                    index
+                }))
+                .sort((left, right) => left.priority - right.priority || left.index - right.index);
 
-        for (const entry of ordered) {
-            try {
-                entry.fn(payload);
-            } catch (err) {
-                console.warn(`[SemanticBus] Immediate handler failed for ${tag}:`, err);
+            for (const entry of ordered) {
+                try {
+                    entry.fn(payload);
+                } catch (err) {
+                    console.warn(`[SemanticBus] Immediate handler failed for ${tag}:`, err);
+                }
             }
+        }
+
+        if (aliasTargets.length > 0) {
+            this.dispatchAliasTargets(aliasTargets, payload, { ...opts, immediate: true, expandAliases: false });
         }
     }
     // Phase E.3: aggregate similar semantic events within a short window before enqueueing
-    handleAggregateEmit(tag, payload, handlers, eventPriority, policy, now) {
+    handleAggregateEmit(tag, payload, handlers, eventPriority, policy, now, aliasTargets = []) {
         const key = policy.aggregateKey || tag;
         const windowMs = policy.aggregateWithinMs;
         let buffer = this.aggregationBuffers.get(key);
@@ -2021,7 +2273,8 @@ class SemanticEventBus {
                 count: 1,
                 aggregatedValue: this.initAggregateValue(payload, policy?.aggregationStrategy),
                 latestPayload: payload,
-                basePriority: eventPriority
+                basePriority: eventPriority,
+                aliasTargets
             };
             this.aggregationBuffers.set(key, buffer);
             this.recordTraceEntry({
@@ -2041,8 +2294,15 @@ class SemanticEventBus {
         buffer.latestPayload = payload;
         buffer.basePriority = Math.min(buffer.basePriority, eventPriority);
         buffer.aggregatedValue = this.applyAggregationStrategy(buffer.aggregatedValue, payload, policy?.aggregationStrategy);
+        if (aliasTargets.length > 0) {
+            const mergedTargets = new Set(buffer.aliasTargets || []);
+            for (const target of aliasTargets) {
+                if (typeof target === 'string' && target) mergedTargets.add(target);
+            }
+            buffer.aliasTargets = [...mergedTargets];
+        }
     }
-    enqueueEventInstances(tag, payload, handlers, eventPriority, policy, now) {
+    enqueueEventInstances(tag, payload, handlers, eventPriority, policy, now, aliasTargets = []) {
         if (this.shouldSuppress(tag, policy, eventPriority)) {
             this.stats.suppressedEvents++;
             return false;
@@ -2069,7 +2329,8 @@ class SemanticEventBus {
                 t: now,
                 priority: pri,
                 originalPriority: pri,
-                policy
+                policy,
+                aliasTargets: Array.isArray(aliasTargets) ? [...aliasTargets] : []
             };
             queue.items.push(evt);
             this.recordTraceEntry({
@@ -2183,6 +2444,12 @@ class SemanticEventBus {
                 }
                 try {
                     evt.handler(evt.payload);
+                    if (Array.isArray(evt.aliasTargets) && evt.aliasTargets.length > 0) {
+                        this.dispatchAliasTargets(evt.aliasTargets, evt.payload, {
+                            priority: evt.priority,
+                            policy: evt.policy
+                        });
+                    }
                     this.stats.eventsProcessed[pri]++;
                     if (evt.fairnessBoosted) {
                         this.stats.starvedEventsRecovered++;
@@ -2276,7 +2543,8 @@ class SemanticEventBus {
             buffer.handlers,
             buffer.basePriority,
             buffer.policy,
-            now
+            now,
+            buffer.aliasTargets || []
         );
         this.stats.aggregatedEvents++;
         this.aggregationBuffers.delete(key);
@@ -5574,6 +5842,7 @@ this.setHudDirty('nodeInspect');
                 AmbientEntityManager,
                 EmergentThoughtStorms5_0,
                 EnvironmentalHazards,
+                SafeColonyExpansion2,
                 camera: this.camera,
                 aiNodes: this.aiNodes,
                 linkingSystem: this.linkingSystem,
@@ -7533,6 +7802,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 AmbientEntityManager,
                 EmergentThoughtStorms5_0,
                 EnvironmentalHazards,
+                SafeColonyExpansion2,
                 camera: this.camera,
                 aiNodes: this.aiNodes,
                 linkingSystem: this.linkingSystem,

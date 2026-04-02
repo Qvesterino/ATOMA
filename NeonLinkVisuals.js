@@ -2251,8 +2251,8 @@ export class NeonLinkVisuals {
       this.triggerSynergyBurstEffect(data.nodeId);
     };
 
-    on('metric.synergy.burst', handleSynergyBurst, { priority: bus.priority?.NORMAL });
-    this._semanticSubscriptions.push(['metric.synergy.burst', handleSynergyBurst]);
+    on('node.synergy.high', handleSynergyBurst, { priority: bus.priority?.NORMAL });
+    this._semanticSubscriptions.push(['node.synergy.high', handleSynergyBurst]);
   }
 
   triggerSynergyBurstEffect(nodeId) {

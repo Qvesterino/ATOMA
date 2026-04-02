@@ -29,7 +29,7 @@
  * ⚡ stability → Suppressed impulses (shorter lifespan)
  * 
  * SEMANTIC PHASE INPUT:
- * - metric.phase.changed is the preferred normalized signal
+ * - scoped metric tiers are the preferred normalized signal
  * - legacy threshold events remain as compatibility fallback
  * 
  * ARCHITECTURE:
@@ -480,10 +480,9 @@ export class LinkMicroImpulseAdapter {
     bind('link:synergyThreshold', (payload) => this.onSynergyThreshold({ detail: this._normalizePayload(payload) }));
     bind('link:harmonicLock', (payload) => this.onHarmonicLock({ detail: this._normalizePayload(payload) }));
     bind('network:corruptionSpread', (payload) => this.onCorruptionSpread({ detail: this._normalizePayload(payload) }));
-    bind('metric:synergySpike', (payload) => this.onSynergyThreshold({ detail: this._normalizePayload(payload) }));
-    bind('metric:harmonyPeak', (payload) => this.onHarmonicLock({ detail: this._normalizePayload(payload) }));
-    bind('metric:corruptionRise', (payload) => this.onCorruptionSpread({ detail: this._normalizePayload(payload) }));
-    bind('metric.phase.changed', (payload) => this.onMetricPhaseChanged({ detail: this._normalizePayload(payload) }));
+    bind('node.synergy.high', (payload) => this.onSynergyThreshold({ detail: this._normalizePayload(payload) }));
+    bind('node.harmony.high', (payload) => this.onHarmonicLock({ detail: this._normalizePayload(payload) }));
+    bind('node.corruption.high', (payload) => this.onCorruptionSpread({ detail: this._normalizePayload(payload) }));
 
     if (this.debugMode) console.log('[LinkMicroImpulseAdapter] Hooked via semanticBus');
   }

@@ -215,8 +215,8 @@ export class LinkCorruptionParticleSystem {
       this.triggerCorruptionTransmission(data.source, data.target);
     };
 
-    on('metric.corruption.spread', handleSpread, { priority: bus.priority?.NORMAL });
-    this._semanticSubscriptions.push(['metric.corruption.spread', handleSpread]);
+    on('link.corruption.spread', handleSpread, { priority: bus.priority?.NORMAL });
+    this._semanticSubscriptions.push(['link.corruption.spread', handleSpread]);
   }
 
   updateLinkParticles(link, deltaTime, input = null) {

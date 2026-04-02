@@ -95,13 +95,13 @@ export class T2_CorruptionVisualIntegration_v1 {
     };
 
     if (typeof bus.on === 'function') {
-      bus.on('metric.corruption.spike', handleCorruptionSpike, { priority: bus.priority?.NORMAL });
-      this._semanticSubscriptions.push(() => bus.off?.('metric.corruption.spike', handleCorruptionSpike));
+      bus.on('node.corruption.high', handleCorruptionSpike, { priority: bus.priority?.NORMAL });
+      this._semanticSubscriptions.push(() => bus.off?.('node.corruption.high', handleCorruptionSpike));
       return;
     }
 
     if (typeof bus.subscribe === 'function') {
-      const unsubscribe = bus.subscribe('metric.corruption.spike', handleCorruptionSpike);
+      const unsubscribe = bus.subscribe('node.corruption.high', handleCorruptionSpike);
       if (typeof unsubscribe === 'function') {
         this._semanticSubscriptions.push(unsubscribe);
       }

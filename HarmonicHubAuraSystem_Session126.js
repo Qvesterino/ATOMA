@@ -176,18 +176,43 @@ export class HarmonicHubAuraSystem_Session126 {
       fragmentsDeformed: 0,
     };
 
-    this._boundHandleHarmonyResonance = (payload) => this.handleHarmonyResonance(payload);
+    this._hubCooldowns = new Map();
+    this._cooldowns = {
+      high: 3.0,
+      mid: 5.0,
+      low: 8.0
+    };
+
+    this._boundHandleHarmonyHigh = (payload) => this._handleHarmonyHigh(payload);
+    this._boundHandleHarmonyMid = (payload) => this._handleHarmonyMid(payload);
+    this._boundHandleHarmonyLow = (payload) => this._handleHarmonyLow(payload);
     
     this.init();
     
-    console.log('[Session 126] HarmonicHubAuraSystem initialized');
+    console.log('[Session 126] HarmonicHubAuraSystem initialized (Event-Driven Mode)');
+  }
+  
+  _getCurrentTime() {
+    return (typeof performance !== 'undefined' ? performance.now() / 1000 : Date.now() / 1000);
+  }
+
+  _checkCooldown(hubId, level) {
+    const key = `${hubId}_${level}`;
+    const lastTime = this._hubCooldowns.get(key);
+    if (lastTime === undefined) return false;
+    const now = this._getCurrentTime();
+    return (now - lastTime) < this._cooldowns[level];
+  }
+
+  _setCooldown(hubId, level) {
+    const key = `${hubId}_${level}`;
+    this._hubCooldowns.set(key, this._getCurrentTime());
   }
   
   /**
    * Initialize system
    */
   init() {
-    // Create resonance field group
     this.fieldGroup = new THREE.Group();
     this.fieldGroup.name = 'harmonic-hub-fields';
     this.fieldGroup.renderOrder = this.config.fieldRenderOrder;
@@ -196,7 +221,9 @@ export class HarmonicHubAuraSystem_Session126 {
     this._hubDebugMarkerGeometry = new THREE.SphereGeometry(1, 10, 10);
 
     if (this.semanticBus?.subscribe) {
-      this.semanticBus.subscribe('event:harmonyResonance', this._boundHandleHarmonyResonance);
+      this.semanticBus.subscribe('hub.harmony.high', this._boundHandleHarmonyHigh);
+      this.semanticBus.subscribe('hub.harmony.mid', this._boundHandleHarmonyMid);
+      this.semanticBus.subscribe('hub.harmony.low', this._boundHandleHarmonyLow);
     }
   }
   
@@ -1064,6 +1091,72 @@ export class HarmonicHubAuraSystem_Session126 {
     }, { priority: this.semanticBus.priority?.INTERACTIVE });
   }
 
+  _handleHarmonyHigh(payload = {}) {
+    const hubId = payload?.hubId;
+    if (!hubId) return;
+    
+    if (this._checkCooldown(hubId, 'high')) return;
+    
+    const hub = this.hubs.get(hubId);
+    if (!hub || !hub.active) return;
+    
+    const intensity = Number.isFinite(payload?.value) 
+      ? this._clamp01(payload.value) 
+      : 1.0;
+    
+    this.triggerCascade({
+      hubId,
+      intensity,
+      type: 'resonance_high'
+    });
+    
+    this._setCooldown(hubId, 'high');
+  }
+
+  _handleHarmonyMid(payload = {}) {
+    const hubId = payload?.hubId;
+    if (!hubId) return;
+    
+    if (this._checkCooldown(hubId, 'mid')) return;
+    
+    const hub = this.hubs.get(hubId);
+    if (!hub || !hub.active) return;
+    
+    const intensity = Number.isFinite(payload?.value) 
+      ? this._clamp01(payload.value) 
+      : 0.7;
+    
+    this.triggerCascade({
+      hubId,
+      intensity,
+      type: 'resonance_mid'
+    });
+    
+    this._setCooldown(hubId, 'mid');
+  }
+
+  _handleHarmonyLow(payload = {}) {
+    const hubId = payload?.hubId;
+    if (!hubId) return;
+    
+    if (this._checkCooldown(hubId, 'low')) return;
+    
+    const hub = this.hubs.get(hubId);
+    if (!hub || !hub.active) return;
+    
+    const intensity = Number.isFinite(payload?.value) 
+      ? this._clamp01(payload.value) 
+      : 0.4;
+    
+    this.triggerCascade({
+      hubId,
+      intensity,
+      type: 'resonance_low'
+    });
+    
+    this._setCooldown(hubId, 'low');
+  }
+
   handleHarmonyResonance(payload = {}) {
     const harmonyFlow = this._getCurrentHarmonyFlow(payload);
     if (harmonyFlow <= 0) return;
@@ -1093,10 +1186,12 @@ export class HarmonicHubAuraSystem_Session126 {
     return {
       ...this.stats,
       totalHubs: this.hubs.size,
-      activeNodes: this.nodeToHub.size,       // Backward-compatible: node-to-hub map size
-      activeHubNodes,                         // Explicit: total nodes belonging to active hubs
-      activeHubCoreNodes: this.stats.activeHubs, // Explicit: count of primary hub cores
+      activeNodes: this.nodeToHub.size,
+      activeHubNodes,
+      activeHubCoreNodes: this.stats.activeHubs,
       activeWaveInteractions: this.activeWaveInteractions.length,
+      activeCooldowns: this._hubCooldowns.size,
+      cooldownConfig: this._cooldowns
     };
   }
   
@@ -1105,7 +1200,9 @@ export class HarmonicHubAuraSystem_Session126 {
    */
   dispose() {
     if (this.semanticBus?.unsubscribe) {
-      this.semanticBus.unsubscribe('event:harmonyResonance', this._boundHandleHarmonyResonance);
+      this.semanticBus.unsubscribe('hub.harmony.high', this._boundHandleHarmonyHigh);
+      this.semanticBus.unsubscribe('hub.harmony.mid', this._boundHandleHarmonyMid);
+      this.semanticBus.unsubscribe('hub.harmony.low', this._boundHandleHarmonyLow);
     }
 
     if (this.root?.parent) {
@@ -1122,5 +1219,6 @@ export class HarmonicHubAuraSystem_Session126 {
     this.hubs.clear();
     this.fieldMeshes.clear();
     this.nodeToHub.clear();
+    this._hubCooldowns.clear();
   }
 }

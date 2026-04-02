@@ -76,7 +76,7 @@ export class ParticleSemanticDensityAdapter_Session121 {
       this._semanticRefreshRequested = true;
     };
 
-    const unsubMetric = this.semanticBus.subscribe('metric.node.updated', requestRefresh);
+    const unsubMetric = this.semanticBus.subscribe('node.metric.updated', requestRefresh);
     const unsubLink = this.semanticBus.subscribe('link.created', requestRefresh);
     const unsubSpawn = this.semanticBus.subscribe('node.spawned', requestRefresh);
 

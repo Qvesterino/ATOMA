@@ -167,7 +167,7 @@ export class ResonanceCascadeVisualization_Session117B {
   _subscribeSemanticBus() {
     if (!this.semanticBus?.on || this._semanticEventsBound) return;
     this.semanticBus.on('link.created', this._boundHandleLinkCreated);
-    this.semanticBus.on('metric:loadPressureHigh', this._boundHandleLoadPressureHigh);
+    this.semanticBus.on('global.loadPressure.high', this._boundHandleLoadPressureHigh);
     this._semanticEventsBound = true;
   }
 
@@ -175,10 +175,10 @@ export class ResonanceCascadeVisualization_Session117B {
     if (!this._semanticEventsBound) return;
     if (this.semanticBus?.unsubscribe) {
       this.semanticBus.unsubscribe('link.created', this._boundHandleLinkCreated);
-      this.semanticBus.unsubscribe('metric:loadPressureHigh', this._boundHandleLoadPressureHigh);
+      this.semanticBus.unsubscribe('global.loadPressure.high', this._boundHandleLoadPressureHigh);
     } else if (this.semanticBus?.off) {
       this.semanticBus.off('link.created', this._boundHandleLinkCreated);
-      this.semanticBus.off('metric:loadPressureHigh', this._boundHandleLoadPressureHigh);
+      this.semanticBus.off('global.loadPressure.high', this._boundHandleLoadPressureHigh);
     }
     this._semanticEventsBound = false;
   }
@@ -906,7 +906,7 @@ export class ResonanceCascadeVisualization_Session117B {
 
     const payload = {
       ...event,
-      trigger: 'metric:loadPressureHigh',
+      trigger: 'global.loadPressure.high',
       intensity,
       value: intensity,
       strength: intensity

@@ -1,3 +1,5 @@
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+
 const ENVIRONMENT_SYSTEMS = [
   'SafeWorldFXPack',
   'SafeAIWeatherPack',
@@ -11,6 +13,19 @@ const ENVIRONMENT_SYSTEMS = [
   'EnvironmentalHazard',
 
 ];
+
+const ENVIRONMENT_RENDER_LAYERS = Object.freeze({
+  worldFXPack: 'WORLD_BACKGROUND',
+  weatherPack: 'WORLD_BACKGROUND',
+  quantumIllusions: 'WORLD_OVERLAY',
+  ambientEntityManager: 'WORLD_OVERLAY',
+  emergentThoughtStorms: 'WORLD_OVERLAY',
+  safeDreamDepthPack: 'WORLD_OVERLAY',
+  dreamDepthEffectManager: 'WORLD_OVERLAY',
+  colonyExpansion: 'WORLD_OVERLAY',
+  energyOrbManager: 'WORLD_OVERLAY',
+  environmentalHazards: 'WORLD_OVERLAY'
+});
 
 function createSharedEnvironmentAssetRegistry() {
   const materialEntries = new Map();
@@ -207,6 +222,125 @@ export class EnvironmentDomainController {
         d.camera
       );
     this.instances.environmentalHazards.frameScheduler = this.frameScheduler;
+
+    // Add Colony system to environment domain for centralized visual+update lifecycle
+    if (typeof d.SafeColonyExpansion2 === 'function') {
+      this.instances.colonyExpansion = new d.SafeColonyExpansion2(
+        this.scene,
+        this.environmentRoot
+      );
+      this.instances.colonyExpansion.frameScheduler = this.frameScheduler;
+      // Provide no-op initialize if environment not ready yet; main may call separately as well
+      if (typeof this.instances.colonyExpansion.initialize === 'function') {
+        const worldSystems = {
+          nodes: this.deps.aiNodes?.nodes?.reduce((acc, node) => {
+            if (node) acc[node.uuid || node.id] = node;
+            return acc;
+          }, {}) || {},
+          links: this.deps.linkingSystem?.links || [],
+          legendaryRegistry: this.deps.legendaryPack?.registry || null,
+          weatherRegistry: this.deps.weatherPack?.registry || null,
+          worldEvents: this.deps.worldEvents || null,
+          evolutionRegistry: this.deps.evolutionManager?.registry || null,
+          synergyMap: this.deps.synergyMap || {},
+          trafficMap: this.deps.trafficMap || {}
+        };
+        this.instances.colonyExpansion.initialize(worldSystems);
+      }
+    }
+
+    this._applyRenderLayerPolicies();
+  }
+
+  _applyRenderLayerPolicies() {
+    for (const [key, system] of Object.entries(this.instances)) {
+      const layerId = ENVIRONMENT_RENDER_LAYERS[key];
+      if (!system || !layerId) continue;
+
+      const renderOrder = VisualHierarchyRegistry.getRenderOrder(layerId);
+      for (const root of this._collectRenderRoots(system)) {
+        this._bindRenderRoot(root, renderOrder, layerId, key);
+      }
+    }
+  }
+
+  _collectRenderRoots(system) {
+    const candidates = [
+      system.root,
+      system.vfxContainer,
+      system.screenSpaceContainer,
+      system.stormContainer,
+      system.layerContainer,
+      system.overlayQuad,
+      system.registry?.root,
+      system.vfxManager?.root,
+      system.vfxManager?.container,
+      system.vfxManager?.vfxContainer
+    ];
+
+    const roots = [];
+    const seen = new Set();
+    for (const candidate of candidates) {
+      if (!this._isOwnedRenderRoot(candidate) || seen.has(candidate)) continue;
+      seen.add(candidate);
+      roots.push(candidate);
+    }
+
+    return roots;
+  }
+
+  _bindRenderRoot(root, renderOrder, layerId, key) {
+    if (!this._isObject3D(root)) return;
+
+    if (!root.userData) {
+      root.userData = {};
+    }
+
+    root.userData.__environmentLayerId = layerId;
+    root.userData.__environmentOwner = key;
+    this._applyRenderOrderRecursive(root, renderOrder);
+
+    if (root.userData.__environmentRenderHookInstalled) {
+      return;
+    }
+
+    const originalAdd = root.add;
+    root.add = (...children) => {
+      const result = originalAdd.apply(root, children);
+      for (const child of children) {
+        this._applyRenderOrderRecursive(child, renderOrder);
+        if (this._isObject3D(child)) {
+          this._bindRenderRoot(child, renderOrder, layerId, key);
+        }
+      }
+      return result;
+    };
+    root.userData.__environmentRenderHookInstalled = true;
+  }
+
+  _applyRenderOrderRecursive(root, renderOrder) {
+    if (!this._isObject3D(root)) return;
+
+    root.traverse((node) => {
+      if (!node) return;
+      node.renderOrder = renderOrder;
+      if (!node.userData) {
+        node.userData = {};
+      }
+      node.userData.__environmentRenderOrder = renderOrder;
+    });
+  }
+
+  _isObject3D(value) {
+    return Boolean(value && typeof value.add === 'function' && typeof value.traverse === 'function');
+  }
+
+  _isOwnedRenderRoot(value) {
+    if (!this._isObject3D(value)) return false;
+    if (value === this.scene || value === this.worldRoot || value === this.environmentRoot) {
+      return false;
+    }
+    return true;
   }
 
   _registerSchedulerHooks() {

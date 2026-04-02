@@ -1888,11 +1888,9 @@ export class ResonanceRuptureVisualSystem_Session133 {
         bind('link:collapsed');
         bind('link.created');
         bind('cascade.hop');
-        bind('metric.corruption.spike');
-        bind('metric:corruptionRise');
-        bind('metric:stabilityDrop');
-        bind('metric:loadPressureHigh');
-        bind('metric.phase.changed');
+        bind('node.corruption.high');
+        bind('global.stability.low');
+        bind('global.loadPressure.high');
         bind('network:stressRise');
     }
 
@@ -1930,36 +1928,20 @@ export class ResonanceRuptureVisualSystem_Session133 {
                 if (linkId !== null) this._addEventPressureToLink(linkId, 0.45, tag);
                 break;
             }
-            case 'metric.corruption.spike': {
+            case 'node.corruption.high': {
                 this._addNodeIncidentLinkPressure(semanticPayload, 0.35, tag);
                 break;
             }
-            case 'metric:corruptionRise': {
-                this._addNodeIncidentLinkPressure(semanticPayload, 0.25, tag);
-                break;
-            }
-            case 'metric:stabilityDrop': {
+            case 'global.stability.low': {
                 this._addPressureToTopTrapLinks(0.2, tag, 4);
                 break;
             }
-            case 'metric:loadPressureHigh': {
+            case 'global.loadPressure.high': {
                 this._addPressureToTopTrapLinks(0.22, tag, 4);
                 break;
             }
             case 'network:stressRise': {
                 this.globalStressBias = THREE.MathUtils.clamp(this.globalStressBias + 0.18, 0, 0.5);
-                break;
-            }
-            case 'metric.phase.changed': {
-                const metric = `${semanticPayload?.metric || ''}`.toLowerCase();
-                const phase = `${semanticPayload?.phase || ''}`.toLowerCase();
-                if (metric === 'corruption' && phase === 'high') {
-                    this._addNodeIncidentLinkPressure(semanticPayload, 0.35, tag);
-                } else if (metric === 'stability' && phase === 'low') {
-                    this._addPressureToTopTrapLinks(0.2, tag, 4);
-                } else if (metric === 'loadpressure' && phase === 'high') {
-                    this._addPressureToTopTrapLinks(0.22, tag, 4);
-                }
                 break;
             }
             default:

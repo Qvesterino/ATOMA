@@ -590,7 +590,7 @@ export class PHASE5_CascadeVisualizationBridge {
           this._eventRefreshRequested = true;
         };
 
-        const unsubMetric = this.semanticBus.subscribe('metric.node.updated', requestRefresh);
+        const unsubMetric = this.semanticBus.subscribe('node.metric.updated', requestRefresh);
         const unsubLink = this.semanticBus.subscribe('link.created', requestRefresh);
         const unsubSpawn = this.semanticBus.subscribe('node.spawned', requestRefresh);
         const unsubCorruptionCascade = this.semanticBus.subscribe('event:corruptionCascade', (payload) => {

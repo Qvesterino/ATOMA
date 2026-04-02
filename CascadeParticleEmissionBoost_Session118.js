@@ -144,7 +144,7 @@ export class CascadeParticleEmissionBoost_Session118 {
       this._eventDrivenRefreshRequested = true;
     };
 
-    const unsubMetric = this.semanticBus.subscribe('metric.node.updated', requestRefresh);
+    const unsubMetric = this.semanticBus.subscribe('node.metric.updated', requestRefresh);
     const unsubLink = this.semanticBus.subscribe('link.created', requestRefresh);
     const unsubSpawn = this.semanticBus.subscribe('node.spawned', requestRefresh);
 

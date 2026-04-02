@@ -8,6 +8,9 @@ export class EnvironmentalHazards {
   constructor(scene, camera) {
     this.scene = scene;
     this.camera = camera;
+    this.root = new THREE.Group();
+    this.root.name = 'EnvironmentalHazardsRoot';
+    this.scene?.add?.(this.root);
     this.hazards = [];
     this.activeEffects = [];
     this._hazardEffectScratch = new THREE.Vector3();
@@ -43,7 +46,7 @@ export class EnvironmentalHazards {
     });
     const auraMesh = new THREE.Mesh(auraGeo, auraMat);
     auraMesh.position.copy(position);
-    this.scene.add(auraMesh);
+    this.root.add(auraMesh);
     
     hazard.aura = auraMesh;
     
@@ -108,7 +111,7 @@ export class EnvironmentalHazards {
     });
     
     bolt.line = new THREE.Line(geometry, material);
-    this.scene.add(bolt.line);
+    this.root.add(bolt.line);
   }
   
   /**
@@ -139,7 +142,7 @@ export class EnvironmentalHazards {
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.copy(position);
-    this.scene.add(mesh);
+    this.root.add(mesh);
     
     hazard.mesh = mesh;
     
@@ -240,7 +243,7 @@ export class EnvironmentalHazards {
       effect.life -= deltaTime;
       
       if (effect.life <= 0) {
-        this.scene.remove(effect.object);
+        this.root.remove(effect.object);
         this.activeEffects.splice(i, 1);
       }
     }
@@ -269,7 +272,7 @@ export class EnvironmentalHazards {
       
       // Remove expired bolt and regenerate
       if (bolt.life <= 0) {
-        this.scene.remove(bolt.line);
+        this.root.remove(bolt.line);
         hazard.bolts.splice(i, 1);
         
         // Create new bolt
@@ -340,9 +343,25 @@ export class EnvironmentalHazards {
     const hazard = this.hazards[hazardId];
     if (hazard) {
       hazard.active = false;
-      if (hazard.aura) this.scene.remove(hazard.aura);
-      if (hazard.mesh) this.scene.remove(hazard.mesh);
-      hazard.bolts.forEach(bolt => this.scene.remove(bolt.line));
+      if (hazard.aura) this.root.remove(hazard.aura);
+      if (hazard.mesh) this.root.remove(hazard.mesh);
+      hazard.bolts.forEach(bolt => this.root.remove(bolt.line));
     }
+  }
+
+  dispose() {
+    for (let i = 0; i < this.hazards.length; i++) {
+      this.deactivateHazard(i);
+    }
+
+    for (const effect of this.activeEffects) {
+      if (effect?.object) {
+        this.root.remove(effect.object);
+      }
+    }
+
+    this.activeEffects.length = 0;
+    this.hazards.length = 0;
+    this.root?.removeFromParent?.();
   }
 }
