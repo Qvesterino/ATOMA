@@ -61,6 +61,13 @@ const CASCADE_CONFIG = {
   LINK_EMISSIVE_MULTIPLIER: 2.8,
   NODE_OPACITY_MULTIPLIER: 0.35,
   LINK_OPACITY_MULTIPLIER: 0.35,
+
+  // Direct scene visualization
+  CORE_MARKER_BASE_SCALE: 0.18,
+  CORE_MARKER_SCALE_MULTIPLIER: 0.48,
+  HALO_MARKER_BASE_SCALE: 0.52,
+  HALO_MARKER_SCALE_MULTIPLIER: 0.86,
+  RING_MIN_RADIUS: 0.24,
 };
 
 /**
@@ -118,10 +125,17 @@ class CascadeWave {
  */
 export class ResonanceCascadeVisualization_Session117B {
   constructor(scene, options = {}) {
-    this.scene = scene;
-    this.enabled = options.enabled ?? true;
-    this.debugMode = options.debugMode ?? false;
-    this.semanticBus = options.semanticBus ?? globalThis.semanticBus ?? null;
+    const hasScene = scene && typeof scene.add === 'function';
+    const resolvedOptions = hasScene
+      ? options
+      : ((scene && typeof scene === 'object' && !Array.isArray(scene)) ? scene : options);
+
+    this.scene = hasScene
+      ? scene
+      : resolvedOptions.scene ?? globalThis.atoma?.scene ?? globalThis.game?.scene ?? globalThis.__ATOMA_SCENE__ ?? null;
+    this.enabled = resolvedOptions.enabled ?? true;
+    this.debugMode = resolvedOptions.debugMode ?? false;
+    this.semanticBus = resolvedOptions.semanticBus ?? globalThis.semanticBus ?? globalThis.atoma?.semanticBus ?? globalThis.game?.semanticBus ?? null;
     
     // Active cascades
     this.activeCascades = [];
@@ -131,14 +145,21 @@ export class ResonanceCascadeVisualization_Session117B {
     this.linkCascadeIntensity = new Map();
     this.nodeVisualState = new WeakMap();
     this.linkVisualState = new WeakMap();
+    this.cascadeVisuals = new Map();
+    this.cascadeVisualRoot = null;
     this._pendingLinkBirthCascades = [];
     this._linkBirthCooldowns = new Map();
+    this._sharedCascadeSphereGeometry = null;
+    this._sharedCascadeRingGeometry = null;
     this._tmpNodeTint = new THREE.Color(0x4b1f78);
     this._tmpLinkTint = new THREE.Color(0x6a2ca0);
     this._boundHandleLinkCreated = this.handleLinkCreated.bind(this);
     this._boundHandleLoadPressureHigh = this.handleLoadPressureHigh.bind(this);
     this._semanticEventsBound = false;
+    this._consoleApiInstalled = false;
     this.init();
+    this._ensureCascadeVisualRoot();
+    this.setupConsoleAPI();
     
     console.log('[Session 117B] ResonanceCascadeVisualization initialized ✓');
   }
@@ -163,21 +184,202 @@ export class ResonanceCascadeVisualization_Session117B {
   }
 
   init(config = {}) {
+    if (config.scene && config.scene !== this.scene) {
+      this.scene = config.scene;
+    }
     if (config.semanticBus && config.semanticBus !== this.semanticBus) {
       this._unsubscribeSemanticBus();
       this.semanticBus = config.semanticBus;
     }
     this._subscribeSemanticBus();
+    this._ensureCascadeVisualRoot();
     return this;
   }
 
   rebind(config = {}) {
+    if (config.scene && config.scene !== this.scene) {
+      this.scene = config.scene;
+    }
     if (config.semanticBus && config.semanticBus !== this.semanticBus) {
       this._unsubscribeSemanticBus();
       this.semanticBus = config.semanticBus;
     }
     this._subscribeSemanticBus();
+    this._ensureCascadeVisualRoot();
     return this;
+  }
+
+  _resolveRuntimeScene() {
+    return this.scene ?? globalThis.atoma?.scene ?? globalThis.game?.scene ?? globalThis.__ATOMA_SCENE__ ?? null;
+  }
+
+  _ensureCascadeVisualRoot() {
+    const scene = this._resolveRuntimeScene();
+    if (!scene?.add) return null;
+
+    if (scene !== this.scene) {
+      this.scene = scene;
+    }
+
+    if (!this.cascadeVisualRoot) {
+      this.cascadeVisualRoot = new THREE.Group();
+      this.cascadeVisualRoot.name = 'ResonanceCascadeVisualization_Session117B_Root';
+      this.cascadeVisualRoot.frustumCulled = false;
+      this.cascadeVisualRoot.renderOrder = 9600;
+    }
+
+    if (this.cascadeVisualRoot.parent !== scene) {
+      this.cascadeVisualRoot.parent?.remove?.(this.cascadeVisualRoot);
+      scene.add(this.cascadeVisualRoot);
+    }
+
+    return this.cascadeVisualRoot;
+  }
+
+  _ensureCascadeVisualResources() {
+    if (!this._sharedCascadeSphereGeometry) {
+      this._sharedCascadeSphereGeometry = new THREE.SphereGeometry(1, 14, 14);
+    }
+
+    if (!this._sharedCascadeRingGeometry) {
+      this._sharedCascadeRingGeometry = new THREE.TorusGeometry(1, 0.033, 10, 64);
+    }
+  }
+
+  _createCascadeVisual(cascade) {
+    const root = this._ensureCascadeVisualRoot();
+    if (!root || !cascade?.originPos) return null;
+
+    this._ensureCascadeVisualResources();
+
+    const group = new THREE.Group();
+    group.name = 'ResonanceCascadeWave';
+    group.frustumCulled = false;
+    group.renderOrder = 9600;
+
+    const coreMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff78cf,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false
+    });
+
+    const haloMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffc04d,
+      transparent: true,
+      opacity: 0.22,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false
+    });
+
+    const ringMaterial = new THREE.LineBasicMaterial({
+      color: 0xffd36a,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+      side: THREE.DoubleSide
+    });
+
+    const core = new THREE.Mesh(this._sharedCascadeSphereGeometry, coreMaterial);
+    const halo = new THREE.Mesh(this._sharedCascadeSphereGeometry, haloMaterial);
+    const ring = new THREE.Mesh(this._sharedCascadeRingGeometry, ringMaterial);
+
+    core.frustumCulled = false;
+    halo.frustumCulled = false;
+    ring.frustumCulled = false;
+
+    core.renderOrder = 9601;
+    halo.renderOrder = 9600;
+    ring.renderOrder = 9602;
+
+    halo.position.y = 0.012;
+    core.position.y = 0.024;
+    ring.position.y = 0.01;
+    ring.rotation.x = Math.PI * 0.5;
+
+    group.add(halo);
+    group.add(core);
+    group.add(ring);
+    root.add(group);
+
+    const visual = {
+      group,
+      core,
+      halo,
+      ring,
+      materials: [coreMaterial, haloMaterial, ringMaterial]
+    };
+
+    this.cascadeVisuals.set(cascade, visual);
+    return visual;
+  }
+
+  _disposeCascadeVisual(visual) {
+    if (!visual) return;
+    visual.group?.parent?.remove?.(visual.group);
+    for (const material of visual.materials ?? []) {
+      material?.dispose?.();
+    }
+  }
+
+  _clearCascadeVisuals() {
+    for (const visual of this.cascadeVisuals.values()) {
+      this._disposeCascadeVisual(visual);
+    }
+    this.cascadeVisuals.clear();
+  }
+
+  _updateCascadeVisual(cascade) {
+    if (!cascade?.originPos) return;
+
+    let visual = this.cascadeVisuals.get(cascade);
+    if (!visual) {
+      visual = this._createCascadeVisual(cascade);
+    }
+    if (!visual) return;
+
+    const intensity = this._clamp01(cascade.intensity);
+    const waveRadius = Math.max(CASCADE_CONFIG.RING_MIN_RADIUS, cascade.currentRadius);
+    const pulse = 1.0 + Math.sin(cascade.age * Math.PI * 2 * CASCADE_CONFIG.RIPPLE_FREQUENCY) * 0.08;
+
+    visual.group.visible = true;
+    visual.group.position.copy(cascade.originPos);
+    visual.group.rotation.set(0, 0, 0);
+
+    visual.core.scale.setScalar((CASCADE_CONFIG.CORE_MARKER_BASE_SCALE + intensity * CASCADE_CONFIG.CORE_MARKER_SCALE_MULTIPLIER) * pulse);
+    visual.halo.scale.setScalar((CASCADE_CONFIG.HALO_MARKER_BASE_SCALE + intensity * CASCADE_CONFIG.HALO_MARKER_SCALE_MULTIPLIER + waveRadius * 0.05) * pulse);
+    visual.ring.scale.setScalar(waveRadius);
+
+    visual.core.material.opacity = Math.min(1.0, 0.42 + intensity * 0.5);
+    visual.halo.material.opacity = Math.min(0.45, 0.08 + intensity * 0.24);
+    visual.ring.material.opacity = Math.min(0.98, 0.18 + intensity * 0.76);
+  }
+
+  _syncCascadeVisuals() {
+    if (this.activeCascades.length === 0) {
+      this._clearCascadeVisuals();
+      return;
+    }
+
+    this._ensureCascadeVisualRoot();
+
+    for (const cascade of this.activeCascades) {
+      this._updateCascadeVisual(cascade);
+    }
+
+    for (const [cascade, visual] of this.cascadeVisuals.entries()) {
+      if (this.activeCascades.includes(cascade)) continue;
+      this._disposeCascadeVisual(visual);
+      this.cascadeVisuals.delete(cascade);
+    }
   }
   
   _clamp01(value) {
@@ -504,6 +706,7 @@ export class ResonanceCascadeVisualization_Session117B {
     cascade.sourceNodeId = event?.sourceNodeId ?? event?.sourceNode?.userData?.nodeId ?? event?.sourceNode?.id ?? event?.sourceNode?.uuid ?? null;
     cascade.targetNodeId = event?.targetNodeId ?? event?.targetNode?.userData?.nodeId ?? event?.targetNode?.id ?? event?.targetNode?.uuid ?? null;
     this.activeCascades.push(cascade);
+    this._syncCascadeVisuals();
     return cascade;
   }
 
@@ -810,9 +1013,14 @@ export class ResonanceCascadeVisualization_Session117B {
    * Main update per frame
    */
   update(deltaTime, nodes, links, conflictRegions = []) {
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler?.shouldRunVisual && !this.frameScheduler.shouldRunVisual()) return;
 
-    if (!this.enabled) return;
+    if (!this.enabled) {
+      this._clearCascadeVisuals();
+      return;
+    }
+
+    this._ensureCascadeVisualRoot();
 
     this._flushPendingLinkBirthCascades();
     
@@ -826,6 +1034,7 @@ export class ResonanceCascadeVisualization_Session117B {
       }
     }
     this.activeCascades = activeCascades;
+    this._syncCascadeVisuals();
 
     if (Array.isArray(nodes) && this.activeCascades.length > 0) {
       for (const node of nodes) {
@@ -954,7 +1163,12 @@ export class ResonanceCascadeVisualization_Session117B {
         radius: c.currentRadius,
         age: c.age,
         lifetime: c.lifetime,
-        trigger: c.trigger ?? null
+        trigger: c.trigger ?? null,
+        origin: c.originPos ? {
+          x: c.originPos.x,
+          y: c.originPos.y,
+          z: c.originPos.z
+        } : null
       }))
     };
   }
@@ -965,16 +1179,60 @@ export class ResonanceCascadeVisualization_Session117B {
   setupConsoleAPI() {
     // FIX 3: Guard against non-browser environments
     if (typeof window === 'undefined') return;
-    window.cascadeDebug = {
+
+    if (window.resonanceCascadeDebug?.__owner === this && this._consoleApiInstalled) {
+      return window.resonanceCascadeDebug;
+    }
+
+    const api = {
+      __owner: this,
       getCascadeState: () => this.getCascadeState(),
       getNodeCascadeInfo: (node) => this.getNodeCascadeInfo(node),
       getLinkCascadeInfo: (link) => this.getLinkCascadeInfo(link),
       getActiveCascades: () => this.activeCascades.length,
+      getPendingCount: () => this._pendingLinkBirthCascades.length,
+      spawnAt: (x = 0, y = 0, z = 0, intensity = 1.0) => this._spawnCascadeWaveFromEvent({
+        anchor: { x, y, z },
+        intensity,
+        trigger: 'debug.manual'
+      }),
+      spawnAtNodeId: (nodeId, intensity = 1.0) => {
+        const node = window.__DEBUG?.getNodeById?.(nodeId);
+        if (!node?.position) return null;
+        return this._spawnCascadeWaveFromEvent({
+          anchor: node.position,
+          sourceNode: node,
+          intensity,
+          trigger: 'debug.node'
+        });
+      },
+      spawnAtLinkId: (linkId, intensity = 1.0) => {
+        const linkingSystem = window.__DEBUG?.getLinkingSystem?.();
+        const link = linkingSystem?._resolveLinkById?.(linkId)
+          ?? linkingSystem?.links?.find?.((entry) => entry?.id === linkId || entry?.linkId === linkId);
+        if (!link) return null;
+        return this.handleLinkCreated({
+          link,
+          sourceNode: link.source ?? link.sourceNode ?? null,
+          targetNode: link.target ?? link.targetNode ?? null,
+          intensity,
+          trigger: 'debug.link'
+        });
+      },
       enable: () => { this.enabled = true; console.log('✓ Cascade system enabled'); },
       disable: () => { this.enabled = false; console.log('✓ Cascade system disabled'); }
     };
+
+    window.resonanceCascadeDebug = api;
+    window.ATOMA_DEBUG = window.ATOMA_DEBUG || {};
+    window.ATOMA_DEBUG.resonanceCascade = api;
+    if (!window.cascadeDebug || window.cascadeDebug.__owner === this) {
+      window.cascadeDebug = api;
+    }
+    this._consoleApiInstalled = true;
     
-    console.log('[Session 117B] Debug API: window.cascadeDebug.getCascadeState()');
+    console.log('[Session 117B] Debug API: window.resonanceCascadeDebug.getCascadeState()');
+    return api;
   }
 
   dispose() {
@@ -982,7 +1240,15 @@ export class ResonanceCascadeVisualization_Session117B {
 
     // FIX 4: Remove window.cascadeDebug to prevent leak on world switch
     if (typeof window !== 'undefined') {
-      delete window.cascadeDebug;
+      if (window.cascadeDebug?.__owner === this) {
+        delete window.cascadeDebug;
+      }
+      if (window.resonanceCascadeDebug?.__owner === this) {
+        delete window.resonanceCascadeDebug;
+      }
+      if (window.ATOMA_DEBUG?.resonanceCascade?.__owner === this) {
+        delete window.ATOMA_DEBUG.resonanceCascade;
+      }
     }
 
     // Clear internal state
@@ -995,10 +1261,18 @@ export class ResonanceCascadeVisualization_Session117B {
     }
     this.nodeCascadeIntensity.clear();
     this.linkCascadeIntensity.clear();
+    this._clearCascadeVisuals();
+    this.cascadeVisualRoot?.parent?.remove?.(this.cascadeVisualRoot);
+    this.cascadeVisualRoot = null;
+    this._sharedCascadeSphereGeometry?.dispose?.();
+    this._sharedCascadeSphereGeometry = null;
+    this._sharedCascadeRingGeometry?.dispose?.();
+    this._sharedCascadeRingGeometry = null;
     this._pendingLinkBirthCascades = [];
     this._linkBirthCooldowns.clear();
     this.semanticBus = null;
     this._semanticEventsBound = false;
+    this._consoleApiInstalled = false;
   }
 }
 

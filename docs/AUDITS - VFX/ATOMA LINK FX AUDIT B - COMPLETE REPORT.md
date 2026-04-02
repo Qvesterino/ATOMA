@@ -147,10 +147,10 @@ DETAILS:
 - SHARED: Single baseGeometry reused for all rings
 ```
 
-### 9. LinkMicroImpulseAdapter.js
+### 9. LinkMicroImpulseAdapter_v1.js
 
 ```
-SYSTEM: LinkMicroImpulseAdapter
+SYSTEM: LinkMicroImpulseAdapter_v1
 CATEGORY: ADAPTER
 MUTATES CORE LINK GEOMETRY: NO
 SPAWNS VFX: NO

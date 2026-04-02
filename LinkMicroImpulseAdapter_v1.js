@@ -39,6 +39,53 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { applyLinkRenderLayer, getLinkRenderLayerOrder } from './LinkRenderLayerPolicy.js';
+
+const MICRO_IMPULSE_LAYER = VisualHierarchyRegistry?.LAYER_LINK_SPARKS ?? 'LINK_SPARKS';
+const MICRO_IMPULSE_RENDER_ORDER = (() => {
+  const canonicalOrder = getLinkRenderLayerOrder(MICRO_IMPULSE_LAYER);
+  if (Number.isFinite(canonicalOrder)) return canonicalOrder;
+  const registryOrder = VisualHierarchyRegistry.getRenderOrder(MICRO_IMPULSE_LAYER);
+  if (Number.isFinite(registryOrder)) return registryOrder;
+  return 240;
+})();
+const MICRO_IMPULSE_BASE_COLORS = {
+  arc: 0x00ffff,
+  zigzag: 0x00ff88,
+  spark: 0xffff00,
+};
+const MICRO_IMPULSE_CORRUPTION_COLOR = new THREE.Color(0xff3366);
+const MICRO_IMPULSE_COLOR = new THREE.Color();
+
+function syncMicroImpulseMaterial(renderer, scene, camera, geometry, material) {
+  const state = this?.userData?.microImpulseState;
+  if (!state || !material) return;
+
+  const now = Date.now();
+  const elapsed = now - state.startTime;
+  const duration = Math.max(1, state.duration || 1);
+  const progress = elapsed / duration;
+
+  if (progress >= 1.0) {
+    material.opacity = 0;
+    return;
+  }
+
+  let fade = 1.0;
+  const fadeStart = 0.7;
+  if (progress > fadeStart) {
+    fade = 1.0 - ((progress - fadeStart) / (1.0 - fadeStart));
+  }
+
+  MICRO_IMPULSE_COLOR.setHex(state.baseColorHex ?? MICRO_IMPULSE_BASE_COLORS.spark);
+  if (state.corruption > 0.3) {
+    MICRO_IMPULSE_COLOR.lerp(MICRO_IMPULSE_CORRUPTION_COLOR, Math.min(1.0, state.corruption));
+  }
+
+  material.color.copy(MICRO_IMPULSE_COLOR);
+  material.opacity = Math.max(0, (state.baseOpacity ?? 1.0) * fade);
+}
 
 /**
  * Impulse Factory — Creates reusable electrical impulse visuals
@@ -158,6 +205,18 @@ class ImpulseFactory {
     visual.quaternion.copy(rotation);
     visual.scale.setScalar(scale);
     visual.frustumCulled = false;
+    visual.renderOrder = MICRO_IMPULSE_RENDER_ORDER;
+    applyLinkRenderLayer(visual, MICRO_IMPULSE_LAYER);
+
+    const state = visual.userData || (visual.userData = {});
+    state.microImpulseState = state.microImpulseState || {
+      baseColorHex: MICRO_IMPULSE_BASE_COLORS[shape] ?? MICRO_IMPULSE_BASE_COLORS.spark,
+      baseOpacity: 1.0,
+      corruption: 0.0,
+      startTime: 0,
+      duration: 1,
+    };
+    visual.onBeforeRender = syncMicroImpulseMaterial;
 
     return visual;
   }
@@ -215,25 +274,23 @@ class ImpulseManager {
     const visual = this.factory.createImpulse(shape, worldPos, rotation, scale);
     this.scene.add(visual);
 
-    const baseColor = new THREE.Color(0x00ffff);
-    if (corruption > 0.3) {
-      baseColor.lerpColors(new THREE.Color(0x00ffff), new THREE.Color(0xff3366), corruption);
-    }
-
-    if (visual.material) {
-      visual.material.color.copy(baseColor);
-      visual.material.opacity = 1.0 * harmony * (0.5 + synergy * 0.5);
-    }
-
     if (corruption > 0.5) {
       visual.position.x += (Math.random() - 0.5) * 0.1 * corruption;
       visual.position.y += (Math.random() - 0.5) * 0.1 * corruption;
     }
 
+    const userData = visual.userData || (visual.userData = {});
+    const state = userData.microImpulseState || (userData.microImpulseState = {});
+    state.baseColorHex = MICRO_IMPULSE_BASE_COLORS[shape] ?? MICRO_IMPULSE_BASE_COLORS.spark;
+    state.baseOpacity = 1.0 * harmony * (0.5 + synergy * 0.5);
+    state.corruption = corruption;
+    state.startTime = Date.now();
+    state.duration = duration * (1.0 - corruption * 0.3);
+
     const impulse = {
       visual,
-      startTime: Date.now(),
-      duration: duration * (1.0 - corruption * 0.3),
+      startTime: state.startTime,
+      duration: state.duration,
       intensity,
       harmony,
       synergy,
@@ -257,14 +314,9 @@ class ImpulseManager {
       const progress = elapsed / impulse.duration;
 
       if (progress >= 1.0) {
+        impulse.visual.onBeforeRender = null;
         this.scene.remove(impulse.visual);
         toRemove.push(i);
-      } else {
-        const fadeStart = 0.7;
-        if (progress > fadeStart) {
-          const fadeProgress = (progress - fadeStart) / (1.0 - fadeStart);
-          impulse.visual.material.opacity = (1.0 - fadeProgress) * impulse.harmony * (0.5 + impulse.synergy * 0.5);
-        }
       }
     }
 
@@ -278,6 +330,7 @@ class ImpulseManager {
    */
   clear() {
     for (const impulse of this.activeImpulses) {
+      impulse.visual.onBeforeRender = null;
       this.scene.remove(impulse.visual);
     }
     this.activeImpulses = [];
@@ -285,7 +338,7 @@ class ImpulseManager {
 }
 
 /**
- * LinkMicroImpulseAdapter — Main event-driven adapter
+ * LinkMicroImpulseAdapter_v1 — Main event-driven adapter
  */
 export class LinkMicroImpulseAdapter {
   constructor(scene) {

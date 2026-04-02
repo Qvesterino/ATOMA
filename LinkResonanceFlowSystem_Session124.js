@@ -35,6 +35,7 @@
 
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
+import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
@@ -379,9 +380,9 @@ export class LinkResonanceFlowSystem_Session124 {
     // Create pulse rendering group
     this.pulseGroup = new THREE.Group();
     this.pulseGroup.name = 'LinkResonancePulses_Session124';
-    this.pulseGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE');
     this.pulseGroup.userData.isLinkResonanceFlow = true;
     this.pulseGroup.userData.linkVisualFamily = 'resonanceFlow';
+    applyLinkRenderLayer(this.pulseGroup, 'LINK_RESONANCE');
     this.scene?.add?.(this.pulseGroup);
     
     // Pre-allocate pulse meshes for efficient rendering
@@ -1310,10 +1311,10 @@ export class LinkResonanceFlowSystem_Session124 {
       const material = makeMaterial(spec);
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = name;
-      mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE');
       mesh.userData.partKey = key;
       mesh.userData.partSpec = spec;
       mesh.userData.debugPulseVisuals = debugPulse;
+      applyLinkRenderLayer(mesh, 'LINK_RESONANCE');
       parts[key] = mesh;
       rig.add(mesh);
       return mesh;

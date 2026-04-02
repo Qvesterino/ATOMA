@@ -148,7 +148,7 @@
 
 ## 2. TRUE VISUAL SYSTEMS (KEEP AT 30 Hz)
 
-### 2.1 LinkMicroImpulseAdapter.js
+### 2.1 LinkMicroImpulseAdapter_v1.js
 **Status:** ✅ CREATES VISUALS  
 **Lane:** visual (30 Hz)  
 **Kategória:** Visual FX System

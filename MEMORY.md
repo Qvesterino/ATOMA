@@ -48,17 +48,6 @@ The following are confirmed and should be treated as stable:
 
 ---
 
-## Clean Architecture Memory
-
-Confirmed long-term rule:
-
-- no parallel truth systems
-- no duplicate permanent authorities
-- adapters and migration layers are acceptable
-- permanent architectural duplication is not
-
----
-
 ## Legacy Cleanup Mandate
 
 Confirmed long-term policy:
@@ -193,9 +182,41 @@ Confirmed default runtime validation entrypoint:
 ## Strand Spark Contract
 - `LinkRendererConduit` strand-tip sparks are now `THREE.Points` objects created through `LinkPointFXBase`, so geometry/material/cleanup follow the shared point-FX scaffold while preserving the existing spark shader look.
 
+## Strand Filament Motion Contract
+- `LinkRendererConduit` strand filaments now use a stronger animated flow wave and slightly faster sway/travel settings so the moving filament language reads more clearly in runtime.
+
 ## Healing Point Scaffold
 - `HealingParticleSystem_Session136` healing trail particles now use `LinkPointFXBase` for shared geometry / material / attach / cleanup handling while preserving the existing shader look and debug probe behavior.
 
 ## Bead Point Contract
 - `LinkBeadSystem` beads are now rendered as a shared `THREE.Points` cloud through `LinkPointFXBase` instead of individual meshes.
 - Bead runtime behavior was intentionally simplified: fewer beads per link, slower travel, and more spacing so bead trails stay secondary to the strand trails.
+
+## LinkPointFXBase Material Pool Contract
+- `LinkPointFXBase` now owns a shared sprite-texture cache and a reference-counted shared material cache for shareable point-cloud materials.
+- Shader-less point clouds can share one material instance by default when their material signature matches.
+- Custom shader materials stay unique by default unless a caller explicitly opts into sharing, because mutable uniforms can otherwise collide across live instances.
+- Shared `PointsMaterial` instances must stay materially stable; per-instance intensity should move through geometry, transforms, or separate state, not shared `material.opacity` / `material.size` mutation.
+
+## Link Spark Render Contract
+- `LinkSparkSystem` uses `VisualHierarchyRegistry` for the canonical `LINK_SPARKS` render order and still applies `LinkRenderLayerPolicy` for layer material discipline.
+
+## Link Resonance Render Contract
+- `LinkResonanceFlowSystem_Session124` uses `LinkRenderLayerPolicy` for the canonical `LINK_RESONANCE` layer on the pulse group and its pulse parts, so render order and material policy stay centralized.
+
+## Link Arc Visibility Contract
+- `LinkRingArcDischarges` now renders arcs as a core line plus a lightweight glow line, with glow strength controlled by a small parameter instead of a render-layer change.
+- The arc glow pass was later intensified again by raising the default glow strength and opacity scaling while keeping the same core-plus-glow structure.
+
+## Link Trail Readability Contract
+- `LinkTrailParticleSystem` remains at its baseline particle sizing and opacity after the reverted visibility experiment; no hidden/collapsed pool tweak is currently part of the stable implementation.
+
+## Link Healing Dual-Variant Contract
+- `LinkHealingParticleSystem` now uses a 50/50 split between the original knot sprite and a `Bloom Petal` sprite variant, both still rendered as a single `THREE.Points` pool.
+
+## Link Arc Cleanup Contract
+- `LinkRingArcDischarges` disposes each arc bundle directly from the active-arc lifecycle when it expires, including its glow mesh and glow geometry.
+
+## LinkMicroImpulse Adapter Contract
+- `LinkMicroImpulseAdapter_v1.js` is the active micro-impulse implementation; the older `LEGACY/LinkMicroImpulseAdapter.js` exists only as a legacy copy.
+- `LinkMicroImpulseAdapter_v1.js` now applies micro-impulse color/opacity at draw time via `onBeforeRender`, and the visuals are layered through `LINK_SPARKS` to keep spawn-time work low while shared materials stay stable.

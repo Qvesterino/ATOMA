@@ -413,7 +413,7 @@
 **LinkMicroImpulseAdapter_v1.js**
 - Scale: `visual.scale.setScalar(scale)` pre impulse vizualizáciu
 
-**LinkMicroImpulseAdapter.js**
+**LEGACY/LinkMicroImpulseAdapter.js**
 - Progressive scaling: `currentScale = data.baseScale + (data.maxScale - data.baseScale) * easeProgress`
 
 **LinkRingArcDischarges.js**
@@ -735,7 +735,6 @@ Nasledujúce systémy už v kóde nemutujú veľkosť hlavného node mesh-u:
 - LinkHealingParticleSystem.js
 - LinkCorruptionParticleSystem.js
 - LinkMicroImpulseAdapter_v1.js
-- LinkMicroImpulseAdapter.js
 - LinkRingArcDischarges.js
 - MegaGlyphSystem.js
 - GlyphAnimationModulator.js

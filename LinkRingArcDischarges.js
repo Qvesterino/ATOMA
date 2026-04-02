@@ -170,7 +170,7 @@ export class LinkRingArcDischarges {
     /**
      * Directional arc spawn from fragment
      */
-    spawnArcDirectional(startPoint, endPoint, radialDir, tangent, synergy, traffic, outward = true, impactPoint = null) {
+    spawnArcDirectional(startPoint, endPoint, radialDir, tangent, synergy, traffic, outward = true, impactPoint = null, glowStrength = 0.5) {
         const geometry = new THREE.BufferGeometry();
         const normal = radialDir.clone().normalize();
         const binormal = this._vec3b.crossVectors(tangent, normal).normalize();
@@ -212,10 +212,26 @@ export class LinkRingArcDischarges {
         line.renderOrder = arcsOrder;
         this.group.add(line);
 
+        const glowGeometry = this._createGlowGeometryFromPositions(positions, normal, binormal, glowStrength);
+        let glowLine = null;
+        let glowMaterial = null;
+        if (glowGeometry) {
+            glowMaterial = material.clone();
+            glowMaterial.opacity = Math.max(0.12, material.opacity * glowStrength * 0.55);
+            glowMaterial.linewidth = Math.max(1.3, this.config.arcThickness * 120.0);
+            glowLine = new THREE.Line(glowGeometry, glowMaterial);
+            glowLine.frustumCulled = false;
+            glowLine.renderOrder = arcsOrder - 0.05;
+            this.group.add(glowLine);
+        }
+
         const arcData = {
             mesh: line,
             geometry: geometry,
             material: material,
+            glowMesh: glowLine,
+            glowGeometry: glowGeometry,
+            glowMaterial: glowMaterial,
             lifetime: (impactPoint ? 0.16 : this.config.arcLifetime) + Math.random() * 0.06,
             age: 0,
             maxOpacity: 0.9 * 2.3,
@@ -245,14 +261,29 @@ export class LinkRingArcDischarges {
                         linewidth: 0.7,
                         fog: false,
                     });
+                    const branchGlowGeometry = this._createGlowGeometryFromPositions(bPositions, normal, binormal, 0.25);
+                    let branchGlowLine = null;
+                    let branchGlowMaterial = null;
                     const branchLine = new THREE.Line(branchGeometry, branchMaterial);
                     branchLine.frustumCulled = false;
                     branchLine.renderOrder = arcsOrder;
                     this.group.add(branchLine);
+                    if (branchGlowGeometry) {
+                        branchGlowMaterial = branchMaterial.clone();
+                        branchGlowMaterial.opacity = Math.max(0.07, branchMaterial.opacity * 0.45);
+                        branchGlowMaterial.linewidth = Math.max(1.1, this.config.arcThickness * 100.0);
+                        branchGlowLine = new THREE.Line(branchGlowGeometry, branchGlowMaterial);
+                        branchGlowLine.frustumCulled = false;
+                        branchGlowLine.renderOrder = arcsOrder - 0.05;
+                        this.group.add(branchGlowLine);
+                    }
                     this.activeArcs.push({
                         mesh: branchLine,
                         geometry: branchGeometry,
                         material: branchMaterial,
+                        glowMesh: branchGlowLine,
+                        glowGeometry: branchGlowGeometry,
+                        glowMaterial: branchGlowMaterial,
                         lifetime: arcData.lifetime * 0.8,
                         age: 0,
                         maxOpacity: 0.6,
@@ -333,7 +364,8 @@ export class LinkRingArcDischarges {
                     maxOpacity: 1.15, // Higher opacity
                     jitterMultiplier: 1.5, // Higher jitter for sharp look
                     pulseSpeed: 2.5, // Faster pulse
-                    arcLengthScale: 1.0 // Normal length
+                    arcLengthScale: 1.0, // Normal length
+                    glowStrength: 0.45
                 }
             );
             if (snapArc) this.activeArcs.push(snapArc);
@@ -351,7 +383,8 @@ export class LinkRingArcDischarges {
                     maxOpacity: afterglowOpacity,
                     jitterMultiplier: 0.5, // Reduced jitter for smoother look
                     pulseSpeed: 1.5, // Slower pulse
-                    arcLengthScale: 0.9 // Slightly shorter
+                    arcLengthScale: 0.9, // Slightly shorter
+                    glowStrength: 0.25
                 }
             );
             if (afterglowArc) this.activeArcs.push(afterglowArc);
@@ -375,6 +408,7 @@ export class LinkRingArcDischarges {
         const jitterMultiplier = params.jitterMultiplier !== undefined ? params.jitterMultiplier : 1.0;
         const pulseSpeed = params.pulseSpeed !== undefined ? params.pulseSpeed : (4.0 + Math.random() * 6.0);
         const arcLengthScale = params.arcLengthScale !== undefined ? params.arcLengthScale : 1.0;
+        const glowStrength = params.glowStrength !== undefined ? params.glowStrength : 0.5;
 
         // Create two perpendicular vectors to tangent (approximate perpendicular basis)
         const normal = this._vec3.set(0, 1, 0);
@@ -464,6 +498,19 @@ export class LinkRingArcDischarges {
         line.renderOrder = arcsOrder;
         this.group.add(line);
 
+        const glowGeometry = this._createGlowGeometryFromPositions(positions, normal, binormal, glowStrength);
+        let glowLine = null;
+        let glowMaterial = null;
+        if (glowGeometry) {
+            glowMaterial = material.clone();
+            glowMaterial.opacity = Math.max(0.1, material.opacity * glowStrength * 0.48);
+            glowMaterial.linewidth = Math.max(1.1, this.config.arcThickness * 100.0);
+            glowLine = new THREE.Line(glowGeometry, glowMaterial);
+            glowLine.frustumCulled = false;
+            glowLine.renderOrder = arcsOrder - 0.05;
+            this.group.add(glowLine);
+        }
+
         // PHASE 2: Branching Lightning (30-50% chance)
         if (Math.random() < 0.4) { // 30-50% chance
             // Choose one intermediate segment index
@@ -499,6 +546,10 @@ export class LinkRingArcDischarges {
                 // Branch arc must reuse same material logic with lower opacity
                 const branchOpacity = maxOpacity * 0.6; // Lower than main arc
                 
+                const branchGlowGeometry = this._createGlowGeometryFromPositions(branchPositions, normal, binormal, glowStrength * 0.7);
+                let branchGlowLine = null;
+                let branchGlowMaterial = null;
+
                 const branchMaterial = new THREE.LineBasicMaterial({
                     color: arcColor,
                     transparent: true,
@@ -514,12 +565,25 @@ export class LinkRingArcDischarges {
                 branchLine.frustumCulled = false;
                 branchLine.renderOrder = arcsOrder;
                 this.group.add(branchLine);
+
+                if (branchGlowGeometry) {
+                    branchGlowMaterial = branchMaterial.clone();
+                    branchGlowMaterial.opacity = Math.max(0.06, branchMaterial.opacity * glowStrength * 0.4);
+                    branchGlowMaterial.linewidth = Math.max(1.0, this.config.arcThickness * 90.0);
+                    branchGlowLine = new THREE.Line(branchGlowGeometry, branchGlowMaterial);
+                    branchGlowLine.frustumCulled = false;
+                    branchGlowLine.renderOrder = arcsOrder - 0.05;
+                    this.group.add(branchGlowLine);
+                }
                 
                 // Track branch arc lifetime
                 const branchArcData = {
                     mesh: branchLine,
                     geometry: branchGeometry,
                     material: branchMaterial,
+                    glowMesh: branchGlowLine,
+                    glowGeometry: branchGlowGeometry,
+                    glowMaterial: branchGlowMaterial,
                     lifetime: arcLifetime * 0.8, // Slightly shorter than main arc
                     age: 0,
                     maxOpacity: branchOpacity,
@@ -536,6 +600,9 @@ export class LinkRingArcDischarges {
             mesh: line,
             geometry: geometry,
             material: material,
+            glowMesh: glowLine,
+            glowGeometry: glowGeometry,
+            glowMaterial: glowMaterial,
             lifetime: arcLifetime,
             age: 0,
             maxOpacity: maxOpacity,
@@ -632,6 +699,33 @@ export class LinkRingArcDischarges {
         return attribute;
     }
 
+    _createGlowGeometryFromPositions(positionAttr, normal, binormal, glowStrength = 0.35) {
+        if (!positionAttr || !positionAttr.array || positionAttr.array.length < 6) {
+            return null;
+        }
+
+        const source = positionAttr.array;
+        const offsetAmount = 0.01 + glowStrength * 0.015;
+        const offsetVec = normal.clone()
+            .multiplyScalar(offsetAmount)
+            .addScaledVector(binormal, offsetAmount * 0.35);
+
+        const glowPositions = new Float32Array(source.length);
+        for (let i = 0; i < source.length; i += 3) {
+            glowPositions[i] = source[i] + offsetVec.x;
+            glowPositions[i + 1] = source[i + 1] + offsetVec.y;
+            glowPositions[i + 2] = source[i + 2] + offsetVec.z;
+        }
+
+        const glowGeometry = new THREE.BufferGeometry();
+        glowGeometry.setAttribute('position', new THREE.BufferAttribute(glowPositions, 3));
+        if (!LinkBufferSafetyAudit.verifyGeometrySafety(glowGeometry)) {
+            glowGeometry.dispose();
+            return null;
+        }
+        return glowGeometry;
+    }
+
     /**
      * Update active arc lifetimes and fade (PHASE 4: Smooth Energy Fade)
      */
@@ -645,8 +739,17 @@ export class LinkRingArcDischarges {
             if (progress >= 1.0) {
                 // Arc has expired
                 this.group.remove(arc.mesh);
+                if (arc.glowMesh) {
+                    this.group.remove(arc.glowMesh);
+                }
                 arc.geometry.dispose();
                 arc.material.dispose();
+                if (arc.glowGeometry) {
+                    arc.glowGeometry.dispose();
+                }
+                if (arc.glowMaterial) {
+                    arc.glowMaterial.dispose();
+                }
                 if (arc.hasImpact && arc.impactPoint) {
                     this._spawnImpactSparks(arc.impactPoint, arc.mesh?.material?.color || this.ringColor);
                     this._spawnRipple(arc.impactPoint, arc.mesh?.material?.color || this.ringColor);
@@ -671,6 +774,9 @@ export class LinkRingArcDischarges {
                 const pulseEffect = 0.9 + 0.1 * pulseModulation; // Very subtle: 0.8-1.0 range
                 
                 arc.material.opacity = Math.max(0, baseOpacity * pulseEffect);
+                if (arc.glowMaterial) {
+                    arc.glowMaterial.opacity = Math.max(0, baseOpacity * pulseEffect * 0.42);
+                }
             }
         }
 
@@ -744,8 +850,17 @@ export class LinkRingArcDischarges {
     dispose() {
         this.activeArcs.forEach(arc => {
             this.group.remove(arc.mesh);
+            if (arc.glowMesh) {
+                this.group.remove(arc.glowMesh);
+            }
             arc.geometry.dispose();
             arc.material.dispose();
+            if (arc.glowGeometry) {
+                arc.glowGeometry.dispose();
+            }
+            if (arc.glowMaterial) {
+                arc.glowMaterial.dispose();
+            }
         });
         this.activeArcs = [];
         

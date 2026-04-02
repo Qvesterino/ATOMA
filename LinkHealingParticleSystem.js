@@ -3,6 +3,7 @@
  * ---------------------------------------------------------------------------
  * Minimal GPU-friendly healing particle effect for links.
  * Visual: tiny knot sprites (4-armed), harmony-green with cyan rim,
+ *          plus Bloom Petal sprites for variety (50/50 split),
  * micro-orbit → stabilizing → snap-into-link.
  * Implementation: single THREE.Points pool, ShaderMaterial using gl_PointCoord.
  *
@@ -91,6 +92,7 @@ export class LinkHealingParticleSystem {
     this.sizes = new Float32Array(poolSize);
     this.lifeAttr = new Float32Array(poolSize * 2); // start, life
     this.seedAttr = new Float32Array(poolSize);
+    this.variantAttr = new Float32Array(poolSize);
     this.tints = new Float32Array(poolSize * 3);
 
     this.geometry = new THREE.BufferGeometry();
@@ -98,6 +100,7 @@ export class LinkHealingParticleSystem {
     this.geometry.setAttribute('aSize', new THREE.BufferAttribute(this.sizes, 1).setUsage(THREE.DynamicDrawUsage));
     this.geometry.setAttribute('aLife', new THREE.BufferAttribute(this.lifeAttr, 2).setUsage(THREE.DynamicDrawUsage));
     this.geometry.setAttribute('aSeed', new THREE.BufferAttribute(this.seedAttr, 1).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('aVariant', new THREE.BufferAttribute(this.variantAttr, 1).setUsage(THREE.DynamicDrawUsage));
     this.geometry.setAttribute('aTint', new THREE.BufferAttribute(this.tints, 3).setUsage(THREE.DynamicDrawUsage));
 
     // Shader material (point sprite)
@@ -119,6 +122,7 @@ export class LinkHealingParticleSystem {
         attribute float aSize;
         attribute vec2 aLife;
         attribute float aSeed;
+        attribute float aVariant;
         attribute vec3 aTint;
         uniform float uTime;
         uniform vec2 uSizeRange;
@@ -127,6 +131,7 @@ export class LinkHealingParticleSystem {
         uniform float uSofteningRange;
         varying float vLifeT;
         varying float vSeed;
+        varying float vVariant;
         varying vec3 vTint;
         varying float vDepth;
         varying float vRot;
@@ -137,6 +142,7 @@ export class LinkHealingParticleSystem {
           float sizeFade = mix(1.0, 0.65, vLifeT);
           float size = mix(uSizeRange.x, uSizeRange.y, 1.0 - vLifeT) * sizeFade;
           vSeed = aSeed;
+          vVariant = aVariant;
           vTint = aTint;
           // Medium-speed rotation over flight, stable per particle by seed.
           vRot = age * 2.4 + aSeed * 6.2831853;
@@ -150,6 +156,7 @@ export class LinkHealingParticleSystem {
         precision highp float;
         varying float vLifeT;
         varying float vSeed;
+        varying float vVariant;
         varying vec3 vTint;
         varying float vDepth;
         varying float vRot;
@@ -180,6 +187,21 @@ export class LinkHealingParticleSystem {
           return clamp(petalMask * centerCut + core * 0.55, 0.0, 1.0);
         }
 
+        // Soft Bloom Petal for a more organic healing read.
+        float bloomPetal(vec2 uv) {
+          vec2 p = uv * 2.0 - 1.0;
+          float r = length(p);
+          if (r > 1.0) return 0.0;
+
+          float ang = atan(p.y, p.x);
+          float petals = abs(cos(4.0 * ang));
+          float petalRadius = 0.18 + 0.62 * pow(petals, 1.15);
+          float bloom = 1.0 - smoothstep(petalRadius - 0.12, petalRadius + 0.04, r);
+          float core = 1.0 - smoothstep(0.0, 0.14, r);
+          float rim = smoothstep(0.58, 0.96, petals) * (1.0 - smoothstep(0.82, 1.0, r));
+          return clamp(bloom * 0.92 + core * 0.62 + rim * 0.22, 0.0, 1.0);
+        }
+
         void main() {
           vec2 uv = gl_PointCoord;
           vec2 p = uv - vec2(0.5);
@@ -187,11 +209,16 @@ export class LinkHealingParticleSystem {
           float sn = sin(vRot);
           p = vec2(p.x * cs - p.y * sn, p.x * sn + p.y * cs);
           uv = p + vec2(0.5);
-          float shape = knot(uv);
+          float useBloom = step(0.5, vVariant);
+          float shape = mix(knot(uv), bloomPetal(uv), useBloom);
 
           // Afterimage (cheap): offset seed-based jitter, scaled by life
           float ghostLife = smoothstep(0.1, 0.6, vLifeT) * (1.0 - smoothstep(0.75, 1.0, vLifeT));
-          float ghost = knot(uv + (vSeed - 0.5) * 0.02) * 0.35 * ghostLife;
+          float ghost = mix(
+            knot(uv + (vSeed - 0.5) * 0.02),
+            bloomPetal(uv + (vSeed - 0.5) * 0.018),
+            useBloom
+          ) * 0.35 * ghostLife;
 
           float lifeFade = smoothstep(0.0, 0.08, vLifeT) * (1.0 - smoothstep(0.68, 1.0, vLifeT));
           // Match spark-style visibility: only soften when particles get too close to the camera.
@@ -202,11 +229,12 @@ export class LinkHealingParticleSystem {
           float radial = clamp(1.0 - length(gl_PointCoord * 2.0 - 1.0), 0.0, 1.0);
           float streak = flash * radial * (0.6 + 0.4 * angJitter);
 
-          vec3 base = uBaseColor;
-          vec3 edge = uEdgeColor;
+          vec3 base = mix(uBaseColor, vec3(0.84, 1.0, 0.92), useBloom * 0.48);
+          vec3 edge = mix(uEdgeColor, vec3(0.72, 1.0, 0.98), useBloom * 0.56);
           float randTint = hash11(vSeed * 151.7 + vLifeT * 11.3);
           vec3 color = mix(base, edge, 0.35 + 0.25 * randTint);
-          color += (flash + streak) * 0.35;
+          color += (flash + streak) * mix(0.32, 0.42, useBloom);
+          color += useBloom * 0.08;
 
           float driftFade = 1.0 - smoothstep(0.65, 1.0, vLifeT);
           float alpha = (shape + ghost) * (lifeFade + flash + streak) * depthFade * driftFade * uOpacity;
@@ -258,6 +286,7 @@ export class LinkHealingParticleSystem {
       const driftSpeed = 0.045 + Math.random() * 0.03;
       const life = 0.75 + Math.random() * 0.22;
       const seed = Math.random();
+      const variant = Math.random() < 0.5 ? 0.0 : 1.0;
 
       this.pool.activate(idx, {
         startTime: time,
@@ -268,6 +297,7 @@ export class LinkHealingParticleSystem {
         driftSpeed,
         anchorT: progress,
         seed,
+        variant,
         link,
         curve,
         normal,
@@ -283,6 +313,7 @@ export class LinkHealingParticleSystem {
       this.lifeAttr[idx * 2] = time;
       this.lifeAttr[idx * 2 + 1] = life;
       this.seedAttr[idx] = seed;
+      this.variantAttr[idx] = variant;
 
       const tint = tintColor || link?.userData?.baseColorObj || null;
       if (tint && tint.isColor) {
@@ -300,6 +331,7 @@ export class LinkHealingParticleSystem {
     this.geometry.attributes.aSize.needsUpdate = true;
     this.geometry.attributes.aLife.needsUpdate = true;
     this.geometry.attributes.aSeed.needsUpdate = true;
+    this.geometry.attributes.aVariant.needsUpdate = true;
     this.geometry.attributes.aTint.needsUpdate = true;
   }
 

@@ -1,7 +1,7 @@
 /**
  * LinkMicroImpulseIntegrationSetup.js
  * ============================================================================
- * Integration orchestrator for LinkMicroImpulseAdapter
+ * Integration orchestrator for LinkMicroImpulseAdapter_v1
  * 
  * Handles:
  * - Initialization sequence (waits for linking system ready)

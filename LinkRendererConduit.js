@@ -64,16 +64,18 @@ const COLOR_WHITE = new THREE.Color(0xffffff);
 const STRAND_FILAMENT_STYLE = {
     ENABLED: true,
     COUNT_PER_STRAND: 32,
-    BASE_OPACITY: 0.42,
+    BASE_OPACITY: 0.5,
     RADIAL_PUSH: 1.16,
-    LENGTH_SCALE: 1.8,
-    SWAY_SPEED: 3.95,
-    SWAY_AMOUNT: 0.64,
-    TRAVEL_SPEED: 0.068,
-    DETACH_SPEED: 2.8,
+    LENGTH_SCALE: 1.95,
+    SWAY_SPEED: 4.65,
+    SWAY_AMOUNT: 0.82,
+    TRAVEL_SPEED: 0.095,
+    DETACH_SPEED: 3.25,
     DETACH_BOOST: 0.28,
     FLOW_LEAN: 1.38,
     RADIAL_LEAN: 0.44,
+    FLOW_WAVE_SPEED: 5.2,
+    FLOW_WAVE_AMOUNT: 0.09,
     BRIDGE_SHARE: 0.46,
     BRIDGE_FORWARD: 0.19,
     BRIDGE_TWIST: 1.52,
@@ -1606,8 +1608,8 @@ export class LinkRendererConduit {
         const load = clamp01(metrics.loadPressure ?? 0);
         const stability = clamp01(1.0 - (metrics.stability ?? 1));
         material.opacity = THREE.MathUtils.clamp(
-            STRAND_FILAMENT_STYLE.BASE_OPACITY + load * 0.22 + corruption * 0.28 + synergy * 0.12,
-            0.3,
+            STRAND_FILAMENT_STYLE.BASE_OPACITY + load * 0.24 + corruption * 0.3 + synergy * 0.14,
+            0.35,
             0.98
         );
         this._updateStrandTipSparks(filamentState, Number.isFinite(ctx.visualTime) ? ctx.visualTime : 0);
@@ -1685,6 +1687,9 @@ export class LinkRendererConduit {
 
             const pulse = 0.5 + 0.5 * Math.sin(
                 visualTime * STRAND_FILAMENT_STYLE.SWAY_SPEED + phase[idx] + t * 12.0
+            );
+            const flowWave = Math.sin(
+                visualTime * STRAND_FILAMENT_STYLE.FLOW_WAVE_SPEED + phase[idx] * 1.4 + t * 20.0
             );
             const detachPulse = Math.pow(
                 Math.max(0.0, Math.sin(visualTime * STRAND_FILAMENT_STYLE.DETACH_SPEED + phase[idx] * 1.7 + t * 9.0)),
@@ -1773,11 +1778,13 @@ export class LinkRendererConduit {
                         vEnd.lerp(vStart, 1.0 - jumpGate * 20.0);
                         vMid.lerpVectors(vStart, vEnd, 0.5);
                     }
+                    vMid.addScaledVector(vSide, filamentLength * flowWave * 0.04);
                 } else {
                     vMid.lerpVectors(vStart, vEnd, 0.5)
                         .addScaledVector(vRadial, filamentLength * (STRAND_FILAMENT_STYLE.BRIDGE_CURVE * (0.6 + 0.4 * pulse)))
                         .addScaledVector(vSide, filamentLength * sway * 0.55)
-                        .addScaledVector(vTangent2, filamentLength * (0.08 + load * 0.1));
+                        .addScaledVector(vTangent2, filamentLength * (0.08 + load * 0.1))
+                        .addScaledVector(vSide, filamentLength * flowWave * (STRAND_FILAMENT_STYLE.FLOW_WAVE_AMOUNT * 0.65));
                 }
             } else {
                 const forwardLean = filamentLength * (STRAND_FILAMENT_STYLE.FLOW_LEAN + load * 0.35 + synergy * 0.2);
@@ -1787,11 +1794,13 @@ export class LinkRendererConduit {
                     .addScaledVector(vTangent, forwardLean)
                     .addScaledVector(vRadial, radialLean)
                     .addScaledVector(vSide, filamentLength * sway * 0.44)
-                    .addScaledVector(vTangent, detach * 0.2 * driftSign[idx]);
+                    .addScaledVector(vTangent, detach * 0.2 * driftSign[idx])
+                    .addScaledVector(vSide, filamentLength * flowWave * STRAND_FILAMENT_STYLE.FLOW_WAVE_AMOUNT);
 
                 vMid.lerpVectors(vStart, vEnd, 0.52)
                     .addScaledVector(vSide, filamentLength * sway * 0.26)
-                    .addScaledVector(vRadial, filamentLength * 0.12);
+                    .addScaledVector(vRadial, filamentLength * 0.12)
+                    .addScaledVector(vSide, filamentLength * flowWave * (STRAND_FILAMENT_STYLE.FLOW_WAVE_AMOUNT * 0.55));
             }
 
             const p = idx * 12;

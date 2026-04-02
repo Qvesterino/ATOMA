@@ -467,6 +467,7 @@ export class BeadRenderer {
         aSize: { itemSize: 1 }
       },
       materialOptions: {
+        shareMaterial: true,
         transparent: true,
         blending: THREE.AdditiveBlending,
         depthWrite: false,

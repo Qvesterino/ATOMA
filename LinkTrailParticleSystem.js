@@ -185,7 +185,11 @@ class TrailParticle {
 
     // Scratch buffers avoid per-frame allocations in hot path.
     this._frameScratch = new THREE.Vector3();
+    this._normalA = new THREE.Vector3();
+    this._normalB = new THREE.Vector3();
+    this._offsetDir = new THREE.Vector3();
     this._brightenedColor = new THREE.Color();
+    this._baseAngle = Math.random() * Math.PI * 2.0;
   }
 
   reset() {
@@ -277,20 +281,34 @@ class TrailParticle {
       // Get position on curve
       const curvePos = this.curve.getPointAt(this.progress);
       
-      // Add directional noise for organic trail
+      // Add positional jitter in a radial shell around link path
+      const tangent = this._getFrameAtProgress(this.progress);
       const noiseVal = noise.multiOctaveNoise(
         curvePos.x * 0.5,
         curvePos.y * 0.5,
         curvePos.z * 0.5 + safeTime
       );
 
-      // Apply perpendicular offset based on noise
-      const frame = this._getFrameAtProgress(this.progress);
-      const offset = noiseVal * 0.1;
-      
-      this.position.copy(curvePos);
-      if (frame) {
-        this.position.addScaledVector(frame, offset);
+      // Curved offset radius and drift
+      const shellRadius = 0.18 + Math.abs(noiseVal) * 0.24;
+      const drift = Math.sin(this._baseAngle + safeTime * 0.8) * 0.5;
+
+      if (tangent && tangent.lengthSq() > 1e-6) {
+        // Build stable perpendicular coordinate frame (A,B) for offset
+        this._normalA.copy(tangent).cross(new THREE.Vector3(0, 1, 0)).normalize();
+        if (this._normalA.lengthSq() < 1e-5) {
+          this._normalA.copy(tangent).cross(new THREE.Vector3(1, 0, 0)).normalize();
+        }
+        this._normalB.copy(tangent).cross(this._normalA).normalize();
+
+        const wanderAngle = this._baseAngle + noiseVal * Math.PI * 0.8 + drift;
+        const cosA = Math.cos(wanderAngle);
+        const sinA = Math.sin(wanderAngle);
+        this._offsetDir.copy(this._normalA).multiplyScalar(cosA).addScaledVector(this._normalB, sinA).normalize();
+
+        this.position.copy(curvePos).addScaledVector(this._offsetDir, shellRadius);
+      } else {
+        this.position.copy(curvePos);
       }
     }
 
@@ -377,27 +395,30 @@ export class LinkTrailParticleSystem {
     this.onParticleArrival = null;
     
     // Particle material (shared across all particles)
-    this.material = new THREE.MeshBasicMaterial({
+    this.material = new THREE.PointsMaterial({
       color: 0x888888,
+      size: 0.18,
+      sizeAttenuation: true,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.8,
       depthWrite: false,
       depthTest: true,
       blending: THREE.AdditiveBlending
     });
     applyLinkRenderLayer(this.material, 'LINK_PARTICLES');
-    
-    // Particle geometry (simple sphere)
-    this.geometry = new THREE.IcosahedronGeometry(0.05, 2);
-    
+
+    // Particle geometry (single point)
+    this.geometry = new THREE.BufferGeometry();
+    this.geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
+
     // Initialize particle pool
     for (let i = 0; i < poolSize; i++) {
-      const mesh = new THREE.Mesh(this.geometry, this.material);
-      const udMesh = (mesh && typeof mesh.userData === 'object' && mesh.userData) ? mesh.userData : (() => { try { Object.defineProperty(mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return mesh.userData || {}; })();
+      const points = new THREE.Points(this.geometry, this.material);
+      const udMesh = (points && typeof points.userData === 'object' && points.userData) ? points.userData : (() => { try { Object.defineProperty(points, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return points.userData || {}; })();
       Object.assign(udMesh, { isTrailParticle: true });
-      this.poolGroup.add(mesh);
-      
-      const particle = new TrailParticle(mesh);
+      this.poolGroup.add(points);
+
+      const particle = new TrailParticle(points);
       this.particles.push(particle);
     }
 

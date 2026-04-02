@@ -1,5 +1,10 @@
 Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako GlyphLayer4_MultiFusion. mohol by si to spraviť tak prosim ťa
 
+## 2026-04-02
+- `ResonanceCascadeVisualization_Session117B` is now fully functional in runtime and visibly spawns a readable scene ripple.
+- The cascade now has a flat ripple plane and a thicker torus-based ring so it reads clearly without needing a link-specific debug path.
+- Manual runtime verification confirmed the cascade root is attached to the scene and the visual spawn path is live.
+
 ## 2026-03-28
 - Composite glyphs now receive an orbit anchor and orbit parameters from `GlyphFusionZone`.
 - `NeuralConvergenceSingularity` now updates its world position by orbiting around the anchor instead of sitting statically on the node center.

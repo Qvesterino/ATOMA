@@ -34,6 +34,7 @@ function getAtomaVisualDebugMode() {
 const SPARKLE_VERTEX_SHADER = `
 uniform float uTime;
 uniform float uScale;
+uniform float uForceRedParticles;
 attribute float birthTime;
 attribute float lifetime;
 attribute vec3 velocity;
@@ -96,11 +97,16 @@ void main() {
     
     vAlpha = alpha;
     vLayer = layer / 15.0;
-    vColor = mix(color, vec3(0.35, 0.9, 1.0), 0.35 + 0.35 * sin(uTime * 0.8 + layer));
+    vec3 baseColor = mix(color, vec3(0.35, 0.9, 1.0), 0.35 + 0.35 * sin(uTime * 0.8 + layer));
+    if (uForceRedParticles > 0.5) {
+        baseColor = vec3(1.0, 0.0, 0.0);
+    }
+    vColor = baseColor;
 }
 `;
 
 const SPARKLE_FRAGMENT_SHADER = `
+uniform float uForceRedParticles;
 varying vec3 vColor;
 varying float vAlpha;
 varying float vLayer;
@@ -116,7 +122,13 @@ void main() {
 
     // Hypercube layer color shift
     vec3 layerTint = mix(vec3(0.95, 0.65, 1.0), vec3(0.15, 1.0, 0.9), vLayer);
-    vec3 boosted = (vColor + layerTint * 0.8) * (1.25 + edgeGlow * 0.75);
+    vec3 finalColor = vColor;
+    bool isForcedRed = (uForceRedParticles > 0.5);
+    if (isForcedRed) {
+        finalColor = vec3(1.0, 0.0, 0.0);
+    }
+    vec3 tinted = isForcedRed ? finalColor : (finalColor + layerTint * 0.8);
+    vec3 boosted = tinted * (1.25 + edgeGlow * 0.75);
 
     gl_FragColor = vec4(boosted, vAlpha * boxGlow);
 }
@@ -223,7 +235,8 @@ export class HealingParticleSystem_Session136 {
                 fragmentShader: SPARKLE_FRAGMENT_SHADER,
                 uniforms: {
                     uTime: { value: 0 },
-                    uScale: { value: this.config.debugVisualBoost ? 1.75 : 1.0 }
+                    uScale: { value: this.config.debugVisualBoost ? 1.75 : 1.0 },
+                    uForceRedParticles: { value: this.config.debugForceRedParticles ? 1.0 : 0.0 }
                 },
                 transparent: true,
                 depthWrite: false,
@@ -235,7 +248,8 @@ export class HealingParticleSystem_Session136 {
             fragmentShader: SPARKLE_FRAGMENT_SHADER,
             uniforms: {
                 uTime: { value: 0 },
-                uScale: { value: this.config.debugVisualBoost ? 1.75 : 1.0 }
+                uScale: { value: this.config.debugVisualBoost ? 1.75 : 1.0 },
+                uForceRedParticles: { value: this.config.debugForceRedParticles ? 1.0 : 0.0 }
             },
             transparent: true,
             depthWrite: false,
@@ -337,6 +351,9 @@ export class HealingParticleSystem_Session136 {
 
         // Update uniforms
         this.material.uniforms.uTime.value = time;
+        if (this.material.uniforms.uForceRedParticles) {
+            this.material.uniforms.uForceRedParticles.value = this.config.debugForceRedParticles ? 1.0 : 0.0;
+        }
         this.lastUpdateTime = time;
         const canonicalState = projectHudMetrics(networkState || {});
         

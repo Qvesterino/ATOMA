@@ -77,7 +77,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
             amplitudeWeight: 0.15,            // Total pressure weight for normalized amplitude
             amplitudeNormalizationScale: 1.2, // Amplitude value mapped to normalized 1.0
             hardAmplitudeTrigger: 1.15,       // Failsafe amplitude trigger
-            ruptureCooldownSec: 1.25,         // Global rupture cooldown per link
+            ruptureCooldownSec: 7.0,          // Global rupture cooldown per link
 
             // Weighted score trigger (replaces strict hard-gate style conditions)
             scoreEventWeight: 0.45,
@@ -101,6 +101,9 @@ export class ResonanceRuptureVisualSystem_Session133 {
             ruptureBurstWidth: 0.2,           // Width of rupture wavefront
             ruptureBurstColor: new THREE.Color(1.0, 0.4, 0.0),  // Orange-red
             ruptureBurstGlow: 2.5,            // Emissive intensity at rupture
+            fractureBloomExtraShardCount: 6,  // Additional chaotic shards in bloom burst
+            fractureBloomRotationVariance: 0.42,
+            fractureBloomDriftRate: 0.26,
             
             // Rupture propagation
             propagationSpeed: 2.0,            // Relative to normal wave speed
@@ -579,6 +582,12 @@ export class ResonanceRuptureVisualSystem_Session133 {
             if (rupture.burstMesh) {
                 const scale = 1 + progress * 2;
                 if (rupture.burstMesh.userData?.fractureBloom) {
+                    const burstSpin = rupture.burstMesh.userData?.burstSpin;
+                    if (burstSpin) {
+                        rupture.burstMesh.rotation.x += (burstSpin.x || 0) * deltaTime;
+                        rupture.burstMesh.rotation.y += (burstSpin.y || 0) * deltaTime;
+                        rupture.burstMesh.rotation.z += (burstSpin.z || 0) * deltaTime;
+                    }
                     this._setFractureBloomOpacity(rupture.burstMesh, rupture.intensity * (1 - progress));
                     rupture.burstMesh.scale.setScalar(scale);
                 } else {
@@ -620,6 +629,20 @@ export class ResonanceRuptureVisualSystem_Session133 {
             bloom.position.copy(rupture.convergencePoint);
             bloom.renderOrder = this.config.renderOrder;
             bloom.userData.ruptureBurst = true;
+            const burstSeed = this._hashBurstSeed(rupture.linkId ?? rupture.trapId ?? `${this.time.toFixed(3)}:${rupture.intensity.toFixed(3)}`);
+            const rollVariance = this.config.fractureBloomRotationVariance || 0.42;
+            const driftRate = this.config.fractureBloomDriftRate || 0.26;
+            bloom.userData.burstSpin = new THREE.Vector3(
+                ((burstSeed.x * 2 - 1) * rollVariance) * 0.34,
+                ((burstSeed.y * 2 - 1) * rollVariance) * 0.34,
+                ((burstSeed.z * 2 - 1) * rollVariance) * 0.28
+            );
+            bloom.rotation.set(
+                (burstSeed.x - 0.5) * rollVariance,
+                (burstSeed.y - 0.5) * rollVariance,
+                (burstSeed.z - 0.5) * rollVariance
+            );
+            bloom.userData.burstDrift = driftRate;
             this.scene.add(bloom);
             return bloom;
         }
@@ -1508,6 +1531,22 @@ export class ResonanceRuptureVisualSystem_Session133 {
         return geometry;
     }
 
+    _hashBurstSeed(seed = '') {
+        const text = String(seed);
+        let hash = 2166136261;
+        for (let i = 0; i < text.length; i += 1) {
+            hash ^= text.charCodeAt(i);
+            hash = Math.imul(hash, 16777619);
+        }
+
+        const base = hash >>> 0;
+        return {
+            x: ((base & 0xff) / 255),
+            y: (((base >>> 8) & 0xff) / 255),
+            z: (((base >>> 16) & 0xff) / 255)
+        };
+    }
+
     _layoutFractureBloomScar(root, startPos, endPos, intensity, seed = 0) {
         if (!root) return;
         const center = new THREE.Vector3().addVectors(startPos, endPos).multiplyScalar(0.5);
@@ -1523,14 +1562,22 @@ export class ResonanceRuptureVisualSystem_Session133 {
         const swirl = (Math.sin(this.time * 7.0 + seedValue * 0.017) * 0.5 + 0.5);
         const spread = Math.max(0.82, linkLength * 0.30);
         const axialScale = Math.max(0.86, linkLength * 0.16);
+        const burstSeed = this._hashBurstSeed(`${seedValue}|${Math.floor(this.time * 1000)}|${Math.floor(intensity * 1000)}`);
+        const twist = (burstSeed.x - 0.5) * 0.52;
+        const pitch = (burstSeed.y - 0.5) * 0.30;
+        const yaw = (burstSeed.z - 0.5) * 0.30;
 
         root.position.copy(center);
         root.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), forward);
+        root.rotateOnAxis(new THREE.Vector3(0, 1, 0), twist);
+        root.rotateOnAxis(new THREE.Vector3(1, 0, 0), pitch);
+        root.rotateOnAxis(new THREE.Vector3(0, 0, 1), yaw);
         root.scale.set(
             Math.max(0.70, linkLength * 0.16),
             axialScale,
             Math.max(0.70, linkLength * 0.16)
         );
+        root.userData.burstSpin = new THREE.Vector3(pitch * 0.22, yaw * 0.22, twist * 0.18);
 
         const shards = root.userData?.shards || [];
         shards.forEach((shard, index) => {
@@ -1562,6 +1609,60 @@ export class ResonanceRuptureVisualSystem_Session133 {
                 shard.scale.multiplyScalar(0.80 + intensity * 0.10);
             }
         });
+
+        const extraShardCount = Math.max(0, this.config.fractureBloomExtraShardCount ?? 0);
+        for (let i = 0; i < extraShardCount; i++) {
+            const extraSeed = this._hashBurstSeed(`${seedValue}:extra:${i}:${Math.floor(this.time * 1000)}`);
+            const extraMaterial = this.scarMaterial.clone();
+            extraMaterial.color = new THREE.Color().setHSL(
+                0.02 + extraSeed.x * 0.12,
+                0.85,
+                0.60 + extraSeed.y * 0.16
+            );
+            extraMaterial.opacity = this.config.debugVisualBoost ? 0.62 + extraSeed.z * 0.24 : this.config.scarOpacity * 0.85;
+            extraMaterial.transparent = true;
+            extraMaterial.depthWrite = false;
+            extraMaterial.blending = extraSeed.x > 0.55 ? THREE.AdditiveBlending : THREE.NormalBlending;
+
+            const extraShard = new THREE.Mesh(
+                this._createFractureShardGeometry({
+                    topWidth: 0.02 + extraSeed.x * 0.015,
+                    shoulderWidth: 0.07 + extraSeed.y * 0.06,
+                    baseWidth: 0.14 + extraSeed.z * 0.10,
+                    topThickness: 0.012 + extraSeed.y * 0.01,
+                    shoulderThickness: 0.05 + extraSeed.z * 0.03,
+                    baseThickness: 0.08 + extraSeed.x * 0.05,
+                    topY: 0.52 + extraSeed.x * 0.26,
+                    midY: -0.12 + extraSeed.y * 0.08,
+                    baseY: -0.62 - extraSeed.z * 0.18,
+                    skewX: (extraSeed.x - 0.5) * 0.18,
+                    skewZ: (extraSeed.z - 0.5) * 0.18,
+                    twist: (extraSeed.y - 0.5) * 0.9
+                }),
+                extraMaterial
+            );
+            const ringAngle = (i / Math.max(1, extraShardCount)) * Math.PI * 2 + swirl * Math.PI * 1.75;
+            const ringRadius = spread * (0.68 + extraSeed.x * 0.46);
+            extraShard.position.copy(
+                new THREE.Vector3()
+                    .addScaledVector(right, Math.cos(ringAngle) * ringRadius)
+                    .addScaledVector(up, Math.sin(ringAngle) * ringRadius * 0.92)
+                    .addScaledVector(forward, (extraSeed.y - 0.5) * 0.42)
+            );
+            extraShard.rotation.set(
+                (extraSeed.x - 0.5) * 1.6,
+                (extraSeed.y - 0.5) * 1.2,
+                (extraSeed.z - 0.5) * 2.4
+            );
+            extraShard.scale.set(
+                0.24 + extraSeed.x * 0.18,
+                0.58 + extraSeed.y * 0.42,
+                0.18 + extraSeed.z * 0.16
+            );
+            extraShard.renderOrder = this.config.renderOrder;
+            root.add(extraShard);
+            root.userData.shards.push(extraShard);
+        }
 
         root.visible = true;
     }

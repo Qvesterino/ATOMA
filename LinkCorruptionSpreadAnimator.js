@@ -79,8 +79,6 @@ export class LinkCorruptionSpreadAnimator {
       dustHeight: 0.16,
       dustLateralSpread: 0.06
     };
-
-    this.dustGlyphTexture = this._createDustGlyphTexture();
   }
 
   _disposeDustState(state) {
@@ -201,7 +199,7 @@ export class LinkCorruptionSpreadAnimator {
       renderLayer: 'LINK_PARTICLES',
       preset: 'corruption',
       capacity: 18,
-      textureKind: 'ember'
+      textureKind: 'corruptionDust'
     });
   }
   
@@ -324,12 +322,36 @@ export class LinkCorruptionSpreadAnimator {
     if (state.dust || !link?.group) return state.dust;
 
     const count = this.config.dustParticleCount;
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(count * 3), 3));
+    const cloud = this.pointFXBase?.createPointCloud?.({
+      capacity: count,
+      preset: 'corruption',
+      textureKind: 'corruptionDust',
+      attributeSchema: {},
+        materialOptions: {
+          shareMaterial: true,
+          pointsMaterialOptions: {
+            color: 0xffefd6,
+            transparent: true,
+            opacity: 0.68,
+            size: 0.11,
+            alphaTest: 0.08,
+            depthWrite: false,
+            depthTest: true,
+            blending: THREE.AdditiveBlending
+          }
+      },
+      userData: {
+        isCorruptionDustWave: true
+      }
+    }) || null;
 
-    const material = new THREE.PointsMaterial({
+    const geometry = cloud?.geometry || new THREE.BufferGeometry();
+    if (!cloud) {
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(count * 3), 3));
+    }
+
+    const material = cloud?.material || new THREE.PointsMaterial({
       color: 0xffefd6,
-      map: this.dustGlyphTexture,
       transparent: true,
       opacity: 0.0,
       size: 0.1,
@@ -339,12 +361,12 @@ export class LinkCorruptionSpreadAnimator {
       blending: THREE.AdditiveBlending
     });
 
-    const points = new THREE.Points(geometry, material);
+    const points = cloud?.points || new THREE.Points(geometry, material);
     points.frustumCulled = false;
     points.visible = false;
-    if (this.pointFXBase) {
+    if (!cloud && this.pointFXBase) {
       this.pointFXBase.ensureAttached(points);
-    } else {
+    } else if (!cloud) {
       link.group.add(points);
     }
 
@@ -436,8 +458,7 @@ export class LinkCorruptionSpreadAnimator {
     }
 
     dust.geometry.attributes.position.needsUpdate = true;
-    dust.material.opacity = Math.min(0.96, 0.3 + corruptionLevel * 0.98);
-    dust.material.size = 0.08 + corruptionLevel * 0.09;
+    dust.points.scale.setScalar(0.92 + corruptionLevel * 0.42);
   }
 
   _readCorruptionLevel(link, options = {}) {
@@ -582,10 +603,6 @@ export class LinkCorruptionSpreadAnimator {
    * Clear all animation states
    */
   dispose() {
-    if (this.dustGlyphTexture?.dispose) {
-      this.dustGlyphTexture.dispose();
-      this.dustGlyphTexture = null;
-    }
     this.pointFXBase = null;
     this.animationStates.clear();
   }
