@@ -147,11 +147,11 @@ export class HealingParticleSystem_Session136 {
             baseSize: 0.24,
             trailDensity: 5,       // Particles per unit distance
             lodDistance: 100,
-            debugVisualBoost: true,
-            debugForceRedParticles: true,
-            debugExtremeSpawnIndicator: false, // temporary debug mode for huge cube
-            debugSpawnProbe: true,
-            debugSpawnLogs: true,
+            debugVisualBoost: false,
+            debugForceRedParticles: false,
+            debugExtremeSpawnIndicator: false,
+            debugSpawnProbe: false,
+            debugSpawnLogs: false,
             ...config
         };
         

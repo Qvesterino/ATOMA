@@ -480,7 +480,7 @@ export class NodeVisuals4_0 {
     // Update each upgraded node
     this.nodeVisualRegistry.forEach((visualData, nodeId) => {
       const node = visualData.node;
-      if (!node || !this.scene.getObjectByProperty('uuid', nodeId)) return;
+      if (!node || !node.parent || node.uuid !== nodeId) return;
       
       const overlayGroup = visualData.components.overlayGroup;
       if (!overlayGroup || overlayGroup.parent !== node) return;

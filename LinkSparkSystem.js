@@ -211,8 +211,8 @@ export class LinkSparkSystem {
             uEnd: { value: new THREE.Vector3() },
             uThickness: { value: 0.6 },
             uPulse: { value: 0 },
-            uColor: { value: new THREE.Color(0xff00ff) },
-            uOpacity: { value: 2.5 }
+            uColor: { value: new THREE.Color(0xffffff) },
+            uOpacity: { value: 0.75 }
         };
 
         // Restore shader material for sparks
@@ -309,42 +309,20 @@ export class LinkSparkSystem {
         const intensity = stats.intensity !== undefined ? stats.intensity : 0.25;
         const activity = Math.max(intensity, synergy, traffic);
 
-        // Probability increases with activity (baseline always on)
-        // Force-enable spawning for visibility debug
-        const spawnProb = 1;
-        this._condAccum = (this._condAccum || 0) + deltaTime;
-        if (DEBUG_SPARKS && this._condAccum >= 10) {
-            console.log('SPARK CONDITION', { activity, synergy, traffic, spawnProb, deltaTime });
-            this._condAccum = 0;
-        }
-
-        // [DEBUG] Log spawn probability for debugging
-        if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
-            if (spawnProb > 0.001) {
-                console.log('[LinkSparkSystem] Spawn check:', {
-                    activity: activity.toFixed(3),
-                    spawnProb: spawnProb.toFixed(4),
-                    deltaTime: deltaTime.toFixed(4),
-                    synergy,
-                    traffic,
-                    intensity
-                });
-            }
-        }
+        // Controlled spawn: only when active enough
+        const minActivity = 0.08;
+        const spawnCount = activity > minActivity ? Math.max(1, Math.floor(activity * 1.8)) : 0;
 
         // Burst check (Echo wave or bead arrival simulation)
-        // We'll simulate bursts via random chance for now to keep it decoupled
-        // Controlled spawn
-        if (spawnEnabled) {
-            const count = 1;
-            this.spawnBurst(count, time, activity);
+        if (spawnEnabled && spawnCount > 0) {
+            this.spawnBurst(spawnCount, time, activity);
         }
 
-        // Opacity scales with activity but never zero
-        this.uniforms.uOpacity.value = 1.5; // TEMP visibility boost
+        // Subtle opacity scaling (no hard debug glow)
+        this.uniforms.uOpacity.value = Math.max(0.35, Math.min(0.9, 0.5 + activity * 0.35));
         this.points.visible = true;
 
-        if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+        if (DEBUG_SPARKS) {
             this._debugAcc = (this._debugAcc || 0) + deltaTime;
             if (this._debugAcc >= 1.0) {
                 console.log('[Sparks] dt:', deltaTime.toFixed(4), 'spawned:', this._debugSpawned || 0);

@@ -183,7 +183,7 @@ Confirmed default runtime validation entrypoint:
 - `LinkRendererConduit` strand-tip sparks are now `THREE.Points` objects created through `LinkPointFXBase`, so geometry/material/cleanup follow the shared point-FX scaffold while preserving the existing spark shader look.
 
 ## Strand Filament Motion Contract
-- `LinkRendererConduit` strand filaments now use a stronger animated flow wave and slightly faster sway/travel settings so the moving filament language reads more clearly in runtime.
+- `LinkRendererConduit` strand filaments now use a slower, heavier motion profile with a modest flow wave and a `linewidth` hint in place; the visible gain comes from motion shaping, not line width alone.
 
 ## Healing Point Scaffold
 - `HealingParticleSystem_Session136` healing trail particles now use `LinkPointFXBase` for shared geometry / material / attach / cleanup handling while preserving the existing shader look and debug probe behavior.
@@ -207,6 +207,14 @@ Confirmed default runtime validation entrypoint:
 ## Link Arc Visibility Contract
 - `LinkRingArcDischarges` now renders arcs as a core line plus a lightweight glow line, with glow strength controlled by a small parameter instead of a render-layer change.
 - The arc glow pass was later intensified again by raising the default glow strength and opacity scaling while keeping the same core-plus-glow structure.
+- `linewidth` tweaks on arc lines and filaments are treated as best-effort hints; the reliable visual change remains glow intensity and motion shaping.
+
+## Main Lookup Contract
+- `main.js` runtime node lookup helpers should prefer `aiNodes.nodes` or canonical registries over `scene.traverse(...)` when resolving nodes by id, code, or name.
+- The resonance-only debug visibility toggle now caches hide targets after its first scene scan, so repeated toggles avoid another full scene traversal.
+
+## Link Braid Rebuild Contract
+- `LinkRendererConduit` braid geometry rebuilds now use a short cooldown so small link motion does not trigger a fresh `TubeGeometry` rebuild every eligible tick.
 
 ## Link Trail Readability Contract
 - `LinkTrailParticleSystem` remains at its baseline particle sizing and opacity after the reverted visibility experiment; no hidden/collapsed pool tweak is currently part of the stable implementation.

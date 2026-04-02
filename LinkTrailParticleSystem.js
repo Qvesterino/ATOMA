@@ -29,6 +29,7 @@ import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { getLinkSynergyVisualMetrics } from './SemanticMetricAdapter.js';
 import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
+import { LinkPointFXBase } from './LinkPointFXBase.js';
 
 /**
  * Shared noise function (identical to LinkAuraShader)
@@ -384,6 +385,12 @@ export class LinkTrailParticleSystem {
     this.emitAccumulators = new Map(); // key -> fractional emit remainder
     
     this.noise = new NoiseGenerator();
+    this.pointFXBase = new LinkPointFXBase(null, {
+      renderLayer: 'LINK_PARTICLES',
+      preset: 'spark',
+      capacity: poolSize,
+      textureKind: 'ember'
+    });
     this.poolGroup = new THREE.Group();
     this.renderOrder = applyLinkRenderLayer(this.poolGroup, 'LINK_PARTICLES');
     const udPool = (this.poolGroup && typeof this.poolGroup.userData === 'object' && this.poolGroup.userData) ? this.poolGroup.userData : (() => { try { Object.defineProperty(this.poolGroup, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.poolGroup.userData || {}; })();
@@ -394,26 +401,25 @@ export class LinkTrailParticleSystem {
     // Impact callback (optional, called when particles arrive at destination)
     this.onParticleArrival = null;
     
-    // Particle material (shared across all particles)
-    this.material = new THREE.PointsMaterial({
-      color: 0x888888,
-      size: 0.18,
-      sizeAttenuation: true,
-      transparent: true,
-      opacity: 0.8,
-      depthWrite: false,
-      depthTest: true,
-      blending: THREE.AdditiveBlending
-    });
-    applyLinkRenderLayer(this.material, 'LINK_PARTICLES');
+    // Particle material and geometry are managed by LinkPointFXBase now
+    this.material = null;
+    this.geometry = null;
 
-    // Particle geometry (single point)
-    this.geometry = new THREE.BufferGeometry();
-    this.geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
-
-    // Initialize particle pool
+    // Initialize particle pool via LinkPointFXBase
     for (let i = 0; i < poolSize; i++) {
-      const points = new THREE.Points(this.geometry, this.material);
+      const { points } = this.pointFXBase.createPointCloud({
+        capacity: 1,
+        preset: 'spark',
+        textureKind: 'ember',
+        materialOptions: {
+          opacity: 0.8,
+          size: 0.22,
+          sizeAttenuation: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          depthTest: true
+        }
+      });
       const udMesh = (points && typeof points.userData === 'object' && points.userData) ? points.userData : (() => { try { Object.defineProperty(points, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return points.userData || {}; })();
       Object.assign(udMesh, { isTrailParticle: true });
       this.poolGroup.add(points);
@@ -675,9 +681,23 @@ export class LinkTrailParticleSystem {
    */
   dispose() {
     this.emitAccumulators.clear();
-    this.material.dispose();
-    this.geometry.dispose();
-    this.scene?.remove?.(this.poolGroup);
+    if (this.scene && this.poolGroup) {
+      this.scene.remove(this.poolGroup);
+    }
+
+    for (let particle of this.particles) {
+      if (particle?.mesh) {
+        particle.mesh.parent?.remove(particle.mesh);
+        if (particle.mesh.geometry) particle.mesh.geometry.dispose();
+        if (particle.mesh.material) particle.mesh.material.dispose();
+      }
+    }
+
+    if (this.pointFXBase && typeof this.pointFXBase.dispose === 'function') {
+      this.pointFXBase.dispose();
+    }
+
+    this.particles.length = 0;
   }
 }
 

@@ -64,18 +64,18 @@ const COLOR_WHITE = new THREE.Color(0xffffff);
 const STRAND_FILAMENT_STYLE = {
     ENABLED: true,
     COUNT_PER_STRAND: 32,
-    BASE_OPACITY: 0.5,
+    BASE_OPACITY: 0.54,
     RADIAL_PUSH: 1.16,
-    LENGTH_SCALE: 1.95,
-    SWAY_SPEED: 4.65,
-    SWAY_AMOUNT: 0.82,
-    TRAVEL_SPEED: 0.095,
-    DETACH_SPEED: 3.25,
+    LENGTH_SCALE: 2.05,
+    SWAY_SPEED: 3.25,
+    SWAY_AMOUNT: 0.68,
+    TRAVEL_SPEED: 0.06,
+    DETACH_SPEED: 2.55,
     DETACH_BOOST: 0.28,
     FLOW_LEAN: 1.38,
     RADIAL_LEAN: 0.44,
-    FLOW_WAVE_SPEED: 5.2,
-    FLOW_WAVE_AMOUNT: 0.09,
+    FLOW_WAVE_SPEED: 3.4,
+    FLOW_WAVE_AMOUNT: 0.062,
     BRIDGE_SHARE: 0.46,
     BRIDGE_FORWARD: 0.19,
     BRIDGE_TWIST: 1.52,
@@ -1257,7 +1257,8 @@ export class LinkRendererConduit {
             opacity: STRAND_FILAMENT_STYLE.BASE_OPACITY,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
-            depthTest: true
+            depthTest: true,
+            linewidth: 1.6
         });
         material.toneMapped = false;
         const filamentMesh = new THREE.LineSegments(geometry, material);
@@ -1608,8 +1609,8 @@ export class LinkRendererConduit {
         const load = clamp01(metrics.loadPressure ?? 0);
         const stability = clamp01(1.0 - (metrics.stability ?? 1));
         material.opacity = THREE.MathUtils.clamp(
-            STRAND_FILAMENT_STYLE.BASE_OPACITY + load * 0.24 + corruption * 0.3 + synergy * 0.14,
-            0.35,
+            STRAND_FILAMENT_STYLE.BASE_OPACITY + load * 0.2 + corruption * 0.24 + synergy * 0.12,
+            0.32,
             0.98
         );
         this._updateStrandTipSparks(filamentState, Number.isFinite(ctx.visualTime) ? ctx.visualTime : 0);
@@ -3031,6 +3032,12 @@ export class LinkRendererConduit {
             healingEmitterTicks: 0,
             energyWaveTicks: 0
         });
+        const colorScratch = state.__colorScratch || (state.__colorScratch = {
+            a: new THREE.Color(),
+            b: new THREE.Color(),
+            c: new THREE.Color(),
+            d: new THREE.Color()
+        });
         runtime.updateCalls += 1;
         runtime.lastVisualTime = visualTime;
         runtime.lastCorruption = metrics?.corruption ?? 0;
@@ -3160,9 +3167,9 @@ export class LinkRendererConduit {
                 targetRadius * 0.35
             );
             if (!state.dockRing) {
-                const sourceColor = new THREE.Color(state.baseColor || 0xffffff);
-                const targetColor = new THREE.Color(this.getCategoryColor(link.target.userData?.category));
-                const ringColor = sourceColor.lerp(targetColor, 0.5);
+                const sourceColor = colorScratch.a.set(state.baseColor || 0xffffff);
+                const targetColor = colorScratch.b.set(this.getCategoryColor(link.target.userData?.category));
+                const ringColor = colorScratch.c.copy(sourceColor).lerp(targetColor, 0.5);
                 const ring = new THREE.Group();
                 ring.position.copy(dockOffset);
                 const forward = new THREE.Vector3(0, 0, 1);
@@ -3495,7 +3502,7 @@ export class LinkRendererConduit {
 
             if (state.sourceInjection) {
                 trace('beforeSourceInjectionUpdate');
-                const sourceColor = new THREE.Color(state.baseColor || 0xffffff);
+                const sourceColor = colorScratch.a.set(state.baseColor || 0xffffff);
                 const injectionAnchor = sourcePortPos.clone();
                 const injectionOrigin = sourceInjectionOrigin.clone().lerp(injectionAnchor, 0.35);
                 const injectionFlow = THREE.MathUtils.clamp(metrics.loadPressure ?? 0, 0, 1) * lodVisualScale;
@@ -3626,6 +3633,7 @@ export class LinkRendererConduit {
             end: new THREE.Vector3(),
             radius: 0,
             segments: 0,
+            nextRebuildTime: 0,
             pointScratch: new THREE.Vector3(),
             pointPool: [],
             points: []
@@ -3645,10 +3653,11 @@ export class LinkRendererConduit {
         const braidRadiusChanged =
             !braidGeometryState.ready ||
             Math.abs((braidGeometryState.radius || 0) - activeRadius) > Math.max(0.004, activeRadius * 0.18);
+        const braidRebuildReady = visualTime >= (braidGeometryState.nextRebuildTime || 0);
         const shouldRebuildBraids = runDynamicStrands && (
             isInitialGeometryBuild ||
             needsStrandBootstrap ||
-            (lodAllowsSecondaryVfx && (braidMoved || braidRadiusChanged))
+            (lodAllowsSecondaryVfx && braidRebuildReady && (braidMoved || braidRadiusChanged))
         );
         const runStrandMotion = heavyTick && Array.isArray(state.strands) && state.strands.length > 0;
         const collapseOpacityMul = collapseVisual.opacityMul;
@@ -3660,23 +3669,24 @@ export class LinkRendererConduit {
             strandCount: Array.isArray(state.strands) ? state.strands.length : 0
         });
         if (runStrandMotion) {
-            state.strands.forEach((mesh, i) => {
-            if (isCoreNodeMesh(mesh)) {
-                // Phase LRC-SAFE-CORE
-                // Do NOT modify core node material
-                return;
-            }
-            // Shader uniforms (simple link state shader)
-            const mat = mesh.material;
-            if (mat) {
-                mat.userData = mat.userData || {};
-                mat.userData.__strandOwnerStateRef = strandOwnerState;
-                mat.userData.__strandOwnerLinkId = link?.id || link?.uuid || 'link-unknown';
-            }
-            if (mat?.uniforms) {
-                mat.uniforms.uTime.value = visualTime;
-                const m = link?.userData?.metrics;
-                if (!m) return;
+            for (let i = 0; i < state.strands.length; i += 1) {
+                const mesh = state.strands[i];
+                if (isCoreNodeMesh(mesh)) {
+                    // Phase LRC-SAFE-CORE
+                    // Do NOT modify core node material
+                    continue;
+                }
+                // Shader uniforms (simple link state shader)
+                const mat = mesh.material;
+                if (mat) {
+                    mat.userData = mat.userData || {};
+                    mat.userData.__strandOwnerStateRef = strandOwnerState;
+                    mat.userData.__strandOwnerLinkId = link?.id || link?.uuid || 'link-unknown';
+                }
+                if (mat?.uniforms) {
+                    mat.uniforms.uTime.value = visualTime;
+                    const m = link?.userData?.metrics;
+                    if (!m) continue;
 
                 if (mat.uniforms.uCorruption) mat.uniforms.uCorruption.value = m.corruption ?? 0;
                 if (mat.uniforms.uNetworkStress) mat.uniforms.uNetworkStress.value = 1.0 - (m.stability ?? 1);
@@ -3698,119 +3708,119 @@ export class LinkRendererConduit {
                     mat.uniforms.uSegmentCount.value = overlaySegmentCount;
                 }
             }
-            if (mat?.userData) {
-                mat.userData.waveDirection = waveDirection;
-                mat.userData.waveLength = waveLength;
-                mat.userData.wavePhaseOffset = wavePhaseOffset;
-            }
-            // Flow texture
-            if (mesh.material && mesh.material.emissiveMap) {
-                mesh.material.emissiveMap.offset.x -= flowSpeed * visualDelta * 0.5;
-                const pulse = Math.sin(visualTime * 2.0 + i) * 0.2 + 0.8;
-                const emissiveIntensity = 0.5 * pulse * (1 + trafficLoad) * (0.6 + vfx.baseIntensity) * collapseEmissiveMul;
-                mergePatch(materialPatches.strands, mesh, {
-                    opacity: mesh.material.opacity * collapseOpacityMul,
-                    emissiveIntensity,
-                    owner: 'opacityStage'
-                });
-            }
-
-            if (!shouldRebuildBraids) {
-                if (mesh.material && mesh.material.linewidth !== undefined) {
-                    mergePatch(materialPatches.strands, mesh, { linewidth: mesh.material.linewidth, owner: 'thicknessStage' });
+                if (mat?.userData) {
+                    mat.userData.waveDirection = waveDirection;
+                    mat.userData.waveLength = waveLength;
+                    mat.userData.wavePhaseOffset = wavePhaseOffset;
                 }
-                return;
-            }
-
-            // Generate helical path
-            const points = braidGeometryState.points;
-            points.length = 0;
-            const pointScratch = braidGeometryState.pointScratch;
-            const pointPool = braidGeometryState.pointPool;
-            const angleOffset = (i / state.strandCount) * Math.PI * 2;
-
-            for (let j = 0; j <= segments; j++) {
-                const t = j / segments;
-                const pointOnMain = mainCurve.getPointAt(t, pointScratch);
-                const N = frames.normals[j] || frames.normals[frames.normals.length - 1];
-                const B = frames.binormals[j] || frames.binormals[frames.binormals.length - 1];
-
-                // Guard against invalid Frenet frames
-                if (!N || !B) continue;
-
-                // Calculate normalized twists based on link length
-                const linkLength = linkDist || 10.0;
-                const twists = linkLength / this.config.twistSpacing;
-                const currentTwist = t * Math.PI * 2 * twists + twistPhase;
-                const angle = angleOffset + currentTwist;
-
-                const flare = 1.0 + Math.pow(2.0 * (t - 0.5), 2) * 0.2;
-                const noise = Math.sin(t * 40 + i * 10) * noiseBase;
-                let r = (activeRadius * flare) + noise;
-
-                // Gentle symmetric taper near both docking ends
-                const taperStart = 0.95;
-                const edgeDistance = Math.min(t, 1 - t);
-                if (edgeDistance < (1 - taperStart)) {
-                    const fade = 1.0 - (edgeDistance / (1 - taperStart));
-                    r *= (1.0 - fade * 0.6);
+                // Flow texture
+                if (mesh.material && mesh.material.emissiveMap) {
+                    mesh.material.emissiveMap.offset.x -= flowSpeed * visualDelta * 0.5;
+                    const pulse = Math.sin(visualTime * 2.0 + i) * 0.2 + 0.8;
+                    const emissiveIntensity = 0.5 * pulse * (1 + trafficLoad) * (0.6 + vfx.baseIntensity) * collapseEmissiveMul;
+                    mergePatch(materialPatches.strands, mesh, {
+                        opacity: mesh.material.opacity * collapseOpacityMul,
+                        emissiveIntensity,
+                        owner: 'opacityStage'
+                    });
                 }
 
-                const offsetX = Math.cos(angle) * r;
-                const offsetY = Math.sin(angle) * r;
-
-                const pos = pointPool[j] || (pointPool[j] = new THREE.Vector3());
-                pos.copy(pointOnMain);
-                pos.addScaledVector(N, offsetX);
-                pos.addScaledVector(B, offsetY);
-
-                // Guard against NaN/Infinity in position
-                if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y) || !Number.isFinite(pos.z)) {
+                if (!shouldRebuildBraids) {
+                    if (mesh.material && mesh.material.linewidth !== undefined) {
+                        mergePatch(materialPatches.strands, mesh, { linewidth: mesh.material.linewidth, owner: 'thicknessStage' });
+                    }
                     continue;
                 }
 
-                points.push(pos);
-            }
+                // Generate helical path
+                const points = braidGeometryState.points;
+                points.length = 0;
+                const pointScratch = braidGeometryState.pointScratch;
+                const pointPool = braidGeometryState.pointPool;
+                const angleOffset = (i / state.strandCount) * Math.PI * 2;
 
-            // Dispose & Recreate Geometry
-            // Note: Efficient buffer updates for TubeGeometry are complex.
-            // We accept reallocation to ensure visual correctness of the braid.
-            if (mesh.geometry) mesh.geometry.dispose();
-            mesh.geometry = new THREE.TubeGeometry(
-                new THREE.CatmullRomCurve3(points),
-                segments,
-                this.config.strandRadius,
-                this.config.radialSegments,
-                false
-            );
-            applyStrandThicknessProfile(mesh.geometry, this.config.strandRadius, {
-                bellyCenter: 0.40 + seededNoise((i + 1) * 0.19) * 0.22,
-                bellyWidth: 0.14 + seededNoise((i + 3) * 0.23) * 0.11,
-                edgeTaper: 0.06 + seededNoise((i + 5) * 0.29) * 0.08,
-                taperFloor: 0.28 + seededNoise((i + 7) * 0.31) * 0.14,
-                bulge: 0.12 + seededNoise((i + 11) * 0.37) * 0.15,
-                ribCount: 2 + (i % 3),
-                ribStrength: 0.06 + seededNoise((i + 13) * 0.41) * 0.08,
-                ribBias: (seededNoise((i + 17) * 0.43) - 0.5) * 0.12,
-                asymmetry: (seededNoise((i + 19) * 0.47) - 0.5) * 0.18,
-                twist: seededNoise((i + 23) * 0.53) * Math.PI * 2.0
-            });
-            if (state.strandDepthPasses && state.strandDepthPasses[i]) {
-                state.strandDepthPasses[i].geometry = mesh.geometry;
-            }
-            if (state.strandOverlays && state.strandOverlays[i]) {
-                state.strandOverlays[i].geometry = mesh.geometry;
-                const overlayMat = state.strandOverlays[i].material;
-                if (overlayMat?.uniforms?.uSegmentCount) {
-                    overlayMat.uniforms.uSegmentCount.value = overlaySegmentCount;
+                for (let j = 0; j <= segments; j++) {
+                    const t = j / segments;
+                    const pointOnMain = mainCurve.getPointAt(t, pointScratch);
+                    const N = frames.normals[j] || frames.normals[frames.normals.length - 1];
+                    const B = frames.binormals[j] || frames.binormals[frames.binormals.length - 1];
+
+                    // Guard against invalid Frenet frames
+                    if (!N || !B) continue;
+
+                    // Calculate normalized twists based on link length
+                    const linkLength = linkDist || 10.0;
+                    const twists = linkLength / this.config.twistSpacing;
+                    const currentTwist = t * Math.PI * 2 * twists + twistPhase;
+                    const angle = angleOffset + currentTwist;
+
+                    const flare = 1.0 + Math.pow(2.0 * (t - 0.5), 2) * 0.2;
+                    const noise = Math.sin(t * 40 + i * 10) * noiseBase;
+                    let r = (activeRadius * flare) + noise;
+
+                    // Gentle symmetric taper near both docking ends
+                    const taperStart = 0.95;
+                    const edgeDistance = Math.min(t, 1 - t);
+                    if (edgeDistance < (1 - taperStart)) {
+                        const fade = 1.0 - (edgeDistance / (1 - taperStart));
+                        r *= (1.0 - fade * 0.6);
+                    }
+
+                    const offsetX = Math.cos(angle) * r;
+                    const offsetY = Math.sin(angle) * r;
+
+                    const pos = pointPool[j] || (pointPool[j] = new THREE.Vector3());
+                    pos.copy(pointOnMain);
+                    pos.addScaledVector(N, offsetX);
+                    pos.addScaledVector(B, offsetY);
+
+                    // Guard against NaN/Infinity in position
+                    if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y) || !Number.isFinite(pos.z)) {
+                        continue;
+                    }
+
+                    points.push(pos);
+                }
+
+                // Dispose & Recreate Geometry
+                // Note: Efficient buffer updates for TubeGeometry are complex.
+                // We accept reallocation to ensure visual correctness of the braid.
+                if (mesh.geometry) mesh.geometry.dispose();
+                mesh.geometry = new THREE.TubeGeometry(
+                    new THREE.CatmullRomCurve3(points),
+                    segments,
+                    this.config.strandRadius,
+                    this.config.radialSegments,
+                    false
+                );
+                applyStrandThicknessProfile(mesh.geometry, this.config.strandRadius, {
+                    bellyCenter: 0.40 + seededNoise((i + 1) * 0.19) * 0.22,
+                    bellyWidth: 0.14 + seededNoise((i + 3) * 0.23) * 0.11,
+                    edgeTaper: 0.06 + seededNoise((i + 5) * 0.29) * 0.08,
+                    taperFloor: 0.28 + seededNoise((i + 7) * 0.31) * 0.14,
+                    bulge: 0.12 + seededNoise((i + 11) * 0.37) * 0.15,
+                    ribCount: 2 + (i % 3),
+                    ribStrength: 0.06 + seededNoise((i + 13) * 0.41) * 0.08,
+                    ribBias: (seededNoise((i + 17) * 0.43) - 0.5) * 0.12,
+                    asymmetry: (seededNoise((i + 19) * 0.47) - 0.5) * 0.18,
+                    twist: seededNoise((i + 23) * 0.53) * Math.PI * 2.0
+                });
+                if (state.strandDepthPasses && state.strandDepthPasses[i]) {
+                    state.strandDepthPasses[i].geometry = mesh.geometry;
+                }
+                if (state.strandOverlays && state.strandOverlays[i]) {
+                    state.strandOverlays[i].geometry = mesh.geometry;
+                    const overlayMat = state.strandOverlays[i].material;
+                    if (overlayMat?.uniforms?.uSegmentCount) {
+                        overlayMat.uniforms.uSegmentCount.value = overlaySegmentCount;
+                    }
+                }
+
+                // Linewidth (if supported by material type)
+                if (mesh.material && mesh.material.linewidth !== undefined) {
+                    mergePatch(materialPatches.strands, mesh, { linewidth: mesh.material.linewidth, owner: 'thicknessStage' });
                 }
             }
-
-            // Linewidth (if supported by material type)
-            if (mesh.material && mesh.material.linewidth !== undefined) {
-                mergePatch(materialPatches.strands, mesh, { linewidth: mesh.material.linewidth, owner: 'thicknessStage' });
-            }
-            });
 
             if (shouldRebuildBraids) {
                 braidGeometryState.ready = true;
@@ -3818,6 +3828,7 @@ export class LinkRendererConduit {
                 braidGeometryState.end.copy(braidEnd);
                 braidGeometryState.radius = activeRadius;
                 braidGeometryState.segments = segments;
+                braidGeometryState.nextRebuildTime = visualTime + (isInitialGeometryBuild ? 0.06 : 0.18);
             }
         }
         trace('afterStrandMotion');
@@ -4061,9 +4072,10 @@ export class LinkRendererConduit {
                     const targetCategory = link.target.userData?.category || 'default';
                     const targetMetrics = link.target.userData?.metrics || metrics || {};
                     const burstFamily = this._getLargeBeadBurstFamily(targetCategory, targetMetrics);
+                    colorScratch.a.set(targetColor);
                     state.rings.emitRing(
                         link.target.position,
-                        new THREE.Color(targetColor),
+                        colorScratch.a,
                         visualTime,
                         burstFamily,
                         {
@@ -4082,7 +4094,7 @@ export class LinkRendererConduit {
 
         if (heavyTick && state.sparks && this.modules.sparks) {
             const baseCol = (state.strands[0]?.material?.color) || state.baseColor || 0xffffff;
-            const currentColor = baseCol.isColor ? baseCol : new THREE.Color(baseCol);
+            const currentColor = baseCol.isColor ? baseCol : colorScratch.a.set(baseCol);
             this._sparksUpdateCalls = (this._sparksUpdateCalls || 0) + 1;
 
             // [DEBUG] Log sparks update for visibility debugging
@@ -4121,8 +4133,8 @@ export class LinkRendererConduit {
 
         if (heavyTick && state.pulseRing && this.modules.flow) {
             const targetCat = link.target.userData?.category || 'input';
-            const targetColor = new THREE.Color(this.getCategoryColor(targetCat));
-            const sourceColor = new THREE.Color(state.baseColor);
+            const targetColor = colorScratch.b.set(this.getCategoryColor(targetCat));
+            const sourceColor = colorScratch.c.set(state.baseColor);
 
             state.pulseRing.update(
                 mainCurve,
@@ -4160,8 +4172,8 @@ export class LinkRendererConduit {
         // --- 7. Arc Discharge Update (Ring-triggered Electric Sparks) ---
         if (heavyTick && state.arcDischarges && state.pulseRing && this.modules.flow) {
                 const targetCat = link.target.userData?.category || 'input';
-                const targetColor = new THREE.Color(this.getCategoryColor(targetCat));
-                const ringColor = new THREE.Color(state.baseColor).lerp(targetColor, state.pulseRing.progress);
+                const targetColor = colorScratch.b.set(this.getCategoryColor(targetCat));
+                const ringColor = colorScratch.c.set(state.baseColor).lerp(targetColor, state.pulseRing.progress);
 
             // Ring scale from pulse ring oscillation
             const ringScale = state.pulseRing.mesh.scale.x;
@@ -4225,9 +4237,9 @@ export class LinkRendererConduit {
                 const stability = lodStability;
                 const synergyLevel = lodSynergy;
 
-                const sourceColor = new THREE.Color(state.baseColor);
+                const sourceColor = colorScratch.a.set(state.baseColor);
                 const targetCat = link.target.userData?.category || 'input';
-                const targetColor = new THREE.Color(this.getCategoryColor(targetCat));
+                const targetColor = colorScratch.b.set(this.getCategoryColor(targetCat));
 
                 try {
                     this.directionalStreaks.update(

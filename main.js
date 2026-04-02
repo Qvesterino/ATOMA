@@ -15080,14 +15080,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             });
         }
 
-        // Switch to NodeLinking2_3 (double-click enabled)
-        const allNodes = [];
-        this.scene.traverse(obj => {
-            if (obj.userData && obj.userData.isNode) {
-                allNodes.push(obj);
-            }
-        });
-
         this.nodeLinking = this.linkingSystem;
 
         console.log("✓ NodeLinking2_3 confirmed active");
@@ -15133,14 +15125,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             );
             this.nodeLinking.setSelectionCore(this.selectionCore);
 
-            // Set all nodes for unlinking checks
-            const allNodes = [];
-            this.scene.traverse(obj => {
-                if (obj.userData && obj.userData.isNode) {
-                    allNodes.push(obj);
-                }
-            });
-            this.nodeLinking.setAllNodes(allNodes);
+            // Set all nodes for unlinking checks from the canonical runtime registry.
+            this.nodeLinking.setAllNodes(this.aiNodes?.nodes || []);
         }
     }
 
@@ -15644,6 +15630,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             const state = window.__DEBUG._linkResonanceOnlyState ||= {
                 active: false,
                 snapshots: new Map(),
+                hideTargets: null,
             };
 
             const isResonanceFlowObject = (obj) => {
@@ -15691,11 +15678,18 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             if (enabled) {
                 if (state.active) return true;
                 state.snapshots.clear();
-                scene.traverse((obj) => {
-                    if (!shouldHide(obj)) return;
+                if (!Array.isArray(state.hideTargets) || state.hideTargets.length === 0) {
+                    state.hideTargets = [];
+                    scene.traverse((obj) => {
+                        if (!shouldHide(obj)) return;
+                        state.hideTargets.push(obj);
+                    });
+                }
+                for (const obj of state.hideTargets) {
+                    if (!obj) continue;
                     state.snapshots.set(obj, obj.visible);
                     obj.visible = false;
-                });
+                }
                 state.active = true;
                 return true;
             }
@@ -17939,6 +17933,17 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         // ========== LINK QUALITY PREDICTOR 1.0 DEBUG COMMANDS ==========
 
+        const getDebugNodes = () => window.game?.aiNodes?.nodes || [];
+        const findDebugNode = (nodeName) => {
+            const nodes = getDebugNodes();
+            const lowered = String(nodeName || '').toLowerCase();
+            return nodes.find((node) =>
+                (node.userData?.code || '').toLowerCase() === lowered ||
+                (node.userData?.name || '').toLowerCase() === lowered ||
+                (node.name || '').toLowerCase() === lowered
+            ) || null;
+        };
+
         // Compute quality for two nodes and explain
         window.computeLinkQuality = function (nodeNameA, nodeNameB) {
             if (!window.game || !window.game.linkQualityPredictor) {
@@ -17946,16 +17951,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 return;
             }
 
-            // Try to find nodes by name
-            let nodeA = null, nodeB = null;
-            window.game.scene.traverse((obj) => {
-                if (obj.userData?.code === nodeNameA || obj.userData?.name === nodeNameA || obj.name === nodeNameA) {
-                    nodeA = obj;
-                }
-                if (obj.userData?.code === nodeNameB || obj.userData?.name === nodeNameB || obj.name === nodeNameB) {
-                    nodeB = obj;
-                }
-            });
+            // Resolve from the canonical AI node registry instead of traversing the scene graph.
+            const nodeA = findDebugNode(nodeNameA);
+            const nodeB = findDebugNode(nodeNameB);
 
             if (!nodeA || !nodeB) {
                 console.warn('⚠ Could not find both nodes. Use: computeLinkQuality("NODE_CODE_1", "NODE_CODE_2")');
@@ -17983,11 +17981,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.group('🧪 Link Quality Matrix Test');
             const predictor = window.game.linkQualityPredictor;
             
-            // Find diverse nodes
-            const allNodes = [];
-            window.game.scene.traverse((obj) => {
-                if (obj.userData?.isAINode) allNodes.push(obj);
-            });
+            // Find diverse nodes from the canonical AI node registry.
+            const allNodes = getDebugNodes().filter((node) => !!node?.userData?.isAINode);
 
             if (allNodes.length < 2) {
                 console.warn('Not enough nodes to test');
@@ -18018,10 +18013,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.group('🎲 Random Candidate Test');
             const predictor = window.game.linkQualityPredictor;
             
-            const allNodes = [];
-            window.game.scene.traverse((obj) => {
-                if (obj.userData?.isAINode) allNodes.push(obj);
-            });
+            const allNodes = getDebugNodes().filter((node) => !!node?.userData?.isAINode);
 
             if (allNodes.length < 2) {
                 console.warn('Not enough nodes');
