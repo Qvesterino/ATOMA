@@ -12,9 +12,60 @@ export class DistanceLODController {
         const dz = position.z - cameraPos.z;
         const distanceSq = dx * dx + dy * dy + dz * dz;
 
-        if (distanceSq > 1000 * 1000) return 3;
-        if (distanceSq > 400 * 400) return 2;
-        if (distanceSq > 120 * 120) return 1;
+        if (distanceSq > 2500 * 2500) return 3;
+        if (distanceSq > 900 * 900) return 2;
+        if (distanceSq > 250 * 250) return 1;
         return 0;
+    }
+
+    getLODProfile(position) {
+        const level = this.getLODLevel(position);
+        return DistanceLODController.getLODProfileForLevel(level);
+    }
+
+    static getLODProfileForLevel(lodLevel = 0) {
+        const level = Math.max(0, Math.min(3, Number.isFinite(lodLevel) ? Math.floor(lodLevel) : 0));
+        if (level >= 3) {
+            return {
+                level,
+                visualScale: 0.35,
+                particleScale: 0.15,
+                motionScale: 0.45,
+                cadenceScale: 4.0,
+                allowParticles: true,
+                allowSecondaryVfx: true
+            };
+        }
+        if (level >= 2) {
+            return {
+                level,
+                visualScale: 0.68,
+                particleScale: 0.45,
+                motionScale: 0.72,
+                cadenceScale: 2.0,
+                allowParticles: false,
+                allowSecondaryVfx: true
+            };
+        }
+        if (level >= 1) {
+            return {
+                level,
+                visualScale: 0.78,
+                particleScale: 0.65,
+                motionScale: 0.82,
+                cadenceScale: 1.5,
+                allowParticles: true,
+                allowSecondaryVfx: true
+            };
+        }
+        return {
+            level,
+            visualScale: 1.0,
+            particleScale: 1.0,
+            motionScale: 1.0,
+            cadenceScale: 1.0,
+            allowParticles: true,
+            allowSecondaryVfx: true
+        };
     }
 }

@@ -124,6 +124,8 @@ export class LinkPulseDustEmitter {
 
         this.mesh = new THREE.Points(geometry, material);
         this.mesh.frustumCulled = false;
+        this.mesh.matrixAutoUpdate = false;
+        this.mesh.updateMatrix();
         this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
         Object.assign(this.mesh.userData || (this.mesh.userData = {}), {
             isLinkPulseDust: true

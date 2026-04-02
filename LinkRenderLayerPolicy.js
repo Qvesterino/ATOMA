@@ -167,6 +167,105 @@ const LINK_EFFECT_CADENCE_POLICY = {
   healingEmitter: 1
 };
 
+const LINK_DISTANCE_LOD_POLICY = {
+  0: {
+    visualScale: 1.0,
+    particleScale: 1.0,
+    motionScale: 1.0,
+    cadenceScale: 1.0,
+    allowDockSpray: true,
+    allowSourceInjection: true,
+    allowBeads: true,
+    allowBeadTrails: true,
+    allowEnergyRingSystem: true,
+    allowDirectionalStreaks: true,
+    allowPulseRing: true,
+    allowArcDischarges: true,
+    allowRingPulseDustEmitter: true,
+    allowParticleSystem: true,
+    allowSparks: true,
+    allowTrailParticles: true,
+    allowHealingParticles: true,
+    allowCorruptionParticles: true,
+    allowCorruptionSpread: true,
+    allowTrailEmitter: true,
+    allowHealingEmitter: true,
+    allowHarmonic: true
+  },
+  1: {
+    visualScale: 0.78,
+    particleScale: 0.65,
+    motionScale: 0.82,
+    cadenceScale: 1.5,
+    allowDockSpray: true,
+    allowSourceInjection: true,
+    allowBeads: true,
+    allowBeadTrails: true,
+    allowEnergyRingSystem: true,
+    allowDirectionalStreaks: true,
+    allowPulseRing: true,
+    allowArcDischarges: true,
+    allowRingPulseDustEmitter: true,
+    allowParticleSystem: true,
+    allowSparks: true,
+    allowTrailParticles: true,
+    allowHealingParticles: true,
+    allowCorruptionParticles: true,
+    allowCorruptionSpread: true,
+    allowTrailEmitter: true,
+    allowHealingEmitter: true,
+    allowHarmonic: true
+  },
+  2: {
+    visualScale: 0.68,
+    particleScale: 0.45,
+    motionScale: 0.72,
+    cadenceScale: 2.0,
+    allowDockSpray: false,
+    allowSourceInjection: false,
+    allowBeads: true,
+    allowBeadTrails: true,
+    allowEnergyRingSystem: true,
+    allowDirectionalStreaks: true,
+    allowPulseRing: true,
+    allowArcDischarges: true,
+    allowRingPulseDustEmitter: true,
+    allowParticleSystem: true,
+    allowSparks: true,
+    allowTrailParticles: true,
+    allowHealingParticles: true,
+    allowCorruptionParticles: true,
+    allowCorruptionSpread: true,
+    allowTrailEmitter: true,
+    allowHealingEmitter: true,
+    allowHarmonic: true
+  },
+  3: {
+    visualScale: 0.35,
+    particleScale: 0.15,
+    motionScale: 0.45,
+    cadenceScale: 4.0,
+    allowDockSpray: false,
+    allowSourceInjection: false,
+    allowBeads: true,
+    allowBeadTrails: false,
+    allowEnergyRingSystem: true,
+    allowDirectionalStreaks: false,
+    allowPulseRing: true,
+    allowArcDischarges: false,
+    allowRingPulseDustEmitter: false,
+    allowParticleSystem: true,
+    allowSparks: true,
+    allowTrailParticles: true,
+    allowHealingParticles: true,
+    allowCorruptionParticles: true,
+    allowCorruptionSpread: false,
+    allowTrailEmitter: false,
+    allowHealingEmitter: false,
+    allowHarmonic: false
+  }
+};
+
 function warn(message, details) {
   if (!(typeof window !== 'undefined' && window.ATOMA_FLAGS?.debug?.renderDiscipline === true)) return;
   console.warn(`[LinkRenderLayerPolicy] ${message}`, details || '');
@@ -214,6 +313,32 @@ export function shouldRunLinkEffect(linkKey, effectKey, frameFlags = {}, effectF
   const frameIndex = Math.max(0, Number(effectFrameIndex) || 0);
   const phase = hashLinkEffectKey(`${linkKey || 'link'}:${effectKey || 'effect'}`) % cadence;
   return ((frameIndex + phase) % cadence) === 0;
+}
+
+function getDistancePolicyLevel(lodLevel = 0) {
+  const level = Math.max(0, Math.min(3, Number.isFinite(lodLevel) ? Math.floor(lodLevel) : 0));
+  return LINK_DISTANCE_LOD_POLICY[level] || LINK_DISTANCE_LOD_POLICY[3];
+}
+
+export function getLinkDistancePolicy(lodLevel = 0) {
+  const level = Math.max(0, Math.min(3, Number.isFinite(lodLevel) ? Math.floor(lodLevel) : 0));
+  const policy = getDistancePolicyLevel(level);
+  return {
+    ...policy,
+    lodLevel: level,
+    allowParticles: policy.particleScale > 0 && policy.allowParticleSystem !== false,
+    allowSecondaryVfx: policy.allowDirectionalStreaks || policy.allowBeadTrails || policy.allowArcDischarges || policy.allowRingPulseDustEmitter || level >= 3,
+    allowDecorativeVfx: policy.allowDockSpray || policy.allowSourceInjection || policy.allowTrailEmitter || policy.allowHealingEmitter,
+    allowCoreVfx: true
+  };
+}
+
+export function getLinkDistanceScale(lodLevel = 0) {
+  return getLinkDistancePolicy(lodLevel).visualScale;
+}
+
+export function getLinkDistanceParticleScale(lodLevel = 0) {
+  return getLinkDistancePolicy(lodLevel).particleScale;
 }
 
 function applyToMaterial(material, policy, overrides = {}) {

@@ -379,6 +379,7 @@ export class LinkResonanceFlowSystem_Session124 {
   init() {
     // Create pulse rendering group
     this.pulseGroup = new THREE.Group();
+    this.pulseGroup.frustumCulled = true;
     this.pulseGroup.name = 'LinkResonancePulses_Session124';
     this.pulseGroup.userData.isLinkResonanceFlow = true;
     this.pulseGroup.userData.linkVisualFamily = 'resonanceFlow';

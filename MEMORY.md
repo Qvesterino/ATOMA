@@ -300,4 +300,29 @@ Confirmed default runtime validation entrypoint:
 - Stage 1 strand creation is one-strand-per-bootstrap-tick.
 - Stage 2 pulse-ring setup defers trail mesh initialization to a second bootstrap slice.
 - Stage 4 directional streak setup defers pulse-tracking initialization to a follow-up bootstrap slice.
+- Stage 6 now boots in two slices: ring system first, bead visuals second.
 - `LinkPulseRing` itself remains a live animated root; it should not be frozen with `matrixAutoUpdate = false` because its core ring needs runtime transforms to stay visible.
+
+## Link Conduit Freeze Contract
+- `LinkRendererConduit` should keep the skin shell, strand meshes, arc discharge group, bead trail mesh, spark mesh, dock spray mesh, and pulse dust mesh frozen with `matrixAutoUpdate = false` when they only mutate buffers or uniforms.
+- `LinkPulseDustEmitter` should freeze its `Points` root after creation, because only particle buffers and uniforms change at runtime.
+
+## Link Bead Render Contract
+- `LinkBeadVisualizer.forceRenderState()` was removed as dead code.
+- The bead update path should rely on its normal pooled render state instead of re-asserting a no-op per frame.
+
+## Link Energy Wave Merge Contract
+- `LinkEnergyWave` is merged into the existing strand uniform update path inside `LinkRendererConduit`.
+- The energy-wave visual effect now runs as part of the same per-strand uniform write that already owns `uLocalLoad`, instead of as a separate per-link object update.
+- `LinkCreateStagePolicy` treats the old energy-wave stage as merged flow modulation rather than a standalone bootstrap owner.
+- `LinkVisualStateAdapter` no longer owns an energy-wave hook; the adapter keeps focus on the remaining live visual subsystems.
+- `LinkEnergyWave.js` has been deleted as a dead module after the merge.
+- The conduit telemetry for that merged effect is now named `flowModulationTicks`, not `energyWaveTicks`.
+
+## Link Distance LOD Contract
+- `DistanceLODController` remains the raw distance-to-tier authority and now also exposes a generic LOD profile helper for distance-aware consumers.
+- `LinkRenderLayerPolicy` owns the link-specific distance budget profile, including visual scale, particle scale, motion scale, and per-effect allow flags.
+- `LinkRendererConduit` consumes that distance budget to gate dock spray, source injection, beads, bead trails, sparks, ring dust, directional streaks, arc discharges, and link particle emitters more selectively instead of only using a flat level check.
+- `LinkPointFXBase` exposes a shared point-cloud distance profile helper so point-based link systems can reuse the same LOD language without duplicating thresholds.
+- Far links should degrade by budget, not only by visibility: preserve link identity first, then trim secondary VFX and particle emission before removing the core link read.
+- LOD tier 2 and tier 3 must stay conservative rather than binary; if a change starts hiding core link readability, soften the thresholds before adding more cut flags.

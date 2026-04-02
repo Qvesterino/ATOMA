@@ -1202,8 +1202,12 @@ export class LinkEnergyRingSystem {
      * @param {THREE.Vector3} position - World position of ring center
      * @param {THREE.Color} color - Ring color
      * @param {number} time - Current time
+     * @param {number} lodLevel - Distance LOD level (0=full, 1=medium, 2=low, 3=skip)
      */
-    emitRing(position, color, time, family = 'mythic', context = {}) {
+    emitRing(position, color, time, family = 'mythic', context = {}, lodLevel = 0) {
+        // LOD: Skip creating new rings at max distance
+        if (lodLevel >= 3) return;
+        
         const palette = this._createMythicPalette(color);
         let burst;
         if (family === 'fracture') {
@@ -1227,8 +1231,14 @@ export class LinkEnergyRingSystem {
     /**
      * Update all active rings
      * @param {number} time - Current time
+     * @param {number} lodLevel - Distance LOD level (0=full, 1=medium, 2=low, 3=skip)
      */
-    update(time) {
+    update(time, lodLevel = 0) {
+        // LOD: Skip update entirely at max distance
+        if (lodLevel >= 3) return;
+        
+        const lodScale = lodLevel >= 2 ? 0.0 : lodLevel >= 1 ? 0.4 : 1.0;
+        const lodOpacity = lodLevel >= 2 ? 0.25 : lodLevel >= 1 ? 0.5 : 1.0;
         for (let i = this.rings.length - 1; i >= 0; i--) {
             const burst = this.rings[i];
             const data = burst.userData;
@@ -1299,7 +1309,7 @@ export class LinkEnergyRingSystem {
                         );
                     }
                     const accentBoost = Number.isFinite(child.userData?.accentBoost) ? child.userData.accentBoost : 0.0;
-                    child.material.opacity = opacity * roleBias * pulse * (1.0 + accentBoost * accentEase);
+                    child.material.opacity = opacity * roleBias * pulse * (1.0 + accentBoost * accentEase) * lodOpacity;
                 }
 
                 // Rotation (subtle spin)

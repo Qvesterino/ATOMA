@@ -50,15 +50,16 @@ export const LINK_CREATE_STAGE_DEFINITIONS = Object.freeze([
   },
   {
     phase: 3,
-    key: 'directional-streaks',
-    label: 'directional streaks',
+    key: 'flow-modulation',
+    label: 'flow modulation (merged into strands)',
     owner: 'conduit',
     coverage: 'covered',
     systems: [
+      'LinkRendererConduit.strand uLocalLoad modulation',
       'LinkRendererConduit._runBootstrapPhase(case 4)',
       'LinkDirectionalStreaks'
     ],
-    notes: 'Directional streaks are conduit-owned and already stageable.'
+    notes: 'The energy-wave behavior is merged into the strand uniform update path; no separate energy-wave object is created anymore.'
   },
   {
     phase: 4,
@@ -74,7 +75,7 @@ export const LINK_CREATE_STAGE_DEFINITIONS = Object.freeze([
       'LinkRingArcDischarges',
       'LinkPulseDustEmitter'
     ],
-    notes: 'Pulse ring and arc discharge are staged in conduit; the dust emitter is also conduit-owned.'
+    notes: 'Pulse ring, arc discharge, and dust emitter are staged in conduit; arc discharges now attach in one slice and warm up in the next bootstrap tick. Dock spray is also deferred out of the dock-ring create branch.'
   },
   {
     phase: 5,
@@ -100,7 +101,7 @@ export const LINK_CREATE_STAGE_DEFINITIONS = Object.freeze([
       'LinkBeadVisualizer',
       'LinkBeadTrailSystem'
     ],
-    notes: 'Bead body and bead trails are already split into consecutive conduit phases.'
+    notes: 'Bead system now boots in a two-step slice: energy rings first, then bead visuals on the next bootstrap tick. Bead trails remain a separate following stage.'
   },
   {
     phase: 7,

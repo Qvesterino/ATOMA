@@ -393,6 +393,7 @@ export class LinkTrailParticleSystem {
       textureKind: 'ember'
     });
     this.poolGroup = new THREE.Group();
+    this.poolGroup.frustumCulled = true;
     this.renderOrder = applyLinkRenderLayer(this.poolGroup, 'LINK_PARTICLES');
     const udPool = (this.poolGroup && typeof this.poolGroup.userData === 'object' && this.poolGroup.userData) ? this.poolGroup.userData : (() => { try { Object.defineProperty(this.poolGroup, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.poolGroup.userData || {}; })();
     Object.assign(udPool, { isTrailParticles: true });

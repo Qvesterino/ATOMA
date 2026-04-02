@@ -333,6 +333,7 @@ export class TIER4_CorruptionFeedbackVisuals {
   _buildCorruptionSeedStructure(corruptionLevel = 0) {
     const group = new THREE.Group();
     group.name = 'APOSTATE_BLOOM_ROOT';
+    group.frustumCulled = true;
 
     const bloomRoot = new THREE.Group();
     bloomRoot.name = 'APOSTATE_BLOOM_CROWN';

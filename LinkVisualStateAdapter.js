@@ -102,7 +102,6 @@ export class LinkVisualStateAdapter {
         this.applyPulseRingEffects(state.pulseRing, harmonyLevel, corruptionLevel, instability, synergy);
         this.applyArcDischargeEffects(state.arcDischarges, harmonyLevel, corruptionLevel, instability, synergy);
         this.applySkinEffects(state.skinMesh, harmonyLevel, corruptionLevel, instability, synergy);
-        this.applyEnergyWaveEffects(state.energyWave, harmonyLevel, corruptionLevel, instability, synergy);
 
         // === APPLY DECAY EFFECTS ===
         // Overlay cumulative corruption damage on all visuals
@@ -394,31 +393,6 @@ export class LinkVisualStateAdapter {
         
         // Apply synergy-driven glow amplification (on top of base harmony effect)
         mat.opacity = Math.max(0.01, Math.min(0.15, mat.opacity + synergyGlowAmplify));
-    }
-
-    /**
-     * Apply visual effects to energy wave system
-     */
-    applyEnergyWaveEffects(energyWave, harmony, corruption, instability, synergy) {
-        if (!energyWave) return;
-
-        // === SYNERGY EFFECTS (Energy Wave) ===
-        // Synergy modulates wave amplitude and frequency
-        // Higher synergy = more pronounced wave, smoother motion
-        const waveAmplitudeScale = 0.6 + (synergy * 0.4); // 0.6 -> 1.0
-        const waveFrequencyScale = 1.0 + (synergy * 0.3); // 1.0 -> 1.3
-        const waveSpeedScale = 1.0 + (synergy * 0.5); // 1.0 -> 1.5
-
-        // Modulate config via setConfig (safe, non-allocating)
-        energyWave.setConfig({
-            baseWaveSpeed: 1.5 * waveSpeedScale,
-            waveFrequency: 3.0 * waveFrequencyScale,
-            baseIntensity: 0.6 * waveAmplitudeScale,
-            peakIntensity: 1.4 * waveAmplitudeScale,
-        });
-
-        // Store synergy factor for potential external use
-        energyWave.synergyFactor = synergy;
     }
 
     /**

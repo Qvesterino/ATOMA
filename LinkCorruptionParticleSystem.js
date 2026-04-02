@@ -221,6 +221,11 @@ export class LinkCorruptionParticleSystem {
 
   updateLinkParticles(link, deltaTime, input = null) {
     if (!link?.id || !link.curve) return null;
+    
+    // LOD: Get distance level from input
+    const lodLevel = input?.lodLevel ?? 0;
+    if (lodLevel >= 3) return null;
+    
     const nodeA = link.sourceNode || link.nodeA || link.source;
     const nodeB = link.targetNode || link.nodeB || link.target;
     const pairKey = this._pairKey(nodeA, nodeB);
@@ -248,8 +253,10 @@ export class LinkCorruptionParticleSystem {
     );
     const visualCorruption = THREE.MathUtils.clamp(corruption * 4.0, 0, 1);
 
+    // LOD: Reduce particle count at distance
+    const lodSpawnScale = lodLevel >= 2 ? 0.0 : lodLevel >= 1 ? 0.4 : 1.0;
     const desired = (corruption > 0.005)
-      ? THREE.MathUtils.clamp(Math.floor(corruption * 10.0) * 2, 0, PER_LINK_CAP)
+      ? THREE.MathUtils.clamp(Math.floor(corruption * 10.0) * 2 * lodSpawnScale, 0, PER_LINK_CAP)
       : 0;
     const activeForLink = this.linkIndices.get(link.id)?.length || 0;
 
@@ -484,9 +491,15 @@ export class LinkCorruptionParticleSystem {
     this.points.visible = true;
   }
 
-  update(deltaTime = 0.016, time = null) {
+  update(deltaTime = 0.016, time = null, lodLevel = 0) {
     const now = Number.isFinite(time) ? time * 0.001 : performance.now() * 0.001;
     this.material.uniforms.uTime.value = now;
+
+    // LOD: Skip visibility at max distance
+    if (lodLevel >= 3) {
+        this.points.visible = false;
+        return;
+    }
 
     let activeCount = 0;
     for (let idx = 0; idx < this.poolSize; idx++) {
@@ -507,6 +520,14 @@ export class LinkCorruptionParticleSystem {
     }
 
     this.points.visible = activeCount > 0;
+  }
+
+  /**
+   * Set global LOD level for the entire system
+   * @param {number} lodLevel - Distance level (0-3)
+   */
+  setLODLevel(lodLevel) {
+    this._lodLevel = lodLevel;
   }
 
   _acquire() {

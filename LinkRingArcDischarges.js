@@ -117,9 +117,13 @@ export class LinkRingArcDischarges {
      * @param {number} dt - Delta time
      * @param {THREE.Color} ringColor - Ring color
      * @param {number} ringScale - Ring scale factor
+     * @param {number} lodLevel - Distance LOD level (0=full, 1=medium, 2=low, 3=skip)
      */
-    update(curve, ringProgress, synergy, traffic, dt, ringColor, ringScale, harmony = 1.0, corruption = 0.0, spawnEnabled = true) {
+    update(curve, ringProgress, synergy, traffic, dt, ringColor, ringScale, harmony = 1.0, corruption = 0.0, spawnEnabled = true, lodLevel = 0) {
         if (!curve) return;
+
+        // LOD: Skip update at max distance
+        if (lodLevel >= 3) return;
 
         this.currentRingProgress = ringProgress;
         this.ringColor.copy(ringColor);
@@ -127,12 +131,15 @@ export class LinkRingArcDischarges {
         this.currentHarmony = harmony;
         this.currentCorruption = corruption;
 
-        if (spawnEnabled) {
-            this.checkAndSpawnArcs(curve, synergy, traffic);
+        // LOD: Reduce spawn probability at distance
+        const lodSpawnChance = lodLevel >= 2 ? 0.0 : lodLevel >= 1 ? 0.4 : 1.0;
+        
+        if (spawnEnabled && lodSpawnChance > 0) {
+            this.checkAndSpawnArcs(curve, synergy, traffic, lodSpawnChance);
         }
 
         // Update active arcs (PHASE 4: Smooth Energy Fade)
-        this.updateActiveArcs(dt, curve);
+        this.updateActiveArcs(dt, curve, lodLevel);
 
         // Track last scale/progress for phase detection
         this.lastRingScale = this.ringScale;
@@ -144,8 +151,9 @@ export class LinkRingArcDischarges {
 
     /**
      * Check if ring has crossed a spawn threshold
+     * @param {number} lodSpawnChance - LOD-based spawn probability multiplier
      */
-    checkAndSpawnArcs(curve, synergy, traffic) {
+    checkAndSpawnArcs(curve, synergy, traffic, lodSpawnChance = 1.0) {
         const t = Math.min(0.999, Math.max(0.001, this.currentRingProgress));
         const ringPos = curve.getPointAt(t);
         const tangent = curve.getTangentAt(t).normalize();
@@ -754,8 +762,12 @@ export class LinkRingArcDischarges {
 
     /**
      * Update active arc lifetimes and fade (PHASE 4: Smooth Energy Fade)
+     * @param {number} lodLevel - Distance LOD level (0=full, 1=medium, 2=low, 3=skip)
      */
-    updateActiveArcs(dt, curve) {
+    updateActiveArcs(dt, curve, lodLevel = 0) {
+        // LOD: Apply opacity multiplier
+        const lodOpacity = lodLevel >= 2 ? 0.25 : lodLevel >= 1 ? 0.5 : 1.0;
+        
         for (let i = this.activeArcs.length - 1; i >= 0; i--) {
             const arc = this.activeArcs[i];
             arc.age += dt;
@@ -793,7 +805,7 @@ export class LinkRingArcDischarges {
                 const flashWindow = 0.12;
                 const flash = progress < flashWindow ? THREE.MathUtils.lerp(arc.flashBoost, 1.0, progress / flashWindow) : 1.0;
 
-                const baseOpacity = ease * arc.maxOpacity * flash;
+                const baseOpacity = ease * arc.maxOpacity * flash * lodOpacity;
                 
                 // Subtle pulse modulation (reduced intensity)
                 const pulseModulation = Math.sin(arc.age * arc.pulseSpeed + arc.pulsePhase);

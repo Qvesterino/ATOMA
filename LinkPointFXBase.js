@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
-import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
+import { applyLinkRenderLayer, getLinkDistancePolicy } from './LinkRenderLayerPolicy.js';
 
 const DEFAULT_RENDER_LAYER = 'LINK_PARTICLES';
 const LINK_POINT_FX_TEXTURE_CACHE = new Map();
@@ -423,6 +423,10 @@ export class LinkPointFXBase {
       ...materialOptions,
       texture: materialOptions.texture ?? (this.options.textureKind ? getSpriteTexture(this.options.textureKind) : null)
     });
+  }
+
+  getDistanceLODProfile(lodLevel = 0) {
+    return getLinkDistancePolicy(lodLevel);
   }
 
   createPointCloud({

@@ -252,8 +252,10 @@ export class LinkSparkSystem {
      * @param {Object} curve - QuadraticBezierCurve3
      * @param {Object} stats - { synergy, traffic, load }
      * @param {THREE.Color} color - Base link color
+     * @param {boolean|number} spawnEnabled - Enable spawning (or LOD level: 0=full, 1=medium, 2=low, 3=skip)
+     * @param {number} lodLevel - Distance LOD level (0-3)
      */
-    update(time, deltaTime, curve, stats, color, spawnEnabled = true) {
+    update(time, deltaTime, curve, stats, color, spawnEnabled = true, lodLevel = 0) {
         // Active particle estimate for debugging
         const geo = this.points?.geometry || this.geometry;
         if (!geo || !geo.attributes?.aSpawnTime || !geo.attributes?.aLifeTime) {
@@ -311,18 +313,29 @@ export class LinkSparkSystem {
         const intensity = stats.intensity !== undefined ? stats.intensity : 0.25;
         const activity = Math.max(intensity, synergy, traffic);
 
+        // LOD: Adjust activity based on distance level
+        const lodProfile = this.pointFXBase?.getDistanceLODProfile
+            ? this.pointFXBase.getDistanceLODProfile(lodLevel)
+            : null;
+        const lodActivity = typeof lodLevel === 'number'
+            ? activity * (lodProfile?.particleScale ?? (lodLevel >= 2 ? 0.0 : lodLevel >= 1 ? 0.4 : 1.0))
+            : activity;
+
         // Controlled spawn: only when active enough
         const minActivity = 0.08;
-        const spawnCount = activity > minActivity ? Math.max(1, Math.floor(activity * 1.8)) : 0;
+        const spawnCount = lodActivity > minActivity ? Math.max(1, Math.floor(lodActivity * 1.8)) : 0;
 
         // Burst check (Echo wave or bead arrival simulation)
         if (spawnEnabled && spawnCount > 0) {
-            this.spawnBurst(spawnCount, time, activity);
+            this.spawnBurst(spawnCount, time, lodActivity);
         }
 
         // Subtle opacity scaling (no hard debug glow)
-        this.uniforms.uOpacity.value = Math.max(0.35, Math.min(0.9, 0.5 + activity * 0.35));
-        this.points.visible = true;
+        const opacityScale = lodProfile?.visualScale ?? 1.0;
+        this.uniforms.uOpacity.value = Math.max(0.35, Math.min(0.9, (0.5 + lodActivity * 0.35) * opacityScale));
+        
+        // LOD: Adjust visibility based on distance
+        this.points.visible = lodProfile ? lodProfile.lodLevel < 3 && lodProfile.particleScale > 0 : lodLevel < 3;
 
         if (DEBUG_SPARKS) {
             this._debugAcc = (this._debugAcc || 0) + deltaTime;
