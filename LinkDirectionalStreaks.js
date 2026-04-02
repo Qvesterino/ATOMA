@@ -113,13 +113,14 @@ export class LinkDirectionalStreaks {
      * @param {Object} targetNode - Target node
      * @param {Object} hubController - Harmonic hub controller (if any)
      */
-    initialize(linkGroup, linkIdHash = 0, link = null, sourceNode = null, targetNode = null, hubController = null) {
+    initialize(linkGroup, linkIdHash = 0, link = null, sourceNode = null, targetNode = null, hubController = null, options = {}) {
         if (!linkGroup || !linkGroup.userData.conduitState) return;
         
         const state = linkGroup.userData.conduitState;
+        const deferPulseTracking = options?.deferPulseTracking === true;
         
         // Initialize pulse tracking for this link
-        if (link && sourceNode && targetNode) {
+        if (!deferPulseTracking && link && sourceNode && targetNode) {
             this.pulseInjector.initializePulseTracking(linkGroup, link, sourceNode, targetNode, hubController);
         }
         
@@ -163,6 +164,8 @@ export class LinkDirectionalStreaks {
             jitterPhases: new Float32Array(baseStreakCount),
             // Stability suppression flags
             suppressed: new Uint8Array(baseStreakCount),
+            __pulseTrackingDeferred: deferPulseTracking,
+            __pulseTrackingReady: !deferPulseTracking
         };
         
         // Initialize per-streak parameters (deterministic based on hash)
@@ -181,6 +184,20 @@ export class LinkDirectionalStreaks {
         
         // Store in link state
         state.directionalStreaks = streaks;
+    }
+
+    ensurePulseTracking(linkGroup, link = null, sourceNode = null, targetNode = null, hubController = null) {
+        if (!linkGroup || !linkGroup.userData.conduitState) return false;
+
+        const state = linkGroup.userData.conduitState;
+        const streaks = state.directionalStreaks;
+        if (!streaks || streaks.__pulseTrackingReady === true) return !!streaks;
+        if (!link || !sourceNode || !targetNode) return false;
+
+        this.pulseInjector.initializePulseTracking(linkGroup, link, sourceNode, targetNode, hubController);
+        streaks.__pulseTrackingDeferred = false;
+        streaks.__pulseTrackingReady = true;
+        return true;
     }
 
     /**

@@ -289,3 +289,15 @@ Confirmed default runtime validation entrypoint:
 ## Static Link FX Matrix Contract
 - Static link FX renderables that only mutate buffers or uniforms should keep `matrixAutoUpdate = false` and call `updateMatrix()` once at creation time.
 - This applies to shared point-cloud pools, bead trails, spark pools, corruption particles, and other link-side line/point renderables that do not animate their local transform.
+
+## Link Create Stage Contract
+- `LinkRenderLayerPolicy` owns render layers and cadence policy.
+- `LinkCreateStagePolicy` owns the staged order of link-creation visuals and separates conduit bootstrap stages from global main-loop bridges.
+- Global create-link bridges like cascade, standing-wave, resonance, and T2 corruption remain in `main.js` rather than being folded into conduit-owned bootstrap phases.
+
+## Link Bootstrap Slice Contract
+- The heaviest conduit bootstrap stages should be time-sliced rather than completed in a single frame.
+- Stage 1 strand creation is one-strand-per-bootstrap-tick.
+- Stage 2 pulse-ring setup defers trail mesh initialization to a second bootstrap slice.
+- Stage 4 directional streak setup defers pulse-tracking initialization to a follow-up bootstrap slice.
+- `LinkPulseRing` itself remains a live animated root; it should not be frozen with `matrixAutoUpdate = false` because its core ring needs runtime transforms to stay visible.

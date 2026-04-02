@@ -30,9 +30,10 @@ const Z_AXIS = new THREE.Vector3(0, 0, 1);
  * reinforces flow direction and synergy strength.
  */
 export class LinkPulseRing {
-    constructor(scene) {
+    constructor(scene, options = {}) {
         this.scene = scene;
         this._attachRoot = scene || null;
+        const deferTrails = options?.deferTrails === true;
         
         // === SEGMENTED RING CONSTANTS ===
         const TORUS_RADIUS = 1.0;
@@ -154,6 +155,8 @@ export class LinkPulseRing {
         // === LAYER 3: TRAIL (Echo rings) ===
         this.trailMeshes = [];
         this.TRAIL_COUNT = 2;
+        this._trailsDeferred = deferTrails;
+        this._trailsInitialized = false;
 
         // Chain arcs between trail rings (small pool)
         this._chainArcPool = [];
@@ -250,8 +253,10 @@ export class LinkPulseRing {
         this._arcTriggeredThisPulse = false;
         this._arcTriggeredOnClose = false;
         
-        // Trail initialization
-        this._initTrails();
+        // Trail initialization can be deferred to the next bootstrap slice.
+        if (!this._trailsDeferred) {
+            this._initTrails();
+        }
         // DEBUG ISOLATION: aura layer disabled so segment split stays readable.
         // this.mesh.add(this.auraMesh);
 
@@ -262,6 +267,7 @@ export class LinkPulseRing {
      * Initialize trail meshes (echo rings - ORGANIC TRAIL V2)
      */
     _initTrails() {
+        if (this._trailsInitialized) return this.trailMeshes;
         for (let i = 0; i < this.TRAIL_COUNT; i++) {
             const mat = this.material.clone();
             const mesh = new THREE.Mesh(SHARED_RING_GEOMETRY, mat);
@@ -274,6 +280,12 @@ export class LinkPulseRing {
             
             this.trailMeshes.push(mesh);
         }
+        this._trailsInitialized = true;
+        return this.trailMeshes;
+    }
+
+    ensureTrails() {
+        return this._initTrails();
     }
 
     _initChainArcPool(count) {

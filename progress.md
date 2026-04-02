@@ -12,6 +12,8 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
 - Investigated the render hot path from the current profile and treated it as a link-VFX cost issue, not a node shader issue.
 - Froze static link FX renderables by disabling `matrixAutoUpdate` on shared point-cloud pools, bead trails, corruption particles, spark pools, arc discharge lines, and static conduit strand/depth meshes.
 - Next verification step is a fresh browser profile capture to confirm whether `updateMatrixWorld` shrinks enough or whether braid/skin geometry rebuilds are still the remaining hotspot.
+- Added `LinkCreateStagePolicy.js` as the orchestration layer for staged link creation, with a 12-frame map plus prep phase and explicit out-of-band global systems.
+- `LinkRendererConduit` now records bootstrap stage metadata and uses the new policy for its bootstrap phase ceiling, but the global bridges in `main.js` remain separate for now.
 
 ## 2026-03-28
 - Composite glyphs now receive an orbit anchor and orbit parameters from `GlyphFusionZone`.

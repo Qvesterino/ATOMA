@@ -25,6 +25,7 @@ import { LinkTrailParticleSystem, LinkTrailEmitter } from './LinkTrailParticleSy
 import { LinkHealingParticleSystem, LinkHealingEmitter } from './LinkHealingParticleSystem.js';
 import { LinkPointFXBase } from './LinkPointFXBase.js';
 import { LinkExtensionConfig } from './LinkExtensionConfig.js';
+import { LINK_CREATE_STAGE_MAX_PHASE, getLinkCreateStageByPhase } from './LinkCreateStagePolicy.js';
 import { ImpactManagerCollection } from './NodeImpactManager.js';
 import { WaveTravelShaderPack_v1 } from './WaveTravelShaderPack_v1.js';
 import VisualTime from './src/time/VisualTime.js';
@@ -2387,6 +2388,13 @@ export class LinkRendererConduit {
         return {
             ok: true,
             linkId: link.id || link.uuid || null,
+            bootstrap: {
+                phase: state.bootstrap?.phase ?? null,
+                stage: state.bootstrap?.stage?.key ?? null,
+                label: state.bootstrap?.stage?.label ?? null,
+                coverage: state.bootstrap?.stage?.coverage ?? null,
+                complete: state.bootstrap?.complete === true
+            },
             statuses,
             modules: { ...this.modules },
             runtime: {
@@ -2817,8 +2825,9 @@ export class LinkRendererConduit {
             },
             bootstrap: {
                 phase: 0,
-                maxPhase: 9,
-                complete: false
+                maxPhase: LINK_CREATE_STAGE_MAX_PHASE,
+                complete: false,
+                stage: getLinkCreateStageByPhase(0)
             }
         });
 
@@ -2829,8 +2838,11 @@ export class LinkRendererConduit {
         const bootstrap = state?.bootstrap;
         if (!bootstrap || bootstrap.complete) return;
         const nextPhase = bootstrap.phase + 1;
-        this._runBootstrapPhase(link, state, nextPhase);
+        const completed = this._runBootstrapPhase(link, state, nextPhase) === true;
+        bootstrap.stage = getLinkCreateStageByPhase(nextPhase) || bootstrap.stage || null;
+        if (!completed) return;
         bootstrap.phase = nextPhase;
+        bootstrap.stage = getLinkCreateStageByPhase(nextPhase) || bootstrap.stage || null;
         if (nextPhase >= bootstrap.maxPhase) {
             bootstrap.complete = true;
         }
@@ -2839,131 +2851,157 @@ export class LinkRendererConduit {
     _runBootstrapPhase(link, state, phase) {
         const group = link?.group;
         if (!group || !state) return;
+        const stage = getLinkCreateStageByPhase(phase);
+        if (state.bootstrap) {
+            state.bootstrap.stage = stage || null;
+        }
 
         switch (phase) {
             case 1: { // Frame 1: strand geometry + strand shader
-                if (state.strands?.length) break;
                 const strandCount = state.strandCount || 3;
-                for (let i = 0; i < strandCount; i++) {
-                    const categoryColor = (i % 2 === 0) ? state.colorA : state.colorB;
-                    const accentColor = (i % 2 === 0) ? state.colorB : state.colorA;
-                    const material = new THREE.ShaderMaterial({
-                        vertexShader: linkStateVertexShaderSimple,
-                        fragmentShader: linkStateFragmentShaderSimple,
-                        transparent: true,
-                        depthWrite: false,
-                        depthTest: true,
-                        side: THREE.DoubleSide,
-                        uniforms: {
-                            uNetworkStress: { value: 0.0 },
-                            uLocalLoad: { value: 0.0 },
-                            uCorruption: { value: 0.0 },
-                            uTime: { value: 0.0 },
-                            uSegmentCount: { value: 44.0 },
-                            uBaseColor: { value: categoryColor.clone() },
-                            uAccentColor: { value: accentColor.clone() },
-                            uStrandIndex: { value: i },
-                            uStrandCount: { value: strandCount }
-                        }
-                    });
-                    ensureUserData(material);
-                    material.userData.__owner = 'LinkRenderer';
-                    material.userData.__domain = 'link';
-                    material.userData.isLinkCore = true;
-                    material.userData.travelRelevant = true;
-                    material.userData.__flagsFrozen = material.userData.__flagsFrozen || false;
-                    const directionVec =
-                        link?.userData?.waveDirection ||
-                        state?.waveDirection ||
-                        new THREE.Vector3(1, 0, 0);
-                    const waveLength = link?.userData?.waveLength ?? state?.waveLength ?? 1.0;
-                    const wavePhaseOffset = link?.userData?.wavePhaseOffset ?? state?.wavePhaseOffset ?? 0.0;
-                    material.userData.waveDirection = directionVec;
-                    material.userData.waveLength = waveLength;
-                    material.userData.wavePhaseOffset = wavePhaseOffset;
+                const createdStrands = Array.isArray(state.strands) ? state.strands.length : 0;
+                if (createdStrands >= strandCount) return true;
 
-                    this._registerLinkMaterialWithBridge(material);
-                    if (this.travelingWaveFX?.registerMaterial) this.travelingWaveFX.registerMaterial(material, { type: 'link-strand', polarity: 'resonance' });
-                    this._attachWaveDirectionUniform(material, directionVec, waveLength, wavePhaseOffset);
+                const i = createdStrands;
+                const categoryColor = (i % 2 === 0) ? state.colorA : state.colorB;
+                const accentColor = (i % 2 === 0) ? state.colorB : state.colorA;
+                const material = new THREE.ShaderMaterial({
+                    vertexShader: linkStateVertexShaderSimple,
+                    fragmentShader: linkStateFragmentShaderSimple,
+                    transparent: true,
+                    depthWrite: false,
+                    depthTest: true,
+                    side: THREE.DoubleSide,
+                    uniforms: {
+                        uNetworkStress: { value: 0.0 },
+                        uLocalLoad: { value: 0.0 },
+                        uCorruption: { value: 0.0 },
+                        uTime: { value: 0.0 },
+                        uSegmentCount: { value: 44.0 },
+                        uBaseColor: { value: categoryColor.clone() },
+                        uAccentColor: { value: accentColor.clone() },
+                        uStrandIndex: { value: i },
+                        uStrandCount: { value: strandCount }
+                    }
+                });
+                ensureUserData(material);
+                material.userData.__owner = 'LinkRenderer';
+                material.userData.__domain = 'link';
+                material.userData.isLinkCore = true;
+                material.userData.travelRelevant = true;
+                material.userData.__flagsFrozen = material.userData.__flagsFrozen || false;
+                const directionVec =
+                    link?.userData?.waveDirection ||
+                    state?.waveDirection ||
+                    new THREE.Vector3(1, 0, 0);
+                const waveLength = link?.userData?.waveLength ?? state?.waveLength ?? 1.0;
+                const wavePhaseOffset = link?.userData?.wavePhaseOffset ?? state?.wavePhaseOffset ?? 0.0;
+                material.userData.waveDirection = directionVec;
+                material.userData.waveLength = waveLength;
+                material.userData.wavePhaseOffset = wavePhaseOffset;
 
-                    const geometry = new THREE.BufferGeometry();
-                    const depthMaterial = new THREE.MeshBasicMaterial({
-                        color: 0x000000,
-                        transparent: false,
-                        depthWrite: true,
-                        depthTest: true,
-                        colorWrite: false,
-                        side: THREE.DoubleSide
-                    });
-                    this._registerLinkMaterialWithBridge(depthMaterial);
-                    const depthMesh = new THREE.Mesh(geometry, depthMaterial);
-                    Object.assign(ensureUserData(depthMesh), { strandIndex: i, strandDepthPrepass: true });
-                    depthMesh.frustumCulled = false;
-                    depthMesh.matrixAutoUpdate = false;
-                    depthMesh.updateMatrix();
-                    applyLinkRenderLayer(depthMesh, 'LINK_CORE', {
-                      materialOverrides: { colorWrite: false, side: THREE.DoubleSide }
-                    });
-                    depthMesh.raycast = () => null;
-                    group.add(depthMesh);
-                    state.strandDepthPasses.push(depthMesh);
+                this._registerLinkMaterialWithBridge(material);
+                if (this.travelingWaveFX?.registerMaterial) this.travelingWaveFX.registerMaterial(material, { type: 'link-strand', polarity: 'resonance' });
+                this._attachWaveDirectionUniform(material, directionVec, waveLength, wavePhaseOffset);
 
-                    const mesh = new THREE.Mesh(geometry, material);
-                    Object.assign(ensureUserData(mesh), { strandIndex: i });
-                    mesh.frustumCulled = false;
-                    mesh.matrixAutoUpdate = false;
-                    mesh.updateMatrix();
-                    applyLinkRenderLayer(mesh, 'LINK_STRANDS');
-                    freezeMaterialFlags(material, 'LinkRenderer');
-                    material.userData.__flagsFrozen = true;
-                    ensureUserData(mesh);
-                    mesh.userData.__depthAuthorityLocked = true;
-                    mesh.raycast = () => null;
-                    group.add(mesh);
-                    state.strands.push(mesh);
-                }
+                const geometry = new THREE.BufferGeometry();
+                const depthMaterial = new THREE.MeshBasicMaterial({
+                    color: 0x000000,
+                    transparent: false,
+                    depthWrite: true,
+                    depthTest: true,
+                    colorWrite: false,
+                    side: THREE.DoubleSide
+                });
+                this._registerLinkMaterialWithBridge(depthMaterial);
+                const depthMesh = new THREE.Mesh(geometry, depthMaterial);
+                Object.assign(ensureUserData(depthMesh), { strandIndex: i, strandDepthPrepass: true });
+                depthMesh.frustumCulled = false;
+                depthMesh.matrixAutoUpdate = false;
+                depthMesh.updateMatrix();
+                applyLinkRenderLayer(depthMesh, 'LINK_CORE', {
+                  materialOverrides: { colorWrite: false, side: THREE.DoubleSide }
+                });
+                depthMesh.raycast = () => null;
+                group.add(depthMesh);
+                state.strandDepthPasses.push(depthMesh);
+
+                const mesh = new THREE.Mesh(geometry, material);
+                Object.assign(ensureUserData(mesh), { strandIndex: i });
+                mesh.frustumCulled = false;
+                mesh.matrixAutoUpdate = false;
+                mesh.updateMatrix();
+                applyLinkRenderLayer(mesh, 'LINK_STRANDS');
+                freezeMaterialFlags(material, 'LinkRenderer');
+                material.userData.__flagsFrozen = true;
+                ensureUserData(mesh);
+                mesh.userData.__depthAuthorityLocked = true;
+                mesh.raycast = () => null;
+                group.add(mesh);
+                state.strands.push(mesh);
                 state.__dynamicGeometryInitialized = false;
-                break;
+                return state.strands.length >= strandCount;
             }
             case 2: { // Frame 2: pulseRing + ring trails
-                if (state.pulseRing) break;
-                if (LinkPulseRing) {
-                    state.pulseRing = new LinkPulseRing(this.scene);
+                if (!state.pulseRing && LinkPulseRing) {
+                    state.pulseRing = new LinkPulseRing(this.scene, { deferTrails: true });
                     state.pulseRing.rebind?.({ scene: this.scene });
                     const pulseRingMesh = state.pulseRing.getMesh?.();
                     if (pulseRingMesh) {
-                        pulseRingMesh.matrixAutoUpdate = false;
-                        pulseRingMesh.updateMatrix();
                         group.add(pulseRingMesh);
                     }
-                    if (state.pulseRing.getTrailMeshes) {
-                        const trailMeshes = state.pulseRing.getTrailMeshes();
-                        if (Array.isArray(trailMeshes)) {
-                            trailMeshes.forEach(mesh => group.add(mesh));
-                        }
+                    if (!state.pulseDust && LinkPulseDustEmitter) {
+                        state.pulseDust = new LinkPulseDustEmitter(160);
+                        this.conduitRoot.add(state.pulseDust.getObject3D());
+                    }
+                    return false;
+                }
+                if (state.pulseRing?.ensureTrails && !state.pulseRing._trailsInitialized) {
+                    const trailMeshes = state.pulseRing.ensureTrails();
+                    if (Array.isArray(trailMeshes)) {
+                        trailMeshes.forEach(mesh => {
+                            if (mesh && mesh.parent !== group) group.add(mesh);
+                        });
                     }
                 }
-                break;
+                return !!state.pulseRing;
             }
             case 3: { // Frame 3: energyWave + pulseDustEmitter
                 if (!state.energyWave && LinkEnergyWave) state.energyWave = new LinkEnergyWave();
-                if (!state.pulseDust && LinkPulseDustEmitter) {
-                    state.pulseDust = new LinkPulseDustEmitter(160);
-                    this.conduitRoot.add(state.pulseDust.getObject3D());
-                }
-                break;
+                return true;
             }
             case 4: { // Frame 4: directionalStreaks
-                if (state.directionalStreaks || !LinkDirectionalStreaks || !this.directionalStreaks) break;
+                if (!LinkDirectionalStreaks || !this.directionalStreaks) return true;
                 const linkIdHash = (link.id || link.uuid || 'link-unknown')
                     .split('')
                     .reduce((h, c) => h * 31 + c.charCodeAt(0), 0);
                 const sourceController = this.nodeHarmonicManager?.nodeControllers.get(link.source);
                 const hubController = sourceController?.isActive ? sourceController : null;
-                this.directionalStreaks.initialize(group, linkIdHash, link, link.source, link.target, hubController);
-                state.directionalStreaks = group.userData?.conduitState?.directionalStreaks || null;
-                state.directionalStreaksManager = this.directionalStreaks;
-                break;
+                if (!state.directionalStreaks) {
+                    this.directionalStreaks.initialize(
+                        group,
+                        linkIdHash,
+                        link,
+                        link.source,
+                        link.target,
+                        hubController,
+                        { deferPulseTracking: true }
+                    );
+                    state.directionalStreaks = group.userData?.conduitState?.directionalStreaks || null;
+                    state.directionalStreaksManager = this.directionalStreaks;
+                    return false;
+                }
+                if (state.directionalStreaks?.__pulseTrackingReady !== true) {
+                    const ready = this.directionalStreaks.ensurePulseTracking(
+                        group,
+                        link,
+                        link.source,
+                        link.target,
+                        hubController
+                    );
+                    if (!ready) return false;
+                }
+                return true;
             }
             case 5: { // Frame 5: arcDischarges
                 if (state.arcDischarges || !LinkRingArcDischarges) break;
@@ -3027,9 +3065,25 @@ export class LinkRendererConduit {
                 }
                 break;
             }
+            case 10: { // Frame 10: flow resonance
+                // Conduit-owned resonance flow exists as a system instance, but the
+                // authoritative tick is still scheduled from main.js.
+                break;
+            }
+            case 11: { // Frame 11: semantic pictograms
+                // The global pictogram system is hosted by the conduit, but the main loop
+                // remains the authority for runtime scheduling.
+                break;
+            }
+            case 12: { // Frame 12: trail particles
+                // Trail particle emitters are registered from the conduit; the shared
+                // runtime update path remains in main.js.
+                break;
+            }
             default:
                 break;
         }
+        return true;
     }
 
     /**

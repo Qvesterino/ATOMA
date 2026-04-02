@@ -157,14 +157,14 @@ const LINK_EFFECT_CADENCE_POLICY = {
   pulseRing: 1,
   arcDischarges: 1,
   ringPulseDustEmitter: 1,
-  particleSystem: 2,
-  sparks: 2,
-  trailParticles: 2,
-  healingParticles: 2,
-  corruptionParticles: 2,
+  particleSystem: 1,
+  sparks: 1,
+  trailParticles: 1,
+  healingParticles: 1,
+  corruptionParticles: 1,
   corruptionSpread: 1,
-  trailEmitter: 2,
-  healingEmitter: 2
+  trailEmitter: 1,
+  healingEmitter: 1
 };
 
 function warn(message, details) {

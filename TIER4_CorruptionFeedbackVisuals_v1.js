@@ -133,6 +133,9 @@ export class TIER4_CorruptionFeedbackVisuals {
     this.activeCascadeWarnings = [];
     this.harmonyFieldConsumer = config.harmonyFieldConsumer ?? null;
 
+    // LOD mode: HIGH, MEDIUM, LOW
+    this.lodLevel = config.lodLevel ?? 'HIGH';
+
     // Corruption seed object pool for performance (reuse effect nodes)
     this.config.useCorruptionSeedPool = config.useCorruptionSeedPool ?? true;
     this.config.corruptionSeedPoolSize = config.corruptionSeedPoolSize ?? 24;
@@ -147,6 +150,10 @@ export class TIER4_CorruptionFeedbackVisuals {
         emissiveIntensity: 0.5
       })
     };
+
+    // Preload corruption seed shader templates for faster creation
+    this.seedMaterialCache = {};
+    this._preloadCorruptionSeedMaterials();
     
     // Geometry pool
     this.geometryPool = {
@@ -251,7 +258,14 @@ export class TIER4_CorruptionFeedbackVisuals {
     this._syncCorruptionSeedConnections(effect, corruptionLevel);
   }
 
-  _createCorruptionSeedMaterial(corruptionLevel = 0, profile = 'petal') {
+  _preloadCorruptionSeedMaterials() {
+    const profiles = ['core', 'spine', 'petal'];
+    profiles.forEach(profile => {
+      this.seedMaterialCache[profile] = this._buildCorruptionSeedMaterialTemplate(profile);
+    });
+  }
+
+  _buildCorruptionSeedMaterialTemplate(profile = 'petal') {
     const palette = {
       core: {
         base: 0x080305,
@@ -274,7 +288,7 @@ export class TIER4_CorruptionFeedbackVisuals {
       vertexShader: CORRUPTION_SEED_VERTEX_SHADER,
       fragmentShader: CORRUPTION_SEED_FRAGMENT_SHADER,
       uniforms: {
-        uCorruption: { value: corruptionLevel },
+        uCorruption: { value: 0 },
         uColorBase: { value: new THREE.Color(palette.base) },
         uColorCorrupt: { value: new THREE.Color(palette.corrupt) }
       },
@@ -283,6 +297,15 @@ export class TIER4_CorruptionFeedbackVisuals {
       depthTest: true,
       toneMapped: false
     });
+  }
+
+  _createCorruptionSeedMaterial(corruptionLevel = 0, profile = 'petal') {
+    if (!this.seedMaterialCache[profile]) {
+      this.seedMaterialCache[profile] = this._buildCorruptionSeedMaterialTemplate(profile);
+    }
+    const material = this.seedMaterialCache[profile].clone();
+    material.uniforms.uCorruption.value = corruptionLevel;
+    return material;
   }
 
   _createSeedConnectionMaterial() {
@@ -533,6 +556,11 @@ export class TIER4_CorruptionFeedbackVisuals {
     this.harmonyFieldConsumer = harmonyFieldConsumer ?? null;
   }
 
+  setLOD(lodLevel = 'HIGH') {
+    const safe = String(lodLevel).toUpperCase();
+    this.lodLevel = ['HIGH', 'MEDIUM', 'LOW'].includes(safe) ? safe : 'HIGH';
+  }
+
   _effectMatchesNode(effect, node) {
     if (!effect || !node) return false;
     const effectNode = effect.node;
@@ -580,6 +608,10 @@ export class TIER4_CorruptionFeedbackVisuals {
     if (!node || !this.config.showCorruptionSeedPulse) return;
 
     try {
+      if (this.camera && node.position.distanceTo(this.camera.position) > this.config.corruptionSeedCullDistance) {
+        return;
+      }
+
       const bloomScaleMultiplier = 1.5;
       const corruptionLevel = this._readSeedCorruptionLevel(link);
 
@@ -699,6 +731,14 @@ export class TIER4_CorruptionFeedbackVisuals {
       const useSpriteLod = this.camera &&
         distanceToCamera > this.config.corruptionSeedLodDistance &&
         distanceToCamera <= this.config.corruptionSeedCullDistance;
+
+      // Additional LOD-based skip: if not HIGH and too far for medium/low quality, skip heavy update.
+      if (this.lodLevel !== 'HIGH' && distanceToCamera > this.config.corruptionSeedLodDistance * 0.75) {
+        effect.mesh.visible = false;
+        effect.fragmentRoot.visible = false;
+        effect.lodSprite.visible = false;
+        continue;
+      }
 
       if (isCulled) {
         effect.mesh.visible = false;
