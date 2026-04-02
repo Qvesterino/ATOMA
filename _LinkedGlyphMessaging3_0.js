@@ -76,6 +76,13 @@ export class LinkedGlyphMessaging3_0 {
       glyphMeshes: []
     };
     
+    // Geometry and material pools for performance
+    this.geometryPool = new Map();
+    this.materialPool = new Map();
+    this.meshPool = [];
+    this.auraPool = [];
+    this.maxPoolSize = 400;
+    
     // Container for all messages (keeps scene organized)
     this.messageContainer = new THREE.Group();
     this.messageContainer.userData.isMessaging = true;
@@ -153,6 +160,7 @@ export class LinkedGlyphMessaging3_0 {
     
     console.log('✓ Linked Glyph Messaging 3.0 initialized');
     console.log('  - Ultra symbolic AI language transport');
+    console.log('  - Object pooling for mesh performance');
     console.log('  - Messages carry node semantic state');
     console.log('  - Use debugPrintMessages() to inspect');
   }
@@ -161,13 +169,154 @@ export class LinkedGlyphMessaging3_0 {
    * Initialize object pools for efficient memory usage
    */
   initializeMessagePools() {
-    // Create pooled glyph meshes for reuse
-    for (let i = 0; i < 300; i++) {
-      const meshData = this.createMiniGlyph();
-      this.messagePools.glyphMeshes.push({
-        mesh: meshData,
-        inUse: false
+    const glyphTypes = ['triangle', 'lotus', 'shard', 'diamond', 'ring', 'dot'];
+    glyphTypes.forEach(type => {
+      const geometry = this._createPoolGeometry(type);
+      this.geometryPool.set(type, geometry);
+    });
+    
+    const colors = [
+      new THREE.Color(0x8fe9ff),
+      new THREE.Color(0xd48cff),
+      new THREE.Color(0xffc96a),
+      new THREE.Color(0x7ef0c7),
+      new THREE.Color(0x93bbff)
+    ];
+    colors.forEach((color, idx) => {
+      const material = new THREE.MeshBasicMaterial({
+        color: color.clone(),
+        transparent: true,
+        opacity: 0.9,
+        fog: false,
+        depthWrite: false,
+        depthTest: true,
+        toneMapped: false,
+        blending: THREE.AdditiveBlending
       });
+      this.materialPool.set(`base_${idx}`, material);
+    });
+    
+    for (let i = 0; i < this.maxPoolSize; i++) {
+      this.meshPool.push({ mesh: null, inUse: false, geometry: null, material: null });
+    }
+    
+    for (let i = 0; i < 200; i++) {
+      this.auraPool.push({ mesh: null, inUse: false });
+    }
+  }
+  
+  /**
+   * Create geometry for pool
+   */
+  _createPoolGeometry(type) {
+    let geometry;
+    switch (type) {
+      case 'triangle':
+        geometry = new THREE.TetrahedronGeometry(0.08, 0);
+        break;
+      case 'lotus':
+        geometry = new THREE.ConeGeometry(0.08, 0.12, 6);
+        break;
+      case 'shard':
+        geometry = new THREE.ConeGeometry(0.06, 0.15, 3);
+        break;
+      case 'diamond':
+        geometry = new THREE.OctahedronGeometry(0.08, 0);
+        break;
+      case 'ring':
+        geometry = new THREE.TorusGeometry(0.06, 0.01, 6, 16);
+        break;
+      case 'dot':
+        geometry = new THREE.SphereGeometry(0.04, 5, 5);
+        break;
+      default:
+        geometry = new THREE.TetrahedronGeometry(0.08, 0);
+    }
+    return geometry;
+  }
+  
+  /**
+   * Get mesh from pool
+   */
+  _getMeshFromPool(type, color, opacity) {
+    let pooled = this.meshPool.find(p => !p.inUse);
+    
+    if (!pooled) {
+      pooled = { mesh: null, inUse: false, geometry: null, material: null };
+      this.meshPool.push(pooled);
+    }
+    
+    if (!pooled.mesh) {
+      const geometry = this.geometryPool.get(type) || this.geometryPool.get('shard');
+      const material = new THREE.MeshBasicMaterial({
+        color: color || new THREE.Color(0xffffff),
+        transparent: true,
+        opacity: opacity || 0.9,
+        fog: false,
+        depthWrite: false,
+        depthTest: true,
+        toneMapped: false,
+        blending: THREE.AdditiveBlending
+      });
+      pooled.mesh = new THREE.Mesh(geometry, material);
+      pooled.geometry = geometry;
+      pooled.material = material;
+    }
+    
+    pooled.inUse = true;
+    pooled.mesh.material.color.copy(color);
+    pooled.mesh.material.opacity = opacity;
+    pooled.mesh.visible = true;
+    return pooled.mesh;
+  }
+  
+  /**
+   * Return mesh to pool
+   */
+  _returnMeshToPool(mesh) {
+    if (!mesh) return;
+    const pooled = this.meshPool.find(p => p.mesh === mesh);
+    if (pooled) {
+      pooled.inUse = false;
+      mesh.visible = false;
+    } else {
+      mesh.visible = false;
+    }
+  }
+  
+  /**
+   * Get aura from pool
+   */
+  _getAuraFromPool(geometry, material) {
+    let pooled = this.auraPool.find(p => !p.inUse);
+    
+    if (!pooled) {
+      pooled = { mesh: null, inUse: false };
+      this.auraPool.push(pooled);
+    }
+    
+    if (!pooled.mesh) {
+      pooled.mesh = new THREE.Mesh(geometry, material);
+    } else {
+      pooled.mesh.geometry = geometry;
+      pooled.mesh.material = material;
+    }
+    
+    pooled.inUse = true;
+    return pooled.mesh;
+  }
+  
+  /**
+   * Return aura to pool
+   */
+  _returnAuraToPool(mesh) {
+    if (!mesh) return;
+    const pooled = this.auraPool.find(p => p.mesh === mesh);
+    if (pooled) {
+      pooled.inUse = false;
+      mesh.visible = false;
+    } else {
+      mesh.visible = false;
     }
   }
   
@@ -546,22 +695,29 @@ export class LinkedGlyphMessaging3_0 {
       VisualHierarchyRegistry.LAYER_GLYPH_HARMONIC || 'GLYPH_HARMONIC'
     ) - 1;
 
-    const makeAuraMaterial = (opacity) => new THREE.MeshBasicMaterial({
-      color: style.color.clone(),
-      transparent: true,
-      opacity,
-      fog: false,
-      depthWrite: false,
-      depthTest: true,
-      toneMapped: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide
-    });
+    const makeAuraMaterial = (opacity) => {
+      const baseMaterial = this.materialPool.get('base_1') || null;
+      if (baseMaterial) {
+        const mat = baseMaterial.clone();
+        mat.color = style.color.clone();
+        mat.opacity = opacity;
+        return mat;
+      }
+      return new THREE.MeshBasicMaterial({
+        color: style.color.clone(),
+        transparent: true,
+        opacity,
+        fog: false,
+        depthWrite: false,
+        depthTest: true,
+        toneMapped: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide
+      });
+    };
 
-    const core = new THREE.Mesh(
-      new THREE.SphereGeometry(0.04, 6, 6),
-      makeAuraMaterial(style.opacity * 0.22)
-    );
+    const coreGeometry = new THREE.SphereGeometry(0.04, 6, 6);
+    const core = this._getAuraFromPool(coreGeometry, makeAuraMaterial(style.opacity * 0.22));
     core.userData.isMessageAura = true;
     core.userData.baseOpacity = core.material.opacity;
     core.renderOrder = auraOrder;
@@ -569,10 +725,8 @@ export class LinkedGlyphMessaging3_0 {
     auraMeshes.push(core);
 
     for (let i = 0; i < 3; i++) {
-      const fragment = new THREE.Mesh(
-        new THREE.SphereGeometry(0.018 + i * 0.002, 5, 5),
-        makeAuraMaterial(style.opacity * (0.09 + i * 0.03))
-      );
+      const fragmentGeometry = new THREE.SphereGeometry(0.018 + i * 0.002, 5, 5);
+      const fragment = this._getAuraFromPool(fragmentGeometry, makeAuraMaterial(style.opacity * (0.09 + i * 0.03)));
       fragment.userData.isMessageAura = true;
       fragment.userData.baseOpacity = fragment.material.opacity;
       fragment.renderOrder = auraOrder;
@@ -933,8 +1087,8 @@ export class LinkedGlyphMessaging3_0 {
       wordGroup.renderOrder = group.renderOrder + 1;
 
       word.glyphs.forEach((glyph, glyphIndex) => {
-        // Create glyph mesh
-        const mesh = this.createMiniGlyph(glyph.type, glyph.color, glyph.opacity);
+        // Get pooled glyph mesh
+        const mesh = this._getMeshFromPool(glyph.type, glyph.color, glyph.opacity);
         
         // Set position with slight stagger
         mesh.position.set(
@@ -1311,15 +1465,12 @@ export class LinkedGlyphMessaging3_0 {
     if (message.meshGroup) {
       this.messageContainer.remove(message.meshGroup);
       
-      // Clean up geometries and materials
-      message.meshGroup.traverse(obj => {
-        if (!obj.isMesh) return;
-        obj.geometry?.dispose?.();
-        if (Array.isArray(obj.material)) {
-          obj.material.forEach(mat => mat?.dispose?.());
-        } else {
-          obj.material?.dispose?.();
-        }
+      message.meshes.forEach(mesh => {
+        this._returnMeshToPool(mesh);
+      });
+      
+      message.auraMeshes.forEach(mesh => {
+        this._returnAuraToPool(mesh);
       });
     }
 
@@ -1424,6 +1575,21 @@ export class LinkedGlyphMessaging3_0 {
   }
   
   /**
+   * Clear pool statistics for debugging
+   */
+  getPoolStats() {
+    const meshPoolUsed = this.meshPool.filter(p => p.inUse).length;
+    const meshPoolTotal = this.meshPool.length;
+    const auraPoolUsed = this.auraPool.filter(p => p.inUse).length;
+    const auraPoolTotal = this.auraPool.length;
+    
+    return {
+      meshPool: { used: meshPoolUsed, total: meshPoolTotal, available: meshPoolTotal - meshPoolUsed },
+      auraPool: { used: auraPoolUsed, total: auraPoolTotal, available: auraPoolTotal - auraPoolUsed }
+    };
+  }
+  
+  /**
    * Enable/disable messaging
    */
   setEnabled(enabled) {
@@ -1512,6 +1678,13 @@ export class LinkedGlyphMessaging3_0 {
         }
       }
     });
+
+    this.geometryPool.forEach(geo => geo?.dispose?.());
+    this.geometryPool.clear();
+    this.materialPool.forEach(mat => mat?.dispose?.());
+    this.materialPool.clear();
+    this.meshPool.length = 0;
+    this.auraPool.length = 0;
 
     if (this.root?.parent) {
       this.root.parent.remove(this.root);

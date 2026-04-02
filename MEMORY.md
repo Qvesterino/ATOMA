@@ -245,6 +245,7 @@ Confirmed default runtime validation entrypoint:
 - `LinkMicroImpulseAdapter_v1.js` is the active micro-impulse implementation; the older `LEGACY/LinkMicroImpulseAdapter.js` exists only as a legacy copy.
 - `LinkMicroImpulseAdapter_v1.js` now applies micro-impulse color/opacity at draw time via `onBeforeRender`, and the visuals are layered through `LINK_SPARKS` to keep spawn-time work low while shared materials stay stable.
 - `LinkMicroImpulseAdapter_v1.js` now keeps a dedicated impulse root group that is reattached on world switch via `rebind({ scene, worldRoot })`, so impulses survive scene/world root rebuilds more cleanly.
+- Runtime links expose the renderable `TubeGeometry` on `link.group.children[0]`, not on `link.geometry`; micro-impulse spawn logic must resolve that child mesh when sampling positions.
 
 ## Glyph Fusion / Pictogram Log Contract
 - GlyphFusionZone lifecycle summaries are debug-only behind window.__DEBUG_GLYPH_FUSION_LOGS__.
@@ -269,3 +270,7 @@ Confirmed default runtime validation entrypoint:
 - `LinkCorruptionMorphingSystem` has been moved to `LEGACY/LinkCorruptionMorphingSystem.js`.
 - `LinkRendererConduit` no longer imports, instantiates, updates, or disposes the corruption morphing system in the active runtime.
 - The active cadence policy no longer carries a `corruptionMorph` key; that effect is legacy-only now.
+
+## Environment Hazard Ownership Contract
+- `EnvironmentDomainController` should own the active `EnvironmentalHazards` instance in the normal boot path, so hazards are not updated twice through a standalone `setupHazards()` instance plus the domain controller instance.
+- `main.js` should bind `this.hazards` to the controller-owned instance after environment domain init and keep the standalone setup as a legacy fallback only.

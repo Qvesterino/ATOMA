@@ -84,6 +84,9 @@ const CONFIG = {
 // ============================================================================
 // PICTOGRAM INSTANCE
 // ============================================================================
+// NOTE: This legacy system is kept only for compatibility. The active runtime path
+// uses LinkSemanticPictogramSystem_Enhanced via LinkSemanticPictogramSystem_WithFusion.
+// Consider migrating callers and removing this module when the enhanced flow is stable.
 
 class PictogramInstance {
     constructor(mesh) {

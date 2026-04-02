@@ -772,6 +772,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
 
         // Pictogram pool (enhanced instances)
         this.pictograms = [];
+        this.activePictograms = new Set();
+        this.inactivePictograms = [];
         this.initializePictogramPool();
 
         // Per-link tracking
@@ -853,6 +855,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
 
             const instance = new EnhancedPictogramInstance(mesh);
             this.pictograms.push(instance);
+            this.inactivePictograms.push(instance);
         }
     }
 
@@ -1440,6 +1443,11 @@ export class LinkSemanticPictogramSystem_Enhanced {
                 }
                 pictogram._linkKey = null;
                 pictogram._stateKey = null;
+
+                this.activePictograms.delete(pictogram);
+                if (!this.inactivePictograms.includes(pictogram)) {
+                    this.inactivePictograms.push(pictogram);
+                }
             }
         });
 }
@@ -1566,8 +1574,14 @@ export class LinkSemanticPictogramSystem_Enhanced {
     // ========================================================================
 
     spawnPictogram(link, layer, state, size, depthOffset, linkKey, metricType = 'loadPressure') {
-        const pictogram = this.pictograms.find(p => !p.active);
+        let pictogram = this.inactivePictograms.pop();
+        if (!pictogram) {
+            pictogram = this.pictograms.find(p => !p.active);
+        }
         if (!pictogram) return;
+
+        // move to active set
+        this.activePictograms.add(pictogram);
 
         // Replace placeholder mesh with orbital glyph group
         const glyph = this.buildOrbitalGlyph(size, metricType);
@@ -1951,6 +1965,10 @@ export class LinkSemanticPictogramSystem_Enhanced {
             } else {
                 pictogram.beginOrphanFade();
             }
+            if (!pictogram.active) {
+                this.activePictograms.delete(pictogram);
+                this.inactivePictograms.push(pictogram);
+            }
             cleared += 1;
         });
 
@@ -1993,6 +2011,10 @@ export class LinkSemanticPictogramSystem_Enhanced {
                 pictogram.reset();
             } else {
                 pictogram.beginOrphanFade();
+            }
+            if (!pictogram.active) {
+                this.activePictograms.delete(pictogram);
+                this.inactivePictograms.push(pictogram);
             }
             cleared += 1;
         });

@@ -5555,7 +5555,6 @@ this.setHudDirty('nodeInspect');
         this.setupVisualSuperpack();
         this.setupCinematicUpgrade();
         this.setupNodeEditor();
-        this.setupHazards();
         this.setupEvolutionManager();
         this.setupLegendaryPack();
         this.setupLegendaryLinkFX();
@@ -5582,6 +5581,10 @@ this.setHudDirty('nodeInspect');
             }
         );
         this.environmentDomain.init();
+        this.hazards = this.environmentDomain?.instances?.environmentalHazards || null;
+        if (this.hazards && this.currentMode === 'fractal') {
+            this.hazards.createGravitationalAnomaly(new THREE.Vector3(-40, 10, -40), 20, 0.6);
+        }
         this.setupPersonalityFX();
         this.setupMemoryTrails();
         this.setupColonyManager();
@@ -7446,6 +7449,28 @@ window.__ATOMA_SCENE__ = this.scene;
                 this.worldRoot.add(sys.root);
             }
         });
+
+        try {
+            if (this.linkTrailParticles && typeof this.linkTrailParticles.rebind === 'function') {
+                this.linkTrailParticles.rebind({
+                    scene: this.scene,
+                    worldRoot: this.worldRoot
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] LinkTrailParticleSystem world rebind failed:', err?.message || err);
+        }
+
+        try {
+            if (this.microImpulseAdapter && typeof this.microImpulseAdapter.rebind === 'function') {
+                this.microImpulseAdapter.rebind({
+                    scene: this.scene,
+                    worldRoot: this.worldRoot
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] LinkMicroImpulseAdapter world rebind failed:', err?.message || err);
+        }
 
         this.t2HarmonyVisualConsumer?.resetForWorldSwitch?.({
             scene: this.scene,
@@ -12595,8 +12620,16 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
     /**
      * Setup environmental hazards
+     *
+     * Legacy fallback helper. The active boot path now reuses the
+     * EnvironmentDomainController-owned instance to avoid duplicate ticks.
      */
     setupHazards() {
+        if (this.environmentDomain?.instances?.environmentalHazards) {
+            this.hazards = this.environmentDomain.instances.environmentalHazards;
+            return this.hazards;
+        }
+
         this.hazards = new EnvironmentalHazards(this.scene, this.camera);
         this.hazards.frameScheduler = this.frameScheduler;
 
@@ -14767,7 +14800,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
 
             this.linkSemanticPictograms = conduitPictograms;
-            // Alias for scheduler hooks
+            // ENHANCED PICTOGRAM PATH (preferred)
+            // WithFusion wraps LinkSemanticPictogramSystem_Enhanced.
             this.linkPictogramSystem = this.linkSemanticPictograms;
             // Expose for console debugging
             if (typeof window !== 'undefined') {

@@ -556,6 +556,7 @@ export class LinkTrailParticleSystem {
    * Update all active particles
    */
   update(deltaTime, time) {
+    this.ensureAttached();
     this.active = 0;
     this.activeByType.clear();
     

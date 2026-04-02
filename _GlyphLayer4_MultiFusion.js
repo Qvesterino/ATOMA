@@ -51,7 +51,13 @@ export class GlyphLayer4_MultiFusion {
     // Registry: nodeId → { node, layers: { core, evolution, personality, state } }
     this.fusionRegistry = new Map();
     this.ambientOrbitRegistry = new Map();
-    
+
+    // Fusion/ambient pool for reuse (avoid destroy/create spikes)
+    this.fusionPool = [];
+    this.ambientOrbitPool = [];
+    this.maxFusionPoolSize = 64;
+    this.maxAmbientOrbitPoolSize = 24;
+
     // Geometry pools (reusable, no per-frame creation)
     this.geometryPools = {
       coreGlyphs: new Map(),      // category → geometry
@@ -1324,7 +1330,119 @@ export class GlyphLayer4_MultiFusion {
       }
     });
   }
-  
+
+  _acquireFusionGroup(nodeId) {
+    let fusionGroup = null;
+    if (this.fusionPool.length > 0) {
+      fusionGroup = this.fusionPool.pop();
+      fusionGroup.name = `fusion_${nodeId}`;
+      fusionGroup.userData = {
+        isGlyphFusion: true,
+        nodeId,
+        isFusion: true
+      };
+      fusionGroup.visible = true;
+      fusionGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');
+    } else {
+      fusionGroup = new THREE.Group();
+      fusionGroup.userData = {
+        isGlyphFusion: true,
+        nodeId,
+        isFusion: true
+      };
+      fusionGroup.name = `fusion_${nodeId}`;
+      fusionGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');
+    }
+    return fusionGroup;
+  }
+
+  _releaseFusionGroup(fusionGroup) {
+    if (!fusionGroup) return;
+
+    if (fusionGroup.parent) {
+      fusionGroup.parent.remove(fusionGroup);
+    }
+
+    fusionGroup.traverse((child) => {
+      if (child.isMesh || child.isLine || child.isPoints || child.isGroup) {
+        child.visible = false;
+      }
+    });
+
+    fusionGroup.clear();
+
+    if (this.fusionPool.length < this.maxFusionPoolSize) {
+      this.fusionPool.push(fusionGroup);
+    } else {
+      fusionGroup.traverse((child) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m) => m.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+      });
+    }
+  }
+
+  _acquireAmbientOrbitGroup(nodeId) {
+    let ambientGroup = null;
+    if (this.ambientOrbitPool.length > 0) {
+      ambientGroup = this.ambientOrbitPool.pop();
+      ambientGroup.name = `ambient_orbit_${nodeId}`;
+      ambientGroup.userData = {
+        isAmbientOrbitGlyph: true,
+        nodeId,
+        isFusion: true
+      };
+      ambientGroup.visible = true;
+      ambientGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');
+    } else {
+      ambientGroup = new THREE.Group();
+      ambientGroup.userData = {
+        isAmbientOrbitGlyph: true,
+        nodeId,
+        isFusion: true
+      };
+      ambientGroup.name = `ambient_orbit_${nodeId}`;
+      ambientGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');
+    }
+    return ambientGroup;
+  }
+
+  _releaseAmbientOrbitGroup(ambientGroup) {
+    if (!ambientGroup) return;
+
+    if (ambientGroup.parent) {
+      ambientGroup.parent.remove(ambientGroup);
+    }
+
+    ambientGroup.traverse((child) => {
+      if (child.isMesh || child.isLine || child.isPoints || child.isGroup) {
+        child.visible = false;
+      }
+    });
+
+    ambientGroup.clear();
+
+    if (this.ambientOrbitPool.length < this.maxAmbientOrbitPoolSize) {
+      this.ambientOrbitPool.push(ambientGroup);
+    } else {
+      ambientGroup.traverse((child) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m) => m.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+      });
+    }
+  }
+
   /**
    * Estimate opacity from glyph materials for enforcement reporting
    */
@@ -1362,17 +1480,10 @@ export class GlyphLayer4_MultiFusion {
       node.add(visualGroup);
     }
     
-    // Create fusion container
-    const fusionGroup = new THREE.Group();
-    fusionGroup.userData = {
-      isGlyphFusion: true,
-      nodeId,
-      isFusion: true
-    };
-    fusionGroup.name = `fusion_${nodeId}`;
-    fusionGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype (0/1), before links (200+)
+    // Create fusion container (pooled if available)
+    const fusionGroup = this._acquireFusionGroup(nodeId);
     visualGroup.add(fusionGroup);
-    
+
     let coreGlyph = null;
     let evoGlyph = null;
     let persGlyph = null;
@@ -1680,31 +1791,17 @@ export class GlyphLayer4_MultiFusion {
   removeFusion(nodeId) {
     const fusionData = this.fusionRegistry.get(nodeId);
     if (!fusionData) return;
-    
+
     const { fusionGroup } = fusionData;
-    
+
     // Unregister from resonance feedback (initiates decay phase)
     if (this.resonanceFeedback && typeof this.resonanceFeedback.unregisterCompositeGlyph === 'function') {
       this.resonanceFeedback.unregisterCompositeGlyph(nodeId);
     }
-    
-    // Remove from parent
-    if (fusionGroup && fusionGroup.parent) {
-      fusionGroup.parent.remove(fusionGroup);
-    }
-    
-    // Dispose geometries and materials
-    fusionGroup.traverse(child => {
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach(m => m.dispose());
-        } else {
-          child.material.dispose();
-        }
-      }
-    });
-    
+
+    // Release fusion group to pool (or dispose if pool full)
+    this._releaseFusionGroup(fusionGroup);
+
     this.fusionRegistry.delete(nodeId);
     this.stats.activeFusions--;
   }
@@ -1719,27 +1816,47 @@ export class GlyphLayer4_MultiFusion {
       ambientGroup.parent.remove(ambientGroup);
     }
 
-    ambientGroup.traverse(child => {
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach(m => m.dispose());
-        } else {
-          child.material.dispose();
-        }
-      }
-    });
+    this._releaseAmbientOrbitGroup(ambientGroup);
 
     this.ambientOrbitRegistry.delete(nodeId);
   }
   
   cleanup() {
-    for (const nodeId of this.fusionRegistry.keys()) {
+    for (const nodeId of Array.from(this.fusionRegistry.keys())) {
       this.removeFusion(nodeId);
     }
 
-    for (const nodeId of this.ambientOrbitRegistry.keys()) {
+    for (const nodeId of Array.from(this.ambientOrbitRegistry.keys())) {
       this.removeAmbientOrbit(nodeId);
+    }
+
+    // Purge pooled groups
+    while (this.fusionPool.length > 0) {
+      const fusionGroup = this.fusionPool.pop();
+      fusionGroup.traverse((child) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m) => m.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+      });
+    }
+
+    while (this.ambientOrbitPool.length > 0) {
+      const ambientGroup = this.ambientOrbitPool.pop();
+      ambientGroup.traverse((child) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m) => m.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+      });
     }
     
     this.stats = {

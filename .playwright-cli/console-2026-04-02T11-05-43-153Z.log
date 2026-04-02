@@ -1,0 +1,501 @@
+[     193ms] [LOG] Live reload enabled. @ http://127.0.0.1:5500/index.html:198
+[    4366ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[    4368ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[    4368ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[    4376ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[    4377ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[    4378ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[    4401ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[    4510ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[    4511ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[    4517ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[    4517ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[    4518ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[    4518ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[    4518ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[    4519ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[    4521ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[    4522ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[    4522ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[    4522ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[    4523ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[    4523ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[    4523ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[    5042ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[    5045ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[    6789ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[    6790ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  182300ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[  182302ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[  182302ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[  182303ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[  182304ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[  182304ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[  182313ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[  182352ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[  182354ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[  182363ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[  182363ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[  182364ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[  182364ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[  182365ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[  182365ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[  182368ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[  182369ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[  182369ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[  182369ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[  182369ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[  182369ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[  182369ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[  182853ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  182855ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  184532ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  184533ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  272542ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[  272543ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[  272543ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[  272544ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[  272545ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[  272546ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[  272552ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[  272592ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[  272595ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[  272602ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[  272602ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[  272603ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[  272603ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[  272603ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[  272603ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[  272607ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[  272607ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[  272608ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[  272608ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[  272608ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[  272608ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[  272608ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[  273071ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  273072ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  274716ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  274717ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  310864ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[  310865ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[  310866ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[  310866ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[  310867ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[  310868ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[  310874ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[  310915ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[  310915ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[  310916ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[  310916ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[  310916ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[  310916ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[  310920ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[  310920ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[  310921ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[  310921ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[  310921ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[  310921ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[  310921ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[  311357ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  311357ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  312538ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  312539ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  379824ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[  379825ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[  379825ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[  379826ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[  379826ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[  379827ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[  379835ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[  379874ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[  379874ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[  379875ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[  379876ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[  379876ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[  379876ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[  379880ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[  379880ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[  379880ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[  379880ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[  379881ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[  379881ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[  379881ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[  380257ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  380258ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  381446ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  381447ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  397861ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[  397862ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[  397862ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[  397862ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[  397863ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[  397863ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[  397864ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[  397912ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[  397912ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[  397913ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[  397913ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[  397913ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[  397913ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[  397915ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[  397915ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[  397915ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[  397915ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[  397915ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[  397915ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[  397916ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[  398274ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  398275ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  399697ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  399698ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  441400ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[  441401ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[  441401ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[  441401ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[  441402ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[  441402ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[  441403ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[  441464ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[  441464ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[  441465ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[  441465ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[  441465ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[  441465ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[  441468ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[  441469ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[  441469ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[  441469ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[  441469ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[  441469ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[  441469ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[  441824ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  441825ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  443194ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  443195ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  494049ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[  494051ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[  494051ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[  494052ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[  494053ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[  494053ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[  494062ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[  494117ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[  494118ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[  494119ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[  494119ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[  494119ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[  494120ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[  494123ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[  494124ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[  494124ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[  494124ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[  494124ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[  494124ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[  494124ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[  494654ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  494655ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  496177ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  496179ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  586106ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[  586107ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[  586108ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[  586108ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[  586109ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[  586110ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[  586118ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[  586174ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[  586174ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[  586175ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[  586175ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[  586175ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[  586175ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[  586180ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[  586180ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[  586180ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[  586181ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[  586181ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[  586181ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[  586181ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[  586574ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  586575ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  588230ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  588231ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  976812ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[  976813ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[  976814ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[  976815ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[  976816ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[  976817ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[  976825ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[  976889ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[  976889ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[  976890ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[  976890ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[  976890ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[  976890ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[  976894ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[  976895ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[  976895ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[  976895ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[  976895ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[  976895ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[  976895ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[  977358ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  977359ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  978846ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[  978847ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 1212315ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[ 1212316ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[ 1212316ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[ 1212317ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[ 1212317ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[ 1212318ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[ 1212326ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[ 1212384ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[ 1212384ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[ 1212386ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[ 1212386ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[ 1212386ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[ 1212386ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[ 1212390ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[ 1212390ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[ 1212390ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[ 1212390ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[ 1212390ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[ 1212391ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[ 1212391ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[ 1212777ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 1212778ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 1214187ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 1214188ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 1351073ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[ 1351073ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[ 1351073ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[ 1351074ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[ 1351074ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[ 1351075ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[ 1351082ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[ 1351124ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[ 1351124ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[ 1351125ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[ 1351125ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[ 1351126ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[ 1351126ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[ 1351130ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[ 1351131ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[ 1351131ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[ 1351131ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[ 1351131ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[ 1351131ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[ 1351131ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[ 1351447ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 1351447ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 1352860ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 1352862ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 2188905ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[ 2188906ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[ 2188906ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[ 2188907ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[ 2188908ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[ 2188908ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[ 2188916ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[ 2189023ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[ 2189023ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[ 2189024ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[ 2189025ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[ 2189025ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[ 2189025ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[ 2189029ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[ 2189029ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[ 2189029ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[ 2189030ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[ 2189030ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[ 2189030ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[ 2189030ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[ 2189444ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 2189445ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 2190593ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 2190595ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 2227220ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[ 2227221ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[ 2227222ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[ 2227223ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[ 2227224ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[ 2227224ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[ 2227233ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[ 2227289ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[ 2227289ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[ 2227291ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[ 2227291ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[ 2227291ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[ 2227291ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[ 2227295ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[ 2227296ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[ 2227296ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[ 2227296ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[ 2227296ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[ 2227296ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[ 2227296ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[ 2227654ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 2227655ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 2228962ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 2228963ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 2245641ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[ 2245642ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[ 2245642ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[ 2245643ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[ 2245643ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[ 2245643ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[ 2245644ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[ 2245684ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[ 2245684ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[ 2245685ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[ 2245685ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[ 2245685ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[ 2245686ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[ 2245688ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[ 2245689ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[ 2245689ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[ 2245689ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[ 2245689ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[ 2245689ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[ 2245689ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[ 2245970ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 2245971ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 2246926ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 2246927ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 2367771ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[ 2367772ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[ 2367772ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[ 2367773ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[ 2367773ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[ 2367774ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[ 2367779ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[ 2367992ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[ 2367992ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[ 2367993ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[ 2367994ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[ 2367994ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[ 2367994ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[ 2367998ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[ 2367998ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[ 2367998ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[ 2367998ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[ 2367998ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[ 2367998ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[ 2367998ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[ 2368399ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 2368400ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 2369817ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 2369819ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 2379298ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[ 2379299ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[ 2379299ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[ 2379299ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[ 2379300ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[ 2379300ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[ 2379301ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[ 2379342ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[ 2379342ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[ 2379344ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[ 2379344ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[ 2379344ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[ 2379344ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[ 2379348ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[ 2379349ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[ 2379349ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[ 2379349ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[ 2379349ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[ 2379349ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[ 2379349ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[ 2379637ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 2379638ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 2381067ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 2381068ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 2459850ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[ 2459851ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[ 2459851ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[ 2459852ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[ 2459853ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[ 2459853ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[ 2459862ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[ 2459925ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[ 2459925ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[ 2459927ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[ 2459927ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[ 2459927ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[ 2459927ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[ 2459930ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[ 2459931ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[ 2459931ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[ 2459931ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[ 2459931ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[ 2459931ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[ 2459931ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[ 2460336ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 2460338ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 2461668ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 2461669ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 2486923ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[ 2486923ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[ 2486924ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:144
+[ 2486924ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[ 2486925ms] [LOG] 💡 Legacy Model Filter debugging API available at: legacyModelDebug @ http://127.0.0.1:5500/LegacyNodeModelFilter.js:221
+[ 2486925ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[ 2486926ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[ 2486991ms] [LOG] [FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>() @ http://127.0.0.1:5500/FXDebugSandbox.js:679
+[ 2486991ms] [LOG] [FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo() @ http://127.0.0.1:5500/FXDebugSandbox.js:680
+[ 2486992ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[ 2486993ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[ 2486993ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[ 2486993ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[ 2486996ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[ 2486997ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[ 2486997ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[ 2486997ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[ 2486997ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[ 2486997ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[ 2486997ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[ 2487354ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 2487356ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[ 2488713ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1487
+[ 2488714ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242

@@ -262,7 +262,7 @@ class ImpulseManager {
    * Spawn a micro-impulse on a link
    */
   spawn(link, config = {}) {
-    if (!link || !link.geometry) return null;
+    if (!link) return null;
 
     const {
       shape = 'arc',
@@ -273,18 +273,43 @@ class ImpulseManager {
       corruption = 0.0,
     } = config;
 
-    const geometry = link.geometry;
-    if (!geometry.attributes || !geometry.attributes.position) return null;
+    const linkObject = link.group || link.mesh || link.line || link;
+    const geometrySource = link.geometry
+      ? linkObject
+      : (Array.isArray(linkObject?.children)
+        ? linkObject.children.find((child) => child?.geometry?.attributes?.position?.array?.length)
+        : null);
+    const geometry = link.geometry || linkObject?.geometry || geometrySource?.geometry || null;
+    const curve = link.curve || linkObject?.curve || null;
+    const localPos = new THREE.Vector3();
+    const worldPos = new THREE.Vector3();
 
-    const positions = geometry.attributes.position.array;
-    const randomIndex = Math.floor(Math.random() * (positions.length / 3)) * 3;
-    const localPos = new THREE.Vector3(
-      positions[randomIndex],
-      positions[randomIndex + 1],
-      positions[randomIndex + 2]
-    );
-
-    const worldPos = localPos.applyMatrix4(link.matrixWorld);
+    if (geometry?.attributes?.position?.array?.length) {
+      const positions = geometry.attributes.position.array;
+      const randomIndex = Math.floor(Math.random() * (positions.length / 3)) * 3;
+      localPos.set(
+        positions[randomIndex],
+        positions[randomIndex + 1],
+        positions[randomIndex + 2]
+      );
+      const matrixWorld = geometrySource?.matrixWorld || linkObject?.matrixWorld || link.matrixWorld;
+      if (matrixWorld) {
+        worldPos.copy(localPos).applyMatrix4(matrixWorld);
+      } else {
+        worldPos.copy(localPos);
+      }
+    } else if (curve && typeof curve.getPointAt === 'function') {
+      const t = Math.random();
+      curve.getPointAt(t, localPos);
+      const matrixWorld = geometrySource?.matrixWorld || linkObject?.matrixWorld || link.matrixWorld;
+      if (matrixWorld) {
+        worldPos.copy(localPos).applyMatrix4(matrixWorld);
+      } else {
+        worldPos.copy(localPos);
+      }
+    } else {
+      return null;
+    }
 
     const rotation = new THREE.Quaternion();
     rotation.setFromAxisAngle(
@@ -331,6 +356,7 @@ class ImpulseManager {
    * Update active impulses (fade and expire)
    */
   update() {
+    this.ensureAttached();
     const now = Date.now();
     const toRemove = [];
 
