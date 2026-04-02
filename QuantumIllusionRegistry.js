@@ -8,8 +8,9 @@
  */
 
 export class QuantumIllusionRegistry {
-  constructor(scene) {
+  constructor(scene, sharedAssets = null) {
     this.scene = scene;
+    this.sharedAssets = sharedAssets ?? null;
     
     // Registry for all active illusions
     this.illusions = {
@@ -77,8 +78,25 @@ export class QuantumIllusionRegistry {
     }
     
     // Dispose geometry and material
-    if (entry.mesh.geometry) entry.mesh.geometry.dispose();
-    if (entry.mesh.material) entry.mesh.material.dispose();
+    if (entry.mesh.geometry) {
+      if (this.sharedAssets?.releaseGeometry?.(entry.mesh.geometry)) {
+        // shared geometry released via registry
+      } else if (typeof entry.mesh.geometry.dispose === 'function') {
+        entry.mesh.geometry.dispose();
+      }
+    }
+    if (entry.mesh.material) {
+      if (Array.isArray(entry.mesh.material)) {
+        entry.mesh.material.forEach((material) => {
+          if (this.sharedAssets?.releaseMaterial?.(material)) return;
+          if (typeof material?.dispose === 'function') material.dispose();
+        });
+      } else if (this.sharedAssets?.releaseMaterial?.(entry.mesh.material)) {
+        // shared material released via registry
+      } else if (typeof entry.mesh.material.dispose === 'function') {
+        entry.mesh.material.dispose();
+      }
+    }
     
     this.illusions[type].splice(index, 1);
     this.totalIllusions--;

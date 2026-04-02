@@ -443,6 +443,8 @@ export class LinkPointFXBase {
     const points = new THREE.Points(geometry, material);
     points.frustumCulled = false;
     points.visible = true;
+    points.matrixAutoUpdate = false;
+    points.updateMatrix();
     points.renderOrder = VisualHierarchyRegistry?.getRenderOrder
       ? VisualHierarchyRegistry.getRenderOrder(this.options.renderLayer)
       : 0;

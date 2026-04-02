@@ -36,6 +36,63 @@ export class LinkEnergyRingSystem {
         this.coreGeometry = new THREE.TorusKnotGeometry(0.18, 0.045, 36, 6, 2, 3);
         this.crownSpikeGeometry = new THREE.CylinderGeometry(0.01, 0.045, 0.26, 6, 1, true);
         this.sealGeometry = new THREE.OctahedronGeometry(0.14, 0);
+        
+        this.materialPool = new Map();
+        this.geometryPool = new Map();
+        this.maxPoolSize = 50;
+        
+        this._initializeGeometryPool();
+    }
+    
+    _initializeGeometryPool() {
+        const geometries = [
+            { key: 'sphere_small', factory: () => new THREE.SphereGeometry(0.16, 12, 10) },
+            { key: 'sphere_tiny', factory: () => new THREE.SphereGeometry(0.04, 8, 8) },
+            { key: 'sphere_lantern', factory: () => new THREE.SphereGeometry(0.16, 10, 8) },
+            { key: 'octahedron', factory: () => new THREE.OctahedronGeometry(0.14, 0) },
+            { key: 'octahedron_large', factory: () => new THREE.OctahedronGeometry(0.16, 0) },
+            { key: 'icosahedron', factory: () => new THREE.IcosahedronGeometry(0.18, 0) },
+            { key: 'cylinder_tiny', factory: () => new THREE.CylinderGeometry(0.008, 0.038, 0.44, 6, 1, true) },
+            { key: 'cylinder_small', factory: () => new THREE.CylinderGeometry(0.01, 0.045, 0.26, 6, 1, true) },
+            { key: 'cylinder_small2', factory: () => new THREE.CylinderGeometry(0.01, 0.042, 0.26, 6, 1, true) },
+            { key: 'cylinder_small3', factory: () => new THREE.CylinderGeometry(0.01, 0.05, 0.3, 6, 1, true) },
+            { key: 'cylinder_medium', factory: () => new THREE.CylinderGeometry(0.014, 0.03, 1.0, 6, 1, true) },
+            { key: 'cylinder_tall', factory: () => new THREE.CylinderGeometry(0.02, 0.16, 0.78, 8, 1, true) },
+            { key: 'cylinder_prism1', factory: () => new THREE.CylinderGeometry(0.48, 0.48, 0.42, 6, 1, true) },
+            { key: 'cylinder_prism2', factory: () => new THREE.CylinderGeometry(0.42, 0.42, 0.48, 6, 1, true) },
+            { key: 'cylinder_prism3', factory: () => new THREE.CylinderGeometry(0.44, 0.44, 0.5, 6, 1, true) },
+            { key: 'torusknot_small', factory: () => new THREE.TorusKnotGeometry(0.14, 0.032, 36, 8, 2, 3) },
+            { key: 'torus_small', factory: () => new THREE.TorusGeometry(0.5, 0.08, 8, 24) },
+        ];
+        
+        geometries.forEach(({ key, factory }) => {
+            this.geometryPool.set(key, factory());
+        });
+    }
+    
+    _getGeometryFromPool(key) {
+        if (this.geometryPool.has(key)) {
+            return this.geometryPool.get(key);
+        }
+        return this.baseGeometry;
+    }
+    
+    _getMaterialFromPool(color, opacity, blending = THREE.AdditiveBlending) {
+        const poolKey = `${color.getHexString()}_${opacity.toFixed(2)}_${blending}`;
+        
+        if (!this.materialPool.has(poolKey)) {
+            const material = new THREE.MeshBasicMaterial({
+                color: color.clone(),
+                transparent: true,
+                opacity,
+                blending,
+                depthWrite: false,
+                side: THREE.DoubleSide
+            });
+            this.materialPool.set(poolKey, material);
+        }
+        
+        return this.materialPool.get(poolKey);
     }
 
     _createMythicPalette(color) {
@@ -51,14 +108,7 @@ export class LinkEnergyRingSystem {
     }
 
     _createBurstMaterial(color, opacity = 0.62) {
-        return new THREE.MeshBasicMaterial({
-            color,
-            transparent: true,
-            opacity,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            side: THREE.DoubleSide
-        });
+        return this._getMaterialFromPool(new THREE.Color(color), opacity);
     }
 
     _pickWeightedIndex(weights, seedText) {
@@ -365,7 +415,7 @@ export class LinkEnergyRingSystem {
                 const root = new THREE.Group();
                 root.name = 'MythicApotheosisSun';
 
-                const sun = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), ringMaterials.core);
+                const sun = new THREE.Mesh(this._getGeometryFromPool('sphere_small'), ringMaterials.core);
                 sun.rotation.set(0.26, 0.34, 0.16);
                 sun.userData = { role: 'core', baseOpacity: 0.96, spin: new THREE.Vector3(0.026, 0.024, 0.03), phase: Math.random() * Math.PI * 2 };
                 root.add(sun);
@@ -386,7 +436,7 @@ export class LinkEnergyRingSystem {
             }
 
             if (profile.core === 'prism') {
-                const prism = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.44, 0.5, 6, 1, true), ringMaterials.core);
+                const prism = new THREE.Mesh(this._getGeometryFromPool('cylinder_tall'), ringMaterials.core);
                 prism.name = 'MythicCorePrism';
                 prism.frustumCulled = false;
                 prism.scale.copy(profile.coreScale);
@@ -713,7 +763,7 @@ export class LinkEnergyRingSystem {
                 const root = new THREE.Group();
                 root.name = 'FractureRiftCore';
 
-                const knot = new THREE.Mesh(new THREE.TorusKnotGeometry(0.14, 0.032, 36, 8, 2, 3), ringMaterials.core);
+                const knot = new THREE.Mesh(this._getGeometryFromPool('torusknot_small'), ringMaterials.core);
                 knot.rotation.set(0.6, -0.24, 0.18);
                 knot.scale.set(1.0, 0.9, 1.05);
                 knot.userData = { role: 'core', baseOpacity: 0.98, spin: new THREE.Vector3(0.05, 0.06, 0.04), phase: Math.random() * Math.PI * 2 };
@@ -767,7 +817,7 @@ export class LinkEnergyRingSystem {
                 return root;
             }
 
-            const crackedCore = new THREE.Mesh(new THREE.IcosahedronGeometry(0.18, 0), ringMaterials.core);
+            const crackedCore = new THREE.Mesh(this._getGeometryFromPool('icosahedron'), ringMaterials.core);
             crackedCore.name = 'FractureCrackedCore';
             crackedCore.scale.set(1.1, 0.92, 1.2);
             crackedCore.rotation.set(0.42, -0.28, 0.16);
@@ -787,7 +837,7 @@ export class LinkEnergyRingSystem {
                 { name: 'FractureHeroSideShardC_NullRift', position: new THREE.Vector3(0.58, 0.28, -0.08), rotation: new THREE.Euler(1.08, -0.12, 0.28), scale: new THREE.Vector3(0.98, 1.08, 0.92), opacity: 0.82 }
             ];
             for (const [index, spec] of accentSpecs.entries()) {
-                const shard = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.038, 0.44, 6, 1, true), index === 0 ? ringMaterials.rupture : ringMaterials.shard);
+                const shard = new THREE.Mesh(this._getGeometryFromPool('cylinder_tiny'), index === 0 ? ringMaterials.rupture : ringMaterials.shard);
                 shard.name = spec.name;
                 shard.position.copy(spec.position);
                 shard.rotation.copy(spec.rotation);
@@ -812,7 +862,7 @@ export class LinkEnergyRingSystem {
         }
         for (let i = 0; i < shardAngles.length; i++) {
             const angle = shardAngles[i];
-            const shard = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.05, 0.3 + (i % 2) * 0.08, 6, 1, true), ringMaterials.shard);
+            const shard = new THREE.Mesh(this._getGeometryFromPool('cylinder_small3'), ringMaterials.shard);
             shard.name = `FractureShard${i}`;
             shard.frustumCulled = false;
             shard.position.set(Math.cos(angle) * profile.shardRadius, Math.sin(angle * 2.0) * 0.08, Math.sin(angle) * profile.shardRadius);
@@ -979,7 +1029,7 @@ export class LinkEnergyRingSystem {
         }
         for (let i = 0; i < pillarAngles.length; i++) {
             const angle = pillarAngles[i];
-            const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.03, profile.pillarHeight, 6, 1, true), ringMaterials.stone);
+            const pillar = new THREE.Mesh(this._getGeometryFromPool('cylinder_medium'), ringMaterials.stone);
             pillar.name = `CathedralPillar${i}`;
             pillar.frustumCulled = false;
             pillar.position.set(Math.cos(angle) * profile.pillarRadius, 0.0, Math.sin(angle) * profile.pillarRadius);
@@ -1020,13 +1070,13 @@ export class LinkEnergyRingSystem {
                 const root = new THREE.Group();
                 root.name = 'CathedralSanctumSpire';
 
-                const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.16, 0.78, 8, 1, true), ringMaterials.core);
+                const spire = new THREE.Mesh(this._getGeometryFromPool('cylinder_tall'), ringMaterials.core);
                 spire.position.y = 0.12;
                 spire.rotation.set(0.0, 0.18, 0.0);
                 spire.userData = { role: 'spire', baseOpacity: 0.92, spin: new THREE.Vector3(0.012, 0.014, 0.01), phase: Math.random() * Math.PI * 2 };
                 root.add(spire);
 
-                const cap = new THREE.Mesh(new THREE.OctahedronGeometry(0.14, 0), ringMaterials.gold);
+                const cap = new THREE.Mesh(this._getGeometryFromPool('octahedron'), ringMaterials.gold);
                 cap.position.y = 0.46;
                 cap.scale.set(0.9, 1.1, 0.9);
                 cap.rotation.set(0.28, 0.14, -0.08);
@@ -1045,7 +1095,7 @@ export class LinkEnergyRingSystem {
             if (profile.coreType === 'lantern') {
                 const root = new THREE.Group();
                 root.name = 'CathedralLantern';
-                const shell = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), ringMaterials.core);
+                const shell = new THREE.Mesh(this._getGeometryFromPool('sphere_lantern'), ringMaterials.core);
                 shell.scale.set(1.0, 1.08, 0.92);
                 shell.rotation.set(0.36, 0.18, -0.14);
                 shell.userData = { role: 'core', baseOpacity: 0.88, spin: new THREE.Vector3(0.018, 0.02, 0.016), phase: Math.random() * Math.PI * 2 };
@@ -1061,7 +1111,7 @@ export class LinkEnergyRingSystem {
             if (profile.coreType === 'lattice') {
                 const root = new THREE.Group();
                 root.name = 'CathedralLattice';
-                const lattice = new THREE.Mesh(new THREE.OctahedronGeometry(0.16, 0), ringMaterials.core);
+                const lattice = new THREE.Mesh(this._getGeometryFromPool('octahedron_large'), ringMaterials.core);
                 lattice.scale.set(0.92, 1.1, 0.92);
                 lattice.rotation.set(0.26, 0.18, -0.14);
                 lattice.userData = { role: 'core', baseOpacity: 0.86, spin: new THREE.Vector3(0.016, 0.018, 0.014), phase: Math.random() * Math.PI * 2 };
@@ -1074,7 +1124,7 @@ export class LinkEnergyRingSystem {
                 return root;
             }
 
-            const crown = new THREE.Mesh(new THREE.OctahedronGeometry(0.16, 0), ringMaterials.core);
+            const crown = new THREE.Mesh(this._getGeometryFromPool('octahedron_large'), ringMaterials.core);
             crown.name = 'CathedralCrown';
             crown.position.y = 0.34;
             crown.scale.set(0.92, 1.1, 0.92);
@@ -1294,5 +1344,10 @@ export class LinkEnergyRingSystem {
         if (this.coreGeometry) this.coreGeometry.dispose();
         if (this.crownSpikeGeometry) this.crownSpikeGeometry.dispose();
         if (this.sealGeometry) this.sealGeometry.dispose();
+        
+        this.geometryPool.forEach(geo => geo?.dispose?.());
+        this.geometryPool.clear();
+        this.materialPool.forEach(mat => mat?.dispose?.());
+        this.materialPool.clear();
     }
 }

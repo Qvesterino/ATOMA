@@ -144,11 +144,13 @@ export function createNeonEdgeOverlay(geometry, options = {}) {
 
 /**
  * Update shader time uniform
+ *
+ * Kept as a compatibility no-op.
+ * The shader remains active, but its pulse animation is frozen to avoid
+ * per-frame uniform churn on node shell updates.
  */
 export function updateNeonEdgeGlowTime(material, deltaTime) {
-  if (material.uniforms.time) {
-    material.uniforms.time.value += deltaTime;
-  }
+  return material;
 }
 
 /**

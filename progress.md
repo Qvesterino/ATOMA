@@ -9,6 +9,9 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
 - Reverted that embellishment back to the lighter baseline (restored the memory shell and removed the extra corona / ring layer) to reduce draw cost and visual clutter.
 - Runtime reload after the revert looks cleaner; if lag still appears in dense link scenes, the next likely target is `LinkRendererConduit` bootstrap staging and debug logging.
 - `LinkRenderLayerPolicy` now also carries the link bootstrap budget helper, and `LinkRendererConduit.updateAll()` uses it to time-slice bootstrap advancement across frames.
+- Investigated the render hot path from the current profile and treated it as a link-VFX cost issue, not a node shader issue.
+- Froze static link FX renderables by disabling `matrixAutoUpdate` on shared point-cloud pools, bead trails, corruption particles, spark pools, arc discharge lines, and static conduit strand/depth meshes.
+- Next verification step is a fresh browser profile capture to confirm whether `updateMatrixWorld` shrinks enough or whether braid/skin geometry rebuilds are still the remaining hotspot.
 
 ## 2026-03-28
 - Composite glyphs now receive an orbit anchor and orbit parameters from `GlyphFusionZone`.

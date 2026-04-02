@@ -20,7 +20,6 @@ varying vec3 vWorldPosition;
 varying vec3 vWorldNormal;
 varying float vFractureNoise;
 
-uniform float uTime;
 uniform float uCorruption;
 
 float hash13(vec3 p) {
@@ -32,13 +31,12 @@ void main() {
 
   vec3 displaced = position;
   float corruption = clamp(uCorruption, 0.0, 1.0);
-  float pulse = 0.92 + 0.08 * sin(uTime * 2.1 + position.y * 6.0);
-  float scale = mix(1.0, 1.22 + 0.04 * sin(uTime * 3.2), corruption) * pulse;
+  float scale = mix(1.0, 1.18 + corruption * 0.06, corruption);
 
-  float waveA = sin(position.x * 7.0 + uTime * 1.6);
-  float waveB = sin(position.y * 9.0 - uTime * 2.3);
-  float waveC = sin(position.z * 8.0 + uTime * 1.9);
-  float jitter = hash13(position * 4.0 + vec3(uTime * 0.35));
+  float waveA = sin(position.x * 7.0 + position.z * 1.9);
+  float waveB = sin(position.y * 9.0 - position.x * 1.5);
+  float waveC = sin(position.z * 8.0 + position.y * 1.2);
+  float jitter = hash13(position * 4.0 + vec3(corruption * 7.0));
   float deform = (waveA * 0.45 + waveB * 0.35 + waveC * 0.2 + (jitter - 0.5) * 1.4);
   displaced += normal * deform * (0.03 + corruption * 0.12);
   displaced *= scale;
@@ -46,14 +44,13 @@ void main() {
   vec4 worldPosition = modelMatrix * vec4(displaced, 1.0);
   vWorldPosition = worldPosition.xyz;
   vWorldNormal = normalize(mat3(modelMatrix) * normal);
-  vFractureNoise = hash13(displaced * 6.0 + vec3(uTime * 0.4));
+  vFractureNoise = hash13(displaced * 6.0 + vec3(corruption * 11.0));
 
   gl_Position = projectionMatrix * viewMatrix * worldPosition;
 }
 `;
 
 const CORRUPTION_SEED_FRAGMENT_SHADER = `
-uniform float uTime;
 uniform float uCorruption;
 uniform vec3 uColorBase;
 uniform vec3 uColorCorrupt;
@@ -69,8 +66,8 @@ float random(vec2 p) {
 
 void main() {
   float corruption = clamp(uCorruption, 0.0, 1.0);
-  float fractureNoise = random(vUv * (10.0 + corruption * 6.0) + uTime * 0.45 + vFractureNoise * 2.0);
-  float fractureBands = random(vUv.yx * (16.0 + corruption * 10.0) - uTime * 0.3);
+  float fractureNoise = random(vUv * (10.0 + corruption * 6.0) + vFractureNoise * 2.0);
+  float fractureBands = random(vUv.yx * (16.0 + corruption * 10.0) + vFractureNoise * 0.75);
   float fracture = fractureNoise * 0.68 + fractureBands * 0.32;
   float threshold = 0.18 + corruption * 0.68;
 
@@ -79,8 +76,8 @@ void main() {
   float edgeMask = smoothstep(threshold, threshold + 0.06, fracture);
   vec3 viewDir = normalize(cameraPosition - vWorldPosition);
   float fresnel = pow(1.0 - max(dot(normalize(vWorldNormal), viewDir), 0.0), 2.8);
-  float pulse = 0.8 + 0.2 * sin(uTime * 3.6 + vUv.y * 14.0 + vUv.x * 9.0);
-  float lava = smoothstep(0.58, 1.0, fracture) * (0.7 + 0.3 * pulse);
+  float pulse = 0.88 + vFractureNoise * 0.12;
+  float lava = smoothstep(0.58, 1.0, fracture) * pulse;
 
   vec3 coreColor = mix(uColorBase, vec3(0.07, 0.01, 0.0), 0.7);
   vec3 edgeColor = mix(uColorCorrupt, vec3(1.0, 0.34, 0.06), 0.45 + 0.35 * pulse);
@@ -114,7 +111,6 @@ export class TIER4_CorruptionFeedbackVisuals {
       corruptionSeedColor: config.corruptionSeedColor ?? 0xff6600,
       corruptionSeedIntensity: config.corruptionSeedIntensity ?? 0.78,
       corruptionSeedDuration: config.corruptionSeedDuration ?? 0.95,
-      corruptionSeedRotationSpeed: config.corruptionSeedRotationSpeed ?? 0.82,
       maxCorruptionSeeds: config.maxCorruptionSeeds ?? 50,
       corruptionSeedLodDistance: config.corruptionSeedLodDistance ?? 22,
       corruptionSeedCullDistance: config.corruptionSeedCullDistance ?? 38,
@@ -221,7 +217,6 @@ export class TIER4_CorruptionFeedbackVisuals {
     effect.node = node;
     effect.link = link;
     effect.startTime = Date.now();
-    effect.time = 0;
     effect.duration = this.config.corruptionSeedDuration * 1000;
     effect.startScale.setScalar(0.08 * bloomScaleMultiplier);
     effect.endScale.setScalar((1.08 + corruptionLevel * 0.16) * bloomScaleMultiplier);
@@ -232,10 +227,28 @@ export class TIER4_CorruptionFeedbackVisuals {
     effect.mesh.visible = true;
     effect.fragmentRoot.visible = true;
     effect.lodSprite.visible = false;
-
-    for (const fragment of effect.fragments) {
-      fragment.mesh.material.uniforms.uCorruption.value = corruptionLevel;
+    effect.lodSprite.scale.setScalar(0.44 + corruptionLevel * 0.42);
+    effect.lodSprite.material.opacity = 0.38 + corruptionLevel * 0.5;
+    if (effect.haloOuter) {
+      effect.haloOuter.scale.set(1.0, 0.72, 1.12);
     }
+    if (effect.haloInner) {
+      effect.haloInner.scale.set(0.86, 1.14, 0.92);
+    }
+
+    if (effect.core?.material?.uniforms?.uCorruption) {
+      effect.core.material.uniforms.uCorruption.value = corruptionLevel;
+    }
+    if (effect.spine?.material?.uniforms?.uCorruption) {
+      effect.spine.material.uniforms.uCorruption.value = corruptionLevel;
+    }
+    for (const fragment of effect.fragments) {
+      if (fragment.mesh.material?.uniforms?.uCorruption) {
+        fragment.mesh.material.uniforms.uCorruption.value = corruptionLevel;
+      }
+    }
+
+    this._syncCorruptionSeedConnections(effect, corruptionLevel);
   }
 
   _createCorruptionSeedMaterial(corruptionLevel = 0, profile = 'petal') {
@@ -261,7 +274,6 @@ export class TIER4_CorruptionFeedbackVisuals {
       vertexShader: CORRUPTION_SEED_VERTEX_SHADER,
       fragmentShader: CORRUPTION_SEED_FRAGMENT_SHADER,
       uniforms: {
-        uTime: { value: 0 },
         uCorruption: { value: corruptionLevel },
         uColorBase: { value: new THREE.Color(palette.base) },
         uColorCorrupt: { value: new THREE.Color(palette.corrupt) }
@@ -333,7 +345,7 @@ export class TIER4_CorruptionFeedbackVisuals {
     core.rotation.set(0.42, -0.24, 0.18);
     bloomRoot.add(core);
 
-    const spine = new THREE.Mesh(this.geometryPool.bloomSpine, spineMaterial.clone());
+    const spine = new THREE.Mesh(this.geometryPool.bloomSpine, spineMaterial);
     spine.name = 'ApostateBloomSpine';
     spine.position.set(0.0, 0.46, 0.02);
     spine.rotation.set(0.18, 0.34, -0.12);
@@ -380,8 +392,7 @@ export class TIER4_CorruptionFeedbackVisuals {
     const baseRadius = 0.56 + corruptionLevel * 0.16;
 
     for (let i = 0; i < fragmentCount; i++) {
-      const material = petalMaterial.clone();
-      const mesh = new THREE.Mesh(this.geometryPool.bloomPetal, material);
+      const mesh = new THREE.Mesh(this.geometryPool.bloomPetal, petalMaterial);
       const angle = (i / fragmentCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.24;
       const baseScale = 0.35 + Math.random() * 0.18 + corruptionLevel * 0.08;
       const radius = baseRadius + Math.random() * 0.14;
@@ -390,11 +401,6 @@ export class TIER4_CorruptionFeedbackVisuals {
         (Math.random() - 0.5) * 0.34 + Math.sin(angle * 2.0) * 0.08,
         Math.sin(angle) * radius * 0.82
       );
-      const motionAxis = new THREE.Vector3(
-        Math.sin(angle + Math.PI * 0.5),
-        0.52 + Math.random() * 0.42,
-        Math.cos(angle + Math.PI * 0.5)
-      ).normalize();
 
       mesh.position.copy(offset);
       mesh.rotation.set(
@@ -407,15 +413,7 @@ export class TIER4_CorruptionFeedbackVisuals {
 
       fragments.push({
         mesh,
-        baseOffset: offset.clone(),
-        motionAxis,
-        baseScale,
-        angle,
-        phase: Math.random() * Math.PI * 2,
-        speed: 0.9 + Math.random() * 1.8,
-        amplitude: 0.03 + Math.random() * 0.06,
-        orbitRadius: radius,
-        tilt: mesh.rotation.clone()
+        phase: Math.random() * Math.PI * 2
       });
     }
 
@@ -451,6 +449,31 @@ export class TIER4_CorruptionFeedbackVisuals {
       addConnection(-1, i, 'spoke');
     }
 
+    const syncConnectionVisuals = (connection) => {
+      const fragmentA = connection.a >= 0 ? fragments[connection.a] : null;
+      const fragmentB = connection.b >= 0 ? fragments[connection.b] : null;
+      const anchorA = fragmentA?.mesh?.position ?? core.position;
+      const anchorB = fragmentB?.mesh?.position ?? core.position;
+      const positions = connection.line.geometry.attributes.position.array;
+      positions[0] = anchorA.x;
+      positions[1] = anchorA.y;
+      positions[2] = anchorA.z;
+      positions[3] = anchorB.x;
+      positions[4] = anchorB.y;
+      positions[5] = anchorB.z;
+      connection.line.geometry.attributes.position.needsUpdate = true;
+
+      const phaseA = fragmentA?.phase ?? 0.0;
+      const phaseB = fragmentB?.phase ?? 0.0;
+      const kindBias = connection.kind === 'spoke' ? 1.0 : 0.72;
+      const staticPulse = 0.64 + 0.36 * Math.sin(phaseA + phaseB);
+      connection.line.material.opacity = (0.14 + corruptionLevel * 0.42) * staticPulse * kindBias;
+    };
+
+    for (const connection of connections) {
+      syncConnectionVisuals(connection);
+    }
+
     const lodSprite = new THREE.Sprite(this._createSeedSpriteMaterial());
     lodSprite.visible = false;
     lodSprite.scale.setScalar(0.68 + corruptionLevel * 0.42);
@@ -459,7 +482,7 @@ export class TIER4_CorruptionFeedbackVisuals {
     return { group, fragmentRoot: petalRing, core, spine, haloOuter, haloInner, fragments, connections, lodSprite, voidCore, crownAnchor };
   }
 
-  _updateCorruptionSeedConnections(effect, corruptionLevel = 0) {
+  _syncCorruptionSeedConnections(effect, corruptionLevel = 0) {
     for (const connection of effect.connections) {
       const fragmentA = connection.a >= 0 ? effect.fragments[connection.a] : null;
       const fragmentB = connection.b >= 0 ? effect.fragments[connection.b] : null;
@@ -478,9 +501,9 @@ export class TIER4_CorruptionFeedbackVisuals {
 
       const phaseA = fragmentA?.phase ?? 0.0;
       const phaseB = fragmentB?.phase ?? 0.0;
-      const pulse = 0.44 + 0.56 * Math.sin(effect.time * 2.7 + phaseA + phaseB);
       const kindBias = connection.kind === 'spoke' ? 1.0 : 0.72;
-      connection.line.material.opacity = (0.14 + corruptionLevel * 0.42) * pulse * kindBias;
+      const staticPulse = 0.64 + 0.36 * Math.sin(phaseA + phaseB);
+      connection.line.material.opacity = (0.14 + corruptionLevel * 0.42) * staticPulse * kindBias;
     }
   }
 
@@ -670,7 +693,6 @@ export class TIER4_CorruptionFeedbackVisuals {
       const elapsed = currentTime - effect.startTime;
       const progress = Math.min(elapsed / effect.duration, 1.0);
       const corruptionLevel = this._readSeedCorruptionLevel(effect.link);
-      effect.time += deltaTime;
 
       const distanceToCamera = this.camera?.position ? effect.mesh.position.distanceTo(this.camera.position) : 0;
       const isCulled = this.camera && distanceToCamera > this.config.corruptionSeedCullDistance;
@@ -690,65 +712,11 @@ export class TIER4_CorruptionFeedbackVisuals {
       const bloomEase = 0.54 + 0.46 * Math.sin(progress * Math.PI * 0.5);
       effect.mesh.scale.lerpVectors(effect.startScale, effect.endScale, bloomEase);
 
-      if (effect.core) {
-        effect.core.scale.set(
-          0.42 + corruptionLevel * 0.12 + 0.08 * bloomEase,
-          0.46 + corruptionLevel * 0.16 + 0.12 * bloomEase,
-          0.36 + corruptionLevel * 0.1 + 0.07 * bloomEase
-        );
-      }
-
-      if (effect.spine) {
-        effect.spine.rotation.x += deltaTime * (0.28 + corruptionLevel * 0.22);
-        effect.spine.rotation.z += deltaTime * (0.18 + corruptionLevel * 0.12);
-      }
-
-      if (effect.haloOuter) {
-        const haloOuterPulse = 1.0 + 0.06 * Math.sin(effect.time * 1.9) + corruptionLevel * 0.08;
-        effect.haloOuter.scale.set(1.0 * haloOuterPulse, 0.72 * haloOuterPulse, 1.12 * haloOuterPulse);
-        effect.haloOuter.rotation.y += deltaTime * (0.26 + corruptionLevel * 0.18);
-      }
-
-      if (effect.haloInner) {
-        const haloInnerPulse = 1.0 + 0.09 * Math.sin(effect.time * 2.3 + 0.9);
-        effect.haloInner.scale.set(0.86 * haloInnerPulse, 1.14 * haloInnerPulse, 0.92 * haloInnerPulse);
-        effect.haloInner.rotation.z += deltaTime * (0.38 + corruptionLevel * 0.16);
-      }
-
-      effect.mesh.rotation.x += deltaTime * (this.config.corruptionSeedRotationSpeed * 0.52);
-      effect.mesh.rotation.y += deltaTime * (this.config.corruptionSeedRotationSpeed * 0.8);
-      effect.mesh.rotation.z += deltaTime * (this.config.corruptionSeedRotationSpeed * 0.24);
-
       if (useSpriteLod) {
-        const spriteScale = 0.44 + corruptionLevel * 0.42 + 0.08 * Math.sin(effect.time * 2.4);
-        effect.lodSprite.scale.setScalar(spriteScale);
+        effect.lodSprite.scale.setScalar(0.44 + corruptionLevel * 0.42);
         effect.lodSprite.material.opacity = 0.38 + corruptionLevel * 0.5;
       } else {
-        for (const fragment of effect.fragments) {
-          const breath = 0.66 + 0.34 * Math.sin(effect.time * (fragment.speed * 0.85) + fragment.phase);
-          const orbit = fragment.orbitRadius + fragment.amplitude * Math.sin(effect.time * fragment.speed + fragment.phase);
-          fragment.mesh.position.set(
-            Math.cos(fragment.angle + effect.time * 0.12) * orbit,
-            fragment.baseOffset.y + fragment.motionAxis.y * fragment.amplitude * breath,
-            Math.sin(fragment.angle + effect.time * 0.12) * orbit * 0.82
-          );
-
-          const scalePulse = 1.0 + corruptionLevel * 0.3 * (0.5 + 0.5 * Math.sin(effect.time * 3.4 + fragment.phase));
-          fragment.mesh.scale.set(
-            fragment.baseScale * 0.7 * scalePulse,
-            fragment.baseScale * 1.48 * scalePulse,
-            fragment.baseScale * 0.52 * scalePulse
-          );
-
-          fragment.mesh.rotation.x = fragment.tilt.x + effect.time * 0.24 + breath * 0.18;
-          fragment.mesh.rotation.y = fragment.tilt.y + effect.time * 0.36;
-          fragment.mesh.rotation.z = fragment.tilt.z + corruptionLevel * 0.22 * Math.sin(effect.time * 2.1 + fragment.phase);
-
-          fragment.mesh.material.uniforms.uTime.value += deltaTime;
-          fragment.mesh.material.uniforms.uCorruption.value = corruptionLevel;
-        }
-
-        this._updateCorruptionSeedConnections(effect, corruptionLevel);
+        effect.lodSprite.material.opacity = 0.0;
       }
       
       // Remove when done

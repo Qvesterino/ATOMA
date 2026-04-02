@@ -119,7 +119,7 @@ import { NODE_VISUAL_REGISTRY, CATEGORY_POOLS } from './NodeVisualRegistry.js';
 // import { ExtremeNodeArchetypes_SafePack } from './_ExtremeNodeArchetypes_SafePack.js';
 import { spawnCycleValidator } from './SpawnCycleValidator.js';
 import { updateHologramShellMaterial, reassertNodeHologramShell } from './CoreHologramShader.js';
-import { reassertNodeNeonEdgeGlow, updateNeonEdgeGlowTime } from './shaders/NeonEdgeGlowShader.js';
+import { reassertNodeNeonEdgeGlow } from './shaders/NeonEdgeGlowShader.js';
 import { NodeCategoryAudit, auditNodeVisuals } from './NodeCategoryAudit.js';
 import { assignLinkTarget } from './LinkTargetContract.js';
 import { LegacyNodeModelFilter } from './LegacyNodeModelFilter.js';
@@ -2806,9 +2806,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       node.traverse((child) => {
         if (child.isMesh && child.material && child.material.isShaderMaterial && child.userData.visualLayer === 'CORE_SHELL') {
           updateHologramShellMaterial(child.material, deltaTime);
-        }
-        if (child.isMesh && child.material && child.material.isShaderMaterial && child.userData.isNeonEdgeGlow) {
-          updateNeonEdgeGlowTime(child.material, deltaTime);
         }
       });
     }

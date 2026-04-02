@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { resolveLinkCategoryColor } from './LinkCategoryColorContract.js';
+import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
 
 /**
  * GPU-Driven Particle Trail System for Beads
@@ -175,6 +176,9 @@ export class LinkBeadTrailSystem {
         this.mesh = new THREE.Points(geometry, material);
         this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_BEAD_TRAILS');
         this.mesh.frustumCulled = false;
+        this.mesh.matrixAutoUpdate = false;
+        this.mesh.updateMatrix();
+        applyLinkRenderLayer(this.mesh, 'LINK_BEAD_TRAILS');
         const ud = (this.mesh && typeof this.mesh.userData === 'object' && this.mesh.userData) ? this.mesh.userData : (() => { try { Object.defineProperty(this.mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.mesh.userData || {}; })();
         Object.assign(ud, { isTrailSystem: true });
     }

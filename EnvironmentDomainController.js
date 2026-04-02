@@ -12,6 +12,91 @@ const ENVIRONMENT_SYSTEMS = [
 
 ];
 
+function createSharedEnvironmentAssetRegistry() {
+  const materialEntries = new Map();
+  const geometryEntries = new Map();
+  const materialLookup = new WeakMap();
+  const geometryLookup = new WeakMap();
+
+  const tagSharedAsset = (asset, key, kind) => {
+    if (!asset) return asset;
+    if (!asset.userData) asset.userData = {};
+    asset.userData.__sharedEnvironmentAsset = true;
+    asset.userData.__sharedEnvironmentKey = key;
+    asset.userData.__sharedEnvironmentKind = kind;
+    return asset;
+  };
+
+  const getOrCreate = (entries, lookup, key, factory, kind) => {
+    if (entries.has(key)) {
+      const entry = entries.get(key);
+      entry.refCount += 1;
+      return entry.asset;
+    }
+
+    const asset = factory?.();
+    if (!asset) return asset;
+
+    const taggedAsset = tagSharedAsset(asset, key, kind);
+    entries.set(key, { asset: taggedAsset, refCount: 1 });
+    lookup.set(taggedAsset, key);
+    return taggedAsset;
+  };
+
+  const release = (entries, lookup, asset) => {
+    if (!asset) return false;
+
+    const key = lookup.get(asset) ?? asset.userData?.__sharedEnvironmentKey ?? null;
+    if (!key || !entries.has(key)) {
+      if (typeof asset.dispose === 'function') {
+        asset.dispose();
+      }
+      return false;
+    }
+
+    const entry = entries.get(key);
+    entry.refCount -= 1;
+    if (entry.refCount <= 0) {
+      if (typeof entry.asset.dispose === 'function') {
+        entry.asset.dispose();
+      }
+      entries.delete(key);
+      lookup.delete(entry.asset);
+    }
+
+    return true;
+  };
+
+  return {
+    getSharedMaterial(key, factory) {
+      return getOrCreate(materialEntries, materialLookup, key, factory, 'material');
+    },
+    getSharedGeometry(key, factory) {
+      return getOrCreate(geometryEntries, geometryLookup, key, factory, 'geometry');
+    },
+    releaseMaterial(material) {
+      return release(materialEntries, materialLookup, material);
+    },
+    releaseGeometry(geometry) {
+      return release(geometryEntries, geometryLookup, geometry);
+    },
+    dispose() {
+      for (const entry of materialEntries.values()) {
+        if (typeof entry.asset?.dispose === 'function') {
+          entry.asset.dispose();
+        }
+      }
+      for (const entry of geometryEntries.values()) {
+        if (typeof entry.asset?.dispose === 'function') {
+          entry.asset.dispose();
+        }
+      }
+      materialEntries.clear();
+      geometryEntries.clear();
+    }
+  };
+}
+
 export class EnvironmentDomainController {
 
   constructor(scene, worldRoot, environmentRoot, frameScheduler, deps) {
@@ -20,6 +105,7 @@ export class EnvironmentDomainController {
     this.environmentRoot = environmentRoot;
     this.frameScheduler = frameScheduler;
     this.deps = deps; // camera, aiNodes, linkingSystem, etc.
+    this.sharedEnvironmentAssets = createSharedEnvironmentAssetRegistry();
 
     this.instances = {};
     this.schedulerId = 'visual.environmentDomain';
@@ -44,6 +130,10 @@ export class EnvironmentDomainController {
       }
     });
 
+    if (this.sharedEnvironmentAssets) {
+      this.sharedEnvironmentAssets.dispose();
+    }
+
     this.instances = {};
   }
 
@@ -55,7 +145,8 @@ export class EnvironmentDomainController {
         this.scene,
         this.worldRoot,
         this.environmentRoot,
-        d.camera
+        d.camera,
+        this.sharedEnvironmentAssets
       );
 
     this.instances.weatherPack =
@@ -63,7 +154,8 @@ export class EnvironmentDomainController {
         this.scene,
         this.worldRoot,
         this.environmentRoot,
-        d.camera
+        d.camera,
+        this.sharedEnvironmentAssets
       );
 
     this.instances.quantumIllusions =
@@ -75,7 +167,8 @@ export class EnvironmentDomainController {
         d.linkingSystem,
         d.worldEvents,
         this.instances.weatherPack,
-        d.legendaryPack
+        d.legendaryPack,
+        this.sharedEnvironmentAssets
       );
 
     this.instances.ambientEntityManager =

@@ -23,11 +23,12 @@ function areWorldFXEnabled() {
 }
 
 export class SafeWorldFXPack {
-  constructor(scene, worldRoot, environmentRoot, camera) {
+  constructor(scene, worldRoot, environmentRoot, camera, sharedAssets = null) {
     this.scene = scene;
     this.worldRoot = worldRoot || scene;
     this.environmentRoot = environmentRoot || this.worldRoot;
     this.camera = camera;
+    this.sharedAssets = sharedAssets ?? null;
     this.root = new THREE.Group();
     this.environmentRoot.add(this.root);
     
@@ -105,6 +106,53 @@ export class SafeWorldFXPack {
     
     // Initialize world FX
     this.initializeWorldFX();
+  }
+
+  _getSharedMaterial(key, factory) {
+    if (this.sharedAssets?.getSharedMaterial) {
+      return this.sharedAssets.getSharedMaterial(`SafeWorldFXPack:${key}`, factory);
+    }
+    return factory();
+  }
+
+  _getSharedGeometry(key, factory) {
+    if (this.sharedAssets?.getSharedGeometry) {
+      return this.sharedAssets.getSharedGeometry(`SafeWorldFXPack:${key}`, factory);
+    }
+    return factory();
+  }
+
+  _releaseMaterial(material) {
+    if (!material) return;
+    if (this.sharedAssets?.releaseMaterial?.(material)) return;
+    if (typeof material.dispose === 'function') material.dispose();
+  }
+
+  _releaseGeometry(geometry) {
+    if (!geometry) return;
+    if (this.sharedAssets?.releaseGeometry?.(geometry)) return;
+    if (typeof geometry.dispose === 'function') geometry.dispose();
+  }
+
+  _releaseMeshResources(mesh, materialReleaser = null) {
+    if (!mesh) return;
+    if (mesh.geometry) {
+      this._releaseGeometry(mesh.geometry);
+    }
+
+    if (!mesh.material) return;
+
+    if (Array.isArray(mesh.material)) {
+      for (const material of mesh.material) {
+        if (!material) continue;
+        if (materialReleaser) materialReleaser(material);
+        else this._releaseMaterial(material);
+      }
+      return;
+    }
+
+    if (materialReleaser) materialReleaser(mesh.material);
+    else this._releaseMaterial(mesh.material);
   }
 
   freezeMaterialFlags(mat, context) {
@@ -399,8 +447,7 @@ export class SafeWorldFXPack {
       if (shift.age > this.config.dimensionalDuration) {
         if (shift.gridMesh) {
           this.root.remove(shift.gridMesh);
-          shift.gridMesh.geometry.dispose();
-          shift.gridMesh.material.dispose();
+          this._releaseMeshResources(shift.gridMesh);
         }
         return false;
       }
@@ -414,23 +461,25 @@ export class SafeWorldFXPack {
    */
   triggerDimensionalShift() {
     // Create grid distortion mesh
-    const gridGeo = new THREE.BufferGeometry();
-    const gridSize = 200;
-    const gridSpacing = 10;
-    
-    // Create grid lines
-    const points = [];
-    for (let x = -gridSize; x <= gridSize; x += gridSpacing) {
-      points.push(new THREE.Vector3(x, 0, -gridSize));
-      points.push(new THREE.Vector3(x, 0, gridSize));
-    }
-    for (let z = -gridSize; z <= gridSize; z += gridSpacing) {
-      points.push(new THREE.Vector3(-gridSize, 0, z));
-      points.push(new THREE.Vector3(gridSize, 0, z));
-    }
-    
-    gridGeo.setFromPoints(points);
-    
+    const gridGeo = this._getSharedGeometry('dimensional_shift.gridGeo', () => {
+      const geometry = new THREE.BufferGeometry();
+      const gridSize = 200;
+      const gridSpacing = 10;
+
+      const points = [];
+      for (let x = -gridSize; x <= gridSize; x += gridSpacing) {
+        points.push(new THREE.Vector3(x, 0, -gridSize));
+        points.push(new THREE.Vector3(x, 0, gridSize));
+      }
+      for (let z = -gridSize; z <= gridSize; z += gridSpacing) {
+        points.push(new THREE.Vector3(-gridSize, 0, z));
+        points.push(new THREE.Vector3(gridSize, 0, z));
+      }
+
+      geometry.setFromPoints(points);
+      return geometry;
+    });
+
     const gridMat = new THREE.LineBasicMaterial({
       color: 0x00ffff,
       transparent: true,
@@ -512,7 +561,7 @@ export class SafeWorldFXPack {
           const materialType = wave.materialType || wave.type;
           this._releaseRiftWaveMaterial(materialType, wave.mesh.material);
           this.root.remove(wave.mesh);
-          wave.mesh.geometry.dispose();
+          this._releaseGeometry(wave.mesh.geometry);
         }
         return false;
       }
@@ -588,7 +637,7 @@ export class SafeWorldFXPack {
     
     if (waveType === 'linear') {
       // Create linear wave
-      const waveGeo = new THREE.PlaneGeometry(100, this.config.riftWaveWidth);
+      const waveGeo = this._getSharedGeometry('rift_wave.linearPlane', () => new THREE.PlaneGeometry(100, this.config.riftWaveWidth));
       const waveMat = this._allocateRiftWaveMaterial('linear');
       if (!waveMat) return;
 
@@ -708,47 +757,52 @@ export class SafeWorldFXPack {
    */
   createFractalSky() {
     // Create animated fractal lines in sky
-    const fractalGeo = new THREE.BufferGeometry();
-    const fractalPoints = [];
-    
-    // Generate fractal-like line patterns
-    const iterations = 4;
-    const scale = 100;
-    
-    for (let iter = 0; iter < iterations; iter++) {
-      for (let i = 0; i < 20; i++) {
-        const angle = (i / 20) * Math.PI * 2;
-        const radius = scale * Math.pow(0.6, iter);
-        
-        fractalPoints.push(
-          new THREE.Vector3(
-            Math.cos(angle) * radius,
-            60 + iter * 10,
-            Math.sin(angle) * radius
-          )
-        );
-        
-        const nextAngle = ((i + 1) / 20) * Math.PI * 2;
-        fractalPoints.push(
-          new THREE.Vector3(
-            Math.cos(nextAngle) * radius,
-            60 + iter * 10,
-            Math.sin(nextAngle) * radius
-          )
-        );
+    const fractalGeo = this._getSharedGeometry('fractal_sky.geo', () => {
+      const geometry = new THREE.BufferGeometry();
+      const fractalPoints = [];
+
+      const iterations = 4;
+      const scale = 100;
+
+      for (let iter = 0; iter < iterations; iter++) {
+        for (let i = 0; i < 20; i++) {
+          const angle = (i / 20) * Math.PI * 2;
+          const radius = scale * Math.pow(0.6, iter);
+
+          fractalPoints.push(
+            new THREE.Vector3(
+              Math.cos(angle) * radius,
+              60 + iter * 10,
+              Math.sin(angle) * radius
+            )
+          );
+
+          const nextAngle = ((i + 1) / 20) * Math.PI * 2;
+          fractalPoints.push(
+            new THREE.Vector3(
+              Math.cos(nextAngle) * radius,
+              60 + iter * 10,
+              Math.sin(nextAngle) * radius
+            )
+          );
+        }
       }
-    }
-    
-    fractalGeo.setFromPoints(fractalPoints);
-    
-    const fractalMat = new THREE.LineBasicMaterial({
-      color: 0x00ffff,
-      transparent: true,
-      opacity: 0.15,
-      fog: false
+
+      geometry.setFromPoints(fractalPoints);
+      return geometry;
     });
-    this.installOpacityUniform(fractalMat, 0.15, 'line', 'fractal_sky');
-    this.freezeMaterialFlags(fractalMat, 'fractal_sky');
+
+    const fractalMat = this._getSharedMaterial('fractal_sky.mat', () => {
+      const material = new THREE.LineBasicMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0.15,
+        fog: false
+      });
+      this.installOpacityUniform(material, 0.15, 'line', 'fractal_sky');
+      this.freezeMaterialFlags(material, 'fractal_sky');
+      return material;
+    });
     
     const fractalMesh = new THREE.LineSegments(fractalGeo, fractalMat);
     fractalMesh.userData = { isWorldFX: true, type: 'fractal_sky' };
@@ -820,13 +874,11 @@ export class SafeWorldFXPack {
       if (rift.age > this.config.quantumRiftDuration) {
         if (rift.mesh) {
           this.root.remove(rift.mesh);
-          rift.mesh.geometry.dispose();
-          rift.mesh.material.dispose();
+          this._releaseMeshResources(rift.mesh);
         }
         rift.ripples.forEach(r => {
           this.root.remove(r.mesh);
-          r.mesh.geometry.dispose();
-          r.mesh.material.dispose();
+          this._releaseMeshResources(r.mesh);
         });
         return false;
       }
@@ -844,7 +896,7 @@ export class SafeWorldFXPack {
     const z = (Math.random() - 0.5) * 100;
     
     // Create main rift mesh (teardrop-like)
-    const riftGeo = new THREE.IcosahedronGeometry(10, 4);
+    const riftGeo = this._getSharedGeometry('quantum_rift.core.geo', () => new THREE.IcosahedronGeometry(10, 4));
     const riftMat = new THREE.MeshStandardMaterial({
       color: 0x8800ff,
       transparent: true,
@@ -864,7 +916,7 @@ export class SafeWorldFXPack {
     // Create ripple rings
     const ripples = [];
     for (let i = 0; i < 3; i++) {
-      const rippleGeo = new THREE.TorusGeometry(12 + i * 8, 1, 12, 64);
+      const rippleGeo = this._getSharedGeometry(`quantum_rift.ripple.geo.${12 + i * 8}`, () => new THREE.TorusGeometry(12 + i * 8, 1, 12, 64));
       const rippleMat = new THREE.MeshStandardMaterial({
         color: 0xff00ff,
         transparent: true,
@@ -919,8 +971,7 @@ export class SafeWorldFXPack {
       if (glitch.age > this.config.sigmaGlitchDuration) {
         if (glitch.mesh) {
           this.root.remove(glitch.mesh);
-          glitch.mesh.geometry.dispose();
-          glitch.mesh.material.dispose();
+          this._releaseMeshResources(glitch.mesh);
         }
         return false;
       }
@@ -1128,8 +1179,7 @@ export class SafeWorldFXPack {
     this.vfxLayers.dimensionalShifts.forEach(shift => {
       if (shift.gridMesh) {
         this.root.remove(shift.gridMesh);
-        shift.gridMesh.geometry.dispose();
-        shift.gridMesh.material.dispose();
+        this._releaseMeshResources(shift.gridMesh);
       }
     });
     
@@ -1137,8 +1187,12 @@ export class SafeWorldFXPack {
     this.vfxLayers.riftWaves.forEach(wave => {
       if (wave.mesh) {
         this.root.remove(wave.mesh);
-        wave.mesh.geometry.dispose();
-        wave.mesh.material.dispose();
+        if (wave.materialType) {
+          this._releaseRiftWaveMaterial(wave.materialType, wave.mesh.material);
+          this._releaseGeometry(wave.mesh.geometry);
+        } else {
+          this._releaseMeshResources(wave.mesh);
+        }
       }
     });
     
@@ -1146,13 +1200,11 @@ export class SafeWorldFXPack {
     this.vfxLayers.quantumRifts.forEach(rift => {
       if (rift.mesh) {
         this.root.remove(rift.mesh);
-        rift.mesh.geometry.dispose();
-        rift.mesh.material.dispose();
+        this._releaseMeshResources(rift.mesh);
       }
       rift.ripples.forEach(r => {
         this.root.remove(r.mesh);
-        r.mesh.geometry.dispose();
-        r.mesh.material.dispose();
+        this._releaseMeshResources(r.mesh);
       });
     });
     
@@ -1160,30 +1212,26 @@ export class SafeWorldFXPack {
     this.vfxLayers.sigmaGlitches.forEach(glitch => {
       if (glitch.mesh) {
         this.root.remove(glitch.mesh);
-        glitch.mesh.geometry.dispose();
-        glitch.mesh.material.dispose();
+        this._releaseMeshResources(glitch.mesh);
       }
     });
     
     // Clean fractal sky
     if (this.vfxLayers.fractalSky) {
       this.root.remove(this.vfxLayers.fractalSky);
-      this.vfxLayers.fractalSky.geometry.dispose();
-      this.vfxLayers.fractalSky.material.dispose();
+      this._releaseMeshResources(this.vfxLayers.fractalSky);
     }
     
     // Clean energy streams
     this.vfxLayers.energyStreams.forEach(stream => {
       this.root.remove(stream);
-      stream.geometry.dispose();
-      stream.material.dispose();
+      this._releaseMeshResources(stream);
     });
     
     // Clean aurora horizons
     this.vfxLayers.auroraHorizons.forEach(aurora => {
       this.root.remove(aurora);
-      aurora.geometry.dispose();
-      aurora.material.dispose();
+      this._releaseMeshResources(aurora);
     });
     
     // Restore original lights
@@ -1266,6 +1314,13 @@ export class SafeWorldFXPack {
     // Clear original lights
     if (Array.isArray(this.originalLights)) {
       this.originalLights.length = 0;
+    }
+  }
+
+  dispose() {
+    this.disableAll();
+    if (this.root?.parent) {
+      this.root.parent.remove(this.root);
     }
   }
 }

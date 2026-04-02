@@ -230,6 +230,8 @@ export class LinkRingArcDischarges {
 
         const line = new THREE.Line(geometry, material);
         line.frustumCulled = false;
+        line.matrixAutoUpdate = false;
+        line.updateMatrix();
         const arcsOrder = VisualHierarchyRegistry.getRenderOrder('LINK_ARCS');
         line.renderOrder = arcsOrder;
         this.group.add(line);
@@ -243,6 +245,8 @@ export class LinkRingArcDischarges {
             glowMaterial.linewidth = Math.max(1.8, this.config.arcThickness * 170.0);
             glowLine = new THREE.Line(glowGeometry, glowMaterial);
             glowLine.frustumCulled = false;
+            glowLine.matrixAutoUpdate = false;
+            glowLine.updateMatrix();
             glowLine.renderOrder = arcsOrder - 0.05;
             this.group.add(glowLine);
         }

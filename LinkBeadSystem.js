@@ -27,6 +27,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { LinkPointFXBase } from './LinkPointFXBase.js';
+import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
 
 // PHASE S-5: Variant property freezing for shader variant immunity
 const VARIANT_CRITICAL_PROPS = [
@@ -644,6 +645,7 @@ export class LinkBeadVisualizer {
 
     if (this.renderer.points) {
       this.group.add(this.renderer.points);
+      applyLinkRenderLayer(this.renderer.points, 'LINK_BEADS');
     }
     
     // Initialize colors

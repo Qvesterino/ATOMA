@@ -229,6 +229,8 @@ export class LinkSparkSystem {
 
         this.points = new THREE.Points(geometry, material);
         this.points.frustumCulled = false; // Always render
+        this.points.matrixAutoUpdate = false;
+        this.points.updateMatrix();
         this.points.renderOrder = SPARK_RENDER_ORDER;
         applyLinkRenderLayer(this.points, 'LINK_SPARKS');
         const ud = this.points.userData || (Object.defineProperty(this.points, 'userData', { value: {}, writable: true, configurable: true }), this.points.userData);

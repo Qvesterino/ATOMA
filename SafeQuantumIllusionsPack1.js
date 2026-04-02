@@ -31,7 +31,7 @@ import * as THREE from 'three';
 import { QuantumIllusionRegistry } from './QuantumIllusionRegistry.js';
 
 export class SafeQuantumIllusionsPack1 {
-  constructor(scene, environmentRoot, camera, aiNodes, linkingSystem, worldEvents, weatherPack, legendaryPack) {
+  constructor(scene, environmentRoot, camera, aiNodes, linkingSystem, worldEvents, weatherPack, legendaryPack, sharedAssets = null) {
     this.scene = scene;
     this.root = environmentRoot || scene; // default to scene if environmentRoot not provided
     this.camera = camera;
@@ -40,9 +40,10 @@ export class SafeQuantumIllusionsPack1 {
     this.worldEvents = worldEvents;
     this.weatherPack = weatherPack;
     this.legendaryPack = legendaryPack;
+    this.sharedAssets = sharedAssets ?? null;
     
     // Central illusion registry
-    this.registry = new QuantumIllusionRegistry(scene);
+    this.registry = new QuantumIllusionRegistry(scene, this.sharedAssets);
     
     // Triggering conditions
     this.synergy = 0;
@@ -120,6 +121,13 @@ export class SafeQuantumIllusionsPack1 {
     };
     
     console.log('✓ Safe Quantum Illusions Pack 1.0 initialized');
+  }
+
+  _getSharedGeometry(key, factory) {
+    if (this.sharedAssets?.getSharedGeometry) {
+      return this.sharedAssets.getSharedGeometry(`SafeQuantumIllusionsPack1:${key}`, factory);
+    }
+    return factory();
   }
   
   /**
@@ -378,7 +386,7 @@ export class SafeQuantumIllusionsPack1 {
     }
     
     // Create ripple distortion mesh
-    const geometry = new THREE.CircleGeometry(2, 16);
+    const geometry = this._getSharedGeometry('spaceDrift.circleGeo', () => new THREE.CircleGeometry(2, 16));
     const material = new THREE.MeshBasicMaterial({
       color: new THREE.Color(0x00ffaa),
       transparent: true,
@@ -432,7 +440,7 @@ export class SafeQuantumIllusionsPack1 {
     if (!shouldSpawn) return;
     
     // Create geometric outline
-    const geometry = new THREE.BoxGeometry(0.5, 0.8, 0.5);
+    const geometry = this._getSharedGeometry('afterPaths.boxGeo', () => new THREE.BoxGeometry(0.5, 0.8, 0.5));
     const material = new THREE.MeshBasicMaterial({
       color: new THREE.Color(0xff00ff),
       transparent: true,
@@ -565,7 +573,7 @@ export class SafeQuantumIllusionsPack1 {
     if (!shouldSpawn) return;
     
     // Create vertical marker bars
-    const geometry = new THREE.BoxGeometry(0.1, 1.5, 0.1);
+    const geometry = this._getSharedGeometry('ghostMarkers.barGeo', () => new THREE.BoxGeometry(0.1, 1.5, 0.1));
     const material = new THREE.MeshBasicMaterial({
       color: new THREE.Color(0x00ffff),
       transparent: true,
@@ -846,26 +854,25 @@ export class SafeQuantumIllusionsPack1 {
    * Create quantum glyph geometry
    */
   createQuantumGlyph() {
-    const group = new THREE.BufferGeometry();
-    const positions = [];
-    
-    // Create a combination of geometric shapes forming quantum glyphs
-    // Tetrahedron pattern
-    const scale = 1;
-    const vertices = [
-      [1, 1, 1], [-1, -1, 1], [-1, 1, -1], [1, -1, -1]
-    ];
-    
-    for (let i = 0; i < vertices.length; i++) {
-      for (let j = i + 1; j < vertices.length; j++) {
-        positions.push(vertices[i][0] * scale, vertices[i][1] * scale, vertices[i][2] * scale);
-        positions.push(vertices[j][0] * scale, vertices[j][1] * scale, vertices[j][2] * scale);
+    return this._getSharedGeometry('quantumGlyph', () => {
+      const geometry = new THREE.BufferGeometry();
+      const positions = [];
+
+      const scale = 1;
+      const vertices = [
+        [1, 1, 1], [-1, -1, 1], [-1, 1, -1], [1, -1, -1]
+      ];
+
+      for (let i = 0; i < vertices.length; i++) {
+        for (let j = i + 1; j < vertices.length; j++) {
+          positions.push(vertices[i][0] * scale, vertices[i][1] * scale, vertices[i][2] * scale);
+          positions.push(vertices[j][0] * scale, vertices[j][1] * scale, vertices[j][2] * scale);
+        }
       }
-    }
-    
-    group.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
-    
-    return group;
+
+      geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+      return geometry;
+    });
   }
   
   /**

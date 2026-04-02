@@ -15,11 +15,12 @@ import * as THREE from 'three';
  */
 
 export class SafeAIWeatherPack {
-  constructor(scene, worldRoot, environmentRoot, camera) {
+  constructor(scene, worldRoot, environmentRoot, camera, sharedAssets = null) {
     this.scene = scene;
     this.worldRoot = worldRoot || scene;
     this.environmentRoot = environmentRoot || this.worldRoot;
     this.camera = camera;
+    this.sharedAssets = sharedAssets ?? null;
     this.root = new THREE.Group();
     this.environmentRoot.add(this.root);
     
@@ -113,6 +114,43 @@ export class SafeAIWeatherPack {
     };
     
     this.windPhase = 0;
+  }
+
+  _getSharedMaterial(key, factory) {
+    if (this.sharedAssets?.getSharedMaterial) {
+      return this.sharedAssets.getSharedMaterial(`SafeAIWeatherPack:${key}`, factory);
+    }
+    return factory();
+  }
+
+  _getSharedGeometry(key, factory) {
+    if (this.sharedAssets?.getSharedGeometry) {
+      return this.sharedAssets.getSharedGeometry(`SafeAIWeatherPack:${key}`, factory);
+    }
+    return factory();
+  }
+
+  _releaseMaterial(material) {
+    if (!material) return;
+    if (this.sharedAssets?.releaseMaterial?.(material)) return;
+    if (typeof material.dispose === 'function') material.dispose();
+  }
+
+  _releaseGeometry(geometry) {
+    if (!geometry) return;
+    if (this.sharedAssets?.releaseGeometry?.(geometry)) return;
+    if (typeof geometry.dispose === 'function') geometry.dispose();
+  }
+
+  _releaseMeshResources(mesh) {
+    if (!mesh) return;
+    this._releaseGeometry(mesh.geometry);
+    if (!mesh.material) return;
+    if (Array.isArray(mesh.material)) {
+      mesh.material.forEach((material) => this._releaseMaterial(material));
+    } else {
+      this._releaseMaterial(mesh.material);
+    }
   }
   
   /**
@@ -343,15 +381,15 @@ export class SafeAIWeatherPack {
    */
   createQuantumStormVFX(weatherDef) {
     // Create swirling cloud overlay
-    const cloudGeo = new THREE.PlaneGeometry(200, 200);
-    const cloudMat = new THREE.MeshBasicMaterial({
+    const cloudGeo = this._getSharedGeometry(`quantumStorm.cloudGeo.${weatherDef.color}`, () => new THREE.PlaneGeometry(200, 200));
+    const cloudMat = this._getSharedMaterial(`quantumStorm.cloudMat.${weatherDef.color}`, () => new THREE.MeshBasicMaterial({
       color: weatherDef.color,
       transparent: true,
       opacity: 0,
       emissive: weatherDef.color,
       emissiveIntensity: 0.3,
       fog: false
-    });
+    }));
     
     const cloud = new THREE.Mesh(cloudGeo, cloudMat);
     cloud.position.z = -100;
@@ -361,7 +399,7 @@ export class SafeAIWeatherPack {
     
     // Create ripple wave particles
     for (let i = 0; i < 30; i++) {
-      const waveGeo = new THREE.PlaneGeometry(20, 0.5);
+      const waveGeo = this._getSharedGeometry('quantumStorm.waveGeo', () => new THREE.PlaneGeometry(20, 0.5));
       const waveMat = new THREE.MeshBasicMaterial({
         color: weatherDef.color,
         transparent: true,
@@ -464,15 +502,15 @@ export class SafeAIWeatherPack {
   createSigmaTurbulenceVFX(weatherDef) {
     // Create fast-moving glitch stripes
     for (let i = 0; i < 10; i++) {
-      const stripeGeo = new THREE.PlaneGeometry(200, 15);
-      const stripeMat = new THREE.MeshBasicMaterial({
+      const stripeGeo = this._getSharedGeometry('sigmaTurbulence.stripeGeo', () => new THREE.PlaneGeometry(200, 15));
+      const stripeMat = this._getSharedMaterial(`sigmaTurbulence.stripeMat.${weatherDef.color}`, () => new THREE.MeshBasicMaterial({
         color: weatherDef.color,
         transparent: true,
         opacity: 0,
         emissive: weatherDef.color,
         emissiveIntensity: 0.6,
         fog: false
-      });
+      }));
       
       const stripe = new THREE.Mesh(stripeGeo, stripeMat);
       stripe.position.set(
@@ -493,7 +531,7 @@ export class SafeAIWeatherPack {
     
     // Create pixel noise strips
     for (let i = 0; i < 8; i++) {
-      const noiseGeo = new THREE.PlaneGeometry(100, 30);
+      const noiseGeo = this._getSharedGeometry('sigmaTurbulence.noiseGeo', () => new THREE.PlaneGeometry(100, 30));
       const noiseMat = new THREE.MeshBasicMaterial({
         color: weatherDef.color,
         transparent: true,
@@ -557,7 +595,7 @@ export class SafeAIWeatherPack {
   createNeonRainVFX(weatherDef) {
     // Create falling neon rain particles
     for (let i = 0; i < 80; i++) {
-      const dropGeo = new THREE.SphereGeometry(0.15, 6, 6);
+      const dropGeo = this._getSharedGeometry('neonRain.dropGeo', () => new THREE.SphereGeometry(0.15, 6, 6));
       const dropMat = new THREE.MeshBasicMaterial({
         color: weatherDef.color,
         transparent: true,
@@ -590,7 +628,7 @@ export class SafeAIWeatherPack {
     
     // Create subtle ground ripples
     for (let i = 0; i < 15; i++) {
-      const rippleGeo = new THREE.CircleGeometry(2, 12);
+      const rippleGeo = this._getSharedGeometry('neonRain.rippleGeo', () => new THREE.CircleGeometry(2, 12));
       const rippleMat = new THREE.MeshBasicMaterial({
         color: weatherDef.color,
         transparent: true,
@@ -668,7 +706,7 @@ export class SafeAIWeatherPack {
     
     // Create horizontal aurora ribbons
     for (let i = 0; i < 4; i++) {
-      const ribbonGeo = new THREE.PlaneGeometry(200, 20);
+      const ribbonGeo = this._getSharedGeometry('auroraWinds.ribbonGeo', () => new THREE.PlaneGeometry(200, 20));
       const ribbonMat = new THREE.MeshBasicMaterial({
         color: colors[i % colors.length],
         transparent: true,
@@ -693,7 +731,7 @@ export class SafeAIWeatherPack {
     
     // Create glowing dust particles
     for (let i = 0; i < 50; i++) {
-      const dustGeo = new THREE.SphereGeometry(0.1, 4, 4);
+      const dustGeo = this._getSharedGeometry('auroraWinds.dustGeo', () => new THREE.SphereGeometry(0.1, 4, 4));
       const dustMat = new THREE.MeshBasicMaterial({
         color: colors[Math.floor(Math.random() * colors.length)],
         transparent: true,
@@ -765,15 +803,15 @@ export class SafeAIWeatherPack {
   createFractalFogVFX(weatherDef) {
     // Create fog overlay layers
     for (let i = 0; i < 3; i++) {
-      const fogGeo = new THREE.PlaneGeometry(200, 200);
-      const fogMat = new THREE.MeshBasicMaterial({
+      const fogGeo = this._getSharedGeometry('fractalFog.fogGeo', () => new THREE.PlaneGeometry(200, 200));
+      const fogMat = this._getSharedMaterial(`fractalFog.fogMat.${weatherDef.color}`, () => new THREE.MeshBasicMaterial({
         color: weatherDef.color,
         transparent: true,
         opacity: 0,
         emissive: weatherDef.color,
         emissiveIntensity: 0.2,
         fog: false
-      });
+      }));
       
       const fog = new THREE.Mesh(fogGeo, fogMat);
       fog.position.z = -100 + i * 5;
@@ -790,7 +828,7 @@ export class SafeAIWeatherPack {
     
     // Create fractal sprite particles
     for (let i = 0; i < 40; i++) {
-      const fractalGeo = new THREE.TetrahedronGeometry(0.15, 2);
+      const fractalGeo = this._getSharedGeometry('fractalFog.fractalGeo', () => new THREE.TetrahedronGeometry(0.15, 2));
       const fractalMat = new THREE.MeshBasicMaterial({
         color: weatherDef.color,
         transparent: true,
@@ -958,66 +996,65 @@ export class SafeAIWeatherPack {
     // Remove all overlays
     this.vfxLayers.overlays.forEach(overlay => {
       this.root.remove(overlay);
-      if (overlay.geometry) overlay.geometry.dispose();
-      if (overlay.material) overlay.material.dispose();
+      this._releaseMeshResources(overlay);
     });
     this.vfxLayers.overlays = [];
     
     // Remove all particles
     this.vfxLayers.particles.forEach(particle => {
       this.root.remove(particle);
-      if (particle.geometry) particle.geometry.dispose();
-      if (particle.material) particle.material.dispose();
+      this._releaseMeshResources(particle);
     });
     this.vfxLayers.particles = [];
     
     // Remove all waves
     this.vfxLayers.waves.forEach(wave => {
       this.root.remove(wave);
-      if (wave.geometry) wave.geometry.dispose();
-      if (wave.material) wave.material.dispose();
+      this._releaseMeshResources(wave);
     });
     this.vfxLayers.waves = [];
     
     // Remove all ribbons
     this.vfxLayers.ribbons.forEach(ribbon => {
       this.root.remove(ribbon);
-      if (ribbon.geometry) ribbon.geometry.dispose();
-      if (ribbon.material) ribbon.material.dispose();
+      this._releaseMeshResources(ribbon);
     });
     this.vfxLayers.ribbons = [];
     
     // Remove all glitches
     this.vfxLayers.glitches.forEach(glitch => {
       this.root.remove(glitch);
-      if (glitch.geometry) glitch.geometry.dispose();
-      if (glitch.material) glitch.material.dispose();
+      this._releaseMeshResources(glitch);
     });
     this.vfxLayers.glitches = [];
     
     // Remove all beams
     this.vfxLayers.beams.forEach(beam => {
       this.root.remove(beam);
-      if (beam.geometry) beam.geometry.dispose();
-      if (beam.material) beam.material.dispose();
+      this._releaseMeshResources(beam);
     });
     this.vfxLayers.beams = [];
     
     // Remove all glows
     this.vfxLayers.glows.forEach(glow => {
       this.root.remove(glow);
-      if (glow.geometry) glow.geometry.dispose();
-      if (glow.material) glow.material.dispose();
+      this._releaseMeshResources(glow);
     });
     this.vfxLayers.glows = [];
     
     // Remove all clouds
     this.vfxLayers.clouds.forEach(cloud => {
       this.root.remove(cloud);
-      if (cloud.geometry) cloud.geometry.dispose();
-      if (cloud.material) cloud.material.dispose();
+      this._releaseMeshResources(cloud);
     });
     this.vfxLayers.clouds = [];
+  }
+
+  dispose() {
+    this.cleanupAllWeatherVFX();
+    if (this.root?.parent) {
+      this.root.parent.remove(this.root);
+    }
   }
   
   /**

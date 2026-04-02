@@ -748,7 +748,6 @@ class EnhancedPictogramInstance {
         materials.forEach(material => {
             if (material && typeof material.opacity === 'number') {
                 material.opacity = opacity;
-                material.needsUpdate = true;
             }
         });
         if (object.children?.length) {
@@ -860,9 +859,50 @@ export class LinkSemanticPictogramSystem_Enhanced {
     }
 
     initializeGeometryCache() {
-        // Temporarily disabled: pictogram library not used in current design phase.
         this.geometryCache.clear();
-        console.log('[Enhanced] Geometry cache disabled for design focus');
+        this.materialPool = new Map();
+        
+        const geometries = [
+            { key: 'torus_core', factory: () => new THREE.TorusGeometry(0.20, 0.05, 8, 24) },
+            { key: 'torus_orbit', factory: () => new THREE.TorusGeometry(0.26, 0.02, 8, 24) },
+            { key: 'torus_small', factory: () => new THREE.TorusGeometry(0.18, 0.03, 12, 24) },
+            { key: 'torus_harmony', factory: () => new THREE.TorusGeometry(0.5, 0.08, 12, 32) },
+            { key: 'torus_arc', factory: () => new THREE.TorusGeometry(0.35, 0.04, 8, 32, Math.PI * 0.35) },
+            { key: 'sphere_spark', factory: () => new THREE.SphereGeometry(0.05, 10, 10) },
+            { key: 'plane_diamond', factory: () => new THREE.PlaneGeometry(0.55, 0.55) },
+        ];
+        
+        geometries.forEach(({ key, factory }) => {
+            this.geometryCache.set(key, factory());
+        });
+    }
+    
+    _getGeometryFromCache(key) {
+        if (this.geometryCache.has(key)) {
+            return this.geometryCache.get(key);
+        }
+        return new THREE.TorusGeometry(0.2, 0.05, 8, 24);
+    }
+    
+    _getMaterialFromPool(color, opacity = 1.0, blending = THREE.AdditiveBlending) {
+        const key = `${color}_${opacity}_${blending}`;
+        
+        if (!this.materialPool.has(key)) {
+            const material = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: opacity,
+                depthTest: true,
+                depthWrite: false,
+                blending: blending,
+                side: THREE.DoubleSide
+            });
+            this.materialPool.set(key, material);
+        }
+        
+        const mat = this.materialPool.get(key);
+        mat.opacity = opacity;
+        return mat;
     }
 
     _readNumericMetric(...values) {
@@ -1706,38 +1746,24 @@ export class LinkSemanticPictogramSystem_Enhanced {
     // Load pressure torus-based glyph (existing visual)
     buildLoadPressureGlyph(size = 1.0, renderOrder = 246) {
         const group = new THREE.Group();
-        const coreMat = new THREE.MeshBasicMaterial({
-            color: 0x5a2ea6,
-            transparent: true,
-            opacity: 1.0,
-            depthTest: true,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending
-        });
+        const coreMat = this._getMaterialFromPool(0x5a2ea6, 1.0, THREE.AdditiveBlending);
 
-        const core = new THREE.Mesh(new THREE.TorusGeometry(0.20, 0.05, 8, 24), coreMat);
+        const core = new THREE.Mesh(this._getGeometryFromCache('torus_core'), coreMat);
         core.renderOrder = renderOrder;
         group.add(core);
 
-        const orbitMat = coreMat.clone();
-        const orbit1 = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.02, 8, 24), orbitMat);
+        const orbitMat = this._getMaterialFromPool(0x5a2ea6, 1.0, THREE.AdditiveBlending);
+        const orbit1 = new THREE.Mesh(this._getGeometryFromCache('torus_orbit'), orbitMat);
         orbit1.renderOrder = renderOrder;
         group.add(orbit1);
 
-        const orbit2 = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.02, 8, 24), orbitMat);
+        const orbit2 = new THREE.Mesh(this._getGeometryFromCache('torus_orbit'), orbitMat);
         orbit2.rotation.set(Math.PI / 4, 0, Math.PI / 6);
         orbit2.renderOrder = renderOrder;
         group.add(orbit2);
 
-        const sparkMat = new THREE.MeshBasicMaterial({
-            color: 0xffaa33,
-            transparent: true,
-            opacity: 1.0,
-            depthTest: true,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending
-        });
-        const spark = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 10), sparkMat);
+        const sparkMat = this._getMaterialFromPool(0xffaa33, 1.0, THREE.AdditiveBlending);
+        const spark = new THREE.Mesh(this._getGeometryFromCache('sphere_spark'), sparkMat);
         spark.renderOrder = renderOrder;
         group.add(spark);
 
@@ -1750,23 +1776,14 @@ export class LinkSemanticPictogramSystem_Enhanced {
 
     buildSynergyArrowCluster(renderOrder) {
         const cluster = new THREE.Group();
-        const mat = new THREE.MeshBasicMaterial({
-            color: 0x66ffff,
-            transparent: true,
-            opacity: 1.0,
-            depthTest: true,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending,
-            side: THREE.DoubleSide
-        });
+        const mat = this._getMaterialFromPool(0x66ffff, 1.0, THREE.AdditiveBlending);
 
-        // Infinity loop made from two small rings
-        const ringA = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.03, 12, 24), mat.clone());
+        const ringA = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
         ringA.position.x = -0.12;
         ringA.rotation.y = Math.PI / 2;
         ringA.renderOrder = renderOrder;
 
-        const ringB = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.03, 12, 24), mat.clone());
+        const ringB = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
         ringB.position.x = 0.12;
         ringB.rotation.y = Math.PI / 2;
         ringB.renderOrder = renderOrder;
@@ -1777,27 +1794,20 @@ export class LinkSemanticPictogramSystem_Enhanced {
         cluster.userData.arrows = [ringA, ringB];
         cluster.userData.baseScale = 1.0;
         cluster.userData.phase = Math.random() * Math.PI * 2;
-        cluster.userData.spinSpeed = 0.8; // radians per second around Z
+        cluster.userData.spinSpeed = 0.8;
         return cluster;
     }
 
     // Harmony glyph: two interlocking cyan rings
     buildHarmonyGlyph(size = 1.0, renderOrder = 246) {
         const group = new THREE.Group();
-        const mat = new THREE.MeshBasicMaterial({
-            color: 0x00ffff,
-            transparent: true,
-            opacity: 1.0,
-            depthTest: true,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending
-        });
+        const mat = this._getMaterialFromPool(0x00ffff, 1.0, THREE.AdditiveBlending);
 
-        const ringA = new THREE.Mesh(new THREE.TorusGeometry(size * 0.5, size * 0.08, 12, 32), mat);
+        const ringA = new THREE.Mesh(this._getGeometryFromCache('torus_harmony'), mat);
         ringA.position.set(-size * 0.15, 0, 0);
         ringA.renderOrder = renderOrder;
 
-        const ringB = new THREE.Mesh(new THREE.TorusGeometry(size * 0.5, size * 0.08, 12, 32), mat.clone());
+        const ringB = new THREE.Mesh(this._getGeometryFromCache('torus_harmony'), mat);
         ringB.position.set(size * 0.15, 0, 0);
         ringB.rotation.y = Math.PI / 2;
         ringB.renderOrder = renderOrder;
@@ -1812,17 +1822,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
     // Stability glyph: square frame + inner rotated square
     buildStabilityGlyph(size = 1.0, renderOrder = 246) {
         const group = new THREE.Group();
-        const mat = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            transparent: true,
-            opacity: 1.0,
-            depthTest: true,
-            depthWrite: false,
-            side: THREE.DoubleSide,
-            blending: THREE.AdditiveBlending
-        });
+        const mat = this._getMaterialFromPool(0xffffff, 1.0, THREE.AdditiveBlending);
 
-        // Outer square frame via shape with hole (hollow square)
         const outer = size * 0.6;
         const inner = size * 0.42;
         const shape = new THREE.Shape();
@@ -1849,8 +1850,9 @@ export class LinkSemanticPictogramSystem_Enhanced {
         group.add(frame);
 
         // Inner diamond (rotated square)
-        const innerGeom = new THREE.PlaneGeometry(size * 0.55, size * 0.55);
-        const innerMesh = new THREE.Mesh(innerGeom, mat.clone());
+        const innerGeom = this._getGeometryFromCache('plane_diamond').clone();
+        innerGeom.scale(size, size, 1);
+        const innerMesh = new THREE.Mesh(innerGeom, mat);
         innerMesh.rotation.z = Math.PI / 4;
         innerMesh.position.set(0, 0, size * 0.015);
         innerMesh.renderOrder = renderOrder;
@@ -1863,15 +1865,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
     // Corruption glyph: fractured ring of arc segments
     buildCorruptionGlyph(size = 1.0, renderOrder = 246) {
         const group = new THREE.Group();
-        const mat = new THREE.MeshBasicMaterial({
-            color: 0xff0044,
-            transparent: true,
-            opacity: 1.0,
-            depthTest: true,
-            depthWrite: false,
-            side: THREE.DoubleSide,
-            blending: THREE.AdditiveBlending
-        });
+        const mat = this._getMaterialFromPool(0xff0044, 1.0, THREE.AdditiveBlending);
 
         const segCount = 5;
         const outerRadius = 0.35 * size;
@@ -1882,8 +1876,9 @@ export class LinkSemanticPictogramSystem_Enhanced {
 
         // Inner fractured ring
         for (let i = 0; i < segCount; i++) {
-            const segGeom = new THREE.TorusGeometry(outerRadius, tube, 8, 32, arc);
-            const seg = new THREE.Mesh(segGeom, mat.clone());
+            const segGeom = this._getGeometryFromCache('torus_arc').clone();
+            segGeom.scale(size, size, 1);
+            const seg = new THREE.Mesh(segGeom, mat);
             seg.rotation.z = i * 1.2;
             seg.position.x += Math.sin(i) * 0.05 * size;
             seg.renderOrder = renderOrder;
@@ -1893,8 +1888,9 @@ export class LinkSemanticPictogramSystem_Enhanced {
 
         // Outer fractured ring (opposite rotation direction)
         for (let i = 0; i < segCount; i++) {
-            const segGeom = new THREE.TorusGeometry(outerRadius * 1.12, tube, 8, 32, arc);
-            const seg = new THREE.Mesh(segGeom, mat.clone());
+            const segGeom = this._getGeometryFromCache('torus_arc').clone();
+            segGeom.scale(size * 1.12, size, 1);
+            const seg = new THREE.Mesh(segGeom, mat);
             seg.rotation.z = -i * 1.2;
             seg.position.x += Math.sin(i + 0.5) * 0.05 * size;
             seg.renderOrder = renderOrder;
@@ -1903,7 +1899,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
         }
 
         group.userData.rotors = segments;
-        group.userData.spinSpeed = 0.25; // radians per second around Z
+        group.userData.spinSpeed = 0.25;
         return group;
     }
 
@@ -2106,6 +2102,11 @@ export class LinkSemanticPictogramSystem_Enhanced {
         this.linkSpawnTimers.clear();
         this.geometryCache.forEach(g => g.dispose());
         this.geometryCache.clear();
+        
+        if (this.materialPool) {
+            this.materialPool.forEach(m => m.dispose());
+            this.materialPool.clear();
+        }
         
         if (this.container) {
             this.scene.remove(this.container);

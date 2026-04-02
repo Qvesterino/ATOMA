@@ -274,3 +274,18 @@ Confirmed default runtime validation entrypoint:
 ## Environment Hazard Ownership Contract
 - `EnvironmentDomainController` should own the active `EnvironmentalHazards` instance in the normal boot path, so hazards are not updated twice through a standalone `setupHazards()` instance plus the domain controller instance.
 - `main.js` should bind `this.hazards` to the controller-owned instance after environment domain init and keep the standalone setup as a legacy fallback only.
+
+## Pictogram Opacity Contract
+- `LinkSemanticPictogramSystem_Enhanced` opacity fades must not set `material.needsUpdate = true`; opacity-only runtime fades should stay on the existing shader program path.
+
+## Neon Edge Glow Contract
+- `NeonEdgeGlowShader` remains active as a static edge overlay, but its `time` uniform is intentionally frozen to avoid per-frame uniform churn on node updates.
+- `AINodes` should not call a per-frame neon edge time updater for the active node path.
+
+## Corruption Seed Static Contract
+- `TIER4_CorruptionFeedbackVisuals_v1.js` corruption seed visuals are now static after spawn: the seed shader no longer uses `uTime`, and the update loop no longer drives orbit/pulse rotation for the seed fragments, spine, halos, or connection lines.
+- Corruption seed connections are initialized from build-time fragment positions and only need visibility/cleanup management at runtime.
+
+## Static Link FX Matrix Contract
+- Static link FX renderables that only mutate buffers or uniforms should keep `matrixAutoUpdate = false` and call `updateMatrix()` once at creation time.
+- This applies to shared point-cloud pools, bead trails, spark pools, corruption particles, and other link-side line/point renderables that do not animate their local transform.

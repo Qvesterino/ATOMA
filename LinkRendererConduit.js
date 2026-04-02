@@ -360,6 +360,8 @@ function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
 
     const mesh = new THREE.Points(geometry, material);
     mesh.frustumCulled = false;
+    mesh.matrixAutoUpdate = false;
+    mesh.updateMatrix();
     mesh.renderOrder = renderOrder;
 
     const randRange = (min, max) => min + Math.random() * (max - min);
@@ -1100,8 +1102,37 @@ export class LinkRendererConduit {
         // Impact material pool (colorHex -> stack of materials)
         this._impactMaterialPool = new Map();
         this._impactPoolMaxSize = 20;
-
+        
+        // Geometry pool pre impact system
+        this._geometryPool = new Map();
+        this._initGeometryPool();
+        
         this.synergyBonusVisualization = null;
+    }
+    
+    _initGeometryPool() {
+        const geometries = [
+            { key: 'torus_small', factory: () => new THREE.TorusGeometry(0.5, 0.08, 8, 32) },
+            { key: 'torus_tiny', factory: () => new THREE.TorusGeometry(0.42, 0.05, 8, 32) },
+            { key: 'cylinder_prism', factory: () => new THREE.CylinderGeometry(0.5, 0.5, 0.45, 6, 1, true) },
+            { key: 'cylinder_disk', factory: () => new THREE.CylinderGeometry(0.55, 0.35, 0.12, 12, 1, true) },
+            { key: 'cylinder_disc_a', factory: () => new THREE.CylinderGeometry(0.55, 0.45, 0.1, 14, 1, true) },
+            { key: 'cylinder_disc_b', factory: () => new THREE.CylinderGeometry(0.42, 0.52, 0.08, 14, 1, true) },
+            { key: 'icosahedron_medium', factory: () => new THREE.IcosahedronGeometry(0.5, 1) },
+            { key: 'icosahedron_small', factory: () => new THREE.IcosahedronGeometry(0.45, 1) },
+            { key: 'icosahedron_detail', factory: () => new THREE.IcosahedronGeometry(0.6, 4) },
+        ];
+        
+        geometries.forEach(({ key, factory }) => {
+            this._geometryPool.set(key, factory());
+        });
+    }
+    
+    _getGeometryFromPool(key) {
+        if (this._geometryPool.has(key)) {
+            return this._geometryPool.get(key);
+        }
+        return new THREE.TorusGeometry(0.5, 0.08, 8, 32); // fallback
     }
 
     updateLinkResonanceFlow(deltaTime, time, links = null, camera = null) {
@@ -2868,8 +2899,10 @@ export class LinkRendererConduit {
                     const depthMesh = new THREE.Mesh(geometry, depthMaterial);
                     Object.assign(ensureUserData(depthMesh), { strandIndex: i, strandDepthPrepass: true });
                     depthMesh.frustumCulled = false;
+                    depthMesh.matrixAutoUpdate = false;
+                    depthMesh.updateMatrix();
                     applyLinkRenderLayer(depthMesh, 'LINK_CORE', {
-                        materialOverrides: { colorWrite: false, side: THREE.DoubleSide }
+                      materialOverrides: { colorWrite: false, side: THREE.DoubleSide }
                     });
                     depthMesh.raycast = () => null;
                     group.add(depthMesh);
@@ -2878,6 +2911,8 @@ export class LinkRendererConduit {
                     const mesh = new THREE.Mesh(geometry, material);
                     Object.assign(ensureUserData(mesh), { strandIndex: i });
                     mesh.frustumCulled = false;
+                    mesh.matrixAutoUpdate = false;
+                    mesh.updateMatrix();
                     applyLinkRenderLayer(mesh, 'LINK_STRANDS');
                     freezeMaterialFlags(material, 'LinkRenderer');
                     material.userData.__flagsFrozen = true;
@@ -2895,7 +2930,12 @@ export class LinkRendererConduit {
                 if (LinkPulseRing) {
                     state.pulseRing = new LinkPulseRing(this.scene);
                     state.pulseRing.rebind?.({ scene: this.scene });
-                    group.add(state.pulseRing.getMesh());
+                    const pulseRingMesh = state.pulseRing.getMesh?.();
+                    if (pulseRingMesh) {
+                        pulseRingMesh.matrixAutoUpdate = false;
+                        pulseRingMesh.updateMatrix();
+                        group.add(pulseRingMesh);
+                    }
                     if (state.pulseRing.getTrailMeshes) {
                         const trailMeshes = state.pulseRing.getTrailMeshes();
                         if (Array.isArray(trailMeshes)) {
@@ -2929,7 +2969,12 @@ export class LinkRendererConduit {
                 if (state.arcDischarges || !LinkRingArcDischarges) break;
                 state.arcDischarges = new LinkRingArcDischarges(this.scene);
                 state.arcDischarges.rebind?.({ scene: this.scene });
-                group.add(state.arcDischarges.getGroup());
+                const arcDischargeGroup = state.arcDischarges.getGroup?.();
+                if (arcDischargeGroup) {
+                    arcDischargeGroup.matrixAutoUpdate = false;
+                    arcDischargeGroup.updateMatrix();
+                    group.add(arcDischargeGroup);
+                }
                 if (state.pulseRing?.setArcSystem) state.pulseRing.setArcSystem(state.arcDischarges);
                 break;
             }
@@ -2944,14 +2989,24 @@ export class LinkRendererConduit {
             case 7: { // Frame 7: bead trails
                 if (!state.trails && LinkBeadTrailSystem) {
                     state.trails = new LinkBeadTrailSystem(this.scene);
-                    group.add(state.trails.getMesh());
+                    const trailMesh = state.trails.getMesh?.();
+                    if (trailMesh) {
+                        trailMesh.matrixAutoUpdate = false;
+                        trailMesh.updateMatrix();
+                        group.add(trailMesh);
+                    }
                 }
                 break;
             }
             case 8: { // Frame 8: sparks
                 if (!state.sparks && LinkSparkSystem) {
                     state.sparks = new LinkSparkSystem(this.scene);
-                    group.add(state.sparks.getMesh());
+                    const sparkMesh = state.sparks.getMesh?.();
+                    if (sparkMesh) {
+                        sparkMesh.matrixAutoUpdate = false;
+                        sparkMesh.updateMatrix();
+                        group.add(sparkMesh);
+                    }
                 }
                 break;
             }
@@ -4835,8 +4890,10 @@ export class LinkRendererConduit {
             return root;
         };
 
-        const buildTorusArc = (radius, tube, arc, radialSegments = 8, tubularSegments = 32) =>
-            new THREE.Mesh(new THREE.TorusGeometry(radius, tube, radialSegments, tubularSegments, arc), meshMaterial);
+        const buildTorusArc = (radius, tube, arc, radialSegments = 8, tubularSegments = 32) => {
+            const geoKey = radius <= 0.45 ? 'torus_tiny' : 'torus_small';
+            return new THREE.Mesh(this._getGeometryFromPool(geoKey), meshMaterial);
+        };
 
         const buildTube = (points, radius, tubularSegments = 28, radialSegments = 6, closed = false) => {
             const curve = new THREE.CatmullRomCurve3(points, closed);
@@ -4855,23 +4912,23 @@ export class LinkRendererConduit {
         };
 
         const makeStarPrism = () => {
-            const prism = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.45, 6, 1, true), meshMaterial);
+            const prism = new THREE.Mesh(this._getGeometryFromPool('cylinder_prism'), meshMaterial);
             prism.rotation.y = Math.PI / 12;
             return prism;
         };
 
-        const makeGyroideDisk = () => new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.35, 0.12, 12, 1, true), meshMaterial);
+        const makeGyroideDisk = () => new THREE.Mesh(this._getGeometryFromPool('cylinder_disk'), meshMaterial);
 
         const makeDoubleDiscs = () => {
             const root = new THREE.Group();
             root.name = 'DoubleDiscs';
 
-            const discA = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.45, 0.1, 14, 1, true), meshMaterial);
+            const discA = new THREE.Mesh(this._getGeometryFromPool('cylinder_disc_a'), meshMaterial);
             discA.rotation.x = Math.PI * 0.5;
             discA.position.y = 0.05;
             root.add(discA);
 
-            const discB = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.52, 0.08, 14, 1, true), meshMaterial);
+            const discB = new THREE.Mesh(this._getGeometryFromPool('cylinder_disc_b'), meshMaterial);
             discB.rotation.x = Math.PI * 0.5;
             discB.position.y = -0.05;
             discB.rotation.z = Math.PI / 4;
@@ -4894,7 +4951,7 @@ export class LinkRendererConduit {
         };
 
         const makeCrateredSphere = () => {
-            const g = new THREE.IcosahedronGeometry(0.5, 1);
+            const g = this._getGeometryFromPool('icosahedron_medium').clone();
             const pos = g.attributes.position;
             for (let i = 0; i < pos.count; i++) {
                 const amp = 0.08 * (Math.random() - 0.5);
@@ -4911,7 +4968,7 @@ export class LinkRendererConduit {
         };
 
         const makeSpikedHalo = () => {
-            const g = new THREE.IcosahedronGeometry(0.45, 1);
+            const g = this._getGeometryFromPool('icosahedron_small').clone();
             const pos = g.attributes.position;
             for (let i = 0; i < pos.count; i++) {
                 const amp = 0.12 * (0.5 + Math.random());
@@ -5660,6 +5717,11 @@ const makeWaveSlice = () => {
         }
         if (this.conduitRoot?.parent) {
             this.conduitRoot.parent.remove(this.conduitRoot);
+        }
+        
+        if (this._geometryPool) {
+            this._geometryPool.forEach(geo => geo?.dispose?.());
+            this._geometryPool.clear();
         }
     }
 

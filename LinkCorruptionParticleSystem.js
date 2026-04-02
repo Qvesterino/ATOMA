@@ -193,6 +193,8 @@ export class LinkCorruptionParticleSystem {
     this.points = new THREE.Points(this.geometry, this.material);
     this.points.frustumCulled = false;
     this.points.visible = true;
+    this.points.matrixAutoUpdate = false;
+    this.points.updateMatrix();
     applyLinkRenderLayer(this.points, 'LINK_PARTICLES');
     ensureUserData(this.points).isCorruptionParticles = true;
     this.pointFXBase.ensureAttached(this.points);
