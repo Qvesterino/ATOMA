@@ -147,6 +147,153 @@ class NoiseGenerator {
   }
 }
 
+// Strand-tip spark helpers are kept local to this file so the visual owner
+// can live here without importing back into the conduit.
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+const COLOR_WHITE = new THREE.Color(0xffffff);
+const WAVE_SPARK_GLYPH = {
+  SLIVER: 0,
+  NOTCH: 1,
+  RUNE: 2,
+  EMBER: 3
+};
+const WAVE_SPARK_RATIOS = {
+  default: [0.52, 0.22, 0.16, 0.10],
+  tipDetach: [0.45, 0.10, 0.10, 0.35],
+  microJump: [0.30, 0.25, 0.40, 0.05],
+  bridgeContact: [0.25, 0.40, 0.30, 0.05]
+};
+const WAVE_SPARK_PROFILE = [
+  { lifeMin: 0.18, lifeMax: 0.32, sizeMin: 7.0, sizeMax: 13.0, speedMin: 0.95, speedMax: 1.45, spinMin: -1.2, spinMax: 1.2, gainMin: 0.55, gainMax: 0.85, accentMix: 0.20, hotMix: 0.14 },
+  { lifeMin: 0.22, lifeMax: 0.38, sizeMin: 8.0, sizeMax: 14.0, speedMin: 0.72, speedMax: 1.08, spinMin: -1.8, spinMax: 1.8, gainMin: 0.42, gainMax: 0.70, accentMix: 0.45, hotMix: 0.14 },
+  { lifeMin: 0.14, lifeMax: 0.26, sizeMin: 9.0, sizeMax: 16.0, speedMin: 0.82, speedMax: 1.20, spinMin: -2.1, spinMax: 2.1, gainMin: 0.48, gainMax: 0.78, accentMix: 0.50, hotMix: 0.20 },
+  { lifeMin: 0.09, lifeMax: 0.18, sizeMin: 6.0, sizeMax: 11.0, speedMin: 1.15, speedMax: 1.85, spinMin: -2.8, spinMax: 2.8, gainMin: 0.65, gainMax: 1.0, accentMix: 0.15, hotMix: 0.72 }
+];
+const weightedPickIndex = (weights) => {
+  let total = 0;
+  for (let i = 0; i < weights.length; i += 1) total += Math.max(0, weights[i] || 0);
+  if (total <= 0) return 0;
+  let cursor = Math.random() * total;
+  for (let i = 0; i < weights.length; i += 1) {
+    cursor -= Math.max(0, weights[i] || 0);
+    if (cursor <= 0) return i;
+  }
+  return Math.max(0, weights.length - 1);
+};
+const randRange = (min, max) => min + Math.random() * (max - min);
+const strandSparkVertexShader = `
+    attribute vec3 aColor;
+    attribute float aSize;
+    attribute float aShape;
+    attribute float aAngle;
+    attribute float aSpin;
+    attribute float aBirth;
+    attribute float aDuration;
+    attribute float aGain;
+
+    uniform float uTime;
+    uniform float uGlobalOpacity;
+
+    varying vec3 vColor;
+    varying float vShape;
+    varying float vAge;
+    varying float vAngle;
+    varying float vGain;
+
+    void main() {
+        float duration = max(0.0001, aDuration);
+        float age = (uTime - aBirth) / duration;
+        vAge = age;
+        vColor = aColor;
+        vShape = aShape;
+        vAngle = aAngle + (uTime - aBirth) * aSpin;
+        vGain = aGain * uGlobalOpacity;
+
+        if (age < 0.0 || age > 1.0) {
+            gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+            gl_PointSize = 0.0;
+            return;
+        }
+
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        gl_PointSize = aSize * (10.0 / -mvPosition.z);
+    }
+`;
+const strandSparkFragmentShader = `
+    precision highp float;
+
+    varying vec3 vColor;
+    varying float vShape;
+    varying float vAge;
+    varying float vAngle;
+    varying float vGain;
+
+    vec2 rot(vec2 p, float a) {
+        float c = cos(a);
+        float s = sin(a);
+        return vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+    }
+
+    float shapeSliver(vec2 p) {
+        float body = 1.0 - smoothstep(0.22, 0.48, abs(p.y) + abs(p.x) * 0.24);
+        float core = 1.0 - smoothstep(0.06, 0.16, abs(p.y));
+        return clamp(body * 0.75 + core * 0.25, 0.0, 1.0);
+    }
+
+    float shapeNotch(vec2 p) {
+        float segA = 1.0 - smoothstep(0.10, 0.24, abs(p.y + 0.22));
+        segA *= smoothstep(0.05, 0.44, abs(p.x));
+        float segB = 1.0 - smoothstep(0.10, 0.24, abs(p.y - 0.18));
+        segB *= smoothstep(0.05, 0.34, abs(p.x + 0.10));
+        return clamp(max(segA, segB), 0.0, 1.0);
+    }
+
+    float shapeRune(vec2 p) {
+        float r = length(p);
+        float ringOuter = 1.0 - smoothstep(0.64, 0.84, r);
+        float ringInner = smoothstep(0.32, 0.50, r);
+        float ring = ringOuter * ringInner;
+        float gap = smoothstep(-0.10, 0.24, p.x);
+        float shard = 1.0 - smoothstep(0.12, 0.28, length(p - vec2(0.34, 0.0)));
+        return clamp(ring * gap + shard * 0.5, 0.0, 1.0);
+    }
+
+    float shapeEmber(vec2 p) {
+        float dia = 1.0 - smoothstep(0.52, 0.78, abs(p.x) + abs(p.y));
+        float tail = 1.0 - smoothstep(0.10, 0.24, length(p - vec2(-0.24, 0.0)));
+        return clamp(max(dia, tail * 0.75), 0.0, 1.0);
+    }
+
+    void main() {
+        if (vAge < 0.0 || vAge > 1.0 || vGain <= 0.001) discard;
+
+        vec2 p = gl_PointCoord * 2.0 - 1.0;
+        p = rot(p, vAngle);
+
+        float shape = 0.0;
+        if (vShape < 0.5) {
+            shape = shapeSliver(p);
+        } else if (vShape < 1.5) {
+            shape = shapeNotch(p);
+        } else if (vShape < 2.5) {
+            shape = shapeRune(p);
+        } else {
+            shape = shapeEmber(p);
+        }
+
+        float fadeIn = smoothstep(0.0, 0.09, vAge);
+        float fadeOut = 1.0 - smoothstep(0.68, 1.0, vAge);
+        float core = 1.0 - smoothstep(0.0, 0.62, length(p));
+        float flicker = 0.88 + 0.12 * sin((1.0 - vAge) * 29.0 + vShape * 7.7 + p.x * 5.0);
+        float alpha = shape * fadeIn * fadeOut * vGain * flicker;
+        if (alpha < 0.01) discard;
+
+        vec3 color = vColor + vec3(core * 0.32);
+        gl_FragColor = vec4(color, alpha);
+    }
+`;
+
 /**
  * Single particle instance
  */
@@ -722,6 +869,297 @@ export class LinkTrailParticleSystem {
     }
 
     this.particles.length = 0;
+  }
+}
+
+/**
+ * Strand-tip spark visual owner
+ * Lives in this file so the conduit can hand off ownership cleanly.
+ */
+export class LinkStrandTipSparkVisual {
+  constructor(scene, poolSize = 96, attachRoot = null) {
+    this.scene = scene;
+    this.poolSize = poolSize;
+    this._attachRoot = attachRoot || scene || null;
+
+    this.pointFXBase = new LinkPointFXBase(scene, {
+      renderLayer: 'LINK_SPARKS',
+      preset: 'spark',
+      capacity: poolSize,
+      textureKind: 'spark'
+    });
+
+    this.sparkGeometry = this.pointFXBase.createGeometry({
+      aColor: { itemSize: 3 },
+      aShape: { itemSize: 1 },
+      aSize: { itemSize: 1 },
+      aAngle: { itemSize: 1 },
+      aSpin: { itemSize: 1 },
+      aBirth: { itemSize: 1 },
+      aDuration: { itemSize: 1 },
+      aGain: { itemSize: 1 }
+    });
+    this.sparkPositionAttr = this.sparkGeometry.getAttribute('position');
+    this.sparkColorAttr = this.sparkGeometry.getAttribute('aColor');
+    this.sparkShapeAttr = this.sparkGeometry.getAttribute('aShape');
+    this.sparkSizeAttr = this.sparkGeometry.getAttribute('aSize');
+    this.sparkAngleAttr = this.sparkGeometry.getAttribute('aAngle');
+    this.sparkSpinAttr = this.sparkGeometry.getAttribute('aSpin');
+    this.sparkBirthAttr = this.sparkGeometry.getAttribute('aBirth');
+    this.sparkDurationAttr = this.sparkGeometry.getAttribute('aDuration');
+    this.sparkGainAttr = this.sparkGeometry.getAttribute('aGain');
+
+    this.sparkPositions = this.sparkPositionAttr.array;
+    this.sparkColor = this.sparkColorAttr.array;
+    this.sparkShape = this.sparkShapeAttr.array;
+    this.sparkSize = this.sparkSizeAttr.array;
+    this.sparkAngle = this.sparkAngleAttr.array;
+    this.sparkSpin = this.sparkSpinAttr.array;
+    this.sparkBirth = this.sparkBirthAttr.array;
+    this.sparkDuration = this.sparkDurationAttr.array;
+    this.sparkGain = this.sparkGainAttr.array;
+    this.sparkOrigin = new Float32Array(poolSize * 3);
+    this.sparkVelocity = new Float32Array(poolSize * 3);
+    this.sparkDrift = new Float32Array(poolSize * 3);
+    this.sparkPhase = new Float32Array(poolSize);
+
+    for (let i = 0; i < poolSize; i += 1) {
+      const s = i * 3;
+      this.sparkBirth[i] = -1;
+      this.sparkDuration[i] = 0.001;
+      this.sparkShape[i] = WAVE_SPARK_GLYPH.SLIVER;
+      this.sparkSize[i] = 0.0;
+      this.sparkGain[i] = 0.0;
+      this.sparkColor[s] = 1.0;
+      this.sparkColor[s + 1] = 1.0;
+      this.sparkColor[s + 2] = 1.0;
+      this.sparkPositions[s] = 1e6;
+      this.sparkPositions[s + 1] = 1e6;
+      this.sparkPositions[s + 2] = 1e6;
+      this.sparkOrigin[s] = 1e6;
+      this.sparkOrigin[s + 1] = 1e6;
+      this.sparkOrigin[s + 2] = 1e6;
+    }
+    this.sparkPositionAttr.needsUpdate = true;
+    this.sparkColorAttr.needsUpdate = true;
+    this.sparkShapeAttr.needsUpdate = true;
+    this.sparkSizeAttr.needsUpdate = true;
+    this.sparkAngleAttr.needsUpdate = true;
+    this.sparkSpinAttr.needsUpdate = true;
+    this.sparkBirthAttr.needsUpdate = true;
+    this.sparkDurationAttr.needsUpdate = true;
+    this.sparkGainAttr.needsUpdate = true;
+
+    this.sparkMaterial = this.pointFXBase.createMaterial({
+      vertexShader: strandSparkVertexShader,
+      fragmentShader: strandSparkFragmentShader,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: true,
+      toneMapped: false,
+      vertexColors: false,
+      uniforms: {
+        uTime: { value: 0 },
+        uGlobalOpacity: { value: 0.0 }
+      }
+    });
+
+    this.sparkMesh = new THREE.Points(this.sparkGeometry, this.sparkMaterial);
+    this.sparkMesh.frustumCulled = false;
+    this.sparkMesh.raycast = () => null;
+    this.sparkMesh.matrixAutoUpdate = false;
+    this.sparkMesh.updateMatrix();
+    this.sparkMesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_SPARKS');
+    this.sparkMesh.visible = false;
+    applyLinkRenderLayer(this.sparkMesh, 'LINK_SPARKS');
+    Object.assign(this.sparkMesh.userData || (this.sparkMesh.userData = {}), {
+      isStrandTipSparkOverlay: true
+    });
+
+    this.active = 0;
+    this._baseColor = new THREE.Color();
+    this._accentColor = new THREE.Color();
+    this._outColor = new THREE.Color();
+    this._queuedAttrs = new Set();
+    this.ensureAttached();
+  }
+
+  ensureAttached(attachRoot = this._attachRoot) {
+    if (!attachRoot || !this.sparkMesh) return this.sparkMesh;
+    this._attachRoot = attachRoot;
+    if (this.sparkMesh.parent !== attachRoot) {
+      attachRoot.add(this.sparkMesh);
+    }
+    return this.sparkMesh;
+  }
+
+  rebind({ scene = this.scene, worldRoot = null } = {}) {
+    if (scene) this.scene = scene;
+    const nextRoot = worldRoot || scene || this._attachRoot;
+    if (nextRoot) this.ensureAttached(nextRoot);
+    return this;
+  }
+
+  _queueAttributeUpload(attribute) {
+    if (!attribute) return;
+    this._queuedAttrs.add(attribute);
+  }
+
+  _flushAttributeUploads() {
+    if (!this._queuedAttrs.size) return;
+    for (const attribute of this._queuedAttrs) {
+      attribute.needsUpdate = true;
+    }
+    this._queuedAttrs.clear();
+  }
+
+  spawn(origin, direction, visualTime, energy = 1, options = {}) {
+    if (!origin || !direction) return;
+    const idx = this._findFreeSlot();
+    if (idx < 0) return;
+
+    const s = idx * 3;
+    const mode = options.mode || 'default';
+    const ratios = WAVE_SPARK_RATIOS[mode] || WAVE_SPARK_RATIOS.default;
+    const shapeIndex = weightedPickIndex(ratios);
+    const profile = WAVE_SPARK_PROFILE[shapeIndex] || WAVE_SPARK_PROFILE[WAVE_SPARK_GLYPH.SLIVER];
+    const energyClamped = clamp01(energy);
+
+    const speedMul = randRange(profile.speedMin, profile.speedMax);
+    const speed = 0.18 + speedMul * (0.5 + energyClamped * 1.2);
+    this.sparkPositions[s] = origin.x;
+    this.sparkPositions[s + 1] = origin.y;
+    this.sparkPositions[s + 2] = origin.z;
+    this.sparkOrigin[s] = origin.x;
+    this.sparkOrigin[s + 1] = origin.y;
+    this.sparkOrigin[s + 2] = origin.z;
+    this.sparkVelocity[s] = direction.x * speed;
+    this.sparkVelocity[s + 1] = direction.y * speed;
+    this.sparkVelocity[s + 2] = direction.z * speed;
+    this.sparkDrift[s] = (-direction.y + (Math.random() - 0.5) * 0.3) * 0.15;
+    this.sparkDrift[s + 1] = (direction.x + (Math.random() - 0.5) * 0.3) * 0.15;
+    this.sparkDrift[s + 2] = ((Math.random() - 0.5) * 0.45) * 0.15;
+    this.sparkPhase[idx] = Math.random() * Math.PI * 2.0;
+
+    this.sparkShape[idx] = shapeIndex;
+    this.sparkSize[idx] = randRange(profile.sizeMin, profile.sizeMax) * 2.8 * (0.88 + energyClamped * 0.28);
+    this.sparkAngle[idx] = Math.random() * Math.PI * 2.0;
+    this.sparkSpin[idx] = randRange(profile.spinMin, profile.spinMax);
+    this.sparkGain[idx] = Math.min(1.35, randRange(profile.gainMin, profile.gainMax) * 1.18);
+
+    const baseColor = options.baseColor?.isColor ? options.baseColor : COLOR_WHITE;
+    const accentColor = options.accentColor?.isColor ? options.accentColor : baseColor;
+    const harmony = clamp01(options.harmony ?? 0);
+    const corruption = clamp01(options.corruption ?? 0);
+    const load = clamp01(options.load ?? 0);
+    const hotBoost = clamp01(options.hotBoost ?? 0);
+
+    this._baseColor.copy(baseColor);
+    this._accentColor.copy(accentColor);
+    this._outColor.copy(this._baseColor)
+      .lerp(this._accentColor, clamp01(profile.accentMix + corruption * 0.08))
+      .lerp(COLOR_WHITE, clamp01(profile.hotMix + hotBoost + load * 0.08 + harmony * 0.04));
+    this.sparkColor[s] = this._outColor.r;
+    this.sparkColor[s + 1] = this._outColor.g;
+    this.sparkColor[s + 2] = this._outColor.b;
+
+    this.sparkBirth[idx] = visualTime;
+    this.sparkDuration[idx] = randRange(profile.lifeMin, profile.lifeMax) * (1.28 + energyClamped * 0.5);
+
+    this.sparkColorAttr.addUpdateRange(s, 3);
+    this.sparkShapeAttr.addUpdateRange(idx, 1);
+    this.sparkSizeAttr.addUpdateRange(idx, 1);
+    this.sparkAngleAttr.addUpdateRange(idx, 1);
+    this.sparkSpinAttr.addUpdateRange(idx, 1);
+    this.sparkDurationAttr.addUpdateRange(idx, 1);
+    this.sparkGainAttr.addUpdateRange(idx, 1);
+    this._queueAttributeUpload(this.sparkColorAttr);
+    this._queueAttributeUpload(this.sparkShapeAttr);
+    this._queueAttributeUpload(this.sparkSizeAttr);
+    this._queueAttributeUpload(this.sparkAngleAttr);
+    this._queueAttributeUpload(this.sparkSpinAttr);
+    this._queueAttributeUpload(this.sparkDurationAttr);
+    this._queueAttributeUpload(this.sparkGainAttr);
+
+    this.sparkBirthAttr.addUpdateRange(idx, 1);
+    this._queueAttributeUpload(this.sparkBirthAttr);
+
+    this.sparkMesh.visible = true;
+    return idx;
+  }
+
+  update(visualTime) {
+    if (!this.sparkGeometry || !this.sparkMaterial) return 0;
+    this.ensureAttached();
+    let activeCount = 0;
+
+    for (let i = 0; i < this.poolSize; i += 1) {
+      const born = this.sparkBirth[i];
+      const s = i * 3;
+      if (!(born >= 0)) {
+        this.sparkPositions[s] = 1e6;
+        this.sparkPositions[s + 1] = 1e6;
+        this.sparkPositions[s + 2] = 1e6;
+        continue;
+      }
+      const age = visualTime - born;
+      const duration = this.sparkDuration[i] || 0.25;
+      if (age >= duration) {
+        this.sparkBirth[i] = -1;
+        this.sparkPositions[s] = 1e6;
+        this.sparkPositions[s + 1] = 1e6;
+        this.sparkPositions[s + 2] = 1e6;
+        continue;
+      }
+      activeCount += 1;
+      const ageNorm = clamp01(age / duration);
+      const drag = 1.0 - ageNorm * 0.35;
+      const wobble = Math.sin(age * 24.0 + this.sparkPhase[i]) * (0.12 * (1.0 - ageNorm));
+      this.sparkPositions[s] = this.sparkOrigin[s] + this.sparkVelocity[s] * age * drag + this.sparkDrift[s] * wobble;
+      this.sparkPositions[s + 1] = this.sparkOrigin[s + 1] + this.sparkVelocity[s + 1] * age * drag + this.sparkDrift[s + 1] * wobble;
+      this.sparkPositions[s + 2] = this.sparkOrigin[s + 2] + this.sparkVelocity[s + 2] * age * drag + this.sparkDrift[s + 2] * wobble;
+    }
+
+    if (this.sparkMaterial.uniforms?.uTime) {
+      this.sparkMaterial.uniforms.uTime.value = visualTime;
+    }
+    if (this.sparkMaterial.uniforms?.uGlobalOpacity) {
+      this.sparkMaterial.uniforms.uGlobalOpacity.value = activeCount > 0
+        ? Math.max(0.18, Math.min(0.72, 0.18 + (activeCount / Math.max(1, this.poolSize)) * 0.54))
+        : 0.0;
+    }
+    if (this.sparkMesh) {
+      this.sparkMesh.visible = activeCount > 0;
+    }
+
+    this.sparkPositionAttr.addUpdateRange(0, this.poolSize * 3);
+    this.sparkBirthAttr.addUpdateRange(0, this.poolSize);
+    this._queueAttributeUpload(this.sparkPositionAttr);
+    this._queueAttributeUpload(this.sparkBirthAttr);
+    this._flushAttributeUploads();
+
+    return activeCount;
+  }
+
+  _findFreeSlot() {
+    for (let i = 0; i < this.poolSize; i += 1) {
+      if (!(this.sparkBirth[i] >= 0)) return i;
+    }
+    return -1;
+  }
+
+  dispose() {
+    if (this._attachRoot && this.sparkMesh) {
+      this._attachRoot.remove(this.sparkMesh);
+    }
+    if (this.pointFXBase?.disposePointCloud) {
+      this.pointFXBase.disposePointCloud(this.sparkMesh);
+    } else {
+      this.sparkGeometry?.dispose?.();
+      this.sparkMaterial?.dispose?.();
+    }
+    this._queuedAttrs.clear();
   }
 }
 

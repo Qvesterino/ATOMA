@@ -200,6 +200,7 @@ Confirmed default runtime validation entrypoint:
 
 ## Link Spark Render Contract
 - `LinkSparkSystem` uses `VisualHierarchyRegistry` for the canonical `LINK_SPARKS` render order and still applies `LinkRenderLayerPolicy` for layer material discipline.
+- `LinkRendererConduit` strand-tip sparks are now owned by `LinkStrandTipSparkVisual` exported from `LinkTrailParticleSystem.js`; the conduit only delegates spawn/update to that owner so the visual life-cycle stays centralized in the trail subsystem.
 
 ## Link Resonance Render Contract
 - `LinkResonanceFlowSystem_Session124` uses `LinkRenderLayerPolicy` for the canonical `LINK_RESONANCE` layer on the pulse group and its pulse parts, so render order and material policy stay centralized.

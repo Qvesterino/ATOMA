@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { debugWarn } from './Engine/Debug/DebugLog.js';
 import { TransparentStateAuthority } from './TransparentStateAuthority.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
-import { applyLinkRenderLayer, getLinkBootstrapBudget, shouldRunLinkEffect } from './LinkRenderLayerPolicy.js';
+import { applyLinkRenderLayer, getLinkBootstrapBudget, getLinkDistancePolicy, shouldRunLinkEffect } from './LinkRenderLayerPolicy.js';
 import { LinkBeadVisualizer } from './LinkBeadSystem.js';
 import { LinkSparkSystem } from './LinkSparkSystem.js';
 import { LinkBeadTrailSystem } from './LinkBeadTrailSystem.js';
@@ -20,8 +20,9 @@ import { LinkResonanceFlowSystem_Session124 } from './LinkResonanceFlowSystem_Se
 import { TIER4_CorruptionFeedbackVisuals } from './TIER4_CorruptionFeedbackVisuals_v1.js';
 import { createLinkAuraMaterial, createLinkAuraGeometry } from './shaders/LinkAuraShader.js';
 import { linkStateVertexShaderSimple, linkStateFragmentShaderSimple } from './LinkStateVisualLanguageIntegration.js';
-import { LinkTrailParticleSystem, LinkTrailEmitter, LinkStrandTipSparkVisual } from './LinkTrailParticleSystem.js';
+import { LinkTrailParticleSystem, LinkTrailEmitter } from './LinkTrailParticleSystem.js';
 import { LinkHealingParticleSystem, LinkHealingEmitter } from './LinkHealingParticleSystem.js';
+import { LinkPointFXBase } from './LinkPointFXBase.js';
 import { LinkExtensionConfig } from './LinkExtensionConfig.js';
 import { LINK_CREATE_STAGE_MAX_PHASE, getLinkCreateStageByPhase } from './LinkCreateStagePolicy.js';
 import { ImpactManagerCollection } from './NodeImpactManager.js';
@@ -965,6 +966,14 @@ export class LinkRendererConduit {
         // Directional energy streaks system (visual only)
         this.directionalStreaks = new LinkDirectionalStreaks(scene);
 
+        // Shared point FX scaffold for strand-tip sparks.
+        this.strandSparkPointFXBase = new LinkPointFXBase(scene, {
+            renderLayer: 'LINK_STRANDS',
+            preset: 'spark',
+            capacity: 96,
+            textureKind: 'spark'
+        });
+
         // Directional resonance flow system (visual only)
         this.linkResonanceFlowSystem = new LinkResonanceFlowSystem_Session124(
             scene,
@@ -1190,8 +1199,16 @@ export class LinkRendererConduit {
         if (filamentState.mesh?.parent) {
             filamentState.mesh.parent.remove(filamentState.mesh);
         }
-        if (filamentState.sparkVisual) {
-            filamentState.sparkVisual.dispose?.();
+        if (filamentState.sparkMesh) {
+            if (this.strandSparkPointFXBase?.disposePointCloud) {
+                this.strandSparkPointFXBase.disposePointCloud(filamentState.sparkMesh);
+            } else {
+                if (filamentState.sparkMesh.parent) {
+                    filamentState.sparkMesh.parent.remove(filamentState.sparkMesh);
+                }
+                filamentState.sparkGeometry?.dispose?.();
+                filamentState.sparkMaterial?.dispose?.();
+            }
         }
         filamentState.geometry?.dispose?.();
         filamentState.material?.dispose?.();
@@ -1282,13 +1299,114 @@ export class LinkRendererConduit {
             parent.add(filamentMesh);
         }
 
-        const sparkVisual = new LinkStrandTipSparkVisual(this.scene, 96, parent);
+        const sparkMax = Math.max(18, Math.min(96, sampleCount));
+        const sparkPositions = new Float32Array(sparkMax * 3);
+        const sparkOrigin = new Float32Array(sparkMax * 3);
+        const sparkVelocity = new Float32Array(sparkMax * 3);
+        const sparkDrift = new Float32Array(sparkMax * 3);
+        const sparkBirth = new Float32Array(sparkMax);
+        const sparkDuration = new Float32Array(sparkMax);
+        const sparkShape = new Float32Array(sparkMax);
+        const sparkSize = new Float32Array(sparkMax);
+        const sparkAngle = new Float32Array(sparkMax);
+        const sparkSpin = new Float32Array(sparkMax);
+        const sparkGain = new Float32Array(sparkMax);
+        const sparkColor = new Float32Array(sparkMax * 3);
+        const sparkPhase = new Float32Array(sparkMax);
+        sparkBirth.fill(-1);
+        for (let i = 0; i < sparkMax; i += 1) {
+            const s = i * 3;
+            sparkPositions[s] = 1e6;
+            sparkPositions[s + 1] = 1e6;
+            sparkPositions[s + 2] = 1e6;
+            sparkShape[i] = WAVE_SPARK_GLYPH.SLIVER;
+            sparkSize[i] = 0.0;
+            sparkGain[i] = 0.0;
+            sparkDuration[i] = 0.001;
+            sparkColor[s] = 1.0;
+            sparkColor[s + 1] = 1.0;
+            sparkColor[s + 2] = 1.0;
+        }
+
+        const sparkGeometry = this.strandSparkPointFXBase.createGeometry({
+            aColor: { itemSize: 3 },
+            aShape: { itemSize: 1 },
+            aSize: { itemSize: 1 },
+            aAngle: { itemSize: 1 },
+            aSpin: { itemSize: 1 },
+            aBirth: { itemSize: 1 },
+            aDuration: { itemSize: 1 },
+            aGain: { itemSize: 1 }
+        });
+        const sparkPositionAttr = sparkGeometry.getAttribute('position');
+        const sparkColorAttr = sparkGeometry.getAttribute('aColor');
+        const sparkShapeAttr = sparkGeometry.getAttribute('aShape');
+        const sparkSizeAttr = sparkGeometry.getAttribute('aSize');
+        const sparkAngleAttr = sparkGeometry.getAttribute('aAngle');
+        const sparkSpinAttr = sparkGeometry.getAttribute('aSpin');
+        const sparkBirthAttr = sparkGeometry.getAttribute('aBirth');
+        const sparkDurationAttr = sparkGeometry.getAttribute('aDuration');
+        const sparkGainAttr = sparkGeometry.getAttribute('aGain');
+
+        const sparkMaterial = this.strandSparkPointFXBase.createMaterial({
+            vertexShader: strandSparkVertexShader,
+            fragmentShader: strandSparkFragmentShader,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: true,
+            toneMapped: false,
+            vertexColors: false,
+            uniforms: {
+                uTime: { value: 0 },
+                uGlobalOpacity: { value: 0.0 }
+            }
+        });
+        const sparkMesh = new THREE.Points(sparkGeometry, sparkMaterial);
+        sparkMesh.frustumCulled = false;
+        sparkMesh.raycast = () => null;
+        applyLinkRenderLayer(sparkMesh, 'LINK_STRANDS');
+        Object.assign(ensureUserData(sparkMesh), { isStrandTipSparkOverlay: true });
+        if (parent) {
+            parent.add(sparkMesh);
+        }
 
         state.strandFilaments = {
             mesh: filamentMesh,
             geometry,
             material,
-            sparkVisual,
+            sparkMesh,
+            sparkGeometry,
+            sparkMaterial,
+            sparkPositions,
+            sparkOrigin,
+            sparkVelocity,
+            sparkDrift,
+            sparkBirth,
+            sparkDuration,
+            sparkShape,
+            sparkSize,
+            sparkAngle,
+            sparkSpin,
+            sparkGain,
+            sparkColor,
+            sparkPhase,
+            sparkCursor: 0,
+            sparkMax,
+            sparkStaticAttributes: {
+                aColor: sparkColorAttr,
+                aShape: sparkShapeAttr,
+                aSize: sparkSizeAttr,
+                aAngle: sparkAngleAttr,
+                aSpin: sparkSpinAttr,
+                aDuration: sparkDurationAttr,
+                aGain: sparkGainAttr
+            },
+            sparkDynamicAttributes: {
+                position: sparkPositionAttr,
+                aBirth: sparkBirthAttr
+            },
+            sparkPendingAttributes: new Set(),
             positions,
             colors,
             rootT,
@@ -1317,9 +1435,177 @@ export class LinkRendererConduit {
             vSide: new THREE.Vector3(),
             cBase: new THREE.Color(),
             cMid: new THREE.Color(),
-            cTip: new THREE.Color()
+            cTip: new THREE.Color(),
+            cSparkBase: new THREE.Color(),
+            cSparkAccent: new THREE.Color(),
+            cSparkOut: new THREE.Color()
         };
         return state.strandFilaments;
+    }
+
+    _queueSparkAttributeUpload(filamentState, attribute) {
+        if (!filamentState?.sparkPendingAttributes || !attribute) return;
+        filamentState.sparkPendingAttributes.add(attribute);
+    }
+
+    _flushSparkAttributeUploads(filamentState) {
+        const pendingAttributes = filamentState?.sparkPendingAttributes;
+        if (!pendingAttributes || pendingAttributes.size === 0) return;
+
+        for (const attribute of pendingAttributes) {
+            attribute.needsUpdate = true;
+        }
+        pendingAttributes.clear();
+    }
+
+    _spawnStrandTipSpark(filamentState, origin, direction, visualTime, energy = 1, options = {}) {
+        if (!filamentState || !origin || !direction) return;
+        const {
+            sparkOrigin,
+            sparkVelocity,
+            sparkDrift,
+            sparkBirth,
+            sparkDuration,
+            sparkShape,
+            sparkSize,
+            sparkAngle,
+            sparkSpin,
+            sparkGain,
+            sparkColor,
+            sparkPhase,
+            sparkMax
+        } = filamentState;
+        if (
+            !sparkOrigin || !sparkVelocity || !sparkDrift || !sparkBirth || !sparkDuration || !sparkMax ||
+            !sparkShape || !sparkSize || !sparkAngle || !sparkSpin || !sparkGain || !sparkColor || !sparkPhase
+        ) return;
+
+        const idx = filamentState.sparkCursor % sparkMax;
+        filamentState.sparkCursor = (filamentState.sparkCursor + 1) % sparkMax;
+        const s = idx * 3;
+
+        const mode = options.mode || 'default';
+        const ratios = WAVE_SPARK_RATIOS[mode] || WAVE_SPARK_RATIOS.default;
+        const shapeIndex = weightedPickIndex(ratios);
+        const profile = WAVE_SPARK_PROFILE[shapeIndex] || WAVE_SPARK_PROFILE[WAVE_SPARK_GLYPH.SLIVER];
+        const energyClamped = clamp01(energy);
+
+        const speedMul = randRange(profile.speedMin, profile.speedMax);
+        const speed = 0.18 + speedMul * (0.5 + energyClamped * 1.2);
+        sparkOrigin[s] = origin.x;
+        sparkOrigin[s + 1] = origin.y;
+        sparkOrigin[s + 2] = origin.z;
+        sparkVelocity[s] = direction.x * speed;
+        sparkVelocity[s + 1] = direction.y * speed;
+        sparkVelocity[s + 2] = direction.z * speed;
+        sparkDrift[s] = (-direction.y + (Math.random() - 0.5) * 0.3) * 0.15;
+        sparkDrift[s + 1] = (direction.x + (Math.random() - 0.5) * 0.3) * 0.15;
+        sparkDrift[s + 2] = ((Math.random() - 0.5) * 0.45) * 0.15;
+        sparkPhase[idx] = Math.random() * Math.PI * 2.0;
+
+        sparkShape[idx] = shapeIndex;
+        sparkSize[idx] = randRange(profile.sizeMin, profile.sizeMax) * (0.85 + energyClamped * 0.35);
+        sparkAngle[idx] = Math.random() * Math.PI * 2.0;
+        sparkSpin[idx] = randRange(profile.spinMin, profile.spinMax);
+        sparkGain[idx] = randRange(profile.gainMin, profile.gainMax);
+
+        const baseColor = options.baseColor?.isColor ? options.baseColor : COLOR_WHITE;
+        const accentColor = options.accentColor?.isColor ? options.accentColor : baseColor;
+        const harmony = clamp01(options.harmony ?? 0);
+        const corruption = clamp01(options.corruption ?? 0);
+        const load = clamp01(options.load ?? 0);
+        const hotBoost = clamp01(options.hotBoost ?? 0);
+
+        filamentState.cSparkBase.copy(baseColor);
+        filamentState.cSparkAccent.copy(accentColor);
+        filamentState.cSparkOut.copy(filamentState.cSparkBase)
+            .lerp(filamentState.cSparkAccent, clamp01(profile.accentMix + corruption * 0.08))
+            .lerp(COLOR_WHITE, clamp01(profile.hotMix + hotBoost + load * 0.08 + harmony * 0.04));
+        sparkColor[s] = filamentState.cSparkOut.r;
+        sparkColor[s + 1] = filamentState.cSparkOut.g;
+        sparkColor[s + 2] = filamentState.cSparkOut.b;
+
+        sparkBirth[idx] = visualTime;
+        sparkDuration[idx] = randRange(profile.lifeMin, profile.lifeMax) * (0.85 + energyClamped * 0.35);
+        const staticAttrs = filamentState.sparkStaticAttributes;
+        if (staticAttrs) {
+            staticAttrs.aColor.addUpdateRange(s, 3);
+            staticAttrs.aShape.addUpdateRange(idx, 1);
+            staticAttrs.aSize.addUpdateRange(idx, 1);
+            staticAttrs.aAngle.addUpdateRange(idx, 1);
+            staticAttrs.aSpin.addUpdateRange(idx, 1);
+            staticAttrs.aDuration.addUpdateRange(idx, 1);
+            staticAttrs.aGain.addUpdateRange(idx, 1);
+            this._queueSparkAttributeUpload(filamentState, staticAttrs.aColor);
+            this._queueSparkAttributeUpload(filamentState, staticAttrs.aShape);
+            this._queueSparkAttributeUpload(filamentState, staticAttrs.aSize);
+            this._queueSparkAttributeUpload(filamentState, staticAttrs.aAngle);
+            this._queueSparkAttributeUpload(filamentState, staticAttrs.aSpin);
+            this._queueSparkAttributeUpload(filamentState, staticAttrs.aDuration);
+            this._queueSparkAttributeUpload(filamentState, staticAttrs.aGain);
+        }
+
+        const dynamicAttrs = filamentState.sparkDynamicAttributes;
+        if (dynamicAttrs) {
+            dynamicAttrs.aBirth.addUpdateRange(idx, 1);
+            this._queueSparkAttributeUpload(filamentState, dynamicAttrs.aBirth);
+        }
+    }
+
+    _updateStrandTipSparks(filamentState, visualTime) {
+        if (!filamentState?.sparkGeometry) return;
+        const {
+            sparkPositions,
+            sparkOrigin,
+            sparkVelocity,
+            sparkDrift,
+            sparkBirth,
+            sparkDuration,
+            sparkPhase,
+            sparkMax
+        } = filamentState;
+        let hasLive = false;
+        for (let i = 0; i < sparkMax; i += 1) {
+            const born = sparkBirth[i];
+            const s = i * 3;
+            if (!(born >= 0)) {
+                sparkPositions[s] = 1e6;
+                sparkPositions[s + 1] = 1e6;
+                sparkPositions[s + 2] = 1e6;
+                continue;
+            }
+            const age = visualTime - born;
+            const duration = sparkDuration[i] || 0.25;
+            if (age >= duration) {
+                sparkBirth[i] = -1;
+                sparkPositions[s] = 1e6;
+                sparkPositions[s + 1] = 1e6;
+                sparkPositions[s + 2] = 1e6;
+                continue;
+            }
+            hasLive = true;
+            const ageNorm = clamp01(age / duration);
+            const drag = 1.0 - ageNorm * 0.35;
+            const wobble = Math.sin(age * 24.0 + sparkPhase[i]) * (0.12 * (1.0 - ageNorm));
+            sparkPositions[s] = sparkOrigin[s] + sparkVelocity[s] * age * drag + sparkDrift[s] * wobble;
+            sparkPositions[s + 1] = sparkOrigin[s + 1] + sparkVelocity[s + 1] * age * drag + sparkDrift[s + 1] * wobble;
+            sparkPositions[s + 2] = sparkOrigin[s + 2] + sparkVelocity[s + 2] * age * drag + sparkDrift[s + 2] * wobble;
+        }
+        if (filamentState.sparkMaterial?.uniforms?.uTime) {
+            filamentState.sparkMaterial.uniforms.uTime.value = visualTime;
+        }
+        if (filamentState.sparkMaterial?.uniforms?.uGlobalOpacity) {
+            filamentState.sparkMaterial.uniforms.uGlobalOpacity.value = hasLive ? 1.0 : 0.0;
+        }
+        const dynamicAttrs = filamentState.sparkDynamicAttributes;
+        if (dynamicAttrs) {
+            dynamicAttrs.position.addUpdateRange(0, sparkMax * 3);
+            dynamicAttrs.aBirth.addUpdateRange(0, sparkMax);
+            this._queueSparkAttributeUpload(filamentState, dynamicAttrs.position);
+            this._queueSparkAttributeUpload(filamentState, dynamicAttrs.aBirth);
+        }
+
+        this._flushSparkAttributeUploads(filamentState);
     }
 
     _updateStrandFilaments(link, state, ctx = {}) {
@@ -1338,9 +1624,9 @@ export class LinkRendererConduit {
             const parent = link?.group || strands[0]?.parent || null;
             if (parent) parent.add(mesh);
         }
-        if (filamentState.sparkVisual) {
+        if (filamentState.sparkMesh && !filamentState.sparkMesh.parent) {
             const parent = link?.group || strands[0]?.parent || null;
-            filamentState.sparkVisual.ensureAttached(parent);
+            if (parent) parent.add(filamentState.sparkMesh);
         }
 
         const metrics = ctx.metrics || link?.userData?.metrics || {};
@@ -1354,7 +1640,7 @@ export class LinkRendererConduit {
             0.32,
             0.98
         );
-        filamentState.sparkVisual?.update?.(Number.isFinite(ctx.visualTime) ? ctx.visualTime : 0);
+        this._updateStrandTipSparks(filamentState, Number.isFinite(ctx.visualTime) ? ctx.visualTime : 0);
 
         if (!ctx.mainCurve || !ctx.frames) return;
 
@@ -1592,9 +1878,9 @@ export class LinkRendererConduit {
 
             // Detached sparks from filament tips (rare, burst-like).
             const sparkPulse = Math.sin(visualTime * 7.4 + phase[idx] * 2.7 + idx * 0.37);
-            const sparkChanceGate = isMicroJump ? -0.25 : -0.35;
+            const sparkChanceGate = isMicroJump ? (0.88 + (1.0 - jumpVisibility) * 0.05) : 0.958;
             const sparkAccent = (strandIndex % 2 === 0 ? state.colorB : state.colorA) || cBase;
-            if ((detach > 0.02 || isMicroJump) && sparkPulse > sparkChanceGate) {
+            if ((detach > 0.14 || (isMicroJump && jumpVisibility > 0.82)) && sparkPulse > sparkChanceGate) {
                 if (isBridge || isMicroJump) {
                     vSide.copy(vTangent2)
                         .addScaledVector(vRadial2, 0.65 + detach * 0.85 + jumpVisibility * 0.2)
@@ -1605,7 +1891,8 @@ export class LinkRendererConduit {
                         .addScaledVector(vRadial, 0.5 + detach * 0.7)
                         .normalize();
                 }
-                filamentState.sparkVisual?.spawn?.(
+                this._spawnStrandTipSpark(
+                    filamentState,
                     vEnd,
                     vSide,
                     visualTime,
@@ -1627,7 +1914,8 @@ export class LinkRendererConduit {
                 vSide.copy(vTangent2)
                     .addScaledVector(vRadial2, 0.75 + load * 0.25)
                     .normalize();
-                filamentState.sparkVisual?.spawn?.(
+                this._spawnStrandTipSpark(
+                    filamentState,
                     vMid,
                     vSide,
                     visualTime,
@@ -2006,7 +2294,7 @@ export class LinkRendererConduit {
 
         // PATCH 2: Update corruption particle systems
         if (run30 && shouldRunLinkEffect('conduit', 'particleSystem', { run30 }, particleFrameIndex) && this.corruptionParticleSystem?.update) {
-            this.corruptionParticleSystem.update(deltaTime, time);
+            this.corruptionParticleSystem.update(deltaTime, time, 0); // lodLevel=0 for global update
         }
         // Spread animator is updated per-link in update(); global call removed
         // because its signature is link-based and this call path was a no-op.
@@ -2479,6 +2767,8 @@ export class LinkRendererConduit {
         applyLinkRenderLayer(skinMesh, 'LINK_SKIN');
         ensureUserData(skinMesh);
         skinMesh.userData.__depthAuthorityLocked = true;
+        skinMesh.matrixAutoUpdate = false;
+        skinMesh.updateMatrix();
         group.add(skinMesh);
 
         Object.assign(conduitState, {
@@ -2494,7 +2784,6 @@ export class LinkRendererConduit {
             rings: null,
             pulseRing: null,
             pulseDust: null,
-            flowModulation: null,
             arcDischarges: null,
             visualStateAdapter: null,
             directionalStreaks: null,
@@ -2714,25 +3003,30 @@ export class LinkRendererConduit {
                 return true;
             }
             case 5: { // Frame 5: arcDischarges
-                if (state.arcDischarges || !LinkRingArcDischarges) break;
-                state.arcDischarges = new LinkRingArcDischarges(this.scene);
-                state.arcDischarges.rebind?.({ scene: this.scene });
-                const arcDischargeGroup = state.arcDischarges.getGroup?.();
-                if (arcDischargeGroup) {
-                    arcDischargeGroup.matrixAutoUpdate = false;
-                    arcDischargeGroup.updateMatrix();
-                    group.add(arcDischargeGroup);
+                if (!state.arcDischarges && LinkRingArcDischarges) {
+                    state.arcDischarges = new LinkRingArcDischarges(this.scene);
+                    state.arcDischarges.rebind?.({ scene: this.scene });
+                    const arcDischargeGroup = state.arcDischarges.getGroup?.();
+                    if (arcDischargeGroup) {
+                        arcDischargeGroup.matrixAutoUpdate = false;
+                        arcDischargeGroup.updateMatrix();
+                        group.add(arcDischargeGroup);
+                    }
+                    if (state.pulseRing?.setArcSystem) state.pulseRing.setArcSystem(state.arcDischarges);
+                    return false;
                 }
-                if (state.pulseRing?.setArcSystem) state.pulseRing.setArcSystem(state.arcDischarges);
-                break;
+                return !!state.arcDischarges;
             }
             case 6: { // Frame 6: beads
-                if (!state.rings && LinkEnergyRingSystem) state.rings = new LinkEnergyRingSystem(this.scene);
+                if (!state.rings && LinkEnergyRingSystem) {
+                    state.rings = new LinkEnergyRingSystem(this.scene);
+                    return false;
+                }
                 if (!state.beads && LinkBeadVisualizer) {
                     state.beads = new LinkBeadVisualizer(link, this.scene);
                     group.add(state.beads.getGroup());
                 }
-                break;
+                return !!state.beads;
             }
             case 7: { // Frame 7: bead trails
                 if (!state.trails && LinkBeadTrailSystem) {
@@ -2934,7 +3228,8 @@ export class LinkRendererConduit {
                 trace('beforeCorruptionSpreadAnimator');
                 const spreadState = this.corruptionSpreadAnimator.update(link, deltaTime, state.strands, {
                     corruptionLevel: metrics?.corruption ?? 0,
-                    nowMs: performance.now()
+                    nowMs: performance.now(),
+                    lodLevel: lod
                 });
                 trace('afterCorruptionSpreadAnimator', {
                     animating: !!spreadState?.isAnimating
@@ -2957,7 +3252,8 @@ export class LinkRendererConduit {
                 if (updater) {
                     trace('beforeCorruptionParticles');
                     updater(link, visualDelta, {
-                        corruptionLevel: metrics?.corruption ?? 0
+                        corruptionLevel: metrics?.corruption ?? 0,
+                        lodLevel: lod
                     });
                     trace('afterCorruptionParticles');
                     runtime.corruptionParticleTicks += 1;
@@ -2999,9 +3295,11 @@ export class LinkRendererConduit {
         const sourcePortPos = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * 0.18);
         const sourceInjectionOrigin = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * 0.06);
         const lod = this._getLinkLODLevel(start, end);
-        const lodVisualScale = lod >= 2 ? 0.45 : 1.0;
-        const lodAllowsParticles = lod < 2;
-        const lodAllowsSecondaryVfx = lod < 2;
+        const lodPolicy = getLinkDistancePolicy(lod);
+        const lodVisualScale = lodPolicy.visualScale;
+        const lodAllowsParticles = lodPolicy.allowParticles;
+        const lodAllowsSecondaryVfx = lodPolicy.allowSecondaryVfx;
+        const lodParticleScale = lodPolicy.particleScale;
 
         frameState.geometry = { start: start.clone(), end: end.clone(), linkDir: linkDir.clone(), linkDist };
         trace('afterGeometry');
@@ -3147,23 +3445,14 @@ export class LinkRendererConduit {
                     layerSpeed: layerSpeed.map(s => s * 0.8),
                     thickness: linkThickness
                 };
+                state.dockSprayPending = state.dockSprayPending || {
+                    time: visualTime + 0.04,
+                    sprayOrder: VisualHierarchyRegistry.getRenderOrder('LINK_IMPACTS'),
+                    ownerId: this._getLinkOwnerId(link)
+                };
                 trace('afterDockRingCreated', {
                     layerCount: layerGroups.length
                 });
-
-                // Spawn a light spray burst at dock point
-                if (!state.dockSpray) {
-                    trace('beforeDockSprayCreate');
-                    const sprayOrder = VisualHierarchyRegistry.getRenderOrder('LINK_IMPACTS');
-                    state.dockSpray = createDockSpraySystem(this.scene, sprayOrder, 48);
-                    if (state.dockSpray?.mesh) {
-                        ensureUserData(state.dockSpray.mesh).__linkOwnerId = this._getLinkOwnerId(link);
-                    }
-                    this.scene?.add(state.dockSpray.mesh);
-                    trace('afterDockSprayCreate', {
-                        hasMesh: !!state.dockSpray?.mesh
-                    });
-                }
             }
         }
 
@@ -3301,6 +3590,7 @@ export class LinkRendererConduit {
                 state.dockSpray.dispose();
                 state.dockSpray = null;
             }
+            state.dockSprayPending = null;
         }
 
         if (!state.sourceInjection) {
@@ -3330,13 +3620,25 @@ export class LinkRendererConduit {
                 trace('beforeUpdateDockRing');
                 updateDockRing(state.dockRing);
                 trace('afterUpdateDockRing');
+                if (state.dockSprayPending && !state.dockSpray && visualTime >= (state.dockSprayPending.time || 0)) {
+                    trace('beforeDockSprayCreate');
+                    state.dockSpray = createDockSpraySystem(this.scene, state.dockSprayPending.sprayOrder ?? VisualHierarchyRegistry.getRenderOrder('LINK_IMPACTS'), 48);
+                    if (state.dockSpray?.mesh) {
+                        ensureUserData(state.dockSpray.mesh).__linkOwnerId = state.dockSprayPending.ownerId || this._getLinkOwnerId(link);
+                    }
+                    this.scene?.add(state.dockSpray.mesh);
+                    state.dockSprayPending = null;
+                    trace('afterDockSprayCreate', {
+                        hasMesh: !!state.dockSpray?.mesh
+                    });
+                }
                 if (state.dockSpray) {
                     trace('beforeDockSprayUpdate');
                     state.dockSpray.update(visualTime);
                     trace('afterDockSprayUpdate');
                     const sprayInterval = state.dockRing.userData.sprayInterval ?? 0.12;
                     const nextSprayTime = state.dockRing.userData.nextSprayTime ?? visualTime;
-                    if (lodAllowsParticles && visualTime >= nextSprayTime) {
+                    if (lodPolicy.allowDockSpray && visualTime >= nextSprayTime) {
                         const payload = state.dockRing.userData.sprayPayload;
                         if (payload) {
                             trace('beforeDockSprayBurst');
@@ -3362,7 +3664,7 @@ export class LinkRendererConduit {
                 trace('afterSourceInjectionUpdate');
                 const nextInjectionTime = state.sourceInjectionNextTime ?? visualTime;
                 const injectionInterval = state.sourceInjectionInterval ?? 0.075;
-                if (lodAllowsParticles && visualTime >= nextInjectionTime) {
+                if (lodPolicy.allowSourceInjection && visualTime >= nextInjectionTime) {
                     trace('beforeSourceInjectionBurst');
                     state.sourceInjection.spawnBurst(injectionOrigin, linkDir, sourceColor, visualTime);
                     trace('afterSourceInjectionBurst');
@@ -3542,8 +3844,16 @@ export class LinkRendererConduit {
 
                 if (mat.uniforms.uCorruption) mat.uniforms.uCorruption.value = m.corruption ?? 0;
                 if (mat.uniforms.uNetworkStress) mat.uniforms.uNetworkStress.value = 1.0 - (m.stability ?? 1);
-                if (mat.uniforms.uLocalLoad && !mat.userData?.__uLocalLoadOwnedByEnergyWave) {
-                    mat.uniforms.uLocalLoad.value = m.loadPressure ?? 0;
+                if (mat.uniforms.uLocalLoad) {
+                    const loadPressure = Math.max(0, Math.min(1, Number.isFinite(m.loadPressure) ? m.loadPressure : 0));
+                    const harmonyPulse = 0.5 + 0.5 * Math.sin(
+                        visualTime * (1.35 + loadPressure * 0.9 + (m.harmony ?? 0) * 0.35) +
+                        i * 1.618
+                    );
+                    const waveLoad = loadPressure * 0.75 + harmonyPulse * (0.18 + (m.synergy ?? 0.5) * 0.14);
+                    mat.uniforms.uLocalLoad.value = Math.max(0, Math.min(1, waveLoad));
+                    mat.userData = mat.userData || {};
+                    mat.userData.__uLocalLoadOwnedByEnergyWave = true;
                 }
                 if (mat.uniforms.uWaveDirection?.value?.copy) {
                     mat.uniforms.uWaveDirection.value.copy(waveDirection);
@@ -3831,7 +4141,7 @@ export class LinkRendererConduit {
         // Emit organic trail particles using same noise as aura systems
         if (this.trailParticles && this.trailEmitters && link.id && this.modules.trails) {
             const emitter = this.trailEmitters.get(link.id);
-            if (heavyTick && runTrailEmitterEffects && emitter && lodAllowsParticles) {
+            if (heavyTick && runTrailEmitterEffects && emitter && lodAllowsParticles && lodPolicy.allowTrailEmitter) {
                 const linkHarmony = metrics.harmony ?? 0.5;
                 const linkCorruption = metrics.corruption ?? 0.2;
 
@@ -3849,13 +4159,13 @@ export class LinkRendererConduit {
             // Shared pool mapping: LinkCorruptionParticleSystem -> corruption trail source.
             if (this.modules.corruptionFX && this.corruptionParticleSystem && runHeavyCorruptionUpdate && runTrailEmitterEffects && runParticleSystemEffects) {
                 const corruptionLevel = Math.max(0, Math.min(1, metrics.corruption ?? 0));
-                if (lodAllowsParticles && corruptionLevel > 0.08) {
+                if (lodAllowsParticles && lodPolicy.allowTrailParticles && corruptionLevel > 0.08) {
                     this.trailParticles.emitFromSource?.({
                         type: 'corruption',
                         link,
                         curve: mainCurve,
                         linkDirection: linkDir,
-                        emissionRate: this.sharedTrailRates.corruption * (0.35 + corruptionLevel * 1.05) * (1 + collapseVisual.severity * 0.75),
+                        emissionRate: this.sharedTrailRates.corruption * (0.35 + corruptionLevel * 1.05) * (1 + collapseVisual.severity * 0.75) * lodParticleScale,
                         time: visualTime,
                         harmony: metrics.harmony ?? 0.5,
                         corruption: corruptionLevel
@@ -3874,7 +4184,7 @@ export class LinkRendererConduit {
                     const linkCorruption = metrics.corruption ?? 0.2;
                     const tintColor = state.baseColorObj || (state.strands?.[0]?.material?.color);
 
-                    if (lodAllowsParticles && linkHarmony > linkCorruption && runHealingEmitterEffects && runParticleSystemEffects) {
+                    if (lodAllowsParticles && lodPolicy.allowHealingEmitter && linkHarmony > linkCorruption && runHealingEmitterEffects && runParticleSystemEffects) {
                         emitter.update(
                             visualDelta,
                             visualTime,
@@ -3891,7 +4201,7 @@ export class LinkRendererConduit {
                             link,
                             curve: mainCurve,
                             linkDirection: linkDir.clone().negate(),
-                            emissionRate: this.sharedTrailRates.healing * (0.4 + (linkHarmony - linkCorruption)) * (1 - collapseVisual.severity * 0.65),
+                            emissionRate: this.sharedTrailRates.healing * (0.4 + (linkHarmony - linkCorruption)) * (1 - collapseVisual.severity * 0.65) * lodParticleScale,
                             time: visualTime,
                             harmony: linkHarmony,
                             corruption: linkCorruption
@@ -3908,13 +4218,9 @@ export class LinkRendererConduit {
             hasBeads: !!state.beads,
             hasBeadModule: !!this.modules.beads
         });
-        if (heavyTick && runBeadEffects && state.beads && this.modules.beads) {
-            // Re-assert render state to bypass global depth clamps
-            if (state.beads.forceRenderState) {
-                state.beads.forceRenderState();
-            }
+        if (heavyTick && runBeadEffects && state.beads && this.modules.beads && lodPolicy.allowBeads) {
             if (state.beads.setIntensity) {
-                state.beads.setIntensity(vfx.beadsIntensity);
+                state.beads.setIntensity(vfx.beadsIntensity * lodParticleScale);
             }
             this._beadsUpdateCalls = (this._beadsUpdateCalls || 0) + 1;
             state.beads.update(visualDelta, (bead) => {
@@ -3935,14 +4241,15 @@ export class LinkRendererConduit {
                             nodeId: link.target.userData?.nodeId ?? link.target.id ?? null,
                             metrics: targetMetrics,
                             time: visualTime
-                        }
+                        },
+                        lod
                     );
                 }
             }, lodAllowsParticles);
-        if (heavyTick && runBeadTrailEffects && state.trails) state.trails.update(visualTime, visualDelta, state.beads.beadToMesh, mainCurve, lodAllowsParticles);
+        if (heavyTick && runBeadTrailEffects && state.trails && lodPolicy.allowBeadTrails) state.trails.update(visualTime, visualDelta, state.beads.beadToMesh, mainCurve, lodAllowsParticles);
         }
 
-        if (heavyTick && runEnergyRingEffects && state.rings) state.rings.update(visualTime);
+        if (heavyTick && runEnergyRingEffects && state.rings && lodPolicy.allowEnergyRingSystem) state.rings.update(visualTime, lod);
 
         if (heavyTick && state.sparks && this.modules.sparks) {
             const baseCol = (state.strands[0]?.material?.color) || state.baseColor || 0xffffff;
@@ -3959,15 +4266,16 @@ export class LinkRendererConduit {
                 });
             }
 
-            if (runParticleSystemEffects) state.sparks.update(
+            if (runParticleSystemEffects && lodPolicy.allowSparks) state.sparks.update(
                 visualTime,
                 visualDelta,
                 mainCurve,
-                { synergy, traffic: trafficLoad, intensity: vfx.sparksIntensity * collapseVisual.emissiveMul },
+                { synergy, traffic: trafficLoad, intensity: vfx.sparksIntensity * collapseVisual.emissiveMul * lodParticleScale },
                 currentColor,
-                lodAllowsParticles
+                lodAllowsParticles,
+                lod
             );
-            state.sparks.uniforms.uThickness.value = activeRadius * 2 * vfx.widthMul;
+            state.sparks.uniforms.uThickness.value = activeRadius * 2 * vfx.widthMul * lodVisualScale;
 
             // Shared pool mapping: LinkSparkSystem -> spark trail source.
             if (lodAllowsParticles && runParticleSystemEffects) this.trailParticles?.emitFromSource?.({
@@ -3975,7 +4283,7 @@ export class LinkRendererConduit {
                 link,
                 curve: mainCurve,
                 linkDirection: linkDir,
-                emissionRate: this.sharedTrailRates.spark * (0.45 + vfx.sparksIntensity),
+                emissionRate: this.sharedTrailRates.spark * (0.45 + vfx.sparksIntensity) * lodParticleScale,
                 time: visualTime,
                 harmony: metrics.harmony ?? 0.5,
                 corruption: metrics.corruption ?? 0,
@@ -3983,7 +4291,7 @@ export class LinkRendererConduit {
             });
         }
 
-        if (heavyTick && runPulseRingEffects && state.pulseRing && this.modules.flow) {
+        if (heavyTick && runPulseRingEffects && state.pulseRing && this.modules.flow && lodPolicy.allowPulseRing) {
             const targetCat = link.target.userData?.category || 'input';
             const targetColor = colorScratch.b.set(this.getCategoryColor(targetCat));
             const sourceColor = colorScratch.c.set(state.baseColor);
@@ -4010,20 +4318,22 @@ export class LinkRendererConduit {
                     dt: visualDelta,
                     sourceColor,
                     targetColor,
-                    spawnEnabled: lodAllowsParticles
+                    spawnEnabled: lodPolicy.allowRingPulseDustEmitter && lodAllowsParticles
                 });
             }
         }
         trace('afterBeadsUpdate');
 
         // --- 6. Flow Modulation Update (Unified Wave Through Strands) ---
-        // Flow modulation is merged into the strand uniform update path.
+        // NOTE:
+        // Flow modulation is now merged into the strand uniform update path.
+        // so its emissive modulation is not overwritten by earlier patch owners.
         if (heavyTick && this.modules.flow && Array.isArray(state.strands) && state.strands.length > 0) {
             runtime.flowModulationTicks += 1;
         }
 
         // --- 7. Arc Discharge Update (Ring-triggered Electric Sparks) ---
-        if (heavyTick && runArcDischargeEffects && state.arcDischarges && state.pulseRing && this.modules.flow) {
+        if (heavyTick && runArcDischargeEffects && state.arcDischarges && state.pulseRing && this.modules.flow && lodPolicy.allowArcDischarges) {
                 const targetCat = link.target.userData?.category || 'input';
                 const targetColor = colorScratch.b.set(this.getCategoryColor(targetCat));
                 const ringColor = colorScratch.c.set(state.baseColor).lerp(targetColor, state.pulseRing.progress);
@@ -4042,7 +4352,8 @@ export class LinkRendererConduit {
                 frameState,
                 lodHarmony,
                 lodCorruption,
-                lodAllowsSecondaryVfx
+                lodAllowsSecondaryVfx,
+                lod
             );
         }
 
@@ -4079,8 +4390,8 @@ export class LinkRendererConduit {
         }
 
         // --- 9. Directional Energy Streaks (Synergy-driven flow visualization) ---
-        if (heavyTick && runDirectionalStreaksEffects && state.directionalStreaks && this.directionalStreaks && this.modules.streaks && lodAllowsSecondaryVfx) {
-            const streakInterval = lod <= 0 ? (1 / 15) : (1 / 10);
+        if (heavyTick && runDirectionalStreaksEffects && state.directionalStreaks && this.directionalStreaks && this.modules.streaks && lodPolicy.allowDirectionalStreaks) {
+            const streakInterval = lodPolicy.cadenceScale >= 2 ? (1 / 10) : (1 / 15);
             state.__directionalStreaksAccum = (state.__directionalStreaksAccum || 0) + visualDelta;
             if (state.__directionalStreaksAccum >= streakInterval) {
                 const streakDelta = state.__directionalStreaksAccum;
@@ -5357,7 +5668,6 @@ const makeWaveSlice = () => {
 
             if (state.pulseRing) state.pulseRing.dispose();
             if (state.pulseDust) state.pulseDust.dispose();
-            if (state.flowModulation) state.flowModulation = null;
             if (state.arcDischarges) state.arcDischarges.dispose();
             if (state.visualStateAdapter) state.visualStateAdapter.dispose();
             if (state.dockSpray) state.dockSpray.dispose();
@@ -5459,6 +5769,9 @@ const makeWaveSlice = () => {
             this.linkResonanceFlowSystem.dispose();
             this.linkResonanceFlowSystem = null;
             this.linkResonanceSystem = null;
+        }
+        if (this.strandSparkPointFXBase) {
+            this.strandSparkPointFXBase = null;
         }
         if (this.flowTexture) {
             this.flowTexture.dispose();

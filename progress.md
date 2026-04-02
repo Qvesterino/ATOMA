@@ -89,3 +89,10 @@ Original prompt: reduce synergy cascade visual clutter and make the repeated bea
 - Switched the two successful main.js init messages (NetworkFatigueSystem and LinkSemanticPictogramSystem) from console.error to console.info, so the normal boot path no longer shows them as errors.
 
 - Cleaned the last remaining boot error by changing the Network Fatigue console API bootstrap message in NetworkFatigueSystem_v0.js from console.error to console.info.
+## 2026-04-02
+- Tuned strand-tip sparks in LinkRendererConduit to be slightly more frequent, brighter, and longer-lived without touching LOD.
+- Increased strand-tip spark frequency/visibility a bit more: lower spawn gate, longer life, brighter gain, and slightly larger size.
+- Strand-tip sparks were pushed to a very aggressive visibility mode: 20x point size and near-zero spawn gate.
+- Strand-tip sparks now follow a LinkSparkSystem-like lifecycle: explicit LINK_SPARKS render order, frozen matrix, and opacity scaled by active spark count.
+- Strand-tip spark ownership moved out of `LinkRendererConduit` into `LinkTrailParticleSystem.js` as `LinkStrandTipSparkVisual`; the conduit now only delegates spawn/update while the spark buffers and scene attachment live in the trail subsystem.
+- Smoke test after the move passed syntax checks and loaded `http://127.0.0.1:5500/index.html` cleanly, but the screenshot did not include an active spark-emission link yet.
