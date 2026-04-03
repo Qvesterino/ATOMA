@@ -1060,8 +1060,7 @@ class NetworkRituals {
   }
 
   _emitLifecycleEvent(eventName, ritual, extra = {}) {
-    const handlers = this.listeners.get(eventName);
-    if (!handlers || handlers.size === 0 || !ritual) return;
+    if (!ritual) return;
 
     const clusterLinks = this._getClusterLinks(ritual);
     const payload = {
@@ -1075,12 +1074,68 @@ class NetworkRituals {
       ...extra
     };
 
+    this._notifyListeners(eventName, payload);
+    this._emitMetricBridgeEvents(eventName, ritual, payload);
+  }
+
+  _notifyListeners(eventName, payload) {
+    const handlers = this.listeners.get(eventName);
+    if (!handlers || handlers.size === 0) return;
+
     for (const handler of handlers) {
       try {
         handler(payload);
       } catch (err) {
         console.warn('[Phase 8 Ritual] listener error for', eventName, err);
       }
+    }
+  }
+
+  _emitMetricBridgeEvents(eventName, ritual, payload) {
+    const participantCount = ritual?.participants?.length || 0;
+    const synergyValue = ritual?.pooledResources?.synergy ?? 0;
+    const harmonyValue = ritual?.pooledResources?.harmony ?? 0;
+    const stabilityValue = Math.min(1, 0.45 + participantCount * 0.1);
+    const loadPressureValue = Math.min(1, 0.25 + participantCount * 0.12);
+
+    const emit = (name, metric, tier, value, reason) => {
+      this._notifyListeners(name, {
+        ...payload,
+        scope: 'global',
+        metric,
+        tier,
+        value,
+        source: 'NetworkRituals_v1',
+        reason,
+      });
+    };
+
+    if (eventName === 'ritual:start') {
+      emit('global.synergy.mid', 'synergy', 'mid', synergyValue, 'ritual-start');
+      emit('global.harmony.mid', 'harmony', 'mid', harmonyValue, 'ritual-start');
+      return;
+    }
+
+    if (eventName === 'ritual:progress') {
+      if (ritual.stage === RITUAL_STAGES.RESONANCE) {
+        emit('global.harmony.high', 'harmony', 'high', harmonyValue, 'ritual-resonance');
+      }
+      if (ritual.stage === RITUAL_STAGES.RESOLUTION) {
+        emit('global.synergy.high', 'synergy', 'high', synergyValue, 'ritual-resolution');
+        emit('global.stability.high', 'stability', 'high', stabilityValue, 'ritual-resolution');
+      }
+      return;
+    }
+
+    if (eventName === 'ritual:complete' && payload.success) {
+      emit('global.synergy.high', 'synergy', 'high', synergyValue, 'ritual-complete');
+      emit('global.harmony.high', 'harmony', 'high', harmonyValue, 'ritual-complete');
+      emit('global.stability.high', 'stability', 'high', stabilityValue, 'ritual-complete');
+      return;
+    }
+
+    if (eventName === 'ritual:abort') {
+      emit('global.loadPressure.high', 'loadPressure', 'high', loadPressureValue, payload.reason || 'ritual-abort');
     }
   }
 

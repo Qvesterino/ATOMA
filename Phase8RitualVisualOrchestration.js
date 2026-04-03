@@ -102,6 +102,17 @@ class Phase8RitualVisualOrchestration {
   constructor(visualAutoWiringSystem, networkRituals) {
     this.wiring = visualAutoWiringSystem;
     this.rituals = networkRituals;
+    this.metricBus = this._resolveMetricBus();
+    this.metricSubscriptions = [];
+    this.metricSignals = {
+      synergyHigh: false,
+      synergyMid: false,
+      harmonyHigh: false,
+      harmonyMid: false,
+      stabilityHigh: false,
+      loadPressureHigh: false,
+      lastUpdatedAt: 0,
+    };
 
     // Map of active ritual visual states
     // ritualId → { stage, progress, startTime, affectedRenderables, modifiers }
@@ -143,11 +154,19 @@ class Phase8RitualVisualOrchestration {
       this.rituals.on('ritual:progress', (e) => this._onRitualProgress(e));
       this.rituals.on('ritual:complete', (e) => this._onRitualComplete(e));
       this.rituals.on('ritual:abort', (e) => this._onRitualAbort(e));
-      this.listenerSetup = true;
     } else {
       // Fallback: Try to poll ritual state if event system unavailable
       this._setupPollingFallback();
     }
+
+    this._subscribeMetricTag('global.synergy.high', () => this._setMetricSignal('synergyHigh', true));
+    this._subscribeMetricTag('global.synergy.mid', () => this._setMetricSignal('synergyMid', true));
+    this._subscribeMetricTag('global.harmony.high', () => this._setMetricSignal('harmonyHigh', true));
+    this._subscribeMetricTag('global.harmony.mid', () => this._setMetricSignal('harmonyMid', true));
+    this._subscribeMetricTag('global.stability.high', () => this._setMetricSignal('stabilityHigh', true));
+    this._subscribeMetricTag('global.loadPressure.high', () => this._setMetricSignal('loadPressureHigh', true));
+
+    this.listenerSetup = true;
   }
 
   /**
@@ -326,14 +345,15 @@ class Phase8RitualVisualOrchestration {
    */
   _applyPreRitualModifiers(affectedRenderables, ritualId) {
     const config = RITUAL_VISUAL_CONFIG.PRE_RITUAL;
+    const metricMod = this._getMetricModulation();
 
     for (const renderable of affectedRenderables) {
       const modifier = {
         ritualId,
         layer: 'PRE_RITUAL',
-        intensityMultiplier: 0.9,      // Subtle dimming (focusing attention)
+        intensityMultiplier: metricMod.preRitualIntensity,
         phaseSync: config.linkPulseSync,
-        jitterSuppression: config.jitterReduction,
+        jitterSuppression: metricMod.jitterSuppression,
         envelope: (t) => this._fadeInEnvelope(t, config.duration),
         duration: config.duration,
       };
@@ -348,16 +368,17 @@ class Phase8RitualVisualOrchestration {
    */
   _applyRitualActiveModifiers(affectedRenderables, ritualId) {
     const config = RITUAL_VISUAL_CONFIG.RITUAL_ACTIVE;
+    const metricMod = this._getMetricModulation();
 
     for (const renderable of affectedRenderables) {
       const modifier = {
         ritualId,
         layer: 'RITUAL_ACTIVE',
-        intensityMultiplier: Math.min(config.linkIntensity, RITUAL_VISUAL_CONFIG.GLOBAL.maxIntensity),
-        radiusScale: Math.min(config.nodeRadiusScale, RITUAL_VISUAL_CONFIG.GLOBAL.maxRadiusScale),
+        intensityMultiplier: metricMod.activeIntensity,
+        radiusScale: metricMod.radiusScale,
         globalPhaseSync: config.globalPhaseSync,
         phaseOffset: this.globalRitualPhase,
-        stressDamping: config.stressDamping,
+        stressDamping: metricMod.stressDamping,
         waveRipple: config.waveRippleEffect,
         envelope: (t) => 1.0,            // Full intensity during active phase
         duration: Infinity,              // Until completion
@@ -606,8 +627,72 @@ class Phase8RitualVisualOrchestration {
     this.ritualVisualStates.clear();
     this.renderableEffects.clear();
     this.globalRitualPhase = 0;
+    this.metricSignals.synergyHigh = false;
+    this.metricSignals.synergyMid = false;
+    this.metricSignals.harmonyHigh = false;
+    this.metricSignals.harmonyMid = false;
+    this.metricSignals.stabilityHigh = false;
+    this.metricSignals.loadPressureHigh = false;
     this.stats.activeRituals = 0;
     this.stats.affectedRenderables = 0;
+  }
+
+  _resolveMetricBus() {
+    if (globalThis?.ATOMA_BUS || globalThis?.semanticBus) {
+      return globalThis.ATOMA_BUS || globalThis.semanticBus || null;
+    }
+
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    return browserWindow?.ATOMA_BUS || browserWindow?.semanticBus || null;
+  }
+
+  _subscribeMetricTag(eventName, handler) {
+    const bus = this.metricBus;
+    if (!bus || !eventName || typeof handler !== 'function') return;
+
+    if (typeof bus.on === 'function') {
+      const unsubscribe = bus.on(eventName, handler);
+      if (typeof unsubscribe === 'function') {
+        this.metricSubscriptions.push(unsubscribe);
+      }
+      return;
+    }
+
+    if (typeof bus.subscribe === 'function') {
+      const unsubscribe = bus.subscribe(eventName, handler);
+      if (typeof unsubscribe === 'function') {
+        this.metricSubscriptions.push(unsubscribe);
+      }
+    }
+  }
+
+  _setMetricSignal(key, value) {
+    this.metricSignals[key] = value;
+    this.metricSignals.lastUpdatedAt = performance.now();
+  }
+
+  _getMetricModulation() {
+    const intensityBoost = this.metricSignals.synergyHigh ? 0.15 : (this.metricSignals.synergyMid ? 0.05 : 0);
+    const harmonyBoost = this.metricSignals.harmonyHigh ? 0.08 : (this.metricSignals.harmonyMid ? 0.04 : 0);
+    const stressBoost = this.metricSignals.loadPressureHigh ? 0.15 : 0;
+    const stabilityGuard = this.metricSignals.stabilityHigh ? 0.1 : 0;
+
+    return {
+      preRitualIntensity: Math.max(
+        RITUAL_VISUAL_CONFIG.GLOBAL.minIntensity,
+        0.9 + harmonyBoost
+      ),
+      jitterSuppression: Math.min(0.9, RITUAL_VISUAL_CONFIG.PRE_RITUAL.jitterReduction + stabilityGuard),
+      activeIntensity: Math.min(
+        RITUAL_VISUAL_CONFIG.GLOBAL.maxIntensity,
+        RITUAL_VISUAL_CONFIG.RITUAL_ACTIVE.linkIntensity + intensityBoost
+      ),
+      radiusScale: Math.min(
+        RITUAL_VISUAL_CONFIG.GLOBAL.maxRadiusScale,
+        RITUAL_VISUAL_CONFIG.RITUAL_ACTIVE.nodeRadiusScale + harmonyBoost
+      ),
+      stressDamping: Math.min(0.8, RITUAL_VISUAL_CONFIG.RITUAL_ACTIVE.stressDamping + stressBoost),
+    };
   }
 }
 

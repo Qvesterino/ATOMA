@@ -15,6 +15,9 @@ export class EnvironmentalHazards {
     this.activeEffects = [];
     this._hazardEffectScratch = new THREE.Vector3();
     this._hazardDirectionScratch = new THREE.Vector3();
+    this.metricBus = this._resolveMetricBus();
+    this.metricSignalTimes = new Map();
+    this._setupMetricTriggers();
   }
   
   /**
@@ -54,6 +57,7 @@ export class EnvironmentalHazards {
     this.generateLightningBolts(hazard, 3);
     
     this.hazards.push(hazard);
+    this._emitHazardEvent('environment.hazard.active', hazard);
     return hazard;
   }
   
@@ -150,6 +154,7 @@ export class EnvironmentalHazards {
     this.createAnomalyParticles(hazard, 12);
     
     this.hazards.push(hazard);
+    this._emitHazardEvent('environment.hazard.active', hazard);
     return hazard;
   }
   
@@ -253,12 +258,13 @@ export class EnvironmentalHazards {
    * Update electrical storm
    */
   updateElectricalStorm(hazard, deltaTime) {
+    const intensityScale = this._getHazardIntensityScale();
     // Update aura pulsing
     const pulse = Math.sin(hazard.time * 2) * 0.5 + 0.5;
-    hazard.aura.material.opacity = pulse * 0.3;
+    hazard.aura.material.opacity = pulse * 0.3 * intensityScale;
     if (hazard.aura.material.isMeshStandardMaterial || hazard.aura.material.isMeshPhongMaterial || 
         hazard.aura.material.isMeshLambertMaterial || hazard.aura.material.isMeshToonMaterial) {
-      hazard.aura.material.emissiveIntensity = 0.2 + pulse * 0.4;
+      hazard.aura.material.emissiveIntensity = (0.2 + pulse * 0.4) * intensityScale;
     }
     
     // Update bolts
@@ -267,7 +273,7 @@ export class EnvironmentalHazards {
       bolt.life -= deltaTime;
       
       // Update opacity based on life
-      const opacity = (bolt.life / bolt.maxLife) * 0.8;
+      const opacity = (bolt.life / bolt.maxLife) * 0.8 * intensityScale;
       bolt.line.material.opacity = opacity;
       
       // Remove expired bolt and regenerate
@@ -297,16 +303,17 @@ export class EnvironmentalHazards {
    * Update gravitational anomaly
    */
   updateGravitationalAnomaly(hazard, deltaTime) {
+    const intensityScale = this._getHazardIntensityScale();
     // Rotate mesh
     hazard.mesh.rotation.x += deltaTime * 0.3;
     hazard.mesh.rotation.y += deltaTime * 0.2;
     
     // Update pulsing
     const pulse = Math.sin(hazard.time * 1.5) * 0.5 + 0.5;
-    hazard.mesh.material.opacity = 0.1 + pulse * 0.1;
+    hazard.mesh.material.opacity = (0.1 + pulse * 0.1) * Math.max(0.6, intensityScale);
     if (hazard.mesh.material.isMeshStandardMaterial || hazard.mesh.material.isMeshPhongMaterial || 
         hazard.mesh.material.isMeshLambertMaterial || hazard.mesh.material.isMeshToonMaterial) {
-      hazard.mesh.material.emissiveIntensity = 0.3 + pulse * 0.3;
+      hazard.mesh.material.emissiveIntensity = (0.3 + pulse * 0.3) * intensityScale;
     }
     
     // Update particles
@@ -373,5 +380,75 @@ export class EnvironmentalHazards {
     this.activeEffects.length = 0;
     this.hazards.length = 0;
     this.root?.removeFromParent?.();
+  }
+
+  _resolveMetricBus() {
+    if (globalThis?.ATOMA_BUS || globalThis?.semanticBus) {
+      return globalThis.ATOMA_BUS || globalThis.semanticBus || null;
+    }
+
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    return browserWindow?.ATOMA_BUS || browserWindow?.semanticBus || null;
+  }
+
+  _setupMetricTriggers() {
+    this._subscribeMetricTag('global.corruption.high', 'corruption.high');
+    this._subscribeMetricTag('global.loadPressure.high', 'loadPressure.high');
+    this._subscribeMetricTag('global.stability.low', 'stability.low');
+    this._subscribeMetricTag('global.stability.high', 'stability.high');
+  }
+
+  _subscribeMetricTag(eventName, signalKey) {
+    const bus = this.metricBus;
+    if (!bus || !eventName || !signalKey) return;
+    const handler = () => {
+      this.metricSignalTimes.set(signalKey, performance.now());
+    };
+
+    if (typeof bus.on === 'function') {
+      bus.on(eventName, handler);
+      return;
+    }
+
+    if (typeof bus.subscribe === 'function') {
+      bus.subscribe(eventName, handler);
+    }
+  }
+
+  _isSignalActive(signalKey, lifetimeMs = 5000) {
+    const lastAt = this.metricSignalTimes.get(signalKey);
+    if (!Number.isFinite(lastAt)) return false;
+    return (performance.now() - lastAt) <= lifetimeMs;
+  }
+
+  _getHazardIntensityScale() {
+    let scale = 1;
+    if (this._isSignalActive('corruption.high')) scale += 0.25;
+    if (this._isSignalActive('loadPressure.high')) scale += 0.2;
+    if (this._isSignalActive('stability.low')) scale += 0.15;
+    if (this._isSignalActive('stability.high')) scale -= 0.2;
+    return Math.max(0.65, Math.min(1.5, scale));
+  }
+
+  _emitHazardEvent(eventName, hazard) {
+    const bus = this.metricBus;
+    if (!bus || !eventName || !hazard) return;
+
+    const payload = {
+      type: hazard.type,
+      intensity: hazard.intensity ?? hazard.strength ?? 1,
+      radius: hazard.radius,
+      source: 'EnvironmentalHazards',
+      timestamp: performance.now()
+    };
+
+    if (typeof bus.emit === 'function') {
+      bus.emit(eventName, payload);
+      return;
+    }
+
+    if (typeof bus.publish === 'function') {
+      bus.publish(eventName, payload);
+    }
   }
 }

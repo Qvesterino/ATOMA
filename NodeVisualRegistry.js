@@ -97,7 +97,7 @@ export const NODE_VISUAL_REGISTRY = {
   805: { category: 'sigma', factoryName: 'createSigmaNode2', archetypeTag: 'risky', metrics: { synergy: 0.733333, harmony: 0.733333, stability: 0.780000, corruption: 0.040000, loadPressure: 0.473333 } },
   806: { category: 'sigma', factoryName: 'createSigmaNodeStyled_v2', archetypeTag: 'pressure', metrics: { synergy: 0.786667, harmony: 0.786667, stability: 0.840000, corruption: 0.060000, loadPressure: 0.546667 } },
   807: { category: 'sigma', factoryName: 'createSigmaBloomCrown', archetypeTag: 'amplifier', metrics: { synergy: 0.840000, harmony: 0.840000, stability: 0.850000, corruption: 0.080000, loadPressure: 0.620000 } },
-  // Mythic (9xx)
+  // Mythic (9xx) vybavene všetky su brutal
   901: { category: 'mythic', factoryName: 'createMythicShardClusterNode', archetypeTag: 'pressure', metrics: { synergy: 0.780000, harmony: 0.760000, stability: 0.700000, corruption: 0.020000, loadPressure: 0.420000 } },
   902: { category: 'mythic', factoryName: 'createMythicBrokenMonolithNode', archetypeTag: 'amplifier', metrics: { synergy: 0.806667, harmony: 0.790000, stability: 0.730000, corruption: 0.028333, loadPressure: 0.453333 } },
   903: { category: 'mythic', factoryName: 'createMythicFloatingFragmentsNode', archetypeTag: 'harmonizer', metrics: { synergy: 0.833333, harmony: 0.820000, stability: 0.760000, corruption: 0.036667, loadPressure: 0.486667 } },
@@ -121,7 +121,7 @@ export const NODE_VISUAL_REGISTRY = {
   1105: { category: 'error', factoryName: 'createErrorTopologyTearNode', archetypeTag: 'harmonizer', metrics: { synergy: 0.163333, harmony: 0.163333, stability: 0.300000, corruption: 0.873333, loadPressure: 0.793333 } },
   1106: { category: 'error', factoryName: 'createErrorCorruptedManifoldNode', archetypeTag: 'stabilizer', metrics: { synergy: 0.191667, harmony: 0.191667, stability: 0.330000, corruption: 0.896667, loadPressure: 0.836667 } },
   1108: { category: 'error', factoryName: 'createErrorNodeStyled_v2', archetypeTag: 'amplifier', metrics: { synergy: 0.220000, harmony: 0.220000, stability: 0.360000, corruption: 0.920000, loadPressure: 0.880000 } },
-  // Emotional (12xx)
+  // Emotional (12xx) tu je tiež hotovo
   1201: { category: 'emotional', factoryName: 'createEmotionalHeartCrystal', archetypeTag: 'stabilizer', metrics: { synergy: 0.600000, harmony: 0.340000, stability: 0.340000, corruption: 0.120000, loadPressure: 0.420000 } },
   1202: { category: 'emotional', factoryName: 'createEmotionalNeuralLobe', archetypeTag: 'pressure', metrics: { synergy: 0.636667, harmony: 0.393333, stability: 0.376667, corruption: 0.146667, loadPressure: 0.463333 } },
   1203: { category: 'emotional', factoryName: 'createEmotionalBloomingGem', archetypeTag: 'risky', metrics: { synergy: 0.673333, harmony: 0.446667, stability: 0.413333, corruption: 0.173333, loadPressure: 0.506667 } },

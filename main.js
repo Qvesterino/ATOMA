@@ -1342,8 +1342,10 @@ import { AIEmotionalFeed3_1 } from './_AIEmotionalFeed3_1.js';
 // ============================================================================
 // ATOMA UI 3.3 - Selected Node Identity + Safe Unlinking System
 // ============================================================================
-import { UISelectedNodeLabel3_3 } from './_UISelectedNodeLabel3_3.js';
-import { SafeNodeUnlinking3_3 } from './_SafeNodeUnlinking3_3.js';
+// REMOVED: UISelectedNodeLabel3_3 - moved to LEGACY (2026-04-03)
+// import { UISelectedNodeLabel3_3 } from './_UISelectedNodeLabel3_3.js';
+// REMOVED: SafeNodeUnlinking3_3 - moved to LEGACY (2026-04-03)
+// import { SafeNodeUnlinking3_3 } from './_SafeNodeUnlinking3_3.js';
 
 // ============================================================================
 // ATOMA UI 3.4–3.7 - ACTIVE SYSTEMS (Core Selection + Primary Node Linking)
@@ -5754,8 +5756,7 @@ this.setHudDirty('nodeInspect');
         this.selectedNodeHighlight = null; // Pulsing highlight shader
         this.selectedNodeLabel = null;    // Floating label above node
 
-        // ATOMA UI 3.3 - Safe Unlinking
-        // ========================================================================
+        // REMOVED: ATOMA UI 3.3 - Safe Unlinking - moved to LEGACY (2026-04-03)
         // (SafeNodeUnlinking3_3 is static, no instance needed)
 
         // ATOMA UI 3.4 - Core Selection Rewrite
@@ -14095,10 +14096,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * Setup Selected Node Label 3.3
      * Floating label above selected node showing [SELECTED] code
      */
+    // REMOVED: setupSelectedNodeLabel - moved to LEGACY (2026-04-03)
     setupSelectedNodeLabel() {
-        this.selectedNodeLabel = new UISelectedNodeLabel3_3(this.scene, this.camera);
-
-        console.log('✓ Selected Node Label 3.3 initialized (floating above node)');
+        // this.selectedNodeLabel = new UISelectedNodeLabel3_3(this.scene, this.camera);
+        // console.log('✓ Selected Node Label 3.3 initialized (floating above node)');
+        this.selectedNodeLabel = null;
+        console.log('⊘ Selected Node Label 3.3 DISABLED (moved to LEGACY)');
     }
 
     /**

@@ -107,6 +107,8 @@ export class SafeLegendaryWorldEvents {
     this.animationTime = 0;
     this.interpretationAccumulator = this.config.eventInterpretationInterval; // prime first tick
     this.pendingEvaluation = false; // explicit triggers can flip this to force evaluation before the interval
+    this.metricBus = this._resolveMetricBus();
+    this._setupMetricTriggers();
   }
   
   /**
@@ -929,6 +931,48 @@ export class SafeLegendaryWorldEvents {
         this.vfxContainer.distortionQuads.length = 0;
       }
     }
+  }
+
+  _resolveMetricBus() {
+    if (globalThis?.ATOMA_BUS || globalThis?.semanticBus) {
+      return globalThis.ATOMA_BUS || globalThis.semanticBus || null;
+    }
+
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    return browserWindow?.ATOMA_BUS || browserWindow?.semanticBus || null;
+  }
+
+  _setupMetricTriggers() {
+    this._subscribeMetricTag('global.synergy.high', () => this._triggerMetricMappedEvent('COSMIC_PULSE'));
+    this._subscribeMetricTag('global.harmony.high', () => this._triggerMetricMappedEvent('AURORA_STATE'));
+    this._subscribeMetricTag('global.corruption.high', () => this._triggerMetricMappedEvent('SIGMA_INVASION'));
+    this._subscribeMetricTag('global.stability.high', () => this._triggerMetricMappedEvent('QUANTUM_ECLIPSE'));
+    this._subscribeMetricTag('global.loadPressure.high', () => this._triggerMetricMappedEvent('FRACTAL_STORM'));
+    this._subscribeMetricTag('global.synergy.mid', () => {
+      this.pendingEvaluation = true;
+    });
+    this._subscribeMetricTag('global.harmony.mid', () => {
+      this.pendingEvaluation = true;
+    });
+  }
+
+  _subscribeMetricTag(eventName, handler) {
+    const bus = this.metricBus;
+    if (!bus || !eventName || typeof handler !== 'function') return;
+
+    if (typeof bus.on === 'function') {
+      bus.on(eventName, handler);
+      return;
+    }
+
+    if (typeof bus.subscribe === 'function') {
+      bus.subscribe(eventName, handler);
+    }
+  }
+
+  _triggerMetricMappedEvent(eventType) {
+    if (this.registry.activeEvent || !eventType) return;
+    this.forceEvent(eventType);
   }
 }
 

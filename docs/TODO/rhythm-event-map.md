@@ -219,3 +219,32 @@ MythicRitualController tie eventy spotrebuje a spustí vizuály + optional seman
 TemporalEventEffects do update(…, temporalEvents) nech príjma počasove keys.
 _NodeMicroEvents je dobré eventy do HUD:
 this.semanticBus?.emit('node.microevent', {nodeId, eventName})
+
+## Implemented Patch Map
+
+| Nazov subor | Efekt | Event metric tag |
+|---|---|---|
+| MetricReactiveWorldEvents.js | UnityPulse | global.synergy.high |
+| MetricReactiveWorldEvents.js | CoherenceWave | global.synergy.mid |
+| MetricReactiveWorldEvents.js | HarmonicAscension | global.harmony.high |
+| MetricReactiveWorldEvents.js | CalmBloom | global.harmony.mid |
+| MetricReactiveWorldEvents.js | ShadowFlicker / UmbraEcho | global.corruption.mid / global.corruption.high |
+| MetricReactiveWorldEvents.js | OverlinkGlow / NetworkSurge | global.loadPressure.mid / global.loadPressure.high |
+| Phase8RitualVisualOrchestration.js | PRE_RITUAL / RITUAL_ACTIVE modulation | global.synergy.high, global.synergy.mid, global.harmony.high, global.harmony.mid, global.stability.high, global.loadPressure.high |
+| NetworkRituals_v1.js | ritual lifecycle bridge | ritual:start, ritual:progress, ritual:complete, ritual:abort, global.synergy.mid/high, global.harmony.mid/high, global.stability.high, global.loadPressure.high |
+| _SafeLegendaryWorldEvents.js | COSMIC_PULSE | global.synergy.high |
+| _SafeLegendaryWorldEvents.js | AURORA_STATE | global.harmony.high |
+| _SafeLegendaryWorldEvents.js | SIGMA_INVASION | global.corruption.high |
+| _SafeLegendaryWorldEvents.js | QUANTUM_ECLIPSE | global.stability.high |
+| _SafeLegendaryWorldEvents.js | FRACTAL_STORM | global.loadPressure.high |
+| TemporalEventEffects.js | triggerEpochShift | global.harmony.mid, global.loadPressure.high |
+| TemporalEventEffects.js | triggerAeonPulse | global.synergy.high, global.stability.high |
+| MythicRitualController.js | Ascension / HarmonyConvergence | global.harmony.high |
+| MythicRitualController.js | QuantumFissure | global.stability.high |
+| MythicRitualController.js | MythicSignal | global.synergy.high |
+| MythicRitualController.js | EchoRitual | global.synergy.mid, global.harmony.mid |
+| _NodeMicroEvents.js | harmony_ring / clarity_spark / core_overpulse / jitter_burst | node.harmony.high, node.synergy.high, node.loadPressure.high, node.stability.high |
+| _NodeMicroEvents.js | spontaneous micro event log | node.microevent |
+| RitualVisualOrchestrator.js | modifier amplification / damping | global.synergy.high, global.harmony.high, global.loadPressure.high |
+| EnvironmentalHazards.js | hazard intensity modulation | global.corruption.high, global.loadPressure.high, global.stability.low, global.stability.high |
+| EnvironmentalHazards.js | hazard activation broadcast | environment.hazard.active |

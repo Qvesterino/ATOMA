@@ -57,6 +57,7 @@ export class NodeMicroEvents {
   constructor(scene, camera) {
     this.scene = scene;
     this.camera = camera;
+    this.metricBus = this._resolveMetricBus();
     
     // Timing control (15Hz default = ~67ms)
     this.lastUpdateTime = 0;
@@ -212,6 +213,12 @@ export class NodeMicroEvents {
     
     // Execute event
     this.executeEvent(node, eventName);
+    this._emitEvent('node.microevent', {
+      nodeId: node.userData?.nodeId || node.id || node.uuid,
+      eventName,
+      personality,
+      source: 'NodeMicroEvents'
+    });
     
     // Log event
     this.logEvent(node, eventName);
@@ -640,24 +647,44 @@ export class NodeMicroEvents {
 
     // High stability: jitter burst
     if (stability > 0.6) {
+      this._emitEvent('node.stability.high', {
+        nodeId: node.userData?.nodeId || node.id || node.uuid,
+        value: stability,
+        source: 'NodeMicroEvents'
+      });
       this.createJitterBurst(node);
       this.logEvent(node, 'jitter_burst');
     }
     
     // High harmony: glowing resonance ring
     if (harmony > 0.7) {
+      this._emitEvent('node.harmony.high', {
+        nodeId: node.userData?.nodeId || node.id || node.uuid,
+        value: harmony,
+        source: 'NodeMicroEvents'
+      });
       this.createHarmonyRing(node);
       this.logEvent(node, 'harmony_ring');
     }
     
     // High clarity: glyph spark
     if (synergy > 0.8) {
+      this._emitEvent('node.synergy.high', {
+        nodeId: node.userData?.nodeId || node.id || node.uuid,
+        value: synergy,
+        source: 'NodeMicroEvents'
+      });
       this.createClaritySpark(node);
       this.logEvent(node, 'clarity_spark');
     }
     
     // High energy: core overpulse
     if (loadPressure > 0.8) {
+      this._emitEvent('node.loadPressure.high', {
+        nodeId: node.userData?.nodeId || node.id || node.uuid,
+        value: loadPressure,
+        source: 'NodeMicroEvents'
+      });
       this.createCorePulse(node);
       this.logEvent(node, 'core_overpulse');
     }
@@ -1102,5 +1129,28 @@ export class NodeMicroEvents {
    */
   getEventLog(node) {
     return node.userData?.eventLog || [];
+  }
+
+  _resolveMetricBus() {
+    if (globalThis?.ATOMA_BUS || globalThis?.semanticBus) {
+      return globalThis.ATOMA_BUS || globalThis.semanticBus || null;
+    }
+
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    return browserWindow?.ATOMA_BUS || browserWindow?.semanticBus || null;
+  }
+
+  _emitEvent(eventName, payload) {
+    const bus = this.metricBus;
+    if (!bus || !eventName) return;
+
+    if (typeof bus.emit === 'function') {
+      bus.emit(eventName, payload);
+      return;
+    }
+
+    if (typeof bus.publish === 'function') {
+      bus.publish(eventName, payload);
+    }
   }
 }

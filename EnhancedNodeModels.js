@@ -114,6 +114,38 @@ const MYTHIC_ORACULAR_PRISM_CACHE = {
   haloGeometry: null
 };
 const MYTHIC_ORACULAR_PRISM_MATERIALS = new Map(); // keyed by color hex
+const MYTHIC_ABSENT_CORE_SANCTUM_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  voidGeometry: null,
+  shardGeometry: null,
+  shardEdgesGeometry: null,
+  seedGeometry: null,
+  terraceGeometry: null,
+  terraceEdgesGeometry: null,
+  braceGeometry: null,
+  braceEdgesGeometry: null,
+  dustGeometry: null,
+  haloGeometry: null
+};
+const MYTHIC_ABSENT_CORE_SANCTUM_MATERIALS = new Map(); // keyed by color hex
+const MYTHIC_COLLAPSED_CROWN_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  seamGeometry: null,
+  seedGeometry: null,
+  tineGeometry: null,
+  tineEdgesGeometry: null,
+  crescentGeometry: null,
+  crescentEdgesGeometry: null,
+  braceGeometry: null,
+  braceEdgesGeometry: null,
+  remnantGeometry: null,
+  remnantEdgesGeometry: null,
+  dustGeometry: null,
+  haloGeometry: null
+};
+const MYTHIC_COLLAPSED_CROWN_MATERIALS = new Map(); // keyed by color hex
 
 // ERROR v2 caches
 const ERROR_V2_CACHE = {
@@ -1566,25 +1598,59 @@ function _getMythicOracularPrismGeometries() {
     fissureGeometry.computeBoundingSphere();
     MYTHIC_ORACULAR_PRISM_CACHE.fissureGeometry = fissureGeometry;
 
-    const cageGeometry = new THREE.CylinderGeometry(0.3, 0.34, 1.18, 6, 5, false);
-    const cagePos = cageGeometry.attributes.position;
-    for (let i = 0; i < cagePos.count; i++) {
-      const x = cagePos.getX(i);
-      const y = cagePos.getY(i);
-      const z = cagePos.getZ(i);
-      const yNorm = (y + 0.59) / 1.18;
-      cagePos.setXYZ(
-        i,
-        x * (0.92 + yNorm * 0.1) + z * 0.06,
-        y * 1.16 + Math.sign(y || 1) * 0.04,
-        z * (0.84 + yNorm * 0.08) - x * 0.08
-      );
-    }
-    cagePos.needsUpdate = true;
-    cageGeometry.computeVertexNormals();
-    cageGeometry.computeBoundingSphere();
-    MYTHIC_ORACULAR_PRISM_CACHE.cageGeometry = cageGeometry;
-    MYTHIC_ORACULAR_PRISM_CACHE.cageEdgesGeometry = safeCreateEdgesGeometry(cageGeometry, 10);
+    const cagePositions = [];
+    const addSegment = (ax, ay, az, bx, by, bz) => {
+      cagePositions.push(ax, ay, az, bx, by, bz);
+    };
+    const addPath = (points) => {
+      for (let i = 0; i < points.length - 1; i++) {
+        addSegment(
+          points[i][0], points[i][1], points[i][2],
+          points[i + 1][0], points[i + 1][1], points[i + 1][2]
+        );
+      }
+    };
+
+    // Open sacred sutures replace the readable hex cage.
+    addPath([
+      [-0.26, -0.02, 0.16],
+      [-0.18, 0.12, 0.1],
+      [-0.06, 0.34, 0.04],
+      [0.02, 0.58, -0.02]
+    ]);
+    addPath([
+      [0.08, 0.04, -0.12],
+      [0.18, 0.2, -0.08],
+      [0.24, 0.42, -0.02],
+      [0.18, 0.66, 0.1]
+    ]);
+    addPath([
+      [-0.12, 0.24, 0.18],
+      [0.02, 0.34, 0.12],
+      [0.18, 0.5, 0.08],
+      [0.28, 0.72, 0.02]
+    ]);
+
+    // Two short reliquary braces cluster near the upper shrine area only.
+    addPath([
+      [-0.3, 0.36, -0.02],
+      [-0.2, 0.46, -0.06],
+      [-0.12, 0.58, 0.02]
+    ]);
+    addPath([
+      [0.06, 0.3, 0.2],
+      [0.18, 0.42, 0.12],
+      [0.26, 0.56, 0.04]
+    ]);
+
+    // Partial aperture chord lives close to the fissure, not around the full prism.
+    addSegment(-0.06, 0.18, 0.11, 0.12, 0.28, -0.02);
+
+    const cageEdgesGeometry = new THREE.BufferGeometry();
+    cageEdgesGeometry.setAttribute('position', new THREE.Float32BufferAttribute(cagePositions, 3));
+    cageEdgesGeometry.computeBoundingSphere();
+    MYTHIC_ORACULAR_PRISM_CACHE.cageGeometry = cageEdgesGeometry;
+    MYTHIC_ORACULAR_PRISM_CACHE.cageEdgesGeometry = cageEdgesGeometry;
 
     const planeGeometry = new THREE.BoxGeometry(0.4, 1.1, 0.1, 1, 5, 1);
     const planePos = planeGeometry.attributes.position;
@@ -1695,7 +1761,7 @@ function _getMythicOracularPrismMaterials(color) {
   const cageMat = new THREE.LineBasicMaterial({
     color: paleSanctum.clone().lerp(spectral, 0.14),
     transparent: true,
-    opacity: 0.68,
+    opacity: 0.26,
     depthWrite: false
   });
 
@@ -1728,7 +1794,7 @@ function _getMythicOracularPrismMaterials(color) {
   const planeEdgeMat = new THREE.LineBasicMaterial({
     color: paleSanctum.clone().lerp(spectral, 0.18),
     transparent: true,
-    opacity: 0.34,
+    opacity: 0.24,
     depthWrite: false
   });
 
@@ -1791,6 +1857,580 @@ function _getMythicOracularPrismMaterials(color) {
   }
 
   MYTHIC_ORACULAR_PRISM_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+function _getMythicAbsentCoreSanctumGeometries() {
+  if (!MYTHIC_ABSENT_CORE_SANCTUM_CACHE.coreGeometry) {
+    const coreGeometry = new THREE.DodecahedronGeometry(0.36, 0);
+    const corePos = coreGeometry.attributes.position;
+    for (let i = 0; i < corePos.count; i++) {
+      const x = corePos.getX(i);
+      const y = corePos.getY(i);
+      const z = corePos.getZ(i);
+      const carve = x > 0.08 && y > -0.06 && z > -0.12;
+      const yNorm = (y + 0.36) / 0.72;
+      const taper = 0.92 + yNorm * 0.14;
+      corePos.setXYZ(
+        i,
+        carve ? x * 0.26 + 0.04 : x * taper + z * 0.05,
+        carve ? y * 0.22 + 0.08 : y * (1.02 + Math.abs(x) * 0.08),
+        carve ? z * 0.18 + 0.04 : z * (0.9 + yNorm * 0.08) - x * 0.04
+      );
+    }
+    corePos.needsUpdate = true;
+    coreGeometry.computeVertexNormals();
+    coreGeometry.computeBoundingSphere();
+    MYTHIC_ABSENT_CORE_SANCTUM_CACHE.coreGeometry = coreGeometry;
+    MYTHIC_ABSENT_CORE_SANCTUM_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 10);
+
+    const voidGeometry = new THREE.BoxGeometry(0.16, 0.3, 0.22, 1, 1, 1);
+    const voidPos = voidGeometry.attributes.position;
+    for (let i = 0; i < voidPos.count; i++) {
+      const x = voidPos.getX(i);
+      const y = voidPos.getY(i);
+      const z = voidPos.getZ(i);
+      voidPos.setXYZ(
+        i,
+        x * (0.56 + Math.abs(y) * 0.78) + Math.sin(y * 6.2) * 0.018,
+        y * 0.96 + Math.abs(x) * 0.04,
+        z * (0.82 + Math.max(0, y) * 0.26) - x * 0.12
+      );
+    }
+    voidPos.needsUpdate = true;
+    voidGeometry.computeVertexNormals();
+    voidGeometry.computeBoundingSphere();
+    MYTHIC_ABSENT_CORE_SANCTUM_CACHE.voidGeometry = voidGeometry;
+
+    const shardGeometry = new THREE.TetrahedronGeometry(0.18, 0);
+    const shardPos = shardGeometry.attributes.position;
+    for (let i = 0; i < shardPos.count; i++) {
+      const x = shardPos.getX(i);
+      const y = shardPos.getY(i);
+      const z = shardPos.getZ(i);
+      shardPos.setXYZ(
+        i,
+        x * (0.68 + Math.max(0, y) * 0.9),
+        y * 1.18 + Math.abs(z) * 0.08,
+        z * 0.62 - x * 0.14
+      );
+    }
+    shardPos.needsUpdate = true;
+    shardGeometry.computeVertexNormals();
+    shardGeometry.computeBoundingSphere();
+    MYTHIC_ABSENT_CORE_SANCTUM_CACHE.shardGeometry = shardGeometry;
+    MYTHIC_ABSENT_CORE_SANCTUM_CACHE.shardEdgesGeometry = safeCreateEdgesGeometry(shardGeometry, 12);
+
+    const seedGeometry = new THREE.OctahedronGeometry(0.08, 0);
+    seedGeometry.scale(0.82, 1.22, 0.74);
+    seedGeometry.rotateZ(Math.PI * 0.18);
+    seedGeometry.computeBoundingSphere();
+    MYTHIC_ABSENT_CORE_SANCTUM_CACHE.seedGeometry = seedGeometry;
+
+    const terraceGeometry = new THREE.CylinderGeometry(0.54, 0.64, 0.11, 7, 1, false);
+    const terracePos = terraceGeometry.attributes.position;
+    for (let i = 0; i < terracePos.count; i++) {
+      const x = terracePos.getX(i);
+      const y = terracePos.getY(i);
+      const z = terracePos.getZ(i);
+      const angleBias = Math.atan2(z, x);
+      const frontCut = Math.cos(angleBias - 0.6) > 0.55 ? 0.72 : 1.0;
+      terracePos.setXYZ(
+        i,
+        x * frontCut + z * 0.05,
+        y * (1.0 + Math.abs(x) * 0.08),
+        z * (0.84 + Math.abs(x) * 0.06) - x * 0.06
+      );
+    }
+    terracePos.needsUpdate = true;
+    terraceGeometry.computeVertexNormals();
+    terraceGeometry.computeBoundingSphere();
+    MYTHIC_ABSENT_CORE_SANCTUM_CACHE.terraceGeometry = terraceGeometry;
+    MYTHIC_ABSENT_CORE_SANCTUM_CACHE.terraceEdgesGeometry = safeCreateEdgesGeometry(terraceGeometry, 10);
+
+    const braceCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.46, -0.22, 0.14),
+      new THREE.Vector3(-0.32, -0.02, 0.22),
+      new THREE.Vector3(-0.14, 0.22, 0.18),
+      new THREE.Vector3(0.02, 0.48, 0.08),
+      new THREE.Vector3(0.16, 0.72, -0.02)
+    ]);
+    const braceGeometry = new THREE.TubeGeometry(braceCurve, 28, 0.018, 5, false);
+    braceGeometry.computeBoundingSphere();
+    MYTHIC_ABSENT_CORE_SANCTUM_CACHE.braceGeometry = braceGeometry;
+    MYTHIC_ABSENT_CORE_SANCTUM_CACHE.braceEdgesGeometry = safeCreateEdgesGeometry(braceGeometry, 16);
+
+    const dustPositions = [];
+    const dustCount = 34;
+    for (let i = 0; i < dustCount; i++) {
+      const t = i / dustCount;
+      const angle = t * Math.PI * 2.12;
+      const radius = 0.44 + Math.sin(i * 1.18) * 0.1 + t * 0.3;
+      dustPositions.push(
+        Math.cos(angle) * radius * 0.76,
+        -0.18 + t * 1.1 + Math.sin(i * 0.92) * 0.08,
+        Math.sin(angle) * radius * 0.48
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    MYTHIC_ABSENT_CORE_SANCTUM_CACHE.dustGeometry = dustGeometry;
+
+    const haloPositions = [];
+    const haloCount = 22;
+    for (let i = 0; i < haloCount; i++) {
+      const t = i / (haloCount - 1);
+      const angle = -Math.PI * 0.18 + t * Math.PI * 1.36;
+      haloPositions.push(
+        Math.cos(angle) * 0.78,
+        0.14 + Math.sin(angle * 1.24) * 0.18,
+        Math.sin(angle) * 0.46
+      );
+    }
+    const haloGeometry = new THREE.BufferGeometry();
+    haloGeometry.setAttribute('position', new THREE.Float32BufferAttribute(haloPositions, 3));
+    haloGeometry.computeBoundingSphere();
+    MYTHIC_ABSENT_CORE_SANCTUM_CACHE.haloGeometry = haloGeometry;
+  }
+
+  return MYTHIC_ABSENT_CORE_SANCTUM_CACHE;
+}
+
+function _getMythicAbsentCoreSanctumMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xffdd00;
+  if (MYTHIC_ABSENT_CORE_SANCTUM_MATERIALS.has(colorHex)) {
+    return MYTHIC_ABSENT_CORE_SANCTUM_MATERIALS.get(colorHex);
+  }
+
+  const mythicColor = new THREE.Color(colorHex);
+  const relicBronze = mythicColor.clone().lerp(new THREE.Color(0x66461f), 0.34);
+  const sanctumIvory = new THREE.Color(0xfff1d6).lerp(mythicColor, 0.1);
+  const spectral = new THREE.Color(0xe1f8ff);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: mythicColor.clone().lerp(new THREE.Color(0xffffff), 0.08),
+    metalness: 0.7,
+    roughness: 0.18,
+    emissive: mythicColor,
+    emissiveIntensity: 0.34,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: sanctumIvory.clone().lerp(spectral, 0.1),
+    transparent: true,
+    opacity: 0.66,
+    depthWrite: false
+  });
+
+  const voidMat = new THREE.MeshBasicMaterial({
+    color: 0x08070c,
+    transparent: true,
+    opacity: 0.92,
+    depthWrite: false
+  });
+
+  const shardMat = new THREE.MeshStandardMaterial({
+    color: relicBronze.clone().lerp(sanctumIvory, 0.18),
+    metalness: 0.58,
+    roughness: 0.28,
+    emissive: mythicColor,
+    emissiveIntensity: 0.12,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seedMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0x110d10),
+    metalness: 0.3,
+    roughness: 0.42,
+    emissive: spectral.clone().multiplyScalar(0.18),
+    emissiveIntensity: 0.24,
+    transparent: true,
+    opacity: 0.92,
+    depthWrite: false,
+    depthTest: true
+  });
+
+  const terraceMatA = new THREE.MeshStandardMaterial({
+    color: relicBronze.clone().lerp(mythicColor, 0.1),
+    metalness: 0.52,
+    roughness: 0.34,
+    emissive: mythicColor,
+    emissiveIntensity: 0.12,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const terraceMatB = new THREE.MeshStandardMaterial({
+    color: relicBronze.clone().lerp(new THREE.Color(0x3b2511), 0.16),
+    metalness: 0.48,
+    roughness: 0.38,
+    emissive: mythicColor,
+    emissiveIntensity: 0.09,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const braceMat = new THREE.MeshBasicMaterial({
+    color: sanctumIvory.clone().lerp(mythicColor, 0.16),
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false
+  });
+
+  const braceEdgeMat = new THREE.LineBasicMaterial({
+    color: spectral.clone().lerp(sanctumIvory, 0.28),
+    transparent: true,
+    opacity: 0.28,
+    depthWrite: false
+  });
+
+  const dustMat = new THREE.PointsMaterial({
+    color: sanctumIvory,
+    size: 0.046,
+    transparent: true,
+    opacity: 0.68,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const haloMat = new THREE.PointsMaterial({
+    color: spectral.clone().lerp(sanctumIvory, 0.22),
+    size: 0.042,
+    transparent: true,
+    opacity: 0.48,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const mats = {
+    coreMat,
+    edgeMat,
+    voidMat,
+    shardMat,
+    seedMat,
+    terraceMatA,
+    terraceMatB,
+    braceMat,
+    braceEdgeMat,
+    dustMat,
+    haloMat
+  };
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+  }
+
+  MYTHIC_ABSENT_CORE_SANCTUM_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+function _getMythicCollapsedCrownGeometries() {
+  if (!MYTHIC_COLLAPSED_CROWN_CACHE.coreGeometry) {
+    const coreGeometry = new THREE.DodecahedronGeometry(0.24, 0);
+    const corePos = coreGeometry.attributes.position;
+    for (let i = 0; i < corePos.count; i++) {
+      const x = corePos.getX(i);
+      const y = corePos.getY(i);
+      const z = corePos.getZ(i);
+      const inwardPress = z > 0.02 ? 0.74 : 1.0;
+      corePos.setXYZ(
+        i,
+        x * (0.94 + Math.max(0, y) * 0.18) + z * -0.06,
+        y * (1.02 + Math.abs(x) * 0.12) - Math.max(0, z) * 0.04,
+        z * (0.78 + Math.abs(x) * 0.08) * inwardPress - x * 0.04
+      );
+    }
+    corePos.needsUpdate = true;
+    coreGeometry.computeVertexNormals();
+    coreGeometry.computeBoundingSphere();
+    MYTHIC_COLLAPSED_CROWN_CACHE.coreGeometry = coreGeometry;
+    MYTHIC_COLLAPSED_CROWN_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 10);
+
+    const seamGeometry = new THREE.BoxGeometry(0.1, 0.34, 0.16, 1, 1, 1);
+    const seamPos = seamGeometry.attributes.position;
+    for (let i = 0; i < seamPos.count; i++) {
+      const x = seamPos.getX(i);
+      const y = seamPos.getY(i);
+      const z = seamPos.getZ(i);
+      seamPos.setXYZ(
+        i,
+        x * (0.48 + Math.abs(y) * 0.7) + Math.sin(y * 5.2) * 0.016,
+        y * 0.94 + Math.abs(x) * 0.03,
+        z * (0.76 + Math.max(0, y) * 0.22) - x * 0.18
+      );
+    }
+    seamPos.needsUpdate = true;
+    seamGeometry.computeVertexNormals();
+    seamGeometry.computeBoundingSphere();
+    MYTHIC_COLLAPSED_CROWN_CACHE.seamGeometry = seamGeometry;
+
+    const seedGeometry = new THREE.OctahedronGeometry(0.074, 0);
+    seedGeometry.scale(0.84, 1.24, 0.72);
+    seedGeometry.rotateZ(Math.PI * 0.16);
+    seedGeometry.computeBoundingSphere();
+    MYTHIC_COLLAPSED_CROWN_CACHE.seedGeometry = seedGeometry;
+
+    const tineGeometry = new THREE.CylinderGeometry(0.028, 0.11, 0.74, 5, 4, false);
+    const tinePos = tineGeometry.attributes.position;
+    for (let i = 0; i < tinePos.count; i++) {
+      const x = tinePos.getX(i);
+      const y = tinePos.getY(i);
+      const z = tinePos.getZ(i);
+      const yNorm = (y + 0.37) / 0.74;
+      const flare = 0.34 + yNorm * 1.08;
+      tinePos.setXYZ(
+        i,
+        x * flare + Math.sin(yNorm * Math.PI) * 0.04,
+        y * 1.08,
+        z * (0.2 + yNorm * 0.34) - Math.cos(yNorm * Math.PI) * 0.03
+      );
+    }
+    tinePos.needsUpdate = true;
+    tineGeometry.translate(0, 0.24, 0);
+    tineGeometry.computeVertexNormals();
+    tineGeometry.computeBoundingSphere();
+    MYTHIC_COLLAPSED_CROWN_CACHE.tineGeometry = tineGeometry;
+    MYTHIC_COLLAPSED_CROWN_CACHE.tineEdgesGeometry = safeCreateEdgesGeometry(tineGeometry, 14);
+
+    const crescentCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.54, -0.16, 0.08),
+      new THREE.Vector3(-0.34, -0.02, 0.18),
+      new THREE.Vector3(-0.08, 0.06, 0.2),
+      new THREE.Vector3(0.18, 0.0, 0.12),
+      new THREE.Vector3(0.38, -0.1, -0.02)
+    ]);
+    const crescentGeometry = new THREE.TubeGeometry(crescentCurve, 32, 0.03, 5, false);
+    crescentGeometry.computeBoundingSphere();
+    MYTHIC_COLLAPSED_CROWN_CACHE.crescentGeometry = crescentGeometry;
+    MYTHIC_COLLAPSED_CROWN_CACHE.crescentEdgesGeometry = safeCreateEdgesGeometry(crescentGeometry, 18);
+
+    const braceCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.38, -0.24, 0.1),
+      new THREE.Vector3(-0.22, -0.02, 0.08),
+      new THREE.Vector3(-0.06, 0.22, 0.02),
+      new THREE.Vector3(0.06, 0.46, -0.04),
+      new THREE.Vector3(0.14, 0.7, -0.08)
+    ]);
+    const braceGeometry = new THREE.TubeGeometry(braceCurve, 28, 0.016, 5, false);
+    braceGeometry.computeBoundingSphere();
+    MYTHIC_COLLAPSED_CROWN_CACHE.braceGeometry = braceGeometry;
+    MYTHIC_COLLAPSED_CROWN_CACHE.braceEdgesGeometry = safeCreateEdgesGeometry(braceGeometry, 16);
+
+    const remnantGeometry = new THREE.TetrahedronGeometry(0.14, 0);
+    const remnantPos = remnantGeometry.attributes.position;
+    for (let i = 0; i < remnantPos.count; i++) {
+      const x = remnantPos.getX(i);
+      const y = remnantPos.getY(i);
+      const z = remnantPos.getZ(i);
+      remnantPos.setXYZ(
+        i,
+        x * (0.76 + Math.max(0, y) * 0.7),
+        y * 1.12 + Math.abs(z) * 0.06,
+        z * 0.64 - x * 0.12
+      );
+    }
+    remnantPos.needsUpdate = true;
+    remnantGeometry.computeVertexNormals();
+    remnantGeometry.computeBoundingSphere();
+    MYTHIC_COLLAPSED_CROWN_CACHE.remnantGeometry = remnantGeometry;
+    MYTHIC_COLLAPSED_CROWN_CACHE.remnantEdgesGeometry = safeCreateEdgesGeometry(remnantGeometry, 12);
+
+    const dustPositions = [];
+    const dustCount = 30;
+    for (let i = 0; i < dustCount; i++) {
+      const t = i / dustCount;
+      const angle = -Math.PI * 0.4 + t * Math.PI * 1.8;
+      const radius = 0.48 + Math.sin(i * 0.96) * 0.08 + t * 0.18;
+      dustPositions.push(
+        Math.cos(angle) * radius * 0.74,
+        -0.08 + t * 0.96 + Math.sin(i * 1.22) * 0.08,
+        Math.sin(angle) * radius * 0.46
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    MYTHIC_COLLAPSED_CROWN_CACHE.dustGeometry = dustGeometry;
+
+    const haloPositions = [];
+    const haloCount = 24;
+    for (let i = 0; i < haloCount; i++) {
+      const t = i / (haloCount - 1);
+      const angle = -Math.PI * 0.16 + t * Math.PI * 1.24;
+      haloPositions.push(
+        Math.cos(angle) * 0.72,
+        0.12 + Math.sin(angle * 1.18) * 0.22,
+        Math.sin(angle) * 0.42
+      );
+    }
+    const haloGeometry = new THREE.BufferGeometry();
+    haloGeometry.setAttribute('position', new THREE.Float32BufferAttribute(haloPositions, 3));
+    haloGeometry.computeBoundingSphere();
+    MYTHIC_COLLAPSED_CROWN_CACHE.haloGeometry = haloGeometry;
+  }
+
+  return MYTHIC_COLLAPSED_CROWN_CACHE;
+}
+
+function _getMythicCollapsedCrownMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xffdd00;
+  if (MYTHIC_COLLAPSED_CROWN_MATERIALS.has(colorHex)) {
+    return MYTHIC_COLLAPSED_CROWN_MATERIALS.get(colorHex);
+  }
+
+  const mythicColor = new THREE.Color(colorHex);
+  const relicBronze = mythicColor.clone().lerp(new THREE.Color(0x6a4721), 0.32);
+  const sanctumIvory = new THREE.Color(0xfff2d8).lerp(mythicColor, 0.12);
+  const spectral = new THREE.Color(0xdff8ff);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: mythicColor.clone().lerp(new THREE.Color(0xffffff), 0.08),
+    metalness: 0.68,
+    roughness: 0.16,
+    emissive: mythicColor,
+    emissiveIntensity: 0.36,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: sanctumIvory.clone().lerp(spectral, 0.08),
+    transparent: true,
+    opacity: 0.66,
+    depthWrite: false
+  });
+
+  const seamMat = new THREE.MeshBasicMaterial({
+    color: 0x07070c,
+    transparent: true,
+    opacity: 0.94,
+    depthWrite: false
+  });
+
+  const seedMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0x110c0f),
+    metalness: 0.26,
+    roughness: 0.44,
+    emissive: spectral.clone().multiplyScalar(0.2),
+    emissiveIntensity: 0.24,
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false,
+    depthTest: true
+  });
+
+  const tineMatA = new THREE.MeshStandardMaterial({
+    color: relicBronze.clone().lerp(mythicColor, 0.12),
+    metalness: 0.58,
+    roughness: 0.24,
+    emissive: mythicColor,
+    emissiveIntensity: 0.14,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const tineMatB = new THREE.MeshStandardMaterial({
+    color: relicBronze.clone().lerp(new THREE.Color(0x8b6428), 0.18),
+    metalness: 0.56,
+    roughness: 0.28,
+    emissive: mythicColor,
+    emissiveIntensity: 0.12,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const crescentMat = new THREE.MeshBasicMaterial({
+    color: sanctumIvory.clone().lerp(mythicColor, 0.18),
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false
+  });
+
+  const crescentEdgeMat = new THREE.LineBasicMaterial({
+    color: spectral.clone().lerp(sanctumIvory, 0.24),
+    transparent: true,
+    opacity: 0.3,
+    depthWrite: false
+  });
+
+  const braceMat = new THREE.MeshBasicMaterial({
+    color: sanctumIvory.clone().lerp(mythicColor, 0.14),
+    transparent: true,
+    opacity: 0.16,
+    depthWrite: false
+  });
+
+  const braceEdgeMat = new THREE.LineBasicMaterial({
+    color: spectral.clone().lerp(sanctumIvory, 0.3),
+    transparent: true,
+    opacity: 0.26,
+    depthWrite: false
+  });
+
+  const remnantMat = new THREE.MeshBasicMaterial({
+    color: relicBronze.clone().lerp(sanctumIvory, 0.24),
+    transparent: true,
+    opacity: 0.24,
+    depthWrite: false
+  });
+
+  const dustMat = new THREE.PointsMaterial({
+    color: sanctumIvory,
+    size: 0.046,
+    transparent: true,
+    opacity: 0.7,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const haloMat = new THREE.PointsMaterial({
+    color: spectral.clone().lerp(sanctumIvory, 0.22),
+    size: 0.042,
+    transparent: true,
+    opacity: 0.48,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const mats = {
+    coreMat,
+    edgeMat,
+    seamMat,
+    seedMat,
+    tineMatA,
+    tineMatB,
+    crescentMat,
+    crescentEdgeMat,
+    braceMat,
+    braceEdgeMat,
+    remnantMat,
+    dustMat,
+    haloMat
+  };
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+  }
+
+  MYTHIC_COLLAPSED_CROWN_MATERIALS.set(colorHex, mats);
   return mats;
 }
 
@@ -11377,9 +12017,9 @@ static createControlNode0(group, color) {
       const cage = new THREE.LineSegments(geometries.cageEdgesGeometry, materials.cageMat);
       cage.name = 'HardEdgeCage';
       cage.userData.ignoreWaveColor = true;
-      cage.position.copy(coreMesh.position);
+      cage.position.copy(coreMesh.position).add(new THREE.Vector3(0.01, 0.08, 0.02));
       cage.rotation.copy(coreMesh.rotation);
-      cage.scale.copy(coreMesh.scale).multiplyScalar(1.14);
+      cage.scale.copy(coreMesh.scale).multiply(new THREE.Vector3(0.96, 1.02, 0.92));
       cage.renderOrder = archOrder;
       coreGroup.add(cage);
 
@@ -11392,7 +12032,7 @@ static createControlNode0(group, color) {
         { name: 'RefractorPlane_B', pos: [0.24, 0.04, -0.2], rot: [-0.1, 0.92, -0.24], scale: [0.9, 1.0, 0.82], mat: materials.planeMatB },
         { name: 'RefractorPlane_C', pos: [0.02, 0.48, 0.04], rot: [0.26, 0.08, 0.22], scale: [0.78, 0.94, 0.7], mat: materials.planeMatC }
       ];
-      planeConfigs.forEach((cfg) => {
+      planeConfigs.forEach((cfg, idx) => {
         const plane = new THREE.Mesh(geometries.planeGeometry, cfg.mat);
         plane.name = cfg.name;
         plane.userData.ignoreWaveColor = true;
@@ -11402,21 +12042,23 @@ static createControlNode0(group, color) {
         plane.renderOrder = archOrder;
         refractionGroup.add(plane);
 
-        const planeEdges = new THREE.LineSegments(geometries.planeEdgesGeometry, materials.planeEdgeMat);
-        planeEdges.name = `${cfg.name}_Edges`;
-        planeEdges.userData.ignoreWaveColor = true;
-        planeEdges.position.copy(plane.position);
-        planeEdges.rotation.copy(plane.rotation);
-        planeEdges.scale.copy(plane.scale);
-        planeEdges.renderOrder = archOrder;
-        refractionGroup.add(planeEdges);
+        if (idx === 0) {
+          const planeEdges = new THREE.LineSegments(geometries.planeEdgesGeometry, materials.planeEdgeMat);
+          planeEdges.name = `${cfg.name}_Edges`;
+          planeEdges.userData.ignoreWaveColor = true;
+          planeEdges.position.copy(plane.position).add(new THREE.Vector3(-0.02, 0.06, 0.02));
+          planeEdges.rotation.copy(plane.rotation);
+          planeEdges.scale.copy(plane.scale).multiply(new THREE.Vector3(0.98, 0.96, 0.9));
+          planeEdges.renderOrder = archOrder;
+          refractionGroup.add(planeEdges);
+        }
       });
 
       const facetConfigs = [
         { name: 'WitnessFacet_A', pos: [-0.38, 0.64, -0.12], rot: [0.94, -0.12, 0.84], scale: [0.72, 0.9, 0.7] },
         { name: 'WitnessFacet_B', pos: [0.32, 0.82, 0.16], rot: [1.2, 0.34, -0.18], scale: [0.62, 0.82, 0.62] }
       ];
-      facetConfigs.forEach((cfg) => {
+      facetConfigs.forEach((cfg, idx) => {
         const facet = new THREE.Mesh(geometries.facetGeometry, materials.facetMat);
         facet.name = cfg.name;
         facet.userData.ignoreWaveColor = true;
@@ -11426,14 +12068,16 @@ static createControlNode0(group, color) {
         facet.renderOrder = archOrder;
         refractionGroup.add(facet);
 
-        const facetEdges = new THREE.LineSegments(geometries.facetEdgesGeometry, materials.planeEdgeMat);
-        facetEdges.name = `${cfg.name}_Edges`;
-        facetEdges.userData.ignoreWaveColor = true;
-        facetEdges.position.copy(facet.position);
-        facetEdges.rotation.copy(facet.rotation);
-        facetEdges.scale.copy(facet.scale);
-        facetEdges.renderOrder = archOrder;
-        refractionGroup.add(facetEdges);
+        if (idx === 0) {
+          const facetEdges = new THREE.LineSegments(geometries.facetEdgesGeometry, materials.cageMat);
+          facetEdges.name = `${cfg.name}_Edges`;
+          facetEdges.userData.ignoreWaveColor = true;
+          facetEdges.position.copy(facet.position).add(new THREE.Vector3(-0.01, 0.04, 0.0));
+          facetEdges.rotation.copy(facet.rotation);
+          facetEdges.scale.copy(facet.scale).multiplyScalar(0.92);
+          facetEdges.renderOrder = archOrder;
+          refractionGroup.add(facetEdges);
+        }
       });
 
       root.add(refractionGroup);
@@ -11581,11 +12225,512 @@ static createControlNode0(group, color) {
   }
 
   static createMythicAncientCoreWithMissingNode(group, visualCode, color) {
-    return this._createMythicGeometry(group, CanonicalGeometryFamilies.createMythicAncientCoreWithMissing, 'AncientCoreWithMissing');
+    try {
+      const geometries = _getMythicAbsentCoreSanctumGeometries();
+      const materials = _getMythicAbsentCoreSanctumMaterials(color);
+      const root = new THREE.Group();
+      root.name = 'MYTHIC_ABSENT_CORE_SANCTUM_NODE';
+      root.userData.visualVariant = 'MYTHIC_ABSENT_CORE_SANCTUM_V4';
+      root.userData.mythicVariant = 'ABSENT_CORE_SANCTUM';
+      root.userData.nodeGeometryName = 'MYTHIC_ANCIENT_CORE_WITH_MISSING';
+
+      const seed = group?.userData?.nodeId ? hashString(group.userData.nodeId) : (Number.isFinite(visualCode) ? visualCode : 905);
+      const rng = _mythicSeededRng(seed);
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+
+      const coreMesh = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      coreMesh.name = 'AncientCoreNucleus';
+      coreMesh.userData.ignoreWaveColor = true;
+      coreMesh.position.set(0.02, 0.16, -0.02);
+      coreMesh.rotation.set(0.18, -0.38, 0.08);
+      coreMesh.scale.set(1.02, 1.16, 0.96);
+      coreMesh.renderOrder = coreOrder;
+      coreMesh.userData.isCore = true;
+      coreGroup.add(coreMesh);
+
+      const coreEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.edgeMat);
+      coreEdges.name = 'HardEdgeCage';
+      coreEdges.userData.ignoreWaveColor = true;
+      coreEdges.position.copy(coreMesh.position);
+      coreEdges.rotation.copy(coreMesh.rotation);
+      coreEdges.scale.copy(coreMesh.scale);
+      coreEdges.renderOrder = archOrder;
+      coreGroup.add(coreEdges);
+
+      const absenceChamber = new THREE.Mesh(geometries.voidGeometry, materials.voidMat);
+      absenceChamber.name = 'AbsenceChamber';
+      absenceChamber.userData.ignoreWaveColor = true;
+      absenceChamber.position.set(0.18, 0.24, 0.06);
+      absenceChamber.rotation.set(0.24, 0.52, -0.18);
+      absenceChamber.scale.set(1.02, 1.08, 0.92);
+      absenceChamber.renderOrder = archOrder;
+      coreGroup.add(absenceChamber);
+
+      const missingWitness = new THREE.Mesh(geometries.shardGeometry, materials.shardMat);
+      missingWitness.name = 'MissingWitness';
+      missingWitness.userData.ignoreWaveColor = true;
+      missingWitness.position.set(0.44, 0.34, 0.14);
+      missingWitness.rotation.set(0.42 + (rng() - 0.5) * 0.16, 0.92 + (rng() - 0.5) * 0.18, -0.2 + (rng() - 0.5) * 0.14);
+      missingWitness.scale.set(0.94, 1.08, 0.82);
+      missingWitness.renderOrder = archOrder;
+      coreGroup.add(missingWitness);
+
+      const missingWitnessEdges = new THREE.LineSegments(geometries.shardEdgesGeometry, materials.edgeMat);
+      missingWitnessEdges.name = 'MissingWitness_Edges';
+      missingWitnessEdges.userData.ignoreWaveColor = true;
+      missingWitnessEdges.position.copy(missingWitness.position);
+      missingWitnessEdges.rotation.copy(missingWitness.rotation);
+      missingWitnessEdges.scale.copy(missingWitness.scale);
+      missingWitnessEdges.renderOrder = archOrder;
+      coreGroup.add(missingWitnessEdges);
+
+      const sanctumSeed = new THREE.Mesh(geometries.seedGeometry, materials.seedMat);
+      sanctumSeed.name = 'SanctumSeed';
+      sanctumSeed.userData.ignoreWaveColor = true;
+      sanctumSeed.position.set(0.18, 0.48, 0.05);
+      sanctumSeed.rotation.set(-0.34, 0.18, 0.42);
+      sanctumSeed.scale.set(0.92, 1.0, 0.84);
+      sanctumSeed.renderOrder = archOrder;
+      coreGroup.add(sanctumSeed);
+
+      root.add(coreGroup);
+
+      const sanctumGroup = new THREE.Group();
+      sanctumGroup.name = 'SANCTUM_GROUP';
+      const terraceConfigs = [
+        { name: 'SanctumTerrace_A', pos: [-0.04, -0.34, 0.04], rot: [0.04, 0.18, -0.08], scale: [1.14, 1.0, 1.04], mat: materials.terraceMatA },
+        { name: 'SanctumTerrace_B', pos: [0.22, -0.18, -0.08], rot: [-0.08, -0.54, 0.14], scale: [0.78, 0.78, 0.72], mat: materials.terraceMatB },
+        { name: 'SanctumTerrace_C', pos: [-0.34, -0.14, 0.18], rot: [0.12, 0.62, -0.24], scale: [0.7, 0.72, 0.66], mat: materials.terraceMatA }
+      ];
+      terraceConfigs.forEach((cfg, idx) => {
+        const terrace = new THREE.Mesh(geometries.terraceGeometry, cfg.mat);
+        terrace.name = cfg.name;
+        terrace.userData.ignoreWaveColor = true;
+        terrace.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+        terrace.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+        terrace.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+        terrace.renderOrder = coreOrder;
+        sanctumGroup.add(terrace);
+
+        const terraceEdges = new THREE.LineSegments(geometries.terraceEdgesGeometry, materials.edgeMat);
+        terraceEdges.name = `${cfg.name}_Edges`;
+        terraceEdges.userData.ignoreWaveColor = true;
+        terraceEdges.position.copy(terrace.position);
+        terraceEdges.rotation.copy(terrace.rotation);
+        terraceEdges.scale.copy(terrace.scale).multiplyScalar(idx === 0 ? 1.0 : 0.96);
+        terraceEdges.renderOrder = archOrder;
+        sanctumGroup.add(terraceEdges);
+      });
+      root.add(sanctumGroup);
+
+      const stabilizationGroup = new THREE.Group();
+      stabilizationGroup.name = 'STABILIZATION_GROUP';
+      const braceConfigs = [
+        { name: 'RetainingArc_A', pos: [-0.22, -0.02, 0.14], rot: [0.12, -0.44, 0.28], scale: [0.98, 0.96, 0.92] },
+        { name: 'RetainingArc_B', pos: [0.18, -0.04, -0.1], rot: [-0.16, 0.62, -0.22], scale: [0.88, 0.92, 0.84] },
+        { name: 'RetainingArc_C', pos: [-0.06, 0.12, -0.22], rot: [0.94, 0.18, 1.12], scale: [0.74, 0.82, 0.72] },
+        { name: 'RetainingArc_D', pos: [0.08, 0.26, 0.18], rot: [0.6, 1.24, 0.34], scale: [0.62, 0.74, 0.58] }
+      ];
+      braceConfigs.forEach((cfg, idx) => {
+        const brace = new THREE.Mesh(geometries.braceGeometry, materials.braceMat);
+        brace.name = cfg.name;
+        brace.userData.ignoreWaveColor = true;
+        brace.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+        brace.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.06,
+          cfg.rot[1] + (rng() - 0.5) * 0.08,
+          cfg.rot[2] + (rng() - 0.5) * 0.06
+        );
+        brace.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+        brace.renderOrder = archOrder;
+        stabilizationGroup.add(brace);
+
+        const braceEdges = new THREE.LineSegments(geometries.braceEdgesGeometry, materials.braceEdgeMat);
+        braceEdges.name = `${cfg.name}_Edges`;
+        braceEdges.userData.ignoreWaveColor = true;
+        braceEdges.position.copy(brace.position);
+        braceEdges.rotation.copy(brace.rotation);
+        braceEdges.scale.copy(brace.scale);
+        braceEdges.renderOrder = archOrder;
+        stabilizationGroup.add(braceEdges);
+
+        if (idx < 2) {
+          const keystone = new THREE.Mesh(geometries.shardGeometry, materials.shardMat);
+          keystone.name = `StabilityKeystone_${idx}`;
+          keystone.userData.ignoreWaveColor = true;
+          keystone.position.copy(brace.position).add(new THREE.Vector3(-0.04 + idx * 0.12, 0.16 + idx * 0.08, 0.04 - idx * 0.06));
+          keystone.rotation.set(brace.rotation.x + 0.16, brace.rotation.y - 0.12, brace.rotation.z + 0.08);
+          keystone.scale.set(0.36, 0.46, 0.34);
+          keystone.renderOrder = archOrder;
+          stabilizationGroup.add(keystone);
+        }
+      });
+      root.add(stabilizationGroup);
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+
+      const relicDust = new THREE.Points(geometries.dustGeometry, materials.dustMat);
+      relicDust.name = 'RelicDust';
+      relicDust.userData.ignoreWaveColor = true;
+      relicDust.frustumCulled = false;
+      relicDust.renderOrder = archOrder;
+      auraGroup.add(relicDust);
+
+      const haloPoints = new THREE.Points(geometries.haloGeometry, materials.haloMat);
+      haloPoints.name = 'SanctumHaloPoints';
+      haloPoints.userData.ignoreWaveColor = true;
+      haloPoints.frustumCulled = false;
+      haloPoints.renderOrder = archOrder;
+      auraGroup.add(haloPoints);
+
+      const shell1 = createNodeHologramShell(coreMesh, 0xe8f8ff);
+      if (shell1) {
+        shell1.name = 'MythicShell_1';
+        shell1.position.copy(coreMesh.position);
+        shell1.quaternion.copy(coreMesh.quaternion);
+        shell1.scale.copy(coreMesh.scale).multiplyScalar(1.08);
+        shell1.frustumCulled = false;
+        shell1.renderOrder = archOrder;
+        if (shell1.material?.uniforms?.uOpacity) shell1.material.uniforms.uOpacity.value = 0.046;
+        auraGroup.add(shell1);
+      }
+
+      const shell2 = createNodeHologramShell(coreMesh, 0xe8f8ff);
+      if (shell2) {
+        shell2.name = 'MythicShell_2';
+        shell2.position.copy(coreMesh.position);
+        shell2.quaternion.copy(coreMesh.quaternion);
+        shell2.scale.copy(coreMesh.scale).multiplyScalar(1.16);
+        shell2.frustumCulled = false;
+        shell2.renderOrder = archOrder;
+        if (shell2.material?.uniforms?.uOpacity) shell2.material.uniforms.uOpacity.value = 0.03;
+        auraGroup.add(shell2);
+      }
+
+      const edgeGlow = createNodeNeonEdgeGlowShell(coreMesh, 0xdff8ff, {
+        glowIntensity: 0.72,
+        edgeWidth: 0.07,
+        pulseAmount: 0.0
+      });
+      if (edgeGlow) {
+        edgeGlow.name = 'MythicEdgeGlow';
+        edgeGlow.position.copy(coreMesh.position);
+        edgeGlow.quaternion.copy(coreMesh.quaternion);
+        edgeGlow.scale.copy(coreMesh.scale).multiplyScalar(1.01);
+        edgeGlow.frustumCulled = false;
+        edgeGlow.renderOrder = archOrder;
+        auraGroup.add(edgeGlow);
+      }
+
+      root.add(auraGroup);
+
+      root.traverse((o) => {
+        if (o?.isMesh || o?.isPoints || o?.isLine || o?.isLineSegments) {
+          o.userData = o.userData || {};
+          o.userData.ignoreWaveColor = true;
+          const materialRefs = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+          for (const material of materialRefs) {
+            material.userData = {
+              ...(material.userData || {}),
+              wavePatchMode: 'DEFAULT',
+              ignoreWaveColor: true
+            };
+          }
+          validateMeshGeometry(o, o.name || 'mythic-ancient-core-with-missing');
+        }
+      });
+
+      root.userData.visualReady = true;
+      group.userData = group.userData || {};
+      group.userData.visualReady = true;
+      group.userData.nodeGeometryName = 'MYTHIC_ANCIENT_CORE_WITH_MISSING';
+      group.add(root);
+      return group;
+    } catch (err) {
+      console.error('[NodeVisualAbort]', {
+        model: 'createMythicAncientCoreWithMissingNode',
+        category: 'mythic',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
+    }
   }
 
   static createMythicCollapsedCrownNode(group, visualCode, color) {
-    return this._createMythicGeometry(group, CanonicalGeometryFamilies.createMythicCollapsedCrown, 'CollapsedCrown');
+    try {
+      const geometries = _getMythicCollapsedCrownGeometries();
+      const materials = _getMythicCollapsedCrownMaterials(color);
+      const root = new THREE.Group();
+      root.name = 'MYTHIC_COLLAPSED_CROWN_NODE';
+      root.userData.visualVariant = 'MYTHIC_COLLAPSED_CROWN_FALLEN_SOVEREIGN_V4';
+      root.userData.mythicVariant = 'FALLEN_SOVEREIGN_CROWN';
+      root.userData.nodeGeometryName = 'MYTHIC_COLLAPSED_CROWN';
+
+      const seed = group?.userData?.nodeId ? hashString(group.userData.nodeId) : (Number.isFinite(visualCode) ? visualCode : 906);
+      const rng = _mythicSeededRng(seed);
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+
+      const coreMesh = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      coreMesh.name = 'CoronationHeart';
+      coreMesh.userData.ignoreWaveColor = true;
+      coreMesh.position.set(0.02, 0.16, -0.02);
+      coreMesh.rotation.set(0.14, -0.28, 0.1);
+      coreMesh.scale.set(1.0, 1.16, 0.92);
+      coreMesh.renderOrder = coreOrder;
+      coreMesh.userData.isCore = true;
+      coreGroup.add(coreMesh);
+
+      const coreEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.edgeMat);
+      coreEdges.name = 'HardEdgeCage';
+      coreEdges.userData.ignoreWaveColor = true;
+      coreEdges.position.copy(coreMesh.position);
+      coreEdges.rotation.copy(coreMesh.rotation);
+      coreEdges.scale.copy(coreMesh.scale);
+      coreEdges.renderOrder = archOrder;
+      coreGroup.add(coreEdges);
+
+      const voidSeam = new THREE.Mesh(geometries.seamGeometry, materials.seamMat);
+      voidSeam.name = 'ThroneVoidSeam';
+      voidSeam.userData.ignoreWaveColor = true;
+      voidSeam.position.set(0.04, 0.24, 0.06);
+      voidSeam.rotation.set(0.32, 0.64, -0.18);
+      voidSeam.scale.set(0.92, 1.0, 0.88);
+      voidSeam.renderOrder = archOrder;
+      coreGroup.add(voidSeam);
+
+      const sovereignSeed = new THREE.Mesh(geometries.seedGeometry, materials.seedMat);
+      sovereignSeed.name = 'SovereignSeed';
+      sovereignSeed.userData.ignoreWaveColor = true;
+      sovereignSeed.position.set(0.03, 0.36, 0.03);
+      sovereignSeed.rotation.set(-0.28, 0.18, 0.4);
+      sovereignSeed.scale.set(0.92, 1.0, 0.82);
+      sovereignSeed.renderOrder = archOrder;
+      coreGroup.add(sovereignSeed);
+
+      root.add(coreGroup);
+
+      const crownGroup = new THREE.Group();
+      crownGroup.name = 'CROWN_GROUP';
+      const tineConfigs = [
+        { name: 'CrownTine_A', pos: [-0.48, -0.08, 0.12], rot: [0.36, -0.74, 0.72], scale: [0.92, 0.98, 0.86], mat: materials.tineMatA },
+        { name: 'CrownTine_B', pos: [-0.3, 0.06, -0.16], rot: [0.44, 0.24, 0.46], scale: [0.82, 0.92, 0.76], mat: materials.tineMatB },
+        { name: 'CrownTine_C', pos: [-0.06, -0.02, 0.34], rot: [0.52, -1.18, 0.16], scale: [0.72, 0.84, 0.68], mat: materials.tineMatA },
+        { name: 'CrownTine_D', pos: [0.16, 0.02, -0.32], rot: [0.38, 1.1, -0.24], scale: [0.76, 0.88, 0.7], mat: materials.tineMatB },
+        { name: 'CrownTine_E', pos: [0.36, 0.12, 0.08], rot: [0.24, 0.52, -0.54], scale: [0.86, 0.96, 0.8], mat: materials.tineMatA },
+        { name: 'CrownTine_F', pos: [0.5, -0.02, -0.02], rot: [0.08, 0.18, -0.82], scale: [0.92, 1.04, 0.82], mat: materials.tineMatB }
+      ];
+      tineConfigs.forEach((cfg, idx) => {
+        const tine = new THREE.Mesh(geometries.tineGeometry, cfg.mat);
+        tine.name = cfg.name;
+        tine.userData.ignoreWaveColor = true;
+        tine.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+        tine.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.08,
+          cfg.rot[1] + (rng() - 0.5) * 0.1,
+          cfg.rot[2] + (rng() - 0.5) * 0.08
+        );
+        tine.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+        tine.renderOrder = coreOrder;
+        crownGroup.add(tine);
+
+        const tineEdges = new THREE.LineSegments(geometries.tineEdgesGeometry, materials.edgeMat);
+        tineEdges.name = `${cfg.name}_Edges`;
+        tineEdges.userData.ignoreWaveColor = true;
+        tineEdges.position.copy(tine.position);
+        tineEdges.rotation.copy(tine.rotation);
+        tineEdges.scale.copy(tine.scale).multiplyScalar(idx < 2 ? 1.0 : 0.96);
+        tineEdges.renderOrder = archOrder;
+        crownGroup.add(tineEdges);
+      });
+
+      const crescentConfigs = [
+        { name: 'CrownBand_A', pos: [-0.08, -0.18, 0.14], rot: [0.22, -0.18, -0.18], scale: [0.98, 0.96, 0.9] },
+        { name: 'CrownBand_B', pos: [0.1, 0.26, -0.16], rot: [2.86, 0.44, 0.34], scale: [0.72, 0.78, 0.7] }
+      ];
+      crescentConfigs.forEach((cfg, idx) => {
+        const crescent = new THREE.Mesh(geometries.crescentGeometry, materials.crescentMat);
+        crescent.name = cfg.name;
+        crescent.userData.ignoreWaveColor = true;
+        crescent.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+        crescent.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+        crescent.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+        crescent.renderOrder = archOrder;
+        crownGroup.add(crescent);
+
+        const crescentEdges = new THREE.LineSegments(geometries.crescentEdgesGeometry, materials.crescentEdgeMat);
+        crescentEdges.name = `${cfg.name}_Edges`;
+        crescentEdges.userData.ignoreWaveColor = true;
+        crescentEdges.position.copy(crescent.position);
+        crescentEdges.rotation.copy(crescent.rotation);
+        crescentEdges.scale.copy(crescent.scale).multiplyScalar(idx === 0 ? 1.0 : 0.94);
+        crescentEdges.renderOrder = archOrder;
+        crownGroup.add(crescentEdges);
+      });
+
+      const diademRemnant = new THREE.Mesh(geometries.remnantGeometry, materials.remnantMat);
+      diademRemnant.name = 'DiademRemnant';
+      diademRemnant.userData.ignoreWaveColor = true;
+      diademRemnant.position.set(0.1, 0.82, -0.04);
+      diademRemnant.rotation.set(0.58 + (rng() - 0.5) * 0.1, 0.32 + (rng() - 0.5) * 0.12, -0.12 + (rng() - 0.5) * 0.08);
+      diademRemnant.scale.set(0.84, 0.94, 0.76);
+      diademRemnant.renderOrder = archOrder;
+      crownGroup.add(diademRemnant);
+
+      const diademEdges = new THREE.LineSegments(geometries.remnantEdgesGeometry, materials.edgeMat);
+      diademEdges.name = 'DiademRemnant_Edges';
+      diademEdges.userData.ignoreWaveColor = true;
+      diademEdges.position.copy(diademRemnant.position);
+      diademEdges.rotation.copy(diademRemnant.rotation);
+      diademEdges.scale.copy(diademRemnant.scale);
+      diademEdges.renderOrder = archOrder;
+      crownGroup.add(diademEdges);
+
+      root.add(crownGroup);
+
+      const pressureGroup = new THREE.Group();
+      pressureGroup.name = 'PRESSURE_GROUP';
+      const braceConfigs = [
+        { name: 'BurdenRib_A', pos: [-0.22, -0.18, 0.14], rot: [0.08, -0.42, 0.22], scale: [0.96, 0.94, 0.9] },
+        { name: 'BurdenRib_B', pos: [0.22, -0.14, -0.08], rot: [-0.12, 0.66, -0.18], scale: [0.86, 0.9, 0.82] },
+        { name: 'BurdenRib_C', pos: [-0.04, 0.02, -0.24], rot: [0.96, 0.22, 1.06], scale: [0.7, 0.8, 0.68] },
+        { name: 'BurdenRib_D', pos: [0.04, 0.14, 0.18], rot: [0.52, 1.18, 0.28], scale: [0.6, 0.72, 0.58] }
+      ];
+      braceConfigs.forEach((cfg, idx) => {
+        const brace = new THREE.Mesh(geometries.braceGeometry, materials.braceMat);
+        brace.name = cfg.name;
+        brace.userData.ignoreWaveColor = true;
+        brace.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+        brace.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.06,
+          cfg.rot[1] + (rng() - 0.5) * 0.08,
+          cfg.rot[2] + (rng() - 0.5) * 0.06
+        );
+        brace.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+        brace.renderOrder = archOrder;
+        pressureGroup.add(brace);
+
+        const braceEdges = new THREE.LineSegments(geometries.braceEdgesGeometry, materials.braceEdgeMat);
+        braceEdges.name = `${cfg.name}_Edges`;
+        braceEdges.userData.ignoreWaveColor = true;
+        braceEdges.position.copy(brace.position);
+        braceEdges.rotation.copy(brace.rotation);
+        braceEdges.scale.copy(brace.scale);
+        braceEdges.renderOrder = archOrder;
+        pressureGroup.add(braceEdges);
+
+        if (idx < 2) {
+          const burdenShard = new THREE.Mesh(geometries.remnantGeometry, materials.remnantMat);
+          burdenShard.name = `BurdenShard_${idx}`;
+          burdenShard.userData.ignoreWaveColor = true;
+          burdenShard.position.copy(brace.position).add(new THREE.Vector3(0.06 - idx * 0.08, 0.18 + idx * 0.08, -0.04 + idx * 0.06));
+          burdenShard.rotation.set(brace.rotation.x + 0.18, brace.rotation.y - 0.1, brace.rotation.z + 0.12);
+          burdenShard.scale.set(0.32, 0.42, 0.3);
+          burdenShard.renderOrder = archOrder;
+          pressureGroup.add(burdenShard);
+        }
+      });
+
+      root.add(pressureGroup);
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+
+      const runeAsh = new THREE.Points(geometries.dustGeometry, materials.dustMat);
+      runeAsh.name = 'RuneAsh';
+      runeAsh.userData.ignoreWaveColor = true;
+      runeAsh.frustumCulled = false;
+      runeAsh.renderOrder = archOrder;
+      auraGroup.add(runeAsh);
+
+      const haloPoints = new THREE.Points(geometries.haloGeometry, materials.haloMat);
+      haloPoints.name = 'HaloPoints';
+      haloPoints.userData.ignoreWaveColor = true;
+      haloPoints.frustumCulled = false;
+      haloPoints.renderOrder = archOrder;
+      auraGroup.add(haloPoints);
+
+      const shell1 = createNodeHologramShell(coreMesh, 0xe8f8ff);
+      if (shell1) {
+        shell1.name = 'MythicShell_1';
+        shell1.position.copy(coreMesh.position);
+        shell1.quaternion.copy(coreMesh.quaternion);
+        shell1.scale.copy(coreMesh.scale).multiplyScalar(1.1);
+        shell1.frustumCulled = false;
+        shell1.renderOrder = archOrder;
+        if (shell1.material?.uniforms?.uOpacity) shell1.material.uniforms.uOpacity.value = 0.048;
+        auraGroup.add(shell1);
+      }
+
+      const shell2 = createNodeHologramShell(coreMesh, 0xe8f8ff);
+      if (shell2) {
+        shell2.name = 'MythicShell_2';
+        shell2.position.copy(coreMesh.position);
+        shell2.quaternion.copy(coreMesh.quaternion);
+        shell2.scale.copy(coreMesh.scale).multiplyScalar(1.18);
+        shell2.frustumCulled = false;
+        shell2.renderOrder = archOrder;
+        if (shell2.material?.uniforms?.uOpacity) shell2.material.uniforms.uOpacity.value = 0.03;
+        auraGroup.add(shell2);
+      }
+
+      const edgeGlow = createNodeNeonEdgeGlowShell(coreMesh, 0xdff8ff, {
+        glowIntensity: 0.74,
+        edgeWidth: 0.072,
+        pulseAmount: 0.0
+      });
+      if (edgeGlow) {
+        edgeGlow.name = 'MythicEdgeGlow';
+        edgeGlow.position.copy(coreMesh.position);
+        edgeGlow.quaternion.copy(coreMesh.quaternion);
+        edgeGlow.scale.copy(coreMesh.scale).multiplyScalar(1.01);
+        edgeGlow.frustumCulled = false;
+        edgeGlow.renderOrder = archOrder;
+        auraGroup.add(edgeGlow);
+      }
+
+      root.add(auraGroup);
+
+      root.traverse((o) => {
+        if (o?.isMesh || o?.isPoints || o?.isLine || o?.isLineSegments) {
+          o.userData = o.userData || {};
+          o.userData.ignoreWaveColor = true;
+          const materialRefs = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+          for (const material of materialRefs) {
+            material.userData = {
+              ...(material.userData || {}),
+              wavePatchMode: 'DEFAULT',
+              ignoreWaveColor: true
+            };
+          }
+          validateMeshGeometry(o, o.name || 'mythic-collapsed-crown');
+        }
+      });
+
+      root.userData.visualReady = true;
+      group.userData = group.userData || {};
+      group.userData.visualReady = true;
+      group.userData.nodeGeometryName = 'MYTHIC_COLLAPSED_CROWN';
+      group.add(root);
+      return group;
+    } catch (err) {
+      console.error('[NodeVisualAbort]', {
+        model: 'createMythicCollapsedCrownNode',
+        category: 'mythic',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
+    }
   }
 
   /**

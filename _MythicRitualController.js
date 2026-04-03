@@ -288,6 +288,7 @@ export class MythicRitualController {
         }, { priority: this.semanticBus.priority?.INTERACTIVE });
       console.log(`✓ Ritual started event emitted: ${ritualType}`);
     }
+    this._emitMetricBridgeForRitual(ritualType, 'started');
     
     // Backup world state
     this.backupWorldState();
@@ -1082,6 +1083,7 @@ export class MythicRitualController {
       }, { priority: this.semanticBus.priority.INTERACTIVE });
       console.log(`✓ Ritual completed event emitted: ${completedRitualType}`);
     }
+    this._emitMetricBridgeForRitual(completedRitualType, 'completed');
     
     // Reset state
     this.activeRitual = null;
@@ -1159,5 +1161,44 @@ export class MythicRitualController {
 
   _getNodeId(node) {
     return node?.id ?? node?.userData?.id ?? node?.userData?.nodeId ?? null;
+  }
+
+  _emitMetricBridgeForRitual(ritualType, phase) {
+    if (!this.semanticBus || !ritualType) return;
+
+    const emit = (eventName, value = 1) => {
+      this.semanticBus.emit(eventName, {
+        ritualType,
+        phase,
+        scope: 'global',
+        value,
+        timestamp: performance.now(),
+        source: 'MythicRitualController'
+      }, { priority: this.semanticBus.priority?.INTERACTIVE });
+    };
+
+    switch (ritualType) {
+      case 'ASCENSION_RITUAL':
+      case 'HARMONY_CONVERGENCE':
+        emit(phase === 'completed' ? 'ritual.visual.harmony.completed' : 'ritual.visual.harmony.started');
+        emit('global.harmony.high');
+        break;
+      case 'QUANTUM_FISSURE':
+        emit('global.stability.high');
+        break;
+      case 'CHAOS_RITUAL':
+        emit('global.stability.high');
+        emit('global.loadPressure.mid', 0.65);
+        break;
+      case 'MYTHIC_SIGNAL':
+        emit('global.synergy.high');
+        break;
+      case 'ECHO_RITUAL':
+        emit('global.synergy.mid', 0.55);
+        emit('global.harmony.mid', 0.55);
+        break;
+      default:
+        break;
+    }
   }
 }

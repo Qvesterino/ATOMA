@@ -16,6 +16,7 @@ export class TemporalEventEffects {
     this.scene = scene;
     this.renderer = renderer;
     this.enabled = true;
+    this.metricBus = this._resolveMetricBus();
     
     // Post-processing effects
     this.composer = null;
@@ -43,6 +44,13 @@ export class TemporalEventEffects {
       epochFadeOut: 2.0,  // 2s to fade out (after peak)
       aeonPulseDuration: 3.0
     };
+
+    this.pendingMetricTemporalEvents = {
+      newEpoch: false,
+      newAeon: false,
+    };
+
+    this._setupMetricTriggers();
   }
   
   /**
@@ -50,19 +58,23 @@ export class TemporalEventEffects {
    */
   update(deltaTime, temporalEvents) {
     if (!this.enabled) return;
-    if (!temporalEvents || temporalEvents.newEpoch === undefined || temporalEvents.newAeon === undefined) {
-      return; // Defensive guard: wait until epoch data is available (behavior-preserving)
-    }
+    const mergedTemporalEvents = {
+      newEpoch: Boolean(temporalEvents?.newEpoch || this.pendingMetricTemporalEvents.newEpoch),
+      newAeon: Boolean(temporalEvents?.newAeon || this.pendingMetricTemporalEvents.newAeon),
+    };
+    if (!mergedTemporalEvents.newEpoch && !mergedTemporalEvents.newAeon) return;
     
     // Update epoch color shift
-    if (temporalEvents.newEpoch) {
+    if (mergedTemporalEvents.newEpoch) {
       this.triggerEpochShift();
+      this.pendingMetricTemporalEvents.newEpoch = false;
     }
     this.updateEpochShift(deltaTime);
     
     // Update aeon pulse
-    if (temporalEvents.newAeon) {
+    if (mergedTemporalEvents.newAeon) {
       this.triggerAeonPulse();
+      this.pendingMetricTemporalEvents.newAeon = false;
     }
     this.updateAeonPulse(deltaTime);
   }
@@ -225,5 +237,43 @@ export class TemporalEventEffects {
   cleanup() {
     this.disable();
     this.aeonPulseGlyphs = [];
+  }
+
+  _resolveMetricBus() {
+    if (globalThis?.ATOMA_BUS || globalThis?.semanticBus) {
+      return globalThis.ATOMA_BUS || globalThis.semanticBus || null;
+    }
+
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    return browserWindow?.ATOMA_BUS || browserWindow?.semanticBus || null;
+  }
+
+  _setupMetricTriggers() {
+    this._subscribeMetricTag('global.harmony.mid', () => {
+      this.pendingMetricTemporalEvents.newEpoch = true;
+    });
+    this._subscribeMetricTag('global.loadPressure.high', () => {
+      this.pendingMetricTemporalEvents.newEpoch = true;
+    });
+    this._subscribeMetricTag('global.synergy.high', () => {
+      this.pendingMetricTemporalEvents.newAeon = true;
+    });
+    this._subscribeMetricTag('global.stability.high', () => {
+      this.pendingMetricTemporalEvents.newAeon = true;
+    });
+  }
+
+  _subscribeMetricTag(eventName, handler) {
+    const bus = this.metricBus;
+    if (!bus || !eventName || typeof handler !== 'function') return;
+
+    if (typeof bus.on === 'function') {
+      bus.on(eventName, handler);
+      return;
+    }
+
+    if (typeof bus.subscribe === 'function') {
+      bus.subscribe(eventName, handler);
+    }
   }
 }

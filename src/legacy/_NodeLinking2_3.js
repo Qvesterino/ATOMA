@@ -9,7 +9,8 @@
 
 import * as THREE from 'three';
 import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
-import { SafeNodeUnlinking3_3 } from './_SafeNodeUnlinking3_3.js';
+// REMOVED: _SafeNodeUnlinking3_3 - moved to LEGACY (2026-04-03)
+// import { SafeNodeUnlinking3_3 } from '../../_SafeNodeUnlinking3_3.js';
 // REMOVED: LinkStateVisualLock import - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 // Stub functions for compatibility
 const hasValidLinkTarget = (mesh) => mesh?.userData?.linkTarget != null;

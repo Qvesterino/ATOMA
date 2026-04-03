@@ -82,6 +82,8 @@ export class MetricReactiveWorldEvents {
     if (typeof window !== 'undefined') {
       window.__ATOMA_SPHERE_POLICY__?.registerRoot?.(this.overlayGroup, 'metric-reactive-overlays');
     }
+
+    this.metricBus = this._resolveMetricBus();
     
     console.log('✓ Metric-Reactive World Events 1.0 initialized');
   }
@@ -169,6 +171,7 @@ export class MetricReactiveWorldEvents {
     
     // Coherence Wave (60%+)
     if (synergy > 60 && canTrigger && !this.eventStates.synergyCoherence) {
+      this._emitMetricTag('global.synergy.mid', synergy, { effect: 'CoherenceWave' });
       this.triggerCoherenceWave();
       this.eventStates.lastSynergyEvent = currentTime;
       this.eventStates.synergyCoherence = true;
@@ -178,6 +181,7 @@ export class MetricReactiveWorldEvents {
     
     // Unity Pulse (85%+)
     if (synergy > 85 && canTrigger && !this.eventStates.synergyUnity) {
+      this._emitMetricTag('global.synergy.high', synergy, { effect: 'UnityPulse' });
       this.triggerUnityPulse();
       this.eventStates.lastSynergyEvent = currentTime;
       this.eventStates.synergyUnity = true;
@@ -196,6 +200,7 @@ export class MetricReactiveWorldEvents {
     
     // Calm Bloom (55%+)
     if (harmony > 55 && canTrigger && !this.eventStates.harmonyCalm) {
+      this._emitMetricTag('global.harmony.mid', harmony, { effect: 'CalmBloom' });
       this.triggerCalmBloom();
       this.eventStates.lastHarmonyEvent = currentTime;
       this.eventStates.harmonyCalm = true;
@@ -205,6 +210,7 @@ export class MetricReactiveWorldEvents {
     
     // Harmonic Ascension (80%+)
     if (harmony > 80 && canTrigger && !this.eventStates.harmonyAscension) {
+      this._emitMetricTag('global.harmony.high', harmony, { effect: 'HarmonicAscension' });
       this.triggerHarmonicAscension();
       this.eventStates.lastHarmonyEvent = currentTime;
       this.eventStates.harmonyAscension = true;
@@ -218,11 +224,13 @@ export class MetricReactiveWorldEvents {
    */
   checkInstabilityEvents(metrics, currentTime) {
     const instability = metrics.instability;
+    const stability = Math.max(0, 100 - instability);
     const lastEvent = this.eventStates.lastInstabilityEvent;
     const canTrigger = currentTime - lastEvent > this.cooldowns.instability;
     
     // Distortion Drift (40%+)
     if (instability > 40 && canTrigger && !this.eventStates.instabilityDrift) {
+      this._emitMetricTag('global.stability.low', stability, { effect: 'DistortionDrift' });
       this.triggerDistortionDrift();
       this.eventStates.lastInstabilityEvent = currentTime;
       this.eventStates.instabilityDrift = true;
@@ -232,6 +240,7 @@ export class MetricReactiveWorldEvents {
     
     // Quantum Spiral (70%+)
     if (instability > 70 && canTrigger && !this.eventStates.instabilitySpiral) {
+      this._emitMetricTag('global.stability.low', stability, { effect: 'QuantumSpiral' });
       this.triggerQuantumSpiral();
       this.eventStates.lastInstabilityEvent = currentTime;
       this.eventStates.instabilitySpiral = true;
@@ -250,6 +259,7 @@ export class MetricReactiveWorldEvents {
     
     // Shadow Flicker (20%+)
     if (corruption > 20 && canTrigger && !this.eventStates.corruptionFlicker) {
+      this._emitMetricTag('global.corruption.mid', corruption, { effect: 'ShadowFlicker' });
       this.triggerShadowFlicker();
       this.eventStates.lastCorruptionEvent = currentTime;
       this.eventStates.corruptionFlicker = true;
@@ -259,6 +269,7 @@ export class MetricReactiveWorldEvents {
     
     // Umbra Echo (45%+)
     if (corruption > 45 && canTrigger && !this.eventStates.corruptionUmbra) {
+      this._emitMetricTag('global.corruption.high', corruption, { effect: 'UmbraEcho' });
       this.triggerUmbraEcho();
       this.eventStates.lastCorruptionEvent = currentTime;
       this.eventStates.corruptionUmbra = true;
@@ -277,6 +288,7 @@ export class MetricReactiveWorldEvents {
     
     // Overlink Glow (60%+)
     if (load > 60 && canTrigger && !this.eventStates.loadOverlink) {
+      this._emitMetricTag('global.loadPressure.mid', load, { effect: 'OverlinkGlow' });
       this.triggerOverlinkGlow();
       this.eventStates.lastLoadEvent = currentTime;
       this.eventStates.loadOverlink = true;
@@ -286,6 +298,7 @@ export class MetricReactiveWorldEvents {
     
     // Network Surge (85%+)
     if (load > 85 && canTrigger && !this.eventStates.loadSurge) {
+      this._emitMetricTag('global.loadPressure.high', load, { effect: 'NetworkSurge' });
       this.triggerNetworkSurge();
       this.eventStates.lastLoadEvent = currentTime;
       this.eventStates.loadSurge = true;
@@ -435,6 +448,7 @@ export class MetricReactiveWorldEvents {
   
   triggerEpochTurnover() {
     if (this.debugMode) console.log('► Epoch Turnover triggered');
+    this._emitMetricTag('temporal.newEpoch', 1, { effect: 'EpochTurnover' });
     
     // Sky tint blue/teal
     const tint = this.createColorTint('#00aadd', 0.05, 0.5, 1.5);
@@ -446,6 +460,7 @@ export class MetricReactiveWorldEvents {
   
   triggerAeonMoment() {
     if (this.debugMode) console.log('► Aeon Moment triggered (RARE)');
+    this._emitMetricTag('temporal.newAeon', 1, { effect: 'AeonMoment' });
     
     // Golden glyph at center
     this.createGoldenGlyph('◎', 4.0);
@@ -1097,6 +1112,38 @@ export class MetricReactiveWorldEvents {
     this.overlayGroup.clear();
     this.scene.remove(this.overlayGroup);
     console.log('✓ Metric-Reactive Events cleaned up');
+  }
+
+  _resolveMetricBus() {
+    if (globalThis?.ATOMA_BUS || globalThis?.semanticBus) {
+      return globalThis.ATOMA_BUS || globalThis.semanticBus || null;
+    }
+
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    return browserWindow?.ATOMA_BUS || browserWindow?.semanticBus || null;
+  }
+
+  _emitMetricTag(eventName, value, extra = {}) {
+    const bus = this.metricBus || this._resolveMetricBus();
+    if (!bus || !eventName) return;
+
+    const payload = {
+      scope: 'global',
+      eventName,
+      value,
+      timestamp: performance.now(),
+      source: 'MetricReactiveWorldEvents',
+      ...extra
+    };
+
+    if (typeof bus.emit === 'function') {
+      bus.emit(eventName, payload);
+      return;
+    }
+
+    if (typeof bus.publish === 'function') {
+      bus.publish(eventName, payload);
+    }
   }
 }
 

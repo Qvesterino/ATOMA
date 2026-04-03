@@ -215,6 +215,12 @@ class RitualVisualModifier {
 export class RitualVisualOrchestrator {
   constructor(autoWiringSystem) {
     this.autoWiringSystem = autoWiringSystem;
+    this.metricBus = this._resolveMetricBus();
+    this.metricSignals = {
+      synergyHigh: false,
+      harmonyHigh: false,
+      loadPressureHigh: false,
+    };
 
     // Active ritual modifiers: ritualId → Map(renderable → RitualVisualModifier)
     this.activeModifiers = new Map();
@@ -231,6 +237,8 @@ export class RitualVisualOrchestrator {
       affectedRenderables: 0,
       updateCallsPerFrame: 0,
     };
+
+    this._setupMetricSubscriptions();
   }
 
   /**
@@ -467,13 +475,13 @@ export class RitualVisualOrchestrator {
     switch (ritual.type) {
       case 'cooperative_reconstruction':
         // Boost synergy glow on links, calm harmony on nodes
-        modifier.intensityMultiplier = 1.3; // Highlight collaboration
+        modifier.intensityMultiplier = this.metricSignals.synergyHigh ? 1.45 : 1.3; // Highlight collaboration
         modifier.phaseOffset = 0.0;
         break;
 
       case 'healing_cascade':
         // Emphasize harmony aura, moderate stress
-        modifier.radiusScale = 1.1;
+        modifier.radiusScale = this.metricSignals.harmonyHigh ? 1.2 : 1.1;
         modifier.damping = -0.3; // Dampen chaos
         break;
 
@@ -485,7 +493,7 @@ export class RitualVisualOrchestrator {
 
       case 'corruption_containment':
         // Intensify stress visualization to show containment
-        modifier.damping = 0.2; // Show controlled chaos
+        modifier.damping = this.metricSignals.loadPressureHigh ? 0.3 : 0.2; // Show controlled chaos
         modifier.intensityMultiplier = 1.1;
         break;
 
@@ -539,15 +547,16 @@ export class RitualVisualOrchestrator {
    * Modulate brightness based on ritual progression.
    */
   _computeIntensityMultiplier(stage, progress) {
+    const metricBoost = this.metricSignals.synergyHigh ? 0.1 : 0;
     switch (stage) {
       case 'channeling':
         // Gradually build intensity during channeling
-        return 1.0 + progress * 0.5;
+        return 1.0 + progress * 0.5 + metricBoost;
 
       case 'active':
       case 'resolving':
         // Peak during resolution
-        return 1.3 + Math.sin(progress * Math.PI * 2) * 0.2;
+        return 1.3 + metricBoost + Math.sin(progress * Math.PI * 2) * 0.2;
 
       case 'complete':
         // Fade out intensity
@@ -562,15 +571,16 @@ export class RitualVisualOrchestrator {
    * COMPUTE DAMPING (Chaos control for stress turbulence)
    */
   _computeDamping(stage, progress) {
+    const pressureBoost = this.metricSignals.loadPressureHigh ? 0.08 : 0;
     switch (stage) {
       case 'channeling':
         // Begin containment
-        return -0.2 * progress;
+        return -0.2 * progress + pressureBoost;
 
       case 'active':
       case 'resolving':
         // Full containment during resolution
-        return -0.3;
+        return -0.3 + pressureBoost;
 
       case 'complete':
         // Gradually release containment
@@ -682,6 +692,39 @@ export class RitualVisualOrchestrator {
       affectedRenderables: this.modifierStack.size,
       stats: { ...this.stats },
     };
+  }
+
+  _resolveMetricBus() {
+    if (globalThis?.ATOMA_BUS || globalThis?.semanticBus) {
+      return globalThis.ATOMA_BUS || globalThis.semanticBus || null;
+    }
+
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    return browserWindow?.ATOMA_BUS || browserWindow?.semanticBus || null;
+  }
+
+  _setupMetricSubscriptions() {
+    const bus = this.metricBus;
+    if (!bus) return;
+
+    const subscribe = (eventName, key) => {
+      const handler = () => {
+        this.metricSignals[key] = true;
+      };
+
+      if (typeof bus.on === 'function') {
+        bus.on(eventName, handler);
+        return;
+      }
+
+      if (typeof bus.subscribe === 'function') {
+        bus.subscribe(eventName, handler);
+      }
+    };
+
+    subscribe('global.synergy.high', 'synergyHigh');
+    subscribe('global.harmony.high', 'harmonyHigh');
+    subscribe('global.loadPressure.high', 'loadPressureHigh');
   }
 }
 
