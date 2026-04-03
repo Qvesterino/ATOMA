@@ -345,7 +345,17 @@ export class EnvironmentalHazards {
       hazard.active = false;
       if (hazard.aura) this.root.remove(hazard.aura);
       if (hazard.mesh) this.root.remove(hazard.mesh);
-      hazard.bolts.forEach(bolt => this.root.remove(bolt.line));
+
+      if (Array.isArray(hazard.bolts)) {
+        hazard.bolts.forEach(bolt => {
+          if (bolt?.line) this.root.remove(bolt.line);
+        });
+      }
+
+      // defensively clear hazard references to avoid stale reuse
+      hazard.bolts = [];
+      hazard.aura = null;
+      hazard.mesh = null;
     }
   }
 

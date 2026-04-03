@@ -483,7 +483,7 @@ import { EnvironmentalHazards } from './EnvironmentalHazards.js';
 import { CinematicUpgrade } from './CinematicUpgrade.js';
 import { VisualUpgradeSuperpack } from './VisualUpgradeSuperpack.js';
 import { SafeEvolutionManager } from './_SafeEvolutionManager.js';
-import { SafeLegendaryNodePack } from './_SafeLegendaryNodePack.js';
+// REMOVED: SafeLegendaryNodePack - moved to LEGACY (2026-04-03)
 import { SafeLegendaryLinkFX } from './_SafeLegendaryLinkFX.js';
 import { SafeLegendaryWorldEvents } from './_SafeLegendaryWorldEvents.js';
 import { SafeAIWeatherPack } from './_SafeAIWeatherPack.js';
@@ -512,7 +512,7 @@ setSessionVariantEngine(sessionVariantEngine);
 if (typeof window !== 'undefined') {
     window.sessionVariantEngine = sessionVariantEngine;
 }
-import { EvolvingLinkFX2_0 } from './_EvolvingLinkFX2_0.js';
+// REMOVED: EvolvingLinkFX2_0 - moved to LEGACY (2026-04-03)
 import { NodePersonality2_0 } from './NodePersonality2_0.js';
 import { CoreMetricsOverlay } from './CoreMetricsOverlay.js';
 import { createEmptyCoreMetricsViewModel, updateCoreMetricsViewModel } from './CoreMetricsViewModel.js';
@@ -532,7 +532,7 @@ import { NodeMicroEvents } from './_NodeMicroEvents.js';
 import { WorldPersonalityController } from './_WorldPersonalityController.js';
 import { MythicRitualController } from './_MythicRitualController.js';
 
-import { MythicAuraIntegration_v1 } from './LEGACY/aura/MythicAuraIntegration_v1.js';
+
 import { SimulationEffectOrchestrator } from './SimulationEffectOrchestrator.js';
 import { MythicSeedGlyph } from './_MythicSeedGlyph.js';
 // REMOVED: LegacyDebugConeCleanup - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
@@ -560,7 +560,7 @@ import { NewNodeCategoryVisuals } from './_NewNodeCategoryVisuals.js';
 import { AIConsciousnessLayer, setupAIConsciousnessConsoleAPI } from './AIConsciousnessLayer.js';
 import { AIThoughtStorms2_0, setupAIThoughtStormsConsoleAPI } from './_AIThoughtStorms2_0.js';
 // import { ExtremeLinkVisuals4_0, setupExtremeLinkVisualsV4ConsoleAPI } from './_ExtremeLinkVisuals4_0.js'; // LEGACY
-import { LinkVisualMoodSystem, setupLinkMoodSystemConsoleAPI } from './LinkVisualMoodSystem.js';
+// REMOVED: LinkVisualMoodSystem - moved to LEGACY (2026-04-03)
 import { LinkSemanticMetricsBridge_v1 } from './LinkSemanticMetricsBridge_v1.js';
 import { LinkCascadeInfectionSystem } from './LinkCascadeInfectionSystem.js';
 // REMOVED (2026-03-01): LinkMetricsSanityGuard disabled for new visual modules
@@ -931,7 +931,7 @@ import { CompetitionDominanceAdapter_v1, setupCompetitionDominanceIntegration } 
 // REMOVED: NodeVisualFreezeBlockers_v1 - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 import { NodeLinkedAuraSystem } from './NodeLinkedAuraSystem.js';
 import { setupLinkEligibilityGate } from './LinkEligibilityGate_v1.js';
-import { setupLinkDebugMode } from './LinkDebugMode_v1.js';
+// REMOVED: setupLinkDebugMode - moved to LEGACY (2026-04-03)
 
 // ============================================================================
 // HIT PROXY SYSTEM & RAYCAST ISOLATION (Session 61+)
@@ -1150,15 +1150,6 @@ import { FXPerformanceSmoothTransition_v1 } from './FXPerformanceSmoothTransitio
 // ============================================================================
 import { PersonalityShaderAdvancedFX_v1 } from './PersonalityShaderAdvancedFX_v1.js';
 
-
-// PHASE 3C ARCHETYPE AURA ENHANCEMENT (Week 14 - GPU-Enhanced Halos)
-// ============================================================================
-import { ArchetypeAuraEnhancement_v1 } from './ArchetypeAuraEnhancement_v1.js';
-
-// ============================================================================
-// PHASE 3C ARCHETYPE COLOR PALETTE SYSTEM (Week 15 - Signal-Driven Colors)
-// ============================================================================
-import { ArchetypeColorPaletteSystem_v1 } from './ArchetypeColorPaletteSystem_v1.js';
 
 // ============================================================================
 // PHASE 3C ARCHETYPE SHADER MODES (Week 16 - GPU Shader Mode Orchestration)
@@ -4598,8 +4589,6 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.fxRuntime_v1?.update?.(dt), 'visual.fxRuntime_v1');
         this.frameScheduler.register('visual', (dt) => this.personalityShaderBridge?.update?.(dt), 'visual.personalityShaderBridge');
         this.frameScheduler.register('visual', (dt) => this.advancedShaderFX?.update?.(dt), 'visual.advancedShaderFX');
-        this.frameScheduler.register('visual', (dt) => this.archetypeAuraFX?.update?.(dt), 'visual.archetypeAuraFX');
-        this.frameScheduler.register('visual', (dt) => this.archetypeColorFX?.update?.(dt), 'visual.archetypeColorFX');
         this.frameScheduler.register('visual', (dt) => this.archetypeShaderModes?.update?.(dt), 'visual.archetypeShaderModes');
         this.frameScheduler.register('visual', (dt) => this.nodeShaderActivation?.update?.(dt), 'visual.nodeShaderActivation');
         this.frameScheduler.register('visual', (dt) => this.glyphLayer4?.update?.(dt), 'visual.glyphLayer4');
@@ -4637,7 +4626,6 @@ class AtomaGame {
         }, 'visual.linkAuraSystem');
             }
         }, 'visual.hardInteractionAuthority');
-        this.frameScheduler.register('visual', (dt) => this.mythicAuraIntegration?.update?.(dt), 'visual.mythicAuraIntegration');
         this.frameScheduler.register('visual', (dt) => this.nodeMicroEvents?.update?.(dt, this.aiNodes?.nodes), 'visual.nodeMicroEvents');
         this.frameScheduler.register('visual', (dt) => this.t2CorruptionVisualIntegration?.update?.(dt, this.linkingSystem?.links), 'visual.t2CorruptionVisualIntegration');
         this.frameScheduler.register('visual', (dt) => this.t2HarmonyVisualConsumer?.update?.(dt, this.aiNodes, this.harmonyStabilizationSystem), 'visual.t2HarmonyVisualConsumer');
@@ -5384,15 +5372,6 @@ this.setHudDirty('nodeInspect');
         // Phase 3c Personality Shader Advanced FX (Week 5 - procedural noise & distortion)
         this.advancedShaderFX = null;
 
-        // Phase 3c Mythic Aura Integration (Week 12 - aura signal hookup)
-        this.mythicAuraIntegration = null;
-
-        // Phase 3c Archetype Aura Enhancement (Week 14 - GPU-enhanced visual multiplier)
-        this.archetypeAuraFX = null;
-
-        // Phase 3c Archetype Color Palette System (Week 15 - Personality-driven palette shifts)
-        this.archetypeColorFX = null;
-
         // Phase 3c Archetype Shader Modes (Week 16 - GPU shader mode orchestration)
         this.archetypeShaderModes = null;
 
@@ -5796,7 +5775,7 @@ this.setHudDirty('nodeInspect');
         this.setupCinematicUpgrade();
         this.setupNodeEditor();
         this.setupEvolutionManager();
-        this.setupLegendaryPack();
+        // DISABLED: this.setupLegendaryPack(); // moved to LEGACY (2026-04-03)
         this.setupLegendaryLinkFX();
         this.setupWorldEvents();
         this.environmentDomain = new EnvironmentDomainController(
@@ -5834,7 +5813,7 @@ this.setHudDirty('nodeInspect');
         this.setupNodeVisuals4();
         this.setupNodeEvolution();
         // DISABLED: this.setupNodeArchetypesPack(); // System permanently disconnected
-        this.setupEvolvingLinkFX();
+        // DISABLED: this.setupEvolvingLinkFX(); // moved to LEGACY (2026-04-03)
         this.setupNodePersonality();
         this.setupCoreMetricsOverlay();
         this.setupSystemStateOverlay();
@@ -5863,7 +5842,7 @@ this.setHudDirty('nodeInspect');
         // this.setupExtremeLinkVisuals();      // Temporarily disabled for overlay-free link diagnostics
         // this.setupNeuralCurveLinkVisuals();  // Temporarily disabled for overlay-free link diagnostics
         // this.setupExtremeLinkVisuals4();     // Temporarily disabled for overlay-free link diagnostics
-        this.setupLinkVisualMoodSystem(); // Link visual mood system (calm, premium, intense, meditative)
+        // DISABLED: this.setupLinkVisualMoodSystem(); // moved to LEGACY (2026-04-03)
         this.setupAIConsciousnessLayer();
         this.setupLanguageEngine();
         this.setupLinguisticOverlay();
@@ -8850,10 +8829,8 @@ window.__ATOMA_SCENE__ = this.scene;
             console.warn('[main.js] LinkEligibilityGate initialization failed:', err);
         }
 
-        // ====================================================================
-        // LINK DEBUG MODE v1.0 (Session 99 - Debug Visibility)
-        // Temporary debug visualization for link eligibility testing
-        // ====================================================================
+        // REMOVED: LINK DEBUG MODE v1.0 - moved to LEGACY (2026-04-03)
+        /*
         try {
             this.linkDebugMode = setupLinkDebugMode({
                 scene: this.scene,
@@ -8865,6 +8842,7 @@ window.__ATOMA_SCENE__ = this.scene;
         } catch (err) {
             console.warn('[main.js] LinkDebugMode initialization failed:', err);
         }
+        */
 
         // ====================================================================
         // DYNAMIC LINK COLOR SYSTEM v1.0 (NEW - Real-time synergy colors)
@@ -9585,11 +9563,11 @@ window.__ATOMA_SCENE__ = this.scene;
         } catch (err) {
             console.warn('[main.js] T4-004 Test Runner initialization error:', err);
         }
-        
+
         // ====================================================================
-        // TIER 2 VISUAL INTEGRATION: Visual System Wiring (T2-002 & T2-003)
+        // PHASE 3C ARCHetype shader模式 (Week 16 - GPU shader mode orchestration)
         // ====================================================================
-        
+        // Initialize ArchetypeShaderModes_v1 (GPU shader mode controller)
         // T2-002: Initialize Corruption Visual Integration
         try {
             this.t2CorruptionVisualIntegration = new T2_CorruptionVisualIntegration_v1(
@@ -10026,59 +10004,6 @@ window.__ATOMA_SCENE__ = this.scene;
             console.log('[main.js] AdvancedFX initialized ✓');
         } catch (err) {
             console.warn('[main.js] AdvancedFX init error:', err);
-        }
-
-        // ====================================================================
-        // PHASE 3C ARCHETYPE AURA ENHANCEMENT (Week 14 - GPU Enhancement Multiplier)
-        // ====================================================================
-        // Initialize ArchetypeAuraEnhancement_v1 (applies multiplier to node/link auras)
-        // This layer depends on Week 13 curves and enhances Week 9/10 aura systems
-        try {
-            this.archetypeAuraFX = new ArchetypeAuraEnhancement_v1({
-                aiNodes: this.aiNodes,
-                archetypeCurves: null,
-                nodeAura: this.nodeAuraSystem || null,
-                linkAura: this.linkAuraSystem || null,
-                frameScheduler: this.frameScheduler,
-            });
-            console.log('[main.js] ArchetypeAuraEnhancement_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] Failed to initialize ArchetypeAuraEnhancement_v1:', err);
-        }
-
-        try {
-            this.mythicAuraIntegration = new MythicAuraIntegration_v1({
-                mythicEvolutionFX: null,
-                intensityMultiplier: 0.5,
-                colorTintStrength: 0.15,
-                frameScheduler: this.frameScheduler,
-                debugEnabled: false,
-            });
-            this.mythicAuraIntegration.registerNodeAuraSystem(this.nodeAuraSystem);
-            if (this.linkAuraSystem) {
-                this.mythicAuraIntegration.registerLinkAuraSystem(this.linkAuraSystem);
-            }
-            console.log('[main.js] MythicAuraIntegration_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] Failed to initialize MythicAuraIntegration_v1:', err);
-        }
-
-        // ====================================================================
-        // PHASE 3C ARCHETYPE COLOR PALETTE SYSTEM (Week 15 - Signal-Driven Colors)
-        // ====================================================================
-        // Initialize ArchetypeColorPaletteSystem_v1 (applies personality-driven colors)
-        // This layer depends on Weeks 13 & 14 and integrates with Week 14 aura system
-        try {
-            this.archetypeColorFX = new ArchetypeColorPaletteSystem_v1({
-                aiNodes: this.aiNodes,
-                archetypeCurves: null,
-                archetypeAuraFX: this.archetypeAuraFX,
-                scene: this.scene,
-            });
-            this.archetypeColorFX.frameScheduler = this.frameScheduler;
-            console.log('[main.js] ArchetypeColorPaletteSystem_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] Failed to initialize ArchetypeColorPaletteSystem_v1:', err);
         }
 
         // ====================================================================
@@ -12827,15 +12752,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
     }
 
-    /**
-     * Setup Safe Legendary Node Pack - External legendary system
-     * SAFE: Zero modifications to Node class, all state external
-     */
+    // REMOVED: setupLegendaryPack - moved to LEGACY (2026-04-03)
+    /*
     setupLegendaryPack() {
         this.legendaryPack = new SafeLegendaryNodePack(this.scene);
 
         // Auto-spawns legendary nodes based on activity, no invasive setup needed
     }
+    */
 
     /**
      * Setup Safe Legendary Link FX - Link enhancements
@@ -13140,14 +13064,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         console.log('⊗ Safe Node Archetypes Pack DISABLED (permanently disconnected)');
     }
 
-    /**
-     * Setup Evolving Link FX 2.0
-     * SAFE: Visual-only link evolution system
-     * ✓ 4 evolution stages per link
-     * ✓ Based on node evolution, synergy, and load
-     * ✓ Pure visual effects (no gameplay changes)
-     * ✓ < 0.3ms overhead per frame
-     */
+    // REMOVED: setupEvolvingLinkFX - moved to LEGACY (2026-04-03)
+    /*
     setupEvolvingLinkFX() {
         if (!this.linkingSystem || !this.linkingSystem.links) {
             console.warn('Linking system not initialized, deferring Evolving Link FX setup');
@@ -13166,6 +13084,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         console.log('✓ Evolving Link FX 2.0 initialized');
     }
+    */
 
     /**
      * Setup Node Personality 2.0 system
@@ -16366,11 +16285,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
     }
 
-    /**
-     * Setup Link Visual Mood System v1.0
-     * SAFE: Real-time link visual mood presets (calm, premium, intense, meditative)
-     * Provides thematic appearance switching without affecting gameplay
-     */
+    // REMOVED: setupLinkVisualMoodSystem - moved to LEGACY (2026-04-03)
+    /*
     setupLinkVisualMoodSystem() {
         if (!this.linkingSystem || !this.scene || !this.camera || !this.renderer) {
             console.warn('Required systems not initialized, deferring Link Visual Mood System setup');
@@ -16415,6 +16331,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.warn('LinkVisualMoodSystem initialization failed:', err);
         }
     }
+    */
 
     /**
      * Setup AI Consciousness Layer 2.0
