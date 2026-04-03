@@ -500,7 +500,8 @@ import { SafeMobilityPack4 } from './SafeMobilityPack4.js';
 import { NodeVisuals4_0 } from './_NodeVisuals4_0.js';
 import { setupSimulationInvariantEnforcement } from './_SIMULATION_INVARIANT_ENFORCEMENT.js';
 // REMOVED: _TASK_AUDIT_DEBUG_HELPERS - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
-import { setupRareNodeVerificationTracker } from './_TASK_3_RARE_NODE_VERIFICATION.js';
+// REMOVED: _TASK_3_RARE_NODE_VERIFICATION - moved to LEGACY (2026-04-03)
+// import { setupRareNodeVerificationTracker } from './_TASK_3_RARE_NODE_VERIFICATION.js';
 import { NodeEvolution2_0 } from './_NodeEvolution2_0.js';
 import { SafeNodeArchetypesPack } from './_SafeNodeArchetypesPack.js';
 import { SessionVariantEngine } from './SessionVariantEngine.js';
@@ -513,7 +514,8 @@ if (typeof window !== 'undefined') {
     window.sessionVariantEngine = sessionVariantEngine;
 }
 // REMOVED: EvolvingLinkFX2_0 - moved to LEGACY (2026-04-03)
-import { NodePersonality2_0 } from './NodePersonality2_0.js';
+// REMOVED: NodePersonality2_0 - moved to LEGACY (2026-04-03)
+// import { NodePersonality2_0 } from './NodePersonality2_0.js';
 import { CoreMetricsOverlay } from './CoreMetricsOverlay.js';
 import { createEmptyCoreMetricsViewModel, updateCoreMetricsViewModel } from './CoreMetricsViewModel.js';
 import { SystemStateOverlay } from './SystemStateOverlay.js';
@@ -527,7 +529,8 @@ if (typeof window !== 'undefined') {
 import { SafeWorldResetFix1_0 } from './SafeWorldResetFix1_0.js';
 import { NodeInspectOverlay1_0 } from './NodeInspectOverlay1_0.js';
 import { SafeMetricsFX1_1 } from './SafeMetricsFX1_1.js';
-import { NodePersonalitySystem2_0 } from './NodePersonalitySystem2_0.js';
+// REMOVED: NodePersonalitySystem2_0 - moved to LEGACY (2026-04-03)
+// import { NodePersonalitySystem2_0 } from './NodePersonalitySystem2_0.js';
 import { NodeMicroEvents } from './_NodeMicroEvents.js';
 import { WorldPersonalityController } from './_WorldPersonalityController.js';
 import { MythicRitualController } from './_MythicRitualController.js';
@@ -552,9 +555,10 @@ import { RecursiveGlyphMessaging4_0 } from './_RecursiveGlyphMessaging4_0.js';
 import { RecursiveGlyphSignalSystem } from './_RecursiveGlyphSignalSystem.js';
 import { EmergentThoughtStorms5_0 } from './_EmergentThoughtStorms5_0.js';
 import { AINarrativePatterns6_0 } from './_AINarrativePatterns6_0.js';
-import { ExtremeAIShaderTestSuite } from './_ExtremeAIShaderTestSuite.js';
-import { SafeNewNodeCategories1_0 } from './_SafeNewNodeCategories1_0.js';
-import { NewNodeCategoryVisuals } from './_NewNodeCategoryVisuals.js';
+// REMOVED: ExtremeAIShaderTestSuite - moved to LEGACY (2026-04-03)
+// REMOVED: _SafeNewNodeCategories1_0 - moved to LEGACY (2026-04-03)
+// import { SafeNewNodeCategories1_0 } from './_SafeNewNodeCategories1_0.js';
+// REMOVED: NewNodeCategoryVisuals - moved to LEGACY (2026-04-03)
 // import { ExtremeLinkVisualPack3 } from './_ExtremeLinkVisualPack3.js'; // LEGACY
 // import { NeuralCurveLinkVisuals, setupNeuralCurveConsoleAPI } from './_NeuralCurveLinkVisuals.js'; // LEGACY
 import { AIConsciousnessLayer, setupAIConsciousnessConsoleAPI } from './AIConsciousnessLayer.js';
@@ -682,7 +686,7 @@ import { setupVisualInteractionIsolation_v2, setupRaycastInteractionFiltering } 
 import { VisualAudit } from './VisualAudit.js';
 import { initializeHardInteractionAuthority } from './HARD_INTERACTION_AUTHORITY_SYSTEM.js';
 // REMOVED: HARD_AUTHORITY_DEBUG_API - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
-import { NodeVisualIntegrityFix } from './NodeVisualIntegrityFix.js';
+// REMOVED: NodeVisualIntegrityFix - moved to LEGACY (2026-04-03)
 // REMOVED: ControlledUnfreezeSystem_v1 - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 
 // ============================================================================
@@ -1090,7 +1094,7 @@ import { CoreMaterialMutationTestSuite, setupCoreMaterialTestSuiteConsoleAPI } f
 // NODE HIERARCHY SYSTEM v1.0 — Parent-Child Node Relationships
 // Enables organizational hierarchies, property cascading, metrics aggregation
 // ============================================================================
-import { NodeHierarchyBridge } from './NodeHierarchyBridge_v1.js';
+// REMOVED: NodeHierarchyBridge - moved to LEGACY (2026-04-03)
 
 
 
@@ -1331,7 +1335,8 @@ import { AIEmotionalFeed3_1 } from './_AIEmotionalFeed3_1.js';
 // ============================================================================
 // ATOMA UI 3.2 - Interaction Polishing & Selected Node System
 // ============================================================================
-import { UINodeInspectPanel } from './UINodeInspectPanel.js';
+// REMOVED: UINodeInspectPanel - moved to LEGACY (2026-04-03)
+// import { UINodeInspectPanel } from './UINodeInspectPanel.js';
 
 
 // ============================================================================
@@ -4525,9 +4530,10 @@ class AtomaGame {
         this.frameScheduler.register('simulation', (dt) => {
             this.personalityRuntime_v1?.update?.(dt);
         }, 'simulation.personalityRuntime_v1');
-        this.frameScheduler.register('simulation', (dt) => {
-            this.nodePersonalitySystem?.update?.(dt, this.aiNodes?.nodes);
-        }, 'simulation.nodePersonalitySystem');
+        // REMOVED: nodePersonalitySystem scheduler - moved to LEGACY (2026-04-03)
+        // this.frameScheduler.register('simulation', (dt) => {
+        //     this.nodePersonalitySystem?.update?.(dt, this.aiNodes?.nodes);
+        // }, 'simulation.nodePersonalitySystem');
         this.frameScheduler.register('simulation', (dt) => {
             this.worldPersonalityController?.update?.(dt, this.aiNodes?.nodes);
         }, 'simulation.worldPersonalityController');
@@ -4608,7 +4614,8 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.dreamDepthEffects?.update?.(dt), 'visual.dreamDepthEffects');
         this.frameScheduler.register('visual', (dt) => this.mobilityPack?.update?.(dt), 'visual.mobilityPack');
         this.frameScheduler.register('visual', (dt) => this.nodeVisuals4?.update?.(dt), 'visual.nodeVisuals4');
-        this.frameScheduler.register('visual', (dt) => this.extremeShaderTestSuite?.update?.(dt), 'visual.extremeShaderTestSuite');
+        // REMOVED: extremeShaderTestSuite - moved to LEGACY (2026-04-03)
+        // this.frameScheduler.register('visual', (dt) => this.extremeShaderTestSuite?.update?.(dt), 'visual.extremeShaderTestSuite');
         this.frameScheduler.register('visual', (dt) => this.newNodeCategories?.update?.(dt, this.time), 'visual.newNodeCategories');
         // this.frameScheduler.register('visual', (dt) => this.extremeLinkVisuals?.update?.(dt), 'visual.extremeLinkVisuals');
         // this.frameScheduler.register('visual', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera), 'visual.extremeLinkVisuals4');
@@ -5574,8 +5581,9 @@ this.setHudDirty('nodeInspect');
         // Safe Metrics FX 1.1 (subtle metric-based visual effects)
         this.metricsVisualFX = new SafeMetricsFX1_1();
 
-        // Node Personality System 2.0 (complete personality system)
-        this.nodePersonalitySystem = new NodePersonalitySystem2_0();
+        // REMOVED: Node Personality System 2.0 - moved to LEGACY (2026-04-03)
+        // this.nodePersonalitySystem = new NodePersonalitySystem2_0();
+        this.nodePersonalitySystem = null;
 
         // Node Micro-Events 1.0 (personality-driven spontaneous events)
         this.nodeMicroEvents = null; // Initialized after scene/camera ready
@@ -5836,9 +5844,9 @@ this.setHudDirty('nodeInspect');
         this.setupModeSwitch();
         this.setupPerformanceMode();
         this.setupNodeEditorInput();
-        this.setupExtremeShaderTestSuite();
+        // DISABLED: this.setupExtremeShaderTestSuite(); // moved to LEGACY (2026-04-03)
         this.setupNewNodeCategories();
-        this.setupNewNodeCategoryVisuals();
+        // DISABLED: this.setupNewNodeCategoryVisuals(); // moved to LEGACY (2026-04-03)
         // this.setupExtremeLinkVisuals();      // Temporarily disabled for overlay-free link diagnostics
         // this.setupNeuralCurveLinkVisuals();  // Temporarily disabled for overlay-free link diagnostics
         // this.setupExtremeLinkVisuals4();     // Temporarily disabled for overlay-free link diagnostics
@@ -7933,11 +7941,8 @@ window.__ATOMA_SCENE__ = this.scene;
         console.log('✓ Simulation Invariant Enforcement initialized (TASK 2)');
         
         // ====================================================================
-        // TASK 3: RARE NODE VERIFICATION TRACKER
-        // Track update ticks, registry participation, shell visibility
-        // ====================================================================
-        setupRareNodeVerificationTracker(this.aiNodes);
-        console.log('✓ Rare Node Verification Tracker initialized (TASK 3)');
+        // REMOVED: TASK 3 Rare Node Verification Tracker - moved to LEGACY (2026-04-03)
+        // setupRareNodeVerificationTracker(this.aiNodes);
         
         // Archetype Visual System – Activation
         const archetypeVisualSystem = patchArchetypeVisuals(this.aiNodes, true);
@@ -10597,17 +10602,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // CRITICAL VISUAL INTEGRITY ENFORCEMENT (Session X)
         // ====================================================================
         // Ensures nodes retain full visual fidelity even when linked
-        // - Locks core materials against external mutation
-        // - Preserves holographic layers (rings, fresnel, wireframes)
-        // - Neutralizes legacy pulsing/scaling behaviors
-        // - Enforces link/aura transparency constraints
-        try {
-            NodeVisualIntegrityFix.initializeVisualIntegrity(this.scene);
-            console.log('[main.js] NodeVisualIntegrityFix initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] NodeVisualIntegrityFix initialization failed:', err);
+        // REMOVED: NodeVisualIntegrityFix - moved to LEGACY (2026-04-03)
+        // try {
+            //     NodeVisualIntegrityFix.initializeVisualIntegrity(this.scene);
+            //     console.log('[main.js] NodeVisualIntegrityFix initialized ✓');
+        // } catch (err) {
+            //     console.warn('[main.js] NodeVisualIntegrityFix initialization failed:', err);
         }
-    }
+    
 
     /**
      * Setup mode switching (theme cycle + map hotkey)
@@ -11522,7 +11524,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
 
         regGuard('microImpulseAdapter', 'visual.microImpulseAdapter', () => this.microImpulseAdapter?.update?.());
-        regGuard('nodePersonalitySystem', 'simulation.nodePersonalitySystem', (dt) => this.nodePersonalitySystem?.update?.(dt, this.aiNodes?.nodes));
+        // REMOVED: nodePersonalitySystem regGuard - moved to LEGACY (2026-04-03)
+        // regGuard('nodePersonalitySystem', 'simulation.nodePersonalitySystem', (dt) => this.nodePersonalitySystem?.update?.(dt, this.aiNodes?.nodes));
         regGuard('nodeMicroEvents', 'visual.nodeMicroEvents', (dt) => this.nodeMicroEvents?.update?.(dt, this.aiNodes?.nodes));
         regGuard('worldPersonalityController', 'simulation.worldPersonalityController', (dt) => this.worldPersonalityController?.update?.(dt, this.aiNodes?.nodes));
         regGuard('mythicRitualController', 'simulation.mythicRitualController', (dt) => this.mythicRitualController?.update?.(dt, this.aiNodes?.nodes));
@@ -11570,11 +11573,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('nodeEvolution', 'simulation.nodeEvolution', (dt) => this.nodeEvolution?.update?.(dt, {}, this.linkingSystem));
         regGuard('evolvingLinkFX', 'visual.evolvingLinkFX', (dt) => this.evolvingLinkFX?.update?.(dt, null, null));
         regGuard('nodePersonality', 'simulation.nodePersonality', (dt) => this.nodePersonality?.update?.(dt, this.time));
-        regGuard('extremeShaderTestSuite', 'visual.extremeShaderTestSuite', (dt) => this.extremeShaderTestSuite?.update?.(dt));
+        // REMOVED: extremeShaderTestSuite - moved to LEGACY (2026-04-03)
+        // regGuard('extremeShaderTestSuite', 'visual.extremeShaderTestSuite', (dt) => this.extremeShaderTestSuite?.update?.(dt));
         regGuard('newNodeCategories', 'visual.newNodeCategories', (dt) => this.newNodeCategories?.update?.(dt, this.time));
         // regGuard('extremeLinkVisuals', 'visual.extremeLinkVisuals', (dt) => this.extremeLinkVisuals?.update?.(dt));
         // regGuard('extremeLinkVisuals4', 'visual.extremeLinkVisuals4', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera));
-        regGuard('linkVisualMoodSystem', 'visual.linkVisualMoodSystem', (dt) => this.linkVisualMoodSystem?.update?.(dt));
+        // REMOVED: linkVisualMoodSystem - moved to LEGACY (2026-04-03)
+        // regGuard('linkVisualMoodSystem', 'visual.linkVisualMoodSystem', (dt) => this.linkVisualMoodSystem?.update?.(dt));
         regGuard('consciousnessLayer', 'background.consciousnessLayer', (dt) => this.consciousnessLayer?.update?.(dt));
         regGuard('poetryEngine', 'background.poetryEngine', (dt) => this.poetryEngine?.update?.(dt, this.time));
         regGuard('emotionalFeed', 'background.emotionalFeed', (dt) => this.emotionalFeed?.update?.(dt));
@@ -13087,41 +13092,34 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     */
 
     /**
-     * Setup Node Personality 2.0 system
-     * Assigns unique personality signatures to nodes (visual-only, completely safe)
+     * REMOVED: Setup Node Personality 2.0 system
+     * Moved to LEGACY (2026-04-03)
      */
     setupNodePersonality() {
-        this.nodePersonality = new NodePersonality2_0(this.scene);
-        this.nodePersonality.initialize();
-
-        // Bezpečne zober aktuálne AI uzly
-        const nodes = (this.aiNodes && this.aiNodes.nodes) ? this.aiNodes.nodes : [];
-
-        if (nodes.length > 0) {
-            nodes.forEach((node, index) => {
-                if (node && node.userData) {
-                    const nodeId = node.uuid || `node-${index}`;
-                    const nodeCategory = node.userData.category || 'input';
-                    const archetypeType = node.userData.archetypeType || null;
-                    const evolutionStage = node.userData.evolutionStage || 1;
-
-                    this.nodePersonality.assignPersonality(
-                        node,
-                        nodeId,
-                        nodeCategory,
-                        archetypeType,
-                        evolutionStage
-                    );
-                }
-            });
-        }
-
-        const stats = this.nodePersonality.getStatistics();
-        console.log(
-            '✓ Node Personality 2.0 initialized with ' +
-            stats.activePersonalities +
-            ' active personalities'
-        );
+        // this.nodePersonality = new NodePersonality2_0(this.scene);
+        // this.nodePersonality.initialize();
+        // const nodes = (this.aiNodes && this.aiNodes.nodes) ? this.aiNodes.nodes : [];
+        // if (nodes.length > 0) {
+        //     nodes.forEach((node, index) => {
+        //         if (node && node.userData) {
+        //             const nodeId = node.uuid || `node-${index}`;
+        //             const nodeCategory = node.userData.category || 'input';
+        //             const archetypeType = node.userData.archetypeType || null;
+        //             const evolutionStage = node.userData.evolutionStage || 1;
+        //             this.nodePersonality.assignPersonality(
+        //                 node,
+        //                 nodeId,
+        //                 nodeCategory,
+        //                 archetypeType,
+        //                 evolutionStage
+        //             );
+        //         }
+        //     });
+        // }
+        // const stats = this.nodePersonality.getStatistics();
+        // console.log('✓ Node Personality 2.0 initialized with ' + stats.activePersonalities + ' active personalities');
+        this.nodePersonality = null;
+        console.log('⊘ Node Personality 2.0 DISABLED (moved to LEGACY)');
     }
 
 
@@ -14078,10 +14076,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * Setup Node Inspect Panel
      * Persistent panel showing node details
      */
+    // REMOVED: setupNodeInspectPanel - moved to LEGACY (2026-04-03)
     setupNodeInspectPanel() {
-        this.nodeInspectPanel = new UINodeInspectPanel(this.languageEngine, this.poetryEngine, this);
-
-        console.log('✓ Node Inspect Panel initialized (persistent display)');
+        // this.nodeInspectPanel = new UINodeInspectPanel(this.languageEngine, this.poetryEngine, this);
+        // console.log('✓ Node Inspect Panel initialized (persistent display)');
+        this.nodeInspectPanel = null;
     }
 
     /**
@@ -16120,10 +16119,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         window.extremeLinks = this.extremeLinkVisuals;
     }
 
-    /**
-     * Setup Extreme AI Shader Test Suite
-     * SAFE: Non-destructive diagnostics for EXTREME node shader integration
-     */
+    // REMOVED: setupExtremeShaderTestSuite - moved to LEGACY (2026-04-03)
+    /*
     setupExtremeShaderTestSuite() {
         this.extremeShaderTestSuite = new ExtremeAIShaderTestSuite({
             scene: this.scene,
@@ -16136,26 +16133,24 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         console.log('✓ Extreme AI Shader Test Suite initialized (SAFE diagnostics mode)');
     }
+    */
 
     /**
      * Setup Safe New Node Categories 1.0
      * SAFE: Non-destructive addition of 3 new node categories
      * Mythic (MYT-), Prime (PRM-), Error (ERR-) with spawn rules and visuals
      */
+    // REMOVED: setupNewNodeCategories - moved to LEGACY (2026-04-03)
     setupNewNodeCategories() {
-        this.newNodeCategories = new SafeNewNodeCategories1_0(this.scene, this.aiNodes);
-
-        console.log('✓ Safe New Node Categories 1.0 initialized');
-        console.log('  - MYTHIC NODES (MYT-): Rare ritual stabilizers');
-        console.log('  - PRIME NODES (PRM-): Perfect topology anchors');
-        console.log('  - ERROR NODES (ERR-): Unstable glitch entities');
+        // this.newNodeCategories = new SafeNewNodeCategories1_0(this.scene, this.aiNodes);
+        // console.log('✓ Safe New Node Categories 1.0 initialized');
+        // console.log('  - MYTHIC NODES (MYT-): Rare ritual stabilizers');
+        // console.log('  - PRIME NODES (PRM-): Perfect topology anchors');
+        // console.log('  - ERROR NODES (ERR-): Unstable glitch entities');
     }
 
-    /**
-     * Setup New Node Category Visuals 1.0
-     * SAFE: Pure visual enhancement for the three new node categories
-     * Mythic (elegant auras), Prime (crystalline), Error (glitch) visuals
-     */
+    // REMOVED: setupNewNodeCategoryVisuals - moved to LEGACY (2026-04-03)
+    /*
     setupNewNodeCategoryVisuals() {
         try {
             this.newNodeVisuals = new NewNodeCategoryVisuals(this.scene);
@@ -16169,6 +16164,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.warn('NewNodeCategoryVisuals initialization failed:', err);
         }
     }
+    */
 
     /**
      * Setup Extreme Link Visual Pack 3.0
@@ -16612,74 +16608,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
         };
 
-        // ════════════════════════════════════════════════════════════════════════════════
-        // EXTREME AI SHADER TEST SUITE CONSOLE COMMANDS
-        // ════════════════════════════════════════════════════════════════════════════════
-
-        // Run full consistency check on EXTREME archetype ↔ shader mapping
-        window.debugExtremeShaders = function () {
-            if (window.game && window.game.extremeShaderTestSuite) {
-                window.game.extremeShaderTestSuite.runOfflineConsistencyCheck();
-            } else {
-                console.warn('[ExtremeShaderTestSuite] Not initialized');
-            }
-        };
-
-        // Enable per-frame validation checks
-        window.enableExtremeShaderDiagnostics = function () {
-            if (window.game && window.game.extremeShaderTestSuite) {
-                window.game.extremeShaderTestSuite.enableDiagnostics();
-            } else {
-                console.warn('[ExtremeShaderTestSuite] Not initialized');
-            }
-        };
-
-        // Disable per-frame validation checks
-        window.disableExtremeShaderDiagnostics = function () {
-            if (window.game && window.game.extremeShaderTestSuite) {
-                window.game.extremeShaderTestSuite.disableDiagnostics();
-            } else {
-                console.warn('[ExtremeShaderTestSuite] Not initialized');
-            }
-        };
-
-        // Enable debug visualization overlays on EXTREME nodes
-        window.enableExtremeShaderDebugVisuals = function () {
-            if (window.game && window.game.extremeShaderTestSuite) {
-                window.game.extremeShaderTestSuite.enableDebugVisuals();
-            } else {
-                console.warn('[ExtremeShaderTestSuite] Not initialized');
-            }
-        };
-
-        // Disable debug visualization overlays
-        window.disableExtremeShaderDebugVisuals = function () {
-            if (window.game && window.game.extremeShaderTestSuite) {
-                window.game.extremeShaderTestSuite.disableDebugVisuals();
-            } else {
-                console.warn('[ExtremeShaderTestSuite] Not initialized');
-            }
-        };
-
-        // Print concise status summary
-        window.printExtremeShaderSummary = function () {
-            if (window.game && window.game.extremeShaderTestSuite) {
-                window.game.extremeShaderTestSuite.printExtremeShaderSummary();
-            } else {
-                console.warn('[ExtremeShaderTestSuite] Not initialized');
-            }
-        };
-
-        // Export metrics for telemetry
-        window.exportExtremeShaderMetrics = function () {
-            if (window.game && window.game.extremeShaderTestSuite) {
-                const metrics = window.game.extremeShaderTestSuite.exportMetrics();
-                console.log('Extreme Shader Metrics:', metrics);
-                return metrics;
-            } else {
-                console.warn('[ExtremeShaderTestSuite] Not initialized');
-            }
-        };
+        // REMOVED: EXTREME AI SHADER TEST SUITE CONSOLE COMMANDS - moved to LEGACY (2026-04-03)
 
         // ════════════════════════════════════════════════════════════════════════════════
         // SAFE NEW NODE CATEGORIES 1.0 CONSOLE COMMANDS

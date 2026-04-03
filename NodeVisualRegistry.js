@@ -113,7 +113,7 @@ export const NODE_VISUAL_REGISTRY = {
   1005: { category: 'prime', factoryName: 'createPrimeTesseractProjectionNode', archetypeTag: 'harmonizer', metrics: { synergy: 0.953333, harmony: 0.953333, stability: 0.953333, corruption: 0.020000, loadPressure: 0.753333 } },
   1006: { category: 'prime', factoryName: 'createPrimeSymmetryLockedCoreNode', archetypeTag: 'pressure', metrics: { synergy: 0.966667, harmony: 0.966667, stability: 0.966667, corruption: 0.025000, loadPressure: 0.786667 } },
   1008: { category: 'prime', factoryName: 'createPrimeNodeStyled_v2', archetypeTag: 'stabilizer', metrics: { synergy: 0.980000, harmony: 0.980000, stability: 0.980000, corruption: 0.030000, loadPressure: 0.820000 } },
-  // Error (11xx)
+  // Error (11xx) vizualy všetky su tu vybavene
   1101: { category: 'error', factoryName: 'createErrorIntersectingSolidsNode', archetypeTag: 'pressure', metrics: { synergy: 0.050000, harmony: 0.050000, stability: 0.180000, corruption: 0.850000, loadPressure: 0.620000 } },
   1102: { category: 'error', factoryName: 'createErrorInvertedNormalsNode', archetypeTag: 'risky', metrics: { synergy: 0.078333, harmony: 0.078333, stability: 0.210000, corruption: 0.850000, loadPressure: 0.663333 } },
   1103: { category: 'error', factoryName: 'createErrorSelfClippingNode', archetypeTag: 'risky', metrics: { synergy: 0.106667, harmony: 0.106667, stability: 0.240000, corruption: 0.300000, loadPressure: 0.706667 } },
