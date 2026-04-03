@@ -195,16 +195,77 @@ export class CorruptionVisualFX_v1 {
     return state;
   }
 
+  _isNodeVisualTarget(nodeModel) {
+    if (!nodeModel || !nodeModel.userData) return false;
+    const flags = nodeModel.userData;
+    const isNode = flags.isNode === true || flags.isNodeRoot === true || flags.isNodeCore === true;
+    const isNodeLayer = flags.visualLayer === 'NODE_ROOT' || flags.visualLayer === 'CORE' || flags.visualLayer === 'NODE';
+    return isNode || isNodeLayer;
+  }
+
+  _isVisualOnlyMesh(mesh) {
+    if (!mesh || !mesh.userData) return false;
+    const u = mesh.userData;
+    return !!(
+      u.isGlyph === true ||
+      u.isLinkVisual === true ||
+      u.isLinkGlow === true ||
+      u.isSelectionGlow === true ||
+      u.isSelectionHighlight === true ||
+      u.isAura === true ||
+      u.isShell === true ||
+      u.isHologramShell === true ||
+      u.isFX === true ||
+      u.isParticle === true ||
+      u.visualLayer === 'AURA' ||
+      u.visualLayer === 'SHELL' ||
+      u.visualLayer === 'VISUAL_ONLY'
+    );
+  }
+
   /**
    * Apply all corruption effects to a node
    * Timing: expects realtime visual time (RAF). VisualTime is available for Phase 2 enforcement.
    */
   applyCorruptionEffects(nodeModel, deltaTime, time = 0) {
-    if (!nodeModel) return;
+    if (!nodeModel || !this._isNodeVisualTarget(nodeModel)) return;
 
-    // Corruption color/shader/glow effects have been disabled.
-    // Keep only baseline restoration so pre-existing mutations do not linger.
-    this.restoreNodeVisualBaseline(nodeModel);
+    // Determine current corruption level (canonical and compatibility paths)
+    const corruptionLevel = Math.max(0, Math.min(1, (
+      nodeModel?.userData?.metrics?.corruption ??
+      nodeModel?.userData?.gameplay?.corruptionLevel ??
+      nodeModel?.userData?.corruptionLevel ??
+      nodeModel?.userData?.corruption ??
+      0
+    )));
+
+    const isHighCorruption = (
+      nodeModel?.userData?.metrics?.corruption >= 0.7 ||
+      nodeModel?.userData?.gameplay?.corruptionLevel >= 0.7 ||
+      nodeModel?.userData?.corruptionLevel >= 0.7 ||
+      nodeModel?.userData?.corruption >= 0.7 ||
+      nodeModel?.userData?.corruptionHigh === true ||
+      nodeModel?.userData?.isCorrupted === true
+    );
+
+    // Keep explicit high-level status for downstream systems.
+    if (nodeModel?.userData) {
+      nodeModel.userData.corruptionHigh = isHighCorruption;
+    }
+
+    if (!isHighCorruption) {
+      this.restoreNodeVisualBaseline(nodeModel);
+      return;
+    }
+
+    // Track node-specific state for flicker, particles, and transitions
+    const visualState = this.getNodeVisualState(nodeModel);
+
+    // Progressive visual effects
+    this.applyCorruptionColor(nodeModel, corruptionLevel);
+    this.applyGlowFlicker(nodeModel, corruptionLevel, time, visualState);
+    this.applyShaderDistortion(nodeModel, corruptionLevel, deltaTime);
+    this.spawnChaosParticles(nodeModel, corruptionLevel, deltaTime, visualState);
   }
 
   hasCascadeCorruptionLink(nodeModel) {
@@ -261,10 +322,10 @@ export class CorruptionVisualFX_v1 {
    * Apply corruption color tinting to node materials
    */
   applyCorruptionColor(nodeModel, corruptionLevel) {
-    if (!THREE || corruptionLevel <= 0) return;
+    if (!THREE || corruptionLevel <= 0 || !this._isNodeVisualTarget(nodeModel)) return;
 
     nodeModel.traverse((child) => {
-      if (!child.isMesh || !child.material) return;
+      if (!child.isMesh || !child.material || this._isVisualOnlyMesh(child)) return;
       
       const material = child.material;
       if (!material.color) return;
@@ -307,7 +368,7 @@ export class CorruptionVisualFX_v1 {
    * Apply glow flicker effect to node materials
    */
   applyGlowFlicker(nodeModel, corruptionLevel, time, visualState) {
-    if (!THREE) return;
+    if (!THREE || !this._isNodeVisualTarget(nodeModel)) return;
 
     // VisualTime provides monotonic RAF time to preserve smooth glow oscillation.
     const t = this.visualTime.now;
@@ -355,9 +416,9 @@ export class CorruptionVisualFX_v1 {
    * Prevents sticky color/emissive states when corruption gate is not active.
    */
   restoreNodeVisualBaseline(nodeModel) {
-    if (!nodeModel?.traverse) return;
+    if (!nodeModel?.traverse || !this._isNodeVisualTarget(nodeModel)) return;
     nodeModel.traverse((child) => {
-      if (!child?.isMesh || !child.material) return;
+      if (!child?.isMesh || !child.material || this._isVisualOnlyMesh(child)) return;
       this._unbindCorruptionVariantFromMesh(child);
       const material = child.material;
       const u = child.userData || {};
@@ -382,10 +443,10 @@ export class CorruptionVisualFX_v1 {
    * Apply corruption shader distortion using precompiled uniforms only.
    */
   applyShaderDistortion(nodeModel, corruptionLevel, deltaTime) {
-    if (!THREE || !nodeModel?.traverse || !this.corruptionShaderVariant) return;
+    if (!THREE || !nodeModel?.traverse || !this.corruptionShaderVariant || !this._isNodeVisualTarget(nodeModel)) return;
 
     nodeModel.traverse((child) => {
-      if (!child.isMesh || !child.material) return;
+      if (!child.isMesh || !child.material || this._isVisualOnlyMesh(child)) return;
 
       // Bind once, then drive effect strength/time strictly by uniform values.
       const binding = child.userData?.[CORRUPTION_BINDING] || this._bindCorruptionVariantToMesh(child);
@@ -471,6 +532,7 @@ export class CorruptionVisualFX_v1 {
 
   _bindCorruptionVariantToMesh(mesh) {
     if (!mesh || !mesh.material || !this.corruptionShaderVariant) return null;
+    if (this._isVisualOnlyMesh(mesh)) return null;
     if (mesh.userData?.[CORRUPTION_BINDING]) return mesh.userData[CORRUPTION_BINDING];
     if (Array.isArray(mesh.material)) return null;
 

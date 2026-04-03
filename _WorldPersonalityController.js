@@ -17,6 +17,7 @@
  *    - Scans nodes every 5-10s (throttled)
  *    - Computes aggregate metrics (harmony, stability, clarity, loadPressure)
  *    - Derives global mood label (7 mood types)
+ *    - Emits world.mood snapshot/change events plus bridge metric tags
  * 
  * 2. WORLD EVENT TYPES
  *    - HARMONIC_CALM: Warm sky, gentle light shafts
@@ -67,6 +68,7 @@ export class WorldPersonalityController {
     
     // Previous mood for transition tracking
     this.previousMoodLabel = 'NEUTRAL';
+    this.semanticBus = null;
     
     // Timing control
     this.lastScanTime = 0;
@@ -272,6 +274,7 @@ export class WorldPersonalityController {
     });
     
     // Determine mood label based on metrics
+    const previousMoodLabel = this.worldMood.label;
     const newMoodLabel = this.determineMoodLabel(
       avgHarmony,
       avgStability,
@@ -304,8 +307,21 @@ export class WorldPersonalityController {
     // Trigger transition if mood changed and min duration elapsed
     const timeSinceLastChange = Date.now() / 1000 - this.lastMoodChangeTime;
     if (moodChanged && timeSinceLastChange >= this.minMoodDuration) {
-      this.triggerMoodTransition(newMoodLabel);
+      this.triggerMoodTransition(previousMoodLabel, newMoodLabel);
     }
+
+    this._emitMoodBridge({
+      label: newMoodLabel,
+      intensity,
+      dominantPersonality,
+      avgHarmony,
+      avgStability,
+      avgClarity,
+      avgEnergy,
+      ascendedCount: personalityCount['ASCENDED_MYTHIC'] || 0,
+      nodeCount: validNodeCount,
+      personalityCount: { ...personalityCount },
+    }, moodChanged, previousMoodLabel);
   }
   
   /**
@@ -370,8 +386,8 @@ export class WorldPersonalityController {
   /**
    * Trigger transition to new mood
    */
-  triggerMoodTransition(newMoodLabel) {
-    this.previousMoodLabel = this.worldMood.label;
+  triggerMoodTransition(previousMoodLabel, newMoodLabel) {
+    this.previousMoodLabel = previousMoodLabel;
     this.worldMood.label = newMoodLabel;
     this.isTransitioning = true;
     this.transitionProgress = 0;
@@ -1254,6 +1270,82 @@ export class WorldPersonalityController {
       activeVisuals: Array.from(this.activeEventVisuals.keys()),
       clusterCount: this.personalityClusters.length,
     };
+  }
+
+  _resolveMetricBus() {
+    if (globalThis?.ATOMA_BUS || globalThis?.semanticBus) {
+      return globalThis.ATOMA_BUS || globalThis.semanticBus || null;
+    }
+
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    return browserWindow?.ATOMA_BUS || browserWindow?.semanticBus || null;
+  }
+
+  _emitMoodBridge(moodSnapshot, moodChanged, previousMoodLabel) {
+    const bus = this.semanticBus || this._resolveMetricBus();
+    if (!bus?.emit) return;
+
+    this.semanticBus = bus;
+
+    const payload = {
+      ...moodSnapshot,
+      previousLabel: previousMoodLabel,
+      moodChanged: !!moodChanged,
+      source: 'WorldPersonalityController',
+      timestamp: performance.now(),
+    };
+
+    const priority = bus.priority?.INTERACTIVE ?? bus.priority?.NORMAL;
+
+    bus.emit('world.mood.snapshot', payload, { priority });
+    if (moodChanged) {
+      bus.emit('world.mood.changed', payload, { priority });
+    }
+
+    this._emitMoodMetricTags(bus, payload);
+  }
+
+  _emitMoodMetricTags(bus, moodSnapshot) {
+    if (!bus?.emit) return;
+
+    const priority = bus.priority?.INTERACTIVE ?? bus.priority?.NORMAL;
+    const emit = (eventName, value = 1) => {
+      bus.emit(eventName, {
+        ...moodSnapshot,
+        value,
+        source: 'WorldPersonalityController',
+      }, { priority });
+    };
+
+    switch (moodSnapshot.label) {
+      case 'HARMONIC_CALM':
+        emit('global.harmony.high');
+        emit('global.stability.high');
+        break;
+      case 'FOCUSED_ANALYSIS':
+        emit('global.stability.high');
+        break;
+      case 'RADIANT_STORM':
+        emit('global.loadPressure.high');
+        break;
+      case 'QUANTUM_CHAOS':
+        emit('global.stability.low');
+        break;
+      case 'UMBRA_PRESSURE':
+        emit('global.harmony.low');
+        emit('global.loadPressure.mid');
+        break;
+      case 'ECHO_DRIFT':
+        emit('global.harmony.mid');
+        break;
+      case 'ASCENDED_ALIGNMENT':
+        emit('global.synergy.high');
+        emit('global.harmony.high');
+        emit('global.stability.high');
+        break;
+      default:
+        break;
+    }
   }
 }
 

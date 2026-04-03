@@ -15,7 +15,7 @@
  * 1. RITUAL CIRCLE - Holographic ring follows player
  * 2. PLAYER AURA - Ritual-colored glow around player
  * 3. HARMONIC ALIGNMENT - 3 rotating symbols (optional interaction)
- * 4. ENERGY PULSE - "E" key emits visual pulse
+ * 4. ENERGY PULSE - "E" key or metric bridge emits visual pulse
  * 5. COMPLETION MOMENT - Sigil + beam at peak→fall transition
  * 6. COSMETIC BUFFS - Temporary trail/particle effects after ritual
  */
@@ -23,10 +23,11 @@
 import * as THREE from 'three';
 
 export class MythicRitualPlayer {
-  constructor(scene, camera, player) {
+  constructor(scene, camera, player, semanticBus = null) {
     this.scene = scene;
     this.camera = camera;
     this.player = player;
+    this.semanticBus = semanticBus || this._resolveMetricBus();
     
     // Ritual state (provided by controller)
     this.isRitualActive = false;
@@ -50,11 +51,20 @@ export class MythicRitualPlayer {
     this.activeBuff = null;
     this.buffEndTime = 0;
     this.buffVisuals = null;
+    this.metricPulseRequested = false;
+    this.metricPulseRequestedAt = 0;
+    this.metricPulseWindow = 4.0;
+    this.metricPulseSignal = null;
+    this.metricPulsePayload = null;
     
     // Input tracking
     this.keyPressed = false;
     this.lastPulseTime = 0;
     this.pulseCooldown = 2.0; // 2s between pulses
+    this._inputListenersAttached = false;
+    this._keyDownHandler = null;
+    this._keyUpHandler = null;
+    this._metricBridgeSubscriptions = [];
     
     // Harmonic alignment state
     this.symbolsActive = false;
@@ -71,6 +81,7 @@ export class MythicRitualPlayer {
     
     // Setup input listener
     this.setupInputListener();
+    this._setupMetricBridge();
     
     console.log('✓ Mythic Ritual Player 2.0 initialized');
   }
@@ -79,18 +90,24 @@ export class MythicRitualPlayer {
    * Setup input listener for energy pulse
    */
   setupInputListener() {
-    document.addEventListener('keydown', (e) => {
+    if (typeof document === 'undefined' || this._inputListenersAttached) return;
+
+    this._keyDownHandler = this._keyDownHandler || ((e) => {
       if (e.key.toLowerCase() === 'e' && !this.keyPressed) {
         this.keyPressed = true;
-        this.tryTriggerEnergyPulse();
+        this.tryTriggerEnergyPulse('input');
       }
     });
-    
-    document.addEventListener('keyup', (e) => {
+
+    this._keyUpHandler = this._keyUpHandler || ((e) => {
       if (e.key.toLowerCase() === 'e') {
         this.keyPressed = false;
       }
     });
+
+    document.addEventListener('keydown', this._keyDownHandler);
+    document.addEventListener('keyup', this._keyUpHandler);
+    this._inputListenersAttached = true;
   }
   
   /**
@@ -118,6 +135,8 @@ export class MythicRitualPlayer {
     }
     
     this.lastPhase = ritualPhase;
+
+    this._updateMetricDrivenPulse();
     
     // Update player effect group position
     if (this.player.position) {
@@ -406,7 +425,7 @@ export class MythicRitualPlayer {
   /**
    * Try to trigger energy pulse (E key)
    */
-  tryTriggerEnergyPulse() {
+  tryTriggerEnergyPulse(triggerSource = 'input') {
     if (!this.isRitualActive) return;
     
     // Check cooldown
@@ -437,7 +456,8 @@ export class MythicRitualPlayer {
     // Trigger nearby node glow
     this.triggerNearbyNodeGlow();
     
-    console.log('⚡ Player Energy Pulse Triggered');
+    console.log(`⚡ Player Energy Pulse Triggered${triggerSource === 'metric' ? ' [metric]' : ''}`);
+    return true;
   }
   
   /**
@@ -956,6 +976,9 @@ export class MythicRitualPlayer {
    */
   onRitualEnd() {
     console.log('Ritual ended, cleaning up player effects');
+    this.metricPulseRequested = false;
+    this.metricPulseSignal = null;
+    this.metricPulsePayload = null;
     
     // Fade out circle
     if (this.ritualCircle) {
@@ -992,6 +1015,18 @@ export class MythicRitualPlayer {
    * Destroy controller (cleanup)
    */
   destroy() {
+    this._disposeMetricBridge();
+    if (this._inputListenersAttached && typeof document !== 'undefined') {
+      if (this._keyDownHandler) {
+        document.removeEventListener('keydown', this._keyDownHandler);
+      }
+      if (this._keyUpHandler) {
+        document.removeEventListener('keyup', this._keyUpHandler);
+      }
+      this._inputListenersAttached = false;
+    }
+
+    this.onRitualEnd();
     // Remove all effects
     if (this.ritualCircle) {
       this.playerEffectGroup.remove(this.ritualCircle);
@@ -1010,5 +1045,91 @@ export class MythicRitualPlayer {
     
     // Remove effect group
     this.scene.remove(this.playerEffectGroup);
+  }
+
+  _resolveMetricBus() {
+    if (globalThis?.ATOMA_BUS || globalThis?.semanticBus) {
+      return globalThis.ATOMA_BUS || globalThis.semanticBus || null;
+    }
+
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    return browserWindow?.ATOMA_BUS || browserWindow?.semanticBus || null;
+  }
+
+  _setupMetricBridge() {
+    const bus = this.semanticBus || this._resolveMetricBus();
+    if (!bus?.subscribe) return;
+
+    this.semanticBus = bus;
+
+    this._subscribeMetricTag('global.synergy.high', (payload) => {
+      this.requestMetricPulse('global.synergy.high', payload);
+    });
+
+    this._subscribeMetricTag('global.harmony.high', (payload) => {
+      this.requestMetricPulse('global.harmony.high', payload);
+    });
+
+    this._subscribeMetricTag('world.mood.changed', (payload) => {
+      if (payload?.label === 'ASCENDED_ALIGNMENT' || payload?.label === 'HARMONIC_CALM') {
+        this.requestMetricPulse(`world.mood.${payload.label}`, payload);
+      }
+    });
+  }
+
+  _subscribeMetricTag(eventName, handler) {
+    const bus = this.semanticBus;
+    if (!bus?.subscribe) return;
+
+    const unsubscribe = bus.subscribe(eventName, handler);
+    if (typeof unsubscribe === 'function') {
+      this._metricBridgeSubscriptions.push(unsubscribe);
+      return;
+    }
+
+    if (typeof bus.unsubscribe === 'function') {
+      this._metricBridgeSubscriptions.push(() => bus.unsubscribe(eventName, handler));
+    }
+  }
+
+  _disposeMetricBridge() {
+    while (this._metricBridgeSubscriptions.length > 0) {
+      const unsubscribe = this._metricBridgeSubscriptions.pop();
+      try {
+        if (typeof unsubscribe === 'function') unsubscribe();
+      } catch (err) {
+        console.warn('[MythicRitualPlayer] Metric bridge cleanup failed:', err);
+      }
+    }
+  }
+
+  requestMetricPulse(signalName, payload = null) {
+    this.metricPulseRequested = true;
+    this.metricPulseSignal = signalName || 'metric';
+    this.metricPulsePayload = payload;
+    this.metricPulseRequestedAt = Date.now() / 1000;
+  }
+
+  _updateMetricDrivenPulse() {
+    if (!this.metricPulseRequested) return;
+
+    const now = Date.now() / 1000;
+    if (now - this.metricPulseRequestedAt > this.metricPulseWindow) {
+      this.metricPulseRequested = false;
+      this.metricPulseSignal = null;
+      this.metricPulsePayload = null;
+      return;
+    }
+
+    if (!this.isRitualActive) return;
+
+    const timeSinceLastPulse = now - this.lastPulseTime;
+    if (timeSinceLastPulse < this.pulseCooldown) return;
+
+    const signalName = this.metricPulseSignal || 'metric';
+    this.metricPulseRequested = false;
+    this.metricPulseSignal = null;
+    this.metricPulsePayload = null;
+    this.tryTriggerEnergyPulse(signalName);
   }
 }

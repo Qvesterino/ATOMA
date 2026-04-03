@@ -21,6 +21,25 @@ import * as THREE from 'three';
 import { AtomaLanguageEngine2_0 } from './_AtomaLanguageEngine2_0.js';
 import { NodeSpatialIndex } from './NodeSpatialIndex.js';
 
+const METRIC_DISPLAY_MODES = Object.freeze({
+  NUMERIC: 'numeric',
+  GLYPH: 'glyph'
+});
+
+const DIGIT_GLYPHS = {
+  '0': '◯',
+  '1': '|',
+  '2': '∿',
+  '3': '△',
+  '4': '▢',
+  '5': '⬟',
+  '6': '⟡',
+  '7': '⟐',
+  '8': '◎',
+  '9': '✶',
+  '.': '·'
+};
+
 export class NodeInspectOverlay1_0 {
   constructor(scene, camera, renderer, linguisticOverlay = null, game = null, thoughtStormsSystem = null) {
     this.scene = scene;
@@ -63,6 +82,10 @@ export class NodeInspectOverlay1_0 {
     this._lastExternalTickAt = 0;
     this._fallbackPollMs = 100;
     this._fallbackPollHandle = null;
+
+    // Metric display mode (numeric/glyph)
+    this.metricDisplayMode = METRIC_DISPLAY_MODES.NUMERIC;
+    this.modeToggleButton = null;
     
     // Raycaster for crosshair detection
     this.raycaster = new THREE.Raycaster();
@@ -237,6 +260,24 @@ export class NodeInspectOverlay1_0 {
       <div id="node-event-log" style="color: #ff00ff; font-size: 10px; margin-bottom: 8px; border-top: 1px solid rgba(255, 0, 255, 0.3); padding-top: 6px; display: none;"></div>
       <div id="node-metrics" style="font-size: 11px; line-height: 1.6;"></div>
     `;
+
+    const modeToggle = document.createElement('button');
+    modeToggle.id = 'node-inspect-overlay-display-mode-toggle';
+    modeToggle.textContent = 'Switch to Glyph Mode';
+    modeToggle.style.cssText = `
+      margin-top: 8px;
+      padding: 3px 6px;
+      font-size: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      border: 1px solid rgba(0, 255, 255, 0.5);
+      color: #00ffff;
+      cursor: pointer;
+      pointer-events: auto;
+      border-radius: 3px;
+    `;
+    modeToggle.addEventListener('click', () => this.toggleMetricDisplayMode());
+    this.hudPanel.appendChild(modeToggle);
+    this.modeToggleButton = modeToggle;
 
     document.body.appendChild(this.hudPanel);
   }
@@ -625,6 +666,56 @@ export class NodeInspectOverlay1_0 {
     return entry?.metrics || null;
   }
 
+  /**
+   * Switch display mode between numeric and glyph.
+   */
+  toggleMetricDisplayMode() {
+    const newMode = this.metricDisplayMode === METRIC_DISPLAY_MODES.NUMERIC
+      ? METRIC_DISPLAY_MODES.GLYPH
+      : METRIC_DISPLAY_MODES.NUMERIC;
+    this.setMetricDisplayMode(newMode);
+  }
+
+  /**
+   * Set display mode explicitly.
+   */
+  setMetricDisplayMode(mode) {
+    if (!Object.values(METRIC_DISPLAY_MODES).includes(mode)) return;
+    this.metricDisplayMode = mode;
+    if (this.modeToggleButton) {
+      this.modeToggleButton.textContent = mode === METRIC_DISPLAY_MODES.GLYPH
+        ? 'Switch to Numeric Mode'
+        : 'Switch to Glyph Mode';
+    }
+    // Recompute metrics text if currently visible
+    if (this.currentNode) {
+      this.updateOverlayContent();
+    }
+  }
+
+  /**
+   * Format metric value either numeric or glyph-based.
+   */
+  formatMetricValue(value) {
+    const clamped = this.clamp01(value);
+    if (this.metricDisplayMode === METRIC_DISPLAY_MODES.GLYPH) {
+      return this.formatGlyphFromString(this.formatFloat(clamped));
+    }
+    return this.formatFloat(clamped);
+  }
+
+  /**
+   * Convert numeric string to glyph string.
+   */
+  formatGlyphFromString(valueString) {
+    if (typeof valueString !== 'string') return '';
+    let out = '';
+    for (const ch of valueString) {
+      out += DIGIT_GLYPHS[ch] || ch;
+    }
+    return out;
+  }
+
   onSimulationTick(snapshot) {
     this.lastSnapshot = snapshot;
     this._lastExternalTickAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
@@ -737,7 +828,7 @@ const bar = '█'.repeat(barLength) + '░'.repeat(10 - barLength);
       return `
         <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
           <span>${metric.name}:</span>
-          <span style="font-weight: bold; color: #00ff88;">${this.formatFloat(value)}</span>
+          <span style="font-weight: bold; color: #00ff88;">${this.formatMetricValue(value)}</span>
         </div>
         <div style="font-size: 10px; color: #00ff88; margin-bottom: 4px;">${bar}</div>
       `;

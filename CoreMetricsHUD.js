@@ -3,6 +3,24 @@ import { projectHudMetrics } from './SemanticMetricAdapter.js';
 import { CoreMetricsCalculator } from './CoreMetricsCalculator.js';
 import { VisualNetworkTimeElasticity_v1 } from './VisualNetworkTimeElasticity_v1.js';
 
+const METRIC_DISPLAY_MODES = Object.freeze({
+  NUMERIC: 'numeric',
+  GLYPH: 'glyph'
+});
+
+const DIGIT_GLYPHS = {
+  '0': '◯',
+  '1': '|',
+  '2': '∿',
+  '3': '△',
+  '4': '▢',
+  '5': '⬟',
+  '6': '⟡',
+  '7': '⟐',
+  '8': '◎',
+  '9': '✶',
+  '.': '·'
+};
 
 /**
  * CORE METRICS HUD
@@ -82,6 +100,10 @@ export class CoreMetricsHUD {
       background: 'rgba(10, 10, 20, 0.8)',
       border: '#00ccdd'
     };
+
+    // Metric display mode (numeric or glyph)
+    this.metricDisplayMode = METRIC_DISPLAY_MODES.NUMERIC;
+    this.modeToggleButton = null;
     
     // Visual Network Time Elasticity
     this.timeElasticity = new VisualNetworkTimeElasticity_v1();
@@ -141,6 +163,25 @@ export class CoreMetricsHUD {
     networkTimeRow.innerHTML = `<span style="color: #00ffff;">NETWORK TIME:</span> <span id="network-time" style="color: #00ffff;">00000</span>`;
     this.hudContainer.appendChild(networkTimeRow);
     this.hudElements.networkTime = networkTimeRow.querySelector('#network-time');
+
+    // Display mode toggle (numbers vs glyphs)
+    const modeToggle = document.createElement('button');
+    modeToggle.id = 'core-metrics-hud-display-mode-toggle';
+    modeToggle.textContent = 'Switch to Glyph Mode';
+    modeToggle.style.cssText = `
+      margin-top: 8px;
+      padding: 4px 8px;
+      background: rgba(20, 20, 40, 0.9);
+      border: 1px solid ${this.colors.border};
+      color: ${this.colors.text};
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 10px;
+      font-family: 'Courier New', monospace;
+    `;
+    modeToggle.addEventListener('click', () => this.toggleMetricDisplayMode());
+    this.hudContainer.appendChild(modeToggle);
+    this.modeToggleButton = modeToggle;
     
     // === CSS FOR ELASTICITY PULSE ANIMATION ===
     if (!document.getElementById('core-metrics-hud-pulse-style')) {
@@ -156,6 +197,57 @@ export class CoreMetricsHUD {
     }
     
     document.body.appendChild(this.hudContainer);
+  }
+
+  /**
+   * Switch display mode between numeric and glyph.
+   */
+  toggleMetricDisplayMode() {
+    const newMode = this.metricDisplayMode === METRIC_DISPLAY_MODES.NUMERIC
+      ? METRIC_DISPLAY_MODES.GLYPH
+      : METRIC_DISPLAY_MODES.NUMERIC;
+    this.setMetricDisplayMode(newMode);
+  }
+
+  /**
+   * Set display mode explicitly.
+   */
+  setMetricDisplayMode(mode) {
+    if (!Object.values(METRIC_DISPLAY_MODES).includes(mode)) return;
+    this.metricDisplayMode = mode;
+    if (this.modeToggleButton) {
+      this.modeToggleButton.textContent = mode === METRIC_DISPLAY_MODES.GLYPH
+        ? 'Switch to Numeric Mode'
+        : 'Switch to Glyph Mode';
+    }
+    this.updateMetricDisplay('synergy', this.displayedMetrics.synergy);
+    this.updateMetricDisplay('harmony', this.displayedMetrics.harmony);
+    this.updateMetricDisplay('stability', this.displayedMetrics.stability);
+    this.updateMetricDisplay('corruption', this.displayedMetrics.corruption);
+    this.updateMetricDisplay('loadPressure', this.displayedMetrics.loadPressure);
+  }
+
+  /**
+   * Format metric text according to display mode.
+   */
+  formatMetricValue(value) {
+    const clamped = this.clamp01(value);
+    if (this.metricDisplayMode === METRIC_DISPLAY_MODES.GLYPH) {
+      return this.formatGlyphFromString(this.formatFloat(clamped));
+    }
+    return this.formatFloat(clamped);
+  }
+
+  /**
+   * Convert formatted numeric string to glyph representation.
+   */
+  formatGlyphFromString(valueString) {
+    if (typeof valueString !== 'string') return '';
+    let out = '';
+    for (const ch of valueString) {
+      out += DIGIT_GLYPHS[ch] || ch;
+    }
+    return out;
   }
 
   
@@ -351,9 +443,9 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
       element.percent.style.color = this.colors.text;
     }
     
-    // Update float text (0..1 with six decimals)
-    element.percent.textContent = this.formatFloat(clamped);
-    
+    // Update metric text (numeric or glyph depending on user selection)
+    element.percent.textContent = this.formatMetricValue(clamped);
+
     // Update bar width
     const widthPercent = (clamped * 100).toFixed(2);
     element.bar.style.width = `${widthPercent}%`;

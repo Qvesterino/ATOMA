@@ -8418,15 +8418,21 @@ window.__ATOMA_SCENE__ = this.scene;
                             node?.userData?.metrics?.corruption ??
                             node?.userData?.corruption ??
                             0;
-                        if (corruptionLevel > 0) {
-                            this.corruptionVisualFX.applyCorruptionEffects(
-                                visualTarget,
-                                dt,
-                                time
-                            );
-                        } else if (this.corruptionVisualFX?.restoreNodeVisualBaseline) {
-                            this.corruptionVisualFX.restoreNodeVisualBaseline(visualTarget);
-                        }
+                        const isNodeVisual = visualTarget?.userData?.isNode === true ||
+                                     visualTarget?.userData?.isNodeRoot === true ||
+                                     visualTarget?.userData?.isNodeCore === true ||
+                                     visualTarget?.userData?.visualLayer === 'NODE_ROOT' ||
+                                     visualTarget?.userData?.visualLayer === 'CORE';
+
+                if (corruptionLevel > 0 && isNodeVisual) {
+                    this.corruptionVisualFX.applyCorruptionEffects(
+                        visualTarget,
+                        dt,
+                        time
+                    );
+                } else if (this.corruptionVisualFX?.restoreNodeVisualBaseline && isNodeVisual) {
+                    this.corruptionVisualFX.restoreNodeVisualBaseline(visualTarget);
+                }
                     }
                 },
                 'visual.nodeCorruptionFX'

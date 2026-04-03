@@ -16,7 +16,7 @@
  * 
  * FEATURES:
  * 1. RITUAL DETECTION
- *    - Monitors worldMood from WorldPersonalityController
+ *    - Consumes world.mood snapshots from WorldPersonalityController
  *    - Detects rare alignment patterns
  *    - Checks for trigger conditions
  * 
@@ -68,6 +68,12 @@ export class MythicRitualController {
     this.worldController = worldPersonalityController;
     this.player = player;
     this.semanticBus = semanticBus;
+    this.metricBus = semanticBus || this._resolveMetricBus();
+    this.latestWorldMood = null;
+    this.latestWorldMoodAt = 0;
+    this.pendingRitualEvaluation = false;
+    this._worldMoodBridgeActive = false;
+    this._worldMoodBridgeSubscriptions = [];
     
     // SAFETY: Early exit if rituals disabled
     if (!MythicRitualController.ENABLED) {
@@ -119,8 +125,10 @@ export class MythicRitualController {
     // Player participation system
     this.ritualPlayer = null;
     if (this.player) {
-      this.ritualPlayer = new MythicRitualPlayer(this.scene, this.camera, this.player);
+      this.ritualPlayer = new MythicRitualPlayer(this.scene, this.camera, this.player, this.semanticBus);
     }
+
+    this._setupWorldMoodBridge();
     
    
     
@@ -189,11 +197,19 @@ export class MythicRitualController {
     if (this.activeRitual) {
       this.updateActiveRitual(deltaTime, nodes);
     } else {
-      // Check for ritual triggers
-      this.lastDetectionCheck += deltaTime;
-      if (this.lastDetectionCheck >= this.detectionCheckInterval) {
+      // Event-driven path: react to world mood snapshots when available.
+      const ritualCooldownReady = Date.now() / 1000 - this.lastRitualTime >= this.ritualCooldown;
+      if (this.pendingRitualEvaluation && ritualCooldownReady) {
         this.checkRitualTriggers(nodes);
+        this.pendingRitualEvaluation = false;
         this.lastDetectionCheck = 0;
+      } else if (!this._worldMoodBridgeActive) {
+        // Fallback polling when the mood bridge is unavailable.
+        this.lastDetectionCheck += deltaTime;
+        if (this.lastDetectionCheck >= this.detectionCheckInterval) {
+          this.checkRitualTriggers(nodes);
+          this.lastDetectionCheck = 0;
+        }
       }
       
       // Update player system even when no ritual active (for cosmetic buffs)
@@ -214,15 +230,14 @@ export class MythicRitualController {
     const timeSinceLastRitual = Date.now() / 1000 - this.lastRitualTime;
     if (timeSinceLastRitual < this.ritualCooldown) return;
     
-    // Get world mood from WorldPersonalityController
-    if (!this.worldController || !this.worldController.worldMood) return;
-    
-    const mood = this.worldController.worldMood;
+    const mood = this.latestWorldMood || this.worldController?.worldMood;
+    if (!mood) return;
+    if (!nodes || nodes.length === 0) return;
     
     // Count special node types
-    const ascendedCount = nodes.filter(n => 
-      n.userData?.personality?.type === 'ASCENDED_MYTHIC'
-    ).length;
+    const ascendedCount = Number.isFinite(mood.ascendedCount)
+      ? mood.ascendedCount
+      : this._countAscendedNodes(nodes);
     
     // Detection logic for each ritual type
     
@@ -273,6 +288,7 @@ export class MythicRitualController {
     console.log(`✨ MYTHIC RITUAL TRIGGERED: ${ritualType}`);
     
     this.activeRitual = ritualType;
+    this.pendingRitualEvaluation = false;
     this.ritualPhase = 'INIT';
     this.ritualProgress = 0;
     this.ritualStartTime = Date.now() / 1000;
@@ -1148,6 +1164,7 @@ export class MythicRitualController {
    * Destroy controller (cleanup)
    */
   destroy() {
+    this._disposeWorldMoodBridge();
     this.cancelRitual();
     if (this.ritualPlayer?.destroy) {
       this.ritualPlayer.destroy();
@@ -1157,6 +1174,94 @@ export class MythicRitualController {
     if (this.ritualHUD && this.ritualHUD.parentNode) {
       this.ritualHUD.parentNode.removeChild(this.ritualHUD);
     }
+  }
+
+  _resolveMetricBus() {
+    if (globalThis?.ATOMA_BUS || globalThis?.semanticBus) {
+      return globalThis.ATOMA_BUS || globalThis.semanticBus || null;
+    }
+
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    return browserWindow?.ATOMA_BUS || browserWindow?.semanticBus || null;
+  }
+
+  _setupWorldMoodBridge() {
+    const bus = this.metricBus || this._resolveMetricBus();
+    if (!bus?.subscribe) {
+      this._worldMoodBridgeActive = false;
+      return;
+    }
+
+    this.metricBus = bus;
+    this._worldMoodBridgeActive = true;
+
+    const handleWorldMood = (payload = {}) => {
+      this.latestWorldMood = this._normalizeWorldMoodSnapshot(payload);
+      this.latestWorldMoodAt = Date.now() / 1000;
+      this.pendingRitualEvaluation = true;
+    };
+
+    this._registerWorldMoodSubscription('world.mood.snapshot', handleWorldMood);
+    this._registerWorldMoodSubscription('world.mood.changed', handleWorldMood);
+
+    if (this.worldController?.worldMood) {
+      this.latestWorldMood = this._normalizeWorldMoodSnapshot({
+        ...this.worldController.worldMood,
+        source: 'WorldPersonalityController',
+      });
+      this.pendingRitualEvaluation = true;
+    }
+  }
+
+  _registerWorldMoodSubscription(eventName, handler) {
+    const bus = this.metricBus;
+    if (!bus?.subscribe) return;
+
+    const unsubscribe = bus.subscribe(eventName, handler);
+    if (typeof unsubscribe === 'function') {
+      this._worldMoodBridgeSubscriptions.push(unsubscribe);
+      return;
+    }
+
+    if (typeof bus.unsubscribe === 'function') {
+      this._worldMoodBridgeSubscriptions.push(() => bus.unsubscribe(eventName, handler));
+    }
+  }
+
+  _disposeWorldMoodBridge() {
+    while (this._worldMoodBridgeSubscriptions.length > 0) {
+      const unsubscribe = this._worldMoodBridgeSubscriptions.pop();
+      try {
+        if (typeof unsubscribe === 'function') unsubscribe();
+      } catch (err) {
+        console.warn('[MythicRitualController] World mood bridge cleanup failed:', err);
+      }
+    }
+
+    this._worldMoodBridgeActive = false;
+  }
+
+  _normalizeWorldMoodSnapshot(payload) {
+    const mood = payload?.mood && typeof payload.mood === 'object' ? payload.mood : payload;
+    return {
+      label: mood?.label ?? 'NEUTRAL',
+      intensity: Number.isFinite(mood?.intensity) ? mood.intensity : 0,
+      dominantPersonality: mood?.dominantPersonality ?? null,
+      avgHarmony: Number.isFinite(mood?.avgHarmony) ? mood.avgHarmony : 0,
+      avgStability: Number.isFinite(mood?.avgStability) ? mood.avgStability : 0,
+      avgClarity: Number.isFinite(mood?.avgClarity) ? mood.avgClarity : 0,
+      avgEnergy: Number.isFinite(mood?.avgEnergy) ? mood.avgEnergy : 0,
+      ascendedCount: Number.isFinite(mood?.ascendedCount) ? mood.ascendedCount : 0,
+      nodeCount: Number.isFinite(mood?.nodeCount) ? mood.nodeCount : 0,
+      previousLabel: mood?.previousLabel ?? null,
+      moodChanged: !!mood?.moodChanged,
+    };
+  }
+
+  _countAscendedNodes(nodes) {
+    return (Array.isArray(nodes) ? nodes : []).filter(node => 
+      node?.userData?.personality?.type === 'ASCENDED_MYTHIC'
+    ).length;
   }
 
   _getNodeId(node) {
