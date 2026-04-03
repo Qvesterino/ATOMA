@@ -48,7 +48,7 @@
 
 import { NetworkMembershipResolver } from './src/metrics/NetworkMembershipResolver.js';
 import { NetworkMetricsAggregator } from './src/metrics/NetworkMetricsAggregator.js';
-import { buildMetricTierEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './src/metrics/MetricTierClassifier.js';
+import { classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './src/metrics/MetricTierClassifier.js';
 import { updateNodeMetrics } from './src/metrics/NodeMetricEngine.js';
 import { MetricValidationRuntime } from './MetricValidationRuntime.js';
 
@@ -81,9 +81,10 @@ export class MetricsRuntime_v1 {
      * @param {Object} config.links - Links reference
      * @param {Object} config.metricsSystems - Metrics systems to orchestrate
      */
-   constructor({ nodes, links, linkSystem, metricsSystems, options = {} }) {
+    constructor({ nodes, links, linkSystem, metricsSystems, options = {} }) {
         // Error tracking to prevent console spam
         this._loggedErrors = new Set();
+        this._liveMetricsRefreshDisposers = [];
 
         this.nodes = nodes;
         this.links = links;
@@ -106,6 +107,7 @@ export class MetricsRuntime_v1 {
 
         // Initialize live metrics with canonical shape
         this._initializeLiveMetrics();
+        this._bindLiveMetricsRefreshListeners();
 
         // Soft damping state for metric smoothing
         this._dampingFactor = 0.1; // 10% per frame toward target (adjustable)
@@ -1010,7 +1012,66 @@ const adapter = this._createLinkSystemAdapter(
                 target: toNode?.id ?? this._getNodeId(toNode),
                 amount: delta
             }, { priority: semanticBus.priority?.NORMAL });
+            semanticBus.emit('link.corruption.spread', {
+                source: fromNode?.id ?? this._getNodeId(fromNode),
+                target: toNode?.id ?? this._getNodeId(toNode),
+                amount: delta
+            }, { priority: semanticBus.priority?.NORMAL });
         }
+    }
+
+    _trackDisposer(disposer) {
+        if (!disposer) return;
+        if (typeof disposer === 'function') {
+            this._liveMetricsRefreshDisposers.push(disposer);
+            return;
+        }
+        if (typeof disposer?.dispose === 'function') {
+            this._liveMetricsRefreshDisposers.push(() => {
+                try {
+                    disposer.dispose();
+                } catch (err) {
+                    console.warn('[MetricsRuntime_v1] refresh listener dispose error:', err?.message || err);
+                }
+            });
+            return;
+        }
+        if (typeof disposer?.unsubscribe === 'function') {
+            this._liveMetricsRefreshDisposers.push(() => {
+                try {
+                    disposer.unsubscribe();
+                } catch (err) {
+                    console.warn('[MetricsRuntime_v1] refresh listener unsubscribe error:', err?.message || err);
+                }
+            });
+        }
+    }
+
+    _bindLiveMetricsRefreshListeners() {
+        const semanticBus = globalThis?.semanticBus;
+        if (!semanticBus?.subscribe) return;
+
+        const refreshLiveMetrics = () => {
+            try {
+                this._publishLiveMetrics();
+            } catch (err) {
+                console.warn('[MetricsRuntime_v1] live metrics refresh failed:', err?.message || err);
+            }
+        };
+
+        const refreshAfterLinkChange = () => {
+            try {
+                if (this.useNetworkMetricsAggregator && !this.externalNetworkMetricsAggregatorControl) {
+                    this._runNetworkMetricsAggregator();
+                }
+                this._publishLiveMetrics();
+            } catch (err) {
+                console.warn('[MetricsRuntime_v1] link-driven live metrics refresh failed:', err?.message || err);
+            }
+        };
+
+        this._trackDisposer(semanticBus.subscribe('link.created', refreshAfterLinkChange));
+        this._trackDisposer(semanticBus.subscribe('link.removed', refreshAfterLinkChange));
     }
 
     _emitCanonicalSemanticMetrics(metricsPayload, context = {}) {
@@ -1213,12 +1274,9 @@ const adapter = this._createLinkSystemAdapter(
             };
             // Internal hook only:
             // - use this when tooling needs a generic tier transition feed
-            // - global consumers should still prefer explicit alias events
+            // - global consumers should still prefer the scoped metric alias events provided by semanticBus
             // - keep the event available for diagnostics, not as the main wiring path
             semanticBus.emit('metric.tier.changed', payload, { priority: semanticBus.priority?.NORMAL });
-            // Primary public surface for global reactions:
-            // scoped metric alias events stay simpler for VFX and gameplay consumers
-            semanticBus.emit(buildMetricTierEventName('global', entry.metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
         }
     }
 
@@ -1232,15 +1290,13 @@ const adapter = this._createLinkSystemAdapter(
         const scope = this._getGlobalScope();
         if (!scope) return;
 
-        // Use NetworkMetricsAggregator result if available, otherwise use node aggregation
-        let result;
-        
-        if (this._lastNetworkMetricsResult) {
-            result = this._lastNetworkMetricsResult;
-        } else {
-            // Fallback: aggregate from nodes
-            result = this._aggregateNodeMetrics();
-        }
+        const fallbackResult = this._aggregateNodeMetrics();
+        const currentLinkCount = this._countLinks();
+
+        // HUD consumers need the freshest live node aggregation, not a cached background snapshot.
+        // Keep the background network aggregator for diagnostics and semantic feeds, but do not let
+        // it freeze the live overlay when nodes have changed since the last compute pass.
+        const result = fallbackResult;
 
         this._safePublishLiveMetrics({
             networkSynergy: this._clamp01(result.networkSynergy ?? result.synergy ?? 0),
@@ -1249,7 +1305,7 @@ const adapter = this._createLinkSystemAdapter(
             corruptionLevel: this._clamp01(result.corruptionLevel ?? result.corruption ?? 0),
             loadPressure: this._clamp01(result.loadPressure ?? result.load ?? result.pressure ?? 0),
             nodeCount: Number.isFinite(result.nodeCount) ? result.nodeCount : 0,
-            linkCount: Number.isFinite(result.linkCount) ? result.linkCount : this._countLinks()
+            linkCount: currentLinkCount
         });
     }
 
@@ -1306,6 +1362,15 @@ const adapter = this._createLinkSystemAdapter(
             load: scope.__ATOMA_LIVE_METRICS__.loadPressure
         };
         scope.world.metrics.globalMetrics = { ...scope.globalMetrics };
+    }
+
+    /**
+     * Public live-metrics refresh hook.
+     * Use this when an event should immediately invalidate the HUD snapshot,
+     * such as link creation/removal.
+     */
+    refreshLiveMetrics() {
+        this._publishLiveMetrics();
     }
 
     /**
@@ -1461,6 +1526,17 @@ const adapter = this._createLinkSystemAdapter(
      */
     dispose() {
         try {
+            if (Array.isArray(this._liveMetricsRefreshDisposers)) {
+                for (const dispose of this._liveMetricsRefreshDisposers) {
+                    try {
+                        dispose?.();
+                    } catch (err) {
+                        console.warn('[MetricsRuntime_v1] live metrics refresh cleanup error:', err?.message || err);
+                    }
+                }
+                this._liveMetricsRefreshDisposers.length = 0;
+            }
+
             // Only explicitly dispose safeMetricsFX (others are typically stateless or self-managing)
             if (this.systems.safeMetricsFX?.dispose) {
                 this.systems.safeMetricsFX.dispose();

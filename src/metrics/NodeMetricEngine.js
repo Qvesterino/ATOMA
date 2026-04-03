@@ -5,7 +5,7 @@
  */
 
 import { assertMetricAuthority, traceMetricMutation } from './MetricAuthorityGuard.js';
-import { buildMetricTierEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './MetricTierClassifier.js';
+import { classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './MetricTierClassifier.js';
 
 const DEFAULT_METRICS = {
   synergy: 0,
@@ -222,12 +222,9 @@ function emitMetricTierChanged(node, metric, before, after, targetId) {
 
   // Internal hook only:
   // - generic consumers and debug tooling can observe every tier transition here
-  // - gameplay/VFX should prefer the explicit metric alias events below
+  // - gameplay/VFX should prefer the scoped metric alias events provided by semanticBus
   // - keep this event stable, but do not build new feature wiring on top of it
   bus.emit('metric.tier.changed', payload, { priority: bus.priority?.NORMAL });
-  // Primary public surface:
-  // scoped alias events are easier to read and bind directly in visual systems
-  bus.emit(buildMetricTierEventName('node', metric, nextTier), payload, { priority: bus.priority?.NORMAL });
 }
 
 function emitNodeMetricUpdated(metric, value, nodeId) {

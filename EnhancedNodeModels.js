@@ -106,6 +106,17 @@ const STORAGE_V2_CACHE = {
   timelineGeometry: null
 };
 const STORAGE_V2_MATERIALS = new Map(); // keyed by color hex
+const STORAGE_CATHEDRAL_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  slabGeometry: null,
+  buttressGeometry: null,
+  buttressEdgesGeometry: null,
+  seamGeometry: null,
+  dustGeometry: null,
+  timelineGeometry: null
+};
+const STORAGE_CATHEDRAL_MATERIALS = new Map(); // keyed by color hex
 
 // INPUT v2 caches
 const INPUT_V2_CACHE = {
@@ -1096,6 +1107,203 @@ function _getStorageV2Materials(color) {
 
   const mats = { columnMat, ringMat, bandMat, sliceMat, spineMat, timelineMat };
   STORAGE_V2_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+function _getStorageCathedralGeometries() {
+  if (!STORAGE_CATHEDRAL_CACHE.coreGeometry) {
+    const coreGeometry = new THREE.DodecahedronGeometry(0.48, 0);
+    const corePos = coreGeometry.attributes.position;
+    for (let i = 0; i < corePos.count; i++) {
+      const x = corePos.getX(i);
+      const y = corePos.getY(i);
+      const z = corePos.getZ(i);
+      const yWeight = Math.min(1.0, Math.abs(y) / 0.48);
+      corePos.setXYZ(
+        i,
+        x * (0.88 + yWeight * 0.14),
+        y * 1.02 + Math.sign(y || 1) * 0.03 * yWeight,
+        z * (0.82 + Math.abs(x) * 0.12)
+      );
+    }
+    corePos.needsUpdate = true;
+    coreGeometry.computeVertexNormals();
+    coreGeometry.computeBoundingSphere();
+    STORAGE_CATHEDRAL_CACHE.coreGeometry = coreGeometry;
+    STORAGE_CATHEDRAL_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 14);
+
+    const slabGeometry = new THREE.CylinderGeometry(0.62, 0.68, 0.12, 6, 1, false);
+    const slabPos = slabGeometry.attributes.position;
+    for (let i = 0; i < slabPos.count; i++) {
+      const x = slabPos.getX(i);
+      const y = slabPos.getY(i);
+      const z = slabPos.getZ(i);
+      if (y > 0) {
+        slabPos.setXYZ(i, x * 0.92 + z * 0.04, y, z * 1.08 - x * 0.02);
+      } else {
+        slabPos.setXYZ(i, x * 1.04 + z * 0.02, y, z * 0.94 - x * 0.03);
+      }
+    }
+    slabPos.needsUpdate = true;
+    slabGeometry.computeVertexNormals();
+    slabGeometry.computeBoundingSphere();
+    STORAGE_CATHEDRAL_CACHE.slabGeometry = slabGeometry;
+
+    const buttressGeometry = new THREE.BoxGeometry(0.18, 1.24, 0.42, 1, 1, 1);
+    const buttressPos = buttressGeometry.attributes.position;
+    for (let i = 0; i < buttressPos.count; i++) {
+      const x = buttressPos.getX(i);
+      const y = buttressPos.getY(i);
+      const z = buttressPos.getZ(i);
+      const taper = y > 0 ? 0.62 : 1.08;
+      const depthScale = y > 0 ? 0.72 : 0.96;
+      buttressPos.setXYZ(
+        i,
+        x * taper + Math.sign(y || 1) * 0.018,
+        y * 1.02,
+        z * depthScale + x * 0.06
+      );
+    }
+    buttressPos.needsUpdate = true;
+    buttressGeometry.computeVertexNormals();
+    buttressGeometry.computeBoundingSphere();
+    STORAGE_CATHEDRAL_CACHE.buttressGeometry = buttressGeometry;
+    STORAGE_CATHEDRAL_CACHE.buttressEdgesGeometry = safeCreateEdgesGeometry(buttressGeometry, 18);
+
+    const seamGeometry = new THREE.BoxGeometry(0.08, 0.78, 0.18, 1, 1, 1);
+    seamGeometry.computeBoundingSphere();
+    STORAGE_CATHEDRAL_CACHE.seamGeometry = seamGeometry;
+
+    const dustPositions = [];
+    const dustCount = 44;
+    for (let i = 0; i < dustCount; i++) {
+      const t = i / dustCount;
+      const angle = t * Math.PI * 2.0;
+      const radius = 0.7 + Math.sin(i * 1.73) * 0.12;
+      dustPositions.push(
+        Math.cos(angle) * radius,
+        -0.44 + t * 0.98 + Math.sin(i * 0.91) * 0.05,
+        Math.sin(angle) * (0.46 + Math.cos(i * 1.29) * 0.1)
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    STORAGE_CATHEDRAL_CACHE.dustGeometry = dustGeometry;
+
+    const timelinePositions = [];
+    const timelineCount = 16;
+    for (let i = 0; i < timelineCount; i++) {
+      const t = i / Math.max(1, timelineCount - 1);
+      const phase = t * Math.PI * 1.45;
+      const y = -0.62 + t * 1.24;
+      timelinePositions.push(
+        0.24 + Math.sin(phase) * 0.05,
+        y,
+        Math.cos(phase) * 0.12
+      );
+      timelinePositions.push(
+        -0.28 + Math.cos(phase * 0.82) * 0.05,
+        y * 0.92,
+        -Math.sin(phase) * 0.1
+      );
+    }
+    const timelineGeometry = new THREE.BufferGeometry();
+    timelineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(timelinePositions, 3));
+    timelineGeometry.computeBoundingSphere();
+    STORAGE_CATHEDRAL_CACHE.timelineGeometry = timelineGeometry;
+  }
+
+  return STORAGE_CATHEDRAL_CACHE;
+}
+
+function _getStorageCathedralMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0x88ccff;
+  if (STORAGE_CATHEDRAL_MATERIALS.has(colorHex)) {
+    return STORAGE_CATHEDRAL_MATERIALS.get(colorHex);
+  }
+
+  const storageColor = new THREE.Color(colorHex);
+  const silverColor = new THREE.Color(0xeaf8ff);
+  const archiveDark = new THREE.Color(0x182129).lerp(storageColor, 0.18);
+  const coreColor = archiveDark.clone().lerp(silverColor, 0.18);
+  const slabColor = archiveDark.clone().lerp(storageColor, 0.3);
+  const buttressColor = archiveDark.clone().lerp(silverColor, 0.1);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: coreColor,
+    emissive: storageColor.clone().lerp(silverColor, 0.08),
+    emissiveIntensity: 0.24,
+    metalness: 0.74,
+    roughness: 0.3,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const slabMat = new THREE.MeshStandardMaterial({
+    color: slabColor,
+    emissive: storageColor.clone().multiplyScalar(0.6),
+    emissiveIntensity: 0.15,
+    metalness: 0.62,
+    roughness: 0.36,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const buttressMat = new THREE.MeshStandardMaterial({
+    color: buttressColor,
+    emissive: storageColor.clone().multiplyScalar(0.42),
+    emissiveIntensity: 0.12,
+    metalness: 0.68,
+    roughness: 0.38,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: silverColor.clone().lerp(storageColor, 0.26),
+    transparent: true,
+    opacity: 0.66,
+    depthWrite: true
+  });
+
+  const seamMat = new THREE.MeshBasicMaterial({
+    color: 0x05080c,
+    transparent: true,
+    opacity: 0.94,
+    depthWrite: false
+  });
+
+  const dustMat = new THREE.PointsMaterial({
+    color: 0xd8f6ff,
+    size: 0.04,
+    transparent: true,
+    opacity: 0.38,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const timelineMat = new THREE.PointsMaterial({
+    color: 0xbcecff,
+    size: 0.046,
+    transparent: true,
+    opacity: 0.48,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const mats = { coreMat, slabMat, buttressMat, edgeMat, seamMat, dustMat, timelineMat };
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+  }
+  STORAGE_CATHEDRAL_MATERIALS.set(colorHex, mats);
   return mats;
 }
 
@@ -4869,56 +5077,192 @@ static createStorageNode0(group, color) {
   /**
    * Storage Node 3: Cluster of crystal shards
    */
-  static createStorageNode3(group, color) {
-    const mat = new THREE.MeshStandardMaterial({
-      color,
-      emissive: color,
-      emissiveIntensity: 0.22,
-      metalness: 0.65,
-      roughness: 0.25
-    });
+  static createStorageNode3(group, visualCode, color) {
+    try {
+      const resolvedColor = typeof color === 'undefined' ? visualCode : color;
+      const geometries = _getStorageCathedralGeometries();
+      const materials = _getStorageCathedralMaterials(resolvedColor);
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
 
-    // Base
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.05, 0.2, 10, 1), mat);
-    base.position.y = -0.4;
-    validateMeshGeometry(base, 'createStorageNode3:base');
-    group.add(base);
+      const storageRoot = new THREE.Group();
+      storageRoot.name = 'STORAGE_CATHEDRAL_CACHE_NODE';
+      storageRoot.userData.visualVariant = 'STORAGE_CATHEDRAL_CACHE_V4';
+      storageRoot.userData.nodeGeometryName = 'STORAGE_CATHEDRAL_CACHE';
 
-    // Spine
-    const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 1.4, 10, 1), mat);
-    spine.position.y = 0.35;
-    validateMeshGeometry(spine, 'createStorageNode3:spine');
-    group.add(spine);
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
 
-    // Core sphere
-    const core = new THREE.Mesh(new THREE.SphereGeometry(0.38, 12, 12), mat);
-    core.position.y = 0.95;
-    core.userData.isCore = true;
-    validateMeshGeometry(core, 'createStorageNode3:core');
-    group.add(core);
+      const coreMesh = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      coreMesh.name = 'MnemonicVaultCore';
+      coreMesh.userData.ignoreWaveColor = true;
+      coreMesh.position.set(0.0, 0.08, 0.0);
+      coreMesh.rotation.set(0.16, 0.34, -0.08);
+      coreMesh.renderOrder = coreOrder;
+      coreGroup.add(coreMesh);
 
-    // Orbit frame
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.05, 10, 28), mat);
-    ring.position.y = 0.95;
-    ring.rotation.x = Math.PI * 0.5;
-    ring.rotation.y = Math.PI * 0.18;
-    validateMeshGeometry(ring, 'createStorageNode3:ring');
-    group.add(ring);
+      const coreEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.edgeMat);
+      coreEdges.name = 'MnemonicVaultCoreEdges';
+      coreEdges.position.copy(coreMesh.position);
+      coreEdges.rotation.copy(coreMesh.rotation);
+      coreEdges.renderOrder = archOrder;
+      coreGroup.add(coreEdges);
 
-    // Shards (4)
-    const shardGeo = new THREE.TetrahedronGeometry(0.25, 0);
-    for (let i = 0; i < 4; i++) {
-      const angle = (i / 4) * Math.PI * 2;
-      const shard = new THREE.Mesh(shardGeo, mat);
-      shard.position.set(Math.cos(angle) * 0.8, 0.1 + i * 0.05, Math.sin(angle) * 0.8);
-      shard.rotation.y = angle + Math.PI * 0.2;
-      shard.userData.isStorageShard = true;
-      validateMeshGeometry(shard, `createStorageNode3:shard${i}`);
-      group.add(shard);
+      const seam = new THREE.Mesh(geometries.seamGeometry, materials.seamMat);
+      seam.name = 'VaultInnerVoidSeam';
+      seam.userData.ignoreWaveColor = true;
+      seam.position.set(0.02, 0.06, 0.01);
+      seam.rotation.set(0.24, 0.28, -0.04);
+      seam.scale.set(1.0, 0.96, 1.0);
+      seam.renderOrder = coreOrder;
+      coreGroup.add(seam);
+
+      storageRoot.add(coreGroup);
+
+      const strataGroup = new THREE.Group();
+      strataGroup.name = 'STRATA_GROUP';
+      const slabSpecs = [
+        { pos: [0.06, -0.56, -0.04], rot: [0.0, 0.18, -0.05], scale: [0.9, 1.0, 0.82] },
+        { pos: [-0.08, -0.32, 0.07], rot: [0.0, -0.24, 0.04], scale: [1.02, 1.0, 0.9] },
+        { pos: [0.05, -0.08, 0.03], rot: [0.0, 0.32, -0.03], scale: [1.14, 1.0, 0.98] },
+        { pos: [-0.04, 0.16, -0.05], rot: [0.0, -0.14, 0.05], scale: [1.08, 1.0, 0.94] },
+        { pos: [0.09, 0.42, 0.06], rot: [0.0, 0.28, -0.04], scale: [0.98, 1.0, 0.88] },
+        { pos: [-0.02, 0.68, -0.07], rot: [0.0, -0.34, 0.03], scale: [0.84, 1.0, 0.76] }
+      ];
+      slabSpecs.forEach((spec, idx) => {
+        const slab = new THREE.Mesh(geometries.slabGeometry, materials.slabMat);
+        slab.name = `ArchiveStratum_${idx}`;
+        slab.userData.ignoreWaveColor = true;
+        slab.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+        slab.rotation.set(spec.rot[0], spec.rot[1], spec.rot[2]);
+        slab.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+        slab.renderOrder = coreOrder;
+        strataGroup.add(slab);
+      });
+      storageRoot.add(strataGroup);
+
+      const buttressGroup = new THREE.Group();
+      buttressGroup.name = 'BUTTRESS_GROUP';
+      const buttressSpecs = [
+        { pos: [0.64, 0.08, -0.16], rot: [0.08, 0.94, -0.18], scale: [0.96, 1.08, 0.72] },
+        { pos: [-0.54, -0.02, 0.28], rot: [-0.18, -0.46, 0.12], scale: [0.82, 1.04, 0.68] },
+        { pos: [0.12, 0.14, 0.62], rot: [0.22, 2.12, 0.24], scale: [0.88, 0.92, 0.58] }
+      ];
+      buttressSpecs.forEach((spec, idx) => {
+        const buttress = new THREE.Mesh(geometries.buttressGeometry, materials.buttressMat);
+        buttress.name = `ContainmentButtress_${idx}`;
+        buttress.userData.ignoreWaveColor = true;
+        buttress.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+        buttress.rotation.set(spec.rot[0], spec.rot[1], spec.rot[2]);
+        buttress.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+        buttress.renderOrder = coreOrder;
+        buttressGroup.add(buttress);
+
+        const buttressEdges = new THREE.LineSegments(geometries.buttressEdgesGeometry, materials.edgeMat);
+        buttressEdges.name = `ContainmentButtressEdges_${idx}`;
+        buttressEdges.userData.ignoreWaveColor = true;
+        buttressEdges.position.copy(buttress.position);
+        buttressEdges.rotation.copy(buttress.rotation);
+        buttressEdges.scale.copy(buttress.scale);
+        buttressEdges.renderOrder = archOrder;
+        buttressGroup.add(buttressEdges);
+      });
+      storageRoot.add(buttressGroup);
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+
+      const archiveDust = new THREE.Points(geometries.dustGeometry, materials.dustMat);
+      archiveDust.name = 'ArchiveDust';
+      archiveDust.userData.ignoreWaveColor = true;
+      archiveDust.position.set(0.0, 0.08, 0.0);
+      archiveDust.rotation.set(0.12, 0.44, -0.08);
+      archiveDust.frustumCulled = false;
+      archiveDust.renderOrder = archOrder;
+      auraGroup.add(archiveDust);
+
+      const timelineParticles = new THREE.Points(geometries.timelineGeometry, materials.timelineMat);
+      timelineParticles.name = 'TimelineParticles';
+      timelineParticles.userData.ignoreWaveColor = true;
+      timelineParticles.position.set(0.0, 0.06, 0.0);
+      timelineParticles.rotation.set(0.06, 0.18, 0.0);
+      timelineParticles.frustumCulled = false;
+      timelineParticles.renderOrder = archOrder;
+      auraGroup.add(timelineParticles);
+
+      const shellColor = 0xeefbff;
+      const shell1 = createNodeHologramShell(coreMesh, shellColor);
+      if (shell1) {
+        shell1.name = 'StorageShell_1';
+        shell1.position.copy(coreMesh.position);
+        shell1.quaternion.copy(coreMesh.quaternion);
+        shell1.scale.copy(coreMesh.scale).multiplyScalar(1.14);
+        shell1.frustumCulled = false;
+        shell1.renderOrder = archOrder;
+        if (shell1.material?.uniforms?.uOpacity) shell1.material.uniforms.uOpacity.value = 0.052;
+        auraGroup.add(shell1);
+      }
+
+      const shell2 = createNodeHologramShell(coreMesh, shellColor);
+      if (shell2) {
+        shell2.name = 'StorageShell_2';
+        shell2.position.copy(coreMesh.position);
+        shell2.quaternion.copy(coreMesh.quaternion);
+        shell2.scale.copy(coreMesh.scale).multiplyScalar(1.24);
+        shell2.frustumCulled = false;
+        shell2.renderOrder = archOrder;
+        if (shell2.material?.uniforms?.uOpacity) shell2.material.uniforms.uOpacity.value = 0.036;
+        auraGroup.add(shell2);
+      }
+
+      const edgeGlow = createNodeNeonEdgeGlowShell(coreMesh, 0xc2efff, {
+        glowIntensity: 0.86,
+        edgeWidth: 0.074,
+        pulseAmount: 0.0
+      });
+      if (edgeGlow) {
+        edgeGlow.name = 'StorageEdgeGlow';
+        edgeGlow.position.copy(coreMesh.position);
+        edgeGlow.quaternion.copy(coreMesh.quaternion);
+        edgeGlow.scale.copy(coreMesh.scale).multiplyScalar(1.02);
+        edgeGlow.frustumCulled = false;
+        edgeGlow.renderOrder = archOrder;
+        auraGroup.add(edgeGlow);
+      }
+
+      storageRoot.add(auraGroup);
+
+      storageRoot.traverse((o) => {
+        if (o?.isMesh || o?.isPoints || o?.isLine || o?.isLineSegments) {
+          o.userData = o.userData || {};
+          o.userData.ignoreWaveColor = true;
+          const materialRefs = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+          for (const material of materialRefs) {
+            material.userData = {
+              ...(material.userData || {}),
+              wavePatchMode: 'DEFAULT',
+              ignoreWaveColor: true
+            };
+          }
+          validateMeshGeometry(o, o.name || 'storage-cathedral-cache');
+        }
+      });
+
+      storageRoot.userData.visualReady = true;
+      group.userData.visualReady = true;
+      group.userData.nodeGeometryName = 'STORAGE_CATHEDRAL_CACHE';
+      group.add(storageRoot);
+      return group;
+    } catch (err) {
+      console.error('[NodeVisualAbort]', {
+        model: 'createStorageNode3',
+        category: 'storage',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err,
+        visualCode
+      });
+      return null;
     }
-
-    group.userData.visualVariant = 'STORAGE_SHARD_V3';
-    return group;
   }
 
   /**

@@ -82,28 +82,167 @@ class HealingWave {
 }
 
 export class HarmonicHealingVisualSystem_Session134 {
-    constructor(scene, linkingSystem, particleSystem, config = {}) {
+    constructor(scene, linkingSystem, particleSystem, config = {}, semanticBus = null) {
         this.scene = scene;
         this.linkingSystem = linkingSystem;
         this.particles = particleSystem;
+        this.semanticBus = semanticBus || globalThis?.semanticBus || null;
         
         this.config = {
-            waveSpeed: 4.25,           // Units per second (increased for quicker travel)
-            spawnInterval: 1.5,        // Minimum seconds between spawns
-            maxWaves: 120,             // Performance limit (total active waves)
-            linkSpawnOnly: true,       // Spawn only when links exist (true)
-            spawnPerLink: true,        // Spawn from every link each interval
-            repairVisualsOnly: false,  // Allow gameplay stats changes
+            waveSpeed: 4.25,
+            maxWaves: 120,
+            repairVisualsOnly: false,
             debugVisualBoost: true,
+            highCooldown: 3.0,
+            midCooldown: 5.0,
+            lowCooldown: 8.0,
             ...config
         };
         
         this.waves = [];
-        this.accumulatedTime = 0;
-        this.lastSpawnTime = 0;
         this._lastResolvedHealingState = null;
         
-        console.log('✨ [HarmonicHealing] System Initialized (Golden Waves Ready)');
+        this._linkCooldowns = new Map();
+        
+        this._eventDrivenEnabled = false;
+        this._unsubscribeHarmonyHigh = null;
+        this._unsubscribeHarmonyMid = null;
+        this._unsubscribeHarmonyLow = null;
+        
+        this._setupEventSubscriptions();
+        
+        console.log('✨ [HarmonicHealing] System Initialized (Event-Driven Mode)');
+    }
+
+    _setupEventSubscriptions() {
+        if (!this.semanticBus || typeof this.semanticBus.subscribe !== 'function') {
+            this._eventDrivenEnabled = false;
+            return;
+        }
+
+        this._onHarmonyHigh = (payload = {}) => {
+            this._handleHarmonyHigh(payload);
+        };
+        
+        this._onHarmonyMid = (payload = {}) => {
+            this._handleHarmonyMid(payload);
+        };
+        
+        this._onHarmonyLow = (payload = {}) => {
+            this._handleHarmonyLow(payload);
+        };
+
+        const unsubHigh = this.semanticBus.subscribe('link.harmony.high', this._onHarmonyHigh);
+        const unsubMid = this.semanticBus.subscribe('link.harmony.mid', this._onHarmonyMid);
+        const unsubLow = this.semanticBus.subscribe('link.harmony.low', this._onHarmonyLow);
+
+        if (typeof unsubHigh === 'function') {
+            this._unsubscribeHarmonyHigh = unsubHigh;
+        } else if (typeof this.semanticBus.unsubscribe === 'function') {
+            this._unsubscribeHarmonyHigh = () => {
+                this.semanticBus.unsubscribe('link.harmony.high', this._onHarmonyHigh);
+            };
+        }
+
+        if (typeof unsubMid === 'function') {
+            this._unsubscribeHarmonyMid = unsubMid;
+        } else if (typeof this.semanticBus.unsubscribe === 'function') {
+            this._unsubscribeHarmonyMid = () => {
+                this.semanticBus.unsubscribe('link.harmony.mid', this._onHarmonyMid);
+            };
+        }
+
+        if (typeof unsubLow === 'function') {
+            this._unsubscribeHarmonyLow = unsubLow;
+        } else if (typeof this.semanticBus.unsubscribe === 'function') {
+            this._unsubscribeHarmonyLow = () => {
+                this.semanticBus.unsubscribe('link.harmony.low', this._onHarmonyLow);
+            };
+        }
+
+        this._eventDrivenEnabled = true;
+    }
+
+    _getCurrentTime() {
+        return (typeof performance !== 'undefined' ? performance.now() / 1000 : Date.now() / 1000);
+    }
+
+    _checkCooldown(linkId, cooldownDuration) {
+        const lastTime = this._linkCooldowns.get(linkId);
+        if (lastTime === undefined) return false;
+        const now = this._getCurrentTime();
+        return (now - lastTime) < cooldownDuration;
+    }
+
+    _setCooldown(linkId) {
+        this._linkCooldowns.set(linkId, this._getCurrentTime());
+    }
+
+    _handleHarmonyHigh(payload = {}) {
+        const linkId = payload?.linkId;
+        if (!linkId) return;
+        
+        if (this._checkCooldown(linkId, this.config.highCooldown)) return;
+        
+        const link = this._getLinkById(linkId);
+        if (link) {
+            this._spawnWaveOnLink(link, 1.0, 'high');
+            this._setCooldown(linkId);
+        }
+    }
+
+    _handleHarmonyMid(payload = {}) {
+        const linkId = payload?.linkId;
+        if (!linkId) return;
+        
+        if (this._checkCooldown(linkId, this.config.midCooldown)) return;
+        
+        const link = this._getLinkById(linkId);
+        if (link) {
+            this._spawnWaveOnLink(link, 0.7, 'mid');
+            this._setCooldown(linkId);
+        }
+    }
+
+    _handleHarmonyLow(payload = {}) {
+        const linkId = payload?.linkId;
+        if (!linkId) return;
+        
+        if (this._checkCooldown(linkId, this.config.lowCooldown)) return;
+        
+        const link = this._getLinkById(linkId);
+        if (link) {
+            this._spawnWaveOnLink(link, 0.4, 'low');
+            this._setCooldown(linkId);
+        }
+    }
+
+    _getLinkById(linkId) {
+        if (!this.linkingSystem || !this.linkingSystem.links) return null;
+        return this.linkingSystem.links.find(l => l && (l.id === linkId || l.linkId === linkId));
+    }
+
+    _spawnWaveOnLink(link, intensity, level) {
+        if (this.waves.length >= this.config.maxWaves) return;
+        
+        const source = link.source || link.sourceNode || link.nodeA;
+        const target = link.target || link.targetNode || link.nodeB;
+        if (!source || !target) return;
+
+        const reverse = Math.random() > 0.5;
+        const start = reverse ? target : source;
+        const end = reverse ? source : target;
+
+        const speed = this.config.waveSpeed * (0.95 + Math.random() * 0.1);
+        const debugBoost = this.config.debugVisualBoost ? 1.35 : 1.0;
+        const finalIntensity = Math.min(1, intensity * debugBoost);
+
+        const wave = new HealingWave(link, start, end, speed, finalIntensity);
+        this.waves.push(wave);
+
+        if (this.particles?.emitSplash && start?.position) {
+            this.particles.emitSplash(start.position, Math.min(1, finalIntensity * 0.75), this._getCurrentTime());
+        }
     }
     
     /**
@@ -117,11 +256,7 @@ export class HarmonicHealingVisualSystem_Session134 {
         const healingState = this._resolveHealingState(networkState);
         this._lastResolvedHealingState = healingState;
         
-        // 1. Manage Wave Lifecycle (Move, Render, Cull)
         this._updateWaves(deltaTime, time);
-        
-        // 2. Spawn New Waves (if conditions met)
-        this._attemptSpawn(time, healingState);
     }
 
     _resolveHealingState(networkState = {}) {
@@ -292,76 +427,11 @@ export class HarmonicHealingVisualSystem_Session134 {
             link.userData.visualState.updatedAt = Date.now();
         }
         
-        // Log occasionally for debug
         if (Math.random() < 0.01) {
             console.log(`✨ Healed Node ${targetNode?.id} by ${healingPower.toFixed(3)}`);
         }
     }
     
-    /**
-     * Logic to decide if/where to spawn a new wave
-     */
-    _attemptSpawn(time, state) {
-        // Rate limiting by global interval
-        if (time - this.lastSpawnTime < this.config.spawnInterval) return;
-
-        // Cap active waves globally
-        if (this.waves.length >= this.config.maxWaves) {
-            this.lastSpawnTime = time;
-            return;
-        }
-
-        // Source links must exist
-        if (!this.linkingSystem || !Array.isArray(this.linkingSystem.links) || this.linkingSystem.links.length === 0) {
-            this.lastSpawnTime = time;
-            return;
-        }
-
-        // Spawn pulse per link if enabled, else spawn one wave from a random link
-        if (this.config.spawnPerLink) {
-            for (const link of this.linkingSystem.links) {
-                if (this.waves.length >= this.config.maxWaves) break;
-
-                const source = link.source || link.sourceNode || link.nodeA;
-                const target = link.target || link.targetNode || link.nodeB;
-                if (!source || !target) continue;
-
-                const reverse = Math.random() > 0.5;
-                const start = reverse ? target : source;
-                const end = reverse ? source : target;
-
-                const speed = this.config.waveSpeed * (0.95 + Math.random() * 0.1);
-                const intensity = 0.6 + Math.random() * 0.4;
-
-                const wave = new HealingWave(link, start, end, speed, intensity);
-                this.waves.push(wave);
-            }
-        } else {
-            const links = this.linkingSystem.links;
-            const link = links[Math.floor(Math.random() * links.length)];
-            const source = link.source || link.sourceNode || link.nodeA;
-            const target = link.target || link.targetNode || link.nodeB;
-            if (!source || !target) {
-                this.lastSpawnTime = time;
-                return;
-            }
-
-            const reverse = Math.random() > 0.5;
-            const start = reverse ? target : source;
-            const end = reverse ? source : target;
-            const speed = this.config.waveSpeed * (0.95 + Math.random() * 0.1);
-            const intensity = 0.6 + Math.random() * 0.4;
-
-            const wave = new HealingWave(link, start, end, speed, intensity);
-            this.waves.push(wave);
-        }
-
-        this.lastSpawnTime = time;
-    }
-    
-    /**
-     * Pick a target link and spawn a wave
-     */
     _spawnSingleWave(healingState = {}, time = 0) {
         if (!this.linkingSystem || !this.linkingSystem.links || this.linkingSystem.links.length === 0) return;
 
@@ -369,23 +439,20 @@ export class HarmonicHealingVisualSystem_Session134 {
         const targetLink = this._pickHealingTargetLink(links);
         if (!targetLink || !targetLink.source || !targetLink.target) return;
 
-        // Determine direction (randomly A->B or B->A)
         const reverse = Math.random() > 0.5;
         const start = reverse ? targetLink.target : targetLink.source;
         const end = reverse ? targetLink.source : targetLink.target;
         
-        // Wave properties
-        const speed = this.config.waveSpeed * (0.8 + Math.random() * 0.4); // Var speed
+        const speed = this.config.waveSpeed * (0.8 + Math.random() * 0.4);
         const debugBoost = this.config.debugVisualBoost ? 1.35 : 1.0;
         const intensity = Math.min(
             1,
             (0.45 + Math.min(1, (healingState.healingDrive ?? healingState.harmony ?? 0)) * 0.55) * debugBoost
-        ); // Brighter/stronger with more healing drive
+        );
         
         const wave = new HealingWave(targetLink, start, end, speed, intensity);
         this.waves.push(wave);
 
-        // Immediate visual punctuation so the system reads as active even before arrival.
         if (this.particles?.emitSplash && start?.position) {
             this.particles.emitSplash(start.position, Math.min(1, intensity * 0.75), time);
         }
@@ -442,14 +509,16 @@ export class HarmonicHealingVisualSystem_Session134 {
     getStats() {
         return {
             waveCount: this.waves.length,
-            lastSpawnTime: this.lastSpawnTime,
+            eventDrivenEnabled: this._eventDrivenEnabled,
+            activeCooldowns: this._linkCooldowns.size,
             lastResolvedState: this._lastResolvedHealingState,
             config: {
                 waveSpeed: this.config.waveSpeed,
-                spawnInterval: this.config.spawnInterval,
-                harmonyThreshold: this.config.harmonyThreshold,
                 maxWaves: this.config.maxWaves,
-                repairVisualsOnly: this.config.repairVisualsOnly
+                repairVisualsOnly: this.config.repairVisualsOnly,
+                highCooldown: this.config.highCooldown,
+                midCooldown: this.config.midCooldown,
+                lowCooldown: this.config.lowCooldown
             }
         };
     }
@@ -461,5 +530,19 @@ export class HarmonicHealingVisualSystem_Session134 {
         for(let i=0; i<count; i++) {
             this._spawnSingleWave(1.0);
         }
+    }
+
+    dispose() {
+        if (typeof this._unsubscribeHarmonyHigh === 'function') {
+            this._unsubscribeHarmonyHigh();
+        }
+        if (typeof this._unsubscribeHarmonyMid === 'function') {
+            this._unsubscribeHarmonyMid();
+        }
+        if (typeof this._unsubscribeHarmonyLow === 'function') {
+            this._unsubscribeHarmonyLow();
+        }
+        this.waves = [];
+        this._linkCooldowns.clear();
     }
 }

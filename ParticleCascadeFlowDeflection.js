@@ -120,7 +120,7 @@ export class ParticleCascadeFlowDeflection {
       this.neighborCache.clear();
     };
 
-    const unsubMetric = this.semanticBus.subscribe('metric.node.updated', onMetricUpdated);
+    const unsubMetric = this.semanticBus.subscribe('node.metric.updated', onMetricUpdated);
     const unsubLink = this.semanticBus.subscribe('link.created', onTopologyChanged);
     const unsubSpawn = this.semanticBus.subscribe('node.spawned', onTopologyChanged);
 

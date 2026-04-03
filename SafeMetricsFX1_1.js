@@ -54,7 +54,7 @@ export class SafeMetricsFX1_1 {
     };
 
     const maybeUnsubscribe = this.semanticBus.subscribe(
-      'metric.node.updated',
+      'node.metric.updated',
       this._metricNodeUpdatedHandler
     );
 
@@ -62,7 +62,7 @@ export class SafeMetricsFX1_1 {
       this._unsubscribeMetricNodeUpdated = maybeUnsubscribe;
     } else if (typeof this.semanticBus.unsubscribe === 'function') {
       this._unsubscribeMetricNodeUpdated = () => {
-        this.semanticBus.unsubscribe('metric.node.updated', this._metricNodeUpdatedHandler);
+        this.semanticBus.unsubscribe('node.metric.updated', this._metricNodeUpdatedHandler);
       };
     } else {
       this._unsubscribeMetricNodeUpdated = null;

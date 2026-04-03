@@ -99,3 +99,11 @@ Original prompt: reduce synergy cascade visual clutter and make the repeated bea
 - `LinkSparkSystem` point sprites were scaled up by 50% to read less tiny in-scene, without changing cadence or spawn rules.
 - Final conduit performance cleanup reused the heavy-links scratch array and cached the shared particle-system cadence boolean in `updateAll()` to avoid per-frame `filter()` churn and duplicate cadence checks.
 - Post-cleanup browser smoke on `http://127.0.0.1:5500/index.html` passed and the scene remained visually stable.
+
+- 1003 prime redesign implemented in EnhancedNodeModels.js; next step is runtime smoke verification and visual inspection.
+- Legacy CanonicalGeometryFamilies.createPrimeStellaOctangula() left untouched.
+
+
+- Refactored 103 createInputIncomingFunnel into a ritual-aperture design in EnhancedNodeModels.js with dedicated caches/materials, keeping NodeVisualRegistry.js untouched.
+- Runtime smoke intentionally skipped per request; syntax check passed.
+

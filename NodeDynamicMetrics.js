@@ -57,7 +57,7 @@ export class VisualDerivedMetrics {
       this._nodeMetricCache.set(key, cached);
     };
 
-    this._metricSubscriptionDisposer = subscribe.call(semanticBus, 'metric.node.updated', handler);
+    this._metricSubscriptionDisposer = subscribe.call(semanticBus, 'node.metric.updated', handler);
     this._hasMetricSubscription = true;
   }
 

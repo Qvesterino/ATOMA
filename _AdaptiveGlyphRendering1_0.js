@@ -126,7 +126,7 @@ export class AdaptiveGlyphRendering1_0 {
     };
 
     const maybeUnsubscribe = this.semanticBus.subscribe(
-      'metric.node.updated',
+      'node.metric.updated',
       this._metricUpdatedHandler
     );
 
@@ -134,7 +134,7 @@ export class AdaptiveGlyphRendering1_0 {
       this._unsubscribeMetricUpdated = maybeUnsubscribe;
     } else if (typeof this.semanticBus.unsubscribe === 'function') {
       this._unsubscribeMetricUpdated = () => {
-        this.semanticBus.unsubscribe('metric.node.updated', this._metricUpdatedHandler);
+        this.semanticBus.unsubscribe('node.metric.updated', this._metricUpdatedHandler);
       };
     }
 

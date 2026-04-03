@@ -16,8 +16,8 @@
  * 
  * EVENT MAPPINGS:
  * - 'node.synergy.high' → cascadeIntensity = max(current, 0.7), conflictType = 'specialization_drift'
- * - 'metric:corruptionRise' / 'metric.corruption.spike' → cascadeIntensity = max(current, 0.9), conflictType = 'corruption'
- * - 'metric.phase.changed' → normalized entry point for synergy/corruption high phases
+ * - 'node.corruption.high' → cascadeIntensity = max(current, 0.9), conflictType = 'corruption'
+ * - 'node.synergy.high' → normalized entry point for synergy high phases
  * - 'link:collapsed' → cascadeIntensity = 1.0, conflictType = 'destructive'
  * - 'node.hover' → cascadeIntensity = max(current, 0.3), conflictType = 'oscillatory_balance'
  * 
@@ -86,7 +86,6 @@ export class CascadeEventBridge_v1 {
       handleMetricCorruptionRise: this._handleMetricCorruptionRise.bind(this),
       handleLinkCollapsed: this._handleLinkCollapsed.bind(this),
       handleNodeHover: this._handleNodeHover.bind(this),
-      handleMetricPhaseChanged: this._handleMetricPhaseChanged.bind(this),
       decayUpdate: this._decayUpdate.bind(this)
     };
   }
@@ -102,30 +101,24 @@ export class CascadeEventBridge_v1 {
     if (typeof on === 'function') {
       // Prefer on() method for event subscription
       on('node.synergy.high', this._boundHandlers.handleNodeSynergyHigh);
-      on('metric:corruptionRise', this._boundHandlers.handleMetricCorruptionRise);
-      on('metric.corruption.spike', this._boundHandlers.handleMetricCorruptionRise);
-      on('metric.phase.changed', this._boundHandlers.handleMetricPhaseChanged);
+      on('node.corruption.high', this._boundHandlers.handleMetricCorruptionRise);
       on('link:collapsed', this._boundHandlers.handleLinkCollapsed);
       on('node.hover', this._boundHandlers.handleNodeHover);
       
       this._subscriptions.push(
         () => bus.off?.('node.synergy.high', this._boundHandlers.handleNodeSynergyHigh),
-        () => bus.off?.('metric:corruptionRise', this._boundHandlers.handleMetricCorruptionRise),
-        () => bus.off?.('metric.corruption.spike', this._boundHandlers.handleMetricCorruptionRise),
-        () => bus.off?.('metric.phase.changed', this._boundHandlers.handleMetricPhaseChanged),
+        () => bus.off?.('node.corruption.high', this._boundHandlers.handleMetricCorruptionRise),
         () => bus.off?.('link:collapsed', this._boundHandlers.handleLinkCollapsed),
         () => bus.off?.('node.hover', this._boundHandlers.handleNodeHover)
       );
     } else if (typeof subscribe === 'function') {
       // Fallback to subscribe() method
       const unsub1 = subscribe('node.synergy.high', this._boundHandlers.handleNodeSynergyHigh);
-      const unsub2 = subscribe('metric:corruptionRise', this._boundHandlers.handleMetricCorruptionRise);
-      const unsub3 = subscribe('metric.corruption.spike', this._boundHandlers.handleMetricCorruptionRise);
-      const unsub4 = subscribe('metric.phase.changed', this._boundHandlers.handleMetricPhaseChanged);
-      const unsub5 = subscribe('link:collapsed', this._boundHandlers.handleLinkCollapsed);
-      const unsub6 = subscribe('node.hover', this._boundHandlers.handleNodeHover);
+      const unsub2 = subscribe('node.corruption.high', this._boundHandlers.handleMetricCorruptionRise);
+      const unsub3 = subscribe('link:collapsed', this._boundHandlers.handleLinkCollapsed);
+      const unsub4 = subscribe('node.hover', this._boundHandlers.handleNodeHover);
       
-      this._subscriptions.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6);
+      this._subscriptions.push(unsub1, unsub2, unsub3, unsub4);
     }
   }
   
@@ -219,7 +212,7 @@ export class CascadeEventBridge_v1 {
   }
   
   /**
-   * Handle metric:corruptionRise event
+   * Handle node.corruption.high event
    */
   _handleMetricCorruptionRise(event = {}, skipDedup = false) {
     if (!this.config.enabled) return;

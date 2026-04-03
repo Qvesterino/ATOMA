@@ -6,22 +6,17 @@ export function setupWaveBurstRouter(game) {
 
     const EXPECTED_EVENT_TAGS = [
         'node.synergy.high',
+        'node.harmony.high',
         'link:synergyThreshold',
-        'metric:synergySpike',
-        'metric.synergy.burst',
-        'metric.phase.changed',
         'link:harmonicLock',
-        'metric:harmonyPeak',
         'network:harmonyShift',
         'cascade.start',
         'harmonic.cascade.start',
         'cascade.hop',
-        'metric:stabilityDrop',
-        'metric:loadPressureHigh',
+        'global.stability.low',
+        'global.loadPressure.high',
         'network:stressRise',
-        'metric:corruptionRise',
-        'metric.corruption.spike',
-        'metric.corruption.spread',
+        'node.corruption.high',
         'network:corruptionSpread',
         'metrics.spike',
         'link:collapsed'
@@ -377,21 +372,24 @@ export function setupWaveBurstRouter(game) {
     }
 
     function resolveCurrentRegime(type, payload = {}, eventTag = '') {
-        if (eventTag === 'metric.phase.changed') {
-            const phase = normalizeMetricName(payload.phase);
+        if (eventTag.startsWith('node.') || eventTag.startsWith('link.') || eventTag.startsWith('global.') || eventTag.startsWith('hub.')) {
+            const scopedMetric = normalizeMetricName(payload.metric || eventTag.split('.')[1]);
+            const tier = normalizeMetricName(payload.tier || eventTag.split('.')[2]);
             const value = clamp01(payload.value ?? payload.intensity ?? payload.strength ?? 0);
 
-            if (type === 'synergy') {
+            if (scopedMetric === 'synergy') {
                 return resolveSynergyRegime(value, clamp01(payload.corruption ?? payload.corruptionLevel ?? 0));
             }
-            if (type === 'harmonic') {
+            if (scopedMetric === 'harmony') {
                 return resolveHarmonicRegime(value, clamp01(payload.stability ?? 1));
             }
-            if (type === 'corruption') {
+            if (scopedMetric === 'corruption') {
                 return resolveCorruptionRegime(value);
             }
-            if (type === 'stability') {
-                return resolveStabilityRegime(1 - value, value, value);
+            if (scopedMetric === 'stability' || scopedMetric === 'loadpressure') {
+                return tier === 'low'
+                    ? resolveStabilityRegime(value, 1 - value, value)
+                    : resolveStabilityRegime(1 - value, value, value);
             }
         }
 
@@ -447,7 +445,7 @@ export function setupWaveBurstRouter(game) {
             ? payload.detail
             : payload;
 
-        const resolvedPhase = phase ?? semanticPayload?.phase ?? null;
+        const resolvedPhase = phase ?? semanticPayload?.tier ?? semanticPayload?.phase ?? null;
         const sourceId = resolveSourceId(type, semanticPayload, eventTag);
         const nowSec = performance.now() * 0.001;
         if (resolvedPhase) {
@@ -458,19 +456,6 @@ export function setupWaveBurstRouter(game) {
         }
 
         emitIntent(type, semanticPayload, eventTag);
-    }
-
-    function handlePhaseChanged(payload = {}) {
-        const semanticPayload = payload?.detail && typeof payload.detail === 'object'
-            ? payload.detail
-            : payload;
-        const route = resolvePhaseRoute(semanticPayload?.metric, semanticPayload?.phase);
-        if (!route) return;
-
-        handleSemanticMetricSignal(route.type, {
-            ...semanticPayload,
-            semanticPhase: route.phase
-        }, 'metric.phase.changed', route.phase);
     }
 
     function resolveFromLinkPayload(link) {
@@ -657,21 +642,11 @@ export function setupWaveBurstRouter(game) {
             }
         };
 
-        const bindPhaseChanged = (priority) => {
-            const handler = (payload = {}) => handlePhaseChanged(payload);
-            subscribeFn('metric.phase.changed', handler, { priority });
-            if (unsubscribeFn) {
-                state.unsubscribers.push(() => unsubscribeFn('metric.phase.changed', handler));
-            }
-        };
-
         // Synergy gameplay events
         bindSignal('node.synergy.high', 'synergy', 'high', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
+        bindSignal('node.harmony.high', 'harmonic', 'high', semanticBus.priority?.NORMAL);
         bindSignal('link:synergyThreshold', 'synergy', 'high', semanticBus.priority?.NORMAL);
-        bindSignal('metric:synergySpike', 'synergy', 'high', semanticBus.priority?.NORMAL);
-        bindSignal('metric.synergy.burst', 'synergy', 'high', semanticBus.priority?.NORMAL);
         bindSignal('link:harmonicLock', 'harmonic', 'high', semanticBus.priority?.NORMAL);
-        bindSignal('metric:harmonyPeak', 'harmonic', 'high', semanticBus.priority?.NORMAL);
         bind('network:harmonyShift', 'harmonic', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
 
         // Cascade gameplay events
@@ -681,17 +656,13 @@ export function setupWaveBurstRouter(game) {
         bind('cascade.hop', 'cascade', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
 
         // Corruption gameplay events
-        bindSignal('metric:stabilityDrop', 'stability', 'low', semanticBus.priority?.NORMAL);
-        bindSignal('metric:loadPressureHigh', 'stability', 'high', semanticBus.priority?.NORMAL);
+        bindSignal('global.stability.low', 'stability', 'low', semanticBus.priority?.NORMAL);
+        bindSignal('global.loadPressure.high', 'stability', 'high', semanticBus.priority?.NORMAL);
         bind('network:stressRise', 'stability', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
-        bindSignal('metric:corruptionRise', 'corruption', 'high', semanticBus.priority?.NORMAL);
-        bindSignal('metric.corruption.spike', 'corruption', 'high', semanticBus.priority?.NORMAL);
-        bind('metric.corruption.spread', 'corruption', semanticBus.priority?.NORMAL);
+        bindSignal('node.corruption.high', 'corruption', 'high', semanticBus.priority?.NORMAL);
         bind('network:corruptionSpread', 'corruption', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
         bind('metrics.spike', 'corruption', semanticBus.priority?.CRITICAL ?? semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
         bind('link:collapsed', 'corruption', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
-
-        bindPhaseChanged(semanticBus.priority?.NORMAL);
 
         state.subscribed = true;
         state.boundBus = semanticBus;

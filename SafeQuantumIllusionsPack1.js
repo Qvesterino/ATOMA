@@ -33,7 +33,10 @@ import { QuantumIllusionRegistry } from './QuantumIllusionRegistry.js';
 export class SafeQuantumIllusionsPack1 {
   constructor(scene, environmentRoot, camera, aiNodes, linkingSystem, worldEvents, weatherPack, legendaryPack, sharedAssets = null) {
     this.scene = scene;
-    this.root = environmentRoot || scene; // default to scene if environmentRoot not provided
+    this.environmentRoot = environmentRoot || scene;
+    this.root = new THREE.Group();
+    this.root.name = 'SafeQuantumIllusionsRoot';
+    this.environmentRoot.add(this.root);
     this.camera = camera;
     this.aiNodes = aiNodes;
     this.linkingSystem = linkingSystem;
