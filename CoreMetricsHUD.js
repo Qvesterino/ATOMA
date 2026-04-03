@@ -53,6 +53,14 @@ export class CoreMetricsHUD {
     // Update throttling (2Hz = 500ms)
     this.lastUpdateTime = 0;
     this.updateInterval = 500; // 2 updates per second
+    this.metricApproachRate = 0.2; // 0->1 in ~5s when target is stable
+    this.displayedMetrics = {
+      synergy: 0,
+      harmony: 0,
+      stability: 0,
+      corruption: 0,
+      loadPressure: 0
+    };
     
     // Previous values for color indication
     this.previousValues = {
@@ -229,66 +237,53 @@ export class CoreMetricsHUD {
 update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   if (!this.enabled || !this.hudContainer) return;
 
-  // === UPDATE THROTTLING (2Hz) ===
   const now = performance.now();
-  if (now - this.lastUpdateTime < this.updateInterval) {
-    // Still update temporal elements and glow animations every frame
-    this.updateTemporalElements(temporalDisplay);
-    this.updateGlow(deltaTime);
-    return;
-  }
-  this.lastUpdateTime = now;
 
-  // === READ METRICS FROM __ATOMA_LIVE_METRICS__ ===
-  // Primary source: window.__ATOMA_LIVE_METRICS__ (published by MetricsRuntime_v1)
-  // Fallback: CoreMetricsCalculator (for backward compatibility)
-  let synergy, harmony, stress, corruption, load;
-
-  const liveMetrics = window.__ATOMA_LIVE_METRICS__;
-  if (liveMetrics) {
-    // Read from __ATOMA_LIVE_METRICS__ (MetricsRuntime_v1 published)
-    synergy = this.clamp01(liveMetrics.networkSynergy ?? 0);
-    harmony = this.clamp01(liveMetrics.harmonyFlow ?? 0);
-    stress = this.clamp01(liveMetrics.networkStress ?? 0);
-    corruption = this.clamp01(liveMetrics.corruptionLevel ?? 0);
-    load = this.clamp01(liveMetrics.loadPressure ?? 0);
+  // === RESOLVE TARGET METRICS ===
+  // Prefer the explicit metrics input from the overlay, then fall back to runtime globals.
+  let targetSource = null;
+  if (metrics && typeof metrics === 'object' && Object.keys(metrics).length > 0) {
+    targetSource = metrics;
+  } else if (window.__ATOMA_LIVE_METRICS__) {
+    targetSource = window.__ATOMA_LIVE_METRICS__;
   } else if (this.coreMetricsCalculator) {
-    // Fallback: CoreMetricsCalculator
-    const calcMetrics = this.coreMetricsCalculator.getMetrics();
-    synergy = this.clamp01(calcMetrics.synergy ?? 0);
-    harmony = this.clamp01(calcMetrics.harmony ?? 0);
-    stress = this.clamp01(calcMetrics.stability ?? 0);
-    corruption = this.clamp01(calcMetrics.corruption ?? 0);
-    load = this.clamp01(calcMetrics.loadPressure ?? 0);
-  } else if (metrics) {
-    // Fallback to provided metrics parameter
-    synergy = this.clamp01(metrics.synergy ?? 0);
-    harmony = this.clamp01(metrics.harmony ?? 0);
-    stress = this.clamp01(metrics.stability ?? 0);
-    corruption = this.clamp01(metrics.corruption ?? 0);
-    load = this.clamp01(metrics.loadPressure ?? 0);
-  } else {
-    // Final fallback to zero values
-    synergy = harmony = stress = corruption = load = 0;
+    targetSource = this.coreMetricsCalculator.getMetrics();
   }
 
-  // === RENDER HUD (expects 0..1 floats) ===
-  this.updateMetricDisplay('synergy', synergy);
-  this.updateMetricDisplay('harmony', harmony);
-  this.updateMetricDisplay('stability', stress);
-  this.updateMetricDisplay('corruption', corruption);
-  this.updateMetricDisplay('loadPressure', load);
+  const targetMetrics = projectHudMetrics(targetSource || {});
+
+  // === SMOOTH DISPLAY STATE TOWARD TARGETS ===
+  const dt = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0.016;
+  const maxStep = this.metricApproachRate * dt;
+  const approach = (current, target) => {
+    const delta = target - current;
+    if (Math.abs(delta) <= maxStep) return target;
+    return current + Math.sign(delta) * maxStep;
+  };
+
+  this.displayedMetrics.synergy = approach(this.displayedMetrics.synergy, targetMetrics.networkSynergy);
+  this.displayedMetrics.harmony = approach(this.displayedMetrics.harmony, targetMetrics.harmonyFlow);
+  this.displayedMetrics.stability = approach(this.displayedMetrics.stability, targetMetrics.networkStress);
+  this.displayedMetrics.corruption = approach(this.displayedMetrics.corruption, targetMetrics.corruptionLevel);
+  this.displayedMetrics.loadPressure = approach(this.displayedMetrics.loadPressure, targetMetrics.loadPressure);
+
+  // === RENDER HUD (smoothed, 0..1 floats) ===
+  this.updateMetricDisplay('synergy', this.displayedMetrics.synergy);
+  this.updateMetricDisplay('harmony', this.displayedMetrics.harmony);
+  this.updateMetricDisplay('stability', this.displayedMetrics.stability);
+  this.updateMetricDisplay('corruption', this.displayedMetrics.corruption);
+  this.updateMetricDisplay('loadPressure', this.displayedMetrics.loadPressure);
 
   // === VISUAL NETWORK TIME ELASTICITY ===
   // Update time elasticity state based on synergy
-  this.timeElasticity.setAverageSynergy(synergy);
+  this.timeElasticity.setAverageSynergy(this.displayedMetrics.synergy);
   this.timeElasticity.update(deltaTime, performance.now() / 1000);
   
   // Update visualization of time elasticity
   this.updateTimeElasticityVisualization();
 
   // === NETWORK TIME PRESSURE ===
-  this.updateNetworkTime(synergy, deltaTime);
+  this.updateNetworkTime(this.displayedMetrics.synergy, deltaTime);
 
 
   // === EVENT GLOW ===

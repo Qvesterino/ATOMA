@@ -571,7 +571,7 @@ const adapter = this._createLinkSystemAdapter(
             if (changedMetric === null) continue;
             if (!this._canEmitNodeCooldown(node, 'metricNodeUpdated', nowMs, NODE_METRIC_UPDATED_COOLDOWN_MS)) continue;
 
-            semanticBus.emit('metric.node.updated', {
+            semanticBus.emit('node.metric.updated', {
                 nodeId,
                 metric: changedMetric,
                 value: changedValue
@@ -1380,6 +1380,32 @@ const adapter = this._createLinkSystemAdapter(
     _aggregateNodeMetrics() {
         const nodesList = Array.isArray(this.nodes?.nodes) ? this.nodes.nodes : [];
         const nodeCount = nodesList.length;
+        const linkList =
+            this.linkSystem?.links ||
+            this.links?.links ||
+            this.links ||
+            [];
+        const activeNodeIds = new Set();
+        for (const link of linkList) {
+            if (!link || link.active === false) continue;
+            const sourceId = this._getNodeId(link.source ?? link.nodeA ?? link.sourceNode);
+            const targetId = this._getNodeId(link.target ?? link.nodeB ?? link.targetNode);
+            if (sourceId !== null && sourceId !== undefined) activeNodeIds.add(String(sourceId));
+            if (targetId !== null && targetId !== undefined) activeNodeIds.add(String(targetId));
+        }
+
+        if (activeNodeIds.size === 0) {
+            return {
+                networkSynergy: 0,
+                harmonyFlow: 0,
+                networkStress: 0,
+                stability: 0,
+                corruptionLevel: 0,
+                loadPressure: 0,
+                nodeCount,
+                linkCount: this._countLinks()
+            };
+        }
 
         const readNodeMetric = (node, canonicalKey, fallbackKeys = []) => {
             const userData = node?.userData || {};
@@ -1410,6 +1436,10 @@ const adapter = this._createLinkSystemAdapter(
         let validNodeCount = 0;
 
         for (const node of nodesList) {
+            const nodeId = this._getNodeId(node);
+            if (nodeId !== null && nodeId !== undefined && !activeNodeIds.has(String(nodeId))) {
+                continue;
+            }
             const synergy = readNodeMetric(node, 'synergy', ['synergyLevel']);
             const harmony = readNodeMetric(node, 'harmony', ['harmonyLevel']);
             const stability = readNodeMetric(node, 'stability', ['stabilityLevel']);

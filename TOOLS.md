@@ -55,6 +55,11 @@ When running browser/runtime validation in this workspace:
 - open `http://127.0.0.1:5500/index.html`
 - treat the local static server boot as the canonical runtime path for smoke tests
 - only use an alternate boot path if the task explicitly requires it
+- current local boot map in this workspace:
+  - static runtime: `http://127.0.0.1:5500/index.html`
+  - Vite dev runtime: `http://localhost:5173/`
+  - Python server: `http://localhost:8080/`
+- use Microsoft Edge for manual smoke testing when a browser choice matters
 
 ---
 

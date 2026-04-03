@@ -130,6 +130,18 @@ const INPUT_V2_CACHE = {
   vectorGeometry: null
 };
 const INPUT_V2_MATERIALS = new Map(); // keyed by color hex
+const INPUT_GATEWAY_RELIQUARY_CACHE = {
+  apertureGeometry: null,
+  apertureEdgesGeometry: null,
+  lensGeometry: null,
+  lensEdgesGeometry: null,
+  seamGeometry: null,
+  phaseGeometry: null,
+  railGeometry: null,
+  haloGeometry: null,
+  particleGeometry: null
+};
+const INPUT_GATEWAY_RELIQUARY_MATERIALS = new Map(); // keyed by color hex
 const INPUT_INCOMING_RELIQUARY_CACHE = {
   coreGeometry: null,
   coreEdgesGeometry: null,
@@ -268,6 +280,21 @@ const EMO_V2_CACHE = {
   particlesGeometry: null
 };
 const EMO_V2_MATERIALS = new Map(); // keyed by color hex
+const EMO_NEURAL_LOBE_CACHE = {
+  lobeGeometry: null,
+  lobeEdgesGeometry: null,
+  nucleusGeometry: null,
+  seamGeometry: null,
+  membraneGeometryA: null,
+  membraneEdgesGeometryA: null,
+  membraneGeometryB: null,
+  membraneEdgesGeometryB: null,
+  filamentGeometry: null,
+  anchorGeometry: null,
+  anchorEdgesGeometry: null,
+  mistGeometry: null
+};
+const EMO_NEURAL_LOBE_MATERIALS = new Map(); // keyed by color hex
 
 // Enforce opaque, front-facing core materials for core meshes
 function enforceOpaqueCoreMaterial(mat) {
@@ -387,6 +414,18 @@ const PRIME_STELLA_CACHE = {
   haloGeometry: null
 };
 const PRIME_STELLA_MATERIALS = new Map(); // keyed by color hex
+const PRIME_IMMACULATE_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  seamGeometry: null,
+  chamberGeometry: null,
+  chamberEdgesGeometry: null,
+  meridianGeometry: null,
+  railGeometry: null,
+  keystoneGeometry: null,
+  haloGeometry: null
+};
+const PRIME_IMMACULATE_MATERIALS = new Map(); // keyed by color hex
 
 function _getPrimeStellaGeometries() {
   if (!PRIME_STELLA_CACHE.coreGeometry) {
@@ -501,6 +540,181 @@ function _getPrimeStellaMaterials(color) {
 
   const mats = { coreMat, crownMat, spineMat, bandMat, edgeMat, haloMat };
   PRIME_STELLA_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+function _getPrimeImmaculateGeometries() {
+  if (!PRIME_IMMACULATE_CACHE.coreGeometry) {
+    const coreGeometry = new THREE.DodecahedronGeometry(0.42, 0);
+    const corePos = coreGeometry.attributes.position;
+    for (let i = 0; i < corePos.count; i++) {
+      const x = corePos.getX(i);
+      const y = corePos.getY(i);
+      const z = corePos.getZ(i);
+      const yWeight = Math.min(1.0, Math.abs(y) / 0.42);
+      const xWeight = Math.min(1.0, Math.abs(x) / 0.42);
+      corePos.setXYZ(
+        i,
+        x * (0.9 + yWeight * 0.12),
+        y * 1.16 + Math.sign(y || 1) * 0.02 * xWeight,
+        z * (0.84 + xWeight * 0.08)
+      );
+    }
+    corePos.needsUpdate = true;
+    coreGeometry.computeVertexNormals();
+    coreGeometry.computeBoundingSphere();
+    PRIME_IMMACULATE_CACHE.coreGeometry = coreGeometry;
+    PRIME_IMMACULATE_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 14);
+
+    const seamGeometry = new THREE.IcosahedronGeometry(0.16, 0);
+    seamGeometry.scale(0.46, 1.22, 0.46);
+    seamGeometry.computeBoundingSphere();
+    PRIME_IMMACULATE_CACHE.seamGeometry = seamGeometry;
+
+    const chamberGeometry = new THREE.BoxGeometry(0.8, 1.1, 0.8, 1, 1, 1);
+    const chamberPos = chamberGeometry.attributes.position;
+    for (let i = 0; i < chamberPos.count; i++) {
+      const x = chamberPos.getX(i);
+      const y = chamberPos.getY(i);
+      const z = chamberPos.getZ(i);
+      const taper = 1.0 - (Math.abs(y) / 0.55) * 0.28;
+      chamberPos.setXYZ(
+        i,
+        x * taper + z * 0.07 * Math.sign(y || 1),
+        y * 1.04,
+        z * (0.88 + Math.abs(y) * 0.16) - x * 0.04
+      );
+    }
+    chamberPos.needsUpdate = true;
+    chamberGeometry.computeVertexNormals();
+    chamberGeometry.computeBoundingSphere();
+    PRIME_IMMACULATE_CACHE.chamberGeometry = chamberGeometry;
+    PRIME_IMMACULATE_CACHE.chamberEdgesGeometry = safeCreateEdgesGeometry(chamberGeometry, 18);
+
+    PRIME_IMMACULATE_CACHE.meridianGeometry = new THREE.TorusGeometry(0.82, 0.018, 8, 112);
+
+    const railSegments = [];
+    const addRail = (a, b) => {
+      railSegments.push(...a, ...b);
+    };
+    addRail([0, -0.92, 0], [0, 0.92, 0]);
+    addRail([-0.44, -0.52, 0], [0.44, 0.52, 0]);
+    addRail([0, -0.48, 0.42], [0, 0.48, -0.42]);
+    addRail([-0.2, 0, -0.6], [0.2, 0, 0.6]);
+    const railGeometry = new THREE.BufferGeometry();
+    railGeometry.setAttribute('position', new THREE.Float32BufferAttribute(railSegments, 3));
+    railGeometry.computeBoundingSphere();
+    PRIME_IMMACULATE_CACHE.railGeometry = railGeometry;
+
+    const keystoneGeometry = new THREE.OctahedronGeometry(0.08, 0);
+    keystoneGeometry.scale(0.52, 1.18, 0.52);
+    keystoneGeometry.computeBoundingSphere();
+    PRIME_IMMACULATE_CACHE.keystoneGeometry = keystoneGeometry;
+
+    const haloPositions = [];
+    const haloCount = 36;
+    for (let i = 0; i < haloCount; i++) {
+      const angle = (i / haloCount) * Math.PI * 2;
+      const radial = 0.94 + Math.sin(i * 1.17) * 0.04;
+      haloPositions.push(
+        Math.cos(angle) * radial,
+        Math.sin(i * 1.43) * 0.08,
+        Math.sin(angle) * (0.66 + Math.cos(i * 0.87) * 0.06)
+      );
+    }
+    const haloGeometry = new THREE.BufferGeometry();
+    haloGeometry.setAttribute('position', new THREE.Float32BufferAttribute(haloPositions, 3));
+    haloGeometry.computeBoundingSphere();
+    PRIME_IMMACULATE_CACHE.haloGeometry = haloGeometry;
+  }
+
+  return PRIME_IMMACULATE_CACHE;
+}
+
+function _getPrimeImmaculateMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xc8d6df;
+  if (PRIME_IMMACULATE_MATERIALS.has(colorHex)) return PRIME_IMMACULATE_MATERIALS.get(colorHex);
+
+  const primeColor = new THREE.Color(colorHex);
+  const silverColor = new THREE.Color(0xf3f7fb).lerp(primeColor, 0.16);
+  const coldColor = new THREE.Color(0xd3f4ff);
+  const depthColor = new THREE.Color(0x1b2128).lerp(primeColor, 0.18);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: silverColor.clone().lerp(coldColor, 0.08),
+    emissive: new THREE.Color(0x9ccff2),
+    emissiveIntensity: 0.24,
+    metalness: 0.92,
+    roughness: 0.12,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const chamberMat = new THREE.MeshBasicMaterial({
+    color: silverColor.clone().lerp(coldColor, 0.24),
+    transparent: true,
+    opacity: 0.16,
+    depthWrite: false
+  });
+
+  const meridianMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(0xeefcff),
+    transparent: true,
+    opacity: 0.28,
+    depthWrite: false
+  });
+
+  const railMat = new THREE.LineBasicMaterial({
+    color: new THREE.Color(0xf4fcff),
+    transparent: true,
+    opacity: 0.74,
+    depthWrite: false
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: new THREE.Color(0xfbfdff),
+    transparent: true,
+    opacity: 0.82,
+    depthWrite: false
+  });
+
+  const keystoneMat = new THREE.MeshStandardMaterial({
+    color: silverColor.clone().lerp(coldColor, 0.18),
+    emissive: new THREE.Color(0x9ee7ff),
+    emissiveIntensity: 0.16,
+    metalness: 0.84,
+    roughness: 0.14,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seamMat = new THREE.MeshBasicMaterial({
+    color: depthColor,
+    transparent: true,
+    opacity: 0.94,
+    depthWrite: false
+  });
+
+  const haloMat = new THREE.PointsMaterial({
+    color: new THREE.Color(0xcaf2ff),
+    size: 0.042,
+    transparent: true,
+    opacity: 0.66,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const mats = { coreMat, chamberMat, meridianMat, railMat, edgeMat, keystoneMat, seamMat, haloMat };
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+  }
+
+  PRIME_IMMACULATE_MATERIALS.set(colorHex, mats);
   return mats;
 }
 
@@ -1400,6 +1614,176 @@ function _getInputV2Materials(color) {
 
   const mats = { coreMat, edgeMat, neonMat, streamMat, vectorMat, particleMat };
   INPUT_V2_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+function _getInputGatewayReliquaryGeometries() {
+  if (!INPUT_GATEWAY_RELIQUARY_CACHE.apertureGeometry) {
+    const apertureGeometry = new THREE.CylinderGeometry(0.08, 0.24, 0.92, 4, 1, false);
+    const aperturePos = apertureGeometry.attributes.position;
+    for (let i = 0; i < aperturePos.count; i++) {
+      const x = aperturePos.getX(i);
+      const y = aperturePos.getY(i);
+      const z = aperturePos.getZ(i);
+      const topWeight = y > 0 ? 1.0 : 0.0;
+      aperturePos.setXYZ(
+        i,
+        x * (0.78 + topWeight * 0.24) + z * 0.08,
+        y * 1.02,
+        z * (0.72 + topWeight * 0.18) - x * 0.05
+      );
+    }
+    aperturePos.needsUpdate = true;
+    apertureGeometry.computeVertexNormals();
+    apertureGeometry.computeBoundingSphere();
+    INPUT_GATEWAY_RELIQUARY_CACHE.apertureGeometry = apertureGeometry;
+    INPUT_GATEWAY_RELIQUARY_CACHE.apertureEdgesGeometry = safeCreateEdgesGeometry(apertureGeometry, 12);
+
+    const lensGeometry = new THREE.IcosahedronGeometry(0.24, 1);
+    lensGeometry.scale(0.84, 1.18, 0.78);
+    lensGeometry.computeBoundingSphere();
+    INPUT_GATEWAY_RELIQUARY_CACHE.lensGeometry = lensGeometry;
+    INPUT_GATEWAY_RELIQUARY_CACHE.lensEdgesGeometry = safeCreateEdgesGeometry(lensGeometry, 12);
+
+    const seamGeometry = new THREE.BoxGeometry(0.07, 0.74, 0.16, 1, 1, 1);
+    seamGeometry.computeBoundingSphere();
+    INPUT_GATEWAY_RELIQUARY_CACHE.seamGeometry = seamGeometry;
+
+    const phaseGeometry = new THREE.BoxGeometry(0.08, 0.12, 0.34, 1, 1, 1);
+    const phasePos = phaseGeometry.attributes.position;
+    for (let i = 0; i < phasePos.count; i++) {
+      const x = phasePos.getX(i);
+      const y = phasePos.getY(i);
+      const z = phasePos.getZ(i);
+      phasePos.setXYZ(
+        i,
+        x * (1.0 + Math.sign(z || 1) * 0.18),
+        y * (0.9 + Math.abs(z) * 0.45),
+        z * 1.04 + x * 0.06
+      );
+    }
+    phasePos.needsUpdate = true;
+    phaseGeometry.computeVertexNormals();
+    phaseGeometry.computeBoundingSphere();
+    INPUT_GATEWAY_RELIQUARY_CACHE.phaseGeometry = phaseGeometry;
+
+    const railSegments = [
+      new THREE.Vector3(-0.28, 0.14, 0.94), new THREE.Vector3(-0.08, 0.04, 0.18),
+      new THREE.Vector3(0.28, -0.14, 0.88), new THREE.Vector3(0.1, -0.02, 0.12),
+      new THREE.Vector3(0.06, 0.3, 0.78), new THREE.Vector3(0.02, 0.12, 0.16)
+    ];
+    const railGeometry = new THREE.BufferGeometry().setFromPoints(railSegments);
+    railGeometry.computeBoundingSphere();
+    INPUT_GATEWAY_RELIQUARY_CACHE.railGeometry = railGeometry;
+
+    const haloGeometry = new THREE.RingGeometry(0.78, 0.94, 56);
+    haloGeometry.rotateX(Math.PI / 2);
+    haloGeometry.computeBoundingSphere();
+    INPUT_GATEWAY_RELIQUARY_CACHE.haloGeometry = haloGeometry;
+
+    const particlePositions = [];
+    const particleCount = 48;
+    for (let i = 0; i < particleCount; i++) {
+      const t = i / particleCount;
+      const angle = t * Math.PI * 2;
+      const radius = 0.84 - t * 0.26 + Math.sin(i * 1.32) * 0.05;
+      particlePositions.push(
+        Math.cos(angle) * radius,
+        -0.22 + Math.sin(i * 0.84) * 0.26,
+        0.36 + Math.sin(angle * 1.8) * 0.16 + Math.cos(i * 0.72) * 0.08
+      );
+    }
+    const particleGeometry = new THREE.BufferGeometry();
+    particleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(particlePositions, 3));
+    particleGeometry.computeBoundingSphere();
+    INPUT_GATEWAY_RELIQUARY_CACHE.particleGeometry = particleGeometry;
+  }
+
+  return INPUT_GATEWAY_RELIQUARY_CACHE;
+}
+
+function _getInputGatewayReliquaryMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0x00ddff;
+  if (INPUT_GATEWAY_RELIQUARY_MATERIALS.has(colorHex)) {
+    return INPUT_GATEWAY_RELIQUARY_MATERIALS.get(colorHex);
+  }
+
+  const inputColor = new THREE.Color(colorHex);
+  const brightCyan = inputColor.clone().lerp(new THREE.Color(0xffffff), 0.34);
+  const deepCyan = inputColor.clone().lerp(new THREE.Color(0x031228), 0.36);
+  const paleCyan = new THREE.Color(0xdafcff);
+
+  const apertureMat = new THREE.MeshStandardMaterial({
+    color: deepCyan.clone().lerp(brightCyan, 0.12),
+    emissive: inputColor.clone().multiplyScalar(0.56),
+    emissiveIntensity: 0.16,
+    metalness: 0.72,
+    roughness: 0.3,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const lensMat = new THREE.MeshPhysicalMaterial({
+    color: brightCyan,
+    emissive: new THREE.Color(0x88f7ff),
+    emissiveIntensity: 0.68,
+    metalness: 0.84,
+    roughness: 0.08,
+    transmission: 0,
+    thickness: 0.16,
+    ior: 1.42,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seamMat = new THREE.MeshBasicMaterial({
+    color: 0x02070f,
+    transparent: true,
+    opacity: 0.94,
+    depthWrite: false
+  });
+
+  const phaseMat = new THREE.MeshBasicMaterial({
+    color: brightCyan.clone().lerp(new THREE.Color(0x72f1ff), 0.3),
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false
+  });
+
+  const lineMat = new THREE.LineBasicMaterial({
+    color: paleCyan,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false
+  });
+
+  const haloMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(0xc9fbff),
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false
+  });
+
+  const particleMat = new THREE.PointsMaterial({
+    color: new THREE.Color(0xb9f8ff),
+    size: 0.044,
+    transparent: true,
+    opacity: 0.68,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const mats = { apertureMat, lensMat, seamMat, phaseMat, lineMat, haloMat, particleMat };
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+  }
+
+  INPUT_GATEWAY_RELIQUARY_MATERIALS.set(colorHex, mats);
   return mats;
 }
 
@@ -2379,6 +2763,266 @@ function _getEmotionalV2Materials(color) {
   return mats;
 }
 
+function _getEmotionalNeuralLobeGeometries() {
+  if (!EMO_NEURAL_LOBE_CACHE.lobeGeometry) {
+    const lobeGeometry = new THREE.IcosahedronGeometry(0.28, 1);
+    const lobePos = lobeGeometry.attributes.position;
+    for (let i = 0; i < lobePos.count; i++) {
+      const x = lobePos.getX(i);
+      const y = lobePos.getY(i);
+      const z = lobePos.getZ(i);
+      const bias = Math.sin((x + z) * 9.0) * 0.014;
+      lobePos.setXYZ(
+        i,
+        x * 1.08 + y * 0.04,
+        y * 0.86 + bias,
+        z * 1.16 - x * 0.03
+      );
+    }
+    lobePos.needsUpdate = true;
+    lobeGeometry.computeVertexNormals();
+    lobeGeometry.computeBoundingSphere();
+    EMO_NEURAL_LOBE_CACHE.lobeGeometry = lobeGeometry;
+    EMO_NEURAL_LOBE_CACHE.lobeEdgesGeometry = safeCreateEdgesGeometry(lobeGeometry, 12);
+
+    const nucleusGeometry = new THREE.OctahedronGeometry(0.14, 0);
+    nucleusGeometry.scale(0.72, 1.22, 0.72);
+    nucleusGeometry.computeBoundingSphere();
+    EMO_NEURAL_LOBE_CACHE.nucleusGeometry = nucleusGeometry;
+
+    const seamGeometry = new THREE.BoxGeometry(0.08, 0.56, 0.16, 1, 1, 1);
+    const seamPos = seamGeometry.attributes.position;
+    for (let i = 0; i < seamPos.count; i++) {
+      const x = seamPos.getX(i);
+      const y = seamPos.getY(i);
+      const z = seamPos.getZ(i);
+      seamPos.setXYZ(
+        i,
+        x * (0.84 + Math.abs(y) * 0.18),
+        y * 1.02,
+        z * 0.88 + x * 0.1
+      );
+    }
+    seamPos.needsUpdate = true;
+    seamGeometry.computeVertexNormals();
+    seamGeometry.computeBoundingSphere();
+    EMO_NEURAL_LOBE_CACHE.seamGeometry = seamGeometry;
+
+    const membraneGeometryA = new THREE.SphereGeometry(
+      0.78,
+      28,
+      18,
+      Math.PI * 0.56,
+      Math.PI * 0.98,
+      Math.PI * 0.18,
+      Math.PI * 0.7
+    );
+    const memAPos = membraneGeometryA.attributes.position;
+    for (let i = 0; i < memAPos.count; i++) {
+      const x = memAPos.getX(i);
+      const y = memAPos.getY(i);
+      const z = memAPos.getZ(i);
+      memAPos.setXYZ(i, x * 1.04 + z * 0.08, y * 0.82, z * 0.92 - x * 0.04);
+    }
+    memAPos.needsUpdate = true;
+    membraneGeometryA.computeVertexNormals();
+    membraneGeometryA.computeBoundingSphere();
+    EMO_NEURAL_LOBE_CACHE.membraneGeometryA = membraneGeometryA;
+    EMO_NEURAL_LOBE_CACHE.membraneEdgesGeometryA = safeCreateEdgesGeometry(membraneGeometryA, 12);
+
+    const membraneGeometryB = new THREE.SphereGeometry(
+      0.74,
+      24,
+      16,
+      Math.PI * 0.02,
+      Math.PI * 1.06,
+      Math.PI * 0.36,
+      Math.PI * 0.54
+    );
+    const memBPos = membraneGeometryB.attributes.position;
+    for (let i = 0; i < memBPos.count; i++) {
+      const x = memBPos.getX(i);
+      const y = memBPos.getY(i);
+      const z = memBPos.getZ(i);
+      memBPos.setXYZ(i, x * 0.94 - z * 0.06, y * 0.96, z * 1.06 + x * 0.05);
+    }
+    memBPos.needsUpdate = true;
+    membraneGeometryB.computeVertexNormals();
+    membraneGeometryB.computeBoundingSphere();
+    EMO_NEURAL_LOBE_CACHE.membraneGeometryB = membraneGeometryB;
+    EMO_NEURAL_LOBE_CACHE.membraneEdgesGeometryB = safeCreateEdgesGeometry(membraneGeometryB, 12);
+
+    const filamentCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.52, -0.12, 0.58),
+      new THREE.Vector3(-0.34, -0.02, 0.4),
+      new THREE.Vector3(-0.18, 0.12, 0.2),
+      new THREE.Vector3(-0.06, 0.08, 0.06)
+    ]);
+    const filamentGeometry = new THREE.TubeGeometry(filamentCurve, 30, 0.018, 6, false);
+    filamentGeometry.computeBoundingSphere();
+    EMO_NEURAL_LOBE_CACHE.filamentGeometry = filamentGeometry;
+
+    const anchorGeometry = new THREE.OctahedronGeometry(0.08, 0);
+    anchorGeometry.scale(0.7, 1.24, 0.7);
+    anchorGeometry.computeBoundingSphere();
+    EMO_NEURAL_LOBE_CACHE.anchorGeometry = anchorGeometry;
+    EMO_NEURAL_LOBE_CACHE.anchorEdgesGeometry = safeCreateEdgesGeometry(anchorGeometry, 10);
+
+    const mistPositions = [];
+    const mistCount = 54;
+    for (let i = 0; i < mistCount; i++) {
+      const t = i / mistCount;
+      const angle = t * Math.PI * 2;
+      const radius = 0.84 + Math.sin(i * 1.37) * 0.09;
+      mistPositions.push(
+        Math.cos(angle) * radius * 0.72 + 0.08,
+        Math.sin(i * 0.93) * 0.26,
+        Math.sin(angle) * radius * 0.54
+      );
+    }
+    const mistGeometry = new THREE.BufferGeometry();
+    mistGeometry.setAttribute('position', new THREE.Float32BufferAttribute(mistPositions, 3));
+    mistGeometry.computeBoundingSphere();
+    EMO_NEURAL_LOBE_CACHE.mistGeometry = mistGeometry;
+  }
+
+  return EMO_NEURAL_LOBE_CACHE;
+}
+
+function _getEmotionalNeuralLobeMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xff4488;
+  if (EMO_NEURAL_LOBE_MATERIALS.has(colorHex)) return EMO_NEURAL_LOBE_MATERIALS.get(colorHex);
+
+  const emotionalColor = new THREE.Color(colorHex);
+  const cyanColor = new THREE.Color(0x86e8ff).lerp(emotionalColor, 0.18);
+  const roseColor = new THREE.Color(0xff9fcf).lerp(emotionalColor, 0.42);
+  const violetColor = new THREE.Color(0x8a77ff).lerp(emotionalColor, 0.2);
+  const darkColor = new THREE.Color(0x120d1e).lerp(violetColor, 0.12);
+
+  const lobeMatA = new THREE.MeshStandardMaterial({
+    color: cyanColor.clone().lerp(violetColor, 0.28),
+    emissive: new THREE.Color(0x5fdfff),
+    emissiveIntensity: 0.22,
+    metalness: 0.32,
+    roughness: 0.38,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const lobeMatB = new THREE.MeshStandardMaterial({
+    color: roseColor.clone().lerp(violetColor, 0.26),
+    emissive: new THREE.Color(0xff8dc4),
+    emissiveIntensity: 0.18,
+    metalness: 0.26,
+    roughness: 0.42,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const nucleusMat = new THREE.MeshPhysicalMaterial({
+    color: cyanColor.clone().lerp(roseColor, 0.34).lerp(new THREE.Color(0xffffff), 0.22),
+    emissive: new THREE.Color(0xffd6f0),
+    emissiveIntensity: 0.5,
+    metalness: 0.52,
+    roughness: 0.12,
+    transmission: 0,
+    thickness: 0.18,
+    ior: 1.4,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seamMat = new THREE.MeshBasicMaterial({
+    color: darkColor,
+    transparent: true,
+    opacity: 0.94,
+    depthWrite: false
+  });
+
+  const membraneMatA = new THREE.MeshBasicMaterial({
+    color: cyanColor.clone().lerp(new THREE.Color(0xffffff), 0.18),
+    transparent: true,
+    opacity: 0.14,
+    depthWrite: false
+  });
+
+  const membraneMatB = new THREE.MeshBasicMaterial({
+    color: roseColor.clone().lerp(new THREE.Color(0xffffff), 0.1),
+    transparent: true,
+    opacity: 0.12,
+    depthWrite: false
+  });
+
+  const filamentMat = new THREE.MeshBasicMaterial({
+    color: roseColor.clone().lerp(violetColor, 0.34),
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false
+  });
+
+  const anchorMat = new THREE.MeshStandardMaterial({
+    color: violetColor.clone().lerp(cyanColor, 0.2),
+    emissive: roseColor.clone().multiplyScalar(0.72),
+    emissiveIntensity: 0.16,
+    metalness: 0.34,
+    roughness: 0.36,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: new THREE.Color(0xf7efff),
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false
+  });
+
+  const mistMat = new THREE.PointsMaterial({
+    color: roseColor.clone().lerp(cyanColor, 0.24),
+    size: 0.042,
+    transparent: true,
+    opacity: 0.58,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const glowMat = new THREE.MeshBasicMaterial({
+    color: roseColor.clone().lerp(cyanColor, 0.5).lerp(new THREE.Color(0xffffff), 0.08),
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false
+  });
+
+  const mats = {
+    lobeMatA,
+    lobeMatB,
+    nucleusMat,
+    seamMat,
+    membraneMatA,
+    membraneMatB,
+    filamentMat,
+    anchorMat,
+    edgeMat,
+    mistMat,
+    glowMat
+  };
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+  }
+
+  EMO_NEURAL_LOBE_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
 /**
  * Enhanced Node Models - 42 unique geometric designs + 12 EXTREME geometries
  * Organized by layer: Input, Process, Integration, Analytics, Storage, Control
@@ -3109,103 +3753,235 @@ static _createInputNodeLegacy(group, index, color) {
   }
 
   /**
-   * INPUT: DATA_GATEWAY (NEW - Session 63)
-   * Threshold/gateway where data enters the system
-   * - Outer ring gateway frame (octagonal, open in center)
-   * - Inner float portal with data stream indicators
-   * - Flowing segments suggesting direction of data ingestion
-   * - Animation: Ring rotation + portal oscillation + segment flow
-   * 
-   * VISUAL MEANING: "Enter here."
+   * INPUT: DATA_GATEWAY
+   * First Gate reliquary compressing external reality into ATOMA ingress
+   * - Fractured aperture crown instead of a literal torus ring
+   * - Bright threshold lens nested inside a sealed void seam
+   * - Directional phase blades forced through the gate axis
+   * - Animation: crown rotation + gate-heart oscillation + stream flow
+   *
+   * VISUAL MEANING: "Reality enters ATOMA here."
    * VISUAL SAFETY: Static geometry, transform-only animation, immutable
    */
-  static createInputDataGateway(group, color) {
+  static createInputDataGateway(group, visualCode, color) {
     try {
-      // Create outer octagonal gateway ring frame
-      const ringGeometry = new THREE.TorusGeometry(0.65, 0.1, 8, 64);
-      const ringMaterial = new THREE.MeshStandardMaterial({
-        transparent: false,
-        opacity: 1,
-        depthWrite: true,
-        depthTest: true,
-        side: THREE.FrontSide,
-        color: color,
-        metalness: 0.7,
-        roughness: 0.25,
-        emissive: color,
-        emissiveIntensity: 0.25
+      const resolvedColor = typeof color === 'undefined' ? visualCode : color;
+      const geometries = _getInputGatewayReliquaryGeometries();
+      const materials = _getInputGatewayReliquaryMaterials(resolvedColor);
+      const root = new THREE.Group();
+      root.name = 'INPUT_DATA_GATEWAY_NODE';
+      root.userData.visualVariant = 'INPUT_DATA_GATEWAY_FIRST_GATE_RELIQUARY_V4';
 
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+
+      const thresholdGroup = new THREE.Group();
+      thresholdGroup.name = 'THRESHOLD_GROUP';
+      thresholdGroup.userData.isGatewayRing = true;
+      thresholdGroup.userData.visualCoreImmutable = true;
+
+      const crownConfigs = [
+        { name: 'ApertureCrown_Left', pos: [-0.56, 0.02, -0.02], rot: [0.14, 0.14, 0.08], scale: [0.96, 1.12, 0.84] },
+        { name: 'ApertureCrown_Right', pos: [0.58, -0.02, 0.03], rot: [-0.12, -0.22, -0.08], scale: [1.0, 1.08, 0.82] },
+        { name: 'ApertureCrown_TopLeft', pos: [-0.24, 0.6, -0.02], rot: [0.08, 0.36, -0.92], scale: [0.82, 0.94, 0.72] },
+        { name: 'ApertureCrown_TopRight', pos: [0.24, 0.64, 0.02], rot: [-0.08, -0.28, 0.9], scale: [0.78, 0.92, 0.7] },
+        { name: 'ApertureCrown_Bottom', pos: [0.0, -0.66, 0.04], rot: [0.04, 0.12, Math.PI * 0.48], scale: [0.72, 0.84, 0.66] }
+      ];
+      crownConfigs.forEach((cfg) => {
+        const fragment = new THREE.Mesh(geometries.apertureGeometry, materials.apertureMat);
+        fragment.name = cfg.name;
+        fragment.userData.ignoreWaveColor = true;
+        fragment.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+        fragment.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+        fragment.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+        fragment.renderOrder = coreOrder;
+        thresholdGroup.add(fragment);
+
+        const fragmentEdges = new THREE.LineSegments(geometries.apertureEdgesGeometry, materials.lineMat);
+        fragmentEdges.name = `${cfg.name}_Edges`;
+        fragmentEdges.userData.ignoreWaveColor = true;
+        fragmentEdges.position.copy(fragment.position);
+        fragmentEdges.rotation.copy(fragment.rotation);
+        fragmentEdges.scale.copy(fragment.scale);
+        fragmentEdges.renderOrder = archOrder;
+        thresholdGroup.add(fragmentEdges);
       });
+      root.add(thresholdGroup);
 
-      const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-      ring.userData.isGatewayRing = true;
-      ring.userData.visualCoreImmutable = true;
-      group.add(ring);
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
 
-      // Create inner portal (floating icosahedron)
-      const portalGeometry = new THREE.IcosahedronGeometry(0.25, 2);
-      portalGeometry.scale(0.95, 1.15, 0.9); // Elongated vertically
-      
-      const portalMaterial = new THREE.MeshPhysicalMaterial({
-        color: color,
-        metalness: 0.85,
-        roughness: 0.1,
-        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
-        thickness: 0.35,
-        ior: 1.48,
-        emissive: color,
-        emissiveIntensity: 0.4
-      });
+      const gateHeartRig = new THREE.Group();
+      gateHeartRig.name = 'GateHeartRig';
+      gateHeartRig.position.set(0.0, 0.0, 0.0);
+      gateHeartRig.userData.isPortal = true;
+      gateHeartRig.userData.basePortalY = 0.0;
+      gateHeartRig.userData.visualCoreImmutable = true;
 
-      const portal = new THREE.Mesh(portalGeometry, portalMaterial);
-      portal.userData.isPortal = true;
-      portal.userData.visualCoreImmutable = true;
-      group.add(portal);
+      const lens = new THREE.Mesh(geometries.lensGeometry, materials.lensMat);
+      lens.name = 'ThresholdLens';
+      lens.userData.ignoreWaveColor = true;
+      lens.position.set(0.0, 0.0, 0.0);
+      lens.rotation.set(0.16, 0.4, -0.06);
+      lens.renderOrder = coreOrder;
+      gateHeartRig.add(lens);
 
-      // Create flowing data stream segments (7 boxes flowing inward)
-      const streamCount = 7;
-      const streamMaterial = new THREE.MeshBasicMaterial({
-        color: color,
-        transparent: true,
-        opacity: 0.4
-      });
+      const lensEdges = new THREE.LineSegments(geometries.lensEdgesGeometry, materials.lineMat);
+      lensEdges.name = 'ThresholdLensCage';
+      lensEdges.userData.ignoreWaveColor = true;
+      lensEdges.position.copy(lens.position);
+      lensEdges.rotation.copy(lens.rotation);
+      lensEdges.renderOrder = archOrder;
+      gateHeartRig.add(lensEdges);
 
-      for (let i = 0; i < streamCount; i++) {
-        const segmentGeometry = new THREE.BoxGeometry(0.15, 0.08, 0.08);
-        const segment = new THREE.Mesh(segmentGeometry, streamMaterial);
-        
-        // Position segments flowing inward along Z-axis
-        const zPos = 0.8 - (i / streamCount) * 1.2;
-        segment.position.z = zPos;
-        
-        // Add slight rotation for visual interest
-        segment.rotation.y = (i / streamCount) * Math.PI / 2;
-        segment.rotation.x = Math.sin(i * 0.4) * 0.1;
-        
+      const seam = new THREE.Mesh(geometries.seamGeometry, materials.seamMat);
+      seam.name = 'ThresholdVoidSeam';
+      seam.userData.ignoreWaveColor = true;
+      seam.position.set(0.01, -0.02, 0.0);
+      seam.rotation.set(0.22, 0.28, -0.05);
+      seam.renderOrder = coreOrder;
+      gateHeartRig.add(seam);
+
+      coreGroup.add(gateHeartRig);
+      root.add(coreGroup);
+
+      const flowGroup = new THREE.Group();
+      flowGroup.name = 'FLOW_GROUP';
+
+      const rails = new THREE.LineSegments(geometries.railGeometry, materials.lineMat);
+      rails.name = 'IngressRails';
+      rails.userData.ignoreWaveColor = true;
+      rails.renderOrder = archOrder;
+      flowGroup.add(rails);
+
+      const streamCount = 6;
+      const phaseSegments = [];
+      const phaseConfigs = [
+        { x: -0.22, y: 0.16, z: 0.82, rotX: 0.18, rotY: 0.06 },
+        { x: 0.18, y: -0.12, z: 0.6, rotX: -0.12, rotY: -0.14 },
+        { x: -0.08, y: 0.28, z: 0.36, rotX: 0.22, rotY: 0.08 },
+        { x: 0.06, y: -0.04, z: 0.14, rotX: -0.08, rotY: 0.22 },
+        { x: 0.0, y: 0.08, z: -0.08, rotX: 0.12, rotY: -0.1 },
+        { x: -0.02, y: -0.02, z: -0.24, rotX: -0.06, rotY: 0.0 }
+      ];
+      phaseConfigs.forEach((cfg, idx) => {
+        const segment = new THREE.Mesh(geometries.phaseGeometry, materials.phaseMat);
+        segment.name = `PhaseSegment_${idx}`;
+        segment.userData.ignoreWaveColor = true;
+        segment.position.set(cfg.x, cfg.y, cfg.z);
+        segment.rotation.set(cfg.rotX, cfg.rotY, 0);
+        segment.renderOrder = archOrder;
         segment.userData.isStreamSegment = true;
-        segment.userData.segmentIndex = i;
-        segment.userData.baseZ = zPos;
+        segment.userData.segmentIndex = idx;
+        segment.userData.baseZ = cfg.z;
         segment.userData.visualCoreImmutable = true;
-        group.add(segment);
+        flowGroup.add(segment);
+        phaseSegments.push(segment);
+      });
+      root.add(flowGroup);
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+
+      const fieldHalo = new THREE.Mesh(geometries.haloGeometry, materials.haloMat);
+      fieldHalo.name = 'GatewayFieldHalo';
+      fieldHalo.userData.ignoreWaveColor = true;
+      fieldHalo.position.set(0.0, 0.02, 0.02);
+      fieldHalo.rotation.set(Math.PI / 2, 0.0, Math.PI * 0.08);
+      fieldHalo.scale.set(1.04, 0.92, 1.04);
+      fieldHalo.renderOrder = archOrder;
+      auraGroup.add(fieldHalo);
+
+      const particles = new THREE.Points(geometries.particleGeometry, materials.particleMat);
+      particles.name = 'GatewayFieldParticles';
+      particles.userData.ignoreWaveColor = true;
+      particles.frustumCulled = false;
+      particles.renderOrder = archOrder;
+      auraGroup.add(particles);
+
+      const shellColor = 0xc2f8ff;
+      const shell1 = createNodeHologramShell(lens, shellColor);
+      if (shell1) {
+        shell1.name = 'GatewayShell_1';
+        shell1.position.copy(lens.position);
+        shell1.quaternion.copy(lens.quaternion);
+        shell1.scale.copy(lens.scale).multiplyScalar(1.12);
+        shell1.frustumCulled = false;
+        shell1.renderOrder = archOrder;
+        if (shell1.material?.uniforms?.uOpacity) shell1.material.uniforms.uOpacity.value = 0.078;
+        auraGroup.add(shell1);
       }
 
-      // Store animation metadata
-      group.userData.gatewayRingRotationSpeed = 0.2; // Steady rotation
-      group.userData.portalOscillationAmplitude = 0.05; // 5% oscillation
-      group.userData.portalOscillationSpeed = 0.8;
-      group.userData.streamFlowSpeed = 0.6; // Data stream flow animation
-      group.userData.streamCount = streamCount;
+      const shell2 = createNodeHologramShell(lens, shellColor);
+      if (shell2) {
+        shell2.name = 'GatewayShell_2';
+        shell2.position.copy(lens.position);
+        shell2.quaternion.copy(lens.quaternion);
+        shell2.scale.copy(lens.scale).multiplyScalar(1.22);
+        shell2.frustumCulled = false;
+        shell2.renderOrder = archOrder;
+        if (shell2.material?.uniforms?.uOpacity) shell2.material.uniforms.uOpacity.value = 0.046;
+        auraGroup.add(shell2);
+      }
 
+      const edgeGlow = createNodeNeonEdgeGlowShell(lens, 0x9eefff, {
+        glowIntensity: 0.92,
+        edgeWidth: 0.072,
+        pulseAmount: 0.0
+      });
+      if (edgeGlow) {
+        edgeGlow.name = 'GatewayEdgeGlow';
+        edgeGlow.position.copy(lens.position);
+        edgeGlow.quaternion.copy(lens.quaternion);
+        edgeGlow.scale.copy(lens.scale).multiplyScalar(1.02);
+        edgeGlow.frustumCulled = false;
+        edgeGlow.renderOrder = archOrder;
+        auraGroup.add(edgeGlow);
+      }
+
+      root.add(auraGroup);
+
+      root.traverse((o) => {
+        if (o?.isMesh || o?.isPoints || o?.isLine || o?.isLineSegments) {
+          o.userData = o.userData || {};
+          if (o.material) {
+            const materialsRef = Array.isArray(o.material) ? o.material : [o.material];
+            for (const material of materialsRef) {
+              material.userData = {
+                ...(material.userData || {}),
+                wavePatchMode: 'DEFAULT'
+              };
+            }
+          }
+          validateMeshGeometry(o, o.name || 'input-data-gateway');
+        }
+      });
+
+      group.userData.gatewayRingRotationSpeed = 0.16;
+      group.userData.portalOscillationAmplitude = 0.034;
+      group.userData.portalOscillationSpeed = 0.78;
+      group.userData.streamFlowSpeed = 0.72;
+      group.userData.streamCount = streamCount;
+      group.userData.gatewayAnimationRefs = {
+        ring: thresholdGroup,
+        portal: gateHeartRig,
+        streamSegments: phaseSegments
+      };
       group.userData.visualCoreImmutable = true;
       group.userData.nodeGeometryName = 'INPUT_DATA_GATEWAY';
+      group.userData.visualReady = true;
 
+      root.userData.nodeGeometryName = 'INPUT_DATA_GATEWAY_FIRST_GATE_RELIQUARY';
+      root.userData.visualReady = true;
+      group.add(root);
       return group;
     } catch (err) {
       console.error('[NodeVisualAbort]', {
         model: 'createInputDataGateway',
         category: 'input',
         reason: 'Visual build failed — fallback visuals are forbidden',
-        error: err
+        error: err,
+        visualCode
       });
       return null;
     }
@@ -8503,7 +9279,219 @@ static createControlNode0(group, color) {
   }
 
   static createPrimePerfectDodecahedronNode(group, visualCode, color) {
-    return this._createPrimeGeometry(CanonicalGeometryFamilies.createPrimePerfectDodecahedron, 'PerfectDodecahedron');
+    try {
+      const geometries = _getPrimeImmaculateGeometries();
+      const materials = _getPrimeImmaculateMaterials(color);
+      const primeRoot = new THREE.Group();
+      primeRoot.name = 'PRIME_IMMACULATE_ENGINE_NODE';
+      primeRoot.userData.visualVariant = 'PRIME_IMMACULATE_ENGINE_V4';
+      primeRoot.userData.nodeGeometryName = 'PRIME_IMMACULATE_ENGINE';
+
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+      const scratch = new THREE.Object3D();
+
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+
+      const coreMesh = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      coreMesh.name = 'PrimeAxiomCore';
+      coreMesh.userData.ignoreWaveColor = true;
+      coreMesh.position.set(0.0, 0.06, 0.0);
+      coreMesh.rotation.set(0.12, 0.24, -0.04);
+      coreMesh.renderOrder = coreOrder;
+      coreGroup.add(coreMesh);
+
+      const coreEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.edgeMat);
+      coreEdges.name = 'PrimeAxiomCoreEdges';
+      coreEdges.userData.ignoreWaveColor = true;
+      coreEdges.position.copy(coreMesh.position);
+      coreEdges.rotation.copy(coreMesh.rotation);
+      coreEdges.renderOrder = archOrder;
+      coreGroup.add(coreEdges);
+
+      const seam = new THREE.Mesh(geometries.seamGeometry, materials.seamMat);
+      seam.name = 'PrimeCompressedNucleus';
+      seam.userData.ignoreWaveColor = true;
+      seam.position.set(0.01, 0.02, -0.01);
+      seam.rotation.set(0.2, 0.3, -0.06);
+      seam.renderOrder = coreOrder;
+      coreGroup.add(seam);
+
+      primeRoot.add(coreGroup);
+
+      const sanctumGroup = new THREE.Group();
+      sanctumGroup.name = 'SANCTUM_GROUP';
+
+      const chamberConfigs = [
+        { name: 'LawChamber_A', pos: [0.0, 0.05, 0.0], rot: [0.16, 0.18, 0.06], scale: [1.0, 1.06, 0.94] },
+        { name: 'LawChamber_B', pos: [0.0, 0.04, 0.0], rot: [-0.18, 0.9, -0.08], scale: [0.92, 1.16, 0.88] },
+        { name: 'LawChamber_C', pos: [0.0, 0.02, 0.0], rot: [0.0, 0.46, Math.PI * 0.5], scale: [0.86, 1.18, 0.82] }
+      ];
+      chamberConfigs.forEach((cfg) => {
+        const chamber = new THREE.Mesh(geometries.chamberGeometry, materials.chamberMat);
+        chamber.name = cfg.name;
+        chamber.userData.ignoreWaveColor = true;
+        chamber.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+        chamber.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+        chamber.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+        chamber.renderOrder = archOrder;
+        sanctumGroup.add(chamber);
+
+        const chamberEdges = new THREE.LineSegments(geometries.chamberEdgesGeometry, materials.edgeMat);
+        chamberEdges.name = `${cfg.name}_Edges`;
+        chamberEdges.userData.ignoreWaveColor = true;
+        chamberEdges.position.copy(chamber.position);
+        chamberEdges.rotation.copy(chamber.rotation);
+        chamberEdges.scale.copy(chamber.scale);
+        chamberEdges.renderOrder = archOrder;
+        sanctumGroup.add(chamberEdges);
+      });
+      primeRoot.add(sanctumGroup);
+
+      const orderGroup = new THREE.Group();
+      orderGroup.name = 'ORDER_GROUP';
+
+      const meridianA = new THREE.Mesh(geometries.meridianGeometry, materials.meridianMat);
+      meridianA.name = 'PrimeMeridian_A';
+      meridianA.position.set(0.0, 0.04, 0.0);
+      meridianA.rotation.set(Math.PI * 0.5, 0.0, 0.0);
+      meridianA.scale.set(0.96, 1.0, 0.76);
+      meridianA.renderOrder = archOrder;
+      orderGroup.add(meridianA);
+
+      const meridianB = new THREE.Mesh(geometries.meridianGeometry, materials.meridianMat.clone());
+      meridianB.name = 'PrimeMeridian_B';
+      meridianB.position.set(0.0, 0.04, 0.0);
+      meridianB.rotation.set(0.0, 0.0, Math.PI * 0.5);
+      meridianB.scale.set(0.74, 1.02, 1.0);
+      meridianB.renderOrder = archOrder;
+      orderGroup.add(meridianB);
+
+      const meridianC = new THREE.Mesh(geometries.meridianGeometry, materials.meridianMat.clone());
+      meridianC.name = 'PrimeMeridian_C';
+      meridianC.position.set(0.0, 0.04, 0.0);
+      meridianC.rotation.set(Math.PI * 0.5, Math.PI * 0.26, Math.PI * 0.12);
+      meridianC.scale.set(1.08, 0.9, 0.82);
+      meridianC.renderOrder = archOrder;
+      orderGroup.add(meridianC);
+
+      const rails = new THREE.LineSegments(geometries.railGeometry, materials.railMat);
+      rails.name = 'PrimeAxisRails';
+      rails.userData.ignoreWaveColor = true;
+      rails.position.set(0.0, 0.04, 0.0);
+      rails.renderOrder = archOrder;
+      orderGroup.add(rails);
+
+      const keystoneCount = 12;
+      const keystones = new THREE.InstancedMesh(geometries.keystoneGeometry, materials.keystoneMat, keystoneCount);
+      keystones.name = 'PrimeKeystones';
+      keystones.userData.ignoreWaveColor = true;
+      for (let i = 0; i < keystoneCount; i++) {
+        let direction;
+        if (i < 8) {
+          const angle = (i / 8) * Math.PI * 2;
+          direction = new THREE.Vector3(Math.cos(angle) * 0.82, Math.sin(i * 1.7) * 0.08, Math.sin(angle) * 0.58).normalize();
+        } else {
+          const sign = i % 2 === 0 ? 1 : -1;
+          direction = new THREE.Vector3(sign * 0.18, sign * 0.96, (i - 10) * 0.18).normalize();
+        }
+        scratch.position.copy(direction).multiplyScalar(0.86);
+        scratch.lookAt(0, 0.04, 0);
+        scratch.scale.setScalar(i < 8 ? 0.92 : 0.82);
+        scratch.updateMatrix();
+        keystones.setMatrixAt(i, scratch.matrix);
+      }
+      keystones.instanceMatrix.needsUpdate = true;
+      keystones.renderOrder = coreOrder;
+      orderGroup.add(keystones);
+
+      primeRoot.add(orderGroup);
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+
+      const halo = new THREE.Points(geometries.haloGeometry, materials.haloMat);
+      halo.name = 'PrimeHaloPoints';
+      halo.userData.ignoreWaveColor = true;
+      halo.position.set(0.0, 0.06, 0.0);
+      halo.rotation.set(0.08, 0.42, -0.12);
+      halo.frustumCulled = false;
+      halo.renderOrder = archOrder;
+      auraGroup.add(halo);
+
+      const shellColor = 0xf5fbff;
+      const shell1 = createNodeHologramShell(coreMesh, shellColor);
+      if (shell1) {
+        shell1.name = 'PrimeImmaculateShell_1';
+        shell1.position.copy(coreMesh.position);
+        shell1.quaternion.copy(coreMesh.quaternion);
+        shell1.scale.copy(coreMesh.scale).multiplyScalar(1.12);
+        shell1.frustumCulled = false;
+        shell1.renderOrder = archOrder;
+        if (shell1.material?.uniforms?.uOpacity) shell1.material.uniforms.uOpacity.value = 0.058;
+        auraGroup.add(shell1);
+      }
+
+      const shell2 = createNodeHologramShell(coreMesh, shellColor);
+      if (shell2) {
+        shell2.name = 'PrimeImmaculateShell_2';
+        shell2.position.copy(coreMesh.position);
+        shell2.quaternion.copy(coreMesh.quaternion);
+        shell2.scale.copy(coreMesh.scale).multiplyScalar(1.22);
+        shell2.frustumCulled = false;
+        shell2.renderOrder = archOrder;
+        if (shell2.material?.uniforms?.uOpacity) shell2.material.uniforms.uOpacity.value = 0.042;
+        auraGroup.add(shell2);
+      }
+
+      const edgeShell = createNodeNeonEdgeGlowShell(coreMesh, 0xd7f3ff, {
+        glowIntensity: 0.9,
+        edgeWidth: 0.072,
+        pulseAmount: 0.0
+      });
+      if (edgeShell) {
+        edgeShell.name = 'PrimeImmaculateEdgeGlow';
+        edgeShell.position.copy(coreMesh.position);
+        edgeShell.quaternion.copy(coreMesh.quaternion);
+        edgeShell.scale.copy(coreMesh.scale).multiplyScalar(1.02);
+        edgeShell.frustumCulled = false;
+        edgeShell.renderOrder = archOrder;
+        auraGroup.add(edgeShell);
+      }
+
+      primeRoot.add(auraGroup);
+
+      primeRoot.traverse((o) => {
+        if (o?.isMesh || o?.isPoints || o?.isLine || o?.isLineSegments) {
+          o.userData = o.userData || {};
+          o.userData.ignoreWaveColor = true;
+          const materialRefs = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+          for (const material of materialRefs) {
+            material.userData = {
+              ...(material.userData || {}),
+              wavePatchMode: 'DEFAULT',
+              ignoreWaveColor: true
+            };
+          }
+          validateMeshGeometry(o, o.name || 'prime-immaculate-engine');
+        }
+      });
+
+      primeRoot.userData.visualReady = true;
+      primeRoot.userData.primeVariant = 'IMMACULATE_ENGINE';
+      group.userData = group.userData || {};
+      group.userData.visualReady = true;
+      group.userData.nodeGeometryName = 'PRIME_IMMACULATE_ENGINE';
+      group.add(primeRoot);
+      return group;
+    } catch (err) {
+      console.error('[PrimeImmaculateAbort]', {
+        reason: err?.message || err,
+        visualCode
+      });
+      return null;
+    }
   }
 
   static createPrimeStellaOctangulaNode(group, visualCode, color) {
@@ -10127,6 +11115,250 @@ static createControlNode0(group, color) {
   * - HeartCrystal, NeuralLobe, BloomingGem
   * - TearShaped, Folded, SymmetricSeed
   */
+  static createEmotionalNeuralLobe(group, visualCode, color) {
+    try {
+      const geometries = _getEmotionalNeuralLobeGeometries();
+      const resolvedColor = typeof color === 'undefined' ? visualCode : color;
+      const materials = _getEmotionalNeuralLobeMaterials(resolvedColor);
+      const root = new THREE.Group();
+      root.name = 'EMOTIONAL_NEURAL_LOBE_NODE';
+      root.userData.visualVariant = 'EMOTIONAL_NEURAL_LOBE_BITTERSWEET_COGNITION_V4';
+      root.userData.nodeGeometryName = 'EMOTIONAL_NEURAL_LOBE_BITTERSWEET_COGNITION';
+
+      const seed = group?.userData?.nodeId ? hashString(group.userData.nodeId) : (Number.isFinite(visualCode) ? visualCode : 1202);
+      const rng = _mythicSeededRng(seed);
+      const scratch = new THREE.Object3D();
+      const anchorStart = new THREE.Vector3(-0.52, -0.12, 0.58);
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+
+      const leftLobe = new THREE.Mesh(geometries.lobeGeometry, materials.lobeMatA);
+      leftLobe.name = 'CognitionLobe_A';
+      leftLobe.userData.ignoreWaveColor = true;
+      leftLobe.position.set(-0.18, 0.02, 0.03);
+      leftLobe.rotation.set(0.18, -0.32, 0.08);
+      leftLobe.scale.set(1.02, 0.98, 1.08);
+      leftLobe.renderOrder = coreOrder;
+      coreGroup.add(leftLobe);
+
+      const leftEdges = new THREE.LineSegments(geometries.lobeEdgesGeometry, materials.edgeMat);
+      leftEdges.name = 'CognitionLobe_A_Edges';
+      leftEdges.userData.ignoreWaveColor = true;
+      leftEdges.position.copy(leftLobe.position);
+      leftEdges.rotation.copy(leftLobe.rotation);
+      leftEdges.scale.copy(leftLobe.scale);
+      leftEdges.renderOrder = archOrder;
+      coreGroup.add(leftEdges);
+
+      const rightLobe = new THREE.Mesh(geometries.lobeGeometry, materials.lobeMatB);
+      rightLobe.name = 'CognitionLobe_B';
+      rightLobe.userData.ignoreWaveColor = true;
+      rightLobe.position.set(0.17, 0.05, -0.02);
+      rightLobe.rotation.set(-0.14, 0.4, -0.09);
+      rightLobe.scale.set(0.96, 0.92, 1.04);
+      rightLobe.renderOrder = coreOrder;
+      coreGroup.add(rightLobe);
+
+      const rightEdges = new THREE.LineSegments(geometries.lobeEdgesGeometry, materials.edgeMat);
+      rightEdges.name = 'CognitionLobe_B_Edges';
+      rightEdges.userData.ignoreWaveColor = true;
+      rightEdges.position.copy(rightLobe.position);
+      rightEdges.rotation.copy(rightLobe.rotation);
+      rightEdges.scale.copy(rightLobe.scale);
+      rightEdges.renderOrder = archOrder;
+      coreGroup.add(rightEdges);
+
+      const seam = new THREE.Mesh(geometries.seamGeometry, materials.seamMat);
+      seam.name = 'UntouchableInnerSeam';
+      seam.userData.ignoreWaveColor = true;
+      seam.position.set(0.0, 0.03, 0.0);
+      seam.rotation.set(0.16, 0.22, -0.08);
+      seam.renderOrder = coreOrder;
+      coreGroup.add(seam);
+
+      const nucleus = new THREE.Mesh(geometries.nucleusGeometry, materials.nucleusMat);
+      nucleus.name = 'SentienceNucleus';
+      nucleus.userData.ignoreWaveColor = true;
+      nucleus.position.set(0.03, 0.08, 0.02);
+      nucleus.rotation.set(-0.08, 0.26, 0.12);
+      nucleus.renderOrder = coreOrder;
+      coreGroup.add(nucleus);
+
+      root.add(coreGroup);
+
+      const psycheGroup = new THREE.Group();
+      psycheGroup.name = 'PSYCHE_GROUP';
+
+      const membraneA = new THREE.Mesh(geometries.membraneGeometryA, materials.membraneMatA);
+      membraneA.name = 'ProtectiveMembrane_A';
+      membraneA.userData.ignoreWaveColor = true;
+      membraneA.position.set(-0.1, 0.04, -0.02);
+      membraneA.rotation.set(0.2, -0.48, 0.14);
+      membraneA.scale.set(1.0, 0.94, 1.08);
+      membraneA.renderOrder = archOrder;
+      psycheGroup.add(membraneA);
+
+      const membraneAEdges = new THREE.LineSegments(geometries.membraneEdgesGeometryA, materials.edgeMat);
+      membraneAEdges.name = 'ProtectiveMembrane_A_Edges';
+      membraneAEdges.userData.ignoreWaveColor = true;
+      membraneAEdges.position.copy(membraneA.position);
+      membraneAEdges.rotation.copy(membraneA.rotation);
+      membraneAEdges.scale.copy(membraneA.scale);
+      membraneAEdges.renderOrder = archOrder;
+      psycheGroup.add(membraneAEdges);
+
+      const membraneB = new THREE.Mesh(geometries.membraneGeometryB, materials.membraneMatB);
+      membraneB.name = 'OpenMembrane_B';
+      membraneB.userData.ignoreWaveColor = true;
+      membraneB.position.set(0.08, 0.02, 0.04);
+      membraneB.rotation.set(-0.18, 0.64, -0.18);
+      membraneB.scale.set(0.94, 1.06, 0.9);
+      membraneB.renderOrder = archOrder;
+      psycheGroup.add(membraneB);
+
+      const membraneBEdges = new THREE.LineSegments(geometries.membraneEdgesGeometryB, materials.edgeMat);
+      membraneBEdges.name = 'OpenMembrane_B_Edges';
+      membraneBEdges.userData.ignoreWaveColor = true;
+      membraneBEdges.position.copy(membraneB.position);
+      membraneBEdges.rotation.copy(membraneB.rotation);
+      membraneBEdges.scale.copy(membraneB.scale);
+      membraneBEdges.renderOrder = archOrder;
+      psycheGroup.add(membraneBEdges);
+
+      root.add(psycheGroup);
+
+      const longingGroup = new THREE.Group();
+      longingGroup.name = 'LONGING_GROUP';
+
+      const filamentConfigs = [
+        { name: 'SensoryFilament_A', pos: [0.0, 0.0, 0.0], rot: [0.04, 0.0, 0.0], scale: [1.0, 1.0, 1.0] },
+        { name: 'SensoryFilament_B', pos: [0.0, 0.02, -0.02], rot: [0.12, Math.PI * 0.58, -0.18], scale: [0.94, 1.08, 0.94] },
+        { name: 'SensoryFilament_C', pos: [0.04, -0.04, 0.02], rot: [-0.16, Math.PI * 1.02, 0.22], scale: [0.88, 0.94, 0.88] },
+        { name: 'SensoryFilament_D', pos: [-0.02, 0.06, -0.03], rot: [0.24, -Math.PI * 0.46, -0.12], scale: [0.92, 1.04, 0.92] }
+      ];
+      filamentConfigs.forEach((cfg, idx) => {
+        const filament = new THREE.Mesh(geometries.filamentGeometry, materials.filamentMat);
+        filament.name = cfg.name;
+        filament.userData.ignoreWaveColor = true;
+        filament.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+        filament.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+        filament.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+        filament.renderOrder = archOrder;
+        longingGroup.add(filament);
+
+        scratch.position.copy(filament.position);
+        scratch.rotation.copy(filament.rotation);
+        scratch.scale.copy(filament.scale);
+        scratch.updateMatrix();
+        const anchorPosition = anchorStart.clone().applyMatrix4(scratch.matrix);
+
+        const anchor = new THREE.Mesh(geometries.anchorGeometry, materials.anchorMat);
+        anchor.name = `LongingAnchor_${idx}`;
+        anchor.userData.ignoreWaveColor = true;
+        anchor.position.copy(anchorPosition);
+        anchor.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.4,
+          cfg.rot[1] + (rng() - 0.5) * 0.4,
+          cfg.rot[2] + (rng() - 0.5) * 0.3
+        );
+        anchor.scale.setScalar(0.86 + rng() * 0.24);
+        anchor.renderOrder = coreOrder;
+        longingGroup.add(anchor);
+
+        const anchorEdges = new THREE.LineSegments(geometries.anchorEdgesGeometry, materials.edgeMat);
+        anchorEdges.name = `LongingAnchor_${idx}_Edges`;
+        anchorEdges.userData.ignoreWaveColor = true;
+        anchorEdges.position.copy(anchor.position);
+        anchorEdges.rotation.copy(anchor.rotation);
+        anchorEdges.scale.copy(anchor.scale);
+        anchorEdges.renderOrder = archOrder;
+        longingGroup.add(anchorEdges);
+      });
+
+      root.add(longingGroup);
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+
+      const innerGlow = new THREE.Mesh(geometries.nucleusGeometry, materials.glowMat);
+      innerGlow.name = 'InnerLucidGlow';
+      innerGlow.userData.ignoreWaveColor = true;
+      innerGlow.position.copy(nucleus.position);
+      innerGlow.rotation.copy(nucleus.rotation);
+      innerGlow.scale.set(1.9, 1.7, 1.9);
+      innerGlow.renderOrder = archOrder;
+      auraGroup.add(innerGlow);
+
+      const mist = new THREE.Points(geometries.mistGeometry, materials.mistMat);
+      mist.name = 'BittersweetMist';
+      mist.userData.ignoreWaveColor = true;
+      mist.position.set(0.0, 0.03, 0.0);
+      mist.rotation.set(0.08, -0.2, 0.04);
+      mist.frustumCulled = false;
+      mist.renderOrder = archOrder;
+      auraGroup.add(mist);
+
+      const shellA = createNodeHologramShell(leftLobe, 0xb9f1ff);
+      if (shellA) {
+        shellA.name = 'EmotionShell_A';
+        shellA.position.copy(leftLobe.position);
+        shellA.quaternion.copy(leftLobe.quaternion);
+        shellA.scale.copy(leftLobe.scale).multiplyScalar(1.14);
+        shellA.frustumCulled = false;
+        shellA.renderOrder = archOrder;
+        if (shellA.material?.uniforms?.uOpacity) shellA.material.uniforms.uOpacity.value = 0.05;
+        auraGroup.add(shellA);
+      }
+
+      const shellB = createNodeHologramShell(rightLobe, 0xffc6e8);
+      if (shellB) {
+        shellB.name = 'EmotionShell_B';
+        shellB.position.copy(rightLobe.position);
+        shellB.quaternion.copy(rightLobe.quaternion);
+        shellB.scale.copy(rightLobe.scale).multiplyScalar(1.18);
+        shellB.frustumCulled = false;
+        shellB.renderOrder = archOrder;
+        if (shellB.material?.uniforms?.uOpacity) shellB.material.uniforms.uOpacity.value = 0.046;
+        auraGroup.add(shellB);
+      }
+
+      root.add(auraGroup);
+
+      root.traverse((o) => {
+        if (o?.isMesh || o?.isPoints || o?.isLine || o?.isLineSegments) {
+          o.userData = o.userData || {};
+          o.userData.ignoreWaveColor = true;
+          const materialRefs = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+          for (const material of materialRefs) {
+            material.userData = {
+              ...(material.userData || {}),
+              wavePatchMode: 'DEFAULT',
+              ignoreWaveColor: true
+            };
+          }
+          validateMeshGeometry(o, o.name || 'emotional-neural-lobe');
+        }
+      });
+
+      root.userData.visualReady = true;
+      root.userData.emotionalVariant = 'BITTERSWEET_COGNITION';
+      group.userData = group.userData || {};
+      group.userData.visualReady = true;
+      group.userData.nodeGeometryName = 'EMOTIONAL_NEURAL_LOBE';
+      group.add(root);
+      return group;
+    } catch (err) {
+      console.error('[EmotionalNeuralLobeAbort]', {
+        reason: err?.message || err,
+        visualCode
+      });
+      return null;
+    }
+  }
+
   static createEmotionalNodeStyled_v2(group, index, color) {
     try {
       const geometries = _getEmotionalV2Geometries();
@@ -10531,25 +11763,38 @@ static createControlNode0(group, color) {
 
     // POLISH: Animate DATA_GATEWAY (ring rotation + portal oscillation + stream flow)
     if (nodeGroup.userData.gatewayRingRotationSpeed) {
+      const refs = nodeGroup.userData.gatewayAnimationRefs || {};
+
       // Ring rotation
-      const ring = nodeGroup.children.find(c => c.userData && c.userData.isGatewayRing);
+      let ring = refs.ring || null;
+      let portal = refs.portal || null;
+      let streamSegments = Array.isArray(refs.streamSegments) ? refs.streamSegments : null;
+      if (!ring || !portal || !streamSegments?.length) {
+        const discoveredSegments = [];
+        nodeGroup.traverse((child) => {
+          if (!ring && child.userData?.isGatewayRing) ring = child;
+          if (!portal && child.userData?.isPortal) portal = child;
+          if (child.userData?.isStreamSegment) discoveredSegments.push(child);
+        });
+        if (!streamSegments?.length) streamSegments = discoveredSegments;
+      }
       if (ring) {
         ring.rotation.z += deltaTime * nodeGroup.userData.gatewayRingRotationSpeed;
       }
       
       // Portal oscillation (up/down bobbing)
-      const portal = nodeGroup.children.find(c => c.userData && c.userData.isPortal);
       if (portal) {
         const oscillation = Math.sin(time * nodeGroup.userData.portalOscillationSpeed) * nodeGroup.userData.portalOscillationAmplitude;
-        portal.position.y = oscillation;
+        portal.position.y = (portal.userData?.basePortalY || 0) + oscillation;
       }
       
       // Stream flow animation (segments flowing inward)
-      nodeGroup.children.forEach(child => {
-        if (child.userData && child.userData.isStreamSegment) {
+      (streamSegments || []).forEach(child => {
+        if (child.userData?.isStreamSegment) {
           const baseZ = child.userData.baseZ;
           const flowOffset = (time * nodeGroup.userData.streamFlowSpeed + child.userData.segmentIndex * 0.3) % 1.2;
-          child.position.z = 0.8 - flowOffset;
+          const laneBias = Number.isFinite(baseZ) ? baseZ * 0.28 : 0.0;
+          child.position.z = 0.46 + laneBias - flowOffset * 0.72;
         }
       });
     }

@@ -235,7 +235,7 @@ function emitNodeMetricUpdated(metric, value, nodeId) {
   const last = Number(lastNodeMetricUpdatedEmitAt.get(key) ?? -Infinity);
   if (nowMs - last < NODE_METRIC_UPDATED_EVENT_INTERVAL_MS) return;
   lastNodeMetricUpdatedEmitAt.set(key, nowMs);
-  bus.emit('metric.node.updated', {
+  bus.emit('node.metric.updated', {
     nodeId,
     metric,
     value

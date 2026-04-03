@@ -44,6 +44,8 @@ export class NodeInspectOverlay1_0 {
       maxObjectsPerNode: 8
     });
     this.spatialIndexBuilt = false;
+    this._focusSuppressedUntil = 0;
+    this._suppressedNodeIds = new Set();
     
     // Statistics tracking
     this.stats = {
@@ -58,6 +60,9 @@ export class NodeInspectOverlay1_0 {
     // Current inspection state
     this.currentNode = null;
     this.previousNode = null;
+    this._lastExternalTickAt = 0;
+    this._fallbackPollMs = 100;
+    this._fallbackPollHandle = null;
     
     // Raycaster for crosshair detection
     this.raycaster = new THREE.Raycaster();
@@ -66,12 +71,61 @@ export class NodeInspectOverlay1_0 {
     // HUD panel (DOM element)
     this.hudPanel = null;
     this.isVisible = false;
+    this.enabled = true;
     
     // Initialize HUD
     this.initializeHUD();
+
+    const semanticBus = globalThis.semanticBus;
+    if (semanticBus?.subscribe) {
+      this._linkCreatedDismissDisposer = semanticBus.subscribe('link.created', (payload = {}) => {
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        this._focusSuppressedUntil = now + 300;
+        this._suppressedNodeIds = new Set([
+          payload?.sourceNodeId || payload?.source || payload?.sourceNode?.userData?.nodeId || payload?.sourceNode?.uuid || null,
+          payload?.targetNodeId || payload?.target || payload?.targetNode?.userData?.nodeId || payload?.targetNode?.uuid || null
+        ].filter(Boolean).map(String));
+        this.currentNode = null;
+        this.hideOverlay();
+      });
+    }
+
+    const linkingSystem = this.game?.linkingSystem || this.game?.nodeLinking || null;
+    if (linkingSystem?.registerLinkCreatedCallback) {
+      this._linkCreatedCallback = (sourceNode, targetNode) => {
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        this._focusSuppressedUntil = now + 300;
+        this._suppressedNodeIds = new Set([
+          sourceNode?.userData?.nodeId || sourceNode?.userData?.id || sourceNode?.uuid || null,
+          targetNode?.userData?.nodeId || targetNode?.userData?.id || targetNode?.uuid || null
+        ].filter(Boolean).map(String));
+        this.currentNode = null;
+        this.hideOverlay();
+      };
+      linkingSystem.registerLinkCreatedCallback(this._linkCreatedCallback, {
+        layerKey: 'LINK_INSPECT_Dismiss',
+        immediate: true
+      });
+    }
+
+    this._startFallbackPoll();
     
     // Setup console API
     this._setupConsoleAPI();
+  }
+
+  _startFallbackPoll() {
+    if (this._fallbackPollHandle) return;
+    if (typeof window === 'undefined' || typeof window.setInterval !== 'function') return;
+
+    this._fallbackPollHandle = window.setInterval(() => {
+      if (!this.enabled) return;
+      const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      if (now - this._lastExternalTickAt < 180) {
+        return;
+      }
+      this.update(this.checkInterval);
+    }, this._fallbackPollMs);
   }
   
   /**
@@ -267,15 +321,51 @@ export class NodeInspectOverlay1_0 {
    * Uses existing raycaster if available, falls back to proximity check
    */
   findTargetedNode() {
+    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+    // Prefer explicit interaction state first.
+    // Keeps inspector stable when hover state already exists, even if crosshair misses a proxy for a tick.
+    const selectionCore = this.game?.selectionCore;
+    const linkingSystem = this.game?.linkingSystem || this.game?.nodeLinking || null;
+    const explicitTargets = [
+      selectionCore?.hoveredNodeForSelection,
+      linkingSystem?.hoveredNodeForSelection,
+      selectionCore?.selectedNode,
+      selectionCore?.primaryNode,
+      linkingSystem?.selectedNode,
+      this.game?.selectedNode
+    ];
+
+    for (const target of explicitTargets) {
+      if (this._isSuppressedTarget(target, now)) {
+        continue;
+      }
+      if (target?.userData?.category) {
+        return target;
+      }
+    }
+
     // Method 1: Raycast from camera through center of screen (crosshair)
     const raycastNode = this.raycastFromCrosshair();
-    if (raycastNode) return raycastNode;
+    if (raycastNode && !this._isSuppressedTarget(raycastNode, now)) return raycastNode;
 
     // Method 2: Proximity check (fallback)
     const proximityNode = this.checkProximity();
-    if (proximityNode) return proximityNode;
+    if (proximityNode && !this._isSuppressedTarget(proximityNode, now)) return proximityNode;
 
     return null;
+  }
+
+  _isSuppressedTarget(node, now = null) {
+    if (!node) return false;
+    const timeNow = now ?? (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    if (timeNow >= this._focusSuppressedUntil) {
+      return false;
+    }
+
+    const nodeId = node?.userData?.nodeId || node?.userData?.id || node?.uuid || node?.id || null;
+    if (!nodeId) return false;
+    return this._suppressedNodeIds.has(String(nodeId));
   }
 
   /**
@@ -537,6 +627,7 @@ export class NodeInspectOverlay1_0 {
 
   onSimulationTick(snapshot) {
     this.lastSnapshot = snapshot;
+    this._lastExternalTickAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
     // reuse throttling interval: run one update pass per simulation tick
     console.log("NODE INSPECT UPDATE");
     this.update(this.checkInterval);
@@ -657,6 +748,10 @@ const bar = '█'.repeat(barLength) + '░'.repeat(10 - barLength);
    * Destroy overlay (cleanup)
    */
   destroy() {
+    if (this._fallbackPollHandle) {
+      clearInterval(this._fallbackPollHandle);
+      this._fallbackPollHandle = null;
+    }
     if (this.hudPanel && this.hudPanel.parentNode) {
       this.hudPanel.parentNode.removeChild(this.hudPanel);
     }

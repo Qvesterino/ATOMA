@@ -110,7 +110,7 @@ export class CoreMetricsCalculator {
     
     try {
       // Safely read all node and link data
-      this.updateNodeCounts(aiNodes, nodeEvolution, nodeArchetypes);
+      this.updateNodeCounts(aiNodes, linkingSystem, nodeEvolution, nodeArchetypes);
       this.updateLinkCounts(linkingSystem);
       this.calculateMetrics();
       this._isDirty = false;
@@ -125,7 +125,7 @@ export class CoreMetricsCalculator {
   /**
    * Safely read node data
    */
-  updateNodeCounts(aiNodes, nodeEvolution, nodeArchetypes) {
+  updateNodeCounts(aiNodes, linkingSystem, nodeEvolution, nodeArchetypes) {
     try {
       if (!aiNodes || !aiNodes.nodes) {
         for (const key in this.nodeCount) {
@@ -141,13 +141,30 @@ export class CoreMetricsCalculator {
       }
 
       this.resetNodeMetricAggregates();
-      
+
       this.nodeCount.total = aiNodes.nodes.length;
+
+      const activeNodeIds = new Set();
+      const links = linkingSystem?.links || [];
+      for (const link of links) {
+        if (!link || link.active === false) continue;
+        const sourceId = this._getNodeId(link.source || link.nodeA || link.sourceNode);
+        const targetId = this._getNodeId(link.target || link.nodeB || link.targetNode);
+        if (sourceId !== null && sourceId !== undefined) activeNodeIds.add(String(sourceId));
+        if (targetId !== null && targetId !== undefined) activeNodeIds.add(String(targetId));
+      }
+
+      if (activeNodeIds.size === 0) {
+        this.resetNodeMetricAggregates();
+        return;
+      }
 
       // Read node data safely
       for (let i = 0; i < aiNodes.nodes.length; i++) {
         const node = aiNodes.nodes[i];
         if (!node || !node.userData) continue;
+        const nodeId = this._getNodeId(node);
+        if (nodeId !== null && nodeId !== undefined && !activeNodeIds.has(String(nodeId))) continue;
 
         const metrics = node.userData.metrics;
         if (!metrics) continue;
@@ -164,6 +181,14 @@ export class CoreMetricsCalculator {
     } catch (error) {
       console.warn('Error reading node counts:', error);
     }
+  }
+
+  _getNodeId(node) {
+    if (!node) return null;
+    if (node.userData?.nodeId) return node.userData.nodeId;
+    if (node.id !== undefined && node.id !== null) return node.id;
+    if (node.uuid) return node.uuid;
+    return null;
   }
   
   /**

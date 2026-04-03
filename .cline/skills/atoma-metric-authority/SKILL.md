@@ -9,6 +9,22 @@ This skill defines the constitutional rules for how metrics behave in ATOMA.
 It is the single source of truth for metric lifecycle, interaction,
 mutation rights, and runtime discipline.
 
+Current runtime convention:
+
+- canonical node storage: `node.userData.metrics`
+- canonical node metric fields: `synergy`, `harmony`, `stability`, `corruption`, `loadPressure`
+- canonical node update feed: `node.metric.updated`
+- public scoped tier events: `node.<metric>.<tier>`, `global.<metric>.<tier>`, `link.<metric>.<tier>`, `hub.<metric>.<tier>`
+- internal debug tier hook: `metric.tier.changed`
+- legacy compatibility bridge only: `metric.phase.changed`
+
+Default validation entrypoints in this workspace:
+
+- static runtime: `http://127.0.0.1:5500/index.html`
+- Vite dev runtime: `http://localhost:5173/`
+- Python server: `http://localhost:8080/`
+- manual browser smoke: Microsoft Edge
+
 ---
 
 # I. Canonical Metrics (Gameplay Truth Layer)
@@ -48,6 +64,12 @@ Global metrics are derived only:
 
 Global metrics never overwrite node metrics.
 
+Live global publish note:
+
+- if no active links exist, live global publish should resolve to zeroes
+- when active links exist, global publish should use the active-linked network slice, not dormant isolated nodes
+- HUDs may smooth display values, but smoothing must remain presentation-only
+
 ---
 
 # II. Single Writer Law
@@ -80,6 +102,38 @@ mesh.material.opacity = f(metrics) that feeds back ❌
 
 If a system requires metric change:
 → it must emit an event consumed by NodeMetricEngine.
+
+Preferred scoped tier names for feature wiring:
+
+- `node.synergy.high`
+- `node.harmony.high`
+- `node.stability.high`
+- `node.corruption.high`
+- `node.loadPressure.high`
+- `global.synergy.high`
+- `global.harmony.high`
+- `global.stability.high`
+- `global.corruption.high`
+- `global.loadPressure.high`
+- `link.synergy.high`
+- `link.harmony.high`
+- `link.stability.high`
+- `link.corruption.high`
+- `link.loadPressure.high`
+- `hub.synergy.high`
+- `hub.harmony.high`
+- `hub.stability.high`
+- `hub.corruption.high`
+- `hub.loadPressure.high`
+
+Tier values:
+
+- `low`: `0.25`
+- `high`: `0.75`
+- `lowExit`: `0.32`
+- `highExit`: `0.68`
+
+The hysteresis window exists to prevent flapping around tier boundaries.
 
 ---
 
@@ -186,6 +240,14 @@ Metrics define world state.
 Visual systems reflect metrics.
 Never the inverse.
 
+Current data flow contract:
+
+1. `NodeLinkingSystem.attemptLink()` creates or removes links.
+2. `NodeMetricEngine` mutates node metrics and emits `node.metric.updated`.
+3. `MetricsRuntime_v1` aggregates active-linked nodes and publishes global metrics.
+4. `CoreMetricsHUD` is read-only and may smooth presentation values.
+5. `NodeInspectOverlay1_0` is read-only and must recover after link creation.
+
 ---
 
 # VIII. Forbidden Patterns (Strict)
@@ -204,6 +266,14 @@ The following actions are unconstitutional:
 If ambiguity arises:
 STOP.
 Request clarification.
+
+Public event contract:
+
+- Use scoped tier events for features and VFX: `node.<metric>.<tier>`, `global.<metric>.<tier>`, `link.<metric>.<tier>`, `hub.<metric>.<tier>`
+- Use `node.metric.updated` for canonical node metric update feeds.
+- Use `metric.tier.changed` only for internal debugging/tooling.
+- Use `metric.phase.changed` only for legacy compatibility.
+- Keep old threshold aliases only as bridge inputs, not new feature wiring.
 
 ---
 

@@ -95,7 +95,7 @@ export class CoreMetricsOverlay {
       this._nodeMetricCache.set(key, cached);
     };
 
-    this._metricSubscriptionDisposer = subscribe.call(semanticBus, 'metric.node.updated', handler);
+    this._metricSubscriptionDisposer = subscribe.call(semanticBus, 'node.metric.updated', handler);
     this._hasMetricSubscription = true;
   }
 
@@ -118,7 +118,7 @@ export class CoreMetricsOverlay {
     return key === null ? null : String(key);
   }
 
-  _getEventDrivenMetrics(aiNodes) {
+  _getEventDrivenMetrics(aiNodes, linkingSystem = null) {
     const sums = {
       synergy: 0,
       harmony: 0,
@@ -135,9 +135,30 @@ export class CoreMetricsOverlay {
     };
 
     const nodes = aiNodes?.nodes ?? [];
+    const activeNodeIds = new Set();
+    const links = linkingSystem?.links ?? [];
+    for (const link of links) {
+      if (!link || link.active === false) continue;
+      const sourceId = this._getNodeMetricKey(link.source ?? link.nodeA ?? link.sourceNode);
+      const targetId = this._getNodeMetricKey(link.target ?? link.nodeB ?? link.targetNode);
+      if (sourceId) activeNodeIds.add(sourceId);
+      if (targetId) activeNodeIds.add(targetId);
+    }
+
+    if (activeNodeIds.size === 0) {
+      return withGlobalMetricAliases({
+        synergy: 0,
+        harmony: 0,
+        stability: 0,
+        corruption: 0,
+        loadPressure: 0
+      });
+    }
+
     for (const node of nodes) {
       const key = this._getNodeMetricKey(node);
       if (!key) continue;
+      if (!activeNodeIds.has(key)) continue;
 
       let snapshot = this._nodeMetricCache.get(key);
       if (!snapshot) {
@@ -193,7 +214,7 @@ export class CoreMetricsOverlay {
       
       // Update metrics (event-fed when available, polling fallback otherwise)
       if (this._hasMetricSubscription) {
-        this.currentMetrics = this._getEventDrivenMetrics(aiNodes);
+        this.currentMetrics = this._getEventDrivenMetrics(aiNodes, linkingSystem);
       } else {
         this.metricsCalculator.update(visualDelta, aiNodes, linkingSystem, nodeEvolution, nodeArchetypes);
         this.currentMetrics = this.metricsCalculator.getMetrics();
