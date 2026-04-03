@@ -1124,7 +1124,7 @@ export class WaveParticleEmitter_v1 {
       );
 
       for (let i = 0; i < burstCount; i++) {
-        const preferredSystemType = this._selectConstructiveSystemType(normalizedStrength);
+        const preferredSystemType = this._selectConstructiveSystemType(normalizedStrength, node);
         const fallbackCandidates = [
           'constructiveBurst',
           'constructiveBurstVariantB',
@@ -1529,7 +1529,22 @@ export class WaveParticleEmitter_v1 {
       || systemType === 'constructiveBurstVariantC';
   }
 
-  _selectConstructiveSystemType(normalizedStrength) {
+  _isHighStabilityOrMidSynergy(node) {
+    const stability = Number(node?.userData?.metrics?.stability ?? node?.userData?.stability ?? 0);
+    const synergy = Number(node?.userData?.metrics?.synergy ?? node?.userData?.synergy ?? 0);
+
+    const highStability = stability >= 0.75;
+    const midSynergy = synergy >= 0.25 && synergy < 0.75;
+
+    return highStability || midSynergy;
+  }
+
+  _selectConstructiveSystemType(normalizedStrength, node = null) {
+    // Prefer metric-based guidance when available.
+    if (node && this._isHighStabilityOrMidSynergy(node)) {
+      return 'constructiveBurstVariantC';
+    }
+
     const extremePeakT = this._clamp01((normalizedStrength - 0.86) / 0.14);
     const helicalChance = 0.1 + extremePeakT * 0.26;
 

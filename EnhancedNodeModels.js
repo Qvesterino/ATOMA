@@ -290,11 +290,41 @@ const EMO_NEURAL_LOBE_CACHE = {
   membraneGeometryB: null,
   membraneEdgesGeometryB: null,
   filamentGeometry: null,
+  filamentLongGeometry: null,
   anchorGeometry: null,
   anchorEdgesGeometry: null,
-  mistGeometry: null
+  mistGeometry: null,
+  acheGeometry: null
 };
 const EMO_NEURAL_LOBE_MATERIALS = new Map(); // keyed by color hex
+const EMO_BLOOMING_GEM_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  nucleusGeometry: null,
+  seamGeometry: null,
+  cageGeometry: null,
+  cageEdgesGeometry: null,
+  petalGeometry: null,
+  petalEdgesGeometry: null,
+  ghostPetalGeometry: null,
+  ghostPetalEdgesGeometry: null,
+  pollenGeometry: null
+};
+const EMO_BLOOMING_GEM_MATERIALS = new Map(); // keyed by color hex
+const EMO_TEAR_SHAPED_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  seedGeometry: null,
+  seamGeometry: null,
+  cageGeometry: null,
+  cageEdgesGeometry: null,
+  fanGeometry: null,
+  fanEdgesGeometry: null,
+  liftGeometry: null,
+  liftEdgesGeometry: null,
+  dustGeometry: null
+};
+const EMO_TEAR_SHAPED_MATERIALS = new Map(); // keyed by color hex
 
 // Enforce opaque, front-facing core materials for core meshes
 function enforceOpaqueCoreMaterial(mat) {
@@ -2862,6 +2892,16 @@ function _getEmotionalNeuralLobeGeometries() {
     filamentGeometry.computeBoundingSphere();
     EMO_NEURAL_LOBE_CACHE.filamentGeometry = filamentGeometry;
 
+    const filamentLongCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.74, -0.16, 0.7),
+      new THREE.Vector3(-0.48, -0.04, 0.46),
+      new THREE.Vector3(-0.22, 0.1, 0.22),
+      new THREE.Vector3(-0.02, 0.06, 0.04)
+    ]);
+    const filamentLongGeometry = new THREE.TubeGeometry(filamentLongCurve, 34, 0.014, 6, false);
+    filamentLongGeometry.computeBoundingSphere();
+    EMO_NEURAL_LOBE_CACHE.filamentLongGeometry = filamentLongGeometry;
+
     const anchorGeometry = new THREE.OctahedronGeometry(0.08, 0);
     anchorGeometry.scale(0.7, 1.24, 0.7);
     anchorGeometry.computeBoundingSphere();
@@ -2884,6 +2924,23 @@ function _getEmotionalNeuralLobeGeometries() {
     mistGeometry.setAttribute('position', new THREE.Float32BufferAttribute(mistPositions, 3));
     mistGeometry.computeBoundingSphere();
     EMO_NEURAL_LOBE_CACHE.mistGeometry = mistGeometry;
+
+    const achePositions = [];
+    const acheCount = 32;
+    for (let i = 0; i < acheCount; i++) {
+      const t = i / acheCount;
+      const angle = t * Math.PI * 2;
+      const radius = 0.42 + Math.sin(i * 1.11) * 0.06;
+      achePositions.push(
+        Math.cos(angle) * radius * 0.62 - 0.12,
+        -0.08 + Math.sin(i * 1.38) * 0.12,
+        Math.sin(angle) * radius * 0.4 + 0.06
+      );
+    }
+    const acheGeometry = new THREE.BufferGeometry();
+    acheGeometry.setAttribute('position', new THREE.Float32BufferAttribute(achePositions, 3));
+    acheGeometry.computeBoundingSphere();
+    EMO_NEURAL_LOBE_CACHE.acheGeometry = acheGeometry;
   }
 
   return EMO_NEURAL_LOBE_CACHE;
@@ -2948,21 +3005,21 @@ function _getEmotionalNeuralLobeMaterials(color) {
   const membraneMatA = new THREE.MeshBasicMaterial({
     color: cyanColor.clone().lerp(new THREE.Color(0xffffff), 0.18),
     transparent: true,
-    opacity: 0.14,
+    opacity: 0.11,
     depthWrite: false
   });
 
   const membraneMatB = new THREE.MeshBasicMaterial({
     color: roseColor.clone().lerp(new THREE.Color(0xffffff), 0.1),
     transparent: true,
-    opacity: 0.12,
+    opacity: 0.095,
     depthWrite: false
   });
 
   const filamentMat = new THREE.MeshBasicMaterial({
     color: roseColor.clone().lerp(violetColor, 0.34),
     transparent: true,
-    opacity: 0.34,
+    opacity: 0.26,
     depthWrite: false
   });
 
@@ -2989,7 +3046,16 @@ function _getEmotionalNeuralLobeMaterials(color) {
     color: roseColor.clone().lerp(cyanColor, 0.24),
     size: 0.042,
     transparent: true,
-    opacity: 0.58,
+    opacity: 0.52,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const acheMat = new THREE.PointsMaterial({
+    color: violetColor.clone().lerp(roseColor, 0.36),
+    size: 0.032,
+    transparent: true,
+    opacity: 0.42,
     depthWrite: false,
     sizeAttenuation: true
   });
@@ -2997,7 +3063,7 @@ function _getEmotionalNeuralLobeMaterials(color) {
   const glowMat = new THREE.MeshBasicMaterial({
     color: roseColor.clone().lerp(cyanColor, 0.5).lerp(new THREE.Color(0xffffff), 0.08),
     transparent: true,
-    opacity: 0.18,
+    opacity: 0.14,
     depthWrite: false
   });
 
@@ -3012,6 +3078,7 @@ function _getEmotionalNeuralLobeMaterials(color) {
     anchorMat,
     edgeMat,
     mistMat,
+    acheMat,
     glowMat
   };
   for (const mat of Object.values(mats)) {
@@ -3020,6 +3087,531 @@ function _getEmotionalNeuralLobeMaterials(color) {
   }
 
   EMO_NEURAL_LOBE_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+function _getEmotionalBloomingGemGeometries() {
+  if (!EMO_BLOOMING_GEM_CACHE.coreGeometry) {
+    const coreGeometry = new THREE.OctahedronGeometry(0.28, 1);
+    const corePos = coreGeometry.attributes.position;
+    for (let i = 0; i < corePos.count; i++) {
+      const x = corePos.getX(i);
+      const y = corePos.getY(i);
+      const z = corePos.getZ(i);
+      const tangle = Math.sin((x - z) * 8.2) * 0.018;
+      corePos.setXYZ(
+        i,
+        x * 1.14 + y * 0.08 + tangle,
+        y * 0.92 + Math.abs(x) * 0.04,
+        z * 0.88 - x * 0.12
+      );
+    }
+    corePos.needsUpdate = true;
+    coreGeometry.computeVertexNormals();
+    coreGeometry.computeBoundingSphere();
+    EMO_BLOOMING_GEM_CACHE.coreGeometry = coreGeometry;
+    EMO_BLOOMING_GEM_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 12);
+
+    const nucleusGeometry = new THREE.TetrahedronGeometry(0.15, 0);
+    nucleusGeometry.scale(0.78, 1.22, 0.72);
+    nucleusGeometry.rotateZ(0.22);
+    nucleusGeometry.computeBoundingSphere();
+    EMO_BLOOMING_GEM_CACHE.nucleusGeometry = nucleusGeometry;
+
+    const seamGeometry = new THREE.BoxGeometry(0.07, 0.5, 0.14, 1, 1, 1);
+    const seamPos = seamGeometry.attributes.position;
+    for (let i = 0; i < seamPos.count; i++) {
+      const x = seamPos.getX(i);
+      const y = seamPos.getY(i);
+      const z = seamPos.getZ(i);
+      seamPos.setXYZ(
+        i,
+        x * (0.72 + Math.abs(y) * 0.36),
+        y * 1.02,
+        z * 0.76 + x * 0.18
+      );
+    }
+    seamPos.needsUpdate = true;
+    seamGeometry.computeVertexNormals();
+    seamGeometry.computeBoundingSphere();
+    EMO_BLOOMING_GEM_CACHE.seamGeometry = seamGeometry;
+
+    const cageGeometry = new THREE.OctahedronGeometry(0.38, 0);
+    const cagePos = cageGeometry.attributes.position;
+    for (let i = 0; i < cagePos.count; i++) {
+      const x = cagePos.getX(i);
+      const y = cagePos.getY(i);
+      const z = cagePos.getZ(i);
+      cagePos.setXYZ(
+        i,
+        x * 1.06 + z * 0.08,
+        y * 1.16 + Math.sign(y || 1) * 0.04,
+        z * 0.9 - x * 0.1
+      );
+    }
+    cagePos.needsUpdate = true;
+    cageGeometry.computeVertexNormals();
+    cageGeometry.computeBoundingSphere();
+    EMO_BLOOMING_GEM_CACHE.cageGeometry = cageGeometry;
+    EMO_BLOOMING_GEM_CACHE.cageEdgesGeometry = safeCreateEdgesGeometry(cageGeometry, 8);
+
+    const petalGeometry = new THREE.CylinderGeometry(0.02, 0.19, 0.68, 5, 3, false);
+    const petalPos = petalGeometry.attributes.position;
+    for (let i = 0; i < petalPos.count; i++) {
+      const x = petalPos.getX(i);
+      const y = petalPos.getY(i);
+      const z = petalPos.getZ(i);
+      const yNorm = (y + 0.34) / 0.68;
+      const swell = 0.46 + yNorm * 1.28;
+      const bend = Math.sin(yNorm * Math.PI) * 0.08;
+      petalPos.setXYZ(
+        i,
+        x * swell + bend,
+        y * 1.04 + Math.cos((x + z) * 9.0) * 0.012,
+        z * (0.26 + yNorm * 0.72) - bend * 0.34
+      );
+    }
+    petalPos.needsUpdate = true;
+    petalGeometry.translate(0, 0.28, 0);
+    petalGeometry.computeVertexNormals();
+    petalGeometry.computeBoundingSphere();
+    EMO_BLOOMING_GEM_CACHE.petalGeometry = petalGeometry;
+    EMO_BLOOMING_GEM_CACHE.petalEdgesGeometry = safeCreateEdgesGeometry(petalGeometry, 16);
+
+    const ghostPetalGeometry = petalGeometry.clone();
+    const ghostPos = ghostPetalGeometry.attributes.position;
+    for (let i = 0; i < ghostPos.count; i++) {
+      const x = ghostPos.getX(i);
+      const y = ghostPos.getY(i);
+      const z = ghostPos.getZ(i);
+      ghostPos.setXYZ(
+        i,
+        x * 0.78 - z * 0.14,
+        y * 1.06,
+        z * 0.7 + x * 0.1
+      );
+    }
+    ghostPos.needsUpdate = true;
+    ghostPetalGeometry.computeVertexNormals();
+    ghostPetalGeometry.computeBoundingSphere();
+    EMO_BLOOMING_GEM_CACHE.ghostPetalGeometry = ghostPetalGeometry;
+    EMO_BLOOMING_GEM_CACHE.ghostPetalEdgesGeometry = safeCreateEdgesGeometry(ghostPetalGeometry, 16);
+
+    const pollenPositions = [];
+    const pollenCount = 48;
+    for (let i = 0; i < pollenCount; i++) {
+      const t = i / pollenCount;
+      const angle = t * Math.PI * 2;
+      const radius = 0.54 + Math.sin(i * 1.41) * 0.18;
+      pollenPositions.push(
+        Math.cos(angle) * radius * (0.88 + Math.sin(i * 0.37) * 0.16) - 0.04,
+        Math.sin(i * 1.27) * 0.34 + Math.cos(angle * 2.0) * 0.08,
+        Math.sin(angle) * radius * 0.66 + 0.06
+      );
+    }
+    const pollenGeometry = new THREE.BufferGeometry();
+    pollenGeometry.setAttribute('position', new THREE.Float32BufferAttribute(pollenPositions, 3));
+    pollenGeometry.computeBoundingSphere();
+    EMO_BLOOMING_GEM_CACHE.pollenGeometry = pollenGeometry;
+  }
+
+  return EMO_BLOOMING_GEM_CACHE;
+}
+
+function _getEmotionalBloomingGemMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xff6699;
+  if (EMO_BLOOMING_GEM_MATERIALS.has(colorHex)) return EMO_BLOOMING_GEM_MATERIALS.get(colorHex);
+
+  const emotionalColor = new THREE.Color(colorHex);
+  const cyanColor = new THREE.Color(0x92f2ff).lerp(emotionalColor, 0.16);
+  const roseColor = new THREE.Color(0xffaedc).lerp(emotionalColor, 0.34);
+  const violetColor = new THREE.Color(0x9176ff).lerp(emotionalColor, 0.24);
+  const paleColor = new THREE.Color(0xfef8ff).lerp(cyanColor, 0.12);
+  const bruiseColor = new THREE.Color(0x180d27).lerp(violetColor, 0.16);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: violetColor.clone().lerp(roseColor, 0.32),
+    emissive: roseColor.clone().lerp(cyanColor, 0.24),
+    emissiveIntensity: 0.18,
+    metalness: 0.34,
+    roughness: 0.3,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const nucleusMat = new THREE.MeshPhysicalMaterial({
+    color: paleColor.clone().lerp(roseColor, 0.18),
+    emissive: new THREE.Color(0xffd8f5),
+    emissiveIntensity: 0.56,
+    metalness: 0.28,
+    roughness: 0.08,
+    transmission: 0.0,
+    thickness: 0.16,
+    ior: 1.36,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seamMat = new THREE.MeshBasicMaterial({
+    color: bruiseColor,
+    transparent: true,
+    opacity: 0.92,
+    depthWrite: false
+  });
+
+  const cageMat = new THREE.LineBasicMaterial({
+    color: paleColor.clone().lerp(violetColor, 0.18),
+    transparent: true,
+    opacity: 0.64,
+    depthWrite: false
+  });
+
+  const petalMatA = new THREE.MeshBasicMaterial({
+    color: cyanColor.clone().lerp(paleColor, 0.22),
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false
+  });
+
+  const petalMatB = new THREE.MeshBasicMaterial({
+    color: roseColor.clone().lerp(paleColor, 0.16),
+    transparent: true,
+    opacity: 0.16,
+    depthWrite: false
+  });
+
+  const petalMatC = new THREE.MeshBasicMaterial({
+    color: violetColor.clone().lerp(roseColor, 0.28),
+    transparent: true,
+    opacity: 0.15,
+    depthWrite: false
+  });
+
+  const petalEdgeMat = new THREE.LineBasicMaterial({
+    color: paleColor.clone().lerp(roseColor, 0.12),
+    transparent: true,
+    opacity: 0.46,
+    depthWrite: false
+  });
+
+  const ghostMat = new THREE.MeshBasicMaterial({
+    color: paleColor.clone().lerp(cyanColor, 0.18),
+    transparent: true,
+    opacity: 0.075,
+    depthWrite: false
+  });
+
+  const ghostEdgeMat = new THREE.LineBasicMaterial({
+    color: paleColor.clone().lerp(violetColor, 0.08),
+    transparent: true,
+    opacity: 0.28,
+    depthWrite: false
+  });
+
+  const pollenMat = new THREE.PointsMaterial({
+    color: roseColor.clone().lerp(cyanColor, 0.42),
+    size: 0.04,
+    transparent: true,
+    opacity: 0.54,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const glowMat = new THREE.MeshBasicMaterial({
+    color: roseColor.clone().lerp(cyanColor, 0.5).lerp(new THREE.Color(0xffffff), 0.1),
+    transparent: true,
+    opacity: 0.14,
+    depthWrite: false
+  });
+
+  const mats = {
+    coreMat,
+    nucleusMat,
+    seamMat,
+    cageMat,
+    petalMatA,
+    petalMatB,
+    petalMatC,
+    petalEdgeMat,
+    ghostMat,
+    ghostEdgeMat,
+    pollenMat,
+    glowMat
+  };
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+  }
+
+  EMO_BLOOMING_GEM_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+function _getEmotionalTearShapedGeometries() {
+  if (!EMO_TEAR_SHAPED_CACHE.coreGeometry) {
+    const coreGeometry = new THREE.OctahedronGeometry(0.3, 1);
+    const corePos = coreGeometry.attributes.position;
+    for (let i = 0; i < corePos.count; i++) {
+      const x = corePos.getX(i);
+      const y = corePos.getY(i);
+      const z = corePos.getZ(i);
+      const uplift = Math.max(0, y) * 0.16;
+      corePos.setXYZ(
+        i,
+        x * 1.1 + z * 0.08,
+        y * 0.94 + uplift + Math.sin((x - z) * 7.2) * 0.012,
+        z * 0.84 - x * 0.14
+      );
+    }
+    corePos.needsUpdate = true;
+    coreGeometry.computeVertexNormals();
+    coreGeometry.computeBoundingSphere();
+    EMO_TEAR_SHAPED_CACHE.coreGeometry = coreGeometry;
+    EMO_TEAR_SHAPED_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 12);
+
+    const seedGeometry = new THREE.TetrahedronGeometry(0.14, 0);
+    seedGeometry.scale(0.8, 1.26, 0.72);
+    seedGeometry.rotateZ(0.34);
+    seedGeometry.computeBoundingSphere();
+    EMO_TEAR_SHAPED_CACHE.seedGeometry = seedGeometry;
+
+    const seamGeometry = new THREE.BoxGeometry(0.06, 0.46, 0.12, 1, 1, 1);
+    const seamPos = seamGeometry.attributes.position;
+    for (let i = 0; i < seamPos.count; i++) {
+      const x = seamPos.getX(i);
+      const y = seamPos.getY(i);
+      const z = seamPos.getZ(i);
+      seamPos.setXYZ(
+        i,
+        x * (0.68 + Math.abs(y) * 0.34) + y * 0.05,
+        y * 1.04,
+        z * 0.74 + x * 0.18
+      );
+    }
+    seamPos.needsUpdate = true;
+    seamGeometry.computeVertexNormals();
+    seamGeometry.computeBoundingSphere();
+    EMO_TEAR_SHAPED_CACHE.seamGeometry = seamGeometry;
+
+    const cageGeometry = new THREE.OctahedronGeometry(0.38, 0);
+    const cagePos = cageGeometry.attributes.position;
+    for (let i = 0; i < cagePos.count; i++) {
+      const x = cagePos.getX(i);
+      const y = cagePos.getY(i);
+      const z = cagePos.getZ(i);
+      cagePos.setXYZ(
+        i,
+        x * 1.04 + z * 0.1,
+        y * 1.22 + Math.sign(y || 1) * 0.05,
+        z * 0.86 - x * 0.08
+      );
+    }
+    cagePos.needsUpdate = true;
+    cageGeometry.computeVertexNormals();
+    cageGeometry.computeBoundingSphere();
+    EMO_TEAR_SHAPED_CACHE.cageGeometry = cageGeometry;
+    EMO_TEAR_SHAPED_CACHE.cageEdgesGeometry = safeCreateEdgesGeometry(cageGeometry, 8);
+
+    const fanGeometry = new THREE.CylinderGeometry(0.018, 0.2, 0.84, 4, 3, false);
+    const fanPos = fanGeometry.attributes.position;
+    for (let i = 0; i < fanPos.count; i++) {
+      const x = fanPos.getX(i);
+      const y = fanPos.getY(i);
+      const z = fanPos.getZ(i);
+      const yNorm = (y + 0.42) / 0.84;
+      const flare = 0.42 + yNorm * 1.3;
+      const sweep = Math.sin(yNorm * Math.PI) * 0.12;
+      fanPos.setXYZ(
+        i,
+        x * flare + sweep,
+        y * 1.06 + Math.cos((x + z) * 10.0) * 0.01,
+        z * (0.22 + yNorm * 0.7) - sweep * 0.28
+      );
+    }
+    fanPos.needsUpdate = true;
+    fanGeometry.translate(0, 0.34, 0);
+    fanGeometry.computeVertexNormals();
+    fanGeometry.computeBoundingSphere();
+    EMO_TEAR_SHAPED_CACHE.fanGeometry = fanGeometry;
+    EMO_TEAR_SHAPED_CACHE.fanEdgesGeometry = safeCreateEdgesGeometry(fanGeometry, 16);
+
+    const liftGeometry = fanGeometry.clone();
+    const liftPos = liftGeometry.attributes.position;
+    for (let i = 0; i < liftPos.count; i++) {
+      const x = liftPos.getX(i);
+      const y = liftPos.getY(i);
+      const z = liftPos.getZ(i);
+      liftPos.setXYZ(
+        i,
+        x * 0.72 - z * 0.12,
+        y * 0.72 + 0.06,
+        z * 0.56 + x * 0.08
+      );
+    }
+    liftPos.needsUpdate = true;
+    liftGeometry.computeVertexNormals();
+    liftGeometry.computeBoundingSphere();
+    EMO_TEAR_SHAPED_CACHE.liftGeometry = liftGeometry;
+    EMO_TEAR_SHAPED_CACHE.liftEdgesGeometry = safeCreateEdgesGeometry(liftGeometry, 16);
+
+    const dustPositions = [];
+    const dustCount = 52;
+    for (let i = 0; i < dustCount; i++) {
+      const t = i / dustCount;
+      const angle = t * Math.PI * 1.92;
+      const radius = 0.48 + t * 0.44 + Math.sin(i * 1.37) * 0.08;
+      dustPositions.push(
+        Math.cos(angle) * radius * 0.68 - 0.06,
+        -0.18 + t * 1.04 + Math.sin(i * 0.94) * 0.08,
+        Math.sin(angle) * radius * 0.42 + 0.04
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    EMO_TEAR_SHAPED_CACHE.dustGeometry = dustGeometry;
+  }
+
+  return EMO_TEAR_SHAPED_CACHE;
+}
+
+function _getEmotionalTearShapedMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xff77bb;
+  if (EMO_TEAR_SHAPED_MATERIALS.has(colorHex)) return EMO_TEAR_SHAPED_MATERIALS.get(colorHex);
+
+  const emotionalColor = new THREE.Color(colorHex);
+  const cyanColor = new THREE.Color(0xa8f7ff).lerp(emotionalColor, 0.12);
+  const roseColor = new THREE.Color(0xffbddf).lerp(emotionalColor, 0.24);
+  const violetColor = new THREE.Color(0xa08aff).lerp(emotionalColor, 0.16);
+  const paleColor = new THREE.Color(0xffffff).lerp(cyanColor, 0.08);
+  const seamColor = roseColor.clone().lerp(paleColor, 0.4);
+
+  const coreMat = new THREE.MeshPhysicalMaterial({
+    color: cyanColor.clone().lerp(roseColor, 0.18).lerp(paleColor, 0.12),
+    emissive: paleColor.clone().lerp(roseColor, 0.24),
+    emissiveIntensity: 0.26,
+    metalness: 0.28,
+    roughness: 0.16,
+    transmission: 0.0,
+    thickness: 0.16,
+    ior: 1.36,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seedMat = new THREE.MeshPhysicalMaterial({
+    color: paleColor.clone().lerp(roseColor, 0.12),
+    emissive: paleColor.clone().lerp(cyanColor, 0.2),
+    emissiveIntensity: 0.6,
+    metalness: 0.18,
+    roughness: 0.08,
+    transmission: 0.0,
+    thickness: 0.1,
+    ior: 1.32,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seamMat = new THREE.MeshBasicMaterial({
+    color: seamColor,
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false
+  });
+
+  const cageMat = new THREE.LineBasicMaterial({
+    color: paleColor.clone().lerp(cyanColor, 0.1),
+    transparent: true,
+    opacity: 0.62,
+    depthWrite: false
+  });
+
+  const wingMatA = new THREE.MeshBasicMaterial({
+    color: cyanColor.clone().lerp(paleColor, 0.16),
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false
+  });
+
+  const wingMatB = new THREE.MeshBasicMaterial({
+    color: roseColor.clone().lerp(paleColor, 0.18),
+    transparent: true,
+    opacity: 0.17,
+    depthWrite: false
+  });
+
+  const wingMatC = new THREE.MeshBasicMaterial({
+    color: violetColor.clone().lerp(cyanColor, 0.24),
+    transparent: true,
+    opacity: 0.15,
+    depthWrite: false
+  });
+
+  const wingEdgeMat = new THREE.LineBasicMaterial({
+    color: paleColor.clone().lerp(roseColor, 0.1),
+    transparent: true,
+    opacity: 0.44,
+    depthWrite: false
+  });
+
+  const liftMat = new THREE.MeshBasicMaterial({
+    color: paleColor.clone().lerp(roseColor, 0.22),
+    transparent: true,
+    opacity: 0.16,
+    depthWrite: false
+  });
+
+  const liftEdgeMat = new THREE.LineBasicMaterial({
+    color: paleColor.clone().lerp(cyanColor, 0.1),
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false
+  });
+
+  const dustMat = new THREE.PointsMaterial({
+    color: roseColor.clone().lerp(cyanColor, 0.52),
+    size: 0.042,
+    transparent: true,
+    opacity: 0.58,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const glowMat = new THREE.MeshBasicMaterial({
+    color: paleColor.clone().lerp(roseColor, 0.14),
+    transparent: true,
+    opacity: 0.16,
+    depthWrite: false
+  });
+
+  const mats = {
+    coreMat,
+    seedMat,
+    seamMat,
+    cageMat,
+    wingMatA,
+    wingMatB,
+    wingMatC,
+    wingEdgeMat,
+    liftMat,
+    liftEdgeMat,
+    dustMat,
+    glowMat
+  };
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+  }
+
+  EMO_TEAR_SHAPED_MATERIALS.set(colorHex, mats);
   return mats;
 }
 
@@ -11138,9 +11730,9 @@ static createControlNode0(group, color) {
       const leftLobe = new THREE.Mesh(geometries.lobeGeometry, materials.lobeMatA);
       leftLobe.name = 'CognitionLobe_A';
       leftLobe.userData.ignoreWaveColor = true;
-      leftLobe.position.set(-0.18, 0.02, 0.03);
-      leftLobe.rotation.set(0.18, -0.32, 0.08);
-      leftLobe.scale.set(1.02, 0.98, 1.08);
+      leftLobe.position.set(-0.24, -0.02, 0.08);
+      leftLobe.rotation.set(0.28, -0.48, 0.18);
+      leftLobe.scale.set(0.92, 0.88, 1.14);
       leftLobe.renderOrder = coreOrder;
       coreGroup.add(leftLobe);
 
@@ -11156,9 +11748,9 @@ static createControlNode0(group, color) {
       const rightLobe = new THREE.Mesh(geometries.lobeGeometry, materials.lobeMatB);
       rightLobe.name = 'CognitionLobe_B';
       rightLobe.userData.ignoreWaveColor = true;
-      rightLobe.position.set(0.17, 0.05, -0.02);
-      rightLobe.rotation.set(-0.14, 0.4, -0.09);
-      rightLobe.scale.set(0.96, 0.92, 1.04);
+      rightLobe.position.set(0.22, 0.08, -0.08);
+      rightLobe.rotation.set(-0.22, 0.54, -0.16);
+      rightLobe.scale.set(1.0, 0.88, 1.08);
       rightLobe.renderOrder = coreOrder;
       coreGroup.add(rightLobe);
 
@@ -11174,16 +11766,18 @@ static createControlNode0(group, color) {
       const seam = new THREE.Mesh(geometries.seamGeometry, materials.seamMat);
       seam.name = 'UntouchableInnerSeam';
       seam.userData.ignoreWaveColor = true;
-      seam.position.set(0.0, 0.03, 0.0);
-      seam.rotation.set(0.16, 0.22, -0.08);
+      seam.position.set(-0.02, 0.02, 0.02);
+      seam.rotation.set(0.28, 0.28, -0.18);
+      seam.scale.set(0.9, 1.08, 0.84);
       seam.renderOrder = coreOrder;
       coreGroup.add(seam);
 
       const nucleus = new THREE.Mesh(geometries.nucleusGeometry, materials.nucleusMat);
       nucleus.name = 'SentienceNucleus';
       nucleus.userData.ignoreWaveColor = true;
-      nucleus.position.set(0.03, 0.08, 0.02);
-      nucleus.rotation.set(-0.08, 0.26, 0.12);
+      nucleus.position.set(-0.04, 0.07, 0.03);
+      nucleus.rotation.set(-0.12, 0.32, 0.18);
+      nucleus.scale.set(0.82, 1.22, 0.72);
       nucleus.renderOrder = coreOrder;
       coreGroup.add(nucleus);
 
@@ -11195,9 +11789,9 @@ static createControlNode0(group, color) {
       const membraneA = new THREE.Mesh(geometries.membraneGeometryA, materials.membraneMatA);
       membraneA.name = 'ProtectiveMembrane_A';
       membraneA.userData.ignoreWaveColor = true;
-      membraneA.position.set(-0.1, 0.04, -0.02);
-      membraneA.rotation.set(0.2, -0.48, 0.14);
-      membraneA.scale.set(1.0, 0.94, 1.08);
+      membraneA.position.set(-0.18, 0.05, 0.02);
+      membraneA.rotation.set(0.36, -0.72, 0.26);
+      membraneA.scale.set(0.84, 0.9, 1.0);
       membraneA.renderOrder = archOrder;
       psycheGroup.add(membraneA);
 
@@ -11213,9 +11807,9 @@ static createControlNode0(group, color) {
       const membraneB = new THREE.Mesh(geometries.membraneGeometryB, materials.membraneMatB);
       membraneB.name = 'OpenMembrane_B';
       membraneB.userData.ignoreWaveColor = true;
-      membraneB.position.set(0.08, 0.02, 0.04);
-      membraneB.rotation.set(-0.18, 0.64, -0.18);
-      membraneB.scale.set(0.94, 1.06, 0.9);
+      membraneB.position.set(0.18, 0.01, -0.08);
+      membraneB.rotation.set(-0.3, 0.96, -0.34);
+      membraneB.scale.set(0.78, 1.14, 0.76);
       membraneB.renderOrder = archOrder;
       psycheGroup.add(membraneB);
 
@@ -11234,13 +11828,14 @@ static createControlNode0(group, color) {
       longingGroup.name = 'LONGING_GROUP';
 
       const filamentConfigs = [
-        { name: 'SensoryFilament_A', pos: [0.0, 0.0, 0.0], rot: [0.04, 0.0, 0.0], scale: [1.0, 1.0, 1.0] },
-        { name: 'SensoryFilament_B', pos: [0.0, 0.02, -0.02], rot: [0.12, Math.PI * 0.58, -0.18], scale: [0.94, 1.08, 0.94] },
-        { name: 'SensoryFilament_C', pos: [0.04, -0.04, 0.02], rot: [-0.16, Math.PI * 1.02, 0.22], scale: [0.88, 0.94, 0.88] },
-        { name: 'SensoryFilament_D', pos: [-0.02, 0.06, -0.03], rot: [0.24, -Math.PI * 0.46, -0.12], scale: [0.92, 1.04, 0.92] }
+        { name: 'SensoryFilament_A', pos: [-0.04, -0.01, 0.03], rot: [0.04, -0.08, 0.08], scale: [1.0, 1.02, 1.0], long: true, drift: [-0.1, -0.04, 0.08] },
+        { name: 'SensoryFilament_B', pos: [0.02, 0.03, -0.05], rot: [0.22, Math.PI * 0.62, -0.24], scale: [0.84, 1.0, 0.84], drift: [0.03, 0.02, -0.02] },
+        { name: 'SensoryFilament_C', pos: [0.06, -0.06, 0.04], rot: [-0.2, Math.PI * 1.04, 0.28], scale: [0.82, 0.9, 0.84], drift: [0.08, -0.12, 0.04] },
+        { name: 'SensoryFilament_D', pos: [-0.08, 0.08, -0.05], rot: [0.34, -Math.PI * 0.42, -0.18], scale: [0.9, 0.98, 0.88], long: true, drift: [-0.06, 0.08, -0.04] }
       ];
       filamentConfigs.forEach((cfg, idx) => {
-        const filament = new THREE.Mesh(geometries.filamentGeometry, materials.filamentMat);
+        const filamentGeometry = cfg.long ? geometries.filamentLongGeometry : geometries.filamentGeometry;
+        const filament = new THREE.Mesh(filamentGeometry, materials.filamentMat);
         filament.name = cfg.name;
         filament.userData.ignoreWaveColor = true;
         filament.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
@@ -11254,6 +11849,7 @@ static createControlNode0(group, color) {
         scratch.scale.copy(filament.scale);
         scratch.updateMatrix();
         const anchorPosition = anchorStart.clone().applyMatrix4(scratch.matrix);
+        if (cfg.drift) anchorPosition.add(new THREE.Vector3(cfg.drift[0], cfg.drift[1], cfg.drift[2]));
 
         const anchor = new THREE.Mesh(geometries.anchorGeometry, materials.anchorMat);
         anchor.name = `LongingAnchor_${idx}`;
@@ -11264,7 +11860,7 @@ static createControlNode0(group, color) {
           cfg.rot[1] + (rng() - 0.5) * 0.4,
           cfg.rot[2] + (rng() - 0.5) * 0.3
         );
-        anchor.scale.setScalar(0.86 + rng() * 0.24);
+        anchor.scale.setScalar(0.7 + rng() * 0.2);
         anchor.renderOrder = coreOrder;
         longingGroup.add(anchor);
 
@@ -11288,28 +11884,40 @@ static createControlNode0(group, color) {
       innerGlow.userData.ignoreWaveColor = true;
       innerGlow.position.copy(nucleus.position);
       innerGlow.rotation.copy(nucleus.rotation);
-      innerGlow.scale.set(1.9, 1.7, 1.9);
+      innerGlow.position.add(new THREE.Vector3(-0.02, -0.01, 0.0));
+      innerGlow.scale.set(1.42, 1.82, 1.46);
       innerGlow.renderOrder = archOrder;
       auraGroup.add(innerGlow);
 
       const mist = new THREE.Points(geometries.mistGeometry, materials.mistMat);
       mist.name = 'BittersweetMist';
       mist.userData.ignoreWaveColor = true;
-      mist.position.set(0.0, 0.03, 0.0);
-      mist.rotation.set(0.08, -0.2, 0.04);
+      mist.position.set(-0.04, 0.02, 0.02);
+      mist.rotation.set(0.14, -0.32, 0.08);
+      mist.scale.set(0.86, 0.92, 0.8);
       mist.frustumCulled = false;
       mist.renderOrder = archOrder;
       auraGroup.add(mist);
+
+      const ache = new THREE.Points(geometries.acheGeometry, materials.acheMat);
+      ache.name = 'SomaticAche';
+      ache.userData.ignoreWaveColor = true;
+      ache.position.set(-0.09, -0.03, 0.05);
+      ache.rotation.set(0.18, 0.22, -0.12);
+      ache.scale.set(0.9, 1.12, 0.92);
+      ache.frustumCulled = false;
+      ache.renderOrder = archOrder;
+      auraGroup.add(ache);
 
       const shellA = createNodeHologramShell(leftLobe, 0xb9f1ff);
       if (shellA) {
         shellA.name = 'EmotionShell_A';
         shellA.position.copy(leftLobe.position);
         shellA.quaternion.copy(leftLobe.quaternion);
-        shellA.scale.copy(leftLobe.scale).multiplyScalar(1.14);
+        shellA.scale.copy(leftLobe.scale).multiplyScalar(1.08);
         shellA.frustumCulled = false;
         shellA.renderOrder = archOrder;
-        if (shellA.material?.uniforms?.uOpacity) shellA.material.uniforms.uOpacity.value = 0.05;
+        if (shellA.material?.uniforms?.uOpacity) shellA.material.uniforms.uOpacity.value = 0.036;
         auraGroup.add(shellA);
       }
 
@@ -11318,10 +11926,10 @@ static createControlNode0(group, color) {
         shellB.name = 'EmotionShell_B';
         shellB.position.copy(rightLobe.position);
         shellB.quaternion.copy(rightLobe.quaternion);
-        shellB.scale.copy(rightLobe.scale).multiplyScalar(1.18);
+        shellB.scale.copy(rightLobe.scale).multiplyScalar(1.12);
         shellB.frustumCulled = false;
         shellB.renderOrder = archOrder;
-        if (shellB.material?.uniforms?.uOpacity) shellB.material.uniforms.uOpacity.value = 0.046;
+        if (shellB.material?.uniforms?.uOpacity) shellB.material.uniforms.uOpacity.value = 0.032;
         auraGroup.add(shellB);
       }
 
@@ -11345,6 +11953,7 @@ static createControlNode0(group, color) {
 
       root.userData.visualReady = true;
       root.userData.emotionalVariant = 'BITTERSWEET_COGNITION';
+      root.userData.emotionalMood = 'FRAGILE_INTROSPECTION';
       group.userData = group.userData || {};
       group.userData.visualReady = true;
       group.userData.nodeGeometryName = 'EMOTIONAL_NEURAL_LOBE';
@@ -11352,6 +11961,472 @@ static createControlNode0(group, color) {
       return group;
     } catch (err) {
       console.error('[EmotionalNeuralLobeAbort]', {
+        reason: err?.message || err,
+        visualCode
+      });
+      return null;
+    }
+  }
+
+  static createEmotionalBloomingGem(group, visualCode, color) {
+    try {
+      const geometries = _getEmotionalBloomingGemGeometries();
+      const resolvedColor = typeof color === 'undefined' ? visualCode : color;
+      const materials = _getEmotionalBloomingGemMaterials(resolvedColor);
+      const root = new THREE.Group();
+      root.name = 'EMOTIONAL_UNTRANSLATABLE_BLOOM_NODE';
+      root.userData.visualVariant = 'EMOTIONAL_UNTRANSLATABLE_BLOOM_V4';
+      root.userData.nodeGeometryName = 'EMOTIONAL_UNTRANSLATABLE_BLOOM';
+
+      const seed = group?.userData?.nodeId ? hashString(group.userData.nodeId) : (Number.isFinite(visualCode) ? visualCode : 1203);
+      const rng = _mythicSeededRng(seed);
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+
+      const affectCore = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      affectCore.name = 'AffectCore';
+      affectCore.userData.ignoreWaveColor = true;
+      affectCore.position.set(-0.04, 0.05, 0.02);
+      affectCore.rotation.set(0.18, -0.34, 0.12);
+      affectCore.scale.set(1.04, 1.16, 0.9);
+      affectCore.renderOrder = coreOrder;
+      coreGroup.add(affectCore);
+
+      const affectEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.petalEdgeMat);
+      affectEdges.name = 'AffectCore_Edges';
+      affectEdges.userData.ignoreWaveColor = true;
+      affectEdges.position.copy(affectCore.position);
+      affectEdges.rotation.copy(affectCore.rotation);
+      affectEdges.scale.copy(affectCore.scale);
+      affectEdges.renderOrder = archOrder;
+      coreGroup.add(affectEdges);
+
+      const seam = new THREE.Mesh(geometries.seamGeometry, materials.seamMat);
+      seam.name = 'FractureSeam';
+      seam.userData.ignoreWaveColor = true;
+      seam.position.set(0.02, 0.08, -0.01);
+      seam.rotation.set(0.42, 0.26, -0.28);
+      seam.scale.set(0.9, 1.04, 0.84);
+      seam.renderOrder = coreOrder;
+      coreGroup.add(seam);
+
+      const nucleus = new THREE.Mesh(geometries.nucleusGeometry, materials.nucleusMat);
+      nucleus.name = 'AffectNucleus';
+      nucleus.userData.ignoreWaveColor = true;
+      nucleus.position.set(0.04, 0.09, 0.02);
+      nucleus.rotation.set(-0.18, 0.48, 0.2);
+      nucleus.scale.set(0.86, 1.12, 0.74);
+      nucleus.renderOrder = coreOrder;
+      coreGroup.add(nucleus);
+
+      const cage = new THREE.LineSegments(geometries.cageEdgesGeometry, materials.cageMat);
+      cage.name = 'InterpretationCage';
+      cage.userData.ignoreWaveColor = true;
+      cage.position.copy(affectCore.position).add(new THREE.Vector3(0.01, 0.0, -0.01));
+      cage.rotation.set(affectCore.rotation.x + 0.18, affectCore.rotation.y - 0.12, affectCore.rotation.z + 0.08);
+      cage.scale.copy(affectCore.scale).multiplyScalar(1.16);
+      cage.renderOrder = archOrder;
+      coreGroup.add(cage);
+
+      root.add(coreGroup);
+
+      const petalSwarmGroup = new THREE.Group();
+      petalSwarmGroup.name = 'PETAL_SWARM_GROUP';
+      const petalConfigs = [
+        { pos: [-0.56, 0.24, 0.2], rot: [0.84, -1.02, 0.44], scale: [1.04, 1.22, 0.94], mat: 'petalMatA' },
+        { pos: [0.44, 0.16, 0.3], rot: [-0.62, 0.82, -0.36], scale: [0.88, 1.06, 0.8], mat: 'petalMatB' },
+        { pos: [-0.1, 0.48, -0.4], rot: [1.08, 0.18, 1.12], scale: [0.74, 0.98, 0.66], mat: 'petalMatC' },
+        { pos: [0.3, -0.18, 0.5], rot: [0.18, 1.4, -0.88], scale: [0.92, 1.14, 0.84], mat: 'petalMatA' },
+        { pos: [-0.62, -0.04, -0.12], rot: [-0.3, -1.12, 0.36], scale: [1.14, 1.28, 0.98], mat: 'petalMatB' },
+        { pos: [0.12, 0.12, -0.58], rot: [0.96, 2.38, -0.22], scale: [0.82, 0.92, 0.72], mat: 'petalMatC' },
+        { pos: [0.56, 0.38, -0.04], rot: [-0.54, 1.08, 0.9], scale: [0.7, 0.86, 0.64], mat: 'petalMatA' },
+        { pos: [-0.24, -0.34, 0.18], rot: [0.52, -2.08, -0.46], scale: [0.78, 0.9, 0.72], mat: 'petalMatB' }
+      ];
+
+      petalConfigs.forEach((cfg, idx) => {
+        const petal = new THREE.Mesh(geometries.petalGeometry, materials[cfg.mat]);
+        petal.name = `PetalShard_${idx}`;
+        petal.userData.ignoreWaveColor = true;
+        petal.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+        petal.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.1,
+          cfg.rot[1] + (rng() - 0.5) * 0.12,
+          cfg.rot[2] + (rng() - 0.5) * 0.1
+        );
+        petal.scale.set(
+          cfg.scale[0] * (0.96 + rng() * 0.08),
+          cfg.scale[1] * (0.96 + rng() * 0.08),
+          cfg.scale[2] * (0.96 + rng() * 0.08)
+        );
+        petal.renderOrder = archOrder;
+        petalSwarmGroup.add(petal);
+
+        const petalEdges = new THREE.LineSegments(geometries.petalEdgesGeometry, materials.petalEdgeMat);
+        petalEdges.name = `PetalShard_${idx}_Edges`;
+        petalEdges.userData.ignoreWaveColor = true;
+        petalEdges.position.copy(petal.position);
+        petalEdges.rotation.copy(petal.rotation);
+        petalEdges.scale.copy(petal.scale);
+        petalEdges.renderOrder = archOrder;
+        petalSwarmGroup.add(petalEdges);
+      });
+
+      root.add(petalSwarmGroup);
+
+      const misreadGroup = new THREE.Group();
+      misreadGroup.name = 'MISREAD_GROUP';
+      const ghostConfigs = [
+        { pos: [-0.34, 0.3, -0.18], rot: [0.68, -0.42, 0.78], scale: [0.9, 1.08, 0.7] },
+        { pos: [0.26, -0.02, 0.18], rot: [-0.22, 1.34, -0.42], scale: [0.78, 0.94, 0.62] },
+        { pos: [0.04, 0.22, -0.28], rot: [1.22, 0.48, 0.24], scale: [0.72, 0.88, 0.56] }
+      ];
+      ghostConfigs.forEach((cfg, idx) => {
+        const ghost = new THREE.Mesh(geometries.ghostPetalGeometry, materials.ghostMat);
+        ghost.name = `GhostPetal_${idx}`;
+        ghost.userData.ignoreWaveColor = true;
+        ghost.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+        ghost.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+        ghost.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+        ghost.renderOrder = archOrder;
+        misreadGroup.add(ghost);
+
+        const ghostEdges = new THREE.LineSegments(geometries.ghostPetalEdgesGeometry, materials.ghostEdgeMat);
+        ghostEdges.name = `GhostPetal_${idx}_Frame`;
+        ghostEdges.userData.ignoreWaveColor = true;
+        ghostEdges.position.copy(ghost.position);
+        ghostEdges.rotation.copy(ghost.rotation);
+        ghostEdges.scale.copy(ghost.scale);
+        ghostEdges.renderOrder = archOrder;
+        misreadGroup.add(ghostEdges);
+      });
+
+      root.add(misreadGroup);
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+
+      const innerGlow = new THREE.Mesh(geometries.nucleusGeometry, materials.glowMat);
+      innerGlow.name = 'InnerAffectGlow';
+      innerGlow.userData.ignoreWaveColor = true;
+      innerGlow.position.copy(nucleus.position).add(new THREE.Vector3(-0.02, 0.0, 0.01));
+      innerGlow.rotation.copy(nucleus.rotation);
+      innerGlow.scale.set(1.62, 1.92, 1.4);
+      innerGlow.renderOrder = archOrder;
+      auraGroup.add(innerGlow);
+
+      const pollen = new THREE.Points(geometries.pollenGeometry, materials.pollenMat);
+      pollen.name = 'EmotionalPollen';
+      pollen.userData.ignoreWaveColor = true;
+      pollen.position.set(-0.02, 0.04, 0.02);
+      pollen.rotation.set(0.16, -0.24, 0.06);
+      pollen.scale.set(0.94, 1.02, 0.92);
+      pollen.frustumCulled = false;
+      pollen.renderOrder = archOrder;
+      auraGroup.add(pollen);
+
+      const shellA = createNodeHologramShell(affectCore, 0xc2f7ff);
+      if (shellA) {
+        shellA.name = 'EmotionShell_A';
+        shellA.position.copy(affectCore.position).add(new THREE.Vector3(-0.04, 0.03, 0.02));
+        shellA.quaternion.copy(affectCore.quaternion);
+        shellA.scale.copy(affectCore.scale).multiplyScalar(1.12);
+        shellA.frustumCulled = false;
+        shellA.renderOrder = archOrder;
+        if (shellA.material?.uniforms?.uOpacity) shellA.material.uniforms.uOpacity.value = 0.044;
+        auraGroup.add(shellA);
+      }
+
+      const shellB = createNodeHologramShell(affectCore, 0xffc5e8);
+      if (shellB) {
+        shellB.name = 'EmotionShell_B';
+        shellB.position.copy(affectCore.position).add(new THREE.Vector3(0.06, -0.02, -0.01));
+        shellB.quaternion.copy(affectCore.quaternion);
+        shellB.scale.copy(affectCore.scale).multiplyScalar(1.24);
+        shellB.frustumCulled = false;
+        shellB.renderOrder = archOrder;
+        if (shellB.material?.uniforms?.uOpacity) shellB.material.uniforms.uOpacity.value = 0.03;
+        auraGroup.add(shellB);
+      }
+
+      const edgeGlow = createNodeNeonEdgeGlowShell(affectCore, 0xffb2df, {
+        glowIntensity: 0.6,
+        edgeWidth: 0.056,
+        pulseAmount: 0.0
+      });
+      if (edgeGlow) {
+        edgeGlow.name = 'EmotionEdgeGlow';
+        edgeGlow.position.copy(affectCore.position);
+        edgeGlow.quaternion.copy(affectCore.quaternion);
+        edgeGlow.scale.copy(affectCore.scale).multiplyScalar(1.03);
+        edgeGlow.frustumCulled = false;
+        edgeGlow.renderOrder = archOrder;
+        auraGroup.add(edgeGlow);
+      }
+
+      root.add(auraGroup);
+
+      root.traverse((o) => {
+        if (o?.isMesh || o?.isPoints || o?.isLine || o?.isLineSegments) {
+          o.userData = o.userData || {};
+          o.userData.ignoreWaveColor = true;
+          const materialRefs = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+          for (const material of materialRefs) {
+            material.userData = {
+              ...(material.userData || {}),
+              wavePatchMode: 'DEFAULT',
+              ignoreWaveColor: true
+            };
+          }
+          validateMeshGeometry(o, o.name || 'emotional-blooming-gem');
+        }
+      });
+
+      root.userData.visualReady = true;
+      root.userData.emotionalVariant = 'UNTRANSLATABLE_BLOOM';
+      root.userData.emotionalMood = 'ECSTATIC_FRACTURE';
+      group.userData = group.userData || {};
+      group.userData.visualReady = true;
+      group.userData.nodeGeometryName = 'EMOTIONAL_BLOOMING_GEM';
+      group.add(root);
+      return group;
+    } catch (err) {
+      console.error('[EmotionalBloomingGemAbort]', {
+        reason: err?.message || err,
+        visualCode
+      });
+      return null;
+    }
+  }
+
+  static createEmotionalTearShaped(group, visualCode, color) {
+    try {
+      const geometries = _getEmotionalTearShapedGeometries();
+      const resolvedColor = typeof color === 'undefined' ? visualCode : color;
+      const materials = _getEmotionalTearShapedMaterials(resolvedColor);
+      const root = new THREE.Group();
+      root.name = 'EMOTIONAL_EXULTANT_SPIRAL_NODE';
+      root.userData.visualVariant = 'EMOTIONAL_EXULTANT_SPIRAL_V4';
+      root.userData.nodeGeometryName = 'EMOTIONAL_EXULTANT_SPIRAL';
+
+      const seed = group?.userData?.nodeId ? hashString(group.userData.nodeId) : (Number.isFinite(visualCode) ? visualCode : 1204);
+      const rng = _mythicSeededRng(seed);
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+
+      const affectCore = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      affectCore.name = 'AffectCore';
+      affectCore.userData.ignoreWaveColor = true;
+      affectCore.position.set(-0.08, 0.02, 0.03);
+      affectCore.rotation.set(0.2, -0.26, 0.14);
+      affectCore.scale.set(1.04, 1.18, 0.86);
+      affectCore.renderOrder = coreOrder;
+      coreGroup.add(affectCore);
+
+      const affectEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.wingEdgeMat);
+      affectEdges.name = 'AffectCore_Edges';
+      affectEdges.userData.ignoreWaveColor = true;
+      affectEdges.position.copy(affectCore.position);
+      affectEdges.rotation.copy(affectCore.rotation);
+      affectEdges.scale.copy(affectCore.scale);
+      affectEdges.renderOrder = archOrder;
+      coreGroup.add(affectEdges);
+
+      const joySeam = new THREE.Mesh(geometries.seamGeometry, materials.seamMat);
+      joySeam.name = 'JoySeam';
+      joySeam.userData.ignoreWaveColor = true;
+      joySeam.position.set(0.03, 0.08, -0.01);
+      joySeam.rotation.set(0.62, 0.44, -0.34);
+      joySeam.scale.set(0.96, 1.02, 0.82);
+      joySeam.renderOrder = archOrder;
+      coreGroup.add(joySeam);
+
+      const luminousSeed = new THREE.Mesh(geometries.seedGeometry, materials.seedMat);
+      luminousSeed.name = 'LuminousSeed';
+      luminousSeed.userData.ignoreWaveColor = true;
+      luminousSeed.position.set(0.01, 0.1, 0.01);
+      luminousSeed.rotation.set(-0.12, 0.58, 0.3);
+      luminousSeed.scale.set(0.82, 1.18, 0.7);
+      luminousSeed.renderOrder = coreOrder;
+      coreGroup.add(luminousSeed);
+
+      const cage = new THREE.LineSegments(geometries.cageEdgesGeometry, materials.cageMat);
+      cage.name = 'ExultantCage';
+      cage.userData.ignoreWaveColor = true;
+      cage.position.copy(affectCore.position).add(new THREE.Vector3(0.02, 0.04, -0.01));
+      cage.rotation.set(affectCore.rotation.x + 0.24, affectCore.rotation.y - 0.16, affectCore.rotation.z + 0.1);
+      cage.scale.copy(affectCore.scale).multiplyScalar(1.18);
+      cage.renderOrder = archOrder;
+      coreGroup.add(cage);
+
+      root.add(coreGroup);
+
+      const burstGroup = new THREE.Group();
+      burstGroup.name = 'BURST_GROUP';
+      const fanConfigs = [
+        { pos: [-0.48, -0.2, 0.18], rot: [0.56, -1.22, 0.84], scale: [1.06, 1.22, 0.92], mat: 'wingMatA' },
+        { pos: [-0.28, -0.04, -0.2], rot: [0.32, -0.72, 1.08], scale: [0.88, 1.02, 0.76], mat: 'wingMatC' },
+        { pos: [-0.06, 0.14, 0.34], rot: [0.94, 0.04, 1.18], scale: [0.98, 1.14, 0.82], mat: 'wingMatB' },
+        { pos: [0.16, 0.3, 0.18], rot: [1.16, 0.48, 0.96], scale: [1.12, 1.26, 0.94], mat: 'wingMatA' },
+        { pos: [0.36, 0.46, -0.02], rot: [1.28, 0.92, 0.74], scale: [0.86, 1.04, 0.72], mat: 'wingMatB' },
+        { pos: [0.52, 0.58, -0.2], rot: [1.44, 1.28, 0.38], scale: [0.78, 0.94, 0.66], mat: 'wingMatC' },
+        { pos: [0.62, 0.74, 0.08], rot: [1.22, 1.64, 0.12], scale: [0.72, 0.88, 0.62], mat: 'wingMatA' }
+      ];
+
+      fanConfigs.forEach((cfg, idx) => {
+        const wing = new THREE.Mesh(geometries.fanGeometry, materials[cfg.mat]);
+        wing.name = `FanWing_${idx}`;
+        wing.userData.ignoreWaveColor = true;
+        wing.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+        wing.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.12,
+          cfg.rot[1] + (rng() - 0.5) * 0.14,
+          cfg.rot[2] + (rng() - 0.5) * 0.1
+        );
+        wing.scale.set(
+          cfg.scale[0] * (0.96 + rng() * 0.08),
+          cfg.scale[1] * (0.96 + rng() * 0.08),
+          cfg.scale[2] * (0.96 + rng() * 0.08)
+        );
+        wing.renderOrder = archOrder;
+        burstGroup.add(wing);
+
+        const wingEdges = new THREE.LineSegments(geometries.fanEdgesGeometry, materials.wingEdgeMat);
+        wingEdges.name = `FanWing_${idx}_Edges`;
+        wingEdges.userData.ignoreWaveColor = true;
+        wingEdges.position.copy(wing.position);
+        wingEdges.rotation.copy(wing.rotation);
+        wingEdges.scale.copy(wing.scale);
+        wingEdges.renderOrder = archOrder;
+        burstGroup.add(wingEdges);
+      });
+
+      root.add(burstGroup);
+
+      const liftGroup = new THREE.Group();
+      liftGroup.name = 'LIFT_GROUP';
+      const liftConfigs = [
+        { pos: [0.14, 0.54, 0.34], rot: [1.02, 0.38, 0.92], scale: [0.74, 0.94, 0.58] },
+        { pos: [0.42, 0.72, 0.18], rot: [1.24, 0.92, 0.5], scale: [0.68, 0.88, 0.54] },
+        { pos: [0.68, 0.88, -0.02], rot: [1.38, 1.42, 0.22], scale: [0.62, 0.8, 0.5] },
+        { pos: [0.3, 0.92, -0.18], rot: [1.58, 1.12, -0.12], scale: [0.56, 0.74, 0.46] }
+      ];
+      liftConfigs.forEach((cfg, idx) => {
+        const blade = new THREE.Mesh(geometries.liftGeometry, materials.liftMat);
+        blade.name = `LiftBlade_${idx}`;
+        blade.userData.ignoreWaveColor = true;
+        blade.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+        blade.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+        blade.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+        blade.renderOrder = archOrder;
+        liftGroup.add(blade);
+
+        const bladeEdges = new THREE.LineSegments(geometries.liftEdgesGeometry, materials.liftEdgeMat);
+        bladeEdges.name = `LiftBlade_${idx}_Edges`;
+        bladeEdges.userData.ignoreWaveColor = true;
+        bladeEdges.position.copy(blade.position);
+        bladeEdges.rotation.copy(blade.rotation);
+        bladeEdges.scale.copy(blade.scale);
+        bladeEdges.renderOrder = archOrder;
+        liftGroup.add(bladeEdges);
+      });
+
+      root.add(liftGroup);
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+
+      const innerGlow = new THREE.Mesh(geometries.seedGeometry, materials.glowMat);
+      innerGlow.name = 'InnerJoyGlow';
+      innerGlow.userData.ignoreWaveColor = true;
+      innerGlow.position.copy(luminousSeed.position).add(new THREE.Vector3(-0.01, 0.02, 0.0));
+      innerGlow.rotation.copy(luminousSeed.rotation);
+      innerGlow.scale.set(1.68, 2.12, 1.42);
+      innerGlow.renderOrder = archOrder;
+      auraGroup.add(innerGlow);
+
+      const celebratoryDust = new THREE.Points(geometries.dustGeometry, materials.dustMat);
+      celebratoryDust.name = 'CelebratoryDust';
+      celebratoryDust.userData.ignoreWaveColor = true;
+      celebratoryDust.position.set(-0.04, 0.02, 0.04);
+      celebratoryDust.rotation.set(0.12, -0.22, 0.04);
+      celebratoryDust.scale.set(0.96, 1.04, 0.92);
+      celebratoryDust.frustumCulled = false;
+      celebratoryDust.renderOrder = archOrder;
+      auraGroup.add(celebratoryDust);
+
+      const shellA = createNodeHologramShell(affectCore, 0xd0fbff);
+      if (shellA) {
+        shellA.name = 'EmotionShell_A';
+        shellA.position.copy(affectCore.position).add(new THREE.Vector3(-0.04, 0.06, 0.02));
+        shellA.quaternion.copy(affectCore.quaternion);
+        shellA.scale.copy(affectCore.scale).multiplyScalar(1.12);
+        shellA.frustumCulled = false;
+        shellA.renderOrder = archOrder;
+        if (shellA.material?.uniforms?.uOpacity) shellA.material.uniforms.uOpacity.value = 0.042;
+        auraGroup.add(shellA);
+      }
+
+      const shellB = createNodeHologramShell(affectCore, 0xffd6ea);
+      if (shellB) {
+        shellB.name = 'EmotionShell_B';
+        shellB.position.copy(affectCore.position).add(new THREE.Vector3(0.08, -0.02, -0.02));
+        shellB.quaternion.copy(affectCore.quaternion);
+        shellB.scale.copy(affectCore.scale).multiplyScalar(1.24);
+        shellB.frustumCulled = false;
+        shellB.renderOrder = archOrder;
+        if (shellB.material?.uniforms?.uOpacity) shellB.material.uniforms.uOpacity.value = 0.028;
+        auraGroup.add(shellB);
+      }
+
+      const edgeGlow = createNodeNeonEdgeGlowShell(affectCore, 0xffc9e5, {
+        glowIntensity: 0.48,
+        edgeWidth: 0.052,
+        pulseAmount: 0.0
+      });
+      if (edgeGlow) {
+        edgeGlow.name = 'EmotionEdgeGlow';
+        edgeGlow.position.copy(affectCore.position);
+        edgeGlow.quaternion.copy(affectCore.quaternion);
+        edgeGlow.scale.copy(affectCore.scale).multiplyScalar(1.02);
+        edgeGlow.frustumCulled = false;
+        edgeGlow.renderOrder = archOrder;
+        auraGroup.add(edgeGlow);
+      }
+
+      root.add(auraGroup);
+
+      root.traverse((o) => {
+        if (o?.isMesh || o?.isPoints || o?.isLine || o?.isLineSegments) {
+          o.userData = o.userData || {};
+          o.userData.ignoreWaveColor = true;
+          const materialRefs = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+          for (const material of materialRefs) {
+            material.userData = {
+              ...(material.userData || {}),
+              wavePatchMode: 'DEFAULT',
+              ignoreWaveColor: true
+            };
+          }
+          validateMeshGeometry(o, o.name || 'emotional-tear-shaped');
+        }
+      });
+
+      root.userData.visualReady = true;
+      root.userData.emotionalVariant = 'EXULTANT_SPIRAL';
+      root.userData.emotionalMood = 'EUPHORIC_BURST';
+      group.userData = group.userData || {};
+      group.userData.visualReady = true;
+      group.userData.nodeGeometryName = 'EMOTIONAL_TEAR_SHAPED';
+      group.add(root);
+      return group;
+    } catch (err) {
+      console.error('[EmotionalTearShapedAbort]', {
         reason: err?.message || err,
         visualCode
       });

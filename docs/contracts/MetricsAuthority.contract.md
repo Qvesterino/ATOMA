@@ -28,7 +28,7 @@ Meaning:
 ## 2. Architecture Layers (official)
 
 ### Base layer (authoritative state)
-
+- `synergy`
 - `stability`
 - `corruption`
 - `loadPressure`

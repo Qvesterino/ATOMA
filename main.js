@@ -531,7 +531,7 @@ import { NodePersonalitySystem2_0 } from './NodePersonalitySystem2_0.js';
 import { NodeMicroEvents } from './_NodeMicroEvents.js';
 import { WorldPersonalityController } from './_WorldPersonalityController.js';
 import { MythicRitualController } from './_MythicRitualController.js';
-import { MythicEvolutionFX_v1 } from './MythicEvolutionFX_v1.js';
+
 import { MythicAuraIntegration_v1 } from './LEGACY/aura/MythicAuraIntegration_v1.js';
 import { SimulationEffectOrchestrator } from './SimulationEffectOrchestrator.js';
 import { MythicSeedGlyph } from './_MythicSeedGlyph.js';
@@ -1120,16 +1120,6 @@ import { VisualHierarchyCorrectionSystem_v1 } from './_VisualHierarchyCorrection
 // import { NodeSurfaceProtectionRule_v2 } from './NodeSurfaceProtectionRule_v2.js';
 
 // ============================================================================
-// PHASE 3C PERSONALITY VISUAL ADAPTER (Week 1 - Visual Personality Signals)
-// ============================================================================
-import { PersonalityVisualAdapter } from './NodePersonality_VisualAdapter.js';
-
-// ============================================================================
-// PHASE 3C PERSONALITY VFX LAYER (Week 2 - Visual Effects Application)
-// ============================================================================
-import { PersonalityVFXLayer_v1 } from './PersonalityVFXLayer_v1.js';
-
-// ============================================================================
 // PHASE 3C PERSONALITY SHADER BRIDGE (Week 3 - GPU Shader Integration)
 // ============================================================================
 import { PersonalityShaderBridge_v1 } from './PersonalityShaderBridge_v1.js';
@@ -1160,12 +1150,7 @@ import { FXPerformanceSmoothTransition_v1 } from './FXPerformanceSmoothTransitio
 // ============================================================================
 import { PersonalityShaderAdvancedFX_v1 } from './PersonalityShaderAdvancedFX_v1.js';
 
-// ============================================================================
-// PHASE 3C ARCHETYPE ASCENSION CURVES (Week 13 - Personality-Driven Curves)
-// ============================================================================
-import { ArchetypeAscensionCurves_v1 } from './ArchetypeAscensionCurves_v1.js';
 
-// ============================================================================
 // PHASE 3C ARCHETYPE AURA ENHANCEMENT (Week 14 - GPU-Enhanced Halos)
 // ============================================================================
 import { ArchetypeAuraEnhancement_v1 } from './ArchetypeAuraEnhancement_v1.js';
@@ -4586,7 +4571,6 @@ class AtomaGame {
         this.frameScheduler.register('visual', () => {
             this.corruptionDesaturation?.update?.();
         }, 'visual.corruptionDesaturation');
-        this.frameScheduler.register('visual', (dt) => this.mythicEvolutionFX?.update?.(dt), 'visual.mythicEvolutionFX');
         this.frameScheduler.register('visual', (dt) => {
             if (this.metricsVisualFX && this.aiNodes && !this._runVisualSemanticPending) {
                 this.metricsVisualFX.update(dt, this.aiNodes.nodes);
@@ -4612,11 +4596,8 @@ class AtomaGame {
             }
         }, 'visual.synergyCascadeFXBridge');
         this.frameScheduler.register('visual', (dt) => this.fxRuntime_v1?.update?.(dt), 'visual.fxRuntime_v1');
-        this.frameScheduler.register('visual', (dt) => this.personalityVisualAdapter?.update?.(dt), 'visual.personalityVisualAdapter');
-        this.frameScheduler.register('visual', (dt) => this.personalityVFXLayer?.update?.(dt, this.time || this.elapsedTime), 'visual.personalityVFXLayer');
         this.frameScheduler.register('visual', (dt) => this.personalityShaderBridge?.update?.(dt), 'visual.personalityShaderBridge');
         this.frameScheduler.register('visual', (dt) => this.advancedShaderFX?.update?.(dt), 'visual.advancedShaderFX');
-        this.frameScheduler.register('visual', (dt) => this.archetypeCurves?.update?.(dt), 'visual.archetypeCurves');
         this.frameScheduler.register('visual', (dt) => this.archetypeAuraFX?.update?.(dt), 'visual.archetypeAuraFX');
         this.frameScheduler.register('visual', (dt) => this.archetypeColorFX?.update?.(dt), 'visual.archetypeColorFX');
         this.frameScheduler.register('visual', (dt) => this.archetypeShaderModes?.update?.(dt), 'visual.archetypeShaderModes');
@@ -5394,12 +5375,6 @@ this.setHudDirty('nodeInspect');
         // Node Personality 2.0 (unique personality signatures)
         this.nodePersonality = null;
 
-        // Phase 3c Personality Visual Adapter (visual personality signals from metrics)
-        this.personalityVisualAdapter = null;
-
-        // Phase 3c Personality VFX Layer (visual effects driven by personality signals)
-        this.personalityVFXLayer = null;
-
         // Phase 3c Personality Shader Bridge (GPU shader integration for effects)
         this.personalityShaderBridge = null;
 
@@ -5409,14 +5384,8 @@ this.setHudDirty('nodeInspect');
         // Phase 3c Personality Shader Advanced FX (Week 5 - procedural noise & distortion)
         this.advancedShaderFX = null;
 
-        // Phase 3c Mythic Evolution FX (Week 11 - ascension visual identity)
-        this.mythicEvolutionFX = null;
-
         // Phase 3c Mythic Aura Integration (Week 12 - aura signal hookup)
         this.mythicAuraIntegration = null;
-
-        // Phase 3c Archetype Ascension Curves (Week 13 - Personality-driven curve profiling)
-        this.archetypeCurves = null;
 
         // Phase 3c Archetype Aura Enhancement (Week 14 - GPU-enhanced visual multiplier)
         this.archetypeAuraFX = null;
@@ -10008,37 +9977,6 @@ window.__ATOMA_SCENE__ = this.scene;
         }
 
         // ====================================================================
-        // PHASE 3C PERSONALITY VISUAL ADAPTER (Week 1 - Visual Personality)
-        // ====================================================================
-        // Initialize PersonalityVisualAdapter (computes visual personality signals)
-        // This is a safe, additive layer that reads Phase 3 metrics and writes
-        // visual personality signals to node.userData.personalityVisual
-        this.personalityVisualAdapter = new PersonalityVisualAdapter(
-            this.aiNodes,
-            this.linkingSystem,
-            {
-                enableDebug: false,
-                enableWarnings: false
-            }
-        );
-        console.log('[main.js] PersonalityVisualAdapter initialized ✓');
-
-        // ====================================================================
-        // PHASE 3C PERSONALITY VFX LAYER (Week 2 - Visual Effects Application)
-        // ====================================================================
-        // Initialize PersonalityVFXLayer_v1 (applies VFX effects to nodes)
-        // This layer reads personality visual signals and applies frame-local
-        // transformations: emissive intensity, pulse, jitter, rotation, color tint
-        this.personalityVFXLayer = new PersonalityVFXLayer_v1(
-            this.aiNodes,
-            {
-                enableDebug: false,
-                enableWarnings: false
-            }
-        );
-        console.log('[main.js] PersonalityVFXLayer_v1 initialized ✓');
-
-        // ====================================================================
         // PHASE 3C PERSONALITY SHADER BRIDGE (Week 3 - GPU Shader Integration)
         // ====================================================================
         // Initialize PersonalityShaderBridge_v1 (binds signals to GPU uniforms)
@@ -10091,43 +10029,6 @@ window.__ATOMA_SCENE__ = this.scene;
         }
 
         // ====================================================================
-        // PHASE 3C ARCHETYPE ASCENSION CURVES (Week 13 - Personality-Driven Curves)
-        // ====================================================================
-        try {
-            this.mythicEvolutionFX = new MythicEvolutionFX_v1({
-                aiNodes: this.aiNodes?.nodes || [],
-                links: this.linkingSystem?.links || [],
-                nodeDynamicMetrics: this.nodeDynamicMetrics,
-                linkQualityCalculator: this.linkQualityCalculator,
-                nodeQualityCalculator: this.nodeQualityCalculator,
-                visualMetricModel: this.visualMetricModel,
-                performanceController: this.fxPerformance,
-                frameScheduler: this.frameScheduler,
-                debugEnabled: false,
-            });
-            console.log('[main.js] MythicEvolutionFX_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] Failed to initialize MythicEvolutionFX_v1:', err);
-        }
-
-        // Initialize ArchetypeAscensionCurves_v1 (personality-driven ascension profiling)
-        // This layer reads from MythicEvolutionFX and writes ascension multipliers
-        // for Week 14/15 systems to apply
-        try {
-            this.archetypeCurves = new ArchetypeAscensionCurves_v1({
-                aiNodes: this.aiNodes?.nodes || [],
-                mythicEvolutionFX: this.mythicEvolutionFX,
-                nodeDynamicMetrics: this.nodeDynamicMetrics,
-                nodeQualityCalculator: this.nodeQualityCalculator,
-                visualMetricModel: this.visualMetricModel,
-                frameScheduler: this.frameScheduler,
-            });
-            console.log('[main.js] ArchetypeAscensionCurves_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] Failed to initialize ArchetypeAscensionCurves_v1:', err);
-        }
-
-        // ====================================================================
         // PHASE 3C ARCHETYPE AURA ENHANCEMENT (Week 14 - GPU Enhancement Multiplier)
         // ====================================================================
         // Initialize ArchetypeAuraEnhancement_v1 (applies multiplier to node/link auras)
@@ -10135,7 +10036,7 @@ window.__ATOMA_SCENE__ = this.scene;
         try {
             this.archetypeAuraFX = new ArchetypeAuraEnhancement_v1({
                 aiNodes: this.aiNodes,
-                archetypeCurves: this.archetypeCurves,
+                archetypeCurves: null,
                 nodeAura: this.nodeAuraSystem || null,
                 linkAura: this.linkAuraSystem || null,
                 frameScheduler: this.frameScheduler,
@@ -10147,7 +10048,7 @@ window.__ATOMA_SCENE__ = this.scene;
 
         try {
             this.mythicAuraIntegration = new MythicAuraIntegration_v1({
-                mythicEvolutionFX: this.mythicEvolutionFX,
+                mythicEvolutionFX: null,
                 intensityMultiplier: 0.5,
                 colorTintStrength: 0.15,
                 frameScheduler: this.frameScheduler,
@@ -10170,7 +10071,7 @@ window.__ATOMA_SCENE__ = this.scene;
         try {
             this.archetypeColorFX = new ArchetypeColorPaletteSystem_v1({
                 aiNodes: this.aiNodes,
-                archetypeCurves: this.archetypeCurves,
+                archetypeCurves: null,
                 archetypeAuraFX: this.archetypeAuraFX,
                 scene: this.scene,
             });
@@ -10682,8 +10583,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.personalityRuntime_v1 = new PersonalityRuntime_v1({
                 nodes: this.aiNodes,
                 personalitySystems: {
-                    adapter: this.personalityVisualAdapter,
-                    vfx: this.personalityVFXLayer,
                     shaderBridge: this.personalityShaderBridge,
                     shaderFX: this.advancedShaderFX
                 }
@@ -11603,13 +11502,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('metricsRuntime_v1', 'simulation.metricsRuntime_v1', (dt) => this.metricsRuntime_v1?.update?.(dt));
         regGuard('aiHudReports', 'simulation.aiHudReports', () => this._refreshAIHudReports?.());
         regGuard('personalityRuntime_v1', 'simulation.personalityRuntime_v1', (dt) => this.personalityRuntime_v1?.update?.(dt));
-        regGuard('personalityVisualAdapter', 'visual.personalityVisualAdapter', (dt) => this.personalityVisualAdapter?.update?.(dt));
-
-        regGuard('personalityVFXLayer', 'visual.personalityVFXLayer', (dt) => this.personalityVFXLayer?.update?.(dt, this.time || this.elapsedTime));
         regGuard('personalityShaderBridge', 'visual.personalityShaderBridge', (dt) => this.personalityShaderBridge?.update?.(dt));
         regGuard('advancedShaderFX', 'visual.advancedShaderFX', (dt) => this.advancedShaderFX?.update?.(dt));
-        regGuard('mythicEvolutionFX', 'visual.mythicEvolutionFX', (dt) => this.mythicEvolutionFX?.update?.(dt));
-        regGuard('archetypeCurves', 'visual.archetypeCurves', (dt) => this.archetypeCurves?.update?.(dt));
         regGuard('archetypeAuraFX', 'visual.archetypeAuraFX', (dt) => this.archetypeAuraFX?.update?.(dt));
         regGuard('archetypeColorFX', 'visual.archetypeColorFX', (dt) => this.archetypeColorFX?.update?.(dt));
         regGuard('archetypeShaderModes', 'visual.archetypeShaderModes', (dt) => this.archetypeShaderModes?.update?.(dt));

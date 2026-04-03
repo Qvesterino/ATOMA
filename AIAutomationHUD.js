@@ -476,8 +476,9 @@ function buildFallbackObservationData() {
     : null;
   const waveBurstSnapshot = waveBurstState?.activeSnapshot || null;
   const waveBurstMetrics = waveBurstState?.metrics || null;
-  const waveBurstRouterStatus = window?.game?.waveBurstRouter?.getStatus?.() || null;
-  const waveBurstRecentIntents = window?.game?.waveBurstRouter?.getRecentIntents?.(3) || [];
+  const waveBurstLifecycle = Array.isArray(window?.game?.waveInterferenceEngine?.getBurstLifecycleEvents?.(3))
+    ? window.game.waveInterferenceEngine.getBurstLifecycleEvents(3)
+    : [];
   const waveBurstLabel = waveBurstSnapshot
     ? `${waveBurstSnapshot.type}${waveBurstSnapshot.sourceId ? ` · ${waveBurstSnapshot.sourceId}` : ''}`
     : waveBurstMetrics?.activeBurstType
@@ -490,7 +491,7 @@ function buildFallbackObservationData() {
   return {
     cascadeHop: `${Number(cascadeHopCount).toLocaleString()} total · ${cascadeHopRate?.rate || '0/s'}`,
     cascadeIntensity: `${Math.round(cascadeIntensityAverage * 100)}% avg · ${Math.round(cascadeIntensityPeak * 100)}% peak · ${cascadeLinks.length}/${totalLinks} links`,
-    waveBurst: `${waveBurstLabel} · cooldowns ${waveBurstRouterStatus?.activeCooldownKeys ?? 0} · intents ${waveBurstRecentIntents.length}`,
+    waveBurst: `${waveBurstLabel} · lifecycle ${waveBurstMetrics?.lifecycleEventsTracked ?? 0} · recent ${waveBurstLifecycle.length}`,
     waveField: `${waveFieldLabel} · lifecycle ${waveBurstMetrics?.lifecycleEventsTracked ?? 0}`
   };
 }
