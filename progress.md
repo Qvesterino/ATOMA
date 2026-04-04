@@ -115,3 +115,10 @@ Original prompt: reduce synergy cascade visual clutter and make the repeated bea
 - Refactored 103 createInputIncomingFunnel into a ritual-aperture design in EnhancedNodeModels.js with dedicated caches/materials, keeping NodeVisualRegistry.js untouched.
 - Runtime smoke intentionally skipped per request; syntax check passed.
 
+2026-04-04
+- NodeInspectOverlay_1_0 no longer auto-dismisses itself on link.created; the first link should not kill inspection state anymore.
+- LinkQualityCalculator now emits initial link tier events on first observation, so `link.harmony.*` consumers can react immediately when a link is created.
+- Fixed a missing `LinkQualityCalculator._clamp01()` helper that was preventing link-tier emission from completing.
+- Aligned link-tier payload `linkId` with the runtime link id (`link.id`) so recovery/healing consumers can resolve the same link object.
+- Verified in browser smoke: `link.harmony.mid` is emitted immediately on fresh link creation, `HealingParticleSystem_Session136` gains a wave, and NodeInspect stays visible with live metrics.
+

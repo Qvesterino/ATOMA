@@ -643,7 +643,8 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         if (!this.linkingSystem || !Array.isArray(this.linkingSystem.links)) return;
 
         for (const link of this.linkingSystem.links) {
-            if (!link || !link.source || !link.target) continue;
+            const endpoints = this._getLinkEndpoints(link);
+            if (!link || !endpoints.startNode || !endpoints.endNode) continue;
             const linkId = link.id ?? link.linkId ?? null;
             if (!linkId) continue;
 

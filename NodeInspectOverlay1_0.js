@@ -110,28 +110,19 @@ export class NodeInspectOverlay1_0 {
     const semanticBus = globalThis.semanticBus;
     if (semanticBus?.subscribe) {
       this._linkCreatedDismissDisposer = semanticBus.subscribe('link.created', (payload = {}) => {
-        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-        this._focusSuppressedUntil = now + 300;
-        this._suppressedNodeIds = new Set([
-          payload?.sourceNodeId || payload?.source || payload?.sourceNode?.userData?.nodeId || payload?.sourceNode?.uuid || null,
-          payload?.targetNodeId || payload?.target || payload?.targetNode?.userData?.nodeId || payload?.targetNode?.uuid || null
-        ].filter(Boolean).map(String));
-        this.currentNode = null;
+        void payload;
         this.hideOverlay();
+        this.currentNode = null;
       });
     }
 
     const linkingSystem = this.game?.linkingSystem || this.game?.nodeLinking || null;
     if (linkingSystem?.registerLinkCreatedCallback) {
       this._linkCreatedCallback = (sourceNode, targetNode) => {
-        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-        this._focusSuppressedUntil = now + 300;
-        this._suppressedNodeIds = new Set([
-          sourceNode?.userData?.nodeId || sourceNode?.userData?.id || sourceNode?.uuid || null,
-          targetNode?.userData?.nodeId || targetNode?.userData?.id || targetNode?.uuid || null
-        ].filter(Boolean).map(String));
-        this.currentNode = null;
+        void sourceNode;
+        void targetNode;
         this.hideOverlay();
+        this.currentNode = null;
       };
       linkingSystem.registerLinkCreatedCallback(this._linkCreatedCallback, {
         layerKey: 'LINK_INSPECT_Dismiss',
@@ -279,7 +270,6 @@ export class NodeInspectOverlay1_0 {
       <div id="node-archetype" style="font-weight: bold; margin-bottom: 4px; font-size: 14px;"></div>
       <div id="node-archetype-code" style="color: #ffaa00; font-size: 10px; margin-bottom: 6px; font-family: 'Courier New', monospace;"></div>
       <div id="node-archetype-meaning" style="color: #88ff88; font-size: 10px; margin-bottom: 8px; font-style: italic;"></div>
-      <div id="node-category" style="color: #00ff88; font-size: 11px; margin-bottom: 6px;"></div>
       <div id="node-personality" style="color: #ffaa00; font-size: 11px; margin-bottom: 6px;"></div>
       <div id="node-storm-mood" style="color: #ff00ff; font-size: 11px; margin-bottom: 6px; display: none;"></div>
       <div id="node-authority-status" style="margin-bottom: 8px; border-top: 1px solid rgba(0, 255, 255, 0.3); padding-top: 6px; display: none;"></div>
@@ -596,12 +586,6 @@ export class NodeInspectOverlay1_0 {
         archetypeMeaningEl.textContent = languageMeaning || languageName || 'Unclassified node';
       }
 
-      // Update category display with naming phrase embedded
-      const categoryEl = this.hudPanel.querySelector('#node-category');
-      if (categoryEl) {
-        categoryEl.textContent = `Category: ${category.toUpperCase()} • Name: ${languageName}`;
-      }
-
       // Update personality display (if available)
       const personalityEl = this.hudPanel.querySelector('#node-personality');
       if (personalityEl) {
@@ -710,6 +694,11 @@ export class NodeInspectOverlay1_0 {
   }
 
   _getSnapshotMetrics(node) {
+    const liveMetrics = node?.userData?.metrics;
+    if (liveMetrics && typeof liveMetrics === 'object') {
+      return liveMetrics;
+    }
+
     const snapshot = this.game?.metricsRuntime_v1?.lastSimulationSnapshot;
     if (!snapshot?.nodes) return null;
     const id = node?.userData?.nodeId || node?.userData?.id || node?.id;

@@ -54,9 +54,8 @@ export class AtomaLanguageEngine3_0 {
     
     // DOM container (external, non-destructive)
     this.poetryContainer = null;
-    this.nodePoetryElement = null;
-    this.linkWhisperElement = null;
-    this.pulsePoetryElement = null;
+    this.poetryElement = null;
+    this._poetryHideTimeout = null;
     
     // Current poetry state
     this.currentNodePoetry = '';
@@ -581,73 +580,29 @@ export class AtomaLanguageEngine3_0 {
     `;
     document.body.appendChild(this.poetryContainer);
     
-    // Node poetry display (bottom-right)
-    this.nodePoetryElement = document.createElement('div');
-    this.nodePoetryElement.className = 'atoma-node-poetry';
-    this.nodePoetryElement.style.cssText = `
+    // Shared poetry display (bottom-center)
+    this.poetryElement = document.createElement('div');
+    this.poetryElement.className = 'atoma-poetry-display';
+    this.poetryElement.style.cssText = `
       position: fixed;
-      bottom: 40px;
-      right: 40px;
-      max-width: 400px;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: 450px;
       color: #00dddd;
       font-size: 12px;
       font-weight: 300;
       letter-spacing: 1px;
       text-shadow: 0 0 8px rgba(0, 221, 221, 0.5);
       opacity: 0;
-      transition: opacity 0.5s ease;
-      text-align: right;
+      transition: opacity 0.3s ease;
+      text-align: center;
       line-height: 1.5;
+      white-space: pre-wrap;
       pointer-events: none;
       z-index: 1000;
     `;
-    this.poetryContainer.appendChild(this.nodePoetryElement);
-    
-    // Link whisper display (bottom-center)
-    this.linkWhisperElement = document.createElement('div');
-    this.linkWhisperElement.className = 'atoma-link-whisper';
-    this.linkWhisperElement.style.cssText = `
-      position: fixed;
-      bottom: 80px;
-      left: 50%;
-      transform: translateX(-50%);
-      max-width: 350px;
-      color: #ff00ff;
-      font-size: 11px;
-      font-weight: 300;
-      letter-spacing: 0.5px;
-      text-shadow: 0 0 6px rgba(255, 0, 255, 0.4);
-      opacity: 0;
-      transition: opacity 0.3s ease;
-      text-align: center;
-      pointer-events: none;
-      z-index: 999;
-    `;
-    this.poetryContainer.appendChild(this.linkWhisperElement);
-    
-    // Pulse poetry display (center-screen)
-    this.pulsePoetryElement = document.createElement('div');
-    this.pulsePoetryElement.className = 'atoma-pulse-poetry';
-    this.pulsePoetryElement.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      max-width: 500px;
-      color: #00dddd;
-      font-size: 13px;
-      font-weight: 400;
-      letter-spacing: 1px;
-      text-shadow: 0 0 12px rgba(0, 221, 221, 0.6),
-                   0 0 24px rgba(0, 100, 200, 0.3);
-      opacity: 0;
-      transition: opacity 0.6s ease;
-      text-align: center;
-      line-height: 2;
-      pointer-events: none;
-      z-index: 998;
-    `;
-    this.poetryContainer.appendChild(this.pulsePoetryElement);
+    this.poetryContainer.appendChild(this.poetryElement);
   }
   
   /**
@@ -658,9 +613,11 @@ export class AtomaLanguageEngine3_0 {
     
     this.poetryContainer.remove();
     this.poetryContainer = null;
-    this.nodePoetryElement = null;
-    this.linkWhisperElement = null;
-    this.pulsePoetryElement = null;
+    this.poetryElement = null;
+    if (this._poetryHideTimeout) {
+      clearTimeout(this._poetryHideTimeout);
+      this._poetryHideTimeout = null;
+    }
   }
   
   /**
@@ -780,19 +737,28 @@ export class AtomaLanguageEngine3_0 {
   /**
    * Hide node poetry
    */
-  hideNodePoetry() {
-    if (this.nodePoetryElement) {
-      this.nodePoetryElement.style.opacity = '0';
+  hidePoetry() {
+    if (this.poetryElement) {
+      this.poetryElement.style.opacity = '0';
     }
+    if (this._poetryHideTimeout) {
+      clearTimeout(this._poetryHideTimeout);
+      this._poetryHideTimeout = null;
+    }
+  }
+  
+  /**
+   * Hide node poetry
+   */
+  hideNodePoetry() {
+    this.hidePoetry();
   }
   
   /**
    * Hide link whisper
    */
   hideLinkWhisper() {
-    if (this.linkWhisperElement) {
-      this.linkWhisperElement.style.opacity = '0';
-    }
+    this.hidePoetry();
   }
   
   /**
@@ -837,48 +803,49 @@ export class AtomaLanguageEngine3_0 {
   /**
    * Display node poetry with fade-in
    */
-  _displayNodePoetry(poetry) {
-    if (!this.nodePoetryElement) return;
-    
-    this.currentNodePoetry = poetry;
-    this.nodePoetryElement.textContent = poetry;
-    this.nodePoetryElement.style.opacity = '1';
+  _showPoetry(text, opacity = 0.9, duration = 3000) {
+    if (!this.poetryElement) return;
+
+    this.poetryElement.textContent = text;
+    this.poetryElement.style.opacity = String(opacity);
+
+    if (this._poetryHideTimeout) {
+      clearTimeout(this._poetryHideTimeout);
+    }
+
+    this._poetryHideTimeout = setTimeout(() => {
+      if (this.poetryElement) {
+        this.poetryElement.style.opacity = '0';
+      }
+      this._poetryHideTimeout = null;
+    }, duration);
   }
-  
+
+  _displayNodePoetry(poetry) {
+    if (!this.poetryElement) return;
+
+    this.currentNodePoetry = poetry;
+    this._showPoetry(poetry, 1, 6000);
+  }
+
   /**
    * Display link whisper with fade-in
    */
   _displayLinkWhisper(whisper) {
-    if (!this.linkWhisperElement) return;
-    
+    if (!this.poetryElement) return;
+
     this.currentLinkWhisper = whisper;
-    this.linkWhisperElement.textContent = '◆ ' + whisper + ' ◆';
-    this.linkWhisperElement.style.opacity = '0.8';
-    
-    // Auto-hide after 3 seconds
-    setTimeout(() => {
-      if (this.linkWhisperElement) {
-        this.linkWhisperElement.style.opacity = '0';
-      }
-    }, 3000);
+    this._showPoetry('◆ ' + whisper + ' ◆', 0.9, 3000);
   }
-  
+
   /**
    * Display pulse poetry with glow effect
    */
   _displayPulsePoetry(poem) {
-    if (!this.pulsePoetryElement) return;
-    
+    if (!this.poetryElement) return;
+
     this.currentPulsePoetry = poem;
-    this.pulsePoetryElement.textContent = poem;
-    this.pulsePoetryElement.style.opacity = '0.9';
-    
-    // Auto-hide after 3 seconds
-    setTimeout(() => {
-      if (this.pulsePoetryElement) {
-        this.pulsePoetryElement.style.opacity = '0';
-      }
-    }, 3000);
+    this._showPoetry(poem, 0.9, 3000);
   }
   
   /**
@@ -990,13 +957,12 @@ export function setupAtomaLanguageEngine3ConsoleAPI(engine) {
       console.table(engine.getStats());
     },
     show: () => {
-      if (engine.nodePoetryElement) {
-        engine.nodePoetryElement.style.opacity = '1';
+      if (engine.poetryElement) {
+        engine.poetryElement.style.opacity = '1';
       }
     },
     hide: () => {
-      engine.hideNodePoetry();
-      engine.hideLinkWhisper();
+      engine.hidePoetry();
     }
   };
   

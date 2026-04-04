@@ -67,6 +67,13 @@ export class LinkQualityCalculator {
     this.linkQualityCache = new Map(); // linkId → { lastUpdate, previousScore }
   }
 
+  _clamp01(value) {
+    const numeric = Number.isFinite(value) ? value : 0;
+    if (numeric <= 0) return 0;
+    if (numeric >= 1) return 1;
+    return numeric;
+  }
+
   _emitLinkMetricTierEvents(link, quality, now) {
     const semanticBus = this.semanticBus || globalThis?.semanticBus || null;
     if (!semanticBus?.emit || !link) return;
@@ -89,6 +96,23 @@ export class LinkQualityCalculator {
       const nextTier = classifyMetricTier(entry.value, previousTier, getDefaultMetricThresholds(entry.metric));
       if (previousTier === null) {
         tiers[entry.metric] = nextTier;
+        const payload = {
+          scope: 'link',
+          linkId,
+          metric: entry.metric,
+          tier: nextTier,
+          previousTier: null,
+          value: entry.value,
+          score: quality?.score ?? 0,
+          source: 'LinkQualityCalculator',
+          timestamp: now,
+          initial: true
+        };
+
+        // Internal hook only for tooling and diagnostics.
+        semanticBus.emitImmediate('metric.tier.changed', payload, { priority: semanticBus.priority?.NORMAL });
+        // Primary public surface for link-level reactions.
+        semanticBus.emitImmediate(buildMetricTierEventName('link', entry.metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
         continue;
       }
       if (nextTier === previousTier) continue;
@@ -107,9 +131,9 @@ export class LinkQualityCalculator {
       };
 
       // Internal hook only for tooling and diagnostics.
-      semanticBus.emit('metric.tier.changed', payload, { priority: semanticBus.priority?.NORMAL });
+      semanticBus.emitImmediate('metric.tier.changed', payload, { priority: semanticBus.priority?.NORMAL });
       // Primary public surface for link-level reactions.
-      semanticBus.emit(buildMetricTierEventName('link', entry.metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
+      semanticBus.emitImmediate(buildMetricTierEventName('link', entry.metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
     }
   }
   
@@ -242,6 +266,8 @@ export class LinkQualityCalculator {
     if (semanticBus?.emit) {
       const payload = {
         linkId,
+        sourceNodeId: sourceNode?.userData?.nodeId ?? sourceNode?.userData?.id ?? sourceNode?.id ?? null,
+        targetNodeId: targetNode?.userData?.nodeId ?? targetNode?.userData?.id ?? targetNode?.id ?? null,
         fromId: sourceNode?.id ?? null,
         toId: targetNode?.id ?? null,
         intensity: currentIntensity
@@ -431,12 +457,16 @@ export class LinkQualityCalculator {
    */
   _getLinkId(link) {
     if (!link) return null;
-    
-    // Try using stable node IDs if available
+    if (link.id !== undefined && link.id !== null) {
+      return `${link.id}`;
+    }
+    if (link.linkId !== undefined && link.linkId !== null) {
+      return `${link.linkId}`;
+    }
     if (link.sourceNodeId && link.targetNodeId) {
       return `${link.sourceNodeId}_to_${link.targetNodeId}`;
     }
-    
+
     // Fallback: Use node references
     const sourceId = link.source?.id || link.source?.uuid || 'unknown';
     const targetId = link.target?.id || link.target?.uuid || 'unknown';

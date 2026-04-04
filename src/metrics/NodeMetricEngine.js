@@ -594,11 +594,17 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
   const links = resolveLinkList(linkSystem);
   const activeLinks = [];
   const activeNodes = new Set();
+  const resolveLinkEndpointNode = (...candidates) => {
+    for (const candidate of candidates) {
+      if (candidate) return candidate;
+    }
+    return null;
+  };
 
   for (const link of links) {
     if (link?.active === false) continue;
-    const nodeA = link?.source || link?.nodeA;
-    const nodeB = link?.target || link?.nodeB;
+    const nodeA = resolveLinkEndpointNode(link?.source, link?.sourceNode, link?.nodeA, link?.from);
+    const nodeB = resolveLinkEndpointNode(link?.target, link?.targetNode, link?.nodeB, link?.to);
     if (!nodeA || !nodeB) continue;
     activeLinks.push(link);
     activeNodes.add(nodeA);
@@ -636,18 +642,18 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
     const resonanceHarmonyApplied = new Map();
     const resonanceStabilityApplied = new Map();
     for (const link of activeLinks) {
-      const nodeA = link?.source || link?.nodeA;
-      const nodeB = link?.target || link?.nodeB;
+      const nodeA = resolveLinkEndpointNode(link?.source, link?.sourceNode, link?.nodeA, link?.from);
+      const nodeB = resolveLinkEndpointNode(link?.target, link?.targetNode, link?.nodeB, link?.to);
       if (!nodeA || !nodeB) continue;
 
       const ma = ensureMetrics(nodeA);
       const mb = ensureMetrics(nodeB);
       if (!ma || !mb) continue;
 
-      if (!linkedNeighbors.has(nodeA)) linkedNeighbors.set(nodeA, new Set());
-      if (!linkedNeighbors.has(nodeB)) linkedNeighbors.set(nodeB, new Set());
-      linkedNeighbors.get(nodeA).add(nodeB);
-      linkedNeighbors.get(nodeB).add(nodeA);
+    if (!linkedNeighbors.has(nodeA)) linkedNeighbors.set(nodeA, new Set());
+    if (!linkedNeighbors.has(nodeB)) linkedNeighbors.set(nodeB, new Set());
+    linkedNeighbors.get(nodeA).add(nodeB);
+    linkedNeighbors.get(nodeB).add(nodeA);
 
       const idA = getNodeId(nodeA);
       const idB = getNodeId(nodeB);
