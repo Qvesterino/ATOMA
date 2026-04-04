@@ -1,5 +1,13 @@
 Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako GlyphLayer4_MultiFusion. mohol by si to spraviť tak prosim ťa
 
+## 2026-04-04
+- `WaveParticleEmitter_v1` was moved toward direct semantic metric-tier listeners for node-driven particle emission.
+- The emitter now binds to `node.synergy.*`, `node.harmony.*`, `node.stability.*`, `node.corruption.*`, and `node.loadPressure.*` via `semanticBus` and keeps the wave snapshot path only as fallback when no tier listeners are active.
+- The constructive burst variant-C init typo was fixed by restoring the correct `constructiveBurstVariantC` pool key.
+- `main.js` now passes `semanticBus` into `WaveParticleEmitter_v1` so the direct metric listener path is officially wired.
+- Browser smoke verified that `node.synergy.high` now dispatches into the emitter listener and spawns constructive particles again; the visible path is captured in `output/web-game/direct-metric-tier-visible.png`.
+- The emitter still keeps the legacy wave snapshot path as fallback, but node-tier semantic events are now the primary local trigger path for wave particles.
+
 ## 2026-04-02
 - `ResonanceCascadeVisualization_Session117B` is now fully functional in runtime and visibly spawns a readable scene ripple.
 - The cascade now has a flat ripple plane and a thicker torus-based ring so it reads clearly without needing a link-specific debug path.

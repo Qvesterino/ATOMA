@@ -1277,6 +1277,7 @@ const adapter = this._createLinkSystemAdapter(
             // - global consumers should still prefer the scoped metric alias events provided by semanticBus
             // - keep the event available for diagnostics, not as the main wiring path
             semanticBus.emit('metric.tier.changed', payload, { priority: semanticBus.priority?.NORMAL });
+            semanticBus.emit(`global.${entry.metric}.${nextTier}`, payload, { priority: semanticBus.priority?.NORMAL });
         }
     }
 

@@ -460,8 +460,8 @@ if (typeof window !== 'undefined') {
       
       safety: {
         disableParasiticHUDs: window.ATOMA_DISABLE_PARASITIC_HUDS ?? true,
-        hardKillParasiticDOM: window.ATOMA_HARD_KILL_PARASITIC_DOM ?? true,
-        hardOffLanguageEngine: window.ATOMA_HARD_OFF_LANGUAGE_ENGINE ?? true,
+        hardKillParasiticDOM: window.ATOMA_HARD_KILL_PARASITIC_DOM ?? false,
+        hardOffLanguageEngine: window.ATOMA_HARD_OFF_LANGUAGE_ENGINE ?? false,
                 disableMythicRituals: window.ATOMA_DISABLE_MYTHIC_RITUALS ?? false,
         disablePhase8NetworkRituals: window.ATOMA_DISABLE_PHASE8_NETWORK_RITUALS ?? false,
         disableNuclearLock: true
@@ -1233,11 +1233,6 @@ import { WaveTravelShaderPack_v1 } from './WaveTravelShaderPack_v1.js';
 import { WaveDynamicsShaderPack_v1 } from './WaveDynamicsShaderPack_v1.js';
 import { SynergyTravelingWaveFX_v1 } from './SynergyTravelingWaveFX_v1.js';
 import { SynergyHighwayVisuals3D_1_0 } from './SynergyHighwayVisuals3D_1_0.js';
-
-// ============================================================================
-// WAVE BURST ROUTER (Event-Driven Burst Triggering)
-// ============================================================================
-import { setupWaveBurstRouter } from './WaveBurstRouter_v1.js';
 
 // ============================================================================
 // DEBUG: HARMONY OVERLAY (visual readability, gated)
@@ -4946,14 +4941,6 @@ class AtomaGame {
                 this.synergyTravelingWaveFX.update(dt, this.time || 0);
             }
         }, 'visual.synergyTravelingWaveFX');
-        this.frameScheduler.register('visual', (dt) => {
-            if (!this.waveBurstRouter && this._initWaveBurstRouter) {
-                this._initWaveBurstRouter();
-            }
-            if (this.waveBurstRouter) {
-                this.waveBurstRouter.update(dt);
-            }
-        }, 'visual.waveBurstRouter');
         this.frameScheduler.register('simulation', (dt) => {
             if (this.waveInterferenceEngine) {
                 this.waveInterferenceEngine.update(dt);
@@ -6577,11 +6564,16 @@ window.__ATOMA_SCENE__ = this.scene;
                 return payload;
             };
             window.debugWaveRuntimeFlow = (limit = 12) => {
-                const routerStatus = this.waveBurstRouter?.getStatus?.() || null;
-                const recentIntents = this.waveBurstRouter?.getRecentIntents?.(limit) || [];
                 const activeSnapshot = this.waveInterferenceEngine?.getActiveSnapshot?.() || null;
                 const engineMetrics = this.waveInterferenceEngine?.getMetrics?.() || null;
                 const lifecycle = this.waveInterferenceEngine?.getBurstLifecycleEvents?.(limit) || [];
+                const cascadeBridgeStatus = this.cascadeToWaveBridge
+                    ? {
+                        enabled: !!this.cascadeToWaveBridge.enabled,
+                        attached: !!this.cascadeToWaveBridge.semanticBus,
+                        hasWaveEngine: !!this.cascadeToWaveBridge.waveInterferenceEngine
+                    }
+                    : null;
 
                 const wavePatternSystem = this.wavePatternSystem || this.waveInterference || null;
                 const resonanceEchoTrailSystem = this.resonanceEchoTrailSystem || this.resonanceEchoTrails || null;
@@ -6591,8 +6583,7 @@ window.__ATOMA_SCENE__ = this.scene;
 
                 const payload = {
                     ingress: {
-                        routerStatus,
-                        recentIntents
+                        cascadeBridge: cascadeBridgeStatus
                     },
                     engine: {
                         activeSnapshot,
@@ -6654,35 +6645,6 @@ window.__ATOMA_SCENE__ = this.scene;
         } catch (err) {
             console.warn('[main.js] CascadeToWaveBridge_v1 init failed:', err?.message || err);
             this.cascadeToWaveBridge = null;
-        }
-
-        // Initialize Wave Burst Router (event-driven burst triggering)
-        this._initWaveBurstRouter = () => {
-            if (this.waveBurstRouter) return this.waveBurstRouter;
-            if (!this.semanticBus || !this.waveInterferenceEngine) return null;
-            try {
-                this.waveBurstRouter = setupWaveBurstRouter(this);
-                return this.waveBurstRouter;
-            } catch (_err) {
-                return null;
-            }
-        };
-        try {
-            const router = this._initWaveBurstRouter();
-            if (router) {
-                console.log('[main.js] WaveBurstRouter initialized ✓');
-                console.log('  - Listens to synergy, cascade, corruption, interaction events');
-                console.log('  - Auto-triggers wave bursts with 1.5s cooldown');
-                console.log('  - Makes wave effects visible without manual intervention');
-            } else {
-                console.warn('[main.js] WaveBurstRouter pending: semanticBus/waveEngine not ready');
-            }
-            window.debugWaveRouterStatus = () => {
-                console.log(this.waveBurstRouter?.getStatus?.());
-                return this.waveBurstRouter?.getStatus?.();
-            };
-        } catch (err) {
-            console.warn('[main.js] WaveBurstRouter failed:', err);
         }
 
         try {
@@ -10256,6 +10218,7 @@ window.__ATOMA_SCENE__ = this.scene;
         // Performance: <2ms per frame for 200-400 nodes with ~2000 active particles
         try {
             this.particleEmitter = new WaveParticleEmitter_v1({
+                semanticBus: this.semanticBus,
                 maxParticlesPerFamily: 2000,
                 emissionRate: 1.0,
                 constructiveThreshold: 0.15,
@@ -11486,7 +11449,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         });
         regGuard('waveTravelShaderPack', 'visual.waveTravelShaderPack', (dt) => this.waveTravelShaderPack?.update?.(dt));
         regGuard('waveDynamicsShaderPack', 'visual.waveDynamicsShaderPack', (dt) => this.waveDynamicsShaderPack?.update?.(dt));
-        regGuard('waveBurstRouter', 'visual.waveBurstRouter', (dt) => this.waveBurstRouter?.update?.(dt));
         regGuard('synergyTravelingWaveFX', 'visual.synergyTravelingWaveFX', (dt) => this.synergyTravelingWaveFX?.update?.(dt, this.time || 0));
         regGuard('synergyHighwayVisuals3D', 'visual.synergyHighwayVisuals3D', (dt) => {
             if (!this.synergyHighwayVisuals3D) return;
@@ -13450,8 +13412,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             : null;
         const waveBurstSnapshot = waveBurstState?.activeSnapshot || null;
         const waveBurstMetrics = waveBurstState?.metrics || null;
-        const waveBurstRouterStatus = this.waveBurstRouter?.getStatus?.() || null;
-        const waveBurstRecentIntents = this.waveBurstRouter?.getRecentIntents?.(3) || [];
+        const cascadeBridgeStatus = this.cascadeToWaveBridge
+            ? {
+                enabled: !!this.cascadeToWaveBridge.enabled,
+                attached: !!this.cascadeToWaveBridge.semanticBus,
+                hasWaveEngine: !!this.cascadeToWaveBridge.waveInterferenceEngine
+            }
+            : null;
         const waveBurstLabel = waveBurstSnapshot
             ? `${waveBurstSnapshot.type}${waveBurstSnapshot.sourceId ? ` · ${waveBurstSnapshot.sourceId}` : ''}`
             : waveBurstMetrics?.activeBurstType
@@ -13464,7 +13431,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         const observation = {
             cascadeHop: `${Number(cascadeHopCount).toLocaleString()} total · ${cascadeHopRate?.rate || '0/s'}`,
             cascadeIntensity: `${Math.round(cascadeIntensityAverage * 100)}% avg · ${Math.round(cascadeIntensityPeak * 100)}% peak · ${cascadeLinks.length}/${totalLinks} links`,
-            waveBurst: `${waveBurstLabel} · cooldowns ${waveBurstRouterStatus?.activeCooldownKeys ?? 0} · intents ${waveBurstRecentIntents.length}`,
+            waveBurst: `${waveBurstLabel} · bridge ${cascadeBridgeStatus?.enabled ? 'on' : 'off'} · lifecycle ${waveBurstMetrics?.lifecycleEventsTracked ?? 0}`,
             waveField: `${waveFieldLabel} · lifecycle ${waveBurstMetrics?.lifecycleEventsTracked ?? 0}`
         };
 

@@ -97,6 +97,8 @@ export class WorldPersonalityController {
     this.hudElement = null;
     this.hudVisible = false;
     this.hudFadeProgress = 0;
+    this.currentMoodLabel = null;
+    this.currentMoodIntensity = null;
     
     // Performance tracking
     this.performanceMode = 'normal';
@@ -155,27 +157,8 @@ export class WorldPersonalityController {
    * Initialize HUD display
    */
   initializeHUD() {
-    this.hudElement = document.createElement('div');
-    this.hudElement.id = 'atoma-mood-display';
-    this.hudElement.style.cssText = `
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      padding: 8px 12px;
-      background: rgba(0, 0, 0, 0.6);
-      border: 1px solid rgba(0, 255, 255, 0.4);
-      border-radius: 3px;
-      font-family: 'Courier New', monospace;
-      font-size: 11px;
-      color: #00ffff;
-      z-index: 9998;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.5s;
-      text-align: right;
-    `;
-    
-    document.body.appendChild(this.hudElement);
+    // Mood display is now merged into the category legend HUD.
+    this.hudElement = null;
   }
   
   /**
@@ -1142,34 +1125,66 @@ export class WorldPersonalityController {
    */
   updateHUD(deltaTime) {
     const mood = this.worldMood.label;
-    
-    if (mood !== 'NEUTRAL') {
-      // Show HUD
-      if (!this.hudVisible) {
-        this.hudVisible = true;
-        this.hudFadeProgress = 0;
+    const moodDisplay = mood.replace(/_/g, ' ');
+    const intensity = Math.max(0, Math.min(1, this.worldMood.intensity));
+    const color = this.getMoodColor(mood);
+    const intensityBar = '▮'.repeat(Math.floor(intensity * 5));
+    const legend = document.getElementById('ui-category-legend');
+    const moodWrapper = legend?.querySelector('.ui-category-legend-mood');
+    const moodValue = legend?.querySelector('.ui-category-legend-mood-value');
+    const moodIntensity = legend?.querySelector('.ui-category-legend-mood-intensity');
+
+    if (moodWrapper && moodValue && moodIntensity) {
+      if (mood !== 'NEUTRAL') {
+        if (!this.hudVisible) {
+          this.hudVisible = true;
+          this.hudFadeProgress = 0;
+        }
+
+        this.hudFadeProgress = Math.min(1.0, this.hudFadeProgress + deltaTime * 0.5);
+        moodWrapper.style.opacity = String(this.hudFadeProgress);
+        moodWrapper.style.display = 'block';
+
+        if (this.currentMoodLabel !== moodDisplay) {
+          moodValue.textContent = moodDisplay;
+          moodValue.style.color = color;
+          this.currentMoodLabel = moodDisplay;
+        }
+
+        if (this.currentMoodIntensity !== intensityBar) {
+          moodIntensity.textContent = intensityBar;
+          this.currentMoodIntensity = intensityBar;
+        }
+      } else {
+        if (this.hudVisible) {
+          this.hudFadeProgress = Math.max(0, this.hudFadeProgress - deltaTime * 0.5);
+          moodWrapper.style.opacity = String(this.hudFadeProgress);
+
+          if (this.hudFadeProgress <= 0) {
+            this.hudVisible = false;
+            moodWrapper.style.display = 'none';
+          }
+        }
       }
-      
-      this.hudFadeProgress = Math.min(1.0, this.hudFadeProgress + deltaTime * 0.5);
-      this.hudElement.style.opacity = this.hudFadeProgress;
-      
-      // Update text
-      const moodDisplay = mood.replace(/_/g, ' ');
-      const intensityBar = '▮'.repeat(Math.floor(this.worldMood.intensity * 5));
-      
-      this.hudElement.innerHTML = `
-        <div style="font-weight: bold; margin-bottom: 2px;">ATOMA MOOD</div>
-        <div style="color: ${this.getMoodColor(mood)};">${moodDisplay}</div>
-        <div style="font-size: 10px; margin-top: 2px;">${intensityBar}</div>
-      `;
-    } else {
-      // Hide HUD
-      if (this.hudVisible) {
-        this.hudFadeProgress = Math.max(0, this.hudFadeProgress - deltaTime * 0.5);
+    } else if (this.hudElement) {
+      // Fallback if legend is not present
+      if (mood !== 'NEUTRAL') {
+        if (!this.hudVisible) {
+          this.hudVisible = true;
+          this.hudFadeProgress = 0;
+        }
+
+        this.hudFadeProgress = Math.min(1.0, this.hudFadeProgress + deltaTime * 0.5);
         this.hudElement.style.opacity = this.hudFadeProgress;
-        
-        if (this.hudFadeProgress <= 0) {
-          this.hudVisible = false;
+        this.hudElement.textContent = `${moodDisplay} ${intensityBar}`;
+      } else {
+        if (this.hudVisible) {
+          this.hudFadeProgress = Math.max(0, this.hudFadeProgress - deltaTime * 0.5);
+          this.hudElement.style.opacity = this.hudFadeProgress;
+
+          if (this.hudFadeProgress <= 0) {
+            this.hudVisible = false;
+          }
         }
       }
     }

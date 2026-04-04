@@ -22,6 +22,14 @@ export class UICategoryLegend3_1 {
     this.isVisible = true;
     this.unsubscribe = null;
     
+    // Mood display support
+    this.moodWrapper = null;
+    this.moodTitleElement = null;
+    this.moodValueElement = null;
+    this.moodIntensityElement = null;
+    this.currentMoodLabel = null;
+    this.currentMoodIntensity = -1;
+    
     // Node count tracking
     this.categoryCounts = new Map();
     this.labelElements = new Map(); // Cache label DOM elements for efficient updates
@@ -82,6 +90,47 @@ export class UICategoryLegend3_1 {
       overflow-y: auto;
       backdrop-filter: blur(8px);
     `;
+
+    // Mood display panel
+    this.moodWrapper = document.createElement('div');
+    this.moodWrapper.className = 'ui-category-legend-mood';
+    this.moodWrapper.style.cssText = `
+      display: none;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    `;
+
+    this.moodTitleElement = document.createElement('div');
+    this.moodTitleElement.className = 'ui-category-legend-mood-title';
+    this.moodTitleElement.style.cssText = `
+      font-weight: bold;
+      margin-bottom: 2px;
+      font-size: 10px;
+    `;
+    this.moodTitleElement.textContent = 'ATOMA MOOD';
+
+    this.moodValueElement = document.createElement('div');
+    this.moodValueElement.className = 'ui-category-legend-mood-value';
+    this.moodValueElement.style.cssText = `
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 3px;
+    `;
+    this.moodValueElement.textContent = 'NEUTRAL';
+
+    this.moodIntensityElement = document.createElement('div');
+    this.moodIntensityElement.className = 'ui-category-legend-mood-intensity';
+    this.moodIntensityElement.style.cssText = `
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      opacity: 0.9;
+    `;
+
+    this.moodWrapper.appendChild(this.moodTitleElement);
+    this.moodWrapper.appendChild(this.moodValueElement);
+    this.moodWrapper.appendChild(this.moodIntensityElement);
+    this.element.appendChild(this.moodWrapper);
     
     // Category items
     for (const [name, color] of Object.entries(this.categories)) {
@@ -156,6 +205,35 @@ export class UICategoryLegend3_1 {
     document.head.appendChild(style);
     
     document.body.appendChild(this.element);
+  }
+
+  /**
+   * Set the global mood display shown inside the category legend
+   */
+  setMoodDisplay(mood = 'NEUTRAL', color = '#36F2FF', intensity = 0) {
+    if (!this.moodWrapper || !this.moodValueElement || !this.moodIntensityElement) return;
+    const normalizedMood = String(mood).replace(/_/g, ' ');
+    const moodIntensity = Math.max(0, Math.min(5, Math.floor(intensity * 5)));
+    const intensityBar = moodIntensity > 0 ? '▮'.repeat(moodIntensity) : '';
+
+    if (this.currentMoodLabel !== normalizedMood) {
+      this.moodValueElement.textContent = normalizedMood;
+      this.moodValueElement.style.color = color;
+      this.currentMoodLabel = normalizedMood;
+    }
+    if (this.currentMoodIntensity !== moodIntensity) {
+      this.moodIntensityElement.textContent = intensityBar;
+      this.currentMoodIntensity = moodIntensity;
+    }
+
+    this.moodWrapper.style.display = normalizedMood === 'NEUTRAL' ? 'none' : 'block';
+  }
+
+  clearMoodDisplay() {
+    if (!this.moodWrapper) return;
+    this.moodWrapper.style.display = 'none';
+    this.currentMoodLabel = null;
+    this.currentMoodIntensity = -1;
   }
   
   /**

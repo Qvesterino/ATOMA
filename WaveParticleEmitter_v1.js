@@ -53,6 +53,7 @@ export class WaveParticleEmitter_v1 {
     this.scene = null;
     this.renderer = null;
     this.pointFXBase = null;
+    this.semanticBus = config.semanticBus ?? globalThis?.semanticBus ?? null;
 
     // Particle pools and systems (per family)
     this.systems = {
@@ -99,6 +100,14 @@ export class WaveParticleEmitter_v1 {
 
     // Time tracking
     this.time = 0;
+    this._directMetricTierListenersBound = false;
+    this._directMetricTierDisposers = [];
+    this._pendingMetricTierEvents = [];
+    this._directMetricTierDispatchCount = 0;
+    this._directMetricTierSpawnCount = 0;
+    this._lastDirectMetricTierEvent = null;
+    this._nodeLookupById = new Map();
+    this._linkLookupById = new Map();
     this._tmpNodeWorldPos = new THREE.Vector3();
     this._tmpLinkMidpoint = new THREE.Vector3();
     this._tmpLinkSourceWorldPos = new THREE.Vector3();
@@ -134,10 +143,12 @@ export class WaveParticleEmitter_v1 {
         return;
       }
 
+      this._bindDirectMetricTierListeners();
+
       // Initialize all 3 particle systems
       this._initConstructiveBurstSystem('constructiveBurst', this._createConstructiveTexture());
       this._initConstructiveBurstSystem('constructiveBurstVariantB', this._createConstructiveTextureVariantB());
-      this._initConstructiveBurstSystem(' ', this._createConstructiveTextureVariantC());
+      this._initConstructiveBurstSystem('constructiveBurstVariantC', this._createConstructiveTextureVariantC());
       this._initDestructiveChaosSystem();
       if (this.config.standingWaveRippleEnabled) {
         this._initStandingWaveRippleSystem();
@@ -708,9 +719,13 @@ export class WaveParticleEmitter_v1 {
     try {
       this.time += deltaTime;
       this._pendingGeometryUploads.clear();
+      this._rebuildEntityLookup(nodes, links);
 
-      // Process all nodes for wave-based emission triggers
-      if (nodes && Array.isArray(nodes)) {
+      // Direct tier events are the primary route for node-driven burst FX.
+      // Keep the old wave snapshot path only when no semantic metric listeners are attached.
+      if (this._directMetricTierListenersBound) {
+        this._drainDirectMetricTierEvents();
+      } else if (nodes && Array.isArray(nodes)) {
         for (const node of nodes) {
           this._processNodeWaveEvents(node, waveEngine);
         }
@@ -735,6 +750,112 @@ export class WaveParticleEmitter_v1 {
     } catch (err) {
       console.error('[WaveParticleEmitter_v1] Update error:', err);
     }
+  }
+
+  _bindDirectMetricTierListeners() {
+    if (this._directMetricTierListenersBound) return;
+
+    const bus = this.semanticBus ?? globalThis?.semanticBus ?? null;
+    if (!bus?.subscribe || !bus?.unsubscribe) return;
+
+    const nodeMetricFamilies = [
+      { metric: 'synergy', family: 'constructiveBurst' },
+      { metric: 'harmony', family: 'standingWaveRipple' },
+      { metric: 'stability', family: 'standingWaveRipple' },
+      { metric: 'corruption', family: 'destructiveChaos' },
+      { metric: 'loadPressure', family: 'destructiveChaos' },
+    ];
+    const tiers = ['low', 'mid', 'high'];
+
+    for (const { metric, family } of nodeMetricFamilies) {
+      for (const tier of tiers) {
+        const eventName = `node.${metric}.${tier}`;
+        const handler = (payload = {}) => {
+          this._directMetricTierDispatchCount += 1;
+          const entry = {
+            eventName,
+            metric,
+            tier,
+            family,
+            payload,
+            receivedAt: this.time
+          };
+          this._lastDirectMetricTierEvent = entry;
+          if (!this._consumeDirectMetricTierEvent(entry)) {
+            this._pendingMetricTierEvents.push(entry);
+          }
+        };
+        bus.subscribe(eventName, handler, { priority: bus.priority?.CRITICAL ?? bus.priority?.INTERACTIVE ?? bus.priority?.NORMAL });
+        this._directMetricTierDisposers.push(() => {
+          try {
+            bus.unsubscribe(eventName, handler);
+          } catch (err) {
+            if (this.config.debugMode) {
+              console.warn(`[WaveParticleEmitter_v1] Failed to unsubscribe ${eventName}:`, err);
+            }
+          }
+        });
+      }
+    }
+
+    this._directMetricTierListenersBound = true;
+  }
+
+  _drainDirectMetricTierEvents() {
+    if (!this._pendingMetricTierEvents.length) return;
+
+    const nextQueue = [];
+    for (const entry of this._pendingMetricTierEvents) {
+      if (!this._consumeDirectMetricTierEvent(entry)) {
+        if ((this.time - Number(entry.receivedAt ?? 0)) < 0.75) {
+          nextQueue.push(entry);
+        }
+      }
+    }
+    this._pendingMetricTierEvents = nextQueue;
+  }
+
+  _consumeDirectMetricTierEvent(entry) {
+    const payload = entry?.payload ?? {};
+    const nodeId = payload.nodeId ?? payload.id ?? null;
+    if (!nodeId) return false;
+
+    const node = this._resolveCachedNodeById(nodeId);
+    if (!node) return false;
+
+    const family = entry?.family ?? this._getFamilyForMetric(entry?.metric);
+    const strength = this._tierStrengthForEmission(entry?.tier, payload.value);
+    const runtimeOptions = {
+      source: 'semantic-tier',
+      emissionRateMul: strength >= 0.85 ? this.config.highAmplitudeEmissionMultiplier : 1.0
+    };
+
+    if (family === 'constructiveBurst') {
+      this._debugLogNodeEmission(node, nodeId, 'constructive-tier', {
+        amplitude: strength,
+        constructive: strength,
+        destructive: 0,
+        standing: 0,
+        threshold: this.config.constructiveThreshold
+      });
+      this._emitConstructiveBurst(node, strength, 'node', runtimeOptions);
+      this._directMetricTierSpawnCount += 1;
+      return true;
+    }
+
+    if (family === 'destructiveChaos') {
+      this._emitDestructiveChaos(node, strength, 'node', runtimeOptions);
+      this._directMetricTierSpawnCount += 1;
+      return true;
+    }
+
+    if (family === 'standingWaveRipple') {
+      this._emitStandingWaveRipple(node, strength, 'node', runtimeOptions);
+      this._directMetricTierSpawnCount += 1;
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -985,6 +1106,67 @@ export class WaveParticleEmitter_v1 {
 
   _resolveEntityId(entity) {
     return entity?.userData?.nodeId || entity?.id || entity?.uuid || entity?.name || null;
+  }
+
+  _normalizeEntityKey(value) {
+    if (value == null) return null;
+    const key = String(value).trim();
+    return key.length > 0 ? key : null;
+  }
+
+  _rebuildEntityLookup(nodes = [], links = []) {
+    this._nodeLookupById.clear();
+    this._linkLookupById.clear();
+
+    if (Array.isArray(nodes)) {
+      for (const node of nodes) {
+        const key = this._normalizeEntityKey(this._resolveEntityId(node));
+        if (key) {
+          this._nodeLookupById.set(key, node);
+        }
+      }
+    }
+
+    if (Array.isArray(links)) {
+      for (const link of links) {
+        const key = this._normalizeEntityKey(this._resolveLinkId(link));
+        if (key) {
+          this._linkLookupById.set(key, link);
+        }
+      }
+    }
+  }
+
+  _resolveCachedNodeById(nodeId) {
+    const key = this._normalizeEntityKey(nodeId);
+    if (!key) return null;
+    return this._nodeLookupById.get(key) ?? null;
+  }
+
+  _getFamilyForMetric(metric) {
+    switch (metric) {
+      case 'synergy':
+        return 'constructiveBurst';
+      case 'harmony':
+      case 'stability':
+        return 'standingWaveRipple';
+      case 'corruption':
+      case 'loadPressure':
+        return 'destructiveChaos';
+      default:
+        return null;
+    }
+  }
+
+  _tierStrengthForEmission(tier, value) {
+    const tierWeight = {
+      low: 0.32,
+      mid: 0.6,
+      high: 1.0
+    };
+    const normalizedValue = this._clamp01(Number.isFinite(value) ? value : 0);
+    const fallback = tierWeight[tier] ?? 0.5;
+    return this._clamp01(Math.max(normalizedValue, fallback));
   }
 
   _getDistanceLODController() {
@@ -1866,6 +2048,19 @@ export class WaveParticleEmitter_v1 {
    */
   dispose() {
     try {
+      for (const disposeListener of this._directMetricTierDisposers) {
+        try {
+          disposeListener?.();
+        } catch (err) {
+          if (this.config.debugMode) {
+            console.warn('[WaveParticleEmitter_v1] Direct metric listener dispose error:', err);
+          }
+        }
+      }
+      this._directMetricTierDisposers = [];
+      this._pendingMetricTierEvents = [];
+      this._directMetricTierListenersBound = false;
+
       // Remove all particle systems from scene
       Object.entries(this.systems).forEach(([key, system]) => {
         try {

@@ -1,0 +1,134 @@
+[
+  {
+    "type": "log",
+    "text": "Live reload enabled."
+  },
+  {
+    "type": "log",
+    "text": "[VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers"
+  },
+  {
+    "type": "log",
+    "text": "[CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter"
+  },
+  {
+    "type": "log",
+    "text": "[AURA DEBUG] Ready. Use window.AuraDebug"
+  },
+  {
+    "type": "log",
+    "text": "[ExtremeAINodePack] Initialized - 12 archetypes ready"
+  },
+  {
+    "type": "log",
+    "text": "💡 Legacy Model Filter debugging API available at: legacyModelDebug"
+  },
+  {
+    "type": "log",
+    "text": "[VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED"
+  },
+  {
+    "type": "log",
+    "text": "%c * Tone.js v14.7.77 *  background: #000; color: #fff"
+  },
+  {
+    "type": "warning",
+    "text": "The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio"
+  },
+  {
+    "type": "warning",
+    "text": "The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio"
+  },
+  {
+    "type": "log",
+    "text": "[FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>()"
+  },
+  {
+    "type": "log",
+    "text": "[FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo()"
+  },
+  {
+    "type": "log",
+    "text": "✓ HUD Registry 1.0 loaded — 4 HUDs registered"
+  },
+  {
+    "type": "log",
+    "text": "✓ HUD Layout Manager 1.0 module loaded"
+  },
+  {
+    "type": "log",
+    "text": "✓ Collapsible HUD Wrapper 1.0 module loaded"
+  },
+  {
+    "type": "log",
+    "text": "✓ HUD Collapse System 1.0 module loaded"
+  },
+  {
+    "type": "log",
+    "text": "✓ ComputeSynergyScore2_0 ready\n  Usage: window.ComputeSynergyScore2_0(link, systems)\n  Test: window.ComputeSynergyScore2_0.tuning.testAll()"
+  },
+  {
+    "type": "log",
+    "text": "✅ [LinkMLRecommendationEngine1_0] Console API available"
+  },
+  {
+    "type": "log",
+    "text": "   window.testMLRecommendations()"
+  },
+  {
+    "type": "log",
+    "text": "   window.testMLRecommendationsFor(nodeId)"
+  },
+  {
+    "type": "log",
+    "text": "   window.tuneMLWeights(presetName)"
+  },
+  {
+    "type": "log",
+    "text": "   window.printMLStats()"
+  },
+  {
+    "type": "log",
+    "text": "   window.getMLDebugInfo()"
+  },
+  {
+    "type": "startGroup",
+    "text": "🧹 Legacy Glyph Cleanup Report"
+  },
+  {
+    "type": "endGroup",
+    "text": "console.groupEnd"
+  },
+  {
+    "type": "debug",
+    "text": "[LINK-SPAWN] createNode called {category: storage, canonicalCategory: storage, position: r, index: 0, isSpecial: false}"
+  },
+  {
+    "type": "debug",
+    "text": "[SPAWN_TRACE] {category: storage, visualCode: 501, factoryName: createStorageNode0, childCount: 5, nodeId: node-1775295700122-aa2o70afa}"
+  },
+  {
+    "type": "table",
+    "text": "[Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object]"
+  },
+  {
+    "type": "table",
+    "text": "[Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object]"
+  },
+  {
+    "type": "debug",
+    "text": "[LINK-SPAWN] createNode called {category: quantum, canonicalCategory: quantum, position: r, index: 9, isSpecial: false}"
+  },
+  {
+    "type": "debug",
+    "text": "[SPAWN_TRACE] {category: quantum, visualCode: 702, factoryName: createQuantumLattice, childCount: 1, nodeId: node-1775295701134-33g9sfxys}"
+  },
+  {
+    "type": "table",
+    "text": "[Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object]"
+  },
+  {
+    "type": "table",
+    "text": "[Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object]"
+  }
+]
