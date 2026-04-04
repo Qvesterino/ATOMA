@@ -19,6 +19,7 @@
 
 import * as THREE from 'three';
 import { AtomaLanguageEngine2_0 } from './_AtomaLanguageEngine2_0.js';
+import { atomaNamingEngine } from './_AtomaNamingEngine.js';
 import { NodeSpatialIndex } from './NodeSpatialIndex.js';
 
 const METRIC_DISPLAY_MODES = Object.freeze({
@@ -49,6 +50,13 @@ export class NodeInspectOverlay1_0 {
     
     // ATOMA Language Engine: For archetype naming
     this.languageEngine = new AtomaLanguageEngine2_0();
+
+    // ATOMA Naming Engine: For category/tag/factory code generation
+    this.namingEngine = atomaNamingEngine;
+    
+    // Runtime-loaded assignment table from NodeVisualRegistryNameAssignments.json
+    this.nodeVisualRegistryNames = null;
+    this._loadVisualRegistryNames();
     
     // Linguistic Overlay: For semantic language display (optional)
     this.linguisticOverlay = linguisticOverlay;
@@ -135,6 +143,24 @@ export class NodeInspectOverlay1_0 {
     
     // Setup console API
     this._setupConsoleAPI();
+  }
+
+  async _loadVisualRegistryNames() {
+    if (typeof window === 'undefined' || typeof fetch !== 'function') {
+      return;
+    }
+
+    try {
+      const jsonUrl = new URL('./NodeVisualRegistryNameAssignments.json', import.meta.url);
+      const response = await fetch(jsonUrl);
+      if (!response.ok) {
+        console.warn('NodeInspectOverlay1_0: Failed to load visual registry names', response.status, response.statusText);
+        return;
+      }
+      this.nodeVisualRegistryNames = await response.json();
+    } catch (error) {
+      console.warn('NodeInspectOverlay1_0: Error loading visual registry names', error);
+    }
   }
 
   _startFallbackPoll() {
@@ -335,12 +361,16 @@ export class NodeInspectOverlay1_0 {
         this.showOverlay();
         this.updateOverlayContent();
         
+        // Trigger procedural poetry if available
+        this.game?.poetryEngine?.generateNodePoetry?.(this.currentNode);
+        
         // Trigger linguistic overlay if available
         if (this.linguisticOverlay) {
           this.linguisticOverlay.inspectNode(this.currentNode);
         }
       } else {
         this.hideOverlay();
+        this.game?.poetryEngine?.hideNodePoetry?.();
         
         // Hide linguistic overlay if available
         if (this.linguisticOverlay) {
@@ -496,6 +526,28 @@ export class NodeInspectOverlay1_0 {
     }
   }
 
+  _getVisualRegistryAssignment(userData) {
+    if (!userData || !this.nodeVisualRegistryNames?.nodes) return null;
+    const code = userData.visualCode ?? userData.userData?.visualCode ?? userData.archetype;
+    if (code != null) {
+      const normalized = String(code);
+      if (this.nodeVisualRegistryNames.nodes[normalized]) {
+        return this.nodeVisualRegistryNames.nodes[normalized];
+      }
+    }
+
+    // fallback by exact node data match
+    if (userData.factoryName && userData.category && userData.archetypeTag) {
+      return Object.values(nodeVisualRegistryNames.nodes).find((entry) => {
+        return entry.factoryName === userData.factoryName &&
+               entry.category === userData.category &&
+               entry.archetypeTag === userData.archetypeTag;
+      }) || null;
+    }
+
+    return null;
+  }
+
   /**
    * Update overlay content based on current node
    * Gracefully handles missing fields
@@ -507,20 +559,20 @@ export class NodeInspectOverlay1_0 {
     if (!userData) return;
 
     try {
-      // Get archetype code and name from Language Engine
-      const archetypeCode = userData.archetypeCode || this.inferArchetypeCode(userData);
+      // Get naming info from AtomaNamingEngine and LanguageEngine
+      const assignment = this._getVisualRegistryAssignment(userData);
+      const assignmentName = assignment?.name;
+      const assignmentMeaning = assignment?.meaning;
+      const namingCode = assignmentName || this.namingEngine.getNamingCodeForNode(userData.archetype || userData.category, userData);
+      const namingLabel = assignmentMeaning || this.namingEngine.getNodeLabelForData(userData) || this.languageEngine.getShortLabel(this.inferArchetypeCode(userData));
+      const namingMeaning = assignmentMeaning || this.namingEngine.getNodeMeaningForData(userData) || this.languageEngine.getFullName(this.inferArchetypeCode(userData));
+
+      const archetypeCode = namingCode || userData.archetypeCode || this.inferArchetypeCode(userData);
       const archetype = this.getArchetypeName(userData);
       
-      // Get language engine info
-      let languageName = '';
-      let languageMeaning = '';
-      if (archetypeCode) {
-        languageName = this.languageEngine.getShortLabel(archetypeCode);
-        languageMeaning = this.languageEngine.getFullName(archetypeCode);
-      }
-      
-      // Get category (functional type)
       const category = userData.category || 'UNKNOWN';
+      let languageName = namingLabel;
+      let languageMeaning = namingMeaning;
       
       // Get metrics from simulation snapshot (read-only)
       const metrics = this._getSnapshotMetrics(this.currentNode) || {};
@@ -532,22 +584,22 @@ export class NodeInspectOverlay1_0 {
         archetypeEl.style.color = this.getArchetypeColor(archetype);
       }
       
-      // Update archetype code display
+      // Update archetype code display (naming engine code)
       const archetypeCodeEl = this.hudPanel.querySelector('#node-archetype-code');
       if (archetypeCodeEl) {
         archetypeCodeEl.textContent = archetypeCode ? `[${archetypeCode}]` : 'N/A';
       }
       
-      // Update archetype meaning display
+      // Update archetype meaning display (naming-derived description)
       const archetypeMeaningEl = this.hudPanel.querySelector('#node-archetype-meaning');
       if (archetypeMeaningEl) {
-        archetypeMeaningEl.textContent = languageName || languageMeaning || 'Unclassified node';
+        archetypeMeaningEl.textContent = languageMeaning || languageName || 'Unclassified node';
       }
 
-      // Update category display
+      // Update category display with naming phrase embedded
       const categoryEl = this.hudPanel.querySelector('#node-category');
       if (categoryEl) {
-        categoryEl.textContent = `Category: ${category.toUpperCase()}`;
+        categoryEl.textContent = `Category: ${category.toUpperCase()} • Name: ${languageName}`;
       }
 
       // Update personality display (if available)

@@ -13,10 +13,13 @@
  * ✓ 100% reversible via dispose()
  */
 
+import { atomaNamingEngine } from './_AtomaNamingEngine.js';
+
 export class NodeInspectLinguisticOverlay {
-  constructor(languageEngine, aiConsciousnessLayer = null) {
+  constructor(languageEngine, aiConsciousnessLayer = null, namingEngine = null) {
     this.languageEngine = languageEngine;
     this.aiConsciousnessLayer = aiConsciousnessLayer;
+    this.namingEngine = namingEngine || atomaNamingEngine;
     
     // State
     this.currentNode = null;
@@ -179,6 +182,23 @@ export class NodeInspectLinguisticOverlay {
    * Fallback if archetypeCode not stored in userData
    */
   _inferArchetypeCode(userData) {
+    if (!userData) return null;
+
+    // Priority 1: explicit archetype code set on node.
+    if (userData.archetypeCode && typeof userData.archetypeCode === 'string') {
+      return userData.archetypeCode;
+    }
+
+    // Priority 2: naming engine inference using category/archetypeTag/factoryName.
+    if (this.namingEngine && typeof this.namingEngine.getNamingCodeForNode === 'function') {
+      const archetypeId = userData.archetype || userData.category;
+      const code = this.namingEngine.getNamingCodeForNode(archetypeId, userData);
+      if (code) {
+        return code;
+      }
+    }
+
+    // Legacy fallback map (for backward-compatibility)
     const categoryToCode = {
       'input': 'QNT-ORB-HLD',
       'process': 'SIG-VEC-RSP',
@@ -189,10 +209,13 @@ export class NodeInspectLinguisticOverlay {
       'sigma': 'SIG-CRW-NEX',
       'quantum': 'QNT-HEX-VAR',
       'emotional': 'ECO-TOR-FLX',
+      'mythic': 'LGD-CRW-PRM',
+      'prime': 'PRM-LTR-PRM',
+      'error': 'FLX-DMD-BRK'
     };
-    
-    const category = userData.category || 'input';
-    return categoryToCode[category.toLowerCase()] || null;
+
+    const category = (userData.category || 'input').toLowerCase();
+    return categoryToCode[category] || null;
   }
   
   /**
@@ -212,12 +235,14 @@ export class NodeInspectLinguisticOverlay {
   _updateSemanticDisplay(archetypeCode) {
     if (!this.nameElement || !this.meaningElement) return;
     
-    // Short label: "Quantum Orb Holding"
-    const label = this.languageEngine.getShortLabel(archetypeCode);
+    // Short label from naming engine via current node if available, else language layer fallback
+    const nodeLabel = this.namingEngine.getNodeLabelForData(this.currentNode?.userData);
+    const label = nodeLabel || this.languageEngine.getShortLabel(archetypeCode);
     this.nameElement.textContent = label;
     
-    // Full semantic name: "Quantum Orb of Held Potential"
-    const fullName = this.languageEngine.getFullName(archetypeCode);
+    // Full semantic name from naming engine fallback path
+    const nodeMeaning = this.namingEngine.getNodeMeaningForData(this.currentNode?.userData);
+    const fullName = nodeMeaning || this.languageEngine.getFullName(archetypeCode);
     this.meaningElement.textContent = fullName;
   }
   

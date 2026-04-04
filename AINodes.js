@@ -4480,8 +4480,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // ========== STEP 8: ACTIVATION LOGIC (SYNC) ==========
     // ATOMA NAMING ENGINE 1.0: Assign naming code
     const archetypeToUse = newNode.userData.archetype || category;
-    newNode.userData.namingCode = atomaNamingEngine.getNamingCodeForNode(archetypeToUse);
-    newNode.userData.namingMeaning = atomaNamingEngine.getReadableMeaning(newNode.userData.namingCode);
+    newNode.userData.namingCode = atomaNamingEngine.getNamingCodeForNode(archetypeToUse, newNode.userData);
+    newNode.userData.namingMeaning = atomaNamingEngine.getReadableMeaning(newNode.userData.namingCode) || atomaNamingEngine.getNodeMeaningForData(newNode.userData);
     
     // ========== STEP 9: MATERIALIZE ANIMATION ==========
     if (newNode.userData?.__nonRenderable !== true) {

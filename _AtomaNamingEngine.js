@@ -38,6 +38,16 @@ export class AtomaNamingEngine {
       'VCE': 'Vortex',         // Spinning, convergent
       'INF': 'Infinite',       // Boundless, vast
       'PRM': 'Prime',          // Essential, fundamental
+      'INP': 'Input',
+      'PRC': 'Process',
+      'INT': 'Integration',
+      'ANL': 'Analytics',
+      'STR': 'Storage',
+      'CTL': 'Control',
+      'SGM': 'Sigma',
+      'MYT': 'Mythic',
+      'EMO': 'Emotional',
+      'ERR': 'Error'
     };
     
     // PATTERN — Structural/behavioral topology
@@ -57,6 +67,11 @@ export class AtomaNamingEngine {
       'WVE': 'Wave',           // Oscillating, rhythmic
       'LTR': 'Lattice',        // Gridded, interconnected
       'FLX': 'Flex',           // Adaptive, responsive
+      'SBR': 'Stabilizer',
+      'PRS': 'Pressure',
+      'HMR': 'Harmonizer',
+      'AMP': 'Amplifier',
+      'RSK': 'Risk',
     };
     
     // SIGNATURE — Quality/result/outcome
@@ -76,6 +91,22 @@ export class AtomaNamingEngine {
       'CEN': 'Center',         // Centered, balanced
       'EDG': 'Edge',           // Boundary, threshold
       'ABS': 'Absolute',       // Total, complete
+      'RCT': 'Receptor',
+      'GTW': 'Gateway',
+      'FNL': 'Funnel',
+      'SNR': 'Sensor',
+      'DTR': 'Detector',
+      'CRY': 'Crystal',
+      'LOB': 'Lobe',
+      'BLM': 'Bloom',
+      'SED': 'Seed',
+      'HLX': 'Helix',
+      'COR': 'Core',
+      'MTX': 'Matrix',
+      'VLT': 'Vault',
+      'NDE': 'Node',
+      'CMB': 'Chamber',
+      'RNG': 'Ring'
     };
     
     // Archetype → Naming Code mapping (comprehensive)
@@ -139,6 +170,61 @@ export class AtomaNamingEngine {
       'prime': 'PRM-LTR-PRM',         // Prime: Prime, Lattice, Prime
       'error': 'FLX-DMD-BRK',         // Error: Flux, Diamond, Break
     };
+
+    // Support maps from NodeVisualRegistry helper
+    this.nodeVisualCategoryMap = {
+      'input': 'QNT',
+      'process': 'SIG',
+      'integration': 'NEX',
+      'analytics': 'AET',
+      'storage': 'UMB',
+      'control': 'ASC',
+      'quantum': 'QNT',
+      'sigma': 'SIG',
+      'mythic': 'LGD',
+      'prime': 'PRM',
+      'error': 'FLX',
+      'emotional': 'ECO'
+    };
+
+    this.nodeVisualArchetypeTagMap = {
+      'stabilizer': 'HLD',
+      'pressure': 'CPL',
+      'harmonizer': 'SYN',
+      'amplifier': 'PRM',
+      'risky': 'BRK'
+    };
+
+    this.nodeVisualCategoryCodeMap = {
+      'input': 'INP',
+      'process': 'PRC',
+      'integration': 'INT',
+      'analytics': 'ANL',
+      'storage': 'STR',
+      'control': 'CTL',
+      'quantum': 'QNT',
+      'sigma': 'SGM',
+      'mythic': 'MYT',
+      'prime': 'PRM',
+      'error': 'ERR',
+      'emotional': 'EMO'
+    };
+
+    this.nodeVisualTagCodeMap = {
+      'stabilizer': 'SBR',
+      'pressure': 'PRS',
+      'harmonizer': 'HMR',
+      'amplifier': 'AMP',
+      'risky': 'RSK'
+    };
+
+    this.nodeVisualFactoryPatternMap = {
+      receptor: 'RCT', gateway: 'GTW', funnel: 'FNL', sensor: 'SNR', detector: 'DTR',
+      torus: 'TOR', knot: 'KNT', crystal: 'CRY', lobe: 'LOB', bloom: 'BLM', seed: 'SED',
+      helix: 'HLX', core: 'COR', matrix: 'MTX', vault: 'VLT', node: 'NDE', chamber: 'CMB',
+      matrix: 'MTX', ring: 'RNG', orb: 'ORB', crown: 'CRW', lattice: 'LTR'
+    };
+
     
     // Readable meanings for HUD display
     this.meaningDescriptions = {
@@ -255,7 +341,121 @@ export class AtomaNamingEngine {
     
     return `${origin}-${pattern}-${signature}`;
   }
-  
+
+  _makeShortAbbreviation(value, length = 3) {
+    if (!value || typeof value !== 'string') return 'UNK';
+    const normalized = value.replace(/[^a-zA-Z0-9]+/g, ' ').trim().toUpperCase();
+    if (!normalized) return 'UNK';
+
+    const tokens = normalized.split(/\s+/);
+    if (tokens.length === 1) {
+      return tokens[0].slice(0, length).padEnd(length, 'X');
+    }
+
+    const combined = tokens.map(t => t.replace(/[^A-Z0-9]/g, '')).join('');
+    return combined.slice(0, length).padEnd(length, 'X');
+  }
+
+  _extractFactoryPatternCode(factoryName) {
+    if (!factoryName || typeof factoryName !== 'string') return 'NDE';
+    const lower = factoryName.toLowerCase();
+
+    for (const [token, code] of Object.entries(this.nodeVisualFactoryPatternMap)) {
+      if (lower.includes(token)) return code;
+    }
+
+    const normalizedRaw = factoryName.replace(/^create/i, '').replace(/_/g, ' ');
+    const match = normalizedRaw.match(/[A-Z]?[a-z]+|\d+/g);
+    if (match && match.length > 0) {
+      const candidate = match[match.length - 1].toUpperCase();
+      return this._makeShortAbbreviation(candidate, 3);
+    }
+
+    return 'NDE';
+  }
+
+  getFactoryNameLabel(factoryName) {
+    if (!factoryName || typeof factoryName !== 'string') return null;
+    const sanitized = factoryName.replace(/^create/i, '').replace(/_/g, ' ').trim();
+    const tokens = sanitized.match(/[A-Z]?[a-z]+|\d+/g) || [];
+    if (tokens.length === 0) return null;
+
+    // drop category prefix if present (like Input, Process, Emotional, etc.)
+    const categoryTokens = new Set(Object.keys(this.nodeVisualCategoryCodeMap).map(k => k.toLowerCase()));
+    if (tokens.length > 1 && categoryTokens.has(tokens[0].toLowerCase())) {
+      tokens.shift();
+    }
+
+    // Keep last two tokens for expressive naming
+    const displayTokens = tokens.slice(-2);
+    return displayTokens.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  }
+
+  getNodeLabelForData(nodeData = {}) {
+    if (!nodeData) return null;
+    return this.getFactoryNameLabel(nodeData.factoryName) || (nodeData.category ? `${nodeData.category.charAt(0).toUpperCase() + nodeData.category.slice(1)}` : null);
+  }
+
+  getNodeMeaningForData(nodeData = {}) {
+    if (!nodeData) return null;
+
+    const candidateCode = this.getNamingCodeForNode(nodeData.archetype || nodeData.category, nodeData);
+    const candidateMean = this.getReadableMeaning(candidateCode);
+    if (candidateMean && candidateMean !== 'Unknown node property') {
+      return candidateMean;
+    }
+
+    return this.getNodeLabelForData(nodeData);
+  }
+
+  inferPatternFromFactory(factoryName) {
+    if (!factoryName || typeof factoryName !== 'string') return 'ORB';
+    const factor = factoryName.toLowerCase();
+    const patterns = {
+      knot: 'KNT', torus: 'TOR', orb: 'ORB', hex: 'HEX', lattice: 'LTR',
+      spine: 'SPN', crown: 'CRW', fractal: 'FRM', wave: 'WVE', cluster: 'CRW',
+      vault: 'ORB', node: 'ORB', core: 'CRW', ring: 'TOR', matrix: 'LTR'
+    };
+    for (const [key, code] of Object.entries(patterns)) {
+      if (factor.includes(key)) return code;
+    }
+    return 'ORB';
+  }
+
+  inferCodeFromNodeData(nodeData = {}) {
+    const category = (nodeData.category || '').toLowerCase();
+    const archetypeTag = (nodeData.archetypeTag || '').toLowerCase();
+    const factoryName = nodeData.factoryName || '';
+
+    const categoryCode = this.nodeVisualCategoryCodeMap[category] || this._makeShortAbbreviation(category, 3);
+    const tagCode = this.nodeVisualTagCodeMap[archetypeTag] || this._makeShortAbbreviation(archetypeTag, 3);
+    const factoryCode = this._extractFactoryPatternCode(factoryName);
+
+    return `${categoryCode}-${tagCode}-${factoryCode}`;
+  }
+
+  getNamingCodeForNode(archetypeId, nodeData = null) {
+    if (!this.enabled) return null;
+
+    if (archetypeId && this.archetypeNamingMap[archetypeId]) {
+      this.stats.archetypesEncountered.add(archetypeId);
+      return this.archetypeNamingMap[archetypeId];
+    }
+
+    if (archetypeId && this.categoryNamingDefaults[archetypeId]) {
+      this.stats.fallbacksUsed++;
+      return this.categoryNamingDefaults[archetypeId];
+    }
+
+    if (nodeData) {
+      this.stats.fallbacksUsed++;
+      return this.inferCodeFromNodeData(nodeData);
+    }
+
+    this.stats.fallbacksUsed++;
+    return this._generateRandomNamingCode();
+  }
+
   /**
    * Get all naming codes for a specific archetype group
    */

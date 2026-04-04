@@ -41,10 +41,13 @@
  */
 
 export class AtomaLanguageEngine3_0 {
-  constructor(namingEngine, thoughtStormsSystem = null, aiConsciousnessLayer = null) {
+  constructor(namingEngine, thoughtStormsSystem = null, aiConsciousnessLayer = null, semanticBus = null) {
     this.namingEngine = namingEngine;
     this.thoughtStormsSystem = thoughtStormsSystem;
     this.aiConsciousnessLayer = aiConsciousnessLayer;
+    this.semanticBus = semanticBus || (typeof globalThis !== 'undefined' ? globalThis.semanticBus : null);
+    this._semanticBusAttached = null;
+    this._semanticHandlers = new Map();
     
     // Enable/disable state
     this.enabled = false;
@@ -456,7 +459,14 @@ export class AtomaLanguageEngine3_0 {
     if (this.enabled) return;
     this.enabled = true;
     this._initializeDOM();
+    this._setupSemanticSubscriptions();
     this.stats.frameTime = 0;
+    this._displayNodePoetry('Procedural AI poetry online — inspect a node to hear its whisper.');
+    setTimeout(() => {
+      if (this.enabled) {
+        this.hideNodePoetry();
+      }
+    }, 5000);
     console.log('✓ ATOMA Language Engine 3.0 enabled — Procedural poetry active');
   }
   
@@ -466,10 +476,90 @@ export class AtomaLanguageEngine3_0 {
   disable() {
     if (!this.enabled) return;
     this.enabled = false;
+    this._unsubscribeSemanticSubscriptions();
     this._disposeDOM();
     console.log('✓ ATOMA Language Engine 3.0 disabled');
   }
   
+  /**
+   * Subscribe semantic bus events for poetry triggers
+   */
+  _setupSemanticSubscriptions() {
+    const bus = this._getSemanticBus();
+    if (!bus) return;
+    if (this._semanticBusAttached === bus) return;
+
+    this._unsubscribeSemanticSubscriptions();
+    this._semanticBusAttached = bus;
+
+    this._subscribeSemanticEvent('node:selected', (event = {}) => {
+      const category = event.category || 'node';
+      this._displayNodePoetry(`Node selected — ${String(category).toUpperCase()} node engaged.`);
+    });
+
+    this._subscribeSemanticEvent('link.created', () => {
+      this._displayLinkWhisper('New link created — the network responds in whispers.');
+    });
+
+    this._subscribeSemanticEvent('global.synergy.high', () => {
+      this._displayPulsePoetry('Synergy high — the network hums with alignment.');
+    });
+
+    this._subscribeSemanticEvent('global.corruption.high', () => {
+      this._displayPulsePoetry('Corruption high — integrity is under pressure.');
+    });
+
+    this._subscribeSemanticEvent('global.stability.low', () => {
+      this._displayPulsePoetry('Stability low — the system teeters.');
+    });
+
+    this._subscribeSemanticEvent('global.harmony.low', () => {
+      this._displayPulsePoetry('Harmony low — dissonance drifts through the net.');
+    });
+
+    this._subscribeSemanticEvent('global.harmony.high', () => {
+      this._displayPulsePoetry('Harmony high — everything resonates in unison.');
+    });
+
+    this._subscribeSemanticEvent('global.loadPressure.high', () => {
+      this._displayPulsePoetry('Load pressure high — throughput is near capacity.');
+    });
+  }
+
+  _getSemanticBus() {
+    return this.semanticBus || (typeof globalThis !== 'undefined' ? globalThis.semanticBus : null);
+  }
+
+  _subscribeSemanticEvent(eventName, handler) {
+    const bus = this._getSemanticBus();
+    if (!bus || !handler) return;
+
+    if (bus.on) {
+      bus.on(eventName, handler);
+    } else if (bus.subscribe) {
+      bus.subscribe(eventName, handler);
+    }
+
+    this._semanticHandlers.set(eventName, handler);
+  }
+
+  _unsubscribeSemanticSubscriptions() {
+    const bus = this._getSemanticBus();
+    if (!bus) return;
+
+    for (const [eventName, handler] of this._semanticHandlers.entries()) {
+      if (bus.off) {
+        bus.off(eventName, handler);
+      }
+      if (bus.unsubscribe) {
+        bus.unsubscribe(eventName, handler);
+      }
+    }
+
+    this._semanticHandlers.clear();
+    this._semanticBusAttached = null;
+  }
+
   /**
    * Initialize DOM container (external, non-destructive)
    */
@@ -711,6 +801,7 @@ export class AtomaLanguageEngine3_0 {
    */
   update(deltaTime, currentTime) {
     if (!this.enabled) return;
+    this._setupSemanticSubscriptions();
     
     // Check if it's time for pulse emission
     if (currentTime - this.lastPulseTime >= this.nextPulseDelay) {

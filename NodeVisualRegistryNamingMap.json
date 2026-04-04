@@ -1,0 +1,104 @@
+{
+  "categories": [
+    "analytics",
+    "control",
+    "emotional",
+    "error",
+    "input",
+    "integration",
+    "mythic",
+    "prime",
+    "process",
+    "quantum",
+    "sigma",
+    "storage"
+  ],
+  "archetypeTags": [
+    "amplifier",
+    "harmonizer",
+    "pressure",
+    "risky",
+    "stabilizer"
+  ],
+  "suggestedCategoryToCode": {
+    "input": "QNT-ORB-SYN",
+    "process": "SIG-ORB-SYN",
+    "integration": "NEX-KNOT-CPL",
+    "analytics": "AET-ORB-SYN",
+    "storage": "UMB-ORB-HLD",
+    "control": "ASC-ORB-PRM",
+    "quantum": "QNT-ORB-SYN",
+    "sigma": "SIG-CRW-PRM",
+    "mythic": "LGD-ORB-PRM",
+    "prime": "PRM-ORB-HLD",
+    "error": "FLX-ORB-PRM",
+    "emotional": "ECO-ORB-PRM"
+  },
+  "summary": {
+    "totalEntries": 117,
+    "uniqueCategories": 12,
+    "uniqueArchetypes": 5
+  },
+  "entriesExample": [
+    {
+      "code": "101",
+      "category": "input",
+      "factoryName": "createInputSignalReceptor",
+      "archetypeTag": "stabilizer"
+    },
+    {
+      "code": "102",
+      "category": "input",
+      "factoryName": "createInputDataGateway",
+      "archetypeTag": "pressure"
+    },
+    {
+      "code": "103",
+      "category": "input",
+      "factoryName": "createInputIncomingFunnel",
+      "archetypeTag": "harmonizer"
+    },
+    {
+      "code": "104",
+      "category": "input",
+      "factoryName": "createInputSensory_TactileSensor",
+      "archetypeTag": "pressure"
+    },
+    {
+      "code": "105",
+      "category": "input",
+      "factoryName": "createInputSensory_EchoDetector",
+      "archetypeTag": "stabilizer"
+    },
+    {
+      "code": "106",
+      "category": "input",
+      "factoryName": "createInputSensory_NeuralReceptor",
+      "archetypeTag": "stabilizer"
+    },
+    {
+      "code": "107",
+      "category": "input",
+      "factoryName": "createInputNodeStyled_v2",
+      "archetypeTag": "amplifier"
+    },
+    {
+      "code": "108",
+      "category": "input",
+      "factoryName": "createInputNode3",
+      "archetypeTag": "amplifier"
+    },
+    {
+      "code": "110",
+      "category": "input",
+      "factoryName": "createExtremeInput0",
+      "archetypeTag": "harmonizer"
+    },
+    {
+      "code": "111",
+      "category": "input",
+      "factoryName": "createExtremeInput1",
+      "archetypeTag": "harmonizer"
+    }
+  ]
+}

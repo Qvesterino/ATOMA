@@ -677,6 +677,7 @@ import { LinkHistoryTracker1_0 } from './LinkHistoryTracker1_0.js';
 
 import { AtomaLanguageEngine2_0, setupAtomaNamingConsoleAPI } from './_AtomaLanguageEngine2_0.js';
 import { NodeInspectLinguisticOverlay, setupLinguisticOverlayConsoleAPI } from './_NodeInspectLinguisticOverlay.js';
+import { atomaNamingEngine } from './_AtomaNamingEngine.js';
 import { AtomaLanguageEngine3_0, setupAtomaLanguageEngine3ConsoleAPI } from './_AtomaLanguageEngine3_0.js';
 // REMOVED (2026-03-01): CompleteVisualLock disabled for new visual modules
 // import { setupCompleteVisualLock, teardownCompleteVisualLock } from './_VisualLockCompleteIntegration.js';
@@ -13983,7 +13984,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         this.linguisticOverlay = new NodeInspectLinguisticOverlay(
             this.languageEngine,
-            this.consciousnessLayer // Optional: passes AI mood information
+            this.consciousnessLayer, // Optional: passes AI mood information
+            atomaNamingEngine
         );
 
         // Setup console API
