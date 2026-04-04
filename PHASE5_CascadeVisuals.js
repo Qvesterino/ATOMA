@@ -22,6 +22,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 // ============================================================================
 // SECTION 1: CASCADE PROPAGATION VISUALS
@@ -64,18 +65,36 @@ export class PHASE5_CascadePropagationVisuals {
       // Cascade depth multipliers
       depthDecayFactor: config.depthDecayFactor ?? 0.7,
       
+      // Ripple line effect
+      rippleEnabled: config.rippleEnabled ?? true,
+      rippleSegments: config.rippleSegments ?? 32,
+      rippleBaseRadius: config.rippleBaseRadius ?? 0.02,
+      rippleMaxRadiusScale: config.rippleMaxRadiusScale ?? 1.0,
+      rippleLifetime: config.rippleLifetime ?? 1.0,
+      rippleColor: config.rippleColor ?? 0xfff3c4,
+      rippleOpacity: config.rippleOpacity ?? 0.8,
+      rippleLineWidth: config.rippleLineWidth ?? 2.0,
+      
       // Activation safety gate
-      cascadeActivationThreshold: config.cascadeActivationThreshold ?? 0.3
+      cascadeActivationThreshold: config.cascadeActivationThreshold ?? 0.3,
+      
+      // Echo cadence
+      echoRingCount: config.echoRingCount ?? 3,
+      echoRingSpacing: config.echoRingSpacing ?? 0.12,
+      echoRingOpacityFalloff: config.echoRingOpacityFalloff ?? 0.18,
+      cascadeCooldownSeconds: config.cascadeCooldownSeconds ?? 3.0
     };
     
     // Visual objects
     this.ringGroup = new THREE.Group();
     this.ringGroup.name = 'CascadeRings';
+    this.ringGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE);
     this.scene.add(this.ringGroup);
     
     // Active rings (pool for reuse)
     this.activeRings = [];
     this.ringPool = [];
+    this.ripples = [];
     
     // Ring material cache
     this.ringMaterials = new Map();
@@ -83,6 +102,7 @@ export class PHASE5_CascadePropagationVisuals {
     // Cascade event tracking
     this.cascadeEvents = [];
     this.cascadeHistory = [];
+    this._cascadeCooldowns = new Map();
     
     // Performance monitoring
     this.stats = {
@@ -97,7 +117,9 @@ export class PHASE5_CascadePropagationVisuals {
     // Update timing
     this.lastUpdateTime = Date.now();
     this.semanticBus = config.semanticBus ?? globalThis?.semanticBus ?? null;
+    this._semanticEventsBound = false;
     this._boundCascadeHopHandler = null;
+    this._boundStabilityHandler = null;
     
     // Console API
     this.setupConsoleAPI();
@@ -131,15 +153,24 @@ export class PHASE5_CascadePropagationVisuals {
       if (normalizedStrength <= this.config.cascadeActivationThreshold) {
         return;
       }
+
+      const cooldownKey = this._getCascadeCooldownKey(sourceNodeId, sourcePosition, cascadeType);
+      if (this._isCascadeCooldownActive(cooldownKey)) {
+        return;
+      }
+      this._markCascadeCooldown(cooldownKey);
       
       // Create initial ring at source
       if (sourcePosition) {
-        this.createRing(
+        this.createRingEchoTriplet(
           sourcePosition,
           cascadeType,
           normalizedStrength,
           depth
         );
+        if (this.config.rippleEnabled) {
+          this.createRipple(sourcePosition, normalizedStrength, { verticalOffset: 0.02 });
+        }
       }
       
       // Create rings along cascade path (staggered timing)
@@ -153,12 +184,15 @@ export class PHASE5_CascadePropagationVisuals {
             );
             
             setTimeout(() => {
-              this.createRing(
+              this.createRingEchoTriplet(
                 node.position,
                 cascadeType,
                 depthStrength,
                 depth + index + 1
               );
+              if (this.config.rippleEnabled) {
+                this.createRipple(node.position, depthStrength, { verticalOffset: 0.02 });
+              }
             }, delay * 1000);
           }
         });
@@ -191,7 +225,7 @@ export class PHASE5_CascadePropagationVisuals {
   /**
    * Create a single expanding ring at position
    */
-  createRing(position, cascadeType = 'corruption', strength = 1.0, depth = 0) {
+  createRing(position, cascadeType = 'corruption', strength = 1.0, depth = 0, options = {}) {
     try {
       // Limit active rings
       if (this.activeRings.length >= this.config.maxActiveRings) {
@@ -217,11 +251,15 @@ export class PHASE5_CascadePropagationVisuals {
         cascadeType: cascadeType,
         strength: strength,
         depth: depth,
+        baseScale: Number.isFinite(options.baseScale) ? Math.max(0.75, options.baseScale) : 1.0,
+        opacityMultiplier: Number.isFinite(options.opacityMultiplier) ? Math.max(0.1, options.opacityMultiplier) : 1.0,
+        echoIndex: Number.isFinite(options.echoIndex) ? options.echoIndex : 0,
         elapsedTime: 0,
         startTime: Date.now(),
         material: this.getRingMaterial(cascadeType)
       };
       ringMesh.material = ringMesh.userData.material;
+      ringMesh.scale.setScalar(ringMesh.userData.baseScale);
       
       // Update ring appearance
       this.updateRingAppearance(ringMesh);
@@ -239,6 +277,34 @@ export class PHASE5_CascadePropagationVisuals {
       if (this.config.enableDebug) {
         console.warn('[PHASE5_CascadePropagationVisuals] Ring creation error:', err);
       }
+    }
+  }
+
+  /**
+   * Create a three-ring echo burst for stronger propagation readability
+   */
+  createRingEchoTriplet(position, cascadeType = 'corruption', strength = 1.0, depth = 0) {
+    const ringCount = Math.max(1, Number(this.config.echoRingCount) || 3);
+    const spacing = Math.max(0.02, Number(this.config.echoRingSpacing) || 0.12);
+    const opacityFalloff = Math.max(0, Math.min(0.8, Number(this.config.echoRingOpacityFalloff) || 0.18));
+
+    for (let echoIndex = 0; echoIndex < ringCount; echoIndex++) {
+      const baseScale = 1.0 + (echoIndex * spacing);
+      const opacityMultiplier = Math.max(0.18, 1.0 - (echoIndex * opacityFalloff));
+      const depthBias = depth + (echoIndex * 0.08);
+      const strengthBias = Math.max(0.2, strength * (1.0 - echoIndex * 0.06));
+
+      this.createRing(
+        position,
+        cascadeType,
+        strengthBias,
+        depthBias,
+        {
+          baseScale,
+          opacityMultiplier,
+          echoIndex
+        }
+      );
     }
   }
   
@@ -273,6 +339,81 @@ export class PHASE5_CascadePropagationVisuals {
     ring.userData = {};
     
     return ring;
+  }
+
+  /**
+   * Create a ripple line mesh effect inspired by SynergyCascadeVisualizer
+   */
+  createRipple(position, intensity, options = {}) {
+    if (!this.config.rippleEnabled || !position) return;
+
+    const ripple = {
+      center: position.clone(),
+      age: 0,
+      lifetime: this.config.rippleLifetime,
+      intensity: Math.max(0, Math.min(1, Number(intensity) || 0.1)),
+      mesh: null
+    };
+
+    const ringGeometry = new THREE.BufferGeometry();
+    const ringPoints = [];
+    const segments = Math.max(8, Number(this.config.rippleSegments) || 32);
+
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      const x = Math.cos(angle) * this.config.rippleBaseRadius;
+      const z = Math.sin(angle) * this.config.rippleBaseRadius;
+      ringPoints.push(new THREE.Vector3(x, 0.01, z));
+    }
+
+    ringGeometry.setFromPoints(ringPoints);
+
+    const rippleMaterial = new THREE.LineBasicMaterial({
+      color: this.config.rippleColor,
+      linewidth: this.config.rippleLineWidth,
+      transparent: true,
+      opacity: this.config.rippleOpacity * Math.min(1, 0.5 + ripple.intensity * 0.5),
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false
+    });
+
+    const rippleLine = new THREE.Line(ringGeometry, rippleMaterial);
+    rippleLine.position.copy(position);
+    rippleLine.position.y += Number(options.verticalOffset || 0);
+    rippleLine.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE);
+    rippleLine.frustumCulled = false;
+
+    ripple.mesh = rippleLine;
+    this.scene.add(rippleLine);
+    this.ripples.push(ripple);
+  }
+
+  /**
+   * Update ripple line effects
+   */
+  updateRipples(deltaTime) {
+    for (let i = this.ripples.length - 1; i >= 0; i--) {
+      const ripple = this.ripples[i];
+      ripple.age += deltaTime;
+      const fadeRatio = 1.0 - (ripple.age / ripple.lifetime);
+
+      if (fadeRatio <= 0) {
+        if (ripple.mesh) {
+          this.scene.remove(ripple.mesh);
+          ripple.mesh.geometry.dispose();
+          ripple.mesh.material.dispose();
+        }
+        this.ripples.splice(i, 1);
+        continue;
+      }
+
+      const radius = this.config.rippleBaseRadius + (this.config.rippleBaseRadius * this.config.rippleMaxRadiusScale * (1.0 - fadeRatio) * 8.0);
+      if (ripple.mesh) {
+        ripple.mesh.scale.setScalar(radius / this.config.rippleBaseRadius);
+        ripple.mesh.material.opacity = Math.max(0.05, this.config.rippleOpacity * fadeRatio * ripple.intensity);
+      }
+    }
   }
   
   /**
@@ -329,6 +470,7 @@ export class PHASE5_CascadePropagationVisuals {
       if (this.config.enableDepthFading && depth > 0) {
         opacityMultiplier = Math.pow(this.config.depthDecayFactor, depth);
       }
+      opacityMultiplier *= ringMesh.userData.opacityMultiplier ?? 1.0;
       
       ringMesh.material.opacity = this.config.baseOpacity * strength * opacityMultiplier;
       
@@ -363,7 +505,7 @@ export class PHASE5_CascadePropagationVisuals {
         
         // Expand ring
         const expansion = ring.userData.elapsedTime * this.config.expandSpeed;
-        const scale = 1.0 + (expansion / this.config.ringRadius);
+        const scale = (ring.userData.baseScale ?? 1.0) * (1.0 + (expansion / this.config.ringRadius));
         ring.scale.setScalar(scale);
         
         // Fade based on expansion
@@ -385,7 +527,8 @@ export class PHASE5_CascadePropagationVisuals {
         this.recycleRing(ring);
         this.activeRings.splice(index, 1);
       }
-      
+
+      this.updateRipples(deltaTime);
       this.stats.lastUpdateDuration = Date.now() - updateStart;
       
     } catch (err) {
@@ -416,12 +559,41 @@ export class PHASE5_CascadePropagationVisuals {
       }
     }
   }
+
+  _getCascadeCooldownKey(sourceNodeId, sourcePosition, cascadeType) {
+    if (sourceNodeId) {
+      return `node:${sourceNodeId}:${cascadeType}`;
+    }
+    if (sourcePosition?.isVector3) {
+      return `pos:${sourcePosition.x.toFixed(2)}:${sourcePosition.y.toFixed(2)}:${sourcePosition.z.toFixed(2)}:${cascadeType}`;
+    }
+    return `cascade:${cascadeType}`;
+  }
+
+  _isCascadeCooldownActive(key) {
+    if (!key) return false;
+    const lastTrigger = this._cascadeCooldowns.get(key);
+    if (!Number.isFinite(lastTrigger)) return false;
+    return (Date.now() - lastTrigger) < (this.config.cascadeCooldownSeconds * 1000);
+  }
+
+  _markCascadeCooldown(key) {
+    if (!key) return;
+    this._cascadeCooldowns.set(key, Date.now());
+  }
   
   /**
    * Subscribe to semantic bus cascade events
    */
   _subscribeSemanticCascadeEvents() {
-    if (!this.semanticBus || typeof this.semanticBus.on !== 'function') return;
+    if (this._semanticEventsBound) {
+      return;
+    }
+
+    if (!this.semanticBus || typeof this.semanticBus.on !== 'function') {
+      console.warn('[PHASE5_CascadePropagationVisuals] semanticBus unavailable or missing .on() — stability ripple will not spawn');
+      return;
+    }
     
     try {
       this._boundCascadeHopHandler = (event) => {
@@ -438,6 +610,38 @@ export class PHASE5_CascadePropagationVisuals {
       
       this.semanticBus.on('cascade.hop', this._boundCascadeHopHandler);
       this.semanticBus.on('cascade.start', this._boundCascadeHopHandler);
+
+      this._boundStabilityHandler = (event) => {
+        if (!event) return;
+        const node = event.node || event.target || event.source || event.sourceNode || null;
+        if (!node || !node.position) {
+          console.warn('[PHASE5_CascadePropagationVisuals] Stability event missing node position', event);
+          return;
+        }
+
+        let intensity = 0.5;
+        const eventName = event?.type || event?.name || 'node.stability.unknown';
+        if (eventName.endsWith?.('high')) {
+          intensity = 1.0;
+        } else if (eventName.endsWith?.('mid')) {
+          intensity = 0.75;
+        } else if (eventName.endsWith?.('low')) {
+          intensity = 0.45;
+        }
+
+        console.log('[PHASE5_CascadePropagationVisuals] Stability ripple spawn', {
+          event: eventName,
+          nodeId: node?.userData?.id ?? node?.id,
+          intensity,
+          position: node.position
+        });
+
+        this.createRipple(node.position, intensity, { verticalOffset: 0.02 });
+      };
+      this.semanticBus.on('node.stability.low', this._boundStabilityHandler);
+      this.semanticBus.on('node.stability.mid', this._boundStabilityHandler);
+      this.semanticBus.on('node.stability.high', this._boundStabilityHandler);
+      this._semanticEventsBound = true;
       
     } catch (err) {
       if (this.config.enableDebug) {
@@ -445,7 +649,49 @@ export class PHASE5_CascadePropagationVisuals {
       }
     }
   }
-  
+
+  _unsubscribeSemanticCascadeEvents() {
+    if (!this._semanticEventsBound) return;
+    const bus = this.semanticBus;
+    if (!bus) {
+      this._semanticEventsBound = false;
+      return;
+    }
+
+    try {
+      if (typeof bus.off === 'function') {
+        bus.off('cascade.hop', this._boundCascadeHopHandler);
+        bus.off('cascade.start', this._boundCascadeHopHandler);
+        bus.off('node.stability.low', this._boundStabilityHandler);
+        bus.off('node.stability.mid', this._boundStabilityHandler);
+        bus.off('node.stability.high', this._boundStabilityHandler);
+      }
+      if (typeof bus.unsubscribe === 'function') {
+        bus.unsubscribe('cascade.hop', this._boundCascadeHopHandler);
+        bus.unsubscribe('cascade.start', this._boundCascadeHopHandler);
+        bus.unsubscribe('node.stability.low', this._boundStabilityHandler);
+        bus.unsubscribe('node.stability.mid', this._boundStabilityHandler);
+        bus.unsubscribe('node.stability.high', this._boundStabilityHandler);
+      }
+    } catch (err) {
+      if (this.config.enableDebug) {
+        console.warn('[PHASE5_CascadePropagationVisuals] Semantic unsubscribe error:', err);
+      }
+    }
+
+    this._semanticEventsBound = false;
+  }
+
+  rebind(config = {}) {
+    const newBus = config.semanticBus ?? globalThis?.semanticBus ?? null;
+    if (newBus !== this.semanticBus) {
+      this._unsubscribeSemanticCascadeEvents();
+      this.semanticBus = newBus;
+    }
+    this._subscribeSemanticCascadeEvents();
+    return this;
+  }
+
   /**
    * Get statistics
    */
@@ -466,7 +712,20 @@ export class PHASE5_CascadePropagationVisuals {
       this.recycleRing(ring);
     }
     this.activeRings = [];
+    this.clearRipples();
     this.cascadeEvents = [];
+    this._cascadeCooldowns.clear();
+  }
+
+  clearRipples() {
+    for (const ripple of this.ripples) {
+      if (ripple.mesh) {
+        this.scene.remove(ripple.mesh);
+        ripple.mesh.geometry.dispose();
+        ripple.mesh.material.dispose();
+      }
+    }
+    this.ripples = [];
   }
   
   /**
@@ -478,6 +737,7 @@ export class PHASE5_CascadePropagationVisuals {
         getStats: () => this.getStats(),
         toggleDebug: () => { this.config.enableDebug = !this.config.enableDebug; },
         clear: () => this.clear(),
+        rebind: (bus) => this.rebind({ semanticBus: bus }),
         triggerTest: (type = 'corruption', x = 0, y = 0, z = 0) => {
           this.triggerCascade({
             sourcePosition: new THREE.Vector3(x, y, z),
@@ -496,15 +756,11 @@ export class PHASE5_CascadePropagationVisuals {
    */
   dispose() {
     this.clear();
+    this.clearRipples();
     this.ringPool = [];
     this.ringMaterials.clear();
     
-    if (this.semanticBus && this._boundCascadeHopHandler) {
-      try {
-        this.semanticBus.off('cascade.hop', this._boundCascadeHopHandler);
-        this.semanticBus.off('cascade.start', this._boundCascadeHopHandler);
-      } catch (_) {}
-    }
+    this._unsubscribeSemanticCascadeEvents();
     
     if (typeof window !== 'undefined') {
       delete window.PHASE5_CascadePropagationVisuals_API;
@@ -578,6 +834,7 @@ export class PHASE5_CascadeVisualizationBridge {
    * Subscribe to cascade events from corruption systems
    */
   subscribeToEvents() {
+    this._unsubscribeSemanticEvents();
     try {
       if (this.linkCorruptionTransmission) {
         if (this.config.enableLogging) {
@@ -622,7 +879,30 @@ export class PHASE5_CascadeVisualizationBridge {
       }
     }
   }
-  
+
+  _unsubscribeSemanticEvents() {
+    if (!this._semanticUnsubscribers?.length) return;
+    for (const unsub of this._semanticUnsubscribers) {
+      try {
+        if (typeof unsub === 'function') unsub();
+      } catch (_) {}
+    }
+    this._semanticUnsubscribers = [];
+  }
+
+  rebind(config = {}) {
+    const newBus = config.semanticBus ?? globalThis?.semanticBus ?? null;
+    if (newBus !== this.semanticBus) {
+      this._unsubscribeSemanticEvents();
+      this.semanticBus = newBus;
+    }
+    if (config.linkCorruptionTransmission !== undefined) {
+      this.linkCorruptionTransmission = config.linkCorruptionTransmission;
+    }
+    this.subscribeToEvents();
+    return this;
+  }
+
   /**
    * Update cascade detection and visualization
    */
@@ -971,6 +1251,7 @@ export class PHASE5_CascadeVisualizationBridge {
             this.manuallyTriggerCascade(node, cascadeType, strength);
           }
         },
+        rebind: (bus) => this.rebind({ semanticBus: bus }),
         clear: () => this.clear(),
         getRecentCascades: () => this.cascadeHistory.slice(-20)
       };

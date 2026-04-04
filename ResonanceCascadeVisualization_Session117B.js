@@ -35,6 +35,7 @@
 
 // FIX 1: Use proper ESM import instead of unreliable window.THREE fallback
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 /**
  * Configuration for cascade behavior
@@ -225,7 +226,7 @@ export class ResonanceCascadeVisualization_Session117B {
       this.cascadeVisualRoot = new THREE.Group();
       this.cascadeVisualRoot.name = 'ResonanceCascadeVisualization_Session117B_Root';
       this.cascadeVisualRoot.frustumCulled = false;
-      this.cascadeVisualRoot.renderOrder = 9600;
+      this.cascadeVisualRoot.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_BACKGROUND');
     }
 
     if (this.cascadeVisualRoot.parent !== scene) {
@@ -255,7 +256,7 @@ export class ResonanceCascadeVisualization_Session117B {
     const group = new THREE.Group();
     group.name = 'ResonanceCascadeWave';
     group.frustumCulled = false;
-    group.renderOrder = 9600;
+    group.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_BACKGROUND');
 
     const coreMaterial = new THREE.MeshBasicMaterial({
       color: 0xff78cf,
@@ -296,9 +297,9 @@ export class ResonanceCascadeVisualization_Session117B {
     halo.frustumCulled = false;
     ring.frustumCulled = false;
 
-    core.renderOrder = 9601;
-    halo.renderOrder = 9600;
-    ring.renderOrder = 9602;
+    core.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_BACKGROUND');
+    halo.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_BACKGROUND');
+    ring.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_BACKGROUND');
 
     halo.position.y = 0.012;
     core.position.y = 0.024;

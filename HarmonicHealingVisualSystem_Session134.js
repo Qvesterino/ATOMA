@@ -1,5 +1,6 @@
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 function getAtomaVisualDebugMode() {
     const mode = (typeof window !== 'undefined' && window.__ATOMA_VISUAL_DEBUG_MODE__)
@@ -93,9 +94,8 @@ export class HarmonicHealingVisualSystem_Session134 {
             maxWaves: 120,
             repairVisualsOnly: false,
             debugVisualBoost: true,
-            highCooldown: 3.0,
-            midCooldown: 5.0,
-            lowCooldown: 8.0,
+            linkCooldown: 3.0,
+            renderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
             ...config
         };
         
@@ -110,8 +110,68 @@ export class HarmonicHealingVisualSystem_Session134 {
         this._unsubscribeHarmonyLow = null;
         
         this._setupEventSubscriptions();
-        
+
         console.log('✨ [HarmonicHealing] System Initialized (Event-Driven Mode)');
+    }
+
+    attachScene(scene) {
+        if (!scene || typeof scene.add !== 'function') return false;
+        this.scene = scene;
+
+        if (this.particles) {
+            this.particles.scene = scene;
+            if (this.particles.mesh) {
+                this.particles.mesh.parent?.remove(this.particles.mesh);
+                scene.add(this.particles.mesh);
+                this.particles.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_PARTICLES);
+            }
+            if (this.particles.debugCube) {
+                this.particles.debugCube.parent?.remove(this.particles.debugCube);
+                scene.add(this.particles.debugCube);
+                this.particles.debugCube.renderOrder = 999;
+            }
+            if (this.particles.debugProbe) {
+                this.particles.debugProbe.parent?.remove(this.particles.debugProbe);
+                scene.add(this.particles.debugProbe);
+                this.particles.debugProbe.renderOrder = 999;
+            }
+        }
+
+        return true;
+    }
+
+    rebind({
+        scene = this.scene,
+        linkingSystem = this.linkingSystem,
+        particleSystem = this.particles,
+        semanticBus = this.semanticBus,
+        frameScheduler = this.frameScheduler
+    } = {}) {
+        this.frameScheduler = frameScheduler ?? this.frameScheduler ?? null;
+        this.linkingSystem = linkingSystem ?? this.linkingSystem ?? null;
+        this.particles = particleSystem ?? this.particles ?? null;
+        this.semanticBus = semanticBus || this.semanticBus || globalThis?.semanticBus || null;
+
+        if (scene && scene !== this.scene) {
+            this.attachScene(scene);
+        } else if (this.particles?.mesh && this.scene) {
+            // Ensure scene-owned particle meshes stay attached after world rebuild.
+            this.particles.mesh.parent?.remove(this.particles.mesh);
+            this.scene.add(this.particles.mesh);
+            this.particles.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_PARTICLES);
+            if (this.particles.debugCube) {
+                this.particles.debugCube.parent?.remove(this.particles.debugCube);
+                this.scene.add(this.particles.debugCube);
+                this.particles.debugCube.renderOrder = 999;
+            }
+            if (this.particles.debugProbe) {
+                this.particles.debugProbe.parent?.remove(this.particles.debugProbe);
+                this.scene.add(this.particles.debugProbe);
+                this.particles.debugProbe.renderOrder = 999;
+            }
+        }
+
+        return true;
     }
 
     _setupEventSubscriptions() {
@@ -167,11 +227,11 @@ export class HarmonicHealingVisualSystem_Session134 {
         return (typeof performance !== 'undefined' ? performance.now() / 1000 : Date.now() / 1000);
     }
 
-    _checkCooldown(linkId, cooldownDuration) {
+    _checkCooldown(linkId) {
         const lastTime = this._linkCooldowns.get(linkId);
         if (lastTime === undefined) return false;
         const now = this._getCurrentTime();
-        return (now - lastTime) < cooldownDuration;
+        return (now - lastTime) < this.config.linkCooldown;
     }
 
     _setCooldown(linkId) {
@@ -182,7 +242,7 @@ export class HarmonicHealingVisualSystem_Session134 {
         const linkId = payload?.linkId;
         if (!linkId) return;
         
-        if (this._checkCooldown(linkId, this.config.highCooldown)) return;
+        if (this._checkCooldown(linkId)) return;
         
         const link = this._getLinkById(linkId);
         if (link) {
@@ -195,7 +255,7 @@ export class HarmonicHealingVisualSystem_Session134 {
         const linkId = payload?.linkId;
         if (!linkId) return;
         
-        if (this._checkCooldown(linkId, this.config.midCooldown)) return;
+        if (this._checkCooldown(linkId)) return;
         
         const link = this._getLinkById(linkId);
         if (link) {
@@ -208,7 +268,7 @@ export class HarmonicHealingVisualSystem_Session134 {
         const linkId = payload?.linkId;
         if (!linkId) return;
         
-        if (this._checkCooldown(linkId, this.config.lowCooldown)) return;
+        if (this._checkCooldown(linkId)) return;
         
         const link = this._getLinkById(linkId);
         if (link) {
@@ -219,14 +279,15 @@ export class HarmonicHealingVisualSystem_Session134 {
 
     _getLinkById(linkId) {
         if (!this.linkingSystem || !this.linkingSystem.links) return null;
-        return this.linkingSystem.links.find(l => l && (l.id === linkId || l.linkId === linkId));
+        return this.linkingSystem.links.find(l => l && (l.id === linkId || l.linkId === linkId || l.uuid === linkId));
     }
 
     _spawnWaveOnLink(link, intensity, level) {
         if (this.waves.length >= this.config.maxWaves) return;
         
-        const source = link.source || link.sourceNode || link.nodeA;
-        const target = link.target || link.targetNode || link.nodeB;
+        const endpoints = this._getLinkEndpoints(link);
+        const source = endpoints.startNode;
+        const target = endpoints.endNode;
         if (!source || !target) return;
 
         const reverse = Math.random() > 0.5;
@@ -243,6 +304,18 @@ export class HarmonicHealingVisualSystem_Session134 {
         if (this.particles?.emitSplash && start?.position) {
             this.particles.emitSplash(start.position, Math.min(1, finalIntensity * 0.75), this._getCurrentTime());
         }
+    }
+
+    _getLinkEndpoints(link) {
+        const startNode = link?.sourceNode || link?.source || link?.from || link?.nodeA || null;
+        const endNode = link?.targetNode || link?.target || link?.to || link?.nodeB || null;
+
+        return {
+            startNode,
+            endNode,
+            startPos: startNode?.position || null,
+            endPos: endNode?.position || null
+        };
     }
     
     /**
@@ -437,11 +510,12 @@ export class HarmonicHealingVisualSystem_Session134 {
 
         const links = this.linkingSystem.links;
         const targetLink = this._pickHealingTargetLink(links);
-        if (!targetLink || !targetLink.source || !targetLink.target) return;
+        const endpoints = this._getLinkEndpoints(targetLink);
+        if (!targetLink || !endpoints.startNode || !endpoints.endNode) return;
 
         const reverse = Math.random() > 0.5;
-        const start = reverse ? targetLink.target : targetLink.source;
-        const end = reverse ? targetLink.source : targetLink.target;
+        const start = reverse ? endpoints.endNode : endpoints.startNode;
+        const end = reverse ? endpoints.startNode : endpoints.endNode;
         
         const speed = this.config.waveSpeed * (0.8 + Math.random() * 0.4);
         const debugBoost = this.config.debugVisualBoost ? 1.35 : 1.0;
@@ -465,7 +539,8 @@ export class HarmonicHealingVisualSystem_Session134 {
         let bestScore = -Infinity;
 
         for (const link of links) {
-            if (!link?.source || !link?.target) continue;
+            const endpoints = this._getLinkEndpoints(link);
+            if (!endpoints.startNode || !endpoints.endNode) continue;
 
             const metrics = link.userData?.metrics || {};
             const visualStability = Number.isFinite(link.userData?.visualState?.stability)
@@ -516,9 +591,7 @@ export class HarmonicHealingVisualSystem_Session134 {
                 waveSpeed: this.config.waveSpeed,
                 maxWaves: this.config.maxWaves,
                 repairVisualsOnly: this.config.repairVisualsOnly,
-                highCooldown: this.config.highCooldown,
-                midCooldown: this.config.midCooldown,
-                lowCooldown: this.config.lowCooldown
+                linkCooldown: this.config.linkCooldown
             }
         };
     }

@@ -69,7 +69,7 @@ void main() {
     
     // Fade over life
     alpha *= (1.0 - uLife); // Fade out as it ages
-    alpha *= 0.42; // Keep recovery readable without burying healing particles
+    alpha *= 0.36; // Slightly softer so the midpoint wave stays present but calmer
 
     gl_FragColor = vec4(uColor, alpha);
 }
@@ -99,7 +99,7 @@ void main() {
     
     // Fade out over life
     alpha *= (1.0 - uLife);
-    alpha *= 0.65; // Softer halo so it does not dominate the healing layer
+    alpha *= 0.60; // Softer halo so it does not dominate the healing layer
     
     gl_FragColor = vec4(uColor, alpha);
 }
@@ -125,9 +125,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             renderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
             debugForceRecoveryPulse: false,
             debugForceRecoveryInterval: 2.0,
-            waveCooldown: 6.0,
-            stitchingCooldown: 3.0,
-            haloCooldown: 5.0
+            linkCooldown: 4.0
         };
         
         this.activeRuptureIds = new Set();
@@ -136,9 +134,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         this.waveMeshPool = [];
         this.haloMeshPool = [];
         
-        this._waveCooldowns = new Map();
-        this._stitchingCooldowns = new Map();
-        this._haloCooldowns = new Map();
+        this._linkCooldowns = new Map();
         
         this._eventDrivenEnabled = false;
         this._unsubscribeHarmonyHigh = null;
@@ -183,6 +179,91 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         console.log('✨ [Session 138] HarmonicRecoveryVisualSystem initialized');
     }
 
+    attachScene(scene) {
+        if (!scene || typeof scene.add !== 'function') return false;
+        this.scene = scene;
+
+        for (const item of this.waveMeshPool) {
+            if (!item?.mesh) continue;
+            item.mesh.parent?.remove(item.mesh);
+            item.mesh.renderOrder = this.config.renderOrder;
+            scene.add(item.mesh);
+        }
+        for (const item of this.haloMeshPool) {
+            if (!item?.mesh) continue;
+            item.mesh.parent?.remove(item.mesh);
+            item.mesh.renderOrder = this.config.renderOrder;
+            scene.add(item.mesh);
+        }
+
+        return true;
+    }
+
+    rebind({
+        scene = this.scene,
+        ruptureSystem = this.ruptureSystem,
+        healingParticleSystem = this.healingParticles,
+        nodeLinkingSystem = this.linkingSystem,
+        semanticBus = this.semanticBus,
+        frameScheduler = this.frameScheduler
+    } = {}) {
+        this.frameScheduler = frameScheduler ?? this.frameScheduler ?? null;
+        this.ruptureSystem = ruptureSystem ?? this.ruptureSystem ?? null;
+        this.healingParticles = healingParticleSystem ?? this.healingParticles ?? null;
+        this.linkingSystem = nodeLinkingSystem ?? this.linkingSystem ?? null;
+
+        const nextSemanticBus = semanticBus || this.semanticBus || globalThis?.semanticBus || null;
+        if (nextSemanticBus !== this.semanticBus) {
+            this._teardownEventSubscriptions();
+            this.semanticBus = nextSemanticBus;
+            this._setupEventSubscriptions();
+        } else {
+            this.semanticBus = nextSemanticBus;
+        }
+
+        if (scene && scene !== this.scene) {
+            this.attachScene(scene);
+        } else if (this.scene) {
+            for (const item of this.waveMeshPool) {
+                if (!item?.mesh) continue;
+                item.mesh.renderOrder = this.config.renderOrder;
+                if (item.mesh.parent !== this.scene) {
+                    item.mesh.parent?.remove(item.mesh);
+                    this.scene.add(item.mesh);
+                }
+            }
+            for (const item of this.haloMeshPool) {
+                if (!item?.mesh) continue;
+                item.mesh.renderOrder = this.config.renderOrder;
+                if (item.mesh.parent !== this.scene) {
+                    item.mesh.parent?.remove(item.mesh);
+                    this.scene.add(item.mesh);
+                }
+            }
+        }
+
+        if (this.healingParticles) {
+            this.healingParticles.scene = this.scene;
+            if (this.healingParticles.mesh && this.scene) {
+                this.healingParticles.mesh.parent?.remove(this.healingParticles.mesh);
+                this.scene.add(this.healingParticles.mesh);
+                this.healingParticles.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_PARTICLES);
+            }
+            if (this.healingParticles.debugCube && this.scene) {
+                this.healingParticles.debugCube.parent?.remove(this.healingParticles.debugCube);
+                this.scene.add(this.healingParticles.debugCube);
+                this.healingParticles.debugCube.renderOrder = 999;
+            }
+            if (this.healingParticles.debugProbe && this.scene) {
+                this.healingParticles.debugProbe.parent?.remove(this.healingParticles.debugProbe);
+                this.scene.add(this.healingParticles.debugProbe);
+                this.healingParticles.debugProbe.renderOrder = 999;
+            }
+        }
+
+        return true;
+    }
+
     _setupEventSubscriptions() {
         if (!this.semanticBus || typeof this.semanticBus.subscribe !== 'function') {
             this._eventDrivenEnabled = false;
@@ -219,26 +300,36 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         this._eventDrivenEnabled = true;
     }
 
+    _teardownEventSubscriptions() {
+        if (typeof this._unsubscribeHarmonyHigh === 'function') {
+            this._unsubscribeHarmonyHigh();
+        }
+        if (typeof this._unsubscribeHarmonyMid === 'function') {
+            this._unsubscribeHarmonyMid();
+        }
+        this._unsubscribeHarmonyHigh = null;
+        this._unsubscribeHarmonyMid = null;
+        this._eventDrivenEnabled = false;
+    }
+
     _handleHarmonyHigh(payload = {}) {
         const linkId = payload?.linkId;
         const now = Number.isFinite(VisualTime?.now) ? VisualTime.now : performance.now() / 1000;
         
         if (!linkId) return;
-        
-        if (!this._checkCooldown(this._waveCooldowns, linkId, this.config.waveCooldown, now)) {
-            this._spawnCoherenceWave(linkId, now);
-            this._setCooldown(this._waveCooldowns, linkId, now);
+
+        if (this._checkCooldown(linkId, now)) return;
+
+        this._spawnCoherenceWave(linkId, now);
+
+        const link = this._getLinkById(linkId);
+        if (link) {
+            const endpoints = this._getLinkEndpoints(link);
+            if (endpoints.startNode) this._spawnHalo(endpoints.startNode, now);
+            if (endpoints.endNode) this._spawnHalo(endpoints.endNode, now);
         }
-        
-        if (!this._checkCooldown(this._haloCooldowns, linkId, this.config.haloCooldown, now)) {
-            const link = this._getLinkById(linkId);
-            if (link) {
-                const endpoints = this._getLinkEndpoints(link);
-                if (endpoints.startNode) this._spawnHalo(endpoints.startNode, now);
-                if (endpoints.endNode) this._spawnHalo(endpoints.endNode, now);
-            }
-            this._setCooldown(this._haloCooldowns, linkId, now);
-        }
+
+        this._setCooldown(linkId, now);
     }
 
     _handleHarmonyMid(payload = {}) {
@@ -246,21 +337,21 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         const now = Number.isFinite(VisualTime?.now) ? VisualTime.now : performance.now() / 1000;
         
         if (!linkId) return;
-        
-        if (!this._checkCooldown(this._stitchingCooldowns, linkId, this.config.stitchingCooldown, now)) {
-            this._spawnReStitching(linkId, now);
-            this._setCooldown(this._stitchingCooldowns, linkId, now);
-        }
+
+        if (this._checkCooldown(linkId, now)) return;
+
+        this._spawnReStitching(linkId, now);
+        this._setCooldown(linkId, now);
     }
 
-    _checkCooldown(cooldownMap, id, cooldownDuration, now) {
-        const lastTime = cooldownMap.get(id);
+    _checkCooldown(id, now) {
+        const lastTime = this._linkCooldowns.get(id);
         if (lastTime === undefined) return false;
-        return (now - lastTime) < cooldownDuration;
+        return (now - lastTime) < this.config.linkCooldown;
     }
 
-    _setCooldown(cooldownMap, id, now) {
-        cooldownMap.set(id, now);
+    _setCooldown(id, now) {
+        this._linkCooldowns.set(id, now);
     }
 
     _spawnCoherenceWave(linkId, currentVisualTime) {
@@ -636,7 +727,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
     
     _getLinkById(linkId) {
         if (!this.linkingSystem || !this.linkingSystem.links) return null;
-        return this.linkingSystem.links.find(l => l && l.id === linkId);
+        return this.linkingSystem.links.find(l => l && (l.id === linkId || l.linkId === linkId || l.uuid === linkId));
     }
 
     _debugForceAllLinksRecovery(currentVisualTime) {
@@ -667,9 +758,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             haloPoolActive: haloActive,
             hasHealingParticles: !!this.healingParticles,
             cooldowns: {
-                wave: this._waveCooldowns.size,
-                stitching: this._stitchingCooldowns.size,
-                halo: this._haloCooldowns.size
+                link: this._linkCooldowns.size
             },
             config: {
                 minRecoveryDuration: this.config.minRecoveryDuration,
@@ -677,9 +766,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                 waveExpansionSpeed: this.config.waveExpansionSpeed,
                 stitchingInterval: this.config.stitchingInterval,
                 maxActiveZones: this.config.maxActiveZones,
-                waveCooldown: this.config.waveCooldown,
-                stitchingCooldown: this.config.stitchingCooldown,
-                haloCooldown: this.config.haloCooldown
+                linkCooldown: this.config.linkCooldown
             }
         };
     }
@@ -698,11 +785,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
          this.waveMaterial.dispose();
          this.haloMaterial.dispose();
          
-         if (typeof this._unsubscribeHarmonyHigh === 'function') {
-             this._unsubscribeHarmonyHigh();
-         }
-         if (typeof this._unsubscribeHarmonyMid === 'function') {
-             this._unsubscribeHarmonyMid();
-         }
+         this._teardownEventSubscriptions();
+         this._linkCooldowns.clear();
      }
  }

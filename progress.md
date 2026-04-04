@@ -1,12 +1,20 @@
 Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako GlyphLayer4_MultiFusion. mohol by si to spraviť tak prosim ťa
 
 ## 2026-04-04
+- `PHASE5_CascadePropagationVisuals` now spawns a 3-ring echo burst on each trigger and uses a per-source 3 second cooldown so the cascade reads as a tighter repeated pulse instead of a single expanding ring.
+- `TopologyBiasVisualizationLayer` now has a stronger default pass for bias vectors and flow fields, plus a fallback visual path from recent influence activity so the topology layer remains readable even when active learning regions are sparse.
+- `HarmonicRecoveryVisualSystem_Session138` was softened slightly so the midpoint coherence wave stays present but no longer dominates the recovery stack.
+
+## 2026-04-04
 - `WaveParticleEmitter_v1` was moved toward direct semantic metric-tier listeners for node-driven particle emission.
 - The emitter now binds to `node.synergy.*`, `node.harmony.*`, `node.stability.*`, `node.corruption.*`, and `node.loadPressure.*` via `semanticBus` and keeps the wave snapshot path only as fallback when no tier listeners are active.
 - The constructive burst variant-C init typo was fixed by restoring the correct `constructiveBurstVariantC` pool key.
 - `main.js` now passes `semanticBus` into `WaveParticleEmitter_v1` so the direct metric listener path is officially wired.
 - Browser smoke verified that `node.synergy.high` now dispatches into the emitter listener and spawns constructive particles again; the visible path is captured in `output/web-game/direct-metric-tier-visible.png`.
 - The emitter still keeps the legacy wave snapshot path as fallback, but node-tier semantic events are now the primary local trigger path for wave particles.
+- `HarmonicHealingVisualSystem_Session134` now resolves link endpoints through the same fallback chain as the rest of the link stack (`sourceNode/source/from/nodeA` and `targetNode/target/to/nodeB`) instead of hard-blocking on `source/target`.
+- `HarmonicHealingVisualSystem_Session134` and `HarmonicRecoveryVisualSystem_Session138` now expose explicit rebind / scene-reattach paths for world switches, and `main.js` calls them from the world lifecycle rebind hook.
+- `HarmonicRecoveryVisualSystem_Session138` now reattaches its pooled meshes and healing particle scene ownership when the world scene changes, so the visuals do not stay pinned to an old world root.
 
 ## 2026-04-02
 - `ResonanceCascadeVisualization_Session117B` is now fully functional in runtime and visibly spawns a readable scene ripple.
@@ -121,4 +129,8 @@ Original prompt: reduce synergy cascade visual clutter and make the repeated bea
 - Fixed a missing `LinkQualityCalculator._clamp01()` helper that was preventing link-tier emission from completing.
 - Aligned link-tier payload `linkId` with the runtime link id (`link.id`) so recovery/healing consumers can resolve the same link object.
 - Verified in browser smoke: `link.harmony.mid` is emitted immediately on fresh link creation, `HealingParticleSystem_Session136` gains a wave, and NodeInspect stays visible with live metrics.
+- Unified `HarmonicHealingVisualSystem_Session134` and `HarmonicRecoveryVisualSystem_Session138` to one per-link cooldown model each:
+  - Healing uses `config.linkCooldown` instead of separate high/mid/low cooldowns.
+  - Recovery uses `config.linkCooldown` instead of separate wave/stitching/halo cooldowns.
+- Runtime smoke confirmed the shared gate behavior: first tier event spawns, the immediate follow-up is blocked, and the next event after cooldown spawns again.
 

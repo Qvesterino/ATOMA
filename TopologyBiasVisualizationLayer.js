@@ -42,30 +42,30 @@
 import * as THREE from 'three';
 
 const CONFIG = {
-    // Bias vector rendering - POLISH: Subtler, calmer vectors
-    BIAS_VECTOR_LENGTH: 1.8,           // POLISHED: reduced from 2.0 (shorter, less intrusive)
-    BIAS_VECTOR_WIDTH: 0.08,           // Thickness of vector line
-    BIAS_VECTOR_OPACITY: 0.09,         // POLISHED: reduced from 0.12 (9% - more subtle)
-    BIAS_VECTOR_POOL_SIZE: 256,        // Max concurrent vectors
-    BIAS_VECTOR_DENSITY: 0.6,          // POLISHED: reduced from 0.7 (fewer vectors)
+    // Bias vector rendering - boosted so the layer is visibly alive by default
+    BIAS_VECTOR_LENGTH: 3.9,
+    BIAS_VECTOR_WIDTH: 0.24,
+    BIAS_VECTOR_OPACITY: 0.44,
+    BIAS_VECTOR_POOL_SIZE: 320,
+    BIAS_VECTOR_DENSITY: 1.0,
     
-    // Vector animation - POLISH: Slower, gentler motion
-    VECTOR_BREATHING_SPEED: 0.6,       // POLISHED: reduced from 0.8 (slower breathing)
-    VECTOR_BREATHING_AMPLITUDE: 0.12,  // POLISHED: reduced from 0.15 (12% - calmer)
-    VECTOR_DRIFT_SPEED: 0.25,          // POLISHED: reduced from 0.3 (slower drift)
-    VECTOR_DRIFT_AMOUNT: 0.08,         // POLISHED: reduced from 0.1 (less deviation)
+    // Vector animation - stronger motion so the topology bias can be read
+    VECTOR_BREATHING_SPEED: 0.8,
+    VECTOR_BREATHING_AMPLITUDE: 0.18,
+    VECTOR_DRIFT_SPEED: 0.34,
+    VECTOR_DRIFT_AMOUNT: 0.12,
     
-    // Flow field rendering - POLISH: More subtle visualization
-    FLOW_FIELD_RESOLUTION: 4.0,        // Grid spacing (coarse)
-    FLOW_FIELD_OPACITY: 0.06,          // POLISHED: reduced from 0.08 (6% - more subtle)
-    FLOW_FIELD_SPEED: 0.4,             // POLISHED: reduced from 0.5 (slower animation)
+    // Flow field rendering - lifted so the learned field is perceptible
+    FLOW_FIELD_RESOLUTION: 3.0,
+    FLOW_FIELD_OPACITY: 0.34,
+    FLOW_FIELD_SPEED: 0.55,
     FLOW_FIELD_CELLS_MAX: 64,          // Max cells for display
     
     // State modulation - POLISH: Less dramatic state influence
-    HARMONY_COHERENCE_BOOST: 1.3,      // POLISHED: reduced from 1.4 (calmer boost)
-    CORRUPTION_BLUR: 0.6,              // POLISHED: increased from 0.5 (less harsh blur)
-    SYNERGY_CLARITY: 1.15,             // POLISHED: reduced from 1.2 (15% - more subtle)
-    INSTABILITY_BLUR: 0.7,             // POLISHED: increased from 0.6 (less dramatic dampen)
+    HARMONY_COHERENCE_BOOST: 1.45,
+    CORRUPTION_BLUR: 0.68,
+    SYNERGY_CLARITY: 1.22,
+    INSTABILITY_BLUR: 0.76,
     
     // Interaction (contextual highlighting) - POLISH: Gentler response
     INFLUENCE_ACTIVATION_RANGE: 8.0,   // How far influence affects vectors
@@ -77,8 +77,8 @@ const CONFIG = {
     COARSE_UPDATE_INTERVAL: 1.0,       // Flow field coarse update
     
     // Debug
-    DEBUG_DRAW_BIAS_VECTORS: false,
-    DEBUG_DRAW_FLOW_FIELDS: false,
+    DEBUG_DRAW_BIAS_VECTORS: true,
+    DEBUG_DRAW_FLOW_FIELDS: true,
     DEBUG_SHOW_REGIONS: false
 };
 
@@ -230,12 +230,17 @@ class FlowFieldCell {
 // ============================================================================
 
 export class TopologyBiasVisualizationLayer {
-    constructor(scene, worldRoot, camera, topologySystem) {
+    constructor(scene, worldRoot, camera, topologySystem, config = {}) {
         this.scene = scene;
         this.worldRoot = worldRoot;
         this._attachRoot = worldRoot || scene;
         this.camera = camera;
         this.topologySystem = topologySystem;
+        this.semanticBus = config.semanticBus ?? globalThis?.semanticBus ?? null;
+        this.config = config;
+        this.currentStability = 'mid';
+        this.stabilityPulse = 0.0;
+        this.stabilityEventSubscriptions = [];
         
         this.enabled = true;
         this.debugBiasVectors = CONFIG.DEBUG_DRAW_BIAS_VECTORS;
@@ -255,6 +260,7 @@ export class TopologyBiasVisualizationLayer {
         this.biasVectorEnd = new THREE.Vector3();
         this.biasVectorDirection = new THREE.Vector3();
         this.updateBiasVectorTimer = 0;
+        this.baseBiasOpacity = CONFIG.BIAS_VECTOR_OPACITY;
         
         // Flow field system
         this.flowFieldCells = new Map();      // regionId -> FlowFieldCell
@@ -263,12 +269,14 @@ export class TopologyBiasVisualizationLayer {
         this.flowFieldMaterial = null;
         this.flowFieldLookTarget = new THREE.Vector3();
         this.updateFlowFieldTimer = 0;
+        this.baseFlowOpacity = CONFIG.FLOW_FIELD_OPACITY;
         
         // Interaction tracking
         this.recentInfluencePositions = [];   // Tracks active influence for highlighting
         
         this.initializeBiasVectorSystem();
         this.initializeFlowFieldSystem();
+        this.initializeStabilityEventSubscriptions();
     }
     
     // ========================================================================
@@ -278,10 +286,12 @@ export class TopologyBiasVisualizationLayer {
     initializeBiasVectorSystem() {
         // Create material for bias vectors
         this.biasVectorMaterial = new THREE.LineBasicMaterial({
-            color: 0x00FFFF,
+            color: 0x79ffff,
             opacity: CONFIG.BIAS_VECTOR_OPACITY,
             transparent: true,
-            fog: false
+            fog: false,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
         });
         
         // Create pool of instances
@@ -305,8 +315,52 @@ export class TopologyBiasVisualizationLayer {
         // POLISHED: Get all active topology regions
         const regions = this.topologySystem.getActiveRegions?.();
         
-        // POLISHED: Idle optimization - if no regions, skip work and deactivate all vectors
+        // POLISHED: Idle optimization - if no regions, fall back to recent influence activity
         if (!regions || regions.length === 0) {
+            if (this.recentInfluencePositions.length > 0) {
+                let vectorIdx = 0;
+                const fallbackVectors = Math.min(
+                    this.biasVectorInstances.length,
+                    Math.max(6, this.recentInfluencePositions.length * 3)
+                );
+
+                for (let i = 0; i < this.recentInfluencePositions.length && vectorIdx < fallbackVectors; i++) {
+                    const inf = this.recentInfluencePositions[i];
+                    const baseStrength = Math.max(0.15, inf.strength * 0.9);
+
+                    const directions = [
+                        this.biasVectorDirection.set(1, 0, 0),
+                        this.biasVectorDirection.set(-0.45, 0, 0.89),
+                        this.biasVectorDirection.set(0.58, 0, -0.82)
+                    ];
+
+                    for (let d = 0; d < directions.length && vectorIdx < fallbackVectors; d++) {
+                        const instance = this.biasVectorInstances[vectorIdx];
+                        instance.activate(
+                            inf.position,
+                            directions[d],
+                            baseStrength * (1.0 - d * 0.12)
+                        );
+                        vectorIdx++;
+                    }
+                }
+
+                for (let i = vectorIdx; i < this.biasVectorInstances.length; i++) {
+                    this.biasVectorInstances[i].deactivate();
+                }
+
+                for (let instance of this.biasVectorInstances) {
+                    instance.update(deltaTime);
+                }
+
+                if (this.debugBiasVectors) {
+                    this.rebuildBiasVectorDebugVisualization();
+                } else {
+                    this.clearDebugContainer(this.biasVectorContainer, [], [this.biasVectorMaterial]);
+                }
+                return;
+            }
+
             for (let instance of this.biasVectorInstances) {
                 if (instance.active) instance.deactivate();
             }
@@ -328,7 +382,7 @@ export class TopologyBiasVisualizationLayer {
         for (let i = 0; i < regions.length && vectorIdx < totalVectors; i += step) {
             const region = regions[i];
             
-            if (!region.active || region.flowStrength < 0.05) continue;
+            if (!region.active || region.flowStrength < 0.01) continue;
             
             // Get or activate vector instance
             if (vectorIdx >= this.biasVectorInstances.length) break;
@@ -387,9 +441,9 @@ export class TopologyBiasVisualizationLayer {
             geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
             
             const line = new THREE.Line(geometry, this.biasVectorMaterial);
-            line.material.opacity = Math.max(0.05, opacity);
+            line.material.opacity = Math.max(0.12, opacity);
             line.frustumCulled = false;
-            line.renderOrder = -5;  // POLISHED: Render behind links (background layer)
+            line.renderOrder = 30;  // Lifted so topology bias reads clearly in-scene
             this.biasVectorContainer.add(line);
         }
     }
@@ -448,7 +502,9 @@ export class TopologyBiasVisualizationLayer {
             `,
             transparent: true,
             fog: false,
-            side: THREE.DoubleSide
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
         });
         
         this.flowFieldContainer = new THREE.Group();
@@ -458,8 +514,97 @@ export class TopologyBiasVisualizationLayer {
         this.flowFieldGeometry = new THREE.PlaneGeometry(1, 1);
     }
 
+    initializeStabilityEventSubscriptions() {
+        this._unsubscribeStabilityEventSubscriptions();
+
+        if (!this.semanticBus) {
+            return;
+        }
+
+        const bindHandler = (bus, eventName, handler) => {
+            if (typeof bus.subscribe === 'function') {
+                const unsub = bus.subscribe(eventName, handler);
+                if (typeof unsub === 'function') {
+                    this.stabilityEventSubscriptions.push(unsub);
+                }
+            } else if (typeof bus.on === 'function') {
+                bus.on(eventName, handler);
+                this.stabilityEventSubscriptions.push(() => {
+                    if (typeof bus.off === 'function') {
+                        bus.off(eventName, handler);
+                    }
+                });
+            }
+        };
+
+        bindHandler(this.semanticBus, 'global.stability.low', (payload) => this.handleStabilityEvent('low', payload));
+        bindHandler(this.semanticBus, 'global.stability.mid', (payload) => this.handleStabilityEvent('mid', payload));
+        bindHandler(this.semanticBus, 'global.stability.high', (payload) => this.handleStabilityEvent('high', payload));
+    }
+
+    _unsubscribeStabilityEventSubscriptions() {
+        if (!this.stabilityEventSubscriptions?.length) return;
+        for (const unsub of this.stabilityEventSubscriptions) {
+            try {
+                if (typeof unsub === 'function') unsub();
+            } catch (_) {}
+        }
+        this.stabilityEventSubscriptions = [];
+    }
+
+    rebind(config = {}) {
+        const newBus = config.semanticBus ?? globalThis?.semanticBus ?? this.semanticBus;
+        if (newBus !== this.semanticBus) {
+            this.semanticBus = newBus;
+        }
+        this.initializeStabilityEventSubscriptions();
+        return this;
+    }
+
+    handleStabilityEvent(level, payload) {
+        this.currentStability = level;
+        this.stabilityPulse = 1.0;
+
+        switch (level) {
+            case 'high':
+                if (this.biasVectorMaterial) {
+                    this.biasVectorMaterial.color.set(0x66ffdd);
+                }
+                if (this.flowFieldMaterial?.uniforms?.opacity) {
+                    this.flowFieldMaterial.uniforms.opacity.value = this.baseFlowOpacity * 1.2;
+                }
+                break;
+            case 'mid':
+                if (this.biasVectorMaterial) {
+                    this.biasVectorMaterial.color.set(0x33ccff);
+                }
+                if (this.flowFieldMaterial?.uniforms?.opacity) {
+                    this.flowFieldMaterial.uniforms.opacity.value = this.baseFlowOpacity * 1.0;
+                }
+                break;
+            case 'low':
+                if (this.biasVectorMaterial) {
+                    this.biasVectorMaterial.color.set(0xff6666);
+                }
+                if (this.flowFieldMaterial?.uniforms?.opacity) {
+                    this.flowFieldMaterial.uniforms.opacity.value = this.baseFlowOpacity * 1.6;
+                }
+                break;
+        }
+
+        if (this.camera && this.camera.position) {
+            this.recordInfluenceActivity(this.camera.position, 0.85);
+        }
+
+        if (this.config?.enableDebug) {
+            console.log('[TopologyBiasVisualizationLayer] Stability event:', level, payload);
+        }
+    }
+
+    // ========================================================================
+    // UPDATE & RENDERING
+    // ========================================================================
     clearDebugContainer(container, sharedGeometries = [], sharedMaterials = []) {
-        if (!container) return;
 
         const sharedGeometrySet = new Set(sharedGeometries);
         const sharedMaterialSet = new Set(sharedMaterials);
@@ -495,9 +640,49 @@ export class TopologyBiasVisualizationLayer {
         // POLISHED: Get active regions
         const regions = this.topologySystem.getActiveRegions?.();
         
-        // POLISHED: Idle optimization - if no regions, clean up cells
+        // POLISHED: Idle optimization - if no regions, show fallback cells from recent influence
         if (!regions || regions.length === 0) {
-            this.flowFieldCells.clear();
+            if (this.recentInfluencePositions.length > 0) {
+                const cellsToKeep = new Set();
+                const fallbackCellCount = Math.min(
+                    CONFIG.FLOW_FIELD_CELLS_MAX,
+                    this.recentInfluencePositions.length
+                );
+
+                for (let i = 0; i < fallbackCellCount; i++) {
+                    const inf = this.recentInfluencePositions[i];
+                    const cellId = `influence_${i}`;
+
+                    if (!this.flowFieldCells.has(cellId)) {
+                        this.flowFieldCells.set(cellId, new FlowFieldCell(inf.position));
+                    }
+
+                    const cell = this.flowFieldCells.get(cellId);
+                    const fallbackAngle = (i * 1.17) + (inf.age * 1.4);
+                    const fallbackBias = new THREE.Vector3(
+                        Math.cos(fallbackAngle),
+                        0,
+                        Math.sin(fallbackAngle)
+                    ).normalize();
+
+                    cell.update(deltaTime, {
+                        active: true,
+                        center: inf.position,
+                        flowBias: fallbackBias,
+                        flowStrength: Math.max(0.1, inf.strength)
+                    }, networkState);
+
+                    cellsToKeep.add(cellId);
+                }
+
+                for (let cellId of this.flowFieldCells.keys()) {
+                    if (!cellsToKeep.has(cellId)) {
+                        this.flowFieldCells.delete(cellId);
+                    }
+                }
+            } else {
+                this.flowFieldCells.clear();
+            }
             return;
         }
         
@@ -566,7 +751,7 @@ export class TopologyBiasVisualizationLayer {
             
             const material = new THREE.MeshBasicMaterial({
                 color: color,
-                opacity: CONFIG.FLOW_FIELD_OPACITY * (0.5 + cell.clarity * 0.5),
+                opacity: CONFIG.FLOW_FIELD_OPACITY * (0.6 + cell.clarity * 0.6),
                 transparent: true,
                 fog: false
             });
@@ -577,6 +762,7 @@ export class TopologyBiasVisualizationLayer {
             mesh.position.copy(cell.center);
             mesh.position.y = 0.1;  // Slight height offset
             mesh.rotationOrder = 'YXZ';
+            mesh.renderOrder = 29;
             
             // Orient with flow direction
             if (cell.flowDirection.length() > 0.1) {
@@ -663,6 +849,24 @@ export class TopologyBiasVisualizationLayer {
         this.updateBiasVectors(clampedDelta);
         this.updateFlowFields(clampedDelta, networkState || {});
         this.applyInfluenceHighlighting();
+
+        if (this.stabilityPulse > 0) {
+            this.stabilityPulse = Math.max(0, this.stabilityPulse - clampedDelta * 1.8);
+            const pulseFactor = 1.0 + this.stabilityPulse * 0.6;
+            if (this.biasVectorMaterial) {
+                this.biasVectorMaterial.opacity = Math.min(1.0, this.baseBiasOpacity * pulseFactor);
+            }
+            if (this.flowFieldMaterial?.uniforms?.opacity) {
+                this.flowFieldMaterial.uniforms.opacity.value = Math.min(1.0, this.baseFlowOpacity * (1.0 + this.stabilityPulse * 0.9));
+            }
+        } else {
+            if (this.biasVectorMaterial) {
+                this.biasVectorMaterial.opacity = this.baseBiasOpacity;
+            }
+            if (this.flowFieldMaterial?.uniforms?.opacity) {
+                this.flowFieldMaterial.uniforms.opacity.value = this.baseFlowOpacity;
+            }
+        }
     }
     
     // ========================================================================
@@ -716,6 +920,7 @@ export class TopologyBiasVisualizationLayer {
     // ========================================================================
     
     dispose() {
+        this._unsubscribeStabilityEventSubscriptions();
         this.clearDebugContainer(this.biasVectorContainer, [], [this.biasVectorMaterial]);
         this.clearDebugContainer(this.flowFieldContainer, [this.flowFieldGeometry], []);
         
@@ -758,10 +963,15 @@ export function setupTopologyBiasVisualizationConsoleAPI(game) {
     window.game.topologyBiasVisualizationStatus = () => {
         return viz.getStatus();
     };
+
+    window.game.rebindTopologyBiasVisualization = () => {
+        return viz.rebind({ semanticBus: window.semanticBus });
+    };
     
     console.log('[API] Topology Bias Visualization commands registered:');
     console.log('  game.toggleTopologyBiasVectorsDebug()');
     console.log('  game.toggleTopologyFlowFieldsDebug()');
     console.log('  game.toggleTopologyBiasVisualization()');
     console.log('  game.topologyBiasVisualizationStatus()');
+    console.log('  game.rebindTopologyBiasVisualization()');
 }

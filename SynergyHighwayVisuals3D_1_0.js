@@ -53,6 +53,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 const SynergyHighwayVisuals3D_1_0 = (() => {
   // ═══════════════════════════════════════════════════════════════
@@ -715,6 +716,7 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
         isBloomHalo: true,
         highwayId: highway.id
       };
+      halo.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_BACKGROUND');
       
       return halo;
     } catch (e) {
@@ -846,6 +848,7 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       if (!group) {
         group = new (THREE?.Group || function() {})();
         group.name = 'SynergyHighways';
+        group.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_BACKGROUND');
       }
 
       if (scene && group && group.parent !== scene) {
@@ -948,6 +951,7 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
             // Create new
             const mesh = createHighwayMesh(highway);
             if (mesh) {
+              mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_BACKGROUND');
               group.add(mesh);
               highwayMeshes.set(highway.id, mesh);
               highwayData.set(highway.id, highway);

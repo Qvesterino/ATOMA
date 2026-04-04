@@ -7247,6 +7247,35 @@ window.__ATOMA_SCENE__ = this.scene;
         }
 
         try {
+            if (this.harmonicHealing && typeof this.harmonicHealing.rebind === 'function') {
+                this.harmonicHealing.rebind({
+                    scene: this.scene,
+                    linkingSystem,
+                    particleSystem: this.healingParticles,
+                    semanticBus,
+                    frameScheduler
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] HarmonicHealingVisualSystem rebind failed:', err?.message || err);
+        }
+
+        try {
+            if (this.harmonicRecovery && typeof this.harmonicRecovery.rebind === 'function') {
+                this.harmonicRecovery.rebind({
+                    scene: this.scene,
+                    ruptureSystem: this.resonanceRupture,
+                    healingParticleSystem: this.healingParticles,
+                    nodeLinkingSystem: linkingSystem,
+                    semanticBus,
+                    frameScheduler
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] HarmonicRecoveryVisualSystem rebind failed:', err?.message || err);
+        }
+
+        try {
             if (this.selectedHUD && typeof this.selectedHUD.rebind === 'function') {
                 this.selectedHUD.rebind({
                     linkingSystem,
@@ -14591,6 +14620,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.linkingSystem
             );
             this.harmonicRecovery.frameScheduler = this.frameScheduler;
+            this.harmonicRecovery.rebind?.({
+                scene: this.scene,
+                ruptureSystem: this.resonanceRupture,
+                healingParticleSystem: this.healingParticles,
+                nodeLinkingSystem: this.linkingSystem,
+                semanticBus: this.semanticBus,
+                frameScheduler: this.frameScheduler
+            });
             
             console.log('[main.js] HarmonicRecoveryVisualSystem initialized ✓');
             console.log('  - Monitors rupture completion');
@@ -14654,10 +14691,26 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     this.healingParticles // Wires logic to visuals
                 );
                 this.harmonicHealing.frameScheduler = this.frameScheduler;
+                this.harmonicHealing.rebind?.({
+                    scene: this.scene,
+                    linkingSystem: this.linkingSystem,
+                    particleSystem: this.healingParticles,
+                    semanticBus: this.semanticBus,
+                    frameScheduler: this.frameScheduler
+                });
                 console.log('[main.js] HarmonicHealingVisualSystem initialized (Golden Waves) ✓');
             }
 
-            if (this.harmonicRecovery?.rebindHealingParticleSystem && this.healingParticles) {
+            if (this.harmonicRecovery?.rebind && this.healingParticles) {
+                this.harmonicRecovery.rebind({
+                    scene: this.scene,
+                    ruptureSystem: this.resonanceRupture,
+                    healingParticleSystem: this.healingParticles,
+                    nodeLinkingSystem: this.linkingSystem,
+                    semanticBus: this.semanticBus,
+                    frameScheduler: this.frameScheduler
+                });
+            } else if (this.harmonicRecovery?.rebindHealingParticleSystem && this.healingParticles) {
                 this.harmonicRecovery.rebindHealingParticleSystem(this.healingParticles);
             }
 

@@ -7676,26 +7676,15 @@ getLinksForNode(node) {
     this._fireLinkDestroyedCallbacks(link);
     
     // [Session 20 FIX] Notify tracking systems on link removal
-    if (window.linkHistoryTracker) {
-      try {
-        console.debug(`[LinkHistory] Removing tracking for link: ${link.sourceNodeId} → ${link.targetNodeId}`);
-      } catch (err) {
-        console.warn('[Session 20] LinkHistoryTracker cleanup error:', err.message);
-      }
-    }
-    
-    if (window.synergyTrendHUD) {
-      try {
-        // Hide trend HUD if this was the selected link
-        if (window.synergyTrendHUD.selectedLink?.id === link.id) {
-          window.synergyTrendHUD.onLinkSelected(null);  // Deselect
-        }
-      } catch (err) {
-        console.warn('[Session 20] SynergyTrendHUD cleanup error:', err.message);
-      }
-    }
-    
-    // Unified visual dispose (conduit + particles)
+     if (window.linkHistoryTracker) {
+       try {
+         console.debug(`[LinkHistory] Removing tracking for link: ${link.sourceNodeId} → ${link.targetNodeId}`);
+       } catch (err) {
+         console.warn('[Session 20] LinkHistoryTracker cleanup error:', err.message);
+       }
+     }
+     
+     // Unified visual dispose (conduit + particles)
     if (this.conduitRenderer && link.group) {
       this.conduitRenderer.disposeLinkVisuals(link.group, link);
     }

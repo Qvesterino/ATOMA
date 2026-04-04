@@ -56,6 +56,11 @@ export class AtomaLanguageEngine3_0 {
     this.poetryContainer = null;
     this.poetryElement = null;
     this._poetryHideTimeout = null;
+    this._currentMessagePriority = 0;
+    this._lastMessageTime = 0;
+    this._messageCooldown = 800; // ms
+    this._lastMessageText = '';
+    this._messageVisible = false;
     
     // Current poetry state
     this.currentNodePoetry = '';
@@ -559,11 +564,26 @@ export class AtomaLanguageEngine3_0 {
     this._semanticBusAttached = null;
   }
 
+  _cleanupLegacyPoetryElements() {
+    const legacySelectors = [
+      '.atoma-node-poetry',
+      '.atoma-link-whisper',
+      '.atoma-pulse-poetry',
+      '.atoma-language-engine',
+      '#atoma-language-engine',
+      '#atoma-language-engine-3-container'
+    ];
+    legacySelectors.forEach(selector => {
+      document.querySelectorAll(selector).forEach(node => node.remove());
+    });
+  }
+
   /**
    * Initialize DOM container (external, non-destructive)
    */
   _initializeDOM() {
     if (this.poetryContainer) return;
+    this._cleanupLegacyPoetryElements();
     
     // Create external container
     this.poetryContainer = document.createElement('div');
@@ -618,6 +638,9 @@ export class AtomaLanguageEngine3_0 {
       clearTimeout(this._poetryHideTimeout);
       this._poetryHideTimeout = null;
     }
+    this._messageVisible = false;
+    this._currentMessagePriority = 0;
+    this._lastMessageText = '';
   }
   
   /**
@@ -745,6 +768,9 @@ export class AtomaLanguageEngine3_0 {
       clearTimeout(this._poetryHideTimeout);
       this._poetryHideTimeout = null;
     }
+    this._messageVisible = false;
+    this._currentMessagePriority = 0;
+    this._lastMessageText = '';
   }
   
   /**
@@ -803,11 +829,27 @@ export class AtomaLanguageEngine3_0 {
   /**
    * Display node poetry with fade-in
    */
-  _showPoetry(text, opacity = 0.9, duration = 3000) {
+  _showPoetry(text, opacity = 0.9, duration = 3000, priority = 1) {
     if (!this.poetryElement) return;
+
+    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    if (this._messageVisible && now - this._lastMessageTime < this._messageCooldown) {
+      if (text === this._lastMessageText) {
+        // Refresh the current message duration without adding a new message.
+        if (this._poetryHideTimeout) {
+          clearTimeout(this._poetryHideTimeout);
+        }
+      } else if (priority <= this._currentMessagePriority) {
+        return;
+      }
+    }
 
     this.poetryElement.textContent = text;
     this.poetryElement.style.opacity = String(opacity);
+    this._lastMessageText = text;
+    this._currentMessagePriority = priority;
+    this._lastMessageTime = now;
+    this._messageVisible = true;
 
     if (this._poetryHideTimeout) {
       clearTimeout(this._poetryHideTimeout);
@@ -818,6 +860,9 @@ export class AtomaLanguageEngine3_0 {
         this.poetryElement.style.opacity = '0';
       }
       this._poetryHideTimeout = null;
+      this._messageVisible = false;
+      this._currentMessagePriority = 0;
+      this._lastMessageText = '';
     }, duration);
   }
 
@@ -825,7 +870,7 @@ export class AtomaLanguageEngine3_0 {
     if (!this.poetryElement) return;
 
     this.currentNodePoetry = poetry;
-    this._showPoetry(poetry, 1, 6000);
+    this._showPoetry(poetry, 1, 6000, 3);
   }
 
   /**
@@ -835,7 +880,7 @@ export class AtomaLanguageEngine3_0 {
     if (!this.poetryElement) return;
 
     this.currentLinkWhisper = whisper;
-    this._showPoetry('◆ ' + whisper + ' ◆', 0.9, 3000);
+    this._showPoetry('◆ ' + whisper + ' ◆', 0.9, 3000, 2);
   }
 
   /**
@@ -845,7 +890,7 @@ export class AtomaLanguageEngine3_0 {
     if (!this.poetryElement) return;
 
     this.currentPulsePoetry = poem;
-    this._showPoetry(poem, 0.9, 3000);
+    this._showPoetry(poem, 0.9, 3000, 1);
   }
   
   /**

@@ -151,11 +151,12 @@ onLinkCreated() {
 
 ---
 
-### EXTREME_AI_NODES_CODE_PATCHES.js
+### Extreme Node Spawning (Native)
 
-**File:** `EXTREME_AI_NODES_CODE_PATCHES.js`  
+**File:** `AINodes.js`  
 **Type:** Extreme archetype spawning  
-**Purpose:** EXTREME node manual spawning
+**Status:** Native implementation (formerly EXTREME_AI_NODES_CODE_PATCHES.js, now integrated)  
+**Purpose:** EXTREME node spawning via `spawnExtremeNode()` method
 
 ---
 
@@ -233,7 +234,7 @@ window.ATOMA_DEBUG_LINK_SPAWN = true;
 | Manual console spawn | SpawnAuthorityConsoleAPI.js | spawnNode() | Console command |
 | Mythic spawn | _MythicNodeCreation.js | createMythicNode() | Special event |
 | Rare spawn | _RareNodeSpawner.js | spawnRareNode() | Bootstrap |
-| Extreme spawn | EXTREME_AI_NODES_CODE_PATCHES.js | - | Manual/API |
+| Extreme spawn | AINodes.js | spawnExtremeNode() | Manual/API |
 
 ---
 
