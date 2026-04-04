@@ -99,7 +99,20 @@ export class SynergyCascadeVisualizer {
       forcedFlowLifetimeMultiplier: 2.35,
       forcedFlowSpeedMultiplier: 2.85,
       forcedBurstIntervalSeconds: 5.0, // Forced burst cadence per live link
-      minBurstIntensity: 0.06         // Ignore ultra-weak bursts
+      minBurstIntensity: 0.06,        // Ignore ultra-weak bursts
+      echoRippleCount: 3,
+      echoRippleSpacing: 0.46,
+      echoRippleVerticalOffset: 0.07,
+      echoRippleRadiusStep: 0.48,
+      echoRippleOpacityFalloff: 0.12,
+      echoRippleCooldownSeconds: 3.0,
+      topologyBiasRippleCount: 3,
+      topologyBiasRippleRadiusStep: 0.32,
+      topologyBiasRippleOpacityScale: 0.30,
+      topologyBiasRippleCooldownSeconds: 2.4,
+      topologyBiasRippleColor: new THREE.Color(0x18265f),
+      topologyBiasRippleAccentColor: new THREE.Color(0x14d3dd),
+      topologyBiasRippleWarmColor: new THREE.Color(0xd98b2a)
     };
     
     // Cascade particles
@@ -126,6 +139,8 @@ export class SynergyCascadeVisualizer {
     // Ripple effect system
     this.ripples = [];
     this._rippleCooldownByLinkId = new Map();
+    this._echoRippleCooldownByLinkId = new Map();
+    this._topologyBiasCooldownByKey = new Map();
     this._burstCooldownByLinkId = new Map();
     this._forcedBurstCooldownByLinkId = new Map();
     this._forcedFlowCooldownByLinkId = new Map();
@@ -322,12 +337,18 @@ export class SynergyCascadeVisualizer {
       onCascadeHop: (event = {}) => this.renderCascadeHop(event),
       onCascadeStart: (event = {}) => this.renderCascadeStart(event),
       onCascadeEnd: (event = {}) => this.renderCascadeEnd(event),
-      onLinkCreated: (event = {}) => this._handleLinkCreated(event)
+      onLinkCreated: (event = {}) => this._handleLinkCreated(event),
+      onLinkHarmonyTier: (event = {}) => this.renderLinkHarmonyEcho(event),
+      onTopologyBiasSnapshot: (event = {}) => this.applyTopologyBiasSnapshot(event)
     };
     on('cascade.hop', this._semanticHandlers.onCascadeHop);
     on('cascade.start', this._semanticHandlers.onCascadeStart);
     on('cascade.end', this._semanticHandlers.onCascadeEnd);
     on('link.created', this._semanticHandlers.onLinkCreated);
+    on('link.harmony.low', this._semanticHandlers.onLinkHarmonyTier);
+    on('link.harmony.mid', this._semanticHandlers.onLinkHarmonyTier);
+    on('link.harmony.high', this._semanticHandlers.onLinkHarmonyTier);
+    on('topology.bias.snapshot', this._semanticHandlers.onTopologyBiasSnapshot);
   }
 
   _unbindSemanticEvents() {
@@ -341,6 +362,10 @@ export class SynergyCascadeVisualizer {
       try { off('cascade.start', handlers.onCascadeStart); } catch (_) {}
       try { off('cascade.end', handlers.onCascadeEnd); } catch (_) {}
       try { off('link.created', handlers.onLinkCreated); } catch (_) {}
+      try { off('link.harmony.low', handlers.onLinkHarmonyTier); } catch (_) {}
+      try { off('link.harmony.mid', handlers.onLinkHarmonyTier); } catch (_) {}
+      try { off('link.harmony.high', handlers.onLinkHarmonyTier); } catch (_) {}
+      try { off('topology.bias.snapshot', handlers.onTopologyBiasSnapshot); } catch (_) {}
     }
 
     this._semanticBus = null;
@@ -633,6 +658,160 @@ export class SynergyCascadeVisualizer {
         lifetimeScale: 1.0 - Math.abs(centeredIndex) * 0.06
       });
     }
+  }
+
+  _spawnEchoRippleCluster(anchor, intensity, count = 3, options = {}) {
+    const rippleCount = Math.max(1, Math.min(3, Math.floor(Number(count) || this.config.echoRippleCount || 3)));
+    const spacing = Math.max(0.12, Number(options.spacing ?? this.config.echoRippleSpacing ?? 0.46) || 0.46);
+    const verticalOffset = Math.max(0.02, Number(options.verticalOffset ?? this.config.echoRippleVerticalOffset ?? 0.07) || 0.07);
+    const radiusStep = Math.max(0.16, Number(options.radiusStep ?? this.config.echoRippleRadiusStep ?? 0.48) || 0.48);
+    const opacityFalloff = Math.max(0.04, Number(options.opacityFalloff ?? this.config.echoRippleOpacityFalloff ?? 0.12) || 0.12);
+    const intensityScale = Math.max(0.14, Number(options.intensityScale ?? 1.0) || 1.0);
+    const radiusScaleBase = Math.max(1.4, Number(options.radiusScaleBase ?? 1.85) || 1.85);
+    const lifetimeScaleBase = Math.max(1.0, Number(options.lifetimeScaleBase ?? 1.08) || 1.08);
+    const ringColors = Array.isArray(options.colorPalette)
+      ? options.colorPalette.filter((entry) => entry?.isColor)
+      : null;
+
+    for (let i = 0; i < rippleCount; i += 1) {
+      const centeredIndex = i - ((rippleCount - 1) * 0.5);
+      const rippleIntensity = intensity * intensityScale * (1.0 - Math.abs(centeredIndex) * 0.08);
+      const rippleAnchor = anchor.clone();
+      rippleAnchor.x += centeredIndex * spacing;
+      rippleAnchor.y += centeredIndex * verticalOffset;
+      rippleAnchor.z += Math.sin((i + 1) * 1.37) * (spacing * 0.42);
+      const ringColor = ringColors?.[i % ringColors.length] ?? options.color;
+
+      this.createRipple(rippleAnchor, rippleIntensity, {
+        color: ringColor,
+        radiusScale: radiusScaleBase + Math.abs(centeredIndex) * radiusStep,
+        verticalOffset: centeredIndex * verticalOffset * 0.55,
+        opacityScale: Math.max(0.34, 1.08 - Math.abs(centeredIndex) * opacityFalloff),
+        lifetimeScale: lifetimeScaleBase + Math.abs(centeredIndex) * 0.08
+      });
+    }
+  }
+
+  _getTopologyBiasCooldownKey(position, index = 0) {
+    const anchor = this._asVector3(position);
+    if (!anchor) return `topology-${index}`;
+    return `topology-${Math.round(anchor.x * 2)}:${Math.round(anchor.y * 2)}:${Math.round(anchor.z * 2)}:${index}`;
+  }
+
+  _canTriggerTopologyBiasEffect(key, cooldownSeconds) {
+    if (!key) return true;
+    return this._canTriggerLinkEffect(this._topologyBiasCooldownByKey, key, cooldownSeconds);
+  }
+
+  applyTopologyBiasSnapshot(snapshot = {}) {
+    if (!snapshot || snapshot.scope !== 'topology') return;
+
+    const influences = Array.isArray(snapshot.recentInfluencePositions)
+      ? snapshot.recentInfluencePositions
+      : [];
+    if (influences.length === 0 && !Number.isFinite(snapshot.activeFlowCells) && !Number.isFinite(snapshot.activeBiasVectors)) {
+      return;
+    }
+
+    const baseIntensity = this._clamp01(
+      Math.max(
+        Number(snapshot.stabilityPulse ?? 0) * 0.55,
+        Number(snapshot.networkState?.synergy ?? 0) * 0.75,
+        Number(snapshot.networkState?.harmony ?? 0) * 0.6,
+        (Number(snapshot.activeFlowCells ?? 0) * 0.12) + (Number(snapshot.activeBiasVectors ?? 0) * 0.02)
+      )
+    );
+    const rippleCount = Math.max(1, Math.min(3, Number(this.config.topologyBiasRippleCount) || 2));
+    const limit = Math.min(rippleCount, influences.length || rippleCount);
+    for (let i = 0; i < limit; i += 1) {
+      const inf = influences[i];
+      const position = this._asVector3(inf?.position ?? null);
+      if (!position) continue;
+
+      const key = this._getTopologyBiasCooldownKey(position, i);
+      if (!this._canTriggerTopologyBiasEffect(key, this.config.topologyBiasRippleCooldownSeconds)) {
+        continue;
+      }
+
+      const intensity = this._clamp01(Math.max(baseIntensity, Number(inf?.strength ?? 0.22), 0.16));
+      const colorPalette = [
+        this.config.topologyBiasRippleColor,
+        this.config.topologyBiasRippleAccentColor,
+        this.config.topologyBiasRippleWarmColor
+      ].filter((entry) => entry?.isColor);
+      const rippleColor = (colorPalette[i % colorPalette.length] || new THREE.Color(0x18265f)).clone();
+      const opacityScale = Math.max(
+        0.18,
+        (this.config.topologyBiasRippleOpacityScale ?? 0.3) * (0.74 - i * 0.08)
+      );
+      this._spawnEchoRippleCluster(position, intensity, Math.min(2, rippleCount), {
+        color: rippleColor,
+        colorPalette: [
+          new THREE.Color(0x18265f),
+          new THREE.Color(0x14d3dd),
+          new THREE.Color(0xd98b2a)
+        ],
+        spacing: 0.18 + i * 0.04,
+        verticalOffset: 0.024 + i * 0.012,
+        radiusStep: this.config.topologyBiasRippleRadiusStep,
+        opacityFalloff: 0.16,
+        opacityScale,
+        intensityScale: 0.74,
+        radiusScaleBase: 1.12,
+        lifetimeScaleBase: 0.82
+      });
+    }
+  }
+
+  _resolveHarmonyTierIntensity(event = {}) {
+    const rawValue = Number(event.value);
+    if (Number.isFinite(rawValue)) {
+      return this._clamp01(rawValue);
+    }
+
+    const tier = String(event.tier ?? event.phase ?? '').toLowerCase();
+    if (tier === 'high') return 0.9;
+    if (tier === 'mid' || tier === 'normal') return 0.66;
+    if (tier === 'low') return 0.42;
+    return 0.7;
+  }
+
+  renderLinkHarmonyEcho(event = {}) {
+    if (event.__cascadeDirectRendered === true || event.__echoDirectRendered === true) return;
+
+    const link = event.link ?? event.linkRef ?? this._resolveLinkById(event.linkId ?? event.id ?? null);
+    if (!link) return;
+
+    const linkId = this._resolveLinkId(link);
+    if (!linkId) return;
+
+    const context = this._resolveCascadeSpawnContext({
+      ...event,
+      link,
+      linkRef: link,
+      linkId
+    }, link, 'start');
+    if (!context.anchor) return;
+
+    const intensity = this._clamp01(Math.max(
+      this._readLinkSynergy(link),
+      this._resolveHarmonyTierIntensity(event),
+      this._resolveCascadeSignalIntensity(event)
+    ));
+
+    if (!this._canTriggerLinkEffect(this._echoRippleCooldownByLinkId, linkId, this.config.echoRippleCooldownSeconds)) {
+      return;
+    }
+
+    this._getOrCreateCascade(context.cascadeId, Math.max(0.1, intensity));
+    this._seedCascadeHistory(link, intensity, context.anchor);
+    this._spawnEchoRippleCluster(context.anchor, Math.max(0.12, intensity), this.config.echoRippleCount, {
+      intensityScale: 1.1,
+      spacing: this.config.echoRippleSpacing,
+      verticalOffset: this.config.echoRippleVerticalOffset,
+      radiusStep: this.config.echoRippleRadiusStep,
+      opacityFalloff: this.config.echoRippleOpacityFalloff
+    });
   }
 
     _getWorldPositionFromObject(object) {
@@ -2285,6 +2464,11 @@ export class SynergyCascadeVisualizer {
    * Create ripple effect at position
    */
   createRipple(position, intensity, options = {}) {
+    const rippleColor = options.color?.isColor
+      ? options.color
+      : options.color instanceof THREE.Color
+        ? options.color
+        : this.config.waveColor;
     const ripple = {
       center: position.clone(),
       startRadius: 0,
@@ -2310,7 +2494,7 @@ export class SynergyCascadeVisualizer {
     ringGeometry.setFromPoints(ringPoints);
     
     const rippleMaterial = new THREE.LineBasicMaterial({
-      color: this.config.waveColor,
+      color: rippleColor,
       linewidth: 2,
       transparent: true,
       opacity: Math.min(1.0, (0.26 + intensity * 0.74) * Math.max(0.1, Number(options.opacityScale ?? 1.0) || 1.0)),
@@ -2529,6 +2713,7 @@ export class SynergyCascadeVisualizer {
     this._forcedBurstCooldownByLinkId.clear();
     this._forcedFlowCooldownByLinkId.clear();
     this._flowCooldownByLinkId.clear();
+    this._topologyBiasCooldownByKey.clear();
     
     // Clean up ripples
     for (const ripple of this.ripples) {

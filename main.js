@@ -9863,6 +9863,7 @@ window.__ATOMA_SCENE__ = this.scene;
                         enableDebug: false,
                         enableLogging: false,
                         semanticBus: this.semanticBus,
+                        linkingSystem: this.linkingSystem,
                         ringRadius: 1.5,
                         expandSpeed: 8.0,
                         fadeDuration: 0.8,
@@ -15031,7 +15032,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.scene,
                 this.worldRoot,
                 this.camera,
-                this.harmonicTopology
+                this.harmonicTopology,
+                {
+                    linkingSystem: this.linkingSystem,
+                    semanticBus: this.semanticBus
+                }
             );
             this.topologyViz.frameScheduler = this.frameScheduler;
             

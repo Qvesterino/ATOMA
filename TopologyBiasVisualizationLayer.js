@@ -77,8 +77,8 @@ const CONFIG = {
     COARSE_UPDATE_INTERVAL: 1.0,       // Flow field coarse update
     
     // Debug
-    DEBUG_DRAW_BIAS_VECTORS: true,
-    DEBUG_DRAW_FLOW_FIELDS: true,
+    DEBUG_DRAW_BIAS_VECTORS: false,
+    DEBUG_DRAW_FLOW_FIELDS: false,
     DEBUG_SHOW_REGIONS: false
 };
 
@@ -236,6 +236,7 @@ export class TopologyBiasVisualizationLayer {
         this._attachRoot = worldRoot || scene;
         this.camera = camera;
         this.topologySystem = topologySystem;
+        this.linkingSystem = config.linkingSystem ?? null;
         this.semanticBus = config.semanticBus ?? globalThis?.semanticBus ?? null;
         this.config = config;
         this.currentStability = 'mid';
@@ -557,6 +558,9 @@ export class TopologyBiasVisualizationLayer {
         if (newBus !== this.semanticBus) {
             this.semanticBus = newBus;
         }
+        if (config.linkingSystem) {
+            this.linkingSystem = config.linkingSystem;
+        }
         this.initializeStabilityEventSubscriptions();
         return this;
     }
@@ -598,6 +602,97 @@ export class TopologyBiasVisualizationLayer {
 
         if (this.config?.enableDebug) {
             console.log('[TopologyBiasVisualizationLayer] Stability event:', level, payload);
+        }
+    }
+
+    _publishVisualSnapshot(networkState = {}, deltaTime = 0) {
+        const bus = this.semanticBus;
+        if (!bus) return;
+
+        const recentInfluencePositions = this.recentInfluencePositions
+            .slice(-8)
+            .map((entry, index) => {
+                const position = entry?.position?.clone?.() ?? null;
+                return position ? {
+                    position,
+                    strength: Number(entry?.strength ?? 0),
+                    age: Number(entry?.age ?? 0),
+                    index,
+                    kind: 'recentInfluence'
+                } : null;
+            })
+            .filter(Boolean);
+
+        if (recentInfluencePositions.length === 0) {
+            const links = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : [];
+            for (const link of links) {
+                if (!link || link.active === false) continue;
+                const source = link?.sourceNode ?? link?.source ?? link?.nodeA ?? null;
+                const target = link?.targetNode ?? link?.target ?? link?.nodeB ?? null;
+                const sourcePos = source?.position?.clone?.() ?? null;
+                const targetPos = target?.position?.clone?.() ?? null;
+                if (!sourcePos || !targetPos) continue;
+                const midpoint = sourcePos.add(targetPos).multiplyScalar(0.5);
+                recentInfluencePositions.push({
+                    position: midpoint,
+                    strength: Number(link?.userData?.synergy?.score ?? link?.userData?.cascadeIntensity ?? 0),
+                    age: 0,
+                    index: recentInfluencePositions.length,
+                    kind: 'linkMidpoint',
+                    linkId: link?.id ?? null
+                });
+                if (recentInfluencePositions.length >= 6) break;
+            }
+        }
+
+        if (recentInfluencePositions.length === 0) {
+            for (const [cellId, cell] of this.flowFieldCells.entries()) {
+                const center = cell?.center?.clone?.() ?? null;
+                if (!center) continue;
+                recentInfluencePositions.push({
+                    position: center,
+                    strength: Number(cell?.flowStrength ?? 0),
+                    age: 0,
+                    index: recentInfluencePositions.length,
+                    kind: 'flowCell',
+                    id: cellId
+                });
+                if (recentInfluencePositions.length >= 6) break;
+            }
+        }
+
+        if (recentInfluencePositions.length === 0) {
+            for (const vector of this.biasVectorInstances) {
+                if (!vector?.active) continue;
+                const position = vector?.position?.clone?.() ?? null;
+                if (!position) continue;
+                recentInfluencePositions.push({
+                    position,
+                    strength: Number(vector?.strength ?? 0),
+                    age: 0,
+                    index: recentInfluencePositions.length,
+                    kind: 'biasVector'
+                });
+                if (recentInfluencePositions.length >= 6) break;
+            }
+        }
+
+        const payload = {
+            scope: 'topology',
+            source: 'TopologyBiasVisualizationLayer',
+            currentStability: this.currentStability,
+            stabilityPulse: this.stabilityPulse,
+            activeBiasVectors: this.biasVectorInstances.filter(v => v.active).length,
+            activeFlowCells: this.flowFieldCells.size,
+            recentInfluencePositions,
+            networkState,
+            deltaTime
+        };
+
+        if (typeof bus.emitImmediate === 'function') {
+            bus.emitImmediate('topology.bias.snapshot', payload, { priority: bus.priority?.LOW ?? bus.priority?.NORMAL });
+        } else if (typeof bus.emit === 'function') {
+            bus.emit('topology.bias.snapshot', payload, { priority: bus.priority?.LOW ?? bus.priority?.NORMAL });
         }
     }
 
@@ -836,8 +931,6 @@ export class TopologyBiasVisualizationLayer {
     // ========================================================================
     
     update(deltaTime, networkState) {
-        if (!this.frameScheduler?.shouldRunVisual?.()) return;
-
         if (!this.enabled) return;
         
         // POLISHED: Graceful degradation - skip if topology system unavailable
@@ -845,12 +938,16 @@ export class TopologyBiasVisualizationLayer {
         
         // POLISHED: Clamp deltaTime to prevent large jumps
         const clampedDelta = Math.min(deltaTime, 0.1);
-        
-        this.updateBiasVectors(clampedDelta);
-        this.updateFlowFields(clampedDelta, networkState || {});
-        this.applyInfluenceHighlighting();
 
-        if (this.stabilityPulse > 0) {
+        const canRender = this.frameScheduler?.shouldRunVisual?.() ?? true;
+        if (canRender) {
+            this.updateBiasVectors(clampedDelta);
+            this.updateFlowFields(clampedDelta, networkState || {});
+            this.applyInfluenceHighlighting();
+        }
+        this._publishVisualSnapshot(networkState || {}, clampedDelta);
+
+        if (canRender && this.stabilityPulse > 0) {
             this.stabilityPulse = Math.max(0, this.stabilityPulse - clampedDelta * 1.8);
             const pulseFactor = 1.0 + this.stabilityPulse * 0.6;
             if (this.biasVectorMaterial) {
@@ -859,7 +956,7 @@ export class TopologyBiasVisualizationLayer {
             if (this.flowFieldMaterial?.uniforms?.opacity) {
                 this.flowFieldMaterial.uniforms.opacity.value = Math.min(1.0, this.baseFlowOpacity * (1.0 + this.stabilityPulse * 0.9));
             }
-        } else {
+        } else if (canRender) {
             if (this.biasVectorMaterial) {
                 this.biasVectorMaterial.opacity = this.baseBiasOpacity;
             }

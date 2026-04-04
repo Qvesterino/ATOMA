@@ -107,6 +107,10 @@ export class CascadeParticleSystem_Session120 {
     this._debugSourceMarkers = [];
     this._debugTargetMarkers = [];
     this._debugParticleMarkers = [];
+    this.semanticBus = config.semanticBus ?? globalThis?.semanticBus ?? null;
+    this._topologyBiasAccentCooldowns = new Map();
+    this._topologyBiasAccentUnsubscribers = [];
+    this._topologyBiasAccentBound = null;
 
     // Resources
     this.geometry = null;
@@ -302,6 +306,7 @@ export class CascadeParticleSystem_Session120 {
     // 5. Initialize Pool
     this._initPool();
     this._initDebugHelpers();
+    this._bindTopologyBiasAccentSubscriptions();
   }
   
   /**
@@ -522,6 +527,123 @@ export class CascadeParticleSystem_Session120 {
     if (!this.scene || !this.mesh) return;
     if (this.mesh.parent !== this.scene) {
       this.scene.add(this.mesh);
+    }
+  }
+
+  _bindTopologyBiasAccentSubscriptions() {
+    this._unbindTopologyBiasAccentSubscriptions();
+
+    const bus = this.semanticBus ?? globalThis?.semanticBus ?? null;
+    if (!bus) return;
+
+    this.semanticBus = bus;
+    this._topologyBiasAccentBound = (payload = {}) => this._handleTopologyBiasSnapshot(payload);
+
+    if (typeof bus.on === 'function') {
+      bus.on('topology.bias.snapshot', this._topologyBiasAccentBound);
+      this._topologyBiasAccentUnsubscribers.push(() => {
+        try { bus.off?.('topology.bias.snapshot', this._topologyBiasAccentBound); } catch (_) {}
+      });
+    } else if (typeof bus.subscribe === 'function') {
+      const unsub = bus.subscribe('topology.bias.snapshot', this._topologyBiasAccentBound);
+      if (typeof unsub === 'function') {
+        this._topologyBiasAccentUnsubscribers.push(unsub);
+      }
+    }
+  }
+
+  _unbindTopologyBiasAccentSubscriptions() {
+    if (!Array.isArray(this._topologyBiasAccentUnsubscribers) || this._topologyBiasAccentUnsubscribers.length === 0) return;
+    for (const unsub of this._topologyBiasAccentUnsubscribers) {
+      try { unsub?.(); } catch (_) {}
+    }
+    this._topologyBiasAccentUnsubscribers.length = 0;
+  }
+
+  _getTopologyBiasAccentCooldownKey(snapshot = {}, index = 0) {
+    const influence = snapshot?.recentInfluencePositions?.[index];
+    const position = influence?.position;
+    if (!position?.x && !position?.y && !position?.z) {
+      return `topo-accent-${index}`;
+    }
+    return `topo-accent-${Math.round(position.x * 2)}:${Math.round(position.y * 2)}:${Math.round(position.z * 2)}:${index}`;
+  }
+
+  _handleTopologyBiasSnapshot(snapshot = {}) {
+    if (!snapshot || snapshot.scope !== 'topology') return;
+
+    const influences = Array.isArray(snapshot.recentInfluencePositions) ? snapshot.recentInfluencePositions : [];
+    if (influences.length === 0) return;
+
+    const currentCascadeTime = this._lastCascadeTime ?? ((this._cascadeTimeOrigin !== undefined) ? (VisualTime.now - this._cascadeTimeOrigin) : 0);
+    const baseIntensity = Math.max(
+      0.04,
+      Math.min(
+        0.18,
+        Number(snapshot.stabilityPulse ?? 0) * 0.10 +
+        Number(snapshot.networkState?.synergy ?? 0) * 0.07 +
+        Number(snapshot.networkState?.harmony ?? 0) * 0.05 +
+        Number(snapshot.activeFlowCells ?? 0) * 0.015
+      )
+    );
+
+    for (let i = 0; i < Math.min(2, influences.length); i++) {
+      const influence = influences[i];
+      const position = influence?.position?.clone?.() ?? null;
+      if (!position) continue;
+
+      const cooldownKey = this._getTopologyBiasAccentCooldownKey(snapshot, i);
+      const lastAt = this._topologyBiasAccentCooldowns.get(cooldownKey);
+      if (lastAt !== undefined && (currentCascadeTime - lastAt) < 1.8) {
+        continue;
+      }
+      this._topologyBiasAccentCooldowns.set(cooldownKey, currentCascadeTime);
+
+      const sourceNode = {
+        position: position.clone().add(new THREE.Vector3(-0.14, 0.03, 0.02)),
+        userData: { category: 'analytics' }
+      };
+      const targetNode = {
+        position: position.clone().add(new THREE.Vector3(0.14, -0.02, -0.02)),
+        userData: { category: 'integration' }
+      };
+      const syntheticLink = {
+        id: `topology-accent-${cooldownKey}`,
+        active: true,
+        source: sourceNode,
+        target: targetNode,
+        sourceNode,
+        targetNode,
+        userData: {
+          cascadeIntensity: baseIntensity,
+          particleDensityMultiplier: 0.18,
+          cascadeParticleEmissionBoost: 0.22,
+          cascadeConflictType: 'neutral',
+          flowState: {
+            intensity: baseIntensity,
+            direction: 1,
+            type: 'neutral',
+            energy: baseIntensity
+          }
+        }
+      };
+
+      const count = 1;
+      this._emit(
+        count,
+        syntheticLink,
+        this._getShapeIndexForConflict('neutral'),
+        'forward',
+        'neutral',
+        currentCascadeTime,
+        sourceNode.position,
+        targetNode.position,
+        {
+          opacityScale: 0.10 + baseIntensity * 0.08,
+          densityScale: 0.14,
+          distanceScale: 0.34
+        }
+      );
     }
   }
 
@@ -1464,6 +1586,10 @@ export class CascadeParticleSystem_Session120 {
     if (Array.isArray(this._linkLifecycleUnsubscribers)) {
       this._linkLifecycleUnsubscribers.length = 0;
     }
+    this._unbindTopologyBiasAccentSubscriptions();
+    if (this._topologyBiasAccentCooldowns instanceof Map) {
+      this._topologyBiasAccentCooldowns.clear();
+    }
     if (Array.isArray(this._pendingLinkEvents)) {
       this._pendingLinkEvents.length = 0;
     }
@@ -1492,7 +1618,8 @@ export function setupCascadeParticleSystem(game, options = {}) {
   try {
     const system = new CascadeParticleSystem_Session120(game.scene, {
       ...options,
-      waveEngine: options.waveEngine ?? game.waveInterferenceEngine
+      waveEngine: options.waveEngine ?? game.waveInterferenceEngine,
+      semanticBus: options.semanticBus ?? game.semanticBus ?? globalThis?.semanticBus ?? null
     });
     game.cascadeParticleSystem = system;
     return system;

@@ -34,14 +34,15 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 export class PHASE5_CascadePropagationVisuals {
   constructor(scene, config = {}) {
     this.scene = scene;
+    this.linkingSystem = config.linkingSystem ?? globalThis?.game?.linkingSystem ?? null;
     
     this.config = {
       enableDebug: config.enableDebug ?? false,
       enableLogging: config.enableLogging ?? false,
       
       // Ring appearance
-      ringRadius: config.ringRadius ?? 1.5,
-      ringThickness: config.ringThickness ?? 0.15,
+      ringRadius: config.ringRadius ?? 2.25,
+      ringThickness: config.ringThickness ?? 0.22,
       ringSegments: config.ringSegments ?? 64,
       
       // Ring animation
@@ -55,8 +56,8 @@ export class PHASE5_CascadePropagationVisuals {
       threatCascadeColor: config.threatCascadeColor ?? 0xff6600,
       
       // Ring intensity
-      baseOpacity: config.baseOpacity ?? 0.8,
-      emissiveIntensity: config.emissiveIntensity ?? 0.6,
+      baseOpacity: config.baseOpacity ?? 0.96,
+      emissiveIntensity: config.emissiveIntensity ?? 0.75,
       
       // Performance settings
       maxActiveRings: config.maxActiveRings ?? 50,
@@ -80,8 +81,9 @@ export class PHASE5_CascadePropagationVisuals {
       
       // Echo cadence
       echoRingCount: config.echoRingCount ?? 3,
-      echoRingSpacing: config.echoRingSpacing ?? 0.12,
-      echoRingOpacityFalloff: config.echoRingOpacityFalloff ?? 0.18,
+      echoRingSpacing: config.echoRingSpacing ?? 0.42,
+      echoRingVerticalOffset: config.echoRingVerticalOffset ?? 0.045,
+      echoRingOpacityFalloff: config.echoRingOpacityFalloff ?? 0.16,
       cascadeCooldownSeconds: config.cascadeCooldownSeconds ?? 3.0
     };
     
@@ -281,21 +283,29 @@ export class PHASE5_CascadePropagationVisuals {
   }
 
   /**
-   * Create a three-ring echo burst for stronger propagation readability
+   * Create a light support echo ring.
+   * The stronger visible echo burst now lives in SynergyCascadeVisualizer.
    */
   createRingEchoTriplet(position, cascadeType = 'corruption', strength = 1.0, depth = 0) {
-    const ringCount = Math.max(1, Number(this.config.echoRingCount) || 3);
+    const ringCount = 1;
     const spacing = Math.max(0.02, Number(this.config.echoRingSpacing) || 0.12);
     const opacityFalloff = Math.max(0, Math.min(0.8, Number(this.config.echoRingOpacityFalloff) || 0.18));
 
     for (let echoIndex = 0; echoIndex < ringCount; echoIndex++) {
       const baseScale = 1.0 + (echoIndex * spacing);
-      const opacityMultiplier = Math.max(0.18, 1.0 - (echoIndex * opacityFalloff));
+      const opacityMultiplier = Math.max(0.22, 0.58 - (echoIndex * opacityFalloff));
       const depthBias = depth + (echoIndex * 0.08);
-      const strengthBias = Math.max(0.2, strength * (1.0 - echoIndex * 0.06));
+      const strengthBias = Math.max(0.16, strength * 0.44);
+      const echoPosition = position.clone();
+      const centered = 0;
+      const verticalOffset = centered * this.config.echoRingVerticalOffset;
+      const lateralOffset = centered * 0.22;
+      echoPosition.y += verticalOffset;
+      echoPosition.x += lateralOffset;
+      echoPosition.z += Math.sin((echoIndex + 1) * 1.31) * 0.08;
 
       this.createRing(
-        position,
+        echoPosition,
         cascadeType,
         strengthBias,
         depthBias,
@@ -305,6 +315,15 @@ export class PHASE5_CascadePropagationVisuals {
           echoIndex
         }
       );
+
+      if (this.config.rippleEnabled) {
+        this.createRipple(echoPosition, strengthBias, {
+          verticalOffset: verticalOffset * 0.5,
+          radiusScale: 0.95,
+          opacityScale: opacityMultiplier,
+          lifetimeScale: 0.84
+        });
+      }
     }
   }
   
@@ -331,7 +350,10 @@ export class PHASE5_CascadePropagationVisuals {
       transparent: true,
       opacity: this.config.baseOpacity,
       linewidth: this.config.ringThickness * 2,
-      fog: false
+      fog: false,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending
     });
     
     const ring = new THREE.LineLoop(geometry, material);
@@ -447,7 +469,10 @@ export class PHASE5_CascadePropagationVisuals {
       opacity: this.config.baseOpacity,
       fog: false,
       emissive: color,
-      emissiveIntensity: this.config.emissiveIntensity
+      emissiveIntensity: this.config.emissiveIntensity,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending
     });
     
     this.ringMaterials.set(matKey, material);
@@ -581,6 +606,34 @@ export class PHASE5_CascadePropagationVisuals {
     if (!key) return;
     this._cascadeCooldowns.set(key, Date.now());
   }
+
+  _resolveLinkById(linkId) {
+    if (!linkId) return null;
+    const links = this.linkingSystem?.links || globalThis?.game?.linkingSystem?.links || [];
+    return links.find?.((link) => {
+      const candidateId = link?.id ?? link?.linkId ?? link?.userData?.linkId ?? null;
+      return candidateId === linkId;
+    }) || null;
+  }
+
+  _resolveLinkAnchorPosition(event = {}) {
+    const direct = event.sourcePosition || event.position || event.anchor || null;
+    if (direct?.isVector3) return direct.clone();
+
+    const link = event.link ?? event.linkRef ?? this._resolveLinkById(event.linkId);
+    const sourceNode = event.sourceNode || event.source || link?.sourceNode || link?.source || null;
+    const targetNode = event.targetNode || event.target || link?.targetNode || link?.target || null;
+
+    const sourcePosition = sourceNode?.position || sourceNode?.worldPosition || link?.sourcePosition || link?.source?.position || null;
+    const targetPosition = targetNode?.position || targetNode?.worldPosition || link?.targetPosition || link?.target?.position || null;
+
+    if (sourcePosition?.clone && targetPosition?.clone) {
+      return sourcePosition.clone().add(targetPosition).multiplyScalar(0.5);
+    }
+    if (sourcePosition?.clone) return sourcePosition.clone();
+    if (targetPosition?.clone) return targetPosition.clone();
+    return null;
+  }
   
   /**
    * Subscribe to semantic bus cascade events
@@ -610,6 +663,34 @@ export class PHASE5_CascadePropagationVisuals {
       
       this.semanticBus.on('cascade.hop', this._boundCascadeHopHandler);
       this.semanticBus.on('cascade.start', this._boundCascadeHopHandler);
+
+      this._boundLinkHarmonyHandler = (event) => {
+        if (!event) return;
+        const sourcePosition = this._resolveLinkAnchorPosition(event);
+        if (!sourcePosition) return;
+
+        const sourceNodeId = event.sourceNodeId || event.linkId || event.link?.id || event.linkRef?.id || null;
+        const intensity = Number.isFinite(event.value)
+          ? Math.max(0, Math.min(1, event.value))
+          : Number.isFinite(event.intensity)
+            ? Math.max(0, Math.min(1, event.intensity))
+            : Number.isFinite(event.strength)
+              ? Math.max(0, Math.min(1, event.strength))
+              : 0.8;
+
+        this.triggerCascade({
+          sourceNodeId,
+          sourcePosition,
+          cascadeType: 'harmony',
+          cascadeStrength: intensity,
+          depth: event.depth || 0,
+          targetNodes: []
+        });
+      };
+
+      this.semanticBus.on('link.harmony.low', this._boundLinkHarmonyHandler);
+      this.semanticBus.on('link.harmony.mid', this._boundLinkHarmonyHandler);
+      this.semanticBus.on('link.harmony.high', this._boundLinkHarmonyHandler);
 
       this._boundStabilityHandler = (event) => {
         if (!event) return;
@@ -662,6 +743,9 @@ export class PHASE5_CascadePropagationVisuals {
       if (typeof bus.off === 'function') {
         bus.off('cascade.hop', this._boundCascadeHopHandler);
         bus.off('cascade.start', this._boundCascadeHopHandler);
+        bus.off('link.harmony.low', this._boundLinkHarmonyHandler);
+        bus.off('link.harmony.mid', this._boundLinkHarmonyHandler);
+        bus.off('link.harmony.high', this._boundLinkHarmonyHandler);
         bus.off('node.stability.low', this._boundStabilityHandler);
         bus.off('node.stability.mid', this._boundStabilityHandler);
         bus.off('node.stability.high', this._boundStabilityHandler);
@@ -669,6 +753,9 @@ export class PHASE5_CascadePropagationVisuals {
       if (typeof bus.unsubscribe === 'function') {
         bus.unsubscribe('cascade.hop', this._boundCascadeHopHandler);
         bus.unsubscribe('cascade.start', this._boundCascadeHopHandler);
+        bus.unsubscribe('link.harmony.low', this._boundLinkHarmonyHandler);
+        bus.unsubscribe('link.harmony.mid', this._boundLinkHarmonyHandler);
+        bus.unsubscribe('link.harmony.high', this._boundLinkHarmonyHandler);
         bus.unsubscribe('node.stability.low', this._boundStabilityHandler);
         bus.unsubscribe('node.stability.mid', this._boundStabilityHandler);
         bus.unsubscribe('node.stability.high', this._boundStabilityHandler);
@@ -688,6 +775,7 @@ export class PHASE5_CascadePropagationVisuals {
       this._unsubscribeSemanticCascadeEvents();
       this.semanticBus = newBus;
     }
+    this.linkingSystem = config.linkingSystem ?? this.linkingSystem ?? globalThis?.game?.linkingSystem ?? null;
     this._subscribeSemanticCascadeEvents();
     return this;
   }

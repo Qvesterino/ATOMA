@@ -4,6 +4,7 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
 - `PHASE5_CascadePropagationVisuals` now spawns a 3-ring echo burst on each trigger and uses a per-source 3 second cooldown so the cascade reads as a tighter repeated pulse instead of a single expanding ring.
 - `TopologyBiasVisualizationLayer` now has a stronger default pass for bias vectors and flow fields, plus a fallback visual path from recent influence activity so the topology layer remains readable even when active learning regions are sparse.
 - `HarmonicRecoveryVisualSystem_Session138` was softened slightly so the midpoint coherence wave stays present but no longer dominates the recovery stack.
+- `PHASE5_CascadePropagationVisuals` now listens directly to `link.harmony.low|mid|high`, resolves a link anchor midpoint from the active linking system, and spawns a visibly separated 3-ring echo cluster with a 3 second cooldown. This replaced the invisible dependency on cascade bridge timing for the main visible path.
 
 ## 2026-04-04
 - `WaveParticleEmitter_v1` was moved toward direct semantic metric-tier listeners for node-driven particle emission.
@@ -133,4 +134,8 @@ Original prompt: reduce synergy cascade visual clutter and make the repeated bea
   - Healing uses `config.linkCooldown` instead of separate high/mid/low cooldowns.
   - Recovery uses `config.linkCooldown` instead of separate wave/stitching/halo cooldowns.
 - Runtime smoke confirmed the shared gate behavior: first tier event spawns, the immediate follow-up is blocked, and the next event after cooldown spawns again.
+- Moved the visible echo ring presentation into `SynergyCascadeVisualizer` for `link.harmony.*` and demoted `PHASE5_CascadePropagationVisuals` to a subtle single-ring support path.
+- Browser smoke after the move confirmed the Synergy echo path is visible on 5 fresh links without the old PHASE5 echo burst dominating the frame.
+- Moved topology visualization off the dedicated overlay and into `SynergyCascadeVisualizer` as a snapshot-driven visible feedback path.
+- `TopologyBiasVisualizationLayer` now publishes `topology.bias.snapshot` and defaults its own debug draws off so it no longer competes with the showpiece layer.
 
