@@ -41,7 +41,7 @@ const CONFIG = {
     // Layer system
     LAYER_A_ENABLED: true,  // Signal glyphs (primary)
     LAYER_B_ENABLED: true,  // Modulator marks (secondary)
-    LAYER_C_ENABLED: true,  // Memory traces (tertiary)
+    LAYER_C_ENABLED: false,  // Memory traces disabled for simplified mode
     
     LAYER_A_OPACITY: 0.7,
     LAYER_B_OPACITY: 0.5,
@@ -52,10 +52,10 @@ const CONFIG = {
     LAYER_C_DEPTH_OFFSET: 1.4,
     
     // Spawn density (semantic priority)
-    MAX_GLYPHS_PER_LINK_CRITICAL: 2,   // Critical links: fewer, larger
-    MAX_GLYPHS_PER_LINK_IMPORTANT: 3,  // Important links
-    MAX_GLYPHS_PER_LINK_NORMAL: 4,     // Normal links
-    MAX_GLYPHS_PER_LINK_MINOR: 5,      // Minor links: more, smaller
+    MAX_GLYPHS_PER_LINK_CRITICAL: 5,
+    MAX_GLYPHS_PER_LINK_IMPORTANT: 5,
+    MAX_GLYPHS_PER_LINK_NORMAL: 5,
+    MAX_GLYPHS_PER_LINK_MINOR: 5,
     MAX_GLYPHS_PER_LINK_ABSOLUTE: 5,   // Hard cap per link
     MAX_GLYPHS_PER_STATE: 1,           // Max per pictogram state per link
     MAX_GLYPHS_PER_METRIC: {           // Per-metric caps (target: 1 of each metric)
@@ -78,10 +78,10 @@ const CONFIG = {
     SPAWN_INTERVAL_BASE: 2.5,
     
     // Size tiers (adjusted for hierarchy)
-    SIZE_ANCHOR: 0.8,      // Rare, critical markers
-    SIZE_LARGE: 0.6,       // Important signals
-    SIZE_MEDIUM: 0.4,      // Standard glyphs
-    SIZE_SMALL: 0.25,      // Minor/modulator marks
+    SIZE_ANCHOR: 0.5,
+    SIZE_LARGE: 0.45,
+    SIZE_MEDIUM: 0.4,
+    SIZE_SMALL: 0.35,
     
     // Motion
     BASE_DRIFT_SPEED: 0.25,
@@ -116,7 +116,7 @@ const CONFIG = {
     ORPHAN_FADE_DURATION: 0.55,
     
     // Memory layer
-    MEMORY_SPAWN_CHANCE: 0.15,  // 15% chance to spawn memory trace
+    MEMORY_SPAWN_CHANCE: 0.0,  // disable random memory traces
     MEMORY_LIFETIME_MULTIPLIER: 2.0,  // Last twice as long
     
     // Performance
@@ -139,7 +139,7 @@ const CONFIG = {
 };
 
 // Guarantee at least a small number of visible pictograms when links exist
-const MIN_ACTIVE_GLOBAL = 8;
+const MIN_ACTIVE_GLOBAL = 0;
 const VISIBILITY_SCALE = 2.0; // stronger visibility boost
 
 const getGlobalLinkSystem = () =>
@@ -1107,44 +1107,16 @@ export class LinkSemanticPictogramSystem_Enhanced {
 
         this.updateTimer += deltaTime;
         if (this.updateTimer < CONFIG.UPDATE_INTERVAL) return;
-        
+
         const actualDelta = this.updateTimer;
         this.updateTimer = 0.0;
 
-        // Update link importance scores
-        this.updateLinkImportanceScores();
-
-        // Update spawn timers
-        this.updateSpawnTimers(actualDelta);
-
-        // Spawn new pictograms
-        this.spawnPictograms(actualDelta, time);
+        // Only deterministic metric glyphs are used in the simplified pictogram mode.
         this.ensureMetricMinimums();
 
-        // Update active pictograms
+        // Update active pictogram motion and lifetime.
         const cameraPos = this.camera ? this.camera.position : null;
         this.updateActivePictograms(actualDelta, cameraPos);
-
-        // Log when links become available
-        const linkCount = this._getLinks().length;
-        const worldReady = this.linkingSystem?.worldReady === true;
-        const activeCount = this.pictograms.filter(p => p.active).length;
-        // Emergency: if links exist but nothing active, force one spawn immediately (once)
-        if (worldReady && linkCount > 0 && activeCount === 0 && !this._diagImmediateForced) {
-            const firstLink = this.linkingSystem.links[0];
-            if (firstLink) {
-                this.spawnPictogram(
-                    firstLink,
-                    'A',
-                    'CIRCLE_RING',
-                    CONFIG.SIZE_MEDIUM,
-                    CONFIG.LAYER_A_DEPTH_OFFSET,
-                    this.getLinkKey(firstLink),
-                    'loadPressure'
-                );
-                this._diagImmediateForced = true;
-            }
-        }
     }
 
     updateLinkImportanceScores() {
@@ -1215,126 +1187,46 @@ export class LinkSemanticPictogramSystem_Enhanced {
         const links = this._getLinks();
         if (!links.length) return;
 
-        const nowMs = typeof time === 'number' ? time : (typeof performance !== 'undefined' ? performance.now() : Date.now());
-        let spawnedThisTick = 0;
-
         links.forEach(link => {
             const linkId = this.getLinkKey(link);
             if (!linkId) return;
             const importance = this.linkImportanceScores.get(linkId) || 0.5;
-            
-            // Check spawn timer (adjusted by importance)
-            const spawnInterval = CONFIG.SPAWN_INTERVAL_BASE / (0.5 + importance);
+
             const timer = this.linkSpawnTimers.get(linkId) || 0;
+            const spawnInterval = CONFIG.SPAWN_INTERVAL_BASE / (0.5 + importance);
             if (timer < spawnInterval) return;
 
-            // Check glyph count
-            const maxGlyphs = this.getMaxGlyphsForLink(importance);
             const currentCount = this.linkPictogramCounts.get(linkId) || 0;
-            if (currentCount >= maxGlyphs) return;
             if (currentCount >= CONFIG.MAX_GLYPHS_PER_LINK_ABSOLUTE) return;
 
-            // Analyze link context
             const linkContext = this.analyzeLinkContext(link);
-
-            // Decide which layer to spawn
             const layer = this.selectLayer(linkContext, currentCount);
-
-            // Select state for this layer
             const state = this.selectStateForLayer(layer, linkContext) || 'CIRCLE_RING';
             const metricType = getMetricForState(state);
 
-            // Per-state cap
             const stateCounts = this.linkStateCounts.get(linkId) || new Map();
             const stateCount = stateCounts.get(state) || 0;
             if (stateCount >= CONFIG.MAX_GLYPHS_PER_STATE) return;
 
-            // Per-metric cap
             const metricCounts = this.linkMetricCounts.get(linkId) || new Map();
             const metricCount = metricCounts.get(metricType) || 0;
             const metricCap = (CONFIG.MAX_GLYPHS_PER_METRIC && CONFIG.MAX_GLYPHS_PER_METRIC[metricType]) ??
-                              CONFIG.MAX_GLYPHS_PER_METRIC?.default ??
-                              CONFIG.MAX_GLYPHS_PER_METRIC ?? 2;
+                              CONFIG.MAX_GLYPHS_PER_METRIC?.default ?? 1;
             if (metricCount >= metricCap) return;
 
-            // Select size based on importance
             const size = this.selectSizeByImportance(importance, layer);
-
-            // Depth offset by layer
             const depthOffset = layer === 'A' ? CONFIG.LAYER_A_DEPTH_OFFSET :
                                (layer === 'B' ? CONFIG.LAYER_B_DEPTH_OFFSET : CONFIG.LAYER_C_DEPTH_OFFSET);
 
-            // Spawn glyph
-            this.spawnPictogram(link, layer, state, size, depthOffset, linkId);
-            spawnedThisTick += 1;
-
-            // Reset timer
+            this.spawnPictogram(link, layer, state, size, depthOffset, linkId, metricType);
             this.linkSpawnTimers.set(linkId, 0);
 
-            // Update count
             this.linkPictogramCounts.set(linkId, currentCount + 1);
             stateCounts.set(state, stateCount + 1);
             this.linkStateCounts.set(linkId, stateCounts);
             metricCounts.set(metricType, metricCount + 1);
             this.linkMetricCounts.set(linkId, metricCounts);
         });
-
-        const linkCount = this.linkingSystem?.links?.length || 0;
-        const activeCount = this.pictograms.filter(p => p.active).length;
-        const worldReady = this.linkingSystem?.worldReady === true;
-
-        if (worldReady && linkCount > 0 && activeCount === 0) {
-            this._inactiveTimer = (this._inactiveTimer || 0) + deltaTime;
-        } else {
-            this._inactiveTimer = 0;
-        }
-
-        if (
-            worldReady &&
-            linkCount > 0 &&
-            activeCount === 0 &&
-            (this._inactiveTimer || 0) >= 2.0 &&
-            (!this._lastRecoveryTime || nowMs - this._lastRecoveryTime >= 2000)
-        ) {
-            const firstLink = this.linkingSystem.links[0];
-            if (firstLink) {
-                this.spawnPictogram(
-                    firstLink,
-                    'A',
-                    'CIRCLE_RING',
-                    CONFIG.SIZE_MEDIUM,
-                    CONFIG.LAYER_A_DEPTH_OFFSET,
-                    this.getLinkKey(firstLink)
-                );
-                this._lastRecoveryTime = nowMs;
-                this._inactiveTimer = 0;
-                spawnedThisTick += 1;
-            }
-        }
-
-        // Maintain minimum global active pictograms while links exist
-        if (worldReady && linkCount > 0 && activeCount < MIN_ACTIVE_GLOBAL) {
-            const links = this.linkingSystem.links;
-            let needed = MIN_ACTIVE_GLOBAL - activeCount;
-            for (let i = 0; i < links.length && needed > 0; i++) {
-                this.spawnPictogram(
-                    links[i],
-                    'A',
-                    'CIRCLE_RING',
-                    CONFIG.SIZE_MEDIUM,
-                    CONFIG.LAYER_A_DEPTH_OFFSET
-                );
-                needed -= 1;
-            }
-        }
-
-        // Throttled diagnostics (1x/s) to trace visibility issues
-        const nowDiag = typeof performance !== 'undefined' ? performance.now() : Date.now();
-
-        // Safety: keep container visible
-        if (this.container && this.container.visible === false) {
-            this.container.visible = true;
-        }
     }
 
     selectLayer(linkContext, currentCount) {
@@ -1412,18 +1304,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
     }
 
     selectSizeByImportance(importance, layer) {
-        if (layer === 'C') return CONFIG.SIZE_SMALL; // Memory always small
-
-        if (importance > 0.85) {
-            // Critical: rare anchor glyph
-            return Math.random() < 0.1 ? CONFIG.SIZE_ANCHOR : CONFIG.SIZE_LARGE;
-        } else if (importance > 0.65) {
-            return CONFIG.SIZE_LARGE;
-        } else if (importance > 0.35) {
-            return CONFIG.SIZE_MEDIUM;
-        } else {
-            return CONFIG.SIZE_SMALL;
-        }
+        // Simplified mode: fixed size for stable glyph appearance.
+        return CONFIG.SIZE_MEDIUM;
     }
 
     updateActivePictograms(deltaTime, cameraPos) {

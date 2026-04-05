@@ -87,12 +87,12 @@ export const NODE_VISUAL_REGISTRY = {
   619: { category: 'control', factoryName: 'createControlSpecialGovernor', archetypeTag: 'stabilizer', metrics: { synergy: 0.698947, harmony: 0.850000, stability: 0.850000, corruption: 0.064737, loadPressure: 0.538947 } },
   620: { category: 'control', factoryName: 'createControlSpineVariant', archetypeTag: 'pressure', metrics: { synergy: 0.709474, harmony: 0.850000, stability: 0.850000, corruption: 0.067368, loadPressure: 0.549474 } },
   621: { category: 'control', factoryName: 'createExtremeControl1', archetypeTag: 'amplifier', metrics: { synergy: 0.720000, harmony: 0.880000, stability: 0.950000, corruption: 0.070000, loadPressure: 0.560000 } },
-  // Quantum (7xx)
+  // Quantum (7xx) vybavene - hotove
   701: { category: 'quantum', factoryName: 'createQuantumBloomNode', archetypeTag: 'amplifier', metrics: { synergy: 0.820000, harmony: 0.300000, stability: 0.200000, corruption: 0.220000, loadPressure: 0.720000 } },
   702: { category: 'quantum', factoryName: 'createQuantumLattice', archetypeTag: 'risky', metrics: { synergy: 0.863333, harmony: 0.373333, stability: 0.273333, corruption: 0.300000, loadPressure: 0.786667 } },
   703: { category: 'quantum', factoryName: 'createQuantumLotus', archetypeTag: 'pressure', metrics: { synergy: 0.906667, harmony: 0.446667, stability: 0.346667, corruption: 0.380000, loadPressure: 0.853333 } },
   705: { category: 'quantum', factoryName: 'createQuantumNodeStyled_v2', archetypeTag: 'harmonizer', metrics: { synergy: 0.950000, harmony: 0.520000, stability: 0.420000, corruption: 0.460000, loadPressure: 0.920000 } },
-  // Sigma (8xx)
+  // Sigma (8xx) vybaveny - hotove
   804: { category: 'sigma', factoryName: 'createSigmaLatticeConductor', archetypeTag: 'harmonizer', metrics: { synergy: 0.680000, harmony: 0.680000, stability: 0.720000, corruption: 0.020000, loadPressure: 0.400000 } },
   805: { category: 'sigma', factoryName: 'createSigmaNode2', archetypeTag: 'risky', metrics: { synergy: 0.733333, harmony: 0.733333, stability: 0.780000, corruption: 0.040000, loadPressure: 0.473333 } },
   806: { category: 'sigma', factoryName: 'createSigmaNodeStyled_v2', archetypeTag: 'pressure', metrics: { synergy: 0.786667, harmony: 0.786667, stability: 0.840000, corruption: 0.060000, loadPressure: 0.546667 } },
@@ -105,7 +105,7 @@ export const NODE_VISUAL_REGISTRY = {
   905: { category: 'mythic', factoryName: 'createMythicAncientCoreWithMissingNode', archetypeTag: 'stabilizer', metrics: { synergy: 0.850000, harmony: 0.850000, stability: 0.820000, corruption: 0.053333, loadPressure: 0.553333 } },
   906: { category: 'mythic', factoryName: 'createMythicCollapsedCrownNode', archetypeTag: 'pressure', metrics: { synergy: 0.850000, harmony: 0.850000, stability: 0.850000, corruption: 0.061667, loadPressure: 0.586667 } },
   908: { category: 'mythic', factoryName: 'createMythicNodeStyled_v2', archetypeTag: 'amplifier', metrics: { synergy: 0.850000, harmony: 0.850000, stability: 0.850000, corruption: 0.070000, loadPressure: 0.620000 } },
-  // Prime (10xx)
+  // Prime (10xx) vybavene - hotove
   1001: { category: 'prime', factoryName: 'createPrimeNestedIcosahedronNode', archetypeTag: 'pressure', metrics: { synergy: 0.900000, harmony: 0.900000, stability: 0.900000, corruption: 0.000000, loadPressure: 0.620000 } },
   1002: { category: 'prime', factoryName: 'createPrimePerfectDodecahedronNode', archetypeTag: 'stabilizer', metrics: { synergy: 0.913333, harmony: 0.913333, stability: 0.913333, corruption: 0.005000, loadPressure: 0.653333 } },
   1003: { category: 'prime', factoryName: 'createPrimeStellaOctangulaNode', archetypeTag: 'harmonizer', metrics: { synergy: 0.926667, harmony: 0.926667, stability: 0.926667, corruption: 0.010000, loadPressure: 0.686667 } },

@@ -2,14 +2,16 @@
  * FXDebugSandbox.js
  * ============================================================================
  * DEBUG SANDBOX FOR VFX SYSTEMS
- * 
+ *
+ * ⚠️ CURRENTLY DISABLED - To enable, change 'const DISABLED = true' to 'false' at line ~661
+ *
  * Provides console-accessible testing interface for all VFX systems.
- * Usage:
+ * Usage (after enabling):
  *   FX.init(scene, renderer)  - Initialize sandbox
  *   FX.spawn.<system>()      - Spawn specific effect
  *   FX.spawnAll()            - Spawn all effects
  *   FX.clear()               - Clear all spawned effects
- * 
+ *
  * @author ATOMA VFX Debug Assistant
  * @version 1.0.0
  */
@@ -18,47 +20,50 @@
 // VFX SYSTEM IMPORTS
 // ============================================================================
 
-import { LinkTrailParticleSystem } from './LinkTrailParticleSystem.js';
-import { WaveParticleEmitter_v1 } from './WaveParticleEmitter_v1.js';
-import { HealingParticleSystem_Session136 } from './HealingParticleSystem_Session136.js';
-import { CascadeParticleSystem_Session120 } from './CascadeParticleSystem_Session120.js';
-import { CascadeParticleEmissionBoost_Session118 } from './CascadeParticleEmissionBoost_Session118.js';
-import { CascadeParticleColorTinting_Session119 } from './CascadeParticleColorTinting_Session119.js';
-import { CascadingRuptureSystem } from './CascadingRuptureSystem.js';
-import { CascadeResonanceWaveVisualization_Session146 } from './CascadeResonanceWaveVisualization_Session146.js';
-import { ResonanceCascadeVisualization_Session117B } from './ResonanceCascadeVisualization_Session117B.js';
+// DEBUG SANDBOX IS DISABLED AND IMPORTS ARE COMMENTED OUT
+// to prevent 404 load failures for missing debug modules when the sandbox
+// is not in active use.
 
-import { WaveInterferenceEngine_v1 } from './WaveInterferenceEngine_v1.js';
-import { WaveShaderBridge_v1 } from './WaveShaderBridge_v1.js';
-import { WaveShaderMaterialPatch_v1 } from './WaveShaderMaterialPatch_v1.js';
-import { WaveTravelShaderPack_v1 } from './WaveTravelShaderPack_v1.js';
-import { WaveDynamicsShaderPack_v1 } from './WaveDynamicsShaderPack_v1.js';
-import { SynergyTravelingWaveFX_v1 } from './SynergyTravelingWaveFX_v1.js';
-import { StandingWaveOscillationTrapSystem_Session130 } from './StandingWaveOscillationTrapSystem_Session130.js';
-import { StandingWaveVisualRenderer_Session131 } from './StandingWaveVisualRenderer_Session131.js';
-import { WaveInterferencePatternSystem_Session132 } from './WaveInterferencePatternSystem_Session132.js';
+// import { LinkTrailParticleSystem } from './LinkTrailParticleSystem.js';
+// import { WaveParticleEmitter_v1 } from './WaveParticleEmitter_v1.js';
+// import { HealingParticleSystem_Session136 } from './HealingParticleSystem_Session136.js';
+// import { CascadeParticleSystem_Session120 } from './CascadeParticleSystem_Session120.js';
+// import { CascadeParticleEmissionBoost_Session118 } from './CascadeParticleEmissionBoost_Session118.js';
+// import { CascadeParticleColorTinting_Session119 } from './CascadeParticleColorTinting_Session119.js';
+// import { CascadingRuptureSystem } from './CascadingRuptureSystem.js';
+// import { CascadeResonanceWaveVisualization_Session146 } from './CascadeResonanceWaveVisualization_Session146.js';
+// import { ResonanceCascadeVisualization_Session117B } from './ResonanceCascadeVisualization_Session117B.js';
 
-// import { EchoRippleIntegrationPatch_Session125 } from './EchoRippleIntegrationPatch_Session125.js';
-import { ResonanceEchoTrailSystem } from './ResonanceEchoTrailSystem.js';
+// import { WaveInterferenceEngine_v1 } from './WaveInterferenceEngine_v1.js';
+// import { WaveShaderBridge_v1 } from './WaveShaderBridge_v1.js';
+// import { WaveShaderMaterialPatch_v1 } from './WaveShaderMaterialPatch_v1.js';
+// import { WaveTravelShaderPack_v1 } from './WaveTravelShaderPack_v1.js';
+// import { WaveDynamicsShaderPack_v1 } from './WaveDynamicsShaderPack_v1.js';
+// import { SynergyTravelingWaveFX_v1 } from './SynergyTravelingWaveFX_v1.js';
+// import { StandingWaveOscillationTrapSystem_Session130 } from './StandingWaveOscillationTrapSystem_Session130.js';
+// import { StandingWaveVisualRenderer_Session131 } from './StandingWaveVisualRenderer_Session131.js';
+// import { WaveInterferencePatternSystem_Session132 } from './WaveInterferencePatternSystem_Session132.js';
 
-import { HarmonicResonanceCoupling_v1 } from './HarmonicResonanceCoupling_v1.js';
-import { HarmonicResonanceFeedbackSystem } from './HarmonicResonanceFeedbackSystem.js';
-import { ResonanceFeedback_v1 } from './ResonanceFeedback_v1.js';
-import { CompositeGlyphResonanceFeedback } from './CompositeGlyphResonanceFeedback.js';
-import { HarmonicNodeResonanceHalos } from './HarmonicNodeResonanceHalos.js';
-import { HarmonicSyncEffectApplier } from './HarmonicSyncEffectApplier.js';
+// import { ResonanceEchoTrailSystem } from './ResonanceEchoTrailSystem.js';
 
-import { InterferenceEffectApplier } from './InterferenceEffectApplier.js';
-import { NodeInterferenceManager } from './NodeInterferenceManager.js';
+// import { HarmonicResonanceCoupling_v1 } from './HarmonicResonanceCoupling_v1.js';
+// import { HarmonicResonanceFeedbackSystem } from './HarmonicResonanceFeedbackSystem.js';
+// import { ResonanceFeedback_v1 } from './ResonanceFeedback_v1.js';
+// import { CompositeGlyphResonanceFeedback } from './CompositeGlyphResonanceFeedback.js';
+// import { HarmonicNodeResonanceHalos } from './HarmonicNodeResonanceHalos.js';
+// import { HarmonicSyncEffectApplier } from './HarmonicSyncEffectApplier.js';
 
-import { LinkBeadTrailSystem } from './LinkBeadTrailSystem.js';
-import { LinkSparkSystem } from './LinkSparkSystem.js';
-import { LinkDirectionalStreaks } from './LinkDirectionalStreaks.js';
-import { AnimatedLinkFlow } from './AnimatedLinkFlow.js';
+// import { InterferenceEffectApplier } from './InterferenceEffectApplier.js';
+// import { NodeInterferenceManager } from './NodeInterferenceManager.js';
 
-import { LinkCorruptionParticleSystem } from './LinkCorruptionParticleSystem.js';
-import { LinkHealingParticleSystem } from './LinkHealingParticleSystem.js';
-import { LinkBeadSystem } from './LinkBeadSystem.js';
+// import { LinkBeadTrailSystem } from './LinkBeadTrailSystem.js';
+// import { LinkSparkSystem } from './LinkSparkSystem.js';
+// import { LinkDirectionalStreaks } from './LinkDirectionalStreaks.js';
+// import { AnimatedLinkFlow } from './AnimatedLinkFlow.js';
+
+// import { LinkCorruptionParticleSystem } from './LinkCorruptionParticleSystem.js';
+// import { LinkHealingParticleSystem } from './LinkHealingParticleSystem.js';
+// import { LinkBeadSystem } from './LinkBeadSystem.js';
 
 // ============================================================================
 // SANDBOX CORE
@@ -647,38 +652,49 @@ FXDebugSandbox.prototype.spawnAll = function() {
 // GLOBAL WINDOW EXPORT
 // ============================================================================
 
+// ============================================================================
+// INITIALIZATION - DISABLED
+// ============================================================================
+
+// ⚠️ SANDBOX CURRENTLY DISABLED - To enable, change 'const DISABLED = true' to 'false'
+const DISABLED = true;
+
 const sandbox = new FXDebugSandbox();
 
-// Export to window for console access
-if (typeof window !== 'undefined') {
-  window.FX = sandbox;
-  
-  // Also export spawn aliases at top level for quick access
-  window.FX.spawn = {
-    particles: () => sandbox.spawnLinkTrailParticles(),
-    waves: () => sandbox.spawnWaveParticleEmitter(),
-    cascade: () => sandbox.spawnCascadeParticles(),
-    healing: () => sandbox.spawnHealingParticles(),
-    corruption: () => sandbox.spawnLinkCorruptionParticles(),
-    resonance: () => sandbox.spawnHarmonicResonanceFeedback(),
-    ripples: () => sandbox.spawnResonanceEchoTrail(),
-    interference: () => sandbox.spawnInterferenceEffect(),
-    standingWave: () => sandbox.spawnStandingWaveRenderer(),
-    sparks: () => sandbox.spawnLinkSpark(),
-    halos: () => sandbox.spawnHarmonicNodeHalos(),
-    all: () => sandbox.spawnAll()
-  };
-  
-  // Export spawn methods directly for quick access
-  window.FX.harmony = () => sandbox.spawnHealingParticles();
-  window.FX.cascade = () => sandbox.spawnCascadeParticles();
-  window.FX.wave = () => sandbox.spawnWaveParticleEmitter();
-  window.FX.trail = () => sandbox.spawnLinkTrailParticles();
-  window.FX.spark = () => sandbox.spawnLinkSpark();
-  window.FX.halo = () => sandbox.spawnHarmonicNodeHalos();
-  
-  console.log('[FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>()');
-  console.log('[FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo()');
+if (!DISABLED) {
+  // Export to window for console access
+  if (typeof window !== 'undefined') {
+    window.FX = sandbox;
+
+    // Also export spawn aliases at top level for quick access
+    window.FX.spawn = {
+      particles: () => sandbox.spawnLinkTrailParticles(),
+      waves: () => sandbox.spawnWaveParticleEmitter(),
+      cascade: () => sandbox.spawnCascadeParticles(),
+      healing: () => sandbox.spawnHealingParticles(),
+      corruption: () => sandbox.spawnLinkCorruptionParticles(),
+      resonance: () => sandbox.spawnHarmonicResonanceFeedback(),
+      ripples: () => sandbox.spawnResonanceEchoTrail(),
+      interference: () => sandbox.spawnInterferenceEffect(),
+      standingWave: () => sandbox.spawnStandingWaveRenderer(),
+      sparks: () => sandbox.spawnLinkSpark(),
+      halos: () => sandbox.spawnHarmonicNodeHalos(),
+      all: () => sandbox.spawnAll()
+    };
+
+    // Export spawn methods directly for quick access
+    window.FX.harmony = () => sandbox.spawnHealingParticles();
+    window.FX.cascade = () => sandbox.spawnCascadeParticles();
+    window.FX.wave = () => sandbox.spawnWaveParticleEmitter();
+    window.FX.trail = () => sandbox.spawnLinkTrailParticles();
+    window.FX.spark = () => sandbox.spawnLinkSpark();
+    window.FX.halo = () => sandbox.spawnHarmonicNodeHalos();
+
+    console.log('[FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>()');
+    console.log('[FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo()');
+  }
+} else {
+  console.log('[FXDebugSandbox] DISABLED - To enable, change DISABLED flag to false at line ~661');
 }
 
 export default sandbox;

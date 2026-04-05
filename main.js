@@ -74,7 +74,7 @@ import PHASE5_CorruptionBridge from './PHASE5_CorruptionBridge_v1.js';
 import { TIER4_CorruptionFeedbackVisuals } from './TIER4_CorruptionFeedbackVisuals_v1.js';
 import { CorruptionVisualFX_v1 } from './CorruptionVisualFX_v1.js';
 import { CorruptionDrivenAuraDesaturationSystem } from './CorruptionDrivenAuraDesaturationSystem.js';
-import './FXDebugSandbox.js';
+import './Engine/Debug/FXDebugSandbox.js';
 // REMOVED (2026-03-01): ShaderFreezeGuard disabled for new visual modules
 // import { installShaderFreezeGuard, warmupAllVisualVariants } from './Engine/Debug/ShaderFreezeGuard.js';
 // TEMP DISABLED: VisualSpherePolicy blocking spawn pipeline (Object3D.add)
@@ -935,7 +935,7 @@ import { CompetitionDominanceAdapter_v1, setupCompetitionDominanceIntegration } 
 // Legacy rare node spawner moved to LEGACY folder (2026-03-03)
 // REMOVED: NodeVisualFreezeBlockers_v1 - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 import { NodeLinkedAuraSystem } from './NodeLinkedAuraSystem.js';
-import { setupLinkEligibilityGate } from './LinkEligibilityGate_v1.js';
+// REMOVED: LinkEligibilityGate_v1.js - moved to LEGACY/GRAVEYARD (2026-04-05)
 // REMOVED: setupLinkDebugMode - moved to LEGACY (2026-04-03)
 
 // ============================================================================
@@ -943,7 +943,7 @@ import { setupLinkEligibilityGate } from './LinkEligibilityGate_v1.js';
 // ============================================================================
 import { applyHitProxyIntegration, setupHitProxyDebugAPI } from './_HitProxyIntegrationPatch.js';
 import { setupHitProxyAutoRegistrar } from './HitProxyAutoRegistrar.js';
-import { setupGpuSanity } from './GpuSanityPass.js';
+import { setupGpuSanity } from './Engine/Debug/GpuSanityPass.js';
 
 // ============================================================================
 // PHASE 8: NETWORK RITUAL VISUAL ORCHESTRATION (Visual Ceremony Layer)
@@ -971,7 +971,7 @@ import { HarmonicCascadeAmplification_Session145, setupCascadeConsoleAPI } from 
 import { HarmonicPhaseSynchronization_Session146, setupPhaseSyncConsoleAPI } from './HarmonicPhaseSynchronization_Session146.js';
 import { PreCascadeVisualHint_Session146 } from './PreCascadeVisualHint_Session146.js';
 import { HarmonicNodeResonanceHalos } from './HarmonicNodeResonanceHalos.js';
-import { HarmonicHubDebugger } from './HarmonicHubDebugger.js';
+import { HarmonicHubDebugger } from './Engine/Debug/HarmonicHubDebugger.js';
 import { VisualEchoTrails_v1, VisualEchoTrails_v1_Integration, setupVisualEchoTrailsIntegration } from './VisualEchoTrails_v1_Integration.js';
 
 // ============================================================================
@@ -1081,8 +1081,8 @@ import { SynergyCascadeVisualizer } from './SynergyCascadeVisualizer.js';
 // CORE MATERIAL MUTATION DETECTOR v1.0 (Session 28)
 // Automated detection and repair of core material mutations
 // ============================================================================
-import { CoreMaterialMutationDetector, setupCoreMutationDetectorConsoleAPI } from './CoreMaterialMutationDetector.js';
-import { CoreMaterialMutationTestSuite, setupCoreMaterialTestSuiteConsoleAPI } from './CoreMaterialMutationTestSuite.js';
+import { CoreMaterialMutationDetector, setupCoreMutationDetectorConsoleAPI } from './Engine/Debug/CoreMaterialMutationDetector.js';
+import { CoreMaterialMutationTestSuite, setupCoreMaterialTestSuiteConsoleAPI } from './Engine/Debug/CoreMaterialMutationTestSuite.js';
 
 // ============================================================================
 // CORE MATERIAL PROPERTY LOCK v1.0 (Session 30 - Hard Enforcement)
@@ -1237,7 +1237,7 @@ import { SynergyHighwayVisuals3D_1_0 } from './SynergyHighwayVisuals3D_1_0.js';
 // ============================================================================
 // DEBUG: HARMONY OVERLAY (visual readability, gated)
 // ============================================================================
-import { HarmonyDebugOverlay } from './HarmonyDebugOverlay.js';
+import { HarmonyDebugOverlay } from './Engine/Debug/HarmonyDebugOverlay.js';
 
 // ============================================================================
 // WEEK 27: WAVE PARTICLE EMITTER (GPU-Reactive Particle FX)
@@ -1313,8 +1313,8 @@ import { SelectedHUDSyncPatch1_0 } from './SelectedHUDSyncPatch1_0.js';
 // ============================================================================
 // LINK PRIORITY DECAY ENGINE 1.0 (Session 27 Extended)
 // ============================================================================
-import { LinkQualityFeedbackLoop1_0 } from './LinkQualityFeedbackLoop1_0.js';
 import { UserAcceptanceTracker1_0 } from './UserAcceptanceTracker1_0.js';
+// REMOVED: LinkQualityFeedbackLoop1_0.js - moved to LEGACY/GRAVEYARD (2026-04-05)
 
 // ============================================================================
 // SYNERGY RECOMMENDATION DEBUG HUD 1.0 (Session 19 Extended)
@@ -1355,7 +1355,7 @@ import { WorldSelectorHUD } from './WorldSelectorHUD.js';
 // ============================================================================
 // ATOMA DEBUG HUD 1.0 (Session 28 - In-Game Debug Monitoring)
 // ============================================================================
-import { AtomaDebugHUD_1_0 } from './AtomaDebugHUD_1_0.js';
+import { AtomaDebugHUD_1_0 } from './Engine/Debug/AtomaDebugHUD_1_0.js';
 
 /**
  * ATOMA - AI Dream Realm Simulation
@@ -8818,21 +8818,8 @@ window.__ATOMA_SCENE__ = this.scene;
             this.linkCorrelationEngine = null;
         }
 
-        // ====================================================================
-        // LINK ELIGIBILITY GATE v1.0 (Session 99 - Logic-First Repair)
-        // Single authoritative source for all link eligibility decisions
-        // ====================================================================
-        try {
-            this.linkEligibilityGate = setupLinkEligibilityGate({
-                aiNodes: this.aiNodes,
-                linkingSystem: this.linkingSystem,
-                debugMode: false  // Set to true to see eligibility logs
-            });
-            console.log('[main.js] LinkEligibilityGate initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] LinkEligibilityGate initialization failed:', err);
-        }
 
+        // REMOVED: LinkEligibilityGate_v1 - moved to LEGACY/GRAVEYARD (2026-04-05)
         // REMOVED: LINK DEBUG MODE v1.0 - moved to LEGACY (2026-04-03)
         /*
         try {
@@ -9284,11 +9271,9 @@ window.__ATOMA_SCENE__ = this.scene;
             }, 'simulation.linkQualityCalculator');
         }
         console.log('[main.js] LinkQualityCalculator initialized ✓');
-        
-        // 1. Link Quality Feedback Loop 1.0 - Link outcome evaluation
-        this.linkQualityFeedbackLoop = new LinkQualityFeedbackLoop1_0(this.linkingSystem);
-        console.log('[main.js] LinkQualityFeedbackLoop1_0 initialized ✓');
-        
+
+        // REMOVED: LinkQualityFeedbackLoop1_0 - moved to LEGACY/GRAVEYARD (2026-04-05)
+
         // ===================================================================
         // [SESSION 88] LINK DEGRADATION SYSTEM - Quality-based effect scaling
         // ===================================================================
