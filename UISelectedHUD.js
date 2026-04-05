@@ -62,6 +62,9 @@
 import { LinkPrioritySystem } from './LinkPrioritySystem.js';
 
 export class UISelectedHUD {
+    // Curated charset: tech + symbolism + visual density
+    static _CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*+-=▒▓█░∆ΩΣΨ';
+
     constructor() {
         this.linkingSystem = null;
         this.hudElement = null;
@@ -79,6 +82,19 @@ export class UISelectedHUD {
         // [Audit 6.2] Safe refresh counter to prevent UI thrashing
         this._refreshCount = 0;
         this._maxRefreshPerFrame = 1;
+
+        // [Scramble Reveal] Text decryption effect state
+        this._scramble = {
+            active: false,
+            targetText: '',
+            displayChars: [],
+            lockedCount: 0,
+            elapsed: 0,
+            phase: 'idle', // 'delay' | 'scramble' | 'complete' | 'glow' | 'idle'
+            nodeId: null,
+            linkedSuffix: '', // linked categories text (appears after reveal)
+        };
+        this._scrambleSchedulerRegistered = false;
         
         this._createHudElement();
         this._setupStyles();
@@ -230,6 +246,16 @@ export class UISelectedHUD {
                 text-shadow: 0 0 4px rgba(102, 102, 102, 0.3);
                 border-color: rgba(102, 102, 102, 0.2);
             }
+
+            @keyframes scramble-glow-pulse {
+                0% { text-shadow: 0 0 8px rgba(127, 255, 212, 0.3); }
+                50% { text-shadow: 0 0 20px rgba(127, 255, 212, 0.8), 0 0 40px rgba(127, 255, 212, 0.4); }
+                100% { text-shadow: 0 0 8px rgba(127, 255, 212, 0.3); }
+            }
+
+            #selected-hud.scramble-glow {
+                animation: scramble-glow-pulse 0.3s ease-out 1;
+            }
         `;
         document.head.appendChild(style);
     }
@@ -264,8 +290,9 @@ export class UISelectedHUD {
         linkingSystem.onNodeSelected((node) => {
             console.log(`[SelectedHUD] Callback fired - node selected: ${node.userData.category}`);
             this.selectedNode = node;
-            this.updateDisplay(node);
+            // Order matters: resolve linked categories FIRST, then update display (which starts scramble)
             this.updateLinkedCategories(node);
+            this.updateDisplay(node);
         });
         
         linkingSystem.onNodeDeselected(() => {
@@ -304,6 +331,8 @@ export class UISelectedHUD {
 
     dispose() {
         this._unbindSemanticBus();
+        this._unregisterScrambleScheduler();
+        this._resetScramble();
         this.hudElement?.remove?.();
         this.hudElement = null;
         this.linkingSystem = null;
@@ -360,22 +389,27 @@ export class UISelectedHUD {
         // Use the proper category extraction method
         const nodeType = this._getCategoryFromNode(node);
         
-        // Format display text - simplified format as requested
-        let displayText = '';
-        
-        // Show category in square brackets
+        // Build the category text (this gets scrambled)
+        let categoryText = '';
         if (nodeType && nodeType !== 'unknown') {
-            displayText += `[${nodeType.toUpperCase()}]`;
+            categoryText = `[${nodeType.toUpperCase()}]`;
         }
-        
-        // Add linked categories if available - use " + " separator, enclosed in {}
+
+        // Build the linked suffix (appears instantly after scramble)
+        let linkedSuffix = '';
         if (this.linkedCategories && this.linkedCategories.length > 0) {
             const linkedText = this.linkedCategories.join(' + ').toUpperCase();
-            displayText += ` → {${linkedText}}`;
+            linkedSuffix = ` → {${linkedText}}`;
         }
-        
-        // Update HUD element
-        this.hudElement.textContent = displayText;
+
+        const fullDisplayText = `${categoryText}${linkedSuffix}`;
+
+        // Resolve nodeId for deduplication
+        const nodeId = this._resolveNodeId(node);
+
+        // Start scramble reveal for the full visible line so additional selected nodes also animate
+        this.startReveal(fullDisplayText, nodeId, '');
+
         this.hudElement.classList.remove('none');
         this.hudElement.classList.add('selected');
     }
@@ -581,7 +615,17 @@ export class UISelectedHUD {
             }
             
             this.linkedCategories = categories;
-            
+
+            // [Scramble Reveal] Update linked suffix if a reveal is active
+            if (this._scramble.active && this.selectedNode) {
+                let newSuffix = '';
+                if (categories && categories.length > 0) {
+                    const linkedText = categories.join(' + ').toUpperCase();
+                    newSuffix = ` → {${linkedText}}`;
+                }
+                this._scramble.linkedSuffix = newSuffix;
+            }
+
             // [LinkPriority v1.0] Compute max priority tier among all linked nodes
             this.maxLinkedPriorityTier = 0;
             try {
@@ -613,13 +657,231 @@ export class UISelectedHUD {
         }
     }
     
+    // ========================================================================
+    // [Scramble Reveal] Text decryption effect
+    // ========================================================================
+
+    /**
+     * Start a scramble reveal animation for the given text.
+     *
+     * Timing: delay 0.8s → scramble 0.45s → lock-in → stable
+     * Total: ~1.2s
+     *
+     * @param {string} targetText - The final text to reveal
+     * @param {string|null} nodeId - Node identifier for deduplication
+     * @param {string} linkedSuffix - Linked categories text (appears after reveal)
+     */
+    startReveal(targetText, nodeId, linkedSuffix = '') {
+        // Empty text → skip scramble, set directly
+        if (!targetText || targetText.length === 0) {
+            this._resetScramble();
+            this.hudElement.textContent = linkedSuffix;
+            return;
+        }
+
+        // Same node already fully revealed with same display → do nothing
+        if (this._scramble.phase === 'idle' 
+            && this._scramble.nodeId === nodeId 
+            && this._scramble.targetText === targetText 
+            && this._scramble.linkedSuffix === linkedSuffix) {
+            return;
+        }
+
+        // New node during active reveal → reset and start fresh (this is the intended behavior)
+        const charset = UISelectedHUD._CHARSET;
+        const chars = [];
+        for (let i = 0; i < targetText.length; i++) {
+            chars.push(charset[Math.floor(Math.random() * charset.length)]);
+        }
+
+        this._scramble = {
+            active: true,
+            targetText: targetText,
+            displayChars: chars,
+            lockedCount: 0,
+            elapsed: 0,
+            phase: 'delay',
+            nodeId: nodeId,
+            linkedSuffix: linkedSuffix,
+        };
+
+        // Ensure FrameScheduler visual tick is registered
+        this._registerScrambleScheduler();
+
+        // Immediately show scrambled text
+        this.hudElement.textContent = chars.join('') + linkedSuffix;
+    }
+
+    /**
+     * Update scramble animation — called from FrameScheduler visual tick (30Hz).
+     * @param {number} dt - Delta time in seconds
+     */
+    updateScramble(dt) {
+        if (!this._scramble.active) return;
+
+        const s = this._scramble;
+        const charset = UISelectedHUD._CHARSET;
+
+        s.elapsed += dt;
+
+        if (s.phase === 'delay') {
+            // Delay phase: all chars randomize every frame
+            for (let i = 0; i < s.displayChars.length; i++) {
+                s.displayChars[i] = charset[Math.floor(Math.random() * charset.length)];
+            }
+            this._applyScrambleVisuals();
+            this.hudElement.textContent = s.displayChars.join('') + s.linkedSuffix;
+
+            if (s.elapsed >= 0.8) {
+                s.phase = 'scramble';
+                s.elapsed = 0;
+            }
+        } else if (s.phase === 'scramble') {
+            // Scramble phase: lock in chars left-to-right
+            const progress = Math.min(s.elapsed / 0.45, 1.0);
+            const newLocked = Math.floor(progress * s.targetText.length);
+
+            // Lock new chars (they never change again once locked)
+            for (let i = s.lockedCount; i < newLocked && i < s.targetText.length; i++) {
+                s.displayChars[i] = s.targetText[i];
+            }
+            s.lockedCount = newLocked;
+
+            // Randomize remaining unlocked chars
+            for (let i = newLocked; i < s.displayChars.length; i++) {
+                s.displayChars[i] = charset[Math.floor(Math.random() * charset.length)];
+            }
+
+            this._applyScrambleVisuals();
+            this.hudElement.textContent = s.displayChars.join('') + s.linkedSuffix;
+
+            // All chars locked → complete
+            if (newLocked >= s.targetText.length) {
+                s.phase = 'complete';
+            }
+        } else if (s.phase === 'complete') {
+            // Complete: trigger glow pulse, then idle
+            this._clearScrambleVisuals();
+            this.hudElement.textContent = s.targetText + s.linkedSuffix;
+            this.hudElement.classList.add('scramble-glow');
+
+            // Track glow pulse duration via elapsed (no setTimeout)
+            s.phase = 'glow';
+            s.elapsed = 0;
+        } else if (s.phase === 'glow') {
+            // Glow pulse phase: wait ~0.35s then cleanup
+            if (s.elapsed >= 0.35) {
+                this.hudElement?.classList?.remove('scramble-glow');
+                s.active = false;
+                s.phase = 'idle';
+            }
+        }
+    }
+
+    /**
+     * Check if a reveal animation is currently active.
+     * @returns {boolean}
+     */
+    isRevealActive() {
+        return this._scramble.active;
+    }
+
+    /**
+     * Get the current display text (scrambled or final).
+     * @returns {string}
+     */
+    getDisplayText() {
+        if (!this._scramble.active) {
+            return this._scramble.targetText + this._scramble.linkedSuffix;
+        }
+        return this._scramble.displayChars.join('') + this._scramble.linkedSuffix;
+    }
+
+    /**
+     * Reset scramble state to idle.
+     * @private
+     */
+    _resetScramble() {
+        this._scramble = {
+            active: false,
+            targetText: '',
+            displayChars: [],
+            lockedCount: 0,
+            elapsed: 0,
+            phase: 'idle',
+            nodeId: null,
+            linkedSuffix: '',
+        };
+    }
+
+    /**
+     * Apply visual effects during scramble: opacity flicker + jitter.
+     * @private
+     */
+    _applyScrambleVisuals() {
+        if (!this.hudElement) return;
+        // Opacity flicker: 0.85–1.0
+        const opacity = 0.85 + Math.random() * 0.15;
+        // Jitter: ±1px
+        const jx = Math.round((Math.random() - 0.5) * 2);
+        const jy = Math.round((Math.random() - 0.5) * 2);
+        this.hudElement.style.opacity = opacity;
+        this.hudElement.style.transform = `translate(${jx}px, ${jy}px)`;
+    }
+
+    /**
+     * Clear scramble visual effects (restore normal state).
+     * @private
+     */
+    _clearScrambleVisuals() {
+        if (!this.hudElement) return;
+        this.hudElement.style.opacity = '1';
+        this.hudElement.style.transform = 'translate(0, 0)';
+    }
+
+    /**
+     * Register the scramble update tick with FrameScheduler (visual layer, 30Hz).
+     * @private
+     */
+    _registerScrambleScheduler() {
+        if (this._scrambleSchedulerRegistered) return;
+
+        const fs = window.frameScheduler;
+        if (!fs) return;
+
+        if (fs.isRegistered?.('visual.uiSelectedHUD')) return;
+
+        fs.register('visual', (dt) => {
+            this.updateScramble(dt);
+        }, 'visual.uiSelectedHUD');
+
+        this._scrambleSchedulerRegistered = true;
+    }
+
+    /**
+     * Unregister the scramble update tick from FrameScheduler.
+     * @private
+     */
+    _unregisterScrambleScheduler() {
+        const fs = window.frameScheduler;
+        if (!fs) return;
+
+        if (fs.isRegistered?.('visual.uiSelectedHUD')) {
+            fs.unregister('visual.uiSelectedHUD');
+        }
+        this._scrambleSchedulerRegistered = false;
+    }
+
     /**
      * Clear the HUD and show "SELECTED: NONE"
      */
     clear() {
+        this._resetScramble();
         this.hudElement.textContent = 'SELECTED: NONE';
         this.hudElement.classList.remove('selected');
         this.hudElement.classList.add('none');
+        this.hudElement.classList.remove('scramble-glow');
+        this._clearScrambleVisuals();
     }
     
     /**

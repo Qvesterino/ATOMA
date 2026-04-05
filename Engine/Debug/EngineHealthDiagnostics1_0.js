@@ -53,7 +53,7 @@ export const EngineHealthDiagnostics1_0 = {
     ComputeSynergyScore2_0: null,
     LinkRecommendationAI1_0: null,
     LinkAutomationEngine1_0: null,
-    LinkAutomationMonitor2_0: null,
+    LinkAutomationMonitor3_0: null,
     SynergyHighways2_0: null,
     LinkGlowSynergyEngine1_0: null,
     LinkHistoryTracker1_0: null,
@@ -253,7 +253,7 @@ export const EngineHealthDiagnostics1_0 = {
       ComputeSynergyScore2_0: this._checkSynergyScoring(),
       LinkRecommendationAI1_0: this._checkRecommendationEngine(),
       LinkAutomationEngine1_0: this._checkAutomationEngine(),
-      LinkAutomationMonitor2_0: this._checkAutomationMonitor(),
+      LinkAutomationMonitor3_0: this._checkAutomationMonitor(),
       SynergyHighways2_0: this._checkHighwaysEngine(),
       LinkGlowSynergyEngine1_0: this._checkGlowEngine(),
       LinkHistoryTracker1_0: this._checkHistoryTracker(),
@@ -569,7 +569,7 @@ ${this._issues.length > 0 ? this._issues.map((i, idx) => `${idx + 1}. [${i.sever
     try {
       const sys = window.linkAutomationMonitor;
       return {
-        initialized: !!sys?._initialized,
+        initialized: !!sys?.monitoringStarted,
         status: sys ? 'OK' : 'NOT FOUND',
       };
     } catch (e) {

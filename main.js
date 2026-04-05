@@ -1294,6 +1294,7 @@ import { LinkMLRecommendationEngine1_0 } from './LinkMLRecommendationEngine1_0.j
 import { PriorityHistoryEngine1_0 } from './PriorityHistoryEngine1_0.js';
 import { LinkPriorityDecayEngine } from './LinkPriorityDecayEngine.js';
 import { LinkAutomationEngine1_0 } from './LinkAutomationEngine1_0.js';
+import LinkAutomationMonitor3_0 from './LinkAutomationMonitor3_0.js';
 
 // ============================================================================
 // AUTO LINK VISUALIZATION FEEDBACK UI 1.0 (Session 19 Extended)
@@ -6020,7 +6021,7 @@ this.setHudDirty('nodeInspect');
                 overlay.setAttribute('aria-live', 'polite');
                 overlay.style.cssText = [
                     'position:fixed',
-                    'top:12px',
+                    'top:calc(12px + 1.5cm)',
                     'right:12px',
                     'z-index:2147483647',
                     'padding:8px 10px',
@@ -9133,6 +9134,29 @@ window.__ATOMA_SCENE__ = this.scene;
             this.linkPriorityDecayEngine = null;
         }
 
+        // === Initialize LinkAutomationMonitor3_0 ===
+        try {
+            this.linkAutomationMonitor = new LinkAutomationMonitor3_0({
+                enabled: true,
+                acceptanceThresholdGood: 0.7,
+                acceptanceThresholdOk: 0.5,
+                minThreshold: 0.4,
+                maxThreshold: 0.85,
+                thresholdAdjustmentStep: 0.05
+            });
+            this.linkAutomationMonitor.init({
+                LinkAutomationEngine1_0: null, // Will be set after engine initialization
+                UserAcceptanceTracker1_0: null, // Optional
+                LinkQualityFeedbackLoop1_0: null, // Optional
+                LinkMLRecommendationEngine1_0: null // Optional
+            });
+            window.linkAutomationMonitor = this.linkAutomationMonitor;
+            console.log('[main.js] LinkAutomationMonitor3_0 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] LinkAutomationMonitor3_0 initialization failed:', err.message);
+            this.linkAutomationMonitor = null;
+        }
+
         // === Initialize LinkMLRecommendationEngine1_0 ===
         try {
             LinkMLRecommendationEngine1_0.init({
@@ -9141,7 +9165,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 SynergyHighwayVisuals3D_1_0: this.synergyHighwayVisuals3D,
                 NodeLinkingSystem: this.linkingSystem,
                 AINodes: this.aiNodes,
-                LinkAutomationMonitor2_0: this.linkAutomationMonitor,
+                LinkAutomationMonitor3_0: this.linkAutomationMonitor,
             });
             this.linkMLRecommendationEngine = LinkMLRecommendationEngine1_0;
             console.log('[main.js] LinkMLRecommendationEngine1_0 initialized ✓');
@@ -9163,7 +9187,17 @@ window.__ATOMA_SCENE__ = this.scene;
             }
         );
         console.log('[main.js] LinkAutomationEngine1_0 initialized ✓');
-        
+
+        // Update LinkAutomationMonitor with engine reference
+        if (this.linkAutomationMonitor && this.linkAutomationMonitor.init) {
+            this.linkAutomationMonitor.init({
+                LinkAutomationEngine1_0: this.linkAutomationEngine,
+                UserAcceptanceTracker1_0: null,
+                LinkQualityFeedbackLoop1_0: null,
+                LinkMLRecommendationEngine1_0: null
+            });
+        }
+
         // Initialize Link Quality Predictor 1.0 (link viability evaluation)
         this.linkQualityPredictor = new LinkQualityPredictor1_0(
             this.linkingSystem,

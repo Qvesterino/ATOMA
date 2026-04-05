@@ -9,7 +9,7 @@ const ENVIRONMENT_SYSTEMS = [
   'SafeDreamDepthPack',
   'DreamDepthEffectManager',
   'SafeColonyExpansion2',
-  'EnergyOrbManager',
+  // REMOVED: EnergyOrbManager - moved to LEGACY (dead code, never initialized)
   'EnvironmentalHazard',
 
 ];
@@ -23,7 +23,7 @@ const ENVIRONMENT_RENDER_LAYERS = Object.freeze({
   safeDreamDepthPack: 'WORLD_OVERLAY',
   dreamDepthEffectManager: 'WORLD_OVERLAY',
   colonyExpansion: 'WORLD_OVERLAY',
-  energyOrbManager: 'WORLD_OVERLAY',
+  // REMOVED: energyOrbManager - moved to LEGACY (dead code, never initialized)
   environmentalHazards: 'WORLD_OVERLAY'
 });
 

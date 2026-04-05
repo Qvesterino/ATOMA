@@ -135,7 +135,7 @@ export class LinkCorruptionParticleSystem {
           return inside;
         }
 
-        // Broken asymmetric fragment built from three wedge shards.
+        // Simplified shard: two main wedges + crack
         float shardMask(vec2 uv, float skew, float stretch) {
           vec2 p = uv * 2.0 - 1.0;
           p.x = p.x * (0.82 / stretch) + skew;
@@ -143,14 +143,12 @@ export class LinkCorruptionParticleSystem {
 
           float mainFrag = triMask(p, vec2(-0.62, -0.56), vec2(0.58, -0.18), vec2(-0.08, 0.82));
           float sideFrag = triMask(p, vec2(-0.18, -0.08), vec2(0.78, 0.16), vec2(0.08, 0.92));
-          float chipFrag = triMask(p, vec2(-0.72, -0.06), vec2(-0.12, 0.18), vec2(-0.42, 0.74));
 
-          float fragment = max(mainFrag, max(sideFrag * 0.82, chipFrag * 0.68));
+          float fragment = max(mainFrag, sideFrag * 0.82);
           float crack = 1.0 - smoothstep(0.02, 0.08, abs(p.x * 0.82 + p.y * 0.36 - 0.08));
-          float notch = 1.0 - smoothstep(0.0, 0.22, length(p - vec2(0.18, 0.06)));
           float edgeSoft = 1.0 - smoothstep(0.78, 1.0, length(p));
 
-          return clamp(fragment * edgeSoft - notch * 0.55 + crack * 0.18, 0.0, 1.0);
+          return clamp(fragment * edgeSoft + crack * 0.12, 0.0, 1.0);
         }
 
         void main() {
@@ -159,18 +157,15 @@ export class LinkCorruptionParticleSystem {
           float skew = (hash11(vSeed * 91.7) - 0.5) * 0.45;
           float stretch = 0.9 + hash11(vSeed * 57.3) * 0.9;
           float shape = shardMask(uv, skew, stretch);
-          float ghostLife = smoothstep(0.1, 0.55, vT) * (1.0 - smoothstep(0.76, 1.0, vT));
-          float ghost = shardMask(uv + vec2((vSeed - 0.5) * 0.03, -0.015), skew * -0.6, stretch * 1.08) * 0.28 * ghostLife;
           float lifeFade = smoothstep(0.0, 0.08, vT) * (1.0 - smoothstep(0.7, 1.0, vT));
-          float flash = smoothstep(0.88, 1.0, vT) * 1.2;
+          float flash = smoothstep(0.88, 1.0, vT) * 0.6;
           float radial = clamp(1.0 - length(gl_PointCoord * 2.0 - 1.0), 0.0, 1.0);
           float streak = flash * radial;
-          float driftFade = 1.0 - smoothstep(0.68, 1.0, vT);
-          float alpha = (shape + ghost) * (lifeFade + flash + streak) * depthFade * driftFade * uOpacity;
+          float alpha = shape * (lifeFade + flash + streak) * depthFade * uOpacity;
           if (alpha < 0.01) discard;
 
           vec3 base = mix(uBaseColor, uEdgeColor, 0.35 + 0.25 * hash11(vSeed * 151.0));
-          base += (flash + streak) * 0.35;
+          base += (flash + streak) * 0.25;
           gl_FragColor = vec4(base, alpha);
         }
       `,

@@ -45,7 +45,7 @@ async function runVFXAudit() {
         // 2. Načítaj Health Check script
         console.log('🔍 Loading Health Check script...');
         const healthCheckScript = fs.readFileSync(
-            path.join(__dirname, 'vfx_health_check.js'),
+            path.join(__dirname, '../../ai tools (powershell)/vfx_health_check.js'),
             'utf-8'
         );
         await page.evaluate(healthCheckScript);

@@ -24,7 +24,7 @@
  *     SynergyHighways2_0: highways,
  *     NodeLinkingSystem: linkingSys,
  *     AINodes: aiNodes,
- *     LinkAutomationMonitor2_0: monitor,
+ *     LinkAutomationMonitor3_0: monitor,
  *   });
  *   
  *   const recs = LinkMLRecommendationEngine1_0.getTopRecommendations(10);
@@ -53,7 +53,7 @@ export const LinkMLRecommendationEngine1_0 = {
     SynergyHighways2_0: null,
     NodeLinkingSystem: null,
     AINodes: null,
-    LinkAutomationMonitor2_0: null,
+    LinkAutomationMonitor3_0: null,
   },
 
   _config: {
@@ -163,8 +163,8 @@ export const LinkMLRecommendationEngine1_0 = {
     if (config.AINodes) {
       this._systemReferences.AINodes = config.AINodes;
     }
-    if (config.LinkAutomationMonitor2_0) {
-      this._systemReferences.LinkAutomationMonitor2_0 = config.LinkAutomationMonitor2_0;
+    if (config.LinkAutomationMonitor3_0) {
+      this._systemReferences.LinkAutomationMonitor3_0 = config.LinkAutomationMonitor3_0;
     }
 
     // Merge user config with defaults
@@ -615,7 +615,7 @@ export const LinkMLRecommendationEngine1_0 = {
    */
   _getAutomationHealth() {
     try {
-      const monitor = this._systemReferences.LinkAutomationMonitor2_0;
+      const monitor = this._systemReferences.LinkAutomationMonitor3_0;
       if (!monitor?.getStats) return 0.5;
 
       const stats = monitor.getStats();

@@ -585,6 +585,22 @@ export class LinkAutomationMonitor3_0 {
   }
 
   /**
+   * Compatibility layer for LinkAutomationMonitor2_0 API
+   * Returns stats object compatible with legacy systems
+   */
+  getStats() {
+    return {
+      metrics: {
+        engineHealth: this.getAutomationHealth()
+      },
+      totalCycles: 0,
+      totalAutoLinksCreated: this.metrics.totalLinksCreated,
+      totalAutoLinksRejected: this.metrics.totalLinksRejected,
+      totalAutoLinksAccepted: this.metrics.totalLinksAccepted
+    };
+  }
+
+  /**
    * Stop monitoring (cleanup)
    */
   stopMonitoring() {

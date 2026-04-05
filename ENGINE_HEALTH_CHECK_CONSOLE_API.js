@@ -184,7 +184,7 @@ window.testEngineHealth = function() {
   try {
     if (typeof window.linkAutomationMonitor === 'undefined') {
       health.monitors = 'error';
-      health.errors.push('LinkAutomationMonitor2_0 not found (window.linkAutomationMonitor)');
+      health.errors.push('LinkAutomationMonitor3_0 not found (window.linkAutomationMonitor)');
     } else {
       const stats = window.linkAutomationMonitor?.getStats?.();
       
@@ -198,7 +198,7 @@ window.testEngineHealth = function() {
           health.warnings.push('LinkAutomationMonitor has recorded zero cycles');
         }
         
-        console.log(`✓ LinkAutomationMonitor2_0: ${stats.totalCycles} cycles, ${stats.totalAutoLinksCreated} auto-links`);
+        console.log(`✓ LinkAutomationMonitor3_0: ${stats.totalCycles} cycles, ${stats.totalAutoLinksCreated} auto-links`);
       } else {
         health.monitors = 'error';
         health.errors.push('LinkAutomationMonitor not initialized');
