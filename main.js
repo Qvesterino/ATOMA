@@ -491,7 +491,7 @@ import { SafeAIWeatherPack } from './_SafeAIWeatherPack.js';
 // import { SafeNodePersonalityFX } from './_SafeNodePersonalityFX.js';
 import { SafeWorldFXPack } from './_SafeWorldFXPack.js';
 import { AmbientEntityManager } from './_AmbientEntityManager.js';
-import { SafeMemoryTrailsManager } from './SafeMemoryTrailsManager.js';
+// REMOVED: SafeMemoryTrailsManager.js - moved to LEGACY/GRAVEYARD (2026-04-05) - Unused (nodes/links static, FPS player doesn't see trails)
 import { SafeQuantumIllusionsPack1 } from './SafeQuantumIllusionsPack1.js';
 import { SafeColonyExpansion2 } from './SafeColonyExpansion2.js';
 import { SafeDreamDepthPack } from './SafeDreamDepthPack.js';
@@ -684,7 +684,7 @@ import { AtomaLanguageEngine3_0, setupAtomaLanguageEngine3ConsoleAPI } from './_
 
 // REMOVED: HologramShellAuthoritySystem - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 import { setupVisualInteractionIsolation_v2, setupRaycastInteractionFiltering } from './VisualInteractionIsolationPatch_v2_CRITICAL_FIX.js';
-import { VisualAudit } from './VisualAudit.js';
+import { VisualAudit } from './Engine/Debug/VisualAudit.js';
 import { initializeHardInteractionAuthority } from './HARD_INTERACTION_AUTHORITY_SYSTEM.js';
 // REMOVED: HARD_AUTHORITY_DEBUG_API - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 // REMOVED: NodeVisualIntegrityFix - moved to LEGACY (2026-04-03)
@@ -4889,11 +4889,7 @@ class AtomaGame {
         // See: LinkRendererConduit.update()
         // Eliminates race condition - conduit has direct curve access
 
-        this.frameScheduler.register('visual', (dt) => {
-            if (this.memoryTrails) {
-                this.memoryTrails.update(dt);
-            }
-        }, 'visual.memoryTrails');
+        // REMOVED: Memory trails update - moved to LEGACY/GRAVEYARD (2026-04-05)
         this.frameScheduler.register('visual', (dt) => {
             if (this.visualSuperpack) {
                 this.visualSuperpack.update(dt);
@@ -5803,7 +5799,7 @@ this.setHudDirty('nodeInspect');
             this.hazards.createGravitationalAnomaly(new THREE.Vector3(-40, 10, -40), 20, 0.6);
         }
         this.setupPersonalityFX();
-        this.setupMemoryTrails();
+        // REMOVED: this.setupMemoryTrails(); - moved to LEGACY/GRAVEYARD (2026-04-05)
         this.setupColonyManager();
         this.setupDreamDepthPack();
         this.setupMobilityPack();
@@ -8720,10 +8716,7 @@ window.__ATOMA_SCENE__ = this.scene;
             }
             const result = originalRemoveLink(link);
             const linkId = link?.userData?.id ?? link?.id ?? link?.uuid ?? null;
-            // Proactively clear memory trails so ghosts don't linger when visual update is paused
-            if (this.memoryTrails && link?.userData?.id !== undefined) {
-                this.memoryTrails.linkTrails.removeLinkTrail(link.userData.id);
-            }
+            // REMOVED: Memory trails cleanup - moved to LEGACY/GRAVEYARD (2026-04-05)
             // Cleanup LinkSparkSystem
             if (this.linkSparkSystems && link?.userData?.id !== undefined) {
                 const sparkSystem = this.linkSparkSystems.get(link.userData.id);
@@ -12822,30 +12815,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
 
 
-    /**
-     * Setup Safe Memory Trails Pack 1.0
-     * SAFE: Creates holographic memory trails for nodes, links, and player
-     */
-    setupMemoryTrails() {
-        this.memoryTrails = new SafeMemoryTrailsManager(this.scene, this.worldRoot, this.camera);
-        this.memoryTrails.frameScheduler = this.frameScheduler;
-
-        // Register read-only world system references
-        if (this.aiNodes && this.linkingSystem && this.player && this.personalityFX &&
-            this.weatherPack && this.worldEvents && this.legendaryPack) {
-            this.memoryTrails.registerWorldSystems(
-                this.aiNodes,
-                this.linkingSystem,
-                this.player,
-                this.personalityFX,
-                this.weatherPack,
-                this.worldEvents,
-                this.legendaryPack
-            );
-        }
-
-        console.log('✓ Memory Trails Pack 1.0 initialized');
-    }
+    // REMOVED: setupMemoryTrails() - moved to LEGACY/GRAVEYARD (2026-04-05)
+    // Nodes/links are static, FPS player doesn't see trails - unnecessary GPU cost
 
     /**
      * Setup Safe Quantum Illusions Pack 1.0

@@ -1272,20 +1272,20 @@ export class LinkSemanticPictogramSystem_Enhanced {
         // Select state from dominant category
         switch (hasWeakSignal ? 'fallback' : dominant[0]) {
             case 'harmony':
-                return Math.random() < 0.5 ? 'CIRCLE_RING' : 'WAVE';
+                return Math.random() < 0.75 ? 'WAVE' : 'INTERLOCKING_ARCS';
             case 'corruption':
                 return Math.random() < 0.5 ? 'BROKEN_CIRCLE' : 'FRACTURED_TRIANGLE';
             case 'synergy':
                 return 'CHEVRON';
             case 'healing':
-                return 'REFORMING_RING';
+                return 'CLOSING_GAP';
             case 'standing_wave':
                 return 'OSCILLATION';
             case 'fallback':
                 // Ensure at least one pictogram even with flat metrics
-                return 'CIRCLE_RING';
+                return 'WAVE';
             default:
-                return 'CIRCLE_RING';
+                return 'WAVE';
         }
     }
 
@@ -1572,10 +1572,10 @@ export class LinkSemanticPictogramSystem_Enhanced {
     ensureMetricMinimums() {
         const GLYPH_TYPES = ['harmony', 'stability', 'synergy', 'loadPressure', 'corruption'];
         const defaultStateByMetric = {
-            harmony: 'CIRCLE_RING',
+            harmony: 'WAVE',
             stability: 'OFFSET_DOTS',
             synergy: 'CHEVRON',
-            loadPressure: 'CIRCLE_RING',
+            loadPressure: 'CHEVRON',
             corruption: 'BROKEN_CIRCLE'
         };
         const size = CONFIG.SIZE_MEDIUM || 0.4;
@@ -1685,12 +1685,13 @@ export class LinkSemanticPictogramSystem_Enhanced {
         const group = new THREE.Group();
         const mat = this._getMaterialFromPool(0x00ffff, 1.0, THREE.AdditiveBlending);
 
-        const ringA = new THREE.Mesh(this._getGeometryFromCache('torus_harmony'), mat);
-        ringA.position.set(-size * 0.15, 0, 0);
+        // Use a smaller torus geometry so the harmony glyph matches loadPressure scale.
+        const ringA = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
+        ringA.position.set(-size * 0.12, 0, 0);
         ringA.renderOrder = renderOrder;
 
-        const ringB = new THREE.Mesh(this._getGeometryFromCache('torus_harmony'), mat);
-        ringB.position.set(size * 0.15, 0, 0);
+        const ringB = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
+        ringB.position.set(size * 0.12, 0, 0);
         ringB.rotation.y = Math.PI / 2;
         ringB.renderOrder = renderOrder;
 

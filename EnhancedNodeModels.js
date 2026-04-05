@@ -322,6 +322,61 @@ const ANALYTICS_V2_CACHE = {
 };
 const ANALYTICS_V2_MATERIALS = new Map(); // keyed by color hex
 
+// INTEGRATION v4 caches
+const INTEGRATION_NEGOTIATED_CHAOS_CLASP_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  seedGeometry: null,
+  seamGeometry: null,
+  weaveGeometryA: null,
+  weaveGeometryB: null,
+  weaveGeometryC: null,
+  witnessLineGeometryA: null,
+  witnessLineGeometryB: null,
+  shardGeometry: null,
+  shardEdgesGeometry: null,
+  dustGeometry: null
+};
+const INTEGRATION_NEGOTIATED_CHAOS_CLASP_MATERIALS = new Map(); // keyed by color hex
+const INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  seedGeometry: null,
+  seedEdgesGeometry: null,
+  seamGeometry: null,
+  loopGeometryA: null,
+  loopGeometryB: null,
+  loopEdgesGeometryA: null,
+  loopEdgesGeometryB: null,
+  broadcastGeometryA: null,
+  broadcastGeometryB: null,
+  broadcastEdgesGeometryA: null,
+  broadcastEdgesGeometryB: null,
+  witnessLineGeometryA: null,
+  witnessLineGeometryB: null,
+  shardGeometry: null,
+  shardEdgesGeometry: null,
+  dustGeometry: null
+};
+const INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_MATERIALS = new Map(); // keyed by color hex
+const INTEGRATION_FIGURE_EIGHT_CLASP_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  seedGeometry: null,
+  seamGeometry: null,
+  loopGeometryA: null,
+  loopGeometryB: null,
+  loopEdgesGeometryA: null,
+  loopEdgesGeometryB: null,
+  shardGeometry: null,
+  shardEdgesGeometry: null,
+  witnessLineGeometryA: null,
+  witnessLineGeometryB: null,
+  dustGeometry: null
+};
+const INTEGRATION_FIGURE_EIGHT_CLASP_MATERIALS = new Map(); // keyed by color hex
+const INTEGRATION_FIGURE_EIGHT_APEX_MATERIALS = new Map(); // keyed by color hex
+
 // QUANTUM v2 caches
 const QUANTUM_V2_CACHE = {
   baseGeometry: null,
@@ -5261,6 +5316,992 @@ function _getQuantumV2Materials(color) {
   return mats;
 }
 
+// ---------- INTEGRATION v4 helpers ----------
+function _getIntegrationNegotiatedChaosClaspGeometries() {
+  if (!INTEGRATION_NEGOTIATED_CHAOS_CLASP_CACHE.coreGeometry) {
+    const buildTubeGeometry = (points, radius, tubularSegments = 56, radialSegments = 8) => {
+      const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.42);
+      const geometry = new THREE.TubeGeometry(curve, tubularSegments, radius, radialSegments, false);
+      geometry.computeBoundingSphere();
+      return { curve, geometry };
+    };
+
+    const buildCurveLineGeometry = (curve, startT, endT, samples = 28) => {
+      const positions = [];
+      for (let i = 0; i <= samples; i++) {
+        const t = startT + (endT - startT) * (i / samples);
+        const point = curve.getPoint(t);
+        positions.push(point.x, point.y, point.z);
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.computeBoundingSphere();
+      return geometry;
+    };
+
+    const coreGeometry = new THREE.DodecahedronGeometry(0.21, 0);
+    const corePos = coreGeometry.attributes.position;
+    for (let i = 0; i < corePos.count; i++) {
+      const x = corePos.getX(i);
+      const y = corePos.getY(i);
+      const z = corePos.getZ(i);
+      const claspPull = 0.06 * Math.max(0, 0.2 - Math.abs(x - 0.02));
+      const braidWarp = Math.sin((x * 7.2) + (y * 5.4) - (z * 6.1)) * 0.018;
+      corePos.setXYZ(
+        i,
+        x * (0.92 + Math.abs(z) * 0.18) + z * 0.08 + claspPull,
+        y * (0.78 + Math.abs(x) * 0.24) - (Math.abs(x) + Math.abs(z)) * 0.04 + braidWarp,
+        z * (1.04 + Math.abs(y) * 0.18) - x * 0.06
+      );
+    }
+    corePos.needsUpdate = true;
+    coreGeometry.computeVertexNormals();
+    coreGeometry.computeBoundingSphere();
+    INTEGRATION_NEGOTIATED_CHAOS_CLASP_CACHE.coreGeometry = coreGeometry;
+    INTEGRATION_NEGOTIATED_CHAOS_CLASP_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 12);
+
+    const seedGeometry = new THREE.OctahedronGeometry(0.12, 0);
+    seedGeometry.scale(0.68, 1.18, 0.76);
+    seedGeometry.rotateZ(0.3);
+    seedGeometry.rotateY(-0.24);
+    seedGeometry.computeBoundingSphere();
+    INTEGRATION_NEGOTIATED_CHAOS_CLASP_CACHE.seedGeometry = seedGeometry;
+
+    const seamGeometry = new THREE.BoxGeometry(0.08, 0.42, 0.1, 1, 4, 1);
+    const seamPos = seamGeometry.attributes.position;
+    for (let i = 0; i < seamPos.count; i++) {
+      const x = seamPos.getX(i);
+      const y = seamPos.getY(i);
+      const z = seamPos.getZ(i);
+      const yNorm = (y + 0.21) / 0.42;
+      seamPos.setXYZ(
+        i,
+        x * (0.56 + Math.abs(y) * 0.64) + y * 0.12,
+        y * (0.96 + Math.abs(z) * 0.08),
+        z * (0.62 + yNorm * 0.38) - x * 0.2
+      );
+    }
+    seamPos.needsUpdate = true;
+    seamGeometry.computeVertexNormals();
+    seamGeometry.computeBoundingSphere();
+    INTEGRATION_NEGOTIATED_CHAOS_CLASP_CACHE.seamGeometry = seamGeometry;
+
+    const weavePointsA = [
+      new THREE.Vector3(-0.88, -0.18, 0.24),
+      new THREE.Vector3(-0.68, 0.08, -0.08),
+      new THREE.Vector3(-0.34, 0.28, -0.24),
+      new THREE.Vector3(-0.02, 0.14, -0.06),
+      new THREE.Vector3(0.16, 0.04, 0.08),
+      new THREE.Vector3(0.42, 0.18, 0.28),
+      new THREE.Vector3(0.84, 0.46, 0.18)
+    ];
+    const weavePointsB = [
+      new THREE.Vector3(-0.74, 0.54, -0.3),
+      new THREE.Vector3(-0.46, 0.3, 0.08),
+      new THREE.Vector3(-0.14, 0.06, 0.22),
+      new THREE.Vector3(0.06, 0.02, 0.02),
+      new THREE.Vector3(0.24, 0.16, -0.16),
+      new THREE.Vector3(0.48, 0.42, -0.28),
+      new THREE.Vector3(0.78, 0.22, -0.08)
+    ];
+    const weavePointsC = [
+      new THREE.Vector3(-0.34, -0.6, -0.34),
+      new THREE.Vector3(-0.18, -0.26, -0.1),
+      new THREE.Vector3(-0.04, -0.04, -0.02),
+      new THREE.Vector3(0.08, 0.06, 0.04),
+      new THREE.Vector3(0.24, 0.24, 0.14),
+      new THREE.Vector3(0.42, 0.34, 0.0),
+      new THREE.Vector3(0.7, 0.08, 0.2)
+    ];
+
+    const weaveA = buildTubeGeometry(weavePointsA, 0.072, 60, 8);
+    const weaveB = buildTubeGeometry(weavePointsB, 0.062, 56, 8);
+    const weaveC = buildTubeGeometry(weavePointsC, 0.054, 52, 8);
+    INTEGRATION_NEGOTIATED_CHAOS_CLASP_CACHE.weaveGeometryA = weaveA.geometry;
+    INTEGRATION_NEGOTIATED_CHAOS_CLASP_CACHE.weaveGeometryB = weaveB.geometry;
+    INTEGRATION_NEGOTIATED_CHAOS_CLASP_CACHE.weaveGeometryC = weaveC.geometry;
+    INTEGRATION_NEGOTIATED_CHAOS_CLASP_CACHE.witnessLineGeometryA = buildCurveLineGeometry(weaveA.curve, 0.18, 0.78, 26);
+    INTEGRATION_NEGOTIATED_CHAOS_CLASP_CACHE.witnessLineGeometryB = buildCurveLineGeometry(weaveB.curve, 0.1, 0.68, 22);
+
+    const shardGeometry = new THREE.TetrahedronGeometry(0.1, 0);
+    shardGeometry.scale(0.72, 1.28, 0.58);
+    shardGeometry.rotateZ(0.26);
+    shardGeometry.rotateY(-0.18);
+    shardGeometry.computeBoundingSphere();
+    INTEGRATION_NEGOTIATED_CHAOS_CLASP_CACHE.shardGeometry = shardGeometry;
+    INTEGRATION_NEGOTIATED_CHAOS_CLASP_CACHE.shardEdgesGeometry = safeCreateEdgesGeometry(shardGeometry, 8);
+
+    const dustPositions = [];
+    const dustCount = 26;
+    for (let i = 0; i < dustCount; i++) {
+      const angle = (i / dustCount) * Math.PI * 2;
+      const radius = 0.44 + Math.sin(i * 0.87) * 0.08 + ((i % 4) * 0.03);
+      dustPositions.push(
+        Math.cos(angle) * radius + Math.sin(i * 0.43) * 0.06,
+        -0.12 + ((i % 7) * 0.08),
+        Math.sin(angle * 1.22) * radius * 0.86
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    INTEGRATION_NEGOTIATED_CHAOS_CLASP_CACHE.dustGeometry = dustGeometry;
+  }
+
+  return INTEGRATION_NEGOTIATED_CHAOS_CLASP_CACHE;
+}
+
+function _getIntegrationNegotiatedChaosClaspMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0x00ff88;
+  if (INTEGRATION_NEGOTIATED_CHAOS_CLASP_MATERIALS.has(colorHex)) {
+    return INTEGRATION_NEGOTIATED_CHAOS_CLASP_MATERIALS.get(colorHex);
+  }
+
+  const baseColor = new THREE.Color(colorHex);
+  const whiteColor = new THREE.Color(0xf2fff8);
+  const mintColor = new THREE.Color(0xc5ffe9);
+  const aquaColor = new THREE.Color(0x84ffe0);
+  const darkSeamColor = new THREE.Color(0x03120c);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: baseColor.clone().lerp(whiteColor, 0.26),
+    emissive: new THREE.Color(0x18c995),
+    emissiveIntensity: 0.28,
+    metalness: 0.88,
+    roughness: 0.16,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seedMat = new THREE.MeshStandardMaterial({
+    color: whiteColor.clone().lerp(mintColor, 0.34),
+    emissive: new THREE.Color(0x79ffd5),
+    emissiveIntensity: 0.18,
+    metalness: 0.78,
+    roughness: 0.18,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seamMat = new THREE.MeshBasicMaterial({
+    color: darkSeamColor,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const weaveMatA = new THREE.MeshStandardMaterial({
+    color: baseColor.clone().lerp(whiteColor, 0.2),
+    emissive: new THREE.Color(0x22d49b),
+    emissiveIntensity: 0.22,
+    metalness: 0.82,
+    roughness: 0.18,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const weaveMatB = new THREE.MeshStandardMaterial({
+    color: mintColor.clone().lerp(aquaColor, 0.22),
+    emissive: new THREE.Color(0x7bffe0),
+    emissiveIntensity: 0.14,
+    metalness: 0.76,
+    roughness: 0.22,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const weaveMatC = new THREE.MeshStandardMaterial({
+    color: baseColor.clone().lerp(mintColor, 0.16),
+    emissive: new THREE.Color(0x1fa97d),
+    emissiveIntensity: 0.12,
+    metalness: 0.74,
+    roughness: 0.26,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: new THREE.Color(0xe7fff7),
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false
+  });
+
+  const witnessMat = new THREE.LineBasicMaterial({
+    color: new THREE.Color(0xb9ffed),
+    transparent: true,
+    opacity: 0.42,
+    depthWrite: false
+  });
+
+  const shardMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(0xd7fff1),
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+
+  const dustMat = new THREE.PointsMaterial({
+    color: new THREE.Color(0xcfffee),
+    size: 0.028,
+    transparent: true,
+    opacity: 0.54,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const mats = {
+    coreMat,
+    seedMat,
+    seamMat,
+    weaveMatA,
+    weaveMatB,
+    weaveMatC,
+    edgeMat,
+    witnessMat,
+    shardMat,
+    dustMat
+  };
+
+  for (const mat of Object.values(mats)) {
+    mat.userData = {
+      ...(mat.userData || {}),
+      wavePatchMode: 'DEFAULT',
+      isShared: true
+    };
+  }
+
+  INTEGRATION_NEGOTIATED_CHAOS_CLASP_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+// ---------- INTEGRATION 302 helpers ----------
+function _getIntegrationFigureEightSplitLoopGeometries() {
+  if (!INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.coreGeometry) {
+    const buildTubeGeometry = (points, radius, tubularSegments = 56, radialSegments = 8) => {
+      const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.44);
+      const geometry = new THREE.TubeGeometry(curve, tubularSegments, radius, radialSegments, false);
+      geometry.computeBoundingSphere();
+      return { curve, geometry };
+    };
+
+    const buildCurveLineGeometry = (curve, startT, endT, samples = 28) => {
+      const positions = [];
+      for (let i = 0; i <= samples; i++) {
+        const t = startT + (endT - startT) * (i / samples);
+        const point = curve.getPoint(t);
+        positions.push(point.x, point.y, point.z);
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.computeBoundingSphere();
+      return geometry;
+    };
+
+    const coreGeometry = new THREE.DodecahedronGeometry(0.23, 0);
+    const corePos = coreGeometry.attributes.position;
+    for (let i = 0; i < corePos.count; i++) {
+      const x = corePos.getX(i);
+      const y = corePos.getY(i);
+      const z = corePos.getZ(i);
+      const claspBias = Math.max(0, 0.18 - Math.abs(y)) * 0.08;
+      const twist = Math.sin((x * 6.8) - (y * 5.2) + (z * 4.9)) * 0.017;
+      corePos.setXYZ(
+        i,
+        x * (0.92 + Math.abs(z) * 0.14) + z * 0.07 + claspBias,
+        y * (0.82 + Math.abs(x) * 0.2) - (Math.abs(x) + Math.abs(z)) * 0.035 + twist,
+        z * (1.02 + Math.abs(y) * 0.16) - x * 0.06
+      );
+    }
+    corePos.needsUpdate = true;
+    coreGeometry.computeVertexNormals();
+    coreGeometry.computeBoundingSphere();
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.coreGeometry = coreGeometry;
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 12);
+
+    const seedGeometry = new THREE.OctahedronGeometry(0.12, 0);
+    seedGeometry.scale(0.72, 1.14, 0.76);
+    seedGeometry.rotateZ(0.21);
+    seedGeometry.rotateY(-0.18);
+    seedGeometry.computeBoundingSphere();
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.seedGeometry = seedGeometry;
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.seedEdgesGeometry = safeCreateEdgesGeometry(seedGeometry, 10);
+
+    const seamGeometry = new THREE.BoxGeometry(0.08, 0.38, 0.1, 1, 4, 1);
+    const seamPos = seamGeometry.attributes.position;
+    for (let i = 0; i < seamPos.count; i++) {
+      const x = seamPos.getX(i);
+      const y = seamPos.getY(i);
+      const z = seamPos.getZ(i);
+      const yNorm = (y + 0.19) / 0.38;
+      seamPos.setXYZ(
+        i,
+        x * (0.58 + Math.abs(y) * 0.5) + y * 0.1,
+        y * (0.95 + Math.abs(z) * 0.08),
+        z * (0.64 + yNorm * 0.28) - x * 0.18
+      );
+    }
+    seamPos.needsUpdate = true;
+    seamGeometry.computeVertexNormals();
+    seamGeometry.computeBoundingSphere();
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.seamGeometry = seamGeometry;
+
+    const loopPointsA = [
+      new THREE.Vector3(-0.92, 0.04, 0.16),
+      new THREE.Vector3(-0.7, 0.36, 0.28),
+      new THREE.Vector3(-0.32, 0.7, 0.08),
+      new THREE.Vector3(-0.02, 0.28, -0.18),
+      new THREE.Vector3(0.2, -0.06, -0.22),
+      new THREE.Vector3(0.52, -0.38, 0.04),
+      new THREE.Vector3(0.9, -0.12, 0.18)
+    ];
+    const loopPointsB = [
+      new THREE.Vector3(-0.9, -0.1, -0.16),
+      new THREE.Vector3(-0.56, -0.42, -0.28),
+      new THREE.Vector3(-0.18, -0.72, -0.06),
+      new THREE.Vector3(0.06, -0.3, 0.16),
+      new THREE.Vector3(0.26, 0.08, 0.24),
+      new THREE.Vector3(0.58, 0.36, 0.08),
+      new THREE.Vector3(0.92, 0.12, -0.12)
+    ];
+    const broadcastPointsA = [
+      new THREE.Vector3(-0.76, 0.48, 0.06),
+      new THREE.Vector3(-0.42, 0.58, 0.24),
+      new THREE.Vector3(-0.06, 0.28, 0.1),
+      new THREE.Vector3(0.24, 0.18, -0.04),
+      new THREE.Vector3(0.58, 0.38, 0.1),
+      new THREE.Vector3(0.82, 0.52, 0.24)
+    ];
+    const broadcastPointsB = [
+      new THREE.Vector3(-0.72, -0.46, -0.04),
+      new THREE.Vector3(-0.38, -0.22, -0.22),
+      new THREE.Vector3(-0.06, -0.08, -0.06),
+      new THREE.Vector3(0.24, 0.02, 0.12),
+      new THREE.Vector3(0.54, -0.12, 0.24),
+      new THREE.Vector3(0.82, -0.28, 0.04)
+    ];
+
+    const loopA = buildTubeGeometry(loopPointsA, 0.078, 60, 8);
+    const loopB = buildTubeGeometry(loopPointsB, 0.066, 56, 8);
+    const broadcastA = buildTubeGeometry(broadcastPointsA, 0.042, 48, 8);
+    const broadcastB = buildTubeGeometry(broadcastPointsB, 0.036, 48, 8);
+
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.loopGeometryA = loopA.geometry;
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.loopGeometryB = loopB.geometry;
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.loopEdgesGeometryA = safeCreateEdgesGeometry(loopA.geometry, 10);
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.loopEdgesGeometryB = safeCreateEdgesGeometry(loopB.geometry, 10);
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.broadcastGeometryA = broadcastA.geometry;
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.broadcastGeometryB = broadcastB.geometry;
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.broadcastEdgesGeometryA = safeCreateEdgesGeometry(broadcastA.geometry, 8);
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.broadcastEdgesGeometryB = safeCreateEdgesGeometry(broadcastB.geometry, 8);
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.witnessLineGeometryA = buildCurveLineGeometry(loopA.curve, 0.14, 0.8, 24);
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.witnessLineGeometryB = buildCurveLineGeometry(loopB.curve, 0.08, 0.72, 22);
+
+    const shardGeometry = new THREE.TetrahedronGeometry(0.09, 0);
+    shardGeometry.scale(0.68, 1.18, 0.6);
+    shardGeometry.rotateZ(0.28);
+    shardGeometry.rotateY(-0.16);
+    shardGeometry.computeBoundingSphere();
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.shardGeometry = shardGeometry;
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.shardEdgesGeometry = safeCreateEdgesGeometry(shardGeometry, 8);
+
+    const dustPositions = [];
+    const dustCount = 28;
+    for (let i = 0; i < dustCount; i++) {
+      const angle = (i / dustCount) * Math.PI * 2;
+      const radius = 0.48 + Math.sin(i * 0.81) * 0.08 + ((i % 5) * 0.02);
+      dustPositions.push(
+        Math.cos(angle) * radius + Math.sin(i * 0.61) * 0.05,
+        -0.1 + ((i % 7) * 0.08),
+        Math.sin(angle * 1.18) * radius * 0.82
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE.dustGeometry = dustGeometry;
+  }
+
+  return INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_CACHE;
+}
+
+function _getIntegrationFigureEightSplitLoopMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0x00ff88;
+  if (INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_MATERIALS.has(colorHex)) {
+    return INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_MATERIALS.get(colorHex);
+  }
+
+  const baseColor = new THREE.Color(colorHex);
+  const whiteColor = new THREE.Color(0xf3fff8);
+  const mintColor = new THREE.Color(0xcfffee);
+  const aquaColor = new THREE.Color(0x8ffff0);
+  const darkSeamColor = new THREE.Color(0x052018);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: baseColor.clone().lerp(whiteColor, 0.28),
+    emissive: new THREE.Color(0x1ccf97),
+    emissiveIntensity: 0.24,
+    metalness: 0.86,
+    roughness: 0.16,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seedMat = new THREE.MeshStandardMaterial({
+    color: whiteColor.clone().lerp(mintColor, 0.32),
+    emissive: new THREE.Color(0x89ffd9),
+    emissiveIntensity: 0.16,
+    metalness: 0.76,
+    roughness: 0.18,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seamMat = new THREE.MeshBasicMaterial({
+    color: darkSeamColor,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const loopMatA = new THREE.MeshStandardMaterial({
+    color: baseColor.clone().lerp(whiteColor, 0.18),
+    emissive: new THREE.Color(0x1cd0a0),
+    emissiveIntensity: 0.18,
+    metalness: 0.8,
+    roughness: 0.18,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const loopMatB = new THREE.MeshStandardMaterial({
+    color: mintColor.clone().lerp(aquaColor, 0.22),
+    emissive: new THREE.Color(0x6cffe6),
+    emissiveIntensity: 0.12,
+    metalness: 0.74,
+    roughness: 0.24,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const broadcastMat = new THREE.MeshStandardMaterial({
+    color: baseColor.clone().lerp(mintColor, 0.22),
+    emissive: new THREE.Color(0x2ab98a),
+    emissiveIntensity: 0.18,
+    metalness: 0.78,
+    roughness: 0.22,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: new THREE.Color(0xe8fff7),
+    transparent: true,
+    opacity: 0.74,
+    depthWrite: false
+  });
+
+  const witnessMat = new THREE.LineBasicMaterial({
+    color: new THREE.Color(0xb8ffeb),
+    transparent: true,
+    opacity: 0.42,
+    depthWrite: false
+  });
+
+  const shardMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(0xd9fff1),
+    transparent: true,
+    opacity: 0.36,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+
+  const dustMat = new THREE.PointsMaterial({
+    color: new THREE.Color(0xcffff0),
+    size: 0.028,
+    transparent: true,
+    opacity: 0.54,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const mats = {
+    coreMat,
+    seedMat,
+    seamMat,
+    loopMatA,
+    loopMatB,
+    broadcastMat,
+    edgeMat,
+    witnessMat,
+    shardMat,
+    dustMat
+  };
+
+  for (const mat of Object.values(mats)) {
+    mat.userData = {
+      ...(mat.userData || {}),
+      wavePatchMode: 'DEFAULT',
+      isShared: true
+    };
+  }
+
+  INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+// ---------- INTEGRATION 311 helpers ----------
+function _getIntegrationFigureEightApexMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0x00ff88;
+  if (INTEGRATION_FIGURE_EIGHT_APEX_MATERIALS.has(colorHex)) {
+    return INTEGRATION_FIGURE_EIGHT_APEX_MATERIALS.get(colorHex);
+  }
+
+  const baseColor = new THREE.Color(colorHex);
+  const whiteColor = new THREE.Color(0xf7fff8);
+  const mintColor = new THREE.Color(0xccfff0);
+  const aquaColor = new THREE.Color(0x8df5ff);
+  const warmColor = new THREE.Color(0xffb56b);
+  const emberColor = new THREE.Color(0xff8f48);
+  const darkWarmColor = new THREE.Color(0x261109);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: baseColor.clone().lerp(whiteColor, 0.34),
+    emissive: new THREE.Color(0x21bd92),
+    emissiveIntensity: 0.24,
+    metalness: 0.87,
+    roughness: 0.15,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seedMat = new THREE.MeshStandardMaterial({
+    color: whiteColor.clone().lerp(mintColor, 0.28),
+    emissive: new THREE.Color(0x8dffd8),
+    emissiveIntensity: 0.16,
+    metalness: 0.77,
+    roughness: 0.17,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seamMat = new THREE.MeshBasicMaterial({
+    color: warmColor.clone().lerp(darkWarmColor, 0.34),
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const loopMatA = new THREE.MeshStandardMaterial({
+    color: baseColor.clone().lerp(whiteColor, 0.2),
+    emissive: new THREE.Color(0x1fbf91),
+    emissiveIntensity: 0.18,
+    metalness: 0.8,
+    roughness: 0.18,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const loopMatB = new THREE.MeshStandardMaterial({
+    color: mintColor.clone().lerp(aquaColor, 0.18),
+    emissive: new THREE.Color(0x6df7e0),
+    emissiveIntensity: 0.12,
+    metalness: 0.74,
+    roughness: 0.23,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const broadcastMat = new THREE.MeshStandardMaterial({
+    color: whiteColor.clone().lerp(warmColor, 0.2),
+    emissive: new THREE.Color(0xffa25d),
+    emissiveIntensity: 0.18,
+    metalness: 0.78,
+    roughness: 0.2,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: new THREE.Color(0xffd1a3),
+    transparent: true,
+    opacity: 0.7,
+    depthWrite: false
+  });
+
+  const witnessMat = new THREE.LineBasicMaterial({
+    color: new THREE.Color(0xffb979),
+    transparent: true,
+    opacity: 0.4,
+    depthWrite: false
+  });
+
+  const shardMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(0xffd0a3),
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+
+  const warmShardMat = new THREE.MeshBasicMaterial({
+    color: emberColor,
+    transparent: true,
+    opacity: 0.36,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+
+  const dustMat = new THREE.PointsMaterial({
+    color: new THREE.Color(0xffddb9),
+    size: 0.027,
+    transparent: true,
+    opacity: 0.48,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const mats = {
+    coreMat,
+    seedMat,
+    seamMat,
+    loopMatA,
+    loopMatB,
+    broadcastMat,
+    edgeMat,
+    witnessMat,
+    shardMat,
+    warmShardMat,
+    dustMat
+  };
+
+  for (const mat of Object.values(mats)) {
+    mat.userData = {
+      ...(mat.userData || {}),
+      wavePatchMode: 'DEFAULT',
+      isShared: true
+    };
+  }
+
+  INTEGRATION_FIGURE_EIGHT_APEX_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+// ---------- INTEGRATION 312 helpers ----------
+function _getIntegrationFigureEightClaspGeometries() {
+  if (!INTEGRATION_FIGURE_EIGHT_CLASP_CACHE.coreGeometry) {
+    const buildTubeGeometry = (points, radius, tubularSegments = 56, radialSegments = 8) => {
+      const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.42);
+      const geometry = new THREE.TubeGeometry(curve, tubularSegments, radius, radialSegments, false);
+      geometry.computeBoundingSphere();
+      return { curve, geometry };
+    };
+
+    const buildCurveLineGeometry = (curve, startT, endT, samples = 26) => {
+      const positions = [];
+      for (let i = 0; i <= samples; i++) {
+        const t = startT + (endT - startT) * (i / samples);
+        const point = curve.getPoint(t);
+        positions.push(point.x, point.y, point.z);
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.computeBoundingSphere();
+      return geometry;
+    };
+
+    const coreGeometry = new THREE.DodecahedronGeometry(0.24, 0);
+    const corePos = coreGeometry.attributes.position;
+    for (let i = 0; i < corePos.count; i++) {
+      const x = corePos.getX(i);
+      const y = corePos.getY(i);
+      const z = corePos.getZ(i);
+      const claspBias = Math.max(0, 0.16 - Math.abs(y)) * 0.09;
+      const twist = Math.sin((x * 6.5) - (y * 4.9) + (z * 5.2)) * 0.016;
+      corePos.setXYZ(
+        i,
+        x * (0.94 + Math.abs(z) * 0.14) + z * 0.06 + claspBias,
+        y * (0.8 + Math.abs(x) * 0.18) - (Math.abs(x) + Math.abs(z)) * 0.03 + twist,
+        z * (1.02 + Math.abs(y) * 0.16) - x * 0.05
+      );
+    }
+    corePos.needsUpdate = true;
+    coreGeometry.computeVertexNormals();
+    coreGeometry.computeBoundingSphere();
+    INTEGRATION_FIGURE_EIGHT_CLASP_CACHE.coreGeometry = coreGeometry;
+    INTEGRATION_FIGURE_EIGHT_CLASP_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 12);
+
+    const seedGeometry = new THREE.OctahedronGeometry(0.11, 0);
+    seedGeometry.scale(0.74, 1.12, 0.78);
+    seedGeometry.rotateZ(0.2);
+    seedGeometry.rotateY(-0.16);
+    seedGeometry.computeBoundingSphere();
+    INTEGRATION_FIGURE_EIGHT_CLASP_CACHE.seedGeometry = seedGeometry;
+
+    const seamGeometry = new THREE.BoxGeometry(0.08, 0.44, 0.1, 1, 4, 1);
+    const seamPos = seamGeometry.attributes.position;
+    for (let i = 0; i < seamPos.count; i++) {
+      const x = seamPos.getX(i);
+      const y = seamPos.getY(i);
+      const z = seamPos.getZ(i);
+      const yNorm = (y + 0.22) / 0.44;
+      seamPos.setXYZ(
+        i,
+        x * (0.58 + Math.abs(y) * 0.56) + y * 0.12,
+        y * (0.96 + Math.abs(z) * 0.08),
+        z * (0.64 + yNorm * 0.28) - x * 0.18
+      );
+    }
+    seamPos.needsUpdate = true;
+    seamGeometry.computeVertexNormals();
+    seamGeometry.computeBoundingSphere();
+    INTEGRATION_FIGURE_EIGHT_CLASP_CACHE.seamGeometry = seamGeometry;
+
+    const loopPointsA = [
+      new THREE.Vector3(-0.95, 0.08, 0.12),
+      new THREE.Vector3(-0.7, 0.36, 0.28),
+      new THREE.Vector3(-0.34, 0.68, 0.1),
+      new THREE.Vector3(-0.02, 0.28, -0.16),
+      new THREE.Vector3(0.18, -0.06, -0.2),
+      new THREE.Vector3(0.54, -0.36, 0.04),
+      new THREE.Vector3(0.9, -0.1, 0.18)
+    ];
+    const loopPointsB = [
+      new THREE.Vector3(-0.88, -0.1, -0.14),
+      new THREE.Vector3(-0.56, -0.42, -0.28),
+      new THREE.Vector3(-0.16, -0.72, -0.08),
+      new THREE.Vector3(0.08, -0.28, 0.12),
+      new THREE.Vector3(0.3, 0.08, 0.24),
+      new THREE.Vector3(0.6, 0.38, 0.1),
+      new THREE.Vector3(0.92, 0.14, -0.1)
+    ];
+
+    const loopA = buildTubeGeometry(loopPointsA, 0.078, 60, 8);
+    const loopB = buildTubeGeometry(loopPointsB, 0.066, 56, 8);
+    INTEGRATION_FIGURE_EIGHT_CLASP_CACHE.loopGeometryA = loopA.geometry;
+    INTEGRATION_FIGURE_EIGHT_CLASP_CACHE.loopGeometryB = loopB.geometry;
+    INTEGRATION_FIGURE_EIGHT_CLASP_CACHE.loopEdgesGeometryA = safeCreateEdgesGeometry(loopA.geometry, 10);
+    INTEGRATION_FIGURE_EIGHT_CLASP_CACHE.loopEdgesGeometryB = safeCreateEdgesGeometry(loopB.geometry, 10);
+    INTEGRATION_FIGURE_EIGHT_CLASP_CACHE.witnessLineGeometryA = buildCurveLineGeometry(loopA.curve, 0.16, 0.78, 24);
+    INTEGRATION_FIGURE_EIGHT_CLASP_CACHE.witnessLineGeometryB = buildCurveLineGeometry(loopB.curve, 0.1, 0.72, 22);
+
+    const shardGeometry = new THREE.TetrahedronGeometry(0.09, 0);
+    shardGeometry.scale(0.7, 1.18, 0.6);
+    shardGeometry.rotateZ(0.3);
+    shardGeometry.rotateY(-0.14);
+    shardGeometry.computeBoundingSphere();
+    INTEGRATION_FIGURE_EIGHT_CLASP_CACHE.shardGeometry = shardGeometry;
+    INTEGRATION_FIGURE_EIGHT_CLASP_CACHE.shardEdgesGeometry = safeCreateEdgesGeometry(shardGeometry, 8);
+
+    const dustPositions = [];
+    const dustCount = 28;
+    for (let i = 0; i < dustCount; i++) {
+      const angle = (i / dustCount) * Math.PI * 2;
+      const radius = 0.46 + Math.sin(i * 0.81) * 0.08 + ((i % 5) * 0.02);
+      dustPositions.push(
+        Math.cos(angle) * radius + Math.sin(i * 0.61) * 0.05,
+        -0.1 + ((i % 7) * 0.08),
+        Math.sin(angle * 1.18) * radius * 0.82
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    INTEGRATION_FIGURE_EIGHT_CLASP_CACHE.dustGeometry = dustGeometry;
+  }
+
+  return INTEGRATION_FIGURE_EIGHT_CLASP_CACHE;
+}
+
+function _getIntegrationFigureEightClaspMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0x00ff88;
+  if (INTEGRATION_FIGURE_EIGHT_CLASP_MATERIALS.has(colorHex)) {
+    return INTEGRATION_FIGURE_EIGHT_CLASP_MATERIALS.get(colorHex);
+  }
+
+  const baseColor = new THREE.Color(colorHex);
+  const whiteColor = new THREE.Color(0xf3fff8);
+  const mintColor = new THREE.Color(0xcfffee);
+  const aquaColor = new THREE.Color(0x8ffff0);
+  const warmColor = new THREE.Color(0xffb36e);
+  const darkSeamColor = new THREE.Color(0x052018);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: baseColor.clone().lerp(whiteColor, 0.26),
+    emissive: new THREE.Color(0x1ccf97),
+    emissiveIntensity: 0.24,
+    metalness: 0.86,
+    roughness: 0.16,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seedMat = new THREE.MeshStandardMaterial({
+    color: whiteColor.clone().lerp(mintColor, 0.3),
+    emissive: new THREE.Color(0x89ffd9),
+    emissiveIntensity: 0.16,
+    metalness: 0.76,
+    roughness: 0.18,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seamMat = new THREE.MeshStandardMaterial({
+    color: warmColor.clone().lerp(baseColor, 0.18),
+    emissive: new THREE.Color(0xff9a54),
+    emissiveIntensity: 0.18,
+    metalness: 0.72,
+    roughness: 0.26,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const loopMatA = new THREE.MeshStandardMaterial({
+    color: baseColor.clone().lerp(whiteColor, 0.16),
+    emissive: new THREE.Color(0x1cd0a0),
+    emissiveIntensity: 0.18,
+    metalness: 0.8,
+    roughness: 0.18,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const loopMatB = new THREE.MeshStandardMaterial({
+    color: mintColor.clone().lerp(aquaColor, 0.2),
+    emissive: new THREE.Color(0x6cffe6),
+    emissiveIntensity: 0.12,
+    metalness: 0.74,
+    roughness: 0.24,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const shardMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(0xd9fff1),
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+
+  const warmShardMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(0xffc993),
+    transparent: true,
+    opacity: 0.42,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: new THREE.Color(0xe8fff7),
+    transparent: true,
+    opacity: 0.74,
+    depthWrite: false
+  });
+
+  const witnessMat = new THREE.LineBasicMaterial({
+    color: new THREE.Color(0xb8ffeb),
+    transparent: true,
+    opacity: 0.44,
+    depthWrite: false
+  });
+
+  const dustMat = new THREE.PointsMaterial({
+    color: new THREE.Color(0xcffff0),
+    size: 0.03,
+    transparent: true,
+    opacity: 0.54,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const mats = {
+    coreMat,
+    seedMat,
+    seamMat,
+    loopMatA,
+    loopMatB,
+    shardMat,
+    warmShardMat,
+    edgeMat,
+    witnessMat,
+    dustMat
+  };
+
+  for (const mat of Object.values(mats)) {
+    mat.userData = {
+      ...(mat.userData || {}),
+      wavePatchMode: 'DEFAULT',
+      isShared: true
+    };
+  }
+
+  INTEGRATION_FIGURE_EIGHT_CLASP_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+// ---------- QUANTUM v2 helpers ----------
 function _getQuantumLatticeGeometries() {
   if (!QUANTUM_LATTICE_CACHE.coreGeometry) {
     const coreGeometry = new THREE.DodecahedronGeometry(0.46, 0);
@@ -10297,49 +11338,302 @@ static _createInputNodeLegacy(group, index, color) {
   // ===== INTEGRATION NODES (Green - 4 variants) =====
 
   /**
-   * Integration Node 0: Two halves with glowing bridge
+   * Integration Node 0: Figure-Eight Clasp
    */
   static createIntegrationNode0(group, color) {
-    const halfGeometry = new THREE.SphereGeometry(0.5, 16, 16, 0, Math.PI);
-    const material = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
-      color: color,
-      metalness: 0.6,
-      roughness: 0.4,
-      emissive: color,
-      emissiveIntensity: 0.25
+    try {
+      group.userData = group.userData || {};
+      const nodeKey = group?.userData?.nodeId || String(color || 0);
+      const seed = hashNodeIdToFloat(nodeKey);
+      const rng = _mythicSeededRng(Math.floor(seed * 1000) || 312);
+      const geometries = _getIntegrationFigureEightClaspGeometries();
+      const materials = _getIntegrationFigureEightClaspMaterials(color);
+      const root = new THREE.Group();
+      root.name = 'INTEGRATION_FIGURE_EIGHT_CLASP_NODE';
+      root.userData.visualVariant = 'INTEGRATION_FIGURE_EIGHT_CLASP_V4';
+      root.userData.integrationVariant = 'FIGURE_EIGHT_CLASP';
+      root.userData.nodeGeometryName = 'INTEGRATION_NODE0';
 
-    });
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
 
-    // Left half
-    const leftHalf = new THREE.Mesh(halfGeometry, material.clone());
-    leftHalf.position.x = -0.3;
-    leftHalf.userData.visualLayer = 'CORE';
-    group.add(leftHalf);
+      const markIntegrationMesh = (mesh) => {
+        if (!mesh?.isMesh) return;
+        mesh.userData = mesh.userData || {};
+        mesh.userData.isInteractive = true;
+        mesh.userData.isKnotMesh = true;
+        if (mesh.raycast === null || mesh.raycast === undefined) {
+          mesh.raycast = THREE.Mesh.prototype.raycast;
+        }
+      };
 
-    // Right half
-    const rightHalf = new THREE.Mesh(halfGeometry, material.clone());
-    rightHalf.position.x = 0.3;
-    rightHalf.rotation.y = Math.PI;
-    rightHalf.userData.visualLayer = 'CORE';
-    group.add(rightHalf);
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
 
-    // Glowing bridge beam
-    const bridgeGeometry = new THREE.BoxGeometry(0.3, 0.15, 0.15);
-    const bridgeMaterial = new THREE.MeshBasicMaterial({
-      color: color,
-      transparent: true,
-      opacity: 0.8
-    });
-    const bridge = new THREE.Mesh(bridgeGeometry, bridgeMaterial);
-    bridge.userData.visualLayer = 'INTERNAL';
-    group.add(bridge);
+      const claspCore = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      claspCore.name = 'ClaspCore';
+      claspCore.userData.ignoreWaveColor = true;
+      claspCore.position.set(0.02, 0.05, 0.0);
+      claspCore.rotation.set(-0.12, 0.3, 0.08);
+      claspCore.scale.set(1.0, 0.96, 1.06);
+      claspCore.renderOrder = coreOrder;
+      markIntegrationMesh(claspCore);
+      coreGroup.add(claspCore);
 
-    return group;
+      const claspCoreEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.edgeMat);
+      claspCoreEdges.name = 'ClaspCoreEdges';
+      claspCoreEdges.userData.ignoreWaveColor = true;
+      claspCoreEdges.position.copy(claspCore.position);
+      claspCoreEdges.rotation.copy(claspCore.rotation);
+      claspCoreEdges.scale.copy(claspCore.scale);
+      claspCoreEdges.renderOrder = archOrder;
+      coreGroup.add(claspCoreEdges);
+
+      const relationSeed = new THREE.Mesh(geometries.seedGeometry, materials.seedMat);
+      relationSeed.name = 'RelationSeed';
+      relationSeed.userData.ignoreWaveColor = true;
+      relationSeed.position.set(0.08, 0.02, -0.03);
+      relationSeed.rotation.set(0.42, -0.18, 0.24);
+      relationSeed.scale.set(0.9, 1.0, 0.84);
+      relationSeed.renderOrder = coreOrder;
+      markIntegrationMesh(relationSeed);
+      coreGroup.add(relationSeed);
+      root.add(coreGroup);
+
+      const claspGroup = new THREE.Group();
+      claspGroup.name = 'CLASP_GROUP';
+
+      const claspSeam = new THREE.Mesh(geometries.seamGeometry, materials.seamMat);
+      claspSeam.name = 'ClaspSeam';
+      claspSeam.userData.ignoreWaveColor = true;
+      claspSeam.position.set(0.05, 0.04, 0.0);
+      claspSeam.rotation.set(0.16, 0.26, -0.34);
+      claspSeam.scale.set(0.72, 1.0, 0.8);
+      claspSeam.renderOrder = coreOrder;
+      markIntegrationMesh(claspSeam);
+      claspGroup.add(claspSeam);
+
+      const claspShell = createNodeHologramShell(claspSeam, 0xffd6ae);
+      if (claspShell) {
+        claspShell.name = 'ClaspShell';
+        claspShell.position.copy(claspSeam.position);
+        claspShell.quaternion.copy(claspSeam.quaternion);
+        claspShell.scale.copy(claspSeam.scale).multiplyScalar(1.1);
+        claspShell.frustumCulled = false;
+        claspShell.renderOrder = archOrder;
+        claspGroup.add(claspShell);
+      }
+
+      const claspGlow = createNodeNeonEdgeGlowShell(claspSeam, 0xffaa67, {
+        glowIntensity: 0.54,
+        edgeWidth: 0.054,
+        pulseAmount: 0.0
+      });
+      if (claspGlow) {
+        claspGlow.name = 'ClaspGlow';
+        claspGlow.position.copy(claspSeam.position);
+        claspGlow.quaternion.copy(claspSeam.quaternion);
+        claspGlow.scale.copy(claspSeam.scale).multiplyScalar(1.04);
+        claspGlow.frustumCulled = false;
+        claspGlow.renderOrder = archOrder;
+        claspGroup.add(claspGlow);
+      }
+      root.add(claspGroup);
+
+      const loopGroup = new THREE.Group();
+      loopGroup.name = 'LOOP_GROUP';
+      const loopConfigs = [
+        {
+          name: 'FigureEightLoop_A',
+          geometry: geometries.loopGeometryA,
+          material: materials.loopMatA,
+          pos: [-0.02, 0.04, 0.0],
+          rot: [0.12, -0.2, 0.18],
+          scale: [1.02, 1.0, 1.0]
+        },
+        {
+          name: 'FigureEightLoop_B',
+          geometry: geometries.loopGeometryB,
+          material: materials.loopMatB,
+          pos: [0.02, -0.02, 0.0],
+          rot: [-0.14, 0.26, -0.08],
+          scale: [0.98, 1.02, 0.98]
+        }
+      ];
+
+      loopConfigs.forEach((cfg, idx) => {
+        const loop = new THREE.Mesh(cfg.geometry, cfg.material);
+        loop.name = cfg.name;
+        loop.userData.ignoreWaveColor = true;
+        loop.position.set(
+          cfg.pos[0] + (rng() - 0.5) * 0.02,
+          cfg.pos[1] + (rng() - 0.5) * 0.02,
+          cfg.pos[2] + (rng() - 0.5) * 0.02
+        );
+        loop.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.05,
+          cfg.rot[1] + (rng() - 0.5) * 0.05,
+          cfg.rot[2] + (rng() - 0.5) * 0.05
+        );
+        loop.scale.set(
+          cfg.scale[0] * (0.98 + rng() * 0.05),
+          cfg.scale[1] * (0.98 + rng() * 0.05),
+          cfg.scale[2] * (0.98 + rng() * 0.05)
+        );
+        loop.renderOrder = idx === 0 ? coreOrder : archOrder;
+        markIntegrationMesh(loop);
+        loopGroup.add(loop);
+
+        const edges = new THREE.LineSegments(
+          idx === 0 ? geometries.loopEdgesGeometryA : geometries.loopEdgesGeometryB,
+          materials.edgeMat
+        );
+        edges.name = `${cfg.name}_Edges`;
+        edges.userData.ignoreWaveColor = true;
+        edges.position.copy(loop.position);
+        edges.rotation.copy(loop.rotation);
+        edges.scale.copy(loop.scale);
+        edges.renderOrder = archOrder;
+        loopGroup.add(edges);
+      });
+      root.add(loopGroup);
+
+      const shardGroup = new THREE.Group();
+      shardGroup.name = 'SHARD_GROUP';
+      const shardConfigs = [
+        { name: 'SignalShard_A', pos: [-0.28, 0.18, -0.12], rot: [0.36, 0.16, -0.24], scale: [0.72, 1.0, 0.58], warm: false },
+        { name: 'SignalShard_B', pos: [0.3, 0.16, 0.16], rot: [0.16, -0.54, 0.22], scale: [0.6, 0.86, 0.52], warm: false },
+        { name: 'SignalShard_C', pos: [0.12, -0.22, -0.24], rot: [-0.28, 0.28, 0.42], scale: [0.56, 0.8, 0.48], warm: true },
+        { name: 'SignalShard_D', pos: [-0.02, 0.42, 0.12], rot: [0.64, -0.12, -0.18], scale: [0.52, 0.74, 0.46], warm: true }
+      ];
+
+      shardConfigs.forEach((cfg, idx) => {
+        const shard = new THREE.Mesh(geometries.shardGeometry, cfg.warm ? materials.warmShardMat : materials.shardMat);
+        shard.name = cfg.name;
+        shard.userData.ignoreWaveColor = true;
+        shard.position.set(
+          cfg.pos[0] + (rng() - 0.5) * 0.03,
+          cfg.pos[1] + (rng() - 0.5) * 0.03,
+          cfg.pos[2] + (rng() - 0.5) * 0.03
+        );
+        shard.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.08,
+          cfg.rot[1] + (rng() - 0.5) * 0.08,
+          cfg.rot[2] + (rng() - 0.5) * 0.08
+        );
+        shard.scale.set(
+          cfg.scale[0] * (0.96 + rng() * 0.08),
+          cfg.scale[1] * (0.96 + rng() * 0.08),
+          cfg.scale[2] * (0.96 + rng() * 0.08)
+        );
+        shard.renderOrder = archOrder;
+        markIntegrationMesh(shard);
+        shardGroup.add(shard);
+
+        if (idx < 3) {
+          const edges = new THREE.LineSegments(geometries.shardEdgesGeometry, materials.edgeMat);
+          edges.name = `${cfg.name}_Edges`;
+          edges.userData.ignoreWaveColor = true;
+          edges.position.copy(shard.position);
+          edges.rotation.copy(shard.rotation);
+          edges.scale.copy(shard.scale);
+          edges.renderOrder = archOrder;
+          shardGroup.add(edges);
+        }
+      });
+      root.add(shardGroup);
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+
+      const witnessA = new THREE.Line(geometries.witnessLineGeometryA, materials.witnessMat);
+      witnessA.name = 'WitnessLine_A';
+      witnessA.userData.ignoreWaveColor = true;
+      witnessA.position.set(-0.02, 0.02, 0.02);
+      witnessA.rotation.set(0.08, -0.22, 0.12);
+      witnessA.scale.set(1.0, 1.0, 0.98);
+      witnessA.renderOrder = archOrder;
+      auraGroup.add(witnessA);
+
+      const witnessB = new THREE.Line(geometries.witnessLineGeometryB, materials.witnessMat);
+      witnessB.name = 'WitnessLine_B';
+      witnessB.userData.ignoreWaveColor = true;
+      witnessB.position.set(0.04, -0.04, -0.02);
+      witnessB.rotation.set(-0.06, 0.26, -0.14);
+      witnessB.scale.set(0.96, 1.02, 0.96);
+      witnessB.renderOrder = archOrder;
+      auraGroup.add(witnessB);
+
+      const dust = new THREE.Points(geometries.dustGeometry, materials.dustMat);
+      dust.name = 'RelationDust';
+      dust.userData.ignoreWaveColor = true;
+      dust.position.set(0.0, 0.04, 0.0);
+      dust.frustumCulled = false;
+      dust.renderOrder = archOrder;
+      auraGroup.add(dust);
+
+      const shellB = createNodeHologramShell(claspSeam, 0xeefcff);
+      if (shellB) {
+        shellB.name = 'ClaspWitnessShell';
+        shellB.position.copy(claspSeam.position);
+        shellB.quaternion.copy(claspSeam.quaternion);
+        shellB.scale.copy(claspSeam.scale).multiplyScalar(1.06);
+        shellB.frustumCulled = false;
+        shellB.renderOrder = archOrder;
+        auraGroup.add(shellB);
+      }
+
+      const edgeGlow = createNodeNeonEdgeGlowShell(claspSeam, 0xffa05d, {
+        glowIntensity: 0.6,
+        edgeWidth: 0.056,
+        pulseAmount: 0.0
+      });
+      if (edgeGlow) {
+        edgeGlow.name = 'ClaspEdgeGlow';
+        edgeGlow.position.copy(claspSeam.position);
+        edgeGlow.quaternion.copy(claspSeam.quaternion);
+        edgeGlow.scale.copy(claspSeam.scale).multiplyScalar(1.03);
+        edgeGlow.frustumCulled = false;
+        edgeGlow.renderOrder = archOrder;
+        auraGroup.add(edgeGlow);
+      }
+
+      root.add(auraGroup);
+
+      root.traverse((o) => {
+        if (o?.isMesh || o?.isPoints || o?.isLine || o?.isLineSegments) {
+          o.userData = o.userData || {};
+          if (o.userData.ignoreWaveColor !== false) o.userData.ignoreWaveColor = true;
+          if (o.isMesh) {
+            markIntegrationMesh(o);
+          }
+          const materialRefs = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+          for (const material of materialRefs) {
+            material.userData = {
+              ...(material.userData || {}),
+              wavePatchMode: 'DEFAULT',
+              ignoreWaveColor: true
+            };
+          }
+          validateMeshGeometry(o, o.name || 'integration-figure-eight-clasp');
+        }
+      });
+
+      root.userData.visualReady = true;
+      group.userData.visualReady = true;
+      group.userData.nodeGeometryName = 'INTEGRATION_NODE0';
+      root.userData.nodeGeometryName = 'INTEGRATION_NODE0';
+      group.add(root);
+      return group;
+    } catch (err) {
+      console.error('[NodeVisualAbort]', {
+        model: 'createIntegrationNode0',
+        category: 'integration',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
+    }
   }
 
   /**
@@ -10538,6 +11832,21 @@ static _createInputNodeLegacy(group, index, color) {
    * - KnotSingularity (NEW - Session 82)
    */
   static createIntegrationNode(group, index, color) {
+    const resolvedVisualCode = (typeof index === 'number' && index <= 4096)
+      ? index
+      : (group?.userData?.visualCode ?? 311);
+    const resolvedColor = (typeof color === 'number')
+      ? color
+      : ((typeof index === 'number' && index > 4096) ? index : 0x00ff88);
+
+    if (resolvedVisualCode === 311) {
+      const result = this.createIntegrationFigureEightApex(group, resolvedVisualCode, resolvedColor);
+      if (result && group.userData && group.userData.nodeId) {
+        result.userData.nodeId = group.userData.nodeId;
+      }
+      return result;
+    }
+
     const pool = CATEGORY_POOLS.integration || [];
     const factoryMap = {
       301: this.createKnotTrefoil.bind(this),
@@ -10550,7 +11859,7 @@ static _createInputNodeLegacy(group, index, color) {
       308: this.createExtremeInput1.bind(this),
       309: IntegrationEnhancedVariants.createIntegrationEnhanced_SignalKnot.bind(IntegrationEnhancedVariants),
       310: IntegrationEnhancedVariants.createIntegrationEnhanced_ProtocolTangle.bind(IntegrationEnhancedVariants),
-      311: IntegrationEnhancedVariants.createIntegrationEnhanced_ContinuityBinder.bind(IntegrationEnhancedVariants)
+      311: this.createIntegrationFigureEightApex.bind(this)
     };
     if (pool.length === 0) return null;
     const counter = Number.isFinite(index) ? index : 0;
@@ -10564,6 +11873,330 @@ static _createInputNodeLegacy(group, index, color) {
       result.userData.nodeId = group.userData.nodeId;
     }
     return result;
+  }
+
+  static createIntegrationFigureEightApex(group, visualCode, color) {
+    try {
+      const resolvedVisualCode = (typeof visualCode === 'number' && visualCode <= 4096)
+        ? visualCode
+        : (group?.userData?.visualCode ?? 311);
+      const resolvedColor = (typeof color === 'number')
+        ? color
+        : ((typeof visualCode === 'number' && visualCode > 4096) ? visualCode : 0x00ff88);
+
+      group.userData = group.userData || {};
+      const nodeKey = group?.userData?.nodeId || group?.userData?.visualCode?.toString() || String(resolvedVisualCode || resolvedColor);
+      const seed = Math.abs(hashString(nodeKey)) || 311;
+      const rng = _mythicSeededRng(seed);
+      const geometries = _getIntegrationFigureEightSplitLoopGeometries();
+      const materials = _getIntegrationFigureEightApexMaterials(resolvedColor);
+
+      const root = group;
+      root.name = 'INTEGRATION_FIGURE_EIGHT_APEX_NODE';
+      root.userData.visualVariant = 'INTEGRATION_FIGURE_EIGHT_APEX_V4';
+      root.userData.integrationVariant = 'FIGURE_EIGHT_APEX';
+      root.userData.nodeGeometryName = 'KNOT_FIGURE_EIGHT';
+      root.userData.visualReady = true;
+
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+
+      const markIntegrationMesh = (mesh) => {
+        if (!mesh?.isMesh) return;
+        mesh.userData = mesh.userData || {};
+        mesh.userData.isInteractive = true;
+        mesh.userData.isKnotMesh = true;
+        if (mesh.raycast === null || mesh.raycast === undefined) {
+          mesh.raycast = THREE.Mesh.prototype.raycast;
+        }
+      };
+
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+
+      const claspCore = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      claspCore.name = 'ApexClaspCore';
+      claspCore.userData.ignoreWaveColor = true;
+      claspCore.position.set(0.03, 0.08, 0.0);
+      claspCore.rotation.set(-0.14, 0.32, 0.06);
+      claspCore.scale.set(1.08, 0.95, 1.1);
+      claspCore.renderOrder = coreOrder;
+      markIntegrationMesh(claspCore);
+      coreGroup.add(claspCore);
+
+      const claspCoreEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.edgeMat);
+      claspCoreEdges.name = 'ApexClaspCoreEdges';
+      claspCoreEdges.userData.ignoreWaveColor = true;
+      claspCoreEdges.position.copy(claspCore.position);
+      claspCoreEdges.rotation.copy(claspCore.rotation);
+      claspCoreEdges.scale.copy(claspCore.scale);
+      claspCoreEdges.renderOrder = archOrder;
+      coreGroup.add(claspCoreEdges);
+
+      const relationSeed = new THREE.Mesh(geometries.seedGeometry, materials.seedMat);
+      relationSeed.name = 'ApexRelationSeed';
+      relationSeed.userData.ignoreWaveColor = true;
+      relationSeed.position.set(0.1, 0.05, -0.03);
+      relationSeed.rotation.set(0.38, -0.14, 0.26);
+      relationSeed.scale.set(0.94, 1.0, 0.86);
+      relationSeed.renderOrder = coreOrder;
+      markIntegrationMesh(relationSeed);
+      coreGroup.add(relationSeed);
+
+      const seam = new THREE.Mesh(geometries.seamGeometry, materials.seamMat);
+      seam.name = 'ApexClaspSeam';
+      seam.userData.ignoreWaveColor = true;
+      seam.position.set(0.06, 0.03, 0.02);
+      seam.rotation.set(0.14, 0.22, -0.32);
+      seam.scale.set(0.78, 1.02, 0.82);
+      seam.renderOrder = coreOrder;
+      markIntegrationMesh(seam);
+      coreGroup.add(seam);
+
+      const coreShell = createNodeHologramShell(claspCore, 0xffc88c);
+      if (coreShell) {
+        coreShell.name = 'ApexCoreShell';
+        coreShell.position.copy(claspCore.position);
+        coreShell.quaternion.copy(claspCore.quaternion);
+        coreShell.scale.copy(claspCore.scale).multiplyScalar(1.06);
+        coreShell.frustumCulled = false;
+        coreShell.renderOrder = archOrder;
+        coreShell.userData = coreShell.userData || {};
+        coreShell.userData.ignoreWaveColor = true;
+        coreGroup.add(coreShell);
+      }
+
+      const coreGlow = createNodeNeonEdgeGlowShell(claspCore, 0xff9e56, {
+        glowIntensity: 0.46,
+        edgeWidth: 0.05,
+        pulseAmount: 0.0
+      });
+      if (coreGlow) {
+        coreGlow.name = 'ApexCoreGlow';
+        coreGlow.position.copy(claspCore.position);
+        coreGlow.quaternion.copy(claspCore.quaternion);
+        coreGlow.scale.copy(claspCore.scale).multiplyScalar(1.04);
+        coreGlow.frustumCulled = false;
+        coreGlow.renderOrder = archOrder;
+        coreGlow.userData = coreGlow.userData || {};
+        coreGlow.userData.ignoreWaveColor = true;
+        coreGroup.add(coreGlow);
+      }
+      root.add(coreGroup);
+
+      const loopGroup = new THREE.Group();
+      loopGroup.name = 'LOOP_GROUP';
+      const loopConfigs = [
+        {
+          name: 'ApexFigureEightLoop_A',
+          geometry: geometries.loopGeometryA,
+          material: materials.loopMatA,
+          pos: [-0.03, 0.08, 0.02],
+          rot: [0.16, -0.14, 0.2],
+          scale: [1.08, 1.02, 0.98]
+        },
+        {
+          name: 'ApexFigureEightLoop_B',
+          geometry: geometries.loopGeometryB,
+          material: materials.loopMatB,
+          pos: [0.05, -0.08, -0.02],
+          rot: [-0.12, 0.34, -0.08],
+          scale: [0.98, 1.08, 0.96]
+        }
+      ];
+
+      loopConfigs.forEach((cfg, idx) => {
+        const loop = new THREE.Mesh(cfg.geometry, cfg.material);
+        loop.name = cfg.name;
+        loop.userData.ignoreWaveColor = true;
+        loop.position.set(
+          cfg.pos[0] + (rng() - 0.5) * 0.02,
+          cfg.pos[1] + (rng() - 0.5) * 0.02,
+          cfg.pos[2] + (rng() - 0.5) * 0.02
+        );
+        loop.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.05,
+          cfg.rot[1] + (rng() - 0.5) * 0.05,
+          cfg.rot[2] + (rng() - 0.5) * 0.05
+        );
+        loop.scale.set(
+          cfg.scale[0] * (0.98 + rng() * 0.05),
+          cfg.scale[1] * (0.98 + rng() * 0.05),
+          cfg.scale[2] * (0.98 + rng() * 0.05)
+        );
+        loop.renderOrder = idx === 0 ? coreOrder : archOrder;
+        markIntegrationMesh(loop);
+        loopGroup.add(loop);
+
+        const edges = new THREE.LineSegments(
+          idx === 0 ? geometries.loopEdgesGeometryA : geometries.loopEdgesGeometryB,
+          materials.edgeMat
+        );
+        edges.name = `${cfg.name}_Edges`;
+        edges.userData.ignoreWaveColor = true;
+        edges.position.copy(loop.position);
+        edges.rotation.copy(loop.rotation);
+        edges.scale.copy(loop.scale);
+        edges.renderOrder = archOrder;
+        loopGroup.add(edges);
+      });
+      root.add(loopGroup);
+
+      const broadcastGroup = new THREE.Group();
+      broadcastGroup.name = 'BROADCAST_GROUP';
+      const broadcastConfigs = [
+        {
+          name: 'ApexBroadcastArc_A',
+          geometry: geometries.broadcastGeometryA,
+          edgesGeometry: geometries.broadcastEdgesGeometryA,
+          pos: [0.08, 0.48, 0.08],
+          rot: [0.24, 0.1, -0.16],
+          scale: [1.0, 0.98, 0.94],
+          orbitSpeed: 0.064
+        },
+        {
+          name: 'ApexBroadcastArc_B',
+          geometry: geometries.broadcastGeometryB,
+          edgesGeometry: geometries.broadcastEdgesGeometryB,
+          pos: [-0.06, -0.38, -0.08],
+          rot: [-0.18, -0.28, 0.2],
+          scale: [0.94, 1.02, 0.9],
+          orbitSpeed: -0.052
+        }
+      ];
+
+      broadcastConfigs.forEach((cfg, idx) => {
+        const arc = new THREE.Mesh(cfg.geometry, materials.broadcastMat);
+        arc.name = cfg.name;
+        arc.userData.ignoreWaveColor = true;
+        arc.userData.isIntegrationOrbit = true;
+        arc.userData.isOrbitRing = true;
+        arc.userData.orbitAxis = new THREE.Vector3(0.16, 0.96, 0.18).normalize();
+        arc.userData.orbitSpeed = cfg.orbitSpeed;
+        arc.position.set(
+          cfg.pos[0] + (rng() - 0.5) * 0.02,
+          cfg.pos[1] + (rng() - 0.5) * 0.02,
+          cfg.pos[2] + (rng() - 0.5) * 0.02
+        );
+        arc.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.06,
+          cfg.rot[1] + (rng() - 0.5) * 0.06,
+          cfg.rot[2] + (rng() - 0.5) * 0.06
+        );
+        arc.scale.set(
+          cfg.scale[0] * (0.96 + rng() * 0.06),
+          cfg.scale[1] * (0.96 + rng() * 0.06),
+          cfg.scale[2] * (0.96 + rng() * 0.06)
+        );
+        arc.renderOrder = archOrder;
+        markIntegrationMesh(arc);
+        broadcastGroup.add(arc);
+
+        const arcEdges = new THREE.LineSegments(cfg.edgesGeometry, materials.edgeMat);
+        arcEdges.name = `${cfg.name}_Edges`;
+        arcEdges.userData.ignoreWaveColor = true;
+        arcEdges.position.copy(arc.position);
+        arcEdges.rotation.copy(arc.rotation);
+        arcEdges.scale.copy(arc.scale);
+        arcEdges.renderOrder = archOrder;
+        broadcastGroup.add(arcEdges);
+      });
+
+      const returnFragment = new THREE.Line(geometries.witnessLineGeometryA, materials.witnessMat);
+      returnFragment.name = 'ApexBroadcastReturnFragment';
+      returnFragment.userData.ignoreWaveColor = true;
+      returnFragment.position.set(0.01, 0.02, -0.01);
+      returnFragment.rotation.set(0.12, -0.16, 0.18);
+      returnFragment.scale.set(0.92, 0.94, 0.9);
+      returnFragment.renderOrder = archOrder;
+      broadcastGroup.add(returnFragment);
+      root.add(broadcastGroup);
+
+      const shardGroup = new THREE.Group();
+      shardGroup.name = 'SHARD_GROUP';
+      const shardConfigs = [
+        { name: 'ApexSignalShard_A', mat: materials.shardMat, pos: [-0.24, 0.18, -0.12], rot: [0.32, 0.18, -0.22], scale: [0.64, 0.92, 0.54] },
+        { name: 'ApexSignalShard_B', mat: materials.warmShardMat, pos: [0.28, 0.14, 0.16], rot: [0.18, -0.5, 0.18], scale: [0.58, 0.84, 0.46] },
+        { name: 'ApexSignalShard_C', mat: materials.shardMat, pos: [0.08, -0.22, -0.18], rot: [-0.24, 0.3, 0.38], scale: [0.5, 0.72, 0.44] },
+        { name: 'ApexSignalShard_D', mat: materials.warmShardMat, pos: [-0.02, 0.38, 0.1], rot: [0.58, -0.1, -0.14], scale: [0.48, 0.7, 0.42] }
+      ];
+
+      shardConfigs.forEach((cfg, idx) => {
+        const shard = new THREE.Mesh(geometries.shardGeometry, cfg.mat);
+        shard.name = cfg.name;
+        shard.userData.ignoreWaveColor = true;
+        shard.position.set(
+          cfg.pos[0] + (rng() - 0.5) * 0.03,
+          cfg.pos[1] + (rng() - 0.5) * 0.03,
+          cfg.pos[2] + (rng() - 0.5) * 0.03
+        );
+        shard.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.08,
+          cfg.rot[1] + (rng() - 0.5) * 0.08,
+          cfg.rot[2] + (rng() - 0.5) * 0.08
+        );
+        shard.scale.set(
+          cfg.scale[0] * (0.96 + rng() * 0.08),
+          cfg.scale[1] * (0.96 + rng() * 0.08),
+          cfg.scale[2] * (0.96 + rng() * 0.08)
+        );
+        shard.renderOrder = archOrder;
+        markIntegrationMesh(shard);
+        shardGroup.add(shard);
+
+        if (idx < 3) {
+          const edges = new THREE.LineSegments(geometries.shardEdgesGeometry, materials.edgeMat);
+          edges.name = `${cfg.name}_Edges`;
+          edges.userData.ignoreWaveColor = true;
+          edges.position.copy(shard.position);
+          edges.rotation.copy(shard.rotation);
+          edges.scale.copy(shard.scale);
+          edges.renderOrder = archOrder;
+          shardGroup.add(edges);
+        }
+      });
+      root.add(shardGroup);
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+
+      const witnessA = new THREE.Line(geometries.witnessLineGeometryA, materials.witnessMat);
+      witnessA.name = 'ApexWitness_A';
+      witnessA.userData.ignoreWaveColor = true;
+      witnessA.position.set(-0.02, 0.02, 0.02);
+      witnessA.rotation.set(0.08, -0.22, 0.16);
+      witnessA.scale.set(1.0, 1.0, 0.98);
+      witnessA.renderOrder = archOrder;
+      auraGroup.add(witnessA);
+
+      const witnessB = new THREE.Line(geometries.witnessLineGeometryB, materials.witnessMat);
+      witnessB.name = 'ApexWitness_B';
+      witnessB.userData.ignoreWaveColor = true;
+      witnessB.position.set(0.04, -0.04, -0.02);
+      witnessB.rotation.set(-0.06, 0.24, -0.14);
+      witnessB.scale.set(0.96, 1.02, 0.94);
+      witnessB.renderOrder = archOrder;
+      auraGroup.add(witnessB);
+
+      const dust = new THREE.Points(geometries.dustGeometry, materials.dustMat);
+      dust.name = 'ApexRelationDust';
+      dust.userData.ignoreWaveColor = true;
+      dust.position.set(0.0, 0.0, 0.0);
+      dust.scale.set(1.0, 1.0, 1.0);
+      dust.renderOrder = archOrder;
+      auraGroup.add(dust);
+
+      root.add(auraGroup);
+      return root;
+    } catch (err) {
+      console.error('[NodeVisualAbort]', {
+        model: 'createIntegrationFigureEightApex',
+        category: 'integration',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
+    }
   }
 
   // ===== ANALYTICS NODES (Violet - 4 variants) =====
@@ -22635,32 +24268,352 @@ static createControlNode0(group, color) {
 
   /**
    * KNOT: Figure-Eight Knot - INTEGRATION category
-   * Four-crossing knot with distinctive figure-eight shape
-   * Tubular parametric mesh
+   * Split-loop figure-eight with negotiated broadcast crossings
+   * Integration upgrade: open loops, clasp nucleus, witness shards
    */
-  static createKnotFigureEight(group, color) {
+  static createKnotFigureEight(group, visualCode, color) {
     try {
-      const tube = this.generateTubularKnot(
-        (t) => {
-          const st = Math.sin(t);
-          const ct = Math.cos(t);
-          const c2t = Math.cos(2 * t);
-          const s2t = Math.sin(2 * t);
-          return [
-            (2 + c2t) * Math.cos(3 * t),
-            (2 + c2t) * Math.sin(3 * t),
-            s2t
-          ];
+      const resolvedVisualCode = (typeof visualCode === 'number' && visualCode <= 4096)
+        ? visualCode
+        : (group?.userData?.visualCode ?? 302);
+      const resolvedColor = (typeof color === 'number')
+        ? color
+        : ((typeof visualCode === 'number' && visualCode > 4096) ? visualCode : 0x00ff88);
+
+      const nodeKey = group?.userData?.nodeId || group?.userData?.visualCode?.toString() || String(resolvedVisualCode || resolvedColor);
+      const seed = Math.abs(hashString(nodeKey)) || 302;
+      const rng = _mythicSeededRng(seed);
+      const geometries = _getIntegrationFigureEightSplitLoopGeometries();
+      const materials = _getIntegrationFigureEightSplitLoopMaterials(resolvedColor);
+
+      const root = new THREE.Group();
+      root.name = 'INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_NODE';
+      root.userData.visualVariant = 'INTEGRATION_FIGURE_EIGHT_SPLIT_LOOP_V4';
+      root.userData.integrationVariant = 'FIGURE_EIGHT_SPLIT_LOOP';
+      root.userData.nodeGeometryName = 'KNOT_FIGURE_EIGHT';
+
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+
+      const markKnotMesh = (mesh) => {
+        if (!mesh?.isMesh) return;
+        mesh.userData = mesh.userData || {};
+        mesh.userData.isInteractive = true;
+        mesh.userData.isKnotMesh = true;
+        if (mesh.raycast === null || mesh.raycast === undefined) {
+          mesh.raycast = THREE.Mesh.prototype.raycast;
+        }
+      };
+
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+
+      const clasp = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      clasp.name = 'ClaspNucleus';
+      clasp.userData.ignoreWaveColor = true;
+      clasp.position.set(0.02, 0.08, 0.0);
+      clasp.rotation.set(-0.16, 0.28, 0.08);
+      clasp.scale.set(1.02, 0.94, 1.08);
+      clasp.renderOrder = coreOrder;
+      markKnotMesh(clasp);
+      coreGroup.add(clasp);
+
+      const claspEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.edgeMat);
+      claspEdges.name = 'ClaspEdges';
+      claspEdges.userData.ignoreWaveColor = true;
+      claspEdges.position.copy(clasp.position);
+      claspEdges.rotation.copy(clasp.rotation);
+      claspEdges.scale.copy(clasp.scale);
+      claspEdges.renderOrder = archOrder;
+      coreGroup.add(claspEdges);
+
+      const relationSeed = new THREE.Mesh(geometries.seedGeometry, materials.seedMat);
+      relationSeed.name = 'RelationSeed';
+      relationSeed.userData.ignoreWaveColor = true;
+      relationSeed.position.set(0.08, 0.05, -0.03);
+      relationSeed.rotation.set(0.4, -0.18, 0.24);
+      relationSeed.scale.set(0.92, 1.0, 0.84);
+      relationSeed.renderOrder = coreOrder;
+      markKnotMesh(relationSeed);
+      coreGroup.add(relationSeed);
+
+      const seam = new THREE.Mesh(geometries.seamGeometry, materials.seamMat);
+      seam.name = 'FigureEightSeam';
+      seam.userData.ignoreWaveColor = true;
+      seam.position.copy(clasp.position).add(new THREE.Vector3(0.02, -0.01, 0.01));
+      seam.rotation.set(0.18, 0.24, -0.38);
+      seam.scale.set(0.72, 1.0, 0.78);
+      seam.renderOrder = coreOrder;
+      markKnotMesh(seam);
+      coreGroup.add(seam);
+
+      root.add(coreGroup);
+
+      const loopGroup = new THREE.Group();
+      loopGroup.name = 'LOOP_GROUP';
+      const loopConfigs = [
+        {
+          name: 'FigureEightLoop_A',
+          geometry: geometries.loopGeometryA,
+          material: materials.loopMatA,
+          pos: [-0.02, 0.04, 0.0],
+          rot: [0.08, -0.24, 0.16],
+          scale: [1.0, 1.0, 1.0]
         },
-        0, Math.PI * 2, 64, 0.22, 8, color,
-        { pathScale: 0.3, tubeScale: 0.5 }
-      );
-      group.add(tube);
+        {
+          name: 'FigureEightLoop_B',
+          geometry: geometries.loopGeometryB,
+          material: materials.loopMatB,
+          pos: [0.03, -0.04, -0.02],
+          rot: [-0.1, 0.32, -0.1],
+          scale: [0.98, 1.02, 0.98]
+        }
+      ];
+
+      loopConfigs.forEach((cfg, idx) => {
+        const mesh = new THREE.Mesh(cfg.geometry, cfg.material);
+        mesh.name = cfg.name;
+        mesh.userData.ignoreWaveColor = true;
+        mesh.position.set(
+          cfg.pos[0] + (rng() - 0.5) * 0.02,
+          cfg.pos[1] + (rng() - 0.5) * 0.02,
+          cfg.pos[2] + (rng() - 0.5) * 0.02
+        );
+        mesh.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.05,
+          cfg.rot[1] + (rng() - 0.5) * 0.05,
+          cfg.rot[2] + (rng() - 0.5) * 0.05
+        );
+        mesh.scale.set(
+          cfg.scale[0] * (0.98 + rng() * 0.05),
+          cfg.scale[1] * (0.98 + rng() * 0.05),
+          cfg.scale[2] * (0.98 + rng() * 0.05)
+        );
+        mesh.renderOrder = idx === 0 ? coreOrder : archOrder;
+        markKnotMesh(mesh);
+        loopGroup.add(mesh);
+
+        const edges = new THREE.LineSegments(idx === 0 ? geometries.loopEdgesGeometryA : geometries.loopEdgesGeometryB, materials.edgeMat);
+        edges.name = `${cfg.name}_Edges`;
+        edges.userData.ignoreWaveColor = true;
+        edges.position.copy(mesh.position);
+        edges.rotation.copy(mesh.rotation);
+        edges.scale.copy(mesh.scale);
+        edges.renderOrder = archOrder;
+        loopGroup.add(edges);
+      });
+      root.add(loopGroup);
+
+      const broadcastGroup = new THREE.Group();
+      broadcastGroup.name = 'BROADCAST_GROUP';
+      const broadcastConfigs = [
+        {
+          name: 'BroadcastArc_A',
+          geometry: geometries.broadcastGeometryA,
+          edgesGeometry: geometries.broadcastEdgesGeometryA,
+          pos: [0.02, 0.5, 0.08],
+          rot: [0.28, 0.12, -0.2],
+          scale: [1.02, 1.0, 0.96]
+        },
+        {
+          name: 'BroadcastArc_B',
+          geometry: geometries.broadcastGeometryB,
+          edgesGeometry: geometries.broadcastEdgesGeometryB,
+          pos: [-0.04, -0.36, -0.1],
+          rot: [-0.18, -0.34, 0.24],
+          scale: [0.96, 1.02, 0.94]
+        }
+      ];
+
+      broadcastConfigs.forEach((cfg) => {
+        const arc = new THREE.Mesh(cfg.geometry, materials.broadcastMat);
+        arc.name = cfg.name;
+        arc.userData.ignoreWaveColor = true;
+        arc.position.set(
+          cfg.pos[0] + (rng() - 0.5) * 0.02,
+          cfg.pos[1] + (rng() - 0.5) * 0.02,
+          cfg.pos[2] + (rng() - 0.5) * 0.02
+        );
+        arc.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.06,
+          cfg.rot[1] + (rng() - 0.5) * 0.06,
+          cfg.rot[2] + (rng() - 0.5) * 0.06
+        );
+        arc.scale.set(
+          cfg.scale[0] * (0.96 + rng() * 0.06),
+          cfg.scale[1] * (0.96 + rng() * 0.06),
+          cfg.scale[2] * (0.96 + rng() * 0.06)
+        );
+        arc.renderOrder = archOrder;
+        markKnotMesh(arc);
+        broadcastGroup.add(arc);
+
+        const arcEdges = new THREE.LineSegments(cfg.edgesGeometry, materials.edgeMat);
+        arcEdges.name = `${cfg.name}_Edges`;
+        arcEdges.userData.ignoreWaveColor = true;
+        arcEdges.position.copy(arc.position);
+        arcEdges.rotation.copy(arc.rotation);
+        arcEdges.scale.copy(arc.scale);
+        arcEdges.renderOrder = archOrder;
+        broadcastGroup.add(arcEdges);
+      });
+
+      const returnFragment = new THREE.Line(geometries.witnessLineGeometryA, materials.witnessMat);
+      returnFragment.name = 'BroadcastReturnFragment';
+      returnFragment.userData.ignoreWaveColor = true;
+      returnFragment.position.set(0.0, 0.0, 0.0);
+      returnFragment.rotation.set(0.14, -0.18, 0.22);
+      returnFragment.scale.set(0.88, 0.92, 0.86);
+      returnFragment.renderOrder = archOrder;
+      broadcastGroup.add(returnFragment);
+
+      root.add(broadcastGroup);
+
+      const shardGroup = new THREE.Group();
+      shardGroup.name = 'SHARD_GROUP';
+      const shardConfigs = [
+        { name: 'SignalShard_A', pos: [-0.28, 0.2, -0.12], rot: [0.36, 0.18, -0.24], scale: [0.72, 1.0, 0.58] },
+        { name: 'SignalShard_B', pos: [0.3, 0.16, 0.16], rot: [0.16, -0.56, 0.22], scale: [0.6, 0.86, 0.52] },
+        { name: 'SignalShard_C', pos: [0.12, -0.22, -0.24], rot: [-0.28, 0.28, 0.42], scale: [0.56, 0.8, 0.48] },
+        { name: 'SignalShard_D', pos: [-0.02, 0.42, 0.12], rot: [0.64, -0.12, -0.18], scale: [0.52, 0.74, 0.46] }
+      ];
+
+      shardConfigs.forEach((cfg, idx) => {
+        const shard = new THREE.Mesh(geometries.shardGeometry, materials.shardMat);
+        shard.name = cfg.name;
+        shard.userData.ignoreWaveColor = true;
+        shard.position.set(
+          cfg.pos[0] + (rng() - 0.5) * 0.03,
+          cfg.pos[1] + (rng() - 0.5) * 0.03,
+          cfg.pos[2] + (rng() - 0.5) * 0.03
+        );
+        shard.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.08,
+          cfg.rot[1] + (rng() - 0.5) * 0.08,
+          cfg.rot[2] + (rng() - 0.5) * 0.08
+        );
+        shard.scale.set(
+          cfg.scale[0] * (0.96 + rng() * 0.08),
+          cfg.scale[1] * (0.96 + rng() * 0.08),
+          cfg.scale[2] * (0.96 + rng() * 0.08)
+        );
+        shard.renderOrder = archOrder;
+        markKnotMesh(shard);
+        shardGroup.add(shard);
+
+        if (idx < 3) {
+          const edges = new THREE.LineSegments(geometries.shardEdgesGeometry, materials.edgeMat);
+          edges.name = `${cfg.name}_Edges`;
+          edges.userData.ignoreWaveColor = true;
+          edges.position.copy(shard.position);
+          edges.rotation.copy(shard.rotation);
+          edges.scale.copy(shard.scale);
+          edges.renderOrder = archOrder;
+          shardGroup.add(edges);
+        }
+      });
+      root.add(shardGroup);
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+
+      const witnessA = new THREE.Line(geometries.witnessLineGeometryA, materials.witnessMat);
+      witnessA.name = 'EdgeWitness_A';
+      witnessA.userData.ignoreWaveColor = true;
+      witnessA.position.set(-0.02, 0.02, 0.02);
+      witnessA.rotation.set(0.06, -0.24, 0.14);
+      witnessA.scale.set(1.0, 1.0, 0.98);
+      witnessA.renderOrder = archOrder;
+      auraGroup.add(witnessA);
+
+      const witnessB = new THREE.Line(geometries.witnessLineGeometryB, materials.witnessMat);
+      witnessB.name = 'EdgeWitness_B';
+      witnessB.userData.ignoreWaveColor = true;
+      witnessB.position.set(0.04, -0.04, -0.02);
+      witnessB.rotation.set(-0.08, 0.28, -0.16);
+      witnessB.scale.set(0.96, 1.02, 0.96);
+      witnessB.renderOrder = archOrder;
+      auraGroup.add(witnessB);
+
+      const dust = new THREE.Points(geometries.dustGeometry, materials.dustMat);
+      dust.name = 'RelationDust';
+      dust.userData.ignoreWaveColor = true;
+      dust.position.set(0.0, 0.04, 0.0);
+      dust.frustumCulled = false;
+      dust.renderOrder = archOrder;
+      auraGroup.add(dust);
+
+      const shellA = createNodeHologramShell(clasp, 0xdbfff2);
+      if (shellA) {
+        shellA.name = 'ClaspShell_A';
+        shellA.position.copy(clasp.position);
+        shellA.quaternion.copy(clasp.quaternion);
+        shellA.scale.copy(clasp.scale).multiplyScalar(1.08);
+        shellA.frustumCulled = false;
+        shellA.renderOrder = archOrder;
+        auraGroup.add(shellA);
+      }
+
+      const loopHero = loopGroup.children.find(child => child?.name === 'FigureEightLoop_A') || clasp;
+      const shellB = createNodeHologramShell(loopHero, 0xbfffe9);
+      if (shellB) {
+        shellB.name = 'LoopWitnessShell_B';
+        shellB.position.copy(loopHero.position);
+        shellB.quaternion.copy(loopHero.quaternion);
+        shellB.scale.copy(loopHero.scale).multiplyScalar(1.04);
+        shellB.frustumCulled = false;
+        shellB.renderOrder = archOrder;
+        auraGroup.add(shellB);
+      }
+
+      const edgeGlow = createNodeNeonEdgeGlowShell(clasp, 0xa7ffe6, {
+        glowIntensity: 0.52,
+        edgeWidth: 0.054,
+        pulseAmount: 0.0
+      });
+      if (edgeGlow) {
+        edgeGlow.name = 'ClaspEdgeGlow';
+        edgeGlow.position.copy(clasp.position);
+        edgeGlow.quaternion.copy(clasp.quaternion);
+        edgeGlow.scale.copy(clasp.scale).multiplyScalar(1.02);
+        edgeGlow.frustumCulled = false;
+        edgeGlow.renderOrder = archOrder;
+        auraGroup.add(edgeGlow);
+      }
+
+      root.add(auraGroup);
+
+      root.traverse((o) => {
+        if (o?.isMesh || o?.isPoints || o?.isLine || o?.isLineSegments) {
+          o.userData = o.userData || {};
+          if (o.userData.ignoreWaveColor !== false) o.userData.ignoreWaveColor = true;
+          if (o.isMesh) {
+            markKnotMesh(o);
+          }
+          const materialRefs = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+          for (const material of materialRefs) {
+            material.userData = {
+              ...(material.userData || {}),
+              wavePatchMode: 'DEFAULT',
+              ignoreWaveColor: true
+            };
+          }
+          validateMeshGeometry(o, o.name || 'integration-figure-eight-split-loop');
+        }
+      });
+
+      root.userData.visualReady = true;
+      group.userData = group.userData || {};
+      group.userData.visualReady = true;
+      group.userData.nodeGeometryName = 'KNOT_FIGURE_EIGHT';
+      group.add(root);
       return group;
     } catch (err) {
       console.error('[NodeVisualError]', {
         model: 'createKnotFigureEight',
-        error: err
+        category: 'integration',
+        reason: err?.message || err,
+        visualCode
       });
       return null;
     }
@@ -22831,34 +24784,291 @@ static createControlNode0(group, color) {
   }
 
   /**
-   * KNOT: Chaotic Knot Core - PROCESS category
-   * Self-similar chaotic structure with fractal-like properties
-   * Tubular parametric mesh with complex winding
+   * INTEGRATION: Negotiated Chaos Clasp (live 304 path)
+   * Hierarchy:
+   * INTEGRATION_NEGOTIATED_CHAOS_CLASP_NODE
+   *   - CORE_GROUP (clasp nucleus + relation seed + dark seam)
+   *   - WEAVE_GROUP (three braided relation paths)
+   *   - SHARD_GROUP (signal witnesses at crossings)
+   *   - AURA_GROUP (edge witnesses + relation dust + restrained shell support)
    */
-  static createKnotChaotic(group, color) {
+  static createKnotChaotic(group, visualCode, color) {
     try {
-      const tube = this.generateTubularKnot(
-        (t) => {
-          const s1 = Math.sin(t);
-          const c1 = Math.cos(t);
-          const s2 = Math.sin(2.1 * t);
-          const c2 = Math.cos(1.9 * t);
-          return [
-            s1 + 0.3 * s2,
-            c1 + 0.3 * c2,
-            0.4 * Math.sin(3.3 * t)
-          ];
+      const resolvedVisualCode = (typeof visualCode === 'number' && visualCode <= 4096)
+        ? visualCode
+        : (group?.userData?.visualCode ?? 304);
+      const resolvedColor = (typeof color === 'number')
+        ? color
+        : ((typeof visualCode === 'number' && visualCode > 4096) ? visualCode : 0x00ff88);
+
+      const nodeKey = group?.userData?.nodeId || group?.userData?.visualCode?.toString() || String(resolvedVisualCode || resolvedColor);
+      const seed = Math.abs(hashString(nodeKey)) || 304;
+      const rng = _mythicSeededRng(seed);
+      const geometries = _getIntegrationNegotiatedChaosClaspGeometries();
+      const materials = _getIntegrationNegotiatedChaosClaspMaterials(resolvedColor);
+
+      const root = new THREE.Group();
+      root.name = 'INTEGRATION_NEGOTIATED_CHAOS_CLASP_NODE';
+      root.userData.visualVariant = 'INTEGRATION_NEGOTIATED_CHAOS_CLASP_V4';
+      root.userData.integrationVariant = 'NEGOTIATED_CHAOS_CLASP';
+      root.userData.nodeGeometryName = 'KNOT_CHAOTIC';
+
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+
+      const markInteractiveMesh = (mesh) => {
+        if (!mesh?.isMesh) return;
+        mesh.userData = mesh.userData || {};
+        mesh.userData.isInteractive = true;
+        mesh.userData.isKnotMesh = true;
+        if (mesh.raycast === null || mesh.raycast === undefined) {
+          mesh.raycast = THREE.Mesh.prototype.raycast;
+        }
+      };
+
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+
+      const clasp = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      clasp.name = 'ClaspNucleus';
+      clasp.userData.ignoreWaveColor = true;
+      clasp.position.set(0.04, 0.08, 0.0);
+      clasp.rotation.set(-0.14, 0.32, 0.1);
+      clasp.scale.set(1.04, 0.96, 1.08);
+      clasp.renderOrder = coreOrder;
+      markInteractiveMesh(clasp);
+      coreGroup.add(clasp);
+
+      const claspEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.edgeMat);
+      claspEdges.name = 'ClaspNucleusEdges';
+      claspEdges.userData.ignoreWaveColor = true;
+      claspEdges.position.copy(clasp.position);
+      claspEdges.rotation.copy(clasp.rotation);
+      claspEdges.scale.copy(clasp.scale);
+      claspEdges.renderOrder = archOrder;
+      coreGroup.add(claspEdges);
+
+      const seedMesh = new THREE.Mesh(geometries.seedGeometry, materials.seedMat);
+      seedMesh.name = 'RelationSeed';
+      seedMesh.userData.ignoreWaveColor = true;
+      seedMesh.position.set(0.1, 0.06, -0.04);
+      seedMesh.rotation.set(0.42, -0.22, 0.28);
+      seedMesh.scale.set(0.9, 1.04, 0.84);
+      seedMesh.renderOrder = coreOrder;
+      markInteractiveMesh(seedMesh);
+      coreGroup.add(seedMesh);
+
+      const seam = new THREE.Mesh(geometries.seamGeometry, materials.seamMat);
+      seam.name = 'ClaspSeam';
+      seam.userData.ignoreWaveColor = true;
+      seam.position.copy(clasp.position).add(new THREE.Vector3(0.02, -0.01, 0.01));
+      seam.rotation.set(0.18, 0.28, -0.42);
+      seam.scale.set(0.7, 1.0, 0.8);
+      seam.renderOrder = coreOrder;
+      markInteractiveMesh(seam);
+      coreGroup.add(seam);
+
+      root.add(coreGroup);
+
+      const weaveGroup = new THREE.Group();
+      weaveGroup.name = 'WEAVE_GROUP';
+      const weaveConfigs = [
+        {
+          name: 'BraidedPath_A',
+          geometry: geometries.weaveGeometryA,
+          material: materials.weaveMatA,
+          pos: [0.0, 0.0, 0.0],
+          rot: [0.08, -0.18, 0.12],
+          scale: [1.0, 1.0, 1.0]
         },
-        0, Math.PI * 2, 80, 0.19, 8, color
-      );
-      group.add(tube);
+        {
+          name: 'BraidedPath_B',
+          geometry: geometries.weaveGeometryB,
+          material: materials.weaveMatB,
+          pos: [0.03, 0.02, -0.02],
+          rot: [-0.14, 0.42, -0.06],
+          scale: [0.98, 1.04, 0.98]
+        },
+        {
+          name: 'BraidedPath_C',
+          geometry: geometries.weaveGeometryC,
+          material: materials.weaveMatC,
+          pos: [-0.02, -0.03, 0.04],
+          rot: [0.24, -0.3, 0.22],
+          scale: [1.02, 0.96, 1.0]
+        }
+      ];
+
+      weaveConfigs.forEach((cfg, idx) => {
+        const mesh = new THREE.Mesh(cfg.geometry, cfg.material);
+        mesh.name = cfg.name;
+        mesh.userData.ignoreWaveColor = true;
+        mesh.position.set(
+          cfg.pos[0] + (rng() - 0.5) * 0.02,
+          cfg.pos[1] + (rng() - 0.5) * 0.02,
+          cfg.pos[2] + (rng() - 0.5) * 0.02
+        );
+        mesh.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.05,
+          cfg.rot[1] + (rng() - 0.5) * 0.05,
+          cfg.rot[2] + (rng() - 0.5) * 0.05
+        );
+        mesh.scale.set(
+          cfg.scale[0] * (0.98 + rng() * 0.04),
+          cfg.scale[1] * (0.98 + rng() * 0.04),
+          cfg.scale[2] * (0.98 + rng() * 0.04)
+        );
+        mesh.renderOrder = idx === 0 ? coreOrder : archOrder;
+        markInteractiveMesh(mesh);
+        weaveGroup.add(mesh);
+      });
+
+      root.add(weaveGroup);
+
+      const shardGroup = new THREE.Group();
+      shardGroup.name = 'SHARD_GROUP';
+      const shardConfigs = [
+        { name: 'SignalShard_A', pos: [-0.26, 0.18, -0.16], rot: [0.42, 0.2, -0.34], scale: [0.74, 1.04, 0.62] },
+        { name: 'SignalShard_B', pos: [0.22, 0.28, 0.18], rot: [0.12, -0.72, 0.18], scale: [0.62, 0.9, 0.56] },
+        { name: 'SignalShard_C', pos: [0.36, 0.06, -0.08], rot: [0.66, 0.44, -0.2], scale: [0.58, 0.82, 0.54] },
+        { name: 'SignalShard_D', pos: [-0.08, -0.18, 0.12], rot: [-0.3, 0.22, 0.46], scale: [0.56, 0.78, 0.5] },
+        { name: 'SignalShard_E', pos: [0.08, 0.4, -0.22], rot: [0.88, -0.18, 0.28], scale: [0.52, 0.74, 0.46] }
+      ];
+      shardConfigs.forEach((cfg, idx) => {
+        const shard = new THREE.Mesh(geometries.shardGeometry, materials.shardMat);
+        shard.name = cfg.name;
+        shard.userData.ignoreWaveColor = true;
+        shard.position.set(
+          cfg.pos[0] + (rng() - 0.5) * 0.03,
+          cfg.pos[1] + (rng() - 0.5) * 0.03,
+          cfg.pos[2] + (rng() - 0.5) * 0.03
+        );
+        shard.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.08,
+          cfg.rot[1] + (rng() - 0.5) * 0.08,
+          cfg.rot[2] + (rng() - 0.5) * 0.08
+        );
+        shard.scale.set(
+          cfg.scale[0] * (0.96 + rng() * 0.08),
+          cfg.scale[1] * (0.96 + rng() * 0.08),
+          cfg.scale[2] * (0.96 + rng() * 0.08)
+        );
+        shard.renderOrder = archOrder;
+        markInteractiveMesh(shard);
+        shardGroup.add(shard);
+
+        if (idx < 4) {
+          const edges = new THREE.LineSegments(geometries.shardEdgesGeometry, materials.edgeMat);
+          edges.name = `${cfg.name}_Edges`;
+          edges.userData.ignoreWaveColor = true;
+          edges.position.copy(shard.position);
+          edges.rotation.copy(shard.rotation);
+          edges.scale.copy(shard.scale);
+          edges.renderOrder = archOrder;
+          shardGroup.add(edges);
+        }
+      });
+      root.add(shardGroup);
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+
+      const witnessA = new THREE.Line(geometries.witnessLineGeometryA, materials.witnessMat);
+      witnessA.name = 'EdgeWitness_A';
+      witnessA.userData.ignoreWaveColor = true;
+      witnessA.position.set(-0.03, 0.02, 0.02);
+      witnessA.rotation.set(0.12, -0.26, 0.16);
+      witnessA.scale.set(1.02, 1.0, 0.98);
+      witnessA.renderOrder = archOrder;
+      auraGroup.add(witnessA);
+
+      const witnessB = new THREE.Line(geometries.witnessLineGeometryB, materials.witnessMat);
+      witnessB.name = 'EdgeWitness_B';
+      witnessB.userData.ignoreWaveColor = true;
+      witnessB.position.set(0.08, 0.03, -0.04);
+      witnessB.rotation.set(-0.08, 0.34, -0.12);
+      witnessB.scale.set(0.94, 1.04, 0.94);
+      witnessB.renderOrder = archOrder;
+      auraGroup.add(witnessB);
+
+      const dust = new THREE.Points(geometries.dustGeometry, materials.dustMat);
+      dust.name = 'RelationDust';
+      dust.userData.ignoreWaveColor = true;
+      dust.position.set(0.02, 0.06, 0.0);
+      dust.frustumCulled = false;
+      dust.renderOrder = archOrder;
+      auraGroup.add(dust);
+
+      const shellA = createNodeHologramShell(clasp, 0xdffff4);
+      if (shellA) {
+        shellA.name = 'ClaspWitnessShell_A';
+        shellA.position.copy(clasp.position);
+        shellA.quaternion.copy(clasp.quaternion);
+        shellA.scale.copy(clasp.scale).multiplyScalar(1.06);
+        shellA.frustumCulled = false;
+        shellA.renderOrder = archOrder;
+        auraGroup.add(shellA);
+      }
+
+      const shellB = createNodeHologramShell(clasp, 0xb6ffe8);
+      if (shellB) {
+        shellB.name = 'ClaspWitnessShell_B';
+        shellB.position.copy(clasp.position).add(new THREE.Vector3(0.01, 0.02, -0.01));
+        shellB.quaternion.copy(clasp.quaternion);
+        shellB.scale.copy(clasp.scale).multiplyScalar(1.12);
+        shellB.frustumCulled = false;
+        shellB.renderOrder = archOrder;
+        auraGroup.add(shellB);
+      }
+
+      const edgeGlow = createNodeNeonEdgeGlowShell(clasp, 0xa5ffe2, {
+        glowIntensity: 0.58,
+        edgeWidth: 0.058,
+        pulseAmount: 0.0
+      });
+      if (edgeGlow) {
+        edgeGlow.name = 'ClaspEdgeGlow';
+        edgeGlow.position.copy(clasp.position);
+        edgeGlow.quaternion.copy(clasp.quaternion);
+        edgeGlow.scale.copy(clasp.scale).multiplyScalar(1.03);
+        edgeGlow.frustumCulled = false;
+        edgeGlow.renderOrder = archOrder;
+        auraGroup.add(edgeGlow);
+      }
+
+      root.add(auraGroup);
+
+      root.traverse((o) => {
+        if (o?.isMesh || o?.isPoints || o?.isLine || o?.isLineSegments) {
+          o.userData = o.userData || {};
+          if (o.userData.ignoreWaveColor !== false) o.userData.ignoreWaveColor = true;
+          if (o.isMesh) {
+            markInteractiveMesh(o);
+          }
+          const materialRefs = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+          for (const material of materialRefs) {
+            material.userData = {
+              ...(material.userData || {}),
+              wavePatchMode: 'DEFAULT',
+              ignoreWaveColor: true
+            };
+          }
+          validateMeshGeometry(o, o.name || 'integration-negotiated-chaos-clasp');
+        }
+      });
+
+      root.userData.visualReady = true;
+      group.userData = group.userData || {};
+      group.userData.visualReady = true;
+      group.userData.nodeGeometryName = 'KNOT_CHAOTIC';
+      group.add(root);
       return group;
     } catch (err) {
-      console.error('[NodeVisualAbort]', {
+      console.error('[IntegrationNegotiatedChaosClaspAbort]', {
         model: 'createKnotChaotic',
-        category: 'process',
-        reason: 'Visual build failed — fallback visuals are forbidden',
-        error: err
+        category: 'integration',
+        reason: err?.message || err,
+        visualCode
       });
       return null;
     }

@@ -30,6 +30,9 @@ import VisualTime from './src/time/VisualTime.js';
 import { LinkSemanticPictogramSystem_WithFusion } from './LinkSemanticPictogramSystem_WithFusion.js';
 import { getLinkCategoryHex } from './LinkCategoryColorContract.js';
 
+// Temporary experiment: disable semantic pictograms entirely.
+const DISABLE_SEMANTIC_PICTOGRAMS = false;
+
 function computeSegmentsFromLength(curve, density = 8, minSeg = 12, maxSeg = 200) {
     if (!curve?.getLength) return minSeg;
     const length = curve.getLength();
@@ -1049,26 +1052,30 @@ export class LinkRendererConduit {
         this._pictogramUpdateErrorLast = 0;
 
         // Semantic pictograms (global pool, attached to conduit root)
-        this.pictogramSystem = new LinkSemanticPictogramSystem_WithFusion(
-            scene,
-            this.conduitRoot,
-            this.linkSystem,
-            this.camera
-        );
-        // Ensure pictograms stay enabled when driven by FrameScheduler
-        this.pictogramSystem.enable?.();
-        this.pictogramSystem.__debugId = this.pictogramSystem.__debugId || makeDebugId('pictos');
-        // Ensure pictogram system always uses live linkSystem (in case linkSystem is swapped later)
-        this.pictogramSystem.linkingSystem = this.linkSystem;
+        if (DISABLE_SEMANTIC_PICTOGRAMS) {
+            this.pictogramSystem = null;
+        } else {
+            this.pictogramSystem = new LinkSemanticPictogramSystem_WithFusion(
+                scene,
+                this.conduitRoot,
+                this.linkSystem,
+                this.camera
+            );
+            // Ensure pictograms stay enabled when driven by FrameScheduler
+            this.pictogramSystem.enable?.();
+            this.pictogramSystem.__debugId = this.pictogramSystem.__debugId || makeDebugId('pictos');
+            // Ensure pictogram system always uses live linkSystem (in case linkSystem is swapped later)
+            this.pictogramSystem.linkingSystem = this.linkSystem;
 
-        if (typeof window !== 'undefined') {
-            if (window.__PIC_SYSTEM__ && window.__PIC_SYSTEM__ !== this.pictogramSystem) {
-                if (!window.__PIC_SYSTEM_OVERWRITE_WARNED__) {
-                    window.__PIC_SYSTEM_OVERWRITE_WARNED__ = true;
+            if (typeof window !== 'undefined') {
+                if (window.__PIC_SYSTEM__ && window.__PIC_SYSTEM__ !== this.pictogramSystem) {
+                    if (!window.__PIC_SYSTEM_OVERWRITE_WARNED__) {
+                        window.__PIC_SYSTEM_OVERWRITE_WARNED__ = true;
+                    }
                 }
+                window.__PIC_SYSTEM__ = this.pictogramSystem;
+                window.__CONDUIT__ = this;
             }
-            window.__PIC_SYSTEM__ = this.pictogramSystem;
-            window.__CONDUIT__ = this;
         }
 
         // Dissolve effects (link removal bursts)

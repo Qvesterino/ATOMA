@@ -120,7 +120,7 @@ import { NODE_VISUAL_REGISTRY, CATEGORY_POOLS } from './NodeVisualRegistry.js';
 import { spawnCycleValidator } from './SpawnCycleValidator.js';
 import { updateHologramShellMaterial, reassertNodeHologramShell } from './CoreHologramShader.js';
 import { reassertNodeNeonEdgeGlow } from './shaders/NeonEdgeGlowShader.js';
-import { NodeCategoryAudit, auditNodeVisuals } from './NodeCategoryAudit.js';
+import { NodeCategoryAudit, auditNodeVisuals } from './Engine/Debug/NodeCategoryAudit.js';
 import { assignLinkTarget } from './LinkTargetContract.js';
 import { LegacyNodeModelFilter } from './LegacyNodeModelFilter.js';
 import { NodeVisualAuthorityRuntime } from './NodeVisualAuthorityRuntime.js';

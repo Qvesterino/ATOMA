@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LinkBufferSafetyAudit } from './LinkBufferSafetyAudit.js';
+import { LinkBufferSafetyAudit } from './Engine/Debug/LinkBufferSafetyAudit.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 /**
