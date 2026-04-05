@@ -28,7 +28,7 @@ class MetricNamingConsistencyChecker:
         self.workspace_root = Path(workspace_root)
         self.canonical_metrics = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure']
         self.metric_usages = []
-        this.naming_issues = []
+        self.naming_issues = []
 
     def scan_directory(self) -> None:
         """Scan all JS files for metric usage."""

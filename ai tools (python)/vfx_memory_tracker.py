@@ -190,20 +190,20 @@ class VFXMemoryAnalyzer:
 
 class VFXMemoryTracker {{
     constructor() {{
-        this.objectRegistry = new Map(); // id -> object info
-        this.snapshots = [];
-        this.leakedObjects = [];
-        this.objectCounter = 0;
-        this.enabled = true;
-        this.thresholds = {{
+        self.objectRegistry = new Map(); // id -> object info
+        self.snapshots = [];
+        self.leakedObjects = [];
+        self.objectCounter = 0;
+        self.enabled = true;
+        self.thresholds = {{
             geometryLeak: 100,  // More than 100 geometries = leak
             materialLeak: 100,  // More than 100 materials = leak
             meshLeak: 500,      // More than 500 meshes = leak
             memoryLeak: 50 * 1024 * 1024  // 50MB threshold
         }};
 
-        this._setupTracking();
-        this._startLeakDetection();
+        self._setupTracking();
+        self._startLeakDetection();
     }}
 
     _setupTracking() {{
@@ -282,7 +282,7 @@ class VFXMemoryTracker {{
             userData: obj.userData || {{}}
         }};
 
-        this.objectRegistry.set(objectId, info);
+        self.objectRegistry.set(objectId, info);
     }}
 
     _untrackObject(objectId, type) {{
@@ -306,17 +306,17 @@ class VFXMemoryTracker {{
 
     _startLeakDetection() {{
         setInterval(() => {{
-            this._detectLeaks();
+            self._detectLeaks();
         }}, 5000); // Check every 5 seconds
     }}
 
     _detectLeaks() {{
         const snapshot = this._createSnapshot();
-        this.snapshots.push(snapshot);
+        self.snapshots.push(snapshot);
 
         // Keep only last 10 snapshots
         if (this.snapshots.length > 10) {{
-            this.snapshots.shift();
+            self.snapshots.shift();
         }}
 
         // Compare with previous snapshot
@@ -324,7 +324,7 @@ class VFXMemoryTracker {{
             const prev = this.snapshots[this.snapshots.length - 2];
             const current = this.snapshots[this.snapshots.length - 1];
 
-            this._checkForGrowth(prev, current);
+            self._checkForGrowth(prev, current);
         }}
     }}
 
@@ -338,7 +338,7 @@ class VFXMemoryTracker {{
             timestamp: performance.now()
         }};
 
-        this.objectRegistry.forEach(info => {{
+        self.objectRegistry.forEach(info => {{
             if (info.type === 'BufferGeometry') {{
                 counts.geometries++;
             }} else if (info.type === 'Material') {{
@@ -366,12 +366,12 @@ class VFXMemoryTracker {{
 
         if (geometryGrowth > 10) {{
             console.warn(`⚠️ Geometry growth: +${{geometryGrowth}} in ${{timeDiff.toFixed(1)}}s`);
-            this._reportSuspects('BufferGeometry');
+            self._reportSuspects('BufferGeometry');
         }}
 
         if (materialGrowth > 10) {{
             console.warn(`⚠️ Material growth: +${{materialGrowth}} in ${{timeDiff.toFixed(1)}}s`);
-            this._reportSuspects('Material');
+            self._reportSuspects('Material');
         }}
 
         if (meshGrowth > 50) {{
@@ -382,7 +382,7 @@ class VFXMemoryTracker {{
     _reportSuspects(type) {{
         const suspects = [];
 
-        this.objectRegistry.forEach(info => {{
+        self.objectRegistry.forEach(info => {{
             if (info.type === type && !info.disposed) {{
                 const age = performance.now() - info.created;
                 if (age > 10000) {{  // Older than 10 seconds
@@ -409,7 +409,7 @@ class VFXMemoryTracker {{
         if (label) {{
             snapshot.label = label;
         }}
-        this.snapshots.push(snapshot);
+        self.snapshots.push(snapshot);
         return snapshot;
     }}
 
@@ -419,7 +419,7 @@ class VFXMemoryTracker {{
 
         // Find potential leaks
         const potentialLeaks = [];
-        this.objectRegistry.forEach(info => {{
+        self.objectRegistry.forEach(info => {{
             if (!info.disposed) {{
                 const age = performance.now() - info.created;
                 if (age > 30000) {{  // Older than 30 seconds
@@ -476,9 +476,9 @@ class VFXMemoryTracker {{
     }}
 
     reset() {{
-        this.objectRegistry.clear();
-        this.snapshots = [];
-        this.leakedObjects = [];
+        self.objectRegistry.clear();
+        self.snapshots = [];
+        self.leakedObjects = [];
         console.log('[Memory Tracker] Reset');
     }}
 }}

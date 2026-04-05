@@ -429,9 +429,9 @@ const VFX_INTEGRATION_TESTS = {scenarios_json};
 
 class VFXIntegrationTestRunner {{
     constructor() {{
-        this.results = [];
-        this.currentTest = null;
-        this.setupComplete = false;
+        self.results = [];
+        self.currentTest = null;
+        self.setupComplete = false;
     }}
 
     async runAllTests() {{
@@ -442,7 +442,7 @@ class VFXIntegrationTestRunner {{
             await this.runTest(scenario);
         }}
 
-        this.printSummary();
+        self.printSummary();
         return this.results;
     }}
 
@@ -450,7 +450,7 @@ class VFXIntegrationTestRunner {{
         console.log(`\\n--- Test: ${{scenario.name}} ---`);
         console.log(scenario.description);
 
-        this.currentTest = {{
+        self.currentTest = {{
             name: scenario.name,
             startTime: performance.now(),
             passed: false,
@@ -473,22 +473,22 @@ class VFXIntegrationTestRunner {{
             // Wait for validation results
             await this.sleep(500);
 
-            this.currentTest.passed = true;
+            self.currentTest.passed = true;
             console.log('✓ Test passed');
 
         }} catch (error) {{
-            this.currentTest.passed = false;
-            this.currentTest.errors.push(error.message);
+            self.currentTest.passed = false;
+            self.currentTest.errors.push(error.message);
             console.error('✗ Test failed:', error.message);
         }}
 
-        this.currentTest.endTime = performance.now();
-        this.currentTest.duration = this.currentTest.endTime - this.currentTest.startTime;
+        self.currentTest.endTime = performance.now();
+        self.currentTest.duration = this.currentTest.endTime - this.currentTest.startTime;
 
-        this.results.push(this.currentTest);
+        self.results.push(this.currentTest);
 
         // Cleanup
-        this.cleanupTest();
+        self.cleanupTest();
     }}
 
     cleanupTest() {{
@@ -514,7 +514,7 @@ class VFXIntegrationTestRunner {{
 
         if (failed > 0) {{
             console.log('\\nFailed tests:');
-            this.results.filter(r => !r.passed).forEach(r => {{
+            self.results.filter(r => !r.passed).forEach(r => {{
                 console.log(`  - ${{r.name}}`);
                 r.errors.forEach(e => console.log(`    Error: ${{e}}`));
             }});

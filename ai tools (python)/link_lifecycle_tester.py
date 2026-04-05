@@ -152,13 +152,13 @@ const EXPECTED_LINK_VFX_SYSTEMS = {vfx_systems_list};
 
 class LinkLifecycleTester {{
     constructor() {{
-        this.testNodes = [];
-        this.testLinks = [];
-        this.vfxActivationLog = [];
-        this.cleanupLog = [];
-        this.memoryLeaks = [];
+        self.testNodes = [];
+        self.testLinks = [];
+        self.vfxActivationLog = [];
+        self.cleanupLog = [];
+        self.memoryLeaks = [];
 
-        this._setupVFXTracking();
+        self._setupVFXTracking();
     }}
 
     _setupVFXTracking() {{
@@ -230,7 +230,7 @@ class LinkLifecycleTester {{
             // Final cleanup
             await this._cleanup();
 
-            this.printSummary();
+            self.printSummary();
             return this.generateReport();
 
         }} catch (error) {{
@@ -267,7 +267,7 @@ class LinkLifecycleTester {{
             loadPressure: 0.3
         }};
 
-        this.testNodes.push(nodeA, nodeB);
+        self.testNodes.push(nodeA, nodeB);
         console.log('✓ Test nodes created');
     }}
 
@@ -290,7 +290,7 @@ class LinkLifecycleTester {{
             loadPressure: 0.25
         }};
 
-        this.testLinks.push(link);
+        self.testLinks.push(link);
         console.log('✓ Test link created');
 
         // Wait for VFX to initialize
@@ -331,7 +331,7 @@ class LinkLifecycleTester {{
             await this.sleep(100);
             // Update link activity
             if (this.testLinks[0]) {{
-                this.testLinks[0].userData.activity = 0.5 + Math.random() * 0.5;
+                self.testLinks[0].userData.activity = 0.5 + Math.random() * 0.5;
             }}
         }}
 
@@ -341,8 +341,8 @@ class LinkLifecycleTester {{
     async _updateLinkMetrics() {{
         if (this.testLinks[0]) {{
             // Update metrics to trigger VFX responses
-            this.testLinks[0].userData.metrics.synergy = 0.95;
-            this.testLinks[0].userData.metrics.harmony = 0.85;
+            self.testLinks[0].userData.metrics.synergy = 0.95;
+            self.testLinks[0].userData.metrics.harmony = 0.85;
 
             // Emit metric update event
             window.semanticBus?.emit('link.metrics.updated', {{
@@ -375,7 +375,7 @@ class LinkLifecycleTester {{
             window.game.removeLink(link);
         }}
 
-        this.testLinks.shift();
+        self.testLinks.shift();
         await this.sleep(500);
         console.log('✓ Link destroyed');
     }}
@@ -402,7 +402,7 @@ class LinkLifecycleTester {{
             lingeringObjects.forEach(obj => {{
                 console.log(`  - ${{obj.type}}: ${{obj.count}} instances`);
             }});
-            this.memoryLeaks = lingeringObjects;
+            self.memoryLeaks = lingeringObjects;
         }} else {{
             console.log('✓ No memory leaks detected');
         }}
@@ -457,8 +457,8 @@ class LinkLifecycleTester {{
             }}
         }}
 
-        this.testNodes = [];
-        this.testLinks = [];
+        self.testNodes = [];
+        self.testLinks = [];
 
         console.log('✓ Test cleanup complete');
     }}

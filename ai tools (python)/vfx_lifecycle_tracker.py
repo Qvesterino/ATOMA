@@ -235,8 +235,8 @@ if (!window.__VFX_LIFECYCLE_TRACKER) {{
                 duration: null,
                 triggerEvents: []
             }};
-            this.activeSystems.set(id, systemData);
-            this.eventLog.push({{
+            self.activeSystems.set(id, systemData);
+            self.eventLog.push({{
                 type: 'activate',
                 systemId: id,
                 systemName: name,
@@ -251,8 +251,8 @@ if (!window.__VFX_LIFECYCLE_TRACKER) {{
                 const systemData = this.activeSystems.get(id);
                 systemData.deactivatedAt = performance.now();
                 systemData.duration = systemData.deactivatedAt - systemData.activatedAt;
-                this.activeSystems.delete(id);
-                this.eventLog.push({{
+                self.activeSystems.delete(id);
+                self.eventLog.push({{
                     type: 'deactivate',
                     systemId: id,
                     timestamp: performance.now(),

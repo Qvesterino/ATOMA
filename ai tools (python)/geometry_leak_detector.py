@@ -26,9 +26,9 @@ class GeometryLeakDetector:
 
     def __init__(self, workspace_root: str):
         self.workspace_root = Path(workspace_root)
-        this.geometry_creations = []
-        this.material_creations = []
-        this.disposals = []
+        self.geometry_creations = []
+        self.material_creations = []
+        self.disposals = []
 
     def scan_directory(self) -> None:
         """Scan all JS files for geometry/material usage."""
@@ -81,7 +81,7 @@ class GeometryLeakDetector:
             for match in matches:
                 geom_type = match.group(1) if match.lastindex > 0 else "Unknown"
 
-                this.geometry_creations.append({
+                self.geometry_creations.append({
                     "type": geom_type,
                     "file": file_path,
                     "file_name": file_name,
@@ -105,7 +105,7 @@ class GeometryLeakDetector:
             for match in matches:
                 mat_type = match.group(1) if match.lastindex > 0 else "Unknown"
 
-                this.material_creations.append({
+                self.material_creations.append({
                     "type": mat_type,
                     "file": file_path,
                     "file_name": file_name,
@@ -129,7 +129,7 @@ class GeometryLeakDetector:
             for match in matches:
                 obj = match.group(1) if match.lastindex > 0 else "geometry/material"
 
-                this.disposals.append({
+                self.disposals.append({
                     "object": obj,
                     "file": file_path,
                     "file_name": file_name,

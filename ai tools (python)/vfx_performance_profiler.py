@@ -138,12 +138,12 @@ if (!window.__VFX_PERF_PROFILER) {{
         startTime: performance.now(),
 
         startFrame() {{
-            this.frameTime = performance.now();
+            self.frameTime = performance.now();
         }},
 
         endFrame() {{
             const frameDuration = performance.now() - this.frameTime;
-            this.frameCount++;
+            self.frameCount++;
 
             // Log frame stats every 60 frames
             if (this.frameCount % 60 === 0) {{
@@ -155,7 +155,7 @@ if (!window.__VFX_PERF_PROFILER) {{
 
         trackSystem(systemId, duration, context = {{}}) {{
             if (!this.systems[systemId]) {{
-                this.systems[systemId] = {{
+                self.systems[systemId] = {{
                     name: systemId,
                     samples: [],
                     totalTime: 0,
@@ -273,9 +273,9 @@ if (!window.__VFX_PERF_PROFILER) {{
         }},
 
         reset() {{
-            this.systems = {{}};
-            this.frameCount = 0;
-            this.startTime = performance.now();
+            self.systems = {{}};
+            self.frameCount = 0;
+            self.startTime = performance.now();
             console.log('[VFX Perf] Profiler reset');
         }}
     }};

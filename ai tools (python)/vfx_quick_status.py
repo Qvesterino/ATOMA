@@ -25,9 +25,9 @@ class VFXQuickStatus:
 
     def __init__(self, workspace_root: str):
         self.workspace_root = Path(workspace_root)
-        this.vfx_systems = []
-        this.metric_access = defaultdict(list)
-        this.event_subscriptions = defaultdict(list)
+        self.vfx_systems = []
+        self.metric_access = defaultdict(list)
+        self.event_subscriptions = defaultdict(list)
 
     def scan_vfx_systems(self) -> None:
         """Quick scan for VFX systems."""
@@ -66,7 +66,7 @@ class VFXQuickStatus:
                         metric_count = len(re.findall(r'metrics\.\w+', content))
                         event_count = len(re.findall(r'on\(\s*[\'"]\w+[\'"]\s*\)', content))
 
-                        this.vfx_systems.append({
+                        self.vfx_systems.append({
                             "name": name,
                             "file": file_path.name,
                             "metric_access": metric_count,
@@ -76,12 +76,12 @@ class VFXQuickStatus:
                         # Track metric access
                         metrics = re.findall(r'metrics\.(\w+)', content)
                         for metric in metrics:
-                            this.metric_access[metric].append(name)
+                            self.metric_access[metric].append(name)
 
                         # Track event subscriptions
                         events = re.findall(r'on\(\s*[\'"](\w+)[\'"]\s*\)', content)
                         for event in events:
-                            this.event_subscriptions[event].append(name)
+                            self.event_subscriptions[event].append(name)
 
         except Exception as e:
             pass  # Silent for quick scan

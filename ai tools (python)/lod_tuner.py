@@ -27,7 +27,7 @@ class LODTuner:
         self.workspace_root = Path(workspace_root)
         self.lod_systems = []
         self.lod_thresholds = []
-        this.lod_distances = []
+        self.lod_distances = []
 
     def analyze_lod(self) -> None:
         """Analyze LOD implementation in the codebase."""
@@ -168,10 +168,10 @@ const LOD_TUNING_CONFIG = {{
 
 class LODTuner {{
     constructor() {{
-        this.results = [];
-        this.camera = window.game?.camera;
-        this.scene = window.game?.scene;
-        this.renderer = window.game?.renderer;
+        self.results = [];
+        self.camera = window.game?.camera;
+        self.scene = window.game?.scene;
+        self.renderer = window.game?.renderer;
     }}
 
     async runAllTests() {{
@@ -182,7 +182,7 @@ class LODTuner {{
             await this.testConfiguration(config);
         }}
 
-        this.printSummary();
+        self.printSummary();
         return this.generateRecommendations();
     }}
 
@@ -193,7 +193,7 @@ class LODTuner {{
         }};
 
         // Apply configuration
-        this.applyLODConfig(config);
+        self.applyLODConfig(config);
 
         // Test each scenario
         for (const scenario of LOD_TUNING_CONFIG.scenarios) {{
@@ -201,7 +201,7 @@ class LODTuner {{
             configResults.scenarioResults.push(result);
         }}
 
-        this.results.push(configResults);
+        self.results.push(configResults);
         return configResults;
     }}
 
@@ -266,8 +266,8 @@ class LODTuner {{
         for (const distance of distances) {{
             // Move camera to this distance
             if (this.camera) {{
-                this.camera.position.z = distance;
-                this.camera.lookAt(0, 0, 0);
+                self.camera.position.z = distance;
+                self.camera.lookAt(0, 0, 0);
             }}
 
             // Wait for LOD to update

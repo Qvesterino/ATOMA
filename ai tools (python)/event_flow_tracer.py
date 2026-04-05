@@ -162,16 +162,16 @@ class EventFlowAnalyzer:
 
 class EventFlowTracer {{
     constructor() {{
-        this.eventLog = [];
-        this.eventChains = [];
-        this.eventCounts = new Map();
-        this.startTime = performance.now();
-        this.activeChains = new Map();
-        this.stormThreshold = 50; // Events per second
-        this.stormDetectionWindow = 1000; // ms
+        self.eventLog = [];
+        self.eventChains = [];
+        self.eventCounts = new Map();
+        self.startTime = performance.now();
+        self.activeChains = new Map();
+        self.stormThreshold = 50; // Events per second
+        self.stormDetectionWindow = 1000; // ms
 
-        this._setupTracing();
-        this._startStormDetection();
+        self._setupTracing();
+        self._startStormDetection();
     }}
 
     _setupTracing() {{
@@ -179,7 +179,7 @@ class EventFlowTracer {{
         if (window.semanticBus) {{
             const originalEmit = window.semanticBus.emit;
             window.semanticBus.emit = (event, data) => {{
-                this._logEvent('emit', event, data);
+                self._logEvent('emit', event, data);
                 return originalEmit.call(window.semanticBus, event, data);
             }};
         }}
@@ -188,7 +188,7 @@ class EventFlowTracer {{
         if (window.semanticBus) {{
             const originalOn = window.semanticBus.on;
             window.semanticBus.on = (event, handler) => {{
-                this._logEvent('subscribe', event, {{ handler: handler.name || 'anonymous' }});
+                self._logEvent('subscribe', event, {{ handler: handler.name || 'anonymous' }});
                 return originalOn.call(window.semanticBus, event, handler);
             }};
         }}
@@ -199,17 +199,17 @@ class EventFlowTracer {{
     _logEvent(type, event, data) {{
         const timestamp = performance.now() - this.startTime;
 
-        this.eventLog.push({{
+        self.eventLog.push({{
             type,
             event,
             timestamp,
             data: this._sanitizeData(data)
         }});
 
-        this.eventCounts.set(event, (this.eventCounts.get(event) || 0) + 1);
+        self.eventCounts.set(event, (this.eventCounts.get(event) || 0) + 1);
 
         // Detect chains
-        this._detectChain(event, type);
+        self._detectChain(event, type);
     }}
 
     _sanitizeData(data) {{
@@ -245,7 +245,7 @@ class EventFlowTracer {{
         if (recentEvents.length > 0) {{
             const previousEvent = recentEvents[recentEvents.length - 2];
             if (previousEvent && previousEvent.event !== event) {{
-                this.eventChains.push({{
+                self.eventChains.push({{
                     from: previousEvent.event,
                     to: event,
                     timestamp: performance.now() - this.startTime,
@@ -257,7 +257,7 @@ class EventFlowTracer {{
 
     _startStormDetection() {{
         setInterval(() => {{
-            this._detectEventStorm();
+            self._detectEventStorm();
         }}, this.stormDetectionWindow);
     }}
 
@@ -271,7 +271,7 @@ class EventFlowTracer {{
         );
 
         if (recentEvents.length > this.stormThreshold) {{
-            this._reportStorm(recentEvents, now);
+            self._reportStorm(recentEvents, now);
         }}
     }}
 
@@ -315,7 +315,7 @@ class EventFlowTracer {{
         // Group and count chains
         const chainCounts = new Map();
 
-        this.eventChains.forEach(chain => {{
+        self.eventChains.forEach(chain => {{
             const key = `${{chain.from}} -> ${{chain.to}}`;
             chainCounts.set(key, (chainCounts.get(key) || 0) + 1);
         }});
@@ -390,10 +390,10 @@ class EventFlowTracer {{
     }}
 
     reset() {{
-        this.eventLog = [];
-        this.eventChains = [];
-        this.eventCounts.clear();
-        this.startTime = performance.now();
+        self.eventLog = [];
+        self.eventChains = [];
+        self.eventCounts.clear();
+        self.startTime = performance.now();
         console.log('[Event Tracer] Reset');
     }}
 }}

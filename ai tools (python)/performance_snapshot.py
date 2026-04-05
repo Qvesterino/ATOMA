@@ -23,7 +23,7 @@ class PerformanceSnapshotGenerator:
 
     def __init__(self, workspace_root: str):
         self.workspace_root = Path(workspace_root)
-        this.vfx_systems = []
+        self.vfx_systems = []
 
     def analyze_vfx_systems(self) -> None:
         """Analyze VFX systems for performance monitoring."""
@@ -36,7 +36,7 @@ class PerformanceSnapshotGenerator:
         for js_file in js_files:
             self._scan_file(js_file)
 
-        print(f"Found {len(this.vfx_systems)} VFX systems to monitor")
+        print(f"Found {len(self.vfx_systems)} VFX systems to monitor")
 
     def _scan_file(self, file_path: Path) -> None:
         """Scan a single file for VFX systems."""
@@ -53,7 +53,7 @@ class PerformanceSnapshotGenerator:
 
                 # Check if it's a VFX system
                 if self._is_vfx_system(name, content):
-                    this.vfx_systems.append({
+                    self.vfx_systems.append({
                         "name": name,
                         "file": file_path.name
                     })
@@ -74,7 +74,7 @@ class PerformanceSnapshotGenerator:
 
     def generate_snapshot_tool(self) -> str:
         """Generate browser-based performance snapshot tool."""
-        system_names = [s['name'] for s in this.vfx_systems]
+        system_names = [s['name'] for s in self.vfx_systems]
 
         return f"""
 // === PERFORMANCE SNAPSHOT TOOL ===
@@ -82,22 +82,22 @@ class PerformanceSnapshotGenerator:
 
 class PerformanceSnapshot {{
     constructor() {{
-        this.snapshots = [];
-        this.currentSnapshot = null;
-        this.monitoringActive = false;
-        this.monitorInterval = null;
-        this.startTime = performance.now();
-        this.frameCount = 0;
-        this.lastFrameTime = performance.now();
-        this.frameTimes = [];
-        this.fpsHistory = [];
+        self.snapshots = [];
+        self.currentSnapshot = null;
+        self.monitoringActive = false;
+        self.monitorInterval = null;
+        self.startTime = performance.now();
+        self.frameCount = 0;
+        self.lastFrameTime = performance.now();
+        self.frameTimes = [];
+        self.fpsHistory = [];
     }}
 
     // Take a single performance snapshot
     takeSnapshot(label = null) {{
         const now = performance.now();
 
-        this.currentSnapshot = {{
+        self.currentSnapshot = {{
             timestamp: now,
             timestampISO: new Date().toISOString(),
             relativeTime: now - this.startTime,
@@ -110,9 +110,9 @@ class PerformanceSnapshot {{
             systems: this.getSystemsInfo()
         }};
 
-        this.snapshots.push(this.currentSnapshot);
-        this.frameTimes = []; // Clear frame times after snapshot
-        this.fpsHistory = []; // Clear FPS history
+        self.snapshots.push(this.currentSnapshot);
+        self.frameTimes = []; // Clear frame times after snapshot
+        self.fpsHistory = []; // Clear FPS history
 
         console.log('[Performance Snapshot] Snapshot taken:', this.currentSnapshot.label);
         return this.currentSnapshot;
@@ -200,9 +200,9 @@ class PerformanceSnapshot {{
             return;
         }}
 
-        this.monitoringActive = true;
-        this.monitorInterval = setInterval(() => {{
-            this.takeSnapshot(`Auto ${{this.snapshots.length + 1}}`);
+        self.monitoringActive = true;
+        self.monitorInterval = setInterval(() => {{
+            self.takeSnapshot(`Auto ${{this.snapshots.length + 1}}`);
         }}, intervalMs);
 
         console.log(`[Performance Snapshot] Started monitoring (interval: ${{intervalMs}}ms)`);
@@ -213,8 +213,8 @@ class PerformanceSnapshot {{
         if (!this.monitoringActive) return;
 
         clearInterval(this.monitorInterval);
-        this.monitoringActive = false;
-        this.monitorInterval = null;
+        self.monitoringActive = false;
+        self.monitorInterval = null;
 
         console.log('[Performance Snapshot] Stopped monitoring');
     }}
@@ -307,12 +307,12 @@ class PerformanceSnapshot {{
 
     // Clear all snapshots
     clear() {{
-        this.snapshots = [];
-        this.currentSnapshot = null;
-        this.startTime = performance.now();
-        this.frameCount = 0;
-        this.frameTimes = [];
-        this.fpsHistory = [];
+        self.snapshots = [];
+        self.currentSnapshot = null;
+        self.startTime = performance.now();
+        self.frameCount = 0;
+        self.frameTimes = [];
+        self.fpsHistory = [];
 
         console.log('[Performance Snapshot] Cleared all snapshots');
     }}
@@ -321,19 +321,19 @@ class PerformanceSnapshot {{
     trackFrame() {{
         const now = performance.now();
         const frameTime = now - this.lastFrameTime;
-        this.lastFrameTime = now;
+        self.lastFrameTime = now;
 
-        this.frameTimes.push(frameTime);
+        self.frameTimes.push(frameTime);
         if (this.frameTimes.length > 60) {{
-            this.frameTimes.shift();
+            self.frameTimes.shift();
         }}
 
-        this.fpsHistory.push(frameTime);
+        self.fpsHistory.push(frameTime);
         if (this.fpsHistory.length > 60) {{
-            this.fpsHistory.shift();
+            self.fpsHistory.shift();
         }}
 
-        this.frameCount++;
+        self.frameCount++;
     }}
 }}
 
@@ -389,7 +389,7 @@ if (typeof window !== 'undefined') {{
 
         lines.append("VFX SYSTEMS MONITORED")
         lines.append("-" * 70)
-        for system in this.vfx_systems:
+        for system in self.vfx_systems:
             lines.append(f"  {system['name']}")
             lines.append(f"    File: {system['file']}")
         lines.append("")

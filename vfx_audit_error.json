@@ -1,0 +1,9 @@
+{
+  "error": "ENOENT: no such file or directory, open 'D:\\ATOMA_CLEAN\\vfx_health_check.js'",
+  "info": {
+    "worldExists": true,
+    "worldProps": [
+      "metrics"
+    ]
+  }
+}

@@ -5,6 +5,7 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
 - `TopologyBiasVisualizationLayer` now has a stronger default pass for bias vectors and flow fields, plus a fallback visual path from recent influence activity so the topology layer remains readable even when active learning regions are sparse.
 - `HarmonicRecoveryVisualSystem_Session138` was softened slightly so the midpoint coherence wave stays present but no longer dominates the recovery stack.
 - `PHASE5_CascadePropagationVisuals` now listens directly to `link.harmony.low|mid|high`, resolves a link anchor midpoint from the active linking system, and spawns a visibly separated 3-ring echo cluster with a 3 second cooldown. This replaced the invisible dependency on cascade bridge timing for the main visible path.
+- `ResonanceRuptureVisualSystem_Session133` thresholds were relaxed so normal 4-5 link smoke runs produce visible scars again, which in turn reactivates `HealingParticleSystem_Session136` and `HarmonicHealingVisualSystem_Session134` output.
 
 ## 2026-04-04
 - `WaveParticleEmitter_v1` was moved toward direct semantic metric-tier listeners for node-driven particle emission.

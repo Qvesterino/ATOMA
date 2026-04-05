@@ -24,8 +24,8 @@ class MetricsViewerGenerator:
 
     def __init__(self, workspace_root: str):
         self.workspace_root = Path(workspace_root)
-        this.metrics = []
-        this.metric_systems = defaultdict(list)
+        self.metrics = []
+        self.metric_systems = defaultdict(list)
 
     def analyze_metrics(self) -> None:
         """Analyze metrics in codebase."""
@@ -60,13 +60,13 @@ class MetricsViewerGenerator:
 
                     # Add metric if not already tracked
                     if metric_name not in [m['name'] for m in this.metrics]:
-                        this.metrics.append({
+                        self.metrics.append({
                             "name": metric_name,
                             "file": file_path.name
                         })
 
                     # Track which systems use this metric
-                    this.metric_systems[metric_name].append(file_path.name)
+                    self.metric_systems[metric_name].append(file_path.name)
 
         except Exception as e:
             pass
@@ -81,12 +81,12 @@ class MetricsViewerGenerator:
 
 class MetricsViewer {{
     constructor() {{
-        this.metricsHistory = new Map();
-        this.maxHistorySize = 1000;
-        this.currentMetrics = new Map();
-        this.subscribers = [];
-        this.updateInterval = null;
-        this.startTime = performance.now();
+        self.metricsHistory = new Map();
+        self.maxHistorySize = 1000;
+        self.currentMetrics = new Map();
+        self.subscribers = [];
+        self.updateInterval = null;
+        self.startTime = performance.now();
     }}
 
     // Initialize metrics viewer
@@ -97,7 +97,7 @@ class MetricsViewer {{
         }}
 
         // Subscribe to metric updates
-        this.subscribeToMetrics();
+        self.subscribeToMetrics();
         console.log('[Metrics Viewer] Initialized');
         return true;
     }}
@@ -105,11 +105,11 @@ class MetricsViewer {{
     // Subscribe to metric updates
     subscribeToMetrics() {{
         // Try to get current metrics
-        this.updateCurrentMetrics();
+        self.updateCurrentMetrics();
 
         // Set up periodic updates
-        this.updateInterval = setInterval(() => {{
-            this.updateCurrentMetrics();
+        self.updateInterval = setInterval(() => {{
+            self.updateCurrentMetrics();
         }}, 100); // Update every 100ms
 
         console.log('[Metrics Viewer] Subscribed to metrics updates');
@@ -123,8 +123,8 @@ class MetricsViewer {{
 
         if (metrics) {{
             for (const [key, value] of Object.entries(metrics)) {{
-                this.currentMetrics.set(key, value);
-                this.addToHistory(key, value);
+                self.currentMetrics.set(key, value);
+                self.addToHistory(key, value);
             }}
         }}
     }}
@@ -132,7 +132,7 @@ class MetricsViewer {{
     // Add metric to history
     addToHistory(metricName, value) {{
         if (!this.metricsHistory.has(metricName)) {{
-            this.metricsHistory.set(metricName, []);
+            self.metricsHistory.set(metricName, []);
         }}
 
         const history = this.metricsHistory.get(metricName);
@@ -298,9 +298,9 @@ class MetricsViewer {{
 
     // Clear all data
     clear() {{
-        this.metricsHistory.clear();
-        this.currentMetrics.clear();
-        this.startTime = performance.now();
+        self.metricsHistory.clear();
+        self.currentMetrics.clear();
+        self.startTime = performance.now();
         console.log('[Metrics Viewer] Cleared all data');
     }}
 
@@ -308,7 +308,7 @@ class MetricsViewer {{
     stop() {{
         if (this.updateInterval) {{
             clearInterval(this.updateInterval);
-            this.updateInterval = null;
+            self.updateInterval = null;
             console.log('[Metrics Viewer] Stopped updates');
         }}
     }}
@@ -316,7 +316,7 @@ class MetricsViewer {{
     // Resume updates
     resume() {{
         if (!this.updateInterval) {{
-            this.subscribeToMetrics();
+            self.subscribeToMetrics();
             console.log('[Metrics Viewer] Resumed updates');
         }}
     }}
@@ -326,7 +326,7 @@ class MetricsViewer {{
         const history = this.getMetricHistory(metricName);
         const lastValue = history.length > 0 ? history[history.length - 1].value : null;
 
-        this.subscribers.push({{
+        self.subscribers.push({{
             metricName,
             callback,
             lastValue

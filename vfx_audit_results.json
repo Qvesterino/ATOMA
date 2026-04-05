@@ -1,0 +1,4026 @@
+{
+  "timestamp": "2026-04-04T19:53:14.323Z",
+  "summary": {
+    "total": 8,
+    "ok": 2,
+    "warnings": 1,
+    "errors": 5,
+    "overallStatus": "error"
+  },
+  "results": [
+    {
+      "category": "Core Systems",
+      "check": "MetricsRuntime",
+      "status": "error",
+      "message": "Not found (Required)"
+    },
+    {
+      "category": "Core Systems",
+      "check": "FrameScheduler",
+      "status": "ok",
+      "message": "Available"
+    },
+    {
+      "category": "Core Systems",
+      "check": "NodeLinkingSystem",
+      "status": "error",
+      "message": "Not found (Required)"
+    },
+    {
+      "category": "Core Systems",
+      "check": "VisualHierarchyRegistry",
+      "status": "error",
+      "message": "Not found (Required)"
+    },
+    {
+      "category": "Core Systems",
+      "check": "LinkRendererConduit",
+      "status": "warning",
+      "message": "Not found (Optional)"
+    },
+    {
+      "category": "Renderer",
+      "check": "Renderer availability",
+      "status": "error",
+      "message": "Renderer not found"
+    },
+    {
+      "category": "Scene",
+      "check": "Scene availability",
+      "status": "error",
+      "message": "Scene not found"
+    },
+    {
+      "category": "Memory",
+      "check": "Heap usage",
+      "status": "ok",
+      "message": "132.56 MB / 3585.82 MB ({percent}%)"
+    }
+  ],
+  "systems": [
+    {
+      "name": "MetricsRuntime",
+      "required": true,
+      "available": false
+    },
+    {
+      "name": "FrameScheduler",
+      "ref": {
+        "VISUAL_LOG_INTERVAL_MS": 20000,
+        "SOFT_INTERVAL_MS": 75,
+        "BACKGROUND_INTERVAL_MS": 300,
+        "layers": {
+          "realtime": {
+            "targetHz": 60,
+            "interval": 0.016666666666666666,
+            "accumulator": 0.008766666666294713,
+            "functions": [
+              {
+                "id": "realtime.cameraController",
+                "layer": "realtime",
+                "category": "hard",
+                "lastRun": 11874.899999999441
+              },
+              {
+                "id": "realtime.playerController",
+                "layer": "realtime",
+                "category": "hard",
+                "lastRun": 11874.899999999441
+              },
+              {
+                "id": "realtime.nodeInteraction",
+                "layer": "realtime",
+                "category": "hard",
+                "lastRun": 11874.899999999441
+              },
+              {
+                "id": "realtime.hitProxy",
+                "layer": "realtime",
+                "category": "hard",
+                "lastRun": 11874.899999999441
+              }
+            ]
+          },
+          "visual": {
+            "targetHz": 30,
+            "interval": 0.03333333333333333,
+            "accumulator": 0.025433333332960814,
+            "functions": [
+              {
+                "id": "visual.proceduralGlyphGenerator",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.activeWorld",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.aiNodes",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.echoTrailsIntegration",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.worldRuntime_v1",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.nodeAuraSystem",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.corruptionAuraDesaturation",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.corruptionDesaturation",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.metricsVisualFX",
+                "layer": "visual",
+                "category": "background",
+                "lastRun": 11886,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.synergyBonusFXLayer",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.synergyResonanceShaderPack",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.synergyCascadeFXBridge",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.fxRuntime_v1",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.personalityShaderBridge",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.advancedShaderFX",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.archetypeShaderModes",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.nodeShaderActivation",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.glyphLayer4",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.semanticGlyphAI",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.glyphFusionOverlay",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.linkedGlyphSync",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.cascadePropagation",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.evolvingLinkFX",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.linkVisualMoodSystem",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.linkDebugMode",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.legendaryPack",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.legendaryLinkFX",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 3690.2000000001863,
+                "_disabled": true,
+                "_errorCount": 0,
+                "_warned": true
+              },
+              {
+                "id": "visual.personalityFX",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.worldFXPack",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.dreamDepthPack",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.dreamDepthEffects",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.mobilityPack",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.nodeVisuals4",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.newNodeCategories",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.mythicSeedGlyph",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.microImpulseAdapter",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.hardInteractionAuthority",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.nodeMicroEvents",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.t2CorruptionVisualIntegration",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.t2HarmonyVisualConsumer",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.synergyPulseVisuals",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.semanticVisual30Hz",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.harmonicResonanceCoupling",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.harmonicHubAuraSystem",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.harmonicInfluencePropagation",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.linkResonanceFlowSystem",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.harmonicPhaseSynchronization",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.harmonicNodeResonanceHalos",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.pulseWaveBridge",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.pulseBoundaryInteractionAdapter",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.pulseIntersectionAdapter",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.resonanceFeedback",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.resonanceRupture",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.resonanceEchoTrailSystem",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.compositeResonanceFeedback",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.cascadeVisualizer",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.glyphSystem4",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.proceduralMeaningEngine",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.adaptiveGlyphRendering",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.glyphAnimationModulator",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.particleEmissionScaler",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.particleSemanticDensity",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.cascadeParticleEmissionBoost",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.cascadeParticleColorTinting",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.cascadeParticleSystem",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.particleTrailSystem",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.cascadeResonanceWaveVisualization",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.resonanceCascadeVisualization",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.healingParticles",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.harmonicHealing",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.harmonicRecovery",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.linkTrailParticles",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.memoryTrails",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.visualSuperpack",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.cinematicUpgrade",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.dynamicLinkColorSystem",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.edgeCageDistanceFade",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.waveShaderBridge",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.waveTravelShaderPack",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.waveDynamicsShaderPack",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.synergyTravelingWaveFX",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.waveInterferencePatterns",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.harmonicResonanceFeedback",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.canonicalTemplate3_StressVisuals",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.stressVisualShaderSystem",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.metricInterpretationLayer",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.harmonyDebugOverlay",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "linkGlyphFlow",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "linkedGlyphMessaging",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "recursiveGlyphMessaging",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "linkPictogramSystem",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.linkingSystem",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.waveStandingRenderer",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.nodeCorruptionFX",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "node.targeting",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "renderer.render",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "vfx.runtimeLoader",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.harmony.waveParticleEmitter",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.synapticConflictResolution",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "visual.environmentDomain",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814
+              },
+              {
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814
+              },
+              {
+                "id": "glyph.recursive.signal",
+                "layer": "visual",
+                "category": "hard",
+                "lastRun": 11888.299999999814
+              }
+            ]
+          },
+          "simulation": {
+            "targetHz": 10,
+            "interval": 0.1,
+            "accumulator": 0.09209999999962745,
+            "functions": [
+              {
+                "id": "simulation.metricsAggregator",
+                "layer": "simulation",
+                "category": "background",
+                "lastRun": 11601.099999999627,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.fxPerformanceScaler",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.adaptivePerformanceMonitor",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.fxPerformanceTransition",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.metricDirtyQueueReset",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.linkSemanticMetricsBridge",
+                "layer": "simulation",
+                "category": "background",
+                "lastRun": 11601.099999999627,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.synapticGatingAdapter",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.synapticFatigueAdapter",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.networkFatigueSystem",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.synapticSpecializationAdapter",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.linkCorruptionTransmission",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.harmonyCascade",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.harmonyStabilizationSystem",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.effectOrchestrator",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.nodeShellSizeAuthority",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.linkPersonalityStateMachine",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.influenceAttenuationAbsorption",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.influenceReflection",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.waveStandingTraps",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.cascadeAccelSetup",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.coreMetricsOverlay",
+                "layer": "simulation",
+                "category": "background",
+                "lastRun": 11601.099999999627,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.primaryNodeTopBar",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.hazards",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.nodeEditor",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.undoRedoUi",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.visualOverlayTick",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.linkMetricsToVisualBridge",
+                "layer": "simulation",
+                "category": "background",
+                "lastRun": 11601.099999999627,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.stressBasedParticleScaler",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.linkDegradationSystem",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.audioSynergyMonitor",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.regionalEquilibrium",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.cascadingRuptures",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.criticalNodeFailure",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.topologyViz",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.nodeEditorRuntime_v1",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.metricsRuntime_v1",
+                "layer": "simulation",
+                "category": "background",
+                "lastRun": 11601.099999999627,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.networkStress",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.networkStressCascadeBridge",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.personalityRuntime_v1",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.worldPersonalityController",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.phase5MultiNetworkOrchestrator",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.emergentThoughtStorms",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.colonyManager",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.nodeEvolution",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.nodePersonality",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.tier4GameplayIntegration",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 5969.5999999996275,
+                "_disabled": true,
+                "_errorCount": 0,
+                "_warned": true
+              },
+              {
+                "id": "simulation.networkRituals",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.phase5CascadeEventCheck",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.mythicRitualController",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.phase8RitualOrchestration",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.visualNetworkTimeElasticity",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.semanticSlow10Hz",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.waveInterferenceEngine",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.linkingSystem.metrics",
+                "layer": "simulation",
+                "category": "background",
+                "lastRun": 11601.099999999627,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.corruptionBridge",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.linkQualityCalculator",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.synergyChainReaction",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.semanticHoverGlyph",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.phase5CascadeVisualizationBridge",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.preCascadeVisualHint",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "simulation.harmonicCascadeAmplification",
+                "layer": "simulation",
+                "category": "hard",
+                "lastRun": 11890.200000000186,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              }
+            ]
+          },
+          "background": {
+            "targetHz": 2,
+            "interval": 0.5,
+            "accumulator": 0.19209999999962737,
+            "functions": [
+              {
+                "id": "registry-warmup",
+                "layer": "background",
+                "category": "hard",
+                "lastRun": 11605,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "background.harmonicTopology",
+                "layer": "background",
+                "category": "hard",
+                "lastRun": 11605,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "background.harmonicCycleController",
+                "layer": "background",
+                "category": "hard",
+                "lastRun": 11605,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "background.narrativePatterns",
+                "layer": "background",
+                "category": "hard",
+                "lastRun": 11605,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "background.worldEvents",
+                "layer": "background",
+                "category": "hard",
+                "lastRun": 11605,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "background.weatherPack",
+                "layer": "background",
+                "category": "hard",
+                "lastRun": 11605,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "background.ambientEntityManager",
+                "layer": "background",
+                "category": "hard",
+                "lastRun": 11605,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "background.consciousnessLayer",
+                "layer": "background",
+                "category": "hard",
+                "lastRun": 11605,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "background.poetryEngine",
+                "layer": "background",
+                "category": "hard",
+                "lastRun": 11605,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "background.emotionalFeed",
+                "layer": "background",
+                "category": "hard",
+                "lastRun": 11605,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "background.slowSemanticReset",
+                "layer": "background",
+                "category": "hard",
+                "lastRun": 11605,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "background.coreMaterialMutationDetector",
+                "layer": "background",
+                "category": "hard",
+                "lastRun": 11605,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "background.coreMaterialPropertyLock",
+                "layer": "background",
+                "category": "hard",
+                "lastRun": 11605,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "background.ritualAutoTrigger",
+                "layer": "background",
+                "category": "hard",
+                "lastRun": 11605,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              },
+              {
+                "id": "background.evolutionManager",
+                "layer": "background",
+                "category": "hard",
+                "lastRun": 11605,
+                "_disabled": false,
+                "_errorCount": 0,
+                "_warned": false
+              }
+            ]
+          }
+        },
+        "totalRegistered": 183,
+        "tickCount": 23,
+        "_lastVisualLogTime": 0,
+        "registeredSystems": {
+          "registry-warmup": {
+            "layer": "background",
+            "entry": {
+              "id": "registry-warmup",
+              "layer": "background",
+              "category": "hard",
+              "lastRun": 11605,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "background.harmonicTopology": {
+            "layer": "background",
+            "entry": {
+              "id": "background.harmonicTopology",
+              "layer": "background",
+              "category": "hard",
+              "lastRun": 11605,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.proceduralGlyphGenerator": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.proceduralGlyphGenerator",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "background.harmonicCycleController": {
+            "layer": "background",
+            "entry": {
+              "id": "background.harmonicCycleController",
+              "layer": "background",
+              "category": "hard",
+              "lastRun": 11605,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.metricsAggregator": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.metricsAggregator",
+              "layer": "simulation",
+              "category": "background",
+              "lastRun": 11601.099999999627,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "background.narrativePatterns": {
+            "layer": "background",
+            "entry": {
+              "id": "background.narrativePatterns",
+              "layer": "background",
+              "category": "hard",
+              "lastRun": 11605,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "background.worldEvents": {
+            "layer": "background",
+            "entry": {
+              "id": "background.worldEvents",
+              "layer": "background",
+              "category": "hard",
+              "lastRun": 11605,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "background.weatherPack": {
+            "layer": "background",
+            "entry": {
+              "id": "background.weatherPack",
+              "layer": "background",
+              "category": "hard",
+              "lastRun": 11605,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "background.ambientEntityManager": {
+            "layer": "background",
+            "entry": {
+              "id": "background.ambientEntityManager",
+              "layer": "background",
+              "category": "hard",
+              "lastRun": 11605,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "background.consciousnessLayer": {
+            "layer": "background",
+            "entry": {
+              "id": "background.consciousnessLayer",
+              "layer": "background",
+              "category": "hard",
+              "lastRun": 11605,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "background.poetryEngine": {
+            "layer": "background",
+            "entry": {
+              "id": "background.poetryEngine",
+              "layer": "background",
+              "category": "hard",
+              "lastRun": 11605,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "background.emotionalFeed": {
+            "layer": "background",
+            "entry": {
+              "id": "background.emotionalFeed",
+              "layer": "background",
+              "category": "hard",
+              "lastRun": 11605,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "background.slowSemanticReset": {
+            "layer": "background",
+            "entry": {
+              "id": "background.slowSemanticReset",
+              "layer": "background",
+              "category": "hard",
+              "lastRun": 11605,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "background.coreMaterialMutationDetector": {
+            "layer": "background",
+            "entry": {
+              "id": "background.coreMaterialMutationDetector",
+              "layer": "background",
+              "category": "hard",
+              "lastRun": 11605,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "background.coreMaterialPropertyLock": {
+            "layer": "background",
+            "entry": {
+              "id": "background.coreMaterialPropertyLock",
+              "layer": "background",
+              "category": "hard",
+              "lastRun": 11605,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.fxPerformanceScaler": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.fxPerformanceScaler",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.adaptivePerformanceMonitor": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.adaptivePerformanceMonitor",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.fxPerformanceTransition": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.fxPerformanceTransition",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.metricDirtyQueueReset": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.metricDirtyQueueReset",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.linkSemanticMetricsBridge": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.linkSemanticMetricsBridge",
+              "layer": "simulation",
+              "category": "background",
+              "lastRun": 11601.099999999627,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.synapticGatingAdapter": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.synapticGatingAdapter",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.synapticFatigueAdapter": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.synapticFatigueAdapter",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.networkFatigueSystem": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.networkFatigueSystem",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.synapticSpecializationAdapter": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.synapticSpecializationAdapter",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.linkCorruptionTransmission": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.linkCorruptionTransmission",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.harmonyCascade": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.harmonyCascade",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.harmonyStabilizationSystem": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.harmonyStabilizationSystem",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.effectOrchestrator": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.effectOrchestrator",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.nodeShellSizeAuthority": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.nodeShellSizeAuthority",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.linkPersonalityStateMachine": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.linkPersonalityStateMachine",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.influenceAttenuationAbsorption": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.influenceAttenuationAbsorption",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.influenceReflection": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.influenceReflection",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.waveStandingTraps": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.waveStandingTraps",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.cascadeAccelSetup": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.cascadeAccelSetup",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.coreMetricsOverlay": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.coreMetricsOverlay",
+              "layer": "simulation",
+              "category": "background",
+              "lastRun": 11601.099999999627,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.primaryNodeTopBar": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.primaryNodeTopBar",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.activeWorld": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.activeWorld",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.hazards": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.hazards",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.aiNodes": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.aiNodes",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.nodeEditor": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.nodeEditor",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.undoRedoUi": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.undoRedoUi",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.visualOverlayTick": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.visualOverlayTick",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.linkMetricsToVisualBridge": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.linkMetricsToVisualBridge",
+              "layer": "simulation",
+              "category": "background",
+              "lastRun": 11601.099999999627,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.stressBasedParticleScaler": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.stressBasedParticleScaler",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.linkDegradationSystem": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.linkDegradationSystem",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.audioSynergyMonitor": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.audioSynergyMonitor",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.regionalEquilibrium": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.regionalEquilibrium",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.cascadingRuptures": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.cascadingRuptures",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.criticalNodeFailure": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.criticalNodeFailure",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.topologyViz": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.topologyViz",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.echoTrailsIntegration": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.echoTrailsIntegration",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.worldRuntime_v1": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.worldRuntime_v1",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.nodeEditorRuntime_v1": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.nodeEditorRuntime_v1",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.metricsRuntime_v1": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.metricsRuntime_v1",
+              "layer": "simulation",
+              "category": "background",
+              "lastRun": 11601.099999999627,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.networkStress": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.networkStress",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.networkStressCascadeBridge": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.networkStressCascadeBridge",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.personalityRuntime_v1": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.personalityRuntime_v1",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.worldPersonalityController": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.worldPersonalityController",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.phase5MultiNetworkOrchestrator": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.phase5MultiNetworkOrchestrator",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.emergentThoughtStorms": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.emergentThoughtStorms",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.colonyManager": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.colonyManager",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.nodeEvolution": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.nodeEvolution",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.nodePersonality": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.nodePersonality",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.tier4GameplayIntegration": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.tier4GameplayIntegration",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 5969.5999999996275,
+              "_disabled": true,
+              "_errorCount": 0,
+              "_warned": true
+            }
+          },
+          "simulation.networkRituals": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.networkRituals",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "realtime.cameraController": {
+            "layer": "realtime",
+            "entry": {
+              "id": "realtime.cameraController",
+              "layer": "realtime",
+              "category": "hard",
+              "lastRun": 11874.899999999441
+            }
+          },
+          "realtime.playerController": {
+            "layer": "realtime",
+            "entry": {
+              "id": "realtime.playerController",
+              "layer": "realtime",
+              "category": "hard",
+              "lastRun": 11874.899999999441
+            }
+          },
+          "visual.nodeAuraSystem": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.nodeAuraSystem",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.corruptionAuraDesaturation": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.corruptionAuraDesaturation",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.corruptionDesaturation": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.corruptionDesaturation",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.metricsVisualFX": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.metricsVisualFX",
+              "layer": "visual",
+              "category": "background",
+              "lastRun": 11886,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.synergyBonusFXLayer": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.synergyBonusFXLayer",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.synergyResonanceShaderPack": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.synergyResonanceShaderPack",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.synergyCascadeFXBridge": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.synergyCascadeFXBridge",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.fxRuntime_v1": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.fxRuntime_v1",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.personalityShaderBridge": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.personalityShaderBridge",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.advancedShaderFX": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.advancedShaderFX",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.archetypeShaderModes": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.archetypeShaderModes",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.nodeShaderActivation": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.nodeShaderActivation",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.glyphLayer4": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.glyphLayer4",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.semanticGlyphAI": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.semanticGlyphAI",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.glyphFusionOverlay": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.glyphFusionOverlay",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.linkedGlyphSync": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.linkedGlyphSync",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.cascadePropagation": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.cascadePropagation",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.phase5CascadeEventCheck": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.phase5CascadeEventCheck",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.evolvingLinkFX": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.evolvingLinkFX",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.linkVisualMoodSystem": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.linkVisualMoodSystem",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.linkDebugMode": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.linkDebugMode",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.legendaryPack": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.legendaryPack",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.legendaryLinkFX": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.legendaryLinkFX",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 3690.2000000001863,
+              "_disabled": true,
+              "_errorCount": 0,
+              "_warned": true
+            }
+          },
+          "visual.personalityFX": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.personalityFX",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.worldFXPack": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.worldFXPack",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.dreamDepthPack": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.dreamDepthPack",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.dreamDepthEffects": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.dreamDepthEffects",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.mobilityPack": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.mobilityPack",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.nodeVisuals4": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.nodeVisuals4",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.newNodeCategories": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.newNodeCategories",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.mythicRitualController": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.mythicRitualController",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.phase8RitualOrchestration": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.phase8RitualOrchestration",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.mythicSeedGlyph": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.mythicSeedGlyph",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.microImpulseAdapter": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.microImpulseAdapter",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.hardInteractionAuthority": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.hardInteractionAuthority",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.nodeMicroEvents": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.nodeMicroEvents",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.t2CorruptionVisualIntegration": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.t2CorruptionVisualIntegration",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.t2HarmonyVisualConsumer": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.t2HarmonyVisualConsumer",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "realtime.nodeInteraction": {
+            "layer": "realtime",
+            "entry": {
+              "id": "realtime.nodeInteraction",
+              "layer": "realtime",
+              "category": "hard",
+              "lastRun": 11874.899999999441
+            }
+          },
+          "realtime.hitProxy": {
+            "layer": "realtime",
+            "entry": {
+              "id": "realtime.hitProxy",
+              "layer": "realtime",
+              "category": "hard",
+              "lastRun": 11874.899999999441
+            }
+          },
+          "simulation.visualNetworkTimeElasticity": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.visualNetworkTimeElasticity",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.synergyPulseVisuals": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.synergyPulseVisuals",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.semanticVisual30Hz": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.semanticVisual30Hz",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.harmonicResonanceCoupling": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.harmonicResonanceCoupling",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.harmonicHubAuraSystem": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.harmonicHubAuraSystem",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.harmonicInfluencePropagation": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.harmonicInfluencePropagation",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.linkResonanceFlowSystem": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.linkResonanceFlowSystem",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.harmonicPhaseSynchronization": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.harmonicPhaseSynchronization",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.harmonicNodeResonanceHalos": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.harmonicNodeResonanceHalos",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.pulseWaveBridge": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.pulseWaveBridge",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.pulseBoundaryInteractionAdapter": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.pulseBoundaryInteractionAdapter",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.pulseIntersectionAdapter": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.pulseIntersectionAdapter",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.resonanceFeedback": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.resonanceFeedback",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.resonanceRupture": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.resonanceRupture",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.resonanceEchoTrailSystem": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.resonanceEchoTrailSystem",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.compositeResonanceFeedback": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.compositeResonanceFeedback",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.cascadeVisualizer": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.cascadeVisualizer",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.semanticSlow10Hz": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.semanticSlow10Hz",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.glyphSystem4": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.glyphSystem4",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.proceduralMeaningEngine": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.proceduralMeaningEngine",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.adaptiveGlyphRendering": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.adaptiveGlyphRendering",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.glyphAnimationModulator": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.glyphAnimationModulator",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.particleEmissionScaler": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.particleEmissionScaler",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.particleSemanticDensity": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.particleSemanticDensity",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.cascadeParticleEmissionBoost": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.cascadeParticleEmissionBoost",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.cascadeParticleColorTinting": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.cascadeParticleColorTinting",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.cascadeParticleSystem": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.cascadeParticleSystem",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.particleTrailSystem": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.particleTrailSystem",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.cascadeResonanceWaveVisualization": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.cascadeResonanceWaveVisualization",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.resonanceCascadeVisualization": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.resonanceCascadeVisualization",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.healingParticles": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.healingParticles",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.harmonicHealing": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.harmonicHealing",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.harmonicRecovery": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.harmonicRecovery",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.linkTrailParticles": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.linkTrailParticles",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.memoryTrails": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.memoryTrails",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.visualSuperpack": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.visualSuperpack",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.cinematicUpgrade": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.cinematicUpgrade",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.dynamicLinkColorSystem": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.dynamicLinkColorSystem",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.edgeCageDistanceFade": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.edgeCageDistanceFade",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.waveShaderBridge": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.waveShaderBridge",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.waveTravelShaderPack": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.waveTravelShaderPack",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.waveDynamicsShaderPack": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.waveDynamicsShaderPack",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.synergyTravelingWaveFX": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.synergyTravelingWaveFX",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.waveInterferenceEngine": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.waveInterferenceEngine",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.waveInterferencePatterns": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.waveInterferencePatterns",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.harmonicResonanceFeedback": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.harmonicResonanceFeedback",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.canonicalTemplate3_StressVisuals": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.canonicalTemplate3_StressVisuals",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.stressVisualShaderSystem": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.stressVisualShaderSystem",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.metricInterpretationLayer": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.metricInterpretationLayer",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.harmonyDebugOverlay": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.harmonyDebugOverlay",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "linkGlyphFlow": {
+            "layer": "visual",
+            "entry": {
+              "id": "linkGlyphFlow",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "linkedGlyphMessaging": {
+            "layer": "visual",
+            "entry": {
+              "id": "linkedGlyphMessaging",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "recursiveGlyphMessaging": {
+            "layer": "visual",
+            "entry": {
+              "id": "recursiveGlyphMessaging",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "linkPictogramSystem": {
+            "layer": "visual",
+            "entry": {
+              "id": "linkPictogramSystem",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.linkingSystem": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.linkingSystem",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.waveStandingRenderer": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.waveStandingRenderer",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.linkingSystem.metrics": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.linkingSystem.metrics",
+              "layer": "simulation",
+              "category": "background",
+              "lastRun": 11601.099999999627,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.corruptionBridge": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.corruptionBridge",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.nodeCorruptionFX": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.nodeCorruptionFX",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "node.targeting": {
+            "layer": "visual",
+            "entry": {
+              "id": "node.targeting",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "renderer.render": {
+            "layer": "visual",
+            "entry": {
+              "id": "renderer.render",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "vfx.runtimeLoader": {
+            "layer": "visual",
+            "entry": {
+              "id": "vfx.runtimeLoader",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.linkQualityCalculator": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.linkQualityCalculator",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "background.ritualAutoTrigger": {
+            "layer": "background",
+            "entry": {
+              "id": "background.ritualAutoTrigger",
+              "layer": "background",
+              "category": "hard",
+              "lastRun": 11605,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.synergyChainReaction": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.synergyChainReaction",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.semanticHoverGlyph": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.semanticHoverGlyph",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.phase5CascadeVisualizationBridge": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.phase5CascadeVisualizationBridge",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.preCascadeVisualHint": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.preCascadeVisualHint",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.harmony.waveParticleEmitter": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.harmony.waveParticleEmitter",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "background.evolutionManager": {
+            "layer": "background",
+            "entry": {
+              "id": "background.evolutionManager",
+              "layer": "background",
+              "category": "hard",
+              "lastRun": 11605,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.synapticConflictResolution": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.synapticConflictResolution",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "simulation.harmonicCascadeAmplification": {
+            "layer": "simulation",
+            "entry": {
+              "id": "simulation.harmonicCascadeAmplification",
+              "layer": "simulation",
+              "category": "hard",
+              "lastRun": 11890.200000000186,
+              "_disabled": false,
+              "_errorCount": 0,
+              "_warned": false
+            }
+          },
+          "visual.environmentDomain": {
+            "layer": "visual",
+            "entry": {
+              "id": "visual.environmentDomain",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814
+            }
+          },
+          "glyph.recursive.signal": {
+            "layer": "visual",
+            "entry": {
+              "id": "glyph.recursive.signal",
+              "layer": "visual",
+              "category": "hard",
+              "lastRun": 11888.299999999814
+            }
+          }
+        }
+      },
+      "required": true,
+      "available": true
+    },
+    {
+      "name": "NodeLinkingSystem",
+      "required": true,
+      "available": false
+    },
+    {
+      "name": "VisualHierarchyRegistry",
+      "required": true,
+      "available": false
+    },
+    {
+      "name": "LinkRendererConduit",
+      "required": false,
+      "available": false
+    }
+  ],
+  "issues": [],
+  "performance": {
+    "totalSnapshots": 2,
+    "duration": 4809.700000000186,
+    "fps": {
+      "avg": 7.063915858004912,
+      "min": 7.039224121073116,
+      "max": 7.0886075949367084
+    },
+    "frameTime": {
+      "avg": 141.56626984128536,
+      "min": 141.07142857142858,
+      "max": 142.06111111114217
+    },
+    "firstSnapshot": {
+      "timestamp": 15265.5,
+      "timestampISO": "2026-04-04T19:53:17.443Z",
+      "relativeTime": 2822.600000000559,
+      "label": "Auto 1",
+      "fps": 7.039224121073116,
+      "frameTime": 142.06111111114217,
+      "memory": {
+        "usedJSHeapSize": "132.56 MB",
+        "totalJSHeapSize": "179.29 MB",
+        "jsHeapSizeLimit": "3585.82 MB"
+      },
+      "rendering": {
+        "error": "Renderer not available"
+      },
+      "scene": {
+        "totalObjects": 0,
+        "types": {}
+      },
+      "systems": [
+        {
+          "name": "MetricsRuntime",
+          "active": false
+        },
+        {
+          "name": "FrameScheduler",
+          "active": true
+        },
+        {
+          "name": "NodeLinkingSystem",
+          "active": false
+        },
+        {
+          "name": "LinkRendererConduit",
+          "active": false
+        },
+        {
+          "name": "VisualHierarchyRegistry",
+          "active": false
+        }
+      ]
+    },
+    "lastSnapshot": {
+      "timestamp": 17252.599999999627,
+      "timestampISO": "2026-04-04T19:53:19.430Z",
+      "relativeTime": 4809.700000000186,
+      "label": "Auto 2",
+      "fps": 7.0886075949367084,
+      "frameTime": 141.07142857142858,
+      "memory": {
+        "usedJSHeapSize": "132.56 MB",
+        "totalJSHeapSize": "179.29 MB",
+        "jsHeapSizeLimit": "3585.82 MB"
+      },
+      "rendering": {
+        "error": "Renderer not available"
+      },
+      "scene": {
+        "totalObjects": 0,
+        "types": {}
+      },
+      "systems": [
+        {
+          "name": "MetricsRuntime",
+          "active": false
+        },
+        {
+          "name": "FrameScheduler",
+          "active": true
+        },
+        {
+          "name": "NodeLinkingSystem",
+          "active": false
+        },
+        {
+          "name": "LinkRendererConduit",
+          "active": false
+        },
+        {
+          "name": "VisualHierarchyRegistry",
+          "active": false
+        }
+      ]
+    }
+  },
+  "systemInfo": {
+    "worldExists": true,
+    "worldProps": [
+      "metrics"
+    ],
+    "resonanceRupture": {
+      "exists": false,
+      "scars": 0
+    },
+    "harmonicHealing": {
+      "exists": false,
+      "activeWaves": 0
+    },
+    "healingParticles": {
+      "exists": false,
+      "enabled": false,
+      "stats": null
+    },
+    "linkingSystem": {
+      "links": 0
+    }
+  }
+}

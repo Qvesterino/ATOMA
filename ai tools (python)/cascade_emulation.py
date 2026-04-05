@@ -25,8 +25,8 @@ class CascadeEmulator:
 
     def __init__(self, workspace_root: str):
         self.workspace_root = Path(workspace_root)
-        this.cascade_systems = []
-        this.cascade_events = []
+        self.cascade_systems = []
+        self.cascade_events = []
 
     def analyze_cascade_systems(self) -> None:
         """Analyze cascade-related systems."""
@@ -53,7 +53,7 @@ class CascadeEmulator:
 
             for match in class_matches:
                 class_name = match.group(1)
-                this.cascade_systems.append({
+                self.cascade_systems.append({
                     "name": class_name,
                     "file": str(file_path),
                     "file_name": file_path.name
@@ -73,7 +73,7 @@ class CascadeEmulator:
 
             for pattern in event_patterns:
                 if re.search(pattern, content):
-                    this.cascade_events.append({
+                    self.cascade_events.append({
                         "pattern": pattern,
                         "file": str(file_path),
                         "file_name": file_path.name
@@ -90,10 +90,10 @@ class CascadeEmulator:
 
 class CascadeEmulator {{
     constructor() {{
-        this.cascadeChains = [];
-        this.activeCascades = new Map();
-        this.eventLog = [];
-        this.startTime = performance.now();
+        self.cascadeChains = [];
+        self.activeCascades = new Map();
+        self.eventLog = [];
+        self.startTime = performance.now();
     }}
 
     // Create a test cascade chain
@@ -119,7 +119,7 @@ class CascadeEmulator {{
             }});
         }}
 
-        this.cascadeChains.push(chain);
+        self.cascadeChains.push(chain);
         return chain;
     }}
 
@@ -131,7 +131,7 @@ class CascadeEmulator {{
             timestamp: performance.now() - this.startTime
         }};
 
-        this.eventLog.push({{
+        self.eventLog.push({{
             type: 'cascade.start',
             data: eventData,
             timestamp: eventData.timestamp
@@ -142,7 +142,7 @@ class CascadeEmulator {{
             window.semanticBus.emit('cascade.start', eventData);
         }}
 
-        this.activeCascades.set(chain.id, {{
+        self.activeCascades.set(chain.id, {{
             ...chain,
             currentHop: 0,
             state: 'active'
@@ -167,7 +167,7 @@ class CascadeEmulator {{
             timestamp: performance.now() - this.startTime
         }};
 
-        this.eventLog.push({{
+        self.eventLog.push({{
             type: 'cascade.hop',
             data: eventData,
             timestamp: eventData.timestamp
@@ -195,7 +195,7 @@ class CascadeEmulator {{
             timestamp: performance.now() - this.startTime
         }};
 
-        this.eventLog.push({{
+        self.eventLog.push({{
             type: 'cascade.end',
             data: eventData,
             timestamp: eventData.timestamp
@@ -206,7 +206,7 @@ class CascadeEmulator {{
         }}
 
         cascade.state = 'completed';
-        this.activeCascades.delete(chainId);
+        self.activeCascades.delete(chainId);
 
         console.log(`[Cascade Emulator] cascade.end: ${{chainId}} total hops: ${{cascade.hops}}`);
     }}
@@ -216,7 +216,7 @@ class CascadeEmulator {{
         const chain = this.createCascadeChain(nodeCount);
 
         // Emit start
-        this.emitCascadeStart(chain);
+        self.emitCascadeStart(chain);
 
         // Wait for VFX to initialize
         await this.sleep(100);
@@ -224,12 +224,12 @@ class CascadeEmulator {{
         // Emit hops
         for (let i = 0; i < nodeCount - 1; i++) {{
             await this.sleep(hopDelay);
-            this.emitCascadeHop(chain.id, i);
+            self.emitCascadeHop(chain.id, i);
         }}
 
         // Emit end
         await this.sleep(hopDelay);
-        this.emitCascadeEnd(chain.id);
+        self.emitCascadeEnd(chain.id);
 
         return chain;
     }}
@@ -247,7 +247,7 @@ class CascadeEmulator {{
             }}
         }}
 
-        this.printSummary();
+        self.printSummary();
     }}
 
     // Run stress test
@@ -266,7 +266,7 @@ class CascadeEmulator {{
         console.log(`\\nStress test complete: ${{cascadeCount}} cascades in ${{durationMs}}ms`);
         console.log(`Average: ${{(durationMs / cascadeCount).toFixed(0)}}ms per cascade`);
 
-        this.printSummary();
+        self.printSummary();
     }}
 
     // Get event timeline
@@ -316,10 +316,10 @@ class CascadeEmulator {{
     }}
 
     reset() {{
-        this.cascadeChains = [];
-        this.activeCascades.clear();
-        this.eventLog = [];
-        this.startTime = performance.now();
+        self.cascadeChains = [];
+        self.activeCascades.clear();
+        self.eventLog = [];
+        self.startTime = performance.now();
         console.log('[Cascade Emulator] Reset');
     }}
 

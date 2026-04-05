@@ -26,8 +26,8 @@ class EventEmitterGenerator:
 
     def __init__(self, workspace_root: str):
         self.workspace_root = Path(workspace_root)
-        this.semantic_events = []
-        this.event_handlers = defaultdict(list)
+        self.semantic_events = []
+        self.event_handlers = defaultdict(list)
 
     def analyze_events(self) -> None:
         """Analyze available events in codebase."""
@@ -63,7 +63,7 @@ class EventEmitterGenerator:
                 for match in matches:
                     event_name = match.group(1)
                     if event_name not in [e['name'] for e in this.semantic_events]:
-                        this.semantic_events.append({
+                        self.semantic_events.append({
                             "name": event_name,
                             "file": file_path.name
                         })
@@ -79,7 +79,7 @@ class EventEmitterGenerator:
                 matches = re.finditer(pattern, content)
                 for match in matches:
                     event_name = match.group(1)
-                    this.event_handlers[event_name].append(file_path.name)
+                    self.event_handlers[event_name].append(file_path.name)
 
         except Exception as e:
             print(f"Error scanning {file_path}: {e}")
@@ -94,9 +94,9 @@ class EventEmitterGenerator:
 
 class ManualEventEmitter {{
     constructor() {{
-        this.eventLog = [];
-        this.emittedEvents = new Map();
-        this.startTime = performance.now();
+        self.eventLog = [];
+        self.emittedEvents = new Map();
+        self.startTime = performance.now();
     }}
 
     // Emit a specific event with custom data
@@ -115,11 +115,11 @@ class ManualEventEmitter {{
             timestampISO: new Date().toISOString()
         }};
 
-        this.eventLog.push(eventEntry);
+        self.eventLog.push(eventEntry);
 
         // Track emission count
         const count = this.emittedEvents.get(eventName) || 0;
-        this.emittedEvents.set(eventName, count + 1);
+        self.emittedEvents.set(eventName, count + 1);
 
         // Emit to semantic bus
         try {{
@@ -283,9 +283,9 @@ class ManualEventEmitter {{
 
     // Clear event log
     clear() {{
-        this.eventLog = [];
-        this.emittedEvents.clear();
-        this.startTime = performance.now();
+        self.eventLog = [];
+        self.emittedEvents.clear();
+        self.startTime = performance.now();
         console.log('[Event Emitter] Cleared');
     }}
 

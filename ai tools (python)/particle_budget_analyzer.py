@@ -27,7 +27,7 @@ class ParticleBudgetAnalyzer:
     def __init__(self, workspace_root: str):
         self.workspace_root = Path(workspace_root)
         self.particle_systems = []
-        this.pool_definitions = []
+        self.pool_definitions = []
 
     def analyze_particle_systems(self) -> None:
         """Analyze all particle systems in the codebase."""

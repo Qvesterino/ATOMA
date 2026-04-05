@@ -24,9 +24,9 @@ class VFXHealthCheckGenerator:
 
     def __init__(self, workspace_root: str):
         self.workspace_root = Path(workspace_root)
-        this.vfx_systems = []
-        this.dependencies = defaultdict(list)
-        this.common_issues = []
+        self.vfx_systems = []
+        self.dependencies = defaultdict(list)
+        self.common_issues = []
 
     def analyze_vfx_systems(self) -> None:
         """Analyze VFX systems and dependencies."""
@@ -39,7 +39,7 @@ class VFXHealthCheckGenerator:
         for js_file in js_files:
             self._scan_file(js_file)
 
-        print(f"Found {len(this.vfx_systems)} VFX systems")
+        print(f"Found {len(self.vfx_systems)} VFX systems")
 
     def _scan_file(self, file_path: Path) -> None:
         """Scan a single file for VFX systems."""
@@ -58,7 +58,7 @@ class VFXHealthCheckGenerator:
                     # Extract dependencies
                     deps = self._extract_dependencies(content)
 
-                    this.vfx_systems.append({
+                    self.vfx_systems.append({
                         "name": name,
                         "file": file_path.name,
                         "dependencies": deps
@@ -66,12 +66,12 @@ class VFXHealthCheckGenerator:
 
                     # Track dependencies
                     for dep in deps:
-                        this.dependencies[dep].append(name)
+                        self.dependencies[dep].append(name)
 
                     # Check for common issues
                     issues = self._check_common_issues(name, content)
                     if issues:
-                        this.common_issues.extend(issues)
+                        self.common_issues.extend(issues)
 
         except Exception as e:
             pass
@@ -144,9 +144,9 @@ class VFXHealthCheckGenerator:
 
 class VFXHealthCheck {{
     constructor() {{
-        this.healthResults = [];
-        this.systems = [];
-        this.issues = [];
+        self.healthResults = [];
+        self.systems = [];
+        self.issues = [];
     }}
 
     // Run full health check
@@ -154,22 +154,22 @@ class VFXHealthCheck {{
         console.log('\\n=== VFX HEALTH CHECK ===\\n');
 
         // Check core systems
-        this.checkCoreSystems();
+        self.checkCoreSystems();
 
         // Check renderer
-        this.checkRenderer();
+        self.checkRenderer();
 
         // Check scene
-        this.checkScene();
+        self.checkScene();
 
         // Check performance
-        this.checkPerformance();
+        self.checkPerformance();
 
         // Check memory
-        this.checkMemory();
+        self.checkMemory();
 
         // Print summary
-        this.printSummary();
+        self.printSummary();
 
         return this.getHealthReport();
     }}
@@ -195,8 +195,8 @@ class VFXHealthCheck {{
                 message: system.ref ? 'Available' : 'Not found' + (system.required ? ' (Required)' : ' (Optional)')
             }};
 
-            this.healthResults.push(result);
-            this.systems.push({{ ...system, available: !!system.ref }});
+            self.healthResults.push(result);
+            self.systems.push({{ ...system, available: !!system.ref }});
 
             console.log(`  ${{status}} ${{system.name}}`);
         }}
@@ -215,7 +215,7 @@ class VFXHealthCheck {{
                 status: 'error',
                 message: 'Renderer not found'
             }};
-            this.healthResults.push(result);
+            self.healthResults.push(result);
             console.log('  ✗ Renderer not found');
             return;
         }}
@@ -242,8 +242,8 @@ class VFXHealthCheck {{
                 status: 'warning',
                 message: `High geometry count: ${{memory.geometries}}`
             }};
-            this.healthResults.push(result);
-            this.issues.push(result);
+            self.healthResults.push(result);
+            self.issues.push(result);
             console.log(`  ⚠️  High geometry count: ${{memory.geometries}}`);
         }}
 
@@ -254,8 +254,8 @@ class VFXHealthCheck {{
                 status: 'warning',
                 message: `High texture count: ${{memory.textures}}`
             }};
-            this.healthResults.push(result);
-            this.issues.push(result);
+            self.healthResults.push(result);
+            self.issues.push(result);
             console.log(`  ⚠️  High texture count: ${{memory.textures}}`);
         }}
 
@@ -273,7 +273,7 @@ class VFXHealthCheck {{
                 status: 'error',
                 message: 'Scene not found'
             }};
-            this.healthResults.push(result);
+            self.healthResults.push(result);
             console.log('  ✗ Scene not found');
             return;
         }}
@@ -301,7 +301,7 @@ class VFXHealthCheck {{
             status: 'ok',
             message: `${{objectCount}} objects ({{meshCount}} meshes, ${{particleCount}} particles)`
         }};
-        this.healthResults.push(result);
+        self.healthResults.push(result);
 
         console.log('');
     }}
@@ -324,10 +324,10 @@ class VFXHealthCheck {{
                     status,
                     message: `${{snapshot.fps.toFixed(1)}} FPS ({{snapshot.frameTime.toFixed(2)}}ms per frame)`
                 }};
-                this.healthResults.push(result);
+                self.healthResults.push(result);
 
                 if (status !== 'ok') {{
-                    this.issues.push(result);
+                    self.issues.push(result);
                 }}
             }}
         }} else {{
@@ -357,10 +357,10 @@ class VFXHealthCheck {{
                 status,
                 message: `${{used}} MB / ${{limit}} MB ({{percent}}%)`
             }};
-            this.healthResults.push(result);
+            self.healthResults.push(result);
 
             if (status !== 'ok') {{
-                this.issues.push(result);
+                self.issues.push(result);
             }}
         }} else {{
             console.log('  ⚠️  Memory API not available');
@@ -421,9 +421,9 @@ class VFXHealthCheck {{
 
     // Clear results
     clear() {{
-        this.healthResults = [];
-        this.systems = [];
-        this.issues = [];
+        self.healthResults = [];
+        self.systems = [];
+        self.issues = [];
         console.log('[VFX Health Check] Cleared');
     }}
 }}
@@ -456,7 +456,7 @@ if (typeof window !== 'undefined') {{
 
         lines.append("VFX SYSTEMS ANALYZED")
         lines.append("-" * 70)
-        for system in this.vfx_systems:
+        for system in self.vfx_systems:
             lines.append(f"  {system['name']}")
             lines.append(f"    File: {system['file']}")
             if system['dependencies']:
@@ -465,8 +465,8 @@ if (typeof window !== 'undefined') {{
 
         lines.append("COMMON ISSUES DETECTED")
         lines.append("-" * 70)
-        if this.common_issues:
-            for issue in this.common_issues[:10]:  # Show first 10
+        if self.common_issues:
+            for issue in self.common_issues[:10]:  # Show first 10
                 lines.append(f"  [{issue['system']}] {issue['message']}")
         else:
             lines.append("  No common issues detected")

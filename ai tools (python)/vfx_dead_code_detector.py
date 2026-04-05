@@ -29,8 +29,8 @@ class VFXDeadCodeDetector:
         self.vfx_classes = []
         self.instantiation_map = defaultdict(list)
         self.method_usage_map = defaultdict(set)
-        this.import_map = defaultdict(set)
-        this.export_map = defaultdict(set)
+        self.import_map = defaultdict(set)
+        self.export_map = defaultdict(set)
 
     def scan_directory(self) -> None:
         """Scan all JS files for VFX dead code."""
