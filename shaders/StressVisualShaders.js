@@ -9,12 +9,10 @@
 
 export const stressAmbientVertexShader = `
   varying vec3 vWorldPosition;
-  varying float vDepth;
   
   void main() {
     vWorldPosition = position;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    vDepth = gl_Position.z;
   }
 `;
 
@@ -23,7 +21,6 @@ export const stressAmbientFragmentShader = `
   uniform float uTime;
   
   varying vec3 vWorldPosition;
-  varying float vDepth;
   
   // Network stress color palette
   vec3 stressColorLow = vec3(0.2, 0.4, 0.6);    // Cool blue
@@ -32,19 +29,15 @@ export const stressAmbientFragmentShader = `
   
   // Lerp between colors based on stress
   vec3 getStressColor(float stress) {
-    if (stress < 0.5) {
-      float t = stress * 2.0;
-      return mix(stressColorLow, stressColorMid, t);
-    } else {
-      float t = (stress - 0.5) * 2.0;
-      return mix(stressColorMid, stressColorHigh, t);
-    }
+    float warmMix = clamp(stress * 2.0, 0.0, 1.0);
+    float hotMix = clamp((stress - 0.5) * 2.0, 0.0, 1.0);
+    return mix(mix(stressColorLow, stressColorMid, warmMix), stressColorHigh, hotMix);
   }
   
   // Low-frequency Perlin-like turbulence (approximated)
   float turbulence(vec3 pos, float time) {
     float t = time * 0.3; // Slow frequency
-    float noise = sin(pos.x * 0.5 + t) * cos(pos.y * 0.3 + t) * sin(pos.z * 0.4);
+    float noise = sin(pos.x * 0.5 + t) * sin(pos.y * 0.3 + t * 1.57) * sin(pos.z * 0.4);
     return noise * 0.5 + 0.5;
   }
   
@@ -79,11 +72,9 @@ export const nodeStressVertexShader = `
   varying float vStress;
   varying float vPulse;
   varying vec3 vNormal;
-  varying vec3 vPosition;
   
   void main() {
     vNormal = normalize(normalMatrix * normal);
-    vPosition = position;
     
     // Pulse effect: oscillate between 0 and 1
     vPulse = sin(uStressPulsePhase) * 0.5 + 0.5;
@@ -102,7 +93,6 @@ export const nodeStressFragmentShader = `
   varying float vStress;
   varying float vPulse;
   varying vec3 vNormal;
-  varying vec3 vPosition;
   
   // Stress color: low = cyan, high = red
   vec3 getStressColor(float stress) {
@@ -122,7 +112,8 @@ export const nodeStressFragmentShader = `
     float pulsedIntensity = vStress * vPulse;
     
     // Fresnel effect: emphasize edges under stress
-    float fresnel = pow(1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 2.0);
+    float fresnel = 1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0)));
+    fresnel = fresnel * fresnel;
     float fresnelInfluence = fresnel * vStress * 0.5;
     
     // Final color with pulsing and fresnel emphasis

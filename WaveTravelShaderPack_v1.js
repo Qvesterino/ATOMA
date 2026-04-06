@@ -84,6 +84,13 @@ const PROFILE_CONFIG = {
     }
 };
 
+for (const profileKey in PROFILE_CONFIG) {
+    const config = PROFILE_CONFIG[profileKey];
+    if (config && Array.isArray(config.frequencyMix)) {
+        config.frequencyMixVec = new THREE.Vector3(...config.frequencyMix);
+    }
+}
+
 // ============================================================================
 // SHADER CODE CHUNKS
 // ============================================================================
@@ -142,7 +149,7 @@ const VERTEX_TRAVEL_CHUNK = `
     // Additional pulse burst when interference is high
     if (uWaveInterference > 0.6) {
         float pulseMagnitude = (uWaveInterference - 0.6) * uWaveTravelPulse;
-        float pulseWave = sin(uWaveTravelTime * 8.0 + length(position));
+        float pulseWave = sin(uWaveTravelTime * 8.0 + position.x * 0.72 + position.y * 0.28);
         transformed += normal * pulseWave * pulseMagnitude * 0.05;
     }
 `;
@@ -421,10 +428,16 @@ export class WaveTravelShaderPack_v1 {
         const currentWaveTime = VisualTime.now - this._waveTravelTimeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
         this.globalTime = currentWaveTime;
 
+            const traceNeedsUpdate = typeof window !== 'undefined' && window.__DEBUG_WAVE_NEEDSUPDATE_TRACE__ === true;
+            const traceMaterialMutation = typeof window !== 'undefined' && window.__DEBUG_WAVE_MATERIAL_MUTATION_TRACE__ === true;
+            const debugTracingActive = this.debugEnabled || traceNeedsUpdate || traceMaterialMutation;
+
             // Update all registered material uniforms
             for (const material of this.materialList) {
-                this._syncNeedsUpdateTracer(material);
-                this._syncMaterialMutationTracer(material);
+                if (debugTracingActive) {
+                    this._syncNeedsUpdateTracer(material);
+                    this._syncMaterialMutationTracer(material);
+                }
                 const uniforms = this.materialUniforms.get(material);
                 if (uniforms?.uWaveTravelTime) {
                     uniforms.uWaveTravelTime.value = currentWaveTime;
@@ -466,7 +479,7 @@ export class WaveTravelShaderPack_v1 {
             shader.uniforms.uWaveTravelColorGradient = shader.uniforms.uWaveTravelColorGradient || { value: config.colorGradient };
             shader.uniforms.uWaveTravelPulse = shader.uniforms.uWaveTravelPulse || { value: config.pulseStrength };
             shader.uniforms.uWaveTravelFreqMix = shader.uniforms.uWaveTravelFreqMix || {
-                value: new THREE.Vector3(...config.frequencyMix)
+                value: config.frequencyMixVec
             };
             shader.uniforms.uWaveTravelTime = shader.uniforms.uWaveTravelTime || { value: this.globalTime };
 

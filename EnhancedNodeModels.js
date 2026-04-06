@@ -296,6 +296,22 @@ const CONTROL_V2_LEGACY_CACHE = {
   matrixGeometry: null
 };
 const CONTROL_V2_LEGACY_MATERIALS = new Map(); // keyed by color hex
+const CONTROL_COMMAND_SEAL_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  innerSeedGeometry: null,
+  innerSeedEdgesGeometry: null,
+  sealArcGeometry: null,
+  sealArcEdgesGeometry: null,
+  latchGeometry: null,
+  latchEdgesGeometry: null,
+  indicatorGeometry: null,
+  indicatorEdgesGeometry: null,
+  seamGeometry: null,
+  dustGeometry: null,
+  witnessGeometry: null
+};
+const CONTROL_COMMAND_SEAL_MATERIALS = new Map(); // keyed by color hex
 const CONTROL_EXTREME_608_CACHE = {
   coreGeometry: null,
   innerCubeGeometry: null,
@@ -376,6 +392,44 @@ const PROCESS_AXIAL_CHRONO_REACTOR_CACHE = {
   dustGeometry: null
 };
 const PROCESS_AXIAL_CHRONO_REACTOR_MATERIALS = new Map(); // keyed by color hex
+
+// PROCESS 203 caches
+const PROCESS_CHRONO_FORGE_REACTOR_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  heartGeometry: null,
+  heartEdgesGeometry: null,
+  shaftGeometry: null,
+  shaftEdgesGeometry: null,
+  seamGeometry: null,
+  seamEdgesGeometry: null,
+  collarGeometryA: null,
+  collarGeometryB: null,
+  collarGeometryC: null,
+  collarEdgesGeometryA: null,
+  collarEdgesGeometryB: null,
+  collarEdgesGeometryC: null,
+  vaneGeometry: null,
+  vaneEdgesGeometry: null,
+  railGeometry: null,
+  railEdgesGeometry: null,
+  conduitGeometryA: null,
+  conduitGeometryB: null,
+  conduitGeometryC: null,
+  conduitEdgesGeometryA: null,
+  conduitEdgesGeometryB: null,
+  conduitEdgesGeometryC: null,
+  frameBarGeometry: null,
+  frameBarEdgesGeometry: null,
+  braceGeometry: null,
+  braceEdgesGeometry: null,
+  ventGeometry: null,
+  ventEdgesGeometry: null,
+  tickGeometry: null,
+  tickEdgesGeometry: null,
+  dustGeometry: null
+};
+const PROCESS_CHRONO_FORGE_REACTOR_MATERIALS = new Map(); // keyed by color hex
 
 // PROCESS 208 caches
 const PROCESS_EXECUTION_MACHINE_CACHE = {
@@ -5227,6 +5281,169 @@ function _getControlV2Materials_Legacy(color) {
   return mats;
 }
 
+// ---------- CONTROL COMMAND SEAL helpers ----------
+function _getControlCommandSealGeometries() {
+  if (!CONTROL_COMMAND_SEAL_CACHE.coreGeometry) {
+    CONTROL_COMMAND_SEAL_CACHE.coreGeometry = new THREE.CylinderGeometry(0.34, 0.42, 0.68, 6, 1, false);
+    CONTROL_COMMAND_SEAL_CACHE.coreGeometry.computeBoundingSphere();
+    CONTROL_COMMAND_SEAL_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(CONTROL_COMMAND_SEAL_CACHE.coreGeometry, 12);
+
+    CONTROL_COMMAND_SEAL_CACHE.innerSeedGeometry = new THREE.OctahedronGeometry(0.18, 0);
+    CONTROL_COMMAND_SEAL_CACHE.innerSeedGeometry.computeBoundingSphere();
+    CONTROL_COMMAND_SEAL_CACHE.innerSeedEdgesGeometry = safeCreateEdgesGeometry(CONTROL_COMMAND_SEAL_CACHE.innerSeedGeometry, 10);
+
+    CONTROL_COMMAND_SEAL_CACHE.sealArcGeometry = new THREE.TorusGeometry(0.96, 0.05, 8, 28, Math.PI * 0.48);
+    CONTROL_COMMAND_SEAL_CACHE.sealArcGeometry.computeBoundingSphere();
+    CONTROL_COMMAND_SEAL_CACHE.sealArcEdgesGeometry = safeCreateEdgesGeometry(CONTROL_COMMAND_SEAL_CACHE.sealArcGeometry, 12);
+
+    CONTROL_COMMAND_SEAL_CACHE.latchGeometry = new THREE.BoxGeometry(0.12, 0.6, 0.1, 1, 1, 1);
+    CONTROL_COMMAND_SEAL_CACHE.latchGeometry.computeBoundingSphere();
+    CONTROL_COMMAND_SEAL_CACHE.latchEdgesGeometry = safeCreateEdgesGeometry(CONTROL_COMMAND_SEAL_CACHE.latchGeometry, 12);
+
+    CONTROL_COMMAND_SEAL_CACHE.indicatorGeometry = new THREE.BoxGeometry(0.06, 0.16, 0.06, 1, 1, 1);
+    CONTROL_COMMAND_SEAL_CACHE.indicatorGeometry.computeBoundingSphere();
+    CONTROL_COMMAND_SEAL_CACHE.indicatorEdgesGeometry = safeCreateEdgesGeometry(CONTROL_COMMAND_SEAL_CACHE.indicatorGeometry, 10);
+
+    CONTROL_COMMAND_SEAL_CACHE.seamGeometry = new THREE.BoxGeometry(0.08, 0.44, 0.14, 1, 1, 1);
+    CONTROL_COMMAND_SEAL_CACHE.seamGeometry.computeBoundingSphere();
+
+    const dustPositions = [];
+    const dustCount = 40;
+    for (let i = 0; i < dustCount; i++) {
+      const t = i / dustCount;
+      const angle = t * Math.PI * 2;
+      const radius = 0.84 + Math.sin(i * 1.21) * 0.08;
+      dustPositions.push(
+        Math.cos(angle) * radius,
+        -0.42 + t * 0.84 + Math.sin(i * 0.73) * 0.05,
+        Math.sin(angle) * (0.42 + Math.cos(i * 1.17) * 0.07)
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    CONTROL_COMMAND_SEAL_CACHE.dustGeometry = dustGeometry;
+
+    const witnessPoints = [
+      new THREE.Vector3(-0.56, -0.5, -0.04),
+      new THREE.Vector3(-0.24, -0.18, 0.06),
+      new THREE.Vector3(0.02, 0.06, 0.02),
+      new THREE.Vector3(0.22, 0.28, -0.03),
+      new THREE.Vector3(0.5, 0.56, 0.04)
+    ];
+    const witnessGeometry = new THREE.BufferGeometry().setFromPoints(witnessPoints);
+    witnessGeometry.computeBoundingSphere();
+    CONTROL_COMMAND_SEAL_CACHE.witnessGeometry = witnessGeometry;
+  }
+  return CONTROL_COMMAND_SEAL_CACHE;
+}
+
+function _getControlCommandSealMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xff0088;
+  if (CONTROL_COMMAND_SEAL_MATERIALS.has(colorHex)) return CONTROL_COMMAND_SEAL_MATERIALS.get(colorHex);
+
+  const commandColor = new THREE.Color(colorHex);
+  const steelColor = new THREE.Color(0x1d2630);
+  const whiteColor = new THREE.Color(0xf3fbff);
+  const steelAccent = steelColor.clone().lerp(whiteColor, 0.2);
+  const magentaEdge = commandColor.clone().lerp(whiteColor, 0.12);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: steelAccent,
+    metalness: 0.78,
+    roughness: 0.24,
+    emissive: commandColor.clone().lerp(whiteColor, 0.08),
+    emissiveIntensity: 0.16
+  });
+
+  const innerSeedMat = new THREE.MeshStandardMaterial({
+    color: steelColor.clone().lerp(commandColor, 0.18),
+    metalness: 0.72,
+    roughness: 0.2,
+    emissive: whiteColor.clone().lerp(commandColor, 0.08),
+    emissiveIntensity: 0.2
+  });
+
+  const sealMat = new THREE.MeshStandardMaterial({
+    color: commandColor.clone().lerp(whiteColor, 0.22),
+    metalness: 0.68,
+    roughness: 0.22,
+    emissive: commandColor.clone().lerp(whiteColor, 0.18),
+    emissiveIntensity: 0.28,
+    transparent: true,
+    opacity: 0.98
+  });
+
+  const latchMat = new THREE.MeshStandardMaterial({
+    color: steelColor.clone().lerp(whiteColor, 0.12),
+    metalness: 0.76,
+    roughness: 0.26,
+    emissive: commandColor.clone().lerp(whiteColor, 0.04),
+    emissiveIntensity: 0.12
+  });
+
+  const indicatorMat = new THREE.MeshStandardMaterial({
+    color: magentaEdge,
+    metalness: 0.5,
+    roughness: 0.16,
+    emissive: whiteColor.clone().lerp(commandColor, 0.16),
+    emissiveIntensity: 0.34,
+    transparent: true,
+    opacity: 0.96
+  });
+
+  const seamMat = new THREE.MeshBasicMaterial({
+    color: 0x090d12,
+    transparent: true,
+    opacity: 0.92,
+    depthWrite: false
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: magentaEdge,
+    transparent: true,
+    opacity: 0.56,
+    depthWrite: true
+  });
+
+  const dustMat = new THREE.PointsMaterial({
+    color: whiteColor.clone().lerp(commandColor, 0.14),
+    size: 0.03,
+    transparent: true,
+    opacity: 0.28,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const witnessMat = new THREE.LineBasicMaterial({
+    color: whiteColor.clone().lerp(commandColor, 0.2),
+    transparent: true,
+    opacity: 0.24,
+    depthWrite: false
+  });
+
+  const mats = {
+    coreMat,
+    innerSeedMat,
+    sealMat,
+    latchMat,
+    indicatorMat,
+    seamMat,
+    edgeMat,
+    dustMat,
+    witnessMat
+  };
+  Object.entries(mats).forEach(([key, mat]) => {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+    if (key === 'sealMat' || key === 'indicatorMat') {
+      mat.userData.ignoreWaveColor = true;
+    }
+  });
+  CONTROL_COMMAND_SEAL_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
 // ---------- ANALYTICS v2 helpers ----------
 function _getAnalyticsV2Geometries() {
   if (!ANALYTICS_V2_CACHE.coreGeometry) {
@@ -5990,6 +6207,873 @@ function _getProcessAxialChronoReactorMaterials(color) {
 
   PROCESS_AXIAL_CHRONO_REACTOR_MATERIALS.set(colorHex, mats);
   return mats;
+}
+
+// ---------- PROCESS 203 helpers ----------
+function _getProcessChronoForgeReactorGeometries() {
+  if (!PROCESS_CHRONO_FORGE_REACTOR_CACHE.coreGeometry) {
+    const deformGeometry = (geometry, deformFn) => {
+      const pos = geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = pos.getZ(i);
+        const next = deformFn(x, y, z, i);
+        pos.setXYZ(i, next[0], next[1], next[2]);
+      }
+      pos.needsUpdate = true;
+      geometry.computeVertexNormals();
+      geometry.computeBoundingSphere();
+      return geometry;
+    };
+
+    const buildTubeGeometry = (points, radius, tubularSegments = 40, radialSegments = 6, closed = false) => {
+      const curve = new THREE.CatmullRomCurve3(points, closed, 'catmullrom', 0.4);
+      const geometry = new THREE.TubeGeometry(curve, tubularSegments, radius, radialSegments, closed);
+      geometry.computeBoundingSphere();
+      return geometry;
+    };
+
+    const coreGeometry = deformGeometry(
+      new THREE.CylinderGeometry(0.46, 0.54, 1.12, 8, 1, false),
+      (x, y, z) => {
+        const seam = Math.sin((y * 5.4 + x * 3.6) * Math.PI) * 0.014;
+        const bite = Math.max(0, 0.24 - Math.abs(y)) * 0.11;
+        const crown = y > 0.32 ? 0.02 : 0;
+        return [
+          x * (0.9 + Math.abs(y) * 0.06) + (z > 0.1 ? 0.018 : -0.01),
+          y + seam + crown,
+          z * (0.82 + Math.abs(y) * 0.1) + bite
+        ];
+      }
+    );
+    coreGeometry.rotateZ(-0.03);
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.coreGeometry = coreGeometry;
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 12);
+
+    const heartGeometry = new THREE.OctahedronGeometry(0.2, 1);
+    heartGeometry.scale(0.78, 1.16, 0.74);
+    heartGeometry.rotateY(0.26);
+    heartGeometry.rotateZ(-0.18);
+    heartGeometry.computeBoundingSphere();
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.heartGeometry = heartGeometry;
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.heartEdgesGeometry = safeCreateEdgesGeometry(heartGeometry, 10);
+
+    const shaftGeometry = deformGeometry(
+      new THREE.CylinderGeometry(0.09, 0.06, 1.5, 6, 1, false),
+      (x, y, z) => {
+        const seam = Math.sin((y * 6.4) + x * 2.8) * 0.0045;
+        return [
+          x * (0.9 + Math.abs(y) * 0.04),
+          y,
+          z * (0.8 + Math.abs(y) * 0.08) + seam
+        ];
+      }
+    );
+    shaftGeometry.rotateZ(0.08);
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.shaftGeometry = shaftGeometry;
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.shaftEdgesGeometry = safeCreateEdgesGeometry(shaftGeometry, 10);
+
+    const seamGeometry = deformGeometry(
+      new THREE.BoxGeometry(0.08, 0.86, 0.08, 1, 4, 1),
+      (x, y, z) => [
+        x * 0.84 + y * 0.04,
+        y + Math.sin((x + z) * 6.0) * 0.003,
+        z * 0.72 + Math.max(0, 0.22 - Math.abs(y)) * 0.04
+      ]
+    );
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.seamGeometry = seamGeometry;
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.seamEdgesGeometry = safeCreateEdgesGeometry(seamGeometry, 8);
+
+    const buildCollarGeometry = (radius, tube, arc) => {
+      const geometry = new THREE.TorusGeometry(radius, tube, 8, 40, arc);
+      geometry.computeBoundingSphere();
+      return geometry;
+    };
+
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.collarGeometryA = buildCollarGeometry(1.06, 0.052, Math.PI * 1.28);
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.collarEdgesGeometryA = safeCreateEdgesGeometry(PROCESS_CHRONO_FORGE_REACTOR_CACHE.collarGeometryA, 10);
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.collarGeometryB = buildCollarGeometry(0.78, 0.046, Math.PI * 1.12);
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.collarEdgesGeometryB = safeCreateEdgesGeometry(PROCESS_CHRONO_FORGE_REACTOR_CACHE.collarGeometryB, 10);
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.collarGeometryC = buildCollarGeometry(0.94, 0.04, Math.PI * 0.92);
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.collarEdgesGeometryC = safeCreateEdgesGeometry(PROCESS_CHRONO_FORGE_REACTOR_CACHE.collarGeometryC, 10);
+
+    const vaneGeometry = deformGeometry(
+      new THREE.BoxGeometry(0.15, 0.82, 0.1, 1, 2, 1),
+      (x, y, z) => [
+        x * (0.9 + Math.abs(y) * 0.06) + Math.sign(x || 1) * 0.006,
+        y,
+        z * (0.82 + Math.abs(y) * 0.04) + Math.sin((x + y) * 5.8) * 0.003
+      ]
+    );
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.vaneGeometry = vaneGeometry;
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.vaneEdgesGeometry = safeCreateEdgesGeometry(vaneGeometry, 8);
+
+    const railGeometry = deformGeometry(
+      new THREE.BoxGeometry(0.08, 1.22, 0.08, 1, 4, 1),
+      (x, y, z) => [x * 0.92, y, z * 0.86 + Math.sin(y * 3.2) * 0.003]
+    );
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.railGeometry = railGeometry;
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.railEdgesGeometry = safeCreateEdgesGeometry(railGeometry, 8);
+
+    const frameBarGeometry = deformGeometry(
+      new THREE.BoxGeometry(0.07, 1.42, 0.07, 1, 4, 1),
+      (x, y, z) => [x * 0.94, y, z * 0.84 + Math.sin(y * 2.8) * 0.0025]
+    );
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.frameBarGeometry = frameBarGeometry;
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.frameBarEdgesGeometry = safeCreateEdgesGeometry(frameBarGeometry, 8);
+
+    const braceGeometry = deformGeometry(
+      new THREE.BoxGeometry(0.12, 0.52, 0.08, 1, 1, 1),
+      (x, y, z) => [x * 0.9 + (y > 0 ? 0.006 : -0.006), y, z * 0.8]
+    );
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.braceGeometry = braceGeometry;
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.braceEdgesGeometry = safeCreateEdgesGeometry(braceGeometry, 8);
+
+    const ventGeometry = deformGeometry(
+      new THREE.BoxGeometry(0.1, 0.3, 0.16, 1, 1, 1),
+      (x, y, z) => [x * 0.92, y, z * 0.74 + Math.sin((x + y) * 6.6) * 0.003]
+    );
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.ventGeometry = ventGeometry;
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.ventEdgesGeometry = safeCreateEdgesGeometry(ventGeometry, 6);
+
+    const tickGeometry = new THREE.BoxGeometry(0.045, 0.14, 0.045, 1, 1, 1);
+    tickGeometry.computeBoundingSphere();
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.tickGeometry = tickGeometry;
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.tickEdgesGeometry = safeCreateEdgesGeometry(tickGeometry, 6);
+
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.conduitGeometryA = buildTubeGeometry([
+      new THREE.Vector3(-1.02, -0.16, 0.08),
+      new THREE.Vector3(-0.76, -0.1, 0.04),
+      new THREE.Vector3(-0.38, -0.02, 0.0),
+      new THREE.Vector3(-0.1, 0.08, -0.02)
+    ], 0.03, 40, 6, false);
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.conduitEdgesGeometryA = safeCreateEdgesGeometry(PROCESS_CHRONO_FORGE_REACTOR_CACHE.conduitGeometryA, 8);
+
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.conduitGeometryB = buildTubeGeometry([
+      new THREE.Vector3(0.12, 0.08, -0.04),
+      new THREE.Vector3(0.42, 0.14, 0.02),
+      new THREE.Vector3(0.74, 0.22, 0.1),
+      new THREE.Vector3(1.0, 0.28, 0.16)
+    ], 0.028, 36, 6, false);
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.conduitEdgesGeometryB = safeCreateEdgesGeometry(PROCESS_CHRONO_FORGE_REACTOR_CACHE.conduitGeometryB, 8);
+
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.conduitGeometryC = buildTubeGeometry([
+      new THREE.Vector3(-0.08, 0.26, -0.18),
+      new THREE.Vector3(0.06, 0.1, -0.04),
+      new THREE.Vector3(0.22, -0.02, 0.18),
+      new THREE.Vector3(0.44, -0.04, 0.32)
+    ], 0.022, 32, 6, false);
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.conduitEdgesGeometryC = safeCreateEdgesGeometry(PROCESS_CHRONO_FORGE_REACTOR_CACHE.conduitGeometryC, 6);
+
+    const dustPositions = [];
+    const dustCount = 60;
+    for (let i = 0; i < dustCount; i++) {
+      const angle = (i / dustCount) * Math.PI * 2;
+      const radius = 0.72 + Math.sin(i * 0.29) * 0.06 + ((i % 5) * 0.008);
+      dustPositions.push(
+        Math.cos(angle) * radius,
+        -0.52 + (i / dustCount) * 1.12 + Math.sin(i * 0.21) * 0.03,
+        Math.sin(angle * 1.1) * radius * 0.58
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    PROCESS_CHRONO_FORGE_REACTOR_CACHE.dustGeometry = dustGeometry;
+  }
+
+  return PROCESS_CHRONO_FORGE_REACTOR_CACHE;
+}
+
+function _getProcessChronoForgeReactorMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xffaa00;
+  if (PROCESS_CHRONO_FORGE_REACTOR_MATERIALS.has(colorHex)) return PROCESS_CHRONO_FORGE_REACTOR_MATERIALS.get(colorHex);
+
+  const amberColor = new THREE.Color(colorHex);
+  const amberHot = new THREE.Color(0xffc96f);
+  const amberSoft = new THREE.Color(0xff9d4d);
+  const steelBright = new THREE.Color(0xf2f6f8);
+  const steelMid = new THREE.Color(0x90a0aa);
+  const steelDark = new THREE.Color(0x343c45);
+  const graphite = new THREE.Color(0x181d23);
+  const smokeSteel = new THREE.Color(0x58636d);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: steelBright.clone().lerp(steelMid, 0.22),
+    emissive: amberSoft.clone().lerp(new THREE.Color(0xffddb0), 0.24),
+    emissiveIntensity: 0.18,
+    metalness: 0.9,
+    roughness: 0.14,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const heartMat = new THREE.MeshStandardMaterial({
+    color: amberHot.clone().lerp(new THREE.Color(0xffead6), 0.16),
+    emissive: amberColor.clone().lerp(amberHot, 0.16),
+    emissiveIntensity: 0.46,
+    metalness: 0.42,
+    roughness: 0.12,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const shaftMat = new THREE.MeshStandardMaterial({
+    color: graphite.clone().lerp(smokeSteel, 0.36),
+    emissive: new THREE.Color(0x14181d),
+    emissiveIntensity: 0.05,
+    metalness: 0.82,
+    roughness: 0.26,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seamMat = new THREE.MeshStandardMaterial({
+    color: graphite.clone().lerp(new THREE.Color(0x101317), 0.28),
+    emissive: new THREE.Color(0x0f0d0c),
+    emissiveIntensity: 0.03,
+    metalness: 0.56,
+    roughness: 0.36,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const collarMatA = new THREE.MeshStandardMaterial({
+    color: steelBright.clone().lerp(smokeSteel, 0.18),
+    emissive: amberSoft.clone().lerp(steelDark, 0.28),
+    emissiveIntensity: 0.12,
+    metalness: 0.86,
+    roughness: 0.2,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const collarMatB = new THREE.MeshStandardMaterial({
+    color: smokeSteel.clone().lerp(steelBright, 0.12),
+    emissive: amberColor.clone().lerp(amberSoft, 0.08),
+    emissiveIntensity: 0.1,
+    metalness: 0.84,
+    roughness: 0.24,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const collarMatC = new THREE.MeshStandardMaterial({
+    color: steelMid.clone().lerp(steelBright, 0.12),
+    emissive: new THREE.Color(0xff9550),
+    emissiveIntensity: 0.08,
+    metalness: 0.78,
+    roughness: 0.26,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const vaneMat = new THREE.MeshStandardMaterial({
+    color: smokeSteel.clone().lerp(steelBright, 0.1),
+    emissive: amberSoft.clone().lerp(steelDark, 0.3),
+    emissiveIntensity: 0.1,
+    metalness: 0.76,
+    roughness: 0.28,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const railMat = new THREE.MeshStandardMaterial({
+    color: steelDark.clone().lerp(graphite, 0.12),
+    emissive: steelDark.clone(),
+    emissiveIntensity: 0.04,
+    metalness: 0.7,
+    roughness: 0.3,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: steelDark.clone().lerp(smokeSteel, 0.16),
+    emissive: new THREE.Color(0xff8f42),
+    emissiveIntensity: 0.06,
+    metalness: 0.74,
+    roughness: 0.34,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const braceMat = new THREE.MeshStandardMaterial({
+    color: steelMid.clone().lerp(steelBright, 0.14),
+    emissive: amberSoft.clone(),
+    emissiveIntensity: 0.08,
+    metalness: 0.78,
+    roughness: 0.26,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const conduitMatA = new THREE.MeshStandardMaterial({
+    color: graphite.clone().lerp(smokeSteel, 0.18),
+    emissive: amberSoft.clone().lerp(steelDark, 0.42),
+    emissiveIntensity: 0.08,
+    metalness: 0.72,
+    roughness: 0.32,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const conduitMatB = new THREE.MeshStandardMaterial({
+    color: smokeSteel.clone().lerp(steelBright, 0.12),
+    emissive: amberColor.clone().lerp(amberSoft, 0.2),
+    emissiveIntensity: 0.08,
+    metalness: 0.7,
+    roughness: 0.3,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const conduitMatC = new THREE.MeshStandardMaterial({
+    color: steelDark.clone().lerp(smokeSteel, 0.14),
+    emissive: new THREE.Color(0xff7f35),
+    emissiveIntensity: 0.06,
+    metalness: 0.68,
+    roughness: 0.34,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const ventMat = new THREE.MeshStandardMaterial({
+    color: amberColor.clone().lerp(steelBright, 0.2),
+    emissive: new THREE.Color(0xffc56c),
+    emissiveIntensity: 0.22,
+    metalness: 0.62,
+    roughness: 0.24,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const tickMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(0xffd38a),
+    transparent: true,
+    opacity: 0.92,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: new THREE.Color(0xf2d1ab),
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false
+  });
+
+  const dustMat = new THREE.PointsMaterial({
+    color: new THREE.Color(0xffc878),
+    size: 0.028,
+    transparent: true,
+    opacity: 0.38,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const mats = {
+    coreMat,
+    heartMat,
+    shaftMat,
+    seamMat,
+    collarMatA,
+    collarMatB,
+    collarMatC,
+    vaneMat,
+    railMat,
+    frameMat,
+    braceMat,
+    conduitMatA,
+    conduitMatB,
+    conduitMatC,
+    ventMat,
+    tickMat,
+    edgeMat,
+    dustMat
+  };
+
+  for (const [key, mat] of Object.entries(mats)) {
+    mat.userData = {
+      ...(mat.userData || {}),
+      wavePatchMode: 'DEFAULT'
+    };
+    if (key === 'tickMat') {
+      mat.userData.ignoreWaveColor = true;
+    }
+  }
+
+  PROCESS_CHRONO_FORGE_REACTOR_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+function _createProcessChronoForgeReactorNode(group, visualCode, color) {
+  const resolvedVisualCode = (typeof visualCode === 'number' && visualCode <= 4096)
+    ? visualCode
+    : (group?.userData?.visualCode ?? 203);
+  const resolvedColor = (typeof color === 'number')
+    ? color
+    : ((typeof visualCode === 'number' && visualCode > 4096) ? visualCode : 0xffaa00);
+
+  group.userData = group.userData || {};
+  const nodeKey = group?.userData?.nodeId || group?.uuid || String(resolvedVisualCode || resolvedColor);
+  const seed = Math.abs(hashString(nodeKey)) || 203;
+  const rng = _mythicSeededRng(seed);
+  const geometries = _getProcessChronoForgeReactorGeometries();
+  const materials = _getProcessChronoForgeReactorMaterials(resolvedColor);
+  const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+  const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+
+  const root = group;
+  root.name = 'PROCESS_CHRONO_FORGE_REACTOR_NODE';
+  root.userData.visualVariant = 'PROCESS_CHRONO_FORGE_REACTOR_V4';
+  root.userData.processVariant = 'CHRONO_FORGE_REACTOR';
+  root.userData.nodeGeometryName = 'PROCESS_CHRONO_FORGE_REACTOR';
+  root.userData.visualReady = true;
+  root.userData.visualCoreImmutable = true;
+  root.userData.chronoForgePhase = rng() * Math.PI * 2;
+  root.userData.chronoForgeSpinSpeed = 0.318 + rng() * 0.006;
+  root.userData.chronoForgeCorePulseSpeed = 1.18 + rng() * 0.22;
+  root.userData.chronoForgeCorePulseAmp = 0.003 + rng() * 0.0012;
+  root.userData.chronoForgeCollarASpeed = 0.022 + rng() * 0.006;
+  root.userData.chronoForgeCollarBSpeed = -0.019 - rng() * 0.005;
+  root.userData.chronoForgeCollarCSpeed = 0.013 + rng() * 0.004;
+  root.userData.chronoForgeVentPulseSpeed = 1.24 + rng() * 0.22;
+  root.userData.chronoForgeVentPulseAmp = 0.02 + rng() * 0.006;
+  root.userData.chronoForgeForgeVaneSpeed = 0.005 + rng() * 0.002;
+  root.userData.chronoForgeThroughputSpeed = 0.01 + rng() * 0.003;
+  root.userData.chronoForgeDustSpinSpeed = 0.002 + rng() * 0.0006;
+
+  const markMesh = (mesh, interactive = true, ignoreWaveColor = false) => {
+    if (!mesh?.isMesh) return;
+    mesh.userData = mesh.userData || {};
+    mesh.userData.visualCoreImmutable = true;
+    if (ignoreWaveColor) mesh.userData.ignoreWaveColor = true;
+    if (interactive) {
+      mesh.userData.isInteractive = true;
+      if (typeof mesh.raycast !== 'function') {
+        mesh.raycast = THREE.Mesh.prototype.raycast;
+      }
+    }
+  };
+
+  const captureBasePose = (obj) => {
+    obj.userData = obj.userData || {};
+    obj.userData.basePositionX = obj.position.x;
+    obj.userData.basePositionY = obj.position.y;
+    obj.userData.basePositionZ = obj.position.z;
+    obj.userData.baseRotationX = obj.rotation.x;
+    obj.userData.baseRotationY = obj.rotation.y;
+    obj.userData.baseRotationZ = obj.rotation.z;
+    obj.userData.baseScaleX = obj.scale.x;
+    obj.userData.baseScaleY = obj.scale.y;
+    obj.userData.baseScaleZ = obj.scale.z;
+    return obj;
+  };
+
+  const addMesh = (parent, geometry, material, name, opts = {}) => {
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = name;
+    if (opts.position) mesh.position.set(...opts.position);
+    if (opts.rotation) mesh.rotation.set(...opts.rotation);
+    if (opts.scale) mesh.scale.set(...opts.scale);
+    if (opts.renderOrder !== undefined) mesh.renderOrder = opts.renderOrder;
+    markMesh(mesh, opts.interactive !== false, !!opts.ignoreWaveColor);
+    captureBasePose(mesh);
+    validateMeshGeometry(mesh, name);
+    parent.add(mesh);
+    return mesh;
+  };
+
+  const addEdges = (parent, geometry, name, opts = {}) => {
+    const line = new THREE.LineSegments(geometry, materials.edgeMat);
+    line.name = name;
+    if (opts.position) line.position.set(...opts.position);
+    if (opts.rotation) line.rotation.set(...opts.rotation);
+    if (opts.scale) line.scale.set(...opts.scale);
+    if (opts.renderOrder !== undefined) line.renderOrder = opts.renderOrder;
+    line.userData = line.userData || {};
+    line.userData.visualCoreImmutable = true;
+    captureBasePose(line);
+    validateMeshGeometry(line, name);
+    parent.add(line);
+    return line;
+  };
+
+  const addPoints = (parent, geometry, name, opts = {}) => {
+    const points = new THREE.Points(geometry, materials.dustMat);
+    points.name = name;
+    if (opts.position) points.position.set(...opts.position);
+    if (opts.rotation) points.rotation.set(...opts.rotation);
+    if (opts.scale) points.scale.set(...opts.scale);
+    if (opts.renderOrder !== undefined) points.renderOrder = opts.renderOrder;
+    points.userData = points.userData || {};
+    points.userData.visualCoreImmutable = true;
+    captureBasePose(points);
+    validateMeshGeometry(points, name);
+    parent.add(points);
+    return points;
+  };
+
+  const coreGroup = new THREE.Group();
+  coreGroup.name = 'CORE_GROUP';
+  coreGroup.userData.isProcessChronoForgeCoreGroup = true;
+  captureBasePose(coreGroup);
+
+  const forgeCore = addMesh(coreGroup, geometries.coreGeometry, materials.coreMat, 'ChronoForgeCore', {
+    rotation: [0.04, 0.16, -0.06],
+    renderOrder: coreOrder
+  });
+  forgeCore.userData.isProcessChronoForgeCore = true;
+
+  addEdges(coreGroup, geometries.coreEdgesGeometry, 'ChronoForgeCoreEdges', {
+    rotation: [0.04, 0.16, -0.06],
+    renderOrder: archOrder
+  });
+
+  const chronoHeart = addMesh(coreGroup, geometries.heartGeometry, materials.heartMat, 'ChronoForgeHeart', {
+    position: [0.03, 0.02, 0.01],
+    rotation: [0.18, 0.28, -0.14],
+    renderOrder: coreOrder + 1
+  });
+  chronoHeart.userData.isProcessChronoForgeHeart = true;
+
+  addEdges(coreGroup, geometries.heartEdgesGeometry, 'ChronoForgeHeartEdges', {
+    position: [0.03, 0.02, 0.01],
+    rotation: [0.18, 0.28, -0.14],
+    renderOrder: archOrder
+  });
+
+  const chronoShaft = addMesh(coreGroup, geometries.shaftGeometry, materials.shaftMat, 'ChronoForgeShaft', {
+    rotation: [0.0, 0.2, 0.12],
+    renderOrder: coreOrder
+  });
+  chronoShaft.userData.isProcessChronoForgeShaft = true;
+
+  addEdges(coreGroup, geometries.shaftEdgesGeometry, 'ChronoForgeShaftEdges', {
+    rotation: [0.0, 0.2, 0.12],
+    renderOrder: archOrder
+  });
+
+  const chronoSeam = addMesh(coreGroup, geometries.seamGeometry, materials.seamMat, 'ChronoForgeVoidSeam', {
+    position: [0.0, 0.01, 0.0],
+    rotation: [0.06, 0.18, 0.02],
+    renderOrder: coreOrder + 1
+  });
+  chronoSeam.userData.isProcessChronoForgeSeam = true;
+
+  addEdges(coreGroup, geometries.seamEdgesGeometry, 'ChronoForgeVoidSeamEdges', {
+    position: [0.0, 0.01, 0.0],
+    rotation: [0.06, 0.18, 0.02],
+    renderOrder: archOrder
+  });
+
+  root.add(coreGroup);
+
+  const orbitGroup = new THREE.Group();
+  orbitGroup.name = 'ORBIT_GROUP';
+  orbitGroup.userData.isProcessChronoForgeOrbitGroup = true;
+  captureBasePose(orbitGroup);
+
+  const collarSpecs = [
+    { name: 'ChronoCollar_A', geometry: geometries.collarGeometryA, edges: geometries.collarEdgesGeometryA, pos: [0.0, 0.02, 0.0], rot: [Math.PI / 2, 0.1, 0.0], scale: [1.0, 1.0, 1.0], speed: 0.022, axis: new THREE.Vector3(0.4, 1, 0.18).normalize() },
+    { name: 'ChronoCollar_B', geometry: geometries.collarGeometryB, edges: geometries.collarEdgesGeometryB, pos: [0.0, 0.12, 0.0], rot: [0.24, Math.PI / 2, 0.42], scale: [0.98, 1.0, 0.98], speed: -0.018, axis: new THREE.Vector3(-0.12, 1, 0.36).normalize() },
+    { name: 'ChronoCollar_C', geometry: geometries.collarGeometryC, edges: geometries.collarEdgesGeometryC, pos: [0.0, -0.06, 0.0], rot: [Math.PI / 2, 0.42, 0.86], scale: [0.9, 1.0, 0.9], speed: 0.014, axis: new THREE.Vector3(0.18, 0.96, -0.22).normalize() }
+  ];
+  collarSpecs.forEach((spec, idx) => {
+    const collar = addMesh(orbitGroup, spec.geometry, idx === 1 ? materials.collarMatB : (idx === 2 ? materials.collarMatC : materials.collarMatA), spec.name, {
+      position: spec.pos,
+      rotation: spec.rot,
+      scale: spec.scale,
+      renderOrder: archOrder
+    });
+    collar.userData.isProcessChronoForgeCollar = true;
+    collar.userData.collarOrbitAxis = spec.axis;
+    collar.userData.collarOrbitSpeed = spec.speed;
+    collar.userData.collarIndex = idx;
+
+    addEdges(orbitGroup, spec.edges, `${spec.name}_Edges`, {
+      position: spec.pos,
+      rotation: spec.rot,
+      scale: spec.scale,
+      renderOrder: archOrder + 1
+    });
+  });
+
+  const tickSpecs = [
+    { pos: [0.0, 0.56, 0.02], rot: [0.0, 0.18, 0.0], scale: [1.1, 1.0, 1.0] },
+    { pos: [0.22, 0.42, -0.04], rot: [0.04, 0.38, Math.PI * 0.12], scale: [0.9, 1.0, 0.9] },
+    { pos: [-0.2, 0.28, 0.05], rot: [-0.02, -0.22, -Math.PI * 0.1], scale: [0.84, 1.0, 0.84] }
+  ];
+  tickSpecs.forEach((spec, idx) => {
+    const tick = addMesh(orbitGroup, geometries.tickGeometry, materials.tickMat, `ChronoCalibrationTick_${idx}`, {
+      position: spec.pos,
+      rotation: spec.rot,
+      scale: spec.scale,
+      renderOrder: archOrder + 2,
+      ignoreWaveColor: true
+    });
+    tick.userData.isProcessChronoForgeCalibrationTick = true;
+  });
+
+  root.add(orbitGroup);
+
+  const forgeGroup = new THREE.Group();
+  forgeGroup.name = 'FORGE_GROUP';
+  forgeGroup.userData.isProcessChronoForgeForgeGroup = true;
+  captureBasePose(forgeGroup);
+
+  const vaneSpecs = [
+    { name: 'ForgeVane_A', pos: [-0.46, 0.08, 0.18], rot: [0.2, -0.88, 0.84], scale: [0.88, 0.96, 0.84] },
+    { name: 'ForgeVane_B', pos: [0.34, -0.04, 0.24], rot: [-0.06, 0.82, -0.56], scale: [0.78, 0.9, 0.72] },
+    { name: 'ForgeVane_C', pos: [-0.14, 0.42, -0.18], rot: [0.98, -0.08, 1.04], scale: [0.7, 0.9, 0.64] },
+    { name: 'ForgeVane_D', pos: [0.18, 0.58, 0.12], rot: [1.18, 0.62, 0.42], scale: [0.62, 0.82, 0.56] }
+  ];
+  vaneSpecs.forEach((spec, idx) => {
+    const vane = addMesh(forgeGroup, geometries.vaneGeometry, materials.vaneMat, spec.name, {
+      position: spec.pos,
+      rotation: spec.rot,
+      scale: spec.scale,
+      renderOrder: archOrder
+    });
+    vane.userData.isProcessChronoForgeVane = true;
+    vane.userData.vaneIndex = idx;
+    addEdges(forgeGroup, geometries.vaneEdgesGeometry, `${spec.name}_Edges`, {
+      position: spec.pos,
+      rotation: spec.rot,
+      scale: spec.scale,
+      renderOrder: archOrder + 1
+    });
+  });
+
+  const railSpecs = [
+    {
+      name: 'CouplingRail_A',
+      geometry: geometries.conduitGeometryA,
+      edges: geometries.conduitEdgesGeometryA,
+      position: [0.0, -0.1, 0.0],
+      rotation: [0.08, 0.12, -0.02],
+      scale: [1.0, 1.0, 1.0]
+    },
+    {
+      name: 'CouplingRail_B',
+      geometry: geometries.conduitGeometryB,
+      edges: geometries.conduitEdgesGeometryB,
+      position: [0.0, 0.04, 0.0],
+      rotation: [-0.06, -0.14, 0.02],
+      scale: [1.0, 1.0, 1.0]
+    }
+  ];
+  railSpecs.forEach((spec, idx) => {
+    const rail = addMesh(forgeGroup, spec.geometry, materials.railMat, spec.name, {
+      position: spec.position,
+      rotation: spec.rotation,
+      scale: spec.scale,
+      renderOrder: archOrder
+    });
+    rail.userData.isProcessChronoForgeRail = true;
+    rail.userData.railIndex = idx;
+    addEdges(forgeGroup, spec.edges, `${spec.name}_Edges`, {
+      position: spec.position,
+      rotation: spec.rotation,
+      scale: spec.scale,
+      renderOrder: archOrder + 1
+    });
+  });
+
+  root.add(forgeGroup);
+
+  const manifoldGroup = new THREE.Group();
+  manifoldGroup.name = 'MANIFOLD_GROUP';
+  manifoldGroup.userData.isProcessChronoForgeManifoldGroup = true;
+  captureBasePose(manifoldGroup);
+
+  const conduitSpecs = [
+    { name: 'InputConduit_A', geometry: geometries.conduitGeometryA, edges: geometries.conduitEdgesGeometryA, position: [-0.06, -0.18, 0.0], rotation: [0.04, -0.22, 0.02], scale: [0.96, 1.0, 0.96], mat: materials.conduitMatA },
+    { name: 'OutputConduit_B', geometry: geometries.conduitGeometryB, edges: geometries.conduitEdgesGeometryB, position: [0.04, 0.18, 0.0], rotation: [-0.02, 0.28, -0.04], scale: [0.92, 1.0, 0.92], mat: materials.conduitMatB },
+    { name: 'DataConduit_C', geometry: geometries.conduitGeometryC, edges: geometries.conduitEdgesGeometryC, position: [0.14, -0.12, 0.18], rotation: [0.22, 0.12, 0.18], scale: [0.9, 1.0, 0.9], mat: materials.conduitMatC }
+  ];
+  conduitSpecs.forEach((spec, idx) => {
+    const conduit = addMesh(manifoldGroup, spec.geometry, spec.mat, spec.name, {
+      position: spec.position,
+      rotation: spec.rotation,
+      scale: spec.scale,
+      renderOrder: archOrder
+    });
+    conduit.userData.isProcessChronoForgeConduit = true;
+    conduit.userData.conduitIndex = idx;
+    addEdges(manifoldGroup, spec.edges, `${spec.name}_Edges`, {
+      position: spec.position,
+      rotation: spec.rotation,
+      scale: spec.scale,
+      renderOrder: archOrder + 1
+    });
+  });
+
+  const ventSpecs = [
+    { name: 'VentStack_A', position: [-0.26, 0.52, 0.12], rotation: [0.18, -0.08, 0.16], scale: [1.0, 1.08, 1.0] },
+    { name: 'VentStack_B', position: [0.24, 0.48, -0.1], rotation: [0.1, 0.16, -0.12], scale: [0.92, 1.0, 0.92] }
+  ];
+  ventSpecs.forEach((spec, idx) => {
+    const vent = addMesh(manifoldGroup, geometries.ventGeometry, materials.ventMat, spec.name, {
+      position: spec.position,
+      rotation: spec.rotation,
+      scale: spec.scale,
+      renderOrder: archOrder + 1
+    });
+    vent.userData.isProcessChronoForgeVent = true;
+    vent.userData.ventPulsePhase = idx * 0.74;
+    addEdges(manifoldGroup, geometries.ventEdgesGeometry, `${spec.name}_Edges`, {
+      position: spec.position,
+      rotation: spec.rotation,
+      scale: spec.scale,
+      renderOrder: archOrder + 2
+    });
+  });
+
+  const braceSpecs = [
+    { name: 'LoadBrace_A', position: [-0.54, -0.02, 0.14], rotation: [0.18, 0.44, 0.32], scale: [1.0, 0.96, 1.0] },
+    { name: 'LoadBrace_B', position: [0.5, 0.02, -0.16], rotation: [-0.12, -0.36, -0.28], scale: [0.92, 0.9, 0.92] }
+  ];
+  braceSpecs.forEach(spec => {
+    const brace = addMesh(manifoldGroup, geometries.braceGeometry, materials.braceMat, spec.name, {
+      position: spec.position,
+      rotation: spec.rotation,
+      scale: spec.scale,
+      renderOrder: archOrder
+    });
+    brace.userData.isProcessChronoForgeBrace = true;
+    addEdges(manifoldGroup, geometries.braceEdgesGeometry, `${spec.name}_Edges`, {
+      position: spec.position,
+      rotation: spec.rotation,
+      scale: spec.scale,
+      renderOrder: archOrder + 1
+    });
+  });
+
+  const frameSpecs = [
+    { name: 'FrameBar_L', position: [-0.72, 0.0, -0.02], rotation: [0.0, 0.18, 0.0], scale: [0.9, 1.0, 0.9] },
+    { name: 'FrameBar_R', position: [0.72, 0.04, 0.04], rotation: [0.0, -0.12, 0.0], scale: [0.82, 1.0, 0.82] }
+  ];
+  frameSpecs.forEach(spec => {
+    const frame = addMesh(manifoldGroup, geometries.frameBarGeometry, materials.frameMat, spec.name, {
+      position: spec.position,
+      rotation: spec.rotation,
+      scale: spec.scale,
+      renderOrder: archOrder
+    });
+    frame.userData.isProcessChronoForgeFrameBar = true;
+    addEdges(manifoldGroup, geometries.frameBarEdgesGeometry, `${spec.name}_Edges`, {
+      position: spec.position,
+      rotation: spec.rotation,
+      scale: spec.scale,
+      renderOrder: archOrder + 1
+    });
+  });
+
+  root.add(manifoldGroup);
+
+  const auraGroup = new THREE.Group();
+  auraGroup.name = 'AURA_GROUP';
+  auraGroup.userData.isProcessChronoForgeAuraGroup = true;
+  captureBasePose(auraGroup);
+
+  const dust = addPoints(auraGroup, geometries.dustGeometry, 'ChronoForgeDust', {
+    position: [0.0, 0.04, 0.0],
+    rotation: [0.16, -0.2, 0.1],
+    scale: [0.98, 1.06, 0.92],
+    renderOrder: archOrder
+  });
+  dust.userData.isProcessChronoForgeDust = true;
+
+  const shellColor = new THREE.Color(resolvedColor).lerp(new THREE.Color(0xf2f6f8), 0.16).getHex();
+  const shell = createNodeHologramShell(forgeCore, shellColor);
+  if (shell) {
+    shell.name = 'ChronoForgeShell';
+    shell.userData.isProcessChronoForgeShell = true;
+    shell.position.copy(forgeCore.position);
+    shell.quaternion.copy(forgeCore.quaternion);
+    shell.scale.copy(forgeCore.scale).multiplyScalar(1.15);
+    shell.frustumCulled = false;
+    shell.renderOrder = archOrder;
+    if (shell.material?.uniforms?.uOpacity) shell.material.uniforms.uOpacity.value = 0.034;
+    auraGroup.add(shell);
+  }
+
+  const edgeGlow = createNodeNeonEdgeGlowShell(forgeCore, shellColor, {
+    glowIntensity: 0.54,
+    edgeWidth: 0.056,
+    pulseAmount: 0.0
+  });
+  if (edgeGlow) {
+    edgeGlow.name = 'ChronoForgeEdgeGlow';
+    edgeGlow.userData.isProcessChronoForgeGlow = true;
+    edgeGlow.position.copy(forgeCore.position);
+    edgeGlow.quaternion.copy(forgeCore.quaternion);
+    edgeGlow.scale.copy(forgeCore.scale).multiplyScalar(1.03);
+    edgeGlow.frustumCulled = false;
+    edgeGlow.renderOrder = archOrder;
+    auraGroup.add(edgeGlow);
+  }
+
+  root.add(auraGroup);
+
+  root.userData.chronoForgeCoreGroup = coreGroup;
+  root.userData.chronoForgeOrbitGroup = orbitGroup;
+  root.userData.chronoForgeForgeGroup = forgeGroup;
+  root.userData.chronoForgeManifoldGroup = manifoldGroup;
+  root.userData.chronoForgeAuraGroup = auraGroup;
+  root.userData.chronoForgeCore = forgeCore;
+  root.userData.chronoForgeHeart = chronoHeart;
+  root.userData.chronoForgeShaft = chronoShaft;
+  root.userData.chronoForgeSeam = chronoSeam;
+  return root;
 }
 
 // ---------- PROCESS 208 helpers ----------
@@ -13961,90 +15045,11 @@ static _createInputNodeLegacy(group, index, color) {
   }
 
   /**
-   * PROCESS: CONVERSION_ORBIT (NEW - Session 63)
-   * Input captured, processed, released
-   * - Central processor core (non-spherical tetrahedral form)
-   * - Two orbiting processing rings (NO intersection with core)
-   * - Animation: Rings orbit independently, core stable
-   * 
-   * VISUAL SAFETY: Static geometry, transform-only animation (orbit), immutable
+   * PROCESS 203: Chrono Forge Reactor
+   * Hero process flagship with calibrated orbit machinery and conversion forge core.
    */
   static createProcessConversionOrbit(group, color) {
-    try {
-      // Create central processor core (asymmetric tetrahedron - non-spherical)
-      const processorGeometry = new THREE.TetrahedronGeometry(0.35, 2);
-      processorGeometry.scale(1.1, 1.3, 0.9); // Asymmetric elongation
-      
-      const processorMaterial = new THREE.MeshPhysicalMaterial({
-        color: color,
-        metalness: 0.8,
-        roughness: 0.12,
-        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
-        thickness: 0.3,
-        ior: 1.45,
-        emissive: color,
-        emissiveIntensity: 0.3
-      });
-
-      const processor = new THREE.Mesh(processorGeometry, processorMaterial);
-      processor.rotation.set(Math.PI / 6, Math.PI / 4, -Math.PI / 8);
-      processor.userData.isProcessorCore = true;
-      processor.userData.visualCoreImmutable = true;
-      group.add(processor);
-
-      // Create first orbiting processing ring (outer)
-      const ring1Geometry = new THREE.TorusGeometry(0.75, 0.08, 8, 64);
-      const ringMaterial = new THREE.MeshStandardMaterial({
-        transparent: false,
-        opacity: 1,
-        depthWrite: true,
-        depthTest: true,
-        side: THREE.FrontSide,
-        color: color,
-        metalness: 0.7,
-        roughness: 0.25,
-        emissive: color,
-        emissiveIntensity: 0.2
-
-      });
-
-      const ring1 = new THREE.Mesh(ring1Geometry, ringMaterial);
-      ring1.rotation.x = Math.PI / 3;
-      ring1.userData.isOrbitRing = true;
-      ring1.userData.orbitRadius = 0.75;
-      ring1.userData.orbitSpeed = 0.18;
-      ring1.userData.orbitAxis = new THREE.Vector3(1, 0.5, 0.3).normalize();
-      ring1.userData.visualCoreImmutable = true;
-      group.add(ring1);
-
-      // Create second orbiting processing ring (inner, counter-rotating)
-      const ring2Geometry = new THREE.TorusGeometry(0.52, 0.07, 8, 48);
-      const ring2 = new THREE.Mesh(ring2Geometry, ringMaterial);
-      ring2.rotation.y = Math.PI / 4;
-      ring2.rotation.z = Math.PI / 6;
-      ring2.userData.isOrbitRing = true;
-      ring2.userData.orbitRadius = 0.52;
-      ring2.userData.orbitSpeed = -0.22; // Counter-rotation
-      ring2.userData.orbitAxis = new THREE.Vector3(-0.5, -1, 0.2).normalize();
-      ring2.userData.visualCoreImmutable = true;
-      group.add(ring2);
-
-      // Store animation metadata (orbit-based)
-      group.userData.orbitRingCount = 2;
-
-      group.userData.visualCoreImmutable = true;
-      group.userData.nodeGeometryName = 'PROCESS_CONVERSION_ORBIT';
-
-      return group;
-    } catch (err) {
-      console.error('[NodeVisualAbort]', {
-        model: 'createProcessConversionOrbit',
-        category: 'process',
-        reason: 'Visual build failed — fallback visuals are forbidden',
-        error: err
-      });
-      return null;
-    }
+    return _createProcessChronoForgeReactorNode(group, group?.userData?.visualCode ?? 203, color);
   }
 
   // ===== INTEGRATION NODES (Green - 4 variants) =====
@@ -16665,59 +17670,257 @@ static createStorageNode0(group, color) {
   // ===== CONTROL NODES (Red/Magenta - 4 variants) =====
 
   /**
-   * Control Node 0: Strong octagonal core with magenta rim + central static polyhedron + subtle mesh pulsing
-   * UPGRADED: Added solid central core + very subtle mesh line pulsing for authority/stability
-   * VISUAL HIERARCHY: Central core remains visible but not dominant (no opacity change—opaque by design)
+   * Control Node 0: Command Seal
+   * A first-contact control authority symbol built around a bounded command core.
    */
-static createControlNode0(group, color) {
-  const mat = new THREE.MeshStandardMaterial({
-    color,
-    emissive: color,
-    emissiveIntensity: 0.25,
-    metalness: 0.65,
-    roughness: 0.28
-  });
+  static createControlNode0(group, color) {
+    try {
+      group.userData = group.userData || {};
+      const geometries = _getControlCommandSealGeometries();
+      const materials = _getControlCommandSealMaterials(color);
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+      const colorHex = typeof color === 'number' ? color : new THREE.Color(color).getHex();
+      const phase = ((colorHex & 0xffff) / 0xffff) * Math.PI * 2;
 
-  // Base
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.1, 0.2, 8, 1), mat);
-  base.position.y = -0.3;
-  validateMeshGeometry(base, 'createControlNode0:base');
-  group.add(base);
+      group.name = 'CONTROL_COMMAND_SEAL_NODE';
+      group.userData.visualVariant = 'CONTROL_COMMAND_SEAL_V4';
+      group.userData.controlVariant = 'COMMAND_SEAL';
+      group.userData.nodeGeometryName = 'CONTROL_COMMAND_SEAL';
+      group.userData.visualCoreImmutable = true;
+      group.userData.commandSealPhase = phase;
+      group.userData.commandSealSpinSpeed = 0.0032;
+      group.userData.commandSealCorePulseSpeed = 0.9;
+      group.userData.commandSealCorePulseAmp = 0.0035;
+      group.userData.commandSealLatchSettleSpeed = 0.05;
 
-  // Spine
-  const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.8, 8, 1), mat);
-  spine.position.y = 0.7;
-  validateMeshGeometry(spine, 'createControlNode0:spine');
-  group.add(spine);
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+      coreGroup.userData.isControlCommandSealCoreGroup = true;
+      coreGroup.userData.baseRotation = new THREE.Euler(0.08, 0.22, -0.04);
+      coreGroup.userData.baseScale = new THREE.Vector3(1, 1, 1);
 
-  // Core
-  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.5, 0), mat);
-  core.position.y = 1.6;
-  core.rotation.y = Math.PI * 0.18;
-  core.userData.isCore = true;
-  validateMeshGeometry(core, 'createControlNode0:core');
-  group.add(core);
+      const core = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      core.name = 'CommandCore';
+      core.userData.isControlCommandSealCore = true;
+      core.userData.baseRotation = new THREE.Euler(0.08, 0.22, -0.04);
+      core.userData.baseScale = new THREE.Vector3(1, 1, 1);
+      core.position.set(0.0, 0.02, 0.0);
+      core.rotation.copy(core.userData.baseRotation);
+      core.scale.set(1.0, 1.02, 0.96);
+      core.renderOrder = coreOrder;
+      validateMeshGeometry(core, 'createControlNode0:core');
+      coreGroup.add(core);
 
-  // Frame
-  const frame = new THREE.LineSegments(
-    new THREE.EdgesGeometry(new THREE.OctahedronGeometry(0.62, 0)),
-    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.5 })
-  );
-  frame.position.y = 1.6;
-  group.add(frame);
+      const coreEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.edgeMat);
+      coreEdges.name = 'CommandCoreEdges';
+      coreEdges.userData.isControlCommandSealCore = true;
+      coreEdges.userData.baseRotation = new THREE.Euler(0.08, 0.22, -0.04);
+      coreEdges.userData.baseScale = new THREE.Vector3(1, 1, 1);
+      coreEdges.position.copy(core.position);
+      coreEdges.rotation.copy(core.rotation);
+      coreEdges.scale.copy(core.scale);
+      coreEdges.renderOrder = archOrder;
+      validateMeshGeometry(coreEdges, 'createControlNode0:coreEdges');
+      coreGroup.add(coreEdges);
 
-  // Orbit ring
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.05, 10, 32), mat);
-  ring.position.y = 1.6;
-  ring.rotation.x = Math.PI * 0.5;
-  ring.rotation.z = Math.PI * 0.25;
-  validateMeshGeometry(ring, 'createControlNode0:ring');
-  group.add(ring);
+      const innerSeed = new THREE.Mesh(geometries.innerSeedGeometry, materials.innerSeedMat);
+      innerSeed.name = 'InnerLockSeed';
+      innerSeed.userData.isControlCommandSealIndicator = true;
+      innerSeed.userData.ignoreWaveColor = true;
+      innerSeed.userData.baseRotation = new THREE.Euler(0.16, 0.28, -0.02);
+      innerSeed.position.set(0.02, 0.08, 0.01);
+      innerSeed.rotation.copy(innerSeed.userData.baseRotation);
+      innerSeed.scale.set(1.0, 0.96, 1.0);
+      innerSeed.renderOrder = coreOrder;
+      validateMeshGeometry(innerSeed, 'createControlNode0:innerSeed');
+      coreGroup.add(innerSeed);
 
-  group.userData.visualTier = "CONTROL_V4";
-  group.userData.hasAuthoritySpine = true;
-  return group;
-}
+      const voidSeam = new THREE.Mesh(geometries.seamGeometry, materials.seamMat);
+      voidSeam.name = 'BoundedVoidSeam';
+      voidSeam.userData.isControlCommandSealVoid = true;
+      voidSeam.userData.baseRotation = new THREE.Euler(0.1, 0.34, -0.02);
+      voidSeam.position.set(0.0, 0.0, 0.0);
+      voidSeam.rotation.copy(voidSeam.userData.baseRotation);
+      voidSeam.renderOrder = coreOrder;
+      validateMeshGeometry(voidSeam, 'createControlNode0:voidSeam');
+      coreGroup.add(voidSeam);
+
+      group.add(coreGroup);
+
+      const sealGroup = new THREE.Group();
+      sealGroup.name = 'SEAL_GROUP';
+      sealGroup.userData.isControlCommandSealSealGroup = true;
+      sealGroup.userData.baseRotation = new THREE.Euler(0.01, 0.18, -0.03);
+
+      const arcSpecs = [
+        { pos: [0.0, 0.12, 0.0], rot: [Math.PI / 2, 0.0, 0.0], scale: [1.0, 1.0, 1.0] },
+        { pos: [0.0, 0.12, 0.0], rot: [Math.PI / 2, 0.0, Math.PI * 0.5], scale: [0.98, 1.0, 0.98] },
+        { pos: [0.0, 0.12, 0.0], rot: [Math.PI / 2, 0.0, Math.PI], scale: [0.92, 1.0, 0.92] },
+        { pos: [0.0, 0.12, 0.0], rot: [Math.PI / 2, 0.0, Math.PI * 1.5], scale: [0.9, 1.0, 0.9] }
+      ];
+      arcSpecs.forEach((spec, idx) => {
+        const arc = new THREE.Mesh(geometries.sealArcGeometry, materials.sealMat);
+        arc.name = `SealArc_${idx}`;
+        arc.userData.isControlCommandSealArc = true;
+        arc.userData.ignoreWaveColor = true;
+        arc.userData.arcIndex = idx;
+        arc.userData.baseRotation = new THREE.Euler(spec.rot[0], spec.rot[1], spec.rot[2] + idx * 0.04);
+        arc.userData.basePosition = new THREE.Vector3(spec.pos[0], spec.pos[1], spec.pos[2]);
+        arc.position.copy(arc.userData.basePosition);
+        arc.rotation.copy(arc.userData.baseRotation);
+        arc.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+        arc.renderOrder = archOrder;
+        validateMeshGeometry(arc, `createControlNode0:arc${idx}`);
+        sealGroup.add(arc);
+
+        const arcEdges = new THREE.LineSegments(geometries.sealArcEdgesGeometry, materials.edgeMat);
+        arcEdges.name = `SealArcEdges_${idx}`;
+        arcEdges.userData.isControlCommandSealArc = true;
+        arcEdges.userData.ignoreWaveColor = true;
+        arcEdges.userData.baseRotation = new THREE.Euler(spec.rot[0], spec.rot[1], spec.rot[2] + idx * 0.04);
+        arcEdges.userData.basePosition = new THREE.Vector3(spec.pos[0], spec.pos[1], spec.pos[2]);
+        arcEdges.position.copy(arc.position);
+        arcEdges.rotation.copy(arc.rotation);
+        arcEdges.scale.copy(arc.scale);
+        arcEdges.renderOrder = archOrder + 1;
+        sealGroup.add(arcEdges);
+      });
+
+      group.add(sealGroup);
+
+      const latchGroup = new THREE.Group();
+      latchGroup.name = 'LATCH_GROUP';
+      latchGroup.userData.isControlCommandSealLatchGroup = true;
+      latchGroup.userData.baseRotation = new THREE.Euler(0.02, 0.1, -0.02);
+
+      const latchSpecs = [
+        { pos: [0.0, 0.54, 0.0], rot: [0.02, 0.0, 0.06], scale: [1.0, 0.88, 1.0] },
+        { pos: [0.48, 0.08, 0.04], rot: [0.0, 0.26, Math.PI * 0.12], scale: [0.92, 0.96, 1.0] },
+        { pos: [-0.48, 0.02, -0.02], rot: [0.0, -0.28, -Math.PI * 0.14], scale: [0.9, 0.92, 1.0] }
+      ];
+      latchSpecs.forEach((spec, idx) => {
+        const latch = new THREE.Mesh(geometries.latchGeometry, materials.latchMat);
+        latch.name = `ControlLatch_${idx}`;
+        latch.userData.isControlCommandSealLatch = true;
+        latch.userData.baseRotation = new THREE.Euler(spec.rot[0], spec.rot[1], spec.rot[2]);
+        latch.userData.basePosition = new THREE.Vector3(spec.pos[0], spec.pos[1], spec.pos[2]);
+        latch.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+        latch.rotation.copy(latch.userData.baseRotation);
+        latch.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+        latch.renderOrder = coreOrder;
+        validateMeshGeometry(latch, `createControlNode0:latch${idx}`);
+        latchGroup.add(latch);
+
+        const latchEdges = new THREE.LineSegments(geometries.latchEdgesGeometry, materials.edgeMat);
+        latchEdges.name = `ControlLatchEdges_${idx}`;
+        latchEdges.userData.isControlCommandSealLatch = true;
+        latchEdges.userData.baseRotation = new THREE.Euler(spec.rot[0], spec.rot[1], spec.rot[2]);
+        latchEdges.userData.basePosition = new THREE.Vector3(spec.pos[0], spec.pos[1], spec.pos[2]);
+        latchEdges.position.copy(latch.position);
+        latchEdges.rotation.copy(latch.rotation);
+        latchEdges.scale.copy(latch.scale);
+        latchEdges.renderOrder = archOrder;
+        latchGroup.add(latchEdges);
+      });
+
+      const indicatorSpecs = [
+        { pos: [0.0, 0.78, 0.0], rot: [0, 0.0, 0.0], scale: [1.0, 1.18, 1.0] },
+        { pos: [0.23, 0.42, 0.0], rot: [0.1, 0.22, 0.0], scale: [0.9, 1.0, 0.9] }
+      ];
+      indicatorSpecs.forEach((spec, idx) => {
+        const indicator = new THREE.Mesh(geometries.indicatorGeometry, materials.indicatorMat);
+        indicator.name = `ControlIndicator_${idx}`;
+        indicator.userData.isControlCommandSealIndicator = true;
+        indicator.userData.ignoreWaveColor = true;
+        indicator.userData.baseRotation = new THREE.Euler(spec.rot[0], spec.rot[1], spec.rot[2]);
+        indicator.userData.basePosition = new THREE.Vector3(spec.pos[0], spec.pos[1], spec.pos[2]);
+        indicator.position.copy(indicator.userData.basePosition);
+        indicator.rotation.copy(indicator.userData.baseRotation);
+        indicator.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+        indicator.renderOrder = archOrder + 1;
+        validateMeshGeometry(indicator, `createControlNode0:indicator${idx}`);
+        latchGroup.add(indicator);
+      });
+
+      group.add(latchGroup);
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+      auraGroup.userData.isControlCommandSealAuraGroup = true;
+      auraGroup.userData.baseRotation = new THREE.Euler(0.01, 0.02, 0.0);
+
+      const dust = new THREE.Points(geometries.dustGeometry, materials.dustMat);
+      dust.name = 'ControlDiagnosticDust';
+      dust.userData.isControlCommandSealDust = true;
+      dust.frustumCulled = false;
+      dust.renderOrder = archOrder;
+      auraGroup.add(dust);
+
+      const witnessLine = new THREE.Line(geometries.witnessGeometry, materials.witnessMat);
+      witnessLine.name = 'ControlWitnessLine';
+      witnessLine.userData.isControlCommandSealWitness = true;
+      witnessLine.frustumCulled = false;
+      witnessLine.position.set(0.0, 0.0, 0.0);
+      witnessLine.rotation.set(0.02, 0.18, -0.02);
+      witnessLine.renderOrder = archOrder;
+      auraGroup.add(witnessLine);
+
+      const shellColor = new THREE.Color(color).lerp(new THREE.Color(0xf2fbff), 0.12).getHex();
+      const shell = createNodeHologramShell(core, shellColor);
+      if (shell) {
+        shell.name = 'ControlSealShell';
+        shell.userData.isControlCommandSealShell = true;
+        shell.position.copy(core.position);
+        shell.quaternion.copy(core.quaternion);
+        shell.scale.copy(core.scale).multiplyScalar(1.18);
+        shell.frustumCulled = false;
+        shell.renderOrder = archOrder;
+        if (shell.material?.uniforms?.uOpacity) shell.material.uniforms.uOpacity.value = 0.042;
+        auraGroup.add(shell);
+      }
+
+      const edgeGlow = createNodeNeonEdgeGlowShell(core, shellColor, {
+        glowIntensity: 0.72,
+        edgeWidth: 0.062,
+        pulseAmount: 0.0
+      });
+      if (edgeGlow) {
+        edgeGlow.name = 'ControlSealEdgeGlow';
+        edgeGlow.userData.isControlCommandSealShell = true;
+        edgeGlow.userData.isControlCommandSealEdgeGlow = true;
+        edgeGlow.position.copy(core.position);
+        edgeGlow.quaternion.copy(core.quaternion);
+        edgeGlow.scale.copy(core.scale).multiplyScalar(1.025);
+        edgeGlow.frustumCulled = false;
+        edgeGlow.renderOrder = archOrder;
+        auraGroup.add(edgeGlow);
+      }
+
+      group.add(auraGroup);
+
+      group.userData.controlCommandSealCoreGroup = coreGroup;
+      group.userData.controlCommandSealSealGroup = sealGroup;
+      group.userData.controlCommandSealLatchGroup = latchGroup;
+      group.userData.controlCommandSealAuraGroup = auraGroup;
+      group.userData.controlCommandSealCore = core;
+      group.userData.controlCommandSealPhase = phase;
+      group.userData.controlCommandSealCorePulseSpeed = 0.9;
+      group.userData.controlCommandSealCorePulseAmp = 0.0035;
+      group.userData.controlCommandSealSpinSpeed = 0.0032;
+      group.userData.controlCommandSealLatchSettleSpeed = 0.05;
+      group.userData.visualReady = true;
+      return group;
+    } catch (err) {
+      console.error('[NodeVisualAbort]', {
+        model: 'createControlNode0',
+        category: 'control',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
+    }
+  }
 
   /**
    * Control Node 1: Sharp tetrahedral pyramid
@@ -26283,6 +27486,155 @@ static createControlNode0(group, color) {
       }
     }
 
+    // CONTROL_COMMAND_SEAL deterministic motion (bounded authority, slow and stable)
+    if (
+      nodeGroup.userData?.nodeGeometryName === 'CONTROL_COMMAND_SEAL' ||
+      nodeGroup.children.some(c => c.userData?.nodeGeometryName === 'CONTROL_COMMAND_SEAL')
+    ) {
+      const controlSealRoot = nodeGroup.userData?.nodeGeometryName === 'CONTROL_COMMAND_SEAL'
+        ? nodeGroup
+        : nodeGroup.children.find(c => c.userData?.nodeGeometryName === 'CONTROL_COMMAND_SEAL');
+      if (controlSealRoot) {
+        const phase = controlSealRoot.userData.controlCommandSealPhase || 0;
+        const spinSpeed = controlSealRoot.userData.controlCommandSealSpinSpeed || 0.0032;
+        // Counteract the generic scene spin so this node reads as bounded and stable.
+        controlSealRoot.rotation.y += deltaTime * (spinSpeed - 0.3);
+        controlSealRoot.rotation.x = Math.sin(time * 0.016 + phase) * 0.0032;
+        controlSealRoot.rotation.z = Math.sin(time * 0.013 + phase * 0.71) * 0.0024;
+
+        const controlCore = controlSealRoot.userData.controlCommandSealCore
+          || controlSealRoot.children.find(c => c.userData?.isControlCommandSealCore);
+        const controlCoreGroup = controlSealRoot.userData.controlCommandSealCoreGroup
+          || controlSealRoot.children.find(c => c.userData?.isControlCommandSealCoreGroup);
+        const controlSealGroup = controlSealRoot.userData.controlCommandSealSealGroup
+          || controlSealRoot.children.find(c => c.userData?.isControlCommandSealSealGroup);
+        const controlLatchGroup = controlSealRoot.userData.controlCommandSealLatchGroup
+          || controlSealRoot.children.find(c => c.userData?.isControlCommandSealLatchGroup);
+        const controlAuraGroup = controlSealRoot.userData.controlCommandSealAuraGroup
+          || controlSealRoot.children.find(c => c.userData?.isControlCommandSealAuraGroup);
+
+        if (controlCoreGroup) {
+          const baseRotation = controlCoreGroup.userData.baseRotation || controlCoreGroup.rotation.clone();
+          controlCoreGroup.rotation.set(
+            baseRotation.x + Math.sin(time * 0.014 + phase) * 0.003,
+            baseRotation.y + deltaTime * 0.0009,
+            baseRotation.z + Math.sin(time * 0.012 + phase * 0.83) * 0.0017
+          );
+        }
+
+        if (controlCore) {
+          const baseScale = controlCore.userData.baseScale || controlCore.scale;
+          const pulse = 1 + Math.sin(time * (controlSealRoot.userData.controlCommandSealCorePulseSpeed || 0.9) + phase) * (controlSealRoot.userData.controlCommandSealCorePulseAmp || 0.0035);
+          controlCore.scale.set(
+            baseScale.x * pulse,
+            baseScale.y * (1 + Math.sin(time * 0.017 + phase * 1.18) * 0.0016),
+            baseScale.z * (1 - Math.sin(time * 0.015 + phase * 0.64) * 0.0011)
+          );
+
+          if (controlCoreGroup) {
+            controlCoreGroup.children.forEach(child => {
+              const data = child.userData || {};
+              if (child !== controlCore && data.isControlCommandSealCore) {
+                child.position.copy(controlCore.position);
+                child.rotation.copy(controlCore.rotation);
+                child.scale.copy(controlCore.scale);
+              }
+            });
+          }
+        }
+
+        if (controlSealGroup) {
+          const baseRotation = controlSealGroup.userData.baseRotation || controlSealGroup.rotation.clone();
+          controlSealGroup.rotation.set(
+            baseRotation.x + Math.sin(time * 0.012 + phase * 0.88) * 0.0023,
+            baseRotation.y - deltaTime * spinSpeed * 0.82,
+            baseRotation.z + Math.sin(time * 0.01 + phase * 0.52) * 0.0016
+          );
+
+          controlSealGroup.children.forEach((child, idx) => {
+            const data = child.userData || {};
+            if (data.isControlCommandSealArc) {
+              const baseRotation = data.baseRotation || child.rotation.clone();
+              child.rotation.set(
+                baseRotation.x + Math.sin(time * 0.01 + phase + idx * 0.37) * 0.0022,
+                baseRotation.y + deltaTime * (spinSpeed * (idx % 2 === 0 ? 1 : -1)) * 0.55,
+                baseRotation.z + Math.cos(time * 0.009 + phase * 0.63 + idx * 0.29) * 0.0016
+              );
+            }
+          });
+        }
+
+        if (controlLatchGroup) {
+          const baseRotation = controlLatchGroup.userData.baseRotation || controlLatchGroup.rotation.clone();
+          controlLatchGroup.rotation.set(
+            baseRotation.x + Math.sin(time * 0.011 + phase * 1.06) * 0.0017,
+            baseRotation.y + deltaTime * 0.00056,
+            baseRotation.z + Math.sin(time * 0.013 + phase * 0.7) * 0.0013
+          );
+
+          controlLatchGroup.children.forEach((child, idx) => {
+            const data = child.userData || {};
+            if (data.isControlCommandSealLatch) {
+              const baseRotation = data.baseRotation || child.rotation.clone();
+              const basePosition = data.basePosition || child.position.clone();
+              const latchSettling = Math.sin(time * (controlSealRoot.userData.controlCommandSealLatchSettleSpeed || 0.05) + phase + idx * 0.84) * 0.008;
+              child.position.set(
+                basePosition.x,
+                basePosition.y + latchSettling,
+                basePosition.z
+              );
+              child.rotation.set(
+                baseRotation.x + Math.sin(time * 0.01 + phase + idx * 0.51) * 0.002,
+                baseRotation.y + Math.sin(time * 0.009 + phase * 0.62 + idx * 0.41) * 0.0018,
+                baseRotation.z + deltaTime * 0.0008 * (idx % 2 === 0 ? 1 : -1)
+              );
+            }
+
+            if (data.isControlCommandSealIndicator) {
+              const baseRotation = data.baseRotation || child.rotation.clone();
+              const basePosition = data.basePosition || child.position.clone();
+              child.position.set(
+                basePosition.x + Math.sin(time * 0.013 + phase + idx * 0.44) * 0.004,
+                basePosition.y + Math.sin(time * 0.015 + phase * 0.83 + idx * 0.57) * 0.006,
+                basePosition.z
+              );
+              child.rotation.set(
+                baseRotation.x + Math.sin(time * 0.016 + phase * 1.02) * 0.0018,
+                baseRotation.y + deltaTime * 0.0007,
+                baseRotation.z + Math.cos(time * 0.014 + phase * 0.59) * 0.0012
+              );
+            }
+          });
+        }
+
+        if (controlAuraGroup) {
+          const baseRotation = controlAuraGroup.userData.baseRotation || controlAuraGroup.rotation.clone();
+          controlAuraGroup.rotation.set(
+            baseRotation.x + Math.sin(time * 0.009 + phase * 0.47) * 0.0014,
+            baseRotation.y + deltaTime * 0.00042,
+            baseRotation.z + Math.sin(time * 0.008 + phase * 0.91) * 0.001
+          );
+
+          controlAuraGroup.children.forEach(child => {
+            const data = child.userData || {};
+            if (data.isControlCommandSealDust) {
+              child.rotation.y += deltaTime * 0.00028;
+              child.rotation.x += deltaTime * 0.00012;
+            } else if (data.isControlCommandSealWitness) {
+              child.rotation.y += deltaTime * 0.00036;
+              child.rotation.x = Math.sin(time * 0.008 + phase) * 0.0011;
+            } else if (data.isControlCommandSealShell) {
+              child.rotation.y += deltaTime * 0.00052;
+              child.rotation.x = Math.sin(time * 0.01 + phase * 0.73) * 0.002;
+              child.rotation.z = Math.sin(time * 0.009 + phase * 0.44) * 0.0014;
+            } else if (data.isControlCommandSealEdgeGlow) {
+              child.rotation.y += deltaTime * 0.0004;
+            }
+          });
+        }
+      }
+    }
+
     // POLISH: Animate inner signal rotations (INPUT nodes)
     if (nodeGroup.userData.innerSignalRotationAxis) {
       const innerSignal = nodeGroup.children.find(c => c.geometry && c.geometry.type === 'TetrahedronGeometry');
@@ -26602,6 +27954,218 @@ static createControlNode0(group, color) {
           });
         }
       });
+    }
+
+    // POLISH: Animate CHRONO_FORGE_REACTOR (calibrated orbit machinery + forge core)
+    if (nodeGroup.userData.nodeGeometryName === 'PROCESS_CHRONO_FORGE_REACTOR') {
+      const chronoForgeRoot = nodeGroup.userData?.nodeGeometryName === 'PROCESS_CHRONO_FORGE_REACTOR'
+        ? nodeGroup
+        : nodeGroup.children.find(c => c.userData?.nodeGeometryName === 'PROCESS_CHRONO_FORGE_REACTOR');
+      if (chronoForgeRoot) {
+        const phase = chronoForgeRoot.userData.chronoForgePhase || 0;
+        const spinSpeed = chronoForgeRoot.userData.chronoForgeSpinSpeed || 0.318;
+        chronoForgeRoot.rotation.y += deltaTime * (spinSpeed - 0.3);
+        chronoForgeRoot.rotation.x = Math.sin(time * 0.013 + phase) * 0.0034;
+        chronoForgeRoot.rotation.z = Math.sin(time * 0.011 + phase * 0.72) * 0.0024;
+
+        const coreGroup = chronoForgeRoot.userData.chronoForgeCoreGroup
+          || chronoForgeRoot.children.find(c => c.userData?.isProcessChronoForgeCoreGroup);
+        const orbitGroup = chronoForgeRoot.userData.chronoForgeOrbitGroup
+          || chronoForgeRoot.children.find(c => c.userData?.isProcessChronoForgeOrbitGroup);
+        const forgeGroup = chronoForgeRoot.userData.chronoForgeForgeGroup
+          || chronoForgeRoot.children.find(c => c.userData?.isProcessChronoForgeForgeGroup);
+        const manifoldGroup = chronoForgeRoot.userData.chronoForgeManifoldGroup
+          || chronoForgeRoot.children.find(c => c.userData?.isProcessChronoForgeManifoldGroup);
+        const auraGroup = chronoForgeRoot.userData.chronoForgeAuraGroup
+          || chronoForgeRoot.children.find(c => c.userData?.isProcessChronoForgeAuraGroup);
+
+        if (coreGroup) {
+          const baseRotation = coreGroup.userData.baseRotation || coreGroup.rotation.clone();
+          coreGroup.rotation.set(
+            baseRotation.x + Math.sin(time * 0.012 + phase) * 0.0028,
+            baseRotation.y + deltaTime * 0.0042,
+            baseRotation.z + Math.sin(time * 0.01 + phase * 0.84) * 0.0018
+          );
+
+          coreGroup.children.forEach(part => {
+            const data = part.userData || {};
+            if (data.isProcessChronoForgeCore) {
+              const baseRotation = data.baseRotation || part.rotation.clone();
+              const baseScale = data.baseScale || part.scale;
+              const pulse = 1 + Math.sin(time * (chronoForgeRoot.userData.chronoForgeCorePulseSpeed || 1.18) + phase) * (chronoForgeRoot.userData.chronoForgeCorePulseAmp || 0.003);
+              part.rotation.set(
+                baseRotation.x + Math.sin(time * 0.013 + phase * 0.91) * 0.002,
+                baseRotation.y + deltaTime * 0.006,
+                baseRotation.z + Math.cos(time * 0.011 + phase * 0.61) * 0.0015
+              );
+              part.scale.set(
+                baseScale.x * pulse,
+                baseScale.y * (1 + Math.sin(time * 0.015 + phase * 1.1) * 0.0014),
+                baseScale.z * (1 - Math.sin(time * 0.014 + phase * 0.67) * 0.001)
+              );
+            } else if (data.isProcessChronoForgeHeart) {
+              const baseRotation = data.baseRotation || part.rotation.clone();
+              const baseScale = data.baseScale || part.scale;
+              const pulse = 1 + Math.sin(time * (chronoForgeRoot.userData.chronoForgeCorePulseSpeed || 1.18) * 1.18 + phase * 1.07) * ((chronoForgeRoot.userData.chronoForgeCorePulseAmp || 0.003) * 1.7);
+              part.rotation.set(
+                baseRotation.x + Math.sin(time * 0.016 + phase * 0.8) * 0.003,
+                baseRotation.y + deltaTime * 0.01,
+                baseRotation.z + Math.cos(time * 0.013 + phase * 0.55) * 0.002
+              );
+              part.scale.set(
+                baseScale.x * pulse,
+                baseScale.y * (1 + Math.sin(time * 0.016 + phase * 0.98) * 0.002),
+                baseScale.z * (1 + Math.cos(time * 0.014 + phase * 0.74) * 0.0014)
+              );
+            } else if (data.isProcessChronoForgeShaft) {
+              const baseRotation = data.baseRotation || part.rotation.clone();
+              part.rotation.set(
+                baseRotation.x + Math.sin(time * 0.012 + phase * 0.77) * 0.0016,
+                baseRotation.y + deltaTime * 0.018,
+                baseRotation.z + Math.sin(time * 0.01 + phase * 1.12) * 0.0012
+              );
+            } else if (data.isProcessChronoForgeSeam) {
+              const baseRotation = data.baseRotation || part.rotation.clone();
+              part.rotation.set(
+                baseRotation.x + Math.sin(time * 0.01 + phase * 0.64) * 0.0012,
+                baseRotation.y + deltaTime * 0.0032,
+                baseRotation.z + Math.sin(time * 0.008 + phase * 0.42) * 0.001
+              );
+            }
+          });
+        }
+
+        if (orbitGroup) {
+          const baseRotation = orbitGroup.userData.baseRotation || orbitGroup.rotation.clone();
+          orbitGroup.rotation.set(
+            baseRotation.x + Math.sin(time * 0.009 + phase * 0.72) * 0.0021,
+            baseRotation.y - deltaTime * 0.0024,
+            baseRotation.z + Math.sin(time * 0.008 + phase * 0.4) * 0.0015
+          );
+
+          orbitGroup.children.forEach((child, idx) => {
+            const data = child.userData || {};
+            if (data.isProcessChronoForgeCollar) {
+              const baseRotation = data.baseRotation || child.rotation.clone();
+              const speed = data.collarOrbitSpeed || 0.02;
+              child.rotation.set(
+                baseRotation.x + Math.sin(time * 0.01 + phase + idx * 0.35) * 0.0024,
+                baseRotation.y + deltaTime * speed,
+                baseRotation.z + Math.cos(time * 0.009 + phase * 0.61 + idx * 0.22) * 0.002
+              );
+              if (idx === 0) {
+                const baseScale = data.baseScale || child.scale;
+                const pulse = 1 + Math.sin(time * 0.014 + phase) * 0.003;
+                child.scale.set(baseScale.x * pulse, baseScale.y, baseScale.z * pulse);
+              }
+            } else if (data.isProcessChronoForgeCalibrationTick) {
+              const baseRotation = data.baseRotation || child.rotation.clone();
+              const basePosition = data.basePosition || child.position.clone();
+              child.position.set(
+                basePosition.x + Math.sin(time * 0.012 + phase + idx * 0.52) * 0.003,
+                basePosition.y + Math.sin(time * 0.014 + phase * 0.83 + idx * 0.41) * 0.004,
+                basePosition.z
+              );
+              child.rotation.set(
+                baseRotation.x + Math.sin(time * 0.015 + phase * 1.02) * 0.0012,
+                baseRotation.y + deltaTime * 0.002,
+                baseRotation.z + Math.cos(time * 0.013 + phase * 0.59) * 0.001
+              );
+            }
+          });
+        }
+
+        if (forgeGroup) {
+          const baseRotation = forgeGroup.userData.baseRotation || forgeGroup.rotation.clone();
+          forgeGroup.rotation.set(
+            baseRotation.x + Math.sin(time * 0.008 + phase * 0.51) * 0.0018,
+            baseRotation.y + deltaTime * 0.0018,
+            baseRotation.z + Math.sin(time * 0.009 + phase * 0.87) * 0.0012
+          );
+
+          forgeGroup.children.forEach((child, idx) => {
+            const data = child.userData || {};
+            if (data.isProcessChronoForgeVane) {
+              const baseRotation = data.baseRotation || child.rotation.clone();
+              const baseScale = data.baseScale || child.scale;
+              const vaneSpeed = chronoForgeRoot.userData.chronoForgeForgeVaneSpeed || 0.005;
+              child.rotation.set(
+                baseRotation.x + Math.sin(time * 0.01 + phase + idx * 0.28) * 0.002,
+                baseRotation.y + deltaTime * vaneSpeed,
+                baseRotation.z + Math.cos(time * 0.008 + phase * 0.63 + idx * 0.19) * 0.0014
+              );
+              const pulse = 1 + Math.sin(time * 0.012 + phase + idx * 0.3) * 0.002;
+              child.scale.set(baseScale.x * pulse, baseScale.y * (1 + 0.0015 * pulse), baseScale.z * pulse);
+            } else if (data.isProcessChronoForgeRail) {
+              const baseRotation = data.baseRotation || child.rotation.clone();
+              child.rotation.set(
+                baseRotation.x + Math.sin(time * 0.01 + phase * 0.77) * 0.0016,
+                baseRotation.y + deltaTime * 0.0024,
+                baseRotation.z + Math.sin(time * 0.009 + phase * 0.58) * 0.0012
+              );
+            }
+          });
+        }
+
+        if (manifoldGroup) {
+          const baseRotation = manifoldGroup.userData.baseRotation || manifoldGroup.rotation.clone();
+          manifoldGroup.rotation.set(
+            baseRotation.x + Math.sin(time * 0.007 + phase * 0.44) * 0.0016,
+            baseRotation.y - deltaTime * 0.0015,
+            baseRotation.z + Math.sin(time * 0.008 + phase * 0.96) * 0.0012
+          );
+
+          manifoldGroup.children.forEach((child, idx) => {
+            const data = child.userData || {};
+            if (data.isProcessChronoForgeConduit) {
+              const baseRotation = data.baseRotation || child.rotation.clone();
+              child.rotation.set(
+                baseRotation.x + Math.sin(time * 0.009 + phase + idx * 0.31) * 0.0016,
+                baseRotation.y + deltaTime * (chronoForgeRoot.userData.chronoForgeThroughputSpeed || 0.01),
+                baseRotation.z + Math.cos(time * 0.01 + phase * 0.67 + idx * 0.21) * 0.001
+              );
+            } else if (data.isProcessChronoForgeVent) {
+              const baseRotation = data.baseRotation || child.rotation.clone();
+              const baseScale = data.baseScale || child.scale;
+              const pulse = 1 + Math.sin(time * (chronoForgeRoot.userData.chronoForgeVentPulseSpeed || 1.24) + phase + (data.ventPulsePhase || 0)) * (chronoForgeRoot.userData.chronoForgeVentPulseAmp || 0.02);
+              child.rotation.set(
+                baseRotation.x + Math.sin(time * 0.011 + phase * 0.81 + idx * 0.28) * 0.0016,
+                baseRotation.y + deltaTime * 0.002,
+                baseRotation.z + Math.cos(time * 0.01 + phase * 0.54 + idx * 0.18) * 0.0012
+              );
+              child.scale.set(baseScale.x * pulse, baseScale.y * (1 + 0.0012 * pulse), baseScale.z * pulse);
+            } else if (data.isProcessChronoForgeBrace || data.isProcessChronoForgeFrameBar) {
+              const baseRotation = data.baseRotation || child.rotation.clone();
+              child.rotation.set(
+                baseRotation.x + Math.sin(time * 0.008 + phase * 0.68 + idx * 0.23) * 0.0012,
+                baseRotation.y + deltaTime * 0.001,
+                baseRotation.z + Math.sin(time * 0.009 + phase * 0.51) * 0.0009
+              );
+            }
+          });
+        }
+
+        if (auraGroup) {
+          const baseRotation = auraGroup.userData.baseRotation || auraGroup.rotation.clone();
+          auraGroup.rotation.set(
+            baseRotation.x + Math.sin(time * 0.006 + phase * 0.42) * 0.0012,
+            baseRotation.y + deltaTime * 0.0008,
+            baseRotation.z + Math.sin(time * 0.007 + phase * 0.9) * 0.0008
+          );
+
+          auraGroup.children.forEach((child, idx) => {
+            const data = child.userData || {};
+            if (data.isProcessChronoForgeDust) {
+              child.rotation.y += deltaTime * (chronoForgeRoot.userData.chronoForgeDustSpinSpeed || 0.002);
+              child.rotation.x += deltaTime * 0.00016;
+            } else if (data.isProcessChronoForgeShell || data.isProcessChronoForgeGlow) {
+              child.rotation.y += deltaTime * 0.0006;
+              child.rotation.x = Math.sin(time * 0.009 + phase * 0.73 + idx * 0.12) * 0.0018;
+              child.rotation.z = Math.sin(time * 0.008 + phase * 0.44) * 0.0012;
+            }
+          });
+        }
+      }
     }
 
     // POLISH: Animate EXECUTION_MACHINE (clamp motion + throughput carriage + diagnostics)
@@ -27108,6 +28672,105 @@ static createControlNode0(group, color) {
         // Core spins
         if (child.userData.isArchiveCore) {
           child.rotation.y -= deltaTime * 0.5;
+        }
+      });
+    }
+
+    // 1b. STORAGE_MEMORY_CATHEDRAL (Memory Cathedral Archive)
+    if (nodeGroup.userData.nodeGeometryName === 'STORAGE_MEMORY_CATHEDRAL') {
+      const phase = nodeGroup.userData.memoryCathedralPhase || 0;
+      const rootSpin = nodeGroup.userData.memoryCathedralSpinSpeed || 0.0018;
+
+      nodeGroup.rotation.y += deltaTime * rootSpin;
+      nodeGroup.rotation.x = Math.sin(time * 0.018 + phase) * 0.0045;
+      nodeGroup.rotation.z = Math.sin(time * 0.015 + phase * 1.23) * 0.0032;
+
+      nodeGroup.traverse(child => {
+        if (!child || child === nodeGroup) return;
+        const data = child.userData || {};
+
+        if (data.isMemoryCathedralCoreGroup) {
+          const baseScale = data.baseScale || child.scale;
+          const pulse = 1 + Math.sin(time * 0.018 + phase) * 0.0025;
+          child.rotation.y += deltaTime * 0.0011;
+          child.rotation.x = Math.sin(time * 0.028 + phase) * 0.004;
+          child.rotation.z = Math.sin(time * 0.021 + phase * 0.82) * 0.003;
+          child.scale.set(
+            baseScale.x * pulse,
+            baseScale.y * (1 + Math.sin(time * 0.017 + phase) * 0.0018),
+            baseScale.z * pulse
+          );
+        }
+
+        if (data.isMemoryCathedralNaveGroup) {
+          child.rotation.y -= deltaTime * 0.0009;
+          child.rotation.x = Math.sin(time * 0.019 + phase * 0.88) * 0.0034;
+          child.rotation.z = Math.sin(time * 0.017 + phase * 1.04) * 0.0024;
+        }
+
+        if (data.isMemoryCathedralButtressGroup) {
+          child.rotation.y += deltaTime * 0.00058;
+          child.rotation.z = Math.sin(time * 0.014 + phase) * 0.0032;
+          child.rotation.x = Math.sin(time * 0.016 + phase * 0.74) * 0.0021;
+        }
+
+        if (data.isMemoryCathedralStrataGroup) {
+          child.rotation.y -= deltaTime * 0.00078;
+          child.rotation.x = Math.sin(time * 0.019 + phase * 1.11) * 0.0026;
+          child.rotation.z = Math.sin(time * 0.015 + phase * 0.63) * 0.0018;
+        }
+
+        if (data.isMemoryCathedralRelicGroup) {
+          const baseRotation = data.baseRotation || child.rotation.clone();
+          child.rotation.set(
+            baseRotation.x + Math.sin(time * 0.012 + phase) * 0.0028,
+            baseRotation.y + deltaTime * 0.00082,
+            baseRotation.z + Math.sin(time * 0.01 + phase * 0.78) * 0.0019
+          );
+        }
+
+        if (data.isMemoryCathedralAuraGroup) {
+          const baseRotation = data.baseRotation || child.rotation.clone();
+          child.rotation.set(
+            baseRotation.x + Math.sin(time * 0.012 + phase * 0.67) * 0.0022,
+            baseRotation.y + deltaTime * 0.0005,
+            baseRotation.z + Math.sin(time * 0.011 + phase * 0.42) * 0.0015
+          );
+        }
+
+        if (data.isMemoryCathedralRelicMesh) {
+          const basePosition = data.basePosition || child.position.clone();
+          const baseRotation = data.baseRotation || child.rotation.clone();
+          const orbitPhase = data.orbitPhase || 0;
+          const orbitSpeed = data.orbitSpeed || 0.014;
+          const orbitRadius = data.orbitRadius || 0.03;
+          const t = time * orbitSpeed + orbitPhase;
+          child.position.set(
+            basePosition.x + Math.cos(t) * orbitRadius * 1.45,
+            basePosition.y + Math.sin(t * 0.72) * orbitRadius * 0.92,
+            basePosition.z + Math.sin(t) * orbitRadius * 1.2
+          );
+          child.rotation.set(
+            baseRotation.x + Math.sin(t * 0.8) * 0.04,
+            baseRotation.y + deltaTime * orbitSpeed * 0.4,
+            baseRotation.z + Math.cos(t * 0.76) * 0.03
+          );
+        }
+
+        if (data.isMemoryCathedralShellMesh) {
+          child.rotation.y += deltaTime * 0.0006;
+          child.rotation.x = Math.sin(time * 0.014 + phase) * 0.003;
+          child.rotation.z = Math.sin(time * 0.011 + phase * 0.91) * 0.002;
+        }
+
+        if (data.isMemoryCathedralDust) {
+          child.rotation.y += deltaTime * 0.00038;
+          child.rotation.x += deltaTime * 0.00014;
+        }
+
+        if (data.isMemoryCathedralWitness) {
+          child.rotation.y += deltaTime * 0.00048;
+          child.rotation.x = Math.sin(time * 0.01 + phase) * 0.0012;
         }
       });
     }

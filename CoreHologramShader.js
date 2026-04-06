@@ -20,7 +20,7 @@ const HOLOGRAM_GEOMETRY_CACHE = new Map();
  * @returns {THREE.IcosahedronGeometry}
  */
 export function getStableHologramGeometry(radius = 1, detail = 2) {
-  const cacheKey = `icosphere_${detail}`;
+  const cacheKey = `icosphere_${radius}_${detail}`;
   
   if (!HOLOGRAM_GEOMETRY_CACHE.has(cacheKey)) {
     // Create stable icosphere geometry (not derived from any core mesh)
@@ -252,10 +252,12 @@ export function reassertNodeHologramShell(nodeGroup, coreMesh, baseColor = 0x00f
   );
 
   // Check if shell is valid
+  const expectedOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
   const isValid = existingShell && 
     existingShell.material && 
-    existingShell.material.depthTest === false && 
-    existingShell.renderOrder === 5 &&
+    existingShell.material.depthTest === true && 
+    existingShell.material.side === THREE.DoubleSide &&
+    existingShell.renderOrder === expectedOrder &&
     existingShell.frustumCulled === false;
 
   if (isValid) {

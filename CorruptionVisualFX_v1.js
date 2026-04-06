@@ -478,13 +478,13 @@ export class CorruptionVisualFX_v1 {
       vertexShader: `
         varying vec2 vUv;
         varying vec3 vNormalW;
-        varying vec3 vPosW;
+        varying vec2 vPosWxy;
 
         void main() {
           vUv = uv;
           vNormalW = normalize(mat3(modelMatrix) * normal);
           vec4 worldPos = modelMatrix * vec4(position, 1.0);
-          vPosW = worldPos.xyz;
+          vPosWxy = worldPos.xy;
           gl_Position = projectionMatrix * viewMatrix * worldPos;
         }
       `,
@@ -499,13 +499,13 @@ export class CorruptionVisualFX_v1 {
 
         varying vec2 vUv;
         varying vec3 vNormalW;
-        varying vec3 vPosW;
+        varying vec2 vPosWxy;
 
         vec3 applyCorruption(vec3 color, vec2 uv) {
           float level = clamp(uCorruptionLevel, 0.0, 1.0);
           float t = uCorruptionTime;
-          float warp = sin((uv.x + vPosW.y) * 20.0 + t * 10.0) * 0.5 + 0.5;
-          float stripe = sin((uv.y + vPosW.x) * 28.0 - t * 7.5);
+          float warp = sin(uv.x * 20.0 + vPosWxy.y * 20.0 + t * 10.0) * 0.5 + 0.5;
+          float stripe = sin(uv.y * 28.0 + vPosWxy.x * 28.0 - t * 7.5);
           float distortion = warp * stripe * level;
           vec3 tint = vec3(1.0, 0.2, 0.5) * distortion * level;
           return color + tint;
@@ -518,8 +518,8 @@ export class CorruptionVisualFX_v1 {
           }
 
           vec3 baseColor = uBaseColor * texel.rgb;
-          vec3 normal = normalize(vNormalW);
-          vec3 lightDir = normalize(vec3(0.25, 0.75, 0.6));
+          vec3 normal = vNormalW;
+          vec3 lightDir = vec3(0.2519, 0.7558, 0.6048);
           float ndl = max(dot(normal, lightDir), 0.0);
           vec3 lit = baseColor * (0.35 + 0.65 * ndl) + uEmissive;
           vec3 finalColor = applyCorruption(lit, vUv);

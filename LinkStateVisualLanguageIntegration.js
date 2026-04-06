@@ -157,13 +157,9 @@ export const linkStateFragmentShader = `
   
   // Get color based on network stress
   vec3 getStressColor(float stress) {
-    if (stress < 0.5) {
-      float t = stress * 2.0;
-      return mix(stressColorCool, stressColorWarm, t);
-    } else {
-      float t = (stress - 0.5) * 2.0;
-      return mix(stressColorWarm, stressColorHot, t);
-    }
+    float warmMix = clamp(stress * 2.0, 0.0, 1.0);
+    float hotMix = clamp((stress - 0.5) * 2.0, 0.0, 1.0);
+    return mix(mix(stressColorCool, stressColorWarm, warmMix), stressColorHot, hotMix);
   }
   
   void main() {
@@ -190,9 +186,7 @@ export const linkStateFragmentShader = `
     // === CHANNEL 5: HARMONY â†’ DAMPING ===
     // Harmony reduces ALL chaotic effects (never amplifies)
     // Damping factor: 0.0 (no damping) to 1.0 (maximum chaos reduction)
-    float chaos = edgeNoise + pulseIntensity + instability;
     float damping = vHarmony;  // 0â€“1: more harmony = more damping
-    float dampedChaos = chaos * (1.0 - damping);
     
     // === COMPOSITION (NO MATHEMATICAL MULTIPLICATION) ===
     // Layer effects perceptually, not mathematically
@@ -499,12 +493,8 @@ export class LinkStateVisualLanguageIntegration {
    * @param {number} currentTime - Current elapsed time
    */
   updateAnimationTime(currentTime) {
-    // Store time; applied per-draw in onBeforeRender
-    for (const [link, state] of this.linkMetrics.entries()) {
-      state.time = currentTime;
-      const override = __linkStateOverrides.get(link);
-      if (override) override.time = currentTime;
-    }
+    // Store time globally; applied per-draw in onBeforeRender
+    __currentLinkStateTime = currentTime;
   }
 
   /**
@@ -570,6 +560,7 @@ export class LinkStateVisualLanguageIntegration {
 // =============================================================================
 let __linkStateMaterial = null;
 let __currentNetworkStress = 0;
+let __currentLinkStateTime = 0;
 const __linkStateOverrides = new WeakMap(); // link(object) -> state
 
 function getCanonicalLinkStateMaterial() {
@@ -611,7 +602,7 @@ function getCanonicalLinkStateMaterial() {
     u.uCorruption.value = state.corruption ?? 0;
     u.uSynergy.value = state.synergy ?? 50;
     u.uHarmony.value = state.harmonyAvg ?? 0;
-    u.uTime.value = state.time ?? 0;
+    u.uTime.value = __currentLinkStateTime;
   };
 
   return __linkStateMaterial;
@@ -631,9 +622,7 @@ LinkStateVisualLanguageIntegration.prototype.registerLink = function(link, optio
     corruption: metrics.corruption,
     synergy: metrics.synergy,
     harmonyAvg: metrics.harmonyAvg,
-    loadMax: metrics.loadMax,
-    networkStress: this.currentNetworkStress,
-    time: metrics.time ?? 0
+    loadMax: metrics.loadMax
   });
 
   // Optional debug log
