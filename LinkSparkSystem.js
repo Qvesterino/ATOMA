@@ -56,12 +56,11 @@ void main() {
     vec3 tangent = normalize(getBezierTangent(uStart, uMid, uEnd, aT));
 
     // 2. Calculate Radial Offset (Rope Surface)
-    // Arbitrary consistent axis for coordinate system
-    vec3 up = vec3(0.0, 1.0, 0.0);
+    // Simplified coordinate system (no length check)
+    vec3 up = abs(dot(tangent, vec3(0.0, 1.0, 0.0))) < 0.99 
+      ? vec3(0.0, 1.0, 0.0) 
+      : vec3(1.0, 0.0, 0.0);
     vec3 right = normalize(cross(tangent, up));
-    if (length(right) < 0.01) {
-        right = normalize(cross(tangent, vec3(1.0, 0.0, 0.0)));
-    }
     vec3 normal = cross(right, tangent);
 
     // Radial vector based on angle
@@ -298,12 +297,7 @@ export class LinkSparkSystem {
         const hsl = {};
         sparkColor.getHSL(hsl);
         sparkColor.setHSL(hsl.h, hsl.s * 0.7, Math.min(1.0, hsl.l * 1.5)); // Brighter, less saturated
-        // color jitter
-        sparkColor.offsetHSL(
-        (Math.random() - 0.5) * 0.08,
-         0,
-        (Math.random() - 0.5) * 0.1
-         );
+        // Removed: color jitter (caused visual flickering)
         this.uniforms.uColor.value.copy(sparkColor);
 
         // 2. Spawn Logic

@@ -405,6 +405,40 @@ const PROCESS_EXECUTION_MACHINE_CACHE = {
 };
 const PROCESS_EXECUTION_MACHINE_MATERIALS = new Map(); // keyed by color hex
 
+// PROCESS 201 caches
+const PROCESS_FLUX_CRUCIBLE_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  heartGeometry: null,
+  heartEdgesGeometry: null,
+  shaftGeometry: null,
+  shaftEdgesGeometry: null,
+  seamGeometry: null,
+  seamEdgesGeometry: null,
+  clampGeometry: null,
+  clampEdgesGeometry: null,
+  shutterGeometry: null,
+  shutterEdgesGeometry: null,
+  railGeometry: null,
+  railEdgesGeometry: null,
+  conduitGeometryA: null,
+  conduitEdgesGeometryA: null,
+  conduitGeometryB: null,
+  conduitEdgesGeometryB: null,
+  conduitGeometryC: null,
+  conduitEdgesGeometryC: null,
+  frameBarGeometry: null,
+  frameBarEdgesGeometry: null,
+  braceGeometry: null,
+  braceEdgesGeometry: null,
+  ventGeometry: null,
+  ventEdgesGeometry: null,
+  telemetryGeometry: null,
+  telemetryEdgesGeometry: null,
+  dustGeometry: null
+};
+const PROCESS_FLUX_CRUCIBLE_MATERIALS = new Map(); // keyed by color hex
+
 // INTEGRATION v4 caches
 const INTEGRATION_NEGOTIATED_CHAOS_CLASP_CACHE = {
   coreGeometry: null,
@@ -6252,6 +6286,886 @@ function _getProcessExecutionMachineMaterials(color) {
   return mats;
 }
 
+// ---------- PROCESS 201 helpers ----------
+function _getProcessFluxCrucibleGeometries() {
+  if (!PROCESS_FLUX_CRUCIBLE_CACHE.coreGeometry) {
+    const deformGeometry = (geometry, deformFn) => {
+      const pos = geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = pos.getZ(i);
+        const next = deformFn(x, y, z, i);
+        pos.setXYZ(i, next[0], next[1], next[2]);
+      }
+      pos.needsUpdate = true;
+      geometry.computeVertexNormals();
+      geometry.computeBoundingSphere();
+      return geometry;
+    };
+
+    const buildTubeGeometry = (points, radius, tubularSegments = 48, radialSegments = 6, closed = false) => {
+      const curve = new THREE.CatmullRomCurve3(points, closed, 'catmullrom', 0.42);
+      const geometry = new THREE.TubeGeometry(curve, tubularSegments, radius, radialSegments, closed);
+      geometry.computeBoundingSphere();
+      return geometry;
+    };
+
+    const coreGeometry = deformGeometry(
+      new THREE.CylinderGeometry(0.56, 0.5, 1.48, 8, 6, false),
+      (x, y, z) => {
+        const yNorm = (y + 0.74) / 1.48;
+        const seam = Math.sin((yNorm * 5.4 + x * 3.4) * Math.PI) * 0.018;
+        const bite = Math.max(0, 0.24 - Math.abs(y)) * 0.11;
+        const nx = x * (0.9 + Math.abs(y) * 0.11) + z * 0.04 - (x > 0.18 ? 0.014 : 0.0);
+        const ny = y + seam + (x < -0.1 ? 0.008 : -0.004);
+        const nz = z * (0.84 + Math.abs(y) * 0.1) + bite + (z > 0.14 ? 0.014 : -0.008);
+        return [nx, ny, nz];
+      }
+    );
+    coreGeometry.rotateZ(-0.02);
+    PROCESS_FLUX_CRUCIBLE_CACHE.coreGeometry = coreGeometry;
+    PROCESS_FLUX_CRUCIBLE_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 12);
+
+    const heartGeometry = new THREE.OctahedronGeometry(0.18, 0);
+    heartGeometry.scale(0.8, 1.18, 0.76);
+    heartGeometry.rotateY(0.28);
+    heartGeometry.rotateZ(-0.18);
+    heartGeometry.computeBoundingSphere();
+    PROCESS_FLUX_CRUCIBLE_CACHE.heartGeometry = heartGeometry;
+    PROCESS_FLUX_CRUCIBLE_CACHE.heartEdgesGeometry = safeCreateEdgesGeometry(heartGeometry, 10);
+
+    const shaftGeometry = deformGeometry(
+      new THREE.CylinderGeometry(0.1, 0.06, 1.62, 6, 1, false),
+      (x, y, z) => {
+        const taper = 1.0 - Math.abs(y) * 0.14;
+        const seam = Math.sin((y * 8.8) + x * 4.3) * 0.007;
+        const nx = x * (0.92 + Math.abs(z) * 0.08);
+        const nz = z * (0.78 + Math.abs(y) * 0.08) + seam;
+        return [nx * taper, y, nz * taper];
+      }
+    );
+    shaftGeometry.rotateZ(0.12);
+    PROCESS_FLUX_CRUCIBLE_CACHE.shaftGeometry = shaftGeometry;
+    PROCESS_FLUX_CRUCIBLE_CACHE.shaftEdgesGeometry = safeCreateEdgesGeometry(shaftGeometry, 10);
+
+    const seamGeometry = deformGeometry(
+      new THREE.BoxGeometry(0.08, 1.32, 0.06, 1, 4, 1),
+      (x, y, z) => {
+        const bite = Math.max(0, 0.18 - Math.abs(y)) * 0.06;
+        const nx = x * 0.82 + y * 0.06;
+        const ny = y + Math.sin(x * 8.0 + z * 5.5) * 0.004;
+        const nz = z * 0.76 + bite;
+        return [nx, ny, nz];
+      }
+    );
+    PROCESS_FLUX_CRUCIBLE_CACHE.seamGeometry = seamGeometry;
+    PROCESS_FLUX_CRUCIBLE_CACHE.seamEdgesGeometry = safeCreateEdgesGeometry(seamGeometry, 8);
+
+    const clampGeometry = deformGeometry(
+      new THREE.BoxGeometry(0.24, 0.64, 0.12, 1, 2, 1),
+      (x, y, z) => {
+        const jaw = Math.max(0, 0.24 - Math.abs(y)) * 0.1;
+        const bite = y > 0 ? 0.016 : -0.01;
+        return [
+          x * (0.9 + Math.abs(y) * 0.08) + Math.sign(x || 1) * 0.012,
+          y + bite + Math.sin((x + z) * 7.8) * 0.006,
+          z * (0.86 + Math.abs(y) * 0.09) + jaw
+        ];
+      }
+    );
+    PROCESS_FLUX_CRUCIBLE_CACHE.clampGeometry = clampGeometry;
+    PROCESS_FLUX_CRUCIBLE_CACHE.clampEdgesGeometry = safeCreateEdgesGeometry(clampGeometry, 10);
+
+    const shutterGeometry = deformGeometry(
+      new THREE.BoxGeometry(0.16, 0.22, 0.08, 1, 1, 1),
+      (x, y, z) => [
+        x * 0.92 + Math.sign(x || 1) * 0.006,
+        y * 0.98,
+        z * 0.84 + Math.sin((x + y) * 8.0) * 0.004
+      ]
+    );
+    PROCESS_FLUX_CRUCIBLE_CACHE.shutterGeometry = shutterGeometry;
+    PROCESS_FLUX_CRUCIBLE_CACHE.shutterEdgesGeometry = safeCreateEdgesGeometry(shutterGeometry, 8);
+
+    const railGeometry = deformGeometry(
+      new THREE.BoxGeometry(0.1, 1.18, 0.08, 1, 2, 1),
+      (x, y, z) => [
+        x * (0.96 + Math.abs(y) * 0.04),
+        y,
+        z * (0.86 + Math.abs(y) * 0.05) + Math.sin(y * 4.2 + x * 2.0) * 0.005
+      ]
+    );
+    PROCESS_FLUX_CRUCIBLE_CACHE.railGeometry = railGeometry;
+    PROCESS_FLUX_CRUCIBLE_CACHE.railEdgesGeometry = safeCreateEdgesGeometry(railGeometry, 8);
+
+    const conduitGeometryA = buildTubeGeometry([
+      new THREE.Vector3(-0.96, -0.18, 0.08),
+      new THREE.Vector3(-0.7, -0.12, 0.05),
+      new THREE.Vector3(-0.36, -0.02, 0.02),
+      new THREE.Vector3(-0.06, 0.1, -0.02),
+      new THREE.Vector3(0.18, 0.22, -0.04)
+    ], 0.036, 42, 6, false);
+    PROCESS_FLUX_CRUCIBLE_CACHE.conduitGeometryA = conduitGeometryA;
+    PROCESS_FLUX_CRUCIBLE_CACHE.conduitEdgesGeometryA = safeCreateEdgesGeometry(conduitGeometryA, 8);
+
+    const conduitGeometryB = buildTubeGeometry([
+      new THREE.Vector3(0.1, 0.16, -0.04),
+      new THREE.Vector3(0.36, 0.2, 0.0),
+      new THREE.Vector3(0.62, 0.26, 0.07),
+      new THREE.Vector3(0.88, 0.3, 0.14),
+      new THREE.Vector3(1.08, 0.34, 0.2)
+    ], 0.03, 36, 6, false);
+    PROCESS_FLUX_CRUCIBLE_CACHE.conduitGeometryB = conduitGeometryB;
+    PROCESS_FLUX_CRUCIBLE_CACHE.conduitEdgesGeometryB = safeCreateEdgesGeometry(conduitGeometryB, 8);
+
+    const conduitGeometryC = buildTubeGeometry([
+      new THREE.Vector3(-0.1, 0.32, -0.2),
+      new THREE.Vector3(0.02, 0.18, -0.04),
+      new THREE.Vector3(0.2, 0.1, 0.16),
+      new THREE.Vector3(0.42, 0.08, 0.32)
+    ], 0.024, 32, 6, false);
+    PROCESS_FLUX_CRUCIBLE_CACHE.conduitGeometryC = conduitGeometryC;
+    PROCESS_FLUX_CRUCIBLE_CACHE.conduitEdgesGeometryC = safeCreateEdgesGeometry(conduitGeometryC, 6);
+
+    const frameBarGeometry = deformGeometry(
+      new THREE.BoxGeometry(0.08, 1.54, 0.08, 1, 4, 1),
+      (x, y, z) => [x * 0.96, y, z * 0.88 + Math.sin(y * 3.4) * 0.004]
+    );
+    PROCESS_FLUX_CRUCIBLE_CACHE.frameBarGeometry = frameBarGeometry;
+    PROCESS_FLUX_CRUCIBLE_CACHE.frameBarEdgesGeometry = safeCreateEdgesGeometry(frameBarGeometry, 8);
+
+    const braceGeometry = deformGeometry(
+      new THREE.BoxGeometry(0.12, 0.84, 0.08, 1, 3, 1),
+      (x, y, z) => [x * 0.92 + (y > 0 ? 0.008 : -0.008), y, z * 0.84]
+    );
+    PROCESS_FLUX_CRUCIBLE_CACHE.braceGeometry = braceGeometry;
+    PROCESS_FLUX_CRUCIBLE_CACHE.braceEdgesGeometry = safeCreateEdgesGeometry(braceGeometry, 8);
+
+    const ventGeometry = deformGeometry(
+      new THREE.BoxGeometry(0.08, 0.28, 0.12, 1, 1, 1),
+      (x, y, z) => [x * 0.92, y, z * 0.76 + Math.sin((x + y) * 8.2) * 0.004]
+    );
+    PROCESS_FLUX_CRUCIBLE_CACHE.ventGeometry = ventGeometry;
+    PROCESS_FLUX_CRUCIBLE_CACHE.ventEdgesGeometry = safeCreateEdgesGeometry(ventGeometry, 6);
+
+    const telemetryGeometry = deformGeometry(
+      new THREE.BoxGeometry(0.04, 0.18, 0.04, 1, 1, 1),
+      (x, y, z) => [x, y, z]
+    );
+    PROCESS_FLUX_CRUCIBLE_CACHE.telemetryGeometry = telemetryGeometry;
+    PROCESS_FLUX_CRUCIBLE_CACHE.telemetryEdgesGeometry = safeCreateEdgesGeometry(telemetryGeometry, 6);
+
+    const dustPositions = [];
+    const dustCount = 48;
+    for (let i = 0; i < dustCount; i++) {
+      const angle = (i / dustCount) * Math.PI * 2;
+      const radius = 0.64 + Math.sin(i * 0.31) * 0.08 + ((i % 5) * 0.01);
+      dustPositions.push(
+        Math.cos(angle) * radius,
+        -0.48 + (i / dustCount) * 1.18 + Math.sin(i * 0.17) * 0.04,
+        Math.sin(angle * 1.08) * radius * 0.64
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    PROCESS_FLUX_CRUCIBLE_CACHE.dustGeometry = dustGeometry;
+  }
+
+  return PROCESS_FLUX_CRUCIBLE_CACHE;
+}
+
+function _getProcessFluxCrucibleMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xffaa00;
+  if (PROCESS_FLUX_CRUCIBLE_MATERIALS.has(colorHex)) {
+    return PROCESS_FLUX_CRUCIBLE_MATERIALS.get(colorHex);
+  }
+
+  const amberColor = new THREE.Color(colorHex);
+  const amberHot = new THREE.Color(0xffc87a);
+  const amberSoft = new THREE.Color(0xffa75a);
+  const steelBright = new THREE.Color(0xe7edf2);
+  const steelBase = new THREE.Color(0x808a93);
+  const steelDark = new THREE.Color(0x3a424a);
+  const graphite = new THREE.Color(0x1a2026);
+  const smokeSteel = new THREE.Color(0x57626b);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: steelBright.clone().lerp(steelBase, 0.24),
+    emissive: new THREE.Color(0xb2bcc8),
+    emissiveIntensity: 0.12,
+    metalness: 0.9,
+    roughness: 0.14,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  const heartMat = new THREE.MeshStandardMaterial({
+    color: amberHot.clone().lerp(new THREE.Color(0xffead2), 0.16),
+    emissive: amberColor.clone().lerp(amberSoft, 0.2),
+    emissiveIntensity: 0.5,
+    metalness: 0.34,
+    roughness: 0.12,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  const shaftMat = new THREE.MeshStandardMaterial({
+    color: graphite.clone().lerp(steelDark, 0.42),
+    emissive: new THREE.Color(0x161a1f),
+    emissiveIntensity: 0.05,
+    metalness: 0.78,
+    roughness: 0.28,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  const seamMat = new THREE.MeshStandardMaterial({
+    color: graphite.clone().lerp(new THREE.Color(0x101418), 0.24),
+    emissive: new THREE.Color(0x120f0d),
+    emissiveIntensity: 0.04,
+    metalness: 0.56,
+    roughness: 0.38,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  const clampMat = new THREE.MeshStandardMaterial({
+    color: steelBright.clone().lerp(smokeSteel, 0.2),
+    emissive: steelDark.clone(),
+    emissiveIntensity: 0.08,
+    metalness: 0.8,
+    roughness: 0.24,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  const shutterMat = new THREE.MeshStandardMaterial({
+    color: smokeSteel.clone().lerp(steelBright, 0.14),
+    emissive: amberSoft.clone().lerp(steelDark, 0.4),
+    emissiveIntensity: 0.12,
+    metalness: 0.74,
+    roughness: 0.26,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  const railMat = new THREE.MeshStandardMaterial({
+    color: steelBase.clone().lerp(steelBright, 0.16),
+    emissive: steelDark.clone(),
+    emissiveIntensity: 0.06,
+    metalness: 0.76,
+    roughness: 0.28,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  const conduitMatA = new THREE.MeshStandardMaterial({
+    color: steelBase.clone().lerp(smokeSteel, 0.1),
+    emissive: steelDark.clone(),
+    emissiveIntensity: 0.06,
+    metalness: 0.74,
+    roughness: 0.28,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  const conduitMatB = new THREE.MeshStandardMaterial({
+    color: steelDark.clone().lerp(steelBase, 0.08),
+    emissive: new THREE.Color(0x151a20),
+    emissiveIntensity: 0.05,
+    metalness: 0.68,
+    roughness: 0.3,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  const conduitMatC = new THREE.MeshStandardMaterial({
+    color: steelBright.clone().lerp(amberSoft, 0.14),
+    emissive: amberColor.clone().lerp(amberHot, 0.28),
+    emissiveIntensity: 0.2,
+    metalness: 0.72,
+    roughness: 0.22,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: smokeSteel.clone().lerp(steelBright, 0.06),
+    emissive: steelDark.clone(),
+    emissiveIntensity: 0.05,
+    metalness: 0.72,
+    roughness: 0.3,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  const braceMat = new THREE.MeshStandardMaterial({
+    color: graphite.clone().lerp(smokeSteel, 0.14),
+    emissive: steelDark.clone(),
+    emissiveIntensity: 0.04,
+    metalness: 0.62,
+    roughness: 0.32,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: new THREE.Color(0xd9e4ec),
+    transparent: true,
+    opacity: 0.64,
+    depthWrite: false
+  });
+
+  const ventMat = new THREE.MeshStandardMaterial({
+    color: steelBright.clone().lerp(steelBase, 0.12),
+    emissive: amberSoft.clone(),
+    emissiveIntensity: 0.18,
+    metalness: 0.7,
+    roughness: 0.24,
+    flatShading: true,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  const telemetryMat = new THREE.MeshBasicMaterial({
+    color: amberHot.clone(),
+    transparent: true,
+    opacity: 0.78,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+
+  const dustMat = new THREE.PointsMaterial({
+    color: steelBright.clone().lerp(amberSoft, 0.22),
+    size: 0.024,
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const mats = {
+    coreMat,
+    heartMat,
+    shaftMat,
+    seamMat,
+    clampMat,
+    shutterMat,
+    railMat,
+    conduitMatA,
+    conduitMatB,
+    conduitMatC,
+    frameMat,
+    braceMat,
+    edgeMat,
+    ventMat,
+    telemetryMat,
+    dustMat
+  };
+
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+  }
+
+  PROCESS_FLUX_CRUCIBLE_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+function _createProcessFluxCrucibleNode(group, visualCode, color) {
+  const resolvedVisualCode = (typeof visualCode === 'number' && visualCode <= 4096)
+    ? visualCode
+    : (group?.userData?.visualCode ?? 201);
+  const resolvedColor = (typeof color === 'number')
+    ? color
+    : ((typeof visualCode === 'number' && visualCode > 4096) ? visualCode : 0xffaa00);
+
+  group.userData = group.userData || {};
+  const nodeKey = group?.userData?.nodeId || group?.uuid || String(resolvedVisualCode || resolvedColor);
+  const seed = Math.abs(hashString(nodeKey)) || 201;
+  const rng = _mythicSeededRng(seed);
+  const geometries = _getProcessFluxCrucibleGeometries();
+  const materials = _getProcessFluxCrucibleMaterials(resolvedColor);
+  const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+  const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+
+  group.name = 'PROCESS_FLUX_CRUCIBLE_NODE';
+  group.userData.visualVariant = 'PROCESS_FLUX_CRUCIBLE_V4';
+  group.userData.processVariant = 'FLUX_CRUCIBLE';
+  group.userData.nodeGeometryName = 'PROCESS_FLUX_CRUCIBLE';
+  group.userData.visualReady = true;
+  group.userData.visualCoreImmutable = true;
+  group.userData.fluxCrucibleShellRotationAxis = new THREE.Vector3(0.18, 1.0, 0.12).normalize();
+  group.userData.fluxCrucibleShellRotationSpeed = 0.008 + rng() * 0.005;
+  group.userData.fluxCrucibleCoreRotationAxis = new THREE.Vector3(-0.12, 1.0, 0.18).normalize();
+  group.userData.fluxCrucibleCoreRotationSpeed = 0.018 + rng() * 0.006;
+  group.userData.fluxCrucibleClampPulseSpeed = 0.92 + rng() * 0.24;
+  group.userData.fluxCrucibleClampPulseAmplitude = 0.026 + rng() * 0.01;
+  group.userData.fluxCrucibleConduitSpinSpeed = 0.018 + rng() * 0.006;
+  group.userData.fluxCrucibleVentPulseSpeed = 1.18 + rng() * 0.22;
+  group.userData.fluxCrucibleVentPulseAmplitude = 0.028 + rng() * 0.01;
+  group.userData.fluxCrucibleDiagnosticSpinSpeed = 0.012 + rng() * 0.006;
+  group.userData.fluxCruciblePhase = rng() * Math.PI * 2;
+
+  const captureBasePose = (obj) => {
+    obj.userData = obj.userData || {};
+    obj.userData.basePositionX = obj.position.x;
+    obj.userData.basePositionY = obj.position.y;
+    obj.userData.basePositionZ = obj.position.z;
+    obj.userData.baseRotationX = obj.rotation.x;
+    obj.userData.baseRotationY = obj.rotation.y;
+    obj.userData.baseRotationZ = obj.rotation.z;
+    obj.userData.baseScaleX = obj.scale.x;
+    obj.userData.baseScaleY = obj.scale.y;
+    obj.userData.baseScaleZ = obj.scale.z;
+    return obj;
+  };
+
+  const markRenderable = (obj, interactive = true) => {
+    if (!obj) return obj;
+    obj.userData = obj.userData || {};
+    obj.userData.visualCoreImmutable = true;
+    obj.userData.ignoreWaveColor = true;
+    obj.userData.wavePatchMode = 'DEFAULT';
+    if (interactive && obj.isMesh && typeof obj.raycast !== 'function') {
+      obj.raycast = THREE.Mesh.prototype.raycast;
+      obj.userData.isInteractive = true;
+    }
+    return obj;
+  };
+
+  const addMesh = (parent, geometry, material, name, opts = {}) => {
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = name;
+    if (opts.position) mesh.position.set(...opts.position);
+    if (opts.rotation) mesh.rotation.set(...opts.rotation);
+    if (opts.scale) mesh.scale.set(...opts.scale);
+    if (opts.renderOrder !== undefined) mesh.renderOrder = opts.renderOrder;
+    markRenderable(mesh, opts.interactive !== false);
+    captureBasePose(mesh);
+    parent.add(mesh);
+    return mesh;
+  };
+
+  const addEdges = (parent, geometry, name, opts = {}) => {
+    const line = new THREE.LineSegments(geometry, materials.edgeMat);
+    line.name = name;
+    if (opts.position) line.position.set(...opts.position);
+    if (opts.rotation) line.rotation.set(...opts.rotation);
+    if (opts.scale) line.scale.set(...opts.scale);
+    if (opts.renderOrder !== undefined) line.renderOrder = opts.renderOrder;
+    markRenderable(line, false);
+    captureBasePose(line);
+    parent.add(line);
+    return line;
+  };
+
+  const addPoints = (parent, geometry, name, opts = {}) => {
+    const points = new THREE.Points(geometry, materials.dustMat);
+    points.name = name;
+    if (opts.position) points.position.set(...opts.position);
+    if (opts.rotation) points.rotation.set(...opts.rotation);
+    if (opts.scale) points.scale.set(...opts.scale);
+    if (opts.renderOrder !== undefined) points.renderOrder = opts.renderOrder;
+    markRenderable(points, false);
+    captureBasePose(points);
+    parent.add(points);
+    return points;
+  };
+
+  const coreGroup = new THREE.Group();
+  coreGroup.name = 'CORE_GROUP';
+  coreGroup.userData.isProcessFluxCrucibleCore = true;
+  coreGroup.userData.coreRotationAxis = new THREE.Vector3(-0.12, 1.0, 0.18).normalize();
+  coreGroup.userData.coreRotationSpeed = group.userData.fluxCrucibleCoreRotationSpeed;
+  coreGroup.userData.corePulseSpeed = 1.16 + rng() * 0.18;
+  captureBasePose(coreGroup);
+
+  const coreShell = addMesh(coreGroup, geometries.coreGeometry, materials.coreMat, 'FluxCrucibleCoreShell', {
+    rotation: [-0.02, 0.12, 0.04],
+    renderOrder: coreOrder
+  });
+  coreShell.userData.isProcessFluxCrucibleCoreShell = true;
+
+  addEdges(coreGroup, geometries.coreEdgesGeometry, 'FluxCrucibleCoreEdges', {
+    rotation: [-0.02, 0.12, 0.04],
+    renderOrder: archOrder
+  });
+
+  const coreSeam = addMesh(coreGroup, geometries.seamGeometry, materials.seamMat, 'FluxCrucibleReactionSeam', {
+    position: [0.0, 0.0, 0.225],
+    rotation: [0.06, 0.18, 0.0],
+    renderOrder: coreOrder + 1
+  });
+  coreSeam.userData.isProcessFluxCrucibleSeam = true;
+
+  const heart = addMesh(coreGroup, geometries.heartGeometry, materials.heartMat, 'FluxCrucibleConversionHeart', {
+    position: [0.05, 0.01, 0.02],
+    rotation: [0.18, 0.28, -0.16],
+    renderOrder: coreOrder + 2
+  });
+  heart.userData.isProcessFluxCrucibleHeart = true;
+  heart.userData.heartPulseSpeed = 1.38 + rng() * 0.18;
+  heart.userData.heartPulseAmplitude = 0.032 + rng() * 0.01;
+  heart.userData.heartSpinSpeed = 0.028 + rng() * 0.01;
+
+  const shaft = addMesh(coreGroup, geometries.shaftGeometry, materials.shaftMat, 'FluxCrucibleAxialShaft', {
+    rotation: [0.0, 0.18, 0.12],
+    renderOrder: coreOrder + 1
+  });
+  shaft.userData.isProcessFluxCrucibleShaft = true;
+  shaft.userData.shaftSpinSpeed = 0.084 + rng() * 0.028;
+
+  const clampGroup = new THREE.Group();
+  clampGroup.name = 'CLAMP_GROUP';
+  clampGroup.userData.isProcessFluxCrucibleClampGroup = true;
+  clampGroup.userData.clampPulseSpeed = group.userData.fluxCrucibleClampPulseSpeed;
+  clampGroup.userData.clampPulseAmplitude = group.userData.fluxCrucibleClampPulseAmplitude;
+  captureBasePose(clampGroup);
+
+  const makeClampModule = (name, position, rotation, jawOffset, jawRotation, axis, speed, phase) => {
+    const module = new THREE.Group();
+    module.name = name;
+    module.position.set(...position);
+    module.rotation.set(...rotation);
+    module.userData.isProcessFluxCrucibleClamp = true;
+    module.userData.isProcessFluxCrucibleClampModule = true;
+    module.userData.clampRotationAxis = axis.clone();
+    module.userData.clampRotationSpeed = speed;
+    module.userData.clampPulsePhase = phase;
+    captureBasePose(module);
+
+    const arm = addMesh(module, geometries.clampGeometry, materials.clampMat, `${name}_Arm`, {
+      scale: [0.98, 1.08, 0.9],
+      renderOrder: archOrder
+    });
+    arm.userData.isProcessFluxCrucibleClampArm = true;
+
+    const jaw = addMesh(module, geometries.shutterGeometry, materials.shutterMat, `${name}_Jaw`, {
+      position: jawOffset,
+      rotation: jawRotation,
+      renderOrder: archOrder + 1
+    });
+    jaw.userData.isProcessFluxCrucibleClampJaw = true;
+
+    addEdges(module, geometries.clampEdgesGeometry, `${name}_Edges`, {
+      renderOrder: archOrder + 2
+    });
+
+    return module;
+  };
+
+  clampGroup.add(
+    makeClampModule(
+      'FluxClamp_A',
+      [-0.58, 0.18, 0.12],
+      [0.08, 0.86, 0.62],
+      [0.0, 0.34, 0.02],
+      [0.02, 0.0, 0.18],
+      new THREE.Vector3(0.18, 1.0, 0.08).normalize(),
+      0.05 + rng() * 0.015,
+      rng() * Math.PI * 2
+    ),
+    makeClampModule(
+      'FluxClamp_B',
+      [0.58, 0.16, -0.1],
+      [-0.1, -2.28, -0.58],
+      [0.0, 0.34, -0.02],
+      [-0.02, 0.0, -0.16],
+      new THREE.Vector3(-0.16, 1.0, -0.06).normalize(),
+      0.054 + rng() * 0.014,
+      rng() * Math.PI * 2
+    ),
+    makeClampModule(
+      'FluxClamp_C',
+      [0.02, 0.6, -0.18],
+      [-0.72, 0.02, 1.08],
+      [0.0, 0.28, 0.0],
+      [0.0, 0.0, 0.26],
+      new THREE.Vector3(0.06, 1.0, 0.18).normalize(),
+      0.046 + rng() * 0.014,
+      rng() * Math.PI * 2
+    ),
+    makeClampModule(
+      'FluxClamp_D',
+      [-0.02, -0.58, 0.14],
+      [0.68, 0.02, -1.04],
+      [0.0, 0.28, 0.0],
+      [0.0, 0.0, -0.24],
+      new THREE.Vector3(-0.08, 1.0, 0.12).normalize(),
+      0.052 + rng() * 0.012,
+      rng() * Math.PI * 2
+    )
+  );
+
+  const throughputGroup = new THREE.Group();
+  throughputGroup.name = 'THROUGHPUT_GROUP';
+  throughputGroup.userData.isProcessFluxCrucibleThroughputGroup = true;
+  throughputGroup.userData.throughputSpinSpeed = group.userData.fluxCrucibleConduitSpinSpeed;
+  captureBasePose(throughputGroup);
+
+  const intakeConduit = addMesh(throughputGroup, geometries.conduitGeometryA, materials.conduitMatA, 'FluxIntakeConduit', {
+    position: [-0.02, -0.06, -0.02],
+    rotation: [0.12, -0.04, 0.18],
+    renderOrder: archOrder
+  });
+  intakeConduit.userData.isProcessFluxCrucibleConduit = true;
+  intakeConduit.userData.conduitRotationSpeed = 0.022 + rng() * 0.006;
+  intakeConduit.userData.conduitPulsePhase = rng() * Math.PI * 2;
+
+  const exhaustConduit = addMesh(throughputGroup, geometries.conduitGeometryB, materials.conduitMatB, 'FluxExhaustConduit', {
+    position: [0.0, 0.12, 0.01],
+    rotation: [0.04, 0.32, -0.02],
+    renderOrder: archOrder
+  });
+  exhaustConduit.userData.isProcessFluxCrucibleConduit = true;
+  exhaustConduit.userData.conduitRotationSpeed = 0.018 + rng() * 0.006;
+  exhaustConduit.userData.conduitPulsePhase = rng() * Math.PI * 2;
+
+  const returnConduit = addMesh(throughputGroup, geometries.conduitGeometryC, materials.conduitMatC, 'FluxReturnConduit', {
+    position: [-0.06, 0.28, -0.2],
+    rotation: [0.18, 0.26, 0.86],
+    renderOrder: archOrder
+  });
+  returnConduit.userData.isProcessFluxCrucibleConduit = true;
+  returnConduit.userData.conduitRotationSpeed = 0.016 + rng() * 0.006;
+  returnConduit.userData.conduitPulsePhase = rng() * Math.PI * 2;
+
+  const topRail = addMesh(throughputGroup, geometries.railGeometry, materials.railMat, 'FluxThroughputRail_A', {
+    position: [0.34, 0.34, 0.1],
+    rotation: [0.12, 0.3, 0.36],
+    scale: [1.0, 0.96, 0.92],
+    renderOrder: archOrder
+  });
+  topRail.userData.isProcessFluxCrucibleRail = true;
+  topRail.userData.conduitRotationSpeed = 0.014 + rng() * 0.004;
+
+  const lowerRail = addMesh(throughputGroup, geometries.railGeometry, materials.railMat, 'FluxThroughputRail_B', {
+    position: [-0.36, -0.34, -0.12],
+    rotation: [-0.14, -0.36, -0.42],
+    scale: [0.92, 0.94, 0.92],
+    renderOrder: archOrder
+  });
+  lowerRail.userData.isProcessFluxCrucibleRail = true;
+  lowerRail.userData.conduitRotationSpeed = 0.014 + rng() * 0.004;
+
+  const manifoldGroup = new THREE.Group();
+  manifoldGroup.name = 'MANIFOLD_GROUP';
+  manifoldGroup.userData.isProcessFluxCrucibleManifoldGroup = true;
+  manifoldGroup.userData.ventPulseSpeed = group.userData.fluxCrucibleVentPulseSpeed;
+  manifoldGroup.userData.ventPulseAmplitude = group.userData.fluxCrucibleVentPulseAmplitude;
+  captureBasePose(manifoldGroup);
+
+  const leftFrame = addMesh(manifoldGroup, geometries.frameBarGeometry, materials.frameMat, 'FluxFrameSupport_Left', {
+    position: [-0.7, 0.06, -0.08],
+    rotation: [0.02, -0.14, 0.06],
+    scale: [0.92, 1.0, 0.96],
+    renderOrder: archOrder
+  });
+  leftFrame.userData.isProcessFluxCrucibleFrameBar = true;
+
+  const rightFrame = addMesh(manifoldGroup, geometries.frameBarGeometry, materials.frameMat, 'FluxFrameSupport_Right', {
+    position: [0.7, 0.08, 0.1],
+    rotation: [-0.02, 0.18, -0.04],
+    scale: [0.88, 1.0, 0.96],
+    renderOrder: archOrder
+  });
+  rightFrame.userData.isProcessFluxCrucibleFrameBar = true;
+
+  const braceA = addMesh(manifoldGroup, geometries.braceGeometry, materials.braceMat, 'FluxBrace_A', {
+    position: [0.32, 0.5, -0.16],
+    rotation: [0.58, 0.06, 0.88],
+    scale: [1.0, 1.0, 0.92],
+    renderOrder: archOrder
+  });
+  braceA.userData.isProcessFluxCrucibleBrace = true;
+
+  const braceB = addMesh(manifoldGroup, geometries.braceGeometry, materials.braceMat, 'FluxBrace_B', {
+    position: [-0.28, -0.46, 0.12],
+    rotation: [-0.56, -0.08, -0.96],
+    scale: [0.94, 0.96, 0.9],
+    renderOrder: archOrder
+  });
+  braceB.userData.isProcessFluxCrucibleBrace = true;
+
+  const ventA = addMesh(manifoldGroup, geometries.ventGeometry, materials.ventMat, 'FluxVent_A', {
+    position: [0.56, 0.62, 0.08],
+    rotation: [0.08, 0.24, 0.18],
+    scale: [1.0, 1.08, 0.96],
+    renderOrder: archOrder
+  });
+  ventA.userData.isProcessFluxCrucibleVentCluster = true;
+  ventA.userData.ventPulsePhase = rng() * Math.PI * 2;
+
+  const ventB = addMesh(manifoldGroup, geometries.ventGeometry, materials.ventMat, 'FluxVent_B', {
+    position: [0.42, -0.52, -0.14],
+    rotation: [-0.06, -0.28, -0.2],
+    scale: [0.94, 1.0, 0.92],
+    renderOrder: archOrder
+  });
+  ventB.userData.isProcessFluxCrucibleVentCluster = true;
+  ventB.userData.ventPulsePhase = rng() * Math.PI * 2;
+
+  const telemetryA = addMesh(manifoldGroup, geometries.telemetryGeometry, materials.telemetryMat, 'FluxTelemetry_A', {
+    position: [0.36, 0.74, -0.02],
+    rotation: [0.02, 0.52, 0.0],
+    scale: [1.0, 1.2, 1.0],
+    renderOrder: archOrder + 1
+  });
+  telemetryA.userData.isProcessFluxCrucibleTelemetry = true;
+  telemetryA.userData.telemetrySpinSpeed = 0.024 + rng() * 0.006;
+
+  const telemetryB = addMesh(manifoldGroup, geometries.telemetryGeometry, materials.telemetryMat, 'FluxTelemetry_B', {
+    position: [-0.18, 0.86, 0.06],
+    rotation: [0.0, -0.38, 0.04],
+    scale: [1.0, 1.08, 1.0],
+    renderOrder: archOrder + 1
+  });
+  telemetryB.userData.isProcessFluxCrucibleTelemetry = true;
+  telemetryB.userData.telemetrySpinSpeed = 0.022 + rng() * 0.006;
+
+  const telemetryC = addMesh(manifoldGroup, geometries.telemetryGeometry, materials.telemetryMat, 'FluxTelemetry_C', {
+    position: [-0.58, -0.2, -0.08],
+    rotation: [0.0, 0.28, -0.06],
+    scale: [1.0, 1.02, 1.0],
+    renderOrder: archOrder + 1
+  });
+  telemetryC.userData.isProcessFluxCrucibleTelemetry = true;
+  telemetryC.userData.telemetrySpinSpeed = 0.02 + rng() * 0.006;
+
+  const telemetryD = addMesh(manifoldGroup, geometries.telemetryGeometry, materials.telemetryMat, 'FluxTelemetry_D', {
+    position: [0.1, -0.72, 0.16],
+    rotation: [0.0, -0.22, 0.08],
+    scale: [1.0, 1.0, 1.0],
+    renderOrder: archOrder + 1
+  });
+  telemetryD.userData.isProcessFluxCrucibleTelemetry = true;
+  telemetryD.userData.telemetrySpinSpeed = 0.018 + rng() * 0.006;
+
+  const auraGroup = new THREE.Group();
+  auraGroup.name = 'AURA_GROUP';
+  auraGroup.userData.isProcessFluxCrucibleAuraGroup = true;
+  captureBasePose(auraGroup);
+
+  addPoints(auraGroup, geometries.dustGeometry, 'FluxCrucibleDust', {
+    renderOrder: archOrder + 2
+  });
+
+  const shellColor = 0xffd29b;
+  const coolShellColor = 0xd9f2ff;
+  const shell1 = createNodeHologramShell(coreShell, shellColor);
+  if (shell1) {
+    shell1.name = 'FluxDiagnosticShell_A';
+    shell1.position.copy(coreShell.position);
+    shell1.quaternion.copy(coreShell.quaternion);
+    shell1.scale.copy(coreShell.scale).multiplyScalar(1.1);
+    shell1.frustumCulled = false;
+    shell1.renderOrder = archOrder;
+    shell1.userData = shell1.userData || {};
+    shell1.userData.ignoreWaveColor = true;
+    if (shell1.material?.uniforms?.uOpacity) shell1.material.uniforms.uOpacity.value = 0.08;
+    auraGroup.add(shell1);
+  }
+
+  const shell2 = createNodeHologramShell(coreShell, coolShellColor);
+  if (shell2) {
+    shell2.name = 'FluxDiagnosticShell_B';
+    shell2.position.copy(coreShell.position);
+    shell2.quaternion.copy(coreShell.quaternion);
+    shell2.scale.copy(coreShell.scale).multiplyScalar(1.18);
+    shell2.frustumCulled = false;
+    shell2.renderOrder = archOrder;
+    shell2.userData = shell2.userData || {};
+    shell2.userData.ignoreWaveColor = true;
+    if (shell2.material?.uniforms?.uOpacity) shell2.material.uniforms.uOpacity.value = 0.05;
+    auraGroup.add(shell2);
+  }
+
+  const edgeGlow = createNodeNeonEdgeGlowShell(coreShell, 0xffb05c, {
+    glowIntensity: 0.8,
+    edgeWidth: 0.06,
+    pulseAmount: 0.0
+  });
+  if (edgeGlow) {
+    edgeGlow.name = 'FluxDiagnosticEdgeGlow';
+    edgeGlow.position.copy(coreShell.position);
+    edgeGlow.quaternion.copy(coreShell.quaternion);
+    edgeGlow.scale.copy(coreShell.scale).multiplyScalar(1.01);
+    edgeGlow.frustumCulled = false;
+    edgeGlow.renderOrder = archOrder + 1;
+    edgeGlow.userData = edgeGlow.userData || {};
+    edgeGlow.userData.ignoreWaveColor = true;
+    auraGroup.add(edgeGlow);
+  }
+
+  group.add(coreGroup);
+  group.add(clampGroup);
+  group.add(throughputGroup);
+  group.add(manifoldGroup);
+  group.add(auraGroup);
+
+  group.traverse((o) => {
+    if (o?.isMesh || o?.isPoints || o?.isLine || o?.isLineSegments) {
+      validateMeshGeometry(o, o.name || 'process-flux-crucible');
+    }
+  });
+
+  return group;
+}
+
 // ---------- QUANTUM v2 helpers ----------
 function _getQuantumV2Geometries() {
   if (!QUANTUM_V2_CACHE.baseGeometry) {
@@ -7351,6 +8265,361 @@ function _getIntegrationFigureEightClaspMaterials(color) {
   }
 
   INTEGRATION_FIGURE_EIGHT_CLASP_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+// ---------- INTEGRATION 315 helpers ----------
+const INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  loadSeedGeometry: null,
+  loadSeedEdgesGeometry: null,
+  seamGeometry: null,
+  seamEdgesGeometry: null,
+  spineAxisGeometry: null,
+  spineAxisEdgesGeometry: null,
+  vertebraGeometry: null,
+  vertebraEdgesGeometry: null,
+  braceGeometry: null,
+  braceEdgesGeometry: null,
+  tetherGeometry: null,
+  tetherEdgesGeometry: null,
+  loadGeometry: null,
+  loadEdgesGeometry: null,
+  indicatorGeometry: null,
+  witnessGeometryA: null,
+  witnessGeometryB: null,
+  dustGeometry: null
+};
+
+const INTEGRATION_WEIGHT_SPINE_ANCHOR_MATERIALS = new Map();
+
+function _deformWeightSpineAnchorGeometry(geometry, deformFn) {
+  const pos = geometry?.attributes?.position;
+  if (!pos) return geometry;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const next = deformFn(x, y, z, i);
+    pos.setXYZ(i, next[0], next[1], next[2]);
+  }
+  pos.needsUpdate = true;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+function _buildWeightSpineAnchorPolylineGeometry(points, samples = 18) {
+  const positions = [];
+  const pointCount = points.length;
+  for (let i = 0; i <= samples; i++) {
+    const t = i / samples;
+    const scaled = t * (pointCount - 1);
+    const idx = Math.min(pointCount - 2, Math.floor(scaled));
+    const localT = scaled - idx;
+    const p0 = points[idx];
+    const p1 = points[idx + 1];
+    const x = p0.x + (p1.x - p0.x) * localT;
+    const y = p0.y + (p1.y - p0.y) * localT;
+    const z = p0.z + (p1.z - p0.z) * localT;
+    positions.push(x, y, z);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+function _getIntegrationWeightSpineAnchorGeometries() {
+  if (!INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.coreGeometry) {
+    const coreGeometry = new THREE.DodecahedronGeometry(0.27, 0);
+    _deformWeightSpineAnchorGeometry(coreGeometry, (x, y, z) => {
+      const yBias = y > 0 ? 1.16 : 0.92;
+      const xBias = x > 0 ? 1.08 : 0.95;
+      const zBias = z > 0 ? 0.94 : 1.05;
+      const seam = Math.sin((y + z) * 5.4) * 0.016;
+      return [
+        x * xBias + seam * 0.35,
+        y * yBias - Math.abs(x) * 0.045 + seam * 0.18,
+        z * zBias - x * 0.06
+      ];
+    });
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.coreGeometry = coreGeometry;
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 12);
+
+    const loadSeedGeometry = new THREE.OctahedronGeometry(0.12, 0);
+    _deformWeightSpineAnchorGeometry(loadSeedGeometry, (x, y, z) => {
+      const lift = y > 0 ? 1.12 : 0.88;
+      const skew = Math.sin((x - z) * 6.3) * 0.012;
+      return [
+        x * (x > 0 ? 1.06 : 0.92) + skew,
+        y * lift,
+        z * (z > 0 ? 0.96 : 1.04) - skew * 0.5
+      ];
+    });
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.loadSeedGeometry = loadSeedGeometry;
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.loadSeedEdgesGeometry = safeCreateEdgesGeometry(loadSeedGeometry, 10);
+
+    const seamGeometry = new THREE.BoxGeometry(0.08, 0.4, 0.1, 1, 4, 1);
+    _deformWeightSpineAnchorGeometry(seamGeometry, (x, y, z) => {
+      const yNorm = (y + 0.2) / 0.4;
+      return [
+        x * (0.64 + Math.abs(y) * 0.42) + y * 0.1,
+        y * (0.94 + Math.abs(z) * 0.05),
+        z * (0.72 + yNorm * 0.2) - x * 0.16
+      ];
+    });
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.seamGeometry = seamGeometry;
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.seamEdgesGeometry = safeCreateEdgesGeometry(seamGeometry, 10);
+
+    const spineAxisGeometry = new THREE.CylinderGeometry(0.042, 0.048, 1.24, 6, 1, false);
+    _deformWeightSpineAnchorGeometry(spineAxisGeometry, (x, y, z) => {
+      const taper = y > 0 ? 0.98 : 1.02;
+      return [
+        x * (x > 0 ? 0.92 : 1.06),
+        y * taper,
+        z * (z > 0 ? 0.94 : 1.04)
+      ];
+    });
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.spineAxisGeometry = spineAxisGeometry;
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.spineAxisEdgesGeometry = safeCreateEdgesGeometry(spineAxisGeometry, 8);
+
+    const vertebraGeometry = new THREE.CylinderGeometry(0.1, 0.13, 0.18, 6, 1, false);
+    _deformWeightSpineAnchorGeometry(vertebraGeometry, (x, y, z) => {
+      const yBias = y > 0 ? 1.08 : 0.92;
+      const sideBias = x > 0 ? 1.04 : 0.96;
+      const spineWarp = Math.sin((x + z) * 4.8) * 0.01;
+      return [
+        x * sideBias + spineWarp * 0.3,
+        y * yBias,
+        z * (z > 0 ? 0.96 : 1.02) - spineWarp * 0.25
+      ];
+    });
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.vertebraGeometry = vertebraGeometry;
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.vertebraEdgesGeometry = safeCreateEdgesGeometry(vertebraGeometry, 8);
+
+    const braceGeometry = new THREE.CylinderGeometry(0.028, 0.036, 0.48, 6, 1, false);
+    _deformWeightSpineAnchorGeometry(braceGeometry, (x, y, z) => {
+      const bend = Math.sin((y + z) * 5.8) * 0.012;
+      return [
+        x * (x > 0 ? 1.06 : 0.92) + bend,
+        y * (0.94 + Math.abs(z) * 0.04),
+        z * (z > 0 ? 0.94 : 1.04) - bend * 0.45
+      ];
+    });
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.braceGeometry = braceGeometry;
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.braceEdgesGeometry = safeCreateEdgesGeometry(braceGeometry, 8);
+
+    const tetherGeometry = new THREE.CylinderGeometry(0.014, 0.018, 0.19, 5, 1, false);
+    _deformWeightSpineAnchorGeometry(tetherGeometry, (x, y, z) => {
+      const sway = Math.sin((x - z) * 6.1) * 0.008;
+      return [
+        x * (x > 0 ? 1.02 : 0.94) + sway,
+        y * 1.0,
+        z * 1.0 - sway * 0.5
+      ];
+    });
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.tetherGeometry = tetherGeometry;
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.tetherEdgesGeometry = safeCreateEdgesGeometry(tetherGeometry, 8);
+
+    const loadGeometry = new THREE.CylinderGeometry(0.16, 0.2, 0.11, 6, 1, false);
+    _deformWeightSpineAnchorGeometry(loadGeometry, (x, y, z) => {
+      const slab = y > 0 ? 1.08 : 0.92;
+      const drift = Math.sin((x + z) * 5.2) * 0.01;
+      return [
+        x * (x > 0 ? 1.08 : 0.9) + drift,
+        y * slab,
+        z * (z > 0 ? 0.94 : 1.08) - drift * 0.4
+      ];
+    });
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.loadGeometry = loadGeometry;
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.loadEdgesGeometry = safeCreateEdgesGeometry(loadGeometry, 8);
+
+    const indicatorGeometry = new THREE.IcosahedronGeometry(0.026, 0);
+    indicatorGeometry.computeBoundingSphere();
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.indicatorGeometry = indicatorGeometry;
+
+    const braceCurveA = _buildWeightSpineAnchorPolylineGeometry([
+      new THREE.Vector3(-0.24, 0.18, 0.08),
+      new THREE.Vector3(-0.12, 0.26, 0.14),
+      new THREE.Vector3(0.04, 0.21, 0.16),
+      new THREE.Vector3(0.22, 0.08, 0.06)
+    ], 18);
+    const braceCurveB = _buildWeightSpineAnchorPolylineGeometry([
+      new THREE.Vector3(0.2, -0.02, -0.1),
+      new THREE.Vector3(0.08, -0.12, -0.18),
+      new THREE.Vector3(-0.06, -0.08, -0.14),
+      new THREE.Vector3(-0.2, 0.02, -0.04)
+    ], 18);
+    const braceCurveC = _buildWeightSpineAnchorPolylineGeometry([
+      new THREE.Vector3(-0.16, -0.22, 0.08),
+      new THREE.Vector3(-0.02, -0.16, 0.16),
+      new THREE.Vector3(0.12, -0.04, 0.08),
+      new THREE.Vector3(0.22, 0.08, -0.02)
+    ], 18);
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.witnessGeometryA = braceCurveA;
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.witnessGeometryB = braceCurveB;
+
+    const dustCount = 18;
+    const dustPositions = [];
+    for (let i = 0; i < dustCount; i++) {
+      const angle = (i / dustCount) * Math.PI * 2;
+      const radius = 0.28 + Math.sin(i * 0.73) * 0.06 + (i % 4) * 0.014;
+      dustPositions.push(
+        Math.cos(angle) * radius,
+        -0.02 + Math.sin(i * 0.41) * 0.12,
+        Math.sin(angle * 1.18) * radius * 0.8
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE.dustGeometry = dustGeometry;
+  }
+
+  return INTEGRATION_WEIGHT_SPINE_ANCHOR_CACHE;
+}
+
+function _getIntegrationWeightSpineAnchorMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0x00ff88;
+  if (INTEGRATION_WEIGHT_SPINE_ANCHOR_MATERIALS.has(colorHex)) {
+    return INTEGRATION_WEIGHT_SPINE_ANCHOR_MATERIALS.get(colorHex);
+  }
+
+  const baseColor = new THREE.Color(colorHex);
+  const coldWhite = new THREE.Color(0xf3fbff);
+  const coldSteel = new THREE.Color(0x9aa9b7);
+  const deepVoid = new THREE.Color(0x0a1016);
+  const diagnosticSteel = baseColor.clone().lerp(coldWhite, 0.22);
+  const diagnosticGreen = baseColor.clone().lerp(new THREE.Color(0x9ef3d3), 0.34);
+  const warmAmber = new THREE.Color(0xffb66b);
+
+  const coreMat = new THREE.MeshPhysicalMaterial({
+    color: coldSteel.clone().lerp(baseColor, 0.08),
+    metalness: 0.88,
+    roughness: 0.14,
+    emissive: diagnosticSteel,
+    emissiveIntensity: 0.2,
+    transmission: 0,
+    thickness: 0.18,
+    transparent: false,
+    opacity: 1,
+    side: THREE.FrontSide
+  });
+
+  const seedMat = new THREE.MeshStandardMaterial({
+    color: diagnosticSteel.clone().lerp(coldWhite, 0.22),
+    metalness: 0.72,
+    roughness: 0.18,
+    emissive: diagnosticGreen,
+    emissiveIntensity: 0.22,
+    transparent: false,
+    opacity: 1,
+    side: THREE.FrontSide
+  });
+
+  const seamMat = new THREE.MeshStandardMaterial({
+    color: deepVoid.clone().lerp(baseColor, 0.08),
+    metalness: 0.56,
+    roughness: 0.28,
+    emissive: baseColor.clone().lerp(warmAmber, 0.14),
+    emissiveIntensity: 0.08,
+    transparent: false,
+    opacity: 1,
+    side: THREE.DoubleSide
+  });
+
+  const spineMat = new THREE.MeshStandardMaterial({
+    color: coldSteel.clone().lerp(baseColor, 0.12),
+    metalness: 0.84,
+    roughness: 0.18,
+    emissive: diagnosticSteel,
+    emissiveIntensity: 0.16,
+    transparent: false,
+    opacity: 1,
+    side: THREE.FrontSide
+  });
+
+  const braceMat = new THREE.MeshStandardMaterial({
+    color: diagnosticSteel.clone().lerp(coldWhite, 0.12),
+    metalness: 0.8,
+    roughness: 0.2,
+    emissive: diagnosticGreen,
+    emissiveIntensity: 0.14,
+    transparent: false,
+    opacity: 1,
+    side: THREE.FrontSide
+  });
+
+  const loadMat = new THREE.MeshStandardMaterial({
+    color: coldWhite.clone().lerp(baseColor, 0.18),
+    metalness: 0.68,
+    roughness: 0.22,
+    emissive: diagnosticGreen,
+    emissiveIntensity: 0.22,
+    transparent: false,
+    opacity: 1,
+    side: THREE.FrontSide
+  });
+
+  const loadIndicatorMat = new THREE.MeshPhysicalMaterial({
+    color: warmAmber,
+    metalness: 0.18,
+    roughness: 0.14,
+    emissive: warmAmber,
+    emissiveIntensity: 0.92,
+    transmission: 0,
+    thickness: 0.06,
+    transparent: true,
+    opacity: 0.98,
+    side: THREE.FrontSide
+  });
+
+  const witnessMat = new THREE.LineBasicMaterial({
+    color: coldWhite.clone().lerp(baseColor, 0.2),
+    transparent: true,
+    opacity: 0.54,
+    depthWrite: false
+  });
+
+  const dustMat = new THREE.PointsMaterial({
+    color: diagnosticSteel.clone().lerp(coldWhite, 0.08),
+    size: 0.028,
+    transparent: true,
+    opacity: 0.52,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: coldWhite.clone().lerp(baseColor, 0.1),
+    transparent: true,
+    opacity: 0.62,
+    depthWrite: false
+  });
+
+  const mats = {
+    coreMat,
+    seedMat,
+    seamMat,
+    spineMat,
+    braceMat,
+    loadMat,
+    loadIndicatorMat,
+    witnessMat,
+    dustMat,
+    edgeMat
+  };
+
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+    mat.userData.isShared = true;
+  }
+  mats.loadIndicatorMat.userData.ignoreWaveColor = true;
+
+  INTEGRATION_WEIGHT_SPINE_ANCHOR_MATERIALS.set(colorHex, mats);
   return mats;
 }
 
@@ -12427,16 +13696,14 @@ static _createInputNodeLegacy(group, index, color) {
   }
 
   /**
-   * PROCESS: FLUX_CHAMBER (NEW - Session 63)
-   * Chamber where data enters, transforms, and exits
-   * - Hollow asymmetric structure (not spherical)
-   * - Visible internal path/corridor
-   * - Inner core rotates at different speed
-   * - Animation: Slow rotation + inner core counter-rotation
-   * 
+   * PROCESS 201: Flux Crucible Engine
+   * Compatibility entrypoint retained for the registry.
+   * The live implementation now delegates to the Flux Crucible builder.
+   *
    * VISUAL SAFETY: Static geometry, transform-only animation, immutable
    */
-  static createProcessFluxChamber(group, color) {
+  static createProcessFluxChamber(group, visualCode, color) {
+    return _createProcessFluxCrucibleNode(group, visualCode, color);
     try {
       // Create outer asymmetric chamber shell (twisted hex-like shape)
       const outerVertices = new Float32Array([
@@ -25124,8 +26391,115 @@ static createControlNode0(group, color) {
       });
     }
 
-    // POLISH: Animate FLUX_CHAMBER (outer chamber + inner core counter-rotation)
-    if (nodeGroup.userData.chamberOuterRotationAxis) {
+    // POLISH: Animate FLUX_CRUCIBLE (sealed core + clamps + throughput + diagnostics)
+    if (nodeGroup.userData.nodeGeometryName === 'PROCESS_FLUX_CRUCIBLE') {
+      nodeGroup.rotation.y += deltaTime * (nodeGroup.userData.fluxCrucibleShellRotationSpeed || 0.008);
+      nodeGroup.rotation.x = Math.sin(time * 0.11 + (nodeGroup.userData.fluxCruciblePhase || 0)) * 0.01;
+      nodeGroup.rotation.z = Math.sin(time * 0.07 + (nodeGroup.userData.fluxCruciblePhase || 0) * 0.6) * 0.004;
+
+      nodeGroup.children.forEach(child => {
+        if (child.userData?.isProcessFluxCrucibleCore) {
+          const axis = child.userData.coreRotationAxis;
+          const speed = child.userData.coreRotationSpeed || 0.018;
+          if (axis) {
+            child.rotateOnWorldAxis(axis, deltaTime * speed);
+          } else {
+            child.rotation.y += deltaTime * speed;
+          }
+
+          child.children.forEach(part => {
+            if (part.userData?.isProcessFluxCrucibleHeart) {
+              const phase = part.userData.heartPulsePhase || 0;
+              const pulseSpeed = part.userData.heartPulseSpeed || 1.38;
+              const pulseAmp = part.userData.heartPulseAmplitude || 0.032;
+              const pulse = 1 + Math.sin(time * pulseSpeed + phase) * pulseAmp;
+              const baseScaleX = part.userData.baseScaleX || 1;
+              const baseScaleY = part.userData.baseScaleY || 1;
+              const baseScaleZ = part.userData.baseScaleZ || 1;
+              part.scale.set(baseScaleX * pulse, baseScaleY * (1 + pulseAmp * 0.12), baseScaleZ * pulse);
+              part.rotation.y += deltaTime * (part.userData.heartSpinSpeed || 0.028);
+              part.rotation.z += deltaTime * (part.userData.heartSpinSpeed || 0.028) * 0.18;
+            }
+            if (part.userData?.isProcessFluxCrucibleShaft) {
+              const speed = part.userData.shaftSpinSpeed || 0.084;
+              part.rotation.y += deltaTime * speed;
+              part.rotation.z += deltaTime * speed * 0.12;
+            }
+            if (part.userData?.isProcessFluxCrucibleSeam) {
+              part.rotation.y += deltaTime * 0.008;
+            }
+          });
+        }
+
+        if (child.userData?.isProcessFluxCrucibleClampGroup) {
+          const clampPulseSpeed = child.userData.clampPulseSpeed || 1.0;
+          const clampPulseAmp = child.userData.clampPulseAmplitude || 0.028;
+          child.children.forEach(module => {
+            if (!module.userData?.isProcessFluxCrucibleClampModule) return;
+            const phase = module.userData.clampPulsePhase || 0;
+            const swing = Math.sin(time * clampPulseSpeed + phase) * clampPulseAmp;
+            module.rotation.x = (module.userData.baseRotationX || 0) + swing * 0.46;
+            module.rotation.y = (module.userData.baseRotationY || 0) + swing * 0.34;
+            module.rotation.z = (module.userData.baseRotationZ || 0) + swing * 0.92 + deltaTime * (module.userData.clampRotationSpeed || 0.05) * 0.16;
+            module.children.forEach(part => {
+              if (part.userData?.isProcessFluxCrucibleClampJaw) {
+                const jawPulse = 1 + swing * 0.18;
+                const baseScaleX = part.userData.baseScaleX || 1;
+                const baseScaleY = part.userData.baseScaleY || 1;
+                const baseScaleZ = part.userData.baseScaleZ || 1;
+                part.scale.set(baseScaleX * jawPulse, baseScaleY * (1 + clampPulseAmp * 0.08), baseScaleZ * jawPulse);
+              }
+              if (part.userData?.isProcessFluxCrucibleClampArm) {
+                part.rotation.y += deltaTime * (module.userData.clampRotationSpeed || 0.05) * 0.2;
+              }
+            });
+          });
+        }
+
+        if (child.userData?.isProcessFluxCrucibleThroughputGroup) {
+          child.rotation.y += deltaTime * (child.userData.throughputSpinSpeed || 0.018) * 0.28;
+          child.children.forEach(part => {
+            if (!part.userData?.isProcessFluxCrucibleConduit && !part.userData?.isProcessFluxCrucibleRail) return;
+            const phase = part.userData.conduitPulsePhase || 0;
+            const speed = part.userData.conduitRotationSpeed || 0.02;
+            const sway = Math.sin(time * speed + phase) * 0.018;
+            part.rotation.x = (part.userData.baseRotationX || 0) + sway * 0.45;
+            part.rotation.y = (part.userData.baseRotationY || 0) + deltaTime * speed * 0.18;
+            part.rotation.z = (part.userData.baseRotationZ || 0) + sway * 0.3;
+          });
+        }
+
+        if (child.userData?.isProcessFluxCrucibleManifoldGroup) {
+          child.rotation.y += deltaTime * (nodeGroup.userData.fluxCrucibleDiagnosticSpinSpeed || 0.012) * 0.18;
+          child.children.forEach(part => {
+            if (part.userData?.isProcessFluxCrucibleVentCluster) {
+              const phase = part.userData.ventPulsePhase || 0;
+              const speed = nodeGroup.userData.fluxCrucibleVentPulseSpeed || 1.18;
+              const amp = nodeGroup.userData.fluxCrucibleVentPulseAmplitude || 0.028;
+              const pulse = 1 + Math.sin(time * speed + phase) * amp;
+              const baseScaleX = part.userData.baseScaleX || 1;
+              const baseScaleY = part.userData.baseScaleY || 1;
+              const baseScaleZ = part.userData.baseScaleZ || 1;
+              part.scale.set(baseScaleX * pulse, baseScaleY * (1 + amp * 0.1), baseScaleZ * pulse);
+              part.rotation.z += deltaTime * 0.016;
+            }
+            if (part.userData?.isProcessFluxCrucibleTelemetry) {
+              const speed = part.userData.telemetrySpinSpeed || 0.02;
+              part.rotation.y = (part.userData.baseRotationY || 0) + Math.sin(time * speed + (nodeGroup.userData.fluxCruciblePhase || 0)) * 0.12;
+              part.rotation.z += deltaTime * speed * 0.12;
+            }
+            if (part.userData?.isProcessFluxCrucibleFrameBar || part.userData?.isProcessFluxCrucibleBrace) {
+              part.rotation.y += deltaTime * 0.01;
+            }
+          });
+        }
+
+        if (child.userData?.isProcessFluxCrucibleAuraGroup) {
+          child.rotation.y += deltaTime * 0.004;
+          child.rotation.z = Math.sin(time * 0.08 + (nodeGroup.userData.fluxCruciblePhase || 0)) * 0.004;
+        }
+      });
+    } else if (nodeGroup.userData.chamberOuterRotationAxis) {
       const outerChamber = nodeGroup.children.find(c => c.userData && c.userData.isOuterChamber);
       if (outerChamber) {
         const axis = nodeGroup.userData.chamberOuterRotationAxis;
@@ -25899,6 +27273,135 @@ static createControlNode0(group, color) {
       nodeGroup.children.forEach(child => {
         if (child.userData && child.userData.isStabilityAnchor) {
            child.rotation.z += deltaTime * 0.2;
+        }
+      });
+    }
+
+    // 4. INTEGRATION_WEIGHT_SPINE_ANCHOR (Weight-Spine Anchor)
+    if (nodeGroup.userData.nodeGeometryName === 'INTEGRATION_WEIGHT_SPINE_ANCHOR') {
+      const shellSpin = nodeGroup.userData.weightSpineAnchorShellRotationSpeed || 0.004;
+      nodeGroup.rotation.y += deltaTime * shellSpin;
+      nodeGroup.rotation.x = Math.sin(time * 0.05 + (nodeGroup.userData.weightSpineAnchorPhase || 0)) * 0.01;
+      nodeGroup.rotation.z = Math.sin(time * 0.037 + (nodeGroup.userData.weightSpineAnchorPhase || 0)) * 0.006;
+
+      nodeGroup.children.forEach(child => {
+        if (child.userData?.isWeightSpineAnchorCoreGroup) {
+          const speed = child.userData.coreRotationSpeed || 0.006;
+          child.rotation.y += deltaTime * speed;
+          child.rotation.x = Math.sin(time * 0.06 + (child.userData.corePhase || 0)) * 0.008;
+          child.rotation.z = Math.sin(time * 0.045 + (child.userData.corePhase || 0)) * 0.005;
+        }
+
+        if (child.userData?.isWeightSpineAnchorSpineGroup) {
+          const speed = child.userData.spineRotationSpeed || 0.003;
+          child.rotation.y -= deltaTime * speed;
+          child.rotation.z = Math.sin(time * 0.08 + (child.userData.spinePhase || 0)) * 0.012;
+          child.rotation.x = Math.sin(time * 0.05 + (child.userData.spinePhase || 0)) * 0.004;
+        }
+
+        if (child.userData?.isWeightSpineAnchorClampGroup) {
+          const settleSpeed = child.userData.clampSettleSpeed || 0.08;
+          child.children.forEach(part => {
+            if (!part.userData?.isWeightSpineAnchorClampArm) return;
+            const baseRotation = part.userData.baseRotation;
+            const phase = part.userData.clampPhase || 0;
+            const settle = Math.sin(time * settleSpeed + phase) * (part.userData.clampSwingAmount || 0.016);
+            const roll = Math.sin(time * (settleSpeed * 0.78) + phase * 0.73) * 0.008;
+            if (baseRotation) {
+              part.rotation.set(
+                baseRotation.x + settle * 0.42,
+                baseRotation.y + roll * 0.3,
+                baseRotation.z + settle * 0.88
+              );
+            } else {
+              part.rotation.z += deltaTime * 0.01;
+            }
+          });
+        }
+
+        if (child.userData?.isWeightSpineAnchorLoadGroup) {
+          const pulseSpeed = child.userData.loadPulseSpeed || 0.06;
+          child.rotation.y += deltaTime * (pulseSpeed * 0.18);
+          child.rotation.z = Math.sin(time * 0.04 + (child.userData.loadPhase || 0)) * 0.008;
+
+          child.children.forEach(part => {
+            if (part.userData?.isWeightSpineAnchorLoadPlate) {
+              const basePosition = part.userData.basePosition;
+              const baseRotation = part.userData.baseRotation;
+              const phase = part.userData.loadPlatePhase || 0;
+              const sway = Math.sin(time * (part.userData.loadSwaySpeed || pulseSpeed) + phase) * (part.userData.loadSwayAmount || 0.016);
+              const swayAxis = part.userData.swayAxis || new THREE.Vector3(0.12, 0.94, 0.12).normalize();
+              if (basePosition) {
+                part.position.copy(basePosition).addScaledVector(swayAxis, sway);
+              }
+              if (baseRotation) {
+                part.rotation.set(
+                  baseRotation.x + sway * 0.28,
+                  baseRotation.y + sway * 0.18,
+                  baseRotation.z - sway * 0.14
+                );
+              }
+            }
+
+            if (part.userData?.isWeightSpineAnchorTether) {
+              const plateMeshes = child.userData.loadPlateMeshes || [];
+              const linkedPlate = plateMeshes[part.userData.loadPlateIndex || 0];
+              const anchorPosition = part.userData.anchorPosition || new THREE.Vector3();
+              const tetherBaseScale = part.userData.baseScale || new THREE.Vector3(1, 1, 1);
+              if (linkedPlate) {
+                const tetherScratch = part.userData.tetherScratch || (part.userData.tetherScratch = {
+                  anchor: new THREE.Vector3(),
+                  target: new THREE.Vector3(),
+                  mid: new THREE.Vector3(),
+                  dir: new THREE.Vector3()
+                });
+                const tetherAxis = part.userData.tetherAxis || (part.userData.tetherAxis = new THREE.Vector3(0, 1, 0));
+                tetherScratch.anchor.copy(anchorPosition);
+                tetherScratch.target.copy(linkedPlate.position);
+                tetherScratch.dir.copy(tetherScratch.target).sub(tetherScratch.anchor);
+                const len = tetherScratch.dir.length();
+                if (len > 0.0001) {
+                  tetherScratch.mid.copy(tetherScratch.anchor).add(tetherScratch.target).multiplyScalar(0.5);
+                  part.position.copy(tetherScratch.mid);
+                  part.quaternion.setFromUnitVectors(tetherAxis, tetherScratch.dir.normalize());
+                  part.scale.set(tetherBaseScale.x, (len / 0.19) * tetherBaseScale.y, tetherBaseScale.z);
+                }
+              }
+            }
+
+            if (part.userData?.isWeightSpineAnchorIndicator) {
+              const spin = part.userData.indicatorSpinSpeed || 0.02;
+              const plateMeshes = child.userData.loadPlateMeshes || [];
+              const linkedPlate = plateMeshes[part.userData.linkedLoadPlateIndex || 0];
+              const indicatorOffset = part.userData.indicatorOffset || new THREE.Vector3(0.06, 0.04, 0.02);
+              const indicatorPhase = part.userData.indicatorIndex || 0;
+              if (linkedPlate) {
+                const indicatorScratch = part.userData.indicatorScratch || (part.userData.indicatorScratch = new THREE.Vector3());
+                indicatorScratch.copy(indicatorOffset).applyEuler(linkedPlate.rotation);
+                part.position.copy(linkedPlate.position).add(indicatorScratch);
+              }
+              const baseRotation = part.userData.baseRotation;
+              const twirl = Math.sin(time * spin + indicatorPhase) * 0.08;
+              const roll = Math.cos(time * spin * 0.88 + indicatorPhase) * 0.06;
+              if (baseRotation) {
+                part.rotation.set(
+                  baseRotation.x + twirl,
+                  baseRotation.y + roll,
+                  baseRotation.z - twirl * 0.42
+                );
+              } else {
+                part.rotation.x = twirl;
+                part.rotation.y = roll;
+                part.rotation.z = -twirl * 0.42;
+              }
+            }
+          });
+        }
+
+        if (child.userData?.isWeightSpineAnchorAuraGroup) {
+          const drift = nodeGroup.userData.weightSpineAnchorDiagnosticDrift || 0.008;
+          child.rotation.y += deltaTime * drift * 0.3;
+          child.rotation.x = Math.sin(time * 0.025 + (child.userData.auraPhase || 0)) * 0.004;
         }
       });
     }
@@ -26954,7 +28457,7 @@ static createControlNode0(group, color) {
   // Mapping: 
   // INPUT: Hyperbolic Prism, Singularity Knot
   // PROCESS: Quantum Lattice, Fractal Bloom
-  // INTEGRATION: Reactive Tesseract, Chaotic Heart
+  // INTEGRATION: Weight-Spine Anchor, Chaotic Heart
   // STORAGE: Whisper Sphere, Echo Fractal
   // ANALYTICS: Abyssal Shard, Tri-Helix
   // CONTROL: Infinite Spiral, Chrono Ripper
@@ -27466,25 +28969,418 @@ static createControlNode0(group, color) {
   }
 
   /**
-   * EXTREME variant: Reactive Tesseract (archetypeId: 4)
+   * EXTREME variant: Weight-Spine Anchor (archetypeId: 4)
    * Maps to INTEGRATION category
    */
-  static createExtremeIntegration0(group, color) {
+  static createExtremeIntegration0(group, visualCode, color) {
     try {
-      const tempNode = new THREE.Group();
-      tempNode.visualGroup = new THREE.Group();
-      
-      const extremeGroup = this.extremeNodePack.createReactiveTesseract(tempNode, null);
-      if (!extremeGroup) {
-        if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
-          console.error('[VisualBuildFail]', { archetype: 'extreme-integration-0', category: 'integration', reason: 'NoMesh' });
+      group.userData = group.userData || {};
+      const resolvedVisualCode = (typeof visualCode === 'number' && visualCode <= 4096)
+        ? visualCode
+        : (group?.userData?.visualCode ?? 315);
+      const resolvedColor = (typeof color === 'number')
+        ? color
+        : ((typeof visualCode === 'number' && visualCode > 4096) ? visualCode : 0x8ac7d8);
+
+      const nodeKey = group?.userData?.nodeId || group?.uuid || String(resolvedVisualCode || resolvedColor);
+      const seed = Math.abs(hashString(nodeKey)) || 315;
+      const rng = _mythicSeededRng(seed);
+      const geometries = _getIntegrationWeightSpineAnchorGeometries();
+      const materials = _getIntegrationWeightSpineAnchorMaterials(resolvedColor);
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+
+      const root = group;
+      root.name = 'INTEGRATION_WEIGHT_SPINE_ANCHOR_NODE';
+      root.userData.visualVariant = 'INTEGRATION_WEIGHT_SPINE_ANCHOR_V4';
+      root.userData.integrationVariant = 'WEIGHT_SPINE_ANCHOR';
+      root.userData.nodeGeometryName = 'INTEGRATION_WEIGHT_SPINE_ANCHOR';
+      root.userData.visualReady = true;
+      root.userData.visualCoreImmutable = true;
+      root.userData.weightSpineAnchorSeed = seed;
+      root.userData.weightSpineAnchorShellRotationSpeed = 0.003 + rng() * 0.0025;
+      root.userData.weightSpineAnchorCoreRotationSpeed = 0.0055 + rng() * 0.0025;
+      root.userData.weightSpineAnchorClampSettleSpeed = 0.08 + rng() * 0.03;
+      root.userData.weightSpineAnchorLoadPulseSpeed = 0.06 + rng() * 0.02;
+      root.userData.weightSpineAnchorDiagnosticDrift = 0.008 + rng() * 0.004;
+      root.userData.weightSpineAnchorPhase = rng() * Math.PI * 2;
+
+      const setBasePose = (obj, flags = {}) => {
+        obj.userData = obj.userData || {};
+        obj.userData.basePosition = obj.position.clone();
+        obj.userData.baseRotation = obj.rotation.clone();
+        obj.userData.baseScale = obj.scale.clone();
+        Object.assign(obj.userData, flags);
+        return obj;
+      };
+
+      const markMesh = (mesh, options = {}) => {
+        if (!mesh?.isMesh) return;
+        mesh.userData = mesh.userData || {};
+        mesh.userData.visualCoreImmutable = true;
+        mesh.userData.isInteractive = options.interactive !== false;
+        if (options.ignoreWaveColor) {
+          mesh.userData.ignoreWaveColor = true;
         }
-        return group;
-      }
-      
-      group.add(extremeGroup);
-      tempNode.userData.extremeArchetype = 4;
-      
+        if (mesh.raycast == null) {
+          mesh.raycast = THREE.Mesh.prototype.raycast;
+        }
+      };
+
+      const addMesh = (parent, geometry, material, name, opts = {}) => {
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.name = name;
+        if (opts.position) mesh.position.set(...opts.position);
+        if (opts.rotation) mesh.rotation.set(...opts.rotation);
+        if (opts.scale) mesh.scale.set(...opts.scale);
+        if (opts.renderOrder !== undefined) mesh.renderOrder = opts.renderOrder;
+        markMesh(mesh, { interactive: opts.interactive, ignoreWaveColor: opts.ignoreWaveColor });
+        setBasePose(mesh, opts.flags || {});
+        parent.add(mesh);
+        return mesh;
+      };
+
+      const addEdges = (parent, geometry, material, name, opts = {}) => {
+        const line = new THREE.LineSegments(geometry, material);
+        line.name = name;
+        if (opts.position) line.position.set(...opts.position);
+        if (opts.rotation) line.rotation.set(...opts.rotation);
+        if (opts.scale) line.scale.set(...opts.scale);
+        if (opts.renderOrder !== undefined) line.renderOrder = opts.renderOrder;
+        line.userData = line.userData || {};
+        line.userData.visualCoreImmutable = true;
+        line.userData.ignoreWaveColor = true;
+        setBasePose(line, opts.flags || {});
+        parent.add(line);
+        return line;
+      };
+
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+      coreGroup.userData.isWeightSpineAnchorCoreGroup = true;
+      coreGroup.userData.coreRotationSpeed = root.userData.weightSpineAnchorCoreRotationSpeed;
+      coreGroup.userData.corePhase = root.userData.weightSpineAnchorPhase;
+
+      addMesh(coreGroup, geometries.coreGeometry, materials.coreMat, 'WeightSpineCore', {
+        position: [0.02, 0.04, 0.0],
+        rotation: [-0.07, 0.18, 0.04],
+        scale: [1.02, 0.96, 1.05],
+        renderOrder: coreOrder,
+        flags: { isWeightSpineAnchorCore: true }
+      });
+      addEdges(coreGroup, geometries.coreEdgesGeometry, materials.edgeMat, 'WeightSpineCoreEdges', {
+        position: [0.02, 0.04, 0.0],
+        rotation: [-0.07, 0.18, 0.04],
+        scale: [1.02, 0.96, 1.05],
+        renderOrder: archOrder
+      });
+
+      addMesh(coreGroup, geometries.loadSeedGeometry, materials.seedMat, 'InnerLoadSeed', {
+        position: [0.05, 0.02, -0.03],
+        rotation: [0.28, -0.16, 0.14],
+        scale: [0.95, 1.06, 0.86],
+        renderOrder: coreOrder,
+        flags: { isWeightSpineAnchorLoadSeed: true }
+      });
+      addEdges(coreGroup, geometries.loadSeedEdgesGeometry, materials.edgeMat, 'InnerLoadSeedEdges', {
+        position: [0.05, 0.02, -0.03],
+        rotation: [0.28, -0.16, 0.14],
+        scale: [0.95, 1.06, 0.86],
+        renderOrder: archOrder
+      });
+
+      addMesh(coreGroup, geometries.seamGeometry, materials.seamMat, 'VoidSeamSplit', {
+        position: [0.0, 0.04, 0.0],
+        rotation: [0.12, 0.24, -0.32],
+        scale: [0.72, 1.14, 0.78],
+        renderOrder: coreOrder,
+        flags: { isWeightSpineAnchorSeam: true }
+      });
+      addEdges(coreGroup, geometries.seamEdgesGeometry, materials.edgeMat, 'VoidSeamSplitEdges', {
+        position: [0.0, 0.04, 0.0],
+        rotation: [0.12, 0.24, -0.32],
+        scale: [0.72, 1.14, 0.78],
+        renderOrder: archOrder
+      });
+      root.add(coreGroup);
+
+      const spineGroup = new THREE.Group();
+      spineGroup.name = 'SPINE_GROUP';
+      spineGroup.userData.isWeightSpineAnchorSpineGroup = true;
+      spineGroup.userData.spineRotationSpeed = 0.003 + rng() * 0.002;
+      spineGroup.userData.spinePhase = root.userData.weightSpineAnchorPhase * 0.7;
+      spineGroup.userData.spineDrift = 0.01 + rng() * 0.004;
+
+      addMesh(spineGroup, geometries.spineAxisGeometry, materials.spineMat, 'SpineAxis', {
+        position: [0.0, -0.02, -0.02],
+        rotation: [0.04, 0.02, 0.0],
+        scale: [1.0, 1.0, 1.0],
+        renderOrder: coreOrder,
+        flags: { isWeightSpineAnchorSpineAxis: true }
+      });
+      addEdges(spineGroup, geometries.spineAxisEdgesGeometry, materials.edgeMat, 'SpineAxisEdges', {
+        position: [0.0, -0.02, -0.02],
+        rotation: [0.04, 0.02, 0.0],
+        scale: [1.0, 1.0, 1.0],
+        renderOrder: archOrder
+      });
+
+      const vertebraConfigs = [
+        { name: 'Vertebra_A', pos: [0.008, -0.42, -0.02], rot: [0.18, 0.08, -0.04], scale: [0.96, 0.94, 0.92], mat: materials.braceMat },
+        { name: 'Vertebra_B', pos: [-0.012, -0.14, 0.02], rot: [-0.12, -0.06, 0.08], scale: [0.92, 1.0, 0.88], mat: materials.spineMat },
+        { name: 'Vertebra_C', pos: [0.02, 0.16, -0.01], rot: [0.06, 0.1, -0.02], scale: [0.98, 1.04, 0.9], mat: materials.braceMat },
+        { name: 'Vertebra_D', pos: [-0.01, 0.44, 0.03], rot: [-0.16, 0.04, 0.06], scale: [0.94, 0.96, 0.88], mat: materials.spineMat }
+      ];
+
+      vertebraConfigs.forEach((cfg, idx) => {
+        addMesh(spineGroup, geometries.vertebraGeometry, cfg.mat, cfg.name, {
+          position: cfg.pos,
+          rotation: cfg.rot,
+          scale: cfg.scale,
+          renderOrder: idx < 2 ? coreOrder : archOrder,
+          flags: {
+            isWeightSpineAnchorVertebra: true,
+            vertebraIndex: idx,
+            vertebraPhase: root.userData.weightSpineAnchorPhase + idx * 0.73,
+            vertebraSwingSpeed: 0.072 + idx * 0.014
+          }
+        });
+      });
+      root.add(spineGroup);
+
+      const claspGroup = new THREE.Group();
+      claspGroup.name = 'CLASP_GROUP';
+      claspGroup.userData.isWeightSpineAnchorClampGroup = true;
+      claspGroup.userData.clampSettleSpeed = root.userData.weightSpineAnchorClampSettleSpeed;
+
+      const claspConfigs = [
+        {
+          name: 'ClampBrace_A',
+          pos: [-0.18, 0.18, 0.08],
+          rot: [0.42, 0.12, -0.82],
+          scale: [1.06, 1.0, 0.78],
+          phase: 0.08,
+          swingSpeed: 0.14,
+          swingAmount: 0.016,
+          geometry: geometries.braceGeometry,
+          material: materials.braceMat
+        },
+        {
+          name: 'ClampBrace_B',
+          pos: [0.2, -0.03, -0.06],
+          rot: [-0.18, -0.34, 0.72],
+          scale: [0.98, 0.96, 0.72],
+          phase: 1.34,
+          swingSpeed: 0.12,
+          swingAmount: 0.014,
+          geometry: geometries.braceGeometry,
+          material: materials.braceMat
+        },
+        {
+          name: 'ClampGate',
+          pos: [0.02, 0.05, 0.01],
+          rot: [0.08, 0.28, 0.02],
+          scale: [1.16, 0.56, 1.0],
+          phase: 2.04,
+          swingSpeed: 0.1,
+          swingAmount: 0.01,
+          geometry: geometries.seamGeometry,
+          material: materials.seamMat
+        }
+      ];
+
+      claspConfigs.forEach((cfg, idx) => {
+        const part = addMesh(claspGroup, cfg.geometry, cfg.material, cfg.name, {
+          position: cfg.pos,
+          rotation: cfg.rot,
+          scale: cfg.scale,
+          renderOrder: idx === 2 ? coreOrder : archOrder,
+          flags: {
+            isWeightSpineAnchorClampArm: true,
+            clampIndex: idx,
+            clampPhase: cfg.phase,
+            clampSwingSpeed: cfg.swingSpeed,
+            clampSwingAmount: cfg.swingAmount
+          }
+        });
+        part.userData.clampBaseScale = part.scale.clone();
+      });
+      root.add(claspGroup);
+
+      const loadGroup = new THREE.Group();
+      loadGroup.name = 'LOAD_GROUP';
+      loadGroup.userData.isWeightSpineAnchorLoadGroup = true;
+      loadGroup.userData.loadPulseSpeed = root.userData.weightSpineAnchorLoadPulseSpeed;
+      loadGroup.userData.loadPhase = root.userData.weightSpineAnchorPhase * 1.12;
+      loadGroup.userData.loadPlateMeshes = [];
+
+      const loadPlateConfigs = [
+        {
+          name: 'BallastPlate_A',
+          pos: [0.28, -0.42, 0.08],
+          rot: [0.2, 0.32, -0.12],
+          scale: [1.08, 1.18, 0.92],
+          phase: 0.0,
+          swaySpeed: 0.08,
+          swayAmount: 0.018
+        },
+        {
+          name: 'BallastPlate_B',
+          pos: [-0.24, 0.34, -0.06],
+          rot: [-0.12, -0.28, 0.2],
+          scale: [0.88, 0.96, 0.82],
+          phase: 1.54,
+          swaySpeed: 0.07,
+          swayAmount: 0.014
+        }
+      ];
+
+      loadPlateConfigs.forEach((cfg, idx) => {
+        const plate = addMesh(loadGroup, geometries.loadGeometry, materials.loadMat, cfg.name, {
+          position: cfg.pos,
+          rotation: cfg.rot,
+          scale: cfg.scale,
+          renderOrder: idx === 0 ? coreOrder : archOrder,
+          flags: {
+            isWeightSpineAnchorLoadPlate: true,
+            loadPlateIndex: idx,
+            loadPlatePhase: cfg.phase,
+            loadSwaySpeed: cfg.swaySpeed,
+            loadSwayAmount: cfg.swayAmount,
+            swayAxis: new THREE.Vector3(
+              idx === 0 ? 0.12 : -0.08,
+              idx === 0 ? 0.94 : 0.88,
+              idx === 0 ? 0.14 : -0.12
+            ).normalize()
+          }
+        });
+        loadGroup.userData.loadPlateMeshes.push(plate);
+      });
+
+      const tetherConfigs = [
+        {
+          name: 'LoadTether_A',
+          pos: [0.1, -0.02, 0.03],
+          rot: [0.1, 0.18, -0.64],
+          scale: [0.94, 1.0, 0.88]
+        },
+        {
+          name: 'LoadTether_B',
+          pos: [-0.06, 0.18, -0.06],
+          rot: [-0.12, -0.22, 0.54],
+          scale: [0.82, 1.0, 0.76]
+        }
+      ];
+
+      tetherConfigs.forEach((cfg, idx) => {
+        addMesh(loadGroup, geometries.tetherGeometry, materials.spineMat, cfg.name, {
+          position: cfg.pos,
+          rotation: cfg.rot,
+          scale: cfg.scale,
+          renderOrder: idx === 0 ? coreOrder : archOrder,
+          flags: {
+            isWeightSpineAnchorTether: true,
+            tetherIndex: idx,
+            loadPlateIndex: idx,
+            anchorPosition: new THREE.Vector3(
+              idx === 0 ? 0.04 : -0.02,
+              idx === 0 ? -0.05 : 0.16,
+              idx === 0 ? 0.02 : -0.04
+            )
+          }
+        });
+      });
+
+      const loadIndicatorA = addMesh(loadGroup, geometries.indicatorGeometry, materials.loadIndicatorMat, 'LoadIndicator_A', {
+        position: [0.34, -0.38, 0.12],
+        rotation: [0.18, 0.36, 0.08],
+        scale: [1.0, 1.0, 1.0],
+        renderOrder: archOrder,
+        interactive: false,
+        ignoreWaveColor: true,
+        flags: {
+          isWeightSpineAnchorIndicator: true,
+          indicatorIndex: 0,
+          indicatorSpinSpeed: 0.028,
+          linkedLoadPlateIndex: 0,
+          indicatorOffset: new THREE.Vector3(0.06, 0.04, 0.02)
+        }
+      });
+      const loadIndicatorB = addMesh(loadGroup, geometries.indicatorGeometry, materials.loadIndicatorMat, 'LoadIndicator_B', {
+        position: [-0.3, 0.38, -0.08],
+        rotation: [-0.14, -0.28, 0.12],
+        scale: [0.84, 0.84, 0.84],
+        renderOrder: archOrder,
+        interactive: false,
+        ignoreWaveColor: true,
+        flags: {
+          isWeightSpineAnchorIndicator: true,
+          indicatorIndex: 1,
+          indicatorSpinSpeed: 0.022,
+          linkedLoadPlateIndex: 1,
+          indicatorOffset: new THREE.Vector3(-0.05, 0.03, -0.01)
+        }
+      });
+      loadIndicatorA.userData.loadIndicatorRole = 'dominant';
+      loadIndicatorB.userData.loadIndicatorRole = 'counter';
+      root.add(loadGroup);
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+      auraGroup.userData.isWeightSpineAnchorAuraGroup = true;
+      auraGroup.userData.auraPhase = root.userData.weightSpineAnchorPhase * 0.61;
+
+      const witnessA = new THREE.Line(geometries.witnessGeometryA, materials.witnessMat);
+      witnessA.name = 'WitnessLine_A';
+      witnessA.userData.ignoreWaveColor = true;
+      witnessA.position.set(-0.02, 0.02, 0.02);
+      witnessA.rotation.set(0.08, -0.18, 0.12);
+      witnessA.scale.set(1.0, 1.0, 1.0);
+      witnessA.renderOrder = archOrder;
+      auraGroup.add(witnessA);
+
+      const witnessB = new THREE.Line(geometries.witnessGeometryB, materials.witnessMat);
+      witnessB.name = 'WitnessLine_B';
+      witnessB.userData.ignoreWaveColor = true;
+      witnessB.position.set(0.04, -0.04, -0.02);
+      witnessB.rotation.set(-0.08, 0.2, -0.12);
+      witnessB.scale.set(0.98, 1.0, 0.98);
+      witnessB.renderOrder = archOrder;
+      auraGroup.add(witnessB);
+
+      const dust = new THREE.Points(geometries.dustGeometry, materials.dustMat);
+      dust.name = 'LoadDust';
+      dust.userData.ignoreWaveColor = true;
+      dust.position.set(0.0, 0.03, 0.0);
+      dust.renderOrder = archOrder;
+      auraGroup.add(dust);
+
+      root.add(auraGroup);
+
+      root.traverse((o) => {
+        if (o?.isMesh || o?.isPoints || o?.isLine || o?.isLineSegments) {
+          o.userData = o.userData || {};
+          if (o.isMesh) {
+            if (o.raycast == null) {
+              o.raycast = THREE.Mesh.prototype.raycast;
+            }
+            const materialRefs = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+            for (const material of materialRefs) {
+              if (!material) continue;
+              material.userData = {
+                ...(material.userData || {}),
+                wavePatchMode: 'DEFAULT',
+                isShared: true
+              };
+              if (o.userData.ignoreWaveColor) {
+                material.userData.ignoreWaveColor = true;
+              }
+            }
+          }
+          validateMeshGeometry(o, o.name || 'integration-weight-spine-anchor');
+        }
+      });
+
       return group;
     } catch (err) {
       console.error('[NodeVisualAbort]', {

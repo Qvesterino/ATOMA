@@ -240,16 +240,21 @@ export class LinkBeadTrailSystem {
             const beadLink = bead?.link || mesh.userData?.link || null;
             const sourceCategory = beadLink?.source?.userData?.category || beadLink?.sourceNode?.userData?.category || null;
             const targetCategory = beadLink?.target?.userData?.category || beadLink?.targetNode?.userData?.category || sourceCategory;
-            const previous = this._prevBeadPos.get(bead) || beadPos.clone();
+            let previous = this._prevBeadPos.get(bead);
+            if (!previous) {
+                previous = new THREE.Vector3();
+                this._prevBeadPos.set(bead, previous);
+                previous.copy(beadPos);
+            }
             const dir = this._tmpDir;
             if (hasCurve && typeof bead?.t === 'number') {
-                dir.copy(curve.getTangentAt(Math.max(0.0, Math.min(1.0, bead.t))));
+                dir.copy(curve.getTangentAt(Math.max(0.0, Math.min(1.0, bead.t)), this._tmpDir));
             } else {
                 dir.copy(beadPos).sub(previous);
             }
             if (dir.lengthSq() < 1e-8) dir.set(0, 0, 1);
             dir.normalize();
-            this._prevBeadPos.set(bead, beadPos.clone());
+            previous.copy(beadPos);
 
             if (sourceCategory || targetCategory) {
                 const srcColor = resolveLinkCategoryColor(sourceCategory, beadColor, this._tmpSourceCategoryColor);
@@ -274,7 +279,7 @@ export class LinkBeadTrailSystem {
                 if (hasCurve && typeof bead?.t === 'number') {
                     const t = Math.max(0.0, Math.min(1.0, bead.t));
                     curve.getPointAt(t, this._tmpLaneBase);
-                    curve.getTangentAt(t, this._tmpLaneTangent).normalize();
+                    curve.getTangentAt(t, this._tmpLaneTangent, this._tmpLaneTangent).normalize();
                     this._buildLaneFrame(this._tmpLaneTangent, this._tmpLaneNormal, this._tmpLaneBinormal);
 
                     const laneCount = Math.max(3, Math.min(5, bead.laneCount || 3));

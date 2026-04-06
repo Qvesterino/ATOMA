@@ -405,23 +405,31 @@ export class LinkBeadPool {
    * Get approximate curve length (simple caching)
    */
   getCurveLength() {
-    if (!this.link.curve) return 1.0;
-    
-    // Cache length if not available
+    const curve = this.link?.curve;
+    if (!curve) return 1.0;
+
+    if (curve !== this._cachedCurve) {
+      this._cachedCurve = curve;
+      this._cachedLength = null;
+    }
+
     if (!this._cachedLength) {
       // Approximate by sampling
       let length = 0;
-      let prevPos = this.link.curve.getPointAt(0);
-      
+      const prevPos = new THREE.Vector3();
+      const nextPos = new THREE.Vector3();
+      curve.getPointAt(0, prevPos);
+
       for (let i = 1; i <= 10; i++) {
         const t = i / 10;
-        const pos = this.link.curve.getPointAt(t);
-        length += pos.distanceTo(prevPos);
-        prevPos = pos;
+        curve.getPointAt(t, nextPos);
+        length += nextPos.distanceTo(prevPos);
+        prevPos.copy(nextPos);
       }
-      
+
       // Ensure we have a non-zero length
       this._cachedLength = Math.max(0.1, length);
+
     }
     
     return this._cachedLength;
@@ -439,6 +447,14 @@ export class LinkBeadPool {
    */
   getActiveBead() {
     return this.beads.filter(b => b.isActive);
+  }
+
+  getActiveBeadCount() {
+    let count = 0;
+    for (const bead of this.beads) {
+      if (bead.isActive) count += 1;
+    }
+    return count;
   }
 }
 
@@ -497,6 +513,9 @@ export class BeadRenderer {
     this._frameFallback = new THREE.Vector3(1, 0, 0);
     this._frameNormal = new THREE.Vector3();
     this._frameBinormal = new THREE.Vector3();
+    this._scratchPosition = new THREE.Vector3();
+    this._scratchTangent = new THREE.Vector3();
+    this._scratchColor = new THREE.Color();
 
     this._clearAllSlots();
   }
@@ -526,21 +545,17 @@ export class BeadRenderer {
       this.positionAttr.array[p] = 1e6;
       this.positionAttr.array[p + 1] = 1e6;
       this.positionAttr.array[p + 2] = 1e6;
-      this.positionAttr.needsUpdate = true;
     }
     if (this.colorAttr?.array) {
       this.colorAttr.array[p] = 1.0;
       this.colorAttr.array[p + 1] = 1.0;
       this.colorAttr.array[p + 2] = 1.0;
-      this.colorAttr.needsUpdate = true;
     }
     if (this.alphaAttr?.array) {
       this.alphaAttr.array[i] = 0.0;
-      this.alphaAttr.needsUpdate = true;
     }
     if (this.sizeAttr?.array) {
       this.sizeAttr.array[i] = 0.0;
-      this.sizeAttr.needsUpdate = true;
     }
   }
 
@@ -551,9 +566,9 @@ export class BeadRenderer {
     }
 
     const i = slot | 0;
-    const t = bead.t;
-    const pos = curve.getPointAt(t);
-    const tangent = curve.getTangentAt(t).normalize();
+    const t = Math.max(0, Math.min(1, bead.t));
+    const pos = curve.getPointAt(t, this._scratchPosition);
+    const tangent = curve.getTangentAt(t, this._scratchTangent).normalize();
     const normal = this._frameNormal;
     const binormal = this._frameBinormal;
     this._buildLaneFrame(tangent, normal, binormal);
@@ -577,7 +592,7 @@ export class BeadRenderer {
     this.positionAttr.array[p + 1] = pos.y;
     this.positionAttr.array[p + 2] = pos.z;
 
-    const color = new THREE.Color(sourceColor || 0x88ccff);
+    const color = this._scratchColor.set(sourceColor || 0x88ccff);
     if (sourceColor && targetColor) {
       color.lerpColors(sourceColor, targetColor, t);
     }
@@ -608,10 +623,6 @@ export class BeadRenderer {
     this.alphaAttr.array[i] = baseAlpha;
     this.sizeAttr.array[i] = (bead.radius * 32.0 + 1.4) * sizeScale * pulse;
 
-    this.positionAttr.needsUpdate = true;
-    this.colorAttr.needsUpdate = true;
-    this.alphaAttr.needsUpdate = true;
-    this.sizeAttr.needsUpdate = true;
   }
 
   commit() {
@@ -732,7 +743,6 @@ export class LinkBeadVisualizer {
 
     // Update pool (spawning and bead logic)
     this.pool.update(step, onArrival, spawnEnabled);
-    this.pool.invalidateCache(); // Reset cache each frame
     
     // Safety check: need valid curve to render beads
     if (!this.link.curve) {
@@ -746,13 +756,13 @@ export class LinkBeadVisualizer {
     }
     
     const synergy = this.link?.synergyScore ?? 0.5;
-    const activeBead = this.pool.getActiveBead();
+    const activeBeadCount = this.pool.getActiveBeadCount();
 
     // Debug: emit bead counts once per second when debug flag is on
     if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
       this._debugAcc += step;
       if (this._debugAcc >= 1.0) {
-        console.debug('[Beads]', this.link.id, 'active:', activeBead.length, 'points:', this.pool.maxBeads);
+        console.debug('[Beads]', this.link.id, 'active:', activeBeadCount, 'points:', this.pool.maxBeads);
         this._debugAcc = 0;
       }
     }
@@ -775,7 +785,7 @@ export class LinkBeadVisualizer {
     if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
       this._debugAcc += deltaTime;
       if (this._debugAcc >= 1.0) {
-        console.log('[Beads] dt:', deltaTime.toFixed(4), 'active:', activeBead.length);
+        console.log('[Beads] dt:', deltaTime.toFixed(4), 'active:', activeBeadCount);
         this._debugAcc = 0;
       }
     }

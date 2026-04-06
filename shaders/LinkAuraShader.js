@@ -94,6 +94,7 @@ export function createLinkAuraMaterial(config = {}) {
     uniform float uHarmony;
     uniform float uCorruption;
     uniform float uSynergy;
+    uniform float uLOD;                 // Detail level (0=full, 1=medium, 2=low)
     uniform vec3 uLinkDirection;      // Direction from source to target
     uniform float uLinkBirthIntensity;
     uniform float uLinkRemovalIntensity;
@@ -104,7 +105,6 @@ export function createLinkAuraMaterial(config = {}) {
     varying vec3 vNormal;
     varying vec3 vPosition;
     varying float vDisplacementFactor;
-    varying vec3 vLinkDir;
     varying float vBlendFactor;       // Blend fade [0-1] near nodes
     
     // ========================================================================
@@ -186,14 +186,22 @@ export function createLinkAuraMaterial(config = {}) {
       noisePos += uLinkDirection * directionalBias;
       
       // ========================================================================
-      // IDENTICAL OCTAVE STRUCTURE AS NODE AURA (from EnergyVisualProfile)
+      // LOD-AWARE NOISE OCTAVES
       // ========================================================================
-      // Multiple octaves of noise for organic feel (exact same as node)
-      // Profile: octaves [2,4,8], weights [1,0.5,0.25], denom 1.75
+      // LOD 0: full detail (3 octaves)
+      // LOD 1: medium detail (2 octaves)
+      // LOD 2: low detail (1 octave)
       float noise1 = snoise(noisePos * 2.0);
-      float noise2 = snoise(noisePos * 4.0) * 0.5;
-      float noise3 = snoise(noisePos * 8.0) * 0.25;
-      float noiseTotal = (noise1 + noise2 + noise3) / 1.75;
+      float noiseTotal = noise1;
+      if (uLOD < 1.5) {
+        float noise2 = snoise(noisePos * 4.0) * 0.5;
+        if (uLOD < 0.5) {
+          float noise3 = snoise(noisePos * 8.0) * 0.25;
+          noiseTotal = (noise1 + noise2 + noise3) / 1.75;
+        } else {
+          noiseTotal = (noise1 + noise2) / 1.5;
+        }
+      }
       
       // ========================================================================
       // IDENTICAL MODULATION AS NODE AURA (from EnergyVisualProfile)
@@ -209,36 +217,23 @@ export function createLinkAuraMaterial(config = {}) {
       float displacementFactor = uDisplacement * motionFactor;
       
       // ========================================================================
-      // LINK BIRTH & REMOVAL (CONTINUOUS WITH NODE AURA)
+      // SIMPLIFIED LINK BIRTH & REMOVAL
       // ========================================================================
-      // When node aura pulses outward (birth), link aura fades in as extension
+      // Simplified fade without expensive ripple calculations
       float linkBirthPulse = 0.0;
       if (uLinkBirthIntensity > 0.0) {
-        // Fade in over ~150ms as extension of node's outward pulse
         float birthPhase = mod(uTime * 2.5, 1.0);
-        float fadeIn = smoothstep(0.0, 0.4, birthPhase);  // Slightly delayed
-        float hold = mix(1.0, 0.0, smoothstep(0.5, 1.0, birthPhase));
-        
-        linkBirthPulse = fadeIn * hold * 0.2;  // Subtle expansion (60% of node's 0.35)
-        
-        // Ripple synchronizes with node (shared rhythm)
-        float rippleTime = mod(uTime * 2.0, 1.5);
-        float rippleWave = sin(rippleTime * 3.14159) * exp(-rippleTime * 2.0);
-        linkBirthPulse += rippleWave * 0.08;  // Reduced amplitude
+        float fadeIn = smoothstep(0.0, 0.4, birthPhase);
+        float hold = 1.0 - smoothstep(0.5, 1.0, birthPhase);
+        linkBirthPulse = fadeIn * hold * 0.15;
       }
       
-      // When node aura contracts inward (removal), link aura dissipates
       float linkRemovalPulse = 0.0;
       if (uLinkRemovalIntensity > 0.0) {
         float removalPhase = mod(uTime * 3.0, 1.0);
-        float contractIn = smoothstep(1.0, 0.0, removalPhase);
-        float dissipate = mix(1.0, 0.0, smoothstep(0.4, 1.0, removalPhase));
-        
-        linkRemovalPulse = contractIn * dissipate * -0.25 * 0.6;  // Reduced inward pull
-        
-        float rippleTimeRemoval = mod(uTime * 2.5, 1.2);
-        float rippleWaveRemoval = cos(rippleTimeRemoval * 3.14159) * exp(-rippleTimeRemoval * 2.5);
-        linkRemovalPulse -= rippleWaveRemoval * 0.06;  // Reduced dissipation
+        float contractIn = 1.0 - smoothstep(0.0, 0.4, removalPhase);
+        float dissipate = 1.0 - smoothstep(0.4, 1.0, removalPhase);
+        linkRemovalPulse = contractIn * dissipate * -0.12;
       }
       
       displacementFactor += linkBirthPulse * uLinkBirthIntensity;
@@ -252,8 +247,6 @@ export function createLinkAuraMaterial(config = {}) {
       vNormal = normalize(normalMatrix * normal);
       vPosition = (modelMatrix * vec4(displaced, 1.0)).xyz;
       vDisplacementFactor = displacementFactor;
-      vLinkDir = normalize(uLinkDirection);
-      
       // ========================================================================
       // BLEND ZONE CALCULATION - SMOOTH FADE AT NODE ENDPOINTS
       // ========================================================================
@@ -287,7 +280,6 @@ export function createLinkAuraMaterial(config = {}) {
     varying vec3 vNormal;
     varying vec3 vPosition;
     varying float vDisplacementFactor;
-    varying vec3 vLinkDir;
     varying float vBlendFactor;       // Blend fade [0-1] near nodes
     
     // Convert RGB to grayscale using luminance
@@ -300,7 +292,8 @@ export function createLinkAuraMaterial(config = {}) {
       // IDENTICAL COLOR PALETTE AS NODE AURA (from EnergyVisualProfile)
       // ========================================================================
       vec3 viewDir = normalize(cameraPosition - vPosition);
-      float rim = pow(1.0 - abs(dot(viewDir, vNormal)), 2.0);
+      float rimBase = max(0.0, 1.0 - abs(dot(viewDir, vNormal)));
+      float rim = rimBase * rimBase;
       
       // Base color: IDENTICAL to node aura (soft gray-white) - Profile: baseColor
       vec3 auraColor = vec3(0.85, 0.85, 0.9);
@@ -314,29 +307,21 @@ export function createLinkAuraMaterial(config = {}) {
       auraColor = mix(auraColor, vec3(0.2, 0.8, 1.0), uSynergy * 0.25);
       
       // ========================================================================
-      // CORRUPTION DESATURATION - SHARED WITH NODE
+      // BRANCHLESS CORRUPTION DESATURATION
       // ========================================================================
-      if (uDesaturation > 0.0) {
-        vec3 grayscale = vec3(getGrayscale(auraColor));
-        auraColor = mix(auraColor, grayscale, uDesaturation);
-        
-        // At high desaturation, shift toward sickly yellow-gray
-        if (uDesaturation > 0.5) {
-          vec3 corruptedGray = grayscale + vec3(0.15, 0.1, -0.05);
-          auraColor = mix(auraColor, corruptedGray, (uDesaturation - 0.5) * 0.5);
-        }
-      }
+      vec3 grayscale = vec3(getGrayscale(auraColor));
+      auraColor = mix(auraColor, grayscale, uDesaturation);
+      
+      // At high desaturation, shift toward sickly yellow-gray (branchless)
+      vec3 corruptedGray = grayscale + vec3(0.15, 0.1, -0.05);
+      float highDesatFactor = smoothstep(0.5, 1.0, uDesaturation);
+      auraColor = mix(auraColor, corruptedGray, highDesatFactor * 0.25);
       
       // ========================================================================
-      // DIRECTIONAL RIM LIGHTING - LINK-SPECIFIC (from EnergyVisualProfile)
+      // SIMPLIFIED DIRECTIONAL RIM LIGHTING
       // ========================================================================
-      // Enhance rim lighting at link endpoints (fade toward middle)
-      // This creates visual flow from node to node
-      float linkBias = 1.0;  // Can be modulated by vLinkDir if needed
-      
-      // Rim lighting reduced when corrupted (identical to node)
-      // Profile: rimLightColorLink = [0.12, 0.12, 0.12], desaturationInfluence = 0.4
-      auraColor += rim * vec3(0.12) * (1.0 - uDesaturation * 0.4) * linkBias;
+      // Static coefficients, reduced calculations
+      auraColor += rim * vec3(0.1) * (1.0 - uDesaturation * 0.3);
       
       // ========================================================================
       // OPACITY CONSTRAINTS - MAINTAIN HIERARCHY (from EnergyVisualProfile)
@@ -379,6 +364,7 @@ export function createLinkAuraMaterial(config = {}) {
       uBlendZoneRadius: { value: defaultConfig.blendZoneRadius },
       uNodePositionA: { value: new THREE.Vector3(0, 0, 0) },
       uNodePositionB: { value: new THREE.Vector3(1, 0, 0) },
+      uLOD: { value: 0 },
     },
     vertexShader,
     fragmentShader,

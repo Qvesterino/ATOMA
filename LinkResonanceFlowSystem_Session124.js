@@ -169,6 +169,14 @@ export class LinkResonanceFlowSystem_Session124 {
       pulseSpawnCount: 0,
       linksWithFlow: 0,
     };
+
+    this._scratchVecA = new THREE.Vector3();
+    this._scratchVecB = new THREE.Vector3();
+    this._scratchQuat = new THREE.Quaternion();
+    this._scratchUpVector = new THREE.Vector3(0, 1, 0);
+    this._debugColor = new THREE.Color(1.0, 0.03, 0.05);
+    this._debugAccentColor = new THREE.Color(1.0, 0.4, 0.4);
+    this._debugVoidColor = new THREE.Color(0.08, 0.0, 0.0);
     
     this.init();
     
@@ -414,10 +422,10 @@ export class LinkResonanceFlowSystem_Session124 {
     // low-poly base, but distorted through shader motion and shell layering.
     this.pulseMeshGeometry = new THREE.IcosahedronGeometry(1, 1);
     this.pulseSheathGeometry = new THREE.IcosahedronGeometry(1, 1);
-    this.pulseTrailGeometry = new THREE.CylinderGeometry(0.05, 0.012, 1, 7, 1, true);
+    this.pulseTrailGeometry = new THREE.CylinderGeometry(0.05, 0.012, 1, 5, 1, true);
     this.pulseShardGeometry = new THREE.OctahedronGeometry(0.16, 0);
-    this.pulseHaloGeometry = new THREE.TorusGeometry(1, 0.048, 6, 44, Math.PI * 1.84);
-    this.pulseSwirlGeometry = new THREE.TorusKnotGeometry(0.52, 0.082, 56, 8, 2, 3);
+    this.pulseHaloGeometry = new THREE.TorusGeometry(1, 0.048, 6, 24, Math.PI * 1.84);
+    this.pulseSwirlGeometry = new THREE.TorusKnotGeometry(0.52, 0.082, 32, 8, 2, 3);
 
     // Shared shader material template. Every pulse part clones this shader and
     // only varies uniforms, so the entity keeps one visual language.
@@ -458,8 +466,7 @@ export class LinkResonanceFlowSystem_Session124 {
         float spectralNoise(vec3 p) {
           float a = sin(dot(p, vec3(1.41, 1.73, 1.11)) + uTime * uNoiseSpeed + uPulsePhase);
           float b = sin(dot(p, vec3(2.11, 1.17, 2.67)) - uTime * (uNoiseSpeed * 1.37) + uPulseSeed * 11.0);
-          float c = sin(dot(p, vec3(0.91, 2.19, 1.53)) + uTime * (uNoiseSpeed * 0.73) + uShellBias * 7.1);
-          return (a + b * 0.6 + c * 0.35) * 0.5;
+          return (a * 0.72 + b * 0.28) * 0.5;
         }
 
         void main() {
@@ -502,9 +509,7 @@ export class LinkResonanceFlowSystem_Session124 {
           vec3 color = mix(uVoidColor, uColor, innerGlow);
           color = mix(color, uAccentColor, clamp(fresnel * 0.55 + depthField * 0.15, 0.0, 1.0));
 
-          float iris = 0.5 + 0.5 * sin((vWorldPos.x * 1.7 + vWorldPos.y * 2.3 + vWorldPos.z * 1.9) + vPulse * 2.1);
-          vec3 ether = mix(vec3(0.54, 0.28, 1.0), vec3(1.0, 0.18, 0.72), iris);
-          color = mix(color, ether, uIridescence * (0.12 + fresnel * 0.42));
+          color = mix(color, vec3(0.78, 0.46, 1.0), uIridescence * 0.12);
 
           if (uCorruption > 0.0) {
             color = mix(color, vec3(0.96, 0.16, 0.24), uCorruption * 0.24);
@@ -865,8 +870,8 @@ export class LinkResonanceFlowSystem_Session124 {
         this.pulseGroup?.add?.(pulse.mesh);
       }
 
-      const worldPos = this._getPositionAlongLink(pulse);
-      const direction = this._getLinkDirection(pulse.link, pulse.direction);
+      const worldPos = this._getPositionAlongLink(pulse, this._scratchVecA);
+      const direction = this._getLinkDirection(pulse.link, pulse.direction, this._scratchVecB);
       const overloadMix = pulse.overloadMix ?? 0;
       const bandMix = this._getLoadPressureProfile(pulse.loadPressure ?? 0).pressurizedMix;
       const stabilityMix = pulse.stabilityMix ?? 0;
@@ -887,15 +892,16 @@ export class LinkResonanceFlowSystem_Session124 {
         worldPos.y + Math.cos(pulse.life * 7.0 + motionSeed * Math.PI * 6.0) * entityDrift * 0.7,
         worldPos.z + Math.sin(pulse.life * 11.0 + motionSeed * Math.PI * 10.0) * entityDrift * 0.78
       );
-      pulse.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+      this._scratchQuat.setFromUnitVectors(this._scratchUpVector, direction);
+      pulse.mesh.quaternion.copy(this._scratchQuat);
       pulse.mesh.rotateY(Math.sin(pulse.life * 0.95 + motionSeed * Math.PI * 5.0) * (0.08 + overloadMix * 0.05 + stabilityMix * 0.03));
       pulse.mesh.rotateZ(Math.cos(pulse.life * 0.52 + motionSeed * Math.PI * 7.0) * 0.03);
 
       const parts = pulse.mesh.userData?.parts || {};
       const partConfigs = pulse.mesh.userData?.partConfigs || {};
-      const baseDebugColor = debugPulse ? new THREE.Color(1.0, 0.03, 0.05) : null;
-      const baseDebugAccent = debugPulse ? new THREE.Color(1.0, 0.4, 0.4) : null;
-      const baseDebugVoid = debugPulse ? new THREE.Color(0.08, 0.0, 0.0) : null;
+      const baseDebugColor = debugPulse ? this._debugColor : null;
+      const baseDebugAccent = debugPulse ? this._debugAccentColor : null;
+      const baseDebugVoid = debugPulse ? this._debugVoidColor : null;
 
       const applyPart = (key, options = {}) => {
         const part = parts[key];
@@ -1021,20 +1027,16 @@ export class LinkResonanceFlowSystem_Session124 {
   /**
    * Get world position of pulse along link curve
    */
-  _getPositionAlongLink(pulse) {
+  _getPositionAlongLink(pulse, target = new THREE.Vector3()) {
     const link = pulse.link;
     const nodeA = this._getLinkSource(link);
     const nodeB = this._getLinkTarget(link);
     
-    if (!nodeA?.position || !nodeB?.position) return new THREE.Vector3();
+    if (!nodeA?.position || !nodeB?.position) return target.set(0, 0, 0);
     
     // Linear interpolation for now (could use Catmull-Rom for curves)
-    const t = pulse.position;
-    const pos = new THREE.Vector3()
-      .copy(nodeA.position)
-      .lerp(nodeB.position, Math.max(0, Math.min(1, t)));
-    
-    return pos;
+    const t = Math.max(0, Math.min(1, pulse.position));
+    return target.copy(nodeA.position).lerp(nodeB.position, t);
   }
   
   /**
@@ -1338,21 +1340,21 @@ export class LinkResonanceFlowSystem_Session124 {
     return rig;
   }
 
-  _getLinkDirection(link, directionSign = 1) {
+  _getLinkDirection(link, directionSign = 1, target = new THREE.Vector3()) {
     const nodeA = this._getLinkSource(link)?.position;
     const nodeB = this._getLinkTarget(link)?.position;
     if (!nodeA?.clone || !nodeB?.clone) {
-      return new THREE.Vector3(0, 1, 0);
+      return target.set(0, 1, 0);
     }
 
-    const direction = new THREE.Vector3().copy(nodeB).sub(nodeA);
-    if (direction.lengthSq() <= 0.000001) {
-      return new THREE.Vector3(0, 1, 0);
+    target.copy(nodeB).sub(nodeA);
+    if (target.lengthSq() <= 0.000001) {
+      return target.set(0, 1, 0);
     }
 
-    direction.normalize();
-    if (directionSign < 0) direction.negate();
-    return direction;
+    target.normalize();
+    if (directionSign < 0) target.negate();
+    return target;
   }
 
   _getLinkLength(link) {
@@ -1388,12 +1390,9 @@ export class LinkResonanceFlowSystem_Session124 {
       const nodeB = this._getLinkTarget(pulse.link);
       if (!nodeA?.position || !nodeB?.position) continue;
       
-      const linkMidpoint = new THREE.Vector3()
-        .copy(nodeA.position)
-        .add(nodeB.position)
-        .multiplyScalar(0.5);
-      
-      const distance = camera.position.distanceTo(linkMidpoint);
+      const distance = camera.position.distanceTo(
+        this._scratchVecA.copy(nodeA.position).add(nodeB.position).multiplyScalar(0.5)
+      );
       
       // Apply LOD suppression if far
       if (distance > threshold) {

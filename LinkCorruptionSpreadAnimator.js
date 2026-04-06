@@ -110,65 +110,150 @@ export class LinkCorruptionSpreadAnimator {
     if (state.dust || !link?.group) return state.dust;
 
     const count = this.config.dustParticleCount;
-    const cloud = this.pointFXBase?.createPointCloud?.({
-      capacity: count,
-      preset: 'corruption',
-      textureKind: 'corruptionDust',
-      attributeSchema: {},
-      materialOptions: {
-        shareMaterial: true,
-        pointsMaterialOptions: {
-          color: 0xffefd6,
-          transparent: true,
-          opacity: 0.68,
-          size: 0.11,
-          alphaTest: 0.08,
-          depthWrite: false,
-          depthTest: true,
-          blending: THREE.AdditiveBlending
-        }
-      },
-      userData: {
-        isCorruptionDustWave: true
-      }
-    }) || null;
+    const geometry = new THREE.BufferGeometry();
 
-    const geometry = cloud?.geometry || new THREE.BufferGeometry();
-    if (!cloud) {
-      geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(count * 3), 3));
-    }
-
-    const material = cloud?.material || new THREE.PointsMaterial({
-      color: 0xffefd6,
-      transparent: true,
-      opacity: 0.0,
-      size: 0.1,
-      alphaTest: 0.08,
-      depthWrite: false,
-      depthTest: true,
-      blending: THREE.AdditiveBlending
-    });
-
-    const points = cloud?.points || new THREE.Points(geometry, material);
-    points.frustumCulled = false;
-    points.visible = true;
-    if (!cloud && this.pointFXBase) {
-      this.pointFXBase.ensureAttached(points);
-    } else if (!cloud) {
-      link.group.add(points);
-    }
+    // GPU-side attributes (no CPU updates needed)
+    const tOffsets = new Float32Array(count);
+    const laterals = new Float32Array(count);
+    const verticals = new Float32Array(count);
+    const phases = new Float32Array(count);
+    const sizeBiases = new Float32Array(count);
+    const initialPositions = new Float32Array(count * 3);
 
     const seeds = [];
     for (let i = 0; i < count; i++) {
       const tMin = 0.045;
       const tMax = 0.955;
-      seeds.push({
-        tOffset: tMin + (i / Math.max(1, count - 1)) * (tMax - tMin),
-        lateral: (Math.random() - 0.5) * this.config.dustLateralSpread,
-        vertical: Math.random() * this.config.dustHeight,
-        phase: Math.random() * Math.PI * 2,
-        sizeBias: 0.8 + Math.random() * 0.6
-      });
+      const tOffset = tMin + (i / Math.max(1, count - 1)) * (tMax - tMin);
+      const lateral = (Math.random() - 0.5) * this.config.dustLateralSpread;
+      const vertical = Math.random() * this.config.dustHeight;
+      const phase = Math.random() * Math.PI * 2;
+      const sizeBias = 0.8 + Math.random() * 0.6;
+
+      tOffsets[i] = tOffset;
+      laterals[i] = lateral;
+      verticals[i] = vertical;
+      phases[i] = phase;
+      sizeBiases[i] = sizeBias;
+
+      // Store seed data for reference (not used in GPU shader)
+      seeds.push({ tOffset, lateral, vertical, phase, sizeBias });
+
+      // Initial position (will be overridden by vertex shader)
+      initialPositions[i * 3] = 0;
+      initialPositions[i * 3 + 1] = 0;
+      initialPositions[i * 3 + 2] = 0;
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(initialPositions, 3));
+    geometry.setAttribute('aTOffset', new THREE.BufferAttribute(tOffsets, 1));
+    geometry.setAttribute('aLateral', new THREE.BufferAttribute(laterals, 1));
+    geometry.setAttribute('aVertical', new THREE.BufferAttribute(verticals, 1));
+    geometry.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+    geometry.setAttribute('aSizeBias', new THREE.BufferAttribute(sizeBiases, 1));
+
+    // Custom GPU shader material
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uTravelPhase: { value: 0 },
+        uWavePhase: { value: 0 },
+        uStart: { value: new THREE.Vector3() },
+        uEnd: { value: new THREE.Vector3() },
+        uMid: { value: new THREE.Vector3() },
+        uDustHeight: { value: this.config.dustHeight },
+        uWaveWidth: { value: this.config.dustWaveWidth },
+        uColor: { value: new THREE.Color(0xffefd6) },
+        uOpacity: { value: 0.68 },
+        uSize: { value: 0.11 }
+      },
+      vertexShader: `
+        attribute float aTOffset;
+        attribute float aLateral;
+        attribute float aVertical;
+        attribute float aPhase;
+        attribute float aSizeBias;
+
+        uniform float uTime;
+        uniform float uTravelPhase;
+        uniform float uWavePhase;
+        uniform vec3 uStart;
+        uniform vec3 uMid;
+        uniform vec3 uEnd;
+        uniform float uDustHeight;
+        uniform float uWaveWidth;
+        uniform float uSize;
+
+        varying float vInfluence;
+
+        // Quadratic Bezier
+        vec3 getBezierPoint(vec3 p0, vec3 p1, vec3 p2, float t) {
+          float oneMinusT = 1.0 - t;
+          return oneMinusT * oneMinusT * p0 + 
+                 2.0 * oneMinusT * t * p1 + 
+                 t * t * p2;
+        }
+
+        void main() {
+          // Wave influence calculation (GPU-side)
+          float waveOffset = sin(uWavePhase * 6.2831853 + aPhase) * 0.15;
+          float relative = aTOffset - uTravelPhase;
+          
+          // Quad approximation of exp: e^(-x²) ≈ 1 - x² for |x| < 1
+          float norm = relative / uWaveWidth;
+          vInfluence = max(0.0, 1.0 - norm * norm);
+          
+          float sampleT = clamp(uTravelPhase + relative * 0.45 + waveOffset, 0.0, 1.0);
+          vec3 basePos = getBezierPoint(uStart, uMid, uEnd, sampleT);
+
+          // Shimmer effect
+          float shimmer = sin(uTime * 4.0 + aPhase + sampleT * 9.0);
+
+          // Calculate link basis (simplified, assumes mostly horizontal links)
+          vec3 forward = normalize(uEnd - uStart);
+          vec3 up = abs(dot(forward, vec3(0.0, 1.0, 0.0))) < 0.99 
+            ? vec3(0.0, 1.0, 0.0) 
+            : vec3(1.0, 0.0, 0.0);
+          vec3 lateral = normalize(cross(forward, up));
+
+          // Apply offsets
+          basePos += up * (uDustHeight * (0.35 + vInfluence * 0.85) + shimmer * 0.015);
+          basePos += lateral * (aLateral + shimmer * 0.012 + sin(uTime + aPhase) * 0.01);
+
+          vec4 mvPosition = modelViewMatrix * vec4(basePos, 1.0);
+          gl_Position = projectionMatrix * mvPosition;
+          gl_PointSize = uSize * aSizeBias * (10.0 / -mvPosition.z);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor;
+        uniform float uOpacity;
+        varying float vInfluence;
+
+        void main() {
+          // Simple circular particle
+          vec2 p = gl_PointCoord * 2.0 - 1.0;
+          float r = length(p);
+          if (r > 1.0) discard;
+
+          float alpha = (1.0 - smoothstep(0.5, 1.0, r)) * vInfluence * uOpacity;
+          gl_FragColor = vec4(uColor, alpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending
+    });
+
+    const points = new THREE.Points(geometry, material);
+    points.frustumCulled = false;
+    points.visible = true;
+
+    if (this.pointFXBase) {
+      this.pointFXBase.ensureAttached(points);
+    } else {
+      link.group.add(points);
     }
 
     state.dust = { points, geometry, material, seeds };
@@ -214,36 +299,28 @@ export class LinkCorruptionSpreadAnimator {
     if (!dust) return;
 
     dust.points.visible = true;
-    dust.material.opacity = Math.min(0.75, corruptionLevel * 0.9);
-
-    const positions = dust.geometry.attributes.position.array;
-    const basis = this._computeLinkBasis(link);
-    const travelPhase = state.dustTravelPhase || 0;
-    const wavePhase = state.wavePhase || 0;
-    const width = this.config.dustWaveWidth;
-
-    for (let i = 0; i < dust.seeds.length; i++) {
-      const seed = dust.seeds[i];
-      const waveOffset = Math.sin(wavePhase * Math.PI * 2 + seed.phase) * 0.15;
-      const relative = seed.tOffset - travelPhase;
-      const influence = Math.exp(-(relative * relative) / Math.max(0.0001, width * width));
-      const sampleT = Math.max(0, Math.min(1, travelPhase + relative * 0.45 + waveOffset));
-      const basePos = this._sampleLinkPosition(link, sampleT);
-      const shimmer = Math.sin(state.time * 4.0 + seed.phase + sampleT * 9.0);
-
-      basePos.addScaledVector(basis.up, this.config.dustHeight * (0.35 + influence * 0.85) + shimmer * 0.015);
-      basePos.addScaledVector(
-        basis.lateral,
-        seed.lateral + shimmer * 0.012 + Math.sin(state.time + seed.phase) * 0.01
-      );
-
-      positions[i * 3 + 0] = basePos.x;
-      positions[i * 3 + 1] = basePos.y;
-      positions[i * 3 + 2] = basePos.z;
-    }
-
-    dust.geometry.attributes.position.needsUpdate = true;
+    
+    // Update uniforms only (no CPU position updates)
+    dust.material.uniforms.uTime.value = state.time || 0;
+    dust.material.uniforms.uTravelPhase.value = state.dustTravelPhase || 0;
+    dust.material.uniforms.uWavePhase.value = state.wavePhase || 0;
+    dust.material.uniforms.uOpacity.value = Math.min(0.75, corruptionLevel * 0.9);
     dust.points.scale.setScalar(0.92 + corruptionLevel * 0.42);
+
+    // Update curve control points
+    if (link?.curve?.v0 && link?.curve?.v1 && link?.curve?.v2) {
+      dust.material.uniforms.uStart.value.copy(link.curve.v0);
+      dust.material.uniforms.uMid.value.copy(link.curve.v1);
+      dust.material.uniforms.uEnd.value.copy(link.curve.v2);
+    } else {
+      // Fallback to linear interpolation
+      const source = link?.source?.position || new THREE.Vector3();
+      const target = link?.target?.position || new THREE.Vector3();
+      const mid = new THREE.Vector3().lerpVectors(source, target, 0.5);
+      dust.material.uniforms.uStart.value.copy(source);
+      dust.material.uniforms.uMid.value.copy(mid);
+      dust.material.uniforms.uEnd.value.copy(target);
+    }
   }
 
   _readCorruptionLevel(link, options = {}) {

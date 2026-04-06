@@ -303,12 +303,10 @@ export const linkStateFragmentShaderSimple = `
     vec3 cool = vec3(0.2, 0.5, 0.8);
     vec3 warm = vec3(0.9, 0.6, 0.2);
     vec3 hot = vec3(1.0, 0.3, 0.2);
-    
-    if (stress < 0.5) {
-      return mix(cool, warm, stress * 2.0);
-    } else {
-      return mix(warm, hot, (stress - 0.5) * 2.0);
-    }
+
+    float warmMix = clamp(stress * 2.0, 0.0, 1.0);
+    float hotMix = clamp((stress - 0.5) * 2.0, 0.0, 1.0);
+    return mix(mix(cool, warm, warmMix), hot, hotMix);
   }
   
   void main() {
@@ -316,7 +314,8 @@ export const linkStateFragmentShaderSimple = `
     float strandCountSafe = max(1.0, vStrandCount);
     float strandPhase = (vStrandIndex / strandCountSafe) * 6.28318;
     float travel = vUv.x;
-    float flowBand = sin((travel * 24.0) - (uTime * (2.6 + vLocalLoad * 2.2)) + strandPhase);
+    float flowSpeed = 2.6 + vLocalLoad * 2.2;
+    float flowBand = sin((travel * 24.0) - (uTime * flowSpeed) + strandPhase);
     float flowT = flowBand * 0.5 + 0.5;
     vec3 strandFlowColor = mix(vBaseColor, vAccentColor, flowT);
     vec3 stressTint = getStressColor(effectiveStress);
@@ -327,14 +326,17 @@ export const linkStateFragmentShaderSimple = `
     vec3 lightDir = normalize(vec3(0.3, 0.7, 0.6));
     float lambert = clamp(dot(n, lightDir), 0.45, 1.0);
     vec3 viewDir = normalize(cameraPosition - vWorldPos);
-    float fresnel = pow(max(0.0, 1.0 - dot(n, viewDir)), 2.2);
-    float rim = pow(1.0 - abs(dot(n, lightDir)), 2.0) * 0.5 + fresnel * 0.75;
+    float fresnelBase = max(0.0, 1.0 - dot(n, viewDir));
+    float fresnel = fresnelBase * fresnelBase;
+    float lightRim = 1.0 - abs(dot(n, lightDir));
+    float rim = (lightRim * lightRim) * 0.5 + fresnel * 0.75;
     float lighting = lambert * 0.95 + rim * 0.45;
     color *= lighting;
     color += strandFlowColor * (0.15 + vLocalLoad * 0.12);
     
     // Hot energetic streaks that travel along strands (orchestral spark lanes).
-    float streakCoord = fract((travel * 36.0) - (uTime * (4.2 + vLocalLoad * 2.8)) + strandPhase * 0.28);
+    float streakSpeed = 4.2 + vLocalLoad * 2.8;
+    float streakCoord = fract((travel * 36.0) - (uTime * streakSpeed) + strandPhase * 0.28);
     float streak = 1.0 - smoothstep(0.08, 0.28, abs(streakCoord - 0.5));
     vec3 streakColor = mix(vBaseColor, vAccentColor, 0.5 + 0.5 * sin(strandPhase + uTime * 0.8));
     streakColor = mix(streakColor, vec3(1.0), 0.22);
@@ -372,7 +374,7 @@ export const linkStateFragmentShaderSimple = `
     color *= (1.0 - vCorruption * 0.18);
     
     // Alpha based on coherence (1 - corruption)
-    float alpha = mix(0.86, 1.0, 1.0 - vCorruption) + fresnel * 0.12;
+    float alpha = 0.86 + (1.0 - vCorruption) * 0.14 + fresnel * 0.12;
     alpha = clamp(alpha, 0.0, 1.0);
     
     gl_FragColor = vec4(color, alpha);

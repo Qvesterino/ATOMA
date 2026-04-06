@@ -98,6 +98,9 @@ export class LinkPulseRing {
         const SEGMENTS = 4;
         const SEGMENT_ANGLE = Math.PI / 2;
 
+        // Shared material for all segments (reduces GPU state changes)
+        const sharedSegmentMaterial = this.material;
+
         for (let i = 0; i < SEGMENTS; i++) {
             const geo = new THREE.TorusGeometry(
                 TORUS_RADIUS,
@@ -108,9 +111,8 @@ export class LinkPulseRing {
             );
             geo.rotateZ(i * SEGMENT_ANGLE);
 
-            const mat = this.material.clone();
-
-            const seg = new THREE.Mesh(geo, mat);
+            // Use shared material (no clone!)
+            const seg = new THREE.Mesh(geo, sharedSegmentMaterial);
             seg.frustumCulled = false;
             seg.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 1;
 
@@ -191,20 +193,17 @@ export class LinkPulseRing {
                 uniform float uTime;
                 varying vec2 vUv;
 
-                float hash(float x) { return fract(sin(x) * 43758.5453); }
-
                 void main() {
                     // Soft ribbon mask (fade on edges)
                     float maskV = smoothstep(0.05, 0.25, vUv.y) * smoothstep(0.95, 0.75, vUv.y);
                     float maskU = smoothstep(0.02, 0.15, vUv.x) * smoothstep(0.98, 0.85, vUv.x);
                     float mask = maskU * maskV;
 
-                    // Layered fast turbulence
-                    float p = uTime * 20.0;
-                    float t1 = sin(vUv.x * 36.0 + p);
-                    float t2 = sin(vUv.x * 64.0 + vUv.y * 8.0 + p * 1.7 + 1.1);
-                    float t3 = sin((vUv.x + vUv.y) * 92.0 + p * 2.3 + 2.4);
-                    float turb = (t1 + t2 + t3) / 3.0;
+                    // Simplified turbulence: 2 sin() instead of 3
+                    float p = uTime * 15.0;
+                    float t1 = sin(vUv.x * 42.0 + p);
+                    float t2 = sin(vUv.x * 68.0 + vUv.y * 7.0 + p * 1.5 + 1.0);
+                    float turb = (t1 + t2) * 0.5;
 
                     // Shimmer modulation
                     float shimmer = 0.6 + 0.4 * abs(turb);
@@ -268,9 +267,12 @@ export class LinkPulseRing {
      */
     _initTrails() {
         if (this._trailsInitialized) return this.trailMeshes;
+        
+        // Shared material for all trails (reduces GPU state changes)
+        const sharedTrailMaterial = this.material.clone();
+        
         for (let i = 0; i < this.TRAIL_COUNT; i++) {
-            const mat = this.material.clone();
-            const mesh = new THREE.Mesh(SHARED_RING_GEOMETRY, mat);
+            const mesh = new THREE.Mesh(SHARED_RING_GEOMETRY, sharedTrailMaterial);
             mesh.frustumCulled = false;
             mesh.renderOrder = this.mesh.renderOrder;
             
@@ -609,11 +611,21 @@ export class LinkPulseRing {
             const trailOpacityPulse = Math.sin(this.progress * Math.PI * 6 * variation.pulseFrequencyMultiplier) * 0.1;
             const trailOpacityDecay = 1.0 - (i + 1) / (this.trailMeshes.length + 1);
             const trailLifetimeDecay = trailProgress < 0.3 ? trailProgress / 0.3 : (trailProgress > 0.7 ? (1.0 - trailProgress) / 0.3 : 1.0);
-            trail.material.uniforms.uOpacity.value = finalOpacity * trailLifetimeDecay * trailOpacityDecay * (0.72 + trailOpacityPulse);
+            const newOpacity = finalOpacity * trailLifetimeDecay * trailOpacityDecay * (0.72 + trailOpacityPulse);
             // Fixed per-trail hue offset (no per-frame randomness).
             const trailHueOffset = variation.hueOffset;
             this._tempColor.setHSL(hsl.h + trailHueOffset, hsl.s, hsl.l);
-            this._applyRingVisuals(trail.material, this._tempColor, trail.material.uniforms.uOpacity.value);
+            
+            // Only update uniforms if values changed (reduces GPU state changes)
+            const currentOpacity = trail.material.uniforms.uOpacity.value;
+            const currentColor = trail.material.uniforms.uColor.value;
+            
+            if (Math.abs(currentOpacity - newOpacity) > 0.001) {
+                trail.material.uniforms.uOpacity.value = newOpacity;
+            }
+            if (!currentColor.equals(this._tempColor)) {
+                trail.material.uniforms.uColor.value.copy(this._tempColor);
+            }
         });
 
         // Update active chain arcs

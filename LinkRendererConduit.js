@@ -198,7 +198,8 @@ const strandSparkFragmentShader = `
 
     float shapeEmber(vec2 p) {
         float dia = 1.0 - smoothstep(0.52, 0.78, abs(p.x) + abs(p.y));
-        float tail = 1.0 - smoothstep(0.10, 0.24, length(p - vec2(-0.24, 0.0)));
+        vec2 tailOffset = p - vec2(-0.24, 0.0);
+        float tail = 1.0 - smoothstep(0.10 * 0.10, 0.24 * 0.24, dot(tailOffset, tailOffset));
         return clamp(max(dia, tail * 0.75), 0.0, 1.0);
     }
 
@@ -219,11 +220,10 @@ const strandSparkFragmentShader = `
             shape = shapeEmber(p);
         }
 
-        float fadeIn = smoothstep(0.0, 0.09, vAge);
-        float fadeOut = 1.0 - smoothstep(0.68, 1.0, vAge);
-        float core = 1.0 - smoothstep(0.0, 0.62, length(p));
-        float flicker = 0.88 + 0.12 * sin((1.0 - vAge) * 29.0 + vShape * 7.7 + p.x * 5.0);
-        float alpha = shape * fadeIn * fadeOut * vGain * flicker;
+        float ageFade = smoothstep(0.0, 0.09, vAge) * (1.0 - smoothstep(0.68, 1.0, vAge));
+        float core = 1.0 - smoothstep(0.0, 0.384, dot(p, p));
+        float flicker = 0.92 + 0.08 * sin((1.0 - vAge) * 24.0 + vShape * 6.1 + p.x * 4.0);
+        float alpha = shape * ageFade * vGain * flicker;
         if (alpha < 0.01) discard;
 
         vec3 color = vColor + vec3(core * 0.32);
@@ -463,10 +463,7 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
             float radius = mix(aParams.x, aParams.y, t);
             float theta = aParams.w + aParams.z * age;
             float intakeFade = smoothstep(aParams.y + 0.006, aParams.y + 0.065, radius);
-            vec3 orbitDir = normalize(
-                aRadialBasis * cos(theta) +
-                aSwirlBasis * sin(theta)
-            );
+            vec3 orbitDir = aRadialBasis * cos(theta) + aSwirlBasis * sin(theta);
             vec3 pos = position + aVelocity * age + orbitDir * radius;
             vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
             gl_Position = projectionMatrix * mvPosition;
@@ -3800,6 +3797,12 @@ export class LinkRendererConduit {
                     const desaturation = Math.min(1.0, linkCorruption * 1.2);
                     material.uniforms.uDesaturation.value = desaturation;
 
+                }
+
+                // LOD for shader optimization (noise octaves based on distance)
+                const lodLevel = this._getLinkLODLevel(skinStart, skinEnd);
+                if (material.uniforms.uLOD) {
+                    material.uniforms.uLOD.value = lodLevel;
                 }
 
                  // Link birth/removal effects (synced with node aura)

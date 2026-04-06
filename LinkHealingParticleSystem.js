@@ -180,7 +180,8 @@ export class LinkHealingParticleSystem {
           if (r > 1.0) return 0.0;
           float ang = atan(p.y, p.x);
           float petals = abs(cos(3.0 * ang));
-          float petalRadius = 0.24 + 0.56 * pow(petals, 1.4);
+          // Optimized: pow(petals, 1.4) → quad approximation
+          float petalRadius = 0.24 + 0.56 * petals * petals;
           float petalMask = 1.0 - smoothstep(petalRadius - 0.07, petalRadius + 0.03, r);
           float centerCut = smoothstep(0.05, 0.18, r);
           float core = 1.0 - smoothstep(0.0, 0.11, r);
@@ -195,7 +196,8 @@ export class LinkHealingParticleSystem {
 
           float ang = atan(p.y, p.x);
           float petals = abs(cos(4.0 * ang));
-          float petalRadius = 0.18 + 0.62 * pow(petals, 1.15);
+          // Optimized: pow(petals, 1.15) → smoother lerp
+          float petalRadius = 0.18 + 0.62 * smoothstep(0.0, 1.0, petals);
           float bloom = 1.0 - smoothstep(petalRadius - 0.12, petalRadius + 0.04, r);
           float core = 1.0 - smoothstep(0.0, 0.14, r);
           float rim = smoothstep(0.58, 0.96, petals) * (1.0 - smoothstep(0.82, 1.0, r));
@@ -212,32 +214,27 @@ export class LinkHealingParticleSystem {
           float useBloom = step(0.5, vVariant);
           float shape = mix(knot(uv), bloomPetal(uv), useBloom);
 
-          // Afterimage (cheap): offset seed-based jitter, scaled by life
-          float ghostLife = smoothstep(0.1, 0.6, vLifeT) * (1.0 - smoothstep(0.75, 1.0, vLifeT));
-          float ghost = mix(
-            knot(uv + (vSeed - 0.5) * 0.02),
-            bloomPetal(uv + (vSeed - 0.5) * 0.018),
-            useBloom
-          ) * 0.35 * ghostLife;
-
           float lifeFade = smoothstep(0.0, 0.08, vLifeT) * (1.0 - smoothstep(0.68, 1.0, vLifeT));
           // Match spark-style visibility: only soften when particles get too close to the camera.
           float depthFade = smoothstep(uSofteningNear, uSofteningNear + uSofteningRange, vDepth);
           float flash = smoothstep(0.92, 1.0, vLifeT) * 1.1;
-          // Radial streak: angular jitter using seed, sharp near center
-          float angJitter = hash11(vSeed * 97.3 + vLifeT * 37.1) * 2.0 - 1.0;
+          
+          // Unified hash for all randomization
+          float h = hash11(vSeed + vLifeT * 13.7);
+          float randTint = fract(h * 17.3);
+          float angJitter = h * 2.0 - 1.0;
+          
           float radial = clamp(1.0 - length(gl_PointCoord * 2.0 - 1.0), 0.0, 1.0);
           float streak = flash * radial * (0.6 + 0.4 * angJitter);
 
           vec3 base = mix(uBaseColor, vec3(0.84, 1.0, 0.92), useBloom * 0.48);
           vec3 edge = mix(uEdgeColor, vec3(0.72, 1.0, 0.98), useBloom * 0.56);
-          float randTint = hash11(vSeed * 151.7 + vLifeT * 11.3);
           vec3 color = mix(base, edge, 0.35 + 0.25 * randTint);
           color += (flash + streak) * mix(0.32, 0.42, useBloom);
           color += useBloom * 0.08;
 
           float driftFade = 1.0 - smoothstep(0.65, 1.0, vLifeT);
-          float alpha = (shape + ghost) * (lifeFade + flash + streak) * depthFade * driftFade * uOpacity;
+          float alpha = shape * (lifeFade + flash + streak) * depthFade * driftFade * uOpacity;
           if (alpha < 0.01) discard;
           gl_FragColor = vec4(color, alpha);
         }

@@ -56,10 +56,10 @@ void main() {
     if (vAlpha <= 0.002) discard;
 
     vec2 coord = gl_PointCoord - vec2(0.5);
-    float dist = length(coord);
-    if (dist > 0.5) discard;
+    float dist2 = dot(coord, coord);
+    if (dist2 > 0.25) discard;
 
-    float fog = 1.0 - smoothstep(0.02, 0.5, dist);
+    float fog = 1.0 - smoothstep(0.02, 0.5, sqrt(dist2));
     gl_FragColor = vec4(vColor, vAlpha * fog);
 }
 `;
@@ -91,7 +91,7 @@ function lerp(a, b, t) {
 }
 
 export class LinkPulseDustEmitter {
-    constructor(maxParticles = 160) {
+    constructor(maxParticles = 128) {
         this.maxParticles = Math.max(24, maxParticles | 0);
         this.enabled = true;
         this.visible = true;

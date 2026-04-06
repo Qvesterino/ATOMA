@@ -207,7 +207,7 @@ export class LinkRingArcDischarges {
         if (binormal.lengthSq() < 1e-4) {
             binormal.set(0, 1, 0).cross(normal).normalize();
         }
-        const segments = impactPoint ? 6 : 8;
+        const segments = impactPoint ? 5 : 6;
         const jitterMul = impactPoint ? 0.7 : 1.0;
         const positions = this.generateArcPath(startPoint, endPoint, segments, jitterMul, normal, binormal);
         if (!positions) return null;
@@ -277,7 +277,7 @@ export class LinkRingArcDischarges {
         };
 
         // Optional tiny branch
-        if (Math.random() < 0.35) {
+        if (Math.random() < 0.25) {
             const branchGeometry = new THREE.BufferGeometry();
             const mid = startPoint.clone().lerp(endPoint, 0.5);
             const branchEnd = mid.clone().addScaledVector(binormal, 0.08 * (Math.random() - 0.5));
@@ -481,7 +481,7 @@ export class LinkRingArcDischarges {
 
         // Create arc line geometry safely (PHASE 3: Improved Electric Shape)
         const geometry = new THREE.BufferGeometry();
-        const positions = this.generateArcPath(startPoint, endPoint, 8, jitterMultiplier, normal, binormal);
+        const positions = this.generateArcPath(startPoint, endPoint, 6, jitterMultiplier, normal, binormal);
         
         // positions is already a BufferAttribute, set it directly
         if (positions && positions instanceof THREE.BufferAttribute) {
@@ -564,7 +564,7 @@ export class LinkRingArcDischarges {
             
             // Create short branch arc geometry
             const branchGeometry = new THREE.BufferGeometry();
-            const branchPositions = this.generateArcPath(branchStart, branchEnd, 4, jitterMultiplier, normal, binormal); // Shorter: 4 segments
+            const branchPositions = this.generateArcPath(branchStart, branchEnd, 3, jitterMultiplier, normal, binormal); // Shorter: 3 segments
             
             if (branchPositions && branchPositions instanceof THREE.BufferAttribute) {
                 branchGeometry.setAttribute('position', branchPositions);
@@ -667,14 +667,15 @@ export class LinkRingArcDischarges {
         // This creates organic electric oscillation instead of noise chaos
         
         // Defensive fallback: if basis vectors are missing, derive a stable local frame
+        const pathDir = end.clone().sub(start).normalize();
         const safeNormal = normal?.isVector3 ? normal : this._vec3.set(0, 1, 0);
-        if (Math.abs(end.clone().sub(start).normalize().dot(safeNormal)) > 0.9) {
+        if (Math.abs(pathDir.dot(safeNormal)) > 0.9) {
             safeNormal.set(1, 0, 0);
         }
         const safeBinormal = binormal?.isVector3
             ? binormal
-            : this._vec3b.crossVectors(end.clone().sub(start).normalize(), safeNormal).normalize();
-        safeNormal.crossVectors(safeBinormal, end.clone().sub(start).normalize()).normalize();
+            : this._vec3b.crossVectors(pathDir, safeNormal).normalize();
+        safeNormal.crossVectors(safeBinormal, pathDir).normalize();
 
         // Pre-allocate typed array with exact size needed
         const pointCount = segments + 2; // start + intermediates + end
@@ -687,11 +688,13 @@ export class LinkRingArcDischarges {
         positions[idx++] = start.z;
 
         // Generate intermediate control points with whip-biased structured jitter
+        const point = new THREE.Vector3();
+        const jitterDir = new THREE.Vector3();
         for (let i = 1; i < segments + 1; i++) {
             const t = i / (segments + 1);
             
             // Linear interpolation base
-            const point = start.clone().lerp(end, t);
+            point.copy(start).lerp(end, t);
             
             // PHASE 3+: Structured wave with whip bias
             const taper = Math.sin(t * Math.PI); // fades toward ends

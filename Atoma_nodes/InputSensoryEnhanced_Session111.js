@@ -262,6 +262,281 @@ function _getEchoDetectorAnomalyMaterials(color) {
   return mats;
 }
 
+const INPUT_NEURAL_RECEPTOR_CACHE = {
+  somaShellGeometry: null,
+  somaShellEdgesGeometry: null,
+  innerSeedGeometry: null,
+  innerSeedEdgesGeometry: null,
+  ignitionSparkGeometry: null,
+  branchGeometries: null,
+  branchCurves: null,
+  branchDefs: null,
+  tipGeometry: null,
+  packetGeometry: null
+};
+const INPUT_NEURAL_RECEPTOR_MATERIALS = new Map(); // keyed by color hex
+
+function _buildNeuralBranchCurve(startDir, reach, liftBias, bendA, bendB) {
+  const start = startDir.clone().multiplyScalar(0.165);
+  const tip = startDir.clone().multiplyScalar(0.165 + reach);
+  const midA = start.clone()
+    .add(startDir.clone().multiplyScalar(reach * 0.24))
+    .add(bendA);
+  const midB = start.clone()
+    .add(startDir.clone().multiplyScalar(reach * 0.67))
+    .add(bendB)
+    .add(new THREE.Vector3(0, liftBias, 0));
+
+  const curve = new THREE.CatmullRomCurve3([start, midA, midB, tip]);
+  curve.curveType = 'catmullrom';
+  curve.tension = 0.34;
+  return curve;
+}
+
+function _getInputNeuralReceptorGeometries() {
+  if (!INPUT_NEURAL_RECEPTOR_CACHE.somaShellGeometry) {
+    const somaShellGeometry = new THREE.IcosahedronGeometry(0.235, 1);
+    const somaPos = somaShellGeometry.getAttribute('position');
+    for (let i = 0; i < somaPos.count; i++) {
+      const x = somaPos.getX(i);
+      const y = somaPos.getY(i);
+      const z = somaPos.getZ(i);
+      const xBias = x > 0 ? 1.11 : 0.91;
+      const yBias = y > 0 ? 1.16 : 0.88;
+      const zBias = z > 0 ? 0.94 : 1.05;
+      const membraneWarp = Math.sin((x + z) * 6.0) * 0.015 + Math.cos(y * 8.1) * 0.008;
+      somaPos.setXYZ(
+        i,
+        x * xBias + membraneWarp * 0.45,
+        y * yBias + membraneWarp * 0.6,
+        z * zBias - membraneWarp * 0.3
+      );
+    }
+    somaPos.needsUpdate = true;
+    somaShellGeometry.computeVertexNormals();
+    somaShellGeometry.computeBoundingSphere();
+    INPUT_NEURAL_RECEPTOR_CACHE.somaShellGeometry = somaShellGeometry;
+    INPUT_NEURAL_RECEPTOR_CACHE.somaShellEdgesGeometry = new THREE.EdgesGeometry(somaShellGeometry, 11);
+
+    const innerSeedGeometry = new THREE.DodecahedronGeometry(0.112, 0);
+    const seedPos = innerSeedGeometry.getAttribute('position');
+    for (let i = 0; i < seedPos.count; i++) {
+      const x = seedPos.getX(i);
+      const y = seedPos.getY(i);
+      const z = seedPos.getZ(i);
+      const seedWarp = Math.sin((x - z) * 5.4) * 0.01;
+      seedPos.setXYZ(
+        i,
+        x * (x > 0 ? 1.07 : 0.95) + seedWarp,
+        y * (y > 0 ? 1.14 : 0.9),
+        z * (z > 0 ? 0.96 : 1.05) - seedWarp * 0.55
+      );
+    }
+    seedPos.needsUpdate = true;
+    innerSeedGeometry.computeVertexNormals();
+    innerSeedGeometry.computeBoundingSphere();
+    INPUT_NEURAL_RECEPTOR_CACHE.innerSeedGeometry = innerSeedGeometry;
+    INPUT_NEURAL_RECEPTOR_CACHE.innerSeedEdgesGeometry = new THREE.EdgesGeometry(innerSeedGeometry, 10);
+
+    INPUT_NEURAL_RECEPTOR_CACHE.ignitionSparkGeometry = new THREE.IcosahedronGeometry(0.056, 0);
+    INPUT_NEURAL_RECEPTOR_CACHE.tipGeometry = new THREE.IcosahedronGeometry(0.034, 0);
+    INPUT_NEURAL_RECEPTOR_CACHE.packetGeometry = new THREE.IcosahedronGeometry(0.019, 0);
+
+    const branchDefs = [
+      {
+        name: 'NeuralBranch_A',
+        dir: new THREE.Vector3(0.93, 0.27, -0.18),
+        reach: 0.96,
+        liftBias: 0.06,
+        bendA: new THREE.Vector3(0.06, 0.08, 0.12),
+        bendB: new THREE.Vector3(0.12, 0.02, 0.2),
+        radius: 0.031,
+        signalSpeed: 0.22,
+        packets: [0.14, 0.58],
+        warmTip: true
+      },
+      {
+        name: 'NeuralBranch_B',
+        dir: new THREE.Vector3(-0.74, 0.66, 0.24),
+        reach: 0.88,
+        liftBias: 0.03,
+        bendA: new THREE.Vector3(-0.09, 0.1, 0.04),
+        bendB: new THREE.Vector3(-0.16, 0.16, -0.02),
+        radius: 0.027,
+        signalSpeed: 0.19,
+        packets: [0.28, 0.74],
+        warmTip: false
+      },
+      {
+        name: 'NeuralBranch_C',
+        dir: new THREE.Vector3(0.28, -0.48, 0.84),
+        reach: 0.79,
+        liftBias: -0.02,
+        bendA: new THREE.Vector3(0.06, -0.08, 0.08),
+        bendB: new THREE.Vector3(0.1, -0.12, 0.16),
+        radius: 0.024,
+        signalSpeed: 0.17,
+        packets: [0.34],
+        warmTip: false
+      },
+      {
+        name: 'NeuralBranch_D',
+        dir: new THREE.Vector3(-0.36, 0.18, -0.92),
+        reach: 0.98,
+        liftBias: 0.04,
+        bendA: new THREE.Vector3(-0.06, 0.08, -0.12),
+        bendB: new THREE.Vector3(-0.08, 0.12, -0.22),
+        radius: 0.029,
+        signalSpeed: 0.2,
+        packets: [0.16, 0.63],
+        warmTip: true
+      },
+      {
+        name: 'NeuralBranch_E',
+        dir: new THREE.Vector3(0.58, -0.2, -0.64),
+        reach: 0.7,
+        liftBias: 0.02,
+        bendA: new THREE.Vector3(0.1, 0.04, -0.04),
+        bendB: new THREE.Vector3(0.08, 0.1, -0.08),
+        radius: 0.021,
+        signalSpeed: 0.16,
+        packets: [0.42],
+        warmTip: false
+      },
+      {
+        name: 'NeuralBranch_F',
+        dir: new THREE.Vector3(-0.1, 0.86, -0.5),
+        reach: 0.64,
+        liftBias: 0.08,
+        bendA: new THREE.Vector3(-0.02, 0.12, 0.04),
+        bendB: new THREE.Vector3(0.04, 0.16, 0.11),
+        radius: 0.019,
+        signalSpeed: 0.24,
+        packets: [0.22],
+        warmTip: false
+      }
+    ];
+
+    INPUT_NEURAL_RECEPTOR_CACHE.branchDefs = branchDefs;
+    INPUT_NEURAL_RECEPTOR_CACHE.branchCurves = branchDefs.map((cfg) => {
+      const dir = cfg.dir.clone().normalize();
+      return _buildNeuralBranchCurve(dir, cfg.reach, cfg.liftBias, cfg.bendA, cfg.bendB);
+    });
+    INPUT_NEURAL_RECEPTOR_CACHE.branchGeometries = branchDefs.map((cfg, idx) => {
+      const curve = INPUT_NEURAL_RECEPTOR_CACHE.branchCurves[idx];
+      const geometry = new THREE.TubeGeometry(curve, 18, cfg.radius, 5, false);
+      geometry.computeBoundingSphere();
+      return geometry;
+    });
+  }
+
+  return INPUT_NEURAL_RECEPTOR_CACHE;
+}
+
+function _getInputNeuralReceptorMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0x00ddff;
+  if (INPUT_NEURAL_RECEPTOR_MATERIALS.has(colorHex)) {
+    return INPUT_NEURAL_RECEPTOR_MATERIALS.get(colorHex);
+  }
+
+  const baseColor = new THREE.Color(colorHex);
+  const icyWhite = baseColor.clone().lerp(new THREE.Color(0xffffff), 0.5);
+  const innerCyan = baseColor.clone().lerp(new THREE.Color(0xb2f7ff), 0.28);
+  const deepCyan = baseColor.clone().lerp(new THREE.Color(0x1a4f6a), 0.18);
+  const ignitionAmber = new THREE.Color(0xffb15d);
+
+  const somaShellMat = new THREE.MeshPhysicalMaterial({
+    color: innerCyan,
+    metalness: 0.74,
+    roughness: 0.15,
+    emissive: icyWhite,
+    emissiveIntensity: 0.56,
+    transmission: 0,
+    thickness: 0.19,
+    ior: 1.42,
+    transparent: true,
+    opacity: 0.95,
+    side: THREE.DoubleSide
+  });
+
+  const innerSeedMat = new THREE.MeshStandardMaterial({
+    color: deepCyan,
+    metalness: 0.52,
+    roughness: 0.2,
+    emissive: icyWhite,
+    emissiveIntensity: 0.34,
+    transparent: true,
+    opacity: 0.92
+  });
+
+  const branchMat = new THREE.MeshStandardMaterial({
+    color: innerCyan.clone().lerp(new THREE.Color(0xeafcff), 0.25),
+    metalness: 0.78,
+    roughness: 0.18,
+    emissive: icyWhite,
+    emissiveIntensity: 0.28,
+    transparent: true,
+    opacity: 0.88,
+    side: THREE.DoubleSide
+  });
+
+  const tipMat = new THREE.MeshPhysicalMaterial({
+    color: icyWhite,
+    metalness: 0.62,
+    roughness: 0.1,
+    emissive: new THREE.Color(0x99eaff),
+    emissiveIntensity: 0.56,
+    transmission: 0,
+    thickness: 0.08,
+    transparent: true,
+    opacity: 0.98
+  });
+
+  const packetMat = new THREE.MeshBasicMaterial({
+    color: icyWhite,
+    transparent: true,
+    opacity: 0.95
+  });
+
+  const warmSparkMat = new THREE.MeshPhysicalMaterial({
+    color: ignitionAmber,
+    metalness: 0.28,
+    roughness: 0.18,
+    emissive: ignitionAmber,
+    emissiveIntensity: 0.95,
+    transmission: 0,
+    thickness: 0.06,
+    transparent: true,
+    opacity: 0.98
+  });
+
+  const lineMat = new THREE.LineBasicMaterial({
+    color: icyWhite,
+    transparent: true,
+    opacity: 0.42,
+    depthWrite: false
+  });
+
+  const mats = {
+    somaShellMat,
+    innerSeedMat,
+    branchMat,
+    tipMat,
+    packetMat,
+    warmSparkMat,
+    lineMat
+  };
+
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+  }
+  mats.warmSparkMat.userData.ignoreWaveColor = true;
+
+  INPUT_NEURAL_RECEPTOR_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
 export class InputSensoryEnhanced {
   
   /**
@@ -535,112 +810,120 @@ export class InputSensoryEnhanced {
    * - Dendritic branches: cyan translucent tubes.
    * - Central soma: bright emissive core.
    * - Signal particles: white/bright flowing along branches.
-   */
+  */
   static createInputSensory_NeuralReceptor(group, color) {
     try {
-      // Reused material set (no material cloning, no extra shader paths)
-      const coreMat = new THREE.MeshPhysicalMaterial({
-        color,
-        metalness: 0.8,
-        roughness: 0.16,
-        emissive: color,
-        emissiveIntensity: 0.65,
-        transmission: 0,
-        thickness: 0.22,
-        ior: 1.45,
-        transparent: true,
-        opacity: 0.94
-      });
-      const receptorMat = new THREE.MeshStandardMaterial({
-        color,
-        metalness: 0.72,
-        roughness: 0.22,
-        emissive: color,
-        emissiveIntensity: 0.4,
-        transparent: true,
-        opacity: 0.86
-      });
+      const geometries = _getInputNeuralReceptorGeometries();
+      const materials = _getInputNeuralReceptorMaterials(color);
 
-      // 1) Core: compact neural "brain"
-      const coreGeo = new THREE.DodecahedronGeometry(0.18, 0);
-      coreGeo.scale(1.0, 1.08, 0.94);
-      const core = new THREE.Mesh(coreGeo, coreMat);
-      core.userData.isSoma = true;
-      core.userData.visualCoreImmutable = true;
-      group.add(core);
-
-      // 2) Receptor arms: organic asymmetry via tilted cylinders
-      const armGeo = new THREE.CylinderGeometry(0.026, 0.014, 0.46, 8, 1, false);
-      const armDirs = [
-        new THREE.Vector3(0.91, 0.34, -0.24),
-        new THREE.Vector3(-0.66, 0.71, 0.32),
-        new THREE.Vector3(0.22, -0.41, 0.95),
-        new THREE.Vector3(-0.34, 0.18, -0.96)
-      ];
-      const armSkews = [
-        { x: 0.25, z: -0.19 },
-        { x: -0.23, z: 0.13 },
-        { x: 0.14, z: 0.26 },
-        { x: -0.19, z: -0.16 }
-      ];
-      const up = new THREE.Vector3(0, 1, 0);
-      const tipPositions = [];
-
-      for (let i = 0; i < armDirs.length; i++) {
-        const dir = armDirs[i].clone().normalize();
-        const arm = new THREE.Mesh(armGeo, receptorMat);
-        arm.userData.isDendrite = true;
-        arm.userData.visualCoreImmutable = true;
-
-        arm.position.copy(dir).multiplyScalar(0.24);
-        arm.quaternion.setFromUnitVectors(up, dir);
-        arm.rotateX(armSkews[i].x);
-        arm.rotateZ(armSkews[i].z);
-        group.add(arm);
-
-        tipPositions.push(dir.clone().multiplyScalar(0.47));
-      }
-
-      // 3) Sensor tips (instanced -> 1 mesh)
-      const tipGeo = new THREE.SphereGeometry(0.042, 8, 6);
-      const tipMesh = new THREE.InstancedMesh(tipGeo, coreMat, tipPositions.length);
-      const tmpMatrix = new THREE.Matrix4();
-      for (let i = 0; i < tipPositions.length; i++) {
-        tmpMatrix.makeTranslation(tipPositions[i].x, tipPositions[i].y, tipPositions[i].z);
-        tipMesh.setMatrixAt(i, tmpMatrix);
-      }
-      tipMesh.instanceMatrix.needsUpdate = true;
-      tipMesh.userData.isSensorTipCluster = true;
-      tipMesh.userData.visualCoreImmutable = true;
-      group.add(tipMesh);
-
-      // 4) Sensor ring: single tilted torus
-      const ringGeo = new THREE.TorusGeometry(0.36, 0.012, 8, 22);
-      const ring = new THREE.Mesh(ringGeo, receptorMat);
-      ring.rotation.set(0.72, 0.34, -0.21);
-      ring.userData.isSensorRing = true;
-      ring.userData.visualCoreImmutable = true;
-      group.add(ring);
-
-      // 5) Micro orbs (instanced -> 1 mesh)
-      const microGeo = new THREE.SphereGeometry(0.028, 7, 6);
-      const microMesh = new THREE.InstancedMesh(microGeo, receptorMat, 3);
-      const microOffsets = [
-        new THREE.Vector3(-0.19, -0.07, 0.21),
-        new THREE.Vector3(0.23, 0.11, -0.17),
-        new THREE.Vector3(0.04, 0.24, 0.15)
-      ];
-      for (let i = 0; i < microOffsets.length; i++) {
-        tmpMatrix.makeTranslation(microOffsets[i].x, microOffsets[i].y, microOffsets[i].z);
-        microMesh.setMatrixAt(i, tmpMatrix);
-      }
-      microMesh.instanceMatrix.needsUpdate = true;
-      microMesh.userData.isMicroOrbs = true;
-      microMesh.userData.visualCoreImmutable = true;
-      group.add(microMesh);
-
+      group.name = 'INPUT_NEURAL_RECEPTOR_NODE';
+      group.userData.visualVariant = 'INPUT_SYNAPTIC_IGNITION_RECEPTOR_V4';
+      group.userData.inputVariant = 'SYNAPTIC_IGNITION_RECEPTOR';
+      group.userData.neuralVariant = 'SYNAPTIC_IGNITION_RECEPTOR';
       group.userData.visualCoreImmutable = true;
       group.userData.nodeGeometryName = 'INPUT_NEURAL_RECEPTOR';
+      group.userData.visualReady = true;
+
+      const soma = new THREE.Mesh(geometries.somaShellGeometry, materials.somaShellMat);
+      soma.name = 'NeuralReceptorSoma';
+      soma.position.set(0.012, -0.006, 0.0);
+      soma.rotation.set(-0.22, 0.32, 0.14);
+      soma.renderOrder = 2;
+      soma.userData.isSoma = true;
+      soma.userData.visualCoreImmutable = true;
+      group.add(soma);
+
+      const somaEdges = new THREE.LineSegments(geometries.somaShellEdgesGeometry, materials.lineMat);
+      somaEdges.name = 'NeuralReceptorSomaEdges';
+      somaEdges.position.copy(soma.position);
+      somaEdges.rotation.copy(soma.rotation);
+      somaEdges.renderOrder = 3;
+      somaEdges.userData.visualCoreImmutable = true;
+      group.add(somaEdges);
+
+      const innerSeed = new THREE.Mesh(geometries.innerSeedGeometry, materials.innerSeedMat);
+      innerSeed.name = 'NeuralReceptorInnerSeed';
+      innerSeed.position.set(-0.01, 0.018, 0.012);
+      innerSeed.rotation.set(0.34, -0.28, 0.22);
+      innerSeed.scale.set(0.92, 1.06, 0.86);
+      innerSeed.renderOrder = 1;
+      innerSeed.userData.isSoma = true;
+      innerSeed.userData.visualCoreImmutable = true;
+      group.add(innerSeed);
+
+      const ignitionSpark = new THREE.Mesh(geometries.ignitionSparkGeometry, materials.warmSparkMat);
+      ignitionSpark.name = 'NeuralReceptorIgnitionSpark';
+      ignitionSpark.position.set(0.03, 0.0, -0.01);
+      ignitionSpark.rotation.set(-0.14, 0.36, -0.08);
+      ignitionSpark.scale.set(0.66, 0.74, 0.62);
+      ignitionSpark.renderOrder = 4;
+      ignitionSpark.userData.isActivationSpark = true;
+      ignitionSpark.userData.visualCoreImmutable = true;
+      ignitionSpark.userData.ignoreWaveColor = true;
+      group.add(ignitionSpark);
+
+      const branchCurves = geometries.branchCurves || [];
+      const branchDefs = geometries.branchDefs || [];
+      const tipPointScratch = new THREE.Vector3();
+      const tipTangentScratch = new THREE.Vector3();
+
+      for (let i = 0; i < branchDefs.length; i++) {
+        const cfg = branchDefs[i];
+        const curve = branchCurves[i];
+        const branch = new THREE.Mesh(geometries.branchGeometries[i], materials.branchMat);
+        branch.name = cfg.name;
+        branch.renderOrder = 5;
+        branch.userData.isDendrite = true;
+        branch.userData.visualCoreImmutable = true;
+        group.add(branch);
+
+        const tipPoint = curve.getPoint(1, tipPointScratch);
+        const tipTangent = curve.getTangent(0.98, tipTangentScratch).normalize();
+        const tip = new THREE.Mesh(geometries.tipGeometry, cfg.warmTip ? materials.warmSparkMat : materials.tipMat);
+        tip.name = `${cfg.name}_Tip`;
+        tip.position.copy(tipPoint).addScaledVector(tipTangent, 0.025);
+        tip.rotation.set(0.2 + i * 0.18, -0.28 + i * 0.1, 0.14 - i * 0.07);
+        tip.scale.set(cfg.warmTip ? 1.18 : 0.94, cfg.warmTip ? 1.14 : 0.92, cfg.warmTip ? 1.08 : 0.88);
+        tip.renderOrder = 6;
+        tip.userData.isSynapticTip = true;
+        tip.userData.visualCoreImmutable = true;
+        tip.userData.ignoreWaveColor = !!cfg.warmTip;
+        group.add(tip);
+
+        const packetOffsets = cfg.packets || [0.2, 0.64];
+        for (let j = 0; j < packetOffsets.length; j++) {
+          const packet = new THREE.Mesh(
+            geometries.packetGeometry,
+            (cfg.warmTip && j === 0) ? materials.warmSparkMat : materials.packetMat
+          );
+          packet.name = `${cfg.name}_Packet_${j + 1}`;
+          packet.userData.isNeuralSignal = true;
+          packet.userData.parentCurve = curve;
+          packet.userData.pathOffset = packetOffsets[j];
+          packet.userData.signalSpeed = cfg.signalSpeed;
+          packet.userData.signalPointScratch = new THREE.Vector3();
+          packet.userData.visualCoreImmutable = true;
+          packet.userData.ignoreWaveColor = !!(cfg.warmTip && j === 0);
+          packet.renderOrder = 7;
+
+          curve.getPoint(packet.userData.pathOffset, packet.position);
+          const tangent = curve.getTangent(packet.userData.pathOffset, new THREE.Vector3()).normalize();
+          packet.position.addScaledVector(tangent, 0.008);
+          packet.scale.set(j === 0 && cfg.warmTip ? 1.08 : 0.9, j === 0 && cfg.warmTip ? 1.08 : 0.9, j === 0 && cfg.warmTip ? 1.08 : 0.9);
+          group.add(packet);
+        }
+      }
+
+      const fieldAnchor = new THREE.Mesh(new THREE.OctahedronGeometry(0.027, 0), materials.warmSparkMat);
+      fieldAnchor.name = 'NeuralReceptorFieldAnchor';
+      fieldAnchor.position.set(-0.05, 0.06, 0.03);
+      fieldAnchor.rotation.set(0.42, 0.1, -0.24);
+      fieldAnchor.scale.set(1.0, 0.94, 0.88);
+      fieldAnchor.renderOrder = 4;
+      fieldAnchor.userData.isActivationSpark = true;
+      fieldAnchor.userData.visualCoreImmutable = true;
+      fieldAnchor.userData.ignoreWaveColor = true;
+      group.add(fieldAnchor);
 
       return group;
     } catch (err) {
