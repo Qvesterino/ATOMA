@@ -42,6 +42,9 @@ export class NodeEditor {
     this.camera = camera;
     this.collisionManager = collisionManager;
     
+    // UNIFIED CLEANUP CONTRACT - Track all created objects
+    this._createdObjects = [];
+    
     // Decorative debug marker management (policy: no real nodes here)
     this.debugMarkers = [];
     this.nodes = this.debugMarkers; // backward compatibility for internal calls
@@ -69,6 +72,28 @@ export class NodeEditor {
     // Visual effects
     this.sparkParticles = [];
     this.pulseEffects = [];
+  }
+  
+  /**
+   * UNIFIED CLEANUP CONTRACT - Dispose all resources
+   */
+  dispose() {
+    // Remove and dispose all created objects
+    this._createdObjects.forEach(obj => {
+      this.scene.remove(obj);
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
+    });
+    this._createdObjects = [];
+    
+    // Cleanup other resources
+    this.debugMarkers = [];
+    this.links = [];
+    this.sparkParticles = [];
+    this.pulseEffects = [];
+    
+    if (this.nodeGeometry) this.nodeGeometry.dispose();
+    if (this.linkPreviewGeometry) this.linkPreviewGeometry.dispose();
   }
   
   /**
@@ -112,8 +137,16 @@ export class NodeEditor {
       nonInteractive: true
     };
     
+    const debugEntry = { mesh: marker, data: markerData };
+    marker.addEventListener('removed', () => {
+      if (Array.isArray(this.debugMarkers)) {
+        this.debugMarkers = this.debugMarkers.filter((entry) => entry !== debugEntry);
+      }
+    });
+    
     this.scene.add(marker);
-    this.debugMarkers.push({ mesh: marker, data: markerData });
+    this._createdObjects.push(marker);  // UNIFIED CLEANUP CONTRACT
+    this.debugMarkers.push(debugEntry);
     
     return markerData;
   }
@@ -199,6 +232,7 @@ export class NodeEditor {
     
     const line = new THREE.Line(geometry, material);
     this.scene.add(line);
+    this._createdObjects.push(line);  // UNIFIED CLEANUP CONTRACT
     
     return { line, curve, points };
   }
@@ -391,6 +425,7 @@ export class NodeEditor {
     
     this.linkPreview = new THREE.Line(geometry, material);
     this.scene.add(this.linkPreview);
+    this._createdObjects.push(this.linkPreview);  // UNIFIED CLEANUP CONTRACT
   }
   
   /**

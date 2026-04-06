@@ -222,7 +222,7 @@ const LINK_RECONSTRUCTION_THRESHOLDS = {
   REBUILD_COST_SYNERGY_CONSUMED: 5,   // Rebuilding consumes 5 synergy points
   
   // Escalating costs (optional: for multiple rebuilds)
-  REBUILD_COST_ESCALATION_ENABLED: false, // Set true to increase cost per rebuild
+
   REBUILD_COST_ESCALATION_FACTOR: 1.1,   // 10% cost increase per rebuild (multiplicative)
   REBUILD_COUNTER_PER_LINK: true,        // Track rebuild count per link
   

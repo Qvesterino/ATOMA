@@ -13,6 +13,9 @@ export class T2_CorruptionVisualIntegration_v1 {
     this.linkingSystem = linkingSystem;
     this.corruptionVisualFX = corruptionVisualFX;
     this.aiNodes = aiNodes;
+    
+    // UNIFIED CLEANUP CONTRACT - Track all created objects
+    this._createdObjects = [];
 
     this.enabled = true;
     this.config = {
@@ -76,6 +79,7 @@ export class T2_CorruptionVisualIntegration_v1 {
 
     if (this.scene && typeof this.scene.add === 'function') {
       this.scene.add(this.particleRoot);
+      this._createdObjects.push(this.particleRoot);  // UNIFIED CLEANUP CONTRACT
     }
 
     this._bindSemanticBus();
@@ -568,6 +572,14 @@ export class T2_CorruptionVisualIntegration_v1 {
       const mesh = this.particlePool.pop();
       mesh?.material?.dispose?.();
     }
+
+    // UNIFIED CLEANUP CONTRACT - Remove and dispose all tracked objects
+    this._createdObjects.forEach(obj => {
+      if (this.scene) this.scene.remove(obj);
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
+    });
+    this._createdObjects = [];
 
     this.particleRoot?.parent?.remove(this.particleRoot);
     this._particleGeometry?.dispose?.();

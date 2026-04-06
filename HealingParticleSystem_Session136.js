@@ -138,6 +138,9 @@ export class HealingParticleSystem_Session136 {
     constructor(scene, resonanceRuptureSystem, audioSystem, config = {}) {
         this.scene = scene;
         this.resonanceRupture = resonanceRuptureSystem;
+        
+        // UNIFIED CLEANUP CONTRACT - Track all created objects
+        this._createdObjects = [];
         this.audioSystem = audioSystem; // Integration: Audio System
         
         this.config = {
@@ -185,14 +188,17 @@ export class HealingParticleSystem_Session136 {
             this.pointFXBase.ensureAttached(this.mesh);
         } else if (this.mesh && this.scene && this.mesh.parent !== this.scene) {
             this.scene.add(this.mesh);
+            this._createdObjects.push(this.mesh);  // UNIFIED CLEANUP CONTRACT
         }
 
         if (this.config.debugExtremeSpawnIndicator && this.debugCube && this.scene && this.debugCube.parent !== this.scene) {
             this.scene.add(this.debugCube);
+            this._createdObjects.push(this.debugCube);  // UNIFIED CLEANUP CONTRACT
         }
 
         if (this.config.debugSpawnProbe && this.debugProbe && this.scene && this.debugProbe.parent !== this.scene) {
             this.scene.add(this.debugProbe);
+            this._createdObjects.push(this.debugProbe);  // UNIFIED CLEANUP CONTRACT
         }
     }
     
@@ -263,6 +269,7 @@ export class HealingParticleSystem_Session136 {
             this.pointFXBase.ensureAttached(this.mesh);
         } else {
             this.scene.add(this.mesh);
+            this._createdObjects.push(this.mesh);  // UNIFIED CLEANUP CONTRACT
         }
 
         // Temporary debug indicator: huge red cube per emit
@@ -274,6 +281,7 @@ export class HealingParticleSystem_Session136 {
             this.debugCube.visible = true;
             this.debugCube.renderOrder = 999;
             this.scene.add(this.debugCube);
+            this._createdObjects.push(this.debugCube);  // UNIFIED CLEANUP CONTRACT
         }
 
         if (this.config.debugSpawnProbe) {
@@ -290,6 +298,7 @@ export class HealingParticleSystem_Session136 {
             this.debugProbe.visible = false;
             this.debugProbe.renderOrder = 999;
             this.scene.add(this.debugProbe);
+            this._createdObjects.push(this.debugProbe);  // UNIFIED CLEANUP CONTRACT
         }
     }
     

@@ -133,6 +133,9 @@ class ResonanceInfluenceZone {
     constructor(compositeGlyph) {
         this.compositeGlyph = compositeGlyph;
         this.position = new THREE.Vector3();
+        
+        // UNIFIED CLEANUP CONTRACT
+        this._createdObjects = [];
         this.zone = null;
         
         // Source glyph tracking (for reabsorption during dissolution)
@@ -679,6 +682,7 @@ class ResonanceInfluenceZone {
         this.debugSphere = new THREE.Mesh(geometry, material);
         this.debugSphere.position.copy(this.position);
         scene.add(this.debugSphere);
+        this._createdObjects.push(this.debugSphere);  // UNIFIED CLEANUP CONTRACT
     }
 }
 
@@ -1131,9 +1135,12 @@ class CompositeGlyphResonanceFeedback {
     dispose() {
         // Clean up debug visuals
         for (const zone of this.resonanceZones.values()) {
-            if (zone.debugSphere && this.scene) {
-                this.scene.remove(zone.debugSphere);
-            }
+            // UNIFIED CLEANUP CONTRACT - Dispose all tracked objects
+            zone._createdObjects?.forEach(obj => {
+                if (this.scene) this.scene.remove(obj);
+                if (obj.geometry) obj.geometry.dispose();
+                if (obj.material) obj.material.dispose();
+            });
         }
         
         this.resonanceZones.clear();

@@ -48,6 +48,10 @@ const CORRUPTION_COLOR_PALETTE = {
  */
 export class CorruptionVisualFX_v1 {
   constructor(sceneOrAiNodes, aiNodesOrDebugMode = false, debugMode = false) {
+    
+    // UNIFIED CLEANUP CONTRACT - Track all created objects
+    this._createdObjects = [];
+    
     if (Array.isArray(sceneOrAiNodes?.nodes) || sceneOrAiNodes?.nodes instanceof Map || Array.isArray(sceneOrAiNodes)) {
       this.scene = null;
       this.aiNodes = sceneOrAiNodes;
@@ -76,6 +80,7 @@ export class CorruptionVisualFX_v1 {
     this._semanticSubscriptions = [];
     if (this.scene?.add) {
       this.scene.add(this.particleRoot);
+      this._createdObjects.push(this.particleRoot);  // UNIFIED CLEANUP CONTRACT
     }
     this._bindSemanticBus();
     
@@ -894,6 +899,14 @@ export class CorruptionVisualFX_v1 {
       }
     }
     this._semanticSubscriptions = [];
+
+    // UNIFIED CLEANUP CONTRACT - Remove and dispose all tracked objects
+    this._createdObjects.forEach(obj => {
+      if (this.scene) this.scene.remove(obj);
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
+    });
+    this._createdObjects = [];
 
     for (const particle of this.activeParticles) {
       this._disposeParticleMesh(particle);

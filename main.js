@@ -82,6 +82,7 @@ import './Engine/Debug/FXDebugSandbox.js';
 import { RenderCostProfile } from './RenderCostProfile.js';
 import { sanitizeTransmission, findTransmissionMaterials } from './src/render/TransmissionSanitizer.js';
 import { installMaterialDebugGuard } from './src/metrics/MaterialDebugGuard_v1.js';
+import { setVisualLock } from './VisualAuthorityFlag.js';
 
 function createMetricDirtyQueue() {
     const nodeIds = new Set();
@@ -3895,7 +3896,7 @@ class AtomaGame {
         // ========================================================================
         // STEP 1b — HARD INTERACTION AUTHORITY (Session 104 Critical Stabilization)
         // ========================================================================
-        window.VISUAL_AUTHORITY_LOCK = false;
+        setVisualLock(false);
         console.log('🔒 [AtomaGame] VISUAL_AUTHORITY_LOCK ENABLED - Hard interaction authority engaged');
 
         document.addEventListener("contextmenu", e => e.preventDefault());

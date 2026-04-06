@@ -90,6 +90,9 @@ export class EventVisualSuppression_v1 {
    * - etc.
    */
   registerEventSource(sourceSystem, sourceLabel = 'unknown') {
+    // PRIMARY AUTHORITY FLAG - Soft-deactivate if VisualAuthority.js is running
+    if (window.__VISUAL_AUTHORITY_PRIMARY__) return;
+
     if (!sourceSystem) return;
 
     try {
@@ -203,6 +206,9 @@ export class EventVisualSuppression_v1 {
    * Call AFTER events apply effects if you suspect material changes
    */
   protectCoreFromEvent(node, eventLabel = 'unknown') {
+    // PRIMARY AUTHORITY FLAG - Soft-deactivate if VisualAuthority.js is running
+    if (window.__VISUAL_AUTHORITY_PRIMARY__) return;
+
     if (!node) return;
 
     try {

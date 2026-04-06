@@ -28,11 +28,15 @@ export class LinkGlyphFlow {
     this.linkingSystem = linkingSystem;
     this.semanticGlyphAI = semanticGlyphAI;
     
+    // UNIFIED CLEANUP CONTRACT - Track all created objects
+    this._createdObjects = [];
+    
     // Master container for all packets
     this.containerGroup = new THREE.Group();
     this.containerGroup.userData.isLinkGlyphFlow = true;
     this.containerGroup.name = 'LinkGlyphFlow_Packets';
     this.scene.add(this.containerGroup);
+    this._createdObjects.push(this.containerGroup);  // UNIFIED CLEANUP CONTRACT
     
     // Packet registry: linkId → [packets]
     this.packetRegistry = new Map();
@@ -464,6 +468,22 @@ export class LinkGlyphFlow {
     }
     
     console.log('✓ Link Glyph Flow disposed');
+  }
+  
+  /**
+   * UNIFIED CLEANUP CONTRACT - Dispose all resources
+   */
+  dispose() {
+    // Use existing cleanup method
+    this.cleanup();
+    
+    // Remove and dispose all tracked objects
+    this._createdObjects.forEach(obj => {
+      if (this.scene) this.scene.remove(obj);
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
+    });
+    this._createdObjects = [];
   }
   
   /**

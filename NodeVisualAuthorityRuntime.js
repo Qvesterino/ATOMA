@@ -28,6 +28,9 @@ export class NodeVisualAuthorityRuntime {
   }
 
   applyBaseline(node, context = {}) {
+    // PRIMARY AUTHORITY FLAG - Soft-deactivate if VisualAuthority.js is running
+    if (window.__VISUAL_AUTHORITY_PRIMARY__) return false;
+    
     if (!node || !(node instanceof THREE.Object3D)) return false;
 
     node.visible = true;

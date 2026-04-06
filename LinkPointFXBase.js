@@ -396,6 +396,7 @@ export function createLinkPointFXMaterial({
 export class LinkPointFXBase {
   constructor(scene, options = {}) {
     this.scene = scene || null;
+    this._createdObjects = [];  // UNIFIED CLEANUP CONTRACT
     this.options = {
       renderLayer: options.renderLayer ?? DEFAULT_RENDER_LAYER,
       preset: options.preset ?? 'spark',
@@ -403,6 +404,19 @@ export class LinkPointFXBase {
       textureKind: options.textureKind ?? null,
       ...options
     };
+  }
+  
+  /**
+   * UNIFIED CLEANUP CONTRACT - Dispose all resources
+   */
+  dispose() {
+    // Remove and dispose all created objects
+    this._createdObjects.forEach(obj => {
+      if (this.scene) this.scene.remove(obj);
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
+    });
+    this._createdObjects = [];
   }
 
   resolvePreset(overrides = {}) {
@@ -456,6 +470,7 @@ export class LinkPointFXBase {
     Object.assign(points.userData || (points.userData = {}), userData);
     if (this.scene) {
       this.scene.add(points);
+      this._createdObjects.push(points);  // UNIFIED CLEANUP CONTRACT
     }
     return { points, geometry, material };
   }
@@ -464,6 +479,8 @@ export class LinkPointFXBase {
     if (!object3d || !this.scene) return object3d;
     if (object3d.parent !== this.scene) {
       this.scene.add(object3d);
+      // UNIFIED CLEANUP CONTRACT
+      this._createdObjects.push(object3d);
     }
     return object3d;
   }

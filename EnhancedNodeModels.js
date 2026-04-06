@@ -5007,7 +5007,6 @@ function _getInputCelestialReceptorOrganGeometries() {
     membraneShape.bezierCurveTo(-0.3, -0.14, -0.2, -0.46, 0, -0.52);
     const membraneGeometry = new THREE.ExtrudeGeometry(membraneShape, {
       depth: 0.08,
-      bevelEnabled: false,
       steps: 1
     });
     membraneGeometry.center();
@@ -5825,7 +5824,6 @@ function _getAnalyticsPredictiveOracleArrayGeometries() {
 
       const geometry = new THREE.ExtrudeGeometry(shape, {
         depth,
-        bevelEnabled: false,
         steps: 1,
         curveSegments: 1
       });

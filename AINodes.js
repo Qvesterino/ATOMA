@@ -2039,6 +2039,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     linkTarget.userData = {
       isInteractionProxy: true,
       isCoreMesh: true,
+      isInteractionCore: true,
       visualLayer: 'CORE',
       neutralized: true,
       neutralizedRole: 'interaction-proxy'

@@ -34,27 +34,22 @@ import * as THREE from 'three';
 import { tagAllowedSphere } from './VisualSpherePolicy.js';
 
 // ============================================================================
-// INTERACTION CORE IDENTIFIER (UNCHANGED)
+// INTERACTION CORE IDENTIFIER (SIMPLIFIED - READ-ONLY)
 // ============================================================================
 
 class InteractionCoreIdentifier {
   /**
-   * Find or create the interaction core for a node
+   * Get the interaction core for a node (READ-ONLY)
+   * No longer creates or finds - just reads the marker set by AINodes
    */
-  static findOrCreateCore(nodeGroup, options = {}) {
-    const coreRadius = options.coreRadius ?? 0.7;
-    const autoProxyRadius = options.autoProxyRadius ?? 0.6;
-
-    let candidates = [];
-    let explicitCore = null;
+  static getInteractionCore(nodeGroup) {
+    let foundCore = null;
 
     const traverse = (obj) => {
-      if (obj instanceof THREE.Mesh) {
-        if (obj.userData.isInteractionCore === true) {
-          explicitCore = obj;
-          return;
-        }
-        candidates.push(obj);
+      if (foundCore) return;
+      if (obj.userData?.isInteractionCore === true) {
+        foundCore = obj;
+        return;
       }
       for (const child of obj.children) {
         traverse(child);
@@ -63,87 +58,17 @@ class InteractionCoreIdentifier {
 
     traverse(nodeGroup);
 
-    if (explicitCore) {
+    if (!foundCore) {
       return {
-        mesh: explicitCore,
-        isProxy: false,
-        reason: 'explicit_marker'
+        mesh: null,
+        reason: 'no_core_marker'
       };
     }
-
-    // Find solid, non-transparent mesh
-    for (const mesh of candidates) {
-      if (!mesh.material) continue;
-
-      const material = mesh.material;
-      const isSolid = (material instanceof THREE.MeshStandardMaterial ||
-                       material instanceof THREE.MeshPhongMaterial ||
-                       material instanceof THREE.MeshLambertMaterial) &&
-                      material.transparent !== true;
-
-      if (isSolid) {
-        return {
-          mesh: mesh,
-          isProxy: false,
-          reason: 'solid_material'
-        };
-      }
-    }
-
-    // Find largest mesh by vertex count
-    let largestMesh = null;
-    let largestVertexCount = 0;
-
-    for (const mesh of candidates) {
-      if (!mesh.geometry) continue;
-      const positionAttr = mesh.geometry.getAttribute('position');
-      const vertexCount = positionAttr ? positionAttr.count : 0;
-
-      if (vertexCount > largestVertexCount) {
-        largestVertexCount = vertexCount;
-        largestMesh = mesh;
-      }
-    }
-
-    if (largestMesh) {
-      return {
-        mesh: largestMesh,
-        isProxy: false,
-        reason: 'largest_mesh'
-      };
-    }
-
-    // No suitable core found: create invisible proxy sphere
-    const proxyGeometry = new THREE.SphereGeometry(
-      coreRadius * autoProxyRadius,
-      16,
-      16
-    );
-
-    const proxyMaterial = new THREE.MeshBasicMaterial({
-      visible: false,
-      transparent: true,
-      opacity: 0
-    });
-
-    const proxyMesh = new THREE.Mesh(proxyGeometry, proxyMaterial);
-    proxyMesh.visible = false; // TEMP TEST: disable visual of auto-generated interaction proxy
-    tagAllowedSphere(proxyMesh, {
-      role: 'interactionProxy',
-      source: 'VisualInteractionIsolationPatch_v2.findOrCreateCore',
-      owner: nodeGroup.userData?.nodeId || nodeGroup.userData?.id || nodeGroup.uuid
-    });
-    proxyMesh.name = '__interaction_proxy__';
-    proxyMesh.userData.isInteractionProxy = true;
-    proxyMesh.userData.isInteractionCore = true;
-    proxyMesh.frustumCulled = false;
-
-    nodeGroup.add(proxyMesh);
 
     return {
-      mesh: proxyMesh,
-      isProxy: true,
-      reason: 'auto_generated'
+      mesh: foundCore,
+      isProxy: foundCore.userData?.isInteractionProxy === true,
+      reason: 'explicit_marker'
     };
   }
 
@@ -247,24 +172,17 @@ class InteractionIsolationEngine_v2 {
     }
 
     try {
-      // Find or create interaction core
-      const coreInfo = InteractionCoreIdentifier.findOrCreateCore(nodeGroup, {
-        autoProxyRadius: this.autoProxyRadius,
-        coreRadius: this._estimateCoreRadius(nodeGroup)
-      });
+      // Get interaction core (READ-ONLY - created by AINodes)
+      const coreInfo = InteractionCoreIdentifier.getInteractionCore(nodeGroup);
 
-      if (!coreInfo || !coreInfo.mesh) {
+      if (!coreInfo?.mesh) {
         if (this.debugMode) {
-          console.warn('[InteractionIsolation v2.0] Could not establish interaction core for node', nodeId);
+          console.warn('[InteractionIsolation v2.0] No interaction core found for node', nodeId);
         }
         return;
       }
 
       const coreMesh = coreInfo.mesh;
-
-      // Mark core
-      coreMesh.userData.isInteractionCore = true;
-      coreMesh.userData.nonInteractive = false;
 
       // CRITICAL FIX: Restore default raycast function (don't set to null!)
       coreMesh.raycast = THREE.Mesh.prototype.raycast;

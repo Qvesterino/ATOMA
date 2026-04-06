@@ -49,6 +49,9 @@ export class WaveInterferencePatternSystem_Session132 {
         this.linkingSystem = linkingSystem;
         this.aiNodes = aiNodes;
         
+        // UNIFIED CLEANUP CONTRACT - Track all created objects
+        this._createdObjects = [];
+        
         // Configuration
         this.config = {
             // Collision detection
@@ -174,6 +177,7 @@ export class WaveInterferencePatternSystem_Session132 {
             meshItem.mesh.visible = false;
             meshItem.mesh.renderOrder = this.config.interferenceRenderOrder;
             this.scene.add(meshItem.mesh);
+            this._createdObjects.push(meshItem.mesh);  // UNIFIED CLEANUP CONTRACT
             this.interferenceMeshPool.push({
                 ...meshItem,
                 active: false,
@@ -933,6 +937,20 @@ export class WaveInterferencePatternSystem_Session132 {
      * Dispose - cleanup
      */
     dispose() {
+        // UNIFIED CLEANUP CONTRACT - Remove and dispose all tracked objects
+        this._createdObjects.forEach(obj => {
+            if (this.scene) this.scene.remove(obj);
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) {
+                if (Array.isArray(obj.material)) {
+                    obj.material.forEach(m => m.dispose());
+                } else {
+                    obj.material.dispose();
+                }
+            }
+        });
+        this._createdObjects = [];
+        
         // Clean up interference meshes
         this.interferenceMeshPool.forEach(item => {
             if (item.mesh && item.mesh.parent) {

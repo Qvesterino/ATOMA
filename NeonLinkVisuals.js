@@ -3,6 +3,7 @@ import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 import { SynergyStateResolver, SynergyState } from './SynergyStateResolver.js';
 import { CONFIG } from './config.js';
 import VisualTime from './src/time/VisualTime.js';
+import { isVisualLocked } from './VisualAuthorityFlag.js';
 
 // NeonLinkVisuals is FX-only layer.
 // Metrics uniforms are owned exclusively by LinkRendererConduit.
@@ -673,7 +674,7 @@ export class NeonLinkVisuals {
    */
   update(deltaTime) {
     // 🔒 HARD INTERACTION AUTHORITY - Stop all visual updates when locked
-    if (window.VISUAL_AUTHORITY_LOCK) return;
+    if (isVisualLocked()) return;
     
     if (window.DEBUG_VISUAL_MODE) return;
     

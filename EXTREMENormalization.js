@@ -62,6 +62,9 @@ export function createVisualContainer(node, color) {
  * @param {THREE.Color} fallbackColor - Color if no color found
  */
 export function normalizeEXTREMENode(node, fallbackColor = new THREE.Color(0x00ddff)) {
+  // PRIMARY AUTHORITY FLAG - Soft-deactivate if VisualAuthority.js is running
+  if (window.__VISUAL_AUTHORITY_PRIMARY__) return false;
+  
   if (!node?.userData?.isExtreme) {
     return false;  // Not an EXTREME node
   }

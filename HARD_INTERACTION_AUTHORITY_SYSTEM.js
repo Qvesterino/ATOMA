@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { tagAllowedSphere } from './VisualSpherePolicy.js';
+import { isVisualLocked, setVisualLock } from './VisualAuthorityFlag.js';
 
 const hardAuthDebugEnabled = () => (typeof window !== 'undefined' && window.ATOMA_DEBUG_HARD_INTERACTION_AUTHORITY === true);
 const hardLog = (...args) => { if (hardAuthDebugEnabled()) hardLog(...args); };
@@ -32,13 +33,13 @@ const hardDebug = (...args) => { if (hardAuthDebugEnabled()) hardDebug(...args);
 
 export function setupHardInteractionAuthority() {
   // Global flag - ALL visual systems check this
-  window.VISUAL_AUTHORITY_LOCK = true;
+  setVisualLock(true);
   hardLog('🔒 [HARD_AUTHORITY] Global flag: VISUAL_AUTHORITY_LOCK = true');
   
   return {
-    isLocked: () => window.VISUAL_AUTHORITY_LOCK === true,
-    lock: () => { window.VISUAL_AUTHORITY_LOCK = true; },
-    unlock: () => { window.VISUAL_AUTHORITY_LOCK = false; },
+    isLocked: isVisualLocked,
+    lock: () => { setVisualLock(true); },
+    unlock: () => { setVisualLock(false); },
     toggle: () => { window.VISUAL_AUTHORITY_LOCK = !window.VISUAL_AUTHORITY_LOCK; }
   };
 }
@@ -54,82 +55,39 @@ export function enforceNodeInteractionCore(node) {
   if (!node || !node.userData) return;
   
   const nodeId = node.userData.nodeId;
-  const existingCores = [];
+  let activeCore = null;
   
-  // 1. Identify existing cores
+  // 1. Find existing interaction core (READ-ONLY - created by AINodes)
   node.traverse((child) => {
-    if ((child.isMesh || child.isLine || child.isPoints) && child.userData?.interactionCore === true) {
-      existingCores.push(child);
+    if (activeCore) return; // Found it, stop
+    if (child.userData?.isInteractionCore === true) {
+      activeCore = child;
     }
   });
   
-  // 2. Resolve to exactly ONE core
-  let activeCore = null;
-  
-  if (existingCores.length === 0) {
-    // CREATE MISSING CORE (SAFE MODE)
-    // Invisible proxy sphere - covers typical node volume
-    // Geometry size is roughly based on standard node scale
-    const geometry = new THREE.SphereGeometry(1.2, 8, 8);
-    // Note: Use transparent/opacity=0 for invisible but raycastable proxy
-    // material.visible=false would block raycasting in standard Three.js
-    const material = new THREE.MeshBasicMaterial({ 
-        visible: true, 
-        transparent: true, 
-        opacity: 0.0,
-        colorWrite: false,
-        depthWrite: false,
-        depthTest: false,
-        side: THREE.DoubleSide
-    });
-    activeCore = new THREE.Mesh(geometry, material);
-    // Keep object raycastable but non-rendering (colorWrite=false).
-    activeCore.visible = true;
-    tagAllowedSphere(activeCore, {
-      role: 'interactionProxy',
-      source: 'HARD_INTERACTION_AUTHORITY_SYSTEM.enforceNodeInteractionCore',
-      owner: nodeId
-    });
-    activeCore.name = 'InteractionProxy';
-    activeCore.userData = {
-      interactionCore: true,
-      isInteractionCore: true,
-      isProxy: true, // Marker to skip visual enforcement
-      nodeId: nodeId
-    };
-    node.add(activeCore);
-    // hardLog(`[HARD_AUTHORITY] Auto-created InteractionCore for node ${nodeId}`);
-  } else {
-    // Keep first, disable others
-    activeCore = existingCores[0];
-    if (existingCores.length > 1) {
-       for (let i = 1; i < existingCores.length; i++) {
-         existingCores[i].userData.interactionCore = false;
-         existingCores[i].userData.isInteractionCore = false;
-       }
-    }
+  if (!activeCore) {
+    hardLog(`[HARD_AUTHORITY] No interaction core found for node ${nodeId}`);
+    return false;
   }
   
-  // 3. Enforce properties on Active Core
-  if (activeCore) {
-    activeCore.layers.enable(10); // INTERACTION_LAYER
-    activeCore.userData.isInteractionCore = true;
-    
-    // Restore raycast if it was blocked
-    if (activeCore.raycast && activeCore.raycast.toString().includes('() => null')) {
-       delete activeCore.raycast; 
-    }
-    
-    // Set direct reference
-    node.interactionCore = activeCore;
-    
-    // Ensure core is visible to raycaster (object.visible must be true)
-    activeCore.visible = true; 
+  // 2. Enforce properties on Active Core
+  activeCore.layers.enable(10); // INTERACTION_LAYER
+  
+  // Restore raycast if it was blocked
+  if (activeCore.raycast && activeCore.raycast.toString().includes('() => null')) {
+     delete activeCore.raycast; 
   }
-
-  // 4. Hard block ALL other meshes
+  
+  // Set direct reference
+  node.interactionCore = activeCore;
+  
+  // Ensure core is visible to raycaster
+  activeCore.visible = true;
+  
+  // 3. Hard block ALL other meshes
   node.traverse((child) => {
-    if ((child.isMesh || child.isLine || child.isPoints) && child !== activeCore) {
+    if (child === activeCore) return; // Skip core
+    if ((child.isMesh || child.isLine || child.isPoints)) {
       child.layers.disable(10);
       child.userData.isInteractionCore = false;
       child.userData.nonInteractive = true;

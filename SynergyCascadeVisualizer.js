@@ -40,6 +40,9 @@ export class SynergyCascadeVisualizer {
     this.linkingSystem = linkingSystem;
     this.camera = camera;
     
+    // UNIFIED CLEANUP CONTRACT - Track all created objects
+    this._createdObjects = [];
+    
     // Cascade tracking
     this.activeCascades = [];        // Active cascade propagations
     this.cascadeHistory = new Map(); // link → cascade history for visuals
@@ -2511,6 +2514,7 @@ export class SynergyCascadeVisualizer {
     
     ripple.mesh = rippleLine;
     this.scene.add(rippleLine);
+    this._createdObjects.push(rippleLine);  // UNIFIED CLEANUP CONTRACT
     
     this.ripples.push(ripple);
   }
@@ -2842,6 +2846,20 @@ cascadeDebug.help()                - Show this help
   dispose() {
     // Unsubscribe semantic listeners to prevent duplicate handlers after world switch.
     this._unbindSemanticEvents();
+
+    // UNIFIED CLEANUP CONTRACT - Remove and dispose all tracked objects
+    this._createdObjects.forEach(obj => {
+      if (this.scene) this.scene.remove(obj);
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(m => m.dispose());
+        } else {
+          obj.material.dispose();
+        }
+      }
+    });
+    this._createdObjects = [];
 
     this.clearAllCascades();
     this._disposeBurstParticleSystem();

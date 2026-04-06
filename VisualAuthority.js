@@ -250,6 +250,9 @@ export class VisualAuthority {
    * @returns {Object} Enforcement report
    */
   enforceFrame(scene) {
+    // PRIMARY AUTHORITY FLAG - Soft-deactivate duplicate authorities
+    window.__VISUAL_AUTHORITY_PRIMARY__ = true;
+    
     if (!this.enabled || !scene) return null;
     // Lockdown: disable per-frame renderOrder repairs to let VisualHierarchyRegistry be sole authority
     if (RENDER_AUTHORITY_LOCKDOWN) {

@@ -133,6 +133,9 @@ export class SynergyVFXEngine1_0 {
     this.lastClusterUpdateTime = 0;
     this.clusterUpdateIntervalMs = 1000;  // Update clusters every 1 second
     this.transientSceneObjects = new Set();
+    
+    // UNIFIED CLEANUP CONTRACT - Track all created objects
+    this._createdObjects = [];
 
     console.log('[SynergyVFXEngine] Initialized v1.0 (enabled=%s)', this.config.enabled);
   }
@@ -924,6 +927,10 @@ export class SynergyVFXEngine1_0 {
   _trackTransientObject(object) {
     if (object) {
       this.transientSceneObjects.add(object);
+      // UNIFIED CLEANUP CONTRACT
+      if (!this._createdObjects.includes(object)) {
+        this._createdObjects.push(object);
+      }
     }
   }
 
@@ -1095,6 +1102,28 @@ export class SynergyVFXEngine1_0 {
     } catch (error) {
       console.error('[SynergyVFXEngine] resetAll error:', error);
     }
+  }
+  
+  /**
+   * UNIFIED CLEANUP CONTRACT - Dispose all resources
+   */
+  dispose() {
+    // Use existing cleanup method
+    this.resetAll();
+    
+    // Remove and dispose all tracked objects
+    this._createdObjects.forEach(obj => {
+      this.scene.remove(obj);
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(m => m.dispose());
+        } else {
+          obj.material.dispose();
+        }
+      }
+    });
+    this._createdObjects = [];
   }
 }
 

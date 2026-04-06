@@ -1,3 +1,5 @@
+import { isVisualLocked } from './VisualAuthorityFlag.js';
+
 /**
  * SAFE METRICS FX 1.1
  * 
@@ -105,7 +107,7 @@ export class SafeMetricsFX1_1 {
    */
   update(deltaTime, nodes) {
     // 🔒 HARD INTERACTION AUTHORITY - Stop all visual updates when locked
-    if (window.VISUAL_AUTHORITY_LOCK) return;
+    if (isVisualLocked()) return;
     
     if (window.DEBUG_VISUAL_MODE) return;
     if (!nodes || nodes.length === 0) return;

@@ -1,3 +1,5 @@
+import { isVisualLocked } from './VisualAuthorityFlag.js';
+
 /**
  * NODE MICRO-EVENTS 1.0 – SAFE EDITION
  * 
@@ -117,7 +119,7 @@ export class NodeMicroEvents {
    */
   update(deltaTime, nodes) {
     // 🔒 HARD INTERACTION AUTHORITY - Stop all visual updates when locked
-    if (window.VISUAL_AUTHORITY_LOCK) return;
+    if (isVisualLocked()) return;
     
     if (window.DEBUG_VISUAL_MODE) return;
 

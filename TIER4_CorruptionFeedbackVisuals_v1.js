@@ -253,6 +253,10 @@ export class TIER4_CorruptionFeedbackVisuals {
     this.scene = scene;
     this.camera = config.camera ?? null;
     this.frameScheduler = config.frameScheduler ?? null;
+    
+    // UNIFIED CLEANUP CONTRACT - Track all created objects
+    this._createdObjects = [];
+    
     this.config = {
       enableDebug: config.enableDebug ?? false,
       
@@ -864,10 +868,12 @@ export class TIER4_CorruptionFeedbackVisuals {
         effect = this.seedEffectPool.pop();
         this._resetSeedEffect(effect, node, link, corruptionLevel, bloomScaleMultiplier);
         this.scene.add(effect.mesh);
+        this._createdObjects.push(effect.mesh);  // UNIFIED CLEANUP CONTRACT
       } else {
         effect = this._createSeedEffect(corruptionLevel);
         this._resetSeedEffect(effect, node, link, corruptionLevel, bloomScaleMultiplier);
         this.scene.add(effect.mesh);
+        this._createdObjects.push(effect.mesh);  // UNIFIED CLEANUP CONTRACT
       }
 
       this.activeCorruptionSeeds.push(effect);
@@ -899,6 +905,7 @@ export class TIER4_CorruptionFeedbackVisuals {
       mesh.scale.set(1.5, 1.5, 1.0);
       
       this.scene.add(mesh);
+      this._createdObjects.push(mesh);  // UNIFIED CLEANUP CONTRACT
       
       // Create animation data
       const effect = {
@@ -1088,6 +1095,20 @@ export class TIER4_CorruptionFeedbackVisuals {
    */
   dispose() {
     this.clear();
+
+    // UNIFIED CLEANUP CONTRACT - Remove and dispose all tracked objects
+    this._createdObjects.forEach(obj => {
+      if (this.scene) this.scene.remove(obj);
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(m => m.dispose());
+        } else {
+          obj.material.dispose();
+        }
+      }
+    });
+    this._createdObjects = [];
 
     // Dispose pooled seed effect meshes/materials
     while (this.seedEffectPool.length > 0) {

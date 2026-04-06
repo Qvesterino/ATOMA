@@ -123,16 +123,19 @@ export class HarmonicHealingVisualSystem_Session134 {
             if (this.particles.mesh) {
                 this.particles.mesh.parent?.remove(this.particles.mesh);
                 scene.add(this.particles.mesh);
+                this._createdObjects.push(this.particles.mesh);  // UNIFIED CLEANUP CONTRACT
                 this.particles.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_PARTICLES);
             }
             if (this.particles.debugCube) {
                 this.particles.debugCube.parent?.remove(this.particles.debugCube);
                 scene.add(this.particles.debugCube);
+                this._createdObjects.push(this.particles.debugCube);  // UNIFIED CLEANUP CONTRACT
                 this.particles.debugCube.renderOrder = 999;
             }
             if (this.particles.debugProbe) {
                 this.particles.debugProbe.parent?.remove(this.particles.debugProbe);
                 scene.add(this.particles.debugProbe);
+                this._createdObjects.push(this.particles.debugProbe);  // UNIFIED CLEANUP CONTRACT
                 this.particles.debugProbe.renderOrder = 999;
             }
         }
@@ -158,15 +161,24 @@ export class HarmonicHealingVisualSystem_Session134 {
             // Ensure scene-owned particle meshes stay attached after world rebuild.
             this.particles.mesh.parent?.remove(this.particles.mesh);
             this.scene.add(this.particles.mesh);
+            if (!this._createdObjects.includes(this.particles.mesh)) {
+                this._createdObjects.push(this.particles.mesh);  // UNIFIED CLEANUP CONTRACT
+            }
             this.particles.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_PARTICLES);
             if (this.particles.debugCube) {
                 this.particles.debugCube.parent?.remove(this.particles.debugCube);
                 this.scene.add(this.particles.debugCube);
+                if (!this._createdObjects.includes(this.particles.debugCube)) {
+                    this._createdObjects.push(this.particles.debugCube);  // UNIFIED CLEANUP CONTRACT
+                }
                 this.particles.debugCube.renderOrder = 999;
             }
             if (this.particles.debugProbe) {
                 this.particles.debugProbe.parent?.remove(this.particles.debugProbe);
                 this.scene.add(this.particles.debugProbe);
+                if (!this._createdObjects.includes(this.particles.debugProbe)) {
+                    this._createdObjects.push(this.particles.debugProbe);  // UNIFIED CLEANUP CONTRACT
+                }
                 this.particles.debugProbe.renderOrder = 999;
             }
         }
@@ -615,6 +627,15 @@ export class HarmonicHealingVisualSystem_Session134 {
         if (typeof this._unsubscribeHarmonyLow === 'function') {
             this._unsubscribeHarmonyLow();
         }
+        
+        // UNIFIED CLEANUP CONTRACT - Remove and dispose all tracked objects
+        this._createdObjects.forEach(obj => {
+            if (this.scene) this.scene.remove(obj);
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) obj.material.dispose();
+        });
+        this._createdObjects = [];
+        
         this.waves = [];
         this._linkCooldowns.clear();
     }

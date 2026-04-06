@@ -155,6 +155,9 @@ export class ResonanceRuptureVisualSystem_Session133 {
         this.nodeReactions = new Map();       // nodeId -> reaction state
         this.preRuptureZones = [];            // Stress indicator zones
         
+        // UNIFIED CLEANUP CONTRACT - Track all created objects
+        this._createdObjects = [];
+        
         // Tracking
         this.trapLifetimes = new Map();       // trapId -> time since creation
         this.trapPhaseDivergence = new Map(); // trapId -> { lastPhase, divergence }
@@ -644,6 +647,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
             );
             bloom.userData.burstDrift = driftRate;
             this.scene.add(bloom);
+            this._createdObjects.push(bloom);  // UNIFIED CLEANUP CONTRACT
             return bloom;
         }
 
@@ -652,6 +656,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         mesh.position.copy(rupture.convergencePoint);
         mesh.renderOrder = this.config.renderOrder;
         this.scene.add(mesh);
+        this._createdObjects.push(mesh);  // UNIFIED CLEANUP CONTRACT
         return mesh;
     }
 
@@ -692,6 +697,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
             const mesh = new THREE.Mesh(geo, mat);
             mesh.renderOrder = this.config.renderOrder;
             this.scene.add(mesh);
+            this._createdObjects.push(mesh);  // UNIFIED CLEANUP CONTRACT
             pulse.mesh = mesh;
             
             this.propagationPulses.push(pulse);
@@ -940,6 +946,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         }
 
         this.scene.add(root);
+        this._createdObjects.push(root);  // UNIFIED CLEANUP CONTRACT
         return root;
     }
 
@@ -1353,6 +1360,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         });
 
         this.scene.add(root);
+        this._createdObjects.push(root);  // UNIFIED CLEANUP CONTRACT
         return root;
     }
 
@@ -2077,6 +2085,10 @@ export class ResonanceRuptureVisualSystem_Session133 {
             if (!mesh) return;
             if (mesh.parent !== this.scene) {
                 this.scene.add(mesh);
+                // UNIFIED CLEANUP CONTRACT - Avoid duplicates
+                if (!this._createdObjects.includes(mesh)) {
+                    this._createdObjects.push(mesh);
+                }
             }
             mesh.renderOrder = this.config.renderOrder + 2;
         });
@@ -2118,6 +2130,20 @@ export class ResonanceRuptureVisualSystem_Session133 {
      */
     dispose() {
         this._unbindSemanticEvents();
+
+        // UNIFIED CLEANUP CONTRACT - Remove and dispose all created objects
+        this._createdObjects.forEach(obj => {
+            this.scene.remove(obj);
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) {
+                if (Array.isArray(obj.material)) {
+                    obj.material.forEach(m => m.dispose());
+                } else {
+                    obj.material.dispose();
+                }
+            }
+        });
+        this._createdObjects = [];
 
         // Clean up burst meshes
         this.ruptures.forEach(rupture => {
