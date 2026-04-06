@@ -244,6 +244,20 @@ const INPUT_INCOMING_RELIQUARY_CACHE = {
   ribbonGeometry: null
 };
 const INPUT_INCOMING_RELIQUARY_MATERIALS = new Map(); // keyed by color hex
+const INPUT_CELESTIAL_RECEPTOR_ORGAN_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  innerSeedGeometry: null,
+  seamGeometry: null,
+  membraneGeometry: null,
+  membraneEdgesGeometry: null,
+  haloArcGeometry: null,
+  haloArcEdgesGeometry: null,
+  sparkGeometry: null,
+  dustGeometry: null,
+  witnessGeometry: null
+};
+const INPUT_CELESTIAL_RECEPTOR_ORGAN_MATERIALS = new Map(); // keyed by color hex
 
 // Shared core material cache: key = `${category}|${colorHex.toString(16)}`
 const CORE_MATERIAL_CACHE = new Map();
@@ -4951,6 +4965,256 @@ function _getInputGatewayReliquaryMaterials(color) {
   return mats;
 }
 
+function _getInputCelestialReceptorOrganGeometries() {
+  if (!INPUT_CELESTIAL_RECEPTOR_ORGAN_CACHE.coreGeometry) {
+    const coreGeometry = new THREE.SphereGeometry(0.34, 22, 18);
+    const corePos = coreGeometry.attributes.position;
+    for (let i = 0; i < corePos.count; i++) {
+      const x = corePos.getX(i);
+      const y = corePos.getY(i);
+      const z = corePos.getZ(i);
+      const yWeight = Math.min(1, Math.abs(y) / 0.34);
+      const tipLift = Math.max(0, y) * 0.12;
+      corePos.setXYZ(
+        i,
+        x * (0.9 + yWeight * 0.12) + z * 0.03 * yWeight,
+        y * (1.08 + tipLift),
+        z * (0.84 + (1 - yWeight) * 0.08) - x * 0.02 * tipLift
+      );
+    }
+    corePos.needsUpdate = true;
+    coreGeometry.computeVertexNormals();
+    coreGeometry.computeBoundingSphere();
+    coreGeometry.scale(0.98, 1.22, 0.88);
+    INPUT_CELESTIAL_RECEPTOR_ORGAN_CACHE.coreGeometry = coreGeometry;
+    INPUT_CELESTIAL_RECEPTOR_ORGAN_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 12);
+
+    const innerSeedGeometry = new THREE.IcosahedronGeometry(0.15, 1);
+    innerSeedGeometry.scale(0.82, 1.08, 0.74);
+    innerSeedGeometry.computeBoundingSphere();
+    INPUT_CELESTIAL_RECEPTOR_ORGAN_CACHE.innerSeedGeometry = innerSeedGeometry;
+
+    const seamGeometry = new THREE.TorusGeometry(0.18, 0.033, 8, 32, Math.PI * 1.88);
+    seamGeometry.rotateX(Math.PI / 2);
+    seamGeometry.computeBoundingSphere();
+    INPUT_CELESTIAL_RECEPTOR_ORGAN_CACHE.seamGeometry = seamGeometry;
+
+    const membraneShape = new THREE.Shape();
+    membraneShape.moveTo(0, -0.52);
+    membraneShape.bezierCurveTo(0.2, -0.46, 0.3, -0.14, 0.26, 0.2);
+    membraneShape.bezierCurveTo(0.22, 0.56, 0.06, 0.82, 0, 0.96);
+    membraneShape.bezierCurveTo(-0.06, 0.82, -0.22, 0.56, -0.26, 0.2);
+    membraneShape.bezierCurveTo(-0.3, -0.14, -0.2, -0.46, 0, -0.52);
+    const membraneGeometry = new THREE.ExtrudeGeometry(membraneShape, {
+      depth: 0.08,
+      bevelEnabled: false,
+      steps: 1
+    });
+    membraneGeometry.center();
+    membraneGeometry.rotateY(Math.PI / 2);
+    membraneGeometry.rotateX(Math.PI / 2);
+    const membranePos = membraneGeometry.attributes.position;
+    for (let i = 0; i < membranePos.count; i++) {
+      const x = membranePos.getX(i);
+      const y = membranePos.getY(i);
+      const z = membranePos.getZ(i);
+      const tipWeight = Math.max(0, y);
+      membranePos.setXYZ(
+        i,
+        x * (0.92 + tipWeight * 0.12) + z * 0.04 * tipWeight,
+        y * (1.0 + tipWeight * 0.03),
+        z * (0.88 + tipWeight * 0.08) - x * 0.02 * tipWeight
+      );
+    }
+    membranePos.needsUpdate = true;
+    membraneGeometry.computeVertexNormals();
+    membraneGeometry.computeBoundingSphere();
+    INPUT_CELESTIAL_RECEPTOR_ORGAN_CACHE.membraneGeometry = membraneGeometry;
+    INPUT_CELESTIAL_RECEPTOR_ORGAN_CACHE.membraneEdgesGeometry = safeCreateEdgesGeometry(membraneGeometry, 10);
+
+    const haloArcGeometry = new THREE.TorusGeometry(0.66, 0.028, 8, 36, Math.PI * 0.82);
+    haloArcGeometry.rotateX(Math.PI / 2);
+    haloArcGeometry.computeBoundingSphere();
+    INPUT_CELESTIAL_RECEPTOR_ORGAN_CACHE.haloArcGeometry = haloArcGeometry;
+    INPUT_CELESTIAL_RECEPTOR_ORGAN_CACHE.haloArcEdgesGeometry = safeCreateEdgesGeometry(haloArcGeometry, 10);
+
+    const sparkGeometry = new THREE.IcosahedronGeometry(0.036, 0);
+    sparkGeometry.computeBoundingSphere();
+    INPUT_CELESTIAL_RECEPTOR_ORGAN_CACHE.sparkGeometry = sparkGeometry;
+
+    const dustPositions = [];
+    const dustCount = 54;
+    for (let i = 0; i < dustCount; i++) {
+      const t = i / dustCount;
+      const angle = t * Math.PI * 2.0;
+      const radius = 0.42 + (i % 7) * 0.028;
+      const y = -0.1 + Math.sin(i * 0.58) * 0.45 + (i % 5) * 0.02;
+      dustPositions.push(
+        Math.cos(angle) * radius * (0.82 + Math.sin(i * 0.31) * 0.05),
+        y,
+        Math.sin(angle) * radius * (0.9 + Math.cos(i * 0.27) * 0.04)
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    INPUT_CELESTIAL_RECEPTOR_ORGAN_CACHE.dustGeometry = dustGeometry;
+
+    const witnessGeometry = new THREE.BufferGeometry();
+    witnessGeometry.setAttribute('position', new THREE.Float32BufferAttribute([
+      -0.42, -0.02, -0.06, -0.1, 0.22, 0.02,
+      0.38, 0.08, 0.06, 0.12, 0.34, -0.04,
+      -0.12, 0.34, 0.18, 0.16, 0.52, 0.02
+    ], 3));
+    witnessGeometry.computeBoundingSphere();
+    INPUT_CELESTIAL_RECEPTOR_ORGAN_CACHE.witnessGeometry = witnessGeometry;
+  }
+  return INPUT_CELESTIAL_RECEPTOR_ORGAN_CACHE;
+}
+
+function _getInputCelestialReceptorOrganMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0x00ddff;
+  if (INPUT_CELESTIAL_RECEPTOR_ORGAN_MATERIALS.has(colorHex)) return INPUT_CELESTIAL_RECEPTOR_ORGAN_MATERIALS.get(colorHex);
+
+  const inputColor = new THREE.Color(colorHex);
+  const iceColor = new THREE.Color(0xd8fbff).lerp(inputColor, 0.08);
+  const pearlColor = new THREE.Color(0xf9feff).lerp(iceColor, 0.06);
+  const whiteColor = new THREE.Color(0xffffff).lerp(iceColor, 0.12);
+  const seamColor = new THREE.Color(0x192a3c).lerp(iceColor, 0.12);
+
+  const coreMat = new THREE.MeshPhysicalMaterial({
+    color: pearlColor.clone().lerp(iceColor, 0.1),
+    emissive: whiteColor.clone().lerp(iceColor, 0.18),
+    emissiveIntensity: 0.22,
+    metalness: 0.08,
+    roughness: 0.14,
+    transmission: 0,
+    thickness: 0.08,
+    ior: 1.18,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seedMat = new THREE.MeshPhysicalMaterial({
+    color: whiteColor.clone().lerp(pearlColor, 0.04),
+    emissive: whiteColor.clone().lerp(iceColor, 0.1),
+    emissiveIntensity: 0.82,
+    metalness: 0.04,
+    roughness: 0.06,
+    transmission: 0,
+    thickness: 0.04,
+    ior: 1.18,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seamMat = new THREE.MeshBasicMaterial({
+    color: seamColor,
+    transparent: true,
+    opacity: 0.66,
+    depthWrite: false
+  });
+
+  const membraneMatA = new THREE.MeshPhysicalMaterial({
+    color: iceColor.clone().lerp(whiteColor, 0.06),
+    emissive: iceColor.clone().lerp(whiteColor, 0.14),
+    emissiveIntensity: 0.18,
+    metalness: 0.05,
+    roughness: 0.18,
+    transmission: 0,
+    thickness: 0.05,
+    ior: 1.16,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const membraneMatB = new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color(0xeefcff).lerp(iceColor, 0.12),
+    emissive: whiteColor.clone().lerp(iceColor, 0.1),
+    emissiveIntensity: 0.14,
+    metalness: 0.04,
+    roughness: 0.16,
+    transmission: 0,
+    thickness: 0.05,
+    ior: 1.16,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const haloMatA = new THREE.MeshBasicMaterial({
+    color: whiteColor.clone().lerp(iceColor, 0.12),
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false
+  });
+
+  const haloMatB = new THREE.MeshBasicMaterial({
+    color: iceColor.clone().lerp(whiteColor, 0.12),
+    transparent: true,
+    opacity: 0.16,
+    depthWrite: false
+  });
+
+  const filamentMat = new THREE.MeshStandardMaterial({
+    color: iceColor.clone().lerp(whiteColor, 0.08),
+    emissive: iceColor.clone().lerp(whiteColor, 0.08),
+    emissiveIntensity: 0.28,
+    metalness: 0.18,
+    roughness: 0.24,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const sparkMat = new THREE.MeshBasicMaterial({
+    color: whiteColor.clone().lerp(iceColor, 0.18),
+    transparent: true,
+    opacity: 0.88,
+    depthWrite: false
+  });
+
+  const dustMat = new THREE.PointsMaterial({
+    color: whiteColor.clone().lerp(iceColor, 0.16),
+    size: 0.03,
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const witnessMat = new THREE.LineBasicMaterial({
+    color: whiteColor.clone().lerp(iceColor, 0.18),
+    transparent: true,
+    opacity: 0.28,
+    depthWrite: false
+  });
+
+  const mats = { coreMat, seedMat, seamMat, membraneMatA, membraneMatB, haloMatA, haloMatB, filamentMat, sparkMat, dustMat, witnessMat };
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+  }
+
+  // Accent layers must preserve the precise input hue.
+  sparkMat.userData.ignoreWaveColor = true;
+  dustMat.userData.ignoreWaveColor = true;
+  haloMatA.userData.ignoreWaveColor = true;
+  haloMatB.userData.ignoreWaveColor = true;
+  witnessMat.userData.ignoreWaveColor = true;
+
+  INPUT_CELESTIAL_RECEPTOR_ORGAN_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
 function _getInputIncomingReliquaryGeometries() {
   if (!INPUT_INCOMING_RELIQUARY_CACHE.coreGeometry) {
     const coreGeometry = new THREE.OctahedronGeometry(0.23, 1);
@@ -7033,19 +7297,6 @@ function _createProcessChronoForgeReactorNode(group, visualCode, color) {
   dust.userData.isProcessChronoForgeDust = true;
 
   const shellColor = new THREE.Color(resolvedColor).lerp(new THREE.Color(0xf2f6f8), 0.16).getHex();
-  const shell = createNodeHologramShell(forgeCore, shellColor);
-  if (shell) {
-    shell.name = 'ChronoForgeShell';
-    shell.userData.isProcessChronoForgeShell = true;
-    shell.position.copy(forgeCore.position);
-    shell.quaternion.copy(forgeCore.quaternion);
-    shell.scale.copy(forgeCore.scale).multiplyScalar(1.15);
-    shell.frustumCulled = false;
-    shell.renderOrder = archOrder;
-    if (shell.material?.uniforms?.uOpacity) shell.material.uniforms.uOpacity.value = 0.034;
-    auraGroup.add(shell);
-  }
-
   const edgeGlow = createNodeNeonEdgeGlowShell(forgeCore, shellColor, {
     glowIntensity: 0.54,
     edgeWidth: 0.056,
@@ -13766,8 +14017,444 @@ export class EnhancedNodeModels {
     }
   }
 
-// Legacy INPUT visuals retained as fallback
-static _createInputNodeLegacy(group, index, color) {
+  /**
+   * INPUT flagship: Celestial Receptor Organ (visualCode 111)
+   * Noble, surreal, elevated input receptor that reads as the first spark of the network.
+   */
+  static createInputCelestialReceptorOrgan(group, visualCode, color) {
+    try {
+      const resolvedVisualCode = (typeof visualCode === 'number' && visualCode <= 4096)
+        ? visualCode
+        : (group?.userData?.visualCode ?? 111);
+      const resolvedColor = (typeof color === 'number')
+        ? color
+        : ((typeof visualCode === 'number' && visualCode > 4096) ? visualCode : 0x00ddff);
+
+      group.userData = group.userData || {};
+      const nodeKey = group?.userData?.nodeId || group?.uuid || String(resolvedVisualCode || resolvedColor);
+      const seed = Math.abs(hashString(nodeKey)) || 111;
+      const rng = _mythicSeededRng(seed);
+      const geometries = _getInputCelestialReceptorOrganGeometries();
+      const materials = _getInputCelestialReceptorOrganMaterials(resolvedColor);
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+
+      group.name = 'INPUT_CELESTIAL_RECEPTOR_ORGAN_NODE';
+      group.userData.visualVariant = 'INPUT_CELESTIAL_RECEPTOR_ORGAN_V4';
+      group.userData.inputVariant = 'CELESTIAL_RECEPTOR_ORGAN';
+      group.userData.nodeGeometryName = 'INPUT_CELESTIAL_RECEPTOR_ORGAN';
+      group.userData.visualReady = true;
+      group.userData.visualCoreImmutable = true;
+      group.userData.inputCelestialOrganPhase = rng() * Math.PI * 2;
+      group.userData.inputCelestialOrganSpinSpeed = 0.0042 + rng() * 0.0016;
+      group.userData.inputCelestialOrganBreathSpeed = 0.72 + rng() * 0.08;
+      group.userData.inputCelestialOrganHaloSpeed = 0.038 + rng() * 0.014;
+      group.userData.inputCelestialOrganMembraneSpeed = 0.028 + rng() * 0.01;
+      group.userData.inputCelestialOrganFilamentSpeed = 0.12 + rng() * 0.03;
+
+      const refs = {
+        membranes: [],
+        haloArcs: [],
+        filamentRunners: [],
+        sparkBeads: []
+      };
+
+      const markMesh = (mesh, interactive = true, ignoreWaveColor = false) => {
+        if (!mesh?.isMesh) return;
+        mesh.userData = mesh.userData || {};
+        mesh.userData.visualCoreImmutable = true;
+        mesh.userData.wavePatchMode = 'DEFAULT';
+        if (ignoreWaveColor) {
+          mesh.userData.ignoreWaveColor = true;
+        }
+        if (interactive) {
+          mesh.userData.isInteractive = true;
+          if (mesh.raycast == null) {
+            mesh.raycast = THREE.Mesh.prototype.raycast;
+          }
+        } else {
+          mesh.userData.visualLayer = 'AURA';
+        }
+      };
+
+      const addMesh = (parent, geometry, material, name, opts = {}) => {
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.name = name;
+        if (opts.position) mesh.position.set(...opts.position);
+        if (opts.rotation) mesh.rotation.set(...opts.rotation);
+        if (opts.scale) mesh.scale.set(...opts.scale);
+        if (opts.renderOrder !== undefined) mesh.renderOrder = opts.renderOrder;
+        mesh.userData = mesh.userData || {};
+        mesh.userData.wavePatchMode = opts.wavePatchMode || 'DEFAULT';
+        if (opts.ignoreWaveColor) {
+          mesh.userData.ignoreWaveColor = true;
+        }
+        markMesh(mesh, opts.interactive !== false, !!opts.ignoreWaveColor);
+        parent.add(mesh);
+        return mesh;
+      };
+
+      const addLine = (parent, geometry, material, name, opts = {}) => {
+        const line = new THREE.LineSegments(geometry, material);
+        line.name = name;
+        if (opts.position) line.position.set(...opts.position);
+        if (opts.rotation) line.rotation.set(...opts.rotation);
+        if (opts.scale) line.scale.set(...opts.scale);
+        if (opts.renderOrder !== undefined) line.renderOrder = opts.renderOrder;
+        line.userData = line.userData || {};
+        line.userData.visualLayer = 'AURA';
+        line.userData.ignoreWaveColor = true;
+        line.userData.wavePatchMode = 'DEFAULT';
+        line.raycast = () => null;
+        parent.add(line);
+        return line;
+      };
+
+      const addPoints = (parent, geometry, material, name, opts = {}) => {
+        const points = new THREE.Points(geometry, material);
+        points.name = name;
+        if (opts.position) points.position.set(...opts.position);
+        if (opts.rotation) points.rotation.set(...opts.rotation);
+        if (opts.scale) points.scale.set(...opts.scale);
+        if (opts.renderOrder !== undefined) points.renderOrder = opts.renderOrder;
+        points.userData = points.userData || {};
+        points.userData.visualLayer = 'AURA';
+        points.userData.ignoreWaveColor = true;
+        points.userData.wavePatchMode = 'DEFAULT';
+        points.raycast = () => null;
+        parent.add(points);
+        return points;
+      };
+
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+      coreGroup.userData.isInputCelestialCoreGroup = true;
+
+      const soma = addMesh(coreGroup, geometries.coreGeometry, materials.coreMat, 'CelestialSoma', {
+        position: [0.0, 0.03, 0.0],
+        rotation: [0.12, -0.08, 0.04],
+        scale: [1.02, 1.1, 0.94],
+        renderOrder: coreOrder
+      });
+      soma.userData.isInputCelestialSoma = true;
+      soma.userData.baseScale = soma.scale.clone();
+      soma.userData.corePulseSpeed = 0.82 + rng() * 0.12;
+
+      const innerSeed = addMesh(coreGroup, geometries.innerSeedGeometry, materials.seedMat, 'InnerReceptorSeed', {
+        position: [0.03, 0.12, 0.0],
+        rotation: [0.28, 0.16, -0.14],
+        scale: [0.78, 0.92, 0.72],
+        renderOrder: coreOrder
+      });
+      innerSeed.userData.isInputCelestialSeed = true;
+      innerSeed.userData.baseScale = innerSeed.scale.clone();
+      innerSeed.userData.seedPulseSpeed = 1.05 + rng() * 0.08;
+
+      const seam = addMesh(coreGroup, geometries.seamGeometry, materials.seamMat, 'ReceptorSeam', {
+        position: [0.0, 0.02, 0.0],
+        rotation: [Math.PI / 2, 0.24, 0.0],
+        scale: [1.02, 0.86, 0.94],
+        renderOrder: archOrder,
+        interactive: false
+      });
+      seam.userData.isInputCelestialSeam = true;
+
+      const spindleGeometry = new THREE.CylinderGeometry(0.04, 0.07, 0.84, 6, 1, false);
+      spindleGeometry.computeBoundingSphere();
+      const spindle = addMesh(coreGroup, spindleGeometry, materials.seedMat, 'ReceptorSpindle', {
+        position: [0.02, 0.16, -0.01],
+        rotation: [0.02, 0.12, 0.02],
+        scale: [0.92, 1.0, 0.88],
+        renderOrder: coreOrder,
+        interactive: false
+      });
+      spindle.userData.isInputCelestialSpindle = true;
+
+      group.add(coreGroup);
+
+      const membraneGroup = new THREE.Group();
+      membraneGroup.name = 'MEMBRANE_GROUP';
+      membraneGroup.userData.isInputCelestialMembraneGroup = true;
+      const membraneConfigs = [
+        { name: 'Membrane_LeftA', pos: [-0.18, 0.1, 0.04], rot: [0.16, 0.92, -0.26], scale: [0.72, 1.34, 0.54], material: materials.membraneMatA },
+        { name: 'Membrane_RightA', pos: [0.18, 0.06, 0.08], rot: [-0.1, -0.72, 0.42], scale: [0.7, 1.24, 0.52], material: materials.membraneMatB },
+        { name: 'Membrane_Crown', pos: [0.0, 0.34, -0.12], rot: [0.32, 0.06, 0.16], scale: [0.58, 1.48, 0.42], material: materials.membraneMatA },
+        { name: 'Membrane_Root', pos: [-0.03, -0.12, -0.04], rot: [-0.24, 0.24, -0.2], scale: [0.64, 0.92, 0.48], material: materials.membraneMatB },
+        { name: 'Membrane_Back', pos: [0.02, 0.18, -0.18], rot: [0.16, 2.38, -0.12], scale: [0.52, 1.08, 0.4], material: materials.membraneMatA }
+      ];
+      membraneConfigs.forEach((cfg, idx) => {
+        const membrane = addMesh(membraneGroup, geometries.membraneGeometry, cfg.material, cfg.name, {
+          position: cfg.pos,
+          rotation: cfg.rot,
+          scale: cfg.scale,
+          renderOrder: archOrder
+        });
+        membrane.userData.isInputCelestialMembrane = true;
+        membrane.userData.membranePhase = rng() * Math.PI * 2 + idx * 0.65;
+        membrane.userData.membraneSpeed = 0.028 + idx * 0.004;
+        membrane.userData.baseRotation = membrane.rotation.clone();
+        membrane.userData.baseScale = membrane.scale.clone();
+        refs.membranes.push(membrane);
+
+        const membraneEdge = addLine(membraneGroup, geometries.membraneEdgesGeometry, materials.witnessMat, `${cfg.name}_Edges`, {
+          position: cfg.pos,
+          rotation: cfg.rot,
+          scale: [cfg.scale[0] * 1.01, cfg.scale[1] * 1.01, cfg.scale[2] * 1.01],
+          renderOrder: archOrder
+        });
+        membraneEdge.userData.isInputCelestialMembraneEdge = true;
+      });
+      group.add(membraneGroup);
+
+      const filamentGroup = new THREE.Group();
+      filamentGroup.name = 'FILAMENT_GROUP';
+      filamentGroup.userData.isInputCelestialFilamentGroup = true;
+      const filamentConfigs = [
+        {
+          name: 'IntakeFilament_A',
+          start: [-0.44, -0.98, -0.08],
+          c1: [-0.22, -0.62, -0.06],
+          c2: [-0.06, -0.16, -0.02],
+          end: [0.02, 0.18, 0.03],
+          radius: 0.024,
+          speed: 0.15,
+          bead: true
+        },
+        {
+          name: 'IntakeFilament_B',
+          start: [0.42, -0.94, 0.1],
+          c1: [0.18, -0.58, 0.08],
+          c2: [0.05, -0.12, 0.02],
+          end: [-0.02, 0.2, -0.02],
+          radius: 0.022,
+          speed: 0.17,
+          bead: true
+        },
+        {
+          name: 'IntakeFilament_C',
+          start: [-0.12, -0.88, 0.34],
+          c1: [-0.06, -0.46, 0.18],
+          c2: [0.0, -0.02, 0.08],
+          end: [0.03, 0.28, 0.04],
+          radius: 0.02,
+          speed: 0.14,
+          bead: true
+        },
+        {
+          name: 'IntakeFilament_D',
+          start: [0.08, -0.84, -0.34],
+          c1: [0.04, -0.4, -0.18],
+          c2: [0.02, -0.02, -0.06],
+          end: [-0.01, 0.24, 0.0],
+          radius: 0.018,
+          speed: 0.12,
+          bead: false
+        }
+      ];
+      filamentConfigs.forEach((cfg, idx) => {
+        const curve = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(...cfg.start),
+          new THREE.Vector3(...cfg.c1),
+          new THREE.Vector3(...cfg.c2),
+          new THREE.Vector3(...cfg.end)
+        ], false, 'catmullrom', 0.35);
+        const filamentGeometry = new THREE.TubeGeometry(curve, 18, cfg.radius, 7, false);
+        const filament = addMesh(filamentGroup, filamentGeometry, materials.filamentMat, cfg.name, {
+          renderOrder: idx === 0 ? coreOrder : archOrder,
+          interactive: false
+        });
+        filament.userData.isInputCelestialFilament = true;
+        filament.userData.parentCurve = curve;
+        filament.userData.signalSpeed = cfg.speed + rng() * 0.03;
+        filament.userData.pathOffset = (rng() * 0.7 + idx * 0.17) % 1;
+        filament.userData.baseRotation = filament.rotation.clone();
+        filament.userData.baseScale = filament.scale.clone();
+        filament.userData.filamentPhase = rng() * Math.PI * 2 + idx * 0.48;
+        filament.userData.wavePatchMode = 'DEFAULT';
+        filament.userData.visualLayer = 'AURA';
+        refs.filamentRunners.push(filament);
+
+        if (cfg.bead) {
+          const spark = addMesh(filamentGroup, geometries.sparkGeometry, materials.sparkMat, `${cfg.name}_Spark`, {
+            position: cfg.end,
+            rotation: [0, 0, 0],
+            scale: [1, 1, 1],
+            renderOrder: archOrder,
+            interactive: false,
+            ignoreWaveColor: true
+          });
+          spark.userData.isInputCelestialSpark = true;
+          spark.userData.parentCurve = curve;
+          spark.userData.signalSpeed = cfg.speed * 1.18 + 0.02;
+          spark.userData.pathOffset = (cfg.bead ? rng() : 0.0) % 1;
+          spark.userData.baseScale = spark.scale.clone();
+          refs.sparkBeads.push(spark);
+        }
+      });
+      group.add(filamentGroup);
+
+      const haloGroup = new THREE.Group();
+      haloGroup.name = 'HALO_GROUP';
+      haloGroup.userData.isInputCelestialHaloGroup = true;
+      const haloConfigs = [
+        { name: 'HaloArc_A', pos: [0.04, 0.58, 0.02], rot: [Math.PI / 2, 0.06, 0.18], scale: [1.0, 0.9, 1.0], material: materials.haloMatA },
+        { name: 'HaloArc_B', pos: [-0.02, 0.7, -0.06], rot: [Math.PI / 2, 0.86, -0.24], scale: [0.82, 0.74, 1.0], material: materials.haloMatB },
+        { name: 'HaloArc_C', pos: [0.08, 0.84, 0.04], rot: [Math.PI / 2, -0.62, 0.34], scale: [0.66, 0.62, 1.0], material: materials.haloMatA }
+      ];
+      haloConfigs.forEach((cfg, idx) => {
+        const arc = addMesh(haloGroup, geometries.haloArcGeometry, cfg.material, cfg.name, {
+          position: cfg.pos,
+          rotation: cfg.rot,
+          scale: cfg.scale,
+          renderOrder: archOrder,
+          interactive: false,
+          ignoreWaveColor: true
+        });
+        arc.userData.isInputCelestialHaloArc = true;
+        arc.userData.haloPhase = rng() * Math.PI * 2 + idx * 0.72;
+        arc.userData.baseRotation = arc.rotation.clone();
+        arc.userData.baseScale = arc.scale.clone();
+        refs.haloArcs.push(arc);
+      });
+
+      const haloWitness = addLine(haloGroup, geometries.witnessGeometry, materials.witnessMat, 'HaloWitnessLines', {
+        renderOrder: archOrder
+      });
+      haloWitness.userData.isInputCelestialHaloWitness = true;
+      group.add(haloGroup);
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+      auraGroup.userData.isInputCelestialAuraGroup = true;
+
+      const dust = addPoints(auraGroup, geometries.dustGeometry, materials.dustMat, 'CelestialDust', {
+        renderOrder: archOrder
+      });
+      dust.userData.isInputCelestialDust = true;
+
+      const coreShellA = createNodeHologramShell(soma, 0xeafcff);
+      if (coreShellA) {
+        coreShellA.name = 'SomaHologramShell_A';
+        coreShellA.position.copy(soma.position);
+        coreShellA.quaternion.copy(soma.quaternion);
+        coreShellA.scale.copy(soma.scale).multiplyScalar(1.08);
+        coreShellA.frustumCulled = false;
+        coreShellA.renderOrder = archOrder;
+        coreShellA.userData = coreShellA.userData || {};
+        coreShellA.userData.ignoreWaveColor = true;
+        coreShellA.userData.visualLayer = 'AURA';
+        coreShellA.userData.isInteractive = false;
+        coreShellA.raycast = () => null;
+        auraGroup.add(coreShellA);
+      }
+
+      const coreShellB = createNodeHologramShell(innerSeed, 0xd9f9ff);
+      if (coreShellB) {
+        coreShellB.name = 'SomaHologramShell_B';
+        coreShellB.position.copy(innerSeed.position);
+        coreShellB.quaternion.copy(innerSeed.quaternion);
+        coreShellB.scale.copy(innerSeed.scale).multiplyScalar(1.16);
+        coreShellB.frustumCulled = false;
+        coreShellB.renderOrder = archOrder;
+        coreShellB.userData = coreShellB.userData || {};
+        coreShellB.userData.ignoreWaveColor = true;
+        coreShellB.userData.visualLayer = 'AURA';
+        coreShellB.userData.isInteractive = false;
+        coreShellB.raycast = () => null;
+        auraGroup.add(coreShellB);
+      }
+
+      const haloShell = refs.haloArcs[0] ? createNodeHologramShell(refs.haloArcs[0], 0xdcfbff) : null;
+      if (haloShell) {
+        haloShell.name = 'HaloWitnessShell';
+        haloShell.position.copy(refs.haloArcs[0].position);
+        haloShell.quaternion.copy(refs.haloArcs[0].quaternion);
+        haloShell.scale.copy(refs.haloArcs[0].scale).multiplyScalar(1.06);
+        haloShell.frustumCulled = false;
+        haloShell.renderOrder = archOrder;
+        haloShell.userData = haloShell.userData || {};
+        haloShell.userData.ignoreWaveColor = true;
+        haloShell.userData.visualLayer = 'AURA';
+        haloShell.userData.isInteractive = false;
+        haloShell.raycast = () => null;
+        auraGroup.add(haloShell);
+      }
+
+      const edgeGlow = createNodeNeonEdgeGlowShell(soma, 0xd5f7ff, {
+        glowIntensity: 0.5,
+        edgeWidth: 0.05,
+        pulseAmount: 0.0
+      });
+      if (edgeGlow) {
+        edgeGlow.name = 'SomaEdgeGlow';
+        edgeGlow.position.copy(soma.position);
+        edgeGlow.quaternion.copy(soma.quaternion);
+        edgeGlow.scale.copy(soma.scale).multiplyScalar(1.03);
+        edgeGlow.frustumCulled = false;
+        edgeGlow.renderOrder = archOrder;
+        edgeGlow.userData = edgeGlow.userData || {};
+        edgeGlow.userData.ignoreWaveColor = true;
+        edgeGlow.userData.visualLayer = 'AURA';
+        edgeGlow.userData.isInteractive = false;
+        edgeGlow.raycast = () => null;
+        auraGroup.add(edgeGlow);
+      }
+
+      group.add(auraGroup);
+
+      group.userData.inputCelestialOrganRefs = refs;
+      group.userData.inputCelestialOrganRefs.coreGroup = coreGroup;
+      group.userData.inputCelestialOrganRefs.soma = soma;
+      group.userData.inputCelestialOrganRefs.innerSeed = innerSeed;
+      group.userData.inputCelestialOrganRefs.seam = seam;
+      group.userData.inputCelestialOrganRefs.spindle = spindle;
+      group.userData.inputCelestialOrganRefs.membraneGroup = membraneGroup;
+      group.userData.inputCelestialOrganRefs.haloGroup = haloGroup;
+      group.userData.inputCelestialOrganRefs.filamentGroup = filamentGroup;
+      group.userData.inputCelestialOrganRefs.auraGroup = auraGroup;
+      group.userData.inputCelestialOrganRefs.dust = dust;
+      group.userData.inputCelestialOrganRefs.haloWitness = haloWitness;
+      group.userData.inputCelestialOrganRefs.haloShell = haloShell;
+      group.userData.inputCelestialOrganRefs.coreShellA = coreShellA;
+      group.userData.inputCelestialOrganRefs.coreShellB = coreShellB;
+      group.userData.inputCelestialOrganRefs.edgeGlow = edgeGlow;
+
+      group.traverse((obj) => {
+        if (obj?.isMesh || obj?.isPoints || obj?.isLine || obj?.isLineSegments) {
+          obj.userData = obj.userData || {};
+          if (!obj.userData.wavePatchMode) obj.userData.wavePatchMode = 'DEFAULT';
+          if (obj.userData.ignoreWaveColor) {
+            const materialRefs = Array.isArray(obj.material) ? obj.material : (obj.material ? [obj.material] : []);
+            for (const material of materialRefs) {
+              if (!material) continue;
+              material.userData = material.userData || {};
+              material.userData.wavePatchMode = 'DEFAULT';
+              material.userData.ignoreWaveColor = true;
+            }
+          }
+          if (obj.isMesh && obj.userData.isInteractive !== false) {
+            obj.userData.isInteractive = true;
+            if (obj.raycast == null) {
+              obj.raycast = THREE.Mesh.prototype.raycast;
+            }
+          }
+        }
+      });
+
+      return group;
+    } catch (err) {
+      console.error('[NodeVisualAbort]', {
+        model: 'createInputCelestialReceptorOrgan',
+        category: 'input',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
+    }
+  }
+
+  // Legacy INPUT visuals retained as fallback
+  static _createInputNodeLegacy(group, index, color) {
   const pool = CATEGORY_POOLS.input || [];
   const poolFns = {
     101: this.createInputSignalReceptor.bind(this),
@@ -28812,6 +29499,70 @@ static createStorageNode0(group, color) {
       });
     }
 
+    // 3b. STORAGE_MEMORY_WELL (Memory Well Archive)
+    if (nodeGroup.userData.nodeGeometryName === 'STORAGE_MEMORY_WELL') {
+      const phase = nodeGroup.userData.memoryWellPhase || 0;
+      const spinSpeed = nodeGroup.userData.memoryWellSpinSpeed || 0.0021;
+
+      nodeGroup.rotation.y += deltaTime * spinSpeed;
+      nodeGroup.rotation.x = Math.sin(time * 0.045 + phase) * 0.008;
+      nodeGroup.rotation.z = Math.sin(time * 0.037 + phase * 1.17) * 0.005;
+
+      nodeGroup.traverse(child => {
+        if (child === nodeGroup) return;
+        const data = child.userData || {};
+        if (data.isMemoryWellBand) {
+          const baseRot = data.baseRotation || child.rotation;
+          const baseScale = data.baseScale || child.scale;
+          const bandPhase = data.bandPhase || 0;
+          const bandSpeed = data.bandSpinSpeed || 0.005;
+          const bandPulse = Math.sin(time * 0.27 + bandPhase) * 0.008;
+
+          child.rotation.x = baseRot.x + Math.sin(time * 0.08 + bandPhase) * 0.006;
+          child.rotation.y = baseRot.y + deltaTime * bandSpeed;
+          child.rotation.z = baseRot.z + Math.cos(time * 0.06 + bandPhase) * 0.004;
+          child.scale.x = baseScale.x * (1.0 + bandPulse * 0.12);
+          child.scale.y = baseScale.y * (1.0 + bandPulse * 0.03);
+          child.scale.z = baseScale.z * (1.0 - bandPulse * 0.08);
+        }
+
+        if (data.isMemoryWellRetrieval) {
+          const basePos = data.basePosition || child.position.clone();
+          const baseRot = data.baseRotation || child.rotation;
+          const pulse = Math.sin(time * (data.retrievalPulseSpeed || 0.58) + (data.retrievalPhase || 0)) * (data.retrievalPulseAmp || 0.012);
+          child.position.x = basePos.x + pulse * 0.9;
+          child.position.y = basePos.y + Math.cos(time * 0.24 + (data.retrievalPhase || 0)) * 0.006;
+          child.position.z = basePos.z + Math.sin(time * 0.18 + (data.retrievalPhase || 0)) * 0.008;
+          child.rotation.x = baseRot.x + Math.sin(time * 0.14 + (data.retrievalPhase || 0)) * 0.004;
+          child.rotation.y = baseRot.y + deltaTime * 0.007;
+          child.rotation.z = baseRot.z + Math.cos(time * 0.11 + (data.retrievalPhase || 0)) * 0.003;
+        }
+
+        if (data.isMemoryWellRelic) {
+          const basePos = data.basePosition || child.position.clone();
+          const baseRot = data.baseRotation || child.rotation;
+          const orbitPhase = data.orbitPhase || 0;
+          const orbitSpeed = data.orbitSpeed || 0.014;
+          const orbitRadius = data.orbitRadius || 0.03;
+          child.position.x = basePos.x + Math.cos(time * orbitSpeed + orbitPhase) * orbitRadius;
+          child.position.z = basePos.z + Math.sin(time * orbitSpeed * 0.92 + orbitPhase) * orbitRadius * 0.82;
+          child.position.y = basePos.y + Math.sin(time * orbitSpeed * 0.55 + orbitPhase) * 0.01;
+          child.rotation.x = baseRot.x + deltaTime * 0.004;
+          child.rotation.y = baseRot.y + deltaTime * 0.01;
+          child.rotation.z = baseRot.z + Math.sin(time * 0.1 + orbitPhase) * 0.002;
+        }
+
+        if (data.isMemoryWellWitness) {
+          child.rotation.y += deltaTime * 0.0012;
+        }
+
+        if (data.isMemoryWellDust) {
+          child.rotation.y += deltaTime * 0.0008;
+          child.rotation.x = Math.sin(time * 0.05 + phase) * 0.001;
+        }
+      });
+    }
+
     // ============================================================================
     // INPUT SENSORY ANIMATIONS (Session 111 - Kinetic Update)
     // ============================================================================
@@ -28881,6 +29632,178 @@ static createStorageNode0(group, color) {
           child.position.copy(pointScratch);
         }
       });
+    }
+
+    // 4. INPUT_CELESTIAL_RECEPTOR_ORGAN (Celestial Receptor Organ)
+    if (nodeGroup.userData.nodeGeometryName === 'INPUT_CELESTIAL_RECEPTOR_ORGAN') {
+      const refs = nodeGroup.userData.inputCelestialOrganRefs || {};
+      const phase = nodeGroup.userData.inputCelestialOrganPhase || 0;
+      const spinSpeed = nodeGroup.userData.inputCelestialOrganSpinSpeed || 0.0042;
+      const breathSpeed = nodeGroup.userData.inputCelestialOrganBreathSpeed || 0.72;
+      const haloSpeed = nodeGroup.userData.inputCelestialOrganHaloSpeed || 0.038;
+      const membraneSpeed = nodeGroup.userData.inputCelestialOrganMembraneSpeed || 0.028;
+      const filamentSpeed = nodeGroup.userData.inputCelestialOrganFilamentSpeed || 0.12;
+
+      nodeGroup.rotation.y += deltaTime * spinSpeed;
+      nodeGroup.rotation.x = Math.sin(time * 0.05 + phase) * 0.008;
+      nodeGroup.rotation.z = Math.cos(time * 0.043 + phase * 0.9) * 0.006;
+
+      if (refs.coreGroup) {
+        refs.coreGroup.rotation.y += deltaTime * (spinSpeed * 1.8);
+        refs.coreGroup.rotation.x = Math.sin(time * 0.08 + phase) * 0.012;
+        refs.coreGroup.rotation.z = Math.cos(time * 0.075 + phase * 0.7) * 0.008;
+      }
+
+      if (refs.soma) {
+        const baseScale = refs.soma.userData.baseScale || (refs.soma.userData.baseScale = refs.soma.scale.clone());
+        const pulse = 1 + Math.sin(time * breathSpeed + phase) * 0.014;
+        refs.soma.scale.set(
+          baseScale.x * (1 + Math.sin(time * breathSpeed * 0.86 + phase) * 0.008),
+          baseScale.y * pulse,
+          baseScale.z * (1 + Math.cos(time * breathSpeed * 0.78 + phase) * 0.006)
+        );
+        refs.soma.rotation.y += deltaTime * 0.02;
+        refs.soma.rotation.x += deltaTime * 0.008;
+      }
+
+      if (refs.innerSeed) {
+        const baseScale = refs.innerSeed.userData.baseScale || (refs.innerSeed.userData.baseScale = refs.innerSeed.scale.clone());
+        const pulse = 1 + Math.sin(time * (breathSpeed * 1.14) + phase + 0.6) * 0.022;
+        refs.innerSeed.scale.set(
+          baseScale.x * pulse,
+          baseScale.y * (1 + Math.cos(time * breathSpeed + phase + 0.4) * 0.012),
+          baseScale.z * pulse
+        );
+        refs.innerSeed.rotation.y += deltaTime * 0.05;
+        refs.innerSeed.rotation.x += deltaTime * 0.018;
+      }
+
+      if (refs.seam) {
+        refs.seam.rotation.z = Math.sin(time * 0.18 + phase) * 0.05;
+        refs.seam.rotation.y += deltaTime * 0.01;
+      }
+
+      if (refs.spindle) {
+        refs.spindle.rotation.y += deltaTime * 0.025;
+        refs.spindle.rotation.x = Math.sin(time * 0.11 + phase) * 0.01;
+      }
+
+      if (refs.membraneGroup) {
+        refs.membraneGroup.rotation.y += deltaTime * membraneSpeed;
+        refs.membraneGroup.rotation.x = Math.sin(time * 0.16 + phase) * 0.018;
+        refs.membraneGroup.rotation.z = Math.cos(time * 0.14 + phase * 0.8) * 0.012;
+      }
+
+      if (Array.isArray(refs.membranes)) {
+        refs.membranes.forEach((membrane, idx) => {
+          const baseRotation = membrane.userData.baseRotation || (membrane.userData.baseRotation = membrane.rotation.clone());
+          const baseScale = membrane.userData.baseScale || (membrane.userData.baseScale = membrane.scale.clone());
+          const membranePhase = membrane.userData.membranePhase || idx * 0.5;
+          const membraneOpen = 1 + Math.sin(time * (membrane.userData.membraneSpeed || membraneSpeed) + membranePhase) * (0.018 + idx * 0.0015);
+          membrane.rotation.set(
+            baseRotation.x + Math.sin(time * 0.15 + membranePhase) * 0.02,
+            baseRotation.y + deltaTime * (0.01 + idx * 0.002),
+            baseRotation.z + Math.cos(time * 0.13 + membranePhase) * 0.014
+          );
+          membrane.scale.set(
+            baseScale.x * (1 + Math.sin(time * 0.1 + membranePhase) * 0.012),
+            baseScale.y * membraneOpen,
+            baseScale.z * (1 + Math.cos(time * 0.11 + membranePhase) * 0.01)
+          );
+        });
+      }
+
+      if (refs.haloGroup) {
+        refs.haloGroup.rotation.y += deltaTime * haloSpeed;
+        refs.haloGroup.rotation.x = Math.sin(time * 0.09 + phase) * 0.014;
+        refs.haloGroup.rotation.z = Math.cos(time * 0.085 + phase * 0.7) * 0.01;
+      }
+
+      if (Array.isArray(refs.haloArcs)) {
+        refs.haloArcs.forEach((arc, idx) => {
+          const baseRotation = arc.userData.baseRotation || (arc.userData.baseRotation = arc.rotation.clone());
+          const baseScale = arc.userData.baseScale || (arc.userData.baseScale = arc.scale.clone());
+          const haloPhase = arc.userData.haloPhase || idx * 0.6;
+          arc.rotation.set(
+            baseRotation.x,
+            baseRotation.y + deltaTime * (haloSpeed * (idx % 2 === 0 ? 1 : -0.86)),
+            baseRotation.z + Math.sin(time * 0.17 + haloPhase) * 0.014
+          );
+          const haloPulse = 1 + Math.sin(time * 0.12 + haloPhase) * (0.01 + idx * 0.002);
+          arc.scale.set(
+            baseScale.x * haloPulse,
+            baseScale.y * (1 + Math.cos(time * 0.1 + haloPhase) * 0.008),
+            baseScale.z
+          );
+        });
+      }
+
+      if (refs.filamentGroup) {
+        refs.filamentGroup.rotation.y -= deltaTime * (filamentSpeed * 0.24);
+        refs.filamentGroup.rotation.x = Math.sin(time * 0.07 + phase) * 0.01;
+        refs.filamentGroup.rotation.z = Math.cos(time * 0.064 + phase * 0.6) * 0.008;
+      }
+
+      if (Array.isArray(refs.filamentRunners)) {
+        refs.filamentRunners.forEach((filament, idx) => {
+          const baseRotation = filament.userData.baseRotation || (filament.userData.baseRotation = filament.rotation.clone());
+          const phaseOffset = filament.userData.filamentPhase || idx * 0.4;
+          filament.rotation.set(
+            baseRotation.x + Math.sin(time * 0.1 + phaseOffset) * 0.012,
+            baseRotation.y + deltaTime * (filamentSpeed * (0.22 + idx * 0.03)),
+            baseRotation.z + Math.cos(time * 0.088 + phaseOffset) * 0.01
+          );
+        });
+      }
+
+      if (Array.isArray(refs.sparkBeads)) {
+        refs.sparkBeads.forEach((spark, idx) => {
+          const curve = spark.userData.parentCurve;
+          if (!curve) return;
+          const pointScratch = spark.userData.signalPointScratch || (spark.userData.signalPointScratch = new THREE.Vector3());
+          const speed = spark.userData.signalSpeed || (filamentSpeed * 1.2);
+          spark.userData.pathOffset = (spark.userData.pathOffset + deltaTime * speed) % 1.0;
+          curve.getPoint(spark.userData.pathOffset, pointScratch);
+          spark.position.copy(pointScratch);
+          spark.rotation.y += deltaTime * (0.38 + idx * 0.04);
+          spark.rotation.x += deltaTime * (0.2 + idx * 0.02);
+        });
+      }
+
+      if (refs.coreShellA && refs.soma) {
+        refs.coreShellA.position.copy(refs.soma.position);
+        refs.coreShellA.quaternion.copy(refs.soma.quaternion);
+        refs.coreShellA.scale.copy(refs.soma.scale).multiplyScalar(1.08);
+      }
+
+      if (refs.coreShellB && refs.innerSeed) {
+        refs.coreShellB.position.copy(refs.innerSeed.position);
+        refs.coreShellB.quaternion.copy(refs.innerSeed.quaternion);
+        refs.coreShellB.scale.copy(refs.innerSeed.scale).multiplyScalar(1.14);
+      }
+
+      if (refs.haloShell && refs.haloArcs?.[0]) {
+        refs.haloShell.position.copy(refs.haloArcs[0].position);
+        refs.haloShell.quaternion.copy(refs.haloArcs[0].quaternion);
+        refs.haloShell.scale.copy(refs.haloArcs[0].scale).multiplyScalar(1.06);
+      }
+
+      if (refs.edgeGlow && refs.soma) {
+        refs.edgeGlow.position.copy(refs.soma.position);
+        refs.edgeGlow.quaternion.copy(refs.soma.quaternion);
+        refs.edgeGlow.scale.copy(refs.soma.scale).multiplyScalar(1.03);
+      }
+
+      if (refs.dust) {
+        refs.dust.rotation.y += deltaTime * 0.01;
+        refs.dust.rotation.x = Math.sin(time * 0.06 + phase) * 0.01;
+        refs.dust.rotation.z = Math.cos(time * 0.055 + phase * 0.5) * 0.008;
+      }
+
+      if (refs.haloWitness) {
+        refs.haloWitness.rotation.y += deltaTime * 0.008;
+        refs.haloWitness.rotation.z = Math.sin(time * 0.08 + phase) * 0.008;
+      }
     }
 
     // ============================================================================
@@ -30118,7 +31041,7 @@ static createStorageNode0(group, color) {
   // ===== EXTREME GEOMETRY WRAPPERS =====
   // These wrap EXTREME geometries to integrate them into normal node creation pools
   // Mapping: 
-  // INPUT: Hyperbolic Prism, Singularity Knot
+  // INPUT: Hyperbolic Prism, Legacy Singularity Knot
   // PROCESS: Quantum Lattice, Fractal Bloom
   // INTEGRATION: Weight-Spine Anchor, Chaotic Heart
   // STORAGE: Whisper Sphere, Echo Fractal

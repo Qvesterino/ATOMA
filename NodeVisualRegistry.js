@@ -10,7 +10,7 @@ export const NODE_VISUAL_REGISTRY = {
   107: { category: 'input', factoryName: 'createInputNodeStyled_v2', archetypeTag: 'amplifier', metrics: { synergy: 0.620000, harmony: 0.606667, stability: 0.606667, corruption: 0.080000, loadPressure: 0.326667 } },
   108: { category: 'input', factoryName: 'createInputNode3', archetypeTag: 'amplifier', metrics: { synergy: 0.640000, harmony: 0.624444, stability: 0.624444, corruption: 0.086667, loadPressure: 0.344444 } },
   110: { category: 'input', factoryName: 'createExtremeInput0', archetypeTag: 'harmonizer', metrics: { synergy: 0.660000, harmony: 0.642222, stability: 0.642222, corruption: 0.093333, loadPressure: 0.362222 } },
-  111: { category: 'input', factoryName: 'createExtremeInput1', archetypeTag: 'harmonizer', metrics: { synergy: 0.680000, harmony: 0.660000, stability: 0.660000, corruption: 0.100000, loadPressure: 0.380000 } },
+  111: { category: 'input', factoryName: 'createInputCelestialReceptorOrgan', archetypeTag: 'harmonizer', metrics: { synergy: 0.680000, harmony: 0.660000, stability: 0.660000, corruption: 0.100000, loadPressure: 0.380000 } },
   // Process (2xx)
   201: { category: 'process', factoryName: 'createProcessFluxChamber', archetypeTag: 'risky', metrics: { synergy: 0.620000, harmony: 0.480000, stability: 0.460000, corruption: 0.100000, loadPressure: 0.460000 } },
   202: { category: 'process', factoryName: 'createProcessTransformationSpine', archetypeTag: 'pressure', metrics: { synergy: 0.640000, harmony: 0.497500, stability: 0.477500, corruption: 0.115000, loadPressure: 0.485000 } },

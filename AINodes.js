@@ -8,6 +8,17 @@ const freezeNodeCoreState = (nodeModel) => { /* no-op */ };
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { createLogger, isDebugEnabled } from './src/utils/DebugLogger.js';
 
+function findDescendantByPredicate(root, predicate) {
+  if (!root || typeof root.traverse !== 'function') return null;
+  let found = null;
+  root.traverse((obj) => {
+    if (!found && predicate(obj)) {
+      found = obj;
+    }
+  });
+  return found;
+}
+
 function isLinkSpawnEnabled() {
   if (typeof window === 'undefined') return false;
   return window.ATOMA_FLAGS?.runtime?.linkSpawnEnabled === true;
@@ -2780,7 +2791,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // Use stable nodeRoot as reference point
     const nodeRoot = node.userData.nodeRoot || node;
     const nodeCategory = data.category || node.userData.category || '';
-    const coreMesh = nodeRoot.children.find(child => 
+    const coreMesh = findDescendantByPredicate(nodeRoot, (child) =>
       child.isMesh && child.userData.visualLayer === 'CORE' && !child.userData.isHologramShell
     );
     const isRiskyNode = nodeCategory.toLowerCase().includes('extreme') || 
@@ -3329,7 +3340,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
 
         if (issue.type === 'HOLOGRAM_SHELL_FRUSTUM_CULL_ENABLED') {
           const nodeRoot = node.userData.nodeRoot || node;
-          const holoShell = nodeRoot.children.find(child =>
+          const holoShell = findDescendantByPredicate(nodeRoot, (child) =>
             child.isMesh && child.userData.isHologramShell === true
           );
           if (holoShell) {
@@ -3340,7 +3351,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
 
         if (issue.type === 'CORE_MESH_FRUSTUM_CULL_ENABLED') {
           const nodeRoot = node.userData.nodeRoot || node;
-          const coreMesh = nodeRoot.children.find(child =>
+          const coreMesh = findDescendantByPredicate(nodeRoot, (child) =>
             child.isMesh && child.userData.visualLayer === 'CORE'
           );
           if (coreMesh) {
@@ -3351,7 +3362,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
 
         if (issue.type === 'HOLOGRAM_SHELL_WRONG_RENDER_ORDER') {
           const nodeRoot = node.userData.nodeRoot || node;
-          const holoShell = nodeRoot.children.find(child =>
+          const holoShell = findDescendantByPredicate(nodeRoot, (child) =>
             child.isMesh && child.userData.isHologramShell === true
           );
           if (holoShell) {
@@ -3364,7 +3375,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         if (issue.type === 'MISSING_HOLOGRAM_SHELL') {
           // Re-assert hologram shell
           const nodeRoot = node.userData.nodeRoot || node;
-          const coreMesh = nodeRoot.children.find(child =>
+          const coreMesh = findDescendantByPredicate(nodeRoot, (child) =>
             child.isMesh && child.userData.visualLayer === 'CORE'
           );
           if (coreMesh) {

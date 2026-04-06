@@ -1,6 +1,17 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from '../VisualHierarchyRegistry.js';
 
+function collectDescendants(root, predicate, out = []) {
+  if (!root) return out;
+  if (predicate(root)) out.push(root);
+  if (root.children && root.children.length) {
+    for (const child of root.children) {
+      collectDescendants(child, predicate, out);
+    }
+  }
+  return out;
+}
+
 /**
  * Neon Edge Glow Shader
  * Minimal, futuristic edge highlighting with smooth gradients
@@ -161,7 +172,14 @@ export function reassertNodeNeonEdgeGlow(nodeGroup, coreMesh, baseColor = 0x00dd
     return false;
   }
 
-  const existingShell = nodeGroup.children.find((child) => child?.userData?.isNeonEdgeGlow === true);
+  const existingShells = collectDescendants(
+    nodeGroup,
+    (child) => child?.isMesh === true && child.userData?.isNeonEdgeGlow === true
+  );
+  const existingShell = existingShells[0] || null;
+  for (let i = 1; i < existingShells.length; i++) {
+    existingShells[i].parent?.remove(existingShells[i]);
+  }
   const isValid = Boolean(
     existingShell &&
     existingShell.material &&
@@ -169,21 +187,39 @@ export function reassertNodeNeonEdgeGlow(nodeGroup, coreMesh, baseColor = 0x00dd
     existingShell.frustumCulled === false
   );
 
-  if (isValid) {
-    return true;
+  if (existingShell && !isValid) {
+    existingShell.parent?.remove(existingShell);
   }
 
-  if (existingShell) {
-    nodeGroup.remove(existingShell);
+  let shell = existingShell;
+  if (!shell) {
+    shell = createNodeNeonEdgeGlowShell(coreMesh, baseColor);
   }
 
-  const newShell = createNodeNeonEdgeGlowShell(coreMesh, baseColor);
-  if (newShell) {
-    nodeGroup.add(newShell);
+  if (!shell) {
     return false;
   }
 
-  return false;
+  const targetParent = coreMesh.parent || nodeGroup;
+  if (shell.parent !== targetParent) {
+    shell.parent?.remove(shell);
+    targetParent.add(shell);
+  }
+
+  shell.position.copy(coreMesh.position);
+  shell.quaternion.copy(coreMesh.quaternion);
+  shell.scale.copy(coreMesh.scale);
+  shell.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
+  shell.frustumCulled = false;
+  shell.visible = true;
+  shell.userData = shell.userData || {};
+  shell.userData.visualLayer = 'CORE_EDGE';
+  shell.userData.isNeonEdgeGlow = true;
+  shell.userData.nonInteractive = true;
+  shell.layers.disable(10);
+  shell.raycast = () => null;
+
+  return isValid;
 }
 
 /**

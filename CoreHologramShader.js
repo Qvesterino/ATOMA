@@ -6,6 +6,17 @@ function vfxFlag(name, def = true) {
   return (v === undefined) ? def : !!v;
 }
 
+function collectDescendants(root, predicate, out = []) {
+  if (!root) return out;
+  if (predicate(root)) out.push(root);
+  if (root.children && root.children.length) {
+    for (const child of root.children) {
+      collectDescendants(child, predicate, out);
+    }
+  }
+  return out;
+}
+
 // ============================================================
 // STABLE HOLOGRAM GEOMETRY CACHE
 // Global cache for stable icosphere geometries (not derived from core mesh)
@@ -246,13 +257,20 @@ export function reassertNodeHologramShell(nodeGroup, coreMesh, baseColor = 0x00f
     return false;
   }
 
-  // Find existing shell
-  let existingShell = nodeGroup.children.find(child => 
-    child.userData.isHologramShell === true
+  // Find any existing shell in the subtree, not just direct children.
+  const existingShells = collectDescendants(
+    nodeGroup,
+    (child) => child?.isMesh === true && child.userData?.isHologramShell === true
   );
+  const expectedOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
+  let existingShell = existingShells[0] || null;
+
+  // Remove duplicate shells if more than one exists.
+  for (let i = 1; i < existingShells.length; i++) {
+    existingShells[i].parent?.remove(existingShells[i]);
+  }
 
   // Check if shell is valid
-  const expectedOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
   const isValid = existingShell && 
     existingShell.material && 
     existingShell.material.depthTest === true && 
@@ -260,21 +278,42 @@ export function reassertNodeHologramShell(nodeGroup, coreMesh, baseColor = 0x00f
     existingShell.renderOrder === expectedOrder &&
     existingShell.frustumCulled === false;
 
-  if (isValid) {
-    return true; // Shell is healthy
+  if (!isValid && existingShell) {
+    existingShell.parent?.remove(existingShell);
+    existingShell = null;
   }
 
-  // Remove broken shell if it exists
-  if (existingShell) {
-    nodeGroup.remove(existingShell);
+  if (!existingShell) {
+    const newShell = createNodeHologramShell(coreMesh, baseColor);
+    if (!newShell) {
+      return false;
+    }
+    existingShell = newShell;
   }
 
-  // Create and attach new shell
-  const newShell = createNodeHologramShell(coreMesh, baseColor);
-  if (newShell) {
-    nodeGroup.add(newShell);
-    return false; // Shell was reasserted
+  const targetParent = coreMesh.parent || nodeGroup;
+  if (existingShell.parent !== targetParent) {
+    existingShell.parent?.remove(existingShell);
+    targetParent.add(existingShell);
   }
 
-  return false;
+  existingShell.position.copy(coreMesh.position);
+  existingShell.quaternion.copy(coreMesh.quaternion);
+  existingShell.scale.copy(coreMesh.scale);
+  existingShell.renderOrder = expectedOrder;
+  existingShell.frustumCulled = false;
+  existingShell.visible = true;
+  if (existingShell.material) {
+    existingShell.material.depthTest = true;
+    existingShell.material.depthWrite = false;
+    existingShell.material.transparent = true;
+    existingShell.material.side = THREE.DoubleSide;
+    existingShell.material.blending = THREE.AdditiveBlending;
+  }
+
+  existingShell.userData = existingShell.userData || {};
+  existingShell.userData.visualLayer = 'CORE_SHELL';
+  existingShell.userData.isHologramShell = true;
+
+  return isValid;
 }

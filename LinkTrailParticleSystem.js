@@ -151,6 +151,16 @@ class NoiseGenerator {
 // can live here without importing back into the conduit.
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const COLOR_WHITE = new THREE.Color(0xffffff);
+const TRAIL_BASE_COLOR = new THREE.Color(0xddddee);
+const TRAIL_HARMONY_COLOR = new THREE.Color(0xccddff);
+const TRAIL_SYNERGY_COLOR = new THREE.Color(0xe7f7ff);
+const TRAIL_CORRUPTION_COLOR = new THREE.Color(0xff6666);
+const TRAIL_HEALING_COLOR = new THREE.Color(0x9cecff);
+const TRAIL_HEALING_BLEND_COLOR = new THREE.Color(0xc9fff2);
+const TRAIL_SPARK_COLOR = new THREE.Color(0xffcc88);
+const TRAIL_SPARK_BLEND_COLOR = new THREE.Color(0xfff2aa);
+const TRAIL_WORLD_UP = new THREE.Vector3(0, 1, 0);
+const TRAIL_WORLD_RIGHT = new THREE.Vector3(1, 0, 0);
 const WAVE_SPARK_GLYPH = {
   SLIVER: 0,
   NOTCH: 1,
@@ -333,6 +343,7 @@ class TrailParticle {
 
     // Scratch buffers avoid per-frame allocations in hot path.
     this._frameScratch = new THREE.Vector3();
+    this._curvePosScratch = new THREE.Vector3();
     this._normalA = new THREE.Vector3();
     this._normalB = new THREE.Vector3();
     this._offsetDir = new THREE.Vector3();
@@ -427,7 +438,7 @@ class TrailParticle {
 
     if (this.curve) {
       // Get position on curve
-      const curvePos = this.curve.getPointAt(this.progress);
+      const curvePos = this.curve.getPointAt(this.progress, this._curvePosScratch);
       
       // Add positional jitter in a radial shell around link path
       const tangent = this._getFrameAtProgress(this.progress);
@@ -443,9 +454,9 @@ class TrailParticle {
 
       if (tangent && tangent.lengthSq() > 1e-6) {
         // Build stable perpendicular coordinate frame (A,B) for offset
-        this._normalA.copy(tangent).cross(new THREE.Vector3(0, 1, 0)).normalize();
+        this._normalA.copy(tangent).cross(TRAIL_WORLD_UP).normalize();
         if (this._normalA.lengthSq() < 1e-5) {
-          this._normalA.copy(tangent).cross(new THREE.Vector3(1, 0, 0)).normalize();
+          this._normalA.copy(tangent).cross(TRAIL_WORLD_RIGHT).normalize();
         }
         this._normalB.copy(tangent).cross(this._normalA).normalize();
 
@@ -531,6 +542,8 @@ export class LinkTrailParticleSystem {
     this.activeByType = new Map();
     this.sourceProfiles = new Map();
     this.emitAccumulators = new Map(); // key -> fractional emit remainder
+    this._freeCursor = 0;
+    this._emitPosScratch = new THREE.Vector3();
     
     this.noise = new NoiseGenerator();
     this.pointFXBase = new LinkPointFXBase(null, {
@@ -651,6 +664,7 @@ export class LinkTrailParticleSystem {
 
     const profile = this.sourceProfiles.get(type) || this.sourceProfiles.get('corruption');
     const visualProfile = this._resolveLinkVisualProfile(link, harmony, corruption);
+    const resolvedVisualProfile = visualProfile;
     const rate = Math.max(0, emissionRate * (profile?.emissionScale ?? 1.0));
     const dt = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0.016;
     const emitterKey = this._getEmitterKey(type, link, curve);
@@ -666,20 +680,21 @@ export class LinkTrailParticleSystem {
       if (!particle) break;
 
       const randomProgress = Math.random();
-      const emitPos = curve.getPointAt(randomProgress);
+      const emitPos = curve.getPointAt(randomProgress, this._emitPosScratch);
       const lifetime = profile?.lifetime ?? 1.0;
       particle.emit(emitPos, link, curve, lifetime, type);
 
-      if (color && color.isColor) {
-        particle.color = color.clone();
-      } else if (profile?.color && profile.color.isColor) {
-        particle.color = profile.color.clone();
+      if (color?.isColor) {
+        particle.color.copy(color);
+      } else if (profile?.color?.isColor) {
+        particle.color.copy(profile.color);
       } else {
-        particle.color = this._getParticleColorForType(
+        this._getParticleColorForType(
           type,
-          visualProfile.harmony,
-          visualProfile.corruption,
-          visualProfile.synergy
+          resolvedVisualProfile.harmony,
+          resolvedVisualProfile.corruption,
+          resolvedVisualProfile.synergy,
+          particle.color
         );
       }
 
@@ -728,33 +743,34 @@ export class LinkTrailParticleSystem {
   /**
    * Calculate particle color based on link state
    */
-  _getParticleColor(harmony, corruption, synergy = null) {
-    // Base: neutral gray-white (same as aura)
-    let color = new THREE.Color(0xddddee);
+  _getParticleColor(harmony, corruption, synergy = null, target = null) {
+    const color = target || new THREE.Color();
+    color.copy(TRAIL_BASE_COLOR);
 
     // Harmony: shift slightly cool
-    color.lerp(new THREE.Color(0xccddff), harmony * 0.2);
+    color.lerp(TRAIL_HARMONY_COLOR, harmony * 0.2);
 
     if (Number.isFinite(synergy)) {
-      color.lerp(new THREE.Color(0xe7f7ff), synergy * 0.18);
+      color.lerp(TRAIL_SYNERGY_COLOR, synergy * 0.18);
     }
 
     // Corruption: shift toward red
-    color.lerp(new THREE.Color(0xff6666), corruption * 0.4);
+    color.lerp(TRAIL_CORRUPTION_COLOR, corruption * 0.4);
 
     return color;
   }
 
-  _getParticleColorForType(type, harmony, corruption, synergy = null) {
+  _getParticleColorForType(type, harmony, corruption, synergy = null, target = null) {
+    const color = target || new THREE.Color();
     if (type === 'healing') {
-      const base = new THREE.Color(0x9cecff);
-      return base.lerp(new THREE.Color(0xc9fff2), Math.max(0, Math.min(1, harmony)));
+      color.copy(TRAIL_HEALING_COLOR);
+      return color.lerp(TRAIL_HEALING_BLEND_COLOR, Math.max(0, Math.min(1, harmony)));
     }
     if (type === 'spark') {
-      const base = new THREE.Color(0xffcc88);
-      return base.lerp(new THREE.Color(0xfff2aa), Math.max(0, Math.min(1, harmony * 0.6 + 0.2)));
+      color.copy(TRAIL_SPARK_COLOR);
+      return color.lerp(TRAIL_SPARK_BLEND_COLOR, Math.max(0, Math.min(1, harmony * 0.6 + 0.2)));
     }
-    return this._getParticleColor(harmony, corruption, synergy);
+    return this._getParticleColor(harmony, corruption, synergy, color);
   }
 
   _resolveLinkVisualProfile(link, fallbackHarmony = 0.5, fallbackCorruption = 0.2) {
@@ -798,8 +814,17 @@ export class LinkTrailParticleSystem {
     const activeForType = this.activeByType.get(type) || 0;
     if (activeForType >= maxActive) return null;
 
-    for (let i = 0; i < this.particles.length; i++) {
-      if (!this.particles[i].active) return this.particles[i];
+    const total = this.particles.length;
+    if (total <= 0) return null;
+
+    const startIndex = this._freeCursor % total;
+    for (let offset = 0; offset < total; offset += 1) {
+      const idx = (startIndex + offset) % total;
+      const particle = this.particles[idx];
+      if (!particle.active) {
+        this._freeCursor = (idx + 1) % total;
+        return particle;
+      }
     }
     return null;
   }

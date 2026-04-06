@@ -137,6 +137,8 @@ If content belongs elsewhere:
 - do not duplicate it
 
 References are allowed.
+- `docs/TODO/rhythm-event-map.md` — world event / ritual architecture map
+- `docs/audits/VIZUALNE EFEKTY VFX.md` — visual effects audit and system catalog
 Rule duplication is not.
 
 ---

@@ -403,18 +403,18 @@ function _getInputNeuralReceptorGeometries() {
         packets: [0.42],
         warmTip: false
       },
-      {
-        name: 'NeuralBranch_F',
-        dir: new THREE.Vector3(-0.1, 0.86, -0.5),
-        reach: 0.64,
-        liftBias: 0.08,
+    {
+      name: 'NeuralBranch_F',
+      dir: new THREE.Vector3(-0.1, 0.86, -0.5),
+      reach: 0.64,
+      liftBias: 0.08,
         bendA: new THREE.Vector3(-0.02, 0.12, 0.04),
         bendB: new THREE.Vector3(0.04, 0.16, 0.11),
         radius: 0.019,
         signalSpeed: 0.24,
-        packets: [0.22],
-        warmTip: false
-      }
+      packets: [0.22],
+      warmTip: false
+    }
     ];
 
     INPUT_NEURAL_RECEPTOR_CACHE.branchDefs = branchDefs;
@@ -866,6 +866,12 @@ export class InputSensoryEnhanced {
       const branchDefs = geometries.branchDefs || [];
       const tipPointScratch = new THREE.Vector3();
       const tipTangentScratch = new THREE.Vector3();
+      const forkOriginScratch = new THREE.Vector3();
+      const forkMidScratch = new THREE.Vector3();
+      const forkEndScratch = new THREE.Vector3();
+      const forkSideScratch = new THREE.Vector3();
+      const forkUpScratch = new THREE.Vector3(0, 1, 0);
+      const forkAltScratch = new THREE.Vector3(1, 0, 0);
 
       for (let i = 0; i < branchDefs.length; i++) {
         const cfg = branchDefs[i];
@@ -912,6 +918,66 @@ export class InputSensoryEnhanced {
           packet.scale.set(j === 0 && cfg.warmTip ? 1.08 : 0.9, j === 0 && cfg.warmTip ? 1.08 : 0.9, j === 0 && cfg.warmTip ? 1.08 : 0.9);
           group.add(packet);
         }
+
+        const forkOrigin = curve.getPoint(0.87, forkOriginScratch).clone();
+        const forkTangent = curve.getTangent(0.93, tipTangentScratch).normalize();
+        forkSideScratch.crossVectors(forkTangent, forkUpScratch);
+        if (forkSideScratch.lengthSq() < 1e-5) {
+          forkSideScratch.crossVectors(forkTangent, forkAltScratch);
+        }
+        forkSideScratch.normalize();
+
+        const forkRadius = Math.max(cfg.radius * 0.42, 0.01);
+        const forkSpread = 0.048 + i * 0.004;
+        const forkReach = 0.16 + (cfg.warmTip ? 0.03 : 0.015);
+        const forkConfigs = [
+          { side: -1, lift: 0.018, twist: -0.02, tipScale: cfg.warmTip ? 0.62 : 0.56, useWarm: cfg.warmTip },
+          { side: 1, lift: -0.008, twist: 0.024, tipScale: 0.54, useWarm: false }
+        ];
+
+        forkConfigs.forEach((forkCfg, forkIdx) => {
+          const forkMid = forkOrigin.clone()
+            .addScaledVector(forkTangent, forkReach * 0.42)
+            .addScaledVector(forkSideScratch, forkCfg.side * forkSpread * 0.52)
+            .addScaledVector(forkUpScratch, forkCfg.lift);
+          const forkEnd = forkOrigin.clone()
+            .addScaledVector(forkTangent, forkReach)
+            .addScaledVector(forkSideScratch, forkCfg.side * forkSpread)
+            .addScaledVector(forkUpScratch, forkCfg.lift * 1.45)
+            .addScaledVector(forkTangent, forkCfg.twist);
+
+          forkMidScratch.copy(forkMid);
+          forkEndScratch.copy(forkEnd);
+          const forkCurve = new THREE.CatmullRomCurve3([
+            forkOrigin.clone(),
+            forkMidScratch.clone(),
+            forkEndScratch.clone()
+          ]);
+          forkCurve.curveType = 'catmullrom';
+          forkCurve.tension = 0.28;
+
+          const forkGeo = new THREE.TubeGeometry(forkCurve, 12, forkRadius, 4, false);
+          forkGeo.computeBoundingSphere();
+          const fork = new THREE.Mesh(forkGeo, materials.branchMat);
+          fork.name = `${cfg.name}_Fork_${forkIdx + 1}`;
+          fork.renderOrder = 5;
+          fork.userData.isDendrite = true;
+          fork.userData.isDendriteFork = true;
+          fork.userData.visualCoreImmutable = true;
+          group.add(fork);
+
+          const forkTip = new THREE.Mesh(geometries.tipGeometry, forkCfg.useWarm ? materials.warmSparkMat : materials.tipMat);
+          forkTip.name = `${cfg.name}_Fork_${forkIdx + 1}_Tip`;
+          forkTip.position.copy(forkEndScratch).addScaledVector(forkTangent, 0.012);
+          forkTip.rotation.set(0.18 + i * 0.1 + forkIdx * 0.07, -0.24 + i * 0.06, 0.12 - forkIdx * 0.05);
+          forkTip.scale.set(forkCfg.tipScale, forkCfg.tipScale * 0.96, forkCfg.tipScale * 0.92);
+          forkTip.renderOrder = 6;
+          forkTip.userData.isSynapticTip = true;
+          forkTip.userData.isDendriteForkTip = true;
+          forkTip.userData.visualCoreImmutable = true;
+          forkTip.userData.ignoreWaveColor = !!forkCfg.useWarm;
+          group.add(forkTip);
+        });
       }
 
       const fieldAnchor = new THREE.Mesh(new THREE.OctahedronGeometry(0.027, 0), materials.warmSparkMat);

@@ -5,7 +5,7 @@
  * UPGRADE GOAL: Kinetic, "AI-Grown" behaviors (Tier 2)
  * - ArchiveNexus -> "Memory Cathedral" (Context vault)
  * - MemoryCrypts -> "VaultStack" (Sliding/Rotating chambers)
- * - DepthLayers -> "ContainmentField" (Breathing/Rotating shells)
+ * - DepthLayers -> "Memory Well" (Archive reservoir)
  */
 
 import * as THREE from 'three';
@@ -31,6 +31,22 @@ const STORAGE_MEMORY_CATHEDRAL_CACHE = {
 };
 
 const STORAGE_MEMORY_CATHEDRAL_MATERIALS = new Map();
+const STORAGE_MEMORY_WELL_CACHE = {
+  kernelGeometry: null,
+  kernelEdgesGeometry: null,
+  wellBandGeometry: null,
+  wellBandEdgesGeometry: null,
+  retrievalGeometry: null,
+  retrievalEdgesGeometry: null,
+  relicGeometry: null,
+  relicEdgesGeometry: null,
+  indexGeometry: null,
+  indexEdgesGeometry: null,
+  dustGeometry: null,
+  witnessGeometry: null
+};
+
+const STORAGE_MEMORY_WELL_MATERIALS = new Map();
 
 function _setStorageWaveDefaults(material, ignoreWaveColor = false) {
   material.userData = { ...(material.userData || {}), wavePatchMode: 'DEFAULT' };
@@ -286,6 +302,458 @@ function _getStorageMemoryCathedralMaterials(color) {
   return mats;
 }
 
+function _getStorageMemoryWellGeometries() {
+  if (!STORAGE_MEMORY_WELL_CACHE.kernelGeometry) {
+    const deformGeometry = (geometry, deformFn) => {
+      const pos = geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = pos.getZ(i);
+        const next = deformFn(x, y, z, i);
+        pos.setXYZ(i, next[0], next[1], next[2]);
+      }
+      pos.needsUpdate = true;
+      geometry.computeVertexNormals();
+      geometry.computeBoundingSphere();
+      return geometry;
+    };
+
+    const kernelGeometry = new THREE.DodecahedronGeometry(0.18, 1);
+    deformGeometry(kernelGeometry, (x, y, z) => {
+      const yWeight = Math.min(1, Math.abs(y) / 0.18);
+      const sinkBias = Math.max(0, 0.18 - Math.abs(y)) * 0.08;
+      return [
+        x * (0.94 + yWeight * 0.02) + Math.sign(x || 1) * 0.008 * (1 - yWeight),
+        y * 1.08 + Math.sign(y || 1) * 0.01 * (1 - yWeight),
+        z * (0.9 + yWeight * 0.04) - sinkBias
+      ];
+    });
+    STORAGE_MEMORY_WELL_CACHE.kernelGeometry = kernelGeometry;
+    STORAGE_MEMORY_WELL_CACHE.kernelEdgesGeometry = new THREE.EdgesGeometry(kernelGeometry, 12);
+
+    const wellBandGeometry = new THREE.CylinderGeometry(0.62, 0.78, 0.15, 6, 1, true);
+    deformGeometry(wellBandGeometry, (x, y, z, i) => {
+      const yWeight = Math.min(1, Math.abs(y) / 0.075);
+      const notch = Math.sin((x * 6.1) + (z * 4.4) + i * 0.12) * 0.015;
+      return [
+        x * (0.95 + yWeight * 0.05) + z * 0.02 + notch,
+        y * 1.0,
+        z * (0.92 + yWeight * 0.06) - x * 0.015
+      ];
+    });
+    STORAGE_MEMORY_WELL_CACHE.wellBandGeometry = wellBandGeometry;
+    STORAGE_MEMORY_WELL_CACHE.wellBandEdgesGeometry = new THREE.EdgesGeometry(wellBandGeometry, 14);
+
+    const retrievalGeometry = deformGeometry(
+      new THREE.BoxGeometry(0.1, 0.78, 0.07, 1, 2, 1),
+      (x, y, z) => [
+        x * (0.88 + Math.abs(y) * 0.06) + Math.sign(x || 1) * 0.006,
+        y,
+        z * 0.82 + Math.sin((y + x) * 5.2) * 0.003
+      ]
+    );
+    STORAGE_MEMORY_WELL_CACHE.retrievalGeometry = retrievalGeometry;
+    STORAGE_MEMORY_WELL_CACHE.retrievalEdgesGeometry = new THREE.EdgesGeometry(retrievalGeometry, 8);
+
+    const relicGeometry = new THREE.CapsuleGeometry(0.042, 0.17, 4, 6);
+    STORAGE_MEMORY_WELL_CACHE.relicGeometry = relicGeometry;
+    STORAGE_MEMORY_WELL_CACHE.relicEdgesGeometry = new THREE.EdgesGeometry(relicGeometry, 12);
+
+    const indexGeometry = deformGeometry(
+      new THREE.CylinderGeometry(0.036, 0.054, 0.14, 6, 1, false),
+      (x, y, z) => [x * 0.84 + z * 0.04, y, z * 0.8 - x * 0.02]
+    );
+    STORAGE_MEMORY_WELL_CACHE.indexGeometry = indexGeometry;
+    STORAGE_MEMORY_WELL_CACHE.indexEdgesGeometry = new THREE.EdgesGeometry(indexGeometry, 12);
+
+    const dustPositions = [];
+    const dustCount = 48;
+    for (let i = 0; i < dustCount; i++) {
+      const t = i / dustCount;
+      const angle = t * Math.PI * 2.0;
+      const radius = 0.68 + Math.sin(i * 1.41) * 0.06 + (i % 4) * 0.012;
+      dustPositions.push(
+        Math.cos(angle) * radius,
+        -0.82 + t * 1.58 + Math.sin(i * 0.73) * 0.036,
+        Math.sin(angle * 1.12) * (0.36 + Math.cos(i * 0.51) * 0.07)
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    STORAGE_MEMORY_WELL_CACHE.dustGeometry = dustGeometry;
+
+    const witnessPoints = [
+      new THREE.Vector3(-0.58, -0.82, -0.03),
+      new THREE.Vector3(-0.34, -0.46, 0.08),
+      new THREE.Vector3(-0.12, -0.1, 0.02),
+      new THREE.Vector3(0.08, 0.28, -0.03),
+      new THREE.Vector3(0.26, 0.64, 0.06),
+      new THREE.Vector3(0.42, 0.94, -0.01)
+    ];
+    const witnessGeometry = new THREE.BufferGeometry().setFromPoints(witnessPoints);
+    witnessGeometry.computeBoundingSphere();
+    STORAGE_MEMORY_WELL_CACHE.witnessGeometry = witnessGeometry;
+  }
+
+  return STORAGE_MEMORY_WELL_CACHE;
+}
+
+function _getStorageMemoryWellMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : new THREE.Color(color || 0x9ccfe5).getHex();
+  if (STORAGE_MEMORY_WELL_MATERIALS.has(colorHex)) {
+    return STORAGE_MEMORY_WELL_MATERIALS.get(colorHex);
+  }
+
+  const storageColor = new THREE.Color(colorHex);
+  const archiveIce = new THREE.Color(0xe9fbff);
+  const archiveTint = storageColor.clone().lerp(new THREE.Color(0x9bc0d4), 0.78);
+  const archiveSilver = new THREE.Color(0xc7dce8);
+  const coldSteel = new THREE.Color(0x1b2430);
+
+  const kernelMat = _setStorageWaveDefaults(new THREE.MeshPhysicalMaterial({
+    color: archiveIce.clone().lerp(archiveTint, 0.18),
+    metalness: 0.9,
+    roughness: 0.16,
+    emissive: archiveIce.clone().lerp(archiveTint, 0.26),
+    emissiveIntensity: 0.34,
+    transparent: true,
+    opacity: 0.95,
+    transmission: 0,
+    thickness: 0.14
+  }));
+
+  const wellBandMat = _setStorageWaveDefaults(new THREE.MeshPhysicalMaterial({
+    color: archiveSilver.clone().lerp(archiveTint, 0.14),
+    metalness: 0.82,
+    roughness: 0.18,
+    emissive: archiveIce.clone().lerp(archiveTint, 0.08),
+    emissiveIntensity: 0.2,
+    transparent: true,
+    opacity: 0.56,
+    transmission: 0,
+    thickness: 0.08,
+    side: THREE.DoubleSide
+  }));
+
+  const retrievalMat = _setStorageWaveDefaults(new THREE.MeshStandardMaterial({
+    color: coldSteel.clone().lerp(archiveSilver, 0.28),
+    metalness: 0.88,
+    roughness: 0.2,
+    emissive: archiveIce.clone().lerp(archiveTint, 0.06),
+    emissiveIntensity: 0.18,
+    transparent: true,
+    opacity: 0.8
+  }));
+
+  const relicMat = _setStorageWaveDefaults(new THREE.MeshPhysicalMaterial({
+    color: archiveIce.clone().lerp(archiveTint, 0.06),
+    metalness: 0.74,
+    roughness: 0.12,
+    emissive: archiveIce.clone().lerp(archiveTint, 0.26),
+    emissiveIntensity: 0.42,
+    transparent: true,
+    opacity: 0.98,
+    transmission: 0,
+    thickness: 0.05
+  }), true);
+
+  const indexMat = _setStorageWaveDefaults(new THREE.MeshPhysicalMaterial({
+    color: archiveIce.clone().lerp(archiveTint, 0.02),
+    metalness: 0.84,
+    roughness: 0.1,
+    emissive: archiveIce.clone().lerp(archiveTint, 0.32),
+    emissiveIntensity: 0.54,
+    transparent: true,
+    opacity: 0.98,
+    transmission: 0,
+    thickness: 0.04
+  }), true);
+
+  const dustMat = _setStorageWaveDefaults(new THREE.PointsMaterial({
+    color: archiveIce.clone().lerp(archiveTint, 0.24),
+    size: 0.03,
+    transparent: true,
+    opacity: 0.28,
+    depthWrite: false,
+    sizeAttenuation: true
+  }));
+
+  const witnessMat = _setStorageWaveDefaults(new THREE.LineBasicMaterial({
+    color: archiveSilver.clone().lerp(archiveTint, 0.16),
+    transparent: true,
+    opacity: 0.32,
+    depthWrite: false
+  }));
+
+  const mats = {
+    kernelMat,
+    wellBandMat,
+    retrievalMat,
+    relicMat,
+    indexMat,
+    dustMat,
+    witnessMat
+  };
+
+  STORAGE_MEMORY_WELL_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+function _createStorageMemoryWellNode(group, color) {
+  group.userData = group.userData || {};
+  const colorHex = new THREE.Color(color).getHex();
+  const geometries = _getStorageMemoryWellGeometries();
+  const materials = _getStorageMemoryWellMaterials(colorHex);
+  const coreOrder = VisualHierarchyRegistry.getRenderOrder('CORE');
+  const archOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
+  const phase = ((colorHex & 0xffff) / 0xffff) * Math.PI * 2;
+
+  group.name = 'STORAGE_MEMORY_WELL_NODE';
+  group.userData.visualVariant = 'STORAGE_MEMORY_WELL_V4';
+  group.userData.storageVariant = 'MEMORY_WELL';
+  group.userData.nodeGeometryName = 'STORAGE_MEMORY_WELL';
+  group.userData.visualReady = true;
+  group.userData.visualCoreImmutable = true;
+  group.userData.memoryWellPhase = phase;
+  group.userData.memoryWellSpinSpeed = 0.0021;
+
+  const coreGroup = new THREE.Group();
+  coreGroup.name = 'CORE_GROUP';
+  coreGroup.userData.isMemoryWellCoreGroup = true;
+
+  const kernel = new THREE.Mesh(geometries.kernelGeometry, materials.kernelMat);
+  kernel.name = 'MemoryKernel';
+  kernel.position.set(0.0, 0.02, 0.01);
+  kernel.rotation.set(0.12, 0.28, -0.08);
+  kernel.scale.set(1.0, 1.08, 0.96);
+  kernel.renderOrder = coreOrder;
+  kernel.userData.isMemoryWellKernel = true;
+  kernel.userData.visualCoreImmutable = true;
+  coreGroup.add(kernel);
+
+  const kernelEdges = new THREE.LineSegments(geometries.kernelEdgesGeometry, materials.witnessMat);
+  kernelEdges.name = 'MemoryKernelEdges';
+  kernelEdges.position.copy(kernel.position);
+  kernelEdges.rotation.copy(kernel.rotation);
+  kernelEdges.scale.copy(kernel.scale);
+  kernelEdges.renderOrder = archOrder;
+  kernelEdges.userData.isMemoryWellKernel = true;
+  coreGroup.add(kernelEdges);
+
+  const innerVoidSeam = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.64, 6, 1, false), materials.retrievalMat);
+  innerVoidSeam.name = 'MemoryWellInnerVoidSeam';
+  innerVoidSeam.position.set(0.02, -0.1, -0.01);
+  innerVoidSeam.rotation.set(0.04, 0.18, -0.02);
+  innerVoidSeam.renderOrder = coreOrder;
+  innerVoidSeam.userData.isMemoryWellVoidSeam = true;
+  innerVoidSeam.userData.visualCoreImmutable = true;
+  coreGroup.add(innerVoidSeam);
+
+  const indexSeed = new THREE.Mesh(geometries.indexGeometry, materials.indexMat);
+  indexSeed.name = 'MemoryIndexSeed';
+  indexSeed.position.set(0.14, 0.14, 0.04);
+  indexSeed.rotation.set(0.12, 0.22, -0.06);
+  indexSeed.scale.set(0.9, 1.1, 0.9);
+  indexSeed.renderOrder = coreOrder;
+  indexSeed.userData.isMemoryWellIndex = true;
+  indexSeed.userData.ignoreWaveColor = true;
+  indexSeed.userData.visualCoreImmutable = true;
+  coreGroup.add(indexSeed);
+
+  group.add(coreGroup);
+
+  const wellGroup = new THREE.Group();
+  wellGroup.name = 'WELL_GROUP';
+  wellGroup.userData.isMemoryWellBandGroup = true;
+
+  const bandSpecs = [
+    { name: 'WellBand_Aperture', pos: [0.0, 0.48, 0.0], rot: [0.04, 0.14, -0.02], scale: [1.14, 1.0, 1.14], speed: 0.0048 },
+    { name: 'WellBand_Retention_A', pos: [0.0, 0.18, 0.0], rot: [-0.03, -0.18, 0.04], scale: [0.96, 0.98, 0.96], speed: 0.006 },
+    { name: 'WellBand_Retention_B', pos: [0.0, -0.14, 0.0], rot: [0.02, 0.24, -0.03], scale: [0.8, 0.96, 0.8], speed: -0.0054 },
+    { name: 'WellBand_ArchiveSink', pos: [0.0, -0.48, 0.0], rot: [-0.05, -0.26, 0.03], scale: [0.62, 0.94, 0.62], speed: 0.0042 }
+  ];
+
+  bandSpecs.forEach((spec, idx) => {
+    const band = new THREE.Mesh(geometries.wellBandGeometry, materials.wellBandMat);
+    band.name = spec.name;
+    band.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+    band.rotation.set(spec.rot[0], spec.rot[1], spec.rot[2]);
+    band.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+    band.renderOrder = coreOrder;
+    band.userData.isMemoryWellBand = true;
+    band.userData.bandIndex = idx;
+    band.userData.bandPhase = phase + idx * 0.83;
+    band.userData.bandSpinSpeed = spec.speed;
+    band.userData.baseRotation = band.rotation.clone();
+    band.userData.baseScale = band.scale.clone();
+    band.userData.visualCoreImmutable = true;
+    wellGroup.add(band);
+
+    const bandEdges = new THREE.LineSegments(geometries.wellBandEdgesGeometry, materials.witnessMat);
+    bandEdges.name = `${spec.name}_Edges`;
+    bandEdges.position.copy(band.position);
+    bandEdges.rotation.copy(band.rotation);
+    bandEdges.scale.copy(band.scale);
+    bandEdges.renderOrder = archOrder;
+    bandEdges.userData.isMemoryWellBand = true;
+    bandEdges.userData.bandIndex = idx;
+    bandEdges.userData.bandPhase = phase + idx * 0.83;
+    bandEdges.userData.bandSpinSpeed = spec.speed;
+    bandEdges.userData.baseRotation = band.rotation.clone();
+    bandEdges.userData.baseScale = band.scale.clone();
+    bandEdges.userData.visualCoreImmutable = true;
+    wellGroup.add(bandEdges);
+  });
+
+  group.add(wellGroup);
+
+  const retrievalGroup = new THREE.Group();
+  retrievalGroup.name = 'RETRIEVAL_GROUP';
+  retrievalGroup.userData.isMemoryWellRetrievalGroup = true;
+
+  const retrievalSpecs = [
+    { name: 'RecallBrace_A', pos: [-0.54, -0.1, 0.12], rot: [0.22, 0.48, 0.18], scale: [1.0, 0.92, 1.0], pulse: 0.72 },
+    { name: 'RecallBrace_B', pos: [0.46, 0.08, -0.14], rot: [-0.14, -0.34, -0.16], scale: [0.92, 1.0, 0.92], pulse: 0.88 },
+    { name: 'RecallBrace_C', pos: [-0.1, 0.22, 0.34], rot: [0.08, 0.92, -0.08], scale: [0.84, 0.88, 0.84], pulse: 1.04 }
+  ];
+
+  retrievalSpecs.forEach((spec, idx) => {
+    const brace = new THREE.Mesh(geometries.retrievalGeometry, materials.retrievalMat);
+    brace.name = spec.name;
+    brace.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+    brace.rotation.set(spec.rot[0], spec.rot[1], spec.rot[2]);
+    brace.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+    brace.renderOrder = coreOrder;
+    brace.userData.isMemoryWellRetrieval = true;
+    brace.userData.retrievalIndex = idx;
+    brace.userData.retrievalPulseSpeed = spec.pulse;
+    brace.userData.retrievalPulseAmp = 0.008 + idx * 0.0015;
+    brace.userData.basePosition = brace.position.clone();
+    brace.userData.baseRotation = brace.rotation.clone();
+    brace.userData.visualCoreImmutable = true;
+    retrievalGroup.add(brace);
+
+    const braceEdges = new THREE.LineSegments(geometries.retrievalEdgesGeometry, materials.witnessMat);
+    braceEdges.name = `${spec.name}_Edges`;
+    braceEdges.position.copy(brace.position);
+    braceEdges.rotation.copy(brace.rotation);
+    braceEdges.scale.copy(brace.scale);
+    braceEdges.renderOrder = archOrder;
+    braceEdges.userData.isMemoryWellRetrieval = true;
+    braceEdges.userData.retrievalIndex = idx;
+    braceEdges.userData.retrievalPulseSpeed = spec.pulse;
+    braceEdges.userData.retrievalPulseAmp = 0.008 + idx * 0.0015;
+    braceEdges.userData.basePosition = brace.position.clone();
+    braceEdges.userData.baseRotation = brace.rotation.clone();
+    braceEdges.userData.visualCoreImmutable = true;
+    retrievalGroup.add(braceEdges);
+  });
+
+  group.add(retrievalGroup);
+
+  const relicGroup = new THREE.Group();
+  relicGroup.name = 'RELIC_GROUP';
+  relicGroup.userData.isMemoryWellRelicGroup = true;
+
+  const relicSpecs = [
+    { pos: [0.16, -0.02, 0.06], rot: [0.18, 0.16, -0.08], scale: [0.9, 0.94, 0.9], speed: 0.016 },
+    { pos: [0.2, -0.24, -0.04], rot: [-0.12, 0.58, 0.06], scale: [0.84, 0.9, 0.84], speed: 0.019 },
+    { pos: [0.04, -0.46, 0.1], rot: [0.08, 0.92, -0.1], scale: [0.78, 0.86, 0.78], speed: 0.022 },
+    { pos: [-0.08, -0.66, -0.06], rot: [0.14, 1.14, 0.08], scale: [0.72, 0.82, 0.72], speed: 0.025 }
+  ];
+
+  relicSpecs.forEach((spec, idx) => {
+    const relic = new THREE.Mesh(geometries.relicGeometry, materials.relicMat);
+    relic.name = `MemoryRelic_${idx}`;
+    relic.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+    relic.rotation.set(spec.rot[0], spec.rot[1], spec.rot[2]);
+    relic.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+    relic.renderOrder = archOrder;
+    relic.userData.isMemoryWellRelic = true;
+    relic.userData.orbitPhase = phase + idx * 0.9;
+    relic.userData.orbitSpeed = spec.speed;
+    relic.userData.orbitRadius = 0.028 + idx * 0.003;
+    relic.userData.basePosition = relic.position.clone();
+    relic.userData.baseRotation = relic.rotation.clone();
+    relic.userData.ignoreWaveColor = true;
+    relic.userData.visualCoreImmutable = true;
+    relicGroup.add(relic);
+
+    const relicEdges = new THREE.LineSegments(geometries.relicEdgesGeometry, materials.witnessMat);
+    relicEdges.name = `${relic.name}_Edges`;
+    relicEdges.position.copy(relic.position);
+    relicEdges.rotation.copy(relic.rotation);
+    relicEdges.scale.copy(relic.scale);
+    relicEdges.renderOrder = archOrder;
+    relicEdges.userData.isMemoryWellRelic = true;
+    relicEdges.userData.orbitPhase = relic.userData.orbitPhase;
+    relicEdges.userData.orbitSpeed = relic.userData.orbitSpeed;
+    relicEdges.userData.orbitRadius = relic.userData.orbitRadius;
+    relicEdges.userData.basePosition = relic.userData.basePosition.clone();
+    relicEdges.userData.baseRotation = relic.userData.baseRotation.clone();
+    relicEdges.userData.ignoreWaveColor = true;
+    relicEdges.userData.visualCoreImmutable = true;
+    relicGroup.add(relicEdges);
+  });
+
+  group.add(relicGroup);
+
+  const auraGroup = new THREE.Group();
+  auraGroup.name = 'AURA_GROUP';
+  auraGroup.userData.isMemoryWellAuraGroup = true;
+
+  const dust = new THREE.Points(geometries.dustGeometry, materials.dustMat);
+  dust.name = 'MemoryWellDust';
+  dust.position.set(0.0, 0.0, 0.0);
+  dust.rotation.set(0.06, 0.22, -0.02);
+  dust.frustumCulled = false;
+  dust.renderOrder = archOrder;
+  dust.userData.isMemoryWellDust = true;
+  dust.userData.visualCoreImmutable = true;
+  auraGroup.add(dust);
+
+  const witnessLine = new THREE.Line(geometries.witnessGeometry, materials.witnessMat);
+  witnessLine.name = 'MemoryWellWitnessLine';
+  witnessLine.frustumCulled = false;
+  witnessLine.position.set(0.0, 0.0, 0.0);
+  witnessLine.rotation.set(0.02, 0.18, -0.02);
+  witnessLine.renderOrder = archOrder;
+  witnessLine.userData.isMemoryWellWitness = true;
+  witnessLine.userData.visualCoreImmutable = true;
+  auraGroup.add(witnessLine);
+
+  group.add(auraGroup);
+
+  group.traverse((o) => {
+    if (!o) return;
+    o.userData = o.userData || {};
+    if (o.isMesh || o.isLine || o.isLineSegments || o.isPoints) {
+      o.userData.wavePatchMode = 'DEFAULT';
+      if (o.userData.isMemoryWellRelic || o.userData.isMemoryWellIndex) {
+        o.userData.ignoreWaveColor = true;
+      }
+      const materialRefs = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+      for (const material of materialRefs) {
+        if (!material) continue;
+        material.userData = {
+          ...(material.userData || {}),
+          wavePatchMode: 'DEFAULT'
+        };
+        if (o.userData.ignoreWaveColor) {
+          material.userData.ignoreWaveColor = true;
+        }
+      }
+    }
+  });
+
+  group.userData.visualReady = true;
+  return group;
+}
+
+      const layerCount = 3; // Reduced count for better visibility of rotation
+
 export class StorageEnhancedVariants {
   
   /**
@@ -522,24 +990,6 @@ export class StorageEnhancedVariants {
       archiveDust.renderOrder = archOrder;
       auraGroup.add(archiveDust);
 
-      const shell1 = new THREE.Mesh(geometries.shellGeometry, materials.shellMat);
-      shell1.name = 'MemoryShell_1';
-      shell1.userData.isMemoryCathedralShellMesh = true;
-      shell1.position.set(0.02, 0.0, 0.0);
-      shell1.rotation.set(0.04, 0.14, -0.02);
-      shell1.scale.set(1.02, 1.0, 0.96);
-      shell1.renderOrder = archOrder;
-      auraGroup.add(shell1);
-
-      const shell2 = new THREE.Mesh(geometries.shellGeometry, materials.shellMat);
-      shell2.name = 'MemoryShell_2';
-      shell2.userData.isMemoryCathedralShellMesh = true;
-      shell2.position.set(-0.03, 0.02, 0.02);
-      shell2.rotation.set(-0.03, -0.16, 0.03);
-      shell2.scale.set(1.18, 1.06, 1.0);
-      shell2.renderOrder = archOrder;
-      auraGroup.add(shell2);
-
       const witnessLine = new THREE.Line(geometries.witnessGeometry, materials.witnessMat);
       witnessLine.name = 'MemoryWitnessLine';
       witnessLine.userData.isMemoryCathedralWitness = true;
@@ -671,94 +1121,18 @@ export class StorageEnhancedVariants {
   }
 
   /**
-   * STORAGE ENHANCED: DEPTH_LAYERS (ContainmentField)
+   * STORAGE ENHANCED: DEPTH_LAYERS (Memory Well)
    * 
    * Description:
-   * - Concentric shells rotating on different axes
-   * - "Breathing" expansion/contraction
-   * - Erosion details orbiting the surface
+   * - Deep archive reservoir
+   * - Layered retention bands
+   * - Quiet retrieval and relic motion
    */
   static createStorageEnhanced_DepthLayers(group, color) {
     try {
-      const layerCount = 3; // Reduced count for better visibility of rotation
-      
-      for (let layer = 0; layer < layerCount; layer++) {
-        const seed = layer * 4.32;
-        
-        // Distinct material for each layer
-        const layerOpacity = 0.5 + (layer * 0.15);
-        const layerMaterial = new THREE.MeshPhysicalMaterial({
-          color: color,
-          metalness: 0.8,
-          roughness: 0.2,
-          emissive: color,
-          emissiveIntensity: 0.2,
-          transparent: true,
-          opacity: layerOpacity,
-          transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
-          thickness: 0.1
-        });
-
-        // Create shell (Icosahedron based)
-        const radius = 0.8 - (layer * 0.25);
-        const shellGeo = new THREE.IcosahedronGeometry(radius, 1);
-        
-        // Distort geometry slightly
-        const posAttribute = shellGeo.attributes.position;
-        for (let i = 0; i < posAttribute.count; i++) {
-            const x = posAttribute.getX(i);
-            const y = posAttribute.getY(i);
-            const z = posAttribute.getZ(i);
-            // Noise-like distortion
-            const scale = 1.0 + Math.sin(x * 5 + seed) * 0.05;
-            posAttribute.setXYZ(i, x * scale, y * scale, z * scale);
-        }
-        shellGeo.computeVertexNormals();
-
-        const shell = new THREE.Mesh(shellGeo, layerMaterial);
-        
-        shell.userData.isDepthShell = true;
-        shell.userData.layerIndex = layer;
-        // Random rotation axis for each shell
-        shell.userData.rotationAxis = new THREE.Vector3(
-            Math.random() - 0.5,
-            Math.random() - 0.5,
-            Math.random() - 0.5
-        ).normalize();
-        shell.userData.rotationSpeed = 0.1 + (layer * 0.15); // Outer slower, inner faster
-        shell.userData.visualCoreImmutable = true;
-        
-        group.add(shell);
-
-        // Add "Data Particulates" orbiting this shell
-        const partCount = 4;
-        for (let p=0; p<partCount; p++) {
-            const partGeo = new THREE.BoxGeometry(0.05, 0.05, 0.05);
-            const part = new THREE.Mesh(partGeo, layerMaterial);
-            
-            const angle = (p / partCount) * Math.PI * 2;
-            const r = radius + 0.1;
-            
-            part.position.set(Math.cos(angle)*r, Math.sin(angle)*r * 0.5, Math.sin(angle)*r);
-            
-            // Attach to shell so they rotate with it (or could be separate for complex orbit)
-            shell.add(part);
-        }
-      }
-
-      // Core Singularity
-      const coreGeo = new THREE.SphereGeometry(0.15, 16, 16);
-      const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      const core = new THREE.Mesh(coreGeo, coreMat);
-      core.userData.isDepthCore = true;
-      group.add(core);
-
-      group.userData.visualCoreImmutable = true;
-      group.userData.nodeGeometryName = 'STORAGE_DEPTH_LAYERS';
-
-      return group;
+      return _createStorageMemoryWellNode(group, color);
     } catch (err) {
-      console.warn('[StorageEnhancedVariants] DepthLayers creation failed:', err);
+      console.warn('[StorageEnhancedVariants] MemoryWell creation failed:', err);
       return group;
     }
   }

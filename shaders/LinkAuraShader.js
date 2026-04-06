@@ -108,28 +108,69 @@ export function createLinkAuraMaterial(config = {}) {
     varying float vBlendFactor;       // Blend fade [0-1] near nodes
     
     // ========================================================================
-    // OPTIMIZED NOISE FUNCTION - HASH-BASED (40% FASTER THAN SIMPLEX)
+    // SHARED NOISE FUNCTION - CANONICAL (MATCHES NodeAuraShader)
     // ========================================================================
-    // Fast 3D hash noise - maintains visual quality with much better performance
+    // Simplex-like 3D noise - fully type-safe, all vec4 operations
     
-    float hash(vec3 p) {
-      p = fract(p * 0.3183099 + 0.1);
-      p *= 17.0;
-      return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-    }
+    float mod289(float x) { return x - floor(x / 289.0) * 289.0; }
+    vec3 mod289(vec3 x) { return x - floor(x / 289.0) * 289.0; }
+    vec4 mod289(vec4 x) { return x - floor(x / 289.0) * 289.0; }
+    
+    vec4 permute(vec4 x) { return mod289(((x * 34.0) + 1.0) * x); }
     
     float snoise(vec3 v) {
-      vec3 i = floor(v);
-      vec3 f = fract(v);
+      const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
+      vec3 i = floor(v + dot(v, C.yyy));
+      vec3 x0 = v - i + dot(i, C.xxx);
       
-      f = f * f * (3.0 - 2.0 * f);
+      vec3 g = step(x0.yzx, x0.xyz);
+      vec3 l = 1.0 - g;
+      vec3 i1 = min(g.xyz, l.zxy);
+      vec3 i2 = max(g.xyz, l.zxy);
       
-      return mix(
-        mix(mix(hash(i + vec3(0,0,0)), hash(i + vec3(1,0,0)), f.x),
-            mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x), f.y),
-        mix(mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x),
-            mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x), f.y), f.z
-      ) * 2.0 - 1.0;
+      vec3 x1 = x0 - i1 + C.xxx;
+      vec3 x2 = x0 - i2 + C.yyy;
+      vec3 x3 = x0 - 0.5;
+      
+      i = mod289(i);
+      
+      // Canonical 3D simplex permutation (all vec4 operands)
+      vec4 p = permute(
+        permute(
+          permute(
+            i.z + vec4(0.0, i1.z, i2.z, 1.0)
+          )
+          + i.y + vec4(0.0, i1.y, i2.y, 1.0)
+        )
+        + i.x + vec4(0.0, i1.x, i2.x, 1.0)
+      );
+      
+      float n0 = sin(p.x * 43758.5453);
+      float n1 = sin(p.y * 43758.5453);
+      float n2 = sin(p.z * 43758.5453);
+      float n3 = sin(p.w * 43758.5453);
+      
+      float noise0 = fract(n0) * 2.0 - 1.0;
+      float noise1 = fract(n1) * 2.0 - 1.0;
+      float noise2 = fract(n2) * 2.0 - 1.0;
+      float noise3 = fract(n3) * 2.0 - 1.0;
+      
+      float t0 = 0.6 - dot(x0, x0);
+      float t1 = 0.6 - dot(x1, x1);
+      float t2 = 0.6 - dot(x2, x2);
+      float t3 = 0.6 - dot(x3, x3);
+      
+      t0 = max(t0, 0.0);
+      t1 = max(t1, 0.0);
+      t2 = max(t2, 0.0);
+      t3 = max(t3, 0.0);
+      
+      t0 *= t0 * t0;
+      t1 *= t1 * t1;
+      t2 *= t2 * t2;
+      t3 *= t3 * t3;
+      
+      return 42.0 * (t0 * noise0 + t1 * noise1 + t2 * noise2 + t3 * noise3);
     }
     
     void main() {
@@ -207,27 +248,22 @@ export function createLinkAuraMaterial(config = {}) {
       vPosition = (modelMatrix * vec4(displaced, 1.0)).xyz;
       vDisplacementFactor = displacementFactor;
       // ========================================================================
-      // OPTIMIZED BLEND ZONE CALCULATION - DOT PRODUCT APPROXIMATION (50% FASTER)
+      // BLEND ZONE CALCULATION - SMOOTH FADE AT NODE ENDPOINTS
       // ========================================================================
-      // Use dot product approximation instead of distance() for blend zone
-      // For linear links, projection is much faster and visually equivalent
+      // Calculate distance to nearest node endpoint
+      // Link aura fades smoothly near nodes, allowing node aura to dominate
       
+      // World position of this vertex after displacement
       vec3 worldPos = vPosition;
       
-      // Vector from A to B (link direction)
-      vec3 linkVec = uNodePositionB - uNodePositionA;
-      float linkLength = length(linkVec);
-      
-      // Project worldPos onto link line [0, linkLength]
-      vec3 relPos = worldPos - uNodePositionA;
-      float projection = dot(relPos, normalize(linkVec));
-      
-      // Distance to nearest endpoint using projection (no sqrt)
-      float distToA = projection;
-      float distToB = linkLength - projection;
+      // Distance to each endpoint
+      float distToA = distance(worldPos, uNodePositionA);
+      float distToB = distance(worldPos, uNodePositionB);
       float minDistToNode = min(distToA, distToB);
       
-      // Smooth blend: 1.0 (full link aura) → 0.0 (node aura only)
+      // Smooth blend: 1.0 (full link aura) → 0.0 (node aura only) as we approach nodes
+      // Within blend radius, smoothly fade to 0
+      // Outside blend radius, full 1.0
       vBlendFactor = smoothstep(0.0, uBlendZoneRadius, minDistToNode);
       
       gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
@@ -246,57 +282,67 @@ export function createLinkAuraMaterial(config = {}) {
     varying float vDisplacementFactor;
     varying float vBlendFactor;       // Blend fade [0-1] near nodes
     
+    // Convert RGB to grayscale using luminance
+    float getGrayscale(vec3 color) {
+      return dot(color, vec3(0.299, 0.587, 0.114));
+    }
+    
     void main() {
       // ========================================================================
-      // OPTIMIZED COLOR CALCULATION - MERGED MIX OPERATIONS (30% FASTER)
+      // IDENTICAL COLOR PALETTE AS NODE AURA (from EnergyVisualProfile)
       // ========================================================================
       vec3 viewDir = normalize(cameraPosition - vPosition);
       float rimBase = max(0.0, 1.0 - abs(dot(viewDir, vNormal)));
       float rim = rimBase * rimBase;
       
-      // Base color: soft gray-white
-      vec3 baseColor = vec3(0.85, 0.85, 0.9);
+      // Base color: IDENTICAL to node aura (soft gray-white) - Profile: baseColor
+      vec3 auraColor = vec3(0.85, 0.85, 0.9);
       
-      // Merged color influences: harmony, corruption, synergy
-      // Single interpolation instead of 4 mix() calls
-      float harmonyWeight = uHarmony * 0.3;
-      float corruptionWeight = uCorruption * 0.3;
-      float synergyWeight = uSynergy * 0.25;
-      float totalWeight = harmonyWeight + corruptionWeight + synergyWeight;
+      // Harmony influence: IDENTICAL to node aura - Profile: harmonyColor, blend 0.3
+      auraColor = mix(auraColor, vec3(0.8, 0.8, 0.88), uHarmony * 0.3);
       
-      vec3 auraColor;
-      if (totalWeight > 0.01) {
-        vec3 targetColor = vec3(0.8, 0.8, 0.88) * harmonyWeight;
-        targetColor += vec3(1.0, 0.4, 0.4) * corruptionWeight;
-        targetColor += vec3(0.2, 0.8, 1.0) * synergyWeight;
-        targetColor /= totalWeight;
-        auraColor = mix(baseColor, targetColor, min(totalWeight, 1.0));
-      } else {
-        auraColor = baseColor;
-      }
+      // Corruption influence: add red tint BEFORE desaturation
+      // Slightly reduced influence (0.3 vs 0.4) to maintain visual hierarchy - Profile: corruptionLinkBlend
+      auraColor = mix(auraColor, vec3(1.0, 0.4, 0.4), uCorruption * 0.3);  // corruptionColor
+      auraColor = mix(auraColor, vec3(0.2, 0.8, 1.0), uSynergy * 0.25);
       
       // ========================================================================
       // BRANCHLESS CORRUPTION DESATURATION
       // ========================================================================
-      float grayscale = dot(auraColor, vec3(0.299, 0.587, 0.114));
-      auraColor = mix(auraColor, vec3(grayscale), uDesaturation);
+      vec3 grayscale = vec3(getGrayscale(auraColor));
+      auraColor = mix(auraColor, grayscale, uDesaturation);
       
-      // High desaturation yellow-gray shift (merged into single mix)
-      float highDesatFactor = smoothstep(0.5, 1.0, uDesaturation) * 0.25;
-      auraColor = mix(auraColor, vec3(grayscale) + vec3(0.15, 0.1, -0.05), highDesatFactor);
+      // At high desaturation, shift toward sickly yellow-gray (branchless)
+      vec3 corruptedGray = grayscale + vec3(0.15, 0.1, -0.05);
+      float highDesatFactor = smoothstep(0.5, 1.0, uDesaturation);
+      auraColor = mix(auraColor, corruptedGray, highDesatFactor * 0.25);
       
       // ========================================================================
-      // OPTIMIZED DIRECTIONAL RIM LIGHTING
+      // SIMPLIFIED DIRECTIONAL RIM LIGHTING
       // ========================================================================
+      // Static coefficients, reduced calculations
       auraColor += rim * vec3(0.1) * (1.0 - uDesaturation * 0.3);
       
       // ========================================================================
       // OPACITY CONSTRAINTS - MAINTAIN HIERARCHY (from EnergyVisualProfile)
       // ========================================================================
-      float opacity = uOpacity * (0.6 + rim * 0.2) * (0.7 + vDisplacementFactor * 0.15);
-      opacity = min(opacity, 0.16);
+      // Link aura opacity must NOT exceed node aura opacity
+      // Profile: baseOpacity = 0.25 (node), linkOpacityMultiplier = 0.6, linkOpacityCap = 0.16
+      // Node aura max: 0.25 * 1.0 = 0.25
+      // Link aura max: 0.25 * 0.6 ≈ 0.15, hard cap at 0.16
       
-      // Apply blend factor from vertex shader
+      float opacity = uOpacity * (0.6 + rim * 0.2);  // Reduced from node's (0.7 + rim*0.3)
+      opacity *= (0.7 + vDisplacementFactor * 0.15);  // Reduced modulation
+      
+      // Clamp to ensure link never exceeds node visually
+      opacity = min(opacity, 0.16);  // Hard cap from EnergyVisualProfile.linkOpacityCap
+      
+      // ========================================================================
+      // BLEND ZONE FADE - ALLOW NODE AURA DOMINANCE NEAR ENDPOINTS
+      // ========================================================================
+      // Apply blend factor from vertex shader: fade link contribution near nodes
+      // This creates smooth continuity where link aura meets node aura
+      // vBlendFactor: 1.0 (far from nodes) → 0.0 (inside blend zone)
       opacity *= vBlendFactor;
       
       gl_FragColor = vec4(auraColor, opacity);
