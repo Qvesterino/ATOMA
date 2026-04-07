@@ -24,7 +24,7 @@
  * ============================================================================
  */
 
-import { buildMetricTierEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './src/metrics/MetricTierClassifier.js';
+import { buildScopedMetricEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './src/metrics/MetricTierClassifier.js';
 
 export class LinkQualityCalculator {
   /**
@@ -112,7 +112,7 @@ export class LinkQualityCalculator {
         // Internal hook only for tooling and diagnostics.
         semanticBus.emitImmediate('metric.tier.changed', payload, { priority: semanticBus.priority?.NORMAL });
         // Primary public surface for link-level reactions.
-        semanticBus.emitImmediate(buildMetricTierEventName('link', entry.metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
+        semanticBus.emitImmediate(buildScopedMetricEventName('link', entry.metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
         continue;
       }
       if (nextTier === previousTier) continue;
@@ -133,7 +133,7 @@ export class LinkQualityCalculator {
       // Internal hook only for tooling and diagnostics.
       semanticBus.emitImmediate('metric.tier.changed', payload, { priority: semanticBus.priority?.NORMAL });
       // Primary public surface for link-level reactions.
-      semanticBus.emitImmediate(buildMetricTierEventName('link', entry.metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
+      semanticBus.emitImmediate(buildScopedMetricEventName('link', entry.metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
     }
   }
   

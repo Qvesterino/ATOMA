@@ -7002,23 +7002,23 @@ getLinksForNode(node) {
       // [CORRUPTION VISUAL STATE] Apply corruption first (overrides harmony visual order)
       // Corruption makes the system look broken/unstable
       if (isCorrupted) {
-        if (!link.source.userData.corruptedState) {
+        if (!link.source.userData.visualState?.corruptedState) {
           this._applyCorruptionToNode(link.source, normalized.corruption);
         } else if ((link.source.userData.metrics?.corruption ?? 0) !== normalized.corruption) {
           this._applyCorruptionToNode(link.source, normalized.corruption);  // Update intensity
         }
         
-        if (!link.target.userData.corruptedState) {
+        if (!link.target.userData.visualState?.corruptedState) {
           this._applyCorruptionToNode(link.target, normalized.corruption);
         } else if ((link.target.userData.metrics?.corruption ?? 0) !== normalized.corruption) {
           this._applyCorruptionToNode(link.target, normalized.corruption);  // Update intensity
         }
       } else {
         // Remove corruption state if it was active
-        if (link.source.userData.corruptedState === 'CORRUPTED') {
+        if (link.source.userData.visualState?.corruptedState === 'CORRUPTED') {
           this._removeCorruptionFromNode(link.source);
         }
-        if (link.target.userData.corruptedState === 'CORRUPTED') {
+        if (link.target.userData.visualState?.corruptedState === 'CORRUPTED') {
           this._removeCorruptionFromNode(link.target);
         }
       }
@@ -7195,10 +7195,11 @@ getLinksForNode(node) {
         
         for (const child of node.children) {
           if (!child.userData) child.userData = {};
+          if (!child.userData.visualState) child.userData.visualState = {};
           
-          // Mark as corrupted
-          child.userData.isCorrupted = true;
-          child.userData.corruptionLevel = corruptionLevel;
+          // Mark as corrupted (visual-only state)
+          child.userData.visualState.isCorrupted = true;
+          child.userData.visualState.corruptionLevel = corruptionLevel;
           
           // Detect internal/secondary layers
           const isInternal = 
@@ -7247,12 +7248,15 @@ getLinksForNode(node) {
           }
         }
         
-        node.userData.corruptedState = 'CORRUPTED';
+        if (!node.userData.visualState) node.userData.visualState = {};
+        node.userData.visualState.corruptedState = 'CORRUPTED';
       } else {
         // Restore to normal
         for (const child of node.children) {
           if (child.userData) {
-            child.userData.isCorrupted = false;
+            if (child.userData.visualState) {
+              child.userData.visualState.isCorrupted = false;
+            }
             
             // Restore opacity if we have base value
             if (child.userData.baseCorruptionOpacity !== undefined && child.material) {
@@ -7268,7 +7272,8 @@ getLinksForNode(node) {
             }
           }
         }
-        node.userData.corruptedState = 'NORMAL';
+        if (!node.userData.visualState) node.userData.visualState = {};
+        node.userData.visualState.corruptedState = 'NORMAL';
       }
     } catch (err) {
       console.error('[NodeLinkingSystem] Corruption application to node failed:', err.message);
@@ -7286,7 +7291,9 @@ getLinksForNode(node) {
     try {
       for (const child of node.children) {
         if (child.userData) {
-          child.userData.isCorrupted = false;
+          if (child.userData.visualState) {
+            child.userData.visualState.isCorrupted = false;
+          }
           
           // Restore opacity
           if (child.userData.baseCorruptionOpacity !== undefined && child.material) {
@@ -7302,7 +7309,8 @@ getLinksForNode(node) {
           }
         }
       }
-      node.userData.corruptedState = 'NORMAL';
+      if (!node.userData.visualState) node.userData.visualState = {};
+      node.userData.visualState.corruptedState = 'NORMAL';
     } catch (err) {
       console.error('[NodeLinkingSystem] Corruption removal failed:', err.message);
     }

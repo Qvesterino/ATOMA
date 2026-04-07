@@ -44,6 +44,7 @@
  */
 
 import * as THREE from 'three';
+import { buildScopedMetricEventName } from './src/metrics/MetricTierClassifier.js';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
 export class WorldPersonalityController {
@@ -1363,9 +1364,11 @@ export class WorldPersonalityController {
     if (!bus?.emit) return;
 
     const priority = bus.priority?.INTERACTIVE ?? bus.priority?.NORMAL;
-    const emit = (eventName, value = 1) => {
-      bus.emit(eventName, {
+    const emit = (metric, tier, value = 1) => {
+      bus.emit(buildScopedMetricEventName('global', metric, tier), {
         ...moodSnapshot,
+        metric,
+        tier,
         value,
         source: 'WorldPersonalityController',
       }, { priority });
@@ -1373,29 +1376,29 @@ export class WorldPersonalityController {
 
     switch (moodSnapshot.label) {
       case 'HARMONIC_CALM':
-        emit('global.harmony.high');
-        emit('global.stability.high');
+        emit('harmony', 'high');
+        emit('stability', 'high');
         break;
       case 'FOCUSED_ANALYSIS':
-        emit('global.stability.high');
+        emit('stability', 'high');
         break;
       case 'RADIANT_STORM':
-        emit('global.loadPressure.high');
+        emit('loadPressure', 'high');
         break;
       case 'QUANTUM_CHAOS':
-        emit('global.stability.low');
+        emit('stability', 'low');
         break;
       case 'UMBRA_PRESSURE':
-        emit('global.harmony.low');
-        emit('global.loadPressure.mid');
+        emit('harmony', 'low');
+        emit('loadPressure', 'mid');
         break;
       case 'ECHO_DRIFT':
-        emit('global.harmony.mid');
+        emit('harmony', 'mid');
         break;
       case 'ASCENDED_ALIGNMENT':
-        emit('global.synergy.high');
-        emit('global.harmony.high');
-        emit('global.stability.high');
+        emit('synergy', 'high');
+        emit('harmony', 'high');
+        emit('stability', 'high');
         break;
       default:
         break;

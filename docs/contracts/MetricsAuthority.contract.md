@@ -258,6 +258,91 @@ Scoped tier events use a shared payload shape:
 - `metric.tier.changed` must remain internal/debug only; do not use it for new gameplay or VFX wiring.
 - `metric.phase.changed` must remain compatibility-only; migrate listeners to scoped tier events and retire this alias when possible.
 
+## 11. Event contract reference
+
+### 11.1 Official tier events
+
+Public, contract-stable tier events are:
+
+- `node.<metric>.<tier>`
+- `global.<metric>.<tier>`
+- `link.<metric>.<tier>`
+- `hub.<metric>.<tier>`
+
+Where `<metric>` is one of:
+
+- `synergy`
+- `harmony`
+- `stability`
+- `corruption`
+- `loadPressure`
+
+And `<tier>` is one of:
+
+- `low`
+- `mid`
+- `high`
+
+These names are the canonical wiring surface for metric-driven behavior, VFX, HUD, and game logic.
+
+### 11.2 Internal and legacy event contract
+
+The following events are explicitly non-primary:
+
+- `metric.tier.changed` — internal/debug-only hook for diagnostics and tools.
+- `metric.phase.changed` — legacy compatibility bridge only.
+- `node.metric.updated` — raw node metric update feed, not a tier transition contract.
+
+New systems must prefer scoped tier events over these legacy/internal names.
+
+## 12. Write authority checklist
+
+### 12.1 Canonical node metric writers
+
+- `NodeMetricEngine`
+  - exclusive canonical writer of `node.userData.metrics.*` for runtime node metric state.
+  - permitted to write: `stability`, `corruption`, `loadPressure`, `harmony`.
+  - permitted to derive and emit: `synergy`.
+  - permitted to emit: `node.<metric>.<tier>` events.
+
+- `SafeMetricsDNAIntegration*`
+  - permitted only for initial seed values during node creation.
+  - no runtime ownership of dynamic metric updates.
+
+### 12.2 Global and aggregation authority
+
+- `MetricsRuntime_v1`
+  - permitted to read canonical node/link metrics.
+  - permitted to compute and publish global aggregate outputs.
+  - permitted to emit: `global.<metric>.<tier>`.
+  - not authorized as the long-term canonical writer of node metric dynamics.
+
+### 12.3 Link and hub tier event authority
+
+- `LinkQualityCalculator`
+  - authorized to emit `link.<metric>.<tier>`.
+  - not authorized to own node canonical metric state.
+
+- `HarmonicHubAuraSystem_Session126`
+  - authorized to emit `hub.<metric>.<tier>`.
+  - not authorized to write node canonical metric state.
+
+### 12.4 Visual/adapter integration rules
+
+- Visual patches and adapter systems may be allowed to call canonical APIs:
+  - `NodeMetricEngine.setMetric(node, metric, value, options)`
+  - `NodeMetricEngine.applyMetricImpulse(node, deltas, options)`
+- Visual systems must not write directly to `node.userData.metrics.*` or legacy fields as a primary update path.
+- Legacy fields like `node.userData.corruption`, `node.userData.harmony`, `node.userData.load`, and `node.userData.loadRatio` are fallback/mirror fields only.
+- Any system still reading legacy fields must be migrated to canonical sources first.
+
+### 12.5 Forbidden writes
+
+- direct ad-hoc writes to `node.userData.metrics.*` from unauthorized systems.
+- writes to legacy direct fields as the primary metric source.
+- direct writes to `synergy` outside the canonical derivation path.
+- emitting tier state with names outside the exact `scope.metric.tier` contract.
+
 ## 11. Runtime Data Flow (current working contract)
 
 Current stable chain:

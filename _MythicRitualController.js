@@ -52,6 +52,7 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { buildScopedMetricEventName } from './src/metrics/MetricTierClassifier.js';
 
 import { MythicRitualPlayer } from './_MythicRitualPlayer.js';
 
@@ -1285,11 +1286,13 @@ export class MythicRitualController {
   _emitMetricBridgeForRitual(ritualType, phase) {
     if (!this.semanticBus || !ritualType) return;
 
-    const emit = (eventName, value = 1) => {
-      this.semanticBus.emit(eventName, {
+    const emit = (metric, tier, value = 1) => {
+      this.semanticBus.emit(buildScopedMetricEventName('global', metric, tier), {
         ritualType,
         phase,
         scope: 'global',
+        metric,
+        tier,
         value,
         timestamp: performance.now(),
         source: 'MythicRitualController'
@@ -1300,21 +1303,21 @@ export class MythicRitualController {
       case 'ASCENSION_RITUAL':
       case 'HARMONY_CONVERGENCE':
         emit(phase === 'completed' ? 'ritual.visual.harmony.completed' : 'ritual.visual.harmony.started');
-        emit('global.harmony.high');
+        emit('harmony', 'high');
         break;
       case 'QUANTUM_FISSURE':
-        emit('global.stability.high');
+        emit('stability', 'high');
         break;
       case 'CHAOS_RITUAL':
-        emit('global.stability.high');
-        emit('global.loadPressure.mid', 0.65);
+        emit('stability', 'high');
+        emit('loadPressure', 'mid', 0.65);
         break;
       case 'MYTHIC_SIGNAL':
-        emit('global.synergy.high');
+        emit('synergy', 'high');
         break;
       case 'ECHO_RITUAL':
-        emit('global.synergy.mid', 0.55);
-        emit('global.harmony.mid', 0.55);
+        emit('synergy', 'mid', 0.55);
+        emit('harmony', 'mid', 0.55);
         break;
       default:
         break;

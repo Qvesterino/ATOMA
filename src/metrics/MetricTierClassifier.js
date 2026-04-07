@@ -27,6 +27,8 @@ export function buildMetricTierEventName(scope, metric, tier) {
   return `${scopeName}.${metric}.${tier}`;
 }
 
+export const buildScopedMetricEventName = buildMetricTierEventName;
+
 export function getDefaultMetricThresholds(metric) {
   return DEFAULT_METRIC_THRESHOLDS[metric] || DEFAULT_METRIC_THRESHOLDS.synergy;
 }

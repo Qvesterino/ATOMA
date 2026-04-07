@@ -1435,6 +1435,15 @@ function getMetricContractTagNature(tag) {
     return null;
 }
 
+function isMetricEventValidationEnabled() {
+    if (typeof window === 'undefined') return false;
+    return Boolean(
+        window.ATOMA_FLAGS?.debug?.enabled ||
+        window.ATOMA_DEBUG === true ||
+        window.ATOMA_DEBUG_POLICY === true
+    );
+}
+
 function resolveMetricAliasScope(payload, fallbackScope = 'node') {
     const explicitScope = String(payload?.scope || '').trim().toLowerCase();
     if (SCOPED_METRIC_EVENT_SCOPES.has(explicitScope)) {
@@ -1561,57 +1570,14 @@ class SemanticEventBus {
             ['node.corruption.low', { ...SCOPED_METRIC_TIER_POLICY }],
             ['node.corruption.mid', { ...SCOPED_METRIC_TIER_POLICY }],
             ['node.corruption.high', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['node.loadPressure.low', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['node.loadPressure.mid', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['node.loadPressure.high', { ...SCOPED_METRIC_TIER_POLICY }],
-
-            ['global.synergy.low', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['global.synergy.mid', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['global.synergy.high', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['global.harmony.low', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['global.harmony.mid', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['global.harmony.high', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['global.stability.low', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['global.stability.mid', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['global.stability.high', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['global.corruption.low', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['global.corruption.mid', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['global.corruption.high', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['global.loadPressure.low', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['global.loadPressure.mid', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['global.loadPressure.high', { ...SCOPED_METRIC_TIER_POLICY }],
-
-            ['link.synergy.low', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['link.synergy.mid', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['link.synergy.high', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['link.harmony.low', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['link.harmony.mid', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['link.harmony.high', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['link.stability.low', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['link.stability.mid', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['link.stability.high', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['link.corruption.low', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['link.corruption.mid', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['link.corruption.high', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['link.loadPressure.low', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['link.loadPressure.mid', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['link.loadPressure.high', { ...SCOPED_METRIC_TIER_POLICY }],
-
-            ['hub.synergy.low', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['hub.synergy.mid', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['hub.synergy.high', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['hub.harmony.low', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['hub.harmony.mid', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['hub.harmony.high', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['hub.stability.low', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['hub.stability.mid', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['hub.stability.high', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['hub.corruption.low', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['hub.corruption.mid', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['hub.corruption.high', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['hub.loadPressure.low', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['hub.loadPressure.mid', { ...SCOPED_METRIC_TIER_POLICY }],
-            ['hub.loadPressure.high', { ...SCOPED_METRIC_TIER_POLICY }],
+            ...['node', 'global', 'link', 'hub'].flatMap((scope) =>
+                SCOPED_METRIC_EVENT_NAMES.flatMap((metric) =>
+                    ['low', 'mid', 'high'].map((tier) => [
+                        buildScopedMetricEventName(scope, metric, tier),
+                        { ...SCOPED_METRIC_TIER_POLICY }
+                    ])
+                )
+            ),
 
             // Internal tier hook: immediate, unbuffered routing for diagnostics/tooling only.
             ['metric.tier.changed', { cooldownMs: 0, aggregateWithinMs: 0, aggregationStrategy: 'latest' }],
@@ -2062,14 +2028,16 @@ class SemanticEventBus {
         this.logEventAudit();
     }
     subscribe(tag, handler, opts = {}) {
-        if (isScopedMetricTierTag(tag) && !this.eventPolicies.has(tag)) {
+        if (isMetricEventValidationEnabled() && isScopedMetricTierTag(tag) && !this.eventPolicies.has(tag)) {
             console.warn(`[SemanticEventBus] Invalid scoped metric tier subscription tag: ${tag}`);
         }
-        const contractNature = getMetricContractTagNature(tag);
-        if (contractNature === 'internal') {
-            console.warn(`[SemanticEventBus] Internal debug event tag subscribed: ${tag}. Use scoped metric tier events instead.`);
-        } else if (contractNature === 'legacy') {
-            console.warn(`[SemanticEventBus] Legacy compatibility event tag subscribed: ${tag}. Prefer scoped metric tier events for new wiring.`);
+        if (isMetricEventValidationEnabled()) {
+            const contractNature = getMetricContractTagNature(tag);
+            if (contractNature === 'internal') {
+                console.warn(`[SemanticEventBus] Internal debug event tag subscribed: ${tag}. Use scoped metric tier events instead.`);
+            } else if (contractNature === 'legacy') {
+                console.warn(`[SemanticEventBus] Legacy compatibility event tag subscribed: ${tag}. Prefer scoped metric tier events for new wiring.`);
+            }
         }
         if (!this.handlers.has(tag)) {
             this.handlers.set(tag, []);
@@ -2157,14 +2125,16 @@ class SemanticEventBus {
         }
     }
     emit(tag, payload, opts = {}) {
-        if (isScopedMetricTierTag(tag) && !this.eventPolicies.has(tag)) {
+        if (isMetricEventValidationEnabled() && isScopedMetricTierTag(tag) && !this.eventPolicies.has(tag)) {
             console.warn(`[SemanticEventBus] Invalid scoped metric tier emit tag: ${tag}`);
         }
-        const contractNature = getMetricContractTagNature(tag);
-        if (contractNature === 'internal') {
-            console.warn(`[SemanticEventBus] Internal debug event tag emitted: ${tag}. Use scoped metric tier events instead.`);
-        } else if (contractNature === 'legacy') {
-            console.warn(`[SemanticEventBus] Legacy compatibility event tag emitted: ${tag}. Prefer scoped metric tier events for new wiring.`);
+        if (isMetricEventValidationEnabled()) {
+            const contractNature = getMetricContractTagNature(tag);
+            if (contractNature === 'internal') {
+                console.warn(`[SemanticEventBus] Internal debug event tag emitted: ${tag}. Use scoped metric tier events instead.`);
+            } else if (contractNature === 'legacy') {
+                console.warn(`[SemanticEventBus] Legacy compatibility event tag emitted: ${tag}. Prefer scoped metric tier events for new wiring.`);
+            }
         }
         const allowAliasExpansion = opts.expandAliases !== false;
         const aliasTargets = allowAliasExpansion ? this.resolveEventAliases(tag, payload, opts) : [];
@@ -2222,14 +2192,16 @@ class SemanticEventBus {
     }
 
     emitImmediate(tag, payload, opts = {}) {
-        if (isScopedMetricTierTag(tag) && !this.eventPolicies.has(tag)) {
+        if (isMetricEventValidationEnabled() && isScopedMetricTierTag(tag) && !this.eventPolicies.has(tag)) {
             console.warn(`[SemanticEventBus] Invalid scoped metric tier immediate emit tag: ${tag}`);
         }
-        const contractNature = getMetricContractTagNature(tag);
-        if (contractNature === 'internal') {
-            console.warn(`[SemanticEventBus] Internal debug event tag immediate emitted: ${tag}. Use scoped metric tier events instead.`);
-        } else if (contractNature === 'legacy') {
-            console.warn(`[SemanticEventBus] Legacy compatibility event tag immediate emitted: ${tag}. Prefer scoped metric tier events for new wiring.`);
+        if (isMetricEventValidationEnabled()) {
+            const contractNature = getMetricContractTagNature(tag);
+            if (contractNature === 'internal') {
+                console.warn(`[SemanticEventBus] Internal debug event tag immediate emitted: ${tag}. Use scoped metric tier events instead.`);
+            } else if (contractNature === 'legacy') {
+                console.warn(`[SemanticEventBus] Legacy compatibility event tag immediate emitted: ${tag}. Prefer scoped metric tier events for new wiring.`);
+            }
         }
         const allowAliasExpansion = opts.expandAliases !== false;
         const aliasTargets = allowAliasExpansion ? this.resolveEventAliases(tag, payload, opts) : [];

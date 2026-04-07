@@ -48,7 +48,7 @@
 
 import { NetworkMembershipResolver } from './src/metrics/NetworkMembershipResolver.js';
 import { NetworkMetricsAggregator } from './src/metrics/NetworkMetricsAggregator.js';
-import { buildMetricTierEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './src/metrics/MetricTierClassifier.js';
+import { buildScopedMetricEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './src/metrics/MetricTierClassifier.js';
 import { updateNodeMetrics } from './src/metrics/NodeMetricEngine.js';
 import { MetricValidationRuntime } from './MetricValidationRuntime.js';
 
@@ -170,6 +170,13 @@ export class MetricsRuntime_v1 {
             accumulator: 0,
             intervalSec: 5.0,
             staleMs: 4000,
+            lastWarnAtByKey: new Map()
+        };
+
+        // Runtime metric authority audit
+        this._runtimeAudit = {
+            accumulator: 0,
+            intervalSec: 5.0,
             lastWarnAtByKey: new Map()
         };
 
@@ -303,6 +310,7 @@ export class MetricsRuntime_v1 {
             this._canonicalWriteNetworkMetrics(nodeList);
 
             this._runCanonicalFieldAudit(dt, nodeList);
+            this._runMetricAuthorityAudit(dt, nodeList, linkList);
             this._emitNodeMetricUpdatedEvents(nodeList);
 
             // 3. Network aggregation (fixed-step)
@@ -971,6 +979,137 @@ const adapter = this._createLinkSystemAdapter(
         }
     }
 
+    _runMetricAuthorityAudit(deltaTime, nodeList, linkList) {
+        const audit = this._runtimeAudit;
+        if (!audit || audit.intervalSec <= 0) return;
+
+        audit.accumulator += deltaTime;
+        if (audit.accumulator < audit.intervalSec) {
+            return;
+        }
+        audit.accumulator = 0;
+
+        const nodes = Array.isArray(nodeList) ? nodeList : [];
+        const links = Array.isArray(linkList) ? linkList : [];
+        const now = Date.now();
+        const expectedCanonicalNodeFields = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure'];
+        const legacyMirrorFields = {
+            harmony: 'harmony',
+            harmonyLevel: 'harmony',
+            corruption: 'corruption',
+            corruptionLevel: 'corruption',
+            loadPressure: 'loadPressure',
+            load: 'loadPressure',
+            pressure: 'loadPressure',
+            instability: 'instability'
+        };
+
+        let missingMetricsCount = 0;
+        const missingCanonicalCounts = new Map(expectedCanonicalNodeFields.map((field) => [field, 0]));
+        const unauthorizedWrites = [];
+
+        for (const node of nodes) {
+            const userData = node?.userData;
+            const nodeId = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
+            if (!userData) {
+                missingMetricsCount += 1;
+                continue;
+            }
+
+            const metrics = userData.metrics;
+            if (!metrics || typeof metrics !== 'object') {
+                missingMetricsCount += 1;
+                continue;
+            }
+
+            for (const field of expectedCanonicalNodeFields) {
+                if (metrics[field] === undefined) {
+                    missingCanonicalCounts.set(field, (missingCanonicalCounts.get(field) || 0) + 1);
+                }
+            }
+
+            const writeMap = userData.__canonicalWriteAt || {};
+            for (const [field, canonicalKey] of Object.entries(legacyMirrorFields)) {
+                if (userData[field] === undefined) {
+                    continue;
+                }
+                const expected = canonicalKey === 'instability'
+                    ? this._clamp01(1 - this._clamp01(metrics.stability ?? 1))
+                    : this._clamp01(metrics[canonicalKey] ?? 0);
+                const actual = userData[field];
+                if (actual !== expected) {
+                    unauthorizedWrites.push({ nodeId, field, expected, actual, type: 'mismatch' });
+                }
+                if (!writeMap[field]) {
+                    unauthorizedWrites.push({ nodeId, field, expected, actual, type: 'missingCanonicalStamp' });
+                } else if (now - writeMap[field] > this._canonicalFieldAudit.staleMs) {
+                    unauthorizedWrites.push({ nodeId, field, expected, actual, type: 'staleCanonicalWrite' });
+                }
+            }
+        }
+
+        if (missingMetricsCount > 0) {
+            const key = `runtimeAudit:missingMetrics:${missingMetricsCount}`;
+            const lastWarnAt = audit.lastWarnAtByKey.get(key) || 0;
+            if (now - lastWarnAt >= audit.intervalSec * 1000) {
+                audit.lastWarnAtByKey.set(key, now);
+                console.warn('[MetricsRuntime_v1] Runtime metric authority audit: missing canonical node.userData.metrics', {
+                    missingNodes: missingMetricsCount,
+                    totalNodes: nodes.length
+                });
+            }
+        }
+
+        for (const [field, count] of missingCanonicalCounts.entries()) {
+            if (count <= 0) continue;
+            const key = `runtimeAudit:missingCanonicalField:${field}:${count}`;
+            const lastWarnAt = audit.lastWarnAtByKey.get(key) || 0;
+            if (now - lastWarnAt < audit.intervalSec * 1000) continue;
+            audit.lastWarnAtByKey.set(key, now);
+            console.warn('[MetricsRuntime_v1] Runtime metric authority audit: missing canonical metric field on node metrics', {
+                field,
+                missingNodes: count,
+                totalNodes: nodes.length
+            });
+        }
+
+        if (unauthorizedWrites.length > 0) {
+            const grouped = unauthorizedWrites.slice(0, 10);
+            const key = `runtimeAudit:unauthorizedWrites:${grouped.length}`;
+            const lastWarnAt = audit.lastWarnAtByKey.get(key) || 0;
+            if (now - lastWarnAt >= audit.intervalSec * 1000) {
+                audit.lastWarnAtByKey.set(key, now);
+                console.warn('[MetricsRuntime_v1] Runtime metric authority audit: detected unauthorized legacy writes or stale metric mirrors', {
+                    sampleIssues: grouped,
+                    totalIssues: unauthorizedWrites.length,
+                    totalNodes: nodes.length
+                });
+            }
+        }
+
+        this._auditGlobalPublishShape();
+    }
+
+    _auditGlobalPublishShape() {
+        const scope = this._getGlobalScope();
+        if (!scope) return;
+
+        const liveMetrics = scope.__ATOMA_LIVE_METRICS__ || {};
+        const missingFields = CANONICAL_METRIC_FIELDS.filter((field) => liveMetrics[field] === undefined);
+        if (missingFields.length > 0) {
+            const key = `runtimeAudit:globalPublishShape:${missingFields.join(',')}`;
+            const now = Date.now();
+            const lastWarnAt = this._runtimeAudit.lastWarnAtByKey.get(key) || 0;
+            if (now - lastWarnAt >= this._runtimeAudit.intervalSec * 1000) {
+                this._runtimeAudit.lastWarnAtByKey.set(key, now);
+                console.warn('[MetricsRuntime_v1] Runtime metric authority audit: __ATOMA_LIVE_METRICS__ is missing canonical fields', {
+                    missingFields,
+                    currentKeys: Object.keys(liveMetrics).sort()
+                });
+            }
+        }
+    }
+
     _emitCorruptionSpreadEvents() {
         const scope = this._getGlobalScope();
         const semanticBus = scope?.semanticBus;
@@ -1279,7 +1418,7 @@ const adapter = this._createLinkSystemAdapter(
             // - global consumers should still prefer the scoped metric alias events provided by semanticBus
             // - keep the event available for diagnostics, not as the main wiring path
             semanticBus.emit('metric.tier.changed', payload, { priority: semanticBus.priority?.NORMAL });
-            semanticBus.emit(buildMetricTierEventName('global', entry.metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
+            semanticBus.emit(buildScopedMetricEventName('global', entry.metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
         }
     }
 

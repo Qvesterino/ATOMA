@@ -59,7 +59,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { CoreMetricsCalculator } from './CoreMetricsCalculator.js';
-import { buildMetricTierEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './src/metrics/MetricTierClassifier.js';
+import { buildScopedMetricEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './src/metrics/MetricTierClassifier.js';
 
 export class HarmonicHubAuraSystem_Session126 {
   constructor(scene, worldRoot, world, nodeAuraSystem, linkResonanceSystem, config = {}) {
@@ -964,7 +964,7 @@ export class HarmonicHubAuraSystem_Session126 {
       // Internal hook only for tooling and diagnostics.
       semanticBus.emit('metric.tier.changed', payload, { priority: semanticBus.priority?.NORMAL });
       // Primary public surface for hub-level reactions.
-      semanticBus.emit(buildMetricTierEventName('hub', metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
+      semanticBus.emit(buildScopedMetricEventName('hub', metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
     }
   }
 
