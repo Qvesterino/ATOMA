@@ -1520,7 +1520,11 @@ const adapter = this._createLinkSystemAdapter(
      * Returns average of each metric across all nodes
      */
     _aggregateNodeMetrics() {
-        const nodesList = Array.isArray(this.nodes?.nodes) ? this.nodes.nodes : [];
+        const nodesList = Array.isArray(this.nodes?.nodes)
+            ? this.nodes.nodes
+            : Array.isArray(this.nodes)
+                ? this.nodes
+                : [];
         const nodeCount = nodesList.length;
         const linkList =
             this.linkSystem?.links ||
@@ -1553,13 +1557,15 @@ const adapter = this._createLinkSystemAdapter(
             const userData = node?.userData || {};
             const metrics = userData.metrics || {};
 
+            // Prefer the canonical metrics container over legacy top-level aliases.
+            // Legacy fields may be stale or partially populated, so the metrics object is authoritative.
             const candidates = [
-                userData[canonicalKey],
-                metrics[canonicalKey]
+                metrics[canonicalKey],
+                userData[canonicalKey]
             ];
 
             for (const fallbackKey of fallbackKeys) {
-                candidates.push(userData[fallbackKey], metrics[fallbackKey]);
+                candidates.push(metrics[fallbackKey], userData[fallbackKey]);
             }
 
             for (const value of candidates) {

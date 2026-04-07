@@ -37,6 +37,8 @@
  * - Well-defended dense networks activate resonance (emergent amplification)
  */
 
+import { applyMetricImpulse, setMetric } from './src/metrics/NodeMetricEngine.js';
+
 // === THREE SAFE LOADER ===
 let THREE_SAFE = null;
 THREE_SAFE =
@@ -5230,7 +5232,7 @@ export class LinkCorruptionTransmission_v1 {
         let corruptedNodeCount = 0;
 
         for (const node of allNodes) {
-          const corruption = node.userData?.metrics?.corruption || node.userData?.corruption || 0;
+          const corruption = node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0;
           if (corruption > 0) {
             totalCorruption += corruption;
             corruptedNodeCount++;
@@ -5247,4 +5249,3 @@ export class LinkCorruptionTransmission_v1 {
 }
 
 export default LinkCorruptionTransmission_v1;
-import { applyMetricImpulse, setMetric } from './src/metrics/NodeMetricEngine.js';

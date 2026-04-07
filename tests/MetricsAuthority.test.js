@@ -127,6 +127,34 @@ test('MetricsRuntime_v1 publishes canonical global metric shape', () => {
   assert.strictEqual(globalThis.world.metrics.globalMetrics.load, globalThis.__ATOMA_LIVE_METRICS__.loadPressure);
 });
 
+test('MetricsRuntime_v1 prefers canonical metrics container over legacy top-level aliases when aggregating active nodes', () => {
+  globalThis.__ATOMA_LIVE_METRICS__ = undefined;
+  globalThis.world = {};
+  globalThis.globalMetrics = undefined;
+
+  const node = {
+    userData: {
+      nodeId: 'node-1',
+      synergy: 0,
+      stability: 0,
+      metrics: {
+        synergy: 0.9,
+        harmony: 0.4,
+        stability: 0.8,
+        corruption: 0.2,
+        loadPressure: 0.3
+      }
+    }
+  };
+  const links = [{ source: node, target: node, active: true }];
+  const runtime = new MetricsRuntime_v1({ nodes: [node], links, linkSystem: null, metricsSystems: {} });
+
+  const aggregated = runtime._aggregateNodeMetrics();
+  assert.ok(Math.abs(aggregated.networkSynergy - 0.9) < 1e-6, 'Expected canonical synergy value from metrics container');
+  assert.ok(Math.abs(aggregated.networkStress - 0.2) < 1e-6, 'Expected canonical stability/stress from metrics container');
+  assert.ok(Math.abs(aggregated.loadPressure - 0.3) < 1e-6, 'Expected canonical loadPressure value from metrics container');
+});
+
 test('MetricsRuntime_v1 runtime audit warns on missing canonical node metrics and broken live publish shape', () => {
   const originalWarn = console.warn;
   const warnings = [];
