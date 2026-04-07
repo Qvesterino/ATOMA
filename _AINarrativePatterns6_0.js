@@ -453,11 +453,21 @@ export class AINarrativePatterns6_0 {
       }
       
       if (cluster.length > 0) {
-        clusters.push({
-          id: this.generateClusterId(cluster),
+        const clusterId = this.generateClusterId(cluster);
+        const clusterObj = {
+          id: clusterId,
           nodes: cluster,
           centerPos: this.computeClusterCenter(cluster)
-        });
+        };
+
+        // Refresh narrative membership if the cluster already exists
+        if (this.narrativeStates.has(clusterId)) {
+          const narrative = this.narrativeStates.get(clusterId);
+          narrative.nodeIds = cluster.map(n => n.id || n.uuid);
+          narrative.centerPos = clusterObj.centerPos.clone ? clusterObj.centerPos.clone() : clusterObj.centerPos;
+        }
+
+        clusters.push(clusterObj);
       }
     }
     
@@ -777,15 +787,20 @@ export class AINarrativePatterns6_0 {
    * Get modulation parameters for a given cluster
    * Called by messaging systems to adapt their behavior
    */
-  getNarrativeModulation(nodeId, nodes) {
-    // Find cluster containing this node
-    let cluster = null;
-    for (const [clusterId, narrative] of this.narrativeStates.entries()) {
-      // Simple check: if narrative exists and we're in it, use it
-      // In practice, you'd store cluster membership in narrative
-      cluster = narrative;
-      break;  // Simplified for now
+  getNarrativeForNodeId(nodeId) {
+    if (!nodeId) return null;
+
+    for (const narrative of this.narrativeStates.values()) {
+      if (Array.isArray(narrative.nodeIds) && narrative.nodeIds.includes(nodeId)) {
+        return narrative;
+      }
     }
+
+    return null;
+  }
+
+  getNarrativeModulation(nodeId, nodes) {
+    const cluster = this.getNarrativeForNodeId(nodeId);
     
     if (!cluster) {
       return {
@@ -911,6 +926,15 @@ export class AINarrativePatterns6_0 {
     this.episodeTimings.clear();
     this.interpretationAccumulator = 0; // Phase B pilot: avoid delayed first evaluation after reset
     console.log('✓ All narratives reset');
+  }
+  
+  resetForWorldSwitch() {
+    this.cleanup();
+    this.interpretationAccumulator = this.interpretationInterval;
+    if (this.debugContainer && !this.debugContainer.parent && this.scene) {
+      this.scene.add(this.debugContainer);
+    }
+    console.log('[AINarrativePatterns6_0] resetForWorldSwitch');
   }
   
   /**

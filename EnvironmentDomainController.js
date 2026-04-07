@@ -6,23 +6,30 @@ const ENVIRONMENT_SYSTEMS = [
   'SafeQuantumIllusionsPack1',
   'AmbientEntityManager',
   'EmergentThoughtStorms5_0',
+  'SafeLegendaryWorldEvents',
+  'WorldPersonalityController',
+  'MetricReactiveWorldEvents',
   'SafeDreamDepthPack',
   'DreamDepthEffectManager',
   'SafeColonyExpansion2',
+  'MythicRitualController',
   // REMOVED: EnergyOrbManager - moved to LEGACY (dead code, never initialized)
   'EnvironmentalHazard',
-
 ];
 
 const ENVIRONMENT_RENDER_LAYERS = Object.freeze({
   worldFXPack: 'WORLD_BACKGROUND',
   weatherPack: 'WORLD_BACKGROUND',
   quantumIllusions: 'WORLD_OVERLAY',
+  worldEvents: 'WORLD_OVERLAY',
+  worldPersonalityController: 'WORLD_OVERLAY',
+  metricReactiveEvents: 'WORLD_OVERLAY',
   ambientEntityManager: 'WORLD_OVERLAY',
   emergentThoughtStorms: 'WORLD_OVERLAY',
   safeDreamDepthPack: 'WORLD_OVERLAY',
   dreamDepthEffectManager: 'WORLD_OVERLAY',
   colonyExpansion: 'WORLD_OVERLAY',
+  mythicRitualController: 'WORLD_OVERLAY',
   // REMOVED: energyOrbManager - moved to LEGACY (dead code, never initialized)
   environmentalHazards: 'WORLD_OVERLAY'
 });
@@ -161,7 +168,8 @@ export class EnvironmentDomainController {
         this.worldRoot,
         this.environmentRoot,
         d.camera,
-        this.sharedEnvironmentAssets
+        this.sharedEnvironmentAssets,
+        d.semanticBus
       );
 
     this.instances.weatherPack =
@@ -173,6 +181,57 @@ export class EnvironmentDomainController {
         this.sharedEnvironmentAssets
       );
 
+    this.instances.worldEvents =
+      new d.SafeLegendaryWorldEvents(
+        this.scene,
+        this.worldRoot,
+        d.camera,
+        d.renderer
+      );
+
+    this.instances.worldPersonalityController =
+      new d.WorldPersonalityController(
+        this.scene,
+        this.worldRoot,
+        d.camera,
+        d.renderer
+      );
+
+    this.instances.mythicRitualController =
+      new d.MythicRitualController(
+        this.scene,
+        d.camera,
+        d.renderer,
+        this.instances.worldPersonalityController,
+        d.player,
+        d.semanticBus
+      );
+
+    this.instances.metricReactiveEvents =
+      new d.MetricReactiveWorldEvents(
+        this.scene,
+        this.worldRoot,
+        this.environmentRoot,
+        d.renderer,
+        d.coreMetricsOverlay
+      );
+
+    this.instances.safeDreamDepthPack =
+      new d.SafeDreamDepthPack(
+        this.scene,
+        this.environmentRoot,
+        d.camera,
+        d.renderer
+      );
+
+    this.instances.dreamDepthEffectManager =
+      new d.DreamDepthEffectManager(
+        this.scene,
+        this.environmentRoot,
+        d.camera,
+        d.renderer
+      );
+
     this.instances.quantumIllusions =
       new d.SafeQuantumIllusionsPack1(
         this.scene,
@@ -180,7 +239,7 @@ export class EnvironmentDomainController {
         d.camera,
         d.aiNodes,
         d.linkingSystem,
-        d.worldEvents,
+        this.instances.worldEvents,
         this.instances.weatherPack,
         d.legendaryPack,
         this.sharedEnvironmentAssets
@@ -194,10 +253,10 @@ export class EnvironmentDomainController {
       );
 
     if (this.instances.ambientEntityManager?.registerWorldSystems &&
-        d.legendaryPack && d.worldEvents && this.instances.weatherPack && d.linkingSystem) {
+        d.legendaryPack && this.instances.worldEvents && this.instances.weatherPack && d.linkingSystem) {
       this.instances.ambientEntityManager.registerWorldSystems(
         d.legendaryPack,
-        d.worldEvents,
+        this.instances.worldEvents,
         this.instances.weatherPack,
         d.linkingSystem
       );
@@ -239,8 +298,8 @@ export class EnvironmentDomainController {
           }, {}) || {},
           links: this.deps.linkingSystem?.links || [],
           legendaryRegistry: this.deps.legendaryPack?.registry || null,
-          weatherRegistry: this.deps.weatherPack?.registry || null,
-          worldEvents: this.deps.worldEvents || null,
+          weatherRegistry: this.instances.weatherPack?.registry || this.deps.weatherPack?.registry || null,
+          worldEvents: this.instances.worldEvents || this.deps.worldEvents || null,
           evolutionRegistry: this.deps.evolutionManager?.registry || null,
           synergyMap: this.deps.synergyMap || {},
           trafficMap: this.deps.trafficMap || {}
@@ -362,6 +421,15 @@ export class EnvironmentDomainController {
             );
             return;
           }
+          if (key === 'worldEvents') {
+            sys.update(
+              dt,
+              this.deps.legendaryPack,
+              this.deps.linkingSystem,
+              this.deps.evolutionManager
+            );
+            return;
+          }
           if (key === 'emergentThoughtStorms') {
             sys.update(
               dt,
@@ -376,6 +444,50 @@ export class EnvironmentDomainController {
       },
       this.schedulerId
     );
+
+    this.frameScheduler.register(
+      'simulation',
+      (dt) => {
+        if (this.instances.worldPersonalityController?.update) {
+          this.instances.worldPersonalityController.update(
+            dt,
+            this.deps.aiNodes?.nodes,
+            typeof window !== 'undefined' ? window.__ATOMA_LIVE_METRICS__ : null
+          );
+        }
+
+        if (this.instances.mythicRitualController?.update) {
+          this.instances.mythicRitualController.update(
+            dt,
+            this.deps.aiNodes?.nodes
+          );
+        }
+      },
+      `${this.schedulerId}.worldPersonalityController`
+    );
+  }
+
+  setCoreMetricsOverlay(coreMetricsOverlay) {
+    if (!coreMetricsOverlay) return;
+    this.deps.coreMetricsOverlay = coreMetricsOverlay;
+
+    if (this.instances.metricReactiveEvents) {
+      this.instances.metricReactiveEvents.coreMetricsOverlay = coreMetricsOverlay;
+      return;
+    }
+
+    if (this.deps.MetricReactiveWorldEvents) {
+      this.instances.metricReactiveEvents = new this.deps.MetricReactiveWorldEvents(
+        this.scene,
+        this.worldRoot,
+        this.environmentRoot,
+        this.deps.renderer,
+        coreMetricsOverlay
+      );
+
+      const renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_OVERLAY');
+      this._bindRenderRoot(this.instances.metricReactiveEvents.root, renderOrder, 'WORLD_OVERLAY', 'metricReactiveEvents');
+    }
   }
 
   _unregisterSchedulerHooks() {

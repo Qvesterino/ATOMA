@@ -15,7 +15,7 @@
  * FEATURES:
  * 1. GLOBAL STATE ANALYZER
  *    - Scans nodes every 5-10s (throttled)
- *    - Computes aggregate metrics (harmony, stability, clarity, loadPressure)
+ *    - Computes aggregate metrics (harmony, stability, loadPressure)
  *    - Derives global mood label (7 mood types)
  *    - Emits world.mood snapshot/change events plus bridge metric tags
  * 
@@ -62,7 +62,6 @@ export class WorldPersonalityController {
       dominantPersonality: null,
       avgHarmony: 0,
       avgStability: 0,
-      avgClarity: 0,
       avgEnergy: 0,
     };
     
@@ -164,8 +163,10 @@ export class WorldPersonalityController {
   /**
    * Main update loop
    */
-  update(deltaTime, nodes) {
+  update(deltaTime, nodes, worldMetrics = null) {
     if (!nodes || nodes.length === 0) return;
+    
+    const globalMetrics = this._resolveGlobalMetrics(worldMetrics);
     
     // Phase B pilot: low-frequency interpretation gating
     // Only the semantic evaluation (mood scanning + aggregation) is throttled; visuals stay 60 Hz.
@@ -177,7 +178,7 @@ export class WorldPersonalityController {
       // Scan network for mood (throttled)
       this.lastScanTime += interpretationDelta;
       if (this.lastScanTime >= this.scanInterval) {
-        this.scanNetworkMood(nodes);
+        this.scanNetworkMood(nodes, globalMetrics);
         this.lastScanTime = 0;
       }
       
@@ -211,40 +212,58 @@ export class WorldPersonalityController {
   /**
    * Scan all nodes and compute global network mood
    */
-  scanNetworkMood(nodes) {
-    let totalHarmony = 0;
-    let totalStability = 0;
-    let totalClarity = 0;
-    let totalEnergy = 0;
-    let validNodeCount = 0;
-    
-    // Personality distribution
+  scanNetworkMood(nodes, worldMetrics = null) {
+    const globalMetrics = this._resolveGlobalMetrics(worldMetrics);
     const personalityCount = {};
+    let avgHarmony = null;
+    let avgStability = null;
+    let avgEnergy = null;
+    let nodeCount = nodes.length;
+    
+    if (this._hasGlobalMetrics(globalMetrics)) {
+      avgHarmony = this._toPercent(globalMetrics.harmonyFlow ?? globalMetrics.networkSynergy ?? globalMetrics.harmony ?? globalMetrics.synergy ?? 0);
+      avgStability = this._toPercent(
+        this._normalizeStability(globalMetrics.networkStress, globalMetrics.stability)
+      );
+      avgEnergy = this._toPercent(globalMetrics.loadPressure ?? globalMetrics.load ?? globalMetrics.loadRatio ?? 0);
+    }
     
     nodes.forEach(node => {
-      const metrics = node.userData?.metrics;
       const personality = node.userData?.personality;
-      
-      if (metrics) {
-        totalHarmony += metrics.harmonyAffinity || 0;
-        totalStability += metrics.stability || 0;
-        totalClarity += metrics.stability || 0;
-        totalEnergy += metrics.loadPressure || 0;
-        validNodeCount++;
-      }
-      
       if (personality?.type) {
         personalityCount[personality.type] = (personalityCount[personality.type] || 0) + 1;
       }
     });
     
-    if (validNodeCount === 0) return;
-    
-    // Compute averages
-    const avgHarmony = totalHarmony / validNodeCount;
-    const avgStability = totalStability / validNodeCount;
-    const avgClarity = totalClarity / validNodeCount;
-    const avgEnergy = totalEnergy / validNodeCount;
+    if (avgHarmony === null || avgStability === null || avgEnergy === null) {
+      let totalHarmony = 0;
+      let totalStability = 0;
+      let totalEnergy = 0;
+      let validNodeCount = 0;
+      
+      nodes.forEach(node => {
+        const metrics = node.userData?.metrics;
+        const personality = node.userData?.personality;
+        
+        if (metrics) {
+          const harmonyValue = metrics.harmonyAffinity ?? metrics.harmony ?? metrics.synergy ?? 0;
+          totalHarmony += harmonyValue;
+          totalStability += metrics.stability || 0;
+          totalEnergy += metrics.loadPressure ?? metrics.load ?? metrics.loadRatio ?? 0;
+          validNodeCount++;
+        }
+        
+        if (personality?.type) {
+          personalityCount[personality.type] = (personalityCount[personality.type] || 0) + 1;
+        }
+      });
+      
+      if (validNodeCount === 0) return;
+      avgHarmony = totalHarmony / validNodeCount;
+      avgStability = totalStability / validNodeCount;
+      avgEnergy = totalEnergy / validNodeCount;
+      nodeCount = validNodeCount;
+    }
     
     // Find dominant personality
     let dominantPersonality = null;
@@ -261,7 +280,6 @@ export class WorldPersonalityController {
     const newMoodLabel = this.determineMoodLabel(
       avgHarmony,
       avgStability,
-      avgClarity,
       avgEnergy,
       personalityCount
     );
@@ -270,7 +288,6 @@ export class WorldPersonalityController {
     const intensity = this.calculateMoodIntensity(
       avgHarmony,
       avgStability,
-      avgClarity,
       avgEnergy
     );
     
@@ -283,7 +300,6 @@ export class WorldPersonalityController {
       dominantPersonality,
       avgHarmony,
       avgStability,
-      avgClarity,
       avgEnergy,
     };
     
@@ -299,10 +315,9 @@ export class WorldPersonalityController {
       dominantPersonality,
       avgHarmony,
       avgStability,
-      avgClarity,
       avgEnergy,
       ascendedCount: personalityCount['ASCENDED_MYTHIC'] || 0,
-      nodeCount: validNodeCount,
+      nodeCount,
       personalityCount: { ...personalityCount },
     }, moodChanged, previousMoodLabel);
   }
@@ -310,7 +325,7 @@ export class WorldPersonalityController {
   /**
    * Determine mood label from aggregated metrics
    */
-  determineMoodLabel(harmony, stability, clarity, loadPressure, personalityCount) {
+  determineMoodLabel(harmony, stability, loadPressure, personalityCount) {
     // Check for ASCENDED_ALIGNMENT (many ascended/mythic nodes)
     const ascendedCount = personalityCount['ASCENDED_MYTHIC'] || 0;
     if (ascendedCount >= 3) {
@@ -322,8 +337,8 @@ export class WorldPersonalityController {
       return 'HARMONIC_CALM';
     }
     
-    // FOCUSED_ANALYSIS: high clarity, mid-high stability
-    if (clarity > 75 && stability > 70) {
+    // FOCUSED_ANALYSIS: high harmony, high stability, low load pressure
+    if (harmony > 70 && stability > 70 && loadPressure < 40) {
       return 'FOCUSED_ANALYSIS';
     }
 
@@ -354,14 +369,13 @@ export class WorldPersonalityController {
   /**
    * Calculate mood intensity based on metric extremes
    */
-  calculateMoodIntensity(harmony, stability, clarity, loadPressure) {
+  calculateMoodIntensity(harmony, stability, loadPressure) {
     // Intensity is based on how extreme metrics are
     const harmonySigma = Math.abs(harmony - 60) / 60; // 60 is mid-range
     const stabilitySigma = (100 - stability) / 100; // Lower stability = higher intensity
-    const claritySigma = Math.abs(clarity - 60) / 60;
     const energySigma = Math.abs(loadPressure - 60) / 60;
     
-    const avgSigma = (harmonySigma + stabilitySigma + claritySigma + energySigma) / 4;
+    const avgSigma = (harmonySigma + stabilitySigma + energySigma) / 3;
     
     return Math.min(1.0, avgSigma * 1.5); // Amplify slightly
   }
@@ -1294,6 +1308,31 @@ export class WorldPersonalityController {
 
     const browserWindow = typeof window !== 'undefined' ? window : null;
     return browserWindow?.ATOMA_BUS || browserWindow?.semanticBus || null;
+  }
+
+  _resolveGlobalMetrics(worldMetrics = null) {
+    if (worldMetrics && typeof worldMetrics === 'object' && Object.keys(worldMetrics).length > 0) {
+      return worldMetrics;
+    }
+
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    const liveMetrics = browserWindow?.__ATOMA_LIVE_METRICS__ || null;
+    return liveMetrics && typeof liveMetrics === 'object' ? liveMetrics : {};
+  }
+
+  _hasGlobalMetrics(metrics) {
+    return metrics && (metrics.harmonyFlow !== undefined || metrics.networkSynergy !== undefined || metrics.loadPressure !== undefined || metrics.networkStress !== undefined || metrics.stability !== undefined);
+  }
+
+  _normalizeStability(networkStress, stability) {
+    if (networkStress !== undefined && Number.isFinite(networkStress)) {
+      return Math.max(0, 1 - networkStress);
+    }
+    return stability ?? 0;
+  }
+
+  _toPercent(value) {
+    return Number.isFinite(value) ? value * 100 : 0;
   }
 
   _emitMoodBridge(moodSnapshot, moodChanged, previousMoodLabel) {

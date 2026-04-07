@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { safeSetEmissive } from './_EmissiveUtils.js';
 
 /**
@@ -23,14 +24,31 @@ function areWorldFXEnabled() {
 }
 
 export class SafeWorldFXPack {
-  constructor(scene, worldRoot, environmentRoot, camera, sharedAssets = null) {
+  constructor(scene, worldRoot, environmentRoot, camera, sharedAssets = null, semanticBus = null) {
     this.scene = scene;
     this.worldRoot = worldRoot || scene;
     this.environmentRoot = environmentRoot || this.worldRoot;
     this.camera = camera;
     this.sharedAssets = sharedAssets ?? null;
+    this.semanticBus = semanticBus ?? null;
+    this.metricBus = this.semanticBus || this._resolveMetricBus();
+    this.metricSignalTimes = new Map();
+
     this.root = new THREE.Group();
+    this.root.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_BACKGROUND);
+    this.root.userData = this.root.userData || {};
+    this.root.userData.__environmentLayerId = VisualHierarchyRegistry.LAYER_WORLD_BACKGROUND;
+    this.root.userData.__environmentOwner = 'worldFXPack';
+
+    const originalRootAdd = this.root.add.bind(this.root);
+    this.root.add = (...children) => {
+      const result = originalRootAdd(...children);
+      children.forEach(child => this._applyRenderOrderRecursive(child, this.root.renderOrder));
+      return result;
+    };
+
     this.environmentRoot.add(this.root);
+    this._setupMetricTriggers();
     
     // VFX Containers
     this.vfxLayers = {
@@ -261,6 +279,61 @@ export class SafeWorldFXPack {
     }
   }
 
+  _resolveMetricBus() {
+    if (globalThis?.ATOMA_BUS || globalThis?.semanticBus) {
+      return globalThis.ATOMA_BUS || globalThis.semanticBus || null;
+    }
+
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    return browserWindow?.ATOMA_BUS || browserWindow?.semanticBus || null;
+  }
+
+  _setupMetricTriggers() {
+    this._subscribeMetricTag('global.synergy.high', 'synergy.high');
+    this._subscribeMetricTag('global.loadPressure.high', 'loadPressure.high');
+    this._subscribeMetricTag('global.corruption.high', 'corruption.high');
+    this._subscribeMetricTag('global.stability.low', 'stability.low');
+    this._subscribeMetricTag('global.stability.high', 'stability.high');
+  }
+
+  _subscribeMetricTag(eventName, signalKey) {
+    const bus = this.metricBus;
+    if (!bus || !eventName || !signalKey) return;
+    const handler = () => {
+      this.metricSignalTimes.set(signalKey, performance.now());
+    };
+
+    if (typeof bus.on === 'function') {
+      bus.on(eventName, handler);
+      return;
+    }
+
+    if (typeof bus.subscribe === 'function') {
+      bus.subscribe(eventName, handler);
+    }
+  }
+
+  _isSignalActive(signalKey, lifetimeMs = 6000) {
+    const lastAt = this.metricSignalTimes.get(signalKey);
+    if (!Number.isFinite(lastAt)) return false;
+    return (performance.now() - lastAt) <= lifetimeMs;
+  }
+
+  _applyRenderOrderRecursive(object, renderOrder) {
+    if (!object || typeof object !== 'object') return;
+    if ('renderOrder' in object) {
+      object.renderOrder = renderOrder;
+    }
+    if (!object.userData) {
+      object.userData = {};
+    }
+    object.userData.__environmentLayerId = VisualHierarchyRegistry.LAYER_WORLD_BACKGROUND;
+    object.userData.__environmentOwner = 'worldFXPack';
+    if (Array.isArray(object.children) && object.children.length > 0) {
+      object.children.forEach(child => this._applyRenderOrderRecursive(child, renderOrder));
+    }
+  }
+
   auditSceneObjects(scene = this.scene) {
     if (!scene || typeof scene.traverse !== 'function') return;
 
@@ -344,19 +417,6 @@ export class SafeWorldFXPack {
     // Create energy streams
     this.createEnergyStreams();
   }
-
-  /**
-   * MATERIAL SAFETY: Ensures material supports emissive properties
-   */
-  ensureEmissiveSafe(mat) {
-    if (!mat || typeof mat !== 'object') return false;
-    return (
-      mat.isMeshStandardMaterial ||
-      mat.isMeshLambertMaterial ||
-      mat.isMeshPhongMaterial ||
-      mat.isMeshToonMaterial
-    );
-  }
   
   /**
    * Main update loop
@@ -420,8 +480,8 @@ export class SafeWorldFXPack {
     
     // Check if shift should trigger
     if (this.worldState.dimensionalPhase > this.config.dimensionalShiftInterval) {
-      // Random trigger
-      if (Math.random() < 0.3 || this.worldState.totalSynergy > 15) {
+      const stabilityPenalty = this._isSignalActive('stability.low') ? 0.75 : 1.0;
+      if (Math.random() < 0.3 * stabilityPenalty || this.worldState.totalSynergy > 15) {
         this.triggerDimensionalShift();
       }
       this.worldState.dimensionalPhase = 0;
@@ -703,11 +763,12 @@ export class SafeWorldFXPack {
     
     // Calculate pulse strength from network activity
     const activityLevel = Math.min(1, this.worldState.totalSynergy / 30);
-    const pulseInterval = this.config.pulseInterval / (0.5 + activityLevel);
+    const synergyBoost = this._isSignalActive('synergy.high') ? 0.25 : 0;
+    const pulseInterval = this.config.pulseInterval / (0.5 + activityLevel + synergyBoost);
     
     // Trigger pulse
     if (this.worldState.pulseTimer > pulseInterval) {
-      this.triggerGlobalPulse(activityLevel);
+      this.triggerGlobalPulse(activityLevel + synergyBoost);
       this.worldState.pulseTimer = 0;
     }
     
@@ -845,7 +906,8 @@ export class SafeWorldFXPack {
     
     // Chance to spawn quantum rift
     if (this.worldState.quantumTimer > this.config.quantumRiftInterval) {
-      if (Math.random() < this.config.quantumRiftChance * 60 || this.worldState.legendaryCount > 0) {
+      const corruptionBoost = this._isSignalActive('corruption.high') ? 2.0 : 1.0;
+      if (Math.random() < this.config.quantumRiftChance * 60 * corruptionBoost || this.worldState.legendaryCount > 0) {
         this.spawnQuantumRift();
       }
       this.worldState.quantumTimer = 0;
@@ -951,8 +1013,8 @@ export class SafeWorldFXPack {
   updateSigmaGlitches(deltaTime) {
     this.worldState.glitchTimer += deltaTime;
     
-    // Random glitch chance
-    if (Math.random() < this.config.sigmaGlitchChance) {
+    const glitchMultiplier = 1 + (this._isSignalActive('corruption.high') ? 1.0 : 0) + (this._isSignalActive('loadPressure.high') ? 0.75 : 0);
+    if (Math.random() < this.config.sigmaGlitchChance * glitchMultiplier) {
       this.triggerSigmaGlitch();
     }
     

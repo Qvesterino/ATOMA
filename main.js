@@ -484,7 +484,7 @@ import { EnvironmentalHazards } from './EnvironmentalHazards.js';
 import { CinematicUpgrade } from './CinematicUpgrade.js';
 import { VisualUpgradeSuperpack } from './VisualUpgradeSuperpack.js';
 import { SafeEvolutionManager } from './_SafeEvolutionManager.js';
-// REMOVED: SafeLegendaryNodePack - moved to LEGACY (2026-04-03)
+// import { SafeLegendaryNodePack } from './LEGACY/_SafeLegendaryNodePack.js';
 import { SafeLegendaryLinkFX } from './_SafeLegendaryLinkFX.js';
 import { SafeLegendaryWorldEvents } from './_SafeLegendaryWorldEvents.js';
 import { SafeAIWeatherPack } from './_SafeAIWeatherPack.js';
@@ -522,7 +522,7 @@ import { createEmptyCoreMetricsViewModel, updateCoreMetricsViewModel } from './C
 import { SystemStateOverlay } from './SystemStateOverlay.js';
 import { ZoneAudioReactivity } from './ZoneAudioReactivity.js';
 // DISABLED: Legacy metric reactive system (replaced by Phase 5-7 architecture)
-// import { MetricReactiveWorldEvents } from './MetricReactiveWorldEvents.js';
+import { MetricReactiveWorldEvents } from './MetricReactiveWorldEvents.js';
 
 if (typeof window !== 'undefined') {
   window.__ALLOW_EXTERNAL_SPAWN__ = false;
@@ -4152,9 +4152,11 @@ class AtomaGame {
             this.narrativePatterns?.update?.(dt, this.aiNodes?.nodes, this.linkingSystem?.links, this.worldMetrics || {});
         }, 'background.narrativePatterns');
         this.frameScheduler.register('background', (dt) => {
-            this.worldEvents?.update?.(dt, this.scene, this.camera, this.renderer);
+            if (this.environmentDomain?.instances?.worldEvents) return;
+            this.worldEvents?.update?.(dt, this.legendaryPack, this.linkingSystem, this.evolutionManager);
         }, 'background.worldEvents');
         this.frameScheduler.register('background', (dt) => {
+            if (this.environmentDomain?.instances?.weatherPack) return;
             this.weatherPack?.update?.(dt, this.scene, this.camera);
         }, 'background.weatherPack');
         this.frameScheduler.register('background', (dt) => {
@@ -4535,9 +4537,6 @@ class AtomaGame {
         //     this.nodePersonalitySystem?.update?.(dt, this.aiNodes?.nodes);
         // }, 'simulation.nodePersonalitySystem');
         this.frameScheduler.register('simulation', (dt) => {
-            this.worldPersonalityController?.update?.(dt, this.aiNodes?.nodes);
-        }, 'simulation.worldPersonalityController');
-        this.frameScheduler.register('simulation', (dt) => {
             this.phase5MultiNetworkOrchestrator?.update?.(dt);
         }, 'simulation.phase5MultiNetworkOrchestrator');
         this.frameScheduler.register('simulation', (dt) => {
@@ -4609,7 +4608,10 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer), 'visual.legendaryPack');
         this.frameScheduler.register('visual', (dt) => this.legendaryLinkFX?.update?.(dt, this.scene, this.camera, this.renderer), 'visual.legendaryLinkFX');
         this.frameScheduler.register('visual', (dt) => this.personalityFX?.update?.(dt, this.scene, this.camera), 'visual.personalityFX');
-        this.frameScheduler.register('visual', (dt) => this.worldFXPack?.update?.(dt, this.scene, this.camera), 'visual.worldFXPack');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.environmentDomain?.instances?.worldFXPack) return;
+            this.worldFXPack?.update?.(dt, this.scene, this.camera);
+        }, 'visual.worldFXPack');
         this.frameScheduler.register('visual', (dt) => this.dreamDepthPack?.update?.(dt, this.dreamDepthWorldSystems), 'visual.dreamDepthPack');
         this.frameScheduler.register('visual', (dt) => this.dreamDepthEffects?.update?.(dt), 'visual.dreamDepthEffects');
         this.frameScheduler.register('visual', (dt) => this.mobilityPack?.update?.(dt), 'visual.mobilityPack');
@@ -4619,7 +4621,6 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.newNodeCategories?.update?.(dt, this.time), 'visual.newNodeCategories');
         // this.frameScheduler.register('visual', (dt) => this.extremeLinkVisuals?.update?.(dt), 'visual.extremeLinkVisuals');
         // this.frameScheduler.register('visual', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera), 'visual.extremeLinkVisuals4');
-        this.frameScheduler.register('simulation', (dt) => this.mythicRitualController?.update?.(dt, this.aiNodes?.nodes), 'simulation.mythicRitualController');
         this.frameScheduler.register('simulation', (dt) => this.phase8RitualOrchestration?.update?.(dt * 1000), 'simulation.phase8RitualOrchestration');
         this.frameScheduler.register('visual', (dt) => this.mythicSeedGlyph?.update?.(dt, this.camera), 'visual.mythicSeedGlyph');
         // Infra/diagnostic: keep in visual for now to avoid sim cadence mismatch
@@ -5772,7 +5773,6 @@ this.setHudDirty('nodeInspect');
         this.setupEvolutionManager();
         // DISABLED: this.setupLegendaryPack(); // moved to LEGACY (2026-04-03)
         this.setupLegendaryLinkFX();
-        this.setupWorldEvents();
         this.environmentDomain = new EnvironmentDomainController(
             this.scene,
             this.worldRoot,
@@ -5785,25 +5785,49 @@ this.setHudDirty('nodeInspect');
                 AmbientEntityManager,
                 EmergentThoughtStorms5_0,
                 EnvironmentalHazards,
+                SafeLegendaryWorldEvents,
+                WorldPersonalityController,
+                MythicRitualController,
+                MetricReactiveWorldEvents,
+                SafeDreamDepthPack,
+                DreamDepthEffectManager,
                 SafeColonyExpansion2,
                 camera: this.camera,
                 aiNodes: this.aiNodes,
                 linkingSystem: this.linkingSystem,
                 worldEvents: this.worldEvents,
                 legendaryPack: this.legendaryPack,
+                evolutionManager: this.evolutionManager,
                 recursiveGlyphMessaging: this.recursiveGlyphMessaging,
-                semanticGlyphAI: this.semanticGlyphAI
+                semanticGlyphAI: this.semanticGlyphAI,
+                renderer: this.renderer,
+                coreMetricsOverlay: this.coreMetricsOverlay,
+                semanticBus: this.semanticBus,
+                player: this.player,
+                synergyMap: this.synergyMap || {},
+                trafficMap: this.trafficMap || {}
             }
         );
         this.environmentDomain.init();
-        this.hazards = this.environmentDomain?.instances?.environmentalHazards || null;
+        this.worldEvents = this.environmentDomain?.instances?.worldEvents || this.worldEvents;
+        this.worldPersonalityController = this.environmentDomain?.instances?.worldPersonalityController || this.worldPersonalityController;
+        this.metricReactiveEvents = this.environmentDomain?.instances?.metricReactiveEvents || this.metricReactiveEvents;
+        this.dreamDepthPack = this.environmentDomain?.instances?.safeDreamDepthPack || this.dreamDepthPack;
+        this.dreamDepthEffects = this.environmentDomain?.instances?.dreamDepthEffectManager || this.dreamDepthEffects;
+        this.quantumIllusions = this.environmentDomain?.instances?.quantumIllusions || this.quantumIllusions;
+        this.ambientEntityManager = this.environmentDomain?.instances?.ambientEntityManager || this.ambientEntityManager;
+        this.emergentThoughtStorms = this.environmentDomain?.instances?.emergentThoughtStorms || this.emergentThoughtStorms;
+        this.colonyManager = this.environmentDomain?.instances?.colonyExpansion || this.colonyManager;
+        this.hazards = this.environmentDomain?.instances?.environmentalHazards || this.hazards;
+        if (typeof window !== 'undefined') {
+          window.worldEvents = this.worldEvents;
+        }
         if (this.hazards && this.currentMode === 'fractal') {
             this.hazards.createGravitationalAnomaly(new THREE.Vector3(-40, 10, -40), 20, 0.6);
         }
         this.setupPersonalityFX();
         // REMOVED: this.setupMemoryTrails(); - moved to LEGACY/GRAVEYARD (2026-04-05)
         this.setupColonyManager();
-        this.setupDreamDepthPack();
         this.setupMobilityPack();
         this.setupNodeVisuals4();
         this.setupNodeEvolution();
@@ -5811,6 +5835,10 @@ this.setHudDirty('nodeInspect');
         // DISABLED: this.setupEvolvingLinkFX(); // moved to LEGACY (2026-04-03)
         this.setupNodePersonality();
         this.setupCoreMetricsOverlay();
+        if (this.environmentDomain?.setCoreMetricsOverlay) {
+            this.environmentDomain.setCoreMetricsOverlay(this.coreMetricsOverlay);
+            this.metricReactiveEvents = this.environmentDomain?.instances?.metricReactiveEvents || this.metricReactiveEvents;
+        }
         this.setupSystemStateOverlay();
         this.setupZoneAudioReactivity();
         this.setupMetricReactiveEvents();
@@ -6730,22 +6758,11 @@ window.__ATOMA_SCENE__ = this.scene;
         this._refreshAIHudReports?.();
 
         // Initialize World Personality Controller 2.0 (after scene/camera/renderer ready)
-        this.worldPersonalityController = new WorldPersonalityController(
-            this.scene,
-            this.worldRoot,
-            this.camera,
-            this.renderer
-        );
+        // World personality controller is centralized in EnvironmentDomainController.
+        this.worldPersonalityController = this.environmentDomain?.instances?.worldPersonalityController || this.worldPersonalityController;
 
         // Initialize Mythic Ritual Controller 1.0 (after world controller ready)
-        this.mythicRitualController = new MythicRitualController(
-            this.scene,
-            this.camera,
-            this.renderer,
-            this.worldPersonalityController,
-            this.player, // Pass player for participation system
-            this.semanticBus // Pass semanticBus for event-driven architecture
-        );
+        this.mythicRitualController = this.environmentDomain?.instances?.mythicRitualController || this.mythicRitualController;
 
         // Initialize Mythic Seed Glyph System (after scene ready)
         this.mythicSeedGlyph = new MythicSeedGlyph(this.scene);
@@ -7424,6 +7441,14 @@ window.__ATOMA_SCENE__ = this.scene;
         }
 
         try {
+            if (this.narrativePatterns && typeof this.narrativePatterns.resetForWorldSwitch === 'function') {
+                this.narrativePatterns.resetForWorldSwitch();
+            }
+        } catch (err) {
+            console.warn('[main.js] AINarrativePatterns6_0 resetForWorldSwitch failed:', err?.message || err);
+        }
+
+        try {
             if (this.echoTrailsIntegration && typeof this.echoTrailsIntegration.rebind === 'function') {
                 this.echoTrailsIntegration.rebind({
                     linkingSystem,
@@ -7666,6 +7691,9 @@ window.__ATOMA_SCENE__ = this.scene;
             // Reattach to new worldRoot after reset
             if (sys?.root) {
                 this.worldRoot.add(sys.root);
+                if (sys === this.worldEvents) {
+                    console.log('[WorldEvents] root reattached after world switch to', this.worldRoot.name || 'worldRoot');
+                }
             }
         });
 
@@ -7749,18 +7777,40 @@ window.__ATOMA_SCENE__ = this.scene;
                 AmbientEntityManager,
                 EmergentThoughtStorms5_0,
                 EnvironmentalHazards,
+                SafeLegendaryWorldEvents,
+                WorldPersonalityController,
+                MythicRitualController,
+                MetricReactiveWorldEvents,
+                SafeDreamDepthPack,
+                DreamDepthEffectManager,
                 SafeColonyExpansion2,
                 camera: this.camera,
                 aiNodes: this.aiNodes,
                 linkingSystem: this.linkingSystem,
                 worldEvents: this.worldEvents,
                 legendaryPack: this.legendaryPack,
+                evolutionManager: this.evolutionManager,
                 recursiveGlyphMessaging: this.recursiveGlyphMessaging,
-                semanticGlyphAI: this.semanticGlyphAI
+                semanticGlyphAI: this.semanticGlyphAI,
+                renderer: this.renderer,
+                coreMetricsOverlay: this.coreMetricsOverlay,
+                semanticBus: this.semanticBus,
+                player: this.player,
+                synergyMap: this.synergyMap || {},
+                trafficMap: this.trafficMap || {}
             }
         );
         this.environmentDomain.init();
-        this.hazards = this.environmentDomain?.instances?.environmentalHazards || null;
+        this.worldEvents = this.environmentDomain?.instances?.worldEvents || this.worldEvents;
+        this.worldPersonalityController = this.environmentDomain?.instances?.worldPersonalityController || this.worldPersonalityController;
+        this.metricReactiveEvents = this.environmentDomain?.instances?.metricReactiveEvents || this.metricReactiveEvents;
+        this.dreamDepthPack = this.environmentDomain?.instances?.safeDreamDepthPack || this.dreamDepthPack;
+        this.dreamDepthEffects = this.environmentDomain?.instances?.dreamDepthEffectManager || this.dreamDepthEffects;
+        this.quantumIllusions = this.environmentDomain?.instances?.quantumIllusions || this.quantumIllusions;
+        this.ambientEntityManager = this.environmentDomain?.instances?.ambientEntityManager || this.ambientEntityManager;
+        this.emergentThoughtStorms = this.environmentDomain?.instances?.emergentThoughtStorms || this.emergentThoughtStorms;
+        this.colonyManager = this.environmentDomain?.instances?.colonyExpansion || this.colonyManager;
+        this.hazards = this.environmentDomain?.instances?.environmentalHazards || this.hazards;
         if (this.hazards && this.currentMode === 'fractal') {
             this.hazards.createGravitationalAnomaly(new THREE.Vector3(-40, 10, -40), 20, 0.6);
         }
@@ -11540,7 +11590,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // REMOVED: nodePersonalitySystem regGuard - moved to LEGACY (2026-04-03)
         // regGuard('nodePersonalitySystem', 'simulation.nodePersonalitySystem', (dt) => this.nodePersonalitySystem?.update?.(dt, this.aiNodes?.nodes));
         regGuard('nodeMicroEvents', 'visual.nodeMicroEvents', (dt) => this.nodeMicroEvents?.update?.(dt, this.aiNodes?.nodes));
-        regGuard('worldPersonalityController', 'simulation.worldPersonalityController', (dt) => this.worldPersonalityController?.update?.(dt, this.aiNodes?.nodes));
         regGuard('mythicRitualController', 'simulation.mythicRitualController', (dt) => this.mythicRitualController?.update?.(dt, this.aiNodes?.nodes));
         regGuard('phase8RitualOrchestration', 'simulation.phase8RitualOrchestration', (dt) => this.phase8RitualOrchestration?.update?.(dt * 1000));
         regGuard('mythicSeedGlyph', 'visual.mythicSeedGlyph', (dt) => this.mythicSeedGlyph?.update?.(dt, this.camera));
@@ -11572,10 +11621,19 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('nodeHierarchyBridge', 'simulation.nodeHierarchyBridge', () => this.nodeHierarchyBridge?.update?.());
         regGuard('legendaryPack', 'visual.legendaryPack', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer));
         regGuard('legendaryLinkFX', 'visual.legendaryLinkFX', (dt) => this.legendaryLinkFX?.update?.(dt, this.scene, this.camera, this.renderer));
-        regGuard('worldEvents', 'background.worldEvents', (dt) => this.worldEvents?.update?.(dt, this.scene, this.camera, this.renderer));
-        regGuard('weatherPack', 'background.weatherPack', (dt) => this.weatherPack?.update?.(dt, this.scene, this.camera));
+        regGuard('worldEvents', 'background.worldEvents', (dt) => {
+            if (this.environmentDomain?.instances?.worldEvents) return;
+            this.worldEvents?.update?.(dt, this.legendaryPack, this.linkingSystem, this.evolutionManager);
+        });
+        regGuard('weatherPack', 'background.weatherPack', (dt) => {
+            if (this.environmentDomain?.instances?.weatherPack) return;
+            this.weatherPack?.update?.(dt, this.scene, this.camera);
+        });
         regGuard('personalityFX', 'visual.personalityFX', (dt) => this.personalityFX?.update?.(dt, this.scene, this.camera));
-        regGuard('worldFXPack', 'visual.worldFXPack', (dt) => this.worldFXPack?.update?.(dt, this.scene, this.camera));
+        regGuard('worldFXPack', 'visual.worldFXPack', (dt) => {
+            if (this.environmentDomain?.instances?.worldFXPack) return;
+            this.worldFXPack?.update?.(dt, this.scene, this.camera);
+        });
         regGuard('ambientEntityManager', 'background.ambientEntityManager', (dt) => this.ambientEntityManager?.update?.(dt));
         regGuard('emergentThoughtStorms', 'simulation.emergentThoughtStorms', (dt) => this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem));
         regGuard('colonyManager', 'simulation.colonyManager', (dt) => this.colonyManager?.update?.(dt));
@@ -12825,7 +12883,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * SAFE: Zero shader/material modifications, VFX overlays only
      */
     setupWorldFXPack() {
-        this.worldFXPack = new SafeWorldFXPack(this.scene, this.worldRoot, this.environmentRoot, this.camera);
+        this.worldFXPack = new SafeWorldFXPack(this.scene, this.worldRoot, this.environmentRoot, this.camera, null, this.semanticBus);
 
         // Auto-generates environmental effects, no setup needed
     }

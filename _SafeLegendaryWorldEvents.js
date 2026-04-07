@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
 // Legacy aura overlays kill-switch
@@ -25,7 +26,20 @@ export class SafeLegendaryWorldEvents {
     this.renderer = renderer;
     this.root = new THREE.Group();
     this.worldRoot.add(this.root);
-    
+
+    this.worldOverlayRenderOrder = VisualHierarchyRegistry.getRenderOrder(
+      VisualHierarchyRegistry.LAYER_WORLD_OVERLAY
+    );
+    this.root.renderOrder = this.worldOverlayRenderOrder;
+    this.root.userData = this.root.userData || {};
+    this.root.userData.__environmentLayerId = VisualHierarchyRegistry.LAYER_WORLD_OVERLAY;
+    const originalRootAdd = this.root.add.bind(this.root);
+    this.root.add = (...children) => {
+      const result = originalRootAdd(...children);
+      children.forEach((child) => this._applyWorldOverlayRenderOrder(child));
+      return result;
+    };
+
     // EXTERNAL STATE - Never touch engine internals
     this.registry = {
       activeEvent: null,
@@ -83,7 +97,7 @@ export class SafeLegendaryWorldEvents {
     this.config = {
       eventCheckInterval: 5.0,            // Check every 5 seconds
       eventChance: 0.02,                  // 2% chance per check
-      minLegendaryNodesForEvent: 2,       // Need 2+ legendary nodes
+      minLegendaryNodesForEvent: 0,       // Allow world events even without legacy legendary node pack
       maxConcurrentEvents: 1,             // Only 1 event at a time
       noEventCooldown: 30.0,              // 30 seconds between events
       eventInterpretationInterval: 0.25   // Phase B pilot: ~4 Hz semantic evaluation (visuals stay 60 Hz)
@@ -155,8 +169,8 @@ export class SafeLegendaryWorldEvents {
       return;
     }
     
-    // Need minimum legendary nodes
-    const legendaryCount = legendaryPack ? legendaryPack.getActiveLegendaryCount() : 0;
+    // Need minimum legendary nodes or fallback network activity
+    const legendaryCount = legendaryPack?.getActiveLegendaryCount?.() ?? this._inferLegendaryCount(linkingSystem, evolutionManager);
     if (legendaryCount < this.config.minLegendaryNodesForEvent) {
       return;
     }
@@ -169,27 +183,130 @@ export class SafeLegendaryWorldEvents {
       this.triggerRandomEvent(legendaryCount, linkingSystem);
     }
   }
+
+  _inferLegendaryCount(linkingSystem, evolutionManager) {
+    let count = 0;
+    const links = Array.isArray(linkingSystem?.links) ? linkingSystem.links : [];
+    const strongSynergyLinks = links.filter(link => link?.glowData?.synergy > 0.15).length;
+
+    if (links.length > 20) {
+      count = Math.max(count, 1);
+    }
+    if (links.length > 45) {
+      count = Math.max(count, 2);
+    }
+    if (strongSynergyLinks >= 3) {
+      count = Math.max(count, 1);
+    }
+    if (strongSynergyLinks >= 8) {
+      count = Math.max(count, 2);
+    }
+
+    const evolutionCount = evolutionManager?.registry
+      ? Object.keys(evolutionManager.registry).length
+      : 0;
+    if (evolutionCount >= 5) {
+      count = Math.max(count, 1);
+    }
+    if (evolutionCount >= 15) {
+      count = Math.max(count, 2);
+    }
+
+    return Math.min(2, count);
+  }
+
+  _getWorldSpawnRadius() {
+    const fallbackRadius = 280;
+    if (!this.worldRoot) return fallbackRadius;
+
+    const bounds = new THREE.Box3().setFromObject(this.worldRoot);
+    if (bounds.isEmpty()) return fallbackRadius;
+
+    const size = new THREE.Vector3();
+    bounds.getSize(size);
+    const maxExtent = Math.max(size.x, size.y, size.z, fallbackRadius);
+    return Math.max(fallbackRadius, maxExtent * 0.7);
+  }
+
+  _getWorldSpawnPosition({ minHeight = 25, maxHeight = 80, minRadius = 60, maxRadius = null } = {}) {
+    const radius = this._getWorldSpawnRadius();
+    const spawnRadius = Math.min(maxRadius ?? radius, radius);
+    const r = minRadius + Math.random() * Math.max(0, spawnRadius - minRadius);
+    const angle = Math.random() * Math.PI * 2;
+
+    return new THREE.Vector3(
+      Math.cos(angle) * r,
+      minHeight + Math.random() * (maxHeight - minHeight),
+      Math.sin(angle) * r
+    );
+  }
+
+  _applyWorldOverlayRenderOrder(object) {
+    if (!object) return;
+    const layerOrder = this.worldOverlayRenderOrder;
+
+    const apply = (node) => {
+      if (!node) return;
+      if (typeof node.renderOrder === 'number') {
+        node.renderOrder = Math.max(node.renderOrder, layerOrder);
+      } else {
+        node.renderOrder = layerOrder;
+      }
+      node.userData = node.userData || {};
+      node.userData.__environmentLayerId = VisualHierarchyRegistry.LAYER_WORLD_OVERLAY;
+    };
+
+    if (typeof object.traverse === 'function') {
+      object.traverse((node) => apply(node));
+    } else {
+      apply(object);
+    }
+  }
   
   /**
    * Calculate potential for an event to trigger
    */
   calculateEventPotential(legendaryCount, linkingSystem, evolutionManager) {
     let potential = 0;
-    
-    // Base from legendary nodes
-    potential += legendaryCount * 0.3;
-    
-    // Bonus from network synergy
-    if (linkingSystem && linkingSystem.links) {
+
+    // Base from legendary nodes or fallback network presence
+    potential += legendaryCount * 0.25;
+
+    const links = Array.isArray(linkingSystem?.links) ? linkingSystem.links : [];
+    const totalLinks = links.length;
+    const strongSynergyLinks = links.filter(link => link?.glowData?.synergy > 0.15).length;
+
+    if (totalLinks > 0) {
+      const linkCountBonus = Math.min(0.35, totalLinks * 0.008);
+      potential += linkCountBonus;
+    }
+
+    if (strongSynergyLinks > 0) {
+      potential += Math.min(0.25, strongSynergyLinks * 0.08);
+    }
+
+    if (linkingSystem?.links) {
       let totalSynergy = 0;
       linkingSystem.links.forEach(link => {
-        if (link.glowData && link.glowData.synergy) {
+        if (link.glowData && typeof link.glowData.synergy === 'number') {
           totalSynergy += link.glowData.synergy;
         }
       });
-      potential += Math.min(1, totalSynergy * 0.05);
+      potential += Math.min(0.2, totalSynergy * 0.04);
     }
-    
+
+    const evolutionCount = evolutionManager?.registry
+      ? Object.keys(evolutionManager.registry).length
+      : 0;
+    if (evolutionCount > 0) {
+      potential += Math.min(0.25, evolutionCount * 0.02);
+    }
+
+    // Guarantee some potential if network is active
+    if (potential === 0 && totalLinks > 5) {
+      potential = 0.1;
+    }
+
     return Math.min(1, potential);
   }
   
@@ -209,6 +326,12 @@ export class SafeLegendaryWorldEvents {
   startWorldEvent(eventType, legendaryCount, linkingSystem) {
     const eventDef = this.eventTypes[eventType];
     if (!eventDef) return;
+
+    console.log('[WorldEvents] Starting event:', eventType, {
+      legendaryCount,
+      linkCount: Array.isArray(linkingSystem?.links) ? linkingSystem.links.length : 0,
+      time: performance.now()
+    });
     
     // Initialize registry
     this.registry.activeEvent = eventType;
@@ -314,13 +437,16 @@ export class SafeLegendaryWorldEvents {
    */
   createCosmicPulseVFX(eventDef) {
     // Create expanding shockwave ring
-    const shockGeo = new THREE.TorusGeometry(5, 0.2, 16, 64);
+    const shockGeo = new THREE.TorusGeometry(20, 1.5, 16, 128);
     const shockMat = new THREE.MeshBasicMaterial({
       color: eventDef.color,
       transparent: true,
+      opacity: 0.6,
+      blending: THREE.AdditiveBlending,
       emissive: eventDef.color,
-      emissiveIntensity: 0.8,
-      fog: false
+      emissiveIntensity: 1.2,
+      fog: false,
+      side: THREE.DoubleSide
     });
     
     const shockwave = new THREE.Mesh(shockGeo, shockMat);
@@ -329,24 +455,26 @@ export class SafeLegendaryWorldEvents {
     this.root.add(shockwave);
     this.vfxContainer.shockwaves.push({
       mesh: shockwave,
-      maxRadius: 100,
-      startRadius: 5,
-      expandSpeed: 30
+      maxRadius: 300,
+      startRadius: 20,
+      expandSpeed: 45
     });
     
     // Create bloom overlay
-    const bloomGeo = new THREE.PlaneGeometry(200, 200);
+    const bloomGeo = new THREE.PlaneGeometry(400, 400);
     const bloomMat = new THREE.MeshBasicMaterial({
       color: eventDef.color,
       transparent: true,
-      opacity: 0,
+      opacity: 0.25,
+      blending: THREE.AdditiveBlending,
       emissive: eventDef.color,
-      emissiveIntensity: 0.5,
-      fog: false
+      emissiveIntensity: 1.0,
+      fog: false,
+      side: THREE.DoubleSide
     });
     
     const bloom = new THREE.Mesh(bloomGeo, bloomMat);
-    bloom.position.z = -50;
+    bloom.position.z = -75;
     bloom.userData = { isLegendaryWorldVFX: true, type: 'cosmic_bloom' };
     this.root.add(bloom);
     this.vfxContainer.overlays.push(bloom);
@@ -358,15 +486,15 @@ export class SafeLegendaryWorldEvents {
   updateCosmicPulseVFX(intensity, deltaTime) {
     // Update shockwaves
     this.vfxContainer.shockwaves.forEach(shock => {
-      shock.mesh.scale.setScalar(1 + intensity * 8);
-      shock.mesh.material.opacity = Math.max(0, 1 - intensity);
-      shock.mesh.material.emissiveIntensity = 0.6 + intensity * 0.4;
+      shock.mesh.scale.setScalar(1 + intensity * 10);
+      shock.mesh.material.opacity = Math.max(0.2, 0.6 - intensity * 0.25);
+      shock.mesh.material.emissiveIntensity = 0.8 + intensity * 0.6;
     });
     
     // Pulse bloom
     this.vfxContainer.overlays.forEach(overlay => {
       if (overlay.userData.type === 'cosmic_bloom') {
-        overlay.material.opacity = intensity * 0.3;
+        overlay.material.opacity = Math.min(0.7, 0.25 + intensity * 0.4);
       }
     });
   }
@@ -376,31 +504,30 @@ export class SafeLegendaryWorldEvents {
    */
   createFractalStormVFX(eventDef) {
     // Create falling fractal particles
-    for (let i = 0; i < 40; i++) {
-      const geo = new THREE.TetrahedronGeometry(0.1, 2);
+    for (let i = 0; i < 60; i++) {
+      const geo = new THREE.TetrahedronGeometry(0.5, 1);
       const mat = new THREE.MeshBasicMaterial({
         color: eventDef.color,
         transparent: true,
+        opacity: 0.4,
+        blending: THREE.AdditiveBlending,
         emissive: eventDef.color,
-        emissiveIntensity: 0.5,
+        emissiveIntensity: 0.7,
         fog: false
       });
       
       const particle = new THREE.Mesh(geo, mat);
       tagAllowedSphere(particle, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
       clampSphere(particle);
-      particle.position.set(
-        (Math.random() - 0.5) * 100,
-        Math.random() * 50 + 30,
-        (Math.random() - 0.5) * 100
-      );
+      const spawnPos = this._getWorldSpawnPosition({ minHeight: 35, maxHeight: 90, minRadius: 80 });
+      particle.position.copy(spawnPos);
       particle.userData = {
         isLegendaryWorldVFX: true,
         type: 'fractal_particle',
         velocity: new THREE.Vector3(
-          (Math.random() - 0.5) * 2,
-          -5 - Math.random() * 5,
-          (Math.random() - 0.5) * 2
+          (Math.random() - 0.5) * 4,
+          -8 - Math.random() * 8,
+          (Math.random() - 0.5) * 4
         ),
         rotation: new THREE.Vector3(
           Math.random(),
@@ -415,18 +542,20 @@ export class SafeLegendaryWorldEvents {
     }
     
     // Create rotating fractal patterns in sky
-    const skyGeo = new THREE.PlaneGeometry(200, 200);
+    const skyGeo = new THREE.PlaneGeometry(400, 400);
     const skyMat = new THREE.MeshBasicMaterial({
       color: eventDef.color,
       transparent: true,
-      opacity: 0,
+      opacity: 0.1,
+      blending: THREE.AdditiveBlending,
       emissive: eventDef.color,
-      emissiveIntensity: 0.3,
-      fog: false
+      emissiveIntensity: 0.5,
+      fog: false,
+      side: THREE.DoubleSide
     });
     
     const skyOverlay = new THREE.Mesh(skyGeo, skyMat);
-    skyOverlay.position.z = -100;
+    skyOverlay.position.z = -120;
     skyOverlay.userData = { isLegendaryWorldVFX: true, type: 'fractal_sky' };
     this.root.add(skyOverlay);
     this.vfxContainer.overlays.push(skyOverlay);
@@ -501,12 +630,15 @@ export class SafeLegendaryWorldEvents {
     // Create glitch ribbons
     for (let i = 0; i < 5; i++) {
       const points = [];
+      const ribbonRadius = this._getWorldSpawnRadius() * 0.55;
       for (let j = 0; j < 10; j++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 80 + Math.random() * (ribbonRadius - 80);
         points.push(
           new THREE.Vector3(
-            (Math.random() - 0.5) * 80,
-            Math.random() * 60,
-            (Math.random() - 0.5) * 80
+            Math.cos(angle) * radius,
+            Math.random() * 80,
+            Math.sin(angle) * radius
           )
         );
       }
@@ -516,8 +648,9 @@ export class SafeLegendaryWorldEvents {
         color: eventDef.color,
         transparent: true,
         opacity: 0,
+        blending: THREE.AdditiveBlending,
         emissive: eventDef.color,
-        linewidth: 3,
+        linewidth: 4,
         fog: false
       });
       
@@ -546,19 +679,16 @@ export class SafeLegendaryWorldEvents {
     // Animate glitch ribbons
     this.vfxContainer.beams.forEach(ribbon => {
       if (ribbon.userData.type === 'sigma_ribbon') {
-        ribbon.material.opacity = Math.sin(this.animationTime * 3) * 0.5 + 0.2;
-        ribbon.material.opacity *= intensity;
+        ribbon.material.opacity = Math.max(0.35, Math.sin(this.animationTime * 3) * 0.25 + 0.35) * intensity;
         
         // Random jitter
-        ribbon.children?.forEach(child => {
-          if (child.geometry) {
-            const positions = child.geometry.attributes.position.array;
-            for (let i = 0; i < positions.length; i += 3) {
-              positions[i] += (Math.random() - 0.5) * 0.5 * intensity;
-            }
-            child.geometry.attributes.position.needsUpdate = true;
+        ribbon.geometry?.attributes?.position?.array && (() => {
+          const positions = ribbon.geometry.attributes.position.array;
+          for (let i = 0; i < positions.length; i += 3) {
+            positions[i] += (Math.random() - 0.5) * 0.8 * intensity;
           }
-        });
+          ribbon.geometry.attributes.position.needsUpdate = true;
+        })();
       }
     });
   }
@@ -568,19 +698,22 @@ export class SafeLegendaryWorldEvents {
    */
   createQuantumEclipseVFX(eventDef) {
     // Create singularity sphere in sky
-    const singGeo = new THREE.SphereGeometry(3, 16, 16);
+    const singGeo = new THREE.SphereGeometry(12, 24, 24);
     const singMat = new THREE.MeshBasicMaterial({
       color: eventDef.color,
       transparent: true,
+      opacity: 0.55,
+      blending: THREE.AdditiveBlending,
       emissive: eventDef.color,
-      emissiveIntensity: 0.9,
-      fog: false
+      emissiveIntensity: 1.2,
+      fog: false,
+      side: THREE.DoubleSide
     });
     
     const singularity = new THREE.Mesh(singGeo, singMat);
       tagAllowedSphere(singularity, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
       clampSphere(singularity);
-    singularity.position.set(0, 60, -80);
+    singularity.position.set(0, 80, -120);
     singularity.userData = { isLegendaryWorldVFX: true, type: 'quantum_singularity' };
     this.root.add(singularity);
     this.vfxContainer.meshes.push(singularity);
@@ -588,13 +721,14 @@ export class SafeLegendaryWorldEvents {
     // Create spectral rays emanating downward
     for (let i = 0; i < 12; i++) {
       const angle = (i / 12) * Math.PI * 2;
-      const x = Math.cos(angle) * 5;
-      const z = Math.sin(angle) * 5;
+      const x = Math.cos(angle) * 8;
+      const z = Math.sin(angle) * 8;
       
-      const points = [
-        new THREE.Vector3(x, 60, z - 80),
-        new THREE.Vector3(x * 3, 20, z * 3 - 80),
-        new THREE.Vector3(x * 5, 0, z * 5 - 80)
+      const positionRadius = this._getWorldSpawnRadius() * 0.4;
+    const points = [
+        new THREE.Vector3(x, 80, z - 120),
+        new THREE.Vector3(x * 3, 30, z * 3 - 120),
+        new THREE.Vector3(x * 6, -20, z * 6 - 120)
       ];
       
       const rayGeo = new THREE.BufferGeometry().setFromPoints(points);
@@ -602,8 +736,10 @@ export class SafeLegendaryWorldEvents {
         color: eventDef.color,
         transparent: true,
         opacity: 0,
+        blending: THREE.AdditiveBlending,
         emissive: eventDef.color,
-        fog: false
+        fog: false,
+        linewidth: 2
       });
       
       const ray = new THREE.Line(rayGeo, rayMat);
@@ -613,16 +749,17 @@ export class SafeLegendaryWorldEvents {
     }
     
     // Create eclipse gradient overlay
-    const eclipseGeo = new THREE.PlaneGeometry(200, 200);
+    const eclipseGeo = new THREE.PlaneGeometry(400, 400);
     const eclipseMat = new THREE.MeshBasicMaterial({
-      color: 0x000000,
+      color: 0x110022,
       transparent: true,
-      opacity: 0,
-      fog: false
+      opacity: 0.1,
+      fog: false,
+      side: THREE.DoubleSide
     });
     
     const eclipse = new THREE.Mesh(eclipseGeo, eclipseMat);
-    eclipse.position.z = -98;
+    eclipse.position.z = -140;
     eclipse.userData = { isLegendaryWorldVFX: true, type: 'eclipse_overlay' };
     this.root.add(eclipse);
     this.vfxContainer.overlays.push(eclipse);
@@ -635,23 +772,23 @@ export class SafeLegendaryWorldEvents {
     // Pulse singularity
     this.vfxContainer.meshes.forEach(mesh => {
       if (mesh.userData.type === 'quantum_singularity') {
-        const pulse = 1 + Math.sin(this.animationTime * 2) * 0.3 * intensity;
+        const pulse = 1 + Math.sin(this.animationTime * 2) * 0.35 * intensity;
         mesh.scale.setScalar(pulse);
-        mesh.material.opacity = 0.6 * intensity;
+        mesh.material.opacity = Math.min(0.85, 0.4 + intensity * 0.5);
       }
     });
     
     // Animate rays
     this.vfxContainer.beams.forEach(ray => {
       if (ray.userData.type === 'quantum_ray') {
-        ray.material.opacity = (Math.sin(this.animationTime * 1.5 + ray.userData.index) + 1) * 0.25 * intensity;
+        ray.material.opacity = Math.max(0.25, (Math.sin(this.animationTime * 1.5 + ray.userData.index) + 1) * 0.2) * intensity;
       }
     });
     
     // Darken overlay
     this.vfxContainer.overlays.forEach(overlay => {
       if (overlay.userData.type === 'eclipse_overlay') {
-        overlay.material.opacity = intensity * 0.15;
+        overlay.material.opacity = Math.min(0.35, 0.1 + intensity * 0.25);
       }
     });
   }
@@ -694,24 +831,23 @@ export class SafeLegendaryWorldEvents {
     }
     
     // Create trail particles
-    for (let i = 0; i < 20; i++) {
-      const trailGeo = new THREE.SphereGeometry(0.2, 6, 6);
+    for (let i = 0; i < 30; i++) {
+      const trailGeo = new THREE.SphereGeometry(0.45, 8, 8);
       const trailMat = new THREE.MeshBasicMaterial({
         color: eventDef.color,
         transparent: true,
+        opacity: 0.45,
+        blending: THREE.AdditiveBlending,
         emissive: eventDef.color,
-        emissiveIntensity: 0.8,
+        emissiveIntensity: 1.0,
         fog: false
       });
       
       const trail = new THREE.Mesh(trailGeo, trailMat);
       tagAllowedSphere(trail, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
       clampSphere(trail);
-      trail.position.set(
-        (Math.random() - 0.5) * 100,
-        Math.random() * 40 + 20,
-        (Math.random() - 0.5) * 80
-      );
+      const spawnPos = this._getWorldSpawnPosition({ minHeight: 20, maxHeight: 80, minRadius: 100 });
+      trail.position.copy(spawnPos);
       trail.userData = {
         isLegendaryWorldVFX: true,
         type: 'aurora_particle',
@@ -722,6 +858,24 @@ export class SafeLegendaryWorldEvents {
       this.root.add(trail);
       this.vfxContainer.particles.push(trail);
     }
+    
+    const auroraGeo = new THREE.PlaneGeometry(420, 120);
+    const auroraMat = new THREE.MeshBasicMaterial({
+      color: eventDef.color,
+      transparent: true,
+      opacity: 0.15,
+      blending: THREE.AdditiveBlending,
+      emissive: eventDef.color,
+      emissiveIntensity: 0.8,
+      fog: false,
+      side: THREE.DoubleSide
+    });
+    const auroraSheet = new THREE.Mesh(auroraGeo, auroraMat);
+    auroraSheet.position.set(0, 30, -130);
+    auroraSheet.rotation.x = -0.15;
+    auroraSheet.userData = { isLegendaryWorldVFX: true, type: 'aurora_sheet' };
+    this.root.add(auroraSheet);
+    this.vfxContainer.overlays.push(auroraSheet);
   }
   
   /**
@@ -750,11 +904,19 @@ export class SafeLegendaryWorldEvents {
       if (particle.userData.type === 'aurora_particle') {
         particle.userData.angle += particle.userData.speed * deltaTime * 0.3;
         
-        const radius = 20 + Math.sin(this.animationTime + particle.userData.angle) * 10;
+        const radius = 30 + Math.sin(this.animationTime + particle.userData.angle) * 18;
         particle.position.x = Math.cos(particle.userData.angle) * radius;
         particle.position.z = Math.sin(particle.userData.angle) * radius;
+        particle.position.y = 20 + Math.sin(this.animationTime * 0.8 + particle.userData.angle) * 12;
         
-        particle.material.opacity = intensity * 0.6;
+        particle.material.opacity = Math.min(0.9, 0.45 + intensity * 0.45);
+      }
+    });
+
+    this.vfxContainer.overlays.forEach(overlay => {
+      if (overlay.userData.type === 'aurora_sheet') {
+        overlay.material.opacity = Math.min(0.45, 0.15 + intensity * 0.3);
+        overlay.rotation.z += deltaTime * 0.05 * intensity;
       }
     });
   }
@@ -864,6 +1026,7 @@ export class SafeLegendaryWorldEvents {
    * Force trigger a specific event (for testing)
    */
   forceEvent(eventType, legendaryCount = 2, linkingSystem = null) {
+    console.log('[WorldEvents] Force event requested:', eventType, { legendaryCount, hasLinkingSystem: !!linkingSystem });
     this.startWorldEvent(eventType, legendaryCount, linkingSystem);
     // Allow callers to immediately reevaluate after forced events if desired
     this.pendingEvaluation = true;
