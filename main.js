@@ -5804,6 +5804,7 @@ this.setHudDirty('nodeInspect');
         this.worldEvents = this.environmentDomain?.instances?.worldEvents || this.worldEvents;
         this.worldPersonalityController = this.environmentDomain?.instances?.worldPersonalityController || this.worldPersonalityController;
         this.metricReactiveEvents = this.environmentDomain?.instances?.metricReactiveEvents || this.metricReactiveEvents;
+        this.worldEventCoordinator = this.environmentDomain?.instances?.worldEventCoordinator || this.worldEventCoordinator;
         this.dreamDepthPack = this.environmentDomain?.instances?.safeDreamDepthPack || this.dreamDepthPack;
         this.dreamDepthEffects = this.environmentDomain?.instances?.dreamDepthEffectManager || this.dreamDepthEffects;
         this.quantumIllusions = this.environmentDomain?.instances?.quantumIllusions || this.quantumIllusions;
@@ -5813,6 +5814,7 @@ this.setHudDirty('nodeInspect');
         this.hazards = this.environmentDomain?.instances?.environmentalHazards || this.hazards;
         if (typeof window !== 'undefined') {
           window.worldEvents = this.worldEvents;
+          window.worldEventCoordinator = this.worldEventCoordinator;
         }
         if (this.hazards && this.currentMode === 'fractal') {
             this.hazards.createGravitationalAnomaly(new THREE.Vector3(-40, 10, -40), 20, 0.6);
@@ -16628,22 +16630,46 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         
         // Global toggle function for world events
         window.toggleWorldEvents = function () {
+            const coordinator = window.game?.worldEventCoordinator || window.game?.environmentDomain?.instances?.worldEventCoordinator;
+            if (coordinator?.toggleMetricReactiveEvents) {
+                coordinator.toggleMetricReactiveEvents();
+                return;
+            }
+
             if (window.game && window.game.metricReactiveEvents) {
                 if (window.game.metricReactiveEvents.enabled) {
-                    window.game.metricReactiveEvents.disable();
+                    window.game.metricReactiveEvents.disable?.();
                 } else {
-                    window.game.metricReactiveEvents.enable();
+                    window.game.metricReactiveEvents.enable?.();
                 }
             }
         };
 
         // Global debug function for world events
         window.debugWorldEvents = function () {
+            const coordinator = window.game?.worldEventCoordinator || window.game?.environmentDomain?.instances?.worldEventCoordinator;
+            if (coordinator?.getMetricReactiveEventsStatus) {
+                const status = coordinator.getMetricReactiveEventsStatus();
+                console.group('Metric-Reactive World Events Status (coordinator)');
+                console.log('Coordinator initialized:', coordinator._initialized);
+                console.log('Ritual active:', coordinator._ritualActive);
+                console.log('Pending metric tag:', coordinator._pendingMetricTag);
+                console.log('Pending priority:', coordinator._pendingMetricPriority);
+                console.log('World event cooldown ms:', coordinator._worldEventCooldownMs);
+                console.log('Post-ritual cooldown ms:', coordinator._postRitualCooldownMs);
+                console.log('Metric reactive events enabled:', status.enabled);
+                console.log('Metric reactive events debug mode:', status.debugMode);
+                console.log('Metric reactive events performance:', status.performance);
+                console.log('Metric reactive event states:', status.eventStates);
+                console.groupEnd();
+                return;
+            }
+
             if (window.game && window.game.metricReactiveEvents) {
                 console.group('Metric-Reactive World Events Status');
                 console.log('Enabled:', window.game.metricReactiveEvents.enabled);
                 console.log('Debug Mode:', window.game.metricReactiveEvents.debugMode);
-                console.log('Performance:', window.game.metricReactiveEvents.getPerformanceStats());
+                console.log('Performance:', window.game.metricReactiveEvents.getPerformanceStats?.());
                 console.log('Event States:', window.game.metricReactiveEvents.eventStates);
                 console.groupEnd();
             }

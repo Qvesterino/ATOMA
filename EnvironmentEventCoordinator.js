@@ -7,6 +7,20 @@ export class EnvironmentEventCoordinator {
 
     this._subscriptions = [];
     this._initialized = false;
+    this._worldEventCooldownMs = Number.isFinite(config.worldEventCooldownMs) ? config.worldEventCooldownMs : 30000;
+    this._postRitualCooldownMs = Number.isFinite(config.postRitualCooldownMs) ? config.postRitualCooldownMs : 3000;
+    this._lastWorldEventTrigger = new Map();
+    this._ritualActive = false;
+    this._postRitualCooldownUntil = 0;
+    this._pendingMetricTag = null;
+    this._pendingMetricPriority = 0;
+    this._priorityMap = config.priorityMap || {
+      'global.synergy.high': 100,
+      'global.harmony.high': 90,
+      'global.corruption.high': 80,
+      'global.stability.high': 70,
+      'global.loadPressure.high': 60
+    };
   }
 
   initialize() {
@@ -32,6 +46,35 @@ export class EnvironmentEventCoordinator {
     this._initialized = false;
   }
 
+  toggleMetricReactiveEvents() {
+    const reactor = this.metricReactiveEvents;
+    if (!reactor) return;
+
+    if (typeof reactor.enabled === 'boolean') {
+      if (reactor.enabled) {
+        reactor.disable?.();
+      } else {
+        reactor.enable?.();
+      }
+      return;
+    }
+
+    if (typeof reactor.disable === 'function' && typeof reactor.enable === 'function') {
+      reactor.disable();
+    }
+  }
+
+  getMetricReactiveEventsStatus() {
+    return {
+      enabled: this.metricReactiveEvents?.enabled ?? false,
+      debugMode: this.metricReactiveEvents?.debugMode ?? false,
+      performance: typeof this.metricReactiveEvents?.getPerformanceStats === 'function'
+        ? this.metricReactiveEvents.getPerformanceStats()
+        : null,
+      eventStates: this.metricReactiveEvents?.eventStates ?? null
+    };
+  }
+
   _resolveBus() {
     if (globalThis?.ATOMA_BUS || globalThis?.semanticBus) {
       return globalThis.ATOMA_BUS || globalThis.semanticBus || null;
@@ -53,7 +96,7 @@ export class EnvironmentEventCoordinator {
     };
 
     Object.entries(worldEventMap).forEach(([eventName, worldEventType]) => {
-      this._subscribe(eventName, () => this._routeMetricTag(worldEventType));
+      this._subscribe(eventName, () => this._routeMetricTag(worldEventType, eventName));
     });
 
     this._subscribe('global.synergy.mid', () => this._markLegendaryEvaluation());
@@ -92,12 +135,37 @@ export class EnvironmentEventCoordinator {
     }
   }
 
-  _routeMetricTag(worldEventType) {
-    if (!worldEventType) return;
+  _routeMetricTag(worldEventType, eventName) {
+    if (!worldEventType || !eventName) return;
+    if (this._isRitualActive()) return;
+    if (this._isPostRitualCooldown()) return;
     if (this.worldEvents?.isEventActive?.()) return;
     if (this.worldEvents?._isSuppressed?.()) return;
+    if (this._isOnCooldown(worldEventType)) return;
 
-    this.worldEvents?.forceEvent?.(worldEventType);
+    const priority = this._priorityMap[eventName] || 0;
+    if (priority <= 0) return;
+
+    if (!this._pendingMetricTag || priority > this._pendingMetricPriority) {
+      this._pendingMetricTag = { worldEventType, eventName };
+      this._pendingMetricPriority = priority;
+      setTimeout(() => this._dispatchPendingMetricTag(), 0);
+    }
+  }
+
+  _dispatchPendingMetricTag() {
+    if (!this._pendingMetricTag) return;
+
+    const { worldEventType } = this._pendingMetricTag;
+    this._pendingMetricTag = null;
+    this._pendingMetricPriority = 0;
+
+    if (this._isRitualActive() || this._isPostRitualCooldown()) return;
+    if (this.worldEvents?.isEventActive?.()) return;
+    if (this.worldEvents?._isSuppressed?.()) return;
+    if (this._isOnCooldown(worldEventType)) return;
+
+    this._triggerWorldEvent(worldEventType);
   }
 
   _markLegendaryEvaluation() {
@@ -105,14 +173,36 @@ export class EnvironmentEventCoordinator {
     this.worldEvents.pendingEvaluation = true;
   }
 
+  _isOnCooldown(worldEventType) {
+    const last = this._lastWorldEventTrigger.get(worldEventType);
+    if (!last) return false;
+    return Date.now() - last < this._worldEventCooldownMs;
+  }
+
+  _triggerWorldEvent(worldEventType) {
+    this._lastWorldEventTrigger.set(worldEventType, Date.now());
+    this.worldEvents?.forceEvent?.(worldEventType);
+  }
+
+  _isRitualActive() {
+    return this._ritualActive;
+  }
+
+  _isPostRitualCooldown() {
+    return Date.now() < this._postRitualCooldownUntil;
+  }
+
   _handleRitualStarted() {
     if (!this.worldEvents) return;
+    this._ritualActive = true;
     this.worldEvents.endWorldEvent?.();
     this.worldEvents.setSuppressed?.(true);
   }
 
   _handleRitualCompleted() {
     if (!this.worldEvents) return;
-    this.worldEvents.setSuppressed?.(false, 3000);
+    this._ritualActive = false;
+    this._postRitualCooldownUntil = Date.now() + this._postRitualCooldownMs;
+    this.worldEvents.setSuppressed?.(false, this._postRitualCooldownMs);
   }
 }

@@ -915,7 +915,7 @@ function _getPrimeV2Materials(color) {
   const colorHex = typeof color === 'number' ? color : 0xffffff;
   if (PRIME_V2_MATERIALS.has(colorHex)) return PRIME_V2_MATERIALS.get(colorHex);
 
-  const coreMat = new THREE.MeshStandardMaterial({
+  const coreMat = MaterialCache.get('prime.v2.core.meshStandard.rough.metallic.opaque.default', () => new THREE.MeshStandardMaterial({
     color: new THREE.Color(0xe4edf5),
     emissive: new THREE.Color(0x1b2f43),
     emissiveIntensity: 0.42,
@@ -925,16 +925,16 @@ function _getPrimeV2Materials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
-  const edgesMat = new THREE.LineBasicMaterial({
+  const edgesMat = MaterialCache.get('prime.v2.edges.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xe9fbff),
     transparent: true,
     opacity: 0.34,
     depthWrite: false
-  });
+  }));
 
-  const seamMat = new THREE.MeshStandardMaterial({
+  const seamMat = MaterialCache.get('prime.v2.seam.meshStandard.metallic.rough.blending.normal.opaque.default', () => new THREE.MeshStandardMaterial({
     color: new THREE.Color(0x8ea7c0),
     emissive: new THREE.Color(0x4cb7ff),
     emissiveIntensity: 0.34,
@@ -945,16 +945,16 @@ function _getPrimeV2Materials(color) {
     depthWrite: true,
     depthTest: true,
     blending: THREE.NormalBlending
-  });
+  }));
 
-  const cageMat = new THREE.LineBasicMaterial({
+  const cageMat = MaterialCache.get('prime.v2.cage.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xbcecff),
     transparent: true,
     opacity: 0.26,
     depthWrite: false
-  });
+  }));
 
-  const arcMatA = new THREE.MeshStandardMaterial({
+  const arcMatA = MaterialCache.get('prime.v2.arcA.meshStandard.metallic.rough.blending.normal.opaque.default', () => new THREE.MeshStandardMaterial({
     color: new THREE.Color(0xdbe9f5),
     emissive: new THREE.Color(0x4bc7ff),
     emissiveIntensity: 0.18,
@@ -965,9 +965,9 @@ function _getPrimeV2Materials(color) {
     depthWrite: true,
     depthTest: true,
     blending: THREE.NormalBlending
-  });
+  }));
 
-  const arcMatB = new THREE.MeshStandardMaterial({
+  const arcMatB = MaterialCache.get('prime.v2.arcB.meshStandard.metallic.rough.blending.normal.opaque.default', () => new THREE.MeshStandardMaterial({
     color: new THREE.Color(0xc7d7e7),
     emissive: new THREE.Color(0x2a6f98),
     emissiveIntensity: 0.22,
@@ -978,9 +978,9 @@ function _getPrimeV2Materials(color) {
     depthWrite: true,
     depthTest: true,
     blending: THREE.NormalBlending
-  });
+  }));
 
-  const latticeMat = new THREE.MeshStandardMaterial({
+  const latticeMat = MaterialCache.get('prime.v2.lattice.meshStandard.metallic.rough.blending.normal.opaque.default', () => new THREE.MeshStandardMaterial({
     color: new THREE.Color(0xc5d7e7),
     emissive: new THREE.Color(0x29465a),
     emissiveIntensity: 0.24,
@@ -991,9 +991,9 @@ function _getPrimeV2Materials(color) {
     depthWrite: true,
     depthTest: true,
     blending: THREE.NormalBlending
-  });
+  }));
 
-  const vaneMat = new THREE.MeshStandardMaterial({
+  const vaneMat = MaterialCache.get('prime.v2.vane.meshStandard.metallic.rough.blending.normal.opaque.default', () => new THREE.MeshStandardMaterial({
     color: new THREE.Color(0xd6e5f1),
     emissive: new THREE.Color(0x25485e),
     emissiveIntensity: 0.22,
@@ -1004,9 +1004,9 @@ function _getPrimeV2Materials(color) {
     depthWrite: true,
     depthTest: true,
     blending: THREE.NormalBlending
-  });
+  }));
 
-  const braceMat = new THREE.MeshStandardMaterial({
+  const braceMat = MaterialCache.get('prime.v2.brace.meshStandard.metallic.rough.blending.normal.opaque.default', () => new THREE.MeshStandardMaterial({
     color: new THREE.Color(0xa8bfd3),
     emissive: new THREE.Color(0x163349),
     emissiveIntensity: 0.28,
@@ -1017,16 +1017,16 @@ function _getPrimeV2Materials(color) {
     depthWrite: true,
     depthTest: true,
     blending: THREE.NormalBlending
-  });
+  }));
 
-  const haloPointMat = new THREE.PointsMaterial({
+  const haloPointMat = MaterialCache.get('prime.v2.halo.points.transparent.default', () => new THREE.PointsMaterial({
     color: new THREE.Color(0xd2fbff),
     size: 0.048,
     transparent: true,
     opacity: 0.46,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = {
     coreMat,
@@ -1242,28 +1242,28 @@ function _getPrimeStellaMaterials(color) {
     depthTest: true
   });
 
-  const bandMat = new THREE.MeshBasicMaterial({
+  const bandMat = MaterialCache.get('prime.stella.band.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xebfbff),
     transparent: true,
     opacity: 0.34,
     depthWrite: false
-  });
+  }));
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('prime.stella.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xf6fbff),
     transparent: true,
     opacity: 0.82,
     depthWrite: true
-  });
+  }));
 
-  const haloMat = new THREE.PointsMaterial({
+  const haloMat = MaterialCache.get('prime.stella.halo.points.transparent.default', () => new THREE.PointsMaterial({
     color: new THREE.Color(0xb8ecff),
     size: 0.046,
     transparent: true,
     opacity: 0.72,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   for (const mat of [coreMat, crownMat, spineMat, bandMat, edgeMat, haloMat]) {
     mat.userData = mat.userData || {};
@@ -1391,26 +1391,26 @@ function _getPrimeImmaculateMaterials(color) {
     depthWrite: false
   });
 
-  const meridianMat = new THREE.MeshBasicMaterial({
+  const meridianMat = MaterialCache.get('prime.immaculate.meridian.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xeefcff),
     transparent: true,
     opacity: 0.28,
     depthWrite: false
-  });
+  }));
 
-  const railMat = new THREE.LineBasicMaterial({
+  const railMat = MaterialCache.get('prime.immaculate.rail.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xf4fcff),
     transparent: true,
     opacity: 0.74,
     depthWrite: false
-  });
+  }));
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('prime.immaculate.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xfbfdff),
     transparent: true,
     opacity: 0.82,
     depthWrite: false
-  });
+  }));
 
   const keystoneMat = new THREE.MeshStandardMaterial({
     color: silverColor.clone().lerp(coldColor, 0.18),
@@ -1431,14 +1431,14 @@ function _getPrimeImmaculateMaterials(color) {
     depthWrite: false
   });
 
-  const haloMat = new THREE.PointsMaterial({
+  const haloMat = MaterialCache.get('prime.immaculate.halo.points.transparent.default', () => new THREE.PointsMaterial({
     color: new THREE.Color(0xcaf2ff),
     size: 0.042,
     transparent: true,
     opacity: 0.66,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = { coreMat, chamberMat, meridianMat, railMat, edgeMat, keystoneMat, seamMat, haloMat };
   for (const mat of Object.values(mats)) {
@@ -1607,7 +1607,7 @@ function _getPrimeHarmonicLatticeMaterials(color) {
     depthTest: true
   });
 
-  const seedMat = new THREE.MeshStandardMaterial({
+  const seedMat = MaterialCache.get('prime.harmonicLattice.seed.meshStandard.metallic.rough.default', () => new THREE.MeshStandardMaterial({
     color: new THREE.Color(0xf6fdff),
     emissive: new THREE.Color(0xc6f6ff),
     emissiveIntensity: 0.34,
@@ -1617,7 +1617,7 @@ function _getPrimeHarmonicLatticeMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
   const structureMat = new THREE.MeshStandardMaterial({
     color: silverColor.clone().lerp(coldColor, 0.06),
@@ -1650,42 +1650,42 @@ function _getPrimeHarmonicLatticeMaterials(color) {
     depthWrite: false
   });
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('prime.harmonicLattice.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xf7fdff),
     transparent: true,
     opacity: 0.78,
     depthWrite: false
-  });
+  }));
 
-  const panelMat = new THREE.LineBasicMaterial({
+  const panelMat = MaterialCache.get('prime.harmonicLattice.panel.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xe8fbff),
     transparent: true,
     opacity: 0.48,
     depthWrite: false
-  });
+  }));
 
-  const railMat = new THREE.LineBasicMaterial({
+  const railMat = MaterialCache.get('prime.harmonicLattice.rail.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xddf7ff),
     transparent: true,
     opacity: 0.66,
     depthWrite: false
-  });
+  }));
 
-  const meridianMat = new THREE.MeshBasicMaterial({
+  const meridianMat = MaterialCache.get('prime.harmonicLattice.meridian.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xf1fcff),
     transparent: true,
     opacity: 0.22,
     depthWrite: false
-  });
+  }));
 
-  const haloMat = new THREE.PointsMaterial({
+  const haloMat = MaterialCache.get('prime.harmonicLattice.halo.points.transparent.default', () => new THREE.PointsMaterial({
     color: new THREE.Color(0xc8f3ff),
     size: 0.042,
     transparent: true,
     opacity: 0.68,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = {
     coreMat,
@@ -1906,12 +1906,12 @@ function _getPrimeForbiddenProjectionMaterials(color) {
     depthTest: true
   });
 
-  const slabMat = new THREE.MeshBasicMaterial({
+  const slabMat = MaterialCache.get('prime.forbiddenProjection.slab.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xe7fbff),
     transparent: true,
     opacity: 0.16,
     depthWrite: false
-  });
+  }));
 
   const seamMat = new THREE.MeshBasicMaterial({
     color: depthColor,
@@ -1920,35 +1920,35 @@ function _getPrimeForbiddenProjectionMaterials(color) {
     depthWrite: false
   });
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('prime.forbiddenProjection.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xf9fdff),
     transparent: true,
     opacity: 0.8,
     depthWrite: false
-  });
+  }));
 
-  const ghostFrameMat = new THREE.LineBasicMaterial({
+  const ghostFrameMat = MaterialCache.get('prime.forbiddenProjection.ghostFrame.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xe8fbff),
     transparent: true,
     opacity: 0.36,
     depthWrite: false
-  });
+  }));
 
-  const meridianMat = new THREE.MeshBasicMaterial({
+  const meridianMat = MaterialCache.get('prime.forbiddenProjection.meridian.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xf1fcff),
     transparent: true,
     opacity: 0.24,
     depthWrite: false
-  });
+  }));
 
-  const haloMat = new THREE.PointsMaterial({
+  const haloMat = MaterialCache.get('prime.forbiddenProjection.halo.points.transparent.default', () => new THREE.PointsMaterial({
     color: new THREE.Color(0xcff3ff),
     size: 0.042,
     transparent: true,
     opacity: 0.66,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = {
     coreMat,
@@ -2107,7 +2107,7 @@ function _getPrimeInvertedBloomMaterials(color) {
     depthTest: true
   });
 
-  const seedMat = new THREE.MeshStandardMaterial({
+  const seedMat = MaterialCache.get('prime.invertedBloom.seed.meshStandard.metallic.rough.default', () => new THREE.MeshStandardMaterial({
     color: new THREE.Color(0xfaffff),
     emissive: new THREE.Color(0xd4f9ff),
     emissiveIntensity: 0.36,
@@ -2117,7 +2117,7 @@ function _getPrimeInvertedBloomMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
   const petalMat = new THREE.MeshStandardMaterial({
     color: silverColor.clone().lerp(coldColor, 0.08),
@@ -2131,21 +2131,21 @@ function _getPrimeInvertedBloomMaterials(color) {
     depthTest: true
   });
 
-  const inversionMat = new THREE.MeshBasicMaterial({
+  const inversionMat = MaterialCache.get('prime.invertedBloom.inversion.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xeafcff),
     transparent: true,
     opacity: 0.12,
     depthWrite: false,
     side: THREE.BackSide
-  });
+  }));
 
-  const slabMat = new THREE.MeshBasicMaterial({
+  const slabMat = MaterialCache.get('prime.invertedBloom.slab.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xecfcff),
     transparent: true,
     opacity: 0.18,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
   const seamMat = new THREE.MeshBasicMaterial({
     color: depthColor,
@@ -2154,28 +2154,28 @@ function _getPrimeInvertedBloomMaterials(color) {
     depthWrite: false
   });
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('prime.invertedBloom.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xf9fdff),
     transparent: true,
     opacity: 0.8,
     depthWrite: false
-  });
+  }));
 
-  const inversionEdgeMat = new THREE.LineBasicMaterial({
+  const inversionEdgeMat = MaterialCache.get('prime.invertedBloom.inversionEdge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xe8fbff),
     transparent: true,
     opacity: 0.42,
     depthWrite: false
-  });
+  }));
 
-  const haloMat = new THREE.PointsMaterial({
+  const haloMat = MaterialCache.get('prime.invertedBloom.halo.points.transparent.default', () => new THREE.PointsMaterial({
     color: new THREE.Color(0xd2f3ff),
     size: 0.042,
     transparent: true,
     opacity: 0.68,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = {
     coreMat,
@@ -2314,7 +2314,7 @@ function _getPrimeGenesisChrysalisMaterials(color) {
     depthTest: true
   });
 
-  const seedMat = new THREE.MeshStandardMaterial({
+  const seedMat = MaterialCache.get('prime.genesisChrysalis.seed.meshStandard.metallic.rough.default', () => new THREE.MeshStandardMaterial({
     color: new THREE.Color(0xf9fdff),
     emissive: new THREE.Color(0xcff8ff),
     emissiveIntensity: 0.34,
@@ -2324,7 +2324,7 @@ function _getPrimeGenesisChrysalisMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
   const huskMat = new THREE.MeshStandardMaterial({
     color: silverColor.clone().lerp(coldColor, 0.06),
@@ -2357,28 +2357,28 @@ function _getPrimeGenesisChrysalisMaterials(color) {
     depthWrite: false
   });
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('prime.genesisChrysalis.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xf8fdff),
     transparent: true,
     opacity: 0.78,
     depthWrite: false
-  });
+  }));
 
-  const meridianMat = new THREE.MeshBasicMaterial({
+  const meridianMat = MaterialCache.get('prime.genesisChrysalis.meridian.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xecfbff),
     transparent: true,
     opacity: 0.2,
     depthWrite: false
-  });
+  }));
 
-  const haloMat = new THREE.PointsMaterial({
+  const haloMat = MaterialCache.get('prime.genesisChrysalis.halo.points.transparent.default', () => new THREE.PointsMaterial({
     color: new THREE.Color(0xd0f3ff),
     size: 0.042,
     transparent: true,
     opacity: 0.66,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = { coreMat, seedMat, huskMat, ribMat, seamMat, edgeMat, meridianMat, haloMat };
   for (const mat of Object.values(mats)) {
@@ -2682,12 +2682,12 @@ function _getMythicV2Materials(color) {
     depthWrite: false
   });
 
-  const seamMat = new THREE.MeshBasicMaterial({
+  const seamMat = MaterialCache.get('mythic.v2.seam.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0x07070c,
     transparent: true,
     opacity: 0.92,
     depthWrite: false
-  });
+  }));
 
   const ringMat = new THREE.MeshBasicMaterial({
     color: sanctumIvory.clone().lerp(mythicColor, 0.16),
@@ -2707,22 +2707,22 @@ function _getMythicV2Materials(color) {
     depthWrite: false
   });
 
-  const runeMat = new THREE.PointsMaterial({
+  const runeMat = MaterialCache.get('mythic.v2.rune.points.transparent.default', () => new THREE.PointsMaterial({
     color: sanctumIvory,
     size: 0.05,
     transparent: true,
     opacity: 0.72,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
-  const haloMat = new THREE.PointsMaterial({
+  const haloMat = MaterialCache.get('mythic.v2.halo.points.transparent.default', () => new THREE.PointsMaterial({
     color: spectral.clone().lerp(sanctumIvory, 0.22),
     size: 0.046,
     transparent: true,
     opacity: 0.48,
     depthWrite: false
-  });
+  }));
 
   const mats = { coreMat, edgesMat, seamMat, ringMat, shardMat, runeMat, haloMat };
   for (const mat of Object.values(mats)) {
@@ -2880,37 +2880,37 @@ function _getMythicFloatingReliquaryMaterials(color) {
     depthWrite: true
   });
 
-  const arcMat = new THREE.MeshBasicMaterial({
+  const arcMat = MaterialCache.get('mythic.floatingReliquary.arc.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: mythicColor.clone().lerp(new THREE.Color(0xffffff), 0.08),
     transparent: true,
     opacity: 0.38,
     depthWrite: false
-  });
+  }));
 
-  const voidMat = new THREE.MeshBasicMaterial({
+  const voidMat = MaterialCache.get('mythic.floatingReliquary.void.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0x05060a,
     transparent: true,
     opacity: 0.94,
     depthWrite: false
-  });
+  }));
 
-  const runeMat = new THREE.PointsMaterial({
+  const runeMat = MaterialCache.get('mythic.floatingReliquary.rune.points.transparent.default', () => new THREE.PointsMaterial({
     color: 0xfff3d1,
     size: 0.052,
     transparent: true,
     opacity: 0.74,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
-  const haloMat = new THREE.PointsMaterial({
+  const haloMat = MaterialCache.get('mythic.floatingReliquary.halo.points.transparent.default', () => new THREE.PointsMaterial({
     color: 0xd9f8ff,
     size: 0.046,
     transparent: true,
     opacity: 0.56,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = { coreMat, slabMat, edgeMat, arcMat, voidMat, runeMat, haloMat };
   MYTHIC_FLOATING_RELIQUARY_MATERIALS.set(colorHex, mats);
@@ -3112,12 +3112,12 @@ function _getMythicApostateMonolithMaterials(color) {
     depthTest: true
   });
 
-  const seamMat = new THREE.MeshBasicMaterial({
+  const seamMat = MaterialCache.get('mythic.apostateMonolith.seam.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0x05060a,
     transparent: true,
     opacity: 0.94,
     depthWrite: false
-  });
+  }));
 
   const edgeMat = new THREE.LineBasicMaterial({
     color: paleSanctum.clone().lerp(spectral, 0.08),
@@ -3147,23 +3147,23 @@ function _getMythicApostateMonolithMaterials(color) {
     depthWrite: false
   });
 
-  const glyphMat = new THREE.PointsMaterial({
+  const glyphMat = MaterialCache.get('mythic.apostateMonolith.glyph.points.transparent.default', () => new THREE.PointsMaterial({
     color: paleSanctum,
     size: 0.048,
     transparent: true,
     opacity: 0.72,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
-  const dustMat = new THREE.PointsMaterial({
+  const dustMat = MaterialCache.get('mythic.apostateMonolith.dust.points.transparent.default', () => new THREE.PointsMaterial({
     color: spectral.clone().lerp(paleSanctum, 0.18),
     size: 0.044,
     transparent: true,
     opacity: 0.46,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = {
     coreMat,
@@ -3656,12 +3656,24 @@ function _getMythicAbsentCoreSanctumMaterials(color) {
     depthWrite: false
   });
 
-  const voidMat = new THREE.MeshBasicMaterial({
+  const voidMat = MaterialCache.get('mythic.absentCoreSanctum.void.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0x08070c,
     transparent: true,
     opacity: 0.92,
     depthWrite: false
-  });
+  }));
+
+  const seedMat = MaterialCache.get('mythic.absentCoreSanctum.seed.meshStandard.transparent.default', () => new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0x110d10),
+    metalness: 0.3,
+    roughness: 0.42,
+    emissive: spectral.clone().multiplyScalar(0.18),
+    emissiveIntensity: 0.24,
+    transparent: true,
+    opacity: 0.92,
+    depthWrite: false,
+    depthTest: true
+  }));
 
   const shardMat = new THREE.MeshStandardMaterial({
     color: relicBronze.clone().lerp(sanctumIvory, 0.18),
@@ -3672,18 +3684,6 @@ function _getMythicAbsentCoreSanctumMaterials(color) {
     transparent: false,
     opacity: 1.0,
     depthWrite: true,
-    depthTest: true
-  });
-
-  const seedMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0x110d10),
-    metalness: 0.3,
-    roughness: 0.42,
-    emissive: spectral.clone().multiplyScalar(0.18),
-    emissiveIntensity: 0.24,
-    transparent: true,
-    opacity: 0.92,
-    depthWrite: false,
     depthTest: true
   });
 
@@ -3943,14 +3943,14 @@ function _getMythicCollapsedCrownMaterials(color) {
     depthWrite: false
   });
 
-  const seamMat = new THREE.MeshBasicMaterial({
+  const seamMat = MaterialCache.get('mythic.collapsedCrown.seam.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0x07070c,
     transparent: true,
     opacity: 0.94,
     depthWrite: false
-  });
+  }));
 
-  const seedMat = new THREE.MeshStandardMaterial({
+  const seedMat = MaterialCache.get('mythic.collapsedCrown.seed.meshStandard.transparent.default', () => new THREE.MeshStandardMaterial({
     color: new THREE.Color(0x110c0f),
     metalness: 0.26,
     roughness: 0.44,
@@ -3960,7 +3960,7 @@ function _getMythicCollapsedCrownMaterials(color) {
     opacity: 0.9,
     depthWrite: false,
     depthTest: true
-  });
+  }));
 
   const tineMatA = new THREE.MeshStandardMaterial({
     color: relicBronze.clone().lerp(mythicColor, 0.12),
@@ -4215,12 +4215,12 @@ function _getMythicCataclysmCairnMaterials(color) {
     depthWrite: false
   });
 
-  const seamMat = new THREE.MeshBasicMaterial({
+  const seamMat = MaterialCache.get('mythic.cataclysmCairn.seam.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0x07070c,
     transparent: true,
     opacity: 0.94,
     depthWrite: false
-  });
+  }));
 
   const keystoneMat = new THREE.MeshStandardMaterial({
     color: relicBronze.clone().lerp(sanctumIvory, 0.18),
@@ -4368,42 +4368,42 @@ function _getErrorV2Materials(color) {
     emissiveIntensity: 0.35
   });
 
-  const edgesMat = new THREE.LineBasicMaterial({
+  const edgesMat = MaterialCache.get('error.v2.edges.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: 0xff44aa,
     transparent: true,
     opacity: 0.9,
     depthWrite: true
-  });
+  }));
 
-  const ringMat = new THREE.MeshBasicMaterial({
+  const ringMat = MaterialCache.get('error.v2.ring.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0xcc66ff,
     transparent: true,
     opacity: 0.6,
     depthWrite: false
-  });
+  }));
 
-  const frameMat = new THREE.LineBasicMaterial({
+  const frameMat = MaterialCache.get('error.v2.frame.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: 0x66ccff,
     transparent: true,
     opacity: 0.7,
     depthWrite: false
-  });
+  }));
 
-  const voidMat = new THREE.MeshBasicMaterial({
+  const voidMat = MaterialCache.get('error.v2.void.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0x000000,
     transparent: true,
     opacity: 0.95,
     depthWrite: false
-  });
+  }));
 
-  const haloMat = new THREE.PointsMaterial({
+  const haloMat = MaterialCache.get('error.v2.halo.points.transparent.default', () => new THREE.PointsMaterial({
     color: 0x66ccff,
     size: 0.05,
     transparent: true,
     opacity: 0.6,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const shadowMat = coreMat.clone();
   shadowMat.emissiveIntensity = 0.12;
@@ -4462,41 +4462,41 @@ function _getStorageV2Materials(color) {
     emissiveIntensity: 0.3
   });
 
-  const ringMat = new THREE.MeshBasicMaterial({
+  const ringMat = MaterialCache.get('storage.v2.ring.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0x99e0ff,
     transparent: true,
     opacity: 0.6,
     depthWrite: false
-  });
+  }));
 
-  const bandMat = new THREE.MeshBasicMaterial({
+  const bandMat = MaterialCache.get('storage.v2.band.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0xb3ecff,
     transparent: true,
     opacity: 0.4,
     depthWrite: false
-  });
+  }));
 
-  const sliceMat = new THREE.MeshBasicMaterial({
+  const sliceMat = MaterialCache.get('storage.v2.slice.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0xc4f4ff,
     transparent: true,
     opacity: 0.5,
     depthWrite: false
-  });
+  }));
 
-  const spineMat = new THREE.LineBasicMaterial({
+  const spineMat = MaterialCache.get('storage.v2.spine.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: 0xa9e8ff,
     transparent: true,
     opacity: 0.85
-  });
+  }));
 
-  const timelineMat = new THREE.PointsMaterial({
+  const timelineMat = MaterialCache.get('storage.v2.timeline.points.transparent.default', () => new THREE.PointsMaterial({
     color: 0xa9e8ff,
     size: 0.05,
     transparent: true,
     opacity: 0.6,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = { columnMat, ringMat, bandMat, sliceMat, spineMat, timelineMat };
   STORAGE_V2_MATERIALS.set(colorHex, mats);
@@ -4666,30 +4666,30 @@ function _getStorageCathedralMaterials(color) {
     depthWrite: true
   });
 
-  const seamMat = new THREE.MeshBasicMaterial({
+  const seamMat = MaterialCache.get('storage.cathedral.seam.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0x05080c,
     transparent: true,
     opacity: 0.94,
     depthWrite: false
-  });
+  }));
 
-  const dustMat = new THREE.PointsMaterial({
+  const dustMat = MaterialCache.get('storage.cathedral.dust.points.transparent.default', () => new THREE.PointsMaterial({
     color: 0xd8f6ff,
     size: 0.04,
     transparent: true,
     opacity: 0.38,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
-  const timelineMat = new THREE.PointsMaterial({
+  const timelineMat = MaterialCache.get('storage.cathedral.timeline.points.transparent.default', () => new THREE.PointsMaterial({
     color: 0xbcecff,
     size: 0.046,
     transparent: true,
     opacity: 0.48,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = { coreMat, slabMat, buttressMat, edgeMat, seamMat, dustMat, timelineMat };
   for (const mat of Object.values(mats)) {
@@ -5415,51 +5415,52 @@ function _getControlV2Geometries() {
 function _getControlV2Materials(color) {
   const colorHex = typeof color === 'number' ? color : 0xff0088;
   if (CONTROL_V2_MATERIALS.has(colorHex)) return CONTROL_V2_MATERIALS.get(colorHex);
+  const colorKey = colorHex.toString(16).padStart(6, '0');
 
-  const coreMat = new THREE.MeshStandardMaterial({
+  const coreMat = MaterialCache.get(`control.v2.core.meshStandard.${colorKey}`, () => new THREE.MeshStandardMaterial({
     color: colorHex,
     metalness: 0.6,
     roughness: 0.3,
     emissive: colorHex,
     emissiveIntensity: 0.18
-  });
+  }));
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get(`control.v2.edge.lineBasic.${colorKey}.transparent.default`, () => new THREE.LineBasicMaterial({
     color: colorHex,
     transparent: true,
     opacity: 0.4
-  });
+  }));
 
-  const spireMat = new THREE.MeshStandardMaterial({
+  const spireMat = MaterialCache.get(`control.v2.spire.meshStandard.${colorKey}`, () => new THREE.MeshStandardMaterial({
     color: colorHex,
     metalness: 0.5,
     roughness: 0.25,
     emissive: colorHex,
     emissiveIntensity: 0.25
-  });
+  }));
 
-  const ringMat = new THREE.MeshStandardMaterial({
+  const ringMat = MaterialCache.get(`control.v2.ring.meshStandard.${colorKey}`, () => new THREE.MeshStandardMaterial({
     color: colorHex,
     metalness: 0.55,
     roughness: 0.28,
     emissive: colorHex,
     emissiveIntensity: 0.14
-  });
+  }));
 
-  const segmentMat = new THREE.MeshStandardMaterial({
+  const segmentMat = MaterialCache.get(`control.v2.segment.meshStandard.${colorKey}`, () => new THREE.MeshStandardMaterial({
     color: colorHex,
     metalness: 0.62,
     roughness: 0.24,
     emissive: colorHex,
     emissiveIntensity: 0.1
-  });
+  }));
 
-  const overrideMat = new THREE.MeshBasicMaterial({
+  const overrideMat = MaterialCache.get(`control.v2.override.meshBasic.${colorKey}.transparent.default`, () => new THREE.MeshBasicMaterial({
     color: colorHex,
     transparent: true,
     opacity: 0.35,
     depthWrite: false
-  });
+  }));
 
   const mats = { coreMat, edgeMat, spireMat, ringMat, segmentMat, overrideMat };
   Object.values(mats).forEach(mat => {
@@ -5697,12 +5698,12 @@ function _getControlCommandSealMaterials(color) {
     opacity: 0.96
   });
 
-  const seamMat = new THREE.MeshBasicMaterial({
+  const seamMat = MaterialCache.get('control.commandSeal.seam.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0x090d12,
     transparent: true,
     opacity: 0.92,
     depthWrite: false
-  });
+  }));
 
   const edgeMat = new THREE.LineBasicMaterial({
     color: magentaEdge,
@@ -5804,34 +5805,34 @@ function _getAnalyticsV2Materials(color) {
     emissiveIntensity: 0.45
   });
 
-  const layerMat = new THREE.MeshBasicMaterial({
+  const layerMat = MaterialCache.get('analytics.v2.layer.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0xff66ff,
     transparent: true,
     opacity: 0.5,
     depthWrite: false
-  });
+  }));
 
-  const lineMat = new THREE.LineBasicMaterial({
+  const lineMat = MaterialCache.get('analytics.v2.line.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: 0x88ddff,
     transparent: true,
     opacity: 0.8
-  });
+  }));
 
-  const gridMat = new THREE.MeshBasicMaterial({
+  const gridMat = MaterialCache.get('analytics.v2.grid.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0x99e8ff,
     transparent: true,
     opacity: 0.4,
     depthWrite: false
-  });
+  }));
 
-  const particleMat = new THREE.PointsMaterial({
+  const particleMat = MaterialCache.get('analytics.v2.particle.points.transparent.default', () => new THREE.PointsMaterial({
     color: 0xff66ff,
     size: 0.05,
     transparent: true,
     opacity: 0.7,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = { coreMat, layerMat, lineMat, gridMat, particleMat };
   ANALYTICS_V2_MATERIALS.set(colorHex, mats);
@@ -5983,7 +5984,7 @@ function _getAnalyticsPredictiveOracleArrayMaterials(color) {
   const deepSeam = 0x070b12;
   const diagnosticGlow = colorHex;
 
-  const coreMat = new THREE.MeshStandardMaterial({
+  const coreMat = MaterialCache.get('analytics.predictiveOracleArray.core.meshStandard.default', () => new THREE.MeshStandardMaterial({
     color: coldWhite,
     emissive: 0xc9efff,
     emissiveIntensity: 0.72,
@@ -5993,16 +5994,16 @@ function _getAnalyticsPredictiveOracleArrayMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
   coreMat.userData = { wavePatchMode: 'DEFAULT', ignoreWaveColor: true };
 
-  const coreEdgeMat = new THREE.LineBasicMaterial({
+  const coreEdgeMat = MaterialCache.get('analytics.predictiveOracleArray.coreEdge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: 0xd7f5ff,
     transparent: true,
     opacity: 0.72,
     depthWrite: false,
     depthTest: true
-  });
+  }));
   coreEdgeMat.userData = { wavePatchMode: 'DEFAULT', ignoreWaveColor: true };
 
   const seedMat = new THREE.MeshStandardMaterial({
@@ -6018,17 +6019,17 @@ function _getAnalyticsPredictiveOracleArrayMaterials(color) {
   });
   seedMat.userData = { wavePatchMode: 'DEFAULT', ignoreWaveColor: true };
 
-  const seamMat = new THREE.MeshBasicMaterial({
+  const seamMat = MaterialCache.get('analytics.predictiveOracleArray.seam.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
     color: deepSeam,
     transparent: true,
     opacity: 0.6,
     depthWrite: false,
     depthTest: true,
     side: THREE.DoubleSide
-  });
+  }));
   seamMat.userData = { wavePatchMode: 'DEFAULT', ignoreWaveColor: true };
 
-  const axisMat = new THREE.MeshStandardMaterial({
+  const axisMat = MaterialCache.get('analytics.predictiveOracleArray.axis.meshStandard.transparent.default', () => new THREE.MeshStandardMaterial({
     color: coldSteel,
     emissive: 0xd3f2ff,
     emissiveIntensity: 0.18,
@@ -6038,7 +6039,7 @@ function _getAnalyticsPredictiveOracleArrayMaterials(color) {
     opacity: 0.92,
     depthWrite: true,
     depthTest: true
-  });
+  }));
   axisMat.userData = { wavePatchMode: 'DEFAULT', ignoreWaveColor: true };
 
   const apertureMat = new THREE.MeshStandardMaterial({
@@ -6055,13 +6056,13 @@ function _getAnalyticsPredictiveOracleArrayMaterials(color) {
   });
   apertureMat.userData = { wavePatchMode: 'DEFAULT', ignoreWaveColor: true };
 
-  const apertureEdgeMat = new THREE.LineBasicMaterial({
+  const apertureEdgeMat = MaterialCache.get('analytics.predictiveOracleArray.apertureEdge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: 0xd8f5ff,
     transparent: true,
     opacity: 0.54,
     depthWrite: false,
     depthTest: true
-  });
+  }));
   apertureEdgeMat.userData = { wavePatchMode: 'DEFAULT', ignoreWaveColor: true };
 
   const sheetMat = new THREE.MeshStandardMaterial({
@@ -6078,16 +6079,16 @@ function _getAnalyticsPredictiveOracleArrayMaterials(color) {
   });
   sheetMat.userData = { wavePatchMode: 'DEFAULT', ignoreWaveColor: true };
 
-  const sheetEdgeMat = new THREE.LineBasicMaterial({
+  const sheetEdgeMat = MaterialCache.get('analytics.predictiveOracleArray.sheetEdge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: 0xdff7ff,
     transparent: true,
     opacity: 0.56,
     depthWrite: false,
     depthTest: true
-  });
+  }));
   sheetEdgeMat.userData = { wavePatchMode: 'DEFAULT', ignoreWaveColor: true };
 
-  const needleMat = new THREE.MeshStandardMaterial({
+  const needleMat = MaterialCache.get('analytics.predictiveOracleArray.needle.meshStandard.transparent.default', () => new THREE.MeshStandardMaterial({
     color: 0xe8f7ff,
     emissive: 0xc5f0ff,
     emissiveIntensity: 0.3,
@@ -6097,7 +6098,7 @@ function _getAnalyticsPredictiveOracleArrayMaterials(color) {
     opacity: 0.88,
     depthWrite: true,
     depthTest: true
-  });
+  }));
   needleMat.userData = { wavePatchMode: 'DEFAULT', ignoreWaveColor: true };
 
   const vectorMat = new THREE.LineBasicMaterial({
@@ -6122,13 +6123,13 @@ function _getAnalyticsPredictiveOracleArrayMaterials(color) {
   });
   shardMat.userData = { wavePatchMode: 'DEFAULT', ignoreWaveColor: true };
 
-  const shardEdgeMat = new THREE.LineBasicMaterial({
+  const shardEdgeMat = MaterialCache.get('analytics.predictiveOracleArray.shardEdge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: 0xeafcff,
     transparent: true,
     opacity: 0.46,
     depthWrite: false,
     depthTest: true
-  });
+  }));
   shardEdgeMat.userData = { wavePatchMode: 'DEFAULT', ignoreWaveColor: true };
 
   const dustMat = new THREE.PointsMaterial({
@@ -6358,7 +6359,7 @@ function _getProcessAxialChronoReactorMaterials(color) {
   const darkSteel = new THREE.Color(0x313942);
   const smokeSteel = new THREE.Color(0x535f67);
 
-  const coreMat = new THREE.MeshStandardMaterial({
+  const coreMat = MaterialCache.get("process.axialChronoReactor.core.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.default", () => new THREE.MeshStandardMaterial({
     color: whiteSteel.clone().lerp(steelBlue, 0.34),
     emissive: amberSoft.clone(),
     emissiveIntensity: 0.18,
@@ -6369,9 +6370,9 @@ function _getProcessAxialChronoReactorMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
-  const heartMat = new THREE.MeshStandardMaterial({
+  const heartMat = MaterialCache.get("process.axialChronoReactor.heart.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.default", () => new THREE.MeshStandardMaterial({
     color: amberBright.clone().lerp(whiteSteel, 0.14),
     emissive: new THREE.Color(0xffb25c),
     emissiveIntensity: 0.28,
@@ -6382,9 +6383,9 @@ function _getProcessAxialChronoReactorMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
-  const spindleMat = new THREE.MeshStandardMaterial({
+  const spindleMat = MaterialCache.get("process.axialChronoReactor.spindle.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.default", () => new THREE.MeshStandardMaterial({
     color: graphite.clone().lerp(smokeSteel, 0.28),
     emissive: amberSoft.clone(),
     emissiveIntensity: 0.14,
@@ -6395,9 +6396,9 @@ function _getProcessAxialChronoReactorMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
-  const collarMatA = new THREE.MeshStandardMaterial({
+  const collarMatA = MaterialCache.get("process.axialChronoReactor.collarA.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.default", () => new THREE.MeshStandardMaterial({
     color: smokeSteel.clone().lerp(whiteSteel, 0.18),
     emissive: amberSoft.clone(),
     emissiveIntensity: 0.12,
@@ -6408,9 +6409,9 @@ function _getProcessAxialChronoReactorMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
-  const collarMatB = new THREE.MeshStandardMaterial({
+  const collarMatB = MaterialCache.get("process.axialChronoReactor.collarB.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.default", () => new THREE.MeshStandardMaterial({
     color: darkSteel.clone().lerp(steelBlue, 0.12),
     emissive: new THREE.Color(0xff8d44),
     emissiveIntensity: 0.1,
@@ -6421,7 +6422,7 @@ function _getProcessAxialChronoReactorMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
   const manifoldMat = new THREE.MeshStandardMaterial({
     color: graphite.clone().lerp(smokeSteel, 0.18),
@@ -6436,7 +6437,7 @@ function _getProcessAxialChronoReactorMaterials(color) {
     depthTest: true
   });
 
-  const frameMat = new THREE.MeshStandardMaterial({
+  const frameMat = MaterialCache.get("process.axialChronoReactor.frame.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.default", () => new THREE.MeshStandardMaterial({
     color: darkSteel.clone().lerp(smokeSteel, 0.16),
     emissive: new THREE.Color(0xff953f),
     emissiveIntensity: 0.06,
@@ -6447,7 +6448,7 @@ function _getProcessAxialChronoReactorMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
   const ventMat = new THREE.MeshStandardMaterial({
     color: amberColor.clone().lerp(whiteSteel, 0.22),
@@ -6462,29 +6463,29 @@ function _getProcessAxialChronoReactorMaterials(color) {
     depthTest: true
   });
 
-  const tickMat = new THREE.MeshBasicMaterial({
+  const tickMat = MaterialCache.get("process.axialChronoReactor.tick.lineBasic.transparent.opacity.depthWrite.side.doubleSide.default", () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xffc864),
     transparent: true,
     opacity: 0.92,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get("process.axialChronoReactor.edge.lineBasic.transparent.opacity.depthWrite.default", () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xf7d8a7),
     transparent: true,
     opacity: 0.62,
     depthWrite: false
-  });
+  }));
 
-  const dustMat = new THREE.PointsMaterial({
+  const dustMat = MaterialCache.get("process.axialChronoReactor.dust.points.transparent.opacity.depthWrite.sizeAttenuation.default", () => new THREE.PointsMaterial({
     color: new THREE.Color(0xffc868),
     size: 0.026,
     transparent: true,
     opacity: 0.72,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = {
     coreMat,
@@ -6703,7 +6704,7 @@ function _getProcessChronoForgeReactorMaterials(color) {
   const graphite = new THREE.Color(0x181d23);
   const smokeSteel = new THREE.Color(0x58636d);
 
-  const coreMat = new THREE.MeshStandardMaterial({
+  const coreMat = MaterialCache.get("process.chronoForgeReactor.core.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.default", () => new THREE.MeshStandardMaterial({
     color: steelBright.clone().lerp(steelMid, 0.22),
     emissive: amberSoft.clone().lerp(new THREE.Color(0xffddb0), 0.24),
     emissiveIntensity: 0.18,
@@ -6714,7 +6715,7 @@ function _getProcessChronoForgeReactorMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
   const heartMat = new THREE.MeshStandardMaterial({
     color: amberHot.clone().lerp(new THREE.Color(0xffead6), 0.16),
@@ -6729,7 +6730,7 @@ function _getProcessChronoForgeReactorMaterials(color) {
     depthTest: true
   });
 
-  const shaftMat = new THREE.MeshStandardMaterial({
+  const shaftMat = MaterialCache.get("process.chronoForgeReactor.shaft.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.default", () => new THREE.MeshStandardMaterial({
     color: graphite.clone().lerp(smokeSteel, 0.36),
     emissive: new THREE.Color(0x14181d),
     emissiveIntensity: 0.05,
@@ -6740,9 +6741,9 @@ function _getProcessChronoForgeReactorMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
-  const seamMat = new THREE.MeshStandardMaterial({
+  const seamMat = MaterialCache.get("process.chronoForgeReactor.seam.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.default", () => new THREE.MeshStandardMaterial({
     color: graphite.clone().lerp(new THREE.Color(0x101317), 0.28),
     emissive: new THREE.Color(0x0f0d0c),
     emissiveIntensity: 0.03,
@@ -6753,9 +6754,9 @@ function _getProcessChronoForgeReactorMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
-  const collarMatA = new THREE.MeshStandardMaterial({
+  const collarMatA = MaterialCache.get("process.chronoForgeReactor.collarA.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.default", () => new THREE.MeshStandardMaterial({
     color: steelBright.clone().lerp(smokeSteel, 0.18),
     emissive: amberSoft.clone().lerp(steelDark, 0.28),
     emissiveIntensity: 0.12,
@@ -6766,7 +6767,7 @@ function _getProcessChronoForgeReactorMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
   const collarMatB = new THREE.MeshStandardMaterial({
     color: smokeSteel.clone().lerp(steelBright, 0.12),
@@ -6781,7 +6782,7 @@ function _getProcessChronoForgeReactorMaterials(color) {
     depthTest: true
   });
 
-  const collarMatC = new THREE.MeshStandardMaterial({
+  const collarMatC = MaterialCache.get("process.chronoForgeReactor.collarC.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.default", () => new THREE.MeshStandardMaterial({
     color: steelMid.clone().lerp(steelBright, 0.12),
     emissive: new THREE.Color(0xff9550),
     emissiveIntensity: 0.08,
@@ -6792,9 +6793,9 @@ function _getProcessChronoForgeReactorMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
-  const vaneMat = new THREE.MeshStandardMaterial({
+  const vaneMat = MaterialCache.get("process.chronoForgeReactor.vane.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.default", () => new THREE.MeshStandardMaterial({
     color: smokeSteel.clone().lerp(steelBright, 0.1),
     emissive: amberSoft.clone().lerp(steelDark, 0.3),
     emissiveIntensity: 0.1,
@@ -6805,9 +6806,9 @@ function _getProcessChronoForgeReactorMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
-  const railMat = new THREE.MeshStandardMaterial({
+  const railMat = MaterialCache.get("process.chronoForgeReactor.rail.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.default", () => new THREE.MeshStandardMaterial({
     color: steelDark.clone().lerp(graphite, 0.12),
     emissive: steelDark.clone(),
     emissiveIntensity: 0.04,
@@ -6818,9 +6819,9 @@ function _getProcessChronoForgeReactorMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
-  const frameMat = new THREE.MeshStandardMaterial({
+  const frameMat = MaterialCache.get("process.chronoForgeReactor.frame.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.default", () => new THREE.MeshStandardMaterial({
     color: steelDark.clone().lerp(smokeSteel, 0.16),
     emissive: new THREE.Color(0xff8f42),
     emissiveIntensity: 0.06,
@@ -6831,9 +6832,9 @@ function _getProcessChronoForgeReactorMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
-  const braceMat = new THREE.MeshStandardMaterial({
+  const braceMat = MaterialCache.get("process.chronoForgeReactor.brace.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.default", () => new THREE.MeshStandardMaterial({
     color: steelMid.clone().lerp(steelBright, 0.14),
     emissive: amberSoft.clone(),
     emissiveIntensity: 0.08,
@@ -6844,9 +6845,9 @@ function _getProcessChronoForgeReactorMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
-  const conduitMatA = new THREE.MeshStandardMaterial({
+  const conduitMatA = MaterialCache.get("process.chronoForgeReactor.conduitA.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.default", () => new THREE.MeshStandardMaterial({
     color: graphite.clone().lerp(smokeSteel, 0.18),
     emissive: amberSoft.clone().lerp(steelDark, 0.42),
     emissiveIntensity: 0.08,
@@ -6857,7 +6858,7 @@ function _getProcessChronoForgeReactorMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
   const conduitMatB = new THREE.MeshStandardMaterial({
     color: smokeSteel.clone().lerp(steelBright, 0.12),
@@ -6872,7 +6873,7 @@ function _getProcessChronoForgeReactorMaterials(color) {
     depthTest: true
   });
 
-  const conduitMatC = new THREE.MeshStandardMaterial({
+  const conduitMatC = MaterialCache.get("process.chronoForgeReactor.conduitC.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.default", () => new THREE.MeshStandardMaterial({
     color: steelDark.clone().lerp(smokeSteel, 0.14),
     emissive: new THREE.Color(0xff7f35),
     emissiveIntensity: 0.06,
@@ -6883,7 +6884,7 @@ function _getProcessChronoForgeReactorMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
   const ventMat = new THREE.MeshStandardMaterial({
     color: amberColor.clone().lerp(steelBright, 0.2),
@@ -6898,29 +6899,29 @@ function _getProcessChronoForgeReactorMaterials(color) {
     depthTest: true
   });
 
-  const tickMat = new THREE.MeshBasicMaterial({
+  const tickMat = MaterialCache.get("process.chronoForgeReactor.tick.lineBasic.transparent.opacity.depthWrite.side.doubleSide.default", () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xffd38a),
     transparent: true,
     opacity: 0.92,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get("process.chronoForgeReactor.edge.lineBasic.transparent.opacity.depthWrite.default", () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xf2d1ab),
     transparent: true,
     opacity: 0.6,
     depthWrite: false
-  });
+  }));
 
-  const dustMat = new THREE.PointsMaterial({
+  const dustMat = MaterialCache.get("process.chronoForgeReactor.dust.points.transparent.opacity.depthWrite.sizeAttenuation.default", () => new THREE.PointsMaterial({
     color: new THREE.Color(0xffc878),
     size: 0.028,
     transparent: true,
     opacity: 0.38,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = {
     coreMat,
@@ -7536,7 +7537,7 @@ function _getProcessExecutionMachineMaterials(color) {
   const steelLite = new THREE.Color(0xa9b7c3);
   const amberHot = new THREE.Color(0xffcc74);
 
-  const coreMat = new THREE.MeshStandardMaterial({
+  const coreMat = MaterialCache.get("process.executionMachine.core.meshStandard.metallic.rough.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: steelBase,
     metalness: 0.82,
     roughness: 0.23,
@@ -7544,8 +7545,8 @@ function _getProcessExecutionMachineMaterials(color) {
     emissiveIntensity: 0.08,
     transparent: false,
     side: THREE.DoubleSide
-  });
-  const heartMat = new THREE.MeshStandardMaterial({
+  }));
+  const heartMat = MaterialCache.get("process.executionMachine.heart.meshStandard.metallic.rough.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: amberHot,
     metalness: 0.36,
     roughness: 0.16,
@@ -7553,8 +7554,8 @@ function _getProcessExecutionMachineMaterials(color) {
     emissiveIntensity: 0.55,
     transparent: false,
     side: THREE.DoubleSide
-  });
-  const spindleMat = new THREE.MeshStandardMaterial({
+  }));
+  const spindleMat = MaterialCache.get("process.executionMachine.spindle.meshStandard.metallic.rough.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: steelDark,
     metalness: 0.76,
     roughness: 0.28,
@@ -7562,8 +7563,8 @@ function _getProcessExecutionMachineMaterials(color) {
     emissiveIntensity: 0.06,
     transparent: false,
     side: THREE.DoubleSide
-  });
-  const clampMat = new THREE.MeshStandardMaterial({
+  }));
+  const clampMat = MaterialCache.get("process.executionMachine.clamp.meshStandard.metallic.rough.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: steelLite,
     metalness: 0.68,
     roughness: 0.3,
@@ -7571,8 +7572,8 @@ function _getProcessExecutionMachineMaterials(color) {
     emissiveIntensity: 0.06,
     transparent: false,
     side: THREE.DoubleSide
-  });
-  const railMat = new THREE.MeshStandardMaterial({
+  }));
+  const railMat = MaterialCache.get("process.executionMachine.rail.meshStandard.metallic.rough.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: steelBase,
     metalness: 0.72,
     roughness: 0.26,
@@ -7580,8 +7581,8 @@ function _getProcessExecutionMachineMaterials(color) {
     emissiveIntensity: 0.05,
     transparent: false,
     side: THREE.DoubleSide
-  });
-  const conduitMat = new THREE.MeshStandardMaterial({
+  }));
+  const conduitMat = MaterialCache.get("process.executionMachine.conduit.meshStandard.metallic.rough.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: steelDark,
     metalness: 0.64,
     roughness: 0.34,
@@ -7589,8 +7590,8 @@ function _getProcessExecutionMachineMaterials(color) {
     emissiveIntensity: 0.05,
     transparent: false,
     side: THREE.DoubleSide
-  });
-  const frameMat = new THREE.MeshStandardMaterial({
+  }));
+  const frameMat = MaterialCache.get("process.executionMachine.frame.meshStandard.metallic.rough.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: new THREE.Color(0x5f6973),
     metalness: 0.78,
     roughness: 0.3,
@@ -7598,7 +7599,7 @@ function _getProcessExecutionMachineMaterials(color) {
     emissiveIntensity: 0.04,
     transparent: false,
     side: THREE.DoubleSide
-  });
+  }));
   const ventMat = new THREE.MeshStandardMaterial({
     color: steelLite,
     metalness: 0.5,
@@ -7619,12 +7620,12 @@ function _getProcessExecutionMachineMaterials(color) {
     depthWrite: false,
     side: THREE.DoubleSide
   });
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get("process.executionMachine.edge.lineBasic.transparent.opacity.depthWrite.default", () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xd8e6f0),
     transparent: true,
     opacity: 0.64,
     depthWrite: false
-  });
+  }));
   const dustMat = new THREE.PointsMaterial({
     color: amberColor,
     size: 0.024,
@@ -7866,7 +7867,7 @@ function _getProcessFluxCrucibleMaterials(color) {
   const graphite = new THREE.Color(0x1a2026);
   const smokeSteel = new THREE.Color(0x57626b);
 
-  const coreMat = new THREE.MeshStandardMaterial({
+  const coreMat = MaterialCache.get("process.fluxCrucible.core.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.side.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: steelBright.clone().lerp(steelBase, 0.24),
     emissive: new THREE.Color(0xb2bcc8),
     emissiveIntensity: 0.12,
@@ -7878,7 +7879,7 @@ function _getProcessFluxCrucibleMaterials(color) {
     depthWrite: true,
     depthTest: true,
     side: THREE.DoubleSide
-  });
+  }));
 
   const heartMat = new THREE.MeshStandardMaterial({
     color: amberHot.clone().lerp(new THREE.Color(0xffead2), 0.16),
@@ -7894,7 +7895,7 @@ function _getProcessFluxCrucibleMaterials(color) {
     side: THREE.DoubleSide
   });
 
-  const shaftMat = new THREE.MeshStandardMaterial({
+  const shaftMat = MaterialCache.get("process.fluxCrucible.shaft.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.side.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: graphite.clone().lerp(steelDark, 0.42),
     emissive: new THREE.Color(0x161a1f),
     emissiveIntensity: 0.05,
@@ -7906,9 +7907,9 @@ function _getProcessFluxCrucibleMaterials(color) {
     depthWrite: true,
     depthTest: true,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const seamMat = new THREE.MeshStandardMaterial({
+  const seamMat = MaterialCache.get("process.fluxCrucible.seam.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.side.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: graphite.clone().lerp(new THREE.Color(0x101418), 0.24),
     emissive: new THREE.Color(0x120f0d),
     emissiveIntensity: 0.04,
@@ -7920,9 +7921,9 @@ function _getProcessFluxCrucibleMaterials(color) {
     depthWrite: true,
     depthTest: true,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const clampMat = new THREE.MeshStandardMaterial({
+  const clampMat = MaterialCache.get("process.fluxCrucible.clamp.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.side.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: steelBright.clone().lerp(smokeSteel, 0.2),
     emissive: steelDark.clone(),
     emissiveIntensity: 0.08,
@@ -7934,9 +7935,9 @@ function _getProcessFluxCrucibleMaterials(color) {
     depthWrite: true,
     depthTest: true,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const shutterMat = new THREE.MeshStandardMaterial({
+  const shutterMat = MaterialCache.get("process.fluxCrucible.shutter.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.side.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: smokeSteel.clone().lerp(steelBright, 0.14),
     emissive: amberSoft.clone().lerp(steelDark, 0.4),
     emissiveIntensity: 0.12,
@@ -7948,9 +7949,9 @@ function _getProcessFluxCrucibleMaterials(color) {
     depthWrite: true,
     depthTest: true,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const railMat = new THREE.MeshStandardMaterial({
+  const railMat = MaterialCache.get("process.fluxCrucible.rail.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.side.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: steelBase.clone().lerp(steelBright, 0.16),
     emissive: steelDark.clone(),
     emissiveIntensity: 0.06,
@@ -7962,9 +7963,9 @@ function _getProcessFluxCrucibleMaterials(color) {
     depthWrite: true,
     depthTest: true,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const conduitMatA = new THREE.MeshStandardMaterial({
+  const conduitMatA = MaterialCache.get("process.fluxCrucible.conduitA.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.side.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: steelBase.clone().lerp(smokeSteel, 0.1),
     emissive: steelDark.clone(),
     emissiveIntensity: 0.06,
@@ -7976,9 +7977,9 @@ function _getProcessFluxCrucibleMaterials(color) {
     depthWrite: true,
     depthTest: true,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const conduitMatB = new THREE.MeshStandardMaterial({
+  const conduitMatB = MaterialCache.get("process.fluxCrucible.conduitB.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.side.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: steelDark.clone().lerp(steelBase, 0.08),
     emissive: new THREE.Color(0x151a20),
     emissiveIntensity: 0.05,
@@ -7990,7 +7991,7 @@ function _getProcessFluxCrucibleMaterials(color) {
     depthWrite: true,
     depthTest: true,
     side: THREE.DoubleSide
-  });
+  }));
 
   const conduitMatC = new THREE.MeshStandardMaterial({
     color: steelBright.clone().lerp(amberSoft, 0.14),
@@ -8006,7 +8007,7 @@ function _getProcessFluxCrucibleMaterials(color) {
     side: THREE.DoubleSide
   });
 
-  const frameMat = new THREE.MeshStandardMaterial({
+  const frameMat = MaterialCache.get("process.fluxCrucible.frame.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.side.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: smokeSteel.clone().lerp(steelBright, 0.06),
     emissive: steelDark.clone(),
     emissiveIntensity: 0.05,
@@ -8018,9 +8019,9 @@ function _getProcessFluxCrucibleMaterials(color) {
     depthWrite: true,
     depthTest: true,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const braceMat = new THREE.MeshStandardMaterial({
+  const braceMat = MaterialCache.get("process.fluxCrucible.brace.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.side.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: graphite.clone().lerp(smokeSteel, 0.14),
     emissive: steelDark.clone(),
     emissiveIntensity: 0.04,
@@ -8032,16 +8033,16 @@ function _getProcessFluxCrucibleMaterials(color) {
     depthWrite: true,
     depthTest: true,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get("process.fluxCrucible.edge.lineBasic.transparent.opacity.depthWrite.default", () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xd9e4ec),
     transparent: true,
     opacity: 0.64,
     depthWrite: false
-  });
+  }));
 
-  const ventMat = new THREE.MeshStandardMaterial({
+  const ventMat = MaterialCache.get("process.fluxCrucible.vent.meshStandard.metallic.rough.flat.shading.opaque.depthWrite.depthTest.side.doubleSide.default", () => new THREE.MeshStandardMaterial({
     color: steelBright.clone().lerp(steelBase, 0.12),
     emissive: amberSoft.clone(),
     emissiveIntensity: 0.18,
@@ -8053,24 +8054,24 @@ function _getProcessFluxCrucibleMaterials(color) {
     depthWrite: true,
     depthTest: true,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const telemetryMat = new THREE.MeshBasicMaterial({
+  const telemetryMat = MaterialCache.get("process.fluxCrucible.telemetry.meshBasic.transparent.opacity.depthWrite.side.doubleSide.default", () => new THREE.MeshBasicMaterial({
     color: amberHot.clone(),
     transparent: true,
     opacity: 0.78,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const dustMat = new THREE.PointsMaterial({
+  const dustMat = MaterialCache.get("process.fluxCrucible.dust.points.transparent.opacity.depthWrite.sizeAttenuation.default", () => new THREE.PointsMaterial({
     color: steelBright.clone().lerp(amberSoft, 0.22),
     size: 0.024,
     transparent: true,
     opacity: 0.6,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = {
     coreMat,
@@ -8587,49 +8588,59 @@ function _getQuantumV2Materials(color) {
     opacity: 0.9
   });
 
-  const ghostA = new THREE.MeshBasicMaterial({
+  const ghostA = MaterialCache.get('quantum.v2.ghostA.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0xcc99ff,
     transparent: true,
     opacity: 0.25,
     depthWrite: false
-  });
-  const ghostB = ghostA.clone(); ghostB.opacity = 0.2;
-  const ghostC = ghostA.clone(); ghostC.opacity = 0.18;
+  }));
+  const ghostB = MaterialCache.get('quantum.v2.ghostB.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
+    color: 0xcc99ff,
+    transparent: true,
+    opacity: 0.2,
+    depthWrite: false
+  }));
+  const ghostC = MaterialCache.get('quantum.v2.ghostC.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
+    color: 0xcc99ff,
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false
+  }));
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('quantum.v2.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: 0x99e8ff,
     transparent: true,
     opacity: 0.65
-  });
+  }));
 
-  const fragmentMat = new THREE.MeshBasicMaterial({
+  const fragmentMat = MaterialCache.get('quantum.v2.fragment.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0x99ffff,
     transparent: true,
     opacity: 0.45,
     depthWrite: false
-  });
+  }));
 
-  const lineMat = new THREE.LineBasicMaterial({
+  const lineMat = MaterialCache.get('quantum.v2.line.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: 0x66e0ff,
     transparent: true,
     opacity: 0.6
-  });
+  }));
 
-  const dustMat = new THREE.PointsMaterial({
+  const dustMat = MaterialCache.get('quantum.v2.dust.points.transparent.default', () => new THREE.PointsMaterial({
     color: 0xcc99ff,
     size: 0.04,
     transparent: true,
     opacity: 0.7,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
-  const planeMat = new THREE.MeshBasicMaterial({
+  const planeMat = MaterialCache.get('quantum.v2.plane.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0x8844ff,
     transparent: true,
     opacity: 0.18,
     depthWrite: false
-  });
+  }));
 
   const mats = {
     primaryMat,
@@ -8831,13 +8842,13 @@ function _getIntegrationNegotiatedChaosClaspMaterials(color) {
     depthTest: true
   });
 
-  const seamMat = new THREE.MeshBasicMaterial({
+  const seamMat = MaterialCache.get('integration.negotiatedChaosClasp.seam.meshBasic.default', () => new THREE.MeshBasicMaterial({
     color: darkSeamColor,
     transparent: false,
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
   const weaveMatA = new THREE.MeshStandardMaterial({
     color: baseColor.clone().lerp(whiteColor, 0.2),
@@ -8875,36 +8886,36 @@ function _getIntegrationNegotiatedChaosClaspMaterials(color) {
     depthTest: true
   });
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('integration.negotiatedChaosClasp.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xe7fff7),
     transparent: true,
     opacity: 0.72,
     depthWrite: false
-  });
+  }));
 
-  const witnessMat = new THREE.LineBasicMaterial({
+  const witnessMat = MaterialCache.get('integration.negotiatedChaosClasp.witness.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xb9ffed),
     transparent: true,
     opacity: 0.42,
     depthWrite: false
-  });
+  }));
 
-  const shardMat = new THREE.MeshBasicMaterial({
+  const shardMat = MaterialCache.get('integration.negotiatedChaosClasp.shard.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xd7fff1),
     transparent: true,
     opacity: 0.34,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const dustMat = new THREE.PointsMaterial({
+  const dustMat = MaterialCache.get('integration.negotiatedChaosClasp.dust.points.transparent.default', () => new THREE.PointsMaterial({
     color: new THREE.Color(0xcfffee),
     size: 0.028,
     transparent: true,
     opacity: 0.54,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = {
     coreMat,
@@ -9119,13 +9130,13 @@ function _getIntegrationFigureEightSplitLoopMaterials(color) {
     depthTest: true
   });
 
-  const seamMat = new THREE.MeshBasicMaterial({
+  const seamMat = MaterialCache.get('integration.figureEightSplitLoop.seam.meshBasic.default', () => new THREE.MeshBasicMaterial({
     color: darkSeamColor,
     transparent: false,
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
   const loopMatA = new THREE.MeshStandardMaterial({
     color: baseColor.clone().lerp(whiteColor, 0.18),
@@ -9166,36 +9177,36 @@ function _getIntegrationFigureEightSplitLoopMaterials(color) {
     depthTest: true
   });
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('integration.figureEightSplitLoop.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xe8fff7),
     transparent: true,
     opacity: 0.74,
     depthWrite: false
-  });
+  }));
 
-  const witnessMat = new THREE.LineBasicMaterial({
+  const witnessMat = MaterialCache.get('integration.figureEightSplitLoop.witness.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xb8ffeb),
     transparent: true,
     opacity: 0.42,
     depthWrite: false
-  });
+  }));
 
-  const shardMat = new THREE.MeshBasicMaterial({
+  const shardMat = MaterialCache.get('integration.figureEightSplitLoop.shard.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xd9fff1),
     transparent: true,
     opacity: 0.36,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const dustMat = new THREE.PointsMaterial({
+  const dustMat = MaterialCache.get('integration.figureEightSplitLoop.dust.points.transparent.default', () => new THREE.PointsMaterial({
     color: new THREE.Color(0xcffff0),
     size: 0.028,
     transparent: true,
     opacity: 0.54,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = {
     coreMat,
@@ -9263,13 +9274,13 @@ function _getIntegrationFigureEightApexMaterials(color) {
     depthTest: true
   });
 
-  const seamMat = new THREE.MeshBasicMaterial({
+  const seamMat = MaterialCache.get('integration.figureEightApex.seam.meshBasic.default', () => new THREE.MeshBasicMaterial({
     color: warmColor.clone().lerp(darkWarmColor, 0.34),
     transparent: false,
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
   const loopMatA = new THREE.MeshStandardMaterial({
     color: baseColor.clone().lerp(whiteColor, 0.2),
@@ -9310,35 +9321,35 @@ function _getIntegrationFigureEightApexMaterials(color) {
     depthTest: true
   });
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('integration.figureEightApex.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xffd1a3),
     transparent: true,
     opacity: 0.7,
     depthWrite: false
-  });
+  }));
 
-  const witnessMat = new THREE.LineBasicMaterial({
+  const witnessMat = MaterialCache.get('integration.figureEightApex.witness.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xffb979),
     transparent: true,
     opacity: 0.4,
     depthWrite: false
-  });
+  }));
 
-  const shardMat = new THREE.MeshBasicMaterial({
+  const shardMat = MaterialCache.get('integration.figureEightApex.shard.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xffd0a3),
     transparent: true,
     opacity: 0.34,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const warmShardMat = new THREE.MeshBasicMaterial({
-    color: emberColor,
+  const warmShardMat = MaterialCache.get('integration.figureEightApex.warmShard.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
+    color: new THREE.Color(0xffc993),
     transparent: true,
-    opacity: 0.36,
+    opacity: 0.42,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
   const dustMat = new THREE.PointsMaterial({
     color: new THREE.Color(0xffddb9),
@@ -9579,35 +9590,35 @@ function _getIntegrationFigureEightClaspMaterials(color) {
     depthTest: true
   });
 
-  const shardMat = new THREE.MeshBasicMaterial({
+  const shardMat = MaterialCache.get('integration.figureEightClasp.shard.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xd9fff1),
     transparent: true,
     opacity: 0.34,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const warmShardMat = new THREE.MeshBasicMaterial({
+  const warmShardMat = MaterialCache.get('integration.figureEightClasp.warmShard.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xffc993),
     transparent: true,
     opacity: 0.42,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('integration.figureEightClasp.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xe8fff7),
     transparent: true,
     opacity: 0.74,
     depthWrite: false
-  });
+  }));
 
-  const witnessMat = new THREE.LineBasicMaterial({
+  const witnessMat = MaterialCache.get('integration.figureEightClasp.witness.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xb8ffeb),
     transparent: true,
     opacity: 0.44,
     depthWrite: false
-  });
+  }));
 
   const dustMat = new THREE.PointsMaterial({
     color: new THREE.Color(0xcffff0),
@@ -9938,7 +9949,7 @@ function _getIntegrationWeightSpineAnchorMaterials(color) {
     side: THREE.FrontSide
   });
 
-  const loadIndicatorMat = new THREE.MeshPhysicalMaterial({
+  const loadIndicatorMat = MaterialCache.get('integration.weightSpineAnchor.loadIndicator.meshPhysical.transparent.default', () => new THREE.MeshPhysicalMaterial({
     color: warmAmber,
     metalness: 0.18,
     roughness: 0.14,
@@ -9949,7 +9960,7 @@ function _getIntegrationWeightSpineAnchorMaterials(color) {
     transparent: true,
     opacity: 0.98,
     side: THREE.FrontSide
-  });
+  }));
 
   const witnessMat = new THREE.LineBasicMaterial({
     color: coldWhite.clone().lerp(baseColor, 0.2),
@@ -10145,35 +10156,35 @@ function _getQuantumLatticeMaterials(color) {
     depthTest: true
   });
 
-  const voidMat = new THREE.MeshBasicMaterial({
+  const voidMat = MaterialCache.get('quantum.lattice.void.meshBasic.default', () => new THREE.MeshBasicMaterial({
     color: voidColor,
     transparent: false,
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
-  const ghostMatA = new THREE.MeshBasicMaterial({
+  const ghostMatA = MaterialCache.get('quantum.lattice.ghostA.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
     color: iceColor,
     transparent: true,
     opacity: 0.28,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
-  const ghostMatB = new THREE.MeshBasicMaterial({
+  }));
+  const ghostMatB = MaterialCache.get('quantum.lattice.ghostB.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
     color: violetColor,
     transparent: true,
     opacity: 0.22,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
-  const ghostMatC = new THREE.MeshBasicMaterial({
+  }));
+  const ghostMatC = MaterialCache.get('quantum.lattice.ghostC.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xdaf9ff),
     transparent: true,
     opacity: 0.16,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
   const bridgeMat = new THREE.MeshStandardMaterial({
     color: seedColor.clone().lerp(cyanColor, 0.22),
@@ -10188,19 +10199,19 @@ function _getQuantumLatticeMaterials(color) {
     depthTest: true
   });
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('quantum.lattice.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xe4fbff),
     transparent: true,
     opacity: 0.8,
     depthWrite: false
-  });
+  }));
 
-  const lineMat = new THREE.LineBasicMaterial({
+  const lineMat = MaterialCache.get('quantum.lattice.line.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0x94efff),
     transparent: true,
     opacity: 0.56,
     depthWrite: false
-  });
+  }));
 
   const nodeMat = new THREE.MeshStandardMaterial({
     color: cyanColor.clone().lerp(whiteColor, 0.2),
@@ -10215,47 +10226,47 @@ function _getQuantumLatticeMaterials(color) {
     depthTest: true
   });
 
-  const shardMat = new THREE.MeshBasicMaterial({
+  const shardMat = MaterialCache.get('quantum.lattice.shard.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xd9f8ff),
     transparent: true,
     opacity: 0.46,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const planeMat = new THREE.MeshBasicMaterial({
+  const planeMat = MaterialCache.get('quantum.lattice.plane.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0x91ebff),
     transparent: true,
     opacity: 0.14,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const planeFringeMat = new THREE.MeshBasicMaterial({
+  const planeFringeMat = MaterialCache.get('quantum.lattice.planeFringe.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
     color: violetColor.clone().lerp(iceColor, 0.24),
     transparent: true,
     opacity: 0.08,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const haloMat = new THREE.PointsMaterial({
+  const haloMat = MaterialCache.get('quantum.lattice.halo.points.transparent.default', () => new THREE.PointsMaterial({
     color: new THREE.Color(0xe7fbff),
     size: 0.044,
     transparent: true,
     opacity: 0.68,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
-  const dustMat = new THREE.PointsMaterial({
+  const dustMat = MaterialCache.get('quantum.lattice.dust.points.transparent.default', () => new THREE.PointsMaterial({
     color: new THREE.Color(0xbca8ff),
     size: 0.03,
     transparent: true,
     opacity: 0.56,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = {
     coreMat,
@@ -10414,7 +10425,7 @@ function _getQuantumParadoxLotusMaterials(color) {
     depthTest: true
   });
 
-  const innerStateMat = new THREE.MeshStandardMaterial({
+  const innerStateMat = MaterialCache.get('quantum.paradoxLotus.innerState.meshStandard.default', () => new THREE.MeshStandardMaterial({
     color: whiteColor.clone().lerp(violetColor, 0.18),
     emissive: cyanColor.clone().lerp(seedColor, 0.24),
     emissiveIntensity: 0.24,
@@ -10424,22 +10435,22 @@ function _getQuantumParadoxLotusMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
-  const seamMat = new THREE.MeshBasicMaterial({
+  const seamMat = MaterialCache.get('quantum.paradoxLotus.seam.meshBasic.default', () => new THREE.MeshBasicMaterial({
     color: voidColor,
     transparent: false,
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('quantum.paradoxLotus.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xe8fbff),
     transparent: true,
     opacity: 0.72,
     depthWrite: false
-  });
+  }));
 
   const petalMatA = new THREE.MeshStandardMaterial({
     color: iceColor.clone().lerp(seedColor, 0.12),
@@ -10454,7 +10465,7 @@ function _getQuantumParadoxLotusMaterials(color) {
     depthTest: true
   });
 
-  const petalMatB = new THREE.MeshStandardMaterial({
+  const petalMatB = MaterialCache.get('quantum.paradoxLotus.petalB.meshStandard.default', () => new THREE.MeshStandardMaterial({
     color: violetColor.clone().lerp(iceColor, 0.3),
     emissive: violetColor.clone().lerp(cyanColor, 0.12),
     emissiveIntensity: 0.2,
@@ -10465,14 +10476,14 @@ function _getQuantumParadoxLotusMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
-  const braceMat = new THREE.MeshBasicMaterial({
+  const braceMat = MaterialCache.get('quantum.paradoxLotus.brace.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: cyanColor.clone().lerp(whiteColor, 0.1),
     transparent: true,
     opacity: 0.2,
     depthWrite: false
-  });
+  }));
 
   const planeMat = new THREE.MeshBasicMaterial({
     color: violetColor.clone().lerp(seedColor, 0.16),
@@ -10482,30 +10493,30 @@ function _getQuantumParadoxLotusMaterials(color) {
     side: THREE.DoubleSide
   });
 
-  const ghostMatA = new THREE.MeshBasicMaterial({
+  const ghostMatA = MaterialCache.get('quantum.paradoxLotus.ghostA.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
     color: iceColor,
     transparent: true,
     opacity: 0.2,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const ghostMatB = new THREE.MeshBasicMaterial({
+  const ghostMatB = MaterialCache.get('quantum.paradoxLotus.ghostB.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
     color: violetColor,
     transparent: true,
     opacity: 0.14,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const dustMat = new THREE.PointsMaterial({
+  const dustMat = MaterialCache.get('quantum.paradoxLotus.dust.points.transparent.default', () => new THREE.PointsMaterial({
     color: violetColor.clone().lerp(iceColor, 0.28),
     size: 0.04,
     transparent: true,
     opacity: 0.6,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = {
     coreMat,
@@ -10702,19 +10713,19 @@ function _getQuantumProbabilityBloomMaterials(color) {
     depthTest: true
   });
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('quantum.probabilityBloom.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xeafcff),
     transparent: true,
     opacity: 0.74,
     depthWrite: false
-  });
+  }));
 
-  const cageMat = new THREE.LineBasicMaterial({
+  const cageMat = MaterialCache.get('quantum.probabilityBloom.cage.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: cyanColor.clone().lerp(whiteColor, 0.14),
     transparent: true,
     opacity: 0.28,
     depthWrite: false
-  });
+  }));
 
   const sailMatA = new THREE.MeshStandardMaterial({
     color: iceColor.clone().lerp(seedColor, 0.14),
@@ -10729,7 +10740,7 @@ function _getQuantumProbabilityBloomMaterials(color) {
     depthTest: true
   });
 
-  const sailMatB = new THREE.MeshStandardMaterial({
+  const sailMatB = MaterialCache.get('quantum.probabilityBloom.sailB.meshStandard.default', () => new THREE.MeshStandardMaterial({
     color: violetColor.clone().lerp(iceColor, 0.34),
     emissive: violetColor.clone().lerp(cyanColor, 0.12),
     emissiveIntensity: 0.18,
@@ -10740,70 +10751,70 @@ function _getQuantumProbabilityBloomMaterials(color) {
     opacity: 1.0,
     depthWrite: true,
     depthTest: true
-  });
+  }));
 
-  const arcMatA = new THREE.MeshBasicMaterial({
+  const arcMatA = MaterialCache.get('quantum.probabilityBloom.arcA.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: cyanColor.clone().lerp(whiteColor, 0.1),
     transparent: true,
     opacity: 0.22,
     depthWrite: false
-  });
+  }));
 
-  const arcMatB = new THREE.MeshBasicMaterial({
+  const arcMatB = MaterialCache.get('quantum.probabilityBloom.arcB.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: violetColor.clone().lerp(cyanColor, 0.22),
     transparent: true,
     opacity: 0.18,
     depthWrite: false
-  });
+  }));
 
-  const frameMat = new THREE.LineBasicMaterial({
+  const frameMat = MaterialCache.get('quantum.probabilityBloom.frame.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xbbeeff),
     transparent: true,
     opacity: 0.34,
     depthWrite: false
-  });
+  }));
 
-  const shardMat = new THREE.MeshBasicMaterial({
+  const shardMat = MaterialCache.get('quantum.probabilityBloom.shard.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
     color: new THREE.Color(0xdaf8ff),
     transparent: true,
     opacity: 0.42,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const ghostMatA = new THREE.MeshBasicMaterial({
+  const ghostMatA = MaterialCache.get('quantum.probabilityBloom.ghostA.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
     color: iceColor,
     transparent: true,
     opacity: 0.18,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const ghostMatB = new THREE.MeshBasicMaterial({
+  const ghostMatB = MaterialCache.get('quantum.probabilityBloom.ghostB.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
     color: violetColor,
     transparent: true,
     opacity: 0.12,
     depthWrite: false,
     side: THREE.DoubleSide
-  });
+  }));
 
-  const haloMat = new THREE.PointsMaterial({
+  const haloMat = MaterialCache.get('quantum.probabilityBloom.halo.points.transparent.default', () => new THREE.PointsMaterial({
     color: new THREE.Color(0xe8fbff),
     size: 0.042,
     transparent: true,
     opacity: 0.66,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
-  const dustMat = new THREE.PointsMaterial({
+  const dustMat = MaterialCache.get('quantum.probabilityBloom.dust.points.transparent.default', () => new THREE.PointsMaterial({
     color: violetColor.clone().lerp(iceColor, 0.24),
     size: 0.034,
     transparent: true,
     opacity: 0.54,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
   const mats = {
     coreMat,
@@ -10863,11 +10874,11 @@ function _getSigmaV2Materials(color) {
     opacity: 1
   });
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('sigma.v2.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: 0xaaddff,
     transparent: true,
     opacity: 0.45
-  });
+  }));
 
   const ringMat = new THREE.MeshBasicMaterial({
     color: colorHex,
@@ -10875,17 +10886,17 @@ function _getSigmaV2Materials(color) {
     opacity: 0.35
   });
 
-  const cageMat = new THREE.LineBasicMaterial({
+  const cageMat = MaterialCache.get('sigma.v2.cage.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: 0xa8fff0,
     transparent: true,
     opacity: 0.55
-  });
+  }));
 
-  const beaconMat = new THREE.MeshBasicMaterial({
+  const beaconMat = MaterialCache.get('sigma.v2.beacon.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0xc8fff3,
     transparent: true,
     opacity: 0.75
-  });
+  }));
 
   const mats = { coreMat, edgeMat, ringMat, cageMat, beaconMat };
   SIGMA_V2_MATERIALS.set(colorHex, mats);
@@ -11055,19 +11066,19 @@ function _getSigmaFractureChoirMaterials(color) {
     depthTest: true
   });
 
-  const seamMat = new THREE.MeshBasicMaterial({
+  const seamMat = MaterialCache.get('sigma.fractureChoir.seam.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: deepColor.clone().lerp(fractureAccent, 0.06),
     transparent: true,
     opacity: 0.88,
     depthWrite: false
-  });
+  }));
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('sigma.fractureChoir.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: whiteColor.clone().lerp(cyanColor, 0.22),
     transparent: true,
     opacity: 0.42,
     depthWrite: false
-  });
+  }));
 
   const responseMat = new THREE.MeshStandardMaterial({
     color: responseColor,
@@ -11081,42 +11092,42 @@ function _getSigmaFractureChoirMaterials(color) {
     depthTest: true
   });
 
-  const arcMatA = new THREE.MeshBasicMaterial({
+  const arcMatA = MaterialCache.get('sigma.fractureChoir.arcA.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: arcColor.clone().lerp(cyanColor, 0.18),
     transparent: true,
     opacity: 0.26,
     depthWrite: false
-  });
+  }));
 
-  const arcMatB = new THREE.MeshBasicMaterial({
+  const arcMatB = MaterialCache.get('sigma.fractureChoir.arcB.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: whiteColor.clone().lerp(mintColor, 0.26),
     transparent: true,
     opacity: 0.2,
     depthWrite: false
-  });
+  }));
 
-  const echoMat = new THREE.MeshBasicMaterial({
+  const echoMat = MaterialCache.get('sigma.fractureChoir.echo.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: whiteColor.clone().lerp(fractureAccent, 0.08),
     transparent: true,
     opacity: 0.12,
     depthWrite: false
-  });
+  }));
 
-  const dustMat = new THREE.PointsMaterial({
+  const dustMat = MaterialCache.get('sigma.fractureChoir.dust.points.transparent.default', () => new THREE.PointsMaterial({
     color: mintColor.clone().lerp(fractureAccent, 0.08),
     size: 0.044,
     transparent: true,
     opacity: 0.58,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
-  const glowMat = new THREE.MeshBasicMaterial({
+  const glowMat = MaterialCache.get('sigma.fractureChoir.glow.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: whiteColor.clone().lerp(mintColor, 0.32).lerp(fractureAccent, 0.05),
     transparent: true,
     opacity: 0.12,
     depthWrite: false
-  });
+  }));
 
   const mats = {
     relayMat,
@@ -11268,26 +11279,26 @@ function _getSigmaRuptureDiademMaterials(color) {
     depthTest: true
   });
 
-  const seamMat = new THREE.MeshBasicMaterial({
+  const seamMat = MaterialCache.get('sigma.ruptureDiadem.seam.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: deepColor.clone().lerp(fractureAccent, 0.08),
     transparent: true,
     opacity: 0.86,
     depthWrite: false
-  });
+  }));
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('sigma.ruptureDiadem.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: whiteColor.clone().lerp(cyanColor, 0.22),
     transparent: true,
     opacity: 0.4,
     depthWrite: false
-  });
+  }));
 
-  const arcMatA = new THREE.MeshBasicMaterial({
+  const arcMatA = MaterialCache.get('sigma.ruptureDiadem.arcA.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: whiteColor.clone().lerp(mintColor, 0.3),
     transparent: true,
     opacity: 0.26,
     depthWrite: false
-  });
+  }));
 
   const arcMatB = new THREE.MeshBasicMaterial({
     color: cyanColor.clone().lerp(sigmaColor, 0.22).lerp(fractureAccent, 0.04),
@@ -11308,28 +11319,28 @@ function _getSigmaRuptureDiademMaterials(color) {
     depthTest: true
   });
 
-  const echoMat = new THREE.MeshBasicMaterial({
+  const echoMat = MaterialCache.get('sigma.ruptureDiadem.echo.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: whiteColor.clone().lerp(fractureAccent, 0.08),
     transparent: true,
     opacity: 0.12,
     depthWrite: false
-  });
+  }));
 
-  const dustMat = new THREE.PointsMaterial({
+  const dustMat = MaterialCache.get('sigma.ruptureDiadem.dust.points.transparent.default', () => new THREE.PointsMaterial({
     color: mintColor.clone().lerp(fractureAccent, 0.08),
     size: 0.042,
     transparent: true,
     opacity: 0.54,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
-  const glowMat = new THREE.MeshBasicMaterial({
+  const glowMat = MaterialCache.get('sigma.ruptureDiadem.glow.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: whiteColor.clone().lerp(mintColor, 0.26).lerp(fractureAccent, 0.04),
     transparent: true,
     opacity: 0.12,
     depthWrite: false
-  });
+  }));
 
   const mats = {
     seedMat,
@@ -11509,19 +11520,19 @@ function _getSigmaRuptureBloomCrownMaterials(color) {
     depthTest: true
   });
 
-  const seamMat = new THREE.MeshBasicMaterial({
+  const seamMat = MaterialCache.get('sigma.ruptureBloomCrown.seam.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: deepColor.clone().lerp(fractureAccent, 0.07),
     transparent: true,
     opacity: 0.88,
     depthWrite: false
-  });
+  }));
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('sigma.ruptureBloomCrown.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: whiteColor.clone().lerp(cyanColor, 0.22),
     transparent: true,
     opacity: 0.34,
     depthWrite: false
-  });
+  }));
 
   const petalMatA = new THREE.MeshStandardMaterial({
     color: petalColorA,
@@ -11547,19 +11558,19 @@ function _getSigmaRuptureBloomCrownMaterials(color) {
     depthTest: true
   });
 
-  const arcMatA = new THREE.MeshBasicMaterial({
+  const arcMatA = MaterialCache.get('sigma.ruptureBloomCrown.arcA.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: arcColor.clone().lerp(cyanColor, 0.12),
     transparent: true,
     opacity: 0.24,
     depthWrite: false
-  });
+  }));
 
-  const arcMatB = new THREE.MeshBasicMaterial({
+  const arcMatB = MaterialCache.get('sigma.ruptureBloomCrown.arcB.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: cyanColor.clone().lerp(mintColor, 0.22).lerp(fractureAccent, 0.03),
     transparent: true,
     opacity: 0.18,
     depthWrite: false
-  });
+  }));
 
   const spikeMat = new THREE.MeshStandardMaterial({
     color: whiteColor.clone().lerp(mintColor, 0.24),
@@ -11573,28 +11584,28 @@ function _getSigmaRuptureBloomCrownMaterials(color) {
     depthTest: true
   });
 
-  const echoMat = new THREE.MeshBasicMaterial({
+  const echoMat = MaterialCache.get('sigma.ruptureBloomCrown.echo.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: whiteColor.clone().lerp(fractureAccent, 0.08),
     transparent: true,
     opacity: 0.1,
     depthWrite: false
-  });
+  }));
 
-  const dustMat = new THREE.PointsMaterial({
+  const dustMat = MaterialCache.get('sigma.ruptureBloomCrown.dust.points.transparent.default', () => new THREE.PointsMaterial({
     color: mintColor.clone().lerp(fractureAccent, 0.06),
     size: 0.042,
     transparent: true,
     opacity: 0.54,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
-  const glowMat = new THREE.MeshBasicMaterial({
+  const glowMat = MaterialCache.get('sigma.ruptureBloomCrown.glow.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: whiteColor.clone().lerp(mintColor, 0.28).lerp(fractureAccent, 0.04),
     transparent: true,
     opacity: 0.1,
     depthWrite: false
-  });
+  }));
 
   const mats = {
     seedMat,
@@ -11658,55 +11669,55 @@ function _getEmotionalV2Materials(color) {
     emissiveIntensity: 0.5
   });
 
-  const glowMat = new THREE.MeshBasicMaterial({
+  const glowMat = MaterialCache.get('emotional.v2.glow.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0x66f0ff,
     transparent: true,
     opacity: 0.25,
     depthWrite: false
-  });
+  }));
 
-  const shellAMat = new THREE.MeshBasicMaterial({
+  const shellAMat = MaterialCache.get('emotional.v2.shellA.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0xff66cc,
     transparent: true,
     opacity: 0.15,
     depthWrite: false
-  });
+  }));
 
-  const shellBMat = new THREE.MeshBasicMaterial({
+  const shellBMat = MaterialCache.get('emotional.v2.shellB.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0x66d5ff,
     transparent: true,
     opacity: 0.1,
     depthWrite: false
-  });
+  }));
 
-  const tendrilMat = new THREE.MeshBasicMaterial({
+  const tendrilMat = MaterialCache.get('emotional.v2.tendril.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0xff55aa,
     transparent: true,
     opacity: 0.6,
     depthWrite: false
-  });
+  }));
 
-  const fragmentMat = new THREE.MeshBasicMaterial({
+  const fragmentMat = MaterialCache.get('emotional.v2.fragment.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
     color: 0xff99c2,
     transparent: true,
     opacity: 0.5,
     depthWrite: false
-  });
+  }));
 
-  const particleMat = new THREE.PointsMaterial({
+  const particleMat = MaterialCache.get('emotional.v2.particle.points.transparent.default', () => new THREE.PointsMaterial({
     color: 0xff88bb,
     size: 0.05,
     transparent: true,
     opacity: 0.7,
     depthWrite: false,
     sizeAttenuation: true
-  });
+  }));
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('emotional.v2.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: 0xffaacd,
     transparent: true,
     opacity: 0.55
-  });
+  }));
 
   const mats = { coreMat, glowMat, shellAMat, shellBMat, tendrilMat, fragmentMat, particleMat, edgeMat };
   EMO_V2_MATERIALS.set(colorHex, mats);
@@ -11955,12 +11966,12 @@ function _getEmotionalNeuralLobeMaterials(color) {
     depthTest: true
   });
 
-  const edgeMat = new THREE.LineBasicMaterial({
+  const edgeMat = MaterialCache.get('emotional.neuralLobe.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
     color: new THREE.Color(0xf7efff),
     transparent: true,
     opacity: 0.72,
     depthWrite: false
-  });
+  }));
 
   const mistMat = new THREE.PointsMaterial({
     color: roseColor.clone().lerp(cyanColor, 0.24),
@@ -32615,90 +32626,7 @@ static createStorageNode0(group, color) {
 
       let mats = CONTROL_EXTREME_608_MATERIALS.get(colorHex);
       if (!mats) {
-        mats = {
-          coreMat: new THREE.MeshStandardMaterial({
-            color: 0xd8fbff,
-            emissive: 0xb8f4ff,
-            emissiveIntensity: 0.95,
-            metalness: 0.15,
-            roughness: 0.25,
-            transparent: false,
-            opacity: 1.0,
-            depthWrite: true,
-            depthTest: true
-          }),
-          cageWireMat: new THREE.MeshBasicMaterial({
-            color: colorHex,
-            wireframe: true,
-            transparent: true,
-            opacity: 0.2,
-            depthWrite: false,
-            depthTest: true
-          }),
-          cageEdgeMat: new THREE.LineBasicMaterial({
-            color: 0xc9f7ff,
-            transparent: true,
-            opacity: 0.72,
-            depthWrite: false,
-            depthTest: true
-          }),
-          anchorMat: new THREE.MeshStandardMaterial({
-            color: colorHex,
-            emissive: colorHex,
-            emissiveIntensity: 0.42,
-            metalness: 0.62,
-            roughness: 0.26,
-            transparent: false,
-            depthWrite: true,
-            depthTest: true
-          }),
-          pulseMat: new THREE.MeshBasicMaterial({
-            color: 0xd9ffff,
-            transparent: true,
-            opacity: 0.26,
-            depthWrite: false,
-            depthTest: true,
-            side: THREE.DoubleSide
-          }),
-          auraMat: new THREE.MeshBasicMaterial({
-            color: colorHex,
-            transparent: true,
-            opacity: 0.08,
-            depthWrite: false,
-            depthTest: true,
-            side: THREE.BackSide
-          }),
-          scanMat: new THREE.ShaderMaterial({
-            transparent: true,
-            depthWrite: false,
-            depthTest: true,
-            side: THREE.DoubleSide,
-            uniforms: {
-              uTime: { value: 0 },
-              uColor: { value: new THREE.Color(0xcffbff) },
-              uOpacity: { value: 0.07 }
-            },
-            vertexShader: `
-              varying vec3 vPos;
-              void main() {
-                vPos = position;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-              }
-            `,
-            fragmentShader: `
-              uniform float uTime;
-              uniform vec3 uColor;
-              uniform float uOpacity;
-              varying vec3 vPos;
-              void main() {
-                float scan = step(0.62, fract((vPos.y * 5.0) + uTime * 0.95));
-                float alpha = uOpacity * (0.35 + scan * 0.65);
-                gl_FragColor = vec4(uColor, alpha);
-              }
-            `
-          })
-        };
-        CONTROL_EXTREME_608_MATERIALS.set(colorHex, mats);
+        mats = this._getControlExtreme608Materials(colorHex);
       }
 
       const root = new THREE.Group();
@@ -32862,6 +32790,98 @@ static createStorageNode0(group, color) {
       });
       return null;
     }
+  }
+
+  static _getControlExtreme608Materials(color) {
+    const colorHex = typeof color === 'number' ? color : 0xff0088;
+    if (CONTROL_EXTREME_608_MATERIALS.has(colorHex)) return CONTROL_EXTREME_608_MATERIALS.get(colorHex);
+
+    const mats = {
+      coreMat: MaterialCache.get('control.extreme608.core.meshStandard.default', () => new THREE.MeshStandardMaterial({
+        color: 0xd8fbff,
+        emissive: 0xb8f4ff,
+        emissiveIntensity: 0.95,
+        metalness: 0.15,
+        roughness: 0.25,
+        transparent: false,
+        opacity: 1.0,
+        depthWrite: true,
+        depthTest: true
+      })),
+      cageWireMat: new THREE.MeshBasicMaterial({
+        color: colorHex,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.2,
+        depthWrite: false,
+        depthTest: true
+      }),
+      cageEdgeMat: MaterialCache.get('control.extreme608.cageEdge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
+        color: 0xc9f7ff,
+        transparent: true,
+        opacity: 0.72,
+        depthWrite: false,
+        depthTest: true
+      })),
+      anchorMat: new THREE.MeshStandardMaterial({
+        color: colorHex,
+        emissive: colorHex,
+        emissiveIntensity: 0.42,
+        metalness: 0.62,
+        roughness: 0.26,
+        transparent: false,
+        depthWrite: true,
+        depthTest: true
+      }),
+      pulseMat: MaterialCache.get('control.extreme608.pulse.meshBasic.transparent.doubleSide.default', () => new THREE.MeshBasicMaterial({
+        color: 0xd9ffff,
+        transparent: true,
+        opacity: 0.26,
+        depthWrite: false,
+        depthTest: true,
+        side: THREE.DoubleSide
+      })),
+      auraMat: new THREE.MeshBasicMaterial({
+        color: colorHex,
+        transparent: true,
+        opacity: 0.08,
+        depthWrite: false,
+        depthTest: true,
+        side: THREE.BackSide
+      }),
+      scanMat: MaterialCache.get('control.extreme608.scan.shader.transparent.doubleSide.default', () => new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        depthTest: true,
+        side: THREE.DoubleSide,
+        uniforms: {
+          uTime: { value: 0 },
+          uColor: { value: new THREE.Color(0xcffbff) },
+          uOpacity: { value: 0.07 }
+        },
+        vertexShader: `
+          varying vec3 vPos;
+          void main() {
+            vPos = position;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform float uTime;
+          uniform vec3 uColor;
+          uniform float uOpacity;
+          varying vec3 vPos;
+          void main() {
+            float scan = step(0.62, fract((vPos.y * 5.0) + uTime * 0.95));
+            float alpha = uOpacity * (0.35 + scan * 0.65);
+            gl_FragColor = vec4(uColor, alpha);
+          }
+        `
+      }))
+    };
+
+    CONTROL_EXTREME_608_MATERIALS.set(colorHex, mats);
+    return mats;
   }
 
   /**
