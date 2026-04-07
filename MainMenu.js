@@ -166,7 +166,7 @@ export function clearContinueSnapshot() {
     removeStorageKey(MENU_SNAPSHOT_STORAGE_KEY);
 }
 
-function ensureMenuStyles() {
+export function ensureMenuStyles() {
     if (document.getElementById(MENU_STYLE_ID)) {
         return;
     }
@@ -186,6 +186,26 @@ function ensureMenuStyles() {
             opacity: 1;
             transition: opacity 180ms ease;
             font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+        }
+
+        .atoma-main-menu.atoma-pause-menu {
+            background: rgba(3, 10, 16, 0.28);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        .atoma-main-menu.atoma-pause-menu .atoma-main-menu__canvas {
+            display: none;
+        }
+
+        .atoma-main-menu.atoma-pause-menu .atoma-main-menu__overlay {
+            padding: 36px 24px 24px;
+        }
+
+        .atoma-main-menu.atoma-pause-menu .atoma-main-menu__panel {
+            min-height: auto;
+            max-width: 700px;
+            background: linear-gradient(180deg, rgba(7, 17, 24, 0.76), rgba(4, 10, 16, 0.60));
         }
 
         .atoma-main-menu.is-hidden {
@@ -465,7 +485,7 @@ function ensureMenuStyles() {
     document.head.appendChild(style);
 }
 
-function getSettingsRows(settings) {
+export function getSettingsRows(settings) {
     return [
         {
             id: 'sound',

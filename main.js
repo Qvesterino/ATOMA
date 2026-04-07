@@ -285,6 +285,13 @@ function mountAudioMuteToggleHUD(host = document.body) {
     return wrapper;
 }
 
+function removeLegacyRuntimeHudElements() {
+    if (typeof document === 'undefined') return;
+
+    document.getElementById('world-selector-hud')?.remove();
+    document.getElementById('atoma-audio-mute-toggle-root')?.remove();
+}
+
 function getLinkCreateCallbackTimingRegistry(scope = globalThis) {
     const existingRegistry = scope?.__ATOMA_LINK_CREATE_CALLBACK_TIMINGS__;
     if (existingRegistry) {
@@ -1346,7 +1353,6 @@ import { AIEmotionalFeed3_1 } from './_AIEmotionalFeed3_1.js';
 import { NodeSelectionCore3_4 } from './_NodeSelectionCore3_4.js';
 import { UIPrimaryNodeTopBar3_7 } from './_UIPrimaryNodeTopBar3_7.js';
 import { getSelectedHUD } from './UISelectedHUD.js';
-import { WorldSelectorHUD } from './WorldSelectorHUD.js';
 // REMOVED: NodeLinking2_0, NodeLinking2_1, NodeLinking2_2 (superseded by 2.3)
 
 // ============================================================================
@@ -3932,6 +3938,7 @@ class AtomaGame {
         
         this.clock = new THREE.Clock();
         this.time = 0;
+        this.isPaused = false;
         this._switchInProgress = false;
         this._switchCallId = 0;
         
@@ -5780,7 +5787,6 @@ this.setHudDirty('nodeInspect');
 
         // OLD UI 3.0 - To be disabled
         this.nodeInspectPanel = null;     // Used by UI 3.2 for persistence
-        this.worldSelectorHUD = null;
 
         this.init();
         this.setupPlayer();
@@ -6267,10 +6273,7 @@ this.setHudDirty('nodeInspect');
         // ========================================================================
         // Expose AtomaGame instance and subsystems globally (debug-safe)
         window.game = this;
-        if (!this.worldSelectorHUD) {
-            this.worldSelectorHUD = new WorldSelectorHUD(this);
-        }
-        this.worldSelectorHUD.attach();
+        removeLegacyRuntimeHudElements();
         window.linkQualityFeedbackLoop = this.linkQualityFeedbackLoop;
         window.linkMLRecommendationEngine = this.linkMLRecommendationEngine;
         window.userAcceptanceTracker = this.userAcceptanceTracker;
@@ -6777,7 +6780,6 @@ window.__ATOMA_SCENE__ = this.scene;
         // Mount AI HUDs
         mountAIAutomationHUD(document.body);
         mountVariantBAdvisorHUD(document.body);
-        mountAudioMuteToggleHUD(document.body);
 
         // Initial paint (live reports are refreshed on the simulation scheduler)
         this._refreshAIHudReports?.();
@@ -10859,6 +10861,24 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         this.loadWorld(nextWorldId);
     }
 
+    pause() {
+        if (this.isPaused) {
+            return;
+        }
+
+        this.isPaused = true;
+        this.clock.getDelta();
+    }
+
+    resume() {
+        if (!this.isPaused) {
+            return;
+        }
+
+        this.isPaused = false;
+        this.clock.getDelta();
+    }
+
     applyTheme(themeId) {
         switch (themeId) {
             case 'sigma':
@@ -11831,6 +11851,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // This runs side-by-side with existing game logic - no throttling yet
         const deltaTime = Math.min(this.clock.getDelta(), 0.1); // Clamp to max 100ms to prevent tab-inactive spikes
         const deltaTimeMs = deltaTime * 1000;
+        if (this.isPaused) {
+            this.runRenderTick(deltaTime);
+            this.updateValidator?.endFrame(deltaTimeMs);
+            return;
+        }
+
         this.time += deltaTime;
         if (typeof performance !== 'undefined' && (this.time < 5)) {
             console.log("DT:", deltaTime);
