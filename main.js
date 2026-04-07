@@ -3881,8 +3881,20 @@ function safeTick(system, ...args) {
   // Event-driven systems or systems with no per-frame method: silent no-op
 }
 
+const BOOTABLE_WORLD_IDS = new Set(['fractal', 'quantum', 'desert', 'desert2', 'chamber', 'sigma']);
+
+function normalizeStartupWorldId(value) {
+    if (typeof value !== 'string') {
+        return 'quantum';
+    }
+
+    const normalized = value.trim().toLowerCase();
+    return BOOTABLE_WORLD_IDS.has(normalized) ? normalized : 'quantum';
+}
+
 class AtomaGame {
-    constructor() {
+    constructor(options = {}) {
+        this.bootOptions = options && typeof options === 'object' ? options : {};
         // ========================================================================
         // STEP 1 — GLOBAL AUTHORITY FLAGS (CRITICAL STABILIZATION)
         // ========================================================================
@@ -5075,8 +5087,11 @@ this.setHudDirty('nodeInspect');
         console.log('  API: scheduler.registerTestSystems()');
         console.log('  API: scheduler.stats() | scheduler.listSystems() | scheduler.clear()');
         
-        this.currentMode = 'quantum'; // Default: Quantum Island
-        this.currentTheme = 'quantum';
+        const startupWorld = normalizeStartupWorldId(
+            this.bootOptions?.continueSnapshot?.worldId || this.bootOptions?.startupWorld,
+        );
+        this.currentMode = startupWorld;
+        this.currentTheme = startupWorld;
         this.worldRegistry = {
             fractal: () => this.initFractalWorld(),
             quantum: () => this.initQuantumWorld(),
@@ -18527,10 +18542,20 @@ if (typeof window !== 'undefined') {
 // ============================================================================
 // [BOOT] START GAME INSTANCE
 // ============================================================================
-console.log('[BOOT] Starting AtomaGame instance...');
+let atomaGameInstance = null;
 
-new AtomaGame();
-console.log('[BOOT] main.js execution completed');
+export function startAtomaGame(options = {}) {
+    if (atomaGameInstance) {
+        return atomaGameInstance;
+    }
+
+    atomaGameInstance = new AtomaGame(options);
+    return atomaGameInstance;
+}
+
+if (window.__ATOMA_SKIP_AUTO_BOOT !== true) {
+    startAtomaGame();
+}
 
 
 

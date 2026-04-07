@@ -78,6 +78,10 @@
         height: 12px;
       }
 
+      body.atoma-preboot #crosshair {
+        display: none;
+      }
+
       /* =====================================================
          PERFORMANCE MODE — BLUR DISABLED (GLOBAL GATE)
          ===================================================== */
@@ -145,7 +149,7 @@
     </script>
   </head>
 
-  <body>
+  <body class="atoma-preboot">
     <!-- Static crosshair only -->
     <div id="crosshair">
       <div class="crosshair-dot"></div>
@@ -155,18 +159,10 @@
       </div>
     </div>
 
-    <!-- Main application -->
-    <script type="module" src="./main.js"></script>
-
-    <!-- Runtime HUDs (dynamic, authoritative) -->
-    <script type="module">
-      import { mountAIAutomationHUD } from "./AIAutomationHUD.js";
-      mountAIAutomationHUD(document.body);
+    <script>
+      window.__ATOMA_SKIP_AUTO_BOOT = true;
     </script>
 
-    <script type="module">
-      import { mountVariantBAdvisorHUD } from "./ui/hud/VariantBAdvisorHUD.js";
-      mountVariantBAdvisorHUD(document.body);
-    </script>
+    <script type="module" src="./AtomaBoot.js"></script>
   </body>
 </html>
