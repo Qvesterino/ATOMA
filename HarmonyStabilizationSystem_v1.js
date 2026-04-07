@@ -30,6 +30,8 @@
  */
 
 // === THREE SAFE LOADER ===
+import { setMetric } from './src/metrics/NodeMetricEngine.js';
+
 let THREE_SAFE = null;
 THREE_SAFE =
   (typeof window !== 'undefined' && window.THREE) ||
@@ -137,10 +139,7 @@ export class HarmonyStabilizationSystem_v1 {
           initialHarmony = 0.45 + Math.random() * 0.15; // 0.45-0.6
         }
         node.userData.harmonyLevel = initialHarmony;
-        // Sync to userData.metrics.harmony for downstream consumers
-        if (node.userData.metrics) {
-          node.userData.metrics.harmony = initialHarmony;
-        }
+        setMetric(node, 'harmony', initialHarmony, { source: 'HarmonyStabilizationSystem' });
       }
       if (typeof node.userData.isHarmonyAnchor !== 'boolean') {
         node.userData.isHarmonyAnchor = false;
@@ -648,14 +647,7 @@ export class HarmonyStabilizationSystem_v1 {
     // [PHASE 1 FIX] Update canonical source
     level = Math.max(0, Math.min(1.0, level));
     node.userData.harmonyLevel = level;
-    
-    // Sync to userData.metrics.harmony for downstream consumers (HarmonicHubAuraSystem, etc.)
-    if (node.userData.metrics) {
-      node.userData.metrics.harmony = level;
-    }
-    
-    // Store velocity in internal map (transient state)
-    harmonyData.velocity = (harmonyIncrease - harmonyDecay) / (deltaTime + 0.001);
+    setMetric(node, 'harmony', level, { source: 'HarmonyStabilizationSystem' });
     harmonyData.lastUpdateTime = Date.now();
 
     // Check harmony thresholds

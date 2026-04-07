@@ -1,6 +1,7 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { setMetric } from './src/metrics/NodeMetricEngine.js';
 
 function getAtomaVisualDebugMode() {
     const mode = (typeof window !== 'undefined' && window.__ATOMA_VISUAL_DEBUG_MODE__)
@@ -487,13 +488,8 @@ export class HarmonicHealingVisualSystem_Session134 {
 
         // Heal Node Corruption (canonical path: userData.metrics.corruption)
         if (targetNode && targetNode.userData) {
-            if (!targetNode.userData.metrics) targetNode.userData.metrics = {};
-            const currentCorruption = targetNode.userData.metrics.corruption ?? targetNode.userData.corruption ?? 0;
-            targetNode.userData.metrics.corruption = Math.max(0, currentCorruption - healingPower);
-            // Sync legacy path
-            if (typeof targetNode.userData.corruption !== 'undefined') {
-                targetNode.userData.corruption = targetNode.userData.metrics.corruption;
-            }
+            const currentCorruption = targetNode.userData?.metrics?.corruption ?? 0;
+            setMetric(targetNode, 'corruption', Math.max(0, currentCorruption - healingPower), { source: 'HarmonicHealingVisualSystem' });
         }
 
         // Heal Link Stability (canonical path: userData.metrics.stability)

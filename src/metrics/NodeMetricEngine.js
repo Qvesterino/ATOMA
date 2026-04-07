@@ -5,7 +5,7 @@
  */
 
 import { assertMetricAuthority, traceMetricMutation } from './MetricAuthorityGuard.js';
-import { classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './MetricTierClassifier.js';
+import { buildMetricTierEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './MetricTierClassifier.js';
 
 const DEFAULT_METRICS = {
   synergy: 0,
@@ -225,6 +225,7 @@ function emitMetricTierChanged(node, metric, before, after, targetId) {
   // - gameplay/VFX should prefer the scoped metric alias events provided by semanticBus
   // - keep this event stable, but do not build new feature wiring on top of it
   bus.emit('metric.tier.changed', payload, { priority: bus.priority?.NORMAL });
+  bus.emit(buildMetricTierEventName('node', metric, nextTier), payload, { priority: bus.priority?.NORMAL });
 }
 
 function emitNodeMetricUpdated(metric, value, nodeId) {
@@ -494,6 +495,35 @@ function applyArchetypeClamp(node) {
 
 }
 
+function installMetricsPropertyGuard(node) {
+  if (!node?.userData || node.userData.__metricsGuardInstalled) return;
+  const userData = node.userData;
+  const existingDescriptor = Object.getOwnPropertyDescriptor(userData, 'metrics');
+  if (existingDescriptor && existingDescriptor.configurable === false) return;
+
+  let internalMetrics = userData.metrics;
+  if (internalMetrics && typeof internalMetrics === 'object') {
+    internalMetrics = wrapMetricsWithGuard(internalMetrics);
+  }
+
+  Object.defineProperty(userData, 'metrics', {
+    configurable: true,
+    enumerable: true,
+    get() {
+      return internalMetrics;
+    },
+    set(value) {
+      if (value && typeof value === 'object') {
+        internalMetrics = wrapMetricsWithGuard(value);
+      } else {
+        internalMetrics = value;
+      }
+    }
+  });
+
+  node.userData.__metricsGuardInstalled = true;
+}
+
 function installLegacyFieldGuards(node) {
   if (!node?.userData || node.userData.__legacyMetricGuardInstalled) return;
   for (const key of LEGACY_KEYS) {
@@ -505,6 +535,10 @@ function installLegacyFieldGuards(node) {
         configurable: true,
         enumerable: false,
         get() {
+          const metrics = this.metrics;
+          if (metrics && Object.prototype.hasOwnProperty.call(metrics, key)) {
+            return metrics[key];
+          }
           return undefined;
         },
         set(v) {
@@ -531,6 +565,7 @@ function installLegacyFieldGuards(node) {
 
 function ensureMetrics(node) {
   if (!node || !node.userData) return null;
+  installMetricsPropertyGuard(node);
   if (node.userData.metrics) {
     installLegacyFieldGuards(node);
     node.userData.metrics = wrapMetricsWithGuard(node.userData.metrics);
@@ -547,10 +582,42 @@ function ensureMetrics(node) {
     syncLoadAliases(node);
     return node.userData.metrics;
   }
-  const metrics = (node.userData.metrics = {});
-  for (const key of Object.keys(DEFAULT_METRICS)) {
-    metrics[key] = DEFAULT_METRICS[key];
-  }
+
+  const legacyHarmony = Number.isFinite(node.userData.harmony)
+    ? node.userData.harmony
+    : Number.isFinite(node.userData.harmonyLevel)
+      ? node.userData.harmonyLevel
+      : DEFAULT_METRICS.harmony;
+  const legacyCorruption = Number.isFinite(node.userData.corruption)
+    ? node.userData.corruption
+    : Number.isFinite(node.userData.corruptionLevel)
+      ? node.userData.corruptionLevel
+      : DEFAULT_METRICS.corruption;
+  const legacyStability = Number.isFinite(node.userData.stability)
+    ? node.userData.stability
+    : Number.isFinite(node.userData.instability)
+      ? 1 - clamp01(node.userData.instability)
+      : DEFAULT_METRICS.stability;
+  const legacyLoadPressure = Number.isFinite(node.userData.loadPressure)
+    ? node.userData.loadPressure
+    : Number.isFinite(node.userData.load)
+      ? node.userData.load
+      : Number.isFinite(node.userData.loadRatio)
+        ? node.userData.loadRatio
+        : Number.isFinite(node.userData.pressure)
+          ? node.userData.pressure
+          : DEFAULT_METRICS.loadPressure;
+
+  const metrics = (node.userData.metrics = {
+    synergy: DEFAULT_METRICS.synergy,
+    harmony: clamp01(legacyHarmony),
+    stability: clamp01(legacyStability),
+    corruption: clamp01(legacyCorruption),
+    loadPressure: clamp01(legacyLoadPressure),
+    load: clamp01(legacyLoadPressure),
+    loadRatio: clamp01(legacyLoadPressure)
+  });
+
   node.userData.metrics = wrapMetricsWithGuard(metrics);
   installLegacyFieldGuards(node);
   syncLoadAliases(node);

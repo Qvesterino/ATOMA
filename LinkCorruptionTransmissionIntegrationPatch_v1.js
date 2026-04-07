@@ -33,6 +33,7 @@
  */
 
 import { LinkCorruptionTransmission_v1 } from './LinkCorruptionTransmission_v1.js';
+import { setMetric } from './src/metrics/NodeMetricEngine.js';
 
 export class LinkCorruptionTransmissionIntegrationPatch_v1 {
   /**
@@ -186,8 +187,8 @@ export class LinkCorruptionTransmissionIntegrationPatch_v1 {
         if (targetNode && linkData && linkData.level > 0.5) {
           // Link corruption above 50% begins infecting target node
           const infectionRate = (linkData.level - 0.5) * 0.1; // 0-5% per frame
-          const currentCorruption = targetNode.userData?.corruption || 0;
-          targetNode.userData.corruption = Math.min(1.0, currentCorruption + infectionRate * deltaTime);
+          const currentCorruption = targetNode.userData?.metrics?.corruption ?? targetNode.userData?.corruption ?? 0;
+          setMetric(targetNode, 'corruption', Math.min(1.0, currentCorruption + infectionRate * deltaTime), { source: 'LinkCorruptionTransmissionIntegrationPatch' });
         }
       }
     };

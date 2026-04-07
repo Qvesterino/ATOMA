@@ -7,16 +7,18 @@
  * - link.userData.synergy
  *
  * Allowed writers:
- * - NodeMetricEngine              → node metrics
+ * - NodeMetricEngine              → node canonical metrics
  * - ComputeSynergyScore2_1        → link.userData.synergy
- * - LinkCorruptionTransmission    → corruption (link/user)
- * - HarmonyStabilizationSystem    → harmony (node/link)
+ * - LinkCorruptionTransmission    → link/node corruption via authorized impulse
+ *
+ * The goal is a single canonical node metric writer: NodeMetricEngine.
+ * Legacy subsystems should be migrated to use NodeMetricEngine APIs.
  *
  * Guard never throws; it only warns once per (system, metric).
  */
 const ALLOWED = {
   synergy: ['ComputeSynergyScore2_1', 'NodeMetricEngine'],
-  harmony: ['NodeMetricEngine', 'HarmonyStabilizationSystem'],
+  harmony: ['NodeMetricEngine'],
   stability: ['NodeMetricEngine'],
   corruption: ['LinkCorruptionTransmission', 'NodeMetricEngine'],
   loadPressure: ['NodeMetricEngine'],

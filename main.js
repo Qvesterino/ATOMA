@@ -1419,6 +1419,22 @@ function buildScopedMetricEventName(scope, metric, tier) {
     return `${scopeName}.${metric}.${tier}`;
 }
 
+function isScopedMetricTierTag(tag) {
+    if (typeof tag !== 'string') return false;
+    const parts = tag.split('.');
+    if (parts.length !== 3) return false;
+    const [scope, metric, tier] = parts;
+    return SCOPED_METRIC_EVENT_SCOPES.has(scope)
+        && SCOPED_METRIC_EVENT_NAMES.includes(metric)
+        && (tier === 'low' || tier === 'mid' || tier === 'high');
+}
+
+function getMetricContractTagNature(tag) {
+    if (tag === 'metric.tier.changed') return 'internal';
+    if (tag === 'metric.phase.changed') return 'legacy';
+    return null;
+}
+
 function resolveMetricAliasScope(payload, fallbackScope = 'node') {
     const explicitScope = String(payload?.scope || '').trim().toLowerCase();
     if (SCOPED_METRIC_EVENT_SCOPES.has(explicitScope)) {
@@ -2046,6 +2062,15 @@ class SemanticEventBus {
         this.logEventAudit();
     }
     subscribe(tag, handler, opts = {}) {
+        if (isScopedMetricTierTag(tag) && !this.eventPolicies.has(tag)) {
+            console.warn(`[SemanticEventBus] Invalid scoped metric tier subscription tag: ${tag}`);
+        }
+        const contractNature = getMetricContractTagNature(tag);
+        if (contractNature === 'internal') {
+            console.warn(`[SemanticEventBus] Internal debug event tag subscribed: ${tag}. Use scoped metric tier events instead.`);
+        } else if (contractNature === 'legacy') {
+            console.warn(`[SemanticEventBus] Legacy compatibility event tag subscribed: ${tag}. Prefer scoped metric tier events for new wiring.`);
+        }
         if (!this.handlers.has(tag)) {
             this.handlers.set(tag, []);
         }
@@ -2132,6 +2157,15 @@ class SemanticEventBus {
         }
     }
     emit(tag, payload, opts = {}) {
+        if (isScopedMetricTierTag(tag) && !this.eventPolicies.has(tag)) {
+            console.warn(`[SemanticEventBus] Invalid scoped metric tier emit tag: ${tag}`);
+        }
+        const contractNature = getMetricContractTagNature(tag);
+        if (contractNature === 'internal') {
+            console.warn(`[SemanticEventBus] Internal debug event tag emitted: ${tag}. Use scoped metric tier events instead.`);
+        } else if (contractNature === 'legacy') {
+            console.warn(`[SemanticEventBus] Legacy compatibility event tag emitted: ${tag}. Prefer scoped metric tier events for new wiring.`);
+        }
         const allowAliasExpansion = opts.expandAliases !== false;
         const aliasTargets = allowAliasExpansion ? this.resolveEventAliases(tag, payload, opts) : [];
         const exactHandlers = this.handlers.get(tag) || [];
@@ -2188,6 +2222,15 @@ class SemanticEventBus {
     }
 
     emitImmediate(tag, payload, opts = {}) {
+        if (isScopedMetricTierTag(tag) && !this.eventPolicies.has(tag)) {
+            console.warn(`[SemanticEventBus] Invalid scoped metric tier immediate emit tag: ${tag}`);
+        }
+        const contractNature = getMetricContractTagNature(tag);
+        if (contractNature === 'internal') {
+            console.warn(`[SemanticEventBus] Internal debug event tag immediate emitted: ${tag}. Use scoped metric tier events instead.`);
+        } else if (contractNature === 'legacy') {
+            console.warn(`[SemanticEventBus] Legacy compatibility event tag immediate emitted: ${tag}. Prefer scoped metric tier events for new wiring.`);
+        }
         const allowAliasExpansion = opts.expandAliases !== false;
         const aliasTargets = allowAliasExpansion ? this.resolveEventAliases(tag, payload, opts) : [];
         const exactHandlers = this.handlers.get(tag) || [];
@@ -4975,7 +5018,7 @@ class AtomaGame {
                         // Compute load pressure based on actual node metrics
                         const linkCount = node.userData.linkCount || 0;
                         const activeLinks = node.userData.activeLinks || 0;
-                        const corruptionLevel = node.userData.corruption || 0;
+                        const corruptionLevel = node.userData.metrics?.corruption ?? 0;
                         // Load pressure = (activeLinks / linkCount) + (corruptionLevel * 0.5)
                         const loadPressure = Math.min(1, (activeLinks / Math.max(1, linkCount)) + (corruptionLevel * 0.5));
                         this.canonicalTemplate3_StressVisuals.updateNodeLoadPressure(node, loadPressure);

@@ -48,7 +48,7 @@
 
 import { NetworkMembershipResolver } from './src/metrics/NetworkMembershipResolver.js';
 import { NetworkMetricsAggregator } from './src/metrics/NetworkMetricsAggregator.js';
-import { classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './src/metrics/MetricTierClassifier.js';
+import { buildMetricTierEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './src/metrics/MetricTierClassifier.js';
 import { updateNodeMetrics } from './src/metrics/NodeMetricEngine.js';
 import { MetricValidationRuntime } from './MetricValidationRuntime.js';
 
@@ -598,8 +598,10 @@ const adapter = this._createLinkSystemAdapter(
         for (const node of nodeList) {
             if (!node) continue;
             node.userData = node.userData || {};
+            const metrics = ensureMetrics(node);
+            if (!metrics) continue;
             const userData = node.userData;
-            const metrics = userData.metrics || (userData.metrics = {});
+
             const harmony = this._clamp01(metrics.harmony ?? userData.harmony ?? userData.harmonyLevel ?? 0);
             const corruption = this._clamp01(metrics.corruption ?? userData.corruption ?? userData.corruptionLevel ?? 0);
             const stability = this._clamp01(metrics.stability ?? (1 - this._clamp01(userData.instability ?? 0)));
@@ -1277,7 +1279,7 @@ const adapter = this._createLinkSystemAdapter(
             // - global consumers should still prefer the scoped metric alias events provided by semanticBus
             // - keep the event available for diagnostics, not as the main wiring path
             semanticBus.emit('metric.tier.changed', payload, { priority: semanticBus.priority?.NORMAL });
-            semanticBus.emit(`global.${entry.metric}.${nextTier}`, payload, { priority: semanticBus.priority?.NORMAL });
+            semanticBus.emit(buildMetricTierEventName('global', entry.metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
         }
     }
 

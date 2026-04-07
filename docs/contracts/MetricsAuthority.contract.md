@@ -247,10 +247,16 @@ Scoped tier events use a shared payload shape:
 ### 10.5 Authority rule
 
 - Canonical node metrics are still owned by `NodeMetricEngine`.
+- `NodeMetricEngine` also emits scoped node tier events: `node.<metric>.<tier>`.
 - `MetricsRuntime_v1` owns aggregation, publish, and global/network mirroring.
+- `MetricsRuntime_v1` emits scoped global tier events: `global.<metric>.<tier>`.
+- `LinkQualityCalculator` emits scoped link tier events: `link.<metric>.<tier>`.
+- `HarmonicHubAuraSystem_Session126` emits scoped hub tier events: `hub.<metric>.<tier>`.
+- Scoped metric tier events are an official contract surface. Consumers and producers must use these exact names for metric tier reactions and world-event wiring.
+- `SemanticEventBus` validates scoped metric tier event names and warns if a subscribed or emitted tag does not match the registered `scope.metric.tier` contract.
 - `link.*` and `hub.*` are scoped semantic/visual layers, not new canonical state writers.
-- `metric.tier.changed` must remain internal/debug only.
-- `metric.phase.changed` must remain compatibility-only.
+- `metric.tier.changed` must remain internal/debug only; do not use it for new gameplay or VFX wiring.
+- `metric.phase.changed` must remain compatibility-only; migrate listeners to scoped tier events and retire this alias when possible.
 
 ## 11. Runtime Data Flow (current working contract)
 
@@ -299,6 +305,8 @@ Canonical metrics remain the node-authoritative `node.userData.metrics.*` surfac
 - `clusterMembershipID`
 - `hubId`
 - `activeLinkCount`
+
+Legacy compatibility aliases such as `node.userData.corruption`, `node.userData.harmony`, `node.userData.load`, and `node.userData.loadRatio` may still be present for read-only compatibility, but they are not canonical write targets.
 
 Global aggregation outputs:
 

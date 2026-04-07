@@ -25,6 +25,7 @@ if (!THREE_SAFE) {
 const THREE = THREE_SAFE;
 
 import { CorruptionVisualFX_v1 } from './CorruptionVisualFX_v1.js';
+import { setMetric } from './src/metrics/NodeMetricEngine.js';
 
 function readNodeCorruptionLevel(node) {
   return (
@@ -50,7 +51,7 @@ function writeCanonicalCorruption(node, value, isCorrupted = null) {
   if (!userData) return;
 
   const normalized = Math.max(0, Math.min(1, Number(value) || 0));
-  userData.metrics.corruption = normalized;
+  setMetric(node, 'corruption', normalized, { source: 'CorruptionVisualIntegrationPatch' });
 
   // Compatibility mirror for legacy consumers while canonical data lives in metrics.
   userData.corruption = normalized;

@@ -1,0 +1,3194 @@
+{
+  "timestamp": "2026-04-07T10:44:21.771Z",
+  "summary": {
+    "totalFiles": 616,
+    "unusedFiles": 182,
+    "filesWithUnusedExports": 146,
+    "filesWithUnusedFunctions": 215
+  },
+  "unusedFiles": [
+    "ATOMA_SPAWN_FILTER_AUDIT.js",
+    "AudioSystem.js",
+    "AutoConnectEngine.ts",
+    "BeadSystemTuning.js",
+    "ComputeSynergyScore2_1.js",
+    "ControlNodeGeometries_v1.js",
+    "CoreMetricAuthorityMonitor.js",
+    "CorruptionVisualIntegrationPatch_v1.js",
+    "DreamDesert2.js",
+    "ENGINE_HEALTH_CHECK_CONSOLE_API.js",
+    "EXAMPLES/CASCADING_RESONANCE_EXAMPLES.js",
+    "EXAMPLES/ControlSpineVariants_Session100_INTEGRATION_EXAMPLES.js",
+    "EXAMPLES/HARMONIC_HALO_EXAMPLES.js",
+    "EXAMPLES/HARMONIC_HUB_INTEGRATION_EXAMPLES.js",
+    "EXAMPLES/HARMONY_STABILIZATION_v1_EXAMPLES.js",
+    "EXAMPLES/HUB_INFLUENCE_EXAMPLES.js",
+    "EXAMPLES/LINK_CORRUPTION_TRANSMISSION_v1_EXAMPLES.js",
+    "EXAMPLES/LINK_GRADIENT_POLISH_EXAMPLES.js",
+    "EXAMPLES/LINK_MORPHING_EXAMPLES.js",
+    "EXAMPLES/LINK_SHADER_LANGUAGE_EXAMPLES.js",
+    "EXAMPLES/NodeStateMachine_v1_EXAMPLES.js",
+    "EXAMPLES/RITUAL_VISUAL_ORCHESTRATOR_EXAMPLES.js",
+    "EXAMPLES/SURFACE_RIPPLES_EXAMPLES.js",
+    "EXAMPLES/SYNERGY_INTEGRATION_EXAMPLES.ts",
+    "EXAMPLES/SYNERGY_MAIN_JS_EXAMPLE.js",
+    "EXAMPLES/TRAFFIC_INTEGRATION_EXAMPLES.ts",
+    "Engine/Debug/BeadDebugUtils.js",
+    "Engine/Debug/CATEGORY_POOLS_VERIFICATION.js",
+    "Engine/Debug/ControlSpineVariants_Session100_VERIFICATION.js",
+    "Engine/Debug/DefensiveHardeningValidationHelper.js",
+    "Engine/Debug/EngineHealthDiagnostics1_0.js",
+    "Engine/Debug/EventFrequencyAudit.js",
+    "Engine/Debug/Performance_snapshot.js",
+    "Engine/Debug/SoakTestLogging_v1.js",
+    "Engine/Debug/VisualLayerDebugger.js",
+    "Engine/Debug/VisualOverlayAuditSystem.js",
+    "Engine/Debug/analyze_frame_scheduler.js",
+    "Engine/Debug/detect_noop_scheduler.js",
+    "Engine/Debug/event_flow_tracer.js",
+    "Engine/Debug/fix_debug_mode.js",
+    "Engine/Debug/framescheduler_zombie_audit.js",
+    "Engine/Debug/run_vfx_audit.js",
+    "Engine/Visual/ATOMAColorPalette.js",
+    "Engine/Visual/ATOMARhythmAuthority.js",
+    "Engine/Visual/ATOMAShaderBase.js",
+    "EvolutionRegistry.js",
+    "ForceNodeOpaqueBodySystem_v1.js",
+    "FrameEnforcementEngine.js",
+    "HarmonicInfluencePropagationIntegrationPatch_Session127.js",
+    "HarmonyAuraController.js",
+    "HubInfluencePropagation.js",
+    "InputEnhancedVariants_Session84.js",
+    "InputSensoryGeometries_v1.js",
+    "IntegrationEnhancedVariants_Session82.js",
+    "LEGACY/EXTREMENormalization.js",
+    "LEGACY/EnergyOrb.js",
+    "LEGACY/LinkAutomationMonitor2_0.js",
+    "LEGACY/LinkAutomationMonitorHUD2_0.js",
+    "LEGACY/LinkDebugMode_v1.js",
+    "LEGACY/LinkMicroImpulseAdapter.js",
+    "LEGACY/LinkVisualMoodSystem.js",
+    "LEGACY/MultiStrandConduitShader.js",
+    "LEGACY/NodeHierarchyBridge_v1.js",
+    "LEGACY/NodePersonality2_0.js",
+    "LEGACY/NodePersonalitySystem2_0.js",
+    "LEGACY/NodePersonality_VisualAdapter.js",
+    "LEGACY/PersonalityVFXLayer_v1.js",
+    "LEGACY/SynergyHighways1_0.js",
+    "LEGACY/UINodeInspectPanel.js",
+    "LEGACY/_EvolvingLinkFX2_0.js",
+    "LEGACY/_ExtremeAIShaderTestSuite.js",
+    "LEGACY/_ExtremeLinkVisualPack3.js",
+    "LEGACY/_ExtremeLinkVisuals4_0.js",
+    "LEGACY/_NeuralCurveLinkVisuals.js",
+    "LEGACY/_NewNodeCategoryVisuals.js",
+    "LEGACY/_SafeNewNodeCategories1_0.js",
+    "LEGACY/_SafeNodeUnlinking3_3.js",
+    "LEGACY/_TASK_3_RARE_NODE_VERIFICATION.js",
+    "LEGACY/_UISelectedNodeLabel3_3.js",
+    "LEGACY/_UISelectedNodeTopBar3_4.js",
+    "LINK_DEGRADATION_MAINJS_PATCH.js",
+    "LegacyLinkStateNeutralization.js",
+    "LegacyLinkStateShutdown.js",
+    "LinkBeadVisualEffects.js",
+    "LinkEnergyWave.js",
+    "LinkGlowSynergyEngine_v2.js",
+    "LinkSemanticPictogramSystem.js",
+    "LinkSurfacePhaseRipples.js",
+    "LinkThicknessMetricsIntegrationPatch_v1.js",
+    "MegaGlyphConduit.js",
+    "MegaGlyphSystem.js",
+    "NetworkFatigueSystem_v0_DEBUG.js",
+    "NetworkStateAIReasoner.js",
+    "NodeCoreOpaqueEnforcer_Session113.js",
+    "NodeDynamicMetrics.js",
+    "NodeHierarchyEffectsPool_v1.js",
+    "NodeHierarchySystem_v1.js",
+    "NodeHierarchyVisualFeedback_v1.js",
+    "NodeHierarchyVisuals_v1.js",
+    "NodeHoverRingSystem.js",
+    "NodeInteractionEngine.ts",
+    "NodeLinker2_RepairLayer1_0.js",
+    "NodeLinkingInvariantGuard.js",
+    "NodeLinkingSystem.js",
+    "NodeQualityCalculator.js",
+    "NodeStateBuffer.ts",
+    "NodeStateMachine_v1.js",
+    "NodeSurfaceDominanceRule_v1.js",
+    "NodeSynergyIntegration1_0.js",
+    "NodeVisualIntegrityFix.js",
+    "NodeVisualStateBinder_OLD_v1.js",
+    "ParticleEmissionRateScaling.js",
+    "PersonalityMaterialProfileRegistry_v1.js",
+    "PersonalityShaderStabilizedFX_v1.js",
+    "PersonalitySignalSmoother_v1.js",
+    "PriorityDecayEngine1_0.js",
+    "RitualVisualOrchestrator.js",
+    "SNIPPETS/LINK_EVENT_INTEGRATION_SNIPPET.js",
+    "SNIPPETS/MAIN_JS_LINK_METRICS_INTEGRATION_SNIPPET.js",
+    "SNIPPETS/MAIN_JS_LINK_THICKNESS_INTEGRATION_SNIPPET.js",
+    "SNIPPETS/W21_ResonanceFeedback_Snippets.js",
+    "SNIPPETS/W23_TRAVELING_WAVE_FX_SNIPPETS.js",
+    "SNIPPETS/WAVE_INTERFERENCE_ENGINE_SNIPPETS.js",
+    "SNIPPETS/WEEK10_LINK_AURA_INTEGRATION_SNIPPET.js",
+    "SNIPPETS/WEEK11_MYTHIC_EVOLUTION_INTEGRATION_SNIPPET.js",
+    "SNIPPETS/WEEK12_MYTHIC_AURA_INTEGRATION_SNIPPETS.js",
+    "SNIPPETS/WEEK13_ARCHETYPE_CURVES_SNIPPETS.js",
+    "SNIPPETS/WEEK14_AURA_INTEGRATION_SNIPPETS.js",
+    "SNIPPETS/WEEK15_COLOR_SNIPPETS.js",
+    "SNIPPETS/WEEK16_SHADER_MODE_SNIPPETS.js",
+    "SNIPPETS/WEEK25_CASCADE_FX_SNIPPETS.js",
+    "SNIPPETS/WEEK5_INTEGRATION_SNIPPET.js",
+    "SNIPPETS/WEEK6_INTEGRATION_SNIPPET.js",
+    "SNIPPETS/WEEK7_INTEGRATION_SNIPPET.js",
+    "SNIPPETS/WEEK8_ALT_INTEGRATION_SNIPPET.js",
+    "SNIPPETS/WEEK9_AURA_INTEGRATION_SNIPPET.js",
+    "SNIPPETS/Week20_Integration_Snippet.js",
+    "SelectedHUDSyncPatch1_0_TestHelper.js",
+    "SpatialIndexPerformanceTest.js",
+    "SpawnAuthorityConsoleAPI.js",
+    "StressTurbulenceIntegrationGuide.js",
+    "SynergyAuraColorIntegrationPatch.js",
+    "SynergyVFX1_0.js",
+    "SynergyVFXEngine1_0.js",
+    "SystemInitializationOrderValidator_v1.js",
+    "VerifyLinkStateContractCompliance.js",
+    "VisualAuthority.js",
+    "VisualEchoTrails_v1_Shader.js",
+    "VisualMetricModel_v1.js",
+    "VisualTemplateReferenceImplementations.js",
+    "WaveBurstRouter_v1.js",
+    "WorldScaffold_v2.js",
+    "ZeroGravityControls.js",
+    "_AtomaUIUpdate3_0.js",
+    "_ObjectExtensibilityGuard.js",
+    "_RareNodeSimulationVerifier.js",
+    "_SESSION_38_VERIFICATION_SCRIPT.js",
+    "_UISelectedNodeBadge3_2.js",
+    "_VisualRootAutoRegister.js",
+    "ai tools (powershell)/check_factories.js",
+    "ai tools (powershell)/vfx_health_check.js",
+    "ai tools (powershell)/vfx_perf_injector.js",
+    "assets/UISelectedHUD.js",
+    "scripts/materialMutationKillGuard.js",
+    "scripts/smoke.js",
+    "scripts/unused_code_audit.js",
+    "scripts/verify.js",
+    "shaders/AITechDistortionShader.js",
+    "shaders/LinkStateVisualLanguage.js",
+    "shaders/NeonPulseShader.js",
+    "shaders/NodeAuraShader.js",
+    "shaders/UtilityShaders.js",
+    "src/audio/tone-stub.js",
+    "src/legacy/NodeGrouping.js",
+    "src/legacy/_AtomaGlyphSystem3_0.js",
+    "src/legacy/_NodeLinking2_3.js",
+    "src/metrics/rendering/MaterialTemplates_v1.js",
+    "tests/MetricRuntimeAdapter.test.js",
+    "tests/VisualSpherePolicy.test.js",
+    "tmp_three.js",
+    "tools/gate_detector.js",
+    "vite.config.js"
+  ],
+  "unusedExports": [
+    {
+      "file": "AINodes.js",
+      "exports": [
+        "interactiveNodes"
+      ]
+    },
+    {
+      "file": "ArchetypeVisualProfiles_v1.js",
+      "exports": [
+        "ArchetypeVisualProfiles"
+      ]
+    },
+    {
+      "file": "AtomaAudioEventManifest.js",
+      "exports": [
+        "AUDIO_EVENT_MANIFEST"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/AnalyticsEnhancedVariants_Session81.js",
+      "exports": [
+        "AnalyticsEnhancedVariants"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/ControlEnhancedVariants_Session83.js",
+      "exports": [
+        "ControlEnhancedVariants"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/ControlNodeSpecialGoverners_Session114.js",
+      "exports": [
+        "ControlNodeSpecialGovernors"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/ControlSpineVariants_Session100.js",
+      "exports": [
+        "ControlSpineVariants"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/InputSensoryEnhanced_Session111.js",
+      "exports": [
+        "InputSensoryEnhanced"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/IntegrationEnhancedVariants_Session110.js",
+      "exports": [
+        "IntegrationEnhancedVariants"
+      ]
+    },
+    {
+      "file": "IntegrationEnhancedVariants_Session82.js",
+      "exports": [
+        "IntegrationEnhancedVariants"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/ProcessEnhancedVariants_Session81.js",
+      "exports": [
+        "ProcessEnhancedVariants"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/StorageEnhancedVariants_Session81.js",
+      "exports": [
+        "StorageEnhancedVariants"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/StorageNodesVisual_Session116.js",
+      "exports": [
+        "StorageNodesVisual"
+      ]
+    },
+    {
+      "file": "AudioSystem.js",
+      "exports": [
+        "AudioManager"
+      ]
+    },
+    {
+      "file": "AutoConnectEngine.ts",
+      "exports": [
+        "AutoConnectEngine"
+      ]
+    },
+    {
+      "file": "BeadSystemTuning.js",
+      "exports": [
+        "PRESET_BALANCED",
+        "PRESET_BUSY",
+        "PRESET_CONSERVATIVE",
+        "PRESET_EXPRESSIVE"
+      ]
+    },
+    {
+      "file": "CanonicalGeometryFamilies_v1.js",
+      "exports": [
+        "CanonicalGeometryFamilies"
+      ]
+    },
+    {
+      "file": "CanonicalInteractionFilter.js",
+      "exports": [
+        "InteractionFilter"
+      ]
+    },
+    {
+      "file": "ControlNodeGeometries_v1.js",
+      "exports": [
+        "ControlNodeGeometries",
+        "ControlNodeMeshes"
+      ]
+    },
+    {
+      "file": "CoreMetricAuthorityMonitor.js",
+      "exports": [
+        "AUTHORITY_CONTRACT",
+        "LOCKED_STATS"
+      ]
+    },
+    {
+      "file": "CoreVisualAuthoritySystem.js",
+      "exports": [
+        "CoreVisualAuthorityGuard",
+        "CoreVisualAuthoritySystem"
+      ]
+    },
+    {
+      "file": "DreamDesert2.js",
+      "exports": [
+        "DreamDesert2"
+      ]
+    },
+    {
+      "file": "EnergyVisualProfile.js",
+      "exports": [
+        "EnergyVisualProfile"
+      ]
+    },
+    {
+      "file": "Engine/Debug/ControlSpineVariants_Session100_VERIFICATION.js",
+      "exports": [
+        "COMPATIBILITY",
+        "CONSOLE_VERIFICATION",
+        "EXPECTED_RESULTS",
+        "FINAL_STATUS",
+        "USAGE_EXAMPLES",
+        "VERIFICATION_CHECKLIST"
+      ]
+    },
+    {
+      "file": "Engine/Debug/DefensiveHardeningValidationHelper.js",
+      "exports": [
+        "validationHelper"
+      ]
+    },
+    {
+      "file": "Engine/Debug/EngineHealthDiagnostics1_0.js",
+      "exports": [
+        "EngineHealthDiagnostics1_0"
+      ]
+    },
+    {
+      "file": "Engine/Debug/LinkBufferSafetyAudit.js",
+      "exports": [
+        "LinkBufferSafetyAudit"
+      ]
+    },
+    {
+      "file": "Engine/Debug/SoakTestLogging_v1.js",
+      "exports": [
+        "SoakTestLogging"
+      ]
+    },
+    {
+      "file": "Engine/Debug/VisualAudit.js",
+      "exports": [
+        "VisualAudit"
+      ]
+    },
+    {
+      "file": "Engine/Debug/VisualLayerDebugger.js",
+      "exports": [
+        "VisualLayerDebugger"
+      ]
+    },
+    {
+      "file": "Engine/Debug/VisualOverlayAuditSystem.js",
+      "exports": [
+        "VisualOverlayAuditSystem"
+      ]
+    },
+    {
+      "file": "Engine/SystemRegistry.js",
+      "exports": [
+        "systemRegistry"
+      ]
+    },
+    {
+      "file": "Engine/Visual/ATOMAColorPalette.js",
+      "exports": [
+        "ATOMAColorPalette"
+      ]
+    },
+    {
+      "file": "Engine/Visual/ATOMARhythmAuthority.js",
+      "exports": [
+        "ATOMARhythmAuthority"
+      ]
+    },
+    {
+      "file": "Engine/Visual/ATOMAShaderBase.js",
+      "exports": [
+        "ATOMAShaderBase"
+      ]
+    },
+    {
+      "file": "EnhancedNodeModels.js",
+      "exports": [
+        "EnhancedNodeModels"
+      ]
+    },
+    {
+      "file": "EventVisualSuppression_v1.js",
+      "exports": [
+        "EventVisualSuppression_v1"
+      ]
+    },
+    {
+      "file": "EXAMPLES/HARMONIC_HUB_INTEGRATION_EXAMPLES.js",
+      "exports": [
+        "HarmonicHubExamples"
+      ]
+    },
+    {
+      "file": "EXAMPLES/HARMONIC_RECOVERY_EXAMPLES.js",
+      "exports": [
+        "DirectionalStreaksRecoveryIntegration",
+        "HaloStabilizationRecoveryIntegration",
+        "PulseWaveSyncRecoveryIntegration",
+        "ReLockWaveRecoveryIntegration",
+        "RecoveryDebugHUD",
+        "RecoverySystemExports",
+        "RecoveryTestUtils",
+        "SurfaceRipplesRecoveryIntegration"
+      ]
+    },
+    {
+      "file": "EXAMPLES/HARMONIC_RESILIENCE_EXAMPLES.js",
+      "exports": [
+        "NetworkAuthorityResilienceIntegration",
+        "PulseCoherenceResilienceIntegration",
+        "ResilienceDebugHUD",
+        "ResilienceSystemExports",
+        "ResilienceTestUtils",
+        "RippleCalmnessResilienceIntegration",
+        "StreakConsistencyResilienceIntegration"
+      ]
+    },
+    {
+      "file": "EXAMPLES/RITUAL_VISUAL_ORCHESTRATOR_EXAMPLES.js",
+      "exports": [
+        ""
+      ]
+    },
+    {
+      "file": "VisualTemplateRegistry.js",
+      "exports": [
+        "",
+        "CANONICAL_TEMPLATE",
+        "REGISTRY",
+        "REGISTRY_CONFORMANCE",
+        "RENDERABLE_TYPE",
+        "TEMPLATE_LOCK_STATUS"
+      ]
+    },
+    {
+      "file": "VisualTemplateResolver.js",
+      "exports": [
+        "",
+        "RESOLVER_CONFORMANCE",
+        "TEMPLATE_SPECS"
+      ]
+    },
+    {
+      "file": "EXAMPLES/SURFACE_RIPPLES_EXAMPLES.js",
+      "exports": [
+        "RIPPLE_SHADER_FRAGMENT",
+        "RippleDebugHUD",
+        "SurfaceRipplesSystemExports",
+        "SurfaceRipplesTestUtils"
+      ]
+    },
+    {
+      "file": "FireLikeAuraConfig.js",
+      "exports": [
+        "FireLikeAuraConfig"
+      ]
+    },
+    {
+      "file": "FrameEnforcementEngine.js",
+      "exports": [
+        "FrameEnforcement"
+      ]
+    },
+    {
+      "file": "FrameUpdateLoopOrderValidator_v1.js",
+      "exports": [
+        "FrameUpdateInstrument"
+      ]
+    },
+    {
+      "file": "FresnelRimLightAuraShader.js",
+      "exports": [
+        "FresnelRimLightAuraShader",
+        "FresnelRimLightController"
+      ]
+    },
+    {
+      "file": "HarmonyAuraController.js",
+      "exports": [
+        "HarmonyAuraController",
+        "HarmonyAuraControllerBatch"
+      ]
+    },
+    {
+      "file": "HarmonyStabilizationIntegrationPatch_v1.js",
+      "exports": [
+        "HarmonyStabilizationIntegrationPatch_v1"
+      ]
+    },
+    {
+      "file": "HUDRegistry.js",
+      "exports": [
+        "HUD_REGISTRY"
+      ]
+    },
+    {
+      "file": "InputEnhancedVariants_Session84.js",
+      "exports": [
+        "InputEnhancedVariants"
+      ]
+    },
+    {
+      "file": "InputSensoryGeometries_v1.js",
+      "exports": [
+        "InputSensoryGeometries"
+      ]
+    },
+    {
+      "file": "LEGACY/ArchetypeAscensionCurves_v1.js",
+      "exports": [
+        "CurveUtils"
+      ]
+    },
+    {
+      "file": "LEGACY/EnergyOrb.js",
+      "exports": [
+        "EnergyOrbManager"
+      ]
+    },
+    {
+      "file": "LEGACY/EXTREMENormalization.js",
+      "exports": [
+        "EXTREMENormalization"
+      ]
+    },
+    {
+      "file": "LEGACY/LinkAutomationMonitor2_0.js",
+      "exports": [
+        "LinkAutomationMonitor2_0"
+      ]
+    },
+    {
+      "file": "LEGACY/SpawnerConsolidationDetector_v1.js",
+      "exports": [
+        "globalSpawnerDetector"
+      ]
+    },
+    {
+      "file": "LEGACY/_SafeNodeUnlinking3_3.js",
+      "exports": [
+        "SafeNodeUnlinking3_3"
+      ]
+    },
+    {
+      "file": "LEGACY/_UISelectedNodeTopBar3_4.js",
+      "exports": [
+        "UISelectedNodeTopBar3_4"
+      ]
+    },
+    {
+      "file": "LegacyLinkStateNeutralization.js",
+      "exports": [
+        "LegacyShutdown"
+      ]
+    },
+    {
+      "file": "LegacyLinkStateShutdown.js",
+      "exports": [
+        "LEGACY_PATTERNS",
+        "LegacyShutdown"
+      ]
+    },
+    {
+      "file": "LegacyNodeModelFilter.js",
+      "exports": [
+        "LegacyNodeModelFilter"
+      ]
+    },
+    {
+      "file": "LinkBeadSystem.js",
+      "exports": [
+        "BEAD_CONFIG",
+        "LinkBeadSystem"
+      ]
+    },
+    {
+      "file": "LinkBeadVisualEffects.js",
+      "exports": [
+        "BEAD_EFFECTS_CONFIG"
+      ]
+    },
+    {
+      "file": "LinkCategoryColorContract.js",
+      "exports": [
+        "LINK_CATEGORY_PALETTE"
+      ]
+    },
+    {
+      "file": "LinkCorruptionTransmissionIntegrationPatch_v1.js",
+      "exports": [
+        "LinkCorruptionTransmissionIntegrationPatch_v1"
+      ]
+    },
+    {
+      "file": "LinkCreateStagePolicy.js",
+      "exports": [
+        "LINK_CREATE_STAGE_DEFINITIONS",
+        "LINK_CREATE_STAGE_MAX_PHASE"
+      ]
+    },
+    {
+      "file": "LinkedAuraHarmonyBands.js",
+      "exports": [
+        "DEFAULT_LINKED_AURA_HARMONY_BANDS"
+      ]
+    },
+    {
+      "file": "LinkEmissionPulsingSystem.js",
+      "exports": [
+        "EMISSION_PULSING_CONFIG",
+        "LinkEmissionPulsingSystem"
+      ]
+    },
+    {
+      "file": "LinkEnergyWave.js",
+      "exports": [
+        "LinkEnergyWave"
+      ]
+    },
+    {
+      "file": "LinkEventOrderValidator.js",
+      "exports": [
+        "linkEventOrderValidator"
+      ]
+    },
+    {
+      "file": "LinkExtensionConfig.js",
+      "exports": [
+        "LinkExtensionConfig"
+      ]
+    },
+    {
+      "file": "LinkMetricsToVisualBridge_v1.js",
+      "exports": [
+        "LinkMetricsToVisualBridge"
+      ]
+    },
+    {
+      "file": "LinkMLRecommendationEngine1_0.js",
+      "exports": [
+        "LinkMLRecommendationEngine1_0"
+      ]
+    },
+    {
+      "file": "LinkPictogramLibrary.js",
+      "exports": [
+        "PictogramLibrary"
+      ]
+    },
+    {
+      "file": "LinkPointFXBase.js",
+      "exports": [
+        "LINK_POINT_FX_PRESETS"
+      ]
+    },
+    {
+      "file": "LinkSemanticPictogramSystem.js",
+      "exports": [
+        "LinkSemanticPictogramSystem"
+      ]
+    },
+    {
+      "file": "LinkStateVisualLanguageIntegration.js",
+      "exports": [
+        "linkStateFragmentShader",
+        "linkStateFragmentShaderSimple",
+        "linkStateVertexShader",
+        "linkStateVertexShaderSimple"
+      ]
+    },
+    {
+      "file": "shaders/LinkStateVisualLanguage.js",
+      "exports": [
+        "linkStateFragmentShader",
+        "linkStateFragmentShaderSimple",
+        "linkStateVertexShader",
+        "linkStateVertexShaderSimple"
+      ]
+    },
+    {
+      "file": "LinkSynergyColorTransition.js",
+      "exports": [
+        "LinkSynergyColorTransitionSystem",
+        "SYNERGY_COLOR_PALETTE"
+      ]
+    },
+    {
+      "file": "LinkTargetContract.js",
+      "exports": [
+        "LinkTargetContract"
+      ]
+    },
+    {
+      "file": "LinkThicknessMetricsIntegrationPatch_v1.js",
+      "exports": [
+        "LinkMetricsAndThicknessIntegration"
+      ]
+    },
+    {
+      "file": "LinkThicknessScaling_v1.js",
+      "exports": [
+        "THICKNESS_SHADER_FRAGMENT"
+      ]
+    },
+    {
+      "file": "MapConfigBase.js",
+      "exports": [
+        "MapConfigBase"
+      ]
+    },
+    {
+      "file": "MapReferencePlaneFactory.js",
+      "exports": [
+        "MapReferencePlaneFactory"
+      ]
+    },
+    {
+      "file": "MegaGlyphConduit.js",
+      "exports": [
+        "MegaGlyphConduit"
+      ]
+    },
+    {
+      "file": "MegaGlyphSystem.js",
+      "exports": [
+        "MegaGlyphSystem"
+      ]
+    },
+    {
+      "file": "NetworkRituals_v1.js",
+      "exports": [
+        "RITUAL_CONFIG",
+        "RITUAL_STAGES"
+      ]
+    },
+    {
+      "file": "NodeDepthAndHoloPreservationFix.js",
+      "exports": [
+        "NodeDepthAndHoloPreservationFix"
+      ]
+    },
+    {
+      "file": "NodeHierarchySystem_v1.js",
+      "exports": [
+        "nodeHierarchySystem"
+      ]
+    },
+    {
+      "file": "NodeImpactManager.js",
+      "exports": [
+        "ImpactConfig"
+      ]
+    },
+    {
+      "file": "NodeStateBuffer.ts",
+      "exports": [
+        "NodeStateBuffer"
+      ]
+    },
+    {
+      "file": "NodeStateMachine_v1.js",
+      "exports": [
+        "PresetStates"
+      ]
+    },
+    {
+      "file": "NodeSurfaceDominanceRule_v1.js",
+      "exports": [
+        "NodeSurfaceDominanceRule_v1"
+      ]
+    },
+    {
+      "file": "NodeSurfaceProtectionRule_v2.js",
+      "exports": [
+        "NodeSurfaceProtectionRule_v2"
+      ]
+    },
+    {
+      "file": "NodeVisualIntegrityFix.js",
+      "exports": [
+        "NodeVisualIntegrityFix"
+      ]
+    },
+    {
+      "file": "NodeVisualReadinessGate_v1.js",
+      "exports": [
+        "VisualReadinessGate"
+      ]
+    },
+    {
+      "file": "NodeVisualRegistry.js",
+      "exports": [
+        "NODE_VISUAL_REGISTRY"
+      ]
+    },
+    {
+      "file": "ParticleEmissionRateScaling.js",
+      "exports": [
+        "EMISSION_SCALING_CONFIG",
+        "ParticleEmissionRateScalingSystem"
+      ]
+    },
+    {
+      "file": "Phase8RitualVisualOrchestration.js",
+      "exports": [
+        "RITUAL_VISUAL_CONFIG"
+      ]
+    },
+    {
+      "file": "RaycastTargetRegistry.js",
+      "exports": [
+        "RaycastTargetRegistry"
+      ]
+    },
+    {
+      "file": "SafeMetricsDNAIntegration1_0.js",
+      "exports": [
+        "SafeMetricsDNAIntegration1_0"
+      ]
+    },
+    {
+      "file": "shaders/AITechDistortionShader.js",
+      "exports": [
+        "AITechDistortionShader"
+      ]
+    },
+    {
+      "file": "shaders/NeonEdgeGlowShader.js",
+      "exports": [
+        "NeonEdgeGlowShader"
+      ]
+    },
+    {
+      "file": "shaders/NeonPulseShader.js",
+      "exports": [
+        "NeonPulseShader"
+      ]
+    },
+    {
+      "file": "shaders/RiftEnergyShader.js",
+      "exports": [
+        "RiftEnergyShader"
+      ]
+    },
+    {
+      "file": "shaders/StressVisualShaders.js",
+      "exports": [
+        "connectorStressFragmentShader",
+        "connectorStressVertexShader",
+        "nodeStressFragmentShader",
+        "nodeStressVertexShader",
+        "stressAmbientFragmentShader",
+        "stressAmbientVertexShader"
+      ]
+    },
+    {
+      "file": "shaders/UtilityShaders.js",
+      "exports": [
+        "DreamMistShader",
+        "HologramFlickerShader",
+        "RadialBloomShader"
+      ]
+    },
+    {
+      "file": "SNIPPETS/WAVE_INTERFERENCE_ENGINE_SNIPPETS.js",
+      "exports": [
+        "WAVE_INTERFERENCE_SNIPPETS"
+      ]
+    },
+    {
+      "file": "SNIPPETS/WEEK13_ARCHETYPE_CURVES_SNIPPETS.js",
+      "exports": [
+        "// No exports in snippets",
+        "all are example code"
+      ]
+    },
+    {
+      "file": "SNIPPETS/WEEK14_AURA_INTEGRATION_SNIPPETS.js",
+      "exports": [
+        "// No exports in snippets",
+        "all are example code"
+      ]
+    },
+    {
+      "file": "SNIPPETS/WEEK15_COLOR_SNIPPETS.js",
+      "exports": [
+        "// No exports in snippets",
+        "all are example code"
+      ]
+    },
+    {
+      "file": "SNIPPETS/WEEK25_CASCADE_FX_SNIPPETS.js",
+      "exports": [
+        "WEEK25_CASCADE_FX_SNIPPETS"
+      ]
+    },
+    {
+      "file": "SpawnCycleValidator.js",
+      "exports": [
+        "spawnCycleValidator"
+      ]
+    },
+    {
+      "file": "src/audio/tone-stub.js",
+      "exports": [
+        "Transport"
+      ]
+    },
+    {
+      "file": "src/legacy/NodeGrouping.js",
+      "exports": [
+        "NodeGroupingManager"
+      ]
+    },
+    {
+      "file": "src/legacy/_AtomaGlyphSystem3_0.js",
+      "exports": [
+        "AtomaGlyphSystem3_0"
+      ]
+    },
+    {
+      "file": "src/metrics/MetricRuntimeAdapter.js",
+      "exports": [
+        "LinkMetricRuntimeAdapter",
+        "MetricMigrationUtility",
+        "NodeMetricRuntimeAdapter"
+      ]
+    },
+    {
+      "file": "src/metrics/rendering/MaterialRegistry_v1.js",
+      "exports": [
+        "materialRegistry"
+      ]
+    },
+    {
+      "file": "src/rendering/MaterialCache.js",
+      "exports": [
+        "MaterialCache"
+      ]
+    },
+    {
+      "file": "src/utils/DebugLogger.js",
+      "exports": [
+        "logger"
+      ]
+    },
+    {
+      "file": "src/vfx/VFXSystemRegistry.js",
+      "exports": [
+        "VFX_SYSTEMS"
+      ]
+    },
+    {
+      "file": "StressTurbulenceIntegrationGuide.js",
+      "exports": [
+        "STRESS_TURBULENCE_COMPLIANCE"
+      ]
+    },
+    {
+      "file": "SynergyAuraColorIntegrationPatch.js",
+      "exports": [
+        "synergyAuraColorConsole"
+      ]
+    },
+    {
+      "file": "SynergyDrivenAuraColorSystem.js",
+      "exports": [
+        "SynergyColorPalette",
+        "SynergyState",
+        "SynergyThresholds"
+      ]
+    },
+    {
+      "file": "SynergyStateResolver.js",
+      "exports": [
+        "SynergyState"
+      ]
+    },
+    {
+      "file": "SynergyGlowIntegrationGuide.js",
+      "exports": [
+        "SYNERGY_GLOW_COMPLIANCE"
+      ]
+    },
+    {
+      "file": "SynergyHighwayVisuals3D_1_0.js",
+      "exports": [
+        "SynergyHighwayVisuals3D_1_0"
+      ]
+    },
+    {
+      "file": "TransparentStateAuthority.js",
+      "exports": [
+        "TransparentStateAuthority"
+      ]
+    },
+    {
+      "file": "UIControlledStateFix_1_0.js",
+      "exports": [
+        "SafeTooltip",
+        "UIControlledStateFixAPI"
+      ]
+    },
+    {
+      "file": "UndoRedoSystem.js",
+      "exports": [
+        "SetSelectionCommand"
+      ]
+    },
+    {
+      "file": "VerifyLinkStateContractCompliance.js",
+      "exports": [
+        "VerifyLinkStateContractCompliance"
+      ]
+    },
+    {
+      "file": "VisualAuthority.js",
+      "exports": [
+        "visualAuthority"
+      ]
+    },
+    {
+      "file": "VisualAutoWiringSystem.js",
+      "exports": [
+        "WIRING_SYSTEM_CONFORMANCE"
+      ]
+    },
+    {
+      "file": "VisualInteractionIsolationPatch_v2_CRITICAL_FIX.js",
+      "exports": [
+        "InteractionCoreIdentifier"
+      ]
+    },
+    {
+      "file": "VisualTemplateReferenceImplementations.js",
+      "exports": [
+        "HarmonyAuraReference",
+        "NetworkStressTurbulenceReference",
+        "SynergyGlowReference",
+        "TemplateConformanceValidator"
+      ]
+    },
+    {
+      "file": "WaveInterferenceEngine_v1.js",
+      "exports": [
+        "WaveInterferenceBurstSystem_v1"
+      ]
+    },
+    {
+      "file": "ZeroGravityControls.js",
+      "exports": [
+        "ZeroGravityControls"
+      ]
+    },
+    {
+      "file": "_AIThoughtStorms2_0.js",
+      "exports": [
+        "AIThoughtStorms2_0"
+      ]
+    },
+    {
+      "file": "_AtomaNamingEngine.js",
+      "exports": [
+        "atomaNamingEngine"
+      ]
+    },
+    {
+      "file": "_AtomaUIUpdate3_0.js",
+      "exports": [
+        "AtomaUIUpdate3_0"
+      ]
+    },
+    {
+      "file": "_HitProxySystem_v1.js",
+      "exports": [
+        "HitProxyFactory"
+      ]
+    },
+    {
+      "file": "_NodeSpawnLogger4_0.js",
+      "exports": [
+        "NodeSpawnLogger"
+      ]
+    },
+    {
+      "file": "_UISelectedNodeBadge3_2.js",
+      "exports": [
+        "UISelectedNodeBadge3_2"
+      ]
+    },
+    {
+      "file": "_VisualRootAutoRegister.js",
+      "exports": [
+        "VisualRootAutoRegister"
+      ]
+    }
+  ],
+  "unusedFunctions": [
+    {
+      "file": "ai tools (powershell)/check_factories.js",
+      "functions": [
+        "fs"
+      ]
+    },
+    {
+      "file": "AIAutomationHUD.js",
+      "functions": [
+        "ageVal",
+        "cascadeIntensityPeak",
+        "hud",
+        "if",
+        "lastUpdate",
+        "linksCollapsed",
+        "linksCreated",
+        "networkState",
+        "observation",
+        "onAck",
+        "onDismiss",
+        "recoveryReady",
+        "removeAfter",
+        "risk",
+        "style",
+        "val"
+      ]
+    },
+    {
+      "file": "ui/hud/VariantBAdvisorHUD.js",
+      "functions": [
+        "risk"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/StorageEnhancedVariants_Session81.js",
+      "functions": [
+        "_createStorageMemoryWellNode",
+        "_distortGeometry",
+        "_getStorageMemoryCathedralGeometries",
+        "_getStorageMemoryCathedralMaterials",
+        "_getStorageMemoryWellGeometries",
+        "_getStorageMemoryWellMaterials",
+        "_setStorageWaveDefaults",
+        "buttressMat",
+        "coreMat",
+        "dustMat",
+        "edgeMat",
+        "if",
+        "indexGeometry",
+        "indexMat",
+        "kernelMat",
+        "naveMat",
+        "relicMat",
+        "retrievalGeometry",
+        "retrievalMat",
+        "shellMat",
+        "stratumMat",
+        "wellBandMat",
+        "witnessMat"
+      ]
+    },
+    {
+      "file": "CanonicalGeometryFamilies_v1.js",
+      "functions": [
+        "arcGeometry",
+        "bandGeometry",
+        "baseCrownGeometry",
+        "baseGeometry",
+        "baseLowerGeometry",
+        "baseStepGeometry",
+        "baseUpperGeometry",
+        "beaconGeometry",
+        "beadGeometry",
+        "beamGeometry",
+        "braceGeometry",
+        "cageGeometry",
+        "capGeometry",
+        "collarGeometry",
+        "columnGeometry",
+        "coreGeometry",
+        "cradleGeometry",
+        "crownGeometry",
+        "cubeGeometry",
+        "finGeometry",
+        "fragGeometry",
+        "frameGeometry",
+        "geom",
+        "haloGeometry",
+        "hoopGeometry",
+        "if",
+        "innerGeometry",
+        "keystoneGeometry",
+        "leftGeometry",
+        "miniRingGeometry",
+        "missingShardGeometry",
+        "orbitGeometry",
+        "outerGeometry",
+        "plinthGeometry",
+        "ribbonGeometry",
+        "rightGeometry",
+        "ringGeometry",
+        "rodGeometry",
+        "shadowGeometry",
+        "shardGeometry",
+        "shearGeometry",
+        "shellGeometry",
+        "spineGeometry",
+        "spireGeometry",
+        "stemGeometry",
+        "studGeometry",
+        "tetraGeometry",
+        "twistedBandGeometry",
+        "voidGeometry",
+        "voidSeedGeometry",
+        "witnessGeometry"
+      ]
+    },
+    {
+      "file": "CollapsibleHudWrapper.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "ControlNodeGeometries_v1.js",
+      "functions": [
+        "if",
+        "mergedGeometry"
+      ]
+    },
+    {
+      "file": "CoreVisualAuthoritySystem.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "Engine/Debug/AtomaDebugHUD_1_0.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "Engine/Debug/framescheduler_zombie_audit.js",
+      "functions": [
+        "__dirname",
+        "__filename",
+        "if"
+      ]
+    },
+    {
+      "file": "Engine/Debug/FXDebugSandbox.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "Engine/Debug/LinkBufferSafetyAudit.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "Engine/Debug/VisualAudit.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "Engine/Visual/ATOMAColorPalette.js",
+      "functions": [
+        "if",
+        "l1",
+        "l2"
+      ]
+    },
+    {
+      "file": "EnhancedNodeModels.js",
+      "functions": [
+        "_buildWeightSpineAnchorPolylineGeometry",
+        "_createProcessChronoForgeReactorNode",
+        "_createProcessFluxCrucibleNode",
+        "_deformWeightSpineAnchorGeometry",
+        "_getAnalyticsPredictiveOracleArrayGeometries",
+        "_getAnalyticsPredictiveOracleArrayMaterials",
+        "_getAnalyticsV2Geometries",
+        "_getAnalyticsV2Materials",
+        "_getControlCommandSealGeometries",
+        "_getControlCommandSealMaterials",
+        "_getControlV2Geometries",
+        "_getControlV2Geometries_Legacy",
+        "_getControlV2Materials",
+        "_getControlV2Materials_Legacy",
+        "_getEmotionalBloomingGemGeometries",
+        "_getEmotionalBloomingGemMaterials",
+        "_getEmotionalFoldedGeometries",
+        "_getEmotionalFoldedMaterials",
+        "_getEmotionalHeartCrystalGeometries",
+        "_getEmotionalHeartCrystalMaterials",
+        "_getEmotionalNeuralLobeGeometries",
+        "_getEmotionalNeuralLobeMaterials",
+        "_getEmotionalSymmetricSeedGeometries",
+        "_getEmotionalSymmetricSeedMaterials",
+        "_getEmotionalTearShapedGeometries",
+        "_getEmotionalTearShapedMaterials",
+        "_getEmotionalV2Geometries",
+        "_getEmotionalV2Materials",
+        "_getErrorV2Geometries",
+        "_getErrorV2Materials",
+        "_getInputCelestialReceptorOrganGeometries",
+        "_getInputCelestialReceptorOrganMaterials",
+        "_getInputGatewayReliquaryGeometries",
+        "_getInputGatewayReliquaryMaterials",
+        "_getInputIncomingReliquaryGeometries",
+        "_getInputIncomingReliquaryMaterials",
+        "_getInputV2Geometries",
+        "_getInputV2Materials",
+        "_getIntegrationFigureEightApexMaterials",
+        "_getIntegrationFigureEightClaspGeometries",
+        "_getIntegrationFigureEightClaspMaterials",
+        "_getIntegrationFigureEightSplitLoopGeometries",
+        "_getIntegrationFigureEightSplitLoopMaterials",
+        "_getIntegrationNegotiatedChaosClaspGeometries",
+        "_getIntegrationNegotiatedChaosClaspMaterials",
+        "_getIntegrationWeightSpineAnchorGeometries",
+        "_getIntegrationWeightSpineAnchorMaterials",
+        "_getMythicAbsentCoreSanctumGeometries",
+        "_getMythicAbsentCoreSanctumMaterials",
+        "_getMythicApostateMonolithGeometries",
+        "_getMythicApostateMonolithMaterials",
+        "_getMythicCataclysmCairnGeometries",
+        "_getMythicCataclysmCairnMaterials",
+        "_getMythicCollapsedCrownGeometries",
+        "_getMythicCollapsedCrownMaterials",
+        "_getMythicFloatingReliquaryGeometries",
+        "_getMythicFloatingReliquaryMaterials",
+        "_getMythicOracularPrismGeometries",
+        "_getMythicOracularPrismMaterials",
+        "_getMythicV2CrownPositions",
+        "_getMythicV2Geometries",
+        "_getMythicV2Materials",
+        "_getPrimeForbiddenProjectionGeometries",
+        "_getPrimeForbiddenProjectionMaterials",
+        "_getPrimeGenesisChrysalisGeometries",
+        "_getPrimeGenesisChrysalisMaterials",
+        "_getPrimeHarmonicLatticeGeometries",
+        "_getPrimeHarmonicLatticeMaterials",
+        "_getPrimeImmaculateGeometries",
+        "_getPrimeImmaculateMaterials",
+        "_getPrimeInvertedBloomGeometries",
+        "_getPrimeInvertedBloomMaterials",
+        "_getPrimeStellaGeometries",
+        "_getPrimeStellaMaterials",
+        "_getPrimeV2Geometries",
+        "_getPrimeV2LatticePositions",
+        "_getPrimeV2Materials",
+        "_getProcessAxialChronoReactorGeometries",
+        "_getProcessAxialChronoReactorMaterials",
+        "_getProcessChronoForgeReactorGeometries",
+        "_getProcessChronoForgeReactorMaterials",
+        "_getProcessExecutionMachineGeometries",
+        "_getProcessExecutionMachineMaterials",
+        "_getProcessFluxCrucibleGeometries",
+        "_getProcessFluxCrucibleMaterials",
+        "_getQuantumLatticeGeometries",
+        "_getQuantumLatticeMaterials",
+        "_getQuantumParadoxLotusGeometries",
+        "_getQuantumParadoxLotusMaterials",
+        "_getQuantumProbabilityBloomGeometries",
+        "_getQuantumProbabilityBloomMaterials",
+        "_getQuantumV2Geometries",
+        "_getQuantumV2Materials",
+        "_getSigmaFractureChoirGeometries",
+        "_getSigmaFractureChoirMaterials",
+        "_getSigmaRuptureBloomCrownGeometries",
+        "_getSigmaRuptureBloomCrownMaterials",
+        "_getSigmaRuptureDiademGeometries",
+        "_getSigmaRuptureDiademMaterials",
+        "_getSigmaV2Geometries",
+        "_getSigmaV2Materials",
+        "_getStorageCathedralGeometries",
+        "_getStorageCathedralMaterials",
+        "_getStorageV2Geometries",
+        "_getStorageV2Materials",
+        "_mythicSeededRng",
+        "ang",
+        "apertureShell",
+        "arm",
+        "bloodGeo",
+        "brace",
+        "braceA",
+        "braceB",
+        "braceCurveA",
+        "braceCurveB",
+        "braceCurveC",
+        "braceGeometry",
+        "broadcastA",
+        "broadcastB",
+        "carriageGeometry",
+        "catKey",
+        "chronoHeart",
+        "chronoSeam",
+        "chronoShaft",
+        "clampGeometry",
+        "claspGlow",
+        "claspShell",
+        "collar",
+        "conduit",
+        "conduitGeometry",
+        "conduitGeometryA",
+        "conduitGeometryB",
+        "conduitGeometryC",
+        "coreA",
+        "coreB",
+        "coreGeo",
+        "coreGeometry",
+        "coreGlow",
+        "coreMat",
+        "coreSeam",
+        "coreShell",
+        "coreShellA",
+        "coreShellB",
+        "crownPositions",
+        "dataTube",
+        "defCat",
+        "dust",
+        "edgeShell",
+        "exhaustConduit",
+        "exhaustTube",
+        "forgeCore",
+        "fragGeo",
+        "frameBarGeometry",
+        "g",
+        "haloWitness",
+        "heart",
+        "if",
+        "innerSeed",
+        "intakeConduit",
+        "intakeTube",
+        "latticePositions",
+        "leftFrame",
+        "loadIndicatorA",
+        "loadIndicatorB",
+        "loopA",
+        "loopB",
+        "lowerCollar",
+        "lowerRail",
+        "manifoldGeo",
+        "membrane",
+        "membraneEdge",
+        "parasiteGeo",
+        "part",
+        "pointsA",
+        "pointsB",
+        "pt",
+        "rail",
+        "railGeometry",
+        "rawSeed",
+        "relicGeo",
+        "returnConduit",
+        "rightFrame",
+        "roll",
+        "rootGroup",
+        "seam",
+        "seamGeometry",
+        "seedValue",
+        "shaft",
+        "shaftGeometry",
+        "shell1",
+        "shell2",
+        "shellA",
+        "shellB",
+        "shutterGeometry",
+        "sigmaCoreMat",
+        "soma",
+        "spindle",
+        "spindleGeometry",
+        "telemetry",
+        "telemetryA",
+        "telemetryB",
+        "telemetryC",
+        "telemetryD",
+        "telemetryGeometry",
+        "theta",
+        "topRail",
+        "upperCollar",
+        "vane",
+        "vaneGeometry",
+        "variant",
+        "vent",
+        "ventA",
+        "ventB",
+        "ventGeometry",
+        "visualCode",
+        "vortexMat",
+        "weaveA",
+        "weaveB",
+        "weaveC"
+      ]
+    },
+    {
+      "file": "HarmonyStabilizationIntegrationPatch_v1.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "LEGACY/ArchetypeAscensionCurves_v1.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "LEGACY/MultiStrandConduitShader.js",
+      "functions": [
+        "if",
+        "mat",
+        "poolKey"
+      ]
+    },
+    {
+      "file": "LEGACY/_SafeNodeUnlinking3_3.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "LegacyNodeModelFilter.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "LinkCorruptionTransmissionIntegrationPatch_v1.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "LinkPrioritySystem.js",
+      "functions": [
+        "if",
+        "synergyKey"
+      ]
+    },
+    {
+      "file": "main.js",
+      "functions": [
+        "alertness",
+        "allNodes",
+        "archetypeVisualSystem",
+        "backlogRatio",
+        "blended",
+        "calmness",
+        "checkAndTrigger",
+        "chosen",
+        "chromaticShift",
+        "congestion",
+        "contractNature",
+        "contrastBias",
+        "directionality",
+        "eligibleNodes",
+        "emissiveBoost",
+        "explicitScope",
+        "exposureBias",
+        "fanoutLink",
+        "fogDensity",
+        "globalFactor",
+        "glowBias",
+        "glowIntensity",
+        "hardGate",
+        "hardOffLanguage",
+        "hitProxyAutoRegistrar",
+        "hitProxyResult",
+        "if",
+        "inertia",
+        "lowered",
+        "mats",
+        "measure",
+        "mods",
+        "nodeA",
+        "nodeB",
+        "noiseAmount",
+        "offenders",
+        "opacityBias",
+        "phase8Wiring",
+        "primaryTrapRadius",
+        "pull",
+        "readability",
+        "reconcileAmbientGlyphs",
+        "ritualsDisabled",
+        "saturationBias",
+        "scopeName",
+        "selectedHUD",
+        "softGate",
+        "sourceHarmony",
+        "sourceIntensity",
+        "startAudioOnFirstInteraction",
+        "tag",
+        "tagName",
+        "targetHarmony",
+        "targetIntensity",
+        "tension",
+        "timingRegistry",
+        "tremor",
+        "tremorBase",
+        "urgency",
+        "verticalBias",
+        "wireIntensity",
+        "zoomBias"
+      ]
+    },
+    {
+      "file": "MapConfigBase.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "NodeDepthAndHoloPreservationFix.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "NodeVisualIntegrityFix.js",
+      "functions": [
+        "gatedAnimate",
+        "if"
+      ]
+    },
+    {
+      "file": "NodeVisualStateBinder_OLD_v1.js",
+      "functions": [
+        "VHR",
+        "coreMat",
+        "if",
+        "newMat",
+        "success"
+      ]
+    },
+    {
+      "file": "RaycastTargetRegistry.js",
+      "functions": [
+        "if",
+        "nodeMesh"
+      ]
+    },
+    {
+      "file": "SafeMetricsDNAIntegration1_0.js",
+      "functions": [
+        "if",
+        "numericCode"
+      ]
+    },
+    {
+      "file": "SNIPPETS/LINK_EVENT_INTEGRATION_SNIPPET.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "SNIPPETS/WEEK10_LINK_AURA_INTEGRATION_SNIPPET.js",
+      "functions": [
+        "forceResolver",
+        "if"
+      ]
+    },
+    {
+      "file": "src/metrics/MetricRuntimeAdapter.js",
+      "functions": [
+        "for",
+        "if"
+      ]
+    },
+    {
+      "file": "src/rendering/MaterialCache.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "VerifyLinkStateContractCompliance.js",
+      "functions": [
+        "hasTarget",
+        "if"
+      ]
+    },
+    {
+      "file": "VisualHierarchyRegistry.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "VisualInteractionIsolationPatch_v2_CRITICAL_FIX.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "VISUAL_HIERARCHY_VERIFICATION_TEST.js",
+      "functions": [
+        "if"
+      ]
+    },
+    {
+      "file": "_HitProxySystem_v1.js",
+      "functions": [
+        "hitProxySys",
+        "if"
+      ]
+    },
+    {
+      "file": "AINodes.js",
+      "functions": [
+        "__diag",
+        "__diagOnce",
+        "__ensureSpawnDiag",
+        "activationStart",
+        "archetypeKey",
+        "canUseCategory",
+        "canonicalCategory",
+        "connStart",
+        "coreMesh",
+        "counterKey",
+        "deck",
+        "defaultTargetPopulation",
+        "edgeGeometry",
+        "edgeSource",
+        "filtered",
+        "holoShell",
+        "intersects",
+        "perNodeStart",
+        "poolCategory",
+        "purgeResult",
+        "rootUserData",
+        "spherePolicyResult",
+        "ud",
+        "visualsStart"
+      ]
+    },
+    {
+      "file": "SpatialIndexPerformanceTest.js",
+      "functions": [
+        "avgImprovement",
+        "avgSpeedup",
+        "intersects"
+      ]
+    },
+    {
+      "file": "CanonicalInteractionFilter.js",
+      "functions": [
+        "filtered"
+      ]
+    },
+    {
+      "file": "NodeEditor.js",
+      "functions": [
+        "filtered"
+      ]
+    },
+    {
+      "file": "NodeLinkingSystem.js",
+      "functions": [
+        "_validateBinderNode",
+        "auraMesh",
+        "coreMaterial",
+        "emitLinkCreated",
+        "filtered",
+        "flush",
+        "glowResult",
+        "highlightMaterial",
+        "portalCoreMaterial",
+        "ringMaterial",
+        "segmentMaterial",
+        "setTimeout",
+        "sourceCorruption",
+        "sourceStability",
+        "sparkleMaterial",
+        "targetCorruption",
+        "targetStability"
+      ]
+    },
+    {
+      "file": "SafeMobilityPack4.js",
+      "functions": [
+        "badIndex",
+        "filtered"
+      ]
+    },
+    {
+      "file": "src/legacy/_NodeLinking2_3.js",
+      "functions": [
+        "filtered",
+        "restoreTimeout"
+      ]
+    },
+    {
+      "file": "_IntegrationNodeSelectionFix.js",
+      "functions": [
+        "filtered",
+        "resolved",
+        "resolvedNode"
+      ]
+    },
+    {
+      "file": "AnimatedLinkFlow.js",
+      "functions": [
+        "ud",
+        "udBeam"
+      ]
+    },
+    {
+      "file": "LinkBeadTrailSystem.js",
+      "functions": [
+        "dstColor",
+        "srcColor",
+        "ud"
+      ]
+    },
+    {
+      "file": "LinkEnergyRingSystem.js",
+      "functions": [
+        "coreSymbol",
+        "crack",
+        "seedRing",
+        "slash",
+        "slit",
+        "splitRing",
+        "tag",
+        "ud"
+      ]
+    },
+    {
+      "file": "LinkPulseRing.js",
+      "functions": [
+        "auraUd",
+        "ud"
+      ]
+    },
+    {
+      "file": "LinkRendererConduit.js",
+      "functions": [
+        "angularSpeed",
+        "axialOffset",
+        "bootstrapBudget",
+        "braidA",
+        "braidB",
+        "cageRingBottom",
+        "cageRingTop",
+        "crownArc",
+        "dir",
+        "fluxCore",
+        "foldA",
+        "foldB",
+        "forwardSpeed",
+        "glyphCap",
+        "helixA",
+        "helixB",
+        "helixC",
+        "impactRoot",
+        "jitterDir",
+        "jitterMag",
+        "linkUD",
+        "linkUserData",
+        "lower",
+        "makeBorromeanBurst",
+        "makeBraidedFluxRing",
+        "makeBrokenMobius",
+        "makeCrateredSphere",
+        "makeDoubleDiscs",
+        "makeFoldedImpossibleGlyph",
+        "makeGyroideDisk",
+        "makeHarmonicCell",
+        "makeHelicalTrinity",
+        "makeLemniscate",
+        "makePhaseCage",
+        "makePhaseLockedLatticeSeed",
+        "makeResonanceCrownFragment",
+        "makeResonancePetals",
+        "makeSpikedHalo",
+        "makeStarPrism",
+        "makeTwistedRibbon",
+        "makeWaveSlice",
+        "normalizedCategory",
+        "opacityMul",
+        "ringA",
+        "ringB",
+        "ringC",
+        "runArcDischargeEffects",
+        "runBeadEffects",
+        "runBeadTrailEffects",
+        "runCorruptionParticleEffects",
+        "runCorruptionSpreadEffects",
+        "runDirectionalStreaksEffects",
+        "runDockEffects",
+        "runEnergyRingEffects",
+        "runHealingEmitterEffects",
+        "runParticleSystemEffects",
+        "runPulseRingEffects",
+        "runResonanceFlowEffects",
+        "runRingPulseDustEffects",
+        "runSourceInjectionEffects",
+        "runTrailEmitterEffects",
+        "seam",
+        "seedBase",
+        "skinGeometry",
+        "skinMaterial",
+        "sourceCenter",
+        "startRadius",
+        "targetCenter",
+        "ud",
+        "upper",
+        "variantSeed"
+      ]
+    },
+    {
+      "file": "LinkRingArcDischarges.js",
+      "functions": [
+        "ud"
+      ]
+    },
+    {
+      "file": "ArchetypeShaderModes_v1.js",
+      "functions": [
+        "SHADER_MODE_PATCHED"
+      ]
+    },
+    {
+      "file": "ArchetypeVisualIntegrationPatch_v1.js",
+      "functions": [
+        "archetypeName",
+        "nodeModel"
+      ]
+    },
+    {
+      "file": "ArchetypeVisualTransitionEngine_v2.js",
+      "functions": [
+        "blendedLifetime",
+        "blendedSpread",
+        "blendedVelocity",
+        "targetCount"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/AnalyticsEnhancedVariants_Session81.js",
+      "functions": [
+        "for"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/ControlEnhancedVariants_Session83.js",
+      "functions": [
+        "for"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/ControlNodeSpecialGoverners_Session114.js",
+      "functions": [
+        "for"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/ControlSpineVariants_Session100.js",
+      "functions": [
+        "for",
+        "yPos"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/InputSensoryEnhanced_Session111.js",
+      "functions": [
+        "_buildEchoHaloArcGeometry",
+        "_buildNeuralBranchCurve",
+        "_getEchoDetectorAnomalyGeometries",
+        "_getEchoDetectorAnomalyMaterials",
+        "_getInputNeuralReceptorGeometries",
+        "_getInputNeuralReceptorMaterials",
+        "for"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/IntegrationEnhancedVariants_Session110.js",
+      "functions": [
+        "for"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/ProcessEnhancedVariants_Session81.js",
+      "functions": [
+        "for"
+      ]
+    },
+    {
+      "file": "Atoma_nodes/StorageNodesVisual_Session116.js",
+      "functions": [
+        "for"
+      ]
+    },
+    {
+      "file": "Engine/Visual/ATOMAShaderBase.js",
+      "functions": [
+        "for"
+      ]
+    },
+    {
+      "file": "InputEnhancedVariants_Session84.js",
+      "functions": [
+        "for"
+      ]
+    },
+    {
+      "file": "IntegrationEnhancedVariants_Session82.js",
+      "functions": [
+        "for"
+      ]
+    },
+    {
+      "file": "VisualTemplateReferenceImplementations.js",
+      "functions": [
+        "for",
+        "mixedColor",
+        "overloadRatio"
+      ]
+    },
+    {
+      "file": "AutoLinkFeedbackUI1_0.js",
+      "functions": [
+        "positionInterval"
+      ]
+    },
+    {
+      "file": "BeadEdgeCaseHandler.js",
+      "functions": [
+        "long",
+        "short"
+      ]
+    },
+    {
+      "file": "CanonicalTemplate3_StressVisuals.js",
+      "functions": [
+        "numericStress"
+      ]
+    },
+    {
+      "file": "StressVisualShaderSystem.js",
+      "functions": [
+        "numericStress"
+      ]
+    },
+    {
+      "file": "CascadeEventBridge_v1.js",
+      "functions": [
+        "unsub1",
+        "unsub2",
+        "unsub3",
+        "unsub4"
+      ]
+    },
+    {
+      "file": "CascadeParticleEmissionBoost_Session118.js",
+      "functions": [
+        "requestRefresh"
+      ]
+    },
+    {
+      "file": "ParticleSemanticDensityAdapter_Session121.js",
+      "functions": [
+        "requestRefresh"
+      ]
+    },
+    {
+      "file": "PHASE5_CascadeVisuals.js",
+      "functions": [
+        "requestRefresh"
+      ]
+    },
+    {
+      "file": "CascadeParticleSystem_Session120.js",
+      "functions": [
+        "createdHandler",
+        "updatedHandler"
+      ]
+    },
+    {
+      "file": "CascadeToWaveBridge_v1.js",
+      "functions": [
+        "direct",
+        "sourcePos",
+        "targetPos"
+      ]
+    },
+    {
+      "file": "CascadingRuptureSystem.js",
+      "functions": [
+        "direct",
+        "flowIntensity",
+        "legacy",
+        "qualityScore"
+      ]
+    },
+    {
+      "file": "LinkCascadeInfectionSystem.js",
+      "functions": [
+        "direct"
+      ]
+    },
+    {
+      "file": "WaveBurstRouter_v1.js",
+      "functions": [
+        "candidateId",
+        "currentRegime",
+        "intentContext",
+        "linkId",
+        "linkSourceId",
+        "linkTargetId",
+        "normalizedMetric",
+        "normalizedPhase",
+        "num",
+        "resolvedType",
+        "scopedMetric",
+        "sourceId",
+        "sourceNode",
+        "sourcePos",
+        "sourcePosition",
+        "targetId",
+        "targetNode",
+        "targetPos",
+        "waveEngine",
+        "y",
+        "z"
+      ]
+    },
+    {
+      "file": "CascadingHarmonicResonanceAmplification.js",
+      "functions": [
+        "standingFromCascade"
+      ]
+    },
+    {
+      "file": "InfluenceReflectionBackPressureSystem_Session129.js",
+      "functions": [
+        "directCount",
+        "flowIntensity",
+        "localCount",
+        "nodeKey",
+        "registerResistantNode"
+      ]
+    },
+    {
+      "file": "CompositeGlyphGenerator.js",
+      "functions": [
+        "sourceLabel"
+      ]
+    },
+    {
+      "file": "ComputeSynergyScore2_0.js",
+      "functions": [
+        "decayScore",
+        "priorityScore",
+        "topologyScore",
+        "trafficScore",
+        "typeScore"
+      ]
+    },
+    {
+      "file": "ComputeSynergyScore2_1.js",
+      "functions": [
+        "canonicalA",
+        "canonicalB"
+      ]
+    },
+    {
+      "file": "CoreHologramShader.js",
+      "functions": [
+        "existingShells",
+        "newShell"
+      ]
+    },
+    {
+      "file": "shaders/NeonEdgeGlowShader.js",
+      "functions": [
+        "existingShells"
+      ]
+    },
+    {
+      "file": "CoreMetricsCalculator.js",
+      "functions": [
+        "num"
+      ]
+    },
+    {
+      "file": "CoreMetricsHUD.js",
+      "functions": [
+        "targetMetrics"
+      ]
+    },
+    {
+      "file": "_LinkedGlyphMessaging3_0.js",
+      "functions": [
+        "linkMetrics",
+        "sourceMetrics",
+        "targetMetrics"
+      ]
+    },
+    {
+      "file": "CoreMetricsOverlay.js",
+      "functions": [
+        "hudMetrics"
+      ]
+    },
+    {
+      "file": "CoreMetricsViewModel.js",
+      "functions": [
+        "_getGlobalScope",
+        "aggregated",
+        "aggregatedWithOverride"
+      ]
+    },
+    {
+      "file": "CorruptionVisualFX_v1.js",
+      "functions": [
+        "CORRUPTION_BINDING",
+        "CORRUPTION_ORIGINAL_ON_BEFORE_RENDER",
+        "idToken"
+      ]
+    },
+    {
+      "file": "T2_CorruptionVisualIntegration_v1.js",
+      "functions": [
+        "handleCorruptionSpike",
+        "idToken"
+      ]
+    },
+    {
+      "file": "CorruptionVisualIntegrationPatch_v1.js",
+      "functions": [
+        "corruptionFX",
+        "currentCorruption",
+        "previousCorruption"
+      ]
+    },
+    {
+      "file": "DynamicLinkColorSystem.js",
+      "functions": [
+        "newColor"
+      ]
+    },
+    {
+      "file": "Engine/Debug/CoreMaterialMutationDetector.js",
+      "functions": [
+        "__b3MutationApply",
+        "__b3MutationFlagNeedsUpdate",
+        "__b3MutationResetFrameCounter"
+      ]
+    },
+    {
+      "file": "Engine/Debug/run_vfx_audit.js",
+      "functions": [
+        "__filename"
+      ]
+    },
+    {
+      "file": "scripts/unused_code_audit.js",
+      "functions": [
+        "__filename",
+        "resolved",
+        "unusedExports",
+        "unusedFiles",
+        "unusedFunctions",
+        "while"
+      ]
+    },
+    {
+      "file": "tools/gate_detector.js",
+      "functions": [
+        "__filename"
+      ]
+    },
+    {
+      "file": "Engine/Debug/Performance_snapshot.js",
+      "functions": [
+        "mem1",
+        "mem2"
+      ]
+    },
+    {
+      "file": "Engine/Debug/ShaderFreezeGuard.js",
+      "functions": [
+        "waitForWarmup"
+      ]
+    },
+    {
+      "file": "ResonanceRuptureVisualSystem_Session133.js",
+      "functions": [
+        "prevLoss",
+        "prevTear",
+        "seedValue"
+      ]
+    },
+    {
+      "file": "EXAMPLES/HARMONIC_HALO_EXAMPLES.js",
+      "functions": [
+        "g",
+        "r"
+      ]
+    },
+    {
+      "file": "EnvironmentDomainController.js",
+      "functions": [
+        "taggedAsset"
+      ]
+    },
+    {
+      "file": "EXAMPLES/CASCADING_RESONANCE_EXAMPLES.js",
+      "functions": [
+        "auraParams",
+        "baseGlow",
+        "glowParams",
+        "glyphParams",
+        "layerEffect",
+        "linkGlow",
+        "pulseParams"
+      ]
+    },
+    {
+      "file": "EXAMPLES/ControlSpineVariants_Session100_INTEGRATION_EXAMPLES.js",
+      "functions": [
+        "fadeInInterval",
+        "fadeOutInterval"
+      ]
+    },
+    {
+      "file": "EXAMPLES/HARMONIC_HUB_INTEGRATION_EXAMPLES.js",
+      "functions": [
+        "watchInterval"
+      ]
+    },
+    {
+      "file": "EXAMPLES/HARMONY_STABILIZATION_v1_EXAMPLES.js",
+      "functions": [
+        "healNodeAction",
+        "seedNetwork"
+      ]
+    },
+    {
+      "file": "EXAMPLES/LINK_MORPHING_EXAMPLES.js",
+      "functions": [
+        "linkMesh",
+        "saved"
+      ]
+    },
+    {
+      "file": "EXAMPLES/LINK_SHADER_LANGUAGE_EXAMPLES.js",
+      "functions": [
+        "mat"
+      ]
+    },
+    {
+      "file": "GlyphFusionZone.js",
+      "functions": [
+        "nodeAMetrics",
+        "nodeBMetrics"
+      ]
+    },
+    {
+      "file": "HarmonicHealingVisualSystem_Session134.js",
+      "functions": [
+        "healingDrive"
+      ]
+    },
+    {
+      "file": "HarmonicHubAuraSystem_Session126.js",
+      "functions": [
+        "nextTier",
+        "previousTier"
+      ]
+    },
+    {
+      "file": "LinkQualityCalculator.js",
+      "functions": [
+        "lq",
+        "nextTier",
+        "previousTier"
+      ]
+    },
+    {
+      "file": "MetricsRuntime_v1.js",
+      "functions": [
+        "lastWriteAt",
+        "nextTier",
+        "previousTier",
+        "refreshAfterLinkChange"
+      ]
+    },
+    {
+      "file": "src/metrics/NodeMetricEngine.js",
+      "functions": [
+        "after",
+        "allow",
+        "amt",
+        "bus",
+        "cd",
+        "idA",
+        "idB",
+        "impulseScale",
+        "mA",
+        "mB",
+        "ma",
+        "mb",
+        "nextTier",
+        "nodeA",
+        "nodeB",
+        "policy",
+        "previousTier",
+        "sourceKey",
+        "synergyA",
+        "synergyB"
+      ]
+    },
+    {
+      "file": "HarmonicInfluencePropagationSystem_Session127.js",
+      "functions": [
+        "canonicalInfluence",
+        "linkSynergy",
+        "sourceMetrics"
+      ]
+    },
+    {
+      "file": "WaveInterferencePatternSystem_Session132.js",
+      "functions": [
+        "linkStability",
+        "linkSynergy"
+      ]
+    },
+    {
+      "file": "HarmonicResonanceFeedbackSystem.js",
+      "functions": [
+        "synergyProfile"
+      ]
+    },
+    {
+      "file": "ResonanceFeedback_v1.js",
+      "functions": [
+        "canonicalMetrics",
+        "linkCorruption",
+        "synergyProfile"
+      ]
+    },
+    {
+      "file": "HarmonicTopologyLearningSystem.js",
+      "functions": [
+        "sourceHarmony",
+        "sourceSynergy",
+        "targetHarmony",
+        "targetSynergy"
+      ]
+    },
+    {
+      "file": "HarmonyAuraController.js",
+      "functions": [
+        "targetOpacity",
+        "targetRadius"
+      ]
+    },
+    {
+      "file": "HealingParticleSystem_Session136.js",
+      "functions": [
+        "canonicalState"
+      ]
+    },
+    {
+      "file": "HUDLayoutManager.js",
+      "functions": [
+        "hudKey"
+      ]
+    },
+    {
+      "file": "InputSensoryGeometries_v1.js",
+      "functions": [
+        "switch"
+      ]
+    },
+    {
+      "file": "MapReferencePlaneFactory.js",
+      "functions": [
+        "switch"
+      ]
+    },
+    {
+      "file": "LEGACY/ArchetypeAuraEnhancement_v1.js",
+      "functions": [
+        "AURA_ENHANCEMENT_PATCHED"
+      ]
+    },
+    {
+      "file": "LEGACY/ArchetypeColorPaletteSystem_v1.js",
+      "functions": [
+        "COLOR_PALETTE_PATCHED"
+      ]
+    },
+    {
+      "file": "LEGACY/EXTREMENormalization.js",
+      "functions": [
+        "success"
+      ]
+    },
+    {
+      "file": "NodeVisualStateBinder.js",
+      "functions": [
+        "_validateNodeForBinder",
+        "assertion",
+        "fxMesh",
+        "sourceSuccess",
+        "success",
+        "targetSuccess"
+      ]
+    },
+    {
+      "file": "LEGACY/LinkCorruptionMorphingSystem.js",
+      "functions": [
+        "fromMetrics",
+        "sourceCorruption",
+        "targetCorruption"
+      ]
+    },
+    {
+      "file": "LEGACY/NodePersonality_VisualAdapter.js",
+      "functions": [
+        "synergyVal"
+      ]
+    },
+    {
+      "file": "LegacyLinkStateNeutralization.js",
+      "functions": [
+        "findings"
+      ]
+    },
+    {
+      "file": "LegacyLinkStateShutdown.js",
+      "functions": [
+        "findings"
+      ]
+    },
+    {
+      "file": "LinkAutomationMonitor3_0.js",
+      "functions": [
+        "updateInterval"
+      ]
+    },
+    {
+      "file": "LinkCategoryColorContract.js",
+      "functions": [
+        "hex"
+      ]
+    },
+    {
+      "file": "LinkCorrelationEngine1_0.js",
+      "functions": [
+        "nodeIdStr"
+      ]
+    },
+    {
+      "file": "WaveParticleEmitter_v1.js",
+      "functions": [
+        "amp",
+        "c",
+        "d",
+        "emissionRateMul",
+        "nodeIdStr",
+        "th"
+      ]
+    },
+    {
+      "file": "LinkCorruptionParticleSystem.js",
+      "functions": [
+        "handleSpread"
+      ]
+    },
+    {
+      "file": "LinkCreateStagePolicy.js",
+      "functions": [
+        "numericPhase"
+      ]
+    },
+    {
+      "file": "LinkedAuraHarmonyBands.js",
+      "functions": [
+        "desaturationRange",
+        "legacyMax",
+        "legacyMin",
+        "nestedMax",
+        "nestedMin",
+        "opacityRange"
+      ]
+    },
+    {
+      "file": "LinkEmissionPulsingSystem.js",
+      "functions": [
+        "pulseWave",
+        "wave0",
+        "waveHalf"
+      ]
+    },
+    {
+      "file": "LinkGlowSynergyEngine_v2.js",
+      "functions": [
+        "metricsA",
+        "metricsB"
+      ]
+    },
+    {
+      "file": "LinkMicroImpulseAdapter_v1.js",
+      "functions": [
+        "MICRO_IMPULSE_RENDER_ORDER",
+        "canonicalOrder"
+      ]
+    },
+    {
+      "file": "LinkMicroImpulseIntegrationSetup.js",
+      "functions": [
+        "setupTimeout"
+      ]
+    },
+    {
+      "file": "LinkPointFXBase.js",
+      "functions": [
+        "cacheKey",
+        "resolved",
+        "uniformSignature"
+      ]
+    },
+    {
+      "file": "LinkPulseDustEmitter.js",
+      "functions": [
+        "emissionRate",
+        "openAmount"
+      ]
+    },
+    {
+      "file": "ParticleEmissionRateScaling.js",
+      "functions": [
+        "emissionRate"
+      ]
+    },
+    {
+      "file": "LinkRendererMetricsIntegrationPatch_v1.js",
+      "functions": [
+        "metricsIntegration"
+      ]
+    },
+    {
+      "file": "LinkRenderLayerPolicy.js",
+      "functions": [
+        "policy"
+      ]
+    },
+    {
+      "file": "LinkResonanceFlowSystem_Session124.js",
+      "functions": [
+        "fadeT",
+        "floorMix",
+        "linkId",
+        "linkSeed",
+        "mediumMix",
+        "overloadMix",
+        "overpressure",
+        "pressurizedMix",
+        "strongMix",
+        "travelT"
+      ]
+    },
+    {
+      "file": "LinkSemanticMetricsBridge_v1.js",
+      "functions": [
+        "corruptionA",
+        "corruptionB",
+        "harmonyA",
+        "harmonyB"
+      ]
+    },
+    {
+      "file": "LinkSemanticPictogramSystem_Enhanced.js",
+      "functions": [
+        "globalLS",
+        "metricType"
+      ]
+    },
+    {
+      "file": "LinkSynergyColorTransition.js",
+      "functions": [
+        "synergyColor"
+      ]
+    },
+    {
+      "file": "LinkTrailParticleSystem.js",
+      "functions": [
+        "ageNorm",
+        "energyClamped",
+        "hotBoost",
+        "n0",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "shapeIndex",
+        "speedMul",
+        "udMesh",
+        "udPool"
+      ]
+    },
+    {
+      "file": "src/metrics/MetricTierClassifier.js",
+      "functions": [
+        "lastTier",
+        "normalizedTier",
+        "scopeName"
+      ]
+    },
+    {
+      "file": "MetricDerivativeHelper.js",
+      "functions": [
+        "canonicalName",
+        "v"
+      ]
+    },
+    {
+      "file": "MetricReactiveWorldEvents.js",
+      "functions": [
+        "displayMetrics"
+      ]
+    },
+    {
+      "file": "NeonLinkVisuals.js",
+      "functions": [
+        "handleSynergyBurst"
+      ]
+    },
+    {
+      "file": "NetworkFatigueSystem_v0_DEBUG.js",
+      "functions": [
+        "corruptionFactor",
+        "corruptionHealth",
+        "harmonyDeficitFactor",
+        "harmonyHealth",
+        "healthComposite",
+        "isHealthy",
+        "loadFactor",
+        "loadHealth",
+        "stabilityFactor",
+        "stabilityHealth",
+        "stressComposite"
+      ]
+    },
+    {
+      "file": "NetworkRituals_v1.js",
+      "functions": [
+        "corruptionLevel",
+        "integrityRaw"
+      ]
+    },
+    {
+      "file": "TIER4_CorruptionFeedbackVisuals_v1.js",
+      "functions": [
+        "corruptionLevel",
+        "numericValue"
+      ]
+    },
+    {
+      "file": "NodeLinkedAuraSystem.js",
+      "functions": [
+        "harmonyBand"
+      ]
+    },
+    {
+      "file": "NodeSurfaceProtectionRule_v2.js",
+      "functions": [
+        "__b3SurfaceApply",
+        "__b3SurfaceFlagNeedsUpdate",
+        "__b3SurfaceResetFrameCounter"
+      ]
+    },
+    {
+      "file": "ParticleCascadeFlowDeflection.js",
+      "functions": [
+        "onMetricUpdated",
+        "onTopologyChanged"
+      ]
+    },
+    {
+      "file": "PersonalityMaterialProfileRegistry_v1.js",
+      "functions": [
+        "categoryLower"
+      ]
+    },
+    {
+      "file": "PersonalityShaderAdvancedFX_v1.js",
+      "functions": [
+        "ADVANCED_FX_PATCHED"
+      ]
+    },
+    {
+      "file": "PersonalityShaderBridge_v1.js",
+      "functions": [
+        "PERSONALITY_BRIDGE_PATCHED"
+      ]
+    },
+    {
+      "file": "PersonalityShaderEffects_Pack_v1.js",
+      "functions": [
+        "EFFECTS_PACK_PATCHED"
+      ]
+    },
+    {
+      "file": "PersonalityShaderStabilizedFX_v1.js",
+      "functions": [
+        "STABILIZED_FX_PATCHED"
+      ]
+    },
+    {
+      "file": "PHASE5_MultiNetworkCore.js",
+      "functions": [
+        "wrapped"
+      ]
+    },
+    {
+      "file": "PulseWaveSystemBridge_v1.js",
+      "functions": [
+        "endAt",
+        "peakAt",
+        "startAt"
+      ]
+    },
+    {
+      "file": "SynergyTravelingWaveFX_v1.js",
+      "functions": [
+        "WAVE_FX_PATCHED",
+        "endAt",
+        "startAt"
+      ]
+    },
+    {
+      "file": "WaveShaderBridge_v1.js",
+      "functions": [
+        "WAVE_BRIDGE_PATCHED",
+        "compactWave",
+        "constructive",
+        "endAt",
+        "peakAt",
+        "readyNodes",
+        "standing",
+        "startAt",
+        "targetSourceCount"
+      ]
+    },
+    {
+      "file": "RegionalEquilibriumFieldSystem.js",
+      "functions": [
+        "overlayMaterial"
+      ]
+    },
+    {
+      "file": "ResonanceCascadeVisualization_Session117B.js",
+      "functions": [
+        "lastSpawnAt",
+        "y",
+        "z"
+      ]
+    },
+    {
+      "file": "ResonanceEchoTrailSystem.js",
+      "functions": [
+        "y",
+        "z"
+      ]
+    },
+    {
+      "file": "SynergyCascadeFXBridge_v1.js",
+      "functions": [
+        "rawIntensity",
+        "y",
+        "z"
+      ]
+    },
+    {
+      "file": "SynergyCascadeVisualizer.js",
+      "functions": [
+        "heightStep",
+        "lastHeartbeatAt",
+        "lodLevel",
+        "opacityStep",
+        "radiusStep",
+        "rawValue",
+        "y",
+        "z"
+      ]
+    },
+    {
+      "file": "SynergyVFXEngine1_0.js",
+      "functions": [
+        "y",
+        "z"
+      ]
+    },
+    {
+      "file": "VisualMetricModel_v1.js",
+      "functions": [
+        "canonicalMetrics"
+      ]
+    },
+    {
+      "file": "rosie/controls/rosieMobileControls.js",
+      "functions": [
+        "handleEnd",
+        "handleJumpEnd",
+        "handleJumpStart",
+        "handleMove",
+        "handleStart"
+      ]
+    },
+    {
+      "file": "scripts/materialMutationKillGuard.js",
+      "functions": [
+        "bodies"
+      ]
+    },
+    {
+      "file": "SemanticActivityFilter_v1.js",
+      "functions": [
+        "linkFactor"
+      ]
+    },
+    {
+      "file": "SemanticMetricAdapter.js",
+      "functions": [
+        "globalMetrics"
+      ]
+    },
+    {
+      "file": "SimulationEffectOrchestrator.js",
+      "functions": [
+        "emissiveFlash",
+        "materialize"
+      ]
+    },
+    {
+      "file": "SNIPPETS/W23_TRAVELING_WAVE_FX_SNIPPETS.js",
+      "functions": [
+        "logMetrics",
+        "updateWavesFromMood"
+      ]
+    },
+    {
+      "file": "SNIPPETS/WEEK25_CASCADE_FX_SNIPPETS.js",
+      "functions": [
+        "clusterNodes"
+      ]
+    },
+    {
+      "file": "SphereCreatorTrace.js",
+      "functions": [
+        "geometryType"
+      ]
+    },
+    {
+      "file": "src/metrics/rendering/MaterialRegistry_v1.js",
+      "functions": [
+        "__b3MatRegApply",
+        "__b3MatRegFlagNeedsUpdate",
+        "__b3MatRegResetFrameCounter",
+        "materialRegistry"
+      ]
+    },
+    {
+      "file": "src/three/GeometryBoundsSafe.js",
+      "functions": [
+        "edgesResult",
+        "sanitized",
+        "sourceResult"
+      ]
+    },
+    {
+      "file": "src/utils/BufferGeometryUtils.js",
+      "functions": [
+        "_calculateMorphedAttributeData",
+        "mergedAttribute",
+        "mergedMorphAttribute"
+      ]
+    },
+    {
+      "file": "StandingWaveOscillationTrapSystem_Session130.js",
+      "functions": [
+        "currentAmplitude",
+        "currentResonance"
+      ]
+    },
+    {
+      "file": "StandingWaveVisualRenderer_Session131.js",
+      "functions": [
+        "sourceColor",
+        "targetColor"
+      ]
+    },
+    {
+      "file": "StressTurbulenceController.js",
+      "functions": [
+        "targetJitterAmplitude",
+        "targetNoiseFrequency",
+        "targetTimeScale"
+      ]
+    },
+    {
+      "file": "SynergyAuraColorIntegrationPatch.js",
+      "functions": [
+        "diag"
+      ]
+    },
+    {
+      "file": "SynergyBonusFXLayer_v1.js",
+      "functions": [
+        "SYNERGY_FX_PATCHED",
+        "visualProfile"
+      ]
+    },
+    {
+      "file": "SynergyResonanceShaderPack_v1.js",
+      "functions": [
+        "RESONANCE_FX_PATCHED",
+        "visualProfile"
+      ]
+    },
+    {
+      "file": "SynergyDrivenAuraColorSystem.js",
+      "functions": [
+        "colorInfo"
+      ]
+    },
+    {
+      "file": "SynergyGlowIntegrationGuide.js",
+      "functions": [
+        "glowMaterial"
+      ]
+    },
+    {
+      "file": "SynergyHighwayVisuals3D_1_0.js",
+      "functions": [
+        "SynergyHighwayVisuals3D_1_0",
+        "bloatRadius",
+        "controlPoint1",
+        "controlPoint2",
+        "endPos",
+        "fromCategory",
+        "routeId",
+        "startPos",
+        "toCategory",
+        "trend",
+        "tubeRadius"
+      ]
+    },
+    {
+      "file": "T4004_HARMONY_HEALING_TEST_RUNNER.js",
+      "functions": [
+        "frameInterval"
+      ]
+    },
+    {
+      "file": "UIControlledStateFix_1_0.js",
+      "functions": [
+        "SafeTooltip",
+        "initial",
+        "parsed",
+        "useToggle"
+      ]
+    },
+    {
+      "file": "VisualAutoWiringSystem.js",
+      "functions": [
+        "templateId"
+      ]
+    },
+    {
+      "file": "VisualEchoTrails_v1_Integration.js",
+      "functions": [
+        "resolvedLink",
+        "retry"
+      ]
+    },
+    {
+      "file": "WaveDynamicsShaderPack_v1.js",
+      "functions": [
+        "DYNAMICS_PACK_PATCHED"
+      ]
+    },
+    {
+      "file": "WaveInterferenceEngine_v1.js",
+      "functions": [
+        "midpoint",
+        "packetT",
+        "phase01",
+        "radialAttenuation",
+        "tt"
+      ]
+    },
+    {
+      "file": "WaveShaderMaterialPatch_v1.js",
+      "functions": [
+        "MATERIAL_PATCH_SYMBOL"
+      ]
+    },
+    {
+      "file": "WaveTravelShaderPack_v1.js",
+      "functions": [
+        "TRAVEL_PACK_PATCHED",
+        "l"
+      ]
+    },
+    {
+      "file": "_GlyphLayer4_MultiFusion.js",
+      "functions": [
+        "currentStage",
+        "explicitStage",
+        "preservedOrbitPhase",
+        "tierStage"
+      ]
+    },
+    {
+      "file": "_HitProxyIntegrationPatch.js",
+      "functions": [
+        "hitProxySystem",
+        "safeRaycaster"
+      ]
+    },
+    {
+      "file": "_MythicRitualController.js",
+      "functions": [
+        "handleWorldMood"
+      ]
+    },
+    {
+      "file": "_ObjectExtensibilityGuard.js",
+      "functions": [
+        "isEngine"
+      ]
+    },
+    {
+      "file": "_UICategoryLegend3_1.js",
+      "functions": [
+        "normalizedMood"
+      ]
+    }
+  ]
+}
