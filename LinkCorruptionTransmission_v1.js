@@ -791,9 +791,10 @@ export class LinkCorruptionTransmission_v1 {
     const integrity = overrides.integrity ?? integrityData?.integrity ?? LINK_INTEGRITY_THRESHOLDS.INTEGRITY_MAX;
     const integrityState = overrides.integrityState ?? integrityData?.state ?? 'healthy';
 
-    link.userData.corruptionLevel = corruptionLevel;
-    link.userData.integrity = integrity;
-    link.userData.integrityState = integrityState;
+    link.userData.metrics = link.userData.metrics || {};
+    link.userData.metrics.corruption = corruptionLevel;
+    link.userData.metrics.integrity = integrity;
+    link.userData.metrics.integrityState = integrityState;
 
     return { corruptionLevel, integrity, integrityState };
   }
@@ -1208,7 +1209,8 @@ export class LinkCorruptionTransmission_v1 {
     const harmonyCost = eligibility.costHarmony;
     const synergyCost = eligibility.costSynergy;
     
-    sourceNode.userData.harmonyLevel = Math.max(0, (sourceNode.userData.harmonyLevel || 0) - harmonyCost);
+    const sourceHarmony = sourceNode.userData?.metrics?.harmony ?? sourceNode.userData?.harmonyLevel ?? 0;
+    setMetric(sourceNode, 'harmony', Math.max(0, sourceHarmony - harmonyCost), { source: 'LinkCorruptionTransmission' });
     const synergyPct = this._getLinkSynergyPct(link);
     // Read-only: no mutation of canonical synergy
     
@@ -1365,7 +1367,7 @@ export class LinkCorruptionTransmission_v1 {
 
     // === CHECK RESOURCES ===
     
-    const currentHarmony = resourceNode.userData.harmonyLevel ?? 0;
+    const currentHarmony = resourceNode.userData?.metrics?.harmony ?? resourceNode.userData?.harmonyLevel ?? 0;
     const currentSynergy = linkOrNode.synergy ?? (resourceNode.userData?.synergy ?? 0);
 
     if (currentHarmony < harmonyCost) {
@@ -1392,7 +1394,7 @@ export class LinkCorruptionTransmission_v1 {
     linkOrNode.hasBarrier = true;
     
     // Deduct resources
-    resourceNode.userData.harmonyLevel = Math.max(0, currentHarmony - harmonyCost);
+    setMetric(resourceNode, 'harmony', Math.max(0, currentHarmony - harmonyCost), { source: 'LinkCorruptionTransmission' });
     if (linkOrNode.synergy !== undefined) {
       linkOrNode.synergy = Math.max(0, linkOrNode.synergy - synergyCost);
     } else {
@@ -1584,12 +1586,12 @@ export class LinkCorruptionTransmission_v1 {
 
       // Calculate upkeep cost
       const upkeepHarmonyCost = BARRIER_DEPLOYMENT_COSTS.HARMONY_UPKEEP_PER_INTERVAL;
-      const currentHarmony = sourceNode.userData.harmonyLevel ?? 0;
+      const currentHarmony = sourceNode.userData?.metrics?.harmony ?? sourceNode.userData?.harmonyLevel ?? 0;
 
       // Check if upkeep can be paid
       if (currentHarmony >= upkeepHarmonyCost) {
         // Pay upkeep
-        sourceNode.userData.harmonyLevel = Math.max(0, currentHarmony - upkeepHarmonyCost);
+        setMetric(sourceNode, 'harmony', Math.max(0, currentHarmony - upkeepHarmonyCost), { source: 'LinkCorruptionTransmission' });
         costData.lastUpkeepTime = now;
         costData.upkeepDebt = 0; // Reset debt
 
@@ -3025,7 +3027,8 @@ export class LinkCorruptionTransmission_v1 {
     vis.distortionAmount = Math.max(0, Math.min(1, vis.distortionAmount));
 
     // Store shader parameters
-    link.userData.corruptionLevel = level;
+    if (!link.userData.visualState) link.userData.visualState = {};
+    link.userData.visualState.corruptionLevel = level;
     link.userData.visualIntensity = level;
   }
 
@@ -5244,4 +5247,4 @@ export class LinkCorruptionTransmission_v1 {
 }
 
 export default LinkCorruptionTransmission_v1;
-import { applyMetricImpulse } from './src/metrics/NodeMetricEngine.js';
+import { applyMetricImpulse, setMetric } from './src/metrics/NodeMetricEngine.js';

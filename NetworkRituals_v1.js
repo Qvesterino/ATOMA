@@ -62,6 +62,7 @@
  */
 
 import { buildScopedMetricEventName } from './src/metrics/MetricTierClassifier.js';
+import { setMetric } from './src/metrics/NodeMetricEngine.js';
 
 let THREE_SAFE = null;
 THREE_SAFE =
@@ -191,7 +192,7 @@ class NetworkRituals {
     const state = this._ensureLinkState(link);
     if (!state) return null;
 
-    const corruptionLevel = Number(state.corruptionData?.level ?? link?.userData?.corruptionLevel ?? 0);
+    const corruptionLevel = Number(state.corruptionData?.level ?? link?.userData?.metrics?.corruption ?? link?.userData?.corruptionLevel ?? 0);
     const integrityRaw = Number(state.integrityData?.integrity ?? 100);
     const normalizedIntegrity = integrityRaw > 1 ? integrityRaw / 100 : integrityRaw;
     const collapsed = state.integrityData?.state === 'collapsed' || this.corruptionSystem?.collapsedLinks?.has?.(state.linkId) === true;
@@ -212,11 +213,12 @@ class NetworkRituals {
     if (!link) return;
     if (!link.userData) link.userData = {};
     if (!link.userData.visualState) link.userData.visualState = {};
+    if (!link.userData.metrics) link.userData.metrics = {};
 
     if (runtimeState) {
-      link.userData.corruptionLevel = runtimeState.corruptionLevel;
-      link.userData.integrity = runtimeState.integrity;
-      link.userData.integrityState = runtimeState.state;
+      link.userData.metrics.corruption = runtimeState.corruptionLevel;
+      link.userData.metrics.integrity = runtimeState.integrity;
+      link.userData.metrics.integrityState = runtimeState.state;
 
       link.userData.visualState.corruptionLevel = runtimeState.corruptionLevel;
       link.userData.visualState.integrity = runtimeState.normalizedIntegrity;
@@ -416,14 +418,15 @@ class NetworkRituals {
 
     // Check resources
     const harmonyCost = RITUAL_CONFIG.BASE_HARMONY_COST_PER_PARTICIPANT;
-    if (!newParticipant.userData?.harmonyLevel || newParticipant.userData.harmonyLevel < harmonyCost) {
+    const currentHarmony = newParticipant.userData?.metrics?.harmony ?? newParticipant.userData?.harmonyLevel ?? 0;
+    if (currentHarmony < harmonyCost) {
       return { success: false, reason: 'Insufficient harmony to join ritual' };
     }
 
     // Add participant
     ritual.participants.push(newParticipant);
     ritual.pooledResources.synergy += RITUAL_CONFIG.BASE_SYNERGY_CONTRIBUTION;
-    newParticipant.userData.harmonyLevel -= harmonyCost;
+    setMetric(newParticipant, 'harmony', Math.max(0, currentHarmony - harmonyCost), { source: 'NetworkRituals' });
 
     this._logEvent('RITUAL_PARTICIPANT_JOINED', {
       ritualId,
@@ -527,9 +530,8 @@ class NetworkRituals {
     const refundPerParticipant = refundAmount / ritual.participants.length;
 
     for (const node of ritual.participants) {
-      if (node.userData) {
-        node.userData.harmonyLevel = (node.userData.harmonyLevel || 0) + refundPerParticipant;
-      }
+      const currentHarmony = node?.userData?.metrics?.harmony ?? node?.userData?.harmonyLevel ?? 0;
+      setMetric(node, 'harmony', Math.max(0, currentHarmony + refundPerParticipant), { source: 'NetworkRituals' });
     }
 
     this._logEvent('RITUAL_CANCELLED', {
@@ -651,7 +653,7 @@ class NetworkRituals {
   _checkResourcesForParticipants(nodes) {
     for (const node of nodes) {
       const harmonyCost = RITUAL_CONFIG.BASE_HARMONY_COST_PER_PARTICIPANT;
-      const currentHarmony = node.userData?.harmonyLevel || 0;
+      const currentHarmony = node.userData?.metrics?.harmony ?? node.userData?.harmonyLevel ?? 0;
 
       if (currentHarmony < harmonyCost) {
         return {
@@ -717,8 +719,8 @@ class NetworkRituals {
 
       const adjustment = loyaltyAdjustments.get(node.id);
       const harmonyPerNode = costBreakdown.harmonyPerParticipant * adjustment.costMultiplier;
-
-      node.userData.harmonyLevel = (node.userData.harmonyLevel || 0) - harmonyPerNode;
+      const currentHarmony = node?.userData?.metrics?.harmony ?? node?.userData?.harmonyLevel ?? 0;
+      setMetric(node, 'harmony', Math.max(0, currentHarmony - harmonyPerNode), { source: 'NetworkRituals' });
     }
   }
 

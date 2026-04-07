@@ -2170,10 +2170,11 @@ export class NeonLinkVisuals {
       // Store base position/scale for restoration if needed
       for (const child of linkMesh.children) {
         ensureUserData(child);
+        if (!child.userData.visualState) child.userData.visualState = {};
         
         // Track corruption state
-        child.userData.isCorrupted = true;
-        child.userData.corruptionLevel = corruptionLevel;
+        child.userData.visualState.isCorrupted = true;
+        child.userData.visualState.corruptionLevel = corruptionLevel;
         
         // Progressive irregularity based on corruption intensity
         // At 0.65: subtle misalignment
@@ -2193,20 +2194,22 @@ export class NeonLinkVisuals {
         
         // Misalignment increases with corruption
         const randomDeviation = Math.random() - 0.5;
-        child.userData.corruptionDeviation = randomDeviation * maxDeviation;
+        child.userData.visualState.corruptionDeviation = randomDeviation * maxDeviation;
       }
       
-      linkMesh.userData.corruptionActive = true;
-      linkMesh.userData.corruptionLevel = corruptionLevel;
+      if (!linkMesh.userData.visualState) linkMesh.userData.visualState = {};
+      linkMesh.userData.visualState.corruptionActive = true;
+      linkMesh.userData.visualState.corruptionLevel = corruptionLevel;
     } else {
       // Corruption below threshold: restore normal appearance
       for (const child of linkMesh.children) {
-        if (child.userData) {
-          child.userData.isCorrupted = false;
-          child.userData.corruptionDeviation = 0;
+        if (child.userData?.visualState) {
+          child.userData.visualState.isCorrupted = false;
+          child.userData.visualState.corruptionDeviation = 0;
         }
       }
-      linkMesh.userData.corruptionActive = false;
+      if (!linkMesh.userData.visualState) linkMesh.userData.visualState = {};
+      linkMesh.userData.visualState.corruptionActive = false;
     }
   }
   
