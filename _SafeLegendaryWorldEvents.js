@@ -19,7 +19,7 @@ const ENABLE_LEGACY_AURAS = false;
  */
 
 export class SafeLegendaryWorldEvents {
-  constructor(scene, worldRoot, camera, renderer) {
+  constructor(scene, worldRoot, camera, renderer, useMetricTriggers = true) {
     this.scene = scene;
     this.worldRoot = worldRoot || scene;
     this.camera = camera;
@@ -121,8 +121,12 @@ export class SafeLegendaryWorldEvents {
     this.animationTime = 0;
     this.interpretationAccumulator = this.config.eventInterpretationInterval; // prime first tick
     this.pendingEvaluation = false; // explicit triggers can flip this to force evaluation before the interval
+    this.suppressed = false;
+    this.suppressedUntil = 0;
     this.metricBus = this._resolveMetricBus();
-    this._setupMetricTriggers();
+    if (useMetricTriggers) {
+      this._setupMetricTriggers();
+    }
   }
   
   /**
@@ -154,6 +158,10 @@ export class SafeLegendaryWorldEvents {
    * Check if a new world event should trigger
    */
   checkEventTriggers(legendaryPack, linkingSystem, evolutionManager) {
+    if (this._isSuppressed()) {
+      return;
+    }
+
     // Only check periodically
     const now = performance.now();
     if (now - this.lastEventCheck < this.config.eventCheckInterval * 1000) {
@@ -1026,10 +1034,26 @@ export class SafeLegendaryWorldEvents {
    * Force trigger a specific event (for testing)
    */
   forceEvent(eventType, legendaryCount = 2, linkingSystem = null) {
+    if (this._isSuppressed()) return;
     console.log('[WorldEvents] Force event requested:', eventType, { legendaryCount, hasLinkingSystem: !!linkingSystem });
     this.startWorldEvent(eventType, legendaryCount, linkingSystem);
     // Allow callers to immediately reevaluate after forced events if desired
     this.pendingEvaluation = true;
+  }
+
+  setSuppressed(suppressed, cooldownMs = 0) {
+    this.suppressed = !!suppressed;
+    this.suppressedUntil = !suppressed && cooldownMs > 0
+      ? Date.now() + cooldownMs
+      : 0;
+
+    if (this.suppressed) {
+      this.pendingEvaluation = false;
+    }
+  }
+
+  _isSuppressed() {
+    return this.suppressed || Date.now() < this.suppressedUntil;
   }
   
   /**

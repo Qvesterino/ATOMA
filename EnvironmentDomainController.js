@@ -1,4 +1,5 @@
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { EnvironmentEventCoordinator } from './EnvironmentEventCoordinator.js';
 
 const ENVIRONMENT_SYSTEMS = [
   'SafeWorldFXPack',
@@ -186,7 +187,8 @@ export class EnvironmentDomainController {
         this.scene,
         this.worldRoot,
         d.camera,
-        d.renderer
+        d.renderer,
+        false
       );
 
     this.instances.worldPersonalityController =
@@ -215,6 +217,18 @@ export class EnvironmentDomainController {
         d.renderer,
         d.coreMetricsOverlay
       );
+    if (this.instances.metricReactiveEvents) {
+      this.instances.metricReactiveEvents.frameScheduler = this.frameScheduler;
+    }
+
+    this.instances.worldEventCoordinator =
+      new EnvironmentEventCoordinator({
+        semanticBus: d.semanticBus,
+        worldEvents: this.instances.worldEvents,
+        ritualController: this.instances.mythicRitualController,
+        metricReactiveEvents: this.instances.metricReactiveEvents
+      });
+    this.instances.worldEventCoordinator.initialize();
 
     this.instances.safeDreamDepthPack =
       new d.SafeDreamDepthPack(
@@ -473,6 +487,9 @@ export class EnvironmentDomainController {
 
     if (this.instances.metricReactiveEvents) {
       this.instances.metricReactiveEvents.coreMetricsOverlay = coreMetricsOverlay;
+      if (this.instances.worldEventCoordinator) {
+        this.instances.worldEventCoordinator.metricReactiveEvents = this.instances.metricReactiveEvents;
+      }
       return;
     }
 
@@ -484,6 +501,12 @@ export class EnvironmentDomainController {
         this.deps.renderer,
         coreMetricsOverlay
       );
+      if (this.instances.metricReactiveEvents) {
+        this.instances.metricReactiveEvents.frameScheduler = this.frameScheduler;
+      }
+      if (this.instances.worldEventCoordinator) {
+        this.instances.worldEventCoordinator.metricReactiveEvents = this.instances.metricReactiveEvents;
+      }
 
       const renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_OVERLAY');
       this._bindRenderRoot(this.instances.metricReactiveEvents.root, renderOrder, 'WORLD_OVERLAY', 'metricReactiveEvents');

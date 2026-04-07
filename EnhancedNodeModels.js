@@ -4748,38 +4748,31 @@ function _getInputV2Materials(color) {
   const colorHex = typeof color === 'number' ? color : 0x00ddff;
   if (INPUT_V2_MATERIALS.has(colorHex)) return INPUT_V2_MATERIALS.get(colorHex);
 
-  const coreMat = MaterialCache.get(
-    `input_v2_core_${colorHex}`,
-    () => new THREE.MeshStandardMaterial({
-      color: colorHex,
-      metalness: 0.6,
-      roughness: 0.2,
-      emissive: colorHex,
-      emissiveIntensity: 0.5
-    })
-  );
+  // Dynamic: color depends on node colorHex — cached by INPUT_V2_MATERIALS per color
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.6,
+    roughness: 0.2,
+    emissive: colorHex,
+    emissiveIntensity: 0.5
+  });
 
-  const edgeMat = MaterialCache.get(
-    `input_v2_edge_${colorHex}`,
-    () => new THREE.LineBasicMaterial({
-      color: colorHex,
-      transparent: true,
-      opacity: 0.55
-    })
-  );
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: colorHex,
+    transparent: true,
+    opacity: 0.55
+  });
 
-  const neonMat = MaterialCache.get(
-    `input_v2_neon_${colorHex}`,
-    () => new THREE.MeshBasicMaterial({
-      color: colorHex,
-      transparent: true,
-      opacity: 0.6,
-      depthWrite: false
-    })
-  );
+  const neonMat = new THREE.MeshBasicMaterial({
+    color: colorHex,
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false
+  });
 
+  // Static: hardcoded color — shared across all Input nodes via MaterialCache
   const streamMat = MaterialCache.get(
-    `input_v2_stream_${colorHex}`,
+    'input.v2.stream.meshBasic.transparent.default',
     () => new THREE.MeshBasicMaterial({
       color: 0x66f0ff,
       transparent: true,
@@ -4789,7 +4782,7 @@ function _getInputV2Materials(color) {
   );
 
   const vectorMat = MaterialCache.get(
-    `input_v2_vector_${colorHex}`,
+    'input.v2.vector.lineBasic.transparent.default',
     () => new THREE.LineBasicMaterial({
       color: 0x99ffff,
       transparent: true,
@@ -4798,7 +4791,7 @@ function _getInputV2Materials(color) {
   );
 
   const particleMat = MaterialCache.get(
-    `input_v2_particle_${colorHex}`,
+    'input.v2.particle.points.transparent.default',
     () => new THREE.PointsMaterial({
       color: 0x99ffff,
       size: 0.05,
@@ -4910,41 +4903,37 @@ function _getInputGatewayReliquaryMaterials(color) {
   const deepCyan = inputColor.clone().lerp(new THREE.Color(0x031228), 0.36);
   const paleCyan = new THREE.Color(0xdafcff);
 
-  const apertureMat = MaterialCache.get(
-    `input_gateway_aperture_${colorHex}`,
-    () => new THREE.MeshStandardMaterial({
-      color: deepCyan.clone().lerp(brightCyan, 0.12),
-      emissive: inputColor.clone().multiplyScalar(0.56),
-      emissiveIntensity: 0.16,
-      metalness: 0.72,
-      roughness: 0.3,
-      transparent: false,
-      opacity: 1.0,
-      depthWrite: true,
-      depthTest: true
-    })
-  );
+  // Dynamic: color depends on node colorHex — cached by INPUT_GATEWAY_RELIQUARY_MATERIALS per color
+  const apertureMat = new THREE.MeshStandardMaterial({
+    color: deepCyan.clone().lerp(brightCyan, 0.12),
+    emissive: inputColor.clone().multiplyScalar(0.56),
+    emissiveIntensity: 0.16,
+    metalness: 0.72,
+    roughness: 0.3,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
 
-  const lensMat = MaterialCache.get(
-    `input_gateway_lens_${colorHex}`,
-    () => new THREE.MeshPhysicalMaterial({
-      color: brightCyan,
-      emissive: new THREE.Color(0x88f7ff),
-      emissiveIntensity: 0.68,
-      metalness: 0.84,
-      roughness: 0.08,
-      transmission: 0,
-      thickness: 0.16,
-      ior: 1.42,
-      transparent: false,
-      opacity: 1.0,
-      depthWrite: true,
-      depthTest: true
-    })
-  );
+  const lensMat = new THREE.MeshPhysicalMaterial({
+    color: brightCyan,
+    emissive: new THREE.Color(0x88f7ff),
+    emissiveIntensity: 0.68,
+    metalness: 0.84,
+    roughness: 0.08,
+    transmission: 0,
+    thickness: 0.16,
+    ior: 1.42,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
 
+  // Static: hardcoded color — shared across all Input nodes via MaterialCache
   const seamMat = MaterialCache.get(
-    `input_gateway_seam_${colorHex}`,
+    'input.gateway.seam.meshBasic.transparent.default',
     () => new THREE.MeshBasicMaterial({
       color: 0x02070f,
       transparent: true,
@@ -4953,18 +4942,17 @@ function _getInputGatewayReliquaryMaterials(color) {
     })
   );
 
-  const phaseMat = MaterialCache.get(
-    `input_gateway_phase_${colorHex}`,
-    () => new THREE.MeshBasicMaterial({
-      color: brightCyan.clone().lerp(new THREE.Color(0x72f1ff), 0.3),
-      transparent: true,
-      opacity: 0.34,
-      depthWrite: false
-    })
-  );
+  // Dynamic: color depends on brightCyan
+  const phaseMat = new THREE.MeshBasicMaterial({
+    color: brightCyan.clone().lerp(new THREE.Color(0x72f1ff), 0.3),
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false
+  });
 
+  // Static: hardcoded color — shared across all Input nodes via MaterialCache
   const lineMat = MaterialCache.get(
-    `input_gateway_line_${colorHex}`,
+    'input.gateway.line.lineBasic.transparent.default',
     () => new THREE.LineBasicMaterial({
       color: paleCyan,
       transparent: true,
@@ -4974,7 +4962,7 @@ function _getInputGatewayReliquaryMaterials(color) {
   );
 
   const haloMat = MaterialCache.get(
-    `input_gateway_halo_${colorHex}`,
+    'input.gateway.halo.meshBasic.transparent.default',
     () => new THREE.MeshBasicMaterial({
       color: new THREE.Color(0xc9fbff),
       transparent: true,
@@ -4984,7 +4972,7 @@ function _getInputGatewayReliquaryMaterials(color) {
   );
 
   const particleMat = MaterialCache.get(
-    `input_gateway_particle_${colorHex}`,
+    'input.gateway.particle.points.transparent.default',
     () => new THREE.PointsMaterial({
       color: new THREE.Color(0xb9f8ff),
       size: 0.044,
@@ -5121,154 +5109,123 @@ function _getInputCelestialReceptorOrganMaterials(color) {
   const whiteColor = new THREE.Color(0xffffff).lerp(iceColor, 0.12);
   const seamColor = new THREE.Color(0x192a3c).lerp(iceColor, 0.12);
 
-  const coreMat = MaterialCache.get(
-    `input_celestial_core_${colorHex}`,
-    () => new THREE.MeshPhysicalMaterial({
-      color: pearlColor.clone().lerp(iceColor, 0.1),
-      emissive: whiteColor.clone().lerp(iceColor, 0.18),
-      emissiveIntensity: 0.22,
-      metalness: 0.08,
-      roughness: 0.14,
-      transmission: 0,
-      thickness: 0.08,
-      ior: 1.18,
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true
-    })
-  );
+  // All celestial materials are dynamic: colors derive from inputColor via iceColor/pearlColor/whiteColor/seamColor
+  // Cached by INPUT_CELESTIAL_RECEPTOR_ORGAN_MATERIALS per color — no MaterialCache sharing
+  const coreMat = new THREE.MeshPhysicalMaterial({
+    color: pearlColor.clone().lerp(iceColor, 0.1),
+    emissive: whiteColor.clone().lerp(iceColor, 0.18),
+    emissiveIntensity: 0.22,
+    metalness: 0.08,
+    roughness: 0.14,
+    transmission: 0,
+    thickness: 0.08,
+    ior: 1.18,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
 
-  const seedMat = MaterialCache.get(
-    `input_celestial_seed_${colorHex}`,
-    () => new THREE.MeshPhysicalMaterial({
-      color: whiteColor.clone().lerp(pearlColor, 0.04),
-      emissive: whiteColor.clone().lerp(iceColor, 0.1),
-      emissiveIntensity: 0.82,
-      metalness: 0.04,
-      roughness: 0.06,
-      transmission: 0,
-      thickness: 0.04,
-      ior: 1.18,
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true
-    })
-  );
+  const seedMat = new THREE.MeshPhysicalMaterial({
+    color: whiteColor.clone().lerp(pearlColor, 0.04),
+    emissive: whiteColor.clone().lerp(iceColor, 0.1),
+    emissiveIntensity: 0.82,
+    metalness: 0.04,
+    roughness: 0.06,
+    transmission: 0,
+    thickness: 0.04,
+    ior: 1.18,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
 
-  const seamMat = MaterialCache.get(
-    `input_celestial_seam_${colorHex}`,
-    () => new THREE.MeshBasicMaterial({
-      color: seamColor,
-      transparent: true,
-      opacity: 0.66,
-      depthWrite: false
-    })
-  );
+  const seamMat = new THREE.MeshBasicMaterial({
+    color: seamColor,
+    transparent: true,
+    opacity: 0.66,
+    depthWrite: false
+  });
 
-  const membraneMatA = MaterialCache.get(
-    `input_celestial_membraneA_${colorHex}`,
-    () => new THREE.MeshPhysicalMaterial({
-      color: iceColor.clone().lerp(whiteColor, 0.06),
-      emissive: iceColor.clone().lerp(whiteColor, 0.14),
-      emissiveIntensity: 0.18,
-      metalness: 0.05,
-      roughness: 0.18,
-      transmission: 0,
-      thickness: 0.05,
-      ior: 1.16,
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true
-    })
-  );
+  const membraneMatA = new THREE.MeshPhysicalMaterial({
+    color: iceColor.clone().lerp(whiteColor, 0.06),
+    emissive: iceColor.clone().lerp(whiteColor, 0.14),
+    emissiveIntensity: 0.18,
+    metalness: 0.05,
+    roughness: 0.18,
+    transmission: 0,
+    thickness: 0.05,
+    ior: 1.16,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
 
-  const membraneMatB = MaterialCache.get(
-    `input_celestial_membraneB_${colorHex}`,
-    () => new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color(0xeefcff).lerp(iceColor, 0.12),
-      emissive: whiteColor.clone().lerp(iceColor, 0.1),
-      emissiveIntensity: 0.14,
-      metalness: 0.04,
-      roughness: 0.16,
-      transmission: 0,
-      thickness: 0.05,
-      ior: 1.16,
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true
-    })
-  );
+  const membraneMatB = new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color(0xeefcff).lerp(iceColor, 0.12),
+    emissive: whiteColor.clone().lerp(iceColor, 0.1),
+    emissiveIntensity: 0.14,
+    metalness: 0.04,
+    roughness: 0.16,
+    transmission: 0,
+    thickness: 0.05,
+    ior: 1.16,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
 
-  const haloMatA = MaterialCache.get(
-    `input_celestial_haloA_${colorHex}`,
-    () => new THREE.MeshBasicMaterial({
-      color: whiteColor.clone().lerp(iceColor, 0.12),
-      transparent: true,
-      opacity: 0.22,
-      depthWrite: false
-    })
-  );
+  const haloMatA = new THREE.MeshBasicMaterial({
+    color: whiteColor.clone().lerp(iceColor, 0.12),
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false
+  });
 
-  const haloMatB = MaterialCache.get(
-    `input_celestial_haloB_${colorHex}`,
-    () => new THREE.MeshBasicMaterial({
-      color: iceColor.clone().lerp(whiteColor, 0.12),
-      transparent: true,
-      opacity: 0.16,
-      depthWrite: false
-    })
-  );
+  const haloMatB = new THREE.MeshBasicMaterial({
+    color: iceColor.clone().lerp(whiteColor, 0.12),
+    transparent: true,
+    opacity: 0.16,
+    depthWrite: false
+  });
 
-  const filamentMat = MaterialCache.get(
-    `input_celestial_filament_${colorHex}`,
-    () => new THREE.MeshStandardMaterial({
-      color: iceColor.clone().lerp(whiteColor, 0.08),
-      emissive: iceColor.clone().lerp(whiteColor, 0.08),
-      emissiveIntensity: 0.28,
-      metalness: 0.18,
-      roughness: 0.24,
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true
-    })
-  );
+  const filamentMat = new THREE.MeshStandardMaterial({
+    color: iceColor.clone().lerp(whiteColor, 0.08),
+    emissive: iceColor.clone().lerp(whiteColor, 0.08),
+    emissiveIntensity: 0.28,
+    metalness: 0.18,
+    roughness: 0.24,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
 
-  const sparkMat = MaterialCache.get(
-    `input_celestial_spark_${colorHex}`,
-    () => new THREE.MeshBasicMaterial({
-      color: whiteColor.clone().lerp(iceColor, 0.18),
-      transparent: true,
-      opacity: 0.88,
-      depthWrite: false
-    })
-  );
+  const sparkMat = new THREE.MeshBasicMaterial({
+    color: whiteColor.clone().lerp(iceColor, 0.18),
+    transparent: true,
+    opacity: 0.88,
+    depthWrite: false
+  });
 
-  const dustMat = MaterialCache.get(
-    `input_celestial_dust_${colorHex}`,
-    () => new THREE.PointsMaterial({
-      color: whiteColor.clone().lerp(iceColor, 0.16),
-      size: 0.03,
-      transparent: true,
-      opacity: 0.34,
-      depthWrite: false,
-      sizeAttenuation: true
-    })
-  );
+  const dustMat = new THREE.PointsMaterial({
+    color: whiteColor.clone().lerp(iceColor, 0.16),
+    size: 0.03,
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
 
-  const witnessMat = MaterialCache.get(
-    `input_celestial_witness_${colorHex}`,
-    () => new THREE.LineBasicMaterial({
-      color: whiteColor.clone().lerp(iceColor, 0.18),
-      transparent: true,
-      opacity: 0.28,
-      depthWrite: false
-    })
-  );
+  const witnessMat = new THREE.LineBasicMaterial({
+    color: whiteColor.clone().lerp(iceColor, 0.18),
+    transparent: true,
+    opacity: 0.28,
+    depthWrite: false
+  });
 
   const mats = { coreMat, seedMat, seamMat, membraneMatA, membraneMatB, haloMatA, haloMatB, filamentMat, sparkMat, dustMat, witnessMat };
   for (const mat of Object.values(mats)) {
@@ -5350,49 +5307,42 @@ function _getInputIncomingReliquaryMaterials(color) {
   const deepCyan = inputColor.clone().lerp(new THREE.Color(0x00193d), 0.24);
   const shellCyan = inputColor.clone().lerp(new THREE.Color(0x7cf4ff), 0.34);
 
-  const coreMat = MaterialCache.get(
-    `input_incoming_core_${colorHex}`,
-    () => new THREE.MeshStandardMaterial({
-      color: brightCyan,
-      emissive: new THREE.Color(0x70f0ff),
-      emissiveIntensity: 0.56,
-      metalness: 0.86,
-      roughness: 0.1,
-      transparent: false,
-      opacity: 1.0,
-      depthWrite: true,
-      depthTest: true
-    })
-  );
+  // Dynamic: color depends on node colorHex — cached by INPUT_INCOMING_RELIQUARY_MATERIALS per color
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: brightCyan,
+    emissive: new THREE.Color(0x70f0ff),
+    emissiveIntensity: 0.56,
+    metalness: 0.86,
+    roughness: 0.1,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
 
-  const wingMat = MaterialCache.get(
-    `input_incoming_wing_${colorHex}`,
-    () => new THREE.MeshStandardMaterial({
-      color: deepCyan,
-      emissive: new THREE.Color(0x3bcfff),
-      emissiveIntensity: 0.22,
-      metalness: 0.56,
-      roughness: 0.24,
-      transparent: false,
-      opacity: 1.0,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.DoubleSide
-    })
-  );
+  const wingMat = new THREE.MeshStandardMaterial({
+    color: deepCyan,
+    emissive: new THREE.Color(0x3bcfff),
+    emissiveIntensity: 0.22,
+    metalness: 0.56,
+    roughness: 0.24,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
 
-  const ribbonMat = MaterialCache.get(
-    `input_incoming_ribbon_${colorHex}`,
-    () => new THREE.MeshBasicMaterial({
-      color: shellCyan,
-      transparent: true,
-      opacity: 0.28,
-      depthWrite: false
-    })
-  );
+  const ribbonMat = new THREE.MeshBasicMaterial({
+    color: shellCyan,
+    transparent: true,
+    opacity: 0.28,
+    depthWrite: false
+  });
 
+  // Static: hardcoded color — shared across all Input nodes via MaterialCache
   const lineMat = MaterialCache.get(
-    `input_incoming_line_${colorHex}`,
+    'input.incoming.line.lineBasic.transparent.default',
     () => new THREE.LineBasicMaterial({
       color: new THREE.Color(0xe7fdff),
       transparent: true,
@@ -5402,7 +5352,7 @@ function _getInputIncomingReliquaryMaterials(color) {
   );
 
   const ringMat = MaterialCache.get(
-    `input_incoming_ring_${colorHex}`,
+    'input.incoming.ring.meshBasic.transparent.default',
     () => new THREE.MeshBasicMaterial({
       color: new THREE.Color(0xc8fbff),
       transparent: true,
@@ -5412,7 +5362,7 @@ function _getInputIncomingReliquaryMaterials(color) {
   );
 
   const particleMat = MaterialCache.get(
-    `input_incoming_particle_${colorHex}`,
+    'input.incoming.particle.points.transparent.default',
     () => new THREE.PointsMaterial({
       color: new THREE.Color(0xb8f7ff),
       size: 0.046,
@@ -5423,23 +5373,21 @@ function _getInputIncomingReliquaryMaterials(color) {
     })
   );
 
-  const seedMat = MaterialCache.get(
-    `input_incoming_seed_${colorHex}`,
-    () => new THREE.MeshPhysicalMaterial({
-      color: brightCyan.clone().lerp(new THREE.Color(0xffffff), 0.14),
-      emissive: new THREE.Color(0x82f3ff),
-      emissiveIntensity: 0.72,
-      metalness: 0.78,
-      roughness: 0.08,
-      transmission: 0,
-      thickness: 0.18,
-      ior: 1.43,
-      transparent: false,
-      opacity: 1.0,
-      depthWrite: true,
-      depthTest: true
-    })
-  );
+  // Dynamic: color depends on brightCyan
+  const seedMat = new THREE.MeshPhysicalMaterial({
+    color: brightCyan.clone().lerp(new THREE.Color(0xffffff), 0.14),
+    emissive: new THREE.Color(0x82f3ff),
+    emissiveIntensity: 0.72,
+    metalness: 0.78,
+    roughness: 0.08,
+    transmission: 0,
+    thickness: 0.18,
+    ior: 1.43,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
 
   const mats = { coreMat, wingMat, ribbonMat, lineMat, ringMat, particleMat, seedMat };
   for (const mat of Object.values(mats)) {

@@ -22,6 +22,7 @@
  */
 
 import * as THREE from 'three';
+import { MaterialCache } from '../src/rendering/MaterialCache.js';
 
 const ECHO_DETECTOR_ANOMALY_CACHE = {
   voidShellGeometry: null,
@@ -193,11 +194,14 @@ function _getEchoDetectorAnomalyMaterials(color) {
     side: THREE.DoubleSide
   });
 
-  const voidKernelMat = new THREE.MeshBasicMaterial({
-    color: 0x02060a,
-    transparent: true,
-    opacity: 0.98
-  });
+  const voidKernelMat = MaterialCache.get(
+    'input.echo.voidKernel.meshBasic.opaque.default',
+    () => new THREE.MeshBasicMaterial({
+      color: 0x02060a,
+      transparent: true,
+      opacity: 0.98
+    })
+  );
 
   const crownMat = new THREE.MeshStandardMaterial({
     color: icyWhite,
@@ -220,28 +224,37 @@ function _getEchoDetectorAnomalyMaterials(color) {
     side: THREE.DoubleSide
   });
 
-  const lineMat = new THREE.LineBasicMaterial({
-    color: new THREE.Color(0xe8fdff),
-    transparent: true,
-    opacity: 0.72,
-    depthWrite: false
-  });
+  const lineMat = MaterialCache.get(
+    'input.echo.line.lineBasic.transparent.default',
+    () => new THREE.LineBasicMaterial({
+      color: new THREE.Color(0xe8fdff),
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false
+    })
+  );
 
-  const fringeLineMat = new THREE.LineBasicMaterial({
-    color: ultraviolet,
-    transparent: true,
-    opacity: 0.24,
-    depthWrite: false
-  });
+  const fringeLineMat = MaterialCache.get(
+    'input.echo.fringeLine.lineBasic.transparent.default',
+    () => new THREE.LineBasicMaterial({
+      color: ultraviolet,
+      transparent: true,
+      opacity: 0.24,
+      depthWrite: false
+    })
+  );
 
-  const particleMat = new THREE.PointsMaterial({
-    color: new THREE.Color(0xdafcff),
-    size: 0.042,
-    transparent: true,
-    opacity: 0.66,
-    depthWrite: false,
-    sizeAttenuation: true
-  });
+  const particleMat = MaterialCache.get(
+    'input.echo.particle.points.transparent.default',
+    () => new THREE.PointsMaterial({
+      color: new THREE.Color(0xdafcff),
+      size: 0.042,
+      transparent: true,
+      opacity: 0.66,
+      depthWrite: false,
+      sizeAttenuation: true
+    })
+  );
 
   const mats = {
     voidShellMat,
@@ -498,17 +511,20 @@ function _getInputNeuralReceptorMaterials(color) {
     opacity: 0.95
   });
 
-  const warmSparkMat = new THREE.MeshPhysicalMaterial({
-    color: ignitionAmber,
-    metalness: 0.28,
-    roughness: 0.18,
-    emissive: ignitionAmber,
-    emissiveIntensity: 0.95,
-    transmission: 0,
-    thickness: 0.06,
-    transparent: true,
-    opacity: 0.98
-  });
+  const warmSparkMat = MaterialCache.get(
+    'input.neural.warmSpark.meshPhysical.transparent.default',
+    () => new THREE.MeshPhysicalMaterial({
+      color: ignitionAmber,
+      metalness: 0.28,
+      roughness: 0.18,
+      emissive: ignitionAmber,
+      emissiveIntensity: 0.95,
+      transmission: 0,
+      thickness: 0.06,
+      transparent: true,
+      opacity: 0.98
+    })
+  );
 
   const lineMat = new THREE.LineBasicMaterial({
     color: icyWhite,

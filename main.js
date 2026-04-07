@@ -504,7 +504,6 @@ import { setupSimulationInvariantEnforcement } from './_SIMULATION_INVARIANT_ENF
 // REMOVED: _TASK_3_RARE_NODE_VERIFICATION - moved to LEGACY (2026-04-03)
 // import { setupRareNodeVerificationTracker } from './_TASK_3_RARE_NODE_VERIFICATION.js';
 import { NodeEvolution2_0 } from './_NodeEvolution2_0.js';
-import { SafeNodeArchetypesPack } from './_SafeNodeArchetypesPack.js';
 import { SessionVariantEngine } from './SessionVariantEngine.js';
 import { setSessionVariantEngine } from './EnhancedNodeModels.js';
 
@@ -1161,11 +1160,6 @@ import { PersonalityShaderAdvancedFX_v1 } from './PersonalityShaderAdvancedFX_v1
 // PHASE 3C ARCHETYPE SHADER MODES (Week 16 - GPU Shader Mode Orchestration)
 // ============================================================================
 import { ArchetypeShaderModes_v1 } from './ArchetypeShaderModes_v1.js';
-
-// ============================================================================
-// WEEK 17: ARCHETYPE NEURAL LINK VISUALIZATION (GPU Link Resonance)
-// ============================================================================
-import { ArchetypeNeuralLinkVis_v1 } from './ArchetypeNeuralLinkVis_v1.js';
 
 // ============================================================================
 // WEEK 18: NODE SELECTION SHADER ACTIVATION (Selection-Driven Intensity Boost)
@@ -5371,8 +5365,6 @@ this.setHudDirty('nodeInspect');
         // Phase 3c Archetype Shader Modes (Week 16 - GPU shader mode orchestration)
         this.archetypeShaderModes = null;
 
-        // Week 17 Archetype Neural Link Visualization (GPU link resonance)
-        this.neuralLinkVis = null;
 
         // Week 18 Node Selection Shader Activation (selection-driven intensity boost)
         this.nodeShaderActivation = null;
@@ -10085,22 +10077,6 @@ window.__ATOMA_SCENE__ = this.scene;
             console.log('[main.js] ArchetypeShaderModes_v1 initialized ✓');
         } catch (err) {
             console.warn('[main.js] ArchetypeShaderModes_v1 failed:', err);
-        }
-
-        // ====================================================================
-        // WEEK 17: ARCHETYPE NEURAL LINK VISUALIZATION (GPU Link Resonance)
-        // ====================================================================
-        // Initialize ArchetypeNeuralLinkVis_v1 (neural link visualization)
-        // This layer visualizes archetype-based neural link resonance
-        // Renders dynamic beams based on compatibility/resonance/entropy/ascension
-        try {
-            this.neuralLinkVis = new ArchetypeNeuralLinkVis_v1({
-                scene: this.scene,
-                debugEnabled: false
-            });
-            console.log('[main.js] ArchetypeNeuralLinkVis_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] ArchetypeNeuralLinkVis_v1 failed:', err);
         }
 
         // ====================================================================
