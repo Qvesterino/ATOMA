@@ -658,6 +658,7 @@ corruption.spread.* events (from MetricsRuntime_v1)
 - Complete migration to `node.userData.metrics.*` structure
 - Mark legacy fields as read-only with deprecation warnings
 - Phase out legacy reads over time
+- Track remaining remediation explicitly in runtime metrics audits: `HarmonyStabilizationSystem_v1` should stop treating `harmonyLevel` as a writable source, and `LinkCorruptionTransmission_v1` should stop writing `link.userData.corruptionLevel` outside canonical `link.userData.metrics.*`
 
 ---
 

@@ -1254,7 +1254,7 @@ export class LinkCorruptionTransmission_v1 {
         corruptionInitial: corruptionData.level.toFixed(2),
         harmonyCost: harmonyCost.toFixed(2),
         synergyCost: synergyCost.toFixed(0),
-        harmonyRemaining: sourceNode.userData.harmonyLevel.toFixed(2),
+        harmonyRemaining: (sourceNode.userData.metrics?.harmony ?? sourceNode.userData.harmonyLevel ?? 0).toFixed(2),
         synergyRemaining: this._getLinkSynergyPct(link).toFixed(0),
         networkStress: eligibility.networkStress.toFixed(2)
       });
@@ -1430,7 +1430,7 @@ export class LinkCorruptionTransmission_v1 {
         harmonyCost,
         synergyCost,
         costScaleFactor,
-        harmonyRemaining: resourceNode.userData.harmonyLevel,
+        harmonyRemaining: resourceNode.userData.metrics?.harmony ?? resourceNode.userData.harmonyLevel ?? 0,
         synergyRemaining: currentSynergy - synergyCost,
         isActive: true
       });
@@ -1443,7 +1443,7 @@ export class LinkCorruptionTransmission_v1 {
         harmonyCost: harmonyCost.toFixed(2),
         synergyCost: synergyCost.toFixed(0),
         costScaleFactor: costScaleFactor.toFixed(2),
-        harmonyRemaining: resourceNode.userData.harmonyLevel.toFixed(2),
+        harmonyRemaining: (resourceNode.userData.metrics?.harmony ?? resourceNode.userData.harmonyLevel ?? 0).toFixed(2),
         synergyRemaining: (currentSynergy - synergyCost).toFixed(0),
         isActive: true
       });
@@ -1604,7 +1604,7 @@ export class LinkCorruptionTransmission_v1 {
             timestamp: now,
             event: 'upkeep_paid',
             harmonyCost: upkeepHarmonyCost,
-            harmonyRemaining: sourceNode.userData.harmonyLevel,
+            harmonyRemaining: sourceNode.userData.metrics?.harmony ?? sourceNode.userData.harmonyLevel ?? 0,
             isActive: true
           });
         }

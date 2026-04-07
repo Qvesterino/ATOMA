@@ -83,7 +83,7 @@ export class MetricValidationRuntime {
       if (!link || !link.userData) continue;
       const id = link.id || link.uuid || 'link-unknown';
       const synergy = link.userData.synergy?.score;
-      const corruption = link.userData.corruptionLevel;
+      const corruption = link.userData.metrics?.corruption ?? link.userData?.corruptionLevel;
 
       if (synergy !== undefined) {
         this._validateMetricValue(`link:${id}`, 'synergy.score', synergy);

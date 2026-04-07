@@ -49,7 +49,7 @@
 import { NetworkMembershipResolver } from './src/metrics/NetworkMembershipResolver.js';
 import { NetworkMetricsAggregator } from './src/metrics/NetworkMetricsAggregator.js';
 import { buildScopedMetricEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './src/metrics/MetricTierClassifier.js';
-import { updateNodeMetrics } from './src/metrics/NodeMetricEngine.js';
+import { updateNodeMetrics, ensureMetrics } from './src/metrics/NodeMetricEngine.js';
 import { MetricValidationRuntime } from './MetricValidationRuntime.js';
 
 const NETWORK_METRICS_OVERRIDE_KEY = '__ATOMA_NETWORK_METRICS_AGGREGATOR_OVERRIDE__';

@@ -12,13 +12,38 @@ import { createSigmaRift, updateRiftEnergyTime } from './shaders/RiftEnergyShade
 export class SigmaRiftChamber {
   constructor(scene, worldRoot, camera = null) {
     this.scene = scene;
+    this.scene.background = new THREE.Color(0x020208);
+    this.scene.fog = new THREE.FogExp2(0x020208, 0.008);
     this.worldRoot = worldRoot;
     this.camera = camera;
     this.animatedObjects = [];
     this.collisionObjects = [];
+    this.monolithShadows = [];
+    this.monolithShadowMaterial = null;
+    this.monolithTethers = [];
+    this.monolithTetherMaterial = null;
+    this.wallSymbols = [];
+    this.runeSequencePhase = 0;
+    this.runeSequenceTimer = 20 + Math.random() * 3;
+    this.runeSequenceProgress = 0;
+    this.floorSigilElapsed = 0;
+    this.floorSigilCompleted = false;
+    this.floorSigilFlashActive = false;
+    this.floorSigilFlashProgress = 0;
+    this.pathBurstTimer = 6 + Math.random() * 2;
+    this.pathBurstActive = false;
+    this.pathBurstProgress = 0;
+    this.holographicRingBaseSpeed = 0.1;
+    this.holographicPulseTimer = 5 + Math.random() * 1.5;
+    this.holographicPulseActive = false;
+    this.holographicPulseProgress = 0;
     this.chamberRadius = 60;
     this.chamberHeight = 50;
     this.riftHeight = 18;
+    this.riftEyeSprite = null;
+    this.riftEyeTimer = 15 + Math.random() * 4;
+    this.riftEyeActive = false;
+    this.riftEyeProgress = 0;
     
     // Session 112+: Initialize map configuration and reference plane
     this.initializeMapConfig();
@@ -28,6 +53,8 @@ export class SigmaRiftChamber {
     this.createWalls();
     this.createFloor();
     this.createCentralRift();
+    this.createRiftEye();
+    this.createRiftSurgeWave();
     this.createFloatingMonoliths();
     this.createHolographicRings();
     this.createNeonPaths();
@@ -72,25 +99,32 @@ export class SigmaRiftChamber {
     const starfieldGeometry = new THREE.BufferGeometry();
     const starPositions = [];
     const starColors = [];
+    const starVelocities = [];
     
     const constellationCount = 200;
+    const topY = this.chamberHeight - 1.5;
+    const spawnRadius = this.chamberRadius * 0.95;
     for (let i = 0; i < constellationCount; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const distance = Math.random() * this.chamberRadius;
-      const height = this.chamberHeight - Math.random() * 5;
+      const distance = spawnRadius * (0.9 + Math.random() * 0.1);
+      const x = Math.cos(angle) * distance;
+      const z = Math.sin(angle) * distance;
+      const height = topY + (Math.random() - 0.5) * 0.3;
       
-      starPositions.push(
-        Math.cos(angle) * distance,
-        height,
-        Math.sin(angle) * distance
-      );
+      starPositions.push(x, height, z);
       
-      const intensity = Math.random();
+      const intensity = 0.6 + Math.random() * 0.4;
       starColors.push(
-        0.2 + intensity * 0.3,
-        0.8 + intensity * 0.2,
-        0.3 + intensity * 0.4
+        0.1 * intensity,
+        0.7 * intensity,
+        0.25 * intensity
       );
+
+      const dirX = -x;
+      const dirZ = -z;
+      const length = Math.sqrt(dirX * dirX + dirZ * dirZ) + 0.0001;
+      const speed = 0.03 + Math.random() * 0.02;
+      starVelocities.push((dirX / length) * speed, (dirZ / length) * speed);
     }
     
     starfieldGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
@@ -100,11 +134,19 @@ export class SigmaRiftChamber {
       size: 0.15,
       vertexColors: true,
       transparent: true,
-      opacity: 0.6
+      opacity: 0.7,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
     });
     
     this.starfield = new THREE.Points(starfieldGeometry, starfieldMaterial);
     this.worldRoot.add(this.starfield);
+    this.starfieldData = {
+      velocities: starVelocities,
+      topY: topY,
+      spawnRadius: spawnRadius,
+      minDistance: 1.0
+    };
     
     this.createSigmaRuneLights();
   }
@@ -243,20 +285,40 @@ export class SigmaRiftChamber {
     
     const symbol = new THREE.Line(geometry, material);
     this.worldRoot.add(symbol);
-    
-    this.animatedObjects.push({
+    const wallSymbolEntry = {
       object: symbol,
       type: 'wallSymbol',
       baseOpacity: 0.4,
       pulseSpeed: 0.6,
-      phaseOffset: Math.random() * Math.PI * 2
-    });
+      phaseOffset: Math.random() * Math.PI * 2,
+      flashRadius: Math.sqrt(x * x + z * z),
+      flashActive: false,
+      flashProgress: 0
+    };
+    this.animatedObjects.push(wallSymbolEntry);
+    this.wallSymbols.push(wallSymbolEntry);
   }
-  
+
   createFloor() {
     const floorGeometry = new THREE.CircleGeometry(this.chamberRadius, 64);
+    const colorArray = [];
+    const positions = floorGeometry.attributes.position.array;
+    const innerColor = new THREE.Color(0x0a0a1a);
+    const outerColor = new THREE.Color(0x050510);
+
+    for (let i = 0; i < positions.length; i += 3) {
+      const x = positions[i];
+      const z = positions[i + 2];
+      const radius = Math.sqrt(x * x + z * z);
+      const t = Math.min(radius / this.chamberRadius, 1);
+      const vertexColor = innerColor.clone().lerp(outerColor, t);
+      colorArray.push(vertexColor.r, vertexColor.g, vertexColor.b);
+    }
+
+    floorGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colorArray, 3));
     const floorMaterial = materialRegistry.getStandard('world.sigmariftchamber.floor', {
-      color: 0x0a0a14,
+      color: 0xffffff,
+      vertexColors: true,
       metalness: 0.2,
       roughness: 0.9,
       side: THREE.DoubleSide
@@ -282,6 +344,7 @@ export class SigmaRiftChamber {
     for (let ring = 1; ring <= ringCount; ring++) {
       const ringRadius = (patternRadius / ringCount) * ring;
       const triangleCount = 3 + ring * 2;
+      const activationDelay = ((patternRadius - ringRadius) / patternRadius) * 30;
       
       for (let t = 0; t < triangleCount; t++) {
         const angle = (t / triangleCount) * Math.PI * 2;
@@ -295,16 +358,59 @@ export class SigmaRiftChamber {
         ];
         
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const baseOpacity = 0.15 + (ring * 0.05);
         const material = new THREE.LineBasicMaterial({
           color: 0x00ccdd,
           transparent: true,
-          opacity: 0.15 + (ring * 0.05)
+          opacity: 0
         });
         
         const triangle = new THREE.Line(geometry, material);
         this.worldRoot.add(triangle);
+        this.animatedObjects.push({
+          object: triangle,
+          type: 'floorPattern',
+          baseOpacity: baseOpacity,
+          pulseSpeed: 0.3,
+          phaseOffset: Math.random() * Math.PI * 2,
+          flashRadius: ringRadius,
+          flashActive: false,
+          flashProgress: 0,
+          activationDelay: activationDelay,
+          active: false,
+          fadeProgress: 0
+        });
       }
     }
+
+    const floorDriftCount = 100;
+    const driftPositions = [];
+    const driftSpeeds = [];
+    for (let i = 0; i < floorDriftCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * this.chamberRadius * 0.9;
+      const height = 0.05 + Math.random() * 0.25;
+      driftPositions.push(Math.cos(angle) * radius, height, Math.sin(angle) * radius);
+      driftSpeeds.push(0.02 + Math.random() * 0.02);
+    }
+
+    const driftGeometry = new THREE.BufferGeometry();
+    driftGeometry.setAttribute('position', new THREE.Float32BufferAttribute(driftPositions, 3));
+
+    const driftMaterial = new THREE.PointsMaterial({
+      size: 0.08,
+      color: 0x00aa88,
+      transparent: true,
+      opacity: 0.2,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    this.floorDriftParticles = new THREE.Points(driftGeometry, driftMaterial);
+    this.worldRoot.add(this.floorDriftParticles);
+    this.floorDriftData = {
+      speeds: driftSpeeds
+    };
   }
   
   createHexagon(x, y, z, radius, color, opacity) {
@@ -318,19 +424,26 @@ export class SigmaRiftChamber {
     const material = new THREE.LineBasicMaterial({
       color: color,
       transparent: true,
-      opacity: opacity
+      opacity: 0
     });
     
     const hexagon = new THREE.Line(geometry, material);
     this.worldRoot.add(hexagon);
     
     if (Math.random() > 0.5) {
+      const activationDelay = ((this.chamberRadius * 0.8 * 0.6 - Math.sqrt(x * x + z * z)) / (this.chamberRadius * 0.8 * 0.6)) * 30;
       this.animatedObjects.push({
         object: hexagon,
         type: 'floorPattern',
         baseOpacity: opacity,
         pulseSpeed: 0.3,
-        phaseOffset: Math.random() * Math.PI * 2
+        phaseOffset: Math.random() * Math.PI * 2,
+        flashRadius: Math.sqrt(x * x + z * z),
+        flashActive: false,
+        flashProgress: 0,
+        activationDelay: activationDelay,
+        active: false,
+        fadeProgress: 0
       });
     }
   }
@@ -369,7 +482,125 @@ export class SigmaRiftChamber {
       shader: true
     });
   }
-  
+
+  createRiftEye() {
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    const gradient = ctx.createRadialGradient(
+      size / 2,
+      size / 2,
+      0,
+      size / 2,
+      size / 2,
+      size / 2
+    );
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(0.2, 'rgba(160,255,120,0.9)');
+    gradient.addColorStop(0.5, 'rgba(0,255,255,0.6)');
+    gradient.addColorStop(0.8, 'rgba(0,255,255,0.15)');
+    gradient.addColorStop(1, 'rgba(0,255,255,0)');
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size * 0.18, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size * 0.32, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size * 0.48, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    const sprite = new THREE.Sprite(material);
+    sprite.position.set(0, this.riftHeight / 2, 0);
+    sprite.scale.set(12, 12, 1);
+    this.worldRoot.add(sprite);
+    this.riftEyeSprite = sprite;
+  }
+
+  createRiftSurgeWave() {
+    const geometry = new THREE.RingGeometry(0, 1, 64);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0x00ffaa,
+      transparent: true,
+      opacity: 0.5,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+
+    const ring = new THREE.Mesh(geometry, material);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.05;
+    ring.visible = false;
+    this.worldRoot.add(ring);
+    this.riftSurgeWave = ring;
+    this.riftSurgeTimer = 10 + Math.random() * 2;
+    this.riftSurgeActive = false;
+    this.riftSurgeProgress = 0;
+  }
+
+  createMonolithShadowMaterial() {
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    const gradient = ctx.createRadialGradient(
+      size / 2,
+      size / 2,
+      0,
+      size / 2,
+      size / 2,
+      size / 2
+    );
+    gradient.addColorStop(0, 'rgba(0,0,0,0.85)');
+    gradient.addColorStop(0.55, 'rgba(0,0,0,0.35)');
+    gradient.addColorStop(0.75, 'rgba(0,255,120,0.45)');
+    gradient.addColorStop(1, 'rgba(0,255,120,0)');
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+
+    ctx.strokeStyle = 'rgba(0,255,120,0.35)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size * 0.45, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+
+    return new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0.45,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false
+    });
+  }
+
   createRiftEdges(radius) {
     for (let y of [0, this.riftHeight]) {
       const rimGeometry = new THREE.TorusGeometry(radius, 0.3, 16, 32);
@@ -390,6 +621,19 @@ export class SigmaRiftChamber {
       rimLight.position.y = y;
       this.worldRoot.add(rimLight);
     }
+
+    const hemisphere = new THREE.HemisphereLight(0x001a0a, 0x000000, 0.15);
+    this.scene.add(hemisphere);
+
+    const spot = new THREE.SpotLight(0x00ffaa, 0.8, 100, Math.PI / 6, 0.5, 1);
+    spot.position.set(0, this.riftHeight + 20, 0);
+    spot.target = this.riftCore;
+    spot.castShadow = true;
+    spot.shadow.mapSize.set(1024, 1024);
+    spot.shadow.camera.near = 10;
+    spot.shadow.camera.far = 100;
+    this.scene.add(spot);
+    this.scene.add(spot.target);
     
     const verticalLineCount = 16;
     for (let i = 0; i < verticalLineCount; i++) {
@@ -554,6 +798,40 @@ export class SigmaRiftChamber {
     const edge = new THREE.LineSegments(edgeGeometry, edgeMaterial);
     monolith.add(edge);
     
+    if (!this.monolithShadowMaterial) {
+      this.monolithShadowMaterial = this.createMonolithShadowMaterial();
+    }
+
+    const shadow = new THREE.Sprite(this.monolithShadowMaterial);
+    shadow.position.set(x, 0.05, z);
+    shadow.scale.set(3 + (height / this.riftHeight) * 4, 3 + (height / this.riftHeight) * 4, 1);
+    shadow.renderOrder = 1;
+    this.worldRoot.add(shadow);
+    this.monolithShadows.push({ sprite: shadow, monolith });
+
+    if (!this.monolithTetherMaterial) {
+      this.monolithTetherMaterial = new THREE.LineBasicMaterial({
+        color: 0x00ffaa,
+        transparent: true,
+        opacity: 0.15,
+        blending: THREE.AdditiveBlending
+      });
+    }
+
+    const tetherGeometry = new THREE.BufferGeometry();
+    tetherGeometry.setAttribute('position', new THREE.Float32BufferAttribute([
+      monolith.position.x,
+      monolith.position.y,
+      monolith.position.z,
+      0,
+      this.riftHeight / 2,
+      0
+    ], 3));
+
+    const tether = new THREE.Line(tetherGeometry, this.monolithTetherMaterial);
+    this.worldRoot.add(tether);
+    this.monolithTethers.push({ tether, monolith });
+    
     monolith.userData = {
       baseX: x,
       baseZ: z,
@@ -606,14 +884,17 @@ export class SigmaRiftChamber {
       const ring = new THREE.Mesh(ringGeometry, ringMaterial);
       ring.position.y = height;
       ring.rotation.x = Math.PI / 2 + (Math.random() - 0.5) * 0.3;
+      ring.rotation.y = Math.random() * Math.PI * 2;
       this.worldRoot.add(ring);
       
       this.animatedObjects.push({
         object: ring,
         type: 'holographicRing',
         shader: true,
-        rotationSpeed: 0.1 + Math.random() * 0.1,
-        rotationAxis: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize()
+        rotationSpeed: this.holographicRingBaseSpeed,
+        rotationAxis: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize(),
+        phaseOffset: Math.random() * Math.PI * 2,
+        baseOpacity: 0.3
       });
     }
   }
@@ -649,6 +930,15 @@ export class SigmaRiftChamber {
       const path = new THREE.Line(geometry, material);
       this.worldRoot.add(path);
       
+      this.animatedObjects.push({
+        object: path,
+        type: 'neonPath',
+        baseOpacity: 0.4,
+        flashRadius: (startDistance + endDistance) * 0.5,
+        flashActive: false,
+        flashProgress: 0
+      });
+      
       this.createPathParticles(curve);
     }
   }
@@ -676,11 +966,13 @@ export class SigmaRiftChamber {
     const particles = new THREE.Points(geometry, material);
     this.worldRoot.add(particles);
     
+    const pathBaseSpeed = 1.2 + Math.random() * 0.5;
     this.animatedObjects.push({
       object: particles,
       type: 'pathParticles',
       curve: curve,
-      speed: 1.2 + Math.random() * 0.5
+      baseSpeed: pathBaseSpeed,
+      speed: pathBaseSpeed
     });
   }
   
@@ -725,6 +1017,9 @@ export class SigmaRiftChamber {
     if (this.referencePlane && this.referencePlane.animate) {
       this.referencePlane.animate(deltaTime, time);
     }
+    if (!this.floorSigilCompleted && !this.floorSigilFlashActive) {
+      this.floorSigilElapsed += deltaTime;
+    }
     
     this.animatedObjects.forEach(obj => {
       if (obj.type === 'riftCore' && obj.object.material.uniforms) {
@@ -742,11 +1037,37 @@ export class SigmaRiftChamber {
         }
         const axis = obj.rotationAxis;
         obj.object.rotateOnWorldAxis(axis, obj.rotationSpeed * deltaTime);
+        if (!this.holographicPulseActive) {
+          obj.object.material.opacity = obj.baseOpacity;
+        }
       }
       
-      if ((obj.type === 'sigmaRune' || obj.type === 'wallSymbol' || obj.type === 'floorPattern') && obj.baseOpacity !== undefined) {
+      if ((obj.type === 'sigmaRune' || obj.type === 'wallSymbol') && obj.baseOpacity !== undefined) {
         const pulse = Math.sin(time * obj.pulseSpeed + obj.phaseOffset) * 0.5 + 0.5;
-        obj.object.material.opacity = obj.baseOpacity * (0.5 + pulse * 0.5);
+        if (!obj.flashActive) {
+          obj.object.material.opacity = obj.baseOpacity * (0.5 + pulse * 0.5);
+          if (obj.type === 'wallSymbol' && obj.object.material.color) {
+            obj.object.material.color.setHex(0x00ff88);
+          }
+        }
+      }
+      
+      if (obj.type === 'floorPattern' && obj.baseOpacity !== undefined) {
+        if (!this.floorSigilCompleted) {
+          if (!obj.active && this.floorSigilElapsed >= obj.activationDelay) {
+            obj.active = true;
+            obj.fadeProgress = 0;
+          }
+          if (obj.active && !this.floorSigilFlashActive) {
+            obj.fadeProgress += deltaTime;
+            obj.object.material.opacity = Math.min(obj.baseOpacity, obj.baseOpacity * (obj.fadeProgress / 2));
+          }
+        } else {
+          if (!obj.flashActive) {
+            const pulse = Math.sin(time * obj.pulseSpeed + obj.phaseOffset) * 0.5 + 0.5;
+            obj.object.material.opacity = obj.baseOpacity * (0.5 + pulse * 0.5);
+          }
+        }
       }
       
       if (obj.type === 'riftEdgeLine') {
@@ -756,14 +1077,23 @@ export class SigmaRiftChamber {
       
       if (obj.type === 'monolith') {
         const data = obj.object.userData;
-        const orbitPhase = time * data.orbitSpeed + data.orbitPhase;
+        const speedMultiplier = this.runeSequencePhase === 1 ? 1.8 : 1.0;
+        const orbitPhase = time * data.orbitSpeed * speedMultiplier + data.orbitPhase;
         obj.object.position.x = Math.cos(orbitPhase) * data.orbitRadius;
         obj.object.position.z = Math.sin(orbitPhase) * data.orbitRadius;
         const floatPhase = time * data.floatSpeed + data.floatOffset;
         obj.object.position.y += Math.sin(floatPhase) * deltaTime * 0.5;
+        if (this.camera) {
+          obj.object.lookAt(this.camera.position);
+        }
       }
       
       if (obj.type === 'pathParticles') {
+        const speedMultiplier = this.pathBurstActive ? 3.0 : 1.0;
+        obj.speed = obj.baseSpeed * speedMultiplier;
+        if (obj.object.material && obj.object.material.color) {
+          obj.object.material.color.setHex(this.pathBurstActive ? 0x00ff88 : 0x00ffcc);
+        }
         const t = (time * obj.speed) % 1.0;
         const positions = obj.object.geometry.attributes.position.array;
         for (let i = 0; i < positions.length / 3; i++) {
@@ -776,12 +1106,200 @@ export class SigmaRiftChamber {
         obj.object.geometry.attributes.position.needsUpdate = true;
       }
     });
+
+    if (this.riftEyeSprite) {
+      if (this.camera) {
+        this.riftEyeSprite.lookAt(this.camera.position);
+      }
+      this.riftEyeTimer -= deltaTime;
+      if (!this.riftEyeActive && this.riftEyeTimer <= 0) {
+        this.riftEyeActive = true;
+        this.riftEyeProgress = 0;
+        this.riftEyeTimer = 15 + Math.random() * 4;
+      }
+      if (this.riftEyeActive) {
+        this.riftEyeProgress += deltaTime;
+        const duration = 3.0;
+        const t = Math.min(this.riftEyeProgress / duration, 1);
+        const fade = t < 0.5 ? t * 2 : Math.max(0, 1 - (t - 0.5) * 2);
+        this.riftEyeSprite.material.opacity = 0.3 * fade;
+        if (this.riftEyeProgress >= duration) {
+          this.riftEyeActive = false;
+          this.riftEyeProgress = 0;
+          this.riftEyeSprite.material.opacity = 0;
+        }
+      }
+    }
+
+    if (this.runeSequencePhase === 0) {
+      this.runeSequenceTimer -= deltaTime;
+      if (this.runeSequenceTimer <= 0) {
+        this.runeSequencePhase = 1;
+        this.runeSequenceProgress = 0;
+      }
+    }
+
+    if (this.runeSequencePhase === 1) {
+      this.runeSequenceProgress += deltaTime;
+      const symbolDelay = 0.3;
+      const activeDuration = 0.5;
+      const finalFlashDuration = 0.4;
+      const wallCount = this.wallSymbols.length;
+      const totalDuration = (wallCount - 1) * symbolDelay + activeDuration + finalFlashDuration;
+      const finalFlashStart = (wallCount - 1) * symbolDelay + activeDuration;
+
+      this.wallSymbols.forEach((entry, index) => {
+        const localTime = this.runeSequenceProgress - index * symbolDelay;
+        if (localTime >= 0 && localTime < activeDuration) {
+          entry.object.material.opacity = 1.0;
+          entry.object.material.color.setHex(0x00ff88);
+        } else if (localTime >= activeDuration && localTime < activeDuration + 0.2) {
+          const fade = 1 - (localTime - activeDuration) / 0.2;
+          entry.object.material.opacity = Math.max(entry.baseOpacity, 0.2) * fade + entry.baseOpacity * (1 - fade);
+        } else if (this.runeSequenceProgress >= finalFlashStart) {
+          entry.object.material.opacity = 1.0;
+          entry.object.material.color.setHex(0x00ff88);
+        } else {
+          entry.object.material.opacity = entry.baseOpacity;
+        }
+      });
+
+      if (this.runeSequenceProgress >= totalDuration) {
+        this.runeSequencePhase = 0;
+        this.runeSequenceTimer = 20 + Math.random() * 3;
+        this.runeSequenceProgress = 0;
+        this.wallSymbols.forEach(entry => {
+          entry.object.material.opacity = entry.baseOpacity;
+        });
+      }
+    }
+
+    if (!this.floorSigilCompleted && this.floorSigilElapsed >= 30 && !this.floorSigilFlashActive) {
+      this.floorSigilFlashActive = true;
+      this.floorSigilFlashProgress = 0;
+      this.animatedObjects.forEach(obj => {
+        if (obj.type === 'floorPattern') {
+          obj.object.material.opacity = 1.0;
+        }
+      });
+    }
+
+    if (this.floorSigilFlashActive) {
+      this.floorSigilFlashProgress += deltaTime;
+      if (this.floorSigilFlashProgress >= 0.4) {
+        this.floorSigilFlashActive = false;
+        this.floorSigilCompleted = true;
+        this.floorSigilFlashProgress = 0;
+        this.animatedObjects.forEach(obj => {
+          if (obj.type === 'floorPattern') {
+            obj.object.material.opacity = obj.baseOpacity;
+          }
+        });
+      }
+    }
+
+    this.pathBurstTimer -= deltaTime;
+    if (!this.pathBurstActive && this.pathBurstTimer <= 0) {
+      this.pathBurstActive = true;
+      this.pathBurstProgress = 0;
+    }
+
+    if (this.pathBurstActive) {
+      this.pathBurstProgress += deltaTime;
+      const burstDuration = 0.8;
+      if (this.pathBurstProgress >= burstDuration) {
+        this.pathBurstActive = false;
+        this.pathBurstTimer = 6 + Math.random() * 2;
+        this.pathBurstProgress = 0;
+      }
+    }
+
+    if (this.holographicPulseTimer !== undefined) {
+      this.holographicPulseTimer -= deltaTime;
+      if (!this.holographicPulseActive && this.holographicPulseTimer <= 0) {
+        this.holographicPulseActive = true;
+        this.holographicPulseProgress = 0;
+      }
+
+      if (this.holographicPulseActive) {
+        this.holographicPulseProgress += deltaTime;
+        const pulseDuration = 0.5;
+        const half = pulseDuration * 0.5;
+        const progress = Math.min(this.holographicPulseProgress, pulseDuration);
+        const t = progress < half ? progress / half : 1 - (progress - half) / half;
+        const opacity = 0.3 + (0.8 - 0.3) * t;
+        this.animatedObjects.forEach(obj => {
+          if (obj.type === 'holographicRing') {
+            obj.object.material.opacity = opacity;
+          }
+        });
+        if (this.holographicPulseProgress >= pulseDuration) {
+          this.holographicPulseActive = false;
+          this.holographicPulseProgress = 0;
+          this.holographicPulseTimer = 5 + Math.random() * 1.5;
+          this.animatedObjects.forEach(obj => {
+            if (obj.type === 'holographicRing') {
+              obj.object.material.opacity = obj.baseOpacity;
+            }
+          });
+        }
+      }
+    }
+
+    if (this.riftSurgeWave) {
+      this.riftSurgeTimer -= deltaTime;
+      if (!this.riftSurgeActive && this.riftSurgeTimer <= 0) {
+        this.riftSurgeActive = true;
+        this.riftSurgeProgress = 0;
+        this.riftSurgeWave.visible = true;
+        this.riftSurgeWave.scale.set(1, 1, 1);
+      }
+
+      if (this.riftSurgeActive) {
+        this.riftSurgeProgress += deltaTime;
+        const duration = 2.0;
+        const t = Math.min(this.riftSurgeProgress / duration, 1);
+        const radius = 1 + t * (this.chamberRadius - 1);
+        this.riftSurgeWave.scale.set(radius, radius, 1);
+        this.riftSurgeWave.material.opacity = 0.5 * (1 - t);
+
+        const flashThreshold = 2.5;
+        this.animatedObjects.forEach(obj => {
+          if ((obj.type === 'neonPath' || obj.type === 'wallSymbol' || obj.type === 'floorPattern') && obj.flashRadius !== undefined) {
+            const distanceDelta = Math.abs(obj.flashRadius - radius);
+            if (!obj.flashActive && distanceDelta < flashThreshold) {
+              obj.flashActive = true;
+              obj.flashProgress = 0;
+            }
+
+            if (obj.flashActive) {
+              obj.flashProgress += deltaTime;
+              const flashDuration = 0.2;
+              const fade = Math.max(0, 1 - obj.flashProgress / flashDuration);
+              obj.object.material.opacity = obj.baseOpacity + (1 - obj.baseOpacity) * fade;
+              if (obj.flashProgress >= flashDuration) {
+                obj.flashActive = false;
+                obj.object.material.opacity = obj.baseOpacity;
+              }
+            }
+          }
+        });
+
+        if (this.riftSurgeProgress >= duration) {
+          this.riftSurgeActive = false;
+          this.riftSurgeProgress = 0;
+          this.riftSurgeWave.visible = false;
+          this.riftSurgeTimer = 10 + Math.random() * 2;
+        }
+      }
+    }
     
     if (this.riftParticles && this.riftParticleData) {
       const positions = this.riftParticles.geometry.attributes.position.array;
       const velocities = this.riftParticleData.velocities;
       const ages = this.riftParticles.geometry.attributes.age.array;
       const maxAge = this.riftParticleData.maxAge;
+      const particleSpeedBoost = this.runeSequencePhase === 1 ? 2.0 : 1.0;
       
       for (let i = 0; i < positions.length / 3; i++) {
         ages[i] += deltaTime / maxAge;
@@ -827,16 +1345,105 @@ export class SigmaRiftChamber {
       
       this.driftParticles.geometry.attributes.position.needsUpdate = true;
     }
-    
-    if (this.starfield) {
-      const starColors = this.starfield.geometry.attributes.color.array;
-      for (let i = 0; i < starColors.length / 3; i++) {
-        const twinkle = Math.sin(time * 2 + i) * 0.3 + 0.7;
-        starColors[i * 3] *= twinkle;
-        starColors[i * 3 + 1] *= twinkle;
-        starColors[i * 3 + 2] *= twinkle;
+
+    if (this.floorDriftParticles && this.floorDriftData) {
+      const positions = this.floorDriftParticles.geometry.attributes.position.array;
+      const speeds = this.floorDriftData.speeds;
+      
+      for (let i = 0; i < positions.length / 3; i++) {
+        const xIndex = i * 3;
+        const zIndex = i * 3 + 2;
+        const dx = -positions[xIndex];
+        const dz = -positions[zIndex];
+        const distance = Math.sqrt(dx * dx + dz * dz) + 0.0001;
+        const speed = speeds[i] * deltaTime;
+        positions[xIndex] += (dx / distance) * speed;
+        positions[zIndex] += (dz / distance) * speed;
+
+        if (distance < 0.5) {
+          const angle = Math.random() * Math.PI * 2;
+          const radius = this.chamberRadius * 0.9;
+          positions[xIndex] = Math.cos(angle) * radius;
+          positions[xIndex + 1] = 0.05 + Math.random() * 0.25;
+          positions[zIndex] = Math.sin(angle) * radius;
+          speeds[i] = 0.02 + Math.random() * 0.02;
+        }
       }
-      this.starfield.geometry.attributes.color.needsUpdate = true;
+      
+      this.floorDriftParticles.geometry.attributes.position.needsUpdate = true;
+    }
+
+    if (this.monolithShadows.length) {
+      this.monolithShadows.forEach(entry => {
+        const monolith = entry.monolith;
+        const shadow = entry.sprite;
+        shadow.position.x = monolith.position.x;
+        shadow.position.z = monolith.position.z;
+        shadow.position.y = 0.05;
+        const scale = 3 + (monolith.position.y / this.riftHeight) * 4;
+        shadow.scale.set(scale, scale, 1);
+        if (this.camera) {
+          shadow.lookAt(this.camera.position);
+        }
+      });
+    }
+
+    if (this.monolithTethers.length) {
+      const surgeGlow = this.riftSurgeActive ? 0.15 + 0.15 * (1 - Math.abs(this.riftSurgeProgress - 1.0)) : 0.15;
+      if (this.monolithTetherMaterial) {
+        this.monolithTetherMaterial.opacity = surgeGlow;
+      }
+      this.monolithTethers.forEach(entry => {
+        const positions = entry.tether.geometry.attributes.position.array;
+        positions[0] = entry.monolith.position.x;
+        positions[1] = entry.monolith.position.y;
+        positions[2] = entry.monolith.position.z;
+        positions[3] = 0;
+        positions[4] = this.riftHeight / 2;
+        positions[5] = 0;
+        entry.tether.geometry.attributes.position.needsUpdate = true;
+      });
+    }
+    
+    if (this.starfield && this.starfieldData) {
+      const positions = this.starfield.geometry.attributes.position.array;
+      const velocities = this.starfieldData.velocities;
+      const topY = this.starfieldData.topY;
+      const spawnRadius = this.starfieldData.spawnRadius;
+      const minDistance = this.starfieldData.minDistance;
+
+      for (let i = 0; i < positions.length / 3; i++) {
+        const xIndex = i * 3;
+        const zIndex = i * 3 + 2;
+
+        positions[xIndex] += velocities[i * 2] * deltaTime;
+        positions[zIndex] += velocities[i * 2 + 1] * deltaTime;
+        positions[xIndex + 1] = topY;
+
+        const currentDistance = Math.sqrt(
+          positions[xIndex] * positions[xIndex] +
+          positions[zIndex] * positions[zIndex]
+        );
+
+        if (currentDistance < minDistance) {
+          const angle = Math.random() * Math.PI * 2;
+          const radius = spawnRadius * (0.9 + Math.random() * 0.1);
+          const x = Math.cos(angle) * radius;
+          const z = Math.sin(angle) * radius;
+          positions[xIndex] = x;
+          positions[zIndex] = z;
+          positions[xIndex + 1] = topY + (Math.random() - 0.5) * 0.3;
+
+          const dirX = -x;
+          const dirZ = -z;
+          const length = Math.sqrt(dirX * dirX + dirZ * dirZ) + 0.0001;
+          const speed = 0.03 + Math.random() * 0.02;
+          velocities[i * 2] = (dirX / length) * speed;
+          velocities[i * 2 + 1] = (dirZ / length) * speed;
+        }
+      }
+
+      this.starfield.geometry.attributes.position.needsUpdate = true;
     }
   }
 }

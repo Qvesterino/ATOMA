@@ -50,3 +50,4 @@
 - Any remaining legacy reads should be audited separately; this session focused on writer paths and runtime audit activation
 - The `localhost:4000` runtime endpoint was not reachable from the current environment; server availability should be checked separately if runtime validation is needed remotely
 - Future work should include a broader legacy field audit on `corruptionLevel`, `harmonyLevel`, `loadPressure`, and other metrics in visual/legacy systems
+- Runtime validation coverage was added to ensure `__ATOMA_LIVE_METRICS__` maintains the full canonical metric shape during actual `update()` execution

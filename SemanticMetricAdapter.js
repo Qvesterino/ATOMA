@@ -241,7 +241,15 @@ export function getLinkSynergy(link) {
  * Legacy: link.corruption, link.corruptionIntensity
  */
 export function getLinkCorruption(link) {
-  // Try canonical first
+  // Try canonical metrics container first
+  if (link?.userData?.metrics?.corruption !== undefined) {
+    const value = link.userData.metrics.corruption;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.max(0, Math.min(1, value));
+    }
+  }
+
+  // Try legacy canonical field as fallback
   if (link?.userData?.corruptionLevel !== undefined) {
     const value = link.userData.corruptionLevel;
     if (typeof value === 'number' && Number.isFinite(value)) {
@@ -251,7 +259,7 @@ export function getLinkCorruption(link) {
 
   // Legacy fallback: link.corruption
   if (link?.corruption !== undefined) {
-    warnLegacyAccess('link', 'corruption', 'link.userData.corruptionLevel');
+    warnLegacyAccess('link', 'corruption', 'link.userData.metrics.corruption');
     const value = link.corruption;
     if (typeof value === 'number' && Number.isFinite(value)) {
       return Math.max(0, Math.min(1, value));

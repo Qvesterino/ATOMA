@@ -47,6 +47,7 @@ import { PlayerController, FirstPersonCameraController } from './rosie/controls/
 import { World } from './World.js';
 import { SigmaRiftChamber } from './SigmaRiftChamber.js';
 import { DreamDesert } from './DreamDesert.js';
+import { DreamDesert2 } from './DreamDesert2.js';
 import { QuantumIsland } from './QuantumIsland.js';
 import { FractalValley } from './FractalValley.js';
 import { MemoryLane } from './MemoryLane.js';
@@ -6926,29 +6927,28 @@ window.__ATOMA_SCENE__ = this.scene;
 
 
     /**
-     * Setup Node-Space Chamber environment
+     * Setup Aether Dunes environment for the chamber world
      */
     setupChamberEnvironment() {
-        this.scene.background = new THREE.Color(CONFIG.colors.background);
-        this.scene.fog = new THREE.FogExp2(CONFIG.colors.fog, 0.015);
+        this.scene.background = new THREE.Color(0x1f0c2f);
+        this.scene.fog = new THREE.FogExp2(0x2b102f, 0.008);
 
         const lightParent = this.worldLightingRoot || this.worldRoot;
         lightParent?.clear?.();
 
-        // Minimal and calm lighting
-        const ambientLight = new THREE.AmbientLight(
-            CONFIG.colors.primary,
-            CONFIG.lighting.ambientIntensity
-        );
+        // Soft ambient glow with violet-magenta tones
+        const ambientLight = new THREE.AmbientLight(0x8f4db4, 0.35);
         lightParent?.add(ambientLight);
 
-        // Very subtle directional for depth
-        const directionalLight = new THREE.DirectionalLight(
-            CONFIG.colors.accent,
-            0.1
-        );
-        directionalLight.position.set(10, 20, 10);
+        // Gentle directional fill for subtle depth
+        const directionalLight = new THREE.DirectionalLight(0xcc88ff, 0.14);
+        directionalLight.position.set(18, 20, 12);
         lightParent?.add(directionalLight);
+
+        // Additional rim accent to support the dream dune palette
+        const rimLight = new THREE.DirectionalLight(0xff99ee, 0.08);
+        rimLight.position.set(-20, 18, -10);
+        lightParent?.add(rimLight);
     }
 
     /**
@@ -7858,6 +7858,13 @@ window.__ATOMA_SCENE__ = this.scene;
                 this.worldRoot
             );
             this.activeWorld = this.memoryLane;
+        } else if (this.currentMode === 'chamber') {
+            this.chamber = new DreamDesert2(
+                this.scene,
+                this.worldRoot,
+                this.camera
+            );
+            this.activeWorld = this.chamber;
         } else {
             this.chamber = new World({
                 scene: this.scene,

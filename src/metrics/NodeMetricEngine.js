@@ -563,7 +563,7 @@ function installLegacyFieldGuards(node) {
   node.userData.__legacyMetricGuardInstalled = true;
 }
 
-function ensureMetrics(node) {
+export function ensureMetrics(node) {
   if (!node || !node.userData) return null;
   installMetricsPropertyGuard(node);
   if (node.userData.metrics) {

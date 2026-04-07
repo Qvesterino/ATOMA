@@ -7,7 +7,7 @@ export class WorldSelectorHUD {
       { id: 'fractal', label: 'Fractal Valley' },
       { id: 'quantum', label: 'Quantum Island' },
       { id: 'desert', label: 'Dream Desert' },
-      { id: 'chamber', label: 'Chamber' },
+      { id: 'chamber', label: 'Aether Dunes' },
       { id: 'sigma', label: 'Sigma Rift Chamber' },
       { id: 'memory', label: 'Memory Lane' }
     ];

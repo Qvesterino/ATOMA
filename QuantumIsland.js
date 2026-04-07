@@ -18,15 +18,34 @@ export class QuantumIsland {
     this.filaments = [];
     this.glitchRibbons = [];
     this.fractalPatterns = [];
+    this.entanglementLines = [];
+    this.orbitingRockTrails = null;
+    this.orbitingRockTrailData = null;
+    this.hologramGrid = null;
+    this.hologramGridTimer = 12 + Math.random() * 4;
+    this.hologramGridActive = false;
+    this.hologramGridProgress = 0;
+    this.singularitySprite = null;
+    this.singularityParticles = null;
+    this.singularityData = null;
     this.collisionObjects = [];
+    this.quantumPulse = 0;
     
     // Session 112+: Initialize map reference plane from config
     this.initializeMapConfig();
     this.initializeReferencePlane();
-    
+
+    if (this.scene) {
+      this.scene.background = new THREE.Color(0x020108);
+      this.scene.fog = new THREE.FogExp2(0x020108, 0.004);
+    }
+    this.createLighting();
         this.createIsland();
+    this.createIslandHologramGrid();
+    this.createSingularityCore();
     this.createVortexVoid();
     this.createOrbitingRocks();
+    this.createOrbitingRockTrails();
     this.createFilaments();
     this.createFloatingShards();
     this.createQuantumParticles();
@@ -131,6 +150,100 @@ export class QuantumIsland {
     
     // Geometric cracks with glowing energy
     this.createEnergyCracks();
+  }
+
+  /**
+   * Create the singularity core at island center
+   */
+  createSingularityCore() {
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createRadialGradient(
+      size / 2,
+      size / 2,
+      0,
+      size / 2,
+      size / 2,
+      size / 2
+    );
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(0.25, 'rgba(170,255,255,0.85)');
+    gradient.addColorStop(0.55, 'rgba(180,110,255,0.55)');
+    gradient.addColorStop(1, 'rgba(180,110,255,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+
+    const spriteMaterial = new THREE.SpriteMaterial({
+      map: texture,
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.4,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    const sprite = new THREE.Sprite(spriteMaterial);
+    sprite.position.set(0, 2, 0);
+    sprite.scale.set(6, 6, 1);
+    this.worldRoot.add(sprite);
+    this.singularitySprite = sprite;
+
+    const particleCount = 40;
+    const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+    const angles = new Float32Array(particleCount);
+    const radii = new Float32Array(particleCount);
+    const heights = new Float32Array(particleCount);
+    const colorLow = new THREE.Color(0xffffff);
+    const colorHigh = new THREE.Color(0x00ffff);
+
+    for (let i = 0; i < particleCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 1 + Math.random() * 3;
+      const height = 1 + Math.random() * 2;
+      angles[i] = angle;
+      radii[i] = radius;
+      heights[i] = height;
+
+      positions[i * 3] = Math.cos(angle) * radius;
+      positions[i * 3 + 1] = height;
+      positions[i * 3 + 2] = Math.sin(angle) * radius;
+
+      const color = colorLow.clone().lerp(colorHigh, Math.random());
+      colors[i * 3] = color.r;
+      colors[i * 3 + 1] = color.g;
+      colors[i * 3 + 2] = color.b;
+    }
+
+    const particleGeometry = new THREE.BufferGeometry();
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const particleMaterial = new THREE.PointsMaterial({
+      size: 0.18,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.65,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    const points = new THREE.Points(particleGeometry, particleMaterial);
+    points.position.set(0, 0, 0);
+    this.worldRoot.add(points);
+    this.singularityParticles = points;
+    this.singularityData = {
+      angles,
+      radii,
+      heights,
+      particleCount
+    };
   }
   
   /**
@@ -311,7 +424,105 @@ export class QuantumIsland {
       this.orbitingRocks.push(rock);
     }
   }
-  
+
+  createIslandHologramGrid() {
+    const grid = new THREE.GridHelper(40, 20, 0x00dddd, 0x00dddd);
+    grid.material = new THREE.LineBasicMaterial({
+      color: 0x00dddd,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    grid.position.y = 1.55;
+    grid.renderOrder = 20;
+    this.worldRoot.add(grid);
+    this.hologramGrid = grid;
+  }
+
+  createLighting() {
+    if (!this.scene) {
+      return;
+    }
+
+    const hemiLight = new THREE.HemisphereLight(0x110033, 0x000000, 0.2);
+    hemiLight.name = 'quantumIslandHemisphereLight';
+    this.scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0x4466ff, 0.3);
+    dirLight.position.set(30, 50, 20);
+    dirLight.name = 'quantumIslandDirectionalLight';
+    this.scene.add(dirLight);
+
+    const pointLight = new THREE.PointLight(0x00dddd, 0.6, 30, 2);
+    pointLight.position.set(0, 2, 0);
+    pointLight.name = 'quantumIslandSingularityPointLight';
+    this.scene.add(pointLight);
+
+    this.lights = {
+      hemiLight,
+      dirLight,
+      pointLight
+    };
+  }
+
+  createOrbitingRockTrails() {
+    const trailPerRock = 10;
+    const trailCount = this.orbitingRocks.length * trailPerRock;
+    const positions = new Float32Array(trailCount * 3);
+    const colors = new Float32Array(trailCount * 3);
+    const curveIndices = new Uint8Array(trailCount);
+    const fadeLevels = new Float32Array(trailCount);
+    const history = [];
+    const baseColor = new THREE.Color(0x004444);
+
+    for (let i = 0; i < this.orbitingRocks.length; i++) {
+      history[i] = [];
+    }
+
+    for (let i = 0; i < trailCount; i++) {
+      const rockIndex = Math.floor(i / trailPerRock);
+      const rock = this.orbitingRocks[rockIndex];
+      const offset = i % trailPerRock;
+      const position = rock ? rock.position : new THREE.Vector3();
+
+      positions[i * 3] = position.x;
+      positions[i * 3 + 1] = position.y;
+      positions[i * 3 + 2] = position.z;
+      curveIndices[i] = rockIndex;
+      fadeLevels[i] = 1 - offset / (trailPerRock - 1);
+      const color = baseColor.clone().lerp(new THREE.Color(0x000000), 1 - fadeLevels[i]);
+      colors[i * 3] = color.r;
+      colors[i * 3 + 1] = color.g;
+      colors[i * 3 + 2] = color.b;
+    }
+
+    const trailGeometry = new THREE.BufferGeometry();
+    trailGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    trailGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    trailGeometry.setAttribute('aFade', new THREE.BufferAttribute(fadeLevels, 1));
+
+    const trailMaterial = new THREE.PointsMaterial({
+      size: 0.2,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.3,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    const trailPoints = new THREE.Points(trailGeometry, trailMaterial);
+    this.worldRoot.add(trailPoints);
+    this.orbitingRockTrails = trailPoints;
+    this.orbitingRockTrailData = {
+      trailPerRock,
+      trailCount,
+      history,
+      baseColor,
+      curveIndices
+    };
+  }
+
   /**
    * Create thin filaments connecting island to void
    */
@@ -341,16 +552,17 @@ export class QuantumIsland {
       ];
       
       const curve = new THREE.CatmullRomCurve3(points);
-      const tubeGeometry = new THREE.TubeGeometry(curve, 20, 0.05, 8, false);
-      const tubeMaterial = materialRegistry.getBasic('world.quantumisland.filamentThin', {
+      const linePoints = curve.getPoints(20);
+      const lineGeometry = new THREE.BufferGeometry().setFromPoints(linePoints);
+      const lineMaterial = new THREE.LineBasicMaterial({
         color: 0x00dddd,
         transparent: true,
         opacity: 0.2,
-        emissive: 0x00dddd,
-        emissiveIntensity: 0.2
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
       });
       
-      const filament = new THREE.Mesh(tubeGeometry, tubeMaterial);
+      const filament = new THREE.Line(lineGeometry, lineMaterial);
       filament.userData = {
         pulseOffset: Math.random() * Math.PI * 2
       };
@@ -407,6 +619,29 @@ export class QuantumIsland {
       
       this.worldRoot.add(shard);
       this.floatingShards.push(shard);
+    }
+
+    // Create entanglement lines for paired shards
+    const maxPairs = Math.min(10, Math.floor(this.floatingShards.length / 2));
+    for (let i = 0; i < maxPairs; i++) {
+      const a = this.floatingShards[i];
+      const b = this.floatingShards[i + 10];
+      const lineGeometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(6);
+      lineGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+      const lineMaterial = new THREE.LineBasicMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0.15,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+
+      const entanglementLine = new THREE.Line(lineGeometry, lineMaterial);
+      entanglementLine.userData = { shardA: a, shardB: b };
+      this.worldRoot.add(entanglementLine);
+      this.entanglementLines.push(entanglementLine);
     }
   }
   
@@ -542,14 +777,21 @@ export class QuantumIsland {
   }
   
   /**
-   * Create circuit-like dome patterns
+   * Create circuit-like dome data flow
    */
   createCircuitDome() {
-    this.circuitLines = [];
-    const lineCount = 12;
+    const curveCount = 12;
+    const particlesPerCurve = 10;
+    const totalParticles = curveCount * particlesPerCurve;
+    const curves = [];
+    const positions = new Float32Array(totalParticles * 3);
+    const colors = new Float32Array(totalParticles * 3);
+    const tValues = new Float32Array(totalParticles);
+    const curveIndices = new Uint8Array(totalParticles);
+    const speeds = new Float32Array(totalParticles);
     
-    for (let i = 0; i < lineCount; i++) {
-      const angle = (i / lineCount) * Math.PI * 2;
+    for (let i = 0; i < curveCount; i++) {
+      const angle = (i / curveCount) * Math.PI * 2;
       const points = [];
       const segments = 20;
       
@@ -565,22 +807,54 @@ export class QuantumIsland {
         ));
       }
       
-      const curve = new THREE.CatmullRomCurve3(points);
-      const tubeGeometry = new THREE.TubeGeometry(curve, 40, 0.05, 8, false);
-      const tubeMaterial = materialRegistry.getBasic('world.quantumisland.circuitDome', {
-        color: 0x4466ff,
-        transparent: true,
-        opacity: 0.1
-      });
-      
-      const line = new THREE.Mesh(tubeGeometry, tubeMaterial);
-      line.userData = {
-        pulseOffset: i * 0.5
-      };
-      
-      this.worldRoot.add(line);
-      this.circuitLines.push(line);
+      curves.push(new THREE.CatmullRomCurve3(points));
     }
+    
+    const baseColor = new THREE.Color(0x4466ff);
+    for (let i = 0; i < totalParticles; i++) {
+      const curveIndex = Math.floor(i / particlesPerCurve);
+      const t = Math.random();
+      const point = curves[curveIndex].getPointAt(t);
+      
+      positions[i * 3] = point.x;
+      positions[i * 3 + 1] = point.y;
+      positions[i * 3 + 2] = point.z;
+      
+      colors[i * 3] = baseColor.r;
+      colors[i * 3 + 1] = baseColor.g;
+      colors[i * 3 + 2] = baseColor.b;
+      
+      tValues[i] = t;
+      curveIndices[i] = curveIndex;
+      speeds[i] = 0.08 + Math.random() * 0.06;
+    }
+    
+    const flowGeometry = new THREE.BufferGeometry();
+    flowGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    flowGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    flowGeometry.setAttribute('aT', new THREE.BufferAttribute(tValues, 1));
+    flowGeometry.setAttribute('aCurve', new THREE.BufferAttribute(curveIndices, 1));
+    
+    const flowMaterial = new THREE.PointsMaterial({
+      size: 0.3,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.35,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    
+    const flowPoints = new THREE.Points(flowGeometry, flowMaterial);
+    this.worldRoot.add(flowPoints);
+    this.circuitFlowPoints = flowPoints;
+    this.circuitFlowData = {
+      curves,
+      tValues,
+      curveIndices,
+      speeds,
+      totalParticles,
+      particlesPerCurve
+    };
   }
   
   /**
@@ -592,14 +866,49 @@ export class QuantumIsland {
       this.referencePlane.animate(deltaTime, time);
     }
     
+    // Quantum tidal pulse
+    this.quantumPulse = (Math.sin(time * 1.5) + 1) / 2;
+
     // Island edge highlights pulse
     if (this.island) {
+      const pulse = this.quantumPulse;
       this.island.children.forEach(edge => {
-        if (edge.userData.pulseOffset !== undefined) {
-          const pulse = Math.sin(time * 2 + edge.userData.pulseOffset);
-          edge.material.opacity = 0.5 + pulse * 0.2;
-        }
+        edge.material.opacity = 0.5 + pulse * 0.2;
       });
+    }
+
+    // Island hologram grid activation
+    if (this.hologramGrid) {
+      this.hologramGridTimer -= deltaTime;
+      if (!this.hologramGridActive && this.hologramGridTimer <= 0) {
+        this.hologramGridActive = true;
+        this.hologramGridProgress = 0;
+        this.hologramGridTimer = 12 + Math.random() * 4;
+        this.hologramGridStartRotation = this.hologramGrid.rotation.y;
+        this.hologramGridTargetRotation = this.hologramGridStartRotation + Math.PI / 4;
+      }
+
+      if (this.hologramGridActive) {
+        this.hologramGridProgress += deltaTime;
+        const duration = 0.8;
+        const t = Math.min(this.hologramGridProgress / duration, 1);
+        const fade = t < 0.5 ? t * 2 : Math.max(0, 1 - (t - 0.5) * 2);
+        if (this.hologramGrid.material) {
+          this.hologramGrid.material.opacity = 0.1 * fade;
+          this.hologramGrid.rotation.y = THREE.MathUtils.lerp(
+            this.hologramGridStartRotation,
+            this.hologramGridTargetRotation,
+            t
+          );
+        }
+        if (this.hologramGridProgress >= duration) {
+          this.hologramGridActive = false;
+          this.hologramGridProgress = 0;
+          if (this.hologramGrid.material) {
+            this.hologramGrid.material.opacity = 0;
+          }
+        }
+      }
     }
     
     // Vortex rings rotation
@@ -620,13 +929,40 @@ export class QuantumIsland {
     this.orbitingRocks.forEach(rock => {
       const data = rock.userData;
       data.orbitAngle += data.orbitSpeed * deltaTime;
+      const radius = data.orbitRadius + (this.quantumPulse - 0.5) * 3.0;
       
-      rock.position.x = Math.cos(data.orbitAngle) * data.orbitRadius;
-      rock.position.z = Math.sin(data.orbitAngle) * data.orbitRadius;
+      rock.position.x = Math.cos(data.orbitAngle) * radius;
+      rock.position.z = Math.sin(data.orbitAngle) * radius;
       
       rock.rotation.x += data.rotationSpeed * deltaTime;
       rock.rotation.y += data.rotationSpeed * deltaTime * 0.7;
     });
+
+    // Orbiting rock trails
+    if (this.orbitingRockTrails && this.orbitingRockTrailData) {
+      const data = this.orbitingRockTrailData;
+      const positions = this.orbitingRockTrails.geometry.attributes.position.array;
+      const trailPerRock = data.trailPerRock;
+      const rockCount = this.orbitingRocks.length;
+      
+      for (let rockIndex = 0; rockIndex < rockCount; rockIndex++) {
+        const rock = this.orbitingRocks[rockIndex];
+        const history = data.history[rockIndex];
+        history.unshift(new THREE.Vector3(rock.position.x, rock.position.y, rock.position.z));
+        if (history.length > trailPerRock + 1) history.pop();
+      }
+      
+      for (let i = 0; i < data.trailCount; i++) {
+        const rockIndex = data.curveIndices[i];
+        const offsetIndex = i % trailPerRock;
+        const history = data.history[rockIndex];
+        const sample = history[Math.min(offsetIndex, history.length - 1)] || new THREE.Vector3();
+        positions[i * 3] = sample.x;
+        positions[i * 3 + 1] = sample.y;
+        positions[i * 3 + 2] = sample.z;
+      }
+      this.orbitingRockTrails.geometry.attributes.position.needsUpdate = true;
+    }
     
     // Filaments pulse
     this.filaments.forEach(filament => {
@@ -637,23 +973,48 @@ export class QuantumIsland {
     // Floating shards
     this.floatingShards.forEach(shard => {
       const data = shard.userData;
+      const pulseOffset = (this.quantumPulse - 0.5) * 2.0;
       
       shard.position.y = data.originalY + 
-        Math.sin(time * data.floatSpeed + data.floatOffset) * 2;
+        Math.sin(time * data.floatSpeed + data.floatOffset) * 2 + pulseOffset;
       
       shard.rotation.x += data.rotationSpeed * deltaTime;
       shard.rotation.y += data.rotationSpeed * deltaTime * 1.5;
+    });
+
+    // Quantum entanglement lines
+    this.entanglementLines.forEach(line => {
+      const a = line.userData.shardA;
+      const b = line.userData.shardB;
+      if (!a || !b) {
+        return;
+      }
+
+      const positions = line.geometry.attributes.position.array;
+      positions[0] = a.position.x;
+      positions[1] = a.position.y;
+      positions[2] = a.position.z;
+      positions[3] = b.position.x;
+      positions[4] = b.position.y;
+      positions[5] = b.position.z;
+      line.geometry.attributes.position.needsUpdate = true;
+
+      const distance = a.position.distanceTo(b.position);
+      const maxDistance = 40;
+      const intensity = Math.max(0, 1 - distance / maxDistance);
+      line.material.opacity = 0.05 + intensity * 0.15;
     });
     
     // Quantum particles spiral
     if (this.quantumParticles) {
       const positions = this.quantumParticles.geometry.attributes.position.array;
       const velocities = this.quantumParticles.userData.velocities;
+      const speedScale = 1 + this.quantumPulse * 0.25;
       
       for (let i = 0; i < positions.length; i += 3) {
-        positions[i] += velocities[i] * deltaTime * 5;
-        positions[i + 1] += velocities[i + 1] * deltaTime * 5;
-        positions[i + 2] += velocities[i + 2] * deltaTime * 5;
+        positions[i] += velocities[i] * deltaTime * 5 * speedScale;
+        positions[i + 1] += velocities[i + 1] * deltaTime * 5 * speedScale;
+        positions[i + 2] += velocities[i + 2] * deltaTime * 5 * speedScale;
         
         // Spiral inward/outward
         const x = positions[i];
@@ -671,6 +1032,29 @@ export class QuantumIsland {
       
       this.quantumParticles.geometry.attributes.position.needsUpdate = true;
       this.quantumParticles.rotation.y += deltaTime * 0.1;
+    }
+
+    // Singularity core
+    if (this.singularitySprite) {
+      const coreScale = 5 + this.quantumPulse * 3;
+      this.singularitySprite.scale.set(coreScale, coreScale, 1);
+    }
+
+    if (this.singularityParticles && this.singularityData) {
+      const positions = this.singularityParticles.geometry.attributes.position.array;
+      const data = this.singularityData;
+      const orbitSpeed = 2.4;
+      
+      for (let i = 0; i < data.particleCount; i++) {
+        const idx = i * 3;
+        const angle = data.angles[i] + time * orbitSpeed;
+        const radius = data.radii[i];
+        positions[idx] = Math.cos(angle) * radius;
+        positions[idx + 1] = data.heights[i] + Math.sin(time * 4 + i) * 0.15;
+        positions[idx + 2] = Math.sin(angle) * radius;
+      }
+
+      this.singularityParticles.geometry.attributes.position.needsUpdate = true;
     }
     
     // Glitch ribbons
@@ -734,10 +1118,25 @@ export class QuantumIsland {
       this.mist.material.opacity = 0.08 + Math.sin(time * 0.3) * 0.02;
     }
     
-    // Circuit lines pulse
-    this.circuitLines.forEach(line => {
-      const pulse = Math.sin(time + line.userData.pulseOffset);
-      line.material.opacity = 0.08 + pulse * 0.04;
-    });
+    // Circuit dome data flow
+    if (this.circuitFlowPoints && this.circuitFlowData) {
+      const data = this.circuitFlowData;
+      const positions = this.circuitFlowPoints.geometry.attributes.position.array;
+      
+      for (let i = 0; i < data.totalParticles; i++) {
+        data.tValues[i] += data.speeds[i] * deltaTime;
+        if (data.tValues[i] > 1.0) {
+          data.tValues[i] = 0;
+        }
+        const curve = data.curves[data.curveIndices[i]];
+        const point = curve.getPointAt(data.tValues[i]);
+        positions[i * 3] = point.x;
+        positions[i * 3 + 1] = point.y;
+        positions[i * 3 + 2] = point.z;
+      }
+      
+      this.circuitFlowPoints.geometry.attributes.position.needsUpdate = true;
+      this.circuitFlowPoints.material.opacity = 0.25 + Math.sin(time * 1.2) * 0.05;
+    }
   }
 }

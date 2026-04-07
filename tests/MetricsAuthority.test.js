@@ -155,6 +155,51 @@ test('MetricsRuntime_v1 prefers canonical metrics container over legacy top-leve
   assert.ok(Math.abs(aggregated.loadPressure - 0.3) < 1e-6, 'Expected canonical loadPressure value from metrics container');
 });
 
+test('MetricsRuntime_v1 runtime update maintains full canonical __ATOMA_LIVE_METRICS__ shape', () => {
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args.join(' '));
+
+  const bus = createTestBus();
+  globalThis.semanticBus = bus;
+  globalThis.__ATOMA_LIVE_METRICS__ = { networkSynergy: 0 };
+  globalThis.world = {};
+  globalThis.globalMetrics = {};
+
+  const nodes = [{
+    userData: {
+      nodeId: 'node-1',
+      metrics: {
+        synergy: 0.7,
+        harmony: 0.6,
+        stability: 0.8,
+        corruption: 0.1,
+        loadPressure: 0.2
+      }
+    }
+  }];
+
+  const runtime = new MetricsRuntime_v1({ nodes, links: [], linkSystem: null, metricsSystems: {} });
+  runtime.update(5.2);
+
+  assert.deepStrictEqual(Object.keys(globalThis.__ATOMA_LIVE_METRICS__).sort(), [
+    'corruptionLevel',
+    'harmonyFlow',
+    'linkCount',
+    'loadPressure',
+    'networkStress',
+    'networkSynergy',
+    'nodeCount'
+  ].sort());
+  assert.strictEqual(globalThis.world.metrics.global.networkSynergy, globalThis.__ATOMA_LIVE_METRICS__.networkSynergy);
+  assert.strictEqual(globalThis.world.metrics.global.loadPressure, globalThis.__ATOMA_LIVE_METRICS__.loadPressure);
+  assert.strictEqual(globalThis.globalMetrics.synergy, globalThis.__ATOMA_LIVE_METRICS__.networkSynergy);
+  assert.ok(!warnings.some(msg => msg.includes('__ATOMA_LIVE_METRICS__ is missing canonical fields')),
+    'Expected runtime update to maintain the full canonical live metrics shape');
+
+  console.warn = originalWarn;
+});
+
 test('MetricsRuntime_v1 runtime audit warns on missing canonical node metrics and broken live publish shape', () => {
   const originalWarn = console.warn;
   const warnings = [];
