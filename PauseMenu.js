@@ -126,7 +126,7 @@ export class PauseMenu {
         if (this._screenEntries.length === 0) {
             this.state.selectedIndex = 0;
         } else {
-            this.state.selectedIndex = clamp(this.state.selectedIndex, 0, this._screenEntries.length - 1);
+            this.state.selectedIndex = this._findSelectableIndex(this.state.selectedIndex, 1);
         }
 
         this._renderScreen();
@@ -238,6 +238,7 @@ export class PauseMenu {
                 label: map.label,
                 meta: map.description,
                 type: 'map',
+                selectable: true,
             }));
         }
 
@@ -247,15 +248,17 @@ export class PauseMenu {
                 label: row.label,
                 value: row.value,
                 meta: row.description,
-                type: 'setting',
+                type: row.type || 'setting',
+                selectable: row.selectable !== false,
+                action: row.action || null,
             }));
         }
 
         return [
-            { id: 'resume', label: 'RESUME', type: 'main' },
-            { id: 'settings', label: 'SETTINGS', type: 'main' },
-            { id: 'map-selection', label: 'MAP SELECT', type: 'main' },
-            { id: 'end-game', label: 'END GAME', type: 'main' },
+            { id: 'resume', label: 'RESUME', type: 'main', selectable: true },
+            { id: 'settings', label: 'SETTINGS', type: 'main', selectable: true },
+            { id: 'map-selection', label: 'MAP SELECT', type: 'main', selectable: true },
+            { id: 'end-game', label: 'END GAME', type: 'main', selectable: true },
         ];
     }
 
@@ -287,8 +290,8 @@ export class PauseMenu {
         const selectedSetting = this._getSelectedEntry();
         this.subtitle.textContent = 'Shared menu-owned settings carried across preboot and in-game overlays.';
         this.screenTitle.textContent = 'SETTINGS';
-        this.description.textContent = selectedSetting ? selectedSetting.meta : '';
-        this.hint.textContent = 'UP / DOWN TO SELECT  |  ENTER OR LEFT / RIGHT TO ADJUST  |  ESC TO BACK';
+        this.description.textContent = selectedSetting ? selectedSetting.meta : 'UI visibility controls persist across reloads.';
+        this.hint.textContent = 'UP / DOWN TO SELECT  |  ENTER TO ACTIVATE  |  LEFT / RIGHT FOR BASE SETTINGS  |  ESC TO BACK';
         this.status.textContent = 'Settings continue to avoid direct gameplay mutation and stay scoped to the menu layer.';
         this._renderEntryList(this._screenEntries);
     }
@@ -298,6 +301,14 @@ export class PauseMenu {
         list.className = 'atoma-main-menu__list';
 
         entries.forEach((entry, index) => {
+            if (entry.type === 'section') {
+                const section = document.createElement('div');
+                section.className = 'atoma-main-menu__section';
+                section.textContent = entry.label;
+                list.appendChild(section);
+                return;
+            }
+
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'atoma-main-menu__button';
@@ -306,6 +317,9 @@ export class PauseMenu {
 
             if (entry.type === 'setting') {
                 button.classList.add('atoma-main-menu__button--setting');
+            }
+            if (entry.type === 'visibility') {
+                button.classList.add('atoma-main-menu__button--setting', 'atoma-main-menu__button--toggle');
             }
             if (entry.type === 'map') {
                 button.classList.add('atoma-main-menu__button--map');
@@ -349,6 +363,7 @@ export class PauseMenu {
                 key: button.dataset.entryKey,
                 element: button,
                 marker,
+                entryIndex: index,
             });
         });
 
@@ -365,12 +380,55 @@ export class PauseMenu {
         return this._screenEntries[this.state.selectedIndex] || null;
     }
 
+    _isSelectableEntry(entry) {
+        return !!entry && entry.selectable !== false;
+    }
+
+    _findSelectableIndex(index, direction = 1) {
+        if (this._screenEntries.length === 0) {
+            return 0;
+        }
+
+        const lastIndex = this._screenEntries.length - 1;
+        const clampedIndex = clamp(index, 0, lastIndex);
+        if (this._isSelectableEntry(this._screenEntries[clampedIndex])) {
+            return clampedIndex;
+        }
+
+        const step = direction >= 0 ? 1 : -1;
+        for (let offset = 1; offset <= lastIndex; offset += 1) {
+            const nextIndex = clampedIndex + (offset * step);
+            if (nextIndex >= 0 && nextIndex <= lastIndex && this._isSelectableEntry(this._screenEntries[nextIndex])) {
+                return nextIndex;
+            }
+        }
+
+        for (let offset = 1; offset <= lastIndex; offset += 1) {
+            const nextIndex = clampedIndex - (offset * step);
+            if (nextIndex >= 0 && nextIndex <= lastIndex && this._isSelectableEntry(this._screenEntries[nextIndex])) {
+                return nextIndex;
+            }
+        }
+
+        return 0;
+    }
+
     _moveSelection(delta) {
         if (this._screenEntries.length === 0) {
             return;
         }
 
-        this.setSelectedIndex(this.state.selectedIndex + delta);
+        const step = delta >= 0 ? 1 : -1;
+        for (let offset = 1; offset <= this._screenEntries.length; offset += 1) {
+            const candidate = this.state.selectedIndex + (offset * step);
+            if (candidate < 0 || candidate >= this._screenEntries.length) {
+                break;
+            }
+            if (this._isSelectableEntry(this._screenEntries[candidate])) {
+                this.setSelectedIndex(candidate);
+                return;
+            }
+        }
     }
 
     _activateCurrentEntry() {
@@ -397,6 +455,12 @@ export class PauseMenu {
                 selectedMapId: entry.id,
                 settings: { ...this.profile.settings },
             });
+            return;
+        }
+
+        if (entry.type === 'visibility') {
+            entry.action?.();
+            this.refresh();
             return;
         }
 
@@ -446,6 +510,24 @@ export class PauseMenu {
         this.profile.settings = settings;
         this.profile = saveMenuProfile(this.profile);
         this.refresh();
+    }
+
+    setSelectedIndex(index, { refresh = true } = {}) {
+        if (this._screenEntries.length === 0) {
+            this.state.selectedIndex = 0;
+            return false;
+        }
+
+        const nextIndex = this._findSelectableIndex(index, index >= this.state.selectedIndex ? 1 : -1);
+        if (nextIndex === this.state.selectedIndex) {
+            return false;
+        }
+
+        this.state.selectedIndex = nextIndex;
+        if (refresh) {
+            this.refresh();
+        }
+        return true;
     }
 
     _onKeyDown(event) {
@@ -543,7 +625,7 @@ export class PauseMenu {
 
     _updateFocusableVisuals(pulse) {
         this._focusableRefs.forEach((ref, index) => {
-            const selected = index === this.state.selectedIndex;
+            const selected = ref.entryIndex === this.state.selectedIndex;
             const targetScale = selected ? 1.08 + (pulse * 0.018) : 1;
             const targetOpacity = selected ? 1 : 0.46;
             const targetGlow = selected ? 1 : 0;

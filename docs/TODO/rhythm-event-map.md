@@ -78,6 +78,7 @@ Týmto sa má zredukovať chaos pri práci so svetovými eventami, ktoré sú te
 ### `SafeLegendaryWorldEvents.js`
 - Globálny „strategický“ event systém pre veľké world FX.
 - Spravidla spúšťa výnimočné efekty: `COSMIC_PULSE`, `AURORA_STATE`, `SIGMA_INVASION`, `QUANTUM_ECLIPSE`, `FRACTAL_STORM`.
+- Vizuálny jazyk legendárnych eventov je teraz vrstvený ako `CORE -> SURFACE -> OVERLAY -> ATMOSPHERE` a používa cached procedurálne masky pre halo, auroru, glitch, eclipse a fractal motívy.
 - Mal by byť triggovaný cez globálne metrické eventy.
 
 ### `MetricReactiveWorldEvents.js`

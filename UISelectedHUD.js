@@ -60,6 +60,7 @@
  */
 
 import { LinkPrioritySystem } from './LinkPrioritySystem.js';
+import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from './ui/config/UIVisibilityConfig.js';
 
 export class UISelectedHUD {
     // Curated charset: tech + symbolism + visual density
@@ -99,6 +100,11 @@ export class UISelectedHUD {
         this._createHudElement();
         this._setupStyles();
         this._init();
+        this._handleUIVisibilityChange = () => this._syncVisibility();
+        if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+            window.addEventListener(UI_VISIBILITY_CHANGE_EVENT, this._handleUIVisibilityChange);
+        }
+        this._syncVisibility();
     }
 
     init({ linkingSystem = null, semanticBus = null } = {}) {
@@ -192,7 +198,7 @@ export class UISelectedHUD {
         this.hudElement.style.background = 'rgba(0, 0, 0, 0.35)';
         this.hudElement.style.backdropFilter = 'blur(6px)';
         this.hudElement.style.color = '#7FFFD4';
-        this.hudElement.style.fontFamily = 'JetBrains Mono, monospace';
+        this.hudElement.style.fontFamily = "Rajdhani, 'Segoe UI', sans-serif";
         this.hudElement.style.letterSpacing = '1px';
         this.hudElement.style.borderRadius = '12px';
         this.hudElement.style.zIndex = '999999';
@@ -333,6 +339,9 @@ export class UISelectedHUD {
         this._unbindSemanticBus();
         this._unregisterScrambleScheduler();
         this._resetScramble();
+        if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+            window.removeEventListener(UI_VISIBILITY_CHANGE_EVENT, this._handleUIVisibilityChange);
+        }
         this.hudElement?.remove?.();
         this.hudElement = null;
         this.linkingSystem = null;
@@ -381,6 +390,10 @@ export class UISelectedHUD {
      * @param {Object} node - The node to display
      */
     updateDisplay(node) {
+        if (!UIVisibilityConfig.selectedHUD) {
+            return;
+        }
+
         if (!node || !node.userData) {
             this.clear();
             return;
@@ -552,6 +565,10 @@ export class UISelectedHUD {
      * @param {Object} node - The selected node
      */
     updateLinkedCategories(node) {
+        if (!UIVisibilityConfig.selectedHUD) {
+            return;
+        }
+
         if (!node) {
             console.warn('[SelectedHUD] updateLinkedCategories called without node');
             this.linkedCategories = [];
@@ -651,6 +668,10 @@ export class UISelectedHUD {
      * Useful for unlink operations that need immediate visual feedback
      */
     refreshDisplay() {
+        if (!UIVisibilityConfig.selectedHUD) {
+            return;
+        }
+
         if (this.selectedNode) {
             this.updateLinkedCategories(this.selectedNode);
             this.updateDisplay(this.selectedNode);
@@ -876,6 +897,10 @@ export class UISelectedHUD {
      * Clear the HUD and show "SELECTED: NONE"
      */
     clear() {
+        if (!UIVisibilityConfig.selectedHUD) {
+            return;
+        }
+
         this._resetScramble();
         this.hudElement.textContent = 'SELECTED: NONE';
         this.hudElement.classList.remove('selected');
@@ -888,16 +913,38 @@ export class UISelectedHUD {
      * Show the HUD
      */
     show() {
-        this.hudElement.style.display = 'block';
+        if (!UIVisibilityConfig.selectedHUD) {
+            return;
+        }
+
+        if (!this.hudElement.isConnected) {
+            document.body.appendChild(this.hudElement);
+        }
         this.isVisible = true;
+        if (this.selectedNode) {
+            this.refreshDisplay();
+        } else {
+            this.clear();
+        }
     }
     
     /**
      * Hide the HUD
      */
     hide() {
-        this.hudElement.style.display = 'none';
+        if (this.hudElement.parentNode) {
+            this.hudElement.parentNode.removeChild(this.hudElement);
+        }
         this.isVisible = false;
+    }
+
+    _syncVisibility() {
+        if (!UIVisibilityConfig.selectedHUD) {
+            this.hide();
+            return;
+        }
+
+        this.show();
     }
     
     /**

@@ -4750,6 +4750,7 @@ class AtomaGame {
                 this.pulseIntersectionAdapter.update();
             }
         }, 'visual.pulseIntersectionAdapter');
+        this.frameScheduler.register('visual', this.runNodeInspectOverlayTick.bind(this), 'visual.nodeInspectOverlay');
         this.frameScheduler.register('visual', (dt) => {
             if (this.resonanceFeedback && this.aiNodes && this.linkingSystem) {
                 this.resonanceFeedback.update(
@@ -9425,10 +9426,9 @@ window.__ATOMA_SCENE__ = this.scene;
             this.linkQualityCalculator,
             this.linkDegradationSystem,
             {
-                corruptionThreshold: 0.8,
-                minStressAccumulation: 3000,
-                collapseWindowMs: 5000,
-                criticalLoadThreshold: 1.0,
+                corruptionHighThreshold: 0.8,
+                stabilityLowThreshold: 0.2,
+                holdDurationMs: 10000,
                 warningThreshold: 0.3,
                 criticalThreshold: 0.7,
                 collapseThreshold: 1.0,

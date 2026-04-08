@@ -1,5 +1,6 @@
 ﻿// UI ONLY – Debug scaffold for AI Automation HUD (read-only, no data wiring, no authority)
 import * as HudCollapseSystem from './HudCollapseSystem1_0.js';
+import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from './ui/config/UIVisibilityConfig.js';
 /**
  * VARIANT A – FROZEN
  * ------------------
@@ -30,7 +31,7 @@ function createStyles() {
       border: 1px solid rgba(0, 220, 255, 0.35);
       box-shadow: 0 0 18px rgba(0, 200, 255, 0.12);
       backdrop-filter: blur(6px);
-      font-family: "JetBrains Mono", "Fira Code", monospace;
+      font-family: 'Rajdhani', 'Segoe UI', sans-serif;
       letter-spacing: 0.04em;
       color: #BEEFFF;
       pointer-events: auto;
@@ -50,6 +51,7 @@ function createStyles() {
       align-items: center;
       justify-content: space-between;
       padding: 10px 12px;
+      font-family: 'Orbitron', 'Segoe UI', sans-serif;
       font-size: 13px;
       font-weight: 500;
       color: #6FF3FF;
@@ -373,6 +375,38 @@ function createTooltip() {
   return tip;
 }
 
+let automationVisibilityListenerBound = false;
+
+function bindAutomationHudVisibilityListener() {
+  if (automationVisibilityListenerBound || typeof window === 'undefined') {
+    return;
+  }
+
+  automationVisibilityListenerBound = true;
+  window.addEventListener(UI_VISIBILITY_CHANGE_EVENT, syncAutomationHudVisibility);
+}
+
+function syncAutomationHudVisibility() {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  const hud = getAutomationHudRoot();
+  const tooltip = document.querySelector('.ai-reco-tooltip');
+
+  if (!UIVisibilityConfig.aiHUD) {
+    hud?.remove();
+    tooltip?.remove();
+    return;
+  }
+
+  if (!hud) {
+    mountAIAutomationHUD(window.__ATOMA_AIAUTOMATION_HUD_ROOT__ || document.body, { skipVisibilitySync: true });
+  }
+
+  updateAIAutomationHUD();
+}
+
 // UI-only acknowledgment state (epistemic only; no authority, no feedback)
 const ackState = new Map(); // recId -> 'ack' | 'dismiss'
 const IGNORE_THRESHOLD = 3;
@@ -496,9 +530,18 @@ function buildFallbackObservationData() {
   };
 }
 
-export function mountAIAutomationHUD(rootElement) {
+export function mountAIAutomationHUD(rootElement, { skipVisibilitySync = false } = {}) {
   const target = rootElement || document.body;
   if (!target) return;
+
+  window.__ATOMA_AIAUTOMATION_HUD_ROOT__ = target;
+  bindAutomationHudVisibilityListener();
+
+  if (!UIVisibilityConfig.aiHUD) {
+    document.querySelectorAll('#ai-automation-hud').forEach((node) => node.remove());
+    document.querySelectorAll('.ai-reco-tooltip').forEach((node) => node.remove());
+    return null;
+  }
 
   document.querySelectorAll('#ai-automation-hud').forEach((node) => node.remove());
   document.querySelectorAll('.ai-reco-tooltip').forEach((node) => node.remove());
@@ -526,6 +569,12 @@ export function mountAIAutomationHUD(rootElement) {
   target.appendChild(style);
   target.appendChild(hud);
   target.appendChild(tooltip);
+
+  if (!skipVisibilitySync) {
+    updateAIAutomationHUD();
+  }
+
+  return hud;
 }
 
 export default mountAIAutomationHUD;
@@ -546,6 +595,10 @@ function getAutomationHudRoot() {
 // READ-ONLY AI HUD BINDING
 // No authority. No execution. Debug / QA only.
 export function updateAIAutomationHUD(report) {
+  if (!UIVisibilityConfig.aiHUD) {
+    return;
+  }
+
   const hud = getAutomationHudRoot();
   if (!hud) return;
 

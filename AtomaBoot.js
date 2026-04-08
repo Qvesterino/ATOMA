@@ -7,6 +7,7 @@ import {
     saveContinueSnapshot,
 } from './MainMenu.js';
 import { PauseMenu } from './PauseMenu.js';
+import { loadUIVisibilityConfig } from './ui/config/UIVisibilityConfig.js';
 import { mountVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
 
 const PREBOOT_BODY_CLASS = 'atoma-preboot';
@@ -14,6 +15,8 @@ const AUDIO_ENABLED_STORAGE_KEY = 'atoma.audio.enabled';
 
 class AtomaBootController {
     constructor() {
+        loadUIVisibilityConfig();
+
         this.game = null;
         this._booting = false;
         this._hudMounted = false;

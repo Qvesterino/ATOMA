@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { projectHudMetrics } from './SemanticMetricAdapter.js';
 import { CoreMetricsCalculator } from './CoreMetricsCalculator.js';
 import { VisualNetworkTimeElasticity_v1 } from './VisualNetworkTimeElasticity_v1.js';
+import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from './ui/config/UIVisibilityConfig.js';
 
 const METRIC_DISPLAY_MODES = Object.freeze({
   NUMERIC: 'numeric',
@@ -104,12 +105,22 @@ export class CoreMetricsHUD {
     // Metric display mode (numeric or glyph)
     this.metricDisplayMode = METRIC_DISPLAY_MODES.NUMERIC;
     this.modeToggleButton = null;
+    this._lastMetrics = null;
+    this._lastTemporalDisplay = null;
+    this._lastNewEventFlags = null;
+    this._lastDeltaTime = 0.016;
     
     // Visual Network Time Elasticity
     this.timeElasticity = new VisualNetworkTimeElasticity_v1();
     this.timeElasticityIndicator = null;
+
+    this._handleUIVisibilityChange = () => this._syncVisibility();
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener(UI_VISIBILITY_CHANGE_EVENT, this._handleUIVisibilityChange);
+    }
     
     this.createHUD();
+    this._syncVisibility();
 
   }
   
@@ -128,7 +139,7 @@ export class CoreMetricsHUD {
       position: fixed;
       top: 740px;
       left: 10px;
-      font-family: 'Courier New', monospace;
+      font-family: 'Rajdhani', 'Segoe UI', sans-serif;
       font-size: 12px;
       line-height: 1.2;
       letter-spacing: 0.05em;
@@ -177,7 +188,7 @@ export class CoreMetricsHUD {
       border-radius: 3px;
       cursor: pointer;
       font-size: 10px;
-      font-family: 'Courier New', monospace;
+      font-family: 'Rajdhani', 'Segoe UI', sans-serif;
     `;
     modeToggle.addEventListener('click', () => this.toggleMetricDisplayMode());
     this.hudContainer.appendChild(modeToggle);
@@ -266,6 +277,7 @@ export class CoreMetricsHUD {
     labelSpan.style.cssText = `
       display: inline-block;
       color: ${color};
+      font-family: 'Orbitron', 'Segoe UI', sans-serif;
       font-weight: bold;
       font-size: 10px;
     `;
@@ -327,7 +339,12 @@ export class CoreMetricsHUD {
    * All metrics are expected as floats in [0, 1].
    */
 update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
-  if (!this.enabled || !this.hudContainer) return;
+  this._lastMetrics = metrics;
+  this._lastTemporalDisplay = temporalDisplay;
+  this._lastNewEventFlags = newEventFlags;
+  this._lastDeltaTime = deltaTime;
+
+  if (!UIVisibilityConfig.coreMetrics || !this.enabled || !this.hudContainer) return;
 
   const now = performance.now();
 
@@ -620,7 +637,13 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   toggle() {
     this.enabled = !this.enabled;
     if (this.hudContainer) {
-      this.hudContainer.style.display = this.enabled ? 'block' : 'none';
+      if (this.enabled) {
+        if (!this.hudContainer.isConnected) {
+          document.body.appendChild(this.hudContainer);
+        }
+      } else if (this.hudContainer.parentNode) {
+        this.hudContainer.parentNode.removeChild(this.hudContainer);
+      }
     }
   }
   
@@ -630,7 +653,12 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   show() {
     this.enabled = true;
     if (this.hudContainer) {
-      this.hudContainer.style.display = 'block';
+      if (!this.hudContainer.isConnected) {
+        document.body.appendChild(this.hudContainer);
+      }
+      if (this._lastMetrics || this._lastTemporalDisplay || this._lastNewEventFlags) {
+        this.update(this._lastMetrics, this._lastTemporalDisplay, this._lastNewEventFlags, this._lastDeltaTime);
+      }
     }
   }
   
@@ -640,14 +668,28 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   hide() {
     this.enabled = false;
     if (this.hudContainer) {
-      this.hudContainer.style.display = 'none';
+      if (this.hudContainer.parentNode) {
+        this.hudContainer.parentNode.removeChild(this.hudContainer);
+      }
     }
+  }
+
+  _syncVisibility() {
+    if (!UIVisibilityConfig.coreMetrics) {
+      this.hide();
+      return;
+    }
+
+    this.show();
   }
   
   /**
    * Cleanup
    */
   destroy() {
+    if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+      window.removeEventListener(UI_VISIBILITY_CHANGE_EVENT, this._handleUIVisibilityChange);
+    }
     if (this.hudContainer && this.hudContainer.parentNode) {
       this.hudContainer.parentNode.removeChild(this.hudContainer);
     }

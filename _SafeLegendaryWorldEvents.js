@@ -4,6 +4,158 @@ import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
 // Legacy aura overlays kill-switch
 const ENABLE_LEGACY_AURAS = false;
+const LEGENDARY_MASK_CACHE = new Map();
+const LEGENDARY_MASK_SIZE = 128;
+
+function legendaryClamp01(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function legendaryLerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function legendarySmoothstep(edge0, edge1, x) {
+  if (edge0 === edge1) {
+    return x < edge0 ? 0 : 1;
+  }
+
+  const t = legendaryClamp01((x - edge0) / (edge1 - edge0));
+  return t * t * (3 - 2 * t);
+}
+
+function legendaryHash2D(x, y, seed = 0) {
+  let n = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul(seed | 0, 1442695041);
+  n = (n ^ (n >>> 13)) >>> 0;
+  n = Math.imul(n, 1274126177);
+  n = (n ^ (n >>> 16)) >>> 0;
+  return n / 4294967295;
+}
+
+function legendaryValueNoise2D(x, y, seed = 0) {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const xf = x - xi;
+  const yf = y - yi;
+
+  const h00 = legendaryHash2D(xi, yi, seed);
+  const h10 = legendaryHash2D(xi + 1, yi, seed);
+  const h01 = legendaryHash2D(xi, yi + 1, seed);
+  const h11 = legendaryHash2D(xi + 1, yi + 1, seed);
+
+  const u = xf * xf * (3 - 2 * xf);
+  const v = yf * yf * (3 - 2 * yf);
+  const x1 = legendaryLerp(h00, h10, u);
+  const x2 = legendaryLerp(h01, h11, u);
+  return legendaryLerp(x1, x2, v);
+}
+
+function legendaryFbm2D(x, y, seed = 0, octaves = 4) {
+  let amplitude = 0.5;
+  let frequency = 1.0;
+  let total = 0;
+  let normalizer = 0;
+
+  for (let i = 0; i < octaves; i++) {
+    total += legendaryValueNoise2D(x * frequency, y * frequency, seed + i * 13) * amplitude;
+    normalizer += amplitude;
+    amplitude *= 0.5;
+    frequency *= 2.0;
+  }
+
+  return normalizer > 0 ? total / normalizer : 0;
+}
+
+function createLegendaryMaskTexture(kind, size = LEGENDARY_MASK_SIZE) {
+  const cacheKey = `${kind}:${size}`;
+  const cached = LEGENDARY_MASK_CACHE.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const data = new Uint8Array(size * size * 4);
+  const inv = 1 / Math.max(1, size - 1);
+
+  for (let y = 0; y < size; y++) {
+    const v = y * inv * 2 - 1;
+
+    for (let x = 0; x < size; x++) {
+      const u = x * inv * 2 - 1;
+      const radius = Math.sqrt(u * u + v * v);
+      const angle = Math.atan2(v, u);
+      let alpha = 0;
+
+      switch (kind) {
+        case 'cosmic_halo': {
+          const core = 1 - legendarySmoothstep(0.0, 0.48, radius);
+          const outer = 1 - legendarySmoothstep(0.58, 1.0, radius);
+          const ringA = 1 - legendarySmoothstep(0.0, 0.06, Math.abs(radius - 0.42));
+          const ringB = 1 - legendarySmoothstep(0.0, 0.04, Math.abs(radius - 0.72));
+          const spokes = Math.pow(Math.max(0, Math.sin(angle * 7.0 + radius * 16.0)), 6);
+          const shimmer = legendaryFbm2D(u * 4.0, v * 4.0, 11, 3);
+          alpha = core * 0.28 + outer * 0.38 + ringA * 0.82 + ringB * 0.58 + spokes * 0.16 + shimmer * 0.12;
+          break;
+        }
+        case 'aurora_curtain': {
+          const heightWeight = legendarySmoothstep(-0.95, 0.55, v);
+          const widthWeight = 1 - legendarySmoothstep(0.35, 1.0, Math.abs(u));
+          const flow = 0.5 + 0.5 * Math.sin(u * 5.5 + v * 3.5 + legendaryFbm2D(u * 2.4, v * 2.4, 7, 3) * 2.0);
+          const ribbon = Math.pow(flow, 1.8);
+          const crest = Math.pow(0.5 + 0.5 * Math.sin(u * 15.0 + v * 4.5), 6);
+          alpha = heightWeight * widthWeight * ribbon + crest * 0.14 * widthWeight;
+          break;
+        }
+        case 'sigma_glitch': {
+          const cellX = Math.floor((u + 1) * 18);
+          const cellY = Math.floor((v + 1) * 24);
+          const cellNoise = legendaryHash2D(cellX, cellY, 19);
+          const scanline = 1 - legendarySmoothstep(0.08, 0.42, Math.abs(Math.sin((v + 1) * Math.PI * 21.0)));
+          const fracture = 1 - legendarySmoothstep(0.18, 0.95, radius);
+          const breach = Math.pow(0.5 + 0.5 * Math.sin(u * 20.0 + cellNoise * 12.0 + v * 8.0), 4);
+          const block = cellNoise > 0.45 ? 1 : 0;
+          alpha = fracture * (block * 0.68 + scanline * 0.38 + breach * 0.52);
+          break;
+        }
+        case 'quantum_eclipse': {
+          const core = 1 - legendarySmoothstep(0.0, 0.52, radius);
+          const rim = 1 - legendarySmoothstep(0.0, 0.08, Math.abs(radius - 0.46));
+          const shadow = 1 - legendarySmoothstep(0.66, 0.98, radius);
+          const drift = legendaryFbm2D(u * 3.0, v * 3.0, 23, 3);
+          alpha = core * 0.82 + rim * 0.9 + shadow * 0.18 + drift * 0.08;
+          break;
+        }
+        case 'fractal_storm': {
+          const warpA = legendaryFbm2D(u * 2.2 + 0.15, v * 2.2 - 0.35, 31, 4);
+          const warpB = legendaryFbm2D((u + warpA * 0.4) * 5.5, (v - warpA * 0.35) * 5.5, 57, 3);
+          const branches = Math.pow(Math.max(0, Math.sin((u * 9.0 + warpB * 2.0) + (v * 7.0 - warpA * 2.5))), 3.5);
+          const radial = 1 - legendarySmoothstep(0.68, 1.0, radius);
+          alpha = warpA * 0.22 + warpB * 0.36 + branches * 0.54 + radial * 0.22;
+          break;
+        }
+        default:
+          alpha = 0;
+      }
+
+      const idx = (y * size + x) * 4;
+      const clamped = Math.round(legendaryClamp01(alpha) * 255);
+      data[idx] = 255;
+      data[idx + 1] = 255;
+      data[idx + 2] = 255;
+      data[idx + 3] = clamped;
+    }
+  }
+
+  const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  texture.needsUpdate = true;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+
+  LEGENDARY_MASK_CACHE.set(cacheKey, texture);
+  return texture;
+}
 
 /**
  * SAFE LEGENDARY WORLD EVENTS PACK
@@ -46,7 +198,8 @@ export class SafeLegendaryWorldEvents {
       timer: 0,
       intensity: 0,
       duration: 0,
-      phase: 'idle' // idle, fadeIn, active, fadeOut
+      phase: 'idle', // idle, fadeIn, active, fadeOut
+      seed: 0
     };
     
     // Event definitions
@@ -56,7 +209,7 @@ export class SafeLegendaryWorldEvents {
         fadeInDuration: 1.0,
         fadeOutDuration: 2.0,
         maxIntensity: 1.0,
-        color: 0x00ffff,
+        color: 0x6cf9ff,
         description: 'Cosmic Pulse'
       },
       FRACTAL_STORM: {
@@ -64,7 +217,7 @@ export class SafeLegendaryWorldEvents {
         fadeInDuration: 1.5,
         fadeOutDuration: 3.0,
         maxIntensity: 0.9,
-        color: 0xaa00ff,
+        color: 0xcd5bff,
         description: 'Fractal Storm'
       },
       SIGMA_INVASION: {
@@ -72,7 +225,7 @@ export class SafeLegendaryWorldEvents {
         fadeInDuration: 1.0,
         fadeOutDuration: 2.5,
         maxIntensity: 0.95,
-        color: 0x00ff88,
+        color: 0x42ff9a,
         description: 'Sigma Invasion'
       },
       QUANTUM_ECLIPSE: {
@@ -80,7 +233,7 @@ export class SafeLegendaryWorldEvents {
         fadeInDuration: 2.0,
         fadeOutDuration: 3.5,
         maxIntensity: 0.85,
-        color: 0xff00ff,
+        color: 0xf06cff,
         description: 'Quantum Eclipse'
       },
       AURORA_STATE: {
@@ -88,7 +241,7 @@ export class SafeLegendaryWorldEvents {
         fadeInDuration: 2.0,
         fadeOutDuration: 3.0,
         maxIntensity: 0.8,
-        color: 0x00ff00,
+        color: 0x6fffd8,
         description: 'Aurora State'
       }
     };
@@ -124,6 +277,8 @@ export class SafeLegendaryWorldEvents {
     this.suppressed = false;
     this.suppressedUntil = 0;
     this.metricBus = this._resolveMetricBus();
+    this.legendaryMasks = this._createLegendaryMaskLibrary();
+    this.legendaryPalettes = this._createLegendaryPaletteLibrary();
     if (useMetricTriggers) {
       this._setupMetricTriggers();
     }
@@ -270,6 +425,137 @@ export class SafeLegendaryWorldEvents {
       apply(object);
     }
   }
+
+  _createLegendaryPaletteLibrary() {
+    return {
+      COSMIC_PULSE: {
+        base: new THREE.Color(0x6cf9ff),
+        accent: new THREE.Color(0xffffff),
+        aura: new THREE.Color(0xb6fbff),
+        deep: new THREE.Color(0x071525),
+        glow: new THREE.Color(0x2d7dff)
+      },
+      AURORA_STATE: {
+        base: new THREE.Color(0x6fffd8),
+        accent: new THREE.Color(0xeaffff),
+        aura: new THREE.Color(0xb7fff2),
+        deep: new THREE.Color(0x051f17),
+        glow: new THREE.Color(0x6dbfff)
+      },
+      SIGMA_INVASION: {
+        base: new THREE.Color(0x42ff9a),
+        accent: new THREE.Color(0xe9fff4),
+        aura: new THREE.Color(0xb6ffd6),
+        deep: new THREE.Color(0x081b13),
+        glow: new THREE.Color(0xff6bf5)
+      },
+      QUANTUM_ECLIPSE: {
+        base: new THREE.Color(0xf06cff),
+        accent: new THREE.Color(0xffffff),
+        aura: new THREE.Color(0xffc6ff),
+        deep: new THREE.Color(0x0d0618),
+        glow: new THREE.Color(0x72d4ff)
+      },
+      FRACTAL_STORM: {
+        base: new THREE.Color(0xcd5bff),
+        accent: new THREE.Color(0xf6f0ff),
+        aura: new THREE.Color(0xe0b9ff),
+        deep: new THREE.Color(0x1a0822),
+        glow: new THREE.Color(0x67f0ff)
+      }
+    };
+  }
+
+  _createLegendaryMaskLibrary() {
+    return {
+      cosmic: createLegendaryMaskTexture('cosmic_halo'),
+      aurora: createLegendaryMaskTexture('aurora_curtain'),
+      sigma: createLegendaryMaskTexture('sigma_glitch'),
+      quantum: createLegendaryMaskTexture('quantum_eclipse'),
+      fractal: createLegendaryMaskTexture('fractal_storm')
+    };
+  }
+
+  _createLegendaryMeshMaterial({
+    color,
+    opacity = 1,
+    map = null,
+    blending = THREE.AdditiveBlending,
+    depthWrite = false,
+    depthTest = true,
+    side = THREE.DoubleSide,
+    transparent = true,
+    fog = false
+  }) {
+    const material = new THREE.MeshBasicMaterial({
+      color,
+      transparent,
+      opacity,
+      blending,
+      depthWrite,
+      depthTest,
+      side,
+      fog,
+      map
+    });
+    material.toneMapped = false;
+    return material;
+  }
+
+  _createLegendaryLineMaterial({
+    color,
+    opacity = 1,
+    blending = THREE.AdditiveBlending,
+    depthWrite = false,
+    depthTest = true,
+    linewidth = 1
+  }) {
+    const material = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      blending,
+      depthWrite,
+      depthTest,
+      linewidth
+    });
+    material.toneMapped = false;
+    return material;
+  }
+
+  _createLegendaryMesh(geometry, material, userData = {}) {
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.userData = {
+      isLegendaryWorldVFX: true,
+      ...userData
+    };
+    return mesh;
+  }
+
+  _createLegendaryLine(points, options = {}) {
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = this._createLegendaryLineMaterial(options);
+    const line = new THREE.Line(geometry, material);
+    line.userData = {
+      isLegendaryWorldVFX: true,
+      ...options.userData
+    };
+    return line;
+  }
+
+  _registerLegendaryObject(bucket, object) {
+    if (!object) return object;
+
+    const targetBucket = Array.isArray(this.vfxContainer?.[bucket]) ? this.vfxContainer[bucket] : this.vfxContainer.overlays;
+    targetBucket.push(object);
+    this.root.add(object);
+    return object;
+  }
+
+  _getLegendaryBeat(speed = 1, offset = 0, floor = 0.4, ceil = 1.0) {
+    const wave = 0.5 + 0.5 * Math.sin(this.animationTime * speed + offset);
+    return legendaryLerp(floor, ceil, wave);
+  }
   
   /**
    * Calculate potential for an event to trigger
@@ -347,6 +633,7 @@ export class SafeLegendaryWorldEvents {
     this.registry.intensity = 0;
     this.registry.duration = eventDef.duration;
     this.registry.phase = 'fadeIn';
+    this.registry.seed = Math.random() * Math.PI * 2;
     
     this.lastEventTime = performance.now();
     
@@ -444,228 +731,632 @@ export class SafeLegendaryWorldEvents {
    * COSMIC PULSE - Global shockwave event
    */
   createCosmicPulseVFX(eventDef) {
-    // Create expanding shockwave ring
-    const shockGeo = new THREE.TorusGeometry(20, 1.5, 16, 128);
-    const shockMat = new THREE.MeshBasicMaterial({
-      color: eventDef.color,
-      transparent: true,
-      opacity: 0.6,
-      blending: THREE.AdditiveBlending,
-      emissive: eventDef.color,
-      emissiveIntensity: 1.2,
-      fog: false,
-      side: THREE.DoubleSide
-    });
-    
-    const shockwave = new THREE.Mesh(shockGeo, shockMat);
-    shockwave.position.y = 0;
-    shockwave.userData = { isLegendaryWorldVFX: true, type: 'cosmic_shockwave' };
-    this.root.add(shockwave);
-    this.vfxContainer.shockwaves.push({
-      mesh: shockwave,
-      maxRadius: 300,
-      startRadius: 20,
-      expandSpeed: 45
-    });
-    
-    // Create bloom overlay
-    const bloomGeo = new THREE.PlaneGeometry(400, 400);
-    const bloomMat = new THREE.MeshBasicMaterial({
-      color: eventDef.color,
-      transparent: true,
-      opacity: 0.25,
-      blending: THREE.AdditiveBlending,
-      emissive: eventDef.color,
-      emissiveIntensity: 1.0,
-      fog: false,
-      side: THREE.DoubleSide
-    });
-    
-    const bloom = new THREE.Mesh(bloomGeo, bloomMat);
-    bloom.position.z = -75;
-    bloom.userData = { isLegendaryWorldVFX: true, type: 'cosmic_bloom' };
-    this.root.add(bloom);
-    this.vfxContainer.overlays.push(bloom);
+    const palette = this.legendaryPalettes.COSMIC_PULSE;
+    const seed = this.registry.seed || 0;
+    const haloTexture = this.legendaryMasks.cosmic;
+
+    const core = this._createLegendaryMesh(
+      new THREE.SphereGeometry(8, 24, 18),
+      this._createLegendaryMeshMaterial({
+        color: palette.base,
+        opacity: 0.62,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false
+      }),
+      {
+        type: 'cosmic_core',
+        phaseOffset: seed * 0.17,
+        baseOpacity: 0.62
+      }
+    );
+    core.position.set(0, 0, 0);
+    tagAllowedSphere(core, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
+    clampSphere(core);
+    this._registerLegendaryObject('meshes', core);
+
+    const innerRing = this._createLegendaryMesh(
+      new THREE.TorusGeometry(18, 1.1, 16, 176),
+      this._createLegendaryMeshMaterial({
+        color: palette.accent,
+        opacity: 0.72,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide
+      }),
+      {
+        type: 'cosmic_ring_inner',
+        phaseOffset: seed * 0.21,
+        baseScale: 1,
+        baseOpacity: 0.72
+      }
+    );
+    innerRing.rotation.x = Math.PI * 0.5;
+    innerRing.rotation.z = Math.PI * 0.15;
+    this._registerLegendaryObject('meshes', innerRing);
+
+    const midRing = this._createLegendaryMesh(
+      new THREE.TorusGeometry(30, 0.7, 14, 220),
+      this._createLegendaryMeshMaterial({
+        color: palette.aura,
+        opacity: 0.46,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide
+      }),
+      {
+        type: 'cosmic_ring_mid',
+        phaseOffset: seed * 0.31,
+        baseScale: 1,
+        baseOpacity: 0.46
+      }
+    );
+    midRing.rotation.y = Math.PI * 0.5;
+    midRing.rotation.z = -Math.PI * 0.1;
+    this._registerLegendaryObject('meshes', midRing);
+
+    const outerRing = this._createLegendaryMesh(
+      new THREE.TorusGeometry(44, 0.45, 12, 240),
+      this._createLegendaryMeshMaterial({
+        color: palette.glow,
+        opacity: 0.32,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide
+      }),
+      {
+        type: 'cosmic_ring_outer',
+        phaseOffset: seed * 0.43,
+        baseScale: 1,
+        baseOpacity: 0.32
+      }
+    );
+    outerRing.rotation.x = Math.PI * 0.5;
+    outerRing.rotation.z = Math.PI * 0.33;
+    this._registerLegendaryObject('meshes', outerRing);
+
+    const halo = this._createLegendaryMesh(
+      new THREE.PlaneGeometry(480, 480),
+      this._createLegendaryMeshMaterial({
+        color: palette.aura,
+        map: haloTexture,
+        opacity: 0.2,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide
+      }),
+      {
+        type: 'cosmic_halo',
+        phaseOffset: seed * 0.53,
+        baseScale: 1,
+        baseOpacity: 0.2
+      }
+    );
+    halo.position.set(0, 24, -96);
+    halo.rotation.x = -0.18;
+    halo.rotation.z = 0.16;
+    this._registerLegendaryObject('overlays', halo);
+
+    const rayCount = 8;
+    for (let i = 0; i < rayCount; i++) {
+      const angle = (i / rayCount) * Math.PI * 2 + seed * 0.1;
+      const innerRadius = 10 + (i % 3) * 2;
+      const outerRadius = 72 + (i % 4) * 6;
+      const points = [
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(
+          Math.cos(angle) * innerRadius,
+          Math.sin(angle * 2.0 + seed) * 5,
+          Math.sin(angle) * innerRadius
+        ),
+        new THREE.Vector3(
+          Math.cos(angle) * outerRadius,
+          Math.sin(angle * 2.0 + seed) * 9,
+          Math.sin(angle) * outerRadius
+        )
+      ];
+
+      const ray = this._createLegendaryLine(points, {
+        color: palette.aura,
+        opacity: 0.22,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        linewidth: 1,
+        userData: {
+          type: 'cosmic_ray',
+          index: i,
+          phaseOffset: seed * 0.19 + i * 0.35,
+          baseOpacity: 0.22
+        }
+      });
+      this._registerLegendaryObject('beams', ray);
+    }
+
+    const moteGeometry = new THREE.SphereGeometry(0.42, 8, 8);
+    for (let i = 0; i < 22; i++) {
+      const angle = (i / 22) * Math.PI * 2 + seed * 0.07;
+      const orbitRadius = 28 + (i % 5) * 10 + (i % 2) * 6;
+      const orbitHeight = Math.sin(angle * 2.0 + seed) * 9;
+      const mote = this._createLegendaryMesh(
+        moteGeometry.clone(),
+        this._createLegendaryMeshMaterial({
+          color: palette.base,
+          opacity: 0.5,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          depthTest: false
+        }),
+        {
+          type: 'cosmic_mote',
+          angle,
+          orbitRadius,
+          orbitHeight,
+          orbitSpeed: 0.32 + (i % 4) * 0.06,
+          baseScale: 0.72 + (i % 3) * 0.12,
+          pulseOffset: seed * 0.2 + i * 0.45,
+          baseOpacity: 0.5
+        }
+      );
+      mote.position.set(
+        Math.cos(angle) * orbitRadius,
+        orbitHeight,
+        Math.sin(angle) * orbitRadius
+      );
+      tagAllowedSphere(mote, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
+      clampSphere(mote);
+      this._registerLegendaryObject('particles', mote);
+    }
   }
   
   /**
    * Update cosmic pulse VFX
    */
   updateCosmicPulseVFX(intensity, deltaTime) {
-    // Update shockwaves
-    this.vfxContainer.shockwaves.forEach(shock => {
-      shock.mesh.scale.setScalar(1 + intensity * 10);
-      shock.mesh.material.opacity = Math.max(0.2, 0.6 - intensity * 0.25);
-      shock.mesh.material.emissiveIntensity = 0.8 + intensity * 0.6;
-    });
-    
-    // Pulse bloom
-    this.vfxContainer.overlays.forEach(overlay => {
-      if (overlay.userData.type === 'cosmic_bloom') {
-        overlay.material.opacity = Math.min(0.7, 0.25 + intensity * 0.4);
+    const beat = this._getLegendaryBeat(0.85, this.registry.seed * 0.37, 0.65, 1.0);
+    const pulse = intensity * beat;
+    const palette = this.legendaryPalettes.COSMIC_PULSE;
+
+    for (let i = 0; i < this.vfxContainer.meshes.length; i++) {
+      const mesh = this.vfxContainer.meshes[i];
+      const type = mesh?.userData?.type;
+      if (!type) continue;
+
+      if (type === 'cosmic_core') {
+        const coreScale = 1 + pulse * 0.55 + beat * 0.14;
+        mesh.scale.setScalar(coreScale);
+        mesh.material.opacity = 0.42 + pulse * 0.46;
+        mesh.material.color.copy(palette.base).lerp(palette.accent, pulse * 0.5 + beat * 0.18);
+      } else if (type === 'cosmic_ring_inner') {
+        mesh.scale.setScalar((1 + pulse * 0.3) * mesh.userData.baseScale);
+        mesh.rotation.z += deltaTime * 0.35;
+        mesh.material.opacity = mesh.userData.baseOpacity + pulse * 0.22;
+        mesh.material.color.copy(palette.accent).lerp(palette.aura, beat * 0.35);
+      } else if (type === 'cosmic_ring_mid') {
+        mesh.scale.setScalar((1 + pulse * 0.42) * mesh.userData.baseScale);
+        mesh.rotation.z -= deltaTime * 0.24;
+        mesh.material.opacity = mesh.userData.baseOpacity + pulse * 0.16;
+        mesh.material.color.copy(palette.aura).lerp(palette.glow, beat * 0.25);
+      } else if (type === 'cosmic_ring_outer') {
+        mesh.scale.setScalar((1 + pulse * 0.52) * mesh.userData.baseScale);
+        mesh.rotation.z += deltaTime * 0.18;
+        mesh.material.opacity = mesh.userData.baseOpacity + pulse * 0.12;
+        mesh.material.color.copy(palette.glow).lerp(palette.accent, beat * 0.25);
       }
-    });
+    }
+
+    for (let i = 0; i < this.vfxContainer.overlays.length; i++) {
+      const overlay = this.vfxContainer.overlays[i];
+      if (overlay?.userData?.type !== 'cosmic_halo') continue;
+
+      overlay.scale.setScalar(1.1 + pulse * 0.95 + beat * 0.18);
+      overlay.rotation.z += deltaTime * 0.08;
+      overlay.material.opacity = 0.12 + pulse * 0.26 + beat * 0.05;
+      overlay.material.color.copy(palette.aura).lerp(palette.accent, beat * 0.4);
+    }
+
+    for (let i = 0; i < this.vfxContainer.beams.length; i++) {
+      const ray = this.vfxContainer.beams[i];
+      if (ray?.userData?.type !== 'cosmic_ray') continue;
+
+      const wave = 0.5 + 0.5 * Math.sin(this.animationTime * 1.55 + ray.userData.phaseOffset);
+      ray.material.opacity = ray.userData.baseOpacity * (0.45 + wave * 0.75 + pulse * 0.4);
+      ray.material.color.copy(palette.aura).lerp(palette.accent, wave * 0.55 + pulse * 0.2);
+    }
+
+    for (let i = 0; i < this.vfxContainer.particles.length; i++) {
+      const mote = this.vfxContainer.particles[i];
+      if (mote?.userData?.type !== 'cosmic_mote') continue;
+
+      mote.userData.angle += mote.userData.orbitSpeed * deltaTime * 0.55;
+      const drift = Math.sin(this.animationTime * 1.25 + mote.userData.pulseOffset) * 6 * pulse;
+      const radius = mote.userData.orbitRadius + Math.sin(this.animationTime * 0.95 + mote.userData.pulseOffset) * 4 * intensity;
+      mote.position.x = Math.cos(mote.userData.angle) * radius;
+      mote.position.z = Math.sin(mote.userData.angle) * radius;
+      mote.position.y = mote.userData.orbitHeight + drift;
+      const moteScale = mote.userData.baseScale * (0.85 + beat * 0.45 + pulse * 0.2);
+      mote.scale.setScalar(moteScale);
+      mote.material.opacity = mote.userData.baseOpacity * (0.32 + beat * 0.48 + pulse * 0.35);
+      mote.material.color.copy(palette.base).lerp(palette.accent, beat * 0.58);
+    }
   }
   
   /**
    * FRACTAL STORM - Fractal weather event
    */
   createFractalStormVFX(eventDef) {
-    // Create falling fractal particles
-    for (let i = 0; i < 60; i++) {
-      const geo = new THREE.TetrahedronGeometry(0.5, 1);
-      const mat = new THREE.MeshBasicMaterial({
-        color: eventDef.color,
-        transparent: true,
-        opacity: 0.4,
+    const palette = this.legendaryPalettes.FRACTAL_STORM;
+    const seed = this.registry.seed || 0;
+    const canopyTexture = this.legendaryMasks.fractal;
+
+    const core = this._createLegendaryMesh(
+      new THREE.SphereGeometry(5.5, 20, 16),
+      this._createLegendaryMeshMaterial({
+        color: palette.accent,
+        opacity: 0.44,
         blending: THREE.AdditiveBlending,
-        emissive: eventDef.color,
-        emissiveIntensity: 0.7,
-        fog: false
+        depthWrite: false,
+        depthTest: false
+      }),
+      {
+        type: 'fractal_core',
+        phaseOffset: seed * 0.17,
+        baseOpacity: 0.44
+      }
+    );
+    core.position.set(0, 12, 0);
+    tagAllowedSphere(core, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
+    clampSphere(core);
+    this._registerLegendaryObject('meshes', core);
+
+    const ring = this._createLegendaryMesh(
+      new THREE.RingGeometry(20, 34, 120),
+      this._createLegendaryMeshMaterial({
+        color: palette.glow,
+        opacity: 0.24,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide
+      }),
+      {
+        type: 'fractal_ring',
+        phaseOffset: seed * 0.29,
+        baseOpacity: 0.24
+      }
+    );
+    ring.position.set(0, 18, -8);
+    ring.rotation.x = Math.PI * 0.5;
+    ring.rotation.z = Math.PI * 0.15;
+    this._registerLegendaryObject('meshes', ring);
+
+    const canopy = this._createLegendaryMesh(
+      new THREE.PlaneGeometry(520, 240),
+      this._createLegendaryMeshMaterial({
+        color: palette.deep,
+        map: canopyTexture,
+        opacity: 0.18,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide
+      }),
+      {
+        type: 'fractal_canopy',
+        phaseOffset: seed * 0.43,
+        baseOpacity: 0.18
+      }
+    );
+    canopy.position.set(0, 56, -130);
+    canopy.rotation.x = -0.22;
+    canopy.rotation.z = 0.18;
+    this._registerLegendaryObject('overlays', canopy);
+
+    const branchCount = 7;
+    for (let i = 0; i < branchCount; i++) {
+      const branchAngle = (i / branchCount) * Math.PI * 2 + seed * 0.11;
+      const branchTightness = 0.58 + (i % 3) * 0.13;
+      const branchHeight = 18 + (i % 4) * 8;
+      const points = [
+        new THREE.Vector3(0, 12, 0),
+        new THREE.Vector3(
+          Math.cos(branchAngle) * 16,
+          branchHeight + 4,
+          Math.sin(branchAngle) * 16
+        ),
+        new THREE.Vector3(
+          Math.cos(branchAngle * 1.35 + 0.7) * 28 * branchTightness,
+          branchHeight + 18,
+          Math.sin(branchAngle * 1.35 + 0.7) * 28 * branchTightness
+        ),
+        new THREE.Vector3(
+          Math.cos(branchAngle * 1.9 + 1.4) * 42 * branchTightness,
+          branchHeight + 34,
+          Math.sin(branchAngle * 1.9 + 1.4) * 42 * branchTightness
+        )
+      ];
+
+      const branch = this._createLegendaryLine(points, {
+        color: i % 2 === 0 ? palette.aura : palette.glow,
+        opacity: 0.22,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        linewidth: 1,
+        userData: {
+          type: 'fractal_branch',
+          index: i,
+          phaseOffset: seed * 0.21 + i * 0.45,
+          baseOpacity: 0.22
+        }
       });
-      
-      const particle = new THREE.Mesh(geo, mat);
-      tagAllowedSphere(particle, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
-      clampSphere(particle);
-      const spawnPos = this._getWorldSpawnPosition({ minHeight: 35, maxHeight: 90, minRadius: 80 });
-      particle.position.copy(spawnPos);
-      particle.userData = {
-        isLegendaryWorldVFX: true,
-        type: 'fractal_particle',
-        velocity: new THREE.Vector3(
-          (Math.random() - 0.5) * 4,
-          -8 - Math.random() * 8,
-          (Math.random() - 0.5) * 4
-        ),
-        rotation: new THREE.Vector3(
-          Math.random(),
-          Math.random(),
-          Math.random()
-        ),
-        rotationSpeed: Math.random() * 2
-      };
-      
-      this.root.add(particle);
-      this.vfxContainer.particles.push(particle);
+      this._registerLegendaryObject('beams', branch);
     }
-    
-    // Create rotating fractal patterns in sky
-    const skyGeo = new THREE.PlaneGeometry(400, 400);
-    const skyMat = new THREE.MeshBasicMaterial({
-      color: eventDef.color,
-      transparent: true,
-      opacity: 0.1,
-      blending: THREE.AdditiveBlending,
-      emissive: eventDef.color,
-      emissiveIntensity: 0.5,
-      fog: false,
-      side: THREE.DoubleSide
-    });
-    
-    const skyOverlay = new THREE.Mesh(skyGeo, skyMat);
-    skyOverlay.position.z = -120;
-    skyOverlay.userData = { isLegendaryWorldVFX: true, type: 'fractal_sky' };
-    this.root.add(skyOverlay);
-    this.vfxContainer.overlays.push(skyOverlay);
+
+    for (let i = 0; i < 32; i++) {
+      const angle = (i / 32) * Math.PI * 2 + seed * 0.08;
+      const orbitRadius = 22 + (i % 6) * 9 + (i % 2) * 3;
+      const orbitHeight = 24 + Math.sin(angle * 2.0 + seed) * 16;
+      const shardGeometry = new THREE.TetrahedronGeometry(0.55 + (i % 3) * 0.1, i % 2);
+      const shard = this._createLegendaryMesh(
+        shardGeometry,
+        this._createLegendaryMeshMaterial({
+          color: i % 2 === 0 ? palette.base : palette.aura,
+          opacity: 0.38,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          depthTest: false
+        }),
+        {
+          type: 'fractal_shard',
+          angle,
+          orbitRadius,
+          orbitHeight,
+          orbitSpeed: 0.24 + (i % 5) * 0.05,
+          fallSpeed: 6 + (i % 4) * 2,
+          wobbleSpeed: 0.95 + (i % 4) * 0.14,
+          spinSpeed: 0.8 + (i % 6) * 0.1,
+          baseScale: 0.75 + (i % 3) * 0.1,
+          pulseOffset: seed * 0.13 + i * 0.27,
+          baseOpacity: 0.38
+        }
+      );
+      shard.position.set(
+        Math.cos(angle) * orbitRadius,
+        orbitHeight,
+        Math.sin(angle) * orbitRadius
+      );
+      tagAllowedSphere(shard, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
+      clampSphere(shard);
+      this._registerLegendaryObject('particles', shard);
+    }
   }
   
   /**
    * Update fractal storm VFX
    */
   updateFractalStormVFX(intensity, deltaTime) {
-    // Update particles
-    this.vfxContainer.particles.forEach(particle => {
-      if (particle.userData.type === 'fractal_particle') {
-        particle.position.addScaledVector(particle.userData.velocity, deltaTime);
-        
-        // Rotate
-        particle.rotation.x += particle.userData.rotationSpeed * deltaTime;
-        particle.rotation.y += particle.userData.rotationSpeed * deltaTime * 0.7;
-        
-        // Fade out at bottom
-        const fadeStart = 0;
-        if (particle.position.y < fadeStart) {
-          particle.material.opacity = Math.max(0, 1 + particle.position.y / 10);
-        } else {
-          particle.material.opacity = intensity;
-        }
-        
-        // Reset if too low
-        if (particle.position.y < -20) {
-          particle.position.y = 50;
-        }
+    const beat = this._getLegendaryBeat(0.92, this.registry.seed * 0.29, 0.7, 1.0);
+    const pulse = intensity * beat;
+    const palette = this.legendaryPalettes.FRACTAL_STORM;
+
+    for (let i = 0; i < this.vfxContainer.meshes.length; i++) {
+      const mesh = this.vfxContainer.meshes[i];
+      const type = mesh?.userData?.type;
+      if (!type) continue;
+
+      if (type === 'fractal_core') {
+        mesh.scale.setScalar(1 + pulse * 0.42 + beat * 0.08);
+        mesh.material.opacity = mesh.userData.baseOpacity + pulse * 0.28;
+        mesh.material.color.copy(palette.accent).lerp(palette.glow, beat * 0.4);
+      } else if (type === 'fractal_ring') {
+        mesh.rotation.z += deltaTime * 0.22;
+        mesh.scale.setScalar(1 + pulse * 0.18);
+        mesh.material.opacity = mesh.userData.baseOpacity + pulse * 0.22;
+        mesh.material.color.copy(palette.glow).lerp(palette.aura, beat * 0.5);
       }
-    });
-    
-    // Pulse sky overlay
-    this.vfxContainer.overlays.forEach(overlay => {
-      if (overlay.userData.type === 'fractal_sky') {
-        overlay.material.opacity = intensity * 0.2;
-        overlay.rotation.z += deltaTime * 0.1 * intensity;
+    }
+
+    for (let i = 0; i < this.vfxContainer.overlays.length; i++) {
+      const overlay = this.vfxContainer.overlays[i];
+      if (overlay?.userData?.type !== 'fractal_canopy') continue;
+
+      overlay.material.opacity = 0.08 + pulse * 0.24 + beat * 0.05;
+      overlay.rotation.z += deltaTime * 0.06 * intensity;
+      overlay.scale.setScalar(1 + pulse * 0.08);
+      overlay.material.color.copy(palette.deep).lerp(palette.aura, beat * 0.2);
+    }
+
+    for (let i = 0; i < this.vfxContainer.beams.length; i++) {
+      const branch = this.vfxContainer.beams[i];
+      if (branch?.userData?.type !== 'fractal_branch') continue;
+
+      const wave = 0.5 + 0.5 * Math.sin(this.animationTime * 0.85 + branch.userData.phaseOffset);
+      branch.rotation.z += deltaTime * (0.03 + branch.userData.index * 0.005);
+      branch.material.opacity = branch.userData.baseOpacity * (0.4 + wave * 0.8 + pulse * 0.4);
+      branch.material.color.copy(palette.aura).lerp(palette.accent, wave * 0.35 + pulse * 0.2);
+    }
+
+    for (let i = 0; i < this.vfxContainer.particles.length; i++) {
+      const shard = this.vfxContainer.particles[i];
+      if (shard?.userData?.type !== 'fractal_shard') continue;
+
+      shard.userData.angle += shard.userData.orbitSpeed * deltaTime * 0.55;
+      shard.position.x = Math.cos(shard.userData.angle) * shard.userData.orbitRadius + Math.sin(this.animationTime * shard.userData.wobbleSpeed + shard.userData.pulseOffset) * pulse * 8;
+      shard.position.z = Math.sin(shard.userData.angle) * shard.userData.orbitRadius + Math.cos(this.animationTime * shard.userData.wobbleSpeed + shard.userData.pulseOffset) * pulse * 8;
+      shard.position.y -= shard.userData.fallSpeed * deltaTime * (0.62 + pulse * 0.38);
+      shard.rotation.x += shard.userData.spinSpeed * deltaTime * 0.9;
+      shard.rotation.y += shard.userData.spinSpeed * deltaTime * 0.7;
+      shard.rotation.z += shard.userData.spinSpeed * deltaTime * 0.45;
+      shard.scale.setScalar(shard.userData.baseScale * (0.82 + beat * 0.4 + pulse * 0.2));
+      shard.material.opacity = shard.userData.baseOpacity * (0.3 + beat * 0.55 + pulse * 0.35);
+      shard.material.color.copy(palette.base).lerp(palette.accent, beat * 0.52 + pulse * 0.14);
+
+      if (shard.position.y < -32) {
+        shard.position.y = 42 + (shard.userData.orbitHeight % 18);
       }
-    });
+    }
   }
   
   /**
    * SIGMA INVASION - Digital glitch surge
    */
   createSigmaInvasionVFX(eventDef) {
-    // Create glitch stripe overlays
-    for (let i = 0; i < 8; i++) {
-      const stripeGeo = new THREE.PlaneGeometry(200, 20);
-      const stripeMat = new THREE.MeshBasicMaterial({
-        color: eventDef.color,
-        transparent: true,
-        opacity: 0,
-        emissive: eventDef.color,
-        emissiveIntensity: 0.8,
-        fog: false
-      });
-      
-      const stripe = new THREE.Mesh(stripeGeo, stripeMat);
-      stripe.position.set(0, -50 + i * 15, -99);
-      stripe.userData = {
-        isLegendaryWorldVFX: true,
-        type: 'sigma_stripe',
-        index: i,
-        scanPosition: 0
-      };
-      
-      this.root.add(stripe);
-      this.vfxContainer.overlays.push(stripe);
-    }
-    
-    // Create glitch ribbons
-    for (let i = 0; i < 5; i++) {
-      const points = [];
-      const ribbonRadius = this._getWorldSpawnRadius() * 0.55;
-      for (let j = 0; j < 10; j++) {
-        const angle = Math.random() * Math.PI * 2;
-        const radius = 80 + Math.random() * (ribbonRadius - 80);
-        points.push(
-          new THREE.Vector3(
-            Math.cos(angle) * radius,
-            Math.random() * 80,
-            Math.sin(angle) * radius
-          )
-        );
-      }
-      
-      const geo = new THREE.BufferGeometry().setFromPoints(points);
-      const mat = new THREE.LineBasicMaterial({
-        color: eventDef.color,
-        transparent: true,
-        opacity: 0,
+    const palette = this.legendaryPalettes.SIGMA_INVASION;
+    const seed = this.registry.seed || 0;
+    const glitchTexture = this.legendaryMasks.sigma;
+
+    const breachPlane = this._createLegendaryMesh(
+      new THREE.PlaneGeometry(540, 320),
+      this._createLegendaryMeshMaterial({
+        color: palette.deep,
+        map: glitchTexture,
+        opacity: 0.14,
         blending: THREE.AdditiveBlending,
-        emissive: eventDef.color,
-        linewidth: 4,
-        fog: false
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide
+      }),
+      {
+        type: 'sigma_breach',
+        phaseOffset: seed * 0.15,
+        baseOpacity: 0.14
+      }
+    );
+    breachPlane.position.set(0, 0, -108);
+    breachPlane.rotation.z = 0.02;
+    this._registerLegendaryObject('overlays', breachPlane);
+
+    for (let i = 0; i < 7; i++) {
+      const band = this._createLegendaryMesh(
+        new THREE.PlaneGeometry(520, 16),
+        this._createLegendaryMeshMaterial({
+          color: i % 2 === 0 ? palette.base : palette.glow,
+          map: glitchTexture,
+          opacity: 0.18,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          depthTest: false,
+          side: THREE.DoubleSide
+        }),
+        {
+          type: 'sigma_band',
+          index: i,
+          baseY: -48 + i * 16,
+          phaseOffset: seed * 0.2 + i * 0.4,
+          driftSpeed: 0.75 + (i % 3) * 0.08,
+          baseRotation: (i % 2 === 0 ? 1 : -1) * 0.02,
+          baseOpacity: 0.18
+        }
+      );
+      band.position.set(0, band.userData.baseY, -99 + i * 0.4);
+      this._registerLegendaryObject('overlays', band);
+    }
+
+    const fracturePositions = [-120, -42, 38, 118];
+    for (let i = 0; i < fracturePositions.length; i++) {
+      const fracture = this._createLegendaryMesh(
+        new THREE.PlaneGeometry(176, 32),
+        this._createLegendaryMeshMaterial({
+          color: i % 2 === 0 ? palette.aura : palette.accent,
+          map: glitchTexture,
+          opacity: 0.2,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          depthTest: false,
+          side: THREE.DoubleSide
+        }),
+        {
+          type: 'sigma_fracture',
+          index: i,
+          baseX: fracturePositions[i],
+          baseY: -6 + i * 7,
+          baseZ: -92,
+          baseRotation: -0.22 + i * 0.12,
+          driftSpeed: 0.9 + i * 0.12,
+          phaseOffset: seed * 0.31 + i * 0.7,
+          baseOpacity: 0.2
+        }
+      );
+      fracture.position.set(fracture.userData.baseX, fracture.userData.baseY, fracture.userData.baseZ);
+      fracture.rotation.z = fracture.userData.baseRotation;
+      this._registerLegendaryObject('overlays', fracture);
+    }
+
+    const needleCount = 8;
+    for (let i = 0; i < needleCount; i++) {
+      const angle = (i / needleCount) * Math.PI * 2 + seed * 0.08;
+      const radius = 150 + (i % 3) * 12;
+      const points = [
+        new THREE.Vector3(
+          Math.cos(angle) * radius,
+          -32 + Math.sin(angle * 1.2 + seed) * 18,
+          Math.sin(angle) * radius
+        ),
+        new THREE.Vector3(
+          Math.cos(angle) * 28,
+          Math.sin(angle * 1.6 + seed) * 8,
+          Math.sin(angle) * 28
+        ),
+        new THREE.Vector3(
+          Math.cos(angle) * (radius * 0.6),
+          24 + Math.cos(angle * 1.4 + seed) * 16,
+          Math.sin(angle) * (radius * 0.6)
+        )
+      ];
+
+      const needle = this._createLegendaryLine(points, {
+        color: i % 2 === 0 ? palette.glow : palette.accent,
+        opacity: 0.18,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        linewidth: 1,
+        userData: {
+          type: 'sigma_needle',
+          index: i,
+          phaseOffset: seed * 0.27 + i * 0.35,
+          baseOpacity: 0.18
+        }
       });
-      
-      const ribbon = new THREE.Line(geo, mat);
-      ribbon.userData = { isLegendaryWorldVFX: true, type: 'sigma_ribbon' };
-      this.root.add(ribbon);
-      this.vfxContainer.beams.push(ribbon);
+      this._registerLegendaryObject('beams', needle);
+    }
+
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2 + seed * 0.13;
+      const fragment = this._createLegendaryMesh(
+        new THREE.BoxGeometry(4.5, 10 + (i % 3) * 2, 1.5),
+        this._createLegendaryMeshMaterial({
+          color: i % 2 === 0 ? palette.base : palette.glow,
+          opacity: 0.28,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          depthTest: false,
+          side: THREE.DoubleSide
+        }),
+        {
+          type: 'sigma_fragment',
+          index: i,
+          angle,
+          driftRadius: 48 + i * 12,
+          driftSpeed: 4.5 + i * 0.7,
+          riseSpeed: 1.2 + i * 0.2,
+          spinSpeed: 1.2 + i * 0.12,
+          phaseOffset: seed * 0.21 + i * 0.42,
+          baseOpacity: 0.28
+        }
+      );
+      fragment.position.set(
+        Math.cos(angle) * fragment.userData.driftRadius,
+        -18 + (i % 3) * 14,
+        Math.sin(angle) * fragment.userData.driftRadius
+      );
+      fragment.rotation.z = angle * 0.35;
+      this._registerLegendaryObject('meshes', fragment);
     }
   }
   
@@ -673,260 +1364,532 @@ export class SafeLegendaryWorldEvents {
    * Update sigma invasion VFX
    */
   updateSigmaInvasionVFX(intensity, deltaTime) {
-    // Animate glitch stripes
-    this.vfxContainer.overlays.forEach(overlay => {
-      if (overlay.userData.type === 'sigma_stripe') {
-        overlay.material.opacity = intensity * 0.4;
-        
-        // Jitter effect
-        overlay.position.x = (Math.random() - 0.5) * 20 * intensity;
-        overlay.position.y += Math.sin(this.animationTime * 5 + overlay.userData.index) * 2;
+    const beat = this._getLegendaryBeat(1.28, this.registry.seed * 0.41, 0.58, 1.0);
+    const pulse = intensity * beat;
+    const palette = this.legendaryPalettes.SIGMA_INVASION;
+
+    for (let i = 0; i < this.vfxContainer.overlays.length; i++) {
+      const overlay = this.vfxContainer.overlays[i];
+      const type = overlay?.userData?.type;
+      if (!type) continue;
+
+      if (type === 'sigma_breach') {
+        overlay.material.opacity = overlay.userData.baseOpacity + pulse * 0.24 + beat * 0.04;
+        overlay.rotation.z = 0.02 + Math.sin(this.animationTime * 0.35 + overlay.userData.phaseOffset) * 0.02;
+        overlay.material.color.copy(palette.deep).lerp(palette.glow, pulse * 0.28 + beat * 0.1);
+      } else if (type === 'sigma_band') {
+        const wave = 0.5 + 0.5 * Math.sin(this.animationTime * overlay.userData.driftSpeed + overlay.userData.phaseOffset);
+        overlay.position.x = Math.sin(this.animationTime * 0.5 + overlay.userData.phaseOffset) * (6 + pulse * 14);
+        overlay.position.y = overlay.userData.baseY + Math.cos(this.animationTime * 0.7 + overlay.userData.phaseOffset) * (1.2 + pulse * 3.4);
+        overlay.rotation.z = overlay.userData.baseRotation + Math.sin(this.animationTime * 0.65 + overlay.userData.phaseOffset) * 0.045 * intensity;
+        overlay.scale.setScalar(1 + wave * 0.05 + pulse * 0.08);
+        overlay.material.opacity = overlay.userData.baseOpacity * (0.45 + wave * 0.9 + pulse * 0.55);
+        overlay.material.color.copy(palette.base).lerp(palette.glow, wave * 0.45 + pulse * 0.28);
+      } else if (type === 'sigma_fracture') {
+        overlay.position.x = overlay.userData.baseX + Math.sin(this.animationTime * overlay.userData.driftSpeed + overlay.userData.phaseOffset) * (8 + pulse * 18);
+        overlay.position.y = overlay.userData.baseY + Math.cos(this.animationTime * overlay.userData.driftSpeed * 0.85 + overlay.userData.phaseOffset) * (4 + pulse * 5);
+        overlay.rotation.z = overlay.userData.baseRotation + Math.sin(this.animationTime * 1.15 + overlay.userData.phaseOffset) * (0.12 + pulse * 0.18);
+        overlay.material.opacity = overlay.userData.baseOpacity * (0.35 + pulse * 0.95);
+        overlay.material.color.copy(palette.aura).lerp(palette.accent, pulse * 0.35 + beat * 0.2);
       }
-    });
-    
-    // Animate glitch ribbons
-    this.vfxContainer.beams.forEach(ribbon => {
-      if (ribbon.userData.type === 'sigma_ribbon') {
-        ribbon.material.opacity = Math.max(0.35, Math.sin(this.animationTime * 3) * 0.25 + 0.35) * intensity;
-        
-        // Random jitter
-        ribbon.geometry?.attributes?.position?.array && (() => {
-          const positions = ribbon.geometry.attributes.position.array;
-          for (let i = 0; i < positions.length; i += 3) {
-            positions[i] += (Math.random() - 0.5) * 0.8 * intensity;
-          }
-          ribbon.geometry.attributes.position.needsUpdate = true;
-        })();
+    }
+
+    for (let i = 0; i < this.vfxContainer.beams.length; i++) {
+      const needle = this.vfxContainer.beams[i];
+      if (needle?.userData?.type !== 'sigma_needle') continue;
+
+      const wave = 0.5 + 0.5 * Math.sin(this.animationTime * 1.5 + needle.userData.phaseOffset);
+      needle.position.y += Math.sin(this.animationTime * 0.5 + needle.userData.phaseOffset) * 0.06;
+      needle.rotation.z += deltaTime * 0.035;
+      needle.material.opacity = needle.userData.baseOpacity * (0.5 + wave * 0.85 + pulse * 0.6);
+      needle.material.color.copy(palette.glow).lerp(palette.accent, wave * 0.45 + pulse * 0.22);
+    }
+
+    for (let i = 0; i < this.vfxContainer.meshes.length; i++) {
+      const fragment = this.vfxContainer.meshes[i];
+      if (fragment?.userData?.type !== 'sigma_fragment') continue;
+
+      fragment.position.x += Math.cos(this.animationTime * 0.2 + fragment.userData.phaseOffset) * deltaTime * fragment.userData.driftSpeed * (0.4 + pulse * 0.8);
+      fragment.position.z += Math.sin(this.animationTime * 0.24 + fragment.userData.phaseOffset) * deltaTime * fragment.userData.driftSpeed * (0.3 + pulse * 0.7);
+      fragment.position.y += Math.sin(this.animationTime * 0.65 + fragment.userData.phaseOffset) * deltaTime * fragment.userData.riseSpeed * (0.5 + pulse * 0.8);
+      fragment.rotation.x += fragment.userData.spinSpeed * deltaTime * 0.45;
+      fragment.rotation.y += fragment.userData.spinSpeed * deltaTime * 0.33;
+      fragment.rotation.z += fragment.userData.spinSpeed * deltaTime * 0.28;
+      fragment.scale.setScalar(0.8 + pulse * 0.35 + beat * 0.12);
+      fragment.material.opacity = fragment.userData.baseOpacity * (0.28 + beat * 0.55 + pulse * 0.42);
+      fragment.material.color.copy(palette.base).lerp(palette.glow, beat * 0.35 + pulse * 0.24);
+
+      if (fragment.position.length() > 210) {
+        fragment.position.set(
+          Math.cos(fragment.userData.angle) * fragment.userData.driftRadius,
+          -18 + (fragment.userData.index % 3) * 14,
+          Math.sin(fragment.userData.angle) * fragment.userData.driftRadius
+        );
       }
-    });
+    }
   }
   
   /**
    * QUANTUM ECLIPSE - Dimensional shift
    */
   createQuantumEclipseVFX(eventDef) {
-    // Create singularity sphere in sky
-    const singGeo = new THREE.SphereGeometry(12, 24, 24);
-    const singMat = new THREE.MeshBasicMaterial({
-      color: eventDef.color,
-      transparent: true,
-      opacity: 0.55,
-      blending: THREE.AdditiveBlending,
-      emissive: eventDef.color,
-      emissiveIntensity: 1.2,
-      fog: false,
-      side: THREE.DoubleSide
-    });
-    
-    const singularity = new THREE.Mesh(singGeo, singMat);
-      tagAllowedSphere(singularity, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
-      clampSphere(singularity);
-    singularity.position.set(0, 80, -120);
-    singularity.userData = { isLegendaryWorldVFX: true, type: 'quantum_singularity' };
-    this.root.add(singularity);
-    this.vfxContainer.meshes.push(singularity);
-    
-    // Create spectral rays emanating downward
-    for (let i = 0; i < 12; i++) {
-      const angle = (i / 12) * Math.PI * 2;
-      const x = Math.cos(angle) * 8;
-      const z = Math.sin(angle) * 8;
-      
-      const positionRadius = this._getWorldSpawnRadius() * 0.4;
-    const points = [
-        new THREE.Vector3(x, 80, z - 120),
-        new THREE.Vector3(x * 3, 30, z * 3 - 120),
-        new THREE.Vector3(x * 6, -20, z * 6 - 120)
-      ];
-      
-      const rayGeo = new THREE.BufferGeometry().setFromPoints(points);
-      const rayMat = new THREE.LineBasicMaterial({
-        color: eventDef.color,
-        transparent: true,
-        opacity: 0,
+    const palette = this.legendaryPalettes.QUANTUM_ECLIPSE;
+    const seed = this.registry.seed || 0;
+    const eclipseTexture = this.legendaryMasks.quantum;
+
+    const disc = this._createLegendaryMesh(
+      new THREE.CircleGeometry(18, 64),
+      this._createLegendaryMeshMaterial({
+        color: palette.deep,
+        opacity: 0.88,
         blending: THREE.AdditiveBlending,
-        emissive: eventDef.color,
-        fog: false,
-        linewidth: 2
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide
+      }),
+      {
+        type: 'quantum_disc',
+        phaseOffset: seed * 0.13,
+        baseOpacity: 0.88
+      }
+    );
+    disc.position.set(0, 80, -122);
+    disc.rotation.x = -0.08;
+    tagAllowedSphere(disc, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
+    clampSphere(disc);
+    this._registerLegendaryObject('meshes', disc);
+
+    const innerRing = this._createLegendaryMesh(
+      new THREE.RingGeometry(22, 28, 160),
+      this._createLegendaryMeshMaterial({
+        color: palette.accent,
+        opacity: 0.56,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide
+      }),
+      {
+        type: 'quantum_ring_inner',
+        phaseOffset: seed * 0.21,
+        baseOpacity: 0.56
+      }
+    );
+    innerRing.position.set(0, 80, -120);
+    innerRing.rotation.x = Math.PI * 0.5;
+    innerRing.rotation.z = Math.PI * 0.12;
+    this._registerLegendaryObject('meshes', innerRing);
+
+    const outerRing = this._createLegendaryMesh(
+      new THREE.RingGeometry(30, 36, 192),
+      this._createLegendaryMeshMaterial({
+        color: palette.glow,
+        opacity: 0.34,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide
+      }),
+      {
+        type: 'quantum_ring_outer',
+        phaseOffset: seed * 0.29,
+        baseOpacity: 0.34
+      }
+    );
+    outerRing.position.set(0, 80, -120);
+    outerRing.rotation.x = Math.PI * 0.5;
+    outerRing.rotation.z = -Math.PI * 0.2;
+    this._registerLegendaryObject('meshes', outerRing);
+
+    const vignette = this._createLegendaryMesh(
+      new THREE.PlaneGeometry(520, 320),
+      this._createLegendaryMeshMaterial({
+        color: palette.deep,
+        map: eclipseTexture,
+        opacity: 0.16,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide
+      }),
+      {
+        type: 'quantum_vignette',
+        phaseOffset: seed * 0.37,
+        baseOpacity: 0.16
+      }
+    );
+    vignette.position.set(0, 78, -146);
+    vignette.rotation.z = 0.02;
+    this._registerLegendaryObject('overlays', vignette);
+
+    const rayCount = 12;
+    for (let i = 0; i < rayCount; i++) {
+      const angle = (i / rayCount) * Math.PI * 2 + seed * 0.06;
+      const startRadius = 8 + (i % 3) * 2;
+      const midRadius = 20 + (i % 4) * 3;
+      const endRadius = 58 + (i % 5) * 5;
+      const points = [
+        new THREE.Vector3(
+          Math.cos(angle) * startRadius,
+          80 + Math.sin(angle * 2.0 + seed) * 4,
+          Math.sin(angle) * startRadius - 122
+        ),
+        new THREE.Vector3(
+          Math.cos(angle) * midRadius,
+          54 + Math.cos(angle * 1.7 + seed) * 10,
+          Math.sin(angle) * midRadius - 122
+        ),
+        new THREE.Vector3(
+          Math.cos(angle) * endRadius,
+          16 + Math.sin(angle * 1.5 + seed) * 14,
+          Math.sin(angle) * endRadius - 122
+        )
+      ];
+
+      const ray = this._createLegendaryLine(points, {
+        color: i % 2 === 0 ? palette.accent : palette.glow,
+        opacity: 0.22,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        linewidth: 1,
+        userData: {
+          type: 'quantum_ray',
+          index: i,
+          phaseOffset: seed * 0.18 + i * 0.42,
+          baseOpacity: 0.22
+        }
       });
-      
-      const ray = new THREE.Line(rayGeo, rayMat);
-      ray.userData = { isLegendaryWorldVFX: true, type: 'quantum_ray', index: i };
-      this.root.add(ray);
-      this.vfxContainer.beams.push(ray);
+      this._registerLegendaryObject('beams', ray);
     }
-    
-    // Create eclipse gradient overlay
-    const eclipseGeo = new THREE.PlaneGeometry(400, 400);
-    const eclipseMat = new THREE.MeshBasicMaterial({
-      color: 0x110022,
-      transparent: true,
-      opacity: 0.1,
-      fog: false,
-      side: THREE.DoubleSide
-    });
-    
-    const eclipse = new THREE.Mesh(eclipseGeo, eclipseMat);
-    eclipse.position.z = -140;
-    eclipse.userData = { isLegendaryWorldVFX: true, type: 'eclipse_overlay' };
-    this.root.add(eclipse);
-    this.vfxContainer.overlays.push(eclipse);
+
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2 + seed * 0.12;
+      const fragment = this._createLegendaryMesh(
+        new THREE.TetrahedronGeometry(1.15 + (i % 3) * 0.08, 0),
+        this._createLegendaryMeshMaterial({
+          color: i % 2 === 0 ? palette.base : palette.aura,
+          opacity: 0.34,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          depthTest: false
+        }),
+        {
+          type: 'quantum_fragment',
+          index: i,
+          orbitAngle: angle,
+          orbitRadius: 28 + i * 7,
+          orbitSpeed: 0.2 + i * 0.045,
+          orbitTilt: -4 + i * 1.4,
+          phaseOffset: seed * 0.17 + i * 0.5,
+          baseOpacity: 0.34,
+          baseScale: 0.82 + (i % 3) * 0.08
+        }
+      );
+      fragment.position.set(
+        Math.cos(angle) * fragment.userData.orbitRadius,
+        80 + fragment.userData.orbitTilt,
+        Math.sin(angle) * fragment.userData.orbitRadius - 122
+      );
+      tagAllowedSphere(fragment, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
+      clampSphere(fragment);
+      this._registerLegendaryObject('particles', fragment);
+    }
   }
   
   /**
    * Update quantum eclipse VFX
    */
   updateQuantumEclipseVFX(intensity, deltaTime) {
-    // Pulse singularity
-    this.vfxContainer.meshes.forEach(mesh => {
-      if (mesh.userData.type === 'quantum_singularity') {
-        const pulse = 1 + Math.sin(this.animationTime * 2) * 0.35 * intensity;
-        mesh.scale.setScalar(pulse);
-        mesh.material.opacity = Math.min(0.85, 0.4 + intensity * 0.5);
+    const beat = this._getLegendaryBeat(0.74, this.registry.seed * 0.23, 0.62, 1.0);
+    const pulse = intensity * beat;
+    const palette = this.legendaryPalettes.QUANTUM_ECLIPSE;
+
+    for (let i = 0; i < this.vfxContainer.meshes.length; i++) {
+      const mesh = this.vfxContainer.meshes[i];
+      const type = mesh?.userData?.type;
+      if (!type) continue;
+
+      if (type === 'quantum_disc') {
+        mesh.scale.setScalar(1 + pulse * 0.18 + beat * 0.08);
+        mesh.rotation.z += deltaTime * 0.03;
+        mesh.material.opacity = mesh.userData.baseOpacity * (0.78 + pulse * 0.16);
+        mesh.material.color.copy(palette.deep).lerp(palette.base, pulse * 0.28 + beat * 0.08);
+      } else if (type === 'quantum_ring_inner') {
+        mesh.scale.setScalar(1 + pulse * 0.24);
+        mesh.rotation.z += deltaTime * 0.12;
+        mesh.material.opacity = mesh.userData.baseOpacity * (0.45 + pulse * 0.65);
+        mesh.material.color.copy(palette.accent).lerp(palette.glow, beat * 0.28);
+      } else if (type === 'quantum_ring_outer') {
+        mesh.scale.setScalar(1 + pulse * 0.32);
+        mesh.rotation.z -= deltaTime * 0.08;
+        mesh.material.opacity = mesh.userData.baseOpacity * (0.35 + pulse * 0.7);
+        mesh.material.color.copy(palette.glow).lerp(palette.aura, beat * 0.34);
       }
-    });
-    
-    // Animate rays
-    this.vfxContainer.beams.forEach(ray => {
-      if (ray.userData.type === 'quantum_ray') {
-        ray.material.opacity = Math.max(0.25, (Math.sin(this.animationTime * 1.5 + ray.userData.index) + 1) * 0.2) * intensity;
-      }
-    });
-    
-    // Darken overlay
-    this.vfxContainer.overlays.forEach(overlay => {
-      if (overlay.userData.type === 'eclipse_overlay') {
-        overlay.material.opacity = Math.min(0.35, 0.1 + intensity * 0.25);
-      }
-    });
+    }
+
+    for (let i = 0; i < this.vfxContainer.overlays.length; i++) {
+      const overlay = this.vfxContainer.overlays[i];
+      if (overlay?.userData?.type !== 'quantum_vignette') continue;
+
+      overlay.material.opacity = overlay.userData.baseOpacity * (0.42 + pulse * 0.95 + beat * 0.18);
+      overlay.rotation.z += deltaTime * 0.035;
+      overlay.material.color.copy(palette.deep).lerp(palette.glow, pulse * 0.18 + beat * 0.08);
+    }
+
+    for (let i = 0; i < this.vfxContainer.beams.length; i++) {
+      const ray = this.vfxContainer.beams[i];
+      if (ray?.userData?.type !== 'quantum_ray') continue;
+
+      const wave = 0.5 + 0.5 * Math.sin(this.animationTime * 1.15 + ray.userData.phaseOffset);
+      ray.material.opacity = ray.userData.baseOpacity * (0.4 + wave * 0.95 + pulse * 0.42);
+      ray.material.color.copy(palette.accent).lerp(palette.glow, wave * 0.4 + pulse * 0.18);
+    }
+
+    for (let i = 0; i < this.vfxContainer.particles.length; i++) {
+      const fragment = this.vfxContainer.particles[i];
+      if (fragment?.userData?.type !== 'quantum_fragment') continue;
+
+      fragment.userData.orbitAngle += fragment.userData.orbitSpeed * deltaTime * 0.45;
+      const radius = fragment.userData.orbitRadius + Math.sin(this.animationTime * 0.8 + fragment.userData.phaseOffset) * (2.5 + pulse * 8);
+      fragment.position.x = Math.cos(fragment.userData.orbitAngle) * radius;
+      fragment.position.z = Math.sin(fragment.userData.orbitAngle) * radius - 122;
+      fragment.position.y = 80 + fragment.userData.orbitTilt + Math.sin(this.animationTime * 0.9 + fragment.userData.phaseOffset) * (4 + pulse * 7);
+      fragment.rotation.x += deltaTime * 0.25;
+      fragment.rotation.y += deltaTime * 0.31;
+      fragment.rotation.z += deltaTime * 0.18;
+      fragment.scale.setScalar(fragment.userData.baseScale * (0.88 + pulse * 0.35 + beat * 0.12));
+      fragment.material.opacity = fragment.userData.baseOpacity * (0.34 + pulse * 0.72 + beat * 0.18);
+      fragment.material.color.copy(palette.base).lerp(palette.aura, beat * 0.5 + pulse * 0.18);
+    }
   }
   
   /**
    * AURORA STATE - Global light ribbon event
    */
   createAuroraStateVFX(eventDef) {
-    // LEGACY_AURA_DISABLED
-    // This aura system is disabled to prevent visual stack conflicts.
-    // Core aura stack is:
-    // - hover (NodeAuraSystem_v1)
-    // - selected (_UISelectedNodeHighlight)
-    // - linked (NodeLinkedAuraSystem)
-    if (false && ENABLE_LEGACY_AURAS) {
-      // Create aurora ribbon meshes at horizon
-      for (let i = 0; i < 3; i++) {
-        const auraGeo = new THREE.PlaneGeometry(200, 30);
-        const auraMat = new THREE.MeshBasicMaterial({
-          color: [0xff0000, 0x00ff00, 0x0000ff][i],
-          transparent: true,
-          opacity: 0,
-          emissive: [0xff0000, 0x00ff00, 0x0000ff][i],
-          emissiveIntensity: 0.7,
-          fog: false
-        });
-        
-        const aurora = new THREE.Mesh(auraGeo, auraMat);
-        aurora.position.set(0, 30 + i * 20, -99);
-        aurora.userData = {
-          isLegendaryWorldVFX: true,
-          type: 'aurora_ribbon',
-          index: i,
-          baseColor: [0xff0000, 0x00ff00, 0x0000ff][i]
-        };
-        
-        this.root.add(aurora);
-        this.vfxContainer.overlays.push(aurora);
-      }
-    }
-    
-    // Create trail particles
-    for (let i = 0; i < 30; i++) {
-      const trailGeo = new THREE.SphereGeometry(0.45, 8, 8);
-      const trailMat = new THREE.MeshBasicMaterial({
-        color: eventDef.color,
-        transparent: true,
-        opacity: 0.45,
+    const palette = this.legendaryPalettes.AURORA_STATE;
+    const seed = this.registry.seed || 0;
+    const auroraTexture = this.legendaryMasks.aurora;
+
+    const beacon = this._createLegendaryMesh(
+      new THREE.SphereGeometry(5.6, 20, 16),
+      this._createLegendaryMeshMaterial({
+        color: palette.accent,
+        opacity: 0.42,
         blending: THREE.AdditiveBlending,
-        emissive: eventDef.color,
-        emissiveIntensity: 1.0,
-        fog: false
-      });
-      
-      const trail = new THREE.Mesh(trailGeo, trailMat);
-      tagAllowedSphere(trail, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
-      clampSphere(trail);
-      const spawnPos = this._getWorldSpawnPosition({ minHeight: 20, maxHeight: 80, minRadius: 100 });
-      trail.position.copy(spawnPos);
-      trail.userData = {
-        isLegendaryWorldVFX: true,
-        type: 'aurora_particle',
-        angle: Math.random() * Math.PI * 2,
-        speed: 1 + Math.random() * 2
-      };
-      
-      this.root.add(trail);
-      this.vfxContainer.particles.push(trail);
+        depthWrite: false,
+        depthTest: false
+      }),
+      {
+        type: 'aurora_beacon',
+        phaseOffset: seed * 0.15,
+        baseOpacity: 0.42
+      }
+    );
+    beacon.position.set(0, 34, -110);
+    tagAllowedSphere(beacon, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
+    clampSphere(beacon);
+    this._registerLegendaryObject('meshes', beacon);
+
+    const beaconRing = this._createLegendaryMesh(
+      new THREE.RingGeometry(12, 16, 160),
+      this._createLegendaryMeshMaterial({
+        color: palette.glow,
+        opacity: 0.24,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide
+      }),
+      {
+        type: 'aurora_ring',
+        phaseOffset: seed * 0.27,
+        baseOpacity: 0.24
+      }
+    );
+    beaconRing.position.set(0, 34, -110);
+    beaconRing.rotation.x = Math.PI * 0.5;
+    beaconRing.rotation.z = Math.PI * 0.12;
+    this._registerLegendaryObject('meshes', beaconRing);
+
+    const veilSheet = this._createLegendaryMesh(
+      new THREE.PlaneGeometry(540, 220),
+      this._createLegendaryMeshMaterial({
+        color: palette.deep,
+        map: auroraTexture,
+        opacity: 0.12,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide
+      }),
+      {
+        type: 'aurora_sheet',
+        phaseOffset: seed * 0.33,
+        baseOpacity: 0.12
+      }
+    );
+    veilSheet.position.set(0, 28, -144);
+    veilSheet.rotation.x = -0.2;
+    veilSheet.rotation.z = 0.02;
+    this._registerLegendaryObject('overlays', veilSheet);
+
+    const crownSheet = this._createLegendaryMesh(
+      new THREE.PlaneGeometry(420, 120),
+      this._createLegendaryMeshMaterial({
+        color: palette.base,
+        map: auroraTexture,
+        opacity: 0.16,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide
+      }),
+      {
+        type: 'aurora_crown',
+        phaseOffset: seed * 0.41,
+        baseOpacity: 0.16
+      }
+    );
+    crownSheet.position.set(0, 46, -118);
+    crownSheet.rotation.x = -0.14;
+    crownSheet.rotation.z = -0.04;
+    this._registerLegendaryObject('overlays', crownSheet);
+
+    const curtainPositions = [-112, -42, 36, 108];
+    for (let i = 0; i < curtainPositions.length; i++) {
+      const curtain = this._createLegendaryMesh(
+        new THREE.PlaneGeometry(340, 148),
+        this._createLegendaryMeshMaterial({
+          color: i % 2 === 0 ? palette.base : palette.aura,
+          map: auroraTexture,
+          opacity: 0.16,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          depthTest: false,
+          side: THREE.DoubleSide
+        }),
+        {
+          type: 'aurora_curtain',
+          index: i,
+          baseX: curtainPositions[i],
+          baseY: 30 + i * 5,
+          baseZ: -116 - i * 7,
+          phaseOffset: seed * 0.2 + i * 0.5,
+          waveSpeed: 0.52 + i * 0.06,
+          swaySpeed: 0.28 + i * 0.03,
+          baseOpacity: 0.16
+        }
+      );
+      curtain.position.set(curtain.userData.baseX, curtain.userData.baseY, curtain.userData.baseZ);
+      curtain.rotation.x = -0.16;
+      curtain.rotation.z = -0.08 + i * 0.04;
+      this._registerLegendaryObject('overlays', curtain);
     }
-    
-    const auroraGeo = new THREE.PlaneGeometry(420, 120);
-    const auroraMat = new THREE.MeshBasicMaterial({
-      color: eventDef.color,
-      transparent: true,
-      opacity: 0.15,
-      blending: THREE.AdditiveBlending,
-      emissive: eventDef.color,
-      emissiveIntensity: 0.8,
-      fog: false,
-      side: THREE.DoubleSide
-    });
-    const auroraSheet = new THREE.Mesh(auroraGeo, auroraMat);
-    auroraSheet.position.set(0, 30, -130);
-    auroraSheet.rotation.x = -0.15;
-    auroraSheet.userData = { isLegendaryWorldVFX: true, type: 'aurora_sheet' };
-    this.root.add(auroraSheet);
-    this.vfxContainer.overlays.push(auroraSheet);
+
+    for (let i = 0; i < 20; i++) {
+      const angle = (i / 20) * Math.PI * 2 + seed * 0.09;
+      const orbitRadius = 26 + (i % 5) * 9;
+      const orbitHeight = 16 + Math.sin(angle * 2.0 + seed) * 8;
+      const mote = this._createLegendaryMesh(
+        new THREE.SphereGeometry(0.42, 8, 8),
+        this._createLegendaryMeshMaterial({
+          color: i % 2 === 0 ? palette.base : palette.accent,
+          opacity: 0.44,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          depthTest: false
+        }),
+        {
+          type: 'aurora_particle',
+          angle,
+          orbitRadius,
+          orbitHeight,
+          orbitSpeed: 0.22 + (i % 4) * 0.05,
+          riseSpeed: 0.58 + (i % 5) * 0.08,
+          pulseOffset: seed * 0.18 + i * 0.35,
+          baseScale: 0.72 + (i % 3) * 0.08,
+          baseOpacity: 0.44
+        }
+      );
+      mote.position.set(
+        Math.cos(angle) * orbitRadius,
+        orbitHeight,
+        Math.sin(angle) * orbitRadius - 112
+      );
+      tagAllowedSphere(mote, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
+      clampSphere(mote);
+      this._registerLegendaryObject('particles', mote);
+    }
   }
   
   /**
    * Update aurora state VFX
    */
   updateAuroraStateVFX(intensity, deltaTime) {
-    const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff];
-    
-    // Update aurora ribbons with color cycling
-    this.vfxContainer.overlays.forEach(overlay => {
-      if (overlay.userData.type === 'aurora_ribbon') {
-        // Color cycling
-        const colorIdx = Math.floor((this.animationTime * 2 + overlay.userData.index) % colors.length);
-        const nextIdx = (colorIdx + 1) % colors.length;
-        const t = (Math.sin(this.animationTime * 3 + overlay.userData.index) + 1) * 0.5;
-        
-        overlay.material.opacity = 0.3 * intensity;
-        
-        // Wave effect
-        overlay.position.y += Math.sin(this.animationTime * 1.5 + overlay.userData.index) * 0.5;
-      }
-    });
-    
-    // Update aurora particles
-    this.vfxContainer.particles.forEach(particle => {
-      if (particle.userData.type === 'aurora_particle') {
-        particle.userData.angle += particle.userData.speed * deltaTime * 0.3;
-        
-        const radius = 30 + Math.sin(this.animationTime + particle.userData.angle) * 18;
-        particle.position.x = Math.cos(particle.userData.angle) * radius;
-        particle.position.z = Math.sin(particle.userData.angle) * radius;
-        particle.position.y = 20 + Math.sin(this.animationTime * 0.8 + particle.userData.angle) * 12;
-        
-        particle.material.opacity = Math.min(0.9, 0.45 + intensity * 0.45);
-      }
-    });
+    const beat = this._getLegendaryBeat(0.58, this.registry.seed * 0.19, 0.72, 1.0);
+    const pulse = intensity * beat;
+    const palette = this.legendaryPalettes.AURORA_STATE;
 
-    this.vfxContainer.overlays.forEach(overlay => {
-      if (overlay.userData.type === 'aurora_sheet') {
-        overlay.material.opacity = Math.min(0.45, 0.15 + intensity * 0.3);
-        overlay.rotation.z += deltaTime * 0.05 * intensity;
+    for (let i = 0; i < this.vfxContainer.meshes.length; i++) {
+      const mesh = this.vfxContainer.meshes[i];
+      const type = mesh?.userData?.type;
+      if (!type) continue;
+
+      if (type === 'aurora_beacon') {
+        mesh.scale.setScalar(1 + pulse * 0.3 + beat * 0.1);
+        mesh.material.opacity = mesh.userData.baseOpacity * (0.62 + pulse * 0.5);
+        mesh.material.color.copy(palette.accent).lerp(palette.base, beat * 0.4);
+      } else if (type === 'aurora_ring') {
+        mesh.scale.setScalar(1 + pulse * 0.22);
+        mesh.rotation.z += deltaTime * 0.08;
+        mesh.material.opacity = mesh.userData.baseOpacity * (0.55 + pulse * 0.68);
+        mesh.material.color.copy(palette.glow).lerp(palette.accent, beat * 0.28 + pulse * 0.12);
       }
-    });
+    }
+
+    for (let i = 0; i < this.vfxContainer.overlays.length; i++) {
+      const overlay = this.vfxContainer.overlays[i];
+      const type = overlay?.userData?.type;
+      if (!type) continue;
+
+      if (type === 'aurora_sheet') {
+        overlay.material.opacity = overlay.userData.baseOpacity * (0.5 + pulse * 0.92 + beat * 0.18);
+        overlay.rotation.z += deltaTime * 0.025;
+        overlay.scale.setScalar(1 + pulse * 0.08);
+        overlay.material.color.copy(palette.deep).lerp(palette.aura, beat * 0.26);
+      } else if (type === 'aurora_crown') {
+        overlay.material.opacity = overlay.userData.baseOpacity * (0.55 + pulse * 0.75 + beat * 0.15);
+        overlay.rotation.z += deltaTime * 0.03;
+        overlay.scale.setScalar(1 + pulse * 0.06);
+        overlay.material.color.copy(palette.base).lerp(palette.accent, beat * 0.3 + pulse * 0.2);
+      } else if (type === 'aurora_curtain') {
+        const wave = 0.5 + 0.5 * Math.sin(this.animationTime * overlay.userData.waveSpeed + overlay.userData.phaseOffset);
+        const sway = Math.sin(this.animationTime * overlay.userData.swaySpeed + overlay.userData.phaseOffset) * (2 + pulse * 4);
+        overlay.position.x = overlay.userData.baseX + sway;
+        overlay.position.y = overlay.userData.baseY + Math.sin(this.animationTime * 0.45 + overlay.userData.phaseOffset) * (1.5 + pulse * 2.5);
+        overlay.position.z = overlay.userData.baseZ + Math.cos(this.animationTime * 0.32 + overlay.userData.phaseOffset) * 2;
+        overlay.rotation.z = (-0.08 + overlay.userData.index * 0.04) + Math.sin(this.animationTime * 0.18 + overlay.userData.phaseOffset) * 0.07;
+        overlay.scale.setScalar(1 + wave * 0.05 + pulse * 0.08);
+        overlay.material.opacity = overlay.userData.baseOpacity * (0.42 + wave * 0.82 + pulse * 0.45);
+        overlay.material.color.copy(palette.base).lerp(palette.accent, wave * 0.42 + pulse * 0.22);
+      }
+    }
+
+    for (let i = 0; i < this.vfxContainer.particles.length; i++) {
+      const particle = this.vfxContainer.particles[i];
+      if (particle?.userData?.type !== 'aurora_particle') continue;
+
+      particle.userData.angle += particle.userData.orbitSpeed * deltaTime * 0.55;
+      const radius = particle.userData.orbitRadius + Math.sin(this.animationTime * 0.8 + particle.userData.pulseOffset) * (6 + pulse * 6);
+      particle.position.x = Math.cos(particle.userData.angle) * radius;
+      particle.position.z = Math.sin(particle.userData.angle) * radius - 112;
+      particle.position.y = particle.userData.orbitHeight + Math.sin(this.animationTime * particle.userData.riseSpeed + particle.userData.pulseOffset) * (8 + pulse * 10);
+      particle.scale.setScalar(particle.userData.baseScale * (0.82 + beat * 0.42 + pulse * 0.22));
+      particle.material.opacity = particle.userData.baseOpacity * (0.26 + beat * 0.62 + pulse * 0.42);
+      particle.material.color.copy(palette.base).lerp(palette.accent, beat * 0.5 + pulse * 0.2);
+    }
   }
   
   /**
@@ -1066,7 +2029,8 @@ export class SafeLegendaryWorldEvents {
       timer: 0,
       intensity: 0,
       duration: 0,
-      phase: 'idle'
+      phase: 'idle',
+      seed: 0
     };
     this.lastEventTime = 0;
     this.interpretationAccumulator = this.config.eventInterpretationInterval;
@@ -1086,6 +2050,7 @@ export class SafeLegendaryWorldEvents {
       this.registry.intensity = 0;
       this.registry.duration = 0;
       this.registry.phase = 'idle';
+      this.registry.seed = 0;
     }
 
     // Clear tracking timestamps

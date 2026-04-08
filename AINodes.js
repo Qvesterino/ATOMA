@@ -133,7 +133,6 @@ import { updateHologramShellMaterial, reassertNodeHologramShell } from './CoreHo
 import { reassertNodeNeonEdgeGlow } from './shaders/NeonEdgeGlowShader.js';
 import { NodeCategoryAudit, auditNodeVisuals } from './Engine/Debug/NodeCategoryAudit.js';
 import { assignLinkTarget } from './LinkTargetContract.js';
-import { LegacyNodeModelFilter } from './LegacyNodeModelFilter.js';
 import { NodeVisualAuthorityRuntime } from './NodeVisualAuthorityRuntime.js';
 
 function vfxFlag(name, def = true) {
@@ -1692,15 +1691,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
 
     // ========================================================================
-    // [SPAWN AUTHORITY] Keep LegacyNodeModelFilter for visual safety
-    // Removed redundant SUPPORTED_CATEGORIES, validateCategory, and ensureFactoriesReady checks
-    // Category validation is done in spawnNode(), createNode() trusts that input
+    // [SPAWN AUTHORITY] Category validation is done in spawnNode(), createNode() trusts that input
     // ========================================================================
     let safeCategory = canonicalCategory;
-
-    // ========== LEGACY NODE MODEL FILTER v1.0 ==========
-    // Block legacy models that use aura-as-body visuals
-    LegacyNodeModelFilter.validateSpawn(safeCategory, true); // warn-only; no remap
 
     this._poolGuardLog = this._poolGuardLog || new Set();
     EnhancedNodeModels.ensureRegistryReady();

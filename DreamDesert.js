@@ -727,7 +727,7 @@ export class DreamDesert {
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('vColor', new THREE.BufferAttribute(colors, 3));
     geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
 
     const material = new THREE.ShaderMaterial({
@@ -736,30 +736,29 @@ export class DreamDesert {
       },
       vertexShader: `
         attribute float aSize;
-        attribute vec3 color;
-        varying vec3 vColor;
+        attribute vec3 vColor;
+        varying vec3 vColorOut;
         uniform float uPixelRatio;
         void main() {
-          vColor = color;
+          vColorOut = vColor;
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = aSize * (uPixelRatio / -mvPosition.z);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
       fragmentShader: `
-        varying vec3 vColor;
+        varying vec3 vColorOut;
         void main() {
           vec2 uv = gl_PointCoord * 2.0 - 1.0;
           float dist = length(uv);
           float alpha = smoothstep(1.0, 0.4, dist);
           if (alpha < 0.05) discard;
-          gl_FragColor = vec4(vColor, alpha * 0.85);
+          gl_FragColor = vec4(vColorOut, alpha * 0.85);
         }
       `,
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      vertexColors: true
+      blending: THREE.AdditiveBlending
     });
 
     const auroraPoints = new THREE.Points(geometry, material);

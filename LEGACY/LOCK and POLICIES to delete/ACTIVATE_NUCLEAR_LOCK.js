@@ -13,7 +13,6 @@
  */
 
 import { NuclearLock, setupNuclearLockConsoleAPI } from './AbsoluteLinkStateNuclearLock.js';
-import { LegacyShutdown, setupLegacyShutdownConsoleAPI } from './LegacyLinkStateShutdown.js';
 import { FrameEnforcement, setupFrameEnforcement, setupFrameEnforcementConsoleAPI } from './FrameEnforcementEngine.js';
 
 /**
@@ -33,32 +32,7 @@ export function activateNuclearLockEverywhere(renderer, scene, camera) {
   };
   
   // ============================================================
-  // STEP 1: LEGACY SHUTDOWN
-  // ============================================================
-  try {
-    console.group('[NUCLEAR LOCK] STEP 1: Legacy Link-State Shutdown');
-    
-    const legacyReport = LegacyShutdown.activateLegacyShutdown(scene);
-    
-    activationState.steps.push({
-      name: 'Legacy Shutdown',
-      status: 'SUCCESS',
-      report: legacyReport
-    });
-    
-    console.log('✅ Legacy systems disabled and protected');
-    console.groupEnd();
-  } catch (err) {
-    console.error('❌ Legacy shutdown failed:', err);
-    activationState.steps.push({
-      name: 'Legacy Shutdown',
-      status: 'FAILED',
-      error: err.message
-    });
-  }
-  
-  // ============================================================
-  // STEP 2: ABSOLUTE LOCK VALIDATION
+  // STEP 1: ABSOLUTE LOCK VALIDATION
   // ============================================================
   try {
     console.group('[NUCLEAR LOCK] STEP 2: Absolute Lock Validation');
@@ -119,12 +93,10 @@ export function activateNuclearLockEverywhere(renderer, scene, camera) {
     console.group('[NUCLEAR LOCK] STEP 4: Console APIs');
     
     setupNuclearLockConsoleAPI(scene);
-    setupLegacyShutdownConsoleAPI(scene);
     // setupFrameEnforcementConsoleAPI();  // DISABLED with frame enforcement
     
     console.log('✅ Console APIs registered:');
     console.log('   - window.__nuclearLock');
-    console.log('   - window.__legacyShutdown');
     console.log('   - window.__frameEnforcementConsole (DISABLED)');
     console.groupEnd();
   } catch (err) {
@@ -195,12 +167,6 @@ export function activateNuclearLockEverywhere(renderer, scene, camera) {
       console.log('   → Use Nuclear Lock validation instead');
       console.groupEnd();
       
-      // Legacy shutdown report
-      console.group('Legacy Shutdown Status:');
-      const legacyStatus = window.__legacyShutdown?.report?.();
-      console.log(legacyStatus || 'Not available');
-      console.groupEnd();
-      
       console.groupEnd();
     },
     
@@ -218,7 +184,6 @@ export function activateNuclearLockEverywhere(renderer, scene, camera) {
      */
     reset: () => {
       // window.__frameEnforcementConsole?.reset?.();  // DISABLED with frame enforcement
-      window.__legacyShutdown?.report?.();
       console.log('✅ Violation tracking reset (frame enforcement disabled)');
     },
     
@@ -229,7 +194,6 @@ export function activateNuclearLockEverywhere(renderer, scene, camera) {
       return {
         timestamp: Date.now(),
         nuclearLock: window.__nuclearLock,
-        legacyShutdown: window.__legacyShutdown,
         frameEnforcement: 'DISABLED (optimization 2026-03-01)',
         activationState: activationState
       };

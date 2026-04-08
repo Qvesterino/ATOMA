@@ -1,3 +1,5 @@
+import { getUIVisibilitySettingsRows } from './ui/config/UIVisibilityConfig.js';
+
 const MENU_PROFILE_STORAGE_KEY = 'atoma.menu.profile.v1';
 const MENU_SNAPSHOT_STORAGE_KEY = 'atoma.menu.snapshot.v1';
 const MENU_STYLE_ID = 'atoma-main-menu-style';
@@ -185,7 +187,7 @@ export function ensureMenuStyles() {
             color: #d8fbff;
             opacity: 1;
             transition: opacity 180ms ease;
-            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            font-family: 'Rajdhani', 'Segoe UI', sans-serif;
         }
 
         .atoma-main-menu.atoma-pause-menu {
@@ -313,6 +315,15 @@ export function ensureMenuStyles() {
             align-items: stretch;
         }
 
+        .atoma-main-menu__section {
+            margin-top: 8px;
+            color: rgba(119, 243, 255, 0.88);
+            font-size: 12px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            text-align: center;
+        }
+
         .atoma-main-menu__list {
             display: flex;
             flex-direction: column;
@@ -348,6 +359,13 @@ export function ensureMenuStyles() {
         .atoma-main-menu__button--setting {
             justify-content: space-between;
             text-align: left;
+        }
+
+        .atoma-main-menu__button--toggle {
+            justify-content: space-between;
+            text-align: left;
+            border-color: rgba(108, 234, 255, 0.10);
+            background: rgba(10, 28, 40, 0.12);
         }
 
         .atoma-main-menu__button--map {
@@ -488,23 +506,27 @@ export function ensureMenuStyles() {
 export function getSettingsRows(settings) {
     return [
         {
+            type: 'setting',
             id: 'sound',
             label: 'SOUND',
             value: `[${'='.repeat(settings.soundLevel / 20)}${'-'.repeat(5 - (settings.soundLevel / 20))}] ${String(settings.soundLevel).padStart(3, ' ')}%`,
             description: 'Cycles the stored boot audio level in 20% steps.',
         },
         {
+            type: 'setting',
             id: 'visuals',
             label: 'VISUALS',
             value: `[ ${settings.visuals} ]`,
             description: 'Adjusts menu presentation intensity without touching live gameplay systems.',
         },
         {
+            type: 'setting',
             id: 'particles',
             label: 'PARTICLES',
             value: `[ ${settings.particles ? 'ON' : 'OFF'} ]`,
             description: 'Enables or disables the menu atmosphere particle drift.',
         },
+        ...getUIVisibilitySettingsRows(),
     ];
 }
 
@@ -606,7 +628,7 @@ export class MainMenu {
         if (this._screenEntries.length === 0) {
             this.state.selectedIndex = 0;
         } else {
-            this.state.selectedIndex = clamp(this.state.selectedIndex, 0, this._screenEntries.length - 1);
+            this.state.selectedIndex = this._findSelectableIndex(this.state.selectedIndex, 1);
         }
 
         this._renderScreen();
@@ -706,6 +728,7 @@ export class MainMenu {
                 label: map.label,
                 meta: map.description,
                 type: 'map',
+                selectable: true,
             }));
         }
 
@@ -715,7 +738,9 @@ export class MainMenu {
                 label: row.label,
                 value: row.value,
                 meta: row.description,
-                type: 'setting',
+                type: row.type || 'setting',
+                selectable: row.selectable !== false,
+                action: row.action || null,
             }));
         }
 
@@ -767,10 +792,10 @@ export class MainMenu {
 
         if (this.state.screen === 'SETTINGS') {
             const selectedSetting = this._getSelectedEntry();
-            this.subtitle.textContent = 'Simple menu-owned settings. No gameplay wiring, no scene mutation.';
+            this.subtitle.textContent = 'Simple menu-owned settings and persistent HUD visibility controls.';
             this.screenTitle.textContent = 'SETTINGS';
-            this.description.textContent = selectedSetting ? selectedSetting.meta : '';
-            this.hint.textContent = 'UP / DOWN TO SELECT  |  ENTER OR LEFT / RIGHT TO ADJUST  |  ESC TO BACK';
+            this.description.textContent = selectedSetting ? selectedSetting.meta : 'UI visibility controls persist across reloads.';
+            this.hint.textContent = 'UP / DOWN TO SELECT  |  ENTER TO ACTIVATE  |  LEFT / RIGHT FOR BASE SETTINGS  |  ESC TO BACK';
             this.status.textContent = 'Sound level is stored for boot. Visuals and particles affect the menu atmosphere only.';
             this._renderEntryList(this._screenEntries);
             return;
@@ -789,6 +814,14 @@ export class MainMenu {
         list.className = 'atoma-main-menu__list';
 
         entries.forEach((entry, index) => {
+            if (entry.type === 'section') {
+                const section = document.createElement('div');
+                section.className = 'atoma-main-menu__section';
+                section.textContent = entry.label;
+                list.appendChild(section);
+                return;
+            }
+
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'atoma-main-menu__button';
@@ -797,6 +830,9 @@ export class MainMenu {
 
             if (entry.type === 'setting') {
                 button.classList.add('atoma-main-menu__button--setting');
+            }
+            if (entry.type === 'visibility') {
+                button.classList.add('atoma-main-menu__button--setting', 'atoma-main-menu__button--toggle');
             }
             if (entry.type === 'map') {
                 button.classList.add('atoma-main-menu__button--map');
@@ -840,6 +876,7 @@ export class MainMenu {
                 key: button.dataset.entryKey,
                 element: button,
                 marker,
+                entryIndex: index,
             });
         });
 
@@ -870,13 +907,46 @@ export class MainMenu {
         return this._screenEntries[this.state.selectedIndex] || null;
     }
 
+    _isSelectableEntry(entry) {
+        return !!entry && entry.selectable !== false;
+    }
+
+    _findSelectableIndex(index, direction = 1) {
+        if (this._screenEntries.length === 0) {
+            return 0;
+        }
+
+        const lastIndex = this._screenEntries.length - 1;
+        const clampedIndex = clamp(index, 0, lastIndex);
+        if (this._isSelectableEntry(this._screenEntries[clampedIndex])) {
+            return clampedIndex;
+        }
+
+        const step = direction >= 0 ? 1 : -1;
+        for (let offset = 1; offset <= lastIndex; offset += 1) {
+            const nextIndex = clampedIndex + (offset * step);
+            if (nextIndex >= 0 && nextIndex <= lastIndex && this._isSelectableEntry(this._screenEntries[nextIndex])) {
+                return nextIndex;
+            }
+        }
+
+        for (let offset = 1; offset <= lastIndex; offset += 1) {
+            const nextIndex = clampedIndex - (offset * step);
+            if (nextIndex >= 0 && nextIndex <= lastIndex && this._isSelectableEntry(this._screenEntries[nextIndex])) {
+                return nextIndex;
+            }
+        }
+
+        return 0;
+    }
+
     setSelectedIndex(index, { refresh = true } = {}) {
         if (this._screenEntries.length === 0) {
             this.state.selectedIndex = 0;
             return false;
         }
 
-        const nextIndex = clamp(index, 0, this._screenEntries.length - 1);
+        const nextIndex = this._findSelectableIndex(index, index >= this.state.selectedIndex ? 1 : -1);
         if (nextIndex === this.state.selectedIndex) {
             return false;
         }
@@ -897,7 +967,18 @@ export class MainMenu {
             return;
         }
 
-        this.setSelectedIndex(this.state.selectedIndex + delta);
+        const step = delta >= 0 ? 1 : -1;
+        for (let offset = 1; offset <= this._screenEntries.length; offset += 1) {
+            const candidate = this.state.selectedIndex + (offset * step);
+            if (candidate < 0 || candidate >= this._screenEntries.length) {
+                break;
+            }
+
+            if (this._isSelectableEntry(this._screenEntries[candidate])) {
+                this.setSelectedIndex(candidate);
+                return;
+            }
+        }
     }
 
     _activateCurrentEntry() {
@@ -923,6 +1004,12 @@ export class MainMenu {
         }
 
         if (this.state.screen === 'SETTINGS') {
+            if (entry.type === 'visibility') {
+                entry.action?.();
+                this.refresh();
+                return;
+            }
+
             this._cycleSetting(entry.id, 1);
         }
     }
@@ -1115,7 +1202,7 @@ export class MainMenu {
 
     _updateFocusableVisuals(pulse) {
         this._focusableRefs.forEach((ref, index) => {
-            const selected = index === this.state.selectedIndex;
+            const selected = ref.entryIndex === this.state.selectedIndex;
             const targetScale = selected ? 1.08 + (pulse * 0.018) : 1;
             const targetOpacity = selected ? 1 : 0.46;
             const targetGlow = selected ? 1 : 0;

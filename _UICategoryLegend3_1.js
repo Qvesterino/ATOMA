@@ -1,3 +1,5 @@
+import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from './ui/config/UIVisibilityConfig.js';
+
 /**
  * UI CATEGORY LEGEND 3.1 - UPDATED (Session 28 + Node Count Visualization)
  * 
@@ -20,6 +22,7 @@ export class UICategoryLegend3_1 {
   constructor(aiNodes = null) {
     this.element = null;
     this.isVisible = true;
+    this.aiNodes = aiNodes;
     this.unsubscribe = null;
     
     // Mood display support
@@ -61,6 +64,11 @@ export class UICategoryLegend3_1 {
     }
     
     this._initializeDOM();
+    this._handleUIVisibilityChange = () => this._syncVisibility();
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener(UI_VISIBILITY_CHANGE_EVENT, this._handleUIVisibilityChange);
+    }
+    this._syncVisibility();
     if (aiNodes) {
       this.bind(aiNodes);
     }
@@ -82,7 +90,7 @@ export class UICategoryLegend3_1 {
       border: 1.5px solid #36F2FF;
       border-radius: 8px;
       padding: 10px 8px;
-      font-family: 'Courier New', monospace;
+      font-family: 'Rajdhani', 'Segoe UI', sans-serif;
       font-size: 10px;
       color: #36F2FF;
       letter-spacing: 0.4px;
@@ -104,6 +112,7 @@ export class UICategoryLegend3_1 {
     this.moodTitleElement = document.createElement('div');
     this.moodTitleElement.className = 'ui-category-legend-mood-title';
     this.moodTitleElement.style.cssText = `
+      font-family: 'Orbitron', 'Segoe UI', sans-serif;
       font-weight: bold;
       margin-bottom: 2px;
       font-size: 10px;
@@ -254,6 +263,8 @@ export class UICategoryLegend3_1 {
    * @param {Array} nodesArray - Array of node objects from AINodes
    */
   updateCategoryCounts(nodesArray) {
+    if (!UIVisibilityConfig.categoryLegend) return;
+
     // Reset all counts
     for (const category of Object.keys(this.categories)) {
       this.categoryCounts.set(category, 0);
@@ -281,6 +292,7 @@ export class UICategoryLegend3_1 {
 
   bind(aiNodes) {
     if (!aiNodes) return;
+    this.aiNodes = aiNodes;
     // seed initial counts from AINodes spawn counters if available
     if (typeof aiNodes.getSpawnCategoryCounts === 'function') {
       const counts = aiNodes.getSpawnCategoryCounts();
@@ -293,6 +305,7 @@ export class UICategoryLegend3_1 {
     }
     const listener = (evt) => {
       if (!evt || !evt.category) return;
+      if (!UIVisibilityConfig.categoryLegend) return;
       const cat = evt.category;
       if (!this.categoryCounts.has(cat)) return;
       this.categoryCounts.set(cat, evt.totalForCategory ?? (this.categoryCounts.get(cat) + 1));
@@ -344,7 +357,22 @@ export class UICategoryLegend3_1 {
    */
   toggle() {
     this.isVisible = !this.isVisible;
-    this.element.style.display = this.isVisible ? 'block' : 'none';
+    if (this.isVisible) {
+      if (!this.element.isConnected) {
+        document.body.appendChild(this.element);
+      }
+      if (this.aiNodes?.getSpawnCategoryCounts) {
+        const counts = this.aiNodes.getSpawnCategoryCounts();
+        for (const [k, v] of Object.entries(counts)) {
+          if (this.categoryCounts.has(k)) {
+            this.categoryCounts.set(k, v);
+          }
+        }
+        this._refreshLabels();
+      }
+    } else if (this.element.parentNode) {
+      this.element.parentNode.removeChild(this.element);
+    }
   }
   
   /**
@@ -353,7 +381,18 @@ export class UICategoryLegend3_1 {
   show() {
     if (!this.isVisible) {
       this.isVisible = true;
-      this.element.style.display = 'block';
+      if (!this.element.isConnected) {
+        document.body.appendChild(this.element);
+      }
+      if (this.aiNodes?.getSpawnCategoryCounts) {
+        const counts = this.aiNodes.getSpawnCategoryCounts();
+        for (const [k, v] of Object.entries(counts)) {
+          if (this.categoryCounts.has(k)) {
+            this.categoryCounts.set(k, v);
+          }
+        }
+      }
+      this._refreshLabels();
     }
   }
   
@@ -363,8 +402,19 @@ export class UICategoryLegend3_1 {
   hide() {
     if (this.isVisible) {
       this.isVisible = false;
-      this.element.style.display = 'none';
+      if (this.element.parentNode) {
+        this.element.parentNode.removeChild(this.element);
+      }
     }
+  }
+
+  _syncVisibility() {
+    if (!UIVisibilityConfig.categoryLegend) {
+      this.hide();
+      return;
+    }
+
+    this.show();
   }
   
   /**
@@ -385,6 +435,9 @@ export class UICategoryLegend3_1 {
    * Dispose resources
    */
   dispose() {
+    if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+      window.removeEventListener(UI_VISIBILITY_CHANGE_EVENT, this._handleUIVisibilityChange);
+    }
     if (this.element && this.element.parentNode) {
       this.element.remove();
     }

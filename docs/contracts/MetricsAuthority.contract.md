@@ -540,6 +540,10 @@ These are the stable public or canonical metric surfaces:
 - `link.loadPressure.low`
 - `link.loadPressure.mid`
 - `link.loadPressure.high`
+
+Collapse contract note:
+
+- `LinkCollapseSystem` uses `link.corruption.high` + `link.stability.low` held continuously for `10_000 ms` before enqueueing collapse.
 - `hub.synergy.low`
 - `hub.synergy.mid`
 - `hub.synergy.high`
@@ -632,6 +636,7 @@ Currently no active consumers were found for:
 
 Active consumers:
 
+- `LinkCollapseSystem` - `link.corruption.high`, `link.stability.low` (10 s hold before collapse request)
 - `HarmonicHealingVisualSystem_Session134` - `link.harmony.low`, `link.harmony.mid`, `link.harmony.high`
 - `HarmonicRecoveryVisualSystem_Session138` - `link.harmony.low`, `link.harmony.mid`, `link.harmony.high`
 - `LinkCorruptionParticleSystem` - `link.corruption.spread`

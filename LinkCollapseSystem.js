@@ -4,8 +4,8 @@
  * ============================================================================
  * 
  * RESPONSIBILITY:
- * Implement conditional link collapse based on sustained extreme stress
- * and high corruption. Links fail when conditions persist, not randomly.
+ * Implement conditional link collapse based on sustained link corruption
+ * and low link stability. Links fail when conditions persist, not randomly.
  * 
  * DESIGN PHILOSOPHY:
  * - Collapse is EARNED, not punishing
@@ -14,11 +14,9 @@
  * - Collapse is consequence, not random event
  * 
  * COLLAPSE CONDITIONS (ALL must be true):
- * 1. Link corruption > 0.8 (80%)
- * 2. AND either:
- *    a) One or both nodes at critical load (load >= 1.0)
- *    b) OR network stress remains critical for sustained duration (3-5 sec)
- * 3. Conditions must persist for minimum duration (stress accumulation)
+ * 1. Link corruption is high (`link.corruption.high`)
+ * 2. Link stability is low (`link.stability.low`)
+ * 3. Both conditions must persist for the full hold duration
  * 4. Collapse threshold reached → link disconnects
  * 
  * COLLAPSE PROCESS (NOT instant):
@@ -32,6 +30,7 @@
  * EVENT FLOW:
  * - NodeLinkingSystem emits link update callbacks with normalized metrics
  * - LinkCollapseSystem evaluates only on those updates
+ * - LinkCollapseSystem emits scoped tier events when thresholds are entered
  * - LinkCollapseSystem enqueues collapse requests into NodeLinkingSystem
  * - NodeLinkingSystem runs the collapse arbiter and performs unlinking
  *
@@ -52,16 +51,13 @@ export class LinkCollapseSystem {
     
     // Configuration with sensible defaults
     this.config = {
-      // Corruption threshold for collapse eligibility
-      corruptionThreshold: config.corruptionThreshold ?? 0.8,        // 80%
+      // Scoped tier thresholds for collapse eligibility
+      corruptionHighThreshold: config.corruptionHighThreshold ?? config.corruptionThreshold ?? 0.8,
+      stabilityLowThreshold: config.stabilityLowThreshold ?? 0.2,
       
       // Temporal requirements (milliseconds)
-      minStressAccumulation: config.minStressAccumulation ?? 3000,   // 3 seconds
-      collapseWindowMs: config.collapseWindowMs ?? 5000,             // Time to reach full collapse under continuous stress
+      holdDurationMs: config.holdDurationMs ?? config.collapseWindowMs ?? config.minStressAccumulation ?? 10000,
       maxStressWindow: config.maxStressWindow ?? 10000,              // Upper bound for stale state cleanup
-      
-      // Load pressure thresholds
-      criticalLoadThreshold: config.criticalLoadThreshold ?? 1.0,   // 100% capacity
       
       // Collapse progression (0.0 - 1.0 scale)
       warningThreshold: config.warningThreshold ?? 0.3,
@@ -141,6 +137,32 @@ export class LinkCollapseSystem {
     }
   }
 
+  _emitScopedTierEvent(scope, metric, tier, link, state, extra = {}) {
+    const semanticBus = this.semanticBus || (typeof globalThis !== 'undefined' ? globalThis.semanticBus : null);
+    if (!semanticBus?.emit) return;
+
+    const linkId = this._getLinkId(link);
+    const payload = {
+      linkId,
+      sourceId: link?.source?.userData?.nodeId ?? link?.source?.userData?.id ?? link?.source?.uuid ?? null,
+      targetId: link?.target?.userData?.nodeId ?? link?.target?.userData?.id ?? link?.target?.uuid ?? null,
+      corruption: state?.lastObservedCorruption ?? 0,
+      stability: state?.lastObservedStability ?? 1,
+      loadPressure: state?.lastObservedLoad ?? 0,
+      progress: state?.stressAccumulation ?? 0,
+      tier,
+      threshold: extra.threshold ?? null,
+      state: extra.state ?? 'active',
+      source: 'LinkCollapseSystem',
+      timestamp: Date.now(),
+      ...extra,
+    };
+
+    semanticBus.emit(`${scope}.${metric}.${tier}`, payload, {
+      priority: semanticBus.priority?.NORMAL
+    });
+  }
+
   /**
    * Attach to the runtime linking system using passive callbacks.
    */
@@ -205,7 +227,7 @@ export class LinkCollapseSystem {
   /**
    * Event-driven entry point. Called from NodeLinkingSystem link update callbacks.
    */
-  onLinkMetricsUpdated(link, metrics = null) {
+  onLinkMetricsUpdated(link, metrics = null, options = {}) {
     if (!link || !this._isLinkAlive(link)) {
       return;
     }
@@ -220,7 +242,7 @@ export class LinkCollapseSystem {
     const normalized = this._readNormalizedMetrics(link, metrics);
     const signature = this._buildMetricSignature(link, normalized);
 
-    this._advanceCollapseState(link, state, normalized, now);
+    this._advanceCollapseState(link, state, normalized, now, options);
     state.lastMetricSignature = signature;
     state.lastUpdatedAt = now;
   }
@@ -239,17 +261,24 @@ export class LinkCollapseSystem {
    * Update collapse state for a single link (meaning-only; enqueue collapse request)
    * @private
    */
-  _advanceCollapseState(link, state, metrics, now) {
+  _advanceCollapseState(link, state, metrics, now, options = {}) {
     const previousStage = state.collapseStage;
     const previousProgress = state.stressAccumulation;
-    const isEligible = this._isCollapseEligible(link, metrics, state);
+    const eligibility = this._isCollapseEligible(link, metrics, state);
+    const isEligible = eligibility.isEligible;
+
+    state.lastObservedLoad = metrics.loadPressure ?? 0;
+    state.lastObservedCorruption = metrics.corruption ?? 0;
+    state.lastObservedStability = metrics.stability ?? 1;
+
+    this._syncTierSignals(link, state, metrics, now, eligibility, options);
 
     if (isEligible) {
-      if (!state.eligibleSince) {
+      if (state.eligibleSince == null) {
         state.eligibleSince = now;
       }
       const elapsed = Math.max(0, now - state.eligibleSince);
-      state.stressAccumulation = this._clamp01(elapsed / this.config.collapseWindowMs);
+      state.stressAccumulation = this._clamp01(elapsed / this.config.holdDurationMs);
       state.lastStressTime = now;
     } else {
       const deltaMs = Math.max(0, now - (state.lastUpdatedAt ?? now));
@@ -262,8 +291,6 @@ export class LinkCollapseSystem {
     state.collapseStage = this._getCollapseStage(state.stressAccumulation);
     state.progress = state.stressAccumulation;
     state.isEligible = isEligible;
-    state.lastObservedLoad = metrics.loadPressure ?? 0;
-    state.lastObservedCorruption = metrics.corruption ?? 0;
 
     this._applyVisualState(link, state, metrics);
 
@@ -291,27 +318,39 @@ export class LinkCollapseSystem {
   /**
    * Check if link is eligible for collapse
    * ALL of these must be true:
-   * 1. Corruption > 0.8
-   * 2. Either critical load on one/both nodes OR sustained network stress
+   * 1. Corruption is in the high tier
+   * 2. Stability is in the low tier
+   * 3. The paired condition has been held continuously
    * @private
    */
   _isCollapseEligible(link, metrics, state) {
-    const corruption = this._clamp01(this._readMetric(metrics?.corruption, link.userData?.metrics?.corruption, link.corruptionLevel, link.corruptionIntensity));
-    if (corruption <= this.config.corruptionThreshold) {
-      return false;
-    }
+    const corruption = this._clamp01(this._readMetric(
+      metrics?.corruption,
+      link.userData?.metrics?.corruption,
+      link.corruptionLevel,
+      link.corruptionIntensity
+    ));
+    const stability = this._clamp01(this._readMetric(
+      metrics?.stability,
+      link.userData?.metrics?.stability,
+      link.stability,
+      link.stabilityLevel,
+      1 - this._clamp01(metrics?.instability),
+      1 - this._clamp01(link.userData?.metrics?.instability),
+      1 - this._clamp01(link.instability),
+      1 - this._clamp01(link.instabilityLevel)
+    ));
 
-    const sourceLoad = this._readLoadMetric(link.source);
-    const targetLoad = this._readLoadMetric(link.target);
-    const nodeCritical = sourceLoad >= this.config.criticalLoadThreshold ||
-      targetLoad >= this.config.criticalLoadThreshold ||
-      (this._readMetric(metrics?.loadPressure, link.userData?.metrics?.loadPressure) >= this.config.criticalLoadThreshold);
+    const corruptionHigh = corruption >= this.config.corruptionHighThreshold;
+    const stabilityLow = stability <= this.config.stabilityLowThreshold;
 
-    const sustainedStress = state.eligibleSince
-      ? ((Date.now() - state.eligibleSince) >= this.config.minStressAccumulation)
-      : false;
-
-    return nodeCritical || sustainedStress;
+    return {
+      corruption,
+      stability,
+      corruptionHigh,
+      stabilityLow,
+      isEligible: corruptionHigh && stabilityLow,
+    };
   }
   
   /**
@@ -461,6 +500,7 @@ export class LinkCollapseSystem {
       source: 'LinkCollapseSystem',
       stressAccumulation: state?.stressAccumulation,
       corruption: state?.lastObservedCorruption,
+      stability: state?.lastObservedStability,
       loadPressure: state?.lastObservedLoad,
     });
   }
@@ -480,10 +520,17 @@ export class LinkCollapseSystem {
    * @param {Object} link - Link to query
    * @returns {number} Collapse progress (0.0 = stable, 1.0 = collapsed)
    */
-  getCollapseProgress(link) {
-    const state = this.getCollapseState(link);
+  getCollapseProgress(linkOrId) {
+    const state = typeof linkOrId === 'string'
+      ? this.collapseStates.get(linkOrId) || null
+      : this.getCollapseState(linkOrId);
     if (!state) return 0;
     return state.stressAccumulation;
+  }
+
+  getAverageCollapseProgress() {
+    if (this.collapseStates.size === 0) return 0;
+    return this._computeAverageStress();
   }
   
   /**
@@ -535,6 +582,7 @@ export class LinkCollapseSystem {
       criticalLinks: this.linkCriticalStates.size,
       collapsedLinksTracked: this.collapseStates.size,
       averageStress: this._computeAverageStress(),
+      averageCollapseProgress: this._computeAverageStress(),
     };
   }
   
@@ -568,6 +616,9 @@ export class LinkCollapseSystem {
       isEligible: false,
       lastObservedLoad: 0,
       lastObservedCorruption: 0,
+      lastObservedStability: 1,
+      corruptionHighActive: false,
+      stabilityLowActive: false,
       hasCollapsed: false,
       createdAt: Date.now(),
     };
@@ -601,7 +652,7 @@ export class LinkCollapseSystem {
     if (!Array.isArray(links)) return;
     for (const link of links) {
       this.registerLink(link);
-      this.onLinkMetricsUpdated(link, link?.userData?.metrics || null);
+      this.onLinkMetricsUpdated(link, link?.userData?.metrics || null, { silent: true });
     }
   }
 
@@ -642,6 +693,27 @@ export class LinkCollapseSystem {
       link?.corruptionIntensity
     ));
 
+    const endpointStability = this._readMetric(
+      link?.source?.userData?.metrics?.stability,
+      link?.sourceNode?.userData?.metrics?.stability,
+      link?.nodeA?.userData?.metrics?.stability,
+      link?.target?.userData?.metrics?.stability,
+      link?.targetNode?.userData?.metrics?.stability,
+      link?.nodeB?.userData?.metrics?.stability
+    );
+
+    const stability = this._clamp01(this._readMetric(
+      metrics?.stability,
+      link?.userData?.metrics?.stability,
+      link?.stability,
+      link?.stabilityLevel,
+      endpointStability,
+      1 - this._clamp01(metrics?.instability),
+      1 - this._clamp01(link?.userData?.metrics?.instability),
+      1 - this._clamp01(link?.instability),
+      1 - this._clamp01(link?.instabilityLevel)
+    ));
+
     const loadPressure = this._clamp01(this._readMetric(
       metrics?.loadPressure,
       link?.userData?.metrics?.loadPressure,
@@ -652,6 +724,7 @@ export class LinkCollapseSystem {
 
     return {
       corruption,
+      stability,
       loadPressure,
     };
   }
@@ -659,8 +732,9 @@ export class LinkCollapseSystem {
   _buildMetricSignature(link, metrics) {
     const linkId = this._getLinkId(link);
     const corruption = Math.round((metrics?.corruption ?? 0) * 1000);
+    const stability = Math.round((metrics?.stability ?? 0) * 1000);
     const loadPressure = Math.round((metrics?.loadPressure ?? 0) * 1000);
-    return `${linkId}:${corruption}:${loadPressure}`;
+    return `${linkId}:${corruption}:${stability}:${loadPressure}`;
   }
 
   _applyVisualState(link, state, metrics) {
@@ -683,6 +757,7 @@ export class LinkCollapseSystem {
       stage,
       progress,
       corruption: metrics?.corruption ?? 0,
+      stability: metrics?.stability ?? 1,
       loadPressure: metrics?.loadPressure ?? 0,
       eligible: !!state.isEligible,
       hasCollapsed: isActive,
@@ -718,6 +793,37 @@ export class LinkCollapseSystem {
   _clamp01(value) {
     if (!Number.isFinite(value)) return 0;
     return Math.max(0, Math.min(1, value));
+  }
+
+  _syncTierSignals(link, state, metrics, now, eligibility, options = {}) {
+    const corruptionHigh = !!eligibility?.corruptionHigh;
+    const stabilityLow = !!eligibility?.stabilityLow;
+
+    if (corruptionHigh !== state.corruptionHighActive) {
+      state.corruptionHighActive = corruptionHigh;
+      if (corruptionHigh && !options.silent) {
+        this._emitScopedTierEvent('link', 'corruption', 'high', link, state, {
+          threshold: this.config.corruptionHighThreshold,
+          state: 'active',
+          triggeredAt: now,
+        });
+      }
+    }
+
+    if (stabilityLow !== state.stabilityLowActive) {
+      state.stabilityLowActive = stabilityLow;
+      if (stabilityLow && !options.silent) {
+        this._emitScopedTierEvent('link', 'stability', 'low', link, state, {
+          threshold: this.config.stabilityLowThreshold,
+          state: 'active',
+          triggeredAt: now,
+        });
+      }
+    }
+
+    if (!corruptionHigh || !stabilityLow) {
+      state.eligibleSince = null;
+    }
   }
   
   /**

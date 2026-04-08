@@ -8,9 +8,49 @@
  * Language and data binding come later.
  */
 
-export function mountVariantBAdvisorHUD(rootElement) {
+import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from '../config/UIVisibilityConfig.js';
+
+let advisorVisibilityListenerBound = false;
+
+function bindAdvisorHudVisibilityListener() {
+  if (advisorVisibilityListenerBound || typeof window === 'undefined') {
+    return;
+  }
+
+  advisorVisibilityListenerBound = true;
+  window.addEventListener(UI_VISIBILITY_CHANGE_EVENT, syncAdvisorHudVisibility);
+}
+
+function syncAdvisorHudVisibility() {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  const existing = document.querySelector('[data-hud-variant="b-advisor"]');
+
+  if (!UIVisibilityConfig.advisorHUD) {
+    existing?.remove();
+    return;
+  }
+
+  if (!existing) {
+    mountVariantBAdvisorHUD(window.__ATOMA_VARIANT_B_ADVISOR_ROOT__ || document.body, { skipVisibilitySync: true });
+  }
+
+  updateVariantBAdvisorHUD();
+}
+
+export function mountVariantBAdvisorHUD(rootElement, { skipVisibilitySync = false } = {}) {
   const target = rootElement || document.body;
   if (!target) {
+    return null;
+  }
+
+  window.__ATOMA_VARIANT_B_ADVISOR_ROOT__ = target;
+  bindAdvisorHudVisibilityListener();
+
+  if (!UIVisibilityConfig.advisorHUD) {
+    target.querySelectorAll('[data-hud-variant="b-advisor"]').forEach((node) => node.remove());
     return null;
   }
 
@@ -21,6 +61,7 @@ export function mountVariantBAdvisorHUD(rootElement) {
     style.textContent = `
 .variant-b-advisor-hud {
   position: fixed;
+  font-family: 'Rajdhani', 'Segoe UI', sans-serif;
 
   /* ⬅️ presun na PRAVÚ stranu */
   right: 18px;
@@ -54,6 +95,7 @@ export function mountVariantBAdvisorHUD(rootElement) {
 }
 
 .variant-b-advisor-hud .header {
+  font-family: 'Orbitron', 'Segoe UI', sans-serif;
   font-size: 12px;
   letter-spacing: 0.08em;
   color: #6FF3FF;
@@ -163,6 +205,9 @@ export function mountVariantBAdvisorHUD(rootElement) {
     `;
 
   target.appendChild(container);
+  if (!skipVisibilitySync) {
+    updateVariantBAdvisorHUD();
+  }
   return container;
 }
 
@@ -231,6 +276,10 @@ function buildFallbackAdvisorData() {
 }
 
 export function updateVariantBAdvisorHUD(data) {
+  if (!UIVisibilityConfig.advisorHUD) {
+    return;
+  }
+
   const container = document.querySelector('[data-hud-variant="b-advisor"]');
   if (!container) {
     return;
