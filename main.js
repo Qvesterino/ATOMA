@@ -4641,8 +4641,14 @@ class AtomaGame {
             if (this.environmentDomain?.instances?.worldFXPack) return;
             this.worldFXPack?.update?.(dt, this.scene, this.camera);
         }, 'visual.worldFXPack');
-        this.frameScheduler.register('visual', (dt) => this.dreamDepthPack?.update?.(dt, this.dreamDepthWorldSystems), 'visual.dreamDepthPack');
-        this.frameScheduler.register('visual', (dt) => this.dreamDepthEffects?.update?.(dt), 'visual.dreamDepthEffects');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.environmentDomain?.instances?.safeDreamDepthPack) return;
+            this.dreamDepthPack?.update?.(dt, this.dreamDepthWorldSystems);
+        }, 'visual.dreamDepthPack');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.environmentDomain?.instances?.dreamDepthEffectManager) return;
+            this.dreamDepthEffects?.update?.(dt);
+        }, 'visual.dreamDepthEffects');
         this.frameScheduler.register('visual', (dt) => this.mobilityPack?.update?.(dt), 'visual.mobilityPack');
         this.frameScheduler.register('visual', (dt) => this.nodeVisuals4?.update?.(dt), 'visual.nodeVisuals4');
         // REMOVED: extremeShaderTestSuite - moved to LEGACY (2026-04-03)
@@ -5272,6 +5278,8 @@ this.setHudDirty('nodeInspect');
         // Dream Depth Pack (AI DOF simulation)
         this.dreamDepthPack = null;
         this.dreamDepthEffects = null;
+        this.dreamDepthWorldSystems = null;
+        this._teardownDreamDepthDebugBridge();
 
         // Safe Mobility Pack 4.0 (dash + double jump)
         this.mobilityPack = null;
@@ -5850,6 +5858,7 @@ this.setHudDirty('nodeInspect');
         this.emergentThoughtStorms = this.environmentDomain?.instances?.emergentThoughtStorms || this.emergentThoughtStorms;
         this.colonyManager = this.environmentDomain?.instances?.colonyExpansion || this.colonyManager;
         this.hazards = this.environmentDomain?.instances?.environmentalHazards || this.hazards;
+        this._syncDreamDepthRefs();
         if (typeof window !== 'undefined') {
           window.worldEvents = this.worldEvents;
           window.worldEventCoordinator = this.worldEventCoordinator;
@@ -7838,6 +7847,7 @@ window.__ATOMA_SCENE__ = this.scene;
         this.emergentThoughtStorms = this.environmentDomain?.instances?.emergentThoughtStorms || this.emergentThoughtStorms;
         this.colonyManager = this.environmentDomain?.instances?.colonyExpansion || this.colonyManager;
         this.hazards = this.environmentDomain?.instances?.environmentalHazards || this.hazards;
+        this._syncDreamDepthRefs();
         if (this.hazards && this.currentMode === 'fractal') {
             this.hazards.createGravitationalAnomaly(new THREE.Vector3(-40, 10, -40), 20, 0.6);
         }
@@ -11656,8 +11666,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('ambientEntityManager', 'background.ambientEntityManager', (dt) => this.ambientEntityManager?.update?.(dt));
         regGuard('emergentThoughtStorms', 'simulation.emergentThoughtStorms', (dt) => this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem));
         regGuard('colonyManager', 'simulation.colonyManager', (dt) => this.colonyManager?.update?.(dt));
-        regGuard('dreamDepthPack', 'visual.dreamDepthPack', (dt) => this.dreamDepthPack?.update?.(dt, this.dreamDepthWorldSystems));
-        regGuard('dreamDepthEffects', 'visual.dreamDepthEffects', (dt) => this.dreamDepthEffects?.update?.(dt));
+        regGuard('dreamDepthPack', 'visual.dreamDepthPack', (dt) => {
+            if (this.environmentDomain?.instances?.safeDreamDepthPack) return;
+            this.dreamDepthPack?.update?.(dt, this.dreamDepthWorldSystems);
+        });
+        regGuard('dreamDepthEffects', 'visual.dreamDepthEffects', (dt) => {
+            if (this.environmentDomain?.instances?.dreamDepthEffectManager) return;
+            this.dreamDepthEffects?.update?.(dt);
+        });
         regGuard('mobilityPack', 'visual.mobilityPack', (dt) => this.mobilityPack?.update?.(dt));
         regGuard('nodeVisuals4', 'visual.nodeVisuals4', (dt) => this.nodeVisuals4?.update?.(dt));
         regGuard('nodeEvolution', 'simulation.nodeEvolution', (dt) => this.nodeEvolution?.update?.(dt, {}, this.linkingSystem));
@@ -12992,22 +13008,105 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * SAFE: Pure VFX DOF simulation, no camera modifications
      */
     setupDreamDepthPack() {
+        if (this.environmentDomain?.instances?.safeDreamDepthPack) {
+            this.dreamDepthPack = this.environmentDomain.instances.safeDreamDepthPack;
+            this.dreamDepthEffects = this.environmentDomain.instances.dreamDepthEffectManager;
+            this.dreamDepthWorldSystems = this._buildDreamDepthWorldSystems();
+            return;
+        }
+
         this.dreamDepthPack = new SafeDreamDepthPack(this.scene, this.scene, this.camera, this.renderer);
-        this.dreamDepthEffects = new DreamDepthEffectManager(this.scene, this.camera, this.renderer);
+        this.dreamDepthEffects = new DreamDepthEffectManager(this.scene, this.scene, this.camera, this.renderer);
+        this.dreamDepthWorldSystems = this._buildDreamDepthWorldSystems();
 
-        // Initialize with world systems (read-only)
-        const worldSystems = {
-            aiNodes: this.aiNodes,
-            legendaryRegistry: this.legendaryPack?.registry,
-            weatherRegistry: this.weatherPack?.registry,
-            worldEvents: this.worldEvents,
-            colonies: this.colonyManager?.registry?.getAllColonies?.() || []
+        console.log('✓ Safe Dream Depth Pack initialized (fallback path)');
+    }
+
+    _buildDreamDepthWorldSystems() {
+        return {
+            aiNodes: this.aiNodes || null,
+            legendaryRegistry: this.legendaryPack?.registry || null,
+            weatherRegistry: this.weatherPack?.registry || this.environmentDomain?.instances?.weatherPack?.registry || null,
+            worldEvents: this.worldEvents || this.environmentDomain?.instances?.worldEvents || null,
+            colonies: this.colonyManager?.registry?.getAllColonies?.() || this.environmentDomain?.instances?.colonyExpansion?.registry?.getAllColonies?.() || [],
+            frameScheduler: this.frameScheduler || null
         };
+    }
 
-        // Store for updates
-        this.dreamDepthWorldSystems = worldSystems;
+    _syncDreamDepthRefs() {
+        if (this.environmentDomain?.instances?.safeDreamDepthPack) {
+            this.dreamDepthPack = this.environmentDomain.instances.safeDreamDepthPack;
+            this.dreamDepthEffects = this.environmentDomain.instances.dreamDepthEffectManager;
+        }
+        this.dreamDepthWorldSystems = this._buildDreamDepthWorldSystems();
+        this._installDreamDepthDebugBridge();
+    }
 
-        console.log('✓ Safe Dream Depth Pack initialized');
+    setDreamDepthWeatherCondition(weatherKey) {
+        if (this.environmentDomain && typeof this.environmentDomain.setDreamDepthWeatherCondition === 'function') {
+            this.environmentDomain.setDreamDepthWeatherCondition(weatherKey);
+        }
+        if (this.dreamDepthPack?.setWeatherCondition) this.dreamDepthPack.setWeatherCondition(weatherKey);
+        if (this.dreamDepthEffects?.setWeatherCondition) this.dreamDepthEffects.setWeatherCondition(weatherKey);
+    }
+
+    setDreamDepthFocusTargets(targets) {
+        if (this.environmentDomain && typeof this.environmentDomain.setDreamDepthFocusTargets === 'function') {
+            this.environmentDomain.setDreamDepthFocusTargets(targets);
+        }
+        if (this.dreamDepthPack?.setFocusTargets) this.dreamDepthPack.setFocusTargets(targets);
+        if (this.dreamDepthEffects?.setFocusTargets) this.dreamDepthEffects.setFocusTargets(targets);
+    }
+
+    onDreamDepthWorldEvent(eventType) {
+        if (this.environmentDomain && typeof this.environmentDomain.onDreamDepthWorldEvent === 'function') {
+            this.environmentDomain.onDreamDepthWorldEvent(eventType);
+        }
+        if (this.dreamDepthPack?.onWorldEvent) this.dreamDepthPack.onWorldEvent(eventType);
+        if (this.dreamDepthEffects?.onWorldEvent) this.dreamDepthEffects.onWorldEvent(eventType);
+    }
+
+    getDreamDepthDebugInfo() {
+        if (this.environmentDomain && typeof this.environmentDomain.getDreamDepthDebugInfo === 'function') {
+            return this.environmentDomain.getDreamDepthDebugInfo();
+        }
+
+        const safeInfo = this.dreamDepthPack?.getDebugInfo?.() || null;
+        const richInfo = this.dreamDepthEffects?.getDebugInfo?.() || null;
+        const source = safeInfo || richInfo;
+
+        return {
+            activeMode: richInfo ? 'rich-primary' : (safeInfo ? 'low-cost-fallback' : 'none'),
+            shared: {
+                currentWeatherKey: source?.currentWeatherKey ?? 'none',
+                currentWorldEvent: source?.currentWorldEvent ?? 'none',
+                currentFocus: source?.currentFocus ?? 'none',
+                focusTransition: source?.focusTransition ?? 0,
+                pulseCount: source?.pulseCount ?? 0,
+                schedulerState: source?.schedulerState ?? 'missing',
+                stabilityFactor: source?.stabilityFactor ?? 0
+            },
+            safe: safeInfo || { role: 'low-cost-fallback', enabled: false, note: 'not-instantiated' },
+            rich: richInfo || { role: 'rich-primary', enabled: false, note: 'not-instantiated' }
+        };
+    }
+
+    _installDreamDepthDebugBridge() {
+        if (typeof window === 'undefined') return;
+        if (!window.__DEBUG) window.__DEBUG = {};
+        window.__DEBUG.getDreamDepthDebugInfo = () => this.getDreamDepthDebugInfo();
+        window.__DEBUG.setDreamDepthWeatherCondition = (k) => this.setDreamDepthWeatherCondition(k);
+        window.__DEBUG.setDreamDepthFocusTargets = (t) => this.setDreamDepthFocusTargets(t);
+        window.__DEBUG.onDreamDepthWorldEvent = (e) => this.onDreamDepthWorldEvent(e);
+    }
+
+    _teardownDreamDepthDebugBridge() {
+        if (typeof window === 'undefined') return;
+        if (!window.__DEBUG) return;
+        delete window.__DEBUG.getDreamDepthDebugInfo;
+        delete window.__DEBUG.setDreamDepthWeatherCondition;
+        delete window.__DEBUG.setDreamDepthFocusTargets;
+        delete window.__DEBUG.onDreamDepthWorldEvent;
     }
 
 

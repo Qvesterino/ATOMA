@@ -147,6 +147,16 @@ export class EnvironmentDomainController {
 
   dispose() {
     this._unregisterSchedulerHooks();
+
+    const dreamDepthKeys = ['safeDreamDepthPack', 'dreamDepthEffectManager'];
+    for (const key of dreamDepthKeys) {
+      const sys = this.instances[key];
+      if (sys && typeof sys.cleanup === 'function') {
+        sys.cleanup();
+      }
+      this.instances[key] = null;
+    }
+
     Object.values(this.instances).forEach(sys => {
       if (sys && typeof sys.dispose === 'function') {
         sys.dispose();
@@ -248,6 +258,8 @@ export class EnvironmentDomainController {
         d.camera,
         d.renderer
       );
+
+    this._wireDreamDepthScheduler();
 
     this.instances.quantumIllusions =
       new d.SafeQuantumIllusionsPack1(
@@ -422,9 +434,13 @@ export class EnvironmentDomainController {
   _registerSchedulerHooks() {
     if (!this.frameScheduler) return;
 
+    const DREAM_DEPTH_KEYS = new Set(['safeDreamDepthPack', 'dreamDepthEffectManager']);
+
     this.frameScheduler.register(
       'visual',
       (dt) => {
+        const worldSystems = this._buildDreamDepthWorldSystems();
+
         Object.entries(this.instances).forEach(([key, sys]) => {
           if (!sys || typeof sys.update !== 'function') return;
 
@@ -456,8 +472,12 @@ export class EnvironmentDomainController {
             return;
           }
 
+          if (DREAM_DEPTH_KEYS.has(key)) return;
+
           sys.update(dt);
         });
+
+        this._updateDreamDepthPair(dt, worldSystems);
       },
       this.schedulerId
     );
@@ -519,6 +539,167 @@ export class EnvironmentDomainController {
   _unregisterSchedulerHooks() {
     if (this.frameScheduler && this.frameScheduler.unregister) {
       this.frameScheduler.unregister(this.schedulerId);
+      this.frameScheduler.unregister(`${this.schedulerId}.worldPersonalityController`);
+    }
+    this._teardownDreamDepthDebugBridge();
+  }
+
+  _buildDreamDepthWorldSystems() {
+    const d = this.deps;
+    return {
+      aiNodes: d.aiNodes || null,
+      legendaryRegistry: d.legendaryPack?.registry || null,
+      weatherRegistry: this.instances.weatherPack?.registry || d.weatherPack?.registry || null,
+      worldEvents: this.instances.worldEvents || d.worldEvents || null,
+      colonies: this.instances.colonyExpansion?.registry?.getAllColonies?.() || [],
+      frameScheduler: this.frameScheduler || null
+    };
+  }
+
+  _wireDreamDepthScheduler() {
+    const safe = this.instances.safeDreamDepthPack;
+    const rich = this.instances.dreamDepthEffectManager;
+
+    if (rich && typeof rich.setFrameScheduler === 'function') {
+      rich.setFrameScheduler(this.frameScheduler);
+    }
+
+    this._installDreamDepthDebugBridge();
+  }
+
+  _syncDreamDepthInputs() {
+    const worldSystems = this._buildDreamDepthWorldSystems();
+    const safe = this.instances.safeDreamDepthPack;
+    const rich = this.instances.dreamDepthEffectManager;
+
+    if (worldSystems.weatherRegistry?.currentWeather) {
+      const weather = worldSystems.weatherRegistry.currentWeather;
+      if (safe && typeof safe.setWeatherCondition === 'function') {
+        safe.setWeatherCondition(weather);
+      }
+      if (rich && typeof rich.setWeatherCondition === 'function') {
+        rich.setWeatherCondition(weather);
+      }
+    }
+
+    const targets = this._gatherDreamDepthFocusTargets(worldSystems);
+    if (safe && typeof safe.setFocusTargets === 'function') {
+      safe.setFocusTargets(targets);
+    }
+    if (rich && typeof rich.setFocusTargets === 'function') {
+      rich.setFocusTargets(targets);
+    }
+  }
+
+  _gatherDreamDepthFocusTargets(worldSystems) {
+    const targets = [];
+
+    if (worldSystems.aiNodes?.nodes) {
+      for (const node of worldSystems.aiNodes.nodes) {
+        if (node?.position) targets.push(node);
+      }
+    }
+
+    if (worldSystems.legendaryRegistry?.nodes) {
+      for (const nodeId in worldSystems.legendaryRegistry.nodes) {
+        const node = worldSystems.legendaryRegistry.nodes[nodeId];
+        if (node?.position) targets.push(node);
+      }
+    }
+
+    if (worldSystems.colonies) {
+      for (const colony of worldSystems.colonies) {
+        if (colony?.center) targets.push({ position: colony.center });
+      }
+    }
+
+    return targets;
+  }
+
+  _updateDreamDepthPair(dt, worldSystems) {
+    const safe = this.instances.safeDreamDepthPack;
+    const rich = this.instances.dreamDepthEffectManager;
+
+    this._syncDreamDepthInputs();
+
+    if (safe && typeof safe.update === 'function') {
+      safe.update(dt, worldSystems);
+    }
+    if (rich && typeof rich.update === 'function') {
+      rich.update(dt);
+    }
+  }
+
+  setDreamDepthWeatherCondition(weatherKey) {
+    const safe = this.instances.safeDreamDepthPack;
+    const rich = this.instances.dreamDepthEffectManager;
+    if (safe && typeof safe.setWeatherCondition === 'function') {
+      safe.setWeatherCondition(weatherKey);
+    }
+    if (rich && typeof rich.setWeatherCondition === 'function') {
+      rich.setWeatherCondition(weatherKey);
+    }
+  }
+
+  setDreamDepthFocusTargets(targets) {
+    const safe = this.instances.safeDreamDepthPack;
+    const rich = this.instances.dreamDepthEffectManager;
+    if (safe && typeof safe.setFocusTargets === 'function') {
+      safe.setFocusTargets(targets);
+    }
+    if (rich && typeof rich.setFocusTargets === 'function') {
+      rich.setFocusTargets(targets);
+    }
+  }
+
+  onDreamDepthWorldEvent(eventType) {
+    const safe = this.instances.safeDreamDepthPack;
+    const rich = this.instances.dreamDepthEffectManager;
+    if (safe && typeof safe.onWorldEvent === 'function') {
+      safe.onWorldEvent(eventType);
+    }
+    if (rich && typeof rich.onWorldEvent === 'function') {
+      rich.onWorldEvent(eventType);
+    }
+  }
+
+  getDreamDepthDebugInfo() {
+    const safe = this.instances.safeDreamDepthPack;
+    const rich = this.instances.dreamDepthEffectManager;
+    const safeInfo = safe && typeof safe.getDebugInfo === 'function'
+      ? safe.getDebugInfo()
+      : null;
+    const richInfo = rich && typeof rich.getDebugInfo === 'function'
+      ? rich.getDebugInfo()
+      : null;
+    const source = safeInfo || richInfo;
+
+    return {
+      activeMode: richInfo ? 'rich-primary' : (safeInfo ? 'low-cost-fallback' : 'none'),
+      shared: {
+        currentWeatherKey: source?.currentWeatherKey ?? 'none',
+        currentWorldEvent: source?.currentWorldEvent ?? 'none',
+        currentFocus: source?.currentFocus ?? 'none',
+        focusTransition: source?.focusTransition ?? 0,
+        pulseCount: source?.pulseCount ?? 0,
+        schedulerState: source?.schedulerState ?? 'missing',
+        stabilityFactor: source?.stabilityFactor ?? 0
+      },
+      safe: safeInfo || { role: 'low-cost-fallback', enabled: false, note: 'not-instantiated' },
+      rich: richInfo || { role: 'rich-primary', enabled: false, note: 'not-instantiated' }
+    };
+  }
+
+  _installDreamDepthDebugBridge() {
+    if (typeof window === 'undefined') return;
+    if (!window.__DEBUG) window.__DEBUG = {};
+    window.__DEBUG.getDreamDepthDebugInfo = () => this.getDreamDepthDebugInfo();
+  }
+
+  _teardownDreamDepthDebugBridge() {
+    if (typeof window === 'undefined') return;
+    if (window.__DEBUG?.getDreamDepthDebugInfo) {
+      delete window.__DEBUG.getDreamDepthDebugInfo;
     }
   }
 }

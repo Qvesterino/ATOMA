@@ -21,13 +21,24 @@ export class DreamDesert2 {
     this.particleSystems = [];
     this.fragmentLinkLines = null;
     this.fragmentGlowTexture = null;
+    this.fragmentOuterGlowTexture = null;
     this.fragmentTrailSystem = null;
+    this.sandTrailSystem = null;
     this.pointLights = [];
     this.sunLight = null;
+    this.sunGlow = null;
+    this.moon = null;
+    this.stars = null;
+    this.cloudLayers = [];
     this.sunOrbitRadius = 120;
     this.sunOrbitSpeed = (Math.PI * 2) / 300; // one full rotation in ~5 minutes
     this.devicePixelRatio = window.devicePixelRatio || 1;
     this.renderer = null;
+    
+    // Wind system for particle distortion
+    this.windDirection = new THREE.Vector3(1.0, 0.1, 0.3).normalize();
+    this.windStrength = 0.015;
+    this.windTime = 0;
     
     // Session 112+: Initialize map configuration and reference plane
     this.initializeMapConfig();
@@ -84,15 +95,17 @@ export class DreamDesert2 {
    */
   createSkyAndAtmosphere() {
     if (this.scene) {
-      this.scene.fog = new THREE.FogExp2(0xffd0e0, 0.004);
+      this.scene.fog = new THREE.FogExp2(0xffd0e0, 0.0038);
       this.scene.background = new THREE.Color(0x1a0a15);
     }
 
     const skyGeometry = new THREE.SphereGeometry(520, 32, 15);
     const skyMaterial = new THREE.ShaderMaterial({
       uniforms: {
+        uTime: { value: 0 },
         uTopColor: { value: new THREE.Color(0xffb8d8) },
-        uBottomColor: { value: new THREE.Color(0xff8b4c) }
+        uBottomColor: { value: new THREE.Color(0xff8b4c) },
+        uSunPosition: { value: new THREE.Vector3(0, 65, 120) }
       },
       vertexShader: `
         varying vec3 vWorldPosition;
@@ -106,9 +119,25 @@ export class DreamDesert2 {
         varying vec3 vWorldPosition;
         uniform vec3 uTopColor;
         uniform vec3 uBottomColor;
+        uniform vec3 uSunPosition;
+        uniform float uTime;
+
         void main() {
           float t = normalize(vWorldPosition).y * 0.5 + 0.5;
           vec3 color = mix(uBottomColor, uTopColor, smoothstep(0.0, 1.0, t));
+          
+          // Sun glow effect
+          vec3 sunDir = normalize(uSunPosition);
+          vec3 viewDir = normalize(vWorldPosition);
+          float sunDot = max(0.0, dot(viewDir, sunDir));
+          float sunGlow = pow(sunDot, 64.0) * 0.3;
+          
+          // Horizon glow
+          float horizonGlow = exp(-abs(t - 0.5) * 8.0) * 0.15;
+          
+          color += vec3(1.0, 0.9, 0.8) * sunGlow;
+          color += vec3(1.0, 0.8, 0.9) * horizonGlow;
+          
           gl_FragColor = vec4(color, 1.0);
         }
       `,
@@ -120,6 +149,11 @@ export class DreamDesert2 {
     skySphere.name = 'dreamSkySphere';
     skySphere.renderOrder = -1;
     this.worldRoot.add(skySphere);
+    
+    // Create celestial bodies, clouds, and sun glow
+    this.createCelestialBodies();
+    this.createCloudLayers();
+    this.createSunGlow();
   }
 
   /**
@@ -181,9 +215,38 @@ export class DreamDesert2 {
     const positionAttribute = geometry.getAttribute('position');
     const positions = positionAttribute.array;
     const colorArray = new Float32Array(positions.length);
-    const lowColor = new THREE.Color(0xffc5d8);
+    const lowColor = new THREE.Color(0xffc0d0);
+    const midColor = new THREE.Color(0xffd5e8);
     const highColor = new THREE.Color(0xe9d4ff);
     const edgeColor = new THREE.Color(0xffffff);
+
+    // Create displacement texture
+    const displacementSize = 512;
+    const displacementCanvas = document.createElement('canvas');
+    displacementCanvas.width = displacementSize;
+    displacementCanvas.height = displacementSize;
+    const dispCtx = displacementCanvas.getContext('2d');
+    const dispImageData = dispCtx.createImageData(displacementSize, displacementSize);
+    const dispData = dispImageData.data;
+
+    for (let y = 0; y < displacementSize; y++) {
+      for (let x = 0; x < displacementSize; x++) {
+        const worldX = ((x / displacementSize) - 0.5) * 240;
+        const worldZ = ((y / displacementSize) - 0.5) * 240;
+        const dispHeight = this.sampleDuneNoise(worldX, worldZ) / 9.0;
+        const brightness = Math.min(255, Math.max(0, dispHeight * 255));
+        const idx = (y * displacementSize + x) * 4;
+        dispData[idx] = brightness;
+        dispData[idx + 1] = brightness;
+        dispData[idx + 2] = brightness;
+        dispData[idx + 3] = 255;
+      }
+    }
+    dispCtx.putImageData(dispImageData, 0, 0);
+    const displacementTexture = new THREE.CanvasTexture(displacementCanvas);
+    displacementTexture.wrapS = THREE.ClampToEdgeWrapping;
+    displacementTexture.wrapT = THREE.ClampToEdgeWrapping;
+    displacementTexture.needsUpdate = true;
 
     // Organic multi-octave dune generation
     for (let i = 0; i < positions.length; i += 3) {
@@ -200,8 +263,13 @@ export class DreamDesert2 {
       
       const normalizedHeight = Math.min(1, height / 9);
       const color = lowColor.clone();
-      color.lerp(highColor, Math.pow(normalizedHeight, 0.9));
-      color.lerp(edgeColor, Math.pow(normalizedHeight, 2.2) * 0.35);
+      if (normalizedHeight < 0.4) {
+        color.lerp(midColor, normalizedHeight / 0.4);
+      } else if (normalizedHeight < 0.75) {
+        color.copy(midColor).lerp(highColor, (normalizedHeight - 0.4) / 0.35);
+      } else {
+        color.copy(highColor).lerp(edgeColor, Math.pow((normalizedHeight - 0.75) / 0.25, 0.5));
+      }
       
       colorArray[i] = color.r;
       colorArray[i + 1] = color.g;
@@ -215,20 +283,23 @@ export class DreamDesert2 {
     const normalMap = this.createSandNormalTexture();
     
     const duneMaterial = materialRegistry.getStandard('world.dreamdesert2.duneMain', {
-      color: 0xffc5d8,
-      roughness: 0.55,
-      metalness: 0.08,
-      emissive: 0xffc5d8,
-      emissiveIntensity: 0.06,
+      color: 0xffc0d0,
+      roughness: 0.52,
+      metalness: 0.06,
+      emissive: 0xffc0d0,
+      emissiveIntensity: 0.05,
       side: THREE.DoubleSide,
-      envMapIntensity: 1.2,
-      clearcoat: 0.18,
-      clearcoatRoughness: 0.72,
-      sheen: 0.08,
-      sheenRoughness: 0.55,
+      envMapIntensity: 1.3,
+      clearcoat: 0.22,
+      clearcoatRoughness: 0.68,
+      sheen: 0.12,
+      sheenRoughness: 0.5,
       vertexColors: true,
       normalMap,
-      normalScale: new THREE.Vector2(0.32, 0.32)
+      normalScale: new THREE.Vector2(0.38, 0.38),
+      displacementMap: displacementTexture,
+      displacementScale: 0.8,
+      displacementBias: -0.4
     });
     
     const dunes = new THREE.Mesh(geometry, duneMaterial);
@@ -250,7 +321,7 @@ export class DreamDesert2 {
     const imageData = ctx.createImageData(size, size);
     const data = imageData.data;
     const heightField = new Float32Array(size * size);
-    const detailScale = 7.6;
+    const detailScale = 11.2;
     const rippleScale = 24.0;
 
     for (let y = 0; y < size; y++) {
@@ -259,7 +330,9 @@ export class DreamDesert2 {
         const v = (y / size) * detailScale;
         const value = Math.sin(u * 3.4 + Math.cos(v * 2.8) * 1.1) * 0.16
           + Math.sin(v * 5.2 + u * 1.9) * 0.08
-          + Math.cos(u * 8.1) * 0.04;
+          + Math.cos(u * 8.1) * 0.04
+          + Math.sin(u * 12.4 + v * 9.2) * 0.02
+          + Math.cos(v * 15.6 + u * 11.8) * 0.015;
         heightField[y * size + x] = value;
       }
     }
@@ -314,6 +387,128 @@ export class DreamDesert2 {
     return texture;
   }
 
+  createFragmentOuterGlowTexture() {
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    gradient.addColorStop(0.0, 'rgba(200, 140, 255, 0.0)');
+    gradient.addColorStop(0.35, 'rgba(180, 120, 240, 0.08)');
+    gradient.addColorStop(0.65, 'rgba(150, 100, 220, 0.12)');
+    gradient.addColorStop(0.85, 'rgba(120, 80, 200, 0.06)');
+    gradient.addColorStop(1.0, 'rgba(100, 60, 180, 0.0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  createPrismaticFragmentMaterial(baseColor, isMonument) {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uBaseColor: { value: new THREE.Color(baseColor) },
+        uEmissiveIntensity: { value: isMonument ? 0.5 : 0.32 },
+        uCameraPosition: { value: new THREE.Vector3() },
+        uRefractionStrength: { value: 0.18 },
+        uDispersion: { value: 0.032 },
+        uRoughness: { value: 0.08 },
+        uOpacity: { value: isMonument ? 0.94 : 0.9 }
+      },
+      vertexShader: `
+        varying vec3 vWorldPosition;
+        varying vec3 vNormal;
+        varying vec3 vViewDirection;
+        varying vec2 vUv;
+        
+        void main() {
+          vUv = uv;
+          vNormal = normalize(normalMatrix * normal);
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPos.xyz;
+          vViewDirection = normalize(cameraPosition - worldPos.xyz);
+          gl_Position = projectionMatrix * viewMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vWorldPosition;
+        varying vec3 vNormal;
+        varying vec3 vViewDirection;
+        varying vec2 vUv;
+        
+        uniform float uTime;
+        uniform vec3 uBaseColor;
+        uniform float uEmissiveIntensity;
+        uniform vec3 uCameraPosition;
+        uniform float uRefractionStrength;
+        uniform float uDispersion;
+        uniform float uRoughness;
+        uniform float uOpacity;
+        
+        // Fresnel effect
+        float fresnel(vec3 normal, vec3 viewDir, float power) {
+          float cosTheta = dot(normal, viewDir);
+          return pow(1.0 - abs(cosTheta), power);
+        }
+        
+        void main() {
+          vec3 normal = normalize(vNormal);
+          vec3 viewDir = normalize(vViewDirection);
+          
+          // Fresnel rim lighting for glassy edge effect
+          float fresnelTerm = fresnel(normal, viewDir, 3.5);
+          
+          // Prismatic dispersion - slightly different refraction for RGB channels
+          vec3 refractedColors;
+          float refraction = uRefractionStrength * (1.0 - fresnelTerm * 0.5);
+          
+          // Simulate dispersion by shifting color slightly based on normal
+          vec3 dispersionShift = normal * uDispersion;
+          
+          // Base color with slight dispersion
+          vec3 colorR = uBaseColor * (1.0 + dispersionShift.r);
+          vec3 colorG = uBaseColor * (1.0 + dispersionShift.g);
+          vec3 colorB = uBaseColor * (1.0 + dispersionShift.b);
+          
+          // Combine with prismatic effect
+          vec3 prismaticColor = vec3(colorR.r, colorG.g, colorB.b);
+          
+          // Add subtle iridescence
+          float iridescence = sin(uTime * 0.8 + dot(normal, vec3(0.5, 1.0, 0.5)) * 6.0) * 0.15;
+          vec3 iridescentTint = vec3(
+            0.5 + 0.5 * sin(uTime * 0.6 + vWorldPosition.x * 0.1),
+            0.5 + 0.5 * sin(uTime * 0.7 + vWorldPosition.y * 0.1),
+            0.5 + 0.5 * sin(uTime * 0.8 + vWorldPosition.z * 0.1)
+          );
+          
+          // Combine all effects
+          vec3 finalColor = prismaticColor * 0.7;
+          finalColor += iridescentTint * iridescence * 0.25;
+          finalColor += vec3(1.0, 0.95, 1.0) * fresnelTerm * 0.45; // rim glow
+          finalColor += uBaseColor * uEmissiveIntensity * 0.6; // inner glow
+          
+          // Subtle edge highlight
+          float edge = 1.0 - abs(dot(normal, viewDir));
+          finalColor += vec3(1.0, 0.9, 1.0) * pow(edge, 4.0) * 0.3;
+          
+          // Apply opacity with fresnel falloff
+          float alpha = uOpacity * (0.85 + fresnelTerm * 0.15);
+          
+          gl_FragColor = vec4(finalColor, alpha);
+        }
+      `,
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+  }
+
   _updateFragmentConnectionLines() {
     if (!this.fragmentLinkLines || !this.fragmentLinkLines.object) {
       return;
@@ -361,11 +556,118 @@ export class DreamDesert2 {
     }
   }
   
+  createCrystallineRidgeMaterial(baseColor, emissiveColor) {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uBaseColor: { value: new THREE.Color(baseColor) },
+        uEmissiveColor: { value: new THREE.Color(emissiveColor) },
+        uEmissiveIntensity: { value: 0.08 },
+        uCameraPosition: { value: new THREE.Vector3() },
+        uReflectionStrength: { value: 0.65 },
+        uInternalGlowStrength: { value: 0.45 },
+        uRoughness: { value: 0.15 }
+      },
+      vertexShader: `
+        varying vec3 vWorldPosition;
+        varying vec3 vNormal;
+        varying vec3 vViewDirection;
+        varying vec2 vUv;
+        varying float vHeight;
+        
+        void main() {
+          vUv = uv;
+          vHeight = position.y;
+          vNormal = normalize(normalMatrix * normal);
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPos.xyz;
+          vViewDirection = normalize(cameraPosition - worldPos.xyz);
+          gl_Position = projectionMatrix * viewMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vWorldPosition;
+        varying vec3 vNormal;
+        varying vec3 vViewDirection;
+        varying vec2 vUv;
+        varying float vHeight;
+        
+        uniform float uTime;
+        uniform vec3 uBaseColor;
+        uniform vec3 uEmissiveColor;
+        uniform float uEmissiveIntensity;
+        uniform vec3 uCameraPosition;
+        uniform float uReflectionStrength;
+        uniform float uInternalGlowStrength;
+        uniform float uRoughness;
+        
+        // Fresnel effect for edge glow
+        float fresnel(vec3 normal, vec3 viewDir, float power) {
+          float cosTheta = dot(normal, viewDir);
+          return pow(1.0 - abs(cosTheta), power);
+        }
+        
+        // Simple pseudo-reflection
+        vec3 pseudoReflection(vec3 normal, vec3 viewDir) {
+          vec3 reflectDir = reflect(-viewDir, normal);
+          // Create sky-like gradient for reflection
+          float skyFactor = reflectDir.y * 0.5 + 0.5;
+          vec3 skyColor = mix(vec3(0.4, 0.3, 0.5), vec3(0.8, 0.7, 0.9), skyFactor);
+          return skyColor;
+        }
+        
+        void main() {
+          vec3 normal = normalize(vNormal);
+          vec3 viewDir = normalize(vViewDirection);
+          
+          // Fresnel rim lighting
+          float fresnelTerm = fresnel(normal, viewDir, 3.0);
+          
+          // Reflection component
+          vec3 reflectionColor = pseudoReflection(normal, viewDir);
+          
+          // Internal glow - stronger at top, fades down
+          float heightFactor = smoothstep(-0.5, 0.5, vHeight);
+          float internalGlow = heightFactor * uInternalGlowStrength;
+          
+          // Pulsing internal glow
+          float pulse = 0.7 + 0.3 * sin(uTime * 0.8 + vWorldPosition.x * 0.5);
+          internalGlow *= pulse;
+          
+          // Crystalline facets - simulated with normal variation
+          float facetHighlight = step(0.7, dot(normal, vec3(0.577))) * 0.3;
+          
+          // Combine lighting components
+          vec3 finalColor = uBaseColor * 0.4;
+          finalColor += reflectionColor * uReflectionStrength * (1.0 - uRoughness);
+          finalColor += uEmissiveColor * uEmissiveIntensity * internalGlow;
+          finalColor += vec3(1.0, 0.95, 1.0) * fresnelTerm * 0.6; // rim glow
+          finalColor += vec3(0.9, 0.85, 1.0) * facetHighlight;
+          
+          // Subtle color variation based on height
+          vec3 heightTint = mix(vec3(0.9, 0.8, 1.0), vec3(1.0, 1.0, 1.0), heightFactor);
+          finalColor *= heightTint;
+          
+          // Add sparkle at edges
+          float edgeSharpness = 1.0 - abs(dot(normal, viewDir));
+          float sparkle = pow(edgeSharpness, 8.0) * 0.4;
+          finalColor += vec3(1.0, 0.98, 1.0) * sparkle;
+          
+          gl_FragColor = vec4(finalColor, 0.95);
+        }
+      `,
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+  }
+  
   /**
    * Create geometric fractal ridge formations
    */
   createFractalRidges() {
-    const ridgeCount = 7;
+    const ridgeCount = 11;
     
     for (let r = 0; r < ridgeCount; r++) {
       const angle = (r / ridgeCount) * Math.PI * 2;
@@ -374,32 +676,22 @@ export class DreamDesert2 {
       const z = Math.sin(angle) * distance;
       
       const length = 16 + Math.random() * 24;
-      const height = 2.0 + Math.random() * 3.5;
+      const baseHeight = 2.5 + Math.random() * 3.5;
+      const topHeight = baseHeight * 0.4; // Taper to 40% at top
       
-      // Create wedge-like crystalline ridge geometry
-      const ridgeGeo = new THREE.CylinderGeometry(0.42, 0.42, length, 4, 1, false);
+      // Create tapered cone-like ridge geometry
+      const ridgeGeo = new THREE.ConeGeometry(baseHeight, length, 4, 1, false);
       ridgeGeo.rotateZ(Math.PI / 2);
       ridgeGeo.rotateX(Math.PI / 2);
       
-      const hue = 0.96 - r * 0.045;
+      const hue = 0.96 - r * 0.03;
       const ridgeColor = new THREE.Color().setHSL(hue, 0.72, 0.74);
       const ridgeEmissive = ridgeColor.clone().offsetHSL(0, -0.18, -0.08);
 
-      const ridgeMaterial = materialRegistry.getStandard('world.dreamdesert2.ridge', {
-        color: ridgeColor,
-        roughness: 0.42,
-        metalness: 0.16,
-        emissive: ridgeEmissive,
-        emissiveIntensity: 0.08,
-        flatShading: true,
-        side: THREE.DoubleSide,
-        clearcoat: 0.16,
-        clearcoatRoughness: 0.65,
-        envMapIntensity: 1.2
-      });
+      const ridgeMaterial = this.createCrystallineRidgeMaterial(ridgeColor.getHex(), ridgeEmissive.getHex());
       
       const ridge = new THREE.Mesh(ridgeGeo, ridgeMaterial);
-      ridge.position.set(x, height * 0.5 + 0.3, z);
+      ridge.position.set(x, baseHeight * 0.5 + 0.3, z);
       ridge.rotation.y = Math.random() * Math.PI;
       ridge.rotation.z = (Math.random() - 0.5) * 0.16;
       ridge.castShadow = true;
@@ -416,6 +708,48 @@ export class DreamDesert2 {
         pulseSpeed: 0.36 + Math.random() * 0.14,
         phaseOffset: Math.random() * Math.PI * 2
       });
+      
+      // Add 2-3 sub-ridges around each main ridge
+      const subRidgeCount = 2 + Math.floor(Math.random() * 2);
+      for (let s = 0; s < subRidgeCount; s++) {
+        const subAngle = angle + (Math.random() - 0.5) * 0.6;
+        const subDistance = distance + 8 + Math.random() * 12;
+        const subX = Math.cos(subAngle) * subDistance;
+        const subZ = Math.sin(subAngle) * subDistance;
+        
+        const subLength = length * (0.4 + Math.random() * 0.3);
+        const subBaseHeight = baseHeight * (0.35 + Math.random() * 0.25);
+        const subTopHeight = subBaseHeight * 0.5;
+        
+        const subRidgeGeo = new THREE.ConeGeometry(subBaseHeight, subLength, 3, 1, false);
+        subRidgeGeo.rotateZ(Math.PI / 2);
+        subRidgeGeo.rotateX(Math.PI / 2);
+        
+        const subHue = hue + (Math.random() - 0.5) * 0.04;
+        const subRidgeColor = new THREE.Color().setHSL(subHue, 0.68, 0.70);
+        const subRidgeEmissive = subRidgeColor.clone().offsetHSL(0, -0.15, -0.06);
+        
+        const subRidgeMaterial = this.createCrystallineRidgeMaterial(subRidgeColor.getHex(), subRidgeEmissive.getHex());
+        
+        const subRidge = new THREE.Mesh(subRidgeGeo, subRidgeMaterial);
+        subRidge.position.set(subX, subBaseHeight * 0.5 + 0.2, subZ);
+        subRidge.rotation.y = Math.random() * Math.PI;
+        subRidge.rotation.z = (Math.random() - 0.5) * 0.2;
+        subRidge.castShadow = true;
+        subRidge.receiveShadow = true;
+        subRidge.name = 'subRidge';
+        
+        this.worldRoot.add(subRidge);
+        this.visualObjects.push(subRidge);
+        this.animatedObjects.push({
+          object: subRidge,
+          type: 'fractalRidge',
+          baseZ: subRidge.rotation.z,
+          baseEmissiveIntensity: 0.06,
+          pulseSpeed: 0.4 + Math.random() * 0.2,
+          phaseOffset: Math.random() * Math.PI * 2
+        });
+      }
     }
   }
   
@@ -429,6 +763,9 @@ export class DreamDesert2 {
     if (!this.fragmentGlowTexture) {
       this.fragmentGlowTexture = this.createFragmentGlowTexture();
     }
+    if (!this.fragmentOuterGlowTexture) {
+      this.fragmentOuterGlowTexture = this.createFragmentOuterGlowTexture();
+    }
     
     for (let f = 0; f < fragmentCount; f++) {
       const x = (Math.random() - 0.5) * 170;
@@ -440,9 +777,13 @@ export class DreamDesert2 {
       // Create geometric fragment with varied geometries
       let fragGeometry;
       const geoType = Math.random();
-      if (geoType < 0.4) {
+      if (geoType < 0.2) {
         fragGeometry = new THREE.OctahedronGeometry(size, 1);
-      } else if (geoType < 0.7) {
+      } else if (geoType < 0.4) {
+        fragGeometry = new THREE.IcosahedronGeometry(size, 0);
+      } else if (geoType < 0.6) {
+        fragGeometry = new THREE.DodecahedronGeometry(size, 0);
+      } else if (geoType < 0.8) {
         fragGeometry = new THREE.CylinderGeometry(size * 0.9, size * 0.9, size * 1.5, 4, 1, false);
       } else {
         fragGeometry = new THREE.TetrahedronGeometry(size);
@@ -452,19 +793,7 @@ export class DreamDesert2 {
       const fragmentColor = new THREE.Color().setHSL(baseHue, 0.76, 0.71);
       const emissiveColor = fragmentColor.clone().offsetHSL(0, -0.18, -0.05);
 
-      const fragMaterial = materialRegistry.getStandard('world.dreamdesert2.fragment', {
-        color: fragmentColor,
-        roughness: 0.22,
-        metalness: 0.84,
-        emissive: emissiveColor,
-        emissiveIntensity: isMonument ? 0.5 : 0.32,
-        transparent: true,
-        opacity: isMonument ? 0.94 : 0.9,
-        side: THREE.DoubleSide,
-        clearcoat: 0.24,
-        clearcoatRoughness: 0.56,
-        envMapIntensity: 1.4
-      });
+      const fragMaterial = this.createPrismaticFragmentMaterial(fragmentColor.getHex(), isMonument);
       
       const fragment = new THREE.Mesh(fragGeometry, fragMaterial);
       fragment.position.set(x, floatHeight, z);
@@ -472,7 +801,8 @@ export class DreamDesert2 {
       fragment.receiveShadow = true;
       fragment.name = 'floatingFragment';
       
-      const glowMaterial = new THREE.SpriteMaterial({
+      // Inner glow (brighter, closer to fragment)
+      const innerGlowMaterial = new THREE.SpriteMaterial({
         map: this.fragmentGlowTexture,
         color: 0xffc8ff,
         transparent: true,
@@ -480,11 +810,26 @@ export class DreamDesert2 {
         blending: THREE.AdditiveBlending,
         depthWrite: false
       });
-      const glow = new THREE.Sprite(glowMaterial);
-      glow.scale.set(size * 4.2, size * 4.2, 1);
-      glow.position.set(x, floatHeight - 0.02, z);
-      glow.renderOrder = 999;
-      this.worldRoot.add(glow);
+      const innerGlow = new THREE.Sprite(innerGlowMaterial);
+      innerGlow.scale.set(size * 4.2, size * 4.2, 1);
+      innerGlow.position.set(x, floatHeight - 0.02, z);
+      innerGlow.renderOrder = 999;
+      this.worldRoot.add(innerGlow);
+      
+      // Outer glow (larger, softer, more diffuse)
+      const outerGlowMaterial = new THREE.SpriteMaterial({
+        map: this.fragmentOuterGlowTexture,
+        color: 0xc8a0ff,
+        transparent: true,
+        opacity: isMonument ? 0.25 : 0.18,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const outerGlow = new THREE.Sprite(outerGlowMaterial);
+      outerGlow.scale.set(size * 7.5, size * 7.5, 1);
+      outerGlow.position.set(x, floatHeight - 0.02, z);
+      outerGlow.renderOrder = 998;
+      this.worldRoot.add(outerGlow);
 
       const pointLight = new THREE.PointLight(fragmentColor, isMonument ? 0.18 : 0.12, size * 8, 2);
       pointLight.position.set(x, floatHeight + 0.35, z);
@@ -504,7 +849,8 @@ export class DreamDesert2 {
         },
         trailHue: baseHue,
         trailSize: size,
-        glow,
+        innerGlow,
+        outerGlow,
         pointLight
       };
       
@@ -731,11 +1077,333 @@ export class DreamDesert2 {
   /**
    * Create advanced cinematic 6-light system with realistic soft shadows
    */
+  createSunGlow() {
+    // Create soft glow texture for sun
+    const glowSize = 256;
+    const glowCanvas = document.createElement('canvas');
+    glowCanvas.width = glowSize;
+    glowCanvas.height = glowSize;
+    const glowCtx = glowCanvas.getContext('2d');
+    
+    const glowGradient = glowCtx.createRadialGradient(
+      glowSize / 2, glowSize / 2, 0,
+      glowSize / 2, glowSize / 2, glowSize / 2
+    );
+    glowGradient.addColorStop(0.0, 'rgba(255, 250, 240, 1.0)');
+    glowGradient.addColorStop(0.15, 'rgba(255, 245, 220, 0.8)');
+    glowGradient.addColorStop(0.35, 'rgba(255, 235, 180, 0.5)');
+    glowGradient.addColorStop(0.6, 'rgba(255, 210, 150, 0.2)');
+    glowGradient.addColorStop(1.0, 'rgba(255, 180, 120, 0.0)');
+    
+    glowCtx.fillStyle = glowGradient;
+    glowCtx.fillRect(0, 0, glowSize, glowSize);
+    
+    const glowTexture = new THREE.CanvasTexture(glowCanvas);
+    glowTexture.minFilter = THREE.LinearFilter;
+    glowTexture.magFilter = THREE.LinearFilter;
+    
+    // Create sun glow sprite
+    const sunGlowMaterial = new THREE.SpriteMaterial({
+      map: glowTexture,
+      color: 0xffffee,
+      transparent: true,
+      opacity: 0.7,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    
+    const sunGlow = new THREE.Sprite(sunGlowMaterial);
+    sunGlow.scale.set(40, 40, 1);
+    sunGlow.name = 'sunGlow';
+    this.worldRoot.add(sunGlow);
+    this.sunGlow = sunGlow;
+  }
+  
+  createCelestialBodies() {
+    // Create subtle moon
+    const moonGeometry = new THREE.SphereGeometry(8, 32, 32);
+    const moonMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uBaseColor: { value: new THREE.Color(0xe8e8f0) },
+        uCraterColor: { value: new THREE.Color(0xc8c8d8) }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        void main() {
+          vUv = uv;
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        uniform float uTime;
+        uniform vec3 uBaseColor;
+        uniform vec3 uCraterColor;
+        
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+        }
+        
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          float a = hash(i);
+          float b = hash(i + vec2(1.0, 0.0));
+          float c = hash(i + vec2(0.0, 1.0));
+          float d = hash(i + vec2(1.0, 1.0));
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+        }
+        
+        void main() {
+          // Create crater-like surface texture
+          float crater = noise(vUv * 8.0);
+          crater += noise(vUv * 16.0) * 0.5;
+          crater += noise(vUv * 32.0) * 0.25;
+          crater = smoothstep(0.3, 0.7, crater);
+          
+          vec3 color = mix(uBaseColor, uCraterColor, crater * 0.4);
+          
+          // Add subtle glow
+          float fresnel = pow(1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 3.0);
+          color += vec3(1.0, 1.0, 1.0) * fresnel * 0.15;
+          
+          gl_FragColor = vec4(color, 0.95);
+        }
+      `,
+      transparent: true,
+      side: THREE.FrontSide,
+      depthWrite: false
+    });
+    
+    const moon = new THREE.Mesh(moonGeometry, moonMaterial);
+    moon.position.set(-180, 85, -200);
+    moon.name = 'moon';
+    this.worldRoot.add(moon);
+    this.moon = moon;
+    
+    // Create star field
+    const starCount = 400;
+    const starGeometry = new THREE.BufferGeometry();
+    const starPositions = new Float32Array(starCount * 3);
+    const starSizes = new Float32Array(starCount);
+    const starBrightness = new Float32Array(starCount);
+    
+    for (let i = 0; i < starCount; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const radius = 400 + Math.random() * 100;
+      
+      starPositions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+      starPositions[i * 3 + 1] = Math.abs(radius * Math.cos(phi)) + 50; // Keep above horizon
+      starPositions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
+      
+      starSizes[i] = 1.0 + Math.random() * 2.0;
+      starBrightness[i] = 0.3 + Math.random() * 0.7;
+    }
+    
+    starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    starGeometry.setAttribute('aSize', new THREE.BufferAttribute(starSizes, 1));
+    starGeometry.setAttribute('aBrightness', new THREE.BufferAttribute(starBrightness, 1));
+    
+    const starMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uPixelRatio: { value: this.devicePixelRatio }
+      },
+      vertexShader: `
+        attribute float aSize;
+        attribute float aBrightness;
+        varying float vBrightness;
+        uniform float uTime;
+        uniform float uPixelRatio;
+        
+        void main() {
+          vBrightness = aBrightness * (0.7 + 0.3 * sin(uTime * 0.5 + position.x * 0.01));
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = aSize * (uPixelRatio / -mvPosition.z);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        varying float vBrightness;
+        
+        void main() {
+          vec2 uv = gl_PointCoord * 2.0 - 1.0;
+          float dist = length(uv);
+          float star = 1.0 - smoothstep(0.0, 1.0, dist);
+          float glow = exp(-dist * 3.0) * 0.5;
+          
+          vec3 color = vec3(1.0, 0.98, 0.95) * (star + glow) * vBrightness;
+          float alpha = (star + glow) * vBrightness;
+          
+          if (alpha < 0.01) discard;
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    
+    const stars = new THREE.Points(starGeometry, starMaterial);
+    stars.name = 'starField';
+    this.worldRoot.add(stars);
+    this.stars = stars;
+  }
+  
+  createCloudLayers() {
+    // Create 3 cloud layers at different heights
+    const cloudConfigs = [
+      { y: 25, count: 5, scale: 80, speed: 0.03, opacity: 0.15 },
+      { y: 32, count: 4, scale: 100, speed: 0.04, opacity: 0.12 },
+      { y: 38, count: 3, scale: 120, speed: 0.02, opacity: 0.10 }
+    ];
+    
+    this.cloudLayers = [];
+    
+    cloudConfigs.forEach((config, layerIndex) => {
+      for (let i = 0; i < config.count; i++) {
+        const cloudWidth = 60 + Math.random() * 40;
+        const cloudHeight = 20 + Math.random() * 15;
+        const cloudGeo = new THREE.PlaneGeometry(cloudWidth, cloudHeight, 32, 16);
+        
+        const cloudMaterial = new THREE.ShaderMaterial({
+          uniforms: {
+            uTime: { value: 0 },
+            uColor: { value: new THREE.Color(0xfff5f0) },
+            uSpeed: { value: config.speed + Math.random() * 0.02 },
+            uNoiseScale: { value: 1.5 + Math.random() * 0.5 },
+            uOpacity: { value: config.opacity },
+            uPhase: { value: Math.random() * Math.PI * 2 }
+          },
+          vertexShader: `
+            varying vec2 vUv;
+            varying float vElevation;
+            uniform float uTime;
+            uniform float uNoiseScale;
+            uniform float uPhase;
+            
+            float hash(vec2 p) {
+              return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+            }
+            
+            float noise(vec2 p) {
+              vec2 i = floor(p);
+              vec2 f = fract(p);
+              float a = hash(i);
+              float b = hash(i + vec2(1.0, 0.0));
+              float c = hash(i + vec2(0.0, 1.0));
+              float d = hash(i + vec2(1.0, 1.0));
+              vec2 u = f * f * (3.0 - 2.0 * f);
+              return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+            }
+            
+            void main() {
+              vUv = uv;
+              
+              // Organic cloud shape with noise
+              float n = noise(uv * uNoiseScale);
+              float elevation = n * 3.0;
+              vElevation = elevation;
+              
+              vec3 newPosition = position;
+              newPosition.z += elevation;
+              
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+            }
+          `,
+          fragmentShader: `
+            varying vec2 vUv;
+            varying float vElevation;
+            uniform float uTime;
+            uniform vec3 uColor;
+            uniform float uSpeed;
+            uniform float uOpacity;
+            uniform float uPhase;
+            
+            float hash(vec2 p) {
+              return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+            }
+            
+            float noise(vec2 p) {
+              vec2 i = floor(p);
+              vec2 f = fract(p);
+              float a = hash(i);
+              float b = hash(i + vec2(1.0, 0.0));
+              float c = hash(i + vec2(0.0, 1.0));
+              float d = hash(i + vec2(1.0, 1.0));
+              vec2 u = f * f * (3.0 - 2.0 * f);
+              return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+            }
+            
+            float fbm(vec2 p) {
+              float value = 0.0;
+              float amplitude = 0.5;
+              for (int i = 0; i < 4; i++) {
+                value += amplitude * noise(p);
+                p *= 2.0;
+                amplitude *= 0.5;
+              }
+              return value;
+            }
+            
+            void main() {
+              vec2 uv = vUv;
+              float time = uTime * uSpeed + uPhase;
+              
+              // Animated cloud texture
+              float n1 = fbm(uv * 3.0 + vec2(time * 0.3, time * 0.2));
+              float n2 = fbm(uv * 5.0 + vec2(time * 0.2, time * 0.4)) * 0.5;
+              float n3 = fbm(uv * 8.0 + vec2(time * 0.5, time * 0.3)) * 0.25;
+              
+              float cloud = n1 + n2 + n3;
+              
+              // Soft edges
+              float edge = 1.0 - length(uv - 0.5) * 2.0;
+              edge = smoothstep(0.0, 0.5, edge);
+              
+              // Combine cloud density with edge falloff
+              float density = cloud * 0.5 + 0.5;
+              float alpha = uOpacity * density * edge;
+              
+              // Add subtle color variation
+              vec3 color = uColor;
+              color += vec3(0.05, 0.02, 0.0) * sin(time + uv.x * 5.0);
+              
+              if (alpha < 0.01) discard;
+              gl_FragColor = vec4(color, alpha);
+            }
+          `,
+          transparent: true,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+          blending: THREE.NormalBlending
+        });
+        
+        const cloud = new THREE.Mesh(cloudGeo, cloudMaterial);
+        cloud.position.set(
+          (Math.random() - 0.5) * 150,
+          config.y,
+          -80 - Math.random() * 60
+        );
+        cloud.rotation.x = -0.1;
+        cloud.name = `cloud_${layerIndex}_${i}`;
+        this.worldRoot.add(cloud);
+        this.cloudLayers.push(cloud);
+      }
+    });
+  }
+  
   createAdvancedLighting() {
-    const hemisphere = new THREE.HemisphereLight(0xffc0e8, 0xffb279, 0.65);
+    const hemisphere = new THREE.HemisphereLight(0xffc0e8, 0xffb279, 0.7);
     this.worldRoot.add(hemisphere);
 
-    this.sunLight = new THREE.DirectionalLight(0xffe8c4, 0.78);
+    this.sunLight = new THREE.DirectionalLight(0xffe8c4, 0.85);
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.width = 4096;
     this.sunLight.shadow.mapSize.height = 4096;
@@ -750,7 +1418,7 @@ export class DreamDesert2 {
     this.worldRoot.add(this.sunLight.target);
     this.worldRoot.add(this.sunLight);
 
-    const fillLight = new THREE.DirectionalLight(0x88ffff, 0.36);
+    const fillLight = new THREE.DirectionalLight(0x88ffff, 0.42);
     fillLight.position.set(-90, 35, -90);
     fillLight.castShadow = true;
     fillLight.shadow.mapSize.width = 2048;
@@ -758,24 +1426,149 @@ export class DreamDesert2 {
     fillLight.shadow.radius = 3;
     this.worldRoot.add(fillLight);
 
-    const rimLight = new THREE.DirectionalLight(0xff99ff, 0.28);
+    const rimLight = new THREE.DirectionalLight(0xff99ff, 0.32);
     rimLight.position.set(30, 52, -110);
     rimLight.castShadow = false;
     this.worldRoot.add(rimLight);
 
-    const bounceLight = new THREE.DirectionalLight(0xaa99ff, 0.22);
+    const bounceLight = new THREE.DirectionalLight(0xaa99ff, 0.25);
     bounceLight.position.set(-10, -30, 15);
     bounceLight.castShadow = false;
     this.worldRoot.add(bounceLight);
 
-    const secondaryFill = new THREE.DirectionalLight(0xccffff, 0.15);
+    const secondaryFill = new THREE.DirectionalLight(0xccffff, 0.18);
     secondaryFill.position.set(100, 18, -70);
     secondaryFill.castShadow = false;
     this.worldRoot.add(secondaryFill);
 
-    const groundFill = new THREE.DirectionalLight(0xffe8dd, 0.08);
+    const groundFill = new THREE.DirectionalLight(0xffe8dd, 0.1);
     groundFill.position.set(0, -50, 0);
     this.worldRoot.add(groundFill);
+  }
+  
+  createAuroraCurtains() {
+    const curtainCount = 8;
+    
+    for (let c = 0; c < curtainCount; c++) {
+      const width = 60 + Math.random() * 40;
+      const height = 25 + Math.random() * 15;
+      const y = 45 + Math.random() * 15;
+      const z = -80 - Math.random() * 40;
+      const x = (Math.random() - 0.5) * 120;
+      
+      const curtainGeo = new THREE.PlaneGeometry(width, height, 40, 20);
+      
+      const curtainMaterial = new THREE.ShaderMaterial({
+        uniforms: {
+          uTime: { value: 0 },
+          uColor1: { value: new THREE.Color(0x88ccff) },
+          uColor2: { value: new THREE.Color(0x66aaff) },
+          uColor3: { value: new THREE.Color(0x99ddff) },
+          uSpeed: { value: 0.2 + Math.random() * 0.15 },
+          uWaveAmplitude: { value: 2.0 + Math.random() * 1.5 },
+          uWaveFrequency: { value: 0.1 + Math.random() * 0.05 },
+          uAlpha: { value: 0.15 + Math.random() * 0.1 }
+        },
+        vertexShader: `
+          uniform float uTime;
+          uniform float uWaveAmplitude;
+          uniform float uWaveFrequency;
+          varying vec2 vUv;
+          varying float vElevation;
+          
+          void main() {
+            vUv = uv;
+            
+            // Wave distortion
+            float wave1 = sin(position.x * uWaveFrequency + uTime * 2.0) * uWaveAmplitude;
+            float wave2 = sin(position.x * uWaveFrequency * 1.5 + uTime * 1.5 + position.z * 0.1) * uWaveAmplitude * 0.5;
+            float wave3 = cos(position.x * uWaveFrequency * 0.8 - uTime * 1.0) * uWaveAmplitude * 0.3;
+            
+            float waveOffset = wave1 + wave2 + wave3;
+            vElevation = waveOffset;
+            
+            vec3 newPosition = position;
+            newPosition.z += waveOffset;
+            
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform float uTime;
+          uniform vec3 uColor1;
+          uniform vec3 uColor2;
+          uniform vec3 uColor3;
+          uniform float uSpeed;
+          uniform float uAlpha;
+          varying vec2 vUv;
+          varying float vElevation;
+          
+          void main() {
+            // Horizontal flowing patterns
+            float flow1 = sin(vUv.x * 10.0 + uTime * uSpeed + vElevation * 0.5) * 0.5 + 0.5;
+            float flow2 = sin(vUv.x * 15.0 - uTime * uSpeed * 0.8 + vUv.y * 3.0) * 0.5 + 0.5;
+            float flow3 = cos(vUv.x * 8.0 + uTime * uSpeed * 1.2 + vUv.y * 2.0) * 0.5 + 0.5;
+            
+            // Combine flows\n            float pattern = flow1 * 0.5 + flow2 * 0.3 + flow3 * 0.2;\            
+            // Color mixing
+            vec3 color = mix(uColor1, uColor2, pattern);
+            color = mix(color, uColor3, flow2 * 0.5);
+            
+            // Vertical fade\n            float verticalFade = smoothstep(0.0, 0.2, vUv.y) * smoothstep(1.0, 0.8, vUv.y);
+            
+            // Horizontal fade\n            float horizontalFade = smoothstep(0.0, 0.15, vUv.x) * smoothstep(1.0, 0.85, vUv.x);
+            
+            // Add shimmer
+            float shimmer = sin(vUv.x * 30.0 + uTime * 3.0 + vUv.y * 5.0) * 0.5 + 0.5;
+            color += vec3(0.1, 0.1, 0.15) * shimmer * 0.3;
+            
+            float alpha = uAlpha * verticalFade * horizontalFade * (0.7 + pattern * 0.3);
+            
+            if (alpha < 0.01) discard;\n            gl_FragColor = vec4(color, alpha);\n          }\n        `,
+        transparent: true,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+      });
+      
+      const curtain = new THREE.Mesh(curtainGeo, curtainMaterial);
+      curtain.position.set(x, y, z);
+      curtain.rotation.y = (Math.random() - 0.5) * 0.2;
+      curtain.name = `auroraCurtain_${c}`;
+      this.worldRoot.add(curtain);
+      this.animatedObjects.push({
+        object: curtain,
+        type: 'auroraCurtain'
+      });
+    }
+  }
+  
+  emitSandTrail(position, size) {
+    if (!this.sandTrailSystem) {
+      return;
+    }
+
+    const trail = this.sandTrailSystem;
+    const emitCount = 3 + Math.floor(Math.random() * 3);
+    
+    for (let e = 0; e < emitCount; e++) {
+      for (let i = 0; i < trail.count; i++) {
+        if (trail.age[i] <= 0) {
+          const idx = i * 3;
+          trail.positions[idx] = position.x + (Math.random() - 0.5) * 0.3;
+          trail.positions[idx + 1] = position.y + Math.random() * 0.2;
+          trail.positions[idx + 2] = position.z + (Math.random() - 0.5) * 0.3;
+          trail.sizes[i] = size * (0.8 + Math.random() * 0.4);
+          trail.life[i] = 0.8 + Math.random() * 0.4;
+          trail.age[i] = trail.life[i];
+          trail.alphas[i] = 1.0;
+          trail.object.geometry.attributes.position.needsUpdate = true;
+          trail.object.geometry.attributes.aSize.needsUpdate = true;
+          trail.object.geometry.attributes.aAlpha.needsUpdate = true;
+          break;
+        }
+      }
+    }
   }
   
   /**
@@ -1058,6 +1851,109 @@ export class DreamDesert2 {
       object: shimmerParticles,
       type: 'shimmerParticles'
     });
+    
+    // Firefly system - small yellow particles near ground
+    const fireflyCount = 150;
+    const fireflyGeo = new THREE.BufferGeometry();
+    const fireflyPositions = new Float32Array(fireflyCount * 3);
+    const fireflySizes = new Float32Array(fireflyCount);
+    const fireflyHues = new Float32Array(fireflyCount);
+    const fireflyPhases = new Float32Array(fireflyCount);
+    const fireflyAlphas = new Float32Array(fireflyCount);
+    const fireflyHeights = new Float32Array(fireflyCount);
+    const fireflyBaseHeights = new Float32Array(fireflyCount);
+    
+    for (let i = 0; i < fireflyCount; i++) {
+      fireflyPositions[i * 3] = (Math.random() - 0.5) * 180;
+      fireflyPositions[i * 3 + 1] = 0.2 + Math.random() * 2.5;
+      fireflyPositions[i * 3 + 2] = (Math.random() - 0.5) * 180;
+      
+      fireflySizes[i] = 3.0 + Math.random() * 4.0;
+      fireflyHues[i] = 0.12 + Math.random() * 0.08; // Yellow-orange range
+      fireflyPhases[i] = Math.random() * Math.PI * 2;
+      fireflyAlphas[i] = 0.4 + Math.random() * 0.3;
+      fireflyHeights[i] = fireflyPositions[i * 3 + 1];
+      fireflyBaseHeights[i] = fireflyPositions[i * 3 + 1];
+    }
+    
+    fireflyGeo.setAttribute('position', new THREE.BufferAttribute(fireflyPositions, 3));
+    fireflyGeo.setAttribute('aSize', new THREE.BufferAttribute(fireflySizes, 1));
+    fireflyGeo.setAttribute('aHue', new THREE.BufferAttribute(fireflyHues, 1));
+    fireflyGeo.setAttribute('aPhase', new THREE.BufferAttribute(fireflyPhases, 1));
+    fireflyGeo.setAttribute('aAlpha', new THREE.BufferAttribute(fireflyAlphas, 1));
+    
+    const fireflyMaterial = this.createParticleShaderMaterial();
+    const fireflies = new THREE.Points(fireflyGeo, fireflyMaterial);
+    fireflies.name = 'fireflyParticles';
+    this.worldRoot.add(fireflies);
+    this.particleSystems.push({
+      object: fireflies,
+      type: 'firefly',
+      positions: fireflyPositions,
+      heights: fireflyHeights,
+      baseHeights: fireflyBaseHeights,
+      count: fireflyCount
+    });
+    this.animatedObjects.push({
+      object: fireflies,
+      type: 'firefly'
+    });
+    
+    // Sand particle trails system
+    const sandTrailCount = 300;
+    const sandTrailGeo = new THREE.BufferGeometry();
+    const sandTrailPositions = new Float32Array(sandTrailCount * 3);
+    const sandTrailSizes = new Float32Array(sandTrailCount);
+    const sandTrailHues = new Float32Array(sandTrailCount);
+    const sandTrailPhases = new Float32Array(sandTrailCount);
+    const sandTrailAlphas = new Float32Array(sandTrailCount);
+    const sandTrailLife = new Float32Array(sandTrailCount);
+    const sandTrailAge = new Float32Array(sandTrailCount);
+    
+    for (let i = 0; i < sandTrailCount; i++) {
+      sandTrailPositions[i * 3] = 0;
+      sandTrailPositions[i * 3 + 1] = -1000;
+      sandTrailPositions[i * 3 + 2] = 0;
+      sandTrailSizes[i] = 2.0 + Math.random() * 2.0;
+      sandTrailHues[i] = 0.08 + Math.random() * 0.04; // Sand colors
+      sandTrailPhases[i] = Math.random() * Math.PI * 2;
+      sandTrailAlphas[i] = 0.0;
+      sandTrailLife[i] = 0.0;
+      sandTrailAge[i] = 0.0;
+    }
+    
+    sandTrailGeo.setAttribute('position', new THREE.BufferAttribute(sandTrailPositions, 3));
+    sandTrailGeo.setAttribute('aSize', new THREE.BufferAttribute(sandTrailSizes, 1));
+    sandTrailGeo.setAttribute('aHue', new THREE.BufferAttribute(sandTrailHues, 1));
+    sandTrailGeo.setAttribute('aPhase', new THREE.BufferAttribute(sandTrailPhases, 1));
+    sandTrailGeo.setAttribute('aAlpha', new THREE.BufferAttribute(sandTrailAlphas, 1));
+    
+    const sandTrailMaterial = this.createParticleShaderMaterial();
+    const sandTrails = new THREE.Points(sandTrailGeo, sandTrailMaterial);
+    sandTrails.name = 'sandTrailParticles';
+    this.worldRoot.add(sandTrails);
+    this.sandTrailSystem = {
+      object: sandTrails,
+      positions: sandTrailPositions,
+      sizes: sandTrailSizes,
+      hues: sandTrailHues,
+      phases: sandTrailPhases,
+      alphas: sandTrailAlphas,
+      life: sandTrailLife,
+      age: sandTrailAge,
+      count: sandTrailCount
+    };
+    this.particleSystems.push({
+      object: sandTrails,
+      type: 'sandTrails'
+    });
+    this.animatedObjects.push({
+      object: sandTrails,
+      type: 'sandTrails'
+    });
+    
+    // Aurora-like curtains at higher altitude
+    this.createAuroraCurtains();
   }
   
   /**
@@ -1066,7 +1962,7 @@ export class DreamDesert2 {
   createAtmosphericScattering() {
     // Create multiple animated mist layers for organic depth
     const mistGeo1 = new THREE.PlaneGeometry(280, 280);
-    const mistMat1 = this.createAtmosphericFogMaterial(0xe8c0d0, 2.4, 0.05, 0.14);
+    const mistMat1 = this.createAtmosphericFogMaterial(0xe8c0d0, 2.4, 0.05, 0.12);
     const mist1 = new THREE.Mesh(mistGeo1, mistMat1);
     mist1.position.y = 0.5;
     mist1.rotation.x = -Math.PI / 2;
@@ -1075,7 +1971,7 @@ export class DreamDesert2 {
     this.animatedObjects.push({ object: mist1, type: 'fogLayer', phase: 0.1 });
 
     const mistGeo2 = new THREE.PlaneGeometry(300, 300);
-    const mistMat2 = this.createAtmosphericFogMaterial(0xf0d8e8, 2.0, 0.08, 0.1);
+    const mistMat2 = this.createAtmosphericFogMaterial(0xf0d8e8, 2.0, 0.08, 0.09);
     const mist2 = new THREE.Mesh(mistGeo2, mistMat2);
     mist2.position.y = 15;
     mist2.rotation.x = -Math.PI / 2;
@@ -1084,7 +1980,7 @@ export class DreamDesert2 {
     this.animatedObjects.push({ object: mist2, type: 'fogLayer', phase: 1.1 });
 
     const mistGeo3 = new THREE.PlaneGeometry(350, 350);
-    const mistMat3 = this.createAtmosphericFogMaterial(0xffe8f0, 1.6, 0.12, 0.08);
+    const mistMat3 = this.createAtmosphericFogMaterial(0xffe8f0, 1.6, 0.12, 0.07);
     const mist3 = new THREE.Mesh(mistGeo3, mistMat3);
     mist3.position.y = 35;
     mist3.rotation.x = -Math.PI / 2;
@@ -1118,7 +2014,7 @@ export class DreamDesert2 {
           float ring = smoothstep(0.38, 0.36, radius) - smoothstep(0.46, 0.44, radius);
           float pulse = 0.6 + 0.4 * sin(uTime * 1.6 + radius * 14.0);
           vec3 color = mix(uColorOuter, uColorInner, smoothstep(0.3, 0.5, radius));
-          float alpha = ring * pulse * 0.8;
+          float alpha = ring * pulse * 0.85;
           if (alpha < 0.01) discard;
           gl_FragColor = vec4(color, alpha);
         }
@@ -1135,24 +2031,147 @@ export class DreamDesert2 {
     this.worldRoot.add(horizonRing);
     this.animatedObjects.push({ object: horizonRing, type: 'fogLayer', phase: 3.5 });
 
-    // Light shaft effect - moving godrays
-    const rayGeo = new THREE.PlaneGeometry(200, 200);
-    const rayMat = materialRegistry.getBasic('world.dreamdesert2.godray', {
-      color: 0xffeedd,
+    // Enhanced volumetric light shafts with shader
+    const rayGeo = new THREE.PlaneGeometry(200, 200, 1, 1);
+    const rayMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uColor: { value: new THREE.Color(0xffeedd) },
+        uOpacity: { value: 0.08 },
+        uSpeed: { value: 0.15 }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec2 vUv;
+        uniform float uTime;
+        uniform vec3 uColor;
+        uniform float uOpacity;
+        uniform float uSpeed;
+
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+        }
+
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          float a = hash(i);
+          float b = hash(i + vec2(1.0, 0.0));
+          float c = hash(i + vec2(0.0, 1.0));
+          float d = hash(i + vec2(1.0, 1.0));
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+        }
+
+        void main() {
+          float t = uTime * uSpeed;
+          
+          // Multiple noise layers for volumetric effect
+          float n1 = noise(vUv * 3.0 + vec2(t * 0.5, t * 0.3));
+          float n2 = noise(vUv * 6.0 + vec2(t * 0.7, t * 0.5)) * 0.5;
+          float n3 = noise(vUv * 12.0 + vec2(t, t * 0.8)) * 0.25;
+          
+          float combined = n1 + n2 + n3;
+          
+          // Diagonal beam pattern
+          float beam = abs(vUv.x - vUv.y * 0.6);
+          beam = 1.0 - smoothstep(0.0, 0.3, beam);
+          
+          // Vertical fade
+          float vertical = smoothstep(0.0, 0.2, vUv.y) * smoothstep(1.0, 0.8, vUv.y);
+          
+          float alpha = uOpacity * combined * beam * vertical;
+          
+          if (alpha < 0.01) discard;
+          gl_FragColor = vec4(uColor, alpha);
+        }
+      `,
       transparent: true,
-      opacity: 0.06,
+      depthWrite: false,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide
     });
     const rays = new THREE.Mesh(rayGeo, rayMat);
     rays.position.set(30, 20, 40);
     rays.rotation.x = -0.3;
+    rays.name = 'lightShafts';
     this.worldRoot.add(rays);
     this.animatedObjects.push({
       object: rays,
       type: 'lightShafts',
       angle: 0
     });
+    
+    // Atmospheric haze layer near horizon
+    const hazeGeo = new THREE.PlaneGeometry(320, 60, 1, 1);
+    const hazeMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uColorTop: { value: new THREE.Color(0xffd8e8) },
+        uColorBottom: { value: new THREE.Color(0xffa0c0) }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec2 vUv;
+        uniform float uTime;
+        uniform vec3 uColorTop;
+        uniform vec3 uColorBottom;
+
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+        }
+
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          float a = hash(i);
+          float b = hash(i + vec2(1.0, 0.0));
+          float c = hash(i + vec2(0.0, 1.0));
+          float d = hash(i + vec2(1.0, 1.0));
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+        }
+
+        void main() {
+          // Vertical gradient
+          float vGradient = vUv.y;
+          
+          // Horizontal variation
+          float hNoise = noise(vUv * 2.0 + uTime * 0.1);
+          
+          // Subtle animation
+          float pulse = 0.8 + 0.2 * sin(uTime * 0.5 + vUv.x * 6.0);
+          
+          vec3 color = mix(uColorBottom, uColorTop, vGradient);
+          float alpha = 0.15 * vGradient * (1.0 - abs(vUv.x - 0.5) * 1.5) * pulse * (0.8 + 0.2 * hNoise);
+          
+          if (alpha < 0.01) discard;
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.NormalBlending,
+      side: THREE.DoubleSide
+    });
+    const haze = new THREE.Mesh(hazeGeo, hazeMat);
+    haze.position.set(0, 12, -100);
+    haze.rotation.x = -Math.PI / 2 + 0.15;
+    haze.name = 'horizonHaze';
+    this.worldRoot.add(haze);
+    this.animatedObjects.push({ object: haze, type: 'fogLayer', phase: 4.2 });
   }
   
   /**
@@ -1203,8 +2222,8 @@ export class DreamDesert2 {
     this.worldRoot.add(collisionTerrain);
     this.collisionObjects.push(collisionTerrain);
     
-    // Collision for ridges
-    const ridgeCount = 7;
+    // Collision for ridges (11 main + sub-ridges approximation)
+    const ridgeCount = 11;
     for (let r = 0; r < ridgeCount; r++) {
       const angle = (r / ridgeCount) * Math.PI * 2;
       const distance = 40 + Math.random() * 50;
@@ -1230,6 +2249,35 @@ export class DreamDesert2 {
       
       this.worldRoot.add(collider);
       this.collisionObjects.push(collider);
+      
+      // Add sub-ridge collision (2-3 per main ridge)
+      const subRidgeCount = 2 + Math.floor(Math.random() * 2);
+      for (let s = 0; s < subRidgeCount; s++) {
+        const subAngle = angle + (Math.random() - 0.5) * 0.6;
+        const subDistance = distance + 8 + Math.random() * 12;
+        const subX = Math.cos(subAngle) * subDistance;
+        const subZ = Math.sin(subAngle) * subDistance;
+        
+        const subLength = length * (0.4 + Math.random() * 0.3);
+        const subHeight = height * (0.35 + Math.random() * 0.25);
+        
+        const subCollider = new THREE.Mesh(
+          new THREE.BoxGeometry(subLength, subHeight, 0.6),
+          invisibleMaterial
+        );
+        subCollider.position.set(subX, subHeight * 0.5 + 0.2, subZ);
+        subCollider.rotation.y = Math.random() * Math.PI;
+        subCollider.rotation.z = (Math.random() - 0.5) * 0.15;
+        subCollider.userData = {
+          isWalkable: true,
+          collisionEnabled: true,
+          terrainType: 'subRidge',
+          height: subHeight
+        };
+        
+        this.worldRoot.add(subCollider);
+        this.collisionObjects.push(subCollider);
+      }
     }
     
     // Collision for fragments
@@ -1264,6 +2312,30 @@ export class DreamDesert2 {
   }
   
   /**
+   * Get current wind direction and strength
+   */
+  getWind() {
+    return {
+      direction: this.windDirection.clone(),
+      strength: this.windStrength * (0.8 + (Math.sin(this.windTime * 0.3) * 0.5 + 0.5) * 0.4)
+    };
+  }
+  
+  /**
+   * Emit sand particles at position (call when moving on dunes)
+   */
+  emitSandParticles(position, count = 3, size = 1.0) {
+    for (let i = 0; i < count; i++) {
+      const offset = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.5,
+        Math.random() * 0.3,
+        (Math.random() - 0.5) * 0.5
+      );
+      this.emitSandTrail(position.clone().add(offset), size);
+    }
+  }
+  
+  /**
    * Update animations and effects
    */
   update(deltaTime, time) {
@@ -1272,10 +2344,26 @@ export class DreamDesert2 {
       this.referencePlane.animate(deltaTime, time);
     }
     
+    // Update wind with time-varying direction
+    this.windTime += deltaTime;
+    const windVariation = Math.sin(this.windTime * 0.3) * 0.5 + 0.5;
+    this.windDirection.set(
+      Math.sin(this.windTime * 0.15) * 0.7 + 0.3,
+      0.05 + Math.sin(this.windTime * 0.2) * 0.08,
+      Math.cos(this.windTime * 0.12) * 0.5 + 0.5
+    ).normalize();
+    const currentWindStrength = this.windStrength * (0.8 + windVariation * 0.4);
+    
     this.animatedObjects.forEach(obj => {
       // Float fragments with rotation
       if (obj.type === 'floatFragment') {
         const data = obj.object.userData;
+        
+        // Update shader uniforms if using prismatic material
+        if (obj.object.material.uniforms) {
+          obj.object.material.uniforms.uTime.value = time;
+          obj.object.material.uniforms.uCameraPosition.value.copy(this.camera.position);
+        }
         
         // Smooth bobbing motion
         const float = Math.sin(time * data.floatSpeed + data.floatOffset) * data.floatAmount;
@@ -1286,8 +2374,11 @@ export class DreamDesert2 {
         obj.object.rotation.y += data.rotationSpeed.y;
         obj.object.rotation.z += data.rotationSpeed.z;
 
-        if (data.glow) {
-          data.glow.position.set(obj.object.position.x, obj.object.position.y - 0.02, obj.object.position.z);
+        if (data.innerGlow) {
+          data.innerGlow.position.set(obj.object.position.x, obj.object.position.y - 0.02, obj.object.position.z);
+        }
+        if (data.outerGlow) {
+          data.outerGlow.position.set(obj.object.position.x, obj.object.position.y - 0.02, obj.object.position.z);
         }
         if (data.pointLight) {
           data.pointLight.position.set(obj.object.position.x, obj.object.position.y + 0.35, obj.object.position.z);
@@ -1298,7 +2389,7 @@ export class DreamDesert2 {
         }
       }
       
-      // Drifting particles
+      // Drifting particles with wind
       if (obj.type === 'particles') {
         const psData = this.particleSystems.find(ps => ps.object === obj.object);
         if (psData) {
@@ -1306,6 +2397,16 @@ export class DreamDesert2 {
           const velocities = psData.velocities;
           
           for (let i = 0; i < positions.length; i += 3) {
+            // Apply wind influence to velocity
+            velocities[i] += this.windDirection.x * currentWindStrength * 0.1;
+            velocities[i + 1] += this.windDirection.y * currentWindStrength * 0.1;
+            velocities[i + 2] += this.windDirection.z * currentWindStrength * 0.1;
+            
+            // Apply damping
+            velocities[i] *= 0.99;
+            velocities[i + 1] *= 0.99;
+            velocities[i + 2] *= 0.99;
+            
             positions[i] += velocities[i];
             positions[i + 1] += velocities[i + 1];
             positions[i + 2] += velocities[i + 2];
@@ -1329,7 +2430,7 @@ export class DreamDesert2 {
         }
       }
       
-      // Shimmer particles
+      // Shimmer particles with wind
       if (obj.type === 'shimmerParticles') {
         const psData = this.particleSystems.find(ps => ps.object === obj.object);
         if (psData) {
@@ -1337,6 +2438,10 @@ export class DreamDesert2 {
           const velocities = psData.velocities;
           
           for (let i = 0; i < positions.length; i += 3) {
+            // Apply wind influence
+            velocities[i] += this.windDirection.x * currentWindStrength * 0.05;
+            velocities[i + 2] += this.windDirection.z * currentWindStrength * 0.05;
+            
             positions[i] += velocities[i];
             positions[i + 1] += velocities[i + 1];
             positions[i + 2] += velocities[i + 2];
@@ -1356,6 +2461,80 @@ export class DreamDesert2 {
           }
           
           obj.object.geometry.attributes.position.needsUpdate = true;
+        }
+      }
+
+      // Firefly particles
+      if (obj.type === 'firefly') {
+        const psData = this.particleSystems.find(ps => ps.object === obj.object);
+        if (psData) {
+          const positions = psData.object.geometry.attributes.position.array;
+          
+          for (let i = 0; i < psData.count; i++) {
+            const idx = i * 3;
+            
+            // Gentle floating motion
+            positions[idx + 1] = psData.baseHeights[i] + Math.sin(time * 0.8 + i * 0.5) * 0.3;
+            
+            // Apply wind distortion (lighter effect for fireflies)
+            positions[idx] += this.windDirection.x * currentWindStrength * deltaTime * 0.5;
+            positions[idx + 2] += this.windDirection.z * currentWindStrength * deltaTime * 0.5;
+            
+            // Wrap around
+            if (Math.abs(positions[idx]) > 120) {
+              positions[idx] = -positions[idx] * 0.9;
+            }
+            if (Math.abs(positions[idx + 2]) > 120) {
+              positions[idx + 2] = -positions[idx + 2] * 0.9;
+            }
+          }
+          
+          obj.object.geometry.attributes.position.needsUpdate = true;
+        }
+      }
+
+      // Sand trail particles
+      if (obj.type === 'sandTrails') {
+        const trails = this.sandTrailSystem;
+        if (trails) {
+          let changed = false;
+          for (let i = 0; i < trails.count; i++) {
+            if (trails.age[i] > 0) {
+              trails.age[i] -= deltaTime;
+              
+              if (trails.age[i] <= 0) {
+                trails.age[i] = 0;
+                trails.alphas[i] = 0;
+              } else {
+                const idx = i * 3;
+                const t = trails.age[i] / trails.life[i];
+                trails.alphas[i] = t * t;
+                
+                // Apply wind distortion to sand particles
+                trails.positions[idx] += this.windDirection.x * currentWindStrength * deltaTime * 2.0;
+                trails.positions[idx + 1] -= deltaTime * 0.3; // Gravity
+                trails.positions[idx + 2] += this.windDirection.z * currentWindStrength * deltaTime * 2.0;
+                
+                // Ground collision
+                if (trails.positions[idx + 1] < 0.1) {
+                  trails.positions[idx + 1] = 0.1;
+                  trails.age[i] *= 0.8; // Fade faster on ground
+                }
+              }
+              changed = true;
+            }
+          }
+          if (changed) {
+            obj.object.geometry.attributes.position.needsUpdate = true;
+            obj.object.geometry.attributes.aAlpha.needsUpdate = true;
+          }
+        }
+      }
+
+      // Aurora curtains
+      if (obj.type === 'auroraCurtain') {
+        if (obj.object.material && obj.object.material.uniforms) {
+          obj.object.material.uniforms.uTime.value = time;
         }
       }
 
@@ -1433,14 +2612,83 @@ export class DreamDesert2 {
         const sunY = 65 + Math.sin(sunAngle * 0.4) * 8;
         this.sunLight.position.set(sunX, sunY, sunZ);
         this.sunLight.target.position.set(0, 0, 0);
-        const hue = 0.08 + Math.sin(sunAngle * 0.5) * 0.02;
-        this.sunLight.color.setHSL(hue, 0.9, 0.86);
+        
+        // Enhanced golden hour effect - color varies by sun height
+        const sunHeight = (sunY - 57) / 16; // normalized 0-1
+        const warmColor = new THREE.Color(0xffaa88);
+        const coolColor = new THREE.Color(0xffe8c4);
+        const sunsetColor = new THREE.Color(0xff8866);
+        const noonColor = new THREE.Color(0xffffee);
+        
+        let sunColor;
+        if (sunHeight < 0.3) {
+          sunColor = warmColor.clone().lerp(coolColor, sunHeight / 0.3);
+        } else if (sunHeight > 0.7) {
+          sunColor = coolColor.clone().lerp(noonColor, (sunHeight - 0.7) / 0.3);
+        } else {
+          sunColor = coolColor.clone();
+        }
+        
+        // Add warm glow when sun is low
+        if (sunHeight < 0.2) {
+          const warmBlend = (0.2 - sunHeight) / 0.2;
+          sunColor.lerp(sunsetColor, warmBlend * 0.3);
+        }
+        
+        this.sunLight.color.copy(sunColor);
+        
+        // Update sky sun position
+        const skySphere = this.worldRoot.getObjectByName('dreamSkySphere');
+        if (skySphere && skySphere.material.uniforms) {
+          skySphere.material.uniforms.uSunPosition.value.copy(this.sunLight.position);
+          skySphere.material.uniforms.uTime.value = time;
+        }
+        
+        // Update sun glow sprite position
+        if (this.sunGlow) {
+          this.sunGlow.position.copy(this.sunLight.position);
+          // Scale glow based on sun height (larger when lower)
+          const sunHeight = sunY;
+          const glowScale = 35 + (70 - sunHeight) * 0.3;
+          this.sunGlow.scale.set(glowScale, glowScale, 1);
+          // Fade based on height (brighter when higher)
+          const glowOpacity = 0.5 + (sunY / 75) * 0.3;
+          this.sunGlow.material.opacity = glowOpacity;
+        }
+        
+        // Update moon shader
+        if (this.moon && this.moon.material.uniforms) {
+          this.moon.material.uniforms.uTime.value = time;
+        }
+        
+        // Update stars shader
+        if (this.stars && this.stars.material.uniforms) {
+          this.stars.material.uniforms.uTime.value = time;
+        }
+        
+        // Update cloud layers
+        if (this.cloudLayers) {
+          this.cloudLayers.forEach(cloud => {
+            if (cloud.material && cloud.material.uniforms) {
+              cloud.material.uniforms.uTime.value = time;
+            }
+          });
       }
       
-      // Ridge breathing effect
+      // Ridge breathing effect with shader updates
       if (obj.type === 'fractalRidge') {
-        const pulse = Math.sin(time * obj.pulseSpeed + obj.phaseOffset) * 0.33 + 0.67;
-        obj.object.material.emissiveIntensity = obj.baseEmissiveIntensity * pulse;
+        // Update shader uniforms
+        if (obj.object.material.uniforms) {
+          obj.object.material.uniforms.uTime.value = time;
+          obj.object.material.uniforms.uCameraPosition.value.copy(this.camera.position);
+          
+          const pulse = Math.sin(time * obj.pulseSpeed + obj.phaseOffset) * 0.33 + 0.67;
+          obj.object.material.uniforms.uEmissiveIntensity.value = obj.baseEmissiveIntensity * pulse;
+        } else {
+          // Fallback for old material system
+          const pulse = Math.sin(time * obj.pulseSpeed + obj.phaseOffset) * 0.33 + 0.67;
+          obj.object.material.emissiveIntensity = obj.baseEmissiveIntensity * pulse;
+        }
         obj.object.rotation.z = obj.baseZ + Math.sin(time * obj.pulseSpeed * 0.48 + obj.phaseOffset) * 0.035;
       }
 

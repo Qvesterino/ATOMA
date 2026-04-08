@@ -3,20 +3,58 @@ import VisualTime from './src/time/VisualTime.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 /**
- * SafeDreamDepthPack.js - AI Depth-of-Field Simulation (Pure VFX)
- * 
+ * SafeDreamDepthPack.js - Low-Cost ATOMA Depth Fallback Layer
+ *
  * SAFE: 100% non-destructive VFX overlays
  * - NO camera modifications
  * - NO shader changes
  * - NO physics alterations
  * - NO FOV changes
  * - NO rotation enforcement
- * 
- * Only screen-space overlays, color modulation, and soft masking
+ *
+ * Only screen-space overlays, color modulation, and soft masking.
  *
  * Role split: this class remains a low-cost fallback depth layer.
  * Complex DOF orchestration belongs to DreamDepthEffectManager.
+ *
+ * Palette (shared with DreamDepthEffectManager):
+ *   void deep   #05131A
+ *   ATOMA cyan  #6DEAFF
+ *   mint        #77F7DB
+ *   ritual white #F7FBFF
+ *   violet      #D07BFF
+ *   rose        #FF73CF
  */
+
+const ATOMA_PALETTE = {
+  voidDeep:     0x05131A,
+  cyan:         0x6DEAFF,
+  mint:         0x77F7DB,
+  ritualWhite:  0xF7FBFF,
+  violet:       0xD07BFF,
+  rose:         0xFF73CF
+};
+
+const WEATHER_KEYS = new Set(['calm', 'pressure', 'resonance', 'stormBias', 'ascensionHaze']);
+
+const WEATHER_COLOR_MAP = {
+  calm:          { vignette: 0xe8ffff, pulse: ATOMA_PALETTE.cyan,    glaze: ATOMA_PALETTE.mint },
+  pressure:      { vignette: 0x8f78c8, pulse: ATOMA_PALETTE.violet,  glaze: 0x6a5a9a },
+  resonance:     { vignette: 0x9fffe8, pulse: ATOMA_PALETTE.mint,    glaze: ATOMA_PALETTE.cyan },
+  stormBias:     { vignette: ATOMA_PALETTE.violet, pulse: ATOMA_PALETTE.rose, glaze: ATOMA_PALETTE.violet },
+  ascensionHaze: { vignette: ATOMA_PALETTE.ritualWhite, pulse: ATOMA_PALETTE.ritualWhite, glaze: ATOMA_PALETTE.ritualWhite }
+};
+
+const PULSE_EVENT_PATTERNS = /PULSE|ECLIPSE|BURST|SURGE|RITUAL|STARFALL/;
+const PULSE_EVENTS = new Set([
+  'COSMIC_PULSE', 'QUANTUM_ECLIPSE', 'LUMINESCENT_BURST',
+  'STARFALL', 'SYNTHESIS_RITUAL', 'WEATHER_SHIFT', 'AETHER_SURGE'
+]);
+
+const STAGE_MAP = {
+  ritual: 1.0, late: 0.8, active: 0.7,
+  mid: 0.5, early: 0.3, passive: 0.2
+};
 
 export class SafeDreamDepthPack {
   constructor(scene, environmentRoot, camera, renderer) {
@@ -24,117 +62,82 @@ export class SafeDreamDepthPack {
     this.root = environmentRoot || scene;
     this.camera = camera;
     this.renderer = renderer;
-    
-    // VFX container for all DOF effects
+
+    this.palette = ATOMA_PALETTE;
+
+    this.currentWeatherKey = 'calm';
+    this.currentWorldEvent = null;
+    this.focusTargets = [];
+    this.lastPulseTime = 0;
+    this.pulseQueue = [];
+
     this.vfxContainer = new THREE.Group();
     this.vfxContainer.name = 'dream-depth-vfx';
+    this.vfxContainer.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_OVERLAY');
     this.root.add(this.vfxContainer);
-    
-    // Screen-space overlay stack (for layered DOF effects)
+
     this.vignetteTexture = this.createVignetteMask();
     this.focusTexture = this.createFocusMask();
+
     this.screenState = {
       vignetteOpacity: 0,
       focusOpacity: 0,
       pulseOpacity: 0,
       glazeOpacity: 0,
-      desaturation: 0,
-      contrast: 0,
-      warmthTint: 0,
-      vignetteColor: new THREE.Color(0xc8f2ff),
-      pulseColor: new THREE.Color(0xeafbff),
-      glazeColor: new THREE.Color(0xffd7c0)
+      vignetteColor: new THREE.Color(ATOMA_PALETTE.voidDeep),
+      pulseColor: new THREE.Color(ATOMA_PALETTE.cyan),
+      glazeColor: new THREE.Color(ATOMA_PALETTE.mint)
     };
+
     this.screenLayers = {
       vignetteLayer: null,
       focusLayer: null,
       pulseLayer: null,
       glazeLayer: null
     };
-    this.glazeBaseColor = new THREE.Color(0xffd7c0);
+
     this.intensityScale = 1.0;
-    this.lastPulseTime = 0;
-    this.pulseCooldown = 0.15;
+
     this.setupOverlayQuad();
-    
-    // State tracking
+
     this.isActive = true;
     this.currentFocus = null;
     this.focusTransition = 0;
-    this.focusDuration = 0;
-    this.focusIntensity = 0;
-    
-    // Configuration
+
     this.config = {
-      // Baseline DOF (always applied)
-      vignette: {
-        opacity: 0.08,
-        softness: 0.25,
-        maxRadius: 0.7
-      },
-      
-      desaturation: {
-        background: 0.04,        // 4% desaturation
-        periphery: 0.06          // 6% at edges
-      },
-      
-      contrast: {
-        centerBoost: 0.03,       // +3% center contrast
-        edgeDim: 0.02            // -2% edge contrast
-      },
-      
-      // Auto-focus effects
-      focus: {
-        fadeInTime: 0.35,
-        fadeOutTime: 0.35,
-        contrastBoost: 0.04,
-        backgroundFade: 0.06,
-        vignetteIncrease: 0.02
-      },
-      
-      // Depth pulse
+      vignette: { opacity: 0.08, softness: 0.25, maxRadius: 0.7 },
+      desaturation: { background: 0.04, periphery: 0.06 },
+      contrast: { centerBoost: 0.03, edgeDim: 0.02 },
+      focus: { fadeInTime: 0.35, fadeOutTime: 0.35, contrastBoost: 0.04, backgroundFade: 0.06, vignetteIncrease: 0.02 },
       pulse: {
         minIntensity: 0.008,
         maxIntensity: 0.015,
-        duration: 0.25
+        duration: 0.3,
+        cooldown: 0.15,
+        attackRatio: 0.2,
+        crestRatio: 0.3,
+        releaseRatio: 0.5
       },
-      
-      // Dream glaze
-      glaze: {
-        microBloom: 0.04,
-        warmthTint: 0.015       // Subtle warmth
-      },
-      
-      // Stability
-      stabilityThreshold: 0.5,  // Movement speed threshold
-      stabilityDamping: 0.3     // Reduce effects if moving fast
+      glaze: { microBloom: 0.04 },
+      stabilityThreshold: 0.5,
+      stabilityDamping: 0.3,
+      transitionSpeed: 0.1
     };
-    
-    // Timing
+
     this.time = 0;
     this.lastFrameTime = performance.now();
     this.cameraVelocity = new THREE.Vector3();
     this.lastCameraPos = camera.position.clone();
     this._timeOrigin = undefined;
     this._lastVisualTime = undefined;
-    
-    // Pulse tracking
-    this.activePulses = [];
-    
-    // Performance LOD
+
     this.lodLevel = 'HIGH';
     this.fpsTarget = 60;
-    
-    console.log('✓ Safe Dream Depth Pack initialized');
   }
-  
-  /**
-   * Create overlay quad for screen-space effects
-   */
+
   setupOverlayQuad() {
     this.screenGeometry = new THREE.PlaneGeometry(2, 2);
     const geometry = this.screenGeometry;
-
     const baseRenderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_OVERLAY');
 
     this.screenLayers.vignetteLayer = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
@@ -151,6 +154,7 @@ export class SafeDreamDepthPack {
       map: this.focusTexture,
       transparent: true,
       opacity: 0,
+      blending: THREE.AdditiveBlending,
       depthTest: false,
       depthWrite: false
     }));
@@ -158,7 +162,7 @@ export class SafeDreamDepthPack {
     this.screenLayers.focusLayer.position.z = 0.11;
 
     this.screenLayers.pulseLayer = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
-      color: 0xffffff,
+      color: ATOMA_PALETTE.cyan,
       transparent: true,
       opacity: 0,
       depthTest: false,
@@ -169,7 +173,7 @@ export class SafeDreamDepthPack {
     this.screenLayers.pulseLayer.position.z = 0.12;
 
     this.screenLayers.glazeLayer = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
-      color: this.glazeBaseColor,
+      color: ATOMA_PALETTE.mint,
       transparent: true,
       opacity: 0,
       depthTest: false,
@@ -185,122 +189,84 @@ export class SafeDreamDepthPack {
       this.screenLayers.glazeLayer
     );
   }
-  
-  /**
-   * Create vignette mask texture (soft radial gradient)
-   */
+
   createVignetteMask() {
     const canvas = document.createElement('canvas');
     canvas.width = 256;
     canvas.height = 256;
-    
+
     const ctx = canvas.getContext('2d');
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    const maxRadius = Math.min(centerX, centerY);
-    
-    // Create radial gradient
-    const gradient = ctx.createRadialGradient(
-      centerX, centerY, 0,
-      centerX, centerY, maxRadius
-    );
-    
-    gradient.addColorStop(0, 'rgba(255,255,255,1)');      // Clear center
-    gradient.addColorStop(0.5, 'rgba(255,255,255,0.5)');  // Soft transition
-    gradient.addColorStop(1, 'rgba(0,0,0,0.8)');          // Dark edges
-    
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const maxRadius = Math.min(cx, cy);
+
+    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxRadius);
+    gradient.addColorStop(0, 'rgba(5,19,26,0)');
+    gradient.addColorStop(0.45, 'rgba(5,19,26,0.04)');
+    gradient.addColorStop(0.75, 'rgba(5,19,26,0.14)');
+    gradient.addColorStop(1, 'rgba(5,19,26,0.4)');
+
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
+
     const texture = new THREE.CanvasTexture(canvas);
     return texture;
   }
-  
-  /**
-   * Create focus mask texture
-   */
+
   createFocusMask() {
     const canvas = document.createElement('canvas');
     canvas.width = 256;
     canvas.height = 256;
-    
+
     const ctx = canvas.getContext('2d');
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    
-    // Create focus circle
-    const gradient = ctx.createRadialGradient(
-      centerX, centerY, 10,
-      centerX, centerY, Math.min(centerX, centerY)
-    );
-    
-    gradient.addColorStop(0, 'rgba(255,255,255,1)');
-    gradient.addColorStop(0.6, 'rgba(255,255,255,0.3)');
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+
+    const gradient = ctx.createRadialGradient(cx, cy, 8, cx, cy, Math.min(cx, cy));
+    gradient.addColorStop(0, 'rgba(109,234,255,0.15)');
+    gradient.addColorStop(0.4, 'rgba(119,247,219,0.06)');
+    gradient.addColorStop(0.7, 'rgba(247,251,255,0.015)');
     gradient.addColorStop(1, 'rgba(0,0,0,0)');
-    
+
     ctx.fillStyle = gradient;
     ctx.beginPath();
-    ctx.arc(centerX, centerY, Math.min(centerX, centerY), 0, Math.PI * 2);
+    ctx.arc(cx, cy, Math.min(cx, cy), 0, Math.PI * 2);
     ctx.fill();
-    
+
     const texture = new THREE.CanvasTexture(canvas);
     return texture;
   }
-  
-  /**
-   * Update camera velocity (for stability mode)
-   */
+
   updateCameraVelocity() {
     const currentPos = this.camera.position.clone();
     this.cameraVelocity.subVectors(currentPos, this.lastCameraPos);
     this.lastCameraPos.copy(currentPos);
   }
-  
-  /**
-   * Get stability factor (1.0 = normal, <1.0 = reduced effects)
-   */
+
   getStabilityFactor() {
     const speed = this.cameraVelocity.length();
-    if (speed < this.config.stabilityThreshold) {
-      return 1.0;
-    }
-    
-    // Reduce effect intensity when moving fast
+    if (speed < this.config.stabilityThreshold) return 1.0;
     const excess = speed - this.config.stabilityThreshold;
     return Math.max(0.3, 1.0 - excess * this.config.stabilityDamping);
   }
-  
-  /**
-   * Apply baseline DOF illusion
-   */
+
   applyBaselineDOF(deltaTime) {
     if (!this.screenLayers.vignetteLayer) return;
-    
+
     const stability = this.getStabilityFactor();
     const state = this.screenState;
-    
-    // Baseline vignette (always on)
     const scale = this.intensityScale;
+    const lerp = this.config.transitionSpeed;
+
     const targetVignette = this.config.vignette.opacity * stability * scale;
-    state.vignetteOpacity += (targetVignette - state.vignetteOpacity) * 0.1;
+    state.vignetteOpacity += (targetVignette - state.vignetteOpacity) * lerp;
     this.screenLayers.vignetteLayer.material.opacity = state.vignetteOpacity;
-    
-    // Baseline desaturation
-    const targetDesaturation = this.config.desaturation.background * stability * scale;
-    state.desaturation += (targetDesaturation - state.desaturation) * 0.08;
-    
-    // Baseline contrast (subtle center boost)
-    const targetContrast = this.config.contrast.centerBoost * stability * scale;
-    state.contrast += (targetContrast - state.contrast) * 0.1;
   }
-  
-  /**
-   * Auto-focus on nearby important objects
-   */
+
   autoFocusOnTarget(targets) {
     if (!targets || targets.length === 0) {
-      // Fade out focus
       this.focusTransition = Math.max(0, this.focusTransition - 0.05);
+      this.currentFocus = null;
       return;
     }
 
@@ -308,22 +274,17 @@ export class SafeDreamDepthPack {
     let bestScore = -Infinity;
     const cameraPos = this.camera.position;
 
-    const stageMap = {
-      ritual: 1.0,
-      late: 0.8,
-      active: 0.7,
-      mid: 0.5,
-      early: 0.3,
-      passive: 0.2
-    };
-
     for (const target of targets) {
       if (!target || !target.position) continue;
 
       const distance = cameraPos.distanceTo(target.position);
-      const importance = typeof target.importance === 'number' ? target.importance : (typeof target.priority === 'number' ? target.priority : 0);
-      const legendary = target.legendary || target.isLegendary || target.legendary === true ? 1 : 0;
-      const stage = typeof target.stage === 'string' ? (stageMap[target.stage.toLowerCase()] ?? 0) : (typeof target.stage === 'number' ? Math.min(1, Math.max(0, target.stage / 10)) : 0);
+      const importance = typeof target.importance === 'number'
+        ? target.importance
+        : (typeof target.priority === 'number' ? target.priority : 0);
+      const legendary = (target.legendary || target.isLegendary || target.legendary === true) ? 1 : 0;
+      const stage = typeof target.stage === 'string'
+        ? (STAGE_MAP[target.stage.toLowerCase()] ?? 0)
+        : (typeof target.stage === 'number' ? Math.min(1, Math.max(0, target.stage / 10)) : 0);
       const distanceScore = Math.max(0, 1 - Math.min(distance / 120, 1));
       const score = importance * 1.2 + legendary * 1.8 + stage * 1.0 + distanceScore * 1.3;
 
@@ -338,116 +299,122 @@ export class SafeDreamDepthPack {
       this.focusTransition = Math.min(1.0, this.focusTransition + 0.1);
     }
   }
-  
-  /**
-   * Apply focus effect when looking at important objects
-   */
+
   applyFocusEffect(deltaTime) {
-    if (!this.currentFocus || this.focusTransition < 0.01) return;
-    
-    if (!this.screenLayers.focusLayer) return;
-    
     const state = this.screenState;
+
+    if (!this.currentFocus || this.focusTransition < 0.01) {
+      const targetFocus = 0;
+      state.focusOpacity += (targetFocus - state.focusOpacity) * this.config.transitionSpeed;
+      if (this.screenLayers.focusLayer) {
+        this.screenLayers.focusLayer.material.opacity = state.focusOpacity;
+      }
+      return;
+    }
+
+    if (!this.screenLayers.focusLayer) return;
+
     const t = this.focusTransition;
-    
-    // Boost focus effects
-    const focusBoost = this.config.focus.contrastBoost * t;
-    const vignetteBoost = this.config.focus.vignetteIncrease * t;
-    const fadeBoost = this.config.focus.backgroundFade * t;
-    
-    // Tighter clarity, reduced edge darkness, warm glaze
-    state.vignetteOpacity = Math.max(0, state.vignetteOpacity - 0.03);
-    state.desaturation += fadeBoost * 0.08;
-    state.contrast += focusBoost * 0.12;
-    state.focusOpacity += t * 0.06;
-    state.focusOpacity = Math.min(0.22, state.focusOpacity);
-    state.glazeOpacity += 0.03 * t;
-    state.warmthTint += 0.02 * t;
+    const stability = this.getStabilityFactor();
+    const scale = this.intensityScale;
+
+    const focusTarget = Math.min(0.18, this.config.focus.contrastBoost * t * stability * scale * 2.5);
+    state.focusOpacity += (focusTarget - state.focusOpacity) * this.config.transitionSpeed;
+    state.focusOpacity = Math.min(0.2, Math.max(0, state.focusOpacity));
+
+    const vignetteRelax = state.vignetteOpacity * (1 - t * 0.15);
+    state.vignetteOpacity = vignetteRelax;
+
     this.screenLayers.focusLayer.material.opacity = state.focusOpacity;
   }
-  
-  /**
-   * Trigger depth pulse (on synergy spike or legendary event)
-   */
+
   triggerDepthPulse() {
     const now = performance.now();
-    const recentPulse = this.activePulses[this.activePulses.length - 1];
-    if (recentPulse && now - this.lastPulseTime < this.pulseCooldown) {
-      recentPulse.maxIntensity = Math.min(this.config.pulse.maxIntensity * 1.5, recentPulse.maxIntensity + this.config.pulse.maxIntensity * 0.35);
-      recentPulse.elapsed = 0;
+    const cfg = this.config.pulse;
+    const queue = this.pulseQueue;
+    const last = queue.length > 0 ? queue[queue.length - 1] : null;
+
+    if (last && now - this.lastPulseTime < cfg.cooldown) {
+      last.maxIntensity = Math.min(cfg.maxIntensity * 1.5, last.maxIntensity + cfg.maxIntensity * 0.35);
+      last.elapsed = 0;
       this.lastPulseTime = now;
       return;
     }
 
-    const pulse = {
+    queue.push({
       elapsed: 0,
-      duration: this.config.pulse.duration,
+      duration: cfg.duration,
       intensity: 0,
-      maxIntensity: this.config.pulse.maxIntensity,
-      startTime: now
-    };
-    this.activePulses.push(pulse);
+      maxIntensity: cfg.maxIntensity,
+      startTime: now,
+      attackRatio: cfg.attackRatio,
+      crestRatio: cfg.crestRatio
+    });
+
     this.lastPulseTime = now;
   }
-  
-  /**
-   * Update depth pulses
-   */
+
+  triggerPulse() {
+    this.triggerDepthPulse();
+  }
+
   updateDepthPulses(deltaTime) {
     const state = this.screenState;
-    for (let i = this.activePulses.length - 1; i >= 0; i--) {
-      const pulse = this.activePulses[i];
+    const queue = this.pulseQueue;
+    let totalPulseEffect = 0;
+
+    for (let i = queue.length - 1; i >= 0; i--) {
+      const pulse = queue[i];
       pulse.elapsed += deltaTime;
-      
-      // Calculate pulse intensity (smooth bell curve)
+
       const progress = pulse.elapsed / pulse.duration;
       if (progress >= 1) {
-        this.activePulses.splice(i, 1);
+        queue.splice(i, 1);
         continue;
       }
-      
-      // Bell curve intensity
-      pulse.intensity = pulse.maxIntensity * Math.sin(progress * Math.PI);
+
+      const { attackRatio, crestRatio } = pulse;
+      const attackEnd = attackRatio;
+      const crestEnd = attackRatio + crestRatio;
+
+      let envelope;
+      if (progress < attackEnd) {
+        envelope = progress / attackEnd;
+        envelope = envelope * envelope;
+      } else if (progress < crestEnd) {
+        envelope = 1.0;
+      } else {
+        const releaseProgress = (progress - crestEnd) / (1 - crestEnd);
+        envelope = 1.0 - releaseProgress;
+        envelope = envelope * envelope;
+      }
+
+      pulse.intensity = pulse.maxIntensity * envelope;
+      totalPulseEffect += pulse.intensity;
     }
-    
-    let pulseEffect = 0;
-    for (const pulse of this.activePulses) {
-      pulseEffect += pulse.intensity;
-    }
-    
-    state.contrast += pulseEffect * 0.12;
-    state.pulseOpacity = Math.min(0.24, pulseEffect * 0.9);
+
+    state.pulseOpacity = Math.min(0.24, totalPulseEffect * 0.9);
+
     if (this.screenLayers.pulseLayer) {
       this.screenLayers.pulseLayer.material.opacity = state.pulseOpacity;
-      this.screenLayers.pulseLayer.material.color.copy(state.pulseColor);
+      this.screenLayers.pulseLayer.material.color.lerp(state.pulseColor, 0.08);
     }
   }
-  
-  /**
-   * Apply dream glaze (micro-bloom, warmth tint)
-   */
+
   applyDreamGlaze(deltaTime) {
     if (!this.screenLayers.glazeLayer) return;
-    
+
     const state = this.screenState;
-    
-    // Micro-bloom (always subtle)
-    const targetGlaze = this.config.glaze.microBloom * this.intensityScale;
+    const stability = this.getStabilityFactor();
+    const scale = this.intensityScale;
+
+    const targetGlaze = this.config.glaze.microBloom * stability * scale;
     state.glazeOpacity += (targetGlaze - state.glazeOpacity) * 0.05;
-    state.warmthTint += (this.config.glaze.warmthTint * this.intensityScale - state.warmthTint) * 0.05;
-    if (this.screenLayers.glazeLayer) {
-      this.screenLayers.glazeLayer.material.opacity = state.glazeOpacity;
-      this.screenLayers.glazeLayer.material.color.lerpColors(
-        new THREE.Color(0x000000),
-        state.vignetteColor,
-        state.warmthTint
-      );
-    }
+
+    this.screenLayers.glazeLayer.material.opacity = state.glazeOpacity;
+    this.screenLayers.glazeLayer.material.color.lerp(state.glazeColor, 0.04);
   }
-  
-  /**
-   * Apply weather-based tinting
-   */
+
   normalizeWeatherCondition(weatherCondition) {
     const translation = {
       QUANTUM_STORM: 'stormBias',
@@ -467,120 +434,119 @@ export class SafeDreamDepthPack {
     return translation[weatherCondition] || null;
   }
 
+  normalizeWeatherKey(weatherCondition) {
+    return this.normalizeWeatherCondition(weatherCondition);
+  }
+
+  setWeatherCondition(weatherKey) {
+    const normalized = this.normalizeWeatherCondition(weatherKey);
+    if (normalized && WEATHER_KEYS.has(normalized)) {
+      this.currentWeatherKey = normalized;
+    }
+  }
+
+  setFocusTargets(targets) {
+    this.focusTargets = Array.isArray(targets) ? targets : [];
+  }
+
   applyWeatherEffects(weatherCondition) {
     const normalizedWeather = this.normalizeWeatherCondition(weatherCondition);
     const state = this.screenState;
     if (!state || !normalizedWeather) return;
 
+    this.currentWeatherKey = normalizedWeather;
+    const colors = WEATHER_COLOR_MAP[normalizedWeather];
+    if (!colors) return;
+
     switch (normalizedWeather) {
       case 'calm':
-        state.vignetteColor.setHex(0xe8ffff);
-        state.focusOpacity = Math.min(0.12, state.focusOpacity + 0.02);
-        state.contrast += 0.01;
+        state.vignetteColor.setHex(colors.vignette);
+        state.pulseColor.setHex(colors.pulse);
+        state.glazeColor.setHex(colors.glaze);
         break;
+
       case 'pressure':
-        state.vignetteColor.setHex(0x8f78c8);
-        state.vignetteOpacity += 0.02;
-        state.contrast += 0.02;
-        state.warmthTint = Math.min(0.02, state.warmthTint + 0.01);
+        state.vignetteColor.setHex(colors.vignette);
+        state.pulseColor.setHex(colors.pulse);
+        state.glazeColor.setHex(colors.glaze);
+        state.vignetteOpacity = Math.min(0.14, state.vignetteOpacity + 0.01);
         break;
-      case 'resonance':
-        state.vignetteColor.setHex(0x9fffe8);
-        state.focusOpacity = Math.min(0.14, state.focusOpacity + 0.02);
-        state.pulseColor.setHex(0x95ffdf);
-        state.warmthTint += 0.005;
+
+      case 'resonance': {
+        const breath = 0.5 + 0.5 * Math.sin(this.time * 1.8);
+        state.vignetteColor.setHex(colors.vignette);
+        state.pulseColor.setHex(colors.pulse);
+        state.glazeColor.setHex(colors.glaze);
+        state.focusOpacity = Math.min(0.14, state.focusOpacity + 0.01 * breath);
         break;
+      }
+
       case 'stormBias':
-        state.vignetteColor.setHex(0xca87e8);
-        state.vignetteOpacity += 0.035;
-        state.pulseOpacity += 0.04;
-        state.pulseColor.setHex(0xe8b4ff);
+        state.vignetteColor.setHex(colors.vignette);
+        state.pulseColor.setHex(colors.pulse);
+        state.glazeColor.setHex(colors.glaze);
+        state.vignetteOpacity = Math.min(0.16, state.vignetteOpacity + 0.02);
+        state.pulseOpacity = Math.min(0.2, state.pulseOpacity + 0.01);
         break;
+
       case 'ascensionHaze':
-        state.vignetteColor.setHex(0xffffff);
-        state.glazeOpacity += 0.03;
-        state.warmthTint += 0.02;
-        state.pulseColor.setHex(0xffffff);
+        state.vignetteColor.setHex(colors.vignette);
+        state.pulseColor.setHex(colors.pulse);
+        state.glazeColor.setHex(colors.glaze);
+        state.glazeOpacity = Math.min(0.1, state.glazeOpacity + 0.015);
         break;
+
       default:
         break;
     }
+
     if (this.screenLayers.vignetteLayer) {
-      this.screenLayers.vignetteLayer.material.color.copy(state.vignetteColor);
+      this.screenLayers.vignetteLayer.material.color.lerp(state.vignetteColor, 0.04);
     }
     if (this.screenLayers.pulseLayer) {
-      this.screenLayers.pulseLayer.material.color.copy(state.pulseColor);
+      this.screenLayers.pulseLayer.material.color.lerp(state.pulseColor, 0.04);
     }
     if (this.screenLayers.glazeLayer) {
-      this.screenLayers.glazeLayer.material.color.lerpColors(
-        new THREE.Color(0x000000),
-        state.vignetteColor,
-        state.warmthTint
-      );
+      this.screenLayers.glazeLayer.material.color.lerp(state.glazeColor, 0.04);
     }
   }
-  
-  /**
-   * Apply all effects to screen through color modulation
-   */
+
   applyEffectsToScreen(deltaTime) {
     if (!this.screenLayers.vignetteLayer) return;
 
     const state = this.screenState;
 
-    // Clamp values
     state.vignetteOpacity = Math.min(0.15, Math.max(0, state.vignetteOpacity));
     state.focusOpacity = Math.min(0.2, Math.max(0, state.focusOpacity));
     state.pulseOpacity = Math.min(0.25, Math.max(0, state.pulseOpacity));
     state.glazeOpacity = Math.min(0.12, Math.max(0, state.glazeOpacity));
-    state.desaturation = Math.min(0.08, Math.max(0, state.desaturation));
-    state.contrast = Math.min(0.08, Math.max(0, state.contrast));
-    state.warmthTint = Math.min(0.03, Math.max(0, state.warmthTint));
 
     this.screenLayers.vignetteLayer.material.opacity = state.vignetteOpacity;
     this.screenLayers.focusLayer.material.opacity = state.focusOpacity;
     this.screenLayers.pulseLayer.material.opacity = state.pulseOpacity;
     this.screenLayers.glazeLayer.material.opacity = state.glazeOpacity;
-    this.screenLayers.glazeLayer.material.color.lerpColors(
-      new THREE.Color(0x000000),
-      this.glazeBaseColor,
-      state.warmthTint
-    );
 
-    // Apply per-layer blending/composite state
     this.screenLayers.vignetteLayer.visible = state.vignetteOpacity > 0.001;
     this.screenLayers.focusLayer.visible = state.focusOpacity > 0.001;
     this.screenLayers.pulseLayer.visible = state.pulseOpacity > 0.001;
     this.screenLayers.glazeLayer.visible = state.glazeOpacity > 0.001;
   }
-  
-  /**
-   * Ensure camera stays upright (Z rotation = 0)
-   * Apply only to VFX layer, never modify actual camera
-   */
+
   enforceCameraStability() {
-    // This is a read-only check - we never modify the camera
-    // Just ensure our VFX respects camera orientation
     if (Math.abs(this.camera.rotation.z) > 0.01) {
-      // Log but don't fix (safety - never touch camera rotation)
-      // Just reduce VFX intensity temporarily
       const rollAmount = Math.abs(this.camera.rotation.z);
       const damping = Math.max(0.5, 1.0 - rollAmount);
-      
       if (this.screenState) {
         this.screenState.vignetteOpacity *= damping;
       }
     }
   }
-  
-  /**
-   * Main update (call once per frame)
-   */
+
   update(deltaTime, worldSystems) {
     if (this._timeOrigin === undefined) {
       this._timeOrigin = VisualTime.now;
     }
-    const currentTime = VisualTime.now - this._timeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+    const currentTime = VisualTime.now - this._timeOrigin;
     const visualDelta = this._lastVisualTime === undefined
       ? 0
       : Math.max(0, currentTime - this._lastVisualTime);
@@ -588,130 +554,86 @@ export class SafeDreamDepthPack {
     this.time = currentTime;
     this.lastFrameTime = visualDelta;
 
-    // Update camera velocity for stability
     this.updateCameraVelocity();
 
-    // Apply baseline DOF
     this.applyBaselineDOF(visualDelta);
 
-    // Auto-focus on nearby targets
     if (worldSystems) {
       const targets = this.gatherFocusTargets(worldSystems);
+      this.focusTargets = targets;
       this.autoFocusOnTarget(targets);
     }
 
-    // Apply focus effect
     this.applyFocusEffect(visualDelta);
 
-    // Update pulses
     this.updateDepthPulses(visualDelta);
 
-    // Apply dream glaze
     this.applyDreamGlaze(visualDelta);
 
-    // Apply weather effects if available
     if (worldSystems && worldSystems.weatherRegistry) {
       const weather = worldSystems.weatherRegistry.currentWeather;
       this.applyWeatherEffects(weather);
     }
 
-    // Apply all effects to screen
     this.applyEffectsToScreen(visualDelta);
 
-    // Enforce camera stability (read-only check)
     this.enforceCameraStability();
   }
-  
-  /**
-   * Gather potential focus targets from world systems
-   */
+
   gatherFocusTargets(worldSystems) {
     const targets = [];
-    
-    // Nodes
-    if (worldSystems.aiNodes && worldSystems.aiNodes.nodes) {
+
+    if (worldSystems.aiNodes?.nodes) {
       for (const node of worldSystems.aiNodes.nodes) {
-        if (node && node.position) {
-          targets.push(node);
-        }
+        if (node?.position) targets.push(node);
       }
     }
-    
-    // Legendary nodes
-    if (worldSystems.legendaryRegistry && worldSystems.legendaryRegistry.nodes) {
+
+    if (worldSystems.legendaryRegistry?.nodes) {
       for (const nodeId in worldSystems.legendaryRegistry.nodes) {
         const node = worldSystems.legendaryRegistry.nodes[nodeId];
-        if (node && node.position) {
-          targets.push(node);
-        }
+        if (node?.position) targets.push(node);
       }
     }
-    
-    // Colonies (if available)
+
     if (worldSystems.colonies) {
       for (const colony of worldSystems.colonies) {
-        if (colony && colony.center) {
-          targets.push({ position: colony.center });
-        }
+        if (colony?.center) targets.push({ position: colony.center });
       }
     }
-    
+
     return targets;
   }
-  
-  /**
-   * Trigger DOF effect on synergy spike
-   */
+
   onSynergySpike() {
     this.triggerDepthPulse();
   }
-  
-  /**
-   * Trigger DOF effect on legendary link activation
-   */
+
   onLegendaryLinkActivated() {
     this.triggerDepthPulse();
   }
-  
-  /**
-   * Trigger DOF effect on world event
-   */
+
   onWorldEvent(eventType) {
     const normalizedType = typeof eventType === 'string'
       ? eventType.toUpperCase()
       : (eventType?.type ? String(eventType.type).toUpperCase() : '');
 
-    const pulseEvents = new Set([
-      'COSMIC_PULSE',
-      'QUANTUM_ECLIPSE',
-      'LUMINESCENT_BURST',
-      'STARFALL',
-      'SYNTHESIS_RITUAL',
-      'WEATHER_SHIFT',
-      'AETHER_SURGE'
-    ]);
+    this.currentWorldEvent = normalizedType || eventType;
 
-    if (pulseEvents.has(normalizedType) || /PULSE|ECLIPSE|BURST|SURGE|RITUAL|STARFALL/.test(normalizedType)) {
+    if (PULSE_EVENTS.has(normalizedType) || PULSE_EVENT_PATTERNS.test(normalizedType)) {
       this.triggerDepthPulse();
       return;
     }
 
-    // Additional world events may also drive a subtle focus change
     if (/EVENT|PHASE|SHIFT|BLOOM/.test(normalizedType)) {
       this.focusTransition = Math.min(1.0, this.focusTransition + 0.08);
     }
   }
-  
-  /**
-   * Set DOF intensity (0.0 = off, 1.0 = full)
-   */
+
   setIntensity(value) {
     this.intensityScale = Math.max(0, Math.min(1, value));
   }
-  
-  /**
-   * Toggle active state
-   */
+
   setActive(active) {
     this.isActive = active;
     if (this.screenLayers.vignetteLayer) {
@@ -721,35 +643,41 @@ export class SafeDreamDepthPack {
       this.screenLayers.glazeLayer.visible = active;
     }
   }
-  
-  /**
-   * Get debug info
-   */
+
   getDebugInfo() {
     const state = this.screenState;
     return {
-      active: this.isActive,
+      role: 'low-cost-fallback',
+      enabled: this.isActive,
+      currentWeatherKey: this.currentWeatherKey,
+      currentWorldEvent: this.currentWorldEvent || 'none',
       currentFocus: this.currentFocus ? 'active' : 'none',
-      focusTransition: this.focusTransition.toFixed(2),
-      activePulses: this.activePulses.length,
-      vignette: state?.vignetteOpacity?.toFixed(3),
-      focus: state?.focusOpacity?.toFixed(3),
-      pulse: state?.pulseOpacity?.toFixed(3),
-      glaze: state?.glazeOpacity?.toFixed(3),
-      desaturation: state?.desaturation?.toFixed(3),
-      contrast: state?.contrast?.toFixed(3)
+      focusTransition: parseFloat(this.focusTransition.toFixed(2)),
+      pulseCount: this.pulseQueue.length,
+      vignetteOpacity: parseFloat((state?.vignetteOpacity ?? 0).toFixed(3)),
+      focusOpacity: parseFloat((state?.focusOpacity ?? 0).toFixed(3)),
+      pulseOpacity: parseFloat((state?.pulseOpacity ?? 0).toFixed(3)),
+      glazeOpacity: parseFloat((state?.glazeOpacity ?? 0).toFixed(3)),
+      intensity: parseFloat(this.intensityScale.toFixed(2)),
+      layerVisible: {
+        vignette: this.screenLayers.vignetteLayer?.visible ?? false,
+        focus: this.screenLayers.focusLayer?.visible ?? false,
+        pulse: this.screenLayers.pulseLayer?.visible ?? false,
+        glaze: this.screenLayers.glazeLayer?.visible ?? false
+      },
+      schedulerState: 'none',
+      stabilityFactor: parseFloat(this.getStabilityFactor().toFixed(2))
     };
   }
-  
-  /**
-   * Complete cleanup
-   */
+
   cleanup() {
     for (const layer of Object.values(this.screenLayers)) {
       if (layer) {
         layer.material.dispose();
       }
     }
+    this.screenLayers = { vignetteLayer: null, focusLayer: null, pulseLayer: null, glazeLayer: null };
+
     if (this.screenGeometry) {
       this.screenGeometry.dispose();
       this.screenGeometry = null;
@@ -764,15 +692,21 @@ export class SafeDreamDepthPack {
     }
 
     if (this.vfxContainer) {
-      if (this.root && this.root.remove) {
+      this.vfxContainer.clear();
+      if (this.root && typeof this.root.remove === 'function') {
         this.root.remove(this.vfxContainer);
       }
-      this.vfxContainer.clear();
       this.vfxContainer = null;
     }
 
-    this.activePulses = [];
+    this.pulseQueue = [];
     this.currentFocus = null;
-    this.overlayQuad = null;
+    this.focusTargets = [];
+    this.currentWeatherKey = null;
+    this.currentWorldEvent = null;
+    this.lastPulseTime = 0;
+    this.screenState = null;
+    this.cameraVelocity = null;
+    this.lastCameraPos = null;
   }
 }

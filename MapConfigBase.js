@@ -47,7 +47,7 @@ export const MapConfigBase = {
     theme: 'fractal',
     referencePlane: 'logic_plane',
     description: 'Recursive mathematical space - Self-similar, fractal geometry',
-    enableDecorativeWorldFX: true,
+    enableDecorativeWorldFX: false,
     allowWorldTimeModulation: false
   },
   

@@ -77,6 +77,15 @@ export class AIThoughtStorms2_0 {
       particleBursts: [],     // Array of burst particles
       criticalRing: null      // Single mesh for critical ring
     };
+
+    this.palette = {
+      atomaCyan: 0x6DEAFF,
+      mint: 0x77F7DB,
+      ritualWhite: 0xF7FBFF,
+      violet: 0xD07BFF,
+      rose: 0xFF73CF,
+      voidDeep: 0x05131A
+    };
     
     // Temporal tracking
     this.time = 0;
@@ -220,7 +229,7 @@ export class AIThoughtStorms2_0 {
       const posB = link.nodeB.position.clone();
       
       // Create soft arc geometry (cylinder twisted into arc)
-      const arc = this._createArcMesh(posA, posB, 0x00ff88, 0.15);
+      const arc = this._createArcMesh(posA, posB, this.palette.atomaCyan, 0.15);
       if (arc) {
         arc.userData.stormType = 'synergy';
         arc.userData.life = this.config.stormDuration;
@@ -256,7 +265,7 @@ export class AIThoughtStorms2_0 {
       const posB = link.nodeB.position.clone();
       
       // Create jagged stroke (with multiple line segments for glitch effect)
-      const strokes = this._createJaggedStrokeMesh(posA, posB, 0xff4400);
+      const strokes = this._createJaggedStrokeMesh(posA, posB, this.palette.rose);
       for (const stroke of strokes) {
         stroke.userData.stormType = 'stability';
         stroke.userData.life = this.config.stormDuration;
@@ -286,7 +295,7 @@ export class AIThoughtStorms2_0 {
       const posB = link.nodeB.position.clone();
       
       // Create tight beam
-      const beam = this._createBeamMesh(posA, posB, 0x0088ff, 0.08);
+      const beam = this._createBeamMesh(posA, posB, this.palette.atomaCyan, 0.08);
       if (beam) {
         beam.userData.stormType = 'focus';
         beam.userData.life = this.config.stormDuration;
@@ -325,7 +334,7 @@ export class AIThoughtStorms2_0 {
     const center = new THREE.Vector3(centerX, centerY, centerZ);
     
     // Create expanding ring
-    const ring = this._createExpandingRing(center, 0xff0088);
+    const ring = this._createExpandingRing(center, this.palette.violet);
     if (ring) {
       ring.userData.stormType = 'critical';
       ring.userData.life = 2.5; // Shorter surge
