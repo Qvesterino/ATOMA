@@ -507,7 +507,7 @@ import { SafeDreamDepthPack } from './SafeDreamDepthPack.js';
 import { DreamDepthEffectManager } from './DreamDepthEffectManager.js';
 import { SafeMobilityPack4 } from './SafeMobilityPack4.js';
 import { NodeVisuals4_0 } from './_NodeVisuals4_0.js';
-import { setupSimulationInvariantEnforcement } from './_SIMULATION_INVARIANT_ENFORCEMENT.js';
+// REMOVED: _SIMULATION_INVARIANT_ENFORCEMENT - moved to LEGACY (2026-04-08)
 // REMOVED: _TASK_AUDIT_DEBUG_HELPERS - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 // REMOVED: _TASK_3_RARE_NODE_VERIFICATION - moved to LEGACY (2026-04-03)
 // import { setupRareNodeVerificationTracker } from './_TASK_3_RARE_NODE_VERIFICATION.js';
@@ -989,7 +989,7 @@ import { VisualEchoTrails_v1, VisualEchoTrails_v1_Integration, setupVisualEchoTr
 import { LinkCorruptionTransmission_v1 } from './LinkCorruptionTransmission_v1.js';
 import { HarmonyStabilizationSystem_v1 } from './HarmonyStabilizationSystem_v1.js';
 import { applyHarmonyStabilizationIntegration } from './HarmonyStabilizationIntegrationPatch_v1.js';
-import { setupCorruptionCascadeTestRunner } from './_T4003_CORRUPTION_CASCADE_TEST_RUNNER.js';
+// REMOVED: _T4003_CORRUPTION_CASCADE_TEST_RUNNER - moved to LEGACY (2026-04-08)
 import { setupHarmonyHealingTestRunner } from './T4004_HARMONY_HEALING_TEST_RUNNER.js';
 
 // ============================================================================
@@ -1351,8 +1351,8 @@ import { AIEmotionalFeed3_1 } from './_AIEmotionalFeed3_1.js';
 // ATOMA UI 3.4–3.7 - ACTIVE SYSTEMS (Core Selection + Primary Node Linking)
 // ============================================================================
 import { NodeSelectionCore3_4 } from './_NodeSelectionCore3_4.js';
-import { UIPrimaryNodeTopBar3_7 } from './_UIPrimaryNodeTopBar3_7.js';
 import { getSelectedHUD } from './UISelectedHUD.js';
+// REMOVED: UIPrimaryNodeTopBar3_7 - disabled and moved to LEGACY
 // REMOVED: NodeLinking2_0, NodeLinking2_1, NodeLinking2_2 (superseded by 2.3)
 
 // ============================================================================
@@ -8008,13 +8008,8 @@ window.__ATOMA_SCENE__ = this.scene;
         // SystemRegistry execution restored for 118 legacy systems (see SYSTEMREGISTRY_DEPENDENCY_FORENSIC_AUDIT.md)
         systemRegistry.disable('aiNodes');
 
-        // ====================================================================
-        // TASK 2: SIMULATION INVARIANT ENFORCEMENT
-        // Non-breaking enforcement of registry authority and update participation
-        // ====================================================================
-        setupSimulationInvariantEnforcement(this.aiNodes);
-        console.log('✓ Simulation Invariant Enforcement initialized (TASK 2)');
-        
+        // REMOVED: SIMULATION INVARIANT ENFORCEMENT - moved to LEGACY (2026-04-08)
+
         // ====================================================================
         // REMOVED: TASK 3 Rare Node Verification Tracker - moved to LEGACY (2026-04-03)
         // setupRareNodeVerificationTracker(this.aiNodes);
@@ -9641,17 +9636,6 @@ window.__ATOMA_SCENE__ = this.scene;
         // Canonical source for link shader uniforms is link.userData.metrics only.
         this.linkRendererMetricsIntegration = null;
         this.coreMetricsCalculator = null;
-        
-        // ====================================================================
-        // T4-003: CORRUPTION CASCADE TEST RUNNER (Debug Console)
-        // Setup console commands for cascade validation
-        // ====================================================================
-        try {
-            setupCorruptionCascadeTestRunner(this);
-            console.log('[main.js] T4-003 Corruption Cascade Test Runner initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] T4-003 Test Runner initialization error:', err);
-        }
 
         // ====================================================================
         // T4-004: HARMONY HEALING TEST RUNNER (Debug Console)
@@ -15330,31 +15314,16 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
     /**
      * Setup Primary Node System 3.7
-     * Double-click primary node selection + visual aura + linking source
+     * Disabled: UIPrimaryNodeTopBar3_7 has been removed from active use.
      */
     setupPrimaryNodeSystem() {
-        // Create primary node top bar (HUD display)
-        this.primaryNodeTopBar = new UIPrimaryNodeTopBar3_7(this.selectionCore);
-
-        // Subscribe to primary node changes to sync visuals
-        if (this.selectionCore) {
-            this.selectionCore.onPrimaryNodeChanged((oldPrimary, newPrimary) => {
-                if (newPrimary) {
-                    if (this.primaryNodeTopBar) {
-                        this.primaryNodeTopBar.show(newPrimary);
-                    }
-                } else {
-                    if (this.primaryNodeTopBar) {
-                        this.primaryNodeTopBar.hide();
-                    }
-                }
-            });
-        }
+        // Primary node top bar disabled. Keep property null for safety.
+        this.primaryNodeTopBar = null;
 
         this.nodeLinking = this.linkingSystem;
 
         console.log("✓ NodeLinking2_3 confirmed active");
-        console.log('✓ Primary Node System 3.7 initialized (double-click + aura + 2.3 linking)');
+        console.log('✓ Primary Node System 3.7 disabled (UIPrimaryNodeTopBar3_7 disconnected)');
     }
 
     /**

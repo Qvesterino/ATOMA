@@ -2,6 +2,14 @@ import * as THREE from 'three';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 import { projectHudMetrics } from './SemanticMetricAdapter.js';
 
+const METRIC_PALETTE = {
+  synergy: ['#6DEAFF', '#F7FBFF'],
+  harmony: ['#77F7DB', '#D6FFF3'],
+  stability: ['#D07BFF', '#F0D6FF'],
+  corruption: ['#FF73CF', '#FFD4EF'],
+  loadPressure: ['#BC76FF', '#67F2FF']
+};
+
 /**
  * METRIC-REACTIVE WORLD EVENTS 1.0 (SAFE EDITION)
  * 
@@ -32,38 +40,252 @@ export class MetricReactiveWorldEvents {
     this.enabled = true;
     this.debugMode = false;
     
-    // Event state tracking
-    this.eventStates = {
-      lastSynergyEvent: 0,
-      lastHarmonyEvent: 0,
-      lastInstabilityEvent: 0,
-      lastCorruptionEvent: 0,
-      lastLoadEvent: 0,
-      lastTemporalEvent: 0,
-      
-      // Metric thresholds for events
-      synergyCoherence: false,
-      synergyUnity: false,
-      harmonyCalm: false,
-      harmonyAscension: false,
-      instabilityDrift: false,
-      instabilitySpiral: false,
-      corruptionFlicker: false,
-      corruptionUmbra: false,
-      loadOverlink: false,
-      loadSurge: false
+    // Metric signal configuration
+    this.metricConfig = {
+      synergy: {
+        metric: 'synergy',
+        thresholds: { low: 55, mid: 70, high: 85 },
+        cooldown: 10,
+        afterglowDelay: 2.0,
+        peakHold: 1.0,
+        events: {
+          low: {
+            eventKey: 'coherenceBloom',
+            title: 'Coherence Bloom',
+            subtitle: 'Synergy fields are aligning',
+            description: 'Network synergy is rising into a smoother, more coherent state.',
+            visualTone: 'calm',
+            colorBias: METRIC_PALETTE.synergy[0],
+            bloomBias: 0.08,
+            motionBias: 0.08,
+            intensity: 0.35
+          },
+          mid: {
+            eventKey: 'unityPulse',
+            title: 'Unity Pulse',
+            subtitle: 'Shared momentum is building',
+            description: 'A sustained synergy pulse is spreading through the global lattice.',
+            visualTone: 'fluid',
+            colorBias: METRIC_PALETTE.synergy[1],
+            bloomBias: 0.14,
+            motionBias: 0.18,
+            intensity: 0.55
+          },
+          high: {
+            eventKey: 'coherenceApex',
+            title: 'Coherence Apex',
+            subtitle: 'Synergy has reached a commanding peak',
+            description: 'The network is operating in a highly coherent surge with strong signal alignment.',
+            visualTone: 'radiant',
+            colorBias: METRIC_PALETTE.synergy[1],
+            bloomBias: 0.26,
+            motionBias: 0.32,
+            intensity: 0.75
+          }
+        }
+      },
+      harmony: {
+        metric: 'harmony',
+        thresholds: { low: 50, mid: 68, high: 85 },
+        cooldown: 10,
+        afterglowDelay: 2.0,
+        peakHold: 1.0,
+        events: {
+          low: {
+            eventKey: 'harmonicDrift',
+            title: 'Harmonic Drift',
+            subtitle: 'Harmony is settling into balance',
+            description: 'Internal rhythms are aligning, encouraging a calm and steady flow.',
+            visualTone: 'soft',
+            colorBias: METRIC_PALETTE.harmony[0],
+            bloomBias: 0.09,
+            motionBias: 0.08,
+            intensity: 0.3
+          },
+          mid: {
+            eventKey: 'calmBloom',
+            title: 'Calm Bloom',
+            subtitle: 'Harmony is radiating outward',
+            description: 'A gentle harmonic bloom is improving visual and systemic clarity.',
+            visualTone: 'ethereal',
+            colorBias: METRIC_PALETTE.harmony[0],
+            bloomBias: 0.12,
+            motionBias: 0.12,
+            intensity: 0.5
+          },
+          high: {
+            eventKey: 'harmonicAscension',
+            title: 'Harmonic Ascension',
+            subtitle: 'Harmony has risen into a powerful state',
+            description: 'The system is experiencing an elevated harmonic resonance.',
+            visualTone: 'uplifting',
+            colorBias: METRIC_PALETTE.harmony[1],
+            bloomBias: 0.22,
+            motionBias: 0.28,
+            intensity: 0.68
+          }
+        }
+      },
+      stability: {
+        metric: 'stability',
+        thresholds: { low: 40, mid: 58, high: 75 },
+        cooldown: 8,
+        afterglowDelay: 1.8,
+        peakHold: 0.9,
+        events: {
+          low: {
+            eventKey: 'tensionVector',
+            title: 'Tension Vector',
+            subtitle: 'Instability is introducing directional stress',
+            description: 'Stress is shifting the system toward a delicate, unstable vector.',
+            visualTone: 'tense',
+            colorBias: METRIC_PALETTE.stability[0],
+            bloomBias: 0.06,
+            motionBias: 0.12,
+            intensity: 0.38
+          },
+          mid: {
+            eventKey: 'distortionDrift',
+            title: 'Distortion Drift',
+            subtitle: 'Instability has grown into visible ripples',
+            description: 'The network is showing drifting distortions as pressure mounts.',
+            visualTone: 'edgy',
+            colorBias: METRIC_PALETTE.stability[0],
+            bloomBias: 0.1,
+            motionBias: 0.2,
+            intensity: 0.55
+          },
+          high: {
+            eventKey: 'collapseVector',
+            title: 'Collapse Vector',
+            subtitle: 'Instability is near a critical inflection',
+            description: 'A strong collapse vector is forming, calling for careful signal moderation.',
+            visualTone: 'sharp',
+            colorBias: METRIC_PALETTE.stability[1],
+            bloomBias: 0.2,
+            motionBias: 0.34,
+            intensity: 0.76
+          }
+        }
+      },
+      corruption: {
+        metric: 'corruption',
+        thresholds: { low: 20, mid: 45, high: 65 },
+        cooldown: 12,
+        afterglowDelay: 2.2,
+        peakHold: 1.0,
+        events: {
+          low: {
+            eventKey: 'shadowFlicker',
+            title: 'Shadow Flicker',
+            subtitle: 'Corruption is beginning to perturb the field',
+            description: 'Subtle corruption flickers are appearing across the network.',
+            visualTone: 'dark',
+            colorBias: METRIC_PALETTE.corruption[0],
+            bloomBias: 0.05,
+            motionBias: 0.08,
+            intensity: 0.28
+          },
+          mid: {
+            eventKey: 'umbraEcho',
+            title: 'Umbra Echo',
+            subtitle: 'Corruption resonance is echoing through the system',
+            description: 'The network is experiencing deeper corruption echoes.',
+            visualTone: 'brooding',
+            colorBias: METRIC_PALETTE.corruption[0],
+            bloomBias: 0.1,
+            motionBias: 0.14,
+            intensity: 0.47
+          },
+          high: {
+            eventKey: 'entropyFracture',
+            title: 'Entropy Fracture',
+            subtitle: 'Corruption is pushing the network toward fracture',
+            description: 'High corruption pressure is creating a fractured visual signal.',
+            visualTone: 'volatile',
+            colorBias: METRIC_PALETTE.corruption[1],
+            bloomBias: 0.18,
+            motionBias: 0.3,
+            intensity: 0.7
+          }
+        }
+      },
+      loadPressure: {
+        metric: 'loadPressure',
+        thresholds: { low: 55, mid: 70, high: 85 },
+        cooldown: 12,
+        afterglowDelay: 2.0,
+        peakHold: 1.0,
+        events: {
+          low: {
+            eventKey: 'overlinkGlow',
+            title: 'Overlink Glow',
+            subtitle: 'Load is rising across the network',
+            description: 'Network load pressure is building, creating a warm overlink glow.',
+            visualTone: 'charged',
+            colorBias: METRIC_PALETTE.loadPressure[0],
+            bloomBias: 0.08,
+            motionBias: 0.1,
+            intensity: 0.4
+          },
+          mid: {
+            eventKey: 'networkSurge',
+            title: 'Network Surge',
+            subtitle: 'Load is surging through key pathways',
+            description: 'Load pressure is intensifying and forcing stronger signal flow.',
+            visualTone: 'energetic',
+            colorBias: METRIC_PALETTE.loadPressure[0],
+            bloomBias: 0.14,
+            motionBias: 0.22,
+            intensity: 0.6
+          },
+          high: {
+            eventKey: 'signalPressure',
+            title: 'Signal Pressure',
+            subtitle: 'Load has reached a high-pressure state',
+            description: 'The system is under strong load pressure and the signal is highly charged.',
+            visualTone: 'forceful',
+            colorBias: METRIC_PALETTE.loadPressure[1],
+            bloomBias: 0.24,
+            motionBias: 0.34,
+            intensity: 0.78
+          }
+        }
+      }
     };
-    
-    // Cooldown periods (seconds)
-    this.cooldowns = {
-      synergy: 60,
-      harmony: 60,
-      instability: 45,
-      corruption: 45,
-      load: 45,
-      temporal: 0  // No cooldown for temporal
+
+    this.metricState = Object.fromEntries(
+      Object.keys(this.metricConfig).map((key) => [
+        key,
+        {
+          currentTier: null,
+          currentPhase: 'idle',
+          lastValue: 0,
+          lastTierAt: 0,
+          lastSignalAt: 0,
+          lastPhaseAt: 0
+        }
+      ])
+    );
+
+    this.eventEnvelope = {
+      rising: 'rising',
+      peak: 'peak',
+      decay: 'decay',
+      afterglow: 'afterglow',
+      idle: 'idle'
     };
-    
+
+    this.visualModulation = {
+      intensity: 0,
+      colorBias: new THREE.Color(0x000000),
+      bloomBias: 0,
+      motionBias: 0
+    };
+
+    this.reactiveSignalTag = 'metric.reactive.signal';
+    this.tierChangedTag = 'metric.tier.changed';
+
     // Active effects tracking
     this.activeEffects = new Map();
     
@@ -112,15 +334,12 @@ export class MetricReactiveWorldEvents {
       };
       const currentTime = performance.now() / 1000; // Convert to seconds
       
-      // Update active effects
+      // Update active effects and visual modulation
       this.updateActiveEffects(deltaTime);
-      
-      // Check and trigger events based on metrics
-      this.checkSynergyEvents(normalizedMetrics, currentTime);
-      this.checkHarmonyEvents(normalizedMetrics, currentTime);
-      this.checkInstabilityEvents(normalizedMetrics, currentTime);
-      this.checkCorruptionEvents(normalizedMetrics, currentTime);
-      this.checkLoadEvents(normalizedMetrics, currentTime);
+      this.updateVisualModulation(deltaTime);
+
+      // Process all metrics through a shared signal model
+      this.processMetricSignals(normalizedMetrics, currentTime);
       
       // Monitor performance
       const elapsed = performance.now() - startTime;
@@ -162,277 +381,271 @@ export class MetricReactiveWorldEvents {
   }
   
   /**
-   * Check and trigger Synergy events
+   * Process all metric signals through a unified tier model.
    */
-  checkSynergyEvents(metrics, currentTime) {
-    const synergy = metrics.synergy;
-    const lastEvent = this.eventStates.lastSynergyEvent;
-    const canTrigger = currentTime - lastEvent > this.cooldowns.synergy;
-    
-    // Coherence Wave (60%+)
-    if (synergy > 60 && canTrigger && !this.eventStates.synergyCoherence) {
-      this._emitMetricTag('global.synergy.mid', synergy, { effect: 'CoherenceWave' });
-      this.triggerCoherenceWave();
-      this.eventStates.lastSynergyEvent = currentTime;
-      this.eventStates.synergyCoherence = true;
-    } else if (synergy <= 60) {
-      this.eventStates.synergyCoherence = false;
-    }
-    
-    // Unity Pulse (85%+)
-    if (synergy > 85 && canTrigger && !this.eventStates.synergyUnity) {
-      this._emitMetricTag('global.synergy.high', synergy, { effect: 'UnityPulse' });
-      this.triggerUnityPulse();
-      this.eventStates.lastSynergyEvent = currentTime;
-      this.eventStates.synergyUnity = true;
-    } else if (synergy <= 85) {
-      this.eventStates.synergyUnity = false;
-    }
+  processMetricSignals(normalizedMetrics, currentTime) {
+    this._processMetricSignal('synergy', normalizedMetrics.synergy, currentTime);
+    this._processMetricSignal('harmony', normalizedMetrics.harmony, currentTime);
+    this._processMetricSignal('stability', normalizedMetrics.instability, currentTime);
+    this._processMetricSignal('corruption', normalizedMetrics.corruption, currentTime);
+    this._processMetricSignal('loadPressure', normalizedMetrics.networkLoad, currentTime);
   }
-  
-  /**
-   * Check and trigger Harmony events
-   */
-  checkHarmonyEvents(metrics, currentTime) {
-    const harmony = metrics.harmony;
-    const lastEvent = this.eventStates.lastHarmonyEvent;
-    const canTrigger = currentTime - lastEvent > this.cooldowns.harmony;
-    
-    // Calm Bloom (55%+)
-    if (harmony > 55 && canTrigger && !this.eventStates.harmonyCalm) {
-      this._emitMetricTag('global.harmony.mid', harmony, { effect: 'CalmBloom' });
-      this.triggerCalmBloom();
-      this.eventStates.lastHarmonyEvent = currentTime;
-      this.eventStates.harmonyCalm = true;
-    } else if (harmony <= 55) {
-      this.eventStates.harmonyCalm = false;
+
+  _processMetricSignal(metricKey, rawValue, currentTime) {
+    const config = this.metricConfig[metricKey];
+    if (!config) return;
+
+    const value = this._clampPercent(rawValue);
+    const state = this.metricState[metricKey];
+    const nextTier = this._resolveMetricTier(config.thresholds, value);
+    const tierChanged = nextTier !== state.currentTier;
+    const phase = this._resolveMetricPhase(state, nextTier, value, currentTime, config);
+
+    if (tierChanged) {
+      const tierPayload = this._buildMetricPayload(metricKey, nextTier, value, phase || this.eventEnvelope.rising, config);
+      this._emitMetricTag(this.tierChangedTag, value, tierPayload);
+      if (nextTier) {
+        const globalTag = `global.${config.metric}.${nextTier}`;
+        this._emitMetricTag(globalTag, value, tierPayload);
+      }
+      state.currentTier = nextTier;
+      state.currentPhase = phase || this.eventEnvelope.rising;
+      state.lastTierAt = currentTime;
+      state.lastPhaseAt = currentTime;
+      this._scheduleVisualModulation(tierPayload);
     }
-    
-    // Harmonic Ascension (80%+)
-    if (harmony > 80 && canTrigger && !this.eventStates.harmonyAscension) {
-      this._emitMetricTag('global.harmony.high', harmony, { effect: 'HarmonicAscension' });
-      this.triggerHarmonicAscension();
-      this.eventStates.lastHarmonyEvent = currentTime;
-      this.eventStates.harmonyAscension = true;
-    } else if (harmony <= 80) {
-      this.eventStates.harmonyAscension = false;
+
+    if (phase && this._shouldTriggerMetricEvent(metricKey, nextTier, phase, currentTime, config)) {
+      const eventPayload = this._buildMetricPayload(metricKey, nextTier, value, phase, config);
+      this._emitMetricEvent(eventPayload);
+      state.currentPhase = phase;
+      state.lastSignalAt = currentTime;
+      state.lastPhaseAt = currentTime;
+      this._scheduleVisualModulation(eventPayload);
     }
+
+    state.lastValue = value;
   }
-  
-  /**
-   * Check and trigger Instability events
-   */
-  checkInstabilityEvents(metrics, currentTime) {
-    const instability = metrics.instability;
-    const stability = Math.max(0, 100 - instability);
-    const lastEvent = this.eventStates.lastInstabilityEvent;
-    const canTrigger = currentTime - lastEvent > this.cooldowns.instability;
-    
-    // Distortion Drift (40%+)
-    if (instability > 40 && canTrigger && !this.eventStates.instabilityDrift) {
-      this._emitMetricTag('global.stability.low', stability, { effect: 'DistortionDrift' });
-      this.triggerDistortionDrift();
-      this.eventStates.lastInstabilityEvent = currentTime;
-      this.eventStates.instabilityDrift = true;
-    } else if (instability <= 40) {
-      this.eventStates.instabilityDrift = false;
-    }
-    
-    // Quantum Spiral (70%+)
-    if (instability > 70 && canTrigger && !this.eventStates.instabilitySpiral) {
-      this._emitMetricTag('global.stability.low', stability, { effect: 'QuantumSpiral' });
-      this.triggerQuantumSpiral();
-      this.eventStates.lastInstabilityEvent = currentTime;
-      this.eventStates.instabilitySpiral = true;
-    } else if (instability <= 70) {
-      this.eventStates.instabilitySpiral = false;
-    }
+
+  _resolveMetricTier(thresholds, value) {
+    if (value >= thresholds.high) return 'high';
+    if (value >= thresholds.mid) return 'mid';
+    if (value >= thresholds.low) return 'low';
+    return null;
   }
-  
-  /**
-   * Check and trigger Corruption events
-   */
-  checkCorruptionEvents(metrics, currentTime) {
-    const corruption = metrics.corruption;
-    const lastEvent = this.eventStates.lastCorruptionEvent;
-    const canTrigger = currentTime - lastEvent > this.cooldowns.corruption;
-    
-    // Shadow Flicker (20%+)
-    if (corruption > 20 && canTrigger && !this.eventStates.corruptionFlicker) {
-      this._emitMetricTag('global.corruption.mid', corruption, { effect: 'ShadowFlicker' });
-      this.triggerShadowFlicker();
-      this.eventStates.lastCorruptionEvent = currentTime;
-      this.eventStates.corruptionFlicker = true;
-    } else if (corruption <= 20) {
-      this.eventStates.corruptionFlicker = false;
+
+  _resolveMetricPhase(state, tier, value, currentTime, config) {
+    if (tier && tier !== state.currentTier) {
+      return this.eventEnvelope.rising;
     }
-    
-    // Umbra Echo (45%+)
-    if (corruption > 45 && canTrigger && !this.eventStates.corruptionUmbra) {
-      this._emitMetricTag('global.corruption.high', corruption, { effect: 'UmbraEcho' });
-      this.triggerUmbraEcho();
-      this.eventStates.lastCorruptionEvent = currentTime;
-      this.eventStates.corruptionUmbra = true;
-    } else if (corruption <= 45) {
-      this.eventStates.corruptionUmbra = false;
+
+    if (tier && state.currentTier === tier) {
+      if (state.currentPhase === this.eventEnvelope.rising && currentTime - state.lastPhaseAt > config.peakHold) {
+        return this.eventEnvelope.peak;
+      }
+      return null;
     }
+
+    if (!tier && state.currentTier) {
+      if (state.currentPhase === this.eventEnvelope.decay && currentTime - state.lastPhaseAt > config.afterglowDelay) {
+        return this.eventEnvelope.afterglow;
+      }
+      return this.eventEnvelope.decay;
+    }
+
+    return null;
   }
-  
-  /**
-   * Check and trigger Load events
-   */
-  checkLoadEvents(metrics, currentTime) {
-    const load = metrics.networkLoad;
-    const lastEvent = this.eventStates.lastLoadEvent;
-    const canTrigger = currentTime - lastEvent > this.cooldowns.load;
-    
-    // Overlink Glow (60%+)
-    if (load > 60 && canTrigger && !this.eventStates.loadOverlink) {
-      this._emitMetricTag('global.loadPressure.mid', load, { effect: 'OverlinkGlow' });
-      this.triggerOverlinkGlow();
-      this.eventStates.lastLoadEvent = currentTime;
-      this.eventStates.loadOverlink = true;
-    } else if (load <= 60) {
-      this.eventStates.loadOverlink = false;
-    }
-    
-    // Network Surge (85%+)
-    if (load > 85 && canTrigger && !this.eventStates.loadSurge) {
-      this._emitMetricTag('global.loadPressure.high', load, { effect: 'NetworkSurge' });
-      this.triggerNetworkSurge();
-      this.eventStates.lastLoadEvent = currentTime;
-      this.eventStates.loadSurge = true;
-    } else if (load <= 85) {
-      this.eventStates.loadSurge = false;
-    }
+
+  _shouldTriggerMetricEvent(metricKey, tier, phase, currentTime, config) {
+    const state = this.metricState[metricKey];
+    if (!phase) return false;
+    if (currentTime - state.lastSignalAt < config.cooldown) return false;
+    if (phase === this.eventEnvelope.decay && state.currentPhase === this.eventEnvelope.decay) return false;
+    return true;
   }
-  
+
+  _buildMetricPayload(metricKey, tier, value, phase, config) {
+    const eventDefinition = tier ? config.events[tier] : null;
+    return {
+      source: 'MetricReactiveWorldEvents',
+      scope: 'global',
+      metric: config.metric,
+      tier,
+      phase,
+      value,
+      title: eventDefinition?.title || `${config.metric} ${phase}`,
+      subtitle: eventDefinition?.subtitle || `${phase} phase engaged`,
+      description: eventDefinition?.description || `Metric ${config.metric} transitioned to ${phase}.`,
+      visualTone: eventDefinition?.visualTone || 'balanced',
+      colorBias: eventDefinition?.colorBias || '#ffffff',
+      bloomBias: eventDefinition?.bloomBias || 0,
+      motionBias: eventDefinition?.motionBias || 0,
+      intensity: eventDefinition?.intensity || 0,
+      eventKey: eventDefinition?.eventKey || `${config.metric}.${tier || 'none'}.${phase}`,
+      timestamp: performance.now()
+    };
+  }
+
+  _emitMetricEvent(payload) {
+    this._emitMetricTag(this.reactiveSignalTag, payload.value, payload);
+  }
+
+  _scheduleVisualModulation(payload) {
+    this.visualModulation.intensity = Math.max(this.visualModulation.intensity, payload.intensity || 0);
+    this.visualModulation.bloomBias = Math.max(this.visualModulation.bloomBias, payload.bloomBias || 0);
+    this.visualModulation.motionBias = Math.max(this.visualModulation.motionBias, payload.motionBias || 0);
+    this.visualModulation.colorBias.set(payload.colorBias || '#000000');
+    this.overlayGroup.userData.visualModulation = {
+      intensity: this.visualModulation.intensity,
+      colorBias: payload.colorBias,
+      bloomBias: this.visualModulation.bloomBias,
+      motionBias: this.visualModulation.motionBias,
+      phase: payload.phase,
+      eventKey: payload.eventKey
+    };
+  }
+
+  updateVisualModulation(deltaTime) {
+    if (deltaTime <= 0) return;
+    const decayFactor = Math.min(1, deltaTime * 0.35);
+
+    this.visualModulation.intensity *= 1 - decayFactor;
+    this.visualModulation.bloomBias *= 1 - decayFactor;
+    this.visualModulation.motionBias *= 1 - decayFactor;
+    this.visualModulation.colorBias.lerp(new THREE.Color(0x000000), decayFactor * 0.65);
+
+    this.overlayGroup.userData.visualModulation = {
+      intensity: this.visualModulation.intensity,
+      colorBias: this.visualModulation.colorBias.getStyle(),
+      bloomBias: this.visualModulation.bloomBias,
+      motionBias: this.visualModulation.motionBias
+    };
+  }
+
+  _clampPercent(value) {
+    return Math.max(0, Math.min(100, Number(value) || 0));
+  }
+
   /**
    * ==================== SYNERGY EVENTS ====================
    */
   
   triggerCoherenceWave() {
     if (this.debugMode) console.log('► Coherence Wave triggered');
-    
-    // Create horizontal shimmer overlay
-    const shimmer = this.createShimmerOverlay(0.5, 2.0, '#00ccdd');
-    this.registerEffect('coherence-wave', shimmer, 2.5);
+
+    const coreColor = METRIC_PALETTE.synergy[0];
+    const glowColor = METRIC_PALETTE.synergy[1];
+    const accent = METRIC_PALETTE.synergy[2];
+
+    this.createConcentricRings(3, 2.5, glowColor, 3.5);
+    this.createSoftHalo(coreColor, 0.14, 2.6, 16);
+    this.createThinArcBands(2, accent, 12, 3);
+    this.createSmallOrbitingMotes(5, 3.0, coreColor);
+    this.applyBloomPulse(0.12, 0.3, 0.8);
   }
-  
+
   triggerUnityPulse() {
     if (this.debugMode) console.log('► Unity Pulse triggered');
-    
-    // Create teal background tint
-    const tint = this.createColorTint('#00ddaa', 0.08, 1.5, 2.0);
-    this.registerEffect('unity-pulse', tint, 3.5);
-    
-    // Add orbital micro-particles
-    this.createOrbitalParticles(8, 4.0, '#00ccdd');
+
+    const coreColor = METRIC_PALETTE.synergy[0];
+    this.createConcentricRings(2, 2.2, coreColor, 3.0);
+    this.createThinArcBands(2, METRIC_PALETTE.synergy[2], 10, 4);
+    this.createSmallOrbitingMotes(4, 2.8, coreColor);
+    this.applyBloomPulse(0.08, 0.25, 0.6);
   }
-  
+
   /**
    * ==================== HARMONY EVENTS ====================
    */
-  
+
   triggerCalmBloom() {
     if (this.debugMode) console.log('► Calm Bloom triggered');
-    
-    // Increase bloom (shader-based, safe)
-    this.applyBloomPulse(0.12, 1.5, 2.0);
-    
-    // Create floating particles
-    this.createFloatingParticles(6, 3.0, '#00dd99');
+
+    const coreColor = METRIC_PALETTE.harmony[0];
+    const accent = METRIC_PALETTE.harmony[2];
+    this.createConcentricRings(2, 2.4, coreColor, 3.2);
+    this.createThinArcBands(2, accent, 12, 3);
+    this.createSoftHalo(coreColor, 0.12, 2.5, 15);
+    this.applyBloomPulse(0.1, 0.3, 0.7);
   }
-  
+
   triggerHarmonicAscension() {
     if (this.debugMode) console.log('► Harmonic Ascension triggered');
-    
-    // Create sky glyph
-    this.createSkyGlyph('◎', 4.0);
-    
-    // Apply soft halo effect
-    this.applyHaloEffect(2.0, '#00dd99');
+
+    const color = METRIC_PALETTE.harmony[1];
+    this.createThinArcBands(3, color, 14, 4);
+    this.createSoftHalo(color, 0.1, 2.8, 18);
+    this.createSmallOrbitingMotes(4, 3.2, METRIC_PALETTE.harmony[0]);
   }
-  
+
   /**
    * ==================== INSTABILITY EVENTS ====================
    */
-  
+
   triggerDistortionDrift() {
     if (this.debugMode) console.log('► Distortion Drift triggered');
-    
-    // Create refractive distortion (safe, < 2%)
-    const distortion = this.createDistortionOverlay(0.02, 1.5, 2.0);
-    this.registerEffect('distortion-drift', distortion, 2.0);
-    
-    // Add jittering particles
-    this.createJitteringParticles(4, 1.5, '#ff99ff');
+
+    const coreColor = METRIC_PALETTE.stability[0];
+    this.createThinArcBands(2.2, coreColor, 10, 3);
+    this.createSoftHalo(coreColor, 0.08, 2.0, 12);
+    this.applyBloomPulse(0.05, 0.2, 0.5);
   }
-  
+
   triggerQuantumSpiral() {
     if (this.debugMode) console.log('► Quantum Spiral triggered');
-    
-    // Create spiral glyph overlay
-    this.createSpiralGlyph(3.0);
-    
-    // Add rotating particles
-    this.createRotatingParticles(8, 3.0, '#9900ff');
-    
-    // Tint toward purple
-    const tint = this.createColorTint('#9900dd', 0.05, 1.0, 2.0);
-    this.registerEffect('quantum-spiral', tint, 3.0);
+
+    const color = METRIC_PALETTE.stability[1];
+    this.createConcentricRings(4, 3.0, color, 3.5);
+    this.createThinArcBands(2, color, 11, 3);
   }
-  
+
   /**
    * ==================== CORRUPTION EVENTS ====================
    */
-  
+
   triggerShadowFlicker() {
     if (this.debugMode) console.log('► Shadow Flicker triggered');
-    
-    // Create radial gradient overlay
-    const shadow = this.createRadialGradient(0.4, 0.8, '#000000');
-    this.registerEffect('shadow-flicker', shadow, 0.8);
-    
-    // Add void fragments
-    this.createVoidFragments(4, 1.5, '#330033');
+
+    const coreColor = METRIC_PALETTE.corruption[0];
+    const fringeColor = METRIC_PALETTE.corruption[2];
+    this.createFracturedRingCore(6, 2.0, coreColor);
+    this.createGlitchBars(4, 1.8, fringeColor);
+    this.createDarkShroud(fringeColor, 0.16, 2.2);
+    this.applyBloomPulse(0.07, 0.2, 0.5);
   }
-  
+
   triggerUmbraEcho() {
     if (this.debugMode) console.log('► Umbra Echo triggered');
-    
-    // Dim nodes slightly
-    this.applyNodeDimming(0.07, 1.5, 2.0);
-    
-    // Create magenta line (visual only)
-    this.createMagentaLine(1.5);
-    
-    // Horizon pulse
-    this.applyHorizonPulse('#220000', 1.0, 1.5);
+
+    const color = METRIC_PALETTE.corruption[1];
+    this.createFracturedRingCore(5, 2.5, color);
+    this.createThinArcBands(2.0, color, 10, 3);
+    this.createDarkShroud(METRIC_PALETTE.corruption[2], 0.14, 2.4);
   }
-  
+
   /**
    * ==================== LOAD EVENTS ====================
    */
-  
+
   triggerOverlinkGlow() {
     if (this.debugMode) console.log('► Overlink Glow triggered');
-    
-    // Thicken links (shader overlay)
-    this.applyLinkThickening(0.5, 1.5, 2.0);
+
+    const coreColor = METRIC_PALETTE.loadPressure[0];
+    const accent = METRIC_PALETTE.loadPressure[1];
+    this.createColorTint('#0C0816', 0.16, 0.4, 0.8);
+    this.createPressureBands(3, 2.2, accent);
+    this.createShortBeamSpikes(5, 2.2, coreColor);
+    this.createThinArcBands(2, accent, 11, 3);
   }
-  
+
   triggerNetworkSurge() {
     if (this.debugMode) console.log('► Network Surge triggered');
-    
-    // Create sky beam effect
-    this.createSkyBeam(2.0);
-    
-    // Intensify link trails
-    this.applyLinkIntensification(2.0);
-    
-    // Bloom spike
-    this.applyBloomPulse(0.15, 0.5, 1.5);
+
+    const coreColor = METRIC_PALETTE.loadPressure[1];
+    this.createColorTint('#0C0816', 0.18, 0.4, 1.0);
+    this.createPressureBands(4, 2.5, coreColor);
+    this.createShortBeamSpikes(7, 2.4, coreColor);
+    this.createThinArcBands(2.4, METRIC_PALETTE.loadPressure[2], 12, 3);
   }
   
   /**
@@ -443,19 +656,19 @@ export class MetricReactiveWorldEvents {
     if (this.debugMode) console.log('► Cycle Turnover triggered');
     
     // Ring wave expands outward
-    this.createExpandingRing(0.4, '#00ccdd');
+    this.createExpandingRing(0.4, METRIC_PALETTE.synergy[0]);
   }
   
   triggerEpochTurnover() {
     if (this.debugMode) console.log('► Epoch Turnover triggered');
     this._emitMetricTag('temporal.newEpoch', 1, { effect: 'EpochTurnover' });
     
-    // Sky tint blue/teal
-    const tint = this.createColorTint('#00aadd', 0.05, 0.5, 1.5);
+    // Soft harmony tint
+    const tint = this.createColorTint(METRIC_PALETTE.harmony[1], 0.05, 0.5, 1.5);
     this.registerEffect('epoch-turnover', tint, 2.0);
     
     // Arc sweep
-    this.createArcSweep(2.0, '#0099dd');
+    this.createArcSweep(2.0, METRIC_PALETTE.harmony[0]);
   }
   
   triggerAeonMoment() {
@@ -522,6 +735,221 @@ export class MetricReactiveWorldEvents {
     };
     
     return mesh;
+  }
+  
+  /**
+   * Create concentric ring motifs
+   */
+  createConcentricRings(ringCount, duration, color, baseRadius = 5) {
+    const group = new THREE.Group();
+    group.name = 'concentric-rings';
+    for (let i = 0; i < ringCount; i++) {
+      const radius = baseRadius + i * 2;
+      const geometry = new THREE.RingGeometry(radius - 0.1, radius + 0.1, 48);
+      const material = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color),
+        transparent: true,
+        opacity: 0.18,
+        side: THREE.DoubleSide
+      });
+      const ring = new THREE.Mesh(geometry, material);
+      ring.rotation.x = Math.PI / 2;
+      ring.userData.ringData = { duration, elapsedTime: 0, scale: 1 + i * 0.08 };
+      group.add(ring);
+    }
+    this.overlayGroup.add(group);
+    return group;
+  }
+  
+  /**
+   * Create soft planar halo
+   */
+  createSoftHalo(color, intensity, duration, size) {
+    const geometry = new THREE.PlaneGeometry(size, size);
+    const material = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(color),
+      transparent: true,
+      opacity: intensity,
+      depthWrite: false
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.z = -45;
+    mesh.renderOrder = 0;
+    mesh.userData.haloData = { duration, elapsedTime: 0 };
+    this.overlayGroup.add(mesh);
+    return mesh;
+  }
+  
+  /**
+   * Create thin arc band elements
+   */
+  createThinArcBands(duration, color, radius, count) {
+    const group = new THREE.Group();
+    group.name = 'thin-arc-bands';
+    for (let i = 0; i < count; i++) {
+      const geometry = new THREE.BufferGeometry();
+      const points = [];
+      const startAngle = (i / count) * Math.PI * 2;
+      const arcRadius = radius + i * 0.6;
+      for (let j = 0; j <= 40; j++) {
+        const angle = startAngle + (j / 40) * Math.PI * 0.7;
+        points.push(
+          Math.cos(angle) * arcRadius,
+          0.1 + i * 0.15,
+          Math.sin(angle) * arcRadius
+        );
+      }
+      geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(points), 3));
+      const material = new THREE.LineBasicMaterial({ color: new THREE.Color(color), linewidth: 1, transparent: true, opacity: 0.14 });
+      const line = new THREE.Line(geometry, material);
+      line.userData.arcData = { duration, elapsedTime: 0 };
+      group.add(line);
+    }
+    this.overlayGroup.add(group);
+    return group;
+  }
+  
+  /**
+   * Create short beam spikes
+   */
+  createShortBeamSpikes(count, duration, color) {
+    const group = new THREE.Group();
+    group.name = 'short-beam-spikes';
+    for (let i = 0; i < count; i++) {
+      const geometry = new THREE.PlaneGeometry(0.3, 4);
+      const material = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color),
+        transparent: true,
+        opacity: 0.18,
+        side: THREE.DoubleSide
+      });
+      const beam = new THREE.Mesh(geometry, material);
+      const angle = (i / count) * Math.PI * 2;
+      beam.position.set(Math.cos(angle) * 8, 2, Math.sin(angle) * 8);
+      beam.rotation.y = angle;
+      beam.userData.beamData = { duration, elapsedTime: 0 };
+      group.add(beam);
+    }
+    this.overlayGroup.add(group);
+    return group;
+  }
+
+  /**
+   * Create fractured ring core segments
+   */
+  createFracturedRingCore(segmentCount, duration, color) {
+    const group = new THREE.Group();
+    group.name = 'fractured-ring-core';
+    for (let i = 0; i < segmentCount; i++) {
+      const geometry = new THREE.PlaneGeometry(0.5, 2.4);
+      const material = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color),
+        transparent: true,
+        opacity: 0.28,
+        side: THREE.DoubleSide
+      });
+      const segment = new THREE.Mesh(geometry, material);
+      const angle = (i / segmentCount) * Math.PI * 2;
+      const radius = 4.5 + (Math.random() - 0.5) * 0.6;
+      segment.position.set(Math.cos(angle) * radius, 0.5, Math.sin(angle) * radius);
+      segment.rotation.y = angle + (Math.random() - 0.5) * 0.4;
+      segment.rotation.x = -Math.PI / 2;
+      segment.userData.ringData = { duration, elapsedTime: 0, scale: 1 + Math.random() * 0.1 };
+      group.add(segment);
+    }
+    this.overlayGroup.add(group);
+    return group;
+  }
+
+  /**
+   * Create glitch bar shards
+   */
+  createGlitchBars(count, duration, color) {
+    const group = new THREE.Group();
+    group.name = 'glitch-bars';
+    for (let i = 0; i < count; i++) {
+      const geometry = new THREE.PlaneGeometry(0.4, 3.2);
+      const material = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color),
+        transparent: true,
+        opacity: 0.2,
+        side: THREE.DoubleSide
+      });
+      const bar = new THREE.Mesh(geometry, material);
+      const angle = (i / count) * Math.PI * 2;
+      bar.position.set(Math.cos(angle) * 2.5, 1.0, Math.sin(angle) * 2.5);
+      bar.rotation.y = angle + (Math.random() - 0.5) * 0.6;
+      bar.rotation.x = -Math.PI / 2;
+      bar.userData.beamData = { duration, elapsedTime: 0 };
+      group.add(bar);
+    }
+    this.overlayGroup.add(group);
+    return group;
+  }
+
+  /**
+   * Create a dark shroud overlay with edge disturbance
+   */
+  createDarkShroud(color, intensity, duration) {
+    const darkTint = this.createColorTint(color, intensity, 0.2, duration);
+    darkTint.userData.tintData.edgeDisturb = true;
+    return darkTint;
+  }
+
+  /**
+   * Create pressure band overlay
+   */
+  createPressureBands(count, duration, color) {
+    const group = new THREE.Group();
+    group.name = 'pressure-bands';
+    for (let i = 0; i < count; i++) {
+      const geometry = new THREE.PlaneGeometry(28, 1.2);
+      const material = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color),
+        transparent: true,
+        opacity: 0.16,
+        side: THREE.DoubleSide
+      });
+      const band = new THREE.Mesh(geometry, material);
+      band.position.set(0, 1.5 + i * 0.6, -32 - i * 1.5);
+      band.rotation.x = -Math.PI / 2.7;
+      band.userData.beamData = { duration, elapsedTime: 0 };
+      group.add(band);
+    }
+    this.overlayGroup.add(group);
+    return group;
+  }
+  
+  /**
+   * Create small orbiting motes
+   */
+  createSmallOrbitingMotes(count, duration, color) {
+    const particleGroup = new THREE.Group();
+    particleGroup.name = 'orbiting-motes';
+    for (let i = 0; i < count; i++) {
+      const geometry = new THREE.SphereGeometry(0.08, 6, 6);
+      const material = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color),
+        transparent: true,
+        opacity: 0.45
+      });
+      const particle = new THREE.Mesh(geometry, material);
+      tagAllowedSphere(particle, { role: 'vfx', source: 'MetricReactiveWorldEvents.createSmallOrbitingMotes' });
+      clampSphere(particle);
+      const angle = (i / count) * Math.PI * 2;
+      const radius = 4 + Math.random() * 2;
+      particle.position.set(Math.cos(angle) * radius, 1.5 + Math.random() * 1.5, Math.sin(angle) * radius);
+      particle.userData.orbitData = {
+        duration,
+        elapsedTime: 0,
+        angle,
+        radius,
+        speed: 1.5 + Math.random() * 1.2
+      };
+      particleGroup.add(particle);
+    }
+    this.overlayGroup.add(particleGroup);
+    return particleGroup;
   }
   
   /**
@@ -899,45 +1327,58 @@ export class MetricReactiveWorldEvents {
    */
   updateActiveEffects(deltaTime) {
     const toRemove = [];
-    
-    this.overlayGroup.children.forEach(child => {
-      // Update particle effects
-      if (child.children && child.children.length > 0) {
-        child.children.forEach(particle => {
-          if (particle.userData.particleData) {
-            particle.userData.particleData.elapsedTime += deltaTime;
-            
-            // Update orbital particles
-            if (particle.userData.particleData.angle !== undefined) {
-              const angle = particle.userData.particleData.angle + 
-                           particle.userData.particleData.orbitalSpeed * particle.userData.particleData.elapsedTime;
-              const radius = particle.userData.particleData.radius;
-              
-              particle.position.x = Math.cos(angle) * radius;
-              particle.position.z = Math.sin(angle) * radius;
-            }
-            
-            // Fade out
-            if (particle.material) {
-              const progress = particle.userData.particleData.elapsedTime / particle.userData.particleData.duration;
-              particle.material.opacity = 0.6 * (1 - progress);
-            }
-            
-            if (particle.userData.particleData.elapsedTime > particle.userData.particleData.duration) {
-              toRemove.push(particle);
-            }
-          }
-        });
+
+    const updateObject = (obj) => {
+      const dataKey = Object.keys(obj.userData || {}).find((key) => key.endsWith('Data'));
+      if (dataKey) {
+        const data = obj.userData[dataKey];
+        data.elapsedTime += deltaTime;
+        const progress = data.duration > 0 ? data.elapsedTime / data.duration : 0;
+
+        if (obj.material) {
+          obj.material.opacity = Math.max(0, (obj.material.opacity ?? 1) * (1 - progress));
+        }
+
+        if (obj.userData.orbitData) {
+          const orbit = obj.userData.orbitData;
+          const angle = orbit.angle + orbit.speed * orbit.elapsedTime;
+          obj.position.x = Math.cos(angle) * orbit.radius;
+          obj.position.z = Math.sin(angle) * orbit.radius;
+        }
+
+        if (obj.userData.ringData) {
+          obj.scale.setScalar(1 + progress * 0.35);
+        }
+
+        if (obj.userData.haloData) {
+          obj.scale.setScalar(1 + progress * 0.2);
+        }
+
+        if (data.elapsedTime > data.duration) {
+          toRemove.push(obj);
+        }
       }
-    });
-    
-    // Remove expired effects
+
+      if (obj.children && obj.children.length > 0) {
+        obj.children.forEach(updateObject);
+      }
+    };
+
+    this.overlayGroup.children.forEach(updateObject);
+
+    // Remove expired effects and clean empty groups
     toRemove.forEach(obj => {
       if (obj.parent) {
         obj.parent.remove(obj);
       }
       obj.geometry?.dispose();
       obj.material?.dispose();
+    });
+
+    this.overlayGroup.children.slice().forEach(child => {
+      if (child.children && child.children.length === 0) {
+        this.overlayGroup.remove(child);
+      }
     });
   }
   

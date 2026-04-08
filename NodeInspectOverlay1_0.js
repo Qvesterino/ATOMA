@@ -21,7 +21,6 @@ import * as THREE from 'three';
 import { AtomaLanguageEngine2_0 } from './_AtomaLanguageEngine2_0.js';
 import { atomaNamingEngine } from './_AtomaNamingEngine.js';
 import { NodeSpatialIndex } from './NodeSpatialIndex.js';
-import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from './ui/config/UIVisibilityConfig.js';
 
 const METRIC_DISPLAY_MODES = Object.freeze({
   NUMERIC: 'numeric',
@@ -132,11 +131,6 @@ export class NodeInspectOverlay1_0 {
     }
 
     this._startFallbackPoll();
-    this._handleUIVisibilityChange = () => this._syncVisibility();
-    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-      window.addEventListener(UI_VISIBILITY_CHANGE_EVENT, this._handleUIVisibilityChange);
-    }
-    this._syncVisibility();
     
     // Setup console API
     this._setupConsoleAPI();
@@ -273,7 +267,7 @@ export class NodeInspectOverlay1_0 {
     `;
 
     this.hudPanel.innerHTML = `
-      <div id="node-archetype" style="font-weight: bold; margin-bottom: 4px; font-size: 14px; font-family: 'Orbitron', 'Segoe UI', sans-serif;"></div>
+      <div id="node-archetype" style="font-family: 'Orbitron', 'Segoe UI', sans-serif; font-weight: bold; margin-bottom: 4px; font-size: 14px;"></div>
       <div id="node-archetype-code" style="color: #ffaa00; font-size: 10px; margin-bottom: 6px; font-family: 'Courier New', monospace;"></div>
       <div id="node-archetype-meaning" style="color: #88ff88; font-size: 10px; margin-bottom: 8px; font-style: italic;"></div>
       <div id="node-personality" style="color: #ffaa00; font-size: 11px; margin-bottom: 6px;"></div>
@@ -334,7 +328,7 @@ export class NodeInspectOverlay1_0 {
    */
   update(deltaTime) {
     // Check if disabled
-    if (this.enabled === false || !UIVisibilityConfig.nodeInspect) {
+    if (this.enabled === false) {
       return;
     }
     
@@ -506,21 +500,9 @@ export class NodeInspectOverlay1_0 {
    * Show the overlay panel
    */
   showOverlay() {
-    if (!this.hudPanel) {
-      return;
-    }
-
-    if (!this.hudPanel.isConnected) {
-      document.body.appendChild(this.hudPanel);
-    }
-
-    if (!this.isVisible) {
+    if (!this.isVisible && this.hudPanel) {
+      this.hudPanel.style.display = 'block';
       this.isVisible = true;
-      this.repositionBelowCoreMetrics();
-    }
-
-    if (this.currentNode) {
-      this.updateOverlayContent();
     }
   }
 
@@ -528,28 +510,10 @@ export class NodeInspectOverlay1_0 {
    * Hide the overlay panel
    */
   hideOverlay() {
-    if (this.hudPanel && this.hudPanel.parentNode) {
-      this.hudPanel.parentNode.removeChild(this.hudPanel);
-    }
-    if (this.isVisible) {
+    if (this.isVisible && this.hudPanel) {
+      this.hudPanel.style.display = 'none';
       this.isVisible = false;
     }
-  }
-
-  _syncVisibility() {
-    if (!UIVisibilityConfig.nodeInspect) {
-      this.hideOverlay();
-      return;
-    }
-
-    if (this.currentNode) {
-      this.showOverlay();
-      this.lastCheckTime = this.checkInterval;
-      this.update(this.checkInterval);
-      return;
-    }
-
-    this.hideOverlay();
   }
 
   _getVisualRegistryAssignment(userData) {
@@ -916,9 +880,6 @@ const bar = '█'.repeat(barLength) + '░'.repeat(10 - barLength);
    * Destroy overlay (cleanup)
    */
   destroy() {
-    if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
-      window.removeEventListener(UI_VISIBILITY_CHANGE_EVENT, this._handleUIVisibilityChange);
-    }
     if (this._fallbackPollHandle) {
       clearInterval(this._fallbackPollHandle);
       this._fallbackPollHandle = null;

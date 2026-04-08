@@ -25,9 +25,10 @@
  *   - Emergent resonance
  * 
  * VISUAL ORCHESTRATION LAYERS:
- * 1. PRE-RITUAL (Network Attunement) — Signal coordinated state
- * 2. RITUAL ACTIVE (Coherent Resonance) — Show collective action
- * 3. RITUAL COMPLETION (Release/Resolution) — Communicate closure
+ * 1. PRELUDE (Network Attunement) — Signal coordinated state
+ * 2. ACTIVE (Coherent Resonance) — Show collective action
+ * 3. CREST (Peak/Resolution) — Make the peak readable
+ * 4. RELEASE (Release/Resolution) — Communicate closure
  * 
  * INTEGRATION POINTS:
  * - NetworkRituals_v1.js: Ritual lifecycle events
@@ -48,38 +49,50 @@
  * Must respect canonical semantics—these are modulation envelopes only.
  */
 const RITUAL_VISUAL_CONFIG = {
-  // Pre-Ritual: Network Attunement
-  PRE_RITUAL: {
+  // Prelude: network attunement layer
+  PRELUDE: {
     duration: 1500,                    // 1.5 seconds (slow, intentional)
     linkPulseSync: true,               // Synchronize link pulses
     nodeAttunement: true,              // Gentle node breathing
-    jitterReduction: 0.7,              // 70% jitter suppression (feels like "listening")
+    jitterReduction: 0.8,              // 80% jitter suppression (feels like "listening")
     colorShift: 0,                     // NO color changes—preserve template identity
   },
 
-  // Ritual Active: Coherent Resonance
-  RITUAL_ACTIVE: {
-    linkIntensity: 1.3,                // Modest glow amplification (≤ 1.5×)
-    nodeRadiusScale: 1.15,             // Slight stability envelope (≤ 1.25×)
+  // Active: coherent resonance
+  ACTIVE: {
+    linkIntensity: 1.35,               // Stronger glow amplification (still controlled)
+    nodeRadiusScale: 1.18,             // Slight stability envelope
     globalPhaseSync: true,             // All entities sync to ritual frequency
-    stressDamping: 0.5,                // Chaos becomes readable (50% damping)
+    stressDamping: 0.55,               // Chaos becomes readable
     waveRippleEffect: true,            // Propagation visible as soft wave patterns
+    ribbonTrails: true,
+    phaseFlashThreshold: 1200,
   },
 
-  // Ritual Completion: Release/Resolution
-  COMPLETION: {
+  // Crest: readable peak
+  CREST: {
+    intensityBoost: 1.2,
+    ringFocus: true,
+    haloBoost: 0.2,
+    ribbonPulse: 0.22,
+    phaseFlashIntensity: 0.25,
+    duration: 1800,
+  },
+
+  // Release: resolved closure
+  RELEASE: {
     success: {
-      releaseDuration: 2000,            // 2 second release
+      releaseDuration: 2200,            // 2.2 second release
       coherenceFade: 1.0,               // Full fade to baseline
-      settleDamping: 0.8,               // Gentle settling motion
-      calmingBreath: 0.3,               // 30% slower breathing
+      settleDamping: 0.9,               // Gentle settling motion
+      calmingBreath: 0.28,              // 28% slower breathing
       colorWarmth: 0,                   // NO color—preserve templates
     },
     failure: {
-      releaseDuration: 1500,            // Faster failure decay
-      desyncSpread: 0.5,                // Gentle desynchronization
-      energyDispersion: 0.4,            // Soft dispersal (not harsh)
-      turbulenceBump: 0.2,              // Slight turbulence spike (not punishment)
+      releaseDuration: 1600,            // Slightly faster failure decay
+      desyncSpread: 0.45,               // Gentle desynchronization
+      energyDispersion: 0.38,           // Soft dispersal (not harsh)
+      turbulenceBump: 0.18,             // Slight turbulence spike
       colorShift: 0,                    // NO color warnings
     },
   },
@@ -91,6 +104,87 @@ const RITUAL_VISUAL_CONFIG = {
     minIntensity: 0.3,                 // Never drop below threshold
     silentFail: true,                  // No error logging—fail gracefully
     performanceMode: 'balanced',       // 'light', 'balanced', 'rich'
+  },
+};
+
+const RITUAL_ARCHETYPE_PROFILES = {
+  Ascension: {
+    coreColor: '#F7FBFF',
+    ringColor: '#F7FBFF',
+    sigilColor: '#77F7DB',
+    atmosphereColor: '#6DEAFF',
+    ribbonIntensity: 0.12,
+    haloIntensity: 0.18,
+    phaseFlash: 0.22,
+    coreShape: 'sigilCrown',
+    overlayPattern: 'orbitRings',
+    atmospherePattern: 'largeVeil',
+    motionProfile: 'slowRise',
+    glyphDensity: 0.2,
+    ringSupport: 'dominantPlusSupport',
+  },
+  Convergence: {
+    coreColor: '#6DEAFF',
+    ringColor: '#F7FBFF',
+    sigilColor: '#77F7DB',
+    atmosphereColor: '#F7FBFF',
+    ribbonIntensity: 0.14,
+    haloIntensity: 0.12,
+    phaseFlash: 0.18,
+    coreShape: 'sphereNucleus',
+    overlayPattern: 'symmetricRibbons',
+    atmospherePattern: 'wideWash',
+    motionProfile: 'steadyBreathing',
+    glyphDensity: 0.12,
+    ringSupport: 'singleDominantRing',
+  },
+  QuantumFracture: {
+    coreColor: '#D07BFF',
+    ringColor: '#D07BFF',
+    sigilColor: '#BC76FF',
+    atmosphereColor: '#0C0816',
+    ribbonIntensity: 0.2,
+    haloIntensity: 0.16,
+    phaseFlash: 0.28,
+    coreShape: 'eclipseRing',
+    overlayPattern: 'phaseShards',
+    atmospherePattern: 'voidPlate',
+    motionProfile: 'phaseInversion',
+    glyphDensity: 0.08,
+    ringSupport: 'singleDominantRing',
+  },
+  ChaosCeremony: {
+    coreColor: '#FF73CF',
+    ringColor: '#FFD4EF',
+    sigilColor: '#BC76FF',
+    atmosphereColor: '#D07BFF',
+    ribbonIntensity: 0.24,
+    haloIntensity: 0.18,
+    phaseFlash: 0.3,
+    coreShape: 'fracturedCore',
+    overlayPattern: 'shardFragments',
+    atmospherePattern: 'darkVeil',
+    motionProfile: 'jitteredPulse',
+    glyphDensity: 0.16,
+    ringSupport: 'supportRing',
+  },
+  MemoryEcho: {
+    coreColor: '#67F2FF',
+    ringColor: '#D6FFF3',
+    sigilColor: '#F7FBFF',
+    atmosphereColor: '#F0D6FF',
+    ribbonIntensity: 0.12,
+    haloIntensity: 0.14,
+    phaseFlash: 0.18,
+  },
+  default: {
+    coreColor: '#77F7DB',
+    ringColor: '#F7FBFF',
+    sigilColor: '#6DEAFF',
+    atmosphereColor: '#D6FFF3',
+    ribbonIntensity: 0.14,
+    haloIntensity: 0.12,
+    phaseFlash: 0.2,
   },
 };
 
@@ -125,6 +219,12 @@ class Phase8RitualVisualOrchestration {
     // Global ritual pulse frequency (shared across all rituals)
     this.globalRitualPhase = 0;
     this.ritualFrequency = 2.5;        // Hz (2.5 pulses per second, feels coordinated)
+    this.ritualStages = {
+      PRELUDE: 'PRELUDE',
+      ACTIVE: 'ACTIVE',
+      CREST: 'CREST',
+      RELEASE: 'RELEASE',
+    };
 
     // Event listeners for Phase 8 lifecycle
     this.listenerSetup = false;
@@ -193,7 +293,7 @@ class Phase8RitualVisualOrchestration {
 
   /**
    * ========================================================================
-   * LAYER 1: PRE-RITUAL — NETWORK ATTUNEMENT
+   * LAYER 1: PRELUDE — NETWORK ATTUNEMENT
    * ========================================================================
    * Signal that network is entering coordinated state.
    * 
@@ -215,10 +315,13 @@ class Phase8RitualVisualOrchestration {
     const affectedRenderables = this._identifyAffectedRenderables(nodeIds, linkIds);
 
     // Create ritual visual state
+    const archetype = this._resolveRitualArchetype(ritual);
     const ritualState = {
-      stage: 'PRE_RITUAL',
+      stage: this.ritualStages.PRELUDE,
+      archetype,
       startTime: now,
       progress: 0,
+      crestTriggered: false,
       phaseOffset: this.globalRitualPhase,
       affectedRenderables,
       modifiers: new Map(),
@@ -228,14 +331,14 @@ class Phase8RitualVisualOrchestration {
 
     // Phase 1a: Pre-ritual attunement (1.5 seconds)
     // Apply subtle synchronization modifiers
-    this._applyPreRitualModifiers(affectedRenderables, ritualId);
+    this._applyPreRitualModifiers(affectedRenderables, ritualId, ritualState.archetype);
 
     this.stats.activeRituals = this.ritualVisualStates.size;
   }
 
   /**
    * ========================================================================
-   * LAYER 2: RITUAL ACTIVE — COHERENT RESONANCE
+   * LAYER 2: ACTIVE — COHERENT RESONANCE
    * ========================================================================
    * Show that network is acting as one system.
    * 
@@ -258,18 +361,18 @@ class Phase8RitualVisualOrchestration {
     if (!state) return;
 
     // Transition to active stage
-    state.stage = 'RITUAL_ACTIVE';
+    state.stage = this.ritualStages.ACTIVE;
     state.stageStartTime = performance.now();
     state.startTime = state.stageStartTime;
 
     // Clear pre-ritual modifiers and apply active modifiers
     this._clearModifiersForRitual(ritualId);
-    this._applyRitualActiveModifiers(state.affectedRenderables, ritualId);
+    this._applyRitualActiveModifiers(state.affectedRenderables, ritualId, state.archetype);
   }
 
   /**
    * ========================================================================
-   * LAYER 3: RITUAL COMPLETION — RELEASE / RESOLUTION
+   * LAYER 4: RELEASE — RESOLUTION
    * ========================================================================
    * Communicate closure and consequence (success vs failure).
    * 
@@ -293,7 +396,7 @@ class Phase8RitualVisualOrchestration {
     const state = this.ritualVisualStates.get(ritualId);
     if (!state) return;
 
-    state.stage = 'COMPLETION';
+    state.stage = this.ritualStages.RELEASE;
     state.stageStartTime = performance.now();
     state.startTime = state.stageStartTime;
     state.success = success;
@@ -310,8 +413,8 @@ class Phase8RitualVisualOrchestration {
 
     // Schedule cleanup after completion visuals fade
     const completionDuration = success
-      ? RITUAL_VISUAL_CONFIG.COMPLETION.success.releaseDuration
-      : RITUAL_VISUAL_CONFIG.COMPLETION.failure.releaseDuration;
+      ? RITUAL_VISUAL_CONFIG.RELEASE.success.releaseDuration
+      : RITUAL_VISUAL_CONFIG.RELEASE.failure.releaseDuration;
 
     setTimeout(() => {
       this._clearModifiersForRitual(ritualId);
@@ -343,17 +446,24 @@ class Phase8RitualVisualOrchestration {
    * Apply pre-ritual attunement modifiers.
    * Synchronize pulses, reduce jitter, create "listening" feel.
    */
-  _applyPreRitualModifiers(affectedRenderables, ritualId) {
-    const config = RITUAL_VISUAL_CONFIG.PRE_RITUAL;
+  _applyPreRitualModifiers(affectedRenderables, ritualId, archetype) {
+    const config = RITUAL_VISUAL_CONFIG.PRELUDE;
     const metricMod = this._getMetricModulation();
+    const archetypeProfile = RITUAL_ARCHETYPE_PROFILES[archetype] || RITUAL_ARCHETYPE_PROFILES.default;
 
     for (const renderable of affectedRenderables) {
       const modifier = {
         ritualId,
-        layer: 'PRE_RITUAL',
+        layer: this.ritualStages.PRELUDE,
         intensityMultiplier: metricMod.preRitualIntensity,
         phaseSync: config.linkPulseSync,
         jitterSuppression: metricMod.jitterSuppression,
+        coreShape: archetypeProfile.coreShape,
+        overlayPattern: archetypeProfile.overlayPattern,
+        atmospherePattern: archetypeProfile.atmospherePattern,
+        motionProfile: archetypeProfile.motionProfile,
+        glyphDensity: archetypeProfile.glyphDensity,
+        ringSupport: archetypeProfile.ringSupport,
         envelope: (t) => this._fadeInEnvelope(t, config.duration),
         duration: config.duration,
       };
@@ -366,24 +476,64 @@ class Phase8RitualVisualOrchestration {
    * Apply ritual active resonance modifiers.
    * Amplify signals, synchronize globally, propagate waves.
    */
-  _applyRitualActiveModifiers(affectedRenderables, ritualId) {
-    const config = RITUAL_VISUAL_CONFIG.RITUAL_ACTIVE;
+  _applyRitualActiveModifiers(affectedRenderables, ritualId, archetype) {
+    const config = RITUAL_VISUAL_CONFIG.ACTIVE;
     const metricMod = this._getMetricModulation();
+    const archetypeProfile = RITUAL_ARCHETYPE_PROFILES[archetype] || RITUAL_ARCHETYPE_PROFILES.default;
 
     for (const renderable of affectedRenderables) {
       const modifier = {
         ritualId,
-        layer: 'RITUAL_ACTIVE',
+        layer: this.ritualStages.ACTIVE,
         intensityMultiplier: metricMod.activeIntensity,
         radiusScale: metricMod.radiusScale,
+        coreShape: archetypeProfile.coreShape,
+        overlayPattern: archetypeProfile.overlayPattern,
+        atmospherePattern: archetypeProfile.atmospherePattern,
+        motionProfile: archetypeProfile.motionProfile,
+        ribbonIntensity: archetypeProfile.ribbonIntensity,
+        haloIntensity: archetypeProfile.haloIntensity,
+        phaseFlash: archetypeProfile.phaseFlash,
         globalPhaseSync: config.globalPhaseSync,
         phaseOffset: this.globalRitualPhase,
         stressDamping: metricMod.stressDamping,
         waveRipple: config.waveRippleEffect,
+        ribbonTrails: config.ribbonTrails,
+        composition: {
+          core: true,
+          rings: true,
+          surface: true,
+          atmosphere: true,
+        },
         envelope: (t) => 1.0,            // Full intensity during active phase
         duration: Infinity,              // Until completion
       };
 
+      this._applyModifierToRenderable(renderable, modifier);
+    }
+  }
+
+  _applyCrestModifiers(affectedRenderables, ritualId, state) {
+    const config = RITUAL_VISUAL_CONFIG.CREST;
+    const archetype = RITUAL_ARCHETYPE_PROFILES[state.archetype] || RITUAL_ARCHETYPE_PROFILES.default;
+
+    for (const renderable of affectedRenderables) {
+      const modifier = {
+        ritualId,
+        layer: this.ritualStages.CREST,
+        intensityMultiplier: config.intensityBoost,
+        radiusScale: 1.1,
+        haloBoost: archetype.haloIntensity,
+        phaseFlash: archetype.phaseFlash,
+        ribbonPulse: config.ribbonPulse,
+        composition: {
+          rings: true,
+          sigils: true,
+          atmosphere: true,
+        },
+        envelope: (t) => this._fadeOutEnvelope(t, config.duration),
+        duration: config.duration,
+      };
       this._applyModifierToRenderable(renderable, modifier);
     }
   }
@@ -393,16 +543,21 @@ class Phase8RitualVisualOrchestration {
    * Coherence pulse, calm settling, return to baseline.
    */
   _applyCompletionSuccessModifiers(affectedRenderables, ritualId) {
-    const config = RITUAL_VISUAL_CONFIG.COMPLETION.success;
+    const config = RITUAL_VISUAL_CONFIG.RELEASE.success;
 
     for (const renderable of affectedRenderables) {
       const modifier = {
         ritualId,
-        layer: 'COMPLETION_SUCCESS',
+        layer: `${this.ritualStages.RELEASE}_SUCCESS`,
         intensityMultiplier: 1.2,       // Brief brightening (coherence pulse)
         radiusScale: 1.1,               // Slight expansion
         calmingBreath: config.calmingBreath,
         settleDamping: config.settleDamping,
+        phaseFlash: 0.15,
+        composition: {
+          rings: true,
+          atmosphere: true,
+        },
         envelope: (t) => this._fadeOutEnvelope(t, config.releaseDuration),
         duration: config.releaseDuration,
       };
@@ -416,16 +571,21 @@ class Phase8RitualVisualOrchestration {
    * Gentle desynchronization, soft energy dispersal, no punishment.
    */
   _applyCompletionFailureModifiers(affectedRenderables, ritualId) {
-    const config = RITUAL_VISUAL_CONFIG.COMPLETION.failure;
+    const config = RITUAL_VISUAL_CONFIG.RELEASE.failure;
 
     for (const renderable of affectedRenderables) {
       const modifier = {
         ritualId,
-        layer: 'COMPLETION_FAILURE',
+        layer: `${this.ritualStages.RELEASE}_FAILURE`,
         intensityMultiplier: 0.9,       // Gentle dimming
         desyncSpread: config.desyncSpread,
         energyDispersion: config.energyDispersion,
         turbulenceBump: config.turbulenceBump,
+        phaseFlash: 0.1,
+        composition: {
+          core: true,
+          surface: true,
+        },
         envelope: (t) => this._fadeOutEnvelope(t, config.releaseDuration),
         duration: config.releaseDuration,
       };
@@ -523,8 +683,14 @@ class Phase8RitualVisualOrchestration {
     state.progress = Math.min(elapsed / 24000, 1.0);  // 24s total ritual duration
 
     // Update stage transitions if needed
-    if (state.stage === 'PRE_RITUAL' && elapsed > RITUAL_VISUAL_CONFIG.PRE_RITUAL.duration) {
-      // Pre-ritual ends, but wait for progress event to transition to ACTIVE
+if (state.stage === this.ritualStages.PRELUDE && elapsed > RITUAL_VISUAL_CONFIG.PRELUDE.duration) {
+      // Prelude ends, but wait for progress event to transition to ACTIVE
+    }
+
+    if (state.stage === this.ritualStages.ACTIVE && !state.crestTriggered && elapsed > RITUAL_VISUAL_CONFIG.ACTIVE.phaseFlashThreshold) {
+      state.stage = this.ritualStages.CREST;
+      state.crestTriggered = true;
+      this._applyCrestModifiers(state.affectedRenderables, ritualId, state);
     }
 
     // Modulate global phase for all affected renderables in this ritual
@@ -549,10 +715,10 @@ class Phase8RitualVisualOrchestration {
     const toDelete = [];
 
     for (const [ritualId, state] of this.ritualVisualStates.entries()) {
-      if (state.stage === 'COMPLETION') {
+      if (state.stage === this.ritualStages.RELEASE) {
         const completionDuration = state.success
-          ? RITUAL_VISUAL_CONFIG.COMPLETION.success.releaseDuration
-          : RITUAL_VISUAL_CONFIG.COMPLETION.failure.releaseDuration;
+          ? RITUAL_VISUAL_CONFIG.RELEASE.success.releaseDuration
+          : RITUAL_VISUAL_CONFIG.RELEASE.failure.releaseDuration;
 
         const stageElapsed = now - state.stageStartTime;
         if (stageElapsed > completionDuration) {
@@ -671,6 +837,27 @@ class Phase8RitualVisualOrchestration {
     this.metricSignals.lastUpdatedAt = performance.now();
   }
 
+  _resolveRitualArchetype(ritual) {
+    if (!ritual) return 'default';
+    const rawValue = ritual.type || ritual.archetype || ritual.theme || ritual.name || '';
+    const normalized = String(rawValue).trim().toLowerCase();
+    const aliasMap = {
+      ascension: 'Ascension',
+      'ascension rite': 'Ascension',
+      convergence: 'Convergence',
+      'convergence rite': 'Convergence',
+      'quantum fracture': 'QuantumFracture',
+      'quantumfracture': 'QuantumFracture',
+      'quantum rite': 'QuantumFracture',
+      chaos: 'ChaosCeremony',
+      'chaos ceremony': 'ChaosCeremony',
+      memory: 'MemoryEcho',
+      'memory echo': 'MemoryEcho',
+      echo: 'MemoryEcho',
+    };
+    return aliasMap[normalized] || 'default';
+  }
+
   _getMetricModulation() {
     const intensityBoost = this.metricSignals.synergyHigh ? 0.15 : (this.metricSignals.synergyMid ? 0.05 : 0);
     const harmonyBoost = this.metricSignals.harmonyHigh ? 0.08 : (this.metricSignals.harmonyMid ? 0.04 : 0);
@@ -682,16 +869,16 @@ class Phase8RitualVisualOrchestration {
         RITUAL_VISUAL_CONFIG.GLOBAL.minIntensity,
         0.9 + harmonyBoost
       ),
-      jitterSuppression: Math.min(0.9, RITUAL_VISUAL_CONFIG.PRE_RITUAL.jitterReduction + stabilityGuard),
+      jitterSuppression: Math.min(0.9, RITUAL_VISUAL_CONFIG.PRELUDE.jitterReduction + stabilityGuard),
       activeIntensity: Math.min(
         RITUAL_VISUAL_CONFIG.GLOBAL.maxIntensity,
-        RITUAL_VISUAL_CONFIG.RITUAL_ACTIVE.linkIntensity + intensityBoost
+        RITUAL_VISUAL_CONFIG.ACTIVE.linkIntensity + intensityBoost
       ),
       radiusScale: Math.min(
         RITUAL_VISUAL_CONFIG.GLOBAL.maxRadiusScale,
-        RITUAL_VISUAL_CONFIG.RITUAL_ACTIVE.nodeRadiusScale + harmonyBoost
+        RITUAL_VISUAL_CONFIG.ACTIVE.nodeRadiusScale + harmonyBoost
       ),
-      stressDamping: Math.min(0.8, RITUAL_VISUAL_CONFIG.RITUAL_ACTIVE.stressDamping + stressBoost),
+      stressDamping: Math.min(0.8, RITUAL_VISUAL_CONFIG.ACTIVE.stressDamping + stressBoost),
     };
   }
 }

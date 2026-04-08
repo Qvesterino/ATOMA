@@ -209,40 +209,40 @@ export class SafeLegendaryWorldEvents {
         fadeInDuration: 1.0,
         fadeOutDuration: 2.0,
         maxIntensity: 1.0,
-        color: 0x6cf9ff,
-        description: 'Cosmic Pulse'
+        color: 0x6deaff,
+        description: 'Civilizational resonance bloom'
       },
       FRACTAL_STORM: {
         duration: 12.0,
         fadeInDuration: 1.5,
         fadeOutDuration: 3.0,
         maxIntensity: 0.9,
-        color: 0xcd5bff,
-        description: 'Fractal Storm'
+        color: 0xbc76ff,
+        description: 'Recursive weather of living geometry'
       },
       SIGMA_INVASION: {
         duration: 10.0,
         fadeInDuration: 1.0,
         fadeOutDuration: 2.5,
         maxIntensity: 0.95,
-        color: 0x42ff9a,
-        description: 'Sigma Invasion'
+        color: 0xff73cf,
+        description: 'Controlled breach vector'
       },
       QUANTUM_ECLIPSE: {
         duration: 15.0,
         fadeInDuration: 2.0,
         fadeOutDuration: 3.5,
         maxIntensity: 0.85,
-        color: 0xf06cff,
-        description: 'Quantum Eclipse'
+        color: 0xd07bff,
+        description: 'Reality occluded by higher computation'
       },
       AURORA_STATE: {
         duration: 14.0,
         fadeInDuration: 2.0,
         fadeOutDuration: 3.0,
         maxIntensity: 0.8,
-        color: 0x6fffd8,
-        description: 'Aurora State'
+        color: 0x77f7db,
+        description: 'Benevolent intelligence veil'
       }
     };
     
@@ -427,41 +427,49 @@ export class SafeLegendaryWorldEvents {
   }
 
   _createLegendaryPaletteLibrary() {
+    const voidDeep = new THREE.Color(0x08101a);
+    const voidDeepCold = new THREE.Color(0x05131a);
+    const coreWhite = new THREE.Color(0xf7fbff);
+    const signalCyan = new THREE.Color(0x6deaff);
+    const signalMint = new THREE.Color(0x77f7db);
+    const signalViolet = new THREE.Color(0xd07bff);
+    const signalRose = new THREE.Color(0xff73cf);
+
     return {
       COSMIC_PULSE: {
-        base: new THREE.Color(0x6cf9ff),
-        accent: new THREE.Color(0xffffff),
-        aura: new THREE.Color(0xb6fbff),
-        deep: new THREE.Color(0x071525),
-        glow: new THREE.Color(0x2d7dff)
+        base: signalCyan,
+        accent: coreWhite,
+        aura: new THREE.Color(0xcdfcff),
+        deep: voidDeep,
+        glow: new THREE.Color(0x4aa6ff)
       },
       AURORA_STATE: {
-        base: new THREE.Color(0x6fffd8),
-        accent: new THREE.Color(0xeaffff),
-        aura: new THREE.Color(0xb7fff2),
-        deep: new THREE.Color(0x051f17),
-        glow: new THREE.Color(0x6dbfff)
+        base: signalMint,
+        accent: coreWhite,
+        aura: new THREE.Color(0xd6fff3),
+        deep: voidDeepCold,
+        glow: new THREE.Color(0x72c7ff)
       },
       SIGMA_INVASION: {
-        base: new THREE.Color(0x42ff9a),
-        accent: new THREE.Color(0xe9fff4),
-        aura: new THREE.Color(0xb6ffd6),
-        deep: new THREE.Color(0x081b13),
-        glow: new THREE.Color(0xff6bf5)
+        base: signalRose,
+        accent: coreWhite,
+        aura: new THREE.Color(0xffd4ef),
+        deep: new THREE.Color(0x150a16),
+        glow: new THREE.Color(0x79fff1)
       },
       QUANTUM_ECLIPSE: {
-        base: new THREE.Color(0xf06cff),
-        accent: new THREE.Color(0xffffff),
-        aura: new THREE.Color(0xffc6ff),
-        deep: new THREE.Color(0x0d0618),
-        glow: new THREE.Color(0x72d4ff)
+        base: signalViolet,
+        accent: coreWhite,
+        aura: new THREE.Color(0xf0d6ff),
+        deep: new THREE.Color(0x0c0816),
+        glow: new THREE.Color(0x69dfff)
       },
       FRACTAL_STORM: {
-        base: new THREE.Color(0xcd5bff),
-        accent: new THREE.Color(0xf6f0ff),
-        aura: new THREE.Color(0xe0b9ff),
-        deep: new THREE.Color(0x1a0822),
-        glow: new THREE.Color(0x67f0ff)
+        base: new THREE.Color(0xbc76ff),
+        accent: coreWhite,
+        aura: new THREE.Color(0xe8d0ff),
+        deep: new THREE.Color(0x120a1a),
+        glow: new THREE.Color(0x67f2ff)
       }
     };
   }
@@ -543,6 +551,48 @@ export class SafeLegendaryWorldEvents {
     return line;
   }
 
+  _createLegendaryBackdropSheet({
+    type,
+    color,
+    map = null,
+    opacity = 0.12,
+    width = 540,
+    height = 240,
+    position = new THREE.Vector3(),
+    rotation = new THREE.Euler(),
+    scale = 1,
+    phaseOffset = 0,
+    baseOpacity = opacity,
+    baseScale = 1,
+    blending = THREE.AdditiveBlending,
+    depthWrite = false,
+    depthTest = false,
+    side = THREE.DoubleSide
+  }) {
+    const mesh = this._createLegendaryMesh(
+      new THREE.PlaneGeometry(width, height),
+      this._createLegendaryMeshMaterial({
+        color,
+        map,
+        opacity,
+        blending,
+        depthWrite,
+        depthTest,
+        side
+      }),
+      {
+        type,
+        phaseOffset,
+        baseOpacity,
+        baseScale
+      }
+    );
+    mesh.position.copy(position);
+    mesh.rotation.copy(rotation);
+    mesh.scale.setScalar(scale);
+    return mesh;
+  }
+
   _registerLegendaryObject(bucket, object) {
     if (!object) return object;
 
@@ -555,6 +605,61 @@ export class SafeLegendaryWorldEvents {
   _getLegendaryBeat(speed = 1, offset = 0, floor = 0.4, ceil = 1.0) {
     const wave = 0.5 + 0.5 * Math.sin(this.animationTime * speed + offset);
     return legendaryLerp(floor, ceil, wave);
+  }
+
+  _getLegendaryEventEnvelope(intensity, phase = 'active') {
+    const rise = legendarySmoothstep(0.02, 0.28, intensity);
+    const body = legendarySmoothstep(0.18, 0.72, intensity);
+    const crest = legendarySmoothstep(0.58, 0.96, intensity);
+    const tail = 1 - legendarySmoothstep(0.72, 1.0, intensity);
+    const afterglowBase = phase === 'fadeOut'
+      ? legendarySmoothstep(0.0, 1.0, tail)
+      : legendarySmoothstep(0.34, 0.94, intensity) * 0.58;
+
+    return {
+      rise,
+      body,
+      crest,
+      tail,
+      afterglow: legendaryClamp01(afterglowBase),
+      contrast: legendaryClamp01(0.38 + body * 0.38 + crest * 0.24)
+    };
+  }
+
+  _getLegendaryHudPayload(eventType) {
+    const text = {
+      COSMIC_PULSE: {
+        title: 'Cosmic Pulse',
+        subtitle: 'Civilizational resonance bloom',
+        description: 'A synchronized world heartbeat. The network settles into luminous coherence.'
+      },
+      AURORA_STATE: {
+        title: 'Aurora State',
+        subtitle: 'Benevolent intelligence veil',
+        description: 'A calm intelligence curtain. The system breathes in ordered light.'
+      },
+      SIGMA_INVASION: {
+        title: 'Sigma Invasion',
+        subtitle: 'Controlled breach vector',
+        description: 'A precise hostile intrusion. Glitch, fracture, and signal pressure take over the frame.'
+      },
+      QUANTUM_ECLIPSE: {
+        title: 'Quantum Eclipse',
+        subtitle: 'Reality occluded by higher computation',
+        description: 'A phase shadow crosses the world. Light bends around a denser model of reality.'
+      },
+      FRACTAL_STORM: {
+        title: 'Fractal Storm',
+        subtitle: 'Recursive weather of living geometry',
+        description: 'Self-similar turbulence fills the space. The world grows branching intelligence.'
+      }
+    };
+
+    return text[eventType] || {
+      title: eventType || 'Legendary Event',
+      subtitle: 'ATOMA world event',
+      description: 'Legendary overlay engaged.'
+    };
   }
   
   /**
@@ -841,6 +946,20 @@ export class SafeLegendaryWorldEvents {
     halo.rotation.z = 0.16;
     this._registerLegendaryObject('overlays', halo);
 
+    const atmosphere = this._createLegendaryBackdropSheet({
+      type: 'cosmic_atmosphere',
+      color: palette.deep,
+      map: haloTexture,
+      opacity: 0.09,
+      width: 640,
+      height: 320,
+      position: new THREE.Vector3(0, 18, -132),
+      rotation: new THREE.Euler(-0.22, 0, 0.08),
+      phaseOffset: seed * 0.61,
+      baseOpacity: 0.09
+    });
+    this._registerLegendaryObject('overlays', atmosphere);
+
     const rayCount = 8;
     for (let i = 0; i < rayCount; i++) {
       const angle = (i / rayCount) * Math.PI * 2 + seed * 0.1;
@@ -918,6 +1037,7 @@ export class SafeLegendaryWorldEvents {
    */
   updateCosmicPulseVFX(intensity, deltaTime) {
     const beat = this._getLegendaryBeat(0.85, this.registry.seed * 0.37, 0.65, 1.0);
+    const envelope = this._getLegendaryEventEnvelope(intensity, this.registry.phase);
     const pulse = intensity * beat;
     const palette = this.legendaryPalettes.COSMIC_PULSE;
 
@@ -927,25 +1047,25 @@ export class SafeLegendaryWorldEvents {
       if (!type) continue;
 
       if (type === 'cosmic_core') {
-        const coreScale = 1 + pulse * 0.55 + beat * 0.14;
+        const coreScale = 1 + pulse * (0.46 + envelope.body * 0.18) + beat * 0.12 + envelope.crest * 0.06;
         mesh.scale.setScalar(coreScale);
-        mesh.material.opacity = 0.42 + pulse * 0.46;
-        mesh.material.color.copy(palette.base).lerp(palette.accent, pulse * 0.5 + beat * 0.18);
+        mesh.material.opacity = 0.4 + envelope.body * 0.28 + envelope.crest * 0.22 + pulse * 0.22;
+        mesh.material.color.copy(palette.base).lerp(palette.accent, envelope.body * 0.42 + envelope.crest * 0.22 + beat * 0.12);
       } else if (type === 'cosmic_ring_inner') {
-        mesh.scale.setScalar((1 + pulse * 0.3) * mesh.userData.baseScale);
+        mesh.scale.setScalar((1 + pulse * (0.22 + envelope.body * 0.1)) * mesh.userData.baseScale);
         mesh.rotation.z += deltaTime * 0.35;
-        mesh.material.opacity = mesh.userData.baseOpacity + pulse * 0.22;
-        mesh.material.color.copy(palette.accent).lerp(palette.aura, beat * 0.35);
+        mesh.material.opacity = mesh.userData.baseOpacity + envelope.body * 0.16 + envelope.afterglow * 0.12 + pulse * 0.14;
+        mesh.material.color.copy(palette.accent).lerp(palette.aura, envelope.body * 0.28 + beat * 0.16);
       } else if (type === 'cosmic_ring_mid') {
-        mesh.scale.setScalar((1 + pulse * 0.42) * mesh.userData.baseScale);
+        mesh.scale.setScalar((1 + pulse * (0.3 + envelope.crest * 0.12)) * mesh.userData.baseScale);
         mesh.rotation.z -= deltaTime * 0.24;
-        mesh.material.opacity = mesh.userData.baseOpacity + pulse * 0.16;
-        mesh.material.color.copy(palette.aura).lerp(palette.glow, beat * 0.25);
+        mesh.material.opacity = mesh.userData.baseOpacity + envelope.body * 0.12 + envelope.afterglow * 0.1 + pulse * 0.1;
+        mesh.material.color.copy(palette.aura).lerp(palette.glow, envelope.crest * 0.18 + beat * 0.14);
       } else if (type === 'cosmic_ring_outer') {
-        mesh.scale.setScalar((1 + pulse * 0.52) * mesh.userData.baseScale);
+        mesh.scale.setScalar((1 + pulse * (0.38 + envelope.afterglow * 0.1)) * mesh.userData.baseScale);
         mesh.rotation.z += deltaTime * 0.18;
-        mesh.material.opacity = mesh.userData.baseOpacity + pulse * 0.12;
-        mesh.material.color.copy(palette.glow).lerp(palette.accent, beat * 0.25);
+        mesh.material.opacity = mesh.userData.baseOpacity + envelope.afterglow * 0.16 + pulse * 0.08;
+        mesh.material.color.copy(palette.glow).lerp(palette.accent, envelope.afterglow * 0.16 + beat * 0.12);
       }
     }
 
@@ -953,10 +1073,20 @@ export class SafeLegendaryWorldEvents {
       const overlay = this.vfxContainer.overlays[i];
       if (overlay?.userData?.type !== 'cosmic_halo') continue;
 
-      overlay.scale.setScalar(1.1 + pulse * 0.95 + beat * 0.18);
+      overlay.scale.setScalar(1.08 + pulse * 0.82 + envelope.afterglow * 0.16 + beat * 0.12);
       overlay.rotation.z += deltaTime * 0.08;
-      overlay.material.opacity = 0.12 + pulse * 0.26 + beat * 0.05;
-      overlay.material.color.copy(palette.aura).lerp(palette.accent, beat * 0.4);
+      overlay.material.opacity = 0.1 + pulse * 0.2 + envelope.afterglow * 0.12 + beat * 0.04;
+      overlay.material.color.copy(palette.aura).lerp(palette.accent, envelope.body * 0.24 + beat * 0.18);
+    }
+
+    for (let i = 0; i < this.vfxContainer.overlays.length; i++) {
+      const overlay = this.vfxContainer.overlays[i];
+      if (overlay?.userData?.type !== 'cosmic_atmosphere') continue;
+
+      overlay.scale.setScalar(1 + pulse * 0.06 + envelope.afterglow * 0.05 + beat * 0.03);
+      overlay.rotation.z += deltaTime * 0.01;
+      overlay.material.opacity = overlay.userData.baseOpacity * (0.52 + pulse * 0.56 + envelope.afterglow * 0.28 + beat * 0.1);
+      overlay.material.color.copy(palette.deep).lerp(palette.aura, envelope.afterglow * 0.2 + beat * 0.16 + pulse * 0.08);
     }
 
     for (let i = 0; i < this.vfxContainer.beams.length; i++) {
@@ -964,8 +1094,8 @@ export class SafeLegendaryWorldEvents {
       if (ray?.userData?.type !== 'cosmic_ray') continue;
 
       const wave = 0.5 + 0.5 * Math.sin(this.animationTime * 1.55 + ray.userData.phaseOffset);
-      ray.material.opacity = ray.userData.baseOpacity * (0.45 + wave * 0.75 + pulse * 0.4);
-      ray.material.color.copy(palette.aura).lerp(palette.accent, wave * 0.55 + pulse * 0.2);
+      ray.material.opacity = ray.userData.baseOpacity * (0.42 + wave * 0.68 + pulse * 0.28 + envelope.afterglow * 0.18);
+      ray.material.color.copy(palette.aura).lerp(palette.accent, wave * 0.48 + envelope.crest * 0.16 + pulse * 0.12);
     }
 
     for (let i = 0; i < this.vfxContainer.particles.length; i++) {
@@ -978,10 +1108,10 @@ export class SafeLegendaryWorldEvents {
       mote.position.x = Math.cos(mote.userData.angle) * radius;
       mote.position.z = Math.sin(mote.userData.angle) * radius;
       mote.position.y = mote.userData.orbitHeight + drift;
-      const moteScale = mote.userData.baseScale * (0.85 + beat * 0.45 + pulse * 0.2);
+      const moteScale = mote.userData.baseScale * (0.82 + beat * 0.4 + envelope.body * 0.12 + pulse * 0.16);
       mote.scale.setScalar(moteScale);
-      mote.material.opacity = mote.userData.baseOpacity * (0.32 + beat * 0.48 + pulse * 0.35);
-      mote.material.color.copy(palette.base).lerp(palette.accent, beat * 0.58);
+      mote.material.opacity = mote.userData.baseOpacity * (0.28 + beat * 0.42 + envelope.afterglow * 0.18 + pulse * 0.22);
+      mote.material.color.copy(palette.base).lerp(palette.accent, beat * 0.5 + envelope.body * 0.16);
     }
   }
   
@@ -1055,6 +1185,20 @@ export class SafeLegendaryWorldEvents {
     canopy.rotation.x = -0.22;
     canopy.rotation.z = 0.18;
     this._registerLegendaryObject('overlays', canopy);
+
+    const atmosphere = this._createLegendaryBackdropSheet({
+      type: 'fractal_cloud',
+      color: palette.deep,
+      map: canopyTexture,
+      opacity: 0.08,
+      width: 640,
+      height: 260,
+      position: new THREE.Vector3(0, 64, -156),
+      rotation: new THREE.Euler(-0.2, 0, 0.1),
+      phaseOffset: seed * 0.51,
+      baseOpacity: 0.08
+    });
+    this._registerLegendaryObject('overlays', atmosphere);
 
     const branchCount = 7;
     for (let i = 0; i < branchCount; i++) {
@@ -1141,6 +1285,7 @@ export class SafeLegendaryWorldEvents {
    */
   updateFractalStormVFX(intensity, deltaTime) {
     const beat = this._getLegendaryBeat(0.92, this.registry.seed * 0.29, 0.7, 1.0);
+    const envelope = this._getLegendaryEventEnvelope(intensity, this.registry.phase);
     const pulse = intensity * beat;
     const palette = this.legendaryPalettes.FRACTAL_STORM;
 
@@ -1150,14 +1295,14 @@ export class SafeLegendaryWorldEvents {
       if (!type) continue;
 
       if (type === 'fractal_core') {
-        mesh.scale.setScalar(1 + pulse * 0.42 + beat * 0.08);
-        mesh.material.opacity = mesh.userData.baseOpacity + pulse * 0.28;
-        mesh.material.color.copy(palette.accent).lerp(palette.glow, beat * 0.4);
+        mesh.scale.setScalar(1 + pulse * (0.36 + envelope.body * 0.16) + beat * 0.06 + envelope.crest * 0.04);
+        mesh.material.opacity = mesh.userData.baseOpacity + envelope.body * 0.16 + envelope.crest * 0.18 + pulse * 0.16;
+        mesh.material.color.copy(palette.accent).lerp(palette.glow, beat * 0.3 + envelope.body * 0.18);
       } else if (type === 'fractal_ring') {
         mesh.rotation.z += deltaTime * 0.22;
-        mesh.scale.setScalar(1 + pulse * 0.18);
-        mesh.material.opacity = mesh.userData.baseOpacity + pulse * 0.22;
-        mesh.material.color.copy(palette.glow).lerp(palette.aura, beat * 0.5);
+        mesh.scale.setScalar(1 + pulse * (0.14 + envelope.afterglow * 0.08));
+        mesh.material.opacity = mesh.userData.baseOpacity + envelope.body * 0.12 + envelope.afterglow * 0.16 + pulse * 0.12;
+        mesh.material.color.copy(palette.glow).lerp(palette.aura, beat * 0.34 + envelope.afterglow * 0.12);
       }
     }
 
@@ -1165,10 +1310,20 @@ export class SafeLegendaryWorldEvents {
       const overlay = this.vfxContainer.overlays[i];
       if (overlay?.userData?.type !== 'fractal_canopy') continue;
 
-      overlay.material.opacity = 0.08 + pulse * 0.24 + beat * 0.05;
+      overlay.material.opacity = 0.07 + pulse * 0.18 + envelope.afterglow * 0.14 + beat * 0.04;
       overlay.rotation.z += deltaTime * 0.06 * intensity;
-      overlay.scale.setScalar(1 + pulse * 0.08);
-      overlay.material.color.copy(palette.deep).lerp(palette.aura, beat * 0.2);
+      overlay.scale.setScalar(1 + pulse * 0.06 + envelope.body * 0.05);
+      overlay.material.color.copy(palette.deep).lerp(palette.aura, beat * 0.18 + envelope.afterglow * 0.1);
+    }
+
+    for (let i = 0; i < this.vfxContainer.overlays.length; i++) {
+      const overlay = this.vfxContainer.overlays[i];
+      if (overlay?.userData?.type !== 'fractal_cloud') continue;
+
+      overlay.material.opacity = overlay.userData.baseOpacity * (0.42 + pulse * 0.7 + envelope.afterglow * 0.22 + beat * 0.14);
+      overlay.rotation.z += deltaTime * 0.018;
+      overlay.scale.setScalar(1 + pulse * 0.05 + envelope.body * 0.03);
+      overlay.material.color.copy(palette.deep).lerp(palette.glow, beat * 0.16 + envelope.afterglow * 0.08 + pulse * 0.06);
     }
 
     for (let i = 0; i < this.vfxContainer.beams.length; i++) {
@@ -1177,8 +1332,8 @@ export class SafeLegendaryWorldEvents {
 
       const wave = 0.5 + 0.5 * Math.sin(this.animationTime * 0.85 + branch.userData.phaseOffset);
       branch.rotation.z += deltaTime * (0.03 + branch.userData.index * 0.005);
-      branch.material.opacity = branch.userData.baseOpacity * (0.4 + wave * 0.8 + pulse * 0.4);
-      branch.material.color.copy(palette.aura).lerp(palette.accent, wave * 0.35 + pulse * 0.2);
+      branch.material.opacity = branch.userData.baseOpacity * (0.36 + wave * 0.72 + pulse * 0.28 + envelope.afterglow * 0.14);
+      branch.material.color.copy(palette.aura).lerp(palette.accent, wave * 0.28 + envelope.body * 0.16 + pulse * 0.1);
     }
 
     for (let i = 0; i < this.vfxContainer.particles.length; i++) {
@@ -1192,9 +1347,9 @@ export class SafeLegendaryWorldEvents {
       shard.rotation.x += shard.userData.spinSpeed * deltaTime * 0.9;
       shard.rotation.y += shard.userData.spinSpeed * deltaTime * 0.7;
       shard.rotation.z += shard.userData.spinSpeed * deltaTime * 0.45;
-      shard.scale.setScalar(shard.userData.baseScale * (0.82 + beat * 0.4 + pulse * 0.2));
-      shard.material.opacity = shard.userData.baseOpacity * (0.3 + beat * 0.55 + pulse * 0.35);
-      shard.material.color.copy(palette.base).lerp(palette.accent, beat * 0.52 + pulse * 0.14);
+      shard.scale.setScalar(shard.userData.baseScale * (0.8 + beat * 0.34 + envelope.body * 0.12 + pulse * 0.14));
+      shard.material.opacity = shard.userData.baseOpacity * (0.26 + beat * 0.48 + envelope.afterglow * 0.16 + pulse * 0.24);
+      shard.material.color.copy(palette.base).lerp(palette.accent, beat * 0.42 + envelope.body * 0.16);
 
       if (shard.position.y < -32) {
         shard.position.y = 42 + (shard.userData.orbitHeight % 18);
@@ -1230,6 +1385,20 @@ export class SafeLegendaryWorldEvents {
     breachPlane.position.set(0, 0, -108);
     breachPlane.rotation.z = 0.02;
     this._registerLegendaryObject('overlays', breachPlane);
+
+    const shroud = this._createLegendaryBackdropSheet({
+      type: 'sigma_shroud',
+      color: palette.deep,
+      map: glitchTexture,
+      opacity: 0.08,
+      width: 640,
+      height: 360,
+      position: new THREE.Vector3(0, 0, -152),
+      rotation: new THREE.Euler(0, 0, -0.03),
+      phaseOffset: seed * 0.59,
+      baseOpacity: 0.08
+    });
+    this._registerLegendaryObject('overlays', shroud);
 
     for (let i = 0; i < 7; i++) {
       const band = this._createLegendaryMesh(
@@ -1365,6 +1534,7 @@ export class SafeLegendaryWorldEvents {
    */
   updateSigmaInvasionVFX(intensity, deltaTime) {
     const beat = this._getLegendaryBeat(1.28, this.registry.seed * 0.41, 0.58, 1.0);
+    const envelope = this._getLegendaryEventEnvelope(intensity, this.registry.phase);
     const pulse = intensity * beat;
     const palette = this.legendaryPalettes.SIGMA_INVASION;
 
@@ -1374,23 +1544,28 @@ export class SafeLegendaryWorldEvents {
       if (!type) continue;
 
       if (type === 'sigma_breach') {
-        overlay.material.opacity = overlay.userData.baseOpacity + pulse * 0.24 + beat * 0.04;
+        overlay.material.opacity = overlay.userData.baseOpacity + envelope.body * 0.18 + envelope.crest * 0.16 + pulse * 0.1;
         overlay.rotation.z = 0.02 + Math.sin(this.animationTime * 0.35 + overlay.userData.phaseOffset) * 0.02;
-        overlay.material.color.copy(palette.deep).lerp(palette.glow, pulse * 0.28 + beat * 0.1);
+        overlay.material.color.copy(palette.deep).lerp(palette.glow, envelope.body * 0.22 + pulse * 0.12 + beat * 0.06);
       } else if (type === 'sigma_band') {
         const wave = 0.5 + 0.5 * Math.sin(this.animationTime * overlay.userData.driftSpeed + overlay.userData.phaseOffset);
         overlay.position.x = Math.sin(this.animationTime * 0.5 + overlay.userData.phaseOffset) * (6 + pulse * 14);
         overlay.position.y = overlay.userData.baseY + Math.cos(this.animationTime * 0.7 + overlay.userData.phaseOffset) * (1.2 + pulse * 3.4);
         overlay.rotation.z = overlay.userData.baseRotation + Math.sin(this.animationTime * 0.65 + overlay.userData.phaseOffset) * 0.045 * intensity;
         overlay.scale.setScalar(1 + wave * 0.05 + pulse * 0.08);
-        overlay.material.opacity = overlay.userData.baseOpacity * (0.45 + wave * 0.9 + pulse * 0.55);
-        overlay.material.color.copy(palette.base).lerp(palette.glow, wave * 0.45 + pulse * 0.28);
+        overlay.material.opacity = overlay.userData.baseOpacity * (0.42 + wave * 0.78 + envelope.body * 0.14 + pulse * 0.32);
+        overlay.material.color.copy(palette.base).lerp(palette.glow, wave * 0.36 + envelope.body * 0.16 + pulse * 0.18);
       } else if (type === 'sigma_fracture') {
         overlay.position.x = overlay.userData.baseX + Math.sin(this.animationTime * overlay.userData.driftSpeed + overlay.userData.phaseOffset) * (8 + pulse * 18);
         overlay.position.y = overlay.userData.baseY + Math.cos(this.animationTime * overlay.userData.driftSpeed * 0.85 + overlay.userData.phaseOffset) * (4 + pulse * 5);
         overlay.rotation.z = overlay.userData.baseRotation + Math.sin(this.animationTime * 1.15 + overlay.userData.phaseOffset) * (0.12 + pulse * 0.18);
-        overlay.material.opacity = overlay.userData.baseOpacity * (0.35 + pulse * 0.95);
-        overlay.material.color.copy(palette.aura).lerp(palette.accent, pulse * 0.35 + beat * 0.2);
+        overlay.material.opacity = overlay.userData.baseOpacity * (0.32 + envelope.crest * 0.22 + pulse * 0.62);
+        overlay.material.color.copy(palette.aura).lerp(palette.accent, pulse * 0.24 + envelope.crest * 0.16 + beat * 0.1);
+      } else if (type === 'sigma_shroud') {
+        overlay.scale.setScalar(1 + pulse * 0.05 + envelope.afterglow * 0.04 + beat * 0.02);
+        overlay.rotation.z = Math.sin(this.animationTime * 0.08 + overlay.userData.phaseOffset) * 0.02;
+        overlay.material.opacity = overlay.userData.baseOpacity * (0.38 + envelope.afterglow * 0.26 + pulse * 0.48 + beat * 0.1);
+        overlay.material.color.copy(palette.deep).lerp(palette.aura, beat * 0.12 + envelope.afterglow * 0.1 + pulse * 0.06);
       }
     }
 
@@ -1401,8 +1576,8 @@ export class SafeLegendaryWorldEvents {
       const wave = 0.5 + 0.5 * Math.sin(this.animationTime * 1.5 + needle.userData.phaseOffset);
       needle.position.y += Math.sin(this.animationTime * 0.5 + needle.userData.phaseOffset) * 0.06;
       needle.rotation.z += deltaTime * 0.035;
-      needle.material.opacity = needle.userData.baseOpacity * (0.5 + wave * 0.85 + pulse * 0.6);
-      needle.material.color.copy(palette.glow).lerp(palette.accent, wave * 0.45 + pulse * 0.22);
+      needle.material.opacity = needle.userData.baseOpacity * (0.46 + wave * 0.72 + pulse * 0.36 + envelope.afterglow * 0.12);
+      needle.material.color.copy(palette.glow).lerp(palette.accent, wave * 0.34 + envelope.crest * 0.16 + pulse * 0.12);
     }
 
     for (let i = 0; i < this.vfxContainer.meshes.length; i++) {
@@ -1415,9 +1590,9 @@ export class SafeLegendaryWorldEvents {
       fragment.rotation.x += fragment.userData.spinSpeed * deltaTime * 0.45;
       fragment.rotation.y += fragment.userData.spinSpeed * deltaTime * 0.33;
       fragment.rotation.z += fragment.userData.spinSpeed * deltaTime * 0.28;
-      fragment.scale.setScalar(0.8 + pulse * 0.35 + beat * 0.12);
-      fragment.material.opacity = fragment.userData.baseOpacity * (0.28 + beat * 0.55 + pulse * 0.42);
-      fragment.material.color.copy(palette.base).lerp(palette.glow, beat * 0.35 + pulse * 0.24);
+      fragment.scale.setScalar(0.78 + pulse * 0.3 + envelope.body * 0.08 + beat * 0.1);
+      fragment.material.opacity = fragment.userData.baseOpacity * (0.24 + beat * 0.42 + envelope.afterglow * 0.16 + pulse * 0.28);
+      fragment.material.color.copy(palette.base).lerp(palette.glow, beat * 0.28 + envelope.body * 0.12 + pulse * 0.14);
 
       if (fragment.position.length() > 210) {
         fragment.position.set(
@@ -1522,6 +1697,20 @@ export class SafeLegendaryWorldEvents {
     vignette.rotation.z = 0.02;
     this._registerLegendaryObject('overlays', vignette);
 
+    const shadow = this._createLegendaryBackdropSheet({
+      type: 'quantum_shadow',
+      color: palette.deep,
+      map: eclipseTexture,
+      opacity: 0.09,
+      width: 640,
+      height: 360,
+      position: new THREE.Vector3(0, 78, -166),
+      rotation: new THREE.Euler(-0.06, 0, 0.01),
+      phaseOffset: seed * 0.49,
+      baseOpacity: 0.09
+    });
+    this._registerLegendaryObject('overlays', shadow);
+
     const rayCount = 12;
     for (let i = 0; i < rayCount; i++) {
       const angle = (i / rayCount) * Math.PI * 2 + seed * 0.06;
@@ -1602,6 +1791,7 @@ export class SafeLegendaryWorldEvents {
    */
   updateQuantumEclipseVFX(intensity, deltaTime) {
     const beat = this._getLegendaryBeat(0.74, this.registry.seed * 0.23, 0.62, 1.0);
+    const envelope = this._getLegendaryEventEnvelope(intensity, this.registry.phase);
     const pulse = intensity * beat;
     const palette = this.legendaryPalettes.QUANTUM_ECLIPSE;
 
@@ -1611,20 +1801,20 @@ export class SafeLegendaryWorldEvents {
       if (!type) continue;
 
       if (type === 'quantum_disc') {
-        mesh.scale.setScalar(1 + pulse * 0.18 + beat * 0.08);
+        mesh.scale.setScalar(1 + pulse * (0.16 + envelope.body * 0.08) + beat * 0.06 + envelope.crest * 0.03);
         mesh.rotation.z += deltaTime * 0.03;
-        mesh.material.opacity = mesh.userData.baseOpacity * (0.78 + pulse * 0.16);
-        mesh.material.color.copy(palette.deep).lerp(palette.base, pulse * 0.28 + beat * 0.08);
+        mesh.material.opacity = mesh.userData.baseOpacity * (0.72 + envelope.body * 0.12 + envelope.crest * 0.1 + pulse * 0.08);
+        mesh.material.color.copy(palette.deep).lerp(palette.base, envelope.body * 0.16 + pulse * 0.1 + beat * 0.06);
       } else if (type === 'quantum_ring_inner') {
-        mesh.scale.setScalar(1 + pulse * 0.24);
+        mesh.scale.setScalar(1 + pulse * (0.2 + envelope.body * 0.06));
         mesh.rotation.z += deltaTime * 0.12;
-        mesh.material.opacity = mesh.userData.baseOpacity * (0.45 + pulse * 0.65);
-        mesh.material.color.copy(palette.accent).lerp(palette.glow, beat * 0.28);
+        mesh.material.opacity = mesh.userData.baseOpacity * (0.42 + envelope.body * 0.22 + envelope.crest * 0.18 + pulse * 0.24);
+        mesh.material.color.copy(palette.accent).lerp(palette.glow, beat * 0.2 + envelope.body * 0.14);
       } else if (type === 'quantum_ring_outer') {
-        mesh.scale.setScalar(1 + pulse * 0.32);
+        mesh.scale.setScalar(1 + pulse * (0.26 + envelope.afterglow * 0.08));
         mesh.rotation.z -= deltaTime * 0.08;
-        mesh.material.opacity = mesh.userData.baseOpacity * (0.35 + pulse * 0.7);
-        mesh.material.color.copy(palette.glow).lerp(palette.aura, beat * 0.34);
+        mesh.material.opacity = mesh.userData.baseOpacity * (0.32 + envelope.afterglow * 0.18 + pulse * 0.28);
+        mesh.material.color.copy(palette.glow).lerp(palette.aura, beat * 0.24 + envelope.afterglow * 0.1);
       }
     }
 
@@ -1632,9 +1822,19 @@ export class SafeLegendaryWorldEvents {
       const overlay = this.vfxContainer.overlays[i];
       if (overlay?.userData?.type !== 'quantum_vignette') continue;
 
-      overlay.material.opacity = overlay.userData.baseOpacity * (0.42 + pulse * 0.95 + beat * 0.18);
+      overlay.material.opacity = overlay.userData.baseOpacity * (0.36 + pulse * 0.72 + envelope.afterglow * 0.22 + beat * 0.14);
       overlay.rotation.z += deltaTime * 0.035;
-      overlay.material.color.copy(palette.deep).lerp(palette.glow, pulse * 0.18 + beat * 0.08);
+      overlay.material.color.copy(palette.deep).lerp(palette.glow, pulse * 0.12 + envelope.afterglow * 0.08 + beat * 0.06);
+    }
+
+    for (let i = 0; i < this.vfxContainer.overlays.length; i++) {
+      const overlay = this.vfxContainer.overlays[i];
+      if (overlay?.userData?.type !== 'quantum_shadow') continue;
+
+      overlay.material.opacity = overlay.userData.baseOpacity * (0.38 + pulse * 0.84 + beat * 0.2);
+      overlay.rotation.z += deltaTime * 0.015;
+      overlay.scale.setScalar(1 + pulse * 0.05 + beat * 0.03);
+      overlay.material.color.copy(palette.deep).lerp(palette.aura, pulse * 0.12 + beat * 0.08);
     }
 
     for (let i = 0; i < this.vfxContainer.beams.length; i++) {
@@ -1642,8 +1842,8 @@ export class SafeLegendaryWorldEvents {
       if (ray?.userData?.type !== 'quantum_ray') continue;
 
       const wave = 0.5 + 0.5 * Math.sin(this.animationTime * 1.15 + ray.userData.phaseOffset);
-      ray.material.opacity = ray.userData.baseOpacity * (0.4 + wave * 0.95 + pulse * 0.42);
-      ray.material.color.copy(palette.accent).lerp(palette.glow, wave * 0.4 + pulse * 0.18);
+      ray.material.opacity = ray.userData.baseOpacity * (0.38 + wave * 0.76 + pulse * 0.24 + envelope.afterglow * 0.16);
+      ray.material.color.copy(palette.accent).lerp(palette.glow, wave * 0.34 + envelope.body * 0.12 + pulse * 0.08);
     }
 
     for (let i = 0; i < this.vfxContainer.particles.length; i++) {
@@ -1658,9 +1858,9 @@ export class SafeLegendaryWorldEvents {
       fragment.rotation.x += deltaTime * 0.25;
       fragment.rotation.y += deltaTime * 0.31;
       fragment.rotation.z += deltaTime * 0.18;
-      fragment.scale.setScalar(fragment.userData.baseScale * (0.88 + pulse * 0.35 + beat * 0.12));
-      fragment.material.opacity = fragment.userData.baseOpacity * (0.34 + pulse * 0.72 + beat * 0.18);
-      fragment.material.color.copy(palette.base).lerp(palette.aura, beat * 0.5 + pulse * 0.18);
+      fragment.scale.setScalar(fragment.userData.baseScale * (0.86 + pulse * 0.28 + envelope.body * 0.08 + beat * 0.1));
+      fragment.material.opacity = fragment.userData.baseOpacity * (0.3 + pulse * 0.56 + envelope.afterglow * 0.18 + beat * 0.12);
+      fragment.material.color.copy(palette.base).lerp(palette.aura, beat * 0.34 + envelope.body * 0.12 + pulse * 0.08);
     }
   }
   
@@ -1757,6 +1957,20 @@ export class SafeLegendaryWorldEvents {
     crownSheet.rotation.z = -0.04;
     this._registerLegendaryObject('overlays', crownSheet);
 
+    const skyVeil = this._createLegendaryBackdropSheet({
+      type: 'aurora_sky',
+      color: palette.deep,
+      map: auroraTexture,
+      opacity: 0.08,
+      width: 640,
+      height: 280,
+      position: new THREE.Vector3(0, 22, -160),
+      rotation: new THREE.Euler(-0.18, 0, 0.03),
+      phaseOffset: seed * 0.47,
+      baseOpacity: 0.08
+    });
+    this._registerLegendaryObject('overlays', skyVeil);
+
     const curtainPositions = [-112, -42, 36, 108];
     for (let i = 0; i < curtainPositions.length; i++) {
       const curtain = this._createLegendaryMesh(
@@ -1829,6 +2043,7 @@ export class SafeLegendaryWorldEvents {
    */
   updateAuroraStateVFX(intensity, deltaTime) {
     const beat = this._getLegendaryBeat(0.58, this.registry.seed * 0.19, 0.72, 1.0);
+    const envelope = this._getLegendaryEventEnvelope(intensity, this.registry.phase);
     const pulse = intensity * beat;
     const palette = this.legendaryPalettes.AURORA_STATE;
 
@@ -1838,14 +2053,14 @@ export class SafeLegendaryWorldEvents {
       if (!type) continue;
 
       if (type === 'aurora_beacon') {
-        mesh.scale.setScalar(1 + pulse * 0.3 + beat * 0.1);
-        mesh.material.opacity = mesh.userData.baseOpacity * (0.62 + pulse * 0.5);
-        mesh.material.color.copy(palette.accent).lerp(palette.base, beat * 0.4);
+        mesh.scale.setScalar(1 + pulse * (0.24 + envelope.body * 0.08) + beat * 0.08 + envelope.afterglow * 0.04);
+        mesh.material.opacity = mesh.userData.baseOpacity * (0.58 + envelope.body * 0.22 + envelope.afterglow * 0.14 + pulse * 0.18);
+        mesh.material.color.copy(palette.accent).lerp(palette.base, beat * 0.26 + envelope.body * 0.12);
       } else if (type === 'aurora_ring') {
-        mesh.scale.setScalar(1 + pulse * 0.22);
+        mesh.scale.setScalar(1 + pulse * (0.18 + envelope.body * 0.05));
         mesh.rotation.z += deltaTime * 0.08;
-        mesh.material.opacity = mesh.userData.baseOpacity * (0.55 + pulse * 0.68);
-        mesh.material.color.copy(palette.glow).lerp(palette.accent, beat * 0.28 + pulse * 0.12);
+        mesh.material.opacity = mesh.userData.baseOpacity * (0.52 + envelope.body * 0.2 + envelope.afterglow * 0.12 + pulse * 0.22);
+        mesh.material.color.copy(palette.glow).lerp(palette.accent, beat * 0.2 + envelope.afterglow * 0.08 + pulse * 0.08);
       }
     }
 
@@ -1855,15 +2070,15 @@ export class SafeLegendaryWorldEvents {
       if (!type) continue;
 
       if (type === 'aurora_sheet') {
-        overlay.material.opacity = overlay.userData.baseOpacity * (0.5 + pulse * 0.92 + beat * 0.18);
+        overlay.material.opacity = overlay.userData.baseOpacity * (0.46 + pulse * 0.72 + envelope.afterglow * 0.2 + beat * 0.14);
         overlay.rotation.z += deltaTime * 0.025;
-        overlay.scale.setScalar(1 + pulse * 0.08);
-        overlay.material.color.copy(palette.deep).lerp(palette.aura, beat * 0.26);
+        overlay.scale.setScalar(1 + pulse * 0.06 + envelope.body * 0.04);
+        overlay.material.color.copy(palette.deep).lerp(palette.aura, beat * 0.2 + envelope.afterglow * 0.08);
       } else if (type === 'aurora_crown') {
-        overlay.material.opacity = overlay.userData.baseOpacity * (0.55 + pulse * 0.75 + beat * 0.15);
+        overlay.material.opacity = overlay.userData.baseOpacity * (0.52 + pulse * 0.58 + envelope.body * 0.12 + beat * 0.12);
         overlay.rotation.z += deltaTime * 0.03;
-        overlay.scale.setScalar(1 + pulse * 0.06);
-        overlay.material.color.copy(palette.base).lerp(palette.accent, beat * 0.3 + pulse * 0.2);
+        overlay.scale.setScalar(1 + pulse * 0.05 + envelope.afterglow * 0.03);
+        overlay.material.color.copy(palette.base).lerp(palette.accent, beat * 0.2 + pulse * 0.12);
       } else if (type === 'aurora_curtain') {
         const wave = 0.5 + 0.5 * Math.sin(this.animationTime * overlay.userData.waveSpeed + overlay.userData.phaseOffset);
         const sway = Math.sin(this.animationTime * overlay.userData.swaySpeed + overlay.userData.phaseOffset) * (2 + pulse * 4);
@@ -1871,9 +2086,14 @@ export class SafeLegendaryWorldEvents {
         overlay.position.y = overlay.userData.baseY + Math.sin(this.animationTime * 0.45 + overlay.userData.phaseOffset) * (1.5 + pulse * 2.5);
         overlay.position.z = overlay.userData.baseZ + Math.cos(this.animationTime * 0.32 + overlay.userData.phaseOffset) * 2;
         overlay.rotation.z = (-0.08 + overlay.userData.index * 0.04) + Math.sin(this.animationTime * 0.18 + overlay.userData.phaseOffset) * 0.07;
-        overlay.scale.setScalar(1 + wave * 0.05 + pulse * 0.08);
-        overlay.material.opacity = overlay.userData.baseOpacity * (0.42 + wave * 0.82 + pulse * 0.45);
-        overlay.material.color.copy(palette.base).lerp(palette.accent, wave * 0.42 + pulse * 0.22);
+        overlay.scale.setScalar(1 + wave * 0.04 + pulse * 0.06 + envelope.body * 0.03);
+        overlay.material.opacity = overlay.userData.baseOpacity * (0.38 + wave * 0.72 + pulse * 0.28 + envelope.afterglow * 0.16);
+        overlay.material.color.copy(palette.base).lerp(palette.accent, wave * 0.32 + pulse * 0.16 + envelope.afterglow * 0.08);
+      } else if (type === 'aurora_sky') {
+        overlay.material.opacity = overlay.userData.baseOpacity * (0.44 + pulse * 0.62 + envelope.afterglow * 0.2 + beat * 0.12);
+        overlay.rotation.z += deltaTime * 0.012;
+        overlay.scale.setScalar(1 + pulse * 0.04 + envelope.afterglow * 0.02);
+        overlay.material.color.copy(palette.deep).lerp(palette.aura, beat * 0.16 + pulse * 0.08);
       }
     }
 
@@ -1886,9 +2106,9 @@ export class SafeLegendaryWorldEvents {
       particle.position.x = Math.cos(particle.userData.angle) * radius;
       particle.position.z = Math.sin(particle.userData.angle) * radius - 112;
       particle.position.y = particle.userData.orbitHeight + Math.sin(this.animationTime * particle.userData.riseSpeed + particle.userData.pulseOffset) * (8 + pulse * 10);
-      particle.scale.setScalar(particle.userData.baseScale * (0.82 + beat * 0.42 + pulse * 0.22));
-      particle.material.opacity = particle.userData.baseOpacity * (0.26 + beat * 0.62 + pulse * 0.42);
-      particle.material.color.copy(palette.base).lerp(palette.accent, beat * 0.5 + pulse * 0.2);
+      particle.scale.setScalar(particle.userData.baseScale * (0.8 + beat * 0.36 + envelope.body * 0.1 + pulse * 0.14));
+      particle.material.opacity = particle.userData.baseOpacity * (0.24 + beat * 0.5 + envelope.afterglow * 0.14 + pulse * 0.24);
+      particle.material.color.copy(palette.base).lerp(palette.accent, beat * 0.38 + envelope.body * 0.12 + pulse * 0.08);
     }
   }
   
@@ -1965,10 +2185,15 @@ export class SafeLegendaryWorldEvents {
     if (!this.registry.activeEvent) return null;
     
     const eventDef = this.eventTypes[this.registry.activeEvent];
+    const hudText = this._getLegendaryHudPayload(this.registry.activeEvent);
     return {
-      name: eventDef.description,
+      name: hudText.title,
+      title: hudText.title,
+      subtitle: hudText.subtitle,
+      description: hudText.description,
       intensity: this.registry.intensity,
-      phase: this.registry.phase
+      phase: this.registry.phase,
+      visualTone: hudText.subtitle
     };
   }
   

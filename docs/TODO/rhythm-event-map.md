@@ -17,6 +17,7 @@ Týmto sa má zredukovať chaos pri práci so svetovými eventami, ktoré sú te
    - Spravuje ich `EnvironmentDomainController.js`.
    - Obsahuje vizuálne packy ako `SafeWorldFXPack`, `SafeAIWeatherPack`, `SafeQuantumIllusionsPack1`, `AmbientEntityManager`, `EmergentThoughtStorms5_0`, `EnvironmentalHazards`, `SafeColonyExpansion2`.
    - Toto nie je primárny event engine, ale render/asset/controller agregátor.
+   - `EmergentThoughtStorms5_0` je lokálny recursive/link storm layer; `global.<metric>.high` patrí do globálnej orchestration vrstvy (`EnvironmentEventCoordinator.js` + `SafeLegendaryWorldEvents.js`).
 
 2. **Global event / metric-driven world effects**
    - Sem patria `SafeLegendaryWorldEvents` a `MetricReactiveWorldEvents`.

@@ -79,7 +79,7 @@ export class EmergentThoughtStorms5_0 {
     // Configuration
     this.config = {
       // Trigger thresholds
-      thoughtDensityThreshold: 4.0,
+      thoughtDensityThreshold: 3.0,
       synergyThreshold: 0.75,
       corruptionThreshold: 0.65,
       harmonyThreshold: 0.85,
@@ -97,6 +97,7 @@ export class EmergentThoughtStorms5_0 {
       arcThickness: 0.01,          // Connecting arcs
       rippleExpansionSpeed: 1.0,   // Units per second
       rippleMaxRadius: 3.0,        // Max spread
+      proximityRadius: 2.75,
       
       // Animation
       corePulseSpeed: 3.0,         // Frequency
@@ -130,6 +131,9 @@ export class EmergentThoughtStorms5_0 {
     };
     
     this.initializeGlyphShapes();
+    this.stormVisualProfiles = this._createStormVisualProfiles();
+    this._colorScratchA = new THREE.Color();
+    this._colorScratchB = new THREE.Color();
   }
   
   /**
@@ -152,6 +156,279 @@ export class EmergentThoughtStorms5_0 {
     if (!value) {
       this.clearAllStorms();
     }
+  }
+
+  /**
+   * Resolve a stable identifier for a node-like object.
+   */
+  _getNodeId(node) {
+    if (!node) return null;
+    return node.uuid || node.id || node.userData?.nodeId || node.userData?.uuid || null;
+  }
+
+  /**
+   * Resolve a link endpoint with legacy fallbacks.
+   */
+  _resolveLinkEndpoint(link, preferSource = true) {
+    if (!link) return null;
+
+    if (preferSource) {
+      return link.sourceNode || link.source || link.nodeA || link.from || link.input || null;
+    }
+
+    return link.targetNode || link.target || link.nodeB || link.to || link.output || null;
+  }
+
+  /**
+   * Normalize metric values to a 0-1 range.
+   */
+  _normalizeMetricValue(value) {
+    if (!Number.isFinite(value)) return 0;
+    if (value > 1) return Math.max(0, Math.min(1, value / 100));
+    return Math.max(0, Math.min(1, value));
+  }
+
+  /**
+   * Read metrics from a node or link payload.
+   */
+  _readMetricBundle(entity) {
+    const metrics = entity?.userData?.metrics || entity?.metrics || entity?.userData || {};
+    return {
+      synergy: this._normalizeMetricValue(metrics.synergy ?? metrics.synergyScore ?? metrics.averageSynergy ?? 0),
+      harmony: this._normalizeMetricValue(metrics.harmony ?? metrics.harmonyScore ?? 0),
+      corruption: this._normalizeMetricValue(metrics.corruption ?? metrics.corruptionLevel ?? 0),
+      stability: this._normalizeMetricValue(metrics.stability ?? metrics.stabilityScore ?? 0),
+      clarity: this._normalizeMetricValue(metrics.clarity ?? metrics.stability ?? 0),
+      loadPressure: this._normalizeMetricValue(metrics.loadPressure ?? metrics.load ?? 0)
+    };
+  }
+
+  /**
+   * Read recursive storm stats if the recursive messaging layer is live.
+   */
+  _getRecursiveStormStats() {
+    const stats = this.recursiveGlyphMessaging?.stats || {};
+    return {
+      activeChainsCount: Number.isFinite(stats.activeChainsCount) ? stats.activeChainsCount : 0,
+      trackedLinks: Number.isFinite(stats.trackedLinks) ? stats.trackedLinks : (this.recursiveGlyphMessaging?.trackedLinks?.size || 0),
+      chainsFromMessages: Number.isFinite(stats.chainsFromMessages) ? stats.chainsFromMessages : 0
+    };
+  }
+
+  /**
+   * Cached profile for each storm archetype.
+   */
+  _createStormVisualProfiles() {
+    return {
+      coherence: {
+        baseColor: 0x6cf9ff,
+        accentColor: 0xffffff,
+        auraColor: 0xb6fbff,
+        shellColor: 0x0d1a2c,
+        coreSize: 0.18,
+        shellScale: 5.0,
+        shellOpacity: 0.10,
+        haloScale: 4.2,
+        haloTube: 0.022,
+        glyphSize: 0.075,
+        glyphCount: 14,
+        orbitRadius: 0.52,
+        orbitSpeed: 1.7,
+        arcCount: 5,
+        rippleCount: 3,
+        rippleOpacity: 0.24,
+        coreOpacity: 0.72,
+        glyphOpacity: 0.80,
+        arcOpacity: 0.45,
+        shellWireframe: true,
+        shellDetail: 1
+      },
+      chaotic: {
+        baseColor: 0xb96cff,
+        accentColor: 0xf8e6ff,
+        auraColor: 0x7c3cff,
+        shellColor: 0x1a0b33,
+        coreSize: 0.17,
+        shellScale: 5.5,
+        shellOpacity: 0.14,
+        haloScale: 4.4,
+        haloTube: 0.026,
+        glyphSize: 0.082,
+        glyphCount: 16,
+        orbitRadius: 0.56,
+        orbitSpeed: 2.4,
+        arcCount: 6,
+        rippleCount: 3,
+        rippleOpacity: 0.28,
+        coreOpacity: 0.74,
+        glyphOpacity: 0.84,
+        arcOpacity: 0.48,
+        shellWireframe: true,
+        shellDetail: 1
+      },
+      corruption: {
+        baseColor: 0xff5e57,
+        accentColor: 0xffd0b8,
+        auraColor: 0xff7a2e,
+        shellColor: 0x1a0608,
+        coreSize: 0.19,
+        shellScale: 5.0,
+        shellOpacity: 0.16,
+        haloScale: 4.0,
+        haloTube: 0.024,
+        glyphSize: 0.085,
+        glyphCount: 12,
+        orbitRadius: 0.48,
+        orbitSpeed: 2.05,
+        arcCount: 4,
+        rippleCount: 2,
+        rippleOpacity: 0.26,
+        coreOpacity: 0.76,
+        glyphOpacity: 0.82,
+        arcOpacity: 0.42,
+        shellWireframe: false,
+        shellDetail: 0
+      },
+      ascended: {
+        baseColor: 0xf7f8ff,
+        accentColor: 0x6cf9ff,
+        auraColor: 0xdff7ff,
+        shellColor: 0x071117,
+        coreSize: 0.20,
+        shellScale: 5.6,
+        shellOpacity: 0.11,
+        haloScale: 4.4,
+        haloTube: 0.024,
+        glyphSize: 0.078,
+        glyphCount: 10,
+        orbitRadius: 0.49,
+        orbitSpeed: 1.55,
+        arcCount: 4,
+        rippleCount: 3,
+        rippleOpacity: 0.22,
+        coreOpacity: 0.70,
+        glyphOpacity: 0.76,
+        arcOpacity: 0.40,
+        shellWireframe: true,
+        shellDetail: 1
+      },
+      balanced: {
+        baseColor: 0x6cf9ff,
+        accentColor: 0xffffff,
+        auraColor: 0xb6fbff,
+        shellColor: 0x0c1830,
+        coreSize: 0.18,
+        shellScale: 5.0,
+        shellOpacity: 0.11,
+        haloScale: 4.1,
+        haloTube: 0.024,
+        glyphSize: 0.078,
+        glyphCount: 12,
+        orbitRadius: 0.50,
+        orbitSpeed: 1.9,
+        arcCount: 5,
+        rippleCount: 3,
+        rippleOpacity: 0.24,
+        coreOpacity: 0.72,
+        glyphOpacity: 0.80,
+        arcOpacity: 0.44,
+        shellWireframe: true,
+        shellDetail: 1
+      }
+    };
+  }
+
+  /**
+   * Resolve the current storm profile.
+   */
+  getStormVisualProfile(stormType) {
+    return this.stormVisualProfiles[stormType] || this.stormVisualProfiles.balanced;
+  }
+
+  /**
+   * Collect a local storm scope around one node.
+   */
+  collectLocalNetworkScope(centerNode, linkingSystem, maxHops) {
+    const links = Array.isArray(linkingSystem?.links) ? linkingSystem.links : [];
+    const visitedNodes = new Map();
+    const visitedLinks = new Map();
+    const visitedNodeIds = new Set();
+    const queue = [];
+    const centerId = this._getNodeId(centerNode);
+
+    if (centerNode) {
+      queue.push({ node: centerNode, hops: 0 });
+      if (centerId) {
+        visitedNodes.set(centerId, centerNode);
+        visitedNodeIds.add(centerId);
+      }
+    }
+
+    while (queue.length > 0) {
+      const { node, hops } = queue.shift();
+      const nodeId = this._getNodeId(node);
+      if (!nodeId || hops >= maxHops) continue;
+
+      for (const link of links) {
+        if (!link || !link.active) continue;
+
+        const sourceNode = this._resolveLinkEndpoint(link, true);
+        const targetNode = this._resolveLinkEndpoint(link, false);
+        const sourceId = this._getNodeId(sourceNode);
+        const targetId = this._getNodeId(targetNode);
+        if (!sourceId || !targetId) continue;
+
+        const isConnected = sourceId === nodeId || targetId === nodeId;
+        if (!isConnected) continue;
+
+        const linkId = link.uuid || link.id || link.linkId || `${sourceId}:${targetId}`;
+        if (!visitedLinks.has(linkId)) {
+          visitedLinks.set(linkId, link);
+        }
+
+        const nextNode = sourceId === nodeId ? targetNode : sourceNode;
+        const nextId = this._getNodeId(nextNode);
+        if (nextNode && nextId && !visitedNodeIds.has(nextId)) {
+          visitedNodeIds.add(nextId);
+          visitedNodes.set(nextId, nextNode);
+          queue.push({ node: nextNode, hops: hops + 1 });
+        }
+      }
+    }
+
+    return {
+      nodes: Array.from(visitedNodes.values()).filter(Boolean),
+      links: Array.from(visitedLinks.values()).filter(Boolean)
+    };
+  }
+
+  /**
+   * Backwards-compatible helper for callers that only need the nodes.
+   */
+  findLocalConnections(centerNode, linkingSystem, maxHops) {
+    return this.collectLocalNetworkScope(centerNode, linkingSystem, maxHops).nodes.filter(node => node && node !== centerNode);
+  }
+
+  /**
+   * Find nearby nodes when the link graph is sparse.
+   */
+  findNearbyNodes(centerNode, aiNodes, radius) {
+    if (!centerNode?.position || !Array.isArray(aiNodes?.nodes)) return [];
+
+    const radiusSq = radius * radius;
+    const nearby = [];
+    for (const candidate of aiNodes.nodes) {
+      if (!candidate || candidate === centerNode || !candidate.position) continue;
+
+      const dx = candidate.position.x - centerNode.position.x;
+      const dy = candidate.position.y - centerNode.position.y;
+      const dz = candidate.position.z - centerNode.position.z;
+      if ((dx * dx) + (dy * dy) + (dz * dz) <= radiusSq) {
+        nearby.push(candidate);
+      }
+    }
+
+    return nearby;
   }
   
   /**
@@ -201,6 +478,7 @@ export class EmergentThoughtStorms5_0 {
     // Update stats
     this.stats.frameTime = performance.now() - startTime;
     this.stats.activeStomsCount = this.countAllStorms();
+    this.stats.glyphCount = this.countAllStormGlyphs();
   }
   
   /**
@@ -237,80 +515,73 @@ export class EmergentThoughtStorms5_0 {
    * Get metrics for local network area around node
    */
   getLocalNetworkMetrics(centerNode, aiNodes, linkingSystem) {
-    const localChainLength = 0; // Would read from recursive messaging
-    const linkedNodes = this.findLocalConnections(centerNode, linkingSystem, 2);
+    const scope = this.collectLocalNetworkScope(centerNode, linkingSystem, 2);
+    const localLinkedNodes = scope.nodes.filter(node => node && node !== centerNode);
+    const nearbyFallback = this.findNearbyNodes(centerNode, aiNodes, this.config.proximityRadius);
+    const linkedNodeMap = new Map();
+    for (const node of localLinkedNodes) {
+      const id = this._getNodeId(node) || node;
+      linkedNodeMap.set(id, node);
+    }
+    for (const node of nearbyFallback) {
+      const id = this._getNodeId(node) || node;
+      linkedNodeMap.set(id, node);
+    }
+    const linkedNodes = Array.from(linkedNodeMap.values());
+    const centerMetrics = this._readMetricBundle(centerNode);
+    const recursiveStats = this._getRecursiveStormStats();
     
     // Calculate aggregate metrics
-    let totalSynergy = 0;
-    let totalHarmony = 0;
-    let totalCorruption = 0;
-    let totalStability = 0;
-    let totalClarity = 0;
+    let totalSynergy = centerMetrics.synergy * 1.35;
+    let totalHarmony = centerMetrics.harmony * 1.35;
+    let totalCorruption = centerMetrics.corruption * 1.35;
+    let totalStability = centerMetrics.stability * 1.35;
+    let totalClarity = centerMetrics.clarity * 1.35;
+    let totalWeight = 1.35;
     
     for (const linkedNode of linkedNodes) {
-      const metrics = linkedNode.userData?.metrics || {};
-      totalSynergy += metrics.synergy || 0;
-      totalHarmony += metrics.harmony || 0;
-      totalCorruption += metrics.corruption || 0;
-      totalStability += metrics.stability || 0;
-      totalClarity += metrics.stability || 0;
+      const metrics = this._readMetricBundle(linkedNode);
+      totalSynergy += metrics.synergy;
+      totalHarmony += metrics.harmony;
+      totalCorruption += metrics.corruption;
+      totalStability += metrics.stability;
+      totalClarity += metrics.clarity;
+      totalWeight += 1;
     }
     
-    const count = linkedNodes.length || 1;
+    for (const link of scope.links) {
+      const metrics = this._readMetricBundle(link);
+      totalSynergy += metrics.synergy * 0.55;
+      totalHarmony += metrics.harmony * 0.55;
+      totalCorruption += metrics.corruption * 0.55;
+      totalStability += metrics.stability * 0.55;
+      totalClarity += metrics.clarity * 0.55;
+      totalWeight += 0.55;
+    }
+
+    const thoughtDensity = Math.min(
+      12,
+      (linkedNodes.length * 0.75) +
+      (scope.links.length * 0.65) +
+      (recursiveStats.activeChainsCount * 0.85) +
+      (recursiveStats.chainsFromMessages * 0.25)
+    );
     
     return {
       centerNode,
       linkedNodes,
-      thoughtDensity: localChainLength,
-      synergy: totalSynergy / count,
-      harmony: totalHarmony / count,
-      corruption: totalCorruption / count,
-      stability: totalStability / count,
-      clarity: totalClarity / count,
-      nodeCount: linkedNodes.length
+      linkedLinks: scope.links,
+      thoughtDensity,
+      synergy: totalSynergy / totalWeight,
+      harmony: totalHarmony / totalWeight,
+      corruption: totalCorruption / totalWeight,
+      stability: totalStability / totalWeight,
+      clarity: totalClarity / totalWeight,
+      nodeCount: linkedNodes.length + 1,
+      linkCount: scope.links.length,
+      activeChainCount: recursiveStats.activeChainsCount,
+      chainCount: recursiveStats.chainsFromMessages
     };
-  }
-  
-  /**
-   * Find all nodes within N link hops
-   */
-  findLocalConnections(centerNode, linkingSystem, maxHops) {
-    const visited = new Set();
-    const queue = [{ node: centerNode, hops: 0 }];
-    visited.add(centerNode.uuid || centerNode.id);
-    
-    while (queue.length > 0) {
-      const { node, hops } = queue.shift();
-      
-      if (hops >= maxHops) continue;
-      
-      // Find all links connected to this node
-      if (linkingSystem.links) {
-        for (const link of linkingSystem.links) {
-          if (link.active) {
-            let nextNode = null;
-            if (link.sourceNode === node) {
-              nextNode = link.targetNode;
-            } else if (link.targetNode === node) {
-              nextNode = link.sourceNode;
-            }
-            
-            if (nextNode && !visited.has(nextNode.uuid || nextNode.id)) {
-              visited.add(nextNode.uuid || nextNode.id);
-              queue.push({ node: nextNode, hops: hops + 1 });
-            }
-          }
-        }
-      }
-    }
-    
-    // Return all visited nodes except center
-    return Array.from(visited).map(id => {
-      // Find node by id
-      for (const node of queue) {
-        if ((node.node.uuid || node.node.id) === id) return node.node;
-      }
-    }).filter(n => n && n !== centerNode);
   }
   
   /**
@@ -393,11 +664,13 @@ export class EmergentThoughtStorms5_0 {
       centerNode,
       stormType,
       metrics,
+      visualProfile: this.getStormVisualProfile(stormType),
       
       // Position & animation
       position: centerNode.position.clone(),
       progress: 0,
       opacity: 1.0,
+      elapsed: 0,
       
       // Lifecycle
       startTime: performance.now() * 0.001,
@@ -407,6 +680,8 @@ export class EmergentThoughtStorms5_0 {
       
       // Visual components
       coreGlyph: null,
+      shellMesh: null,
+      haloMesh: null,
       stormGlyphs: [],
       arcMeshes: [],
       rippleMeshes: [],
@@ -451,24 +726,69 @@ export class EmergentThoughtStorms5_0 {
    * Create visual meshes for storm
    */
   createStormMeshes(storm) {
+    const profile = storm.visualProfile || this.getStormVisualProfile(storm.stormType);
+
     // Core sphere (pulsing center)
-    const coreColor = this.getStormColor(storm.stormType);
+    const coreColor = profile.baseColor ?? this.getStormColor(storm.stormType);
     const coreMaterial = new THREE.MeshBasicMaterial({
       color: coreColor,
       wireframe: false,
-      opacity: 0.7,
+      opacity: profile.coreOpacity ?? 0.7,
       transparent: true
     });
     
-    const coreGeom = new THREE.SphereGeometry(this.config.coreSize, 8, 8);
+    const coreGeom = new THREE.SphereGeometry(profile.coreSize ?? this.config.coreSize, 10, 10);
     const coreMesh = new THREE.Mesh(coreGeom, coreMaterial);
     coreMesh.position.copy(storm.position);
     coreMesh.userData.isStormCore = true;
     this.stormContainer.add(coreMesh);
     storm.coreGlyph = coreMesh;
+
+    // Outer shell - gives the storm a stronger silhouette in motion.
+    const shellMaterial = new THREE.MeshBasicMaterial({
+      color: profile.shellColor ?? 0x0d1a2c,
+      wireframe: profile.shellWireframe !== false,
+      opacity: profile.shellOpacity ?? 0.12,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false
+    });
+    const shellGeom = new THREE.IcosahedronGeometry((profile.coreSize ?? this.config.coreSize) * (profile.shellScale ?? 5), profile.shellDetail ?? 1);
+    const shellMesh = new THREE.Mesh(shellGeom, shellMaterial);
+    shellMesh.position.copy(storm.position);
+    shellMesh.userData.isStormShell = true;
+    shellMesh.userData.stormId = storm.id;
+    this.stormContainer.add(shellMesh);
+    storm.shellMesh = shellMesh;
+
+    const haloMaterial = new THREE.MeshBasicMaterial({
+      color: profile.auraColor ?? coreColor,
+      wireframe: false,
+      opacity: profile.rippleOpacity ?? 0.24,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.DoubleSide
+    });
+    const haloGeom = new THREE.TorusGeometry(
+      (profile.coreSize ?? this.config.coreSize) * (profile.haloScale ?? 4.2),
+      (profile.coreSize ?? this.config.coreSize) * (profile.haloTube ?? 0.024),
+      10,
+      96
+    );
+    const haloMesh = new THREE.Mesh(haloGeom, haloMaterial);
+    haloMesh.position.copy(storm.position);
+    haloMesh.rotation.x = Math.PI * 0.5;
+    haloMesh.rotation.z = storm.orbitPhase * 0.18;
+    haloMesh.userData.isStormHalo = true;
+    haloMesh.userData.stormId = storm.id;
+    this.stormContainer.add(haloMesh);
+    storm.haloMesh = haloMesh;
     
     // Orbiting glyphs
-    const glyphCount = this.config.coreGlyphCount;
+    const glyphCount = profile.glyphCount || this.config.coreGlyphCount;
     for (let i = 0; i < glyphCount; i++) {
       const angle = (i / glyphCount) * Math.PI * 2;
       const glyphMesh = this.createStormGlyph(storm, angle, i);
@@ -476,7 +796,7 @@ export class EmergentThoughtStorms5_0 {
     }
     
     // Connecting arcs (between glyphs)
-    for (let i = 0; i < Math.floor(glyphCount / 3); i++) {
+    for (let i = 0; i < (profile.arcCount || Math.floor(glyphCount / 3)); i++) {
       const arcMesh = this.createStormArc(storm, i);
       if (arcMesh) {
         storm.arcMeshes.push(arcMesh);
@@ -484,7 +804,7 @@ export class EmergentThoughtStorms5_0 {
     }
     
     // Ripple waves (expanding circles)
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < (profile.rippleCount || 3); i++) {
       const rippleMesh = this.createRippleWave(storm, i);
       if (rippleMesh) {
         storm.rippleMeshes.push(rippleMesh);
@@ -496,6 +816,7 @@ export class EmergentThoughtStorms5_0 {
    * Create a single glyph in the storm orbit
    */
   createStormGlyph(storm, angle, index) {
+    const profile = storm.visualProfile || this.getStormVisualProfile(storm.stormType);
     const shapeType = this.getGlyphShapeForStorm(storm.stormType, index);
     const shapeGeom = this.glyphShapes[shapeType];
     
@@ -505,12 +826,12 @@ export class EmergentThoughtStorms5_0 {
     const material = new THREE.MeshBasicMaterial({
       color,
       wireframe: false,
-      opacity: 0.8,
+      opacity: profile.glyphOpacity ?? 0.8,
       transparent: true
     });
     
     const mesh = new THREE.Mesh(shapeGeom, material);
-    mesh.scale.multiplyScalar(this.config.glyphSize);
+    mesh.scale.multiplyScalar(profile.glyphSize ?? this.config.glyphSize);
     mesh.userData.isStormGlyph = true;
     mesh.userData.stormId = storm.id;
     mesh.userData.angle = angle;
@@ -524,16 +845,29 @@ export class EmergentThoughtStorms5_0 {
    * Create arc connecting glyphs
    */
   createStormArc(storm, arcIndex) {
+    const profile = storm.visualProfile || this.getStormVisualProfile(storm.stormType);
     const arcGeom = new THREE.BufferGeometry();
     
-    // Create line between random glyphs
-    const glyph1 = storm.stormGlyphs[Math.floor(Math.random() * storm.stormGlyphs.length)];
-    const glyph2 = storm.stormGlyphs[Math.floor(Math.random() * storm.stormGlyphs.length)];
+    // Create a stable link between glyphs so the arc actually tracks the orbit.
+    const glyphCount = storm.stormGlyphs.length;
+    const glyphAIndex = glyphCount > 0 ? (arcIndex % glyphCount) : 0;
+    let glyphBIndex = glyphCount > 1 ? ((arcIndex + Math.max(2, Math.floor(glyphCount / 3))) % glyphCount) : 0;
+    if (glyphBIndex === glyphAIndex && glyphCount > 1) {
+      glyphBIndex = (glyphBIndex + 1) % glyphCount;
+    }
+    const glyph1 = storm.stormGlyphs[glyphAIndex];
+    const glyph2 = storm.stormGlyphs[glyphBIndex];
     
     if (!glyph1 || !glyph2) return null;
     
+    const midpoint = new THREE.Vector3(
+      (glyph1.position.x + glyph2.position.x) * 0.5,
+      (glyph1.position.y + glyph2.position.y) * 0.5,
+      (glyph1.position.z + glyph2.position.z) * 0.5
+    );
     const positions = new Float32Array([
       glyph1.position.x, glyph1.position.y, glyph1.position.z,
+      midpoint.x, midpoint.y, midpoint.z,
       glyph2.position.x, glyph2.position.y, glyph2.position.z
     ]);
     
@@ -543,13 +877,17 @@ export class EmergentThoughtStorms5_0 {
     const lineMaterial = new THREE.LineBasicMaterial({
       color,
       linewidth: 1,
-      opacity: 0.5,
+      opacity: profile.arcOpacity ?? 0.5,
       transparent: true
     });
     
     const arcMesh = new THREE.Line(arcGeom, lineMaterial);
     arcMesh.userData.isStormArc = true;
     arcMesh.userData.stormId = storm.id;
+    arcMesh.userData.glyphAIndex = glyphAIndex;
+    arcMesh.userData.glyphBIndex = glyphBIndex;
+    arcMesh.userData.waveSpeed = storm.stormType === 'chaotic' ? 3.1 : 2.0;
+    arcMesh.userData.phaseOffset = storm.orbitPhase + arcIndex * 0.7;
     
     this.stormContainer.add(arcMesh);
     return arcMesh;
@@ -559,18 +897,19 @@ export class EmergentThoughtStorms5_0 {
    * Create expanding ripple wave
    */
   createRippleWave(storm, rippleIndex) {
+    const profile = storm.visualProfile || this.getStormVisualProfile(storm.stormType);
     const ringGeom = new THREE.TorusGeometry(
-      0.2 + rippleIndex * 0.3,
-      0.02,
-      32,
-      100
+      (profile.coreSize ?? this.config.coreSize) * (2.3 + rippleIndex * 1.25),
+      (profile.coreSize ?? this.config.coreSize) * 0.12,
+      24,
+      96
     );
     
     const color = this.getStormColor(storm.stormType);
     const material = new THREE.MeshBasicMaterial({
       color,
       wireframe: true,
-      opacity: 0.3,
+      opacity: profile.rippleOpacity ?? 0.3,
       transparent: true
     });
     
@@ -578,7 +917,7 @@ export class EmergentThoughtStorms5_0 {
     mesh.position.copy(storm.position);
     mesh.userData.isRipple = true;
     mesh.userData.stormId = storm.id;
-    mesh.userData.startTime = performance.now() * 0.001;
+    mesh.userData.startOffset = rippleIndex * 0.42;
     
     this.stormContainer.add(mesh);
     return mesh;
@@ -588,14 +927,8 @@ export class EmergentThoughtStorms5_0 {
    * Get color for storm type
    */
   getStormColor(stormType) {
-    const colors = {
-      'coherence': 0x00FF88,      // Cyan-green
-      'chaotic': 0xFF00FF,        // Magenta
-      'corruption': 0xFF0044,     // Red
-      'ascended': 0xFFFFFF,       // White
-      'balanced': 0x00DDFF       // Cyan
-    };
-    return colors[stormType] || 0x00CCCC;
+    const profile = this.getStormVisualProfile(stormType);
+    return profile.baseColor || 0x00CCCC;
   }
   
   /**
@@ -618,20 +951,22 @@ export class EmergentThoughtStorms5_0 {
    * Get glyph color for specific position in storm
    */
   getStormGlyphColor(stormType, index) {
-    const baseColor = this.getStormColor(stormType);
-    const hue = new THREE.Color(baseColor);
+    const profile = this.getStormVisualProfile(stormType);
+    const hue = this._colorScratchA.setHex(profile.baseColor || this.getStormColor(stormType));
     
     // Slight variation per glyph
     const variation = (index % 3) * 0.1;
-    const modifiedHue = hue.clone();
+    const modifiedHue = this._colorScratchB.copy(hue);
     
     // Lerp between base and accent colors
     if (stormType === 'coherence') {
-      modifiedHue.lerp(new THREE.Color(0xFF00FF), variation);
+      modifiedHue.lerp(this._colorScratchA.setHex(profile.accentColor || 0xffffff), variation);
     } else if (stormType === 'chaotic') {
-      modifiedHue.lerp(new THREE.Color(0x8800FF), variation);
+      modifiedHue.lerp(this._colorScratchA.setHex(profile.accentColor || 0xf8e6ff), variation);
     } else if (stormType === 'corruption') {
-      modifiedHue.lerp(new THREE.Color(0xFF8800), variation);
+      modifiedHue.lerp(this._colorScratchA.setHex(profile.auraColor || 0xff7a2e), variation);
+    } else if (stormType === 'ascended') {
+      modifiedHue.lerp(this._colorScratchA.setHex(profile.auraColor || 0xdff7ff), variation * 0.7);
     }
     
     return modifiedHue.getHex();
@@ -646,6 +981,7 @@ export class EmergentThoughtStorms5_0 {
     // Advance progress
     const now = performance.now() * 0.001;
     const elapsed = now - storm.startTime;
+    storm.elapsed = elapsed;
     storm.progress = Math.min(elapsed / storm.duration, 1.0);
     
     // Check if complete
@@ -680,11 +1016,13 @@ export class EmergentThoughtStorms5_0 {
    */
   updateStormCore(storm, deltaTime) {
     if (!storm.coreGlyph) return;
+    const profile = storm.visualProfile || this.getStormVisualProfile(storm.stormType);
+    const time = storm.elapsed || 0;
     
     // Pulse animation
-    const pulseAmount = Math.sin(this.stats.lastUpdateTime * this.config.corePulseSpeed) *
+    const pulseAmount = Math.sin(time * this.config.corePulseSpeed + storm.pulsePhase) *
                         0.5 + 0.5;
-    const pulseScale = 0.8 + pulseAmount * 0.4;
+    const pulseScale = 0.82 + pulseAmount * 0.42 + storm.progress * 0.08;
     storm.coreGlyph.scale.setScalar(pulseScale);
     
     // Rotation
@@ -693,7 +1031,40 @@ export class EmergentThoughtStorms5_0 {
     
     // Update opacity
     if (storm.coreGlyph.material) {
-      storm.coreGlyph.material.opacity = storm.opacity * 0.7;
+      storm.coreGlyph.material.opacity = storm.opacity * (profile.coreOpacity ?? 0.7);
+      storm.coreGlyph.material.color.copy(this._colorScratchA.setHex(profile.baseColor || this.getStormColor(storm.stormType))).lerp(
+        this._colorScratchB.setHex(profile.accentColor || 0xffffff),
+        pulseAmount * 0.4
+      );
+    }
+
+    if (storm.shellMesh) {
+      storm.shellMesh.position.copy(storm.position);
+      storm.shellMesh.rotation.x += deltaTime * 0.35;
+      storm.shellMesh.rotation.y += deltaTime * 0.28;
+      storm.shellMesh.rotation.z += deltaTime * 0.18;
+      storm.shellMesh.scale.setScalar(1 + pulseAmount * 0.12 + storm.progress * 0.1);
+      if (storm.shellMesh.material) {
+        storm.shellMesh.material.opacity = (profile.shellOpacity ?? 0.12) * (0.65 + pulseAmount * 0.55);
+        storm.shellMesh.material.color.copy(this._colorScratchA.setHex(profile.shellColor || 0x0d1a2c)).lerp(
+          this._colorScratchB.setHex(profile.auraColor || profile.baseColor || 0xffffff),
+          pulseAmount * 0.24
+        );
+      }
+    }
+
+    if (storm.haloMesh) {
+      storm.haloMesh.position.copy(storm.position);
+      storm.haloMesh.rotation.z += deltaTime * 0.16;
+      storm.haloMesh.rotation.x = Math.PI * 0.5;
+      storm.haloMesh.scale.setScalar(1 + pulseAmount * 0.22 + storm.progress * 0.08);
+      if (storm.haloMesh.material) {
+        storm.haloMesh.material.opacity = (profile.rippleOpacity ?? 0.24) * (0.55 + pulseAmount * 0.7);
+        storm.haloMesh.material.color.copy(this._colorScratchA.setHex(profile.auraColor || profile.baseColor || 0xffffff)).lerp(
+          this._colorScratchB.setHex(profile.accentColor || 0xffffff),
+          pulseAmount * 0.32
+        );
+      }
     }
   }
   
@@ -701,7 +1072,9 @@ export class EmergentThoughtStorms5_0 {
    * Animate orbiting glyphs
    */
   updateStormGlyphs(storm, deltaTime) {
-    const orbitRadius = this.config.glyphOrbitRadius *
+    const profile = storm.visualProfile || this.getStormVisualProfile(storm.stormType);
+    const time = storm.elapsed || 0;
+    const orbitRadius = (profile.orbitRadius ?? this.config.glyphOrbitRadius) *
                         (0.8 + Math.sin(storm.progress * Math.PI) * 0.2);
     
     for (let i = 0; i < storm.stormGlyphs.length; i++) {
@@ -709,25 +1082,31 @@ export class EmergentThoughtStorms5_0 {
       if (!glyph) continue;
       
       const angle = glyph.userData.angle +
-                    (this.stats.lastUpdateTime * this.config.glyphOrbitSpeed);
+                    (time * (profile.orbitSpeed ?? this.config.glyphOrbitSpeed));
       
       // Orbital position
       glyph.position.x = storm.position.x + Math.cos(angle) * orbitRadius;
       glyph.position.z = storm.position.z + Math.sin(angle) * orbitRadius;
-      glyph.position.y = storm.position.y + Math.sin(this.stats.lastUpdateTime * 1.5) * 0.1;
+      glyph.position.y = storm.position.y + Math.sin(time * 1.5 + storm.wavePhase) * 0.1;
       
       // Rotation
       glyph.rotation.x += deltaTime * 2.0;
       glyph.rotation.y += deltaTime * 3.0;
       
       // Breathing (scale pulse)
-      const breathe = Math.sin(this.stats.lastUpdateTime * 2.0) *
+      const breathe = Math.sin(time * 2.0 + storm.pulsePhase) *
                       this.config.glyphBreathingAmplitude;
       glyph.scale.z = 1.0 + breathe;
+      glyph.scale.x = 1.0 + breathe * 0.35;
+      glyph.scale.y = 1.0 + breathe * 0.2;
       
       // Opacity
       if (glyph.material) {
-        glyph.material.opacity = storm.opacity * 0.8;
+        glyph.material.opacity = storm.opacity * (profile.glyphOpacity ?? 0.8);
+        glyph.material.color.copy(this._colorScratchA.setHex(profile.baseColor || this.getStormColor(storm.stormType))).lerp(
+          this._colorScratchB.setHex(profile.accentColor || 0xffffff),
+          0.15 + (i % 3) * 0.12 + Math.max(0, breathe) * 0.2
+        );
       }
     }
   }
@@ -736,21 +1115,37 @@ export class EmergentThoughtStorms5_0 {
    * Update connecting arcs
    */
   updateStormArcs(storm, deltaTime) {
+    const time = storm.elapsed || 0;
+    const profile = storm.visualProfile || this.getStormVisualProfile(storm.stormType);
     for (const arc of storm.arcMeshes) {
       if (!arc || !arc.geometry) continue;
       
-      // Wave animation along arc
+      const glyph1 = storm.stormGlyphs[arc.userData.glyphAIndex];
+      const glyph2 = storm.stormGlyphs[arc.userData.glyphBIndex];
+      if (!glyph1 || !glyph2) continue;
+
       const positions = arc.geometry.attributes.position.array;
-      if (positions.length >= 6) {
-        const waveAmount = Math.sin(this.stats.lastUpdateTime * this.config.arcWaveSpeed) * 0.05;
-        positions[1] += waveAmount;  // Middle of arc
-        positions[4] += waveAmount;  // Middle of arc
+      if (positions.length >= 9) {
+        const waveAmount = Math.sin(time * (arc.userData.waveSpeed || this.config.arcWaveSpeed) + arc.userData.phaseOffset) * 0.06;
+        positions[0] = glyph1.position.x;
+        positions[1] = glyph1.position.y;
+        positions[2] = glyph1.position.z;
+        positions[3] = (glyph1.position.x + glyph2.position.x) * 0.5 + waveAmount;
+        positions[4] = (glyph1.position.y + glyph2.position.y) * 0.5 + Math.cos(time * 0.85 + arc.userData.phaseOffset) * 0.05;
+        positions[5] = (glyph1.position.z + glyph2.position.z) * 0.5 - waveAmount;
+        positions[6] = glyph2.position.x;
+        positions[7] = glyph2.position.y;
+        positions[8] = glyph2.position.z;
         arc.geometry.attributes.position.needsUpdate = true;
       }
       
       // Opacity
       if (arc.material) {
-        arc.material.opacity = storm.opacity * 0.5;
+        arc.material.opacity = storm.opacity * (profile.arcOpacity ?? 0.5);
+        arc.material.color.copy(this._colorScratchA.setHex(profile.auraColor || this.getStormColor(storm.stormType))).lerp(
+          this._colorScratchB.setHex(profile.accentColor || 0xffffff),
+          0.25 + Math.sin(time * 1.2 + arc.userData.phaseOffset) * 0.1
+        );
       }
     }
   }
@@ -759,11 +1154,12 @@ export class EmergentThoughtStorms5_0 {
    * Update expanding ripple waves
    */
   updateRippleWaves(storm, deltaTime) {
+    const profile = storm.visualProfile || this.getStormVisualProfile(storm.stormType);
+    const time = storm.elapsed || 0;
     for (const ripple of storm.rippleMeshes) {
       if (!ripple) continue;
       
-      const startTime = ripple.userData.startTime;
-      const elapsedRipple = this.stats.lastUpdateTime - startTime;
+      const elapsedRipple = Math.max(0, time - (ripple.userData.startOffset || 0));
       const expansion = elapsedRipple * this.config.rippleExpansionSpeed;
       
       if (expansion > this.config.rippleMaxRadius) {
@@ -773,12 +1169,16 @@ export class EmergentThoughtStorms5_0 {
       }
       
       // Scale based on expansion
-      ripple.scale.setScalar(1.0 + expansion);
+      ripple.scale.setScalar(0.9 + expansion * 0.92);
       
       // Fade as it expands
       const rippleFade = Math.max(0, 1.0 - (expansion / this.config.rippleMaxRadius));
       if (ripple.material) {
-        ripple.material.opacity = storm.opacity * rippleFade * 0.3;
+        ripple.material.opacity = storm.opacity * rippleFade * (profile.rippleOpacity ?? 0.3);
+        ripple.material.color.copy(this._colorScratchA.setHex(profile.auraColor || this.getStormColor(storm.stormType))).lerp(
+          this._colorScratchB.setHex(profile.accentColor || 0xffffff),
+          rippleFade * 0.35
+        );
       }
     }
   }
@@ -786,10 +1186,12 @@ export class EmergentThoughtStorms5_0 {
   /**
    * Dissolve storm when complete
    */
-  dissolveStorm(storm) {
+  dissolveStorm(storm, immediate = false) {
     // Fade all meshes
     const allMeshes = [
       storm.coreGlyph,
+      storm.shellMesh,
+      storm.haloMesh,
       ...storm.stormGlyphs,
       ...storm.arcMeshes,
       ...storm.rippleMeshes
@@ -800,15 +1202,27 @@ export class EmergentThoughtStorms5_0 {
         mesh.material.opacity = 0;
       }
     }
-    
+
+    if (immediate) {
+      this._removeStormMeshes(allMeshes);
+      return;
+    }
+
     // Schedule removal
     setTimeout(() => {
-      for (const mesh of allMeshes) {
-        if (mesh) {
-          this.stormContainer.remove(mesh);
-        }
-      }
+      this._removeStormMeshes(allMeshes);
     }, 300);
+  }
+
+  /**
+   * Remove storm meshes from the container.
+   */
+  _removeStormMeshes(meshes) {
+    for (const mesh of meshes) {
+      if (mesh) {
+        this.stormContainer.remove(mesh);
+      }
+    }
   }
   
   /**
@@ -842,6 +1256,19 @@ export class EmergentThoughtStorms5_0 {
     }
     return count;
   }
+
+  /**
+   * Count all active glyph meshes.
+   */
+  countAllStormGlyphs() {
+    let count = 0;
+    for (const storms of this.activeStorms.values()) {
+      for (const storm of storms) {
+        count += Array.isArray(storm.stormGlyphs) ? storm.stormGlyphs.length : 0;
+      }
+    }
+    return count;
+  }
   
   /**
    * Clear all storms
@@ -849,13 +1276,13 @@ export class EmergentThoughtStorms5_0 {
   clearAllStorms() {
     for (const [clusterId, storms] of this.activeStorms.entries()) {
       for (const storm of storms) {
-        this.dissolveStorm(storm);
+        this.dissolveStorm(storm, true);
       }
     }
     
     this.activeStorms.clear();
-    this.stormContainer.clear();
     this.stats.activeStomsCount = 0;
+    this.stats.glyphCount = 0;
   }
   
   /**
@@ -863,7 +1290,6 @@ export class EmergentThoughtStorms5_0 {
    */
   cleanup() {
     this.clearAllStorms();
-    this.stormContainer.clear();
   }
   
   /**

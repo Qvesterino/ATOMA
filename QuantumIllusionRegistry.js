@@ -69,6 +69,31 @@ export class QuantumIllusionRegistry {
   /**
    * Unregister an illusion (cleanup)
    */
+  _disposeObject3D(object3D) {
+    if (!object3D) return;
+
+    const disposedGeometries = new Set();
+    const disposedMaterials = new Set();
+
+    object3D.traverse((child) => {
+      if (child.geometry && !disposedGeometries.has(child.geometry)) {
+        disposedGeometries.add(child.geometry);
+        if (!this.sharedAssets?.releaseGeometry?.(child.geometry) && typeof child.geometry.dispose === 'function') {
+          child.geometry.dispose();
+        }
+      }
+
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      for (const material of materials) {
+        if (!material || disposedMaterials.has(material)) continue;
+        disposedMaterials.add(material);
+        if (!this.sharedAssets?.releaseMaterial?.(material) && typeof material.dispose === 'function') {
+          material.dispose();
+        }
+      }
+    });
+  }
+
   unregisterIllusion(type, index) {
     if (!this.illusions[type] || !this.illusions[type][index]) return;
     
@@ -77,26 +102,7 @@ export class QuantumIllusionRegistry {
       entry.mesh.parent.remove(entry.mesh);
     }
     
-    // Dispose geometry and material
-    if (entry.mesh.geometry) {
-      if (this.sharedAssets?.releaseGeometry?.(entry.mesh.geometry)) {
-        // shared geometry released via registry
-      } else if (typeof entry.mesh.geometry.dispose === 'function') {
-        entry.mesh.geometry.dispose();
-      }
-    }
-    if (entry.mesh.material) {
-      if (Array.isArray(entry.mesh.material)) {
-        entry.mesh.material.forEach((material) => {
-          if (this.sharedAssets?.releaseMaterial?.(material)) return;
-          if (typeof material?.dispose === 'function') material.dispose();
-        });
-      } else if (this.sharedAssets?.releaseMaterial?.(entry.mesh.material)) {
-        // shared material released via registry
-      } else if (typeof entry.mesh.material.dispose === 'function') {
-        entry.mesh.material.dispose();
-      }
-    }
+    this._disposeObject3D(entry.mesh);
     
     this.illusions[type].splice(index, 1);
     this.totalIllusions--;

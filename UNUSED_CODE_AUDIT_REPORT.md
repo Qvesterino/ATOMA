@@ -17,7 +17,7 @@ These files are not imported anywhere in the codebase:
 - `AudioSystem.js` (HIGH confidence)
 - `AutoConnectEngine.ts` (HIGH confidence)
 - `BeadSystemTuning.js` (HIGH confidence)
-- `ComputeSynergyScore2_1.js` (HIGH confidence)
+- `ComputeSynergyScore2_1.js` (HIGH confidence) - vynecham
 - `ControlNodeGeometries_v1.js` (HIGH confidence)
 - `CoreMetricAuthorityMonitor.js` (HIGH confidence)
 - `CorruptionVisualIntegrationPatch_v1.js` (HIGH confidence)

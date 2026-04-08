@@ -140,3 +140,10 @@ Original prompt: reduce synergy cascade visual clutter and make the repeated bea
 - Moved topology visualization off the dedicated overlay and into `SynergyCascadeVisualizer` as a snapshot-driven visible feedback path.
 - `TopologyBiasVisualizationLayer` now publishes `topology.bias.snapshot` and defaults its own debug draws off so it no longer competes with the showpiece layer.
 
+2026-04-08
+- Reworked `EmergentThoughtStorms5_0.js` so local storm spawning now uses real recursive/link scope data instead of the old placeholder density path.
+- Added a layered ATOMA-v2 silhouette to Emergent storms: core, shell, halo, orbiting glyphs, tracked arcs, and expanding ripples.
+- The storm update loop now uses storm-local elapsed time, so orbiting shapes and arcs animate consistently instead of leaning on the throttle accumulator.
+- `EnvironmentEventCoordinator.js` already owns the `global.<metric>.high` legendary world-event bridge, so no extra global adapter was needed for this pass.
+- Restored the root `_EmergentThoughtStorms5_0.js` entry as a shim to the legacy implementation path so `main.js` imports keep resolving cleanly.
+
