@@ -10,6 +10,7 @@ import { getMapConfig } from './MapConfigBase.js';
  * Maintains surreal AI aesthetic through material design and color palette
  * Separate invisible collision layer for physics
  * NOTE: Keep the analytic terrain sampler in sync with the visible dunes so the player controller can avoid raycast probes.
+ * NOTE: Terrain collision meshes stay walkable; if a future landmark should block movement, give it its own invisible blocker collider.
  */
 export class DreamDesert2 {
   constructor(scene, worldRoot, camera = null) {
@@ -219,6 +220,18 @@ export class DreamDesert2 {
 
   getGroundLevelAt(x, z) {
     return this.sampleTerrainHeight(x, z) + this.playerGroundOffset;
+  }
+
+  getMaxStepHeight() {
+    return 2.55;
+  }
+
+  getMovementBounds() {
+    return {
+      type: 'circle',
+      center: new THREE.Vector3(0, 0, 0),
+      radius: 118
+    };
   }
 
   createMainDunes() {
@@ -2212,6 +2225,7 @@ export class DreamDesert2 {
     collisionTerrain.userData = {
       isWalkable: true,
       collisionEnabled: true,
+      collisionRole: 'terrain',
       terrainType: 'mainDunes'
     };
     
@@ -2239,6 +2253,7 @@ export class DreamDesert2 {
       collider.userData = {
         isWalkable: true,
         collisionEnabled: true,
+        collisionRole: 'terrain',
         terrainType: 'fractalRidge',
         height: height
       };
@@ -2267,6 +2282,7 @@ export class DreamDesert2 {
         subCollider.userData = {
           isWalkable: true,
           collisionEnabled: true,
+          collisionRole: 'terrain',
           terrainType: 'subRidge',
           height: subHeight
         };
@@ -2292,6 +2308,7 @@ export class DreamDesert2 {
       collider.userData = {
         isWalkable: true,
         collisionEnabled: true,
+        collisionRole: 'terrain',
         terrainType: 'floatingFragment'
       };
       

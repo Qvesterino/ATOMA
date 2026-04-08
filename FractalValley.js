@@ -7,6 +7,7 @@ import { getMapConfig } from './MapConfigBase.js';
  * Fractal Valley - Recursive mathematical structures
  * Represents AI visualization of pattern formation and logic
  * NOTE: Keep `getGroundLevelAt(x, z)` aligned with the terrain so the player controller can avoid raycast probes.
+ * NOTE: Walkable terrain helpers stay tagged as terrain; any true obstacle needs an explicit blocker collider.
  */
 export class FractalValley {
   constructor(scene, worldRoot, camera = null) {
@@ -16,6 +17,7 @@ export class FractalValley {
     this.camera = camera;
     this.mountains = [];
     this.hexTerraces = [];
+    this.hexTerraceColliders = [];
     this.fractalFragments = [];
     this.fragmentGlowMaterial = null;
     this.fragmentLightningLines = [];
@@ -23,6 +25,7 @@ export class FractalValley {
     this.holograms = [];
     this.symbols = [];
     this.bridges = [];
+    this.bridgeGroundSurfaces = [];
     this.collisionObjects = []; // Track collision meshes
     this.playerGroundOffset = 1;
     
@@ -178,7 +181,48 @@ export class FractalValley {
   }
 
   getGroundLevelAt(x, z) {
+    const bridgeLevel = this.sampleBridgeGroundHeight(x, z);
+    if (Number.isFinite(bridgeLevel)) {
+      return bridgeLevel;
+    }
+
     return this.sampleTerrainHeight(x, z) + this.playerGroundOffset;
+  }
+
+  getMaxStepHeight() {
+    return 2.35;
+  }
+
+  getMovementBounds() {
+    return {
+      type: 'circle',
+      center: new THREE.Vector3(0, 0, 0),
+      radius: 138
+    };
+  }
+
+  sampleBridgeGroundHeight(x, z) {
+    for (const bridge of this.bridgeGroundSurfaces) {
+      const dx = x - bridge.point.x;
+      const dz = z - bridge.point.z;
+      const along = dx * bridge.lateral.x + dz * bridge.lateral.z;
+      const across = dx * bridge.tangent.x + dz * bridge.tangent.z;
+      const halfSpan = bridge.span * 0.5;
+
+      if (Math.abs(along) > halfSpan || Math.abs(across) > (bridge.halfWidth + 0.8)) {
+        continue;
+      }
+
+      if (bridge.type === 'hero') {
+        const normalized = this._clamp01((along + halfSpan) / bridge.span);
+        const arch = Math.sin(normalized * Math.PI) * bridge.deckRise;
+        return bridge.deckY + bridge.surfaceOffset + arch;
+      }
+
+      return bridge.deckY + bridge.surfaceOffset;
+    }
+
+    return null;
   }
 
   sampleTerrainNoise(x, z) {
@@ -341,6 +385,7 @@ export class FractalValley {
     floorCollision.userData = {
       isWalkable: true,
       collisionEnabled: true,
+      collisionRole: 'terrain',
       terrainType: 'valleyFloor'
     };
     this.worldRoot.add(floorCollision);
@@ -360,6 +405,14 @@ export class FractalValley {
       metalness: 0.08,
       emissive: 0x58b4ba,
       emissiveIntensity: 0.025
+    });
+    const invisibleMaterial = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: true,
+      side: THREE.DoubleSide
     });
     const edgeGeometry = new THREE.EdgesGeometry(this.sharedWorldGeometries.outcrop);
     
@@ -387,6 +440,20 @@ export class FractalValley {
       
       this.worldRoot.add(hex);
       this.hexTerraces.push(hex);
+
+      const blocker = new THREE.Mesh(hex.geometry.clone(), invisibleMaterial);
+      blocker.scale.copy(hex.scale);
+      blocker.position.copy(hex.position);
+      blocker.rotation.copy(hex.rotation);
+      blocker.userData = {
+        collisionEnabled: true,
+        isWalkable: false,
+        collisionRole: 'blocker',
+        blockerType: 'hexTerrace'
+      };
+      this.worldRoot.add(blocker);
+      this.collisionObjects.push(blocker);
+      this.hexTerraceColliders.push(blocker);
 
       const edgeMaterial = new THREE.LineBasicMaterial({
         color: 0x7bc0c4,
@@ -1268,6 +1335,18 @@ export class FractalValley {
       ));
     });
 
+    this.bridgeGroundSurfaces.push({
+      type: 'hero',
+      point: frame.point.clone(),
+      tangent: frame.tangent.clone(),
+      lateral: frame.lateral.clone(),
+      span,
+      halfWidth: deckWidth * 0.5,
+      deckY,
+      deckRise,
+      surfaceOffset: 0.16
+    });
+
     group.name = 'fractalValleyHeroBridge';
     return group;
   }
@@ -1320,6 +1399,18 @@ export class FractalValley {
 
     group.add(this.createBeamBetween(steelMaterial, new THREE.Vector3(-span * 0.5, 0.62, deckWidth * 0.42), new THREE.Vector3(span * 0.5, 0.62, deckWidth * 0.42), 0.04));
     group.add(this.createBeamBetween(steelMaterial, new THREE.Vector3(-span * 0.5, 0.62, -deckWidth * 0.42), new THREE.Vector3(span * 0.5, 0.62, -deckWidth * 0.42), 0.04));
+
+    this.bridgeGroundSurfaces.push({
+      type: 'distant',
+      point: frame.point.clone(),
+      tangent: frame.tangent.clone(),
+      lateral: frame.lateral.clone(),
+      span,
+      halfWidth: deckWidth * 0.5,
+      deckY,
+      deckRise: 0,
+      surfaceOffset: 0.15
+    });
 
     group.name = 'fractalValleyDistantBridge';
     return group;

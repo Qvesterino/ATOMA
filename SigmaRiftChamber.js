@@ -9,6 +9,7 @@ import { createSigmaRift, updateRiftEnergyTime } from './shaders/RiftEnergyShade
  * Sigma Rift Chamber - Boss-level arena
  * An ancient, sacred AI chamber built around a gigantic glowing Rift
  * NOTE: Keep the chamber floor ground helper analytic so the player controller never has to raycast the arena.
+ * NOTE: The floor mesh is walkable terrain even though it is listed in collisionObjects; blockers must be tagged explicitly.
  */
 export class SigmaRiftChamber {
   constructor(scene, worldRoot, camera = null) {
@@ -329,6 +330,12 @@ export class SigmaRiftChamber {
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = 0;
+    floor.userData = {
+      collisionEnabled: true,
+      isWalkable: true,
+      collisionRole: 'terrain',
+      terrainType: 'sigmaFloor'
+    };
     this.worldRoot.add(floor);
     this.collisionObjects.push(floor);
     
@@ -841,7 +848,9 @@ export class SigmaRiftChamber {
       orbitSpeed: 0.1 + Math.random() * 0.2,
       orbitPhase: angle,
       floatSpeed: 0.4 + Math.random() * 0.2,
-      floatOffset: Math.random() * Math.PI * 2
+      floatOffset: Math.random() * Math.PI * 2,
+      collisionEnabled: true,
+      collisionRole: 'blocker'
     };
     
     this.animatedObjects.push({
@@ -856,6 +865,10 @@ export class SigmaRiftChamber {
 
   getGroundLevelAt(x, z) {
     return (this.floor?.position.y ?? 0) + this.playerGroundOffset;
+  }
+
+  getMaxStepHeight() {
+    return 1.25;
   }
 
   getMovementBounds() {

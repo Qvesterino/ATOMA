@@ -6,6 +6,14 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
 - Syntax check passed with `node --check DreamDesert.js`.
 - Browser smoke passed on `output/dreamdesert-active.png` after selecting `Dream Desert` from the main menu; the scene now boots with the warmer palette and landmarks visible.
 - Existing startup noise still shows a pre-existing `AtomaAudioSystem` `AudioContext` error on first interaction; it did not block the desert visual smoke.
+- Deterministic controller smoke confirmed the dune terrain is walkable: the player advanced 36 units across the dune path and `canMoveAfter` stayed `true`.
+- The stone arch torus collider is now confirmed as a true blocker: the torus centerline reports `hasBlockingCollisionAt=true` and `canMoveAtTorus=false`.
+- Dream Desert collision taxonomy is now stable in runtime smoke: 10 terrain surfaces and 5 blockers (`stoneArchTorus`, `stoneArchLeft`, `stoneArchRight`, plus the monolith blockers).
+- Fresh browser profile still defaults to `fractal`, so the smoke explicitly launched `desert` via `window.atomaApp.startNew('desert')` before running the controller checks.
+- Visual smoke artifacts were written to `output/web-game/dreamdesert-collision/dune-pass.png` and `output/web-game/dreamdesert-collision2/scene.png`.
+- Dune terrain collision in `DreamDesert.js` was tightened again by raising the analytic dune height profile and increasing the desert climb budget, so the big dunes read more like real walkable hills instead of paper-thin props.
+- The dune collision sampler now uses broader analytic influence and a stronger peak height, keeping the fix raycast-free and terrain-driven.
+- A follow-up browser smoke on a dune climb path completed without console errors and produced `output/web-game/dreamdesert-dune-fix/dune-climb.png`.
 
 ## 2026-04-04
 - `PHASE5_CascadePropagationVisuals` now spawns a 3-ring echo burst on each trigger and uses a per-source 3 second cooldown so the cascade reads as a tighter repeated pulse instead of a single expanding ring.

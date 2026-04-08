@@ -48,6 +48,10 @@ export class MemoryLane {
   getGroundLevelAt(x, z) {
     return (this.floor?.position.y ?? 0) + this.playerGroundOffset;
   }
+
+  getMaxStepHeight() {
+    return 1.25;
+  }
   
   /**
    * Create modular server towers along sides

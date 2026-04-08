@@ -16,8 +16,11 @@ class PlayerController {
     this.collisionProvider = options.collisionProvider || null;
     this.worldBoundsProvider = options.worldBoundsProvider || null;
     this.groundHeightProvider = options.groundHeightProvider || null;
+    this.maxStepHeightProvider = options.maxStepHeightProvider || null;
     this.groundProbeHeight = options.groundProbeHeight || 120;
     this.maxStepHeight = options.maxStepHeight || 1.25;
+    this.playerHeight = options.playerHeight || player.geometry?.parameters?.height || 1.8;
+    this.playerHalfWidth = options.playerHalfWidth || player.geometry?.parameters?.width * 0.5 || 0.3;
     this.collisionEpsilon = options.collisionEpsilon || 0.02;
 
     // State
@@ -28,6 +31,8 @@ class PlayerController {
     this._raycaster = new THREE.Raycaster();
     this._rayOrigin = new THREE.Vector3();
     this._rayDirection = new THREE.Vector3(0, -1, 0);
+    this._playerCollisionBox = new THREE.Box3();
+    this._collisionObjectBox = new THREE.Box3();
 
     // Setup input handlers
     this.setupInput();
@@ -66,6 +71,67 @@ class PlayerController {
     return this.worldBoundsProvider() || null;
   }
 
+  isBlockingCollisionObject(object) {
+    if (!object) {
+      return false;
+    }
+
+    const data = object.userData || {};
+    if (data.collisionEnabled === false) {
+      return false;
+    }
+
+    if (data.isWalkable === true) {
+      return false;
+    }
+
+    if (data.collisionRole === 'terrain') {
+      return false;
+    }
+
+    return true;
+  }
+
+  getBlockingCollisionObjects(collisionObjects) {
+    if (!Array.isArray(collisionObjects) || collisionObjects.length === 0) {
+      return [];
+    }
+
+    return collisionObjects.filter((object) => this.isBlockingCollisionObject(object));
+  }
+
+  hasBlockingCollisionAt(x, z, collisionObjects) {
+    const blockingObjects = this.getBlockingCollisionObjects(collisionObjects);
+    if (!blockingObjects.length) {
+      return false;
+    }
+
+    const minY = this.player.position.y;
+    const maxY = minY + this.playerHeight;
+    this._playerCollisionBox.min.set(x - this.playerHalfWidth, minY, z - this.playerHalfWidth);
+    this._playerCollisionBox.max.set(x + this.playerHalfWidth, maxY, z + this.playerHalfWidth);
+
+    for (const object of blockingObjects) {
+      this._collisionObjectBox.setFromObject(object);
+      if (this._playerCollisionBox.intersectsBox(this._collisionObjectBox)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  getMaxStepHeight() {
+    if (typeof this.maxStepHeightProvider === 'function') {
+      const dynamicMaxStepHeight = this.maxStepHeightProvider();
+      if (Number.isFinite(dynamicMaxStepHeight)) {
+        return dynamicMaxStepHeight;
+      }
+    }
+
+    return this.maxStepHeight;
+  }
+
   getGroundLevelAt(x, z, collisionObjects) {
     if (typeof this.groundHeightProvider === 'function') {
       const analyticGroundLevel = this.groundHeightProvider(x, z, collisionObjects);
@@ -102,7 +168,17 @@ class PlayerController {
     if (bounds.type === 'circle' && Number.isFinite(radius)) {
       const dx = x - centerX;
       const dz = z - centerZ;
-      return (dx * dx + dz * dz) <= (radius * radius);
+      const targetDistSq = (dx * dx) + (dz * dz);
+      const radiusSq = radius * radius;
+      const currentDx = this.player.position.x - centerX;
+      const currentDz = this.player.position.z - centerZ;
+      const currentDistSq = (currentDx * currentDx) + (currentDz * currentDz);
+
+      if (currentDistSq <= radiusSq) {
+        return targetDistSq <= radiusSq;
+      }
+
+      return targetDistSq <= radiusSq || targetDistSq < currentDistSq;
     }
 
     return true;
@@ -110,6 +186,10 @@ class PlayerController {
 
   canMoveTo(x, z, currentGroundLevel, collisionObjects, bounds, allowVerticalStep = false) {
     if (!this.isWithinMovementBounds(x, z, bounds)) {
+      return false;
+    }
+
+    if (this.hasBlockingCollisionAt(x, z, collisionObjects)) {
       return false;
     }
 
@@ -122,7 +202,7 @@ class PlayerController {
       return true;
     }
 
-    return (targetGroundLevel - currentGroundLevel) <= this.maxStepHeight;
+    return (targetGroundLevel - currentGroundLevel) <= this.getMaxStepHeight();
   }
 
   /**

@@ -7,6 +7,8 @@ import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js
  * Dream Desert - AI Subconscious Environment
  * Warm surreal desert with cinematic dunes and soft dream lighting
  * NOTE: Keep the analytic surface helper in sync with the dunes so the player controller never falls back to raycasts.
+ * NOTE: Terrain collision meshes stay walkable; any landmark that should block movement needs its own invisible collider.
+ * NOTE: The large dune caps are intentionally climbable, while the stone arch and monolith remain hard blockers.
  */
 export class DreamDesert {
   constructor(scene, worldRoot, camera = null) {
@@ -131,12 +133,13 @@ export class DreamDesert {
       const sin = Math.sin(-rotation);
       const localX = dx * cos - dz * sin;
       const localZ = dx * sin + dz * cos;
-      const width = Math.max(1, data.groundWidth || 1);
-      const depth = Math.max(1, data.groundDepth || 1);
+      const width = Math.max(1, data.collisionWidth || data.groundWidth || 1);
+      const depth = Math.max(1, data.collisionDepth || data.groundDepth || 1);
+      const duneHeight = Math.max(0, data.collisionHeight || data.groundHeight || 0);
       const normalizedX = localX / (width * 0.5);
-      const normalizedZ = localZ / (depth * 0.72);
-      const influence = Math.exp(-(normalizedX * normalizedX * 0.9 + normalizedZ * normalizedZ * 0.55));
-      offset = Math.max(offset, groundHeight * influence);
+      const normalizedZ = localZ / (depth * 0.82);
+      const influence = Math.exp(-(normalizedX * normalizedX * 0.72 + normalizedZ * normalizedZ * 0.42));
+      offset = Math.max(offset, duneHeight * influence);
     }
 
     return offset;
@@ -148,6 +151,10 @@ export class DreamDesert {
 
   getGroundLevelAt(x, z) {
     return this.sampleDesertSurfaceY(x, z) + this.playerGroundOffset;
+  }
+
+  getMaxStepHeight() {
+    return 5.8;
   }
 
   _noise2D(x, z) {
@@ -328,6 +335,60 @@ export class DreamDesert {
     halo.position.set(0.25, 6.8, 0.6);
     group.add(halo);
 
+    const archBlockerMaterial = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: true,
+      side: THREE.DoubleSide
+    });
+
+    const archCollider = new THREE.Mesh(
+      new THREE.TubeGeometry(archCurve, 28, 1.08, 10, false),
+      archBlockerMaterial
+    );
+    archCollider.rotation.z = Math.PI * 0.5;
+    archCollider.position.set(0.35, 0.2, 0);
+    archCollider.userData = {
+      collisionEnabled: true,
+      isWalkable: false,
+      collisionRole: 'blocker',
+      blockerType: 'stoneArchTorus'
+    };
+    group.add(archCollider);
+    this.collisionObjects.push(archCollider);
+
+    const leftCollider = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.78, 2.08, 10.9, 8, 1, false),
+      archBlockerMaterial
+    );
+    leftCollider.position.set(-2.8, 5.25, 0);
+    leftCollider.rotation.z = -0.04;
+    leftCollider.userData = {
+      collisionEnabled: true,
+      isWalkable: false,
+      collisionRole: 'blocker',
+      blockerType: 'stoneArchLeft'
+    };
+    group.add(leftCollider);
+    this.collisionObjects.push(leftCollider);
+
+    const rightCollider = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.58, 1.88, 10.1, 8, 1, false),
+      archBlockerMaterial
+    );
+    rightCollider.position.set(2.65, 4.85, 0.18);
+    rightCollider.rotation.z = 0.03;
+    rightCollider.userData = {
+      collisionEnabled: true,
+      isWalkable: false,
+      collisionRole: 'blocker',
+      blockerType: 'stoneArchRight'
+    };
+    group.add(rightCollider);
+    this.collisionObjects.push(rightCollider);
+
     const terrainY = this.sampleDesertSurfaceY(12, -20);
     group.position.set(12, terrainY + 0.6, -20);
     group.rotation.y = -0.18;
@@ -374,6 +435,45 @@ export class DreamDesert {
     cap.position.set(-0.15, 14.2, 0.1);
     cap.rotation.z = 0.08;
     group.add(cap);
+
+    const monolithBlockerMaterial = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: true,
+      side: THREE.DoubleSide
+    });
+
+    const mainCollider = new THREE.Mesh(
+      new THREE.BoxGeometry(2.5, 15.4, 2.6),
+      monolithBlockerMaterial
+    );
+    mainCollider.position.set(0, 7.5, 0);
+    mainCollider.rotation.z = 0.04;
+    mainCollider.userData = {
+      collisionEnabled: true,
+      isWalkable: false,
+      collisionRole: 'blocker',
+      blockerType: 'distantMonolithMain'
+    };
+    group.add(mainCollider);
+    this.collisionObjects.push(mainCollider);
+
+    const shardCollider = new THREE.Mesh(
+      new THREE.BoxGeometry(1.3, 9.4, 1.15),
+      monolithBlockerMaterial
+    );
+    shardCollider.position.set(2.0, 4.6, -0.45);
+    shardCollider.rotation.set(0.06, 0, -0.12);
+    shardCollider.userData = {
+      collisionEnabled: true,
+      isWalkable: false,
+      collisionRole: 'blocker',
+      blockerType: 'distantMonolithShard'
+    };
+    group.add(shardCollider);
+    this.collisionObjects.push(shardCollider);
 
     const terrainY = this.sampleDesertSurfaceY(-48, 54);
     group.position.set(-48, terrainY + 0.2, 54);
@@ -472,6 +572,7 @@ export class DreamDesert {
     desertCollision.userData = {
       isWalkable: true,
       collisionEnabled: true,
+      collisionRole: 'terrain',
       terrainType: 'desertFloor'
     };
     // Mark as raycastable for ATOMA's raycast system
@@ -543,7 +644,10 @@ export class DreamDesert {
         swaySpeed: 0.04 + Math.random() * 0.02,
         groundWidth: duneWidth * duneScaleX,
         groundDepth: duneDepth * duneScaleZ,
-        groundHeight: duneHeight * duneScaleY * 0.18
+        groundHeight: duneHeight * duneScaleY * 0.18,
+        collisionWidth: duneWidth * duneScaleX,
+        collisionDepth: duneDepth * duneScaleZ,
+        collisionHeight: duneHeight * duneScaleY * 0.42
       };
       
       this.worldRoot.add(dune);
@@ -557,6 +661,7 @@ export class DreamDesert {
       duneCollision.userData = {
         isWalkable: true,
         collisionEnabled: true,
+        collisionRole: 'terrain',
         terrainType: 'dune',
         height: duneGeometry.parameters.height || 5,
         __ALLOW_RAYCAST__: true

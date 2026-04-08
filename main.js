@@ -7159,6 +7159,7 @@ window.__ATOMA_SCENE__ = this.scene;
             gravity: CONFIG.player.gravity,
             groundLevel: 1,
             groundHeightProvider: (x, z) => this.activeWorld?.getGroundLevelAt?.(x, z) ?? null,
+            maxStepHeightProvider: () => this.activeWorld?.getMaxStepHeight?.() ?? null,
             collisionProvider: () => this.activeWorld?.getCollisionObjects?.() ?? this.activeWorld?.collisionObjects ?? [],
             worldBoundsProvider: () => this.activeWorld?.getMovementBounds?.() ?? null
         });

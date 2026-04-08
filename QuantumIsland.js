@@ -7,6 +7,7 @@ import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js
  * Quantum Island - Floating landmass in singularity void
  * Represents quantum instability in AI dream state
  * NOTE: Keep the analytic ground helper and movement bounds in sync with the island mesh so the controller never falls back to raycasts.
+ * NOTE: The island mesh is walkable terrain even though it lives in collisionObjects; only true blockers should remain untagged or use explicit blocker colliders.
  */
 export class QuantumIsland {
   constructor(scene, worldRoot, camera = null) {
@@ -123,6 +124,12 @@ export class QuantumIsland {
     
     this.island = new THREE.Mesh(islandGeometry, islandMaterial);
     this.island.position.y = 0;
+    this.island.userData = {
+      collisionEnabled: true,
+      isWalkable: true,
+      collisionRole: 'terrain',
+      terrainType: 'island'
+    };
     this.worldRoot.add(this.island);
     this.collisionObjects.push(this.island);
     
@@ -167,11 +174,15 @@ export class QuantumIsland {
     return surfaceY + this.playerGroundOffset;
   }
 
+  getMaxStepHeight() {
+    return 1.9;
+  }
+
   getMovementBounds() {
     return {
       type: 'circle',
       center: new THREE.Vector3(0, 0, 0),
-      radius: this.islandRadius - 0.5
+      radius: this.islandRadius + 26
     };
   }
 
