@@ -172,6 +172,9 @@ export class EnvironmentDomainController {
         this.sharedEnvironmentAssets,
         d.semanticBus
       );
+    if (this.instances.worldFXPack) {
+      this.instances.worldFXPack.frameScheduler = this.frameScheduler;
+    }
 
     this.instances.weatherPack =
       new d.SafeAIWeatherPack(

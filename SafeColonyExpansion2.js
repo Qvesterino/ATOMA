@@ -6,11 +6,11 @@ import { ColonyVFXManager } from './ColonyVFXManager.js';
  * SafeColonyExpansion2.js - Complete Living AI Ecosystem
  * 
  * SAFE: 100% external, read-only, non-destructive
- * - Manages colony formation, growth, splitting, merging
+ * - Manages living civilization formation, growth, splitting, merging
  * - All VFX-based, zero core engine modifications
  * - Reacts to world state: weather, events, legendary nodes
  * 
- * Main entry point for colony management in ATOMA
+ * Main entry point for living civilization overlay in ATOMA
  */
 
 export class SafeColonyExpansion2 {
@@ -62,6 +62,17 @@ export class SafeColonyExpansion2 {
     this.evolutionRegistry = worldSystems.evolutionRegistry || null;
     this.synergyMap = worldSystems.synergyMap || {};
     this.trafficMap = worldSystems.trafficMap || {};
+
+    if (worldSystems.frameScheduler) {
+      this.setFrameScheduler(worldSystems.frameScheduler);
+    }
+  }
+
+  setFrameScheduler(frameScheduler) {
+    this.frameScheduler = frameScheduler;
+    if (this.vfxManager) {
+      this.vfxManager.frameScheduler = frameScheduler;
+    }
   }
   
   /**
@@ -148,7 +159,7 @@ export class SafeColonyExpansion2 {
         this.stats.clustersCreated++;
         
         if (this.debugMode) {
-          console.log(`[Colony] Birth: ${colonyId} with ${nodeIds.length} nodes (${colonyType})`);
+          console.log(`[Civilization] Birth: ${colonyId} with ${nodeIds.length} nodes (${colonyType})`);
         }
       }
     }
@@ -308,47 +319,136 @@ export class SafeColonyExpansion2 {
   }
   
   /**
-   * Create VFX for a new colony
+   * Create VFX for a new living civilization
    */
   createColonyVFX(colonyId) {
     const colony = this.registry.getColony(colonyId);
     if (!colony) return;
-    
+
     const vfx = this.registry.colonyVFX[colonyId];
-    
-    // Create halo
-    vfx.halo = this.vfxManager.createHalo(
+    const stage = Math.max(0, Math.min(4, colony.stage));
+    const energy = colony.energy;
+    const type = colony.type;
+    const mood = colony.mood;
+    const seedBase = parseInt(colonyId.split('_')[1] || '0', 10) || 0;
+    const phaseSeed = ((seedBase * 0.61803398875) % 1 + 1) % 1;
+    const pulseOffset = ((seedBase * 0.321) % 1 + 1) % 1;
+    const ringSpeedBias = 0.08 + ((seedBase % 5) * 0.04);
+    const particleBias = 0.75 + ((seedBase % 6) * 0.05);
+
+    vfx.phaseSeed = phaseSeed;
+    vfx.pulseOffset = pulseOffset;
+    vfx.ringSpeedBias = ringSpeedBias;
+    vfx.particleBias = particleBias;
+
+    vfx.halo = this.vfxManager.createAtmosphere(
       colonyId,
       colony.center,
-      colony.stage,
-      colony.mood,
-      colony.type
+      stage,
+      mood,
+      type,
+      energy
     );
-    
-    // Create particles
+    vfx.atmosphere = vfx.halo;
     vfx.particles = this.vfxManager.createParticles(
       colonyId,
       colony.center,
-      colony.stage,
-      colony.mood,
-      colony.type
+      stage,
+      mood,
+      type,
+      energy
     );
-    
-    // If legendary, create crown
-    if (colony.type === 'LEGENDARY') {
+    vfx.rings = stage >= 1
+      ? this.vfxManager.createOrbitRings(
+          colonyId,
+          colony.center,
+          stage,
+          mood,
+          type,
+          energy
+        )
+      : [];
+    vfx.core = stage >= 2
+      ? this.vfxManager.createCentralGlow(
+          colonyId,
+          colony.center,
+          stage,
+          mood,
+          type,
+          energy
+        )
+      : null;
+    vfx.crown = null;
+
+    if (type === 'LEGENDARY') {
       vfx.crown = this.vfxManager.createLegendaryCrown(
         colonyId,
         colony.center,
-        colony.stage,
-        colony.type
+        stage,
+        type,
+        energy
+      );
+      vfx.legendaryHalo = this.vfxManager.createLegendaryHalo(
+        colonyId,
+        colony.center,
+        stage,
+        energy
+      );
+      vfx.legendaryPresence = this.vfxManager.createLegendaryPresence(
+        colonyId,
+        colony.center,
+        stage
+      );
+      if (!vfx.sigils) {
+        vfx.sigils = [];
+      }
+      vfx.sigils.push(
+        this.vfxManager.createSigilRing(
+          colonyId,
+          colony.center,
+          stage,
+          mood,
+          type,
+          energy
+        )
+      );
+      if (!vfx.beam) {
+        vfx.beam = this.vfxManager.createAscensionBeam(
+          colonyId,
+          colony.center,
+          stage,
+          mood,
+          type,
+          energy
+        );
+      }
+    }
+
+    if (type === 'QUANTUM') {
+      vfx.quantumAccent = this.vfxManager.createQuantumEdge(
+        colonyId,
+        colony.center,
+        stage,
+        mood,
+        type,
+        energy
+      );
+    } else if (type === 'SIGMA') {
+      vfx.sigmaAccent = this.vfxManager.createSigmaCrackAccent(
+        colonyId,
+        colony.center,
+        stage,
+        mood,
+        type,
+        energy
       );
     }
-    
+
     colony.vfxActive = true;
   }
   
   /**
-   * Update colony centers based on node positions
+   * Update civilization centers based on node positions
    */
   updateColonyCenters() {
     for (const colonyId in this.registry.colonies) {
@@ -357,17 +457,25 @@ export class SafeColonyExpansion2 {
   }
   
   /**
-   * Accumulate energy and update stages
+   * Accumulate energy and update civilization stages
    */
   accumulateEnergyAndUpdateStages() {
     for (const colonyId in this.registry.colonies) {
+      const colony = this.registry.colonies[colonyId];
+      if (!colony) continue;
+
+      const previousStage = colony.stage;
       this.registry.accumulateEnergy(colonyId, this.nodes, this.synergyMap);
       this.registry.updateColonyStage(colonyId);
+
+      if (colony.stage > previousStage) {
+        this.triggerColonyGrowth(colonyId, previousStage, colony.stage);
+      }
     }
   }
   
   /**
-   * Update colony moods based on conditions
+   * Update civilization moods based on conditions
    */
   updateColonyMoods() {
     for (const colonyId in this.registry.colonies) {
@@ -384,6 +492,7 @@ export class SafeColonyExpansion2 {
         colonyId,
         this.nodes,
         this.synergyMap,
+        this.trafficMap,
         weatherCondition,
         eventActive
       );
@@ -391,7 +500,7 @@ export class SafeColonyExpansion2 {
   }
   
   /**
-   * Check for and execute colony merges
+   * Check for and execute civilization merges
    */
   checkAndExecuteMerges() {
     const colonies = this.registry.getAllColonies();
@@ -416,12 +525,19 @@ export class SafeColonyExpansion2 {
             const mergedId = this.registry.mergeColonies(colony1.id, colony2.id);
             
             if (mergedId) {
-              // Cleanup old VFX
-              this.vfxManager.cleanupColonyVFX(colony1.id);
-              this.vfxManager.cleanupColonyVFX(colony2.id);
-              
-              // Create new VFX for merged colony
+              const mergedColony = this.registry.colonies[mergedId];
+
+              // Dramatic merge flash for source colonies
+              this.vfxManager.triggerMergeFlash(colony1.id, colony1.center, 1.2);
+              this.vfxManager.triggerMergeFlash(colony2.id, colony2.center, 1.2);
+
+              // Create new VFX for merged colony and animate old visuals into it
               this.createColonyVFX(mergedId);
+              this.vfxManager.triggerMergeTransition([colony1.id, colony2.id], mergedColony.center, 1.0);
+              this.vfxManager.triggerColonyTransformation(mergedId, mergedColony.center, 1.1);
+              this.vfxManager.triggerRebirthEvent(mergedId, mergedColony.center, 0.9);
+              this.vfxManager.cleanupColonyVFX(colony1.id, { soft: true, duration: 1.0 });
+              this.vfxManager.cleanupColonyVFX(colony2.id, { soft: true, duration: 1.0 });
               
               this.triggerColonyMerge(mergedId);
               
@@ -432,7 +548,7 @@ export class SafeColonyExpansion2 {
               this.stats.coloniesMerged++;
               
               if (this.debugMode) {
-                console.log(`[Colony] Merged: ${colony1.id} + ${colony2.id} → ${mergedId}`);
+                console.log(`[Civilization] Merged: ${colony1.id} + ${colony2.id} → ${mergedId}`);
               }
               
               break;
@@ -472,7 +588,7 @@ export class SafeColonyExpansion2 {
   }
   
   /**
-   * Check for and execute colony splits
+   * Check for and execute civilization splits
    */
   checkAndExecuteSplits() {
     for (const colonyId in this.registry.colonies) {
@@ -489,24 +605,29 @@ export class SafeColonyExpansion2 {
         const connectivity = this.calculateColonyConnectivity(colony);
         
         if (connectivity < this.registry.config.splitLinkFactor) {
+          // Dramatic split rupture moment before creating child colonies
+          this.vfxManager.triggerSplitRupture(colonyId, colony.center, 1.5, 1.0);
+
           // Execute split
           const newIds = this.registry.splitColony(colonyId, subClusters);
           
           if (newIds.length > 0) {
-            // Cleanup old VFX
-            this.vfxManager.cleanupColonyVFX(colonyId);
-            
-            // Create VFX for new colonies
+            // Create VFX for new colonies before old visuals dissolve
             for (const newId of newIds) {
               this.createColonyVFX(newId);
+              this.vfxManager.triggerColonyTransformation(newId, this.registry.colonies[newId].center, 0.9);
+              this.vfxManager.triggerRebirthEvent(newId, this.registry.colonies[newId].center, 0.9);
             }
+            
+            this.vfxManager.triggerSplitTransition(colonyId, 1.2);
+            this.vfxManager.cleanupColonyVFX(colonyId, { soft: true, duration: 1.2 });
             
             this.triggerColonySplit(colonyId, newIds);
             
             this.stats.coloniesSplit++;
             
             if (this.debugMode) {
-              console.log(`[Colony] Split: ${colonyId} → [${newIds.join(', ')}]`);
+              console.log(`[Civilization] Split: ${colonyId} → [${newIds.join(', ')}]`);
             }
           }
         }
@@ -588,90 +709,257 @@ export class SafeColonyExpansion2 {
    * Update VFX for all colonies
    */
   updateVFX(deltaTime) {
-    // Update manager animations
-    this.vfxManager.update(deltaTime);
-    
-    // Update individual colony VFX
+    const envelopes = {};
+
+    // Phase 1: sync position and base state
     for (const colonyId in this.registry.colonies) {
       const colony = this.registry.colonies[colonyId];
       const vfx = this.registry.colonyVFX[colonyId];
-      
       if (!vfx) continue;
-      
-      // Update colors and states based on mood changes
-      this.vfxManager.updateVFXForColony(colonyId, colony, this.registry.colonyVFX);
-      
-      // Update center positions
-      if (vfx.halo) {
-        vfx.halo.position.copy(colony.center);
-      }
-      
+
+      const envelope = this.calculateVisualEnvelope(colony, deltaTime);
+      envelopes[colonyId] = envelope;
+      this.syncColonyVFXPosition(colony, vfx);
+      this.vfxManager.updateVFXForColony(colonyId, colony, this.registry.colonyVFX, envelope);
+    }
+
+    // Phase 2: animate the VFX bundle
+    this.vfxManager.update(deltaTime);
+
+    // Phase 3: apply animated offsets and keep particles attached to the colony
+    for (const colonyId in this.registry.colonies) {
+      const colony = this.registry.colonies[colonyId];
+      const vfx = this.registry.colonyVFX[colonyId];
+      const envelope = envelopes[colonyId];
+      if (!vfx || !envelope) continue;
+
+      this.applyColonyVFXAnimation(colony, vfx, envelope, deltaTime);
+    }
+  }
+
+  syncColonyVFXPosition(colony, vfx) {
+    if (vfx.halo) {
+      vfx.halo.position.copy(colony.center);
+    }
+
+    if (vfx.rings) {
       for (const ring of vfx.rings) {
-        ring.position.copy(colony.center);
+        if (ring) ring.position.copy(colony.center);
       }
-      
-      if (vfx.core) {
-        vfx.core.position.copy(colony.center);
-      }
-      
-      if (vfx.crown) {
-        vfx.crown.position.copy(colony.center);
+    }
+
+    if (vfx.core) {
+      vfx.core.position.copy(colony.center);
+    }
+
+    if (vfx.crown) {
+      vfx.crown.position.copy(colony.center);
+    }
+
+    if (vfx.beam) {
+      vfx.beam.position.copy(colony.center);
+    }
+
+    if (vfx.particles) {
+      for (const particle of vfx.particles) {
+        if (particle?.userData?.startPos) {
+          particle.userData.startPos.copy(colony.center);
+        }
       }
     }
   }
+
+  applyColonyVFXAnimation(colony, vfx, envelope, deltaTime) {
+    const offset = this.calculateBreathingOffset(colony, envelope);
+
+    if (vfx.halo) {
+      vfx.halo.position.copy(colony.center).add(offset);
+    }
+
+    if (vfx.rings) {
+      for (const ring of vfx.rings) {
+        if (ring) ring.position.copy(colony.center).add(offset);
+      }
+    }
+
+    if (vfx.sigils) {
+      for (const sigil of vfx.sigils) {
+        if (sigil) sigil.position.copy(colony.center).add(offset);
+      }
+    }
+
+    if (vfx.beam) {
+      vfx.beam.position.copy(colony.center).add(offset);
+    }
+
+    if (vfx.core) {
+      vfx.core.position.copy(colony.center).add(offset.clone().multiplyScalar(0.55));
+    }
+
+    if (vfx.crown) {
+      vfx.crown.position.copy(colony.center).add(offset.clone().multiplyScalar(0.65));
+    }
+  }
   
+  /**
+   * Calculate visual envelope for stage and energy
+   */
+  calculateVisualEnvelope(colony, deltaTime) {
+    const energyFactor = Math.min(1, colony.energy / 100);
+    const speed = 0.85 + colony.stage * 0.12 + energyFactor * 0.18;
+    const cycle = (this.time * speed + (parseInt(colony.id?.split('_')[1] || '0', 10) * 0.4)) % 1.0;
+    const attack = this.smoothstep(0.0, 0.18, cycle);
+    const release = this.smoothstep(0.76, 1.0, cycle);
+    const crest = Math.max(0, 1 - Math.abs((cycle - 0.5) / 0.28));
+    return {
+      attack,
+      crest,
+      release,
+      energyFactor,
+      moodFactor: colony.mood === 'SYNERGY' ? 1.2 : colony.mood === 'LOAD_PRESSURE' ? 0.8 : 1.0
+    };
+  }
+
+  /**
+   * Get a small breathing offset for colony VFX
+   */
+  calculateBreathingOffset(colony, envelope) {
+    const base = 0.02 + colony.stage * 0.01 + envelope.energyFactor * 0.02;
+    const x = Math.sin(this.time * (0.6 + colony.stage * 0.1)) * base;
+    const y = Math.cos(this.time * (0.9 + colony.stage * 0.12)) * base * 0.55;
+    const z = Math.sin(this.time * (0.4 + colony.stage * 0.08)) * base * 0.7;
+    return new THREE.Vector3(x, y, z);
+  }
+
+  smoothstep(edge0, edge1, x) {
+    const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+    return t * t * (3 - 2 * t);
+  }
+
   /**
    * React to world events (read-only)
    */
   reactToWorldEvents() {
     if (!this.worldEvents) return;
-    
-    const activeEvent = this.worldEvents.getActiveEvent?.();
-    if (!activeEvent) return;
-    
-    // Colonies respond to events
+
+    const activeEvent = this.worldEvents.getActiveEvent?.() || this.worldEvents.getActiveEventInfo?.();
+    const activeEventSource = this.worldEvents.getActiveEventType?.() || activeEvent?.type || activeEvent?.eventType || activeEvent?.name;
+    const activeEventType = typeof activeEventSource === 'string'
+      ? activeEventSource.toUpperCase().replace(/\s+/g, '_')
+      : activeEventSource;
+    const eventIntensity = this.worldEvents.getEventIntensity?.() ?? activeEvent?.intensity ?? 1.0;
+    if (!activeEventType) return;
+
+    const eventType = String(activeEventType).toUpperCase();
+    const reaction = this.getWorldEventReaction(eventType, eventIntensity);
+
     for (const colonyId in this.registry.colonies) {
       const colony = this.registry.colonies[colonyId];
-      
-      // Trigger visual reaction based on event type
-      if (activeEvent.type === 'COSMIC_PULSE') {
-        this.triggerColonyPulse(colonyId);
-      } else if (activeEvent.type === 'QUANTUM_ECLIPSE') {
-        this.shiftColonyColor(colonyId, 0x9900ff);
-      } else if (activeEvent.type === 'SIGMA_INVASION' && colony.type === 'SIGMA') {
-        this.intensifyColonyGlow(colonyId);
+      const typeBonus = colony.type === 'LEGENDARY' ? 1.2 : colony.type === 'QUANTUM' ? 1.1 : colony.type === 'SIGMA' ? 1.05 : 1.0;
+      const pulseIntensity = reaction.pulseIntensity * typeBonus;
+      const glowIntensity = reaction.glowIntensity * typeBonus;
+      const ringDeform = reaction.deformAmount;
+      const duration = reaction.duration;
+
+      this.vfxManager.triggerEventPulse(colonyId, pulseIntensity, duration);
+      this.vfxManager.triggerEventColorShift(colonyId, reaction.color, duration * 0.9);
+      this.vfxManager.intensifyEventGlow(colonyId, glowIntensity, duration);
+      this.vfxManager.deformEventRings(colonyId, ringDeform, duration);
+      this.vfxManager.boostEventRingSpin(colonyId, reaction.ringSpin, duration);
+
+      if (reaction.activateCrown && colony.type === 'LEGENDARY') {
+        this.vfxManager.activateEventCrown(colonyId, duration * 1.1);
+      }
+
+      if (reaction.extraPulseOnType && colony.type === reaction.extraPulseOnType) {
+        this.vfxManager.triggerEventPulse(colonyId, reaction.extraPulseIntensity, duration * 0.8);
       }
     }
   }
-  
+
+  getWorldEventReaction(eventType, intensity = 1.0) {
+    const baseIntensity = Math.min(1.2, Math.max(0.65, intensity));
+    switch (eventType) {
+      case 'COSMIC_PULSE':
+        return {
+          color: 0x66ccff,
+          duration: 1.1,
+          pulseIntensity: 1.1 * baseIntensity,
+          glowIntensity: 0.9 * baseIntensity,
+          deformAmount: 0.22,
+          ringSpin: 0.15,
+          activateCrown: true
+        };
+      case 'QUANTUM_ECLIPSE':
+        return {
+          color: 0x9900ff,
+          duration: 1.4,
+          pulseIntensity: 0.95 * baseIntensity,
+          glowIntensity: 1.05 * baseIntensity,
+          deformAmount: 0.18,
+          ringSpin: 0.28,
+          extraPulseOnType: 'QUANTUM',
+          extraPulseIntensity: 1.05 * baseIntensity
+        };
+      case 'SIGMA_INVASION':
+        return {
+          color: 0xff3366,
+          duration: 1.3,
+          pulseIntensity: 1.25 * baseIntensity,
+          glowIntensity: 0.85 * baseIntensity,
+          deformAmount: 0.48,
+          ringSpin: 0.32,
+          activateCrown: true
+        };
+      case 'AURORA_STATE':
+        return {
+          color: 0x44ffcc,
+          duration: 1.3,
+          pulseIntensity: 0.75 * baseIntensity,
+          glowIntensity: 1.1 * baseIntensity,
+          deformAmount: 0.12,
+          ringSpin: 0.08
+        };
+      case 'FRACTAL_STORM':
+        return {
+          color: 0xffcc44,
+          duration: 1.4,
+          pulseIntensity: 1.3 * baseIntensity,
+          glowIntensity: 0.88 * baseIntensity,
+          deformAmount: 0.6,
+          ringSpin: 0.4
+        };
+      default:
+        return {
+          color: 0xffffff,
+          duration: 1.0,
+          pulseIntensity: 0.9,
+          glowIntensity: 0.7,
+          deformAmount: 0.2,
+          ringSpin: 0.12
+        };
+    }
+  }
+
   /**
    * Trigger colony pulse animation
    */
   triggerColonyPulse(colonyId) {
-    const vfx = this.registry.colonyVFX[colonyId];
-    if (vfx && vfx.halo) {
-      vfx.halo.userData.pulseAmplitude = 0.5;
-    }
+    this.vfxManager.triggerEventPulse(colonyId, 1.0, 0.8);
   }
-  
+
   /**
    * Shift colony color (temporary)
    */
   shiftColonyColor(colonyId, targetColor) {
-    const vfx = this.registry.colonyVFX[colonyId];
-    if (vfx && vfx.halo && vfx.halo.material) {
-      vfx.halo.material.color.setHex(targetColor);
-    }
+    this.vfxManager.triggerEventColorShift(colonyId, targetColor, 1.2);
   }
-  
+
   /**
    * Intensify colony glow
    */
   intensifyColonyGlow(colonyId) {
-    const vfx = this.registry.colonyVFX[colonyId];
-    if (vfx && vfx.halo && vfx.halo.material) {
-      vfx.halo.material.opacity = Math.min(1, vfx.halo.material.opacity + 0.2);
-    }
+    this.vfxManager.intensifyEventGlow(colonyId, 0.6, 1.6);
   }
   
   /**
@@ -686,18 +974,45 @@ export class SafeColonyExpansion2 {
   }
   
   /**
+   * Trigger colony growth animation
+   */
+  triggerColonyGrowth(colonyId, fromStage, toStage) {
+    const colony = this.registry.getColony(colonyId);
+    if (!colony) return;
+
+    const color = this.vfxManager.getColorForMood(colony.mood, colony.type);
+    this.vfxManager.triggerGrowthEvent(colonyId, colony.center, color, toStage);
+
+    if (this.debugMode) {
+      console.log(`[Civilization] Growth: ${colonyId} from stage ${fromStage} to ${toStage}`);
+    }
+  }
+
+  getColonyDebugLines(colony) {
+    return [
+      colony.id,
+      `mood: ${colony.mood}`,
+      `stage: ${colony.stage}`,
+      `type: ${colony.type}`,
+      `energy: ${Math.round(colony.energy)}`
+    ];
+  }
+
+  /**
    * Trigger colony merge animation
    */
   triggerColonyMerge(colonyId) {
-    // Create a temporary visual
     const colony = this.registry.getColony(colonyId);
     if (!colony) return;
-    
+
+    const color = this.vfxManager.getColorForMood(colony.mood, colony.type);
+    this.vfxManager.triggerMergeEvent(colonyId, colony.center, color);
+
     if (this.debugMode) {
-      console.log(`[Colony] Merge event for ${colonyId}`);
+      console.log(`[Civilization] Merge event for ${colonyId}`);
     }
   }
-  
+
   /**
    * Trigger colony split animation
    */
@@ -706,7 +1021,21 @@ export class SafeColonyExpansion2 {
     if (!colony) return;
     
     const color = this.vfxManager.getColorForMood(colony.mood, colony.type);
+    this.vfxManager.triggerSplitEvent(colonyId, colony.center, color);
     this.vfxManager.triggerCollapseEvent(colonyId, colony.center, color);
+  }
+
+  triggerColonyTransformation(colonyId, targetCenter, duration = 1.0) {
+    const colony = this.registry.getColony(colonyId);
+    if (!colony) return;
+    this.vfxManager.triggerTransformationEvent(colonyId, targetCenter, duration);
+    this.vfxManager.triggerEventPulse(colonyId, 0.8, duration * 0.9);
+  }
+
+  triggerColonyRebirth(colonyId, targetCenter, duration = 0.9) {
+    const colony = this.registry.getColony(colonyId);
+    if (!colony) return;
+    this.vfxManager.triggerRebirthEvent(colonyId, targetCenter, duration);
   }
   
   /**

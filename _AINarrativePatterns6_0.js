@@ -88,11 +88,12 @@ export class AINarrativePatterns6_0 {
     // Phase B pilot: low-frequency narrative interpretation gating (semantic decisions only)
     this.interpretationInterval = 0.25; // ~4 Hz cadence for narrative decisions
     this.interpretationAccumulator = 0;
+    this.clockTime = 0;
     
     // Container for debug visualization (hidden by default)
     this.debugContainer = new THREE.Group();
     this.debugContainer.name = 'NarrativePatterns_Debug';
-    this.scene.add(this.debugContainer);
+    this.debugVisible = false;
     
     // Configuration
     this.config = {
@@ -100,6 +101,7 @@ export class AINarrativePatterns6_0 {
       minEpisodeDuration: 10000,      // 10 seconds
       maxEpisodeDuration: 40000,      // 40 seconds
       episodeCooldown: 2000,          // 2 seconds between episodes
+      maxPendingEvents: 120,
       
       // Narrative sensitivity
       tensionThreshold: 0.5,          // Transition to RISING at this tension
@@ -124,40 +126,64 @@ export class AINarrativePatterns6_0 {
       // Phase transition easing
       phaseTransitionDuration: 2000,  // 2 seconds for smooth transitions
       
-      // Motif color/style mappings (stored during episode)
+      // Motif presets and stylistic biases
       motifStyles: {
         RISING_HARMONY: {
-          colorBias: new THREE.Color(0x00ffff),    // Cyan
+          paletteBias: new THREE.Color(0x00ffff),    // Cyan-white logic
+          speedBias: 1.2,
+          opacityBias: 0.9,
+          shapeFamily: ['lotus', 'ring', 'arc'],
+          colorBias: new THREE.Color(0x00ffff),
           speedMult: 1.2,
           opacityMult: 0.9,
           shapes: ['lotus', 'ring', 'arc']
         },
         COLLAPSING_ORDER: {
-          colorBias: new THREE.Color(0xff6600),    // Orange
+          paletteBias: new THREE.Color(0xff66ff),    // Rose/violet fracture
+          speedBias: 0.9,
+          opacityBias: 0.85,
+          shapeFamily: ['shard', 'hexfrag', 'spike'],
+          colorBias: new THREE.Color(0xff6600),
           speedMult: 0.9,
           opacityMult: 0.85,
           shapes: ['shard', 'hexfrag', 'spike']
         },
         ASCENSION_TALE: {
-          colorBias: new THREE.Color(0xffff00),    // Yellow
+          paletteBias: new THREE.Color(0xeefcff),    // Ritual white-cyan
+          speedBias: 1.1,
+          opacityBias: 0.95,
+          shapeFamily: ['diamond', 'halo', 'spiral'],
+          colorBias: new THREE.Color(0xffff00),
           speedMult: 1.1,
           opacityMult: 0.95,
           shapes: ['diamond', 'halo', 'spiral']
         },
         CORRUPTION_SAGA: {
-          colorBias: new THREE.Color(0xff0033),    // Red
+          paletteBias: new THREE.Color(0x8a0052),    // Dark base, rose/violet noise
+          speedBias: 0.8,
+          opacityBias: 0.8,
+          shapeFamily: ['inverted', 'shattered', 'flicker'],
+          colorBias: new THREE.Color(0xff0033),
           speedMult: 0.8,
           opacityMult: 0.8,
           shapes: ['inverted', 'shattered', 'flicker']
         },
         STORM_LEGEND: {
-          colorBias: new THREE.Color(0xccccff),    // Light blue
+          paletteBias: new THREE.Color(0x9999ff),    // Low opacity storm memory
+          speedBias: 1.0,
+          opacityBias: 0.4,
+          shapeFamily: ['spiral', 'echo', 'arc'],
+          colorBias: new THREE.Color(0xccccff),
           speedMult: 1.0,
           opacityMult: 0.4,
           shapes: ['spiral', 'echo', 'arc']
         },
         QUIET_RECOVERY: {
-          colorBias: new THREE.Color(0x00ff99),    // Cyan-green
+          paletteBias: new THREE.Color(0x99ffe0),    // Mint-cyan stabilization
+          speedBias: 0.7,
+          opacityBias: 0.85,
+          shapeFamily: ['lens', 'arc', 'ring'],
+          colorBias: new THREE.Color(0x00ff99),
           speedMult: 0.7,
           opacityMult: 0.85,
           shapes: ['lens', 'arc', 'ring']
@@ -178,6 +204,8 @@ export class AINarrativePatterns6_0 {
     
     // Event-driven narrative triggers
     this.pendingNarrativeEvents = [];
+    this.lastClusters = [];
+    this.lastWorldMetrics = null;
   }
   
   /**
@@ -223,10 +251,10 @@ export class AINarrativePatterns6_0 {
     }
     
     // Record event for potential episode triggers
-    this.pendingNarrativeEvents.push({
+    this._enqueueNarrativeEvent({
       type: 'message',
       clusterId,
-      timestamp: Date.now(),
+      timestamp: this.clockTime,
       synergy,
       harmony,
       corruption
@@ -267,10 +295,10 @@ export class AINarrativePatterns6_0 {
     }
     
     // Record fusion event
-    this.pendingNarrativeEvents.push({
+    this._enqueueNarrativeEvent({
       type: 'fusion',
       clusterId,
-      timestamp: Date.now(),
+      timestamp: this.clockTime,
       glyphCount,
       harmony: context?.harmony ?? 0.5,
       corruption: context?.corruption ?? 0
@@ -314,10 +342,10 @@ export class AINarrativePatterns6_0 {
     }
     
     // Record procedural glyph event
-    this.pendingNarrativeEvents.push({
+    this._enqueueNarrativeEvent({
       type: 'procedural',
       clusterId,
-      timestamp: Date.now(),
+      timestamp: this.clockTime,
       learningStrength,
       hubStability
     });
@@ -331,12 +359,157 @@ export class AINarrativePatterns6_0 {
     if (!narrative) return;
     
     // Don't shift too frequently
-    const now = Date.now();
+    const now = this.clockTime;
     const lastShift = narrative.lastMotifShift || 0;
     if (now - lastShift < 3000) return; // 3 second cooldown
     
     narrative.pendingMotif = motifId;
     narrative.lastMotifShift = now;
+  }
+
+  _enqueueNarrativeEvent(event) {
+    if (this.pendingNarrativeEvents.length >= this.config.maxPendingEvents) {
+      this.pendingNarrativeEvents.shift();
+    }
+    this.pendingNarrativeEvents.push(event);
+  }
+
+  _applySemanticSignals(clusterId, narrative, metrics, worldMetrics) {
+    const targetTension = this.calculateTension(metrics);
+    narrative.tension = THREE.MathUtils.lerp(narrative.tension, targetTension, 0.08);
+    narrative.harmonyBias = THREE.MathUtils.lerp(narrative.harmonyBias || 0, metrics.harmony, 0.04);
+    narrative.corruptionBias = THREE.MathUtils.lerp(narrative.corruptionBias || 0, metrics.corruption, 0.04);
+    narrative.coherence = THREE.MathUtils.clamp(
+      narrative.coherence + (metrics.harmony - narrative.coherence) * 0.05,
+      0,
+      1
+    );
+
+    const worldMood = THREE.MathUtils.clamp(
+      worldMetrics?.harmony ?? worldMetrics?.mood ?? 0.5,
+      0,
+      1
+    );
+
+    if (worldMood > 0.65) {
+      narrative.tension = Math.max(0, narrative.tension - 0.02);
+    }
+    if (worldMood < 0.35) {
+      narrative.tension = Math.min(1, narrative.tension + 0.03);
+    }
+
+    if (metrics.corruption > 0.7 && narrative.phase === 'RISING') {
+      this._queueMotifShift(clusterId, 'CORRUPTION_SAGA');
+    } else if (metrics.harmony > 0.75 && narrative.phase === 'INTRO') {
+      this._queueMotifShift(clusterId, 'RISING_HARMONY');
+    }
+  }
+
+  processPendingNarrativeEvents() {
+    if (this.pendingNarrativeEvents.length === 0) return;
+
+    const clusterEvents = new Map();
+    for (const event of this.pendingNarrativeEvents) {
+      if (!clusterEvents.has(event.clusterId)) {
+        clusterEvents.set(event.clusterId, []);
+      }
+      clusterEvents.get(event.clusterId).push(event);
+    }
+
+    for (const [clusterId, events] of clusterEvents.entries()) {
+      const narrative = this.narrativeStates.get(clusterId);
+      if (!narrative) continue;
+
+      let messageCount = 0;
+      let fusionCount = 0;
+      let proceduralCount = 0;
+      let harmony = 0;
+      let synergy = 0;
+      let corruption = 0;
+
+      for (const event of events) {
+        if (event.type === 'message') {
+          messageCount++;
+          harmony += event.harmony;
+          synergy += event.synergy;
+          corruption += event.corruption;
+        }
+        if (event.type === 'fusion') {
+          fusionCount++;
+          corruption += event.corruption;
+        }
+        if (event.type === 'procedural') {
+          proceduralCount++;
+        }
+      }
+
+      if (messageCount > 0) {
+        harmony /= messageCount;
+        synergy /= messageCount;
+        corruption /= messageCount;
+        narrative.tension = THREE.MathUtils.clamp(
+          narrative.tension + (synergy - 0.5) * 0.04 + corruption * 0.05,
+          0,
+          1
+        );
+        narrative.harmonyBias = THREE.MathUtils.lerp(narrative.harmonyBias || 0, harmony, 0.05);
+        narrative.corruptionBias = THREE.MathUtils.lerp(narrative.corruptionBias || 0, corruption, 0.05);
+
+        if (harmony > 0.7) {
+          this._queueMotifShift(clusterId, 'RISING_HARMONY');
+        }
+      }
+
+      if (fusionCount > 0) {
+        narrative.tension = Math.min(1, narrative.tension + fusionCount * 0.08);
+      }
+
+      if (proceduralCount > 0) {
+        narrative.coherence = Math.min(1, narrative.coherence + proceduralCount * 0.04);
+      }
+
+      if (fusionCount > 0 && corruption > 0.6) {
+        this._queueMotifShift(clusterId, 'CORRUPTION_SAGA');
+      }
+    }
+
+    this.pendingNarrativeEvents.length = 0;
+  }
+
+  progressNarrativeEpisodes(deltaTime) {
+    const now = this.clockTime;
+
+    for (const [clusterId, narrative] of this.narrativeStates.entries()) {
+      const episode = this.episodeTimings.get(clusterId);
+      if (!episode) continue;
+
+      const metrics = narrative.lastMetrics || {
+        synergy: 0.5,
+        harmony: 0.5,
+        corruption: 0.5,
+        stability: 0.5,
+        consciousness: 0.5
+      };
+
+      const episodeElapsed = now - episode.startTime;
+      if (episodeElapsed > episode.duration) {
+        if (!episode.cooldownEnd) {
+          this.endEpisode(clusterId, narrative, metrics);
+          continue;
+        }
+
+        if (now < episode.cooldownEnd) {
+          narrative.phase = 'ECHO';
+          narrative.phaseProgress = THREE.MathUtils.lerp(narrative.phaseProgress, 1.0, 0.08);
+          continue;
+        }
+
+        this.startNewEpisode(clusterId, narrative, metrics, this.lastWorldMetrics);
+        continue;
+      }
+
+      this.updateNarrativePhase(narrative, metrics, episodeElapsed, episode.duration, deltaTime);
+    }
   }
   
   /**
@@ -393,34 +566,38 @@ export class AINarrativePatterns6_0 {
    */
   update(deltaTime, nodes, links, worldMetrics) {
     if (!this.enabled) return;
-    
-    // Phase B pilot: low-frequency narrative interpretation gating
-    // Narrative decisions (clusters, phases, motifs) are throttled; presentation stays frame-rate driven by consumers.
+
+    this.clockTime += deltaTime;
     this.interpretationAccumulator += deltaTime;
     const shouldInterpret = this.interpretationAccumulator >= this.interpretationInterval;
-    let clusters = [];
     const startTime = performance.now();
-    
+
     if (shouldInterpret) {
       this.interpretationAccumulator = 0;
-      
+      this.lastWorldMetrics = worldMetrics;
+
       // Build clusters from connected component analysis
-      clusters = this.identifyClusters(nodes);
-      
-      // Update narrative state for each cluster
+      const clusters = this.identifyClusters(nodes);
+      this.lastClusters = clusters;
+
+      // Semantic interpretation and event-driven narrative updates
+      this.processPendingNarrativeEvents();
       for (const cluster of clusters) {
-        this.updateNarrativeState(cluster, worldMetrics, deltaTime);
+        this.updateNarrativeState(cluster, worldMetrics);
       }
-      
+
       // Cleanup: remove narratives for dead clusters
       this.cleanupDeadNarratives(clusters);
-      
+
       this.stats.frameTime = performance.now() - startTime;
       this.stats.clustersProcessed = clusters.length;
       this.stats.activeNarratives = this.narrativeStates.size;
     }
-    
-    // Apply narrative modulation to messaging systems (continuous consumers use cached state)
+
+    // Episode progression remains continuous between semantic ticks
+    this.progressNarrativeEpisodes(deltaTime);
+
+    // Modulation output is available every frame for consumers
     this.modulateMessagingBehavior(nodes, links);
   }
   
@@ -430,6 +607,7 @@ export class AINarrativePatterns6_0 {
   identifyClusters(nodes) {
     const clusters = [];
     const visited = new Set();
+    const usedLineageIds = new Set();
     
     for (const node of nodes) {
       if (visited.has(node.id)) continue;
@@ -453,7 +631,13 @@ export class AINarrativePatterns6_0 {
       }
       
       if (cluster.length > 0) {
-        const clusterId = this.generateClusterId(cluster);
+        const nodeIds = cluster.map(n => n.id || n.uuid);
+        const lineageId = this.findClusterLineage(nodeIds, usedLineageIds);
+        const clusterId = lineageId || this.generateClusterId(cluster);
+        if (lineageId) {
+          usedLineageIds.add(lineageId);
+        }
+
         const clusterObj = {
           id: clusterId,
           nodes: cluster,
@@ -463,7 +647,7 @@ export class AINarrativePatterns6_0 {
         // Refresh narrative membership if the cluster already exists
         if (this.narrativeStates.has(clusterId)) {
           const narrative = this.narrativeStates.get(clusterId);
-          narrative.nodeIds = cluster.map(n => n.id || n.uuid);
+          narrative.nodeIds = nodeIds;
           narrative.centerPos = clusterObj.centerPos.clone ? clusterObj.centerPos.clone() : clusterObj.centerPos;
         }
 
@@ -498,6 +682,37 @@ export class AINarrativePatterns6_0 {
     const sortedIds = nodes.map(n => n.id).sort();
     return sortedIds.join('_');
   }
+
+  /**
+   * Match a new cluster to an existing narrative via node overlap.
+   */
+  findClusterLineage(nodeIds, excludedIds = new Set()) {
+    const incomingSet = new Set(nodeIds);
+    let bestMatch = null;
+    let bestOverlapRatio = 0;
+
+    for (const [clusterId, narrative] of this.narrativeStates.entries()) {
+      if (excludedIds.has(clusterId)) continue;
+      const existingIds = narrative.nodeIds || [];
+      let sharedCount = 0;
+
+      for (const id of existingIds) {
+        if (incomingSet.has(id)) sharedCount++;
+      }
+
+      if (sharedCount < 2) continue;
+
+      const unionCount = new Set([...existingIds, ...nodeIds]).size;
+      const overlapRatio = unionCount > 0 ? sharedCount / unionCount : 0;
+
+      if (overlapRatio >= 0.35 && overlapRatio > bestOverlapRatio) {
+        bestOverlapRatio = overlapRatio;
+        bestMatch = clusterId;
+      }
+    }
+
+    return bestMatch;
+  }
   
   /**
    * Compute center position of a cluster
@@ -515,35 +730,23 @@ export class AINarrativePatterns6_0 {
   /**
    * Update narrative state for a single cluster
    */
-  updateNarrativeState(cluster, worldMetrics, deltaTime) {
+  updateNarrativeState(cluster, worldMetrics) {
     const clusterId = cluster.id;
     
-    // Get or create narrative state
     if (!this.narrativeStates.has(clusterId)) {
       this.initializeNarrative(clusterId, cluster);
     }
     
     const narrative = this.narrativeStates.get(clusterId);
-    
-    // Compute current metrics for this cluster
     const metrics = this.computeClusterMetrics(cluster);
-    
-    // Update episode timing
-    const now = performance.now();
+    narrative.lastMetrics = metrics;
+    narrative.nodeIds = cluster.nodes.map(n => n.id || n.uuid);
+    narrative.centerPos = cluster.centerPos.clone ? cluster.centerPos.clone() : cluster.centerPos;
+
+    this._applySemanticSignals(clusterId, narrative, metrics, worldMetrics);
+
     if (!this.episodeTimings.has(clusterId)) {
-      this.startNewEpisode(clusterId, narrative, metrics);
-    }
-    
-    const episode = this.episodeTimings.get(clusterId);
-    const episodeElapsed = now - episode.startTime;
-    
-    // Check for episode end
-    if (episodeElapsed > episode.duration) {
-      this.endEpisode(clusterId, narrative, metrics);
-      this.startNewEpisode(clusterId, narrative, metrics);
-    } else {
-      // Update narrative parameters during episode
-      this.updateNarrativePhase(narrative, metrics, episodeElapsed, episode.duration);
+      this.startNewEpisode(clusterId, narrative, metrics, worldMetrics);
     }
   }
   
@@ -559,7 +762,7 @@ export class AINarrativePatterns6_0 {
       coherence: 0.7,
       corruptionBias: 0.0,
       harmonyBias: 0.5,
-      lastUpdateTime: performance.now(),
+      lastUpdateTime: this.clockTime,
       phaseProgress: 0,  // 0–1 for smooth transitions
       nodeIds: cluster.nodes?.map(n => n.id || n.uuid) || [],
       centerPos: cluster.centerPos?.clone?.() || null
@@ -601,32 +804,39 @@ export class AINarrativePatterns6_0 {
   /**
    * Start a new episode
    */
-  startNewEpisode(clusterId, narrative, metrics) {
-    // Select motif based on metrics
-    const motifId = this.selectMotif(metrics, narrative);
-    
-    // Duration scales with activity (synergy + consciousness)
+  startNewEpisode(clusterId, narrative, metrics, worldMetrics) {
+    const worldMood = THREE.MathUtils.clamp(
+      worldMetrics?.harmony ?? worldMetrics?.mood ?? 0.5,
+      0,
+      1
+    );
+
+    if (narrative.motifId) {
+      narrative.previousEpisodeMotif = narrative.motifId;
+    }
+
+    const motifId = this.selectMotif(metrics, narrative, worldMood);
     const activity = Math.max(0, metrics.synergy + metrics.consciousness);
     const duration = THREE.MathUtils.lerp(
       this.config.minEpisodeDuration,
       this.config.maxEpisodeDuration,
-      Math.min(1, activity * 0.5)
+      Math.min(1, activity * 0.5 + worldMood * 0.15)
     );
     
     narrative.motifId = motifId;
     narrative.phase = 'INTRO';
     narrative.phaseProgress = 0;
     
-    // Push to history
     const history = this.motifHistory.get(clusterId);
     history.push(motifId);
     if (history.length > 10) history.shift();  // Keep last 10
     
     this.episodeTimings.set(clusterId, {
-      startTime: performance.now(),
+      startTime: this.clockTime,
       duration: duration,
       motifId: motifId,
-      phase: 'INTRO'
+      phase: 'INTRO',
+      cooldownEnd: null
     });
   }
   
@@ -634,58 +844,88 @@ export class AINarrativePatterns6_0 {
    * End current episode and prepare for next
    */
   endEpisode(clusterId, narrative, metrics) {
-    // Move to ECHO phase before ending
     narrative.phase = 'ECHO';
     narrative.phaseProgress = 1.0;
-    // Phase B pilot: ensure next tick re-evaluates semantics promptly
+
+    const episode = this.episodeTimings.get(clusterId);
+    if (episode) {
+      episode.cooldownEnd = this.clockTime + this.config.episodeCooldown;
+      this.episodeTimings.set(clusterId, episode);
+    }
+
     this.interpretationAccumulator = this.interpretationInterval;
   }
   
   /**
    * Update narrative phase based on elapsed time and metrics
    */
-  updateNarrativePhase(narrative, metrics, elapsed, duration) {
-    const progress = elapsed / duration;  // 0–1 over episode
+  updateNarrativePhase(narrative, metrics, elapsed, duration, deltaTime) {
+    const progress = THREE.MathUtils.clamp(elapsed / duration, 0, 1);
     
-    // Calculate tension from metrics
     const tension = this.calculateTension(metrics);
-    narrative.tension = THREE.MathUtils.lerp(narrative.tension, tension, 0.1);
+    narrative.tension = THREE.MathUtils.lerp(narrative.tension, tension, 0.08);
     
-    // Phase transitions driven by both time and tension
-    const phaseTransitionTime = this.config.phaseTransitionDuration / 1000;  // in seconds
+    const phaseScores = {
+      INTRO: THREE.MathUtils.clamp((0.18 - progress) / 0.18, 0, 1) * (1 - narrative.tension * 0.15),
+      RISING: THREE.MathUtils.clamp((progress - 0.1) / 0.25, 0, 1) * (1 - narrative.tension * 0.2),
+      CLIMAX: THREE.MathUtils.clamp((progress - 0.3) / 0.5, 0, 1) * narrative.tension,
+      RESOLVE: THREE.MathUtils.clamp((progress - 0.7) / 0.2, 0, 1) * (1 - narrative.tension * 0.4),
+      ECHO: THREE.MathUtils.clamp((progress - 0.88) / 0.12, 0, 1)
+    };
     
-    if (progress < 0.1) {
-      narrative.phase = 'INTRO';
-      narrative.phaseProgress = progress / 0.1;
-    } else if (progress < 0.3 || narrative.tension < this.config.tensionThreshold) {
-      narrative.phase = 'RISING';
-      narrative.phaseProgress = (progress - 0.1) / 0.2;
-    } else if (
-      progress < 0.8 &&
-      narrative.tension > this.config.climaxThreshold
-    ) {
-      narrative.phase = 'CLIMAX';
-      narrative.phaseProgress = (progress - 0.3) / 0.5;
-    } else if (progress < 0.9) {
-      narrative.phase = 'RESOLVE';
-      narrative.phaseProgress = (progress - 0.8) / 0.1;
-    } else {
-      narrative.phase = 'ECHO';
-      narrative.phaseProgress = (progress - 0.9) / 0.1;
+    if (narrative.tension > this.config.climaxThreshold) {
+      phaseScores.CLIMAX += 0.18;
+    }
+    if (narrative.tension < this.config.resolveThreshold && progress > 0.4) {
+      phaseScores.RESOLVE += 0.15;
     }
     
-    // Update coherence based on harmony
+    let bestPhase = narrative.phase;
+    let bestScore = -Infinity;
+    for (const [phase, score] of Object.entries(phaseScores)) {
+      if (score > bestScore) {
+        bestScore = score;
+        bestPhase = phase;
+      }
+    }
+    
+    const phaseRanges = {
+      INTRO: [0, 0.18],
+      RISING: [0.1, 0.35],
+      CLIMAX: [0.3, 0.8],
+      RESOLVE: [0.7, 0.92],
+      ECHO: [0.88, 1.0]
+    };
+    const [phaseStart, phaseEnd] = phaseRanges[bestPhase] || [0, 1];
+    const rawPhaseProgress = THREE.MathUtils.clamp((progress - phaseStart) / Math.max(0.01, phaseEnd - phaseStart), 0, 1);
+    const smoothFactor = Math.min(1, deltaTime / (this.config.phaseTransitionDuration / 1000));
+    
+    narrative.phase = bestPhase;
+    narrative.phaseProgress = THREE.MathUtils.lerp(narrative.phaseProgress, rawPhaseProgress, smoothFactor);
+    
     narrative.coherence = THREE.MathUtils.lerp(
       narrative.coherence,
       0.5 + metrics.harmony * 0.5,
       0.05
     );
+
+    const attack = THREE.MathUtils.clamp(progress / 0.1, 0, 1);
+    const build = THREE.MathUtils.clamp((progress - 0.1) / 0.2, 0, 1);
+    const crest = THREE.MathUtils.clamp((progress - 0.3) / 0.5, 0, 1);
+    const release = THREE.MathUtils.clamp((progress - 0.8) / 0.1, 0, 1);
+    const afterglow = THREE.MathUtils.clamp((progress - 0.9) / 0.1, 0, 1);
+
+    narrative.episodeEnvelope = {
+      attack,
+      build,
+      crest,
+      release,
+      afterglow
+    };
     
-    // Process pending motif shifts from events
     if (narrative.pendingMotif) {
       narrative.motifId = narrative.pendingMotif;
       narrative.pendingMotif = null;
-      // Add to history
       const history = this.motifHistory.get(narrative.id) || [];
       history.push(narrative.motifId);
       if (history.length > 10) history.shift();
@@ -717,58 +957,75 @@ export class AINarrativePatterns6_0 {
   /**
    * Select a motif based on current metrics and history
    */
-  selectMotif(metrics, narrative) {
+  selectMotif(metrics, narrative, worldMood = 0.5) {
     const history = this.motifHistory.get(narrative.id) || [];
-    
-    // Prefer variety (avoid repeating last motif)
     const lastMotif = history.length > 0 ? history[history.length - 1] : null;
-    
-    // Score each motif
+    const recentMotifs = new Set(history.slice(-3));
+    const lastEpisodeMotif = narrative.previousEpisodeMotif;
+    const phase = narrative.phase || 'INTRO';
+    const echoResolveFlag = phase === 'ECHO' || phase === 'RESOLVE';
+    const worldTags = Array.isArray(this.lastWorldMetrics?.globalTags) ? this.lastWorldMetrics.globalTags : [];
+    const isStormMood = worldTags.includes('storm') || worldTags.includes('tempest');
     const scores = {};
     const motifKeys = Object.keys(this.config.motifStyles);
-    
+
     for (const motifId of motifKeys) {
-      let score = Math.random() * 0.5;  // Base randomness
-      
-      // Corruption favors CORRUPTION_SAGA
-      if (metrics.corruption > 0.6 && motifId === 'CORRUPTION_SAGA') {
-        score += 0.8;
+      let score = 0;
+
+      switch (motifId) {
+        case 'RISING_HARMONY':
+          score = metrics.harmony * 0.8 + metrics.synergy * 0.15;
+          if (phase === 'INTRO' || phase === 'RISING') score += 0.18;
+          score += worldMood * 0.12;
+          break;
+        case 'COLLAPSING_ORDER':
+          score = (1 - metrics.stability) * 0.75 + metrics.corruption * 0.3;
+          if (phase === 'CLIMAX') score += 0.16;
+          if (worldMood < 0.45) score += 0.15;
+          break;
+        case 'ASCENSION_TALE':
+          score = metrics.consciousness * 0.85 + metrics.harmony * 0.2;
+          if (phase === 'CLIMAX') score += 0.15;
+          break;
+        case 'CORRUPTION_SAGA':
+          score = metrics.corruption * 0.85 + (1 - metrics.harmony) * 0.25;
+          if (phase === 'CLIMAX') score += 0.16;
+          if (worldMood < 0.45) score += 0.18;
+          break;
+        case 'STORM_LEGEND':
+          score = metrics.synergy * 0.4 + metrics.corruption * 0.35;
+          if (phase === 'ECHO') score += 0.18;
+          if (isStormMood) score += 0.22;
+          break;
+        case 'QUIET_RECOVERY':
+          score = metrics.harmony * 0.75 + (1 - metrics.corruption) * 0.25;
+          if (phase === 'RESOLVE' || phase === 'ECHO') score += 0.25;
+          if (worldMood > 0.6) score += 0.12;
+          break;
       }
-      
-      // Harmony favors RISING_HARMONY and QUIET_RECOVERY
-      if (metrics.harmony > 0.6) {
-        if (motifId === 'RISING_HARMONY') score += 0.7;
-        if (motifId === 'QUIET_RECOVERY') score += 0.5;
-      }
-      
-      // Consciousness favors ASCENSION_TALE
-      if (metrics.consciousness > 0.7 && motifId === 'ASCENSION_TALE') {
-        score += 0.7;
-      }
-      
-      // Low stability favors COLLAPSING_ORDER
-      if (metrics.stability < 0.3 && motifId === 'COLLAPSING_ORDER') {
-        score += 0.7;
-      }
-      
-      // Penalize repeated motifs
+
       if (motifId === lastMotif) {
-        score *= 0.3;
+        score += 0.18;
       }
-      
+      if (motifId === lastEpisodeMotif && echoResolveFlag) {
+        score += 0.22;
+      }
+      if (recentMotifs.has(motifId)) {
+        score *= 0.8;
+      }
+
       scores[motifId] = score;
     }
-    
-    // Select highest score
-    let bestMotif = 'RISING_HARMONY';
-    let bestScore = -1;
-    for (const [motifId, score] of Object.entries(scores)) {
-      if (score > bestScore) {
-        bestScore = score;
+
+    let bestMotif = motifKeys[0];
+    let bestScore = -Infinity;
+    for (const motifId of motifKeys) {
+      if (scores[motifId] > bestScore) {
+        bestScore = scores[motifId];
         bestMotif = motifId;
       }
     }
-    
+
     return bestMotif;
   }
   
@@ -841,15 +1098,45 @@ export class AINarrativePatterns6_0 {
     
     const phaseMult = phaseMultipliers[phase] || phaseMultipliers.INTRO;
     
+    const intensity = THREE.MathUtils.clamp(cluster.tension * 0.8 + (1 - cluster.coherence) * 0.2, 0, 1);
+    const mood = cluster.tension > 0.65 ? 'tense' : cluster.coherence > 0.65 ? 'calm' : 'balanced';
+    const phaseSignature = {
+      INTRO: 'seed motif, sparse opening, minimal density',
+      RISING: 'building complexity, longer chains, narrative tension',
+      CLIMAX: 'peak density, overlapping motifs, high contrast',
+      RESOLVE: 'fewer elements, softer motion, harmonizing closure',
+      ECHO: 'ghost-like trails, low opacity, lingering memory'
+    }[phase] || 'balanced progression';
+    const motifSignature = {
+      RISING_HARMONY: 'lotus/ring/arc, cyan-white logic, upward coherence',
+      COLLAPSING_ORDER: 'shard/hexfrag/spike, rose-violet fracture, ordered decay',
+      ASCENSION_TALE: 'diamond/halo/spiral, ritual white-cyan ascent',
+      CORRUPTION_SAGA: 'inverted/shattered/flicker, dark base, rose-violet disruption',
+      STORM_LEGEND: 'spiral/echo/arc, low opacity storm echo memory',
+      QUIET_RECOVERY: 'lens/arc/ring, mint-cyan stabilization and closure'
+    }[cluster.motifId] || 'narrative motif';
     return {
       chainLengthMult: phaseMult.chainLength,
       messageFreqMult: phaseMult.messageFreq,
       opacityMult: motifStyle?.opacityMult || 1.0,
       speedMult: motifStyle?.speedMult || 1.0,
+      paletteBias: motifStyle?.paletteBias || motifStyle?.colorBias || new THREE.Color(0xffffff),
+      opacityBias: motifStyle?.opacityBias ?? motifStyle?.opacityMult ?? 1.0,
+      speedBias: motifStyle?.speedBias ?? motifStyle?.speedMult ?? 1.0,
       colorBias: motifStyle?.colorBias || new THREE.Color(0xffffff),
+      shapeFamily: motifStyle?.shapeFamily || motifStyle?.shapes || [],
       phase: phase,
       motifId: cluster.motifId,
-      coherence: cluster.coherence
+      coherence: cluster.coherence,
+      narrativeTone: {
+        intensity,
+        mood,
+        phaseSignature,
+        motifSignature,
+        phaseProgress: cluster.phaseProgress,
+        motifShapes: motifStyle?.shapes || [],
+        historyInfluence: (this.motifHistory.get(cluster.id)?.length || 0) / 10
+      }
     };
   }
   

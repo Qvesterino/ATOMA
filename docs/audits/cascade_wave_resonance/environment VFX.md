@@ -118,6 +118,48 @@ SigmaRiftChamber, DreamDesert, QuantumIsland, FractalValley, MemoryLane
 Stav: conditional
 Trigger: vytvoria sa len keď currentMode zodpovedá danej mape/world-u.
 Evidence: main.js:6318, main.js:6331, main.js:6338, main.js:6345
+
+## Art Direction Sheet
+
+### Core visual language
+- civilization bloom
+- living lattice
+- sacred growth ring
+- pulse crown
+- coherence halo
+- organismic architecture
+
+### Colors
+- ATOMA cyan: `#6DEAFF`
+- growth mint: `#77F7DB`
+- ritual white: `#F7FBFF`
+- quantum violet: `#D07BFF`
+- breach rose: `#FF73CF`
+- void deep: `#05131A`
+
+### Geometry palette
+- `SphereGeometry` for core / nucleus forms
+- `TorusGeometry` for growth rings
+- `RingGeometry` for status halos and sigils
+- `PlaneGeometry` for soft atmosphere sheets
+- `Points` / small `SphereGeometry` for colony particles
+- `Line` / `BufferGeometry` for coherence arcs and colony bridges
+
+### Mood mapping
+- `DEFAULT`: čistý cyan-white growth, jemný halo ring
+- `LEGENDARY`: crown + stronger core, viac white contrastu
+- `QUANTUM`: violet edges, trochu priehľadnejšie ringy
+- `SIGMA`: rose/violet crack accents, ostrejší motion
+
+> Subtílne mood states v registry by mali meniť len bias, nie celý vizuál.
+
+### Motion signature
+- colony = breathing
+- merge = resonance
+- split = cracking + new core
+- growth = orbit expansion
+- legendary = crown ignition
+
 Vizuál: map-specific background/environment geometra a world ambience.
 
 CognitiveHorizonPlane

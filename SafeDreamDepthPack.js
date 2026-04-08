@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 /**
  * SafeDreamDepthPack.js - AI Depth-of-Field Simulation (Pure VFX)
@@ -12,6 +13,9 @@ import VisualTime from './src/time/VisualTime.js';
  * - NO rotation enforcement
  * 
  * Only screen-space overlays, color modulation, and soft masking
+ *
+ * Role split: this class remains a low-cost fallback depth layer.
+ * Complex DOF orchestration belongs to DreamDepthEffectManager.
  */
 
 export class SafeDreamDepthPack {
@@ -26,13 +30,32 @@ export class SafeDreamDepthPack {
     this.vfxContainer.name = 'dream-depth-vfx';
     this.root.add(this.vfxContainer);
     
-    // Screen-space overlay quad (for all effects)
-    this.overlayQuad = null;
-    this.setupOverlayQuad();
-    
-    // Textures for masks and gradients
+    // Screen-space overlay stack (for layered DOF effects)
     this.vignetteTexture = this.createVignetteMask();
     this.focusTexture = this.createFocusMask();
+    this.screenState = {
+      vignetteOpacity: 0,
+      focusOpacity: 0,
+      pulseOpacity: 0,
+      glazeOpacity: 0,
+      desaturation: 0,
+      contrast: 0,
+      warmthTint: 0,
+      vignetteColor: new THREE.Color(0xc8f2ff),
+      pulseColor: new THREE.Color(0xeafbff),
+      glazeColor: new THREE.Color(0xffd7c0)
+    };
+    this.screenLayers = {
+      vignetteLayer: null,
+      focusLayer: null,
+      pulseLayer: null,
+      glazeLayer: null
+    };
+    this.glazeBaseColor = new THREE.Color(0xffd7c0);
+    this.intensityScale = 1.0;
+    this.lastPulseTime = 0;
+    this.pulseCooldown = 0.15;
+    this.setupOverlayQuad();
     
     // State tracking
     this.isActive = true;
@@ -109,33 +132,58 @@ export class SafeDreamDepthPack {
    * Create overlay quad for screen-space effects
    */
   setupOverlayQuad() {
-    // Create full-screen quad
-    const geometry = new THREE.PlaneGeometry(2, 2);
-    
-    // Use canvas-based approach for maximum safety
-    // No custom shader - just color modulation through material
-    const material = new THREE.MeshBasicMaterial({
-      color: 0x000000,
+    this.screenGeometry = new THREE.PlaneGeometry(2, 2);
+    const geometry = this.screenGeometry;
+
+    const baseRenderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_OVERLAY');
+
+    this.screenLayers.vignetteLayer = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+      map: this.vignetteTexture,
       transparent: true,
       opacity: 0,
       depthTest: false,
       depthWrite: false
-    });
-    
-    this.overlayQuad = new THREE.Mesh(geometry, material);
-    this.overlayQuad.position.z = 0.1; // In front of everything
-    // PHASE 3B→4: move overlay into world space (WORLD_OVERLAY)
-    this.overlayQuad.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_OVERLAY'); // Render last
-    
-    this.overlayQuad.userData = {
-      type: 'dream-depth-overlay',
-      vignetteOpacity: 0,
-      desaturation: 0,
-      contrast: 0,
-      warmthTint: 0
-    };
-    
-    this.vfxContainer.add(this.overlayQuad);
+    }));
+    this.screenLayers.vignetteLayer.renderOrder = baseRenderOrder;
+    this.screenLayers.vignetteLayer.position.z = 0.1;
+
+    this.screenLayers.focusLayer = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+      map: this.focusTexture,
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      depthWrite: false
+    }));
+    this.screenLayers.focusLayer.renderOrder = baseRenderOrder;
+    this.screenLayers.focusLayer.position.z = 0.11;
+
+    this.screenLayers.pulseLayer = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    }));
+    this.screenLayers.pulseLayer.renderOrder = baseRenderOrder;
+    this.screenLayers.pulseLayer.position.z = 0.12;
+
+    this.screenLayers.glazeLayer = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+      color: this.glazeBaseColor,
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      depthWrite: false
+    }));
+    this.screenLayers.glazeLayer.renderOrder = baseRenderOrder;
+    this.screenLayers.glazeLayer.position.z = 0.13;
+
+    this.vfxContainer.add(
+      this.screenLayers.vignetteLayer,
+      this.screenLayers.focusLayer,
+      this.screenLayers.pulseLayer,
+      this.screenLayers.glazeLayer
+    );
   }
   
   /**
@@ -226,22 +274,24 @@ export class SafeDreamDepthPack {
    * Apply baseline DOF illusion
    */
   applyBaselineDOF(deltaTime) {
-    if (!this.overlayQuad) return;
+    if (!this.screenLayers.vignetteLayer) return;
     
     const stability = this.getStabilityFactor();
-    const userData = this.overlayQuad.userData;
+    const state = this.screenState;
     
     // Baseline vignette (always on)
-    const targetVignette = this.config.vignette.opacity * stability;
-    userData.vignetteOpacity += (targetVignette - userData.vignetteOpacity) * 0.1;
+    const scale = this.intensityScale;
+    const targetVignette = this.config.vignette.opacity * stability * scale;
+    state.vignetteOpacity += (targetVignette - state.vignetteOpacity) * 0.1;
+    this.screenLayers.vignetteLayer.material.opacity = state.vignetteOpacity;
     
     // Baseline desaturation
-    const targetDesaturation = this.config.desaturation.background * stability;
-    userData.desaturation += (targetDesaturation - userData.desaturation) * 0.08;
+    const targetDesaturation = this.config.desaturation.background * stability * scale;
+    state.desaturation += (targetDesaturation - state.desaturation) * 0.08;
     
     // Baseline contrast (subtle center boost)
-    const targetContrast = this.config.contrast.centerBoost * stability;
-    userData.contrast += (targetContrast - userData.contrast) * 0.1;
+    const targetContrast = this.config.contrast.centerBoost * stability * scale;
+    state.contrast += (targetContrast - state.contrast) * 0.1;
   }
   
   /**
@@ -253,23 +303,38 @@ export class SafeDreamDepthPack {
       this.focusTransition = Math.max(0, this.focusTransition - 0.05);
       return;
     }
-    
-    // Find closest target to camera center
-    let closestTarget = null;
-    let closestDistance = Infinity;
-    
+
+    let bestTarget = null;
+    let bestScore = -Infinity;
+    const cameraPos = this.camera.position;
+
+    const stageMap = {
+      ritual: 1.0,
+      late: 0.8,
+      active: 0.7,
+      mid: 0.5,
+      early: 0.3,
+      passive: 0.2
+    };
+
     for (const target of targets) {
-      if (!target.position) continue;
-      
-      const distance = this.camera.position.distanceTo(target.position);
-      if (distance < closestDistance) {
-        closestDistance = distance;
-        closestTarget = target;
+      if (!target || !target.position) continue;
+
+      const distance = cameraPos.distanceTo(target.position);
+      const importance = typeof target.importance === 'number' ? target.importance : (typeof target.priority === 'number' ? target.priority : 0);
+      const legendary = target.legendary || target.isLegendary || target.legendary === true ? 1 : 0;
+      const stage = typeof target.stage === 'string' ? (stageMap[target.stage.toLowerCase()] ?? 0) : (typeof target.stage === 'number' ? Math.min(1, Math.max(0, target.stage / 10)) : 0);
+      const distanceScore = Math.max(0, 1 - Math.min(distance / 120, 1));
+      const score = importance * 1.2 + legendary * 1.8 + stage * 1.0 + distanceScore * 1.3;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestTarget = target;
       }
     }
-    
-    if (closestTarget) {
-      this.currentFocus = closestTarget;
+
+    if (bestTarget) {
+      this.currentFocus = bestTarget;
       this.focusTransition = Math.min(1.0, this.focusTransition + 0.1);
     }
   }
@@ -280,9 +345,9 @@ export class SafeDreamDepthPack {
   applyFocusEffect(deltaTime) {
     if (!this.currentFocus || this.focusTransition < 0.01) return;
     
-    if (!this.overlayQuad) return;
+    if (!this.screenLayers.focusLayer) return;
     
-    const userData = this.overlayQuad.userData;
+    const state = this.screenState;
     const t = this.focusTransition;
     
     // Boost focus effects
@@ -290,30 +355,46 @@ export class SafeDreamDepthPack {
     const vignetteBoost = this.config.focus.vignetteIncrease * t;
     const fadeBoost = this.config.focus.backgroundFade * t;
     
-    userData.vignetteOpacity += vignetteBoost * 0.1;
-    userData.desaturation += fadeBoost * 0.08;
-    userData.contrast += focusBoost * 0.1;
+    // Tighter clarity, reduced edge darkness, warm glaze
+    state.vignetteOpacity = Math.max(0, state.vignetteOpacity - 0.03);
+    state.desaturation += fadeBoost * 0.08;
+    state.contrast += focusBoost * 0.12;
+    state.focusOpacity += t * 0.06;
+    state.focusOpacity = Math.min(0.22, state.focusOpacity);
+    state.glazeOpacity += 0.03 * t;
+    state.warmthTint += 0.02 * t;
+    this.screenLayers.focusLayer.material.opacity = state.focusOpacity;
   }
   
   /**
    * Trigger depth pulse (on synergy spike or legendary event)
    */
   triggerDepthPulse() {
+    const now = performance.now();
+    const recentPulse = this.activePulses[this.activePulses.length - 1];
+    if (recentPulse && now - this.lastPulseTime < this.pulseCooldown) {
+      recentPulse.maxIntensity = Math.min(this.config.pulse.maxIntensity * 1.5, recentPulse.maxIntensity + this.config.pulse.maxIntensity * 0.35);
+      recentPulse.elapsed = 0;
+      this.lastPulseTime = now;
+      return;
+    }
+
     const pulse = {
       elapsed: 0,
       duration: this.config.pulse.duration,
       intensity: 0,
       maxIntensity: this.config.pulse.maxIntensity,
-      startTime: performance.now()
+      startTime: now
     };
-    
     this.activePulses.push(pulse);
+    this.lastPulseTime = now;
   }
   
   /**
    * Update depth pulses
    */
   updateDepthPulses(deltaTime) {
+    const state = this.screenState;
     for (let i = this.activePulses.length - 1; i >= 0; i--) {
       const pulse = this.activePulses[i];
       pulse.elapsed += deltaTime;
@@ -329,49 +410,113 @@ export class SafeDreamDepthPack {
       pulse.intensity = pulse.maxIntensity * Math.sin(progress * Math.PI);
     }
     
-    // Apply all active pulses
-    if (!this.overlayQuad) return;
-    
-    const userData = this.overlayQuad.userData;
     let pulseEffect = 0;
-    
     for (const pulse of this.activePulses) {
       pulseEffect += pulse.intensity;
     }
     
-    userData.contrast += pulseEffect * 0.1;
+    state.contrast += pulseEffect * 0.12;
+    state.pulseOpacity = Math.min(0.24, pulseEffect * 0.9);
+    if (this.screenLayers.pulseLayer) {
+      this.screenLayers.pulseLayer.material.opacity = state.pulseOpacity;
+      this.screenLayers.pulseLayer.material.color.copy(state.pulseColor);
+    }
   }
   
   /**
    * Apply dream glaze (micro-bloom, warmth tint)
    */
   applyDreamGlaze(deltaTime) {
-    if (!this.overlayQuad) return;
+    if (!this.screenLayers.glazeLayer) return;
     
-    const userData = this.overlayQuad.userData;
+    const state = this.screenState;
     
     // Micro-bloom (always subtle)
-    const targetGlaze = this.config.glaze.microBloom;
-    userData.warmthTint += (targetGlaze - userData.warmthTint) * 0.05;
+    const targetGlaze = this.config.glaze.microBloom * this.intensityScale;
+    state.glazeOpacity += (targetGlaze - state.glazeOpacity) * 0.05;
+    state.warmthTint += (this.config.glaze.warmthTint * this.intensityScale - state.warmthTint) * 0.05;
+    if (this.screenLayers.glazeLayer) {
+      this.screenLayers.glazeLayer.material.opacity = state.glazeOpacity;
+      this.screenLayers.glazeLayer.material.color.lerpColors(
+        new THREE.Color(0x000000),
+        state.vignetteColor,
+        state.warmthTint
+      );
+    }
   }
   
   /**
    * Apply weather-based tinting
    */
+  normalizeWeatherCondition(weatherCondition) {
+    const translation = {
+      QUANTUM_STORM: 'stormBias',
+      FRACTAL_FOG: 'ascensionHaze',
+      AURORA_WINDS: 'resonance',
+      calm: 'calm',
+      pressure: 'pressure',
+      resonance: 'resonance',
+      stormBias: 'stormBias',
+      ascensionHaze: 'ascensionHaze'
+    };
+
+    if (!weatherCondition) return null;
+    if (typeof weatherCondition === 'object' && weatherCondition.type) {
+      return translation[weatherCondition.type] || null;
+    }
+    return translation[weatherCondition] || null;
+  }
+
   applyWeatherEffects(weatherCondition) {
-    if (!this.overlayQuad) return;
-    
-    const userData = this.overlayQuad.userData;
-    
-    if (weatherCondition === 'QUANTUM_STORM') {
-      // Softer haze
-      userData.vignetteOpacity += 0.02;
-    } else if (weatherCondition === 'FRACTAL_FOG') {
-      // Slight desaturation boost
-      userData.desaturation += 0.02;
-    } else if (weatherCondition === 'AURORA_WINDS') {
-      // Light color tinting
-      userData.warmthTint += 0.01;
+    const normalizedWeather = this.normalizeWeatherCondition(weatherCondition);
+    const state = this.screenState;
+    if (!state || !normalizedWeather) return;
+
+    switch (normalizedWeather) {
+      case 'calm':
+        state.vignetteColor.setHex(0xe8ffff);
+        state.focusOpacity = Math.min(0.12, state.focusOpacity + 0.02);
+        state.contrast += 0.01;
+        break;
+      case 'pressure':
+        state.vignetteColor.setHex(0x8f78c8);
+        state.vignetteOpacity += 0.02;
+        state.contrast += 0.02;
+        state.warmthTint = Math.min(0.02, state.warmthTint + 0.01);
+        break;
+      case 'resonance':
+        state.vignetteColor.setHex(0x9fffe8);
+        state.focusOpacity = Math.min(0.14, state.focusOpacity + 0.02);
+        state.pulseColor.setHex(0x95ffdf);
+        state.warmthTint += 0.005;
+        break;
+      case 'stormBias':
+        state.vignetteColor.setHex(0xca87e8);
+        state.vignetteOpacity += 0.035;
+        state.pulseOpacity += 0.04;
+        state.pulseColor.setHex(0xe8b4ff);
+        break;
+      case 'ascensionHaze':
+        state.vignetteColor.setHex(0xffffff);
+        state.glazeOpacity += 0.03;
+        state.warmthTint += 0.02;
+        state.pulseColor.setHex(0xffffff);
+        break;
+      default:
+        break;
+    }
+    if (this.screenLayers.vignetteLayer) {
+      this.screenLayers.vignetteLayer.material.color.copy(state.vignetteColor);
+    }
+    if (this.screenLayers.pulseLayer) {
+      this.screenLayers.pulseLayer.material.color.copy(state.pulseColor);
+    }
+    if (this.screenLayers.glazeLayer) {
+      this.screenLayers.glazeLayer.material.color.lerpColors(
+        new THREE.Color(0x000000),
+        state.vignetteColor,
+        state.warmthTint
+      );
     }
   }
   
@@ -379,23 +524,34 @@ export class SafeDreamDepthPack {
    * Apply all effects to screen through color modulation
    */
   applyEffectsToScreen(deltaTime) {
-    if (!this.overlayQuad) return;
-    
-    const userData = this.overlayQuad.userData;
-    
+    if (!this.screenLayers.vignetteLayer) return;
+
+    const state = this.screenState;
+
     // Clamp values
-    userData.vignetteOpacity = Math.min(0.15, Math.max(0, userData.vignetteOpacity));
-    userData.desaturation = Math.min(0.08, Math.max(0, userData.desaturation));
-    userData.contrast = Math.min(0.08, Math.max(0, userData.contrast));
-    userData.warmthTint = Math.min(0.03, Math.max(0, userData.warmthTint));
-    
-    // Update material properties
-    if (userData.vignetteOpacity > 0.001) {
-      this.overlayQuad.material.opacity = userData.vignetteOpacity;
-      this.overlayQuad.material.color.setHex(0x000000);
-    } else {
-      this.overlayQuad.material.opacity = 0;
-    }
+    state.vignetteOpacity = Math.min(0.15, Math.max(0, state.vignetteOpacity));
+    state.focusOpacity = Math.min(0.2, Math.max(0, state.focusOpacity));
+    state.pulseOpacity = Math.min(0.25, Math.max(0, state.pulseOpacity));
+    state.glazeOpacity = Math.min(0.12, Math.max(0, state.glazeOpacity));
+    state.desaturation = Math.min(0.08, Math.max(0, state.desaturation));
+    state.contrast = Math.min(0.08, Math.max(0, state.contrast));
+    state.warmthTint = Math.min(0.03, Math.max(0, state.warmthTint));
+
+    this.screenLayers.vignetteLayer.material.opacity = state.vignetteOpacity;
+    this.screenLayers.focusLayer.material.opacity = state.focusOpacity;
+    this.screenLayers.pulseLayer.material.opacity = state.pulseOpacity;
+    this.screenLayers.glazeLayer.material.opacity = state.glazeOpacity;
+    this.screenLayers.glazeLayer.material.color.lerpColors(
+      new THREE.Color(0x000000),
+      this.glazeBaseColor,
+      state.warmthTint
+    );
+
+    // Apply per-layer blending/composite state
+    this.screenLayers.vignetteLayer.visible = state.vignetteOpacity > 0.001;
+    this.screenLayers.focusLayer.visible = state.focusOpacity > 0.001;
+    this.screenLayers.pulseLayer.visible = state.pulseOpacity > 0.001;
+    this.screenLayers.glazeLayer.visible = state.glazeOpacity > 0.001;
   }
   
   /**
@@ -411,8 +567,8 @@ export class SafeDreamDepthPack {
       const rollAmount = Math.abs(this.camera.rotation.z);
       const damping = Math.max(0.5, 1.0 - rollAmount);
       
-      if (this.overlayQuad && this.overlayQuad.userData) {
-        this.overlayQuad.userData.vignetteOpacity *= damping;
+      if (this.screenState) {
+        this.screenState.vignetteOpacity *= damping;
       }
     }
   }
@@ -521,8 +677,28 @@ export class SafeDreamDepthPack {
    * Trigger DOF effect on world event
    */
   onWorldEvent(eventType) {
-    if (eventType === 'COSMIC_PULSE' || eventType === 'QUANTUM_ECLIPSE') {
+    const normalizedType = typeof eventType === 'string'
+      ? eventType.toUpperCase()
+      : (eventType?.type ? String(eventType.type).toUpperCase() : '');
+
+    const pulseEvents = new Set([
+      'COSMIC_PULSE',
+      'QUANTUM_ECLIPSE',
+      'LUMINESCENT_BURST',
+      'STARFALL',
+      'SYNTHESIS_RITUAL',
+      'WEATHER_SHIFT',
+      'AETHER_SURGE'
+    ]);
+
+    if (pulseEvents.has(normalizedType) || /PULSE|ECLIPSE|BURST|SURGE|RITUAL|STARFALL/.test(normalizedType)) {
       this.triggerDepthPulse();
+      return;
+    }
+
+    // Additional world events may also drive a subtle focus change
+    if (/EVENT|PHASE|SHIFT|BLOOM/.test(normalizedType)) {
+      this.focusTransition = Math.min(1.0, this.focusTransition + 0.08);
     }
   }
   
@@ -530,13 +706,7 @@ export class SafeDreamDepthPack {
    * Set DOF intensity (0.0 = off, 1.0 = full)
    */
   setIntensity(value) {
-    value = Math.max(0, Math.min(1, value));
-    
-    // Scale all effects
-    const factor = value;
-    this.config.vignette.opacity *= factor;
-    this.config.desaturation.background *= factor;
-    this.config.contrast.centerBoost *= factor;
+    this.intensityScale = Math.max(0, Math.min(1, value));
   }
   
   /**
@@ -544,8 +714,11 @@ export class SafeDreamDepthPack {
    */
   setActive(active) {
     this.isActive = active;
-    if (this.overlayQuad) {
-      this.overlayQuad.visible = active;
+    if (this.screenLayers.vignetteLayer) {
+      this.screenLayers.vignetteLayer.visible = active;
+      this.screenLayers.focusLayer.visible = active;
+      this.screenLayers.pulseLayer.visible = active;
+      this.screenLayers.glazeLayer.visible = active;
     }
   }
   
@@ -553,15 +726,18 @@ export class SafeDreamDepthPack {
    * Get debug info
    */
   getDebugInfo() {
+    const state = this.screenState;
     return {
       active: this.isActive,
       currentFocus: this.currentFocus ? 'active' : 'none',
       focusTransition: this.focusTransition.toFixed(2),
       activePulses: this.activePulses.length,
-      overlayOpacity: this.overlayQuad?.material.opacity.toFixed(3),
-      vignette: this.overlayQuad?.userData.vignetteOpacity.toFixed(3),
-      desaturation: this.overlayQuad?.userData.desaturation.toFixed(3),
-      contrast: this.overlayQuad?.userData.contrast.toFixed(3)
+      vignette: state?.vignetteOpacity?.toFixed(3),
+      focus: state?.focusOpacity?.toFixed(3),
+      pulse: state?.pulseOpacity?.toFixed(3),
+      glaze: state?.glazeOpacity?.toFixed(3),
+      desaturation: state?.desaturation?.toFixed(3),
+      contrast: state?.contrast?.toFixed(3)
     };
   }
   
@@ -569,15 +745,34 @@ export class SafeDreamDepthPack {
    * Complete cleanup
    */
   cleanup() {
-    if (this.overlayQuad) {
-      this.overlayQuad.geometry.dispose();
-      this.overlayQuad.material.dispose();
+    for (const layer of Object.values(this.screenLayers)) {
+      if (layer) {
+        layer.material.dispose();
+      }
     }
-    
-    this.vfxContainer.clear();
-    this.scene.remove(this.vfxContainer);
-    
+    if (this.screenGeometry) {
+      this.screenGeometry.dispose();
+      this.screenGeometry = null;
+    }
+    if (this.vignetteTexture) {
+      this.vignetteTexture.dispose();
+      this.vignetteTexture = null;
+    }
+    if (this.focusTexture) {
+      this.focusTexture.dispose();
+      this.focusTexture = null;
+    }
+
+    if (this.vfxContainer) {
+      if (this.root && this.root.remove) {
+        this.root.remove(this.vfxContainer);
+      }
+      this.vfxContainer.clear();
+      this.vfxContainer = null;
+    }
+
     this.activePulses = [];
     this.currentFocus = null;
+    this.overlayQuad = null;
   }
 }

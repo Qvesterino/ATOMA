@@ -33,12 +33,43 @@ export class SafeWorldFXPack {
     this.semanticBus = semanticBus ?? null;
     this.metricBus = this.semanticBus || this._resolveMetricBus();
     this.metricSignalTimes = new Map();
+    this.frameScheduler = null;
+
+    this.palette = {
+      base: 0x05131A,
+      cyan: 0x6DEAFF,
+      mint: 0x77F7DB,
+      violet: 0xD07BFF,
+      rose: 0xFF73CF,
+      ritualWhite: 0xF7FBFF
+    };
+
+    this.atmosphereState = {
+      synergyHigh: false,
+      loadPressureHigh: false,
+      corruptionHigh: false,
+      stabilityLow: false,
+      stabilityHigh: false,
+      legendaryCount: 0,
+      activityLevel: 0,
+      pressureLevel: 0,
+      revelationLevel: 0,
+      signalBias: 0
+    };
 
     this.root = new THREE.Group();
     this.root.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_BACKGROUND);
     this.root.userData = this.root.userData || {};
     this.root.userData.__environmentLayerId = VisualHierarchyRegistry.LAYER_WORLD_BACKGROUND;
     this.root.userData.__environmentOwner = 'worldFXPack';
+    this.screenOverlaysRoot = new THREE.Group();
+    this.screenOverlaysRoot.name = 'SafeWorldFXPack_ScreenOverlays';
+    this.screenOverlaysRoot.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_UI_OVERLAY);
+    this.screenOverlaysRoot.userData = this.screenOverlaysRoot.userData || {};
+    this.screenOverlaysRoot.userData.__environmentLayerId = VisualHierarchyRegistry.LAYER_UI_OVERLAY;
+    this.screenOverlaysRoot.userData.__environmentOwner = 'worldFXPackScreenOverlay';
+    const overlayParent = (this.camera && typeof this.camera.add === 'function') ? this.camera : this.scene;
+    overlayParent.add(this.screenOverlaysRoot);
 
     const originalRootAdd = this.root.add.bind(this.root);
     this.root.add = (...children) => {
@@ -87,10 +118,10 @@ export class SafeWorldFXPack {
       dimensionalDuration: 2.0,          // Shift duration
       
       // Rift waves
-      riftWaveInterval: 20,              // Seconds between waves
-      riftWaveSpeed: 15,                 // Units per second
-      riftWaveWidth: 10,                 // Wave width
-      
+    riftWaveInterval: 14,              // Seconds between waves
+    riftWaveSpeed: 18,                 // Units per second
+    riftWaveWidth: 12,                 // Wave width
+    riftWaveMaxAge: 3.2,               // Lifespan of a seismic wave
       // Energy pulses
       pulseInterval: 3.0,                // Seconds per pulse
       pulseIntensity: 0.2,               // Glow intensity
@@ -102,8 +133,10 @@ export class SafeWorldFXPack {
       quantumRiftDuration: 5.0,          // Effect duration
       
       // Sigma glitches
-      sigmaGlitchDuration: 0.2,          // Glitch duration
-      sigmaGlitchChance: 0.005,          // 0.5% per frame
+      sigmaGlitchInterval: 5.0,          // Seconds between fracture checks
+      sigmaGlitchDuration: 0.18,          // Fracture duration
+      sigmaAfterimageDuration: 0.12,      // Afterimage linger
+      sigmaGlitchChance: 0.12,            // Base spawn chance when eligible
       
       // World breathing
       breathingSpeed: 0.5,               // Oscillations per second
@@ -288,6 +321,91 @@ export class SafeWorldFXPack {
     return browserWindow?.ATOMA_BUS || browserWindow?.semanticBus || null;
   }
 
+  setFrameScheduler(frameScheduler) {
+    this.frameScheduler = frameScheduler;
+  }
+
+  _getWorldFXPalette(key) {
+    return this.palette?.[key] ?? this.palette?.cyan;
+  }
+
+  _getWorldFXEnvelope(effect, intensity = 1) {
+    const bases = {
+      dimensionalShift: { attack: 0.12, crest: 0.35, release: 0.9 },
+      riftWave: { attack: 0.08, crest: 0.28, release: 1.6 },
+      energyPulse: { attack: 0.08, crest: 0.32, release: 0.75 },
+      quantumRift: { attack: 0.2, crest: 0.4, release: 1.6 },
+      sigmaGlitch: { attack: 0.02, crest: 0.08, release: 0.18 },
+      screenOverlay: { attack: 0.05, crest: 0.3, release: 1.0 }
+    };
+
+    const envelope = bases[effect] || { attack: 0.1, crest: 0.25, release: 0.8 };
+    return {
+      attack: envelope.attack * Math.max(0.8, intensity),
+      crest: envelope.crest * Math.max(0.8, intensity),
+      release: envelope.release * Math.max(0.9, intensity)
+    };
+  }
+
+  _evaluateEnvelope(envelope, age) {
+    if (!envelope) return 0;
+    const { attack, crest, release } = envelope;
+    if (age < attack) return age / attack;
+    if (age < attack + crest) return 1;
+    return Math.max(0, 1 - (age - attack - crest) / release);
+  }
+
+  _getWorldFXSignalBias(effectName) {
+    const state = this.atmosphereState || {};
+    const weights = {
+      dimensionalShift: 0.14 + (state.stabilityLow ? 0.18 : 0) + (state.loadPressureHigh ? 0.12 : 0) + (state.revelationLevel * 0.08) + (state.activityLevel * 0.05),
+      riftWave: 0.18 + (state.loadPressureHigh ? 0.14 : 0) + (state.activityLevel * 0.1),
+      energyPulse: 0.08 + (state.synergyHigh ? 0.16 : 0) + (state.activityLevel * 0.14),
+      quantumRift: 0.01 + (state.corruptionHigh ? 0.22 : 0) + (state.legendaryCount > 0 ? 0.25 : 0) + (state.revelationLevel * 0.08),
+      sigmaGlitch: 0.003 + (state.corruptionHigh ? 0.02 : 0) + (state.loadPressureHigh ? 0.015 : 0),
+      screenOverlay: 0.01 + (state.revelationLevel * 0.2) + (state.pressureLevel * 0.08)
+    };
+    return Math.min(1, weights[effectName] ?? 0.05);
+  }
+
+  _emitWorldFXEvent(title, subtitle, tone, intensity, phase) {
+    const payload = { title, subtitle, tone, intensity, phase };
+    const bus = this.metricBus || this._resolveMetricBus();
+    if (!bus) return;
+    if (typeof bus.emit === 'function') {
+      bus.emit('worldFX.event', payload);
+      return;
+    }
+    if (typeof bus.dispatch === 'function') {
+      bus.dispatch('worldFX.event', payload);
+    }
+  }
+
+  _updateAtmosphereState(legendaryPack) {
+    const synergyHigh = this._isSignalActive('synergy.high');
+    const loadPressureHigh = this._isSignalActive('loadPressure.high');
+    const corruptionHigh = this._isSignalActive('corruption.high');
+    const stabilityLow = this._isSignalActive('stability.low');
+    const stabilityHigh = this._isSignalActive('stability.high');
+    const legendaryCount = legendaryPack?.getActiveLegendaryCount?.() ?? 0;
+
+    this.atmosphereState.synergyHigh = synergyHigh;
+    this.atmosphereState.loadPressureHigh = loadPressureHigh;
+    this.atmosphereState.corruptionHigh = corruptionHigh;
+    this.atmosphereState.stabilityLow = stabilityLow;
+    this.atmosphereState.stabilityHigh = stabilityHigh;
+    this.atmosphereState.legendaryCount = legendaryCount;
+
+    const activityLevel = Math.min(1, this.worldState.totalSynergy / 30);
+    const pressureLevel = Math.min(1, this.worldState.totalTraffic / 25 + (loadPressureHigh ? 0.2 : 0));
+    const revelationLevel = Math.min(1, (corruptionHigh ? 0.5 : 0) + (legendaryCount > 0 ? 0.3 : 0));
+
+    this.atmosphereState.activityLevel = activityLevel;
+    this.atmosphereState.pressureLevel = pressureLevel;
+    this.atmosphereState.revelationLevel = revelationLevel;
+    this.atmosphereState.signalBias = (activityLevel + pressureLevel + revelationLevel) / 3;
+  }
+
   _setupMetricTriggers() {
     this._subscribeMetricTag('global.synergy.high', 'synergy.high');
     this._subscribeMetricTag('global.loadPressure.high', 'loadPressure.high');
@@ -444,6 +562,7 @@ export class SafeWorldFXPack {
     this.updateWorldBreathing(deltaTime);
     this.updateEnergyStreams(deltaTime);
     this.updateAuroraHorizon(deltaTime);
+    this.updateScreenOverlays(deltaTime);
   }
   
   /**
@@ -470,6 +589,8 @@ export class SafeWorldFXPack {
     if (legendaryPack) {
       this.worldState.legendaryCount = legendaryPack.getActiveLegendaryCount();
     }
+
+    this._updateAtmosphereState(legendaryPack);
   }
   
   /**
@@ -480,8 +601,8 @@ export class SafeWorldFXPack {
     
     // Check if shift should trigger
     if (this.worldState.dimensionalPhase > this.config.dimensionalShiftInterval) {
-      const stabilityPenalty = this._isSignalActive('stability.low') ? 0.75 : 1.0;
-      if (Math.random() < 0.3 * stabilityPenalty || this.worldState.totalSynergy > 15) {
+      const bias = this._getWorldFXSignalBias('dimensionalShift');
+      if (Math.random() < bias || this.worldState.totalSynergy > 15) {
         this.triggerDimensionalShift();
       }
       this.worldState.dimensionalPhase = 0;
@@ -491,16 +612,20 @@ export class SafeWorldFXPack {
     this.vfxLayers.dimensionalShifts = this.vfxLayers.dimensionalShifts.filter(shift => {
       shift.age += deltaTime;
       
-      // Calculate intensity curve (ease out)
-      const progress = Math.min(1, shift.age / this.config.dimensionalDuration);
-      const intensity = (1 - progress) * this.config.dimensionalIntensity;
-      
-      // Apply color shift to world
+      const envelope = this._getWorldFXEnvelope('dimensionalShift', 1 + shift.age / this.config.dimensionalDuration);
+      const intensity = this._evaluateEnvelope(envelope, shift.age) * this.config.dimensionalIntensity;
+      const phase = this._evaluateEnvelope(envelope, shift.age);
+
       this.applyDimensionalColorShift(shift.colorOffset * intensity);
+      this.applyDimensionalDistortion(intensity);
+
+      if (shift.foldPlate) {
+        shift.foldPlate.scale.setScalar(1 + intensity * 0.12);
+        this.setOpacity(shift.foldPlate.material, Math.max(0, phase * 0.22), 'dimensional_shift.plate');
+      }
       
-      // Fade grid distortion
       if (shift.gridMesh) {
-        this.setOpacity(shift.gridMesh.material, (1 - progress) * 0.2, 'dimensional_shift.grid');
+        this.setOpacity(shift.gridMesh.material, Math.max(0, phase * 0.18), 'dimensional_shift.grid');
       }
       
       // Remove when done
@@ -508,6 +633,10 @@ export class SafeWorldFXPack {
         if (shift.gridMesh) {
           this.root.remove(shift.gridMesh);
           this._releaseMeshResources(shift.gridMesh);
+        }
+        if (shift.foldPlate) {
+          this.root.remove(shift.foldPlate);
+          this._releaseMeshResources(shift.foldPlate);
         }
         return false;
       }
@@ -520,13 +649,33 @@ export class SafeWorldFXPack {
    * Trigger a dimensional shift event
    */
   triggerDimensionalShift() {
-    // Create grid distortion mesh
+    const foldRadius = 60;
+    const foldGeo = this._getSharedGeometry('dimensional_shift.foldPlate.geo', () => new THREE.CircleGeometry(foldRadius, 48));
+    const foldMat = new THREE.MeshStandardMaterial({
+      color: this._getWorldFXPalette('base'),
+      emissive: this._getWorldFXPalette('cyan'),
+      emissiveIntensity: 0.18,
+      transparent: true,
+      opacity: 0.12,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      fog: false
+    });
+    this.installOpacityUniform(foldMat, 0.12, 'standard', 'dimensional_shift.plate');
+    this.freezeMaterialFlags(foldMat, 'dimensional_shift.plate');
+
+    const foldPlate = new THREE.Mesh(foldGeo, foldMat);
+    foldPlate.rotation.x = -Math.PI / 2;
+    foldPlate.position.y = 0.3;
+    foldPlate.userData = { isWorldFX: true, type: 'dimensional_shift_plate' };
+    this.root.add(foldPlate);
+
     const gridGeo = this._getSharedGeometry('dimensional_shift.gridGeo', () => {
       const geometry = new THREE.BufferGeometry();
-      const gridSize = 200;
-      const gridSpacing = 10;
-
+      const gridSize = 140;
+      const gridSpacing = 14;
       const points = [];
+
       for (let x = -gridSize; x <= gridSize; x += gridSpacing) {
         points.push(new THREE.Vector3(x, 0, -gridSize));
         points.push(new THREE.Vector3(x, 0, gridSize));
@@ -535,54 +684,63 @@ export class SafeWorldFXPack {
         points.push(new THREE.Vector3(-gridSize, 0, z));
         points.push(new THREE.Vector3(gridSize, 0, z));
       }
-
-      geometry.setFromPoints(points);
       return geometry;
     });
 
     const gridMat = new THREE.LineBasicMaterial({
-      color: 0x00ffff,
+      color: this._getWorldFXPalette('cyan'),
       transparent: true,
-      opacity: 0.2,
+      opacity: 0.18,
       fog: false
     });
-    this.installOpacityUniform(gridMat, 0.2, 'line', 'dimensional_shift.grid');
+    this.installOpacityUniform(gridMat, 0.18, 'line', 'dimensional_shift.grid');
     this.freezeMaterialFlags(gridMat, 'dimensional_shift.grid');
-    
+
     const gridMesh = new THREE.LineSegments(gridGeo, gridMat);
-    gridMesh.position.y = 0.5;
-    gridMesh.userData = { isWorldFX: true, type: 'dimensional_shift' };
+    gridMesh.position.y = 0.32;
+    gridMesh.userData = { isWorldFX: true, type: 'dimensional_shift_grid' };
     this.root.add(gridMesh);
-    
-    // Choose random color shift direction
+
     const colorOffsets = [
-      { r: 0.05, g: -0.03, b: 0.05 },  // Toward magenta
-      { r: -0.03, g: 0.05, b: 0.05 },  // Toward cyan
-      { r: 0.05, g: 0.05, b: -0.03 }   // Toward yellow
+      { r: 0.04, g: -0.02, b: 0.05 },
+      { r: -0.02, g: 0.03, b: 0.05 },
+      { r: 0.05, g: 0.02, b: -0.03 }
     ];
-    
+
     const shift = {
       age: 0,
       gridMesh: gridMesh,
+      foldPlate: foldPlate,
       colorOffset: colorOffsets[Math.floor(Math.random() * colorOffsets.length)]
     };
-    
+
     this.vfxLayers.dimensionalShifts.push(shift);
+    this._emitWorldFXEvent('Reality Fold', 'Pressure bending the world', 'pressure', this.config.dimensionalIntensity, 'attack');
+    this.triggerScreenOverlay('dimensional_shift', 0.85);
   }
   
   /**
    * Apply dimensional color shift
    */
   applyDimensionalColorShift(intensity) {
-    // This would be applied via post-processing or camera manipulation
-    // For now, we modulate lighting slightly
-    if (this.lights.length > 0) {
-      const mainLight = this.lights[0];
-      if (mainLight.color) {
-        mainLight.color.r = Math.min(1, mainLight.color.r + intensity * 0.1);
-        mainLight.color.b = Math.min(1, mainLight.color.b + intensity * 0.1);
-      }
-    }
+    if (this.lights.length === 0 || !this.originalLights[0]?.originalColor) return;
+    const lightData = this.originalLights[0];
+    const mainLight = lightData.light;
+    const originalColor = lightData.originalColor.clone();
+    if (!mainLight.color) return;
+
+    const targetColor = originalColor.clone();
+    targetColor.r = Math.min(1, targetColor.r + intensity * 0.08);
+    targetColor.g = Math.max(0, targetColor.g - intensity * 0.03);
+    targetColor.b = Math.min(1, targetColor.b + intensity * 0.08 + (this.atmosphereState.corruptionHigh ? 0.04 : 0));
+    mainLight.color.copy(targetColor);
+  }
+
+  applyDimensionalDistortion(intensity) {
+    if (!this.root) return;
+    const scale = 1 + intensity * 0.08;
+    this.root.scale.setScalar(scale);
+    this.root.rotation.y = Math.sin(this.worldState.time * 0.25) * intensity * 0.08;
   }
   
   /**
@@ -590,38 +748,49 @@ export class SafeWorldFXPack {
    */
   updateRiftWaves(deltaTime) {
     this.worldState.riftWaveTimer += deltaTime;
+    const interval = Math.max(8, this.config.riftWaveInterval * (1 - this.atmosphereState.signalBias * 0.2));
     
     // Spawn new rift wave
-    if (this.worldState.riftWaveTimer > this.config.riftWaveInterval) {
-      this.spawnRiftWave();
+    if (this.worldState.riftWaveTimer > interval) {
+      const bias = this._getWorldFXSignalBias('riftWave');
+      if (Math.random() < bias || this.worldState.totalSynergy > 12) {
+        this.spawnRiftWave();
+      }
       this.worldState.riftWaveTimer = 0;
     }
     
     // Update active rift waves
+    const maxAge = this.config.riftWaveMaxAge;
     this.vfxLayers.riftWaves = this.vfxLayers.riftWaves.filter(wave => {
       wave.age += deltaTime;
-      wave.distance += this.config.riftWaveSpeed * deltaTime;
-      
-      // Update wave mesh position
+      wave.distance += wave.speed * deltaTime;
+
+      const envelope = this._getWorldFXEnvelope('riftWave', wave.intensity);
+      const phase = this._evaluateEnvelope(envelope, wave.age);
+      const pulse = 0.75 + Math.sin(this.worldState.time * 8 + wave.phaseOffset) * 0.15;
+      const opacity = Math.max(0, phase * wave.baseOpacity * pulse);
+
       if (wave.mesh) {
         if (wave.type === 'linear') {
           wave.mesh.position.z = wave.startZ + wave.distance;
-        } else if (wave.type === 'radial') {
-          wave.mesh.scale.setScalar(1 + wave.distance * 0.1);
+          const scale = 1 + phase * 0.32 + (this.atmosphereState.stabilityLow ? 0.14 : 0);
+          wave.mesh.scale.set(1, 1, scale);
+          this.setOpacity(wave.mesh.material, opacity, 'rift_wave.update.linear');
+        } else {
+          const ringScale = 1 + wave.distance * 0.08 + phase * 0.28 + (this.atmosphereState.stabilityLow ? 0.18 : 0);
+          wave.mesh.scale.setScalar(ringScale);
+          wave.mesh.rotation.y += deltaTime * 0.22;
+          this.setOpacity(wave.mesh.material, opacity, 'rift_wave.update.radial');
         }
-        
-        // Fade opacity
-        const maxDistance = 200;
-        this.setOpacity(wave.mesh.material, Math.max(0, 0.6 - (wave.distance / maxDistance) * 0.6), 'rift_wave.update');
+        if (wave.materialColor) {
+          wave.mesh.material.color.copy(wave.materialColor);
+        }
       }
-      
-      // Remove when off-screen
-      if (wave.distance > 300) {
+
+      if (wave.age > maxAge || wave.distance > 260) {
         if (wave.mesh) {
-          const materialType = wave.materialType || wave.type;
-          this._releaseRiftWaveMaterial(materialType, wave.mesh.material);
           this.root.remove(wave.mesh);
-          this._releaseGeometry(wave.mesh.geometry);
+          this._releaseMeshResources(wave.mesh);
         }
         return false;
       }
@@ -643,12 +812,14 @@ export class SafeWorldFXPack {
   }
 
   _createRiftWaveLinearMaterial() {
+    const baseColor = this._getWorldFXPalette('cyan');
     const mat = new THREE.MeshStandardMaterial({
-      color: 0x00ffff,
+      color: baseColor,
       transparent: true,
       opacity: 0.6,
-      emissive: 0x00ffff,
-      emissiveIntensity: 0.3,
+      emissive: baseColor,
+      emissiveIntensity: 0.34,
+      depthWrite: false,
       fog: false
     });
     this.installOpacityUniform(mat, 0.6, 'standard', 'rift_wave.linear');
@@ -657,8 +828,9 @@ export class SafeWorldFXPack {
   }
 
   _createRiftWaveRadialMaterial() {
+    const baseColor = this._getWorldFXPalette('violet');
     const mat = new THREE.LineBasicMaterial({
-      color: 0x00ff88,
+      color: baseColor,
       transparent: true,
       opacity: 0.6,
       fog: false
@@ -693,66 +865,89 @@ export class SafeWorldFXPack {
    * Spawn a rift wave
    */
   spawnRiftWave() {
-    const waveType = Math.random() > 0.5 ? 'linear' : 'radial';
-    
-    if (waveType === 'linear') {
-      // Create linear wave
-      const waveGeo = this._getSharedGeometry('rift_wave.linearPlane', () => new THREE.PlaneGeometry(100, this.config.riftWaveWidth));
-      const waveMat = this._allocateRiftWaveMaterial('linear');
-      if (!waveMat) return;
+    const forceRadial = this.atmosphereState.corruptionHigh || (!this.atmosphereState.stabilityHigh && Math.random() < 0.6);
+    const waveType = forceRadial ? 'radial' : 'linear';
+    const synergyBoost = this.atmosphereState.synergyHigh ? 0.18 : 0;
+    const conflictBoost = this.atmosphereState.corruptionHigh ? 0.24 : 0;
 
-      const waveMesh = new THREE.Mesh(waveGeo, waveMat);
-      waveMesh.position.z = -50;
-      waveMesh.position.y = 0.1;
-      waveMesh.rotation.x = -Math.PI / 2;
-      waveMesh.userData = { isWorldFX: true, type: 'rift_wave' };
-      
-      this.root.add(waveMesh);
-      
-      this.vfxLayers.riftWaves.push({
-        age: 0,
-        distance: 0,
-        startZ: waveMesh.position.z,
-        type: 'linear',
-        materialType: 'linear',
-        mesh: waveMesh
+    const baseColor = new THREE.Color(this._getWorldFXPalette('cyan'));
+    const conflictColor = new THREE.Color(this._getWorldFXPalette('violet'));
+    const accentColor = new THREE.Color(this._getWorldFXPalette('rose'));
+    const finalColor = baseColor.clone()
+      .lerp(conflictColor, conflictBoost)
+      .lerp(accentColor, this.atmosphereState.corruptionHigh ? 0.12 : 0)
+      .lerp(new THREE.Color(this._getWorldFXPalette('ritualWhite')), synergyBoost * 0.4);
+
+    const waveOpacity = 0.28 + synergyBoost * 0.35 + conflictBoost * 0.2;
+    const waveIntensity = 1 + synergyBoost + conflictBoost;
+    const waveSpeed = this.config.riftWaveSpeed * (waveType === 'linear' ? 1 : 0.72) * (1 + (this.atmosphereState.stabilityLow ? 0.14 : 0));
+    const waveWidth = this.config.riftWaveWidth * (waveType === 'linear' ? 1.4 : 0.85);
+    const phaseOffset = Math.random() * Math.PI * 2;
+
+    let waveMesh = null;
+    let waveData = {
+      age: 0,
+      distance: 0,
+      speed: waveSpeed,
+      type: waveType,
+      baseOpacity: waveOpacity,
+      intensity: waveIntensity,
+      phaseOffset,
+      materialColor: finalColor,
+      startZ: -48
+    };
+
+    if (waveType === 'linear') {
+      const waveGeo = new THREE.PlaneGeometry(140, waveWidth, 1, 6);
+      const waveMat = new THREE.MeshStandardMaterial({
+        color: finalColor,
+        emissive: finalColor,
+        emissiveIntensity: 0.4 + synergyBoost * 0.2,
+        transparent: true,
+        opacity: waveOpacity,
+        depthWrite: false,
+        fog: false,
+        side: THREE.DoubleSide
       });
+      this.installOpacityUniform(waveMat, waveOpacity, 'standard', 'rift_wave.linear');
+      this.freezeMaterialFlags(waveMat, 'rift_wave.linear');
+
+      waveMesh = new THREE.Mesh(waveGeo, waveMat);
+      waveMesh.rotation.x = -Math.PI / 2;
+      waveMesh.position.set(0, 0.08, -52);
+      waveMesh.userData = { isWorldFX: true, type: 'rift_wave', signature: 'seismic_pressure_band' };
+      this.root.add(waveMesh);
+      waveData.startZ = waveMesh.position.z;
+      waveData.mesh = waveMesh;
     } else {
-      // Create radial shockwave
       const waveGeo = new THREE.BufferGeometry();
       const circlePoints = [];
-      const segments = 64;
-      
+      const segments = 72;
+      const radius = 34;
       for (let i = 0; i <= segments; i++) {
         const angle = (i / segments) * Math.PI * 2;
-        circlePoints.push(
-          new THREE.Vector3(
-            Math.cos(angle) * 50,
-            0.1,
-            Math.sin(angle) * 50
-          )
-        );
+        circlePoints.push(new THREE.Vector3(Math.cos(angle) * radius, 0.1, Math.sin(angle) * radius));
       }
-      
       waveGeo.setFromPoints(circlePoints);
 
-      const waveMat = this._allocateRiftWaveMaterial('radial');
-      if (!waveMat) return;
-
-      const waveMesh = new THREE.Line(waveGeo, waveMat);
-      waveMesh.position.copy(this.scene.position);
-      waveMesh.userData = { isWorldFX: true, type: 'rift_wave_radial' };
-      
-      this.root.add(waveMesh);
-      
-      this.vfxLayers.riftWaves.push({
-        age: 0,
-        distance: 0,
-        type: 'radial',
-        materialType: 'radial',
-        mesh: waveMesh
+      const waveMat = new THREE.LineBasicMaterial({
+        color: finalColor,
+        transparent: true,
+        opacity: waveOpacity,
+        fog: false
       });
+      this.installOpacityUniform(waveMat, waveOpacity, 'line', 'rift_wave.radial');
+      this.freezeMaterialFlags(waveMat, 'rift_wave.radial');
+
+      waveMesh = new THREE.Line(waveGeo, waveMat);
+      waveMesh.position.set(0, 0.12, 0);
+      waveMesh.userData = { isWorldFX: true, type: 'rift_wave_radial', signature: 'seismic_event_center' };
+      this.root.add(waveMesh);
+      waveData.mesh = waveMesh;
     }
+
+    this.vfxLayers.riftWaves.push(waveData);
+    this._emitWorldFXEvent('Seismic Resonance', 'A world signal pulses through reality', waveType === 'radial' ? 'conflict' : 'stability', waveIntensity, 'attack');
   }
   
   /**
@@ -768,7 +963,10 @@ export class SafeWorldFXPack {
     
     // Trigger pulse
     if (this.worldState.pulseTimer > pulseInterval) {
-      this.triggerGlobalPulse(activityLevel + synergyBoost);
+      const bias = this._getWorldFXSignalBias('energyPulse');
+      if (Math.random() < bias) {
+        this.triggerGlobalPulse(activityLevel + synergyBoost);
+      }
       this.worldState.pulseTimer = 0;
     }
     
@@ -776,9 +974,8 @@ export class SafeWorldFXPack {
     this.vfxLayers.energyPulses = this.vfxLayers.energyPulses.filter(pulse => {
       pulse.age += deltaTime;
       
-      // Calculate pulse curve (ease in-out)
-      const progress = Math.min(1, pulse.age / this.config.pulseDuration);
-      const pulseValue = Math.sin(progress * Math.PI);
+      const envelope = this._getWorldFXEnvelope('energyPulse', pulse.intensity);
+      const pulseValue = this._evaluateEnvelope(envelope, pulse.age);
       
       // Apply pulse to lights
       this.applyPulseToLights(pulseValue * pulse.intensity);
@@ -800,6 +997,7 @@ export class SafeWorldFXPack {
       age: 0,
       intensity: this.config.pulseIntensity * (0.5 + intensity)
     });
+    this._emitWorldFXEvent('World Pulse', 'Energy flow increased', 'flow', intensity, 'crest');
   }
   
   /**
@@ -817,57 +1015,91 @@ export class SafeWorldFXPack {
    * FRACTAL SKY OVERLAY
    */
   createFractalSky() {
-    // Create animated fractal lines in sky
-    const fractalGeo = this._getSharedGeometry('fractal_sky.geo', () => {
+    const fractalGeo = this._getSharedGeometry('fractal_sky.canopy.geo', () => {
       const geometry = new THREE.BufferGeometry();
-      const fractalPoints = [];
+      const points = [];
 
-      const iterations = 4;
-      const scale = 100;
+      const ringCount = 3;
+      const baseRadius = 90;
+      const heights = [56, 66, 74];
+      const segments = 64;
+      const spokeCount = 8;
 
-      for (let iter = 0; iter < iterations; iter++) {
-        for (let i = 0; i < 20; i++) {
-          const angle = (i / 20) * Math.PI * 2;
-          const radius = scale * Math.pow(0.6, iter);
+      for (let ringIndex = 0; ringIndex < ringCount; ringIndex++) {
+        const radius = baseRadius * (1 - ringIndex * 0.16);
+        const height = heights[ringIndex];
 
-          fractalPoints.push(
-            new THREE.Vector3(
-              Math.cos(angle) * radius,
-              60 + iter * 10,
-              Math.sin(angle) * radius
-            )
-          );
+        for (let i = 0; i <= segments; i++) {
+          const angle = (i / segments) * Math.PI * 2;
+          const nextAngle = ((i + 1) / segments) * Math.PI * 2;
 
-          const nextAngle = ((i + 1) / 20) * Math.PI * 2;
-          fractalPoints.push(
-            new THREE.Vector3(
-              Math.cos(nextAngle) * radius,
-              60 + iter * 10,
-              Math.sin(nextAngle) * radius
-            )
-          );
+          points.push(new THREE.Vector3(
+            Math.cos(angle) * radius,
+            height,
+            Math.sin(angle) * radius
+          ));
+          points.push(new THREE.Vector3(
+            Math.cos(nextAngle) * radius,
+            height,
+            Math.sin(nextAngle) * radius
+          ));
         }
       }
 
-      geometry.setFromPoints(fractalPoints);
+      for (let spokeIndex = 0; spokeIndex < spokeCount; spokeIndex++) {
+        const angle = (spokeIndex / spokeCount) * Math.PI * 2;
+        const spokeRadius = baseRadius * 0.9;
+        const innerRadius = baseRadius * 0.5;
+
+        points.push(new THREE.Vector3(
+          Math.cos(angle) * innerRadius,
+          heights[0],
+          Math.sin(angle) * innerRadius
+        ));
+        points.push(new THREE.Vector3(
+          Math.cos(angle) * spokeRadius,
+          heights[2],
+          Math.sin(angle) * spokeRadius
+        ));
+      }
+
+      const diagonalCount = 4;
+      for (let diagonalIndex = 0; diagonalIndex < diagonalCount; diagonalIndex++) {
+        const startAngle = (diagonalIndex / diagonalCount) * Math.PI * 2;
+        const endAngle = startAngle + Math.PI * 0.25;
+
+        points.push(new THREE.Vector3(
+          Math.cos(startAngle) * baseRadius * 0.75,
+          heights[0],
+          Math.sin(startAngle) * baseRadius * 0.75
+        ));
+        points.push(new THREE.Vector3(
+          Math.cos(endAngle) * baseRadius * 0.6,
+          heights[2],
+          Math.sin(endAngle) * baseRadius * 0.6
+        ));
+      }
+
+      geometry.setFromPoints(points);
       return geometry;
     });
 
     const fractalMat = this._getSharedMaterial('fractal_sky.mat', () => {
       const material = new THREE.LineBasicMaterial({
-        color: 0x00ffff,
+        color: this._getWorldFXPalette('cyan'),
         transparent: true,
-        opacity: 0.15,
+        opacity: 0.18,
         fog: false
       });
-      this.installOpacityUniform(material, 0.15, 'line', 'fractal_sky');
+      this.installOpacityUniform(material, 0.18, 'line', 'fractal_sky');
       this.freezeMaterialFlags(material, 'fractal_sky');
       return material;
     });
-    
+
     const fractalMesh = new THREE.LineSegments(fractalGeo, fractalMat);
     fractalMesh.userData = { isWorldFX: true, type: 'fractal_sky' };
-    
+    fractalMesh.position.y = 0;
+
     this.root.add(fractalMesh);
     this.vfxLayers.fractalSky = fractalMesh;
   }
@@ -877,18 +1109,24 @@ export class SafeWorldFXPack {
    */
   updateFractalSky(deltaTime) {
     if (!this.vfxLayers.fractalSky) return;
-    
-    // Slow rotation
-    this.vfxLayers.fractalSky.rotation.z += deltaTime * 0.05;
-    this.vfxLayers.fractalSky.rotation.x += deltaTime * 0.02;
-    
-    // Color cycling
-    const colorPhase = (this.worldState.time * 0.3) % (Math.PI * 2);
-    const r = 0.5 + Math.sin(colorPhase) * 0.5;
-    const g = 0.5 + Math.sin(colorPhase + Math.PI * 0.33) * 0.5;
-    const b = 0.5 + Math.sin(colorPhase + Math.PI * 0.66) * 0.5;
-    
-    this.vfxLayers.fractalSky.material.color.setRGB(r * 0.5, g * 0.5, b * 0.5);
+
+    const driftSpeed = 0.01;
+    this.vfxLayers.fractalSky.rotation.y += deltaTime * driftSpeed;
+    this.vfxLayers.fractalSky.rotation.x = Math.sin(this.worldState.time * 0.005) * 0.02;
+    this.vfxLayers.fractalSky.position.x = Math.sin(this.worldState.time * 0.008) * 2;
+    this.vfxLayers.fractalSky.position.z = Math.cos(this.worldState.time * 0.008) * 2;
+
+    const baseColor = new THREE.Color(this._getWorldFXPalette('cyan'));
+    const edgeColor = new THREE.Color(this._getWorldFXPalette('violet'));
+    const whiteColor = new THREE.Color(this._getWorldFXPalette('ritualWhite'));
+
+    const signalStrength = Math.min(1, this.atmosphereState.activityLevel * 0.4 + this.atmosphereState.pressureLevel * 0.3 + this.atmosphereState.revelationLevel * 0.3);
+    baseColor.lerp(edgeColor, this.atmosphereState.corruptionHigh ? 0.35 : 0);
+    baseColor.lerp(whiteColor, this.atmosphereState.synergyHigh ? 0.15 : 0);
+    this.vfxLayers.fractalSky.material.color.copy(baseColor);
+
+    const opacity = 0.12 + signalStrength * 0.18 + (this.atmosphereState.legendaryCount > 0 ? 0.05 : 0);
+    this.setOpacity(this.vfxLayers.fractalSky.material, opacity, 'fractal_sky.update');
   }
   
   /**
@@ -903,44 +1141,51 @@ export class SafeWorldFXPack {
     }
     
     this.worldState.quantumTimer += deltaTime;
+    const interval = this.config.quantumRiftInterval * (1 - Math.min(0.4, this.atmosphereState.signalBias * 0.35));
     
-    // Chance to spawn quantum rift
-    if (this.worldState.quantumTimer > this.config.quantumRiftInterval) {
-      const corruptionBoost = this._isSignalActive('corruption.high') ? 2.0 : 1.0;
-      if (Math.random() < this.config.quantumRiftChance * 60 * corruptionBoost || this.worldState.legendaryCount > 0) {
+    // Chance to spawn revelation breach
+    if (this.worldState.quantumTimer > interval) {
+      const bias = this._getWorldFXSignalBias('quantumRift');
+      const eligible = this.atmosphereState.legendaryCount > 0 || this.atmosphereState.corruptionHigh || this.atmosphereState.signalBias > 0.45;
+      const roll = Math.random();
+      if (eligible && roll < bias * 1.15 + (this.atmosphereState.legendaryCount * 0.06) + (this.atmosphereState.corruptionHigh ? 0.14 : 0)) {
         this.spawnQuantumRift();
       }
       this.worldState.quantumTimer = 0;
     }
     
-    // Update active quantum rifts
-    this.vfxLayers.quantumRifts = this.vfxLayers.quantumRifts.filter(rift => {
-      rift.age += deltaTime;
-      
-      // Calculate ripple animation
-      const ripplePhase = (rift.age / this.config.quantumRiftDuration) * Math.PI;
-      
-      // Update rift mesh
-      if (rift.mesh) {
-        rift.mesh.scale.setScalar(1 + Math.sin(ripplePhase) * 0.2);
-        this.setOpacity(rift.mesh.material, Math.max(0, (1 - rift.age / this.config.quantumRiftDuration) * 0.8), 'quantum_rift.update');
+    // Update active quantum breaches
+    this.vfxLayers.quantumRifts = this.vfxLayers.quantumRifts.filter(breach => {
+      breach.age += deltaTime;
+      const life = Math.min(this.config.quantumRiftDuration, this.config.quantumRiftDuration * (1 + (this.atmosphereState.corruptionHigh ? 0.18 : 0)));
+      const phase = this._evaluateEnvelope(this._getWorldFXEnvelope('quantumRift', breach.intensity), breach.age);
+      const outerPulse = 0.8 + Math.sin(this.worldState.time * 1.8 + breach.phaseOffset) * 0.12;
+
+      if (breach.core) {
+        breach.core.scale.setScalar(1 + phase * 0.18);
+        this.setOpacity(breach.core.material, Math.max(0, phase * 0.7), 'quantum_rift.core.update');
       }
-      
-      // Update ripple rings
-      rift.ripples.forEach((ripple, idx) => {
-        ripple.mesh.scale.setScalar(1 + (ripplePhase + idx * 0.5) * 0.3);
-        this.setOpacity(ripple.mesh.material, Math.max(0, (1 - rift.age / this.config.quantumRiftDuration) * 0.4), 'quantum_rift.ripple.update');
-      });
-      
-      // Remove when done
-      if (rift.age > this.config.quantumRiftDuration) {
-        if (rift.mesh) {
-          this.root.remove(rift.mesh);
-          this._releaseMeshResources(rift.mesh);
-        }
-        rift.ripples.forEach(r => {
-          this.root.remove(r.mesh);
-          this._releaseMeshResources(r.mesh);
+      if (breach.ring) {
+        const ringScale = 1 + phase * 0.28;
+        breach.ring.scale.setScalar(ringScale);
+        this.setOpacity(breach.ring.material, Math.max(0, phase * 0.42), 'quantum_rift.ring.update');
+      }
+      if (breach.halo) {
+        const haloScale = 1 + phase * 0.48;
+        breach.halo.scale.setScalar(haloScale);
+        breach.halo.rotation.y += deltaTime * 0.14;
+        this.setOpacity(breach.halo.material, Math.max(0, phase * 0.28 * outerPulse), 'quantum_rift.halo.update');
+      }
+      if (breach.veil) {
+        this.setOpacity(breach.veil.material, Math.max(0, phase * 0.12), 'quantum_rift.veil.update');
+      }
+
+      if (breach.age > life) {
+        ['core', 'ring', 'halo', 'veil'].forEach(part => {
+          if (breach[part]) {
+            this.root.remove(breach[part]);
+            this._releaseMeshResources(breach[part]);
+          }
         });
         return false;
       }
@@ -953,58 +1198,118 @@ export class SafeWorldFXPack {
    * Spawn a quantum rift event
    */
   spawnQuantumRift() {
-    // Random position in view
-    const x = (Math.random() - 0.5) * 100;
-    const z = (Math.random() - 0.5) * 100;
-    
-    // Create main rift mesh (teardrop-like)
-    const riftGeo = this._getSharedGeometry('quantum_rift.core.geo', () => new THREE.IcosahedronGeometry(10, 4));
-    const riftMat = new THREE.MeshStandardMaterial({
-      color: 0x8800ff,
+    const x = (Math.random() - 0.5) * 80;
+    const z = (Math.random() - 0.5) * 80;
+    const location = new THREE.Vector3(x, 28, z);
+    const corruptionBoost = this.atmosphereState.corruptionHigh ? 0.3 : 0;
+    const legendaryBoost = Math.min(0.4, this.atmosphereState.legendaryCount * 0.08);
+    const intensity = 0.85 + corruptionBoost + legendaryBoost;
+    const phaseOffset = Math.random() * Math.PI * 2;
+
+    const coreColor = new THREE.Color(this._getWorldFXPalette('violet')).multiplyScalar(0.88);
+    const edgeColor = new THREE.Color(this._getWorldFXPalette('cyan'));
+    const whiteHighlight = new THREE.Color(this._getWorldFXPalette('ritualWhite'));
+    const coreFinal = coreColor.clone().lerp(edgeColor, 0.15).lerp(whiteHighlight, legendaryBoost * 0.25);
+    const ringFinal = coreColor.clone().lerp(edgeColor, 0.45).lerp(whiteHighlight, 0.12);
+    const haloFinal = edgeColor.clone().lerp(coreColor, 0.46).lerp(whiteHighlight, 0.08);
+
+    // Dark axiomatic core
+    const coreGeo = this._getSharedGeometry('quantum_rift.core.geo', () => new THREE.IcosahedronGeometry(8, 3));
+    const coreMat = new THREE.MeshStandardMaterial({
+      color: coreFinal,
+      emissive: coreFinal,
+      emissiveIntensity: 0.56,
       transparent: true,
-      opacity: 0.6,
-      emissive: 0x8800ff,
-      emissiveIntensity: 0.5,
+      opacity: 0.72,
+      depthWrite: false,
+      fog: false,
+      side: THREE.DoubleSide
+    });
+    this.installOpacityUniform(coreMat, 0.72, 'standard', 'quantum_rift.core');
+    this.freezeMaterialFlags(coreMat, 'quantum_rift.core');
+
+    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+    coreMesh.position.copy(location);
+    coreMesh.userData = { isWorldFX: true, type: 'quantum_rift_core', signature: 'revelation_breach_core' };
+    this.root.add(coreMesh);
+
+    // Accretion ring
+    const ringGeo = this._getSharedGeometry('quantum_rift.ring.geo', () => new THREE.TorusGeometry(14, 1.4, 10, 80));
+    const ringMat = new THREE.MeshStandardMaterial({
+      color: ringFinal,
+      emissive: ringFinal,
+      emissiveIntensity: 0.28,
+      transparent: true,
+      opacity: 0.46,
+      depthWrite: false,
+      fog: false,
+      side: THREE.DoubleSide
+    });
+    this.installOpacityUniform(ringMat, 0.46, 'standard', 'quantum_rift.ring');
+    this.freezeMaterialFlags(ringMat, 'quantum_rift.ring');
+
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.position.copy(location);
+    ringMesh.rotation.x = Math.PI / 2;
+    ringMesh.userData = { isWorldFX: true, type: 'quantum_rift_ring', signature: 'revelation_accretion_ring' };
+    this.root.add(ringMesh);
+
+    // Ripple halo as sacred consequence
+    const haloGeo = this._getSharedGeometry('quantum_rift.halo.geo', () => {
+      const geo = new THREE.BufferGeometry();
+      const points = [];
+      const segments = 56;
+      const radius = 22;
+      for (let i = 0; i <= segments; i++) {
+        const angle = (i / segments) * Math.PI * 2;
+        points.push(new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius));
+      }
+      geo.setFromPoints(points);
+      return geo;
+    });
+    const haloMat = new THREE.LineBasicMaterial({
+      color: haloFinal,
+      transparent: true,
+      opacity: 0.34,
       fog: false
     });
-    this.installOpacityUniform(riftMat, 0.6, 'standard', 'quantum_rift.core');
-    this.freezeMaterialFlags(riftMat, 'quantum_rift.core');
-    
-    const riftMesh = new THREE.Mesh(riftGeo, riftMat);
-    riftMesh.position.set(x, 30, z);
-    riftMesh.userData = { isWorldFX: true, type: 'quantum_rift' };
-    this.root.add(riftMesh);
-    
-    // Create ripple rings
-    const ripples = [];
-    for (let i = 0; i < 3; i++) {
-      const rippleGeo = this._getSharedGeometry(`quantum_rift.ripple.geo.${12 + i * 8}`, () => new THREE.TorusGeometry(12 + i * 8, 1, 12, 64));
-      const rippleMat = new THREE.MeshStandardMaterial({
-        color: 0xff00ff,
-        transparent: true,
-        opacity: 0.4,
-        emissive: 0xff00ff,
-        emissiveIntensity: 0.3,
-        fog: false
-      });
-      
-      this.installOpacityUniform(rippleMat, 0.4, 'standard', `quantum_rift.ripple_${i}`);
-      this.freezeMaterialFlags(rippleMat, `quantum_rift.ripple_${i}`);
-      
-      const rippleMesh = new THREE.Mesh(rippleGeo, rippleMat);
-      rippleMesh.position.set(x, 30, z);
-      rippleMesh.rotation.x = Math.random() * Math.PI;
-      rippleMesh.userData = { isWorldFX: true, type: 'quantum_rift_ripple' };
-      this.root.add(rippleMesh);
-      
-      ripples.push({ mesh: rippleMesh });
-    }
-    
+    this.installOpacityUniform(haloMat, 0.34, 'line', 'quantum_rift.halo');
+    this.freezeMaterialFlags(haloMat, 'quantum_rift.halo');
+
+    const haloMesh = new THREE.Line(haloGeo, haloMat);
+    haloMesh.position.copy(location);
+    haloMesh.userData = { isWorldFX: true, type: 'quantum_rift_halo', signature: 'revelation_halo' };
+    this.root.add(haloMesh);
+
+    // Veil omen
+    const veilGeo = this._getSharedGeometry('quantum_rift.veil.geo', () => new THREE.RingGeometry(18, 37, 32));
+    const veilMat = new THREE.MeshBasicMaterial({
+      color: whiteHighlight,
+      transparent: true,
+      opacity: 0.08,
+      fog: false,
+      side: THREE.DoubleSide
+    });
+    this.installOpacityUniform(veilMat, 0.08, 'standard', 'quantum_rift.veil');
+    this.freezeMaterialFlags(veilMat, 'quantum_rift.veil');
+
+    const veilMesh = new THREE.Mesh(veilGeo, veilMat);
+    veilMesh.position.copy(location);
+    veilMesh.rotation.x = -Math.PI / 2;
+    veilMesh.userData = { isWorldFX: true, type: 'quantum_rift_veil', signature: 'revelation_veil' };
+    this.root.add(veilMesh);
+
     this.vfxLayers.quantumRifts.push({
       age: 0,
-      mesh: riftMesh,
-      ripples: ripples
+      intensity,
+      phaseOffset,
+      core: coreMesh,
+      ring: ringMesh,
+      halo: haloMesh,
+      veil: veilMesh
     });
+    this._emitWorldFXEvent('Quantum Breach', 'A higher order revelation leaks through', 'revelation', intensity, 'attack');
+    this.triggerScreenOverlay('quantum_breach', intensity);
   }
   
   /**
@@ -1012,32 +1317,42 @@ export class SafeWorldFXPack {
    */
   updateSigmaGlitches(deltaTime) {
     this.worldState.glitchTimer += deltaTime;
-    
-    const glitchMultiplier = 1 + (this._isSignalActive('corruption.high') ? 1.0 : 0) + (this._isSignalActive('loadPressure.high') ? 0.75 : 0);
-    if (Math.random() < this.config.sigmaGlitchChance * glitchMultiplier) {
-      this.triggerSigmaGlitch();
-    }
-    
-    // Update active glitches
-    this.vfxLayers.sigmaGlitches = this.vfxLayers.sigmaGlitches.filter(glitch => {
-      glitch.age += deltaTime;
-      
-      // Fade out
-      glitch.alpha = Math.max(0, 1 - glitch.age / this.config.sigmaGlitchDuration);
-      
-      if (glitch.mesh) {
-        this.setOpacity(glitch.mesh.material, glitch.alpha * 0.4, 'sigma_glitch.update');
+    const bias = this._getWorldFXSignalBias('sigmaGlitch');
+    const eligible = this.atmosphereState.corruptionHigh || this.atmosphereState.loadPressureHigh;
+    const interval = this.config.sigmaGlitchInterval * (1 - Math.min(0.35, bias * 0.4));
+
+    if (eligible && this.worldState.glitchTimer > interval) {
+      if (Math.random() < this.config.sigmaGlitchChance + bias * 0.18) {
+        this.triggerSigmaGlitch();
       }
-      
-      // Remove when done
-      if (glitch.age > this.config.sigmaGlitchDuration) {
-        if (glitch.mesh) {
-          this.root.remove(glitch.mesh);
-          this._releaseMeshResources(glitch.mesh);
-        }
+      this.worldState.glitchTimer = 0;
+    }
+
+    // Update active fractures
+    this.vfxLayers.sigmaGlitches = this.vfxLayers.sigmaGlitches.filter(fracture => {
+      fracture.age += deltaTime;
+      const envelope = this._evaluateEnvelope(this._getWorldFXEnvelope('sigmaGlitch', fracture.intensity), fracture.age);
+      const afterimageAge = fracture.age - 0.04;
+      const afterimageOpacity = afterimageAge > 0 ? Math.max(0, 0.12 * (1 - afterimageAge / this.config.sigmaAfterimageDuration)) : 0;
+      const mainOpacity = Math.max(0, envelope * fracture.baseOpacity);
+
+      if (fracture.mesh) {
+        this.setOpacity(fracture.mesh.material, mainOpacity, 'sigma_fracture.update');
+      }
+      if (fracture.afterimage) {
+        this.setOpacity(fracture.afterimage.material, afterimageOpacity, 'sigma_fracture.afterimage.update');
+      }
+
+      if (fracture.age > this.config.sigmaGlitchDuration) {
+        ['mesh', 'afterimage'].forEach(part => {
+          if (fracture[part]) {
+            this.root.remove(fracture[part]);
+            this._releaseMeshResources(fracture[part]);
+          }
+        });
         return false;
       }
-      
+
       return true;
     });
   }
@@ -1046,41 +1361,81 @@ export class SafeWorldFXPack {
    * Trigger a sigma glitch
    */
   triggerSigmaGlitch() {
-    // Random glitch position on screen
-    const x = Math.random() * 100 - 50;
-    const z = Math.random() * 100 - 50;
-    
-    // Create vertical glitch stripes
-    const stripeCount = 3 + Math.floor(Math.random() * 3);
-    const glitchGeo = new THREE.BufferGeometry();
-    const points = [];
-    
-    for (let i = 0; i < stripeCount; i++) {
-      const stripeX = x + (Math.random() - 0.5) * 20;
-      points.push(new THREE.Vector3(stripeX, 0, z));
-      points.push(new THREE.Vector3(stripeX, 20, z));
+    if (!this.atmosphereState.corruptionHigh && !this.atmosphereState.loadPressureHigh) return;
+
+    const x = (Math.random() - 0.5) * 68;
+    const z = (Math.random() - 0.5) * 48;
+    const location = new THREE.Vector3(x, 0, z);
+    const pressureBoost = this.atmosphereState.loadPressureHigh ? 0.16 : 0;
+    const corruptionBoost = this.atmosphereState.corruptionHigh ? 0.22 : 0;
+    const baseOpacity = 0.34 + pressureBoost * 0.2 + corruptionBoost * 0.15;
+    const intensity = 1 + pressureBoost + corruptionBoost;
+
+    const baseColor = new THREE.Color(this._getWorldFXPalette('mint'));
+    const tensionColor = new THREE.Color(this._getWorldFXPalette('violet'));
+    const accentColor = new THREE.Color(this._getWorldFXPalette('rose'));
+    const finalColor = baseColor.clone().lerp(tensionColor, corruptionBoost * 0.9).lerp(accentColor, pressureBoost * 0.6);
+    const afterimageColor = new THREE.Color(this._getWorldFXPalette('cyan')).lerp(tensionColor, corruptionBoost * 0.45);
+
+    // Build fracture geometry
+    const fractureGeo = new THREE.BufferGeometry();
+    const fracturePoints = [];
+    const barCount = 2;
+    const wideCount = 1;
+    const segmentHeight = 16;
+
+    for (let i = 0; i < barCount; i++) {
+      const offsetX = (i - 0.5) * 4;
+      fracturePoints.push(new THREE.Vector3(offsetX, 0, 0));
+      fracturePoints.push(new THREE.Vector3(offsetX, segmentHeight, 0));
     }
-    
-    glitchGeo.setFromPoints(points);
-    
-    const glitchMat = new THREE.LineBasicMaterial({
-      color: 0x00ff88,
+
+    for (let i = 0; i < wideCount; i++) {
+      const offsetX = (i - 0.5) * 10;
+      fracturePoints.push(new THREE.Vector3(offsetX, 0, 0));
+      fracturePoints.push(new THREE.Vector3(offsetX, segmentHeight * 0.9, 0));
+    }
+
+    fractureGeo.setFromPoints(fracturePoints);
+
+    const fractureMat = new THREE.LineBasicMaterial({
+      color: finalColor,
       transparent: true,
-      opacity: 0.4,
+      opacity: baseOpacity,
       fog: false
     });
-    this.installOpacityUniform(glitchMat, 0.4, 'line', 'sigma_glitch');
-    this.freezeMaterialFlags(glitchMat, 'sigma_glitch');
-    
-    const glitchMesh = new THREE.LineSegments(glitchGeo, glitchMat);
-    glitchMesh.userData = { isWorldFX: true, type: 'sigma_glitch' };
-    this.root.add(glitchMesh);
-    
+    this.installOpacityUniform(fractureMat, baseOpacity, 'line', 'sigma_fracture');
+    this.freezeMaterialFlags(fractureMat, 'sigma_fracture');
+
+    const fractureMesh = new THREE.LineSegments(fractureGeo, fractureMat);
+    fractureMesh.userData = { isWorldFX: true, type: 'sigma_fracture', signature: 'sigma_skin_fracture' };
+    fractureMesh.position.copy(location);
+    this.root.add(fractureMesh);
+
+    const afterimageGeo = this._getSharedGeometry('sigma_fracture.afterimage.geo', () => fractureGeo.clone());
+    const afterimageMat = new THREE.LineBasicMaterial({
+      color: afterimageColor,
+      transparent: true,
+      opacity: 0.12,
+      fog: false
+    });
+    this.installOpacityUniform(afterimageMat, 0.12, 'line', 'sigma_fracture.afterimage');
+    this.freezeMaterialFlags(afterimageMat, 'sigma_fracture.afterimage');
+
+    const afterimageMesh = new THREE.LineSegments(afterimageGeo, afterimageMat);
+    afterimageMesh.userData = { isWorldFX: true, type: 'sigma_fracture_afterimage' };
+    afterimageMesh.position.copy(location);
+    afterimageMesh.position.y -= 0.04;
+    this.root.add(afterimageMesh);
+
     this.vfxLayers.sigmaGlitches.push({
       age: 0,
-      alpha: 1,
-      mesh: glitchMesh
+      intensity,
+      baseOpacity,
+      mesh: fractureMesh,
+      afterimage: afterimageMesh
     });
+    this._emitWorldFXEvent('Sigma Fracture', 'The system skin tears briefly', 'corruption', intensity, 'attack');
   }
   
   /**
@@ -1115,45 +1470,48 @@ export class SafeWorldFXPack {
    * ENERGY STREAMS - Neon flows across landscape
    */
   createEnergyStreams() {
-    const streamCount = 4;
-    
-    for (let i = 0; i < streamCount; i++) {
+    const streamDefinitions = [
+      { role: 'dominant', height: 0.3, radius: 40, segments: 80, palette: 'cyan', baseOpacity: 0.32, width: 4 },
+      { role: 'support', height: 0.15, radius: 60, segments: 80, palette: 'mint', baseOpacity: 0.18, width: 2 }
+    ];
+
+    for (let i = 0; i < streamDefinitions.length; i++) {
+      const def = streamDefinitions[i];
       const streamGeo = new THREE.BufferGeometry();
       const points = [];
-      
-      const segmentCount = 50;
-      for (let s = 0; s <= segmentCount; s++) {
-        const t = s / segmentCount;
-        points.push(
-          new THREE.Vector3(
-            Math.cos(t * Math.PI * 2 + i) * 50,
-            0.2,
-            (t - 0.5) * 200
-          )
-        );
+      const directionBias = i === 0 ? -1 : 1;
+
+      for (let s = 0; s <= def.segments; s++) {
+        const t = s / def.segments;
+        const x = Math.sin(t * Math.PI * 2 + i * 0.9) * def.radius * 0.5 * (1 - t * 0.3);
+        const y = def.height + Math.cos(t * Math.PI * 1.2) * 0.7;
+        const z = (t - 0.5) * 220;
+        points.push(new THREE.Vector3(x * directionBias, y, z));
       }
-      
+
       streamGeo.setFromPoints(points);
-      
-      const streamMat = new THREE.LineBasicMaterial({
-        color: new THREE.Color().setHSL(0.5 + i * 0.1, 1, 0.5),
-        transparent: true,
-        opacity: 0.3,
-        fog: false,
-        linewidth: 3
+      const streamMat = this._getSharedMaterial(`energy_stream.${def.role}.mat`, () => {
+        const material = new THREE.LineBasicMaterial({
+          color: this._getWorldFXPalette(def.palette),
+          transparent: true,
+          opacity: def.baseOpacity,
+          fog: false,
+          linewidth: def.width
+        });
+        this.installOpacityUniform(material, def.baseOpacity, 'line', `energy_stream.${def.role}`);
+        this.freezeMaterialFlags(material, `energy_stream.${def.role}`);
+        return material;
       });
-      this.installOpacityUniform(streamMat, 0.3, 'line', `energy_stream_${i}`);
-      this.freezeMaterialFlags(streamMat, `energy_stream_${i}`);
-      
+
       const streamMesh = new THREE.Line(streamGeo, streamMat);
-      streamMesh.position.z = i * 30 - 45;
       streamMesh.userData = {
         isWorldFX: true,
         type: 'energy_stream',
-        baseZ: streamMesh.position.z,
-        index: i
+        role: def.role,
+        baseZ: 0,
+        baseOpacity: def.baseOpacity,
+        speedFactor: def.role === 'dominant' ? 1.0 : 0.55
       };
-      
       this.root.add(streamMesh);
       this.vfxLayers.energyStreams.push(streamMesh);
     }
@@ -1163,73 +1521,283 @@ export class SafeWorldFXPack {
    * Update energy streams
    */
   updateEnergyStreams(deltaTime) {
-    const activityLevel = Math.min(1, this.worldState.totalTraffic / 20);
-    
-    this.vfxLayers.energyStreams.forEach((stream, idx) => {
-      // Flow animation
-      stream.position.z += (5 + activityLevel * 10) * deltaTime;
-      
-      // Reset position
-      if (stream.position.z > 100) {
-        stream.position.z = -100;
+    const totalTraffic = Math.min(1, this.worldState.totalTraffic / 30);
+    const synergyBoost = this.atmosphereState.synergyHigh ? 0.16 : 0;
+    const pressureBoost = this.atmosphereState.loadPressureHigh ? 0.2 : 0;
+    const flowIntensity = Math.min(1, totalTraffic + synergyBoost + pressureBoost);
+    const pulse = 0.9 + Math.sin(this.worldState.time * 2.1) * 0.1;
+
+    this.vfxLayers.energyStreams.forEach(stream => {
+      const speed = 8 + flowIntensity * 18;
+      stream.position.z += speed * stream.userData.speedFactor * deltaTime;
+      if (stream.position.z > 120) {
+        stream.position.z = -120;
       }
-      
-      // Color shift based on activity
-      this.setOpacity(stream.material, 0.2 + activityLevel * 0.4, `energy_stream.update_${idx}`);
+
+      const opacityTarget = stream.userData.baseOpacity + flowIntensity * 0.24 + (stream.userData.role === 'dominant' ? 0.05 : 0);
+      this.setOpacity(stream.material, Math.min(1, opacityTarget) * pulse, `energy_stream.update.${stream.userData.role}`);
+
+      const baseColor = new THREE.Color(this._getWorldFXPalette('cyan'));
+      const highlightColor = new THREE.Color(this._getWorldFXPalette('mint'));
+      const pressureColor = new THREE.Color(this._getWorldFXPalette('violet'));
+      baseColor.lerp(highlightColor, this.atmosphereState.synergyHigh ? 0.18 : 0);
+      if (this.atmosphereState.loadPressureHigh) {
+        baseColor.lerp(pressureColor, 0.18);
+      }
+      stream.material.color.copy(baseColor);
     });
   }
   
   /**
-   * AURORA HORIZONS - Light bands at horizon
+   * AURORA HORIZONS - Intelligent horizon band
    */
   createAuroraHorizon() {
-    const auroraGeo = new THREE.BufferGeometry();
-    const auroraPoints = [];
-    
-    // Create horizontal wave pattern
-    const waveCount = 3;
-    for (let w = 0; w < waveCount; w++) {
-      for (let x = -200; x <= 200; x += 10) {
-        const offset = Math.sin((x + this.worldState.time) * 0.05) * 5;
-        auroraPoints.push(
-          new THREE.Vector3(x, 40 + w * 8 + offset, 0)
-        );
-        auroraPoints.push(
-          new THREE.Vector3(x, 40 + w * 8 + 3 + offset, 0)
-        );
+    const auroraRoot = new THREE.Group();
+    auroraRoot.userData = { isWorldFX: true, type: 'aurora_horizon' };
+
+    const bandDefinitions = [
+      { height: 38, amplitude: 3.5, segments: 48, opacity: 0.18, palette: 'mint', bandType: 'primary' },
+      { height: 44, amplitude: 2.5, segments: 44, opacity: 0.14, palette: 'cyan', bandType: 'secondary' },
+      { height: 50, amplitude: 1.8, segments: 40, opacity: 0.10, palette: 'cyan', bandType: 'tertiary' }
+    ];
+
+    const bandWidth = 240;
+    for (const band of bandDefinitions) {
+      const bandGeo = new THREE.BufferGeometry();
+      const bandPoints = [];
+      const phaseOffset = band.bandType === 'primary' ? 0 : band.bandType === 'secondary' ? Math.PI * 0.18 : Math.PI * 0.35;
+
+      for (let x = -bandWidth; x <= bandWidth; x += bandWidth / band.segments) {
+        const wave = Math.sin((x * 0.025) + phaseOffset) * band.amplitude;
+        const y = band.height + wave;
+        bandPoints.push(new THREE.Vector3(x, y, 0));
       }
+
+      bandGeo.setFromPoints(bandPoints);
+      const bandMat = this._getSharedMaterial(`aurora_horizon.band.${band.bandType}.mat`, () => {
+        const material = new THREE.LineBasicMaterial({
+          color: this._getWorldFXPalette(band.palette),
+          transparent: true,
+          opacity: band.opacity,
+          fog: false
+        });
+        this.installOpacityUniform(material, band.opacity, 'line', `aurora_horizon.band.${band.bandType}`);
+        this.freezeMaterialFlags(material, `aurora_horizon.band.${band.bandType}`);
+        return material;
+      });
+
+      const bandLine = new THREE.Line(bandGeo, bandMat);
+      bandLine.userData = { isWorldFX: true, type: 'aurora_horizon_band', bandType: band.bandType, baseOpacity: band.opacity };
+      auroraRoot.add(bandLine);
     }
-    
-    auroraGeo.setFromPoints(auroraPoints);
-    
-    const auroraMat = new THREE.LineBasicMaterial({
-      color: 0x00ffaa,
-      transparent: true,
-      opacity: 0.3,
-      fog: false
+
+    const accentGeo = new THREE.BufferGeometry();
+    const accentPoints = [];
+    for (let x = -bandWidth; x <= bandWidth; x += bandWidth / 36) {
+      accentPoints.push(new THREE.Vector3(x, 54 + Math.sin((x * 0.02)) * 1.2, 0));
+    }
+    accentGeo.setFromPoints(accentPoints);
+    const accentMat = this._getSharedMaterial('aurora_horizon.accent.mat', () => {
+      const material = new THREE.LineBasicMaterial({
+        color: this._getWorldFXPalette('rose'),
+        transparent: true,
+        opacity: 0.08,
+        fog: false
+      });
+      this.installOpacityUniform(material, 0.08, 'line', 'aurora_horizon.accent');
+      this.freezeMaterialFlags(material, 'aurora_horizon.accent');
+      return material;
     });
-    this.installOpacityUniform(auroraMat, 0.3, 'line', 'aurora_horizon');
-    this.freezeMaterialFlags(auroraMat, 'aurora_horizon');
-    
-    const auroraMesh = new THREE.LineSegments(auroraGeo, auroraMat);
-    auroraMesh.userData = { isWorldFX: true, type: 'aurora_horizon' };
-    
-    this.root.add(auroraMesh);
-    this.vfxLayers.auroraHorizons.push(auroraMesh);
+    const accentLine = new THREE.Line(accentGeo, accentMat);
+    accentLine.userData = { isWorldFX: true, type: 'aurora_horizon_band', bandType: 'accent', baseOpacity: 0.08 };
+    auroraRoot.add(accentLine);
+
+    this.root.add(auroraRoot);
+    this.vfxLayers.auroraHorizons.push(auroraRoot);
   }
-  
+
   /**
    * Update aurora horizon
    */
   updateAuroraHorizon(deltaTime) {
-    this.vfxLayers.auroraHorizons.forEach(aurora => {
-      // Slow drift animation
-      aurora.rotation.z += deltaTime * 0.05;
-      
-      // Color cycling
-      const phase = (this.worldState.time * 0.5) % (Math.PI * 2);
-      const hue = 0.3 + Math.sin(phase) * 0.1;
-      aurora.material.color.setHSL(hue, 1, 0.5);
+    this.vfxLayers.auroraHorizons.forEach(auroraRoot => {
+      auroraRoot.rotation.y += deltaTime * 0.01;
+      auroraRoot.position.x = Math.sin(this.worldState.time * 0.006) * 1.5;
+      auroraRoot.position.z = Math.cos(this.worldState.time * 0.006) * 1.5;
+
+      const baseColor = new THREE.Color(this._getWorldFXPalette('mint'));
+      const mainColor = new THREE.Color(this._getWorldFXPalette('cyan'));
+      const corruptionColor = new THREE.Color(this._getWorldFXPalette('violet'));
+      const roseColor = new THREE.Color(this._getWorldFXPalette('rose'));
+
+      const stabilityBoost = this.atmosphereState.stabilityHigh ? 0.18 : 0;
+      const synergyBoost = this.atmosphereState.synergyHigh ? 0.15 : 0;
+      const corruptionBoost = this.atmosphereState.corruptionHigh ? 0.42 : 0;
+      const opacityBase = 0.15 + stabilityBoost + synergyBoost;
+      const accentOpacity = 0.05 + (this.atmosphereState.corruptionHigh ? 0.12 : 0);
+
+      auroraRoot.children.forEach(child => {
+        if (!child.material) return;
+        if (child.userData.bandType === 'primary') {
+          const color = baseColor.clone();
+          color.lerp(mainColor, 0.25);
+          if (this.atmosphereState.corruptionHigh) {
+            color.lerp(corruptionColor, 0.12);
+          }
+          child.material.color.copy(color);
+          this.setOpacity(child.material, opacityBase + 0.05, 'aurora_horizon.primary.update');
+        } else if (child.userData.bandType === 'secondary') {
+          const color = mainColor.clone();
+          if (this.atmosphereState.corruptionHigh) {
+            color.lerp(corruptionColor, 0.1);
+          }
+          child.material.color.copy(color);
+          this.setOpacity(child.material, opacityBase * 0.85, 'aurora_horizon.secondary.update');
+        } else if (child.userData.bandType === 'tertiary') {
+          const color = mainColor.clone().lerp(baseColor, 0.5);
+          child.material.color.copy(color);
+          this.setOpacity(child.material, opacityBase * 0.7, 'aurora_horizon.tertiary.update');
+        } else if (child.userData.bandType === 'accent') {
+          const color = roseColor.clone();
+          if (this.atmosphereState.corruptionHigh) {
+            color.lerp(corruptionColor, 0.7);
+          }
+          child.material.color.copy(color);
+          this.setOpacity(child.material, accentOpacity, 'aurora_horizon.accent.update');
+        }
+      });
+    });
+  }
+
+  /**
+   * SCREEN OVERLAYS - Camera-level revelation layer
+   */
+  updateScreenOverlays(deltaTime) {
+    if (!this.screenOverlaysRoot || !this.camera) return;
+    this.screenOverlaysRoot.quaternion.copy(this.camera.quaternion);
+    this.screenOverlaysRoot.position.copy(this.camera.position);
+
+    this.vfxLayers.screenOverlays = this.vfxLayers.screenOverlays.filter(overlay => {
+      overlay.age += deltaTime;
+      const envelope = this._evaluateEnvelope(this._getWorldFXEnvelope('screenOverlay', overlay.intensity), overlay.age);
+      const flashPhase = Math.max(0, 1 - overlay.age / (overlay.duration * 0.4));
+      const ringOpacity = Math.max(0, envelope * 0.45);
+      const flashOpacity = Math.max(0, flashPhase * overlay.flashOpacity);
+      const badgeOpacity = Math.max(0, envelope * 0.38);
+
+      if (overlay.ring) {
+        overlay.ring.scale.setScalar(1 + envelope * 0.18);
+        this.setOpacity(overlay.ring.material, ringOpacity, 'screen_overlay.ring');
+      }
+      if (overlay.flash) {
+        this.setOpacity(overlay.flash.material, flashOpacity, 'screen_overlay.flash');
+      }
+      if (overlay.badge) {
+        overlay.badge.rotation.z += deltaTime * 2.1;
+        this.setOpacity(overlay.badge.material, badgeOpacity, 'screen_overlay.badge');
+      }
+      if (overlay.vignette) {
+        this.setOpacity(overlay.vignette.material, Math.max(0, envelope * 0.08), 'screen_overlay.vignette');
+      }
+
+      if (overlay.age > overlay.duration) {
+        ['ring', 'flash', 'badge', 'vignette'].forEach(part => {
+          if (overlay[part]) {
+            this.screenOverlaysRoot.remove(overlay[part]);
+            this._releaseMeshResources(overlay[part]);
+          }
+        });
+        return false;
+      }
+      return true;
+    });
+  }
+
+  triggerScreenOverlay(eventKey, intensity = 1) {
+    if (!this.screenOverlaysRoot) return;
+    const white = new THREE.Color(this._getWorldFXPalette('ritualWhite'));
+    const cyan = new THREE.Color(this._getWorldFXPalette('cyan'));
+    const violet = new THREE.Color(this._getWorldFXPalette('violet'));
+    const baseColor = cyan.clone().lerp(violet, this.atmosphereState.corruptionHigh ? 0.4 : 0.12);
+
+    const ringGeo = new THREE.RingGeometry(0.82, 0.96, 56);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: baseColor,
+      transparent: true,
+      opacity: 0.35,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    this.installOpacityUniform(ringMat, 0.35, 'standard', 'screen_overlay.ring');
+    this.freezeMaterialFlags(ringMat, 'screen_overlay.ring');
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.position.set(0, 0, -1.05);
+    ring.renderOrder = this.screenOverlaysRoot.renderOrder;
+    ring.userData = { isWorldFX: true, type: 'screen_overlay_ring', eventKey };
+    this.screenOverlaysRoot.add(ring);
+
+    const flashGeo = new THREE.PlaneGeometry(1.6, 1.6);
+    const flashMat = new THREE.MeshBasicMaterial({
+      color: white,
+      transparent: true,
+      opacity: 0.0,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    this.installOpacityUniform(flashMat, 0.0, 'standard', 'screen_overlay.flash');
+    this.freezeMaterialFlags(flashMat, 'screen_overlay.flash');
+    const flash = new THREE.Mesh(flashGeo, flashMat);
+    flash.position.set(0, 0, -1.1);
+    flash.renderOrder = this.screenOverlaysRoot.renderOrder;
+    flash.userData = { isWorldFX: true, type: 'screen_overlay_flash', eventKey };
+    this.screenOverlaysRoot.add(flash);
+
+    const badgeGeo = new THREE.CircleGeometry(0.08, 16);
+    const badgeMat = new THREE.MeshBasicMaterial({
+      color: white,
+      transparent: true,
+      opacity: 0.2,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    this.installOpacityUniform(badgeMat, 0.2, 'standard', 'screen_overlay.badge');
+    this.freezeMaterialFlags(badgeMat, 'screen_overlay.badge');
+    const badge = new THREE.Mesh(badgeGeo, badgeMat);
+    badge.position.set(0, 0.24, -1.02);
+    badge.renderOrder = this.screenOverlaysRoot.renderOrder;
+    badge.userData = { isWorldFX: true, type: 'screen_overlay_badge', eventKey };
+    this.screenOverlaysRoot.add(badge);
+
+    const vignetteGeo = new THREE.RingGeometry(0.92, 1.15, 32);
+    const vignetteMat = new THREE.MeshBasicMaterial({
+      color: violet,
+      transparent: true,
+      opacity: 0.06,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    this.installOpacityUniform(vignetteMat, 0.06, 'standard', 'screen_overlay.vignette');
+    this.freezeMaterialFlags(vignetteMat, 'screen_overlay.vignette');
+    const vignette = new THREE.Mesh(vignetteGeo, vignetteMat);
+    vignette.position.set(0, 0, -1.15);
+    vignette.renderOrder = this.screenOverlaysRoot.renderOrder;
+    vignette.userData = { isWorldFX: true, type: 'screen_overlay_vignette', eventKey };
+    this.screenOverlaysRoot.add(vignette);
+
+    const duration = 0.42 + Math.min(0.16, intensity * 0.08);
+    this.vfxLayers.screenOverlays.push({
+      age: 0,
+      duration,
+      intensity,
+      flashOpacity: 0.72,
+      ring,
+      flash,
+      badge,
+      vignette
     });
   }
   
@@ -1295,6 +1863,15 @@ export class SafeWorldFXPack {
       this.root.remove(aurora);
       this._releaseMeshResources(aurora);
     });
+
+    // Clean screen overlays
+    if (this.screenOverlaysRoot) {
+      const children = this.screenOverlaysRoot.children.slice();
+      children.forEach(child => {
+        this.screenOverlaysRoot.remove(child);
+        this._releaseMeshResources(child);
+      });
+    }
     
     // Restore original lights
     this.originalLights.forEach(lightData => {
@@ -1352,6 +1929,12 @@ export class SafeWorldFXPack {
       this.vfxLayers.screenOverlays.length = 0;
     }
     this.vfxLayers.fractalSky = null;
+
+    if (this.screenOverlaysRoot) {
+      this.screenOverlaysRoot.children.slice().forEach(child => {
+        this.screenOverlaysRoot.remove(child);
+      });
+    }
 
     // Clear world state tracking
     if (this.worldState) {

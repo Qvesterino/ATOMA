@@ -1,5 +1,18 @@
 import * as THREE from 'three';
 
+const HAZARD_PALETTE = {
+  blackHole: 0x0C0816,
+  deepVoid: 0x05131A,
+  softHalo: 0xE8D0FF,
+  coreWhite: 0xF7FBFF,
+  primaryCyan: 0x6DEAFF,
+  electricEdge: 0x67F2FF,
+  quantumViolet: 0xD07BFF,
+  breachRose: 0xFF73CF,
+  ritualWhite: 0xF7FBFF,
+  stormShadow: 0x08101a
+};
+
 /**
  * Environmental Hazards System
  * Electrical storms, gravitational anomalies, and dynamic environmental effects
@@ -11,12 +24,49 @@ export class EnvironmentalHazards {
     this.root = new THREE.Group();
     this.root.name = 'EnvironmentalHazardsRoot';
     this.scene?.add?.(this.root);
-    this.hazards = [];
-    this.activeEffects = [];
+    this.hazards = new Map();
+    this._hazardSequence = 0;
     this._hazardEffectScratch = new THREE.Vector3();
     this._hazardDirectionScratch = new THREE.Vector3();
     this.metricBus = this._resolveMetricBus();
     this.metricSignalTimes = new Map();
+    this.hazardEnvelope = {
+      birth: 0.2,
+      crest: 0.45,
+      decay: 0.25,
+      afterglow: 0.1
+    };
+    this._sharedUnitSphereGeometry = new THREE.SphereGeometry(1, 24, 24);
+    this._sharedUnitTorusGeometry = new THREE.TorusGeometry(1, 0.05, 16, 120);
+    this._sharedUnitRingGeometry = new THREE.RingGeometry(0.68, 0.82, 64);
+    this._sharedUnitPlaneGeometry = new THREE.PlaneGeometry(1, 1);
+    this._sharedOrbitBeadGeometry = new THREE.SphereGeometry(0.08, 10, 10);
+    this._sharedDustShardGeometry = new THREE.SphereGeometry(0.04, 8, 8);
+    this._sharedBoltGlowMaterial = new THREE.LineBasicMaterial({
+      color: HAZARD_PALETTE.primaryCyan,
+      transparent: true,
+      opacity: 0.48,
+      linewidth: 4,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    this._sharedBoltCoreMaterial = new THREE.LineBasicMaterial({
+      color: HAZARD_PALETTE.coreWhite,
+      transparent: true,
+      opacity: 0.95,
+      linewidth: 1.5,
+      depthWrite: false
+    });
+    this._sharedOrbitMaterial = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false
+    });
+    this._sharedShardMaterial = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0.28,
+      depthWrite: false
+    });
     this._setupMetricTriggers();
   }
   
@@ -26,37 +76,89 @@ export class EnvironmentalHazards {
   createElectricalStorm(position, radius = 30, intensity = 1) {
     const hazard = {
       type: 'electricalStorm',
+      identity: 'thunder crown',
+      title: 'Thunder Crown',
+      subtitle: 'Cathedral storm of high pressure',
+      visualTone: 'electric',
       position: position.clone(),
       radius,
       intensity,
       time: 0,
       active: true,
       bolts: [],
-      aura: null
+      stormGroup: null,
+      core: null,
+      shell: null,
+      ringA: null,
+      ringB: null,
+      backplate: null
     };
     
-    // Create storm aura
-    const auraGeo = new THREE.SphereGeometry(radius, 32, 32);
-    const auraMat = new THREE.MeshStandardMaterial({
-      color: 0x00ffff,
-      transparent: true,
-      opacity: 0,
-      emissive: 0x0088ff,
-      emissiveIntensity: 0.3,
-      side: THREE.BackSide,
-      depthTest: false,   // ⚠️ CRITICAL: Aura overlay does NOT read depth
-      depthWrite: false   // ⚠️ CRITICAL: Aura overlay does NOT write depth
-    });
-    const auraMesh = new THREE.Mesh(auraGeo, auraMat);
-    auraMesh.position.copy(position);
-    this.root.add(auraMesh);
+    const stormGroup = new THREE.Group();
+    stormGroup.name = 'ElectricalStormGroup';
+    stormGroup.position.copy(position);
+    this.root.add(stormGroup);
     
-    hazard.aura = auraMesh;
+    const core = new THREE.Mesh(
+      this._sharedUnitSphereGeometry,
+      new THREE.MeshBasicMaterial({
+        color: HAZARD_PALETTE.coreWhite,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false
+      })
+    );
+    core.scale.setScalar(radius * 0.35);
+    const shell = new THREE.Mesh(
+      this._sharedUnitSphereGeometry,
+      new THREE.MeshBasicMaterial({
+        color: HAZARD_PALETTE.stormShadow,
+        transparent: true,
+        opacity: 0,
+        side: THREE.BackSide,
+        depthWrite: false
+      })
+    );
+    shell.scale.setScalar(radius * 0.95);
+    const ringA = new THREE.Mesh(
+      this._sharedUnitTorusGeometry,
+      this._sharedOrbitMaterial.clone()
+    );
+    ringA.scale.setScalar(radius * 0.7);
+    ringA.rotation.x = Math.PI * 0.5;
+    const ringB = new THREE.Mesh(
+      this._sharedUnitTorusGeometry,
+      this._sharedOrbitMaterial.clone()
+    );
+    ringB.scale.setScalar(radius * 1.05);
     
-    // Create initial lightning bolts
+    ringB.rotation.y = Math.PI * 0.35;
+    const backplate = new THREE.Mesh(
+      this._sharedUnitPlaneGeometry,
+      new THREE.MeshBasicMaterial({
+        color: HAZARD_PALETTE.stormShadow,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      })
+    );
+    backplate.scale.setScalar(radius * 4);
+    backplate.position.set(0, 0, -radius * 1.6);
+    backplate.rotation.y = 0.14;
+    
+    stormGroup.add(backplate, shell, core, ringA, ringB);
+    
+    hazard.stormGroup = stormGroup;
+    hazard.core = core;
+    hazard.shell = shell;
+    hazard.ringA = ringA;
+    hazard.ringB = ringB;
+    hazard.backplate = backplate;
+    
     this.generateLightningBolts(hazard, 3);
-    
-    this.hazards.push(hazard);
+    hazard.id = `hazard.${this._hazardSequence++}`;
+    this.hazards.set(hazard.id, hazard);
     this._emitHazardEvent('environment.hazard.active', hazard);
     return hazard;
   }
@@ -66,16 +168,18 @@ export class EnvironmentalHazards {
    */
   generateLightningBolts(hazard, count) {
     for (let i = 0; i < count; i++) {
+      const branchCount = Math.min(3, 1 + Math.floor(hazard.intensity));
       const bolt = {
         points: [],
-        line: null,
-        life: Math.random() * 0.5,
-        maxLife: 0.5 + Math.random() * 0.3,
+        lines: [],
+        life: Math.random() * 0.45,
+        maxLife: 0.4 + Math.random() * 0.25,
         direction: new THREE.Vector3(
-          (Math.random() - 0.5) * 2,
+          (Math.random() - 0.5) * 0.15,
           -1,
-          (Math.random() - 0.5) * 2
-        ).normalize()
+          (Math.random() - 0.5) * 0.15
+        ).normalize(),
+        branchCount
       };
       
       this.createBoltGeometry(hazard, bolt);
@@ -87,35 +191,65 @@ export class EnvironmentalHazards {
    * Create lightning bolt geometry
    */
   createBoltGeometry(hazard, bolt) {
-    const segments = 20;
-    const points = [];
-    let currentPos = hazard.position.clone();
-    points.push(currentPos.clone());
+    const spineLength = 4;
+    const spinePoints = [hazard.position.clone()];
+    const mainDirection = bolt.direction.clone();
+    const phaseSeed = Math.random() * Math.PI * 2;
     
-    for (let i = 0; i < segments; i++) {
-      const offset = new THREE.Vector3(
-        (Math.random() - 0.5) * 2,
-        (Math.random() - 0.5) * 2,
-        (Math.random() - 0.5) * 2
-      ).multiplyScalar(0.8);
-      
-      currentPos.add(bolt.direction.clone().multiplyScalar(2));
-      currentPos.add(offset);
-      points.push(currentPos.clone());
+    for (let i = 1; i <= spineLength; i++) {
+      const t = i / spineLength;
+      const bendProfile = new THREE.Vector3(
+        Math.sin(phaseSeed + t * Math.PI * 1.5) * hazard.radius * 0.04,
+        Math.cos(phaseSeed + t * Math.PI * 1.2) * hazard.radius * 0.02,
+        Math.sin(phaseSeed * 0.8 + t * Math.PI) * hazard.radius * 0.03
+      );
+      const step = mainDirection.clone().multiplyScalar(hazard.radius * (0.18 + t * 0.05));
+      const nextPoint = spinePoints[i - 1].clone().add(step).add(bendProfile);
+      spinePoints.push(nextPoint);
     }
     
-    bolt.points = points;
+    const positions = [];
+    for (let i = 1; i < spinePoints.length; i++) {
+      const prev = spinePoints[i - 1];
+      const next = spinePoints[i];
+      positions.push(prev.x, prev.y, prev.z, next.x, next.y, next.z);
+    }
     
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const material = new THREE.LineBasicMaterial({
-      color: 0x00ffff,
-      transparent: true,
-      opacity: 0.8,
-      linewidth: 3
-    });
+    const branchCount = Math.min(bolt.branchCount, spineLength - 1);
+    for (let b = 0; b < branchCount; b++) {
+      const branchOriginIndex = 1 + Math.floor((b / branchCount) * (spineLength - 1));
+      const origin = spinePoints[branchOriginIndex].clone();
+      const branchBase = spinePoints[spinePoints.length - 1].clone().sub(origin).normalize();
+      branchBase.applyAxisAngle(new THREE.Vector3(0, 1, 0), (b - 1) * 0.25 + 0.15);
+      const branchLength = hazard.radius * (0.16 + b * 0.03);
+      const branchSteps = 2;
+      let branchPos = origin.clone();
+      
+      for (let j = 0; j < branchSteps; j++) {
+        const branchT = (j + 1) / (branchSteps + 1);
+        const branchOffset = new THREE.Vector3(
+          (Math.sin(phaseSeed + b + j) * 0.02) * hazard.radius,
+          (Math.cos(phaseSeed * 0.7 + b + j) * 0.015) * hazard.radius,
+          (Math.sin(phaseSeed * 1.1 + b - j) * 0.02) * hazard.radius
+        );
+        const nextBranch = branchPos.clone().add(branchBase.clone().multiplyScalar(branchLength * branchT)).add(branchOffset);
+        positions.push(branchPos.x, branchPos.y, branchPos.z, nextBranch.x, nextBranch.y, nextBranch.z);
+        branchPos = nextBranch;
+      }
+    }
     
-    bolt.line = new THREE.Line(geometry, material);
-    this.root.add(bolt.line);
+    const glowGeometry = new THREE.BufferGeometry();
+    glowGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    const coreGeometry = glowGeometry.clone();
+    const glowMaterial = this._sharedBoltGlowMaterial.clone();
+    const coreMaterial = this._sharedBoltCoreMaterial.clone();
+    
+    const glowLine = new THREE.LineSegments(glowGeometry, glowMaterial);
+    const coreLine = new THREE.LineSegments(coreGeometry, coreMaterial);
+    bolt.lines = [glowLine, coreLine];
+    bolt.line = coreLine;
+    this.root.add(glowLine);
+    this.root.add(coreLine);
   }
   
   /**
@@ -124,36 +258,90 @@ export class EnvironmentalHazards {
   createGravitationalAnomaly(position, radius = 25, strength = 1) {
     const hazard = {
       type: 'gravitationalAnomaly',
+      identity: 'singularity eclipse',
+      title: 'Singularity Eclipse',
+      subtitle: 'Silent gravitational authority',
+      visualTone: 'cosmic',
       position: position.clone(),
       radius,
       strength,
       time: 0,
       active: true,
-      mesh: null,
+      group: null,
+      core: null,
+      accretionRing: null,
+      lensRing: null,
+      veil: null,
       particles: []
     };
     
-    // Create visual representation
-    const geometry = new THREE.IcosahedronGeometry(radius * 0.5, 4);
-    const material = new THREE.MeshStandardMaterial({
-      color: 0xff00ff,
-      transparent: true,
-      opacity: 0.15,
-      emissive: 0xff0088,
-      emissiveIntensity: 0.5,
-      wireframe: true
-    });
+    const group = new THREE.Group();
+    group.name = 'GravitationalAnomalyGroup';
+    group.position.copy(position);
+    this.root.add(group);
     
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(position);
-    this.root.add(mesh);
+    const core = new THREE.Mesh(
+      this._sharedUnitSphereGeometry,
+      new THREE.MeshBasicMaterial({
+        color: HAZARD_PALETTE.blackHole,
+        transparent: true,
+        opacity: 0.92,
+        depthWrite: false
+      })
+    );
+    core.scale.setScalar(radius * 0.28);
     
-    hazard.mesh = mesh;
+    const accretionRing = new THREE.Mesh(
+      this._sharedUnitRingGeometry,
+      new THREE.MeshBasicMaterial({
+        color: HAZARD_PALETTE.primaryCyan,
+        transparent: true,
+        opacity: 0.18,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      })
+    );
+    accretionRing.scale.setScalar(radius);
+    accretionRing.rotation.x = Math.PI * 0.5;
     
-    // Create orbital particles
-    this.createAnomalyParticles(hazard, 12);
+    const lensRing = new THREE.Mesh(
+      this._sharedUnitTorusGeometry,
+      new THREE.MeshBasicMaterial({
+        color: HAZARD_PALETTE.quantumViolet,
+        transparent: true,
+        opacity: 0.14,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      })
+    );
+    lensRing.scale.setScalar(radius * 1.05);
+    lensRing.rotation.y = Math.PI * 0.2;
     
-    this.hazards.push(hazard);
+    const veil = new THREE.Mesh(
+      this._sharedUnitPlaneGeometry,
+      new THREE.MeshBasicMaterial({
+        color: HAZARD_PALETTE.voidDeep,
+        transparent: true,
+        opacity: 0.08,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      })
+    );
+    veil.scale.setScalar(radius * 3);
+    veil.position.set(0, 0, -radius * 1.4);
+    veil.rotation.y = 0.12;
+    
+    group.add(veil, accretionRing, lensRing, core);
+    
+    hazard.group = group;
+    hazard.core = core;
+    hazard.accretionRing = accretionRing;
+    hazard.lensRing = lensRing;
+    hazard.veil = veil;
+    
+    this.createAnomalyParticles(hazard, 6);
+    hazard.id = `hazard.${this._hazardSequence++}`;
+    this.hazards.set(hazard.id, hazard);
     this._emitHazardEvent('environment.hazard.active', hazard);
     return hazard;
   }
@@ -162,24 +350,60 @@ export class EnvironmentalHazards {
    * Create particles orbiting anomaly
    */
   createAnomalyParticles(hazard, count) {
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2;
+    const orbitCount = Math.max(4, Math.min(6, count));
+    const shardCount = Math.max(3, Math.floor(count * 0.75));
+    
+    for (let i = 0; i < orbitCount; i++) {
+      const role = 'orbit';
+      const angle = (i / orbitCount) * Math.PI * 2;
+      const hue = i % 2 === 0 ? HAZARD_PALETTE.primaryCyan : HAZARD_PALETTE.softHalo;
       const particle = {
-        position: new THREE.Vector3(
-          Math.cos(angle) * hazard.radius * 0.6,
-          Math.sin(angle) * hazard.radius * 0.6,
-          Math.cos(angle) * Math.sin(angle) * hazard.radius * 0.6
+        role,
+        mesh: new THREE.Mesh(
+          this._sharedOrbitBeadGeometry,
+          this._sharedOrbitMaterial.clone()
         ),
-        velocity: new THREE.Vector3(
-          -Math.sin(angle) * 0.05,
-          0,
-          Math.cos(angle) * 0.05
-        ),
-        size: 0.3 + Math.random() * 0.2,
-        angle: angle,
-        speed: 0.01 + Math.random() * 0.02
+        baseAngle: angle,
+        radiusFactor: 0.75 + (i % 2) * 0.04,
+        speed: 0.003 + hazard.intensity * 0.003 + i * 0.0008,
+        pulseOffset: Math.PI * i / orbitCount,
+        baseOpacity: 0.45
       };
-      
+      particle.mesh.material.color.setHex(hue);
+      particle.mesh.scale.setScalar(0.9 + (i % 2) * 0.06);
+      particle.mesh.position.set(
+        Math.cos(angle) * hazard.radius * particle.radiusFactor,
+        Math.sin(angle) * hazard.radius * particle.radiusFactor * 0.18,
+        Math.sin(angle) * hazard.radius * particle.radiusFactor * 0.28
+      );
+      hazard.group.add(particle.mesh);
+      hazard.particles.push(particle);
+    }
+    
+    for (let i = 0; i < shardCount; i++) {
+      const role = 'shard';
+      const angle = (i / shardCount) * Math.PI * 2 + Math.random() * 0.3;
+      const radiusBias = 0.92 + (i % 2) * 0.1;
+      const hue = (i % 2 === 0) ? HAZARD_PALETTE.electricEdge : HAZARD_PALETTE.breachRose;
+      const particle = {
+        role,
+        mesh: new THREE.Mesh(
+          this._sharedDustShardGeometry,
+          this._sharedShardMaterial.clone()
+        ),
+        baseAngle: angle,
+        radiusFactor: radiusBias,
+        speed: 0.002 + hazard.intensity * 0.0015,
+        pulseOffset: Math.random() * Math.PI * 2,
+        baseOpacity: 0.2
+      };
+      particle.mesh.scale.setScalar(0.45 + Math.random() * 0.2);
+      particle.mesh.position.set(
+        Math.cos(angle) * hazard.radius * radiusBias * 0.92,
+        (Math.sin(angle * 1.4) * 0.05 + 0.02) * hazard.radius,
+        Math.sin(angle) * hazard.radius * radiusBias * 0.92
+      );
+      hazard.group.add(particle.mesh);
       hazard.particles.push(particle);
     }
   }
@@ -192,8 +416,8 @@ export class EnvironmentalHazards {
     force.set(0, 0, 0);
     const direction = this._hazardDirectionScratch || (this._hazardDirectionScratch = new THREE.Vector3());
     
-    this.hazards.forEach(hazard => {
-      if (!hazard.active) return;
+    for (const hazard of this.hazards.values()) {
+      if (!hazard.active) continue;
       
       const distance = position.distanceTo(hazard.position);
       
@@ -218,7 +442,7 @@ export class EnvironmentalHazards {
           force.add(direction.multiplyScalar(strength));
         }
       }
-    });
+    }
     
     return force;
   }
@@ -228,8 +452,8 @@ export class EnvironmentalHazards {
    */
   update(deltaTime) {
     if (!this.frameScheduler?.shouldRunVisual?.()) return;
-    this.hazards.forEach(hazard => {
-      if (!hazard.active) return;
+    for (const hazard of this.hazards.values()) {
+      if (!hazard.active) continue;
       
       hazard.time += deltaTime;
       
@@ -240,17 +464,6 @@ export class EnvironmentalHazards {
       if (hazard.type === 'gravitationalAnomaly') {
         this.updateGravitationalAnomaly(hazard, deltaTime);
       }
-    });
-    
-    // Update active effects
-    for (let i = this.activeEffects.length - 1; i >= 0; i--) {
-      const effect = this.activeEffects[i];
-      effect.life -= deltaTime;
-      
-      if (effect.life <= 0) {
-        this.root.remove(effect.object);
-        this.activeEffects.splice(i, 1);
-      }
     }
   }
   
@@ -259,42 +472,51 @@ export class EnvironmentalHazards {
    */
   updateElectricalStorm(hazard, deltaTime) {
     const intensityScale = this._getHazardIntensityScale();
-    // Update aura pulsing
-    const pulse = Math.sin(hazard.time * 2) * 0.5 + 0.5;
-    hazard.aura.material.opacity = pulse * 0.3 * intensityScale;
-    if (hazard.aura.material.isMeshStandardMaterial || hazard.aura.material.isMeshPhongMaterial || 
-        hazard.aura.material.isMeshLambertMaterial || hazard.aura.material.isMeshToonMaterial) {
-      hazard.aura.material.emissiveIntensity = (0.2 + pulse * 0.4) * intensityScale;
+    const lodScale = this._getHazardLODScale(hazard);
+    const signals = this._getHazardSignalModifiers();
+    const { envelope, pulse, slowPulse } = this._getHazardPhaseWeights(hazard);
+    const { attack, crest, release } = this._getHazardPhaseState(hazard);
+    const palette = this._getHazardPalette(hazard.type);
+
+    const stormScale = 1 + attack * 0.04 + crest * 0.06 - release * 0.03;
+    hazard.stormGroup.scale.setScalar(stormScale);
+    hazard.core.material.opacity = (0.12 + attack * 0.18 + crest * 0.24 - release * 0.14) * lodScale;
+    hazard.core.material.color.setHex(signals.stabilityHigh ? HAZARD_PALETTE.coreWhite : palette.core);
+
+    const shellAlpha = 0.02 + attack * 0.06 + crest * 0.12 - release * 0.08 + (signals.loadPressureHigh ? 0.08 : 0);
+    hazard.shell.material.opacity = shellAlpha * lodScale;
+    hazard.shell.material.color.setHex(signals.corruptionHigh ? HAZARD_PALETTE.breachRose : palette.shadow);
+
+    const ringAAlpha = (0.08 + attack * 0.08 + crest * 0.18 - release * 0.1 + (signals.loadPressureHigh ? 0.08 : 0)) * lodScale;
+    hazard.ringA.material.opacity = ringAAlpha;
+    hazard.ringA.material.color.setHex(signals.stabilityHigh ? HAZARD_PALETTE.coreWhite : palette.aura);
+
+    const ringBAlpha = (0.06 + attack * 0.06 + crest * 0.14 - release * 0.08 + (signals.corruptionHigh ? 0.06 : 0)) * lodScale;
+    hazard.ringB.material.opacity = ringBAlpha;
+    hazard.ringB.material.color.setHex(signals.corruptionHigh ? HAZARD_PALETTE.breachRose : (signals.stabilityHigh ? HAZARD_PALETTE.coreWhite : palette.edge));
+
+    hazard.backplate.material.opacity = (0.02 + attack * 0.04 + crest * 0.08 - release * 0.05) * lodScale;
+    hazard.backplate.material.color.setHex(palette.shadow);
+
+    const ringSpeed = 0.01 + crest * 0.04 + attack * 0.015 - release * 0.01 + (signals.loadPressureHigh ? 0.015 : 0);
+    hazard.ringA.rotation.z += deltaTime * ringSpeed * pulse;
+
+    if (attack > 0.05 && hazard.bolts.length < 3 + Math.floor(crest * 2)) {
+      this.generateLightningBolts(hazard, 1);
     }
-    
-    // Update bolts
-    for (let i = hazard.bolts.length - 1; i >= 0; i--) {
+
+    for (let i = 0; i < hazard.bolts.length; i++) {
       const bolt = hazard.bolts[i];
-      bolt.life -= deltaTime;
-      
-      // Update opacity based on life
-      const opacity = (bolt.life / bolt.maxLife) * 0.8 * intensityScale;
-      bolt.line.material.opacity = opacity;
-      
-      // Remove expired bolt and regenerate
+      bolt.life -= deltaTime * (1 + attack * 0.35 - release * 0.25);
+      const baseOpacity = Math.max(0, (bolt.life / bolt.maxLife) * 0.72 * (crest * 0.8 + attack * 0.2 + 0.2) * intensityScale);
+      const opacity = baseOpacity * (signals.loadPressureHigh ? 1.1 : 1);
+      const edgeColor = signals.corruptionHigh ? HAZARD_PALETTE.breachRose : (signals.stabilityHigh ? HAZARD_PALETTE.coreWhite : HAZARD_PALETTE.electricEdge);
+      bolt.lines.forEach(line => {
+        line.material.opacity = opacity;
+        line.material.color.setHex(edgeColor);
+      });
       if (bolt.life <= 0) {
-        this.root.remove(bolt.line);
-        hazard.bolts.splice(i, 1);
-        
-        // Create new bolt
-        const newBolt = {
-          points: [],
-          line: null,
-          life: 0.5 + Math.random() * 0.3,
-          maxLife: 0.5 + Math.random() * 0.3,
-          direction: new THREE.Vector3(
-            (Math.random() - 0.5) * 2,
-            -1,
-            (Math.random() - 0.5) * 2
-          ).normalize()
-        };
-        this.createBoltGeometry(hazard, newBolt);
-        hazard.bolts.push(newBolt);
+        bolt.life = bolt.maxLife;
       }
     }
   }
@@ -304,27 +526,43 @@ export class EnvironmentalHazards {
    */
   updateGravitationalAnomaly(hazard, deltaTime) {
     const intensityScale = this._getHazardIntensityScale();
-    // Rotate mesh
-    hazard.mesh.rotation.x += deltaTime * 0.3;
-    hazard.mesh.rotation.y += deltaTime * 0.2;
-    
-    // Update pulsing
-    const pulse = Math.sin(hazard.time * 1.5) * 0.5 + 0.5;
-    hazard.mesh.material.opacity = (0.1 + pulse * 0.1) * Math.max(0.6, intensityScale);
-    if (hazard.mesh.material.isMeshStandardMaterial || hazard.mesh.material.isMeshPhongMaterial || 
-        hazard.mesh.material.isMeshLambertMaterial || hazard.mesh.material.isMeshToonMaterial) {
-      hazard.mesh.material.emissiveIntensity = (0.3 + pulse * 0.3) * intensityScale;
-    }
-    
-    // Update particles
+    const lodScale = this._getHazardLODScale(hazard);
+    const signals = this._getHazardSignalModifiers();
+    const { envelope, pulse, slowPulse } = this._getHazardPhaseWeights(hazard);
+    const { attack, crest, release } = this._getHazardPhaseState(hazard);
+    const palette = this._getHazardPalette(hazard.type);
+
+    const formation = Math.min(1, envelope * 1.3);
+    hazard.group.scale.setScalar(1 + attack * 0.02 + crest * 0.03 - release * 0.01);
+    hazard.core.material.opacity = 0.2 + attack * 0.5 + crest * 0.26 - release * 0.28;
+    hazard.core.material.color.setHex(palette.core);
+
+    hazard.accretionRing.material.opacity = (0.04 + attack * 0.08 + crest * 0.16 - release * 0.08 + (signals.loadPressureHigh ? 0.08 : 0)) * lodScale;
+    hazard.accretionRing.material.color.setHex(signals.stabilityHigh ? HAZARD_PALETTE.coreWhite : palette.ringPrimary);
+
+    hazard.lensRing.material.opacity = (0.03 + attack * 0.06 + crest * 0.18 - release * 0.1 + (signals.corruptionHigh ? 0.06 : 0)) * lodScale;
+    hazard.lensRing.material.color.setHex(signals.corruptionHigh ? HAZARD_PALETTE.breachRose : (signals.stabilityHigh ? HAZARD_PALETTE.coreWhite : palette.ringSecondary));
+
+    hazard.veil.material.opacity = (0.02 + attack * 0.04 + crest * 0.1 - release * 0.06 + (signals.loadPressureHigh ? 0.04 : 0) - (signals.stabilityHigh ? 0.02 : 0)) * lodScale;
+    hazard.veil.material.color.setHex(palette.veil);
+
+    hazard.accretionRing.rotation.y += deltaTime * (0.008 + crest * 0.03 + (signals.stabilityLow ? 0.008 : 0)) * pulse;
+    hazard.lensRing.rotation.y += deltaTime * (0.006 + crest * 0.02 + (signals.stabilityLow ? 0.006 : 0)) * slowPulse;
+
     hazard.particles.forEach(particle => {
-      particle.angle += particle.speed * deltaTime;
-      
-      const distance = hazard.radius * (0.4 + Math.sin(hazard.time + particle.speed) * 0.2);
-      
-      particle.position.x = Math.cos(particle.angle) * distance;
-      particle.position.y = Math.sin(particle.angle) * distance * 0.5;
-      particle.position.z = Math.cos(particle.angle + particle.speed) * distance * 0.5;
+      particle.baseAngle += particle.speed * deltaTime * (0.7 + attack * 0.4 + crest * 0.6 + (signals.loadPressureHigh ? 0.15 : 0) - release * 0.25);
+      const intensityBias = 1 + hazard.intensity * 0.2;
+      const pulseValue = 0.7 + attack * 0.1 + crest * 0.16 - release * 0.12 + Math.sin(hazard.time * 1.6 + particle.pulseOffset) * 0.09 * intensityBias;
+      const jitter = signals.stabilityLow ? Math.sin(hazard.time * 12 + particle.baseAngle) * 0.03 : 0;
+      const orbitalRadius = hazard.radius * particle.radiusFactor * (1 + (1 - envelope) * 0.08 * (particle.role === 'shard' ? 1.5 : 1));
+      const verticalOffset = particle.role === 'orbit' ? 0.16 : 0.08;
+      particle.mesh.position.set(
+        Math.cos(particle.baseAngle + jitter) * orbitalRadius,
+        Math.sin(particle.baseAngle + jitter) * verticalOffset * hazard.radius * (particle.role === 'orbit' ? 1 : 0.6),
+        Math.sin(particle.baseAngle + jitter) * orbitalRadius
+      );
+      particle.mesh.material.opacity = Math.max(0.08, particle.baseOpacity * pulseValue * (signals.stabilityHigh ? 1.05 : 1));
+      particle.mesh.scale.setScalar((particle.role === 'orbit' ? 1 : 0.55) + Math.sin(hazard.time + particle.baseAngle) * 0.03 * intensityBias);
     });
   }
   
@@ -332,7 +570,7 @@ export class EnvironmentalHazards {
    * Check if position is in danger zone
    */
   isInDangerZone(position) {
-    for (const hazard of this.hazards) {
+    for (const hazard of this.hazards.values()) {
       if (hazard.active) {
         const distance = position.distanceTo(hazard.position);
         if (distance < hazard.radius) {
@@ -346,39 +584,36 @@ export class EnvironmentalHazards {
   /**
    * Deactivate a hazard
    */
-  deactivateHazard(hazardId) {
-    const hazard = this.hazards[hazardId];
-    if (hazard) {
-      hazard.active = false;
-      if (hazard.aura) this.root.remove(hazard.aura);
-      if (hazard.mesh) this.root.remove(hazard.mesh);
+  deactivateHazard(hazardRef) {
+    const hazard = typeof hazardRef === 'string'
+      ? this.hazards.get(hazardRef)
+      : hazardRef && hazardRef.id
+        ? this.hazards.get(hazardRef.id)
+        : hazardRef;
 
-      if (Array.isArray(hazard.bolts)) {
-        hazard.bolts.forEach(bolt => {
-          if (bolt?.line) this.root.remove(bolt.line);
-        });
-      }
+    if (!hazard) return;
+    hazard.active = false;
+    if (hazard.group) this.root.remove(hazard.group);
 
-      // defensively clear hazard references to avoid stale reuse
-      hazard.bolts = [];
-      hazard.aura = null;
-      hazard.mesh = null;
+    if (Array.isArray(hazard.bolts)) {
+      hazard.bolts.forEach(bolt => {
+        if (Array.isArray(bolt.lines)) {
+          bolt.lines.forEach(line => this.root.remove(line));
+        } else if (bolt?.line) {
+          this.root.remove(bolt.line);
+        }
+      });
     }
+
+    this.hazards.delete(hazard.id);
   }
 
   dispose() {
-    for (let i = 0; i < this.hazards.length; i++) {
-      this.deactivateHazard(i);
+    for (const hazard of this.hazards.values()) {
+      this.deactivateHazard(hazard);
     }
 
-    for (const effect of this.activeEffects) {
-      if (effect?.object) {
-        this.root.remove(effect.object);
-      }
-    }
-
-    this.activeEffects.length = 0;
-    this.hazards.length = 0;
+    this.hazards.clear();
     this.root?.removeFromParent?.();
   }
 
@@ -430,16 +665,94 @@ export class EnvironmentalHazards {
     return Math.max(0.65, Math.min(1.5, scale));
   }
 
+  _getHazardPalette(type) {
+    switch (type) {
+      case 'electricalStorm':
+        return {
+          core: HAZARD_PALETTE.coreWhite,
+          edge: HAZARD_PALETTE.electricEdge,
+          aura: HAZARD_PALETTE.primaryCyan,
+          shadow: HAZARD_PALETTE.stormShadow
+        };
+      case 'gravitationalAnomaly':
+        return {
+          core: HAZARD_PALETTE.blackHole,
+          ringPrimary: HAZARD_PALETTE.primaryCyan,
+          ringSecondary: HAZARD_PALETTE.quantumViolet,
+          veil: HAZARD_PALETTE.softHalo
+        };
+      default:
+        return {
+          core: HAZARD_PALETTE.coreWhite,
+          edge: HAZARD_PALETTE.electricEdge,
+          aura: HAZARD_PALETTE.primaryCyan,
+          shadow: HAZARD_PALETTE.stormShadow
+        };
+    }
+  }
+
+  _getHazardPhaseWeights(hazard) {
+    const envelope = this._getHazardEnvelope(hazard);
+    return {
+      envelope,
+      pulse: Math.sin(hazard.time * 1.8) * 0.12 + 1.0,
+      slowPulse: Math.sin(hazard.time * 0.95) * 0.06 + 1.0
+    };
+  }
+
+  _smoothstep(edge0, edge1, x) {
+    const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+    return t * t * (3 - 2 * t);
+  }
+
+  _getHazardPhaseState(hazard) {
+    const t = (hazard.time % 4) / 4;
+    const attack = this._smoothstep(0.0, 0.18, t);
+    const crest = this._smoothstep(0.18, 0.72, t) * (1 - this._smoothstep(0.72, 1.0, t));
+    const release = this._smoothstep(0.72, 1.0, t);
+    return { t, attack, crest, release };
+  }
+
+  _getHazardLODScale(hazard) {
+    if (!this.camera || !hazard.position) return 1;
+    const distance = this.camera.position.distanceTo(hazard.position);
+    const threshold = Math.max(30, hazard.radius * 10);
+    const raw = 1 - Math.min(1, Math.max(0, (distance - 20) / threshold));
+    return Math.max(0.28, raw) * (0.5 + 0.5 * Math.min(1, hazard.intensity));
+  }
+
+  _getHazardEnvelope(hazard) {
+    const envelope = this.hazardEnvelope;
+    const phase = (hazard.time % 4) / 4;
+    if (phase < envelope.birth) {
+      return phase / envelope.birth;
+    }
+    if (phase < envelope.birth + envelope.crest) {
+      return 1;
+    }
+    if (phase < envelope.birth + envelope.crest + envelope.decay) {
+      return 1 - ((phase - envelope.birth - envelope.crest) / envelope.decay);
+    }
+    const after = (phase - envelope.birth - envelope.crest - envelope.decay) / envelope.afterglow;
+    return Math.max(0, 1 - after);
+  }
+
   _emitHazardEvent(eventName, hazard) {
     const bus = this.metricBus;
     if (!bus || !eventName || !hazard) return;
 
+    const eventData = this._getHazardEventData(hazard);
     const payload = {
       type: hazard.type,
+      identity: hazard.identity || eventData.identity,
+      title: hazard.title || eventData.title,
+      subtitle: hazard.subtitle || eventData.subtitle,
+      visualTone: hazard.visualTone || eventData.visualTone,
       intensity: hazard.intensity ?? hazard.strength ?? 1,
       radius: hazard.radius,
       source: 'EnvironmentalHazards',
-      timestamp: performance.now()
+      timestamp: performance.now(),
+      detail: eventData.detail
     };
 
     if (typeof bus.emit === 'function') {
@@ -449,6 +762,35 @@ export class EnvironmentalHazards {
 
     if (typeof bus.publish === 'function') {
       bus.publish(eventName, payload);
+    }
+  }
+
+  _getHazardEventData(hazard) {
+    switch (hazard.type) {
+      case 'electricalStorm':
+        return {
+          identity: 'thunder crown',
+          title: 'Thunder Crown',
+          subtitle: 'Cathedral storm of high pressure',
+          visualTone: 'electric',
+          detail: 'A majestic storm event with rhythmic energy and charged authority.'
+        };
+      case 'gravitationalAnomaly':
+        return {
+          identity: 'singularity eclipse',
+          title: 'Singularity Eclipse',
+          subtitle: 'Silent gravitational authority',
+          visualTone: 'cosmic',
+          detail: 'A deep anomaly event drawing the environment into a ritual orbit.'
+        };
+      default:
+        return {
+          identity: hazard.type,
+          title: 'Environmental Hazard',
+          subtitle: 'Unspecified event',
+          visualTone: 'neutral',
+          detail: 'A generic hazard event.'
+        };
     }
   }
 }

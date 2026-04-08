@@ -1,27 +1,27 @@
 /**
- * ColonyRegistry.js - External Safe Colony Management System
+ * ColonyRegistry.js - External Safe Living Civilization Management System
  * 
  * SAFE: 100% external registry - does NOT modify Node or Link classes
  * - Reads: node positions, link topology, synergy, traffic, legendary status
  * - Writes: Only to ColonyRegistry and scene VFX objects
  * - Architecture: Plain object indexed by colonyId, VFX stored separately
  * 
- * Colonies are visual+logical overlays representing clusters of connected nodes
+ * Living civilizations are visual+logical overlays representing clusters of connected nodes
  */
 
 export class ColonyRegistry {
   constructor(scene) {
     this.scene = scene;
     
-    // Main colony registry
-    this.colonies = {};           // [colonyId] → colony state object
+    // Main civilization registry
+    this.colonies = {};           // [colonyId] → civilization state object
     this.nodeToColony = {};       // [nodeId] → colonyId (for quick lookup)
     
-    // Colony counter for generating unique IDs
+    // Civilization counter for generating unique IDs
     this.colonyCounter = 0;
     
-    // VFX objects per colony (kept completely separate)
-    this.colonyVFX = {};          // [colonyId] → { halo, rings, particles, glows }
+    // VFX objects per civilization (kept completely separate)
+    this.colonyVFX = {};          // [colonyId] → { atmosphere, rings, particles, glows, core, crown }
     
     // Configuration
     this.config = {
@@ -40,10 +40,11 @@ export class ColonyRegistry {
       
       // Mood triggers (synergy/traffic ranges)
       moodThresholds: {
-        calm: 0.3,
-        active: 0.6,
-        overdrive: 0.85,
-        // declining: < 0.3 after period of activity
+        harmony: 0.3,
+        stability: 0.55,
+        synergy: 0.78,
+        corruption: 0.25,
+        loadPressure: 0.7
       },
       
       // Energy mechanics
@@ -88,7 +89,7 @@ export class ColonyRegistry {
       nodes: new Set(nodeIds),
       center: clusterCenter.clone(),
       stage: 0,
-      mood: 'CALM',
+      mood: 'HARMONY',
       density: nodeIds.length / 10, // Relative density
       energy: 0,
       lastUpdateTime: performance.now(),
@@ -119,11 +120,14 @@ export class ColonyRegistry {
     
     // Initialize VFX
     this.colonyVFX[colonyId] = {
-      halo: null,
+      atmosphere: null,
       rings: [],
       particles: [],
       glows: [],
       core: null,
+      crown: null,
+      sigils: [],
+      beam: null,
       distortionQuad: null
     };
     
@@ -254,30 +258,33 @@ export class ColonyRegistry {
   /**
    * Update colony mood based on synergy volatility and events
    */
-  updateColonyMood(colonyId, nodes, synergyMap, weatherCondition = null, eventActive = false) {
+  updateColonyMood(colonyId, nodes, synergyMap, trafficMap, weatherCondition = null, eventActive = false) {
     if (!this.colonies[colonyId]) return;
     
     const colony = this.colonies[colonyId];
     
-    // Calculate synergy volatility
     let totalSynergy = 0;
+    let totalTraffic = 0;
     for (const nodeId of colony.nodes) {
       totalSynergy += synergyMap[nodeId] || 0;
+      totalTraffic += trafficMap[nodeId] || 0;
     }
     const avgSynergy = totalSynergy / Math.max(colony.nodes.size, 1);
+    const avgTraffic = totalTraffic / Math.max(colony.nodes.size, 1);
     
-    // Mood determination
-    let mood = 'CALM';
+    let mood = 'HARMONY';
     if (eventActive) {
-      mood = 'OVERDRIVE';
-    } else if (avgSynergy > this.config.moodThresholds.overdrive) {
-      mood = 'OVERDRIVE';
-    } else if (avgSynergy > this.config.moodThresholds.active) {
-      mood = 'ACTIVE';
-    } else if (avgSynergy < 0.2) {
-      mood = 'DECLINING';
+      mood = 'SYNERGY';
+    } else if (avgTraffic > this.config.moodThresholds.loadPressure && avgSynergy > 0.2) {
+      mood = 'LOAD_PRESSURE';
+    } else if (avgSynergy > this.config.moodThresholds.synergy) {
+      mood = 'SYNERGY';
+    } else if (avgSynergy > this.config.moodThresholds.stability) {
+      mood = 'STABILITY';
+    } else if (avgSynergy < this.config.moodThresholds.corrosion) {
+      mood = 'CORRUPTION';
     } else {
-      mood = 'CALM';
+      mood = 'HARMONY';
     }
     
     colony.mood = mood;
@@ -487,10 +494,12 @@ export class ColonyRegistry {
    * Group colonies by mood
    */
   getColoniesGroupedByMood() {
-    const groups = { CALM: 0, ACTIVE: 0, OVERDRIVE: 0, DECLINING: 0 };
+    const groups = { HARMONY: 0, STABILITY: 0, CORRUPTION: 0, SYNERGY: 0, LOAD_PRESSURE: 0 };
     
     for (const colony of Object.values(this.colonies)) {
-      groups[colony.mood]++;
+      if (groups[colony.mood] !== undefined) {
+        groups[colony.mood]++;
+      }
     }
     
     return groups;

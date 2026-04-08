@@ -12909,6 +12909,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      */
     setupWorldFXPack() {
         this.worldFXPack = new SafeWorldFXPack(this.scene, this.worldRoot, this.environmentRoot, this.camera, null, this.semanticBus);
+        if (this.worldFXPack) {
+            this.worldFXPack.frameScheduler = this.frameScheduler;
+        }
 
         // Auto-generates environmental effects, no setup needed
     }

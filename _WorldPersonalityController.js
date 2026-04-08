@@ -53,6 +53,109 @@ export class WorldPersonalityController {
     this.worldRoot = worldRoot || scene;
     this.camera = camera;
     this.renderer = renderer;
+    this.atomaPalette = ['#05131A', '#6DEAFF', '#77F7DB', '#F7FBFF', '#D07BFF', '#FF73CF'];
+    this.moodVisualPresets = {
+      HARMONIC_CALM: {
+        backgroundStart: 0x05131A,
+        backgroundEnd: 0xF7FBFF,
+        backgroundMix: { attack: 0.15, crest: 0.35 },
+        backgroundLerp: 0.03,
+        fogColor: null,
+        palette: ['#05131A', '#6DEAFF', '#77F7DB', '#F7FBFF'],
+        primaryOverlay: 'harmonic_shafts',
+        spawnThreshold: 0.35,
+        overlayColor: 0xF7FBFF,
+        overlaySize: 1.2,
+        overlayOpacity: 0.22,
+      },
+      FOCUSED_ANALYSIS: {
+        backgroundStart: 0x05131A,
+        backgroundEnd: 0x6DEAFF,
+        backgroundMix: { attack: 0.15, crest: 0.35 },
+        backgroundLerp: 0.05,
+        fogColor: null,
+        palette: ['#05131A', '#6DEAFF', '#77F7DB'],
+        primaryOverlay: 'data_particles',
+        spawnThreshold: 0.45,
+        overlayColor: 0x77F7DB,
+        overlaySize: 0.3,
+        overlayOpacity: 0.35,
+      },
+      RADIANT_STORM: {
+        backgroundStart: 0x05131A,
+        backgroundEnd: 0xD07BFF,
+        backgroundMix: { attack: 0.2, crest: 0.5 },
+        backgroundLerp: 0.05,
+        fogColor: null,
+        palette: ['#05131A', '#D07BFF', '#FF73CF'],
+        primaryOverlay: 'energy_arcs',
+        spawnThreshold: 0.45,
+        overlayColor: 0xD07BFF,
+        overlayOpacity: 0.35,
+      },
+      QUANTUM_CHAOS: {
+        backgroundStart: 0x05131A,
+        backgroundEnd: 0xD07BFF,
+        backgroundMix: { attack: 0.2, crest: 0.4 },
+        backgroundLerp: 0.05,
+        fogColor: null,
+        palette: ['#05131A', '#D07BFF', '#FF73CF'],
+        primaryOverlay: 'chaos_nebula',
+        spawnThreshold: 0.45,
+        overlayColor: 0x7333ff,
+        overlayOpacity: 0.38,
+      },
+      UMBRA_PRESSURE: {
+        backgroundStart: 0x05131A,
+        backgroundEnd: 0x220022,
+        backgroundMix: { attack: 0.25, crest: 0.45 },
+        backgroundLerp: 0.04,
+        fogColor: 0x05060b,
+        palette: ['#05131A', '#220022', '#6DEAFF'],
+        primaryOverlay: 'shadow_bands',
+        spawnThreshold: 0.4,
+        overlayColor: 0x05060b,
+        overlayOpacity: 0.45,
+      },
+      ECHO_DRIFT: {
+        backgroundStart: 0x05131A,
+        backgroundEnd: 0x6DEAFF,
+        backgroundMix: { attack: 0.15, crest: 0.3 },
+        backgroundLerp: 0.04,
+        fogColor: null,
+        palette: ['#05131A', '#6DEAFF', '#77F7DB'],
+        primaryOverlay: 'memory_streaks',
+        spawnThreshold: 0.4,
+        overlayColor: 0x77F7DB,
+        overlaySize: 1.8,
+        overlayOpacity: 0.3,
+      },
+      ASCENDED_ALIGNMENT: {
+        backgroundStart: 0x05131A,
+        backgroundEnd: 0x77F7DB,
+        backgroundMix: { attack: 0.2, crest: 0.4 },
+        backgroundLerp: 0.04,
+        fogColor: null,
+        palette: ['#05131A', '#77F7DB', '#F7FBFF'],
+        primaryOverlay: 'light_pillars',
+        spawnThreshold: 0.4,
+        overlayColor: 0x77F7DB,
+        overlayOpacity: 0.32,
+      },
+      NEUTRAL: {
+        backgroundStart: 0x05131A,
+        backgroundEnd: 0x05131A,
+        backgroundMix: { attack: 0, crest: 0 },
+        backgroundLerp: 0,
+        fogColor: null,
+        palette: this.atomaPalette,
+        primaryOverlay: 'harmonic_shafts',
+        spawnThreshold: 1,
+        overlayColor: 0xF7FBFF,
+        overlaySize: 1.2,
+        overlayOpacity: 0,
+      },
+    };
     this.root = new THREE.Group();
     this.worldRoot.add(this.root);
     
@@ -64,10 +167,30 @@ export class WorldPersonalityController {
       avgHarmony: 0,
       avgStability: 0,
       avgEnergy: 0,
+      visualContext: {
+        core: 0.25,
+        surface: 0.25,
+        overlay: 0.25,
+        atmosphere: 0.25,
+        dominantSignature: 'neutral_balance',
+        tags: ['neutral', 'base'],
+        description: 'Balanced default stack',
+        palette: this.atomaPalette,
+        visualTone: {
+          palette: this.atomaPalette,
+          primary: '#6DEAFF',
+          secondary: '#77F7DB',
+          accent: '#FF73CF',
+          highlight: '#F7FBFF',
+          base: '#05131A',
+          label: 'ATOMA_PALETTE_LOCK',
+        },
+      },
     };
     
     // Previous mood for transition tracking
     this.previousMoodLabel = 'NEUTRAL';
+    this.activeMoodLabel = 'NEUTRAL';
     this.semanticBus = null;
     
     // Timing control
@@ -292,23 +415,33 @@ export class WorldPersonalityController {
       avgEnergy
     );
     
-    // Update world mood
-    const moodChanged = newMoodLabel !== this.worldMood.label;
-    
+    // Resolve actual active mood with hysteresis.
+    const timeSinceLastChange = Date.now() / 1000 - this.lastMoodChangeTime;
+    const resolvedMoodLabel = this.resolveMoodWithHysteresis(
+      this.activeMoodLabel,
+      newMoodLabel,
+      { avgHarmony, avgStability, avgEnergy },
+      timeSinceLastChange
+    );
+
+    const moodChanged = resolvedMoodLabel !== this.activeMoodLabel;
+    const visualContext = this.getMoodLayerStack(resolvedMoodLabel, intensity);
+
     this.worldMood = {
-      label: newMoodLabel,
+      label: resolvedMoodLabel,
       intensity,
       dominantPersonality,
       avgHarmony,
       avgStability,
       avgEnergy,
+      visualContext,
     };
-    
-    // Trigger transition if mood changed and min duration elapsed
-    const timeSinceLastChange = Date.now() / 1000 - this.lastMoodChangeTime;
+
     if (moodChanged && timeSinceLastChange >= this.minMoodDuration) {
-      this.triggerMoodTransition(previousMoodLabel, newMoodLabel);
+      this.triggerMoodTransition(previousMoodLabel, resolvedMoodLabel);
     }
+    
+    this.activeMoodLabel = resolvedMoodLabel;
 
     this._emitMoodBridge({
       label: newMoodLabel,
@@ -380,7 +513,201 @@ export class WorldPersonalityController {
     
     return Math.min(1.0, avgSigma * 1.5); // Amplify slightly
   }
-  
+
+  /**
+   * Compute attack / crest / release envelope for mood transition
+   */
+  computeMoodEnvelope(progress) {
+    if (progress >= 1.0) {
+      return { attack: 1, crest: 1, release: 1, overall: 1 };
+    }
+
+    const attack = Math.min(1, progress * 2.0);
+    const crest = Math.max(0, 1 - Math.abs(progress - 0.5) * 2.0);
+    const release = progress < 0.5 ? 1 : Math.max(0, 1 - (progress - 0.5) * 2.0);
+
+    return {
+      attack,
+      crest,
+      release,
+      overall: progress,
+    };
+  }
+
+  /**
+   * Unified mood envelope helper for effect scaling
+   */
+  getMoodEnvelope(progress, intensity) {
+    const envelope = this.computeMoodEnvelope(progress);
+    return {
+      ...envelope,
+      strength: Math.min(1.0, envelope.crest * intensity),
+      moodIntensity: intensity,
+    };
+  }
+
+  /**
+   * Build a visual layer stack for the active mood signature
+   */
+  getMoodLayerStack(mood, intensity) {
+    const tone = this.getMoodTone(mood);
+    const base = {
+      core: 0,
+      surface: 0,
+      overlay: 0,
+      atmosphere: 0,
+      dominantSignature: '',
+      tags: [],
+      description: '',
+      palette: this.atomaPalette,
+      visualTone: tone,
+    };
+    switch (mood) {
+      case 'HARMONIC_CALM':
+        return {
+          ...base,
+          core: 0.35,
+          surface: 0.25,
+          overlay: 0.2,
+          atmosphere: 0.2,
+          dominantSignature: 'clean_cyan_horizon',
+          tags: ['cyan', 'white', 'clarity'],
+          description: 'Clean cyan/white horizon with minimal noise and gentle shafts',
+        };
+      case 'FOCUSED_ANALYSIS':
+        return {
+          ...base,
+          core: 0.3,
+          surface: 0.2,
+          overlay: 0.3,
+          atmosphere: 0.2,
+          dominantSignature: 'cold_data_precision',
+          tags: ['focused', 'crisp', 'technical'],
+          description: 'Sharp contrast with cold, technical data particles and precise structure',
+        };
+      case 'RADIANT_STORM':
+        return {
+          ...base,
+          core: 0.25,
+          surface: 0.25,
+          overlay: 0.3,
+          atmosphere: 0.2,
+          dominantSignature: 'pulsing_energy_arcs',
+          tags: ['storm', 'pressure', 'glow'],
+          description: 'Pulsing arcs with a wide charged glow shell and pressure energy',
+        };
+      case 'QUANTUM_CHAOS':
+        return {
+          ...base,
+          core: 0.2,
+          surface: 0.2,
+          overlay: 0.35,
+          atmosphere: 0.25,
+          dominantSignature: 'nebula_fragmentation',
+          tags: ['chaos', 'distortion', 'fragment'],
+          description: 'Readable nebula and fragment distortion with layered chaotic structure',
+        };
+      case 'UMBRA_PRESSURE':
+        return {
+          ...base,
+          core: 0.3,
+          surface: 0.3,
+          overlay: 0.2,
+          atmosphere: 0.2,
+          dominantSignature: 'dark_pressure_bands',
+          tags: ['dark', 'dense', 'heavy'],
+          description: 'Dark bands with dense fog and heavy atmospheric presence',
+        };
+      case 'ECHO_DRIFT':
+        return {
+          ...base,
+          core: 0.25,
+          surface: 0.2,
+          overlay: 0.3,
+          atmosphere: 0.25,
+          dominantSignature: 'horizontal_memory_streaks',
+          tags: ['echo', 'drift', 'violet'],
+          description: 'Subtle horizontal memory streaks with muted cyan/violet tone',
+        };
+      case 'ASCENDED_ALIGNMENT':
+        return {
+          ...base,
+          core: 0.3,
+          surface: 0.2,
+          overlay: 0.25,
+          atmosphere: 0.25,
+          dominantSignature: 'aurora_pillars',
+          tags: ['ascended', 'monumental', 'crown'],
+          description: 'Aurora pillars with crown-like bloom and monumental alignment',
+        };
+      default:
+        return {
+          ...base,
+          core: 0.25,
+          surface: 0.25,
+          overlay: 0.25,
+          atmosphere: 0.25,
+          dominantSignature: 'neutral_balance',
+          tags: ['neutral', 'base'],
+          description: 'Balanced default stack',
+        };
+    }
+  }
+
+  getMoodTone(mood) {
+    const palette = this.atomaPalette;
+    const accentMap = {
+      'HARMONIC_CALM': palette[2],
+      'FOCUSED_ANALYSIS': palette[1],
+      'RADIANT_STORM': palette[4],
+      'QUANTUM_CHAOS': palette[5],
+      'UMBRA_PRESSURE': palette[0],
+      'ECHO_DRIFT': palette[3],
+      'ASCENDED_ALIGNMENT': palette[1],
+      'NEUTRAL': palette[0],
+    };
+
+    return {
+      palette,
+      base: palette[0],
+      primary: palette[1],
+      secondary: palette[2],
+      accent: accentMap[mood] || palette[4],
+      highlight: palette[3],
+      label: `ATOMA_PALETTE_${mood}`,
+    };
+  }
+
+  getMoodPreset(mood) {
+    return this.moodVisualPresets[mood] || this.moodVisualPresets.NEUTRAL;
+  }
+
+  getClusterTint(mood, clusterType) {
+    switch (mood) {
+      case 'HARMONIC_CALM':
+        return {
+          harmony: 0x6DEAFF,
+          chaos: 0x77F7DB,
+        };
+      case 'QUANTUM_CHAOS':
+        return {
+          harmony: 0xD07BFF,
+          chaos: 0xFF73CF,
+        };
+      case 'ASCENDED_ALIGNMENT':
+        return {
+          harmony: 0xF7FBFF,
+          chaos: 0x6DEAFF,
+        };
+      default:
+        const tone = this.getMoodTone(mood);
+        return {
+          harmony: new THREE.Color(tone.secondary).getHex(),
+          chaos: new THREE.Color(tone.accent).getHex(),
+        };
+    }
+  }
+
   /**
    * Trigger transition to new mood
    */
@@ -401,38 +728,42 @@ export class WorldPersonalityController {
     const mood = this.worldMood.label;
     const intensity = this.worldMood.intensity;
     const t = this.isTransitioning ? this.transitionProgress : 1.0;
-    
+    const envelope = this.getMoodEnvelope(t, intensity);
+    const layerStack = this.getMoodLayerStack(mood, intensity);
+
+    this.worldMood.visualContext = layerStack;
+
     switch (mood) {
       case 'HARMONIC_CALM':
-        this.applyHarmonicCalm(intensity, t, deltaTime);
+        this.applyHarmonicCalm(intensity, envelope, deltaTime);
         break;
       
       case 'FOCUSED_ANALYSIS':
-        this.applyFocusedAnalysis(intensity, t, deltaTime);
+        this.applyFocusedAnalysis(intensity, envelope, deltaTime);
         break;
       
       case 'RADIANT_STORM':
-        this.applyRadiantStorm(intensity, t, deltaTime);
+        this.applyRadiantStorm(intensity, envelope, deltaTime);
         break;
       
       case 'QUANTUM_CHAOS':
-        this.applyQuantumChaos(intensity, t, deltaTime);
+        this.applyQuantumChaos(intensity, envelope, deltaTime);
         break;
       
       case 'UMBRA_PRESSURE':
-        this.applyUmbraPressure(intensity, t, deltaTime);
+        this.applyUmbraPressure(intensity, envelope, deltaTime);
         break;
       
       case 'ECHO_DRIFT':
-        this.applyEchoDrift(intensity, t, deltaTime);
+        this.applyEchoDrift(intensity, envelope, deltaTime);
         break;
       
       case 'ASCENDED_ALIGNMENT':
-        this.applyAscendedAlignment(intensity, t, deltaTime);
+        this.applyAscendedAlignment(intensity, envelope, deltaTime);
         break;
       
       default: // NEUTRAL
-        this.applyNeutralState(t);
+        this.applyNeutralState(envelope.overall);
         break;
     }
     
@@ -548,47 +879,44 @@ export class WorldPersonalityController {
   /**
    * HARMONIC_CALM - Warm sky, gentle light shafts
    */
-  applyHarmonicCalm(intensity, t, deltaTime) {
-    // Warm sky gradient
+  applyHarmonicCalm(intensity, envelope, deltaTime) {
+    const preset = this.getMoodPreset('HARMONIC_CALM');
+    const envelopeStrength = envelope.strength;
+
     if (this.scene.background && this.scene.background.isColor) {
-      const targetColor = new THREE.Color(0x004466).lerp(new THREE.Color(0x006688), intensity);
-      this.scene.background.lerp(targetColor, t * 0.05);
+      const targetColor = new THREE.Color(preset.backgroundStart).lerp(
+        new THREE.Color(preset.backgroundEnd),
+        envelope.crest * preset.backgroundMix.crest + envelope.attack * preset.backgroundMix.attack
+      );
+      this.scene.background.lerp(targetColor, Math.min(1, preset.backgroundLerp * envelope.attack));
     }
-    
-    // Warm fog
-    if (this.scene.fog) {
-      const targetFogColor = new THREE.Color(0x0088aa);
-      this.scene.fog.color.lerp(targetFogColor, t * 0.03);
-    }
-    
-    // Create gentle light shafts (distant particles)
-    if (!this.activeEventVisuals.has('harmonic_shafts') && t > 0.5) {
-      this.createHarmonicLightShafts(intensity);
+
+    if (!this.activeEventVisuals.has(preset.primaryOverlay) && envelope.crest > preset.spawnThreshold) {
+      this.createHarmonicLightShafts(envelopeStrength, preset.overlayColor, preset.overlaySize, preset.overlayOpacity);
     }
   }
   
-  createHarmonicLightShafts(intensity) {
-    const particleCount = Math.floor(20 * intensity);
+  createHarmonicLightShafts(intensity, color = 0xF7FBFF, size = 1.2, opacityScalar = 0.22) {
+    const particleCount = Math.max(6, Math.floor(8 * intensity));
     const geometry = new THREE.BufferGeometry();
     const positions = [];
     
     for (let i = 0; i < particleCount; i++) {
       const angle = (i / particleCount) * Math.PI * 2;
-      const radius = 80 + Math.random() * 20;
+      const radius = 70;
       const x = Math.cos(angle) * radius;
       const z = Math.sin(angle) * radius;
-      const y = 20 + Math.random() * 30;
-      
+      const y = 25;
       positions.push(x, y, z);
     }
     
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     
     const material = new THREE.PointsMaterial({
-      color: 0x00ffaa,
-      size: 0.5,
+      color,
+      size,
       transparent: true,
-      opacity: 0.3 * intensity,
+      opacity: opacityScalar * intensity,
       blending: THREE.AdditiveBlending,
     });
     this.tagFXMaterial(material);
@@ -607,45 +935,44 @@ export class WorldPersonalityController {
   /**
    * FOCUSED_ANALYSIS - Crisp contrast, data particles
    */
-  applyFocusedAnalysis(intensity, t, deltaTime) {
-    // Slight blue shift
+  applyFocusedAnalysis(intensity, envelope, deltaTime) {
+    const preset = this.getMoodPreset('FOCUSED_ANALYSIS');
+    const envelopeStrength = envelope.strength;
+
     if (this.scene.background && this.scene.background.isColor) {
-      const targetColor = new THREE.Color(0x001133).lerp(new THREE.Color(0x002244), intensity);
-      this.scene.background.lerp(targetColor, t * 0.05);
+      const targetColor = new THREE.Color(preset.backgroundStart).lerp(
+        new THREE.Color(preset.backgroundEnd),
+        envelope.crest * preset.backgroundMix.crest + envelope.attack * preset.backgroundMix.attack
+      );
+      this.scene.background.lerp(targetColor, Math.min(1, preset.backgroundLerp * envelope.attack));
     }
-    
-    // Crisp fog
-    if (this.scene.fog) {
-      const targetFogColor = new THREE.Color(0x002255);
-      this.scene.fog.color.lerp(targetFogColor, t * 0.03);
-    }
-    
-    // Data particles
-    if (!this.activeEventVisuals.has('data_particles') && t > 0.5) {
-      this.createDataParticles(intensity);
+
+    if (!this.activeEventVisuals.has(preset.primaryOverlay) && envelope.crest > preset.spawnThreshold) {
+      this.createDataParticles(envelopeStrength, preset.overlayColor, preset.overlaySize, preset.overlayOpacity);
     }
   }
   
-  createDataParticles(intensity) {
-    const particleCount = Math.floor(30 * intensity);
+  createDataParticles(intensity, color = 0x77F7DB, size = 0.3, opacityScalar = 0.35) {
+    const particleCount = Math.max(16, Math.floor(16 * intensity));
     const geometry = new THREE.BufferGeometry();
     const positions = [];
     
     for (let i = 0; i < particleCount; i++) {
-      const x = (Math.random() - 0.5) * 100;
-      const y = Math.random() * 50 + 20;
-      const z = (Math.random() - 0.5) * 100;
-      
+      const column = Math.floor(i / 4);
+      const row = i % 4;
+      const x = (column - 2) * 8;
+      const y = 20 + row * 7;
+      const z = (column % 2 === 0 ? -2 : 2);
       positions.push(x, y, z);
     }
     
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     
     const material = new THREE.PointsMaterial({
-      color: 0x00ffff,
-      size: 0.2,
+      color,
+      size,
       transparent: true,
-      opacity: 0.4 * intensity,
+      opacity: opacityScalar * intensity,
       blending: THREE.AdditiveBlending,
     });
     this.tagFXMaterial(material);
@@ -665,47 +992,47 @@ export class WorldPersonalityController {
   /**
    * RADIANT_STORM - Pulsing arcs, energy surges
    */
-  applyRadiantStorm(intensity, t, deltaTime) {
-    // Warm, energetic sky
+  applyRadiantStorm(intensity, envelope, deltaTime) {
+    const preset = this.getMoodPreset('RADIANT_STORM');
+    const envelopeStrength = envelope.strength;
+
     if (this.scene.background && this.scene.background.isColor) {
-      const targetColor = new THREE.Color(0x331100).lerp(new THREE.Color(0x442200), intensity);
-      this.scene.background.lerp(targetColor, t * 0.05);
+      const targetColor = new THREE.Color(preset.backgroundStart).lerp(
+        new THREE.Color(preset.backgroundEnd),
+        envelope.crest * preset.backgroundMix.crest + envelope.attack * preset.backgroundMix.attack
+      );
+      this.scene.background.lerp(targetColor, Math.min(1, preset.backgroundLerp * envelope.attack));
     }
-    
-    // Warm fog
-    if (this.scene.fog) {
-      const targetFogColor = new THREE.Color(0x442211);
-      this.scene.fog.color.lerp(targetFogColor, t * 0.03);
-    }
-    
-    // Pulsing distant arcs
-    if (!this.activeEventVisuals.has('energy_arcs') && t > 0.5) {
-      this.createEnergyArcs(intensity);
+
+    if (!this.activeEventVisuals.has(preset.primaryOverlay) && envelope.crest > preset.spawnThreshold) {
+      this.createEnergyArcs(envelopeStrength, preset.overlayColor, preset.overlayOpacity);
     }
   }
   
-  createEnergyArcs(intensity) {
-    const arcCount = Math.floor(6 * intensity);
+  createEnergyArcs(intensity, color = 0xD07BFF, opacityScalar = 0.35) {
+    const arcCount = Math.max(4, Math.floor(4 * intensity));
     const group = new THREE.Group();
     
-      for (let i = 0; i < arcCount; i++) {
+    for (let i = 0; i < arcCount; i++) {
       const angle = (i / arcCount) * Math.PI * 2;
       const radius = 90;
       const x = Math.cos(angle) * radius;
       const z = Math.sin(angle) * radius;
       
-      const geometry = new THREE.CylinderGeometry(0.1, 0.1, 15, 8);
+      const geometry = new THREE.TorusGeometry(18, 0.5, 8, 24, Math.PI * 0.9);
       const material = new THREE.MeshBasicMaterial({
-        color: 0xffaa00,
+        color,
         transparent: true,
-        opacity: 0.4 * intensity,
+        opacity: opacityScalar * intensity,
         blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
       });
       this.tagFXMaterial(material);
       
       const arc = new THREE.Mesh(geometry, material);
       arc.position.set(x, 25, z);
-      arc.lookAt(0, 25, 0);
+      arc.rotation.x = Math.PI / 2;
+      arc.rotation.y = angle;
       
       group.add(arc);
     }
@@ -724,49 +1051,38 @@ export class WorldPersonalityController {
   /**
    * QUANTUM_CHAOS - Nebula patterns, distortion waves
    */
-  applyQuantumChaos(intensity, t, deltaTime) {
-    // Dark, chaotic sky
+  applyQuantumChaos(intensity, envelope, deltaTime) {
+    const preset = this.getMoodPreset('QUANTUM_CHAOS');
+    const envelopeStrength = envelope.strength;
+
     if (this.scene.background && this.scene.background.isColor) {
-      const targetColor = new THREE.Color(0x110033).lerp(new THREE.Color(0x220044), intensity);
-      this.scene.background.lerp(targetColor, t * 0.05);
+      const targetColor = new THREE.Color(preset.backgroundStart).lerp(
+        new THREE.Color(preset.backgroundEnd),
+        envelope.crest * preset.backgroundMix.crest + envelope.attack * preset.backgroundMix.attack
+      );
+      this.scene.background.lerp(targetColor, Math.min(1, preset.backgroundLerp * envelope.attack));
     }
-    
-    // Chaotic fog
-    if (this.scene.fog) {
-      const targetFogColor = new THREE.Color(0x220055);
-      this.scene.fog.color.lerp(targetFogColor, t * 0.03);
-    }
-    
-    // Nebula particles
-    if (!this.activeEventVisuals.has('chaos_nebula') && t > 0.5) {
-      this.createChaosNebula(intensity);
+
+    if (!this.activeEventVisuals.has(preset.primaryOverlay) && envelope.crest > preset.spawnThreshold) {
+      this.createChaosNebula(envelopeStrength, preset.overlayColor, preset.overlayOpacity);
     }
   }
   
-  createChaosNebula(intensity) {
-    const particleCount = Math.floor(40 * intensity);
+  createChaosNebula(intensity, color = 0x7333ff, opacityScalar = 0.5) {
+    const particleCount = Math.max(20, Math.floor(18 * intensity));
     const geometry = new THREE.BufferGeometry();
     const positions = [];
     const colors = [];
     
     for (let i = 0; i < particleCount; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const radius = 60 + Math.random() * 40;
+      const angle = (i / particleCount) * Math.PI * 2;
+      const radius = 70 + (i % 3) * 3;
       const x = Math.cos(angle) * radius;
       const z = Math.sin(angle) * radius;
-      const y = 15 + Math.random() * 40;
-      
+      const y = 20 + ((i % 6) - 2.5) * 4;
       positions.push(x, y, z);
-      
-      // Random colors (purple/pink/cyan)
-      const colorChoice = Math.random();
-      if (colorChoice < 0.33) {
-        colors.push(1, 0, 1); // Magenta
-      } else if (colorChoice < 0.66) {
-        colors.push(0, 1, 1); // Cyan
-      } else {
-        colors.push(1, 0, 0.5); // Pink
-      }
+      const colorVec = new THREE.Color(color);
+      colors.push(colorVec.r, colorVec.g, colorVec.b);
     }
     
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
@@ -775,7 +1091,7 @@ export class WorldPersonalityController {
       const material = new THREE.PointsMaterial({
         size: 1.5,
         transparent: true,
-        opacity: 0.5 * intensity,
+        opacity: opacityScalar * intensity,
         blending: THREE.AdditiveBlending,
         vertexColors: true,
       });
@@ -795,43 +1111,45 @@ export class WorldPersonalityController {
   /**
    * UMBRA_PRESSURE - Dark fog, shadow bands
    */
-  applyUmbraPressure(intensity, t, deltaTime) {
-    // Dark, oppressive sky
+  applyUmbraPressure(intensity, envelope, deltaTime) {
+    const preset = this.getMoodPreset('UMBRA_PRESSURE');
+    const envelopeStrength = envelope.strength;
+
     if (this.scene.background && this.scene.background.isColor) {
-      const targetColor = new THREE.Color(0x110011).lerp(new THREE.Color(0x220022), intensity);
-      this.scene.background.lerp(targetColor, t * 0.05);
+      const targetColor = new THREE.Color(preset.backgroundStart).lerp(
+        new THREE.Color(preset.backgroundEnd),
+        envelope.crest * preset.backgroundMix.crest + envelope.attack * preset.backgroundMix.attack
+      );
+      this.scene.background.lerp(targetColor, Math.min(1, preset.backgroundLerp * envelope.attack));
     }
-    
-    // Dense dark fog
-    if (this.scene.fog) {
-      const targetFogColor = new THREE.Color(0x330033);
-      this.scene.fog.color.lerp(targetFogColor, t * 0.03);
+
+    if (this.scene.fog && preset.fogColor) {
+      this.scene.fog.color.lerp(new THREE.Color(preset.fogColor), Math.min(1, preset.backgroundLerp * envelope.crest));
     }
-    
-    // Shadow bands
-    if (!this.activeEventVisuals.has('shadow_bands') && t > 0.5) {
-      this.createShadowBands(intensity);
+
+    if (!this.activeEventVisuals.has(preset.primaryOverlay) && envelope.crest > preset.spawnThreshold) {
+      this.createShadowBands(envelopeStrength, preset.overlayColor, preset.overlayOpacity);
     }
   }
   
-  createShadowBands(intensity) {
-    const bandCount = Math.floor(4 * intensity);
+  createShadowBands(intensity, color = 0x05060b, opacityScalar = 0.45) {
+    const bandCount = Math.max(3, Math.floor(3 * intensity));
     const group = new THREE.Group();
     
-      for (let i = 0; i < bandCount; i++) {
-      const geometry = new THREE.PlaneGeometry(150, 5);
+    for (let i = 0; i < bandCount; i++) {
+      const geometry = new THREE.PlaneGeometry(180, 8);
       const material = new THREE.MeshBasicMaterial({
-        color: 0x000000,
+        color,
         transparent: true,
-        opacity: 0.3 * intensity,
+        opacity: opacityScalar * intensity,
         side: THREE.DoubleSide,
       });
       this.tagFXMaterial(material);
       
       const band = new THREE.Mesh(geometry, material);
       band.rotation.x = Math.PI / 2;
-      band.position.y = 10 + i * 15;
-      band.position.z = -60 + i * 20;
+      band.position.y = 8 + i * 10;
+      band.position.z = -50 + i * 18;
       
       group.add(band);
     }
@@ -849,45 +1167,42 @@ export class WorldPersonalityController {
   /**
    * ECHO_DRIFT - Horizontal streaks, memory winds
    */
-  applyEchoDrift(intensity, t, deltaTime) {
-    // Desaturated sky
+  applyEchoDrift(intensity, envelope, deltaTime) {
+    const preset = this.getMoodPreset('ECHO_DRIFT');
+    const envelopeStrength = envelope.strength;
+
     if (this.scene.background && this.scene.background.isColor) {
-      const targetColor = new THREE.Color(0x223344).lerp(new THREE.Color(0x334455), intensity);
-      this.scene.background.lerp(targetColor, t * 0.05);
+      const targetColor = new THREE.Color(preset.backgroundStart).lerp(
+        new THREE.Color(preset.backgroundEnd),
+        envelope.crest * preset.backgroundMix.crest + envelope.attack * preset.backgroundMix.attack
+      );
+      this.scene.background.lerp(targetColor, Math.min(1, preset.backgroundLerp * envelope.attack));
     }
-    
-    // Soft fog
-    if (this.scene.fog) {
-      const targetFogColor = new THREE.Color(0x445566);
-      this.scene.fog.color.lerp(targetFogColor, t * 0.03);
-    }
-    
-    // Horizontal streaks
-    if (!this.activeEventVisuals.has('memory_streaks') && t > 0.5) {
-      this.createMemoryStreaks(intensity);
+
+    if (!this.activeEventVisuals.has(preset.primaryOverlay) && envelope.crest > preset.spawnThreshold) {
+      this.createMemoryStreaks(envelopeStrength, preset.overlayColor, preset.overlaySize, preset.overlayOpacity);
     }
   }
   
-  createMemoryStreaks(intensity) {
-    const streakCount = Math.floor(15 * intensity);
+  createMemoryStreaks(intensity, color = 0x77F7DB, size = 1.8, opacityScalar = 0.3) {
+    const streakCount = Math.max(8, Math.floor(8 * intensity));
     const geometry = new THREE.BufferGeometry();
     const positions = [];
     
     for (let i = 0; i < streakCount; i++) {
-      const y = 15 + Math.random() * 30;
-      const x = -50 + Math.random() * 100;
-      const z = -50 + Math.random() * 100;
-      
+      const y = 18 + i * 2;
+      const x = -45 + i * 11;
+      const z = -20 + (i % 2) * 5;
       positions.push(x, y, z);
     }
     
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     
     const material = new THREE.PointsMaterial({
-      color: 0x8888aa,
-      size: 2.0,
+      color,
+      size,
       transparent: true,
-      opacity: 0.3 * intensity,
+      opacity: opacityScalar * intensity,
       blending: THREE.AdditiveBlending,
     });
     this.tagFXMaterial(material);
@@ -907,40 +1222,38 @@ export class WorldPersonalityController {
   /**
    * ASCENDED_ALIGNMENT - Aurora, pillars of light
    */
-  applyAscendedAlignment(intensity, t, deltaTime) {
-    // Majestic sky
+  applyAscendedAlignment(intensity, envelope, deltaTime) {
+    const preset = this.getMoodPreset('ASCENDED_ALIGNMENT');
+    const envelopeStrength = envelope.strength;
+
     if (this.scene.background && this.scene.background.isColor) {
-      const targetColor = new THREE.Color(0x001144).lerp(new THREE.Color(0x002255), intensity);
-      this.scene.background.lerp(targetColor, t * 0.05);
+      const targetColor = new THREE.Color(preset.backgroundStart).lerp(
+        new THREE.Color(preset.backgroundEnd),
+        envelope.crest * preset.backgroundMix.crest + envelope.attack * preset.backgroundMix.attack
+      );
+      this.scene.background.lerp(targetColor, Math.min(1, preset.backgroundLerp * envelope.attack));
     }
-    
-    // Clear fog
-    if (this.scene.fog) {
-      const targetFogColor = new THREE.Color(0x003366);
-      this.scene.fog.color.lerp(targetFogColor, t * 0.03);
-    }
-    
-    // Pillars of light
-    if (!this.activeEventVisuals.has('light_pillars') && t > 0.5) {
-      this.createLightPillars(intensity);
+
+    if (!this.activeEventVisuals.has(preset.primaryOverlay) && envelope.crest > preset.spawnThreshold) {
+      this.createLightPillars(envelopeStrength, preset.overlayColor, preset.overlayOpacity);
     }
   }
   
-  createLightPillars(intensity) {
-    const pillarCount = Math.floor(5 * intensity);
+  createLightPillars(intensity, color = 0x77F7DB, opacityScalar = 0.32) {
+    const pillarCount = Math.max(4, Math.floor(4 * intensity));
     const group = new THREE.Group();
     
-      for (let i = 0; i < pillarCount; i++) {
+    for (let i = 0; i < pillarCount; i++) {
       const angle = (i / pillarCount) * Math.PI * 2;
-      const radius = 100;
+      const radius = 80;
       const x = Math.cos(angle) * radius;
       const z = Math.sin(angle) * radius;
       
-      const geometry = new THREE.CylinderGeometry(0.5, 1.5, 50, 8);
+      const geometry = new THREE.CylinderGeometry(0.4, 0.8, 50, 8);
       const material = new THREE.MeshBasicMaterial({
-        color: 0xffffaa,
+        color,
         transparent: true,
-        opacity: 0.3 * intensity,
+        opacity: opacityScalar * intensity,
         blending: THREE.AdditiveBlending,
       });
       this.tagFXMaterial(material);
@@ -950,6 +1263,20 @@ export class WorldPersonalityController {
       
       group.add(pillar);
     }
+    
+    const crownGeometry = new THREE.TorusGeometry(25, 2, 8, 40);
+    const crownMaterial = new THREE.MeshBasicMaterial({
+      color: 0xF7FBFF,
+      transparent: true,
+      opacity: 0.18 * intensity,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+    this.tagFXMaterial(crownMaterial);
+    const crown = new THREE.Mesh(crownGeometry, crownMaterial);
+    crown.rotation.x = Math.PI / 2;
+    crown.position.set(0, 40, 0);
+    group.add(crown);
     
     group.userData.isWorldFX = true;
     this.root.add(group);
@@ -1065,15 +1392,18 @@ export class WorldPersonalityController {
    * Create localized cluster effect
    */
   createClusterEffect(cluster, key) {
+    if (this.worldMood.label === 'NEUTRAL' || this.worldMood.intensity < 0.15) return;
     const personality = cluster.personality;
+    const moodTint = this.getClusterTint(this.worldMood.label, personality);
+    const moodOpacity = Math.max(0.08, this.worldMood.intensity * 0.22);
     
     // Harmony/calm personalities get light bloom
     if (personality === 'HARMONY_KEEPER' || personality === 'CALM_ANALYST') {
       const geometry = new THREE.SphereGeometry(3, 16, 16);
       const material = new THREE.MeshBasicMaterial({
-        color: 0x00ffaa,
+        color: moodTint.harmony,
         transparent: true,
-        opacity: 0.1,
+        opacity: moodOpacity,
         blending: THREE.AdditiveBlending,
       });
       this.tagFXMaterial(material);
@@ -1115,10 +1445,10 @@ export class WorldPersonalityController {
       geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
       
       const material = new THREE.PointsMaterial({
-        color: 0xff00ff,
+        color: moodTint.chaos,
         size: 0.3,
         transparent: true,
-        opacity: 0.4,
+        opacity: moodOpacity,
         blending: THREE.AdditiveBlending,
       });
       this.tagFXMaterial(material);
@@ -1332,6 +1662,39 @@ export class WorldPersonalityController {
     return stability ?? 0;
   }
 
+  resolveMoodWithHysteresis(activeMood, candidateMood, metrics, timeSinceLastChange) {
+    if (candidateMood === activeMood) {
+      return activeMood;
+    }
+
+    if (timeSinceLastChange < this.minMoodDuration) {
+      return activeMood;
+    }
+
+    switch (activeMood) {
+      case 'HARMONIC_CALM':
+        return this.shouldExitHarmonicCalm(metrics) ? candidateMood : activeMood;
+      case 'RADIANT_STORM':
+        return this.shouldExitRadiantStorm(metrics) ? candidateMood : activeMood;
+      case 'UMBRA_PRESSURE':
+        return this.shouldExitUmbraPressure(metrics) ? candidateMood : activeMood;
+      default:
+        return candidateMood;
+    }
+  }
+
+  shouldExitHarmonicCalm({ avgHarmony, avgStability }) {
+    return avgHarmony < 60 || avgStability < 55;
+  }
+
+  shouldExitRadiantStorm({ avgStability, avgEnergy }) {
+    return avgEnergy < 70 || avgStability > 50;
+  }
+
+  shouldExitUmbraPressure({ avgHarmony, avgStability, avgEnergy }) {
+    return avgEnergy < 35 || avgStability > 45 || avgHarmony > 55;
+  }
+
   _toPercent(value) {
     return Number.isFinite(value) ? value * 100 : 0;
   }
@@ -1348,6 +1711,10 @@ export class WorldPersonalityController {
       moodChanged: !!moodChanged,
       source: 'WorldPersonalityController',
       timestamp: performance.now(),
+      visualContext: moodSnapshot.visualContext ?? this.worldMood.visualContext,
+      visualTone: moodSnapshot.visualContext?.visualTone ?? this.worldMood.visualContext?.visualTone,
+      paletteLock: this.atomaPalette,
+      dominantSignature: (moodSnapshot.visualContext?.dominantSignature || this.worldMood.visualContext?.dominantSignature),
     };
 
     const priority = bus.priority?.INTERACTIVE ?? bus.priority?.NORMAL;
