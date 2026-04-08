@@ -1,5 +1,12 @@
 Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako GlyphLayer4_MultiFusion. mohol by si to spraviť tak prosim ťa
 
+## 2026-04-08
+- `DreamDesert.js` was reworked toward a warm semi-realistic dream desert: asymmetrical dunes, a meandering dry channel, two stone landmarks, softened neon, and cinematic warm lighting/fog.
+- Added helper terrain noise, a sand normal texture, warm sun glow sprites, mirage bands, and toned-down floating particles/fragments/crystals to improve depth without adding much draw cost.
+- Syntax check passed with `node --check DreamDesert.js`.
+- Browser smoke passed on `output/dreamdesert-active.png` after selecting `Dream Desert` from the main menu; the scene now boots with the warmer palette and landmarks visible.
+- Existing startup noise still shows a pre-existing `AtomaAudioSystem` `AudioContext` error on first interaction; it did not block the desert visual smoke.
+
 ## 2026-04-04
 - `PHASE5_CascadePropagationVisuals` now spawns a 3-ring echo burst on each trigger and uses a per-source 3 second cooldown so the cascade reads as a tighter repeated pulse instead of a single expanding ring.
 - `TopologyBiasVisualizationLayer` now has a stronger default pass for bias vectors and flow fields, plus a fallback visual path from recent influence activity so the topology layer remains readable even when active learning regions are sparse.

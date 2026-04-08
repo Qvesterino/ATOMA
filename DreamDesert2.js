@@ -9,6 +9,7 @@ import { getMapConfig } from './MapConfigBase.js';
  * Synthetic geometric dunes with soft realistic lighting
  * Maintains surreal AI aesthetic through material design and color palette
  * Separate invisible collision layer for physics
+ * NOTE: Keep the analytic terrain sampler in sync with the visible dunes so the player controller can avoid raycast probes.
  */
 export class DreamDesert2 {
   constructor(scene, worldRoot, camera = null) {
@@ -34,6 +35,7 @@ export class DreamDesert2 {
     this.sunOrbitSpeed = (Math.PI * 2) / 300; // one full rotation in ~5 minutes
     this.devicePixelRatio = window.devicePixelRatio || 1;
     this.renderer = null;
+    this.playerGroundOffset = 1;
     
     // Wind system for particle distortion
     this.windDirection = new THREE.Vector3(1.0, 0.1, 0.3).normalize();
@@ -208,6 +210,17 @@ export class DreamDesert2 {
     return a + (b - a) * t;
   }
 
+  sampleTerrainHeight(x, z) {
+    const dist = Math.sqrt(x * x + z * z);
+    const falloffBase = Math.max(0, 1 - (dist * 0.0068));
+    const falloff = Math.max(0.18, Math.pow(falloffBase, 1.4));
+    return Math.max(0, this.sampleDuneNoise(x, z) * falloff);
+  }
+
+  getGroundLevelAt(x, z) {
+    return this.sampleTerrainHeight(x, z) + this.playerGroundOffset;
+  }
+
   createMainDunes() {
     // Higher resolution for organic dune detail
     const geometry = new THREE.PlaneGeometry(240, 240, 220, 220);
@@ -252,13 +265,7 @@ export class DreamDesert2 {
     for (let i = 0; i < positions.length; i += 3) {
       const x = positions[i];
       const z = positions[i + 2];
-      const dist = Math.sqrt(x * x + z * z);
-      
-      let height = this.sampleDuneNoise(x, z);
-      
-      // Shape dunes into gentle ridges and pockets
-      height *= Math.max(0.18, Math.pow(1 - (dist * 0.0068), 1.4));
-      height = Math.max(0, height);
+      const height = this.sampleTerrainHeight(x, z);
       positions[i + 1] = height;
       
       const normalizedHeight = Math.min(1, height / 9);
@@ -2194,18 +2201,7 @@ export class DreamDesert2 {
     for (let i = 0; i < positions.length; i += 3) {
       const x = positions[i];
       const z = positions[i + 2];
-      const dist = Math.sqrt(x * x + z * z);
-      
-      let height = 0;
-      height += Math.sin(x * 0.032) * Math.cos(z * 0.028) * 7.5;
-      height += Math.sin(x * 0.095 + z * 0.072) * Math.cos(z * 0.095) * 2.8;
-      height += Math.sin(x * 0.22) * Math.cos(z * 0.22) * 1.2;
-      height += Math.sin(x * 0.48 + z * 0.35) * 0.4;
-      
-      const falloff = Math.max(0.15, Math.pow(1 - (dist * 0.0075), 1.5));
-      height *= falloff;
-      
-      positions[i + 1] = Math.max(0, height);
+      positions[i + 1] = this.sampleTerrainHeight(x, z);
     }
     
     positionAttribute.needsUpdate = true;
@@ -2673,6 +2669,7 @@ export class DreamDesert2 {
               cloud.material.uniforms.uTime.value = time;
             }
           });
+        }
       }
       
       // Ridge breathing effect with shader updates

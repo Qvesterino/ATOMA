@@ -6,6 +6,7 @@ import { getMapConfig } from './MapConfigBase.js';
 /**
  * Fractal Valley - Recursive mathematical structures
  * Represents AI visualization of pattern formation and logic
+ * NOTE: Keep `getGroundLevelAt(x, z)` aligned with the terrain so the player controller can avoid raycast probes.
  */
 export class FractalValley {
   constructor(scene, worldRoot, camera = null) {
@@ -23,6 +24,7 @@ export class FractalValley {
     this.symbols = [];
     this.bridges = [];
     this.collisionObjects = []; // Track collision meshes
+    this.playerGroundOffset = 1;
     
     // Session 112+: Initialize map configuration and reference plane
     this.initializeMapConfig();
@@ -35,19 +37,21 @@ export class FractalValley {
     
     // World Time Modulation Policy: gate time-driven world visual animation
     this.allowWorldTimeModulation = this.mapConfig.allowWorldTimeModulation !== false;
+    this.isStaticValley = !this.enableDecorativeWorldFX && !this.allowWorldTimeModulation;
     
     this.createValleyFloor();
     this.createFractalMountains();
-    this.createMountainSilhouetteGlow();
+    if (!this.isStaticValley) {
+      this.createMountainSilhouetteGlow();
+    }
     this.createDataRivers();
-    this.createRiverStones();
     this.createRiverBridges();
-    this.createFloatingFragments();
     this.createMist();
     this.createSkyDome();
     
     // World FX Policy: gate decorative world FX creation
     if (this.enableDecorativeWorldFX) {
+      this.createFloatingFragments();
       this.createParticleDrift();
       this.createFractalHolograms();
       this.createFloatingSymbols();
@@ -173,6 +177,10 @@ export class FractalValley {
     return valleyBase + bankLift + leftRidge * 0.5 + rightRidge * 0.48 + farShoulder + subtleFractal - riverCarve - shallowShelf;
   }
 
+  getGroundLevelAt(x, z) {
+    return this.sampleTerrainHeight(x, z) + this.playerGroundOffset;
+  }
+
   sampleTerrainNoise(x, z) {
     const baseScale = 0.0105;
     const n0 = this._noise2D(x * baseScale, z * baseScale) * 1.0;
@@ -270,17 +278,7 @@ export class FractalValley {
     dirLight.name = 'fractalValleyDirectionalLight';
     this.scene.add(dirLight);
 
-    const fillLight = new THREE.DirectionalLight(0x6f86a5, 0.18);
-    fillLight.position.set(80, 34, -74);
-    fillLight.name = 'fractalValleyFillLight';
-    this.scene.add(fillLight);
-
-    const pointLight = new THREE.PointLight(0x58b4ba, 0.16, 48, 2);
-    pointLight.position.set(0, 6, 24);
-    pointLight.name = 'fractalValleyRiverPointLight';
-    this.scene.add(pointLight);
-
-    this.lights = { hemiLight, dirLight, fillLight, pointLight };
+    this.lights = { hemiLight, dirLight };
   }
   
   /**
@@ -288,7 +286,7 @@ export class FractalValley {
    */
   createValleyFloor() {
     const floorSize = 280;
-    const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize, 180, 180);
+    const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize, 64, 64);
     const positions = floorGeometry.attributes.position;
     const colors = new Float32Array(positions.count * 3);
 
@@ -349,7 +347,6 @@ export class FractalValley {
     this.collisionObjects.push(floorCollision);
     
     // Subtle fractal outcrops retain the map's identity without dominating the silhouette.
-    this.createHexTerraces();
   }
   
   /**
@@ -440,7 +437,7 @@ export class FractalValley {
    * Create an extruded ridge silhouette with asymmetrical peaks.
    */
   createRidgeGeometry(width, height, depth, seed, bias) {
-    const silhouetteCount = 24;
+    const silhouetteCount = 14;
     const shape = new THREE.Shape();
     shape.moveTo(-width * 0.5, 0);
 
@@ -520,7 +517,7 @@ export class FractalValley {
 
     const glowGeometry = new THREE.BufferGeometry();
     glowGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    glowGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    glowGeometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
     glowGeometry.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1));
 
     const glowMaterial = new THREE.ShaderMaterial({
@@ -528,12 +525,13 @@ export class FractalValley {
         uPixelRatio: { value: window.devicePixelRatio || 1 }
       },
       vertexShader: `
+        uniform float uPixelRatio;
         attribute float aAlpha;
-        attribute vec3 color;
+        attribute vec3 aColor;
         varying vec3 vColor;
         varying float vAlpha;
         void main() {
-          vColor = color;
+          vColor = aColor;
           vAlpha = aAlpha;
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = 18.0 * (uPixelRatio / -mvPosition.z);
@@ -554,8 +552,7 @@ export class FractalValley {
       `,
       transparent: true,
       blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      vertexColors: true
+      depthWrite: false
     });
 
     const glowPoints = new THREE.Points(glowGeometry, glowMaterial);
@@ -653,7 +650,7 @@ export class FractalValley {
   }
 
   createFloatingFragments() {
-    const fragmentCount = 4;
+    const fragmentCount = 2;
     const glowMaterial = this.createFragmentGlowMaterial();
     
     for (let i = 0; i < fragmentCount; i++) {
@@ -817,7 +814,7 @@ export class FractalValley {
    * Create the meandering river, shallow bank transitions, and restrained flow accents.
    */
   createDataRivers() {
-    const waterGeometry = this.buildRiverSurfaceGeometry(112);
+    const waterGeometry = this.buildRiverSurfaceGeometry(40);
     const waterMaterial = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
@@ -896,8 +893,8 @@ export class FractalValley {
       side: THREE.DoubleSide
     });
 
-    const leftBank = new THREE.Mesh(this.buildRiverBankGeometry(112, 1), bankMaterial.clone());
-    const rightBank = new THREE.Mesh(this.buildRiverBankGeometry(112, -1), bankMaterial.clone());
+    const leftBank = new THREE.Mesh(this.buildRiverBankGeometry(40, 1), bankMaterial.clone());
+    const rightBank = new THREE.Mesh(this.buildRiverBankGeometry(40, -1), bankMaterial.clone());
     leftBank.renderOrder = 3;
     rightBank.renderOrder = 3;
     rightBank.material.uniforms.uBankColor.value = new THREE.Color(0x5a5450);
@@ -905,7 +902,7 @@ export class FractalValley {
     this.worldRoot.add(rightBank);
     this.riverBankMeshes = [leftBank, rightBank];
 
-    const totalPoints = 72;
+    const totalPoints = 24;
     const positions = new Float32Array(totalPoints * 3);
     const colors = new Float32Array(totalPoints * 3);
     const sizes = new Float32Array(totalPoints);
@@ -939,7 +936,7 @@ export class FractalValley {
 
     const riverGeometry = new THREE.BufferGeometry();
     riverGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    riverGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    riverGeometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
     riverGeometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
     riverGeometry.setAttribute('aT', new THREE.BufferAttribute(tValues, 1));
 
@@ -949,15 +946,16 @@ export class FractalValley {
         uTime: { value: 0 }
       },
       vertexShader: `
+        uniform float uPixelRatio;
         uniform float uTime;
         attribute float aSize;
-        attribute vec3 color;
+        attribute vec3 aColor;
         attribute float aT;
         varying vec3 vColor;
         varying float vAlpha;
         varying float vT;
         void main() {
-          vColor = color;
+          vColor = aColor;
           vT = aT;
           float flowPulse = 0.72 + 0.28 * sin(aT * 16.0 - uTime * 2.4);
           vAlpha = flowPulse * (0.2 + smoothstep(0.0, 0.15, aT) * smoothstep(1.0, 0.82, aT));
@@ -982,8 +980,7 @@ export class FractalValley {
       `,
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      vertexColors: true
+      blending: THREE.AdditiveBlending
     });
 
     const riverPoints = new THREE.Points(riverGeometry, riverMaterial);
@@ -1107,7 +1104,7 @@ export class FractalValley {
   }
 
   createRiverStones() {
-    const stoneCount = 26;
+    const stoneCount = 12;
     const stoneMaterial = materialRegistry.getStandard('world.fractalvalley.riverStone', {
       color: 0x57535b,
       roughness: 0.96,
@@ -1165,9 +1162,6 @@ export class FractalValley {
 
       if (placement.type === 'hero') {
         this.heroBridgeAnchor = frame.point.clone();
-        if (this.lights?.pointLight) {
-          this.lights.pointLight.position.copy(this.heroBridgeAnchor).add(new THREE.Vector3(0, 2.2, 0));
-        }
       }
     });
   }
@@ -1232,7 +1226,7 @@ export class FractalValley {
       emissiveIntensity: 0.14
     });
 
-    const deckSegments = 9;
+    const deckSegments = 3;
     const segmentLength = span / deckSegments;
     const railPosts = [];
 
@@ -1245,7 +1239,7 @@ export class FractalValley {
       group.add(this.createBoxPart(woodMaterial, new THREE.Vector3(segmentLength * 0.82, 0.12, 0.22), new THREE.Vector3(x, arch - 0.38, -deckWidth * 0.44)));
     }
 
-    const postCount = 10;
+    const postCount = 3;
     for (let i = 0; i <= postCount; i++) {
       const t = i / postCount;
       const x = -span * 0.5 + t * span;
@@ -1257,12 +1251,10 @@ export class FractalValley {
       group.add(this.createBoxPart(railMaterial, new THREE.Vector3(0.14, 1.02, 0.14), rightPost));
     }
 
-    for (let i = 0; i < railPosts.length - 1; i++) {
-      group.add(this.createBeamBetween(railMaterial, railPosts[i][0].clone().add(new THREE.Vector3(0, 0.38, 0)), railPosts[i + 1][0].clone().add(new THREE.Vector3(0, 0.38, 0)), 0.08));
-      group.add(this.createBeamBetween(railMaterial, railPosts[i][1].clone().add(new THREE.Vector3(0, 0.38, 0)), railPosts[i + 1][1].clone().add(new THREE.Vector3(0, 0.38, 0)), 0.08));
-      group.add(this.createBeamBetween(railMaterial, railPosts[i][0].clone().add(new THREE.Vector3(0, 0.14, 0)), railPosts[i + 1][0].clone().add(new THREE.Vector3(0, 0.14, 0)), 0.04));
-      group.add(this.createBeamBetween(railMaterial, railPosts[i][1].clone().add(new THREE.Vector3(0, 0.14, 0)), railPosts[i + 1][1].clone().add(new THREE.Vector3(0, 0.14, 0)), 0.04));
-    }
+    group.add(this.createBeamBetween(railMaterial, railPosts[0][0].clone().add(new THREE.Vector3(0, 0.38, 0)), railPosts[railPosts.length - 1][0].clone().add(new THREE.Vector3(0, 0.38, 0)), 0.08));
+    group.add(this.createBeamBetween(railMaterial, railPosts[0][1].clone().add(new THREE.Vector3(0, 0.38, 0)), railPosts[railPosts.length - 1][1].clone().add(new THREE.Vector3(0, 0.38, 0)), 0.08));
+    group.add(this.createBeamBetween(railMaterial, railPosts[0][0].clone().add(new THREE.Vector3(0, 0.14, 0)), railPosts[railPosts.length - 1][0].clone().add(new THREE.Vector3(0, 0.14, 0)), 0.04));
+    group.add(this.createBeamBetween(railMaterial, railPosts[0][1].clone().add(new THREE.Vector3(0, 0.14, 0)), railPosts[railPosts.length - 1][1].clone().add(new THREE.Vector3(0, 0.14, 0)), 0.04));
 
     [-1, 1].forEach((side) => {
       const abutmentHeight = deckY - this.sampleTerrainHeight(
@@ -1309,7 +1301,7 @@ export class FractalValley {
 
     group.add(this.createBoxPart(steelMaterial, new THREE.Vector3(span, 0.16, deckWidth), new THREE.Vector3(0, 0, 0)));
 
-    const plankCount = 8;
+    const plankCount = 4;
     for (let i = 0; i < plankCount; i++) {
       const x = -span * 0.5 + (i + 0.5) * (span / plankCount);
       group.add(this.createBoxPart(plankMaterial, new THREE.Vector3((span / plankCount) * 0.7, 0.04, deckWidth * 0.88), new THREE.Vector3(x, 0.11, 0)));
@@ -1489,7 +1481,7 @@ export class FractalValley {
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
     geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
 
     const material = new THREE.ShaderMaterial({
@@ -1497,11 +1489,12 @@ export class FractalValley {
         uPixelRatio: { value: window.devicePixelRatio || 1 }
       },
       vertexShader: `
+        uniform float uPixelRatio;
         attribute float aSize;
-        attribute vec3 color;
+        attribute vec3 aColor;
         varying vec3 vColor;
         void main() {
-          vColor = color;
+          vColor = aColor;
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = aSize * (uPixelRatio / -mvPosition.z);
           gl_Position = projectionMatrix * mvPosition;
@@ -1519,8 +1512,7 @@ export class FractalValley {
       `,
       transparent: true,
       blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      vertexColors: true
+      depthWrite: false
     });
 
     const vortex = new THREE.Points(geometry, material);
@@ -1550,7 +1542,7 @@ export class FractalValley {
     const colors = [];
     const velocities = [];
     
-    const particleCount = 250;
+    const particleCount = 120;
     
     const color1 = new THREE.Color(0x8800ff);
     const color2 = new THREE.Color(0x00dddd);

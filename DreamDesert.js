@@ -5,7 +5,8 @@ import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js
 
 /**
  * Dream Desert - AI Subconscious Environment
- * Surreal, peaceful, geometric desertscape
+ * Warm surreal desert with cinematic dunes and soft dream lighting
+ * NOTE: Keep the analytic surface helper in sync with the dunes so the player controller never falls back to raycasts.
  */
 export class DreamDesert {
   constructor(scene, worldRoot, camera = null) {
@@ -13,9 +14,19 @@ export class DreamDesert {
     this.scene = scene;
     this.worldRoot = worldRoot;
     this.camera = camera;
+    this.desertSize = 220;
+    this.desertRadius = this.desertSize * 0.5;
+    this.desertHeightScale = 0.72;
+    this.playerGroundOffset = 1;
     this.crystals = [];
     this.fragments = [];
     this.energyVeins = [];
+    this.dunes = [];
+    this.landmarks = [];
+    this.horizonMirageBands = [];
+    this.sunGlowSprite = null;
+    this.sunGlowTexture = null;
+    this.sunPointLight = null;
     this.collisionObjects = []; // Track collision meshes
     
     // Session 112+: Initialize map reference plane from config
@@ -24,13 +35,14 @@ export class DreamDesert {
     
     this.createDesertTerrain();
     this.createLighting();
+    this.createDesertLandmarks();
     this.createEnergyVeins();
     this.createHolographicCrystals();
     this.createFloatingFragments();
     this.createDreamParticles();
     this.createDustDevils();
     this.createAuroraRibbons();
-    this.createHorizonGlitch();
+    this.createHorizonMirage();
   }
   
   /**
@@ -67,32 +79,345 @@ export class DreamDesert {
       this.referencePlane = null;
     }
   }
+
+  sampleDesertTerrainHeight(x, z) {
+    const primary = this._noise2D(x * 0.0105, z * 0.0105) * 2.8;
+    const secondary = this._noise2D(x * 0.024, z * 0.024) * 1.35;
+    const tertiary = this._noise2D(x * 0.052, z * 0.052) * 0.55;
+    const windBands = Math.sin(x * 0.035 + z * 0.016) * 1.7
+      + Math.cos(x * 0.011 - z * 0.028) * 0.85;
+
+    const channelX = this.getDesertChannelX(z);
+    const channelDistance = Math.abs(x - channelX);
+    const channel = Math.exp(-channelDistance * 0.055) * (1.8 + Math.sin(z * 0.021) * 0.35);
+
+    const basin = Math.exp(-(((x + 28) * (x + 28)) + ((z - 20) * (z - 20))) / 1800) * 1.15;
+    const shoulder = Math.exp(-(((x - 44) * (x - 44)) + ((z + 34) * (z + 34))) / 900) * 0.7;
+
+    return primary + secondary + tertiary + windBands - channel - basin - shoulder;
+  }
+
+  getDesertChannelX(z) {
+    return Math.sin(z * 0.018) * 14 + Math.cos(z * 0.006) * 5;
+  }
+
+  getDesertTerrainFalloff(x, z) {
+    const radius = Math.sqrt(x * x + z * z) / this.desertRadius;
+    return Math.pow(Math.max(0, 1 - radius), 0.9);
+  }
+
+  sampleDesertBaseSurfaceY(x, z) {
+    return this.sampleDesertTerrainHeight(x, z) * this.getDesertTerrainFalloff(x, z) * this.desertHeightScale;
+  }
+
+  sampleDesertDuneOffset(x, z) {
+    if (!this.dunes.length) {
+      return 0;
+    }
+
+    let offset = 0;
+
+    for (const dune of this.dunes) {
+      const data = dune.userData || {};
+      const groundHeight = data.groundHeight || 0;
+      if (groundHeight <= 0) {
+        continue;
+      }
+
+      const dx = x - dune.position.x;
+      const dz = z - dune.position.z;
+      const rotation = dune.rotation.y || 0;
+      const cos = Math.cos(-rotation);
+      const sin = Math.sin(-rotation);
+      const localX = dx * cos - dz * sin;
+      const localZ = dx * sin + dz * cos;
+      const width = Math.max(1, data.groundWidth || 1);
+      const depth = Math.max(1, data.groundDepth || 1);
+      const normalizedX = localX / (width * 0.5);
+      const normalizedZ = localZ / (depth * 0.72);
+      const influence = Math.exp(-(normalizedX * normalizedX * 0.9 + normalizedZ * normalizedZ * 0.55));
+      offset = Math.max(offset, groundHeight * influence);
+    }
+
+    return offset;
+  }
+
+  sampleDesertSurfaceY(x, z) {
+    return this.sampleDesertBaseSurfaceY(x, z) + this.sampleDesertDuneOffset(x, z);
+  }
+
+  getGroundLevelAt(x, z) {
+    return this.sampleDesertSurfaceY(x, z) + this.playerGroundOffset;
+  }
+
+  _noise2D(x, z) {
+    const ix = Math.floor(x);
+    const iz = Math.floor(z);
+    const fx = x - ix;
+    const fz = z - iz;
+    const u = this._fade(fx);
+    const v = this._fade(fz);
+
+    const n00 = this._gradNoise(ix, iz, fx, fz);
+    const n10 = this._gradNoise(ix + 1, iz, fx - 1, fz);
+    const n01 = this._gradNoise(ix, iz + 1, fx, fz - 1);
+    const n11 = this._gradNoise(ix + 1, iz + 1, fx - 1, fz - 1);
+
+    const nx0 = this._lerp(n00, n10, u);
+    const nx1 = this._lerp(n01, n11, u);
+    return this._lerp(nx0, nx1, v);
+  }
+
+  _gradNoise(ix, iz, fx, fz) {
+    const hash = this._pseudoRandom2D(ix, iz);
+    const angle = (hash % 8) * (Math.PI * 0.25);
+    const gx = Math.cos(angle);
+    const gz = Math.sin(angle);
+    return gx * fx + gz * fz;
+  }
+
+  _pseudoRandom2D(x, y) {
+    let n = x * 374761393 + y * 668265263;
+    n = (n ^ (n >> 13)) * 1274126177;
+    return (n ^ (n >> 16)) >>> 0;
+  }
+
+  _fade(t) {
+    return t * t * t * (t * (t * 6 - 15) + 10);
+  }
+
+  _lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  createSandNormalTexture() {
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.createImageData(size, size);
+    const data = imageData.data;
+    const heightField = new Float32Array(size * size);
+
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const u = x / size;
+        const v = y / size;
+        const sample = Math.sin(u * Math.PI * 12.0 + v * Math.PI * 2.5) * 0.12
+          + Math.cos(u * Math.PI * 4.0 - v * Math.PI * 9.0) * 0.08
+          + Math.sin((u + v) * Math.PI * 8.0) * 0.05
+          + Math.cos((u - v) * Math.PI * 6.0) * 0.03;
+        heightField[y * size + x] = sample;
+      }
+    }
+
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const left = heightField[y * size + ((x - 1 + size) % size)];
+        const right = heightField[y * size + ((x + 1) % size)];
+        const up = heightField[((y - 1 + size) % size) * size + x];
+        const down = heightField[((y + 1) % size) * size + x];
+        const dx = (right - left) * 18.0;
+        const dy = (down - up) * 18.0;
+        const nz = Math.sqrt(Math.max(0, 1 - dx * dx * 0.25 - dy * dy * 0.25));
+        const index = (y * size + x) * 4;
+        data[index] = Math.max(0, Math.min(255, (dx * 0.5 + 1) * 127.5));
+        data[index + 1] = Math.max(0, Math.min(255, (dy * 0.5 + 1) * 127.5));
+        data[index + 2] = Math.max(0, Math.min(255, nz * 255));
+        data[index + 3] = 255;
+      }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(8, 8);
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  createSunGlowTexture() {
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    gradient.addColorStop(0.0, 'rgba(255, 248, 236, 0.95)');
+    gradient.addColorStop(0.22, 'rgba(255, 226, 192, 0.76)');
+    gradient.addColorStop(0.48, 'rgba(255, 179, 130, 0.38)');
+    gradient.addColorStop(0.78, 'rgba(224, 144, 118, 0.14)');
+    gradient.addColorStop(1.0, 'rgba(224, 144, 118, 0.0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  createDesertLandmarks() {
+    this.createStoneArch();
+    this.createDistantMonolith();
+  }
+
+  createStoneArch() {
+    const group = new THREE.Group();
+    const stoneBase = materialRegistry.getStandard('world.dreamdesert.archStone', {
+      color: 0xd8b08a,
+      roughness: 0.95,
+      metalness: 0.04,
+      emissive: 0xb2714a,
+      emissiveIntensity: 0.05
+    });
+
+    const leftColumn = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.6, 1.9, 10.5, 8, 1, false),
+      stoneBase.clone()
+    );
+    leftColumn.position.set(-2.8, 5.25, 0);
+    leftColumn.rotation.z = -0.04;
+    group.add(leftColumn);
+
+    const rightColumn = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.45, 1.7, 9.7, 8, 1, false),
+      stoneBase.clone()
+    );
+    rightColumn.position.set(2.65, 4.85, 0.18);
+    rightColumn.rotation.z = 0.03;
+    group.add(rightColumn);
+
+    const archPoints = [];
+    const archRadius = 3.2;
+    const archHeight = 4.9;
+    for (let i = 0; i <= 16; i++) {
+      const t = i / 16;
+      const angle = Math.PI * t;
+      const x = Math.cos(angle) * archRadius;
+      const y = Math.sin(angle) * archHeight + 5.0;
+      const z = Math.sin(angle * 2.0) * 0.22;
+      archPoints.push(new THREE.Vector3(x, y, z));
+    }
+
+    const archCurve = new THREE.CatmullRomCurve3(archPoints);
+    const arch = new THREE.Mesh(
+      new THREE.TubeGeometry(archCurve, 32, 0.95, 10, false),
+      stoneBase.clone()
+    );
+    arch.rotation.z = Math.PI * 0.5;
+    arch.position.set(0.35, 0.2, 0);
+    group.add(arch);
+
+    if (!this.sunGlowTexture) {
+      this.sunGlowTexture = this.createSunGlowTexture();
+    }
+    const haloMaterial = new THREE.SpriteMaterial({
+      map: this.sunGlowTexture,
+      color: 0xffd1a3,
+      transparent: true,
+      opacity: 0.16,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false
+    });
+    const halo = new THREE.Sprite(haloMaterial);
+    halo.scale.set(10, 10, 1);
+    halo.position.set(0.25, 6.8, 0.6);
+    group.add(halo);
+
+    const terrainY = this.sampleDesertSurfaceY(12, -20);
+    group.position.set(12, terrainY + 0.6, -20);
+    group.rotation.y = -0.18;
+    group.userData = {
+      pulseOffset: Math.random() * Math.PI * 2,
+      halo
+    };
+
+    this.worldRoot.add(group);
+    this.landmarks.push(group);
+  }
+
+  createDistantMonolith() {
+    const group = new THREE.Group();
+    const stoneBase = materialRegistry.getStandard('world.dreamdesert.monolithStone', {
+      color: 0xb99e84,
+      roughness: 0.9,
+      metalness: 0.08,
+      emissive: 0x8d5f48,
+      emissiveIntensity: 0.03
+    });
+
+    const main = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 15, 2.2),
+      stoneBase.clone()
+    );
+    main.position.set(0, 7.5, 0);
+    main.rotation.z = 0.04;
+    group.add(main);
+
+    const shard = new THREE.Mesh(
+      new THREE.BoxGeometry(1.1, 9, 1.0),
+      stoneBase.clone()
+    );
+    shard.position.set(2.0, 4.6, -0.45);
+    shard.rotation.z = -0.12;
+    shard.rotation.x = 0.06;
+    group.add(shard);
+
+    const cap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.6, 1.4, 1.8, 6, 1, false),
+      stoneBase.clone()
+    );
+    cap.position.set(-0.15, 14.2, 0.1);
+    cap.rotation.z = 0.08;
+    group.add(cap);
+
+    const terrainY = this.sampleDesertSurfaceY(-48, 54);
+    group.position.set(-48, terrainY + 0.2, 54);
+    group.rotation.y = 0.35;
+    group.userData = {
+      pulseOffset: Math.random() * Math.PI * 2
+    };
+
+    this.worldRoot.add(group);
+    this.landmarks.push(group);
+  }
   
   /**
    * Create geometric dunes with neural patterns
    */
   createDesertTerrain() {
-    // Main desert floor - large segmented base with gentle relief
-    const desertSize = 200;
-    const desertGeometry = new THREE.PlaneGeometry(desertSize, desertSize, 80, 80);
+    const desertSize = this.desertSize;
+    const desertGeometry = new THREE.PlaneGeometry(desertSize, desertSize, 120, 120);
     const positionAttribute = desertGeometry.getAttribute('position');
     const positions = positionAttribute.array;
     const colors = new Float32Array(positions.length);
-    const centerColor = new THREE.Color(0xe8d4f8);
-    const edgeColor = new THREE.Color(0xc8b4d8);
+    const lowColor = new THREE.Color(0xd7b28a);
+    const midColor = new THREE.Color(0xedceb0);
+    const highColor = new THREE.Color(0xf8e2cd);
+    const shadowColor = new THREE.Color(0x8d6c62);
+    const channelColor = new THREE.Color(0xc6a28f);
+    const sandNormalTexture = this.createSandNormalTexture();
 
     for (let i = 0; i < positions.length; i += 3) {
       const x = positions[i];
       const z = positions[i + 1];
-      const radius = Math.sqrt(x * x + z * z) / (desertSize * 0.5);
-      const falloff = Math.pow(Math.max(0, 1 - radius), 1.8);
+      const channelX = this.getDesertChannelX(z);
+      const channelDistance = Math.abs(x - channelX);
+      const channelFactor = Math.exp(-channelDistance * 0.055);
 
-      const height = Math.sin(x * 0.05) * Math.cos(z * 0.045) * 2.1
-        + Math.sin(x * 0.14 + z * 0.08) * 1.1
-        + Math.cos(z * 0.09) * 0.8;
-      positions[i + 2] = height * falloff * 0.45;
+      const height = this.sampleDesertBaseSurfaceY(x, z);
+      positions[i + 2] = height;
 
-      const color = centerColor.clone().lerp(edgeColor, Math.min(1, radius));
+      const heightMix = THREE.MathUtils.clamp((height + 3.0) / 8.5, 0, 1);
+      const color = lowColor.clone().lerp(midColor, heightMix);
+      color.lerp(highColor, Math.pow(heightMix, 2.0) * 0.35);
+      color.lerp(shadowColor, Math.min(0.35, (1 - this.getDesertTerrainFalloff(x, z)) * 0.45));
+      color.lerp(channelColor, channelFactor * 0.18);
+
       colors[i] = color.r;
       colors[i + 1] = color.g;
       colors[i + 2] = color.b;
@@ -103,17 +428,19 @@ export class DreamDesert {
     desertGeometry.computeVertexNormals();
 
     const desertMaterial = materialRegistry.getStandard('world.dreamdesert.desertFloor', {
-      color: 0xe8d4f8,
-      roughness: 0.9,
-      metalness: 0.1,
-      side: THREE.DoubleSide,         // Visible from both sides (top-down camera)
-      depthWrite: true,               // Write to depth buffer
-      depthTest: true,                // Test depth for proper ordering
-      opacity: 1.0,                   // Full opacity
-      transparent: false,              // Not transparent
-      emissive: 0x000000,            // No emissive override
-      emissiveIntensity: 0,          // No glow
-      vertexColors: true
+      color: 0xd7b28a,
+      roughness: 0.82,
+      metalness: 0.08,
+      side: THREE.DoubleSide,
+      depthWrite: true,
+      depthTest: true,
+      opacity: 1.0,
+      transparent: false,
+      emissive: 0x2c0d12,
+      emissiveIntensity: 0.02,
+      vertexColors: true,
+      normalMap: sandNormalTexture,
+      normalScale: new THREE.Vector2(0.24, 0.24)
     });
     const desert = new THREE.Mesh(desertGeometry, desertMaterial);
     desert.rotation.x = -Math.PI / 2;
@@ -152,11 +479,8 @@ export class DreamDesert {
     this.worldRoot.add(desertCollision);
     this.collisionObjects.push(desertCollision);
     
-    // Create geometric dunes with subtle patterns
-    this.dunes = [];
-    const duneCount = 12;
-    
-    // Reuse collision material for all dunes (invisible but raycastable)
+    // Create asymmetrical dune mounds aligned with the channel flow
+    const duneCount = 9;
     const duneCollisionMaterial = new THREE.MeshBasicMaterial({
       color: 0x000000,
       transparent: true,
@@ -167,26 +491,43 @@ export class DreamDesert {
     });
     
     for (let i = 0; i < duneCount; i++) {
-      const angle = (i / duneCount) * Math.PI * 2;
-      const distance = 20 + Math.random() * 40;
-      
-      // Create smooth geometric dune
-      const duneGeometry = this.createGeometricDune();
+      const t = duneCount === 1 ? 0.5 : i / (duneCount - 1);
+      const z = -82 + t * 164 + (Math.random() - 0.5) * 10;
+      const channelX = this.getDesertChannelX(z);
+      const side = i % 2 === 0 ? -1 : 1;
+      const x = channelX + side * (16 + Math.random() * 24) + (Math.random() - 0.5) * 8;
+      const terrainY = this.sampleDesertBaseSurfaceY(x, z);
+      const duneWidth = 14 + Math.random() * 14;
+      const duneHeight = 3.2 + Math.random() * 2.8;
+      const duneDepth = 12 + Math.random() * 12;
+      const duneScaleX = 0.9 + Math.random() * 0.45;
+      const duneScaleY = 0.8 + Math.random() * 0.18;
+      const duneScaleZ = 1.0 + Math.random() * 0.55;
+      const duneGeometry = this.createGeometricDune({
+        width: duneWidth,
+        height: duneHeight,
+        depth: duneDepth,
+        lean: side
+      });
       const duneMaterial = materialRegistry.getStandard('world.dreamdesert.dune', {
         color: this.getDuneColor(),
-        roughness: 0.8,
-        metalness: 0.15,
+        roughness: 0.84,
+        metalness: 0.08,
         flatShading: false,
-        side: THREE.FrontSide,          // ✅ Ensure front face visible
-        depthWrite: true,               // ✅ Write to depth buffer
-        depthTest: true                 // ✅ Test depth
+        side: THREE.FrontSide,
+        depthWrite: true,
+        depthTest: true,
+        emissive: 0x2a1115,
+        emissiveIntensity: 0.025
       });
       
       const dune = new THREE.Mesh(duneGeometry, duneMaterial);
-      dune.position.x = Math.cos(angle) * distance;
-      dune.position.z = Math.sin(angle) * distance;
-      dune.position.y = -0.5;
+      dune.position.x = x;
+      dune.position.z = z;
+      dune.position.y = terrainY + 0.35;
       dune.rotation.y = Math.random() * Math.PI * 2;
+      dune.rotation.z = (Math.random() - 0.5) * 0.12;
+      dune.scale.set(duneScaleX, duneScaleY, duneScaleZ);
       
       // Ensure dunes render after floor but before transparents
       dune.renderOrder = -90; 
@@ -194,8 +535,15 @@ export class DreamDesert {
       dune.userData = {
         originalY: dune.position.y,
         originalScaleY: dune.scale.y,
-        breathSpeed: 0.1 + Math.random() * 0.05,
-        breathOffset: Math.random() * Math.PI * 2
+        originalScaleX: dune.scale.x,
+        originalScaleZ: dune.scale.z,
+        originalRotationZ: dune.rotation.z,
+        breathSpeed: 0.08 + Math.random() * 0.04,
+        breathOffset: Math.random() * Math.PI * 2,
+        swaySpeed: 0.04 + Math.random() * 0.02,
+        groundWidth: duneWidth * duneScaleX,
+        groundDepth: duneDepth * duneScaleZ,
+        groundHeight: duneHeight * duneScaleY * 0.18
       };
       
       this.worldRoot.add(dune);
@@ -205,6 +553,7 @@ export class DreamDesert {
       const duneCollision = new THREE.Mesh(duneGeometry.clone(), duneCollisionMaterial);
       duneCollision.position.copy(dune.position);
       duneCollision.rotation.copy(dune.rotation);
+      duneCollision.scale.copy(dune.scale);
       duneCollision.userData = {
         isWalkable: true,
         collisionEnabled: true,
@@ -220,31 +569,36 @@ export class DreamDesert {
   /**
    * Create geometric dune shape with hex/wave patterns
    */
-  createGeometricDune() {
-    const width = 15 + Math.random() * 10;
-    const height = 3 + Math.random() * 4;
-    const depth = 10 + Math.random() * 8;
-    
-    // Use smooth subdivision for organic feel
+  createGeometricDune(options = {}) {
+    const width = options.width ?? (15 + Math.random() * 10);
+    const height = options.height ?? (3 + Math.random() * 4);
+    const depth = options.depth ?? (10 + Math.random() * 8);
+    const lean = options.lean ?? (Math.random() > 0.5 ? 1 : -1);
+
     const geometry = new THREE.CylinderGeometry(
-      width * 0.3,
+      width * 0.28,
       width,
       height,
-      16,
-      4,
+      20,
+      5,
       false
     );
-    
-    // Apply subtle wave pattern to vertices
+
     const positions = geometry.attributes.position;
     for (let i = 0; i < positions.count; i++) {
       const x = positions.getX(i);
       const y = positions.getY(i);
       const z = positions.getZ(i);
-      
-      // Hex-like distortion
-      const hexPattern = Math.sin(x * 0.3) * Math.cos(z * 0.3) * 0.5;
-      positions.setY(i, y + hexPattern);
+
+      const normalizedY = (y + height * 0.5) / height;
+      const topBias = Math.pow(Math.max(0, normalizedY), 1.7);
+      const ridgeNoise = Math.sin(x * 0.26 + z * 0.14) * 0.35
+        + Math.cos(z * 0.22 - x * 0.08) * 0.2;
+      const windWarp = lean * (0.15 + normalizedY * 0.2);
+
+      positions.setX(i, x * (1 + windWarp * 0.65) + ridgeNoise * 0.28);
+      positions.setZ(i, z * (1 + windWarp * 0.35) + ridgeNoise * 0.18);
+      positions.setY(i, y + ridgeNoise * (0.35 + topBias * 0.2));
     }
     
     geometry.computeVertexNormals();
@@ -258,29 +612,29 @@ export class DreamDesert {
    */
   getDuneColor() {
     const colors = [
-      0xf5d0f0,  // Soft pink
-      0xd4e8f8,  // Soft teal
-      0xe8d4f8,  // Soft violet
-      0xf0e8ff,  // Soft lavender
-      0xddf0f5   // Soft cyan
+      0xd8b08a,
+      0xe7c3a7,
+      0xf0dcc7,
+      0xcaa79c,
+      0xbfa59b
     ];
     return colors[Math.floor(Math.random() * colors.length)];
   }
   
   /**
-   * Create pulsing energy veins under dunes
+   * Create warm horizon lighting and a cinematic sky gradient
    */
   createLighting() {
     if (this.scene) {
-      this.scene.fog = new THREE.FogExp2(0x1a0a20, 0.006);
-      this.scene.background = new THREE.Color(0x0d0515);
+      this.scene.fog = new THREE.FogExp2(0xe7c0a5, 0.0042);
+      this.scene.background = new THREE.Color(0x160c12);
     }
 
     const skyGeometry = new THREE.SphereGeometry(150, 16, 16);
     const skyMaterial = new THREE.ShaderMaterial({
       uniforms: {
-        uTopColor: { value: new THREE.Color(0x12031a) },
-        uBottomColor: { value: new THREE.Color(0x4e2d6f) }
+        uTopColor: { value: new THREE.Color(0xffe1c8) },
+        uBottomColor: { value: new THREE.Color(0x7d475b) }
       },
       vertexShader: `
         varying vec3 vWorldPosition;
@@ -308,11 +662,11 @@ export class DreamDesert {
     skySphere.renderOrder = -1;
     this.worldRoot.add(skySphere);
 
-    const hemisphere = new THREE.HemisphereLight(0xe8d4f8, 0x2a1a3a, 0.4);
+    const hemisphere = new THREE.HemisphereLight(0xffe7d4, 0x3b1f28, 0.56);
     this.worldRoot.add(hemisphere);
 
-    const directional = new THREE.DirectionalLight(0xffe8ff, 0.5);
-    directional.position.set(50, 60, 40);
+    const directional = new THREE.DirectionalLight(0xffcf9a, 0.72);
+    directional.position.set(-45, 78, 38);
     directional.castShadow = true;
     directional.shadow.mapSize.width = 2048;
     directional.shadow.mapSize.height = 2048;
@@ -324,7 +678,31 @@ export class DreamDesert {
     directional.shadow.camera.bottom = -80;
     this.worldRoot.add(directional);
 
-    const helper = null;
+    if (!this.sunGlowTexture) {
+      this.sunGlowTexture = this.createSunGlowTexture();
+    }
+
+    const sunMaterial = new THREE.SpriteMaterial({
+      map: this.sunGlowTexture,
+      color: 0xffd5a4,
+      transparent: true,
+      opacity: 0.34,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false
+    });
+    const sunGlow = new THREE.Sprite(sunMaterial);
+    sunGlow.position.set(-58, 34, -100);
+    sunGlow.scale.set(28, 28, 1);
+    sunGlow.renderOrder = 2;
+    this.worldRoot.add(sunGlow);
+    this.sunGlowSprite = sunGlow;
+
+    const sunLight = new THREE.PointLight(0xffbf83, 0.45, 160, 2);
+    sunLight.position.copy(sunGlow.position);
+    this.worldRoot.add(sunLight);
+    this.sunPointLight = sunLight;
+
     if (this.scene && this.scene.userData && this.scene.userData.debugLights) {
       // Optional debug helper when debug mode is enabled
       // eslint-disable-next-line no-unused-vars
@@ -340,10 +718,10 @@ export class DreamDesert {
     canvas.height = size;
     const ctx = canvas.getContext('2d');
     const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    gradient.addColorStop(0.0, 'rgba(232, 192, 255, 0.9)');
-    gradient.addColorStop(0.35, 'rgba(232, 192, 255, 0.55)');
-    gradient.addColorStop(0.65, 'rgba(232, 192, 255, 0.18)');
-    gradient.addColorStop(1.0, 'rgba(232, 192, 255, 0.0)');
+    gradient.addColorStop(0.0, 'rgba(255, 244, 224, 0.95)');
+    gradient.addColorStop(0.35, 'rgba(255, 221, 176, 0.58)');
+    gradient.addColorStop(0.65, 'rgba(231, 183, 142, 0.18)');
+    gradient.addColorStop(1.0, 'rgba(231, 183, 142, 0.0)');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, size, size);
     const texture = new THREE.CanvasTexture(canvas);
@@ -359,7 +737,7 @@ export class DreamDesert {
     }
     return new THREE.SpriteMaterial({
       map: this.crystalGlowTexture,
-      color: 0xe8d4f8,
+      color: 0xffd6aa,
       transparent: true,
       opacity: 0.32,
       blending: THREE.AdditiveBlending,
@@ -370,44 +748,46 @@ export class DreamDesert {
   }
 
   createEnergyVeins() {
-    const veinCount = 8;
+    const veinCount = 6;
     
     for (let i = 0; i < veinCount; i++) {
-      const angle = (i / veinCount) * Math.PI * 2;
-      
-      // Create curved vein path
       const points = [];
-      const segments = 20;
-      const distance = 50;
-      
+      const segments = 28;
+      const baseOffset = (i - (veinCount - 1) / 2) * 3.5;
+
       for (let j = 0; j < segments; j++) {
         const t = j / segments;
-        const radius = t * distance;
-        const angleOffset = Math.sin(t * Math.PI * 2) * 0.3;
-        
+        const z = -92 + t * 184;
+        const channelX = this.getDesertChannelX(z) + baseOffset * 0.7;
+        const channelWave = Math.sin(t * Math.PI * 2.2 + i * 0.45) * 1.2;
         points.push(new THREE.Vector3(
-          Math.cos(angle + angleOffset) * radius,
-          -0.3 + Math.sin(t * Math.PI * 4) * 0.2,
-          Math.sin(angle + angleOffset) * radius
+          channelX + channelWave * 0.35,
+          this.sampleDesertTerrainHeight(channelX, z) + 0.08 + Math.sin(t * Math.PI * 3 + i) * 0.12,
+          z
         ));
       }
       
       const curve = new THREE.CatmullRomCurve3(points);
       const linePoints = curve.getPoints(segments);
       const lineGeometry = new THREE.BufferGeometry().setFromPoints(linePoints);
+      const warmColor = new THREE.Color(i === veinCount - 1 ? 0xbddedb : 0xffc58c);
+      const glowColor = new THREE.Color(i === veinCount - 1 ? 0x9fe5d8 : 0xffe6bf);
       const lineMaterial = new THREE.LineBasicMaterial({
-        color: 0x00ddff,
+        color: warmColor,
         transparent: true,
-        opacity: 0.15,
+        opacity: 0.08,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         toneMapped: false
       });
       
       const vein = new THREE.Line(lineGeometry, lineMaterial);
-      vein.renderOrder = 10;            // ✅ Draw after opaque geometry
+      vein.renderOrder = 10;
       vein.userData = {
-        pulseOffset: Math.random() * Math.PI * 2
+        pulseOffset: Math.random() * Math.PI * 2,
+        baseOpacity: 0.05 + Math.random() * 0.03,
+        warmColor,
+        glowColor
       };
       
       this.worldRoot.add(vein);
@@ -419,7 +799,7 @@ export class DreamDesert {
    * Create floating holographic crystals
    */
   createHolographicCrystals() {
-    const crystalCount = 15;
+    const crystalCount = 11;
     
     for (let i = 0; i < crystalCount; i++) {
       const angle = Math.random() * Math.PI * 2;
@@ -430,11 +810,11 @@ export class DreamDesert {
       const material = materialRegistry.getStandard('world.dreamdesert.crystal', {
         color: this.getCrystalColor(),
         transparent: true,
-        opacity: 0.4,
+        opacity: 0.26,
         emissive: this.getCrystalColor(),
-        emissiveIntensity: 0.2,
-        metalness: 0.8,
-        roughness: 0.2,
+        emissiveIntensity: 0.12,
+        metalness: 0.62,
+        roughness: 0.28,
         depthWrite: false,              // ✅ Holographic look (no self-occlusion)
         side: THREE.FrontSide
       });
@@ -476,10 +856,11 @@ export class DreamDesert {
    */
   getCrystalColor() {
     const colors = [
-      0xff99dd,  // Pink
-      0x99ddff,  // Teal
-      0xdd99ff,  // Violet
-      0x99ffdd   // Mint
+      0xffd2ab,
+      0xf0c7d8,
+      0xffe7d1,
+      0xa6ddd5,
+      0xe6c0a3
     ];
     return colors[Math.floor(Math.random() * colors.length)];
   }
@@ -488,7 +869,7 @@ export class DreamDesert {
    * Create levitating geometric fragments
    */
   createFloatingFragments() {
-    const fragmentCount = 10;
+    const fragmentCount = 8;
     
     const geometries = [
       new THREE.BoxGeometry(2, 0.2, 2),
@@ -499,12 +880,14 @@ export class DreamDesert {
     for (let i = 0; i < fragmentCount; i++) {
       const geometry = geometries[Math.floor(Math.random() * geometries.length)].clone();
       const material = materialRegistry.getStandard('world.dreamdesert.fragment', {
-        color: 0xccddff,
+        color: 0xe8d0bb,
         transparent: true,
-        opacity: 0.3,
+        opacity: 0.24,
         side: THREE.DoubleSide,
-        metalness: 0.6,
-        roughness: 0.4,
+        metalness: 0.28,
+        roughness: 0.55,
+        emissive: 0xb47d4f,
+        emissiveIntensity: 0.06,
         depthWrite: false               // ✅ Ghostly floating fragments
       });
       
@@ -545,11 +928,11 @@ export class DreamDesert {
     const colors = [];
     const velocities = [];
     
-    const particleCount = 200;
+    const particleCount = 160;
     
-    const color1 = new THREE.Color(0xff99dd);
-    const color2 = new THREE.Color(0x99ddff);
-    const color3 = new THREE.Color(0xdd99ff);
+    const color1 = new THREE.Color(0xffd6ad);
+    const color2 = new THREE.Color(0xf0c9d6);
+    const color3 = new THREE.Color(0xa7e1d8);
     
     for (let i = 0; i < particleCount; i++) {
       const angle = Math.random() * Math.PI * 2;
@@ -576,10 +959,10 @@ export class DreamDesert {
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     
     const material = new THREE.PointsMaterial({
-      size: 0.12,
+      size: 0.09,
       vertexColors: true,
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.32,
       blending: THREE.AdditiveBlending,
       depthWrite: false                 // ✅ Particles shouldn't block depth
     });
@@ -594,7 +977,7 @@ export class DreamDesert {
    * Create small ascending dust devil spirals
    */
   createDustDevils() {
-    const dustCount = 36;
+    const dustCount = 24;
     const particleCount = dustCount;
     const positions = new Float32Array(particleCount * 3);
     const angles = new Float32Array(particleCount);
@@ -607,8 +990,8 @@ export class DreamDesert {
     const maxHeight = 12.0;
     const goldenAngle = Math.PI * (3 - Math.sqrt(5));
     const devils = [
-      { x: -55, z: 48 },
-      { x: 62, z: -37 }
+      { x: -60, z: 44 },
+      { x: 58, z: -40 }
     ];
 
     for (let i = 0; i < particleCount; i++) {
@@ -632,11 +1015,11 @@ export class DreamDesert {
     geometry.setAttribute('aSize', new THREE.BufferAttribute(new Float32Array(particleCount).map(() => 2.0 + Math.random() * 1.2), 1));
 
     const material = new THREE.PointsMaterial({
-      color: 0xe8d4f8,
-      size: 2.5,
+      color: 0xf1d0b6,
+      size: 1.85,
       sizeAttenuation: true,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.58,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       fog: false
@@ -675,11 +1058,11 @@ export class DreamDesert {
       count: 0
     };
 
-    const totalPointsPerCurve = 50;
+    const totalPointsPerCurve = 40;
     const colorPalette = [
-      new THREE.Color(0xff99dd),
-      new THREE.Color(0x99ddff),
-      new THREE.Color(0xdd99ff)
+      new THREE.Color(0xffcf9b),
+      new THREE.Color(0xf4d5bf),
+      new THREE.Color(0xedd0d9)
     ];
 
     const positions = new Float32Array(totalPointsPerCurve * 3 * 3);
@@ -690,12 +1073,12 @@ export class DreamDesert {
     for (let i = 0; i < 3; i++) {
       const points = [];
       const segments = 30;
-      const yHeight = 25 + i * 5;
+      const yHeight = 14 + i * 3.5;
 
       for (let j = 0; j < segments; j++) {
         const x = (j / segments) * 120 - 60;
-        const z = -40 + i * 10;
-        const y = yHeight + Math.sin(j * 0.3) * 3;
+        const z = -24 + i * 9;
+        const y = yHeight + Math.sin(j * 0.3) * 1.8;
         points.push(new THREE.Vector3(x, y, z));
       }
 
@@ -714,7 +1097,7 @@ export class DreamDesert {
         colors[pointIndex * 3 + 1] = color.g;
         colors[pointIndex * 3 + 2] = color.b;
 
-        sizes[pointIndex] = 1.5 + Math.random() * 1.5;
+        sizes[pointIndex] = 0.95 + Math.random() * 0.85;
 
         this.auroraRibbonData.ts.push(t);
         this.auroraRibbonData.speeds.push(0.02 + Math.random() * 0.015);
@@ -752,8 +1135,8 @@ export class DreamDesert {
           vec2 uv = gl_PointCoord * 2.0 - 1.0;
           float dist = length(uv);
           float alpha = smoothstep(1.0, 0.4, dist);
-          if (alpha < 0.05) discard;
-          gl_FragColor = vec4(vColorOut, alpha * 0.85);
+          if (alpha < 0.04) discard;
+          gl_FragColor = vec4(vColorOut, alpha * 0.55);
         }
       `,
       transparent: true,
@@ -762,38 +1145,40 @@ export class DreamDesert {
     });
 
     const auroraPoints = new THREE.Points(geometry, material);
-    auroraPoints.renderOrder = 5;
+    auroraPoints.renderOrder = 6;
     auroraPoints.name = 'auroraRibbonPoints';
     this.worldRoot.add(auroraPoints);
     this.auroraRibbons.push(auroraPoints);
   }
   
   /**
-   * Create glitch distortions on horizon
+   * Create warm mirage bands on the horizon
    */
-  createHorizonGlitch() {
-    this.glitchPlanes = [];
-    const baseRadius = 70;
+  createHorizonMirage() {
+    this.horizonMirageBands = [];
+    const bandCount = 3;
 
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < bandCount; i++) {
       const linePoints = [];
-      const segmentCount = 10;
-      const angle = (i / 4) * Math.PI * 2;
-      const baseX = Math.cos(angle) * baseRadius;
-      const baseZ = Math.sin(angle) * baseRadius;
-      const baseY = 10;
-      const lineLength = 36;
-      const sideOffset = i % 2 === 0 ? 12 : -12;
+      const segmentCount = 14;
+      const baseY = 10 + i * 1.7;
+      const baseZ = -86 + i * 8;
 
       for (let j = 0; j <= segmentCount; j++) {
         const t = j / segmentCount;
-        const offset = (t - 0.5) * lineLength;
-        linePoints.push(new THREE.Vector3(baseX + Math.cos(angle) * offset, baseY, baseZ + Math.sin(angle) * offset));
+        const x = (t - 0.5) * 160;
+        const wobble = Math.sin(t * Math.PI * 2 + i * 1.4) * 0.95
+          + Math.cos(t * Math.PI * 4 + i) * 0.28;
+        linePoints.push(new THREE.Vector3(
+          x,
+          wobble * 0.14,
+          baseZ + wobble * 0.3
+        ));
       }
 
       const geometry = new THREE.BufferGeometry().setFromPoints(linePoints);
       const material = new THREE.LineBasicMaterial({
-        color: 0xffffff,
+        color: 0xffe0c6,
         transparent: true,
         opacity: 0,
         blending: THREE.AdditiveBlending,
@@ -802,22 +1187,21 @@ export class DreamDesert {
       });
 
       const line = new THREE.Line(geometry, material);
-      line.renderOrder = 100;
+      line.renderOrder = 90;
       line.position.y = baseY;
-      line.rotation.y = angle + Math.PI * 0.5;
+      line.rotation.y = (Math.random() - 0.5) * 0.16;
       line.scale.set(1, 1, 1);
 
       line.userData = {
-        glitchTimer: Math.random() * 10,
-        glitchDuration: 0,
+        mirageTimer: Math.random() * 10,
+        mirageDuration: 0,
         baseY,
-        baseScaleX: 1,
-        baseScaleZ: 1,
+        baseOpacity: 0.04 + i * 0.012,
         phase: Math.random() * Math.PI * 2
       };
 
       this.worldRoot.add(line);
-      this.glitchPlanes.push(line);
+      this.horizonMirageBands.push(line);
     }
   }
 
@@ -840,14 +1224,18 @@ export class DreamDesert {
         const data = dune.userData;
         const breath = Math.sin(time * data.breathSpeed + data.breathOffset) * 0.04;
         dune.scale.y = data.originalScaleY + breath;
+        dune.scale.x = data.originalScaleX + Math.sin(time * data.swaySpeed + data.breathOffset) * 0.03;
+        dune.scale.z = data.originalScaleZ + Math.cos(time * data.swaySpeed * 0.85 + data.breathOffset) * 0.04;
+        dune.rotation.z = data.originalRotationZ + Math.sin(time * data.swaySpeed * 0.7 + data.breathOffset) * 0.02;
       });
     }
     
     // Energy veins pulsing
     this.energyVeins.forEach(vein => {
       const pulse = Math.sin(time * 0.8 + vein.userData.pulseOffset);
-      vein.material.opacity = 0.1 + pulse * 0.08;
-      vein.material.emissiveIntensity = 0.2 + pulse * 0.15;
+      const t = pulse * 0.5 + 0.5;
+      vein.material.opacity = vein.userData.baseOpacity + t * 0.05;
+      vein.material.color.copy(vein.userData.warmColor).lerp(vein.userData.glowColor, t);
     });
     
     // Crystals floating and rotating
@@ -861,7 +1249,8 @@ export class DreamDesert {
       crystal.rotation.y += data.rotationSpeed * deltaTime * 0.7;
       
       const pulse = Math.sin(time * 2) * 0.1;
-      crystal.material.emissiveIntensity = 0.2 + pulse;
+      crystal.material.emissiveIntensity = 0.12 + pulse * 0.05;
+      crystal.material.opacity = 0.22 + (pulse * 0.5 + 0.5) * 0.08;
     });
     
     // Fragments floating
@@ -873,6 +1262,10 @@ export class DreamDesert {
       
       fragment.rotation.x += data.rotationSpeed * deltaTime;
       fragment.rotation.y += data.rotationSpeed * deltaTime * 1.5;
+      if (fragment.material) {
+        const pulse = 0.5 + Math.sin(time * data.floatSpeed + data.floatOffset) * 0.5;
+        fragment.material.emissiveIntensity = 0.05 + pulse * 0.04;
+      }
     });
     
     // Particles drifting
@@ -901,6 +1294,10 @@ export class DreamDesert {
       this.particles.geometry.attributes.position.needsUpdate = true;
     }
     
+    if (this.particles?.material) {
+      this.particles.material.opacity = 0.28 + Math.sin(time * 0.25) * 0.04;
+    }
+    
     // Dust devil spirals
     if (this.dustDevilData) {
       const data = this.dustDevilData;
@@ -920,9 +1317,10 @@ export class DreamDesert {
         positions[i * 3 + 2] = data.centersZ[i] + Math.sin(angle) * radius;
       }
       data.object.geometry.attributes.position.needsUpdate = true;
+      data.object.material.opacity = 0.46 + Math.sin(time * 0.5) * 0.08;
     }
 
-    // Aurora ribbons flowing along curves
+    // Wind ribbons flowing along curves
     if (this.auroraRibbons.length && this.auroraRibbonData) {
       const ribbonPoints = this.auroraRibbons[0];
       const positions = ribbonPoints.geometry.attributes.position.array;
@@ -939,25 +1337,26 @@ export class DreamDesert {
       }
 
       ribbonPoints.geometry.attributes.position.needsUpdate = true;
+      ribbonPoints.material.opacity = 0.2 + Math.sin(time * 0.4) * 0.06;
     }
 
-    // Horizon glitch effect
-    this.glitchPlanes.forEach(plane => {
-      plane.userData.glitchTimer -= deltaTime;
+    // Horizon mirage effect
+    this.horizonMirageBands.forEach(plane => {
+      plane.userData.mirageTimer -= deltaTime;
       
-      if (plane.userData.glitchTimer <= 0 && plane.userData.glitchDuration <= 0) {
-        // Start glitch
-        plane.userData.glitchDuration = 0.1 + Math.random() * 0.2;
-        plane.userData.glitchTimer = 3 + Math.random() * 7;
+      if (plane.userData.mirageTimer <= 0 && plane.userData.mirageDuration <= 0) {
+        plane.userData.mirageDuration = 2.5 + Math.random() * 1.5;
+        plane.userData.mirageTimer = 7 + Math.random() * 8;
       }
       
-      if (plane.userData.glitchDuration > 0) {
-        plane.userData.glitchDuration -= deltaTime;
-        const progress = plane.userData.glitchDuration / 0.25;
-        plane.material.opacity = 0.08 + Math.sin(time * 25 + plane.userData.phase) * 0.04;
-        plane.position.y = plane.userData.baseY + Math.sin(time * 14 + plane.userData.phase) * 0.5;
-        plane.scale.x = 1.0 + Math.sin(time * 22 + plane.userData.phase) * 0.16;
-        plane.scale.z = 1.0 + Math.cos(time * 18 + plane.userData.phase) * 0.12;
+      if (plane.userData.mirageDuration > 0) {
+        plane.userData.mirageDuration -= deltaTime;
+        const progress = Math.max(0, plane.userData.mirageDuration / 4.0);
+        const pulse = Math.sin(time * 0.9 + plane.userData.phase) * 0.5 + 0.5;
+        plane.material.opacity = plane.userData.baseOpacity * (0.35 + pulse * 0.65) * (0.5 + progress);
+        plane.position.y = plane.userData.baseY + Math.sin(time * 0.65 + plane.userData.phase) * 0.18;
+        plane.scale.x = 1.0 + Math.sin(time * 0.35 + plane.userData.phase) * 0.03;
+        plane.scale.z = 1.0 + Math.cos(time * 0.28 + plane.userData.phase) * 0.02;
       } else {
         plane.material.opacity = 0;
         plane.position.y = plane.userData.baseY;
@@ -965,5 +1364,26 @@ export class DreamDesert {
         plane.scale.z = 1.0;
       }
     });
+
+    if (this.sunGlowSprite) {
+      const pulse = Math.sin(time * 0.2) * 0.5 + 0.5;
+      this.sunGlowSprite.material.opacity = 0.28 + pulse * 0.08;
+      const sunScale = 26 + pulse * 1.5;
+      this.sunGlowSprite.scale.set(sunScale, sunScale, 1);
+    }
+
+    if (this.sunPointLight) {
+      const pulse = Math.sin(time * 0.2) * 0.5 + 0.5;
+      this.sunPointLight.intensity = 0.38 + pulse * 0.12;
+    }
+
+    if (this.landmarks.length) {
+      this.landmarks.forEach(landmark => {
+        if (landmark.userData?.halo) {
+          const pulse = Math.sin(time * 0.45 + landmark.userData.pulseOffset) * 0.5 + 0.5;
+          landmark.userData.halo.material.opacity = 0.1 + pulse * 0.08;
+        }
+      });
+    }
   }
 }

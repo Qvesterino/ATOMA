@@ -4,6 +4,7 @@ import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js
 /**
  * Memory Lane - Endless dream datacenter corridor
  * Walking through the AI's own memories
+ * NOTE: Keep the floor ground helper analytic so corridor movement does not fall back to raycasts.
  */
 export class MemoryLane {
   constructor(scene, worldRoot) {
@@ -14,6 +15,7 @@ export class MemoryLane {
     this.memoryShards = [];
     this.ceilingPanels = [];
     this.glitchWalls = [];
+    this.playerGroundOffset = 1;
     
     this.createFloor();
     this.createServerTowers();
@@ -41,6 +43,10 @@ export class MemoryLane {
     this.floor.rotation.x = -Math.PI / 2;
     this.floor.position.y = 0;
     this.worldRoot.add(this.floor);
+  }
+
+  getGroundLevelAt(x, z) {
+    return (this.floor?.position.y ?? 0) + this.playerGroundOffset;
   }
   
   /**

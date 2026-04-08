@@ -8,6 +8,7 @@ import { createSigmaRift, updateRiftEnergyTime } from './shaders/RiftEnergyShade
 /**
  * Sigma Rift Chamber - Boss-level arena
  * An ancient, sacred AI chamber built around a gigantic glowing Rift
+ * NOTE: Keep the chamber floor ground helper analytic so the player controller never has to raycast the arena.
  */
 export class SigmaRiftChamber {
   constructor(scene, worldRoot, camera = null) {
@@ -40,6 +41,7 @@ export class SigmaRiftChamber {
     this.chamberRadius = 60;
     this.chamberHeight = 50;
     this.riftHeight = 18;
+    this.playerGroundOffset = 1;
     this.riftEyeSprite = null;
     this.riftEyeTimer = 15 + Math.random() * 4;
     this.riftEyeActive = false;
@@ -850,6 +852,10 @@ export class SigmaRiftChamber {
 
   getCollisionObjects() {
     return this.collisionObjects;
+  }
+
+  getGroundLevelAt(x, z) {
+    return (this.floor?.position.y ?? 0) + this.playerGroundOffset;
   }
 
   getMovementBounds() {

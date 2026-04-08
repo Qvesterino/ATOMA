@@ -6,6 +6,7 @@ import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js
 /**
  * Quantum Island - Floating landmass in singularity void
  * Represents quantum instability in AI dream state
+ * NOTE: Keep the analytic ground helper and movement bounds in sync with the island mesh so the controller never falls back to raycasts.
  */
 export class QuantumIsland {
   constructor(scene, worldRoot, camera = null) {
@@ -29,6 +30,9 @@ export class QuantumIsland {
     this.singularityParticles = null;
     this.singularityData = null;
     this.collisionObjects = [];
+    this.playerGroundOffset = 1;
+    this.islandRadius = 20;
+    this.islandTopHeight = 1.5;
     this.quantumPulse = 0;
     
     // Session 112+: Initialize map reference plane from config
@@ -150,6 +154,25 @@ export class QuantumIsland {
     
     // Geometric cracks with glowing energy
     this.createEnergyCracks();
+  }
+
+  getGroundLevelAt(x, z) {
+    const centerY = this.island?.position.y ?? 0;
+    const dist = Math.sqrt(x * x + z * z);
+    if (dist > this.islandRadius) {
+      return centerY + this.playerGroundOffset;
+    }
+
+    const surfaceY = centerY + this.islandTopHeight + Math.sin(dist * 0.3) * 0.5;
+    return surfaceY + this.playerGroundOffset;
+  }
+
+  getMovementBounds() {
+    return {
+      type: 'circle',
+      center: new THREE.Vector3(0, 0, 0),
+      radius: this.islandRadius - 0.5
+    };
   }
 
   /**

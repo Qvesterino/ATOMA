@@ -15,6 +15,7 @@ class PlayerController {
     this.groundLevel = options.groundLevel || 1; // Assuming base ground is at y=0, player bottom at y=0.4
     this.collisionProvider = options.collisionProvider || null;
     this.worldBoundsProvider = options.worldBoundsProvider || null;
+    this.groundHeightProvider = options.groundHeightProvider || null;
     this.groundProbeHeight = options.groundProbeHeight || 120;
     this.maxStepHeight = options.maxStepHeight || 1.25;
     this.collisionEpsilon = options.collisionEpsilon || 0.02;
@@ -66,6 +67,13 @@ class PlayerController {
   }
 
   getGroundLevelAt(x, z, collisionObjects) {
+    if (typeof this.groundHeightProvider === 'function') {
+      const analyticGroundLevel = this.groundHeightProvider(x, z, collisionObjects);
+      if (Number.isFinite(analyticGroundLevel)) {
+        return analyticGroundLevel;
+      }
+    }
+
     if (!collisionObjects.length) {
       return this.groundLevel;
     }
