@@ -596,7 +596,7 @@ export class AtomaLanguageEngine3_0 {
       height: 100%;
       pointer-events: none;
       z-index: 999;
-      font-family: 'Courier New', monospace;
+      font-family: 'Noto Sans Meroitic', monospace;
     `;
     document.body.appendChild(this.poetryContainer);
     

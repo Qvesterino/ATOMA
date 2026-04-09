@@ -39,7 +39,7 @@ export class LinkDirectionalStreaks {
         this.scene = scene;
         
         this.config = {
-            streakWidthBase: 0.10,      // Thicker ribbon for reliable readability
+            streakWidthBase: 0.14,      // Thicker ribbon for reliable readability
             streakLengthMin: 0.12,      // Min visible length on curve (0-1)
             streakLengthMax: 0.55,      // Max visible length on curve (0-1)
             streakCountMin: 6,          // Min active streaks
@@ -47,7 +47,7 @@ export class LinkDirectionalStreaks {
             speedBaseMin: 0.65,         // Synergy multiplier range (min)
             speedBaseMax: 1.75,         // Synergy multiplier range (max)
             segmentsPerStreak: 14,      // Ribbon resolution (low for perf)
-            harmonyBoost: 0.08,         // Keep harmony modulation subtle to avoid white blowout
+            harmonyBoost: 0.12,         // Keep harmony modulation subtle while improving visibility
             corruptionDesaturation: 0.4, // Color desaturation from corruption
             stabilityDampen: 0.7,     // Opacity scaling from stability
             activationThreshold: 2,     // Min active links for streak visibility (was 3, now 2)
@@ -291,10 +291,10 @@ export class LinkDirectionalStreaks {
         const curveLengthRaw = curve.getLength ? curve.getLength() : 10;
         const curveLength = Number.isFinite(curveLengthRaw) && curveLengthRaw > 1e-6 ? curveLengthRaw : 10;
 
-        const physicalLength = THREE.MathUtils.clamp(curveLength * 0.08, 0.8, 3.0);
+        const physicalLength = THREE.MathUtils.clamp(curveLength * 0.10, 1.0, 5.0);
 
-        const lengthScale = physicalLength / curveLength;// Cap streak span to prevent visual detachment
-        const harmonyBrightness = 0.6 + (harmony * this.config.harmonyBoost);
+        const lengthScale = physicalLength / curveLength; // Cap streak span to prevent visual detachment
+        const harmonyBrightness = 0.7 + (harmony * this.config.harmonyBoost);
         
         // Corruption adds phase jitter but not speed randomness
         const jitterAmount = corruption * 0.15; // Subtle lateral jitter
@@ -508,19 +508,19 @@ export class LinkDirectionalStreaks {
         // --- UPDATE MATERIAL WITH PULSE EFFECTS ---
         if (streaks.material) {
             let baseBrightness = harmonyBrightness;
-            let baseOpacity = 0.22 * (1.0 - (stability * 0.15));
+            let baseOpacity = 0.32 * (1.0 - (stability * 0.12));
 
             // Apply pulse effects to material
             if (pulseEffectData && pulseEffectData.hasPulse) {
                 baseBrightness += pulseEffectData.intensityBoost;
-                baseOpacity *= pulseEffectData.alphaBoost;
+                baseOpacity *= Math.max(1.0, pulseEffectData.alphaBoost);
             }
             if (gradientSample) {
                 baseBrightness += gradientSample.emissiveBoost || 0;
             }
 
             streaks.material.emissiveIntensity = baseBrightness;
-            streaks.material.opacity = baseOpacity;
+            streaks.material.opacity = THREE.MathUtils.clamp(baseOpacity, 0.28, 0.85);
 
             // Log opacity for debugging (throttled to 1 per second)
             if (typeof window !== 'undefined') {

@@ -397,7 +397,9 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       intensity: { value: 0.5 },
       time: { value: 0 },
       flowSpeed: { value: 1.0 },
-      opacityMult: { value: 0.4 }
+      opacityMult: { value: 0.4 },
+      trendStrength: { value: 0.0 },
+      volatility: { value: 0.0 }
     },
     vertexShader: `
       varying vec3 vPosition;
@@ -420,24 +422,28 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       uniform float time;
       uniform float flowSpeed;
       uniform float opacityMult;
+      uniform float trendStrength;
+      uniform float volatility;
       
       varying vec3 vPosition;
       varying vec3 vNormal;
       varying float vProgress;
       
       void main() {
-        // Create flowing stripes
         float flow = fract(vProgress - time * flowSpeed);
-        float stripe = abs(sin(flow * 3.14159 * 8.0));
+        float stripe = smoothstep(0.2, 0.9, abs(sin(flow * 3.14159 * 10.0)));
         
-        // Smooth falloff at edges
-        float edge = sin(vProgress * 3.14159) * 0.5 + 0.5;
+        float edge = pow(sin(vProgress * 3.14159), 1.4) * 0.85 + 0.15;
+        float pulse = 0.1 + 0.1 * trendStrength * sin(time * flowSpeed * 2.0 + vProgress * 12.0);
+        float jitter = volatility * 0.18 * sin(time * 6.0 + vProgress * 18.0);
         
-        // Final opacity calculation
-        float opacity = opacityMult * intensity * edge * (0.5 + stripe * 0.5);
+        float opacity = opacityMult * intensity * edge * (0.45 + stripe * 0.45 + pulse) + jitter * 0.12;
+        opacity = clamp(opacity, 0.0, 1.0);
         
-        // Output
-        gl_FragColor = vec4(color, opacity);
+        vec3 baseColor = mix(color, vec3(1.0), trendStrength * 0.18);
+        baseColor += volatility * 0.08;
+        
+        gl_FragColor = vec4(baseColor, opacity);
       }
     `
   };
@@ -565,11 +571,14 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       if (geometry.attributes) {
         const positionAttr = geometry.attributes.position;
         const progressArray = new Float32Array(positionAttr.count);
-        
+        const ringVertexCount = tubeSides + 1;
+        const segmentCount = Math.max(1, resolution);
+
         for (let i = 0; i < positionAttr.count; i++) {
-          progressArray[i] = (i / positionAttr.count) % 1.0;
+          const segmentIndex = Math.floor(i / ringVertexCount);
+          progressArray[i] = Math.min(1.0, segmentIndex / segmentCount);
         }
-        
+
         geometry.setAttribute('progress', new (THREE.BufferAttribute || function() {})(progressArray, 1));
       }
       
@@ -591,7 +600,9 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
           intensity: { value: Math.max(0.1, Math.min(1.0, intensity)) },
           time: { value: 0 },
           flowSpeed: { value: 1.0 },
-          opacityMult: { value: config.opacityBase }
+          opacityMult: { value: config.opacityBase },
+          trendStrength: { value: 0.0 },
+          volatility: { value: 0.0 }
         },
         vertexShader: highwayShader.vertexShader,
         fragmentShader: highwayShader.fragmentShader,
@@ -662,8 +673,11 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
         const baseSpeed = Number.isFinite(highway?.visuals?.speed) ? highway.visuals.speed : 1.0;
         const cascadeSpeed = isCascadeHighway ? baseSpeed * 2.0 : baseSpeed;
         const cascadeOpacityMult = isCascadeHighway ? 1.2 : 1.0;
+        const trendWeight = highway.trend === 'rising' ? 0.35 : highway.trend === 'falling' ? 0.1 : 0.2;
         material.uniforms.flowSpeed.value = cascadeSpeed;
         material.uniforms.opacityMult.value = config.opacityBase * cascadeOpacityMult;
+        material.uniforms.trendStrength.value = trendWeight;
+        material.uniforms.volatility.value = THREE.MathUtils.clamp(highway.volatility, 0, 1);
       }
       mesh.userData = {
         highwayId: highway.id,
@@ -707,7 +721,7 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       const material = new (THREE?.MeshBasicMaterial || function() {})({
         color: highway.visuals.color,
         transparent: true,
-        opacity: 0.2,
+        opacity: Math.min(0.6, 0.2 * config.bloomIntensityMult + (highway.visuals.bloomActive ? 0.12 : 0)),
         side: (THREE?.DoubleSide || 2)
       });
       
@@ -764,10 +778,13 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
         const baseSpeed = Number.isFinite(highway?.visuals?.speed) ? highway.visuals.speed : 1.0;
         const cascadeSpeed = isCascadeHighway ? baseSpeed * 2.0 : baseSpeed;
         const cascadeOpacityMult = isCascadeHighway ? 1.2 : 1.0;
+        const trendWeight = highway.trend === 'rising' ? 0.35 : highway.trend === 'falling' ? 0.1 : 0.2;
         mesh.material.uniforms.color.value = new (THREE.Color || function() {})(highway.visuals.color);
         mesh.material.uniforms.intensity.value = highway.visuals.intensity;
         mesh.material.uniforms.flowSpeed.value = cascadeSpeed;
         mesh.material.uniforms.opacityMult.value = config.opacityBase * cascadeOpacityMult;
+        mesh.material.uniforms.trendStrength.value = trendWeight;
+        mesh.material.uniforms.volatility.value = THREE.MathUtils.clamp(highway.volatility, 0, 1);
       }
       
       // Update material opacity/color

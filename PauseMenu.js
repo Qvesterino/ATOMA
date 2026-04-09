@@ -2,11 +2,19 @@ import {
     ensureMenuStyles,
     getMenuMaps,
     getSettingsRows,
+    isMenuAudioMuted,
     loadContinueSnapshot,
     loadMenuProfile,
     saveContinueSnapshot,
     saveMenuProfile,
+    setMenuAudioMuted,
 } from './MainMenu.js';
+import {
+    getDefaultLoreSectionId,
+    getLoreEntriesBySection,
+    getLoreSectionById,
+    getLoreSections,
+} from './LoreRegistry.js';
 
 const PAUSE_BUILD_LABEL = 'v0.x';
 
@@ -48,6 +56,7 @@ export class PauseMenu {
         this.state = {
             screen: 'MAIN',
             selectedIndex: 0,
+            loreSectionId: getDefaultLoreSectionId(),
         };
 
         this._focusableRefs = [];
@@ -120,6 +129,7 @@ export class PauseMenu {
     }
 
     refresh() {
+        this.profile.settings.audioMuted = isMenuAudioMuted();
         this.profile = saveMenuProfile(this.profile);
         this._screenEntries = this._buildScreenEntries();
 
@@ -254,9 +264,14 @@ export class PauseMenu {
             }));
         }
 
+        if (this.state.screen === 'LORE') {
+            return [];
+        }
+
         return [
             { id: 'resume', label: 'RESUME', type: 'main', selectable: true },
             { id: 'settings', label: 'SETTINGS', type: 'main', selectable: true },
+            { id: 'lore', label: 'LORE', type: 'main', selectable: true },
             { id: 'map-selection', label: 'MAP SELECT', type: 'main', selectable: true },
             { id: 'end-game', label: 'END GAME', type: 'main', selectable: true },
         ];
@@ -265,6 +280,7 @@ export class PauseMenu {
     _renderScreen() {
         this.content.textContent = '';
         this._focusableRefs = [];
+        this.loreBody = null;
 
         if (this.state.screen === 'MAIN') {
             this.subtitle.textContent = 'Live scene remains visible beneath the pause overlay.';
@@ -287,12 +303,23 @@ export class PauseMenu {
             return;
         }
 
+        if (this.state.screen === 'LORE') {
+            const activeSection = this._getLoreSection();
+            this.subtitle.textContent = 'System Knowledge Interface. The paused world stays visible while the archive is observed.';
+            this.screenTitle.textContent = 'LORE';
+            this.description.textContent = activeSection?.description || 'A structured reading layer for the reality ATOMA exposes.';
+            this.hint.textContent = 'LEFT / RIGHT TO CHANGE SECTION  |  UP / DOWN TO SCROLL  |  ESC TO BACK';
+            this.status.textContent = 'Lore remains read-only. Pause continues to freeze runtime updates while this panel is open.';
+            this._renderLore();
+            return;
+        }
+
         const selectedSetting = this._getSelectedEntry();
-        this.subtitle.textContent = 'Shared menu-owned settings carried across preboot and in-game overlays.';
+        this.subtitle.textContent = 'Shared menu-owned settings, including audio mute, carried across preboot and in-game overlays.';
         this.screenTitle.textContent = 'SETTINGS';
-        this.description.textContent = selectedSetting ? selectedSetting.meta : 'UI visibility controls persist across reloads.';
+        this.description.textContent = selectedSetting ? selectedSetting.meta : 'Audio mute and UI visibility controls persist across reloads.';
         this.hint.textContent = 'UP / DOWN TO SELECT  |  ENTER TO ACTIVATE  |  LEFT / RIGHT FOR BASE SETTINGS  |  ESC TO BACK';
-        this.status.textContent = 'Settings continue to avoid direct gameplay mutation and stay scoped to the menu layer.';
+        this.status.textContent = 'Sound level and mute are stored for boot. Settings stay scoped to the menu layer.';
         this._renderEntryList(this._screenEntries);
     }
 
@@ -318,7 +345,7 @@ export class PauseMenu {
             if (entry.type === 'setting') {
                 button.classList.add('atoma-main-menu__button--setting');
             }
-            if (entry.type === 'visibility') {
+            if (entry.type === 'visibility' || entry.type === 'toggle') {
                 button.classList.add('atoma-main-menu__button--setting', 'atoma-main-menu__button--toggle');
             }
             if (entry.type === 'map') {
@@ -335,7 +362,7 @@ export class PauseMenu {
 
             button.append(marker, label);
 
-            if (entry.type === 'setting') {
+            if (entry.type === 'setting' || entry.type === 'toggle') {
                 const value = document.createElement('span');
                 value.className = 'atoma-main-menu__value';
                 value.textContent = entry.value;
@@ -368,6 +395,98 @@ export class PauseMenu {
         });
 
         this.content.appendChild(list);
+    }
+
+    _getLoreSection() {
+        return getLoreSectionById(this.state.loreSectionId) || getLoreSectionById(getDefaultLoreSectionId());
+    }
+
+    _setLoreSection(sectionId, { refresh = true } = {}) {
+        const nextSection = getLoreSectionById(sectionId);
+        if (!nextSection || nextSection.id === this.state.loreSectionId) {
+            return false;
+        }
+
+        this.state.loreSectionId = nextSection.id;
+        if (refresh) {
+            this.refresh();
+        }
+        return true;
+    }
+
+    _cycleLoreSection(delta) {
+        const sections = getLoreSections();
+        if (sections.length === 0) {
+            return;
+        }
+
+        const currentIndex = Math.max(0, sections.findIndex((section) => section.id === this._getLoreSection()?.id));
+        const nextIndex = (currentIndex + delta + sections.length) % sections.length;
+        this._setLoreSection(sections[nextIndex].id);
+    }
+
+    _renderLore() {
+        const activeSection = this._getLoreSection();
+        const entries = getLoreEntriesBySection(activeSection?.id);
+
+        const panel = document.createElement('div');
+        panel.className = 'atoma-main-menu__lore-panel';
+
+        const tabs = document.createElement('div');
+        tabs.className = 'atoma-main-menu__lore-tabs';
+
+        for (const section of getLoreSections()) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'atoma-main-menu__lore-tab';
+            if (section.id === activeSection?.id) {
+                button.classList.add('is-active');
+            }
+            button.textContent = section.label;
+            button.addEventListener('click', () => {
+                this._setLoreSection(section.id);
+            });
+            tabs.appendChild(button);
+        }
+
+        this.loreBody = document.createElement('div');
+        this.loreBody.className = 'atoma-main-menu__lore-body';
+
+        const sectionCopy = document.createElement('div');
+        sectionCopy.className = 'atoma-main-menu__lore-section-copy';
+
+        const kicker = document.createElement('div');
+        kicker.className = 'atoma-main-menu__lore-kicker';
+        kicker.textContent = activeSection?.label || 'Lore';
+
+        const summary = document.createElement('div');
+        summary.className = 'atoma-main-menu__lore-summary';
+        summary.textContent = activeSection?.description || '';
+
+        sectionCopy.append(kicker, summary);
+
+        const grid = document.createElement('div');
+        grid.className = 'atoma-main-menu__lore-grid';
+
+        entries.forEach((entry) => {
+            const card = document.createElement('article');
+            card.className = 'atoma-main-menu__lore-card';
+
+            const title = document.createElement('div');
+            title.className = 'atoma-main-menu__lore-card-title';
+            title.textContent = entry.title;
+
+            const text = document.createElement('div');
+            text.className = 'atoma-main-menu__lore-card-text';
+            text.textContent = entry.body;
+
+            card.append(title, text);
+            grid.appendChild(card);
+        });
+
+        this.loreBody.append(sectionCopy, grid);
+        panel.append(tabs, this.loreBody);
+        this.content.appendChild(panel);
     }
 
     _renderFooter() {
@@ -475,6 +594,9 @@ export class PauseMenu {
             case 'settings':
                 this.switchScreen('SETTINGS');
                 return;
+            case 'lore':
+                this.switchScreen('LORE');
+                return;
             case 'map-selection':
                 this.switchScreen('MAP');
                 return;
@@ -499,6 +621,9 @@ export class PauseMenu {
             const currentIndex = soundLevels.indexOf(settings.soundLevel);
             const nextIndex = clamp(currentIndex + direction, 0, soundLevels.length - 1);
             settings.soundLevel = soundLevels[nextIndex];
+        } else if (settingId === 'audioMuted') {
+            settings.audioMuted = !settings.audioMuted;
+            setMenuAudioMuted(settings.audioMuted);
         } else if (settingId === 'visuals') {
             const currentIndex = visualLevels.indexOf(settings.visuals);
             const nextIndex = (currentIndex + direction + visualLevels.length) % visualLevels.length;
@@ -510,6 +635,14 @@ export class PauseMenu {
         this.profile.settings = settings;
         this.profile = saveMenuProfile(this.profile);
         this.refresh();
+    }
+
+    _scrollLore(delta) {
+        if (!this.loreBody) {
+            return;
+        }
+
+        this.loreBody.scrollTop += delta;
     }
 
     setSelectedIndex(index, { refresh = true } = {}) {
@@ -540,6 +673,38 @@ export class PauseMenu {
         }
 
         event.stopImmediatePropagation();
+
+        if (this.state.screen === 'LORE') {
+            if (event.key === 'ArrowRight') {
+                event.preventDefault();
+                this._cycleLoreSection(1);
+                return;
+            }
+
+            if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                this._cycleLoreSection(-1);
+                return;
+            }
+
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                this._scrollLore(48);
+                return;
+            }
+
+            if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                this._scrollLore(-48);
+                return;
+            }
+
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                this.switchScreen('MAIN');
+            }
+            return;
+        }
 
         if (event.key === 'ArrowDown') {
             event.preventDefault();

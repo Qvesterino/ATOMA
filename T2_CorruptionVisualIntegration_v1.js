@@ -564,7 +564,7 @@ export class T2_CorruptionVisualIntegration_v1 {
     this._semanticSubscriptions = [];
 
     for (const particle of this.registry.activeParticles) {
-      this._releaseParticleMesh(particle?.mesh);
+      this._releaseParticleInstance(particle?.instanceId);
     }
     this.registry.activeParticles.length = 0;
 

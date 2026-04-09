@@ -59,6 +59,10 @@ export class HarmonicResonanceCoupling_v1 {
     this._particleColorScratch = new THREE.Color();
     this._linkColorScratch = new THREE.Color();
     this._nodeColorScratch = new THREE.Color();
+    this._resonanceVisualGroup = new THREE.Group();
+    if (this.scene && typeof this.scene.add === 'function') {
+      this.scene.add(this._resonanceVisualGroup);
+    }
     
     // Configuration
     this.config = {
@@ -112,6 +116,8 @@ export class HarmonicResonanceCoupling_v1 {
     const targetMetrics = this._readNodeCanonicalMetrics(link.target);
     const signature = this._buildResonanceSignature(link, linkId, sourceMetrics, targetMetrics);
     
+    const visuals = this._createResonanceVisuals(link);
+
     // Initialize resonance state
     this.resonancePairs.set(linkId, {
       link: link,
@@ -134,7 +140,8 @@ export class HarmonicResonanceCoupling_v1 {
       signature,
       sourceMetrics,
       targetMetrics,
-      particleTrail: [] // Track recent particles for visual continuity
+      particleTrail: [], // Track recent particles for visual continuity
+      visuals
     });
   }
   
@@ -146,6 +153,10 @@ export class HarmonicResonanceCoupling_v1 {
     if (!link) return;
     const linkId = this._resolveLinkIdentity(link);
     if (!linkId) return;
+    const resonance = this.resonancePairs.get(linkId);
+    if (resonance?.visuals) {
+      this._disposeResonanceVisuals(resonance.visuals);
+    }
     this.resonancePairs.delete(linkId);
   }
   
@@ -195,8 +206,11 @@ export class HarmonicResonanceCoupling_v1 {
     const synergy = this._getResonanceSynergy(link);
     const targetIntensity = this._resolveResonanceIntensity(synergy, sourceMetrics, targetMetrics, resonance.signature);
     resonance.intensity = resonance.intensity * 0.82 + targetIntensity * 0.18;
-    
-    if (resonance.intensity < 0.01) return;
+    if (resonance.intensity < 0.01) {
+      resonance.intensity = 0;
+      this._updateResonanceVisuals(resonance);
+      return;
+    }
     
     resonance.frequency = this.config.baseFrequency + 
       (resonance.intensity * this.config.frequencyAmplitude);
@@ -212,7 +226,101 @@ export class HarmonicResonanceCoupling_v1 {
     this._applyNodeShimmer(link.source, resonance, false);
     this._applyNodeShimmer(link.target, resonance, true);
     this._applyLinkGlowModulation(link, resonance);
+    this._updateResonanceVisuals(resonance);
     this._emitResonanceParticles(link, resonance, deltaTime);
+  }
+  
+  _createResonanceVisuals(link) {
+    if (!this._resonanceVisualGroup) return null;
+
+    const group = new THREE.Group();
+    group.frustumCulled = false;
+
+    const lineGeometry = new THREE.BufferGeometry();
+    const linePositions = new Float32Array(6);
+    lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+
+    const lineMaterial = new THREE.LineBasicMaterial({
+      color: 0x88ffcc,
+      transparent: true,
+      opacity: 0.0,
+      depthWrite: false,
+      depthTest: true
+    });
+    const line = new THREE.Line(lineGeometry, lineMaterial);
+    line.frustumCulled = false;
+    group.add(line);
+
+    const orbGeometry = new THREE.SphereGeometry(0.04, 8, 8);
+    const orbMaterial = new THREE.MeshBasicMaterial({
+      color: 0x88ffcc,
+      transparent: true,
+      opacity: 0.0,
+      depthWrite: false,
+      depthTest: true
+    });
+    const orb = new THREE.Mesh(orbGeometry, orbMaterial);
+    orb.frustumCulled = false;
+    orb.visible = false;
+    group.add(orb);
+
+    this._resonanceVisualGroup.add(group);
+
+    return { group, line, orb };
+  }
+
+  _disposeResonanceVisuals(visuals) {
+    if (!visuals) return;
+    if (visuals.group && visuals.group.parent) {
+      visuals.group.parent.remove(visuals.group);
+    }
+    if (visuals.line) {
+      visuals.line.geometry?.dispose();
+      visuals.line.material?.dispose();
+    }
+    if (visuals.orb) {
+      visuals.orb.geometry?.dispose();
+      visuals.orb.material?.dispose();
+    }
+  }
+
+  _updateResonanceVisuals(resonance) {
+    if (!resonance || !resonance.visuals || !resonance.link || !resonance.link.source || !resonance.link.target) return;
+    const { line, orb } = resonance.visuals;
+    if (!line || !orb) return;
+
+    const sourcePos = resonance.link.source.position;
+    const targetPos = resonance.link.target.position;
+    if (!sourcePos || !targetPos) return;
+
+    const linePositions = line.geometry.attributes.position.array;
+    linePositions[0] = sourcePos.x;
+    linePositions[1] = sourcePos.y;
+    linePositions[2] = sourcePos.z;
+    linePositions[3] = targetPos.x;
+    linePositions[4] = targetPos.y;
+    linePositions[5] = targetPos.z;
+    line.geometry.attributes.position.needsUpdate = true;
+
+    const intensity = THREE.MathUtils.clamp(resonance.intensity * 1.2, 0, 1);
+    const cadencePulse = resonance.cadencePulse ?? 0.5;
+    const opacity = THREE.MathUtils.clamp(intensity * 0.85 + (cadencePulse - 0.5) * 0.14, 0, 0.85);
+    line.material.opacity = opacity;
+
+    const linkColor = this._linkColorScratch.setHSL(
+      0.08 + (resonance.harmonyBlend ?? 0.5) * 0.08,
+      0.18 + intensity * 0.14,
+      0.55 + intensity * 0.08
+    );
+    line.material.color.copy(linkColor);
+
+    orb.visible = intensity > 0.02;
+    orb.position.copy(sourcePos).lerp(targetPos, 0.5);
+    const baseSize = 0.03 + intensity * 0.08;
+    const pulse = Math.sin(this._visualTime * (resonance.frequency || this.config.baseFrequency) * 1.5) * 0.01;
+    orb.scale.setScalar(Math.max(0.02, baseSize + pulse));
+    orb.material.color.copy(linkColor);
+    orb.material.opacity = THREE.MathUtils.clamp(intensity * 0.72 + 0.12, 0, 0.92);
   }
   
   /**

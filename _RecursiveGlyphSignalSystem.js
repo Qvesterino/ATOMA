@@ -7,6 +7,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class RecursiveGlyphSignalSystem {
   constructor(scene, {
@@ -24,6 +25,7 @@ export class RecursiveGlyphSignalSystem {
     this.signalContainer = new THREE.Group();
     this.signalContainer.name = 'RecursiveGlyphSignalSystem_Container';
     this.signalContainer.userData.isRecursiveGlyphSignalSystem = true;
+    this.signalContainer.renderOrder = VisualHierarchyRegistry.getRenderOrder('FX');
     this.scene.add(this.signalContainer);
 
     this.activeSignals = new Map(); // contextKey -> signal
@@ -196,11 +198,17 @@ export class RecursiveGlyphSignalSystem {
     }
   }
 
-  triggerAttentionSignal(node, reason = 'selection') {
+  _getNodeContextKey(node, reason = 'selection') {
+    const nodeId = this._getNodeId(node);
+    return reason === 'hover' ? `node:${nodeId}:hover` : `node:${nodeId}`;
+  }
+
+  triggerAttentionSignal(node, reason = 'selection', options = {}) {
+    const { bypassBurst = false } = options || {};
     console.log('ATTENTION SIGNAL', reason, node?.uuid);
     if (!this.enabled || !node?.position) return false;
 
-    const contextKey = `node:${this._getNodeId(node)}`;
+    const contextKey = this._getNodeContextKey(node, reason);
     if (this._isCooledDown(contextKey)) {
       this.stats.suppressed++;
       return false;
@@ -210,13 +218,8 @@ export class RecursiveGlyphSignalSystem {
       return false;
     }
 
-    if (this.isBurstActive() && reason !== 'selection') {
+    if (!bypassBurst && this.isBurstActive() && reason !== 'selection') {
       this.stats.suppressed++;
-      return false;
-    }
-
-    if (reason !== 'selection' && this._isCluttered(node, reason)) {
-      this.stats.culledByClutter++;
       return false;
     }
 
@@ -288,10 +291,13 @@ export class RecursiveGlyphSignalSystem {
 
   requestSilenceForNode(node) {
     if (!node) return;
-    const contextKey = `node:${this._getNodeId(node)}`;
-    const signal = this.activeSignals.get(contextKey);
-    if (!signal) return;
-    signal.forceDecay = true;
+    for (const reason of ['selection', 'hover']) {
+      const contextKey = this._getNodeContextKey(node, reason);
+      const signal = this.activeSignals.get(contextKey);
+      if (signal) {
+        signal.forceDecay = true;
+      }
+    }
   }
 
   requestGlobalSilence() {
@@ -311,7 +317,7 @@ export class RecursiveGlyphSignalSystem {
         this.requestSilenceForNode(this.lastHoverNode);
       }
       if (hoverNode) {
-        this.triggerAttentionSignal(hoverNode, 'hover');
+        this.triggerAttentionSignal(hoverNode, 'hover', { bypassBurst: true });
       }
       this.lastHoverNode = hoverNode;
     }
@@ -525,6 +531,7 @@ export class RecursiveGlyphSignalSystem {
     const group = new THREE.Group();
     group.userData.isRecursiveGlyphSignal = true;
     group.name = `RecursiveGlyphSignal_${contextKey}`;
+    group.renderOrder = VisualHierarchyRegistry.getRenderOrder('FX');
 
     const rootRing = this._createMesh(this.sharedGeometry.ring, meaning.color, 0.52);
     const innerRing = this._createMesh(this.sharedGeometry.ring, meaning.color, 0.38);
@@ -596,6 +603,7 @@ export class RecursiveGlyphSignalSystem {
       transparent: true,
       opacity,
       depthWrite: false,
+      depthTest: false,
       fog: false,
       side: THREE.DoubleSide
     });

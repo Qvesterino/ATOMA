@@ -1,4 +1,10 @@
 import { getUIVisibilitySettingsRows } from './ui/config/UIVisibilityConfig.js';
+import {
+    getDefaultLoreSectionId,
+    getLoreEntriesBySection,
+    getLoreSectionById,
+    getLoreSections,
+} from './LoreRegistry.js';
 
 const MENU_PROFILE_STORAGE_KEY = 'atoma.menu.profile.v1';
 const MENU_SNAPSHOT_STORAGE_KEY = 'atoma.menu.snapshot.v1';
@@ -12,6 +18,7 @@ const DEFAULT_SETTINGS = Object.freeze({
     soundLevel: 60,
     visuals: 'HIGH',
     particles: true,
+    audioMuted: false,
 });
 
 const MENU_MAPS = Object.freeze([
@@ -51,13 +58,6 @@ const MENU_MAPS = Object.freeze([
         footerLabel: 'Sigma Chamber',
         description: 'Anomalous chamber with sharper tension, instability, and glitch pressure.',
     },
-]);
-
-const LORE_PARAGRAPHS = Object.freeze([
-    'In the beginning, there was only resonance. No form. No border. Only pressure seeking relation.',
-    'ATOMA condenses that resonance into visible structure. Nodes gather tension, links negotiate balance, and the world answers with motion instead of speech.',
-    'Every chamber is a different interpretation of the same intelligence. Fractal Valley remembers order. Dream Desert drifts through subconscious geometry. Quantum Island refuses certainty. Sigma Chamber bends stability into anomaly.',
-    'You are not entering a menu of levels. You are choosing the shape of the system you want to wake.',
 ]);
 
 function clamp(value, min, max) {
@@ -112,15 +112,106 @@ function sanitizeSelectedMapId(value) {
     return getMenuMapById(normalized).id;
 }
 
+function getAudioEnabledPreference() {
+    if (typeof window === 'undefined') return true;
+
+    if (window.__ATOMA_AUDIO_ENABLED_PREFERENCE__ !== undefined) {
+        return window.__ATOMA_AUDIO_ENABLED_PREFERENCE__ !== false;
+    }
+
+    try {
+        if (typeof localStorage !== 'undefined') {
+            const stored = localStorage.getItem('atoma.audio.enabled');
+            if (stored !== null) {
+                return stored !== '0' && stored !== 'false';
+            }
+        }
+    } catch {
+        // fall through to destination state
+    }
+
+    const destination = window.Tone?.getDestination?.() || window.Tone?.Destination || null;
+    if (destination && 'mute' in destination) {
+        return !destination.mute;
+    }
+
+    return true;
+}
+
+export function isMenuAudioMuted() {
+    return !getAudioEnabledPreference();
+}
+
+function applyAudioEnabledPreference(enabled) {
+    const nextEnabled = enabled !== false;
+
+    if (typeof window !== 'undefined' && typeof window.setAudioEnabled === 'function') {
+        return window.setAudioEnabled(nextEnabled);
+    }
+
+    if (typeof window === 'undefined') {
+        return nextEnabled;
+    }
+
+    const audioSystem = window.game?.audioSystem || null;
+    if (audioSystem?.setEnabled) {
+        try {
+            audioSystem.setEnabled(nextEnabled);
+        } catch {
+            // ignore audio-system specific failures and fall back to direct state writes
+        }
+    }
+
+    window.__ATOMA_AUDIO_ENABLED_PREFERENCE__ = nextEnabled;
+
+    try {
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('atoma.audio.enabled', nextEnabled ? '1' : '0');
+        }
+    } catch {
+        // ignore persistence failures
+    }
+
+    const destination = window.Tone?.getDestination?.() || window.Tone?.Destination || null;
+    if (destination && 'mute' in destination) {
+        destination.mute = !nextEnabled;
+    }
+
+    if (audioSystem) {
+        audioSystem.enabled = nextEnabled;
+    }
+
+    const audioReady = !!audioSystem?.initialized;
+
+    if (window.game?.audioModulation?.setEnabled) {
+        window.game.audioModulation.setEnabled(nextEnabled && audioReady);
+    }
+    if (window.game?.harmonicAudio?.setEnabled) {
+        window.game.harmonicAudio.setEnabled(nextEnabled && audioReady);
+    }
+    if (window.game?.zoneAudioReactivity?.setEnabled) {
+        window.game.zoneAudioReactivity.setEnabled(nextEnabled && audioReady);
+    }
+
+    window.__ATOMA_UPDATE_AUDIO_MUTE_TOGGLE__?.();
+    return nextEnabled;
+}
+
+export function setMenuAudioMuted(muted) {
+    return applyAudioEnabledPreference(!muted);
+}
+
 function sanitizeSettings(value) {
     const settings = value && typeof value === 'object' ? value : {};
     const soundLevel = Number(settings.soundLevel);
     const visuals = typeof settings.visuals === 'string' ? settings.visuals.toUpperCase() : DEFAULT_SETTINGS.visuals;
+    const audioMuted = typeof settings.audioMuted === 'boolean' ? settings.audioMuted : isMenuAudioMuted();
 
     return {
         soundLevel: SOUND_LEVELS.includes(soundLevel) ? soundLevel : DEFAULT_SETTINGS.soundLevel,
         visuals: VISUAL_LEVELS.includes(visuals) ? visuals : DEFAULT_SETTINGS.visuals,
         particles: settings.particles !== false,
+        audioMuted,
     };
 }
 
@@ -436,31 +527,123 @@ export function ensureMenuStyles() {
             line-height: 1.7;
         }
 
-        .atoma-main-menu__lore {
+        .atoma-main-menu__lore-panel {
             width: 100%;
-            max-height: min(36vh, 320px);
-            overflow-y: auto;
-            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .atoma-main-menu__lore-tabs {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .atoma-main-menu__lore-tab {
+            min-height: 42px;
+            padding: 0 10px;
+            border: 1px solid rgba(108, 234, 255, 0.12);
+            border-radius: 14px;
+            background: rgba(10, 28, 40, 0.10);
+            color: rgba(197, 245, 250, 0.72);
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            font: inherit;
+            font-size: 11px;
+            cursor: pointer;
+            transition: border-color 140ms ease, background 140ms ease, color 140ms ease, box-shadow 140ms ease;
+        }
+
+        .atoma-main-menu__lore-tab:hover {
+            border-color: rgba(108, 234, 255, 0.22);
+            color: rgba(225, 252, 255, 0.92);
+        }
+
+        .atoma-main-menu__lore-tab.is-active {
+            border-color: rgba(108, 234, 255, 0.30);
+            background: rgba(12, 32, 44, 0.42);
+            color: #f1feff;
+            box-shadow: 0 0 18px rgba(90, 236, 255, 0.14);
+        }
+
+        .atoma-main-menu__lore-body {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: min(42vh, 420px);
+            padding: 16px;
             border: 1px solid rgba(101, 234, 255, 0.16);
             border-radius: 18px;
             background: rgba(8, 20, 28, 0.42);
-            line-height: 1.85;
-            color: rgba(214, 247, 252, 0.88);
+            overflow-y: auto;
             scrollbar-width: thin;
             scrollbar-color: rgba(108, 234, 255, 0.5) transparent;
         }
 
-        .atoma-main-menu__lore::-webkit-scrollbar {
+        .atoma-main-menu__lore-body::-webkit-scrollbar {
             width: 7px;
         }
 
-        .atoma-main-menu__lore::-webkit-scrollbar-thumb {
+        .atoma-main-menu__lore-body::-webkit-scrollbar-thumb {
             background: rgba(108, 234, 255, 0.42);
             border-radius: 999px;
         }
 
-        .atoma-main-menu__lore p + p {
-            margin-top: 16px;
+        .atoma-main-menu__lore-section-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 0 4px;
+        }
+
+        .atoma-main-menu__lore-kicker {
+            color: rgba(119, 243, 255, 0.88);
+            font-size: 10px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+        }
+
+        .atoma-main-menu__lore-summary {
+            color: rgba(214, 247, 252, 0.84);
+            font-size: 13px;
+            line-height: 1.65;
+            letter-spacing: 0.05em;
+            text-transform: none;
+        }
+
+        .atoma-main-menu__lore-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .atoma-main-menu__lore-card {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 164px;
+            padding: 16px;
+            border: 1px solid rgba(108, 234, 255, 0.14);
+            border-radius: 18px;
+            background:
+                linear-gradient(180deg, rgba(11, 28, 39, 0.74), rgba(7, 19, 28, 0.52));
+            box-shadow: inset 0 0 20px rgba(117, 246, 255, 0.03);
+        }
+
+        .atoma-main-menu__lore-card-title {
+            color: #f1feff;
+            font-size: 15px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .atoma-main-menu__lore-card-text {
+            color: rgba(210, 244, 248, 0.82);
+            font-size: 13px;
+            line-height: 1.72;
+            letter-spacing: 0.04em;
+            text-transform: none;
         }
 
         .atoma-main-menu__footer {
@@ -509,6 +692,18 @@ export function ensureMenuStyles() {
                 flex-wrap: wrap;
                 gap: 10px;
             }
+
+            .atoma-main-menu__lore-tabs {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .atoma-main-menu__lore-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .atoma-main-menu__lore-card {
+                min-height: 0;
+            }
         }
     `;
 
@@ -523,6 +718,13 @@ export function getSettingsRows(settings) {
             label: 'SOUND',
             value: `[${'='.repeat(settings.soundLevel / 20)}${'-'.repeat(5 - (settings.soundLevel / 20))}] ${String(settings.soundLevel).padStart(3, ' ')}%`,
             description: 'Cycles the stored boot audio level in 20% steps.',
+        },
+        {
+            type: 'toggle',
+            id: 'audioMuted',
+            label: 'MUTE AUDIO',
+            value: `[ ${settings.audioMuted ? 'MUTED' : 'LIVE'} ]`,
+            description: 'Completely silences all ATOMA audio output.',
         },
         {
             type: 'setting',
@@ -564,6 +766,7 @@ export class MainMenu {
             screen: 'MAIN',
             selectedIndex: 0,
             hasSave: Boolean(snapshot),
+            loreSectionId: getDefaultLoreSectionId(),
         };
 
         this._focusableRefs = [];
@@ -632,8 +835,9 @@ export class MainMenu {
     }
 
     refresh() {
-        const loreScrollTop = this.loreScroller ? this.loreScroller.scrollTop : 0;
+        const loreScrollTop = this.loreBody ? this.loreBody.scrollTop : 0;
         this.state.hasSave = Boolean(loadContinueSnapshot());
+        this.profile.settings.audioMuted = isMenuAudioMuted();
         this.profile = saveMenuProfile(this.profile);
         this._screenEntries = this._buildScreenEntries();
 
@@ -645,8 +849,8 @@ export class MainMenu {
 
         this._renderScreen();
 
-        if (this.loreScroller) {
-            this.loreScroller.scrollTop = loreScrollTop;
+        if (this.loreBody) {
+            this.loreBody.scrollTop = loreScrollTop;
         }
 
         this._renderFooter();
@@ -777,7 +981,7 @@ export class MainMenu {
     _renderScreen() {
         this.content.textContent = '';
         this._focusableRefs = [];
-        this.loreScroller = null;
+        this.loreBody = null;
 
         if (this.state.screen === 'MAIN') {
             this.subtitle.textContent = 'Vertical authority flow. Choose a path and wake the system.';
@@ -804,20 +1008,21 @@ export class MainMenu {
 
         if (this.state.screen === 'SETTINGS') {
             const selectedSetting = this._getSelectedEntry();
-            this.subtitle.textContent = 'Simple menu-owned settings and persistent HUD visibility controls.';
+            this.subtitle.textContent = 'Simple menu-owned settings, including audio mute and HUD visibility controls.';
             this.screenTitle.textContent = 'SETTINGS';
-            this.description.textContent = selectedSetting ? selectedSetting.meta : 'UI visibility controls persist across reloads.';
+            this.description.textContent = selectedSetting ? selectedSetting.meta : 'Audio mute and UI visibility controls persist across reloads.';
             this.hint.textContent = 'UP / DOWN TO SELECT  |  ENTER TO ACTIVATE  |  LEFT / RIGHT FOR BASE SETTINGS  |  ESC TO BACK';
-            this.status.textContent = 'Sound level is stored for boot. Visuals and particles affect the menu atmosphere only.';
+            this.status.textContent = 'Sound level and mute are stored for boot. Visuals and particles affect the menu atmosphere only.';
             this._renderEntryList(this._screenEntries);
             return;
         }
 
-        this.subtitle.textContent = 'A scrollable fragment from the system memory.';
+        const activeSection = this._getLoreSection();
+        this.subtitle.textContent = 'System Knowledge Interface. Technical truth observed through the language of the world.';
         this.screenTitle.textContent = 'LORE';
-        this.description.textContent = 'Use UP / DOWN to scroll the text and ESC to return.';
-        this.hint.textContent = '[ SCROLL ]  |  [ ESC ] BACK';
-        this.status.textContent = 'No gameplay state is touched while the lore view is open.';
+        this.description.textContent = activeSection?.description || 'A structured reading layer for the reality ATOMA exposes.';
+        this.hint.textContent = '[ LEFT / RIGHT ] SECTION  |  [ UP / DOWN ] SCROLL  |  [ ESC ] BACK';
+        this.status.textContent = 'Lore remains read-only, menu-scoped, and detached from live runtime mutation.';
         this._renderLore();
     }
 
@@ -840,12 +1045,12 @@ export class MainMenu {
             button.dataset.entryKey = `${this.state.screen}:${entry.id}`;
             button.dataset.entryIndex = String(index);
 
-            if (entry.type === 'setting') {
-                button.classList.add('atoma-main-menu__button--setting');
-            }
-            if (entry.type === 'visibility') {
-                button.classList.add('atoma-main-menu__button--setting', 'atoma-main-menu__button--toggle');
-            }
+        if (entry.type === 'setting') {
+            button.classList.add('atoma-main-menu__button--setting');
+        }
+        if (entry.type === 'visibility' || entry.type === 'toggle') {
+            button.classList.add('atoma-main-menu__button--setting', 'atoma-main-menu__button--toggle');
+        }
             if (entry.type === 'map') {
                 button.classList.add('atoma-main-menu__button--map');
             }
@@ -860,7 +1065,7 @@ export class MainMenu {
 
             button.append(marker, label);
 
-            if (entry.type === 'setting') {
+            if (entry.type === 'setting' || entry.type === 'toggle') {
                 const value = document.createElement('span');
                 value.className = 'atoma-main-menu__value';
                 value.textContent = entry.value;
@@ -895,18 +1100,96 @@ export class MainMenu {
         this.content.appendChild(list);
     }
 
-    _renderLore() {
-        this.loreScroller = document.createElement('div');
-        this.loreScroller.className = 'atoma-main-menu__lore';
-        this.loreScroller.tabIndex = -1;
+    _getLoreSection() {
+        return getLoreSectionById(this.state.loreSectionId) || getLoreSectionById(getDefaultLoreSectionId());
+    }
 
-        for (const paragraph of LORE_PARAGRAPHS) {
-            const node = document.createElement('p');
-            node.textContent = paragraph;
-            this.loreScroller.appendChild(node);
+    _setLoreSection(sectionId, { refresh = true } = {}) {
+        const nextSection = getLoreSectionById(sectionId);
+        if (!nextSection || nextSection.id === this.state.loreSectionId) {
+            return false;
         }
 
-        this.content.appendChild(this.loreScroller);
+        this.state.loreSectionId = nextSection.id;
+        if (refresh) {
+            this.refresh();
+        }
+        return true;
+    }
+
+    _cycleLoreSection(delta) {
+        const sections = getLoreSections();
+        if (sections.length === 0) {
+            return;
+        }
+
+        const currentIndex = Math.max(0, sections.findIndex((section) => section.id === this._getLoreSection()?.id));
+        const nextIndex = (currentIndex + delta + sections.length) % sections.length;
+        this._setLoreSection(sections[nextIndex].id);
+    }
+
+    _renderLore() {
+        const activeSection = this._getLoreSection();
+        const entries = getLoreEntriesBySection(activeSection?.id);
+
+        const panel = document.createElement('div');
+        panel.className = 'atoma-main-menu__lore-panel';
+
+        const tabs = document.createElement('div');
+        tabs.className = 'atoma-main-menu__lore-tabs';
+
+        for (const section of getLoreSections()) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'atoma-main-menu__lore-tab';
+            if (section.id === activeSection?.id) {
+                button.classList.add('is-active');
+            }
+            button.textContent = section.label;
+            button.addEventListener('click', () => {
+                this._setLoreSection(section.id);
+            });
+            tabs.appendChild(button);
+        }
+
+        this.loreBody = document.createElement('div');
+        this.loreBody.className = 'atoma-main-menu__lore-body';
+
+        const sectionCopy = document.createElement('div');
+        sectionCopy.className = 'atoma-main-menu__lore-section-copy';
+
+        const kicker = document.createElement('div');
+        kicker.className = 'atoma-main-menu__lore-kicker';
+        kicker.textContent = activeSection?.label || 'Lore';
+
+        const summary = document.createElement('div');
+        summary.className = 'atoma-main-menu__lore-summary';
+        summary.textContent = activeSection?.description || '';
+
+        sectionCopy.append(kicker, summary);
+
+        const grid = document.createElement('div');
+        grid.className = 'atoma-main-menu__lore-grid';
+
+        entries.forEach((entry) => {
+            const card = document.createElement('article');
+            card.className = 'atoma-main-menu__lore-card';
+
+            const title = document.createElement('div');
+            title.className = 'atoma-main-menu__lore-card-title';
+            title.textContent = entry.title;
+
+            const text = document.createElement('div');
+            text.className = 'atoma-main-menu__lore-card-text';
+            text.textContent = entry.body;
+
+            card.append(title, text);
+            grid.appendChild(card);
+        });
+
+        this.loreBody.append(sectionCopy, grid);
+        panel.append(tabs, this.loreBody);
+        this.content.appendChild(panel);
     }
 
     _renderFooter() {
@@ -1078,6 +1361,9 @@ export class MainMenu {
             const currentIndex = SOUND_LEVELS.indexOf(settings.soundLevel);
             const nextIndex = clamp(currentIndex + direction, 0, SOUND_LEVELS.length - 1);
             settings.soundLevel = SOUND_LEVELS[nextIndex];
+        } else if (settingId === 'audioMuted') {
+            settings.audioMuted = !settings.audioMuted;
+            setMenuAudioMuted(settings.audioMuted);
         } else if (settingId === 'visuals') {
             const currentIndex = VISUAL_LEVELS.indexOf(settings.visuals);
             const nextIndex = (currentIndex + direction + VISUAL_LEVELS.length) % VISUAL_LEVELS.length;
@@ -1092,11 +1378,11 @@ export class MainMenu {
     }
 
     _scrollLore(delta) {
-        if (!this.loreScroller) {
+        if (!this.loreBody) {
             return;
         }
 
-        this.loreScroller.scrollTop += delta;
+        this.loreBody.scrollTop += delta;
     }
 
     _onKeyDown(event) {
@@ -1109,6 +1395,18 @@ export class MainMenu {
         }
 
         if (this.state.screen === 'LORE') {
+            if (event.key === 'ArrowRight') {
+                event.preventDefault();
+                this._cycleLoreSection(1);
+                return;
+            }
+
+            if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                this._cycleLoreSection(-1);
+                return;
+            }
+
             if (event.key === 'ArrowDown') {
                 event.preventDefault();
                 this._scrollLore(48);

@@ -686,7 +686,8 @@ import { LinkHistoryTracker1_0 } from './LinkHistoryTracker1_0.js';
 import { AtomaLanguageEngine2_0, setupAtomaNamingConsoleAPI } from './_AtomaLanguageEngine2_0.js';
 import { NodeInspectLinguisticOverlay, setupLinguisticOverlayConsoleAPI } from './_NodeInspectLinguisticOverlay.js';
 import { atomaNamingEngine } from './_AtomaNamingEngine.js';
-import { AtomaLanguageEngine3_0, setupAtomaLanguageEngine3ConsoleAPI } from './_AtomaLanguageEngine3_0.js';
+import LoreUnlockEngine from './LoreSystem/LoreUnlockEngine.js';
+import AtomaLanguageEngine3_0, { setupAtomaLanguageEngine3ConsoleAPI } from './AtomaLanguageEngine3_0.js';
 // REMOVED (2026-03-01): CompleteVisualLock disabled for new visual modules
 // import { setupCompleteVisualLock, teardownCompleteVisualLock } from './_VisualLockCompleteIntegration.js';
 
@@ -697,6 +698,19 @@ import { initializeHardInteractionAuthority } from './HARD_INTERACTION_AUTHORITY
 // REMOVED: HARD_AUTHORITY_DEBUG_API - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 // REMOVED: NodeVisualIntegrityFix - moved to LEGACY (2026-04-03)
 // REMOVED: ControlledUnfreezeSystem_v1 - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
+
+const LORE_TO_LANGUAGE = Object.freeze({
+    'node.input.basic': 'lore.node.input',
+    'node.process.basic': 'lore.node.process',
+    'node.control.basic': 'lore.node.control',
+    'node.storage.basic': 'lore.node.storage',
+    'node.analytics.basic': 'lore.node.analytics',
+    'metric.synergy.basic': 'lore.metric.synergy',
+    'metric.harmony.basic': 'lore.metric.harmony',
+    'metric.corruption.basic': 'lore.metric.corruption',
+    'link.basic': 'lore.link',
+    'phenomena.cascade': 'lore.cascade'
+});
 
 // ============================================================================
 // SESSION 105: LINK METRICS TO VISUAL BRIDGE (Real-time network metrics)
@@ -3967,6 +3981,10 @@ class AtomaGame {
         this.materialRegistry = materialRegistry;
         this.semanticBus = new SemanticEventBus();
         window.semanticBus = this.semanticBus;
+        const loreEngine = new LoreUnlockEngine();
+        this.loreEngine = loreEngine;
+        this._loreUnlockBridgeBound = false;
+        this._setupLoreUnlockBridge();
         this.metricDirtyQueue = globalThis.__ATOMA_METRIC_DIRTY_QUEUE__ || createMetricDirtyQueue();
         globalThis.__ATOMA_METRIC_DIRTY_QUEUE__ = this.metricDirtyQueue;
         window.__ATOMA_METRIC_DIRTY_QUEUE__ = this.metricDirtyQueue;
@@ -10243,11 +10261,40 @@ window.__ATOMA_SCENE__ = this.scene;
         // Reads from: node/link userData (all previous Week systems)
         try {
             this.resonanceFeedback = new ResonanceFeedback_v1({
+                scene: this.scene,           // Three.js scene for visual effects
                 debugEnabled: false,
                 maxNodesPerFrame: null,     // No frame limit
-                maxLinksPerFrame: null      // No frame limit
+                maxLinksPerFrame: null,     // No frame limit
+                enableHarmonyFieldLines: true,  // Enable visual field lines
+                fieldLinesConfig: {
+                    resonanceThreshold: 0.85,    // Only connect nodes above this resonance
+                    maxConnectionsPerNode: 3,    // Limit connections per node
+                    maxTotalLines: 50,           // Total field lines limit
+                    pulseSpeed: 2.0,             // Animation speed
+                    debugEnabled: false
+                }
             });
-            console.log('[main.js] ResonanceFeedback_v1 initialized ✓');
+            console.log('[main.js] ResonanceFeedback_v1 initialized ✓ (Harmony Field Lines enabled)');
+
+            // Console API for field lines control
+            window.harmonyFieldLines = {
+                enable: () => {
+                    this.resonanceFeedback?.setHarmonyFieldLinesEnabled(true);
+                    console.log('Harmony Field Lines enabled');
+                },
+                disable: () => {
+                    this.resonanceFeedback?.setHarmonyFieldLinesEnabled(false);
+                    console.log('Harmony Field Lines disabled');
+                },
+                setThreshold: (t) => {
+                    this.resonanceFeedback?.setHarmonyFieldLinesThreshold(t);
+                    console.log(`Harmony Field Lines threshold set to ${t}`);
+                },
+                stats: () => {
+                    const stats = this.resonanceFeedback?.getHarmonyFieldLinesStats();
+                    console.table(stats);
+                }
+            };
         } catch (err) {
             console.warn('[main.js] ResonanceFeedback_v1 failed:', err);
         }
@@ -14017,6 +14064,17 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             isFieldActive: () => Boolean(this.regionalEquilibrium?.regions?.size)
         });
         this.recursiveGlyphSignalSystem.setEnabled(true);
+
+        if (this.linkingSystem?.onNodeHoverStart && !this.linkingSystem.__recursiveGlyphSignalHoverAuthorityBound) {
+            this.linkingSystem.onNodeHoverStart((node) => {
+                this.recursiveGlyphSignalSystem?.triggerAttentionSignal?.(node, 'hover', { bypassBurst: true });
+            });
+            this.linkingSystem.onNodeHoverEnd((node) => {
+                this.recursiveGlyphSignalSystem?.requestSilenceForNode?.(node);
+            });
+            this.linkingSystem.__recursiveGlyphSignalHoverAuthorityBound = true;
+        }
+
         this._recursiveGlyphSignalFirstSelectLogged = false;
 
         console.log('✓ Recursive Glyph Signal System active');
@@ -14229,6 +14287,22 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         console.log('%c  - poetry.test() — Generate sample poetry', 'color: cyan; font-size: 11px;');
         console.log('%c  - poetry.stats() — View performance metrics', 'color: cyan; font-size: 11px;');
         console.log('%c  - poetry.show() / poetry.hide() — Manual control', 'color: cyan; font-size: 11px;');
+    }
+
+    _setupLoreUnlockBridge() {
+        if (this._loreUnlockBridgeBound || !this.semanticBus?.on) {
+            return;
+        }
+
+        this._loreUnlockBridgeBound = true;
+        this.semanticBus.on('lore.unlocked', ({ id } = {}) => {
+            const key = LORE_TO_LANGUAGE[id];
+            if (!key) {
+                return;
+            }
+
+            AtomaLanguageEngine3_0.emit(key);
+        });
     }
 
     /**
