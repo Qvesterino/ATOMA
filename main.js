@@ -5865,7 +5865,7 @@ this.setHudDirty('nodeInspect');
           window.worldEventCoordinator = this.worldEventCoordinator;
         }
         if (this.hazards && this.currentMode === 'fractal') {
-            this.hazards.createGravitationalAnomaly(new THREE.Vector3(-40, 10, -40), 20, 0.6);
+            // Fractal Valley world pass: no inherited anomaly set pieces here.
         }
         this.setupPersonalityFX();
         // REMOVED: this.setupMemoryTrails(); - moved to LEGACY/GRAVEYARD (2026-04-05)
@@ -7865,7 +7865,7 @@ window.__ATOMA_SCENE__ = this.scene;
         this.hazards = this.environmentDomain?.instances?.environmentalHazards || this.hazards;
         this._syncDreamDepthRefs();
         if (this.hazards && this.currentMode === 'fractal') {
-            this.hazards.createGravitationalAnomaly(new THREE.Vector3(-40, 10, -40), 20, 0.6);
+            // Fractal Valley world pass: no inherited anomaly set pieces here.
         }
 
         if (this.currentMode === 'sigma') {
@@ -12871,7 +12871,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         // Create demo hazards in Fractal Valley
         if (this.currentMode === 'fractal') {
-            this.hazards.createGravitationalAnomaly(new THREE.Vector3(-40, 10, -40), 20, 0.6);
+            // Fractal Valley world pass: hazards stay disabled by default.
         }
     }
 

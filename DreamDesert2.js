@@ -36,6 +36,8 @@ export class DreamDesert2 {
     this.sunOrbitSpeed = (Math.PI * 2) / 300; // one full rotation in ~5 minutes
     this.devicePixelRatio = window.devicePixelRatio || 1;
     this.renderer = null;
+    this.composer = null;
+    this.postProcessingPasses = null;
     this.playerGroundOffset = 1;
     
     // Wind system for particle distortion
@@ -98,16 +100,16 @@ export class DreamDesert2 {
    */
   createSkyAndAtmosphere() {
     if (this.scene) {
-      this.scene.fog = new THREE.FogExp2(0xffd0e0, 0.0038);
-      this.scene.background = new THREE.Color(0x1a0a15);
+      this.scene.fog = new THREE.FogExp2(0xf0bfcf, 0.0029);
+      this.scene.background = new THREE.Color(0x14070f);
     }
 
     const skyGeometry = new THREE.SphereGeometry(520, 32, 15);
     const skyMaterial = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
-        uTopColor: { value: new THREE.Color(0xffb8d8) },
-        uBottomColor: { value: new THREE.Color(0xff8b4c) },
+        uTopColor: { value: new THREE.Color(0xffa4c7) },
+        uBottomColor: { value: new THREE.Color(0xff8660) },
         uSunPosition: { value: new THREE.Vector3(0, 65, 120) }
       },
       vertexShader: `
@@ -133,13 +135,13 @@ export class DreamDesert2 {
           vec3 sunDir = normalize(uSunPosition);
           vec3 viewDir = normalize(vWorldPosition);
           float sunDot = max(0.0, dot(viewDir, sunDir));
-          float sunGlow = pow(sunDot, 64.0) * 0.3;
+          float sunGlow = pow(sunDot, 64.0) * 0.18;
           
           // Horizon glow
-          float horizonGlow = exp(-abs(t - 0.5) * 8.0) * 0.15;
+          float horizonGlow = exp(-abs(t - 0.5) * 8.0) * 0.08;
           
-          color += vec3(1.0, 0.9, 0.8) * sunGlow;
-          color += vec3(1.0, 0.8, 0.9) * horizonGlow;
+          color += vec3(1.0, 0.94, 0.88) * sunGlow;
+          color += vec3(1.0, 0.86, 0.92) * horizonGlow;
           
           gl_FragColor = vec4(color, 1.0);
         }
@@ -160,15 +162,25 @@ export class DreamDesert2 {
   }
 
   /**
-   * Generate layered dune noise for organic terrain.
+   * Generate layered dune noise for organic terrain with wind erosion patterns
    */
   sampleDuneNoise(x, z) {
     const baseScale = 0.0115;
+    
+    // Wind erosion directional influence
+    const windX = x * 0.7 + z * 0.3;
+    const windZ = z * 0.8 + x * 0.2;
+    const windErosion0 = Math.sin(windX * baseScale * 0.8) * 0.6;
+    const windErosion1 = Math.sin(windZ * baseScale * 1.2) * 0.4;
+    const windErosion2 = Math.cos(windX * baseScale * 1.8 + windZ * baseScale * 1.5) * 0.3;
+    
     const n0 = this._noise2D(x * baseScale, z * baseScale) * 1.0;
     const n1 = this._noise2D(x * baseScale * 2.2, z * baseScale * 2.2) * 0.52;
     const n2 = this._noise2D(x * baseScale * 4.5, z * baseScale * 4.5) * 0.26;
     const n3 = this._noise2D(x * baseScale * 9.8, z * baseScale * 9.8) * 0.12;
-    return (n0 + n1 + n2 + n3) * 6.5;
+    
+    // Combine base noise with wind erosion patterns
+    return (n0 + n1 + n2 + n3 + windErosion0 + windErosion1 + windErosion2) * 5.5;
   }
 
   _noise2D(x, z) {
@@ -241,10 +253,10 @@ export class DreamDesert2 {
     const positionAttribute = geometry.getAttribute('position');
     const positions = positionAttribute.array;
     const colorArray = new Float32Array(positions.length);
-    const lowColor = new THREE.Color(0xffc0d0);
-    const midColor = new THREE.Color(0xffd5e8);
-    const highColor = new THREE.Color(0xe9d4ff);
-    const edgeColor = new THREE.Color(0xffffff);
+    const lowColor = new THREE.Color(0xd8a9b0);
+    const midColor = new THREE.Color(0xe3beca);
+    const highColor = new THREE.Color(0xe9d7e5);
+    const edgeColor = new THREE.Color(0xf5efeb);
 
     // Create displacement texture
     const displacementSize = 512;
@@ -283,12 +295,12 @@ export class DreamDesert2 {
       
       const normalizedHeight = Math.min(1, height / 9);
       const color = lowColor.clone();
-      if (normalizedHeight < 0.4) {
-        color.lerp(midColor, normalizedHeight / 0.4);
-      } else if (normalizedHeight < 0.75) {
-        color.copy(midColor).lerp(highColor, (normalizedHeight - 0.4) / 0.35);
+      if (normalizedHeight < 0.5) {
+        color.lerp(midColor, normalizedHeight / 0.5);
+      } else if (normalizedHeight < 0.82) {
+        color.copy(midColor).lerp(highColor, (normalizedHeight - 0.5) / 0.32);
       } else {
-        color.copy(highColor).lerp(edgeColor, Math.pow((normalizedHeight - 0.75) / 0.25, 0.5));
+        color.copy(highColor).lerp(edgeColor, Math.pow((normalizedHeight - 0.82) / 0.18, 0.5));
       }
       
       colorArray[i] = color.r;
@@ -301,26 +313,35 @@ export class DreamDesert2 {
     geometry.computeVertexNormals();
     
     const normalMap = this.createSandNormalTexture();
+    const roughnessMap = this.createSandRoughnessTexture();
+    const microDetailMap = this.createSandMicroDetailTexture();
     
     const duneMaterial = materialRegistry.getStandard('world.dreamdesert2.duneMain', {
-      color: 0xffc0d0,
-      roughness: 0.52,
-      metalness: 0.06,
-      emissive: 0xffc0d0,
-      emissiveIntensity: 0.05,
+      color: 0xdab0b7,
+      roughness: 0.64,
+      metalness: 0.025,
+      emissive: 0xdab0b7,
+      emissiveIntensity: 0.02,
       side: THREE.DoubleSide,
-      envMapIntensity: 1.3,
-      clearcoat: 0.22,
-      clearcoatRoughness: 0.68,
-      sheen: 0.12,
-      sheenRoughness: 0.5,
+      envMapIntensity: 0.9,
+      clearcoat: 0.08,
+      clearcoatRoughness: 0.82,
+      sheen: 0.04,
+      sheenRoughness: 0.72,
       vertexColors: true,
       normalMap,
       normalScale: new THREE.Vector2(0.38, 0.38),
+      roughnessMap,
       displacementMap: displacementTexture,
-      displacementScale: 0.8,
-      displacementBias: -0.4
+      displacementScale: 0.64,
+      displacementBias: -0.28
     });
+    
+    // Store micro-detail for potential custom shader use
+    duneMaterial.userData = {
+      microDetailMap,
+      useMicroDetail: true
+    };
     
     const dunes = new THREE.Mesh(geometry, duneMaterial);
     dunes.rotation.x = -Math.PI / 2;
@@ -333,7 +354,7 @@ export class DreamDesert2 {
   }
 
   createSandNormalTexture() {
-    const size = 256;
+    const size = 512;
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
@@ -341,18 +362,26 @@ export class DreamDesert2 {
     const imageData = ctx.createImageData(size, size);
     const data = imageData.data;
     const heightField = new Float32Array(size * size);
-    const detailScale = 11.2;
-    const rippleScale = 24.0;
+    const detailScale = 15.2;
+    const rippleScale = 32.0;
 
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         const u = (x / size) * detailScale;
         const v = (y / size) * detailScale;
+        
+        // Wind erosion directional patterns
+        const windX = u * 0.8 + v * 0.2;
+        const windY = v * 0.9 + u * 0.1;
+        const windErosion = Math.sin(windX * 2.5) * 0.12 + Math.sin(windY * 3.8) * 0.08;
+        
         const value = Math.sin(u * 3.4 + Math.cos(v * 2.8) * 1.1) * 0.16
           + Math.sin(v * 5.2 + u * 1.9) * 0.08
           + Math.cos(u * 8.1) * 0.04
           + Math.sin(u * 12.4 + v * 9.2) * 0.02
-          + Math.cos(v * 15.6 + u * 11.8) * 0.015;
+          + Math.cos(v * 15.6 + u * 11.8) * 0.015
+          + windErosion;
+          
         heightField[y * size + x] = value;
       }
     }
@@ -383,6 +412,120 @@ export class DreamDesert2 {
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(8, 8);
+    texture.needsUpdate = true;
+    return texture;
+  }
+  
+  createSandRoughnessTexture() {
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.createImageData(size, size);
+    const data = imageData.data;
+    
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const u = (x / size) * 8.0;
+        const v = (y / size) * 8.0;
+        
+        // Create slope-based roughness variation
+        const slopeX = Math.sin(u * 2.3) * 0.5 + 0.5;
+        const slopeY = Math.sin(v * 1.8) * 0.5 + 0.5;
+        const slope = (slopeX + slopeY) * 0.5;
+        
+        // Add micro-variation
+        const micro = Math.sin(u * 15.2 + v * 12.8) * 0.15
+                  + Math.cos(u * 22.4 - v * 18.6) * 0.1
+                  + Math.sin(u * 31.2 + v * 28.4) * 0.05;
+        
+        // Wind erosion directional roughness
+        const windDirX = u * 0.7 + v * 0.3;
+        const windDirY = v * 0.8 + u * 0.2;
+        const windRoughness = Math.sin(windDirX * 4.2) * 0.1 + Math.cos(windDirY * 5.6) * 0.08;
+        
+        // Combine all factors
+        // Lower roughness on flat areas, higher on slopes
+        let roughness = 0.35 + slope * 0.35 + micro * 0.15 + windRoughness;
+        roughness = Math.max(0.2, Math.min(0.9, roughness));
+        
+        const idx = (y * size + x) * 4;
+        const byte = Math.floor(roughness * 255);
+        data[idx] = byte;
+        data[idx + 1] = byte;
+        data[idx + 2] = byte;
+        data[idx + 3] = 255;
+      }
+    }
+    
+    ctx.putImageData(imageData, 0, 0);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(12, 12);
+    texture.needsUpdate = true;
+    return texture;
+  }
+  
+  createSandMicroDetailTexture() {
+    const size = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.createImageData(size, size);
+    const data = imageData.data;
+    
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const u = (x / size) * 64.0;
+        const v = (y / size) * 64.0;
+        
+        // High-frequency micro-details for close-up views
+        let detail = 0;
+        
+        // Grain texture
+        const grain = Math.sin(u * 48.2 + v * 45.6) * 0.25
+                   + Math.cos(u * 56.8 - v * 52.4) * 0.2
+                   + Math.sin(u * 64.4 + v * 61.2) * 0.15;
+        detail += grain * 0.4;
+        
+        // Fine ripples
+        const ripple = Math.sin(u * 24.6 + v * 22.8) * 0.2
+                    + Math.cos(u * 28.4 - v * 26.2) * 0.15;
+        detail += ripple * 0.3;
+        
+        // Wind streaks
+        const streakX = u * 0.8 + v * 0.2;
+        const streakY = v * 0.9 + u * 0.1;
+        const streak = Math.sin(streakX * 18.4) * 0.15
+                     + Math.cos(streakY * 22.6) * 0.1;
+        detail += streak * 0.2;
+        
+        // Micro-erosion patterns
+        const erosion = Math.sin(u * 36.8 + v * 34.2) * 0.1
+                      + Math.cos(u * 42.4 - v * 38.6) * 0.08;
+        detail += erosion * 0.1;
+        
+        // Normalize and convert to grayscale
+        detail = (detail + 1.0) * 0.5;
+        detail = Math.max(0, Math.min(1, detail));
+        
+        const idx = (y * size + x) * 4;
+        const byte = Math.floor(detail * 255);
+        data[idx] = byte;
+        data[idx + 1] = byte;
+        data[idx + 2] = byte;
+        data[idx + 3] = 255;
+      }
+    }
+    
+    ctx.putImageData(imageData, 0, 0);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(16, 16);
     texture.needsUpdate = true;
     return texture;
   }
@@ -582,11 +725,11 @@ export class DreamDesert2 {
         uTime: { value: 0 },
         uBaseColor: { value: new THREE.Color(baseColor) },
         uEmissiveColor: { value: new THREE.Color(emissiveColor) },
-        uEmissiveIntensity: { value: 0.08 },
+        uEmissiveIntensity: { value: 0.045 },
         uCameraPosition: { value: new THREE.Vector3() },
-        uReflectionStrength: { value: 0.65 },
-        uInternalGlowStrength: { value: 0.45 },
-        uRoughness: { value: 0.15 }
+        uReflectionStrength: { value: 0.42 },
+        uInternalGlowStrength: { value: 0.28 },
+        uRoughness: { value: 0.22 }
       },
       vertexShader: `
         varying vec3 vWorldPosition;
@@ -658,19 +801,19 @@ export class DreamDesert2 {
           float facetHighlight = step(0.7, dot(normal, vec3(0.577))) * 0.3;
           
           // Combine lighting components
-          vec3 finalColor = uBaseColor * 0.4;
-          finalColor += reflectionColor * uReflectionStrength * (1.0 - uRoughness);
+          vec3 finalColor = uBaseColor * 0.55;
+          finalColor += reflectionColor * uReflectionStrength * (1.0 - uRoughness) * 0.6;
           finalColor += uEmissiveColor * uEmissiveIntensity * internalGlow;
-          finalColor += vec3(1.0, 0.95, 1.0) * fresnelTerm * 0.6; // rim glow
-          finalColor += vec3(0.9, 0.85, 1.0) * facetHighlight;
+          finalColor += vec3(1.0, 0.95, 0.98) * fresnelTerm * 0.3; // rim glow
+          finalColor += vec3(0.88, 0.82, 0.92) * facetHighlight * 0.65;
           
           // Subtle color variation based on height
-          vec3 heightTint = mix(vec3(0.9, 0.8, 1.0), vec3(1.0, 1.0, 1.0), heightFactor);
+          vec3 heightTint = mix(vec3(0.88, 0.82, 0.92), vec3(0.98, 0.96, 0.98), heightFactor);
           finalColor *= heightTint;
           
           // Add sparkle at edges
           float edgeSharpness = 1.0 - abs(dot(normal, viewDir));
-          float sparkle = pow(edgeSharpness, 8.0) * 0.4;
+          float sparkle = pow(edgeSharpness, 8.0) * 0.18;
           finalColor += vec3(1.0, 0.98, 1.0) * sparkle;
           
           gl_FragColor = vec4(finalColor, 0.95);
@@ -704,9 +847,9 @@ export class DreamDesert2 {
       ridgeGeo.rotateZ(Math.PI / 2);
       ridgeGeo.rotateX(Math.PI / 2);
       
-      const hue = 0.96 - r * 0.03;
-      const ridgeColor = new THREE.Color().setHSL(hue, 0.72, 0.74);
-      const ridgeEmissive = ridgeColor.clone().offsetHSL(0, -0.18, -0.08);
+      const hue = 0.97 - r * 0.02;
+      const ridgeColor = new THREE.Color().setHSL(hue, 0.42, 0.62);
+      const ridgeEmissive = ridgeColor.clone().offsetHSL(0, -0.06, -0.12);
 
       const ridgeMaterial = this.createCrystallineRidgeMaterial(ridgeColor.getHex(), ridgeEmissive.getHex());
       
@@ -746,8 +889,8 @@ export class DreamDesert2 {
         subRidgeGeo.rotateX(Math.PI / 2);
         
         const subHue = hue + (Math.random() - 0.5) * 0.04;
-        const subRidgeColor = new THREE.Color().setHSL(subHue, 0.68, 0.70);
-        const subRidgeEmissive = subRidgeColor.clone().offsetHSL(0, -0.15, -0.06);
+        const subRidgeColor = new THREE.Color().setHSL(subHue, 0.34, 0.58);
+        const subRidgeEmissive = subRidgeColor.clone().offsetHSL(0, -0.05, -0.10);
         
         const subRidgeMaterial = this.createCrystallineRidgeMaterial(subRidgeColor.getHex(), subRidgeEmissive.getHex());
         
@@ -1089,9 +1232,9 @@ export class DreamDesert2 {
   }
 
   createVolumetricEffects() {
-    this.createVolumetricLayer(22, 300, 0.14, 0xffc5e8, 0xd1a3ff, 1.8, 0.10);
-    this.createVolumetricLayer(28, 320, 0.20, 0xffdbf6, 0xb288ff, 2.2, 0.12);
-    this.createVolumetricLayer(34, 340, 0.28, 0xffe8ff, 0x986dff, 2.8, 0.08);
+    this.createVolumetricLayer(22, 300, 0.14, 0xf0c7d8, 0xc9a8ff, 1.8, 0.07);
+    this.createVolumetricLayer(28, 320, 0.20, 0xf1d8e7, 0xb98dff, 2.2, 0.08);
+    this.createVolumetricLayer(34, 340, 0.28, 0xf4e3ed, 0xa878ff, 2.8, 0.06);
   }
 
   /**
@@ -1110,9 +1253,9 @@ export class DreamDesert2 {
       glowSize / 2, glowSize / 2, glowSize / 2
     );
     glowGradient.addColorStop(0.0, 'rgba(255, 250, 240, 1.0)');
-    glowGradient.addColorStop(0.15, 'rgba(255, 245, 220, 0.8)');
-    glowGradient.addColorStop(0.35, 'rgba(255, 235, 180, 0.5)');
-    glowGradient.addColorStop(0.6, 'rgba(255, 210, 150, 0.2)');
+    glowGradient.addColorStop(0.15, 'rgba(255, 244, 226, 0.7)');
+    glowGradient.addColorStop(0.35, 'rgba(255, 231, 184, 0.42)');
+    glowGradient.addColorStop(0.6, 'rgba(255, 206, 150, 0.16)');
     glowGradient.addColorStop(1.0, 'rgba(255, 180, 120, 0.0)');
     
     glowCtx.fillStyle = glowGradient;
@@ -1125,15 +1268,15 @@ export class DreamDesert2 {
     // Create sun glow sprite
     const sunGlowMaterial = new THREE.SpriteMaterial({
       map: glowTexture,
-      color: 0xffffee,
+      color: 0xfff6ea,
       transparent: true,
-      opacity: 0.7,
+      opacity: 0.48,
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
     
     const sunGlow = new THREE.Sprite(sunGlowMaterial);
-    sunGlow.scale.set(40, 40, 1);
+    sunGlow.scale.set(34, 34, 1);
     sunGlow.name = 'sunGlow';
     this.worldRoot.add(sunGlow);
     this.sunGlow = sunGlow;
@@ -1279,9 +1422,9 @@ export class DreamDesert2 {
   createCloudLayers() {
     // Create 3 cloud layers at different heights
     const cloudConfigs = [
-      { y: 25, count: 5, scale: 80, speed: 0.03, opacity: 0.15 },
-      { y: 32, count: 4, scale: 100, speed: 0.04, opacity: 0.12 },
-      { y: 38, count: 3, scale: 120, speed: 0.02, opacity: 0.10 }
+      { y: 25, count: 4, scale: 80, speed: 0.03, opacity: 0.10 },
+      { y: 32, count: 3, scale: 100, speed: 0.04, opacity: 0.08 },
+      { y: 38, count: 2, scale: 120, speed: 0.02, opacity: 0.06 }
     ];
     
     this.cloudLayers = [];
@@ -1295,7 +1438,7 @@ export class DreamDesert2 {
         const cloudMaterial = new THREE.ShaderMaterial({
           uniforms: {
             uTime: { value: 0 },
-            uColor: { value: new THREE.Color(0xfff5f0) },
+            uColor: { value: new THREE.Color(0xffede9) },
             uSpeed: { value: config.speed + Math.random() * 0.02 },
             uNoiseScale: { value: 1.5 + Math.random() * 0.5 },
             uOpacity: { value: config.opacity },
@@ -1420,10 +1563,10 @@ export class DreamDesert2 {
   }
   
   createAdvancedLighting() {
-    const hemisphere = new THREE.HemisphereLight(0xffc0e8, 0xffb279, 0.7);
+    const hemisphere = new THREE.HemisphereLight(0xffb4d3, 0xffa06f, 0.42);
     this.worldRoot.add(hemisphere);
 
-    this.sunLight = new THREE.DirectionalLight(0xffe8c4, 0.85);
+    this.sunLight = new THREE.DirectionalLight(0xffe1bf, 0.62);
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.width = 4096;
     this.sunLight.shadow.mapSize.height = 4096;
@@ -1438,7 +1581,7 @@ export class DreamDesert2 {
     this.worldRoot.add(this.sunLight.target);
     this.worldRoot.add(this.sunLight);
 
-    const fillLight = new THREE.DirectionalLight(0x88ffff, 0.42);
+    const fillLight = new THREE.DirectionalLight(0x9adfe0, 0.24);
     fillLight.position.set(-90, 35, -90);
     fillLight.castShadow = true;
     fillLight.shadow.mapSize.width = 2048;
@@ -1446,22 +1589,22 @@ export class DreamDesert2 {
     fillLight.shadow.radius = 3;
     this.worldRoot.add(fillLight);
 
-    const rimLight = new THREE.DirectionalLight(0xff99ff, 0.32);
+    const rimLight = new THREE.DirectionalLight(0xffa0dc, 0.18);
     rimLight.position.set(30, 52, -110);
     rimLight.castShadow = false;
     this.worldRoot.add(rimLight);
 
-    const bounceLight = new THREE.DirectionalLight(0xaa99ff, 0.25);
+    const bounceLight = new THREE.DirectionalLight(0xab94e5, 0.14);
     bounceLight.position.set(-10, -30, 15);
     bounceLight.castShadow = false;
     this.worldRoot.add(bounceLight);
 
-    const secondaryFill = new THREE.DirectionalLight(0xccffff, 0.18);
+    const secondaryFill = new THREE.DirectionalLight(0xd2ecec, 0.1);
     secondaryFill.position.set(100, 18, -70);
     secondaryFill.castShadow = false;
     this.worldRoot.add(secondaryFill);
 
-    const groundFill = new THREE.DirectionalLight(0xffe8dd, 0.1);
+    const groundFill = new THREE.DirectionalLight(0xffdccb, 0.06);
     groundFill.position.set(0, -50, 0);
     this.worldRoot.add(groundFill);
   }
@@ -1982,7 +2125,7 @@ export class DreamDesert2 {
   createAtmosphericScattering() {
     // Create multiple animated mist layers for organic depth
     const mistGeo1 = new THREE.PlaneGeometry(280, 280);
-    const mistMat1 = this.createAtmosphericFogMaterial(0xe8c0d0, 2.4, 0.05, 0.12);
+    const mistMat1 = this.createAtmosphericFogMaterial(0xe2bcc6, 2.4, 0.05, 0.08);
     const mist1 = new THREE.Mesh(mistGeo1, mistMat1);
     mist1.position.y = 0.5;
     mist1.rotation.x = -Math.PI / 2;
@@ -1991,7 +2134,7 @@ export class DreamDesert2 {
     this.animatedObjects.push({ object: mist1, type: 'fogLayer', phase: 0.1 });
 
     const mistGeo2 = new THREE.PlaneGeometry(300, 300);
-    const mistMat2 = this.createAtmosphericFogMaterial(0xf0d8e8, 2.0, 0.08, 0.09);
+    const mistMat2 = this.createAtmosphericFogMaterial(0xeacdd9, 2.0, 0.08, 0.06);
     const mist2 = new THREE.Mesh(mistGeo2, mistMat2);
     mist2.position.y = 15;
     mist2.rotation.x = -Math.PI / 2;
@@ -2000,7 +2143,7 @@ export class DreamDesert2 {
     this.animatedObjects.push({ object: mist2, type: 'fogLayer', phase: 1.1 });
 
     const mistGeo3 = new THREE.PlaneGeometry(350, 350);
-    const mistMat3 = this.createAtmosphericFogMaterial(0xffe8f0, 1.6, 0.12, 0.07);
+    const mistMat3 = this.createAtmosphericFogMaterial(0xf3e0e6, 1.6, 0.12, 0.045);
     const mist3 = new THREE.Mesh(mistGeo3, mistMat3);
     mist3.position.y = 35;
     mist3.rotation.x = -Math.PI / 2;
@@ -2013,8 +2156,8 @@ export class DreamDesert2 {
     const horizonMat = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
-        uColorInner: { value: new THREE.Color(0xffcbf0) },
-        uColorOuter: { value: new THREE.Color(0x9546ff) }
+        uColorInner: { value: new THREE.Color(0xffc9e4) },
+        uColorOuter: { value: new THREE.Color(0xa55eff) }
       },
       vertexShader: `
         varying vec2 vUv;
@@ -2034,7 +2177,7 @@ export class DreamDesert2 {
           float ring = smoothstep(0.38, 0.36, radius) - smoothstep(0.46, 0.44, radius);
           float pulse = 0.6 + 0.4 * sin(uTime * 1.6 + radius * 14.0);
           vec3 color = mix(uColorOuter, uColorInner, smoothstep(0.3, 0.5, radius));
-          float alpha = ring * pulse * 0.85;
+          float alpha = ring * pulse * 0.55;
           if (alpha < 0.01) discard;
           gl_FragColor = vec4(color, alpha);
         }
@@ -2056,8 +2199,8 @@ export class DreamDesert2 {
     const rayMat = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
-        uColor: { value: new THREE.Color(0xffeedd) },
-        uOpacity: { value: 0.08 },
+        uColor: { value: new THREE.Color(0xffe2cf) },
+        uOpacity: { value: 0.05 },
         uSpeed: { value: 0.15 }
       },
       vertexShader: `
@@ -2345,6 +2488,258 @@ export class DreamDesert2 {
         (Math.random() - 0.5) * 0.5
       );
       this.emitSandTrail(position.clone().add(offset), size);
+    }
+  }
+  
+  /**
+   * Create post-processing pipeline
+   */
+  createPostProcessing() {
+    if (!this.renderer) {
+      console.warn('[POST-PROCESSING] Renderer not available, skipping post-processing');
+      return;
+    }
+    
+    // Check if EffectComposer is available (from three/examples/jsm/postprocessing)
+    try {
+      // Dynamic imports for post-processing
+      import('three/examples/jsm/postprocessing/EffectComposer.js').then(({ EffectComposer }) => {
+        import('three/examples/jsm/postprocessing/RenderPass.js').then(({ RenderPass }) => {
+          import('three/examples/jsm/postprocessing/ShaderPass.js').then(({ ShaderPass }) => {
+            import('three/examples/jsm/shaders/CopyShader.js').then(({ CopyShader }) => {
+              import('three/examples/jsm/shaders/LuminosityHighPassShader.js').then(({ LuminosityHighPassShader }) => {
+                import('three/examples/jsm/postprocessing/UnrealBloomPass.js').then(({ UnrealBloomPass }) => {
+                  this.initPostProcessing(EffectComposer, RenderPass, ShaderPass, CopyShader, LuminosityHighPassShader, UnrealBloomPass);
+                }).catch(err => console.warn('[POST-PROCESSING] UnrealBloomPass not available:', err));
+              }).catch(err => console.warn('[POST-PROCESSING] LuminosityHighPassShader not available:', err));
+            }).catch(err => console.warn('[POST-PROCESSING] CopyShader not available:', err));
+          }).catch(err => console.warn('[POST-PROCESSING] ShaderPass not available:', err));
+        }).catch(err => console.warn('[POST-PROCESSING] RenderPass not available:', err));
+      }).catch(err => console.warn('[POST-PROCESSING] EffectComposer not available:', err));
+    } catch (err) {
+      console.warn('[POST-PROCESSING] Post-processing not available:', err);
+    }
+  }
+  
+  initPostProcessing(EffectComposer, RenderPass, ShaderPass, CopyShader, LuminosityHighPassShader, UnrealBloomPass) {
+    // Create composer
+    this.composer = new EffectComposer(this.renderer);
+    
+    // Add render pass
+    const renderPass = new RenderPass(this.scene, this.camera);
+    this.composer.addPass(renderPass);
+    
+    // Create ACES Tone Mapping Pass
+    const acToneMapShader = {
+      uniforms: {
+        tDiffuse: { value: null },
+        exposure: { value: 1.0 }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec2 vUv;
+        uniform sampler2D tDiffuse;
+        uniform float exposure;
+        
+        // ACES Filmic Tone Mapping Curve
+        vec3 aces(vec3 x) {
+          const float a = 2.51;
+          const float b = 0.03;
+          const float c = 2.43;
+          const float d = 0.59;
+          const float e = 0.14;
+          return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+        }
+        
+        void main() {
+          vec4 color = texture2D(tDiffuse, vUv);
+          vec3 mappedColor = aces(color.rgb * exposure);
+          gl_FragColor = vec4(mappedColor, color.a);
+        }
+      `
+    };
+    
+    const toneMapPass = new ShaderPass(acToneMapShader);
+    toneMapPass.uniforms.exposure.value = 1.1;
+    this.composer.addPass(toneMapPass);
+    
+    // Create Chromatic Aberration Pass
+    const chromaticAberrationShader = {
+      uniforms: {
+        tDiffuse: { value: null },
+        strength: { value: 0.003 }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec2 vUv;
+        uniform sampler2D tDiffuse;
+        uniform float strength;
+        
+        void main() {
+          vec2 uv = vUv;
+          vec2 center = vec2(0.5, 0.5);
+          vec2 dir = uv - center;
+          float dist = length(dir);
+          
+          // Chromatic aberration increases with distance from center
+          float aberration = dist * strength;
+          
+          float r = texture2D(tDiffuse, uv + dir * aberration * 1.0).r;
+          float g = texture2D(tDiffuse, uv + dir * aberration * 0.5).g;
+          float b = texture2D(tDiffuse, uv - dir * aberration * 0.5).b;
+          float a = texture2D(tDiffuse, uv).a;
+          
+          gl_FragColor = vec4(r, g, b, a);
+        }
+      `
+    };
+    
+    const chromaticPass = new ShaderPass(chromaticAberrationShader);
+    chromaticPass.uniforms.strength.value = 0.0025;
+    this.composer.addPass(chromaticPass);
+    
+    // Create Vignette Pass
+    const vignetteShader = {
+      uniforms: {
+        tDiffuse: { value: null },
+        strength: { value: 0.35 },
+        radius: { value: 0.75 }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec2 vUv;
+        uniform sampler2D tDiffuse;
+        uniform float strength;
+        uniform float radius;
+        
+        void main() {
+          vec4 color = texture2D(tDiffuse, vUv);
+          vec2 center = vec2(0.5, 0.5);
+          vec2 dir = vUv - center;
+          float dist = length(dir) * 2.0;
+          
+          // Smooth vignette falloff
+          float vignette = smoothstep(radius, 1.0, dist);
+          vignette = pow(vignette, 1.5);
+          
+          vec3 vignetteColor = mix(color.rgb, color.rgb * (1.0 - strength), vignette);
+          
+          gl_FragColor = vec4(vignetteColor, color.a);
+        }
+      `
+    };
+    
+    const vignettePass = new ShaderPass(vignetteShader);
+    vignettePass.uniforms.strength.value = 0.25;
+    this.composer.addPass(vignettePass);
+    
+    // Create Color Grading Pass (LUT-like effect)
+    const colorGradingShader = {
+      uniforms: {
+        tDiffuse: { value: null },
+        saturation: { value: 1.05 },
+        contrast: { value: 1.02 },
+        temperature: { value: 1.0 },
+        tint: { value: 1.0 }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec2 vUv;
+        uniform sampler2D tDiffuse;
+        uniform float saturation;
+        uniform float contrast;
+        uniform float temperature;
+        uniform float tint;
+        
+        void main() {
+          vec4 color = texture2D(tDiffuse, vUv);
+          vec3 rgb = color.rgb;
+          
+          // Temperature adjustment
+          vec3 tempColor = vec3(1.0, 0.9, 0.8);
+          rgb = mix(rgb, rgb * tempColor, (temperature - 1.0) * 0.5);
+          
+          // Tint adjustment
+          vec3 tintColor = vec3(0.8, 0.9, 1.0);
+          rgb = mix(rgb, rgb * tintColor, (tint - 1.0) * 0.5);
+          
+          // Saturation
+          float luminance = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+          rgb = mix(vec3(luminance), rgb, saturation);
+          
+          // Contrast
+          rgb = (rgb - 0.5) * contrast + 0.5;
+          
+          // Dream-like color grading (warm pink/purple tint)
+          vec3 dreamTint = vec3(1.02, 0.98, 1.05);
+          rgb *= dreamTint;
+          
+          // Subtle shadow boost
+          rgb += vec3(0.02, 0.0, 0.03) * (1.0 - luminance) * 0.5;
+          
+          gl_FragColor = vec4(rgb, color.a);
+        }
+      `
+    };
+    
+    const colorGradingPass = new ShaderPass(colorGradingShader);
+    colorGradingPass.uniforms.saturation.value = 1.08;
+    colorGradingPass.uniforms.contrast.value = 1.03;
+    this.composer.addPass(colorGradingPass);
+    
+    // Store passes for external access
+    this.postProcessingPasses = {
+      toneMap: toneMapPass,
+      chromaticAberration: chromaticPass,
+      vignette: vignettePass,
+      colorGrading: colorGradingPass
+    };
+    
+    console.log('[POST-PROCESSING] Pipeline initialized with ACES, Chromatic Aberration, Vignette, and Color Grading');
+  }
+  
+  /**
+   * Render with post-processing
+   */
+  render() {
+    if (this.composer) {
+      this.composer.render();
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
+  }
+  
+  /**
+   * Set renderer and initialize post-processing
+   */
+  setRenderer(renderer) {
+    this.renderer = renderer;
+    if (renderer) {
+      this.createPostProcessing();
     }
   }
   
@@ -2662,10 +3057,10 @@ export class DreamDesert2 {
           this.sunGlow.position.copy(this.sunLight.position);
           // Scale glow based on sun height (larger when lower)
           const sunHeight = sunY;
-          const glowScale = 35 + (70 - sunHeight) * 0.3;
+          const glowScale = 26 + (70 - sunHeight) * 0.18;
           this.sunGlow.scale.set(glowScale, glowScale, 1);
           // Fade based on height (brighter when higher)
-          const glowOpacity = 0.5 + (sunY / 75) * 0.3;
+          const glowOpacity = 0.24 + (sunY / 75) * 0.18;
           this.sunGlow.material.opacity = glowOpacity;
         }
         
@@ -2718,5 +3113,25 @@ export class DreamDesert2 {
         obj.object.material.opacity = 0.03 + (pulse * 0.05);
       }
     });
+  }
+  
+  /**
+   * Resize post-processing composer
+   */
+  resize(width, height) {
+    if (this.composer) {
+      this.composer.setSize(width, height);
+    }
+  }
+  
+  /**
+   * Dispose post-processing resources
+   */
+  dispose() {
+    if (this.composer) {
+      this.composer.dispose();
+      this.composer = null;
+    }
+    this.postProcessingPasses = null;
   }
 }

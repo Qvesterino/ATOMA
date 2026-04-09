@@ -26,9 +26,13 @@ export class DreamDesert {
     this.dunes = [];
     this.landmarks = [];
     this.horizonMirageBands = [];
+    this.cloudLayers = [];
     this.sunGlowSprite = null;
     this.sunGlowTexture = null;
     this.sunPointLight = null;
+    this.sunOrbitRadiusX = 14;
+    this.sunOrbitRadiusZ = 18;
+    this.sunOrbitSpeed = (Math.PI * 2) / 420;
     this.collisionObjects = []; // Track collision meshes
     
     // Session 112+: Initialize map reference plane from config
@@ -45,6 +49,7 @@ export class DreamDesert {
     this.createDustDevils();
     this.createAuroraRibbons();
     this.createHorizonMirage();
+    this.createCloudLayers();
   }
   
   /**
@@ -731,15 +736,15 @@ export class DreamDesert {
    */
   createLighting() {
     if (this.scene) {
-      this.scene.fog = new THREE.FogExp2(0xe7c0a5, 0.0042);
-      this.scene.background = new THREE.Color(0x160c12);
+      this.scene.fog = new THREE.FogExp2(0xe2c0a8, 0.0036);
+      this.scene.background = new THREE.Color(0x12070d);
     }
 
     const skyGeometry = new THREE.SphereGeometry(150, 16, 16);
     const skyMaterial = new THREE.ShaderMaterial({
       uniforms: {
-        uTopColor: { value: new THREE.Color(0xffe1c8) },
-        uBottomColor: { value: new THREE.Color(0x7d475b) }
+        uTopColor: { value: new THREE.Color(0xffdcc6) },
+        uBottomColor: { value: new THREE.Color(0x8a4f5d) }
       },
       vertexShader: `
         varying vec3 vWorldPosition;
@@ -767,10 +772,10 @@ export class DreamDesert {
     skySphere.renderOrder = -1;
     this.worldRoot.add(skySphere);
 
-    const hemisphere = new THREE.HemisphereLight(0xffe7d4, 0x3b1f28, 0.56);
+    const hemisphere = new THREE.HemisphereLight(0xffe0ca, 0x3b1f28, 0.48);
     this.worldRoot.add(hemisphere);
 
-    const directional = new THREE.DirectionalLight(0xffcf9a, 0.72);
+    const directional = new THREE.DirectionalLight(0xffc98f, 0.62);
     directional.position.set(-45, 78, 38);
     directional.castShadow = true;
     directional.shadow.mapSize.width = 2048;
@@ -789,21 +794,21 @@ export class DreamDesert {
 
     const sunMaterial = new THREE.SpriteMaterial({
       map: this.sunGlowTexture,
-      color: 0xffd5a4,
+      color: 0xffd2a0,
       transparent: true,
-      opacity: 0.34,
+      opacity: 0.28,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       toneMapped: false
     });
     const sunGlow = new THREE.Sprite(sunMaterial);
     sunGlow.position.set(-58, 34, -100);
-    sunGlow.scale.set(28, 28, 1);
+    sunGlow.scale.set(26, 26, 1);
     sunGlow.renderOrder = 2;
     this.worldRoot.add(sunGlow);
     this.sunGlowSprite = sunGlow;
 
-    const sunLight = new THREE.PointLight(0xffbf83, 0.45, 160, 2);
+    const sunLight = new THREE.PointLight(0xffbf83, 0.38, 150, 2);
     sunLight.position.copy(sunGlow.position);
     this.worldRoot.add(sunLight);
     this.sunPointLight = sunLight;
@@ -849,6 +854,139 @@ export class DreamDesert {
       depthWrite: false,
       depthTest: true,
       toneMapped: false
+    });
+  }
+
+  createCloudLayers() {
+    const cloudConfigs = [
+      { y: 24, count: 4, scale: 72, speed: 0.022, opacity: 0.09, color: 0xffece4 },
+      { y: 31, count: 3, scale: 92, speed: 0.028, opacity: 0.07, color: 0xf7e4db },
+      { y: 38, count: 2, scale: 112, speed: 0.018, opacity: 0.055, color: 0xeed6d8 }
+    ];
+
+    this.cloudLayers = [];
+
+    cloudConfigs.forEach((config, layerIndex) => {
+      for (let i = 0; i < config.count; i++) {
+        const cloudWidth = 58 + Math.random() * 42;
+        const cloudHeight = 16 + Math.random() * 12;
+        const cloudGeo = new THREE.PlaneGeometry(cloudWidth, cloudHeight, 28, 12);
+
+        const cloudMaterial = new THREE.ShaderMaterial({
+          uniforms: {
+            uTime: { value: 0 },
+            uColor: { value: new THREE.Color(config.color) },
+            uSpeed: { value: config.speed + Math.random() * 0.012 },
+            uNoiseScale: { value: 1.6 + Math.random() * 0.45 },
+            uOpacity: { value: config.opacity },
+            uPhase: { value: Math.random() * Math.PI * 2 }
+          },
+          vertexShader: `
+            varying vec2 vUv;
+            varying float vElevation;
+            uniform float uTime;
+            uniform float uNoiseScale;
+            uniform float uPhase;
+
+            float hash(vec2 p) {
+              return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+            }
+
+            float noise(vec2 p) {
+              vec2 i = floor(p);
+              vec2 f = fract(p);
+              float a = hash(i);
+              float b = hash(i + vec2(1.0, 0.0));
+              float c = hash(i + vec2(0.0, 1.0));
+              float d = hash(i + vec2(1.0, 1.0));
+              vec2 u = f * f * (3.0 - 2.0 * f);
+              return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+            }
+
+            void main() {
+              vUv = uv;
+              float n = noise(uv * uNoiseScale);
+              float elevation = n * 2.6;
+              vElevation = elevation;
+              vec3 newPosition = position;
+              newPosition.z += elevation;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+            }
+          `,
+          fragmentShader: `
+            varying vec2 vUv;
+            varying float vElevation;
+            uniform float uTime;
+            uniform vec3 uColor;
+            uniform float uSpeed;
+            uniform float uOpacity;
+            uniform float uPhase;
+
+            float hash(vec2 p) {
+              return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+            }
+
+            float noise(vec2 p) {
+              vec2 i = floor(p);
+              vec2 f = fract(p);
+              float a = hash(i);
+              float b = hash(i + vec2(1.0, 0.0));
+              float c = hash(i + vec2(0.0, 1.0));
+              float d = hash(i + vec2(1.0, 1.0));
+              vec2 u = f * f * (3.0 - 2.0 * f);
+              return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+            }
+
+            float fbm(vec2 p) {
+              float value = 0.0;
+              float amplitude = 0.5;
+              for (int i = 0; i < 4; i++) {
+                value += amplitude * noise(p);
+                p *= 2.0;
+                amplitude *= 0.5;
+              }
+              return value;
+            }
+
+            void main() {
+              vec2 uv = vUv;
+              float time = uTime * uSpeed + uPhase;
+              float n1 = fbm(uv * 2.6 + vec2(time * 0.22, time * 0.12));
+              float n2 = fbm(uv * 4.8 + vec2(time * 0.14, time * 0.28)) * 0.5;
+              float cloud = n1 + n2;
+              float edge = 1.0 - length(uv - 0.5) * 2.0;
+              edge = smoothstep(0.0, 0.55, edge);
+              float density = cloud * 0.45 + 0.5;
+              float alpha = uOpacity * density * edge;
+              vec3 color = uColor;
+              color += vec3(0.04, 0.015, 0.0) * sin(time + uv.x * 4.0);
+              if (alpha < 0.01) discard;
+              gl_FragColor = vec4(color, alpha);
+            }
+          `,
+          transparent: true,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+          blending: THREE.NormalBlending
+        });
+
+        const cloud = new THREE.Mesh(cloudGeo, cloudMaterial);
+        const baseX = (Math.random() - 0.5) * 130;
+        const baseZ = -84 - Math.random() * 52;
+        cloud.position.set(
+          baseX,
+          config.y,
+          baseZ
+        );
+        cloud.rotation.x = -0.08;
+        cloud.rotation.y = (Math.random() - 0.5) * 0.15;
+        cloud.name = `cloud_${layerIndex}_${i}`;
+        cloud.userData.baseX = baseX;
+        cloud.userData.baseZ = baseZ;
+        cloud.userData.phase = Math.random() * Math.PI * 2;
+        this.worldRoot.add(cloud);
+        this.cloudLayers.push(cloud);
+      }
     });
   }
 
@@ -1471,15 +1609,36 @@ export class DreamDesert {
     });
 
     if (this.sunGlowSprite) {
+      const orbitAngle = time * this.sunOrbitSpeed;
+      const sunX = -58 + Math.cos(orbitAngle) * this.sunOrbitRadiusX;
+      const sunZ = -100 + Math.sin(orbitAngle) * this.sunOrbitRadiusZ;
+      const sunY = 34 + Math.sin(orbitAngle * 0.55) * 4.5;
+      this.sunGlowSprite.position.set(sunX, sunY, sunZ);
       const pulse = Math.sin(time * 0.2) * 0.5 + 0.5;
-      this.sunGlowSprite.material.opacity = 0.28 + pulse * 0.08;
-      const sunScale = 26 + pulse * 1.5;
+      this.sunGlowSprite.material.opacity = 0.24 + pulse * 0.06;
+      const sunScale = 24 + pulse * 1.2;
       this.sunGlowSprite.scale.set(sunScale, sunScale, 1);
     }
 
     if (this.sunPointLight) {
+      const orbitAngle = time * this.sunOrbitSpeed;
+      const sunX = -58 + Math.cos(orbitAngle) * this.sunOrbitRadiusX;
+      const sunZ = -100 + Math.sin(orbitAngle) * this.sunOrbitRadiusZ;
+      const sunY = 34 + Math.sin(orbitAngle * 0.55) * 4.5;
+      this.sunPointLight.position.set(sunX, sunY, sunZ);
       const pulse = Math.sin(time * 0.2) * 0.5 + 0.5;
-      this.sunPointLight.intensity = 0.38 + pulse * 0.12;
+      this.sunPointLight.intensity = 0.32 + pulse * 0.08;
+    }
+
+    if (this.cloudLayers.length) {
+      this.cloudLayers.forEach((cloud, index) => {
+        if (cloud.material && cloud.material.uniforms) {
+          cloud.material.uniforms.uTime.value = time;
+        }
+        const phase = cloud.userData.phase || 0;
+        cloud.position.x = cloud.userData.baseX + Math.sin(time * 0.02 + index * 1.7 + phase) * 1.8;
+        cloud.position.z = cloud.userData.baseZ + Math.cos(time * 0.018 + index * 0.9 + phase) * 1.1;
+      });
     }
 
     if (this.landmarks.length) {

@@ -22,11 +22,14 @@ class PlayerController {
     this.playerHeight = options.playerHeight || player.geometry?.parameters?.height || 1.8;
     this.playerHalfWidth = options.playerHalfWidth || player.geometry?.parameters?.width * 0.5 || 0.3;
     this.collisionEpsilon = options.collisionEpsilon || 0.02;
+    this.maxJumpCount = options.maxJumpCount || 2;
 
     // State
     this.velocity = new THREE.Vector3();
     this.isOnGround = true;
     this.canJump = true;
+    this.jumpCount = 0;
+    this.lastSpaceState = false;
     this.keys = {};
     this._raycaster = new THREE.Raycaster();
     this._rayOrigin = new THREE.Vector3();
@@ -134,7 +137,7 @@ class PlayerController {
 
   getGroundLevelAt(x, z, collisionObjects) {
     if (typeof this.groundHeightProvider === 'function') {
-      const analyticGroundLevel = this.groundHeightProvider(x, z, collisionObjects);
+      const analyticGroundLevel = this.groundHeightProvider(x, z, collisionObjects, this.player.position.y);
       if (Number.isFinite(analyticGroundLevel)) {
         return analyticGroundLevel;
       }
@@ -227,16 +230,24 @@ class PlayerController {
       }
       this.isOnGround = true;
       this.canJump = true;
+      this.jumpCount = 0;
     } else {
       this.velocity.y -= this.gravity * deltaTime;
       this.isOnGround = false;
     }
 
     // Handle jumping
-    if (this.keys['Space'] && this.isOnGround && this.canJump) {
+    const spaceDown = !!this.keys['Space'];
+    const spacePressed = spaceDown && !this.lastSpaceState;
+    this.lastSpaceState = spaceDown;
+
+    if (spacePressed && this.canJump && this.jumpCount < this.maxJumpCount) {
       this.velocity.y = this.jumpForce;
       this.isOnGround = false;
-      this.canJump = false; // Prevent double jumps until grounded again
+      this.jumpCount += 1;
+      if (this.jumpCount >= this.maxJumpCount) {
+        this.canJump = false;
+      }
     }
 
     // --- Horizontal Movement ---

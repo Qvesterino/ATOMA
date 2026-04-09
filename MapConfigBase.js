@@ -45,7 +45,6 @@ export const MapConfigBase = {
   FractalValley: {
     mapId: 'fractal_valley',
     theme: 'fractal',
-    referencePlane: 'logic_plane',
     description: 'Recursive mathematical space - Self-similar, fractal geometry',
     enableDecorativeWorldFX: false,
     allowWorldTimeModulation: false
