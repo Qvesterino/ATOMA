@@ -84,6 +84,15 @@ const CONFIG = {
     // Performance
     MAX_ECHOES_PER_ZONE: 8,           // Cap echoes per active composite
     UPDATE_INTERVAL: 1 / 30,          // 30 Hz throttle
+    LAYERED_ECHO_TRAILS_ENABLED: true,
+    ECHO_LAYER_COUNT: 3,
+    ECHO_DEPTH_STEP: 0.012,
+    ECHO_BODY_RATIO: 0.42,
+    ECHO_AFTERGLOW_RATIO: 0.78,
+    ECHO_RESIDUE_SOFTNESS: 0.18,
+    ECHO_SPATIAL_JITTER: 0.008,
+    ECHO_BRIDGE_ENABLED: true,
+    ECHO_BRIDGE_MIN_MOTION: 0.02,
     
     // Debug
     DEBUG_DRAW_ECHOES: false
@@ -98,6 +107,7 @@ const RESONANCE_ECHO_LOG_THROTTLE_MS = 30000; // 30 seconds
 class EchoInstance {
     constructor(mesh) {
         this.mesh = mesh;
+        this.baseRenderOrder = mesh?.renderOrder ?? 0;
         this.active = false;
         this.position = new THREE.Vector3();
         this.targetOpacity = 0.0;
@@ -106,6 +116,15 @@ class EchoInstance {
         this.age = 0.0;
         this.compositeGlyph = null;
         this._spawnTime = 0.0;
+        this._sourceGeometryRef = null;
+        this.baseScale = 1.0;
+        this.layerIndex = 0;
+        this.layerRole = 'medium';
+        this.renderOrderBias = 0;
+        this.fadeProfile = null;
+        this.depthOffset = 0.0;
+        this._baseColor = new THREE.Color(0xc8c8c8);
+        this._residueColor = new THREE.Color(0xc8c8c8);
         
         // State for visual modulation (canonical composite metrics)
         this.harmony = 0.5;      // Canonical: node.userData.metrics.harmony
@@ -124,6 +143,12 @@ class EchoInstance {
         this.currentOpacity = 0.0;
         this.synergy = 0.5;
         this.stability = 0.5;
+        this.baseScale = 1.0;
+        this.layerIndex = 0;
+        this.layerRole = 'medium';
+        this.renderOrderBias = 0;
+        this.fadeProfile = null;
+        this.depthOffset = 0.0;
         if (this.debugMarker) this.debugMarker.visible = false;
         if (this.debugRing) this.debugRing.visible = false;
     }
@@ -148,8 +173,32 @@ class EchoInstance {
         this.stability = stability;
         this._spawnTime = currentVisualTime;
         
-        // Calculate lifetime based on state
         const profile = visualProfile || {};
+        this.layerIndex = Number.isFinite(profile.layerIndex) ? profile.layerIndex : 0;
+        this.layerRole = profile.layerRole || 'medium';
+        this.renderOrderBias = Number.isFinite(profile.renderOrderBias) ? profile.renderOrderBias : 0;
+        this.fadeProfile = profile.fadeProfile || null;
+        this.depthOffset = Number.isFinite(profile.depthOffset) ? profile.depthOffset : 0.0;
+        this.baseScale = 0.9 +
+            harmony * 0.08 +
+            synergy * 0.16 +
+            stability * 0.14 -
+            corruption * 0.06 +
+            (Number.isFinite(profile.scaleBoost) ? profile.scaleBoost : 0.0);
+        this.mesh.renderOrder = this.baseRenderOrder + this.renderOrderBias;
+
+        if (this.depthOffset !== 0) {
+            this.mesh.position.z += this.depthOffset;
+        }
+
+        const jitterRadius = Number.isFinite(profile.jitterRadius) ? profile.jitterRadius : 0.0;
+        if (jitterRadius > 0) {
+            const jitterSeed = (harmony * 0.37 + synergy * 0.53 + stability * 0.29 + corruption * 0.21 + this.layerIndex * 0.17) * Math.PI * 2;
+            this.mesh.position.x += Math.sin(jitterSeed) * jitterRadius;
+            this.mesh.position.y += Math.cos(jitterSeed * 1.37) * jitterRadius;
+        }
+        
+        // Calculate lifetime based on state
         const lifetimeBoost = Number.isFinite(profile.lifetimeBoost) ? profile.lifetimeBoost : 1.0;
         this.lifetime = THREE.MathUtils.clamp(
             this.calculateLifetime() * lifetimeBoost,
@@ -168,35 +217,38 @@ class EchoInstance {
             0.28
         );
         const profileOpacityBoost = Number.isFinite(profile.opacityBoost) ? profile.opacityBoost : 0.0;
-        const profileScaleBoost = Number.isFinite(profile.scaleBoost) ? profile.scaleBoost : 0.0;
         this.targetOpacity = THREE.MathUtils.clamp(
             CONFIG.BASE_ECHO_OPACITY + visibilityLift + profileOpacityBoost,
             CONFIG.BASE_ECHO_OPACITY,
             0.72
         );
         this.currentOpacity = this.targetOpacity;
-        this.mesh.material.opacity = this.targetOpacity;
-        this.mesh.material.color.setRGB(
+        this._baseColor.setRGB(
             0.88 + harmony * 0.08 + stability * 0.05,
             0.88 + synergy * 0.06 + stability * 0.05,
             0.90 + synergy * 0.05 + stability * 0.06
         );
-        this.mesh.scale.setScalar(
-            0.9 +
-            harmony * 0.08 +
-            synergy * 0.16 +
-            stability * 0.14 -
-            corruption * 0.06 +
-            profileScaleBoost
+        this._residueColor.setRGB(
+            0.82 + harmony * 0.03 - corruption * 0.04,
+            0.83 + synergy * 0.02 - corruption * 0.05,
+            0.85 + stability * 0.04 - corruption * 0.03
         );
+        this.mesh.material.opacity = this.targetOpacity * (0.96 + (Number.isFinite(profile.opacityBoost) ? profile.opacityBoost : 0.0) * 0.5);
+        this.mesh.material.color.copy(this._baseColor).lerp(this._residueColor, Math.min(0.28, (Number.isFinite(profile.temperatureMix) ? profile.temperatureMix : 0.08) * 0.5));
+        this.mesh.scale.setScalar(Math.max(0.62, this.baseScale));
         
         // Update geometry if provided (for simplified silhouette)
         if (compositeGeometry && compositeGeometry !== this.mesh.geometry) {
-            const nextGeometry = typeof compositeGeometry.clone === 'function'
-                ? compositeGeometry.clone()
-                : compositeGeometry;
-            this.mesh.geometry.dispose();
-            this.mesh.geometry = nextGeometry;
+            if (this._sourceGeometryRef !== compositeGeometry) {
+                const nextGeometry = typeof compositeGeometry.clone === 'function'
+                    ? compositeGeometry.clone()
+                    : compositeGeometry;
+                if (this.mesh.geometry && this.mesh.geometry !== nextGeometry) {
+                    this.mesh.geometry.dispose();
+                }
+                this.mesh.geometry = nextGeometry;
+                this._sourceGeometryRef = compositeGeometry;
+            }
         }
     }
     
@@ -240,21 +292,57 @@ class EchoInstance {
         
         // POLISHED: Smooth ease-out fade curve (cubic S-curve)
         const progress = this.age / this.lifetime;
-        const fadeCurve = this.smoothEaseFade(progress);
+        const temporalEnvelope = this.getTemporalEnvelope(progress);
         
         // Update opacity with smooth fade
-        this.currentOpacity = this.targetOpacity * (1.0 - fadeCurve);
+        this.currentOpacity = this.targetOpacity * temporalEnvelope.opacity;
         this.mesh.material.opacity = Math.max(0, this.currentOpacity);
+        this.mesh.scale.setScalar(Math.max(0.62, this.baseScale * temporalEnvelope.scale));
+        if (this.mesh.material?.color && this._baseColor && this._residueColor) {
+            const temperatureMix = THREE.MathUtils.clamp((this.fadeProfile?.temperatureMix ?? 0.08) + progress * 0.3, 0, 1);
+            this.mesh.material.color.copy(this._baseColor).lerp(this._residueColor, temperatureMix);
+        }
         
         // POLISHED: Removed distortion (kept echoes stable and calm)
         // Stability comes from stillness, not motion
+    }
+
+    getTemporalEnvelope(progress) {
+        const profile = this.fadeProfile || {};
+        const bodyRatio = THREE.MathUtils.clamp(profile.bodyRatio ?? CONFIG.ECHO_BODY_RATIO, 0.22, 0.62);
+        const afterglowRatio = THREE.MathUtils.clamp(profile.afterglowRatio ?? CONFIG.ECHO_AFTERGLOW_RATIO, bodyRatio + 0.08, 0.93);
+        const residueSoftness = THREE.MathUtils.clamp(profile.residueSoftness ?? CONFIG.ECHO_RESIDUE_SOFTNESS, 0.08, 0.3);
+        const scaleDecay = Number.isFinite(profile.scaleDecay) ? profile.scaleDecay : 0.06;
+        const scalePulse = Number.isFinite(profile.scalePulse) ? profile.scalePulse : 0.02;
+
+        let opacity;
+        if (progress <= bodyRatio) {
+            const bodyT = progress / Math.max(0.001, bodyRatio);
+            const easedBody = bodyT * bodyT * (3 - 2 * bodyT);
+            opacity = 1.0 - easedBody * (0.05 + residueSoftness * 0.1);
+        } else if (progress <= afterglowRatio) {
+            const afterT = (progress - bodyRatio) / Math.max(0.001, afterglowRatio - bodyRatio);
+            const easedAfter = afterT * afterT * (3 - 2 * afterT);
+            opacity = 0.95 - easedAfter * (0.95 - 0.34);
+        } else {
+            const tailT = (progress - afterglowRatio) / Math.max(0.001, 1 - afterglowRatio);
+            const tailEase = tailT * tailT;
+            opacity = Math.max(0, 0.34 * (1 - tailEase * (1.0 + residueSoftness * 0.85)));
+        }
+
+        const scale = Math.max(0.62, 1.0 + scalePulse * Math.sin(progress * Math.PI) - progress * scaleDecay);
+
+        return {
+            opacity: THREE.MathUtils.clamp(opacity, 0, 1),
+            scale
+        };
     }
     
     // POLISHED: Smooth ease-out curve (gentle acceleration of fade)
     smoothEaseFade(t) {
         // Cubic ease-out: slow start, faster end
         // Creates natural-feeling temporal memory
-        return t * t * t;
+        return 1 - this.getTemporalEnvelope(t).opacity;
     }
 }
 
@@ -267,6 +355,8 @@ class CompositeGlyphTracker {
         this.compositeId = null;
         this.lastEchoSpawnTime = 0.0;
         this.lastPosition = new THREE.Vector3();
+        this.previousPosition = new THREE.Vector3();
+        this.lastMotionDistance = 0;
         this.historyPositions = [];  // Ring buffer of past positions
     }
     
@@ -279,12 +369,16 @@ class CompositeGlyphTracker {
         
         // Track position history
         const currentPos = compositeGlyph.mesh.position;
-        if (this.lastPosition.distanceTo(currentPos) > 0.01) {
+        this.lastMotionDistance = this.lastPosition.distanceTo(currentPos);
+        if (this.lastMotionDistance > 0.01) {
+            this.previousPosition.copy(this.lastPosition);
             this.historyPositions.push(currentPos.clone());
             if (this.historyPositions.length > 20) {
                 this.historyPositions.shift();
             }
             this.lastPosition.copy(currentPos);
+        } else if (!this.historyPositions.length) {
+            this.previousPosition.copy(currentPos);
         }
         
         return true;
@@ -335,6 +429,8 @@ export class ResonanceEchoTrailSystem {
         this._lastVisualTime = undefined;
         this._semanticEventsBound = false;
         this._lifecycleLogTimes = new Map();
+        this._echoBridgeScratch = new THREE.Vector3();
+        this._echoSpawnScratch = new THREE.Vector3();
         this._boundWaveBurstHandler = (burst) => {
             const resolved = this._resolveBurstPayload(burst);
             if (!resolved) return;
@@ -572,38 +668,35 @@ export class ResonanceEchoTrailSystem {
                 if (state) {
                     const metrics = this._resolveCompositeMetrics(state);
                     const band = this._getEchoVisibilityBand(metrics);
-                    const spawnCount = Math.min(
-                        Math.max(0, band.spawnCount),
-                        CONFIG.MAX_ECHOES_PER_ZONE - echoSpawnCount
-                    );
+                    const remainingBudget = CONFIG.MAX_ECHOES_PER_ZONE - echoSpawnCount;
 
-                    if (spawnCount > 0) {
-                        for (let i = 0; i < spawnCount; i += 1) {
-                            this.spawnEcho(
-                                composite.mesh.position,
-                                composite.mesh.geometry,
-                                metrics.harmony,
-                                metrics.corruption,
-                                currentVisualTime,
-                                metrics.synergy,
-                                metrics.stability,
-                                band
-                            );
+                    if (remainingBudget > 0) {
+                        const spawned = this._spawnLayeredEchoes(
+                            composite.mesh.position,
+                            composite.mesh.geometry,
+                            metrics,
+                            currentVisualTime,
+                            band,
+                            tracker,
+                            remainingBudget
+                        );
+
+                        if (spawned > 0) {
+                            this._logLifecycle(`echo-spawn:${composite.id || composite.mesh.uuid}`, 'echo spawned from composite', {
+                                compositeId: composite.id || composite.mesh.uuid,
+                                harmony: metrics.harmony,
+                                corruption: metrics.corruption,
+                                synergy: metrics.synergy,
+                                stability: metrics.stability,
+                                visibilityScore: band.visibilityScore,
+                                spawnCount: spawned,
+                                activeEchoes: this.echoInstances.filter((echo) => echo.active).length
+                            });
+                            echoSpawnCount += spawned;
                         }
-                        this._logLifecycle(`echo-spawn:${composite.id || composite.mesh.uuid}`, 'echo spawned from composite', {
-                            compositeId: composite.id || composite.mesh.uuid,
-                            harmony: metrics.harmony,
-                            corruption: metrics.corruption,
-                            synergy: metrics.synergy,
-                            stability: metrics.stability,
-                            visibilityScore: band.visibilityScore,
-                            spawnCount,
-                            activeEchoes: this.echoInstances.filter((echo) => echo.active).length
-                        });
-                        echoSpawnCount += spawnCount;
                     }
                 }
-                
+
                 tracker.resetSpawnTimer(currentVisualTime);
             }
         }
@@ -622,9 +715,11 @@ export class ResonanceEchoTrailSystem {
         for (let echo of this.echoInstances) {
             if (!echo.active) {
                 echo.spawn(position, geometry, harmony, corruption, currentVisualTime, synergy, stability, visualProfile);
-                return;
+                return true;
             }
         }
+
+        return false;
     }
 
     // SIMPLIFIED: spawnEchoTrail with canonical metrics derived from intensity
@@ -667,16 +762,14 @@ export class ResonanceEchoTrailSystem {
             lifetimeBoost: 0.96
         };
 
-        this.spawnEcho(
+        this._spawnLayeredEchoes(
             new THREE.Vector3(x, y, z),
             pooledGeometry,
-            finalMetrics.harmony,
-            finalMetrics.corruption,
-            currentVisualTime
-            ,
-            finalMetrics.synergy,
-            finalMetrics.stability,
-            trailProfile
+            finalMetrics,
+            currentVisualTime,
+            trailProfile,
+            null,
+            CONFIG.MAX_ECHOES_PER_ZONE
         );
     }
 
@@ -757,6 +850,151 @@ export class ResonanceEchoTrailSystem {
             scaleBoost: 0.08 + visibilityScore * 0.14,
             lifetimeBoost: 0.9 + visibilityScore * 0.18
         };
+    }
+
+    _buildEchoLayerProfiles(metrics = {}, band = {}, tracker = null) {
+        if (!CONFIG.LAYERED_ECHO_TRAILS_ENABLED || !band?.active) {
+            return [];
+        }
+
+        const stage = band.stage || 'visible';
+        const baseLayerRoles = stage === 'locked'
+            ? ['short', 'medium', 'long']
+            : stage === 'strong'
+                ? ['short', 'medium']
+                : ['medium'];
+
+        const desiredCount = Math.max(1, Math.min(CONFIG.ECHO_LAYER_COUNT, band.spawnCount ?? baseLayerRoles.length));
+        const layerRoles = baseLayerRoles.slice(0, desiredCount);
+
+        const harmony = THREE.MathUtils.clamp(metrics.harmony ?? 0.5, 0, 1);
+        const synergy = THREE.MathUtils.clamp(metrics.synergy ?? 0.5, 0, 1);
+        const corruption = THREE.MathUtils.clamp(metrics.corruption ?? 0, 0, 1);
+        const stability = THREE.MathUtils.clamp(metrics.stability ?? 0.5, 0, 1);
+        const visibilityScore = THREE.MathUtils.clamp(band.visibilityScore ?? 0.5, 0, 1);
+        const motionFactor = THREE.MathUtils.clamp((tracker?.lastMotionDistance ?? 0) * 12, 0, 1);
+
+        const templates = {
+            short: {
+                lifetimeBoost: 0.74,
+                opacityBoost: -0.03,
+                scaleBoost: -0.04,
+                renderOrderBias: 2,
+                bodyRatio: 0.34,
+                afterglowRatio: 0.68,
+                residueSoftness: 0.14,
+                temperatureMix: 0.12,
+                scaleDecay: 0.08,
+                scalePulse: 0.014,
+                depthOffset: 0.012
+            },
+            medium: {
+                lifetimeBoost: 1.0,
+                opacityBoost: 0.01,
+                scaleBoost: 0.0,
+                renderOrderBias: 1,
+                bodyRatio: 0.42,
+                afterglowRatio: 0.78,
+                residueSoftness: 0.18,
+                temperatureMix: 0.08,
+                scaleDecay: 0.06,
+                scalePulse: 0.018,
+                depthOffset: 0.0
+            },
+            long: {
+                lifetimeBoost: 1.28,
+                opacityBoost: 0.05,
+                scaleBoost: 0.03,
+                renderOrderBias: 0,
+                bodyRatio: 0.50,
+                afterglowRatio: 0.86,
+                residueSoftness: 0.22,
+                temperatureMix: 0.04,
+                scaleDecay: 0.05,
+                scalePulse: 0.022,
+                depthOffset: -0.012
+            }
+        };
+
+        const totalLayers = layerRoles.length;
+
+        return layerRoles.map((layerRole, layerIndex) => {
+            const template = templates[layerRole] || templates.medium;
+            const spread = totalLayers > 1 ? layerIndex / (totalLayers - 1) : 0.5;
+            const geometryDepth = (spread - 0.5) * CONFIG.ECHO_DEPTH_STEP * (1.0 + motionFactor * 0.5);
+
+            return {
+                layerIndex,
+                layerRole,
+                renderOrderBias: template.renderOrderBias,
+                lifetimeBoost: template.lifetimeBoost * (0.9 + harmony * 0.14 + synergy * 0.08 + stability * 0.1 - corruption * 0.12 + visibilityScore * 0.06),
+                opacityBoost: template.opacityBoost + visibilityScore * 0.05 + harmony * 0.03 - corruption * 0.06,
+                scaleBoost: template.scaleBoost + synergy * 0.03 + stability * 0.03 - corruption * 0.02,
+                bodyRatio: template.bodyRatio,
+                afterglowRatio: template.afterglowRatio,
+                residueSoftness: template.residueSoftness,
+                temperatureMix: THREE.MathUtils.clamp(template.temperatureMix + harmony * 0.08 - corruption * 0.08 + visibilityScore * 0.04, 0, 1),
+                scaleDecay: template.scaleDecay + (1 - stability) * 0.025 + corruption * 0.02,
+                scalePulse: template.scalePulse,
+                depthOffset: template.depthOffset + geometryDepth,
+                jitterRadius: ((1 - stability) * CONFIG.ECHO_SPATIAL_JITTER + corruption * CONFIG.ECHO_SPATIAL_JITTER * 0.75) * (0.5 + visibilityScore * 0.5),
+                fadeProfile: {
+                    bodyRatio: template.bodyRatio,
+                    afterglowRatio: template.afterglowRatio,
+                    residueSoftness: template.residueSoftness,
+                    scaleDecay: template.scaleDecay + (1 - stability) * 0.025 + corruption * 0.02,
+                    scalePulse: template.scalePulse,
+                    temperatureMix: THREE.MathUtils.clamp(template.temperatureMix + harmony * 0.08 - corruption * 0.08, 0, 1)
+                }
+            };
+        });
+    }
+
+    _resolveBridgeEchoPosition(tracker, currentPosition, out = this._echoBridgeScratch) {
+        if (!CONFIG.ECHO_BRIDGE_ENABLED || !tracker || !currentPosition) return null;
+        if ((tracker.lastMotionDistance ?? 0) < CONFIG.ECHO_BRIDGE_MIN_MOTION) return null;
+        if (!tracker.previousPosition || !tracker.lastPosition) return null;
+
+        out.copy(tracker.previousPosition).add(currentPosition).multiplyScalar(0.5);
+        return out;
+    }
+
+    _spawnLayeredEchoes(position, geometry, metrics, currentVisualTime, band, tracker = null, spawnBudget = CONFIG.MAX_ECHOES_PER_ZONE) {
+        const layerProfiles = this._buildEchoLayerProfiles(metrics, band, tracker);
+        if (layerProfiles.length === 0) return 0;
+
+        const maxSpawns = Number.isFinite(spawnBudget)
+            ? Math.max(0, Math.floor(spawnBudget))
+            : CONFIG.MAX_ECHOES_PER_ZONE;
+        if (maxSpawns <= 0) return 0;
+
+        const bridgePosition = this._resolveBridgeEchoPosition(tracker, position);
+        const bridgeLayerIndex = layerProfiles.length - 1;
+        let spawned = 0;
+
+        for (let i = 0; i < layerProfiles.length; i += 1) {
+            if (spawned >= maxSpawns) break;
+
+            const layerProfile = layerProfiles[i];
+            const spawnPosition = bridgePosition && i === bridgeLayerIndex && layerProfiles.length > 1
+                ? bridgePosition
+                : position;
+
+            if (this.spawnEcho(
+                spawnPosition,
+                geometry,
+                metrics.harmony,
+                metrics.corruption,
+                currentVisualTime,
+                metrics.synergy,
+                metrics.stability,
+                layerProfile
+            )) {
+                spawned += 1;
+            }
+        }
+
+        return spawned;
     }
     
     // ========================================================================

@@ -81,20 +81,20 @@ export class FractalValley {
       skyTop: new THREE.Color(0x0b1020),
       skyHorizon: new THREE.Color(0x252b3a),
       ridgeShadow: new THREE.Color(0x1a2030),
-      ridgeMid: new THREE.Color(0x3d4556),
-      ridgeLight: new THREE.Color(0x6c727c),
-      groundLow: new THREE.Color(0x59534f),
-      groundMid: new THREE.Color(0x70675f),
-      groundHigh: new THREE.Color(0x8a8688),
-      wetBank: new THREE.Color(0x4d5558),
-      riverDeep: new THREE.Color(0x16303b),
-      riverGlow: new THREE.Color(0x4ba6ac),
-      riverEdge: new THREE.Color(0x8cc2c9),
-      lavenderMist: new THREE.Color(0x8d84ad),
-      bridgeWood: new THREE.Color(0x5d544d),
-      bridgeStone: new THREE.Color(0x4f4b52),
-      bridgeSteel: new THREE.Color(0x555d68),
-      fractalAccent: new THREE.Color(0x7bc0c4)
+      ridgeMid: new THREE.Color(0x3c4251),
+      ridgeLight: new THREE.Color(0x636178),
+      groundLow: new THREE.Color(0x60606b),
+      groundMid: new THREE.Color(0x7b7581),
+      groundHigh: new THREE.Color(0x9690a0),
+      wetBank: new THREE.Color(0x3b4148),
+      riverDeep: new THREE.Color(0x0d2c36),
+      riverGlow: new THREE.Color(0x35b9c6),
+      riverEdge: new THREE.Color(0x7ed9e5),
+      lavenderMist: new THREE.Color(0x9087a2),
+      bridgeWood: new THREE.Color(0x7c746d),
+      bridgeStone: new THREE.Color(0x4a4850),
+      bridgeSteel: new THREE.Color(0x3f5664),
+      fractalAccent: new THREE.Color(0x70bcc2)
     };
 
     this.sharedWorldGeometries = {
@@ -223,10 +223,10 @@ export class FractalValley {
       const frame = this.getRiverFrameAt(focusT);
       this._waterFeatureInfo = {
         frame,
-        halfLength: 30,
-        halfWidth: 8.6,
-        influenceLength: 60,
-        influenceWidth: 17
+        halfLength: 34,
+        halfWidth: 12.5,
+        influenceLength: 76,
+        influenceWidth: 26
       };
     }
 
@@ -254,51 +254,42 @@ export class FractalValley {
   }
 
   sampleTerrainHeight(x, z) {
-    const riverCenterX = this.getRiverCenterX(z);
-    const riverDelta = x - riverCenterX;
-    const absRiverDelta = Math.abs(riverDelta);
-    const riverWidth = this.getRiverWidth(z);
-    const channelHalfWidth = this.getRiverChannelHalfWidth(z);
-    const riverScope = this.getWaterFeatureMask(x, z);
-    const localizedExclusionMask = this._smoothstep(channelHalfWidth * 1.05, channelHalfWidth * 2.4, absRiverDelta);
-    const ridgeExclusionMask = THREE.MathUtils.lerp(1, localizedExclusionMask, riverScope);
+    const waterMask = this.getWaterFeatureMask(x, z);
+    const waterReliefMask = this.getWaterFeatureMask(x, z, 1.55, 1.45);
+    const waterWideMask = this.getWaterFeatureMask(x, z, 2.3, 2.0);
+    const waterAxes = this.getWaterFeatureAxes(x, z);
+    const waterInfo = this.getWaterFeatureInfo();
+    const radial = Math.sqrt(
+      Math.pow(waterAxes.along / waterInfo.halfLength, 2) +
+      Math.pow(waterAxes.across / waterInfo.halfWidth, 2)
+    );
 
     const macroNoise = this.sampleTerrainNoise(x * 0.95, z * 0.95) * 1.3;
     const microNoise = this.sampleTerrainNoise(x * 2.25 + 31.7, z * 2.25 - 17.3) * 0.34;
     const fractureNoise = Math.abs(this.sampleTerrainNoise(x * 1.55 - 53, z * 1.55 + 19));
 
     const valleyBase = -0.85 + macroNoise * 0.3 + microNoise * 0.15;
-    const shoulderDistance = Math.max(0, absRiverDelta - channelHalfWidth * 0.82);
-    const bankLift = this._smoothstep(channelHalfWidth * 0.78, channelHalfWidth * 2.15, absRiverDelta) * (1.45 + shoulderDistance * 0.032) * riverScope;
-
-    const leftMask = this._smoothstep(3, 78, -riverDelta);
-    const rightMask = this._smoothstep(3, 84, riverDelta);
-
-    const leftRidge = riverScope * ridgeExclusionMask * leftMask * (
-      1.95 +
-      Math.max(0, -riverDelta) * 0.038 +
-      fractureNoise * 1.2 +
-      Math.sin(z * 0.026 - 1.2) * 0.45
+    const bankRing = waterReliefMask * this._smoothstep(0.82, 0.26, Math.abs(radial - 0.64));
+    const sideBankRise = waterWideMask * this._smoothstep(6, 18, Math.abs(waterAxes.across)) * (
+      0.9 + fractureNoise * 0.45 + Math.sin(waterAxes.along * 0.09) * 0.18
     );
-    const rightRidge = riverScope * ridgeExclusionMask * rightMask * (
-      1.8 +
-      Math.max(0, riverDelta) * 0.036 +
-      fractureNoise * 1.05 +
-      Math.cos(z * 0.022 + 0.9) * 0.38
+    const alongRoll = waterWideMask * (
+      Math.sin(waterAxes.along * 0.11 - waterAxes.across * 0.05) * 0.34 +
+      Math.cos(waterAxes.along * 0.07 + waterAxes.across * 0.08) * 0.22
     );
+    const bankLift = waterMask * this._smoothstep(1.12, 0.86, radial) * 1.25 + bankRing * 1.05 + sideBankRise;
 
-    const ridgeTerrain = this.sampleRidgeTerrainInfluence(x, z) * ridgeExclusionMask;
+    const ridgeTerrain = this.sampleRidgeTerrainInfluence(x, z) * (1 - waterMask * 0.45);
     const farShoulder = this._smoothstep(54, 136, Math.abs(z + 12)) * 0.7;
     const subtleFractal = Math.sin(x * 0.03 + z * 0.016) * Math.cos(z * 0.041) * 0.4;
-    const riverCarveRadius = channelHalfWidth;
-    const riverCarve = riverScope * this._smoothstep(riverCarveRadius, 0, absRiverDelta) * (
-      2.2 + (1 - this._clamp01(absRiverDelta / riverCarveRadius)) * 0.35
+
+    const poolCarve = waterMask * this._smoothstep(1.0, 0.0, radial) * (
+      2.45 + (1 - this._clamp01(radial)) * 0.48
     );
-    const shallowShelf = riverScope * this._smoothstep(channelHalfWidth * 1.1, channelHalfWidth * 0.52, absRiverDelta) * 0.24;
-    const bankBlend = riverScope * this._smoothstep(channelHalfWidth * 1.55, channelHalfWidth * 0.82, absRiverDelta) * 0.12;
+    const shorelineBlend = waterMask * this._smoothstep(1.32, 0.9, radial) * 0.12;
     const bridgeCorridorCut = this.getBridgeCorridorCut(x, z);
 
-    return valleyBase + bankLift + leftRidge * 0.54 + rightRidge * 0.5 + ridgeTerrain + farShoulder + subtleFractal - riverCarve - shallowShelf - bankBlend - bridgeCorridorCut;
+    return valleyBase + bankLift + ridgeTerrain + farShoulder + subtleFractal + alongRoll - poolCarve - shorelineBlend - bridgeCorridorCut;
   }
 
   sampleRidgeTerrainInfluence(x, z) {
@@ -390,8 +381,17 @@ export class FractalValley {
       const deckLevel = bridge.deckY + bridge.surfaceOffset + arch;
       const localTerrainLevel = Number.isFinite(terrainLevel) ? terrainLevel : (this.sampleTerrainHeight(x, z) + this.playerGroundOffset);
 
-      if (Number.isFinite(currentY) && currentY < deckLevel - 1.45 && currentY <= localTerrainLevel + 1.05) {
-        return null;
+      if (!Number.isFinite(currentY)) {
+        continue;
+      }
+
+      // Only use bridge deck when the player is high enough relative to local terrain
+      // and close enough to the deck surface. Prevent under-bridge snapping.
+      const minDeckApproachHeight = localTerrainLevel + 0.75;
+      const maxUnderDeck = deckLevel - 0.45;
+
+      if (currentY < minDeckApproachHeight || currentY < maxUnderDeck) {
+        continue;
       }
 
       return deckLevel;
@@ -528,6 +528,27 @@ export class FractalValley {
         child.position?.y <= 2
       ) {
         removals.push(child);
+        return;
+      }
+
+      if (
+        geometryType === 'SphereGeometry' &&
+        radius >= 3 &&
+        colorHex === 0x000000 &&
+        child.material?.transparent !== true
+      ) {
+        removals.push(child);
+        return;
+      }
+
+      if (
+        geometryType === 'PlaneGeometry' &&
+        child.material?.transparent === true &&
+        Math.abs(child.rotation?.x ?? 0) < 0.4 &&
+        Math.max(child.scale?.x ?? 0, child.scale?.y ?? 0, child.scale?.z ?? 0) > 30
+      ) {
+        removals.push(child);
+        return;
       }
     });
 
@@ -566,14 +587,15 @@ export class FractalValley {
       const z = positions.getY(i);
       const height = this.sampleTerrainHeight(x, z);
       const heightMix = this._clamp01((height + 4) / 24);
-      const wetBlend = this.getWaterFeatureMask(x, z, 0.78, 0.72) * 0.72;
+      const wetBlend = this.getWaterFeatureMask(x, z, 0.82, 0.76) * 0.62;
+      const waterline = this.getWaterFeatureMask(x, z, 1.06, 0.92) * 0.42;
       const hazeBlend = this._smoothstep(14, 28, height) * 0.2;
       const coolShadow = this._clamp01((Math.abs(x) * 0.006 + Math.max(0, -height) * 0.04) * 0.8);
       const color = this.palette.groundLow.clone();
       color.lerp(this.palette.groundMid, heightMix);
       color.lerp(this.palette.groundHigh, Math.pow(heightMix, 1.8));
       color.lerp(this.palette.ridgeShadow, coolShadow * 0.28);
-      color.lerp(this.palette.wetBank, wetBlend * 0.08);
+      color.lerp(this.palette.wetBank, Math.max(wetBlend * 0.28, waterline));
       color.lerp(this.palette.lavenderMist, hazeBlend);
 
       positions.setZ(i, height);
@@ -621,13 +643,13 @@ export class FractalValley {
    * Create subtle fractal outcrops embedded into the valley shoulders.
    */
   createHexTerraces() {
-    const outcropCount = 8;
+    const outcropCount = 4;
     const baseMaterial = materialRegistry.getStandard('world.fractalvalley.outcrop', {
       color: 0x565158,
       roughness: 0.92,
       metalness: 0.08,
       emissive: 0x58b4ba,
-      emissiveIntensity: 0.025
+      emissiveIntensity: 0.01
     });
     const invisibleMaterial = new THREE.MeshBasicMaterial({
       color: 0x000000,
@@ -644,7 +666,7 @@ export class FractalValley {
       const z = -106 + (i / (outcropCount - 1)) * 216 + (Math.random() * 2 - 1) * 14;
       const riverCenterX = this.getRiverCenterX(z);
       const riverWidth = this.getRiverWidth(z);
-      const x = riverCenterX + side * (riverWidth + 22 + Math.random() * 36);
+      const x = riverCenterX + side * (riverWidth + 38 + Math.random() * 28);
       const y = this.sampleTerrainHeight(x, z) + 0.45 + Math.random() * 0.9;
 
       const hex = new THREE.Mesh(this.sharedWorldGeometries.outcrop, baseMaterial.clone());
@@ -681,7 +703,7 @@ export class FractalValley {
       const edgeMaterial = new THREE.LineBasicMaterial({
         color: 0x7bc0c4,
         transparent: true,
-        opacity: 0.1
+        opacity: 0.01
       });
       const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
       hex.add(edges);
@@ -937,57 +959,8 @@ export class FractalValley {
   }
 
   createFloatingFragments() {
-    const fragmentCount = 2;
-    const glowMaterial = this.createFragmentGlowMaterial();
-    
-    for (let i = 0; i < fragmentCount; i++) {
-      const size = 1.4 + Math.random() * 1.3;
-      const iterations = 0;
-      
-      const geometry = new THREE.IcosahedronGeometry(size, iterations);
-      const material = materialRegistry.getStandard('world.fractalvalley.fragment', {
-        color: 0x56606d,
-        transparent: true,
-        opacity: 0.24,
-        wireframe: true,
-        metalness: 0.28,
-        roughness: 0.82,
-        emissive: 0x6ab8be,
-        emissiveIntensity: 0.03
-      });
-      
-      const fragment = new THREE.Mesh(geometry, material);
-      
-      const angle = -Math.PI * 0.45 + Math.random() * Math.PI * 0.9;
-      const distance = 88 + Math.random() * 36;
-      
-      fragment.position.x = Math.cos(angle) * distance;
-      fragment.position.y = 18 + Math.random() * 14;
-      fragment.position.z = Math.sin(angle) * distance;
-      
-      fragment.rotation.set(
-        Math.random() * Math.PI,
-        Math.random() * Math.PI,
-        Math.random() * Math.PI
-      );
-      
-      const glow = new THREE.Sprite(glowMaterial);
-      glow.scale.set(size * 2, size * 2, 1);
-      glow.position.set(0, 0, 0);
-      fragment.add(glow);
-      
-      fragment.userData = {
-        floatSpeed: 0.06 + Math.random() * 0.03,
-        floatOffset: Math.random() * Math.PI * 2,
-        rotationSpeed: 0.025 + Math.random() * 0.03,
-        originalY: fragment.position.y,
-        glowSprite: glow,
-        size: size
-      };
-      
-      this.worldRoot.add(fragment);
-      this.fractalFragments.push(fragment);
-    }
+    // Decorative floating fragments have been disabled for a cleaner bridge/pool focus.
+    return;
   }
 
   createFragmentLightningLine() {
@@ -1101,6 +1074,7 @@ export class FractalValley {
    * Create the meandering river, shallow bank transitions, and restrained flow accents.
    */
   createDataRivers() {
+    // Local pool surface for the hero bridge; this is not a full-map river.
     const waterGeometry = this.buildRiverSurfaceGeometry();
     const waterMaterial = new THREE.ShaderMaterial({
       uniforms: {
@@ -1118,7 +1092,7 @@ export class FractalValley {
           vec2 centeredUv = uv * 2.0 - 1.0;
           float radial = length(vec2(centeredUv.x, centeredUv.y * 0.72));
           float edgeMask = 1.0 - smoothstep(0.22, 1.0, radial);
-          transformed.y += sin(uv.y * 22.0 - uTime * 1.2 + uv.x * 5.0) * 0.035 * (0.25 + edgeMask * 0.75);
+          transformed.y += sin(uv.y * 22.0 - uTime * 1.2 + uv.x * 5.0) * 0.05 * (0.35 + edgeMask * 0.75);
           vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
           gl_Position = projectionMatrix * mvPosition;
         }
@@ -1135,8 +1109,8 @@ export class FractalValley {
           float centerMask = 1.0 - smoothstep(0.0, 0.96, radial);
           float flow = 0.5 + 0.5 * sin(vUv.y * 24.0 - uTime * 1.5 + centeredUv.x * 4.0);
           vec3 color = mix(uColorEdge, uColorDeep, smoothstep(0.0, 0.88, centerMask));
-          color = mix(color, uColorGlow, centerMask * 0.18 + flow * 0.06);
-          float alpha = (0.1 + centerMask * 0.52) * (1.0 - smoothstep(0.92, 1.05, radial));
+          color = mix(color, uColorGlow, centerMask * 0.26 + flow * 0.1);
+          float alpha = (0.16 + centerMask * 0.62) * (1.0 - smoothstep(0.9, 1.05, radial));
           gl_FragColor = vec4(color, alpha);
         }
       `,
@@ -1149,18 +1123,13 @@ export class FractalValley {
     riverWater.name = 'fractalValleyRiver';
     riverWater.renderOrder = 4;
     const waterFeature = this.getWaterFeatureInfo();
-    const basis = new THREE.Matrix4().makeBasis(
-      waterFeature.frame.lateral,
-      waterFeature.frame.tangent,
-      new THREE.Vector3(0, 1, 0)
-    );
-    riverWater.setRotationFromMatrix(basis);
+    riverWater.rotation.x = -Math.PI / 2;
     riverWater.position.set(
       waterFeature.frame.point.x,
-      this.getRiverSurfaceHeight(waterFeature.frame.point.x, waterFeature.frame.point.z) + 0.22,
+      this.getRiverSurfaceHeight(waterFeature.frame.point.x, waterFeature.frame.point.z) + 0.7,
       waterFeature.frame.point.z
     );
-    riverWater.scale.set(waterFeature.halfWidth * 2.1, waterFeature.halfLength * 2.0, 1);
+    riverWater.scale.set(waterFeature.halfWidth * 2.1, waterFeature.halfLength * 2.05, 1);
     this.worldRoot.add(riverWater);
     this.riverWaterMesh = riverWater;
 
@@ -1225,7 +1194,7 @@ export class FractalValley {
   }
 
   createRiverStones() {
-    const stoneCount = 12;
+    const stoneCount = 6;
     const stoneMaterial = materialRegistry.getStandard('world.fractalvalley.riverStone', {
       color: 0x57535b,
       roughness: 0.96,
@@ -1330,88 +1299,114 @@ export class FractalValley {
   }
 
   createHeroBridge(frame) {
-    const span = this.getRiverChannelHalfWidth(frame.point.z) * 2.1 + 6.5;
-    const deckWidth = 6.1;
-    const deckRise = 0.18;
+    const waterFeature = this.getWaterFeatureInfo();
+    const span = Math.max(this.getRiverChannelHalfWidth(frame.point.z) * 2.0 + 8.0, waterFeature.halfWidth * 2.05 + 9.5);
+    const deckWidth = 7.4;
+    const deckRise = 0.22;
+    const landingDepth = 7.2;
+    const landingHeight = 0.22;
+    const landingWidth = deckWidth + 1.0;
+    const deckLowering = 0.18;
 
     const leftBank = frame.point.clone().add(frame.lateral.clone().multiplyScalar(span * 0.58));
     const rightBank = frame.point.clone().add(frame.lateral.clone().multiplyScalar(-span * 0.58));
+    const leftEnd = frame.point.clone().add(frame.lateral.clone().multiplyScalar(span * 0.5 + landingDepth * 0.32));
+    const rightEnd = frame.point.clone().add(frame.lateral.clone().multiplyScalar(-span * 0.5 - landingDepth * 0.32));
     const bankHeight = Math.max(
       this.sampleTerrainHeight(leftBank.x, leftBank.z),
       this.sampleTerrainHeight(rightBank.x, rightBank.z)
     );
-    const deckY = Math.max(bankHeight + 0.26, this.getRiverSurfaceHeight(frame.point.x, frame.point.z) + 2.45);
+    const endTerrainHeight = Math.max(
+      this.sampleTerrainHeight(leftEnd.x, leftEnd.z),
+      this.sampleTerrainHeight(rightEnd.x, rightEnd.z)
+    );
+    // Align bridge deck with nearby terrain and end caps to ensure clean landing geometry.
+    const deckY = Math.max(bankHeight + deckLowering, endTerrainHeight + deckLowering, this.getRiverSurfaceHeight(frame.point.x, frame.point.z) + 2.7);
 
     const group = new THREE.Group();
     this.orientGroupToRiverFrame(group, frame, deckY);
 
     const woodMaterial = materialRegistry.getStandard('world.fractalvalley.bridge.hero.wood', {
-      color: 0x5b534c,
+      color: 0x7c746d,
       roughness: 0.9,
-      metalness: 0.06
+      metalness: 0.04
     });
     const stoneMaterial = materialRegistry.getStandard('world.fractalvalley.bridge.hero.stone', {
-      color: 0x4f4b52,
-      roughness: 0.96,
-      metalness: 0.03
+      color: 0x4a4950,
+      roughness: 0.94,
+      metalness: 0.05
     });
     const railMaterial = materialRegistry.getStandard('world.fractalvalley.bridge.hero.rail', {
-      color: 0x67707a,
-      roughness: 0.46,
-      metalness: 0.54,
-      emissive: 0x57b3b8,
-      emissiveIntensity: 0.14
+      color: 0x3f5664,
+      roughness: 0.36,
+      metalness: 0.62,
+      emissive: 0x2ca8c0,
+      emissiveIntensity: 0.12
     });
 
-    const railPosts = [];
-    group.add(this.createBoxPart(woodMaterial, new THREE.Vector3(span * 1.04, 0.24, deckWidth), new THREE.Vector3(0, deckRise, 0)));
-    group.add(this.createBoxPart(stoneMaterial, new THREE.Vector3(span * 1.02, 0.12, 0.18), new THREE.Vector3(0, deckRise - 0.2, deckWidth * 0.46)));
-    group.add(this.createBoxPart(stoneMaterial, new THREE.Vector3(span * 1.02, 0.12, 0.18), new THREE.Vector3(0, deckRise - 0.2, -deckWidth * 0.46)));
+    // Main bridge deck
+    group.add(this.createBoxPart(
+      woodMaterial,
+      new THREE.Vector3(span * 1.05, 0.28, deckWidth),
+      new THREE.Vector3(0, deckRise, 0)
+    ));
+
+    // Deck edge trim
+    group.add(this.createBoxPart(
+      stoneMaterial,
+      new THREE.Vector3(span * 1.04, 0.14, 0.18),
+      new THREE.Vector3(0, deckRise - 0.22, deckWidth * 0.46)
+    ));
+    group.add(this.createBoxPart(
+      stoneMaterial,
+      new THREE.Vector3(span * 1.04, 0.14, 0.18),
+      new THREE.Vector3(0, deckRise - 0.22, -deckWidth * 0.46)
+    ));
 
     const postCount = 4;
     for (let i = 0; i <= postCount; i++) {
       const t = i / postCount;
       const x = -span * 0.5 + t * span;
       const arch = Math.sin(t * Math.PI) * deckRise;
-      const leftPost = new THREE.Vector3(x, arch + 0.54, deckWidth * 0.42);
-      const rightPost = new THREE.Vector3(x, arch + 0.54, -deckWidth * 0.42);
-      railPosts.push([leftPost, rightPost]);
-      group.add(this.createBoxPart(railMaterial, new THREE.Vector3(0.12, 0.82, 0.12), leftPost));
-      group.add(this.createBoxPart(railMaterial, new THREE.Vector3(0.12, 0.82, 0.12), rightPost));
+      const leftPost = new THREE.Vector3(x, arch + 0.56, deckWidth * 0.42);
+      const rightPost = new THREE.Vector3(x, arch + 0.56, -deckWidth * 0.42);
+      group.add(this.createBoxPart(railMaterial, new THREE.Vector3(0.14, 0.84, 0.14), leftPost));
+      group.add(this.createBoxPart(railMaterial, new THREE.Vector3(0.14, 0.84, 0.14), rightPost));
     }
 
-    group.add(this.createBoxPart(railMaterial, new THREE.Vector3(span * 1.18, 0.08, 0.08), new THREE.Vector3(0, deckRise + 0.92, deckWidth * 0.42)));
-    group.add(this.createBoxPart(railMaterial, new THREE.Vector3(span * 1.18, 0.08, 0.08), new THREE.Vector3(0, deckRise + 0.92, -deckWidth * 0.42)));
+    // Full-span top rails
+    const topRailLength = span * 1.22;
+    group.add(this.createBoxPart(
+      railMaterial,
+      new THREE.Vector3(topRailLength, 0.09, 0.09),
+      new THREE.Vector3(0, deckRise + 0.96, deckWidth * 0.42)
+    ));
+    group.add(this.createBoxPart(
+      railMaterial,
+      new THREE.Vector3(topRailLength, 0.09, 0.09),
+      new THREE.Vector3(0, deckRise + 0.96, -deckWidth * 0.42)
+    ));
 
+    // Clean terrain-connected landings
     [-1, 1].forEach((side) => {
-      const edgeX = frame.point.x + frame.lateral.x * side * span * 0.58;
-      const edgeZ = frame.point.z + frame.lateral.z * side * span * 0.58;
-      const terrainLocalY = this.sampleTerrainHeight(edgeX, edgeZ) - deckY;
-      const landingLength = 4.8;
-      const landingTopY = Math.min(deckRise - 0.03, terrainLocalY + 0.4);
-      const landingCenterX = side * (span * 0.5 + landingLength * 0.3);
-      const connectorStart = new THREE.Vector3(side * span * 0.49, deckRise - 0.02, 0);
-      const connectorEnd = new THREE.Vector3(side * (span * 0.5 + landingLength * 0.04), landingTopY - 0.01, 0);
-      const supportHeight = Math.max(0.55, landingTopY - terrainLocalY + 0.22);
-
-      group.add(this.createOrientedBridgePart(
-        stoneMaterial,
-        connectorStart,
-        connectorEnd,
-        0.22,
-        deckWidth + 0.75
-      ));
+      const endCenterX = side * (span * 0.5 + landingDepth * 0.22);
+      const supportCenterX = side * (span * 0.5 + landingDepth * 0.1);
+      const landingTerrainY = this.sampleTerrainHeight(
+        frame.point.x + frame.lateral.x * endCenterX,
+        frame.point.z + frame.lateral.z * endCenterX
+      ) - deckY;
+      const landingTopY = Math.min(deckRise - 0.02, landingTerrainY + 0.24);
+      const supportHeight = Math.max(0.5, landingTopY - landingTerrainY + 0.18);
 
       group.add(this.createBoxPart(
         stoneMaterial,
-        new THREE.Vector3(landingLength, 0.26, deckWidth + 0.9),
-        new THREE.Vector3(landingCenterX, landingTopY - 0.13, 0)
+        new THREE.Vector3(landingDepth, landingHeight, landingWidth),
+        new THREE.Vector3(endCenterX, landingTopY - 0.11, 0)
       ));
-
       group.add(this.createBoxPart(
         stoneMaterial,
-        new THREE.Vector3(2.8, supportHeight, deckWidth + 0.95),
-        new THREE.Vector3(landingCenterX, landingTopY - 0.13 - supportHeight * 0.5, 0)
+        new THREE.Vector3(5.2, supportHeight, deckWidth + 0.9),
+        new THREE.Vector3(supportCenterX, landingTopY - 0.11 - supportHeight * 0.5, 0)
       ));
     });
 
@@ -1432,7 +1427,7 @@ export class FractalValley {
       new THREE.MeshBasicMaterial({ visible: false })
     );
     bridgeDeckCollider.name = 'fractalValleyHeroBridgeDeckCollider';
-    bridgeDeckCollider.scale.set(span, 0.16, deckWidth);
+    bridgeDeckCollider.scale.set(span * 1.06, 0.2, deckWidth * 0.95);
     bridgeDeckCollider.position.set(0, 0.08, 0);
     bridgeDeckCollider.userData = {
       collisionEnabled: true,
@@ -1443,6 +1438,36 @@ export class FractalValley {
     };
     group.add(bridgeDeckCollider);
     this.collisionObjects.push(bridgeDeckCollider);
+
+    const leftRailBlocker = new THREE.Mesh(
+      this.sharedWorldGeometries.box,
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    leftRailBlocker.scale.set(span * 1.06, 1.0, 0.22);
+    leftRailBlocker.position.set(0, deckRise + 0.55, deckWidth * 0.44);
+    leftRailBlocker.userData = {
+      collisionEnabled: true,
+      isWalkable: false,
+      collisionRole: 'blocker',
+      blockerType: 'bridgeRail'
+    };
+    group.add(leftRailBlocker);
+    this.collisionObjects.push(leftRailBlocker);
+
+    const rightRailBlocker = new THREE.Mesh(
+      this.sharedWorldGeometries.box,
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    rightRailBlocker.scale.set(span * 1.06, 1.0, 0.22);
+    rightRailBlocker.position.set(0, deckRise + 0.55, -deckWidth * 0.44);
+    rightRailBlocker.userData = {
+      collisionEnabled: true,
+      isWalkable: false,
+      collisionRole: 'blocker',
+      blockerType: 'bridgeRail'
+    };
+    group.add(rightRailBlocker);
+    this.collisionObjects.push(rightRailBlocker);
 
     group.name = 'fractalValleyHeroBridge';
     return group;
@@ -1664,81 +1689,18 @@ export class FractalValley {
    * Create particle drift
    */
   createParticleDrift() {
-    const geometry = new THREE.BufferGeometry();
-    const positions = [];
-    const colors = [];
-    const velocities = [];
-    
-    const particleCount = 120;
-    
-    const color1 = new THREE.Color(0x8800ff);
-    const color2 = new THREE.Color(0x00dddd);
-    
-    for (let i = 0; i < particleCount; i++) {
-      const x = (Math.random() - 0.5) * 150;
-      const y = Math.random() * 40;
-      const z = (Math.random() - 0.5) * 150;
-      
-      positions.push(x, y, z);
-      
-      const color = color1.clone().lerp(color2, Math.random());
-      colors.push(color.r, color.g, color.b);
-      
-      velocities.push(
-        (Math.random() - 0.5) * 0.1,
-        Math.random() * 0.05,
-        (Math.random() - 0.5) * 0.1
-      );
-    }
-    
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    
-    const material = new THREE.PointsMaterial({
-      size: 0.12,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.5,
-      blending: THREE.AdditiveBlending
-    });
-    
-    this.particles = new THREE.Points(geometry, material);
-    this.particles.userData.velocities = velocities;
-    this.worldRoot.add(this.particles);
+    // Particle drift removed to keep the foreground composition clean and focused.
+    return;
   }
-  
+
   /**
    * Create fractal holograms
    */
   createFractalHolograms() {
-    for (let i = 0; i < 4; i++) {
-      const geometry = new THREE.TetrahedronGeometry(4, 2);
-      const material = materialRegistry.getBasic('world.fractalvalley.hologram', {
-        color: 0x00dddd,
-        transparent: true,
-        opacity: 0,
-        wireframe: true
-      });
-      
-      const hologram = new THREE.Mesh(geometry, material);
-      
-      const angle = (i / 4) * Math.PI * 2;
-      hologram.position.x = Math.cos(angle) * 40;
-      hologram.position.y = 5;
-      hologram.position.z = Math.sin(angle) * 40;
-      
-      hologram.userData = {
-        timer: Math.random() * 12,
-        duration: 0,
-        pulsePhase: 0,
-        activeRing: null
-      };
-      
-      this.worldRoot.add(hologram);
-      this.holograms.push(hologram);
-    }
+    // Hologram clutter disabled so the bridge and pool remain the compositional center.
+    return;
   }
-  
+
   createHologramPulseRing(hologram) {
     const geometry = new THREE.RingGeometry(0.1, 1, 32);
     const material = new THREE.MeshBasicMaterial({
@@ -1762,88 +1724,24 @@ export class FractalValley {
     this.worldRoot.add(ring);
     return ring;
   }
-  
+
   /**
    * Create floating symbols
    */
   createFloatingSymbols() {
-    const symbolGeometries = [
-      new THREE.TorusGeometry(2, 0.3, 8, 16),
-      new THREE.OctahedronGeometry(2, 0),
-      new THREE.RingGeometry(1.5, 2, 6)
-    ];
-    
-    for (let i = 0; i < 6; i++) {
-      const geometry = symbolGeometries[Math.floor(Math.random() * symbolGeometries.length)];
-      const material = materialRegistry.getBasic('world.fractalvalley.symbol', {
-        color: 0xaa88ff,
-        transparent: true,
-        opacity: 0,
-        side: THREE.DoubleSide
-      });
-      
-      const symbol = new THREE.Mesh(geometry, material);
-      
-      const angle = Math.random() * Math.PI * 2;
-      const distance = 25 + Math.random() * 40;
-      
-      symbol.position.x = Math.cos(angle) * distance;
-      symbol.position.y = 8 + Math.random() * 12;
-      symbol.position.z = Math.sin(angle) * distance;
-      
-      symbol.rotation.set(
-        Math.random() * Math.PI,
-        Math.random() * Math.PI,
-        Math.random() * Math.PI
-      );
-      
-      symbol.userData = {
-        timer: Math.random() * 15,
-        duration: 0,
-        fadePhase: 0
-      };
-      
-      this.worldRoot.add(symbol);
-      this.symbols.push(symbol);
-    }
+    // Floating symbols suppressed to reduce foreground noise around the hero bridge.
+    return;
   }
-  
+
   /**
    * Create geometric constellations in sky
    */
   createGeometricConstellations() {
+    // Constellation decoration removed for a cleaner ridge background.
     this.constellations = [];
-    
-    // Triangle grid constellation
-    const trianglePoints = [];
-    for (let i = 0; i < 8; i++) {
-      for (let j = 0; j < 8; j++) {
-        const x = (i - 4) * 15;
-        const z = (j - 4) * 15;
-        trianglePoints.push(new THREE.Vector3(x, 50, z));
-      }
-    }
-    
-    this.createConstellation(trianglePoints, 0x6633ff);
-    
-    // Hex grid constellation
-    const hexPoints = [];
-    for (let ring = 0; ring < 3; ring++) {
-      const count = ring === 0 ? 1 : ring * 6;
-      for (let i = 0; i < count; i++) {
-        const angle = (i / count) * Math.PI * 2;
-        const radius = ring * 20;
-        hexPoints.push(new THREE.Vector3(
-          Math.cos(angle) * radius,
-          55,
-          Math.sin(angle) * radius - 60
-        ));
-      }
-    }
-    
-    this.createConstellation(hexPoints, 0x00ccdd);
+    return;
   }
-  
+
   /**
    * Create constellation from points
    */
@@ -1860,40 +1758,8 @@ export class FractalValley {
     constellation.userData = { pulseOffset: Math.random() * Math.PI * 2 };
     this.worldRoot.add(constellation);
 
-    const thresholdSq = 20 * 20;
-    const linePositions = [];
-    for (let i = 0; i < points.length; i++) {
-      for (let j = i + 1; j < points.length; j++) {
-        const dx = points[i].x - points[j].x;
-        const dy = points[i].y - points[j].y;
-        const dz = points[i].z - points[j].z;
-        const distSq = dx * dx + dy * dy + dz * dz;
-        if (distSq < thresholdSq) {
-          linePositions.push(points[i].x, points[i].y, points[i].z);
-          linePositions.push(points[j].x, points[j].y, points[j].z);
-        }
-      }
-    }
-
-    const connectionGeometry = new THREE.BufferGeometry();
-    connectionGeometry.setAttribute(
-      'position',
-      new THREE.BufferAttribute(new Float32Array(linePositions), 3)
-    );
-
-    const lineMaterial = new THREE.LineBasicMaterial({
-      color: color,
-      transparent: true,
-      opacity: 0.15,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false
-    });
-
-    const connections = new THREE.LineSegments(connectionGeometry, lineMaterial);
-    connections.renderOrder = 9;
-    this.worldRoot.add(connections);
-
-    constellation.userData.connections = connections;
+    // No mesh connections to avoid fake guide-line artifacts.
+    constellation.userData.connections = null;
     this.constellations.push(constellation);
   }
   

@@ -115,6 +115,17 @@ export class LinkResonanceFlowSystem_Session124 {
       phaseTravelDurationMult: config.phaseTravelDurationMult ?? 0.96,
       phaseTravelDurationJitter: config.phaseTravelDurationJitter ?? 0.28,
       
+      // Premium visual layering
+      directionalWakeEnabled: config.directionalWakeEnabled ?? true,
+      directionalWakeStrength: config.directionalWakeStrength ?? 0.12,
+      signatureVariationStrength: config.signatureVariationStrength ?? 0.16,
+      interferenceEnabled: config.interferenceEnabled ?? true,
+      interferenceStrength: config.interferenceStrength ?? 0.12,
+      interferenceDampen: config.interferenceDampen ?? 0.07,
+      echoTrailEnabled: config.echoTrailEnabled ?? true,
+      echoTrailDuration: config.echoTrailDuration ?? 0.8,
+      echoTrailStrength: config.echoTrailStrength ?? 0.055,
+      
       // Intensity modulation
       baseIntensity: config.baseIntensity ?? 0.8,
       loadPressureIntensityFactor: config.loadPressureIntensityFactor ?? config.qualityIntensityFactor ?? 0.6,
@@ -162,6 +173,8 @@ export class LinkResonanceFlowSystem_Session124 {
     this._repeatSuppressedUntilByLinkId = new Map();
     this._timeOrigin = undefined;
     this._lastVisualTime = undefined;
+    this._linkEndpointIdCache = new Map();
+    this._endpointInterferenceScratch = new Map();
     
     // Statistics
     this.stats = {
@@ -210,6 +223,29 @@ export class LinkResonanceFlowSystem_Session124 {
 
   _getLinkTarget(link) {
     return link?.target || link?.targetNode || link?.nodeB || link?.userData?.nodeB || link?.userData?.targetNode || null;
+  }
+
+  _resolveNodeId(node) {
+    if (!node) return null;
+    return node?.id ?? node?.nodeId ?? node?.userData?.nodeId ?? node?.userData?.id ?? node?.uuid ?? null;
+  }
+
+  _getLinkEndpointIds(link) {
+    if (!link) return null;
+    const linkId = link.id ?? link.linkId ?? null;
+    if (linkId === null || linkId === undefined) return null;
+    const cacheKey = String(linkId);
+
+    const cached = this._linkEndpointIdCache.get(cacheKey);
+    if (cached) return cached;
+
+    const endpoints = {
+      sourceId: this._resolveNodeId(this._getLinkSource(link)),
+      targetId: this._resolveNodeId(this._getLinkTarget(link)),
+    };
+
+    this._linkEndpointIdCache.set(cacheKey, endpoints);
+    return endpoints;
   }
 
   _readLinkPressureMetrics(link) {
@@ -379,6 +415,104 @@ export class LinkResonanceFlowSystem_Session124 {
       hopSeed,
       gapSeed,
     };
+  }
+
+  _buildEndpointInterferenceMap() {
+    const interferenceMap = this._endpointInterferenceScratch;
+    interferenceMap.clear();
+
+    const accumulate = (endpointId, contribution, phaseAngle) => {
+      if (!endpointId || contribution <= 0) return;
+      const entry = interferenceMap.get(endpointId) || {
+        count: 0,
+        intensity: 0,
+        phaseX: 0,
+        phaseY: 0,
+        coherence: 0,
+        destructive: 0,
+      };
+
+      entry.count += 1;
+      entry.intensity += contribution;
+      entry.phaseX += Math.cos(phaseAngle) * contribution;
+      entry.phaseY += Math.sin(phaseAngle) * contribution;
+      interferenceMap.set(endpointId, entry);
+    };
+
+    for (const pulse of this.globalPulses) {
+      if (!pulse?.active || !pulse.link) continue;
+      const endpoints = this._getLinkEndpointIds(pulse.link);
+      if (!endpoints) continue;
+
+      const position = clamp01(pulse.position ?? 0.5);
+      const phaseAngle = (pulse.phaseSeed ?? 0) + pulse.life * (1.12 + (pulse.signatureBias ?? 0) * 0.36);
+      const weightedIntensity = Math.max(0, (pulse.phaseAlpha ?? 1) * (pulse.intensity ?? 0.5));
+
+      accumulate(endpoints.sourceId, weightedIntensity * (1 - position), phaseAngle);
+      accumulate(endpoints.targetId, weightedIntensity * position, phaseAngle + Math.PI * 0.5);
+    }
+
+    for (const entry of interferenceMap.values()) {
+      if (entry.intensity <= 0) {
+        entry.coherence = 0;
+        entry.destructive = 0;
+        continue;
+      }
+
+      const magnitude = Math.sqrt((entry.phaseX * entry.phaseX) + (entry.phaseY * entry.phaseY));
+      entry.coherence = clamp01(magnitude / entry.intensity);
+      entry.destructive = 1 - entry.coherence;
+    }
+
+    return interferenceMap;
+  }
+
+  _resolvePulseInterference(pulse, interferenceMap) {
+    if (!this.config.interferenceEnabled || !interferenceMap || !pulse?.link) {
+      return 1;
+    }
+
+    const endpoints = this._getLinkEndpointIds(pulse.link);
+    if (!endpoints) {
+      return 1;
+    }
+
+    const position = clamp01(pulse.position ?? 0.5);
+    const sourceEntry = endpoints.sourceId ? interferenceMap.get(endpoints.sourceId) : null;
+    const targetEntry = endpoints.targetId ? interferenceMap.get(endpoints.targetId) : null;
+
+    const sourceWeight = 1 - position;
+    const targetWeight = position;
+    const sourceCoherence = sourceEntry?.count > 1 ? sourceEntry.coherence : 0;
+    const targetCoherence = targetEntry?.count > 1 ? targetEntry.coherence : 0;
+    const constructive = (sourceWeight * sourceCoherence) + (targetWeight * targetCoherence);
+    const destructive = (sourceWeight * (sourceEntry?.count > 1 ? sourceEntry.destructive : 0)) +
+      (targetWeight * (targetEntry?.count > 1 ? targetEntry.destructive : 0));
+
+    return Math.max(0.84, 1 + (constructive * this.config.interferenceStrength) - (destructive * this.config.interferenceDampen));
+  }
+
+  _beginPulseEcho(pulse, step = null) {
+    if (!pulse || pulse.phaseState === 'echo') return pulse;
+    if (!this.config.echoTrailEnabled) return null;
+
+    const echoThreshold = Math.max(0, this.config.echoTrailThreshold ?? 0.2);
+    if ((pulse.intensity ?? 0) < echoThreshold && (pulse.phaseAlpha ?? 0) < echoThreshold * 0.75) {
+      return null;
+    }
+
+    const signatureBias = pulse.signatureBias ?? 0;
+    pulse.phaseState = 'echo';
+    pulse.phaseElapsed = 0;
+    pulse.echoDuration = Math.max(0.32, (this.config.echoTrailDuration ?? 0.8) * (0.84 + signatureBias * 0.26));
+    pulse.echoStrength = Math.max(
+      0.035,
+      ((pulse.intensity ?? 0.5) * (this.config.echoTrailStrength ?? 0.055) + (pulse.stabilityMix ?? 0) * 0.05 + (pulse.overloadMix ?? 0) * 0.04) * Math.max(0.35, (this.config.echoTrailOpacity ?? 0.03) / 0.03)
+    );
+    pulse.echoAnchorT = step?.endT ?? pulse.position ?? 0;
+    pulse.phaseAlpha = pulse.echoStrength;
+    pulse.position = pulse.echoAnchorT;
+    return pulse;
   }
   
   /**
@@ -706,6 +840,7 @@ export class LinkResonanceFlowSystem_Session124 {
 
       // Unstable presence identity
       anomalySeed,
+      signatureBias: linkSeed,
       phaseSeed: anomalySeed * Math.PI * 2,
       driftSeed: anomalySeed * 11.0,
       twistSeed: anomalySeed * 17.0,
@@ -779,6 +914,20 @@ export class LinkResonanceFlowSystem_Session124 {
       const pulse = this.globalPulses[i];
       if (!pulse.active) continue;
 
+      if (pulse.phaseState === 'echo') {
+        pulse.phaseElapsed = (pulse.phaseElapsed ?? 0) + deltaVisual;
+        const echoDuration = Math.max(0.32, pulse.echoDuration ?? this.config.echoTrailDuration ?? 0.8);
+        const echoT = clamp01(pulse.phaseElapsed / Math.max(0.001, echoDuration));
+        const echoFade = 1 - echoT;
+        pulse.phaseAlpha = Math.max(0, (pulse.echoStrength ?? 0.05) * echoFade);
+        pulse.position = pulse.echoAnchorT ?? pulse.position;
+
+        if (pulse.phaseElapsed >= echoDuration) {
+          pulse.active = false;
+        }
+        continue;
+      }
+
       pulse.life += deltaVisual;
       pulse.phaseElapsed = (pulse.phaseElapsed ?? 0) + deltaVisual;
       const motionSeed = pulse.anomalySeed ?? 0;
@@ -821,8 +970,7 @@ export class LinkResonanceFlowSystem_Session124 {
         pulse.phaseAlpha = Math.max(0, fadeCurve);
         if (pulse.phaseElapsed >= step.fadeOutDuration) {
           if (step.complete) {
-            pulse.phaseAlpha = 0;
-            pulse.active = false;
+            this._beginPulseEcho(pulse, step);
             continue;
           }
 
@@ -851,7 +999,9 @@ export class LinkResonanceFlowSystem_Session124 {
       }
 
       if (pulse.life >= pulse.lifetime) {
-        pulse.active = false;
+        if (!this._beginPulseEcho(pulse, step)) {
+          pulse.active = false;
+        }
         continue;
       }
     }
@@ -862,6 +1012,8 @@ export class LinkResonanceFlowSystem_Session124 {
    */
   _updatePulseMeshes() {
     // Update or allocate meshes for active pulses (no per-frame reallocation)
+    const endpointInterference = this.config.interferenceEnabled ? this._buildEndpointInterferenceMap() : null;
+
     for (const pulse of this.globalPulses) {
       if (!pulse.active) continue;
 
@@ -876,15 +1028,28 @@ export class LinkResonanceFlowSystem_Session124 {
       const bandMix = this._getLoadPressureProfile(pulse.loadPressure ?? 0).pressurizedMix;
       const stabilityMix = pulse.stabilityMix ?? 0;
       const motionSeed = pulse.anomalySeed ?? getLinkSeed(pulse.linkId);
+      const signatureBias = pulse.signatureBias ?? getLinkSeed(pulse.linkId);
+      const signaturePulse = 0.5 + 0.5 * Math.sin(pulse.life * (0.74 + signatureBias * 0.42) + signatureBias * Math.PI * 8.0);
+      const signatureVariation = Math.max(0.01, this.config.signatureVariationStrength ?? 0.16);
+      const signatureInfluence = signaturePulse * signatureVariation;
       const debugPulse = this.config.debugPulseVisuals === true || pulse.debugPulse === true;
       const phaseState = pulse.phaseState ?? 'fadeIn';
       const phaseAlpha = Number.isFinite(pulse.phaseAlpha) ? pulse.phaseAlpha : 1.0;
       const phaseCollapse = phaseState === 'fadeOut' ? (1.0 - phaseAlpha) : 0;
       const phaseEmergence = phaseState === 'fadeIn' ? phaseAlpha : 0;
-      const opacity = (debugPulse ? 1.0 : this._getPulseOpacity(pulse)) * (pulse.lodSuppression ?? 1.0);
-      const size = pulse.radius * (1.0 + Math.sin(pulse.life * Math.PI * 2) * 0.14 + overloadMix * 0.12 + stabilityMix * 0.08) * (0.84 + phaseAlpha * 0.34 + phaseCollapse * 0.08) * (debugPulse ? this.config.debugPulseScaleMult : 1.0);
-      const entityDrift = 0.02 + overloadMix * 0.035 + stabilityMix * 0.03;
-      const shellPulse = 1.0 + Math.sin(pulse.life * 1.45 + motionSeed * Math.PI * 6.0) * 0.04 + Math.sin(pulse.life * 0.33 + motionSeed * Math.PI * 12.0) * 0.025 + phaseEmergence * 0.06 + phaseCollapse * 0.09;
+      const phaseGate = 0.86 + signaturePulse * 0.12 + (phaseState === 'echo' ? -0.06 : 0.04);
+      const interferenceFactor = this._resolvePulseInterference(pulse, endpointInterference);
+      const echoStrength = phaseState === 'echo' ? clamp01(pulse.phaseAlpha ?? pulse.echoStrength ?? 0) : 0;
+      const echoOpacityScale = phaseState === 'echo' ? Math.max(0.25, (this.config.echoTrailOpacity ?? 0.03) / 0.03) : 1.0;
+      const echoScale = phaseState === 'echo' ? (0.82 + echoStrength * 0.28) * echoOpacityScale : 1.0;
+      const directionalWake = this.config.directionalWakeEnabled
+        ? (0.014 + signatureBias * 0.018 + overloadMix * 0.012 + stabilityMix * 0.01 + phaseGate * 0.008) * (0.88 + signatureInfluence * 0.24) * (this.config.directionalWakeStrength ?? 0.12)
+        : 0;
+      const wakeShift = phaseState === 'echo' ? -directionalWake * 0.42 : directionalWake;
+      const opacity = (debugPulse ? 1.0 : this._getPulseOpacity(pulse)) * (pulse.lodSuppression ?? 1.0) * interferenceFactor;
+      const size = pulse.radius * (1.0 + Math.sin(pulse.life * Math.PI * 2) * 0.14 + overloadMix * 0.12 + stabilityMix * 0.08) * (0.84 + phaseAlpha * 0.34 + phaseCollapse * 0.08) * echoScale * (0.95 + signatureInfluence * 0.08 + phaseGate * 0.03) * (debugPulse ? this.config.debugPulseScaleMult : 1.0);
+      const entityDrift = (0.02 + overloadMix * 0.035 + stabilityMix * 0.03) * (0.92 + signatureInfluence * 0.16) * (phaseState === 'echo' ? 0.7 : 1.0);
+      const shellPulse = (1.0 + Math.sin(pulse.life * 1.45 + motionSeed * Math.PI * 6.0) * 0.04 + Math.sin(pulse.life * 0.33 + motionSeed * Math.PI * 12.0) * 0.025 + phaseEmergence * 0.06 + phaseCollapse * 0.09) * (0.96 + signatureInfluence * 0.06 + (phaseState === 'echo' ? -0.08 : 0));
 
       pulse.mesh.visible = true;
       pulse.mesh.position.set(
@@ -892,9 +1057,10 @@ export class LinkResonanceFlowSystem_Session124 {
         worldPos.y + Math.cos(pulse.life * 7.0 + motionSeed * Math.PI * 6.0) * entityDrift * 0.7,
         worldPos.z + Math.sin(pulse.life * 11.0 + motionSeed * Math.PI * 10.0) * entityDrift * 0.78
       );
+      pulse.mesh.position.addScaledVector(direction, wakeShift);
       this._scratchQuat.setFromUnitVectors(this._scratchUpVector, direction);
       pulse.mesh.quaternion.copy(this._scratchQuat);
-      pulse.mesh.rotateY(Math.sin(pulse.life * 0.95 + motionSeed * Math.PI * 5.0) * (0.08 + overloadMix * 0.05 + stabilityMix * 0.03));
+      pulse.mesh.rotateY(Math.sin(pulse.life * 0.95 + motionSeed * Math.PI * 5.0) * (0.08 + overloadMix * 0.05 + stabilityMix * 0.03) + signatureBias * 0.04);
       pulse.mesh.rotateZ(Math.cos(pulse.life * 0.52 + motionSeed * Math.PI * 7.0) * 0.03);
 
       const parts = pulse.mesh.userData?.parts || {};
@@ -922,16 +1088,20 @@ export class LinkResonanceFlowSystem_Session124 {
         const wobbleB = Math.cos(phase * 0.91 + motionSeed * 7.0 + (spec.shellBias ?? 0) * 4.0);
         const wobbleC = Math.sin(phase * 1.37 + motionSeed * 9.0 + (spec.shellBias ?? 0) * 2.0);
         const scaleMul = options.scaleMul ?? 1.0;
+        const scaleYMul = options.scaleYMul ?? 1.0;
         const driftMul = options.driftMul ?? 1.0;
         const opacityMul = options.opacityMul ?? 1.0;
         const glowMul = options.glowMul ?? 1.0;
         const distortionMul = options.distortionMul ?? 1.0;
         const noiseScaleMul = options.noiseScaleMul ?? 1.0;
         const noiseSpeedMul = options.noiseSpeedMul ?? 1.0;
+        const directionalWake = options.directionalWake ?? 0;
+        const interferenceMul = options.interferenceMul ?? 1.0;
+        const echoMul = options.echoMul ?? 1.0;
 
         part.position.set(
           basePosition[0] + orbitStrength[0] * wobbleA * driftMul,
-          basePosition[1] + orbitStrength[1] * wobbleB * driftMul,
+          basePosition[1] + orbitStrength[1] * wobbleB * driftMul + directionalWake,
           basePosition[2] + orbitStrength[2] * wobbleC * driftMul
         );
         part.rotation.set(
@@ -941,25 +1111,25 @@ export class LinkResonanceFlowSystem_Session124 {
         );
         part.scale.set(
           baseScale[0] * size * shellPulse * scaleMul,
-          baseScale[1] * size * shellPulse * scaleMul,
+          baseScale[1] * size * shellPulse * scaleMul * scaleYMul,
           baseScale[2] * size * shellPulse * scaleMul
         );
 
         const uniforms = part.material?.uniforms || {};
         if (uniforms.uTime) uniforms.uTime.value = pulse.life;
-        if (uniforms.uOpacity) uniforms.uOpacity.value = opacity * (spec.opacity ?? 1.0) * opacityMul * (debugPulse ? 1.08 : 1.0);
-        if (uniforms.uGlowSize) uniforms.uGlowSize.value = this.config.pulseGlowIntensity * (spec.glow ?? 1.0) * glowMul * (1.0 + pulse.loadPressure * 0.08 + overloadMix * 0.16 + stabilityMix * 0.1) * (debugPulse ? this.config.debugPulseGlowMult : 1.0);
+        if (uniforms.uOpacity) uniforms.uOpacity.value = opacity * (spec.opacity ?? 1.0) * opacityMul * interferenceMul * echoMul * (debugPulse ? 1.08 : 1.0);
+        if (uniforms.uGlowSize) uniforms.uGlowSize.value = this.config.pulseGlowIntensity * (spec.glow ?? 1.0) * glowMul * interferenceMul * echoMul * (1.0 + pulse.loadPressure * 0.08 + overloadMix * 0.16 + stabilityMix * 0.1) * (debugPulse ? this.config.debugPulseGlowMult : 1.0);
         if (uniforms.uDistortion) uniforms.uDistortion.value = (spec.distortion ?? 0.1) * distortionMul * (1.0 + overloadMix * 0.14 + stabilityMix * 0.08);
         if (uniforms.uNoiseScale) uniforms.uNoiseScale.value = (spec.noiseScale ?? 2.0) * noiseScaleMul;
         if (uniforms.uNoiseSpeed) uniforms.uNoiseSpeed.value = (spec.noiseSpeed ?? 1.0) * noiseSpeedMul;
-        if (uniforms.uPulsePhase) uniforms.uPulsePhase.value = phase;
-        if (uniforms.uPulseSeed) uniforms.uPulseSeed.value = motionSeed + (spec.shellBias ?? 0);
+        if (uniforms.uPulsePhase) uniforms.uPulsePhase.value = phase + signatureBias * Math.PI * 2.0;
+        if (uniforms.uPulseSeed) uniforms.uPulseSeed.value = motionSeed + (spec.shellBias ?? 0) + signatureBias * 0.5;
         if (uniforms.uFresnelPower) uniforms.uFresnelPower.value = spec.fresnelPower ?? 2.4;
-        if (uniforms.uIridescence) uniforms.uIridescence.value = spec.iridescence ?? 0.2;
+        if (uniforms.uIridescence) uniforms.uIridescence.value = (spec.iridescence ?? 0.2) * (0.92 + signaturePulse * 0.16);
         if (uniforms.uVoidMix) uniforms.uVoidMix.value = spec.voidMix ?? 0.2;
         if (uniforms.uCorruption) uniforms.uCorruption.value = pulse.corruption ?? 0;
-        if (uniforms.uShellBreath) uniforms.uShellBreath.value = (spec.shellBreath ?? 0.1) * (1.0 + overloadMix * 0.1 + stabilityMix * 0.06);
-        if (uniforms.uShellBias) uniforms.uShellBias.value = (spec.shellBias ?? 0) + pulse.loadPressure * 0.1;
+        if (uniforms.uShellBreath) uniforms.uShellBreath.value = (spec.shellBreath ?? 0.1) * (1.0 + overloadMix * 0.1 + stabilityMix * 0.06 + signaturePulse * 0.08);
+        if (uniforms.uShellBias) uniforms.uShellBias.value = (spec.shellBias ?? 0) + pulse.loadPressure * 0.1 + signatureBias * 0.14;
         if (debugPulse) {
           if (uniforms.uColor) uniforms.uColor.value.copy(baseDebugColor);
           if (uniforms.uAccentColor) uniforms.uAccentColor.value.copy(baseDebugAccent);
@@ -969,57 +1139,85 @@ export class LinkResonanceFlowSystem_Session124 {
 
       applyPart('core', {
         scaleMul: 1.08 + phaseEmergence * 0.16 + phaseCollapse * 0.08,
+        scaleYMul: 1.0 + signaturePulse * 0.04,
         glowMul: 1.05 + phaseEmergence * 0.14,
         distortionMul: 1.0 + phaseCollapse * 0.12,
         noiseScaleMul: 1.0,
         noiseSpeedMul: 1.0 + phaseCollapse * 0.08,
+        directionalWake: wakeShift * 0.18,
+        interferenceMul: 1.0 + (interferenceFactor - 1.0) * 0.8,
+        echoMul: phaseState === 'echo' ? 0.82 : 1.0,
       });
       applyPart('sheath', {
         scaleMul: 0.98 + bandMix * 0.08 + phaseCollapse * 0.06,
+        scaleYMul: 1.0 + signaturePulse * 0.06,
         driftMul: 1.0,
         glowMul: 1.0 + phaseEmergence * 0.06,
+        directionalWake: wakeShift * 0.08,
+        interferenceMul: interferenceFactor,
+        echoMul: phaseState === 'echo' ? 0.9 : 1.0,
       });
       applyPart('trail', {
         scaleMul: 0.92 + overloadMix * 0.04 + phaseCollapse * 0.07,
-        driftMul: 1.15,
+        scaleYMul: 1.12 + signaturePulse * 0.18 + (phaseState === 'echo' ? 0.08 : 0),
+        driftMul: 1.15 + signaturePulse * 0.12,
         glowMul: 0.92 + phaseCollapse * 0.08,
         distortionMul: 0.9 + phaseCollapse * 0.12,
         noiseScaleMul: 1.05,
         noiseSpeedMul: 1.2 + phaseCollapse * 0.12,
+        directionalWake: wakeShift * (1.0 + signaturePulse * 0.24),
+        interferenceMul: 1.0 + (interferenceFactor - 1.0) * 0.9,
+        echoMul: phaseState === 'echo' ? 0.95 : 1.0,
       });
       applyPart('halo', {
         scaleMul: 0.96 + stabilityMix * 0.05 + phaseCollapse * 0.04,
+        scaleYMul: 1.0 + signaturePulse * 0.03,
         driftMul: 1.0,
         glowMul: 0.88 + phaseEmergence * 0.05,
         distortionMul: 1.0 + phaseCollapse * 0.06,
         noiseScaleMul: 0.82,
         noiseSpeedMul: 0.72,
+        directionalWake: wakeShift * 0.03,
+        interferenceMul: interferenceFactor,
+        echoMul: phaseState === 'echo' ? 0.88 : 1.0,
       });
       applyPart('swirl', {
         scaleMul: 0.98 + overloadMix * 0.02 + phaseCollapse * 0.05,
+        scaleYMul: 1.0 + signaturePulse * 0.05,
         driftMul: 1.0,
         glowMul: 0.95 + phaseEmergence * 0.04,
         distortionMul: 1.05 + phaseCollapse * 0.08,
         noiseScaleMul: 1.12,
         noiseSpeedMul: 1.15 + phaseCollapse * 0.1,
+        directionalWake: wakeShift * 0.05,
+        interferenceMul: interferenceFactor,
+        echoMul: phaseState === 'echo' ? 0.9 : 1.0,
       });
       applyPart('overloadA', {
         visible: debugPulse || overloadMix > 0.02 || pulse.corruption > 0.06 || phaseCollapse > 0.18,
         scaleMul: 0.98 + overloadMix * 0.2 + phaseCollapse * 0.1,
+        scaleYMul: 1.0 + signaturePulse * 0.03,
         driftMul: 1.0 + overloadMix * 0.2 + phaseCollapse * 0.08,
         glowMul: 0.82 + overloadMix * 0.5 + phaseCollapse * 0.12,
         distortionMul: 0.95 + phaseCollapse * 0.08,
         noiseScaleMul: 1.08,
         noiseSpeedMul: 1.12 + phaseCollapse * 0.08,
+        directionalWake: wakeShift * 0.04,
+        interferenceMul: 1.0 + (interferenceFactor - 1.0) * 0.7,
+        echoMul: phaseState === 'echo' ? 0.72 : 1.0,
       });
       applyPart('overloadB', {
         visible: debugPulse || overloadMix > 0.02 || pulse.corruption > 0.06 || phaseCollapse > 0.18,
         scaleMul: 0.97 + overloadMix * 0.16 + phaseCollapse * 0.1,
+        scaleYMul: 1.0 + signaturePulse * 0.03,
         driftMul: 1.0 + overloadMix * 0.18 + phaseCollapse * 0.08,
         glowMul: 0.78 + overloadMix * 0.46 + phaseCollapse * 0.12,
         distortionMul: 0.92 + phaseCollapse * 0.08,
         noiseScaleMul: 1.12,
         noiseSpeedMul: 1.18 + phaseCollapse * 0.08,
+        directionalWake: wakeShift * 0.035,
+        interferenceMul: 1.0 + (interferenceFactor - 1.0) * 0.7,
+        echoMul: phaseState === 'echo' ? 0.72 : 1.0,
       });
     }
   }
@@ -1456,6 +1654,8 @@ export class LinkResonanceFlowSystem_Session124 {
     const linkId = typeof linkOrId === 'object' ? (linkOrId?.id ?? linkOrId?.linkId ?? null) : linkOrId;
     if (linkId === null || linkId === undefined) return;
 
+    this._linkEndpointIdCache.delete(String(linkId));
+
     const pulses = this.linkPulses.get(linkId);
     if (Array.isArray(pulses)) {
       for (const pulse of pulses) {
@@ -1552,6 +1752,8 @@ export class LinkResonanceFlowSystem_Session124 {
     this.spawnAccumulators.clear();
     this.stats.pulseSpawnCount = 0;
     this._repeatSuppressedUntilByLinkId = new Map();
+    this._linkEndpointIdCache.clear();
+    this._endpointInterferenceScratch.clear();
     this._lastVisualTime = undefined;
     this._lastUpdateFrameId = undefined;
   }
@@ -1584,6 +1786,8 @@ export class LinkResonanceFlowSystem_Session124 {
     this.linkPulses.clear();
     this.spawnAccumulators.clear();
     this._repeatSuppressedUntilByLinkId = new Map();
+    this._linkEndpointIdCache.clear();
+    this._endpointInterferenceScratch.clear();
   }
 }
 

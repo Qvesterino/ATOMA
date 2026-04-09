@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 /**
  * CascadeResonanceWaveVisualization_Session146.js
  * ============================================================================
@@ -96,12 +98,53 @@ export class CascadeResonanceWaveVisualization_Session146 {
       enabled: config.enabled ?? true,
       debugMode: config.debugMode ?? false,
       maxWaveActivePairs: config.maxWaveActivePairs ?? 30,
+      // Phase 1: Visible wavefront ripples
+      wavefrontRipplesEnabled: config.wavefrontRipplesEnabled ?? true,
+      wavefrontRingCount: config.wavefrontRingCount ?? 3,
+      wavefrontRingMaxRadius: config.wavefrontRingMaxRadius ?? 4.0,
+      wavefrontRingMinRadius: config.wavefrontRingMinRadius ?? 0.3,
+      wavefrontRingSpeed: config.wavefrontRingSpeed ?? 2.0,
+      wavefrontRingOpacity: config.wavefrontRingOpacity ?? 0.12,
+      // Phase 1: Aura tightening pulse
+      auraTighteningPulseEnabled: config.auraTighteningPulseEnabled ?? true,
+      auraTighteningAmount: config.auraTighteningAmount ?? 0.08,
+      auraPulseSpeed: config.auraPulseSpeed ?? 3.0,
+      // Phase 1: Smooth wave phase transitions
+      smoothPhaseTransitionsEnabled: config.smoothPhaseTransitionsEnabled ?? true,
+      // Phase 3: Premium interference + echo effects
+      interferenceEnabled: config.interferenceEnabled ?? true,
+      interferenceBoost: config.interferenceBoost ?? 0.08,
+      interferenceDampening: config.interferenceDampening ?? 0.05,
+      echoTrailEnabled: config.echoTrailEnabled ?? true,
+      echoTrailDuration: config.echoTrailDuration ?? 0.8,
+      echoTrailOpacity: config.echoTrailOpacity ?? 0.03,
+      echoTrailThreshold: config.echoTrailThreshold ?? 0.2,
+      // Phase 2: Glow and beam effects
+      hubGlowModulationEnabled: config.hubGlowModulationEnabled ?? true,
+      hubGlowIntensity: config.hubGlowIntensity ?? 0.05, // 3-7% above baseline
+      hubGlowColor: config.hubGlowColor ?? new THREE.Color(0x7ffcff), // Cyan-white
+      linkResonanceBeamEnabled: config.linkResonanceBeamEnabled ?? true,
+      linkBeamOpacity: config.linkBeamOpacity ?? 0.08,
+      linkBeamColor: config.linkBeamColor ?? new THREE.Color(0x9fdfff),
+      waveStrengthIndicatorEnabled: config.waveStrengthIndicatorEnabled ?? true
     };
     
     // Wave state tracking (per hub pair)
     // Key: "hubA-hubB", Value: { wavePhase, influence }
     this.activeWaves = new Map();
     
+    // Phase 1: Wavefront ring pool (reused geometries)
+    this._ringGeometryPool = null;
+    this._ringMaterial = null;
+    this._activeRings = []; // Array of { mesh, waveKey, startTime, hubAId, hubBId }
+    this._freeRingIndices = [];
+
+    // Phase 2: Resonance beam pool (reused line meshes)
+    this._beamGeometryPool = null;
+    this._beamMaterial = null;
+    this._activeBeams = [];
+    this._freeBeamIndices = [];
+
     // Global time accumulator for wave period calculation
     this.globalWaveTime = 0;
     
@@ -118,6 +161,158 @@ export class CascadeResonanceWaveVisualization_Session146 {
     this._semanticBusRef = null;
     this._semanticSubscribed = false;
     this._subscribeCascadeEvents();
+    
+    // Phase 1: Initialize ring system
+    this._initWavefrontRingSystem();
+    
+    // Phase 2: Initialize link resonance beam system
+    this._initLinkResonanceBeamSystem();
+  }
+
+  /**
+   * Phase 2: Initialize link resonance beam system
+   */
+  _initLinkResonanceBeamSystem() {
+    if (!this.config.linkResonanceBeamEnabled) return;
+    if (!this.harmonicHubSystem?.world?.scene) return;
+
+    const scene = this.harmonicHubSystem.world.scene;
+    this._beamGeometryPool = [];
+    this._freeBeamIndices = [];
+
+    const beamCount = Math.max(1, Math.min(this.config.maxWaveActivePairs, 32));
+
+    for (let i = 0; i < beamCount; i++) {
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(6);
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setDrawRange(0, 2);
+
+      const material = new THREE.LineBasicMaterial({
+        color: this.config.linkBeamColor.clone(),
+        transparent: true,
+        opacity: 0.0,
+        depthWrite: false,
+        depthTest: true,
+        blending: THREE.AdditiveBlending
+      });
+
+      const line = new THREE.Line(geometry, material);
+      line.visible = false;
+      line.renderOrder = 110;
+      scene.add(line);
+
+      this._beamGeometryPool.push({
+        line,
+        geometry,
+        active: false,
+        index: i
+      });
+      this._freeBeamIndices.push(i);
+    }
+  }
+
+  /**
+   * Phase 1: Initialize wavefront ring system
+   */
+  _initWavefrontRingSystem() {
+    if (!this.config.wavefrontRipplesEnabled) return;
+    if (!this.harmonicHubSystem?.world?.scene) return;
+    
+    const scene = this.harmonicHubSystem.world.scene;
+    
+    // Create ring geometry (plane with circle shader)
+    const ringGeometry = new THREE.PlaneGeometry(1, 1, 32, 32);
+    
+    // Create ring material (cyan-white, circular gradient)
+    const ringMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uColor: { value: new THREE.Color(0x7ffcff) }, // Cyan-white
+        uOpacity: { value: 1.0 },
+        uTime: { value: 0 }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor;
+        uniform float uOpacity;
+        uniform float uTime;
+        varying vec2 vUv;
+        
+        void main() {
+          vec2 center = vUv - 0.5;
+          float dist = length(center);
+          
+          // Circular ring with soft edges
+          float ring = smoothstep(0.45, 0.48, dist) * (1.0 - smoothstep(0.48, 0.50, dist));
+          
+          // Inner glow
+          float innerGlow = smoothstep(0.48, 0.45, dist) * 0.3;
+          
+          float alpha = (ring + innerGlow) * uOpacity;
+          
+          gl_FragColor = vec4(uColor, alpha);
+          
+          if (alpha < 0.01) discard;
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
+    });
+    
+    this._ringGeometry = ringGeometry;
+    this._ringMaterial = ringMaterial;
+    
+    // Create ring pool (reused meshes)
+    this._ringGeometryPool = [];
+    const ringCount = this.config.maxWaveActivePairs * this.config.wavefrontRingCount;
+    
+    for (let i = 0; i < ringCount; i++) {
+      const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+      ringMesh.visible = false;
+      ringMesh.renderOrder = 100; // High render order for overlay effect
+      scene.add(ringMesh);
+      this._ringGeometryPool.push({
+        mesh: ringMesh,
+        index: i,
+        active: false
+      });
+      this._freeRingIndices.push(i);
+    }
+  }
+
+  /**
+   * Phase 1: Allocate ring from pool
+   */
+  _allocateRing() {
+    if (!this._freeRingIndices || this._freeRingIndices.length === 0) return null;
+    const index = this._freeRingIndices.pop();
+    const ringEntry = this._ringGeometryPool[index];
+    if (!ringEntry) return null;
+    
+    ringEntry.active = true;
+    ringEntry.mesh.visible = true;
+    return ringEntry;
+  }
+
+  /**
+   * Phase 1: Release ring back to pool
+   */
+  _releaseRing(ringEntry) {
+    if (!ringEntry) return;
+    ringEntry.active = false;
+    ringEntry.mesh.visible = false;
+    if (ringEntry.index >= 0) {
+      this._freeRingIndices.push(ringEntry.index);
+    }
   }
 
   _clearCascadeSubscriptions() {
@@ -404,7 +599,11 @@ export class CascadeResonanceWaveVisualization_Session146 {
       wavePhase: this.globalWaveTime % 1,
       influence: Math.max(this.config.waveInfluenceMin, Math.min(this.config.waveInfluenceMax, influence)),
       hubAId: sourceId,
-      hubBId: targetId
+      hubBId: targetId,
+      // Phase 1: Smooth phase transition tracking
+      previousInfluence: 0,
+      targetInfluence: Math.max(this.config.waveInfluenceMin, Math.min(this.config.waveInfluenceMax, influence)),
+      influenceTransitionProgress: 1.0
     });
   }
 
@@ -609,6 +808,19 @@ export class CascadeResonanceWaveVisualization_Session146 {
     if (!this.harmonicHubSystem) {
       return;
     }
+    
+    // Phase 1: Update active rings
+    this._updateWavefrontRipples();
+
+    // Phase 2: Update resonance beams
+    if (this.config.linkResonanceBeamEnabled) {
+      this._updateLinkResonanceBeams();
+    }
+
+    // Phase 1: Apply aura tightening pulse
+    if (this.config.auraTighteningPulseEnabled) {
+      this._applyAuraTighteningPulse();
+    }
 
     for (const hub of this.harmonicHubSystem.hubs?.values?.() ?? []) {
       if (!hub) continue;
@@ -626,6 +838,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
       }
     }
     
+    const hubWaveContributions = new Map();
+
     // Apply wave influence to each active wave path
     for (const [waveKey, waveData] of this.activeWaves.entries()) {
       // Apply temporal phase compression to link
@@ -642,6 +856,33 @@ export class CascadeResonanceWaveVisualization_Session146 {
         metadata._wavePhase = waveData.wavePhase;
       }
       
+      const registerHubContribution = (hubId) => {
+        if (!hubId) return;
+        const entry = hubWaveContributions.get(hubId) || {
+          totalInfluence: 0,
+          phaseX: 0,
+          phaseY: 0,
+          count: 0
+        };
+        entry.totalInfluence += waveData.influence;
+        const angle = (waveData.wavePhase || 0) * Math.PI * 2;
+        entry.phaseX += Math.cos(angle) * waveData.influence;
+        entry.phaseY += Math.sin(angle) * waveData.influence;
+        entry.count += 1;
+        hubWaveContributions.set(hubId, entry);
+      };
+
+      const registerWaveEcho = (hubId) => {
+        const hub = this.harmonicHubSystem.hubs?.get(hubId);
+        if (!hub) return;
+        this._registerHubEcho(hub, waveData.influence);
+      };
+
+      registerHubContribution(waveData.hubAId);
+      registerHubContribution(waveData.hubBId);
+      registerWaveEcho(waveData.hubAId);
+      registerWaveEcho(waveData.hubBId);
+
       // Apply wave tightening to hub auras
       // Auras briefly compress as wave passes through
       const hubA = this.harmonicHubSystem.hubs?.get(waveData.hubAId);
@@ -675,6 +916,360 @@ export class CascadeResonanceWaveVisualization_Session146 {
         }
       }
     }
+
+    if (this.config.interferenceEnabled) {
+      this._applyWaveInterference(hubWaveContributions);
+    }
+
+    if (this.config.echoTrailEnabled) {
+      this._updateWaveEchoTrails();
+    }
+
+    if (this.config.hubGlowModulationEnabled) {
+      this._applyHubGlowModulation();
+    }
+
+    if (this.config.waveStrengthIndicatorEnabled) {
+      this._applyWaveStrengthIndicator();
+    }
+  }
+
+  /**
+   * Phase 1: Update wavefront ring ripples
+   * Spawns visible ring ripples from hubs when waves are active.
+   */
+  _updateWavefrontRipples() {
+    if (!this.config.wavefrontRipplesEnabled) return;
+    if (!this._ringGeometryPool) return;
+
+    // Update existing active rings
+    for (let i = this._activeRings.length - 1; i >= 0; i--) {
+      const activeRing = this._activeRings[i];
+      const age = this.globalWaveTime - activeRing.startTime;
+      const maxAge = this.config.wavefrontRingMaxRadius / this.config.wavefrontRingSpeed;
+      const progress = age / maxAge;
+
+      if (progress >= 1.0) {
+        // Ring expired - release back to pool
+        this._releaseRing(activeRing.ringEntry);
+        this._activeRings.splice(i, 1);
+        continue;
+      }
+
+      // Expand ring
+      const radius = this.config.wavefrontRingMinRadius + progress * (this.config.wavefrontRingMaxRadius - this.config.wavefrontRingMinRadius);
+      activeRing.ringEntry.mesh.scale.setScalar(radius);
+
+      // Fade out opacity (peaked at 30% lifetime, fades after)
+      const fadeProgress = progress < 0.3 ? progress / 0.3 : 1 - (progress - 0.3) / 0.7;
+      const opacity = fadeProgress * activeRing.influence * this.config.wavefrontRingOpacity;
+      activeRing.ringEntry.mesh.material.uniforms.uOpacity.value = opacity;
+      activeRing.ringEntry.mesh.material.uniforms.uTime.value = this.globalWaveTime;
+    }
+
+    // Spawn new rings for active waves
+    if (this.activeWaves.size > 0 && this._activeRings.length < this._ringGeometryPool.length) {
+      for (const [waveKey, waveData] of this.activeWaves.entries()) {
+        // Only spawn ring when wave phase crosses threshold (periodic spawn)
+        const phaseInCycle = (this.globalWaveTime * this.config.wavefrontRingSpeed) % 1.0;
+        const shouldSpawn = phaseInCycle < 0.05 && waveData.influence > 0.3;
+
+        if (!shouldSpawn) continue;
+
+        // Spawn ring at hub A position
+        const hubA = this.harmonicHubSystem?.hubs?.get(waveData.hubAId);
+        if (!hubA) continue;
+
+        const hubPosition = this._resolveHubWorldPosition(hubA);
+        if (!hubPosition) continue;
+
+        const ringEntry = this._allocateRing();
+        if (!ringEntry) continue;
+
+        ringEntry.mesh.position.copy(hubPosition);
+        ringEntry.mesh.scale.setScalar(this.config.wavefrontRingMinRadius);
+
+        this._activeRings.push({
+          ringEntry,
+          waveKey,
+          startTime: this.globalWaveTime,
+          influence: waveData.influence,
+          hubAId: waveData.hubAId,
+          hubBId: waveData.hubBId
+        });
+      }
+    }
+  }
+
+  /**
+   * Phase 1: Apply aura tightening pulse to hubs under wave influence
+   */
+  _applyAuraTighteningPulse() {
+    if (!this.harmonicHubSystem) return;
+
+    // Collect total wave influence per hub
+    const hubInfluenceMap = new Map();
+    for (const waveData of this.activeWaves.values()) {
+      const a = hubInfluenceMap.get(waveData.hubAId) ?? 0;
+      const b = hubInfluenceMap.get(waveData.hubBId) ?? 0;
+      hubInfluenceMap.set(waveData.hubAId, a + waveData.influence);
+      hubInfluenceMap.set(waveData.hubBId, b + waveData.influence);
+    }
+
+    // Apply tightening pulse to affected hubs
+    for (const [hubId, totalInfluence] of hubInfluenceMap.entries()) {
+      const hub = this.harmonicHubSystem.hubs?.get(hubId);
+      if (!hub) continue;
+
+      // Tightening follows wave oscillation
+      const pulse = Math.sin(this.globalWaveTime * this.config.auraPulseSpeed) * 0.5 + 0.5;
+      const tightening = pulse * this.config.auraTighteningAmount * Math.min(1, totalInfluence);
+
+      // Apply to hub aura scale
+      if (hub.aura) {
+        const baseScale = hub._baseAuraScale ?? hub.aura.scale.x ?? 1;
+        if (!hub._baseAuraScale) hub._baseAuraScale = baseScale;
+        hub.aura.scale.setScalar(baseScale * (1 - tightening));
+      }
+
+      // Apply to node scale (subtle)
+      const primaryNode = hub.primaryNode ?? hub.nodes?.[0];
+      if (primaryNode) {
+        const baseNodeScale = primaryNode._baseNodeScale ?? primaryNode.scale.x ?? 1;
+        if (!primaryNode._baseNodeScale) primaryNode._baseNodeScale = baseNodeScale;
+        const nodeTightening = tightening * 0.3; // Even more subtle
+        primaryNode.scale.setScalar(baseNodeScale * (1 - nodeTightening));
+      }
+    }
+  }
+
+  _allocateBeam() {
+    if (!this._freeBeamIndices || this._freeBeamIndices.length === 0) return null;
+    const index = this._freeBeamIndices.pop();
+    const beamEntry = this._beamGeometryPool[index];
+    if (!beamEntry) return null;
+
+    beamEntry.active = true;
+    beamEntry.line.visible = true;
+    return beamEntry;
+  }
+
+  _releaseBeam(beamEntry) {
+    if (!beamEntry) return;
+    beamEntry.active = false;
+    beamEntry.line.visible = false;
+    if (beamEntry.index >= 0) {
+      this._freeBeamIndices.push(beamEntry.index);
+    }
+  }
+
+  _updateLinkResonanceBeams() {
+    if (!this.config.linkResonanceBeamEnabled) return;
+    if (!this._beamGeometryPool || this._beamGeometryPool.length === 0) return;
+
+    // Release any existing beam entries; we reassign per frame
+    for (const beamEntry of this._activeBeams) {
+      this._releaseBeam(beamEntry);
+    }
+    this._activeBeams.length = 0;
+
+    let usedBeams = 0;
+    for (const waveData of this.activeWaves.values()) {
+      if (usedBeams >= this._beamGeometryPool.length) break;
+      if (waveData.influence <= 0.15) continue;
+
+      const hubA = this.harmonicHubSystem.hubs?.get(waveData.hubAId);
+      const hubB = this.harmonicHubSystem.hubs?.get(waveData.hubBId);
+      if (!hubA || !hubB) continue;
+
+      const posA = this._resolveHubWorldPosition(hubA);
+      const posB = this._resolveHubWorldPosition(hubB);
+      if (!posA || !posB) continue;
+
+      const beamEntry = this._allocateBeam();
+      if (!beamEntry) break;
+
+      const positions = beamEntry.geometry.attributes.position.array;
+      positions[0] = posA.x;
+      positions[1] = posA.y;
+      positions[2] = posA.z;
+      positions[3] = posB.x;
+      positions[4] = posB.y;
+      positions[5] = posB.z;
+      beamEntry.geometry.attributes.position.needsUpdate = true;
+      beamEntry.geometry.computeBoundingSphere?.();
+
+      const beamMaterial = beamEntry.line.material;
+      const phasePulse = Math.sin(this.globalWaveTime * 2.0 + waveData.wavePhase * Math.PI * 2) * 0.5 + 0.5;
+      const opacity = Math.min(1.0, this.config.linkBeamOpacity * waveData.influence * (0.6 + 0.4 * phasePulse));
+      beamMaterial.opacity = opacity;
+      if (beamMaterial.color) {
+        beamMaterial.color.copy(this.config.linkBeamColor);
+      }
+
+      // Add a slight motion bias along the link direction using userData
+      beamEntry.line.userData._wavePhase = waveData.wavePhase;
+      beamEntry.line.renderOrder = 110;
+      usedBeams += 1;
+      this._activeBeams.push(beamEntry);
+    }
+  }
+
+  _applyHubGlowModulation() {
+    if (!this.harmonicHubSystem) return;
+
+    const hubInfluenceMap = new Map();
+    for (const waveData of this.activeWaves.values()) {
+      const a = hubInfluenceMap.get(waveData.hubAId) ?? 0;
+      const b = hubInfluenceMap.get(waveData.hubBId) ?? 0;
+      hubInfluenceMap.set(waveData.hubAId, a + waveData.influence);
+      hubInfluenceMap.set(waveData.hubBId, b + waveData.influence);
+    }
+
+    for (const [hubId, totalInfluence] of hubInfluenceMap.entries()) {
+      const hub = this.harmonicHubSystem.hubs?.get(hubId);
+      if (!hub || !hub.aura || !hub.aura.material) continue;
+
+      const glowPulse = Math.sin((this.globalWaveTime + totalInfluence) * Math.PI * 2) * 0.5 + 0.5;
+      const glowStrength = Math.min(1, totalInfluence) * this.config.hubGlowIntensity * glowPulse;
+      const material = hub.aura.material;
+
+      if (Number.isFinite(material.emissiveIntensity)) {
+        if (hub._baseAuraEmissiveIntensity === undefined) {
+          hub._baseAuraEmissiveIntensity = material.emissiveIntensity;
+        }
+        material.emissiveIntensity = hub._baseAuraEmissiveIntensity * (1 + glowStrength);
+      }
+
+      if (material.emissive && typeof material.emissive.copy === 'function') {
+        if (!hub._baseAuraEmissiveColor) {
+          hub._baseAuraEmissiveColor = material.emissive.clone();
+        }
+        material.emissive.copy(hub._baseAuraEmissiveColor).lerp(this.config.hubGlowColor, Math.min(1, totalInfluence * 0.5));
+      }
+
+      if (material.uniforms?.uGlowIntensity) {
+        material.uniforms.uGlowIntensity.value = Math.max(material.uniforms.uGlowIntensity.value, glowStrength);
+      }
+    }
+  }
+
+  _applyWaveStrengthIndicator() {
+    if (!this.harmonicHubSystem) return;
+
+    const hubInfluenceMap = new Map();
+    for (const waveData of this.activeWaves.values()) {
+      const a = hubInfluenceMap.get(waveData.hubAId) ?? 0;
+      const b = hubInfluenceMap.get(waveData.hubBId) ?? 0;
+      hubInfluenceMap.set(waveData.hubAId, a + waveData.influence);
+      hubInfluenceMap.set(waveData.hubBId, b + waveData.influence);
+    }
+
+    for (const [hubId, totalInfluence] of hubInfluenceMap.entries()) {
+      const hub = this.harmonicHubSystem.hubs?.get(hubId);
+      if (!hub || !hub.aura || !hub.aura.material) continue;
+
+      const strength = Math.min(1, totalInfluence);
+      const indicatorPulse = Math.sin(this.globalWaveTime * 1.5 + strength * Math.PI) * 0.5 + 0.5;
+      const indicatorIntensity = strength * 0.12 * indicatorPulse;
+      const material = hub.aura.material;
+
+      if (Number.isFinite(material.opacity)) {
+        const baseOpacity = hub._baseAuraOpacity ?? material.opacity;
+        if (hub._baseAuraOpacity === undefined) hub._baseAuraOpacity = baseOpacity;
+        material.opacity = Math.max(0, Math.min(1, baseOpacity + indicatorIntensity));
+      }
+
+      if (material.uniforms?.uAuraColor && material.uniforms.uAuraColor.value) {
+        if (!hub._baseAuraColor) {
+          hub._baseAuraColor = material.uniforms.uAuraColor.value.clone();
+        }
+        material.uniforms.uAuraColor.value.copy(hub._baseAuraColor).lerp(this.config.hubGlowColor, strength * 0.2);
+      }
+    }
+  }
+
+  _applyWaveInterference(hubWaveContributions) {
+    if (!this.harmonicHubSystem || !hubWaveContributions) return;
+
+    for (const [hubId, data] of hubWaveContributions.entries()) {
+      const hub = this.harmonicHubSystem.hubs?.get(hubId);
+      if (!hub || !hub.aura || !hub.aura.material) continue;
+      if (data.count < 2) continue;
+
+      const material = hub.aura.material;
+      const total = data.totalInfluence;
+      if (total <= 0) continue;
+
+      const amplitude = Math.sqrt(data.phaseX * data.phaseX + data.phaseY * data.phaseY);
+      const coherence = Math.max(0, Math.min(1, amplitude / total));
+      const constructive = coherence;
+      const destructive = 1 - coherence;
+
+      const interferenceDelta = constructive * this.config.interferenceBoost - destructive * this.config.interferenceDampening;
+      if (Number.isFinite(material.emissiveIntensity)) {
+        if (hub._baseAuraEmissiveIntensity === undefined) {
+          hub._baseAuraEmissiveIntensity = material.emissiveIntensity;
+        }
+        material.emissiveIntensity = Math.max(0, hub._baseAuraEmissiveIntensity * (1 + interferenceDelta));
+      }
+
+      if (material.uniforms?.uGlowIntensity) {
+        material.uniforms.uGlowIntensity.value = Math.max(material.uniforms.uGlowIntensity.value, Math.max(0, interferenceDelta));
+      }
+
+      const echoStrength = Math.min(1, total) * coherence;
+      this._registerHubEcho(hub, echoStrength);
+    }
+  }
+
+  _registerHubEcho(hub, strength) {
+    if (!hub || strength <= 0) return;
+    const now = this.globalWaveTime;
+    hub._waveEchoStrength = Math.max(hub._waveEchoStrength ?? 0, Math.min(1, strength));
+    hub._waveEchoExpiry = now + this.config.echoTrailDuration;
+  }
+
+  _updateWaveEchoTrails() {
+    if (!this.harmonicHubSystem) return;
+
+    const now = this.globalWaveTime;
+    for (const hub of this.harmonicHubSystem.hubs?.values?.() ?? []) {
+      if (!hub || !hub.aura || !hub.aura.material) continue;
+      const material = hub.aura.material;
+      const expiry = hub._waveEchoExpiry ?? 0;
+      const strength = hub._waveEchoStrength ?? 0;
+
+      if (expiry <= now || strength <= 0) {
+        hub._waveEchoStrength = 0;
+        hub._waveEchoExpiry = 0;
+        continue;
+      }
+
+      const remaining = Math.max(0, expiry - now) / this.config.echoTrailDuration;
+      const echoValue = strength * remaining;
+      const targetOpacity = Math.max(0, Math.min(1, (hub._baseAuraOpacity ?? material.opacity) + echoValue * this.config.echoTrailOpacity));
+
+      if (Number.isFinite(material.opacity)) {
+        if (hub._baseAuraOpacity === undefined) hub._baseAuraOpacity = material.opacity;
+        material.opacity = targetOpacity;
+      }
+    }
+  }
+
+  /**
+   * Phase 1: Resolve hub world position
+   */
+  _resolveHubWorldPosition(hub) {
+    const primaryNode = hub?.primaryNode ?? hub?.nodes?.[0] ?? null;
+    if (!primaryNode) return null;
+    
+    if (typeof primaryNode.getWorldPosition === 'function') {
+      const pos = new THREE.Vector3();
+      primaryNode.getWorldPosition(pos);
+      return pos;
+    }
+    return primaryNode.position?.clone?.() ?? null;
   }
 
   /**
@@ -685,6 +1280,13 @@ export class CascadeResonanceWaveVisualization_Session146 {
   _decayAllWaves(deltaTime) {
     // Apply decay to all active waves
     for (const [waveKey, waveData] of this.activeWaves.entries()) {
+      // Phase 1: Smooth influence transitions
+      if (waveData.influenceTransitionProgress < 1.0) {
+        waveData.influenceTransitionProgress = Math.min(1.0, waveData.influenceTransitionProgress + deltaTime * 2.0);
+        const eased = waveData.influenceTransitionProgress * waveData.influenceTransitionProgress * (3 - 2 * waveData.influenceTransitionProgress);
+        waveData.influence = waveData.previousInfluence + (waveData.targetInfluence - waveData.previousInfluence) * eased;
+      }
+      
       const decayed = waveData.influence * Math.pow(this.config.waveDecayRate, deltaTime * 60);
       
       if (decayed < this.config.waveDissolveThreshold) {
@@ -799,6 +1401,36 @@ export class CascadeResonanceWaveVisualization_Session146 {
   dispose() {
     this.activeWaves.clear();
     this._clearCascadeSubscriptions();
+    
+    // Phase 1: Cleanup rings
+    if (this._ringGeometryPool) {
+      for (const ring of this._ringGeometryPool) {
+        if (ring.mesh?.parent) ring.mesh.parent.remove(ring.mesh);
+      }
+      this._ringGeometryPool = [];
+      this._activeRings = [];
+      this._freeRingIndices = [];
+    }
+    if (this._ringMaterial) {
+      this._ringMaterial.dispose();
+      this._ringMaterial = null;
+    }
+    if (this._ringGeometry) {
+      this._ringGeometry.dispose();
+      this._ringGeometry = null;
+    }
+
+    // Phase 2: Cleanup beams
+    if (this._beamGeometryPool) {
+      for (const beam of this._beamGeometryPool) {
+        if (beam.line?.parent) beam.line.parent.remove(beam.line);
+        if (beam.line?.material) beam.line.material.dispose();
+        if (beam.geometry) beam.geometry.dispose();
+      }
+      this._beamGeometryPool = [];
+      this._activeBeams = [];
+      this._freeBeamIndices = [];
+    }
   }
 }
 
