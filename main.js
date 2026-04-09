@@ -734,32 +734,14 @@ import { ParticleStreamCascadeAccelerationIntegrationPatch } from './ParticleStr
 import { ParticleStreamCascadeAccelerationIntegrationSetup } from './ParticleStreamCascadeAccelerationIntegrationSetup.js';
 
 // ============================================================================
-// SESSION 117B+ EXTENDED: CASCADE PARTICLE EMISSION BOOST (Cascade → Particle FX)
-// Drives particle emission on links affected by cascades
-// ============================================================================
-import { setupCascadeParticleEmissionBoost } from './CascadeParticleEmissionBoost_Session118.js';
-
-// ============================================================================
-// SESSION 119: CASCADE PARTICLE COLOR TINTING (Conflict-Type Color Coding)
-// Colors particles based on conflict type (destructive, fatigue, oscillation, etc)
-// ============================================================================
-import { setupCascadeParticleColorTinting } from './CascadeParticleColorTinting_Session119.js';
-
 // ============================================================================
 // SESSION 120: SEMANTIC PARTICLE ENCODING (Shape & Velocity as Meaning)
 // Encodes conflict type (shape) and propagation (velocity) into particles
 // ============================================================================
 import { setupCascadeParticleSystem } from './CascadeParticleSystem_Session120.js';
-import { setupParticleTrailSystem, updateParticleTrailSystem, cleanupParticleTrailSystem } from './ParticleTrailIntegrationPatch_Session122.js';
 import { CascadeResonanceWaveVisualization_Session146 } from './CascadeResonanceWaveVisualization_Session146.js';
 import { ResonanceCascadeVisualization_Session117B } from './ResonanceCascadeVisualization_Session117B.js';
 import { createCascadeEventBridge } from './CascadeEventBridge_v1.js';
-
-// ============================================================================
-// SESSION 121: PARTICLE SEMANTIC DENSITY (Clustering & Density as Meaning)
-// Encodes intensity and urgency through particle distribution
-// ============================================================================
-import { setupParticleSemanticDensity } from './ParticleSemanticDensityAdapter_Session121.js';
 
 // ============================================================================
 // SESSION 128: INFLUENCE ATTENUATION & ABSORPTION VISUALS
@@ -4586,15 +4568,15 @@ class AtomaGame {
         this.frameScheduler.register('simulation', (dt) => {
             this.phase5MultiNetworkOrchestrator?.update?.(dt);
         }, 'simulation.phase5MultiNetworkOrchestrator');
-        this.frameScheduler.register('simulation', (dt) => {
+        this.frameScheduler.register('visual', (dt) => {
             this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem);
-        }, 'simulation.emergentThoughtStorms');
+        }, 'visual.emergentThoughtStorms');
         this.frameScheduler.register('simulation', (dt) => {
             this.colonyManager?.update?.(dt);
         }, 'simulation.colonyManager');
-        this.frameScheduler.register('simulation', (dt) => {
+        this.frameScheduler.register('visual', (dt) => {
             this.nodeEvolution?.update?.(dt, {}, this.linkingSystem);
-        }, 'simulation.nodeEvolution');
+        }, 'visual.nodeEvolution');
         this.frameScheduler.register('simulation', (dt) => {
             this.nodePersonality?.update?.(dt, this.time);
         }, 'simulation.nodePersonality');
@@ -4861,51 +4843,12 @@ class AtomaGame {
             }
         }, 'visual.particleEmissionScaler');
         this.frameScheduler.register('visual', (dt) => {
-            if (this.particleSemanticDensity) {
-                const links = this.linkingSystem?.links || [];
-                const cascadeSystem = this.harmonicCascadeAmplification || this.cascadeVisualizer || null;
-                this.particleSemanticDensity.update(dt, links, this.conflictSystem || null, cascadeSystem);
-            }
-        }, 'visual.particleSemanticDensity');
-        this.frameScheduler.register('visual', (dt) => {
-            const boostSystem = this.cascadeParticleEmissionBoost;
-            if (boostSystem) {
-                const links = this.linkingSystem?.links;
-                if (Array.isArray(links) && links.length > 0) {
-                    const cascadeSystem = this.harmonicCascadeAmplification || this.cascadeVisualizer || null;
-                    boostSystem.update(dt, links, cascadeSystem);
-                }
-            }
-        }, 'visual.cascadeParticleEmissionBoost');
-        this.frameScheduler.register('visual', (dt) => {
-            if (this.cascadeParticleColorTinting) {
-                const links = this.linkingSystem?.links || [];
-                this.cascadeParticleColorTinting.update(
-                    dt,
-                    links,
-                    this.cascadeVisualizer || this.harmonicCascadeAmplification || null,
-                    this.conflictSystem || null
-                );
-            }
-        }, 'visual.cascadeParticleColorTinting');
-        this.frameScheduler.register('visual', (dt) => {
             if (this.cascadeParticleSystem) {
                 const links = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : [];
-                const activeLinks = links.filter((link) => link && link.active !== false);
-                this.cascadeParticleSystem.update(dt, activeLinks, this.camera);
+                const cascadeSystem = this.harmonicCascadeAmplification || this.cascadeVisualizer || null;
+                this.cascadeParticleSystem.update(dt, links, this.camera, cascadeSystem, this.conflictSystem || null);
             }
         }, 'visual.cascadeParticleSystem');
-        
-        // NEW: Update particle trail system (SESSION 122)
-        this.frameScheduler.register('visual', (dt) => {
-            if (this.cascadeParticleSystem) {
-                updateParticleTrailSystem(
-                    dt,
-                    this,
-                    this.cascadeParticleSystem
-                );
-            }
-        }, 'visual.particleTrailSystem');
         
         // NEW: Update cascade resonance wave visualization
         this.frameScheduler.register(
@@ -5482,12 +5425,6 @@ this.setHudDirty('nodeInspect');
         // Particle Stream Cascade Acceleration (layer-depth based particle dynamics)
         this.cascadeAccelSetup = null;
 
-        // Cascade Particle Emission Boost (drives particle FX from cascades)
-        this.cascadeParticleEmissionBoost = null;
-
-        // Cascade Particle Color Tinting (colors particles by conflict type)
-        this.cascadeParticleColorTinting = null;
-
         // Link Micro-Impulses (event-driven electrical responses)
         this.microImpulseAdapter = null;
 
@@ -5977,18 +5914,6 @@ this.setHudDirty('nodeInspect');
         this.setupCompetitionDominance();
 
         // ========================================================================
-        // SESSION 118: CASCADE PARTICLE EMISSION BOOST
-        // Drives particle emission on cascade-affected links
-        // ========================================================================
-        this.setupCascadeParticleEmissionBoost();
-
-        // ========================================================================
-        // SESSION 119: CASCADE PARTICLE COLOR TINTING
-        // Colors particles based on conflict type
-        // ========================================================================
-        this.setupCascadeParticleColorTinting();
-
-        // ========================================================================
         // SESSION 120: CASCADE PARTICLE SYSTEM
         // Semantic particles with shape and velocity encoding
         // ========================================================================
@@ -6005,12 +5930,6 @@ this.setHudDirty('nodeInspect');
         // Visualizes subtle wave propagation between synchronized hubs
         // ========================================================================
         this.setupCascadeResonanceWaveVisualization();
-
-        // ========================================================================
-        // SESSION 121: PARTICLE SEMANTIC DENSITY
-        // Clustering and density encoding intensity and urgency
-        // ========================================================================
-        this.setupParticleSemanticDensity();
 
         // ========================================================================
         // SESSION 128: INFLUENCE ATTENUATION & ABSORPTION VISUALS
@@ -7448,17 +7367,13 @@ window.__ATOMA_SCENE__ = this.scene;
             console.warn('[main.js] HarmonyStabilizationSystem rebind failed:', err?.message || err);
         }
 
-        // Rebind ParticleSemanticDensityAdapter
+        // Rebind cascade particle system semantic sources
         try {
-            if (this.particleSemanticDensity && typeof this.particleSemanticDensity.rebind === 'function') {
-                this.particleSemanticDensity.rebind({
-                    links: this.links || this.linkingSystem?.links,
-                    conflictSystem: null,
-                    cascadeSystem: this.cascadeEventBridge
-                });
+            if (this.cascadeParticleSystem && typeof this.cascadeParticleSystem.setSemanticBus === 'function') {
+                this.cascadeParticleSystem.setSemanticBus(this.semanticBus ?? globalThis?.semanticBus ?? null);
             }
         } catch (err) {
-            console.warn('[main.js] ParticleSemanticDensityAdapter rebind failed:', err?.message || err);
+            console.warn('[main.js] CascadeParticleSystem semantic rebind failed:', err?.message || err);
         }
 
         // Rebind LinkRendererConduit
@@ -7579,20 +7494,8 @@ window.__ATOMA_SCENE__ = this.scene;
                 this.canonicalTemplate3_StressVisuals.reset();
             }
 
-            // NEW: Dispose particle trail system (SESSION 122)
-            if (this._particleTrailSystem && typeof cleanupParticleTrailSystem === 'function') {
-                cleanupParticleTrailSystem(this);
-                console.log('[main.js] ParticleTrailSystem disposed');
-            }
-
-            if (this.cascadeParticleEmissionBoost?.clearWorldState) {
-                this.cascadeParticleEmissionBoost.clearWorldState();
-            }
-            if (this.cascadeParticleColorTinting?.clearWorldState) {
-                this.cascadeParticleColorTinting.clearWorldState();
-            }
-            if (this.particleSemanticDensity?.clearWorldState) {
-                this.particleSemanticDensity.clearWorldState();
+            if (this.cascadeParticleSystem && typeof this.cascadeParticleSystem.clearWorldState === 'function') {
+                this.cascadeParticleSystem.clearWorldState();
             }
 
             // NEW: Dispose cascade particle systems
@@ -10259,6 +10162,11 @@ window.__ATOMA_SCENE__ = this.scene;
         // Computes local resonance for nodes & links, aggregates into global "network mood"
         // Influences node behavior, link behavior, and overall network state
         // Reads from: node/link userData (all previous Week systems)
+        //
+        // Harmony Field Lines spawn conditions:
+        // - Resonance >= 0.6 (60%+ threshold - more forgiving)
+        // - Corruption < 0.3 (low corruption nodes only)
+        // - Must have at least one connection
         try {
             this.resonanceFeedback = new ResonanceFeedback_v1({
                 scene: this.scene,           // Three.js scene for visual effects
@@ -10267,7 +10175,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 maxLinksPerFrame: null,     // No frame limit
                 enableHarmonyFieldLines: true,  // Enable visual field lines
                 fieldLinesConfig: {
-                    resonanceThreshold: 0.85,    // Only connect nodes above this resonance
+                    resonanceThreshold: 0.6,     // More forgiving threshold (60%+)
                     maxConnectionsPerNode: 3,    // Limit connections per node
                     maxTotalLines: 50,           // Total field lines limit
                     pulseSpeed: 2.0,             // Animation speed
@@ -10970,54 +10878,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 break;
         }
     }
-    setupCascadeParticleEmissionBoost() {
-        try {
-            this.cascadeParticleEmissionBoost = setupCascadeParticleEmissionBoost(
-                this,
-                {
-                    enabled: true,
-                    debugMode: false,
-                    maxEmissionMultiplier: 3.0,
-                    cascadeToEmissionResponse: 'quadratic',
-                    burstPulseFrequencyBase: 2.0,
-                    burstPulseFrequencyMax: 10.0
-                }
-            );
-            
-            console.log('[main.js] CascadeParticleEmissionBoost initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] CascadeParticleEmissionBoost initialization failed:', err);
-        }
-    }
-
-    /**
-     * Setup CASCADE PARTICLE COLOR TINTING (Session 119)
-     * Colors particles based on conflict type
-     */
-    setupCascadeParticleColorTinting() {
-        try {
-            this.cascadeParticleColorTinting = setupCascadeParticleColorTinting(
-                this,
-                {
-                    enabled: true,
-                    debugMode: false,
-                    enableConflictTypeDetection: true,
-                    enableCorruptionTinting: true,
-                    colorEMAAlpha: 0.15,
-                    brightnessModulationDepth: 0.2
-                }
-            );
-            
-            console.log('[main.js] CascadeParticleColorTinting initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] CascadeParticleColorTinting initialization failed:', err);
-        }
-    }
-
-    /**
-     * Setup CASCADE PARTICLE SYSTEM (Session 120)
-     * Semantic particles with shape and velocity encoding
-     */
     _getCascadeEventBridgeConfig() {
         return {
             linkingSystem: this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking,
@@ -11088,33 +10948,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             );
             this.cascadeParticles = this.cascadeParticleSystem; // compatibility alias
             const lifecycleSource = this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking ?? null;
+            this.cascadeParticleSystem?.setSemanticBus?.(this.semanticBus ?? this.cascadeParticleSystem?.semanticBus ?? null);
             this.cascadeParticleSystem?.attachLinkLifecycleSource?.(lifecycleSource);
             if (this.cascadeParticleSystem?.mesh && this.scene && !this.cascadeParticleSystem.mesh.parent) {
                 this.scene.add(this.cascadeParticleSystem.mesh);
             }
             
         } catch (err) {
-        }
-
-        // ========================================================================
-        // ATOMA SAFE PATCH: PARTICLE TRAIL SYSTEM (SESSION 122)
-        // Activates ParticleTrailSystem_Session122 for trail rendering
-        // ========================================================================
-        try {
-            this._particleTrailSystem = setupParticleTrailSystem(
-                this.scene,
-                this.cascadeParticleSystem,
-                this
-            );
-            if (this._particleTrailSystem?.trailMesh && this.scene && !this._particleTrailSystem.trailMesh.parent) {
-                this.scene.add(this._particleTrailSystem.trailMesh);
-            }
-            
-            if (this._particleTrailSystem) {
-                console.log('[main.js] ParticleTrailSystem_Session122 initialized ✓');
-            }
-        } catch (err) {
-            console.warn('[main.js] ParticleTrailSystem initialization failed:', err);
         }
     }
 
@@ -11179,17 +11019,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     _wireCascadeParticlePipeline(cascadeSystem) {
         const linkingSystem = this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking ?? null;
 
-        if (this.cascadeParticleEmissionBoost) {
-            this.cascadeParticleEmissionBoost.semanticBus = this.semanticBus ?? this.cascadeParticleEmissionBoost.semanticBus;
-            console.log('[main.js] CascadeParticleEmissionBoost wired to cascade pipeline ✓');
-        }
-
-        if (this.cascadeParticleColorTinting) {
-            this.cascadeParticleColorTinting.semanticBus = this.semanticBus ?? this.cascadeParticleColorTinting.semanticBus;
-            console.log('[main.js] CascadeParticleColorTinting wired to cascade pipeline ✓');
-        }
-
         if (this.cascadeParticleSystem && linkingSystem) {
+            this.cascadeParticleSystem.setSemanticBus?.(this.semanticBus ?? this.cascadeParticleSystem.semanticBus ?? null);
             this.cascadeParticleSystem.attachLinkLifecycleSource(linkingSystem);
             if (this.cascadeParticleSystem.mesh && this.scene && !this.cascadeParticleSystem.mesh.parent) {
                 this.scene.add(this.cascadeParticleSystem.mesh);
@@ -11237,31 +11068,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.log('[main.js] ResonanceCascadeVisualization initialized ✓');
         } catch (err) {
             console.warn('[main.js] ResonanceCascadeVisualization initialization failed:', err);
-        }
-    }
-
-    /**
-     * Setup PARTICLE SEMANTIC DENSITY (Session 121)
-     * Clustering and density encoding intensity and urgency
-     */
-    setupParticleSemanticDensity() {
-        try {
-            this.particleSemanticDensity = setupParticleSemanticDensity(
-                this,
-                {
-                    enabled: true,
-                    debugMode: false,
-                    maxDensityMultiplier: 4.0,
-                    densitySafetyThreshold: 3.5,
-                    maxClusterCohesion: 1.0,
-                    intensityEMAAlpha: 0.2,
-                    urgencyEMAAlpha: 0.15,
-                }
-            );
-            
-            console.log('[main.js] ParticleSemanticDensity initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] ParticleSemanticDensity initialization failed:', err);
         }
     }
 
@@ -11722,6 +11528,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('phase5CascadeVisualizationBridge', 'simulation.phase5CascadeVisualizationBridge', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt));
         regGuard('preCascadeVisualHint', 'simulation.preCascadeVisualHint', (dt) => this.preCascadeVisualHint?.update?.(dt));
         regGuard('nodeHierarchyBridge', 'simulation.nodeHierarchyBridge', () => this.nodeHierarchyBridge?.update?.());
+        regGuard('nodeEvolution', 'visual.nodeEvolution', (dt) => this.nodeEvolution?.update?.(dt, {}, this.linkingSystem));
         regGuard('legendaryPack', 'visual.legendaryPack', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer));
         regGuard('legendaryLinkFX', 'visual.legendaryLinkFX', (dt) => this.legendaryLinkFX?.update?.(dt, this.scene, this.camera, this.renderer));
         regGuard('worldEvents', 'background.worldEvents', (dt) => {
@@ -11738,7 +11545,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.worldFXPack?.update?.(dt, this.scene, this.camera);
         });
         regGuard('ambientEntityManager', 'background.ambientEntityManager', (dt) => this.ambientEntityManager?.update?.(dt));
-        regGuard('emergentThoughtStorms', 'simulation.emergentThoughtStorms', (dt) => this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem));
+        regGuard('emergentThoughtStorms', 'visual.emergentThoughtStorms', (dt) => this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem));
         regGuard('colonyManager', 'simulation.colonyManager', (dt) => this.colonyManager?.update?.(dt));
         regGuard('dreamDepthPack', 'visual.dreamDepthPack', (dt) => {
             if (this.environmentDomain?.instances?.safeDreamDepthPack) return;
@@ -11750,7 +11557,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         });
         regGuard('mobilityPack', 'visual.mobilityPack', (dt) => this.mobilityPack?.update?.(dt));
         regGuard('nodeVisuals4', 'visual.nodeVisuals4', (dt) => this.nodeVisuals4?.update?.(dt));
-        regGuard('nodeEvolution', 'simulation.nodeEvolution', (dt) => this.nodeEvolution?.update?.(dt, {}, this.linkingSystem));
+        regGuard('nodeEvolution', 'visual.nodeEvolution', (dt) => this.nodeEvolution?.update?.(dt, {}, this.linkingSystem));
         regGuard('evolvingLinkFX', 'visual.evolvingLinkFX', (dt) => this.evolvingLinkFX?.update?.(dt, null, null));
         regGuard('nodePersonality', 'simulation.nodePersonality', (dt) => this.nodePersonality?.update?.(dt, this.time));
         // REMOVED: extremeShaderTestSuite - moved to LEGACY (2026-04-03)

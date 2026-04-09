@@ -166,14 +166,19 @@ class NetworkMood {
 
 /**
  * Harmony Field Lines Renderer
- * Creates organic curves/aurora-like field lines between highly resonant nodes
+ * Creates organic curves/aurora-like field lines between resonant nodes
+ *
+ * Spawn conditions:
+ * - Resonance >= 0.6 (60%+ threshold - more forgiving)
+ * - Corruption < 0.3 (low corruption nodes only)
+ * - Must have at least one connection
  */
 class HarmonyFieldLinesRenderer {
     constructor(scene, config = {}) {
         this.scene = scene;
         this.config = {
             enabled: config.enabled ?? true,
-            resonanceThreshold: config.resonanceThreshold ?? 0.85,  // Only connect nodes above this resonance
+            resonanceThreshold: config.resonanceThreshold ?? 0.6,  // More forgiving threshold (60%+)
             maxConnectionsPerNode: config.maxConnectionsPerNode ?? 3,  // Limit connections per node
             maxTotalLines: config.maxTotalLines ?? 50,  // Total field lines limit
             updateInterval: config.updateInterval ?? 0.1,  // Update every 0.1s
@@ -198,19 +203,32 @@ class HarmonyFieldLinesRenderer {
     }
 
     /**
-     * Get top resonant nodes
+     * Get top resonant nodes with new spawn conditions:
+     * - Resonance >= threshold (default 0.6, more forgiving)
+     * - Corruption < 0.3 (low corruption)
+     * - Has at least one connection
      */
     _getTopResonantNodes(allNodes) {
         const nodes = [];
         for (const node of allNodes) {
             if (!node?.userData?.resonanceFeedback) continue;
+
             const resonance = node.userData.resonanceFeedback.localResonance;
-            if (resonance >= this.config.resonanceThreshold) {
-                nodes.push({ node, resonance });
+            const corruption = node.userData.resonanceFeedback.corruptionDrift ?? 0;
+            const hasConnections = node.connections && node.connections.length > 0;
+
+            // Spawn conditions:
+            // 1. Minimum resonance (more forgiving)
+            // 2. Low corruption (node.corruption.low)
+            // 3. Must have at least one link
+            if (resonance >= this.config.resonanceThreshold &&
+                corruption < 0.3 &&
+                hasConnections) {
+                nodes.push({ node, resonance, corruption });
             }
         }
 
-        // Sort by resonance descending
+        // Sort by resonance descending (highest first)
         nodes.sort((a, b) => b.resonance - a.resonance);
 
         // Limit to reasonable number (based on maxTotalLines)

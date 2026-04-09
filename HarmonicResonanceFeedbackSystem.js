@@ -250,6 +250,459 @@ class ResonanceField {
 }
 
 // ============================================================================
+// PROBABILITY CLOUDS RENDERER
+// Quantum uncertainty visualization - particles representing wave function
+// ============================================================================
+
+const PROBABILITY_CLOUDS_CONFIG = {
+    enabled: true,
+    maxParticles: 8000,
+    particlesPerRadiusUnit: 8,  // Dynamic particles based on field size
+    particleSize: 0.15,
+
+    // Colors based on stability
+    colorHighStability: new THREE.Color(0x00ffff),   // Cyan - stable
+    colorMidStability: new THREE.Color(0xff00ff),    // Magenta
+    colorLowStability: new THREE.Color(0xff4488),    // Red-pink - chaotic
+
+    // Animation
+    driftSpeedMin: 0.1,
+    driftSpeedMax: 0.3,
+    quantumNoiseStrength: 0.15,
+
+    // Performance
+    maxActiveFields: 30,
+    updateInterval: 0.08,  // ~12.5 Hz
+    lodDistance: 50.0,
+
+    // Visual
+    maxOpacity: 0.5,
+    fadeInDuration: 0.5,
+    fadeOutDuration: 1.0
+};
+
+class ProbabilityCloudsRenderer {
+    constructor(scene, config = {}) {
+        this.scene = scene;
+        this.config = { ...PROBABILITY_CLOUDS_CONFIG, ...config };
+
+        // Particle system
+        this.particleMesh = null;
+        this.particleGeometry = null;
+        this.particleMaterial = null;
+
+        // Particle data (CPU-side for updates)
+        this.particleData = [];  // { fieldIndex, localT, randomOffset, driftSpeed, life }
+        this.particleCount = 0;
+
+        // Field tracking
+        this.activeFields = [];  // { field, particleIndices, particleCount, fadePhase }
+        this.fieldParticleCounts = new Map();  // field -> { startIndex, count }
+
+        // Timing
+        this.time = 0;
+        this.lastUpdateTime = 0;
+
+        // Initialize
+        this._initializeParticleSystem();
+    }
+
+    _initializeParticleSystem() {
+        // Create shared buffer geometry
+        this.particleGeometry = new THREE.BufferGeometry();
+        this.particleGeometry.setAttribute('position', new THREE.Float32Array(this.config.maxParticles * 3));
+        this.particleGeometry.setAttribute('color', new THREE.Float32Array(this.config.maxParticles * 3));
+        this.particleGeometry.setAttribute('alpha', new THREE.Float32Array(this.config.maxParticles));
+        this.particleGeometry.setAttribute('size', new THREE.Float32Array(this.config.maxParticles));
+
+        // Initialize particle data arrays
+        for (let i = 0; i < this.config.maxParticles; i++) {
+            this.particleData.push({
+                fieldIndex: -1,
+                localT: Math.random(),
+                randomOffset: new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2
+                ),
+                driftSpeed: this.config.driftSpeedMin + Math.random() * (this.config.driftSpeedMax - this.config.driftSpeedMin),
+                life: 0.0
+            });
+
+            // Initialize geometry attributes
+            const pos = this.particleGeometry.attributes.position.array;
+            pos[i * 3] = 0;
+            pos[i * 3 + 1] = 0;
+            pos[i * 3 + 2] = 0;
+
+            const col = this.particleGeometry.attributes.color.array;
+            col[i * 3] = 1;
+            col[i * 3 + 1] = 1;
+            col[i * 3 + 2] = 1;
+
+            const alpha = this.particleGeometry.attributes.alpha.array;
+            alpha[i] = 0;
+
+            const size = this.particleGeometry.attributes.size.array;
+            size[i] = this.config.particleSize;
+        }
+
+        // Create custom shader material
+        this.particleMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uColorHighStability: { value: this.config.colorHighStability },
+                uColorMidStability: { value: this.config.colorMidStability },
+                uColorLowStability: { value: this.config.colorLowStability },
+                uMaxOpacity: { value: this.config.maxOpacity }
+            },
+            vertexShader: `
+                uniform float uTime;
+                uniform vec3 uColorHighStability;
+                uniform vec3 uColorMidStability;
+                uniform vec3 uColorLowStability;
+
+                attribute float alpha;
+                attribute float size;
+
+                varying float vAlpha;
+                varying float vSize;
+
+                void main() {
+                    vAlpha = alpha;
+                    vSize = size;
+
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    gl_PointSize = size * (300.0 / -mvPosition.z);
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 uColorHighStability;
+                uniform vec3 uColorMidStability;
+                uniform vec3 uColorLowStability;
+
+                varying float vAlpha;
+                varying float vSize;
+
+                void main() {
+                    // Soft circular particle
+                    float dist = length(gl_PointCoord - vec2(0.5));
+                    if (dist > 0.5) discard;
+
+                    // Soft glow
+                    float glow = exp(-dist * 4.0);
+
+                    vec3 color = mix(uColorLowStability, uColorMidStability, vAlpha);
+                    color = mix(color, uColorHighStability, vAlpha * vAlpha);
+
+                    gl_FragColor = vec4(color, vAlpha * glow);
+                }
+            `,
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+
+        // Create mesh
+        this.particleMesh = new THREE.Points(this.particleGeometry, this.particleMaterial);
+        this.particleMesh.frustumCulled = false;
+        this.scene.add(this.particleMesh);
+
+        console.log('[ProbabilityCloudsRenderer] Initialized with', this.config.maxParticles, 'particles');
+    }
+
+    /**
+     * Allocate particles for a field
+     */
+    _allocateParticlesForField(field) {
+        if (!field.active || field.strength < 0.01) return;
+
+        const radius = field.getRadius();
+        const particleCount = Math.min(
+            Math.floor(radius * this.config.particlesPerRadiusUnit),
+            100  // Max per field
+        );
+
+        if (particleCount <= 0) return;
+
+        // Find free particles
+        const indices = [];
+        for (let i = 0; i < this.config.maxParticles && indices.length < particleCount; i++) {
+            if (this.particleData[i].fieldIndex === -1 || this.particleData[i].life <= 0) {
+                indices.push(i);
+            }
+        }
+
+        if (indices.length === 0) return;  // No free particles
+
+        // Initialize particles
+        for (const idx of indices) {
+            this.particleData[idx].fieldIndex = this.resonanceFields.indexOf(field);
+            this.particleData[idx].localT = Math.random();
+            this.particleData[idx].life = 0.0;  // Will fade in
+            this.particleData[idx].randomOffset.set(
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2
+            );
+        }
+
+        // Track field particles
+        this.fieldParticleCounts.set(field, {
+            startIndex: indices[0],
+            count: indices.length
+        });
+
+        // Add to active fields
+        this.activeFields.push({
+            field,
+            particleIndices: indices,
+            particleCount: indices.length,
+            fadePhase: 'in'  // in, active, out
+        });
+    }
+
+    /**
+     * Deallocate particles for a field
+     */
+    _deallocateParticlesForField(field) {
+        const activeFieldIdx = this.activeFields.findIndex(f => f.field === field);
+        if (activeFieldIdx === -1) return;
+
+        const activeField = this.activeFields[activeFieldIdx];
+        activeField.fadePhase = 'out';
+
+        // Mark particles for fade-out
+        for (const idx of activeField.particleIndices) {
+            this.particleData[idx].life = 1.0;  // Will fade out
+        }
+    }
+
+    /**
+     * Update particles based on fields
+     */
+    update(deltaTime, resonanceFields) {
+        if (!this.config.enabled) return;
+
+        this.time += deltaTime;
+
+        // Throttle updates
+        if (this.time - this.lastUpdateTime < this.config.updateInterval) {
+            this._updateShaderUniforms();
+            return;
+        }
+        this.lastUpdateTime = this.time;
+
+        // Store reference to fields for particle updates
+        this.resonanceFields = resonanceFields;
+
+        // Manage active fields
+        this._manageActiveFields(resonanceFields);
+
+        // Update all particles
+        this._updateParticles(deltaTime, resonanceFields);
+
+        // Update geometry
+        this.particleGeometry.attributes.position.needsUpdate = true;
+        this.particleGeometry.attributes.color.needsUpdate = true;
+        this.particleGeometry.attributes.alpha.needsUpdate = true;
+
+        // Update shader uniforms
+        this._updateShaderUniforms();
+
+        // Remove decayed fields
+        this._cleanupDecayedFields();
+    }
+
+    _manageActiveFields(resonanceFields) {
+        // Activate new fields
+        for (const field of resonanceFields) {
+            if (!field.active || field.strength < 0.01) continue;
+
+            const isActive = this.activeFields.some(f => f.field === field);
+            if (!isActive) {
+                this._allocateParticlesForField(field);
+            }
+        }
+
+        // Deactivate decayed fields
+        for (const field of resonanceFields) {
+            if (field.isDecayed()) {
+                this._deallocateParticlesForField(field);
+            }
+        }
+    }
+
+    _updateParticles(deltaTime, resonanceFields) {
+        const positions = this.particleGeometry.attributes.position.array;
+        const colors = this.particleGeometry.attributes.color.array;
+        const alphas = this.particleGeometry.attributes.alpha.array;
+
+        for (let i = 0; i < this.config.maxParticles; i++) {
+            const data = this.particleData[i];
+
+            // Skip unused particles
+            if (data.fieldIndex === -1 || data.fieldIndex < 0) {
+                alphas[i] = 0;
+                continue;
+            }
+
+            const field = resonanceFields[data.fieldIndex];
+            if (!field || !field.active || field.strength < 0.01) {
+                data.fieldIndex = -1;
+                alphas[i] = 0;
+                continue;
+            }
+
+            // Get field properties
+            const stability = field.stability ?? 0.5;
+            const radius = field.getRadius();
+            const fieldPosition = field.position;
+
+            // Calculate uncertainty (1 - stability)
+            const uncertainty = 1.0 - stability;
+
+            // Spawn distribution based on stability
+            // High stability = clustered, Low stability = scattered
+            const spreadFactor = uncertainty * 0.8 + 0.2;  // 0.2 to 1.0
+
+            // Base position (spherical distribution)
+            const theta = data.localT * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            const r = radius * Math.pow(Math.random(), 0.5) * spreadFactor;
+
+            const baseX = r * Math.sin(phi) * Math.cos(theta);
+            const baseY = r * Math.sin(phi) * Math.sin(theta);
+            const baseZ = r * Math.cos(phi);
+
+            // Add quantum noise (more for low stability)
+            const noiseScale = uncertainty * this.config.quantumNoiseStrength;
+            const noiseX = Math.sin(this.time * data.driftSpeed + data.randomOffset.x) * noiseScale * radius;
+            const noiseY = Math.cos(this.time * data.driftSpeed + data.randomOffset.y) * noiseScale * radius;
+            const noiseZ = Math.sin(this.time * data.driftSpeed + data.randomOffset.z) * noiseScale * radius;
+
+            // Final position
+            positions[i * 3] = fieldPosition.x + baseX + noiseX;
+            positions[i * 3 + 1] = fieldPosition.y + baseY + noiseY;
+            positions[i * 3 + 2] = fieldPosition.z + baseZ + noiseZ;
+
+            // Color based on stability
+            const color = this._getStabilityColor(stability);
+            colors[i * 3] = color.r;
+            colors[i * 3 + 1] = color.g;
+            colors[i * 3 + 2] = color.b;
+
+            // Opacity with fade
+            let alpha = this.config.maxOpacity * field.strength;
+
+            // Fade in/out
+            if (data.life < 1.0) {
+                data.life += deltaTime / this.config.fadeInDuration;
+                alpha *= Math.min(1.0, data.life);
+            } else if (data.fieldIndex === -1) {
+                // Fading out
+                data.life -= deltaTime / this.config.fadeOutDuration;
+                alpha *= Math.max(0.0, data.life);
+            }
+
+            // Edge fade (particles closer to center are brighter)
+            const distFromCenter = Math.sqrt(baseX * baseX + baseY * baseY + baseZ * baseZ);
+            const edgeFade = 1.0 - (distFromCenter / (radius * spreadFactor));
+            alpha *= Math.max(0.0, edgeFade);
+
+            alphas[i] = Math.max(0.0, Math.min(1.0, alpha));
+        }
+    }
+
+    _getStabilityColor(stability) {
+        if (stability >= 0.8) {
+            return this.config.colorHighStability.clone();
+        } else if (stability >= 0.5) {
+            // Interpolate between mid and high
+            const t = (stability - 0.5) / 0.3;
+            return new THREE.Color().lerpColors(
+                this.config.colorMidStability,
+                this.config.colorHighStability,
+                t
+            );
+        } else {
+            // Interpolate between low and mid
+            const t = Math.min(1.0, stability / 0.5);
+            return new THREE.Color().lerpColors(
+                this.config.colorLowStability,
+                this.config.colorMidStability,
+                t
+            );
+        }
+    }
+
+    _updateShaderUniforms() {
+        this.particleMaterial.uniforms.uTime.value = this.time;
+    }
+
+    _cleanupDecayedFields() {
+        // Remove fields with no active particles
+        this.activeFields = this.activeFields.filter(af => {
+            if (af.fadePhase === 'out') {
+                // Check if all particles are faded out
+                const allFaded = af.particleIndices.every(idx => this.particleData[idx].life <= 0);
+                if (allFaded) {
+                    this.fieldParticleCounts.delete(af.field);
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+
+    /**
+     * Enable/disable
+     */
+    setEnabled(enabled) {
+        this.config.enabled = enabled;
+        if (!enabled) {
+            // Clear all particles
+            for (let i = 0; i < this.config.maxParticles; i++) {
+                this.particleData[i].fieldIndex = -1;
+                this.particleData[i].life = 0;
+            }
+            this.activeFields = [];
+            this.fieldParticleCounts.clear();
+        }
+    }
+
+    /**
+     * Get statistics
+     */
+    getStats() {
+        const activeParticles = this.particleData.filter(d => d.fieldIndex !== -1 && d.life > 0).length;
+        return {
+            enabled: this.config.enabled,
+            maxParticles: this.config.maxParticles,
+            activeParticles,
+            activeFields: this.activeFields.length,
+            particleUtilization: (activeParticles / this.config.maxParticles * 100).toFixed(1) + '%'
+        };
+    }
+
+    /**
+     * Dispose
+     */
+    dispose() {
+        if (this.particleMesh) {
+            this.scene.remove(this.particleMesh);
+            this.particleGeometry.dispose();
+            this.particleMaterial.dispose();
+            this.particleMesh = null;
+        }
+        this.particleData = [];
+        this.activeFields = [];
+        this.fieldParticleCounts.clear();
+    }
+}
+
+// ============================================================================
 // MAIN HARMONIC RESONANCE FEEDBACK SYSTEM
 // ============================================================================
 
@@ -279,7 +732,18 @@ export class HarmonicResonanceFeedbackSystem {
         this.enabled = true;
         this.timeBudgetMs = 3.5;         // soft per-frame budget to avoid stalls
         this._influenceCursor = 0;       // round-robin field processing pointer
-        
+
+        // Initialize Probability Clouds Renderer
+        this.probabilityClouds = null;
+        try {
+            this.probabilityClouds = new ProbabilityCloudsRenderer(this.scene, {
+                enabled: PROBABILITY_CLOUDS_CONFIG.enabled
+            });
+            console.log('[HarmonicResonanceFeedbackSystem] Probability Clouds enabled ✓');
+        } catch (err) {
+            console.warn('[HarmonicResonanceFeedbackSystem] Probability Clouds failed:', err);
+        }
+
         console.log('[HarmonicResonanceFeedbackSystem] Initialized');
     }
     
@@ -324,7 +788,12 @@ export class HarmonicResonanceFeedbackSystem {
         
         // Apply influences to links and glyphs
         this.applyResonanceInfluences(deltaTime, pictogramsArray, linkingSystem, frameStartMs, this.timeBudgetMs);
-        
+
+        // Update probability clouds
+        if (this.probabilityClouds) {
+            this.probabilityClouds.update(deltaTime, this.resonanceFields);
+        }
+
         // Update debug visualization
         if (CONFIG.DEBUG_DRAW_FIELDS) {
             this.updateDebugVisualization();
@@ -664,7 +1133,29 @@ export class HarmonicResonanceFeedbackSystem {
         }
         console.log('[HarmonicResonanceFeedbackSystem] DISABLED');
     }
-    
+
+    dispose() {
+        // Dispose probability clouds
+        if (this.probabilityClouds) {
+            this.probabilityClouds.dispose();
+            this.probabilityClouds = null;
+        }
+
+        // Dispose debug visualization
+        if (this.debugFieldVisualization) {
+            this.scene.remove(this.debugFieldVisualization);
+            if (this.debugFieldGeometry) {
+                this.debugFieldGeometry.dispose();
+            }
+            if (this.debugFieldMaterial) {
+                this.debugFieldMaterial.dispose();
+            }
+            this.debugFieldVisualization = null;
+        }
+
+        console.log('[HarmonicResonanceFeedbackSystem] Disposed');
+    }
+
     // ========================================================================
     // DEBUG VISUALIZATION
     // ========================================================================
@@ -732,13 +1223,20 @@ export class HarmonicResonanceFeedbackSystem {
     getStatus() {
         const activeFields = this.resonanceFields.filter(f => f.active).length;
         const decayingFields = this.resonanceFields.filter(f => !f.active && f.strength > 0.01).length;
-        
-        return {
+
+        const status = {
             enabled: this.enabled,
             activeFields,
             decayingFields,
             totalCapacity: this.resonanceFields.length
         };
+
+        // Add probability clouds statistics
+        if (this.probabilityClouds) {
+            status.probabilityClouds = this.probabilityClouds.getStats();
+        }
+
+        return status;
     }
 }
 
@@ -767,10 +1265,64 @@ export function setupHarmonicResonanceConsoleAPI(game, resonanceSystem) {
         CONFIG.DEBUG_DRAW_FIELDS = !CONFIG.DEBUG_DRAW_FIELDS;
         console.log('[Resonance] Debug visualization:', CONFIG.DEBUG_DRAW_FIELDS);
     };
-    
+
+    // Probability Clouds Console API
+    window.game.probabilityClouds = {
+        enable: () => {
+            if (resonanceSystem.probabilityClouds) {
+                resonanceSystem.probabilityClouds.setEnabled(true);
+                console.log('[Probability Clouds] Enabled');
+            }
+        },
+        disable: () => {
+            if (resonanceSystem.probabilityClouds) {
+                resonanceSystem.probabilityClouds.setEnabled(false);
+                console.log('[Probability Clouds] Disabled');
+            }
+        },
+        setDensity: (density) => {
+            if (resonanceSystem.probabilityClouds) {
+                const oldDensity = resonanceSystem.probabilityClouds.config.particlesPerRadiusUnit;
+                resonanceSystem.probabilityClouds.config.particlesPerRadiusUnit = Math.max(1, Math.min(20, density));
+                console.log(`[Probability Clouds] Density: ${oldDensity} -> ${resonanceSystem.probabilityClouds.config.particlesPerRadiusUnit}`);
+            }
+        },
+        setParticleSize: (size) => {
+            if (resonanceSystem.probabilityClouds) {
+                const oldSize = resonanceSystem.probabilityClouds.config.particleSize;
+                resonanceSystem.probabilityClouds.config.particleSize = Math.max(0.05, Math.min(0.5, size));
+                console.log(`[Probability Clouds] Particle size: ${oldSize} -> ${resonanceSystem.probabilityClouds.config.particleSize}`);
+            }
+        },
+        setUncertaintyScale: (scale) => {
+            if (resonanceSystem.probabilityClouds) {
+                const oldScale = resonanceSystem.probabilityClouds.config.quantumNoiseStrength;
+                resonanceSystem.probabilityClouds.config.quantumNoiseStrength = Math.max(0, Math.min(1, scale));
+                console.log(`[Probability Clouds] Uncertainty scale: ${oldScale} -> ${resonanceSystem.probabilityClouds.config.quantumNoiseStrength}`);
+            }
+        },
+        stats: () => {
+            if (resonanceSystem.probabilityClouds) {
+                const stats = resonanceSystem.probabilityClouds.getStats();
+                console.table(stats);
+                return stats;
+            } else {
+                console.log('[Probability Clouds] Not available');
+                return null;
+            }
+        }
+    };
+
     console.log('[HarmonicResonanceFeedbackSystem] Console API ready:');
     console.log('  game.resonanceStatus()');
     console.log('  game.enableResonance()');
     console.log('  game.disableResonance()');
     console.log('  game.toggleResonanceDebug()');
+    console.log('[Probability Clouds] Console API ready:');
+    console.log('  game.probabilityClouds.enable()');
+    console.log('  game.probabilityClouds.disable()');
+    console.log('  game.probabilityClouds.setDensity(n)');
+    console.log('  game.probabilityClouds.setParticleSize(n)');
+    console.log('  game.probabilityClouds.setUncertaintyScale(n)');
+    console.log('  game.probabilityClouds.stats()');
 }

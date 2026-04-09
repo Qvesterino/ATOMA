@@ -65,7 +65,37 @@ export class CascadeParticleSystem_Session120 {
         farDistance: config.lod?.farDistance ?? 42.0,
         minDensity: config.lod?.minDensity ?? 0.42,
         minOpacity: config.lod?.minOpacity ?? 0.55
-      }
+      },
+      trailEnabled: config.trailEnabled ?? true,
+      trailEmissionRate: config.trailEmissionRate ?? 0.6,
+      trailLengthFactor: config.trailLengthFactor ?? 0.15,
+      maxTrailLength: config.maxTrailLength ?? 8.0,
+      minTrailLength: config.minTrailLength ?? 0.5,
+      trailBaseOpacity: config.trailBaseOpacity ?? 0.6,
+      trailFadeRate: config.trailFadeRate ?? 12.0,
+      trailLifetime: config.trailLifetime ?? 0.18,
+      trailHistoryFrames: config.trailHistoryFrames ?? 2,
+      maxTrailParticles: config.maxTrailParticles ?? 1000,
+      cascadeEmissionBoostEnabled: config.cascadeEmissionBoostEnabled ?? true,
+      cascadeColorTintingEnabled: config.cascadeColorTintingEnabled ?? true,
+      particleSemanticDensityEnabled: config.particleSemanticDensityEnabled ?? true,
+      maxEmissionMultiplier: config.maxEmissionMultiplier ?? 3.0,
+      cascadeToEmissionResponse: config.cascadeToEmissionResponse ?? 'quadratic',
+      burstPulseFrequencyBase: config.burstPulseFrequencyBase ?? 2.0,
+      burstPulseFrequencyMax: config.burstPulseFrequencyMax ?? 10.0,
+      burstModulationDepth: config.burstModulationDepth ?? 0.2,
+      emissionEMAAlpha: config.emissionEMAAlpha ?? 0.2,
+      colorEMAAlpha: config.colorEMAAlpha ?? 0.15,
+      brightnessModulationDepth: config.brightnessModulationDepth ?? 0.2,
+      enableConflictTypeDetection: config.enableConflictTypeDetection ?? true,
+      enableCorruptionTinting: config.enableCorruptionTinting ?? true,
+      intensityEMAAlpha: config.intensityEMAAlpha ?? 0.2,
+      urgencyEMAAlpha: config.urgencyEMAAlpha ?? 0.15,
+      maxDensityMultiplier: config.maxDensityMultiplier ?? 4.0,
+      densitySafetyThreshold: config.densitySafetyThreshold ?? 3.5,
+      maxClusterCohesion: config.maxClusterCohesion ?? 1.0,
+      minClusterRadius: config.minClusterRadius ?? 0.1,
+      maxClusterRadius: config.maxClusterRadius ?? 2.0,
     };
     
     // Debug logger
@@ -97,6 +127,43 @@ export class CascadeParticleSystem_Session120 {
     this._tmpSourceCategoryColor = new THREE.Color();
     this._tmpTargetCategoryColor = new THREE.Color();
     this._neutralParticleColor = new THREE.Color(1.0, 0.3, 0.1) // Bright orange-red for visibility
+    this._cascadeColorPalette = {
+      destructiveConflict: {
+        low: new THREE.Color(0xFF6699),
+        medium: new THREE.Color(0xFF3366),
+        high: new THREE.Color(0xFF0033),
+      },
+      specializationDrift: {
+        low: new THREE.Color(0x66FFFF),
+        medium: new THREE.Color(0x33CCFF),
+        high: new THREE.Color(0x0099FF),
+      },
+      fatigueYield: {
+        low: new THREE.Color(0xFFFF99),
+        medium: new THREE.Color(0xFFDD00),
+        high: new THREE.Color(0xFFAA00),
+      },
+      oscillatoryBalance: {
+        low: new THREE.Color(0x66FF99),
+        medium: new THREE.Color(0x00FF99),
+        high: new THREE.Color(0x00DD77),
+      },
+      resolvedHarmony: {
+        low: new THREE.Color(0x99FFFF),
+        medium: new THREE.Color(0x66FFFF),
+        high: new THREE.Color(0x00FFFF),
+      },
+      corruptionCascade: {
+        low: new THREE.Color(0xFF9999),
+        medium: new THREE.Color(0xFF3333),
+        high: new THREE.Color(0xCC1111),
+      },
+      neutral: {
+        low: new THREE.Color(0xCCCCCC),
+        medium: new THREE.Color(0xFFFFFF),
+        high: new THREE.Color(0xFFFFFF),
+      },
+    };
     this._currentCamera = null;
     
     // Cascade hop cooldown tracking (per link)
@@ -111,6 +178,38 @@ export class CascadeParticleSystem_Session120 {
     this._topologyBiasAccentCooldowns = new Map();
     this._topologyBiasAccentUnsubscribers = [];
     this._topologyBiasAccentBound = null;
+    this._semanticUnsubscribers = [];
+    this._semanticRefreshRequested = false;
+    this._cascadeHopState = new Map();
+    this._semanticLinkState = new Map();
+    this._cascadeEmissionBoostState = this._semanticLinkState;
+    this._cascadeColorTintState = this._semanticLinkState;
+    this._particleSemanticDensityState = this._semanticLinkState;
+    this._semanticStats = {
+      activeBoosts: 0,
+      activeColorTints: 0,
+      activeLinkCount: 0,
+      avgIntensity: 0,
+      avgUrgency: 0,
+      conflictTypeDistribution: {},
+      totalEmissionMultiplier: 0,
+      peakEmissionMultiplier: 1,
+    };
+    this._semanticTime = 0;
+    this.trailPool = [];
+    this.activeTrailCount = 0;
+    this._trailPositionHistory = new Map();
+    this._trailScratchPosition = new THREE.Vector3();
+    this._trailScratchDirection = new THREE.Vector3();
+    this._trailScratchDelta = new THREE.Vector3();
+    this.trailGeometry = null;
+    this.trailMaterial = null;
+    this.trailMesh = null;
+    this.trailStats = {
+      trailsSpawned: 0,
+      activeTrails: 0,
+      totalTrailLength: 0,
+    };
 
     // Resources
     this.geometry = null;
@@ -126,6 +225,7 @@ export class CascadeParticleSystem_Session120 {
     
     // Init
     this.init();
+    this._setupSemanticSubscriptions();
   }
 
   attachLinkLifecycleSource(linkingSystem) {
@@ -305,6 +405,7 @@ export class CascadeParticleSystem_Session120 {
     
     // 5. Initialize Pool
     this._initPool();
+    this._initTrailLayer();
     this._initDebugHelpers();
     this._bindTopologyBiasAccentSubscriptions();
   }
@@ -460,12 +561,863 @@ export class CascadeParticleSystem_Session120 {
       this._freeParticleIndices.push(i);
     }
   }
+
+  /**
+   * Initialize trail rendering resources
+   */
+  _initTrailLayer() {
+    if (this.trailMesh || this.config.trailEnabled === false) {
+      return;
+    }
+
+    this.trailGeometry = new THREE.BufferGeometry();
+
+    const positions = new Float32Array(this.config.maxTrailParticles * 3);
+    const colors = new Float32Array(this.config.maxTrailParticles * 3);
+    const sizes = new Float32Array(this.config.maxTrailParticles);
+    const ages = new Float32Array(this.config.maxTrailParticles);
+    const lengths = new Float32Array(this.config.maxTrailParticles);
+
+    this.trailGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
+    this.trailGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3).setUsage(THREE.DynamicDrawUsage));
+    this.trailGeometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1).setUsage(THREE.DynamicDrawUsage));
+    this.trailGeometry.setAttribute('age', new THREE.BufferAttribute(ages, 1).setUsage(THREE.DynamicDrawUsage));
+    this.trailGeometry.setAttribute('length', new THREE.BufferAttribute(lengths, 1).setUsage(THREE.DynamicDrawUsage));
+
+    this.trailMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTrailFadeRate: { value: this.config.trailFadeRate },
+        uBaseOpacity: { value: this.config.trailBaseOpacity },
+        uTrailLifetime: { value: this.config.trailLifetime },
+      },
+      vertexShader: `
+        attribute float size;
+        attribute vec3 color;
+        attribute float age;
+        attribute float length;
+
+        varying vec3 vColor;
+        varying float vOpacity;
+        varying float vTrailStretch;
+
+        uniform float uTrailFadeRate;
+        uniform float uBaseOpacity;
+        uniform float uTrailLifetime;
+
+        void main() {
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_Position = projectionMatrix * mvPosition;
+
+          float distanceScale = 180.0 / max(1.0, -mvPosition.z);
+          gl_PointSize = clamp(size * (1.0 + length * 0.3) * distanceScale, 1.5, 72.0);
+
+          float ageFraction = age / uTrailLifetime;
+          float fadeAlpha = exp(-ageFraction * uTrailFadeRate);
+          vOpacity = fadeAlpha * uBaseOpacity;
+          vTrailStretch = length;
+          vColor = color;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        varying float vOpacity;
+        varying float vTrailStretch;
+
+        void main() {
+          vec2 c = gl_PointCoord - 0.5;
+          float dist = length(c);
+          float softness = 1.0 - smoothstep(0.0, 0.5, dist);
+          float glow = exp(-dist * dist * 3.0) * vTrailStretch;
+          gl_FragColor = vec4(vColor, (softness + glow * 0.5) * vOpacity);
+        }
+      `,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false,
+      transparent: true,
+      toneMapped: false,
+    });
+
+    this.trailMesh = new THREE.Points(this.trailGeometry, this.trailMaterial);
+    this.trailMesh.name = 'ParticleTrails_Session122';
+    this.trailMesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_PARTICLES);
+    this.trailMesh.frustumCulled = false;
+    this.trailMesh.visible = true;
+    this.scene?.add(this.trailMesh);
+
+    this.trailPool.length = 0;
+    for (let i = 0; i < this.config.maxTrailParticles; i++) {
+      this.trailPool.push({
+        position: new THREE.Vector3(),
+        prevPosition: new THREE.Vector3(),
+        velocity: new THREE.Vector3(),
+        color: new THREE.Color(),
+        age: 0,
+        lifetime: 0,
+        length: 0,
+        size: 1,
+        active: false,
+        particleIndex: -1,
+        spawnTime: 0,
+      });
+    }
+
+    this.trailGeometry.setDrawRange(0, 0);
+  }
+
+  setSemanticBus(semanticBus) {
+    if (semanticBus === this.semanticBus) return;
+    this.semanticBus = semanticBus ?? null;
+    this._setupSemanticSubscriptions();
+  }
+
+  _setupSemanticSubscriptions() {
+    if (Array.isArray(this._semanticUnsubscribers)) {
+      for (const unsub of this._semanticUnsubscribers) {
+        try {
+          unsub?.();
+        } catch (_) {
+          // noop
+        }
+      }
+      this._semanticUnsubscribers.length = 0;
+    }
+
+    const bus = this.semanticBus ?? globalThis?.semanticBus ?? null;
+    if (!bus) return;
+
+    this.semanticBus = bus;
+
+    const requestRefresh = () => {
+      this._semanticRefreshRequested = true;
+    };
+
+    const onCascadeHop = (event = {}) => {
+      const linkId = event.linkId ?? event.link?.uuid ?? event.link?.id ?? event.link?.name;
+      if (!linkId) return;
+
+      const intensity = Math.max(0, Math.min(1, Number(event.intensity ?? event.energy ?? 0) || 0));
+      const hop = Math.max(0, Number(event.hopIndex ?? event.hop ?? 0) || 0);
+      const hopDecay = Math.pow(0.85, hop);
+      this._cascadeHopState.set(String(linkId), {
+        intensity: intensity * hopDecay,
+      });
+      requestRefresh();
+    };
+
+    const bind = (eventName, handler) => {
+      if (typeof bus.on === 'function') {
+        bus.on(eventName, handler);
+        this._semanticUnsubscribers.push(() => {
+          try { bus.off?.(eventName, handler); } catch (_) {}
+        });
+      } else if (typeof bus.subscribe === 'function') {
+        const unsub = bus.subscribe(eventName, handler);
+        if (typeof unsub === 'function') {
+          this._semanticUnsubscribers.push(unsub);
+        }
+      }
+    };
+
+    bind('cascade.hop', onCascadeHop);
+    bind('node.metric.updated', requestRefresh);
+    bind('link.created', requestRefresh);
+    bind('node.spawned', requestRefresh);
+  }
+
+  _getLinkSemanticKey(link) {
+    return String(link?.uuid ?? link?.id ?? link?.name ?? '');
+  }
+
+  _getOrCreateSemanticState(link) {
+    const key = this._getLinkSemanticKey(link);
+    if (!key) return null;
+
+    let state = this._semanticLinkState.get(key);
+    if (!state) {
+      state = {
+        key,
+        cascadeIntensity: 0,
+        emissionBoost: 1,
+        burstPhase: 0,
+        emissionBoostSmoothed: 1,
+        color: new THREE.Color(1, 1, 1),
+        colorRGB: { r: 1, g: 1, b: 1 },
+        colorHex: 'ffffff',
+        intensitySmoothed: 0,
+        urgencySmoothed: 0,
+        densityMultiplier: 1,
+        clusterCohesion: 0,
+        clusterRadius: this.config.maxClusterRadius,
+        urgencyOscillation: 0,
+        conflictType: 'none',
+        conflictIntensity: 0,
+        lastUpdateTime: 0,
+      };
+      this._semanticLinkState.set(key, state);
+    }
+
+    return state;
+  }
+
+  _smoothValue(prev, curr, alpha, deltaTime) {
+    const safeAlpha = Math.max(0, Math.min(1, Number(alpha) || 0));
+    const safeDt = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0;
+    const dtAlpha = 1 - Math.pow(1 - safeAlpha, safeDt * 60);
+    return prev * (1 - dtAlpha) + curr * dtAlpha;
+  }
+
+  _applyCascadeResponseCurve(cascadeIntensity) {
+    const intensity = Math.max(0, Math.min(1, Number(cascadeIntensity) || 0));
+    const curve = this.config.cascadeToEmissionResponse;
+
+    if (curve === 'linear') {
+      return intensity;
+    }
+    if (curve === 'quadratic') {
+      return intensity * intensity;
+    }
+    if (curve === 'exponential') {
+      return Math.pow(2.0, intensity) - 1.0;
+    }
+
+    return intensity * intensity;
+  }
+
+  _mapConflictStateToType(state) {
+    switch (String(state ?? '').trim().toLowerCase()) {
+      case 'active':
+      case 'phase_negotiation':
+      case 'destructive':
+        return 'destructive';
+      case 'specialization_drift':
+        return 'specialization_drift';
+      case 'fatigue_yield':
+        return 'fatigue_yield';
+      case 'oscillatory_balance':
+        return 'oscillatory_balance';
+      case 'resolved_dominant':
+      case 'resolved_equilibrium':
+      case 'harmony':
+        return 'resolved_harmony';
+      case 'corruption':
+        return 'corruption';
+      default:
+        return 'none';
+    }
+  }
+
+  _getCascadeColorKey(conflictType) {
+    switch (String(conflictType ?? '').trim().toLowerCase()) {
+      case 'destructive':
+        return 'destructiveConflict';
+      case 'specialization_drift':
+        return 'specializationDrift';
+      case 'fatigue_yield':
+        return 'fatigueYield';
+      case 'oscillatory_balance':
+        return 'oscillatoryBalance';
+      case 'resolved_harmony':
+        return 'resolvedHarmony';
+      case 'corruption':
+        return 'corruptionCascade';
+      default:
+        return 'neutral';
+    }
+  }
+
+  _resolveCascadeIntensityForLink(link, cascadeSystem = null) {
+    let intensity = 0;
+
+    if (cascadeSystem && cascadeSystem !== this && typeof cascadeSystem.getLinkCascadeInfo === 'function') {
+      const cascadeInfo = cascadeSystem.getLinkCascadeInfo(link);
+      if (cascadeInfo) {
+        intensity = Math.max(intensity, Number(cascadeInfo.intensity ?? 0) || 0);
+      }
+    }
+
+    const u = link?.userData;
+    if (!u) {
+      return Math.max(0, Math.min(1, intensity));
+    }
+
+    const canonicalIntensitySources = [
+      u.cascadeIntensity,
+      u.flowState?.intensity,
+      u.metrics?.synergy,
+      u.synergy?.score,
+      link?.synergyScore,
+    ];
+
+    for (const value of canonicalIntensitySources) {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric)) {
+        intensity = Math.max(intensity, numeric);
+      }
+    }
+
+    return Math.max(0, Math.min(1, intensity));
+  }
+
+  _resolveConflictTypeForLink(link, conflictSystem = null) {
+    const u = link?.userData;
+    if (!u) return 'none';
+
+    if (typeof u.cascadeConflictType === 'string' && u.cascadeConflictType && u.cascadeConflictType !== 'none') {
+      return this._mapConflictStateToType(u.cascadeConflictType);
+    }
+
+    if (typeof u.flowState?.type === 'string' && u.flowState.type) {
+      const mapped = this._mapConflictStateToType(u.flowState.type);
+      if (mapped !== 'none') return mapped;
+    }
+
+    if (conflictSystem && typeof conflictSystem.getConflictState === 'function') {
+      const conflictInfo = conflictSystem.getConflictState();
+      const nodeA = link?.source ?? link?.sourceNode ?? link?.from ?? link?.nodes?.[0] ?? null;
+      const nodeB = link?.target ?? link?.targetNode ?? link?.to ?? link?.nodes?.[1] ?? null;
+
+      if (conflictInfo?.activeConflicts && nodeA && nodeB) {
+        for (const region of conflictInfo.activeConflicts) {
+          if (!region) continue;
+
+          const hub1Id = region.hub1?.userData?.id;
+          const hub2Id = region.hub2?.userData?.id;
+          const aId = nodeA.userData?.id;
+          const bId = nodeB.userData?.id;
+
+          if ((hub1Id === aId && hub2Id === bId) || (hub1Id === bId && hub2Id === aId)) {
+            return this._mapConflictStateToType(region.state || 'none');
+          }
+
+          const sourcePos = this._isValidWorldPosition(nodeA.position) ? nodeA.position : null;
+          const targetPos = this._isValidWorldPosition(nodeB.position) ? nodeB.position : null;
+          if (sourcePos && targetPos && this._tmpMidpoint) {
+            this._tmpMidpoint.copy(sourcePos).add(targetPos).multiplyScalar(0.5);
+            const regionCenter = region.centerPos;
+            if (regionCenter && this._isValidWorldPosition(regionCenter) && this._tmpMidpoint.distanceTo(regionCenter) < 10.0) {
+              return this._mapConflictStateToType(region.state || 'none');
+            }
+          }
+        }
+      }
+    }
+
+    if (this.config.enableCorruptionTinting) {
+      const nodeA = link?.source ?? link?.sourceNode ?? link?.from ?? link?.nodes?.[0] ?? null;
+      const nodeB = link?.target ?? link?.targetNode ?? link?.to ?? link?.nodes?.[1] ?? null;
+      const linkCorruption = Number(u.corruptionLevel ?? 0) || 0;
+      const nodeACorruption = Number(nodeA?.userData?.metrics?.corruption ?? 0) || 0;
+      const nodeBCorruption = Number(nodeB?.userData?.metrics?.corruption ?? 0) || 0;
+      if (linkCorruption > 0.5 || nodeACorruption > 0.5 || nodeBCorruption > 0.5) {
+        return 'corruption';
+      }
+    }
+
+    return 'none';
+  }
+
+  _updateSemanticLayers(deltaTime, links, cascadeSystem = null, conflictSystem = null) {
+    if (!Array.isArray(links) || links.length === 0) {
+      return;
+    }
+
+    const semanticEnabled = this.config.cascadeEmissionBoostEnabled !== false
+      || this.config.cascadeColorTintingEnabled !== false
+      || this.config.particleSemanticDensityEnabled !== false;
+
+    if (!semanticEnabled) return;
+
+    this._semanticTime += Math.max(0, Number(deltaTime) || 0);
+
+    this._semanticStats.activeBoosts = 0;
+    this._semanticStats.activeColorTints = 0;
+    this._semanticStats.activeLinkCount = 0;
+    this._semanticStats.avgIntensity = 0;
+    this._semanticStats.avgUrgency = 0;
+    this._semanticStats.totalEmissionMultiplier = 0;
+    this._semanticStats.peakEmissionMultiplier = 1;
+    this._semanticStats.conflictTypeDistribution = {};
+
+    const now = Date.now();
+    let activeCount = 0;
+    let intensitySum = 0;
+    let urgencySum = 0;
+
+    for (const link of links) {
+      if (!link) continue;
+      if (!link.userData) link.userData = {};
+
+      const state = this._getOrCreateSemanticState(link);
+      if (!state) continue;
+
+      const cascadeIntensity = this._resolveCascadeIntensityForLink(link, cascadeSystem);
+      const conflictType = this._resolveConflictTypeForLink(link, conflictSystem);
+      const conflictIntensity = Math.max(
+        0,
+        Math.min(
+          1,
+          Number(link.userData.cascadeIntensity ?? link.userData.flowState?.intensity ?? cascadeIntensity ?? 0) || 0
+        )
+      );
+
+      this._updateLinkEmissionBoost(link, state, cascadeIntensity, deltaTime);
+      this._updateLinkColorTint(link, state, cascadeIntensity, conflictType, conflictIntensity, deltaTime);
+      this._updateLinkSemanticDensity(link, state, conflictSystem, cascadeIntensity, deltaTime, now);
+
+      if (cascadeIntensity > 0.01 || conflictType !== 'none') {
+        this._semanticStats.activeColorTints++;
+      }
+      if ((link.userData.cascadeParticleEmissionBoost ?? 1) > 1.01) {
+        this._semanticStats.activeBoosts++;
+      }
+      if (conflictType !== 'none') {
+        this._semanticStats.conflictTypeDistribution[conflictType] =
+          (this._semanticStats.conflictTypeDistribution[conflictType] ?? 0) + 1;
+      }
+
+      activeCount++;
+      intensitySum += state.intensitySmoothed ?? cascadeIntensity;
+      urgencySum += state.urgencySmoothed ?? 0;
+    }
+
+    this._semanticStats.activeLinkCount = activeCount;
+    if (activeCount > 0) {
+      this._semanticStats.avgIntensity = intensitySum / activeCount;
+      this._semanticStats.avgUrgency = urgencySum / activeCount;
+      this._semanticStats.totalEmissionMultiplier = this._semanticStats.totalEmissionMultiplier / activeCount;
+    }
+
+    if (this._semanticRefreshRequested || Math.random() < 0.01) {
+      this._cleanupInactiveSemanticStates();
+      this._semanticRefreshRequested = false;
+    }
+  }
+
+  _updateLinkEmissionBoost(link, state, cascadeIntensity, deltaTime) {
+    const u = link.userData;
+    if (this.config.cascadeEmissionBoostEnabled === false) {
+      u.cascadeParticleEmissionBoost = 1.0;
+      return;
+    }
+
+    const response = this._applyCascadeResponseCurve(cascadeIntensity);
+    const targetMultiplier = 1.0 + response * (Math.max(1.0, Number(this.config.maxEmissionMultiplier) || 3.0) - 1.0);
+    state.emissionBoostSmoothed = this._smoothValue(
+      Number(state.emissionBoostSmoothed ?? 1.0) || 1.0,
+      targetMultiplier,
+      this.config.emissionEMAAlpha,
+      deltaTime
+    );
+
+    const pulseFrequencyBase = Math.max(0, Number(this.config.burstPulseFrequencyBase) || 0);
+    const pulseFrequencyMax = Math.max(pulseFrequencyBase, Number(this.config.burstPulseFrequencyMax) || pulseFrequencyBase);
+    const pulseFrequency = pulseFrequencyBase + cascadeIntensity * (pulseFrequencyMax - pulseFrequencyBase);
+    state.burstPhase += pulseFrequency * 2 * Math.PI * Math.max(0, Number(deltaTime) || 0);
+
+    const pulse = 1.0 + Math.sin(state.burstPhase) * Math.max(0, Math.min(0.45, Number(this.config.burstModulationDepth) || 0));
+    const emissionMultiplier = Math.max(1.0, Math.min(5.0, state.emissionBoostSmoothed * pulse));
+
+    state.cascadeIntensity = cascadeIntensity;
+    u.cascadeParticleEmissionBoost = emissionMultiplier;
+    this._semanticStats.totalEmissionMultiplier += emissionMultiplier;
+    this._semanticStats.peakEmissionMultiplier = Math.max(this._semanticStats.peakEmissionMultiplier, emissionMultiplier);
+  }
+
+  _updateLinkColorTint(link, state, cascadeIntensity, conflictType, conflictIntensity, deltaTime) {
+    const u = link.userData;
+    if (this.config.cascadeColorTintingEnabled === false) {
+      state.color.copy(this._neutralParticleColor);
+      state.colorRGB.r = state.color.r;
+      state.colorRGB.g = state.color.g;
+      state.colorRGB.b = state.color.b;
+      state.colorHex = state.color.getHexString();
+      u.cascadeParticleColor = state.color;
+      u.cascadeParticleColorRGB = state.colorRGB;
+      u.cascadeParticleColorHex = state.colorHex;
+      u.cascadeConflictType = 'none';
+      return;
+    }
+
+    const hopState = this._cascadeHopState.get(state.key);
+    let hopIntensity = hopState?.intensity ?? 0;
+    if (hopState) {
+      hopState.intensity = Math.max(0, hopState.intensity - Math.max(0, Number(deltaTime) || 0) * 0.7);
+      if (hopState.intensity <= 0.001) {
+        this._cascadeHopState.delete(state.key);
+      }
+    }
+
+    const tintIntensity = Math.max(cascadeIntensity, hopIntensity);
+    const paletteKey = this._getCascadeColorKey(conflictType);
+    const palette = this._cascadeColorPalette[paletteKey] || this._cascadeColorPalette.neutral;
+    let baseColor = palette.medium;
+    if (tintIntensity < 0.33) {
+      baseColor = palette.low;
+    } else if (tintIntensity >= 0.67) {
+      baseColor = palette.high;
+    }
+
+    const brightnessMod = 0.8 + Math.max(cascadeIntensity, conflictIntensity) * Math.max(0, Number(this.config.brightnessModulationDepth) || 0.2);
+    this._tmpParticleColor.copy(baseColor).multiplyScalar(brightnessMod);
+    state.color.lerp(this._tmpParticleColor, Math.max(0, Math.min(1, Number(this.config.colorEMAAlpha) || 0)));
+    state.colorRGB.r = state.color.r;
+    state.colorRGB.g = state.color.g;
+    state.colorRGB.b = state.color.b;
+    state.colorHex = state.color.getHexString();
+
+    u.cascadeParticleColor = state.color;
+    u.cascadeParticleColorRGB = state.colorRGB;
+    u.cascadeParticleColorHex = state.colorHex;
+    u.cascadeConflictType = conflictType;
+  }
+
+  _updateLinkSemanticDensity(link, state, conflictSystem, cascadeIntensity, deltaTime, now) {
+    if (this.config.particleSemanticDensityEnabled === false) {
+      return;
+    }
+
+    const u = link.userData;
+    const prevCascade = Number(u._prevCascadeIntensity ?? 0) || 0;
+    const currCascade = Number(u.cascadeIntensity ?? cascadeIntensity ?? 0) || 0;
+    const cascadeChange = Math.abs(currCascade - prevCascade);
+
+    let urgency = Math.max(0, Math.min(1, cascadeChange * 5));
+    if (conflictSystem && typeof conflictSystem.getConflictState === 'function') {
+      const conflictInfo = conflictSystem.getConflictState();
+      const timeInConflict = Number(u._timeInConflict ?? 0) || 0;
+      const conflictPersistence = Math.min(1, timeInConflict / 3.0);
+      urgency = Math.max(urgency, conflictPersistence * 0.7);
+      if (u.cascadeOscillation) {
+        urgency = Math.max(urgency, Math.abs(Number(u.cascadeOscillation) || 0) * 0.6);
+      }
+    }
+
+    if (u.synapticFatigue) {
+      const fatigue = Number(u.synapticFatigue) || 0;
+      const fatigueUrgency = Math.max(0, (fatigue - 0.5) * 2);
+      urgency = Math.max(urgency, fatigueUrgency * 0.5);
+    }
+
+    state.intensitySmoothed = this._smoothValue(
+      Number(state.intensitySmoothed ?? 0) || 0,
+      cascadeIntensity,
+      this.config.intensityEMAAlpha,
+      deltaTime
+    );
+    state.urgencySmoothed = this._smoothValue(
+      Number(state.urgencySmoothed ?? 0) || 0,
+      urgency,
+      this.config.urgencyEMAAlpha,
+      deltaTime
+    );
+
+    const densityMultiplier = 1.0 + (state.intensitySmoothed * state.intensitySmoothed) * (Math.max(1.0, Number(this.config.maxDensityMultiplier) || 4.0) - 1.0);
+    const clusterCohesion = Math.max(0, Math.min(
+      Math.max(0, Number(this.config.maxClusterCohesion) || 1.0),
+      state.urgencySmoothed * Math.max(0, Number(this.config.maxClusterCohesion) || 1.0)
+    ));
+    const minClusterRadius = Math.max(0, Number(this.config.minClusterRadius) || 0.1);
+    const maxClusterRadius = Math.max(minClusterRadius, Number(this.config.maxClusterRadius) || 2.0);
+    const clusterRadius = Math.max(
+      minClusterRadius,
+      Math.min(
+        maxClusterRadius,
+        maxClusterRadius - (clusterCohesion * (maxClusterRadius - minClusterRadius))
+      )
+    );
+    const urgencyOscillation = Math.sin(this._semanticTime * 0.003 * (1 + state.urgencySmoothed * 5)) * state.urgencySmoothed;
+
+    state.densityMultiplier = Math.min(
+      densityMultiplier,
+      Math.max(1.0, Number(this.config.densitySafetyThreshold) || 3.5)
+    );
+    state.clusterCohesion = clusterCohesion;
+    state.clusterRadius = clusterRadius;
+    state.urgencyOscillation = urgencyOscillation;
+    state.conflictType = u.cascadeConflictType || state.conflictType || 'none';
+    state.conflictIntensity = Math.max(0, Math.min(1, Number(u.cascadeIntensity ?? cascadeIntensity ?? 0) || 0));
+    state.lastUpdateTime = now;
+
+    u.particleIntensity = state.intensitySmoothed;
+    u.particleUrgency = state.urgencySmoothed;
+    u.particleDensityMultiplier = state.densityMultiplier;
+    u.particleClusterCohesion = state.clusterCohesion;
+    u.particleClusterRadius = state.clusterRadius;
+    u.particleUrgencyOscillation = state.urgencyOscillation;
+    u.__canonicalWriteAt = u.__canonicalWriteAt || {};
+    u.__canonicalWriteAt.particleIntensity = now;
+    u.__canonicalWriteAt.particleUrgency = now;
+  }
+
+  _cleanupInactiveSemanticStates() {
+    const keysToDelete = [];
+    for (const [key, state] of this._semanticLinkState.entries()) {
+      const lowIntensity = Number(state.intensitySmoothed ?? 0) < 0.01;
+      const lowUrgency = Number(state.urgencySmoothed ?? 0) < 0.01;
+      const nearNeutralBoost = Math.abs(Number(state.emissionBoostSmoothed ?? 1) - 1) < 0.01;
+      const noHop = !this._cascadeHopState.has(key);
+      if (lowIntensity && lowUrgency && nearNeutralBoost && noHop) {
+        keysToDelete.push(key);
+      }
+    }
+
+    for (const key of keysToDelete) {
+      this._semanticLinkState.delete(key);
+    }
+  }
+
+  getSemanticLayerStats() {
+    return {
+      ...this._semanticStats,
+      trackedLinks: this._semanticLinkState.size,
+      activeHopSignals: this._cascadeHopState.size,
+    };
+  }
+
+  clearWorldState() {
+    this._cascadeHopState.clear();
+    this._semanticLinkState.clear();
+    this._semanticStats.activeBoosts = 0;
+    this._semanticStats.activeColorTints = 0;
+    this._semanticStats.activeLinkCount = 0;
+    this._semanticStats.avgIntensity = 0;
+    this._semanticStats.avgUrgency = 0;
+    this._semanticStats.conflictTypeDistribution = {};
+    this._semanticStats.totalEmissionMultiplier = 0;
+    this._semanticStats.peakEmissionMultiplier = 1;
+    this._semanticRefreshRequested = false;
+  }
+
+  reset() {
+    this.clearWorldState();
+  }
+
+  /**
+   * Update trail rendering
+   */
+  _updateTrailLayer(deltaTime) {
+    if (!this.trailMesh || !this.trailGeometry || !this.trailMaterial || this.config.trailEnabled === false) {
+      return;
+    }
+
+    const safeDelta = Number.isFinite(deltaTime) && deltaTime > 0 ? deltaTime : 0;
+    this._updateExistingTrailParticles(safeDelta);
+    this._spawnNewTrailParticles(safeDelta);
+    this._updateTrailGPUBuffers();
+  }
+
+  _updateExistingTrailParticles(deltaTime) {
+    let compactIndex = 0;
+
+    for (let i = 0; i < this.trailPool.length; i++) {
+      const trail = this.trailPool[i];
+      if (!trail.active) continue;
+
+      trail.age += deltaTime;
+
+      if (trail.age >= trail.lifetime) {
+        trail.active = false;
+        continue;
+      }
+
+      if (compactIndex !== i) {
+        const swap = this.trailPool[compactIndex];
+        this.trailPool[compactIndex] = trail;
+        this.trailPool[i] = swap;
+      }
+
+      compactIndex++;
+    }
+
+    this.activeTrailCount = compactIndex;
+    this.trailStats.activeTrails = compactIndex;
+  }
+
+  _spawnNewTrailParticles(deltaTime) {
+    if (!Array.isArray(this._activeParticleIndices) || this._activeParticleIndices.length === 0) {
+      return;
+    }
+
+    const emissionRate = Math.max(0, Math.min(1, Number(this.config.trailEmissionRate) || 0));
+    if (emissionRate <= 0) {
+      return;
+    }
+
+    for (let i = 0; i < this._activeParticleIndices.length; i++) {
+      const poolIndex = this._activeParticleIndices[i];
+      const particle = this.pool[poolIndex];
+      if (!particle?.active) continue;
+      if (Math.random() > emissionRate) continue;
+
+      const flowType = String(particle.flowType ?? 'forward').toLowerCase();
+      if (flowType !== 'forward') continue;
+
+      const parentSize = Number.isFinite(particle.size)
+        ? particle.size
+        : Number.isFinite(this.config.baseSize)
+          ? Math.max(1, this.config.baseSize * 0.18)
+          : 1;
+      const trailColor = this._tmpParticleColor.copy(particle.sourceColor ?? this._neutralParticleColor).lerp(
+        particle.targetColor ?? this._neutralParticleColor,
+        Math.max(0, Math.min(1, Number(particle.pathProgress ?? 0)))
+      );
+
+      this._spawnTrail(particle, trailColor, parentSize, deltaTime);
+    }
+  }
+
+  _spawnTrail(particle, color, parentSize, deltaTime = 0.016) {
+    const particleIndex = Number.isFinite(particle?.index) ? particle.index : -1;
+    if (particleIndex < 0) return;
+
+    let trail = null;
+    if (this.activeTrailCount < this.config.maxTrailParticles) {
+      trail = this.trailPool[this.activeTrailCount];
+      this.activeTrailCount++;
+    } else {
+      trail = this.trailPool[0];
+    }
+
+    if (!trail) return;
+
+    const position = particle.position ?? this._trailScratchPosition.set(0, 0, 0);
+    const spawnTime = Number.isFinite(particle.spawnTime) ? particle.spawnTime : 0;
+    const historyState = this._trailPositionHistory.get(particleIndex);
+    const spawnChanged = !historyState || historyState.spawnTime !== spawnTime;
+    const previousPosition = !spawnChanged ? historyState.lastPosition : null;
+
+    const fallbackDirection = this._resolveTrailFallbackDirection(particle);
+    const motionDelta = previousPosition ? this._trailScratchDelta.copy(position).sub(previousPosition) : null;
+    const motionDistance = motionDelta ? motionDelta.length() : 0;
+    const direction = motionDistance > 1e-6
+      ? this._trailScratchDirection.copy(motionDelta).multiplyScalar(1 / motionDistance)
+      : fallbackDirection;
+    const speed = motionDistance > 1e-6 ? motionDistance / Math.max(deltaTime, 1e-4) : 0.75;
+
+    if (historyState) {
+      historyState.spawnTime = spawnTime;
+      historyState.lastPosition.copy(position);
+    } else {
+      this._trailPositionHistory.set(particleIndex, {
+        spawnTime,
+        lastPosition: new THREE.Vector3(position.x, position.y, position.z),
+      });
+    }
+
+    const trailLength = THREE.MathUtils.clamp(
+      speed * this.config.trailLengthFactor,
+      this.config.minTrailLength,
+      this.config.maxTrailLength
+    );
+    const trailPos = this._trailScratchPosition.copy(position).addScaledVector(direction, -trailLength * 0.5);
+
+    trail.position.copy(trailPos);
+    trail.prevPosition.copy(position);
+    trail.velocity.copy(direction).multiplyScalar(speed);
+    trail.color.copy(color);
+    trail.age = 0;
+    trail.lifetime = this.config.trailLifetime;
+    trail.length = trailLength;
+    trail.size = parentSize * 0.7;
+    trail.active = true;
+    trail.particleIndex = particleIndex;
+    trail.spawnTime = spawnTime;
+
+    this.trailStats.trailsSpawned++;
+    this.trailStats.totalTrailLength += trailLength;
+  }
+
+  _resolveTrailFallbackDirection(particle) {
+    const source = particle?.sourcePosition;
+    const target = particle?.targetPosition;
+
+    if (source?.isVector3 && target?.isVector3) {
+      const direction = this._trailScratchDirection.copy(target).sub(source);
+      if (direction.lengthSq() > 1e-6) {
+        return direction.normalize();
+      }
+    }
+
+    if (particle?.pathDirection === -1) {
+      return this._trailScratchDirection.set(-1, 0, 0);
+    }
+
+    return this._trailScratchDirection.set(1, 0, 0);
+  }
+
+  _updateTrailGPUBuffers() {
+    if (!this.trailGeometry || !this.trailMesh) {
+      return;
+    }
+
+    const positions = this.trailGeometry.getAttribute('position').array;
+    const colors = this.trailGeometry.getAttribute('color').array;
+    const sizes = this.trailGeometry.getAttribute('size').array;
+    const ages = this.trailGeometry.getAttribute('age').array;
+    const lengths = this.trailGeometry.getAttribute('length').array;
+
+    let activeCount = 0;
+
+    for (let i = 0; i < this.activeTrailCount; i++) {
+      const trail = this.trailPool[i];
+      if (!trail.active) continue;
+
+      const idx = activeCount;
+      positions[idx * 3] = trail.position.x;
+      positions[idx * 3 + 1] = trail.position.y;
+      positions[idx * 3 + 2] = trail.position.z;
+
+      colors[idx * 3] = trail.color.r;
+      colors[idx * 3 + 1] = trail.color.g;
+      colors[idx * 3 + 2] = trail.color.b;
+
+      sizes[idx] = trail.size;
+      ages[idx] = trail.age;
+      lengths[idx] = trail.length;
+
+      activeCount++;
+    }
+
+    this.trailStats.activeTrails = activeCount;
+
+    this.trailGeometry.getAttribute('position').needsUpdate = true;
+    this.trailGeometry.getAttribute('color').needsUpdate = true;
+    this.trailGeometry.getAttribute('size').needsUpdate = true;
+    this.trailGeometry.getAttribute('age').needsUpdate = true;
+    this.trailGeometry.getAttribute('length').needsUpdate = true;
+    this.trailGeometry.setDrawRange(0, activeCount);
+  }
+
+  getTrailStats() {
+    return {
+      ...this.trailStats,
+      poolUtilization: this.config.maxTrailParticles > 0
+        ? `${((this.activeTrailCount / this.config.maxTrailParticles) * 100).toFixed(1)}%`
+        : '0.0%',
+    };
+  }
+
+  resetTrailLayer() {
+    this.activeTrailCount = 0;
+    for (const trail of this.trailPool) {
+      trail.active = false;
+    }
+    this._trailPositionHistory.clear();
+    this.trailStats.trailsSpawned = 0;
+    this.trailStats.activeTrails = 0;
+    this.trailStats.totalTrailLength = 0;
+    if (this.trailGeometry) {
+      this.trailGeometry.setDrawRange(0, 0);
+    }
+  }
   
   /**
    * Update Loop
    */
-  update(deltaTime, activeLinks, camera = null) {
-    const resolvedLinks = this._resolveActiveLinks(activeLinks);
+  update(deltaTime, links, camera = null, cascadeSystem = null, conflictSystem = null) {
+    const allLinks = Array.isArray(links) ? links : [];
+    const resolvedLinks = this._resolveActiveLinks(allLinks);
     this._currentCamera = camera ?? null;
     this._ensureMeshAttached();
     if (this._cascadeTimeOrigin === undefined) {
@@ -494,6 +1446,9 @@ export class CascadeParticleSystem_Session120 {
     // Safety net: if lifecycle callbacks missed a link, treat first-seen active links as created.
     this._syncFirstSeenActiveLinks(resolvedLinks, currentCascadeTime);
 
+    // Update semantic particle layers before spawning so the current frame sees fresh link state.
+    this._updateSemanticLayers(cascadeDelta, allLinks, cascadeSystem, conflictSystem);
+
     // Update existing active particles.
     this._updateParticles(cascadeDelta, currentCascadeTime, this._currentCamera);
 
@@ -501,6 +1456,7 @@ export class CascadeParticleSystem_Session120 {
     this._spawnParticles(cascadeDelta, resolvedLinks, currentCascadeTime);
 
     this.activeCount = this._activeParticleIndices.length;
+    this._updateTrailLayer(cascadeDelta);
 
     // Update geometry and helper visuals.
     this._updateGeometry();
@@ -958,7 +1914,7 @@ export class CascadeParticleSystem_Session120 {
   
   /**
    * Emit N particles for a link
-   * Respects density clustering parameters from Session 121
+   * Respects semantic density and clustering parameters
    */
   _emit(count, link, shapeIndex, flowType, conflictType, currentCascadeTime, sourcePosition = null, targetPosition = null, lodState = null) {
     const cappedCount = this._clampSpawnCountToLink(link, count);
@@ -987,7 +1943,7 @@ export class CascadeParticleSystem_Session120 {
       srcPos.x.toFixed(2), srcPos.y.toFixed(2), srcPos.z.toFixed(2),
       '| dst:', dstPos.x.toFixed(2), dstPos.y.toFixed(2), dstPos.z.toFixed(2));
     
-    // Session 121: Density & Clustering
+    // Semantic density & clustering
     const clusterCohesion = link?.userData?.particleClusterCohesion ?? 0;
     const clusterRadius = link?.userData?.particleClusterRadius ?? 0.2;
     const urgencyOscillation = link?.userData?.particleUrgencyOscillation ?? 0;
@@ -1314,6 +2270,8 @@ export class CascadeParticleSystem_Session120 {
       if (typeof u.conflictIntensity !== 'number') u.conflictIntensity = 0;
       if (typeof u.particleIntensity !== 'number') u.particleIntensity = 0;
       if (typeof u.particleUrgency !== 'number') u.particleUrgency = 0;
+      if (typeof u.cascadeParticleEmissionBoost !== 'number') u.cascadeParticleEmissionBoost = 1;
+      if (typeof u.particleDensityMultiplier !== 'number') u.particleDensityMultiplier = 1;
       if (!(u.cascadeParticleColor && u.cascadeParticleColor.isColor)) {
         u.cascadeParticleColor = this._neutralParticleColor.clone();
       }
@@ -1573,6 +2531,16 @@ export class CascadeParticleSystem_Session120 {
    * Cleanup
    */
   dispose() {
+    if (Array.isArray(this._semanticUnsubscribers)) {
+      for (const unsub of this._semanticUnsubscribers) {
+        try {
+          unsub?.();
+        } catch (_) {
+          // noop
+        }
+      }
+      this._semanticUnsubscribers.length = 0;
+    }
     const unsubscribers = Array.isArray(this._linkLifecycleUnsubscribers)
       ? this._linkLifecycleUnsubscribers
       : [];
@@ -1602,12 +2570,43 @@ export class CascadeParticleSystem_Session120 {
     if (Array.isArray(this._activeParticleIndices)) {
       this._activeParticleIndices.length = 0;
     }
+    this._cascadeHopState.clear();
+    this._semanticLinkState.clear();
+    this._semanticStats.activeBoosts = 0;
+    this._semanticStats.activeColorTints = 0;
+    this._semanticStats.activeLinkCount = 0;
+    this._semanticStats.avgIntensity = 0;
+    this._semanticStats.avgUrgency = 0;
+    this._semanticStats.conflictTypeDistribution = {};
+    this._semanticStats.totalEmissionMultiplier = 0;
+    this._semanticStats.peakEmissionMultiplier = 1;
+    this._semanticRefreshRequested = false;
+    this._disposeTrailLayer();
     
     // Clear cascade hop cooldowns
     this._linkHopCooldowns.clear();
 
     this.pointFXBase?.disposePointCloud?.(this.mesh);
     this.textureAtlas.dispose();
+  }
+
+  _disposeTrailLayer() {
+    if (this.trailMesh && this.scene) {
+      this.scene.remove(this.trailMesh);
+    }
+    if (this.trailGeometry) {
+      this.trailGeometry.dispose();
+    }
+    if (this.trailMaterial) {
+      this.trailMaterial.dispose();
+    }
+
+    this.trailMesh = null;
+    this.trailGeometry = null;
+    this.trailMaterial = null;
+    this.trailPool.length = 0;
+    this._trailPositionHistory.clear();
+    this.activeTrailCount = 0;
   }
 }
 

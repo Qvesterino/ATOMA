@@ -28,8 +28,7 @@
 // import { WaveParticleEmitter_v1 } from './WaveParticleEmitter_v1.js';
 // import { HealingParticleSystem_Session136 } from './HealingParticleSystem_Session136.js';
 // import { CascadeParticleSystem_Session120 } from './CascadeParticleSystem_Session120.js';
-// import { CascadeParticleEmissionBoost_Session118 } from './CascadeParticleEmissionBoost_Session118.js';
-// import { CascadeParticleColorTinting_Session119 } from './CascadeParticleColorTinting_Session119.js';
+// Cascade particle emission boost and color tinting are now integrated into CascadeParticleSystem_Session120.
 // import { CascadingRuptureSystem } from './CascadingRuptureSystem.js';
 // import { CascadeResonanceWaveVisualization_Session146 } from './CascadeResonanceWaveVisualization_Session146.js';
 // import { ResonanceCascadeVisualization_Session117B } from './ResonanceCascadeVisualization_Session117B.js';
@@ -265,7 +264,12 @@ FXDebugSandbox.prototype.spawnLinkHealingParticles = function(config = {}) {
  */
 FXDebugSandbox.prototype.spawnCascadeEmissionBoost = function(config = {}) {
   console.log('[FX] CascadeEmissionBoost - Computation only, no visual spawn');
-  const system = new CascadeParticleEmissionBoost_Session118();
+  const system = {
+    name: 'CascadeEmissionBoost',
+    update: () => {},
+    dispose: () => {},
+    getStats: () => ({ note: 'Integrated into CascadeParticleSystem_Session120' }),
+  };
   this.register('cascadeEmissionBoost', system);
   return system;
 };
@@ -275,7 +279,12 @@ FXDebugSandbox.prototype.spawnCascadeEmissionBoost = function(config = {}) {
  */
 FXDebugSandbox.prototype.spawnCascadeColorTinting = function(config = {}) {
   console.log('[FX] CascadeColorTinting - Computation only, no visual spawn');
-  const system = new CascadeParticleColorTinting_Session119();
+  const system = {
+    name: 'CascadeColorTinting',
+    update: () => {},
+    dispose: () => {},
+    getStats: () => ({ note: 'Integrated into CascadeParticleSystem_Session120' }),
+  };
   this.register('cascadeColorTinting', system);
   return system;
 };

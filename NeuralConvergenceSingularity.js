@@ -72,6 +72,35 @@ const DEFAULT_CONFIG = {
     pulseInitialRadius: 0.1,
     pulseRingWidth: 0.04,
     pulseMaxCount: 5,
+    pulseEchoCount: 2,
+    pulseEchoSpacing: 0.22,
+
+    // Core shell / depth
+    coreShellScale: 1.92,
+    coreShellOpacity: 0.18,
+    coreShellPulse: 0.12,
+    coreCageScale: 2.25,
+    coreCageOpacity: 0.14,
+    coreCageSpin: 0.14,
+
+    // Tendril branching
+    tendrilBranchCount: 2,
+    tendrilBranchLength: 0.72,
+    tendrilBranchSpread: 0.26,
+    tendrilBranchWave: 1.55,
+    tendrilBranchTwist: 0.18,
+
+    // Micro debris / depth noise
+    debrisCount: 14,
+    debrisOrbitRadius: 0.82,
+    debrisOrbitJitter: 0.22,
+    debrisSpinSpeed: 0.65,
+
+    // Rift layering
+    riftLayerCount: 3,
+    riftLayerSpacing: 0.06,
+    riftLayerOpacity: 0.18,
+    riftLayerSpin: 0.14,
     
     // LOD
     lodDistanceHigh: 8,
@@ -375,6 +404,59 @@ void main() {
 }
 `;
 
+const SHELL_VERTEX_SHADER = `
+varying vec3 vPosition;
+varying vec3 vNormal;
+uniform float uTime;
+uniform float uPulsePhase;
+uniform float uShellStrength;
+
+void main() {
+    vPosition = position;
+    vNormal = normalize(normalMatrix * normal);
+
+    vec3 pos = position;
+    float pulse = 1.0 + sin(uPulsePhase * 6.28318) * 0.06;
+    float breath = 1.0 + sin(uTime * 2.1 + length(position) * 8.0) * 0.05;
+    float swirl = sin(position.x * 17.0 + uTime * 1.8) * sin(position.y * 19.0 - uTime * 1.5) * 0.018;
+    pos += normal * swirl * uShellStrength;
+    pos *= pulse * breath;
+
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+}
+`;
+
+const SHELL_FRAGMENT_SHADER = `
+uniform float uTime;
+uniform float uHarmony;
+uniform float uCorruption;
+uniform float uSynergy;
+uniform float uOpacity;
+varying vec3 vPosition;
+varying vec3 vNormal;
+
+void main() {
+    vec3 harmonyColor = vec3(0.05, 0.92, 1.0);
+    vec3 corruptionColor = vec3(1.0, 0.18, 0.48);
+    vec3 neutralColor = vec3(0.86, 0.78, 1.0);
+
+    float dominance = clamp(uHarmony - uCorruption, -1.0, 1.0);
+    vec3 stateColor = mix(corruptionColor, harmonyColor, smoothstep(-0.2, 0.35, dominance * 0.5 + 0.5));
+    stateColor = mix(stateColor, neutralColor, 1.0 - min(1.0, abs(dominance) * 1.2));
+
+    vec3 viewDir = normalize(cameraPosition - vPosition);
+    float fresnel = pow(1.0 - max(dot(normalize(vNormal), viewDir), 0.0), 2.4);
+    float band = sin((length(vPosition.xy) * 15.0) + uTime * 2.8) * 0.5 + 0.5;
+    float bloom = 0.45 + fresnel * 0.95 + band * 0.18 + uSynergy * 0.1;
+    float alpha = uOpacity * (0.22 + fresnel * 0.9 + band * 0.14);
+
+    vec3 color = stateColor * bloom;
+    color += vec3(0.25, 0.55, 1.0) * fresnel * 0.24;
+
+    gl_FragColor = vec4(color, alpha);
+}
+`;
+
 // ============================================================================
 // NEURAL CONVERGENCE SINGULARITY CLASS
 // ============================================================================
@@ -412,8 +494,14 @@ export class NeuralConvergenceSingularity {
         this.group = new THREE.Group();
         this.group.name = 'NeuralConvergenceSingularity';
         this.core = null;
+        this.coreGlow = null;
+        this.coreShell = null;
+        this.coreCage = null;
         this.orbitalStreams = [];
         this.tendrils = [];
+        this.tendrilBranches = [];
+        this.debrisField = [];
+        this.riftLayers = [];
         this.rift = null;
         this.pulses = [];
         
@@ -440,6 +528,7 @@ export class NeuralConvergenceSingularity {
         this.group.renderOrder = VisualHierarchyRegistry.getRenderOrder(
             VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE
         );
+        this._syncRenderOrders();
         
         // Initially hidden
         this.group.visible = false;
@@ -509,6 +598,168 @@ export class NeuralConvergenceSingularity {
         this.coreGlow = new THREE.Mesh(glowGeometry, glowMaterial);
         this.coreGlow.name = 'CoreInnerGlow';
         this.group.add(this.coreGlow);
+
+        this.coreShell = this.createConvergenceShell();
+        if (this.coreShell) {
+            this.group.add(this.coreShell);
+        }
+
+        this.coreCage = this.createConvergenceCage();
+        if (this.coreCage) {
+            this.group.add(this.coreCage);
+        }
+
+        if (this.config.enableDebris) {
+            this.createDebrisField();
+        }
+    }
+
+    createConvergenceShell() {
+        const geometry = new THREE.IcosahedronGeometry(
+            this.config.coreRadius * this.config.coreShellScale,
+            Math.max(1, this.config.coreDetail - 1)
+        );
+
+        const material = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uHarmony: { value: 0.5 },
+                uCorruption: { value: 0 },
+                uSynergy: { value: 0.5 },
+                uPulsePhase: { value: 0 },
+                uOpacity: { value: this.config.coreShellOpacity },
+                uShellStrength: { value: 1.0 }
+            },
+            vertexShader: SHELL_VERTEX_SHADER,
+            fragmentShader: SHELL_FRAGMENT_SHADER,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: true,
+            side: THREE.DoubleSide
+        });
+
+        const shell = new THREE.Mesh(geometry, material);
+        shell.name = 'SingularityShell';
+        shell.userData.isSingularityShell = true;
+        shell.renderOrder = this.group.renderOrder + 1;
+        shell.scale.setScalar(1.0);
+        return shell;
+    }
+
+    createConvergenceCage() {
+        const baseGeometry = new THREE.IcosahedronGeometry(
+            this.config.coreRadius * this.config.coreCageScale,
+            1
+        );
+        const geometry = new THREE.EdgesGeometry(baseGeometry, 10);
+        baseGeometry.dispose();
+
+        const material = new THREE.LineBasicMaterial({
+            color: this.config.coreColorNeutral,
+            transparent: true,
+            opacity: this.config.coreCageOpacity,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: true
+        });
+
+        const cage = new THREE.LineSegments(geometry, material);
+        cage.name = 'SingularityCage';
+        cage.userData.isSingularityCage = true;
+        cage.renderOrder = this.group.renderOrder + 2;
+        cage.rotation.set(0.18, 0.22, 0.08);
+        return cage;
+    }
+
+    createDebrisField() {
+        const debrisGeometry = new THREE.TetrahedronGeometry(this.config.coreRadius * 0.12, 0);
+        const shardGeometry = new THREE.OctahedronGeometry(this.config.coreRadius * 0.09, 0);
+
+        for (let i = 0; i < this.config.debrisCount; i++) {
+            const useOcta = i % 3 === 0;
+            const mesh = new THREE.Mesh(
+                useOcta ? shardGeometry.clone() : debrisGeometry.clone(),
+                new THREE.MeshBasicMaterial({
+                    color: i % 2 === 0 ? this.config.coreColorHarmony : this.config.coreColorNeutral,
+                    transparent: true,
+                    opacity: 0.36,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    depthTest: true
+                })
+            );
+
+            const angle = (i / this.config.debrisCount) * Math.PI * 2;
+            const radius = this.config.debrisOrbitRadius + (Math.random() - 0.5) * this.config.debrisOrbitJitter;
+            const height = (Math.random() - 0.5) * 0.26;
+            mesh.position.set(
+                Math.cos(angle) * radius,
+                height,
+                Math.sin(angle) * radius * 0.82
+            );
+            mesh.rotation.set(
+                Math.random() * Math.PI,
+                Math.random() * Math.PI,
+                Math.random() * Math.PI
+            );
+
+            mesh.userData = {
+                isSingularityDebris: true,
+                baseAngle: angle,
+                baseRadius: radius,
+                baseHeight: height,
+                spinSpeed: this.config.debrisSpinSpeed * (0.7 + Math.random() * 0.8),
+                wobble: 0.5 + Math.random() * 0.6,
+                pulsePhase: Math.random() * Math.PI * 2
+            };
+
+            this.debrisField.push(mesh);
+            this.group.add(mesh);
+        }
+
+        debrisGeometry.dispose();
+        shardGeometry.dispose();
+    }
+
+    _syncRenderOrders() {
+        const baseOrder = this.group.renderOrder || VisualHierarchyRegistry.getRenderOrder(
+            VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE
+        );
+
+        if (this.core) this.core.renderOrder = baseOrder;
+        if (this.coreGlow) this.coreGlow.renderOrder = baseOrder + 0.1;
+        if (this.coreShell) this.coreShell.renderOrder = baseOrder + 0.2;
+        if (this.coreCage) this.coreCage.renderOrder = baseOrder + 0.3;
+
+        if (Array.isArray(this.riftLayers)) {
+            this.riftLayers.forEach((layer, index) => {
+                if (layer?.mesh) {
+                    layer.mesh.renderOrder = baseOrder + 1 + index * 0.1;
+                }
+            });
+        } else if (this.rift) {
+            this.rift.renderOrder = baseOrder + 1;
+        }
+
+        this.debrisField.forEach((debris, index) => {
+            debris.renderOrder = baseOrder + 1.8 + index * 0.01;
+        });
+
+        this.tendrils.forEach((tendril, index) => {
+            if (tendril?.mesh) tendril.mesh.renderOrder = baseOrder + 2 + index * 0.02;
+            if (Array.isArray(tendril.branches)) {
+                tendril.branches.forEach((branch, branchIndex) => {
+                    if (branch?.mesh) {
+                        branch.mesh.renderOrder = baseOrder + 2.5 + index * 0.02 + branchIndex * 0.005;
+                    }
+                });
+            }
+        });
+
+        this.pulses.forEach((pulse, index) => {
+            if (pulse?.mesh) pulse.mesh.renderOrder = baseOrder + 3 + index * 0.05;
+        });
     }
     
     // ========================================================================
@@ -600,39 +851,124 @@ export class NeuralConvergenceSingularity {
             const tendril = this.createEnergyTendril(i);
             this.tendrils.push(tendril);
             this.group.add(tendril.mesh);
+
+            if (Array.isArray(tendril.branches)) {
+                tendril.branches.forEach((branch) => {
+                    this.tendrilBranches.push(branch);
+                    this.group.add(branch.mesh);
+                });
+            }
         }
     }
     
     createEnergyTendril(index) {
-        // Create curved path for tendril
-        const points = [];
-        const segments = this.config.tendrilSegments;
-        
-        for (let i = 0; i <= segments; i++) {
-            const t = i / segments;
-            // Curved path - starts at center, curves outward
-            const x = t * this.config.tendrilLength;
-            const y = Math.sin(t * Math.PI) * 0.15;
-            const z = Math.cos(t * Math.PI * 2) * 0.08;
-            points.push(new THREE.Vector3(x, y, z));
+        const angle = (index / this.config.tendrilCount) * Math.PI * 2;
+        const basePhase = index * Math.PI * 0.5 + Math.random() * 0.35;
+
+        const primary = this.createOrganicTendrilMesh({
+            name: `EnergyTendril_${index}`,
+            length: this.config.tendrilLength,
+            radius: this.config.tendrilRadius,
+            segments: this.config.tendrilSegments,
+            waveAmplitude: 0.05,
+            waveSpeed: this.config.tendrilWaveSpeed,
+            wavePhase: basePhase,
+            intensity: 1.0,
+            opacity: 0.78,
+            twist: this.config.tendrilBranchTwist * 0.25,
+            tiltX: -0.22 + Math.random() * 0.44,
+            tiltY: angle,
+            tiltZ: Math.sin(angle) * 0.12
+        });
+
+        primary.mesh.userData.tendrilIndex = index;
+        primary.mesh.userData.baseAngle = angle;
+        primary.mesh.rotation.y = angle;
+        primary.mesh.rotation.x = primary.mesh.userData.baseTilt.x;
+        primary.mesh.rotation.z = primary.mesh.userData.baseTilt.z;
+
+        const branchCount = Math.max(0, this.config.tendrilBranchCount);
+        const branches = [];
+        for (let b = 0; b < branchCount; b++) {
+            const branchAngle = angle + (b === 0 ? -1 : 1) * this.config.tendrilBranchSpread;
+            const branch = this.createOrganicTendrilMesh({
+                name: `EnergyTendril_${index}_Branch_${b}`,
+                length: this.config.tendrilBranchLength,
+                radius: this.config.tendrilRadius * 0.58,
+                segments: Math.max(8, this.config.tendrilSegments - 2),
+                waveAmplitude: 0.07,
+                waveSpeed: this.config.tendrilBranchWave,
+                wavePhase: basePhase + (b + 1) * 0.92,
+                intensity: 0.68,
+                opacity: 0.58,
+                twist: this.config.tendrilBranchTwist * (b === 0 ? -1 : 1),
+                tiltX: -0.08 + (b === 0 ? -0.16 : 0.16),
+                tiltY: branchAngle,
+                tiltZ: (b === 0 ? -0.14 : 0.14)
+            });
+
+            branch.mesh.position.set(
+                Math.cos(angle) * 0.05,
+                0.02 + (b === 0 ? 0.01 : -0.01),
+                Math.sin(angle) * 0.05
+            );
+            branch.mesh.userData.parentTendrilIndex = index;
+            branch.mesh.userData.branchIndex = b;
+            branch.mesh.userData.baseAngle = branchAngle;
+            branches.push(branch);
         }
-        
+
+        primary.branches = branches;
+        return primary;
+    }
+
+    createOrganicTendrilMesh({
+        name,
+        length,
+        radius,
+        segments,
+        waveAmplitude,
+        waveSpeed,
+        wavePhase,
+        intensity,
+        opacity,
+        twist = 0,
+        tiltX = 0,
+        tiltY = 0,
+        tiltZ = 0
+    }) {
+        const points = [];
+        const curveSegments = Math.max(8, segments);
+        for (let i = 0; i <= curveSegments; i++) {
+            const t = i / curveSegments;
+            const taper = 1.0 - Math.pow(t, 1.25) * 0.12;
+            const x = t * length;
+            const bend = Math.sin(t * Math.PI) * (0.12 + waveAmplitude * 1.8);
+            const curl = Math.sin(t * Math.PI * 2.2 + wavePhase) * waveAmplitude * 0.65;
+            const lift = Math.cos(t * Math.PI * 1.15 + wavePhase * 0.7) * waveAmplitude * 0.48;
+            points.push(new THREE.Vector3(
+                x,
+                bend * taper + lift,
+                curl * taper
+            ));
+        }
+
         const curve = new THREE.CatmullRomCurve3(points);
         const geometry = new THREE.TubeGeometry(
             curve,
-            segments,
-            this.config.tendrilRadius,
-            6,
+            curveSegments * 2,
+            radius,
+            8,
             false
         );
-        
+
         const material = new THREE.ShaderMaterial({
             uniforms: {
                 uTime: { value: 0 },
                 uColor: { value: new THREE.Color(this.config.coreColorHarmony) },
-                uWavePhase: { value: index * Math.PI * 0.5 },
-                uWaveAmplitude: { value: 0.04 },
-                uIntensity: { value: 1.0 }
+                uWavePhase: { value: wavePhase },
+                uWaveAmplitude: { value: waveAmplitude },
+                uIntensity: { value: intensity }
             },
             vertexShader: TENDRIL_VERTEX_SHADER,
             fragmentShader: TENDRIL_FRAGMENT_SHADER,
@@ -641,23 +977,30 @@ export class NeuralConvergenceSingularity {
             depthWrite: false,
             side: THREE.DoubleSide
         });
-        
+
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.name = `EnergyTendril_${index}`;
+        mesh.name = name;
         mesh.userData.isTendril = true;
-        mesh.userData.tendrilIndex = index;
-        
-        // Position around center
-        const angle = (index / this.config.tendrilCount) * Math.PI * 2;
-        mesh.rotation.y = angle;
-        mesh.rotation.x = -0.2 + Math.random() * 0.4;
-        
+        mesh.userData.isOrganicTendril = true;
+        mesh.userData.waveSpeed = waveSpeed;
+        mesh.userData.waveAmplitude = waveAmplitude;
+        mesh.userData.wavePhase = wavePhase;
+        mesh.userData.baseTilt = new THREE.Vector3(tiltX, tiltY, tiltZ);
+        mesh.rotation.set(tiltX, tiltY, tiltZ);
+
         return {
             mesh,
             curve,
-            index,
-            targetNode: null,
-            baseAngle: angle
+            length,
+            radius,
+            intensity,
+            opacity,
+            waveSpeed,
+            waveAmplitude,
+            wavePhase,
+            baseRotation: mesh.rotation.clone(),
+            baseScale: mesh.scale.clone(),
+            branches: []
         };
     }
     
@@ -666,38 +1009,93 @@ export class NeuralConvergenceSingularity {
     // ========================================================================
     
     createDimensionalRift() {
-        const geometry = new THREE.RingGeometry(
-            this.config.riftInnerRadius,
-            this.config.riftOuterRadius,
-            this.config.riftSegments,
-            1
-        );
-        
-        const material = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0 },
-                uHarmony: { value: 0.5 },
-                uCorruption: { value: 0 },
-                uOpacity: { value: this.config.riftOpacity },
-                uDistortion: { value: 0.08 }
+        this.riftLayers = [];
+
+        const layerConfigs = [
+            {
+                name: 'DimensionalRiftPrimary',
+                geometry: new THREE.RingGeometry(
+                    this.config.riftInnerRadius,
+                    this.config.riftOuterRadius,
+                    this.config.riftSegments,
+                    1
+                ),
+                opacity: this.config.riftOpacity,
+                distortion: 0.08,
+                spin: this.config.riftRotationSpeed,
+                rotation: [Math.PI * 0.1, 0.0, 0.0]
             },
-            vertexShader: RIFT_VERTEX_SHADER,
-            fragmentShader: RIFT_FRAGMENT_SHADER,
-            transparent: true,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            side: THREE.DoubleSide
+            {
+                name: 'DimensionalRiftHalo',
+                geometry: new THREE.TorusGeometry(
+                    this.config.riftOuterRadius * 1.08,
+                    0.028,
+                    8,
+                    72
+                ),
+                opacity: this.config.riftOpacity * 0.62,
+                distortion: 0.11,
+                spin: this.config.riftRotationSpeed * 1.35,
+                rotation: [Math.PI * 0.5, 0.18, Math.PI * 0.1]
+            },
+            {
+                name: 'DimensionalRiftArc',
+                geometry: new THREE.TorusGeometry(
+                    this.config.riftOuterRadius * 0.7,
+                    0.02,
+                    8,
+                    60,
+                    Math.PI * 1.72
+                ),
+                opacity: this.config.riftOpacity * 0.52,
+                distortion: 0.14,
+                spin: this.config.riftRotationSpeed * 1.65,
+                rotation: [Math.PI * 0.52, -0.38, Math.PI * 0.42]
+            }
+        ];
+
+        const layerLimit = Math.max(1, Math.min(layerConfigs.length, Math.floor(this.config.riftLayerCount || layerConfigs.length)));
+        const activeLayerConfigs = layerConfigs.slice(0, layerLimit);
+
+        activeLayerConfigs.forEach((cfg, index) => {
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    uTime: { value: 0 },
+                    uHarmony: { value: 0.5 },
+                    uCorruption: { value: 0 },
+                    uOpacity: { value: Math.max(0.04, this.config.riftLayerOpacity * (1.0 - index * 0.18)) },
+                    uDistortion: { value: cfg.distortion }
+                },
+                vertexShader: RIFT_VERTEX_SHADER,
+                fragmentShader: RIFT_FRAGMENT_SHADER,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                side: THREE.DoubleSide
+            });
+
+            const mesh = new THREE.Mesh(cfg.geometry, material);
+            mesh.name = cfg.name;
+            mesh.userData.isRift = true;
+            mesh.userData.riftLayerIndex = index;
+            mesh.renderOrder = this.group.renderOrder - 1 + index;
+            mesh.rotation.set(cfg.rotation[0], cfg.rotation[1], cfg.rotation[2]);
+            mesh.scale.setScalar(1.0 + index * 0.04);
+            mesh.position.z = index * this.config.riftLayerSpacing;
+            this.group.add(mesh);
+            this.riftLayers.push({
+                mesh,
+                baseOpacity: Math.max(0.04, this.config.riftLayerOpacity * (1.0 - index * 0.18)),
+                distortion: cfg.distortion,
+                spin: cfg.spin,
+                baseTiltX: cfg.rotation[0],
+                baseTiltY: cfg.rotation[1],
+                baseTiltZ: cfg.rotation[2],
+                baseScale: 1.0 + index * 0.04
+            });
         });
-        
-        this.rift = new THREE.Mesh(geometry, material);
-        this.rift.name = 'DimensionalRift';
-        this.rift.userData.isRift = true;
-        this.rift.renderOrder = this.group.renderOrder - 1;
-        
-        // Tilt slightly for better visibility
-        this.rift.rotation.x = Math.PI * 0.1;
-        
-        this.group.add(this.rift);
+
+        this.rift = this.riftLayers[0]?.mesh || null;
     }
     
     // ========================================================================
@@ -715,30 +1113,70 @@ export class NeuralConvergenceSingularity {
     }
     
     createPulseRing() {
-        const geometry = new THREE.RingGeometry(
-            this.config.pulseInitialRadius,
-            this.config.pulseInitialRadius + this.config.pulseRingWidth,
-            32
-        );
-        
-        const material = new THREE.MeshBasicMaterial({
-            color: this.config.coreColorHarmony,
-            transparent: true,
-            opacity: 0.5,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            side: THREE.DoubleSide
+        const group = new THREE.Group();
+        group.name = 'ConsciousnessPulse';
+        group.userData.isPulse = true;
+
+        const ringConfigs = [
+            {
+                name: 'PulsePrimary',
+                radiusOffset: 0.0,
+                tube: this.config.pulseRingWidth,
+                opacity: 0.52,
+                scale: 1.0,
+                color: this.config.coreColorHarmony
+            }
+        ];
+
+        const echoCount = Math.max(0, Math.floor(this.config.pulseEchoCount || 0));
+        for (let i = 0; i < echoCount; i++) {
+            ringConfigs.push({
+                name: `PulseEcho_${i}`,
+                radiusOffset: this.config.pulseEchoSpacing * (0.65 + i * 0.55),
+                tube: this.config.pulseRingWidth * (0.82 - i * 0.08),
+                opacity: Math.max(0.1, 0.26 - i * 0.08),
+                scale: 1.18 + i * 0.18,
+                color: i % 2 === 0 ? this.config.coreColorNeutral : this.config.coreColorCorruption
+            });
+        }
+
+        const rings = [];
+        ringConfigs.forEach((cfg, index) => {
+            const geometry = new THREE.RingGeometry(
+                this.config.pulseInitialRadius + cfg.radiusOffset,
+                this.config.pulseInitialRadius + cfg.radiusOffset + cfg.tube,
+                32
+            );
+
+            const material = new THREE.MeshBasicMaterial({
+                color: cfg.color,
+                transparent: true,
+                opacity: cfg.opacity,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                side: THREE.DoubleSide
+            });
+
+            const ring = new THREE.Mesh(geometry, material);
+            ring.name = cfg.name;
+            ring.userData = {
+                isPulseRing: true,
+                pulseRingIndex: index,
+                baseOpacity: cfg.opacity,
+                baseScale: cfg.scale
+            };
+            ring.rotation.x = Math.PI * 0.5;
+            ring.position.z = index * 0.002;
+            ring.scale.setScalar(cfg.scale);
+            group.add(ring);
+            rings.push(ring);
         });
-        
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.name = 'ConsciousnessPulse';
-        mesh.userData.isPulse = true;
-        
-        // Face camera initially
-        mesh.lookAt(new THREE.Vector3(0, 0, 1));
+
+        group.lookAt(new THREE.Vector3(0, 0, 1));
         
         return {
-            mesh,
+            mesh: group,
+            rings,
             active: false,
             progress: 0,
             speed: this.config.pulseSpeed
@@ -753,11 +1191,22 @@ export class NeuralConvergenceSingularity {
         pulse.progress = 0;
         pulse.mesh.visible = true;
         pulse.mesh.scale.setScalar(1);
-        pulse.mesh.material.opacity = 0.5;
+        pulse.mesh.rotation.set(Math.PI * 0.5, 0, Math.random() * Math.PI * 2);
         
         // Update color based on current state
         const color = this.getStateColor();
-        pulse.mesh.material.color.copy(color);
+        if (Array.isArray(pulse.rings)) {
+            pulse.rings.forEach((ring, idx) => {
+                if (!ring?.material) return;
+                const ringColor = idx === 0
+                    ? color
+                    : idx === 1
+                        ? new THREE.Color(0xeaffff)
+                        : new THREE.Color(this.harmony > this.corruption ? this.config.coreColorHarmony : this.config.coreColorCorruption);
+                ring.material.color.copy(ringColor);
+                ring.material.opacity = ring.userData.baseOpacity ?? ring.material.opacity;
+            });
+        }
     }
     
     // ========================================================================
@@ -868,6 +1317,9 @@ export class NeuralConvergenceSingularity {
         
         // Update components based on LOD
         this.updateCore(deltaTime);
+        if (this.config.enableDebris && this.lodLevel < 2) {
+            this.updateDebris(deltaTime);
+        }
         
         if (this.lodLevel < 2 && this.config.enableOrbitalStreams) {
             this.updateOrbitalStreams(deltaTime);
@@ -890,6 +1342,8 @@ export class NeuralConvergenceSingularity {
         if (!this.core) return;
         
         const pulsePhase = (this.time * this.config.corePulseSpeed) % 1;
+        const pulseWave = Math.sin(pulsePhase * Math.PI * 2);
+        const stateColor = this.getStateColor();
         
         // Update uniforms
         this.core.material.uniforms.uTime.value = this.time;
@@ -905,12 +1359,69 @@ export class NeuralConvergenceSingularity {
         
         // Update inner glow
         if (this.coreGlow) {
-            const stateColor = this.getStateColor();
             this.coreGlow.material.color.copy(stateColor);
-            this.coreGlow.material.opacity = 0.3 + Math.sin(pulsePhase * Math.PI * 2) * 0.15;
+            this.coreGlow.material.opacity = 0.28 + pulseWave * 0.16;
             this.coreGlow.rotation.copy(this.core.rotation);
-            this.coreGlow.scale.setScalar(0.6 + Math.sin(pulsePhase * Math.PI * 2) * 0.1);
+            this.coreGlow.scale.setScalar(0.6 + pulseWave * 0.1);
         }
+
+        if (this.coreShell) {
+            this.coreShell.material.uniforms.uTime.value = this.time;
+            this.coreShell.material.uniforms.uHarmony.value = this.harmony;
+            this.coreShell.material.uniforms.uCorruption.value = this.corruption;
+            this.coreShell.material.uniforms.uSynergy.value = this.synergy;
+            this.coreShell.material.uniforms.uPulsePhase.value = pulsePhase;
+            this.coreShell.material.uniforms.uOpacity.value = this.config.coreShellOpacity;
+            this.coreShell.material.uniforms.uShellStrength.value = 1.0 + this.synergy * 0.18;
+            this.coreShell.material.color?.copy?.(stateColor);
+            this.coreShell.rotation.copy(this.core.rotation);
+            this.coreShell.rotation.y += 0.14 + pulseWave * 0.08;
+            this.coreShell.rotation.x -= 0.04;
+            this.coreShell.rotation.z += 0.02;
+            this.coreShell.scale.setScalar(1.0 + pulseWave * this.config.coreShellPulse);
+        }
+
+        if (this.coreCage) {
+            this.coreCage.material.color.copy(stateColor);
+            this.coreCage.material.opacity = this.config.coreCageOpacity + Math.abs(pulseWave) * 0.04;
+            this.coreCage.rotation.y += deltaTime * this.config.coreCageSpin;
+            this.coreCage.rotation.x += deltaTime * this.config.coreCageSpin * 0.58;
+            this.coreCage.rotation.z += deltaTime * this.config.coreCageSpin * 0.42;
+            const cageScale = 1.0 + Math.abs(pulseWave) * 0.04;
+            this.coreCage.scale.setScalar(cageScale);
+        }
+    }
+
+    updateDebris(deltaTime) {
+        if (!this.debrisField.length) return;
+
+        const stateColor = this.getStateColor();
+        this.debrisField.forEach((debris, index) => {
+            const data = debris.userData || {};
+            const angle = data.baseAngle + this.time * (data.spinSpeed || this.config.debrisSpinSpeed);
+            const bob = Math.sin(this.time * 1.8 + data.pulsePhase) * 0.06;
+            const radius = data.baseRadius + Math.sin(this.time * 0.9 + index * 0.37) * 0.06;
+
+            debris.position.set(
+                Math.cos(angle) * radius,
+                (data.baseHeight || 0) + bob,
+                Math.sin(angle) * radius * 0.82
+            );
+
+            debris.rotation.x += deltaTime * (0.8 + (data.spinSpeed || 0.4));
+            debris.rotation.y += deltaTime * (0.7 + (data.spinSpeed || 0.4));
+            debris.rotation.z += deltaTime * (0.5 + (data.spinSpeed || 0.4));
+
+            if (debris.material?.color) {
+                debris.material.color.copy(stateColor);
+            }
+
+            const pulse = 0.74 + Math.sin(this.time * 2.4 + data.pulsePhase) * 0.16;
+            debris.scale.setScalar(pulse);
+            if (debris.material) {
+                debris.material.opacity = 0.18 + Math.abs(Math.sin(this.time * 1.6 + data.pulsePhase)) * 0.24;
+            }
+        });
     }
     
     updateOrbitalStreams(deltaTime) {
@@ -950,39 +1461,89 @@ export class NeuralConvergenceSingularity {
     }
     
     updateTendrils(deltaTime) {
+        const stateColor = this.getStateColor();
+
         this.tendrils.forEach((tendril, index) => {
+            if (!tendril?.mesh) return;
+
             // Update shader uniforms
             tendril.mesh.material.uniforms.uTime.value = this.time;
-            tendril.mesh.material.uniforms.uColor.value.copy(this.getStateColor());
-            tendril.mesh.material.uniforms.uIntensity.value = 0.6 + this.synergy * 0.4;
+            tendril.mesh.material.uniforms.uColor.value.copy(stateColor);
+            tendril.mesh.material.uniforms.uIntensity.value = 0.72 + this.synergy * 0.4;
             
             // Animate tendril angle
-            const angleOffset = Math.sin(this.time * 0.5 + index) * 0.1;
-            tendril.mesh.rotation.y = tendril.baseAngle + angleOffset;
+            const baseTilt = tendril.mesh.userData.baseTilt || new THREE.Vector3();
+            const angleOffset = Math.sin(this.time * (0.52 + tendril.waveSpeed * 0.08) + index) * 0.12;
+            const waveLift = Math.sin(this.time * 1.2 + tendril.wavePhase) * 0.05;
+            const waveTwist = Math.cos(this.time * 0.78 + index * 0.37) * 0.04;
+            tendril.mesh.rotation.x = baseTilt.x + waveLift * 0.5;
+            tendril.mesh.rotation.y = baseTilt.y + angleOffset;
+            tendril.mesh.rotation.z = baseTilt.z + waveTwist;
+            tendril.mesh.scale.setScalar(1.0 + Math.sin(this.time * 1.1 + index) * 0.045);
             
             // Look at target node if connected
             if (tendril.targetNode && tendril.targetNode.position) {
-                const worldPos = new THREE.Vector3();
-                this.group.getWorldPosition(worldPos);
                 tendril.mesh.lookAt(tendril.targetNode.position);
                 tendril.mesh.rotateY(Math.PI * 0.5);
+            }
+
+            if (Array.isArray(tendril.branches)) {
+                tendril.branches.forEach((branch, branchIndex) => {
+                    if (!branch?.mesh) return;
+                    const branchPhase = branch.wavePhase + this.time * (branch.waveSpeed * 0.9);
+                    const branchTilt = branch.mesh.userData.baseTilt || new THREE.Vector3();
+
+                    branch.mesh.material.uniforms.uTime.value = this.time;
+                    branch.mesh.material.uniforms.uColor.value.copy(stateColor);
+                    branch.mesh.material.uniforms.uIntensity.value = 0.55 + this.synergy * 0.3;
+
+                    branch.mesh.rotation.x = branchTilt.x + Math.sin(branchPhase) * 0.1;
+                    branch.mesh.rotation.y = branchTilt.y + Math.sin(branchPhase * 0.8 + branchIndex) * 0.16;
+                    branch.mesh.rotation.z = branchTilt.z + Math.cos(branchPhase * 0.9) * 0.08;
+                    branch.mesh.scale.setScalar(0.9 + Math.sin(this.time * 1.4 + index + branchIndex) * 0.035);
+
+                    if (tendril.targetNode && tendril.targetNode.position) {
+                        branch.mesh.lookAt(tendril.targetNode.position);
+                        branch.mesh.rotateY(Math.PI * 0.5);
+                    }
+                });
             }
         });
     }
     
     updateRift(deltaTime) {
-        if (!this.rift) return;
-        
-        this.rift.material.uniforms.uTime.value = this.time;
-        this.rift.material.uniforms.uHarmony.value = this.harmony;
-        this.rift.material.uniforms.uCorruption.value = this.corruption;
-        
-        // Slow rotation
-        this.rift.rotation.z += deltaTime * this.config.riftRotationSpeed;
-        
-        // Pulse opacity
+        if (!this.rift && (!Array.isArray(this.riftLayers) || this.riftLayers.length === 0)) return;
+
         const pulsePhase = (this.time * this.config.corePulseSpeed) % 1;
-        this.rift.material.uniforms.uOpacity.value = this.config.riftOpacity * (0.8 + Math.sin(pulsePhase * Math.PI * 2) * 0.2);
+        const pulseWave = Math.sin(pulsePhase * Math.PI * 2);
+        const layers = Array.isArray(this.riftLayers) && this.riftLayers.length > 0
+            ? this.riftLayers
+            : (this.rift ? [{ mesh: this.rift, baseOpacity: this.config.riftOpacity, spin: this.config.riftRotationSpeed, layerIndex: 0 }] : []);
+
+        layers.forEach((layer, index) => {
+            if (!layer?.mesh) return;
+            const mesh = layer.mesh;
+            const material = mesh.material;
+            if (material?.uniforms) {
+                material.uniforms.uTime.value = this.time;
+                material.uniforms.uHarmony.value = this.harmony;
+                material.uniforms.uCorruption.value = this.corruption;
+                if (material.uniforms.uOpacity) {
+                    const opacityBase = layer.baseOpacity ?? this.config.riftOpacity;
+                    material.uniforms.uOpacity.value = opacityBase * (0.8 + pulseWave * 0.18 + index * 0.04);
+                }
+                if (material.uniforms.uDistortion) {
+                    material.uniforms.uDistortion.value = (layer.distortion ?? 0.08) * (1.0 + this.synergy * 0.12);
+                }
+            }
+
+            mesh.rotation.z += deltaTime * (layer.spin ?? this.config.riftRotationSpeed) * (index % 2 === 0 ? 1 : -0.84);
+            mesh.rotation.x = (layer.baseTiltX ?? mesh.rotation.x) + Math.sin(this.time * 0.09 + index) * 0.05;
+            mesh.rotation.y = (layer.baseTiltY ?? mesh.rotation.y) + Math.cos(this.time * 0.07 + index) * 0.03;
+            mesh.scale.setScalar(layer.baseScale ?? 1.0);
+            const scaleJitter = 1.0 + pulseWave * 0.03 + index * 0.02;
+            mesh.scale.multiplyScalar(scaleJitter);
+        });
     }
     
     updatePulses(deltaTime) {
@@ -1004,10 +1565,23 @@ export class NeuralConvergenceSingularity {
                 return;
             }
             
-            // Scale and fade
-            const scale = 1 + pulse.progress * (this.config.pulseMaxRadius / this.config.pulseInitialRadius - 1);
-            pulse.mesh.scale.setScalar(scale);
-            pulse.mesh.material.opacity = 0.5 * (1 - pulse.progress * pulse.progress);
+            const envelope = 1 - Math.pow(pulse.progress, 1.7);
+            const mainScale = 1 + pulse.progress * (this.config.pulseMaxRadius / this.config.pulseInitialRadius - 1);
+            pulse.mesh.scale.setScalar(mainScale);
+            pulse.mesh.rotation.z += deltaTime * 0.38;
+            pulse.mesh.rotation.x = Math.PI * 0.5 + Math.sin(this.time * 1.1 + pulse.progress * Math.PI * 2) * 0.05;
+
+            if (Array.isArray(pulse.rings)) {
+                pulse.rings.forEach((ring, idx) => {
+                    if (!ring?.material) return;
+                    const echoProgress = Math.max(0, pulse.progress - idx * 0.12);
+                    const echoScale = mainScale * (1 + idx * 0.1) * (1 + echoProgress * 0.06);
+                    ring.scale.setScalar((ring.userData.baseScale ?? 1.0) * echoScale);
+                    ring.material.opacity = (ring.userData.baseOpacity ?? 0.3) * envelope * (1 - idx * 0.18);
+                    ring.rotation.z += deltaTime * (0.45 + idx * 0.12);
+                    ring.rotation.x = Math.PI * 0.5;
+                });
+            }
         });
     }
     
@@ -1039,11 +1613,28 @@ export class NeuralConvergenceSingularity {
         if (this.tendrils.length > 0) {
             this.tendrils.forEach(t => {
                 t.mesh.visible = this.lodLevel < 2;
+                if (Array.isArray(t.branches)) {
+                    t.branches.forEach(branch => {
+                        branch.mesh.visible = this.lodLevel < 1;
+                    });
+                }
+            });
+        }
+
+        if (this.debrisField.length > 0) {
+            this.debrisField.forEach(d => {
+                d.visible = this.lodLevel < 2;
             });
         }
         
         if (this.rift) {
             this.rift.visible = this.lodLevel < 3;
+        }
+        if (this.riftLayers.length > 1) {
+            this.riftLayers.forEach((layer, index) => {
+                if (!layer?.mesh) return;
+                layer.mesh.visible = this.lodLevel < (index === 0 ? 3 : 2);
+            });
         }
     }
     
@@ -1123,49 +1714,81 @@ export class NeuralConvergenceSingularity {
     // ========================================================================
     
     dispose() {
+        const disposeMesh = (mesh) => {
+            if (!mesh) return;
+            if (mesh.parent) {
+                mesh.parent.remove(mesh);
+            }
+            if (mesh.geometry) {
+                mesh.geometry.dispose();
+            }
+            if (mesh.material) {
+                if (Array.isArray(mesh.material)) {
+                    mesh.material.forEach((mat) => mat?.dispose?.());
+                } else {
+                    mesh.material.dispose();
+                }
+            }
+        };
+
         // Dispose core
-        if (this.core) {
-            this.core.geometry.dispose();
-            this.core.material.dispose();
-        }
-        if (this.coreGlow) {
-            this.coreGlow.geometry.dispose();
-            this.coreGlow.material.dispose();
-        }
+        disposeMesh(this.core);
+        disposeMesh(this.coreGlow);
+        disposeMesh(this.coreShell);
+        disposeMesh(this.coreCage);
         
         // Dispose orbital streams
         this.orbitalStreams.forEach(stream => {
-            stream.points.geometry.dispose();
-            stream.points.material.dispose();
+            disposeMesh(stream.points);
         });
         
         // Dispose tendrils
         this.tendrils.forEach(tendril => {
-            tendril.mesh.geometry.dispose();
-            tendril.mesh.material.dispose();
+            disposeMesh(tendril.mesh);
+            if (Array.isArray(tendril.branches)) {
+                tendril.branches.forEach((branch) => disposeMesh(branch.mesh));
+            }
         });
+
+        this.tendrilBranches.forEach((branch) => disposeMesh(branch.mesh));
+        this.tendrilBranches = [];
+
+        this.debrisField.forEach((debris) => disposeMesh(debris));
+        this.debrisField = [];
         
         // Dispose rift
-        if (this.rift) {
-            this.rift.geometry.dispose();
-            this.rift.material.dispose();
+        if (Array.isArray(this.riftLayers)) {
+            this.riftLayers.forEach((layer) => disposeMesh(layer.mesh));
+        } else {
+            disposeMesh(this.rift);
         }
         
         // Dispose pulses
         this.pulses.forEach(pulse => {
-            pulse.mesh.geometry.dispose();
-            pulse.mesh.material.dispose();
+            if (Array.isArray(pulse.rings)) {
+                pulse.rings.forEach((ring) => disposeMesh(ring));
+            }
+            disposeMesh(pulse.mesh);
         });
         
         // Remove from parent
         if (this.group.parent) {
             this.group.parent.remove(this.group);
         }
+        this.group.clear();
         
         this.active = false;
         this.orbitalStreams = [];
         this.tendrils = [];
+        this.tendrilBranches = [];
+        this.debrisField = [];
+        this.riftLayers = [];
         this.pulses = [];
+        this.core = null;
+        this.coreGlow = null;
+        this.coreShell = null;
+        this.coreCage = null;
+        this.rift = null;
     }
 }
 

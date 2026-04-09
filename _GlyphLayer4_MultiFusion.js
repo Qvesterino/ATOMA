@@ -3,7 +3,7 @@
  * 
  * Advanced multi-layer glyph rendering system that combines multiple symbolic glyphs per node:
  * 1) Core Glyph (node category)
- * 2) Evolution Glyph (stage 1-3)
+ * 2) Category Glyph (category-driven, legacy stage fallback)
  * 3) Personality Glyph (synergy/harmony/stability/corruption/clarity)
  * 4) State Glyph (consciousness/ascended/mythic/ritual/cluster)
  * 
@@ -145,17 +145,109 @@ export class GlyphLayer4_MultiFusion {
   }
   
   // ============================================================
-  // LAYER 2: EVOLUTION GLYPH (Stage 1-3)
+  // LAYER 2: CATEGORY GLYPH (Category-Driven, Legacy Stage Fallback)
   // ============================================================
+
+  resolveNodeCategory(node) {
+    return String(
+      node?.userData?.category ??
+      node?.userData?.nodeCategory ??
+      ''
+    ).trim().toLowerCase();
+  }
+
+  resolveEvolutionGlyphKey(node) {
+    const category = this.resolveNodeCategory(node);
+
+    if (category === 'control' || category === 'integration') {
+      return 'controlIntegration';
+    }
+
+    if (category === 'analytics' || category === 'emotional') {
+      return 'analyticsEmotional';
+    }
+
+    if (category === 'input' || category === 'process') {
+      return 'inputProcess';
+    }
+
+    if (category === 'error' || category === 'sigma') {
+      return 'errorSigma';
+    }
+
+    if (category === 'prime' || category === 'mythic') {
+      return 'primeMythic';
+    }
+
+    if (category === 'quantum' || category === 'storage') {
+      return 'quantumStorage';
+    }
+
+    return `stage:${this.resolveEvolutionStage(node)}`;
+  }
+
+  _getEvolutionOrbitRadius(glyphKey, stage = 1) {
+    const radiusMap = {
+      controlIntegration: 0.76,
+      analyticsEmotional: 0.7,
+      inputProcess: 0.64,
+      errorSigma: 0.58,
+      primeMythic: 0.82,
+      quantumStorage: 0.78,
+      1: 0.76,
+      2: 0.7,
+      3: 0.64,
+      4: 0.58
+    };
+
+    const resolvedStage = Math.max(1, Math.min(4, Math.round(Number(stage) || 1)));
+    return radiusMap[glyphKey] ?? radiusMap[resolvedStage] ?? 0.7;
+  }
+
+  _applyEvolutionOrbitMotion(evoGroup, deltaTime) {
+    if (!evoGroup) return;
+
+    const rotationSpeed = Number(evoGroup.userData.rotationSpeed) || 0.3;
+    const orbitSpeed = Number(evoGroup.userData.orbitSpeed) || 0.6;
+    const orbitRadius = Number(evoGroup.userData.orbitRadius) || 0.7;
+
+    evoGroup.rotation.y += rotationSpeed * deltaTime;
+
+    evoGroup.userData.orbitPhase = (Number(evoGroup.userData.orbitPhase) || 0) + deltaTime * orbitSpeed;
+    const angle = evoGroup.userData.orbitPhase;
+
+    evoGroup.position.x = Math.cos(angle) * orbitRadius;
+    evoGroup.position.z = Math.sin(angle) * orbitRadius;
+  }
   
   createEvolutionGlyph(node, nodeId) {
-    const stage = this.resolveEvolutionStage(node);
+    const glyphKey = this.resolveEvolutionGlyphKey(node);
+
+    if (glyphKey === 'primeMythic') {
+      return this.createPrimeMythicGlyph(node, nodeId);
+    }
+
+    if (glyphKey === 'quantumStorage') {
+      return this.createQuantumStorageGlyph(node, nodeId);
+    }
+
+    const categoryStageMap = {
+      controlIntegration: 1,
+      analyticsEmotional: 2,
+      inputProcess: 3,
+      errorSigma: 4
+    };
+
+    const stage = categoryStageMap[glyphKey] ?? this.resolveEvolutionStage(node);
     if (stage < 1 || stage > 4) return null;
+    const orbitRadius = this._getEvolutionOrbitRadius(glyphKey, stage);
     
     const evoGroup = new THREE.Group();
     evoGroup.userData = {
       glyphLayer: 'evolution',
+      glyphKey,
       stage,
+      orbitRadius,
       isVFX: true,
       noEvolve: true,
       noCleanup: true
@@ -194,9 +286,437 @@ export class GlyphLayer4_MultiFusion {
     
     // Position offset (orbits core)
     evoGroup.userData.orbitPhase = Math.random() * Math.PI * 2;
-    evoGroup.userData.orbitRadius = stage === 1 ? 0.62 : stage === 4 ? 0.56 : stage === 3 ? 0.48 : 0.38;
+    evoGroup.userData.orbitRadius = orbitRadius;
     
     return evoGroup;
+  }
+
+  createPrimeMythicGlyph(node, nodeId) {
+    const glyphGroup = new THREE.Group();
+    const category = this.resolveNodeCategory(node);
+    const orbitRadius = this._getEvolutionOrbitRadius('primeMythic');
+
+    glyphGroup.userData = {
+      glyphLayer: 'evolution',
+      glyphKey: 'primeMythic',
+      glyphVariant: 'primeMythic',
+      category,
+      orbitRadius,
+      isVFX: true,
+      noEvolve: true,
+      noCleanup: true,
+      vortexPhase: Math.random() * Math.PI * 2,
+      orbitPhase: Math.random() * Math.PI * 2,
+      orbitSpeed: 0.52,
+      rotationSpeed: 0.42
+    };
+    glyphGroup.name = `glyph_prime_mythic_${nodeId}`;
+    glyphGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');
+
+    const coreGeometry = new THREE.DodecahedronGeometry(0.14, 0);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+      color: 0xf9f2d7,
+      transparent: true,
+      opacity: 0.82,
+      fog: false,
+      toneMapped: false,
+      wireframe: true
+    });
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    core.scale.set(1.08, 0.92, 1.12);
+    core.rotation.set(Math.PI / 8, Math.PI / 7, Math.PI / 11);
+    core.userData = {
+      glyphComponent: 'primeMythicCore',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(core);
+
+    const fieldGeometry = this.createHexagonGeometry(0.28, 0.2, 0.12);
+    const field = new THREE.LineSegments(
+      fieldGeometry,
+      new THREE.LineBasicMaterial({
+        color: 0xb9a7ff,
+        transparent: true,
+        opacity: 0.24,
+        fog: false
+      })
+    );
+    field.rotation.set(Math.PI / 2.5, 0, Math.PI / 5);
+    field.userData = {
+      glyphComponent: 'primeMythicField',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(field);
+
+    const ringA = new THREE.Mesh(
+      new THREE.TorusGeometry(0.23, 0.012, 6, 84),
+      new THREE.MeshBasicMaterial({
+        color: 0xffe8a8,
+        transparent: true,
+        opacity: 0.2,
+        fog: false,
+        toneMapped: false,
+        wireframe: true
+      })
+    );
+    ringA.rotation.x = Math.PI * 0.5;
+    ringA.userData = {
+      glyphComponent: 'primeMythicRingA',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(ringA);
+
+    const ringB = new THREE.Mesh(
+      new THREE.TorusGeometry(0.15, 0.009, 6, 84),
+      new THREE.MeshBasicMaterial({
+        color: 0x86faff,
+        transparent: true,
+        opacity: 0.18,
+        fog: false,
+        toneMapped: false,
+        wireframe: true
+      })
+    );
+    ringB.rotation.set(Math.PI * 0.5, Math.PI / 4, Math.PI / 8);
+    ringB.userData = {
+      glyphComponent: 'primeMythicRingB',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(ringB);
+
+    const plasmaGeometry = new THREE.ConeGeometry(0.045, 0.18, 3, 1, false);
+    const plasmaColors = [0xfff8db, 0xc9b8ff, 0x8bf6ff];
+    const tau = Math.PI * 2;
+
+    for (let index = 0; index < 3; index++) {
+      const plasma = new THREE.Mesh(
+        plasmaGeometry,
+        new THREE.MeshBasicMaterial({
+          color: plasmaColors[index],
+          transparent: true,
+          opacity: 0.7,
+          fog: false,
+          toneMapped: false
+        })
+      );
+      const phase = (index / 3) * tau;
+      plasma.position.set(Math.cos(phase) * 0.18, 0.02 * index, Math.sin(phase) * 0.18);
+      plasma.rotation.set(Math.PI * 0.5, phase + Math.PI / 6, Math.PI * 0.5);
+      plasma.userData = {
+        glyphComponent: 'primeMythicPlasma',
+        plasmaIndex: index,
+        orbitPhase: phase,
+        orbitRadius: 0.18,
+        lockGlyphPosition: true,
+        lockGlyphScale: true
+      };
+      glyphGroup.add(plasma);
+    }
+
+    const sparkGeometry = new THREE.SphereGeometry(0.04, 8, 8);
+    const spark = new THREE.Mesh(
+      sparkGeometry,
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.48,
+        fog: false,
+        toneMapped: false
+      })
+    );
+    spark.userData = {
+      glyphComponent: 'primeMythicSpark',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(spark);
+
+    glyphGroup.scale.setScalar(0.98);
+    glyphGroup.position.y = 0.06;
+    glyphGroup.userData.lockGlyphPosition = true;
+    glyphGroup.userData.lockGlyphScale = true;
+
+    return glyphGroup;
+  }
+
+  updatePrimeMythicGlyph(glyphGroup, deltaTime) {
+    if (!glyphGroup) return;
+
+    this._applyEvolutionOrbitMotion(glyphGroup, deltaTime);
+    glyphGroup.userData.vortexPhase = (glyphGroup.userData.vortexPhase ?? 0) + deltaTime * 1.1;
+    const vortex = (Math.sin(glyphGroup.userData.vortexPhase) + 1) * 0.5;
+
+    glyphGroup.rotation.x += deltaTime * 0.06;
+    glyphGroup.scale.setScalar(0.96 + vortex * 0.05);
+
+    glyphGroup.traverse((child) => {
+      if (!child.material) return;
+
+      if (child.userData?.glyphComponent === 'primeMythicCore') {
+        child.rotation.y += deltaTime * 0.3;
+        child.material.opacity = 0.72 + vortex * 0.18;
+      }
+
+      if (child.userData?.glyphComponent === 'primeMythicField') {
+        child.rotation.z += deltaTime * 0.18;
+        child.material.opacity = 0.12 + vortex * 0.18;
+      }
+
+      if (child.userData?.glyphComponent === 'primeMythicRingA') {
+        child.rotation.z += deltaTime * 0.26;
+        child.material.opacity = 0.15 + vortex * 0.16;
+      }
+
+      if (child.userData?.glyphComponent === 'primeMythicRingB') {
+        child.rotation.x -= deltaTime * 0.34;
+        child.material.opacity = 0.12 + vortex * 0.14;
+      }
+
+      if (child.userData?.glyphComponent === 'primeMythicPlasma') {
+        const orbitPhase = child.userData.orbitPhase + glyphGroup.userData.vortexPhase * (0.86 + child.userData.plasmaIndex * 0.12);
+        const orbitRadius = child.userData.orbitRadius + Math.sin(glyphGroup.userData.vortexPhase * 1.4 + child.userData.plasmaIndex) * 0.02;
+        child.position.x = Math.cos(orbitPhase) * orbitRadius;
+        child.position.z = Math.sin(orbitPhase) * orbitRadius;
+        child.position.y = Math.sin(orbitPhase * 1.2) * 0.06;
+        child.rotation.y = orbitPhase + Math.PI / 6;
+        child.rotation.x = Math.PI * 0.5 + Math.sin(glyphGroup.userData.vortexPhase + child.userData.plasmaIndex) * 0.12;
+        child.material.opacity = 0.5 + vortex * 0.28;
+      }
+
+      if (child.userData?.glyphComponent === 'primeMythicSpark') {
+        child.rotation.y += deltaTime * 0.48;
+        child.material.opacity = 0.24 + vortex * 0.24;
+      }
+    });
+  }
+
+  createQuantumStorageGlyph(node, nodeId) {
+    const glyphGroup = new THREE.Group();
+    const category = this.resolveNodeCategory(node);
+    const orbitRadius = this._getEvolutionOrbitRadius('quantumStorage');
+
+    glyphGroup.userData = {
+      glyphLayer: 'evolution',
+      glyphKey: 'quantumStorage',
+      glyphVariant: 'quantumStorage',
+      category,
+      orbitRadius,
+      isVFX: true,
+      noEvolve: true,
+      noCleanup: true,
+      fluxPhase: Math.random() * Math.PI * 2,
+      orbitPhase: Math.random() * Math.PI * 2,
+      orbitSpeed: 0.58,
+      rotationSpeed: 0.18
+    };
+    glyphGroup.name = `glyph_quantum_storage_${nodeId}`;
+    glyphGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');
+
+    const shellGeometry = new THREE.CylinderGeometry(0.2, 0.23, 0.055, 6, 1, false);
+    const shell = new THREE.Mesh(
+      shellGeometry,
+      new THREE.MeshBasicMaterial({
+        color: 0x7efcff,
+        transparent: true,
+        opacity: 0.24,
+        fog: false,
+        toneMapped: false,
+        wireframe: true
+      })
+    );
+    shell.rotation.y = Math.PI / 6;
+    shell.userData = {
+      glyphComponent: 'quantumStorageShell',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(shell);
+
+    const archiveCore = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.06, 0.11, 0.22, 4, 1, false),
+      new THREE.MeshBasicMaterial({
+        color: 0xdcffff,
+        transparent: true,
+        opacity: 0.76,
+        fog: false,
+        toneMapped: false,
+        wireframe: true
+      })
+    );
+    archiveCore.rotation.y = Math.PI / 4;
+    archiveCore.userData = {
+      glyphComponent: 'quantumStorageCore',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(archiveCore);
+
+    const latticeGeometry = this.createHexagonGeometry(0.28, 0.2, 0.12);
+    const lattice = new THREE.LineSegments(
+      latticeGeometry,
+      new THREE.LineBasicMaterial({
+        color: 0x95fbff,
+        transparent: true,
+        opacity: 0.3,
+        fog: false
+      })
+    );
+    lattice.rotation.set(Math.PI / 2, 0, Math.PI / 6);
+    lattice.userData = {
+      glyphComponent: 'quantumStorageLattice',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(lattice);
+
+    const ringA = new THREE.Mesh(
+      new THREE.TorusGeometry(0.24, 0.01, 6, 72),
+      new THREE.MeshBasicMaterial({
+        color: 0x87dfff,
+        transparent: true,
+        opacity: 0.16,
+        fog: false,
+        toneMapped: false,
+        wireframe: true
+      })
+    );
+    ringA.rotation.x = Math.PI * 0.5;
+    ringA.userData = {
+      glyphComponent: 'quantumStorageRingA',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(ringA);
+
+    const ringB = new THREE.Mesh(
+      new THREE.TorusGeometry(0.16, 0.008, 6, 72),
+      new THREE.MeshBasicMaterial({
+        color: 0xfff0d1,
+        transparent: true,
+        opacity: 0.14,
+        fog: false,
+        toneMapped: false,
+        wireframe: true
+      })
+    );
+    ringB.rotation.set(Math.PI * 0.5, Math.PI / 3.8, Math.PI / 7);
+    ringB.userData = {
+      glyphComponent: 'quantumStorageRingB',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(ringB);
+
+    const moteGeometry = new THREE.SphereGeometry(0.014, 6, 6);
+    const moteColors = [0xf7ffff, 0xbdf2ff, 0xf7d9ff, 0xcfe8ff, 0xf1ffe8, 0xaeefff];
+    const moteCount = 6;
+    for (let index = 0; index < moteCount; index++) {
+      const mote = new THREE.Mesh(
+        moteGeometry,
+        new THREE.MeshBasicMaterial({
+          color: moteColors[index % moteColors.length],
+          transparent: true,
+          opacity: 0.84,
+          fog: false,
+          toneMapped: false
+        })
+      );
+      const phase = (index / moteCount) * Math.PI * 2;
+      mote.position.set(Math.cos(phase) * 0.18, Math.sin(phase * 1.5) * 0.04, Math.sin(phase) * 0.18);
+      mote.userData = {
+        glyphComponent: 'quantumStorageMote',
+        moteIndex: index,
+        orbitPhase: phase,
+        orbitRadius: 0.18 + (index % 2) * 0.045,
+        orbitSpeed: 0.8 + index * 0.08,
+        lockGlyphPosition: true,
+        lockGlyphScale: true
+      };
+      glyphGroup.add(mote);
+    }
+
+    const fluxCap = new THREE.Mesh(
+      new THREE.SphereGeometry(0.035, 8, 8),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.45,
+        fog: false,
+        toneMapped: false
+      })
+    );
+    fluxCap.userData = {
+      glyphComponent: 'quantumStorageFluxCap',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(fluxCap);
+
+    glyphGroup.scale.setScalar(0.96);
+    glyphGroup.position.y = 0.04;
+    glyphGroup.userData.lockGlyphPosition = true;
+    glyphGroup.userData.lockGlyphScale = true;
+
+    return glyphGroup;
+  }
+
+  updateQuantumStorageGlyph(glyphGroup, deltaTime) {
+    if (!glyphGroup) return;
+
+    this._applyEvolutionOrbitMotion(glyphGroup, deltaTime);
+    glyphGroup.userData.fluxPhase = (glyphGroup.userData.fluxPhase ?? 0) + deltaTime * 0.95;
+    const flux = (Math.sin(glyphGroup.userData.fluxPhase) + 1) * 0.5;
+
+    glyphGroup.rotation.z += deltaTime * 0.04;
+    glyphGroup.scale.setScalar(0.97 + flux * 0.035);
+
+    glyphGroup.traverse((child) => {
+      if (!child.material) return;
+
+      if (child.userData?.glyphComponent === 'quantumStorageCore') {
+        child.rotation.y += deltaTime * 0.38;
+        child.material.opacity = 0.58 + flux * 0.2;
+      }
+
+      if (child.userData?.glyphComponent === 'quantumStorageShell') {
+        child.rotation.z += deltaTime * 0.16;
+        child.material.opacity = 0.12 + flux * 0.14;
+      }
+
+      if (child.userData?.glyphComponent === 'quantumStorageLattice') {
+        child.rotation.z -= deltaTime * 0.22;
+        child.material.opacity = 0.16 + flux * 0.16;
+      }
+
+      if (child.userData?.glyphComponent === 'quantumStorageRingA') {
+        child.rotation.x += deltaTime * 0.26;
+        child.material.opacity = 0.1 + flux * 0.14;
+      }
+
+      if (child.userData?.glyphComponent === 'quantumStorageRingB') {
+        child.rotation.y -= deltaTime * 0.2;
+        child.material.opacity = 0.08 + flux * 0.12;
+      }
+
+      if (child.userData?.glyphComponent === 'quantumStorageMote') {
+        const orbitPhase = child.userData.orbitPhase + glyphGroup.userData.fluxPhase * child.userData.orbitSpeed;
+        const orbitRadius = child.userData.orbitRadius + Math.sin(glyphGroup.userData.fluxPhase * 1.35 + child.userData.moteIndex) * 0.015;
+        child.position.x = Math.cos(orbitPhase) * orbitRadius;
+        child.position.z = Math.sin(orbitPhase) * orbitRadius;
+        child.position.y = Math.sin(orbitPhase * 1.7) * 0.05;
+        child.material.opacity = 0.5 + flux * 0.3;
+        child.scale.setScalar(0.72 + flux * 0.2);
+      }
+
+      if (child.userData?.glyphComponent === 'quantumStorageFluxCap') {
+        child.rotation.y += deltaTime * 0.52;
+        child.material.opacity = 0.22 + flux * 0.26;
+      }
+    });
   }
 
   createFoldedImpossibleGlyph() {
@@ -614,9 +1134,9 @@ export class GlyphLayer4_MultiFusion {
       return currentEvolutionGlyph;
     }
 
-    const targetStage = this.resolveEvolutionStage(node);
-    const currentStage = Number(currentEvolutionGlyph.userData?.stage) || 1;
-    if (targetStage === currentStage) {
+    const targetKey = this.resolveEvolutionGlyphKey(node);
+    const currentKey = currentEvolutionGlyph.userData?.glyphKey || currentEvolutionGlyph.userData?.glyphVariant || null;
+    if (targetKey === currentKey) {
       return currentEvolutionGlyph;
     }
 
@@ -644,18 +1164,21 @@ export class GlyphLayer4_MultiFusion {
   
   updateEvolutionGlyph(evoGroup, deltaTime) {
     if (!evoGroup) return;
-    
-    // Main rotation
-    evoGroup.rotation.y += evoGroup.userData.rotationSpeed * deltaTime;
-    
-    // Orbital motion around core
-    evoGroup.userData.orbitPhase += deltaTime * 0.6;
-    const angle = evoGroup.userData.orbitPhase;
-    const radius = evoGroup.userData.orbitRadius;
-    
-    evoGroup.position.x = Math.cos(angle) * radius;
-    evoGroup.position.z = Math.sin(angle) * radius;
 
+    const glyphKey = evoGroup.userData?.glyphKey || evoGroup.userData?.glyphVariant || '';
+
+    this._applyEvolutionOrbitMotion(evoGroup, deltaTime);
+
+    if (glyphKey === 'primeMythic') {
+      this.updatePrimeMythicGlyph(evoGroup, deltaTime);
+      return;
+    }
+
+    if (glyphKey === 'quantumStorage') {
+      this.updateQuantumStorageGlyph(evoGroup, deltaTime);
+      return;
+    }
+    
     if (evoGroup.userData.stage === 2) {
       evoGroup.userData.cellPulsePhase += deltaTime * 1.8;
       const lockPulse = (Math.sin(evoGroup.userData.cellPulsePhase) + 1) * 0.5;
@@ -1490,10 +2013,15 @@ export class GlyphLayer4_MultiFusion {
     let stateGlyph = null;
 
     if (this.hoverOnlyMode) {
-      // Hover-only mode: render only the ascended ring marker for hovered node.
-      stateGlyph = this.createAscendedStateGlyph(node, nodeId);
-      if (stateGlyph && this._safeAttachGlyph(stateGlyph, 'STATE_GLYPH', fusionGroup, node)) {
-        this.stats.byLayer.state++;
+      // Hover-only mode: prefer category glyphs, fall back to ascended marker.
+      evoGlyph = this.createEvolutionGlyph(node, nodeId);
+      if (evoGlyph && this._safeAttachGlyph(evoGlyph, 'GLYPH_LAYER', fusionGroup, node)) {
+        this.stats.byLayer.evolution++;
+      } else {
+        stateGlyph = this.createAscendedStateGlyph(node, nodeId);
+        if (stateGlyph && this._safeAttachGlyph(stateGlyph, 'STATE_GLYPH', fusionGroup, node)) {
+          this.stats.byLayer.state++;
+        }
       }
     } else {
       // Layer 1: Core Glyph (always present)
@@ -1889,7 +2417,7 @@ export class GlyphLayer4_MultiFusion {
     console.log('Fusion Active:', !!fusionData.fusionGroup);
     console.log('Layers:');
     console.log('  - Core:', !!fusionData.layers.core, fusionData.layers.core?.userData?.category);
-    console.log('  - Evolution:', !!fusionData.layers.evolution, fusionData.layers.evolution?.userData?.stage);
+    console.log('  - Evolution:', !!fusionData.layers.evolution, fusionData.layers.evolution?.userData?.glyphKey, fusionData.layers.evolution?.userData?.stage);
     console.log('  - Personality:', !!fusionData.layers.personality, fusionData.layers.personality?.userData?.personality);
     console.log('  - State:', !!fusionData.layers.state, fusionData.layers.state?.userData?.stateType);
     console.log('Child count:', fusionData.fusionGroup.children.length);
