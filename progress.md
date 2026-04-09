@@ -1,6 +1,13 @@
 Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako GlyphLayer4_MultiFusion. mohol by si to spraviť tak prosim ťa
 
+## 2026-04-09
+- `FractalValley.js` now keeps only the unbroken hero bridge; the distant/broken bridge was removed from the spawn list so the valley reads as one clean crossing.
+
 ## 2026-04-08
+- `FractalValley.js` river composition was simplified: the secondary flow overlay was reduced so the map reads as one dominant river channel, and bridge placements were nudged to sit more cleanly on that axis.
+- `FractalValley.js` got a composition pass: bridge placements were nudged, bridge decks sit higher above the river cut, and the terrain now carves a corridor around bridges so the valley reads as one river crossing instead of layered clutter.
+- `FractalValley.js` was softened toward a more walkable valley: gentler ridge slopes, higher max step height, deeper river carve, and higher bridge decks so the two bridges read as spanning one river channel instead of sitting under the terrain.
+- `MainMenu.js` now exposes `DreamDesert2` as `MIRAGE VEIL` and adds `Memory Lane` to map selection; `main.js` now has a real `desert2` bootstrap plus a bootable `memory` world registry entry and switch/theme cycling support for both ids.
 - `DreamDesert.js` was reworked toward a warm semi-realistic dream desert: asymmetrical dunes, a meandering dry channel, two stone landmarks, softened neon, and cinematic warm lighting/fog.
 - Added helper terrain noise, a sand normal texture, warm sun glow sprites, mirage bands, and toned-down floating particles/fragments/crystals to improve depth without adding much draw cost.
 - Syntax check passed with `node --check DreamDesert.js`.

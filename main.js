@@ -3887,7 +3887,7 @@ function safeTick(system, ...args) {
   // Event-driven systems or systems with no per-frame method: silent no-op
 }
 
-const BOOTABLE_WORLD_IDS = new Set(['fractal', 'quantum', 'desert', 'desert2', 'chamber', 'sigma']);
+const BOOTABLE_WORLD_IDS = new Set(['fractal', 'quantum', 'desert', 'desert2', 'memory', 'chamber', 'sigma']);
 
 function normalizeStartupWorldId(value) {
     if (typeof value !== 'string') {
@@ -5111,6 +5111,7 @@ this.setHudDirty('nodeInspect');
             quantum: () => this.initQuantumWorld(),
             desert: () => this.initDesertWorld(),
             desert2: () => this.initDreamDesert2World(),
+            memory: () => this.initMemoryWorld(),
             chamber: () => this.initChamberWorld(),
             sigma: () => this.initSigmaWorld()
         };
@@ -7215,6 +7216,19 @@ window.__ATOMA_SCENE__ = this.scene;
         this.setupChamberEnvironment();
     }
 
+    initDreamDesert2World() {
+        this.currentMode = 'desert2';
+        this.currentTheme = 'desert2';
+        this.createWorld('MAP_SWITCH');
+        this.setupChamberEnvironment();
+    }
+
+    initMemoryWorld() {
+        this.currentMode = 'memory';
+        this.currentTheme = 'memory';
+        this.createWorld('MAP_SWITCH');
+    }
+
     _rebindWorldLifecycleSystems({
         linkingSystem = this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking ?? null,
         aiNodes = this.aiNodes ?? null,
@@ -7882,7 +7896,15 @@ window.__ATOMA_SCENE__ = this.scene;
                 this.camera
             );
             this.activeWorld = this.fractalValley;
+        } else if (this.currentMode === 'desert2') {
+            this.chamber = new DreamDesert2(
+                this.scene,
+                this.worldRoot,
+                this.camera
+            );
+            this.activeWorld = this.chamber;
         } else if (this.currentMode === 'memory') {
+            this.setupMemoryLaneEnvironment?.();
             this.memoryLane = new MemoryLane(
                 this.scene,
                 this.worldRoot
@@ -10832,7 +10854,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * NOW WITH: Safe World Reset Fix 1.0 - Prevents map-switch crashes
      */
     switchMode() {
-        const order = ["fractal", "quantum", "desert", "chamber", "sigma"];
+        const order = ["fractal", "quantum", "desert", "desert2", "memory", "chamber", "sigma"];
 
         const currentIndex = order.indexOf(this.currentTheme ?? this.currentMode);
         const nextIndex = (currentIndex + 1) % order.length;
@@ -10848,7 +10870,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.loadWorld(worldId);
             return;
         }
-        const order = ["fractal", "quantum", "desert", "chamber", "sigma"];
+        const order = ["fractal", "quantum", "desert", "desert2", "memory", "chamber", "sigma"];
 
         const currentIndex = order.indexOf(this.currentMode);
         const nextIndex = (currentIndex + 1) % order.length;
@@ -10888,6 +10910,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 break;
             case 'fractal':
                 this.setupFractalValleyEnvironment?.();
+                break;
+            case 'desert2':
+                this.setupChamberEnvironment?.();
                 break;
             case 'memory':
                 this.setupMemoryLaneEnvironment?.();

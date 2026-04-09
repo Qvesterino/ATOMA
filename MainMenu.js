@@ -28,10 +28,22 @@ const MENU_MAPS = Object.freeze([
         description: 'Surreal cognitive horizon with wide spacing and soft atmospheric drift.',
     },
     {
+        id: 'desert2',
+        label: 'MIRAGE VEIL',
+        footerLabel: 'Dream Desert II',
+        description: 'A denser second dreamscape with sharper dunes, brighter mirage pressure, and a deeper horizon.',
+    },
+    {
         id: 'quantum',
         label: 'QUANTUM ISLAND',
         footerLabel: 'Quantum Island',
         description: 'Probabilistic terrain with unstable gradients and uncertain silhouettes.',
+    },
+    {
+        id: 'memory',
+        label: 'MEMORY LANE',
+        footerLabel: 'Memory Lane',
+        description: 'Endless corridor of archived echoes, server towers, and slow drifting recollection.',
     },
     {
         id: 'sigma',

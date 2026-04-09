@@ -8,6 +8,7 @@ import { getMapConfig } from './MapConfigBase.js';
  * Represents AI visualization of pattern formation and logic
  * NOTE: Keep `getGroundLevelAt(x, z)` aligned with the terrain so the player controller can avoid raycast probes.
  * NOTE: Walkable terrain helpers stay tagged as terrain; any true obstacle needs an explicit blocker collider.
+ * NOTE: Bridges must stay explicitly above the river channel; keep their deck height and the river carve aligned so the scene reads as one valley, not stacked layers.
  */
 export class FractalValley {
   constructor(scene, worldRoot, camera = null) {
@@ -105,14 +106,13 @@ export class FractalValley {
     this._riverScratchLateral = new THREE.Vector3();
     this.riverCurve = this.createRiverCurve();
     this.bridgePlacements = [
-      { type: 'hero', t: 0.31 },
-      { type: 'distant', t: 0.73 }
+      { type: 'hero', t: 0.24 }
     ];
   }
 
   createRiverCurve() {
     const points = [];
-    const segmentCount = 18;
+    const segmentCount = 24;
 
     for (let i = 0; i < segmentCount; i++) {
       const t = i / (segmentCount - 1);
@@ -127,14 +127,14 @@ export class FractalValley {
 
   getRiverCenterX(z) {
     return (
-      Math.sin(z * 0.028) * 16 +
-      Math.sin(z * 0.0105 + 0.8) * 28 +
-      Math.sin(z * 0.055 + 1.4) * 5
+      Math.sin(z * 0.028) * 12 +
+      Math.sin(z * 0.0105 + 0.8) * 20 +
+      Math.sin(z * 0.055 + 1.4) * 4
     );
   }
 
   getRiverWidth(z) {
-    return 7.2 + Math.sin(z * 0.032 + 0.5) * 1.3 + Math.abs(this.sampleTerrainNoise(14, z * 0.45)) * 1.1;
+    return 6.1 + Math.sin(z * 0.032 + 0.5) * 1.05 + Math.abs(this.sampleTerrainNoise(14, z * 0.45)) * 0.85;
   }
 
   getRiverSurfaceHeight(x, z) {
@@ -147,37 +147,38 @@ export class FractalValley {
     const absRiverDelta = Math.abs(riverDelta);
     const riverWidth = this.getRiverWidth(z);
 
-    const macroNoise = this.sampleTerrainNoise(x * 0.95, z * 0.95) * 2.2;
-    const microNoise = this.sampleTerrainNoise(x * 2.25 + 31.7, z * 2.25 - 17.3) * 0.7;
+    const macroNoise = this.sampleTerrainNoise(x * 0.95, z * 0.95) * 1.65;
+    const microNoise = this.sampleTerrainNoise(x * 2.25 + 31.7, z * 2.25 - 17.3) * 0.48;
     const fractureNoise = Math.abs(this.sampleTerrainNoise(x * 1.55 - 53, z * 1.55 + 19));
 
-    const valleyBase = -1.6 + macroNoise * 0.55 + microNoise * 0.3;
-    const bankLift = this._smoothstep(riverWidth * 0.8, riverWidth * 4.6, absRiverDelta) * (1.45 + absRiverDelta * 0.072);
+    const valleyBase = -1.3 + macroNoise * 0.45 + microNoise * 0.2;
+    const bankLift = this._smoothstep(riverWidth * 0.6, riverWidth * 5.8, absRiverDelta) * (1.55 + absRiverDelta * 0.05);
 
-    const leftMask = this._clamp01((-riverDelta - 8) / 60);
-    const rightMask = this._clamp01((riverDelta - 10) / 72);
+    const leftMask = this._clamp01((-riverDelta - 10) / 84);
+    const rightMask = this._clamp01((riverDelta - 12) / 92);
 
     const leftRidge = leftMask * (
-      5.8 +
-      Math.max(0, -riverDelta) * 0.18 +
-      fractureNoise * 5.5 +
-      Math.sin(z * 0.026 - 1.2) * 1.8
+      3.9 +
+      Math.max(0, -riverDelta) * 0.12 +
+      fractureNoise * 3.6 +
+      Math.sin(z * 0.026 - 1.2) * 1.2
     );
     const rightRidge = rightMask * (
-      4.2 +
-      Math.max(0, riverDelta) * 0.135 +
-      fractureNoise * 3.9 +
-      Math.cos(z * 0.022 + 0.9) * 1.35
+      3.4 +
+      Math.max(0, riverDelta) * 0.1 +
+      fractureNoise * 2.8 +
+      Math.cos(z * 0.022 + 0.9) * 0.95
     );
 
-    const farShoulder = this._smoothstep(52, 138, Math.abs(z + 18)) * 1.75;
-    const subtleFractal = Math.sin(x * 0.03 + z * 0.016) * Math.cos(z * 0.041) * 0.52;
+    const farShoulder = this._smoothstep(52, 138, Math.abs(z + 18)) * 1.45;
+    const subtleFractal = Math.sin(x * 0.03 + z * 0.016) * Math.cos(z * 0.041) * 0.4;
     const riverCarve = this._smoothstep(riverWidth * 2.8, 0, absRiverDelta) * (
-      3.9 + (1 - this._clamp01(absRiverDelta / (riverWidth * 2.8))) * 0.95
+      4.8 + (1 - this._clamp01(absRiverDelta / (riverWidth * 2.8))) * 1.1
     );
-    const shallowShelf = this._smoothstep(riverWidth * 1.65, riverWidth * 0.7, absRiverDelta) * 0.9;
+    const shallowShelf = this._smoothstep(riverWidth * 1.65, riverWidth * 0.7, absRiverDelta) * 0.65;
+    const bridgeCorridorCut = this.getBridgeCorridorCut(x, z);
 
-    return valleyBase + bankLift + leftRidge * 0.5 + rightRidge * 0.48 + farShoulder + subtleFractal - riverCarve - shallowShelf;
+    return valleyBase + bankLift + leftRidge * 0.5 + rightRidge * 0.48 + farShoulder + subtleFractal - riverCarve - shallowShelf - bridgeCorridorCut;
   }
 
   getGroundLevelAt(x, z) {
@@ -190,7 +191,7 @@ export class FractalValley {
   }
 
   getMaxStepHeight() {
-    return 2.35;
+    return 4.1;
   }
 
   getMovementBounds() {
@@ -199,6 +200,28 @@ export class FractalValley {
       center: new THREE.Vector3(0, 0, 0),
       radius: 138
     };
+  }
+
+  getBridgeCorridorCut(x, z) {
+    let cut = 0;
+
+    for (const bridge of this.bridgeGroundSurfaces) {
+      const dx = x - bridge.point.x;
+      const dz = z - bridge.point.z;
+      const along = dx * bridge.lateral.x + dz * bridge.lateral.z;
+      const across = dx * bridge.tangent.x + dz * bridge.tangent.z;
+      const halfSpan = bridge.span * 0.5;
+      const spanFade = bridge.type === 'hero' ? 18 : 11;
+      const widthFade = bridge.halfWidth + (bridge.type === 'hero' ? 10.5 : 7.0);
+      const spanMask = this._smoothstep(halfSpan + spanFade, halfSpan * 0.25, Math.abs(along));
+      const widthMask = this._smoothstep(widthFade, bridge.halfWidth * 0.66, Math.abs(across));
+      const corridor = spanMask * widthMask;
+      const strength = bridge.type === 'hero' ? 1.9 : 1.15;
+
+      cut = Math.max(cut, corridor * strength);
+    }
+
+    return cut;
   }
 
   sampleBridgeGroundHeight(x, z) {
@@ -913,7 +936,7 @@ export class FractalValley {
           float flow = 0.5 + 0.5 * sin(vUv.y * 44.0 - uTime * 1.8 + edge * 6.0);
           vec3 color = mix(uColorDeep, uColorGlow, centerMask * 0.68 + flow * 0.12);
           color = mix(color, uColorEdge, pow(centerMask, 2.4) * 0.25);
-          float alpha = 0.72 + centerMask * 0.08;
+          float alpha = 0.64 + centerMask * 0.06;
           gl_FragColor = vec4(color, alpha);
         }
       `,
@@ -950,7 +973,7 @@ export class FractalValley {
           float edgeMask = 1.0 - vUv.x;
           float shimmer = 0.5 + 0.5 * sin(vUv.y * 26.0 - uTime * 1.05);
           vec3 color = mix(uBankColor, uEdgeColor, pow(edgeMask, 1.65) * (0.55 + shimmer * 0.08));
-          float alpha = pow(edgeMask, 1.8) * 0.28;
+          float alpha = pow(edgeMask, 1.8) * 0.14;
           if (alpha < 0.01) discard;
           gl_FragColor = vec4(color, alpha);
         }
@@ -969,7 +992,7 @@ export class FractalValley {
     this.worldRoot.add(rightBank);
     this.riverBankMeshes = [leftBank, rightBank];
 
-    const totalPoints = 24;
+    const totalPoints = 10;
     const positions = new Float32Array(totalPoints * 3);
     const colors = new Float32Array(totalPoints * 3);
     const sizes = new Float32Array(totalPoints);
@@ -984,17 +1007,17 @@ export class FractalValley {
       const point = this.riverCurve.getPointAt(t);
       const tangent = this.riverCurve.getTangentAt(t).normalize();
       const lateral = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
-      const halfWidth = this.getRiverWidth(point.z) * 0.66;
-      const normalizedOffset = (Math.random() * 2 - 1) * 0.9;
+      const halfWidth = this.getRiverWidth(point.z) * 0.42;
+      const normalizedOffset = (Math.random() * 2 - 1) * 0.35;
       const lateralOffset = normalizedOffset * halfWidth;
 
       positions[i * 3] = point.x + lateral.x * lateralOffset;
       positions[i * 3 + 1] = this.getRiverSurfaceHeight(point.x, point.z) + 0.08 + Math.random() * 0.04;
       positions[i * 3 + 2] = point.z + lateral.z * lateralOffset;
       tValues[i] = t;
-      speeds[i] = 0.025 + Math.random() * 0.03;
+      speeds[i] = 0.016 + Math.random() * 0.02;
       lateralOffsets[i] = normalizedOffset;
-      sizes[i] = 0.12 + Math.random() * 0.22;
+      sizes[i] = 0.08 + Math.random() * 0.14;
 
       colors[i * 3] = minColor.r + (maxColor.r - minColor.r) * t;
       colors[i * 3 + 1] = minColor.g + (maxColor.g - minColor.g) * t;
@@ -1025,7 +1048,7 @@ export class FractalValley {
           vColor = aColor;
           vT = aT;
           float flowPulse = 0.72 + 0.28 * sin(aT * 16.0 - uTime * 2.4);
-          vAlpha = flowPulse * (0.2 + smoothstep(0.0, 0.15, aT) * smoothstep(1.0, 0.82, aT));
+          vAlpha = flowPulse * (0.14 + smoothstep(0.0, 0.12, aT) * smoothstep(1.0, 0.88, aT));
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = max(1.0, aSize * (uPixelRatio / max(1.0, -mvPosition.z)));
           gl_Position = projectionMatrix * mvPosition;
@@ -1042,7 +1065,7 @@ export class FractalValley {
           float alpha = smoothstep(1.0, 0.18, dist) * vAlpha;
           alpha *= 0.55 + 0.45 * sin(vT * 18.0 + uTime * 4.2);
           if (alpha < 0.01) discard;
-          gl_FragColor = vec4(vColor, alpha * 0.65);
+          gl_FragColor = vec4(vColor, alpha * 0.4);
         }
       `,
       transparent: true,
@@ -1078,7 +1101,7 @@ export class FractalValley {
       const point = this.riverCurve.getPointAt(t);
       const tangent = this.riverCurve.getTangentAt(t).normalize();
       const lateral = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
-      const halfWidth = this.getRiverWidth(point.z) * (0.96 + Math.sin(t * Math.PI) * 0.08);
+      const halfWidth = this.getRiverWidth(point.z) * (0.88 + Math.sin(t * Math.PI) * 0.06);
       const y = this.getRiverSurfaceHeight(point.x, point.z);
 
       const left = point.clone().add(lateral.clone().multiplyScalar(halfWidth));
@@ -1130,7 +1153,7 @@ export class FractalValley {
       const tangent = this.riverCurve.getTangentAt(t).normalize();
       const lateral = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
       const innerOffset = this.getRiverWidth(point.z) * 0.98;
-      const outerOffset = innerOffset + 4.2 + Math.abs(this.sampleTerrainNoise(point.x * 0.32 + side * 9, point.z * 0.32)) * 1.6;
+      const outerOffset = innerOffset + 3.0 + Math.abs(this.sampleTerrainNoise(point.x * 0.32 + side * 9, point.z * 0.32)) * 1.1;
 
       const inner = point.clone().add(lateral.clone().multiplyScalar(innerOffset * side));
       const outer = point.clone().add(lateral.clone().multiplyScalar(outerOffset * side));
@@ -1270,7 +1293,7 @@ export class FractalValley {
     const deckY = Math.max(
       this.sampleTerrainHeight(leftBank.x, leftBank.z),
       this.sampleTerrainHeight(rightBank.x, rightBank.z)
-    ) + 1.35;
+    ) + 2.75;
 
     const group = new THREE.Group();
     this.orientGroupToRiverFrame(group, frame, deckY);
@@ -1360,7 +1383,7 @@ export class FractalValley {
     const deckY = Math.max(
       this.sampleTerrainHeight(leftBank.x, leftBank.z),
       this.sampleTerrainHeight(rightBank.x, rightBank.z)
-    ) + 0.9;
+    ) + 1.95;
 
     const group = new THREE.Group();
     this.orientGroupToRiverFrame(group, frame, deckY);
