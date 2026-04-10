@@ -464,7 +464,29 @@ export class HarmonicHealingVisualSystem_Session134 {
      * Handle wave arrival at destination
      */
     _handleWaveArrival(wave, time) {
-        // 1. Visual Splash
+        // 1. Emit topology healing event for HarmonicTopologyLearningSystem
+        if (this.semanticBus && wave.endNode.position) {
+            // Calculate harmony restored based on wave intensity and node harmony
+            const readMetric = (node, key) => {
+                if (!node) return 0;
+                const metrics = node.userData?.metrics;
+                const metricValue = metrics && typeof metrics[key] === 'number' ? metrics[key] : undefined;
+                if (typeof metricValue === 'number' && Number.isFinite(metricValue)) return metricValue;
+                const directValue = node.userData?.[key];
+                if (typeof directValue === 'number' && Number.isFinite(directValue)) return directValue;
+                return 0;
+            };
+            
+            const endHarmony = readMetric(wave.endNode, 'harmony');
+            const harmonyRestored = Math.max(0.1, Math.min(1.0, endHarmony * wave.intensity));
+            
+            this.semanticBus.emit('topology.healing', {
+                position: wave.endNode.position,
+                harmonyRestored: harmonyRestored
+            });
+        }
+
+        // 2. Visual Splash
         if (this.particles && this.particles.emitSplash) {
             this.particles.emitSplash(
                 wave.endNode.position,
@@ -473,7 +495,7 @@ export class HarmonicHealingVisualSystem_Session134 {
             );
         }
 
-        // 2. Gameplay Impact
+        // 3. Gameplay Impact
         if (!this.config.repairVisualsOnly) {
             this._applyHealingImpact(wave);
         }

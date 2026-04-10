@@ -214,11 +214,12 @@ class CascadePropagation {
 // ============================================================================
 
 export class CascadingRuptureSystem {
-    constructor(scene, aiNodes, linkingSystem, regionalEquilibrium) {
+    constructor(scene, aiNodes, linkingSystem, regionalEquilibrium, semanticBus = null) {
         this.scene = scene;
         this.aiNodes = aiNodes;
         this.linkingSystem = linkingSystem;
         this.regionalEquilibrium = regionalEquilibrium;
+        this.semanticBus = semanticBus;
 
         // Enable flag (default: true - activated per NETWORK_STABILITY_SYSTEMS_AUDIT)
         this.enabled = true;
@@ -418,6 +419,14 @@ export class CascadingRuptureSystem {
             this.onCascadeStart(originNode, initialEnergy);
         }
 
+        // Emit topology rupture event for HarmonicTopologyLearningSystem
+        if (this.semanticBus && originNode.position) {
+            this.semanticBus.emit('topology.rupture', {
+                position: originNode.position,
+                intensity: initialEnergy
+            });
+        }
+
         // PATCH 6: Debug log
         console.log("[CASCADE] triggered", originNode.id || originNode.uuid);
     }
@@ -500,6 +509,14 @@ export class CascadingRuptureSystem {
             // Fire hop event
             if (this.onCascadeHop) {
                 this.onCascadeHop(fromNode, toNode, cascade.currentEnergy, link, cascade.currentDepth);
+            }
+
+            // Emit topology rupture event for HarmonicTopologyLearningSystem
+            if (this.semanticBus && toNode.position) {
+                this.semanticBus.emit('topology.rupture', {
+                    position: toNode.position,
+                    intensity: cascade.currentEnergy
+                });
             }
 
             // Record rupture in history
@@ -615,10 +632,11 @@ export class CascadingRuptureSystem {
         this.healingHistory.set(key, time);
     }
 
-    rebind({ linkingSystem = this.linkingSystem, aiNodes = this.aiNodes, regionalEquilibrium = this.regionalEquilibrium } = {}) {
+    rebind({ linkingSystem = this.linkingSystem, aiNodes = this.aiNodes, regionalEquilibrium = this.regionalEquilibrium, semanticBus = null } = {}) {
         if (linkingSystem) this.linkingSystem = linkingSystem;
         if (aiNodes) this.aiNodes = aiNodes;
         if (regionalEquilibrium !== undefined) this.regionalEquilibrium = regionalEquilibrium;
+        if (semanticBus !== undefined) this.semanticBus = semanticBus;
         return this;
     }
 

@@ -336,7 +336,39 @@ export class HarmonicTopologyLearningSystem {
         
         this.enabled = true;
         
+        // Event bus (optional, set via setEventBus)
+        this.semanticBus = null;
+        
         console.log('[HarmonicTopologyLearningSystem] Initialized');
+    }
+    
+    // ========================================================================
+    // EVENT BUS INTEGRATION
+    // ========================================================================
+    
+    setEventBus(semanticBus) {
+        this.semanticBus = semanticBus;
+        
+        if (!this.semanticBus) {
+            console.warn('[HarmonicTopologyLearningSystem] No event bus provided');
+            return;
+        }
+        
+        // Listen for rupture events
+        this.semanticBus.on('topology.rupture', (data) => {
+            if (data.position && typeof data.intensity === 'number') {
+                this.recordRupture(data.position, data.intensity);
+            }
+        });
+        
+        // Listen for healing events
+        this.semanticBus.on('topology.healing', (data) => {
+            if (data.position && typeof data.harmonyRestored === 'number') {
+                this.recordHealing(data.position, data.harmonyRestored);
+            }
+        });
+        
+        console.log('[HarmonicTopologyLearningSystem] Event bus connected');
     }
     
     // ========================================================================

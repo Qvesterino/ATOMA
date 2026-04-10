@@ -2945,6 +2945,7 @@ export class LinkRendererConduit {
                 trace('beforeCorruptionSpreadAnimator');
                 const spreadState = this.corruptionSpreadAnimator.update(link, deltaTime, state.strands, {
                     corruptionLevel: metrics?.corruption ?? 0,
+                    corruptionTier: link?.userData?.__metricEventState?.metricTiers?.corruption ?? null,
                     nowMs: performance.now()
                 });
                 trace('afterCorruptionSpreadAnimator', {

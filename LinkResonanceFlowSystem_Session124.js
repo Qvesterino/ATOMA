@@ -125,6 +125,10 @@ export class LinkResonanceFlowSystem_Session124 {
       echoTrailEnabled: config.echoTrailEnabled ?? true,
       echoTrailDuration: config.echoTrailDuration ?? 0.8,
       echoTrailStrength: config.echoTrailStrength ?? 0.055,
+      consensusJudgmentLoadThreshold: config.consensusJudgmentLoadThreshold ?? 0.82,
+      consensusDeviateCorruptionThreshold: config.consensusDeviateCorruptionThreshold ?? 0.22,
+      consensusConvergeStabilityThreshold: config.consensusConvergeStabilityThreshold ?? 0.56,
+      consensusJudgmentFlashChance: config.consensusJudgmentFlashChance ?? 0.58,
       
       // Intensity modulation
       baseIntensity: config.baseIntensity ?? 0.8,
@@ -160,10 +164,12 @@ export class LinkResonanceFlowSystem_Session124 {
     this.pulseMaterial = null;
     this.pulseMeshGeometry = null;
     this.pulseSheathGeometry = null;
+    this.pulseShellGeometry = null;
     this.pulseTrailGeometry = null;
     this.pulseShardGeometry = null;
     this.pulseHaloGeometry = null;
     this.pulseSwirlGeometry = null;
+    this.pulseGhostGeometry = null;
     this.pulseMaterialTemplate = null;
     this.pulseMeshPool = [];
     this.pulseGroup = null;
@@ -175,6 +181,73 @@ export class LinkResonanceFlowSystem_Session124 {
     this._lastVisualTime = undefined;
     this._linkEndpointIdCache = new Map();
     this._endpointInterferenceScratch = new Map();
+    this.consensusStateProfiles = {
+      observe: {
+        coreScale: 0.98,
+        shellScale: 0.96,
+        ringScale: 0.94,
+        filamentScale: 0.92,
+        ghostScale: 0.72,
+        opacity: 0.82,
+        glow: 0.9,
+        voidMix: 0.18,
+        axisSplit: 0.08,
+        drift: 0.9,
+        hueShift: 0.03,
+      },
+      converge: {
+        coreScale: 1.04,
+        shellScale: 1.08,
+        ringScale: 1.02,
+        filamentScale: 1.08,
+        ghostScale: 0.82,
+        opacity: 1.0,
+        glow: 1.1,
+        voidMix: 0.24,
+        axisSplit: 0.05,
+        drift: 0.8,
+        hueShift: 0.0,
+      },
+      deviate: {
+        coreScale: 0.95,
+        shellScale: 1.02,
+        ringScale: 1.12,
+        filamentScale: 1.18,
+        ghostScale: 0.92,
+        opacity: 0.92,
+        glow: 1.02,
+        voidMix: 0.3,
+        axisSplit: 0.34,
+        drift: 1.16,
+        hueShift: 0.16,
+      },
+      judgment: {
+        coreScale: 0.88,
+        shellScale: 1.12,
+        ringScale: 1.22,
+        filamentScale: 1.0,
+        ghostScale: 1.02,
+        opacity: 1.24,
+        glow: 1.34,
+        voidMix: 0.38,
+        axisSplit: 0.14,
+        drift: 0.7,
+        hueShift: -0.06,
+      },
+      echo: {
+        coreScale: 0.84,
+        shellScale: 0.96,
+        ringScale: 0.98,
+        filamentScale: 1.12,
+        ghostScale: 1.24,
+        opacity: 0.46,
+        glow: 0.76,
+        voidMix: 0.42,
+        axisSplit: 0.26,
+        drift: 1.24,
+        hueShift: 0.05,
+      },
+    };
     
     // Statistics
     this.stats = {
@@ -303,6 +376,75 @@ export class LinkResonanceFlowSystem_Session124 {
       visualStart,
       overloadStart
     };
+  }
+
+  _resolveConsensusState(pulse) {
+    if (pulse?.phaseState === 'echo') {
+      return 'echo';
+    }
+
+    const loadPressure = clamp01(pulse?.loadPressure ?? 0);
+    const stabilityMix = clamp01(pulse?.stabilityMix ?? 0);
+    const corruption = clamp01(pulse?.corruption ?? 0);
+    const overloadMix = clamp01(pulse?.overloadMix ?? 0);
+    const phaseAlpha = clamp01(pulse?.phaseAlpha ?? 1);
+    const judgmentLoad = Math.max(0.01, this.config.consensusJudgmentLoadThreshold ?? 0.82);
+    const deviateCorruption = Math.max(0.01, this.config.consensusDeviateCorruptionThreshold ?? 0.22);
+    const convergeStability = Math.max(0.01, this.config.consensusConvergeStabilityThreshold ?? 0.56);
+
+    if (
+      loadPressure >= judgmentLoad ||
+      overloadMix >= 0.34 ||
+      (phaseAlpha > 0.65 && loadPressure >= 0.72 && stabilityMix >= convergeStability)
+    ) {
+      return 'judgment';
+    }
+
+    if (
+      corruption >= deviateCorruption ||
+      (loadPressure >= 0.5 && stabilityMix <= Math.max(0.1, convergeStability * 0.72))
+    ) {
+      return 'deviate';
+    }
+
+    if (stabilityMix >= convergeStability || loadPressure >= 0.34) {
+      return 'converge';
+    }
+
+    return 'observe';
+  }
+
+  _updateConsensusState(pulse, deltaVisual) {
+    if (!pulse) return 'observe';
+
+    const nextState = this._resolveConsensusState(pulse);
+    const previousState = pulse.consensusState ?? nextState;
+    if (nextState !== previousState) {
+      pulse.consensusStateElapsed = 0;
+
+      if (nextState === 'judgment') {
+        const judgmentSeed = Math.sin((pulse.phaseSeed ?? 0) * 13.11 + (pulse.signatureBias ?? 0) * 7.17 + (pulse.life ?? 0) * 0.31) * 0.5 + 0.5;
+        if (judgmentSeed >= (this.config.consensusJudgmentFlashChance ?? 0.58)) {
+          pulse.judgmentFlash = Math.max(pulse.judgmentFlash ?? 0, 1.0);
+        }
+      }
+
+      if (nextState === 'echo') {
+        pulse.echoGhostPhase = Math.max(pulse.echoGhostPhase ?? 0, 1.0);
+      }
+    } else {
+      pulse.consensusStateElapsed = (pulse.consensusStateElapsed ?? 0) + deltaVisual;
+    }
+
+    pulse.consensusState = nextState;
+    pulse.judgmentFlash = Math.max(0, (pulse.judgmentFlash ?? 0) - deltaVisual * 3.8);
+    if (nextState === 'echo') {
+      pulse.echoGhostPhase = Math.max(0, (pulse.echoGhostPhase ?? 0) - deltaVisual * 0.92);
+    } else {
+      pulse.echoGhostPhase = Math.max(0, (pulse.echoGhostPhase ?? 0) - deltaVisual * 1.4);
+    }
+
+    return nextState;
   }
 
   _getStabilityProfile(stability) {
@@ -512,6 +654,9 @@ export class LinkResonanceFlowSystem_Session124 {
     pulse.echoAnchorT = step?.endT ?? pulse.position ?? 0;
     pulse.phaseAlpha = pulse.echoStrength;
     pulse.position = pulse.echoAnchorT;
+    pulse.consensusState = 'echo';
+    pulse.consensusStateElapsed = 0;
+    pulse.echoGhostPhase = Math.max(pulse.echoGhostPhase ?? 0, 1.0);
     return pulse;
   }
   
@@ -556,10 +701,12 @@ export class LinkResonanceFlowSystem_Session124 {
     // low-poly base, but distorted through shader motion and shell layering.
     this.pulseMeshGeometry = new THREE.IcosahedronGeometry(1, 1);
     this.pulseSheathGeometry = new THREE.IcosahedronGeometry(1, 1);
+    this.pulseShellGeometry = new THREE.IcosahedronGeometry(1, 2);
     this.pulseTrailGeometry = new THREE.CylinderGeometry(0.05, 0.012, 1, 5, 1, true);
     this.pulseShardGeometry = new THREE.OctahedronGeometry(0.16, 0);
     this.pulseHaloGeometry = new THREE.TorusGeometry(1, 0.048, 6, 24, Math.PI * 1.84);
     this.pulseSwirlGeometry = new THREE.TorusKnotGeometry(0.52, 0.082, 32, 8, 2, 3);
+    this.pulseGhostGeometry = new THREE.IcosahedronGeometry(1, 0);
 
     // Shared shader material template. Every pulse part clones this shader and
     // only varies uniforms, so the entity keeps one visual language.
@@ -850,6 +997,10 @@ export class LinkResonanceFlowSystem_Session124 {
       phaseSegmentIndex: 0,
       phaseStep: null,
       phaseRouted: false,
+      consensusState: 'observe',
+      consensusStateElapsed: 0,
+      judgmentFlash: 0,
+      echoGhostPhase: 0,
       
       // Metrics
       synergy,
@@ -862,6 +1013,7 @@ export class LinkResonanceFlowSystem_Session124 {
     };
 
     pulse.phaseStep = this._buildPhaseJumpStep(pulse, pulse.position);
+    pulse.consensusState = this._resolveConsensusState(pulse);
     const routeGuard = this._getLinkLength(link) / Math.max(0.12, pulse.speed);
     pulse.lifetime = Math.max(
       this.config.pulseLifetime,
@@ -921,6 +1073,7 @@ export class LinkResonanceFlowSystem_Session124 {
         const echoFade = 1 - echoT;
         pulse.phaseAlpha = Math.max(0, (pulse.echoStrength ?? 0.05) * echoFade);
         pulse.position = pulse.echoAnchorT ?? pulse.position;
+        this._updateConsensusState(pulse, deltaVisual);
 
         if (pulse.phaseElapsed >= echoDuration) {
           pulse.active = false;
@@ -930,6 +1083,7 @@ export class LinkResonanceFlowSystem_Session124 {
 
       pulse.life += deltaVisual;
       pulse.phaseElapsed = (pulse.phaseElapsed ?? 0) + deltaVisual;
+      this._updateConsensusState(pulse, deltaVisual);
       const motionSeed = pulse.anomalySeed ?? 0;
       const motionGate = 0.84 + 0.1 * Math.sin(pulse.life * 0.84 + motionSeed * Math.PI * 6.0) + 0.06 * Math.sin(pulse.life * 0.23 + motionSeed * Math.PI * 12.0);
       const phaseGate = Math.max(0.55, motionGate);
@@ -1068,13 +1222,25 @@ export class LinkResonanceFlowSystem_Session124 {
       const baseDebugColor = debugPulse ? this._debugColor : null;
       const baseDebugAccent = debugPulse ? this._debugAccentColor : null;
       const baseDebugVoid = debugPulse ? this._debugVoidColor : null;
+      const consensusState = pulse.consensusState ?? this._resolveConsensusState(pulse);
+      const consensusProfile = this.consensusStateProfiles[consensusState] ?? this.consensusStateProfiles.observe;
+      const consensusElapsed = pulse.consensusStateElapsed ?? 0;
+      const judgmentFlash = pulse.judgmentFlash ?? 0;
+      const echoGhostPhase = pulse.echoGhostPhase ?? 0;
 
       const applyPart = (key, options = {}) => {
         const part = parts[key];
         const spec = partConfigs[key];
         if (!part || !spec) return;
 
-        const visible = options.visible ?? true;
+        const lodVisibleAt = spec.lodVisibleAt ?? 0.5;
+        let visible = options.visible ?? true;
+        if (visible && !debugPulse && (pulse.lodSuppression ?? 1.0) < lodVisibleAt) {
+          visible = false;
+        }
+        if (visible && Array.isArray(spec.stateVisibleFor) && spec.stateVisibleFor.length > 0 && !spec.stateVisibleFor.includes(consensusState)) {
+          visible = false;
+        }
         part.visible = visible;
         if (!visible) return;
 
@@ -1098,38 +1264,51 @@ export class LinkResonanceFlowSystem_Session124 {
         const directionalWake = options.directionalWake ?? 0;
         const interferenceMul = options.interferenceMul ?? 1.0;
         const echoMul = options.echoMul ?? 1.0;
+        const stateScaleMul = options.stateScaleMul ?? 1.0;
+        const stateScaleYMul = options.stateScaleYMul ?? 1.0;
+        const stateOpacityMul = options.stateOpacityMul ?? 1.0;
+        const stateGlowMul = options.stateGlowMul ?? 1.0;
+        const stateDistortionMul = options.stateDistortionMul ?? 1.0;
+        const stateNoiseSpeedMul = options.stateNoiseSpeedMul ?? 1.0;
+        const stateShellBreathMul = options.stateShellBreathMul ?? 1.0;
+        const stateBiasShift = options.stateBiasShift ?? 0;
+        const stateAxis = options.stateAxis ?? 0;
+        const stateVoidMix = options.stateVoidMix ?? 0;
+        const stateDrift = (consensusProfile.drift ?? 1.0) * (phaseState === 'echo' ? 1.08 : 1.0);
+        const stateAxisSplit = ((consensusProfile.axisSplit ?? 0) * stateAxis) + judgmentFlash * 0.06;
+        const stateBreath = 0.92 + 0.08 * Math.sin(consensusElapsed * (0.86 + signaturePulse * 0.24) + (spec.shellBias ?? 0) * 3.0 + (pulse.phaseSeed ?? 0));
 
         part.position.set(
-          basePosition[0] + orbitStrength[0] * wobbleA * driftMul,
-          basePosition[1] + orbitStrength[1] * wobbleB * driftMul + directionalWake,
-          basePosition[2] + orbitStrength[2] * wobbleC * driftMul
+          basePosition[0] + orbitStrength[0] * wobbleA * driftMul * stateDrift + stateAxisSplit * 0.22 + stateBiasShift * wobbleC * 0.04,
+          basePosition[1] + orbitStrength[1] * wobbleB * driftMul * stateDrift + directionalWake + stateAxisSplit * 0.11,
+          basePosition[2] + orbitStrength[2] * wobbleC * driftMul * stateDrift - stateAxisSplit * 0.17
         );
         part.rotation.set(
-          baseRotation[0] + pulse.life * rotationSpeed[0] + wobbleA * 0.12,
-          baseRotation[1] + pulse.life * rotationSpeed[1] + wobbleB * 0.16,
-          baseRotation[2] + pulse.life * rotationSpeed[2] + wobbleC * 0.14
+          baseRotation[0] + pulse.life * rotationSpeed[0] + wobbleA * 0.12 + consensusElapsed * 0.03 * stateBiasShift,
+          baseRotation[1] + pulse.life * rotationSpeed[1] + wobbleB * 0.16 + judgmentFlash * 0.12,
+          baseRotation[2] + pulse.life * rotationSpeed[2] + wobbleC * 0.14 - consensusElapsed * 0.02 * stateAxis
         );
         part.scale.set(
-          baseScale[0] * size * shellPulse * scaleMul,
-          baseScale[1] * size * shellPulse * scaleMul * scaleYMul,
-          baseScale[2] * size * shellPulse * scaleMul
+          baseScale[0] * size * shellPulse * scaleMul * stateScaleMul * stateBreath,
+          baseScale[1] * size * shellPulse * scaleMul * scaleYMul * stateScaleMul * stateScaleYMul * stateBreath,
+          baseScale[2] * size * shellPulse * scaleMul * stateScaleMul * stateBreath
         );
 
         const uniforms = part.material?.uniforms || {};
         if (uniforms.uTime) uniforms.uTime.value = pulse.life;
-        if (uniforms.uOpacity) uniforms.uOpacity.value = opacity * (spec.opacity ?? 1.0) * opacityMul * interferenceMul * echoMul * (debugPulse ? 1.08 : 1.0);
-        if (uniforms.uGlowSize) uniforms.uGlowSize.value = this.config.pulseGlowIntensity * (spec.glow ?? 1.0) * glowMul * interferenceMul * echoMul * (1.0 + pulse.loadPressure * 0.08 + overloadMix * 0.16 + stabilityMix * 0.1) * (debugPulse ? this.config.debugPulseGlowMult : 1.0);
-        if (uniforms.uDistortion) uniforms.uDistortion.value = (spec.distortion ?? 0.1) * distortionMul * (1.0 + overloadMix * 0.14 + stabilityMix * 0.08);
+        if (uniforms.uOpacity) uniforms.uOpacity.value = opacity * (spec.opacity ?? 1.0) * opacityMul * stateOpacityMul * interferenceMul * echoMul * (debugPulse ? 1.08 : 1.0);
+        if (uniforms.uGlowSize) uniforms.uGlowSize.value = this.config.pulseGlowIntensity * (spec.glow ?? 1.0) * glowMul * stateGlowMul * interferenceMul * echoMul * (1.0 + pulse.loadPressure * 0.08 + overloadMix * 0.16 + stabilityMix * 0.1 + judgmentFlash * 0.22) * (debugPulse ? this.config.debugPulseGlowMult : 1.0);
+        if (uniforms.uDistortion) uniforms.uDistortion.value = (spec.distortion ?? 0.1) * distortionMul * stateDistortionMul * (1.0 + overloadMix * 0.14 + stabilityMix * 0.08 + judgmentFlash * 0.18);
         if (uniforms.uNoiseScale) uniforms.uNoiseScale.value = (spec.noiseScale ?? 2.0) * noiseScaleMul;
-        if (uniforms.uNoiseSpeed) uniforms.uNoiseSpeed.value = (spec.noiseSpeed ?? 1.0) * noiseSpeedMul;
+        if (uniforms.uNoiseSpeed) uniforms.uNoiseSpeed.value = (spec.noiseSpeed ?? 1.0) * noiseSpeedMul * stateNoiseSpeedMul;
         if (uniforms.uPulsePhase) uniforms.uPulsePhase.value = phase + signatureBias * Math.PI * 2.0;
         if (uniforms.uPulseSeed) uniforms.uPulseSeed.value = motionSeed + (spec.shellBias ?? 0) + signatureBias * 0.5;
         if (uniforms.uFresnelPower) uniforms.uFresnelPower.value = spec.fresnelPower ?? 2.4;
         if (uniforms.uIridescence) uniforms.uIridescence.value = (spec.iridescence ?? 0.2) * (0.92 + signaturePulse * 0.16);
-        if (uniforms.uVoidMix) uniforms.uVoidMix.value = spec.voidMix ?? 0.2;
+        if (uniforms.uVoidMix) uniforms.uVoidMix.value = Math.min(1.0, Math.max(0, (spec.voidMix ?? 0.2) + stateVoidMix + judgmentFlash * 0.08));
         if (uniforms.uCorruption) uniforms.uCorruption.value = pulse.corruption ?? 0;
-        if (uniforms.uShellBreath) uniforms.uShellBreath.value = (spec.shellBreath ?? 0.1) * (1.0 + overloadMix * 0.1 + stabilityMix * 0.06 + signaturePulse * 0.08);
-        if (uniforms.uShellBias) uniforms.uShellBias.value = (spec.shellBias ?? 0) + pulse.loadPressure * 0.1 + signatureBias * 0.14;
+        if (uniforms.uShellBreath) uniforms.uShellBreath.value = (spec.shellBreath ?? 0.1) * (1.0 + overloadMix * 0.1 + stabilityMix * 0.06 + signaturePulse * 0.08 + judgmentFlash * 0.16) * stateShellBreathMul;
+        if (uniforms.uShellBias) uniforms.uShellBias.value = (spec.shellBias ?? 0) + pulse.loadPressure * 0.1 + signatureBias * 0.14 + stateBiasShift * 0.2;
         if (debugPulse) {
           if (uniforms.uColor) uniforms.uColor.value.copy(baseDebugColor);
           if (uniforms.uAccentColor) uniforms.uAccentColor.value.copy(baseDebugAccent);
@@ -1147,6 +1326,16 @@ export class LinkResonanceFlowSystem_Session124 {
         directionalWake: wakeShift * 0.18,
         interferenceMul: 1.0 + (interferenceFactor - 1.0) * 0.8,
         echoMul: phaseState === 'echo' ? 0.82 : 1.0,
+        stateScaleMul: consensusProfile.coreScale,
+        stateScaleYMul: 1.0,
+        stateOpacityMul: 1.0,
+        stateGlowMul: 1.04,
+        stateDistortionMul: 1.0,
+        stateNoiseSpeedMul: 1.0,
+        stateShellBreathMul: 1.0,
+        stateVoidMix: consensusProfile.voidMix * 0.32,
+        stateBiasShift: 0.04,
+        stateAxis: 0.24,
       });
       applyPart('sheath', {
         scaleMul: 0.98 + bandMix * 0.08 + phaseCollapse * 0.06,
@@ -1156,6 +1345,38 @@ export class LinkResonanceFlowSystem_Session124 {
         directionalWake: wakeShift * 0.08,
         interferenceMul: interferenceFactor,
         echoMul: phaseState === 'echo' ? 0.9 : 1.0,
+        stateScaleMul: consensusProfile.shellScale,
+        stateScaleYMul: 1.0,
+        stateOpacityMul: 1.0,
+        stateGlowMul: 1.0,
+        stateDistortionMul: 1.0,
+        stateNoiseSpeedMul: 1.0,
+        stateShellBreathMul: 1.0,
+        stateVoidMix: consensusProfile.voidMix * 0.16,
+        stateBiasShift: 0.06,
+        stateAxis: 0.56,
+      });
+      applyPart('shellOuter', {
+        scaleMul: 1.0 + phaseCollapse * 0.06,
+        scaleYMul: 1.0 + signaturePulse * 0.03,
+        driftMul: 1.0,
+        glowMul: 0.92 + phaseEmergence * 0.06,
+        distortionMul: 1.0 + phaseCollapse * 0.05,
+        noiseScaleMul: 0.92,
+        noiseSpeedMul: 0.82,
+        directionalWake: wakeShift * 0.04,
+        interferenceMul: interferenceFactor,
+        echoMul: phaseState === 'echo' ? 0.84 : 1.0,
+        stateScaleMul: consensusProfile.shellScale * 1.08,
+        stateScaleYMul: 1.0,
+        stateOpacityMul: 1.0,
+        stateGlowMul: 1.02,
+        stateDistortionMul: 1.0,
+        stateNoiseSpeedMul: 1.0,
+        stateShellBreathMul: 1.0,
+        stateVoidMix: consensusProfile.voidMix * 0.12,
+        stateBiasShift: 0.12,
+        stateAxis: 1.0,
       });
       applyPart('trail', {
         scaleMul: 0.92 + overloadMix * 0.04 + phaseCollapse * 0.07,
@@ -1168,6 +1389,16 @@ export class LinkResonanceFlowSystem_Session124 {
         directionalWake: wakeShift * (1.0 + signaturePulse * 0.24),
         interferenceMul: 1.0 + (interferenceFactor - 1.0) * 0.9,
         echoMul: phaseState === 'echo' ? 0.95 : 1.0,
+        stateScaleMul: consensusProfile.filamentScale,
+        stateScaleYMul: 1.0,
+        stateOpacityMul: 1.0,
+        stateGlowMul: consensusState === 'deviate' ? 1.08 : 1.0,
+        stateDistortionMul: 1.0 + (consensusState === 'deviate' ? 0.12 : 0),
+        stateNoiseSpeedMul: 1.0 + (consensusState === 'deviate' ? 0.14 : 0),
+        stateShellBreathMul: 0.96 + (consensusState === 'echo' ? 0.1 : 0),
+        stateVoidMix: consensusProfile.voidMix * 0.1,
+        stateBiasShift: 0.08,
+        stateAxis: 0.72,
       });
       applyPart('halo', {
         scaleMul: 0.96 + stabilityMix * 0.05 + phaseCollapse * 0.04,
@@ -1180,6 +1411,16 @@ export class LinkResonanceFlowSystem_Session124 {
         directionalWake: wakeShift * 0.03,
         interferenceMul: interferenceFactor,
         echoMul: phaseState === 'echo' ? 0.88 : 1.0,
+        stateScaleMul: consensusProfile.ringScale,
+        stateScaleYMul: 1.0,
+        stateOpacityMul: 1.0,
+        stateGlowMul: 1.06 + judgmentFlash * 0.22,
+        stateDistortionMul: 1.0,
+        stateNoiseSpeedMul: 1.0,
+        stateShellBreathMul: 1.0,
+        stateVoidMix: consensusProfile.voidMix * 0.14,
+        stateBiasShift: 0.14,
+        stateAxis: 1.0,
       });
       applyPart('swirl', {
         scaleMul: 0.98 + overloadMix * 0.02 + phaseCollapse * 0.05,
@@ -1192,6 +1433,16 @@ export class LinkResonanceFlowSystem_Session124 {
         directionalWake: wakeShift * 0.05,
         interferenceMul: interferenceFactor,
         echoMul: phaseState === 'echo' ? 0.9 : 1.0,
+        stateScaleMul: consensusProfile.ringScale * (consensusState === 'deviate' ? 1.06 : 0.98),
+        stateScaleYMul: 1.0,
+        stateOpacityMul: 1.0,
+        stateGlowMul: 1.0 + (consensusState === 'deviate' ? 0.08 : 0),
+        stateDistortionMul: 1.0,
+        stateNoiseSpeedMul: 1.0,
+        stateShellBreathMul: 1.0,
+        stateVoidMix: consensusProfile.voidMix * 0.1,
+        stateBiasShift: -0.14,
+        stateAxis: -1.0,
       });
       applyPart('overloadA', {
         visible: debugPulse || overloadMix > 0.02 || pulse.corruption > 0.06 || phaseCollapse > 0.18,
@@ -1205,6 +1456,16 @@ export class LinkResonanceFlowSystem_Session124 {
         directionalWake: wakeShift * 0.04,
         interferenceMul: 1.0 + (interferenceFactor - 1.0) * 0.7,
         echoMul: phaseState === 'echo' ? 0.72 : 1.0,
+        stateScaleMul: consensusProfile.filamentScale * (consensusState === 'deviate' ? 1.1 : 0.88),
+        stateScaleYMul: 1.0,
+        stateOpacityMul: consensusState === 'observe' ? 0.74 : 1.0,
+        stateGlowMul: 1.0 + (consensusState === 'judgment' ? 0.18 : 0),
+        stateDistortionMul: 1.0 + (consensusState === 'deviate' ? 0.12 : 0),
+        stateNoiseSpeedMul: 1.0 + (consensusState === 'deviate' ? 0.12 : 0),
+        stateShellBreathMul: 1.0,
+        stateVoidMix: consensusProfile.voidMix * 0.18 + (consensusState === 'deviate' ? 0.06 : 0),
+        stateBiasShift: 0.18,
+        stateAxis: 0.72,
       });
       applyPart('overloadB', {
         visible: debugPulse || overloadMix > 0.02 || pulse.corruption > 0.06 || phaseCollapse > 0.18,
@@ -1218,6 +1479,40 @@ export class LinkResonanceFlowSystem_Session124 {
         directionalWake: wakeShift * 0.035,
         interferenceMul: 1.0 + (interferenceFactor - 1.0) * 0.7,
         echoMul: phaseState === 'echo' ? 0.72 : 1.0,
+        stateScaleMul: consensusProfile.filamentScale * (consensusState === 'deviate' ? 1.02 : 0.84),
+        stateScaleYMul: 1.0,
+        stateOpacityMul: consensusState === 'observe' ? 0.72 : 1.0,
+        stateGlowMul: 1.0 + (consensusState === 'judgment' ? 0.16 : 0),
+        stateDistortionMul: 1.0 + (consensusState === 'deviate' ? 0.1 : 0),
+        stateNoiseSpeedMul: 1.0 + (consensusState === 'deviate' ? 0.1 : 0),
+        stateShellBreathMul: 1.0,
+        stateVoidMix: consensusProfile.voidMix * 0.18 + (consensusState === 'deviate' ? 0.05 : 0),
+        stateBiasShift: -0.18,
+        stateAxis: -0.72,
+      });
+      applyPart('echoGhost', {
+        visible: phaseState === 'echo' || judgmentFlash > 0.18 || debugPulse,
+        scaleMul: 0.94 + echoGhostPhase * 0.18,
+        scaleYMul: 1.0 + signaturePulse * 0.04,
+        driftMul: 1.08 + echoGhostPhase * 0.06,
+        opacityMul: 0.62 + echoGhostPhase * 0.34,
+        glowMul: 0.68 + echoGhostPhase * 0.22,
+        distortionMul: 0.92,
+        noiseScaleMul: 1.0,
+        noiseSpeedMul: 0.88 + echoGhostPhase * 0.18,
+        directionalWake: -wakeShift * 0.18,
+        interferenceMul: interferenceFactor,
+        echoMul: phaseState === 'echo' ? 1.0 : 0.76,
+        stateScaleMul: consensusProfile.ghostScale,
+        stateScaleYMul: 1.0,
+        stateOpacityMul: Math.max(0.34, echoGhostPhase * 0.92),
+        stateGlowMul: 0.76 + echoGhostPhase * 0.3,
+        stateDistortionMul: 0.9,
+        stateNoiseSpeedMul: 0.94,
+        stateShellBreathMul: 0.92 + echoGhostPhase * 0.12,
+        stateVoidMix: consensusProfile.voidMix * 0.12,
+        stateBiasShift: 0.1,
+        stateAxis: 0.32,
       });
     }
   }
@@ -1247,7 +1542,11 @@ export class LinkResonanceFlowSystem_Session124 {
     const pressureCool = 1.0 - loadPressure;
     const overloadMix = pulse.overloadMix ?? 0;
     const stabilityMix = pulse.stabilityMix ?? 0;
+    const corruption = pulse.corruption ?? 0;
     const bandMix = this._getLoadPressureProfile(loadPressure).pressurizedMix;
+    const consensusState = pulse.consensusState ?? this._resolveConsensusState(pulse);
+    const stateProfile = this.consensusStateProfiles[consensusState] ?? this.consensusStateProfiles.observe;
+    const judgmentFlash = pulse.judgmentFlash ?? 0;
 
     color.setHSL(
       0.53 - pressureHot * 0.18,
@@ -1274,9 +1573,29 @@ export class LinkResonanceFlowSystem_Session124 {
       color.lerp(new THREE.Color(0xfff2d8), overloadMix * 0.42);
       color.multiplyScalar(1.0 + overloadMix * 0.12);
     }
+
+    if (consensusState === 'observe') {
+      color.lerp(new THREE.Color(0x8ffcff), 0.12);
+    } else if (consensusState === 'converge') {
+      color.lerp(new THREE.Color(0xf8ffff), 0.18);
+      color.multiplyScalar(1.0 + stateProfile.glow * 0.04);
+    } else if (consensusState === 'deviate') {
+      color.lerp(new THREE.Color(0xbb80ff), 0.2);
+      color.lerp(new THREE.Color(0xff8fe0), corruption * 0.12);
+    } else if (consensusState === 'judgment') {
+      color.lerp(new THREE.Color(0xffffff), 0.28 + judgmentFlash * 0.18);
+      color.lerp(new THREE.Color(0xffd8a0), overloadMix * 0.18);
+      color.multiplyScalar(1.06 + judgmentFlash * 0.12);
+    } else if (consensusState === 'echo') {
+      color.lerp(new THREE.Color(0xbefbff), 0.16);
+      color.multiplyScalar(0.82);
+    }
+
+    if (Number.isFinite(stateProfile.hueShift) && stateProfile.hueShift !== 0) {
+      color.offsetHSL(stateProfile.hueShift * 0.05, 0, 0);
+    }
     
     // Modulate by corruption
-    const corruption = pulse.corruption ?? 0;
     if (corruption > 0.3) {
       const corruptRed = new THREE.Color(0xff4444);
       color.lerp(corruptRed, corruption * 0.6);
@@ -1302,8 +1621,22 @@ export class LinkResonanceFlowSystem_Session124 {
     const stabilityMix = pulse.stabilityMix ?? 0;
     const pressureBoost = bandBoost + pulse.loadPressure * 0.32 + stabilityMix * 0.18;
     const stabilityBoost = 0.84 + stabilityMix * this.config.stabilityOpacityBoost;
+    const consensusState = pulse.consensusState ?? this._resolveConsensusState(pulse);
+    const judgmentFlash = pulse.judgmentFlash ?? 0;
+    let stateOpacity = 1.0;
+    if (consensusState === 'observe') {
+      stateOpacity = 0.88;
+    } else if (consensusState === 'converge') {
+      stateOpacity = 1.04;
+    } else if (consensusState === 'deviate') {
+      stateOpacity = 0.96;
+    } else if (consensusState === 'judgment') {
+      stateOpacity = 1.22 + judgmentFlash * 0.24;
+    } else if (consensusState === 'echo') {
+      stateOpacity = 0.56;
+    }
 
-    return phaseAlpha * baseOpacity * corruptionDampen * pressureBoost * stabilityBoost;
+    return phaseAlpha * baseOpacity * corruptionDampen * pressureBoost * stabilityBoost * stateOpacity;
   }
   
   /**
@@ -1336,97 +1669,130 @@ export class LinkResonanceFlowSystem_Session124 {
     const debugColors = debugPulse ? {
       core: 0xff0000,
       sheath: 0xff3434,
-      trail: 0xff8080,
+      shellOuter: 0xff8080,
+      trail: 0xffb0b0,
       overloadA: 0xff3434,
       overloadB: 0xff8080,
       halo: 0xff2020,
       swirl: 0xff7a7a,
+      echoGhost: 0xffd8d8,
     } : null;
 
     const rig = new THREE.Group();
-    rig.name = 'LinkResonancePulseRig';
+    rig.name = 'LinkResonanceConsensusRig';
     rig.visible = false;
     rig.userData.isLinkResonanceFlow = true;
     rig.userData.linkVisualFamily = 'resonanceFlow';
+    rig.userData.linkVisualAspect = 'consensusDeity';
     rig.userData.debugPulseVisuals = debugPulse;
 
     const parts = {};
     const partConfigs = {
       core: {
-        baseScale: [0.36, 0.50, 0.36],
-        basePosition: [0, 0, 0],
-        baseRotation: [0, 0, 0],
-        rotationSpeed: [0.26, 0.34, 0.18],
-        orbitStrength: [0.05, 0.06, 0.05],
-        orbitSpeed: 0.84,
-        phaseOffset: 0.0,
-        distortion: 0.24,
-        noiseScale: 3.8,
-        noiseSpeed: 1.6,
+        baseScale: [0.30, 0.40, 0.30],
+        basePosition: [0, 0.02, 0],
+        baseRotation: [0.06, 0.12, 0.0],
+        rotationSpeed: [0.18, 0.28, 0.16],
+        orbitStrength: [0.04, 0.05, 0.04],
+        orbitSpeed: 0.82,
+        phaseOffset: 0.05,
+        distortion: 0.22,
+        noiseScale: 3.6,
+        noiseSpeed: 1.48,
         opacity: 1.0,
-        glow: 1.55,
-        fresnelPower: 3.0,
-        iridescence: 0.36,
-        voidMix: 0.46,
-        shellBreath: 0.18,
-        shellBias: 0.12,
+        glow: 1.64,
+        fresnelPower: 3.2,
+        iridescence: 0.34,
+        voidMix: 0.56,
+        shellBreath: 0.16,
+        shellBias: 0.14,
         color: debugColors?.core ?? 0x78f8ff,
         accentColor: debugColors?.core ?? 0xffffff,
         voidColor: debugPulse ? 0x160000 : 0x070012,
+        renderOrder: 0,
+        lodVisibleAt: 0.5,
       },
       sheath: {
-        baseScale: [0.74, 0.90, 0.74],
-        basePosition: [0, 0, 0],
-        baseRotation: [0.08, 0.18, 0.04],
-        rotationSpeed: [0.12, -0.16, 0.14],
-        orbitStrength: [0.08, 0.03, 0.07],
+        baseScale: [0.66, 0.88, 0.66],
+        basePosition: [0, -0.03, 0],
+        baseRotation: [0.08, 0.18, 0.02],
+        rotationSpeed: [0.1, -0.12, 0.12],
+        orbitStrength: [0.06, 0.03, 0.06],
         orbitSpeed: 0.62,
-        phaseOffset: 1.34,
-        distortion: 0.16,
+        phaseOffset: 1.14,
+        distortion: 0.14,
         noiseScale: 2.6,
-        noiseSpeed: 1.1,
-        opacity: 0.42,
+        noiseSpeed: 1.02,
+        opacity: 0.46,
         glow: 1.08,
-        fresnelPower: 2.7,
-        iridescence: 0.3,
-        voidMix: 0.32,
+        fresnelPower: 2.8,
+        iridescence: 0.28,
+        voidMix: 0.34,
         shellBreath: 0.12,
-        shellBias: 0.41,
+        shellBias: 0.38,
         color: debugColors?.sheath ?? 0x6eeeff,
         accentColor: debugColors?.sheath ?? 0xdffcff,
         voidColor: debugPulse ? 0x120000 : 0x050010,
+        renderOrder: 1,
+        lodVisibleAt: 0.56,
+      },
+      shellOuter: {
+        baseScale: [1.1, 1.28, 1.1],
+        basePosition: [0, 0.05, 0],
+        baseRotation: [0.14, 0.34, 0.08],
+        rotationSpeed: [0.05, 0.09, 0.04],
+        orbitStrength: [0.03, 0.02, 0.03],
+        orbitSpeed: 0.44,
+        phaseOffset: 2.06,
+        distortion: 0.11,
+        noiseScale: 1.9,
+        noiseSpeed: 0.74,
+        opacity: 0.22,
+        glow: 1.02,
+        fresnelPower: 3.5,
+        iridescence: 0.48,
+        voidMix: 0.18,
+        shellBreath: 0.08,
+        shellBias: 0.76,
+        color: debugColors?.shellOuter ?? 0xb6fbff,
+        accentColor: debugColors?.shellOuter ?? 0xfaffff,
+        voidColor: debugPulse ? 0x120000 : 0x03000a,
+        renderOrder: 2,
+        lodVisibleAt: 0.78,
       },
       trail: {
-        baseScale: [0.10, 1.08, 0.06],
-        basePosition: [0, -0.34, 0],
-        baseRotation: [0.04, 0.2, 0.0],
-        rotationSpeed: [0.12, 0.42, 0.1],
+        baseScale: [0.06, 1.22, 0.08],
+        basePosition: [0, -0.36, 0],
+        baseRotation: [0.02, 0.18, 0.0],
+        rotationSpeed: [0.12, 0.44, 0.1],
         orbitStrength: [0.03, 0.08, 0.03],
-        orbitSpeed: 1.6,
-        phaseOffset: 2.18,
+        orbitSpeed: 1.62,
+        phaseOffset: 2.44,
         distortion: 0.06,
-        noiseScale: 4.4,
+        noiseScale: 4.6,
         noiseSpeed: 2.0,
-        opacity: 0.18,
-        glow: 0.9,
+        opacity: 0.16,
+        glow: 0.94,
         fresnelPower: 2.45,
-        iridescence: 0.2,
+        iridescence: 0.18,
         voidMix: 0.10,
         shellBreath: 0.06,
         shellBias: 0.18,
         color: debugColors?.trail ?? 0xa7fbff,
         accentColor: debugColors?.trail ?? 0xf1ffff,
         voidColor: debugPulse ? 0x160000 : 0x070012,
+        renderOrder: 2,
+        lodVisibleAt: 0.74,
       },
       overloadA: {
-        baseScale: [0.07, 0.36, 0.07],
-        basePosition: [0.28, 0.08, 0.02],
-        baseRotation: [0.12, 0.42, 0.18],
-        rotationSpeed: [0.26, 0.62, 0.16],
-        orbitStrength: [0.04, 0.02, 0.04],
+        baseScale: [0.08, 0.44, 0.08],
+        basePosition: [0.34, 0.08, 0.02],
+        baseRotation: [0.14, 0.46, 0.18],
+        rotationSpeed: [0.24, 0.66, 0.16],
+        orbitStrength: [0.05, 0.02, 0.04],
         orbitSpeed: 1.1,
-        phaseOffset: 0.74,
-        distortion: 0.05,
+        phaseOffset: 0.78,
+        distortion: 0.06,
         noiseScale: 4.8,
         noiseSpeed: 2.2,
         opacity: 0.14,
@@ -1439,16 +1805,19 @@ export class LinkResonanceFlowSystem_Session124 {
         color: debugColors?.overloadA ?? 0x8e7cff,
         accentColor: debugColors?.overloadA ?? 0xffecff,
         voidColor: debugPulse ? 0x160000 : 0x110018,
+        renderOrder: 3,
+        lodVisibleAt: 0.82,
+        stateVisibleFor: ['deviate', 'judgment', 'echo'],
       },
       overloadB: {
-        baseScale: [0.06, 0.30, 0.06],
-        basePosition: [-0.24, -0.05, -0.02],
-        baseRotation: [-0.16, -0.38, -0.12],
-        rotationSpeed: [-0.20, -0.54, -0.14],
-        orbitStrength: [0.03, 0.03, 0.03],
+        baseScale: [0.07, 0.40, 0.07],
+        basePosition: [-0.30, -0.06, -0.02],
+        baseRotation: [-0.18, -0.42, -0.12],
+        rotationSpeed: [-0.18, -0.56, -0.14],
+        orbitStrength: [0.04, 0.03, 0.03],
         orbitSpeed: 1.24,
-        phaseOffset: 2.66,
-        distortion: 0.045,
+        phaseOffset: 2.74,
+        distortion: 0.05,
         noiseScale: 5.2,
         noiseSpeed: 2.35,
         opacity: 0.12,
@@ -1461,11 +1830,14 @@ export class LinkResonanceFlowSystem_Session124 {
         color: debugColors?.overloadB ?? 0xb86dff,
         accentColor: debugColors?.overloadB ?? 0xffe3ff,
         voidColor: debugPulse ? 0x120000 : 0x130019,
+        renderOrder: 3,
+        lodVisibleAt: 0.82,
+        stateVisibleFor: ['deviate', 'judgment', 'echo'],
       },
       halo: {
-        baseScale: [1.26, 0.74, 1.18],
-        basePosition: [0, 0.02, 0],
-        baseRotation: [0.16, 0.36, 0.0],
+        baseScale: [1.32, 0.72, 1.24],
+        basePosition: [0, 0.03, 0],
+        baseRotation: [0.18, 0.42, 0.0],
         rotationSpeed: [0.06, 0.08, 0.04],
         orbitStrength: [0.02, 0.02, 0.02],
         orbitSpeed: 0.54,
@@ -1483,20 +1855,22 @@ export class LinkResonanceFlowSystem_Session124 {
         color: debugColors?.halo ?? 0x8ef8ff,
         accentColor: debugColors?.halo ?? 0xffffff,
         voidColor: debugPulse ? 0x120000 : 0x05000d,
+        renderOrder: 2,
+        lodVisibleAt: 0.5,
       },
       swirl: {
-        baseScale: [0.62, 0.62, 0.62],
-        basePosition: [0, 0, 0],
-        baseRotation: [0.56, 0.12, 0.34],
-        rotationSpeed: [0.42, 0.34, 0.26],
-        orbitStrength: [0.02, 0.02, 0.02],
-        orbitSpeed: 1.8,
-        phaseOffset: 3.52,
+        baseScale: [0.74, 0.74, 0.74],
+        basePosition: [0, 0.02, 0],
+        baseRotation: [0.62, 0.18, 0.42],
+        rotationSpeed: [0.44, 0.36, 0.28],
+        orbitStrength: [0.03, 0.03, 0.03],
+        orbitSpeed: 1.72,
+        phaseOffset: 3.54,
         distortion: 0.16,
         noiseScale: 3.2,
-        noiseSpeed: 1.55,
+        noiseSpeed: 1.56,
         opacity: 0.17,
-        glow: 1.12,
+        glow: 1.10,
         fresnelPower: 2.9,
         iridescence: 0.62,
         voidMix: 0.12,
@@ -1505,6 +1879,33 @@ export class LinkResonanceFlowSystem_Session124 {
         color: debugColors?.swirl ?? 0xb58cff,
         accentColor: debugColors?.swirl ?? 0xffd4ff,
         voidColor: debugPulse ? 0x120000 : 0x12001a,
+        renderOrder: 2,
+        lodVisibleAt: 0.66,
+      },
+      echoGhost: {
+        baseScale: [0.84, 0.98, 0.84],
+        basePosition: [0, -0.04, 0],
+        baseRotation: [0.1, 0.28, 0.0],
+        rotationSpeed: [0.08, 0.22, 0.1],
+        orbitStrength: [0.02, 0.02, 0.02],
+        orbitSpeed: 0.96,
+        phaseOffset: 4.28,
+        distortion: 0.04,
+        noiseScale: 3.8,
+        noiseSpeed: 1.15,
+        opacity: 0.12,
+        glow: 0.72,
+        fresnelPower: 2.1,
+        iridescence: 0.16,
+        voidMix: 0.22,
+        shellBreath: 0.04,
+        shellBias: 0.24,
+        color: debugColors?.echoGhost ?? 0xcdfdff,
+        accentColor: debugColors?.echoGhost ?? 0xffffff,
+        voidColor: debugPulse ? 0x120000 : 0x05000b,
+        renderOrder: 4,
+        lodVisibleAt: 0.88,
+        stateVisibleFor: ['echo', 'judgment'],
       },
     };
 
@@ -1515,6 +1916,7 @@ export class LinkResonanceFlowSystem_Session124 {
       mesh.userData.partKey = key;
       mesh.userData.partSpec = spec;
       mesh.userData.debugPulseVisuals = debugPulse;
+      mesh.renderOrder = spec.renderOrder ?? 0;
       applyLinkRenderLayer(mesh, 'LINK_RESONANCE');
       parts[key] = mesh;
       rig.add(mesh);
@@ -1523,11 +1925,13 @@ export class LinkResonanceFlowSystem_Session124 {
 
     addPart('core', this.pulseMeshGeometry, partConfigs.core, 'LinkResonancePulseCore');
     addPart('sheath', this.pulseSheathGeometry, partConfigs.sheath, 'LinkResonancePulseSheath');
+    addPart('shellOuter', this.pulseShellGeometry, partConfigs.shellOuter, 'LinkResonancePulseShellOuter');
     addPart('trail', this.pulseTrailGeometry, partConfigs.trail, 'LinkResonancePulseTrail');
     addPart('overloadA', this.pulseShardGeometry, partConfigs.overloadA, 'LinkResonancePulseShardA');
     addPart('overloadB', this.pulseShardGeometry, partConfigs.overloadB, 'LinkResonancePulseShardB');
     addPart('halo', this.pulseHaloGeometry, partConfigs.halo, 'LinkResonancePulseHalo');
     addPart('swirl', this.pulseSwirlGeometry, partConfigs.swirl, 'LinkResonancePulseSwirl');
+    addPart('echoGhost', this.pulseGhostGeometry, partConfigs.echoGhost, 'LinkResonancePulseEchoGhost');
 
     rig.userData.parts = parts;
     rig.userData.partConfigs = partConfigs;
@@ -1776,10 +2180,12 @@ export class LinkResonanceFlowSystem_Session124 {
     this.pulseMeshPool = [];
     this.pulseMeshGeometry?.dispose?.();
     this.pulseSheathGeometry?.dispose?.();
+    this.pulseShellGeometry?.dispose?.();
     this.pulseTrailGeometry?.dispose?.();
     this.pulseShardGeometry?.dispose?.();
     this.pulseHaloGeometry?.dispose?.();
     this.pulseSwirlGeometry?.dispose?.();
+    this.pulseGhostGeometry?.dispose?.();
     this.pulseMaterialTemplate?.dispose?.();
     
     this.globalPulses = [];

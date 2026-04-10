@@ -561,6 +561,32 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             // Trigger Node Halos immediately
             this._spawnHalo(endpoints.startNode, now);
             this._spawnHalo(endpoints.endNode, now);
+            
+            // Emit topology healing event for HarmonicTopologyLearningSystem
+            if (this.semanticBus) {
+                // Calculate harmony restored from endpoints
+                const readMetric = (node, key) => {
+                    if (!node) return 0;
+                    const metrics = node.userData?.metrics;
+                    const metricValue = metrics && typeof metrics[key] === 'number' ? metrics[key] : undefined;
+                    if (typeof metricValue === 'number' && Number.isFinite(metricValue)) return metricValue;
+                    const directValue = node.userData?.[key];
+                    if (typeof directValue === 'number' && Number.isFinite(directValue)) return directValue;
+                    return 0;
+                };
+                
+                const startHarmony = readMetric(endpoints.startNode, 'harmony');
+                const endHarmony = readMetric(endpoints.endNode, 'harmony');
+                const avgHarmony = (startHarmony + endHarmony) * 0.5;
+                
+                // Harmony restored is how much harmony the recovery represents
+                const harmonyRestored = Math.max(0.1, Math.min(1.0, avgHarmony));
+                
+                this.semanticBus.emit('topology.healing', {
+                    position: center,
+                    harmonyRestored: harmonyRestored
+                });
+            }
         }
 
         return true;

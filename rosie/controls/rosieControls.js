@@ -34,8 +34,12 @@ class PlayerController {
     this._raycaster = new THREE.Raycaster();
     this._rayOrigin = new THREE.Vector3();
     this._rayDirection = new THREE.Vector3(0, -1, 0);
-    this._playerCollisionBox = new THREE.Box3();
-    this._collisionObjectBox = new THREE.Box3();
+    this._upAxis = new THREE.Vector3(0, 1, 0);
+    this._localForward = new THREE.Vector3();
+    this._localRight = new THREE.Vector3();
+    this._moveDirection = new THREE.Vector3();
+    this._keydownHandler = (e) => { this.keys[e.code] = true; };
+    this._keyupHandler = (e) => { this.keys[e.code] = false; };
 
     // Setup input handlers
     this.setupInput();
@@ -45,13 +49,8 @@ class PlayerController {
   }
 
   setupInput() {
-    document.addEventListener('keydown', (e) => {
-      this.keys[e.code] = true;
-    });
-
-    document.addEventListener('keyup', (e) => {
-      this.keys[e.code] = false;
-    });
+    document.addEventListener('keydown', this._keydownHandler);
+    document.addEventListener('keyup', this._keyupHandler);
   }
 
   getCollisionObjects() {
@@ -259,12 +258,12 @@ class PlayerController {
 
     // Calculate movement direction vectors relative to the camera's horizontal rotation
     // Forward direction (local -Z) rotated by camera yaw
-    const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraRotation);
+    const forward = this._localForward.set(0, 0, -1).applyAxisAngle(this._upAxis, cameraRotation);
     // Right direction (local +X) rotated by camera yaw
-    const right = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraRotation);
+    const right = this._localRight.set(1, 0, 0).applyAxisAngle(this._upAxis, cameraRotation);
 
     // Apply movement based on keys pressed
-    const currentMoveSpeed = this.moveSpeed; // Use the configured move speed
+    const currentMoveSpeed = this.moveSpeed;
 
     if (this.keys['KeyW']) { // Forward
       moveX += forward.x;
@@ -284,14 +283,14 @@ class PlayerController {
     }
 
     // Normalize the movement vector if moving diagonally
-    const moveDirection = new THREE.Vector3(moveX, 0, moveZ);
-    if (moveDirection.lengthSq() > 0) { // Check if there's any horizontal movement input
-        moveDirection.normalize();
+    this._moveDirection.set(moveX, 0, moveZ);
+    if (this._moveDirection.lengthSq() > 0) {
+      this._moveDirection.normalize();
     }
 
     // Apply speed and deltaTime to get the displacement for this frame
-    this.velocity.x = moveDirection.x * currentMoveSpeed;
-    this.velocity.z = moveDirection.z * currentMoveSpeed;
+    this.velocity.x = this._moveDirection.x * currentMoveSpeed;
+    this.velocity.z = this._moveDirection.z * currentMoveSpeed;
 
     const baseGroundLevel = currentGroundLevel;
     const proposedX = this.player.position.x + this.velocity.x * deltaTime;
@@ -346,8 +345,11 @@ class PlayerController {
   }
 
   destroy() {
-    // Clean up mobile controls
-    this.mobileControls.destroy();
+    document.removeEventListener('keydown', this._keydownHandler);
+    document.removeEventListener('keyup', this._keyupHandler);
+    if (this.mobileControls && typeof this.mobileControls.destroy === 'function') {
+      this.mobileControls.destroy();
+    }
   }
 }
 
@@ -371,6 +373,25 @@ class FirstPersonCameraController {
     
     // MOUSE EVENT FIX 2.0: Track listener registration to prevent duplication
     this.__mouseListenersRegistered = false;
+    this._mouseMoveHandler = (e) => {
+      if (!this.enabled || document.pointerLockElement !== this.domElement) return;
+
+      this.rotationY -= e.movementX * this.mouseSensitivity;
+      this.rotationX -= e.movementY * this.mouseSensitivity;
+
+      // Limit vertical rotation
+      this.rotationX = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, this.rotationX));
+    };
+    this._clickHandler = () => {
+      if (this.enabled && document.pointerLockElement !== this.domElement) {
+        this.domElement.requestPointerLock();
+      }
+    };
+    this._touchStartHandler = null;
+    this._touchMoveHandler = null;
+    this._touchEndHandler = null;
+
+    this.camera.rotation.order = 'YXZ';
 
     // Setup mouse controls
     this.setupMouseControls();
@@ -382,21 +403,8 @@ class FirstPersonCameraController {
     this.__mouseListenersRegistered = true;
     
     // Desktop pointer lock
-    this.domElement.addEventListener('click', () => {
-      if (this.enabled && document.pointerLockElement !== this.domElement) {
-        this.domElement.requestPointerLock();
-      }
-    });
-
-    document.addEventListener('mousemove', (e) => {
-      if (!this.enabled || document.pointerLockElement !== this.domElement) return;
-
-      this.rotationY -= e.movementX * this.mouseSensitivity;
-      this.rotationX -= e.movementY * this.mouseSensitivity;
-
-      // Limit vertical rotation
-      this.rotationX = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, this.rotationX));
-    });
+    this.domElement.addEventListener('click', this._clickHandler);
+    document.addEventListener('mousemove', this._mouseMoveHandler);
 
     // Touch controls for mobile (only if mobile)
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
@@ -414,7 +422,7 @@ class FirstPersonCameraController {
         );
       };
       
-      this.domElement.addEventListener('touchstart', (e) => {
+      this._touchStartHandler = (e) => {
         if (!this.enabled || e.touches.length !== 1) return;
         
         // Don't handle touch if it's over mobile UI
@@ -422,9 +430,9 @@ class FirstPersonCameraController {
         
         touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
         e.preventDefault();
-      });
+      };
 
-      this.domElement.addEventListener('touchmove', (e) => {
+      this._touchMoveHandler = (e) => {
         if (!this.enabled || !touchStart || e.touches.length !== 1) return;
         
         // Don't handle touch if it started over mobile UI
@@ -436,16 +444,20 @@ class FirstPersonCameraController {
         
         this.rotationY -= deltaX * this.mouseSensitivity * 2;
         this.rotationX -= deltaY * this.mouseSensitivity * 2;
-        this.rotationX = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, this.rotationX));
+        this.rotationX = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, this.rotationX));
         
         touchStart = { x: touch.clientX, y: touch.clientY };
         e.preventDefault();
-      });
+      };
 
-      this.domElement.addEventListener('touchend', (e) => {
+      this._touchEndHandler = (e) => {
         touchStart = null;
         e.preventDefault();
-      });
+      };
+
+      this.domElement.addEventListener('touchstart', this._touchStartHandler);
+      this.domElement.addEventListener('touchmove', this._touchMoveHandler);
+      this.domElement.addEventListener('touchend', this._touchEndHandler);
     }
   }
 
@@ -466,6 +478,20 @@ class FirstPersonCameraController {
 
     if (document.pointerLockElement === this.domElement) {
       document.exitPointerLock();
+    }
+  }
+
+  destroy() {
+    this.domElement.removeEventListener('click', this._clickHandler);
+    document.removeEventListener('mousemove', this._mouseMoveHandler);
+    if (this._touchStartHandler) {
+      this.domElement.removeEventListener('touchstart', this._touchStartHandler);
+    }
+    if (this._touchMoveHandler) {
+      this.domElement.removeEventListener('touchmove', this._touchMoveHandler);
+    }
+    if (this._touchEndHandler) {
+      this.domElement.removeEventListener('touchend', this._touchEndHandler);
     }
   }
 
@@ -506,7 +532,6 @@ class FirstPersonCameraController {
     this.camera.position.z = this.player.position.z;
 
     // Set camera rotation
-    this.camera.rotation.order = 'YXZ';
     this.camera.rotation.x = this.rotationX;
     this.camera.rotation.y = this.rotationY;
 

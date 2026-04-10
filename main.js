@@ -554,7 +554,6 @@ import { GlyphLayer4_MultiFusion } from './_GlyphLayer4_MultiFusion.js';
 import { SemanticGlyphAI } from './_SemanticGlyphAI.js';
 import { GlyphFusionOverlay4_1 } from './_GlyphFusionOverlay4_1.js';
 import { ProceduralMeaningEngine } from './_ProceduralMeaningEngine.js';
-import { LinkGlyphFlow } from './_LinkGlyphFlow.js';
 import { GlyphPurityMode5_1 } from './_GlyphPurityMode5_1.js';
 import { AdaptiveGlyphRendering1_0 } from './_AdaptiveGlyphRendering1_0.js';
 import { LinkedGlyphSynchronization1_0 } from './_LinkedGlyphSynchronization1_0.js';
@@ -5842,7 +5841,6 @@ this.setHudDirty('nodeInspect');
         this.setupSemanticGlyphAI();
         this.setupGlyphFusionOverlay();
         this.setupProceduralMeaningEngine();
-        this.setupLinkGlyphFlow();
         try {
             this.setupLinkedGlyphMessaging();
         } catch (err) {
@@ -6471,7 +6469,6 @@ window.__ATOMA_SCENE__ = this.scene;
             antialias: true,
             alpha: false
         });
-        window.__renderer = this.renderer; // debug-only: expose renderer for inspection
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -6491,21 +6488,14 @@ window.__ATOMA_SCENE__ = this.scene;
         }, 3000);
 
         // [B.3-C4] Post-processing toggle stabilization (build once)
-        if (typeof window !== 'undefined') {
-            window.__POST_PROCESSING_BUILT = window.__POST_PROCESSING_BUILT || false;
-            window.__POST_PROCESSING_TOGGLES = window.__POST_PROCESSING_TOGGLES || 0;
-            window.__POST_PROCESSING_REBUILDS = window.__POST_PROCESSING_REBUILDS || 0;
-        }
         if (!this.postProcessing) {
             this.postProcessing = getSharedPostProcessingPipeline(this.renderer, this.scene, this.camera);
             this.postProcessingEnabled = true;
-            if (typeof window !== 'undefined') window.__POST_PROCESSING_BUILT = true;
         }
         this.setPostProcessingEnabled = (enabled = true) => {
             const next = !!enabled;
             if (this.postProcessingEnabled !== next) {
                 this.postProcessingEnabled = next;
-                if (typeof window !== 'undefined') window.__POST_PROCESSING_TOGGLES++;
             }
             return this.postProcessingEnabled;
         };
@@ -8375,7 +8365,9 @@ window.__ATOMA_SCENE__ = this.scene;
         // Corruption transmission gameplay system (non-visual)
         const corruptionTransmission = new LinkCorruptionTransmission_v1(
             this.aiNodes,
-            this.linkingSystem
+            this.linkingSystem,
+            false,
+            this.semanticBus
         );
         this.corruptionTransmission = corruptionTransmission;
         this.aiNodes.linkCorruption = corruptionTransmission;
@@ -9555,7 +9547,9 @@ window.__ATOMA_SCENE__ = this.scene;
                 this.aiNodes?.linkCorruption ||
                 new LinkCorruptionTransmission_v1(
                     this.aiNodes,           // AI nodes system
-                    this.linkingSystem      // Link system
+                    this.linkingSystem,     // Link system
+                    false,                  // debug mode
+                    this.semanticBus        // semantic bus for topology events
                 );
             this.corruptionTransmission = this.linkCorruptionTransmission;
             if (this.aiNodes) this.aiNodes.linkCorruption = this.linkCorruptionTransmission;
@@ -11220,7 +11214,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // Visual cadence ~30 Hz
         const fs = this.frameScheduler;
 
-        fs.register('visual', (dt) => this.linkGlyphFlow?.update?.(dt), 'linkGlyphFlow');
         fs.register('visual', (dt) => this.linkedGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem), 'linkedGlyphMessaging');
         fs.register('visual', (dt) => this.recursiveGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem), 'recursiveGlyphMessaging');
         fs.register('visual', (dt) => {
@@ -11229,7 +11222,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }, 'linkPictogramSystem');
 
         // Prevent double-running in SystemRegistry loop
-        systemRegistry.disable('linkGlyphFlow');
         systemRegistry.disable('linkedGlyphMessaging');
         systemRegistry.disable('recursiveGlyphMessaging');
         systemRegistry.disable('recursiveGlyphSignalSystem');
@@ -11507,7 +11499,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('semanticGlyphAI', 'visual.semanticGlyphAI', (dt) => this.semanticGlyphAI?.update?.(dt, this.aiNodes?.nodes));
         regGuard('glyphFusionOverlay', 'visual.glyphFusionOverlay', (dt) => this.glyphFusionOverlay?.update?.(dt));
 
-        regGuard('linkGlyphFlow', 'linkGlyphFlow', (dt) => this.linkGlyphFlow?.update?.(dt));
         regGuard('linkedGlyphSync', 'visual.linkedGlyphSync', (dt) => this.linkedGlyphSync?.update?.(dt, this.aiNodes, this.linkingSystem));
         // Moved to FrameScheduler visual layer (30 Hz)
         regGuard('linkedGlyphMessaging', 'linkedGlyphMessaging', (dt) => this.linkedGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
@@ -12085,21 +12076,99 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             return;
         }
         this.lastRenderFrame = frameId;
-        // [DIAG] HARD BYPASS post-processing
-        this.renderer.setRenderTarget(null);
-        if (!this.__renderWarningLogged) {
-            this.__renderWarningLogged = false;
-        }
+        const profile = this.renderProfile;
+        profile?.startFrame();
+        let usedPostProcessing = false;
+
         try {
             this.standingWaveRenderer?.syncTrapZones?.(deltaTime);
-            this.renderer.render(this.scene, this.camera);
+
+            const liveMetrics = typeof window !== 'undefined' ? (window.__ATOMA_LIVE_METRICS__ || null) : null;
+
+            if (this.postProcessingEnabled && this.postProcessing && typeof this.postProcessing.apply === 'function') {
+                const result = this.postProcessing.apply(this.scene, this.camera, liveMetrics);
+                if (result && Array.isArray(result.operations) && result.operations.length > 0) {
+                    const totalStart = performance.now();
+                    let baseSceneDuration = 0;
+
+                    for (const op of result.operations) {
+                        if (!op) continue;
+
+                        const opStart = performance.now();
+                        if (typeof op.before === 'function') {
+                          op.before();
+                        }
+
+                        this.renderer.setRenderTarget(op.target ?? null);
+                        this.renderer.render(op.scene ?? this.scene, op.camera ?? this.camera);
+
+                        if (typeof op.after === 'function') {
+                          op.after();
+                        }
+
+                        const opDuration = performance.now() - opStart;
+                        if (op.label === 'baseSceneRender') {
+                            baseSceneDuration = opDuration;
+                        }
+                    }
+
+                    this.renderer.resetState?.();
+                    this.renderer.setViewport(0, 0, this.renderer.domElement.width, this.renderer.domElement.height);
+                    this.renderer.setScissorTest(false);
+                    this.postProcessing?.bloomPass?.getCompositeOutput?.(this.postProcessing.mainRenderTarget);
+
+                    this.renderer.setRenderTarget(null);
+                    const finalStart = performance.now();
+                    this.renderer.render(result.outputScene ?? this.scene, result.outputCamera ?? this.camera);
+                    const finalDuration = performance.now() - finalStart;
+                    const totalDuration = performance.now() - totalStart;
+
+                    if (profile?.enabled) {
+                        if (baseSceneDuration > 0) {
+                            profile.record('baseSceneRender', baseSceneDuration);
+                        }
+                        profile.record('postProcessing', totalDuration);
+                        profile.record('finalRender', finalDuration);
+                    }
+
+                    this.updateValidator?.markSystemUpdate(
+                        'renderer.render',
+                        totalDuration,
+                        { phase: 'present', mode: 'postProcessing' }
+                    );
+
+                    usedPostProcessing = true;
+                }
+            }
+
+            if (!usedPostProcessing) {
+                const baseStart = performance.now();
+                this.renderer.setRenderTarget(null);
+                this.renderer.render(this.scene, this.camera);
+                const baseDuration = performance.now() - baseStart;
+
+                if (profile?.enabled) {
+                    profile.record('baseSceneRender', baseDuration);
+                    profile.record('finalRender', baseDuration);
+                }
+
+                this.updateValidator?.markSystemUpdate(
+                    'renderer.render',
+                    baseDuration,
+                    { phase: 'present' }
+                );
+            }
         } catch (err) {
             if (!this.__renderWarningLogged) {
                 console.warn('[FrameScheduler] renderer.render skipped due to runtime error:', err);
                 this.__renderWarningLogged = true;
             }
+            profile?.endFrame();
             return;
         }
+
+        profile?.endFrame();
+
         // Phase B.3 – program stabilization: optional program creation watch (dev-only)
         if (PROGRAM_WATCH_ENABLED && this.renderer?.info?.programs) {
             const count = Array.isArray(this.renderer.info.programs)
@@ -12110,44 +12179,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 __phaseB3LastProgramCount = count;
             }
         }
-        return;
-        const profile = this.renderProfile;
-        profile?.startFrame();
-        if (this.postProcessingEnabled && this.postProcessing && typeof this.postProcessing.apply === "function") {
-            const result = this.postProcessing.apply(this.scene, this.camera);
-
-            if (result && result.outputScene && result.outputCamera) {
-                const finalStart = performance.now();
-                this.renderer.setRenderTarget(null);
-                this.renderer.render(result.outputScene, result.outputCamera);
-                const finalDuration = performance.now() - finalStart;
-                if (profile?.enabled) {
-                    profile.record('finalRender', finalDuration);
-                }
-                this.updateValidator?.markSystemUpdate(
-                    'renderer.render',
-                    finalDuration,
-                    { phase: 'present' }
-                );
-                profile?.endFrame();
-                return;
-            }
-        }
-
-        const baseStart = performance.now();
-        this.renderer.setRenderTarget(null);
-        this.renderer.render(this.scene, this.camera);
-        const baseDuration = performance.now() - baseStart;
-        if (profile?.enabled) {
-            profile.record('baseSceneRender', baseDuration);
-            profile.record('finalRender', baseDuration);
-        }
-        this.updateValidator?.markSystemUpdate(
-            'renderer.render',
-            baseDuration,
-            { phase: 'present' }
-        );
-        profile?.endFrame();
     }
 
     runNodeAuraSystemTick(deltaTime) {
@@ -13757,27 +13788,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     }
 
     /**
-     * Setup Link Glyph Flow 1.0 (SAFE EDITION)
-     * AI communication packets travel along links
-     */
-    setupLinkGlyphFlow() {
-        if (!this.linkingSystem || !this.semanticGlyphAI) {
-            console.warn('Linking system or Semantic Glyph AI not initialized, deferring Link Glyph Flow setup');
-            return;
-        }
-
-        this.linkGlyphFlow = new LinkGlyphFlow(this.scene, this.linkingSystem, this.semanticGlyphAI);
-        this.linkGlyphFlow.frameScheduler = this.frameScheduler;
-        this.linkGlyphFlow.linkedGlyphMessaging = this.linkedGlyphMessaging || null;
-
-        console.log('✓ Link Glyph Flow 1.0 initialized');
-        console.log('  - AI communication packets along links');
-        console.log('  - 7 glyph packet shapes (circle, triangle, lotus, hex, shard, diamond, ring)');
-        console.log('  - Use debugLinkGlyphFlow() to view statistics');
-        console.log('  - Use toggleLinkGlyphFlow() to enable/disable');
-    }
-
-    /**
      * Setup Linked Glyph Messaging 3.0 (SAFE EDITION)
      * Ultra symbolic AI language transport
      */
@@ -13790,12 +13800,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         this.linkedGlyphMessaging = new LinkedGlyphMessaging3_0(this.scene, this.worldRoot, this.semanticGlyphAI);
         this.linkedGlyphMessaging.setEnabled(true);
         this.linkedGlyphMessaging.frameScheduler = this.frameScheduler;
-        this.linkedGlyphMessaging.linkGlyphFlow = this.linkGlyphFlow || null;
         this.linkedGlyphMessaging.setLinkedGlyphSync?.(this.linkedGlyphSync || null);
-
-        if (this.linkGlyphFlow) {
-            this.linkGlyphFlow.linkedGlyphMessaging = this.linkedGlyphMessaging;
-        }
 
         // Link to RecursiveGlyphMessaging4_0 if already initialized
         if (this.recursiveGlyphMessaging) {
@@ -14667,7 +14672,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     maxResonanceScarsMeshes: 20,
                     enableLOD: true,
                     lodDistance: 40
-                }
+                },
+                this.semanticBus
             );
 
             this.resonanceRupture.setup();
@@ -14833,7 +14839,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.scene,
                 this.aiNodes,
                 this.linkingSystem,
-                this.regionalEquilibrium
+                this.regionalEquilibrium,
+                this.semanticBus
             );
             this.cascadingRuptures.frameScheduler = this.frameScheduler;
             if (Array.isArray(this.cascadingRuptures.visualEffects)) {
@@ -14858,7 +14865,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.cascadingRuptures.rebind({
                 linkingSystem: this.linkingSystem,
                 aiNodes: this.aiNodes,
-                regionalEquilibrium: this.regionalEquilibrium
+                regionalEquilibrium: this.regionalEquilibrium,
+                semanticBus: this.semanticBus
             });
             this.criticalNodeFailure.rebind?.({
                 linkingSystem: this.linkingSystem,
@@ -15066,6 +15074,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         try {
             this.harmonicTopology = new HarmonicTopologyLearningSystem(this.scene);
             this.harmonicTopology.frameScheduler = this.frameScheduler;
+            this.harmonicTopology.setEventBus(this.semanticBus);
             setupHarmonicTopologyConsoleAPI(this, this.harmonicTopology);
             console.log('[main.js] HarmonicTopologyLearningSystem initialized ✓');
             console.log('[main.js] Features: flow bias, path reinforcement, scar memory, hub maturation');
@@ -17653,31 +17662,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             if (window.game && window.game.proceduralMeaningEngine) {
                 window.game.proceduralMeaningEngine.enabled = false;
                 console.log('✓ Procedural Meaning Engine 1.0 disabled');
-            }
-        };
-
-        // ========== LINK GLYPH FLOW 1.0 DEBUG COMMANDS ==========
-
-        // Debug link glyph flow statistics
-        window.debugLinkGlyphFlow = function () {
-            if (window.game && window.game.linkGlyphFlow) {
-                window.game.linkGlyphFlow.debugCount();
-            }
-        };
-
-        // Toggle link glyph flow
-        window.toggleLinkGlyphFlow = function () {
-            if (window.game && window.game.linkGlyphFlow) {
-                const newState = !window.game.linkGlyphFlow.enabled;
-                window.game.linkGlyphFlow.setEnabled(newState);
-                console.log(`✓ Link Glyph Flow 1.0 ${newState ? 'enabled' : 'disabled'}`);
-            }
-        };
-
-        // Force refresh link glyph flow
-        window.refreshLinkGlyphFlow = function () {
-            if (window.game && window.game.linkGlyphFlow) {
-                window.game.linkGlyphFlow.forceRefresh();
             }
         };
 

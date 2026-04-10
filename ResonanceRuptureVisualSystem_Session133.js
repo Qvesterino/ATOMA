@@ -51,12 +51,13 @@ function getAtomaVisualDebugMode() {
 }
 
 export class ResonanceRuptureVisualSystem_Session133 {
-    constructor(scene, standingWaveTrapSystem, reflectionSystem, linkingSystem, aiNodes, config = {}) {
+    constructor(scene, standingWaveTrapSystem, reflectionSystem, linkingSystem, aiNodes, config = {}, semanticBus = null) {
         this.scene = scene;
         this.standingWaveTrapSystem = standingWaveTrapSystem;
         this.reflectionSystem = reflectionSystem;
         this.linkingSystem = linkingSystem;
         this.aiNodes = aiNodes;
+        this.semanticBus = semanticBus;
         
         // Configuration
         this.config = {
@@ -537,6 +538,14 @@ export class ResonanceRuptureVisualSystem_Session133 {
         
         // Create resonance scar
         this._createResonanceScar(trapId, trap, rupture.intensity);
+
+        // Emit topology rupture event for HarmonicTopologyLearningSystem
+        if (this.semanticBus && rupturePoint) {
+            this.semanticBus.emit('topology.rupture', {
+                position: rupturePoint,
+                intensity: rupture.intensity
+            });
+        }
 
         // Cascade trigger is handled above via initiateCascade() to avoid duplicate/invalid calls.
     }

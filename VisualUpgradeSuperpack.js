@@ -130,12 +130,15 @@ export class VisualUpgradeSuperpack {
         this.distortionZones = [];
         this.rifts = [];
         this.particles = [];
+        this.cameraAura = null;
+        this.sharedTextures = {};
         this.postEffects = {
             bloom: null,
             vignette: null,
             chromatic: null,
             shimmer: null
         };
+        this._applied = false;
     }
 
     /**
@@ -147,10 +150,80 @@ export class VisualUpgradeSuperpack {
         }
     }
 
+    _toRgba(color, alpha) {
+        const rgb = new THREE.Color(color);
+        return `rgba(${Math.round(rgb.r * 255)}, ${Math.round(rgb.g * 255)}, ${Math.round(rgb.b * 255)}, ${alpha})`;
+    }
+
+    _createRadialGradientTexture(cacheKey, stops, size = 256) {
+        if (this.sharedTextures[cacheKey]) {
+            return this.sharedTextures[cacheKey];
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+
+        const context = canvas.getContext('2d');
+        if (!context) {
+            return null;
+        }
+
+        const gradient = context.createRadialGradient(
+            size * 0.5,
+            size * 0.5,
+            size * 0.02,
+            size * 0.5,
+            size * 0.5,
+            size * 0.5
+        );
+
+        stops.forEach(([offset, color, alpha]) => {
+            gradient.addColorStop(offset, this._toRgba(color, alpha));
+        });
+
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, size, size);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.needsUpdate = true;
+        texture.generateMipmaps = false;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+
+        this.sharedTextures[cacheKey] = texture;
+        return texture;
+    }
+
+    _disposeObject3D(object3D) {
+        if (!object3D) return;
+
+        object3D.traverse(child => {
+            if (child.geometry && typeof child.geometry.dispose === 'function') {
+                child.geometry.dispose();
+            }
+
+            if (Array.isArray(child.material)) {
+                child.material.forEach(material => {
+                    if (material && typeof material.dispose === 'function') {
+                        material.dispose();
+                    }
+                });
+            } else if (child.material && typeof child.material.dispose === 'function') {
+                child.material.dispose();
+            }
+        });
+    }
+
     /**
      * Apply ALL enhancement packs
      */
     applyFullUpgrade() {
+        if (this._applied) return;
+        this._applied = true;
+
         this.applyVolumetricLightPack();
         this.applyAmbientFogPack();
         this.applyHolographicEdgeGlowPack();
@@ -159,12 +232,20 @@ export class VisualUpgradeSuperpack {
         this.applyQuantumDistortionPack();
         this.applySigmaRiftVisualPack();
         this.applyDreamParticlesPack();
+        this.applyCinematicCameraAuraPack();
     }
 
     // ============================================================
     // PACK 1: SOFT VOLUMETRIC LIGHT PACK
     // ============================================================
     applyVolumetricLightPack() {
+        const glowTexture = this._createRadialGradientTexture('vsuVolumetricGlow', [
+            [0.0, 0xffffff, 1.0],
+            [0.16, 0xffffff, 0.84],
+            [0.42, 0xffffff, 0.28],
+            [1.0, 0xffffff, 0.0]
+        ], 256);
+
         const lightConfigs = [
             {
                 pos: new THREE.Vector3(60, 50, 40),
@@ -197,53 +278,114 @@ export class VisualUpgradeSuperpack {
         ];
 
         lightConfigs.forEach(config => {
-            // Create volumetric cone with soft edges
             const geometry = new THREE.ConeGeometry(config.size, config.size * 2, 32, 32);
+            const motionSeed = Math.random() * Math.PI * 2;
+            const motion = {
+                basePosition: config.pos.clone(),
+                baseRotation: {
+                    x: config.rotation.x,
+                    y: config.rotation.y,
+                    z: config.rotation.z
+                },
+                tint: new THREE.Color(config.color),
+                phase: motionSeed,
+                pulseSpeed: 0.35 + Math.random() * 0.25,
+                driftSpeed: 0.08 + Math.random() * 0.05,
+                driftRadius: 0.9 + Math.random() * 1.4,
+                driftHeight: 0.5 + Math.random() * 0.6,
+                spinSpeed: 0.008 + Math.random() * 0.012,
+                scalePulse: 0.035 + Math.random() * 0.03
+            };
 
-            const material = new THREE.MeshStandardMaterial({
+            const material = new THREE.MeshBasicMaterial({
                 color: config.color,
-                emissive: config.color,
-                emissiveIntensity: config.intensity * 0.3,
+                map: glowTexture || null,
+                alphaMap: glowTexture || null,
                 transparent: true,
-                opacity: config.intensity * 0.25,
+                opacity: config.intensity * 0.22,
                 blending: THREE.AdditiveBlending,
                 side: THREE.BackSide,
-                wireframe: false,
-                fog: false
+                depthWrite: false,
+                fog: false,
+                toneMapped: false
             });
 
             const cone = new THREE.Mesh(geometry, material);
             cone.position.copy(config.pos);
-            // FIX: Safe rotation assignment from Vector3 config
             cone.rotation.set(config.rotation.x, config.rotation.y, config.rotation.z, "XYZ");
+            cone.renderOrder = 10;
             cone.userData = {
-                baseOpacity: config.intensity * 0.25,
-                pulseSpeed: 0.4 + Math.random() * 0.3,
-                phase: Math.random() * Math.PI * 2,
-                baseColor: config.color
+                kind: 'volumetricCone',
+                baseOpacity: config.intensity * 0.22,
+                baseScale: 1,
+                color: config.color,
+                ...motion
             };
 
             this.root.add(cone);
             this.volumetricLights.push(cone);
 
-            // Add subtle light rays effect
             const rayGeometry = new THREE.PlaneGeometry(config.size * 0.8, config.size * 1.5);
             const rayMaterial = new THREE.MeshBasicMaterial({
                 color: config.color,
+                map: glowTexture || null,
+                alphaMap: glowTexture || null,
                 transparent: true,
-                opacity: config.intensity * 0.15,
+                opacity: config.intensity * 0.12,
                 blending: THREE.AdditiveBlending,
-                fog: false
+                side: THREE.DoubleSide,
+                depthWrite: false,
+                fog: false,
+                toneMapped: false
             });
 
             const rays = new THREE.Mesh(rayGeometry, rayMaterial);
             rays.position.copy(config.pos);
-            // FIX: Safe rotation assignment from Vector3 config
             rays.rotation.set(config.rotation.x, config.rotation.y, config.rotation.z, "XYZ");
             rays.rotation.x -= Math.PI / 6;
+            rays.renderOrder = 11;
+            rays.userData = {
+                kind: 'volumetricRays',
+                baseOpacity: config.intensity * 0.12,
+                baseScale: 1,
+                color: config.color,
+                baseRotation: {
+                    x: config.rotation.x - Math.PI / 6,
+                    y: config.rotation.y,
+                    z: config.rotation.z
+                },
+                ...motion
+            };
 
             this.root.add(rays);
             this.volumetricLights.push(rays);
+
+            const core = new THREE.Mesh(
+                new THREE.SphereGeometry(config.size * 0.14, 16, 16),
+                new THREE.MeshBasicMaterial({
+                    color: config.color,
+                    map: glowTexture || null,
+                    alphaMap: glowTexture || null,
+                    transparent: true,
+                    opacity: config.intensity * 0.55,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    fog: false,
+                    toneMapped: false
+                })
+            );
+            core.position.copy(config.pos);
+            core.renderOrder = 12;
+            core.userData = {
+                kind: 'volumetricCore',
+                baseOpacity: config.intensity * 0.55,
+                baseScale: 1,
+                color: config.color,
+                ...motion
+            };
+
+            this.root.add(core);
+            this.volumetricLights.push(core);
         });
     }
 
@@ -251,6 +393,13 @@ export class VisualUpgradeSuperpack {
     // PACK 2: AMBIENT FOG + DEPTH LAYERING PACK
     // ============================================================
     applyAmbientFogPack() {
+        const mistTexture = this._createRadialGradientTexture('vsuFogMist', [
+            [0.0, 0xffffff, 0.24],
+            [0.32, 0xffffff, 0.16],
+            [0.68, 0xffffff, 0.05],
+            [1.0, 0xffffff, 0.0]
+        ], 512);
+
         const fogLayers = [
             {
                 name: 'groundMist',
@@ -290,11 +439,15 @@ export class VisualUpgradeSuperpack {
             const geometry = new THREE.PlaneGeometry(layer.size, layer.size);
             const material = new THREE.MeshBasicMaterial({
                 color: layer.color,
+                map: mistTexture || null,
+                alphaMap: mistTexture || null,
                 transparent: true,
                 opacity: layer.opacity,
                 blending: THREE.AdditiveBlending,
                 side: THREE.DoubleSide,
-                fog: false
+                depthWrite: false,
+                fog: false,
+                toneMapped: false
             });
 
             const plane = new THREE.Mesh(geometry, material);
@@ -304,8 +457,14 @@ export class VisualUpgradeSuperpack {
                 layer: layer.name,
                 baseOpacity: layer.opacity,
                 pulseSpeed: layer.speed,
-                phase: Math.random() * Math.PI * 2
+                phase: Math.random() * Math.PI * 2,
+                followFactor: layer.height < 10 ? 0.95 : layer.height < 40 ? 0.55 : 0.25,
+                driftRadius: layer.size * 0.01,
+                driftSpeed: 0.02 + Math.random() * 0.02,
+                wobble: 0.01 + Math.random() * 0.01,
+                basePosition: new THREE.Vector3(0, layer.height, 0)
             };
+            plane.renderOrder = 4;
 
             this.root.add(plane);
             this.atmosphericLayers.push(plane);
@@ -323,7 +482,9 @@ export class VisualUpgradeSuperpack {
             opacity: 0.4,
             linewidth: 1.5,
             blending: THREE.AdditiveBlending,
-            fog: false
+            depthWrite: false,
+            fog: false,
+            toneMapped: false
         });
 
         // Scan scene for geometric objects and add edge glows
@@ -343,15 +504,17 @@ export class VisualUpgradeSuperpack {
                     if (!edges) return;
                     const wireframe = new THREE.LineSegments(edges, edgeGlowMaterial);
                     wireframe.position.copy(child.position);
-                    // FIX: Safe rotation from quaternion — never copy Euler order
                     if (child.quaternion) {
                         wireframe.rotation.setFromQuaternion(child.quaternion, "XYZ");
                     }
                     wireframe.scale.copy(child.scale);
+                    wireframe.renderOrder = 20;
                     wireframe.userData = {
                         linkedMesh: child,
                         baseOpacity: 0.3,
-                        fresnel: true
+                        fresnel: true,
+                        pulsePhase: Math.random() * Math.PI * 2,
+                        baseScale: child.scale.clone()
                     };
 
                     this.root.add(wireframe);
@@ -531,6 +694,13 @@ export class VisualUpgradeSuperpack {
     // PACK 8: DREAM PARTICLES PACK
     // ============================================================
     applyDreamParticlesPack() {
+        const particleTexture = this._createRadialGradientTexture('vsuDreamParticle', [
+            [0.0, 0xffffff, 0.9],
+            [0.2, 0xffffff, 0.45],
+            [0.55, 0xffffff, 0.08],
+            [1.0, 0xffffff, 0.0]
+        ], 128);
+
         const particleSystems = [
             {
                 count: 200,
@@ -576,11 +746,16 @@ export class VisualUpgradeSuperpack {
 
             const material = new THREE.PointsMaterial({
                 color: system.color,
-                size: system.size,
+                map: particleTexture || null,
+                alphaMap: particleTexture || null,
+                size: system.size * 1.55,
                 sizeAttenuation: true,
                 transparent: true,
-                opacity: 0.4,
-                fog: true
+                opacity: 0.52,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                fog: true,
+                toneMapped: false
             });
 
             const points = new THREE.Points(geometry, material);
@@ -595,10 +770,71 @@ export class VisualUpgradeSuperpack {
         });
     }
 
+    // ============================================================
+    // PACK 9: CAMERA CINEMATIC AURA PACK
+    // ============================================================
+    applyCinematicCameraAuraPack() {
+        if (this.cameraAura) return;
+
+        const auraTexture = this._createRadialGradientTexture('vsuCameraAura', [
+            [0.0, 0xffffff, 1.0],
+            [0.16, 0xffffff, 0.8],
+            [0.42, 0xffffff, 0.26],
+            [1.0, 0xffffff, 0.0]
+        ], 512);
+
+        const auraGroup = new THREE.Group();
+        auraGroup.name = 'VisualSuperpackCameraAura';
+        auraGroup.renderOrder = 9999;
+        auraGroup.position.set(0, 0, -1.85);
+        auraGroup.userData = {
+            pulsePhase: Math.random() * Math.PI * 2,
+            driftPhase: Math.random() * Math.PI * 2
+        };
+
+        const makeAuraSprite = (color, opacity, scaleX, scaleY, offsetX, offsetY) => {
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: auraTexture || null,
+                color,
+                transparent: true,
+                opacity,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                depthTest: false,
+                fog: false,
+                toneMapped: false
+            }));
+
+            sprite.scale.set(scaleX, scaleY, 1);
+            sprite.position.set(offsetX, offsetY, 0);
+            sprite.userData = {
+                baseOpacity: opacity,
+                baseScale: new THREE.Vector3(scaleX, scaleY, 1),
+                phase: Math.random() * Math.PI * 2
+            };
+
+            return sprite;
+        };
+
+        auraGroup.add(makeAuraSprite(0x8fffff, 0.16, 3.1, 3.1, 0.0, 0.0));
+        auraGroup.add(makeAuraSprite(0xffa6f0, 0.1, 4.6, 3.2, 0.18, -0.08));
+        auraGroup.add(makeAuraSprite(0x69f7ff, 0.08, 6.8, 1.2, -0.24, 0.12));
+        auraGroup.add(makeAuraSprite(0xffffff, 0.055, 9.6, 0.72, 0.0, 0.0));
+
+        if (this.camera) {
+            this.camera.add(auraGroup);
+        } else {
+            this.root.add(auraGroup);
+        }
+
+        this.cameraAura = auraGroup;
+    }
+
     /**
      * Update all effects each frame
      */
     update(deltaTime) {
+        if (this.frameScheduler?.shouldRunVisual?.() === false) return;
 
         if (this._timeOrigin === undefined) {
             this._timeOrigin = VisualTime.now; // Phase 2A: VisualTime canonical clock (behavior-preserving)
@@ -609,6 +845,12 @@ export class VisualUpgradeSuperpack {
             : Math.max(0, currentTime - this._lastVisualTime);
         this._lastVisualTime = currentTime;
         this.time = currentTime;
+        const cameraPosition = this.camera?.position || new THREE.Vector3();
+        const cameraDirection = new THREE.Vector3();
+
+        if (this.camera) {
+            this.camera.getWorldDirection(cameraDirection);
+        }
 
         // GLOBAL SAFETY: Ensure all animated objects have valid rotation order
         this.edgeGlowObjects.forEach(o => this.ensureRotationOrder(o));
@@ -620,26 +862,63 @@ export class VisualUpgradeSuperpack {
 
         // Update volumetric lights
         this.volumetricLights.forEach(light => {
-            if (!light.userData.pulseSpeed) return;
+            if (!light.userData?.pulseSpeed) return;
 
-            const pulse = Math.sin(this.time * light.userData.pulseSpeed + light.userData.phase) * 0.5 + 0.5;
-            light.material.opacity = light.userData.baseOpacity * (0.5 + pulse * 0.5);
+            const phase = light.userData.phase || 0;
+            const pulse = Math.sin(this.time * light.userData.pulseSpeed + phase) * 0.5 + 0.5;
+            const driftX = Math.cos(this.time * light.userData.driftSpeed + phase) * light.userData.driftRadius;
+            const driftY = Math.sin(this.time * light.userData.driftSpeed * 0.75 + phase * 0.7) * light.userData.driftHeight;
+            const driftZ = Math.sin(this.time * light.userData.driftSpeed * 0.9 + phase * 1.3) * (light.userData.driftRadius * 0.6);
 
-            if (light.material.emissive) {
-                light.material.emissiveIntensity = pulse * 0.3;
+            if (light.userData.basePosition) {
+                light.position.set(
+                    light.userData.basePosition.x + driftX,
+                    light.userData.basePosition.y + driftY,
+                    light.userData.basePosition.z + driftZ
+                );
             }
 
-            // Gentle rotation
-            light.rotation.y += visualDelta * 0.02;
+            if (light.userData.baseRotation) {
+                light.rotation.set(
+                    light.userData.baseRotation.x + Math.sin(this.time * 0.08 + phase) * 0.04,
+                    light.userData.baseRotation.y + this.time * light.userData.spinSpeed,
+                    light.userData.baseRotation.z + Math.cos(this.time * 0.09 + phase) * 0.06,
+                    "XYZ"
+                );
+            }
+
+            if (light.userData.baseScale) {
+                const scalePulse = 1 + pulse * light.userData.scalePulse;
+                light.scale.setScalar(scalePulse);
+            }
+
+            light.material.opacity = light.userData.baseOpacity * (0.55 + pulse * 0.45);
+
+            if (light.material?.color && light.userData?.tint) {
+                const tint = 0.96 + pulse * 0.06;
+                light.material.color.setRGB(
+                    THREE.MathUtils.clamp(light.userData.tint.r * tint, 0, 1),
+                    THREE.MathUtils.clamp(light.userData.tint.g * tint, 0, 1),
+                    THREE.MathUtils.clamp(light.userData.tint.b * tint, 0, 1)
+                );
+            }
+
+            light.rotation.x += visualDelta * 0.01;
         });
 
         // Update atmospheric layers
         this.atmosphericLayers.forEach(layer => {
             const pulse = Math.sin(this.time * layer.userData.pulseSpeed + layer.userData.phase) * 0.5 + 0.5;
-            layer.material.opacity = layer.userData.baseOpacity * (0.6 + pulse * 0.4);
+            const driftX = Math.cos(this.time * layer.userData.driftSpeed + layer.userData.phase) * layer.userData.driftRadius;
+            const driftZ = Math.sin(this.time * layer.userData.driftSpeed * 0.9 + layer.userData.phase * 1.2) * layer.userData.driftRadius;
+            const driftY = Math.sin(this.time * layer.userData.pulseSpeed * 0.5 + layer.userData.phase) * layer.userData.wobble;
 
-            // Gentle drift
-            layer.position.z += Math.sin(this.time * layer.userData.pulseSpeed) * 0.01;
+            layer.position.x = cameraPosition.x * layer.userData.followFactor + driftX;
+            layer.position.y = layer.userData.basePosition.y + driftY;
+            layer.position.z = cameraPosition.z * layer.userData.followFactor + driftZ;
+            layer.rotation.z = Math.sin(this.time * 0.02 + layer.userData.phase) * 0.01;
+            layer.scale.setScalar(0.985 + pulse * 0.03);
+            layer.material.opacity = layer.userData.baseOpacity * (0.65 + pulse * 0.35);
         });
 
         // Update distortion zones
@@ -701,6 +980,13 @@ export class VisualUpgradeSuperpack {
             }
 
             posAttr.needsUpdate = true;
+
+            const systemPulse = Math.sin(this.time * (0.35 + system.userData.system.speed * 20) + system.id) * 0.5 + 0.5;
+            if (system.material) {
+                system.material.opacity = 0.3 + systemPulse * 0.18;
+            }
+            system.rotation.y += visualDelta * 0.01;
+            system.scale.setScalar(0.98 + systemPulse * 0.03);
         });
 
         // Update edge glows to follow linked meshes
@@ -729,16 +1015,42 @@ export class VisualUpgradeSuperpack {
                 glow.scale.copy(mesh.scale);
             }
 
+            if (glow.userData?.baseScale) {
+                const pulse = Math.sin(this.time * 0.7 + glow.userData.pulsePhase) * 0.5 + 0.5;
+                glow.scale.multiplyScalar(0.985 + pulse * 0.03);
+            }
+
             // Fresnel effect based on camera angle
             if (glow.material && this.camera) {
-                const cameraDir = new THREE.Vector3();
-                this.camera.getWorldDirection(cameraDir);
                 const surfaceNormal = new THREE.Vector3(0, 1, 0);
 
-                const fresnel = Math.abs(cameraDir.dot(surfaceNormal));
-                glow.material.opacity = glow.userData.baseOpacity * (0.2 + fresnel * 0.8);
+                const fresnel = Math.abs(cameraDirection.dot(surfaceNormal));
+                const distance = this.camera.position.distanceTo(mesh.position || glow.position);
+                const distanceFactor = THREE.MathUtils.clamp(1 - distance / 260, 0.25, 1);
+                glow.material.opacity = glow.userData.baseOpacity * (0.18 + fresnel * 0.82) * distanceFactor;
             }
         });
+
+        // Update camera aura
+        if (this.cameraAura) {
+            const auraPhase = this.cameraAura.userData.pulsePhase || 0;
+            const auraPulse = Math.sin(this.time * 0.4 + auraPhase) * 0.5 + 0.5;
+
+            this.cameraAura.position.set(0, 0, -1.85 - auraPulse * 0.12);
+            this.cameraAura.rotation.z = Math.sin(this.time * 0.08 + this.cameraAura.userData.driftPhase) * 0.03;
+
+            this.cameraAura.children.forEach((sprite, index) => {
+                const spritePulse = Math.sin(this.time * (0.5 + index * 0.09) + sprite.userData.phase) * 0.5 + 0.5;
+                const baseScale = sprite.userData.baseScale;
+                sprite.material.opacity = sprite.userData.baseOpacity * (0.62 + spritePulse * 0.38);
+                sprite.scale.set(
+                    baseScale.x * (0.94 + auraPulse * 0.08),
+                    baseScale.y * (0.94 + auraPulse * 0.08),
+                    1
+                );
+                sprite.material.rotation = Math.sin(this.time * 0.12 + index) * 0.12;
+            });
+        }
     }
 
     /**
@@ -758,9 +1070,12 @@ export class VisualUpgradeSuperpack {
     dispose() {
         const cleanupArray = (arr) => {
             arr.forEach(obj => {
-                this.scene.remove(obj);
-                if (obj.geometry) obj.geometry.dispose();
-                if (obj.material) obj.material.dispose();
+                if (obj.parent) {
+                    obj.parent.remove(obj);
+                } else {
+                    this.scene.remove(obj);
+                }
+                this._disposeObject3D(obj);
             });
             arr.length = 0;
         };
@@ -771,5 +1086,24 @@ export class VisualUpgradeSuperpack {
         cleanupArray(this.distortionZones);
         cleanupArray(this.rifts);
         cleanupArray(this.particles);
+
+        if (this.cameraAura) {
+            if (this.cameraAura.parent) {
+                this.cameraAura.parent.remove(this.cameraAura);
+            } else {
+                this.scene.remove(this.cameraAura);
+            }
+            this._disposeObject3D(this.cameraAura);
+            this.cameraAura = null;
+        }
+
+        Object.values(this.sharedTextures).forEach(texture => {
+            if (texture && typeof texture.dispose === 'function') {
+                texture.dispose();
+            }
+        });
+
+        this.sharedTextures = {};
+        this._applied = false;
     }
 }

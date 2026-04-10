@@ -258,30 +258,46 @@ export class GlyphLayer4_MultiFusion {
     // Stage-specific visuals
     if (stage === 1) {
       const impossibleGlyph = this.createFoldedImpossibleGlyph();
-      impossibleGlyph.userData = { glyphComponent: 'evoFoldedImpossible' };
+      impossibleGlyph.userData = {
+        ...(impossibleGlyph.userData || {}),
+        glyphComponent: 'consensusEngineGlyph'
+      };
       evoGroup.add(impossibleGlyph);
       evoGroup.userData.rotationSpeed = 0.6;
       
     } else if (stage === 2) {
       const harmonicCell = this.createHarmonicCellGlyph();
-      harmonicCell.userData = { glyphComponent: 'evoHarmonicCell' };
+      harmonicCell.userData = {
+        ...(harmonicCell.userData || {}),
+        glyphComponent: 'livingSignalDeityGlyph'
+      };
       evoGroup.add(harmonicCell);
       evoGroup.userData.rotationSpeed = 0.42;
-      evoGroup.userData.cellPulsePhase = Math.random() * Math.PI * 2;
+      evoGroup.userData.signalPhase = Math.random() * Math.PI * 2;
+      evoGroup.userData.haloPhase = Math.random() * Math.PI * 2;
+      evoGroup.userData.membranePhase = Math.random() * Math.PI * 2;
       
     } else if (stage === 3) {
       const helicalTrinity = this.createHelicalTrinityGlyph();
-      helicalTrinity.userData = { glyphComponent: 'evoHelicalTrinity' };
+      helicalTrinity.userData = {
+        ...(helicalTrinity.userData || {}),
+        glyphComponent: 'evoHelicalTrinity'
+      };
       evoGroup.add(helicalTrinity);
       evoGroup.userData.rotationSpeed = 0.5;
       evoGroup.userData.trinityPhase = Math.random() * Math.PI * 2;
 
     } else if (stage === 4) {
       const resonanceCrown = this.createResonanceCrownFragmentGlyph();
-      resonanceCrown.userData = { glyphComponent: 'evoResonanceCrown' };
+      resonanceCrown.userData = {
+        ...(resonanceCrown.userData || {}),
+        glyphComponent: 'alienIntelligenceOrganGlyph'
+      };
       evoGroup.add(resonanceCrown);
       evoGroup.userData.rotationSpeed = 0.32;
-      evoGroup.userData.crownPhase = Math.random() * Math.PI * 2;
+      evoGroup.userData.organPhase = Math.random() * Math.PI * 2;
+      evoGroup.userData.lobePhase = Math.random() * Math.PI * 2;
+      evoGroup.userData.tendrilPhase = Math.random() * Math.PI * 2;
     }
     
     // Position offset (orbits core)
@@ -721,170 +737,396 @@ export class GlyphLayer4_MultiFusion {
 
   createFoldedImpossibleGlyph() {
     const glyphGroup = new THREE.Group();
-
-    const beamGeometry = new THREE.BoxGeometry(0.24, 0.06, 0.08);
-    const beamMaterial = new THREE.MeshBasicMaterial({
-      color: 0xcff6ff,
-      transparent: true,
-      opacity: 0.68,
-      fog: false,
-      toneMapped: false
-    });
-
-    const createBeam = (position, rotation, scale = [1, 1, 1]) => {
-      const beam = new THREE.Mesh(beamGeometry, beamMaterial.clone());
-      beam.position.set(position[0], position[1], position[2]);
-      beam.rotation.set(rotation[0], rotation[1], rotation[2]);
-      beam.scale.set(scale[0], scale[1], scale[2]);
-      beam.userData.lockGlyphPosition = true;
-      beam.userData.lockGlyphScale = true;
-      glyphGroup.add(beam);
+    glyphGroup.userData = {
+      glyphComponent: 'consensusEngineRoot',
+      consensusPhase: Math.random() * Math.PI * 2,
+      ringPhase: Math.random() * Math.PI * 2,
+      filamentPhase: Math.random() * Math.PI * 2,
+      lockGlyphPosition: true,
+      lockGlyphScale: true
     };
 
-    createBeam([0.0, 0.1, 0.0], [0.0, Math.PI / 4, Math.PI / 9], [1.45, 1.0, 1.0]);
-    createBeam([0.12, -0.02, 0.08], [Math.PI / 2.6, Math.PI / 4, 0.0], [1.2, 0.95, 0.9]);
-    createBeam([-0.08, -0.13, -0.02], [0.0, -Math.PI / 4, -Math.PI / 2.7], [1.15, 0.9, 0.85]);
+    const makeMaterial = (color, opacity, options = {}) => new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      fog: false,
+      toneMapped: false,
+      wireframe: options.wireframe ?? false,
+      side: options.side ?? THREE.DoubleSide
+    });
+
+    const core = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(0.082, 0),
+      makeMaterial(0xf7feff, 0.68, { wireframe: true })
+    );
+    core.scale.set(1.04, 0.88, 1.08);
+    core.rotation.set(Math.PI / 8, Math.PI / 6, Math.PI / 12);
+    core.userData = {
+      glyphComponent: 'consensusEngineVoidCore',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(core);
+
+    const primaryRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.165, 0.011, 5, 72),
+      makeMaterial(0xa7fbff, 0.36, { wireframe: true })
+    );
+    primaryRing.rotation.set(Math.PI / 2.45, Math.PI / 7, Math.PI / 4.8);
+    primaryRing.userData = {
+      glyphComponent: 'consensusEnginePrimaryRing',
+      lockGlyphPosition: true,
+      lockGlyphScale: true,
+      ringIndex: 0,
+      baseAxis: new THREE.Vector3(0.24, 0.82, 0.52)
+    };
+    glyphGroup.add(primaryRing);
+
+    const counterRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.122, 0.008, 5, 60),
+      makeMaterial(0xf8f6ff, 0.24, { wireframe: true })
+    );
+    counterRing.rotation.set(Math.PI / 2.0, -Math.PI / 5.2, Math.PI / 2.7);
+    counterRing.userData = {
+      glyphComponent: 'consensusEngineCounterRing',
+      lockGlyphPosition: true,
+      lockGlyphScale: true,
+      ringIndex: 1,
+      baseAxis: new THREE.Vector3(-0.46, 0.58, 0.67)
+    };
+    glyphGroup.add(counterRing);
+
+    const bridgeGeometry = new THREE.BufferGeometry();
+    const bridgeMaterial = new THREE.LineBasicMaterial({
+      color: 0xbfefff,
+      transparent: true,
+      opacity: 0.52,
+      fog: false
+    });
+    const bridgeLayouts = [
+      [
+        new THREE.Vector3(-0.15, 0.03, 0.02),
+        new THREE.Vector3(-0.04, 0.14, 0.06),
+        new THREE.Vector3(0.06, 0.06, 0.01),
+        new THREE.Vector3(0.14, -0.03, -0.03),
+      ],
+      [
+        new THREE.Vector3(0.1, 0.12, -0.01),
+        new THREE.Vector3(0.02, 0.04, 0.08),
+        new THREE.Vector3(-0.08, -0.08, 0.02),
+        new THREE.Vector3(-0.18, -0.02, -0.04),
+      ],
+      [
+        new THREE.Vector3(0.06, -0.14, 0.04),
+        new THREE.Vector3(-0.04, -0.04, -0.09),
+        new THREE.Vector3(0.02, 0.11, -0.05),
+        new THREE.Vector3(0.12, 0.02, 0.03),
+      ]
+    ];
+    bridgeLayouts.forEach((points, index) => {
+      const geometry = bridgeGeometry.clone();
+      geometry.setFromPoints([...points, points[0]]);
+      const filament = new THREE.Line(geometry, bridgeMaterial.clone());
+      filament.rotation.set(index * 0.26, (index - 1) * 0.48, index * -0.12);
+      filament.userData = {
+        glyphComponent: 'consensusEngineFilament',
+        filamentIndex: index,
+        lockGlyphPosition: true,
+        lockGlyphScale: true,
+        basePoints: points.map((p) => p.clone())
+      };
+      glyphGroup.add(filament);
+    });
+
+    const shardGeometry = new THREE.ConeGeometry(0.022, 0.11, 4);
+    const shardLayouts = [
+      { position: [0.19, 0.04, -0.05], rotation: [Math.PI * 0.52, Math.PI / 4, Math.PI / 6], color: 0xe5ffff },
+      { position: [-0.1, -0.12, 0.07], rotation: [Math.PI * 0.48, -Math.PI / 5, Math.PI / 3], color: 0xcfb8ff },
+      { position: [0.03, 0.16, 0.02], rotation: [Math.PI * 0.44, Math.PI / 8, -Math.PI / 2.3], color: 0xfff7d8 }
+    ];
+    shardLayouts.forEach((entry, index) => {
+      const shard = new THREE.Mesh(
+        shardGeometry,
+        makeMaterial(entry.color, 0.58 - index * 0.06)
+      );
+      shard.position.set(entry.position[0], entry.position[1], entry.position[2]);
+      shard.rotation.set(entry.rotation[0], entry.rotation[1], entry.rotation[2]);
+      shard.scale.set(1.0, 1.0 + index * 0.12, 1.0);
+      shard.userData = {
+        glyphComponent: 'consensusEngineShard',
+        shardIndex: index,
+        basePosition: new THREE.Vector3(...entry.position),
+        lockGlyphPosition: true,
+        lockGlyphScale: true
+      };
+      glyphGroup.add(shard);
+    });
 
     const frameGeometry = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-0.16, 0.15, -0.03),
-      new THREE.Vector3(0.0, 0.24, 0.02),
-      new THREE.Vector3(0.18, 0.08, 0.05),
-      new THREE.Vector3(0.08, -0.16, 0.03),
-      new THREE.Vector3(-0.12, -0.2, -0.04),
-      new THREE.Vector3(-0.2, -0.02, -0.06),
-      new THREE.Vector3(-0.16, 0.15, -0.03)
+      new THREE.Vector3(-0.17, 0.11, -0.05),
+      new THREE.Vector3(-0.02, 0.24, 0.05),
+      new THREE.Vector3(0.16, 0.09, 0.03),
+      new THREE.Vector3(0.12, -0.13, 0.07),
+      new THREE.Vector3(-0.08, -0.22, -0.04),
+      new THREE.Vector3(-0.22, -0.02, -0.03),
+      new THREE.Vector3(-0.17, 0.11, -0.05)
     ]);
-
     const frame = new THREE.Line(
       frameGeometry,
       new THREE.LineBasicMaterial({
-        color: 0x7fe7ff,
+        color: 0x88f2ff,
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.46,
         fog: false
       })
     );
-    frame.rotation.y = Math.PI / 6;
-    frame.rotation.x = -Math.PI / 9;
-    frame.userData.lockGlyphPosition = true;
-    frame.userData.lockGlyphScale = true;
+    frame.rotation.set(-Math.PI / 11, Math.PI / 6.8, Math.PI / 9.5);
+    frame.userData = {
+      glyphComponent: 'consensusEngineFrame',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
     glyphGroup.add(frame);
 
-    const knotGeometry = new THREE.TorusKnotGeometry(0.08, 0.012, 64, 8, 2, 3);
-    const knot = new THREE.Mesh(
-      knotGeometry,
-      new THREE.MeshBasicMaterial({
-        color: 0xf4fbff,
-        transparent: true,
-        opacity: 0.42,
-        fog: false,
-        wireframe: true
-      })
-    );
-    knot.rotation.set(Math.PI / 3.2, Math.PI / 5, Math.PI / 8);
-    knot.userData.lockGlyphPosition = true;
-    knot.userData.lockGlyphScale = true;
-    glyphGroup.add(knot);
-
-    glyphGroup.scale.setScalar(0.9);
-    glyphGroup.position.y = 0.06;
+    glyphGroup.scale.setScalar(0.98);
+    glyphGroup.position.y = 0.08;
     glyphGroup.userData.lockGlyphPosition = true;
     glyphGroup.userData.lockGlyphScale = true;
 
     return glyphGroup;
   }
 
+  updateFoldedImpossibleGlyph(glyphGroup, deltaTime) {
+    if (!glyphGroup) return;
+
+    glyphGroup.userData.consensusPhase = (glyphGroup.userData.consensusPhase ?? 0) + deltaTime * 0.98;
+    glyphGroup.userData.ringPhase = (glyphGroup.userData.ringPhase ?? 0) + deltaTime * 0.76;
+    glyphGroup.userData.filamentPhase = (glyphGroup.userData.filamentPhase ?? 0) + deltaTime * 1.08;
+
+    const consensusPhase = glyphGroup.userData.consensusPhase;
+    const ringPhase = glyphGroup.userData.ringPhase;
+    const filamentPhase = glyphGroup.userData.filamentPhase;
+    const consensusLock = (Math.sin(consensusPhase * 1.18) + 1) * 0.5;
+    const judgmentSnap = Math.pow((Math.sin(consensusPhase * 0.47 + 0.8) + 1) * 0.5, 2.2);
+
+    glyphGroup.rotation.y += deltaTime * 0.28;
+    glyphGroup.rotation.x += Math.sin(consensusPhase * 0.42) * deltaTime * 0.06;
+    glyphGroup.rotation.z = Math.sin(consensusPhase * 0.31) * 0.04;
+    glyphGroup.scale.setScalar(0.96 + consensusLock * 0.07 + judgmentSnap * 0.02);
+
+    glyphGroup.traverse((child) => {
+      if (!child.material) return;
+
+      if (child.userData?.glyphComponent === 'consensusEngineVoidCore') {
+        child.rotation.y += deltaTime * 0.36;
+        child.rotation.x += deltaTime * 0.22;
+        child.rotation.z += deltaTime * 0.12;
+        child.scale.setScalar(1.0 + consensusLock * 0.06);
+        child.material.opacity = 0.5 + consensusLock * 0.28 + judgmentSnap * 0.1;
+      }
+
+      if (child.userData?.glyphComponent === 'consensusEnginePrimaryRing') {
+        child.rotation.z += deltaTime * 0.76;
+        child.rotation.x += deltaTime * 0.18;
+        child.rotation.y -= deltaTime * 0.14;
+        child.material.opacity = 0.24 + consensusLock * 0.2 + judgmentSnap * 0.08;
+      }
+
+      if (child.userData?.glyphComponent === 'consensusEngineCounterRing') {
+        child.rotation.z -= deltaTime * 0.62;
+        child.rotation.x += deltaTime * 0.24;
+        child.rotation.y += deltaTime * 0.16;
+        child.material.opacity = 0.18 + consensusLock * 0.18 + judgmentSnap * 0.06;
+      }
+
+      if (child.userData?.glyphComponent === 'consensusEngineFilament') {
+        const filamentPulse = (Math.sin(filamentPhase + child.userData.filamentIndex * 1.3) + 1) * 0.5;
+        const basePoints = child.userData.basePoints || [];
+        const displaced = basePoints.map((point, pointIndex) => {
+          const localPhase = filamentPhase * (0.84 + pointIndex * 0.08) + child.userData.filamentIndex * 0.6;
+          const offset = 0.018 + filamentPulse * 0.022;
+          return new THREE.Vector3(
+            point.x + Math.sin(localPhase * 1.12) * offset,
+            point.y + Math.cos(localPhase * 0.91) * offset * 0.72,
+            point.z + Math.sin(localPhase * 1.37) * offset * 0.8
+          );
+        });
+        if (child.geometry?.setFromPoints) {
+          child.geometry.setFromPoints([...displaced, displaced[0]]);
+          child.geometry.attributes.position.needsUpdate = true;
+        }
+        child.rotation.z += deltaTime * (0.12 + child.userData.filamentIndex * 0.04);
+        child.material.opacity = 0.28 + filamentPulse * 0.28 + consensusLock * 0.1;
+      }
+
+      if (child.userData?.glyphComponent === 'consensusEngineShard') {
+        const shardPhase = ringPhase + child.userData.shardIndex * 1.12;
+        const radius = 0.15 + Math.sin(shardPhase * 1.5) * 0.02 + consensusLock * 0.015;
+        child.position.x = Math.cos(shardPhase) * radius;
+        child.position.z = Math.sin(shardPhase) * radius;
+        child.position.y = child.userData.basePosition.y + Math.sin(shardPhase * 1.3) * 0.04;
+        child.rotation.y = shardPhase + Math.PI / 5;
+        child.rotation.x = Math.PI * 0.5 + Math.sin(shardPhase) * 0.16;
+        child.rotation.z += deltaTime * 0.08;
+        child.scale.setScalar(0.92 + consensusLock * 0.16);
+        child.material.opacity = 0.34 + consensusLock * 0.22 + judgmentSnap * 0.12;
+      }
+
+      if (child.userData?.glyphComponent === 'consensusEngineFrame') {
+        child.rotation.z += deltaTime * 0.14;
+        child.rotation.y += deltaTime * 0.08;
+        child.material.opacity = 0.34 + consensusLock * 0.18 + judgmentSnap * 0.09;
+      }
+    });
+  }
+
   createHarmonicCellGlyph() {
     const glyphGroup = new THREE.Group();
-    const anchors = [
-      new THREE.Vector3(0.0, 0.2, 0.02),
-      new THREE.Vector3(0.18, 0.08, -0.04),
-      new THREE.Vector3(0.16, -0.12, 0.05),
-      new THREE.Vector3(0.0, -0.2, -0.02),
-      new THREE.Vector3(-0.17, -0.1, 0.04),
-      new THREE.Vector3(-0.15, 0.1, -0.05),
-      new THREE.Vector3(0.06, 0.0, 0.11)
-    ];
+    glyphGroup.userData = {
+      glyphComponent: 'livingSignalDeityRoot',
+      signalPhase: Math.random() * Math.PI * 2,
+      haloPhase: Math.random() * Math.PI * 2,
+      membranePhase: Math.random() * Math.PI * 2,
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
 
-    const nodeGeometry = new THREE.SphereGeometry(0.032, 6, 6);
-    const nodeMaterial = new THREE.MeshBasicMaterial({
-      color: 0xbefcff,
+    const makeMaterial = (color, opacity, options = {}) => new THREE.MeshBasicMaterial({
+      color,
       transparent: true,
-      opacity: 0.78,
+      opacity,
       fog: false,
-      toneMapped: false
+      toneMapped: false,
+      wireframe: options.wireframe ?? false,
+      side: options.side ?? THREE.DoubleSide
     });
 
-    anchors.forEach((anchor, index) => {
-      const node = new THREE.Mesh(nodeGeometry, nodeMaterial.clone());
-      node.position.copy(anchor);
-      node.scale.setScalar(index === 6 ? 0.82 : 1.0);
-      node.userData = {
-        glyphComponent: 'harmonicCellNode',
-        lockGlyphPosition: true,
-        lockGlyphScale: true,
-        cellAnchor: anchor.clone(),
-        pulseOffset: index * 0.5
-      };
-      glyphGroup.add(node);
-    });
+    const beacon = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.08, 0),
+      makeMaterial(0xf8ffff, 0.86, { wireframe: true })
+    );
+    beacon.scale.set(0.96, 1.08, 0.92);
+    beacon.rotation.set(Math.PI / 10, Math.PI / 8, Math.PI / 12);
+    beacon.userData = {
+      glyphComponent: 'livingSignalDeityBeacon',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(beacon);
 
-    const edgePairs = [
-      [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0],
-      [0, 6], [2, 6], [4, 6]
+    const haloA = new THREE.Mesh(
+      new THREE.TorusGeometry(0.18, 0.009, 6, 72),
+      makeMaterial(0xb8fbff, 0.44, { wireframe: true })
+    );
+    haloA.rotation.set(Math.PI / 2.65, Math.PI / 7, Math.PI / 5.2);
+    haloA.userData = {
+      glyphComponent: 'livingSignalDeityHalo',
+      haloIndex: 0,
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(haloA);
+
+    const haloB = new THREE.Mesh(
+      new THREE.TorusGeometry(0.28, 0.007, 6, 84),
+      makeMaterial(0xffe1aa, 0.24, { wireframe: true })
+    );
+    haloB.rotation.set(Math.PI / 2.1, -Math.PI / 6.2, Math.PI / 3.8);
+    haloB.userData = {
+      glyphComponent: 'livingSignalDeityHalo',
+      haloIndex: 1,
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(haloB);
+
+    const membraneGeometry = new THREE.PlaneGeometry(0.14, 0.28, 1, 1);
+    const membraneLayouts = [
+      { position: [0.0, 0.14, 0.03], rotation: [0.1, 0.5, 0.2], color: 0xf7ffff },
+      { position: [0.12, -0.02, -0.05], rotation: [0.4, 1.22, -0.16], color: 0xb9f6ff },
+      { position: [-0.11, -0.06, 0.06], rotation: [-0.34, -0.72, 0.24], color: 0xffedc6 },
+      { position: [0.03, 0.0, -0.1], rotation: [0.28, 0.15, 1.02], color: 0xdab7ff }
     ];
-    const edgePositions = [];
-    edgePairs.forEach(([a, b]) => {
-      edgePositions.push(...anchors[a].toArray(), ...anchors[b].toArray());
+    membraneLayouts.forEach((entry, index) => {
+      const membrane = new THREE.Mesh(
+        membraneGeometry,
+        makeMaterial(entry.color, 0.34 - index * 0.02)
+      );
+      membrane.position.set(entry.position[0], entry.position[1], entry.position[2]);
+      membrane.rotation.set(entry.rotation[0], entry.rotation[1], entry.rotation[2]);
+      membrane.scale.set(1.0 + index * 0.08, 0.88 + index * 0.05, 1.0);
+      membrane.userData = {
+        glyphComponent: 'livingSignalDeityMembrane',
+        membraneIndex: index,
+        basePosition: new THREE.Vector3(...entry.position),
+        baseRotation: new THREE.Vector3(...entry.rotation),
+        lockGlyphPosition: true,
+        lockGlyphScale: true
+      };
+      glyphGroup.add(membrane);
     });
 
-    const edgeGeometry = new THREE.BufferGeometry();
-    edgeGeometry.setAttribute(
-      'position',
-      new THREE.BufferAttribute(new Float32Array(edgePositions), 3)
-    );
+    const ribLayouts = [
+      [
+        new THREE.Vector3(0.0, 0.08, 0.0),
+        new THREE.Vector3(0.08, 0.18, 0.02),
+        new THREE.Vector3(0.16, 0.24, 0.08)
+      ],
+      [
+        new THREE.Vector3(0.0, 0.08, 0.0),
+        new THREE.Vector3(-0.08, 0.16, 0.04),
+        new THREE.Vector3(-0.18, 0.22, -0.02)
+      ],
+      [
+        new THREE.Vector3(0.0, 0.08, 0.0),
+        new THREE.Vector3(0.06, -0.02, -0.08),
+        new THREE.Vector3(0.15, -0.08, -0.11)
+      ]
+    ];
+    ribLayouts.forEach((points, index) => {
+      const rib = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(points),
+        new THREE.LineBasicMaterial({
+          color: index === 2 ? 0xffe9b2 : 0xdffcff,
+          transparent: true,
+          opacity: 0.48,
+          fog: false
+        })
+      );
+      rib.rotation.set(index * 0.18, (index - 1) * 0.28, index * 0.12);
+      rib.userData = {
+        glyphComponent: 'livingSignalDeityRib',
+        ribIndex: index,
+        lockGlyphPosition: true,
+        lockGlyphScale: true
+      };
+      glyphGroup.add(rib);
+    });
 
-    const edgeLines = new THREE.LineSegments(
-      edgeGeometry,
-      new THREE.LineBasicMaterial({
-        color: 0x7ae8ff,
-        transparent: true,
-        opacity: 0.54,
-        fog: false
-      })
-    );
-    edgeLines.userData = {
-      glyphComponent: 'harmonicCellEdges',
-      lockGlyphPosition: true,
-      lockGlyphScale: true
-    };
-    glyphGroup.add(edgeLines);
-
-    const shellGeometry = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0.0, 0.23, 0.0),
-      new THREE.Vector3(0.2, 0.02, 0.04),
-      new THREE.Vector3(0.08, -0.2, -0.03),
-      new THREE.Vector3(-0.16, -0.14, 0.03),
-      new THREE.Vector3(-0.18, 0.07, -0.04),
-      new THREE.Vector3(0.0, 0.23, 0.0)
-    ]);
-
-    const shell = new THREE.Line(
-      shellGeometry,
-      new THREE.LineBasicMaterial({
-        color: 0xe5ffff,
-        transparent: true,
-        opacity: 0.34,
-        fog: false
-      })
-    );
-    shell.rotation.set(Math.PI / 10, Math.PI / 7, -Math.PI / 14);
-    shell.userData = {
-      glyphComponent: 'harmonicCellShell',
-      lockGlyphPosition: true,
-      lockGlyphScale: true
-    };
-    glyphGroup.add(shell);
+    const crownSpikeGeometry = new THREE.ConeGeometry(0.026, 0.14, 5);
+    const crownSpikeLayouts = [
+      { position: [0.0, 0.24, 0.0], rotation: [0.0, 0.0, 0.0], color: 0xffffff },
+      { position: [0.1, 0.16, 0.04], rotation: [0.1, 0.54, 0.2], color: 0xb8fbff },
+      { position: [-0.11, 0.12, -0.04], rotation: [-0.18, -0.66, -0.1], color: 0xffe1aa }
+    ];
+    crownSpikeLayouts.forEach((entry, index) => {
+      const spike = new THREE.Mesh(
+        crownSpikeGeometry,
+        makeMaterial(entry.color, 0.48 - index * 0.04)
+      );
+      spike.position.set(entry.position[0], entry.position[1], entry.position[2]);
+      spike.rotation.set(entry.rotation[0], entry.rotation[1], entry.rotation[2]);
+      spike.scale.set(1.0, 1.0 + index * 0.16, 1.0);
+      spike.userData = {
+        glyphComponent: 'livingSignalDeityCrown',
+        crownIndex: index,
+        basePosition: new THREE.Vector3(...entry.position),
+        lockGlyphPosition: true,
+        lockGlyphScale: true
+      };
+      glyphGroup.add(spike);
+    });
 
     glyphGroup.scale.setScalar(0.95);
     glyphGroup.position.y = 0.04;
@@ -999,113 +1241,165 @@ export class GlyphLayer4_MultiFusion {
 
   createResonanceCrownFragmentGlyph() {
     const glyphGroup = new THREE.Group();
-    const fragmentData = [
-      { angle: -1.45, radius: 0.24, y: 0.16, length: 0.18, tilt: 0.34, color: 0xf8f4d8 },
-      { angle: -0.62, radius: 0.29, y: 0.24, length: 0.24, tilt: 0.18, color: 0xffefb0 },
-      { angle: 0.08, radius: 0.21, y: 0.28, length: 0.17, tilt: -0.12, color: 0xe5fbff },
-      { angle: 0.88, radius: 0.31, y: 0.18, length: 0.22, tilt: -0.26, color: 0xd8f7ff },
-      { angle: 1.7, radius: 0.23, y: 0.11, length: 0.16, tilt: 0.22, color: 0xfff5d1 }
+    glyphGroup.userData = {
+      glyphComponent: 'alienIntelligenceOrganRoot',
+      organPhase: Math.random() * Math.PI * 2,
+      lobePhase: Math.random() * Math.PI * 2,
+      tendrilPhase: Math.random() * Math.PI * 2,
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+
+    const makeMaterial = (color, opacity, options = {}) => new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      fog: false,
+      toneMapped: false,
+      wireframe: options.wireframe ?? false,
+      side: options.side ?? THREE.DoubleSide
+    });
+
+    const core = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(0.092, 0),
+      makeMaterial(0xf4fff8, 0.72, { wireframe: true })
+    );
+    core.scale.set(1.02, 0.86, 1.08);
+    core.rotation.set(Math.PI / 7, Math.PI / 6, Math.PI / 11);
+    core.userData = {
+      glyphComponent: 'alienOrganCore',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(core);
+
+    const shell = new THREE.Mesh(
+      new THREE.SphereGeometry(0.158, 8, 8),
+      makeMaterial(0xd7fcff, 0.28, { wireframe: true })
+    );
+    shell.scale.set(1.2, 0.84, 1.08);
+    shell.rotation.set(Math.PI / 8, -Math.PI / 5, Math.PI / 9);
+    shell.userData = {
+      glyphComponent: 'alienOrganShell',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(shell);
+
+    const lobeGeometry = new THREE.SphereGeometry(0.064, 7, 7);
+    const lobeLayouts = [
+      { position: [0.14, 0.06, 0.03], scale: [1.0, 1.15, 0.9], color: 0xb9f7ff },
+      { position: [-0.11, -0.02, -0.06], scale: [0.92, 1.05, 1.0], color: 0xf8e2ff },
+      { position: [0.02, -0.12, 0.1], scale: [1.08, 0.9, 0.95], color: 0xe9fff4 }
     ];
-
-    fragmentData.forEach((fragment, index) => {
-      const shardGroup = new THREE.Group();
-      shardGroup.userData = {
-        glyphComponent: 'resonanceCrownShard',
-        shardIndex: index,
-        baseAngle: fragment.angle,
-        baseRadius: fragment.radius,
-        baseHeight: fragment.y,
-        baseTilt: fragment.tilt,
-        lockGlyphPosition: true,
-        lockGlyphScale: true
-      };
-
-      const shardGeometry = new THREE.ConeGeometry(0.035, fragment.length, 4);
-      const shardMesh = new THREE.Mesh(
-        shardGeometry,
-        new THREE.MeshBasicMaterial({
-          color: fragment.color,
-          transparent: true,
-          opacity: 0.76,
-          fog: false,
-          toneMapped: false
-        })
+    lobeLayouts.forEach((entry, index) => {
+      const lobe = new THREE.Mesh(
+        lobeGeometry,
+        makeMaterial(entry.color, 0.46 - index * 0.03)
       );
-      shardMesh.rotation.z = Math.PI / 2;
-      shardMesh.userData = {
-        glyphComponent: 'resonanceCrownCore',
+      lobe.position.set(entry.position[0], entry.position[1], entry.position[2]);
+      lobe.scale.set(entry.scale[0], entry.scale[1], entry.scale[2]);
+      lobe.userData = {
+        glyphComponent: 'alienOrganLobe',
+        lobeIndex: index,
+        basePosition: new THREE.Vector3(...entry.position),
         lockGlyphPosition: true,
         lockGlyphScale: true
       };
-      shardGroup.add(shardMesh);
+      glyphGroup.add(lobe);
+    });
 
-      const arcGeometry = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(-0.09, -0.01, 0.0),
-        new THREE.Vector3(-0.02, 0.03, 0.0),
-        new THREE.Vector3(0.08, 0.0, 0.0)
-      ]);
-      const arc = new THREE.Line(
-        arcGeometry,
+    const spineGeometry = new THREE.ConeGeometry(0.022, 0.15, 4);
+    const spineLayouts = [
+      { position: [0.19, 0.12, -0.02], rotation: [Math.PI * 0.48, Math.PI / 4.4, Math.PI / 6], color: 0xdffcff },
+      { position: [-0.16, 0.08, 0.05], rotation: [Math.PI * 0.42, -Math.PI / 5.2, -Math.PI / 7], color: 0xffdeff },
+      { position: [0.03, 0.18, 0.11], rotation: [Math.PI * 0.52, Math.PI / 7, Math.PI / 2.8], color: 0xfff0b8 },
+      { position: [-0.05, -0.04, -0.13], rotation: [Math.PI * 0.38, -Math.PI / 3.2, Math.PI / 11], color: 0xb0f0ff }
+    ];
+    spineLayouts.forEach((entry, index) => {
+      const spine = new THREE.Mesh(
+        spineGeometry,
+        makeMaterial(entry.color, 0.52 - index * 0.04)
+      );
+      spine.position.set(entry.position[0], entry.position[1], entry.position[2]);
+      spine.rotation.set(entry.rotation[0], entry.rotation[1], entry.rotation[2]);
+      spine.scale.set(1.0, 1.0 + index * 0.14, 1.0);
+      spine.userData = {
+        glyphComponent: 'alienOrganSpine',
+        spineIndex: index,
+        basePosition: new THREE.Vector3(...entry.position),
+        baseRotationX: entry.rotation[0],
+        baseRotationY: entry.rotation[1],
+        lockGlyphPosition: true,
+        lockGlyphScale: true
+      };
+      glyphGroup.add(spine);
+    });
+
+    const noduleGeometry = new THREE.SphereGeometry(0.028, 6, 6);
+    const noduleLayouts = [
+      { position: [0.08, 0.01, 0.15], scale: 1.0, color: 0xf6fff9 },
+      { position: [-0.14, -0.08, 0.06], scale: 0.92, color: 0xcdfcff },
+      { position: [0.05, 0.14, -0.08], scale: 1.06, color: 0xffe3f4 },
+      { position: [0.16, -0.03, -0.05], scale: 0.88, color: 0xe5fff0 }
+    ];
+    noduleLayouts.forEach((entry, index) => {
+      const nodule = new THREE.Mesh(
+        noduleGeometry,
+        makeMaterial(entry.color, 0.58 - index * 0.04)
+      );
+      nodule.position.set(entry.position[0], entry.position[1], entry.position[2]);
+      nodule.scale.setScalar(entry.scale);
+      nodule.userData = {
+        glyphComponent: 'alienOrganNodule',
+        noduleIndex: index,
+        basePosition: new THREE.Vector3(...entry.position),
+        lockGlyphPosition: true,
+        lockGlyphScale: true
+      };
+      glyphGroup.add(nodule);
+    });
+
+    const tendrilLayouts = [
+      [
+        new THREE.Vector3(0.0, 0.04, 0.0),
+        new THREE.Vector3(0.09, 0.12, 0.02),
+        new THREE.Vector3(0.17, 0.18, 0.06),
+        new THREE.Vector3(0.23, 0.16, 0.1)
+      ],
+      [
+        new THREE.Vector3(0.0, 0.04, 0.0),
+        new THREE.Vector3(-0.08, 0.14, -0.03),
+        new THREE.Vector3(-0.16, 0.19, -0.07),
+        new THREE.Vector3(-0.24, 0.2, -0.04)
+      ],
+      [
+        new THREE.Vector3(0.0, -0.02, 0.0),
+        new THREE.Vector3(0.07, -0.1, 0.05),
+        new THREE.Vector3(0.15, -0.16, 0.08),
+        new THREE.Vector3(0.22, -0.2, 0.14)
+      ]
+    ];
+    tendrilLayouts.forEach((points, index) => {
+      const tendril = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(points),
         new THREE.LineBasicMaterial({
-          color: fragment.color,
+          color: index === 2 ? 0xffd9a5 : 0xd9fbff,
           transparent: true,
-          opacity: 0.42,
+          opacity: 0.46,
           fog: false
         })
       );
-      arc.position.y = -0.02;
-      arc.userData = {
-        glyphComponent: 'resonanceCrownArc',
+      tendril.rotation.set(index * 0.16, (index - 1) * 0.32, index * -0.08);
+      tendril.userData = {
+        glyphComponent: 'alienOrganTendril',
+        tendrilIndex: index,
+        basePoints: points.map((point) => point.clone()),
         lockGlyphPosition: true,
         lockGlyphScale: true
       };
-      shardGroup.add(arc);
-
-      glyphGroup.add(shardGroup);
+      glyphGroup.add(tendril);
     });
-
-    const crownBandGeometry = new THREE.TorusGeometry(0.27, 0.008, 6, 72, Math.PI * 1.35);
-    const crownBand = new THREE.Mesh(
-      crownBandGeometry,
-      new THREE.MeshBasicMaterial({
-        color: 0xfff3c6,
-        transparent: true,
-        opacity: 0.2,
-        fog: false,
-        wireframe: true
-      })
-    );
-    crownBand.rotation.set(Math.PI / 2.5, Math.PI / 12, -Math.PI / 9);
-    crownBand.userData = {
-      glyphComponent: 'resonanceCrownBand',
-      lockGlyphPosition: true,
-      lockGlyphScale: true
-    };
-    glyphGroup.add(crownBand);
-
-    const innerSparkGeometry = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-0.06, 0.02, -0.02),
-      new THREE.Vector3(0.0, 0.06, 0.03),
-      new THREE.Vector3(0.05, -0.01, -0.04),
-      new THREE.Vector3(-0.01, -0.05, 0.02),
-      new THREE.Vector3(-0.06, 0.02, -0.02)
-    ]);
-    const innerSpark = new THREE.Line(
-      innerSparkGeometry,
-      new THREE.LineBasicMaterial({
-        color: 0xe8ffff,
-        transparent: true,
-        opacity: 0.34,
-        fog: false
-      })
-    );
-    innerSpark.rotation.set(Math.PI / 5, Math.PI / 6, 0);
-    innerSpark.userData = {
-      glyphComponent: 'resonanceCrownSpark',
-      lockGlyphPosition: true,
-      lockGlyphScale: true
-    };
-    glyphGroup.add(innerSpark);
 
     glyphGroup.scale.setScalar(1.0);
     glyphGroup.position.y = 0.06;
@@ -1178,25 +1472,88 @@ export class GlyphLayer4_MultiFusion {
       this.updateQuantumStorageGlyph(evoGroup, deltaTime);
       return;
     }
+
+    if (evoGroup.userData.stage === 1) {
+      this.updateFoldedImpossibleGlyph(evoGroup, deltaTime);
+      return;
+    }
     
     if (evoGroup.userData.stage === 2) {
-      evoGroup.userData.cellPulsePhase += deltaTime * 1.8;
-      const lockPulse = (Math.sin(evoGroup.userData.cellPulsePhase) + 1) * 0.5;
+      evoGroup.userData.signalPhase = (evoGroup.userData.signalPhase ?? 0) + deltaTime * 1.42;
+      evoGroup.userData.haloPhase = (evoGroup.userData.haloPhase ?? 0) + deltaTime * 0.92;
+      evoGroup.userData.membranePhase = (evoGroup.userData.membranePhase ?? 0) + deltaTime * 1.08;
+      const signalPhase = evoGroup.userData.signalPhase;
+      const haloPhase = evoGroup.userData.haloPhase;
+      const membranePhase = evoGroup.userData.membranePhase;
+      const signalPulse = (Math.sin(signalPhase * 1.1) + 1) * 0.5;
+      const haloLock = (Math.sin(haloPhase * 0.74 + 0.6) + 1) * 0.5;
+      const consecration = Math.pow((Math.sin(signalPhase * 0.36) + 1) * 0.5, 1.7);
+
+      evoGroup.rotation.x = Math.sin(signalPhase * 0.28) * 0.045;
+      evoGroup.rotation.z = Math.cos(signalPhase * 0.24) * 0.035;
+      evoGroup.rotation.y += deltaTime * 0.26;
+      evoGroup.scale.setScalar(0.95 + signalPulse * 0.04 + haloLock * 0.02);
 
       evoGroup.traverse((child) => {
-        if (child.userData?.glyphComponent === 'harmonicCellNode') {
-          const pulse = (Math.sin(evoGroup.userData.cellPulsePhase + child.userData.pulseOffset) + 1) * 0.5;
-          const scale = 0.8 + pulse * 0.28 + lockPulse * 0.08;
-          child.scale.setScalar(scale);
-          child.material.opacity = 0.52 + pulse * 0.24;
+        if (child.userData?.glyphComponent === 'livingSignalDeityBeacon') {
+          child.rotation.y += deltaTime * 0.42;
+          child.rotation.x += deltaTime * 0.2;
+          child.scale.setScalar(0.92 + signalPulse * 0.16 + haloLock * 0.08);
+          child.material.opacity = 0.64 + signalPulse * 0.28;
+          child.material.color.setHex(consecration > 0.58 ? 0xffe3aa : 0xf8ffff);
         }
 
-        if (child.userData?.glyphComponent === 'harmonicCellEdges') {
-          child.material.opacity = 0.28 + lockPulse * 0.34;
+        if (child.userData?.glyphComponent === 'livingSignalDeityHalo') {
+          const haloIndex = child.userData.haloIndex ?? 0;
+          const haloSpin = haloIndex === 0 ? 0.72 : -0.48;
+          child.rotation.z += deltaTime * haloSpin;
+          child.rotation.x += deltaTime * (haloIndex === 0 ? 0.12 : 0.18);
+          child.rotation.y += deltaTime * (haloIndex === 0 ? 0.08 : -0.06);
+          child.scale.setScalar(1.0 + haloLock * 0.05 + haloIndex * 0.04);
+          child.material.opacity = (haloIndex === 0 ? 0.28 : 0.12) + haloLock * (haloIndex === 0 ? 0.22 : 0.14);
+          child.material.color.setHex(consecration > 0.7 && haloIndex === 1 ? 0xffe6b0 : (haloIndex === 0 ? 0xb8fbff : 0xffe1aa));
         }
 
-        if (child.userData?.glyphComponent === 'harmonicCellShell') {
-          child.material.opacity = 0.18 + lockPulse * 0.18;
+        if (child.userData?.glyphComponent === 'livingSignalDeityMembrane') {
+          const membraneIndex = child.userData.membraneIndex ?? 0;
+          const membranePulse = (Math.sin(membranePhase + membraneIndex * 0.78) + 1) * 0.5;
+          const basePosition = child.userData.basePosition || new THREE.Vector3();
+          const baseRotation = child.userData.baseRotation || new THREE.Vector3();
+          child.position.x = basePosition.x + Math.sin(membranePhase * 0.72 + membraneIndex) * 0.03;
+          child.position.y = basePosition.y + Math.cos(membranePhase * 0.64 + membraneIndex * 0.7) * 0.028;
+          child.position.z = basePosition.z + Math.sin(membranePhase * 0.88 + membraneIndex * 0.5) * 0.022;
+          child.rotation.x = baseRotation.x + Math.sin(membranePhase * 0.6 + membraneIndex) * 0.2;
+          child.rotation.y = baseRotation.y + Math.cos(membranePhase * 0.54 + membraneIndex * 0.2) * 0.18;
+          child.rotation.z = baseRotation.z + Math.sin(membranePhase * 0.48 + membraneIndex * 0.4) * 0.12;
+          child.scale.set(
+            0.96 + membranePulse * 0.18,
+            0.9 + membranePulse * 0.14,
+            1.0 + membranePulse * 0.08
+          );
+          child.material.opacity = 0.18 + membranePulse * 0.24 + haloLock * 0.06;
+          child.material.color.setHex(membraneIndex === 2 && consecration > 0.65 ? 0xffe6aa : (membraneIndex === 3 ? 0xdab7ff : 0xb9f6ff));
+        }
+
+        if (child.userData?.glyphComponent === 'livingSignalDeityRib') {
+          const ribIndex = child.userData.ribIndex ?? 0;
+          const ribPulse = (Math.sin(signalPhase * 1.16 + ribIndex * 0.88) + 1) * 0.5;
+          child.rotation.x += deltaTime * (0.12 + ribIndex * 0.03);
+          child.rotation.z += deltaTime * (0.08 - ribIndex * 0.02);
+          child.material.opacity = 0.24 + ribPulse * 0.28 + consecration * 0.12;
+        }
+
+        if (child.userData?.glyphComponent === 'livingSignalDeityCrown') {
+          const crownIndex = child.userData.crownIndex ?? 0;
+          const crownPulse = (Math.sin(haloPhase + crownIndex * 0.9) + 1) * 0.5;
+          const basePosition = child.userData.basePosition || new THREE.Vector3();
+          child.position.x = basePosition.x + Math.sin(haloPhase + crownIndex) * 0.02;
+          child.position.y = basePosition.y + Math.cos(haloPhase + crownIndex * 0.6) * 0.02;
+          child.position.z = basePosition.z + Math.sin(haloPhase + crownIndex * 0.8) * 0.02;
+          child.rotation.z += deltaTime * (0.16 + crownIndex * 0.05);
+          child.rotation.y += deltaTime * 0.08;
+          child.scale.setScalar(1.0 + crownPulse * 0.16);
+          child.material.opacity = 0.28 + crownPulse * 0.22 + consecration * 0.12;
+          child.material.color.setHex(consecration > 0.72 ? 0xffe3a4 : 0xfff3d8);
         }
       });
     }
@@ -1205,6 +1562,10 @@ export class GlyphLayer4_MultiFusion {
       evoGroup.userData.trinityPhase += deltaTime * 1.35;
       const phase = evoGroup.userData.trinityPhase;
       const lockWindow = (Math.sin(phase * 0.75) + 1) * 0.5;
+
+      evoGroup.rotation.x = Math.sin(phase * 0.35) * 0.03;
+      evoGroup.rotation.z = Math.cos(phase * 0.42) * 0.04;
+      evoGroup.scale.setScalar(0.95 + lockWindow * 0.025);
 
       evoGroup.traverse((child) => {
         if (child.userData?.glyphComponent === 'helicalTrinityArm') {
@@ -1239,39 +1600,95 @@ export class GlyphLayer4_MultiFusion {
     }
 
     if (evoGroup.userData.stage === 4) {
-      evoGroup.userData.crownPhase += deltaTime * 0.72;
-      const phase = evoGroup.userData.crownPhase;
-      const resonance = (Math.sin(phase) + 1) * 0.5;
+      evoGroup.userData.organPhase = (evoGroup.userData.organPhase ?? 0) + deltaTime * 1.12;
+      evoGroup.userData.nodulePhase = (evoGroup.userData.nodulePhase ?? 0) + deltaTime * 0.82;
+      const organPhase = evoGroup.userData.organPhase;
+      const nodulePhase = evoGroup.userData.nodulePhase;
+      const organPulse = (Math.sin(organPhase * 1.14) + 1) * 0.5;
+      const tissueBreath = (Math.sin(organPhase * 0.58 + 0.7) + 1) * 0.5;
+      const corruptionWave = Math.pow((Math.sin(organPhase * 0.31 + 1.2) + 1) * 0.5, 1.8);
+
+      evoGroup.rotation.x = Math.sin(organPhase * 0.24) * 0.04;
+      evoGroup.rotation.z = Math.cos(organPhase * 0.29) * 0.035;
+      evoGroup.rotation.y += deltaTime * 0.2;
+      evoGroup.scale.setScalar(0.94 + organPulse * 0.06 + tissueBreath * 0.02);
 
       evoGroup.traverse((child) => {
-        if (child.userData?.glyphComponent === 'resonanceCrownShard') {
-          const localPhase = phase + child.userData.shardIndex * 0.9;
-          const radiusOffset = Math.sin(localPhase) * 0.018;
-          const angle = child.userData.baseAngle + Math.sin(localPhase * 0.7) * 0.08;
-          const radius = child.userData.baseRadius + radiusOffset;
-          child.position.x = Math.cos(angle) * radius;
-          child.position.z = Math.sin(angle) * radius;
-          child.position.y = child.userData.baseHeight + Math.cos(localPhase * 1.2) * 0.035;
-          child.rotation.z = angle + Math.PI / 2 + child.userData.baseTilt;
-          child.rotation.x = 0.18 + Math.sin(localPhase) * 0.12;
+        if (child.userData?.glyphComponent === 'alienOrganCore') {
+          child.rotation.y += deltaTime * 0.28;
+          child.rotation.x += deltaTime * 0.16;
+          child.scale.setScalar(0.92 + organPulse * 0.12);
+          child.material.opacity = 0.58 + organPulse * 0.24;
+          child.material.color.setHex(corruptionWave > 0.64 ? 0xff8fd1 : 0xf7fff8);
         }
 
-        if (child.userData?.glyphComponent === 'resonanceCrownCore') {
-          child.material.opacity = 0.56 + resonance * 0.28;
+        if (child.userData?.glyphComponent === 'alienOrganShell') {
+          child.rotation.y -= deltaTime * 0.18;
+          child.rotation.z += deltaTime * 0.1;
+          child.scale.set(
+            1.0 + tissueBreath * 0.08,
+            0.92 + organPulse * 0.06,
+            1.0 + tissueBreath * 0.06
+          );
+          child.material.opacity = 0.18 + organPulse * 0.18;
         }
 
-        if (child.userData?.glyphComponent === 'resonanceCrownArc') {
-          child.material.opacity = 0.18 + resonance * 0.26;
+        if (child.userData?.glyphComponent === 'alienOrganLobe') {
+          const lobeIndex = child.userData.lobeIndex ?? 0;
+          const lobePulse = (Math.sin(nodulePhase + lobeIndex * 1.24) + 1) * 0.5;
+          const basePosition = child.userData.basePosition || new THREE.Vector3();
+          child.position.x = basePosition.x + Math.sin(organPhase * 0.66 + lobeIndex) * 0.026;
+          child.position.y = basePosition.y + Math.cos(organPhase * 0.54 + lobeIndex * 0.7) * 0.024;
+          child.position.z = basePosition.z + Math.sin(organPhase * 0.48 + lobeIndex * 0.5) * 0.024;
+          child.rotation.y += deltaTime * (0.08 + lobeIndex * 0.02);
+          child.rotation.z += deltaTime * 0.06;
+          child.scale.setScalar(0.9 + lobePulse * 0.2);
+          child.material.opacity = 0.26 + lobePulse * 0.2;
+          child.material.color.setHex(lobeIndex === 1 && corruptionWave > 0.55 ? 0xff6fbd : 0xc9f2ff);
         }
 
-        if (child.userData?.glyphComponent === 'resonanceCrownBand') {
-          child.rotation.z += deltaTime * 0.12;
-          child.material.opacity = 0.1 + resonance * 0.12;
+        if (child.userData?.glyphComponent === 'alienOrganSpine') {
+          const spineIndex = child.userData.spineIndex ?? 0;
+          const spinePulse = (Math.sin(organPhase * 1.06 + spineIndex * 0.84) + 1) * 0.5;
+          child.rotation.x = child.userData.baseRotationX + Math.sin(organPhase * 0.92 + spineIndex) * 0.14;
+          child.rotation.y = child.userData.baseRotationY + Math.cos(organPhase * 0.78 + spineIndex * 0.5) * 0.12;
+          child.rotation.z += deltaTime * (0.12 + spineIndex * 0.02);
+          child.position.x = child.userData.basePosition.x + Math.sin(organPhase * 0.72 + spineIndex) * 0.018;
+          child.position.y = child.userData.basePosition.y + Math.cos(organPhase * 0.66 + spineIndex * 0.4) * 0.018;
+          child.position.z = child.userData.basePosition.z + Math.sin(organPhase * 0.58 + spineIndex * 0.7) * 0.018;
+          child.scale.setScalar(0.92 + spinePulse * 0.2);
+          child.material.opacity = 0.34 + spinePulse * 0.24 + corruptionWave * 0.08;
         }
 
-        if (child.userData?.glyphComponent === 'resonanceCrownSpark') {
-          child.rotation.y += deltaTime * 0.38;
-          child.material.opacity = 0.16 + resonance * 0.2;
+        if (child.userData?.glyphComponent === 'alienOrganNodule') {
+          const noduleIndex = child.userData.noduleIndex ?? 0;
+          const nodulePulse = (Math.sin(nodulePhase + noduleIndex * 0.9) + 1) * 0.5;
+          child.rotation.y += deltaTime * (0.18 + noduleIndex * 0.03);
+          child.rotation.x += deltaTime * 0.08;
+          child.scale.setScalar(0.78 + nodulePulse * 0.18 + corruptionWave * 0.04);
+          child.material.opacity = 0.42 + nodulePulse * 0.22;
+          child.material.color.setHex(noduleIndex === 2 && corruptionWave > 0.66 ? 0xff78a8 : 0xf2fff7);
+        }
+
+        if (child.userData?.glyphComponent === 'alienOrganTendril') {
+          const tendrilIndex = child.userData.tendrilIndex ?? 0;
+          const tendrilPulse = (Math.sin(organPhase * 0.74 + tendrilIndex * 1.1) + 1) * 0.5;
+          const basePoints = child.userData.basePoints || [];
+          const displaced = basePoints.map((point, pointIndex) => {
+            const localPhase = organPhase * (0.58 + pointIndex * 0.08) + tendrilIndex;
+            const offset = 0.02 + tendrilPulse * 0.022;
+            return new THREE.Vector3(
+              point.x + Math.sin(localPhase * 1.1) * offset,
+              point.y + Math.cos(localPhase * 0.9) * offset * 0.8,
+              point.z + Math.sin(localPhase * 1.33) * offset * 0.86
+            );
+          });
+          if (child.geometry?.setFromPoints) {
+            child.geometry.setFromPoints(displaced);
+            child.geometry.attributes.position.needsUpdate = true;
+          }
+          child.rotation.z += deltaTime * (0.08 + tendrilIndex * 0.03);
+          child.material.opacity = 0.24 + tendrilPulse * 0.26 + tissueBreath * 0.08;
         }
       });
     }

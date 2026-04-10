@@ -620,10 +620,11 @@ export class LinkCorruptionTransmission_v1 {
    * @param {Object} linkSystem - Link system (NodeLinkingSystem, etc.)
    * @param {Boolean} debugMode - Enable debug logging
    */
-  constructor(aiNodes, linkSystem, debugMode = false) {
+  constructor(aiNodes, linkSystem, debugMode = false, semanticBus = null) {
     this.aiNodes = aiNodes;
     this.linkSystem = linkSystem;
     this.debugMode = debugMode;
+    this.semanticBus = semanticBus;
 
     // Link-level corruption tracking
     this.linkCorruption = new Map(); // link -> { level: 0-1, cascade: [], events: [] }
@@ -3758,6 +3759,27 @@ export class LinkCorruptionTransmission_v1 {
     };
 
     this.recentHealingEvents.push(eventData);
+
+    // Emit topology healing event for HarmonicTopologyLearningSystem
+    if (this.semanticBus && healingEvent.link) {
+        // Get position from link (midpoint between nodes)
+        const link = healingEvent.link;
+        const sourceNode = link.source || link.sourceNode || link.nodeA;
+        const targetNode = link.target || link.targetNode || link.nodeB;
+        
+        if (sourceNode?.position && targetNode?.position) {
+            const midpoint = new (typeof THREE !== 'undefined' ? THREE.Vector3 : Object)(
+                (sourceNode.position.x + targetNode.position.x) * 0.5,
+                (sourceNode.position.y + targetNode.position.y) * 0.5,
+                (sourceNode.position.z + targetNode.position.z) * 0.5
+            );
+            
+            this.semanticBus.emit('topology.healing', {
+                position: midpoint,
+                harmonyRestored: Math.min(1.0, Math.max(0.1, effectiveAmount))
+            });
+        }
+    }
 
     // Track contention event (1% sample to reduce spam)
     if (contenders.length > 0 && Math.random() < 0.01) {
