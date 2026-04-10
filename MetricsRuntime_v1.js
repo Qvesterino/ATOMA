@@ -121,6 +121,8 @@ export class MetricsRuntime_v1 {
         this._liveMetricsPublishAccumulator = 0;
         this._liveMetricsPublishInterval = Math.max(0.1, Number(runtimeOptions.liveMetricsPublishInterval ?? 0.2));
         this._liveMetricsPublishRequested = true;
+        this._networkCanonicalRefreshAccumulator = 0;
+        this._networkCanonicalRefreshInterval = Math.max(0.5, Number(runtimeOptions.networkCanonicalRefreshInterval ?? 1.0));
         // Additional publish smoothing to prevent HUD jitter
         this._publishedMetrics = {
             networkSynergy: 0,
@@ -299,7 +301,6 @@ export class MetricsRuntime_v1 {
                 const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
                 this._sanitizeMetrics(m, id);
             }
-            this._ensureNodeCanonicalFallbacks(nodeList);
 
             // 2.5. Canonical link corruption/integrity metrics update
             const linkList =
@@ -307,10 +308,31 @@ export class MetricsRuntime_v1 {
                 this.links?.links ||
                 this.links ||
                 [];
+
+            const linkAuthority = this.linkSystem || this.links || null;
+            const nodesDirty = linkAuthority?.nodesDirty === true;
+            const linksDirty = linkAuthority?.linksDirty === true;
+            const networkDirty = nodesDirty || linksDirty;
+            const shouldRefreshCanonicalNetworkState =
+                networkDirty ||
+                (this._networkCanonicalRefreshAccumulator >= this._networkCanonicalRefreshInterval);
+
+            if (networkDirty) {
+                this._networkCanonicalRefreshAccumulator = 0;
+            } else {
+                this._networkCanonicalRefreshAccumulator += dt;
+            }
+
+            if (nodesDirty || shouldRefreshCanonicalNetworkState) {
+                this._ensureNodeCanonicalFallbacks(nodeList);
+            }
+
             this._canonicalWriteLinkCorruptionMetrics(linkList);
 
             // 2.6. Canonical network metrics update (fatigue, hubId, activeLinkCount)
-            this._canonicalWriteNetworkMetrics(nodeList);
+            if (networkDirty || shouldRefreshCanonicalNetworkState) {
+                this._canonicalWriteNetworkMetrics(nodeList, linkList);
+            }
 
             this._runCanonicalFieldAudit(dt, nodeList);
             this._runMetricAuthorityAudit(dt, nodeList, linkList);
@@ -603,6 +625,13 @@ const adapter = this._createLinkSystemAdapter(
         }
     }
 
+    _writeCanonicalField(target, fieldKey, value) {
+        if (!target) return false;
+        if (target[fieldKey] === value) return false;
+        target[fieldKey] = value;
+        return true;
+    }
+
     _ensureNodeCanonicalFallbacks(nodeList) {
         if (!Array.isArray(nodeList)) return;
 
@@ -612,6 +641,7 @@ const adapter = this._createLinkSystemAdapter(
             const metrics = ensureMetrics(node);
             if (!metrics) continue;
             const userData = node.userData;
+            const touchedFields = new Set();
 
             const harmony = this._clamp01(metrics.harmony ?? userData.harmony ?? userData.harmonyLevel ?? 0);
             const corruption = this._clamp01(metrics.corruption ?? userData.corruption ?? userData.corruptionLevel ?? 0);
@@ -620,47 +650,41 @@ const adapter = this._createLinkSystemAdapter(
             const instability = this._clamp01(1 - stability);
 
             // Canonical harmony/corruption write + legacy mirrors
-            metrics.harmony = harmony;
-            metrics.corruption = corruption;
-            userData.harmony = harmony;
-            userData.harmonyLevel = harmony;
-            userData.corruption = corruption;
-            userData.corruptionLevel = corruption;
+            if (this._writeCanonicalField(metrics, 'harmony', harmony)) touchedFields.add('harmony');
+            if (this._writeCanonicalField(metrics, 'corruption', corruption)) touchedFields.add('corruption');
+            if (this._writeCanonicalField(userData, 'harmony', harmony)) touchedFields.add('harmony');
+            if (this._writeCanonicalField(userData, 'harmonyLevel', harmony)) touchedFields.add('harmonyLevel');
+            if (this._writeCanonicalField(userData, 'corruption', corruption)) touchedFields.add('corruption');
+            if (this._writeCanonicalField(userData, 'corruptionLevel', corruption)) touchedFields.add('corruptionLevel');
 
             // Harmony stabilization canonical defaults
             if (typeof userData.harmonyStabilized !== 'boolean') {
-                userData.harmonyStabilized = false;
+                if (this._writeCanonicalField(userData, 'harmonyStabilized', false)) touchedFields.add('harmonyStabilized');
             }
             if (!Number.isFinite(userData.harmonyDampingFactor)) {
-                userData.harmonyDampingFactor = 0;
+                if (this._writeCanonicalField(userData, 'harmonyDampingFactor', 0)) touchedFields.add('harmonyDampingFactor');
             }
-            userData.harmonyDampingFactor = this._clamp01(userData.harmonyDampingFactor);
+            if (this._writeCanonicalField(userData, 'harmonyDampingFactor', this._clamp01(userData.harmonyDampingFactor))) {
+                touchedFields.add('harmonyDampingFactor');
+            }
 
             // Canonical load aliases for legacy readers
-            userData.loadPressure = load;
-            metrics.loadPressure = load;
-            metrics.load = load;
-            metrics.loadRatio = load;
-            userData.load = load;
-            userData.loadRatio = load;
-            userData.pressure = load;
+            if (this._writeCanonicalField(userData, 'loadPressure', load)) touchedFields.add('loadPressure');
+            if (this._writeCanonicalField(metrics, 'loadPressure', load)) touchedFields.add('loadPressure');
+            if (this._writeCanonicalField(metrics, 'load', load)) touchedFields.add('load');
+            if (this._writeCanonicalField(metrics, 'loadRatio', load)) touchedFields.add('loadRatio');
+            if (this._writeCanonicalField(userData, 'load', load)) touchedFields.add('load');
+            if (this._writeCanonicalField(userData, 'loadRatio', load)) touchedFields.add('loadRatio');
+            if (this._writeCanonicalField(userData, 'pressure', load)) touchedFields.add('pressure');
 
             // Keep stability/instability readable from both canonical and legacy paths
-            metrics.stability = stability;
-            metrics.instability = instability;
-            userData.instability = instability;
+            if (this._writeCanonicalField(metrics, 'stability', stability)) touchedFields.add('stability');
+            if (this._writeCanonicalField(metrics, 'instability', instability)) touchedFields.add('instability');
+            if (this._writeCanonicalField(userData, 'instability', instability)) touchedFields.add('instability');
 
-            this._touchCanonicalWrite(userData, 'harmony');
-            this._touchCanonicalWrite(userData, 'harmonyLevel');
-            this._touchCanonicalWrite(userData, 'corruption');
-            this._touchCanonicalWrite(userData, 'corruptionLevel');
-            this._touchCanonicalWrite(userData, 'harmonyStabilized');
-            this._touchCanonicalWrite(userData, 'harmonyDampingFactor');
-            this._touchCanonicalWrite(userData, 'loadPressure');
-            this._touchCanonicalWrite(userData, 'load');
-            this._touchCanonicalWrite(userData, 'loadRatio');
-            this._touchCanonicalWrite(userData, 'pressure');
-            this._touchCanonicalWrite(userData, 'instability');
+            if (touchedFields.size > 0) {
+                this._touchCanonicalWrites(userData, Array.from(touchedFields));
+            }
         }
     }
 
@@ -677,6 +701,7 @@ const adapter = this._createLinkSystemAdapter(
             link.userData = link.userData || {};
             const userData = link.userData;
             const metrics = userData.metrics || {};
+            const touchedFields = new Set();
 
             // Read corruption/integrity from LinkCorruptionTransmission if available
             const linkCorruption = link?.group?.userData?.conduitState?.corruptionLevel ??
@@ -688,36 +713,32 @@ const adapter = this._createLinkSystemAdapter(
             // Canonical corruption write + legacy mirrors
             const nextCorruption = Number.isFinite(linkCorruption) ? Math.max(0, Math.min(1, linkCorruption)) : 0;
             userData.metrics = userData.metrics || {};
-            userData.metrics.corruption = nextCorruption;
-            userData.corruptionLevel = nextCorruption;
-            userData.corruption = nextCorruption;
+            if (this._writeCanonicalField(userData.metrics, 'corruption', nextCorruption)) touchedFields.add('corruption');
+            if (this._writeCanonicalField(userData, 'corruptionLevel', nextCorruption)) touchedFields.add('corruptionLevel');
+            if (this._writeCanonicalField(userData, 'corruption', nextCorruption)) touchedFields.add('corruption');
 
             // Legacy integrity alias only (not part of canonical metric schema)
             const nextIntegrity = Number.isFinite(linkIntegrity) ? Math.max(0, Math.min(100, linkIntegrity)) : 100;
-            userData.integrity = nextIntegrity;
+            if (this._writeCanonicalField(userData, 'integrity', nextIntegrity)) touchedFields.add('integrity');
 
             // Update corrupted flag based on corruption level
             const corrupted = nextCorruption >= 0.5;
-            userData.corrupted = corrupted;
-            if (userData.metrics) {
-                userData.metrics.corrupted = corrupted;
+            if (this._writeCanonicalField(userData, 'corrupted', corrupted)) touchedFields.add('corrupted');
+            if (userData.metrics && this._writeCanonicalField(userData.metrics, 'corrupted', corrupted)) {
+                touchedFields.add('corrupted');
             }
 
             // Particle canonical fallbacks (reader-safe when density adapter is idle)
             const particleIntensity = Number.isFinite(userData.particleIntensity) ? this._clamp01(userData.particleIntensity) : 0;
             const particleUrgency = Number.isFinite(userData.particleUrgency) ? this._clamp01(userData.particleUrgency) : 0;
-            userData.particleIntensity = particleIntensity;
-            userData.particleUrgency = particleUrgency;
-            userData.metrics.particleIntensity = particleIntensity;
-            userData.metrics.particleUrgency = particleUrgency;
+            if (this._writeCanonicalField(userData, 'particleIntensity', particleIntensity)) touchedFields.add('particleIntensity');
+            if (this._writeCanonicalField(userData, 'particleUrgency', particleUrgency)) touchedFields.add('particleUrgency');
+            if (this._writeCanonicalField(userData.metrics, 'particleIntensity', particleIntensity)) touchedFields.add('particleIntensity');
+            if (this._writeCanonicalField(userData.metrics, 'particleUrgency', particleUrgency)) touchedFields.add('particleUrgency');
 
-            this._touchCanonicalWrites(userData, [
-                'corruption',
-                'integrity',
-                'corrupted',
-                'particleIntensity',
-                'particleUrgency'
-            ]);
+            if (touchedFields.size > 0) {
+                this._touchCanonicalWrites(userData, Array.from(touchedFields));
+            }
         }
     }
 
@@ -726,17 +747,18 @@ const adapter = this._createLinkSystemAdapter(
      * Ensures these metrics are defined and not stale after world switch.
      * Reads from NetworkFatigueSystem if available, otherwise uses defaults.
      */
-    _canonicalWriteNetworkMetrics(nodeList) {
+    _canonicalWriteNetworkMetrics(nodeList, linkList = null) {
         if (!Array.isArray(nodeList)) return;
-        const linkList =
+        const resolvedLinkList =
+            Array.isArray(linkList) ? linkList :
             this.linkSystem?.links ||
             this.links?.links ||
             this.links ||
             [];
 
         const activeLinkCountByNodeId = new Map();
-        if (Array.isArray(linkList)) {
-            for (const link of linkList) {
+        if (Array.isArray(resolvedLinkList)) {
+            for (const link of resolvedLinkList) {
                 if (!link) continue;
                 const sourceId =
                     link.nodeA ??
@@ -763,6 +785,7 @@ const adapter = this._createLinkSystemAdapter(
             node.userData = node.userData || {};
             const userData = node.userData;
             const metrics = userData.metrics || (userData.metrics = {});
+            const touchedFields = new Set();
 
             // Read fatigue from NetworkFatigueSystem (node.userData.fatigue)
             // If not available, use default 0.0
@@ -771,51 +794,47 @@ const adapter = this._createLinkSystemAdapter(
                 : 0.0;
 
             // Write to metrics (canonical location)
-            metrics.fatigue = fatigue;
-            userData.fatigue = fatigue; // Legacy mirror
+            if (this._writeCanonicalField(metrics, 'fatigue', fatigue)) touchedFields.add('fatigue');
+            if (this._writeCanonicalField(userData, 'fatigue', fatigue)) touchedFields.add('fatigue'); // Legacy mirror
 
             // Read networkFatigue if available (aggregate network fatigue)
             // If not available, use node fatigue as fallback
             const networkFatigue = typeof metrics.networkFatigue === 'number'
                 ? metrics.networkFatigue
                 : fatigue;
-            metrics.networkFatigue = networkFatigue;
-            userData.networkFatigue = networkFatigue; // Legacy mirror
+            if (this._writeCanonicalField(metrics, 'networkFatigue', networkFatigue)) touchedFields.add('networkFatigue');
+            if (this._writeCanonicalField(userData, 'networkFatigue', networkFatigue)) touchedFields.add('networkFatigue'); // Legacy mirror
 
             // Initialize hub-related fields (used by HarmonicHubAuraSystem)
             if (typeof metrics.clusterMembershipID !== 'number' || metrics.clusterMembershipID === null) {
-                metrics.clusterMembershipID = -1; // -1 means not assigned to any cluster
+                if (this._writeCanonicalField(metrics, 'clusterMembershipID', -1)) touchedFields.add('clusterMembershipID'); // -1 means not assigned to any cluster
             }
             if (typeof metrics.hubId !== 'number' || metrics.hubId === null) {
-                metrics.hubId = -1; // -1 means not a hub
+                if (this._writeCanonicalField(metrics, 'hubId', -1)) touchedFields.add('hubId'); // -1 means not a hub
             }
-            userData.clusterMembershipID = metrics.clusterMembershipID; // Legacy mirror
-            userData.hubId = metrics.hubId; // Legacy mirror
+            if (this._writeCanonicalField(userData, 'clusterMembershipID', metrics.clusterMembershipID)) touchedFields.add('clusterMembershipID'); // Legacy mirror
+            if (this._writeCanonicalField(userData, 'hubId', metrics.hubId)) touchedFields.add('hubId'); // Legacy mirror
 
             // Canonical activeLinkCount (recomputed every frame from current active links)
             const nodeId = node?.userData?.nodeId ?? node?.uuid ?? node?.id ?? null;
             const activeLinkCount = nodeId !== null && nodeId !== undefined
                 ? (activeLinkCountByNodeId.get(String(nodeId)) || 0)
                 : 0;
-            metrics.activeLinkCount = activeLinkCount;
-            userData.activeLinkCount = metrics.activeLinkCount; // Legacy mirror
+            if (this._writeCanonicalField(metrics, 'activeLinkCount', activeLinkCount)) touchedFields.add('activeLinkCount');
+            if (this._writeCanonicalField(userData, 'activeLinkCount', activeLinkCount)) touchedFields.add('activeLinkCount'); // Legacy mirror
 
             // Initialize loadPressure and pressure (already in _ensureNodeCanonicalFallbacks)
             // But ensure they have defaults if not set
             if (typeof metrics.loadPressure !== 'number') {
-                metrics.loadPressure = 0.0;
+                if (this._writeCanonicalField(metrics, 'loadPressure', 0.0)) touchedFields.add('loadPressure');
             }
             if (typeof metrics.pressure !== 'number') {
-                metrics.pressure = 0.0;
+                if (this._writeCanonicalField(metrics, 'pressure', 0.0)) touchedFields.add('pressure');
             }
 
-            this._touchCanonicalWrites(userData, [
-                'fatigue',
-                'networkFatigue',
-                'clusterMembershipID',
-                'hubId',
-                'activeLinkCount'
-            ]);
+            if (touchedFields.size > 0) {
+                this._touchCanonicalWrites(userData, Array.from(touchedFields));
+            }
         }
     }
 

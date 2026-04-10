@@ -10178,6 +10178,19 @@ window.__ATOMA_SCENE__ = this.scene;
             console.warn('[main.js] SynergyResonanceShaderPack_v1 failed:', err);
         }
 
+        try {
+            const currentLinks = this.linkingSystem?.links || this.nodeLinking?.links || [];
+            if (this.synergyBonusFXLayer?.primeMaterials && Array.isArray(currentLinks) && currentLinks.length > 0) {
+                this.synergyBonusFXLayer.primeMaterials(currentLinks);
+            }
+            if (this.synergyResonanceShaderPack?.primeMaterials && Array.isArray(currentLinks) && currentLinks.length > 0) {
+                this.synergyResonanceShaderPack.primeMaterials(currentLinks);
+            }
+            this.scheduleSceneShaderWarmup('synergy-shader-prime');
+        } catch (err) {
+            console.warn('[main.js] Synergy shader priming failed:', err);
+        }
+
         // ====================================================================
         // WEEK 21: AI NETWORK RESONANCE FEEDBACK (Network-Level Feedback)
         // ====================================================================

@@ -95,6 +95,8 @@ Legacy systems moved out of the active path on 2026-03-03:
 - When meshes only differ by uniform values, reuse one `ShaderMaterial` instance and override per-mesh uniforms in `onBeforeRender` instead of cloning the material.
 - Late material creation after warmup should be audited explicitly via `checkLateMaterialCreation` so post-warmup GPU churn is visible during profiling.
 - Selective bloom refresh should prefer explicit refresh requests, with the periodic scene traversal acting as fallback only.
+- Shader patchers that wrap `onBeforeCompile` should preserve/combine `customProgramCacheKey` so identical shader source reuses one program variant.
+- Late shader priming should be followed by a scene warmup pass so patched programs compile outside the first render frame.
 
 ---
 

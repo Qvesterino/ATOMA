@@ -177,6 +177,7 @@ export class WaveDynamicsShaderPack_v1 {
             this.materialList = new Set();
             this.materialProfiles = new WeakMap();
             this.originalOnBeforeCompile = new WeakMap();
+            this.originalCustomProgramCacheKey = new WeakMap();
             this.materialUniforms = new WeakMap();
 
             // EMA state for smooth transitions
@@ -232,6 +233,7 @@ export class WaveDynamicsShaderPack_v1 {
 
             // Store original onBeforeCompile
             this.originalOnBeforeCompile.set(material, material.onBeforeCompile || (() => {}));
+            this.originalCustomProgramCacheKey.set(material, material.customProgramCacheKey || null);
 
             // Create patched onBeforeCompile
             material.onBeforeCompile = (shader) => {
@@ -246,6 +248,14 @@ export class WaveDynamicsShaderPack_v1 {
                     console.warn('[WaveDynamicsShaderPack_v1] onBeforeCompile patch error:', e);
                 }
             };
+
+            material.customProgramCacheKey = () => {
+                const originalKey = this.originalCustomProgramCacheKey.get(material);
+                const baseKey = typeof originalKey === 'function' ? originalKey() : (originalKey || '');
+                return `${baseKey ? `${baseKey}|` : ''}ATOMA_WAVE_DYNAMICS_v1`;
+            };
+
+            material.needsUpdate = true;
 
             // Mark as registered
             this.registeredMaterials.add(material);
@@ -357,6 +367,14 @@ export class WaveDynamicsShaderPack_v1 {
             // Restore original onBeforeCompile
             const original = this.originalOnBeforeCompile.get(material);
             material.onBeforeCompile = original;
+            const originalKey = this.originalCustomProgramCacheKey.get(material);
+            if (typeof originalKey === 'function') {
+                material.customProgramCacheKey = originalKey;
+            } else if (originalKey) {
+                material.customProgramCacheKey = originalKey;
+            } else {
+                delete material.customProgramCacheKey;
+            }
 
             // Remove from tracking
             this.registeredMaterials.delete?.(material);

@@ -124,6 +124,7 @@ export class WaveInterferencePatternSystem_Session132 {
         this._visualAccumulator = 0;
         this._visualStep = 1 / Math.max(1, this.config.visualUpdateHz);
         this._spikeDirections = this._buildSpikeDirections();
+        this._cameraRef = globalThis?.__ATOMA_CAMERA__ ?? null;
         
         // Material cache
         this.constructiveMaterial = null;
@@ -225,7 +226,8 @@ export class WaveInterferencePatternSystem_Session132 {
         this._calculateBeatPatterns(deltaTime);
         
         // Step 4: Render interference meshes
-        this._renderInterferenceMeshes(deltaTime);
+        const cameraPos = this._resolveCameraPosition();
+        this._renderInterferenceMeshes(deltaTime, cameraPos);
         
         // Step 5: Apply state modulation
         this._modulateByNetworkState(deltaTime);
@@ -661,7 +663,7 @@ export class WaveInterferencePatternSystem_Session132 {
     /**
      * Render interference mesh overlays
      */
-    _renderInterferenceMeshes(deltaTime) {
+    _renderInterferenceMeshes(deltaTime, cameraPos = null) {
         // Deactivate all interference meshes
         this.interferenceMeshPool.forEach(item => {
             item.active = false;
@@ -671,11 +673,12 @@ export class WaveInterferencePatternSystem_Session132 {
         if (this.interferenceZones.length === 0) return;
         
         let meshIndex = 0;
+        const resolvedCameraPos = cameraPos || this._resolveCameraPosition();
         
         this.interferenceZones.forEach(zone => {
             if (meshIndex >= this.config.maxConcurrentInterferences) return;
             
-            const pattern = this.beatPatterns.find(p => p.zone === zone);
+            const pattern = this.beatPatterns[meshIndex];
             if (!pattern) return;
             
             // Acquire mesh from pool
@@ -766,13 +769,10 @@ export class WaveInterferencePatternSystem_Session132 {
             }
             
             // Check LOD
-            if (this.config.enableLOD) {
-                const cameraPos = this._resolveCameraPosition();
-                if (cameraPos) {
-                    const distance = zone.convergencePoint.distanceTo(cameraPos);
-                    if (distance > this.config.lodDistance) {
-                        meshItem.mesh.visible = false;
-                    }
+            if (this.config.enableLOD && resolvedCameraPos) {
+                const distance = zone.convergencePoint.distanceTo(resolvedCameraPos);
+                if (distance > this.config.lodDistance) {
+                    meshItem.mesh.visible = false;
                 }
             }
             
@@ -1141,14 +1141,29 @@ export class WaveInterferencePatternSystem_Session132 {
     }
 
     _resolveCameraPosition() {
-        const sceneCamera = this.scene?.getObjectByName?.('camera')?.position;
-        if (sceneCamera) return sceneCamera;
+        const globalCamera = globalThis?.__ATOMA_CAMERA__;
+        if (globalCamera?.position) {
+            this._cameraRef = globalCamera;
+            return globalCamera.position;
+        }
+
+        if (this._cameraRef?.position) {
+            return this._cameraRef.position;
+        }
+
+        const sceneCamera = this.scene?.getObjectByName?.('camera') || this.scene?.getObjectByProperty?.('isCamera', true) || null;
+        if (sceneCamera?.position) {
+            this._cameraRef = sceneCamera;
+            return sceneCamera.position;
+        }
 
         if (typeof window !== 'undefined' && window.__ATOMA_CAMERA__?.position) {
+            this._cameraRef = window.__ATOMA_CAMERA__;
             return window.__ATOMA_CAMERA__.position;
         }
 
         if (globalThis.__ATOMA_CAMERA__?.position) {
+            this._cameraRef = globalThis.__ATOMA_CAMERA__;
             return globalThis.__ATOMA_CAMERA__.position;
         }
 
