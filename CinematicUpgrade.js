@@ -539,13 +539,13 @@ export class CinematicUpgrade {
     // Cinematic color grading parameters
     const toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMapping = toneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 0.98;
     
     // Color balance adjustments
     const colorBalance = {
-      shadows: new THREE.Vector3(1.0, 0.95, 1.05),      // Slight cyan in shadows
+      shadows: new THREE.Vector3(0.98, 0.95, 1.03),      // Slight cyan in shadows
       midtones: new THREE.Vector3(1.0, 1.0, 1.0),       // Neutral
-      highlights: new THREE.Vector3(1.05, 0.95, 0.95)   // Slight magenta in highlights
+      highlights: new THREE.Vector3(1.02, 0.97, 0.97)   // Slight magenta in highlights
     };
     
     return colorBalance;

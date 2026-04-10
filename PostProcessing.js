@@ -14,20 +14,36 @@ export class BloomPass {
 
     // Configuration
     this.options = {
-      strength: options.strength || 1.5,
-      radius: options.radius || 0.4,
-      threshold: options.threshold || 0.85,
-      scale: options.scale || 8,
-      exposure: options.exposure || 2.0,
-      vignetteStrength: options.vignetteStrength || 0.12,
-      tintStrength: options.tintStrength || 0.04,
-      chromaticStrength: options.chromaticStrength || 0.0012,
-      grainStrength: options.grainStrength || 0.01,
+      strength: options.strength ?? 1.14,
+      radius: options.radius ?? 0.42,
+      threshold: options.threshold ?? 0.84,
+      scale: options.scale ?? 6,
+      exposure: options.exposure ?? 1.16,
+      vignetteStrength: options.vignetteStrength ?? 0.19,
+      tintStrength: options.tintStrength ?? 0.035,
+      chromaticStrength: options.chromaticStrength ?? 0.00045,
+      grainStrength: options.grainStrength ?? 0.0045,
+      contrast: options.contrast ?? 1.12,
+      saturation: options.saturation ?? 0.98,
+      lift: options.lift ?? 0.006,
+      gamma: options.gamma ?? 0.99,
+      gain: options.gain ?? 1.03,
+      hazeStrength: options.hazeStrength ?? 0.065,
+      hazeColor: options.hazeColor ?? 0x8ecfff,
+      bloomLayerIndex: options.bloomLayerIndex ?? 1,
+      bloomLayerRefreshInterval: options.bloomLayerRefreshInterval ?? 12,
+      selectiveBloomEnabled: options.selectiveBloomEnabled ?? true,
       ...options
     };
 
     this.baseScale = this.options.scale;
     this.sceneMetrics = null;
+    this._frameCounter = 0;
+    this._bloomLayerRefreshFrame = 0;
+    this._bloomLayerRefreshInterval = Math.max(1, Math.round(this.options.bloomLayerRefreshInterval || 12));
+    this._pendingBloomCameraLayerMask = null;
+    this._selectiveBloomStats = { candidates: 0, tagged: 0, refreshedAt: 0 };
+    this._lastSelectiveBloomScene = null;
     this._smoothedAdaptive = {
       synergy: 0.5,
       harmony: 0.5,
@@ -77,6 +93,140 @@ export class BloomPass {
     return window.__ATOMA_LIVE_METRICS__ || {};
   }
 
+  _getBloomLayerIndex() {
+    return Number.isInteger(this.options.bloomLayerIndex) ? this.options.bloomLayerIndex : 1;
+  }
+
+  _resolveMaterialList(material) {
+    if (!material) return [];
+    return Array.isArray(material) ? material.filter(Boolean) : [material];
+  }
+
+  _isBloomCandidate(object) {
+    if (!object || object.visible === false) return false;
+
+    const data = object.userData || {};
+    if (
+      data.bloomLayer === true ||
+      data.bloom === true ||
+      data.selectiveBloom === true ||
+      data.isVFX === true ||
+      data.isSelectionGlow === true ||
+      data.isSelectionGlowHalo === true ||
+      data.isSelectionGlowPortal === true ||
+      data.isSelectionGlowSparkles === true ||
+      data.isSemanticParticle === true ||
+      data.isNodeCore === true ||
+      data.isNodeRoot === true ||
+      data.isNode === true ||
+      data.isLinkFX === true ||
+      data.isAura === true ||
+      data.isHighlight === true ||
+      data.linkVisual === true ||
+      data.nodeVisual === true ||
+      data.glowLayer ||
+      data.vfxType
+    ) {
+      return true;
+    }
+
+    const name = String(object.name || '').toLowerCase();
+    if (/(glow|halo|pulse|ring|flare|aura|bloom|spark|trail|beam|crown|shell|rim|core|emissive)/.test(name)) {
+      return true;
+    }
+
+    const materials = this._resolveMaterialList(object.material);
+    for (const material of materials) {
+      if (!material) continue;
+
+      const emissiveIntensity = Number.isFinite(material.emissiveIntensity) ? material.emissiveIntensity : 0;
+      if (emissiveIntensity >= 0.18) return true;
+
+      if (material.emissive?.isColor) {
+        const emissiveLuma =
+          (material.emissive.r * 0.299) +
+          (material.emissive.g * 0.587) +
+          (material.emissive.b * 0.114);
+        if (emissiveLuma > 0.2 && emissiveIntensity > 0.05) return true;
+      }
+
+      if (material.transparent === true && Number.isFinite(material.opacity) && material.opacity < 0.9) {
+        if (material.blending === THREE.AdditiveBlending || material.opacity <= 0.65) return true;
+      }
+    }
+
+    return false;
+  }
+
+  _markBloomLayerRecursive(object) {
+    if (!object) return;
+    const bloomLayerIndex = this._getBloomLayerIndex();
+    const apply = (item) => {
+      if (!item?.layers) return;
+      item.layers.enable(bloomLayerIndex);
+      item.userData = item.userData || {};
+      item.userData.__atomaBloomTagged = true;
+      item.userData.__atomaBloomTaggedLayer = bloomLayerIndex;
+    };
+
+    apply(object);
+
+    if (typeof object.traverse === 'function') {
+      object.traverse((child) => {
+        if (child !== object) {
+          apply(child);
+        }
+      });
+    }
+  }
+
+  _refreshSelectiveBloomTargets(force = false) {
+    if (!this.options.selectiveBloomEnabled || !this.scene) return;
+
+    this._bloomLayerRefreshFrame += 1;
+    if (!force && (this._bloomLayerRefreshFrame % this._bloomLayerRefreshInterval !== 0)) {
+      return;
+    }
+
+    let candidates = 0;
+    let tagged = 0;
+    this.scene.traverseVisible((object) => {
+      if (!this._isBloomCandidate(object)) return;
+      candidates += 1;
+      if (object.userData?.__atomaBloomTagged && object.userData?.__atomaBloomTaggedLayer === this._getBloomLayerIndex()) return;
+      this._markBloomLayerRecursive(object);
+      tagged += 1;
+    });
+
+    this._selectiveBloomStats = {
+      candidates,
+      tagged,
+      refreshedAt: typeof performance !== 'undefined' ? performance.now() : Date.now()
+    };
+  }
+
+  _saveCameraLayerMask(camera) {
+    return camera?.layers?.mask ?? null;
+  }
+
+  _restoreCameraLayerMask(camera, mask) {
+    if (!camera?.layers || !Number.isInteger(mask)) return;
+    camera.layers.mask = mask;
+  }
+
+  markBloomTarget(object, recursive = true) {
+    if (!object) return;
+    object.userData = object.userData || {};
+    object.userData.bloomLayer = true;
+    if (recursive) {
+      this._markBloomLayerRecursive(object);
+    } else if (object.layers) {
+      object.layers.enable(this._getBloomLayerIndex());
+      object.userData.__atomaBloomTagged = true;
+      object.userData.__atomaBloomTaggedLayer = this._getBloomLayerIndex();
+    }
+  }
+
   _resizeBloomTargets() {
     if (!this.renderTargets) return;
 
@@ -84,6 +234,7 @@ export class BloomPass {
     const height = Math.max(1, Math.floor(this.height / this.options.scale));
 
     this.renderTargets.luminosity?.setSize(width, height);
+    this.renderTargets.selectiveBloom?.setSize(width, height);
     this.renderTargets.blurred?.[0]?.setSize(width, height);
     this.renderTargets.blurred?.[1]?.setSize(width, height);
   }
@@ -155,45 +306,79 @@ export class BloomPass {
     }
 
     const strength = THREE.MathUtils.clamp(
-      this.options.strength * (0.82 + this._smoothedAdaptive.synergy * 0.22 + this._smoothedAdaptive.harmony * 0.1 - this._smoothedAdaptive.corruption * 0.12),
-      0.35,
-      2.5
+      this.options.strength * (0.74 + this._smoothedAdaptive.synergy * 0.16 + this._smoothedAdaptive.harmony * 0.08 - this._smoothedAdaptive.corruption * 0.08),
+      0.42,
+      1.85
     );
     const threshold = THREE.MathUtils.clamp(
-      this.options.threshold + brightness * 0.1 + pressure * 0.08 - this._smoothedAdaptive.synergy * 0.08 - (1 - this._smoothedAdaptive.stability) * 0.03,
-      0.05,
-      0.98
+      this.options.threshold + brightness * 0.08 + pressure * 0.05 - this._smoothedAdaptive.synergy * 0.06 - (1 - this._smoothedAdaptive.stability) * 0.02,
+      0.18,
+      0.97
     );
     const radius = THREE.MathUtils.clamp(
-      this.options.radius * (0.9 + this._smoothedAdaptive.synergy * 0.12 + this._smoothedAdaptive.stability * 0.1),
-      0.2,
+      this.options.radius * (0.84 + this._smoothedAdaptive.synergy * 0.1 + this._smoothedAdaptive.stability * 0.08),
+      0.18,
       1.5
     );
     const exposure = THREE.MathUtils.clamp(
-      this.options.exposure * (0.94 + this._smoothedAdaptive.synergy * 0.08 + brightness * 0.06 - this._smoothedAdaptive.corruption * 0.05),
-      0.6,
-      2.2
+      this.options.exposure * (0.9 + this._smoothedAdaptive.synergy * 0.05 + brightness * 0.04 - this._smoothedAdaptive.corruption * 0.04),
+      0.78,
+      1.8
     );
     const vignetteStrength = THREE.MathUtils.clamp(
-      this.options.vignetteStrength + pressure * 0.08 + this._smoothedAdaptive.corruption * 0.08 + (1 - this._smoothedAdaptive.stability) * 0.05,
-      0.04,
-      0.34
+      this.options.vignetteStrength + pressure * 0.05 + this._smoothedAdaptive.corruption * 0.05 + (1 - this._smoothedAdaptive.stability) * 0.03,
+      0.08,
+      0.28
     );
     const tintStrength = THREE.MathUtils.clamp(
-      this.options.tintStrength + this._smoothedAdaptive.synergy * 0.06 + this._smoothedAdaptive.corruption * 0.05,
+      this.options.tintStrength + this._smoothedAdaptive.synergy * 0.035 + this._smoothedAdaptive.corruption * 0.025,
       0,
-      0.18
+      0.09
     );
     const chromaticStrength = THREE.MathUtils.clamp(
-      this.options.chromaticStrength + this._smoothedAdaptive.corruption * 0.0022 + pressure * 0.0008,
+      this.options.chromaticStrength + this._smoothedAdaptive.corruption * 0.0012 + pressure * 0.0004,
       0,
-      0.01
+      0.0035
     );
     const grainStrength = THREE.MathUtils.clamp(
-      this.options.grainStrength + this._smoothedAdaptive.corruption * 0.01 + pressure * 0.006,
+      this.options.grainStrength + this._smoothedAdaptive.corruption * 0.0045 + pressure * 0.0025,
       0,
-      0.04
+      0.015
     );
+    const contrast = THREE.MathUtils.clamp(
+      this.options.contrast + this._smoothedAdaptive.synergy * 0.045 + this._smoothedAdaptive.stability * 0.035 - this._smoothedAdaptive.loadPressure * 0.035 - this._smoothedAdaptive.corruption * 0.025,
+      0.95,
+      1.3
+    );
+    const saturation = THREE.MathUtils.clamp(
+      this.options.saturation + this._smoothedAdaptive.harmony * 0.05 + this._smoothedAdaptive.synergy * 0.03 - this._smoothedAdaptive.corruption * 0.08,
+      0.82,
+      1.15
+    );
+    const lift = THREE.MathUtils.clamp(
+      this.options.lift + this._smoothedAdaptive.loadPressure * 0.015 + this._smoothedAdaptive.corruption * 0.012 - (1 - this._smoothedAdaptive.stability) * 0.008,
+      -0.03,
+      0.03
+    );
+    const gamma = THREE.MathUtils.clamp(
+      this.options.gamma + (1 - brightness) * 0.045 - this._smoothedAdaptive.synergy * 0.02 + this._smoothedAdaptive.corruption * 0.025,
+      0.9,
+      1.08
+    );
+    const gain = THREE.MathUtils.clamp(
+      this.options.gain + this._smoothedAdaptive.synergy * 0.035 + brightness * 0.03 - this._smoothedAdaptive.loadPressure * 0.02,
+      0.96,
+      1.12
+    );
+    const hazeStrength = THREE.MathUtils.clamp(
+      this.options.hazeStrength + pressure * 0.03 + this._smoothedAdaptive.corruption * 0.02 + (1 - this._smoothedAdaptive.stability) * 0.025 - this._smoothedAdaptive.synergy * 0.008,
+      0,
+      0.12
+    );
+    const hazeColor = new THREE.Color(this.options.hazeColor);
+    hazeColor.r = THREE.MathUtils.clamp(hazeColor.r * (1.0 + this._smoothedAdaptive.corruption * 0.02 - this._smoothedAdaptive.synergy * 0.01), 0, 1.1);
+    hazeColor.g = THREE.MathUtils.clamp(hazeColor.g * (1.0 + this._smoothedAdaptive.harmony * 0.025 + this._smoothedAdaptive.stability * 0.015), 0, 1.1);
+    hazeColor.b = THREE.MathUtils.clamp(hazeColor.b * (1.0 + this._smoothedAdaptive.synergy * 0.04 + this._smoothedAdaptive.stability * 0.02), 0, 1.15);
 
     const tintColor = new THREE.Color(0xffffff);
     tintColor.r = THREE.MathUtils.clamp(1.0 + this._smoothedAdaptive.corruption * 0.08 + this._smoothedAdaptive.synergy * 0.02, 0, 1.1);
@@ -210,6 +395,13 @@ export class BloomPass {
       tintStrength,
       chromaticStrength,
       grainStrength,
+      contrast,
+      saturation,
+      lift,
+      gamma,
+      gain,
+      hazeStrength,
+      hazeColor,
       tintColor
     };
   }
@@ -237,6 +429,13 @@ export class BloomPass {
     this.materials.composite.uniforms.tintStrength.value = state.tintStrength;
     this.materials.composite.uniforms.chromaticStrength.value = state.chromaticStrength;
     this.materials.composite.uniforms.grainStrength.value = state.grainStrength;
+    this.materials.composite.uniforms.contrast.value = state.contrast;
+    this.materials.composite.uniforms.saturation.value = state.saturation;
+    this.materials.composite.uniforms.lift.value = state.lift;
+    this.materials.composite.uniforms.gamma.value = state.gamma;
+    this.materials.composite.uniforms.gain.value = state.gain;
+    this.materials.composite.uniforms.hazeStrength.value = state.hazeStrength;
+    this.materials.composite.uniforms.hazeColor.value.copy(state.hazeColor);
     this.materials.composite.uniforms.tintColor.value.copy(state.tintColor);
     this.materials.composite.uniforms.time.value = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
 
@@ -247,11 +446,16 @@ export class BloomPass {
    * Create render targets
    */
   createRenderTargets() {
-    const width = Math.floor(this.width / this.options.scale);
-    const height = Math.floor(this.height / this.options.scale);
+    const width = Math.max(1, Math.floor(this.width / this.options.scale));
+    const height = Math.max(1, Math.floor(this.height / this.options.scale));
 
     this.renderTargets = {
       luminosity: new THREE.WebGLRenderTarget(width, height, {
+        format: THREE.RGBAFormat,
+        type: THREE.HalfFloatType,
+        generateMipmaps: false
+      }),
+      selectiveBloom: new THREE.WebGLRenderTarget(width, height, {
         format: THREE.RGBAFormat,
         type: THREE.HalfFloatType,
         generateMipmaps: false
@@ -330,6 +534,13 @@ export class BloomPass {
         tintStrength: { value: this.options.tintStrength },
         chromaticStrength: { value: this.options.chromaticStrength },
         grainStrength: { value: this.options.grainStrength },
+        contrast: { value: this.options.contrast },
+        saturation: { value: this.options.saturation },
+        lift: { value: this.options.lift },
+        gamma: { value: this.options.gamma },
+        gain: { value: this.options.gain },
+        hazeStrength: { value: this.options.hazeStrength },
+        hazeColor: { value: new THREE.Color(this.options.hazeColor) },
         time: { value: 0 }
       },
       vertexShader: `
@@ -349,6 +560,13 @@ export class BloomPass {
         uniform float tintStrength;
         uniform float chromaticStrength;
         uniform float grainStrength;
+        uniform float contrast;
+        uniform float saturation;
+        uniform float lift;
+        uniform float gamma;
+        uniform float gain;
+        uniform float hazeStrength;
+        uniform vec3 hazeColor;
         uniform float time;
         varying vec2 vUv;
 
@@ -365,6 +583,26 @@ export class BloomPass {
           return vec3(r, g, b);
         }
 
+        vec3 applyContrast(vec3 color, float amount) {
+          return (color - 0.5) * amount + 0.5;
+        }
+
+        vec3 applySaturation(vec3 color, float amount) {
+          float luma = dot(color, vec3(0.299, 0.587, 0.114));
+          return mix(vec3(luma), color, amount);
+        }
+
+        vec3 applyLiftGain(vec3 color, float liftAmount, float gammaAmount, float gainAmount) {
+          vec3 lifted = max(color + vec3(liftAmount), vec3(0.0));
+          lifted *= gainAmount;
+          return pow(max(lifted, vec3(0.0)), vec3(max(gammaAmount, 0.001)));
+        }
+
+        vec3 filmicTonemap(vec3 color) {
+          color = max(color, vec3(0.0));
+          return clamp((color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14), 0.0, 1.0);
+        }
+
         void main() {
           vec3 sceneColor = texture2D(tScene, vUv).rgb;
           if (chromaticStrength > 0.00001) {
@@ -377,21 +615,33 @@ export class BloomPass {
           
           // Additive blend
           vec3 finalColor = sceneColor + bloomColor;
+          float finalLuma = dot(finalColor, vec3(0.299, 0.587, 0.114));
+          float bloomLuma = dot(bloomColor, vec3(0.299, 0.587, 0.114));
 
           // Subtle cinematic tinting / grading
           finalColor = mix(finalColor, finalColor * tintColor, tintStrength);
+          finalColor = applyContrast(finalColor, contrast);
+          finalColor = applySaturation(finalColor, saturation);
+          finalColor = applyLiftGain(finalColor, lift, gamma, gain);
+
+          // Ambient atmospheric haze to soften the frame edges
+          float distFromCenter = distance(vUv, vec2(0.5));
+          float hazeMask = smoothstep(0.08, 0.92, distFromCenter);
+          vec3 hazeMix = hazeColor * (0.28 + finalLuma * 0.12 + bloomLuma * 0.18);
+          finalColor += hazeMix * hazeStrength * hazeMask;
 
           // Gentle edge vignette to focus the frame
-          float distFromCenter = distance(vUv, vec2(0.5));
           float vignette = smoothstep(0.34, 0.82, distFromCenter);
           finalColor *= 1.0 - vignette * vignetteStrength;
 
+          // Filmic response so the frame reads more like a curated render than a raw bloom stack
+          finalColor = filmicTonemap(finalColor);
+
           // Film grain to keep the image from feeling too flat
-          float grain = hash(vUv * vec2(1920.0, 1080.0) + time) - 0.5;
+          float grainPhase = floor(time * 12.0) * 0.25;
+          float grain = hash(vUv * vec2(1920.0, 1080.0) + grainPhase) - 0.5;
           finalColor += grain * grainStrength;
-          
-          // Optional tone mapping
-          finalColor = finalColor / (finalColor + vec3(1.0));
+          finalColor = clamp(finalColor, 0.0, 1.0);
           
           gl_FragColor = vec4(finalColor, 1.0);
         }
@@ -528,36 +778,86 @@ export class BloomPass {
    */
   updateParams(params) {
     if (params.strength !== undefined) {
+      this.options.strength = params.strength;
       this.materials.composite.uniforms.strength.value = params.strength;
     }
     if (params.threshold !== undefined) {
+      this.options.threshold = params.threshold;
       this.materials.luminosity.uniforms.threshold.value = params.threshold;
     }
     if (params.exposure !== undefined) {
+      this.options.exposure = params.exposure;
       this.materials.composite.uniforms.exposure.value = params.exposure;
     }
     if (params.radius !== undefined) {
+      this.options.radius = params.radius;
       this.materials.blurHorizontal.uniforms.radius.value = params.radius;
       this.materials.blurVertical.uniforms.radius.value = params.radius;
     }
     if (params.vignetteStrength !== undefined) {
+      this.options.vignetteStrength = params.vignetteStrength;
       this.materials.composite.uniforms.vignetteStrength.value = params.vignetteStrength;
     }
     if (params.tintStrength !== undefined) {
+      this.options.tintStrength = params.tintStrength;
       this.materials.composite.uniforms.tintStrength.value = params.tintStrength;
     }
     if (params.chromaticStrength !== undefined) {
+      this.options.chromaticStrength = params.chromaticStrength;
       this.materials.composite.uniforms.chromaticStrength.value = params.chromaticStrength;
     }
     if (params.grainStrength !== undefined) {
+      this.options.grainStrength = params.grainStrength;
       this.materials.composite.uniforms.grainStrength.value = params.grainStrength;
     }
+    if (params.contrast !== undefined) {
+      this.options.contrast = params.contrast;
+      this.materials.composite.uniforms.contrast.value = params.contrast;
+    }
+    if (params.saturation !== undefined) {
+      this.options.saturation = params.saturation;
+      this.materials.composite.uniforms.saturation.value = params.saturation;
+    }
+    if (params.lift !== undefined) {
+      this.options.lift = params.lift;
+      this.materials.composite.uniforms.lift.value = params.lift;
+    }
+    if (params.gamma !== undefined) {
+      this.options.gamma = params.gamma;
+      this.materials.composite.uniforms.gamma.value = params.gamma;
+    }
+    if (params.gain !== undefined) {
+      this.options.gain = params.gain;
+      this.materials.composite.uniforms.gain.value = params.gain;
+    }
+    if (params.hazeStrength !== undefined) {
+      this.options.hazeStrength = params.hazeStrength;
+      this.materials.composite.uniforms.hazeStrength.value = params.hazeStrength;
+    }
+    if (params.hazeColor !== undefined) {
+      this.options.hazeColor = params.hazeColor;
+      this.materials.composite.uniforms.hazeColor.value.set(params.hazeColor);
+    }
     if (params.tintColor !== undefined) {
+      this.options.tintColor = params.tintColor;
       this.materials.composite.uniforms.tintColor.value.set(params.tintColor);
     }
     if (params.scale !== undefined) {
+      this.options.scale = params.scale;
       this.baseScale = Math.max(2, Math.round(params.scale));
       this._setDownsampleScale(this.baseScale);
+    }
+    if (params.selectiveBloomEnabled !== undefined) {
+      this.options.selectiveBloomEnabled = params.selectiveBloomEnabled;
+      this._selectiveBloomStats.refreshedAt = 0;
+    }
+    if (params.bloomLayerIndex !== undefined) {
+      this.options.bloomLayerIndex = params.bloomLayerIndex;
+      this._selectiveBloomStats.refreshedAt = 0;
+    }
+    if (params.bloomLayerRefreshInterval !== undefined) {
+      this.options.bloomLayerRefreshInterval = params.bloomLayerRefreshInterval;
+      this._bloomLayerRefreshInterval = Math.max(1, Math.round(params.bloomLayerRefreshInterval || 1));
     }
   }
 
@@ -669,9 +969,9 @@ export class PostProcessingPipeline {
 
     // Create bloom pass
     this.bloomPass = new BloomPass(renderer, scene, camera, {
-      strength: options.bloomStrength || 1.5,
-      radius: options.bloomRadius || 0.4,
-      threshold: options.bloomThreshold || 0.85,
+      strength: options.bloomStrength ?? options.strength ?? 1.14,
+      radius: options.bloomRadius ?? options.radius ?? 0.42,
+      threshold: options.bloomThreshold ?? options.threshold ?? 0.84,
       ...options
     });
 
@@ -701,8 +1001,27 @@ export class PostProcessingPipeline {
       this.sceneMetrics = { ...metrics };
     }
 
+    if (scene) {
+      this.scene = scene;
+    }
+    if (camera) {
+      this.camera = camera;
+    }
+
     if (typeof this.bloomPass?.updateSceneMetrics === 'function') {
       this.bloomPass.updateSceneMetrics(this.sceneMetrics || undefined);
+    }
+
+    if (this.bloomPass) {
+      this.bloomPass.scene = this.scene;
+      this.bloomPass.camera = this.camera;
+      if (typeof this.bloomPass._refreshSelectiveBloomTargets === 'function') {
+        const shouldForceBloomRefresh =
+          this.bloomPass._selectiveBloomStats?.refreshedAt === 0 ||
+          this.bloomPass._lastSelectiveBloomScene !== this.scene;
+        this.bloomPass._lastSelectiveBloomScene = this.scene;
+        this.bloomPass._refreshSelectiveBloomTargets(shouldForceBloomRefresh);
+      }
     }
 
     // 1) Render base scene into main render target
@@ -715,8 +1034,28 @@ export class PostProcessingPipeline {
       }
     ];
 
+    const useSelectiveBloom = this.bloomPass?.options?.selectiveBloomEnabled !== false && !!this.bloomPass?.renderTargets?.selectiveBloom;
+    if (useSelectiveBloom) {
+      const bloomLayerIndex = this.bloomPass._getBloomLayerIndex();
+      operations.push({
+        target: this.bloomPass.renderTargets.selectiveBloom,
+        scene: this.scene,
+        camera: this.camera,
+        label: 'bloom.selectiveSource',
+        before: () => {
+          this.bloomPass._pendingBloomCameraLayerMask = this.bloomPass._saveCameraLayerMask(this.camera);
+          this.camera?.layers?.set?.(bloomLayerIndex);
+        },
+        after: () => {
+          this.bloomPass._restoreCameraLayerMask(this.camera, this.bloomPass._pendingBloomCameraLayerMask);
+          this.bloomPass._pendingBloomCameraLayerMask = null;
+        }
+      });
+    }
+
     // 2) Bloom passes (luminosity + blurs)
-    operations.push(...this.bloomPass.getPasses(this.mainRenderTarget));
+    const bloomSourceTarget = useSelectiveBloom ? this.bloomPass.renderTargets.selectiveBloom : this.mainRenderTarget;
+    operations.push(...this.bloomPass.getPasses(bloomSourceTarget));
 
     // 3) Prepare composite for screen render
     const output = this.bloomPass.getCompositeOutput(this.mainRenderTarget);

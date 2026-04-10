@@ -15,12 +15,12 @@
  * Performance: 0.5–1.0ms per 200 nodes (fully disabled in LowFX mode)
  * 
  * Uniforms Used (from PersonalityShaderBridge_v1):
- * - uEntropy: [0, 1] chaos signal
+ * - uSynergy: [0, 1] synergy signal
+ * - uHarmony: [0, 1] harmony signal
  * - uCorruption: [0, 1] corruption signal
- * - uFocus: [0, 1] focus signal
- * - uEnergy: [0, 1] energy signal
-  * - uResonance: [0, 1] link resonance signal
-  * - uQuality: [0, 1] FX quality scaler
+ * - uStability: [0, 1] stability signal
+ * - uLoadPressure: [0, 1] load pressure signal
+ * - uQuality: [0, 1] FX quality scaler
  */
 
 // Private symbol to track patched materials - prevents repeated shader compilation
@@ -242,14 +242,18 @@ export class PersonalityShaderAdvancedFX_v1 {
 
       // Add uniforms for personality signals (graceful fallback if not present)
       shader.uniforms = shader.uniforms || {};
-      shader.uniforms.uEntropy = { value: 0.0 };
+      shader.uniforms.uSynergy = { value: 0.0 };
+      shader.uniforms.uHarmony = { value: 0.0 };
       shader.uniforms.uCorruption = { value: 0.0 };
-      shader.uniforms.uFocus = { value: 0.0 };
-      shader.uniforms.uEnergy = { value: 0.0 };
-      shader.uniforms.uResonance = { value: 0.0 };
+      shader.uniforms.uStability = { value: 0.0 };
+      shader.uniforms.uLoadPressure = { value: 0.0 };
       shader.uniforms.uQuality = { value: 1.0 };
       shader.uniforms.uTime = { value: 0.0 };
       shader.uniforms.uLowFXMode = { value: 0.0 };
+      shader.uniforms.uEntropy = shader.uniforms.uEntropy || { value: 0.0 };
+      shader.uniforms.uFocus = shader.uniforms.uFocus || { value: 0.0 };
+      shader.uniforms.uEnergy = shader.uniforms.uEnergy || { value: 0.0 };
+      shader.uniforms.uResonance = shader.uniforms.uResonance || { value: 0.0 };
     };
   }
 
@@ -260,29 +264,29 @@ export class PersonalityShaderAdvancedFX_v1 {
   _getDistortionLogic(profile) {
     switch (profile) {
       case 'chaos':
-        return `distortedPos = chaosDistortion(position, uEntropy, uTime) * mix(1.0, 0.75, uLowFXMode) * uQuality;`;
+        return `distortedPos = chaosDistortion(position, max(uLoadPressure, uCorruption), uTime) * mix(1.0, 0.75, uLowFXMode) * uQuality;`;
       
       case 'energy':
-        return `distortedPos = energyRipple(position, uEnergy, uTime) * mix(1.0, 0.6, uLowFXMode) * uQuality;`;
+        return `distortedPos = energyRipple(position, uSynergy, uTime) * mix(1.0, 0.6, uLowFXMode) * uQuality;`;
       
       case 'resonance':
-        return `distortedPos = resonanceBands(position, uResonance, uTime) * mix(1.0, 0.5, uLowFXMode) * uQuality;`;
+        return `distortedPos = resonanceBands(position, uHarmony, uTime) * mix(1.0, 0.5, uLowFXMode) * uQuality;`;
       
       case 'focus':
-        return `distortedPos = focusWarp(position, uFocus, uTime) * mix(1.0, 0.4, uLowFXMode) * uQuality;`;
+        return `distortedPos = focusWarp(position, uStability, uTime) * mix(1.0, 0.4, uLowFXMode) * uQuality;`;
       
       case 'corruption':
         return `distortedPos = corruptionFracture(position, uCorruption, uTime) * mix(1.0, 0.3, uLowFXMode) * uQuality;`;
       
       case 'link_flux':
-        return `distortedPos = energyRipple(position, uResonance, uTime) * uQuality * (1.0 - uLowFXMode * 0.5);`;
+        return `distortedPos = energyRipple(position, uSynergy * 0.75 + uLoadPressure * 0.25, uTime) * uQuality * (1.0 - uLowFXMode * 0.5);`;
       
       default:
-        // Blend multiple effects
+        // Blend multiple effects using current metric signals
         return `
-          vec3 d1 = chaosDistortion(position, uEntropy, uTime);
-          vec3 d2 = energyRipple(position, uEnergy, uTime);
-          vec3 d3 = resonanceBands(position, uResonance, uTime);
+          vec3 d1 = chaosDistortion(position, max(uLoadPressure, uCorruption), uTime);
+          vec3 d2 = energyRipple(position, uSynergy, uTime);
+          vec3 d3 = resonanceBands(position, uHarmony, uTime);
           distortedPos = mix(d1, mix(d2, d3, 0.5), 0.33) * uQuality * (1.0 - uLowFXMode * 0.7);
         `;
     }
@@ -358,21 +362,21 @@ export class PersonalityShaderAdvancedFX_v1 {
     this.globalTime = currentVisualTime;
 
     // Extract personality signals (with graceful defaults)
-    const entropy = personalitySignals.entropy ?? 0.0;
+    const synergy = personalitySignals.synergy ?? 0.0;
+    const harmony = personalitySignals.harmony ?? 0.0;
     const corruption = personalitySignals.corruption ?? 0.0;
-    const focus = personalitySignals.focus ?? 0.0;
-    const energy = personalitySignals.energy ?? 0.0;
-    const resonance = personalitySignals.resonance ?? 0.0;
+    const stability = personalitySignals.stability ?? 0.0;
+    const loadPressure = personalitySignals.loadPressure ?? personalitySignals.aLoadPressure ?? 0.0;
     const quality = personalitySignals.quality ?? this.qualityScale;
 
     // Update uniforms for all registered materials
     this.materials.forEach((profile, material) => {
       if (material.uniforms) {
-        material.uniforms.uEntropy.value = entropy;
+        material.uniforms.uSynergy.value = synergy;
+        material.uniforms.uHarmony.value = harmony;
         material.uniforms.uCorruption.value = corruption;
-        material.uniforms.uFocus.value = focus;
-        material.uniforms.uEnergy.value = energy;
-        material.uniforms.uResonance.value = resonance;
+        material.uniforms.uStability.value = stability;
+        material.uniforms.uLoadPressure.value = loadPressure;
         material.uniforms.uQuality.value = quality;
         material.uniforms.uTime.value = currentVisualTime;
         material.uniforms.uLowFXMode.value = this.lowFXMode ? 1.0 : 0.0;

@@ -226,7 +226,6 @@ export class VisualUpgradeSuperpack {
 
         this.applyVolumetricLightPack();
         this.applyAmbientFogPack();
-        this.applyHolographicEdgeGlowPack();
         this.applyCinematicColorGradingPack();
         this.applyNeonDreamPostfxPack();
         this.applyQuantumDistortionPack();
@@ -532,18 +531,18 @@ export class VisualUpgradeSuperpack {
     applyCinematicColorGradingPack() {
         // Apply tone mapping and color grading
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.15;
+        this.renderer.toneMappingExposure = 1.0;
 
         // Store color grading parameters
         this.colorGrading = {
             tealMagentaBalance: {
-                shadows: new THREE.Vector3(0.95, 0.9, 1.1),  // Cyan in shadows
+                shadows: new THREE.Vector3(0.96, 0.92, 1.08),  // Cyan in shadows
                 midtones: new THREE.Vector3(1.0, 1.0, 1.0),  // Neutral
-                highlights: new THREE.Vector3(1.1, 0.9, 1.0) // Magenta in highlights
+                highlights: new THREE.Vector3(1.06, 0.94, 0.98) // Magenta in highlights
             },
-            contrast: 1.1,
-            saturation: 1.05,
-            brightness: 0.95
+            contrast: 1.06,
+            saturation: 1.0,
+            brightness: 0.92
         };
     }
 
@@ -1059,7 +1058,7 @@ export class VisualUpgradeSuperpack {
     getRendererSettings() {
         return {
             toneMapping: THREE.ACESFilmicToneMapping,
-            toneMappingExposure: 1.15,
+            toneMappingExposure: 1.0,
             outputColorSpace: THREE.SRGBColorSpace
         };
     }
