@@ -38,6 +38,8 @@ class PlayerController {
     this._localForward = new THREE.Vector3();
     this._localRight = new THREE.Vector3();
     this._moveDirection = new THREE.Vector3();
+    this._playerCollisionBox = new THREE.Box3();
+    this._collisionObjectBox = new THREE.Box3();
     this._keydownHandler = (e) => { this.keys[e.code] = true; };
     this._keyupHandler = (e) => { this.keys[e.code] = false; };
 
@@ -106,6 +108,13 @@ class PlayerController {
     const blockingObjects = this.getBlockingCollisionObjects(collisionObjects);
     if (!blockingObjects.length) {
       return false;
+    }
+
+    if (!this._playerCollisionBox) {
+      this._playerCollisionBox = new THREE.Box3();
+    }
+    if (!this._collisionObjectBox) {
+      this._collisionObjectBox = new THREE.Box3();
     }
 
     const minY = this.player.position.y;

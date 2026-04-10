@@ -36,6 +36,7 @@ export class UICategoryLegend3_1 {
     // Node count tracking
     this.categoryCounts = new Map();
     this.labelElements = new Map(); // Cache label DOM elements for efficient updates
+    this.itemElements = new Map();
     
     // Calculate max category name length for padding
     this.maxCategoryNameLength = 0;
@@ -86,17 +87,18 @@ export class UICategoryLegend3_1 {
       left: 10px;
       max-width: 150px;
       max-height: 420px;
-      background: rgba(20, 30, 60, 0.65);
-      border: 1.5px solid #36F2FF;
-      border-radius: 8px;
-      padding: 10px 8px;
+      background: linear-gradient(180deg, rgba(12, 18, 35, 0.84), rgba(8, 12, 24, 0.72));
+      border: 1px solid rgba(54, 242, 255, 0.75);
+      box-shadow: 0 0 24px rgba(54, 242, 255, 0.15), inset 0 0 20px rgba(54, 242, 255, 0.04);
+      border-radius: 10px;
+      padding: 10px 9px 9px;
       font-family: 'Rajdhani', 'Segoe UI', sans-serif;
       font-size: 10px;
       color: #36F2FF;
       letter-spacing: 0.4px;
       z-index: 1200;
       overflow-y: auto;
-      backdrop-filter: blur(8px);
+      backdrop-filter: blur(12px) saturate(1.1);
     `;
 
     // Mood display panel
@@ -148,10 +150,10 @@ export class UICategoryLegend3_1 {
         display: flex;
         align-items: center;
         gap: 6px;
-        margin-bottom: 3px;
-        padding: 2px 4px;
-        border-radius: 3px;
-        transition: background 0.2s ease;
+        margin-bottom: 4px;
+        padding: 2px 5px;
+        border-radius: 4px;
+        transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
       `;
       
       // Dot indicator
@@ -172,6 +174,7 @@ export class UICategoryLegend3_1 {
         white-space: pre;
         font-size: 9px;
         font-family: 'Courier New', monospace;
+        text-shadow: 0 0 8px rgba(54, 242, 255, 0.2);
       `;
       // Initial label with no count
       label.textContent = this._formatLabelText(name, 0);
@@ -181,13 +184,18 @@ export class UICategoryLegend3_1 {
       
       item.appendChild(dot);
       item.appendChild(label);
+      this.itemElements.set(name, item);
       
       // Hover effect
       item.addEventListener('mouseenter', () => {
-        item.style.background = `rgba(54, 242, 255, 0.1)`;
+        item.style.background = `rgba(54, 242, 255, 0.12)`;
+        item.style.boxShadow = 'inset 0 0 0 1px rgba(54, 242, 255, 0.16)';
+        item.style.transform = 'translateX(1px)';
       });
       item.addEventListener('mouseleave', () => {
         item.style.background = 'transparent';
+        item.style.boxShadow = 'none';
+        item.style.transform = 'translateX(0)';
       });
       
       this.element.appendChild(item);
@@ -253,7 +261,7 @@ export class UICategoryLegend3_1 {
    */
   _formatLabelText(name, count) {
     const padding = ' '.repeat(this.maxCategoryNameLength - name.length + 2);
-    const signalBar = count > 0 ? 'I'.repeat(count) : '';
+    const signalBar = count > 0 ? '▮'.repeat(Math.min(count, 5)) : '·';
     return `${name}${padding}${signalBar}`;
   }
   
@@ -284,8 +292,18 @@ export class UICategoryLegend3_1 {
     // Update label text efficiently (no DOM rebuilding)
     for (const [category, count] of this.categoryCounts.entries()) {
       const labelElement = this.labelElements.get(category);
+      const itemElement = this.itemElements.get(category);
       if (labelElement) {
         labelElement.textContent = this._formatLabelText(category, count);
+      }
+      if (itemElement) {
+        if (count > 0) {
+          itemElement.style.background = 'rgba(54, 242, 255, 0.08)';
+          itemElement.style.boxShadow = 'inset 0 0 0 1px rgba(54, 242, 255, 0.12)';
+        } else {
+          itemElement.style.background = 'transparent';
+          itemElement.style.boxShadow = 'none';
+        }
       }
     }
   }

@@ -1,0 +1,94 @@
+- generic [active] [ref=e33]:
+  - generic [ref=e36]:
+    - generic [ref=e37]: AI STATUS
+    - generic [ref=e38]:
+      - generic [ref=e39]:
+        - generic [ref=e40]: Stability
+        - generic [ref=e41]: 100%
+      - generic [ref=e42]:
+        - generic [ref=e43]: Risk
+        - generic [ref=e44]: 0%
+      - generic:
+        - generic [ref=e45]:
+          - generic [ref=e46]: Recovery
+          - generic [ref=e47]: HIGH
+        - generic [ref=e48]:
+          - generic [ref=e49]: "Insight:"
+          - generic [ref=e50]: No primary node selected.
+  - generic: "SELECTED: NONE"
+  - generic [ref=e51]:
+    - generic [ref=e52]:
+      - generic [ref=e53]: Core Metrics
+      - button "Toggle Core Metrics" [expanded] [ref=e54] [cursor=pointer]: ▲
+    - generic [ref=e55]:
+      - generic [ref=e56]:
+        - generic [ref=e57]: "NETWORK SYNERGY:"
+        - generic [ref=e58]: "0.000000"
+      - generic [ref=e60]:
+        - generic [ref=e61]: "HARMONY FLOW:"
+        - generic [ref=e62]: "0.000000"
+      - generic [ref=e64]:
+        - generic [ref=e65]: "NETWORK STRESS:"
+        - generic [ref=e66]: "0.000000"
+      - generic [ref=e68]:
+        - generic [ref=e69]: "CORRUPTION LEVEL:"
+        - generic [ref=e70]: "0.000000"
+      - generic [ref=e72]:
+        - generic [ref=e73]: "LOAD PRESSURE:"
+        - generic [ref=e74]: "0.000000"
+      - generic [ref=e76]: "NETWORK TIME: 00008"
+      - button "Switch to Glyph Mode" [ref=e77] [cursor=pointer]
+  - generic:
+    - generic: Procedural AI poetry online — inspect a node to hear its whisper.
+  - generic "links=0, resistant=10, pressure=0, reflections=0, zones=0, traps=0, state=none, radius=0.00, ampAvg=0.00, ampPeak=0.00, antinodes=0, ruptures=0, cascades=0, preZones=0, recoveryZones=0, wavePool=0, haloPool=0, activeParticles=0": "R:0 | T:0 | A:0 P:0 | amp:0.00 | peak:0.00 state:none | radius:0.00 rupt:0 | casc:0 | pre:0 recovery: zones:0 | waves:0 | halos:0 | parts:0"
+  - generic [ref=e78]:
+    - generic [ref=e79]:
+      - generic [ref=e80]: Node Categories
+      - button "Toggle Node Categories" [expanded] [ref=e81] [cursor=pointer]: ▲
+    - generic [ref=e82]:
+      - generic [ref=e85]: INPUT ▮
+      - generic [ref=e88]: PROCESS ▮
+      - generic [ref=e91]: INTEGRATION ▮
+      - generic [ref=e94]: ANALYTICS ▮▮
+      - generic [ref=e97]: STORAGE ▮
+      - generic [ref=e100]: CONTROL ▮▮
+      - generic [ref=e103]: SIGMA ▮
+      - generic [ref=e106]: EMOTIONAL ▮▮
+      - generic [ref=e109]: QUANTUM ▮
+      - generic [ref=e112]: MYTHIC ▮
+      - generic [ref=e115]: PRIME ▮
+      - generic [ref=e118]: ERROR ▮
+  - generic [ref=e119]:
+    - generic [ref=e120]:
+      - generic [ref=e121]: AI Automation HUD
+      - button "Toggle AI Automation HUD" [expanded] [ref=e122] [cursor=pointer]: ▲
+    - generic [ref=e124]:
+      - generic [ref=e125]:
+        - generic [ref=e126]: Status
+        - generic [ref=e127]: "Status: ENABLED"
+        - generic [ref=e128]: "Mode: AUTOMATION_LIVE"
+        - generic [ref=e129]: "Last Update: 09:17:24"
+      - generic [ref=e130]:
+        - generic [ref=e131]: Engine Snapshot
+        - generic [ref=e132]: "Links Created: 0"
+        - generic [ref=e133]: "Links Collapsed: 0"
+        - generic [ref=e134]: "Recovery Ready: HIGH"
+      - generic [ref=e135]:
+        - generic [ref=e136]: Observation
+        - generic [ref=e137]: "Network State: stable"
+        - generic [ref=e138]:
+          - generic [ref=e139]:
+            - generic [ref=e140]: cascade.hop
+            - generic [ref=e141]: 0 total · 0.00/s
+          - generic [ref=e142]:
+            - generic [ref=e143]: cascadeIntensity
+            - generic [ref=e144]: 0% avg · 0% peak · 0/0 links
+          - generic [ref=e145]:
+            - generic [ref=e146]: waveBurst
+            - generic [ref=e147]: idle · bridge on · lifecycle 0
+          - generic [ref=e148]:
+            - generic [ref=e149]: waveField
+            - generic [ref=e150]: idle · lifecycle 0
+      - generic [ref=e151]:
+        - generic [ref=e152]: Recommendations
+        - generic [ref=e154]: No recommendations available.

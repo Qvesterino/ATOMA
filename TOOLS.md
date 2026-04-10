@@ -61,6 +61,16 @@ When running browser/runtime validation in this workspace:
   - Python server: `http://localhost:8080/`
 - use Microsoft Edge for manual smoke testing when a browser choice matters
 
+### Live Browser Freshness Check
+
+When a browser session appears stale or inconsistent:
+
+- do not assume a normal refresh is enough
+- verify the loaded runtime by checking a known freshly-added log, sentinel, or function body in the browser context
+- if freshness is unclear, start a new browser context and hard-bust cache before concluding the code is unchanged
+- prefer the user's actual test browser when possible, but do not let browser choice mask a stale runtime
+- if a verification result depends on live code freshness, state that explicitly before trusting the result
+
 ---
 
 ## Search Discipline

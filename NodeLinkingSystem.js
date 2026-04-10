@@ -52,13 +52,6 @@ import { LinkRendererConduit } from './LinkRendererConduit.js';
 import { LinkEmissionPulsingSystem } from './LinkEmissionPulsingSystem.js';
 import { LinkStateVisualLanguageIntegration } from './LinkStateVisualLanguageIntegration.js';
 import { LinkEventVisualCoordinator_v1 } from './LinkEventVisualCoordinator_v1.js';
-import { 
-  UndoRedoSystem, 
-  CreateLinkCommand, 
-  RemoveLinkCommand, 
-  BulkCreateLinksCommand, 
-  BulkRemoveLinksCommand 
-} from './UndoRedoSystem.js';
 import { onLinkCreated, onLinkRemoved, applyMetricImpulse } from './src/metrics/NodeMetricEngine.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 // REMOVED: NodeCoreMaterialAuthority - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
@@ -689,10 +682,8 @@ export class NodeLinkingSystem {
     };
     
     // [Session 144+] Undo/Redo system for reversible operations
-    this.undoRedo = new UndoRedoSystem(this, {
-      maxHistorySize: 50,
-      verbose: false
-    });
+    // Disabled and moved to LEGACY/Delete
+    this.undoRedo = null;
     
     this.setupEventListeners();
   }
@@ -1306,10 +1297,13 @@ export class NodeLinkingSystem {
         return;
       }
       
-      // [Session 144+] Record bulk link creation as single undoable operation
-      const bulkCommand = new BulkCreateLinksCommand(this, this.selectedNodes, clickedNode);
-      bulkCommand.execute();
-      this.undoRedo.recordCommand(bulkCommand);
+      // [Session 144+] Create links from selected nodes to target without undo/redo
+      for (const sourceNode of this.selectedNodes) {
+        if (sourceNode === clickedNode) continue;
+        if (this.linkExists(sourceNode, clickedNode)) continue;
+        if (this.validateLink(sourceNode, clickedNode)) continue;
+        this.createLink(sourceNode, clickedNode);
+      }
       
       console.log(`[Multi-Select] Created links from ${this.selectedNodes.size} nodes to target`);
       
@@ -1416,10 +1410,10 @@ export class NodeLinkingSystem {
     
     console.log(`[Primary Node] Removing ${linksToRemove.length} links from node`);
     
-    // [Session 144+] Record bulk removal as single undoable operation
-    const bulkCommand = new BulkRemoveLinksCommand(this, [node]);
-    bulkCommand.execute();
-    this.undoRedo.recordCommand(bulkCommand);
+// [Session 144+] Remove all links from node without undo/redo
+      for (const link of linksToRemove) {
+        this.removeLink(link);
+    }
   }
   
   /**
@@ -1566,10 +1560,10 @@ export class NodeLinkingSystem {
   removeLinksFromMultiSelected() {
     if (!this.multiSelectMode) return;
     
-    // [Session 144+] Record bulk removal as single undoable operation
-    const bulkCommand = new BulkRemoveLinksCommand(this, this.selectedNodes);
-    bulkCommand.execute();
-    this.undoRedo.recordCommand(bulkCommand);
+    // [Session 144+] Remove links from selected nodes without undo/redo
+    for (const node of this.selectedNodes) {
+      this.removeAllLinksFromNode(node);
+    }
     
     console.log(`[Multi-Select] Removed all links from ${this.selectedNodes.size} nodes`);
   }
@@ -2233,6 +2227,23 @@ export class NodeLinkingSystem {
     }
   }
 
+  _resolveNodeGlowPalette(node) {
+    const fallback = 0xb7f6ff;
+    const direct = node?.userData?.color ?? node?.userData?.colorHex ?? node?.material?.color?.getHex?.();
+    const base = (typeof direct === 'number' && Number.isFinite(direct)) ? direct : fallback;
+    const accent = new THREE.Color(base);
+    const warm = accent.clone().lerp(new THREE.Color(0xffffff), 0.18).getHex();
+    const cool = accent.clone().lerp(new THREE.Color(0x8ff7ff), 0.22).getHex();
+    const contrast = accent.clone().lerp(new THREE.Color(0x6b5cff), 0.24).getHex();
+
+    return {
+      base,
+      warm,
+      cool,
+      contrast
+    };
+  }
+
   _createNodeSelectionGlowState(node) {
     if (!node || !this.scene) return null;
 
@@ -2254,17 +2265,19 @@ export class NodeLinkingSystem {
       worldScale.copy(node.scale || worldScale.setScalar(1));
     }
 
+    const palette = this._resolveNodeGlowPalette(node);
+
     const coreGeometry = new THREE.SphereGeometry(0.95, 24, 24);
     const coreMaterial = createHarmonyAuraMaterialSphere();
     coreMaterial.side = THREE.FrontSide;
     coreMaterial.depthTest = true;
     coreMaterial.depthWrite = false;
     this._applyHoverHarmonyAuraUniforms(coreMaterial, {
-      color: 0xb7f6ff,
-      opacity: 0.26,
-      strength: 0.5,
+      color: palette.base,
+      opacity: 0.28,
+      strength: 0.56,
       radius: 1.02,
-      brightness: 2.0,
+      brightness: 2.08,
       pulse: 1.0,
     });
     const coreMesh = new THREE.Mesh(coreGeometry, coreMaterial);
@@ -2289,11 +2302,11 @@ export class NodeLinkingSystem {
       segmentMaterial.depthTest = true;
       segmentMaterial.depthWrite = false;
       this._applyHoverHarmonyAuraUniforms(segmentMaterial, {
-        color: i % 2 === 0 ? 0x8ff7ff : 0xb48cff,
-        opacity: 0.16,
-        strength: 0.32,
+        color: i % 3 === 0 ? palette.base : (i % 2 === 0 ? palette.cool : palette.contrast),
+        opacity: 0.18,
+        strength: 0.35,
         radius: 1.06,
-        brightness: 1.55,
+        brightness: 1.62,
         pulse: 1.0,
       });
       const segment = new THREE.Mesh(haloGeometry.clone(), segmentMaterial);
@@ -2326,11 +2339,11 @@ export class NodeLinkingSystem {
       ringMaterial.depthTest = true;
       ringMaterial.depthWrite = false;
       this._applyHoverHarmonyAuraUniforms(ringMaterial, {
-        color: config.color,
-        opacity: config.opacity,
-        strength: 0.28,
+        color: i === 0 ? palette.warm : (i === 1 ? palette.contrast : palette.cool),
+        opacity: config.opacity + (i === 0 ? 0.02 : 0),
+        strength: 0.3,
         radius: 1.0,
-        brightness: 1.45,
+        brightness: 1.52,
         pulse: 1.0,
       });
 
@@ -2354,11 +2367,11 @@ export class NodeLinkingSystem {
     portalCoreMaterial.depthTest = true;
     portalCoreMaterial.depthWrite = false;
     this._applyHoverHarmonyAuraUniforms(portalCoreMaterial, {
-      color: 0xffffff,
-      opacity: 0.14,
+      color: palette.warm,
+      opacity: 0.16,
       strength: 0.22,
       radius: 0.98,
-      brightness: 1.6,
+      brightness: 1.72,
       pulse: 1.0,
     });
     const portalCore = new THREE.Mesh(portalCoreGeometry, portalCoreMaterial);
@@ -2385,11 +2398,11 @@ export class NodeLinkingSystem {
       sparkleMaterial.depthTest = true;
       sparkleMaterial.depthWrite = false;
       this._applyHoverHarmonyAuraUniforms(sparkleMaterial, {
-        color: i % 3 === 0 ? 0xffffff : (i % 2 === 0 ? 0x9ffcff : 0xc79bff),
-        opacity: 0.12,
+        color: i % 3 === 0 ? palette.warm : (i % 2 === 0 ? palette.cool : palette.contrast),
+        opacity: 0.13,
         strength: 0.2,
         radius: 0.96,
-        brightness: 1.85,
+        brightness: 1.92,
         pulse: 1.0,
       });
 
@@ -2777,20 +2790,15 @@ export class NodeLinkingSystem {
         l.source === sourceNode && l.target === targetNode
       );
       if (link) {
-        // [Session 144+] Record undo command BEFORE removing
-        const removeCommand = new RemoveLinkCommand(this, link);
-        this.undoRedo.recordCommand(removeCommand);
-        
+        // [Session 144+] Remove link without undo/redo
         this.createLinkRemovalPulse(link);
         this.removeLink(link);
         console.log(`✓ Link removed: ${sourceNode.userData.category} → ${targetNode.userData.category}`);
       }
     } else {
       // Link doesn't exist: Create it (toggle on, allow multiple per node)
-      // [Session 144+] Record undo command for creation
-      const createCommand = new CreateLinkCommand(this, sourceNode, targetNode);
-      createCommand.execute();
-      this.undoRedo.recordCommand(createCommand);
+      // [Session 144+] Create link without undo/redo
+      this.createLink(sourceNode, targetNode);
       
       this.createLinkSuccessPulse(sourceNode, targetNode);
       
@@ -2819,11 +2827,6 @@ export class NodeLinkingSystem {
         if (_validateBinderNode(targetNode)) {
           this.visualStateBinder.onNodeStateChange(targetNode, 'LINKED');
         }
-      }
-      
-      // Trigger event-based node spawning
-      if (this.aiNodes && this.aiNodes.maybeSpawnNodeFromLinkCreation) {
-        this.aiNodes.maybeSpawnNodeFromLinkCreation();
       }
       
       // Calculate synergy for logging and visual feedback
@@ -4157,6 +4160,7 @@ getLinksForNode(node) {
     
     const synergy = this.calculateSynergy(link);
     const baseColor = categoryColors[sourceCategory] || 0x00ddff;
+    const glowBlend = synergy > 0.7 ? 1.0 : 0.82;
     
     // Layer 1: Dense inner glow (bright)
     const layer1 = new THREE.Group();
@@ -4167,7 +4171,8 @@ getLinksForNode(node) {
     const layer1Material = new THREE.LineBasicMaterial({
       color: baseColor,
       transparent: true,
-      opacity: 0.15 * synergy,
+      opacity: 0.28 * glowBlend,
+      blending: THREE.AdditiveBlending,
       linewidth: 8
     });
     const layer1Line = new THREE.Line(layer1Geometry, layer1Material);
@@ -4184,7 +4189,8 @@ getLinksForNode(node) {
     const layer2Material = new THREE.LineBasicMaterial({
       color: baseColor,
       transparent: true,
-      opacity: 0.08 * synergy,
+      opacity: 0.18 * glowBlend,
+      blending: THREE.AdditiveBlending,
       linewidth: 15
     });
     const layer2Line = new THREE.Line(layer2Geometry, layer2Material);
@@ -4201,7 +4207,8 @@ getLinksForNode(node) {
     const layer3Material = new THREE.LineBasicMaterial({
       color: baseColor,
       transparent: true,
-      opacity: 0.04 * synergy,
+      opacity: 0.1 * glowBlend,
+      blending: THREE.AdditiveBlending,
       linewidth: 25
     });
     const layer3Line = new THREE.Line(layer3Geometry, layer3Material);
@@ -4215,6 +4222,57 @@ getLinksForNode(node) {
       materials: [layer1Material, layer2Material, layer3Material],
       synergy: synergy
     };
+  }
+
+  createLinkAnchorFlares(link) {
+    const sourceColor = new THREE.Color(link.source?.userData?.color ?? link.color ?? 0x00ddff);
+    const targetColor = new THREE.Color(link.target?.userData?.color ?? link.color ?? 0x00ddff);
+    const midColor = sourceColor.clone().lerp(targetColor, 0.5);
+
+    const group = new THREE.Group();
+    group.userData = { vfxType: 'anchorFlares', isVFX: true };
+
+    const makeFlare = (color, radius, opacity, name) => {
+      const geometry = new THREE.SphereGeometry(radius, 20, 20);
+      const material = new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity,
+        emissive: color,
+        emissiveIntensity: 0.8,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = name;
+      return mesh;
+    };
+
+    const sourceFlare = makeFlare(sourceColor, 0.16, 0.72, 'source-flare');
+    const targetFlare = makeFlare(targetColor, 0.16, 0.72, 'target-flare');
+    const midFlare = makeFlare(midColor, 0.22, 0.55, 'mid-flare');
+    const haloRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.34, 0.04, 12, 20),
+      new THREE.MeshBasicMaterial({
+        color: midColor,
+        transparent: true,
+        opacity: 0.55,
+        emissive: midColor,
+        emissiveIntensity: 0.6,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      })
+    );
+    haloRing.rotation.x = Math.PI / 2;
+    haloRing.name = 'mid-halo-ring';
+
+    group.add(sourceFlare);
+    group.add(targetFlare);
+    group.add(midFlare);
+    group.add(haloRing);
+
+    link.group.add(group);
+    return group;
   }
   
   /**
@@ -4652,6 +4710,16 @@ getLinksForNode(node) {
     // [Phase 2] Trigger Event Coordinator (suppresses node auras during link creation)
     if (this.eventCoordinator) {
       this.eventCoordinator.onLinkEvent(sourceNode, targetNode);
+    }
+
+    if (this.aiNodes && this.aiNodes.maybeSpawnNodeFromLinkCreation) {
+      this.aiNodes.maybeSpawnNodeFromLinkCreation({
+        linkId: link.id,
+        sourceNodeId: this.getNodeId(sourceNode),
+        targetNodeId: this.getNodeId(targetNode),
+        createdAt: Date.now(),
+        totalLinks: Array.isArray(this.links) ? this.links.length : undefined
+      });
     }
 
     // Canonical semantic event: link created
@@ -5244,6 +5312,7 @@ getLinksForNode(node) {
       link.energyPulse = this.createEnergyPulseTravel(link);
       link.circuitOverlay = this.createHolographicCircuit(link);
       link.edgeHighlights = this.createLinkEdgeHighlights(link);
+      link.anchorFlares = this.createLinkAnchorFlares(link);
       link.particleStream = this.createSoftParticleStream(link);
       link.quantumEffects = this.createQuantumLinkEffects(link);
       link.sigmaEffects = this.createSigmaLinkEffects(link);
@@ -6625,8 +6694,38 @@ getLinksForNode(node) {
     if (link.hoveredState && link.hoverHighlight?.material) {
       visualMutationGuards.setMaterialOpacity(link.hoverHighlight.material, Math.sin(time * 6) * 0.2 + 0.4);
     }
+
+    // Effect #10: Link anchor flares at source, target, and midpoint
+    if (link.anchorFlares?.children && link.curve) {
+      const sourcePoint = link.curve.getPoint(0.03);
+      const targetPoint = link.curve.getPoint(0.97);
+      const midPoint = link.curve.getPoint(0.5);
+      const sourceFlare = link.anchorFlares.getObjectByName?.('source-flare');
+      const targetFlare = link.anchorFlares.getObjectByName?.('target-flare');
+      const midFlare = link.anchorFlares.getObjectByName?.('mid-flare');
+      const haloRing = link.anchorFlares.getObjectByName?.('mid-halo-ring');
+
+      if (sourceFlare?.position) sourceFlare.position.copy(sourcePoint);
+      if (targetFlare?.position) targetFlare.position.copy(targetPoint);
+      if (midFlare?.position) midFlare.position.copy(midPoint);
+      if (haloRing?.position) haloRing.position.copy(midPoint);
+
+      const flarePulse = 0.75 + Math.sin(time * 4.2) * 0.25;
+      if (sourceFlare?.material) sourceFlare.material.opacity = 0.52 + flarePulse * 0.24;
+      if (targetFlare?.material) targetFlare.material.opacity = 0.52 + flarePulse * 0.24;
+      if (midFlare?.material) midFlare.material.opacity = 0.42 + flarePulse * 0.18;
+      if (haloRing?.material) haloRing.material.opacity = 0.38 + flarePulse * 0.22;
+
+      if (sourceFlare?.scale) sourceFlare.scale.setScalar(1.0 + flarePulse * 0.55);
+      if (targetFlare?.scale) targetFlare.scale.setScalar(1.0 + flarePulse * 0.55);
+      if (midFlare?.scale) midFlare.scale.setScalar(1.0 + flarePulse * 0.4);
+      if (haloRing?.scale) haloRing.scale.setScalar(1.0 + flarePulse * 0.35);
+      if (link.anchorFlares?.rotation) {
+        link.anchorFlares.rotation.z += 0.0015;
+      }
+    }
     
-    // Effect #10: Environment reactivity (soft light projection)
+    // Effect #11: Environment reactivity (soft light projection)
     // Defensive guard: verify light exists before mutation (authority locks)
     if (link.environmentLight) {
       const midPoint = link.curve.getPoint(0.5);

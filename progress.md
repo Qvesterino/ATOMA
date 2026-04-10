@@ -183,3 +183,9 @@ Original prompt: reduce synergy cascade visual clutter and make the repeated bea
 - `EnvironmentEventCoordinator.js` already owns the `global.<metric>.high` legendary world-event bridge, so no extra global adapter was needed for this pass.
 - Restored the root `_EmergentThoughtStorms5_0.js` entry as a shim to the legacy implementation path so `main.js` imports keep resolving cleanly.
 
+## 2026-04-10
+- Visual pass started around node/link presentation only: `EnhancedNodeModels` left untouched, while `_NodeVisuals4_0.js` gained deterministic outer shell/orbit accents and `NodeLinkingSystem.js` now tints selection glow from the node's own color instead of a fixed cyan/purple stack.
+- `_UICategoryLegend3_1.js` got a lighter atmospheric polish so non-zero categories read as active and the legend matches the sharper node/link visual language.
+- Follow-up visual pass strengthened the node silhouette and link language further: `_NodeVisuals4_0.js` now has a larger tri-axis aura stack and stronger outer shell presence, while `NodeLinkingSystem.js` adds anchor flares at link endpoints/midpoint and higher-contrast additive glow layers.
+- `_UICategoryLegend3_1.js` marker text was corrected so the category bars no longer show the extra prefix marker.
+

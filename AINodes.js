@@ -604,6 +604,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       cooldownMs: 1000,
       seed: 0
     };
+    this.spawnGrowthState = {
+      linksSinceSpawn: 0,
+      lastTimeSpawnAt: Date.now()
+    };
     this.pendingLinkJobs = [];
     this._linkJobStats = { pending: 0, processed: 0, created: 0 };
     this.pendingDensityIntent = null;
@@ -1505,7 +1509,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       this.spawningConfig.maxNodesTarget = desiredCount;
       this.spawningConfig.spawnThreshold = 0; // never auto-grow beyond target
       this.spawningConfig.needsRearm = false;
-      this.spawningConfig.lastLinkTime = Date.now();
+      if (this.spawnGrowthState) {
+        this.spawnGrowthState.linksSinceSpawn = 0;
+        this.spawnGrowthState.lastTimeSpawnAt = Date.now();
+      }
       this.spawningConfig.disableRuntimeSpawn = true; // HARD OFF after init
     }
     // Hard stop any queued runtime spawns/visuals
@@ -3515,23 +3522,19 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       timeSpawnInterval: { min: 20000, max: 40000 },
       // Configurable cap (runtime adjustable)
       targetPopulation: defaultTargetPopulation,
-      
-      // Event-based spawning
-      lastLinkTime: 0,
-      linkSpawnCooldown: 5000, // 5 second cooldown between link spawns
+      // Deterministic growth rules
+      linkSpawnEveryNLinks: 3,
+      timeSpawnIntervalMs: 60000,
+      growthSpawnPriority: {
+        linkThreshold: 3,
+        timeThreshold: 2
+      },
       
       // AI growth monitoring
       lastNetworkCheck: Date.now(),
       networkCheckInterval: 10000, // Check every 10 seconds
       maxNodesTarget: 50,
       spawnThreshold: 0.7, // Spawn if below 70% of max
-      
-      // Event-based spawn chances (unchanged - independent of category selection)
-      eventSpawnChances: {
-        onLinkCreated: 0.2,           // 20% chance on link creation
-        onHighSynergy: 0.15,          // 15% when high synergy detected
-        chaosEvent: 0.05              // 5% chance ERROR node on chaos
-      },
       
       // Rare node spawn chance (legacy, now replaced by weights)
       rareMaterializeChance: 0.15, // 15% chance for rare nodes (kept for compatibility)
@@ -4720,12 +4723,61 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   }
 
   /**
+   * Queue a deterministic growth spawn request.
+   * Growth requests still flow through the single spawn queue.
+   */
+  _queueGrowthSpawnRequest(reason, currentTime, category = null) {
+    if (this.spawnState.phase !== 'RUNTIME') return false;
+    if (this.spawningConfig?.disableRuntimeSpawn === true) return false;
+    if (Number.isFinite(this.hardSpawnCap) && this.getNodeCount() >= this.hardSpawnCap) return false;
+
+    const spawnCategory = category || this.getRuntimeSpawnCategoryIntent() || 'input';
+    const priority = reason === 'time-threshold'
+      ? (this.spawningConfig?.growthSpawnPriority?.timeThreshold ?? 2)
+      : (this.spawningConfig?.growthSpawnPriority?.linkThreshold ?? 3);
+
+    this.requestSpawn({
+      category: spawnCategory,
+      reason,
+      priority
+    });
+
+    if (typeof window !== 'undefined' && window.ATOMA_FLAGS?.debug?.spawnLogs === true) {
+      logSpawnDebugThrottled(`growthSpawn:${reason}`, 1000, () => {
+        console.info('[GrowthSpawn] queued', {
+          reason,
+          category: spawnCategory,
+          priority,
+          nodeCount: this.getNodeCount(),
+          queueLength: this.spawnRequestQueue?.length ?? 0
+        });
+      });
+    }
+
+    if (reason === 'time-threshold' && this.spawnGrowthState) {
+      this.spawnGrowthState.lastTimeSpawnAt = Number.isFinite(currentTime) ? currentTime : Date.now();
+    }
+
+    return true;
+  }
+
+  /**
    * Update spawning system (called every frame)
-   * SINGLE AUTHORITY for nextTimeSpawn - only this method writes it
+   * SINGLE AUTHORITY for growth timing and request execution
    */
   updateSpawning(currentTime) {
     if (this.spawningConfig?.disableRuntimeSpawn === true) return;
     if (Number.isFinite(this.hardSpawnCap) && this.getNodeCount() >= this.hardSpawnCap) return;
+
+    const now = Number.isFinite(currentTime) ? currentTime : Date.now();
+    const timeSpawnIntervalMs = this.spawningConfig?.timeSpawnIntervalMs ?? 60000;
+    if (
+      this.spawnGrowthState &&
+      now - this.spawnGrowthState.lastTimeSpawnAt >= timeSpawnIntervalMs
+    ) {
+      this._queueGrowthSpawnRequest('time-threshold', now);
+    }
+
     // SPAWN AUTHORITY LOCKDOWN: Process request queue first
     this._processSpawnRequests();
 
@@ -4740,7 +4792,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   /**
    * Register link event (triggers potential spawn)
    */
-  maybeSpawnNodeFromLinkCreation() {
+  maybeSpawnNodeFromLinkCreation(meta = {}) {
     if (this.spawnState.phase !== 'RUNTIME') return;
     if (this.spawningConfig?.disableRuntimeSpawn === true) return;
     if (Number.isFinite(this.hardSpawnCap) && this.getNodeCount() >= this.hardSpawnCap) return;
@@ -4757,45 +4809,44 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // ============================================================
     if (window.ATOMA_FLAGS?.debug?.linkSpawn === true && shouldLogSpawn()) {
       logSpawnDebugThrottled('linkSpawn:maybeSpawn', 1000, () => {
-        console.debug('[LINK-SPAWN] maybeSpawnNodeFromLinkCreation called (link -> spawn trigger)', {
-          currentTime: Date.now(),
-          lastLinkTime: this.spawningConfig.lastLinkTime,
-          linkSpawnCooldown: this.spawningConfig.linkSpawnCooldown,
-          canSpawn: Date.now() - this.spawningConfig.lastLinkTime > this.spawningConfig.linkSpawnCooldown,
+        console.debug('[LINK-SPAWN] maybeSpawnNodeFromLinkCreation called (deterministic link -> spawn trigger)', {
+          linkId: meta.linkId || null,
+          sourceNodeId: meta.sourceNodeId || null,
+          targetNodeId: meta.targetNodeId || null,
+          totalLinks: meta.totalLinks ?? null,
+          linksSinceSpawn: this.spawnGrowthState?.linksSinceSpawn ?? 0,
+          linkSpawnEveryNLinks: this.spawningConfig?.linkSpawnEveryNLinks ?? 3,
           stack: new Error().stack
         });
       });
     }
 
-    const currentTime = Date.now();
-    if (currentTime - this.spawningConfig.lastLinkTime > this.spawningConfig.linkSpawnCooldown) {
-      // Occasionally spawn node on link creation (20% chance)
-      if (Math.random() < 0.2) {
-        const cap = this.spawningConfig?.targetPopulation ?? this.getTargetPopulation();
-        if (this.getNodeCount() >= cap) {
-          this.spawnStats.skippedCap++;
-          return;
-        }
-        const category = this.getRuntimeSpawnCategoryIntent();
-
-        // SPAWN AUTHORITY LOCKDOWN: Use request queue
-        this.requestSpawn({
-          category: category,
-          reason: 'link-creation',
-          priority: 3
-        });
-        this.spawningConfig.lastLinkTime = currentTime;
-
-        // Update last spawn time for analytics
-      }
+    if (!this.spawnGrowthState) {
+      this.spawnGrowthState = {
+        linksSinceSpawn: 0,
+        lastTimeSpawnAt: Date.now()
+      };
     }
+
+    const threshold = this.spawningConfig?.linkSpawnEveryNLinks ?? 3;
+    this.spawnGrowthState.linksSinceSpawn += 1;
+    if (this.spawnGrowthState.linksSinceSpawn < threshold) {
+      return;
+    }
+
+    this.spawnGrowthState.linksSinceSpawn -= threshold;
+    this._queueGrowthSpawnRequest(
+      'link-threshold',
+      Date.now(),
+      this.getRuntimeSpawnCategoryIntent()
+    );
   }
 
   /**
    * Legacy alias preserved for older callsites.
    */
-  maybeSpawnNodeOnLinkCreated() {
-    return this.maybeSpawnNodeFromLinkCreation();
+  maybeSpawnNodeOnLinkCreated(meta = {}) {
+    return this.maybeSpawnNodeFromLinkCreation(meta);
   }
   
   /**

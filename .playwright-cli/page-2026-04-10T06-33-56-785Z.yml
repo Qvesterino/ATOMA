@@ -1,0 +1,29 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - generic [ref=e7]: ATOMA
+    - generic [ref=e8]: Vertical authority flow. Choose a path and wake the system.
+  - generic [ref=e11]:
+    - button "▶ CONTINUE" [ref=e12] [cursor=pointer]:
+      - generic [ref=e13]: ▶
+      - generic [ref=e14]: CONTINUE
+    - button "▶ NEW GAME" [ref=e15] [cursor=pointer]:
+      - generic [ref=e16]: ▶
+      - generic [ref=e17]: NEW GAME
+    - button "▶ MAP SELECTION" [ref=e18] [cursor=pointer]:
+      - generic [ref=e19]: ▶
+      - generic [ref=e20]: MAP SELECTION
+    - button "▶ SETTINGS" [ref=e21] [cursor=pointer]:
+      - generic [ref=e22]: ▶
+      - generic [ref=e23]: SETTINGS
+    - button "▶ LORE" [ref=e24] [cursor=pointer]:
+      - generic [ref=e25]: ▶
+      - generic [ref=e26]: LORE
+    - button "▶ END GAME" [ref=e27] [cursor=pointer]:
+      - generic [ref=e28]: ▶
+      - generic [ref=e29]: END GAME
+  - generic [ref=e30]: Centered, quiet, and alive. The selected entry becomes the active energy node.
+  - generic [ref=e31]: UP / DOWN TO SELECT | ENTER TO ACTIVATE
+  - generic [ref=e32]: Continue is available from the last stored world snapshot.
+  - generic [ref=e33]:
+    - generic [ref=e34]: "WORLD: Fractal Valley"
+    - generic [ref=e35]: "BUILD: v0.x"

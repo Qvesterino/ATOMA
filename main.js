@@ -8555,6 +8555,14 @@ window.__ATOMA_SCENE__ = this.scene;
         }
         // Enable runtime spawning after init batch
         this.aiNodes.spawnMode = 'RUNTIME';
+        if (this.aiNodes.spawningConfig) {
+            this.aiNodes.spawningConfig.disableRuntimeSpawn = false;
+            this.aiNodes.spawningConfig.needsRearm = false;
+        }
+        if (this.aiNodes.spawnGrowthState) {
+            this.aiNodes.spawnGrowthState.lastTimeSpawnAt = Date.now();
+            this.aiNodes.spawnGrowthState.linksSinceSpawn = 0;
+        }
 
         // Wave shader stacks: register/patch/apply after nodes exist (pre-link usage)
         try {

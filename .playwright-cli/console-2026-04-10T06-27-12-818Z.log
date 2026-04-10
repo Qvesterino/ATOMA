@@ -1,0 +1,57 @@
+[     874ms] [LOG] Live reload enabled. @ http://127.0.0.1:5500/index.html:197
+[    3960ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[    3960ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[    3960ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[    3960ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[    3968ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[    3968ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[    3969ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:155
+[    3988ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[    3991ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[    4005ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[    4114ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[    4116ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[    4123ms] [LOG] [FXDebugSandbox] DISABLED - To enable, change DISABLED flag to false at line ~661 @ http://127.0.0.1:5500/Engine/Debug/FXDebugSandbox.js:705
+[    4126ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[    4127ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[    4127ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[    4127ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[    4127ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[    4127ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[    4127ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[  244829ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1501
+[  244834ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  246417ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1501
+[  246417ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  403812ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[  403813ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[  403813ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[  403813ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[  403818ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[  403818ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[  403818ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:155
+[  403819ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[  403820ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[  403828ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[  403862ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[  403863ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[  403871ms] [LOG] [FXDebugSandbox] DISABLED - To enable, change DISABLED flag to false at line ~661 @ http://127.0.0.1:5500/Engine/Debug/FXDebugSandbox.js:705
+[  403878ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[  403878ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[  403878ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[  403879ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[  403879ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[  403879ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[  403879ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[  454251ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1501
+[  454251ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  455890ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1501
+[  455891ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  726890ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1501
+[  726891ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242
+[  750042ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/AINodes.js:1501
+[  750042ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ http://127.0.0.1:5500/_NodeSpawnLogger4_0.js:242

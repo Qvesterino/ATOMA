@@ -167,6 +167,10 @@ Confirmed default runtime validation entrypoint:
 - prefer the local static server boot path over Vite when reproducing live runtime behavior
 - treat `5500/index.html` as the default verification target unless a task explicitly says otherwise
 
+## Open Follow-Up
+
+- Deterministic node growth spawn is prewired; live Edge verification still needs a clean fresh-session smoke test.
+
 ---
 
 ## AI Tooling Summary

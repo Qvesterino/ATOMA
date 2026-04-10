@@ -1,6 +1,8 @@
 # Glyph Visual Map
 
-This is a compact orientation map for the main glyph visual systems in ATOMA.
+Compact orientation map pre hlavné glyph systémy v ATOMA.
+
+---
 
 ## Big Picture
 
@@ -25,76 +27,136 @@ flowchart TD
     C --> L[RecursiveGlyphMessaging4_0]
     C --> M[RecursiveGlyphSignalSystem]
 
-    A --> P[ProceduralHarmonicGlyphGenerator]
-    P --> P1[Procedural learned glyphs\n(topology history / stable hubs)]
+    A --> N[ProceduralHarmonicGlyphGenerator]
+    N --> N1[Procedural learned glyphs\n(topology history / stable hubs)]
 
-    A --> N[NodeAuraSystem / NodeLinkedAuraSystem]
-    C --> O[Link aura / link FX systems]
+    A --> O[AINarrativePatterns6_0\n(narrative event consumer)]
+    K --> O
+    L --> O
+    F --> O
+    N --> O
+
+    A --> P[NodeAuraSystem / NodeLinkedAuraSystem]
+    C --> Q[Link aura / link FX systems]
 ```
+
+---
+
+## Layer Hierarchy (z discoveries)
+
+**Layer 1: LinkedGlyphMessaging3_0** - Basic message packets traveling along links
+
+**Layer 2: RecursiveGlyphMessaging4_0** - Hierarchical recursive chains extending from 3.0
+
+**Layer 3: EmergentThoughtStorms5_0** - Collision phenomena, emergent visual storms
+
+**Layer 4: SemanticGlyphAI** - Node semantic expression, scanlines and semantic overlays
+
+**Layer 5: AdaptiveGlyphRendering + LinkedGlyphSync** - Visual coherence layer
+
+**Layer 6: AINarrativePatterns6_0** - Narrative structure layer, consumes events from multiple glyph systems
+
+---
 
 ## What Each Layer Does
 
-### 1. Node glyphs
-- `GlyphLayer4_MultiFusion` is the node-facing glyph layer.
-- It owns the fusion registry and creates the multi-part glyph look for nodes.
-- In the current runtime it is hover-driven, so it can be present but still look empty until the right node becomes active.
+### 1. Node Glyphs
+**Owner:** `GlyphLayer4_MultiFusion`
+- Hlavná node-facing glyph layer
+- Owns fusion registry a vytvára multi-part glyph look pre nodes
+- Current runtime je hover-driven, takže môže byť prítomný ale prázdny až kým node neaktívny
 
-### 2. Semantic overlays
-- `SemanticGlyphAI` adds semantic scanlines and helper overlays.
-- It reads node state and acts more like a semantic visual modifier than a primary spawner.
+### 2. Semantic Overlays
+**Owner:** `SemanticGlyphAI`
+- Pridáva semantic scanlines a helper overlays
+- Číta node state a pôsobí ako semantic visual modifier, nie primary spawner
 
-### 3. Link pictograms
-- `LinkSemanticPictogramSystem_Enhanced` creates the glyphs that travel along links.
-- It decides glyph family, state, and spawn budget.
-- `LinkSemanticPictogramSystem_WithFusion` wraps that layer and adds fusion zones on top.
+### 3. Link Pictograms
+**Owner:** `LinkSemanticPictogramSystem_Enhanced` → `LinkSemanticPictogramSystem_WithFusion`
+- Vytvára glyphy, ktoré cestujú po linkoch
+- Rozhoduje o glyph family, state, a spawn budget
+- `LinkSemanticPictogramSystem_WithFusion` pridáva fusion zones na top
 
-### 4. Fusion / composite visuals
-- `GlyphFusionZoneManager` detects convergences and starts fusion.
-- `CompositeGlyphGenerator` builds the generated composite geometry or visual root.
-- `NeuralConvergenceSingularity` is the visible runtime shell for an active composite.
-- `ResonanceEchoTrailSystem` spawns the memory / afterimage trail after composites are active.
+### 4. Fusion / Composite Visuals
+**Owner:** `GlyphFusionZoneManager` → `CompositeGlyphGenerator` → `NeuralConvergenceSingularity`
+- `GlyphFusionZoneManager`: Detekuje convergences a startuje fusion
+- `CompositeGlyphGenerator`: Buduje generated composite geometry alebo visual root
+- `NeuralConvergenceSingularity`: Visible runtime shell pre active composite
+- `ResonanceEchoTrailSystem`: Spawnuje memory / afterimage trail po aktivite composites
 
-### 5. Transport / messaging visuals
-- `LinkGlyphFlow` is the simpler flowing packet layer.
-- `LinkedGlyphMessaging3_0` and `RecursiveGlyphMessaging4_0` carry message-like glyph traces.
-- `RecursiveGlyphSignalSystem` handles attention / signal pings.
+### 5. Transport / Messaging Visuals
+**Owners:** `LinkGlyphFlow`, `LinkedGlyphMessaging3_0`, `RecursiveGlyphMessaging4_0`, `RecursiveGlyphSignalSystem`
+- `LinkGlyphFlow`: Jednoduchšia flowing packet layer
+- `LinkedGlyphMessaging3_0`: Carries message-like glyph traces (Layer 1)
+- `RecursiveGlyphMessaging4_0`: Hierarchical recursive chains (Layer 2)
+- `RecursiveGlyphSignalSystem`: Attention / signal pings
 
-### 6. Aura layers
-- `NodeAuraSystem` and `NodeLinkedAuraSystem` sit under the node and link presentation stack.
-- These are the surrounding field visuals, not the glyph core itself.
+### 6. Aura Layers
+**Owner:** `NodeAuraSystem` / `NodeLinkedAuraSystem`
+- Sedia pod node a link presentation stack
+- Sú surrounding field visuals, nie glyph core
 
-### 7. Procedural learned glyphs
-- `ProceduralHarmonicGlyphGenerator` creates rare glyphs from topology learning history.
-- It is not part of the link pictogram path and does not depend on link convergence.
-- It emerges from learned hubs, reinforced routes, and stability over time.
+### 7. Procedural Learned Glyphs
+**Owner:** `ProceduralHarmonicGlyphGenerator`
+- Vytvára rare glyphs z topology learning history
+- Nie je súčasťou link pictogram path
+- Nezávisí na link convergence
+- Emerges z learned hubs, reinforced routes, a stability over time
 
-## Spawn Order, In Plain Language
+### 8. Narrative Event Consumer
+**Owner:** `AINarrativePatterns6_0`
+- Consumes events z:
+  - `LinkedGlyphMessaging3_0` (message spawned)
+  - `GlyphFusionZone` (fusion triggered)
+  - `ProceduralHarmonicGlyphGenerator` (procedural glyph spawned)
+- Provides narrative structure pre glyph activity
 
-1. Nodes exist in `AINodes`.
-2. Link glyph systems create active link pictograms.
-3. Pictograms accumulate near link ends.
-4. When enough pictograms converge, fusion zones activate.
-5. Fusion zones spawn composite glyphs.
-6. Composite glyphs can emit resonance echoes.
-7. Stable topology history can also emit procedural harmonic glyphs.
+---
 
-## Why Glyphs Can Look "Too Many" Or "Missing"
+## Spawn Order (plain language)
 
-- Too many on one node usually means the spawn budget is too generous or minimum-spawn logic is filling one link before others.
-- Missing on some nodes usually means the current runtime is in hover-only mode, the world just switched, or the fusion registry has not rehydrated yet.
-- If link pictograms are present but fusion zones stay at zero, the problem is usually in the convergence rule, not in the node glyph layer.
+1. Nodes exist in `AINodes`
+2. Link glyph systems create active link pictograms
+3. Pictograms accumulate near link ends
+4. When enough pictograms converge, fusion zones activate
+5. Fusion zones spawn composite glyphs
+6. Composite glyphs can emit resonance echoes
+7. Stable topology history can emit procedural harmonic glyphs
+8. AINarrativePatterns6_0 consumes all glyph events pre narrative structure
+
+---
+
+## Visibility Notes
+
+**Prečo glyphy vyzerajú "príliš veľa" alebo "chýbajú":**
+
+- **Príliš veľa na jednom node:** Spawn budget je príliš generózny alebo minimum-spawn logic plní jeden link pred ostatnými
+- **Chýbajú na niektorých nodoch:** Runtime je v hover-only móde, world sa práve prepol, alebo fusion registry sa ešte nerehydratoval
+- **Link pictograms sú ale fusion zones zostávajú na nule:** Problém je v convergence rule, nie v node glyph layer
+
+**ProceduralHarmonicGlyphGenerator visibility fix (2026-04-10):**
+- Opacity: 0.45 → 0.65 (+44%)
+- Color: grey → cyan (0x66ddff)
+- Scale: 1.2 → 1.4 (+17%)
+- Spawn thresholds lowered (hub age: 45s → 30s, learning strength: 0.4 → 0.3)
+
+---
 
 ## Quick Debug Checklist
 
-- Check `window.game.linkSemanticPictograms.pictogramSystem.pictograms.length`.
-- Check `window.game.linkSemanticPictograms.fusionZoneManager.zones.filter(z => z.active).length`.
-- Check `window.game.glyphLayer4.hoverOnlyMode`.
-- Check `window.game.glyphLayer4.fusionRegistry.size`.
-- Check `window.game.linkingSystem.links.length` and `window.game.aiNodes.nodes.length`.
-- Check `window.game.proceduralGlyphGenerator?.getStatus?.()` for the learned glyph branch.
+- `window.game.linkSemanticPictograms.pictogramSystem.pictograms.length`
+- `window.game.linkSemanticPictograms.fusionZoneManager.zones.filter(z => z.active).length`
+- `window.game.glyphLayer4.hoverOnlyMode`
+- `window.game.glyphLayer4.fusionRegistry.size`
+- `window.game.linkingSystem.links.length` a `window.game.aiNodes.nodes.length`
+- `window.game.proceduralGlyphGenerator?.getStatus?.()` pre learned glyph branch
+- `window.game.narrativePatterns?.getQueueStatus?.()` pre narrative event queue
+
+---
 
 ## File References
 
+### Core Glyph Systems
 - [GlyphLayer4_MultiFusion.js](../../_GlyphLayer4_MultiFusion.js)
 - [LinkSemanticPictogramSystem_Enhanced.js](../../LinkSemanticPictogramSystem_Enhanced.js)
 - [LinkSemanticPictogramSystem_WithFusion.js](../../LinkSemanticPictogramSystem_WithFusion.js)
@@ -104,3 +166,22 @@ flowchart TD
 - [ResonanceEchoTrailSystem.js](../../ResonanceEchoTrailSystem.js)
 - [SemanticGlyphAI.js](../../_SemanticGlyphAI.js)
 - [ProceduralHarmonicGlyphGenerator.js](../../ProceduralHarmonicGlyphGenerator.js)
+
+### Messaging Systems
+- [LinkedGlyphMessaging3_0.js](../../_LinkedGlyphMessaging3_0.js)
+- [RecursiveGlyphMessaging4_0.js](../../_RecursiveGlyphMessaging4_0.js)
+- [RecursiveGlyphSignalSystem.js](../../_RecursiveGlyphSignalSystem.js)
+- [LinkGlyphFlow.js](../../_LinkGlyphFlow.js)
+
+### Narrative Layer
+- [AINarrativePatterns6_0.js](../../_AINarrativePatterns6_0.js)
+
+### Supporting Documentation
+- [mapa glyph systemov.md](./mapa%20glyph%20systemov.md) - Chronologická spawn trigger mapa
+- [ATOMA GLYPH SYSTEM ARCHITECTURE MAP AUDIT.md](../MAPY/ATOMA%20GLYPH%20SYSTEM%20ARCHITECTURE%20MAP.md) - Kompletný audit 15 systémov
+
+---
+
+**Last Updated:** 2026-04-10
+**Author:** Bystrik Matajzik
+**Phase:** EVOLUTION_V2

@@ -67,6 +67,15 @@ export class NodeVisuals4_0 {
       
       // Emission Accents
       emissionIntensity: 0.3,
+
+      // Surrounding shell / orbit accents
+      atmosphereShellOpacity: 0.18,
+      atmosphereShellScale: 1.82,
+      orbitCrownCount: 8,
+      orbitCrownRadius: 1.95,
+      orbitCrownSize: 0.075,
+      orbitCrownOpacity: 0.24,
+      orbitCrownWobble: 0.5,
       
       // Soft Shadow/Occlusion Halo
       haloEnabled: true,
@@ -81,6 +90,46 @@ export class NodeVisuals4_0 {
       time: 0,
       frameCounter: 0
     };
+  }
+
+  _hash01(value) {
+    const str = String(value ?? '');
+    let hash = 2166136261;
+    for (let i = 0; i < str.length; i++) {
+      hash ^= str.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return ((hash >>> 0) % 100000) / 100000;
+  }
+
+  _mixHex(a, b, t = 0.5) {
+    const colorA = new THREE.Color(a);
+    return colorA.lerp(new THREE.Color(b), Math.max(0, Math.min(1, t))).getHex();
+  }
+
+  _resolveAccentColor(node, nodeData, fallback = 0x00ffff) {
+    const direct = nodeData?.color ?? node?.userData?.color ?? node?.userData?.colorHex;
+    if (typeof direct === 'number' && Number.isFinite(direct)) {
+      return direct;
+    }
+
+    const category = String(nodeData?.category || node?.userData?.category || '').toLowerCase().trim();
+    const categoryColorMap = {
+      input: 0xff6b9d,
+      process: 0x00d9ff,
+      integration: 0x00ff88,
+      analytics: 0xffd700,
+      storage: 0x9d4edd,
+      control: 0xff006e,
+      sigma: 0x0fff50,
+      emotional: 0xff4500,
+      quantum: 0x00ffff,
+      mythic: 0xdda0dd,
+      prime: 0xffe135,
+      error: 0xffffff
+    };
+
+    return categoryColorMap[category] ?? fallback;
   }
   
   /**
@@ -111,7 +160,8 @@ export class NodeVisuals4_0 {
     // T2-001: Check if this is an extreme node (visual override)
     const isExtreme = node.userData?.extremeAI === true;
     const extremeArchetypeId = node.userData?.extremeArchetype ?? -1;
-    let baseColor = nodeData.color || 0x00ffff;
+    const accentColor = this._resolveAccentColor(node, nodeData, 0x00ffff);
+    let baseColor = accentColor;
     
     // T2-001: Apply extreme archetype color if available
     if (isExtreme && extremeArchetypeId >= 0) {
@@ -136,13 +186,22 @@ export class NodeVisuals4_0 {
     
     // Step 5: Add soft shadow/occlusion halo
     this.addOcclusionHalo(visualData, baseColor);
+
+    // Step 6: Add a faint outer atmosphere shell for presence at distance
+    this.addAtmosphericShell(visualData, baseColor);
+
+    // Step 7: Add orbit crown accents around the node perimeter
+    this.addOrbitCrown(visualData, baseColor, nodeId);
+
+    // Step 8: Add a tri-axis aura frame so the node reads from wider camera angles
+    this.addTriAxisAura(visualData, baseColor);
     
     // T2-001: Add secondary glow layer for extreme nodes (ring/chromatic halo)
     if (isExtreme) {
       this.addExtremeSecondaryGlowLayer(visualData, baseColor);
     }
     
-    // Step 6: Mark for internal pulse (opt-in)
+    // Step 9: Mark for internal pulse (opt-in)
     if (allowAnimatedScale) {
       visualData.components.pulseEnabled = true;
       visualData.components.pulseTime = 0;
@@ -345,6 +404,7 @@ export class NodeVisuals4_0 {
     
     // Create multiple energy rings
     const rings = [];
+    const seedKey = String(visualData.node?.uuid || visualData.node?.userData?.nodeId || visualData.node?.id || 'node');
     for (let i = 0; i < this.config.ringCount; i++) {
       const ringGeometry = new THREE.TorusGeometry(1.2 + i * 0.3, 0.06, 16, 100);
       
@@ -355,8 +415,11 @@ export class NodeVisuals4_0 {
       });
       
       const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-      ring.rotation.x = Math.random() * Math.PI;
-      ring.rotation.z = Math.random() * Math.PI;
+      const phase = this._hash01(`${seedKey}:ring:${i}`);
+      ring.rotation.x = (Math.PI * 0.18) + phase * Math.PI * 0.82;
+      ring.rotation.y = phase * Math.PI * 2;
+      ring.rotation.z = (Math.PI * 0.12) + this._hash01(`${seedKey}:ring:z:${i}`) * Math.PI * 0.6;
+      ring.userData.phase = phase;
       
       ringContainer.add(ring);
       rings.push(ring);
@@ -432,6 +495,7 @@ export class NodeVisuals4_0 {
     
     const rim = new THREE.Mesh(rimGeometry, rimMaterial);
     rim.rotation.x = Math.PI / 2.5;
+    rim.userData.phase = this._hash01(`${visualData.node?.uuid || 'node'}:rim`);
     rimContainer.add(rim);
     
     visualData.components.rimLight = rim;
@@ -465,6 +529,129 @@ export class NodeVisuals4_0 {
     
     visualData.components.halo = halo;
   }
+
+  /**
+   * Step 6: Add an outer atmosphere shell to give the node more volume
+   */
+  addAtmosphericShell(visualData, color) {
+    const overlayGroup = visualData.components.overlayGroup;
+    if (!overlayGroup) return;
+
+    this.removeChildByName(overlayGroup, 'atmosphere-shell');
+
+    const shellContainer = new THREE.Group();
+    shellContainer.name = 'atmosphere-shell';
+    overlayGroup.add(shellContainer);
+
+    const shellGeometry = new THREE.SphereGeometry(this.config.atmosphereShellScale, 28, 28);
+    const shellMaterial = new THREE.MeshBasicMaterial({
+      color: this._mixHex(color, 0xffffff, 0.16),
+      transparent: true,
+      opacity: this.config.atmosphereShellOpacity,
+      side: THREE.BackSide,
+      depthWrite: false
+    });
+
+    const shell = new THREE.Mesh(shellGeometry, shellMaterial);
+    shell.userData.phase = this._hash01(`${visualData.node?.uuid || 'node'}:shell`);
+    shellContainer.add(shell);
+
+    visualData.components.atmosphereShell = shell;
+    visualData.components.atmosphereShellMaterial = shellMaterial;
+  }
+
+  /**
+   * Step 7: Add small orbit crown markers around the node perimeter
+   */
+  addOrbitCrown(visualData, color, seedKey) {
+    const overlayGroup = visualData.components.overlayGroup;
+    if (!overlayGroup) return;
+
+    this.removeChildByName(overlayGroup, 'orbit-crown');
+
+    const crownContainer = new THREE.Group();
+    crownContainer.name = 'orbit-crown';
+    overlayGroup.add(crownContainer);
+
+    const crownGeometry = new THREE.SphereGeometry(this.config.orbitCrownSize, 10, 10);
+    const crownMarkers = [];
+    for (let i = 0; i < this.config.orbitCrownCount; i++) {
+      const phase = this._hash01(`${seedKey}:crown:${i}`);
+      const crownMaterial = new THREE.MeshBasicMaterial({
+        color: this._mixHex(color, 0xffffff, 0.18 + phase * 0.18),
+        transparent: true,
+        opacity: this.config.orbitCrownOpacity - (phase * 0.04)
+      });
+      const marker = new THREE.Mesh(crownGeometry.clone(), crownMaterial);
+      const angle = phase * Math.PI * 2;
+      const wobble = 1 + (phase - 0.5) * this.config.orbitCrownWobble;
+      marker.position.set(
+        Math.cos(angle) * this.config.orbitCrownRadius * wobble,
+        (phase - 0.5) * 0.12,
+        Math.sin(angle) * this.config.orbitCrownRadius * wobble
+      );
+      marker.userData.phase = phase;
+      crownContainer.add(marker);
+      crownMarkers.push(marker);
+    }
+
+    visualData.components.orbitCrown = crownContainer;
+    visualData.components.orbitCrownMarkers = crownMarkers;
+  }
+
+  /**
+   * Step 8: Add a wider tri-axis aura so the node remains readable at scale
+   */
+  addTriAxisAura(visualData, color) {
+    const overlayGroup = visualData.components.overlayGroup;
+    if (!overlayGroup) return;
+
+    this.removeChildByName(overlayGroup, 'tri-axis-aura');
+
+    const auraGroup = new THREE.Group();
+    auraGroup.name = 'tri-axis-aura';
+    overlayGroup.add(auraGroup);
+
+    const auraColor = this._mixHex(color, 0xffffff, 0.08);
+    const auraConfigs = [
+      { radius: 2.15, tube: 0.028, rot: [Math.PI / 2, 0, 0], opacity: 0.18 },
+      { radius: 1.92, tube: 0.024, rot: [0, Math.PI / 2, 0], opacity: 0.15 },
+      { radius: 1.7, tube: 0.02, rot: [0, 0, Math.PI / 2], opacity: 0.13 }
+    ];
+
+    const rings = [];
+    for (const config of auraConfigs) {
+      const geometry = new THREE.TorusGeometry(config.radius, config.tube, 16, 120);
+      const material = new THREE.MeshBasicMaterial({
+        color: auraColor,
+        transparent: true,
+        opacity: config.opacity,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+      });
+      const ring = new THREE.Mesh(geometry, material);
+      ring.rotation.set(config.rot[0], config.rot[1], config.rot[2]);
+      auraGroup.add(ring);
+      rings.push(ring);
+    }
+
+    const auraShellGeometry = new THREE.SphereGeometry(2.05, 24, 24);
+    const auraShellMaterial = new THREE.MeshBasicMaterial({
+      color: auraColor,
+      transparent: true,
+      opacity: 0.08,
+      side: THREE.BackSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    const auraShell = new THREE.Mesh(auraShellGeometry, auraShellMaterial);
+    auraGroup.add(auraShell);
+
+    visualData.components.triAxisAura = auraGroup;
+    visualData.components.triAxisAuraRings = rings;
+    visualData.components.triAxisAuraShell = auraShell;
+  }
   
   /**
    * Update all nodes with 4.0 effects
@@ -488,8 +675,12 @@ export class NodeVisuals4_0 {
       // Update spectral rings rotation
       if (visualData.components.spectralRings) {
         visualData.components.spectralRings.forEach((ring, i) => {
-          ring.rotation.x += this.config.ringRotationSpeed * (i % 2 === 0 ? 1 : -1);
+          const direction = i % 2 === 0 ? 1 : -1;
+          const phase = ring.userData?.phase ?? 0.5;
+          ring.rotation.x += this.config.ringRotationSpeed * direction * (0.85 + phase * 0.25);
+          ring.rotation.y += this.config.ringRotationSpeed * 0.35 * (direction > 0 ? 1 : -1);
           ring.rotation.z += this.config.ringRotationSpeed * 0.7;
+          ring.material.opacity = Math.max(0.08, (this.config.ringOpacity - (i * 0.1)) * (0.9 + Math.sin(this.registry.time * 0.9 + phase * Math.PI * 2) * 0.08));
         });
       }
       
@@ -509,6 +700,51 @@ export class NodeVisuals4_0 {
         const pulse = 0.5 + 0.5 * Math.sin(this.registry.time * this.config.pulseSpeed);
         const pulseOpacity = this.config.coreGlowIntensity * (0.85 + pulse * this.config.pulseIntensity);
         visualData.components.glowMaterial.opacity = pulseOpacity;
+      }
+
+      if (visualData.components.atmosphereShellMaterial) {
+        const phase = visualData.components.atmosphereShell?.userData?.phase ?? 0.5;
+        const pulse = 0.5 + 0.5 * Math.sin(this.registry.time * 0.72 + phase * Math.PI * 2);
+        visualData.components.atmosphereShellMaterial.opacity = this.config.atmosphereShellOpacity + pulse * 0.03;
+      }
+
+      if (visualData.components.orbitCrown) {
+        const crownPulse = 0.5 + 0.5 * Math.sin(this.registry.time * 1.2);
+        visualData.components.orbitCrown.rotation.y += 0.0025;
+        visualData.components.orbitCrown.rotation.x = Math.sin(this.registry.time * 0.45) * 0.06;
+        visualData.components.orbitCrown.children.forEach((marker, index) => {
+          if (!marker?.material) return;
+          const phase = marker.userData?.phase ?? 0.5;
+          const markerPulse = crownPulse * (0.86 + phase * 0.22);
+          marker.scale.setScalar(0.95 + markerPulse * 0.3);
+          marker.material.opacity = Math.max(0.05, this.config.orbitCrownOpacity * (0.7 + markerPulse * 0.4));
+          marker.position.y = Math.sin(this.registry.time * 1.1 + index * 0.45) * 0.05;
+        });
+      }
+
+      if (visualData.components.triAxisAura) {
+        const auraPulse = 0.5 + 0.5 * Math.sin(this.registry.time * 0.8);
+        visualData.components.triAxisAura.rotation.y += 0.0018;
+        visualData.components.triAxisAura.rotation.z = Math.sin(this.registry.time * 0.32) * 0.05;
+        if (visualData.components.triAxisAuraRings) {
+          visualData.components.triAxisAuraRings.forEach((ring, i) => {
+            if (!ring?.material) return;
+            const phase = i * 0.85;
+            ring.rotation.x += 0.0008 * (i % 2 === 0 ? 1 : -1);
+            ring.rotation.z += 0.0005 * (i + 1);
+            ring.scale.setScalar(1 + auraPulse * 0.08);
+            ring.material.opacity = 0.11 + auraPulse * (0.04 + i * 0.01);
+          });
+        }
+        if (visualData.components.triAxisAuraShell?.material) {
+          visualData.components.triAxisAuraShell.material.opacity = 0.06 + auraPulse * 0.04;
+          visualData.components.triAxisAuraShell.scale.setScalar(1 + auraPulse * 0.03);
+        }
+      }
+
+      if (visualData.components.extremeSecondaryGlow) {
+        visualData.components.extremeSecondaryGlow.rotation.y += 0.0015;
+        visualData.components.extremeSecondaryGlow.rotation.z += 0.0008;
       }
     });
   }
