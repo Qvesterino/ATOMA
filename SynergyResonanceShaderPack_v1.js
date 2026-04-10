@@ -86,7 +86,6 @@ class ResonanceMaterialState {
     constructor(material) {
         this.material = material;
         this.originalOnBeforeCompile = material.onBeforeCompile || null;
-        this.originalCustomProgramCacheKey = material.customProgramCacheKey || null;
         
         // GPU uniforms
         this.uniforms = {
@@ -343,12 +342,6 @@ class ResonanceMaterialState {
                 `
             );
         };
-
-        this.material.customProgramCacheKey = () => {
-            const originalKey = this.originalCustomProgramCacheKey;
-            const baseKey = typeof originalKey === 'function' ? originalKey() : (originalKey || '');
-            return `${baseKey ? `${baseKey}|` : ''}ATOMA_SYNERGY_RESONANCE_v1`;
-        };
         
         // Force material update
         this.material.needsUpdate = true;
@@ -431,21 +424,6 @@ export class SynergyResonanceShaderPack_v1 {
             }
             return false;
         }
-    }
-
-    primeMaterials(allLinks = []) {
-        if (!Array.isArray(allLinks)) return 0;
-
-        let count = 0;
-        for (const link of allLinks) {
-            for (const material of getConduitLinkMaterials(link)) {
-                if (!this.materialState.has(material)) {
-                    this.patchMaterial(material);
-                    count++;
-                }
-            }
-        }
-        return count;
     }
     
     /**

@@ -133,7 +133,6 @@ class SynergyMaterialState {
             uSynergyGlobalBoost: { value: 1.0 }
         };
         this.originalOnBeforeCompile = material.onBeforeCompile || null;
-        this.originalCustomProgramCacheKey = material.customProgramCacheKey || null;
     }
     
     /**
@@ -284,12 +283,6 @@ class SynergyMaterialState {
                 shader.vertexShader = vertexShaderPatch + shader.vertexShader;
             }
         };
-
-        this.material.customProgramCacheKey = () => {
-            const originalKey = this.originalCustomProgramCacheKey;
-            const baseKey = typeof originalKey === 'function' ? originalKey() : (originalKey || '');
-            return `${baseKey ? `${baseKey}|` : ''}ATOMA_SYNERGY_BONUS_FX_v1`;
-        };
         
         // Force material update
         this.material.needsUpdate = true;
@@ -411,51 +404,6 @@ export class SynergyBonusFXLayer_v1 {
                 console.warn('[SynergyBonusFXLayer_v1] registerMaterial failed:', err);
             }
         }
-    }
-
-    /**
-     * Prime all link materials ahead of the frame update path.
-     */
-    primeMaterials(allLinks = []) {
-        if (!Array.isArray(allLinks)) return 0;
-
-        let count = 0;
-        for (const link of allLinks) {
-            const materials = this._getLinkMaterials(link);
-            for (const material of materials) {
-                if (!this.materialState.has(material)) {
-                    this.registerMaterial(material);
-                    count++;
-                }
-            }
-        }
-        return count;
-    }
-
-    _getLinkMaterials(link) {
-        const materials = [];
-        const conduitState = link?.group?.userData?.conduitState;
-
-        if (conduitState?.skinMesh?.material) {
-            materials.push(conduitState.skinMesh.material);
-        }
-
-        if (Array.isArray(conduitState?.strands)) {
-            for (const strand of conduitState.strands) {
-                if (strand?.material) {
-                    materials.push(strand.material);
-                }
-            }
-        }
-
-        if (!materials.length && link?.material) {
-            const legacyMaterials = Array.isArray(link.material) ? link.material : [link.material];
-            for (const material of legacyMaterials) {
-                if (material) materials.push(material);
-            }
-        }
-
-        return [...new Set(materials)];
     }
 
     /**

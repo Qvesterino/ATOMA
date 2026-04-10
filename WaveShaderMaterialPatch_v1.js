@@ -196,7 +196,6 @@ export class WaveShaderMaterialPatch_v1 {
             this.patchedMaterials = new WeakSet();
             this.materialProfiles = new WeakMap();
             this.originalOnBeforeCompile = new WeakMap();
-            this.originalCustomProgramCacheKey = new WeakMap();
             
             if (this.debugEnabled) {
                 console.log('[WaveShaderMaterialPatch_v1] Initialized ✓');
@@ -235,11 +234,9 @@ export class WaveShaderMaterialPatch_v1 {
 
             // Store profile
             this.materialProfiles.set(material, profile);
-            const ignoreWaveColor = material?.userData?.ignoreWaveColor === true;
 
             // Store original onBeforeCompile
             this.originalOnBeforeCompile.set(material, material.onBeforeCompile || (() => {}));
-            this.originalCustomProgramCacheKey.set(material, material.customProgramCacheKey || null);
 
             // Create new onBeforeCompile that calls original + patches shader
             material.onBeforeCompile = (shader) => {
@@ -254,14 +251,6 @@ export class WaveShaderMaterialPatch_v1 {
                     console.warn('[WaveShaderMaterialPatch_v1] onBeforeCompile patch error:', e);
                 }
             };
-
-            material.customProgramCacheKey = () => {
-                const originalKey = this.originalCustomProgramCacheKey.get(material);
-                const baseKey = typeof originalKey === 'function' ? originalKey() : (originalKey || '');
-                return `${baseKey ? `${baseKey}|` : ''}ATOMA_WAVE_SHADER_PATCH_v1|ignoreWaveColor:${ignoreWaveColor ? 1 : 0}`;
-            };
-
-            material.needsUpdate = true;
 
             // Mark as patched
             this.patchedMaterials.add(material);
@@ -293,14 +282,6 @@ export class WaveShaderMaterialPatch_v1 {
             // Restore original onBeforeCompile
             const original = this.originalOnBeforeCompile.get(material);
             material.onBeforeCompile = original;
-            const originalKey = this.originalCustomProgramCacheKey.get(material);
-            if (typeof originalKey === 'function') {
-                material.customProgramCacheKey = originalKey;
-            } else if (originalKey) {
-                material.customProgramCacheKey = originalKey;
-            } else {
-                delete material.customProgramCacheKey;
-            }
 
             // Remove from tracking
             this.patchedMaterials.delete?.(material);
