@@ -31,6 +31,7 @@ export class AmbientEntityManager {
     // Entity meshes and particles
     this.entityMeshes = {}; // id -> mesh/group
     this.entityParticles = {}; // id -> particles array
+    this.entityTrailParticles = {}; // id -> fragment trails
     
     // Spawning
     this.spawnChance = 0.003; // 0.3% per second
@@ -99,7 +100,7 @@ export class AmbientEntityManager {
    * Main update loop
    */
   update(deltaTime) {
-    if (!this.frameScheduler?.shouldRunBackground?.()) return;
+    if (this.frameScheduler?.shouldRunVisual?.() === false) return;
     
     // Phase B pilot: mood/interpretation at ~4 Hz, ambient motion/visuals remain 60 Hz (mirrors weatherPack gating)
     this.interpretationAccumulator += deltaTime;
@@ -272,36 +273,44 @@ export class AmbientEntityManager {
   createGhostOrb(entity) {
     const group = new THREE.Group();
     
-    // Main sphere
-    const geometry = new THREE.SphereGeometry(0.4, 16, 16);
-    const material = new THREE.MeshBasicMaterial({
+    // Core wireframe skirt
+    const coreGeometry = new THREE.IcosahedronGeometry(0.3, 1);
+    const coreMaterial = new THREE.MeshBasicMaterial({
       color: 0x00ffff,
-      emissive: 0x00ffff,
-      emissiveIntensity: 0.8,
+      wireframe: true,
       transparent: true,
-      opacity: 0.6,
-      wireframe: false
+      opacity: 0.6
     });
-    const sphere = new THREE.Mesh(geometry, material);
-    group.add(sphere);
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    group.add(core);
+
+    // Inner glow sphere
+    const innerGlowGeometry = new THREE.SphereGeometry(0.15, 16, 16);
+    const innerGlowMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      emissive: 0xffffff,
+      emissiveIntensity: 0.9,
+      transparent: true,
+      opacity: 0.8
+    });
+    const innerGlow = new THREE.Mesh(innerGlowGeometry, innerGlowMaterial);
+    group.add(innerGlow);
     
     // Glow halo
-    const haloGeometry = new THREE.SphereGeometry(0.6, 8, 8);
+    const haloGeometry = new THREE.SphereGeometry(0.8, 16, 16);
     const haloMaterial = new THREE.MeshBasicMaterial({
       color: 0x00ddff,
-      emissive: 0x00ddff,
-      emissiveIntensity: 0.3,
       transparent: true,
-      opacity: 0.3,
-      wireframe: false
+      opacity: 0.15,
+      side: THREE.BackSide
     });
     const halo = new THREE.Mesh(haloGeometry, haloMaterial);
-    halo.scale.z = 0.3;
     group.add(halo);
     
     group.userData.type = 'GHOST_ORB';
     group.userData.floatAmplitude = Math.random() * 0.5;
     group.userData.floatSpeed = 0.5 + Math.random() * 1.5;
+    group.userData.floatTime = 0;
     
     return group;
   }
@@ -311,31 +320,36 @@ export class AmbientEntityManager {
    */
   createAISpectre(entity) {
     const group = new THREE.Group();
-    
-    // Vertical line spectre made of segments
-    const segments = 5;
-    const segmentHeight = 2;
-    
-    for (let i = 0; i < segments; i++) {
-      const y = (i - segments / 2) * (segmentHeight / segments);
-      const geometry = new THREE.BoxGeometry(0.15, segmentHeight / segments, 0.05);
-      const material = new THREE.MeshBasicMaterial({
-        color: 0xff0088,
-        emissive: 0xff0088,
-        emissiveIntensity: 0.5,
-        transparent: true,
-        opacity: 0.1,
-        wireframe: false
-      });
-      const segment = new THREE.Mesh(geometry, material);
-      segment.position.y = y;
-      group.add(segment);
-    }
-    
+
+    // Vertical hologram body
+    const torusGeometry = new THREE.TorusGeometry(0.3, 0.03, 8, 32);
+    const torusMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff0088,
+      transparent: true,
+      opacity: 0.3
+    });
+    const body = new THREE.Mesh(torusGeometry, torusMaterial);
+    body.rotation.x = Math.PI / 2;
+    body.position.y = 0.3;
+    group.add(body);
+
+    // Scanline overlay
+    const scanlineGeometry = new THREE.PlaneGeometry(0.8, 2);
+    const scanlineMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff0088,
+      transparent: true,
+      opacity: 0.1,
+      side: THREE.DoubleSide
+    });
+    const scanline = new THREE.Mesh(scanlineGeometry, scanlineMaterial);
+    scanline.name = 'scanline';
+    scanline.position.y = 1.0;
+    group.add(scanline);
+
     group.userData.type = 'AI_SPECTRE';
     group.userData.glitchTimer = 0;
     group.userData.glitchIntensity = 0;
-    
+    group.userData.body = body;
     return group;
   }
   
@@ -343,40 +357,133 @@ export class AmbientEntityManager {
    * Create Fragment Swarm - geometric shards
    */
   createFragmentSwarm(entity) {
+    const SHAPES = {
+      TETRAHEDRON: 0,
+      OCTAHEDRON: 1,
+      DODECAHEDRON: 2
+    };
+
     const group = new THREE.Group();
-    
-    const fragmentCount = 8;
+    const fragmentCount = 20;
+    entity.trailParticles = Array.from({ length: fragmentCount }, () => []);
+    this.entityTrailParticles[entity.id] = entity.trailParticles;
+
     for (let i = 0; i < fragmentCount; i++) {
-      const size = 0.1 + Math.random() * 0.2;
-      const geometry = new THREE.TetrahedronGeometry(size, 0);
+      let geometry;
+      const shapeType = Math.floor(Math.random() * 3);
+      const size = 0.08 + Math.random() * 0.15;
+
+      switch (shapeType) {
+        case SHAPES.OCTAHEDRON:
+          geometry = new THREE.OctahedronGeometry(size, 0);
+          break;
+        case SHAPES.DODECAHEDRON:
+          geometry = new THREE.DodecahedronGeometry(size * 0.8, 0);
+          break;
+        default:
+          geometry = new THREE.TetrahedronGeometry(size, 0);
+          break;
+      }
+
+      const distFactor = Math.random();
+      const colorHex = this.lerpColor(0xaaff00, 0xffff00, distFactor);
       const material = new THREE.MeshBasicMaterial({
-        color: 0xaaff00,
-        emissive: 0xaaff00,
+        color: colorHex,
+        emissive: colorHex,
         emissiveIntensity: 0.6,
         transparent: true,
         opacity: 0.7,
         wireframe: false
       });
       const fragment = new THREE.Mesh(geometry, material);
-      
+
       fragment.position.set(
         (Math.random() - 0.5) * 2,
         (Math.random() - 0.5) * 2,
         (Math.random() - 0.5) * 2
       );
-      
+
       fragment.userData.basePos = fragment.position.clone();
-      fragment.userData.orbitSpeed = Math.random() * 2;
-      
+      fragment.userData.orbitSpeed = 0.5 + Math.random() * 3.0;
+      fragment.userData.orbitRadius = 1.0 + Math.random() * 1.5;
+      fragment.userData.orbitPhase = Math.random() * Math.PI * 2;
+      fragment.userData.orbitTilt = (Math.random() - 0.5) * 0.5;
+
       group.add(fragment);
     }
-    
+
     group.userData.type = 'FRAGMENT_SWARM';
     group.userData.orbitTime = Math.random() * Math.PI * 2;
-    
+    group.userData.trailContainer = this.createTrailParticles(entity);
+    group.add(group.userData.trailContainer);
+
     return group;
   }
   
+  createTrailParticles(entity) {
+    const trailContainer = new THREE.Group();
+    trailContainer.userData.isTrailContainer = true;
+
+    const particleGeometry = new THREE.SphereGeometry(0.02, 8, 8);
+    for (let i = 0; i < 20; i++) {
+      const particleMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffff00,
+        transparent: true,
+        opacity: 0.0
+      });
+      const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+      particle.visible = false;
+      particle.userData = { active: false, age: 0 };
+      trailContainer.add(particle);
+    }
+
+    return trailContainer;
+  }
+
+  createWispTrailContainer(entity, streamCount) {
+    const trailContainer = new THREE.Group();
+    trailContainer.userData.isWispTrailContainer = true;
+
+    const particleGeometry = new THREE.SphereGeometry(0.03, 8, 8);
+    for (let streamIndex = 0; streamIndex < streamCount; streamIndex++) {
+      for (let trailIndex = 0; trailIndex < 6; trailIndex++) {
+        const particleMaterial = new THREE.MeshBasicMaterial({
+          color: 0x99ffff,
+          transparent: true,
+          opacity: 0.0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        });
+        const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+        particle.visible = false;
+        particle.userData = { streamIndex, trailIndex, age: 0 };
+        trailContainer.add(particle);
+      }
+    }
+
+    return trailContainer;
+  }
+
+  lerpColor(a, b, t) {
+    const colorA = new THREE.Color(a);
+    const colorB = new THREE.Color(b);
+    return colorA.lerp(colorB, t).getHex();
+  }
+
+  createEdgeGlow(geometry, color) {
+    const edges = new THREE.EdgesGeometry(geometry);
+    const lineMaterial = new THREE.LineBasicMaterial({
+      color: color,
+      transparent: true,
+      opacity: 0.4
+    });
+    return new THREE.LineSegments(edges, lineMaterial);
+  }
+
+  perlinNoise(x, y, z) {
+    return Math.sin(x) * Math.cos(y) * Math.sin(z);
+  }
+
   /**
    * Create Sigma Phantom - pixelated humanoid outline
    */
@@ -384,10 +491,7 @@ export class AmbientEntityManager {
     const group = new THREE.Group();
     
     // Pixelated body made of boxes
-    const pixelSize = 0.3;
-    
-    // Head
-    const headGeo = new THREE.BoxGeometry(pixelSize, pixelSize, pixelSize);
+    const pixelSize = 0.5;
     const material = new THREE.MeshBasicMaterial({
       color: 0xff00ff,
       emissive: 0xff00ff,
@@ -396,26 +500,55 @@ export class AmbientEntityManager {
       opacity: 0.3,
       wireframe: false
     });
-    const head = new THREE.Mesh(headGeo, material);
-    head.position.y = 1.2;
+
+    // Head
+    const headGeo = new THREE.BoxGeometry(pixelSize, pixelSize, pixelSize);
+    const head = new THREE.Mesh(headGeo, material.clone());
+    head.position.y = 1.5;
+    head.name = 'head';
     group.add(head);
-    
+
     // Body
-    const bodyGeo = new THREE.BoxGeometry(pixelSize * 0.8, pixelSize * 1.5, pixelSize);
+    const bodyGeo = new THREE.BoxGeometry(pixelSize * 0.8, pixelSize * 2.0, pixelSize);
     const body = new THREE.Mesh(bodyGeo, material.clone());
     body.position.y = 0.3;
+    body.name = 'body';
     group.add(body);
-    
+
     // Arms
     for (let side of [-1, 1]) {
-      const armGeo = new THREE.BoxGeometry(pixelSize * 0.5, pixelSize, pixelSize);
+      const armGeo = new THREE.BoxGeometry(pixelSize * 0.4, pixelSize * 1.2, pixelSize);
       const arm = new THREE.Mesh(armGeo, material.clone());
-      arm.position.set(side * 0.6, 0.5, 0);
+      arm.position.set(side * 0.7, -0.3, 0);
+      arm.name = side === -1 ? 'leftArm' : 'rightArm';
       group.add(arm);
     }
-    
+
+    // Legs
+    for (let side of [-1, 1]) {
+      const legGeo = new THREE.BoxGeometry(pixelSize * 0.3, pixelSize * 1.2, pixelSize);
+      const leg = new THREE.Mesh(legGeo, material.clone());
+      leg.position.set(side * 0.25, -0.9, 0);
+      leg.name = side === -1 ? 'leftLeg' : 'rightLeg';
+      group.add(leg);
+    }
+
+    const parts = ['head', 'body', 'leftArm', 'rightArm', 'leftLeg', 'rightLeg'];
+    parts.forEach((partName) => {
+      const part = group.getObjectByName(partName);
+      if (part) {
+        const glow = this.createEdgeGlow(part.geometry, 0xff00ff);
+        glow.name = `${partName}_glow`;
+        part.add(glow);
+      }
+    });
+
     group.userData.type = 'SIGMA_PHANTOM';
     group.userData.glitchTimer = Math.random() * 2;
+    group.userData.noiseOffset = Math.random() * 1000;
+    group.userData.noiseScale = 10.0;
+    group.userData.fadeCycleTime = 0;
+    group.userData.fadeDuration = 3.0;
     
     return group;
   }
@@ -425,45 +558,87 @@ export class AmbientEntityManager {
    */
   createQuantumWisp(entity) {
     const group = new THREE.Group();
-    
-    // Create ribbon using line segments
-    const curve = new THREE.CatmullRomCurve3([
+    const streamCount = 5;
+    entity.streamTrails = Array.from({ length: streamCount }, () => []);
+    entity.streamCurves = [];
+
+    const basePoints = [
       new THREE.Vector3(0, 0, 0),
       new THREE.Vector3(0.5, 0.3, 0.2),
       new THREE.Vector3(1, 0.5, -0.3),
       new THREE.Vector3(1.2, 0, -0.8)
-    ]);
-    
-    const points = curve.getPoints(20);
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    // MATERIAL SAFETY 4.0: LineBasicMaterial does not support emissive
-    const material = new THREE.LineBasicMaterial({
-      color: 0x00ffff,
-      linewidth: 2,
-      transparent: true,
-      opacity: 0.8
-    });
-    const line = new THREE.Line(geometry, material);
-    group.add(line);
-    
+    ];
+
+    for (let i = 0; i < streamCount; i++) {
+      const offset = (i - 2) * 0.15;
+      const curve = new THREE.CatmullRomCurve3([
+        basePoints[0].clone(),
+        basePoints[1].clone().add(new THREE.Vector3(0, 0, offset * 0.4)),
+        basePoints[2].clone().add(new THREE.Vector3(0, 0, offset * 0.6)),
+        basePoints[3].clone().add(new THREE.Vector3(0, 0, offset * 0.8))
+      ]);
+      entity.streamCurves.push(curve);
+
+      const points = curve.getPoints(30);
+      const positions = [];
+      const colors = [];
+      const streamColor = new THREE.Color(this.lerpColor(0x00ffff, 0xff00ff, i / (streamCount - 1)));
+
+      points.forEach((point, index) => {
+        positions.push(point.x, point.y, point.z);
+        const centerProgress = Math.abs(index - (points.length - 1) / 2) / ((points.length - 1) / 2);
+        const brighten = 0.25 + (1.0 - centerProgress) * 0.25;
+        const vertexColor = streamColor.clone().lerp(new THREE.Color(0xffffff), brighten);
+        colors.push(vertexColor.r, vertexColor.g, vertexColor.b);
+      });
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+      const material = new THREE.LineBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.75 - Math.abs(offset) * 0.16,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+
+      const line = new THREE.Line(geometry, material);
+      line.userData.streamIndex = i;
+      line.userData.curve = curve;
+      line.userData.offset = offset;
+      line.userData.baseOpacity = material.opacity;
+      line.userData.originalOpacity = material.opacity;
+      group.add(line);
+    }
+
     // Add ribbon-like planes
     const ribbonGeo = new THREE.PlaneGeometry(0.3, 2);
-    const ribbonMat = new THREE.MeshBasicMaterial({
-      color: 0x00ffff,
-      emissive: 0x00ffff,
-      emissiveIntensity: 0.4,
-      transparent: true,
-      opacity: 0.2,
-      side: THREE.DoubleSide
-    });
-    const ribbon = new THREE.Mesh(ribbonGeo, ribbonMat);
-    ribbon.rotation.y = Math.random() * Math.PI;
-    group.add(ribbon);
-    
+    for (let i = 0; i < 2; i++) {
+      const ribbonMat = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        emissive: 0x00ffff,
+        emissiveIntensity: 0.4,
+        transparent: true,
+        opacity: 0.16,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const ribbon = new THREE.Mesh(ribbonGeo, ribbonMat);
+      ribbon.rotation.y = Math.PI * 0.5 + i * 0.4;
+      ribbon.position.x = (i === 0 ? -0.1 : 0.1);
+      ribbon.userData.originalOpacity = ribbonMat.opacity;
+      group.add(ribbon);
+    }
+
     group.userData.type = 'QUANTUM_WISP';
-    group.userData.ribbonRotation = Math.random() * Math.PI * 2;
     group.userData.waveTime = 0;
-    
+    group.userData.streamCount = streamCount;
+    group.userData.trailContainer = this.createWispTrailContainer(entity, streamCount);
+    group.add(group.userData.trailContainer);
+
     return group;
   }
   
@@ -585,16 +760,44 @@ export class AmbientEntityManager {
     const time = Date.now() * 0.001;
     mesh.userData.floatTime = (mesh.userData.floatTime || 0) + deltaTime;
     
-    // Float up and down
-    const floatOffset = Math.sin(mesh.userData.floatTime * mesh.userData.floatSpeed) 
+    // Float up / wobble
+    const floatOffset = Math.sin(mesh.userData.floatTime * mesh.userData.floatSpeed)
       * mesh.userData.floatAmplitude;
+    const wobble = Math.sin(mesh.userData.floatTime * 2.5) * 0.08;
+    mesh.position.y = entity.position.y + floatOffset + wobble;
     
     // Rotate gently
     mesh.rotation.y += deltaTime * 0.3;
     
-    // Update opacity based on intensity
-    mesh.children[0].material.opacity = 0.6 * entity.intensity * (1 - fadeProgress);
-    mesh.children[1].material.opacity = 0.3 * entity.intensity * (1 - fadeProgress);
+    // Color shift over time
+    const colorTime = Date.now() * 0.0003;
+    const hue = colorTime % 1.0;
+    const color = new THREE.Color().setHSL(hue, 1.0, 0.5);
+    if (mesh.children[0]?.material) {
+      mesh.children[0].material.color.copy(color);
+    }
+    if (mesh.children[2]?.material) {
+      mesh.children[2].material.color.copy(color);
+    }
+    
+    // Inner pulse
+    const pulseTime = Date.now() * 0.002;
+    const pulse = 0.5 + 0.5 * Math.sin(pulseTime);
+    if (mesh.children[1]?.material) {
+      mesh.children[1].material.opacity = 0.6 + pulse * 0.4;
+    }
+    if (mesh.children[0]) {
+      const pulseScale = 1 + pulse * 0.1;
+      mesh.children[0].scale.setScalar(pulseScale);
+    }
+    
+    // Fade visibility
+    mesh.children.forEach((child) => {
+      if (child.material && child.material.transparent) {
+        const originalOpacity = child.userData.originalOpacity || child.material.opacity;
+        child.material.opacity = originalOpacity * (1 - fadeProgress);
+      }
+    });
   }
   
   /**
@@ -602,21 +805,58 @@ export class AmbientEntityManager {
    */
   updateSpectreVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.glitchTimer += deltaTime;
-    
-    // Random glitch effect
-    if (Math.random() < 0.02) {
-      const offset = (Math.random() - 0.5) * 0.3;
-      mesh.position.x += offset;
-      mesh.userData.glitchIntensity = 0.5;
+
+    // Scanline sweep
+    const scanline = mesh.getObjectByName('scanline');
+    if (scanline) {
+      const scanTime = (Date.now() * 0.001) % 2.0;
+      const scanY = 1.0 - scanTime * 1.0;
+      scanline.position.y = scanY;
+      const edgeFade = Math.min(1, Math.min(scanTime, 2 - scanTime) / 0.5);
+      scanline.material.opacity = 0.1 * edgeFade * entity.intensity;
     }
-    
+
+    // Chromatic glitch effect
+    if (Math.random() < 0.02) {
+      const offset = (Math.random() - 0.5) * 0.5;
+      const body = mesh.userData.body || mesh.children[0];
+      if (body) {
+        body.position.x = offset;
+        if (!mesh.userData.chromaClone) {
+          const clone = body.clone();
+          clone.material = body.material.clone();
+          clone.material.color.setHex(0x0088ff);
+          clone.material.opacity = 0.2;
+          clone.userData.isChroma = true;
+          mesh.add(clone);
+          mesh.userData.chromaClone = clone;
+        }
+        if (mesh.userData.chromaClone) {
+          mesh.userData.chromaClone.position.x = -offset * 1.5;
+        }
+        setTimeout(() => {
+          if (mesh.userData && mesh.userData.chromaClone) {
+            mesh.remove(mesh.userData.chromaClone);
+            mesh.userData.chromaClone = null;
+          }
+          if (body) {
+            body.position.x = 0;
+          }
+        }, 50);
+      }
+    }
+
     mesh.userData.glitchIntensity *= 0.95;
-    
-    // Flicker opacity
-    const flicker = 0.05 + Math.sin(mesh.userData.glitchTimer * 5) * 0.05;
+
+    // Flicker with gradient noise
+    const flickerBase = 0.05;
+    const flickerSpeed = 8;
+    const flickerRange = 0.08;
+    const flicker = flickerBase + Math.sin(mesh.userData.glitchTimer * flickerSpeed) * flickerRange;
+    const noiseFlicker = Math.random() * 0.03;
     mesh.traverse((child) => {
-      if (child.material && child.material.opacity !== undefined) {
-        child.material.opacity = (0.1 + flicker) * entity.intensity * (1 - fadeProgress);
+      if (child.material && child.material.opacity !== undefined && !child.userData.isChroma) {
+        child.material.opacity = (0.1 + flicker + noiseFlicker) * entity.intensity * (1 - fadeProgress);
       }
     });
   }
@@ -626,21 +866,66 @@ export class AmbientEntityManager {
    */
   updateSwarmVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.orbitTime += deltaTime;
-    
     const time = mesh.userData.orbitTime;
-    
-    // Orbit fragments around center
-    mesh.children.forEach((fragment, i) => {
+    const fragments = mesh.children.filter(child => !child.userData.isTrailContainer);
+    const trailContainer = mesh.userData.trailContainer;
+    const trailParticles = entity.trailParticles || [];
+    const TRAIL_LENGTH = 8;
+    const TRAIL_LIFETIME = 0.3;
+
+    fragments.forEach((fragment, i) => {
       const basePos = fragment.userData.basePos;
       const orbitSpeed = fragment.userData.orbitSpeed;
-      
-      fragment.position.x = basePos.x + Math.sin(time * orbitSpeed) * 0.5;
-      fragment.position.z = basePos.z + Math.cos(time * orbitSpeed) * 0.5;
-      fragment.position.y = basePos.y + Math.sin(time * orbitSpeed * 0.7) * 0.3;
-      
+      const orbitRadius = fragment.userData.orbitRadius;
+      const orbitPhase = fragment.userData.orbitPhase;
+      const tilt = fragment.userData.orbitTilt;
+
+      fragment.position.x = basePos.x + Math.sin(time * orbitSpeed + orbitPhase) * orbitRadius;
+      fragment.position.z = basePos.z + Math.cos(time * orbitSpeed + orbitPhase) * orbitRadius;
+      fragment.position.y = basePos.y + Math.sin(time * orbitSpeed * 0.7 + orbitPhase) * orbitRadius * tilt;
+
       fragment.rotation.x += deltaTime * 0.5;
       fragment.rotation.y += deltaTime * 0.7;
+
+      const trail = trailParticles[i];
+      if (Array.isArray(trail)) {
+        trail.push({ pos: fragment.position.clone(), age: 0 });
+        while (trail.length > TRAIL_LENGTH) {
+          trail.shift();
+        }
+      }
+
+      const ageFactor = 1.0 - (entity.age / entity.maxLifetime);
+      if (fragment.material && fragment.material.opacity !== undefined) {
+        fragment.material.opacity = 0.7 * ageFactor * entity.intensity;
+      }
     });
+
+    if (trailContainer && trailContainer.children.length > 0) {
+      let particleIndex = 0;
+      for (const trail of trailParticles) {
+        for (const point of trail) {
+          point.age += deltaTime;
+        }
+        while (trail.length > 0 && trail[0].age > TRAIL_LIFETIME) {
+          trail.shift();
+        }
+        for (const point of trail) {
+          if (particleIndex >= trailContainer.children.length) break;
+          const particle = trailContainer.children[particleIndex];
+          particle.visible = true;
+          particle.position.copy(point.pos);
+          const life = Math.max(0, 1 - point.age / TRAIL_LIFETIME);
+          particle.material.opacity = 0.3 * life * entity.intensity;
+          particle.scale.setScalar(0.02 * (0.5 + life * 0.5));
+          particleIndex += 1;
+        }
+      }
+      for (; particleIndex < trailContainer.children.length; particleIndex++) {
+        const particle = trailContainer.children[particleIndex];
+        particle.visible = false;
+      }
+    }
   }
   
   /**
@@ -648,19 +933,40 @@ export class AmbientEntityManager {
    */
   updatePhantomVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.glitchTimer += deltaTime;
-    
+    mesh.userData.fadeCycleTime = (mesh.userData.fadeCycleTime || 0) + deltaTime;
+
     // Random glitch teleport
     if (Math.random() < 0.03) {
       const offset = (Math.random() - 0.5) * 0.5;
       mesh.position.x += offset;
     }
-    
-    // Flicker all children
-    const glitch = Math.sin(mesh.userData.glitchTimer * 8) > 0.5;
+
+    // Hologram noise opacity
+    const noise = this.perlinNoise(
+      mesh.position.x * mesh.userData.noiseScale,
+      mesh.position.z * mesh.userData.noiseScale,
+      Date.now() * 0.001 + mesh.userData.noiseOffset
+    );
+    const noiseOpacity = 0.2 + noise * 0.15;
+
+    // Periodic fade cycle
+    const fadePhase = (mesh.userData.fadeCycleTime % mesh.userData.fadeDuration) / mesh.userData.fadeDuration;
+    let fadeMultiplier = 1.0;
+    if (fadePhase < 0.3) {
+      fadeMultiplier = fadePhase / 0.3;
+    } else if (fadePhase > 0.7) {
+      fadeMultiplier = (1.0 - fadePhase) / 0.3;
+    }
+
+    const flickerBase = 0.05;
+    const flickerSpeed = 8;
+    const flickerRange = 0.08;
+    const flicker = flickerBase + Math.sin(mesh.userData.glitchTimer * flickerSpeed) * flickerRange;
+    const noiseFlicker = Math.random() * 0.03;
+
     mesh.traverse((child) => {
-      if (child.material && child.material.opacity !== undefined) {
-        const targetOpacity = glitch ? 0.1 : 0.3;
-        child.material.opacity = targetOpacity * entity.intensity * (1 - fadeProgress);
+      if (child.material && child.material.opacity !== undefined && !child.name.includes('_glow')) {
+        child.material.opacity = (noiseOpacity + flicker + noiseFlicker) * entity.intensity * (1 - fadeProgress) * fadeMultiplier;
       }
     });
   }
@@ -670,16 +976,78 @@ export class AmbientEntityManager {
    */
   updateWispVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.waveTime += deltaTime;
-    
-    const time = mesh.userData.waveTime;
-    
-    // Ribbon undulation
+    const waveTime = Date.now() * 0.001;
+
     mesh.children.forEach((child) => {
-      if (child.rotation) {
-        child.rotation.z += Math.sin(time) * 0.02;
+      if (child.userData.streamIndex !== undefined) {
+        const offset = (child.userData.streamIndex - 2) * 0.15;
+
+        // Wave motion
+        child.position.y = Math.sin(waveTime + offset * 5) * 0.1;
+        child.rotation.z = Math.sin(waveTime * 2 + offset * 3) * 0.01;
+
+        // Scale pulse
+        const pulse = 1 + Math.sin(waveTime * 3 + offset * 2) * 0.15;
+        child.scale.set(1, pulse, 1);
+
+        // Color shift
+        const hueShift = Math.sin(waveTime + offset * 2) * 0.1;
+        const baseHue = 0.5;
+        const newColor = new THREE.Color().setHSL(baseHue + hueShift, 1.0, 0.5);
+        if (child.material && child.material.color) {
+          child.material.color.copy(newColor);
+        }
+
+        if (child.material && child.material.opacity !== undefined) {
+          const baseOpacity = child.userData.baseOpacity || 0.7;
+          child.material.opacity = baseOpacity * (1 - fadeProgress) * entity.intensity;
+        }
+
+        const streamIndex = child.userData.streamIndex;
+        const trail = entity.streamTrails?.[streamIndex];
+        if (Array.isArray(trail) && child.userData.curve) {
+          trail.push({ pos: child.userData.curve.getPoint(Math.random()), age: 0 });
+          while (trail.length > 5) {
+            trail.shift();
+          }
+        }
       }
     });
-    
+
+    const trailContainer = mesh.userData.trailContainer;
+    if (trailContainer && Array.isArray(entity.streamTrails)) {
+      let particleIndex = 0;
+      const TRAIL_LIFETIME = 0.2;
+
+      for (let streamIndex = 0; streamIndex < entity.streamTrails.length; streamIndex++) {
+        const trail = entity.streamTrails[streamIndex];
+        if (!Array.isArray(trail)) continue;
+
+        for (const point of trail) {
+          point.age += deltaTime;
+        }
+        while (trail.length > 0 && trail[0].age > TRAIL_LIFETIME) {
+          trail.shift();
+        }
+
+        for (const point of trail) {
+          if (particleIndex >= trailContainer.children.length) break;
+          const particle = trailContainer.children[particleIndex];
+          particle.visible = true;
+          particle.position.copy(point.pos);
+          const life = Math.max(0, 1 - point.age / TRAIL_LIFETIME);
+          particle.material.opacity = 0.25 * life * entity.intensity * (1 - fadeProgress);
+          particle.scale.setScalar(0.04 * (0.5 + life * 0.5));
+          particleIndex += 1;
+        }
+      }
+
+      for (; particleIndex < trailContainer.children.length; particleIndex++) {
+        const particle = trailContainer.children[particleIndex];
+        particle.visible = false;
+      }
+    }
+
     // Random warp when near legendary nodes
     const legendaryNodes = this.worldSystems.legendaryPack?.getLegendaryNodes?.();
     if (legendaryNodes && legendaryNodes.length > 0) {
@@ -687,7 +1055,7 @@ export class AmbientEntityManager {
       if (nearest && nearest.position) {
         const dist = mesh.position.distanceTo(nearest.position);
         if (dist < 15) {
-          mesh.scale.y = 1 + Math.sin(time * 3) * 0.2;
+          mesh.scale.y = 1 + Math.sin(waveTime * 3) * 0.2;
         }
       }
     }

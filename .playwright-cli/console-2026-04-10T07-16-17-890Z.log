@@ -425,3 +425,163 @@
 [ 2660392ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
 [ 2660392ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
 [ 2660392ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[ 3846239ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[ 3846239ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[ 3846240ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[ 3846240ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[ 3846250ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[ 3846251ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[ 3846251ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:155
+[ 3846252ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[ 3846254ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[ 3846262ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[ 3846321ms] [LOG] [FXDebugSandbox] DISABLED - To enable, change DISABLED flag to false at line ~661 @ http://127.0.0.1:5500/Engine/Debug/FXDebugSandbox.js:705
+[ 3846327ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[ 3846328ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[ 3846328ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[ 3846328ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[ 3846328ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[ 3846328ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[ 3846328ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[ 3939826ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[ 3939826ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[ 3939826ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[ 3939826ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[ 3939833ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[ 3939834ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[ 3939834ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:155
+[ 3939835ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[ 3939836ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[ 3939845ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[ 3939900ms] [LOG] [FXDebugSandbox] DISABLED - To enable, change DISABLED flag to false at line ~661 @ http://127.0.0.1:5500/Engine/Debug/FXDebugSandbox.js:705
+[ 3939907ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[ 3939907ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[ 3939907ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[ 3939907ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[ 3939907ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[ 3939907ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[ 3939907ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[ 3994500ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[ 3994500ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[ 3994500ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[ 3994501ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[ 3994511ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[ 3994511ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[ 3994511ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:155
+[ 3994513ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[ 3994514ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[ 3994522ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[ 3994578ms] [LOG] [FXDebugSandbox] DISABLED - To enable, change DISABLED flag to false at line ~661 @ http://127.0.0.1:5500/Engine/Debug/FXDebugSandbox.js:705
+[ 3994584ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[ 3994584ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[ 3994584ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[ 3994584ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[ 3994584ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[ 3994585ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[ 3994585ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[ 4068727ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[ 4068727ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[ 4068727ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[ 4068727ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[ 4068735ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[ 4068736ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[ 4068736ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:155
+[ 4068737ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[ 4068738ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[ 4068747ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[ 4068792ms] [LOG] [FXDebugSandbox] DISABLED - To enable, change DISABLED flag to false at line ~661 @ http://127.0.0.1:5500/Engine/Debug/FXDebugSandbox.js:705
+[ 4068798ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[ 4068799ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[ 4068799ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[ 4068799ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[ 4068799ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[ 4068799ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[ 4068799ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[ 4256645ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[ 4256645ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[ 4256645ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[ 4256646ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[ 4256654ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[ 4256654ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[ 4256654ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:155
+[ 4256655ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[ 4256656ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[ 4256666ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[ 4256722ms] [LOG] [FXDebugSandbox] DISABLED - To enable, change DISABLED flag to false at line ~661 @ http://127.0.0.1:5500/Engine/Debug/FXDebugSandbox.js:705
+[ 4256729ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[ 4256729ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[ 4256729ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[ 4256729ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[ 4256730ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[ 4256730ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[ 4256730ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[ 4331068ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[ 4331069ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[ 4331069ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[ 4331069ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[ 4331076ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[ 4331076ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[ 4331076ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:155
+[ 4331081ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[ 4331082ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[ 4331091ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[ 4331132ms] [LOG] [FXDebugSandbox] DISABLED - To enable, change DISABLED flag to false at line ~661 @ http://127.0.0.1:5500/Engine/Debug/FXDebugSandbox.js:705
+[ 4331139ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[ 4331139ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[ 4331139ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[ 4331139ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[ 4331139ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[ 4331139ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[ 4331139ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[ 4593199ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[ 4593199ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[ 4593199ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[ 4593199ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[ 4593206ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[ 4593207ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[ 4593207ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:155
+[ 4593208ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[ 4593209ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[ 4593220ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[ 4593275ms] [LOG] [FXDebugSandbox] DISABLED - To enable, change DISABLED flag to false at line ~661 @ http://127.0.0.1:5500/Engine/Debug/FXDebugSandbox.js:705
+[ 4593281ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[ 4593281ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[ 4593281ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[ 4593281ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[ 4593282ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[ 4593282ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[ 4593282ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067
+[ 4621331ms] [LOG] ✓ HUD Registry 1.0 loaded — 4 HUDs registered @ http://127.0.0.1:5500/HUDRegistry.js:69
+[ 4621331ms] [LOG] ✓ HUD Layout Manager 1.0 module loaded @ http://127.0.0.1:5500/HUDLayoutManager.js:318
+[ 4621331ms] [LOG] ✓ Collapsible HUD Wrapper 1.0 module loaded @ http://127.0.0.1:5500/CollapsibleHudWrapper.js:264
+[ 4621331ms] [LOG] ✓ HUD Collapse System 1.0 module loaded @ http://127.0.0.1:5500/HudCollapseSystem1_0.js:151
+[ 4621337ms] [LOG] [VisualHierarchyRegistry] ✅ Initialized v2.0 with 14 node layers + 19 link layers = 43 total layers @ http://127.0.0.1:5500/VisualHierarchyRegistry.js:488
+[ 4621338ms] [LOG] [CanonicalInteractionFilter] Global API initialized: window.CanonicalInteractionFilter @ http://127.0.0.1:5500/CanonicalInteractionFilter.js:211
+[ 4621338ms] [LOG] [AURA DEBUG] Ready. Use window.AuraDebug @ http://127.0.0.1:5500/CoreHologramShader.js:155
+[ 4621339ms] [LOG] [ExtremeAINodePack] Initialized - 12 archetypes ready @ http://127.0.0.1:5500/_ExtremeAINodePack.js:20
+[ 4621341ms] [LOG] [VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED @ http://127.0.0.1:5500/ArchetypeVisualIntegrationPatch_v1.js:6
+[ 4621342ms] [LOG] %c * Tone.js v14.7.77 *  background: #000; color: #fff @ https://esm.sh/tone@14.7.77/es2022/tone.mjs:16
+[ 4621398ms] [LOG] [FXDebugSandbox] DISABLED - To enable, change DISABLED flag to false at line ~661 @ http://127.0.0.1:5500/Engine/Debug/FXDebugSandbox.js:705
+[ 4621404ms] [LOG] ✓ ComputeSynergyScore2_0 ready
+  Usage: window.ComputeSynergyScore2_0(link, systems)
+  Test: window.ComputeSynergyScore2_0.tuning.testAll() @ http://127.0.0.1:5500/ComputeSynergyScore2_0.js:552
+[ 4621404ms] [LOG] ✅ [LinkMLRecommendationEngine1_0] Console API available @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1062
+[ 4621405ms] [LOG]    window.testMLRecommendations() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1063
+[ 4621405ms] [LOG]    window.testMLRecommendationsFor(nodeId) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1064
+[ 4621405ms] [LOG]    window.tuneMLWeights(presetName) @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1065
+[ 4621405ms] [LOG]    window.printMLStats() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1066
+[ 4621405ms] [LOG]    window.getMLDebugInfo() @ http://127.0.0.1:5500/LinkMLRecommendationEngine1_0.js:1067

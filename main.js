@@ -82,7 +82,7 @@ import './Engine/Debug/FXDebugSandbox.js';
 // import { ensureSpherePolicyInstalled, installSpherePolicy } from './VisualSpherePolicy.js';
 import { RenderCostProfile } from './RenderCostProfile.js';
 import { sanitizeTransmission, findTransmissionMaterials } from './src/render/TransmissionSanitizer.js';
-import { installMaterialDebugGuard } from './src/metrics/MaterialDebugGuard_v1.js';
+import { checkLateMaterialCreation, installMaterialDebugGuard } from './src/metrics/MaterialDebugGuard_v1.js';
 import { setVisualLock } from './VisualAuthorityFlag.js';
 
 function createMetricDirtyQueue() {
@@ -135,6 +135,10 @@ function createMetricDirtyQueue() {
             return linkIds.size;
         }
     };
+}
+
+function auditLateMaterialCreation(label) {
+    checkLateMaterialCreation(undefined, label);
 }
 
 function getCachedVisualMetrics(scope = globalThis) {
@@ -4187,9 +4191,9 @@ class AtomaGame {
             if (this.environmentDomain?.instances?.weatherPack) return;
             this.weatherPack?.update?.(dt, this.scene, this.camera);
         }, 'background.weatherPack');
-        this.frameScheduler.register('background', (dt) => {
+        this.frameScheduler.register('visual', (dt) => {
             this.ambientEntityManager?.update?.(dt);
-        }, 'background.ambientEntityManager');
+        }, 'visual.ambientEntityManager');
         this.frameScheduler.register('background', (dt) => {
             this.consciousnessLayer?.update?.(dt);
         }, 'background.consciousnessLayer');
@@ -6473,6 +6477,13 @@ window.__ATOMA_SCENE__ = this.scene;
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.0;
+        if (this.renderer?.debug) {
+            this.renderer.debug.checkShaderErrors = !!(
+                window.DEBUG_VISUAL_MODE === true ||
+                window.__ATOMA_SHADER_FREEZE === true ||
+                window.ATOMA_FLAGS?.debug?.shader === true
+            );
+        }
         document.body.appendChild(this.renderer.domElement);
         this.gpuSanity = setupGpuSanity(this.renderer);
 
@@ -6490,15 +6501,21 @@ window.__ATOMA_SCENE__ = this.scene;
         // [B.3-C4] Post-processing toggle stabilization (build once)
         if (!this.postProcessing) {
             this.postProcessing = getSharedPostProcessingPipeline(this.renderer, this.scene, this.camera);
+            this.postProcessing?.onWindowResize?.(this.renderer.domElement.width, this.renderer.domElement.height);
             this.postProcessingEnabled = true;
         }
         this.setPostProcessingEnabled = (enabled = true) => {
             const next = !!enabled;
             if (this.postProcessingEnabled !== next) {
                 this.postProcessingEnabled = next;
+                if (next) {
+                    void this.postProcessing?.warmup?.(this.renderer);
+                }
             }
             return this.postProcessingEnabled;
         };
+
+        void this.postProcessing?.warmup?.(this.renderer);
 
         // === Wave shader stack (init early so warm-up uses patched shaders) ===
         try {
@@ -6780,6 +6797,7 @@ window.__ATOMA_SCENE__ = this.scene;
         this.setupSemanticGlyphAI();
         this.setupAmbientOrbitGlyphs();
         this.setupGlyphLayer4Fusions();
+        this.scheduleSceneShaderWarmup(this.currentMode || 'startup');
         this._lastHoverGlyphTarget = null;
         if (this.semanticGlyphAI?.setHoverTarget) {
             this.semanticGlyphAI.setHoverTarget(null);
@@ -6956,6 +6974,7 @@ window.__ATOMA_SCENE__ = this.scene;
         const groundRadius = 40;
         const groundGeometry = new THREE.CircleGeometry(groundRadius, 64);
         
+        auditLateMaterialCreation('main::QuantumIslandFallbackGround::MeshStandardMaterial');
         const groundMaterial = new THREE.MeshStandardMaterial({
             color: 0x0a0a0a,
             roughness: 0.3,
@@ -6973,6 +6992,7 @@ window.__ATOMA_SCENE__ = this.scene;
         
         // Add subtle neon ring edge
         const ringGeometry = new THREE.TorusGeometry(groundRadius - 1, 0.5, 32, 100);
+        auditLateMaterialCreation('main::QuantumIslandFallbackGround::MeshBasicMaterial');
         const ringMaterial = new THREE.MeshBasicMaterial({
             color: 0x00dddd,
             emissive: 0x00dddd,
@@ -7073,6 +7093,7 @@ window.__ATOMA_SCENE__ = this.scene;
     setupPlayer() {
         // Create invisible player object (we're in first-person)
         const playerGeometry = new THREE.BoxGeometry(0.5, 1.8, 0.5);
+        auditLateMaterialCreation('main::Player::MeshBasicMaterial');
         const playerMaterial = new THREE.MeshBasicMaterial({
             visible: false
         });
@@ -7861,6 +7882,7 @@ window.__ATOMA_SCENE__ = this.scene;
         this.setupSemanticGlyphAI();
         this.setupAmbientOrbitGlyphs();
         this.setupGlyphLayer4Fusions();
+        this.scheduleSceneShaderWarmup(reasonForCreate);
 
         // ====================================================================
         // DEV-ONLY INTEGRITY CHECK: Verify fusion registry coverage
@@ -11080,6 +11102,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         this.camera.aspect = window.innerWidth / window.innerHeight;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.postProcessing?.onWindowResize?.(this.renderer.domElement.width, this.renderer.domElement.height);
     }
 
     visualNetworkTimeElasticityTick(deltaTime) {
@@ -11543,7 +11566,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             if (this.environmentDomain?.instances?.worldFXPack) return;
             this.worldFXPack?.update?.(dt, this.scene, this.camera);
         });
-        regGuard('ambientEntityManager', 'background.ambientEntityManager', (dt) => this.ambientEntityManager?.update?.(dt));
+        regGuard('ambientEntityManager', 'visual.ambientEntityManager', (dt) => this.ambientEntityManager?.update?.(dt));
         regGuard('emergentThoughtStorms', 'visual.emergentThoughtStorms', (dt) => this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem));
         regGuard('colonyManager', 'simulation.colonyManager', (dt) => this.colonyManager?.update?.(dt));
         regGuard('dreamDepthPack', 'visual.dreamDepthPack', (dt) => {
@@ -12072,6 +12095,74 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
     scheduleVisualOnce(fn) {
         this.scheduleSemanticOnce(fn, { priority: this.semanticBus?.priority?.NORMAL });
+    }
+
+    scheduleSceneShaderWarmup(reason = 'scene') {
+        if (!this.renderer || !this.scene || !this.camera) return;
+        if (typeof window !== 'undefined' && (
+            window.DEBUG_VISUAL_MODE === true ||
+            window.__ATOMA_SHADER_FREEZE === true
+        )) {
+            return;
+        }
+
+        if (this._sceneShaderWarmupInFlight) {
+            this._sceneShaderWarmupPending = true;
+            this._sceneShaderWarmupReason = reason;
+            return;
+        }
+
+        if (this._sceneShaderWarmupQueued) return;
+        this._sceneShaderWarmupQueued = true;
+        this._sceneShaderWarmupComplete = false;
+
+        Promise.resolve().then(async () => {
+            this._sceneShaderWarmupQueued = false;
+
+            if (!this.renderer || !this.scene || !this.camera) {
+                return;
+            }
+
+            if (this._sceneShaderWarmupInFlight) {
+                this._sceneShaderWarmupPending = true;
+                this._sceneShaderWarmupReason = reason;
+                return;
+            }
+
+            this._sceneShaderWarmupInFlight = true;
+            const startedAt = performance.now();
+
+            try {
+                if (typeof this.renderer.compileAsync === 'function') {
+                    await this.renderer.compileAsync(this.scene, this.camera);
+                } else if (typeof this.renderer.compile === 'function') {
+                    this.renderer.compile(this.scene, this.camera);
+                }
+            } catch (err) {
+                console.warn('[main.js] Scene shader warmup failed:', err);
+            } finally {
+                this._sceneShaderWarmupInFlight = false;
+                this._sceneShaderWarmupComplete = true;
+                if (typeof window !== 'undefined') {
+                    window.__shaderWarmupDone = true;
+                    window.__ATOMA_WARMUP_COMPLETE = true;
+                    if (typeof window.markAtomaWarmupComplete === 'function') {
+                        window.markAtomaWarmupComplete();
+                    }
+                }
+                this._sceneShaderWarmupReport = {
+                    reason,
+                    durationMs: performance.now() - startedAt
+                };
+
+                if (this._sceneShaderWarmupPending) {
+                    const nextReason = this._sceneShaderWarmupReason || reason;
+                    this._sceneShaderWarmupPending = false;
+                    this._sceneShaderWarmupReason = null;
+                    this.scheduleSceneShaderWarmup(nextReason);
+                }
+            }
+        });
     }
 
     /**

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from '../../VisualHierarchyRegistry.js';
+import { checkLateMaterialCreation } from '../metrics/MaterialDebugGuard_v1.js';
 
 export class SelectedRingSystem {
   constructor(scene, frameScheduler = null, hierarchy = VisualHierarchyRegistry) {
@@ -26,17 +27,20 @@ export class SelectedRingSystem {
 
     // Base ring
     const baseGeom = new THREE.TorusGeometry(1.2, 0.04, 24, 128);
-    const baseMat = this._createRingMaterial();
-    const baseMesh = new THREE.Mesh(baseGeom, baseMat);
+    const ringMaterial = this._createRingMaterial();
+    this._ringMaterial = ringMaterial;
+    const baseMesh = new THREE.Mesh(baseGeom, ringMaterial);
+    this._bindMaterialUniformOverrides(baseMesh, { uAccentBoost: 0.25 });
     baseMesh.renderOrder = baseOrder;
     this.baseMesh = baseMesh;
     this.group.add(baseMesh);
 
     // Orbit segments
     const orbitGeom = new THREE.TorusGeometry(1.2, 0.02, 16, 96, Math.PI * 0.7);
-    const orbitMat = this._createRingMaterial({ accentBoost: 0.4 });
-    this.orbitA = new THREE.Mesh(orbitGeom, orbitMat.clone());
-    this.orbitB = new THREE.Mesh(orbitGeom, orbitMat.clone());
+    this.orbitA = new THREE.Mesh(orbitGeom, ringMaterial);
+    this.orbitB = new THREE.Mesh(orbitGeom, ringMaterial);
+    this._bindMaterialUniformOverrides(this.orbitA, { uAccentBoost: 0.4 });
+    this._bindMaterialUniformOverrides(this.orbitB, { uAccentBoost: 0.4 });
     this.orbitA.rotation.z = Math.PI * 0.25;
     this.orbitB.rotation.z = -Math.PI * 0.35;
     this.orbitA.renderOrder = baseOrder + 1;
@@ -47,13 +51,44 @@ export class SelectedRingSystem {
     // Scan ring
     const scanGeom = new THREE.RingGeometry(1.05, 1.08, 64);
     const scanMat = this._createScanMaterial();
+    this._scanMaterial = scanMat;
     this.scanMesh = new THREE.Mesh(scanGeom, scanMat);
     this.scanMesh.renderOrder = baseOrder + 2;
     this.group.add(this.scanMesh);
   }
 
-  _createRingMaterial(opts = {}) {
-    return new THREE.ShaderMaterial({
+  _bindMaterialUniformOverrides(mesh, uniformValues = {}) {
+    if (!mesh) return;
+    mesh.userData = mesh.userData || {};
+    mesh.userData.__selectedRingUniformOverrides = {
+      ...(mesh.userData.__selectedRingUniformOverrides ?? {}),
+      ...uniformValues
+    };
+
+    if (mesh.userData.__selectedRingUniformOverridesInstalled) return;
+    mesh.userData.__selectedRingUniformOverridesInstalled = true;
+
+    const previousOnBeforeRender = mesh.onBeforeRender;
+    mesh.onBeforeRender = (renderer, scene, camera, geometry, material, group) => {
+      if (typeof previousOnBeforeRender === 'function') {
+        previousOnBeforeRender.call(mesh, renderer, scene, camera, geometry, material, group);
+      }
+
+      const uniforms = mesh.userData.__selectedRingUniformOverrides;
+      if (!uniforms || !material?.uniforms) return;
+
+      for (const [key, value] of Object.entries(uniforms)) {
+        if (!material.uniforms[key]) {
+          material.uniforms[key] = { value };
+        } else if (material.uniforms[key].value !== value) {
+          material.uniforms[key].value = value;
+        }
+      }
+    };
+  }
+
+  _createRingMaterial() {
+    const material = new THREE.ShaderMaterial({
       transparent: true,
       depthTest: true,
       depthWrite: false,
@@ -65,7 +100,7 @@ export class SelectedRingSystem {
         uClick: { value: 0 },
         uColor: { value: new THREE.Color(0x00d5ff) },
         uAccent: { value: new THREE.Color(0xff33ff) },
-        uAccentBoost: { value: opts.accentBoost ?? 0.25 },
+        uAccentBoost: { value: 0.25 },
       },
       vertexShader: `
         uniform float uTime;
@@ -107,10 +142,12 @@ export class SelectedRingSystem {
         }
       `
     });
+    checkLateMaterialCreation(undefined, 'SelectedRingSystem::RingShaderMaterial');
+    return material;
   }
 
   _createScanMaterial() {
-    return new THREE.ShaderMaterial({
+    const material = new THREE.ShaderMaterial({
       transparent: true,
       depthTest: true,
       depthWrite: false,
@@ -146,6 +183,8 @@ export class SelectedRingSystem {
         }
       `
     });
+    checkLateMaterialCreation(undefined, 'SelectedRingSystem::ScanShaderMaterial');
+    return material;
   }
 
   setSelectedNode(nodeOrNull) {
@@ -204,11 +243,27 @@ export class SelectedRingSystem {
 
   dispose() {
     if (this.scene) this.scene.remove(this.group);
+    const disposedGeometries = new Set();
+    const disposedMaterials = new Set();
     [this.baseMesh, this.orbitA, this.orbitB, this.scanMesh].forEach((m) => {
-      m?.geometry?.dispose();
-      m?.material?.dispose();
+      if (m?.geometry && !disposedGeometries.has(m.geometry)) {
+        disposedGeometries.add(m.geometry);
+        m.geometry.dispose();
+      }
+      const materials = Array.isArray(m?.material) ? m.material : [m?.material];
+      for (const material of materials) {
+        if (!material || disposedMaterials.has(material)) continue;
+        disposedMaterials.add(material);
+        material.dispose?.();
+      }
     });
     this.group.clear();
     this.selectedNode = null;
+    this.baseMesh = null;
+    this.orbitA = null;
+    this.orbitB = null;
+    this.scanMesh = null;
+    this._ringMaterial = null;
+    this._scanMaterial = null;
   }
 }

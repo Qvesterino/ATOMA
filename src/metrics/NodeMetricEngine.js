@@ -567,6 +567,14 @@ export function ensureMetrics(node) {
   if (!node || !node.userData) return null;
   installMetricsPropertyGuard(node);
   if (node.userData.metrics) {
+    if (
+      node.userData.__metricsGuardInstalled === true &&
+      node.userData.__legacyMetricGuardInstalled === true &&
+      node.userData.metrics.__guarded === true
+    ) {
+      return node.userData.metrics;
+    }
+
     installLegacyFieldGuards(node);
     node.userData.metrics = wrapMetricsWithGuard(node.userData.metrics);
     const seededLoadPressure = Number.isFinite(node.userData.metrics.loadPressure)

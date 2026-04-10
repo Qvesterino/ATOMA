@@ -459,8 +459,9 @@ export class LinkCorruptionSpreadAnimator {
     const baseCount = tier === 'high'
       ? this.config.highChainSegments
       : this.config.midChainSegments;
+    const visibleLayerMultiplier = tier === 'high' ? this.config.chainLayerCount : 2;
     chain.root.visible = true;
-    chain.visibleCount = baseCount;
+    chain.visibleCount = baseCount * visibleLayerMultiplier;
     const startT = 0.12;
     const endT = 0.88;
     const sourceCategory = link?.source?.userData?.category || 'default';
@@ -472,8 +473,20 @@ export class LinkCorruptionSpreadAnimator {
     const ripple = state.ripplePhase;
     const motion = state.time * this.config.chainPulseSpeed;
 
+    const visibleLayerCount = tier === 'high'
+      ? this.config.chainLayerCount
+      : Math.min(this.config.chainLayerCount, 2);
+
     chain.layers.forEach((layer, layerIndex) => {
       if (!layer?.mesh) return;
+
+      const isLayerVisible = layerIndex < visibleLayerCount;
+      layer.mesh.visible = isLayerVisible;
+      if (!isLayerVisible) {
+        layer.mesh.count = 0;
+        layer.visibleCount = 0;
+        return;
+      }
 
       const layerCount = Math.max(
         1,
@@ -483,7 +496,6 @@ export class LinkCorruptionSpreadAnimator {
         )
       );
       layer.mesh.count = layerCount;
-      layer.mesh.visible = true;
       layer.visibleCount = layerCount;
 
       const layerPhaseOffset = layer.spec.phaseOffset || 0;

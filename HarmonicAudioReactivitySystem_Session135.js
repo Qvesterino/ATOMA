@@ -36,6 +36,7 @@ export class HarmonicAudioReactivitySystem_Session135 {
         this.rupturePanner = null;
         this.ambientGain = null;
         this.filterBiquad = null;
+        this.enableAmbientHum = false;
         
         this.isActive = true;
         this.networkHarmony = 0.5; // 0 = chaos, 1 = harmony
@@ -89,7 +90,7 @@ export class HarmonicAudioReactivitySystem_Session135 {
         this.rupturePanner.connect(this.ruptureGain);
 
         this.ambientGain = this.audioContext.createGain();
-        this.ambientGain.gain.value = 0.1;
+        this.ambientGain.gain.value = 0.0;
         this.ambientGain.connect(this.masterGain);
 
         this.filterBiquad = this.audioContext.createBiquadFilter();
@@ -97,7 +98,9 @@ export class HarmonicAudioReactivitySystem_Session135 {
         this.filterBiquad.frequency.value = 2000;
         this.filterBiquad.Q.value = 1;
 
-        this._startAmbientHum();
+        if (this.enableAmbientHum) {
+            this._startAmbientHum();
+        }
         this.initialized = true;
         console.log('✓ [S135] HarmonicAudioReactivitySystem started');
     }
@@ -108,6 +111,7 @@ export class HarmonicAudioReactivitySystem_Session135 {
      */
     _startAmbientHum() {
         if (!this.audioContext || !this.ambientGain) return;
+        if (!this.enableAmbientHum) return;
         if (this.ambientOscillator) {
             this.ambientOscillator.stop();
             this.ambientOscillator.disconnect();
@@ -233,14 +237,14 @@ export class HarmonicAudioReactivitySystem_Session135 {
      * @param {number} corruption - Network corruption level (0-1)
      */
     updateNetworkState(harmony, corruption) {
-        if (!this.initialized || !this.audioContext || !this.ambientGain || !this.filterBiquad) return;
+        if (!this.initialized || !this.audioContext || !this.filterBiquad) return;
         this.networkHarmony = Math.max(0, Math.min(1, harmony));
         this.networkCorruption = Math.max(0, Math.min(1, corruption));
         
         // Update ambient hum based on harmony
         // Higher harmony = cleaner, purer tone
         // Higher corruption = more dissonant frequencies
-        if (this.ambientOscillator) {
+        if (this.enableAmbientHum && this.ambientOscillator) {
             // Harmony drives base frequency upward (purity)
             const baseFreq = 108 + (this.networkHarmony * 54); // 108-162 Hz range
             const corruptionShift = this.networkCorruption * 20; // Corruption adds harshness
@@ -253,12 +257,14 @@ export class HarmonicAudioReactivitySystem_Session135 {
         }
         
         // Update ambient gain based on chaos level
-        const ambientIntensity = 0.1 + (this.networkHarmony * 0.1); // 0.1-0.2 range
-        this.ambientGain.gain.setTargetAtTime(
-            ambientIntensity,
-            this.audioContext.currentTime,
-            0.5
-        );
+        if (this.enableAmbientHum && this.ambientGain) {
+            const ambientIntensity = 0.1 + (this.networkHarmony * 0.1); // 0.1-0.2 range
+            this.ambientGain.gain.setTargetAtTime(
+                ambientIntensity,
+                this.audioContext.currentTime,
+                0.5
+            );
+        }
         
         // Modulate filter cutoff based on corruption
         // Higher corruption = lower cutoff (muddier sound)
@@ -306,8 +312,8 @@ export class HarmonicAudioReactivitySystem_Session135 {
             this.ruptureGain.gain.setTargetAtTime(0, this.audioContext.currentTime, 0.1);
             this.ambientGain.gain.setTargetAtTime(0, this.audioContext.currentTime, 0.5);
         } else {
-            // Resume ambient hum
-            this.ambientGain.gain.setTargetAtTime(0.1, this.audioContext.currentTime, 0.3);
+            // Keep ambient at silence by default; only event sounds active.
+            this.ambientGain.gain.setTargetAtTime(this.enableAmbientHum ? 0.1 : 0, this.audioContext.currentTime, 0.3);
         }
         
         console.log(`[S135] Audio system ${enabled ? 'enabled' : 'disabled'}`);

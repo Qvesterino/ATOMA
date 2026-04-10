@@ -438,30 +438,145 @@ class EnhancedPictogramInstance {
         // Update micro-rotation
         this.updateMicroRotation();
 
+        const loadPressure = Math.max(0, Math.min(1, this.linkContextCache?.loadPressure || 0));
+        const harmony = Math.max(0, Math.min(1, this.linkContextCache?.harmony || 0));
+        const stability = Math.max(0, Math.min(1, this.linkContextCache?.stability || 0));
+        const corruption = Math.max(0, Math.min(1, this.linkContextCache?.corruption || 0));
+        const synergyBoost = Math.max(0, Math.min(1, this.linkContextCache?.synergy || 0));
+
         // Animate synergy arrow clusters (if present)
         if (this.mesh?.userData?.synergyArrows) {
-            const pulse = 1 + Math.sin(this.age * 6) * 0.12;
+            const pulse = 1 + Math.sin(this.age * 5.5) * (0.10 + synergyBoost * 0.08);
             this.mesh.userData.synergyArrows.forEach((cluster, idx) => {
-                const synergyBoost = (this.linkContextCache?.synergy || 0);
-                const spinFactor = 0.22 + synergyBoost * 0.38;
-                cluster.rotation.z += (cluster.userData.spinSpeed || 0.8) * spinFactor * deltaTime;
-                const s = cluster.userData.baseScale * pulse * (1 + synergyBoost * 0.5);
+                const spinFactor = 0.22 + synergyBoost * 0.42;
+                cluster.rotation.z += (cluster.userData.spinSpeed || 0.8) * spinFactor * deltaTime * (idx % 2 === 0 ? 1 : -1);
+                cluster.rotation.x = Math.sin(this.age * 1.5 + idx) * 0.04;
+                cluster.position.y = Math.sin(this.age * 3.2 + idx) * 0.03;
+                const s = (cluster.userData.baseScale || 1.0) * pulse * (1 + synergyBoost * 0.45);
                 cluster.scale.setScalar(s);
+            });
+            if (this.mesh.userData.synergyBridge) {
+                const bridge = this.mesh.userData.synergyBridge;
+                bridge.rotation.z += deltaTime * (0.4 + synergyBoost * 0.5);
+                bridge.scale.x = 0.9 + synergyBoost * 0.85;
+                bridge.scale.y = 1 + Math.sin(this.age * 6.5) * 0.08;
+                bridge.scale.z = 1 + Math.sin(this.age * 6.5) * 0.08;
+            }
+        }
+
+        // Animate harmony glyph with a ceremonial breathing pulse
+        if (this.mesh?.userData?.harmonyRings) {
+            const harmonyPulse = 1 + Math.sin(this.age * 2.6) * (0.05 + harmony * 0.1);
+            this.mesh.userData.harmonyRings.forEach((ring, idx) => {
+                const direction = idx === 1 ? -1 : 1;
+                ring.rotation.z += deltaTime * (0.22 + harmony * 0.18) * direction;
+                ring.rotation.x += deltaTime * (0.05 + idx * 0.03);
+                ring.scale.setScalar(harmonyPulse * (idx === 2 ? 1.08 : 1.0));
+            });
+            if (this.mesh.userData.harmonyCore) {
+                const core = this.mesh.userData.harmonyCore;
+                core.scale.setScalar(1.0 + Math.sin(this.age * 4.0) * 0.08 + harmony * 0.12);
+                core.position.y = Math.sin(this.age * 3.0) * 0.02;
+            }
+        }
+
+        // Animate stability glyph with calm locking motion
+        if (this.mesh?.userData?.stabilityFrame) {
+            const frame = this.mesh.userData.stabilityFrame;
+            const diamond = this.mesh.userData.stabilityDiamond;
+            const anchors = this.mesh.userData.stabilityAnchors || [];
+            const lockRing = this.mesh.userData.stabilityLockRing;
+            const braces = this.mesh.userData.stabilityBraces || [];
+
+            frame.rotation.z += deltaTime * (0.08 + stability * 0.04);
+            if (diamond) {
+                diamond.rotation.z += deltaTime * (0.10 + stability * 0.05);
+                diamond.scale.setScalar(1 + Math.sin(this.age * 2.0) * 0.03);
+            }
+            if (lockRing) {
+                lockRing.rotation.z -= deltaTime * (0.12 + stability * 0.05);
+                lockRing.scale.setScalar(1.62 + Math.sin(this.age * 1.8) * 0.03);
+            }
+            anchors.forEach((anchor, idx) => {
+                const base = anchor.userData.basePosition || anchor.position.clone();
+                const anchorPulse = 1 + Math.sin(this.age * 2.2 + (anchor.userData.phase || idx)) * 0.03;
+                anchor.position.copy(base).add(new THREE.Vector3(
+                    Math.sin(this.age * 1.4 + idx) * 0.008,
+                    Math.cos(this.age * 1.7 + idx) * 0.008,
+                    0
+                ));
+                anchor.scale.setScalar(anchorPulse);
+            });
+            braces.forEach((brace, idx) => {
+                brace.scale.x = (this.mesh?.scale?.x || 1) * (0.88 + stability * 0.18);
+                brace.rotation.z += deltaTime * (0.05 + idx * 0.02);
             });
         }
 
-        // Animate loadPressure spark along torus path
-        if (this.mesh?.userData?.spark) {
+        // Animate corruption glyph with irregular fracture energy
+        if (this.mesh?.userData?.corruptionSegments) {
+            const segments = this.mesh.userData.corruptionSegments;
+            const shards = this.mesh.userData.corruptionShards || [];
+            const core = this.mesh.userData.corruptionCore;
+            const flicker = 0.75 + Math.sin(this.age * 11.0 + (this.mesh.userData.flickerPhase || 0)) * (0.12 + corruption * 0.08);
+
+            segments.forEach((seg, idx) => {
+                const wobble = 0.04 + corruption * 0.06;
+                seg.rotation.z += deltaTime * (0.5 + corruption * 1.7) * (idx % 2 === 0 ? 1 : -1);
+                seg.position.x += Math.sin(this.age * 4.0 + idx) * wobble * 0.01;
+                seg.position.y += Math.cos(this.age * 5.0 + idx * 0.7) * wobble * 0.01;
+                seg.scale.setScalar(1 + Math.sin(this.age * 6.0 + idx) * 0.05 * flicker);
+            });
+
+            shards.forEach((shard, idx) => {
+                const base = shard.userData.basePosition || shard.position.clone();
+                const phase = this.age * (2.8 + idx * 0.2) + (shard.userData.phase || 0);
+                shard.position.copy(base).add(new THREE.Vector3(
+                    Math.sin(phase) * (0.02 + corruption * 0.03),
+                    Math.cos(phase * 1.3) * (0.03 + corruption * 0.04),
+                    Math.sin(phase * 0.7) * 0.02
+                ));
+                shard.rotation.z += deltaTime * (0.9 + corruption * 2.2);
+                shard.rotation.x += deltaTime * 0.55;
+                shard.scale.setScalar(1 + Math.sin(phase * 3.0) * 0.12);
+            });
+
+            if (core) {
+                core.scale.setScalar(1.22 + corruption * 0.18 + Math.sin(this.age * 8.0) * 0.08);
+                core.position.y = Math.sin(this.age * 6.0) * 0.02;
+            }
+        }
+
+        // Animate load pressure with layered pressure pulses
+        if (this.mesh?.userData?.pulseShell || this.mesh?.userData?.sparks) {
             const glyph = this.mesh;
-            const spark = glyph.userData.spark;
-            const orbitGeom = glyph.userData.orbit1?.geometry;
-            const baseR = orbitGeom?.parameters?.radius ?? glyph.userData.sparkOrbitRadius ?? 0.38;
-            const scale = glyph.scale?.x ?? 1;
-            const R = baseR * scale;
-            const angle = this.age * 2.0;
-            spark.position.set(Math.cos(angle) * R, Math.sin(angle) * R, 0);
-            const pulse = 1 + Math.sin(this.age * 4) * 0.15;
-            spark.scale.setScalar(pulse);
+            const shell = glyph.userData.pulseShell;
+            const orbit1 = glyph.userData.orbit1;
+            const orbit2 = glyph.userData.orbit2;
+            const orbit3 = glyph.userData.orbit3;
+            const sparks = glyph.userData.sparks || (glyph.userData.spark ? [glyph.userData.spark] : []);
+
+            if (shell) {
+                shell.rotation.z += deltaTime * (0.15 + loadPressure * 0.22);
+                shell.scale.setScalar(0.95 + Math.sin(this.age * 3.5) * 0.04 + loadPressure * 0.1);
+            }
+
+            [orbit1, orbit2, orbit3].filter(Boolean).forEach((orbit, idx) => {
+                const direction = idx % 2 === 0 ? 1 : -1;
+                orbit.rotation.z += deltaTime * (0.25 + loadPressure * 0.18) * direction;
+                orbit.rotation.x += deltaTime * (0.05 + idx * 0.03);
+            });
+
+            sparks.forEach((spark, idx) => {
+                const baseR = (glyph.userData.sparkOrbitRadius || 0.38) * (1 + idx * 0.08);
+                const angle = this.age * (2.0 + idx * 0.35) + idx * 2.1;
+                spark.position.set(
+                    Math.cos(angle) * baseR,
+                    Math.sin(angle) * (baseR * 0.65),
+                    Math.sin(angle * 0.7) * 0.05
+                );
+                spark.scale.setScalar(1 + Math.sin(this.age * 4.0 + idx) * 0.15 + loadPressure * 0.08);
+            });
         }
     }
 
@@ -869,6 +984,9 @@ export class LinkSemanticPictogramSystem_Enhanced {
             { key: 'torus_harmony', factory: () => new THREE.TorusGeometry(0.5, 0.08, 12, 32) },
             { key: 'torus_arc', factory: () => new THREE.TorusGeometry(0.35, 0.04, 8, 32, Math.PI * 0.35) },
             { key: 'sphere_spark', factory: () => new THREE.SphereGeometry(0.05, 10, 10) },
+            { key: 'sphere_core', factory: () => new THREE.SphereGeometry(0.09, 12, 12) },
+            { key: 'box_beam', factory: () => new THREE.BoxGeometry(1, 0.08, 0.08) },
+            { key: 'box_shard', factory: () => new THREE.BoxGeometry(1, 1, 1) },
             { key: 'plane_diamond', factory: () => new THREE.PlaneGeometry(0.55, 0.55) },
         ];
         
@@ -1629,29 +1747,51 @@ export class LinkSemanticPictogramSystem_Enhanced {
     buildLoadPressureGlyph(size = 1.0, renderOrder = 246) {
         const group = new THREE.Group();
         const coreMat = this._getMaterialFromPool(0x5a2ea6, 1.0, THREE.AdditiveBlending);
+        const haloMat = this._getMaterialFromPool(0x8d77ff, 0.22, THREE.AdditiveBlending);
+        const orbitAccentMat = this._getMaterialFromPool(0x7d4cff, 0.45, THREE.AdditiveBlending);
+        const sparkMat = this._getMaterialFromPool(0xffaa33, 1.0, THREE.AdditiveBlending);
 
         const core = new THREE.Mesh(this._getGeometryFromCache('torus_core'), coreMat);
+        core.scale.setScalar(1.06);
         core.renderOrder = renderOrder;
         group.add(core);
 
-        const orbitMat = this._getMaterialFromPool(0x5a2ea6, 1.0, THREE.AdditiveBlending);
-        const orbit1 = new THREE.Mesh(this._getGeometryFromCache('torus_orbit'), orbitMat);
+        const pulseShell = new THREE.Mesh(this._getGeometryFromCache('torus_harmony'), haloMat);
+        pulseShell.rotation.x = Math.PI / 2;
+        pulseShell.scale.setScalar(0.98);
+        pulseShell.renderOrder = renderOrder;
+        group.add(pulseShell);
+
+        const orbit1 = new THREE.Mesh(this._getGeometryFromCache('torus_orbit'), coreMat);
         orbit1.renderOrder = renderOrder;
         group.add(orbit1);
 
-        const orbit2 = new THREE.Mesh(this._getGeometryFromCache('torus_orbit'), orbitMat);
+        const orbit2 = new THREE.Mesh(this._getGeometryFromCache('torus_orbit'), coreMat);
         orbit2.rotation.set(Math.PI / 4, 0, Math.PI / 6);
         orbit2.renderOrder = renderOrder;
         group.add(orbit2);
 
-        const sparkMat = this._getMaterialFromPool(0xffaa33, 1.0, THREE.AdditiveBlending);
-        const spark = new THREE.Mesh(this._getGeometryFromCache('sphere_spark'), sparkMat);
-        spark.renderOrder = renderOrder;
-        group.add(spark);
+        const orbit3 = new THREE.Mesh(this._getGeometryFromCache('torus_small'), orbitAccentMat);
+        orbit3.rotation.set(Math.PI / 2.3, Math.PI / 5, -Math.PI / 5);
+        orbit3.renderOrder = renderOrder;
+        group.add(orbit3);
 
+        const sparks = [];
+        for (let i = 0; i < 3; i++) {
+            const spark = new THREE.Mesh(this._getGeometryFromCache('sphere_spark'), sparkMat);
+            spark.renderOrder = renderOrder;
+            spark.position.set((i - 1) * 0.08, i === 1 ? 0.03 : 0, i === 1 ? 0.06 : 0);
+            group.add(spark);
+            sparks.push(spark);
+        }
+
+        group.userData.kind = 'loadPressure';
         group.userData.orbit1 = orbit1;
         group.userData.orbit2 = orbit2;
-        group.userData.spark = spark;
+        group.userData.orbit3 = orbit3;
+        group.userData.pulseShell = pulseShell;
+        group.userData.spark = sparks[0];
+        group.userData.sparks = sparks;
         group.userData.sparkOrbitRadius = orbit1.geometry.parameters.radius * size; // parametric torus orbit radius
         return group;
     }
@@ -1659,24 +1799,39 @@ export class LinkSemanticPictogramSystem_Enhanced {
     buildSynergyArrowCluster(renderOrder) {
         const cluster = new THREE.Group();
         const mat = this._getMaterialFromPool(0x66ffff, 1.0, THREE.AdditiveBlending);
+        const bridgeMat = this._getMaterialFromPool(0xc9ffff, 0.42, THREE.AdditiveBlending);
 
         const ringA = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
-        ringA.position.x = -0.12;
+        ringA.position.set(-0.14, 0.0, 0.0);
         ringA.rotation.y = Math.PI / 2;
         ringA.renderOrder = renderOrder;
 
         const ringB = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
-        ringB.position.x = 0.12;
+        ringB.position.set(0.14, 0.0, 0.0);
         ringB.rotation.y = Math.PI / 2;
         ringB.renderOrder = renderOrder;
 
+        const ringC = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
+        ringC.position.set(0.0, 0.12, 0.0);
+        ringC.rotation.x = Math.PI / 2;
+        ringC.renderOrder = renderOrder;
+
+        const bridge = new THREE.Mesh(this._getGeometryFromCache('box_beam'), bridgeMat);
+        bridge.scale.set(0.45, 0.18, 0.18);
+        bridge.rotation.z = Math.PI / 2;
+        bridge.renderOrder = renderOrder;
+
         cluster.add(ringA);
         cluster.add(ringB);
+        cluster.add(ringC);
+        cluster.add(bridge);
 
-        cluster.userData.arrows = [ringA, ringB];
+        cluster.userData.synergyArrows = [ringA, ringB, ringC];
+        cluster.userData.synergyBridge = bridge;
         cluster.userData.baseScale = 1.0;
         cluster.userData.phase = Math.random() * Math.PI * 2;
         cluster.userData.spinSpeed = 0.8;
+        cluster.userData.kind = 'synergy';
         return cluster;
     }
 
@@ -1684,6 +1839,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
     buildHarmonyGlyph(size = 1.0, renderOrder = 246) {
         const group = new THREE.Group();
         const mat = this._getMaterialFromPool(0x00ffff, 1.0, THREE.AdditiveBlending);
+        const auraMat = this._getMaterialFromPool(0x8efcff, 0.32, THREE.AdditiveBlending);
+        const coreMat = this._getMaterialFromPool(0xffffff, 0.9, THREE.AdditiveBlending);
 
         // Use a smaller torus geometry so the harmony glyph matches loadPressure scale.
         const ringA = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
@@ -1695,10 +1852,24 @@ export class LinkSemanticPictogramSystem_Enhanced {
         ringB.rotation.y = Math.PI / 2;
         ringB.renderOrder = renderOrder;
 
+        const haloRing = new THREE.Mesh(this._getGeometryFromCache('torus_harmony'), auraMat);
+        haloRing.rotation.x = Math.PI / 2;
+        haloRing.scale.setScalar(0.78);
+        haloRing.renderOrder = renderOrder;
+
+        const core = new THREE.Mesh(this._getGeometryFromCache('sphere_core'), coreMat);
+        core.scale.setScalar(1.2);
+        core.renderOrder = renderOrder;
+
         group.add(ringA);
         group.add(ringB);
+        group.add(haloRing);
+        group.add(core);
 
+        group.userData.harmonyRings = [ringA, ringB, haloRing];
+        group.userData.harmonyCore = core;
         group.userData.rotors = [ringA, ringB];
+        group.userData.kind = 'harmony';
         return group;
     }
 
@@ -1706,6 +1877,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
     buildStabilityGlyph(size = 1.0, renderOrder = 246) {
         const group = new THREE.Group();
         const mat = this._getMaterialFromPool(0xffffff, 1.0, THREE.AdditiveBlending);
+        const lockMat = this._getMaterialFromPool(0x9db2ff, 0.28, THREE.AdditiveBlending);
 
         const outer = size * 0.6;
         const inner = size * 0.42;
@@ -1732,6 +1904,11 @@ export class LinkSemanticPictogramSystem_Enhanced {
         frame.renderOrder = renderOrder;
         group.add(frame);
 
+        const lockRing = new THREE.Mesh(this._getGeometryFromCache('torus_small'), lockMat);
+        lockRing.scale.setScalar(1.68);
+        lockRing.renderOrder = renderOrder;
+        group.add(lockRing);
+
         // Inner diamond (rotated square)
         const innerGeom = this._getGeometryFromCache('plane_diamond').clone();
         innerGeom.scale(size, size, 1);
@@ -1741,7 +1918,43 @@ export class LinkSemanticPictogramSystem_Enhanced {
         innerMesh.renderOrder = renderOrder;
         group.add(innerMesh);
 
+        const anchors = [];
+        const anchorMat = this._getMaterialFromPool(0xffffff, 0.95, THREE.AdditiveBlending);
+        const anchorOffsets = [
+            [-outer, -outer],
+            [outer, -outer],
+            [outer, outer],
+            [-outer, outer]
+        ];
+        anchorOffsets.forEach(([x, y], index) => {
+            const anchor = new THREE.Mesh(this._getGeometryFromCache('sphere_spark'), anchorMat);
+            anchor.position.set(x, y, size * 0.03);
+            anchor.scale.setScalar(1.4);
+            anchor.renderOrder = renderOrder;
+            anchor.userData.basePosition = anchor.position.clone();
+            anchor.userData.phase = index * 1.7;
+            group.add(anchor);
+            anchors.push(anchor);
+        });
+
+        const braceX = new THREE.Mesh(this._getGeometryFromCache('box_beam'), lockMat);
+        braceX.scale.set(size * 0.95, 0.12, 0.12);
+        braceX.renderOrder = renderOrder;
+        group.add(braceX);
+
+        const braceZ = new THREE.Mesh(this._getGeometryFromCache('box_beam'), lockMat);
+        braceZ.scale.set(size * 0.95, 0.12, 0.12);
+        braceZ.rotation.z = Math.PI / 2;
+        braceZ.renderOrder = renderOrder;
+        group.add(braceZ);
+
+        group.userData.stabilityFrame = frame;
+        group.userData.stabilityDiamond = innerMesh;
+        group.userData.stabilityAnchors = anchors;
+        group.userData.stabilityLockRing = lockRing;
+        group.userData.stabilityBraces = [braceX, braceZ];
         group.userData.rotor = innerMesh;
+        group.userData.kind = 'stability';
         return group;
     }
 
@@ -1749,21 +1962,30 @@ export class LinkSemanticPictogramSystem_Enhanced {
     buildCorruptionGlyph(size = 1.0, renderOrder = 246) {
         const group = new THREE.Group();
         const mat = this._getMaterialFromPool(0xff0044, 1.0, THREE.AdditiveBlending);
+        const shardMat = this._getMaterialFromPool(0xff5a86, 0.92, THREE.AdditiveBlending);
+        const coreMat = this._getMaterialFromPool(0x4a001b, 0.92, THREE.AdditiveBlending);
 
-        const segCount = 5;
+        const segCount = 7;
         const outerRadius = 0.35 * size;
         const tube = 0.04 * size;
         const arc = Math.PI * 0.35;
 
         const segments = [];
+        const shards = [];
+
+        const core = new THREE.Mesh(this._getGeometryFromCache('sphere_core'), coreMat);
+        core.scale.setScalar(1.35);
+        core.renderOrder = renderOrder;
+        group.add(core);
 
         // Inner fractured ring
         for (let i = 0; i < segCount; i++) {
             const segGeom = this._getGeometryFromCache('torus_arc').clone();
             segGeom.scale(size, size, 1);
             const seg = new THREE.Mesh(segGeom, mat);
-            seg.rotation.z = i * 1.2;
-            seg.position.x += Math.sin(i) * 0.05 * size;
+            seg.rotation.z = i * (Math.PI * 2 / segCount) + (Math.random() - 0.5) * 0.2;
+            seg.position.x += (Math.sin(i * 1.3) * 0.07 + (Math.random() - 0.5) * 0.03) * size;
+            seg.position.y += (Math.cos(i * 0.9) * 0.04) * size;
             seg.renderOrder = renderOrder;
             group.add(seg);
             segments.push(seg);
@@ -1774,15 +1996,40 @@ export class LinkSemanticPictogramSystem_Enhanced {
             const segGeom = this._getGeometryFromCache('torus_arc').clone();
             segGeom.scale(size * 1.12, size, 1);
             const seg = new THREE.Mesh(segGeom, mat);
-            seg.rotation.z = -i * 1.2;
-            seg.position.x += Math.sin(i + 0.5) * 0.05 * size;
+            seg.rotation.z = -i * (Math.PI * 2 / segCount) + (Math.random() - 0.5) * 0.2;
+            seg.position.x += (Math.sin(i * 1.1 + 0.5) * 0.08 + (Math.random() - 0.5) * 0.04) * size;
+            seg.position.y += (Math.cos(i * 1.2 + 0.3) * 0.03) * size;
             seg.renderOrder = renderOrder;
             group.add(seg);
             segments.push(seg);
         }
 
+        for (let i = 0; i < 6; i++) {
+            const shard = new THREE.Mesh(this._getGeometryFromCache('box_shard'), shardMat);
+            shard.scale.set(0.04 * size, 0.22 * size, 0.03 * size);
+            const angle = (Math.PI * 2 * i / 6) + (Math.random() - 0.5) * 0.35;
+            const radius = outerRadius + 0.08 * size + Math.random() * 0.08 * size;
+            shard.position.set(
+                Math.cos(angle) * radius,
+                Math.sin(angle) * radius,
+                (Math.random() - 0.5) * 0.12 * size
+            );
+            shard.rotation.z = angle + Math.PI / 2 + (Math.random() - 0.5) * 0.3;
+            shard.rotation.x = (Math.random() - 0.5) * 0.6;
+            shard.renderOrder = renderOrder;
+            shard.userData.basePosition = shard.position.clone();
+            shard.userData.phase = Math.random() * Math.PI * 2;
+            group.add(shard);
+            shards.push(shard);
+        }
+
+        group.userData.kind = 'corruption';
         group.userData.rotors = segments;
+        group.userData.corruptionSegments = segments;
+        group.userData.corruptionShards = shards;
+        group.userData.corruptionCore = core;
         group.userData.spinSpeed = 0.25;
+        group.userData.flickerPhase = Math.random() * Math.PI * 2;
         return group;
     }
 

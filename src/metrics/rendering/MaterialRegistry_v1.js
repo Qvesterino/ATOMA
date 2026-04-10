@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { checkMaterialCreation } from "../MaterialDebugGuard_v1.js";
+import { checkLateMaterialCreation, checkMaterialCreation } from "../MaterialDebugGuard_v1.js";
 import { freezeMaterialConfig } from "../../../Engine/Debug/MaterialFreezeGuard.js";
 // /src/rendering/materials/MaterialRegistry_v1.js
 
@@ -234,6 +234,7 @@ export class MaterialRegistry_v1 {
     }
 
     this._stats.misses++;
+    checkLateMaterialCreation(undefined, `MaterialRegistry_v1::${baseKey}`);
     const mat = this._runInRegistryScope(factoryFn);
     bucket.set(fullKey, mat);
     this._stats.variantCount++;
@@ -304,6 +305,8 @@ export class MaterialRegistry_v1 {
   _createShaderTemplate(key, variant, params) {
     // v1: hardcode templates here OR delegate to MaterialTemplates file.
     // Replace below with your real shader chunks.
+    checkLateMaterialCreation(undefined, `MaterialRegistry_v1::shader:${key}:${variant}`);
+
     if (key === "link.neon") {
       return this._runInRegistryScope(
         () => {

@@ -65,26 +65,8 @@ void main() {
     float alpha = max(ringOuter * 0.72, ringInner * 0.18);
     
     // Soft noise/distortion based on harmony (more harmony = smoother)
-    // We simulate "spatial distortion" by varying alpha slightly
-    
-    // Fade over life
-    alpha *= (1.0 - uLife); // Fade out as it ages
-    alpha *= 0.36; // Slightly softer so the midpoint wave stays present but calmer
-
-    gl_FragColor = vec4(uColor, alpha);
-}
-`;
-
-const RECOVERY_HALO_VERTEX_SHADER = `
-varying vec2 vUv;
-void main() {
-    vUv = uv;
-    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    gl_Position = projectionMatrix * mvPosition;
-}
-`;
-
-const RECOVERY_HALO_FRAGMENT_SHADER = `
+    float harmonyWarm = mix(1.0, 1.25, clamp(uHarmony, 0.0, 1.0));
+    alpha *= harmonyWarm;
 uniform float uLife;
 uniform vec3 uColor;
 
@@ -365,6 +347,11 @@ export class HarmonicRecoveryVisualSystem_Session138 {
 
         const center = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
         const now = currentVisualTime ?? (VisualTime.now - this._timeOrigin);
+        const linkDirection = new THREE.Vector3().subVectors(end, start);
+        linkDirection.y = 0;
+        const linkYaw = linkDirection.lengthSq() > 1e-6
+            ? Math.atan2(linkDirection.z, linkDirection.x)
+            : 0;
 
         if (this.recoveringZones.length < this.config.maxActiveZones) {
             this.recoveringZones.push({
@@ -378,7 +365,8 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                 maxLife: this.config.minRecoveryDuration + Math.random() * 2.0,
                 waveMeshIdx: -1,
                 lastStitchTime: now,
-                waveOnly: true
+                waveOnly: true,
+                linkYaw: linkYaw
             });
             return true;
         }
@@ -416,6 +404,28 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             this.healingParticles.emitHealingTrail(pos1, new THREE.Vector3(0,0,0), intensity, now, new THREE.Color(0xffffff));
             this.healingParticles.emitHealingTrail(pos2, new THREE.Vector3(0,0,0), intensity, now, new THREE.Color(0xffcc00));
         }
+
+        const beamGeometry = new THREE.BufferGeometry().setFromPoints([
+            endpoints.startPos.clone(),
+            endpoints.endPos.clone()
+        ]);
+        const beamMaterial = new THREE.LineBasicMaterial({
+            color: new THREE.Color(0x88ffdd),
+            transparent: true,
+            opacity: 0.48,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        const beam = new THREE.Line(beamGeometry, beamMaterial);
+        beam.renderOrder = this.config.renderOrder + 2;
+        this.scene.add(beam);
+
+        setTimeout(() => {
+            if (beam.parent) beam.parent.remove(beam);
+            beamGeometry.dispose();
+            beamMaterial.dispose();
+        }, 180);
+
         return true;
     }
 
@@ -622,25 +632,15 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                 const mesh = item.mesh;
                 const progress = zone.life / zone.maxLife;
                 
-                // Expand
                 const scale = (1.02 + zone.life * this.config.waveExpansionSpeed * (1.0 + synergy)) * (this.config.debugVisualBoost ? 1.02 : 1.0);
                 mesh.scale.set(scale, scale, scale);
-                
-                // Update shader uniforms
+
+                const waveColor = new THREE.Color().setHSL(0.08 + harmony * 0.42, 0.92, 0.62);
+                mesh.material.uniforms.uColor.value.copy(waveColor);
                 mesh.material.uniforms.uLife.value = progress;
                 mesh.material.uniforms.uHarmony.value = harmony;
-                
-                // Orientation (billboard-ish or flat?)
-                // Flat is better for "ground" ripples, but this is 3D space.
-                // Let's face camera? Or align with link?
-                // Aligning with link cross-section might be cool but complex.
-                // Let's stick to flat XZ plane for "ground ripple" feel, 
-                // or maybe billboarding would be better for visibility.
-                // Re-Stitching is the main 3D element.
-                const cameraPosition = this._resolveCameraPosition();
-                if (cameraPosition) {
-                    mesh.lookAt(cameraPosition);
-                }
+
+                mesh.rotation.set(-Math.PI / 2, zone.linkYaw ?? 0, 0);
             }
             
             // 2. Link Re-Stitching (Particles) - only if not waveOnly
@@ -721,6 +721,17 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             item.startTime = currentVisualTime;
             item.mesh.visible = true;
             item.mesh.position.copy(node.position);
+
+            const metricsHarmony = node?.userData?.metrics?.harmony;
+            const rawHarmony = typeof metricsHarmony === 'number'
+                ? metricsHarmony
+                : typeof node?.userData?.harmony === 'number'
+                    ? node.userData.harmony
+                    : 0.5;
+            const nodeHarmony = Math.max(0, Math.min(1, rawHarmony));
+            const haloColor = new THREE.Color().setHSL(0.08 + nodeHarmony * 0.42, 0.92, 0.58);
+            item.mesh.material.uniforms.uColor.value.copy(haloColor);
+            item.mesh.material.uniforms.uLife.value = 0;
         }
     }
 

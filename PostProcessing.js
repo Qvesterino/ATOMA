@@ -1,4 +1,29 @@
 import * as THREE from 'three';
+import { checkLateMaterialCreation } from './src/metrics/MaterialDebugGuard_v1.js';
+
+function getRendererBufferSize(renderer) {
+  const domElement = renderer?.domElement;
+  const domWidth = Math.max(1, Math.floor(domElement?.width || 0));
+  const domHeight = Math.max(1, Math.floor(domElement?.height || 0));
+  if (domWidth > 1 && domHeight > 1) {
+    return { width: domWidth, height: domHeight };
+  }
+
+  if (renderer?.getDrawingBufferSize) {
+    const size = new THREE.Vector2();
+    renderer.getDrawingBufferSize(size);
+    const bufferWidth = Math.max(1, Math.floor(size.x || 0));
+    const bufferHeight = Math.max(1, Math.floor(size.y || 0));
+    if (bufferWidth > 1 && bufferHeight > 1) {
+      return { width: bufferWidth, height: bufferHeight };
+    }
+  }
+
+  return {
+    width: Math.max(1, Math.floor(domElement?.clientWidth || 1)),
+    height: Math.max(1, Math.floor(domElement?.clientHeight || 1))
+  };
+}
 
 /**
  * Post-Processing Bloom Pass
@@ -11,14 +36,17 @@ export class BloomPass {
     this.scene = scene;
     this.camera = camera;
     this.screenCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    this.renderTargetSamples = renderer?.capabilities?.isWebGL2
+      ? Math.max(0, Math.min(4, renderer?.capabilities?.maxSamples ?? 4))
+      : 0;
 
     // Configuration
     this.options = {
-      strength: options.strength ?? 1.14,
+      strength: options.strength ?? 1.06,
       radius: options.radius ?? 0.42,
       threshold: options.threshold ?? 0.84,
       scale: options.scale ?? 6,
-      exposure: options.exposure ?? 1.16,
+      exposure: options.exposure ?? 1.08,
       vignetteStrength: options.vignetteStrength ?? 0.19,
       tintStrength: options.tintStrength ?? 0.035,
       chromaticStrength: options.chromaticStrength ?? 0.00045,
@@ -43,6 +71,8 @@ export class BloomPass {
     this._bloomLayerRefreshInterval = Math.max(1, Math.round(this.options.bloomLayerRefreshInterval || 12));
     this._pendingBloomCameraLayerMask = null;
     this._selectiveBloomStats = { candidates: 0, tagged: 0, refreshedAt: 0 };
+    this._selectiveBloomRefreshRequested = true;
+    this._selectiveBloomRefreshReason = 'constructor';
     this._lastSelectiveBloomScene = null;
     this._smoothedAdaptive = {
       synergy: 0.5,
@@ -54,8 +84,9 @@ export class BloomPass {
     };
 
     // Scene size
-    this.width = renderer.domElement.clientWidth;
-    this.height = renderer.domElement.clientHeight;
+    const initialSize = getRendererBufferSize(renderer);
+    this.width = initialSize.width;
+    this.height = initialSize.height;
 
     // Create render targets
     this.createRenderTargets();
@@ -184,9 +215,15 @@ export class BloomPass {
     if (!this.options.selectiveBloomEnabled || !this.scene) return;
 
     this._bloomLayerRefreshFrame += 1;
-    if (!force && (this._bloomLayerRefreshFrame % this._bloomLayerRefreshInterval !== 0)) {
+    const shouldTraverse =
+      force ||
+      this._selectiveBloomRefreshRequested ||
+      (this._bloomLayerRefreshFrame % this._bloomLayerRefreshInterval === 0);
+    if (!shouldTraverse) {
       return;
     }
+
+    this._selectiveBloomRefreshRequested = false;
 
     let candidates = 0;
     let tagged = 0;
@@ -205,6 +242,12 @@ export class BloomPass {
     };
   }
 
+  requestSelectiveBloomRefresh(reason = 'manual') {
+    this._selectiveBloomRefreshRequested = true;
+    this._selectiveBloomRefreshReason = reason;
+    this._selectiveBloomStats.refreshedAt = 0;
+  }
+
   _saveCameraLayerMask(camera) {
     return camera?.layers?.mask ?? null;
   }
@@ -218,6 +261,7 @@ export class BloomPass {
     if (!object) return;
     object.userData = object.userData || {};
     object.userData.bloomLayer = true;
+    this.requestSelectiveBloomRefresh('markBloomTarget');
     if (recursive) {
       this._markBloomLayerRecursive(object);
     } else if (object.layers) {
@@ -306,9 +350,9 @@ export class BloomPass {
     }
 
     const strength = THREE.MathUtils.clamp(
-      this.options.strength * (0.74 + this._smoothedAdaptive.synergy * 0.16 + this._smoothedAdaptive.harmony * 0.08 - this._smoothedAdaptive.corruption * 0.08),
-      0.42,
-      1.85
+      this.options.strength * (0.71 + this._smoothedAdaptive.synergy * 0.14 + this._smoothedAdaptive.harmony * 0.07 - this._smoothedAdaptive.corruption * 0.07),
+      0.38,
+      1.62
     );
     const threshold = THREE.MathUtils.clamp(
       this.options.threshold + brightness * 0.08 + pressure * 0.05 - this._smoothedAdaptive.synergy * 0.06 - (1 - this._smoothedAdaptive.stability) * 0.02,
@@ -321,9 +365,9 @@ export class BloomPass {
       1.5
     );
     const exposure = THREE.MathUtils.clamp(
-      this.options.exposure * (0.9 + this._smoothedAdaptive.synergy * 0.05 + brightness * 0.04 - this._smoothedAdaptive.corruption * 0.04),
-      0.78,
-      1.8
+      this.options.exposure * (0.88 + this._smoothedAdaptive.synergy * 0.045 + brightness * 0.035 - this._smoothedAdaptive.corruption * 0.035),
+      0.72,
+      1.58
     );
     const vignetteStrength = THREE.MathUtils.clamp(
       this.options.vignetteStrength + pressure * 0.05 + this._smoothedAdaptive.corruption * 0.05 + (1 - this._smoothedAdaptive.stability) * 0.03,
@@ -421,7 +465,6 @@ export class BloomPass {
 
     this.materials.luminosity.uniforms.threshold.value = state.threshold;
     this.materials.blurHorizontal.uniforms.radius.value = state.radius;
-    this.materials.blurVertical.uniforms.radius.value = state.radius;
 
     this.materials.composite.uniforms.strength.value = state.strength;
     this.materials.composite.uniforms.exposure.value = state.exposure;
@@ -453,12 +496,14 @@ export class BloomPass {
       luminosity: new THREE.WebGLRenderTarget(width, height, {
         format: THREE.RGBAFormat,
         type: THREE.HalfFloatType,
-        generateMipmaps: false
+        generateMipmaps: false,
+        samples: this.renderTargetSamples
       }),
       selectiveBloom: new THREE.WebGLRenderTarget(width, height, {
         format: THREE.RGBAFormat,
         type: THREE.HalfFloatType,
-        generateMipmaps: false
+        generateMipmaps: false,
+        samples: this.renderTargetSamples
       }),
       blurred: [
         new THREE.WebGLRenderTarget(width, height, {
@@ -515,12 +560,12 @@ export class BloomPass {
         }
       `
     });
+    checkLateMaterialCreation(undefined, 'BloomPass::LuminosityShaderMaterial');
 
     // Horizontal blur material
-    this.materials.blurHorizontal = this.createBlurMaterial(1.0, 0.0);
-    
-    // Vertical blur material
-    this.materials.blurVertical = this.createBlurMaterial(0.0, 1.0);
+    const blurMaterial = this.createBlurMaterial(1.0, 0.0);
+    this.materials.blurHorizontal = blurMaterial;
+    this.materials.blurVertical = blurMaterial;
 
     // Composite material (blend bloom with original)
     this.materials.composite = new THREE.ShaderMaterial({
@@ -647,13 +692,14 @@ export class BloomPass {
         }
       `
     });
+    checkLateMaterialCreation(undefined, 'BloomPass::CompositeShaderMaterial');
   }
 
   /**
    * Create blur material
    */
   createBlurMaterial(dirX, dirY) {
-    return new THREE.ShaderMaterial({
+    const material = new THREE.ShaderMaterial({
       uniforms: {
         tDiffuse: { value: null },
         direction: { value: new THREE.Vector2(dirX, dirY) },
@@ -691,6 +737,8 @@ export class BloomPass {
         }
       `
     });
+    checkLateMaterialCreation(undefined, 'BloomPass::BlurShaderMaterial');
+    return material;
   }
 
   /**
@@ -742,6 +790,7 @@ export class BloomPass {
         label: 'bloom.blurH',
         before: () => {
           setVisibility('blurH');
+          this.materials.blurHorizontal.uniforms.direction.value.set(1.0, 0.0);
           this.materials.blurHorizontal.uniforms.tDiffuse.value = rt.luminosity.texture;
         }
       },
@@ -752,6 +801,7 @@ export class BloomPass {
         label: 'bloom.blurV',
         before: () => {
           setVisibility('blurV');
+          this.materials.blurVertical.uniforms.direction.value.set(0.0, 1.0);
           this.materials.blurVertical.uniforms.tDiffuse.value = rt.blurred[0].texture;
         }
       }
@@ -773,6 +823,62 @@ export class BloomPass {
     };
   }
 
+  async warmup(renderer = this.renderer) {
+    if (!renderer || (typeof renderer.compileAsync !== 'function' && typeof renderer.compile !== 'function')) {
+      return null;
+    }
+
+    if (this._shaderWarmupComplete) {
+      return this._shaderWarmupPromise;
+    }
+    if (this._shaderWarmupInFlight) {
+      return this._shaderWarmupPromise;
+    }
+    if (this.enabled === false) {
+      return null;
+    }
+
+    const scene = this.bloomPass?.scene_scene;
+    const camera = this.bloomPass?.camera ?? this.camera ?? this.screenCamera;
+    if (!scene || !camera) {
+      return null;
+    }
+
+    this._shaderWarmupInFlight = true;
+    const startedAt = performance.now();
+    const restoreVisibility = [];
+
+    if (this.bloomPass?.planes) {
+      for (const mesh of Object.values(this.bloomPass.planes)) {
+        if (!mesh) continue;
+        restoreVisibility.push([mesh, mesh.visible]);
+        mesh.visible = true;
+      }
+    }
+
+    const promise = (async () => {
+      try {
+        if (typeof renderer.compileAsync === 'function') {
+          await renderer.compileAsync(scene, camera);
+        } else {
+          renderer.compile(scene, camera);
+        }
+      } finally {
+        for (const [mesh, visible] of restoreVisibility) {
+          mesh.visible = visible;
+        }
+        this._shaderWarmupInFlight = false;
+        this._shaderWarmupComplete = true;
+        this._shaderWarmupReport = {
+          durationMs: performance.now() - startedAt
+        };
+      }
+    })();
+
+    this._shaderWarmupPromise = promise;
+    return promise;
+  }
+
   /**
    * Update parameters
    */
@@ -792,7 +898,6 @@ export class BloomPass {
     if (params.radius !== undefined) {
       this.options.radius = params.radius;
       this.materials.blurHorizontal.uniforms.radius.value = params.radius;
-      this.materials.blurVertical.uniforms.radius.value = params.radius;
     }
     if (params.vignetteStrength !== undefined) {
       this.options.vignetteStrength = params.vignetteStrength;
@@ -850,14 +955,17 @@ export class BloomPass {
     if (params.selectiveBloomEnabled !== undefined) {
       this.options.selectiveBloomEnabled = params.selectiveBloomEnabled;
       this._selectiveBloomStats.refreshedAt = 0;
+      this.requestSelectiveBloomRefresh('selectiveBloomEnabled');
     }
     if (params.bloomLayerIndex !== undefined) {
       this.options.bloomLayerIndex = params.bloomLayerIndex;
       this._selectiveBloomStats.refreshedAt = 0;
+      this.requestSelectiveBloomRefresh('bloomLayerIndex');
     }
     if (params.bloomLayerRefreshInterval !== undefined) {
       this.options.bloomLayerRefreshInterval = params.bloomLayerRefreshInterval;
       this._bloomLayerRefreshInterval = Math.max(1, Math.round(params.bloomLayerRefreshInterval || 1));
+      this.requestSelectiveBloomRefresh('bloomLayerRefreshInterval');
     }
   }
 
@@ -885,7 +993,10 @@ export class BloomPass {
       }
     });
 
+    const disposedMaterials = new Set();
     Object.values(this.materials).forEach(mat => {
+      if (!mat || disposedMaterials.has(mat)) return;
+      disposedMaterials.add(mat);
       if (mat.dispose) mat.dispose();
     });
 
@@ -956,26 +1067,29 @@ export class PostProcessingPipeline {
     this.scene = scene;
     this.camera = camera;
     this.sceneMetrics = null;
+    this.renderTargetSamples = this.renderer?.capabilities?.isWebGL2
+      ? Math.max(0, Math.min(4, this.renderer?.capabilities?.maxSamples ?? 4))
+      : 0;
 
     // Create main render target
-    this.mainRenderTarget = new THREE.WebGLRenderTarget(
-      renderer.domElement.clientWidth,
-      renderer.domElement.clientHeight,
-      {
-        format: THREE.RGBAFormat,
-        type: THREE.UnsignedByteType
-      }
-    );
+    this.mainRenderTarget = new THREE.WebGLRenderTarget(this.width, this.height, {
+      format: THREE.RGBAFormat,
+      type: THREE.UnsignedByteType,
+      samples: this.renderTargetSamples
+    });
 
     // Create bloom pass
     this.bloomPass = new BloomPass(renderer, scene, camera, {
-      strength: options.bloomStrength ?? options.strength ?? 1.14,
+      strength: options.bloomStrength ?? options.strength ?? 1.06,
       radius: options.bloomRadius ?? options.radius ?? 0.42,
       threshold: options.bloomThreshold ?? options.threshold ?? 0.84,
       ...options
     });
 
     this.enabled = options.enabled !== false;
+    this._shaderWarmupComplete = false;
+    this._shaderWarmupInFlight = false;
+    this._shaderWarmupPromise = null;
 
     // [B.3-D2] Dev marker to indicate post pipeline ready at init time
     if (typeof window !== 'undefined') {
@@ -1090,13 +1204,23 @@ export class PostProcessingPipeline {
    */
   toggle() {
     this.enabled = !this.enabled;
+    if (this.enabled) {
+      void this.warmup(this.renderer);
+    }
+    return this.enabled;
   }
 
   /**
    * Handle resize
    */
   onWindowResize(width, height) {
-    this.mainRenderTarget.setSize(width, height);
+    const nextSize = Number.isFinite(width) && Number.isFinite(height)
+      ? { width: Math.max(1, Math.floor(width)), height: Math.max(1, Math.floor(height)) }
+      : getRendererBufferSize(this.renderer);
+
+    this.width = nextSize.width;
+    this.height = nextSize.height;
+    this.mainRenderTarget.setSize(nextSize.width, nextSize.height);
     this.bloomPass.onWindowResize(width, height);
   }
 

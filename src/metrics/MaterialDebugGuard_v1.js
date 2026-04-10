@@ -23,6 +23,22 @@ export function checkMaterialCreation(stack, label = "UnknownMaterial") {
   );
 }
 
+function isWarmupComplete() {
+  if (typeof window === "undefined") return false;
+  return window.__ATOMA_WARMUP_COMPLETE === true || window.__shaderWarmupDone === true;
+}
+
+export function checkLateMaterialCreation(stack, label = "UnknownMaterial") {
+  if (typeof window === "undefined") return;
+  if (!isWarmupComplete()) return;
+
+  const trace = stack || new Error().stack || "";
+  console.warn(
+    `[MaterialGuard] Late ${label} constructed after shader warmup. Prefer shared materials or cached variants to avoid post-warmup GPU churn.`,
+    trace
+  );
+}
+
 /**
  * Lightweight dev-only detector you can call around ad-hoc material creation.
  * ESM-safe: does not patch THREE; simply inspects the current stack.

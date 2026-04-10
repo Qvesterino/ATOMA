@@ -90,20 +90,20 @@ export class DreamDepthEffectManager {
     this.layerContainer.add(this.glazeLayer.mesh);
 
     this.effects = {
-      vignette: { intensity: 0, target: 0.08 },
+      vignette: { intensity: 0, target: 0.12 },
       focus:    { intensity: 0, target: 0 },
-      pulse:    { intensity: 0, target: 0 },
-      glaze:    { intensity: 0, target: 0.04 }
+      pulse:    { intensity: 0, target: 0.02 },
+      glaze:    { intensity: 0, target: 0.08 }
     };
 
     this.config = {
       transitionSpeed: 0.08,
-      maxIntensity: 0.18,
+      maxIntensity: 0.24,
       bloomStrength: 1.2,
-      vignette: { opacity: 0.08, softness: 0.25, maxRadius: 0.7 },
+      vignette: { opacity: 0.14, softness: 0.25, maxRadius: 0.7, minOpacity: 0.03 },
       focus: { fadeInTime: 0.35, fadeOutTime: 0.35, contrastBoost: 0.04, backgroundFade: 0.06, vignetteIncrease: 0.02 },
-      pulse: { minIntensity: 0.008, maxIntensity: 0.06, duration: 0.4, cooldown: 0.15, attackRatio: 0.2, crestRatio: 0.3, releaseRatio: 0.5 },
-      glaze: { microBloom: 0.04, warmthTint: 0.015 },
+      pulse: { minIntensity: 0.02, maxIntensity: 0.12, duration: 0.4, cooldown: 0.15, attackRatio: 0.2, crestRatio: 0.3, releaseRatio: 0.5 },
+      glaze: { microBloom: 0.08, minOpacity: 0.02, warmthTint: 0.015 },
       stabilityThreshold: 0.5,
       stabilityDamping: 0.3
     };
@@ -116,6 +116,7 @@ export class DreamDepthEffectManager {
     this.focusTransition = 0;
     this.frameScheduler = null;
     this._fallbackMode = false;
+    this._debugForceOpacity = null;
 
     this.intensityScale = 1.0;
     this.lodLevel = 'HIGH';
@@ -287,7 +288,12 @@ export class DreamDepthEffectManager {
   }
 
   applyBaselineVignette(dt, stability) {
-    const target = this.config.vignette.opacity * stability * this.intensityScale;
+    const baseTarget = this.config.vignette.opacity * stability * this.intensityScale;
+    const minOpacity = this._debugForceOpacity !== null
+      ? this._debugForceOpacity
+      : (this.config.vignette.minOpacity || 0.02);
+    const target = Math.max(baseTarget, minOpacity);
+
     this.effects.vignette.target = target;
     this.effects.vignette.intensity += (this.effects.vignette.target - this.effects.vignette.intensity) * this.config.transitionSpeed;
     const opacity = Math.min(this.config.maxIntensity, this.effects.vignette.intensity);
@@ -298,7 +304,10 @@ export class DreamDepthEffectManager {
   applyFocus(dt, stability) {
     this.autoFocusOnTarget(this.focusTargets);
 
-    if (this.focusTransition > 0.01 && this.currentFocus) {
+    if (this.focusTransition > 0.01) {
+      if (!this.currentFocus) {
+        this.currentFocus = { position: this.camera.position };
+      }
       const focusBoost = this.config.focus.contrastBoost * this.focusTransition;
       this.effects.focus.target = Math.min(0.22, focusBoost * stability * this.intensityScale);
     } else {
@@ -312,7 +321,7 @@ export class DreamDepthEffectManager {
   }
 
   applyGlaze(dt, stability) {
-    const target = this.config.glaze.microBloom * stability * this.intensityScale;
+    const target = Math.max(this.config.glaze.microBloom * stability * this.intensityScale, this.config.glaze.minOpacity || 0.02);
     this.effects.glaze.target = target;
     this.effects.glaze.intensity += (this.effects.glaze.target - this.effects.glaze.intensity) * this.config.transitionSpeed;
     const opacity = Math.min(this.config.maxIntensity * 0.35, this.effects.glaze.intensity);
@@ -390,7 +399,8 @@ export class DreamDepthEffectManager {
         state.vignetteColor.setHex(colors.vignette);
         state.pulseColor.setHex(colors.pulse);
         state.glazeColor.setHex(colors.glaze);
-        this.effects.vignette.target = Math.min(0.16, this.effects.vignette.target + 0.03);
+        this.effects.vignette.target = Math.min(0.2, this.effects.vignette.target + 0.06);
+        this.effects.glaze.target = Math.max(this.effects.glaze.target, Math.min(this.config.glaze.microBloom * 1.5, 0.12));
         break;
 
       case 'resonance': {
@@ -504,6 +514,8 @@ export class DreamDepthEffectManager {
       releaseRatio: cfg.releaseRatio
     });
 
+    this.effects.vignette.target = Math.max(this.effects.vignette.target, Math.min(this.config.vignette.opacity * 1.5, 0.22));
+    this.effects.glaze.target = Math.max(this.effects.glaze.target, Math.min(this.config.glaze.microBloom * 2.5, 0.14));
     this.lastPulseTime = now;
   }
 
@@ -546,7 +558,8 @@ export class DreamDepthEffectManager {
     }
 
     const state = this.screenState;
-    state.pulseOpacity = Math.min(0.3, totalPulseEffect * 0.9);
+    const baselinePulse = this.config.pulse.minIntensity * this.intensityScale;
+    state.pulseOpacity = Math.max(baselinePulse, Math.min(0.3, totalPulseEffect * 0.9));
     this.effects.pulse.intensity = state.pulseOpacity;
     this.pulseLayer.material.opacity = state.pulseOpacity;
     this.pulseLayer.material.color.lerp(state.pulseColor, 0.08);
@@ -566,6 +579,14 @@ export class DreamDepthEffectManager {
 
   setIntensity(value) {
     this.intensityScale = Math.max(0, Math.min(1, value));
+  }
+
+  forceDebugOpacity(value) {
+    if (!Number.isFinite(value)) {
+      this._debugForceOpacity = null;
+      return;
+    }
+    this._debugForceOpacity = Math.max(0, Math.min(1, value));
   }
 
   gatherFocusTargets(worldSystems) {
@@ -614,6 +635,7 @@ export class DreamDepthEffectManager {
         pulse: this.pulseLayer?.mesh?.visible ?? false,
         glaze: this.glazeLayer?.mesh?.visible ?? false
       },
+      debugForceOpacity: this._debugForceOpacity,
       schedulerState: this.frameScheduler ? 'active' : (this._fallbackMode ? 'fallback' : 'missing'),
       stabilityFactor: parseFloat(this.getStabilityFactor().toFixed(2))
     };

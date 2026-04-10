@@ -118,6 +118,9 @@ export class MetricsRuntime_v1 {
             corruptionLevel: 0,
             loadPressure: 0
         };
+        this._liveMetricsPublishAccumulator = 0;
+        this._liveMetricsPublishInterval = Math.max(0.1, Number(runtimeOptions.liveMetricsPublishInterval ?? 0.2));
+        this._liveMetricsPublishRequested = true;
         // Additional publish smoothing to prevent HUD jitter
         this._publishedMetrics = {
             networkSynergy: 0,
@@ -335,7 +338,7 @@ export class MetricsRuntime_v1 {
             if (typeof this.onSimulationTick === 'function') {
                 this.onSimulationTick(this.lastSimulationSnapshot);
             }
-            this._publishLiveMetrics();
+            this._publishLiveMetrics(dt);
 
         } catch (err) {
             this._logOnce('update error', err);
@@ -1194,7 +1197,7 @@ const adapter = this._createLinkSystemAdapter(
 
         const refreshLiveMetrics = () => {
             try {
-                this._publishLiveMetrics();
+                this._publishLiveMetrics(0, true);
             } catch (err) {
                 console.warn('[MetricsRuntime_v1] live metrics refresh failed:', err?.message || err);
             }
@@ -1205,7 +1208,7 @@ const adapter = this._createLinkSystemAdapter(
                 if (this.useNetworkMetricsAggregator && !this.externalNetworkMetricsAggregatorControl) {
                     this._runNetworkMetricsAggregator();
                 }
-                this._publishLiveMetrics();
+                this._publishLiveMetrics(0, true);
             } catch (err) {
                 console.warn('[MetricsRuntime_v1] link-driven live metrics refresh failed:', err?.message || err);
             }
@@ -1428,9 +1431,25 @@ const adapter = this._createLinkSystemAdapter(
      * This is the canonical source of truth for HUD and other consumers
      * Always publishes, even when metrics are 0, to ensure object shape stability
      */
-    _publishLiveMetrics() {
+    _publishLiveMetrics(deltaTime = 0, force = false) {
         const scope = this._getGlobalScope();
         if (!scope) return;
+
+        if (force) {
+            this._liveMetricsPublishRequested = true;
+        } else {
+            this._liveMetricsPublishAccumulator += Number.isFinite(deltaTime) ? deltaTime : 0;
+        }
+
+        if (
+            !this._liveMetricsPublishRequested &&
+            this._liveMetricsPublishAccumulator < this._liveMetricsPublishInterval
+        ) {
+            return;
+        }
+
+        this._liveMetricsPublishAccumulator = 0;
+        this._liveMetricsPublishRequested = false;
 
         const fallbackResult = this._aggregateNodeMetrics();
         const currentLinkCount = this._countLinks();
@@ -1512,7 +1531,7 @@ const adapter = this._createLinkSystemAdapter(
      * such as link creation/removal.
      */
     refreshLiveMetrics() {
-        this._publishLiveMetrics();
+        this._publishLiveMetrics(0, true);
     }
 
     /**

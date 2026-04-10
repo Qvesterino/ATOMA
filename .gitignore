@@ -1,0 +1,4 @@
+# Local tooling / smoke-test noise
+.edge-smoke-profile/
+output/
+*.log
