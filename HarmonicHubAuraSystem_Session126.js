@@ -96,6 +96,16 @@ export class HarmonicHubAuraSystem_Session126 {
       fieldColorBoost: config.fieldColorBoost ?? 1.0,
       fieldEmissiveBoost: config.fieldEmissiveBoost ?? 1.0,
       
+      // Visual enhancement
+      fieldOuterNoise: config.fieldOuterNoise ?? 0.14,
+      fieldOuterNoiseSpeed: config.fieldOuterNoiseSpeed ?? 1.5,
+      fieldInnerScale: config.fieldInnerScale ?? 0.56,
+      fieldRingWidth: config.fieldRingWidth ?? 0.06,
+      fieldRingOpacity: config.fieldRingOpacity ?? 0.18,
+      fieldPulseStrengthHigh: config.fieldPulseStrengthHigh ?? 1.8,
+      fieldPulseStrengthMid: config.fieldPulseStrengthMid ?? 1.0,
+      fieldPulseDecay: config.fieldPulseDecay ?? 3.5,
+      
       // Phase synchronization
       phaseLockSpeed: config.phaseLockSpeed ?? 1.5,   // Convergence speed
       phaseOffsetVariance: config.phaseOffsetVariance ?? 0.15, // Organic scatter
@@ -239,6 +249,12 @@ export class HarmonicHubAuraSystem_Session126 {
     
     // Update phase synchronization
     this._updatePhaseSynchronization(deltaTime);
+    
+    // Update hub visual pulse state
+    this._updateHubVisualState(deltaTime);
+    
+    // Apply cascade reactivity (modulates hub visuals during active cascade)
+    this._applyCascadeReactivity(deltaTime);
     
     // Update resonance field meshes
     this._updateResonanceFields();
@@ -443,6 +459,14 @@ export class HarmonicHubAuraSystem_Session126 {
         fieldMesh: null,
         fieldRadius: this._calculateFieldRadius(region),
         
+        // Visual state
+        visualState: {
+          pulse: 0,
+          pulseTarget: 0,
+          ringPulse: 0,
+          ringTarget: 0
+        },
+        
         // State
         active: true,
         life: 0,
@@ -479,6 +503,14 @@ export class HarmonicHubAuraSystem_Session126 {
       hub.stability = hub.stability * 0.9 + region.avgStability * 0.1;
       hub.fieldRadius = this._calculateFieldRadius(region);
       hub.active = true;
+
+      // Ensure visual state is present for animation.
+      hub.visualState ||= {
+        pulse: 0,
+        pulseTarget: 0,
+        ringPulse: 0,
+        ringTarget: 0
+      };
 
       // Ensure phase offsets exist for all currently assigned hub nodes.
       for (const node of hub.nodes) {
@@ -564,7 +596,66 @@ export class HarmonicHubAuraSystem_Session126 {
       hub.life += deltaTime;
     }
   }
-  
+
+  _updateHubVisualState(deltaTime) {
+    for (const hub of this.hubs.values()) {
+      if (!hub.active || !hub.visualState) continue;
+
+      const pulseSpeed = Math.max(1.0, this.config.fieldPulseDecay);
+      hub.visualState.pulse += (hub.visualState.pulseTarget - hub.visualState.pulse) * Math.min(1, deltaTime * 4.0);
+      hub.visualState.ringPulse += (hub.visualState.ringTarget - hub.visualState.ringPulse) * Math.min(1, deltaTime * 3.5);
+      hub.visualState.pulseTarget = Math.max(0, hub.visualState.pulseTarget - deltaTime * pulseSpeed);
+      hub.visualState.ringTarget = Math.max(0, hub.visualState.ringTarget - deltaTime * pulseSpeed * 0.8);
+    }
+  }
+
+  /**
+   * Apply cascade reactivity to hub visuals.
+   * When cascade is active on a hub, modulates pulse rate, field radius,
+   * opacity, and color to create visible cascade response.
+   * @param {number} deltaTime
+   */
+  _applyCascadeReactivity(deltaTime) {
+    const cascadeSystem = this.cascadeAmplificationSystem;
+    if (!cascadeSystem || !cascadeSystem.isCascadeActive?.()) return;
+
+    for (const hub of this.hubs.values()) {
+      if (!hub.active || !hub.visualState) continue;
+
+      // Read cascade strength for this hub's primary node
+      const nodeId = hub.primaryNode?.userData?.nodeId || hub.hubId;
+      const cascadeStrength = cascadeSystem.getCascadeStrength?.(nodeId) || 0;
+
+      if (cascadeStrength <= 0.01) {
+        // No cascade — reset any cascade-driven visual state
+        if (hub.visualState._cascadeActive) {
+          hub.visualState._cascadeActive = false;
+          hub.visualState._cascadeStrength = 0;
+        }
+        continue;
+      }
+
+      // Cascade active on this hub — modulate visuals
+      hub.visualState._cascadeActive = true;
+      hub.visualState._cascadeStrength = cascadeStrength;
+
+      // Increase pulse rate (faster pulsing during cascade)
+      const cascadePulseBoost = cascadeStrength * 1.2;
+      hub.visualState.pulseTarget = Math.min(1,
+        hub.visualState.pulseTarget + cascadePulseBoost * deltaTime * 2.0
+      );
+
+      // Boost ring pulse
+      hub.visualState.ringTarget = Math.min(1,
+        hub.visualState.ringTarget + cascadeStrength * 0.6 * deltaTime * 2.0
+      );
+
+      // Store cascade-driven field expansion factor for _createResonanceFieldMesh
+      hub._cascadeFieldExpansion = 1.0 + cascadeStrength * 0.3;
+      hub._cascadeOpacityBoost = cascadeStrength * 0.2;
+    }
+  }
+
   /**
    * Update resonance field meshes
    */
@@ -619,34 +710,41 @@ export class HarmonicHubAuraSystem_Session126 {
    */
   _createResonanceFieldMesh(hub, useLOD) {
     if (hub.nodes.length < 2) return null;
-    
-    // Create spherical/volumetric resonance field
-    const geometry = useLOD ?
-      new THREE.IcosahedronGeometry(hub.fieldRadius, 2) :
-      new THREE.IcosahedronGeometry(hub.fieldRadius, 4);
-    
-    // Calculate field appearance
+
+    // Cascade reactivity: expand radius and boost opacity during active cascade
+    const cascadeExpansion = hub._cascadeFieldExpansion || 1.0;
+    const cascadeOpacityBoost = hub._cascadeOpacityBoost || 0;
+
+    const radius = hub.fieldRadius * cascadeExpansion;
     const harmonyInfluence = Math.max(0, hub.harmony - hub.corruption);
     const corruptionInfluence = hub.corruption;
-    
-    // Opacity based on harmony
+
     let opacity = this.config.fieldOpacityBase +
-                  hub.synergy * this.config.fieldOpacitySynergyMult;
+                  hub.synergy * this.config.fieldOpacitySynergyMult +
+                  cascadeOpacityBoost;
     opacity = opacity * (1 - corruptionInfluence * 0.3);
-    
     if (useLOD) {
       opacity *= this.config.lodOpacitySuppression;
     }
-    
-    // Color based on state
+
     const color = this._getFieldColor(hub);
-    
-    // Create material
     const boostedColor = color.clone().multiplyScalar(this.config.fieldColorBoost);
-    const material = new THREE.MeshPhongMaterial({
+
+    // Cascade emissive boost: brighter glow during cascade
+    const cascadeEmissiveBoost = cascadeOpacityBoost > 0 ? 1.0 + cascadeOpacityBoost * 2.0 : 1.0;
+
+    const group = new THREE.Group();
+    group.position.copy(hub.position);
+    group.renderOrder = this.config.fieldRenderOrder;
+
+    const outerGeometry = useLOD ?
+      new THREE.IcosahedronGeometry(radius, 2) :
+      new THREE.IcosahedronGeometry(radius, 4);
+
+    const outerMaterial = new THREE.MeshPhongMaterial({
       color: boostedColor,
       emissive: boostedColor,
-      emissiveIntensity: this.config.fieldGlowIntensity * harmonyInfluence * this.config.fieldEmissiveBoost,
+      emissiveIntensity: this.config.fieldGlowIntensity * Math.max(0.35, harmonyInfluence) * this.config.fieldEmissiveBoost * cascadeEmissiveBoost,
       transparent: true,
       opacity: Math.max(this.config.fieldOpacityMin, Math.min(this.config.fieldOpacityMax, opacity)),
       wireframe: this.config.fieldWireframe,
@@ -654,41 +752,127 @@ export class HarmonicHubAuraSystem_Session126 {
       depthWrite: false,
       depthTest: true
     });
-    
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(hub.position);
-    mesh.renderOrder = this.config.fieldRenderOrder;
-    
-    // Add vertex animation for breathing effect
-    this._animateFieldVertices(mesh, hub);
-    
-    return mesh;
+
+    const outerMesh = new THREE.Mesh(outerGeometry, outerMaterial);
+    outerMesh.name = 'hub-outer-shell';
+    outerMesh.renderOrder = this.config.fieldRenderOrder;
+    group.add(outerMesh);
+
+    const innerGeometry = new THREE.IcosahedronGeometry(Math.max(0.1, radius * this.config.fieldInnerScale), 2);
+    const innerOpacity = Math.max(0.1, Math.min(0.55, 0.24 + harmonyInfluence * 0.18 + hub.synergy * 0.08 + cascadeOpacityBoost * 0.5));
+    const innerMaterial = new THREE.MeshBasicMaterial({
+      color: boostedColor,
+      transparent: true,
+      opacity: innerOpacity,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: true,
+      side: THREE.DoubleSide
+    });
+
+    const innerMesh = new THREE.Mesh(innerGeometry, innerMaterial);
+    innerMesh.name = 'hub-inner-core';
+    innerMesh.renderOrder = this.config.fieldRenderOrder + 1;
+    group.add(innerMesh);
+
+    if (!useLOD) {
+      const ringGeometry = new THREE.TorusGeometry(radius * 1.05, this.config.fieldRingWidth, 12, 56);
+      const ringMaterial = new THREE.MeshBasicMaterial({
+        color: boostedColor,
+        transparent: true,
+        opacity: Math.min(0.5, this.config.fieldRingOpacity + cascadeOpacityBoost * 0.3),
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: true,
+        side: THREE.DoubleSide
+      });
+
+      const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+      ringMesh.name = 'hub-ring';
+      ringMesh.rotation.x = Math.PI / 2;
+      ringMesh.renderOrder = this.config.fieldRenderOrder + 2;
+      group.add(ringMesh);
+    }
+
+    this._animateHubFieldGroup(group, hub, useLOD);
+
+    return group;
   }
-  
-  /**
-   * Animate field vertices (breathing motion)
-   */
-  _animateFieldVertices(mesh, hub) {
-    const geometry = mesh.geometry;
-    const positions = geometry.attributes.position;
-    
-    if (!geometry.userData.originalPositions) {
-      geometry.userData.originalPositions = positions.array.slice();
+
+  _triggerHubVisualPulse(hubId, type = 'mid', intensity = 0.5) {
+    const hub = this.hubs.get(hubId);
+    if (!hub) return;
+
+    hub.visualState ||= {
+      pulse: 0,
+      pulseTarget: 0,
+      ringPulse: 0,
+      ringTarget: 0
+    };
+
+    const amount = this._clamp01(intensity);
+    const baseTarget = type === 'high'
+      ? this.config.fieldPulseStrengthHigh
+      : type === 'mid'
+        ? this.config.fieldPulseStrengthMid
+        : 0.6;
+
+    hub.visualState.pulseTarget = Math.max(hub.visualState.pulseTarget, baseTarget * amount);
+    hub.visualState.ringTarget = Math.max(hub.visualState.ringTarget, baseTarget * 0.7 * amount);
+  }
+
+  _animateHubFieldGroup(group, hub, useLOD) {
+    const time = hub.life;
+    const pulse = hub.visualState?.pulse ?? 0;
+    const ringPulse = hub.visualState?.ringPulse ?? 0;
+    const harmonyInfluence = Math.max(0, hub.harmony - hub.corruption);
+
+    const outer = group.getObjectByName('hub-outer-shell');
+    if (outer) {
+      const geometry = outer.geometry;
+      const positions = geometry.attributes.position;
+      if (!geometry.userData.originalPositions) {
+        geometry.userData.originalPositions = positions.array.slice();
+      }
+
+      const original = geometry.userData.originalPositions;
+      const noiseAmp = this.config.fieldOuterNoise * (1 + pulse * 0.3) * (useLOD ? 0.6 : 1);
+      const phase = time * this.config.fieldOuterNoiseSpeed;
+      const pulseScale = 1 + Math.sin(time * 2.2) * 0.06 + pulse * 0.08;
+
+      for (let i = 0; i < positions.count; i++) {
+        const ox = original[i * 3];
+        const oy = original[i * 3 + 1];
+        const oz = original[i * 3 + 2];
+        const noise = Math.sin(ox * 1.5 + phase) * Math.cos(oy * 1.8 + phase * 1.3) * Math.sin(oz * 1.2 + phase * 0.9);
+        const distort = 1 + noise * noiseAmp;
+        positions.setXYZ(
+          i,
+          ox * distort * pulseScale,
+          oy * distort * pulseScale,
+          oz * distort * pulseScale
+        );
+      }
+
+      positions.needsUpdate = true;
+      outer.rotation.y = time * 0.18 + pulse * 0.05;
+      outer.material.emissiveIntensity = this.config.fieldGlowIntensity * Math.max(0.35, harmonyInfluence) * this.config.fieldEmissiveBoost * (1 + pulse * 0.2);
     }
-    
-    const original = geometry.userData.originalPositions;
-    const breathing = 1.0 + Math.sin(hub.life * 2.0) * 0.15;
-    
-    for (let i = 0; i < positions.count; i++) {
-      positions.setXYZ(
-        i,
-        original[i * 3] * breathing,
-        original[i * 3 + 1] * breathing,
-        original[i * 3 + 2] * breathing
-      );
+
+    const inner = group.getObjectByName('hub-inner-core');
+    if (inner) {
+      const innerScale = Math.max(0.5, this.config.fieldInnerScale + Math.sin(time * 2.8) * 0.02 + pulse * 0.08);
+      inner.scale.setScalar(innerScale);
+      inner.rotation.y = time * 0.4;
+      inner.material.opacity = Math.max(0.08, Math.min(0.65, 0.24 + harmonyInfluence * 0.18 + pulse * 0.1));
     }
-    
-    positions.needsUpdate = true;
+
+    const ring = group.getObjectByName('hub-ring');
+    if (ring) {
+      ring.rotation.z = time * 0.95;
+      ring.material.opacity = Math.max(0.05, this.config.fieldRingOpacity + ringPulse * 0.18);
+      ring.scale.setScalar(1 + ringPulse * 0.08);
+    }
   }
   
   /**
@@ -791,6 +975,12 @@ export class HarmonicHubAuraSystem_Session126 {
 
   _disposeFieldObject(obj) {
     if (!obj) return;
+
+    if (obj.children?.length) {
+      for (const child of obj.children) {
+        this._disposeFieldObject(child);
+      }
+    }
 
     if (obj.geometry && obj.geometry !== this._hubDebugMarkerGeometry) {
       obj.geometry.dispose();
@@ -944,6 +1134,21 @@ export class HarmonicHubAuraSystem_Session126 {
       const nextTier = classifyMetricTier(value, previousTier, getDefaultMetricThresholds(metric));
       if (previousTier === null) {
         tiers[metric] = nextTier;
+        const payload = {
+          scope: 'hub',
+          hubId,
+          nodeId,
+          metric,
+          tier: nextTier,
+          previousTier,
+          value,
+          source: 'HarmonicHubAuraSystem_Session126',
+          timestamp: Date.now()
+        };
+
+        // Emit initial hub metric tier state so subscribers receive hub.harmony.mid/high/low.
+        semanticBus.emit('metric.tier.changed', payload, { priority: semanticBus.priority?.NORMAL });
+        semanticBus.emit(buildScopedMetricEventName('hub', metric, nextTier), payload, { priority: semanticBus.priority?.NORMAL });
         continue;
       }
       if (nextTier === previousTier) continue;
@@ -1109,6 +1314,7 @@ export class HarmonicHubAuraSystem_Session126 {
       intensity,
       type: 'resonance_high'
     });
+    this._triggerHubVisualPulse(hubId, 'high', intensity);
     
     this._setCooldown(hubId, 'high');
   }
@@ -1131,6 +1337,7 @@ export class HarmonicHubAuraSystem_Session126 {
       intensity,
       type: 'resonance_mid'
     });
+    this._triggerHubVisualPulse(hubId, 'mid', intensity);
     
     this._setCooldown(hubId, 'mid');
   }
@@ -1153,6 +1360,7 @@ export class HarmonicHubAuraSystem_Session126 {
       intensity,
       type: 'resonance_low'
     });
+    this._triggerHubVisualPulse(hubId, 'low', intensity);
     
     this._setCooldown(hubId, 'low');
   }

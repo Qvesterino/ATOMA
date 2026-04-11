@@ -67,26 +67,26 @@ export class PreCascadeVisualHint_Session146 {
     
     // Configuration
     this.config = {
-      // Hint intensity scaling
-      hintStrengthMult: config.hintStrengthMult ?? 0.15,        // 0-1, how strong hint effect
-      phaseDeltaThreshold: config.phaseDeltaThreshold ?? 0.05,  // Min phase delta to activate
-      
-      // Aura effects
-      auraCoherenceBias: config.auraCoherenceBias ?? 0.1,       // Tightness bias
-      auraSilhouetteCompress: config.auraSilhouetteCompress ?? 0.05,  // Silhouette compression
-      noiseLayerDelay: config.noiseLayerDelay ?? 0.02,          // Micro-delay reduction
-      
-      // Link effects
-      linkPhaseCompression: config.linkPhaseCompression ?? 0.08, // Phase travel distance reduction
-      
-      // Field effects
-      fieldBreathingAmplitude: config.fieldBreathingAmplitude ?? 0.12,  // Randomness reduction
+      // Hint intensity scaling — amplified from ghost-level to visible tension
+      hintStrengthMult: config.hintStrengthMult ?? 0.45,        // Amplified from 0.15
+      phaseDeltaThreshold: config.phaseDeltaThreshold ?? 0.03,  // Lowered from 0.05 — trigger more easily
+
+      // Aura effects — amplified for visible tension
+      auraCoherenceBias: config.auraCoherenceBias ?? 0.30,      // Amplified from 0.1
+      auraSilhouetteCompress: config.auraSilhouetteCompress ?? 0.15,  // Amplified from 0.05
+      noiseLayerDelay: config.noiseLayerDelay ?? 0.04,          // Amplified from 0.02
+
+      // Link effects — visible phase compression
+      linkPhaseCompression: config.linkPhaseCompression ?? 0.20, // Amplified from 0.08
+
+      // Field effects — visible breathing
+      fieldBreathingAmplitude: config.fieldBreathingAmplitude ?? 0.30,  // Amplified from 0.12
       fieldBreathingDuration: config.fieldBreathingDuration ?? 0.45,    // Seconds per cycle
-      
+
       // Decay & easing
       decayRate: config.decayRate ?? 0.92,                      // Auto-decay speed
       easingPower: config.easingPower ?? 2.0,                   // Smoothstep power
-      
+
       // Safety
       enabled: config.enabled ?? true,
       debugMode: config.debugMode ?? false,

@@ -14,67 +14,67 @@ Nezahrnul som:
 data-only utility adaptéry
 Active
 
-EnvironmentDomainController
+## EnvironmentDomainController
 Stav: active
 Trigger: inicializuje sa pri boote a znovu pri world rebuild-e; orchestruje environment domain systémy cez scheduler.
 Evidence: main.js:4813, main.js:4834, main.js:6289, main.js:6310, EnvironmentDomainController.js:15
 Poznámka: toto je koordinátor, nie samotný vizuálny efekt.
 
-SafeWorldFXPack
+## SafeWorldFXPack
 Stav: active, ale metrics-degraded
 Trigger: beží každý tick cez environment domain; robí periodické world efekty ako dimensional shifts, rift waves, quantum rifts, sigma glitches, aurora/world breathing.
 Evidence: EnvironmentDomainController.js:45, EnvironmentDomainController.js:94, _SafeWorldFXPack.js:316, _SafeWorldFXPack.js:374, _SafeWorldFXPack.js:486, _SafeWorldFXPack.js:794, _SafeWorldFXPack.js:903
 Trigger detail: časové intervaly bežia stále; synergy/legendary vetvy sú oslabené, lebo environment domain volá len update(dt) a neposúva mu nodes/linkingSystem/legendaryPack.
 
-AmbientEntityManager
+## AmbientEntityManager
 Stav: active
 Trigger: beží cez environment domain; spawn pokusy robí priebežne s náhodnou šancou a zosilňuje ich aktívne počasie, legendary nodes alebo world events.
 Evidence: EnvironmentDomainController.js:60, EnvironmentDomainController.js:73, _AmbientEntityManager.js:101, _AmbientEntityManager.js:128, _AmbientEntityManager.js:156
 Vizuál: ghost orbs, spectres, swarms, phantoms, wisps.
 
-EnvironmentalHazards
+## EnvironmentalHazards
 Stav: active, ale efekt je mode-conditional
 Trigger: systém je vytvorený v environment domain; demo hazards sa automaticky spawnujú len vo fractal mode.
 Evidence: EnvironmentDomainController.js:89, main.js:6311, EnvironmentalHazards.js:18, EnvironmentalHazards.js:115, EnvironmentalHazards.js:221
 Vizuál: electrical storms, gravitational anomalies.
 
-WaveParticleEmitter_v1
+## WaveParticleEmitter_v1
 Stav: active, efekt conditional
 Trigger: initne sa a updatuje každý frame; emituje len keď wave field prekročí constructive/destructive/standing thresholds.
 Evidence: main.js:8553, main.js:8569, WaveParticleEmitter_v1.js:706, WaveParticleEmitter_v1.js:729, WaveParticleEmitter_v1.js:791
 Vizuál: world-space synergy/destruction/standing-wave particles, nie link mesh.
 
-CascadeParticleSystem_Session120
+## CascadeParticleSystem_Session120
 Stav: active
 Trigger: boot setup + visual scheduler update; spawny prichádzajú cez cascade event bridge a cascade hop-y.
 Evidence: main.js:4930, main.js:9192, main.js:3978
 Vizuál: cascade particle bursts/trails v priestore.
 
-ResonanceCascadeVisualization_Session117B
+## ResonanceCascadeVisualization_Session117B
 Stav: active
 Trigger: boot setup + visual scheduler; reaguje na cascade.start, cascade.hop, cascade.end semantic eventy.
 Evidence: main.js:4936, main.js:9285, main.js:3999, ResonanceCascadeVisualization_Session117B.js:124
 Vizuál: radial/link-propagating cascade influence, node illumination, ripple-like cascade state.
 
-PHASE5_CascadePropagationVisuals
+## PHASE5_CascadePropagationVisuals
 Stav: active
 Trigger: inicializovaný v Phase 5 wiring-u, updatuje sa cez visual scheduler, reaguje na cascade eventy nad activation threshold.
 Evidence: main.js:8093, main.js:8121, main.js:3775, PHASE5_CascadePropagationVisuals_v1.js:84, PHASE5_CascadePropagationVisuals_v1.js:102
 Vizuál: expanding cascade rings vo world-space.
 
-PHASE5_CascadeVisualizationBridge
+## PHASE5_CascadeVisualizationBridge
 Stav: active
 Trigger: bridge sa inicializuje a updatuje cez scheduler; číta corruption/threat/harmony cascade eventy a feeduje propagation visuals.
 Evidence: main.js:8134, main.js:8149, main.js:3777, PHASE5_CascadeVisualizationBridge_v1.js:61, PHASE5_CascadeVisualizationBridge_v1.js:108
 Poznámka: je to bridge, ale priamo drží cascade queue a riadi, čo sa vykreslí.
 
-ResonanceRuptureVisualSystem_Session133
+## ResonanceRuptureVisualSystem_Session133
 Stav: active, efekt conditional
 Trigger: inicializuje sa a má vlastný visual tick; vizuály vznikajú len keď standing-wave trap systém akumuluje stress/rupture stav.
 Evidence: main.js:4990, main.js:11771, main.js:3885
 Vizuál: stress zones, rupture bursts, propagation scars, halo destabilization.
 
-StandingWaveVisualRenderer_Session131
+## StandingWaveVisualRenderer_Session131
 Stav: active, efekt conditional
 Trigger: renderer sa normálne setupne a updatuje každý frame; viditeľný efekt sa objaví len keď existujú aktívne standing-wave traps/patterns.
 Evidence: main.js:4972, main.js:11605, main.js:4096, StandingWaveVisualRenderer_Session131.js:219

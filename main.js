@@ -975,6 +975,7 @@ import { applyLinkResonanceFlowHarmonyIntegration } from './LinkResonanceFlowInt
 import { applyEchoRippleIntegration } from './EchoRippleIntegrationPatch_Session125.js';
 import { applyCorruptionDesaturationIntegration } from './CorruptionDesaturationIntegrationPatch.js';
 import { HarmonicCascadeAmplification_Session145, setupCascadeConsoleAPI } from './HarmonicCascadeAmplification_Session145.js';
+import { CascadeBurstVisual_Session147 } from './CascadeBurstVisual_Session147.js';
 import { HarmonicPhaseSynchronization_Session146, setupPhaseSyncConsoleAPI } from './HarmonicPhaseSynchronization_Session146.js';
 import { PreCascadeVisualHint_Session146 } from './PreCascadeVisualHint_Session146.js';
 import { HarmonicNodeResonanceHalos } from './HarmonicNodeResonanceHalos.js';
@@ -15670,13 +15671,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.harmonicCascadeAmplification.frameScheduler = this.frameScheduler;
             this.harmonicCascadeAmplification.init?.();
 
-            // Rebind existing wave visualization to live systems.
+            // Rebind existing wave visualization to live systems (amplified values — Session 147).
             if (this.cascadeResonanceWave) {
                 this.cascadeResonanceWave.cascadeSystem = this.harmonicCascadeAmplification;
                 this.cascadeResonanceWave.harmonicHubSystem = this.harmonicHubAuraSystem;
                 this.cascadeResonanceWave.linkResonanceSystem = this.linkResonanceSystem || this.harmonicResonanceCoupling;
-                this.cascadeResonanceWave.config.waveInfluenceMin = 0.02;
-                this.cascadeResonanceWave.config.waveInfluenceMax = 0.08;
+                this.cascadeResonanceWave.config.waveInfluenceMin = 0.25;
+                this.cascadeResonanceWave.config.waveInfluenceMax = 0.50;
                 this.cascadeResonanceWave.config.minHubCorruptionThreshold = 0.25;
                 this.cascadeResonanceWave.config.minHubStabilityThreshold = 0.65;
             }
@@ -15684,8 +15685,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.cascadeResonanceWaveVisualization.cascadeSystem = this.harmonicCascadeAmplification;
                 this.cascadeResonanceWaveVisualization.harmonicHubSystem = this.harmonicHubAuraSystem;
                 this.cascadeResonanceWaveVisualization.linkResonanceSystem = this.linkResonanceSystem || this.harmonicResonanceCoupling;
-                this.cascadeResonanceWaveVisualization.config.waveInfluenceMin = 0.02;
-                this.cascadeResonanceWaveVisualization.config.waveInfluenceMax = 0.08;
+                this.cascadeResonanceWaveVisualization.config.waveInfluenceMin = 0.25;
+                this.cascadeResonanceWaveVisualization.config.waveInfluenceMax = 0.50;
                 this.cascadeResonanceWaveVisualization.config.minHubCorruptionThreshold = 0.25;
                 this.cascadeResonanceWaveVisualization.config.minHubStabilityThreshold = 0.65;
             } else {
@@ -15701,10 +15702,40 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this._harmonicCascadeAmplificationRegistered = true;
             }
 
-            console.log('✓ Harmonic Cascade Amplification System (Session 145) initialized');
+            // Wire cascade system reference into hub aura system for cascade reactivity
+            if (this.harmonicHubAuraSystem) {
+                this.harmonicHubAuraSystem.cascadeAmplificationSystem = this.harmonicCascadeAmplification;
+            }
+
+            // Initialize Cascade Burst Visual (Session 147)
+            // Dramatic burst effect when cascade triggers from a hub
+            if (!this.cascadeBurstVisual) {
+                this.cascadeBurstVisual = new CascadeBurstVisual_Session147(this.scene, {
+                    enabled: true,
+                    debugMode: false,
+                });
+                console.log('✓ Cascade Burst Visual (Session 147) initialized');
+            }
+
+            // Register cascade burst visual update in visual lane
+            if (this.frameScheduler && !this._cascadeBurstVisualRegistered) {
+                this.frameScheduler.register('visual', (dt) => {
+                    if (this.cascadeBurstVisual) {
+                        this.cascadeBurstVisual.update(dt, this.camera);
+                    }
+                }, 'visual.cascadeBurstVisual');
+                this._cascadeBurstVisualRegistered = true;
+            }
+
+            console.log('✓ Harmonic Cascade Amplification System (Session 145) initialized — CASCADE ACTIVE');
             
             // Setup console API for debugging
             setupCascadeConsoleAPI(window, this.harmonicCascadeAmplification);
+
+            // Setup cascade burst visual console API
+            if (this.cascadeBurstVisual?.setupConsoleAPI) {
+                this.cascadeBurstVisual.setupConsoleAPI(window);
+            }
         } catch (err) {
             console.warn('⚠ Harmonic Cascade Amplification initialization failed:', err);
         }

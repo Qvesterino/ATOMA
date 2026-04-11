@@ -464,8 +464,8 @@ export class CascadingHarmonicResonanceAmplification {
 
     if (this.network.links) {
       for (const link of this.network.links) {
-        const aId = link.a?.id || link.nodeA?.id;
-        const bId = link.b?.id || link.nodeB?.id;
+        const aId = link.a?.id || link.nodeA?.id || link.source?.id || link.sourceNode?.id;
+        const bId = link.b?.id || link.nodeB?.id || link.target?.id || link.targetNode?.id;
 
         if (!aId || !bId) continue;
 

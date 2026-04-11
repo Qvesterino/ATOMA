@@ -206,6 +206,18 @@ const STORAGE_CATHEDRAL_CACHE = {
   timelineGeometry: null
 };
 const STORAGE_CATHEDRAL_MATERIALS = new Map(); // keyed by color hex
+const STORAGE_ARCHIVE_SPINDLE_V2_CACHE = {
+  coreGeometry: null,
+  seedGeometry: null,
+  seamGeometry: null,
+  shellGeometry: null,
+  lockRingGeometry: null,
+  lockBarGeometry: null,
+  accessFrameGeometry: null,
+  orbitFragmentGeometry: null,
+  dustGeometry: null
+};
+const STORAGE_ARCHIVE_SPINDLE_V2_MATERIALS = new Map(); // keyed by color hex
 
 // INPUT v2 caches
 const INPUT_V2_CACHE = {
@@ -352,6 +364,75 @@ const ANALYTICS_V2_CACHE = {
   particlesGeometry: null
 };
 const ANALYTICS_V2_MATERIALS = new Map(); // keyed by color hex
+const ANALYTICS_OBSERVER_LENS_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  apertureGeometry: null,
+  apertureEdgesGeometry: null,
+  lensGeometry: null,
+  lensEdgesGeometry: null,
+  frameGeometry: null,
+  frameEdgesGeometry: null,
+  haloGeometry: null,
+  haloEdgesGeometry: null,
+  dustGeometry: null,
+  telemetryGeometry: null
+};
+const ANALYTICS_OBSERVER_LENS_MATERIALS = new Map(); // keyed by color hex
+const ANALYTICS_RESONANCE_DIADEM_RELAY_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  seamGeometry: null,
+  seamEdgesGeometry: null,
+  diademArcGeometry: null,
+  diademArcEdgesGeometry: null,
+  resonancePlateGeometry: null,
+  resonancePlateEdgesGeometry: null,
+  projectionNeedleGeometry: null,
+  projectionNeedleEdgesGeometry: null,
+  projectionMarkerGeometry: null,
+  projectionMarkerEdgesGeometry: null,
+  auraDustGeometry: null,
+  telemetryGeometry: null
+};
+const ANALYTICS_RESONANCE_DIADEM_RELAY_MATERIALS = new Map(); // keyed by color hex
+const ANALYTICS_FRACTURED_ORACLE_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  seamVoidGeometry: null,
+  seamVoidEdgesGeometry: null,
+  crownArcGeometry: null,
+  crownArcEdgesGeometry: null,
+  bloomShardGeometry: null,
+  bloomShardEdgesGeometry: null,
+  resonanceSlatGeometry: null,
+  resonanceSlatEdgesGeometry: null,
+  projectionNeedleGeometry: null,
+  projectionNeedleEdgesGeometry: null,
+  projectionMarkerGeometry: null,
+  projectionMarkerEdgesGeometry: null,
+  auraDustGeometry: null,
+  telemetryGeometry: null
+};
+const ANALYTICS_FRACTURED_ORACLE_MATERIALS = new Map(); // keyed by color hex
+const ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  seedGeometry: null,
+  seedEdgesGeometry: null,
+  haloGeometry: null,
+  haloEdgesGeometry: null,
+  sailGeometry: null,
+  sailEdgesGeometry: null,
+  shardGeometry: null,
+  shardEdgesGeometry: null,
+  needleGeometry: null,
+  needleEdgesGeometry: null,
+  railGeometry: null,
+  railEdgesGeometry: null,
+  dustGeometry: null
+};
+const ANALYTICS_CELESTIAL_INDEX_MONOLITH_MATERIALS = new Map(); // keyed by color hex
 
 // ANALYTICS flagship caches
 const ANALYTICS_PREDICTIVE_ORACLE_ARRAY_CACHE = {
@@ -4700,6 +4781,220 @@ function _getStorageCathedralMaterials(color) {
   return mats;
 }
 
+function _getStorageArchiveSpindleV2Geometries() {
+  if (!STORAGE_ARCHIVE_SPINDLE_V2_CACHE.coreGeometry) {
+    const coreGeometry = new THREE.DodecahedronGeometry(0.44, 0);
+    const corePos = coreGeometry.attributes.position;
+    for (let i = 0; i < corePos.count; i++) {
+      const x = corePos.getX(i);
+      const y = corePos.getY(i);
+      const z = corePos.getZ(i);
+      const upperBias = y > 0 ? 1.1 : 0.96;
+      const openSideBias = x > 0 ? 0.88 : 1.08;
+      const depthBias = z > 0 ? 0.84 : 0.92;
+      corePos.setXYZ(
+        i,
+        x * openSideBias + (x > 0 ? -0.02 : 0.012) * Math.abs(y),
+        y * upperBias + Math.sign(y || 1) * 0.03 * Math.abs(z),
+        z * depthBias + (z > 0 ? -0.015 : 0.01) * Math.abs(x)
+      );
+    }
+    corePos.needsUpdate = true;
+    coreGeometry.computeVertexNormals();
+    coreGeometry.computeBoundingSphere();
+    STORAGE_ARCHIVE_SPINDLE_V2_CACHE.coreGeometry = coreGeometry;
+
+    const seedGeometry = new THREE.CylinderGeometry(0.11, 0.15, 0.46, 6, 1, false);
+    const seedPos = seedGeometry.attributes.position;
+    for (let i = 0; i < seedPos.count; i++) {
+      const x = seedPos.getX(i);
+      const y = seedPos.getY(i);
+      const z = seedPos.getZ(i);
+      seedPos.setXYZ(
+        i,
+        x * (0.92 + Math.abs(y) * 0.18) + z * 0.02,
+        y * 1.0,
+        z * (0.84 + Math.abs(x) * 0.16) - x * 0.012
+      );
+    }
+    seedPos.needsUpdate = true;
+    seedGeometry.computeVertexNormals();
+    seedGeometry.computeBoundingSphere();
+    STORAGE_ARCHIVE_SPINDLE_V2_CACHE.seedGeometry = seedGeometry;
+
+    const seamGeometry = new THREE.BoxGeometry(0.07, 0.56, 0.14, 1, 1, 1);
+    STORAGE_ARCHIVE_SPINDLE_V2_CACHE.seamGeometry = seamGeometry;
+
+    const shellGeometry = new THREE.BoxGeometry(0.16, 0.44, 0.1, 1, 1, 1);
+    const shellPos = shellGeometry.attributes.position;
+    for (let i = 0; i < shellPos.count; i++) {
+      const x = shellPos.getX(i);
+      const y = shellPos.getY(i);
+      const z = shellPos.getZ(i);
+      const topBias = y > 0 ? 0.88 : 1.04;
+      shellPos.setXYZ(
+        i,
+        x * (0.94 + Math.abs(y) * 0.08),
+        y * topBias,
+        z * (0.84 + Math.abs(x) * 0.12)
+      );
+    }
+    shellPos.needsUpdate = true;
+    shellGeometry.computeVertexNormals();
+    shellGeometry.computeBoundingSphere();
+    STORAGE_ARCHIVE_SPINDLE_V2_CACHE.shellGeometry = shellGeometry;
+
+    const lockRingGeometry = new THREE.TorusGeometry(0.76, 0.055, 10, 28, Math.PI * 1.52);
+    STORAGE_ARCHIVE_SPINDLE_V2_CACHE.lockRingGeometry = lockRingGeometry;
+    STORAGE_ARCHIVE_SPINDLE_V2_CACHE.lockBarGeometry = new THREE.BoxGeometry(0.12, 0.72, 0.12, 1, 1, 1);
+    STORAGE_ARCHIVE_SPINDLE_V2_CACHE.accessFrameGeometry = new THREE.BoxGeometry(0.1, 0.58, 0.12, 1, 1, 1);
+    STORAGE_ARCHIVE_SPINDLE_V2_CACHE.orbitFragmentGeometry = new THREE.BoxGeometry(0.1, 0.04, 0.2, 1, 1, 1);
+
+    const dustPositions = [];
+    const dustCount = 28;
+    for (let i = 0; i < dustCount; i++) {
+      const t = i / dustCount;
+      const angle = t * Math.PI * 2.0;
+      const radius = 0.56 + Math.sin(i * 1.47) * 0.1;
+      dustPositions.push(
+        Math.cos(angle) * radius,
+        -0.34 + t * 0.78 + Math.sin(i * 0.83) * 0.05,
+        Math.sin(angle) * (0.34 + Math.cos(i * 1.11) * 0.08)
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    STORAGE_ARCHIVE_SPINDLE_V2_CACHE.dustGeometry = dustGeometry;
+  }
+
+  return STORAGE_ARCHIVE_SPINDLE_V2_CACHE;
+}
+
+function _getStorageArchiveSpindleV2Materials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xa9d6ff;
+  if (STORAGE_ARCHIVE_SPINDLE_V2_MATERIALS.has(colorHex)) {
+    return STORAGE_ARCHIVE_SPINDLE_V2_MATERIALS.get(colorHex);
+  }
+
+  const storageColor = new THREE.Color(colorHex);
+  const darkArchive = new THREE.Color(0x111923).lerp(storageColor, 0.18);
+  const shellColor = darkArchive.clone().lerp(storageColor, 0.32);
+  const lockColor = storageColor.clone().lerp(new THREE.Color(0xe8fbff), 0.26);
+  const accessColor = darkArchive.clone().lerp(new THREE.Color(0xcaf3ff), 0.2);
+  const seedColor = storageColor.clone().lerp(new THREE.Color(0xffffff), 0.34);
+  const auraColor = new THREE.Color(0xdff8ff).lerp(storageColor, 0.16);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: darkArchive.clone().lerp(storageColor, 0.24),
+    emissive: storageColor.clone().multiplyScalar(0.22),
+    emissiveIntensity: 0.22,
+    metalness: 0.82,
+    roughness: 0.2,
+    flatShading: true,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const shellMat = new THREE.MeshStandardMaterial({
+    color: shellColor,
+    emissive: storageColor.clone().multiplyScalar(0.12),
+    emissiveIntensity: 0.12,
+    metalness: 0.66,
+    roughness: 0.32,
+    flatShading: true,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seedMat = new THREE.MeshStandardMaterial({
+    color: seedColor,
+    emissive: storageColor.clone().lerp(new THREE.Color(0xffffff), 0.14),
+    emissiveIntensity: 0.24,
+    metalness: 0.56,
+    roughness: 0.24,
+    flatShading: true,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const lockMat = new THREE.MeshStandardMaterial({
+    color: lockColor,
+    emissive: storageColor.clone().lerp(new THREE.Color(0xd5f5ff), 0.16),
+    emissiveIntensity: 0.28,
+    metalness: 0.76,
+    roughness: 0.18,
+    flatShading: true,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const accessMat = new THREE.MeshStandardMaterial({
+    color: accessColor,
+    emissive: storageColor.clone().multiplyScalar(0.16),
+    emissiveIntensity: 0.2,
+    metalness: 0.6,
+    roughness: 0.3,
+    flatShading: true,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const orbitMat = new THREE.MeshStandardMaterial({
+    color: shellColor.clone().lerp(new THREE.Color(0xf1fbff), 0.08),
+    emissive: auraColor.clone().multiplyScalar(0.2),
+    emissiveIntensity: 0.08,
+    metalness: 0.52,
+    roughness: 0.36,
+    flatShading: true,
+    transparent: true,
+    opacity: 0.78,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  const auraMat = new THREE.PointsMaterial({
+    color: auraColor,
+    size: 0.035,
+    transparent: true,
+    opacity: 0.38,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const mats = {
+    coreMat,
+    shellMat,
+    seedMat,
+    lockMat,
+    accessMat,
+    orbitMat,
+    auraMat
+  };
+
+  for (const [key, mat] of Object.entries(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+    if (key === 'lockMat' || key === 'accessMat' || key === 'seedMat') {
+      mat.userData.ignoreWaveColor = true;
+    }
+  }
+
+  STORAGE_ARCHIVE_SPINDLE_V2_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
 // ---------- INPUT v2 helpers ----------
 function _getInputV2Geometries() {
   if (!INPUT_V2_CACHE.coreGeometry) {
@@ -5839,6 +6134,399 @@ function _getAnalyticsV2Materials(color) {
   return mats;
 }
 
+function _getAnalyticsResonanceDiademRelayGeometries() {
+  if (!ANALYTICS_RESONANCE_DIADEM_RELAY_CACHE.coreGeometry) {
+    const deformGeometry = (geometry, deformFn) => {
+      const pos = geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = pos.getZ(i);
+        const next = deformFn(x, y, z, i);
+        pos.setXYZ(i, next[0], next[1], next[2]);
+      }
+      pos.needsUpdate = true;
+      geometry.computeVertexNormals();
+      geometry.computeBoundingSphere();
+      return geometry;
+    };
+
+    const coreGeometry = new THREE.DodecahedronGeometry(0.26, 1);
+    deformGeometry(coreGeometry, (x, y, z, i) => {
+      const bias = Math.sin(i * 0.73) * 0.02;
+      return [
+        x * 0.94 + z * 0.02 + bias * 0.35,
+        y * 1.08,
+        z * 0.9 - x * 0.03 - bias * 0.2
+      ];
+    });
+    ANALYTICS_RESONANCE_DIADEM_RELAY_CACHE.coreGeometry = coreGeometry;
+    ANALYTICS_RESONANCE_DIADEM_RELAY_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 12);
+
+    const seamGeometry = new THREE.TorusGeometry(0.18, 0.018, 10, 32);
+    ANALYTICS_RESONANCE_DIADEM_RELAY_CACHE.seamGeometry = seamGeometry;
+    ANALYTICS_RESONANCE_DIADEM_RELAY_CACHE.seamEdgesGeometry = safeCreateEdgesGeometry(seamGeometry, 10);
+
+    const diademArcGeometry = new THREE.TorusGeometry(0.88, 0.045, 10, 52, Math.PI * 1.24);
+    ANALYTICS_RESONANCE_DIADEM_RELAY_CACHE.diademArcGeometry = diademArcGeometry;
+    ANALYTICS_RESONANCE_DIADEM_RELAY_CACHE.diademArcEdgesGeometry = safeCreateEdgesGeometry(diademArcGeometry, 10);
+
+    const resonancePlateGeometry = new THREE.BoxGeometry(0.12, 0.46, 0.05, 1, 2, 1);
+    deformGeometry(resonancePlateGeometry, (x, y, z) => {
+      const taper = 0.92 + Math.abs(y) * 0.04;
+      return [
+        x * taper + z * 0.02,
+        y,
+        z * (0.94 + Math.abs(y) * 0.02)
+      ];
+    });
+    ANALYTICS_RESONANCE_DIADEM_RELAY_CACHE.resonancePlateGeometry = resonancePlateGeometry;
+    ANALYTICS_RESONANCE_DIADEM_RELAY_CACHE.resonancePlateEdgesGeometry = safeCreateEdgesGeometry(resonancePlateGeometry, 8);
+
+    const projectionNeedleGeometry = new THREE.CylinderGeometry(0.02, 0.05, 0.34, 5, 1);
+    ANALYTICS_RESONANCE_DIADEM_RELAY_CACHE.projectionNeedleGeometry = projectionNeedleGeometry;
+    ANALYTICS_RESONANCE_DIADEM_RELAY_CACHE.projectionNeedleEdgesGeometry = safeCreateEdgesGeometry(projectionNeedleGeometry, 6);
+
+    const projectionMarkerGeometry = new THREE.BoxGeometry(0.06, 0.12, 0.06, 1, 2, 1);
+    ANALYTICS_RESONANCE_DIADEM_RELAY_CACHE.projectionMarkerGeometry = projectionMarkerGeometry;
+    ANALYTICS_RESONANCE_DIADEM_RELAY_CACHE.projectionMarkerEdgesGeometry = safeCreateEdgesGeometry(projectionMarkerGeometry, 6);
+
+    const auraPositions = [];
+    const auraCount = 48;
+    for (let i = 0; i < auraCount; i++) {
+      const t = i / auraCount;
+      const angle = t * Math.PI * 2;
+      const radius = 0.54 + Math.sin(i * 0.61) * 0.05;
+      auraPositions.push(
+        Math.cos(angle) * radius,
+        -0.08 + Math.sin(i * 0.47) * 0.2,
+        Math.sin(angle) * (0.34 + Math.cos(i * 0.38) * 0.08)
+      );
+    }
+    const auraDustGeometry = new THREE.BufferGeometry();
+    auraDustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(auraPositions, 3));
+    auraDustGeometry.computeBoundingSphere();
+    ANALYTICS_RESONANCE_DIADEM_RELAY_CACHE.auraDustGeometry = auraDustGeometry;
+
+    const telemetryPoints = [
+      new THREE.Vector3(-0.52, -0.12, 0.02),
+      new THREE.Vector3(-0.28, 0.05, -0.04),
+      new THREE.Vector3(0.0, 0.13, 0.0),
+      new THREE.Vector3(0.24, 0.07, 0.05),
+      new THREE.Vector3(0.52, -0.08, -0.03)
+    ];
+    const telemetryGeometry = new THREE.BufferGeometry().setFromPoints(telemetryPoints);
+    telemetryGeometry.computeBoundingSphere();
+    ANALYTICS_RESONANCE_DIADEM_RELAY_CACHE.telemetryGeometry = telemetryGeometry;
+  }
+
+  return ANALYTICS_RESONANCE_DIADEM_RELAY_CACHE;
+}
+
+function _getAnalyticsResonanceDiademRelayMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xbc46ff;
+  if (ANALYTICS_RESONANCE_DIADEM_RELAY_MATERIALS.has(colorHex)) {
+    return ANALYTICS_RESONANCE_DIADEM_RELAY_MATERIALS.get(colorHex);
+  }
+
+  const setWaveDefaults = (material, ignoreWaveColor = false) => {
+    material.userData = { ...(material.userData || {}), wavePatchMode: 'DEFAULT' };
+    if (ignoreWaveColor) material.userData.ignoreWaveColor = true;
+    return material;
+  };
+
+  const analyticsColor = new THREE.Color(colorHex);
+  const magentaCore = analyticsColor.clone().lerp(new THREE.Color(0xff47cf), 0.46);
+  const violetCore = analyticsColor.clone().lerp(new THREE.Color(0x7f53ff), 0.34);
+  const cyanAccent = new THREE.Color(0x8cefff);
+  const tealAccent = new THREE.Color(0x58dfd1);
+  const pearlAccent = new THREE.Color(0xeafcff);
+  const deepVoid = new THREE.Color(0x0b0912);
+
+  const coreMat = setWaveDefaults(new THREE.MeshPhysicalMaterial({
+    color: violetCore.clone().lerp(magentaCore, 0.32),
+    emissive: magentaCore.clone().lerp(new THREE.Color(0x9d76ff), 0.22),
+    emissiveIntensity: 0.34,
+    metalness: 0.66,
+    roughness: 0.14,
+    clearcoat: 0.18,
+    clearcoatRoughness: 0.28,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  }));
+
+  const seamMat = setWaveDefaults(new THREE.MeshStandardMaterial({
+    color: deepVoid.clone().lerp(magentaCore, 0.12),
+    emissive: deepVoid.clone(),
+    emissiveIntensity: 0.0,
+    metalness: 0.18,
+    roughness: 0.92,
+    transparent: true,
+    opacity: 0.74,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide
+  }));
+
+  const diademMat = setWaveDefaults(new THREE.MeshPhysicalMaterial({
+    color: pearlAccent.clone().lerp(cyanAccent, 0.36),
+    emissive: tealAccent.clone().lerp(cyanAccent, 0.18),
+    emissiveIntensity: 0.2,
+    metalness: 0.58,
+    roughness: 0.12,
+    clearcoat: 0.42,
+    clearcoatRoughness: 0.22,
+    transparent: true,
+    opacity: 0.86,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide
+  }), true);
+
+  const resonanceMat = setWaveDefaults(new THREE.MeshStandardMaterial({
+    color: tealAccent.clone().lerp(cyanAccent, 0.34),
+    emissive: cyanAccent.clone().lerp(pearlAccent, 0.12),
+    emissiveIntensity: 0.18,
+    metalness: 0.46,
+    roughness: 0.2,
+    transparent: true,
+    opacity: 0.84,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide
+  }), true);
+
+  const projectionMat = setWaveDefaults(new THREE.MeshStandardMaterial({
+    color: cyanAccent.clone().lerp(pearlAccent, 0.18),
+    emissive: cyanAccent.clone(),
+    emissiveIntensity: 0.14,
+    metalness: 0.42,
+    roughness: 0.26,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide
+  }), true);
+
+  const auraMat = setWaveDefaults(new THREE.PointsMaterial({
+    color: pearlAccent.clone().lerp(cyanAccent, 0.18),
+    size: 0.028,
+    transparent: true,
+    opacity: 0.3,
+    depthWrite: false,
+    sizeAttenuation: true
+  }));
+
+  const telemetryMat = setWaveDefaults(new THREE.LineBasicMaterial({
+    color: cyanAccent.clone().lerp(pearlAccent, 0.2),
+    transparent: true,
+    opacity: 0.28,
+    depthWrite: false
+  }));
+
+  const mats = {
+    coreMat,
+    seamMat,
+    diademMat,
+    resonanceMat,
+    projectionMat,
+    auraMat,
+    telemetryMat
+  };
+
+  ANALYTICS_RESONANCE_DIADEM_RELAY_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+function _getAnalyticsFracturedOracleGeometries() {
+  if (!ANALYTICS_FRACTURED_ORACLE_CACHE.coreGeometry) {
+    const buildBrokenArcGeometry = (radius = 0.72, tube = 0.042, arc = Math.PI * 1.32) => {
+      const geometry = new THREE.TorusGeometry(radius, tube, 8, 18, arc);
+      geometry.computeBoundingSphere();
+      return geometry;
+    };
+
+    const buildNeedleGeometry = (height = 0.68, radius = 0.032) => {
+      const geometry = new THREE.CylinderGeometry(radius * 0.72, radius, height, 5, 1, false);
+      geometry.computeBoundingSphere();
+      return geometry;
+    };
+
+    const buildMarkerGeometry = (height = 0.24, radius = 0.018) => {
+      const geometry = new THREE.CylinderGeometry(radius, radius * 1.12, height, 4, 1, false);
+      geometry.computeBoundingSphere();
+      return geometry;
+    };
+
+    const buildTelemetryGeometry = () => {
+      const points = [
+        new THREE.Vector3(-0.22, 0.05, 0.0),
+        new THREE.Vector3(-0.1, 0.11, 0.0),
+        new THREE.Vector3(0.08, 0.07, 0.0),
+        new THREE.Vector3(0.22, 0.14, 0.0),
+        new THREE.Vector3(0.38, 0.09, 0.0)
+      ];
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      geometry.computeBoundingSphere();
+      return geometry;
+    };
+
+    ANALYTICS_FRACTURED_ORACLE_CACHE.coreGeometry = new THREE.DodecahedronGeometry(0.34, 1);
+    ANALYTICS_FRACTURED_ORACLE_CACHE.coreGeometry.computeBoundingSphere();
+    ANALYTICS_FRACTURED_ORACLE_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(ANALYTICS_FRACTURED_ORACLE_CACHE.coreGeometry, 9);
+
+    ANALYTICS_FRACTURED_ORACLE_CACHE.seamVoidGeometry = new THREE.IcosahedronGeometry(0.13, 0);
+    ANALYTICS_FRACTURED_ORACLE_CACHE.seamVoidGeometry.computeBoundingSphere();
+    ANALYTICS_FRACTURED_ORACLE_CACHE.seamVoidEdgesGeometry = safeCreateEdgesGeometry(ANALYTICS_FRACTURED_ORACLE_CACHE.seamVoidGeometry, 8);
+
+    ANALYTICS_FRACTURED_ORACLE_CACHE.crownArcGeometry = buildBrokenArcGeometry(0.82, 0.046, Math.PI * 1.28);
+    ANALYTICS_FRACTURED_ORACLE_CACHE.crownArcEdgesGeometry = safeCreateEdgesGeometry(ANALYTICS_FRACTURED_ORACLE_CACHE.crownArcGeometry, 8);
+
+    ANALYTICS_FRACTURED_ORACLE_CACHE.bloomShardGeometry = new THREE.ConeGeometry(0.12, 0.42, 5, 1, false);
+    ANALYTICS_FRACTURED_ORACLE_CACHE.bloomShardGeometry.computeBoundingSphere();
+    ANALYTICS_FRACTURED_ORACLE_CACHE.bloomShardEdgesGeometry = safeCreateEdgesGeometry(ANALYTICS_FRACTURED_ORACLE_CACHE.bloomShardGeometry, 6);
+
+    ANALYTICS_FRACTURED_ORACLE_CACHE.resonanceSlatGeometry = new THREE.CylinderGeometry(0.06, 0.13, 0.72, 5, 1, false);
+    ANALYTICS_FRACTURED_ORACLE_CACHE.resonanceSlatGeometry.computeBoundingSphere();
+    ANALYTICS_FRACTURED_ORACLE_CACHE.resonanceSlatEdgesGeometry = safeCreateEdgesGeometry(ANALYTICS_FRACTURED_ORACLE_CACHE.resonanceSlatGeometry, 6);
+
+    ANALYTICS_FRACTURED_ORACLE_CACHE.projectionNeedleGeometry = buildNeedleGeometry(0.74, 0.034);
+    ANALYTICS_FRACTURED_ORACLE_CACHE.projectionNeedleEdgesGeometry = safeCreateEdgesGeometry(ANALYTICS_FRACTURED_ORACLE_CACHE.projectionNeedleGeometry, 5);
+
+    ANALYTICS_FRACTURED_ORACLE_CACHE.projectionMarkerGeometry = buildMarkerGeometry(0.26, 0.02);
+    ANALYTICS_FRACTURED_ORACLE_CACHE.projectionMarkerEdgesGeometry = safeCreateEdgesGeometry(ANALYTICS_FRACTURED_ORACLE_CACHE.projectionMarkerGeometry, 4);
+
+    ANALYTICS_FRACTURED_ORACLE_CACHE.auraDustGeometry = new THREE.IcosahedronGeometry(0.026, 0);
+    ANALYTICS_FRACTURED_ORACLE_CACHE.auraDustGeometry.computeBoundingSphere();
+
+    ANALYTICS_FRACTURED_ORACLE_CACHE.telemetryGeometry = buildTelemetryGeometry();
+  }
+
+  return ANALYTICS_FRACTURED_ORACLE_CACHE;
+}
+
+function _getAnalyticsFracturedOracleMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xbc46ff;
+  if (ANALYTICS_FRACTURED_ORACLE_MATERIALS.has(colorHex)) {
+    return ANALYTICS_FRACTURED_ORACLE_MATERIALS.get(colorHex);
+  }
+
+  const setWaveDefaults = (material, ignoreWaveColor = false) => {
+    material.userData = { ...(material.userData || {}), wavePatchMode: 'DEFAULT' };
+    if (ignoreWaveColor) material.userData.ignoreWaveColor = true;
+    return material;
+  };
+
+  const analyticsColor = new THREE.Color(colorHex);
+  const violetCore = analyticsColor.clone().lerp(new THREE.Color(0x7d46ff), 0.26);
+  const magentaCore = analyticsColor.clone().lerp(new THREE.Color(0xff49d8), 0.4);
+  const pearlAccent = new THREE.Color(0xf0fcff);
+  const cyanAccent = new THREE.Color(0x93f4ff);
+  const tealAccent = new THREE.Color(0x53e1ce);
+  const voidColor = new THREE.Color(0x080710);
+
+  const coreMat = setWaveDefaults(new THREE.MeshPhysicalMaterial({
+    color: violetCore.clone().lerp(magentaCore, 0.34),
+    emissive: magentaCore.clone().lerp(new THREE.Color(0x9d79ff), 0.22),
+    emissiveIntensity: 0.38,
+    metalness: 0.7,
+    roughness: 0.12,
+    clearcoat: 0.2,
+    clearcoatRoughness: 0.26,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  }));
+
+  const voidMat = setWaveDefaults(new THREE.MeshStandardMaterial({
+    color: voidColor.clone().lerp(magentaCore, 0.06),
+    emissive: voidColor.clone(),
+    emissiveIntensity: 0.0,
+    metalness: 0.16,
+    roughness: 0.94,
+    transparent: true,
+    opacity: 0.76,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide
+  }));
+
+  const crownMat = setWaveDefaults(new THREE.MeshPhysicalMaterial({
+    color: pearlAccent.clone().lerp(cyanAccent, 0.36),
+    emissive: tealAccent.clone().lerp(cyanAccent, 0.2),
+    emissiveIntensity: 0.22,
+    metalness: 0.6,
+    roughness: 0.11,
+    clearcoat: 0.45,
+    clearcoatRoughness: 0.2,
+    transparent: true,
+    opacity: 0.84,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide
+  }), true);
+
+  const resonanceMat = setWaveDefaults(new THREE.MeshPhysicalMaterial({
+    color: tealAccent.clone().lerp(cyanAccent, 0.28),
+    emissive: cyanAccent.clone().lerp(tealAccent, 0.12),
+    emissiveIntensity: 0.16,
+    metalness: 0.54,
+    roughness: 0.16,
+    clearcoat: 0.18,
+    clearcoatRoughness: 0.25,
+    transparent: true,
+    opacity: 0.74,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide
+  }), true);
+
+  const projectionMat = setWaveDefaults(new THREE.MeshStandardMaterial({
+    color: cyanAccent.clone().lerp(pearlAccent, 0.12),
+    emissive: tealAccent.clone().lerp(pearlAccent, 0.08),
+    emissiveIntensity: 0.12,
+    metalness: 0.3,
+    roughness: 0.26,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
+    depthTest: true
+  }));
+
+  const auraMat = setWaveDefaults(new THREE.MeshBasicMaterial({
+    color: tealAccent.clone().lerp(pearlAccent, 0.44),
+    transparent: true,
+    opacity: 0.32,
+    depthWrite: false,
+    depthTest: true
+  }));
+
+  const telemetryMat = setWaveDefaults(new THREE.LineBasicMaterial({
+    color: cyanAccent.clone().lerp(pearlAccent, 0.28),
+    transparent: true,
+    opacity: 0.42,
+    depthWrite: false,
+    depthTest: true
+  }));
+
+  const mats = {
+    coreMat,
+    voidMat,
+    crownMat,
+    resonanceMat,
+    projectionMat,
+    auraMat,
+    telemetryMat
+  };
+
+  ANALYTICS_FRACTURED_ORACLE_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
 function _getAnalyticsPredictiveOracleArrayGeometries() {
   if (!ANALYTICS_PREDICTIVE_ORACLE_ARRAY_CACHE.coreGeometry) {
     const buildApertureFrameGeometry = (width = 0.92, height = 0.72, depth = 0.07) => {
@@ -6173,6 +6861,223 @@ function _getAnalyticsPredictiveOracleArrayMaterials(color) {
     railMat
   };
   ANALYTICS_PREDICTIVE_ORACLE_ARRAY_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+function _getAnalyticsCelestialIndexMonolithGeometries() {
+  if (!ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE.coreGeometry) {
+    const coreGeometry = new THREE.DodecahedronGeometry(0.43, 1);
+    const corePos = coreGeometry.attributes.position;
+    for (let i = 0; i < corePos.count; i++) {
+      const x = corePos.getX(i);
+      const y = corePos.getY(i);
+      const z = corePos.getZ(i);
+      const bias = y > 0 ? 1.08 : 0.96;
+      const lean = x > 0 ? 0.9 : 1.05;
+      corePos.setXYZ(
+        i,
+        x * lean + (z > 0 ? -0.02 : 0.015) * Math.abs(y),
+        y * bias + Math.sign(y || 1) * 0.02 * Math.abs(x),
+        z * (0.84 + Math.abs(y) * 0.11) + (x > 0 ? 0.012 : -0.01)
+      );
+    }
+    corePos.needsUpdate = true;
+    coreGeometry.computeVertexNormals();
+    coreGeometry.computeBoundingSphere();
+    ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE.coreGeometry = coreGeometry;
+    ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 12);
+
+    const seedGeometry = new THREE.OctahedronGeometry(0.17, 1);
+    seedGeometry.scale(0.88, 1.2, 0.84);
+    seedGeometry.rotateY(0.18);
+    seedGeometry.computeBoundingSphere();
+    ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE.seedGeometry = seedGeometry;
+    ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE.seedEdgesGeometry = safeCreateEdgesGeometry(seedGeometry, 10);
+
+    const haloCurvePoints = [];
+    const haloSegments = 14;
+    for (let i = 0; i <= haloSegments; i++) {
+      const t = i / haloSegments;
+      const angle = -Math.PI * 0.72 + t * Math.PI * 1.45;
+      const radiusX = 1.02 + Math.sin(t * Math.PI * 0.85) * 0.08;
+      const radiusZ = 0.78 + Math.cos(t * Math.PI * 0.9) * 0.1;
+      const y = Math.sin(t * Math.PI * 0.55) * 0.1;
+      haloCurvePoints.push(new THREE.Vector3(Math.cos(angle) * radiusX, y, Math.sin(angle) * radiusZ));
+    }
+    const haloCurve = new THREE.CatmullRomCurve3(haloCurvePoints, false, 'catmullrom', 0.34);
+    const haloGeometry = new THREE.TubeGeometry(haloCurve, 52, 0.054, 8, false);
+    haloGeometry.computeBoundingSphere();
+    ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE.haloGeometry = haloGeometry;
+    ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE.haloEdgesGeometry = safeCreateEdgesGeometry(haloGeometry, 10);
+
+    const sailGeometry = new THREE.BoxGeometry(0.16, 0.58, 0.05, 1, 1, 1);
+    const sailPos = sailGeometry.attributes.position;
+    for (let i = 0; i < sailPos.count; i++) {
+      const x = sailPos.getX(i);
+      const y = sailPos.getY(i);
+      const z = sailPos.getZ(i);
+      const topBias = y > 0 ? 0.84 : 1.04;
+      sailPos.setXYZ(i, x * (0.88 + Math.abs(y) * 0.14), y * topBias, z * (0.8 + Math.abs(x) * 0.16));
+    }
+    sailPos.needsUpdate = true;
+    sailGeometry.computeVertexNormals();
+    sailGeometry.computeBoundingSphere();
+    ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE.sailGeometry = sailGeometry;
+    ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE.sailEdgesGeometry = safeCreateEdgesGeometry(sailGeometry, 8);
+
+    const shardGeometry = new THREE.BoxGeometry(0.08, 0.14, 0.04, 1, 1, 1);
+    ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE.shardGeometry = shardGeometry;
+    ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE.shardEdgesGeometry = safeCreateEdgesGeometry(shardGeometry, 6);
+
+    const needleGeometry = new THREE.BoxGeometry(0.045, 0.38, 0.045, 1, 1, 1);
+    ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE.needleGeometry = needleGeometry;
+    ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE.needleEdgesGeometry = safeCreateEdgesGeometry(needleGeometry, 6);
+
+    const railGeometry = new THREE.BoxGeometry(0.05, 0.82, 0.05, 1, 1, 1);
+    ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE.railGeometry = railGeometry;
+    ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE.railEdgesGeometry = safeCreateEdgesGeometry(railGeometry, 8);
+
+    const dustPositions = [];
+    const dustCount = 52;
+    for (let i = 0; i < dustCount; i++) {
+      const t = i / dustCount;
+      const angle = t * Math.PI * 2;
+      const radius = 0.74 + Math.sin(i * 1.38) * 0.13;
+      dustPositions.push(
+        Math.cos(angle) * radius,
+        -0.34 + t * 0.86 + Math.sin(i * 0.77) * 0.05,
+        Math.sin(angle) * (0.54 + Math.cos(i * 1.11) * 0.1)
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE.dustGeometry = dustGeometry;
+  }
+
+  return ANALYTICS_CELESTIAL_INDEX_MONOLITH_CACHE;
+}
+
+function _getAnalyticsCelestialIndexMonolithMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xb72dff;
+  if (ANALYTICS_CELESTIAL_INDEX_MONOLITH_MATERIALS.has(colorHex)) {
+    return ANALYTICS_CELESTIAL_INDEX_MONOLITH_MATERIALS.get(colorHex);
+  }
+
+  const analyticsColor = new THREE.Color(colorHex);
+  const coreColor = new THREE.Color(0x161923).lerp(analyticsColor, 0.38);
+  const seedColor = analyticsColor.clone().lerp(new THREE.Color(0xf7fbff), 0.34);
+  const haloColor = new THREE.Color(0xbfdfff).lerp(analyticsColor, 0.24);
+  const sailColor = new THREE.Color(0x1e2331).lerp(analyticsColor, 0.46);
+  const shardColor = analyticsColor.clone().lerp(new THREE.Color(0xeefcff), 0.28);
+  const railColor = new THREE.Color(0x18202c).lerp(analyticsColor, 0.2);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: coreColor,
+    emissive: analyticsColor.clone().multiplyScalar(0.22),
+    emissiveIntensity: 0.22,
+    metalness: 0.74,
+    roughness: 0.22,
+    flatShading: true,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seedMat = new THREE.MeshStandardMaterial({
+    color: seedColor,
+    emissive: analyticsColor.clone().lerp(new THREE.Color(0xffffff), 0.16),
+    emissiveIntensity: 0.26,
+    metalness: 0.56,
+    roughness: 0.18,
+    flatShading: true,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const haloMat = new THREE.MeshStandardMaterial({
+    color: haloColor,
+    emissive: analyticsColor.clone().multiplyScalar(0.18),
+    emissiveIntensity: 0.1,
+    metalness: 0.52,
+    roughness: 0.26,
+    flatShading: true,
+    transparent: true,
+    opacity: 0.58,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  const sailMat = new THREE.MeshStandardMaterial({
+    color: sailColor,
+    emissive: analyticsColor.clone().multiplyScalar(0.15),
+    emissiveIntensity: 0.14,
+    metalness: 0.48,
+    roughness: 0.3,
+    flatShading: true,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const shardMat = new THREE.MeshStandardMaterial({
+    color: shardColor,
+    emissive: analyticsColor.clone().multiplyScalar(0.2),
+    emissiveIntensity: 0.18,
+    metalness: 0.42,
+    roughness: 0.24,
+    flatShading: true,
+    transparent: true,
+    opacity: 0.88,
+    depthWrite: true,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  const railMat = new THREE.MeshStandardMaterial({
+    color: railColor,
+    emissive: analyticsColor.clone().multiplyScalar(0.12),
+    emissiveIntensity: 0.09,
+    metalness: 0.58,
+    roughness: 0.28,
+    flatShading: true,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: new THREE.Color(0xdff8ff).lerp(analyticsColor, 0.22),
+    transparent: true,
+    opacity: 0.66,
+    depthWrite: true
+  });
+
+  const dustMat = new THREE.PointsMaterial({
+    color: new THREE.Color(0xd4f1ff).lerp(analyticsColor, 0.1),
+    size: 0.032,
+    transparent: true,
+    opacity: 0.42,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const mats = { coreMat, seedMat, haloMat, sailMat, shardMat, railMat, edgeMat, dustMat };
+  for (const [key, mat] of Object.entries(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+    if (key === 'seedMat' || key === 'haloMat') {
+      mat.userData.ignoreWaveColor = true;
+    }
+  }
+
+  ANALYTICS_CELESTIAL_INDEX_MONOLITH_MATERIALS.set(colorHex, mats);
   return mats;
 }
 
@@ -16657,177 +17562,617 @@ export class EnhancedNodeModels {
   // ===== ANALYTICS NODES (Violet - 4 variants) =====
 
 /**
- * Analytics Node 2: Hexagonal disc with fractal patterns
+ * Analytics Node 2: Celestial Index Monolith
  */
 static createAnalyticsNode2(group, color) {
-  const mat = new THREE.MeshStandardMaterial({
-    color,
-    emissive: color,
-    emissiveIntensity: 0.28,
-    metalness: 0.6,
-    roughness: 0.25
-  });
+  try {
+    group.userData = group.userData || {};
+    const resolvedColor = typeof color === 'number' ? color : 0xb72dff;
+    const nodeKey = group?.userData?.nodeId || group?.uuid || String(resolvedColor);
+    const seedValue = Math.abs(hashString(nodeKey)) || 401;
+    const rng = _mythicSeededRng(seedValue);
+    const phase = rng() * Math.PI * 2;
+    const geometries = _getAnalyticsCelestialIndexMonolithGeometries();
+    const materials = _getAnalyticsCelestialIndexMonolithMaterials(resolvedColor);
+    const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+    const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
 
-  // Base: stepped hex plinth
-  const baseGeoA = new THREE.CylinderGeometry(1.0, 1.05, 0.18, 6, 1);
-  const baseA = new THREE.Mesh(baseGeoA, mat);
-  baseA.position.y = -0.25;
-  validateMeshGeometry(baseA, 'createAnalyticsNode2:baseA');
-  group.add(baseA);
+    const root = group;
+    root.name = 'ANALYTICS_CELESTIAL_INDEX_MONOLITH_NODE';
+    root.userData.visualVariant = 'ANALYTICS_CELESTIAL_INDEX_MONOLITH_V4';
+    root.userData.analyticsVariant = 'CELESTIAL_INDEX_MONOLITH';
+    root.userData.nodeGeometryName = 'ANALYTICS_CELESTIAL_INDEX_MONOLITH_V4';
+    root.userData.visualCoreImmutable = true;
+    root.userData.celestialIndexPhase = phase;
+    root.userData.celestialIndexSpinSpeed = 0.012 + rng() * 0.004;
+    root.userData.celestialIndexHaloSpeed = 0.016 + rng() * 0.008;
+    root.userData.celestialIndexIndexBreathSpeed = 0.24 + rng() * 0.08;
+    root.userData.celestialIndexProjectionDriftSpeed = 0.038 + rng() * 0.018;
+    root.userData.celestialIndexAuraSpeed = 0.02 + rng() * 0.01;
 
-  const baseGeoB = new THREE.CylinderGeometry(0.8, 0.9, 0.12, 6, 1);
-  const baseB = new THREE.Mesh(baseGeoB, mat);
-  baseB.position.y = -0.05;
-  validateMeshGeometry(baseB, 'createAnalyticsNode2:baseB');
-  group.add(baseB);
+    const refs = {
+      coreGroup: null,
+      haloGroup: null,
+      indexGroup: null,
+      projectionGroup: null,
+      auraGroup: null,
+      haloArcs: [],
+      indexSails: [],
+      projectionNeedles: [],
+      projectionShards: []
+    };
+    root.userData.celestialIndexRefs = refs;
 
-  // Spine
-  const spineGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.4, 12, 1);
-  const spine = new THREE.Mesh(spineGeo, mat);
-  spine.position.y = 0.65;
-  spine.userData.isAnalyticsSpine = true;
-  validateMeshGeometry(spine, 'createAnalyticsNode2:spine');
-  group.add(spine);
+    const coreGroup = new THREE.Group();
+    coreGroup.name = 'CORE_GROUP';
+    coreGroup.userData.isAnalyticsCelestialCoreGroup = true;
+    coreGroup.userData.basePosition = new THREE.Vector3(-0.08, 0.04, 0.02);
+    coreGroup.userData.baseRotation = new THREE.Euler(0.16, 0.28, -0.08);
+    coreGroup.position.copy(coreGroup.userData.basePosition);
+    coreGroup.rotation.copy(coreGroup.userData.baseRotation);
+    refs.coreGroup = coreGroup;
 
-  // Core: dodeca + wire overlay
-  const coreGeo = new THREE.DodecahedronGeometry(0.45, 0);
-  const core = new THREE.Mesh(coreGeo, mat);
-  core.position.y = 1.2;
-  core.userData.isCore = true;
-  validateMeshGeometry(core, 'createAnalyticsNode2:core');
-  group.add(core);
+    const core = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+    core.name = 'CelestialIndexCore';
+    core.position.set(0.02, 0.08, -0.01);
+    core.rotation.set(0.18, 0.28, -0.12);
+    core.scale.set(1.06, 1.18, 0.94);
+    core.renderOrder = coreOrder;
+    core.userData.isAnalyticsCelestialCore = true;
+    core.userData.visualCoreImmutable = true;
+    validateMeshGeometry(core, 'createAnalyticsNode2:core');
+    coreGroup.add(core);
 
-  const wire = new THREE.LineSegments(
-    new THREE.EdgesGeometry(new THREE.DodecahedronGeometry(0.48, 0)),
-    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.5 })
-  );
-  wire.position.y = 1.2;
-  group.add(wire);
+    const coreEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.edgeMat);
+    coreEdges.name = 'CelestialIndexCoreEdges';
+    coreEdges.position.copy(core.position);
+    coreEdges.rotation.copy(core.rotation);
+    coreEdges.scale.copy(core.scale);
+    coreEdges.renderOrder = archOrder;
+    coreEdges.userData.visualCoreImmutable = true;
+    validateMeshGeometry(coreEdges, 'createAnalyticsNode2:coreEdges');
+    coreGroup.add(coreEdges);
 
-  // Orbit frame
-  const ringGeo = new THREE.TorusGeometry(0.9, 0.05, 10, 32, Math.PI * 2);
-  const ring = new THREE.Mesh(ringGeo, mat);
-  ring.position.y = 1.2;
-  ring.rotation.x = Math.PI * 0.5;
-  validateMeshGeometry(ring, 'createAnalyticsNode2:ring');
-  group.add(ring);
+    const seedMesh = new THREE.Mesh(geometries.seedGeometry, materials.seedMat);
+    seedMesh.name = 'CelestialIndexSeed';
+    seedMesh.position.set(0.08, 0.1, 0.0);
+    seedMesh.rotation.set(0.22, 0.48, -0.1);
+    seedMesh.scale.set(0.9, 1.02, 0.86);
+    seedMesh.renderOrder = coreOrder;
+    seedMesh.userData.isAnalyticsCelestialSeed = true;
+    seedMesh.userData.baseScale = seedMesh.scale.clone();
+    seedMesh.userData.baseRotation = seedMesh.rotation.clone();
+    seedMesh.userData.visualCoreImmutable = true;
+    validateMeshGeometry(seedMesh, 'createAnalyticsNode2:seed');
+    coreGroup.add(seedMesh);
 
-  // Fins (4) angled upward
-  const finGeo = new THREE.BoxGeometry(0.16, 0.6, 0.08);
-  for (let i = 0; i < 4; i++) {
-    const angle = (i / 4) * Math.PI * 2;
-    const fin = new THREE.Mesh(finGeo, mat);
-    fin.position.set(Math.cos(angle) * 0.7, 0.25, Math.sin(angle) * 0.7);
-    fin.rotation.y = angle + Math.PI * 0.25;
-    fin.rotation.z = Math.PI * 0.2;
-    validateMeshGeometry(fin, `createAnalyticsNode2:fin${i}`);
-    group.add(fin);
+    const seam = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.54, 0.14, 1, 1, 1), materials.railMat);
+    seam.name = 'CelestialIndexSeam';
+    seam.position.set(0.04, 0.02, 0.04);
+    seam.rotation.set(0.08, -0.18, 0.12);
+    seam.scale.set(0.92, 1.0, 0.84);
+    seam.renderOrder = archOrder;
+    seam.userData.isAnalyticsCelestialSeam = true;
+    seam.userData.visualCoreImmutable = true;
+    validateMeshGeometry(seam, 'createAnalyticsNode2:seam');
+    coreGroup.add(seam);
+
+    root.add(coreGroup);
+
+    const haloGroup = new THREE.Group();
+    haloGroup.name = 'HALO_GROUP';
+    haloGroup.userData.isAnalyticsCelestialHaloGroup = true;
+    haloGroup.userData.basePosition = new THREE.Vector3(0.04, 0.1, -0.02);
+    haloGroup.userData.baseRotation = new THREE.Euler(0.08, -0.22, 0.04);
+    haloGroup.position.copy(haloGroup.userData.basePosition);
+    haloGroup.rotation.copy(haloGroup.userData.baseRotation);
+    refs.haloGroup = haloGroup;
+
+    const haloPrimary = new THREE.Mesh(geometries.haloGeometry, materials.haloMat);
+    haloPrimary.name = 'CelestialHaloPrimary';
+    haloPrimary.position.set(0.0, 0.02, 0.0);
+    haloPrimary.rotation.set(0.64, 0.12, -0.22);
+    haloPrimary.scale.set(1.0, 0.96, 1.14);
+    haloPrimary.renderOrder = archOrder;
+    haloPrimary.userData.isAnalyticsCelestialHaloArc = true;
+    haloPrimary.userData.baseRotation = haloPrimary.rotation.clone();
+    haloPrimary.userData.baseScale = haloPrimary.scale.clone();
+    haloPrimary.userData.haloPhase = phase;
+    haloPrimary.userData.visualCoreImmutable = true;
+    validateMeshGeometry(haloPrimary, 'createAnalyticsNode2:haloPrimary');
+    haloGroup.add(haloPrimary);
+    refs.haloArcs.push(haloPrimary);
+
+    const haloPrimaryEdges = new THREE.LineSegments(geometries.haloEdgesGeometry, materials.edgeMat);
+    haloPrimaryEdges.name = 'CelestialHaloPrimaryEdges';
+    haloPrimaryEdges.position.copy(haloPrimary.position);
+    haloPrimaryEdges.rotation.copy(haloPrimary.rotation);
+    haloPrimaryEdges.scale.copy(haloPrimary.scale);
+    haloPrimaryEdges.renderOrder = archOrder;
+    haloPrimaryEdges.userData.visualCoreImmutable = true;
+    validateMeshGeometry(haloPrimaryEdges, 'createAnalyticsNode2:haloPrimaryEdges');
+    haloGroup.add(haloPrimaryEdges);
+
+    const haloWitness = new THREE.Mesh(geometries.haloGeometry, materials.haloMat);
+    haloWitness.name = 'CelestialHaloWitness';
+    haloWitness.position.set(-0.16, -0.03, 0.04);
+    haloWitness.rotation.set(0.3, -0.22, 0.38);
+    haloWitness.scale.set(0.78, 0.62, 0.88);
+    haloWitness.renderOrder = archOrder;
+    haloWitness.userData.isAnalyticsCelestialHaloArc = true;
+    haloWitness.userData.baseRotation = haloWitness.rotation.clone();
+    haloWitness.userData.baseScale = haloWitness.scale.clone();
+    haloWitness.userData.haloPhase = phase + 0.84;
+    haloWitness.userData.visualCoreImmutable = true;
+    validateMeshGeometry(haloWitness, 'createAnalyticsNode2:haloWitness');
+    haloGroup.add(haloWitness);
+    refs.haloArcs.push(haloWitness);
+
+    const haloWitnessEdges = new THREE.LineSegments(geometries.haloEdgesGeometry, materials.edgeMat);
+    haloWitnessEdges.name = 'CelestialHaloWitnessEdges';
+    haloWitnessEdges.position.copy(haloWitness.position);
+    haloWitnessEdges.rotation.copy(haloWitness.rotation);
+    haloWitnessEdges.scale.copy(haloWitness.scale);
+    haloWitnessEdges.renderOrder = archOrder;
+    haloWitnessEdges.userData.visualCoreImmutable = true;
+    validateMeshGeometry(haloWitnessEdges, 'createAnalyticsNode2:haloWitnessEdges');
+    haloGroup.add(haloWitnessEdges);
+
+    root.add(haloGroup);
+
+    const indexGroup = new THREE.Group();
+    indexGroup.name = 'INDEX_GROUP';
+    indexGroup.userData.isAnalyticsCelestialIndexGroup = true;
+    indexGroup.userData.basePosition = new THREE.Vector3(0.04, 0.02, 0.01);
+    indexGroup.userData.baseRotation = new THREE.Euler(-0.04, 0.14, -0.08);
+    indexGroup.position.copy(indexGroup.userData.basePosition);
+    indexGroup.rotation.copy(indexGroup.userData.baseRotation);
+    refs.indexGroup = indexGroup;
+
+    const sailConfigs = [
+      { name: 'IndexSail_A', pos: [-0.42, 0.08, 0.12], rot: [0.12, 0.62, 0.18], scale: [1.14, 1.12, 0.92] },
+      { name: 'IndexSail_B', pos: [0.28, 0.18, -0.2], rot: [-0.1, 0.84, -0.24], scale: [0.82, 0.96, 0.78] },
+      { name: 'IndexSail_C', pos: [0.12, -0.18, 0.34], rot: [0.2, -0.56, 0.24], scale: [0.68, 0.82, 0.72] }
+    ];
+
+    sailConfigs.forEach((cfg, idx) => {
+      const sail = new THREE.Mesh(geometries.sailGeometry, materials.sailMat);
+      sail.name = cfg.name;
+      sail.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+      sail.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+      sail.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+      sail.renderOrder = archOrder;
+      sail.userData.isAnalyticsCelestialSail = true;
+      sail.userData.basePosition = sail.position.clone();
+      sail.userData.baseRotation = sail.rotation.clone();
+      sail.userData.baseScale = sail.scale.clone();
+      sail.userData.sailPhase = phase + idx * 0.63;
+      sail.userData.sailSpinSpeed = 0.01 + rng() * 0.008;
+      sail.userData.sailBreathSpeed = 0.22 + rng() * 0.06;
+      sail.userData.visualCoreImmutable = true;
+      validateMeshGeometry(sail, `createAnalyticsNode2:sail${idx}`);
+      indexGroup.add(sail);
+      refs.indexSails.push(sail);
+
+      const sailEdges = new THREE.LineSegments(geometries.sailEdgesGeometry, materials.edgeMat);
+      sailEdges.name = `${cfg.name}_Edges`;
+      sailEdges.position.copy(sail.position);
+      sailEdges.rotation.copy(sail.rotation);
+      sailEdges.scale.copy(sail.scale);
+      sailEdges.renderOrder = archOrder;
+      sailEdges.userData.visualCoreImmutable = true;
+      validateMeshGeometry(sailEdges, `createAnalyticsNode2:sailEdges${idx}`);
+      indexGroup.add(sailEdges);
+    });
+
+    const indexRail = new THREE.Mesh(geometries.railGeometry, materials.railMat);
+    indexRail.name = 'IndexRail';
+    indexRail.position.set(0.54, -0.04, -0.02);
+    indexRail.rotation.set(-0.18, 0.14, 0.08);
+    indexRail.scale.set(0.84, 1.08, 0.72);
+    indexRail.renderOrder = archOrder;
+    indexRail.userData.isAnalyticsCelestialRail = true;
+    indexRail.userData.baseRotation = indexRail.rotation.clone();
+    indexRail.userData.baseScale = indexRail.scale.clone();
+    indexRail.userData.visualCoreImmutable = true;
+    validateMeshGeometry(indexRail, 'createAnalyticsNode2:indexRail');
+    indexGroup.add(indexRail);
+
+    root.add(indexGroup);
+
+    const projectionGroup = new THREE.Group();
+    projectionGroup.name = 'PROJECTION_GROUP';
+    projectionGroup.userData.isAnalyticsCelestialProjectionGroup = true;
+    projectionGroup.userData.basePosition = new THREE.Vector3(-0.02, -0.02, 0.0);
+    projectionGroup.userData.baseRotation = new THREE.Euler(0.04, 0.12, -0.02);
+    projectionGroup.position.copy(projectionGroup.userData.basePosition);
+    projectionGroup.rotation.copy(projectionGroup.userData.baseRotation);
+    refs.projectionGroup = projectionGroup;
+
+    const needleConfigs = [
+      { name: 'ProjectionNeedle_A', pos: [0.52, 0.18, 0.08], rot: [0.0, 0.2, 0.1], scale: [0.92, 1.0, 0.86] },
+      { name: 'ProjectionNeedle_B', pos: [0.66, -0.06, -0.02], rot: [0.18, -0.12, 0.06], scale: [0.76, 0.92, 0.72] },
+      { name: 'ProjectionNeedle_C', pos: [-0.14, 0.42, -0.18], rot: [-0.16, 0.34, -0.08], scale: [0.66, 0.88, 0.6] }
+    ];
+
+    needleConfigs.forEach((cfg, idx) => {
+      const needle = new THREE.Mesh(geometries.needleGeometry, materials.railMat);
+      needle.name = cfg.name;
+      needle.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+      needle.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+      needle.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+      needle.renderOrder = archOrder;
+      needle.userData.isAnalyticsCelestialNeedle = true;
+      needle.userData.basePosition = needle.position.clone();
+      needle.userData.baseRotation = needle.rotation.clone();
+      needle.userData.baseScale = needle.scale.clone();
+      needle.userData.needlePhase = phase + idx * 0.58;
+      needle.userData.needleOrbitRadius = 0.06 + rng() * 0.05;
+      needle.userData.needleOrbitSpeed = 0.14 + rng() * 0.08;
+      needle.userData.visualCoreImmutable = true;
+      validateMeshGeometry(needle, `createAnalyticsNode2:needle${idx}`);
+      projectionGroup.add(needle);
+      refs.projectionNeedles.push(needle);
+    });
+
+    const shardConfigs = [
+      { name: 'ProjectionShard_A', pos: [-0.22, 0.28, 0.2], rot: [0.16, 0.44, -0.12], scale: [0.94, 0.82, 0.78] },
+      { name: 'ProjectionShard_B', pos: [0.08, -0.26, -0.24], rot: [-0.12, 0.18, 0.1], scale: [0.76, 0.68, 0.72] },
+      { name: 'ProjectionShard_C', pos: [0.34, 0.02, 0.26], rot: [0.08, -0.22, 0.14], scale: [0.68, 0.76, 0.62] }
+    ];
+
+    shardConfigs.forEach((cfg, idx) => {
+      const shard = new THREE.Mesh(geometries.shardGeometry, materials.shardMat);
+      shard.name = cfg.name;
+      shard.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+      shard.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+      shard.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+      shard.renderOrder = archOrder;
+      shard.userData.isAnalyticsCelestialShard = true;
+      shard.userData.basePosition = shard.position.clone();
+      shard.userData.baseRotation = shard.rotation.clone();
+      shard.userData.baseScale = shard.scale.clone();
+      shard.userData.shardPhase = phase + idx * 0.74;
+      shard.userData.shardOrbitRadius = 0.08 + rng() * 0.04;
+      shard.userData.shardOrbitSpeed = 0.12 + rng() * 0.06;
+      shard.userData.visualCoreImmutable = true;
+      validateMeshGeometry(shard, `createAnalyticsNode2:shard${idx}`);
+      projectionGroup.add(shard);
+      refs.projectionShards.push(shard);
+    });
+
+    root.add(projectionGroup);
+
+    const auraGroup = new THREE.Group();
+    auraGroup.name = 'AURA_GROUP';
+    auraGroup.userData.isAnalyticsCelestialAuraGroup = true;
+    auraGroup.userData.basePosition = new THREE.Vector3(0.0, 0.0, 0.0);
+    auraGroup.userData.baseRotation = new THREE.Euler(0.02, 0.08, -0.04);
+    auraGroup.position.copy(auraGroup.userData.basePosition);
+    auraGroup.rotation.copy(auraGroup.userData.baseRotation);
+    refs.auraGroup = auraGroup;
+
+    const dust = new THREE.Points(geometries.dustGeometry, materials.dustMat);
+    dust.name = 'CelestialDust';
+    dust.frustumCulled = false;
+    dust.renderOrder = archOrder + 1;
+    dust.userData.isAnalyticsCelestialDust = true;
+    dust.userData.baseRotation = dust.rotation.clone();
+    dust.userData.visualCoreImmutable = true;
+    validateMeshGeometry(dust, 'createAnalyticsNode2:dust');
+    auraGroup.add(dust);
+    refs.dust = dust;
+
+    const telemetryLine = new THREE.LineSegments(geometries.railEdgesGeometry, materials.edgeMat);
+    telemetryLine.name = 'TelemetryLine';
+    telemetryLine.position.set(-0.02, -0.1, 0.03);
+    telemetryLine.rotation.set(0.42, 0.18, -0.28);
+    telemetryLine.scale.set(1.18, 1.22, 1.08);
+    telemetryLine.renderOrder = archOrder;
+    telemetryLine.userData.isAnalyticsCelestialTelemetry = true;
+    telemetryLine.userData.baseRotation = telemetryLine.rotation.clone();
+    telemetryLine.userData.baseScale = telemetryLine.scale.clone();
+    telemetryLine.userData.visualCoreImmutable = true;
+    validateMeshGeometry(telemetryLine, 'createAnalyticsNode2:telemetryLine');
+    auraGroup.add(telemetryLine);
+    refs.telemetryLine = telemetryLine;
+
+    root.add(auraGroup);
+
+    group.userData.visualReady = true;
+    group.userData.nodeGeometryName = 'ANALYTICS_CELESTIAL_INDEX_MONOLITH_V4';
+    group.userData.hasEnergyCore = true;
+    return group;
+  } catch (err) {
+    console.error('[NodeVisualAbort]', {
+      model: 'createAnalyticsNode2',
+      category: 'analytics',
+      reason: 'Visual build failed — fallback visuals are forbidden',
+      error: err
+    });
+    return null;
   }
-
-  group.userData.visualTier = "ANALYTICS_V3";
-  group.userData.hasEnergyCore = true;
-  return group;
 }
 
   /**
-   * Analytics Node 3: Recursive Insight Engine
+   * Analytics Node 3: Resonance Diadem Relay
    */
   static createAnalyticsNode3(group, color) {
-    const mat = new THREE.MeshStandardMaterial({
-      color,
-      emissive: color,
-      emissiveIntensity: 0.24,
-      metalness: 0.55,
-      roughness: 0.28
-    });
+    try {
+      group.userData = group.userData || {};
+      const colorHex = typeof color === 'number' ? color : new THREE.Color(color ?? 0xbc46ff).getHex();
+      const nodeKey = group?.userData?.nodeId || group?.uuid || String(colorHex);
+      const seed = Math.abs(hashString(nodeKey)) || 402;
+      const rng = _mythicSeededRng(seed);
+      const phase = rng() * Math.PI * 2;
+      const geometries = _getAnalyticsResonanceDiademRelayGeometries();
+      const materials = _getAnalyticsResonanceDiademRelayMaterials(colorHex);
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
 
-    // Base disk
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.95, 0.14, 10, 1), mat);
-    base.position.y = -0.3;
-    validateMeshGeometry(base, 'createAnalyticsNode3:base');
-    group.add(base);
+      const markRelayMesh = (mesh, accent = false) => {
+        if (!mesh?.isMesh) return;
+        mesh.userData = mesh.userData || {};
+        mesh.userData.isInteractive = true;
+        mesh.userData.visualCoreImmutable = true;
+        if (accent) {
+          mesh.userData.ignoreWaveColor = true;
+        }
+        if (mesh.raycast == null) {
+          mesh.raycast = THREE.Mesh.prototype.raycast;
+        }
+      };
 
-    // Spine
-    const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.4, 8, 1), mat);
-    spine.position.y = 0.4;
-    spine.userData.isAnalyticsSpine = true;
-    spine.userData.pulseBaseScale = 1;
-    validateMeshGeometry(spine, 'createAnalyticsNode3:spine');
-    group.add(spine);
+      group.name = 'ANALYTICS_RESONANCE_DIADEM_RELAY_NODE';
+      group.userData.visualVariant = 'ANALYTICS_RESONANCE_DIADEM_RELAY_V4';
+      group.userData.analyticsVariant = 'RESONANCE_DIADEM_RELAY';
+      group.userData.nodeGeometryName = 'ANALYTICS_RESONANCE_DIADEM_RELAY_V4';
+      group.userData.visualReady = true;
+      group.userData.visualCoreImmutable = true;
+      group.userData.relayPhase = phase;
+      group.userData.relayCorePulseSpeed = 0.54 + rng() * 0.08;
+      group.userData.relayCorePulseAmplitude = 0.012 + rng() * 0.004;
+      group.userData.relayDiademPrecessionSpeed = 0.012 + rng() * 0.004;
+      group.userData.relayResonanceBreathSpeed = 0.26 + rng() * 0.06;
+      group.userData.relayProjectionDriftSpeed = 0.038 + rng() * 0.01;
+      group.userData.relayAuraDriftSpeed = 0.018 + rng() * 0.004;
 
-    // Core: offset cube
-    const core = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), mat);
-    core.position.y = 0.95;
-    core.rotation.set(Math.PI * 0.12, Math.PI * 0.18, 0);
-    core.userData.isCore = true;
-    validateMeshGeometry(core, 'createAnalyticsNode3:core');
-    group.add(core);
+      const refs = {};
+      group.userData.relayRefs = refs;
 
-    // Wireframe echo
-    const wire = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.BoxGeometry(0.48, 0.48, 0.48)),
-      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.45 })
-    );
-    wire.position.y = 0.95;
-    wire.rotation.y = Math.PI * 0.1;
-    group.add(wire);
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+      coreGroup.userData.isAnalyticsRelayCoreGroup = true;
+      coreGroup.userData.basePosition = new THREE.Vector3(0.08, 0.03, -0.02);
+      coreGroup.userData.baseRotation = new THREE.Euler(0.16, 0.24, -0.08);
+      coreGroup.position.copy(coreGroup.userData.basePosition);
+      coreGroup.rotation.copy(coreGroup.userData.baseRotation);
 
-    // Orbit frame (rect torus)
-    const frame = new THREE.Mesh(
-      new THREE.TorusGeometry(0.78, 0.05, 10, 28, Math.PI * 2),
-      mat
-    );
-    frame.scale.set(1.15, 0.75, 1);
-    frame.position.y = 0.95;
-    frame.rotation.set(Math.PI * 0.5, Math.PI * 0.2, Math.PI * 0.1);
-    validateMeshGeometry(frame, 'createAnalyticsNode3:frame');
-    group.add(frame);
+      const coreSeed = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      coreSeed.name = 'RelayTuningSeed';
+      coreSeed.position.set(0.04, 0.02, 0.0);
+      coreSeed.rotation.set(0.2, 0.28, -0.06);
+      coreSeed.scale.set(1.02, 1.08, 0.94);
+      coreSeed.renderOrder = coreOrder;
+      coreSeed.userData.isAnalyticsRelayCore = true;
+      coreSeed.userData.baseScale = coreSeed.scale.clone();
+      markRelayMesh(coreSeed);
+      validateMeshGeometry(coreSeed, 'createAnalyticsNode3:coreSeed');
+      coreGroup.add(coreSeed);
 
-    // Outer wireframe layers (kept local to this factory for stable analytics aura)
-    const frameWire = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.TorusGeometry(0.78, 0.05, 10, 28, Math.PI * 2), 8),
-      new THREE.LineBasicMaterial({
-        color,
-        transparent: true,
-        opacity: 0.52,
-        depthWrite: false,
-        depthTest: true
-      })
-    );
-    frameWire.name = 'FrameWire';
-    frameWire.scale.copy(frame.scale);
-    frameWire.position.copy(frame.position);
-    frameWire.rotation.copy(frame.rotation);
-    group.add(frameWire);
+      const coreEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.telemetryMat);
+      coreEdges.name = 'RelayTuningSeedEdges';
+      coreEdges.position.copy(coreSeed.position);
+      coreEdges.rotation.copy(coreSeed.rotation);
+      coreEdges.scale.copy(coreSeed.scale);
+      coreEdges.renderOrder = archOrder;
+      coreEdges.userData.isAnalyticsRelayCore = true;
+      coreEdges.userData.visualCoreImmutable = true;
+      coreGroup.add(coreEdges);
 
-    const baseWire = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.9, 0.95, 0.14, 10, 1), 8),
-      new THREE.LineBasicMaterial({
-        color,
-        transparent: true,
-        opacity: 0.34,
-        depthWrite: false,
-        depthTest: true
-      })
-    );
-    baseWire.name = 'BaseWire';
-    baseWire.position.copy(base.position);
-    group.add(baseWire);
+      const seamVoid = new THREE.Mesh(geometries.seamGeometry, materials.seamMat);
+      seamVoid.name = 'RelaySeamVoid';
+      seamVoid.position.set(0.01, -0.01, 0.01);
+      seamVoid.rotation.set(0.0, 0.28, 0.16);
+      seamVoid.scale.set(1.12, 1.0, 0.92);
+      seamVoid.renderOrder = archOrder;
+      seamVoid.userData.isAnalyticsRelaySeam = true;
+      seamVoid.userData.visualCoreImmutable = true;
+      markRelayMesh(seamVoid);
+      validateMeshGeometry(seamVoid, 'createAnalyticsNode3:seamVoid');
+      coreGroup.add(seamVoid);
 
-    // Data petals (4)
-    const petalGeo = new THREE.BoxGeometry(0.14, 0.55, 0.08);
-    for (let i = 0; i < 4; i++) {
-      const angle = (i / 4) * Math.PI * 2;
-      const petal = new THREE.Mesh(petalGeo, mat);
-      petal.position.set(Math.cos(angle) * 0.65, 0.35, Math.sin(angle) * 0.65);
-      petal.rotation.y = angle + Math.PI * 0.25;
-      petal.rotation.z = Math.PI * 0.18;
-      validateMeshGeometry(petal, `createAnalyticsNode3:petal${i}`);
-      group.add(petal);
+      group.add(coreGroup);
+      refs.coreGroup = coreGroup;
+      refs.coreSeed = coreSeed;
+      refs.coreEdges = coreEdges;
+      refs.seamVoid = seamVoid;
+      coreSeed.userData.edgeRef = coreEdges;
+
+      const diademGroup = new THREE.Group();
+      diademGroup.name = 'DIADEM_GROUP';
+      diademGroup.userData.isAnalyticsRelayDiademGroup = true;
+      diademGroup.userData.baseRotation = new THREE.Euler(0.12, 0.36, -0.04);
+      diademGroup.position.set(0.08, 0.18, -0.02);
+      diademGroup.rotation.copy(diademGroup.userData.baseRotation);
+      refs.diademArcs = [];
+
+      const diademSpecs = [
+        { name: 'DiademArc_Primary', pos: [0.12, 0.22, 0.0], rot: [Math.PI * 0.5, 0.12, 0.18], scale: [1.12, 1.0, 0.9], renderOrder: archOrder },
+        { name: 'DiademArc_Secondary', pos: [-0.18, 0.12, 0.05], rot: [Math.PI * 0.5, -0.44, -0.08], scale: [0.78, 1.0, 0.82], renderOrder: archOrder + 1 },
+        { name: 'DiademBridge', pos: [0.42, 0.04, -0.02], rot: [0.08, 0.38, 0.28], scale: [0.8, 0.54, 0.72], renderOrder: archOrder + 1 }
+      ];
+
+      diademSpecs.forEach((spec, idx) => {
+        const accent = new THREE.Mesh(geometries.diademArcGeometry, materials.diademMat);
+        accent.name = spec.name;
+        accent.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+        accent.rotation.set(spec.rot[0], spec.rot[1], spec.rot[2]);
+        accent.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+        accent.renderOrder = spec.renderOrder;
+        accent.userData.isAnalyticsCalibrationAccent = true;
+        accent.userData.diademIndex = idx;
+        accent.userData.baseRotation = accent.rotation.clone();
+        accent.userData.baseScale = accent.scale.clone();
+        accent.userData.diademPhase = phase + idx * 0.64;
+        markRelayMesh(accent, true);
+        validateMeshGeometry(accent, `createAnalyticsNode3:diadem${idx}`);
+        diademGroup.add(accent);
+
+        const accentEdges = new THREE.LineSegments(geometries.diademArcEdgesGeometry, materials.telemetryMat);
+        accentEdges.name = `${spec.name}_Edges`;
+        accentEdges.position.copy(accent.position);
+        accentEdges.rotation.copy(accent.rotation);
+        accentEdges.scale.copy(accent.scale);
+        accentEdges.renderOrder = spec.renderOrder + 1;
+        accentEdges.userData.isAnalyticsCalibrationAccent = true;
+        accentEdges.userData.ignoreWaveColor = true;
+        accentEdges.userData.diademIndex = idx;
+        accentEdges.userData.baseRotation = accent.rotation.clone();
+        accentEdges.userData.baseScale = accent.scale.clone();
+        accentEdges.userData.visualCoreImmutable = true;
+        diademGroup.add(accentEdges);
+        accent.userData.edgeRef = accentEdges;
+        refs.diademArcs.push(accent);
+      });
+
+      group.add(diademGroup);
+      refs.diademGroup = diademGroup;
+
+      const resonanceGroup = new THREE.Group();
+      resonanceGroup.name = 'RESONANCE_GROUP';
+      resonanceGroup.userData.isAnalyticsRelayResonanceGroup = true;
+      resonanceGroup.userData.baseRotation = new THREE.Euler(-0.06, 0.16, 0.08);
+      resonanceGroup.position.set(-0.08, 0.0, 0.02);
+      resonanceGroup.rotation.copy(resonanceGroup.userData.baseRotation);
+      refs.resonanceParts = [];
+
+      const resonanceSpecs = [
+        { name: 'ResonancePlate_A', pos: [-0.32, 0.14, 0.12], rot: [0.2, 0.24, 0.26], scale: [1.0, 1.08, 0.82], kind: 'plate' },
+        { name: 'ResonancePlate_B', pos: [0.26, 0.02, -0.18], rot: [-0.12, -0.32, -0.18], scale: [0.84, 0.94, 0.74], kind: 'plate' },
+        { name: 'ResonancePlate_C', pos: [-0.06, -0.2, 0.28], rot: [0.14, 0.56, -0.08], scale: [0.68, 0.82, 0.7], kind: 'plate' },
+        { name: 'ResonanceSlat_A', pos: [0.42, 0.24, 0.04], rot: [0.34, 0.12, 0.44], scale: [1.0, 0.86, 0.78], kind: 'slat' },
+        { name: 'ResonanceSlat_B', pos: [-0.42, -0.08, -0.02], rot: [-0.18, -0.2, -0.26], scale: [0.92, 0.76, 0.72], kind: 'slat' }
+      ];
+
+      resonanceSpecs.forEach((spec, idx) => {
+        const geom = spec.kind === 'slat' ? geometries.resonancePlateGeometry : geometries.resonancePlateGeometry;
+        const part = new THREE.Mesh(geom, materials.resonanceMat);
+        part.name = spec.name;
+        part.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+        part.rotation.set(spec.rot[0], spec.rot[1], spec.rot[2]);
+        part.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+        part.renderOrder = archOrder;
+        part.userData.isAnalyticsResonanceAccent = true;
+        part.userData.isAnalyticsResonancePlate = spec.kind === 'plate';
+        part.userData.isAnalyticsResonanceSlat = spec.kind === 'slat';
+        part.userData.resonanceIndex = idx;
+        part.userData.basePosition = part.position.clone();
+        part.userData.baseRotation = part.rotation.clone();
+        part.userData.baseScale = part.scale.clone();
+        part.userData.resonancePhase = phase + idx * 0.58;
+        part.userData.resonanceSpinSpeed = spec.kind === 'slat' ? 0.01 + idx * 0.002 : 0.008 + idx * 0.0015;
+        markRelayMesh(part, true);
+        validateMeshGeometry(part, `createAnalyticsNode3:resonance${idx}`);
+        resonanceGroup.add(part);
+
+        const partEdges = new THREE.LineSegments(geometries.resonancePlateEdgesGeometry, materials.telemetryMat);
+        partEdges.name = `${spec.name}_Edges`;
+        partEdges.position.copy(part.position);
+        partEdges.rotation.copy(part.rotation);
+        partEdges.scale.copy(part.scale);
+        partEdges.renderOrder = archOrder + 1;
+        partEdges.userData.isAnalyticsResonanceAccent = true;
+        partEdges.userData.ignoreWaveColor = true;
+        partEdges.userData.resonanceIndex = idx;
+        partEdges.userData.baseRotation = part.rotation.clone();
+        partEdges.userData.baseScale = part.scale.clone();
+        resonanceGroup.add(partEdges);
+        part.userData.edgeRef = partEdges;
+        refs.resonanceParts.push(part);
+      });
+
+      group.add(resonanceGroup);
+      refs.resonanceGroup = resonanceGroup;
+
+      const projectionGroup = new THREE.Group();
+      projectionGroup.name = 'PROJECTION_GROUP';
+      projectionGroup.userData.isAnalyticsRelayProjectionGroup = true;
+      projectionGroup.userData.baseRotation = new THREE.Euler(0.04, -0.14, 0.02);
+      projectionGroup.position.set(0.02, -0.08, 0.0);
+      projectionGroup.rotation.copy(projectionGroup.userData.baseRotation);
+      refs.projectionParts = [];
+
+      const projectionSpecs = [
+        { name: 'ProjectionNeedle_A', pos: [0.42, 0.1, 0.06], rot: [0.2, 0.26, 0.08], scale: [0.88, 1.0, 0.8] },
+        { name: 'ProjectionNeedle_B', pos: [-0.36, 0.0, -0.16], rot: [-0.14, -0.28, -0.12], scale: [0.74, 0.96, 0.72] },
+        { name: 'FieldMarker_C', pos: [0.12, -0.24, 0.28], rot: [0.08, 0.54, 0.18], scale: [0.58, 0.82, 0.58] }
+      ];
+
+      projectionSpecs.forEach((spec, idx) => {
+        const geom = idx < 2 ? geometries.projectionNeedleGeometry : geometries.projectionMarkerGeometry;
+        const part = new THREE.Mesh(geom, materials.projectionMat);
+        part.name = spec.name;
+        part.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+        part.rotation.set(spec.rot[0], spec.rot[1], spec.rot[2]);
+        part.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+        part.renderOrder = archOrder;
+        part.userData.isAnalyticsProjectionMarker = true;
+        part.userData.isAnalyticsCalibrationAccent = true;
+        part.userData.projectionIndex = idx;
+        part.userData.basePosition = part.position.clone();
+        part.userData.baseRotation = part.rotation.clone();
+        part.userData.baseScale = part.scale.clone();
+        part.userData.projectionPhase = phase + idx * 0.61;
+        part.userData.projectionDriftSpeed = 0.08 + idx * 0.012;
+        markRelayMesh(part, true);
+        validateMeshGeometry(part, `createAnalyticsNode3:projection${idx}`);
+        projectionGroup.add(part);
+        refs.projectionParts.push(part);
+      });
+
+      group.add(projectionGroup);
+      refs.projectionGroup = projectionGroup;
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+      auraGroup.userData.isAnalyticsRelayAuraGroup = true;
+      auraGroup.userData.baseRotation = new THREE.Euler(0.0, 0.04, 0.0);
+      auraGroup.rotation.copy(auraGroup.userData.baseRotation);
+
+      const dust = new THREE.Points(geometries.auraDustGeometry, materials.auraMat);
+      dust.name = 'RelayTelemetryDust';
+      dust.frustumCulled = false;
+      dust.position.set(0.0, 0.0, 0.0);
+      dust.rotation.set(0.0, 0.18, -0.04);
+      dust.userData.isAnalyticsRelayDust = true;
+      dust.userData.baseRotation = dust.rotation.clone();
+      auraGroup.add(dust);
+
+      const telemetryLine = new THREE.Line(geometries.telemetryGeometry, materials.telemetryMat);
+      telemetryLine.name = 'RelayTelemetryLine';
+      telemetryLine.frustumCulled = false;
+      telemetryLine.position.set(0.0, 0.05, 0.0);
+      telemetryLine.rotation.set(0.0, 0.08, 0.0);
+      telemetryLine.userData.isAnalyticsRelayTelemetryLine = true;
+      telemetryLine.userData.baseRotation = telemetryLine.rotation.clone();
+      auraGroup.add(telemetryLine);
+
+      group.add(auraGroup);
+      refs.auraGroup = auraGroup;
+      refs.dust = dust;
+      refs.telemetryLine = telemetryLine;
+
+      return group;
+    } catch (err) {
+      console.error('[NodeVisualAbort]', {
+        model: 'createAnalyticsNode3',
+        category: 'analytics',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
-
-    group.userData.nodeGeometryName = 'ANALYTICS_RECURSIVE_INSIGHT_ENGINE_V3';
-    return group;
   }
 
   /**
@@ -17089,82 +18434,507 @@ static createAnalyticsNode2(group, color) {
     return result;
   }
 
+  static _getAnalyticsObserverLensGeometries() {
+  if (!ANALYTICS_OBSERVER_LENS_CACHE.coreGeometry) {
+    const deformGeometry = (geometry, deformFn) => {
+      const pos = geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = pos.getZ(i);
+        const next = deformFn(x, y, z, i);
+        pos.setXYZ(i, next[0], next[1], next[2]);
+      }
+      pos.needsUpdate = true;
+      geometry.computeVertexNormals();
+      geometry.computeBoundingSphere();
+      return geometry;
+    };
+
+    const coreGeometry = new THREE.DodecahedronGeometry(0.24, 1);
+    deformGeometry(coreGeometry, (x, y, z) => {
+      const yWeight = Math.min(1, Math.abs(y) / 0.24);
+      const taper = 0.92 + yWeight * 0.08;
+      return [
+        x * taper + z * 0.02,
+        y * 1.08,
+        z * (0.9 + yWeight * 0.06) - Math.sign(x || 1) * 0.01 * (1 - yWeight)
+      ];
+    });
+    ANALYTICS_OBSERVER_LENS_CACHE.coreGeometry = coreGeometry;
+    ANALYTICS_OBSERVER_LENS_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 12);
+
+    const apertureGeometry = deformGeometry(new THREE.CylinderGeometry(0.12, 0.16, 0.38, 18, 1, false), (x, y, z) => {
+      const yNorm = (y + 0.19) / 0.38;
+      return [
+        x * (0.92 + yNorm * 0.08) + y * 0.02,
+        y,
+        z * (0.82 + yNorm * 0.16) - x * 0.06
+      ];
+    });
+    ANALYTICS_OBSERVER_LENS_CACHE.apertureGeometry = apertureGeometry;
+    ANALYTICS_OBSERVER_LENS_CACHE.apertureEdgesGeometry = safeCreateEdgesGeometry(apertureGeometry, 10);
+
+    const lensGeometry = deformGeometry(new THREE.CylinderGeometry(0.7, 0.82, 0.08, 32, 1, true), (x, y, z, i) => {
+      const yNorm = (y + 0.04) / 0.08;
+      const warp = Math.sin((x * 5.8) + (z * 4.3) + i * 0.04) * 0.012;
+      return [
+        x * (0.93 + yNorm * 0.1) + z * 0.018 + warp,
+        y * 1.0,
+        z * (0.9 + yNorm * 0.08) - x * 0.024
+      ];
+    });
+    ANALYTICS_OBSERVER_LENS_CACHE.lensGeometry = lensGeometry;
+    ANALYTICS_OBSERVER_LENS_CACHE.lensEdgesGeometry = safeCreateEdgesGeometry(lensGeometry, 12);
+
+    const frameGeometry = deformGeometry(new THREE.BoxGeometry(0.08, 0.78, 0.05, 1, 4, 1), (x, y, z) => {
+      const yNorm = (y + 0.39) / 0.78;
+      const bow = Math.sin(yNorm * Math.PI) * 0.024;
+      return [
+        x * (0.66 + yNorm * 0.8) + bow,
+        y * 1.0,
+        z * (0.72 + yNorm * 0.24) - bow * 0.18
+      ];
+    });
+    ANALYTICS_OBSERVER_LENS_CACHE.frameGeometry = frameGeometry;
+    ANALYTICS_OBSERVER_LENS_CACHE.frameEdgesGeometry = safeCreateEdgesGeometry(frameGeometry, 8);
+
+    const haloGeometry = new THREE.TorusGeometry(0.92, 0.03, 10, 42, Math.PI * 1.24);
+    ANALYTICS_OBSERVER_LENS_CACHE.haloGeometry = haloGeometry;
+    ANALYTICS_OBSERVER_LENS_CACHE.haloEdgesGeometry = safeCreateEdgesGeometry(haloGeometry, 10);
+
+    const dustPositions = [];
+    const dustCount = 58;
+    for (let i = 0; i < dustCount; i++) {
+      const t = i / dustCount;
+      const theta = t * Math.PI * 2;
+      const radius = 0.52 + Math.sin(i * 1.17) * 0.05 + (i % 3) * 0.008;
+      dustPositions.push(
+        Math.cos(theta) * radius,
+        -0.28 + Math.sin(i * 0.73) * 0.36,
+        Math.sin(theta * 1.05) * (0.32 + Math.cos(i * 0.61) * 0.08)
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    ANALYTICS_OBSERVER_LENS_CACHE.dustGeometry = dustGeometry;
+
+    const telemetryPoints = [
+      new THREE.Vector3(-0.56, -0.22, 0.02),
+      new THREE.Vector3(-0.32, 0.02, -0.06),
+      new THREE.Vector3(-0.08, 0.18, 0.04),
+      new THREE.Vector3(0.18, 0.24, -0.02),
+      new THREE.Vector3(0.4, 0.08, 0.06),
+      new THREE.Vector3(0.64, -0.14, -0.03)
+    ];
+    const telemetryGeometry = new THREE.BufferGeometry().setFromPoints(telemetryPoints);
+    telemetryGeometry.computeBoundingSphere();
+    ANALYTICS_OBSERVER_LENS_CACHE.telemetryGeometry = telemetryGeometry;
+  }
+
+  return ANALYTICS_OBSERVER_LENS_CACHE;
+  }
+
+  static _getAnalyticsObserverLensMaterials(colorHex) {
+  if (ANALYTICS_OBSERVER_LENS_MATERIALS.has(colorHex)) {
+    return ANALYTICS_OBSERVER_LENS_MATERIALS.get(colorHex);
+  }
+
+  const setWaveDefaults = (material, ignoreWaveColor = false) => {
+    material.userData = { ...(material.userData || {}), wavePatchMode: 'DEFAULT' };
+    if (ignoreWaveColor) material.userData.ignoreWaveColor = true;
+    return material;
+  };
+
+  const analyticsColor = new THREE.Color(colorHex);
+  const coldCyan = new THREE.Color(0x8cefff);
+  const deepViolet = new THREE.Color(0x7b39ff);
+  const steel = new THREE.Color(0x172534);
+  const coreTint = analyticsColor.clone().lerp(deepViolet, 0.42);
+  const lensTint = analyticsColor.clone().lerp(coldCyan, 0.48);
+  const frameTint = steel.clone().lerp(coldCyan, 0.54);
+  const haloTint = coldCyan.clone().lerp(analyticsColor, 0.2);
+
+  const coreMat = setWaveDefaults(new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color(0x17111f).lerp(coreTint, 0.62),
+    emissive: coreTint.clone().lerp(coldCyan, 0.12),
+    emissiveIntensity: 0.38,
+    metalness: 0.72,
+    roughness: 0.18,
+    transparent: true,
+    opacity: 0.96,
+    transmission: 0,
+    thickness: 0.08,
+    clearcoat: 0.2,
+    clearcoatRoughness: 0.36
+  }));
+
+  const apertureMat = setWaveDefaults(new THREE.MeshBasicMaterial({
+    color: 0x05060b,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false
+  }), true);
+
+  const lensMat = setWaveDefaults(new THREE.MeshPhysicalMaterial({
+    color: lensTint.clone().lerp(coreTint, 0.14),
+    emissive: lensTint.clone().lerp(coldCyan, 0.18),
+    emissiveIntensity: 0.22,
+    metalness: 0.62,
+    roughness: 0.15,
+    transparent: true,
+    opacity: 0.64,
+    transmission: 0,
+    thickness: 0.05,
+    side: THREE.DoubleSide,
+    clearcoat: 0.16,
+    clearcoatRoughness: 0.3
+  }));
+
+  const frameMat = setWaveDefaults(new THREE.MeshStandardMaterial({
+    color: frameTint.clone().lerp(coldCyan, 0.12),
+    emissive: frameTint.clone().lerp(coldCyan, 0.22),
+    emissiveIntensity: 0.12,
+    metalness: 0.84,
+    roughness: 0.24,
+    transparent: true,
+    opacity: 0.82
+  }), true);
+
+  const haloMat = setWaveDefaults(new THREE.MeshStandardMaterial({
+    color: haloTint.clone().lerp(coldCyan, 0.1),
+    emissive: haloTint.clone().lerp(analyticsColor, 0.16),
+    emissiveIntensity: 0.16,
+    metalness: 0.62,
+    roughness: 0.18,
+    transparent: true,
+    opacity: 0.4,
+    side: THREE.DoubleSide
+  }));
+
+  const dustMat = setWaveDefaults(new THREE.PointsMaterial({
+    color: haloTint.clone().lerp(coldCyan, 0.12),
+    size: 0.028,
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false,
+    sizeAttenuation: true
+  }));
+
+  const telemetryMat = setWaveDefaults(new THREE.LineBasicMaterial({
+    color: haloTint.clone().lerp(coreTint, 0.22),
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false
+  }), true);
+
+  const mats = {
+    coreMat,
+    apertureMat,
+    lensMat,
+    frameMat,
+    haloMat,
+    dustMat,
+    telemetryMat
+  };
+
+  ANALYTICS_OBSERVER_LENS_MATERIALS.set(colorHex, mats);
+  return mats;
+  }
+
+/**
+ * ANALYTICS: OBSERVER_LENS (V4 - Lens-Array Observer)
+ * Premium analytical optic with layered array geometry
+ * VISUAL MEANING: "This node sees and measures."
+ * VISUAL SAFETY: Static geometry, transform-only animation, immutable
+ */
+  static _createAnalyticsObserverLensV4(group, color) {
+  const colorHex = typeof color === 'number' ? color : new THREE.Color(color || 0xbc46ff).getHex();
+  const geometries = this._getAnalyticsObserverLensGeometries();
+  const materials = this._getAnalyticsObserverLensMaterials(colorHex);
+  const coreOrder = VisualHierarchyRegistry.getRenderOrder('CORE');
+  const archOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
+  const phase = ((colorHex & 0xffff) / 0xffff) * Math.PI * 2;
+
+  const refs = {
+    lensPlates: [],
+    frameRails: [],
+    haloArcs: []
+  };
+
+  group.name = 'ANALYTICS_OBSERVER_LENS_NODE';
+  group.userData.visualVariant = 'ANALYTICS_OBSERVER_LENS_V4';
+  group.userData.analyticsVariant = 'OBSERVER_LENS';
+  group.userData.nodeGeometryName = 'ANALYTICS_OBSERVER_LENS_V4';
+  group.userData.visualReady = true;
+  group.userData.visualCoreImmutable = true;
+  group.userData.analyticsObserverLensPhase = phase;
+  group.userData.analyticsObserverLensSpinSpeed = 0.0125;
+  group.userData.analyticsObserverLensWobbleSpeed = 0.52;
+  group.userData.analyticsObserverLensWobbleAmplitude = 0.011;
+  group.userData.analyticsObserverLensPlateBreathSpeed = 0.34;
+  group.userData.analyticsObserverLensHaloSpeed = 0.024;
+  group.userData.analyticsObserverLensFrameSpeed = 0.018;
+  group.userData.analyticsObserverLensRefs = refs;
+
+  const coreGroup = new THREE.Group();
+  coreGroup.name = 'CORE_GROUP';
+  coreGroup.userData.isObserverLensCoreGroup = true;
+
+  const irisSeed = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+  irisSeed.name = 'ObserverIrisSeed';
+  irisSeed.position.set(0.0, 0.06, 0.0);
+  irisSeed.rotation.set(0.12, 0.2, -0.08);
+  irisSeed.scale.set(1.0, 1.05, 0.96);
+  irisSeed.renderOrder = coreOrder;
+  irisSeed.userData.isObserverLensCore = true;
+  irisSeed.userData.baseScale = irisSeed.scale.clone();
+  irisSeed.userData.visualCoreImmutable = true;
+  validateMeshGeometry(irisSeed, 'createAnalyticsObserverLens:irisSeed');
+  coreGroup.add(irisSeed);
+
+  const irisEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.telemetryMat);
+  irisEdges.name = 'ObserverIrisEdges';
+  irisEdges.position.copy(irisSeed.position);
+  irisEdges.rotation.copy(irisSeed.rotation);
+  irisEdges.scale.copy(irisSeed.scale);
+  irisEdges.renderOrder = archOrder;
+  irisEdges.userData.isObserverLensCore = true;
+  irisEdges.userData.ignoreWaveColor = true;
+  irisEdges.userData.visualCoreImmutable = true;
+  coreGroup.add(irisEdges);
+
+  const apertureSeed = new THREE.Mesh(geometries.apertureGeometry, materials.apertureMat);
+  apertureSeed.name = 'ObserverApertureSeed';
+  apertureSeed.position.set(0.0, -0.02, 0.01);
+  apertureSeed.rotation.set(0.06, 0.28, 0.04);
+  apertureSeed.scale.set(0.98, 1.0, 0.84);
+  apertureSeed.renderOrder = coreOrder;
+  apertureSeed.userData.isObserverLensAperture = true;
+  apertureSeed.userData.baseScale = apertureSeed.scale.clone();
+  apertureSeed.userData.ignoreWaveColor = true;
+  apertureSeed.userData.visualCoreImmutable = true;
+  validateMeshGeometry(apertureSeed, 'createAnalyticsObserverLens:apertureSeed');
+  coreGroup.add(apertureSeed);
+
+  group.add(coreGroup);
+  refs.coreGroup = coreGroup;
+  refs.irisSeed = irisSeed;
+  refs.apertureSeed = apertureSeed;
+
+  const lensGroup = new THREE.Group();
+  lensGroup.name = 'LENS_GROUP';
+  lensGroup.userData.isObserverLensGroup = true;
+
+  const lensSpecs = [
+    { name: 'LensPlate_Primary', pos: [0.0, 0.1, 0.04], rot: [Math.PI * 0.5 + 0.06, 0.06, 0.03], scale: [1.08, 1.0, 1.02], speed: 0.011 },
+    { name: 'LensPlate_OffsetA', pos: [0.12, -0.06, -0.03], rot: [Math.PI * 0.48, 0.38, -0.08], scale: [0.9, 0.96, 0.88], speed: -0.013 },
+    { name: 'LensPlate_OffsetB', pos: [-0.1, 0.26, 0.02], rot: [Math.PI * 0.54, -0.26, 0.1], scale: [0.74, 0.92, 0.78], speed: 0.015 }
+  ];
+
+  lensSpecs.forEach((spec, idx) => {
+    const plate = new THREE.Mesh(geometries.lensGeometry, materials.lensMat);
+    plate.name = spec.name;
+    plate.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+    plate.rotation.set(spec.rot[0], spec.rot[1], spec.rot[2]);
+    plate.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+    plate.renderOrder = coreOrder;
+    plate.userData.isObserverLensPlate = true;
+    plate.userData.plateIndex = idx;
+    plate.userData.platePhase = phase + idx * 0.74;
+    plate.userData.plateSpinSpeed = spec.speed;
+    plate.userData.baseRotation = plate.rotation.clone();
+    plate.userData.baseScale = plate.scale.clone();
+    plate.userData.visualCoreImmutable = true;
+    validateMeshGeometry(plate, `createAnalyticsObserverLens:plate${idx}`);
+    lensGroup.add(plate);
+    refs.lensPlates.push(plate);
+
+    const plateEdges = new THREE.LineSegments(geometries.lensEdgesGeometry, materials.telemetryMat);
+    plateEdges.name = `${spec.name}_Edges`;
+    plateEdges.position.copy(plate.position);
+    plateEdges.rotation.copy(plate.rotation);
+    plateEdges.scale.copy(plate.scale);
+    plateEdges.renderOrder = archOrder;
+    plateEdges.userData.isObserverLensPlate = true;
+    plateEdges.userData.plateIndex = idx;
+    plateEdges.userData.platePhase = plate.userData.platePhase;
+    plateEdges.userData.plateSpinSpeed = spec.speed;
+    plateEdges.userData.baseRotation = plate.rotation.clone();
+    plateEdges.userData.baseScale = plate.scale.clone();
+    plateEdges.userData.visualCoreImmutable = true;
+    lensGroup.add(plateEdges);
+    refs.lensPlates.push(plateEdges);
+  });
+
+  group.add(lensGroup);
+  refs.lensGroup = lensGroup;
+
+  const frameGroup = new THREE.Group();
+  frameGroup.name = 'FRAME_GROUP';
+  frameGroup.userData.isObserverLensFrameGroup = true;
+
+  const frameSpecs = [
+    { name: 'FrameRail_Left', pos: [-0.34, -0.12, 0.06], rot: [0.24, 0.12, 0.14], scale: [1.0, 0.96, 1.0], speed: 0.009 },
+    { name: 'FrameRail_Right', pos: [0.34, 0.06, -0.08], rot: [-0.14, -0.22, -0.12], scale: [0.92, 1.04, 0.96], speed: -0.008 },
+    { name: 'FrameBrace_Upper', pos: [0.02, 0.38, 0.0], rot: [0.12, 0.64, 0.04], scale: [0.82, 0.92, 0.82], speed: 0.01 }
+  ];
+
+  frameSpecs.forEach((spec, idx) => {
+    const rail = new THREE.Mesh(geometries.frameGeometry, materials.frameMat);
+    rail.name = spec.name;
+    rail.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+    rail.rotation.set(spec.rot[0], spec.rot[1], spec.rot[2]);
+    rail.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+    rail.renderOrder = coreOrder;
+    rail.userData.isObserverLensFrame = true;
+    rail.userData.frameIndex = idx;
+    rail.userData.framePhase = phase + idx * 0.68;
+    rail.userData.frameSpinSpeed = spec.speed;
+    rail.userData.baseRotation = rail.rotation.clone();
+    rail.userData.baseScale = rail.scale.clone();
+    rail.userData.visualCoreImmutable = true;
+    validateMeshGeometry(rail, `createAnalyticsObserverLens:frame${idx}`);
+    frameGroup.add(rail);
+    refs.frameRails.push(rail);
+
+    const railEdges = new THREE.LineSegments(geometries.frameEdgesGeometry, materials.telemetryMat);
+    railEdges.name = `${spec.name}_Edges`;
+    railEdges.position.copy(rail.position);
+    railEdges.rotation.copy(rail.rotation);
+    railEdges.scale.copy(rail.scale);
+    railEdges.renderOrder = archOrder;
+    railEdges.userData.isObserverLensFrame = true;
+    railEdges.userData.frameIndex = idx;
+    railEdges.userData.framePhase = rail.userData.framePhase;
+    railEdges.userData.frameSpinSpeed = spec.speed;
+    railEdges.userData.baseRotation = rail.rotation.clone();
+    railEdges.userData.baseScale = rail.scale.clone();
+    railEdges.userData.visualCoreImmutable = true;
+    frameGroup.add(railEdges);
+    refs.frameRails.push(railEdges);
+  });
+
+  group.add(frameGroup);
+  refs.frameGroup = frameGroup;
+
+  const haloGroup = new THREE.Group();
+  haloGroup.name = 'HALO_GROUP';
+  haloGroup.userData.isObserverLensHaloGroup = true;
+
+  const haloSpecs = [
+    { name: 'HaloArc_Main', pos: [0.0, 0.18, 0.0], rot: [Math.PI * 0.5, 0.12, 0.0], scale: [1.04, 1.0, 1.04], speed: 0.009 },
+    { name: 'HaloArc_Witness', pos: [0.08, -0.14, -0.02], rot: [Math.PI * 0.48, 0.54, -0.08], scale: [0.78, 0.96, 0.8], speed: -0.011 }
+  ];
+
+  haloSpecs.forEach((spec, idx) => {
+    const arc = new THREE.Mesh(geometries.haloGeometry, materials.haloMat);
+    arc.name = spec.name;
+    arc.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+    arc.rotation.set(spec.rot[0], spec.rot[1], spec.rot[2]);
+    arc.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+    arc.renderOrder = archOrder;
+    arc.userData.isObserverLensHalo = true;
+    arc.userData.haloIndex = idx;
+    arc.userData.haloPhase = phase + idx * 0.82;
+    arc.userData.haloSpinSpeed = spec.speed;
+    arc.userData.baseRotation = arc.rotation.clone();
+    arc.userData.baseScale = arc.scale.clone();
+    arc.userData.visualCoreImmutable = true;
+    validateMeshGeometry(arc, `createAnalyticsObserverLens:halo${idx}`);
+    haloGroup.add(arc);
+    refs.haloArcs.push(arc);
+
+    const arcEdges = new THREE.LineSegments(geometries.haloEdgesGeometry, materials.telemetryMat);
+    arcEdges.name = `${spec.name}_Edges`;
+    arcEdges.position.copy(arc.position);
+    arcEdges.rotation.copy(arc.rotation);
+    arcEdges.scale.copy(arc.scale);
+    arcEdges.renderOrder = archOrder;
+    arcEdges.userData.isObserverLensHalo = true;
+    arcEdges.userData.haloIndex = idx;
+    arcEdges.userData.haloPhase = arc.userData.haloPhase;
+    arcEdges.userData.haloSpinSpeed = spec.speed;
+    arcEdges.userData.baseRotation = arc.rotation.clone();
+    arcEdges.userData.baseScale = arc.scale.clone();
+    arcEdges.userData.visualCoreImmutable = true;
+    haloGroup.add(arcEdges);
+    refs.haloArcs.push(arcEdges);
+  });
+
+  group.add(haloGroup);
+  refs.haloGroup = haloGroup;
+
+  const auraGroup = new THREE.Group();
+  auraGroup.name = 'AURA_GROUP';
+  auraGroup.userData.isObserverLensAuraGroup = true;
+
+  const dust = new THREE.Points(geometries.dustGeometry, materials.dustMat);
+  dust.name = 'ObserverLensDust';
+  dust.position.set(0.0, 0.0, 0.0);
+  dust.rotation.set(0.04, 0.18, -0.02);
+  dust.frustumCulled = false;
+  dust.renderOrder = archOrder;
+  dust.userData.isObserverLensDust = true;
+  dust.userData.visualCoreImmutable = true;
+  auraGroup.add(dust);
+  refs.dust = dust;
+
+  const telemetryLine = new THREE.Line(geometries.telemetryGeometry, materials.telemetryMat);
+  telemetryLine.name = 'ObserverLensTelemetryLine';
+  telemetryLine.position.set(0.0, 0.0, 0.0);
+  telemetryLine.rotation.set(0.02, 0.16, -0.04);
+  telemetryLine.frustumCulled = false;
+  telemetryLine.renderOrder = archOrder;
+  telemetryLine.userData.isObserverLensTelemetry = true;
+  telemetryLine.userData.visualCoreImmutable = true;
+  auraGroup.add(telemetryLine);
+  refs.telemetryLine = telemetryLine;
+
+  group.add(auraGroup);
+  refs.auraGroup = auraGroup;
+
+  group.traverse((obj) => {
+    if (!obj) return;
+    obj.userData = obj.userData || {};
+    if (obj.isMesh || obj.isLine || obj.isLineSegments || obj.isPoints) {
+      obj.userData.wavePatchMode = 'DEFAULT';
+      if (obj.userData.isObserverLensAperture || obj.userData.isObserverLensFrame) {
+        obj.userData.ignoreWaveColor = true;
+      }
+      const materialRefs = Array.isArray(obj.material) ? obj.material : (obj.material ? [obj.material] : []);
+      for (const material of materialRefs) {
+        if (!material) continue;
+        material.userData = { ...(material.userData || {}), wavePatchMode: 'DEFAULT' };
+        if (obj.userData.ignoreWaveColor) {
+          material.userData.ignoreWaveColor = true;
+        }
+      }
+      if (obj.isMesh) {
+        obj.userData.isInteractive = true;
+        if (obj.raycast == null) {
+          obj.raycast = THREE.Mesh.prototype.raycast;
+        }
+      } else {
+        obj.userData.isInteractive = false;
+        obj.raycast = () => null;
+      }
+    }
+  });
+
+  return group;
+  }
+
   /**
-   * ANALYTICS: OBSERVER_LENS (NEW - Session 63)
-   * Non-physical lens that bends perception
-   * - Layered optical plates (non-parallel)
-   * - Central aperture void (empty space)
-   * - Plates slightly offset and tilted
-   * - No solid core
-   * - Animation: Very slow rotation + subtle axial wobble
-   * 
-   * VISUAL MEANING: "This node does not act — it sees."
+   * ANALYTICS: OBSERVER_LENS (V4 - Lens-Array Observer)
+   * Premium analytical optic with layered array geometry
+   * VISUAL MEANING: "This node sees and measures."
    * VISUAL SAFETY: Static geometry, transform-only animation, immutable
    */
   static createAnalyticsObserverLens(group, color) {
     try {
-      const mat = new THREE.MeshStandardMaterial({
-        color,
-        emissive: color,
-        emissiveIntensity: 0.18,
-        metalness: 0.6,
-        roughness: 0.3,
-        transparent: true,
-        opacity: 0.5
-      });
-
-      // Base
-      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.9, 0.12, 12, 1), mat);
-      base.position.y = -0.32;
-      validateMeshGeometry(base, 'createAnalyticsObserverLens:base');
-      group.add(base);
-
-      // Spine
-      const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.9, 10, 1), mat);
-      spine.position.y = 0.1;
-      spine.userData.isAnalyticsSpine = true;
-      validateMeshGeometry(spine, 'createAnalyticsObserverLens:spine');
-      group.add(spine);
-
-      // Layered plates (3)
-      const plateCount = 3;
-      for (let i = 0; i < plateCount; i++) {
-        const outerRadius = 0.68 - i * 0.1;
-        const plateGeometry = new THREE.CylinderGeometry(outerRadius, outerRadius, 0.06, 28, 2, true);
-        const plate = new THREE.Mesh(plateGeometry, mat);
-        plate.position.y = -0.12 + i * 0.24;
-        plate.rotation.x = (i - 1) * 0.12;
-        plate.rotation.z = (i - 1) * 0.08;
-        plate.userData.isLensPlate = true;
-        plate.userData.visualCoreImmutable = true;
-        validateMeshGeometry(plate, `createAnalyticsObserverLens:plate${i}`);
-        group.add(plate);
-      }
-
-      // Central void aperture
-      const aperture = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.2, 0.2, 0.4, 16),
-        new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 })
-      );
-      aperture.userData.isAperture = true;
-      aperture.userData.visualCoreImmutable = true;
-      group.add(aperture);
-
-      // Orbit ring
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.04, 10, 32), mat);
-      ring.position.y = 0.15;
-      ring.rotation.x = Math.PI * 0.5;
-      validateMeshGeometry(ring, 'createAnalyticsObserverLens:ring');
-      group.add(ring);
-
-      // Animation metadata
-      group.userData.lensRotationSpeed = 0.05;
-      group.userData.lensWobbleAmplitude = 0.04;
-      group.userData.lensWobbleSpeed = 0.3;
-      group.userData.visualCoreImmutable = true;
-      group.userData.nodeGeometryName = 'ANALYTICS_OBSERVER_LENS_V3';
-
-      return group;
+      return this._createAnalyticsObserverLensV4(group, color);
     } catch (err) {
       console.error('[NodeVisualAbort]', {
         model: 'createAnalyticsObserverLens',
@@ -17172,7 +18942,7 @@ static createAnalyticsNode2(group, color) {
         reason: 'Visual build failed — fallback visuals are forbidden',
         error: err
       });
-      console.error('[AnalyticsFactoryNull]', { visualCode: '3', error: err.message });
+      console.error('[AnalyticsFactoryNull]', { visualCode: '403', error: err.message });
       return null;
     }
   }
@@ -17191,78 +18961,425 @@ static createAnalyticsNode2(group, color) {
    */
   static createAnalyticsFractalEcho(group, color) {
     try {
-      const mat = new THREE.MeshStandardMaterial({
-        color,
-        emissive: color,
-        emissiveIntensity: 0.22,
-        metalness: 0.6,
-        roughness: 0.25,
-        transparent: true,
-        opacity: 0.9
-      });
+      group.userData = group.userData || {};
+      const colorHex = typeof color === 'number' ? color : new THREE.Color(color ?? 0xbc46ff).getHex();
+      const nodeKey = group?.userData?.nodeId || group?.uuid || String(colorHex);
+      const seed = Math.abs(hashString(nodeKey)) || 404;
+      const rng = _mythicSeededRng(seed);
+      const phase = rng() * Math.PI * 2;
+      const geometries = _getAnalyticsFracturedOracleGeometries();
+      const materials = _getAnalyticsFracturedOracleMaterials(colorHex);
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
 
-      // Base
-      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.9, 0.12, 10, 1), mat);
-      base.position.y = -0.3;
-      validateMeshGeometry(base, 'createAnalyticsFractalEcho:base');
-      group.add(base);
+      const markOracleRenderable = (obj, accent = false, interactive = true) => {
+        if (!obj) return;
+        obj.userData = obj.userData || {};
+        obj.userData.visualCoreImmutable = true;
+        if (accent) obj.userData.ignoreWaveColor = true;
+        if (interactive) obj.userData.isInteractive = true;
+        if (obj.isMesh) {
+          if (obj.raycast == null) {
+            obj.raycast = THREE.Mesh.prototype.raycast;
+          }
+        } else if (obj.isLineSegments) {
+          if (obj.raycast == null) {
+            obj.raycast = THREE.LineSegments.prototype.raycast;
+          }
+        } else if (obj.isLine) {
+          if (obj.raycast == null) {
+            obj.raycast = THREE.Line.prototype.raycast;
+          }
+        }
+      };
 
-      // Spine
-      const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.0, 8, 1), mat);
-      spine.position.y = 0.2;
-      spine.userData.isAnalyticsSpine = true;
-      validateMeshGeometry(spine, 'createAnalyticsFractalEcho:spine');
-      group.add(spine);
-
-      // Seed core
-      const seedGeo = new THREE.IcosahedronGeometry(0.32, 1);
-      const seed = new THREE.Mesh(seedGeo, mat);
-      seed.position.y = 0.7;
-      seed.rotation.set(Math.PI * 0.12, Math.PI * 0.16, Math.PI * 0.08);
-      seed.userData.isSeedCore = true;
-      seed.userData.visualCoreImmutable = true;
-      validateMeshGeometry(seed, 'createAnalyticsFractalEcho:seed');
-      group.add(seed);
-
-      // Orbit ring
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.04, 10, 28, Math.PI * 2), mat);
-      ring.position.y = 0.7;
-      ring.rotation.x = Math.PI * 0.5;
-      validateMeshGeometry(ring, 'createAnalyticsFractalEcho:ring');
-      group.add(ring);
-
-      // Echo fragments (4)
-      const echoMat = new THREE.MeshStandardMaterial({
-        color,
-        emissive: color,
-        emissiveIntensity: 0.18,
-        transparent: true,
-        opacity: 0.7,
-        metalness: 0.45,
-        roughness: 0.3
-      });
-      const echoGeo = new THREE.TetrahedronGeometry(0.18, 0);
-      for (let i = 0; i < 4; i++) {
-        const angle = (i / 4) * Math.PI * 2;
-        const echo = new THREE.Mesh(echoGeo, echoMat);
-        echo.position.set(Math.cos(angle) * 0.65, 0.35 + (i % 2) * 0.08, Math.sin(angle) * 0.65);
-        echo.rotation.set(
-          Math.PI * 0.18 + i * 0.4,
-          Math.PI * 0.22 + i * 0.3,
-          Math.PI * 0.12 * i
-        );
-        echo.userData.isEcho = true;
-        echo.userData.visualCoreImmutable = true;
-        validateMeshGeometry(echo, `createAnalyticsFractalEcho:echo${i}`);
-        group.add(echo);
-      }
-
-      // Animation metadata
-      group.userData.fractalSeedRotationSpeed = 0.12;
-      group.userData.fractalEchoRotationSpeed = -0.09;
-      group.userData.fractalBreathingAmplitude = 0.015;
+      group.name = 'ANALYTICS_FRACTURED_ORACLE_NODE';
+      group.userData.visualVariant = 'ANALYTICS_FRACTURED_ORACLE_V4';
+      group.userData.analyticsVariant = 'FRACTURED_ORACLE';
+      group.userData.nodeGeometryName = 'ANALYTICS_FRACTURED_ORACLE_V4';
+      group.userData.visualReady = true;
       group.userData.visualCoreImmutable = true;
-      group.userData.nodeGeometryName = 'ANALYTICS_FRACTAL_ECHO_V3';
+      group.userData.fracturedOraclePhase = phase;
+      group.userData.fracturedOracleCorePulseSpeed = 0.44 + rng() * 0.08;
+      group.userData.fracturedOracleCorePulseAmplitude = 0.013 + rng() * 0.004;
+      group.userData.fracturedOracleDiademPrecessionSpeed = 0.01 + rng() * 0.0035;
+      group.userData.fracturedOracleResonanceBreathSpeed = 0.22 + rng() * 0.05;
+      group.userData.fracturedOracleProjectionDriftSpeed = 0.028 + rng() * 0.01;
+      group.userData.fracturedOracleAuraDriftSpeed = 0.014 + rng() * 0.004;
+
+      const refs = {};
+      group.userData.fracturedOracleRefs = refs;
+
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+      coreGroup.userData.isAnalyticsFracturedOracleCoreGroup = true;
+      coreGroup.userData.basePosition = new THREE.Vector3(0.06, 0.03, -0.02);
+      coreGroup.userData.baseRotation = new THREE.Euler(0.14, -0.18, 0.06);
+      coreGroup.position.copy(coreGroup.userData.basePosition);
+      coreGroup.rotation.copy(coreGroup.userData.baseRotation);
+
+      const coreSeed = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      coreSeed.name = 'OracleCoreSeed';
+      coreSeed.position.set(0.04, -0.015, 0.0);
+      coreSeed.rotation.set(0.18, 0.26, -0.04);
+      coreSeed.scale.set(1.05, 0.96, 1.04);
+      coreSeed.renderOrder = coreOrder;
+      coreSeed.userData.isAnalyticsFracturedOracleCore = true;
+      coreSeed.userData.baseScale = coreSeed.scale.clone();
+      markOracleRenderable(coreSeed);
+      validateMeshGeometry(coreSeed, 'createAnalyticsFractalEcho:coreSeed');
+      coreGroup.add(coreSeed);
+
+      const coreEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.telemetryMat);
+      coreEdges.name = 'OracleCoreSeedEdges';
+      coreEdges.position.copy(coreSeed.position);
+      coreEdges.rotation.copy(coreSeed.rotation);
+      coreEdges.scale.copy(coreSeed.scale);
+      coreEdges.renderOrder = archOrder;
+      coreEdges.userData.isAnalyticsFracturedOracleCore = true;
+      coreEdges.userData.visualCoreImmutable = true;
+      markOracleRenderable(coreEdges, false, true);
+      coreGroup.add(coreEdges);
+
+      const seamVoid = new THREE.Mesh(geometries.seamVoidGeometry, materials.voidMat);
+      seamVoid.name = 'OracleSeamVoid';
+      seamVoid.position.set(-0.01, 0.01, 0.01);
+      seamVoid.rotation.set(0.04, -0.18, 0.22);
+      seamVoid.scale.set(1.06, 0.96, 0.92);
+      seamVoid.renderOrder = archOrder + 1;
+      seamVoid.userData.isAnalyticsFracturedOracleVoid = true;
+      markOracleRenderable(seamVoid);
+      validateMeshGeometry(seamVoid, 'createAnalyticsFractalEcho:seamVoid');
+      coreGroup.add(seamVoid);
+
+      const seamVoidEdges = new THREE.LineSegments(geometries.seamVoidEdgesGeometry, materials.telemetryMat);
+      seamVoidEdges.name = 'OracleSeamVoidEdges';
+      seamVoidEdges.position.copy(seamVoid.position);
+      seamVoidEdges.rotation.copy(seamVoid.rotation);
+      seamVoidEdges.scale.copy(seamVoid.scale);
+      seamVoidEdges.renderOrder = archOrder + 2;
+      seamVoidEdges.userData.isAnalyticsFracturedOracleVoid = true;
+      seamVoidEdges.userData.visualCoreImmutable = true;
+      markOracleRenderable(seamVoidEdges, false, true);
+      coreGroup.add(seamVoidEdges);
+
+      refs.coreGroup = coreGroup;
+      refs.coreSeed = coreSeed;
+      refs.coreEdges = coreEdges;
+      refs.seamVoid = seamVoid;
+      refs.seamVoidEdges = seamVoidEdges;
+      group.add(coreGroup);
+
+      const diademGroup = new THREE.Group();
+      diademGroup.name = 'DIADEM_GROUP';
+      diademGroup.userData.isAnalyticsFracturedOracleDiademGroup = true;
+      diademGroup.userData.baseRotation = new THREE.Euler(0.08, 0.38, -0.04);
+      diademGroup.position.set(0.1, 0.18, -0.04);
+      diademGroup.rotation.copy(diademGroup.userData.baseRotation);
+      refs.diademParts = [];
+
+      const diademSpecs = [
+        {
+          name: 'DiademArc_Primary',
+          geometry: geometries.crownArcGeometry,
+          pos: [0.14, 0.22, 0.02],
+          rot: [Math.PI * 0.56, 0.12, -0.16],
+          scale: [1.05, 1.0, 0.88],
+          renderOrder: archOrder + 1
+        },
+        {
+          name: 'DiademArc_Fracture',
+          geometry: geometries.crownArcGeometry,
+          pos: [-0.22, 0.16, 0.08],
+          rot: [Math.PI * 0.5, -0.42, 0.22],
+          scale: [0.72, 0.98, 0.7],
+          renderOrder: archOrder + 2
+        },
+        {
+          name: 'BloomShard_Top',
+          geometry: geometries.bloomShardGeometry,
+          pos: [0.3, 0.32, -0.02],
+          rot: [0.2, 0.56, -0.5],
+          scale: [0.72, 0.98, 0.76],
+          renderOrder: archOrder + 2
+        },
+        {
+          name: 'BloomShard_Lateral',
+          geometry: geometries.bloomShardGeometry,
+          pos: [0.02, -0.02, 0.12],
+          rot: [0.46, -0.18, 0.72],
+          scale: [0.5, 0.84, 0.58],
+          renderOrder: archOrder + 3
+        }
+      ];
+
+      diademSpecs.forEach((spec, idx) => {
+        const accent = new THREE.Mesh(spec.geometry, materials.crownMat);
+        accent.name = spec.name;
+        accent.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+        accent.rotation.set(spec.rot[0], spec.rot[1], spec.rot[2]);
+        accent.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+        accent.renderOrder = spec.renderOrder;
+        accent.userData.isAnalyticsCalibrationAccent = true;
+        accent.userData.diademIndex = idx;
+        accent.userData.baseRotation = accent.rotation.clone();
+        accent.userData.baseScale = accent.scale.clone();
+        markOracleRenderable(accent, true);
+        validateMeshGeometry(accent, `createAnalyticsFractalEcho:diadem${idx}`);
+
+        const accentEdgesGeometry = spec.geometry === geometries.bloomShardGeometry
+          ? geometries.bloomShardEdgesGeometry
+          : geometries.crownArcEdgesGeometry;
+        const accentEdges = new THREE.LineSegments(accentEdgesGeometry, materials.telemetryMat);
+        accentEdges.name = `${spec.name}Edges`;
+        accentEdges.position.copy(accent.position);
+        accentEdges.rotation.copy(accent.rotation);
+        accentEdges.scale.copy(accent.scale);
+        accentEdges.renderOrder = spec.renderOrder + 1;
+        accentEdges.userData.isAnalyticsCalibrationAccent = true;
+        accentEdges.userData.visualCoreImmutable = true;
+        markOracleRenderable(accentEdges, true, true);
+
+        accent.userData.edgeRef = accentEdges;
+        diademGroup.add(accent);
+        diademGroup.add(accentEdges);
+        refs.diademParts.push(accent);
+      });
+
+      refs.diademGroup = diademGroup;
+      group.add(diademGroup);
+
+      const resonanceGroup = new THREE.Group();
+      resonanceGroup.name = 'RESONANCE_GROUP';
+      resonanceGroup.userData.isAnalyticsFracturedOracleResonanceGroup = true;
+      resonanceGroup.userData.baseRotation = new THREE.Euler(-0.08, -0.14, 0.1);
+      resonanceGroup.position.set(-0.08, 0.04, 0.05);
+      resonanceGroup.rotation.copy(resonanceGroup.userData.baseRotation);
+      refs.resonanceParts = [];
+
+      const resonanceSpecs = [
+        {
+          name: 'ResonanceSlat_Primary',
+          pos: [-0.18, 0.06, -0.02],
+          rot: [0.26, 0.22, -0.34],
+          scale: [0.88, 1.0, 0.74],
+          renderOrder: archOrder + 2
+        },
+        {
+          name: 'ResonanceSlat_Offset',
+          pos: [0.12, -0.02, 0.1],
+          rot: [-0.12, -0.34, 0.56],
+          scale: [0.72, 0.92, 0.54],
+          renderOrder: archOrder + 3
+        },
+        {
+          name: 'ResonanceBrace_Outer',
+          pos: [0.28, 0.16, -0.08],
+          rot: [0.44, 0.68, 0.16],
+          scale: [0.54, 0.86, 0.48],
+          renderOrder: archOrder + 3
+        }
+      ];
+
+      resonanceSpecs.forEach((spec, idx) => {
+        const part = new THREE.Mesh(geometries.resonanceSlatGeometry, materials.resonanceMat);
+        part.name = spec.name;
+        part.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+        part.rotation.set(spec.rot[0], spec.rot[1], spec.rot[2]);
+        part.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+        part.renderOrder = spec.renderOrder;
+        part.userData.isAnalyticsResonanceAccent = true;
+        part.userData.resonanceIndex = idx;
+        part.userData.basePosition = part.position.clone();
+        part.userData.baseRotation = part.rotation.clone();
+        part.userData.baseScale = part.scale.clone();
+        markOracleRenderable(part, true);
+        validateMeshGeometry(part, `createAnalyticsFractalEcho:resonance${idx}`);
+
+        const partEdges = new THREE.LineSegments(geometries.resonanceSlatEdgesGeometry, materials.telemetryMat);
+        partEdges.name = `${spec.name}Edges`;
+        partEdges.position.copy(part.position);
+        partEdges.rotation.copy(part.rotation);
+        partEdges.scale.copy(part.scale);
+        partEdges.renderOrder = spec.renderOrder + 1;
+        partEdges.userData.isAnalyticsResonanceAccent = true;
+        partEdges.userData.visualCoreImmutable = true;
+        markOracleRenderable(partEdges, true, true);
+
+        part.userData.edgeRef = partEdges;
+        resonanceGroup.add(part);
+        resonanceGroup.add(partEdges);
+        refs.resonanceParts.push(part);
+      });
+
+      refs.resonanceGroup = resonanceGroup;
+      group.add(resonanceGroup);
+
+      const projectionGroup = new THREE.Group();
+      projectionGroup.name = 'PROJECTION_GROUP';
+      projectionGroup.userData.isAnalyticsFracturedOracleProjectionGroup = true;
+      projectionGroup.userData.baseRotation = new THREE.Euler(-0.14, 0.28, 0.18);
+      projectionGroup.position.set(0.22, -0.03, 0.06);
+      projectionGroup.rotation.copy(projectionGroup.userData.baseRotation);
+      refs.projectionParts = [];
+
+      const projectionSpecs = [
+        {
+          name: 'ProjectionNeedle_A',
+          geometry: geometries.projectionNeedleGeometry,
+          pos: [0.28, 0.08, 0.08],
+          rot: [0.22, 0.02, -0.38],
+          scale: [0.9, 1.0, 0.74],
+          renderOrder: archOrder + 3
+        },
+        {
+          name: 'ProjectionNeedle_B',
+          geometry: geometries.projectionNeedleGeometry,
+          pos: [0.06, -0.06, 0.18],
+          rot: [-0.12, 0.38, 0.46],
+          scale: [0.62, 0.9, 0.54],
+          renderOrder: archOrder + 4
+        },
+        {
+          name: 'FieldMarker_A',
+          geometry: geometries.projectionMarkerGeometry,
+          pos: [0.34, 0.18, -0.02],
+          rot: [0.1, -0.46, 0.26],
+          scale: [1.0, 1.08, 0.92],
+          renderOrder: archOrder + 4
+        },
+        {
+          name: 'FieldMarker_B',
+          geometry: geometries.projectionMarkerGeometry,
+          pos: [-0.04, 0.22, 0.12],
+          rot: [-0.22, 0.24, -0.34],
+          scale: [0.82, 0.94, 0.76],
+          renderOrder: archOrder + 5
+        }
+      ];
+
+      projectionSpecs.forEach((spec, idx) => {
+        const part = new THREE.Mesh(spec.geometry, materials.projectionMat);
+        part.name = spec.name;
+        part.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+        part.rotation.set(spec.rot[0], spec.rot[1], spec.rot[2]);
+        part.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+        part.renderOrder = spec.renderOrder;
+        part.userData.isAnalyticsProjectionMarker = true;
+        part.userData.projectionIndex = idx;
+        part.userData.basePosition = part.position.clone();
+        part.userData.baseRotation = part.rotation.clone();
+        part.userData.baseScale = part.scale.clone();
+        markOracleRenderable(part);
+        validateMeshGeometry(part, `createAnalyticsFractalEcho:projection${idx}`);
+
+        const partEdges = new THREE.LineSegments(
+          spec.geometry === geometries.projectionNeedleGeometry
+            ? geometries.projectionNeedleEdgesGeometry
+            : geometries.projectionMarkerEdgesGeometry,
+          materials.telemetryMat
+        );
+        partEdges.name = `${spec.name}Edges`;
+        partEdges.position.copy(part.position);
+        partEdges.rotation.copy(part.rotation);
+        partEdges.scale.copy(part.scale);
+        partEdges.renderOrder = spec.renderOrder + 1;
+        partEdges.userData.isAnalyticsProjectionMarker = true;
+        partEdges.userData.visualCoreImmutable = true;
+        markOracleRenderable(partEdges, false, true);
+
+        part.userData.edgeRef = partEdges;
+        projectionGroup.add(part);
+        projectionGroup.add(partEdges);
+        refs.projectionParts.push(part);
+      });
+
+      refs.projectionGroup = projectionGroup;
+      group.add(projectionGroup);
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+      auraGroup.userData.isAnalyticsFracturedOracleAuraGroup = true;
+      auraGroup.userData.baseRotation = new THREE.Euler(0.02, -0.06, 0.04);
+      auraGroup.rotation.copy(auraGroup.userData.baseRotation);
+
+      const telemetryLine = new THREE.Line(geometries.telemetryGeometry, materials.telemetryMat);
+      telemetryLine.name = 'TelemetryRibbon';
+      telemetryLine.position.set(0.06, 0.19, 0.12);
+      telemetryLine.rotation.set(0.18, -0.16, 0.48);
+      telemetryLine.scale.set(1.02, 0.98, 1.0);
+      telemetryLine.renderOrder = archOrder + 6;
+      telemetryLine.userData.isAnalyticsTelemetryLine = true;
+      telemetryLine.userData.visualCoreImmutable = true;
+      telemetryLine.userData.isInteractive = false;
+      telemetryLine.raycast = () => null;
+      auraGroup.add(telemetryLine);
+
+      const dustOffsets = [
+        [0.16, 0.04, 0.14],
+        [0.28, -0.05, 0.02],
+        [-0.08, 0.16, 0.08],
+        [0.04, -0.12, -0.04]
+      ];
+      refs.dustParticles = [];
+
+      dustOffsets.forEach((offset, idx) => {
+        const dust = new THREE.Mesh(geometries.auraDustGeometry, materials.auraMat);
+        dust.name = `OracleDust_${idx}`;
+        dust.position.set(offset[0], offset[1], offset[2]);
+        dust.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+        dust.scale.set(1 + idx * 0.1, 1 + idx * 0.08, 1 + idx * 0.06);
+        dust.renderOrder = archOrder + 5;
+        dust.userData.isAnalyticsOracleDust = true;
+        dust.userData.basePosition = dust.position.clone();
+        dust.userData.baseRotation = dust.rotation.clone();
+        dust.userData.baseScale = dust.scale.clone();
+        markOracleRenderable(dust, false, false);
+        validateMeshGeometry(dust, `createAnalyticsFractalEcho:dust${idx}`);
+        auraGroup.add(dust);
+        refs.dustParticles.push(dust);
+      });
+
+      refs.auraGroup = auraGroup;
+      refs.telemetryLine = telemetryLine;
+      group.add(auraGroup);
+
+      group.traverse((obj) => {
+        if (!obj) return;
+        obj.userData = obj.userData || {};
+        if (obj.isMesh || obj.isLine || obj.isLineSegments || obj.isPoints) {
+          obj.userData.wavePatchMode = 'DEFAULT';
+          if (obj.userData.isAnalyticsCalibrationAccent || obj.userData.isAnalyticsResonanceAccent) {
+            obj.userData.ignoreWaveColor = true;
+          }
+          const materialRefs = Array.isArray(obj.material) ? obj.material : (obj.material ? [obj.material] : []);
+          for (const material of materialRefs) {
+            if (!material) continue;
+            material.userData = { ...(material.userData || {}), wavePatchMode: 'DEFAULT' };
+            if (obj.userData.ignoreWaveColor) {
+              material.userData.ignoreWaveColor = true;
+            }
+          }
+          if (obj.isMesh) {
+            obj.userData.isInteractive = obj.userData.isInteractive !== false;
+            if (obj.raycast == null) {
+              obj.raycast = THREE.Mesh.prototype.raycast;
+            }
+          } else if (obj.isLineSegments) {
+            obj.userData.isInteractive = false;
+            if (obj.raycast == null) {
+              obj.raycast = THREE.LineSegments.prototype.raycast;
+            }
+          } else if (obj.isLine) {
+            obj.userData.isInteractive = false;
+            if (obj.raycast == null) {
+              obj.raycast = THREE.Line.prototype.raycast;
+            }
+          }
+        }
+      });
+
+      group.userData.visualReady = true;
 
       return group;
     } catch (err) {
@@ -17272,7 +19389,7 @@ static createAnalyticsNode2(group, color) {
         reason: 'Visual build failed — fallback visuals are forbidden',
         error: err
       });
-      console.error('[AnalyticsFactoryNull]', { visualCode: '4', error: err.message });
+      console.error('[AnalyticsFactoryNull]', { visualCode: '404', error: err.message });
       return null;
     }
   }
@@ -18195,102 +20312,291 @@ static createStorageNode0(group, color) {
     }
   }
   /**
-   * STORAGE: ARCHIVE_SPINDLE (NEW - Session 63)
-   * Layered data strata compressed into vertical spindle structure
-   * - Tall, segmented structure with static layers
-   * - Layers slightly offset (but static at creation)
-   * - Central axis clearly visible
-   * - Animation: slow axial rotation + gentle vertical oscillation
-   * 
+   * STORAGE: ARCHIVE_SPINDLE (REDESIGN V2)
+   * Asymmetric archive vault with off-center core, fragmented shell, open access port,
+   * and slow data orbit fragments.
+   *
    * VISUAL SAFETY: Static geometry, transform-only animation, immutable
    */
   static createStorageArchiveSpindle(group, color) {
     try {
-      const segmentCount = 8;
-      const segmentHeight = 0.18;
-      const segmentRadius = 0.55;
-      
-      // Create central axis (visual focus)
-      const axisGeometry = new THREE.CylinderGeometry(0.08, 0.08, 1.4, 12);
-      const axisMaterial = new THREE.MeshStandardMaterial({
-        transparent: false,
-        opacity: 1,
-        depthWrite: true,
-        depthTest: true,
-        side: THREE.FrontSide,
-        color: color,
-        metalness: 0.85,
-        roughness: 0.1,
-        emissive: color,
-        emissiveIntensity: 0.3
+      group.userData = group.userData || {};
+      const resolvedColor = typeof color === 'number' ? color : 0xa9d6ff;
+      const nodeKey = group?.userData?.nodeId || group?.uuid || String(resolvedColor);
+      const seed = Math.abs(hashString(nodeKey)) || 505;
+      const rng = _mythicSeededRng(seed);
+      const phase = rng() * Math.PI * 2;
+      const geometries = _getStorageArchiveSpindleV2Geometries();
+      const materials = _getStorageArchiveSpindleV2Materials(resolvedColor);
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
 
+      const root = group;
+      root.name = 'STORAGE_ARCHIVE_SPINDLE_V2_NODE';
+      root.userData.visualVariant = 'STORAGE_ARCHIVE_SPINDLE_V2';
+      root.userData.storageVariant = 'ARCHIVE_SPINDLE';
+      root.userData.nodeGeometryName = 'STORAGE_ARCHIVE_SPINDLE_V2';
+      root.userData.visualCoreImmutable = true;
+
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+      coreGroup.userData.isArchiveSpindleCoreGroup = true;
+      coreGroup.userData.basePosition = new THREE.Vector3(-0.18, 0.03, 0.02);
+      coreGroup.userData.baseRotation = new THREE.Euler(0.18, 0.28, -0.09);
+      coreGroup.position.copy(coreGroup.userData.basePosition);
+      coreGroup.rotation.copy(coreGroup.userData.baseRotation);
+
+      const core = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      core.name = 'ArchiveSpindleCoreVault';
+      core.scale.set(1.04, 1.38, 0.9);
+      core.rotation.set(0.12, 0.26, -0.08);
+      core.renderOrder = coreOrder;
+      core.userData.isArchiveSpindleCore = true;
+      core.userData.visualCoreImmutable = true;
+      validateMeshGeometry(core, 'createStorageArchiveSpindle:core');
+      coreGroup.add(core);
+
+      const coreSeed = new THREE.Mesh(geometries.seedGeometry, materials.seedMat);
+      coreSeed.name = 'ArchiveSpindleCompressedSeed';
+      coreSeed.position.set(0.03, 0.05, -0.01);
+      coreSeed.rotation.set(0.18, 0.44, -0.12);
+      coreSeed.scale.set(0.86, 0.98, 0.8);
+      coreSeed.renderOrder = coreOrder;
+      coreSeed.userData.isArchiveSpindleSeed = true;
+      coreSeed.userData.baseRotation = coreSeed.rotation.clone();
+      coreSeed.userData.visualCoreImmutable = true;
+      validateMeshGeometry(coreSeed, 'createStorageArchiveSpindle:coreSeed');
+      coreGroup.add(coreSeed);
+
+      const coreSeam = new THREE.Mesh(geometries.seamGeometry, materials.lockMat);
+      coreSeam.name = 'ArchiveSpindleCompressionSeam';
+      coreSeam.position.set(0.05, 0.02, 0.03);
+      coreSeam.rotation.set(0.1, -0.18, 0.12);
+      coreSeam.scale.set(0.92, 1.0, 0.86);
+      coreSeam.renderOrder = coreOrder;
+      coreSeam.userData.isArchiveSpindleSeam = true;
+      coreSeam.userData.baseRotation = coreSeam.rotation.clone();
+      coreSeam.userData.visualCoreImmutable = true;
+      validateMeshGeometry(coreSeam, 'createStorageArchiveSpindle:coreSeam');
+      coreGroup.add(coreSeam);
+
+      group.add(coreGroup);
+
+      const shellGroup = new THREE.Group();
+      shellGroup.name = 'SHELL_GROUP';
+      shellGroup.userData.isArchiveSpindleShellGroup = true;
+      shellGroup.userData.basePosition = new THREE.Vector3(0.02, -0.01, 0.01);
+      shellGroup.userData.baseRotation = new THREE.Euler(0.05, -0.18, 0.08);
+      shellGroup.position.copy(shellGroup.userData.basePosition);
+      shellGroup.rotation.copy(shellGroup.userData.baseRotation);
+
+      const shellSpecs = [
+        { pos: [-0.46, 0.24, 0.12], rot: [0.18, 0.42, 0.2], scale: [1.12, 0.94, 0.74] },
+        { pos: [-0.22, -0.08, 0.34], rot: [-0.14, -0.32, 0.24], scale: [0.9, 0.78, 0.78] },
+        { pos: [0.28, 0.18, -0.22], rot: [0.14, 0.62, -0.22], scale: [1.04, 0.72, 0.76] },
+        { pos: [0.5, -0.14, 0.1], rot: [-0.1, 0.88, 0.16], scale: [0.8, 0.68, 0.68] },
+        { pos: [-0.04, -0.38, -0.18], rot: [0.22, -0.44, -0.2], scale: [0.94, 0.86, 0.66] }
+      ];
+
+      shellSpecs.forEach((spec, idx) => {
+        const fragment = new THREE.Mesh(geometries.shellGeometry, materials.shellMat);
+        fragment.name = `ArchiveSpindleShell_${idx}`;
+        fragment.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+        fragment.rotation.set(spec.rot[0], spec.rot[1], spec.rot[2]);
+        fragment.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+        fragment.renderOrder = archOrder;
+        fragment.userData.isArchiveSpindleShellFragment = true;
+        fragment.userData.segmentIndex = idx;
+        fragment.userData.basePosition = fragment.position.clone();
+        fragment.userData.baseRotation = fragment.rotation.clone();
+        fragment.userData.compressionVector = new THREE.Vector3()
+          .subVectors(coreGroup.userData.basePosition, fragment.position)
+          .normalize();
+        fragment.userData.compressionSpeed = 0.54 + rng() * 0.16;
+        fragment.userData.compressionAmplitude = 0.012 + rng() * 0.008;
+        fragment.userData.driftPhase = phase + idx * 0.57;
+        fragment.userData.shellSpinSpeed = 0.004 + rng() * 0.005;
+        fragment.userData.visualCoreImmutable = true;
+        validateMeshGeometry(fragment, `createStorageArchiveSpindle:shellFragment${idx}`);
+        shellGroup.add(fragment);
       });
-      const axis = new THREE.Mesh(axisGeometry, axisMaterial);
-      axis.userData.isCentralAxis = true;
-      axis.userData.visualCoreImmutable = true;
-      group.add(axis);
+      group.add(shellGroup);
 
-      // Create layered segments (strata)
-      const strataMaterial = new THREE.MeshStandardMaterial({
-        transparent: false,
-        opacity: 1,
-        depthWrite: true,
-        depthTest: true,
-        side: THREE.FrontSide,
-        color: color,
-        metalness: 0.75,
-        roughness: 0.2,
-        emissive: color,
-        emissiveIntensity: 0.2
+      const lockGroup = new THREE.Group();
+      lockGroup.name = 'LOCK_GROUP';
+      lockGroup.userData.isArchiveSpindleLockGroup = true;
+      lockGroup.userData.basePosition = new THREE.Vector3(-0.34, 0.07, 0.04);
+      lockGroup.userData.baseRotation = new THREE.Euler(Math.PI / 2, 0.22, 0.12);
+      lockGroup.position.copy(lockGroup.userData.basePosition);
+      lockGroup.rotation.copy(lockGroup.userData.baseRotation);
 
-      });
+      const lockRing = new THREE.Mesh(geometries.lockRingGeometry, materials.lockMat);
+      lockRing.name = 'ArchiveSpindleLockRing';
+      lockRing.position.set(0.0, 0.0, 0.0);
+      lockRing.rotation.set(0.0, 0.0, 0.0);
+      lockRing.scale.set(1.0, 0.98, 0.9);
+      lockRing.renderOrder = archOrder;
+      lockRing.userData.isArchiveSpindleGateRing = true;
+      lockRing.userData.baseRotation = lockRing.rotation.clone();
+      lockRing.userData.baseScale = lockRing.scale.clone();
+      lockRing.userData.visualCoreImmutable = true;
+      validateMeshGeometry(lockRing, 'createStorageArchiveSpindle:lockRing');
+      lockGroup.add(lockRing);
 
-      for (let i = 0; i < segmentCount; i++) {
-        // Create disc segment
-        const discGeometry = new THREE.CylinderGeometry(
-          segmentRadius,
-          segmentRadius,
-          segmentHeight,
-          12
+      const lockBar = new THREE.Mesh(geometries.lockBarGeometry, materials.accessMat);
+      lockBar.name = 'ArchiveSpindleLockBar';
+      lockBar.position.set(-0.22, 0.05, 0.02);
+      lockBar.rotation.set(0.08, -0.12, 0.16);
+      lockBar.scale.set(1.0, 1.02, 0.8);
+      lockBar.renderOrder = archOrder;
+      lockBar.userData.isArchiveSpindleGateAnchor = true;
+      lockBar.userData.baseRotation = lockBar.rotation.clone();
+      lockBar.userData.visualCoreImmutable = true;
+      validateMeshGeometry(lockBar, 'createStorageArchiveSpindle:lockBar');
+      lockGroup.add(lockBar);
+
+      const lockChip = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.16, 1, 1, 1), materials.seedMat);
+      lockChip.name = 'ArchiveSpindleLockChip';
+      lockChip.position.set(-0.04, 0.35, 0.06);
+      lockChip.rotation.set(0.1, 0.02, -0.18);
+      lockChip.renderOrder = coreOrder;
+      lockChip.userData.isArchiveSpindleGateLatch = true;
+      lockChip.userData.visualCoreImmutable = true;
+      validateMeshGeometry(lockChip, 'createStorageArchiveSpindle:lockChip');
+      lockGroup.add(lockChip);
+
+      group.add(lockGroup);
+
+      const accessGroup = new THREE.Group();
+      accessGroup.name = 'ACCESS_GROUP';
+      accessGroup.userData.isArchiveSpindleAccessGroup = true;
+      accessGroup.userData.basePosition = new THREE.Vector3(0.4, -0.02, 0.06);
+      accessGroup.userData.baseRotation = new THREE.Euler(-0.06, -0.12, 0.14);
+      accessGroup.position.copy(accessGroup.userData.basePosition);
+      accessGroup.rotation.copy(accessGroup.userData.baseRotation);
+
+      const accessFrame = new THREE.Mesh(geometries.accessFrameGeometry, materials.accessMat);
+      accessFrame.name = 'ArchiveSpindleAccessFrame';
+      accessFrame.position.set(0.0, 0.0, 0.0);
+      accessFrame.rotation.set(0.04, 0.18, -0.08);
+      accessFrame.scale.set(1.0, 1.02, 0.82);
+      accessFrame.renderOrder = archOrder;
+      accessFrame.userData.isArchiveSpindleGateAnchor = true;
+      accessFrame.userData.baseRotation = accessFrame.rotation.clone();
+      accessFrame.userData.visualCoreImmutable = true;
+      validateMeshGeometry(accessFrame, 'createStorageArchiveSpindle:accessFrame');
+      accessGroup.add(accessFrame);
+
+      const accessBrace = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.08, 0.1, 1, 1, 1), materials.shellMat);
+      accessBrace.name = 'ArchiveSpindleAccessBrace';
+      accessBrace.position.set(-0.14, -0.18, 0.02);
+      accessBrace.rotation.set(0.18, -0.28, 0.26);
+      accessBrace.scale.set(1.18, 0.96, 0.86);
+      accessBrace.renderOrder = archOrder;
+      accessBrace.userData.isArchiveSpindleAccessBrace = true;
+      accessBrace.userData.baseRotation = accessBrace.rotation.clone();
+      accessBrace.userData.visualCoreImmutable = true;
+      validateMeshGeometry(accessBrace, 'createStorageArchiveSpindle:accessBrace');
+      accessGroup.add(accessBrace);
+
+      const accessChip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.08, 1, 1, 1), materials.lockMat);
+      accessChip.name = 'ArchiveSpindleAccessChip';
+      accessChip.position.set(0.1, 0.22, 0.03);
+      accessChip.rotation.set(-0.08, 0.04, 0.12);
+      accessChip.renderOrder = coreOrder;
+      accessChip.userData.isArchiveSpindleAccessChip = true;
+      accessChip.userData.baseRotation = accessChip.rotation.clone();
+      accessChip.userData.visualCoreImmutable = true;
+      validateMeshGeometry(accessChip, 'createStorageArchiveSpindle:accessChip');
+      accessGroup.add(accessChip);
+
+      group.add(accessGroup);
+
+      const orbitGroup = new THREE.Group();
+      orbitGroup.name = 'ARCHIVE_ORBIT_GROUP';
+      orbitGroup.userData.isArchiveSpindleOrbitGroup = true;
+      orbitGroup.userData.baseRotation = new THREE.Euler(0.08, -0.12, 0.04);
+      orbitGroup.position.set(-0.02, 0.01, -0.01);
+      orbitGroup.rotation.copy(orbitGroup.userData.baseRotation);
+
+      const orbitSpecs = [
+        { angle: 0.18, radius: 0.88, height: 0.2, scale: [0.86, 0.54, 0.98] },
+        { angle: 1.42, radius: 0.74, height: -0.06, scale: [0.76, 0.58, 0.88] },
+        { angle: 2.62, radius: 0.98, height: -0.14, scale: [0.92, 0.46, 0.82] },
+        { angle: 4.12, radius: 0.8, height: 0.12, scale: [0.82, 0.5, 0.94] },
+        { angle: 5.34, radius: 0.9, height: 0.02, scale: [0.72, 0.44, 0.84] }
+      ];
+
+      orbitSpecs.forEach((spec, idx) => {
+        const fragment = new THREE.Mesh(geometries.orbitFragmentGeometry, materials.orbitMat);
+        fragment.name = `ArchiveSpindleOrbit_${idx}`;
+        const orbitOffset = new THREE.Vector3(
+          Math.cos(spec.angle) * spec.radius,
+          spec.height,
+          Math.sin(spec.angle) * spec.radius
         );
-        const disc = new THREE.Mesh(discGeometry, strataMaterial);
-        
-        // Position with slight offset for visual depth
-        const yPos = (i - segmentCount / 2) * (segmentHeight + 0.08);
-        const offsetFactor = Math.sin(i * 0.6) * 0.04;
-        
-        disc.position.y = yPos;
-        disc.rotation.z = offsetFactor * 0.3;
-        disc.userData.strataIndex = i;
-        disc.userData.visualCoreImmutable = true;
-        
-        group.add(disc);
-      }
+        fragment.position.copy(orbitOffset);
+        fragment.rotation.set(0.22 + rng() * 0.18, spec.angle * 0.4, -0.12 + rng() * 0.18);
+        fragment.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+        fragment.renderOrder = archOrder;
+        fragment.userData.isArchiveSpindleOrbitFragment = true;
+        fragment.userData.baseOrbitPosition = orbitOffset.clone();
+        fragment.userData.baseRotation = fragment.rotation.clone();
+        fragment.userData.baseOrbitAngle = spec.angle;
+        fragment.userData.baseOrbitRadius = spec.radius;
+        fragment.userData.baseOrbitHeight = spec.height;
+        fragment.userData.orbitSpeed = 0.03 + rng() * 0.018;
+        fragment.userData.orbitRadiusDrift = 0.012 + rng() * 0.004;
+        fragment.userData.orbitHeightDrift = 0.006 + rng() * 0.004;
+        fragment.userData.orbitPhase = phase + idx * 0.72;
+        fragment.userData.visualCoreImmutable = true;
+        validateMeshGeometry(fragment, `createStorageArchiveSpindle:orbitFragment${idx}`);
+        orbitGroup.add(fragment);
+      });
+      group.add(orbitGroup);
 
-      // Add subtle decorative ring bands between segments
-      for (let i = 0; i < segmentCount - 1; i++) {
-        const bandGeometry = new THREE.TorusGeometry(segmentRadius + 0.08, 0.04, 8, 32);
-        const bandMaterial = new THREE.MeshBasicMaterial({
-          color: color,
-          transparent: true,
-          opacity: 0.3
-        });
-        const band = new THREE.Mesh(bandGeometry, bandMaterial);
-        
-        const yPos = (i + 1 - segmentCount / 2) * (segmentHeight + 0.08) - (segmentHeight + 0.04);
-        band.position.y = yPos;
-        band.userData.visualCoreImmutable = true;
-        
-        group.add(band);
-      }
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+      auraGroup.userData.isArchiveSpindleAuraGroup = true;
+      auraGroup.userData.baseRotation = new THREE.Euler(0.02, 0.08, -0.04);
+      auraGroup.rotation.copy(auraGroup.userData.baseRotation);
 
-      // Store animation metadata (transform-only, no vertex/material mutation)
-      group.userData.spindleRotationSpeed = 0.12; // Slow axial rotation
-      group.userData.spindleOscillationAmplitude = 0.06; // Small vertical oscillation
-      group.userData.spindleOscillationSpeed = 0.4;
+      const auraPoints = new THREE.Points(geometries.dustGeometry, materials.auraMat);
+      auraPoints.name = 'ArchiveSpindleAuraDust';
+      auraPoints.position.set(-0.04, 0.02, 0.02);
+      auraPoints.rotation.set(0.08, 0.12, -0.04);
+      auraPoints.renderOrder = archOrder + 1;
+      auraPoints.userData.isArchiveSpindleAuraDust = true;
+      auraPoints.userData.visualCoreImmutable = true;
+      validateMeshGeometry(auraPoints, 'createStorageArchiveSpindle:auraPoints');
+      auraGroup.add(auraPoints);
 
+      group.add(auraGroup);
+
+      group.userData.archiveSpindlePhase = phase;
+      group.userData.archiveSpindleCoreGroup = coreGroup;
+      group.userData.archiveSpindleCoreMesh = core;
+      group.userData.archiveSpindleCoreSeed = coreSeed;
+      group.userData.archiveSpindleCoreSeam = coreSeam;
+      group.userData.archiveSpindleShellGroup = shellGroup;
+      group.userData.archiveSpindleLockGroup = lockGroup;
+      group.userData.archiveSpindleAccessGroup = accessGroup;
+      group.userData.archiveSpindleOrbitGroup = orbitGroup;
+      group.userData.archiveSpindleAuraGroup = auraGroup;
+      group.userData.archiveSpindleCompressionSpeed = 0.24 + rng() * 0.08;
+      group.userData.archiveSpindleCompressionAmplitude = 0.012 + rng() * 0.006;
+      group.userData.archiveSpindleShellDriftSpeed = 0.045 + rng() * 0.022;
+      group.userData.archiveSpindleShellDriftAmplitude = 0.016 + rng() * 0.006;
+      group.userData.archiveSpindleOrbitSpeed = 0.028 + rng() * 0.014;
+      group.userData.archiveSpindleLockPulseSpeed = 0.38 + rng() * 0.1;
+      group.userData.archiveSpindleLockPulseAmplitude = 0.008 + rng() * 0.004;
+      group.userData.archiveSpindleAccessHingeSpeed = 0.16 + rng() * 0.04;
+      group.userData.archiveSpindleAccessHingeAmplitude = 0.01 + rng() * 0.004;
+      group.userData.archiveSpindleAuraDriftSpeed = 0.024 + rng() * 0.01;
+      group.userData.visualVariant = 'STORAGE_ARCHIVE_SPINDLE_V2';
       group.userData.visualCoreImmutable = true;
-      group.userData.nodeGeometryName = 'STORAGE_ARCHIVE_SPINDLE';
+      group.userData.nodeGeometryName = 'STORAGE_ARCHIVE_SPINDLE_V2';
+      group.userData.visualReady = true;
 
       return group;
     } catch (err) {
@@ -28443,17 +30749,168 @@ static createStorageNode0(group, color) {
       }
     }
 
-    // POLISH: Animate ARCHIVE_SPINDLE (axial rotation + vertical oscillation)
-    if (nodeGroup.userData.spindleRotationSpeed) {
-      // Axial rotation (Y-axis)
-      nodeGroup.rotation.y += deltaTime * nodeGroup.userData.spindleRotationSpeed;
-      
-      // Vertical oscillation (stored in baseY)
-      if (!nodeGroup.userData.baseY) {
-        nodeGroup.userData.baseY = nodeGroup.position.y;
+    // POLISH: Animate ARCHIVE_SPINDLE V2 (asymmetric vault + compression + sparse data flow)
+    if (nodeGroup.userData.nodeGeometryName === 'STORAGE_ARCHIVE_SPINDLE_V2'
+      || nodeGroup.userData.nodeGeometryName === 'STORAGE_ARCHIVE_SPINDLE') {
+      const coreGroup = nodeGroup.userData.archiveSpindleCoreGroup
+        || nodeGroup.children.find(c => c.userData && c.userData.isArchiveSpindleCoreGroup);
+      const shellGroup = nodeGroup.userData.archiveSpindleShellGroup
+        || nodeGroup.children.find(c => c.userData && c.userData.isArchiveSpindleShellGroup);
+      const lockGroup = nodeGroup.userData.archiveSpindleLockGroup
+        || nodeGroup.children.find(c => c.userData && c.userData.isArchiveSpindleLockGroup);
+      const accessGroup = nodeGroup.userData.archiveSpindleAccessGroup
+        || nodeGroup.children.find(c => c.userData && c.userData.isArchiveSpindleAccessGroup);
+      const orbitGroup = nodeGroup.userData.archiveSpindleOrbitGroup
+        || nodeGroup.children.find(c => c.userData && c.userData.isArchiveSpindleOrbitGroup);
+      const auraGroup = nodeGroup.userData.archiveSpindleAuraGroup
+        || nodeGroup.children.find(c => c.userData && c.userData.isArchiveSpindleAuraGroup);
+      const coreSeed = nodeGroup.userData.archiveSpindleCoreSeed
+        || coreGroup?.children?.find(c => c.userData && c.userData.isArchiveSpindleSeed);
+      const coreSeam = nodeGroup.userData.archiveSpindleCoreSeam
+        || coreGroup?.children?.find(c => c.userData && c.userData.isArchiveSpindleSeam);
+      const phase = nodeGroup.userData.archiveSpindlePhase || 0;
+
+      if (shellGroup) {
+        const shellDriftSpeed = nodeGroup.userData.archiveSpindleShellDriftSpeed || 0.1;
+        const shellDriftAmplitude = nodeGroup.userData.archiveSpindleShellDriftAmplitude || 0.018;
+        const compressionSpeed = nodeGroup.userData.archiveSpindleCompressionSpeed || 0.34;
+        const compressionAmplitude = nodeGroup.userData.archiveSpindleCompressionAmplitude || 0.014;
+        const compressionPulse = Math.sin(time * compressionSpeed + phase) * compressionAmplitude;
+        shellGroup.rotation.y += deltaTime * shellDriftSpeed;
+        shellGroup.rotation.x = (shellGroup.userData.baseRotation?.x || 0) + Math.sin(time * shellDriftSpeed * 0.58 + phase) * shellDriftAmplitude * 0.45;
+        shellGroup.rotation.z = (shellGroup.userData.baseRotation?.z || 0) + Math.cos(time * shellDriftSpeed * 0.72 + phase * 0.63) * shellDriftAmplitude * 0.4;
+        shellGroup.scale.set(
+          1.0 - compressionPulse * 0.9,
+          1.0 + compressionPulse * 0.18,
+          1.0 - compressionPulse * 0.82
+        );
+
+        shellGroup.children.forEach((fragment, idx) => {
+          if (!fragment.userData?.isArchiveSpindleShellFragment) return;
+          const basePosition = fragment.userData.basePosition;
+          const baseRotation = fragment.userData.baseRotation;
+          const compressionVector = fragment.userData.compressionVector;
+          const compressionSpeed = fragment.userData.compressionSpeed || 0.62;
+          const compressionAmplitude = fragment.userData.compressionAmplitude || 0.014;
+          const driftPhase = fragment.userData.driftPhase || 0;
+          const pull = Math.sin(time * compressionSpeed + driftPhase + phase) * compressionAmplitude;
+          if (basePosition && compressionVector) {
+            fragment.position.set(basePosition.x, basePosition.y, basePosition.z);
+            fragment.position.addScaledVector(compressionVector, pull);
+          }
+          if (baseRotation) {
+            fragment.rotation.x = baseRotation.x + Math.sin(time * 0.11 + driftPhase) * 0.016;
+            fragment.rotation.y = baseRotation.y + deltaTime * (fragment.userData.shellSpinSpeed || 0.01) + idx * 0.002;
+            fragment.rotation.z = baseRotation.z + Math.cos(time * 0.1 + driftPhase) * 0.012;
+          }
+        });
       }
-      const oscillation = Math.sin(time * nodeGroup.userData.spindleOscillationSpeed) * nodeGroup.userData.spindleOscillationAmplitude;
-      nodeGroup.position.y = nodeGroup.userData.baseY + oscillation;
+
+      if (lockGroup) {
+        const lockPulseSpeed = nodeGroup.userData.archiveSpindleLockPulseSpeed || 0.42;
+        const lockPulseAmplitude = nodeGroup.userData.archiveSpindleLockPulseAmplitude || 0.01;
+        lockGroup.rotation.z = (lockGroup.userData.baseRotation?.z || 0) + Math.sin(time * lockPulseSpeed + phase * 0.7) * lockPulseAmplitude;
+        lockGroup.rotation.y += deltaTime * lockPulseSpeed * 0.06;
+
+        lockGroup.children.forEach(part => {
+          if (part.userData?.isArchiveSpindleGateRing) {
+            const baseRotation = part.userData.baseRotation;
+            const baseScale = part.userData.baseScale;
+            const ringPulse = 1 + Math.sin(time * lockPulseSpeed + phase) * lockPulseAmplitude * 0.16;
+            if (baseScale) {
+              part.scale.set(baseScale.x * ringPulse, baseScale.y, baseScale.z * ringPulse);
+            }
+            if (baseRotation) {
+              part.rotation.x = baseRotation.x + Math.sin(time * lockPulseSpeed * 0.42 + phase) * lockPulseAmplitude * 0.24;
+              part.rotation.y = baseRotation.y + deltaTime * 0.008;
+              part.rotation.z = baseRotation.z + Math.cos(time * lockPulseSpeed * 0.55 + phase) * lockPulseAmplitude * 0.28;
+            }
+          }
+
+          if (part.userData?.isArchiveSpindleGateAnchor) {
+            part.rotation.z += deltaTime * 0.005;
+          }
+
+          if (part.userData?.isArchiveSpindleGateLatch) {
+            part.rotation.y += deltaTime * 0.006;
+          }
+        });
+      }
+
+      if (accessGroup) {
+        const accessHingeSpeed = nodeGroup.userData.archiveSpindleAccessHingeSpeed || 0.16;
+        const accessHingeAmplitude = nodeGroup.userData.archiveSpindleAccessHingeAmplitude || 0.01;
+        accessGroup.rotation.z = (accessGroup.userData.baseRotation?.z || 0) + Math.sin(time * accessHingeSpeed + phase * 0.5) * accessHingeAmplitude;
+        accessGroup.rotation.y -= deltaTime * accessHingeSpeed * 0.04;
+
+        accessGroup.children.forEach(part => {
+          if (part.userData?.isArchiveSpindleGateAnchor || part.userData?.isArchiveSpindleAccessBrace) {
+            const baseRotation = part.userData.baseRotation;
+            if (baseRotation) {
+              part.rotation.x = baseRotation.x + Math.sin(time * accessHingeSpeed * 0.72 + phase) * accessHingeAmplitude * 0.18;
+              part.rotation.y = baseRotation.y + Math.cos(time * accessHingeSpeed * 0.58 + phase) * accessHingeAmplitude * 0.22;
+              part.rotation.z = baseRotation.z + deltaTime * 0.004;
+            }
+          }
+
+          if (part.userData?.isArchiveSpindleAccessChip) {
+            part.rotation.z += deltaTime * 0.006;
+          }
+        });
+      }
+
+      if (orbitGroup) {
+        const orbitSpeed = nodeGroup.userData.archiveSpindleOrbitSpeed || 0.05;
+        orbitGroup.rotation.y += deltaTime * orbitSpeed;
+        orbitGroup.rotation.x = (orbitGroup.userData.baseRotation?.x || 0) + Math.sin(time * orbitSpeed * 0.68 + phase) * 0.018;
+        orbitGroup.rotation.z = (orbitGroup.userData.baseRotation?.z || 0) + Math.cos(time * orbitSpeed * 0.52 + phase * 0.83) * 0.012;
+
+        orbitGroup.children.forEach(fragment => {
+          if (!fragment.userData?.isArchiveSpindleOrbitFragment) return;
+          const baseOrbitAngle = fragment.userData.baseOrbitAngle || 0;
+          const baseOrbitRadius = fragment.userData.baseOrbitRadius || 0.82;
+          const baseOrbitHeight = fragment.userData.baseOrbitHeight || 0;
+          const orbitPhase = time * (fragment.userData.orbitSpeed || orbitSpeed) + baseOrbitAngle + phase;
+          const orbitRadius = baseOrbitRadius + Math.sin(time * 0.32 + fragment.userData.orbitPhase) * (fragment.userData.orbitRadiusDrift || 0.01);
+          const orbitHeight = baseOrbitHeight + Math.sin(time * 0.22 + fragment.userData.orbitPhase) * (fragment.userData.orbitHeightDrift || 0.008);
+
+          fragment.position.set(
+            Math.cos(orbitPhase) * orbitRadius,
+            orbitHeight,
+            Math.sin(orbitPhase) * orbitRadius
+          );
+
+          const baseRotation = fragment.userData.baseRotation;
+          if (baseRotation) {
+            fragment.rotation.x = baseRotation.x + Math.sin(orbitPhase * 0.7) * 0.08;
+            fragment.rotation.y = baseRotation.y + orbitPhase * 0.18;
+            fragment.rotation.z = baseRotation.z + Math.cos(orbitPhase * 0.86) * 0.06;
+          }
+        });
+      }
+
+      if (auraGroup) {
+        const auraDriftSpeed = nodeGroup.userData.archiveSpindleAuraDriftSpeed || 0.024;
+        auraGroup.rotation.y += deltaTime * auraDriftSpeed;
+        auraGroup.rotation.x = (auraGroup.userData.baseRotation?.x || 0) + Math.sin(time * auraDriftSpeed * 0.66 + phase) * 0.008;
+        auraGroup.rotation.z = (auraGroup.userData.baseRotation?.z || 0) + Math.cos(time * auraDriftSpeed * 0.74 + phase) * 0.006;
+      }
+
+      if (coreGroup) {
+        coreGroup.position.copy(coreGroup.userData.basePosition || coreGroup.position);
+        coreGroup.rotation.copy(coreGroup.userData.baseRotation || coreGroup.rotation);
+        if (coreSeed) {
+          const corePulse = Math.sin(time * (nodeGroup.userData.archiveSpindleCompressionSpeed || 0.24) + phase) * (nodeGroup.userData.archiveSpindleCompressionAmplitude || 0.012);
+          coreSeed.position.set(0.03, 0.05, -0.01);
+          coreSeed.rotation.set(0.18, 0.44 + corePulse * 0.32, -0.12);
+          coreSeed.scale.set(0.86 + corePulse * 0.08, 0.98 - corePulse * 0.03, 0.8 + corePulse * 0.06);
+        }
+        if (coreSeam) {
+          const seamPulse = Math.sin(time * (nodeGroup.userData.archiveSpindleCompressionSpeed || 0.24) * 1.1 + phase * 0.9) * 0.004;
+          coreSeam.rotation.y = (coreSeam.userData?.baseRotation?.y || coreSeam.rotation.y) + seamPulse * 2.2;
+          coreSeam.scale.set(0.92 + seamPulse * 0.6, 1.0, 0.86 + seamPulse * 0.8);
+        }
+      }
     }
 
     // POLISH: Animate MEMORY_REEF (shard orbital animation)
@@ -29028,6 +31485,186 @@ static createStorageNode0(group, color) {
       // Breathing removed; scale remains unchanged
     }
 
+    if (nodeGroup.userData.nodeGeometryName === 'ANALYTICS_FRACTURED_ORACLE_V4') {
+      const refs = nodeGroup.userData.fracturedOracleRefs || {};
+      const phase = nodeGroup.userData.fracturedOraclePhase || 0;
+      const corePulseSpeed = nodeGroup.userData.fracturedOracleCorePulseSpeed || 0.44;
+      const corePulseAmplitude = nodeGroup.userData.fracturedOracleCorePulseAmplitude || 0.013;
+      const diademPrecessionSpeed = nodeGroup.userData.fracturedOracleDiademPrecessionSpeed || 0.01;
+      const resonanceBreathSpeed = nodeGroup.userData.fracturedOracleResonanceBreathSpeed || 0.22;
+      const projectionDriftSpeed = nodeGroup.userData.fracturedOracleProjectionDriftSpeed || 0.028;
+      const auraDriftSpeed = nodeGroup.userData.fracturedOracleAuraDriftSpeed || 0.014;
+
+      nodeGroup.rotation.y += deltaTime * 0.0078;
+      nodeGroup.rotation.x = Math.sin(time * 0.024 + phase) * 0.0055;
+      nodeGroup.rotation.z = Math.cos(time * 0.022 + phase * 0.86) * 0.0042;
+
+      if (refs.coreGroup) {
+        refs.coreGroup.rotation.y += deltaTime * 0.01;
+        refs.coreGroup.rotation.x = Math.sin(time * 0.05 + phase) * 0.006;
+        refs.coreGroup.rotation.z = Math.cos(time * 0.044 + phase * 0.72) * 0.004;
+      }
+      if (refs.coreSeed) {
+        const baseScale = refs.coreSeed.userData.baseScale || (refs.coreSeed.userData.baseScale = refs.coreSeed.scale.clone());
+        const pulse = 1 + Math.sin(time * corePulseSpeed + phase) * corePulseAmplitude;
+        refs.coreSeed.scale.set(
+          baseScale.x * pulse,
+          baseScale.y * (1 + Math.cos(time * corePulseSpeed * 0.94 + phase + 0.24) * corePulseAmplitude * 0.52),
+          baseScale.z * pulse
+        );
+        refs.coreSeed.rotation.y += deltaTime * 0.018;
+        refs.coreSeed.rotation.x += deltaTime * 0.008;
+        if (refs.coreEdges) {
+          refs.coreEdges.position.copy(refs.coreSeed.position);
+          refs.coreEdges.rotation.copy(refs.coreSeed.rotation);
+          refs.coreEdges.scale.copy(refs.coreSeed.scale);
+        }
+      }
+      if (refs.seamVoid) {
+        refs.seamVoid.rotation.y += deltaTime * 0.0065;
+        refs.seamVoid.rotation.x = Math.sin(time * 0.04 + phase) * 0.006;
+        refs.seamVoid.rotation.z = Math.cos(time * 0.037 + phase * 0.66) * 0.0045;
+        if (refs.seamVoidEdges) {
+          refs.seamVoidEdges.position.copy(refs.seamVoid.position);
+          refs.seamVoidEdges.rotation.copy(refs.seamVoid.rotation);
+          refs.seamVoidEdges.scale.copy(refs.seamVoid.scale);
+        }
+      }
+
+      if (refs.diademGroup) {
+        refs.diademGroup.rotation.y += deltaTime * diademPrecessionSpeed;
+        refs.diademGroup.rotation.x = Math.sin(time * 0.046 + phase) * 0.01;
+        refs.diademGroup.rotation.z = Math.cos(time * 0.042 + phase * 0.74) * 0.007;
+      }
+      if (Array.isArray(refs.diademParts)) {
+        refs.diademParts.forEach((part, idx) => {
+          const baseRotation = part.userData.baseRotation || (part.userData.baseRotation = part.rotation.clone());
+          const baseScale = part.userData.baseScale || (part.userData.baseScale = part.scale.clone());
+          const basePosition = part.userData.basePosition || (part.userData.basePosition = part.position.clone());
+          const partPhase = part.userData.diademPhase || idx * 0.7;
+          const crownPulse = 1 + Math.sin(time * resonanceBreathSpeed * 0.92 + partPhase) * (0.012 + idx * 0.002);
+          part.position.set(
+            basePosition.x + Math.sin(time * 0.022 + partPhase) * (0.004 + idx * 0.001),
+            basePosition.y + Math.cos(time * 0.02 + partPhase) * (0.0035 + idx * 0.001),
+            basePosition.z + Math.sin(time * 0.018 + partPhase) * (0.003 + idx * 0.001)
+          );
+          part.rotation.x = baseRotation.x + Math.sin(time * 0.04 + partPhase) * 0.012;
+          part.rotation.y = baseRotation.y + deltaTime * (0.005 + idx * 0.001);
+          part.rotation.z = baseRotation.z + Math.cos(time * 0.036 + partPhase) * 0.01;
+          part.scale.set(
+            baseScale.x * crownPulse,
+            baseScale.y * (1 + Math.cos(time * 0.038 + partPhase) * 0.006),
+            baseScale.z * (1 + Math.sin(time * 0.034 + partPhase) * 0.005)
+          );
+          if (part.userData.edgeRef) {
+            part.userData.edgeRef.position.copy(part.position);
+            part.userData.edgeRef.rotation.copy(part.rotation);
+            part.userData.edgeRef.scale.copy(part.scale);
+          }
+        });
+      }
+
+      if (refs.resonanceGroup) {
+        refs.resonanceGroup.rotation.y += deltaTime * 0.0058;
+        refs.resonanceGroup.rotation.x = Math.sin(time * 0.038 + phase) * 0.008;
+        refs.resonanceGroup.rotation.z = Math.cos(time * 0.033 + phase * 0.69) * 0.006;
+      }
+      if (Array.isArray(refs.resonanceParts)) {
+        refs.resonanceParts.forEach((part, idx) => {
+          const baseRotation = part.userData.baseRotation || (part.userData.baseRotation = part.rotation.clone());
+          const baseScale = part.userData.baseScale || (part.userData.baseScale = part.scale.clone());
+          const basePosition = part.userData.basePosition || (part.userData.basePosition = part.position.clone());
+          const partPhase = part.userData.resonancePhase || idx * 0.61;
+          const inward = 0.009 + idx * 0.0022;
+          const breath = 1 + Math.sin(time * resonanceBreathSpeed + partPhase) * (0.01 + idx * 0.0015);
+          part.position.set(
+            basePosition.x + Math.sin(time * 0.028 + partPhase) * inward * 0.8,
+            basePosition.y + Math.cos(time * 0.026 + partPhase) * inward * 0.62,
+            basePosition.z + Math.sin(time * 0.024 + partPhase) * inward * 0.72
+          );
+          part.rotation.x = baseRotation.x + Math.sin(time * 0.034 + partPhase) * 0.01;
+          part.rotation.y = baseRotation.y + deltaTime * (0.006 + idx * 0.0012);
+          part.rotation.z = baseRotation.z + Math.cos(time * 0.03 + partPhase) * 0.008;
+          part.scale.set(
+            baseScale.x * breath,
+            baseScale.y * (1 + Math.cos(time * 0.031 + partPhase) * 0.005),
+            baseScale.z * (1 + Math.sin(time * 0.029 + partPhase) * 0.004)
+          );
+          if (part.userData.edgeRef) {
+            part.userData.edgeRef.position.copy(part.position);
+            part.userData.edgeRef.rotation.copy(part.rotation);
+            part.userData.edgeRef.scale.copy(part.scale);
+          }
+        });
+      }
+
+      if (refs.projectionGroup) {
+        refs.projectionGroup.rotation.y += deltaTime * projectionDriftSpeed;
+        refs.projectionGroup.rotation.x = Math.sin(time * 0.034 + phase) * 0.009;
+        refs.projectionGroup.rotation.z = Math.cos(time * 0.03 + phase * 0.71) * 0.006;
+      }
+      if (Array.isArray(refs.projectionParts)) {
+        refs.projectionParts.forEach((part, idx) => {
+          const basePosition = part.userData.basePosition || (part.userData.basePosition = part.position.clone());
+          const baseRotation = part.userData.baseRotation || (part.userData.baseRotation = part.rotation.clone());
+          const baseScale = part.userData.baseScale || (part.userData.baseScale = part.scale.clone());
+          const partPhase = part.userData.projectionPhase || idx * 0.59;
+          const drift = 0.008 + idx * 0.0024;
+          part.position.set(
+            basePosition.x + Math.cos(time * (0.042 + idx * 0.004) + partPhase) * drift,
+            basePosition.y + Math.sin(time * (0.038 + idx * 0.003) + partPhase) * drift * 0.72,
+            basePosition.z + Math.sin(time * (0.036 + idx * 0.003) + partPhase) * drift * 0.84
+          );
+          part.rotation.x = baseRotation.x + Math.sin(time * 0.04 + partPhase) * 0.012;
+          part.rotation.y = baseRotation.y + deltaTime * (0.014 + idx * 0.002);
+          part.rotation.z = baseRotation.z + Math.cos(time * 0.036 + partPhase) * 0.01;
+          part.scale.set(
+            baseScale.x * (1 + Math.sin(time * 0.028 + partPhase) * 0.005),
+            baseScale.y * (1 + Math.cos(time * 0.03 + partPhase) * 0.004),
+            baseScale.z * (1 + Math.sin(time * 0.026 + partPhase) * 0.004)
+          );
+          if (part.userData.edgeRef) {
+            part.userData.edgeRef.position.copy(part.position);
+            part.userData.edgeRef.rotation.copy(part.rotation);
+            part.userData.edgeRef.scale.copy(part.scale);
+          }
+        });
+      }
+
+      if (refs.auraGroup) {
+        refs.auraGroup.rotation.y += deltaTime * auraDriftSpeed;
+        refs.auraGroup.rotation.x = Math.sin(time * 0.03 + phase) * 0.006;
+        refs.auraGroup.rotation.z = Math.cos(time * 0.028 + phase * 0.64) * 0.0045;
+      }
+      if (refs.telemetryLine) {
+        refs.telemetryLine.rotation.y += deltaTime * 0.003;
+        refs.telemetryLine.rotation.x = Math.sin(time * 0.04 + phase) * 0.004;
+        refs.telemetryLine.rotation.z = Math.cos(time * 0.035 + phase * 0.58) * 0.003;
+      }
+      if (Array.isArray(refs.dustParticles)) {
+        refs.dustParticles.forEach((dust, idx) => {
+          const basePosition = dust.userData.basePosition || (dust.userData.basePosition = dust.position.clone());
+          const baseRotation = dust.userData.baseRotation || (dust.userData.baseRotation = dust.rotation.clone());
+          const baseScale = dust.userData.baseScale || (dust.userData.baseScale = dust.scale.clone());
+          const dustPhase = dust.userData.dustPhase || idx * 0.83;
+          dust.position.set(
+            basePosition.x + Math.sin(time * 0.04 + dustPhase) * 0.004,
+            basePosition.y + Math.cos(time * 0.036 + dustPhase) * 0.004,
+            basePosition.z + Math.sin(time * 0.032 + dustPhase) * 0.003
+          );
+          dust.rotation.x = baseRotation.x + deltaTime * 0.012;
+          dust.rotation.y = baseRotation.y + deltaTime * 0.01;
+          dust.rotation.z = baseRotation.z + deltaTime * 0.008;
+          const pulse = 1 + Math.sin(time * 0.05 + dustPhase) * 0.018;
+          dust.scale.set(
+            baseScale.x * pulse,
+            baseScale.y * (1 + Math.cos(time * 0.046 + dustPhase) * 0.012),
+            baseScale.z * pulse
+          );
+        });
+      }
+    }
+
     // POLISH: Animate PARALLAX_ORACLE (planes rotate independently, core stable)
     if (nodeGroup.userData.observerPlaneCount) {
       nodeGroup.children.forEach(child => {
@@ -29131,6 +31768,411 @@ static createStorageNode0(group, color) {
         child.rotation.y += deltaTime * 0.2;
       }
     });
+
+    if (nodeGroup.userData.nodeGeometryName === 'ANALYTICS_OBSERVER_LENS_V4') {
+      const refs = nodeGroup.userData.analyticsObserverLensRefs || {};
+      const phase = nodeGroup.userData.analyticsObserverLensPhase || 0;
+      const spinSpeed = nodeGroup.userData.analyticsObserverLensSpinSpeed || 0.0125;
+      const wobbleSpeed = nodeGroup.userData.analyticsObserverLensWobbleSpeed || 0.52;
+      const wobbleAmp = nodeGroup.userData.analyticsObserverLensWobbleAmplitude || 0.011;
+      const plateBreathSpeed = nodeGroup.userData.analyticsObserverLensPlateBreathSpeed || 0.34;
+      const haloSpeed = nodeGroup.userData.analyticsObserverLensHaloSpeed || 0.024;
+      const frameSpeed = nodeGroup.userData.analyticsObserverLensFrameSpeed || 0.018;
+
+      nodeGroup.rotation.y += deltaTime * spinSpeed;
+      nodeGroup.rotation.x = Math.sin(time * 0.04 + phase) * wobbleAmp;
+      nodeGroup.rotation.z = Math.cos(time * 0.036 + phase * 1.17) * wobbleAmp * 0.72;
+
+      if (refs.coreGroup) {
+        refs.coreGroup.rotation.y += deltaTime * 0.018;
+        refs.coreGroup.rotation.x = Math.sin(time * 0.11 + phase) * 0.016;
+        refs.coreGroup.rotation.z = Math.cos(time * 0.09 + phase * 0.8) * 0.01;
+      }
+      if (refs.irisSeed) {
+        const baseScale = refs.irisSeed.userData.baseScale || (refs.irisSeed.userData.baseScale = refs.irisSeed.scale.clone());
+        const pulse = 1 + Math.sin(time * wobbleSpeed + phase) * 0.013;
+        refs.irisSeed.scale.set(
+          baseScale.x * pulse,
+          baseScale.y * (1 + Math.sin(time * wobbleSpeed * 1.04 + phase + 0.35) * 0.01),
+          baseScale.z * pulse
+        );
+        refs.irisSeed.rotation.y += deltaTime * 0.05;
+        refs.irisSeed.rotation.x += deltaTime * 0.022;
+      }
+      if (refs.apertureSeed) {
+        const baseScale = refs.apertureSeed.userData.baseScale || (refs.apertureSeed.userData.baseScale = refs.apertureSeed.scale.clone());
+        const pulse = 1 + Math.cos(time * (wobbleSpeed * 0.92) + phase + 0.7) * 0.012;
+        refs.apertureSeed.scale.set(
+          baseScale.x * pulse,
+          baseScale.y * (1 + Math.sin(time * (wobbleSpeed * 1.16) + phase + 0.4) * 0.008),
+          baseScale.z * (1 + Math.cos(time * (wobbleSpeed * 0.88) + phase + 1.0) * 0.01)
+        );
+        refs.apertureSeed.rotation.y += deltaTime * 0.025;
+        refs.apertureSeed.rotation.x += deltaTime * 0.01;
+      }
+      if (refs.lensGroup) {
+        refs.lensGroup.rotation.y += deltaTime * 0.014;
+        refs.lensGroup.rotation.x = Math.sin(time * 0.12 + phase) * 0.018;
+        refs.lensGroup.rotation.z = Math.cos(time * 0.1 + phase * 0.72) * 0.012;
+      }
+      if (Array.isArray(refs.lensPlates)) {
+        refs.lensPlates.forEach((plate, idx) => {
+          const baseRotation = plate.userData.baseRotation || (plate.userData.baseRotation = plate.rotation.clone());
+          const baseScale = plate.userData.baseScale || (plate.userData.baseScale = plate.scale.clone());
+          const platePhase = plate.userData.platePhase || idx * 0.6;
+          const plateSpinSpeed = plate.userData.plateSpinSpeed || 0.011;
+          const plateBreath = 1 + Math.sin(time * plateBreathSpeed + platePhase) * (0.014 + idx * 0.002);
+          plate.rotation.x = baseRotation.x + Math.sin(time * 0.09 + platePhase) * 0.02;
+          plate.rotation.y = baseRotation.y + deltaTime * plateSpinSpeed;
+          plate.rotation.z = baseRotation.z + Math.cos(time * 0.08 + platePhase) * 0.016;
+          plate.scale.set(
+            baseScale.x * plateBreath,
+            baseScale.y * (1 + Math.cos(time * 0.1 + platePhase) * 0.01),
+            baseScale.z * (1 + Math.sin(time * 0.11 + platePhase) * 0.008)
+          );
+        });
+      }
+      if (refs.frameGroup) {
+        refs.frameGroup.rotation.y += deltaTime * frameSpeed;
+        refs.frameGroup.rotation.x = Math.sin(time * 0.13 + phase) * 0.012;
+        refs.frameGroup.rotation.z = Math.cos(time * 0.11 + phase * 0.82) * 0.01;
+      }
+      if (Array.isArray(refs.frameRails)) {
+        refs.frameRails.forEach((rail, idx) => {
+          const baseRotation = rail.userData.baseRotation || (rail.userData.baseRotation = rail.rotation.clone());
+          const baseScale = rail.userData.baseScale || (rail.userData.baseScale = rail.scale.clone());
+          const railPhase = rail.userData.framePhase || idx * 0.5;
+          const railSpinSpeed = rail.userData.frameSpinSpeed || 0.01;
+          rail.rotation.x = baseRotation.x + Math.sin(time * 0.1 + railPhase) * 0.01;
+          rail.rotation.y = baseRotation.y + deltaTime * railSpinSpeed;
+          rail.rotation.z = baseRotation.z + Math.cos(time * 0.09 + railPhase) * 0.008;
+          rail.scale.set(
+            baseScale.x * (1 + Math.sin(time * 0.08 + railPhase) * 0.006),
+            baseScale.y * (1 + Math.cos(time * 0.09 + railPhase) * 0.004),
+            baseScale.z * (1 + Math.sin(time * 0.07 + railPhase) * 0.005)
+          );
+        });
+      }
+      if (refs.haloGroup) {
+        refs.haloGroup.rotation.y += deltaTime * haloSpeed;
+        refs.haloGroup.rotation.x = Math.sin(time * 0.14 + phase) * 0.014;
+        refs.haloGroup.rotation.z = Math.cos(time * 0.12 + phase * 0.74) * 0.01;
+      }
+      if (Array.isArray(refs.haloArcs)) {
+        refs.haloArcs.forEach((arc, idx) => {
+          const baseRotation = arc.userData.baseRotation || (arc.userData.baseRotation = arc.rotation.clone());
+          const baseScale = arc.userData.baseScale || (arc.userData.baseScale = arc.scale.clone());
+          const arcPhase = arc.userData.haloPhase || idx * 0.7;
+          const arcSpinSpeed = arc.userData.haloSpinSpeed || 0.009;
+          arc.rotation.x = baseRotation.x + Math.sin(time * 0.08 + arcPhase) * 0.01;
+          arc.rotation.y = baseRotation.y + deltaTime * arcSpinSpeed;
+          arc.rotation.z = baseRotation.z + Math.cos(time * 0.07 + arcPhase) * 0.008;
+          arc.scale.set(
+            baseScale.x * (1 + Math.sin(time * 0.06 + arcPhase) * 0.008),
+            baseScale.y * (1 + Math.cos(time * 0.07 + arcPhase) * 0.006),
+            baseScale.z * (1 + Math.sin(time * 0.05 + arcPhase) * 0.007)
+          );
+        });
+      }
+      if (refs.auraGroup) {
+        refs.auraGroup.rotation.y += deltaTime * 0.006;
+        refs.auraGroup.rotation.x = Math.sin(time * 0.05 + phase) * 0.008;
+        refs.auraGroup.rotation.z = Math.cos(time * 0.045 + phase * 0.65) * 0.006;
+      }
+      if (refs.dust) {
+        refs.dust.rotation.y += deltaTime * 0.01;
+        refs.dust.rotation.x = Math.sin(time * 0.06 + phase) * 0.01;
+        refs.dust.rotation.z = Math.cos(time * 0.052 + phase * 0.48) * 0.008;
+      }
+      if (refs.telemetryLine) {
+        refs.telemetryLine.rotation.y += deltaTime * 0.004;
+        refs.telemetryLine.rotation.x = Math.sin(time * 0.075 + phase) * 0.006;
+      }
+    }
+
+    if (nodeGroup.userData.nodeGeometryName === 'ANALYTICS_CELESTIAL_INDEX_MONOLITH_V4') {
+      const refs = nodeGroup.userData.celestialIndexRefs || {};
+      const phase = nodeGroup.userData.celestialIndexPhase || 0;
+      const spinSpeed = nodeGroup.userData.celestialIndexSpinSpeed || 0.012;
+      const haloSpeed = nodeGroup.userData.celestialIndexHaloSpeed || 0.018;
+      const indexBreathSpeed = nodeGroup.userData.celestialIndexIndexBreathSpeed || 0.24;
+      const projectionSpeed = nodeGroup.userData.celestialIndexProjectionDriftSpeed || 0.038;
+      const auraSpeed = nodeGroup.userData.celestialIndexAuraSpeed || 0.02;
+
+      nodeGroup.rotation.y += deltaTime * spinSpeed;
+      nodeGroup.rotation.x = Math.sin(time * 0.038 + phase) * 0.01;
+      nodeGroup.rotation.z = Math.cos(time * 0.031 + phase * 1.11) * 0.008;
+
+      if (refs.coreGroup) {
+        refs.coreGroup.rotation.y += deltaTime * 0.018;
+        refs.coreGroup.rotation.x = Math.sin(time * 0.09 + phase) * 0.014;
+        refs.coreGroup.rotation.z = Math.cos(time * 0.07 + phase * 0.77) * 0.01;
+      }
+      if (refs.coreGroup?.children?.length) {
+        const seed = refs.coreGroup.children.find(child => child.userData?.isAnalyticsCelestialSeed);
+        const seam = refs.coreGroup.children.find(child => child.userData?.isAnalyticsCelestialSeam);
+        if (seed) {
+          const baseScale = seed.userData.baseScale || (seed.userData.baseScale = seed.scale.clone());
+          const pulse = 1 + Math.sin(time * indexBreathSpeed + phase) * 0.014;
+          seed.scale.set(
+            baseScale.x * pulse,
+            baseScale.y * (1 + Math.cos(time * indexBreathSpeed * 1.06 + phase + 0.28) * 0.01),
+            baseScale.z * pulse
+          );
+          seed.rotation.y += deltaTime * 0.028;
+          seed.rotation.x += deltaTime * 0.018;
+        }
+        if (seam) {
+          seam.rotation.y = (seam.userData.baseRotation?.y || 0) + Math.sin(time * indexBreathSpeed * 0.74 + phase) * 0.03;
+          seam.rotation.z = (seam.userData.baseRotation?.z || 0) + Math.cos(time * indexBreathSpeed * 0.58 + phase) * 0.016;
+        }
+      }
+
+      if (refs.haloGroup) {
+        refs.haloGroup.rotation.y += deltaTime * haloSpeed;
+        refs.haloGroup.rotation.x = Math.sin(time * 0.12 + phase) * 0.015;
+        refs.haloGroup.rotation.z = Math.cos(time * 0.1 + phase * 0.78) * 0.01;
+      }
+      if (Array.isArray(refs.haloArcs)) {
+        refs.haloArcs.forEach((arc, idx) => {
+          const baseRotation = arc.userData.baseRotation || (arc.userData.baseRotation = arc.rotation.clone());
+          const baseScale = arc.userData.baseScale || (arc.userData.baseScale = arc.scale.clone());
+          const arcPhase = arc.userData.haloPhase || idx * 0.7;
+          const arcSpinSpeed = arc.userData.haloSpinSpeed || 0.009;
+          arc.rotation.x = baseRotation.x + Math.sin(time * 0.08 + arcPhase) * 0.01;
+          arc.rotation.y = baseRotation.y + deltaTime * arcSpinSpeed;
+          arc.rotation.z = baseRotation.z + Math.cos(time * 0.07 + arcPhase) * 0.008;
+          arc.scale.set(
+            baseScale.x * (1 + Math.sin(time * 0.06 + arcPhase) * 0.008),
+            baseScale.y * (1 + Math.cos(time * 0.07 + arcPhase) * 0.006),
+            baseScale.z * (1 + Math.sin(time * 0.05 + arcPhase) * 0.007)
+          );
+        });
+      }
+      if (refs.indexGroup) {
+        refs.indexGroup.rotation.y -= deltaTime * 0.01;
+        refs.indexGroup.rotation.x = Math.sin(time * 0.08 + phase) * 0.012;
+        refs.indexGroup.rotation.z = Math.cos(time * 0.065 + phase * 0.84) * 0.01;
+      }
+      if (Array.isArray(refs.indexSails)) {
+        refs.indexSails.forEach((sail, idx) => {
+          const baseRotation = sail.userData.baseRotation || (sail.userData.baseRotation = sail.rotation.clone());
+          const baseScale = sail.userData.baseScale || (sail.userData.baseScale = sail.scale.clone());
+          const sailPhase = sail.userData.sailPhase || idx * 0.6;
+          const breathSpeed = sail.userData.sailBreathSpeed || 0.24;
+          const breath = 1 + Math.sin(time * breathSpeed + sailPhase) * (0.012 + idx * 0.002);
+          sail.rotation.x = baseRotation.x + Math.sin(time * 0.09 + sailPhase) * 0.018;
+          sail.rotation.y = baseRotation.y + deltaTime * (sail.userData.sailSpinSpeed || 0.01);
+          sail.rotation.z = baseRotation.z + Math.cos(time * 0.08 + sailPhase) * 0.014;
+          sail.scale.set(
+            baseScale.x * breath,
+            baseScale.y * (1 + Math.cos(time * 0.1 + sailPhase) * 0.008),
+            baseScale.z * (1 + Math.sin(time * 0.11 + sailPhase) * 0.007)
+          );
+        });
+      }
+      if (refs.projectionGroup) {
+        refs.projectionGroup.rotation.y += deltaTime * projectionSpeed;
+        refs.projectionGroup.rotation.x = Math.sin(time * 0.11 + phase) * 0.018;
+        refs.projectionGroup.rotation.z = Math.cos(time * 0.09 + phase * 0.76) * 0.014;
+      }
+      if (Array.isArray(refs.projectionNeedles)) {
+        refs.projectionNeedles.forEach((needle, idx) => {
+          const basePos = needle.userData.basePosition || (needle.userData.basePosition = needle.position.clone());
+          const baseRot = needle.userData.baseRotation || (needle.userData.baseRotation = needle.rotation.clone());
+          const phaseOffset = needle.userData.needlePhase || idx * 0.5;
+          const orbitRadius = needle.userData.needleOrbitRadius || 0.05;
+          const orbitSpeed = needle.userData.needleOrbitSpeed || 0.16;
+          needle.position.set(
+            basePos.x + Math.cos(time * orbitSpeed + phaseOffset) * orbitRadius,
+            basePos.y + Math.sin(time * orbitSpeed * 1.16 + phaseOffset) * orbitRadius * 0.44,
+            basePos.z + Math.sin(time * orbitSpeed * 0.88 + phaseOffset) * orbitRadius * 0.58
+          );
+          needle.rotation.x = baseRot.x + Math.sin(time * orbitSpeed + phaseOffset) * 0.028;
+          needle.rotation.y = baseRot.y + deltaTime * (0.14 + idx * 0.018);
+          needle.rotation.z = baseRot.z + Math.cos(time * orbitSpeed * 0.82 + phaseOffset) * 0.02;
+        });
+      }
+      if (Array.isArray(refs.projectionShards)) {
+        refs.projectionShards.forEach((shard, idx) => {
+          const basePos = shard.userData.basePosition || (shard.userData.basePosition = shard.position.clone());
+          const baseRot = shard.userData.baseRotation || (shard.userData.baseRotation = shard.rotation.clone());
+          const phaseOffset = shard.userData.shardPhase || idx * 0.7;
+          const orbitRadius = shard.userData.shardOrbitRadius || 0.06;
+          const orbitSpeed = shard.userData.shardOrbitSpeed || 0.14;
+          shard.position.set(
+            basePos.x + Math.cos(time * orbitSpeed + phaseOffset) * orbitRadius,
+            basePos.y + Math.sin(time * orbitSpeed * 1.08 + phaseOffset) * orbitRadius * 0.5,
+            basePos.z + Math.sin(time * orbitSpeed * 0.84 + phaseOffset) * orbitRadius * 0.68
+          );
+          shard.rotation.x = baseRot.x + Math.sin(time * orbitSpeed + phaseOffset) * 0.022;
+          shard.rotation.y = baseRot.y + deltaTime * 0.08;
+          shard.rotation.z = baseRot.z + Math.cos(time * orbitSpeed * 0.9 + phaseOffset) * 0.018;
+        });
+      }
+      if (refs.auraGroup) {
+        refs.auraGroup.rotation.y += deltaTime * auraSpeed;
+        refs.auraGroup.rotation.x = Math.sin(time * 0.046 + phase) * 0.008;
+        refs.auraGroup.rotation.z = Math.cos(time * 0.042 + phase * 0.62) * 0.006;
+      }
+      if (refs.dust) {
+        refs.dust.rotation.y += deltaTime * 0.009;
+        refs.dust.rotation.x = Math.sin(time * 0.05 + phase) * 0.008;
+        refs.dust.rotation.z = Math.cos(time * 0.044 + phase * 0.58) * 0.006;
+      }
+      if (refs.telemetryLine) {
+        refs.telemetryLine.rotation.y += deltaTime * 0.004;
+        refs.telemetryLine.rotation.x = Math.sin(time * 0.07 + phase) * 0.006;
+      }
+    }
+
+    if (nodeGroup.userData.nodeGeometryName === 'ANALYTICS_RESONANCE_DIADEM_RELAY_V4') {
+      const refs = nodeGroup.userData.relayRefs || {};
+      const phase = nodeGroup.userData.relayPhase || 0;
+      const corePulseSpeed = nodeGroup.userData.relayCorePulseSpeed || 0.54;
+      const corePulseAmplitude = nodeGroup.userData.relayCorePulseAmplitude || 0.012;
+      const diademPrecessionSpeed = nodeGroup.userData.relayDiademPrecessionSpeed || 0.012;
+      const resonanceBreathSpeed = nodeGroup.userData.relayResonanceBreathSpeed || 0.26;
+      const projectionDriftSpeed = nodeGroup.userData.relayProjectionDriftSpeed || 0.038;
+      const auraDriftSpeed = nodeGroup.userData.relayAuraDriftSpeed || 0.018;
+
+      nodeGroup.rotation.y += deltaTime * 0.0095;
+      nodeGroup.rotation.x = Math.sin(time * 0.028 + phase) * 0.0065;
+      nodeGroup.rotation.z = Math.cos(time * 0.024 + phase * 0.88) * 0.0045;
+
+      if (refs.coreGroup) {
+        refs.coreGroup.rotation.y += deltaTime * 0.014;
+        refs.coreGroup.rotation.x = Math.sin(time * 0.07 + phase) * 0.01;
+        refs.coreGroup.rotation.z = Math.cos(time * 0.06 + phase * 0.78) * 0.006;
+      }
+      if (refs.coreSeed) {
+        const baseScale = refs.coreSeed.userData.baseScale || (refs.coreSeed.userData.baseScale = refs.coreSeed.scale.clone());
+        const pulse = 1 + Math.sin(time * corePulseSpeed + phase) * corePulseAmplitude;
+        refs.coreSeed.scale.set(
+          baseScale.x * pulse,
+          baseScale.y * (1 + Math.cos(time * corePulseSpeed * 0.92 + phase + 0.3) * corePulseAmplitude * 0.55),
+          baseScale.z * pulse
+        );
+        refs.coreSeed.rotation.y += deltaTime * 0.024;
+        refs.coreSeed.rotation.x += deltaTime * 0.012;
+        if (refs.coreEdges) {
+          refs.coreEdges.position.copy(refs.coreSeed.position);
+          refs.coreEdges.rotation.copy(refs.coreSeed.rotation);
+          refs.coreEdges.scale.copy(refs.coreSeed.scale);
+        }
+      }
+      if (refs.seamVoid) {
+        refs.seamVoid.rotation.y += deltaTime * 0.01;
+        refs.seamVoid.rotation.x = Math.sin(time * 0.05 + phase) * 0.01;
+        refs.seamVoid.rotation.z = Math.cos(time * 0.045 + phase * 0.64) * 0.008;
+      }
+
+      if (refs.diademGroup) {
+        refs.diademGroup.rotation.y += deltaTime * diademPrecessionSpeed;
+        refs.diademGroup.rotation.x = Math.sin(time * 0.054 + phase) * 0.015;
+        refs.diademGroup.rotation.z = Math.cos(time * 0.048 + phase * 0.76) * 0.01;
+      }
+      if (Array.isArray(refs.diademArcs)) {
+        refs.diademArcs.forEach((arc, idx) => {
+          const baseRotation = arc.userData.baseRotation || (arc.userData.baseRotation = arc.rotation.clone());
+          const baseScale = arc.userData.baseScale || (arc.userData.baseScale = arc.scale.clone());
+          const arcPhase = arc.userData.diademPhase || idx * 0.6;
+          const ringPulse = 1 + Math.sin(time * diademPrecessionSpeed * 1.28 + arcPhase) * (0.012 + idx * 0.002);
+          arc.rotation.x = baseRotation.x + Math.sin(time * 0.06 + arcPhase) * 0.014;
+          arc.rotation.y = baseRotation.y + deltaTime * (0.006 + idx * 0.0015);
+          arc.rotation.z = baseRotation.z + Math.cos(time * 0.052 + arcPhase) * 0.01;
+          arc.scale.set(
+            baseScale.x * ringPulse,
+            baseScale.y * (1 + Math.cos(time * 0.05 + arcPhase) * 0.006),
+            baseScale.z * (1 + Math.sin(time * 0.058 + arcPhase) * 0.006)
+          );
+          if (arc.userData.edgeRef) {
+            arc.userData.edgeRef.position.copy(arc.position);
+            arc.userData.edgeRef.rotation.copy(arc.rotation);
+            arc.userData.edgeRef.scale.copy(arc.scale);
+          }
+        });
+      }
+
+      if (refs.resonanceGroup) {
+        refs.resonanceGroup.rotation.y += deltaTime * 0.0075;
+        refs.resonanceGroup.rotation.x = Math.sin(time * 0.045 + phase) * 0.01;
+        refs.resonanceGroup.rotation.z = Math.cos(time * 0.04 + phase * 0.71) * 0.008;
+      }
+      if (Array.isArray(refs.resonanceParts)) {
+        refs.resonanceParts.forEach((part, idx) => {
+          const baseRotation = part.userData.baseRotation || (part.userData.baseRotation = part.rotation.clone());
+          const baseScale = part.userData.baseScale || (part.userData.baseScale = part.scale.clone());
+          const partPhase = part.userData.resonancePhase || idx * 0.56;
+          const partSpinSpeed = part.userData.resonanceSpinSpeed || 0.01;
+          const breath = 1 + Math.sin(time * resonanceBreathSpeed + partPhase) * (0.012 + idx * 0.0018);
+          part.position.copy(part.userData.basePosition || part.position);
+          if (part.userData.basePosition) {
+            const inward = 0.012 + idx * 0.002;
+            part.position.x += Math.sin(time * 0.03 + partPhase) * inward;
+            part.position.y += Math.cos(time * 0.028 + partPhase) * inward * 0.72;
+            part.position.z += Math.sin(time * 0.026 + partPhase) * inward * 0.62;
+          }
+          part.rotation.x = baseRotation.x + Math.sin(time * 0.05 + partPhase) * 0.016;
+          part.rotation.y = baseRotation.y + deltaTime * partSpinSpeed;
+          part.rotation.z = baseRotation.z + Math.cos(time * 0.044 + partPhase) * 0.012;
+          part.scale.set(
+            baseScale.x * breath,
+            baseScale.y * (1 + Math.cos(time * 0.06 + partPhase) * 0.008),
+            baseScale.z * (1 + Math.sin(time * 0.055 + partPhase) * 0.007)
+          );
+          if (part.userData.edgeRef) {
+            part.userData.edgeRef.position.copy(part.position);
+            part.userData.edgeRef.rotation.copy(part.rotation);
+            part.userData.edgeRef.scale.copy(part.scale);
+          }
+        });
+      }
+
+      if (refs.projectionGroup) {
+        refs.projectionGroup.rotation.y += deltaTime * projectionDriftSpeed;
+        refs.projectionGroup.rotation.x = Math.sin(time * 0.05 + phase) * 0.012;
+        refs.projectionGroup.rotation.z = Math.cos(time * 0.046 + phase * 0.74) * 0.008;
+      }
+      if (Array.isArray(refs.projectionParts)) {
+        refs.projectionParts.forEach((part, idx) => {
+          const basePosition = part.userData.basePosition || (part.userData.basePosition = part.position.clone());
+          const baseRotation = part.userData.baseRotation || (part.userData.baseRotation = part.rotation.clone());
+          const baseScale = part.userData.baseScale || (part.userData.baseScale = part.scale.clone());
+          const partPhase = part.userData.projectionPhase || idx * 0.58;
+          const drift = 0.01 + idx * 0.003;
+          part.position.set(
+            basePosition.x + Math.cos(time * (part.userData.projectionDriftSpeed || 0.08) + partPhase) * drift,
+            basePosition.y + Math.sin(time * (part.userData.projectionDriftSpeed || 0.08) * 1.12 + partPhase) * drift * 0.52,
+            basePosition.z + Math.sin(time * (part.userData.projectionDriftSpeed || 0.08) * 0.86 + partPhase) * drift * 0.68
+          );
+          part.rotation.x = baseRotation.x + Math.sin(time * 0.06 + partPhase) * 0.02;
+          part.rotation.y = baseRotation.y + deltaTime * 0.024;
+          part.rotation.z = baseRotation.z + Math.cos(time * 0.05 + partPhase) * 0.015;
+          part.scale.set(
+            baseScale.x * (1 + Math.sin(time * 0.045 + partPhase) * 0.006),
+            baseScale.y * (1 + Math.cos(time * 0.05 + partPhase) * 0.004),
+            baseScale.z * (1 + Math.sin(time * 0.042 + partPhase) * 0.005)
+          );
+        });
+      }
+
+      if (refs.auraGroup) {
+        refs.auraGroup.rotation.y += deltaTime * auraDriftSpeed;
+        refs.auraGroup.rotation.x = Math.sin(time * 0.036 + phase) * 0.007;
+        refs.auraGroup.rotation.z = Math.cos(time * 0.03 + phase * 0.68) * 0.005;
+      }
+      if (refs.dust) {
+        refs.dust.rotation.y += deltaTime * 0.007;
+        refs.dust.rotation.x = Math.sin(time * 0.04 + phase) * 0.006;
+        refs.dust.rotation.z = Math.cos(time * 0.038 + phase * 0.61) * 0.005;
+      }
+      if (refs.telemetryLine) {
+        refs.telemetryLine.rotation.y += deltaTime * 0.0035;
+        refs.telemetryLine.rotation.x = Math.sin(time * 0.045 + phase) * 0.004;
+        refs.telemetryLine.rotation.z = Math.cos(time * 0.04 + phase * 0.52) * 0.003;
+      }
+    }
 
     if (nodeGroup.userData.nodeGeometryName === 'ANALYTICS_PREDICTIVE_ORACLE_ARRAY') {
       const refs = nodeGroup.userData.oracleAnimationRefs || {};

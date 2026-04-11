@@ -76,24 +76,24 @@ export class CascadeResonanceWaveVisualization_Session146 {
     this.config = {
       // Wave oscillation
       waveOscillationPeriod: config.waveOscillationPeriod ?? 3.0,  // Seconds
-      waveInfluenceMin: config.waveInfluenceMin ?? 0.65,           // Debug-visible minimum
-      waveInfluenceMax: config.waveInfluenceMax ?? 1.0,            // Debug-visible maximum
-      
+      waveInfluenceMin: config.waveInfluenceMin ?? 0.25,           // Amplified from 0.02 ghost-level
+      waveInfluenceMax: config.waveInfluenceMax ?? 0.50,           // Amplified from 0.08 ghost-level
+
       // Wave trigger conditions
-      minPhaseSyncStrength: config.minPhaseSyncStrength ?? 0.04,    // Min phase delta for wave
-      minPhaseSyncStability: config.minPhaseSyncStability ?? 0.04, // Min convergence strength
-      minCascadeStrengthTrigger: config.minCascadeStrengthTrigger ?? 0.15,
+      minPhaseSyncStrength: config.minPhaseSyncStrength ?? 0.02,    // Lowered from 0.04 — trigger more easily
+      minPhaseSyncStability: config.minPhaseSyncStability ?? 0.03, // Lowered from 0.04
+      minCascadeStrengthTrigger: config.minCascadeStrengthTrigger ?? 0.08, // Lowered from 0.15
       minHubCorruptionThreshold: config.minHubCorruptionThreshold ?? 0.25,
       minHubStabilityThreshold: config.minHubStabilityThreshold ?? 0.65,
-      
+
       // Temporal modulation
-      linkPhaseCompression: config.linkPhaseCompression ?? 0.2,    // Link phase tightening
-      auraNoiseReduction: config.auraNoiseReduction ?? 0.14,       // Aura randomness reduction
-      
+      linkPhaseCompression: config.linkPhaseCompression ?? 0.25,    // Amplified from 0.2
+      auraNoiseReduction: config.auraNoiseReduction ?? 0.20,       // Amplified from 0.14
+
       // Wave decay
       waveDecayRate: config.waveDecayRate ?? 0.94,                 // Auto-decay speed
       waveDissolveThreshold: config.waveDissolveThreshold ?? 0.02, // Threshold to completely fade
-      
+
       // Safety
       enabled: config.enabled ?? true,
       debugMode: config.debugMode ?? false,
@@ -104,27 +104,27 @@ export class CascadeResonanceWaveVisualization_Session146 {
       wavefrontRingMaxRadius: config.wavefrontRingMaxRadius ?? 4.0,
       wavefrontRingMinRadius: config.wavefrontRingMinRadius ?? 0.3,
       wavefrontRingSpeed: config.wavefrontRingSpeed ?? 2.0,
-      wavefrontRingOpacity: config.wavefrontRingOpacity ?? 0.12,
+      wavefrontRingOpacity: config.wavefrontRingOpacity ?? 0.35,   // Amplified from 0.12
       // Phase 1: Aura tightening pulse
       auraTighteningPulseEnabled: config.auraTighteningPulseEnabled ?? true,
-      auraTighteningAmount: config.auraTighteningAmount ?? 0.08,
+      auraTighteningAmount: config.auraTighteningAmount ?? 0.15,   // Amplified from 0.08
       auraPulseSpeed: config.auraPulseSpeed ?? 3.0,
       // Phase 1: Smooth wave phase transitions
       smoothPhaseTransitionsEnabled: config.smoothPhaseTransitionsEnabled ?? true,
       // Phase 3: Premium interference + echo effects
       interferenceEnabled: config.interferenceEnabled ?? true,
-      interferenceBoost: config.interferenceBoost ?? 0.08,
+      interferenceBoost: config.interferenceBoost ?? 0.15,         // Amplified from 0.08
       interferenceDampening: config.interferenceDampening ?? 0.05,
       echoTrailEnabled: config.echoTrailEnabled ?? true,
       echoTrailDuration: config.echoTrailDuration ?? 0.8,
-      echoTrailOpacity: config.echoTrailOpacity ?? 0.03,
-      echoTrailThreshold: config.echoTrailThreshold ?? 0.2,
+      echoTrailOpacity: config.echoTrailOpacity ?? 0.12,           // Amplified from 0.03
+      echoTrailThreshold: config.echoTrailThreshold ?? 0.15,       // Lowered from 0.2
       // Phase 2: Glow and beam effects
       hubGlowModulationEnabled: config.hubGlowModulationEnabled ?? true,
-      hubGlowIntensity: config.hubGlowIntensity ?? 0.05, // 3-7% above baseline
+      hubGlowIntensity: config.hubGlowIntensity ?? 0.20,           // Amplified from 0.05
       hubGlowColor: config.hubGlowColor ?? new THREE.Color(0x7ffcff), // Cyan-white
       linkResonanceBeamEnabled: config.linkResonanceBeamEnabled ?? true,
-      linkBeamOpacity: config.linkBeamOpacity ?? 0.08,
+      linkBeamOpacity: config.linkBeamOpacity ?? 0.25,             // Amplified from 0.08
       linkBeamColor: config.linkBeamColor ?? new THREE.Color(0x9fdfff),
       waveStrengthIndicatorEnabled: config.waveStrengthIndicatorEnabled ?? true
     };
