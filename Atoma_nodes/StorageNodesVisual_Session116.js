@@ -1,5 +1,278 @@
 import * as THREE from 'three';
 
+const STORAGE_BASTION_OBELISK_CACHE_V2_CACHE = {
+  coreGeometry: null,
+  coreVoidGeometry: null,
+  bodyGeometry: null,
+  plateGeometry: null,
+  buttressGeometry: null,
+  braceGeometry: null,
+  crownShardGeometry: null,
+  accessFrameGeometry: null,
+  accessSlitGeometry: null,
+  accessSealGeometry: null,
+  supportShellGeometry: null,
+  dustGeometry: null
+};
+
+const STORAGE_BASTION_OBELISK_CACHE_V2_MATERIALS = new Map();
+
+function _resolveBastionObeliskCacheColor(group, color, fallback = 0x6d8ea6) {
+  const legacyColor = typeof group?.userData?.color === 'number' ? group.userData.color : undefined;
+
+  try {
+    return new THREE.Color(color ?? legacyColor ?? fallback).getHex();
+  } catch (err) {
+    return new THREE.Color(legacyColor ?? fallback).getHex();
+  }
+}
+
+function _setBastionObeliskWaveDefaults(material, ignoreWaveColor = false) {
+  material.userData = {
+    ...(material.userData || {}),
+    wavePatchMode: 'DEFAULT'
+  };
+
+  if (ignoreWaveColor) {
+    material.userData.ignoreWaveColor = true;
+  }
+
+  return material;
+}
+
+function _getBastionObeliskCacheRenderOrders() {
+  const api = globalThis?.EnhancedNodeModels;
+  return {
+    coreOrder: api && typeof api._getCoreRenderOrder === 'function' ? api._getCoreRenderOrder() : 1000,
+    archOrder: api && typeof api._getArchetypeRenderOrder === 'function' ? api._getArchetypeRenderOrder() : 1010
+  };
+}
+
+function _deformBastionObeliskGeometry(geometry, transformFn) {
+  const position = geometry?.attributes?.position;
+  if (!position) {
+    return geometry;
+  }
+
+  const scratch = new THREE.Vector3();
+  for (let i = 0; i < position.count; i++) {
+    scratch.set(position.getX(i), position.getY(i), position.getZ(i));
+    transformFn(scratch, i);
+    position.setXYZ(i, scratch.x, scratch.y, scratch.z);
+  }
+
+  position.needsUpdate = true;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+function _getBastionObeliskCacheGeometries() {
+  if (!STORAGE_BASTION_OBELISK_CACHE_V2_CACHE.bodyGeometry) {
+    const coreGeometry = new THREE.CylinderGeometry(0.16, 0.2, 0.36, 6, 1, false);
+    _deformBastionObeliskGeometry(coreGeometry, (v, i) => {
+      const heightBias = Math.max(0, (v.y + 0.18) / 0.36);
+      const faceBias = Math.max(0, v.z * 1.2 + v.x * 0.65);
+      v.x = v.x * (0.88 + heightBias * 0.04) + faceBias * 0.02 + Math.sin(i * 0.19) * 0.0012;
+      v.y = v.y * (0.96 + heightBias * 0.02);
+      v.z = v.z * (0.92 + heightBias * 0.05) - v.x * 0.018;
+    });
+
+    const coreVoidGeometry = new THREE.BoxGeometry(0.08, 0.3, 0.03);
+
+    const bodyGeometry = new THREE.CylinderGeometry(0.48, 0.56, 1.5, 6, 1, false);
+    _deformBastionObeliskGeometry(bodyGeometry, (v, i) => {
+      const heightBias = Math.max(0, (v.y + 0.75) / 1.5);
+      const carveBias = Math.max(0, v.z * 1.18 + v.x * 0.34);
+      const taper = 1 - heightBias * 0.06;
+      v.x = v.x * (0.88 * taper) + carveBias * 0.028 - Math.sign(v.x || 1) * heightBias * 0.012;
+      v.y = v.y * (0.98 + heightBias * 0.015);
+      v.z = v.z * (0.9 + heightBias * 0.04) - v.x * 0.022;
+    });
+
+    const plateGeometry = new THREE.BoxGeometry(0.18, 0.9, 0.1);
+    const buttressGeometry = new THREE.BoxGeometry(0.22, 1.0, 0.2);
+    const braceGeometry = new THREE.BoxGeometry(0.06, 0.44, 0.06);
+    const crownShardGeometry = new THREE.TetrahedronGeometry(0.11, 0);
+    const accessFrameGeometry = new THREE.BoxGeometry(0.18, 0.54, 0.06);
+    const accessSlitGeometry = new THREE.BoxGeometry(0.07, 0.48, 0.03);
+    const accessSealGeometry = new THREE.BoxGeometry(0.04, 0.34, 0.02);
+    const supportShellGeometry = new THREE.OctahedronGeometry(0.05, 0);
+
+    const dustGeometry = new THREE.BufferGeometry();
+    const dustPositions = new Float32Array(18 * 3);
+    for (let i = 0; i < 18; i++) {
+      const angle = (i / 18) * Math.PI * 2;
+      const radius = 0.34 + ((i % 3) * 0.05);
+      dustPositions[i * 3 + 0] = Math.cos(angle) * radius;
+      dustPositions[i * 3 + 1] = (i % 2 === 0 ? 1 : -1) * (0.06 + (i % 4) * 0.02);
+      dustPositions[i * 3 + 2] = Math.sin(angle) * radius;
+    }
+    dustGeometry.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+
+    STORAGE_BASTION_OBELISK_CACHE_V2_CACHE.coreGeometry = coreGeometry;
+    STORAGE_BASTION_OBELISK_CACHE_V2_CACHE.coreVoidGeometry = coreVoidGeometry;
+    STORAGE_BASTION_OBELISK_CACHE_V2_CACHE.bodyGeometry = bodyGeometry;
+    STORAGE_BASTION_OBELISK_CACHE_V2_CACHE.plateGeometry = plateGeometry;
+    STORAGE_BASTION_OBELISK_CACHE_V2_CACHE.buttressGeometry = buttressGeometry;
+    STORAGE_BASTION_OBELISK_CACHE_V2_CACHE.braceGeometry = braceGeometry;
+    STORAGE_BASTION_OBELISK_CACHE_V2_CACHE.crownShardGeometry = crownShardGeometry;
+    STORAGE_BASTION_OBELISK_CACHE_V2_CACHE.accessFrameGeometry = accessFrameGeometry;
+    STORAGE_BASTION_OBELISK_CACHE_V2_CACHE.accessSlitGeometry = accessSlitGeometry;
+    STORAGE_BASTION_OBELISK_CACHE_V2_CACHE.accessSealGeometry = accessSealGeometry;
+    STORAGE_BASTION_OBELISK_CACHE_V2_CACHE.supportShellGeometry = supportShellGeometry;
+    STORAGE_BASTION_OBELISK_CACHE_V2_CACHE.dustGeometry = dustGeometry;
+  }
+
+  return STORAGE_BASTION_OBELISK_CACHE_V2_CACHE;
+}
+
+function _getBastionObeliskCacheMaterials(colorHex = 0x6d8ea6) {
+  const key = String(colorHex >>> 0);
+  if (STORAGE_BASTION_OBELISK_CACHE_V2_MATERIALS.has(key)) {
+    return STORAGE_BASTION_OBELISK_CACHE_V2_MATERIALS.get(key);
+  }
+
+  const accentColor = new THREE.Color(colorHex);
+  const seamColor = accentColor.clone().lerp(new THREE.Color(0x8fe7ff), 0.46);
+  const sealColor = seamColor.clone().multiplyScalar(0.55);
+  const stoneColor = new THREE.Color(0x12161c);
+  const deepStone = new THREE.Color(0x1b2026);
+
+  const coreMat = _setBastionObeliskWaveDefaults(new THREE.MeshStandardMaterial({
+    color: 0x101418,
+    emissive: sealColor.clone().multiplyScalar(0.16),
+    emissiveIntensity: 0.18,
+    metalness: 0.34,
+    roughness: 0.82,
+    flatShading: true
+  }));
+
+  const bodyMat = _setBastionObeliskWaveDefaults(new THREE.MeshStandardMaterial({
+    color: stoneColor,
+    emissive: 0x0a1014,
+    emissiveIntensity: 0.08,
+    metalness: 0.24,
+    roughness: 0.86,
+    flatShading: true
+  }));
+
+  const plateMat = _setBastionObeliskWaveDefaults(new THREE.MeshStandardMaterial({
+    color: deepStone,
+    emissive: 0x10161b,
+    emissiveIntensity: 0.08,
+    metalness: 0.2,
+    roughness: 0.8,
+    flatShading: true
+  }));
+
+  const buttressMat = _setBastionObeliskWaveDefaults(new THREE.MeshStandardMaterial({
+    color: 0x161b21,
+    emissive: 0x090d12,
+    emissiveIntensity: 0.06,
+    metalness: 0.18,
+    roughness: 0.88,
+    flatShading: true
+  }));
+
+  const braceMat = _setBastionObeliskWaveDefaults(new THREE.MeshStandardMaterial({
+    color: 0x202630,
+    emissive: 0x11161d,
+    emissiveIntensity: 0.08,
+    metalness: 0.24,
+    roughness: 0.7,
+    flatShading: true
+  }));
+
+  const seamMat = _setBastionObeliskWaveDefaults(new THREE.MeshStandardMaterial({
+    color: 0x0b1117,
+    emissive: sealColor.clone(),
+    emissiveIntensity: 0.24,
+    metalness: 0.14,
+    roughness: 0.62,
+    transparent: true,
+    opacity: 0.82,
+    side: THREE.DoubleSide,
+    flatShading: true
+  }), true);
+
+  const accessMat = _setBastionObeliskWaveDefaults(new THREE.MeshStandardMaterial({
+    color: 0x090c11,
+    emissive: seamColor.clone(),
+    emissiveIntensity: 0.28,
+    metalness: 0.12,
+    roughness: 0.72,
+    transparent: true,
+    opacity: 0.9,
+    side: THREE.DoubleSide,
+    flatShading: true
+  }), true);
+
+  const accessGlowMat = _setBastionObeliskWaveDefaults(new THREE.MeshBasicMaterial({
+    color: seamColor.clone(),
+    transparent: true,
+    opacity: 0.52,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  }), true);
+
+  const lockMat = _setBastionObeliskWaveDefaults(new THREE.MeshStandardMaterial({
+    color: 0x605642,
+    emissive: sealColor.clone().multiplyScalar(0.55),
+    emissiveIntensity: 0.26,
+    metalness: 0.58,
+    roughness: 0.22,
+    flatShading: true
+  }), true);
+
+  const crownMat = _setBastionObeliskWaveDefaults(new THREE.MeshStandardMaterial({
+    color: 0x242930,
+    emissive: seamColor.clone().multiplyScalar(0.28),
+    emissiveIntensity: 0.14,
+    metalness: 0.18,
+    roughness: 0.74,
+    flatShading: true
+  }));
+
+  const supportMat = _setBastionObeliskWaveDefaults(new THREE.MeshStandardMaterial({
+    color: 0x1f242b,
+    emissive: 0x0b1015,
+    emissiveIntensity: 0.06,
+    metalness: 0.12,
+    roughness: 0.88,
+    transparent: true,
+    opacity: 0.5,
+    flatShading: true
+  }));
+
+  const dustMat = _setBastionObeliskWaveDefaults(new THREE.PointsMaterial({
+    color: seamColor.clone().lerp(new THREE.Color(0xcfefff), 0.18),
+    size: 0.018,
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false,
+    sizeAttenuation: true
+  }));
+
+  const mats = {
+    coreMat,
+    bodyMat,
+    plateMat,
+    buttressMat,
+    braceMat,
+    seamMat,
+    accessMat,
+    accessGlowMat,
+    lockMat,
+    crownMat,
+    supportMat,
+    dustMat
+  };
+
+  STORAGE_BASTION_OBELISK_CACHE_V2_MATERIALS.set(key, mats);
+  return mats;
+}
+
 const STORAGE_ARCHIVE_RESONATOR_DRUM_V2_CACHE = {
   coreGeometry: null,
   coreSeamGeometry: null,
@@ -290,10 +563,258 @@ function _getArchiveResonatorDrumMaterials(colorHex = 0xd79c54) {
   return mats;
 }
 
+const STORAGE_ECLIPSE_RELIQUARY_V4_CACHE = {
+  coreGeometry: null,
+  coreAccentGeometry: null,
+  haloRingGeometry: null,
+  haloShardGeometry: null,
+  pressurePlateGeometry: null,
+  pressureArcGeometry: null,
+  pressureRibGeometry: null,
+  lockFrameGeometry: null,
+  lockVoidGeometry: null,
+  lockPinGeometry: null,
+  orbitShardGeometry: null,
+  dustGeometry: null
+};
+
+const STORAGE_ECLIPSE_RELIQUARY_V4_MATERIALS = new Map();
+
+function _resolveEclipseReliquaryColor(group, color, fallback = 0x8fd9ff) {
+  const legacyColor = typeof group?.userData?.color === 'number' ? group.userData.color : undefined;
+
+  try {
+    return new THREE.Color(color ?? legacyColor ?? fallback).getHex();
+  } catch (err) {
+    return new THREE.Color(legacyColor ?? fallback).getHex();
+  }
+}
+
+function _setEclipseReliquaryWaveDefaults(material, ignoreWaveColor = false) {
+  material.userData = {
+    ...(material.userData || {}),
+    wavePatchMode: 'DEFAULT'
+  };
+
+  if (ignoreWaveColor) {
+    material.userData.ignoreWaveColor = true;
+  }
+
+  return material;
+}
+
+function _getEclipseReliquaryRenderOrders() {
+  const api = globalThis?.EnhancedNodeModels;
+  return {
+    coreOrder: api && typeof api._getCoreRenderOrder === 'function' ? api._getCoreRenderOrder() : 1000,
+    archOrder: api && typeof api._getArchetypeRenderOrder === 'function' ? api._getArchetypeRenderOrder() : 1010
+  };
+}
+
+function _deformEclipseReliquaryGeometry(geometry, transformFn) {
+  const position = geometry?.attributes?.position;
+  if (!position) {
+    return geometry;
+  }
+
+  const scratch = new THREE.Vector3();
+  for (let i = 0; i < position.count; i++) {
+    scratch.set(position.getX(i), position.getY(i), position.getZ(i));
+    transformFn(scratch, i);
+    position.setXYZ(i, scratch.x, scratch.y, scratch.z);
+  }
+
+  position.needsUpdate = true;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+function _getEclipseReliquaryGeometries() {
+  if (!STORAGE_ECLIPSE_RELIQUARY_V4_CACHE.coreGeometry) {
+    const coreGeometry = new THREE.DodecahedronGeometry(0.18, 0);
+    _deformEclipseReliquaryGeometry(coreGeometry, (v, i) => {
+      const heightBias = Math.max(0, (v.y + 0.18) / 0.36);
+      const carveBias = Math.max(0, v.x * 0.76 + v.z * 0.42);
+      v.x = v.x * (1.0 + heightBias * 0.03) + carveBias * 0.014 + Math.sin(i * 0.23) * 0.001;
+      v.y = v.y * (0.96 + heightBias * 0.01);
+      v.z = v.z * (0.92 + heightBias * 0.02) - v.x * 0.015;
+    });
+
+    const coreAccentGeometry = new THREE.TetrahedronGeometry(0.05, 0);
+    const haloRingGeometry = new THREE.TorusGeometry(0.66, 0.036, 8, 20, Math.PI * 0.72);
+    const haloShardGeometry = new THREE.BoxGeometry(0.14, 0.34, 0.05);
+
+    _deformEclipseReliquaryGeometry(haloShardGeometry, (v, i) => {
+      const taper = Math.max(0.18, 1 - Math.abs(v.y) * 0.8);
+      v.x = v.x * (0.9 + taper * 0.08) + Math.sin(i * 0.31) * 0.0008;
+      v.y = v.y * (0.98 + taper * 0.02);
+      v.z = v.z * (0.9 + taper * 0.05);
+    });
+
+    const pressurePlateGeometry = new THREE.BoxGeometry(0.2, 0.68, 0.08);
+    _deformEclipseReliquaryGeometry(pressurePlateGeometry, (v, i) => {
+      const ridge = Math.max(0, (v.y + 0.34) / 0.68);
+      v.x = v.x * (0.92 + ridge * 0.05) + Math.sign(v.x || 1) * ridge * 0.01;
+      v.y = v.y * (0.98 + ridge * 0.01);
+      v.z = v.z * (0.9 + ridge * 0.03);
+    });
+
+    const pressureArcGeometry = new THREE.TorusGeometry(0.44, 0.024, 8, 14, Math.PI * 0.58);
+    const pressureRibGeometry = new THREE.BoxGeometry(0.06, 0.42, 0.04);
+    const lockFrameGeometry = new THREE.BoxGeometry(0.16, 0.6, 0.055);
+    const lockVoidGeometry = new THREE.BoxGeometry(0.048, 0.3, 0.02);
+    const lockPinGeometry = new THREE.CylinderGeometry(0.022, 0.03, 0.26, 5, 1, false);
+    const orbitShardGeometry = new THREE.OctahedronGeometry(0.045, 0);
+
+    const dustGeometry = new THREE.BufferGeometry();
+    const dustPositions = new Float32Array(20 * 3);
+    for (let i = 0; i < 20; i++) {
+      const angle = (i / 20) * Math.PI * 2;
+      const radius = 0.36 + ((i % 4) * 0.045);
+      dustPositions[i * 3 + 0] = Math.cos(angle) * radius;
+      dustPositions[i * 3 + 1] = Math.sin(angle * 0.5) * 0.09 + ((i % 2 === 0) ? 0.02 : -0.02);
+      dustPositions[i * 3 + 2] = Math.sin(angle) * radius;
+    }
+    dustGeometry.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+
+    STORAGE_ECLIPSE_RELIQUARY_V4_CACHE.coreGeometry = coreGeometry;
+    STORAGE_ECLIPSE_RELIQUARY_V4_CACHE.coreAccentGeometry = coreAccentGeometry;
+    STORAGE_ECLIPSE_RELIQUARY_V4_CACHE.haloRingGeometry = haloRingGeometry;
+    STORAGE_ECLIPSE_RELIQUARY_V4_CACHE.haloShardGeometry = haloShardGeometry;
+    STORAGE_ECLIPSE_RELIQUARY_V4_CACHE.pressurePlateGeometry = pressurePlateGeometry;
+    STORAGE_ECLIPSE_RELIQUARY_V4_CACHE.pressureArcGeometry = pressureArcGeometry;
+    STORAGE_ECLIPSE_RELIQUARY_V4_CACHE.pressureRibGeometry = pressureRibGeometry;
+    STORAGE_ECLIPSE_RELIQUARY_V4_CACHE.lockFrameGeometry = lockFrameGeometry;
+    STORAGE_ECLIPSE_RELIQUARY_V4_CACHE.lockVoidGeometry = lockVoidGeometry;
+    STORAGE_ECLIPSE_RELIQUARY_V4_CACHE.lockPinGeometry = lockPinGeometry;
+    STORAGE_ECLIPSE_RELIQUARY_V4_CACHE.orbitShardGeometry = orbitShardGeometry;
+    STORAGE_ECLIPSE_RELIQUARY_V4_CACHE.dustGeometry = dustGeometry;
+  }
+
+  return STORAGE_ECLIPSE_RELIQUARY_V4_CACHE;
+}
+
+function _getEclipseReliquaryMaterials(colorHex = 0x8fd9ff) {
+  const key = String(colorHex >>> 0);
+  if (STORAGE_ECLIPSE_RELIQUARY_V4_MATERIALS.has(key)) {
+    return STORAGE_ECLIPSE_RELIQUARY_V4_MATERIALS.get(key);
+  }
+
+  const accentColor = new THREE.Color(colorHex);
+  const moonlitCyan = accentColor.clone().lerp(new THREE.Color(0xbff7ff), 0.36);
+  const pearlTone = new THREE.Color(0xf2fafc).lerp(accentColor, 0.08);
+  const deepSlate = new THREE.Color(0x101820);
+  const pressureSlate = new THREE.Color(0x1a2430);
+  const spectralEdge = moonlitCyan.clone().lerp(new THREE.Color(0xffffff), 0.18);
+
+  const coreMat = _setEclipseReliquaryWaveDefaults(new THREE.MeshStandardMaterial({
+    color: deepSlate,
+    emissive: moonlitCyan.clone().multiplyScalar(0.12),
+    emissiveIntensity: 0.2,
+    metalness: 0.24,
+    roughness: 0.84,
+    flatShading: true
+  }));
+
+  const coreAccentMat = _setEclipseReliquaryWaveDefaults(new THREE.MeshStandardMaterial({
+    color: spectralEdge,
+    emissive: spectralEdge.clone(),
+    emissiveIntensity: 0.38,
+    metalness: 0.1,
+    roughness: 0.48,
+    transparent: true,
+    opacity: 0.92,
+    flatShading: true
+  }), true);
+
+  const haloMat = _setEclipseReliquaryWaveDefaults(new THREE.MeshStandardMaterial({
+    color: pressureSlate,
+    emissive: moonlitCyan.clone().multiplyScalar(0.24),
+    emissiveIntensity: 0.22,
+    metalness: 0.18,
+    roughness: 0.56,
+    transparent: true,
+    opacity: 0.72,
+    side: THREE.DoubleSide,
+    flatShading: true
+  }));
+
+  const shellMat = _setEclipseReliquaryWaveDefaults(new THREE.MeshStandardMaterial({
+    color: 0x1a2028,
+    emissive: 0x0c1318,
+    emissiveIntensity: 0.08,
+    metalness: 0.16,
+    roughness: 0.88,
+    flatShading: true
+  }));
+
+  const shellAccentMat = _setEclipseReliquaryWaveDefaults(new THREE.MeshStandardMaterial({
+    color: 0x253240,
+    emissive: moonlitCyan.clone().multiplyScalar(0.18),
+    emissiveIntensity: 0.12,
+    metalness: 0.22,
+    roughness: 0.74,
+    transparent: true,
+    opacity: 0.86,
+    flatShading: true
+  }));
+
+  const lockMat = _setEclipseReliquaryWaveDefaults(new THREE.MeshStandardMaterial({
+    color: 0x6c7887,
+    emissive: spectralEdge.clone().multiplyScalar(0.62),
+    emissiveIntensity: 0.26,
+    metalness: 0.6,
+    roughness: 0.24,
+    flatShading: true
+  }), true);
+
+  const lockGlowMat = _setEclipseReliquaryWaveDefaults(new THREE.MeshBasicMaterial({
+    color: spectralEdge.clone(),
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  }), true);
+
+  const orbitMat = _setEclipseReliquaryWaveDefaults(new THREE.MeshStandardMaterial({
+    color: 0x243141,
+    emissive: moonlitCyan.clone().multiplyScalar(0.12),
+    emissiveIntensity: 0.12,
+    metalness: 0.2,
+    roughness: 0.7,
+    flatShading: true
+  }));
+
+  const dustMat = _setEclipseReliquaryWaveDefaults(new THREE.PointsMaterial({
+    color: pearlTone.clone().lerp(spectralEdge, 0.16),
+    size: 0.018,
+    transparent: true,
+    opacity: 0.32,
+    depthWrite: false,
+    sizeAttenuation: true
+  }));
+
+  const mats = {
+    coreMat,
+    coreAccentMat,
+    haloMat,
+    shellMat,
+    shellAccentMat,
+    lockMat,
+    lockGlowMat,
+    orbitMat,
+    dustMat
+  };
+
+  STORAGE_ECLIPSE_RELIQUARY_V4_MATERIALS.set(key, mats);
+  return mats;
+}
+
 /**
  * STORAGE Node Visual Designs (Session 116)
  * ============================================================================
- * Three visual-only STORAGE nodes representing memory, accumulation, preservation.
+ * Four visual-only STORAGE nodes representing memory, accumulation, preservation, and pressure.
  * 
  * DESIGN PHILOSOPHY:
  * - Heavy, calm, stable presence
@@ -306,133 +827,388 @@ function _getArchiveResonatorDrumMaterials(colorHex = 0xd79c54) {
  * 1. OBELISK CACHE - Memory Monolith, seeded with cyan glow
  * 2. FRACTAL RESERVOIR - Crystallized Memory, shimmering violet veins
  * 3. ARCHIVE DRUM - Mechanical Archive, slow rotating rings
+ * 4. ECLIPSE RELIQUARY - Celestial pressure-vault, broken halo silhouette
  */
 
 export class StorageNodesVisual {
 
   /**
-   * OBELISK CACHE - Memory Monolith / Data Vault
-   * 
-   * ARCHETYPE: Tall irregular obelisk, data stored in deep seams
-   * 
-   * GEOMETRY:
-   * - Tall asymmetric structure (height ~1.4x width)
-   * - 4-6 non-uniform vertical plates
-   * - Slightly chipped/fractured top
-   * - Deep seams between plates filled with translucent material
-   * - Grounded, heavy base
-   * 
-   * MATERIALS:
-   * - Dark ceramic/obsidian (0.1, 0.08, 0.15)
-   * - Matte surface (metalness 0.3, roughness 0.7)
-   * - Inner seams: translucent cyan material
-   * 
-   * EMISSIVE:
-   * - Soft cyan glow from interior seams
-   * - Depth-layered (light appears to come from inside)
-   * - Breathing cycle 10-15 seconds
-   * 
+   * BASTION OBELISK CACHE - Storage Fortress / Data Vault Monolith
+   *
+   * ARCHETYPE:
+   * - Tall obelisk ancestry preserved as a severe fortress cache
+   * - Dominant vault core with a carved access void
+   * - Asymmetric armor plates, buttresses, and load-bearing braces
+   * - Fractured consecrated crown instead of a decorative top chip
+   *
    * MOTION:
-   * - Almost static
-   * - Very slow internal light breathing
-   * - Micro-settling of plates (barely visible)
+   * - Grounded stillness with seam breathing
+   * - Tiny bastion settling
+   * - Subtle dust drift
    */
   static createObeliskCache(group, color = 0x00ff88) {
+    const root = group || new THREE.Group();
+
     try {
-      // Base material (dark ceramic)
-      const baseMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x1a1a2e),  // Dark blue-black
-        metalness: 0.3,
-        roughness: 0.7,
-        emissive: new THREE.Color(0x1a1a2e),
-        emissiveIntensity: 0.05
+      const resolvedColorHex = _resolveBastionObeliskCacheColor(root, color);
+      const seedSource = root?.userData?.nodeId || root?.uuid || String(resolvedColorHex);
+      const rng = _mythicSeededRng(Math.abs(hashString(`510|${seedSource}|BASTION_OBELISK_CACHE`)) || 510);
+      const geometries = _getBastionObeliskCacheGeometries();
+      const materials = _getBastionObeliskCacheMaterials(resolvedColorHex);
+      const { coreOrder, archOrder } = _getBastionObeliskCacheRenderOrders();
+
+      root.name = 'STORAGE_BASTION_OBELISK_CACHE_NODE';
+      root.userData = root.userData || {};
+      root.userData.color = resolvedColorHex;
+      root.userData.bastionObeliskCacheColor = resolvedColorHex;
+      root.userData.visualVariant = 'STORAGE_BASTION_OBELISK_CACHE_V2';
+      root.userData.storageVariant = 'BASTION_OBELISK_CACHE';
+      root.userData.nodeGeometryName = 'STORAGE_BASTION_OBELISK_CACHE_V2';
+      root.userData.visualReady = true;
+      root.userData.visualCoreImmutable = true;
+      root.userData.isObeliskCache = true;
+      root.userData.isBastionObeliskCache = true;
+      root.userData.wavePatchMode = 'DEFAULT';
+      root.userData.bastionObeliskCachePhase = rng() * Math.PI * 2;
+      root.userData.bastionObeliskCacheBaseRotation = root.rotation.clone();
+      root.userData.bastionObeliskCacheBaseScale = root.scale.clone();
+      root.userData.bastionObeliskCacheBaseY = root.position.y;
+      root.userData.bastionObeliskCacheStillnessSpeed = 0.016 + rng() * 0.004;
+      root.userData.bastionObeliskCacheSeamSpeed = 0.024 + rng() * 0.004;
+      root.userData.bastionObeliskCacheSettlingSpeed = 0.006 + rng() * 0.002;
+      root.userData.bastionObeliskCacheDustSpeed = 0.01 + rng() * 0.003;
+      root.userData.bastionObeliskCacheAccessSpeed = 0.009 + rng() * 0.0025;
+
+      const refs = {
+        coreGroup: null,
+        obeliskGroup: null,
+        bastionGroup: null,
+        accessGroup: null,
+        auraGroup: null,
+        vaultCore: null,
+        coreVoid: null,
+        coreSeam: null,
+        coreSeed: null,
+        obeliskBody: null,
+        armorPlates: [],
+        crownCap: null,
+        crownFragments: [],
+        buttresses: [],
+        braceSegments: [],
+        anchorSlab: null,
+        accessFrame: null,
+        accessVoid: null,
+        accessLock: null,
+        accessSeal: null,
+        supportShells: [],
+        dustPoints: null
+      };
+
+      const makeMesh = (parent, geometry, material, name, options = {}) => {
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.name = name;
+        mesh.userData = mesh.userData || {};
+        mesh.userData.visualCoreImmutable = true;
+        mesh.userData.wavePatchMode = options.wavePatchMode || 'DEFAULT';
+        if (options.ignoreWaveColor) {
+          mesh.userData.ignoreWaveColor = true;
+        }
+        if (options.position) mesh.position.set(options.position[0], options.position[1], options.position[2]);
+        if (options.rotation) mesh.rotation.set(options.rotation[0], options.rotation[1], options.rotation[2]);
+        if (options.scale) mesh.scale.set(options.scale[0], options.scale[1], options.scale[2]);
+        if (options.renderOrder !== undefined) mesh.renderOrder = options.renderOrder;
+        mesh.raycast = THREE.Mesh.prototype.raycast;
+        parent.add(mesh);
+        return mesh;
+      };
+
+      const makePoints = (parent, geometry, material, name, options = {}) => {
+        const points = new THREE.Points(geometry, material);
+        points.name = name;
+        points.userData = points.userData || {};
+        points.userData.visualCoreImmutable = true;
+        points.userData.wavePatchMode = options.wavePatchMode || 'DEFAULT';
+        if (options.position) points.position.set(options.position[0], options.position[1], options.position[2]);
+        if (options.rotation) points.rotation.set(options.rotation[0], options.rotation[1], options.rotation[2]);
+        if (options.scale) points.scale.set(options.scale[0], options.scale[1], options.scale[2]);
+        if (options.renderOrder !== undefined) points.renderOrder = options.renderOrder;
+        points.raycast = () => null;
+        points.frustumCulled = false;
+        parent.add(points);
+        return points;
+      };
+
+      const captureBaseTransforms = (object3d) => {
+        object3d.userData.basePosition = object3d.position.clone();
+        object3d.userData.baseRotation = object3d.rotation.clone();
+        object3d.userData.baseScale = object3d.scale.clone();
+      };
+
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+      coreGroup.userData.isBastionObeliskCoreGroup = true;
+      coreGroup.userData.baseRotation = coreGroup.rotation.clone();
+      coreGroup.position.set(-0.01, -0.03, 0.08);
+      coreGroup.rotation.set(0.02, 0.08, -0.01);
+      root.add(coreGroup);
+      refs.coreGroup = coreGroup;
+
+      const vaultCore = makeMesh(coreGroup, geometries.coreGeometry, materials.coreMat, 'BastionVaultCore', {
+        position: [0.0, -0.02, 0.0],
+        rotation: [0.08, 0.24, 0.03],
+        scale: [1.0, 0.96, 1.0],
+        renderOrder: coreOrder
+      });
+      vaultCore.userData.isBastionVaultCore = true;
+      captureBaseTransforms(vaultCore);
+      refs.vaultCore = vaultCore;
+
+      const coreVoid = makeMesh(coreGroup, geometries.coreVoidGeometry, materials.accessMat, 'BastionCoreVoid', {
+        position: [0.0, 0.03, 0.07],
+        rotation: [0.0, 0.12, 0.0],
+        scale: [0.88, 1.0, 0.92],
+        renderOrder: coreOrder + 1,
+        ignoreWaveColor: true
+      });
+      coreVoid.userData.isBastionCoreVoid = true;
+      captureBaseTransforms(coreVoid);
+      refs.coreVoid = coreVoid;
+
+      const coreSeam = makeMesh(coreGroup, geometries.accessSealGeometry, materials.seamMat, 'BastionCoreSeam', {
+        position: [0.0, -0.08, 0.1],
+        rotation: [0.0, 0.08, 0.0],
+        scale: [1.0, 1.1, 1.0],
+        renderOrder: coreOrder + 2,
+        ignoreWaveColor: true
+      });
+      coreSeam.userData.isBastionCoreSeam = true;
+      captureBaseTransforms(coreSeam);
+      refs.coreSeam = coreSeam;
+
+      const coreSeed = makeMesh(coreGroup, geometries.supportShellGeometry, materials.crownMat, 'BastionVaultSeed', {
+        position: [0.01, 0.0, -0.01],
+        rotation: [0.2, 0.4, -0.1],
+        scale: [0.62, 0.62, 0.62],
+        renderOrder: coreOrder + 3
+      });
+      coreSeed.userData.isBastionVaultSeed = true;
+      captureBaseTransforms(coreSeed);
+      refs.coreSeed = coreSeed;
+
+      const obeliskGroup = new THREE.Group();
+      obeliskGroup.name = 'OBELISK_GROUP';
+      obeliskGroup.userData.isBastionObeliskGroup = true;
+      obeliskGroup.userData.baseRotation = obeliskGroup.rotation.clone();
+      obeliskGroup.position.set(0.0, 0.05, 0.0);
+      obeliskGroup.rotation.set(0.03, 0.14, -0.02);
+      root.add(obeliskGroup);
+      refs.obeliskGroup = obeliskGroup;
+
+      const obeliskBody = makeMesh(obeliskGroup, geometries.bodyGeometry, materials.bodyMat, 'BastionObeliskBody', {
+        position: [0.0, 0.0, 0.0],
+        rotation: [0.04, 0.12, -0.02],
+        scale: [1.0, 1.0, 1.0],
+        renderOrder: archOrder
+      });
+      obeliskBody.userData.isBastionObeliskBody = true;
+      captureBaseTransforms(obeliskBody);
+      refs.obeliskBody = obeliskBody;
+
+      const armorPlateSpecs = [
+        { name: 'ArmorPlate_A', position: [0.18, 0.12, 0.18], rotation: [-0.08, 0.1, 0.1], scale: [1.2, 1.08, 0.92] },
+        { name: 'ArmorPlate_B', position: [-0.2, -0.02, -0.12], rotation: [0.12, -0.16, -0.08], scale: [0.84, 0.96, 0.84] },
+        { name: 'ArmorPlate_C', position: [0.06, 0.28, -0.18], rotation: [0.04, 0.26, -0.02], scale: [0.74, 0.86, 0.7] }
+      ];
+
+      armorPlateSpecs.forEach((spec, index) => {
+        const plate = makeMesh(obeliskGroup, geometries.plateGeometry, materials.plateMat, spec.name, {
+          position: spec.position,
+          rotation: spec.rotation,
+          scale: spec.scale,
+          renderOrder: archOrder + 1
+        });
+        plate.userData.isBastionArmorPlate = true;
+        plate.userData.plateIndex = index;
+        captureBaseTransforms(plate);
+        refs.armorPlates.push(plate);
       });
 
-      // Seam material (translucent with cyan glow)
-      const seamMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x004444),  // Deep cyan
-        metalness: 0.2,
-        roughness: 0.4,
-        transparent: true,
-        opacity: 0.6,
-        emissive: new THREE.Color(0x00aaff),  // Bright cyan
-        emissiveIntensity: 0.4
+      const crownCap = makeMesh(obeliskGroup, geometries.plateGeometry, materials.crownMat, 'BastionCrownCap', {
+        position: [0.02, 0.78, 0.02],
+        rotation: [0.08, 0.16, -0.08],
+        scale: [1.24, 0.38, 1.1],
+        renderOrder: archOrder + 2
+      });
+      crownCap.userData.isBastionCrownCap = true;
+      captureBaseTransforms(crownCap);
+      refs.crownCap = crownCap;
+
+      const crownFragmentSpecs = [
+        { name: 'CrownFragment_A', position: [0.0, 0.92, 0.0], rotation: [0.16, 0.24, 0.06], scale: [1.0, 1.0, 1.0] },
+        { name: 'CrownFragment_B', position: [0.14, 0.84, 0.08], rotation: [-0.18, -0.18, -0.08], scale: [0.84, 0.84, 0.84] },
+        { name: 'CrownFragment_C', position: [-0.14, 0.82, -0.1], rotation: [0.22, 0.08, -0.12], scale: [0.78, 0.78, 0.78] }
+      ];
+
+      crownFragmentSpecs.forEach((spec, index) => {
+        const fragment = makeMesh(obeliskGroup, geometries.crownShardGeometry, materials.crownMat, spec.name, {
+          position: spec.position,
+          rotation: spec.rotation,
+          scale: spec.scale,
+          renderOrder: archOrder + 3
+        });
+        fragment.userData.isBastionCrownFragment = true;
+        fragment.userData.fragmentIndex = index;
+        captureBaseTransforms(fragment);
+        refs.crownFragments.push(fragment);
       });
 
-      // === MAIN OBELISK PLATES ===
-      // Create 5 irregular vertical plates
-      const plateCount = 5;
-      const plateHeights = [0.8, 0.95, 0.85, 0.9, 0.75];  // Varied heights
-      const plateRotations = [0, 0.15, -0.1, 0.2, -0.15]; // Slight tilts
+      const bastionGroup = new THREE.Group();
+      bastionGroup.name = 'BASTION_GROUP';
+      bastionGroup.userData.isBastionObeliskBastionGroup = true;
+      bastionGroup.userData.baseRotation = bastionGroup.rotation.clone();
+      bastionGroup.position.set(0.0, -0.04, 0.0);
+      bastionGroup.rotation.set(0.01, -0.08, 0.02);
+      root.add(bastionGroup);
+      refs.bastionGroup = bastionGroup;
 
-      for (let i = 0; i < plateCount; i++) {
-        const plateGeometry = new THREE.BoxGeometry(0.25, plateHeights[i], 0.08);
-        const plate = new THREE.Mesh(plateGeometry, baseMaterial);
+      const bastionSpecs = [
+        { name: 'LeftButtress', geometry: geometries.buttressGeometry, material: materials.buttressMat, position: [-0.44, -0.08, 0.12], rotation: [0.08, -0.08, 0.04], scale: [1.0, 1.06, 0.92] },
+        { name: 'RightButtress', geometry: geometries.buttressGeometry, material: materials.buttressMat, position: [0.36, -0.06, -0.16], rotation: [-0.06, 0.12, -0.08], scale: [0.88, 0.96, 0.84] },
+        { name: 'AnchorSlab', geometry: geometries.buttressGeometry, material: materials.braceMat, position: [0.04, -0.34, 0.0], rotation: [0.0, 0.04, 0.0], scale: [1.08, 0.66, 1.0] }
+      ];
 
-        // Position in circle around center
-        const angle = (i / plateCount) * Math.PI * 2;
-        const radius = 0.25;
-        plate.position.set(
-          Math.cos(angle) * radius,
-          plateHeights[i] * 0.5 - 0.1,
-          Math.sin(angle) * radius
-        );
+      bastionSpecs.forEach((spec, index) => {
+        const buttress = makeMesh(bastionGroup, spec.geometry, spec.material, spec.name, {
+          position: spec.position,
+          rotation: spec.rotation,
+          scale: spec.scale,
+          renderOrder: archOrder + 4
+        });
+        buttress.userData.isBastionAnchorPiece = true;
+        buttress.userData.bastionIndex = index;
+        captureBaseTransforms(buttress);
+        if (spec.name === 'AnchorSlab') {
+          refs.anchorSlab = buttress;
+        }
+        refs.buttresses.push(buttress);
+      });
 
-        // Slight rotation for asymmetry
-        plate.rotation.z = plateRotations[i];
-        plate.rotation.y = angle;
+      const braceSpecs = [
+        { name: 'Brace_A', position: [-0.22, 0.1, 0.24], rotation: [0.16, 0.14, 0.36], scale: [1.0, 1.0, 1.0] },
+        { name: 'Brace_B', position: [0.2, -0.08, 0.18], rotation: [-0.14, -0.16, -0.28], scale: [0.92, 0.92, 0.92] }
+      ];
 
-        plate.userData.isObeliskPlate = true;
-        plate.userData.plateIndex = i;
-        plate.userData.baseHeight = plateHeights[i];
-        group.add(plate);
-      }
+      braceSpecs.forEach((spec, index) => {
+        const brace = makeMesh(bastionGroup, geometries.braceGeometry, materials.braceMat, spec.name, {
+          position: spec.position,
+          rotation: spec.rotation,
+          scale: spec.scale,
+          renderOrder: archOrder + 5
+        });
+        brace.userData.isBastionBrace = true;
+        brace.userData.braceIndex = index;
+        captureBaseTransforms(brace);
+        refs.braceSegments.push(brace);
+      });
 
-      // === FRACTURED TOP ===
-      // Create irregular peak (chipped effect)
-      const topGeometry = new THREE.TetrahedronGeometry(0.2, 1);
-      const top = new THREE.Mesh(topGeometry, baseMaterial);
-      top.position.y = 0.5;
-      top.rotation.set(Math.random() * 0.3, Math.random() * Math.PI, Math.random() * 0.3);
-      top.scale.set(0.8, 1.1, 0.8);  // Slightly stretched
-      top.userData.isFracturedTop = true;
-      group.add(top);
+      const accessGroup = new THREE.Group();
+      accessGroup.name = 'ACCESS_GROUP';
+      accessGroup.userData.isBastionObeliskAccessGroup = true;
+      accessGroup.userData.baseRotation = accessGroup.rotation.clone();
+      accessGroup.position.set(0.08, 0.02, 0.33);
+      accessGroup.rotation.set(0.02, 0.12, 0.0);
+      root.add(accessGroup);
+      refs.accessGroup = accessGroup;
 
-      // === INTERIOR SEAMS (Glowing translucent layers) ===
-      const seamCount = 3;
-      for (let i = 0; i < seamCount; i++) {
-        const seamGeometry = new THREE.BoxGeometry(0.15, 0.6 - (i * 0.1), 0.02);
-        const seam = new THREE.Mesh(seamGeometry, seamMaterial);
+      const accessFrame = makeMesh(accessGroup, geometries.accessFrameGeometry, materials.accessMat, 'BastionAccessFrame', {
+        position: [0.0, 0.0, 0.0],
+        rotation: [0.0, 0.08, 0.0],
+        scale: [1.18, 1.04, 1.0],
+        renderOrder: archOrder + 6,
+        ignoreWaveColor: true
+      });
+      accessFrame.userData.isBastionAccessFrame = true;
+      captureBaseTransforms(accessFrame);
+      refs.accessFrame = accessFrame;
 
-        seam.position.y = 0.1 - (i * 0.05);
-        seam.position.z = -0.15 + (i * 0.08);
-        seam.rotation.y = (i / seamCount) * Math.PI / 3;
+      const accessVoid = makeMesh(accessGroup, geometries.accessSlitGeometry, materials.accessMat, 'BastionAccessVoid', {
+        position: [0.0, 0.0, 0.02],
+        rotation: [0.0, 0.04, 0.0],
+        scale: [1.0, 1.0, 1.0],
+        renderOrder: archOrder + 7,
+        ignoreWaveColor: true
+      });
+      accessVoid.userData.isBastionAccessVoid = true;
+      captureBaseTransforms(accessVoid);
+      refs.accessVoid = accessVoid;
 
-        seam.userData.isInteriorSeam = true;
-        seam.userData.seamIndex = i;
-        seam.userData.breathingPhase = 0;
-        group.add(seam);
-      }
+      const accessLock = makeMesh(accessGroup, geometries.accessSealGeometry, materials.lockMat, 'BastionAccessLock', {
+        position: [0.0, 0.16, 0.03],
+        rotation: [0.0, 0.06, 0.0],
+        scale: [1.22, 0.28, 1.0],
+        renderOrder: archOrder + 8,
+        ignoreWaveColor: true
+      });
+      accessLock.userData.isBastionAccessLock = true;
+      captureBaseTransforms(accessLock);
+      refs.accessLock = accessLock;
 
-      // === BASE PLATFORM ===
-      const baseGeometry = new THREE.CylinderGeometry(0.5, 0.6, 0.15, 8);
-      const base = new THREE.Mesh(baseGeometry, baseMaterial);
-      base.position.y = -0.45;
-      base.userData.isBase = true;
-      group.add(base);
+      const accessSeal = makeMesh(accessGroup, geometries.accessSealGeometry, materials.accessGlowMat, 'BastionAccessSeal', {
+        position: [0.0, -0.16, 0.03],
+        rotation: [0.0, 0.0, 0.0],
+        scale: [1.0, 1.0, 1.0],
+        renderOrder: archOrder + 9,
+        ignoreWaveColor: true
+      });
+      accessSeal.userData.isBastionAccessSeal = true;
+      captureBaseTransforms(accessSeal);
+      refs.accessSeal = accessSeal;
 
-      // Store animation metadata
-      group.userData.isObeliskCache = true;
-      group.userData.nodeGeometryName = 'STORAGE_OBELISK_CACHE';
-      group.userData.breathingCycle = 12.0;     // 12 seconds
-      group.userData.breathingAmplitude = 0.15; // 15% intensity variation
-      group.userData.settlingAmplitude = 0.02;  // Micro-settling (2% of height)
-      group.userData.visualCoreImmutable = false;
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+      auraGroup.userData.isBastionObeliskAuraGroup = true;
+      auraGroup.userData.baseRotation = auraGroup.rotation.clone();
+      auraGroup.position.set(0.0, 0.0, 0.0);
+      auraGroup.rotation.set(0.01, 0.02, -0.01);
+      root.add(auraGroup);
+      refs.auraGroup = auraGroup;
 
-      return group;
+      const supportShellSpecs = [
+        { name: 'SupportShell_A', position: [-0.34, -0.34, 0.22], rotation: [0.2, 0.32, 0.08], scale: [1.0, 0.84, 0.82] },
+        { name: 'SupportShell_B', position: [0.28, -0.32, -0.18], rotation: [-0.16, -0.24, 0.14], scale: [0.88, 0.92, 0.78] },
+        { name: 'SupportShell_C', position: [0.08, -0.24, 0.28], rotation: [0.26, 0.08, -0.12], scale: [0.76, 0.8, 0.74] }
+      ];
+
+      supportShellSpecs.forEach((spec, index) => {
+        const shell = makeMesh(auraGroup, geometries.supportShellGeometry, materials.supportMat, spec.name, {
+          position: spec.position,
+          rotation: spec.rotation,
+          scale: spec.scale,
+          renderOrder: archOrder + 10
+        });
+        shell.userData.isBastionSupportShell = true;
+        shell.userData.shellIndex = index;
+        captureBaseTransforms(shell);
+        refs.supportShells.push(shell);
+      });
+
+      const dustPoints = makePoints(auraGroup, geometries.dustGeometry, materials.dustMat, 'BastionDust', {
+        position: [0.02, 0.02, 0.08],
+        rotation: [0.12, 0.08, -0.02],
+        scale: [1.0, 1.0, 1.0],
+        renderOrder: archOrder + 12
+      });
+      dustPoints.userData.isBastionDust = true;
+      dustPoints.userData.dustPhase = root.userData.bastionObeliskCachePhase;
+      captureBaseTransforms(dustPoints);
+      refs.dustPoints = dustPoints;
+
+      root.userData.bastionObeliskCacheRefs = refs;
+
+      return root;
     } catch (err) {
-      console.warn('[StorageNodesVisual] ObeliskCache creation failed:', err);
-      return group;
+      console.warn('[StorageNodesVisual] BastionObeliskCache creation failed:', err);
+      return root;
     }
   }
 
@@ -1248,6 +2024,381 @@ export class StorageNodesVisual {
     } catch (err) {
       console.warn('[StorageNodesVisual] ArchiveResonatorDrum creation failed:', err);
       return group;
+    }
+  }
+
+  /**
+   * ECLIPSE RELIQUARY - Suspended pressure-vault / compressed memory under pressure
+   *
+   * ARCHETYPE:
+   * - Floating celestial vault, not a sphere or drum
+   * - Sealed inner core with a broken halo silhouette
+   * - Offset shell plates, compression ribs, and sparse orbit fragments
+   * - One dominant lock/aperture feature anchors the silhouette
+   *
+   * MOTION:
+   * - Stable core with subtle halo precession
+   * - Shell breathing and restrained orbit drift
+   * - Minimal dust shimmer
+   */
+  static createStorageEclipseReliquary(group, color = 0x8fd9ff) {
+    const root = group || new THREE.Group();
+
+    try {
+      const resolvedColorHex = _resolveEclipseReliquaryColor(root, color);
+      const seedSource = root?.userData?.nodeId || root?.userData?.visualCode || root?.uuid || String(resolvedColorHex);
+      const rng = _mythicSeededRng(Math.abs(hashString(`515|${seedSource}|ECLIPSE_RELIQUARY`)) || 515);
+      const geometries = _getEclipseReliquaryGeometries();
+      const materials = _getEclipseReliquaryMaterials(resolvedColorHex);
+      const { coreOrder, archOrder } = _getEclipseReliquaryRenderOrders();
+
+      root.name = 'STORAGE_ECLIPSE_RELIQUARY_VAULT_NODE';
+      root.userData = root.userData || {};
+      root.userData.color = resolvedColorHex;
+      root.userData.eclipseReliquaryColor = resolvedColorHex;
+      root.userData.visualVariant = 'STORAGE_ECLIPSE_RELIQUARY_V4';
+      root.userData.storageVariant = 'ECLIPSE_RELIQUARY';
+      root.userData.nodeGeometryName = 'STORAGE_ECLIPSE_RELIQUARY_V4';
+      root.userData.visualReady = true;
+      root.userData.visualCoreImmutable = true;
+      root.userData.isExtremeStorage = true;
+      root.userData.wavePatchMode = 'DEFAULT';
+      root.userData.eclipseReliquaryPhase = rng() * Math.PI * 2;
+      root.userData.eclipseReliquaryBaseRotation = root.rotation.clone();
+      root.userData.eclipseReliquaryBaseScale = root.scale.clone();
+      root.userData.eclipseReliquaryBaseY = root.position.y;
+      root.userData.eclipseReliquaryCoreSpeed = 0.014 + rng() * 0.003;
+      root.userData.eclipseReliquaryHaloSpeed = 0.008 + rng() * 0.002;
+      root.userData.eclipseReliquaryShellSpeed = 0.006 + rng() * 0.0015;
+      root.userData.eclipseReliquaryLockSpeed = 0.006 + rng() * 0.0015;
+      root.userData.eclipseReliquaryOrbitSpeed = 0.01 + rng() * 0.002;
+      root.userData.eclipseReliquaryAuraSpeed = 0.007 + rng() * 0.0015;
+
+      const refs = {
+        coreGroup: null,
+        haloGroup: null,
+        pressureShellGroup: null,
+        lockGroup: null,
+        orbitGroup: null,
+        auraGroup: null,
+        coreKernel: null,
+        coreAccent: null,
+        haloArcs: [],
+        haloShards: [],
+        shellPlates: [],
+        shellRibs: [],
+        pressureRibs: [],
+        lockFrame: null,
+        lockVoid: null,
+        lockPin: null,
+        lockSeal: null,
+        orbitShards: [],
+        dustPoints: null
+      };
+
+      const makeMesh = (parent, geometry, material, name, options = {}) => {
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.name = name;
+        mesh.userData = mesh.userData || {};
+        mesh.userData.visualCoreImmutable = true;
+        mesh.userData.wavePatchMode = options.wavePatchMode || 'DEFAULT';
+        if (options.ignoreWaveColor) {
+          mesh.userData.ignoreWaveColor = true;
+        }
+        if (options.position) {
+          mesh.position.set(options.position[0], options.position[1], options.position[2]);
+        }
+        if (options.rotation) {
+          mesh.rotation.set(options.rotation[0], options.rotation[1], options.rotation[2]);
+        }
+        if (options.scale) {
+          mesh.scale.set(options.scale[0], options.scale[1], options.scale[2]);
+        }
+        if (options.renderOrder !== undefined) {
+          mesh.renderOrder = options.renderOrder;
+        }
+        mesh.raycast = THREE.Mesh.prototype.raycast;
+        parent.add(mesh);
+        return mesh;
+      };
+
+      const makePoints = (parent, geometry, material, name, options = {}) => {
+        const points = new THREE.Points(geometry, material);
+        points.name = name;
+        points.userData = points.userData || {};
+        points.userData.visualCoreImmutable = true;
+        points.userData.wavePatchMode = options.wavePatchMode || 'DEFAULT';
+        if (options.position) {
+          points.position.set(options.position[0], options.position[1], options.position[2]);
+        }
+        if (options.rotation) {
+          points.rotation.set(options.rotation[0], options.rotation[1], options.rotation[2]);
+        }
+        if (options.scale) {
+          points.scale.set(options.scale[0], options.scale[1], options.scale[2]);
+        }
+        if (options.renderOrder !== undefined) {
+          points.renderOrder = options.renderOrder;
+        }
+        points.raycast = () => null;
+        points.frustumCulled = false;
+        parent.add(points);
+        return points;
+      };
+
+      const captureBaseTransforms = (object3d) => {
+        object3d.userData.basePosition = object3d.position.clone();
+        object3d.userData.baseRotation = object3d.rotation.clone();
+        object3d.userData.baseScale = object3d.scale.clone();
+      };
+
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+      coreGroup.userData.isEclipseReliquaryCoreGroup = true;
+      coreGroup.userData.baseRotation = coreGroup.rotation.clone();
+      coreGroup.position.set(0.0, 0.04, 0.02);
+      coreGroup.rotation.set(0.02, 0.08, -0.03);
+      root.add(coreGroup);
+      refs.coreGroup = coreGroup;
+
+      const coreKernel = makeMesh(coreGroup, geometries.coreGeometry, materials.coreMat, 'EclipseReliquaryCoreKernel', {
+        position: [0.0, 0.0, 0.0],
+        rotation: [0.12, 0.22, 0.04],
+        scale: [1.0, 0.96, 1.02],
+        renderOrder: coreOrder
+      });
+      coreKernel.userData.isEclipseReliquaryCoreKernel = true;
+      captureBaseTransforms(coreKernel);
+      refs.coreKernel = coreKernel;
+
+      const coreAccent = makeMesh(coreGroup, geometries.coreAccentGeometry, materials.coreAccentMat, 'EclipseReliquaryCoreAccent', {
+        position: [0.02, 0.01, -0.01],
+        rotation: [0.28, 0.4, -0.16],
+        scale: [0.72, 0.72, 0.72],
+        renderOrder: coreOrder + 1,
+        ignoreWaveColor: true
+      });
+      coreAccent.userData.isEclipseReliquaryCoreAccent = true;
+      captureBaseTransforms(coreAccent);
+      refs.coreAccent = coreAccent;
+
+      const haloGroup = new THREE.Group();
+      haloGroup.name = 'HALO_GROUP';
+      haloGroup.userData.isEclipseReliquaryHaloGroup = true;
+      haloGroup.userData.baseRotation = haloGroup.rotation.clone();
+      haloGroup.position.set(0.02, 0.12, -0.03);
+      haloGroup.rotation.set(0.24, 0.18, -0.14);
+      root.add(haloGroup);
+      refs.haloGroup = haloGroup;
+
+      const haloArcSpecs = [
+        { name: 'HaloArc_A', position: [0.0, 0.42, 0.06], rotation: [0.18, 0.16, 0.54], scale: [1.02, 0.94, 1.08] },
+        { name: 'HaloArc_B', position: [-0.18, 0.22, -0.06], rotation: [-0.28, 1.08, -0.22], scale: [0.76, 0.82, 0.82] },
+        { name: 'HaloArc_C', position: [0.22, 0.32, 0.14], rotation: [0.3, -0.9, 0.18], scale: [0.68, 0.74, 0.72] }
+      ];
+
+      haloArcSpecs.forEach((spec, index) => {
+        const haloArc = makeMesh(haloGroup, geometries.haloRingGeometry, materials.haloMat, spec.name, {
+          position: spec.position,
+          rotation: spec.rotation,
+          scale: spec.scale,
+          renderOrder: archOrder + 1
+        });
+        haloArc.userData.isEclipseReliquaryHaloArc = true;
+        haloArc.userData.haloIndex = index;
+        captureBaseTransforms(haloArc);
+        refs.haloArcs.push(haloArc);
+      });
+
+      const haloShardSpecs = [
+        { name: 'HaloShard_A', position: [-0.34, 0.08, 0.12], rotation: [0.22, 0.38, 0.16], scale: [1.0, 0.72, 0.82] },
+        { name: 'HaloShard_B', position: [0.28, -0.02, -0.14], rotation: [-0.18, -0.26, -0.12], scale: [0.88, 0.66, 0.76] }
+      ];
+
+      haloShardSpecs.forEach((spec, index) => {
+        const haloShard = makeMesh(haloGroup, geometries.haloShardGeometry, materials.shellAccentMat, spec.name, {
+          position: spec.position,
+          rotation: spec.rotation,
+          scale: spec.scale,
+          renderOrder: archOrder + 2
+        });
+        haloShard.userData.isEclipseReliquaryHaloShard = true;
+        haloShard.userData.haloShardIndex = index;
+        captureBaseTransforms(haloShard);
+        refs.haloShards.push(haloShard);
+      });
+
+      const pressureShellGroup = new THREE.Group();
+      pressureShellGroup.name = 'PRESSURE_SHELL_GROUP';
+      pressureShellGroup.userData.isEclipseReliquaryPressureShellGroup = true;
+      pressureShellGroup.userData.baseRotation = pressureShellGroup.rotation.clone();
+      pressureShellGroup.position.set(-0.02, -0.01, 0.0);
+      pressureShellGroup.rotation.set(0.04, -0.06, 0.03);
+      root.add(pressureShellGroup);
+      refs.pressureShellGroup = pressureShellGroup;
+
+      const shellPlateSpecs = [
+        { name: 'PressurePlate_A', position: [-0.22, -0.1, 0.22], rotation: [0.08, 0.12, 0.18], scale: [1.08, 1.0, 0.9] },
+        { name: 'PressurePlate_B', position: [0.2, 0.1, -0.18], rotation: [-0.14, -0.18, -0.12], scale: [0.9, 0.96, 0.84] },
+        { name: 'PressurePlate_C', position: [0.06, 0.28, 0.08], rotation: [0.02, 0.3, -0.06], scale: [0.76, 0.84, 0.72] }
+      ];
+
+      shellPlateSpecs.forEach((spec, index) => {
+        const shellPlate = makeMesh(pressureShellGroup, geometries.pressurePlateGeometry, materials.shellMat, spec.name, {
+          position: spec.position,
+          rotation: spec.rotation,
+          scale: spec.scale,
+          renderOrder: archOrder + 3
+        });
+        shellPlate.userData.isEclipseReliquaryShellPlate = true;
+        shellPlate.userData.shellPlateIndex = index;
+        captureBaseTransforms(shellPlate);
+        refs.shellPlates.push(shellPlate);
+      });
+
+      const shellRibSpecs = [
+        { name: 'PressureRib_A', position: [-0.12, 0.16, 0.26], rotation: [0.2, 0.34, 0.08], scale: [1.02, 0.92, 0.88] },
+        { name: 'PressureRib_B', position: [0.18, -0.12, -0.22], rotation: [-0.16, -0.26, -0.14], scale: [0.88, 0.86, 0.84] }
+      ];
+
+      shellRibSpecs.forEach((spec, index) => {
+        const shellRib = makeMesh(pressureShellGroup, geometries.pressureArcGeometry, materials.shellAccentMat, spec.name, {
+          position: spec.position,
+          rotation: spec.rotation,
+          scale: spec.scale,
+          renderOrder: archOrder + 4
+        });
+        shellRib.userData.isEclipseReliquaryShellRib = true;
+        shellRib.userData.shellRibIndex = index;
+        captureBaseTransforms(shellRib);
+        refs.shellRibs.push(shellRib);
+      });
+
+      const pressureRibSpecs = [
+        { name: 'PressureRib_C', position: [-0.08, 0.08, 0.18], rotation: [0.18, 0.1, 0.26], scale: [0.98, 0.78, 0.8] },
+        { name: 'PressureRib_D', position: [0.16, -0.06, -0.2], rotation: [-0.1, -0.14, -0.22], scale: [0.84, 0.72, 0.76] }
+      ];
+
+      pressureRibSpecs.forEach((spec, index) => {
+        const pressureRib = makeMesh(pressureShellGroup, geometries.pressureRibGeometry, materials.shellAccentMat, spec.name, {
+          position: spec.position,
+          rotation: spec.rotation,
+          scale: spec.scale,
+          renderOrder: archOrder + 4.5
+        });
+        pressureRib.userData.isEclipseReliquaryPressureRib = true;
+        pressureRib.userData.pressureRibIndex = index;
+        captureBaseTransforms(pressureRib);
+        refs.pressureRibs.push(pressureRib);
+      });
+
+      const lockGroup = new THREE.Group();
+      lockGroup.name = 'LOCK_GROUP';
+      lockGroup.userData.isEclipseReliquaryLockGroup = true;
+      lockGroup.userData.baseRotation = lockGroup.rotation.clone();
+      lockGroup.position.set(0.34, 0.0, 0.18);
+      lockGroup.rotation.set(0.1, -0.12, 0.14);
+      root.add(lockGroup);
+      refs.lockGroup = lockGroup;
+
+      const lockFrame = makeMesh(lockGroup, geometries.lockFrameGeometry, materials.lockMat, 'EclipseReliquaryLockFrame', {
+        position: [0.0, 0.0, 0.0],
+        rotation: [0.0, 0.2, 0.0],
+        scale: [1.1, 1.0, 1.0],
+        renderOrder: archOrder + 5,
+        ignoreWaveColor: true
+      });
+      lockFrame.userData.isEclipseReliquaryLockFrame = true;
+      captureBaseTransforms(lockFrame);
+      refs.lockFrame = lockFrame;
+
+      const lockVoid = makeMesh(lockGroup, geometries.lockVoidGeometry, materials.shellMat, 'EclipseReliquaryLockVoid', {
+        position: [0.0, 0.0, 0.02],
+        rotation: [0.0, 0.0, 0.0],
+        scale: [1.0, 1.0, 1.0],
+        renderOrder: archOrder + 6
+      });
+      lockVoid.userData.isEclipseReliquaryLockVoid = true;
+      captureBaseTransforms(lockVoid);
+      refs.lockVoid = lockVoid;
+
+      const lockPin = makeMesh(lockGroup, geometries.lockPinGeometry, materials.lockMat, 'EclipseReliquaryLockPin', {
+        position: [0.0, 0.13, 0.01],
+        rotation: [0.0, 0.0, Math.PI / 2],
+        scale: [1.0, 1.0, 1.0],
+        renderOrder: archOrder + 7,
+        ignoreWaveColor: true
+      });
+      lockPin.userData.isEclipseReliquaryLockPin = true;
+      captureBaseTransforms(lockPin);
+      refs.lockPin = lockPin;
+
+      const lockSeal = makeMesh(lockGroup, geometries.coreAccentGeometry, materials.lockGlowMat, 'EclipseReliquaryLockSeal', {
+        position: [0.0, -0.14, 0.03],
+        rotation: [0.24, 0.12, -0.18],
+        scale: [0.64, 0.64, 0.64],
+        renderOrder: archOrder + 8,
+        ignoreWaveColor: true
+      });
+      lockSeal.userData.isEclipseReliquaryLockSeal = true;
+      captureBaseTransforms(lockSeal);
+      refs.lockSeal = lockSeal;
+
+      const orbitGroup = new THREE.Group();
+      orbitGroup.name = 'ORBIT_GROUP';
+      orbitGroup.userData.isEclipseReliquaryOrbitGroup = true;
+      orbitGroup.userData.baseRotation = orbitGroup.rotation.clone();
+      orbitGroup.position.set(0.0, 0.02, 0.0);
+      orbitGroup.rotation.set(0.02, 0.08, -0.04);
+      root.add(orbitGroup);
+      refs.orbitGroup = orbitGroup;
+
+      const orbitShardSpecs = [
+        { name: 'OrbitShard_A', position: [0.42, 0.18, 0.12], rotation: [0.18, 0.26, 0.08], scale: [0.88, 0.84, 0.82] },
+        { name: 'OrbitShard_B', position: [-0.34, -0.08, -0.24], rotation: [-0.16, -0.14, -0.12], scale: [0.72, 0.68, 0.7] },
+        { name: 'OrbitShard_C', position: [0.14, 0.26, -0.38], rotation: [0.24, -0.22, 0.16], scale: [0.66, 0.72, 0.64] },
+        { name: 'OrbitShard_D', position: [-0.1, 0.2, 0.34], rotation: [0.08, 0.28, -0.2], scale: [0.58, 0.62, 0.6] }
+      ];
+
+      orbitShardSpecs.forEach((spec, index) => {
+        const orbitShard = makeMesh(orbitGroup, geometries.orbitShardGeometry, materials.orbitMat, spec.name, {
+          position: spec.position,
+          rotation: spec.rotation,
+          scale: spec.scale,
+          renderOrder: archOrder + 9
+        });
+        orbitShard.userData.isEclipseReliquaryOrbitShard = true;
+        orbitShard.userData.orbitShardIndex = index;
+        captureBaseTransforms(orbitShard);
+        refs.orbitShards.push(orbitShard);
+      });
+
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+      auraGroup.userData.isEclipseReliquaryAuraGroup = true;
+      auraGroup.userData.baseRotation = auraGroup.rotation.clone();
+      auraGroup.position.set(0.0, 0.0, 0.0);
+      auraGroup.rotation.set(0.01, 0.02, -0.01);
+      root.add(auraGroup);
+      refs.auraGroup = auraGroup;
+
+      const dustPoints = makePoints(auraGroup, geometries.dustGeometry, materials.dustMat, 'EclipseReliquaryDust', {
+        position: [0.0, 0.04, 0.12],
+        rotation: [0.14, 0.08, -0.02],
+        scale: [1.0, 1.0, 1.0],
+        renderOrder: archOrder + 10
+      });
+      dustPoints.userData.isEclipseReliquaryDust = true;
+      dustPoints.userData.dustPhase = root.userData.eclipseReliquaryPhase;
+      captureBaseTransforms(dustPoints);
+      refs.dustPoints = dustPoints;
+
+      root.userData.eclipseReliquaryRefs = refs;
+
+      return root;
+    } catch (err) {
+      console.warn('[StorageNodesVisual] EclipseReliquary creation failed:', err);
+      return root;
     }
   }
 

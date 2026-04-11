@@ -19574,55 +19574,594 @@ static createAnalyticsNode2(group, color) {
   // ===== STORAGE NODES (Silver/Pale Blue - 4 variants) =====
 
   /**
-   * Storage Node 0: Tall rectangular pillar with layered slices (fixed + upgraded)
-   * UPGRADED: Enforced segment spacing, per-segment micro-rotation, optional vertical core light
-   * VISUAL HIERARCHY: Core light opacity reduced to 0.08 (was 0.15, subtle background)
+   * Storage Node 0: Memory Chrysalis Archive
+   * First-contact storage flagship: a suspended archive seed wrapped in a protective chrysalis.
    */
-static createStorageNode0(group, color) {
-    const mat = new THREE.MeshStandardMaterial({
-      color,
-      emissive: color,
-      emissiveIntensity: 0.2,
-      metalness: 0.7,
-      roughness: 0.25
-    });
+  static createStorageNode0(group, visualCode, color) {
+    return this._createStorageMemoryChrysalisNode(group, visualCode, color);
+  }
 
-    // Base pedestal
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.1, 0.22, 10, 1), mat);
-    base.position.y = -0.5;
-    validateMeshGeometry(base, 'createStorageNode0:base');
-    group.add(base);
+  static _createStorageMemoryChrysalisNode(group, visualCode, color) {
+    try {
+      const root = group || new THREE.Group();
+      root.userData = root.userData || {};
 
-    // Spine
-    const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 1.6, 10, 1), mat);
-    spine.position.y = 0.3;
-    validateMeshGeometry(spine, 'createStorageNode0:spine');
-    group.add(spine);
+      const hasExplicitColor = typeof color === 'number';
+      const resolvedVisualCode = hasExplicitColor
+        ? (Number.isFinite(visualCode) ? visualCode : (Number.isFinite(root.userData.visualCode) ? root.userData.visualCode : 501))
+        : (Number.isFinite(root.userData.visualCode) ? root.userData.visualCode : 501);
+      const resolvedColorInput = hasExplicitColor ? color : visualCode;
+      const resolvedColorHex = new THREE.Color(typeof resolvedColorInput === 'number' ? resolvedColorInput : 0x9fd6e6).getHex();
 
-    // Core prism
-    const core = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), mat);
-    core.position.y = 0.95;
-    core.rotation.y = Math.PI * 0.18;
-    core.userData.isCore = true;
-    validateMeshGeometry(core, 'createStorageNode0:core');
-    group.add(core);
+      const nodeKey = root.userData.nodeId || root.uuid || `storage:${resolvedVisualCode}:${resolvedColorHex}`;
+      const seed = Math.abs(hashString(`501|${nodeKey}|MEMORY_CHRYSALIS`)) || 501;
+      const rng = _mythicSeededRng(seed);
+      const coreOrder = this._getCoreRenderOrder();
+      const archOrder = this._getArchetypeRenderOrder();
 
-    // Frame ring
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.06, 10, 32), mat);
-    ring.position.y = 0.95;
-    ring.rotation.x = Math.PI * 0.5;
-    ring.rotation.y = Math.PI * 0.12;
-    validateMeshGeometry(ring, 'createStorageNode0:ring');
-    group.add(ring);
+      if (!this.__storageMemoryChrysalisCache) {
+        const geometryCache = {};
 
-    // Crown cap
-    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.28, 10, 1), mat);
-    cap.position.y = 1.45;
-    validateMeshGeometry(cap, 'createStorageNode0:cap');
-    group.add(cap);
+        const deformGeometry = (geometry, transformFn) => {
+          const position = geometry?.attributes?.position;
+          if (!position) {
+            return geometry;
+          }
 
-    group.userData.visualTier = 'STORAGE_V3';
-    return group;
+          const scratch = new THREE.Vector3();
+          for (let i = 0; i < position.count; i++) {
+            scratch.set(position.getX(i), position.getY(i), position.getZ(i));
+            transformFn(scratch, i);
+            position.setXYZ(i, scratch.x, scratch.y, scratch.z);
+          }
+
+          position.needsUpdate = true;
+          geometry.computeVertexNormals();
+          geometry.computeBoundingSphere();
+          return geometry;
+        };
+
+        const coreGeometry = new THREE.DodecahedronGeometry(0.19, 0);
+        deformGeometry(coreGeometry, (v, i) => {
+          const heightBias = Math.max(0, (v.y + 0.19) / 0.38);
+          const frontBias = Math.max(0, v.z * 1.1 + v.x * 0.55);
+          v.x = v.x * (0.94 + heightBias * 0.04) + frontBias * 0.014 + Math.sin(i * 0.31) * 0.001;
+          v.y = v.y * (0.96 + heightBias * 0.015);
+          v.z = v.z * (0.9 + heightBias * 0.05) - v.x * 0.016;
+        });
+
+        const seamGeometry = new THREE.BoxGeometry(0.03, 0.2, 0.015, 1, 2, 1);
+
+        const shellFrontGeometry = new THREE.BoxGeometry(0.74, 1.18, 0.14, 1, 7, 1);
+        deformGeometry(shellFrontGeometry, (v, i) => {
+          const yWeight = Math.min(1, Math.abs(v.y) / 0.59);
+          const frontBias = Math.max(0, v.z) * 0.18;
+          v.x = v.x * (0.9 + (1 - yWeight) * 0.08) + v.z * 0.028;
+          v.y = v.y * (0.98 + (1 - yWeight) * 0.02);
+          v.z = v.z * (0.88 + frontBias) + Math.sin(i * 0.19) * 0.003;
+        });
+
+        const shellWingGeometry = new THREE.BoxGeometry(0.22, 0.92, 0.08, 1, 5, 1);
+        deformGeometry(shellWingGeometry, (v, i) => {
+          const yWeight = Math.min(1, Math.abs(v.y) / 0.46);
+          const flankBias = Math.max(0, -v.x) * 0.11;
+          v.x = v.x * (0.8 + yWeight * 0.08) + v.z * 0.024 + Math.sin(i * 0.23) * 0.0015;
+          v.y = v.y * (0.97 + (1 - yWeight) * 0.02);
+          v.z = v.z * (0.9 + flankBias) - v.x * 0.016;
+        });
+
+        const shellCapGeometry = new THREE.BoxGeometry(0.34, 0.34, 0.08, 1, 3, 1);
+        deformGeometry(shellCapGeometry, (v, i) => {
+          const capBias = Math.max(0, v.y + 0.17) / 0.34;
+          v.x = v.x * (0.88 + capBias * 0.06) + Math.sin(i * 0.17) * 0.001;
+          v.y = v.y * (0.98 + capBias * 0.02);
+          v.z = v.z * (0.9 + capBias * 0.03);
+        });
+
+        const crownArcGeometry = new THREE.TorusGeometry(0.52, 0.028, 6, 18, Math.PI * 1.12);
+        const crownShardGeometry = new THREE.TetrahedronGeometry(0.05, 0);
+
+        const filamentCurveA = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(-0.2, 0.62, 0.16),
+          new THREE.Vector3(-0.12, 0.28, 0.06),
+          new THREE.Vector3(-0.04, -0.02, -0.01),
+          new THREE.Vector3(0.1, -0.38, 0.08)
+        ], false, 'catmullrom', 0.36);
+        const filamentCurveB = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(0.22, 0.56, -0.14),
+          new THREE.Vector3(0.12, 0.22, -0.03),
+          new THREE.Vector3(0.02, -0.06, 0.03),
+          new THREE.Vector3(-0.08, -0.34, -0.08)
+        ], false, 'catmullrom', 0.38);
+        const filamentCurveC = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(-0.02, 0.72, 0.0),
+          new THREE.Vector3(0.0, 0.32, 0.01),
+          new THREE.Vector3(0.02, -0.08, -0.01),
+          new THREE.Vector3(0.06, -0.44, 0.04)
+        ], false, 'catmullrom', 0.4);
+        const filamentGeometryA = new THREE.TubeGeometry(filamentCurveA, 18, 0.012, 5, false);
+        const filamentGeometryB = new THREE.TubeGeometry(filamentCurveB, 18, 0.011, 5, false);
+        const filamentGeometryC = new THREE.TubeGeometry(filamentCurveC, 18, 0.01, 5, false);
+        const indexTraceGeometry = new THREE.BoxGeometry(0.14, 0.018, 0.018, 1, 1, 1);
+
+        const auraGlowGeometry = new THREE.IcosahedronGeometry(0.085, 0);
+
+        const auraDustPositions = [];
+        const auraDustCount = 28;
+        for (let i = 0; i < auraDustCount; i++) {
+          const t = i / auraDustCount;
+          const angle = t * Math.PI * 2.0;
+          const radius = 0.42 + Math.sin(i * 1.31) * 0.07;
+          auraDustPositions.push(
+            Math.cos(angle) * radius,
+            -0.44 + t * 0.92 + Math.sin(i * 0.77) * 0.03,
+            Math.sin(angle) * (0.28 + Math.cos(i * 0.93) * 0.05)
+          );
+        }
+        const auraDustGeometry = new THREE.BufferGeometry();
+        auraDustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(auraDustPositions, 3));
+        auraDustGeometry.computeBoundingSphere();
+
+        geometryCache.coreGeometry = coreGeometry;
+        geometryCache.seamGeometry = seamGeometry;
+        geometryCache.shellFrontGeometry = shellFrontGeometry;
+        geometryCache.shellWingGeometry = shellWingGeometry;
+        geometryCache.shellCapGeometry = shellCapGeometry;
+        geometryCache.crownArcGeometry = crownArcGeometry;
+        geometryCache.crownShardGeometry = crownShardGeometry;
+        geometryCache.filamentGeometryA = filamentGeometryA;
+        geometryCache.filamentGeometryB = filamentGeometryB;
+        geometryCache.filamentGeometryC = filamentGeometryC;
+        geometryCache.indexTraceGeometry = indexTraceGeometry;
+        geometryCache.auraGlowGeometry = auraGlowGeometry;
+        geometryCache.auraDustGeometry = auraDustGeometry;
+
+        this.__storageMemoryChrysalisCache = {
+          geometries: geometryCache,
+          materials: new Map()
+        };
+      }
+
+      const cache = this.__storageMemoryChrysalisCache;
+      let materials = cache.materials.get(resolvedColorHex);
+      if (!materials) {
+        const storageColor = new THREE.Color(resolvedColorHex);
+        const pearl = new THREE.Color(0xf7fbff);
+        const coolTint = storageColor.clone().lerp(pearl, 0.72);
+        const shellTint = new THREE.Color(0x1d242d).lerp(storageColor, 0.16);
+        const crownTint = new THREE.Color(0x252d37).lerp(storageColor, 0.2);
+        const filamentTint = storageColor.clone().lerp(pearl, 0.84);
+        const auraTint = storageColor.clone().lerp(pearl, 0.9);
+        const glowTint = storageColor.clone().lerp(new THREE.Color(0xe7fbff), 0.78);
+
+        const coreMat = new THREE.MeshStandardMaterial({
+          color: coolTint.clone().lerp(new THREE.Color(0xffffff), 0.1),
+          emissive: glowTint.clone(),
+          emissiveIntensity: 0.26,
+          metalness: 0.7,
+          roughness: 0.2,
+          transparent: false,
+          opacity: 1.0,
+          depthWrite: true,
+          depthTest: true
+        });
+
+        const seamMat = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(0x11161c),
+          emissive: glowTint.clone().multiplyScalar(0.32),
+          emissiveIntensity: 0.34,
+          metalness: 0.12,
+          roughness: 0.46,
+          transparent: true,
+          opacity: 0.86,
+          depthWrite: false,
+          depthTest: true,
+          side: THREE.DoubleSide
+        });
+
+        const shellMat = new THREE.MeshPhysicalMaterial({
+          color: shellTint.clone().lerp(pearl, 0.18),
+          emissive: shellTint.clone().lerp(pearl, 0.08),
+          emissiveIntensity: 0.08,
+          metalness: 0.42,
+          roughness: 0.3,
+          clearcoat: 0.22,
+          clearcoatRoughness: 0.28,
+          transparent: true,
+          opacity: 0.9,
+          depthWrite: true,
+          depthTest: true,
+          side: THREE.DoubleSide
+        });
+
+        const crownMat = new THREE.MeshStandardMaterial({
+          color: crownTint.clone().lerp(pearl, 0.16),
+          emissive: glowTint.clone().multiplyScalar(0.26),
+          emissiveIntensity: 0.14,
+          metalness: 0.48,
+          roughness: 0.22,
+          transparent: true,
+          opacity: 0.84,
+          depthWrite: true,
+          depthTest: true,
+          side: THREE.DoubleSide
+        });
+
+        const filamentMat = new THREE.MeshStandardMaterial({
+          color: filamentTint.clone(),
+          emissive: filamentTint.clone().lerp(pearl, 0.22),
+          emissiveIntensity: 0.22,
+          metalness: 0.16,
+          roughness: 0.34,
+          transparent: true,
+          opacity: 0.76,
+          depthWrite: false,
+          depthTest: true,
+          side: THREE.DoubleSide
+        });
+
+        const auraMat = new THREE.PointsMaterial({
+          color: auraTint.clone().lerp(pearl, 0.12),
+          size: 0.022,
+          transparent: true,
+          opacity: 0.24,
+          depthWrite: false,
+          sizeAttenuation: true
+        });
+
+        const dustMat = new THREE.PointsMaterial({
+          color: auraTint.clone().lerp(pearl, 0.22),
+          size: 0.018,
+          transparent: true,
+          opacity: 0.18,
+          depthWrite: false,
+          sizeAttenuation: true
+        });
+
+        const glowMat = new THREE.MeshBasicMaterial({
+          color: glowTint.clone().lerp(pearl, 0.12),
+          transparent: true,
+          opacity: 0.08,
+          depthWrite: false,
+          depthTest: true,
+          side: THREE.DoubleSide
+        });
+
+        materials = {
+          coreMat,
+          seamMat,
+          shellMat,
+          crownMat,
+          filamentMat,
+          auraMat,
+          dustMat,
+          glowMat
+        };
+
+        for (const mat of Object.values(materials)) {
+          mat.userData = {
+            ...(mat.userData || {}),
+            wavePatchMode: 'DEFAULT'
+          };
+        }
+
+        materials.coreMat.userData.ignoreWaveColor = true;
+        materials.seamMat.userData.ignoreWaveColor = true;
+        materials.filamentMat.userData.ignoreWaveColor = true;
+
+        cache.materials.set(resolvedColorHex, materials);
+      }
+
+      const {
+        coreGeometry,
+        seamGeometry,
+        shellFrontGeometry,
+        shellWingGeometry,
+        shellCapGeometry,
+        crownArcGeometry,
+        crownShardGeometry,
+        filamentGeometryA,
+        filamentGeometryB,
+        filamentGeometryC,
+        indexTraceGeometry,
+        auraGlowGeometry,
+        auraDustGeometry
+      } = cache.geometries;
+
+      const {
+        coreMat,
+        seamMat,
+        shellMat,
+        crownMat,
+        filamentMat,
+        auraMat,
+        dustMat,
+        glowMat
+      } = materials;
+
+      const refs = {
+        coreGroup: null,
+        shellGroup: null,
+        crownGroup: null,
+        threadGroup: null,
+        auraGroup: null,
+        coreSeed: null,
+        seamVoid: null,
+        shellFront: null,
+        shellWingLeft: null,
+        shellWingRight: null,
+        shellCap: null,
+        crownArc: null,
+        crownFragments: [],
+        filaments: [],
+        auraGlow: null,
+        auraDust: null
+      };
+
+      const makeMesh = (parent, geometry, material, name, options = {}) => {
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.name = name;
+        mesh.userData = mesh.userData || {};
+        mesh.userData.visualCoreImmutable = true;
+        mesh.userData.wavePatchMode = 'DEFAULT';
+        if (options.ignoreWaveColor) {
+          mesh.userData.ignoreWaveColor = true;
+        }
+        if (options.position) {
+          mesh.position.set(options.position[0], options.position[1], options.position[2]);
+        }
+        if (options.rotation) {
+          mesh.rotation.set(options.rotation[0], options.rotation[1], options.rotation[2]);
+        }
+        if (options.scale) {
+          mesh.scale.set(options.scale[0], options.scale[1], options.scale[2]);
+        }
+        mesh.renderOrder = options.renderOrder ?? coreOrder;
+        if (options.interactive !== false) {
+          mesh.userData.isInteractive = true;
+          mesh.raycast = THREE.Mesh.prototype.raycast;
+        } else {
+          mesh.userData.isInteractive = false;
+        }
+        mesh.userData.basePosition = mesh.position.clone();
+        mesh.userData.baseRotation = mesh.rotation.clone();
+        mesh.userData.baseScale = mesh.scale.clone();
+        parent.add(mesh);
+        return mesh;
+      };
+
+      const makeGroup = (parent, name, position = [0, 0, 0], rotation = [0, 0, 0], scale = [1, 1, 1]) => {
+        const nodeGroup = new THREE.Group();
+        nodeGroup.name = name;
+        nodeGroup.userData = nodeGroup.userData || {};
+        nodeGroup.position.set(position[0], position[1], position[2]);
+        nodeGroup.rotation.set(rotation[0], rotation[1], rotation[2]);
+        nodeGroup.scale.set(scale[0], scale[1], scale[2]);
+        nodeGroup.userData.basePosition = nodeGroup.position.clone();
+        nodeGroup.userData.baseRotation = nodeGroup.rotation.clone();
+        nodeGroup.userData.baseScale = nodeGroup.scale.clone();
+        parent.add(nodeGroup);
+        return nodeGroup;
+      };
+
+      const makePoints = (parent, geometry, material, name, options = {}) => {
+        const points = new THREE.Points(geometry, material);
+        points.name = name;
+        points.userData = points.userData || {};
+        points.userData.visualCoreImmutable = true;
+        points.userData.wavePatchMode = 'DEFAULT';
+        if (options.position) {
+          points.position.set(options.position[0], options.position[1], options.position[2]);
+        }
+        if (options.rotation) {
+          points.rotation.set(options.rotation[0], options.rotation[1], options.rotation[2]);
+        }
+        if (options.scale) {
+          points.scale.set(options.scale[0], options.scale[1], options.scale[2]);
+        }
+        points.renderOrder = options.renderOrder ?? archOrder;
+        points.frustumCulled = false;
+        points.raycast = () => null;
+        points.userData.basePosition = points.position.clone();
+        points.userData.baseRotation = points.rotation.clone();
+        points.userData.baseScale = points.scale.clone();
+        parent.add(points);
+        return points;
+      };
+
+      root.name = 'STORAGE_MEMORY_CHRYSALIS_NODE';
+      root.rotation.set(0.06, 0.12, -0.04);
+      root.userData.color = resolvedColorHex;
+      root.userData.visualCode = resolvedVisualCode;
+      root.userData.category = 'storage';
+      root.userData.visualVariant = 'STORAGE_MEMORY_CHRYSALIS_V4';
+      root.userData.storageVariant = 'MEMORY_CHRYSALIS';
+      root.userData.nodeGeometryName = 'STORAGE_MEMORY_CHRYSALIS_V4';
+      root.userData.visualReady = true;
+      root.userData.visualCoreImmutable = true;
+      root.userData.wavePatchMode = 'DEFAULT';
+      root.userData.memoryChrysalisPhase = rng() * Math.PI * 2;
+      root.userData.memoryChrysalisBaseRotation = root.rotation.clone();
+      root.userData.memoryChrysalisBaseScale = root.scale.clone();
+      root.userData.memoryChrysalisBaseY = root.position.y;
+      root.userData.memoryChrysalisCoreSpeed = 0.012 + rng() * 0.002;
+      root.userData.memoryChrysalisShellSpeed = 0.008 + rng() * 0.0016;
+      root.userData.memoryChrysalisCrownSpeed = 0.006 + rng() * 0.0012;
+      root.userData.memoryChrysalisThreadSpeed = 0.007 + rng() * 0.0014;
+      root.userData.memoryChrysalisAuraSpeed = 0.005 + rng() * 0.001;
+
+      root.userData.memoryChrysalisRefs = refs;
+
+      const coreGroup = makeGroup(root, 'CORE_GROUP', [0.0, 0.03, 0.02], [0.08, 0.18, -0.04], [1, 1, 1]);
+      refs.coreGroup = coreGroup;
+
+      const coreSeed = makeMesh(coreGroup, coreGeometry, coreMat, 'MemoryChrysalisSeed', {
+        position: [0.0, 0.02, 0.03],
+        rotation: [0.18, 0.24, -0.06],
+        scale: [1.0, 0.96, 0.92],
+        renderOrder: coreOrder
+      });
+      refs.coreSeed = coreSeed;
+
+      const seamVoid = makeMesh(coreGroup, seamGeometry, seamMat, 'MemoryChrysalisSeamVoid', {
+        position: [0.0, 0.03, 0.08],
+        rotation: [0.02, 0.12, 0.0],
+        scale: [1.0, 1.0, 1.0],
+        renderOrder: coreOrder + 1,
+        ignoreWaveColor: true
+      });
+      refs.seamVoid = seamVoid;
+
+      const shellGroup = makeGroup(root, 'SHELL_GROUP', [0.0, 0.0, 0.05], [0.0, -0.08, 0.02], [1, 1, 1]);
+      refs.shellGroup = shellGroup;
+
+      const shellFront = makeMesh(shellGroup, shellFrontGeometry, shellMat, 'MemoryChrysalisShellFront', {
+        position: [0.0, 0.02, 0.12],
+        rotation: [0.06, 0.18, -0.02],
+        scale: [1.02, 1.06, 0.94],
+        renderOrder: archOrder
+      });
+      refs.shellFront = shellFront;
+
+      const shellWingLeft = makeMesh(shellGroup, shellWingGeometry, shellMat, 'MemoryChrysalisShellWingLeft', {
+        position: [-0.3, -0.02, 0.02],
+        rotation: [0.14, -0.42, 0.18],
+        scale: [0.9, 0.96, 0.82],
+        renderOrder: archOrder + 1
+      });
+      refs.shellWingLeft = shellWingLeft;
+
+      const shellWingRight = makeMesh(shellGroup, shellWingGeometry, shellMat, 'MemoryChrysalisShellWingRight', {
+        position: [0.26, 0.0, -0.12],
+        rotation: [-0.08, 0.38, -0.16],
+        scale: [0.82, 0.9, 0.78],
+        renderOrder: archOrder + 1
+      });
+      refs.shellWingRight = shellWingRight;
+
+      const shellCap = makeMesh(shellGroup, shellCapGeometry, shellMat, 'MemoryChrysalisShellCap', {
+        position: [0.0, 0.54, 0.06],
+        rotation: [0.16, 0.06, 0.08],
+        scale: [0.72, 0.68, 0.62],
+        renderOrder: archOrder + 1
+      });
+      refs.shellCap = shellCap;
+
+      const crownGroup = makeGroup(root, 'CROWN_GROUP', [0.0, 0.0, 0.0], [0.04, 0.14, -0.02], [1, 1, 1]);
+      refs.crownGroup = crownGroup;
+
+      const crownArc = makeMesh(crownGroup, crownArcGeometry, crownMat, 'MemoryChrysalisCrownArc', {
+        position: [0.0, 0.78, 0.05],
+        rotation: [0.22, 0.34, 0.18],
+        scale: [1.02, 0.96, 0.9],
+        renderOrder: archOrder + 2
+      });
+      refs.crownArc = crownArc;
+
+      const crownFragmentSpecs = [
+        { name: 'MemoryChrysalisCrownShardA', position: [-0.28, 0.86, 0.1], rotation: [0.2, 0.16, 0.42], scale: [0.84, 0.78, 0.8] },
+        { name: 'MemoryChrysalisCrownShardB', position: [0.18, 0.84, -0.12], rotation: [-0.18, -0.22, -0.32], scale: [0.76, 0.72, 0.74] },
+        { name: 'MemoryChrysalisCrownShardC', position: [-0.02, 0.68, 0.18], rotation: [0.32, 0.42, 0.08], scale: [0.62, 0.58, 0.6] }
+      ];
+
+      crownFragmentSpecs.forEach((spec, idx) => {
+        const crownFragment = makeMesh(crownGroup, crownShardGeometry, crownMat, spec.name, {
+          position: spec.position,
+          rotation: spec.rotation,
+          scale: spec.scale,
+          renderOrder: archOrder + 3
+        });
+        crownFragment.userData.crownFragmentIndex = idx;
+        refs.crownFragments.push(crownFragment);
+      });
+
+      const threadGroup = makeGroup(root, 'THREAD_GROUP', [0.0, 0.0, 0.0], [0.02, -0.08, -0.01], [1, 1, 1]);
+      refs.threadGroup = threadGroup;
+
+      const filamentSpecs = [
+        { name: 'MemoryChrysalisFilamentA', geometry: filamentGeometryA, position: [-0.06, 0.12, 0.18], rotation: [0.22, 0.18, 0.32], scale: [1.0, 1.0, 1.0] },
+        { name: 'MemoryChrysalisFilamentB', geometry: filamentGeometryB, position: [0.1, 0.0, -0.18], rotation: [-0.16, -0.18, -0.26], scale: [1.0, 1.0, 1.0] },
+        { name: 'MemoryChrysalisFilamentC', geometry: filamentGeometryC, position: [0.0, -0.24, 0.06], rotation: [0.08, 0.08, 0.48], scale: [1.0, 1.0, 1.0] }
+      ];
+
+      filamentSpecs.forEach((spec, idx) => {
+        const filament = makeMesh(threadGroup, spec.geometry, filamentMat, spec.name, {
+          position: spec.position,
+          rotation: spec.rotation,
+          scale: spec.scale,
+          renderOrder: archOrder + 4,
+          ignoreWaveColor: true
+        });
+        filament.userData.filamentIndex = idx;
+        refs.filaments.push(filament);
+      });
+
+      const indexTrace = makeMesh(threadGroup, indexTraceGeometry, filamentMat, 'MemoryChrysalisIndexTrace', {
+        position: [0.02, -0.04, 0.03],
+        rotation: [0.1, 0.1, 0.48],
+        scale: [1.0, 1.0, 1.0],
+        renderOrder: archOrder + 5,
+        ignoreWaveColor: true
+      });
+      refs.indexTrace = indexTrace;
+
+      const auraGroup = makeGroup(root, 'AURA_GROUP', [0.0, 0.0, 0.0], [0.02, 0.06, -0.01], [1, 1, 1]);
+      refs.auraGroup = auraGroup;
+
+      const auraGlow = makeMesh(auraGroup, auraGlowGeometry, glowMat, 'MemoryChrysalisAuraGlow', {
+        position: [0.0, 0.02, 0.02],
+        rotation: [0.0, 0.0, 0.0],
+        scale: [1.0, 1.0, 1.0],
+        renderOrder: archOrder + 6,
+        interactive: false
+      });
+      refs.auraGlow = auraGlow;
+
+      const auraDust = makePoints(auraGroup, auraDustGeometry, dustMat, 'MemoryChrysalisAuraDust', {
+        position: [0.0, 0.02, 0.0],
+        rotation: [0.08, 0.08, -0.02],
+        scale: [1.0, 1.0, 1.0],
+        renderOrder: archOrder + 7
+      });
+      refs.auraDust = auraDust;
+
+      root.traverse((object3d) => {
+        if (!object3d) {
+          return;
+        }
+
+        object3d.userData = object3d.userData || {};
+        if (object3d.isMesh || object3d.isPoints) {
+          object3d.userData.wavePatchMode = 'DEFAULT';
+          const materialList = Array.isArray(object3d.material) ? object3d.material : (object3d.material ? [object3d.material] : []);
+          for (const material of materialList) {
+            if (!material) {
+              continue;
+            }
+            material.userData = {
+              ...(material.userData || {}),
+              wavePatchMode: 'DEFAULT'
+            };
+            if (object3d.userData.ignoreWaveColor) {
+              material.userData.ignoreWaveColor = true;
+            }
+          }
+          if (object3d.isMesh && object3d.raycast == null) {
+            object3d.raycast = THREE.Mesh.prototype.raycast;
+          }
+        }
+      });
+
+      return root;
+    } catch (err) {
+      console.error('[NodeVisualAbort]', {
+        model: 'createStorageNode0',
+        category: 'storage',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
+    }
   }
   /**
    * Storage Node 1: Capsule with inner bands
@@ -33068,7 +33607,646 @@ static createStorageNode0(group, color) {
       });
     }
 
-    // 3c. STORAGE_FRACTAL_RESERVOIR_V2 (Recursive Basin)
+    // STORAGE_MEMORY_CHRYSALIS_V4 (Memory Chrysalis Archive)
+    if (
+      nodeGroup.userData.nodeGeometryName === 'STORAGE_MEMORY_CHRYSALIS_V4' ||
+      nodeGroup.userData.visualVariant === 'STORAGE_MEMORY_CHRYSALIS_V4' ||
+      nodeGroup.userData.storageVariant === 'MEMORY_CHRYSALIS'
+    ) {
+      const refs = nodeGroup.userData.memoryChrysalisRefs || {};
+      const phase = nodeGroup.userData.memoryChrysalisPhase || 0;
+      const coreSpeed = nodeGroup.userData.memoryChrysalisCoreSpeed || 0.012;
+      const shellSpeed = nodeGroup.userData.memoryChrysalisShellSpeed || 0.008;
+      const crownSpeed = nodeGroup.userData.memoryChrysalisCrownSpeed || 0.006;
+      const threadSpeed = nodeGroup.userData.memoryChrysalisThreadSpeed || 0.007;
+      const auraSpeed = nodeGroup.userData.memoryChrysalisAuraSpeed || 0.005;
+      const baseRotation = nodeGroup.userData.memoryChrysalisBaseRotation || (nodeGroup.userData.memoryChrysalisBaseRotation = nodeGroup.rotation.clone());
+      const baseScale = nodeGroup.userData.memoryChrysalisBaseScale || (nodeGroup.userData.memoryChrysalisBaseScale = nodeGroup.scale.clone());
+      const baseY = nodeGroup.userData.memoryChrysalisBaseY ?? (nodeGroup.userData.memoryChrysalisBaseY = nodeGroup.position.y);
+
+      nodeGroup.position.y = baseY + Math.sin(time * shellSpeed * 0.18 + phase) * 0.0006;
+      nodeGroup.rotation.set(
+        baseRotation.x + Math.sin(time * shellSpeed * 0.14 + phase) * 0.0004,
+        baseRotation.y + deltaTime * shellSpeed * 0.012,
+        baseRotation.z + Math.cos(time * shellSpeed * 0.12 + phase) * 0.0003
+      );
+      nodeGroup.scale.set(
+        baseScale.x * (1 + Math.sin(time * shellSpeed * 0.16 + phase) * 0.0006),
+        baseScale.y * (1 + Math.cos(time * shellSpeed * 0.14 + phase) * 0.0004),
+        baseScale.z * (1 + Math.sin(time * shellSpeed * 0.12 + phase) * 0.0006)
+      );
+
+      if (refs.coreGroup) {
+        const coreBaseRotation = refs.coreGroup.userData.baseRotation || (refs.coreGroup.userData.baseRotation = refs.coreGroup.rotation.clone());
+        refs.coreGroup.rotation.set(
+          coreBaseRotation.x + Math.sin(time * coreSpeed * 0.22 + phase) * 0.0003,
+          coreBaseRotation.y + deltaTime * coreSpeed * 0.01,
+          coreBaseRotation.z + Math.cos(time * coreSpeed * 0.2 + phase) * 0.0002
+        );
+      }
+
+      if (refs.coreSeed) {
+        const coreSeedBaseRotation = refs.coreSeed.userData.baseRotation || (refs.coreSeed.userData.baseRotation = refs.coreSeed.rotation.clone());
+        const coreSeedBaseScale = refs.coreSeed.userData.baseScale || (refs.coreSeed.userData.baseScale = refs.coreSeed.scale.clone());
+        refs.coreSeed.rotation.set(
+          coreSeedBaseRotation.x + Math.sin(time * coreSpeed * 0.28 + phase) * 0.0005,
+          coreSeedBaseRotation.y + deltaTime * coreSpeed * 0.016,
+          coreSeedBaseRotation.z + Math.cos(time * coreSpeed * 0.24 + phase) * 0.0004
+        );
+        refs.coreSeed.scale.set(
+          coreSeedBaseScale.x * (1 + Math.sin(time * coreSpeed * 0.3 + phase) * 0.001),
+          coreSeedBaseScale.y * (1 + Math.cos(time * coreSpeed * 0.28 + phase) * 0.0008),
+          coreSeedBaseScale.z * (1 + Math.sin(time * coreSpeed * 0.26 + phase) * 0.001)
+        );
+      }
+
+      if (refs.seamVoid) {
+        const seamBasePosition = refs.seamVoid.userData.basePosition || (refs.seamVoid.userData.basePosition = refs.seamVoid.position.clone());
+        const seamBaseScale = refs.seamVoid.userData.baseScale || (refs.seamVoid.userData.baseScale = refs.seamVoid.scale.clone());
+        refs.seamVoid.position.set(
+          seamBasePosition.x,
+          seamBasePosition.y + Math.sin(time * coreSpeed * 0.36 + phase) * 0.00012,
+          seamBasePosition.z + Math.cos(time * coreSpeed * 0.34 + phase) * 0.00016
+        );
+        refs.seamVoid.scale.set(
+          seamBaseScale.x * (1 + Math.sin(time * coreSpeed * 0.34 + phase) * 0.0004),
+          seamBaseScale.y * (1 + Math.cos(time * coreSpeed * 0.3 + phase) * 0.0004),
+          seamBaseScale.z * (1 + Math.sin(time * coreSpeed * 0.28 + phase) * 0.0004)
+        );
+      }
+
+      if (refs.shellGroup) {
+        const shellBaseRotation = refs.shellGroup.userData.baseRotation || (refs.shellGroup.userData.baseRotation = refs.shellGroup.rotation.clone());
+        const shellBaseScale = refs.shellGroup.userData.baseScale || (refs.shellGroup.userData.baseScale = refs.shellGroup.scale.clone());
+        refs.shellGroup.rotation.set(
+          shellBaseRotation.x + Math.sin(time * shellSpeed * 0.22 + phase) * 0.0004,
+          shellBaseRotation.y + deltaTime * shellSpeed * 0.01,
+          shellBaseRotation.z + Math.cos(time * shellSpeed * 0.2 + phase) * 0.0003
+        );
+        refs.shellGroup.scale.set(
+          shellBaseScale.x * (1 + Math.sin(time * shellSpeed * 0.26 + phase) * 0.0008),
+          shellBaseScale.y * (1 + Math.cos(time * shellSpeed * 0.24 + phase) * 0.0006),
+          shellBaseScale.z * (1 + Math.sin(time * shellSpeed * 0.22 + phase) * 0.0008)
+        );
+      }
+
+      if (refs.shellFront) {
+        const shellFrontBasePosition = refs.shellFront.userData.basePosition || (refs.shellFront.userData.basePosition = refs.shellFront.position.clone());
+        const shellFrontBaseRotation = refs.shellFront.userData.baseRotation || (refs.shellFront.userData.baseRotation = refs.shellFront.rotation.clone());
+        const shellFrontBaseScale = refs.shellFront.userData.baseScale || (refs.shellFront.userData.baseScale = refs.shellFront.scale.clone());
+        refs.shellFront.position.set(
+          shellFrontBasePosition.x,
+          shellFrontBasePosition.y + Math.sin(time * shellSpeed * 0.28 + phase) * 0.00018,
+          shellFrontBasePosition.z + Math.cos(time * shellSpeed * 0.26 + phase) * 0.00024
+        );
+        refs.shellFront.rotation.set(
+          shellFrontBaseRotation.x + Math.sin(time * shellSpeed * 0.26 + phase) * 0.0006,
+          shellFrontBaseRotation.y + deltaTime * shellSpeed * 0.02,
+          shellFrontBaseRotation.z + Math.cos(time * shellSpeed * 0.24 + phase) * 0.0004
+        );
+        refs.shellFront.scale.set(
+          shellFrontBaseScale.x * (1 + Math.sin(time * shellSpeed * 0.24 + phase) * 0.001),
+          shellFrontBaseScale.y * (1 + Math.cos(time * shellSpeed * 0.22 + phase) * 0.0008),
+          shellFrontBaseScale.z * (1 + Math.sin(time * shellSpeed * 0.2 + phase) * 0.001)
+        );
+      }
+
+      if (refs.shellWingLeft) {
+        const shellWingBasePosition = refs.shellWingLeft.userData.basePosition || (refs.shellWingLeft.userData.basePosition = refs.shellWingLeft.position.clone());
+        const shellWingBaseRotation = refs.shellWingLeft.userData.baseRotation || (refs.shellWingLeft.userData.baseRotation = refs.shellWingLeft.rotation.clone());
+        const shellWingBaseScale = refs.shellWingLeft.userData.baseScale || (refs.shellWingLeft.userData.baseScale = refs.shellWingLeft.scale.clone());
+        refs.shellWingLeft.position.set(
+          shellWingBasePosition.x + Math.sin(time * shellSpeed * 0.2 + phase) * 0.00016,
+          shellWingBasePosition.y + Math.cos(time * shellSpeed * 0.18 + phase) * 0.00014,
+          shellWingBasePosition.z + Math.sin(time * shellSpeed * 0.16 + phase) * 0.00016
+        );
+        refs.shellWingLeft.rotation.set(
+          shellWingBaseRotation.x + Math.sin(time * shellSpeed * 0.22 + phase) * 0.0005,
+          shellWingBaseRotation.y + deltaTime * shellSpeed * 0.016,
+          shellWingBaseRotation.z + Math.cos(time * shellSpeed * 0.2 + phase) * 0.0004
+        );
+        refs.shellWingLeft.scale.set(
+          shellWingBaseScale.x * (1 + Math.sin(time * shellSpeed * 0.18 + phase) * 0.0008),
+          shellWingBaseScale.y * (1 + Math.cos(time * shellSpeed * 0.16 + phase) * 0.0006),
+          shellWingBaseScale.z * (1 + Math.sin(time * shellSpeed * 0.14 + phase) * 0.0008)
+        );
+      }
+
+      if (refs.shellWingRight) {
+        const shellWingBasePosition = refs.shellWingRight.userData.basePosition || (refs.shellWingRight.userData.basePosition = refs.shellWingRight.position.clone());
+        const shellWingBaseRotation = refs.shellWingRight.userData.baseRotation || (refs.shellWingRight.userData.baseRotation = refs.shellWingRight.rotation.clone());
+        const shellWingBaseScale = refs.shellWingRight.userData.baseScale || (refs.shellWingRight.userData.baseScale = refs.shellWingRight.scale.clone());
+        refs.shellWingRight.position.set(
+          shellWingBasePosition.x + Math.sin(time * shellSpeed * 0.18 + phase) * 0.00014,
+          shellWingBasePosition.y + Math.cos(time * shellSpeed * 0.16 + phase) * 0.00012,
+          shellWingBasePosition.z + Math.sin(time * shellSpeed * 0.14 + phase) * 0.00014
+        );
+        refs.shellWingRight.rotation.set(
+          shellWingBaseRotation.x + Math.sin(time * shellSpeed * 0.2 + phase) * 0.0004,
+          shellWingBaseRotation.y + deltaTime * shellSpeed * 0.014,
+          shellWingBaseRotation.z + Math.cos(time * shellSpeed * 0.18 + phase) * 0.00035
+        );
+        refs.shellWingRight.scale.set(
+          shellWingBaseScale.x * (1 + Math.sin(time * shellSpeed * 0.16 + phase) * 0.0007),
+          shellWingBaseScale.y * (1 + Math.cos(time * shellSpeed * 0.14 + phase) * 0.0005),
+          shellWingBaseScale.z * (1 + Math.sin(time * shellSpeed * 0.12 + phase) * 0.0007)
+        );
+      }
+
+      if (refs.shellCap) {
+        const shellCapBasePosition = refs.shellCap.userData.basePosition || (refs.shellCap.userData.basePosition = refs.shellCap.position.clone());
+        const shellCapBaseRotation = refs.shellCap.userData.baseRotation || (refs.shellCap.userData.baseRotation = refs.shellCap.rotation.clone());
+        const shellCapBaseScale = refs.shellCap.userData.baseScale || (refs.shellCap.userData.baseScale = refs.shellCap.scale.clone());
+        refs.shellCap.position.set(
+          shellCapBasePosition.x,
+          shellCapBasePosition.y + Math.sin(time * shellSpeed * 0.2 + phase) * 0.0002,
+          shellCapBasePosition.z + Math.cos(time * shellSpeed * 0.18 + phase) * 0.00016
+        );
+        refs.shellCap.rotation.set(
+          shellCapBaseRotation.x + Math.sin(time * shellSpeed * 0.24 + phase) * 0.0005,
+          shellCapBaseRotation.y + deltaTime * shellSpeed * 0.015,
+          shellCapBaseRotation.z + Math.cos(time * shellSpeed * 0.22 + phase) * 0.00035
+        );
+        refs.shellCap.scale.set(
+          shellCapBaseScale.x * (1 + Math.sin(time * shellSpeed * 0.18 + phase) * 0.0007),
+          shellCapBaseScale.y * (1 + Math.cos(time * shellSpeed * 0.16 + phase) * 0.0005),
+          shellCapBaseScale.z * (1 + Math.sin(time * shellSpeed * 0.14 + phase) * 0.0007)
+        );
+      }
+
+      if (refs.crownGroup) {
+        const crownBaseRotation = refs.crownGroup.userData.baseRotation || (refs.crownGroup.userData.baseRotation = refs.crownGroup.rotation.clone());
+        refs.crownGroup.rotation.set(
+          crownBaseRotation.x + Math.sin(time * crownSpeed * 0.18 + phase) * 0.0004,
+          crownBaseRotation.y + deltaTime * crownSpeed * 0.014,
+          crownBaseRotation.z + Math.cos(time * crownSpeed * 0.16 + phase) * 0.0003
+        );
+      }
+
+      if (refs.crownArc) {
+        const crownArcBasePosition = refs.crownArc.userData.basePosition || (refs.crownArc.userData.basePosition = refs.crownArc.position.clone());
+        const crownArcBaseRotation = refs.crownArc.userData.baseRotation || (refs.crownArc.userData.baseRotation = refs.crownArc.rotation.clone());
+        const crownArcBaseScale = refs.crownArc.userData.baseScale || (refs.crownArc.userData.baseScale = refs.crownArc.scale.clone());
+        refs.crownArc.position.set(
+          crownArcBasePosition.x + Math.sin(time * crownSpeed * 0.2 + phase) * 0.0002,
+          crownArcBasePosition.y + Math.cos(time * crownSpeed * 0.18 + phase) * 0.00016,
+          crownArcBasePosition.z + Math.sin(time * crownSpeed * 0.16 + phase) * 0.00018
+        );
+        refs.crownArc.rotation.set(
+          crownArcBaseRotation.x + Math.sin(time * crownSpeed * 0.22 + phase) * 0.0005,
+          crownArcBaseRotation.y + deltaTime * crownSpeed * 0.012,
+          crownArcBaseRotation.z + Math.cos(time * crownSpeed * 0.2 + phase) * 0.00035
+        );
+        refs.crownArc.scale.set(
+          crownArcBaseScale.x * (1 + Math.sin(time * crownSpeed * 0.18 + phase) * 0.0007),
+          crownArcBaseScale.y * (1 + Math.cos(time * crownSpeed * 0.16 + phase) * 0.0005),
+          crownArcBaseScale.z * (1 + Math.sin(time * crownSpeed * 0.14 + phase) * 0.0007)
+        );
+      }
+
+      if (Array.isArray(refs.crownFragments)) {
+        refs.crownFragments.forEach((fragment, idx) => {
+          const fragmentBasePosition = fragment.userData.basePosition || (fragment.userData.basePosition = fragment.position.clone());
+          const fragmentBaseRotation = fragment.userData.baseRotation || (fragment.userData.baseRotation = fragment.rotation.clone());
+          const fragmentBaseScale = fragment.userData.baseScale || (fragment.userData.baseScale = fragment.scale.clone());
+          const fragmentPhase = phase + idx * 0.43;
+          fragment.position.set(
+            fragmentBasePosition.x + Math.sin(time * crownSpeed * 0.24 + fragmentPhase) * 0.0002,
+            fragmentBasePosition.y + Math.cos(time * crownSpeed * 0.22 + fragmentPhase) * 0.00015,
+            fragmentBasePosition.z + Math.sin(time * crownSpeed * 0.2 + fragmentPhase) * 0.00018
+          );
+          fragment.rotation.set(
+            fragmentBaseRotation.x + Math.sin(time * crownSpeed * 0.26 + fragmentPhase) * 0.0005,
+            fragmentBaseRotation.y + deltaTime * crownSpeed * 0.01,
+            fragmentBaseRotation.z + Math.cos(time * crownSpeed * 0.24 + fragmentPhase) * 0.00035
+          );
+          fragment.scale.set(
+            fragmentBaseScale.x * (1 + Math.sin(time * crownSpeed * 0.18 + fragmentPhase) * 0.0006),
+            fragmentBaseScale.y * (1 + Math.cos(time * crownSpeed * 0.16 + fragmentPhase) * 0.0004),
+            fragmentBaseScale.z * (1 + Math.sin(time * crownSpeed * 0.14 + fragmentPhase) * 0.0006)
+          );
+        });
+      }
+
+      if (refs.threadGroup) {
+        const threadBaseRotation = refs.threadGroup.userData.baseRotation || (refs.threadGroup.userData.baseRotation = refs.threadGroup.rotation.clone());
+        refs.threadGroup.rotation.set(
+          threadBaseRotation.x + Math.sin(time * threadSpeed * 0.18 + phase) * 0.0003,
+          threadBaseRotation.y + deltaTime * threadSpeed * 0.01,
+          threadBaseRotation.z + Math.cos(time * threadSpeed * 0.16 + phase) * 0.0002
+        );
+      }
+
+      if (Array.isArray(refs.filaments)) {
+        refs.filaments.forEach((filament, idx) => {
+          const filamentBasePosition = filament.userData.basePosition || (filament.userData.basePosition = filament.position.clone());
+          const filamentBaseRotation = filament.userData.baseRotation || (filament.userData.baseRotation = filament.rotation.clone());
+          const filamentBaseScale = filament.userData.baseScale || (filament.userData.baseScale = filament.scale.clone());
+          const filamentPhase = phase + idx * 0.51;
+          filament.position.set(
+            filamentBasePosition.x + Math.sin(time * threadSpeed * 0.28 + filamentPhase) * 0.00016,
+            filamentBasePosition.y + Math.cos(time * threadSpeed * 0.26 + filamentPhase) * 0.00014,
+            filamentBasePosition.z + Math.sin(time * threadSpeed * 0.24 + filamentPhase) * 0.00016
+          );
+          filament.rotation.set(
+            filamentBaseRotation.x + Math.sin(time * threadSpeed * 0.3 + filamentPhase) * 0.0004,
+            filamentBaseRotation.y + deltaTime * threadSpeed * 0.014,
+            filamentBaseRotation.z + Math.cos(time * threadSpeed * 0.28 + filamentPhase) * 0.0003
+          );
+          filament.scale.set(
+            filamentBaseScale.x * (1 + Math.sin(time * threadSpeed * 0.22 + filamentPhase) * 0.0005),
+            filamentBaseScale.y * (1 + Math.cos(time * threadSpeed * 0.2 + filamentPhase) * 0.0004),
+            filamentBaseScale.z * (1 + Math.sin(time * threadSpeed * 0.18 + filamentPhase) * 0.0005)
+          );
+        });
+      }
+
+      if (refs.indexTrace) {
+        const traceBasePosition = refs.indexTrace.userData.basePosition || (refs.indexTrace.userData.basePosition = refs.indexTrace.position.clone());
+        const traceBaseRotation = refs.indexTrace.userData.baseRotation || (refs.indexTrace.userData.baseRotation = refs.indexTrace.rotation.clone());
+        refs.indexTrace.position.set(
+          traceBasePosition.x + Math.sin(time * threadSpeed * 0.2 + phase) * 0.0001,
+          traceBasePosition.y + Math.cos(time * threadSpeed * 0.18 + phase) * 0.00008,
+          traceBasePosition.z + Math.sin(time * threadSpeed * 0.16 + phase) * 0.0001
+        );
+        refs.indexTrace.rotation.set(
+          traceBaseRotation.x + Math.sin(time * threadSpeed * 0.22 + phase) * 0.0003,
+          traceBaseRotation.y + deltaTime * threadSpeed * 0.01,
+          traceBaseRotation.z + Math.cos(time * threadSpeed * 0.2 + phase) * 0.0002
+        );
+      }
+
+      if (refs.auraGroup) {
+        const auraBaseRotation = refs.auraGroup.userData.baseRotation || (refs.auraGroup.userData.baseRotation = refs.auraGroup.rotation.clone());
+        refs.auraGroup.rotation.set(
+          auraBaseRotation.x + Math.sin(time * auraSpeed * 0.18 + phase) * 0.00025,
+          auraBaseRotation.y + deltaTime * auraSpeed * 0.012,
+          auraBaseRotation.z + Math.cos(time * auraSpeed * 0.16 + phase) * 0.0002
+        );
+      }
+
+      if (refs.auraGlow) {
+        const glowBaseScale = refs.auraGlow.userData.baseScale || (refs.auraGlow.userData.baseScale = refs.auraGlow.scale.clone());
+        refs.auraGlow.scale.set(
+          glowBaseScale.x * (1 + Math.sin(time * auraSpeed * 0.22 + phase) * 0.0005),
+          glowBaseScale.y * (1 + Math.cos(time * auraSpeed * 0.2 + phase) * 0.0004),
+          glowBaseScale.z * (1 + Math.sin(time * auraSpeed * 0.18 + phase) * 0.0005)
+        );
+      }
+
+      if (refs.auraDust) {
+        const dustBaseRotation = refs.auraDust.userData.baseRotation || (refs.auraDust.userData.baseRotation = refs.auraDust.rotation.clone());
+        refs.auraDust.rotation.set(
+          dustBaseRotation.x + Math.sin(time * auraSpeed * 0.2 + phase) * 0.0002,
+          dustBaseRotation.y + deltaTime * auraSpeed * 0.01,
+          dustBaseRotation.z + Math.cos(time * auraSpeed * 0.18 + phase) * 0.00016
+        );
+      }
+    }
+
+    // 3c. STORAGE_BASTION_OBELISK_CACHE_V2 (Fortress Cache)
+    if (
+      nodeGroup.userData.nodeGeometryName === 'STORAGE_BASTION_OBELISK_CACHE_V2' ||
+      nodeGroup.userData.visualVariant === 'STORAGE_BASTION_OBELISK_CACHE_V2' ||
+      nodeGroup.userData.storageVariant === 'BASTION_OBELISK_CACHE'
+    ) {
+      const refs = nodeGroup.userData.bastionObeliskCacheRefs || {};
+      const phase = nodeGroup.userData.bastionObeliskCachePhase || 0;
+      const stillnessSpeed = nodeGroup.userData.bastionObeliskCacheStillnessSpeed || 0.016;
+      const seamSpeed = nodeGroup.userData.bastionObeliskCacheSeamSpeed || 0.024;
+      const settlingSpeed = nodeGroup.userData.bastionObeliskCacheSettlingSpeed || 0.006;
+      const dustSpeed = nodeGroup.userData.bastionObeliskCacheDustSpeed || 0.01;
+      const accessSpeed = nodeGroup.userData.bastionObeliskCacheAccessSpeed || 0.009;
+      const baseRotation = nodeGroup.userData.bastionObeliskCacheBaseRotation || (nodeGroup.userData.bastionObeliskCacheBaseRotation = nodeGroup.rotation.clone());
+      const baseScale = nodeGroup.userData.bastionObeliskCacheBaseScale || (nodeGroup.userData.bastionObeliskCacheBaseScale = nodeGroup.scale.clone());
+      const baseY = nodeGroup.userData.bastionObeliskCacheBaseY ?? (nodeGroup.userData.bastionObeliskCacheBaseY = nodeGroup.position.y);
+
+      nodeGroup.position.y = baseY + Math.sin(time * settlingSpeed + phase) * 0.0012;
+      nodeGroup.rotation.set(
+        baseRotation.x + Math.sin(time * stillnessSpeed * 0.42 + phase) * 0.0009,
+        baseRotation.y + deltaTime * stillnessSpeed * 0.06,
+        baseRotation.z + Math.cos(time * stillnessSpeed * 0.38 + phase) * 0.0007
+      );
+      nodeGroup.scale.set(
+        baseScale.x * (1 + Math.sin(time * stillnessSpeed + phase) * 0.0012),
+        baseScale.y * (1 - Math.sin(time * stillnessSpeed * 0.58 + phase) * 0.0008),
+        baseScale.z * (1 + Math.cos(time * stillnessSpeed * 0.52 + phase) * 0.0006)
+      );
+
+      if (refs.coreGroup) {
+        const coreBaseRotation = refs.coreGroup.userData.baseRotation || (refs.coreGroup.userData.baseRotation = refs.coreGroup.rotation.clone());
+        refs.coreGroup.rotation.set(
+          coreBaseRotation.x + Math.sin(time * stillnessSpeed * 0.34 + phase) * 0.0007,
+          coreBaseRotation.y + deltaTime * stillnessSpeed * 0.02,
+          coreBaseRotation.z + Math.cos(time * stillnessSpeed * 0.3 + phase) * 0.0005
+        );
+      }
+
+      if (refs.vaultCore) {
+        const coreBaseScale = refs.vaultCore.userData.baseScale || (refs.vaultCore.userData.baseScale = refs.vaultCore.scale.clone());
+        refs.vaultCore.scale.set(
+          coreBaseScale.x * (1 + Math.sin(time * stillnessSpeed * 0.82 + phase) * 0.0014),
+          coreBaseScale.y * (1 + Math.cos(time * stillnessSpeed * 0.76 + phase) * 0.001),
+          coreBaseScale.z * (1 + Math.sin(time * stillnessSpeed * 0.72 + phase) * 0.0012)
+        );
+      }
+
+      if (refs.coreVoid) {
+        const coreVoidBasePosition = refs.coreVoid.userData.basePosition || (refs.coreVoid.userData.basePosition = refs.coreVoid.position.clone());
+        const coreVoidBaseScale = refs.coreVoid.userData.baseScale || (refs.coreVoid.userData.baseScale = refs.coreVoid.scale.clone());
+        refs.coreVoid.position.set(
+          coreVoidBasePosition.x,
+          coreVoidBasePosition.y + Math.sin(time * seamSpeed + phase) * 0.0004,
+          coreVoidBasePosition.z + Math.cos(time * seamSpeed * 0.94 + phase) * 0.0005
+        );
+        refs.coreVoid.scale.set(
+          coreVoidBaseScale.x * (1 + Math.sin(time * seamSpeed * 0.8 + phase) * 0.0008),
+          coreVoidBaseScale.y * (1 + Math.cos(time * seamSpeed * 0.74 + phase) * 0.0012),
+          coreVoidBaseScale.z * (1 + Math.sin(time * seamSpeed * 0.7 + phase) * 0.0008)
+        );
+      }
+
+      if (refs.coreSeam) {
+        const coreSeamBaseScale = refs.coreSeam.userData.baseScale || (refs.coreSeam.userData.baseScale = refs.coreSeam.scale.clone());
+        refs.coreSeam.scale.set(
+          coreSeamBaseScale.x * (1 + Math.sin(time * seamSpeed * 1.12 + phase) * 0.002),
+          coreSeamBaseScale.y * (1 + Math.cos(time * seamSpeed * 1.04 + phase) * 0.0012),
+          coreSeamBaseScale.z * (1 + Math.sin(time * seamSpeed * 1.0 + phase) * 0.002)
+        );
+      }
+
+      if (refs.coreSeed) {
+        const coreSeedBaseRotation = refs.coreSeed.userData.baseRotation || (refs.coreSeed.userData.baseRotation = refs.coreSeed.rotation.clone());
+        const coreSeedBaseScale = refs.coreSeed.userData.baseScale || (refs.coreSeed.userData.baseScale = refs.coreSeed.scale.clone());
+        refs.coreSeed.rotation.set(
+          coreSeedBaseRotation.x + Math.sin(time * stillnessSpeed * 0.74 + phase) * 0.0012,
+          coreSeedBaseRotation.y + deltaTime * stillnessSpeed * 0.04,
+          coreSeedBaseRotation.z + Math.cos(time * stillnessSpeed * 0.68 + phase) * 0.001
+        );
+        refs.coreSeed.scale.set(
+          coreSeedBaseScale.x * (1 + Math.sin(time * stillnessSpeed * 0.9 + phase) * 0.0012),
+          coreSeedBaseScale.y * (1 + Math.cos(time * stillnessSpeed * 0.84 + phase) * 0.001),
+          coreSeedBaseScale.z * (1 + Math.sin(time * stillnessSpeed * 0.78 + phase) * 0.0012)
+        );
+      }
+
+      if (refs.obeliskGroup) {
+        const obeliskBaseRotation = refs.obeliskGroup.userData.baseRotation || (refs.obeliskGroup.userData.baseRotation = refs.obeliskGroup.rotation.clone());
+        refs.obeliskGroup.rotation.set(
+          obeliskBaseRotation.x + Math.sin(time * stillnessSpeed * 0.48 + phase) * 0.001,
+          obeliskBaseRotation.y + deltaTime * stillnessSpeed * 0.03,
+          obeliskBaseRotation.z + Math.cos(time * stillnessSpeed * 0.42 + phase) * 0.0007
+        );
+      }
+
+      if (refs.obeliskBody) {
+        const bodyBaseScale = refs.obeliskBody.userData.baseScale || (refs.obeliskBody.userData.baseScale = refs.obeliskBody.scale.clone());
+        const bodyBaseRotation = refs.obeliskBody.userData.baseRotation || (refs.obeliskBody.userData.baseRotation = refs.obeliskBody.rotation.clone());
+        refs.obeliskBody.rotation.set(
+          bodyBaseRotation.x + Math.sin(time * settlingSpeed * 0.68 + phase) * 0.0006,
+          bodyBaseRotation.y + deltaTime * settlingSpeed * 0.14,
+          bodyBaseRotation.z + Math.cos(time * settlingSpeed * 0.62 + phase) * 0.0005
+        );
+        refs.obeliskBody.scale.set(
+          bodyBaseScale.x * (1 + Math.sin(time * stillnessSpeed * 0.56 + phase) * 0.0008),
+          bodyBaseScale.y * (1 + Math.cos(time * stillnessSpeed * 0.5 + phase) * 0.0006),
+          bodyBaseScale.z * (1 + Math.sin(time * stillnessSpeed * 0.46 + phase) * 0.0008)
+        );
+      }
+
+      if (Array.isArray(refs.armorPlates)) {
+        refs.armorPlates.forEach((plate, idx) => {
+          const basePosition = plate.userData.basePosition || (plate.userData.basePosition = plate.position.clone());
+          const baseRotation = plate.userData.baseRotation || (plate.userData.baseRotation = plate.rotation.clone());
+          const baseScale = plate.userData.baseScale || (plate.userData.baseScale = plate.scale.clone());
+          const platePhase = phase + idx * 0.41;
+          plate.position.set(
+            basePosition.x + Math.sin(time * seamSpeed * 0.8 + platePhase) * 0.0008,
+            basePosition.y + Math.cos(time * seamSpeed * 0.76 + platePhase) * 0.0006,
+            basePosition.z + Math.sin(time * seamSpeed * 0.72 + platePhase) * 0.0007
+          );
+          plate.rotation.set(
+            baseRotation.x + Math.sin(time * seamSpeed * 0.84 + platePhase) * 0.001,
+            baseRotation.y + deltaTime * seamSpeed * 0.06,
+            baseRotation.z + Math.cos(time * seamSpeed * 0.78 + platePhase) * 0.0008
+          );
+          plate.scale.set(
+            baseScale.x * (1 + Math.sin(time * seamSpeed * 0.62 + platePhase) * 0.0008),
+            baseScale.y * (1 + Math.cos(time * seamSpeed * 0.58 + platePhase) * 0.0006),
+            baseScale.z * (1 + Math.sin(time * seamSpeed * 0.54 + platePhase) * 0.0008)
+          );
+        });
+      }
+
+      if (refs.crownCap) {
+        const crownBaseScale = refs.crownCap.userData.baseScale || (refs.crownCap.userData.baseScale = refs.crownCap.scale.clone());
+        const crownBaseRotation = refs.crownCap.userData.baseRotation || (refs.crownCap.userData.baseRotation = refs.crownCap.rotation.clone());
+        refs.crownCap.rotation.set(
+          crownBaseRotation.x + Math.sin(time * seamSpeed * 0.72 + phase) * 0.0009,
+          crownBaseRotation.y + deltaTime * seamSpeed * 0.05,
+          crownBaseRotation.z + Math.cos(time * seamSpeed * 0.68 + phase) * 0.0007
+        );
+        refs.crownCap.scale.set(
+          crownBaseScale.x * (1 + Math.sin(time * seamSpeed * 0.8 + phase) * 0.0012),
+          crownBaseScale.y * (1 + Math.cos(time * seamSpeed * 0.76 + phase) * 0.0008),
+          crownBaseScale.z * (1 + Math.sin(time * seamSpeed * 0.72 + phase) * 0.001)
+        );
+      }
+
+      if (Array.isArray(refs.crownFragments)) {
+        refs.crownFragments.forEach((fragment, idx) => {
+          const basePosition = fragment.userData.basePosition || (fragment.userData.basePosition = fragment.position.clone());
+          const baseRotation = fragment.userData.baseRotation || (fragment.userData.baseRotation = fragment.rotation.clone());
+          const baseScale = fragment.userData.baseScale || (fragment.userData.baseScale = fragment.scale.clone());
+          const fragmentPhase = phase + idx * 0.57;
+          fragment.position.set(
+            basePosition.x + Math.sin(time * seamSpeed * 0.86 + fragmentPhase) * 0.0007,
+            basePosition.y + Math.cos(time * seamSpeed * 0.8 + fragmentPhase) * 0.0005,
+            basePosition.z + Math.sin(time * seamSpeed * 0.76 + fragmentPhase) * 0.0006
+          );
+          fragment.rotation.set(
+            baseRotation.x + Math.sin(time * seamSpeed * 0.9 + fragmentPhase) * 0.001,
+            baseRotation.y + deltaTime * seamSpeed * 0.05,
+            baseRotation.z + Math.cos(time * seamSpeed * 0.84 + fragmentPhase) * 0.0008
+          );
+          fragment.scale.set(
+            baseScale.x * (1 + Math.sin(time * seamSpeed * 0.68 + fragmentPhase) * 0.0008),
+            baseScale.y * (1 + Math.cos(time * seamSpeed * 0.64 + fragmentPhase) * 0.0007),
+            baseScale.z * (1 + Math.sin(time * seamSpeed * 0.6 + fragmentPhase) * 0.0008)
+          );
+        });
+      }
+
+      if (refs.bastionGroup) {
+        const bastionBaseRotation = refs.bastionGroup.userData.baseRotation || (refs.bastionGroup.userData.baseRotation = refs.bastionGroup.rotation.clone());
+        refs.bastionGroup.rotation.set(
+          bastionBaseRotation.x + Math.sin(time * settlingSpeed * 0.72 + phase) * 0.0008,
+          bastionBaseRotation.y + deltaTime * settlingSpeed * 0.1,
+          bastionBaseRotation.z + Math.cos(time * settlingSpeed * 0.66 + phase) * 0.0006
+        );
+      }
+
+      if (refs.anchorSlab) {
+        const anchorBaseScale = refs.anchorSlab.userData.baseScale || (refs.anchorSlab.userData.baseScale = refs.anchorSlab.scale.clone());
+        refs.anchorSlab.scale.set(
+          anchorBaseScale.x * (1 + Math.sin(time * settlingSpeed * 0.82 + phase) * 0.0007),
+          anchorBaseScale.y * (1 + Math.cos(time * settlingSpeed * 0.76 + phase) * 0.0005),
+          anchorBaseScale.z * (1 + Math.sin(time * settlingSpeed * 0.7 + phase) * 0.0007)
+        );
+      }
+
+      if (Array.isArray(refs.buttresses)) {
+        refs.buttresses.forEach((buttress, idx) => {
+          const basePosition = buttress.userData.basePosition || (buttress.userData.basePosition = buttress.position.clone());
+          const baseRotation = buttress.userData.baseRotation || (buttress.userData.baseRotation = buttress.rotation.clone());
+          const baseScale = buttress.userData.baseScale || (buttress.userData.baseScale = buttress.scale.clone());
+          const buttressPhase = phase + idx * 0.49;
+          buttress.position.set(
+            basePosition.x + Math.sin(time * settlingSpeed * 0.88 + buttressPhase) * 0.0006,
+            basePosition.y + Math.cos(time * settlingSpeed * 0.82 + buttressPhase) * 0.0005,
+            basePosition.z + Math.sin(time * settlingSpeed * 0.78 + buttressPhase) * 0.0006
+          );
+          buttress.rotation.set(
+            baseRotation.x + Math.sin(time * settlingSpeed * 0.9 + buttressPhase) * 0.0008,
+            baseRotation.y + deltaTime * settlingSpeed * 0.04,
+            baseRotation.z + Math.cos(time * settlingSpeed * 0.84 + buttressPhase) * 0.0007
+          );
+          buttress.scale.set(
+            baseScale.x * (1 + Math.sin(time * settlingSpeed * 0.74 + buttressPhase) * 0.0008),
+            baseScale.y * (1 + Math.cos(time * settlingSpeed * 0.7 + buttressPhase) * 0.0006),
+            baseScale.z * (1 + Math.sin(time * settlingSpeed * 0.66 + buttressPhase) * 0.0008)
+          );
+        });
+      }
+
+      if (Array.isArray(refs.braceSegments)) {
+        refs.braceSegments.forEach((brace, idx) => {
+          const basePosition = brace.userData.basePosition || (brace.userData.basePosition = brace.position.clone());
+          const baseRotation = brace.userData.baseRotation || (brace.userData.baseRotation = brace.rotation.clone());
+          const baseScale = brace.userData.baseScale || (brace.userData.baseScale = brace.scale.clone());
+          const bracePhase = phase + idx * 0.63;
+          brace.position.set(
+            basePosition.x + Math.sin(time * settlingSpeed * 0.94 + bracePhase) * 0.0004,
+            basePosition.y + Math.cos(time * settlingSpeed * 0.88 + bracePhase) * 0.0003,
+            basePosition.z + Math.sin(time * settlingSpeed * 0.82 + bracePhase) * 0.0004
+          );
+          brace.rotation.set(
+            baseRotation.x + Math.sin(time * settlingSpeed * 0.96 + bracePhase) * 0.0008,
+            baseRotation.y + deltaTime * settlingSpeed * 0.05,
+            baseRotation.z + Math.cos(time * settlingSpeed * 0.9 + bracePhase) * 0.0006
+          );
+          brace.scale.set(
+            baseScale.x * (1 + Math.sin(time * settlingSpeed * 0.8 + bracePhase) * 0.0006),
+            baseScale.y * (1 + Math.cos(time * settlingSpeed * 0.76 + bracePhase) * 0.0005),
+            baseScale.z * (1 + Math.sin(time * settlingSpeed * 0.72 + bracePhase) * 0.0006)
+          );
+        });
+      }
+
+      if (refs.accessGroup) {
+        const accessBaseRotation = refs.accessGroup.userData.baseRotation || (refs.accessGroup.userData.baseRotation = refs.accessGroup.rotation.clone());
+        refs.accessGroup.rotation.set(
+          accessBaseRotation.x + Math.sin(time * accessSpeed * 0.58 + phase) * 0.0009,
+          accessBaseRotation.y + deltaTime * accessSpeed * 0.12,
+          accessBaseRotation.z + Math.cos(time * accessSpeed * 0.54 + phase) * 0.0007
+        );
+      }
+
+      if (refs.accessFrame) {
+        const accessFrameBaseScale = refs.accessFrame.userData.baseScale || (refs.accessFrame.userData.baseScale = refs.accessFrame.scale.clone());
+        refs.accessFrame.scale.set(
+          accessFrameBaseScale.x * (1 + Math.sin(time * accessSpeed * 0.84 + phase) * 0.0008),
+          accessFrameBaseScale.y * (1 + Math.cos(time * accessSpeed * 0.78 + phase) * 0.0006),
+          accessFrameBaseScale.z * (1 + Math.sin(time * accessSpeed * 0.74 + phase) * 0.0008)
+        );
+      }
+
+      if (refs.accessVoid) {
+        const accessVoidBasePosition = refs.accessVoid.userData.basePosition || (refs.accessVoid.userData.basePosition = refs.accessVoid.position.clone());
+        const accessVoidBaseScale = refs.accessVoid.userData.baseScale || (refs.accessVoid.userData.baseScale = refs.accessVoid.scale.clone());
+        refs.accessVoid.position.set(
+          accessVoidBasePosition.x,
+          accessVoidBasePosition.y + Math.sin(time * accessSpeed * 0.74 + phase) * 0.0003,
+          accessVoidBasePosition.z + Math.cos(time * accessSpeed * 0.7 + phase) * 0.0004
+        );
+        refs.accessVoid.scale.set(
+          accessVoidBaseScale.x * (1 + Math.sin(time * accessSpeed * 0.82 + phase) * 0.0008),
+          accessVoidBaseScale.y * (1 + Math.cos(time * accessSpeed * 0.76 + phase) * 0.0006),
+          accessVoidBaseScale.z * (1 + Math.sin(time * accessSpeed * 0.72 + phase) * 0.0008)
+        );
+      }
+
+      if (refs.accessLock) {
+        const accessLockBaseRotation = refs.accessLock.userData.baseRotation || (refs.accessLock.userData.baseRotation = refs.accessLock.rotation.clone());
+        const accessLockBaseScale = refs.accessLock.userData.baseScale || (refs.accessLock.userData.baseScale = refs.accessLock.scale.clone());
+        refs.accessLock.rotation.set(
+          accessLockBaseRotation.x + Math.sin(time * accessSpeed * 0.9 + phase) * 0.0008,
+          accessLockBaseRotation.y + deltaTime * accessSpeed * 0.04,
+          accessLockBaseRotation.z + Math.cos(time * accessSpeed * 0.86 + phase) * 0.0006
+        );
+        refs.accessLock.scale.set(
+          accessLockBaseScale.x * (1 + Math.sin(time * accessSpeed * 0.86 + phase) * 0.0006),
+          accessLockBaseScale.y * (1 + Math.cos(time * accessSpeed * 0.82 + phase) * 0.0005),
+          accessLockBaseScale.z * (1 + Math.sin(time * accessSpeed * 0.78 + phase) * 0.0006)
+        );
+      }
+
+      if (refs.accessSeal) {
+        const accessSealBasePosition = refs.accessSeal.userData.basePosition || (refs.accessSeal.userData.basePosition = refs.accessSeal.position.clone());
+        const accessSealBaseScale = refs.accessSeal.userData.baseScale || (refs.accessSeal.userData.baseScale = refs.accessSeal.scale.clone());
+        refs.accessSeal.position.set(
+          accessSealBasePosition.x,
+          accessSealBasePosition.y + Math.sin(time * accessSpeed * 0.88 + phase) * 0.0003,
+          accessSealBasePosition.z + Math.cos(time * accessSpeed * 0.82 + phase) * 0.0003
+        );
+        refs.accessSeal.scale.set(
+          accessSealBaseScale.x * (1 + Math.sin(time * accessSpeed * 0.84 + phase) * 0.0006),
+          accessSealBaseScale.y * (1 + Math.cos(time * accessSpeed * 0.8 + phase) * 0.0005),
+          accessSealBaseScale.z * (1 + Math.sin(time * accessSpeed * 0.76 + phase) * 0.0006)
+        );
+      }
+
+      if (Array.isArray(refs.supportShells)) {
+        refs.supportShells.forEach((shell, idx) => {
+          const basePosition = shell.userData.basePosition || (shell.userData.basePosition = shell.position.clone());
+          const baseRotation = shell.userData.baseRotation || (shell.userData.baseRotation = shell.rotation.clone());
+          const baseScale = shell.userData.baseScale || (shell.userData.baseScale = shell.scale.clone());
+          const shellPhase = phase + idx * 0.59;
+          shell.position.set(
+            basePosition.x + Math.sin(time * dustSpeed * 0.82 + shellPhase) * 0.0005,
+            basePosition.y + Math.cos(time * dustSpeed * 0.78 + shellPhase) * 0.0004,
+            basePosition.z + Math.sin(time * dustSpeed * 0.74 + shellPhase) * 0.0005
+          );
+          shell.rotation.set(
+            baseRotation.x + Math.sin(time * dustSpeed * 0.9 + shellPhase) * 0.0008,
+            baseRotation.y + deltaTime * dustSpeed * 0.06,
+            baseRotation.z + Math.cos(time * dustSpeed * 0.86 + shellPhase) * 0.0007
+          );
+          shell.scale.set(
+            baseScale.x * (1 + Math.sin(time * dustSpeed * 0.7 + shellPhase) * 0.0006),
+            baseScale.y * (1 + Math.cos(time * dustSpeed * 0.66 + shellPhase) * 0.0005),
+            baseScale.z * (1 + Math.sin(time * dustSpeed * 0.62 + shellPhase) * 0.0006)
+          );
+        });
+      }
+
+      if (refs.dustPoints) {
+        const dustBasePosition = refs.dustPoints.userData.basePosition || (refs.dustPoints.userData.basePosition = refs.dustPoints.position.clone());
+        const dustBaseRotation = refs.dustPoints.userData.baseRotation || (refs.dustPoints.userData.baseRotation = refs.dustPoints.rotation.clone());
+        refs.dustPoints.position.set(
+          dustBasePosition.x,
+          dustBasePosition.y + Math.sin(time * dustSpeed * 0.92 + phase) * 0.0004,
+          dustBasePosition.z + Math.cos(time * dustSpeed * 0.88 + phase) * 0.0004
+        );
+        refs.dustPoints.rotation.set(
+          dustBaseRotation.x + Math.sin(time * dustSpeed * 0.9 + phase) * 0.0004,
+          dustBaseRotation.y + deltaTime * dustSpeed * 0.04,
+          dustBaseRotation.z + Math.cos(time * dustSpeed * 0.86 + phase) * 0.0003
+        );
+      }
+    }
+
+    // 3d. STORAGE_FRACTAL_RESERVOIR_V2 (Recursive Basin)
     if (
       nodeGroup.userData.nodeGeometryName === 'STORAGE_FRACTAL_RESERVOIR_V2' ||
       nodeGroup.userData.visualVariant === 'STORAGE_FRACTAL_RESERVOIR_V2'
@@ -33525,7 +34703,7 @@ static createStorageNode0(group, color) {
     // INPUT SENSORY ANIMATIONS (Session 111 - Kinetic Update)
     // ============================================================================
 
-    // 3d. STORAGE_ARCHIVE_RESONATOR_DRUM_V2 (Ceremonial Vessel)
+    // 3e. STORAGE_ARCHIVE_RESONATOR_DRUM_V2 (Ceremonial Vessel)
     if (
       nodeGroup.userData.nodeGeometryName === 'STORAGE_ARCHIVE_RESONATOR_DRUM_V2' ||
       nodeGroup.userData.visualVariant === 'STORAGE_ARCHIVE_RESONATOR_DRUM_V2'
@@ -33931,6 +35109,584 @@ static createStorageNode0(group, color) {
         );
       }
 
+    }
+
+    // 3f. STORAGE_ECLIPSE_RELIQUARY_V4 (Celestial Pressure Vault)
+    if (
+      nodeGroup.userData.nodeGeometryName === 'STORAGE_ECLIPSE_RELIQUARY_V4' ||
+      nodeGroup.userData.visualVariant === 'STORAGE_ECLIPSE_RELIQUARY_V4' ||
+      nodeGroup.userData.storageVariant === 'ECLIPSE_RELIQUARY'
+    ) {
+      const refs = nodeGroup.userData.eclipseReliquaryRefs || {};
+      const phase = nodeGroup.userData.eclipseReliquaryPhase || 0;
+      const coreSpeed = nodeGroup.userData.eclipseReliquaryCoreSpeed || 0.014;
+      const haloSpeed = nodeGroup.userData.eclipseReliquaryHaloSpeed || 0.008;
+      const shellSpeed = nodeGroup.userData.eclipseReliquaryShellSpeed || 0.006;
+      const lockSpeed = nodeGroup.userData.eclipseReliquaryLockSpeed || 0.006;
+      const orbitSpeed = nodeGroup.userData.eclipseReliquaryOrbitSpeed || 0.01;
+      const auraSpeed = nodeGroup.userData.eclipseReliquaryAuraSpeed || 0.007;
+      const baseRotation = nodeGroup.userData.eclipseReliquaryBaseRotation || (nodeGroup.userData.eclipseReliquaryBaseRotation = nodeGroup.rotation.clone());
+      const baseScale = nodeGroup.userData.eclipseReliquaryBaseScale || (nodeGroup.userData.eclipseReliquaryBaseScale = nodeGroup.scale.clone());
+      const baseY = nodeGroup.userData.eclipseReliquaryBaseY ?? (nodeGroup.userData.eclipseReliquaryBaseY = nodeGroup.position.y);
+
+      nodeGroup.position.y = baseY + Math.sin(time * shellSpeed * 0.3 + phase) * 0.0009;
+      nodeGroup.rotation.set(
+        baseRotation.x + Math.sin(time * shellSpeed * 0.24 + phase) * 0.0008,
+        baseRotation.y + deltaTime * shellSpeed * 0.05,
+        baseRotation.z + Math.cos(time * shellSpeed * 0.22 + phase) * 0.0006
+      );
+      nodeGroup.scale.set(
+        baseScale.x * (1 + Math.sin(time * shellSpeed * 0.22 + phase) * 0.0008),
+        baseScale.y * (1 + Math.cos(time * shellSpeed * 0.2 + phase) * 0.0006),
+        baseScale.z * (1 + Math.sin(time * shellSpeed * 0.18 + phase) * 0.0008)
+      );
+
+      if (refs.coreGroup) {
+        const coreBaseRotation = refs.coreGroup.userData.baseRotation || (refs.coreGroup.userData.baseRotation = refs.coreGroup.rotation.clone());
+        refs.coreGroup.rotation.set(
+          coreBaseRotation.x + Math.sin(time * coreSpeed * 0.34 + phase) * 0.0006,
+          coreBaseRotation.y + deltaTime * coreSpeed * 0.02,
+          coreBaseRotation.z + Math.cos(time * coreSpeed * 0.3 + phase) * 0.0004
+        );
+      }
+
+      if (refs.coreKernel) {
+        const coreKernelBaseScale = refs.coreKernel.userData.baseScale || (refs.coreKernel.userData.baseScale = refs.coreKernel.scale.clone());
+        const coreKernelBaseRotation = refs.coreKernel.userData.baseRotation || (refs.coreKernel.userData.baseRotation = refs.coreKernel.rotation.clone());
+        refs.coreKernel.rotation.set(
+          coreKernelBaseRotation.x + Math.sin(time * coreSpeed * 0.42 + phase) * 0.0007,
+          coreKernelBaseRotation.y + deltaTime * coreSpeed * 0.04,
+          coreKernelBaseRotation.z + Math.cos(time * coreSpeed * 0.38 + phase) * 0.0005
+        );
+        refs.coreKernel.scale.set(
+          coreKernelBaseScale.x * (1 + Math.sin(time * coreSpeed * 0.46 + phase) * 0.0012),
+          coreKernelBaseScale.y * (1 + Math.cos(time * coreSpeed * 0.4 + phase) * 0.0008),
+          coreKernelBaseScale.z * (1 + Math.sin(time * coreSpeed * 0.38 + phase) * 0.0012)
+        );
+      }
+
+      if (refs.coreAccent) {
+        const coreAccentBasePosition = refs.coreAccent.userData.basePosition || (refs.coreAccent.userData.basePosition = refs.coreAccent.position.clone());
+        const coreAccentBaseScale = refs.coreAccent.userData.baseScale || (refs.coreAccent.userData.baseScale = refs.coreAccent.scale.clone());
+        refs.coreAccent.position.set(
+          coreAccentBasePosition.x + Math.sin(time * coreSpeed * 0.7 + phase) * 0.0003,
+          coreAccentBasePosition.y + Math.cos(time * coreSpeed * 0.64 + phase) * 0.0002,
+          coreAccentBasePosition.z + Math.sin(time * coreSpeed * 0.58 + phase) * 0.0003
+        );
+        refs.coreAccent.scale.set(
+          coreAccentBaseScale.x * (1 + Math.sin(time * coreSpeed * 0.72 + phase) * 0.001),
+          coreAccentBaseScale.y * (1 + Math.cos(time * coreSpeed * 0.68 + phase) * 0.0008),
+          coreAccentBaseScale.z * (1 + Math.sin(time * coreSpeed * 0.64 + phase) * 0.001)
+        );
+      }
+
+      if (refs.haloGroup) {
+        const haloBaseRotation = refs.haloGroup.userData.baseRotation || (refs.haloGroup.userData.baseRotation = refs.haloGroup.rotation.clone());
+        refs.haloGroup.rotation.set(
+          haloBaseRotation.x + Math.sin(time * haloSpeed * 0.44 + phase) * 0.001,
+          haloBaseRotation.y + deltaTime * haloSpeed * 0.14,
+          haloBaseRotation.z + Math.cos(time * haloSpeed * 0.38 + phase) * 0.0008
+        );
+      }
+
+      if (Array.isArray(refs.haloArcs)) {
+        refs.haloArcs.forEach((arc, idx) => {
+          const basePosition = arc.userData.basePosition || (arc.userData.basePosition = arc.position.clone());
+          const baseRotation = arc.userData.baseRotation || (arc.userData.baseRotation = arc.rotation.clone());
+          const baseScale = arc.userData.baseScale || (arc.userData.baseScale = arc.scale.clone());
+          const arcPhase = phase + idx * 0.41;
+          arc.position.set(
+            basePosition.x + Math.sin(time * haloSpeed * 0.52 + arcPhase) * 0.0008,
+            basePosition.y + Math.cos(time * haloSpeed * 0.48 + arcPhase) * 0.0006,
+            basePosition.z + Math.sin(time * haloSpeed * 0.46 + arcPhase) * 0.0007
+          );
+          arc.rotation.set(
+            baseRotation.x + Math.sin(time * haloSpeed * 0.56 + arcPhase) * 0.0011,
+            baseRotation.y + deltaTime * haloSpeed * 0.08,
+            baseRotation.z + Math.cos(time * haloSpeed * 0.5 + arcPhase) * 0.0009
+          );
+          arc.scale.set(
+            baseScale.x * (1 + Math.sin(time * haloSpeed * 0.44 + arcPhase) * 0.001),
+            baseScale.y * (1 + Math.cos(time * haloSpeed * 0.4 + arcPhase) * 0.0008),
+            baseScale.z * (1 + Math.sin(time * haloSpeed * 0.38 + arcPhase) * 0.001)
+          );
+        });
+      }
+
+      if (Array.isArray(refs.haloShards)) {
+        refs.haloShards.forEach((shard, idx) => {
+          const basePosition = shard.userData.basePosition || (shard.userData.basePosition = shard.position.clone());
+          const baseRotation = shard.userData.baseRotation || (shard.userData.baseRotation = shard.rotation.clone());
+          const baseScale = shard.userData.baseScale || (shard.userData.baseScale = shard.scale.clone());
+          const shardPhase = phase + idx * 0.57;
+          shard.position.set(
+            basePosition.x + Math.sin(time * haloSpeed * 0.48 + shardPhase) * 0.0005,
+            basePosition.y + Math.cos(time * haloSpeed * 0.44 + shardPhase) * 0.0004,
+            basePosition.z + Math.sin(time * haloSpeed * 0.42 + shardPhase) * 0.0005
+          );
+          shard.rotation.set(
+            baseRotation.x + Math.sin(time * haloSpeed * 0.52 + shardPhase) * 0.0008,
+            baseRotation.y + deltaTime * haloSpeed * 0.06,
+            baseRotation.z + Math.cos(time * haloSpeed * 0.46 + shardPhase) * 0.0007
+          );
+          shard.scale.set(
+            baseScale.x * (1 + Math.sin(time * haloSpeed * 0.4 + shardPhase) * 0.0008),
+            baseScale.y * (1 + Math.cos(time * haloSpeed * 0.36 + shardPhase) * 0.0006),
+            baseScale.z * (1 + Math.sin(time * haloSpeed * 0.34 + shardPhase) * 0.0008)
+          );
+        });
+      }
+
+      if (refs.pressureShellGroup) {
+        const shellBaseRotation = refs.pressureShellGroup.userData.baseRotation || (refs.pressureShellGroup.userData.baseRotation = refs.pressureShellGroup.rotation.clone());
+        refs.pressureShellGroup.rotation.set(
+          shellBaseRotation.x + Math.sin(time * shellSpeed * 0.36 + phase) * 0.0007,
+          shellBaseRotation.y + deltaTime * shellSpeed * 0.08,
+          shellBaseRotation.z + Math.cos(time * shellSpeed * 0.32 + phase) * 0.0005
+        );
+      }
+
+      if (Array.isArray(refs.shellPlates)) {
+        refs.shellPlates.forEach((plate, idx) => {
+          const basePosition = plate.userData.basePosition || (plate.userData.basePosition = plate.position.clone());
+          const baseRotation = plate.userData.baseRotation || (plate.userData.baseRotation = plate.rotation.clone());
+          const baseScale = plate.userData.baseScale || (plate.userData.baseScale = plate.scale.clone());
+          const platePhase = phase + idx * 0.39;
+          plate.position.set(
+            basePosition.x + Math.sin(time * shellSpeed * 0.44 + platePhase) * 0.0006,
+            basePosition.y + Math.cos(time * shellSpeed * 0.4 + platePhase) * 0.0005,
+            basePosition.z + Math.sin(time * shellSpeed * 0.38 + platePhase) * 0.0006
+          );
+          plate.rotation.set(
+            baseRotation.x + Math.sin(time * shellSpeed * 0.48 + platePhase) * 0.0009,
+            baseRotation.y + deltaTime * shellSpeed * 0.05,
+            baseRotation.z + Math.cos(time * shellSpeed * 0.44 + platePhase) * 0.0008
+          );
+          plate.scale.set(
+            baseScale.x * (1 + Math.sin(time * shellSpeed * 0.36 + platePhase) * 0.0009),
+            baseScale.y * (1 + Math.cos(time * shellSpeed * 0.32 + platePhase) * 0.0007),
+            baseScale.z * (1 + Math.sin(time * shellSpeed * 0.3 + platePhase) * 0.0009)
+          );
+        });
+      }
+
+      if (Array.isArray(refs.shellRibs)) {
+        refs.shellRibs.forEach((rib, idx) => {
+          const basePosition = rib.userData.basePosition || (rib.userData.basePosition = rib.position.clone());
+          const baseRotation = rib.userData.baseRotation || (rib.userData.baseRotation = rib.rotation.clone());
+          const baseScale = rib.userData.baseScale || (rib.userData.baseScale = rib.scale.clone());
+          const ribPhase = phase + idx * 0.47;
+          rib.position.set(
+            basePosition.x + Math.sin(time * shellSpeed * 0.34 + ribPhase) * 0.0005,
+            basePosition.y + Math.cos(time * shellSpeed * 0.32 + ribPhase) * 0.0004,
+            basePosition.z + Math.sin(time * shellSpeed * 0.3 + ribPhase) * 0.0005
+          );
+          rib.rotation.set(
+            baseRotation.x + Math.sin(time * shellSpeed * 0.4 + ribPhase) * 0.0008,
+            baseRotation.y + deltaTime * shellSpeed * 0.04,
+            baseRotation.z + Math.cos(time * shellSpeed * 0.36 + ribPhase) * 0.0007
+          );
+          rib.scale.set(
+            baseScale.x * (1 + Math.sin(time * shellSpeed * 0.28 + ribPhase) * 0.0007),
+            baseScale.y * (1 + Math.cos(time * shellSpeed * 0.26 + ribPhase) * 0.0006),
+            baseScale.z * (1 + Math.sin(time * shellSpeed * 0.24 + ribPhase) * 0.0007)
+          );
+        });
+      }
+
+      if (Array.isArray(refs.pressureRibs)) {
+        refs.pressureRibs.forEach((rib, idx) => {
+          const basePosition = rib.userData.basePosition || (rib.userData.basePosition = rib.position.clone());
+          const baseRotation = rib.userData.baseRotation || (rib.userData.baseRotation = rib.rotation.clone());
+          const baseScale = rib.userData.baseScale || (rib.userData.baseScale = rib.scale.clone());
+          const ribPhase = phase + idx * 0.63;
+          rib.position.set(
+            basePosition.x + Math.sin(time * shellSpeed * 0.26 + ribPhase) * 0.0004,
+            basePosition.y + Math.cos(time * shellSpeed * 0.24 + ribPhase) * 0.0003,
+            basePosition.z + Math.sin(time * shellSpeed * 0.22 + ribPhase) * 0.0004
+          );
+          rib.rotation.set(
+            baseRotation.x + Math.sin(time * shellSpeed * 0.3 + ribPhase) * 0.0007,
+            baseRotation.y + deltaTime * shellSpeed * 0.03,
+            baseRotation.z + Math.cos(time * shellSpeed * 0.28 + ribPhase) * 0.0006
+          );
+          rib.scale.set(
+            baseScale.x * (1 + Math.sin(time * shellSpeed * 0.22 + ribPhase) * 0.0006),
+            baseScale.y * (1 + Math.cos(time * shellSpeed * 0.2 + ribPhase) * 0.0005),
+            baseScale.z * (1 + Math.sin(time * shellSpeed * 0.18 + ribPhase) * 0.0006)
+          );
+        });
+      }
+
+      if (refs.lockGroup) {
+        const lockBaseRotation = refs.lockGroup.userData.baseRotation || (refs.lockGroup.userData.baseRotation = refs.lockGroup.rotation.clone());
+        refs.lockGroup.rotation.set(
+          lockBaseRotation.x + Math.sin(time * lockSpeed * 0.44 + phase) * 0.0007,
+          lockBaseRotation.y + deltaTime * lockSpeed * 0.06,
+          lockBaseRotation.z + Math.cos(time * lockSpeed * 0.4 + phase) * 0.0005
+        );
+      }
+
+      if (refs.lockFrame) {
+        const lockFrameBaseScale = refs.lockFrame.userData.baseScale || (refs.lockFrame.userData.baseScale = refs.lockFrame.scale.clone());
+        refs.lockFrame.scale.set(
+          lockFrameBaseScale.x * (1 + Math.sin(time * lockSpeed * 0.5 + phase) * 0.0008),
+          lockFrameBaseScale.y * (1 + Math.cos(time * lockSpeed * 0.46 + phase) * 0.0006),
+          lockFrameBaseScale.z * (1 + Math.sin(time * lockSpeed * 0.44 + phase) * 0.0008)
+        );
+      }
+
+      if (refs.lockVoid) {
+        const lockVoidBasePosition = refs.lockVoid.userData.basePosition || (refs.lockVoid.userData.basePosition = refs.lockVoid.position.clone());
+        refs.lockVoid.position.set(
+          lockVoidBasePosition.x + Math.sin(time * lockSpeed * 0.4 + phase) * 0.0002,
+          lockVoidBasePosition.y + Math.cos(time * lockSpeed * 0.36 + phase) * 0.0002,
+          lockVoidBasePosition.z + Math.sin(time * lockSpeed * 0.34 + phase) * 0.0002
+        );
+      }
+
+      if (refs.lockPin) {
+        const lockPinBaseRotation = refs.lockPin.userData.baseRotation || (refs.lockPin.userData.baseRotation = refs.lockPin.rotation.clone());
+        const lockPinBaseScale = refs.lockPin.userData.baseScale || (refs.lockPin.userData.baseScale = refs.lockPin.scale.clone());
+        refs.lockPin.rotation.set(
+          lockPinBaseRotation.x + Math.sin(time * lockSpeed * 0.5 + phase) * 0.0007,
+          lockPinBaseRotation.y + deltaTime * lockSpeed * 0.04,
+          lockPinBaseRotation.z + Math.cos(time * lockSpeed * 0.46 + phase) * 0.0005
+        );
+        refs.lockPin.scale.set(
+          lockPinBaseScale.x * (1 + Math.sin(time * lockSpeed * 0.44 + phase) * 0.0007),
+          lockPinBaseScale.y * (1 + Math.cos(time * lockSpeed * 0.4 + phase) * 0.0005),
+          lockPinBaseScale.z * (1 + Math.sin(time * lockSpeed * 0.38 + phase) * 0.0007)
+        );
+      }
+
+      if (refs.lockSeal) {
+        const lockSealBaseScale = refs.lockSeal.userData.baseScale || (refs.lockSeal.userData.baseScale = refs.lockSeal.scale.clone());
+        refs.lockSeal.scale.set(
+          lockSealBaseScale.x * (1 + Math.sin(time * lockSpeed * 0.56 + phase) * 0.001),
+          lockSealBaseScale.y * (1 + Math.cos(time * lockSpeed * 0.52 + phase) * 0.0008),
+          lockSealBaseScale.z * (1 + Math.sin(time * lockSpeed * 0.5 + phase) * 0.001)
+        );
+      }
+
+      if (refs.orbitGroup) {
+        const orbitBaseRotation = refs.orbitGroup.userData.baseRotation || (refs.orbitGroup.userData.baseRotation = refs.orbitGroup.rotation.clone());
+        refs.orbitGroup.rotation.set(
+          orbitBaseRotation.x + Math.sin(time * orbitSpeed * 0.42 + phase) * 0.0006,
+          orbitBaseRotation.y + deltaTime * orbitSpeed * 0.04,
+          orbitBaseRotation.z + Math.cos(time * orbitSpeed * 0.38 + phase) * 0.0005
+        );
+      }
+
+      if (Array.isArray(refs.orbitShards)) {
+        refs.orbitShards.forEach((shard, idx) => {
+          const basePosition = shard.userData.basePosition || (shard.userData.basePosition = shard.position.clone());
+          const baseRotation = shard.userData.baseRotation || (shard.userData.baseRotation = shard.rotation.clone());
+          const baseScale = shard.userData.baseScale || (shard.userData.baseScale = shard.scale.clone());
+          const shardPhase = phase + idx * 0.59;
+          shard.position.set(
+            basePosition.x + Math.sin(time * orbitSpeed * 0.48 + shardPhase) * 0.0007,
+            basePosition.y + Math.cos(time * orbitSpeed * 0.44 + shardPhase) * 0.0005,
+            basePosition.z + Math.sin(time * orbitSpeed * 0.42 + shardPhase) * 0.0006
+          );
+          shard.rotation.set(
+            baseRotation.x + Math.sin(time * orbitSpeed * 0.52 + shardPhase) * 0.0008,
+            baseRotation.y + deltaTime * orbitSpeed * 0.05,
+            baseRotation.z + Math.cos(time * orbitSpeed * 0.46 + shardPhase) * 0.0007
+          );
+          shard.scale.set(
+            baseScale.x * (1 + Math.sin(time * orbitSpeed * 0.4 + shardPhase) * 0.0007),
+            baseScale.y * (1 + Math.cos(time * orbitSpeed * 0.36 + shardPhase) * 0.0006),
+            baseScale.z * (1 + Math.sin(time * orbitSpeed * 0.34 + shardPhase) * 0.0007)
+          );
+        });
+      }
+
+      if (refs.auraGroup) {
+        const auraBaseRotation = refs.auraGroup.userData.baseRotation || (refs.auraGroup.userData.baseRotation = refs.auraGroup.rotation.clone());
+        refs.auraGroup.rotation.set(
+          auraBaseRotation.x + Math.sin(time * auraSpeed * 0.4 + phase) * 0.0005,
+          auraBaseRotation.y + deltaTime * auraSpeed * 0.1,
+          auraBaseRotation.z + Math.cos(time * auraSpeed * 0.36 + phase) * 0.0004
+        );
+      }
+
+      if (refs.dustPoints) {
+        const dustBaseRotation = refs.dustPoints.userData.baseRotation || (refs.dustPoints.userData.baseRotation = refs.dustPoints.rotation.clone());
+        refs.dustPoints.rotation.set(
+          dustBaseRotation.x + Math.sin(time * auraSpeed * 0.34 + phase) * 0.0003,
+          dustBaseRotation.y + deltaTime * auraSpeed * 0.05,
+          dustBaseRotation.z + Math.cos(time * auraSpeed * 0.3 + phase) * 0.0003
+        );
+      }
+    }
+
+    // 3g. STORAGE_MNEMONIC_CHOIR_RELIQUARY_V4 (Ceremonial Choir Reliquary)
+    if (
+      nodeGroup.userData.nodeGeometryName === 'STORAGE_MNEMONIC_CHOIR_RELIQUARY_V4' ||
+      nodeGroup.userData.visualVariant === 'STORAGE_MNEMONIC_CHOIR_RELIQUARY_V4' ||
+      nodeGroup.userData.storageVariant === 'MNEMONIC_CHOIR_RELIQUARY'
+    ) {
+      const refs = nodeGroup.userData.mnemonicChoirReliquaryRefs || {};
+      const phase = nodeGroup.userData.mnemonicChoirReliquaryPhase || 0;
+      const coreSpeed = nodeGroup.userData.mnemonicChoirReliquaryCoreSpeed || 0.012;
+      const shellSpeed = nodeGroup.userData.mnemonicChoirReliquaryShellSpeed || 0.008;
+      const choirSpeed = nodeGroup.userData.mnemonicChoirReliquaryChoirSpeed || 0.007;
+      const echoSpeed = nodeGroup.userData.mnemonicChoirReliquaryEchoSpeed || 0.006;
+      const auraSpeed = nodeGroup.userData.mnemonicChoirReliquaryAuraSpeed || 0.005;
+      const haloSpeed = nodeGroup.userData.mnemonicChoirReliquaryHaloSpeed || 0.004;
+      const baseRotation = nodeGroup.userData.mnemonicChoirReliquaryBaseRotation || (nodeGroup.userData.mnemonicChoirReliquaryBaseRotation = nodeGroup.rotation.clone());
+      const baseScale = nodeGroup.userData.mnemonicChoirReliquaryBaseScale || (nodeGroup.userData.mnemonicChoirReliquaryBaseScale = nodeGroup.scale.clone());
+      const baseY = nodeGroup.userData.mnemonicChoirReliquaryBaseY ?? (nodeGroup.userData.mnemonicChoirReliquaryBaseY = nodeGroup.position.y);
+
+      nodeGroup.position.y = baseY + Math.sin(time * shellSpeed * 0.22 + phase) * 0.0007;
+      nodeGroup.rotation.set(
+        baseRotation.x + Math.sin(time * shellSpeed * 0.16 + phase) * 0.0005,
+        baseRotation.y + deltaTime * shellSpeed * 0.015,
+        baseRotation.z + Math.cos(time * shellSpeed * 0.14 + phase) * 0.0004
+      );
+      nodeGroup.scale.set(
+        baseScale.x * (1 + Math.sin(time * shellSpeed * 0.18 + phase) * 0.0007),
+        baseScale.y * (1 + Math.cos(time * shellSpeed * 0.16 + phase) * 0.0005),
+        baseScale.z * (1 + Math.sin(time * shellSpeed * 0.14 + phase) * 0.0007)
+      );
+
+      if (refs.coreGroup) {
+        const coreBaseRotation = refs.coreGroup.userData.baseRotation || (refs.coreGroup.userData.baseRotation = refs.coreGroup.rotation.clone());
+        refs.coreGroup.rotation.set(
+          coreBaseRotation.x + Math.sin(time * coreSpeed * 0.26 + phase) * 0.0004,
+          coreBaseRotation.y + deltaTime * coreSpeed * 0.012,
+          coreBaseRotation.z + Math.cos(time * coreSpeed * 0.24 + phase) * 0.0003
+        );
+      }
+
+      if (refs.coreHeart) {
+        const coreHeartBaseScale = refs.coreHeart.userData.baseScale || (refs.coreHeart.userData.baseScale = refs.coreHeart.scale.clone());
+        const coreHeartBaseRotation = refs.coreHeart.userData.baseRotation || (refs.coreHeart.userData.baseRotation = refs.coreHeart.rotation.clone());
+        refs.coreHeart.rotation.set(
+          coreHeartBaseRotation.x + Math.sin(time * coreSpeed * 0.34 + phase) * 0.0006,
+          coreHeartBaseRotation.y + deltaTime * coreSpeed * 0.018,
+          coreHeartBaseRotation.z + Math.cos(time * coreSpeed * 0.3 + phase) * 0.0004
+        );
+        refs.coreHeart.scale.set(
+          coreHeartBaseScale.x * (1 + Math.sin(time * coreSpeed * 0.36 + phase) * 0.001),
+          coreHeartBaseScale.y * (1 + Math.cos(time * coreSpeed * 0.32 + phase) * 0.0008),
+          coreHeartBaseScale.z * (1 + Math.sin(time * coreSpeed * 0.3 + phase) * 0.001)
+        );
+      }
+
+      if (refs.coreAccent) {
+        const coreAccentBasePosition = refs.coreAccent.userData.basePosition || (refs.coreAccent.userData.basePosition = refs.coreAccent.position.clone());
+        const coreAccentBaseScale = refs.coreAccent.userData.baseScale || (refs.coreAccent.userData.baseScale = refs.coreAccent.scale.clone());
+        refs.coreAccent.position.set(
+          coreAccentBasePosition.x + Math.sin(time * coreSpeed * 0.6 + phase) * 0.0002,
+          coreAccentBasePosition.y + Math.cos(time * coreSpeed * 0.56 + phase) * 0.00015,
+          coreAccentBasePosition.z + Math.sin(time * coreSpeed * 0.52 + phase) * 0.0002
+        );
+        refs.coreAccent.scale.set(
+          coreAccentBaseScale.x * (1 + Math.sin(time * coreSpeed * 0.64 + phase) * 0.0007),
+          coreAccentBaseScale.y * (1 + Math.cos(time * coreSpeed * 0.58 + phase) * 0.0005),
+          coreAccentBaseScale.z * (1 + Math.sin(time * coreSpeed * 0.56 + phase) * 0.0007)
+        );
+      }
+
+      if (refs.reliquaryGroup) {
+        const reliquaryBaseRotation = refs.reliquaryGroup.userData.baseRotation || (refs.reliquaryGroup.userData.baseRotation = refs.reliquaryGroup.rotation.clone());
+        refs.reliquaryGroup.rotation.set(
+          reliquaryBaseRotation.x + Math.sin(time * shellSpeed * 0.3 + phase) * 0.0005,
+          reliquaryBaseRotation.y + deltaTime * shellSpeed * 0.02,
+          reliquaryBaseRotation.z + Math.cos(time * shellSpeed * 0.26 + phase) * 0.0004
+        );
+      }
+
+      if (Array.isArray(refs.shellPieces)) {
+        refs.shellPieces.forEach((shell, idx) => {
+          const basePosition = shell.userData.basePosition || (shell.userData.basePosition = shell.position.clone());
+          const baseRotation = shell.userData.baseRotation || (shell.userData.baseRotation = shell.rotation.clone());
+          const baseScale = shell.userData.baseScale || (shell.userData.baseScale = shell.scale.clone());
+          const shellPhase = phase + idx * 0.37;
+          shell.position.set(
+            basePosition.x + Math.sin(time * shellSpeed * 0.32 + shellPhase) * 0.0004,
+            basePosition.y + Math.cos(time * shellSpeed * 0.28 + shellPhase) * 0.0003,
+            basePosition.z + Math.sin(time * shellSpeed * 0.26 + shellPhase) * 0.0004
+          );
+          shell.rotation.set(
+            baseRotation.x + Math.sin(time * shellSpeed * 0.34 + shellPhase) * 0.0007,
+            baseRotation.y + deltaTime * shellSpeed * 0.03,
+            baseRotation.z + Math.cos(time * shellSpeed * 0.3 + shellPhase) * 0.0006
+          );
+          shell.scale.set(
+            baseScale.x * (1 + Math.sin(time * shellSpeed * 0.24 + shellPhase) * 0.0006),
+            baseScale.y * (1 + Math.cos(time * shellSpeed * 0.22 + shellPhase) * 0.0005),
+            baseScale.z * (1 + Math.sin(time * shellSpeed * 0.2 + shellPhase) * 0.0006)
+          );
+        });
+      }
+
+      if (Array.isArray(refs.haloFragments)) {
+        refs.haloFragments.forEach((fragment, idx) => {
+          const basePosition = fragment.userData.basePosition || (fragment.userData.basePosition = fragment.position.clone());
+          const baseRotation = fragment.userData.baseRotation || (fragment.userData.baseRotation = fragment.rotation.clone());
+          const baseScale = fragment.userData.baseScale || (fragment.userData.baseScale = fragment.scale.clone());
+          const haloPhase = fragment.userData.haloFragmentPhase || (phase + idx * 0.61);
+          fragment.position.set(
+            basePosition.x + Math.sin(time * haloSpeed * 0.4 + haloPhase) * 0.0004,
+            basePosition.y + Math.cos(time * haloSpeed * 0.36 + haloPhase) * 0.0003,
+            basePosition.z + Math.sin(time * haloSpeed * 0.34 + haloPhase) * 0.0004
+          );
+          fragment.rotation.set(
+            baseRotation.x + Math.sin(time * haloSpeed * 0.42 + haloPhase) * 0.0008,
+            baseRotation.y + deltaTime * haloSpeed * 0.03,
+            baseRotation.z + Math.cos(time * haloSpeed * 0.38 + haloPhase) * 0.0006
+          );
+          fragment.scale.set(
+            baseScale.x * (1 + Math.sin(time * haloSpeed * 0.26 + haloPhase) * 0.0007),
+            baseScale.y * (1 + Math.cos(time * haloSpeed * 0.24 + haloPhase) * 0.0005),
+            baseScale.z * (1 + Math.sin(time * haloSpeed * 0.22 + haloPhase) * 0.0007)
+          );
+        });
+      }
+
+      if (refs.choirGroup) {
+        const choirBaseRotation = refs.choirGroup.userData.baseRotation || (refs.choirGroup.userData.baseRotation = refs.choirGroup.rotation.clone());
+        refs.choirGroup.rotation.set(
+          choirBaseRotation.x + Math.sin(time * choirSpeed * 0.2 + phase) * 0.0005,
+          choirBaseRotation.y + deltaTime * choirSpeed * 0.018,
+          choirBaseRotation.z + Math.cos(time * choirSpeed * 0.18 + phase) * 0.0004
+        );
+      }
+
+      if (Array.isArray(refs.choirPlates)) {
+        refs.choirPlates.forEach((plate, idx) => {
+          const basePosition = plate.userData.basePosition || (plate.userData.basePosition = plate.position.clone());
+          const baseRotation = plate.userData.baseRotation || (plate.userData.baseRotation = plate.rotation.clone());
+          const baseScale = plate.userData.baseScale || (plate.userData.baseScale = plate.scale.clone());
+          const choirPhase = plate.userData.choirPlatePhase || (phase + idx * 0.47);
+          plate.position.set(
+            basePosition.x + Math.sin(time * choirSpeed * 0.36 + choirPhase) * 0.0005,
+            basePosition.y + Math.cos(time * choirSpeed * 0.34 + choirPhase) * 0.0004,
+            basePosition.z + Math.sin(time * choirSpeed * 0.32 + choirPhase) * 0.0005
+          );
+          plate.rotation.set(
+            baseRotation.x + Math.sin(time * choirSpeed * 0.4 + choirPhase) * 0.0008,
+            baseRotation.y + deltaTime * choirSpeed * 0.024,
+            baseRotation.z + Math.cos(time * choirSpeed * 0.36 + choirPhase) * 0.0007
+          );
+          plate.scale.set(
+            baseScale.x * (1 + Math.sin(time * choirSpeed * 0.3 + choirPhase) * 0.0007),
+            baseScale.y * (1 + Math.cos(time * choirSpeed * 0.28 + choirPhase) * 0.0005),
+            baseScale.z * (1 + Math.sin(time * choirSpeed * 0.26 + choirPhase) * 0.0007)
+          );
+        });
+      }
+
+      if (refs.echoGroup) {
+        const echoBaseRotation = refs.echoGroup.userData.baseRotation || (refs.echoGroup.userData.baseRotation = refs.echoGroup.rotation.clone());
+        refs.echoGroup.rotation.set(
+          echoBaseRotation.x + Math.sin(time * echoSpeed * 0.16 + phase) * 0.0004,
+          echoBaseRotation.y + deltaTime * echoSpeed * 0.01,
+          echoBaseRotation.z + Math.cos(time * echoSpeed * 0.14 + phase) * 0.0003
+        );
+      }
+
+      if (Array.isArray(refs.echoRibbons)) {
+        refs.echoRibbons.forEach((ribbon, idx) => {
+          const basePosition = ribbon.userData.basePosition || (ribbon.userData.basePosition = ribbon.position.clone());
+          const baseRotation = ribbon.userData.baseRotation || (ribbon.userData.baseRotation = ribbon.rotation.clone());
+          const baseScale = ribbon.userData.baseScale || (ribbon.userData.baseScale = ribbon.scale.clone());
+          const echoPhase = ribbon.userData.echoRibbonPhase || (phase + idx * 0.72);
+          ribbon.position.set(
+            basePosition.x + Math.sin(time * echoSpeed * 0.34 + echoPhase) * 0.0004,
+            basePosition.y + Math.cos(time * echoSpeed * 0.32 + echoPhase) * 0.0003,
+            basePosition.z + Math.sin(time * echoSpeed * 0.3 + echoPhase) * 0.0004
+          );
+          ribbon.rotation.set(
+            baseRotation.x + Math.sin(time * echoSpeed * 0.36 + echoPhase) * 0.0006,
+            baseRotation.y + deltaTime * echoSpeed * 0.02,
+            baseRotation.z + Math.cos(time * echoSpeed * 0.34 + echoPhase) * 0.0005
+          );
+          ribbon.scale.set(
+            baseScale.x * (1 + Math.sin(time * echoSpeed * 0.28 + echoPhase) * 0.0006),
+            baseScale.y * (1 + Math.cos(time * echoSpeed * 0.26 + echoPhase) * 0.0005),
+            baseScale.z * (1 + Math.sin(time * echoSpeed * 0.24 + echoPhase) * 0.0006)
+          );
+        });
+      }
+
+      if (Array.isArray(refs.echoShards)) {
+        refs.echoShards.forEach((shard, idx) => {
+          const basePosition = shard.userData.basePosition || (shard.userData.basePosition = shard.position.clone());
+          const baseRotation = shard.userData.baseRotation || (shard.userData.baseRotation = shard.rotation.clone());
+          const baseScale = shard.userData.baseScale || (shard.userData.baseScale = shard.scale.clone());
+          const echoPhase = shard.userData.echoShardPhase || (phase + idx * 0.58);
+          shard.position.set(
+            basePosition.x + Math.sin(time * echoSpeed * 0.3 + echoPhase) * 0.0003,
+            basePosition.y + Math.cos(time * echoSpeed * 0.28 + echoPhase) * 0.00025,
+            basePosition.z + Math.sin(time * echoSpeed * 0.26 + echoPhase) * 0.0003
+          );
+          shard.rotation.set(
+            baseRotation.x + Math.sin(time * echoSpeed * 0.34 + echoPhase) * 0.0006,
+            baseRotation.y + deltaTime * echoSpeed * 0.018,
+            baseRotation.z + Math.cos(time * echoSpeed * 0.3 + echoPhase) * 0.0005
+          );
+          shard.scale.set(
+            baseScale.x * (1 + Math.sin(time * echoSpeed * 0.22 + echoPhase) * 0.0005),
+            baseScale.y * (1 + Math.cos(time * echoSpeed * 0.2 + echoPhase) * 0.0004),
+            baseScale.z * (1 + Math.sin(time * echoSpeed * 0.18 + echoPhase) * 0.0005)
+          );
+        });
+      }
+
+      if (Array.isArray(refs.echoBeads)) {
+        refs.echoBeads.forEach((bead, idx) => {
+          const basePosition = bead.userData.basePosition || (bead.userData.basePosition = bead.position.clone());
+          const baseRotation = bead.userData.baseRotation || (bead.userData.baseRotation = bead.rotation.clone());
+          const baseScale = bead.userData.baseScale || (bead.userData.baseScale = bead.scale.clone());
+          const echoPhase = bead.userData.echoBeadPhase || (phase + idx * 0.83);
+          bead.position.set(
+            basePosition.x + Math.sin(time * echoSpeed * 0.28 + echoPhase) * 0.0002,
+            basePosition.y + Math.cos(time * echoSpeed * 0.26 + echoPhase) * 0.00018,
+            basePosition.z + Math.sin(time * echoSpeed * 0.24 + echoPhase) * 0.0002
+          );
+          bead.rotation.set(
+            baseRotation.x + Math.sin(time * echoSpeed * 0.3 + echoPhase) * 0.0005,
+            baseRotation.y + deltaTime * echoSpeed * 0.015,
+            baseRotation.z + Math.cos(time * echoSpeed * 0.28 + echoPhase) * 0.0004
+          );
+          bead.scale.set(
+            baseScale.x * (1 + Math.sin(time * echoSpeed * 0.22 + echoPhase) * 0.0004),
+            baseScale.y * (1 + Math.cos(time * echoSpeed * 0.2 + echoPhase) * 0.0004),
+            baseScale.z * (1 + Math.sin(time * echoSpeed * 0.18 + echoPhase) * 0.0004)
+          );
+        });
+      }
+
+      if (refs.haloShimmer) {
+        const shimmerBaseRotation = refs.haloShimmer.userData.baseRotation || (refs.haloShimmer.userData.baseRotation = refs.haloShimmer.rotation.clone());
+        refs.haloShimmer.rotation.set(
+          shimmerBaseRotation.x + Math.sin(time * haloSpeed * 0.34 + phase) * 0.0005,
+          shimmerBaseRotation.y + deltaTime * haloSpeed * 0.08,
+          shimmerBaseRotation.z + Math.cos(time * haloSpeed * 0.3 + phase) * 0.0004
+        );
+      }
+
+      if (refs.supportGlow) {
+        const glowBaseScale = refs.supportGlow.userData.baseScale || (refs.supportGlow.userData.baseScale = refs.supportGlow.scale.clone());
+        refs.supportGlow.scale.set(
+          glowBaseScale.x * (1 + Math.sin(time * auraSpeed * 0.42 + phase) * 0.0007),
+          glowBaseScale.y * (1 + Math.cos(time * auraSpeed * 0.38 + phase) * 0.0005),
+          glowBaseScale.z * (1 + Math.sin(time * auraSpeed * 0.34 + phase) * 0.0007)
+        );
+      }
+
+      if (refs.dustPoints) {
+        const dustBaseRotation = refs.dustPoints.userData.baseRotation || (refs.dustPoints.userData.baseRotation = refs.dustPoints.rotation.clone());
+        refs.dustPoints.rotation.set(
+          dustBaseRotation.x + Math.sin(time * auraSpeed * 0.3 + phase) * 0.0003,
+          dustBaseRotation.y + deltaTime * auraSpeed * 0.05,
+          dustBaseRotation.z + Math.cos(time * auraSpeed * 0.28 + phase) * 0.00025
+        );
+      }
     }
 
     // 1. INPUT_TACTILE_SENSOR (TactileSensor)
@@ -36364,7 +38120,7 @@ static createStorageNode0(group, color) {
   // INPUT: Hyperbolic Aperture Monolith, Legacy Singularity Knot
   // PROCESS: Quantum Lattice, Fractal Bloom
   // INTEGRATION: Weight-Spine Anchor, Chaotic Heart
-  // STORAGE: Whisper Sphere, Echo Fractal
+  // STORAGE: Eclipse Reliquary, Mnemonic Choir Reliquary
   // ANALYTICS: Abyssal Shard, Tri-Helix
   // CONTROL: Infinite Spiral, Chrono Ripper
 
@@ -37998,15 +39754,21 @@ static createStorageNode0(group, color) {
   }
 
   /**
-   * EXTREME variant: Whisper Sphere (archetypeId: 6)
+   * EXTREME variant: Eclipse Reliquary Vault (archetypeId: 6)
    * Maps to STORAGE category
    */
   static createExtremeStorage0(group, color) {
     try {
       const tempNode = new THREE.Group();
       tempNode.visualGroup = new THREE.Group();
-      
-      const extremeGroup = this.extremeNodePack.createWhisperSphere(tempNode, null);
+
+      tempNode.userData = tempNode.userData || {};
+      tempNode.userData.color = color;
+      tempNode.userData.nodeId = group?.userData?.nodeId || group?.userData?.visualCode || tempNode.userData.nodeId || '515';
+      tempNode.userData.extremeArchetype = 6;
+      tempNode.userData.extremeArchetypeName = 'Eclipse Reliquary Vault';
+
+      const extremeGroup = StorageNodesVisual.createStorageEclipseReliquary(tempNode, color);
       if (!extremeGroup) {
         if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
           console.error('[VisualBuildFail]', { archetype: 'extreme-storage-0', category: 'storage', reason: 'NoMesh' });
@@ -38030,26 +39792,31 @@ static createStorageNode0(group, color) {
   }
 
   /**
-   * EXTREME variant: Echo Fractal (archetypeId: 7)
+   * EXTREME variant: Mnemonic Choir Reliquary (archetypeId: 7)
    * Maps to STORAGE category
    */
-  static createExtremeStorage1(group, color) {
+  static createExtremeStorage1(group, visualCode, color) {
     try {
-      const tempNode = new THREE.Group();
-      tempNode.visualGroup = new THREE.Group();
-      
-      const extremeGroup = this.extremeNodePack.createEchoFractal(tempNode, null);
+      const resolvedVisualCode = (typeof visualCode === 'number' && visualCode <= 4096)
+        ? visualCode
+        : (group?.userData?.visualCode ?? 516);
+      const resolvedColor = (typeof color === 'number')
+        ? color
+        : ((typeof visualCode === 'number' && visualCode > 4096) ? visualCode : (group?.userData?.color ?? 0x9fd6e6));
+
+      const extremeGroup = StorageEnhancedVariants.createStorageMnemonicChoirReliquary(group, resolvedVisualCode, resolvedColor);
       if (!extremeGroup) {
         if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
           console.error('[VisualBuildFail]', { archetype: 'extreme-storage-1', category: 'storage', reason: 'NoMesh' });
         }
         return group;
       }
-      
-      group.add(extremeGroup);
-      tempNode.userData.extremeArchetype = 7;
-      
-      return group;
+
+      extremeGroup.userData = extremeGroup.userData || {};
+      extremeGroup.userData.extremeArchetype = 7;
+      extremeGroup.userData.extremeArchetypeName = 'Mnemonic Choir Reliquary';
+
+      return extremeGroup;
     } catch (err) {
       console.error('[NodeVisualAbort]', {
         model: 'createExtremeStorage1',
