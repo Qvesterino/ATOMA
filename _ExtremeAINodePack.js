@@ -1,5 +1,255 @@
 import * as THREE from 'three';
 
+const ABYSSAL_PRESSURE_MONOLITH_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  crownCapGeometry: null,
+  crownCapEdgesGeometry: null,
+  crownShardGeometry: null,
+  crownShardEdgesGeometry: null,
+  cavityGeometry: null,
+  cavityEdgesGeometry: null,
+  probeGeometry: null,
+  probeEdgesGeometry: null,
+  probeTipGeometry: null,
+  haloGeometry: null
+};
+
+const ABYSSAL_PRESSURE_MONOLITH_MATERIALS = new Map();
+
+function hashString(str) {
+  let hash = 0;
+  const input = String(str ?? '');
+  for (let i = 0; i < input.length; i++) {
+    hash = (hash << 5) - hash + input.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash;
+}
+
+function _mythicSeededRng(seed = 1) {
+  let state = (seed >>> 0) || 1;
+  return () => {
+    state = (1664525 * state + 1013904223) >>> 0;
+    return state / 0xffffffff;
+  };
+}
+
+function _distortAbyssalPressureGeometry(geometry, transformFn) {
+  const position = geometry?.attributes?.position;
+  if (!position) return geometry;
+
+  const scratch = new THREE.Vector3();
+  for (let i = 0; i < position.count; i++) {
+    scratch.set(position.getX(i), position.getY(i), position.getZ(i));
+    transformFn(scratch, i);
+    position.setXYZ(i, scratch.x, scratch.y, scratch.z);
+  }
+
+  position.needsUpdate = true;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+function _setAbyssalPressureWaveDefaults(material, ignoreWaveColor = false) {
+  material.userData = { ...(material.userData || {}), wavePatchMode: 'DEFAULT' };
+  if (ignoreWaveColor) {
+    material.userData.ignoreWaveColor = true;
+  }
+  return material;
+}
+
+function _getAbyssalPressureMonolithGeometries() {
+  if (!ABYSSAL_PRESSURE_MONOLITH_CACHE.coreGeometry) {
+    const coreGeometry = new THREE.CylinderGeometry(0.5, 0.58, 0.86, 6, 1, false);
+    _distortAbyssalPressureGeometry(coreGeometry, (v, i) => {
+      const topWeight = Math.max(0, (v.y + 0.43) / 0.86);
+      const faceBias = Math.max(0, v.x * 1.28 + v.z * 0.54);
+      v.x = v.x * (0.9 + topWeight * 0.05) - faceBias * 0.045 + Math.sin(i * 0.11) * 0.002;
+      v.y = v.y * (0.94 - faceBias * 0.02) + topWeight * 0.026;
+      v.z = v.z * (0.91 + topWeight * 0.05) - v.x * 0.028;
+    });
+    coreGeometry.scale(1.0, 0.94, 0.95);
+    ABYSSAL_PRESSURE_MONOLITH_CACHE.coreGeometry = coreGeometry;
+    ABYSSAL_PRESSURE_MONOLITH_CACHE.coreEdgesGeometry = new THREE.EdgesGeometry(coreGeometry, 18);
+
+    const crownCapGeometry = new THREE.CylinderGeometry(0.26, 0.34, 0.13, 6, 1, false);
+    _distortAbyssalPressureGeometry(crownCapGeometry, (v, i) => {
+      const ridge = Math.max(0, v.y + 0.065);
+      const breakBias = Math.max(0, v.x * 1.42 - v.z * 0.34);
+      v.x = v.x * (0.88 + ridge * 0.05) - breakBias * 0.04 + Math.sin(i * 0.19) * 0.0015;
+      v.y = v.y * (0.96 + ridge * 0.02);
+      v.z = v.z * (0.9 + ridge * 0.04) + v.x * 0.02;
+    });
+    crownCapGeometry.scale(1.0, 0.88, 1.0);
+    ABYSSAL_PRESSURE_MONOLITH_CACHE.crownCapGeometry = crownCapGeometry;
+    ABYSSAL_PRESSURE_MONOLITH_CACHE.crownCapEdgesGeometry = new THREE.EdgesGeometry(crownCapGeometry, 16);
+
+    const crownShardGeometry = new THREE.CylinderGeometry(0.07, 0.15, 0.34, 5, 1, false);
+    crownShardGeometry.translate(0, 0.17, 0);
+    _distortAbyssalPressureGeometry(crownShardGeometry, (v, i) => {
+      const lean = Math.max(0, v.y / 0.34);
+      const fracture = Math.max(0, v.x * 1.24 + v.z * 0.74);
+      v.x = v.x * (0.84 + lean * 0.08) + fracture * 0.03 + Math.sin(i * 0.17) * 0.0015;
+      v.y = v.y * (0.95 + lean * 0.02);
+      v.z = v.z * (0.84 + lean * 0.08) - v.x * 0.022;
+    });
+    ABYSSAL_PRESSURE_MONOLITH_CACHE.crownShardGeometry = crownShardGeometry;
+    ABYSSAL_PRESSURE_MONOLITH_CACHE.crownShardEdgesGeometry = new THREE.EdgesGeometry(crownShardGeometry, 16);
+
+    const cavityGeometry = new THREE.CylinderGeometry(0.18, 0.24, 0.42, 6, 1, true);
+    _distortAbyssalPressureGeometry(cavityGeometry, (v, i) => {
+      const depthBias = Math.max(0, -v.x * 1.24 + v.y * 0.24);
+      v.x = v.x * (0.84 - depthBias * 0.04) + v.z * 0.02 + Math.sin(i * 0.13) * 0.0012;
+      v.y = v.y * (0.96 + depthBias * 0.02);
+      v.z = v.z * (0.9 + depthBias * 0.05) - v.x * 0.015;
+    });
+    cavityGeometry.scale(1.0, 0.96, 0.92);
+    ABYSSAL_PRESSURE_MONOLITH_CACHE.cavityGeometry = cavityGeometry;
+    ABYSSAL_PRESSURE_MONOLITH_CACHE.cavityEdgesGeometry = new THREE.EdgesGeometry(cavityGeometry, 16);
+
+    const probeGeometry = new THREE.CylinderGeometry(0.026, 0.052, 0.42, 5, 1, false);
+    probeGeometry.translate(0, 0.21, 0);
+    _distortAbyssalPressureGeometry(probeGeometry, (v, i) => {
+      const lift = Math.max(0, (v.y + 0.21) / 0.42);
+      v.x = v.x * (0.74 + lift * 0.09) + v.z * 0.024 + Math.sin(i * 0.31) * 0.005;
+      v.y = v.y * (0.98 + lift * 0.01);
+      v.z = v.z * (0.78 + lift * 0.08) - v.x * 0.02;
+    });
+    ABYSSAL_PRESSURE_MONOLITH_CACHE.probeGeometry = probeGeometry;
+    ABYSSAL_PRESSURE_MONOLITH_CACHE.probeEdgesGeometry = new THREE.EdgesGeometry(probeGeometry, 14);
+
+    const probeTipGeometry = new THREE.CylinderGeometry(0.018, 0.034, 0.09, 5, 1, false);
+    probeTipGeometry.translate(0, 0.045, 0);
+    _distortAbyssalPressureGeometry(probeTipGeometry, (v, i) => {
+      const taper = Math.max(0, (v.y + 0.045) / 0.09);
+      v.x = v.x * (0.8 + taper * 0.04) + v.z * 0.02 + Math.sin(i * 0.23) * 0.001;
+      v.y = v.y * (0.98 + taper * 0.01);
+      v.z = v.z * (0.84 + taper * 0.06) - v.x * 0.012;
+    });
+    ABYSSAL_PRESSURE_MONOLITH_CACHE.probeTipGeometry = probeTipGeometry;
+
+    const haloGeometry = new THREE.TorusGeometry(0.62, 0.02, 5, 24, Math.PI * 1.45);
+    ABYSSAL_PRESSURE_MONOLITH_CACHE.haloGeometry = haloGeometry;
+  }
+
+  return ABYSSAL_PRESSURE_MONOLITH_CACHE;
+}
+
+function _getAbyssalPressureMonolithMaterials(colorHex = 0x6ea0ff) {
+  const key = String(colorHex >>> 0);
+  if (ABYSSAL_PRESSURE_MONOLITH_MATERIALS.has(key)) {
+    return ABYSSAL_PRESSURE_MONOLITH_MATERIALS.get(key);
+  }
+
+  const resolvedColor = new THREE.Color(colorHex);
+
+  const coreMat = _setAbyssalPressureWaveDefaults(new THREE.MeshStandardMaterial({
+    color: 0x111720,
+    emissive: 0x09111a,
+    emissiveIntensity: 0.16,
+    metalness: 0.68,
+    roughness: 0.58,
+    flatShading: true
+  }));
+
+  const coreEdgeMat = _setAbyssalPressureWaveDefaults(new THREE.LineBasicMaterial({
+    color: 0x96a9be,
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false
+  }));
+
+  const crownMat = _setAbyssalPressureWaveDefaults(new THREE.MeshStandardMaterial({
+    color: 0x202634,
+    emissive: 0x172131,
+    emissiveIntensity: 0.14,
+    metalness: 0.52,
+    roughness: 0.64,
+    flatShading: true
+  }));
+
+  const crownEdgeMat = _setAbyssalPressureWaveDefaults(new THREE.LineBasicMaterial({
+    color: 0xb3c7d9,
+    transparent: true,
+    opacity: 0.25,
+    depthWrite: false
+  }));
+
+  const cavityMat = _setAbyssalPressureWaveDefaults(new THREE.MeshStandardMaterial({
+    color: 0x05080d,
+    emissive: 0x0a121a,
+    emissiveIntensity: 0.1,
+    metalness: 0.24,
+    roughness: 0.88,
+    side: THREE.DoubleSide,
+    flatShading: true
+  }));
+
+  const cavityGlowMat = _setAbyssalPressureWaveDefaults(new THREE.MeshBasicMaterial({
+    color: resolvedColor,
+    transparent: true,
+    opacity: 0.62,
+    depthWrite: false
+  }), true);
+
+  const cavityEdgeMat = _setAbyssalPressureWaveDefaults(new THREE.LineBasicMaterial({
+    color: 0x7f93aa,
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false
+  }));
+
+  const probeMat = _setAbyssalPressureWaveDefaults(new THREE.MeshStandardMaterial({
+    color: 0x2a3442,
+    emissive: 0x111a27,
+    emissiveIntensity: 0.12,
+    metalness: 0.46,
+    roughness: 0.42,
+    flatShading: true
+  }));
+
+  const probeEdgeMat = _setAbyssalPressureWaveDefaults(new THREE.LineBasicMaterial({
+    color: 0xb9cad8,
+    transparent: true,
+    opacity: 0.32,
+    depthWrite: false
+  }));
+
+  const probeTipMat = _setAbyssalPressureWaveDefaults(new THREE.MeshBasicMaterial({
+    color: resolvedColor,
+    transparent: true,
+    opacity: 0.86,
+    depthWrite: false
+  }), true);
+
+  const haloMat = _setAbyssalPressureWaveDefaults(new THREE.MeshBasicMaterial({
+    color: resolvedColor,
+    transparent: true,
+    opacity: 0.16,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  }));
+
+  const mats = {
+    coreMat,
+    coreEdgeMat,
+    crownMat,
+    crownEdgeMat,
+    cavityMat,
+    cavityGlowMat,
+    cavityEdgeMat,
+    probeMat,
+    probeEdgeMat,
+    probeTipMat,
+    haloMat
+  };
+
+  ABYSSAL_PRESSURE_MONOLITH_MATERIALS.set(key, mats);
+  return mats;
+}
+
 /**
  * EXTREME AI NODE PACK 1.0 - ATOMA Edition
  * 
@@ -585,90 +835,272 @@ export class ExtremeAINodePack {
   }
 
   /**
-   * ARCHETYPE 9: Abyssal Shard (STORAGE placeholder → iconic)
-   * Long black reflective shard + layered internal planes with slow parallax motion
-   * UPGRADED: Added geological strata layers, internal parallax animation metadata
+   * ARCHETYPE 9: Abyssal Pressure Monolith
+   * Legacy public name: Abyssal Shard
+   * Compressed core, fractured crown, open cavity, and sparse pressure probes
    */
   createAbyssalShard(node, scene) {
-    const group = new THREE.Group();
-    group.userData = { archetypeName: 'AbyssalShard', animations: [] };
+    const root = new THREE.Group();
+    root.name = 'EXTREME_ABYSSAL_PRESSURE_MONOLITH_NODE';
+    root.userData = {
+      archetypeName: 'AbyssalPressureMonolith',
+      animations: [],
+      visualVariant: 'EXTREME_ABYSSAL_PRESSURE_MONOLITH_V4',
+      analyticsVariant: 'ABYSSAL_PRESSURE_MONOLITH',
+      nodeGeometryName: 'EXTREME_ABYSSAL_PRESSURE_MONOLITH_V4',
+      visualReady: true,
+      visualCoreImmutable: true
+    };
 
-    // Create elongated shard geometry
-    const shardGeo = new THREE.ConeGeometry(0.15, 0.6, 6);
-    const shardMat = new THREE.MeshStandardMaterial({
-      color: 0x001111,
-      emissive: 0x0a0a1a,
-      emissiveIntensity: 0.3,
-      metalness: 0.9,
-      roughness: 0.1,
-      side: THREE.DoubleSide
+    const resolvedColorHex = (() => {
+      try {
+        return new THREE.Color(node?.userData?.color ?? 0x6ea0ff).getHex();
+      } catch (err) {
+        return new THREE.Color(0x6ea0ff).getHex();
+      }
+    })();
+    const seedSource = node?.userData?.nodeId || node?.userData?.visualCode || resolvedColorHex;
+    const rng = _mythicSeededRng(Math.abs(hashString(`411|${seedSource}`)) || 411);
+    const geometries = _getAbyssalPressureMonolithGeometries();
+    const materials = _getAbyssalPressureMonolithMaterials(resolvedColorHex);
+    const uniqueGeometries = new Set();
+    const uniqueMaterials = new Set();
+    const refs = {
+      coreGroup: null,
+      crownGroup: null,
+      cavityGroup: null,
+      probeGroup: null,
+      auraGroup: null,
+      coreMesh: null,
+      coreEdge: null,
+      crownPieces: [],
+      cavityMesh: null,
+      cavityEdge: null,
+      cavityGlowMesh: null,
+      probes: [],
+      pressureHalo: null
+    };
+
+    const registerGeometry = (geometry) => {
+      if (geometry) uniqueGeometries.add(geometry);
+      return geometry;
+    };
+
+    const registerMaterial = (material) => {
+      if (material) uniqueMaterials.add(material);
+      return material;
+    };
+
+    const captureBaseTransforms = (object3d) => {
+      object3d.userData.basePosition = object3d.position.clone();
+      object3d.userData.baseRotation = object3d.rotation.clone();
+      object3d.userData.baseScale = object3d.scale.clone();
+    };
+
+    const markInteractive = (mesh) => {
+      mesh.userData = { ...(mesh.userData || {}), isExtremVFX: true, visualCoreImmutable: true, isInteractive: true };
+      mesh.raycast = THREE.Mesh.prototype.raycast;
+      return mesh;
+    };
+
+    const markAccent = (mesh) => {
+      mesh.userData = { ...(mesh.userData || {}), visualCoreImmutable: true, ignoreWaveColor: true };
+      mesh.raycast = () => null;
+      return mesh;
+    };
+
+    const markEdge = (edge) => {
+      edge.userData = { ...(edge.userData || {}), visualCoreImmutable: true, isEdgeCage: true };
+      edge.raycast = () => null;
+      edge.frustumCulled = false;
+      return edge;
+    };
+
+    const coreGroup = new THREE.Group();
+    coreGroup.name = 'CORE_GROUP';
+    coreGroup.userData.isAbyssalPressureCoreGroup = true;
+    coreGroup.userData.baseRotation = coreGroup.rotation.clone();
+
+    const coreMesh = markInteractive(new THREE.Mesh(registerGeometry(geometries.coreGeometry), registerMaterial(materials.coreMat)));
+    coreMesh.name = 'PressureCore';
+    coreMesh.position.set(-0.01, -0.03, 0.0);
+    coreMesh.rotation.set(0.1, -0.18, 0.05);
+    coreMesh.scale.set(0.95, 0.9, 0.93);
+    captureBaseTransforms(coreMesh);
+    coreMesh.renderOrder = 10;
+    coreGroup.add(coreMesh);
+
+    const coreEdge = markEdge(new THREE.LineSegments(registerGeometry(geometries.coreEdgesGeometry), registerMaterial(materials.coreEdgeMat)));
+    coreEdge.name = 'PressureCoreEdges';
+    coreEdge.position.copy(coreMesh.position);
+    coreEdge.rotation.copy(coreMesh.rotation);
+    coreEdge.scale.copy(coreMesh.scale);
+    coreEdge.renderOrder = 11;
+    coreGroup.add(coreEdge);
+
+    refs.coreGroup = coreGroup;
+    refs.coreMesh = coreMesh;
+    refs.coreEdge = coreEdge;
+
+    const crownGroup = new THREE.Group();
+    crownGroup.name = 'CROWN_GROUP';
+    crownGroup.userData.isAbyssalPressureCrownGroup = true;
+    crownGroup.userData.baseRotation = crownGroup.rotation.clone();
+
+    const crownConfigs = [
+      { name: 'CrownCap', pos: [-0.01, 0.27, -0.01], rot: [0.14, -0.18, 0.06], scale: [1.0, 0.96, 0.92] },
+      { name: 'CrownShard_A', pos: [-0.15, 0.31, 0.06], rot: [0.42, -0.4, 0.18], scale: [0.94, 1.06, 0.76] },
+      { name: 'CrownShard_B', pos: [0.15, 0.34, -0.05], rot: [-0.36, 0.28, -0.24], scale: [0.88, 1.0, 0.72] },
+      { name: 'CrownShard_C', pos: [0.03, 0.44, 0.12], rot: [0.72, 0.08, 0.44], scale: [0.76, 1.08, 0.7] }
+    ];
+
+    crownConfigs.forEach((cfg, index) => {
+      const shard = markInteractive(new THREE.Mesh(registerGeometry(index === 0 ? geometries.crownCapGeometry : geometries.crownShardGeometry), registerMaterial(materials.crownMat)));
+      shard.name = cfg.name;
+      shard.position.set(cfg.pos[0] + (rng() - 0.5) * 0.03, cfg.pos[1] + (rng() - 0.5) * 0.02, cfg.pos[2] + (rng() - 0.5) * 0.03);
+      shard.rotation.set(
+        cfg.rot[0] + (rng() - 0.5) * 0.1,
+        cfg.rot[1] + (rng() - 0.5) * 0.12,
+        cfg.rot[2] + (rng() - 0.5) * 0.1
+      );
+      shard.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+      captureBaseTransforms(shard);
+      shard.renderOrder = 20 + index * 2;
+      crownGroup.add(shard);
+
+      const shardEdges = markEdge(new THREE.LineSegments(registerGeometry(index === 0 ? geometries.crownCapEdgesGeometry : geometries.crownShardEdgesGeometry), registerMaterial(materials.crownEdgeMat)));
+      shardEdges.name = `${cfg.name}_Edges`;
+      shardEdges.position.copy(shard.position);
+      shardEdges.rotation.copy(shard.rotation);
+      shardEdges.scale.copy(shard.scale);
+      shardEdges.renderOrder = 21 + index * 2;
+      crownGroup.add(shardEdges);
+
+      shard.userData.edgeRef = shardEdges;
+      refs.crownPieces.push(shard);
     });
 
-    const shard = new THREE.Mesh(shardGeo, shardMat);
-    shard.rotation.x = Math.random() * Math.PI * 2;
-    shard.rotation.z = Math.random() * Math.PI * 2;
-    shard.userData = { isExtremVFX: true };
+    refs.crownGroup = crownGroup;
 
-    group.add(shard);
+    const cavityGroup = new THREE.Group();
+    cavityGroup.name = 'CAVITY_GROUP';
+    cavityGroup.userData.isAbyssalPressureCavityGroup = true;
+    cavityGroup.userData.baseRotation = cavityGroup.rotation.clone();
 
-    // Add secondary reflected shard
-    const shard2Geo = new THREE.ConeGeometry(0.1, 0.4, 6);
-    const shard2Mat = new THREE.MeshStandardMaterial({
-      color: 0x0a1a2a,
-      emissive: 0x0f1f3f,
-      emissiveIntensity: 0.2,
-      metalness: 0.8,
-      roughness: 0.2
+    const cavityMesh = markInteractive(new THREE.Mesh(registerGeometry(geometries.cavityGeometry), registerMaterial(materials.cavityMat)));
+    cavityMesh.name = 'PressureCavity';
+    cavityMesh.position.set(0.18, 0.01, 0.08);
+    cavityMesh.rotation.set(-0.2, 0.42, 0.12);
+    cavityMesh.scale.set(0.94, 1.0, 0.9);
+    captureBaseTransforms(cavityMesh);
+    cavityMesh.renderOrder = 30;
+    cavityGroup.add(cavityMesh);
+
+    const cavityEdge = markEdge(new THREE.LineSegments(registerGeometry(geometries.cavityEdgesGeometry), registerMaterial(materials.cavityEdgeMat)));
+    cavityEdge.name = 'PressureCavityEdges';
+    cavityEdge.position.copy(cavityMesh.position);
+    cavityEdge.rotation.copy(cavityMesh.rotation);
+    cavityEdge.scale.copy(cavityMesh.scale);
+    cavityEdge.renderOrder = 31;
+    cavityGroup.add(cavityEdge);
+
+    const cavityGlowMesh = markAccent(new THREE.Mesh(registerGeometry(geometries.cavityGeometry), registerMaterial(materials.cavityGlowMat)));
+    cavityGlowMesh.name = 'PressureCavityGlow';
+    cavityGlowMesh.position.set(0.0, 0.0, -0.03);
+    cavityGlowMesh.rotation.set(0.0, 0.0, 0.0);
+    cavityGlowMesh.scale.set(0.72, 0.74, 0.68);
+    captureBaseTransforms(cavityGlowMesh);
+    cavityGlowMesh.renderOrder = 32;
+    cavityMesh.add(cavityGlowMesh);
+
+    refs.cavityGroup = cavityGroup;
+    refs.cavityMesh = cavityMesh;
+    refs.cavityEdge = cavityEdge;
+    refs.cavityGlowMesh = cavityGlowMesh;
+
+    const probeGroup = new THREE.Group();
+    probeGroup.name = 'PROBE_GROUP';
+    probeGroup.userData.isAbyssalPressureProbeGroup = true;
+    probeGroup.userData.baseRotation = probeGroup.rotation.clone();
+
+    const probeConfigs = [
+      { name: 'Probe_A', pos: [0.36, 0.08, 0.08], rot: [-0.34, 0.58, 0.1], scale: [0.96, 1.02, 0.9] },
+      { name: 'Probe_B', pos: [0.16, 0.3, -0.11], rot: [0.52, -0.24, 0.28], scale: [0.8, 0.92, 0.84] },
+      { name: 'Probe_C', pos: [0.24, -0.04, 0.16], rot: [0.16, 0.88, -0.18], scale: [0.74, 0.88, 0.8] }
+    ];
+
+    probeConfigs.forEach((cfg, index) => {
+      const probe = markInteractive(new THREE.Mesh(registerGeometry(geometries.probeGeometry), registerMaterial(materials.probeMat)));
+      probe.name = cfg.name;
+      probe.position.set(cfg.pos[0] + (rng() - 0.5) * 0.02, cfg.pos[1] + (rng() - 0.5) * 0.02, cfg.pos[2] + (rng() - 0.5) * 0.02);
+      probe.rotation.set(
+        cfg.rot[0] + (rng() - 0.5) * 0.08,
+        cfg.rot[1] + (rng() - 0.5) * 0.1,
+        cfg.rot[2] + (rng() - 0.5) * 0.08
+      );
+      probe.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+      captureBaseTransforms(probe);
+      probe.renderOrder = 40 + index * 2;
+      probeGroup.add(probe);
+
+      const probeEdge = markEdge(new THREE.LineSegments(registerGeometry(geometries.probeEdgesGeometry), registerMaterial(materials.probeEdgeMat)));
+      probeEdge.name = `${cfg.name}_Edges`;
+      probeEdge.position.copy(probe.position);
+      probeEdge.rotation.copy(probe.rotation);
+      probeEdge.scale.copy(probe.scale);
+      probeEdge.renderOrder = 41 + index * 2;
+      probeGroup.add(probeEdge);
+
+      const probeTip = markAccent(new THREE.Mesh(registerGeometry(geometries.probeTipGeometry), registerMaterial(materials.probeTipMat)));
+      probeTip.name = `${cfg.name}_Tip`;
+      probeTip.position.set(0.0, 0.22, 0.0);
+      probeTip.rotation.set(0.0, 0.0, 0.0);
+      probeTip.scale.set(1.0, 0.9, 1.0);
+      probe.add(probeTip);
+
+      probe.userData.edgeRef = probeEdge;
+      refs.probes.push(probe);
     });
 
-    const shard2 = new THREE.Mesh(shard2Geo, shard2Mat);
-    shard2.position.set(0.15, 0.2, -0.1);
-    shard2.rotation.y = Math.PI * 0.5;
-    shard2.userData = { isExtremVFX: true };
+    refs.probeGroup = probeGroup;
 
-    group.add(shard2);
+    const auraGroup = new THREE.Group();
+    auraGroup.name = 'AURA_GROUP';
+    auraGroup.userData.isAbyssalPressureAuraGroup = true;
+    auraGroup.userData.baseRotation = auraGroup.rotation.clone();
 
-    // POLISH: Internal geological strata layers (deep memory layers)
-    const strataCount = 3;
-    for (let s = 0; s < strataCount; s++) {
-      const stratumGeo = new THREE.PlaneGeometry(0.25, 0.15, 4, 2);
-      const stratumMat = new THREE.MeshStandardMaterial({
-        color: [0x0a1a1a, 0x0f2f2f, 0x1a3a3a][s % 3],
-        emissive: [0x050a0a, 0x080f0f, 0x0a1a1a][s % 3],
-        emissiveIntensity: 0.2,
-        metalness: 0.7,
-        roughness: 0.4,
-        transparent: true,
-        opacity: 0.6,
-        side: THREE.DoubleSide
-      });
-      
-      const stratum = new THREE.Mesh(stratumGeo, stratumMat);
-      stratum.position.z = (s - 1) * 0.15; // Layered depth
-      stratum.rotation.x = Math.PI / 6;
-      stratum.userData = {
-        isExtremVFX: true,
-        isStratumLayer: true,
-        stratumIndex: s,
-        parallaxPhase: s * Math.PI * 0.33
-      };
-      
-      group.add(stratum);
-      group.userData.geometries = group.userData.geometries || [];
-      group.userData.materials = group.userData.materials || [];
-      group.userData.geometries.push(stratumGeo);
-      group.userData.materials.push(stratumMat);
-    }
+    const pressureHalo = markAccent(new THREE.Mesh(registerGeometry(geometries.haloGeometry), registerMaterial(materials.haloMat)));
+    pressureHalo.name = 'PressureHalo';
+    pressureHalo.position.set(0.0, 0.02, 0.0);
+    pressureHalo.rotation.set(Math.PI * 0.5, 0.24, -0.18);
+    pressureHalo.scale.set(1.0, 0.92, 0.86);
+    captureBaseTransforms(pressureHalo);
+    pressureHalo.renderOrder = 50;
+    auraGroup.add(pressureHalo);
 
-    group.userData.geometries = group.userData.geometries || [];
-    group.userData.materials = group.userData.materials || [];
-    group.userData.geometries.push(shardGeo, shard2Geo);
-    group.userData.materials.push(shardMat, shard2Mat);
-    group.userData.rotateSpeed = 0.3;
-    group.userData.parallaxMotionEnabled = true; // Very slow internal parallax
-    group.userData.parallaxSpeed = 0.15; // Slow parallax motion
+    refs.auraGroup = auraGroup;
+    refs.pressureHalo = pressureHalo;
 
-    return group;
+    root.add(coreGroup);
+    root.add(crownGroup);
+    root.add(cavityGroup);
+    root.add(probeGroup);
+    root.add(auraGroup);
+
+    root.userData.pressureMonolithPhase = rng() * Math.PI * 2;
+    root.userData.pressureMonolithTectonicSpeed = 0.005 + rng() * 0.003;
+    root.userData.pressureMonolithCompressionSpeed = 0.42 + rng() * 0.08;
+    root.userData.pressureMonolithCrownSlipSpeed = 0.018 + rng() * 0.006;
+    root.userData.pressureMonolithCavityBreathSpeed = 0.18 + rng() * 0.04;
+    root.userData.pressureMonolithProbeDriftSpeed = 0.014 + rng() * 0.004;
+    root.userData.pressureMonolithAuraSpeed = 0.01 + rng() * 0.003;
+    root.userData.pressureMonolithBaseRotation = root.rotation.clone();
+    root.userData.pressureMonolithBaseScale = root.scale.clone();
+    root.userData.pressureMonolithRefs = refs;
+    root.userData.geometries = Array.from(uniqueGeometries);
+    root.userData.materials = Array.from(uniqueMaterials);
+
+    return root;
   }
 
   /**
