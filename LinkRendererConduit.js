@@ -31,7 +31,7 @@ import { LinkSemanticPictogramSystem_WithFusion } from './LinkSemanticPictogramS
 import { getLinkCategoryHex } from './LinkCategoryColorContract.js';
 
 // Temporary experiment: disable semantic pictograms entirely.
-const DISABLE_SEMANTIC_PICTOGRAMS = false;
+const DISABLE_SEMANTIC_PICTOGRAMS = false; // Semantic glyph rendering enabled
 
 function computeSegmentsFromLength(curve, density = 8, minSeg = 12, maxSeg = 200) {
     if (!curve?.getLength) return minSeg;
@@ -2698,7 +2698,7 @@ export class LinkRendererConduit {
                 state.__dynamicGeometryInitialized = false;
                 return state.strands.length >= strandCount;
             }
-            case 2: { // Frame 2: pulseRing + ring trails
+            case 2: { // Frame 2: pulseRing only
                 if (!state.pulseRing && LinkPulseRing) {
                     state.pulseRing = new LinkPulseRing(this.scene, { deferTrails: true });
                     state.pulseRing.rebind?.({ scene: this.scene });
@@ -2706,12 +2706,11 @@ export class LinkRendererConduit {
                     if (pulseRingMesh) {
                         group.add(pulseRingMesh);
                     }
-                    if (!state.pulseDust && LinkPulseDustEmitter) {
-                        state.pulseDust = new LinkPulseDustEmitter(160);
-                        this.conduitRoot.add(state.pulseDust.getObject3D());
-                    }
                     return false;
                 }
+                return !!state.pulseRing;
+            }
+            case 3: { // Frame 3: ring trails + pulse dust emitter
                 if (state.pulseRing?.ensureTrails && !state.pulseRing._trailsInitialized) {
                     const trailMeshes = state.pulseRing.ensureTrails();
                     if (Array.isArray(trailMeshes)) {
@@ -2720,10 +2719,11 @@ export class LinkRendererConduit {
                         });
                     }
                 }
-                return !!state.pulseRing;
-            }
-            case 3: { // Frame 3: flow modulation is merged into strand updates
-                return true;
+                if (!state.pulseDust && LinkPulseDustEmitter) {
+                    state.pulseDust = new LinkPulseDustEmitter(160);
+                    this.conduitRoot.add(state.pulseDust.getObject3D());
+                }
+                return !!state.pulseRing && (!!state.pulseDust || !LinkPulseDustEmitter);
             }
             case 4: { // Frame 4: directionalStreaks
                 if (!LinkDirectionalStreaks || !this.directionalStreaks) return true;
@@ -2758,9 +2758,9 @@ export class LinkRendererConduit {
                 }
                 return true;
             }
-            case 5: { // Frame 5: arcDischarges
+            case 5: { // Frame 5: arcDischarges core
                 if (state.arcDischarges || !LinkRingArcDischarges) break;
-                state.arcDischarges = new LinkRingArcDischarges(this.scene);
+                state.arcDischarges = new LinkRingArcDischarges(this.scene, { deferPools: true });
                 state.arcDischarges.rebind?.({ scene: this.scene });
                 const arcDischargeGroup = state.arcDischarges.getGroup?.();
                 if (arcDischargeGroup) {
@@ -2771,7 +2771,8 @@ export class LinkRendererConduit {
                 if (state.pulseRing?.setArcSystem) state.pulseRing.setArcSystem(state.arcDischarges);
                 break;
             }
-            case 6: { // Frame 6: beads
+            case 6: { // Frame 6: arc spark pool + beads
+                state.arcDischarges?.ensureImpactSparkPool?.();
                 if (!state.rings && LinkEnergyRingSystem) state.rings = new LinkEnergyRingSystem(this.scene);
                 if (!state.beads && LinkBeadVisualizer) {
                     state.beads = new LinkBeadVisualizer(link, this.scene);
@@ -2779,7 +2780,8 @@ export class LinkRendererConduit {
                 }
                 break;
             }
-            case 7: { // Frame 7: bead trails
+            case 7: { // Frame 7: arc ripple pool + bead trails
+                state.arcDischarges?.ensureRipplePool?.();
                 if (!state.trails && LinkBeadTrailSystem) {
                     state.trails = new LinkBeadTrailSystem(this.scene);
                     const trailMesh = state.trails.getMesh?.();
@@ -2791,7 +2793,8 @@ export class LinkRendererConduit {
                 }
                 break;
             }
-            case 8: { // Frame 8: sparks
+            case 8: { // Frame 8: arc packet pool + sparks
+                state.arcDischarges?.ensurePacketPool?.();
                 if (!state.sparks && LinkSparkSystem) {
                     state.sparks = new LinkSparkSystem(this.scene);
                     const sparkMesh = state.sparks.getMesh?.();

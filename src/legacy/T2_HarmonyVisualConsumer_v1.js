@@ -163,7 +163,7 @@ export class T2_HarmonyVisualConsumer_v1 {
       pulseColor: new THREE.Color(0x22ffd8),
       pulseMaxDistance: 50,
       pulseLifetime: 3.0, // seconds
-      pulseShardCount: 5  // Reduced from 5 for performance
+      pulseShardCount: 3  // Reduced from 5 for performance (matches actual shard count)
     };
     
     this.registry = {
@@ -647,10 +647,9 @@ export class T2_HarmonyVisualConsumer_v1 {
       if (!zoneMesh) return;
 
       const zoneLOD = this._getWorldPositionLODLevel(zoneMesh);
+      // FIX: Removed duplicate visibility assignment — was set twice (second overrode first)
       zoneMesh.visible = this.enabled && zoneLOD < 3;
       if (zoneLOD >= 3) return;
-
-      zoneMesh.visible = this.enabled;
       zoneMesh.position.set(
         zoneData.centerPos.x || 0,
         zoneData.centerPos.y || 0,
@@ -845,17 +844,19 @@ export class T2_HarmonyVisualConsumer_v1 {
     
     attachRoot.add(pulseMesh);
     
-    let direction = new THREE.Vector3(0, 0, 1);
+    // FIX: Use dedicated scratch vector for direction to avoid mutating _tmpTargetPosition
+    this._pulseDirection = this._pulseDirection || new THREE.Vector3();
     if (targetPosition) {
       this._tmpTargetPosition.copy(targetPosition);
-      direction = this._tmpTargetPosition.sub(this._tmpWorldPosition).normalize();
+      this._pulseDirection.copy(this._tmpTargetPosition).sub(this._tmpWorldPosition).normalize();
     } else {
-      direction = new THREE.Vector3(
+      this._pulseDirection.set(
         Math.random() - 0.5,
         Math.random() - 0.5,
         Math.random() - 0.5
       ).normalize();
     }
+    const direction = this._pulseDirection;
     
     const pulse = {
       mesh: pulseMesh,

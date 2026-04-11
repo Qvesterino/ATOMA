@@ -82,6 +82,7 @@ const CONFIG = {
     SIZE_LARGE: 0.45,
     SIZE_MEDIUM: 0.4,
     SIZE_SMALL: 0.35,
+    UNIFORM_GLYPH_SCALE: 0.6,
     
     // Motion
     BASE_DRIFT_SPEED: 0.25,
@@ -126,6 +127,7 @@ const CONFIG = {
     // Visual restraint
     COLOR_SATURATION: 0.25,  // Low saturation (neutral tones)
     BASE_COLOR: 0xb0b0b0,    // Neutral grey base
+    UNIFORM_GLYPH_SCALE: 0.62, // Apply one consistent scale to all glyphs
     
     // Semantic thresholds
     // Slightly relaxed to ensure visibility without flooding
@@ -882,7 +884,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
         this.camera = camera;
         this.parentGroup = parentGroup;
 
-        this.enabled = true;
+        this.enabled = false;
 
         // Pictogram pool (enhanced instances)
         this.pictograms = [];
@@ -953,6 +955,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
         if (parent) parent.add(container);
         this.container = container;
         container.renderOrder = pictoRenderOrder;
+        container.visible = false;
 
         for (let i = 0; i < CONFIG.POOL_SIZE; i++) {
         const geometry = new THREE.PlaneGeometry(1, 1);
@@ -1633,6 +1636,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
         if (!glyph.material) {
             glyph.material = this._findFirstMaterial(glyph);
         }
+        const uniformScale = Math.max(0.01, size * (CONFIG.UNIFORM_GLYPH_SCALE || 1.0));
+        glyph.scale.setScalar(uniformScale);
         pictogram.mesh = glyph;
         this._applyRenderSettings(glyph, glyph.renderOrder);
         pictogram._orbit1 = glyph.userData.orbit1;
@@ -1879,8 +1884,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
         const mat = this._getMaterialFromPool(0xffffff, 1.0, THREE.AdditiveBlending);
         const lockMat = this._getMaterialFromPool(0x9db2ff, 0.28, THREE.AdditiveBlending);
 
-        const outer = size * 0.6;
-        const inner = size * 0.42;
+        const outer = size * 0.5;
+        const inner = size * 0.32;
         const shape = new THREE.Shape();
         shape.moveTo(-outer, -outer);
         shape.lineTo(outer, -outer);
@@ -1896,7 +1901,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
         shape.holes.push(hole);
 
         const frameGeom = new THREE.ExtrudeGeometry(shape, {
-            depth: size * 0.02,
+            depth: Math.max(0.012, size * 0.016),
             bevelEnabled: false
         });
         frameGeom.rotateX(-Math.PI / 2);
@@ -1905,16 +1910,16 @@ export class LinkSemanticPictogramSystem_Enhanced {
         group.add(frame);
 
         const lockRing = new THREE.Mesh(this._getGeometryFromCache('torus_small'), lockMat);
-        lockRing.scale.setScalar(1.68);
+        lockRing.scale.setScalar(1.4);
         lockRing.renderOrder = renderOrder;
         group.add(lockRing);
 
         // Inner diamond (rotated square)
         const innerGeom = this._getGeometryFromCache('plane_diamond').clone();
-        innerGeom.scale(size, size, 1);
+        innerGeom.scale(size * 0.85, size * 0.85, 1);
         const innerMesh = new THREE.Mesh(innerGeom, mat);
         innerMesh.rotation.z = Math.PI / 4;
-        innerMesh.position.set(0, 0, size * 0.015);
+        innerMesh.position.set(0, 0, size * 0.01);
         innerMesh.renderOrder = renderOrder;
         group.add(innerMesh);
 
@@ -1928,8 +1933,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
         ];
         anchorOffsets.forEach(([x, y], index) => {
             const anchor = new THREE.Mesh(this._getGeometryFromCache('sphere_spark'), anchorMat);
-            anchor.position.set(x, y, size * 0.03);
-            anchor.scale.setScalar(1.4);
+            anchor.position.set(x, y, size * 0.025);
+            anchor.scale.setScalar(1.2);
             anchor.renderOrder = renderOrder;
             anchor.userData.basePosition = anchor.position.clone();
             anchor.userData.phase = index * 1.7;
@@ -1938,12 +1943,12 @@ export class LinkSemanticPictogramSystem_Enhanced {
         });
 
         const braceX = new THREE.Mesh(this._getGeometryFromCache('box_beam'), lockMat);
-        braceX.scale.set(size * 0.95, 0.12, 0.12);
+        braceX.scale.set(size * 0.82, 0.10, 0.10);
         braceX.renderOrder = renderOrder;
         group.add(braceX);
 
         const braceZ = new THREE.Mesh(this._getGeometryFromCache('box_beam'), lockMat);
-        braceZ.scale.set(size * 0.95, 0.12, 0.12);
+        braceZ.scale.set(size * 0.82, 0.10, 0.10);
         braceZ.rotation.z = Math.PI / 2;
         braceZ.renderOrder = renderOrder;
         group.add(braceZ);
@@ -1974,7 +1979,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
         const shards = [];
 
         const core = new THREE.Mesh(this._getGeometryFromCache('sphere_core'), coreMat);
-        core.scale.setScalar(1.35);
+        core.scale.setScalar(1.15);
         core.renderOrder = renderOrder;
         group.add(core);
 
@@ -1983,9 +1988,9 @@ export class LinkSemanticPictogramSystem_Enhanced {
             const segGeom = this._getGeometryFromCache('torus_arc').clone();
             segGeom.scale(size, size, 1);
             const seg = new THREE.Mesh(segGeom, mat);
-            seg.rotation.z = i * (Math.PI * 2 / segCount) + (Math.random() - 0.5) * 0.2;
-            seg.position.x += (Math.sin(i * 1.3) * 0.07 + (Math.random() - 0.5) * 0.03) * size;
-            seg.position.y += (Math.cos(i * 0.9) * 0.04) * size;
+            seg.rotation.z = i * (Math.PI * 2 / segCount) + (Math.random() - 0.5) * 0.18;
+            seg.position.x += (Math.sin(i * 1.3) * 0.055 + (Math.random() - 0.5) * 0.022) * size;
+            seg.position.y += (Math.cos(i * 0.9) * 0.035) * size;
             seg.renderOrder = renderOrder;
             group.add(seg);
             segments.push(seg);
@@ -1994,11 +1999,11 @@ export class LinkSemanticPictogramSystem_Enhanced {
         // Outer fractured ring (opposite rotation direction)
         for (let i = 0; i < segCount; i++) {
             const segGeom = this._getGeometryFromCache('torus_arc').clone();
-            segGeom.scale(size * 1.12, size, 1);
+            segGeom.scale(size * 1.08, size, 1);
             const seg = new THREE.Mesh(segGeom, mat);
-            seg.rotation.z = -i * (Math.PI * 2 / segCount) + (Math.random() - 0.5) * 0.2;
-            seg.position.x += (Math.sin(i * 1.1 + 0.5) * 0.08 + (Math.random() - 0.5) * 0.04) * size;
-            seg.position.y += (Math.cos(i * 1.2 + 0.3) * 0.03) * size;
+            seg.rotation.z = -i * (Math.PI * 2 / segCount) + (Math.random() - 0.5) * 0.18;
+            seg.position.x += (Math.sin(i * 1.1 + 0.5) * 0.065 + (Math.random() - 0.5) * 0.03) * size;
+            seg.position.y += (Math.cos(i * 1.2 + 0.3) * 0.025) * size;
             seg.renderOrder = renderOrder;
             group.add(seg);
             segments.push(seg);
@@ -2006,13 +2011,13 @@ export class LinkSemanticPictogramSystem_Enhanced {
 
         for (let i = 0; i < 6; i++) {
             const shard = new THREE.Mesh(this._getGeometryFromCache('box_shard'), shardMat);
-            shard.scale.set(0.04 * size, 0.22 * size, 0.03 * size);
-            const angle = (Math.PI * 2 * i / 6) + (Math.random() - 0.5) * 0.35;
-            const radius = outerRadius + 0.08 * size + Math.random() * 0.08 * size;
+            shard.scale.set(0.035 * size, 0.18 * size, 0.03 * size);
+            const angle = (Math.PI * 2 * i / 6) + (Math.random() - 0.5) * 0.32;
+            const radius = outerRadius + 0.05 * size + Math.random() * 0.06 * size;
             shard.position.set(
                 Math.cos(angle) * radius,
                 Math.sin(angle) * radius,
-                (Math.random() - 0.5) * 0.12 * size
+                (Math.random() - 0.5) * 0.10 * size
             );
             shard.rotation.z = angle + Math.PI / 2 + (Math.random() - 0.5) * 0.3;
             shard.rotation.x = (Math.random() - 0.5) * 0.6;

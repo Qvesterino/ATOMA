@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { LinkBufferSafetyAudit } from './Engine/Debug/LinkBufferSafetyAudit.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
+const SHARED_RIPPLE_GEOMETRY = new THREE.RingGeometry(0.8, 1.0, 24);
+const SHARED_PACKET_GEOMETRY = new THREE.SphereGeometry(0.015, 6, 6);
+
 /**
  * LinkRingArcDischarges - AAA QUALITY VISUALS
  * ===================================================================
@@ -31,9 +34,10 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
  * - No persistent emission, purely ring-triggered
  */
 export class LinkRingArcDischarges {
-    constructor(scene) {
+    constructor(scene, options = {}) {
         this.scene = scene;
         this._attachRoot = scene || null;
+        this._deferPools = options?.deferPools === true;
         this.activeArcs = []; // Array of active arc objects
         this.group = new THREE.Group();
         const ud = (this.group && typeof this.group.userData === 'object' && this.group.userData) ? this.group.userData : (() => { try { Object.defineProperty(this.group, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.group.userData || {}; })();
@@ -63,17 +67,19 @@ export class LinkRingArcDischarges {
         this.arcsThisPulse = 0;
         this.sparkPool = [];
         this.activeSparks = [];
-        this._initImpactSparkPool(6);
 
         // Ripple pool for surface ripples
         this.ripplePool = [];
         this.activeRipples = [];
-        this._initRipplePool(3);
 
         // Energy packet pool (travel inside link core)
         this.packetPool = [];
         this.activePackets = [];
-        this._initPacketPool(3);
+        if (!this._deferPools) {
+            this._initImpactSparkPool(6);
+            this._initRipplePool(3);
+            this._initPacketPool(3);
+        }
         
         // Math cache
         this._vec3 = new THREE.Vector3();
@@ -106,6 +112,27 @@ export class LinkRingArcDischarges {
             this.ensureAttached(nextRoot);
         }
         return this;
+    }
+
+    ensureImpactSparkPool(count = 6) {
+        if (this.sparkPool.length === 0) {
+            this._initImpactSparkPool(count);
+        }
+        return this.sparkPool;
+    }
+
+    ensureRipplePool(count = 3) {
+        if (this.ripplePool.length === 0) {
+            this._initRipplePool(count);
+        }
+        return this.ripplePool;
+    }
+
+    ensurePacketPool(count = 3) {
+        if (this.packetPool.length === 0) {
+            this._initPacketPool(count);
+        }
+        return this.packetPool;
     }
 
     /**
@@ -915,7 +942,7 @@ export class LinkRingArcDischarges {
 
         this.activeRipples.forEach((r) => {
             this.group.remove(r.mesh);
-            r.geometry.dispose();
+            if (r.geometry && r.geometry !== SHARED_RIPPLE_GEOMETRY) r.geometry.dispose();
             r.material.dispose();
         });
         this.activeRipples = [];
@@ -923,7 +950,7 @@ export class LinkRingArcDischarges {
 
         this.activePackets.forEach((p) => {
             this.group.remove(p.mesh);
-            p.geometry.dispose();
+            if (p.geometry && p.geometry !== SHARED_PACKET_GEOMETRY) p.geometry.dispose();
             p.material.dispose();
         });
         this.activePackets = [];
@@ -933,6 +960,7 @@ export class LinkRingArcDischarges {
     }
 
     _initImpactSparkPool(count) {
+        if (this.sparkPool.length > 0) return;
         for (let i = 0; i < count; i++) {
             const geo = new THREE.BufferGeometry();
             const positions = new Float32Array(15); // 5 sparks
@@ -963,6 +991,7 @@ export class LinkRingArcDischarges {
     }
 
     _spawnImpactSparks(point, color) {
+        if (this.sparkPool.length === 0) this.ensureImpactSparkPool();
         if (this.sparkPool.length === 0) return;
         const burst = this.sparkPool.pop();
         burst.age = 0;
@@ -991,7 +1020,8 @@ export class LinkRingArcDischarges {
     }
 
     _initRipplePool(count) {
-        const rippleGeo = new THREE.RingGeometry(0.8, 1.0, 24);
+        if (this.ripplePool.length > 0) return;
+        const rippleGeo = SHARED_RIPPLE_GEOMETRY;
         for (let i = 0; i < count; i++) {
             const mat = new THREE.MeshBasicMaterial({
                 color: 0xffffff,
@@ -1002,7 +1032,7 @@ export class LinkRingArcDischarges {
                 depthTest: true,
                 side: THREE.DoubleSide
             });
-            const mesh = new THREE.Mesh(rippleGeo.clone(), mat);
+            const mesh = new THREE.Mesh(rippleGeo, mat);
             mesh.frustumCulled = false;
             mesh.visible = false;
             mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 1.3;
@@ -1021,6 +1051,7 @@ export class LinkRingArcDischarges {
     }
 
     _spawnRipple(point, color) {
+        if (this.ripplePool.length === 0) this.ensureRipplePool();
         if (this.ripplePool.length === 0) return;
         const r = this.ripplePool.pop();
         r.age = 0;
@@ -1033,8 +1064,8 @@ export class LinkRingArcDischarges {
     }
 
     _initPacketPool(count) {
+        if (this.packetPool.length > 0) return;
         for (let i = 0; i < count; i++) {
-            const geo = new THREE.SphereGeometry(0.015, 6, 6);
             const mat = new THREE.MeshBasicMaterial({
                 color: 0xffffff,
                 transparent: true,
@@ -1043,13 +1074,13 @@ export class LinkRingArcDischarges {
                 depthTest: true,
                 blending: THREE.AdditiveBlending
             });
-            const mesh = new THREE.Mesh(geo, mat);
+            const mesh = new THREE.Mesh(SHARED_PACKET_GEOMETRY, mat);
             mesh.visible = false;
             mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 0.9;
             this.group.add(mesh);
             this.packetPool.push({
                 mesh,
-                geometry: geo,
+                geometry: mesh.geometry,
                 material: mat,
                 t: 0,
                 speed: 0.8,
@@ -1061,6 +1092,7 @@ export class LinkRingArcDischarges {
     }
 
     _spawnPacket(curve, startPos, color) {
+        if (this.packetPool.length === 0) this.ensurePacketPool();
         if (this.packetPool.length === 0) return;
         const p = this.packetPool.pop();
         p.age = 0;

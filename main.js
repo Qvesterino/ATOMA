@@ -4677,11 +4677,63 @@ class AtomaGame {
         this.frameScheduler.register('visual', () => {
             if (this.hardInteractionAuthority && this.scene && (this.frameCount % 180 === 0)) {
                 this.hardInteractionAuthority.safetyNet();
+            }
+        }, 'visual.hardInteractionAuthority');
         this.frameScheduler.register('visual', (dt) => {
             this.linkAuraSystem?.update?.(dt);
         }, 'visual.linkAuraSystem');
+        this.frameScheduler.register('visual', (dt) => {
+            if (!this.linkSparkSystems || !this.linkingSystem?.links?.length) return;
+
+            const sparkColorByCategory = {
+                input: 0x58e5ff,
+                process: 0x24ffd7,
+                integration: 0xffd166,
+                analytics: 0xbb86ff,
+                storage: 0xff5aa5,
+                control: 0xff8c42,
+                sigma: 0x52ff52,
+                emotional: 0xff5c2a,
+                quantum: 0x47f5ff,
+                mythic: 0xffd84d,
+                prime: 0xffffff,
+                error: 0xff6b6b
+            };
+
+            for (const [linkId, sparkSystem] of this.linkSparkSystems) {
+                if (!sparkSystem) {
+                    this.linkSparkSystems.delete(linkId);
+                    continue;
+                }
+
+                const link = this.linkingSystem.links.find((candidate) => candidate?.userData?.id === linkId);
+                if (!link || link.active === false) {
+                    sparkSystem.dispose?.();
+                    this.linkSparkSystems.delete(linkId);
+                    continue;
+                }
+
+                const sourceCategory = String(link.source?.userData?.category || 'input').toLowerCase();
+                const color = new THREE.Color(sparkColorByCategory[sourceCategory] || 0xffaa00);
+                const metrics = link.userData?.metrics || {};
+                const stats = {
+                    synergy: Number.isFinite(metrics.synergy) ? metrics.synergy : 0,
+                    traffic: Number.isFinite(metrics.traffic) ? metrics.traffic : 0,
+                    intensity: Number.isFinite(metrics.loadPressure) ? metrics.loadPressure : 0.25,
+                    load: Number.isFinite(metrics.loadPressure) ? metrics.loadPressure : 0
+                };
+
+                sparkSystem.update?.(
+                    this.time || 0,
+                    dt,
+                    link.curve || null,
+                    stats,
+                    color,
+                    true,
+                    0
+                );
             }
-        }, 'visual.hardInteractionAuthority');
+        }, 'visual.linkSparkSystems');
         this.frameScheduler.register('visual', (dt) => this.nodeMicroEvents?.update?.(dt, this.aiNodes?.nodes), 'visual.nodeMicroEvents');
         this.frameScheduler.register('visual', (dt) => this.t2CorruptionVisualIntegration?.update?.(dt, this.linkingSystem?.links), 'visual.t2CorruptionVisualIntegration');
         this.frameScheduler.register('visual', (dt) => this.t2HarmonyVisualConsumer?.update?.(dt, this.aiNodes, this.harmonyStabilizationSystem), 'visual.t2HarmonyVisualConsumer');

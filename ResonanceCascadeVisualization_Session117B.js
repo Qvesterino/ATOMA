@@ -92,7 +92,7 @@ class CascadeWave {
     
     // Ripple oscillation
     this.ripplePhase = 0.0;
-    this.rippleAmplitude = 0.5;
+    this.rippleAmplitude = 0.72;               // FIX: Set to final value directly (was 0.5 then overridden)
   }
   
   /**
@@ -102,15 +102,13 @@ class CascadeWave {
     this.age += deltaTime;
     this.lifetime = Math.max(0, this.lifetime - deltaTime);
     
-    // Fade intensity over lifetime
-    const fadeRatio = this.lifetime / CASCADE_CONFIG.CASCADE_LIFETIME;
+    // Smooth ease-out fade: intensity decays with a cubic curve for more natural dissipation
+    const linearRatio = this.lifetime / CASCADE_CONFIG.CASCADE_LIFETIME;
+    const fadeRatio = linearRatio * linearRatio * (3 - 2 * linearRatio); // smoothstep
     this.intensity = this.originIntensity * fadeRatio;
     
     // Update radial propagation
     this.currentRadius += CASCADE_CONFIG.RADIAL_PROPAGATION_SPEED * deltaTime;
-
-    // Keep ripple amplitude stable to avoid visible pulsing.
-    this.rippleAmplitude = 0.72;
   }
   
   /**
@@ -351,6 +349,23 @@ export class ResonanceCascadeVisualization_Session117B {
     const waveRadius = Math.max(CASCADE_CONFIG.RING_MIN_RADIUS, cascade.currentRadius);
     const pulse = 1.0 + Math.sin(cascade.age * Math.PI * 2 * CASCADE_CONFIG.RIPPLE_FREQUENCY) * 0.08;
 
+    // IMPROVED: Color evolution — cascade warms as it ages (pink → amber → gold fade)
+    const ageRatio = Math.min(1, cascade.age / CASCADE_CONFIG.CASCADE_LIFETIME);
+    const coreR = 1.0;
+    const coreG = 0.47 + ageRatio * 0.28;   // pink → warm peach
+    const coreB = 0.81 - ageRatio * 0.35;    // pink → amber shift
+    visual.core.material.color.setRGB(coreR, coreG, coreB);
+
+    const haloR = 1.0;
+    const haloG = 0.75 + ageRatio * 0.1;
+    const haloB = 0.30 - ageRatio * 0.08;
+    visual.halo.material.color.setRGB(haloR, haloG, haloB);
+
+    const ringR = 1.0;
+    const ringG = 0.83 - ageRatio * 0.1;
+    const ringB = 0.42 - ageRatio * 0.12;
+    visual.ring.material.color.setRGB(ringR, ringG, ringB);
+
     visual.group.visible = true;
     visual.group.position.copy(cascade.originPos);
     visual.group.rotation.set(0, 0, 0);
@@ -359,9 +374,13 @@ export class ResonanceCascadeVisualization_Session117B {
     visual.halo.scale.setScalar((CASCADE_CONFIG.HALO_MARKER_BASE_SCALE + intensity * CASCADE_CONFIG.HALO_MARKER_SCALE_MULTIPLIER + waveRadius * 0.05) * pulse);
     visual.ring.scale.setScalar(waveRadius);
 
-    visual.core.material.opacity = Math.min(1.0, 0.42 + intensity * 0.5);
-    visual.halo.material.opacity = Math.min(0.45, 0.08 + intensity * 0.24);
-    visual.ring.material.opacity = Math.min(0.98, 0.18 + intensity * 0.76);
+    // IMPROVED: Smoother opacity curves with eased fade-out
+    const fadeCurve = intensity * intensity; // Quadratic ease for more natural dissipation
+    visual.core.material.opacity = Math.min(1.0, 0.42 + fadeCurve * 0.5);
+    visual.halo.material.opacity = Math.min(0.45, 0.08 + fadeCurve * 0.24);
+    // Ring fades with radius growth — further = more transparent
+    const radiusFade = Math.max(0, 1.0 - waveRadius * 0.008);
+    visual.ring.material.opacity = Math.min(0.98, (0.18 + fadeCurve * 0.76) * radiusFade);
   }
 
   _syncCascadeVisuals() {
@@ -493,18 +512,26 @@ export class ResonanceCascadeVisualization_Session117B {
     return { sourcePos, targetPos };
   }
 
+  // FIX: Cached scratch vectors to eliminate per-frame allocations
+  __distSegScratch = {
+    segment: new THREE.Vector3(),
+    toPoint: new THREE.Vector3(),
+    closest: new THREE.Vector3()
+  };
+
   _distanceToSegment(point, start, end) {
     if (!point || !start || !end) return Infinity;
-    const segment = new THREE.Vector3().subVectors(end, start);
-    const segmentLengthSq = segment.lengthSq();
+    const scratch = this.__distSegScratch;
+    scratch.segment.subVectors(end, start);
+    const segmentLengthSq = scratch.segment.lengthSq();
     if (segmentLengthSq <= 1e-8) {
       return point.distanceTo(start);
     }
 
-    const toPoint = new THREE.Vector3().subVectors(point, start);
-    const t = Math.max(0, Math.min(1, toPoint.dot(segment) / segmentLengthSq));
-    const closest = new THREE.Vector3().copy(start).addScaledVector(segment, t);
-    return point.distanceTo(closest);
+    scratch.toPoint.subVectors(point, start);
+    const t = Math.max(0, Math.min(1, scratch.toPoint.dot(scratch.segment) / segmentLengthSq));
+    scratch.closest.copy(start).addScaledVector(scratch.segment, t);
+    return point.distanceTo(scratch.closest);
   }
 
   _registerNodeVisual(node, intensity) {

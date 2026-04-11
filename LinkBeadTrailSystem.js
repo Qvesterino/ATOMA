@@ -100,6 +100,20 @@ void main() {
 `;
 
 let __trailMaterialBase;
+const bindTrailProgramCacheKey = (material, scope = 'LINK_BEAD_TRAIL') => {
+    if (!material || material.userData?.__trailProgramCacheKeyBound) return;
+    if (!material.userData) material.userData = {};
+    const cacheSignature = [
+        scope,
+        material.type || 'ShaderMaterial',
+        material.transparent === true ? 'transparent' : 'opaque',
+        material.depthWrite === true ? 'depth-write' : 'no-depth-write',
+        material.depthTest === true ? 'depth-test' : 'no-depth-test',
+        material.blending ?? 'normal'
+    ].join('|');
+    material.customProgramCacheKey = () => cacheSignature;
+    material.userData.__trailProgramCacheKeyBound = true;
+};
 function getTrailMaterialBase() {
     if (!__trailMaterialBase) {
         __trailMaterialBase = new THREE.ShaderMaterial({
@@ -111,12 +125,13 @@ function getTrailMaterialBase() {
             depthWrite: false,
             depthTest: true
         });
+        bindTrailProgramCacheKey(__trailMaterialBase, 'ATOMA_LINK_BEAD_TRAIL_v1');
     }
     return __trailMaterialBase;
 }
 
 export class LinkBeadTrailSystem {
-    constructor(scene, maxParticles = 600) {
+    constructor(scene, maxParticles = 384) {
         this.scene = scene;
         this.maxParticles = maxParticles;
         this.writeIndex = 0;
@@ -170,6 +185,7 @@ export class LinkBeadTrailSystem {
         geometry.attributes.aInfo.usage = THREE.DynamicDrawUsage;
         
         const material = getTrailMaterialBase().clone();
+        bindTrailProgramCacheKey(material, 'ATOMA_LINK_BEAD_TRAIL_v1');
         // Per-instance uniform object to avoid shared state
         material.uniforms = { uTime: { value: 0 } };
 
@@ -357,11 +373,27 @@ export class LinkBeadTrailSystem {
         
         // Upload if we wrote anything
         if (updateStart !== -1) {
-            this.mesh.geometry.attributes.position.needsUpdate = true;
-            this.mesh.geometry.attributes.aVelocity.needsUpdate = true;
-            this.mesh.geometry.attributes.aDir.needsUpdate = true;
-            this.mesh.geometry.attributes.aColor.needsUpdate = true;
-            this.mesh.geometry.attributes.aInfo.needsUpdate = true;
+            const geometry = this.mesh.geometry;
+            const attributes = [
+                geometry.attributes.position,
+                geometry.attributes.aVelocity,
+                geometry.attributes.aDir,
+                geometry.attributes.aColor,
+                geometry.attributes.aInfo
+            ];
+
+            const uploadFullRange = updateEnd < updateStart;
+            for (const attribute of attributes) {
+                if (!attribute) continue;
+                if (uploadFullRange) {
+                    attribute.updateRange.offset = 0;
+                    attribute.updateRange.count = attribute.array.length;
+                } else {
+                    attribute.updateRange.offset = updateStart * attribute.itemSize;
+                    attribute.updateRange.count = (updateEnd - updateStart + 1) * attribute.itemSize;
+                }
+                attribute.needsUpdate = true;
+            }
         }
     }
 

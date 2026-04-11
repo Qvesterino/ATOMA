@@ -50,32 +50,31 @@ export const LINK_CREATE_STAGE_DEFINITIONS = Object.freeze([
   },
   {
     phase: 3,
-    key: 'flow-modulation',
-    label: 'flow modulation (merged into strands)',
+    key: 'ring-trails-pulse-dust',
+    label: 'ring trails + pulse dust emitter',
     owner: 'conduit',
-    coverage: 'covered',
+    coverage: 'partial',
     systems: [
-      'LinkRendererConduit.strand uLocalLoad modulation',
-      'LinkRendererConduit._runBootstrapPhase(case 4)',
-      'LinkDirectionalStreaks'
+      'LinkRendererConduit._runBootstrapPhase(case 3)',
+      'LinkPulseRing.ensureTrails()',
+      'LinkPulseDustEmitter'
     ],
-    notes: 'The energy-wave behavior is merged into the strand uniform update path; no separate energy-wave object is created anymore.'
+    notes: 'Ring trails are enabled after the core pulse ring is present, and the dust emitter is now separated from the first ring-create slice so the initial bootstrap stays lighter.'
   },
   {
     phase: 4,
     key: 'pulse-ring-arcs',
-    label: 'pulse ring + arc discharge + ring dust emitter',
+    label: 'pulse ring + arc discharge + directional streaks',
     owner: 'conduit',
     coverage: 'partial',
     systems: [
       'LinkRendererConduit._runBootstrapPhase(case 2)',
-      'LinkRendererConduit._runBootstrapPhase(case 3)',
       'LinkRendererConduit._runBootstrapPhase(case 5)',
       'LinkPulseRing',
       'LinkRingArcDischarges',
-      'LinkPulseDustEmitter'
+      'LinkDirectionalStreaks'
     ],
-    notes: 'Pulse ring, arc discharge, and dust emitter are staged in conduit; arc discharges now attach in one slice and warm up in the next bootstrap tick. Dock spray is also deferred out of the dock-ring create branch.'
+    notes: 'Pulse ring and arc discharge remain staged in conduit, but the dust emitter and trail expansion were moved out of the first ring slice to smooth the initial bootstrap burst. Dock spray is still deferred out of the dock-ring create branch.'
   },
   {
     phase: 5,
@@ -91,42 +90,44 @@ export const LINK_CREATE_STAGE_DEFINITIONS = Object.freeze([
   },
   {
     phase: 6,
-    key: 'beads-trails',
-    label: 'bead + bead trail',
+    key: 'arc-sparks-beads',
+    label: 'arc spark pool + bead visuals',
     owner: 'conduit',
     coverage: 'covered',
     systems: [
+      'LinkRingArcDischarges.ensureImpactSparkPool()',
       'LinkRendererConduit._runBootstrapPhase(case 6)',
-      'LinkRendererConduit._runBootstrapPhase(case 7)',
       'LinkBeadVisualizer',
-      'LinkBeadTrailSystem'
+      'LinkBeadTrailSystem',
+      'LinkEnergyRingSystem'
     ],
-    notes: 'Bead system now boots in a two-step slice: energy rings first, then bead visuals on the next bootstrap tick. Bead trails remain a separate following stage.'
+    notes: 'The first arc-discharge pool is now warmed in the same slice as the bead visuals, but after the core arc group has already been created. This keeps the initial pulse ring slice lighter while preserving the later sparkle burst.'
   },
   {
     phase: 7,
-    key: 'healing-particles',
-    label: 'healing particles',
-    owner: 'main',
-    coverage: 'partial',
-    systems: [
-      'LinkRendererConduit._runBootstrapPhase(case 9)',
-      'main.js healing particle runtime',
-      'LinkHealingParticleSystem'
-    ],
-    notes: 'Emitter registration exists in conduit; the actual global particle update still lives in main.js.'
-  },
-  {
-    phase: 8,
-    key: 'corruption-particles',
-    label: 'corruption particles',
+    key: 'arc-ripples-trails',
+    label: 'arc ripple pool + bead trails',
     owner: 'conduit',
     coverage: 'partial',
     systems: [
-      'LinkRendererConduit._runBootstrapPhase(case 9)',
-      'LinkCorruptionParticleSystem'
+      'LinkRingArcDischarges.ensureRipplePool()',
+      'LinkRendererConduit._runBootstrapPhase(case 7)',
+      'LinkBeadTrailSystem'
     ],
-    notes: 'Conduit creates the emitter path, but global update cadence is still shared with the main loop.'
+    notes: 'The ripple pool is delayed until the trail slice so the arc system spreads its init cost over more frames instead of front-loading all three pools.'
+  },
+  {
+    phase: 8,
+    key: 'arc-packets-sparks',
+    label: 'arc packet pool + sparks',
+    owner: 'conduit',
+    coverage: 'covered',
+    systems: [
+      'LinkRingArcDischarges.ensurePacketPool()',
+      'LinkRendererConduit._runBootstrapPhase(case 8)',
+      'LinkSparkSystem'
+    ],
+    notes: 'The final packet pool now lands alongside spark bootstrap, completing the arc system warmup without changing the visual language.'
   },
   {
     phase: 9,

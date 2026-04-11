@@ -88,6 +88,13 @@ export class SynergyCascadeVisualizer {
       cascadeColor: new THREE.Color(0xffb11a), // Warm amber for cascade body
       waveColor: new THREE.Color(0xfff3c4),    // Bright gold for pulse head
       fadeColor: new THREE.Color(0xff6f22),    // Ember orange for fade / dust
+      cascadeGlowAmbientBoost: 0.28,           // Extra ambient glow strength on cascade trails
+      cascadeGlowHaloStrength: 0.42,           // Soft halo multiplier for link glow
+      cascadeGlowHaloRadius: 0.18,             // Soft radius factor for glow halo
+      rippleHaloScale: 1.18,                   // Additional scale factor for ripple halo ring
+      rippleHaloOpacity: 0.12,                 // Base halo opacity for expanded ripple
+      particleGlowSizeBoost: 1.12,             // Particle size boost for more luminous trails
+      burstGlowSoftness: 0.82,                 // Softness of burst particle glow
       
       // Performance
       batchSize: 30,                  // Update cascades in batches
@@ -2123,14 +2130,16 @@ export class SynergyCascadeVisualizer {
       const tailStrength = Math.min(1, (history.trailIntensity || 0) * 0.85);
 
       if (baseMaterial.color) {
-        baseMaterial.color.copy(this.config.cascadeColor).lerp(this.config.waveColor, headStrength);
+        const headColor = this.config.cascadeColor.clone().lerp(this.config.waveColor, 0.35 + headStrength * 0.45);
+        baseMaterial.color.copy(headColor);
       }
       
       if (baseMaterial.emissive) {
-        baseMaterial.emissive.copy(this.config.waveColor);
+        const waveColor = this.config.waveColor.clone().lerp(this.config.cascadeColor, 0.24);
+        baseMaterial.emissive.copy(waveColor);
         baseMaterial.emissiveIntensity = Math.max(
           baseMaterial.emissiveIntensity || 0,
-          (waveBrightness * waveIntensity * 3.2) + (tailStrength * 1.2)
+          (waveBrightness * waveIntensity * 2.8) + (tailStrength * 1.1) + (headStrength * 0.72)
         );
       }
 
@@ -2154,15 +2163,23 @@ export class SynergyCascadeVisualizer {
     
     // Enhance glow based on cascade intensity
     if (material.color) {
-      material.color.copy(this.config.cascadeColor).lerp(this.config.fadeColor, Math.min(1, trailIntensity * 0.8));
+      material.color.copy(this.config.cascadeColor).lerp(this.config.fadeColor, Math.min(1, trailIntensity * 0.34));
     }
 
     if (material.emissive) {
       const baseColor = this.config.cascadeColor.clone();
-      
-      // Blend cascadeColor based on intensity
-      material.emissive.copy(baseColor).lerp(this.config.fadeColor, Math.min(1, trailIntensity * 0.7));
-      material.emissiveIntensity = Math.max(material.emissiveIntensity || 0, cascadeIntensity * 2.2 + trailIntensity * 1.1);
+      const glowColor = baseColor.lerp(this.config.waveColor, Math.min(1, trailIntensity * 0.5));
+      material.emissive.copy(glowColor);
+      material.emissiveIntensity = Math.max(
+        material.emissiveIntensity || 0,
+        (cascadeIntensity * 1.95) + (trailIntensity * 1.35) + (trailIntensity * this.config.cascadeGlowAmbientBoost)
+      );
+    }
+
+    // Slight static halo feel around active cascades
+    if (material.color) {
+      const haloBlend = Math.min(1, trailIntensity * this.config.cascadeGlowHaloStrength);
+      material.color.lerp(this.config.waveColor, haloBlend * 0.22);
     }
     
     // Increase opacity slightly during cascade
@@ -2274,13 +2291,13 @@ export class SynergyCascadeVisualizer {
         startPos
       ).normalize().multiplyScalar(this.config.particleSpeed * propagation.intensity * (forcedFlow ? 1.35 * flowSpeedMultiplier : 1.0));
       particle.drift = new THREE.Vector3(
-        (Math.random() - 0.5) * (forcedFlow ? 0.1 : 0.12),
-        (Math.random() - 0.5) * (forcedFlow ? 0.05 : 0.05),
-        (Math.random() - 0.5) * (forcedFlow ? 0.1 : 0.12)
+        (Math.random() - 0.5) * (forcedFlow ? 0.085 : 0.105),
+        (Math.random() - 0.5) * (forcedFlow ? 0.04 : 0.045),
+        (Math.random() - 0.5) * (forcedFlow ? 0.085 : 0.105)
       );
       
       particle.intensity = Math.max(forcedFlow ? 0.72 : 0.3, propagation.intensity);
-      particle.size = Math.max(forcedFlow ? 1.35 : 0.55, (forcedFlow ? 1.6 : 0.95) * flowScale * flowRadiusMultiplier * (0.82 + particle.intensity * 0.55));
+      particle.size = Math.max(forcedFlow ? 1.65 : 0.72, (forcedFlow ? 1.95 : 1.18) * flowScale * flowRadiusMultiplier * (0.92 + particle.intensity * 0.42) * this.config.particleGlowSizeBoost);
       particle.color = forcedFlow
         ? this.config.cascadeColor.clone().lerp(this.config.waveColor, 0.18 + Math.random() * 0.28)
         : this.config.waveColor.clone().lerp(this.config.cascadeColor, Math.random() * 0.35);
@@ -2437,7 +2454,8 @@ export class SynergyCascadeVisualizer {
       const pulse = 0.84 + 0.16 * Math.sin((particle.age * 10.0) + (particle.phase || 0));
       const color = particle.color || this.config.waveColor;
       const baseSize = Math.max(0.18, particle.baseScale || particle.size || 1);
-      const size = baseSize * (0.82 + fade * 0.52) * (0.88 + particle.intensity * 0.28);
+      const size = baseSize * (0.94 + fade * 0.48) * (0.98 + particle.intensity * 0.35);
+      const alphaBoost = Math.min(1.0, 0.16 + particle.intensity * 0.46);
 
       positions[activeCount * 3] = particle.position.x;
       positions[activeCount * 3 + 1] = particle.position.y;
@@ -2447,8 +2465,8 @@ export class SynergyCascadeVisualizer {
       colors[activeCount * 3 + 1] = color.g;
       colors[activeCount * 3 + 2] = color.b;
 
-      alphas[activeCount] = Math.max(0, fade * fade * (particle.intensity * 0.92 + 0.26) * pulse);
-      sizes[activeCount] = Math.max(0.42, size);
+      alphas[activeCount] = Math.max(0, fade * fade * alphaBoost * pulse);
+      sizes[activeCount] = Math.max(0.52, size);
       activeCount++;
     }
 
@@ -2479,7 +2497,9 @@ export class SynergyCascadeVisualizer {
       lifetime: 1.05 * Math.max(0.25, Number(options.lifetimeScale ?? 1.0) || 1.0),
       age: 0,
       intensity: intensity * Math.max(0.1, Number(options.intensityScale ?? 1.0) || 1.0),
-      mesh: null
+      haloScale: this.config.rippleHaloScale,
+      mesh: null,
+      haloMesh: null
     };
     
     // Create ripple geometry (expanding ring)
@@ -2515,6 +2535,25 @@ export class SynergyCascadeVisualizer {
     ripple.mesh = rippleLine;
     this.scene.add(rippleLine);
     this._createdObjects.push(rippleLine);  // UNIFIED CLEANUP CONTRACT
+
+    const haloMaterial = new THREE.LineBasicMaterial({
+      color: rippleColor.clone().lerp(this.config.waveColor, 0.32),
+      linewidth: 1,
+      transparent: true,
+      opacity: Math.min(0.18, this.config.rippleHaloOpacity + (intensity * 0.12)),
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false
+    });
+    const haloGeometry = ringGeometry.clone();
+    const haloLine = new THREE.Line(haloGeometry, haloMaterial);
+    haloLine.position.copy(position);
+    haloLine.position.y += Number(options.verticalOffset ?? 0) || 0;
+    haloLine.renderOrder = 998;
+    haloLine.frustumCulled = false;
+    ripple.haloMesh = haloLine;
+    this.scene.add(haloLine);
+    this._createdObjects.push(haloLine);
     
     this.ripples.push(ripple);
   }
@@ -2535,6 +2574,11 @@ export class SynergyCascadeVisualizer {
           ripple.mesh.geometry.dispose();
           ripple.mesh.material.dispose();
         }
+        if (ripple.haloMesh) {
+          this.scene.remove(ripple.haloMesh);
+          ripple.haloMesh.geometry.dispose();
+          ripple.haloMesh.material.dispose();
+        }
         this.ripples.splice(i, 1);
         continue;
       }
@@ -2544,7 +2588,11 @@ export class SynergyCascadeVisualizer {
       
       if (ripple.mesh) {
         ripple.mesh.scale.setScalar(radius / 0.01);
-        ripple.mesh.material.opacity = Math.min(1.0, 0.14 + fadeRatio * ripple.intensity * 0.72);
+        ripple.mesh.material.opacity = Math.min(1.0, 0.12 + fadeRatio * ripple.intensity * 0.68);
+      }
+      if (ripple.haloMesh) {
+        ripple.haloMesh.scale.setScalar((radius * ripple.haloScale) / 0.01);
+        ripple.haloMesh.material.opacity = Math.max(0, Math.min(0.24, (fadeRatio * ripple.intensity * 0.48) * 0.92));
       }
     }
   }

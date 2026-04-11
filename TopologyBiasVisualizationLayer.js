@@ -72,6 +72,9 @@ const CONFIG = {
     INFLUENCE_SHARPNESS_BOOST: 1.6,    // POLISHED: reduced from 2.0 (60% boost - calmer)
     INFLUENCE_SHARPNESS_DECAY: 0.96,   // POLISHED: increased from 0.95 (slower decay)
     
+    // Influence tracking
+    INFLUENCE_MAX_AGE: 0.5,            // Max age before influence position expires
+    
     // Performance
     UPDATE_INTERVAL: 0.2,              // Update vectors every 0.2s (5 Hz)
     COARSE_UPDATE_INTERVAL: 1.0,       // Flow field coarse update
@@ -260,6 +263,10 @@ export class TopologyBiasVisualizationLayer {
         this.biasVectorStart = new THREE.Vector3();
         this.biasVectorEnd = new THREE.Vector3();
         this.biasVectorDirection = new THREE.Vector3();
+        // FIX: Separate scratch vectors for fallback directions (was sharing one vector)
+        this._fallbackDir0 = new THREE.Vector3(1, 0, 0);
+        this._fallbackDir1 = new THREE.Vector3(-0.45, 0, 0.89);
+        this._fallbackDir2 = new THREE.Vector3(0.58, 0, -0.82);
         this.updateBiasVectorTimer = 0;
         this.baseBiasOpacity = CONFIG.BIAS_VECTOR_OPACITY;
         
@@ -329,10 +336,12 @@ export class TopologyBiasVisualizationLayer {
                     const inf = this.recentInfluencePositions[i];
                     const baseStrength = Math.max(0.15, inf.strength * 0.9);
 
+                    // FIX: Use separate scratch vectors — previously all 3 entries pointed
+                    // to the same object, so only the last .set() survived
                     const directions = [
-                        this.biasVectorDirection.set(1, 0, 0),
-                        this.biasVectorDirection.set(-0.45, 0, 0.89),
-                        this.biasVectorDirection.set(0.58, 0, -0.82)
+                        this._fallbackDir0,
+                        this._fallbackDir1,
+                        this._fallbackDir2
                     ];
 
                     for (let d = 0; d < directions.length && vectorIdx < fallbackVectors; d++) {
@@ -479,26 +488,51 @@ export class TopologyBiasVisualizationLayer {
                 varying vec3 vPosition;
                 varying vec2 vUv;
                 
-                float noise(vec2 p) {
-                    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+                // Improved hash-based noise for richer flow field texture
+                float hash(vec2 p) {
+                    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+                    p3 += dot(p3, p3.yzx + 33.33);
+                    return fract((p3.x + p3.y) * p3.z);
+                }
+                
+                float smoothNoise(vec2 p) {
+                    vec2 i = floor(p);
+                    vec2 f = fract(p);
+                    f = f * f * (3.0 - 2.0 * f); // smoothstep
+                    float a = hash(i);
+                    float b = hash(i + vec2(1.0, 0.0));
+                    float c = hash(i + vec2(0.0, 1.0));
+                    float d = hash(i + vec2(1.0, 1.0));
+                    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
                 }
                 
                 void main() {
                     // Cell-based flow visualization
                     vec2 cellCoord = floor(vPosition.xz / cellSize);
-                    float cellNoise = noise(cellCoord);
+                    float cellNoise = hash(cellCoord);
                     
-                    // Gradient drift
-                    float drift = sin(vPosition.x * 0.1 + time * 0.5) * 
-                                  cos(vPosition.z * 0.1 + time * 0.3) * 0.5 + 0.5;
+                    // Multi-octave gradient drift for organic flow feel
+                    float drift1 = sin(vPosition.x * 0.1 + time * 0.5) *
+                                   cos(vPosition.z * 0.1 + time * 0.3) * 0.5 + 0.5;
+                    float drift2 = sin(vPosition.x * 0.23 - time * 0.35) *
+                                   cos(vPosition.z * 0.17 + time * 0.22) * 0.5 + 0.5;
+                    float drift = mix(drift1, drift2, 0.35);
                     
-                    // Soft directional texture
-                    float pattern = sin(vPosition.x * 0.3 + time * 0.2) * 
+                    // Soft directional texture with noise layer
+                    float pattern = sin(vPosition.x * 0.3 + time * 0.2) *
                                     cos(vPosition.z * 0.3 - time * 0.15);
+                    float noiseLayer = smoothNoise(vPosition.xz * 0.15 + time * 0.08);
                     
-                    float intensity = (drift + pattern * 0.3) * 0.5;
+                    float intensity = (drift + pattern * 0.3 + noiseLayer * 0.15) * 0.5;
                     
-                    gl_FragColor = vec4(0.0, 0.5, 1.0, intensity * opacity);
+                    // Color shifts subtly with cell noise for visual richness
+                    vec3 baseColor = mix(
+                        vec3(0.0, 0.45, 1.0),   // Deep blue
+                        vec3(0.0, 0.65, 0.95),   // Cyan-blue
+                        cellNoise * 0.4 + drift * 0.3
+                    );
+                    
+                    gl_FragColor = vec4(baseColor, intensity * opacity);
                 }
             `,
             transparent: true,
@@ -887,19 +921,21 @@ export class TopologyBiasVisualizationLayer {
         }
     }
     
-    applyInfluenceHighlighting() {
-        // Age influence positions
+    applyInfluenceHighlighting(deltaTime = 0.016) {
+        const maxAge = CONFIG.INFLUENCE_MAX_AGE;
+        
+        // Age influence positions with actual deltaTime
         for (let i = this.recentInfluencePositions.length - 1; i >= 0; i--) {
             const inf = this.recentInfluencePositions[i];
-            inf.age += 0.016;  // Assume 60 FPS
+            inf.age += deltaTime;  // FIX: was hardcoded 0.016
             
-            if (inf.age > 0.5) {
+            if (inf.age > maxAge) {
                 this.recentInfluencePositions.splice(i, 1);
                 continue;
             }
             
             // Apply sharpness boost to nearby vectors
-            const decayFactor = 1.0 - (inf.age / 0.5);
+            const decayFactor = 1.0 - (inf.age / maxAge);
             
             for (let vector of this.biasVectorInstances) {
                 if (!vector.active) continue;
@@ -943,7 +979,7 @@ export class TopologyBiasVisualizationLayer {
         if (canRender) {
             this.updateBiasVectors(clampedDelta);
             this.updateFlowFields(clampedDelta, networkState || {});
-            this.applyInfluenceHighlighting();
+            this.applyInfluenceHighlighting(clampedDelta);
         }
         this._publishVisualSnapshot(networkState || {}, clampedDelta);
 

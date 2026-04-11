@@ -81,6 +81,10 @@ const CONFIG = {
     BASE_ECHO_OPACITY: 0.32,          // POLISHED: reduced from 0.4 (32% - more subtle)
     ECHO_OPACITY_SOFTNESS: 0.18,      // POLISHED: increased from 0.15 (softer edges)
     
+    // Echo geometry quality
+    ECHO_CIRCLE_SEGMENTS: 12,         // IMPROVED: was 8 (smoother silhouette)
+    ECHO_BASE_RADIUS: 0.4,            // Base radius for echo circle geometry
+    
     // Performance
     MAX_ECHOES_PER_ZONE: 8,           // Cap echoes per active composite
     UPDATE_INTERVAL: 1 / 30,          // 30 Hz throttle
@@ -243,8 +247,10 @@ class EchoInstance {
                 const nextGeometry = typeof compositeGeometry.clone === 'function'
                     ? compositeGeometry.clone()
                     : compositeGeometry;
-                if (this.mesh.geometry && this.mesh.geometry !== nextGeometry) {
-                    this.mesh.geometry.dispose();
+                // FIX: Don't dispose shared baseGeometry — only dispose per-instance cloned geometries
+                const currentGeometry = this.mesh.geometry;
+                if (currentGeometry && currentGeometry !== nextGeometry && this._sourceGeometryRef !== null) {
+                    currentGeometry.dispose();
                 }
                 this.mesh.geometry = nextGeometry;
                 this._sourceGeometryRef = compositeGeometry;
@@ -561,12 +567,10 @@ export class ResonanceEchoTrailSystem {
         this.root.add(container);
         this.container = container;
         
+        // IMPROVED: Shared geometry — all echoes use the same circle, no per-instance allocation
+        this.baseGeometry = new THREE.CircleGeometry(CONFIG.ECHO_BASE_RADIUS, CONFIG.ECHO_CIRCLE_SEGMENTS);
+        
         for (let i = 0; i < CONFIG.POOL_SIZE; i++) {
-            // Create simple circular geometry for echo silhouette
-            const geometry = new THREE.CircleGeometry(0.4, 8);
-            if (!this.baseGeometry) {
-                this.baseGeometry = geometry.clone();
-            }
             const material = new THREE.MeshBasicMaterial({
                 color: 0xc8c8c8,           // POLISHED: slightly warmer neutral
                 transparent: true,
@@ -575,7 +579,7 @@ export class ResonanceEchoTrailSystem {
                 depthWrite: false,         // POLISHED: prevent z-fighting
                 fog: false                 // POLISHED: echoes always visible (not affected by fog)
             });
-            const mesh = new THREE.Mesh(geometry, material);
+            const mesh = new THREE.Mesh(this.baseGeometry, material);
             mesh.visible = false;
             mesh.renderOrder = this.renderOrder;
             

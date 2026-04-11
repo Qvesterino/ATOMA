@@ -126,22 +126,59 @@ void main() {
 `;
 
 let __sparkMaterialBase;
+let __sparkMaterialRefCount = 0;
 const DEBUG_SPARKS = false;
 
 function getSparkMaterialBase() {
     if (!__sparkMaterialBase) {
-        __sparkMaterialBase = new THREE.ShaderMaterial({
+        const material = new THREE.ShaderMaterial({
             vertexShader: SPARK_VS,
             fragmentShader: SPARK_FS,
-            // Per-instance uniforms are injected after clone
-            uniforms: {},
+            uniforms: {
+                uTime: { value: 0 },
+                uStart: { value: new THREE.Vector3() },
+                uMid: { value: new THREE.Vector3() },
+                uEnd: { value: new THREE.Vector3() },
+                uThickness: { value: 0.6 },
+                uPulse: { value: 0 },
+                uColor: { value: new THREE.Color(0xffffff) },
+                uOpacity: { value: 0.75 }
+            },
             transparent: true,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
             depthTest: true
         });
+        material.customProgramCacheKey = () => 'ATOMA_LINK_SPARK_v1|ShaderMaterial|transparent|no-depth-write|depth-test|additive|toneMapped-off|vertexColors-off';
+        material.userData = material.userData || {};
+        material.userData.__sparkSharedMaterial = true;
+        material.onBeforeRender = (_renderer, _scene, _camera, _geometry, object) => {
+            const state = object?.userData?.__sparkRenderState;
+            if (!state) return;
+            const uniforms = material.uniforms;
+            const source = state;
+            if (source.uTime) uniforms.uTime.value = source.uTime.value;
+            if (source.uStart?.value && uniforms.uStart?.value?.copy) uniforms.uStart.value.copy(source.uStart.value);
+            if (source.uMid?.value && uniforms.uMid?.value?.copy) uniforms.uMid.value.copy(source.uMid.value);
+            if (source.uEnd?.value && uniforms.uEnd?.value?.copy) uniforms.uEnd.value.copy(source.uEnd.value);
+            if (source.uThickness) uniforms.uThickness.value = source.uThickness.value;
+            if (source.uPulse) uniforms.uPulse.value = source.uPulse.value;
+            if (source.uColor?.value && uniforms.uColor?.value?.copy) uniforms.uColor.value.copy(source.uColor.value);
+            if (source.uOpacity) uniforms.uOpacity.value = source.uOpacity.value;
+        };
+        __sparkMaterialBase = material;
     }
+    __sparkMaterialRefCount += 1;
     return __sparkMaterialBase;
+}
+
+function releaseSparkMaterialBase() {
+    if (!__sparkMaterialBase) return;
+    __sparkMaterialRefCount = Math.max(0, __sparkMaterialRefCount - 1);
+    if (__sparkMaterialRefCount > 0) return;
+    __sparkMaterialBase.onBeforeRender = null;
+    __sparkMaterialBase.dispose?.();
+    __sparkMaterialBase = null;
 }
 
 export class LinkSparkSystem {
@@ -214,17 +251,9 @@ export class LinkSparkSystem {
             uOpacity: { value: 0.75 }
         };
 
-        // Restore shader material for sparks
-        const material = this.pointFXBase.createMaterial({
-            uniforms: this.uniforms,
-            vertexShader: SPARK_VS,
-            fragmentShader: SPARK_FS,
-            blending: THREE.AdditiveBlending,
-            depthTest: true,
-            depthWrite: false,
-            toneMapped: false,
-            vertexColors: false
-        });
+        // Shared shader material for all spark systems. Per-instance state is
+        // applied in onBeforeRender from each Points object's userData.
+        const material = getSparkMaterialBase();
 
         this.points = new THREE.Points(geometry, material);
         this.points.frustumCulled = false; // Always render
@@ -233,11 +262,11 @@ export class LinkSparkSystem {
         this.points.renderOrder = SPARK_RENDER_ORDER;
         applyLinkRenderLayer(this.points, 'LINK_SPARKS');
         const ud = this.points.userData || (Object.defineProperty(this.points, 'userData', { value: {}, writable: true, configurable: true }), this.points.userData);
-        Object.assign(ud, { isSparkSystem: true });
+        Object.assign(ud, { isSparkSystem: true, __sparkRenderState: this.uniforms });
         if (DEBUG_SPARKS) console.log('SPARK MESH', this.points);
         
         // Add to scene
-        this.pointFXBase.ensureAttached(this.points);
+        this.scene?.add(this.points);
     }
 
     getMesh() {
@@ -415,8 +444,12 @@ export class LinkSparkSystem {
 
     dispose() {
         if (this.points) {
-            this.pointFXBase?.disposePointCloud?.(this.points);
+            this.points.parent?.remove(this.points);
+            this.points.onBeforeRender = null;
+            this.points.geometry?.dispose?.();
+            this.points = null;
         }
+        releaseSparkMaterialBase();
     }
 
     getDebugStats() {

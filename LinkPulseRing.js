@@ -5,7 +5,24 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 // Radius 1.0, Tube 0.08 (8% thickness)
 // RadialSegments 6 (Low poly), TubularSegments 24 (Smooth enough ring)
 const SHARED_RING_GEOMETRY = new THREE.TorusGeometry(1.0, 0.16, 6, 24);
+const SHARED_RING_SEGMENT_GEOMETRY = new THREE.TorusGeometry(1.0, 0.30, 8, 32, Math.PI * 0.5 * 0.85);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
+
+const bindPulseRingProgramCacheKey = (material, scope = 'LINK_PULSE_RING') => {
+    if (!material || material.userData?.__pulseRingProgramCacheKeyBound) return;
+    if (!material.userData) material.userData = {};
+    const cacheSignature = [
+        scope,
+        material.type || 'ShaderMaterial',
+        material.transparent === true ? 'transparent' : 'opaque',
+        material.depthWrite === true ? 'depth-write' : 'no-depth-write',
+        material.depthTest === true ? 'depth-test' : 'no-depth-test',
+        material.side ?? 'default',
+        material.blending ?? 'normal'
+    ].join('|');
+    material.customProgramCacheKey = () => cacheSignature;
+    material.userData.__pulseRingProgramCacheKeyBound = true;
+};
 
 /**
  * LinkPulseRing - ARCHITEKTÚRA V3 + FRESNEL SHADER
@@ -34,6 +51,7 @@ export class LinkPulseRing {
         this.scene = scene;
         this._attachRoot = scene || null;
         const deferTrails = options?.deferTrails === true;
+        const enableAura = options?.enableAura === true;
         
         // === SEGMENTED RING CONSTANTS ===
         const TORUS_RADIUS = 1.0;
@@ -90,6 +108,7 @@ export class LinkPulseRing {
                 }
             `
         });
+        bindPulseRingProgramCacheKey(this.material, 'ATOMA_LINK_PULSE_CORE_v1');
 
         // === SEGMENTED RING INITIALIZATION ===
         this.segments = [];
@@ -102,17 +121,9 @@ export class LinkPulseRing {
         const sharedSegmentMaterial = this.material;
 
         for (let i = 0; i < SEGMENTS; i++) {
-            const geo = new THREE.TorusGeometry(
-                TORUS_RADIUS,
-                TORUS_TUBE,
-                8,
-                32,
-                SEGMENT_ANGLE * 0.85
-            );
-            geo.rotateZ(i * SEGMENT_ANGLE);
-
-            // Use shared material (no clone!)
-            const seg = new THREE.Mesh(geo, sharedSegmentMaterial);
+            // Reuse one geometry for all segments; orientation is handled by the mesh.
+            const seg = new THREE.Mesh(SHARED_RING_SEGMENT_GEOMETRY, sharedSegmentMaterial);
+            seg.rotation.z = i * SEGMENT_ANGLE;
             seg.frustumCulled = false;
             seg.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 1;
 
@@ -135,17 +146,22 @@ export class LinkPulseRing {
         this.root = this.mesh;
 
         // Outer additive aura
-        this.auraMaterial = this.material.clone();
-        this.auraMaterial.depthWrite = false;
-        this.auraMaterial.depthTest = true;
-        this.auraMaterial.transparent = true;
-        this.auraMaterial.blending = THREE.AdditiveBlending;
-        const aura = new THREE.Mesh(SHARED_RING_GEOMETRY, this.auraMaterial);
-        aura.frustumCulled = false;
-        aura.renderOrder = this.mesh.renderOrder;
-        const auraUd = (aura && typeof aura.userData === 'object' && aura.userData) ? aura.userData : (() => { try { Object.defineProperty(aura, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return aura.userData || {}; })();
-        Object.assign(auraUd, { isPulseRingAura: true });
-        this.auraMesh = aura;
+        this.auraMaterial = null;
+        this.auraMesh = null;
+        if (enableAura) {
+            this.auraMaterial = this.material.clone();
+            this.auraMaterial.depthWrite = false;
+            this.auraMaterial.depthTest = true;
+            this.auraMaterial.transparent = true;
+            this.auraMaterial.blending = THREE.AdditiveBlending;
+            bindPulseRingProgramCacheKey(this.auraMaterial, 'ATOMA_LINK_PULSE_AURA_v1');
+            const aura = new THREE.Mesh(SHARED_RING_GEOMETRY, this.auraMaterial);
+            aura.frustumCulled = false;
+            aura.renderOrder = this.mesh.renderOrder;
+            const auraUd = (aura && typeof aura.userData === 'object' && aura.userData) ? aura.userData : (() => { try { Object.defineProperty(aura, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return aura.userData || {}; })();
+            Object.assign(auraUd, { isPulseRingAura: true });
+            this.auraMesh = aura;
+        }
 
         // === LAYER 1: SPIN (Internal rotation) ===
         this.spin = 0;
@@ -214,6 +230,7 @@ export class LinkPulseRing {
                 }
             `
         });
+        bindPulseRingProgramCacheKey(this.ribbonMaterial, 'ATOMA_LINK_PULSE_RIBBON_v1');
 
         this.ribbonMesh = new THREE.Mesh(SHARED_RING_GEOMETRY, this.ribbonMaterial);
         this.ribbonMesh.frustumCulled = false;
@@ -409,13 +426,13 @@ export class LinkPulseRing {
     update(curve, synergy, traffic, dt, sourceColor, targetColor) {
         if (!curve || !this.active) {
             this.mesh.visible = false;
-            this.auraMesh.visible = false;
+            if (this.auraMesh) this.auraMesh.visible = false;
             // Hide all trails
             this.trailMeshes.forEach(trail => trail.visible = false);
             return;
         }
         this.mesh.visible = true;
-        this.auraMesh.visible = false;
+        if (this.auraMesh) this.auraMesh.visible = false;
         this._time += dt;
 
         // === 1. Motion Logic ===
@@ -745,7 +762,7 @@ export class LinkPulseRing {
     dispose() {
         // Dispose segment geometries (not shared)
         this.segments.forEach(seg => {
-            if (seg.geometry) seg.geometry.dispose();
+            if (seg.geometry && seg.geometry !== SHARED_RING_SEGMENT_GEOMETRY) seg.geometry.dispose();
             if (seg.material) seg.material.dispose();
         });
         
