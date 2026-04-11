@@ -90,12 +90,19 @@ export class HarmonicHealingVisualSystem_Session134 {
         this.particles = particleSystem;
         this.semanticBus = semanticBus || globalThis?.semanticBus || null;
         
+        // FIX: Initialize _createdObjects for UNIFIED CLEANUP CONTRACT
+        this._createdObjects = [];
+
+        // IMPROVEMENT: Regional healing priority — set by external system
+        this._regionalPriority = null; // { nodeIds: Set, boostFactor: number }
+
         this.config = {
             waveSpeed: 4.25,
             maxWaves: 120,
             repairVisualsOnly: false,
             debugVisualBoost: true,
             linkCooldown: 3.0,
+            harmonyThreshold: 0.25, // FIX: was missing — controls LOW healing state threshold
             renderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
             ...config
         };
@@ -596,10 +603,19 @@ export class HarmonicHealingVisualSystem_Session134 {
                 : 0;
 
             // Prefer hurt / stressed links so the healing effect is legible and useful.
-            const score =
+            let score =
                 (1 - Math.max(0, Math.min(1, stability))) * 0.55 +
                 Math.max(0, Math.min(1, corruption)) * 0.25 +
                 Math.max(0, Math.min(1, Math.max(cascadeIntensity, flowIntensity))) * 0.20;
+
+            // IMPROVEMENT: Regional priority boost — links in damaged regions get healing priority
+            if (this._regionalPriority && this._regionalPriority.nodeIds) {
+                const startInRegion = this._regionalPriority.nodeIds.has(endpoints.startNode?.id ?? endpoints.startNode?.userData?.nodeId);
+                const endInRegion = this._regionalPriority.nodeIds.has(endpoints.endNode?.id ?? endpoints.endNode?.userData?.nodeId);
+                if (startInRegion || endInRegion) {
+                    score += (this._regionalPriority.boostFactor || 0.3);
+                }
+            }
 
             if (score > bestScore) {
                 bestScore = score;
@@ -609,6 +625,15 @@ export class HarmonicHealingVisualSystem_Session134 {
 
         if (bestLink) return bestLink;
         return links[Math.floor(Math.random() * links.length)] || null;
+    }
+
+    /**
+     * IMPROVEMENT: Set regional healing priority from RegionalEquilibriumFieldSystem.
+     * Links connected to nodes in high-damage regions get boosted healing wave priority.
+     * @param {Object} priority - { nodeIds: Set<string>, boostFactor: number }
+     */
+    setRegionalPriority(priority) {
+        this._regionalPriority = priority;
     }
 
     getStats() {

@@ -53,52 +53,52 @@ export class StandingWaveVisualRenderer_Session131 {
         // Configuration
         this.config = {
             // Antinode visualization
-            antinodeRadius: 1.5,              // Radius of antinode halo ring (visible scale)
-            antinodeOpacityBase: 0.38,        // Base opacity of antinode glow
-            antinodeGlowIntensity: 1.45,      // Intensity multiplier for additive blending
+            antinodeRadius: 1.6,              // Radius of antinode halo ring (visible scale)
+            antinodeOpacityBase: 0.52,        // Base opacity of antinode glow
+            antinodeGlowIntensity: 1.75,      // Intensity multiplier for additive blending
             antinodeCooldownSeconds: 5.0,     // Minimum time before an antinode can reappear
             antinodeLifetimeSeconds: 2.6,     // Time before the torus starts dissolving
             antinodeFadeSeconds: 0.42,        // Fade-out time once the torus starts dissolving
-            antinodePulseFrequency: 1.9,      // Soft pulse speed for the ring glow
-            antinodeDissolveNoiseFrequency: 12.0, // High-frequency breakup during fadeout
-            antinodeDissolveNoiseAmount: 0.42,     // Strength of breakup modulation
-            antinodeDissolveScaleJitter: 0.075,    // Small size wobble while dissolving
-            antinodeColorBlend: 0.22,         // Blend toward the link wave color
-            antinodeScaleBase: 0.44,          // Base scale of the ring mesh
-            antinodeScaleBoost: 0.11,         // Extra scale at higher intensity
-            antinodeSegmentCount: 6,          // Broken Möbius segment count
-            antinodeSegmentGap: 0.08,         // Gap between segments
-            antinodeSegmentTwist: 0.42,       // Phase mismatch twist amount
+            antinodePulseFrequency: 0.35,     // Soft pulse speed for the ring glow
+            antinodeDissolveNoiseFrequency: 10.0, // High-frequency breakup during fadeout
+            antinodeDissolveNoiseAmount: 0.18,     // Strength of breakup modulation
+            antinodeDissolveScaleJitter: 0.045,    // Small size wobble while dissolving
+            antinodeColorBlend: 0.28,         // Blend toward the link wave color
+            antinodeScaleBase: 0.52,          // Base scale of the ring mesh
+            antinodeScaleBoost: 0.18,         // Extra scale at higher intensity
+            antinodeSegmentCount: 8,          // Broken Möbius segment count
+            antinodeSegmentGap: 0.145,        // Gap between segments
+            antinodeSegmentTwist: 0.26,       // Phase mismatch twist amount
             antinodeLODDistance: 50,          // Distance culling threshold
             
             // Interference bands
             bandThickness: 0.05,              // Thickness of bright/dim bands
             bandTransitionSmoothing: 0.3,    // Smoothness of band edges
-            brightBandOpacity: 0.25,         // Opacity of bright zones
-            dimBandOpacity: 0.08,            // Opacity of dim zones
+            brightBandOpacity: 0.28,         // Opacity of bright zones
+            dimBandOpacity: 0.1,            // Opacity of dim zones
             
             // Trap zone rendering
             trapZoneThickness: 0.08,          // Visual thickness of trap zone boundary
-            trapZoneOpacityBase: 0.22,        // Base opacity of trap zone
-            trapZoneGlowFactor: 1.25,         // Glow intensity multiplier
-            trapZoneFadeSeconds: 0.35,        // Grace period before a trap zone fully retires
-            trapZoneSingularityScale: 0.72,    // Overall composite size multiplier
+            trapZoneOpacityBase: 0.26,        // Base opacity of trap zone
+            trapZoneGlowFactor: 1.5,         // Glow intensity multiplier
+            trapZoneFadeSeconds: 0.45,        // Grace period before a trap zone fully retires
+            trapZoneSingularityScale: 0.78,    // Overall composite size multiplier
             trapZoneCoreRadius: 0.13,          // Inner singularity core radius
-            trapZoneOrbitRadius: 0.36,         // Primary orbital ring radius
-            trapZoneHaloRadius: 0.62,          // Event-horizon disc radius
+            trapZoneOrbitRadius: 0.4,         // Primary orbital ring radius
+            trapZoneHaloRadius: 0.78,          // Event-horizon disc radius
             trapZonePulseRingRadius: 0.53,     // Seed-like pulse ring radius
             trapZonePulseRingThickness: 0.018, // Pulse ring thickness
-            trapZonePulseRingOpacity: 0.16,    // Pulse ring opacity
-            trapZoneOrbitSpeed: 1.15,          // Orbit rotation speed
-            trapZoneSecondaryOrbitSpeed: 0.82, // Secondary torus motion speed
-            trapZoneSecondaryOrbitTilt: 0.07,  // Secondary torus tilt amount
-            trapZoneSecondaryOrbitDrift: 0.03, // Secondary torus drift amount
-            trapZoneSecondaryOrbitMaxDelta: Math.PI * 0.055, // ~10 degrees max deviation
+            trapZonePulseRingOpacity: 0.18,    // Pulse ring opacity
+            trapZoneOrbitSpeed: 0.28,          // Orbit rotation speed
+            trapZoneSecondaryOrbitSpeed: 0.32, // Secondary torus motion speed
+            trapZoneSecondaryOrbitTilt: 0.04,  // Secondary torus tilt amount
+            trapZoneSecondaryOrbitDrift: 0.01, // Secondary torus drift amount
+            trapZoneSecondaryOrbitMaxDelta: Math.PI * 0.032, // smaller deviation
             trapZoneLoadPressureStart: 0.35,   // Start of visibly pressurized trap state
             trapZoneOverloadThreshold: 0.65,   // Overload state threshold
             trapZonePressureBoost: 0.14,       // Light intensity boost under load
-            trapZonePulseFrequency: 2.25,      // Trap zone pulse frequency
-            trapZoneColor: new THREE.Color(0.7, 0.8, 1.0),  // Pale blue
+            trapZonePulseFrequency: 1.1,      // Trap zone pulse frequency
+            trapZoneColor: new THREE.Color(0.72, 0.82, 1.0),  // Pale blue
             
             // Wave material modification
             waveTravelSpeed: 0.0,             // Standing = 0, traveling > 0
@@ -106,8 +106,8 @@ export class StandingWaveVisualRenderer_Session131 {
             waveAmplitudeModulation: true,    // Modulate by oscillation
             
             // Node halo counter-pulsing
-            haloPulseFrequency: 3.0,          // Hz
-            haloPulseAmount: 0.15,            // Amplitude of pulsing
+            haloPulseFrequency: 0.22,          // Hz
+            haloPulseAmount: 0.06,            // Amplitude of pulsing
             haloPhaseOffset: Math.PI,         // π radians = opposite phase
             
             // Resolution animations
@@ -779,9 +779,9 @@ export class StandingWaveVisualRenderer_Session131 {
         });
 
         if (antinode?.shellMesh) {
-            antinode.shellMesh.rotation.y = pulsePhase * 0.28;
-            antinode.shellMesh.rotation.z = pulsePhase * -0.19;
-            antinode.shellMesh.scale.setScalar(0.94 + (displayIntensity * 0.16));
+            antinode.shellMesh.rotation.y = pulsePhase * 0.08;
+            antinode.shellMesh.rotation.z = pulsePhase * -0.06;
+            antinode.shellMesh.scale.setScalar(0.96 + (displayIntensity * 0.08));
         }
     }
 
@@ -854,17 +854,12 @@ export class StandingWaveVisualRenderer_Session131 {
                 0.48,
                 Math.min(1.85, zoneRadius * this.config.trapZoneSingularityScale)
             );
-            const pulsePhase = (this.time * Math.max(0.35, zone.frequency * this.config.trapZonePulseFrequency) * Math.PI * 2)
+            const pulsePhase = (this.time * Math.max(0.12, zone.frequency * this.config.trapZonePulseFrequency) * Math.PI * 2)
                 + trapZoneMesh.pulseSeed;
-            const pulse = 0.6 + (Math.sin(pulsePhase) * 0.4);
-            const warpPulse = 0.5 + (Math.sin(pulsePhase * 1.37) * 0.5);
-            const fadeStrength = Math.max(0.16, Math.min(1, zone.intensity * 0.34));
-            const squash = 0.86 + (warpPulse * 0.18);
-            trapZoneMesh.group.scale.set(
-                singularityScale * (0.9 + (pulse * 0.09)),
-                singularityScale * squash,
-                singularityScale * (0.86 + (pulse * 0.12))
-            );
+            const pulse = 0.84 + (Math.sin(pulsePhase) * 0.16);
+            const warpPulse = 0.62 + (Math.sin(pulsePhase * 1.37) * 0.12);
+            const fadeStrength = Math.max(0.24, Math.min(1, zone.intensity * 0.38));
+            trapZoneMesh.group.scale.setScalar(singularityScale);
 
             // Core singularity
             if (trapZoneMesh.coreMesh) {
@@ -880,45 +875,42 @@ export class StandingWaveVisualRenderer_Session131 {
 
             // Primary orbital ring
             if (trapZoneMesh.orbitAMesh) {
-                trapZoneMesh.orbitAMesh.rotation.z = pulsePhase * this.config.trapZoneOrbitSpeed;
-                trapZoneMesh.orbitAMesh.rotation.x = Math.PI * 0.5 + (warpPulse * 0.25);
-                trapZoneMesh.orbitAMesh.scale.setScalar(0.88 + (zone.intensity * 0.08) + pressureBoost * 0.03);
-                trapZoneMesh.orbitAMesh.material.opacity = Math.max(0.03, this.config.trapZoneOpacityBase * (0.86 + pressureBoost) * fadeStrength);
+                trapZoneMesh.orbitAMesh.rotation.z = pulsePhase * 0.08;
+                trapZoneMesh.orbitAMesh.rotation.x = Math.PI * 0.5 + (warpPulse * 0.08);
+                trapZoneMesh.orbitAMesh.scale.setScalar(0.92 + (zone.intensity * 0.06) + pressureBoost * 0.02);
+                trapZoneMesh.orbitAMesh.material.opacity = Math.max(0.06, this.config.trapZoneOpacityBase * (0.86 + pressureBoost) * fadeStrength);
                 trapZoneMesh.orbitAMesh.material.color.setRGB(
-                    this.config.trapZoneColor.r * (0.72 + pulse * 0.28),
-                    this.config.trapZoneColor.g * (0.76 + pulse * 0.24),
-                    this.config.trapZoneColor.b * (0.95 + pulse * 0.05)
+                    this.config.trapZoneColor.r * (0.80 + pulse * 0.18),
+                    this.config.trapZoneColor.g * (0.80 + pulse * 0.14),
+                    this.config.trapZoneColor.b * (0.94 + pulse * 0.06)
                 );
             }
 
             // Secondary ring / singularity halo
             if (trapZoneMesh.orbitBMesh) {
-                const primaryPhase = pulsePhase * this.config.trapZoneOrbitSpeed;
-                const secondaryPhase = primaryPhase * this.config.trapZoneSecondaryOrbitSpeed;
-                const maxDelta = this.config.trapZoneSecondaryOrbitMaxDelta;
-                const secondaryDrift = Math.sin(secondaryPhase * 0.62 + trapZoneMesh.pulseSeed) * this.config.trapZoneSecondaryOrbitDrift;
+                const secondaryPhase = pulsePhase * this.config.trapZoneSecondaryOrbitSpeed;
                 const baseX = trapZoneMesh.orbitAMesh?.rotation.x ?? (Math.PI * 0.5);
                 const baseY = trapZoneMesh.orbitAMesh?.rotation.y ?? 0;
                 const baseZ = trapZoneMesh.orbitAMesh?.rotation.z ?? 0;
-                trapZoneMesh.orbitBMesh.rotation.x = baseX + Math.sin(secondaryPhase * 0.84 + 0.26) * maxDelta * 0.46 + (secondaryDrift * this.config.trapZoneSecondaryOrbitTilt);
-                trapZoneMesh.orbitBMesh.rotation.y = baseY + Math.sin(secondaryPhase * 0.74 + 0.71) * maxDelta * 0.34;
-                trapZoneMesh.orbitBMesh.rotation.z = baseZ + Math.sin(secondaryPhase * 0.66 + 1.18) * maxDelta * 0.26;
-                trapZoneMesh.orbitBMesh.scale.setScalar(0.92 + (pulse * 0.02));
-                trapZoneMesh.orbitBMesh.material.opacity = Math.max(0.02, this.config.trapZoneOpacityBase * (0.5 + pressureBoost * 0.35) * fadeStrength);
+                trapZoneMesh.orbitBMesh.rotation.x = baseX + (Math.sin(secondaryPhase + 0.26) * this.config.trapZoneSecondaryOrbitMaxDelta * 0.16);
+                trapZoneMesh.orbitBMesh.rotation.y = baseY + (Math.sin(secondaryPhase + 0.71) * this.config.trapZoneSecondaryOrbitMaxDelta * 0.12);
+                trapZoneMesh.orbitBMesh.rotation.z = baseZ + (Math.sin(secondaryPhase + 1.18) * this.config.trapZoneSecondaryOrbitMaxDelta * 0.08);
+                trapZoneMesh.orbitBMesh.scale.setScalar(0.94);
+                trapZoneMesh.orbitBMesh.material.opacity = Math.max(0.04, this.config.trapZoneOpacityBase * (0.48 + pressureBoost * 0.28) * fadeStrength);
                 trapZoneMesh.orbitBMesh.material.color.setRGB(
-                    0.88 + (pulse * 0.12),
-                    0.93 + (pulse * 0.05),
+                    0.92,
+                    0.94,
                     1.0
                 );
             }
 
             if (trapZoneMesh.haloMesh) {
-                trapZoneMesh.haloMesh.rotation.z = pulsePhase * 0.16;
-                trapZoneMesh.haloMesh.scale.setScalar(1.0 + (pulse * 0.1));
-                trapZoneMesh.haloMesh.material.opacity = Math.min(0.2, this.config.trapZoneOpacityBase * 0.42 * fadeStrength * (0.75 + pulse * 0.25));
+                trapZoneMesh.haloMesh.rotation.z = pulsePhase * 0.04;
+                trapZoneMesh.haloMesh.scale.setScalar(1.0 + (pulse * 0.04));
+                trapZoneMesh.haloMesh.material.opacity = Math.min(0.22, this.config.trapZoneOpacityBase * 0.48 * fadeStrength * (0.86 + pulse * 0.12));
                 trapZoneMesh.haloMesh.material.color.setRGB(
-                    0.88 + (pulse * 0.08),
-                    0.9 + (pulse * 0.06),
+                    0.88,
+                    0.92,
                     1.0
                 );
             }
@@ -1039,13 +1031,13 @@ export class StandingWaveVisualRenderer_Session131 {
         const material = shell.material;
         if (!material) return;
         
-        // Calculate pulse amplitude
+        // Calculate slow, subtle pulse amplitude
         const pulseValue = Math.sin(phase + (invertPhase ? Math.PI : 0)) * this.config.haloPulseAmount;
-        const targetOpacity = 0.15 + pulseValue;  // Base + pulse
+        const targetOpacity = 0.16 + (pulseValue * 0.33);  // Base + subtle pulse
         
         // Smooth interpolation
         if (material.opacity !== undefined) {
-            material.opacity += (targetOpacity - material.opacity) * 0.15;
+            material.opacity += (targetOpacity - material.opacity) * 0.08;
         }
     }
 

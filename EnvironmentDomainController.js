@@ -15,7 +15,7 @@ const ENVIRONMENT_SYSTEMS = [
   'SafeColonyExpansion2',
   'MythicRitualController',
   // REMOVED: EnergyOrbManager - moved to LEGACY (dead code, never initialized)
-  'EnvironmentalHazard',
+  'EnvironmentalHazards',
 ];
 
 const ENVIRONMENT_RENDER_LAYERS = Object.freeze({

@@ -85,7 +85,13 @@ export function createLinkAuraMaterial(config = {}) {
 
   // Return cached material if available
   if (LINK_AURA_MATERIAL_CACHE.has(key)) {
-    return LINK_AURA_MATERIAL_CACHE.get(key);
+    const cachedMaterial = LINK_AURA_MATERIAL_CACHE.get(key);
+    if (cachedMaterial && !cachedMaterial.userData?.__linkAuraProgramCacheKeyBound) {
+      if (!cachedMaterial.userData) cachedMaterial.userData = {};
+      cachedMaterial.customProgramCacheKey = () => 'ATOMA_LINK_AURA_v1|ShaderMaterial|transparent|no-depth-write|depth-test|double-side|normal';
+      cachedMaterial.userData.__linkAuraProgramCacheKeyBound = true;
+    }
+    return cachedMaterial;
   }
 
   const vertexShader = `
@@ -349,7 +355,7 @@ export function createLinkAuraMaterial(config = {}) {
     }
   `;
 
-  return new THREE.ShaderMaterial({
+  const material = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
       uDisplacement: { value: defaultConfig.baseDisplacement },
@@ -373,6 +379,13 @@ export function createLinkAuraMaterial(config = {}) {
     side: THREE.DoubleSide,
     blending: THREE.NormalBlending,
   });
+
+  if (!material.userData) material.userData = {};
+  material.customProgramCacheKey = () => 'ATOMA_LINK_AURA_v1|ShaderMaterial|transparent|no-depth-write|depth-test|double-side|normal';
+  material.userData.__linkAuraProgramCacheKeyBound = true;
+
+  LINK_AURA_MATERIAL_CACHE.set(key, material);
+  return material;
 }
 
 /**

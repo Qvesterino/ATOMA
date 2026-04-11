@@ -9048,6 +9048,7 @@ function _createProcessFluxCrucibleNode(group, visualCode, color) {
   group.userData.fluxCrucibleVentPulseAmplitude = 0.028 + rng() * 0.01;
   group.userData.fluxCrucibleDiagnosticSpinSpeed = 0.012 + rng() * 0.006;
   group.userData.fluxCruciblePhase = rng() * Math.PI * 2;
+  const disableHologramShell = group?.userData?.disableHologramShell === true;
 
   const captureBasePose = (obj) => {
     obj.userData = obj.userData || {};
@@ -9393,34 +9394,36 @@ function _createProcessFluxCrucibleNode(group, visualCode, color) {
     renderOrder: archOrder + 2
   });
 
-  const shellColor = 0xffd29b;
-  const coolShellColor = 0xd9f2ff;
-  const shell1 = createNodeHologramShell(coreShell, shellColor);
-  if (shell1) {
-    shell1.name = 'FluxDiagnosticShell_A';
-    shell1.position.copy(coreShell.position);
-    shell1.quaternion.copy(coreShell.quaternion);
-    shell1.scale.copy(coreShell.scale).multiplyScalar(1.1);
-    shell1.frustumCulled = false;
-    shell1.renderOrder = archOrder;
-    shell1.userData = shell1.userData || {};
-    shell1.userData.ignoreWaveColor = true;
-    if (shell1.material?.uniforms?.uOpacity) shell1.material.uniforms.uOpacity.value = 0.08;
-    auraGroup.add(shell1);
-  }
+  if (!disableHologramShell) {
+    const shellColor = 0xffd29b;
+    const coolShellColor = 0xd9f2ff;
+    const shell1 = createNodeHologramShell(coreShell, shellColor);
+    if (shell1) {
+      shell1.name = 'FluxDiagnosticShell_A';
+      shell1.position.copy(coreShell.position);
+      shell1.quaternion.copy(coreShell.quaternion);
+      shell1.scale.copy(coreShell.scale).multiplyScalar(1.1);
+      shell1.frustumCulled = false;
+      shell1.renderOrder = archOrder;
+      shell1.userData = shell1.userData || {};
+      shell1.userData.ignoreWaveColor = true;
+      if (shell1.material?.uniforms?.uOpacity) shell1.material.uniforms.uOpacity.value = 0.08;
+      auraGroup.add(shell1);
+    }
 
-  const shell2 = createNodeHologramShell(coreShell, coolShellColor);
-  if (shell2) {
-    shell2.name = 'FluxDiagnosticShell_B';
-    shell2.position.copy(coreShell.position);
-    shell2.quaternion.copy(coreShell.quaternion);
-    shell2.scale.copy(coreShell.scale).multiplyScalar(1.18);
-    shell2.frustumCulled = false;
-    shell2.renderOrder = archOrder;
-    shell2.userData = shell2.userData || {};
-    shell2.userData.ignoreWaveColor = true;
-    if (shell2.material?.uniforms?.uOpacity) shell2.material.uniforms.uOpacity.value = 0.05;
-    auraGroup.add(shell2);
+    const shell2 = createNodeHologramShell(coreShell, coolShellColor);
+    if (shell2) {
+      shell2.name = 'FluxDiagnosticShell_B';
+      shell2.position.copy(coreShell.position);
+      shell2.quaternion.copy(coreShell.quaternion);
+      shell2.scale.copy(coreShell.scale).multiplyScalar(1.18);
+      shell2.frustumCulled = false;
+      shell2.renderOrder = archOrder;
+      shell2.userData = shell2.userData || {};
+      shell2.userData.ignoreWaveColor = true;
+      if (shell2.material?.uniforms?.uOpacity) shell2.material.uniforms.uOpacity.value = 0.05;
+      auraGroup.add(shell2);
+    }
   }
 
   const edgeGlow = createNodeNeonEdgeGlowShell(coreShell, 0xffb05c, {
@@ -16438,6 +16441,9 @@ export class EnhancedNodeModels {
    * VISUAL SAFETY: Static geometry, transform-only animation, immutable
    */
   static createProcessFluxChamber(group, visualCode, color) {
+    group = group || new THREE.Group();
+    group.userData = group.userData || {};
+    group.userData.disableHologramShell = true;
     return _createProcessFluxCrucibleNode(group, visualCode, color);
     try {
       // Create outer asymmetric chamber shell (twisted hex-like shape)
@@ -24029,6 +24035,7 @@ static createAnalyticsNode2(group, color) {
       hostGroup.userData.visualVariant = 'QUANTUM_IMPOSSIBLE_ENTANGLEMENT_MANIFEST_V1';
       hostGroup.userData.skipMaterialRestoration = true;
       hostGroup.userData.visualCode = visualCode;
+      hostGroup.userData.disableHologramShell = true;
 
       const geometries = _getQuantumLatticeGeometries();
       const materials = _getQuantumLatticeMaterials(color);
@@ -24037,6 +24044,7 @@ static createAnalyticsNode2(group, color) {
       quantumRoot.userData.visualVariant = 'QUANTUM_IMPOSSIBLE_ENTANGLEMENT_MANIFEST_V1';
       quantumRoot.userData.nodeGeometryName = 'QUANTUM_LATTICE_IMPOSSIBLE_MANIFEST';
       quantumRoot.userData.skipMaterialRestoration = true;
+      quantumRoot.userData.disableHologramShell = true;
 
       const seed = hostGroup?.userData?.nodeId ? hashString(hostGroup.userData.nodeId) : (Number.isFinite(visualCode) ? visualCode : 702);
       const rng = _mythicSeededRng(seed);
@@ -24291,50 +24299,6 @@ static createAnalyticsNode2(group, color) {
       haloPoints.renderOrder = archOrder;
       auraGroup.add(haloPoints);
 
-      const shellColor = 0xf4fbff;
-      const shell1 = createNodeHologramShell(voidCore, shellColor);
-      if (shell1) {
-        shell1.name = 'QuantumShell_1';
-        shell1.position.copy(voidCore.position);
-        shell1.quaternion.copy(voidCore.quaternion);
-        shell1.scale.copy(voidCore.scale).multiplyScalar(1.15);
-        shell1.frustumCulled = false;
-        shell1.renderOrder = archOrder;
-        if (shell1.material?.uniforms?.uOpacity) {
-          shell1.material.uniforms.uOpacity.value = 0.068;
-        }
-        auraGroup.add(shell1);
-      }
-
-      const shell2 = createNodeHologramShell(voidCore, shellColor);
-      if (shell2) {
-        shell2.name = 'QuantumShell_2';
-        shell2.position.copy(voidCore.position);
-        shell2.quaternion.copy(voidCore.quaternion);
-        shell2.scale.copy(voidCore.scale).multiplyScalar(1.26);
-        shell2.frustumCulled = false;
-        shell2.renderOrder = archOrder;
-        if (shell2.material?.uniforms?.uOpacity) {
-          shell2.material.uniforms.uOpacity.value = 0.042;
-        }
-        auraGroup.add(shell2);
-      }
-
-      const edgeGlow = createNodeNeonEdgeGlowShell(voidCore, 0x9defff, {
-        glowIntensity: 0.92,
-        edgeWidth: 0.078,
-        pulseAmount: 0.0
-      });
-      if (edgeGlow) {
-        edgeGlow.name = 'QuantumEdgeGlow';
-        edgeGlow.position.copy(voidCore.position);
-        edgeGlow.quaternion.copy(voidCore.quaternion);
-        edgeGlow.scale.copy(voidCore.scale).multiplyScalar(1.02);
-        edgeGlow.frustumCulled = false;
-        edgeGlow.renderOrder = archOrder;
-        auraGroup.add(edgeGlow);
-      }
-
       quantumRoot.add(auraGroup);
 
       quantumRoot.traverse((o) => {
@@ -24354,6 +24318,7 @@ static createAnalyticsNode2(group, color) {
 
       quantumRoot.userData.visualReady = true;
       hostGroup.userData.visualReady = true;
+      hostGroup.userData.disableHologramShell = true;
       hostGroup.add(quantumRoot);
       return hostGroup;
     } catch (err) {
@@ -25343,6 +25308,7 @@ static createAnalyticsNode2(group, color) {
       root.userData.visualVariant = 'MYTHIC_ORACULAR_PRISM_RIFT_V4';
       root.userData.mythicVariant = 'ORACULAR_PRISM_RIFT';
       root.userData.nodeGeometryName = 'MYTHIC_ORACULAR_PRISM_RIFT';
+      root.userData.disableHologramShell = true;
 
       const seed = group?.userData?.nodeId ? hashString(group.userData.nodeId) : (Number.isFinite(visualCode) ? visualCode : 904);
       const rng = _mythicSeededRng(seed);
@@ -25507,30 +25473,6 @@ static createAnalyticsNode2(group, color) {
       haloPoints.renderOrder = archOrder;
       auraGroup.add(haloPoints);
 
-      const shell1 = createNodeHologramShell(coreMesh, 0xe6f8ff);
-      if (shell1) {
-        shell1.name = 'MythicShell_1';
-        shell1.position.copy(coreMesh.position);
-        shell1.quaternion.copy(coreMesh.quaternion);
-        shell1.scale.copy(coreMesh.scale).multiplyScalar(1.12);
-        shell1.frustumCulled = false;
-        shell1.renderOrder = archOrder;
-        if (shell1.material?.uniforms?.uOpacity) shell1.material.uniforms.uOpacity.value = 0.054;
-        auraGroup.add(shell1);
-      }
-
-      const shell2 = createNodeHologramShell(coreMesh, 0xe6f8ff);
-      if (shell2) {
-        shell2.name = 'MythicShell_2';
-        shell2.position.copy(coreMesh.position);
-        shell2.quaternion.copy(coreMesh.quaternion);
-        shell2.scale.copy(coreMesh.scale).multiplyScalar(1.2);
-        shell2.frustumCulled = false;
-        shell2.renderOrder = archOrder;
-        if (shell2.material?.uniforms?.uOpacity) shell2.material.uniforms.uOpacity.value = 0.036;
-        auraGroup.add(shell2);
-      }
-
       const edgeGlow = createNodeNeonEdgeGlowShell(coreMesh, 0xdff8ff, {
         glowIntensity: 0.8,
         edgeWidth: 0.074,
@@ -25567,6 +25509,7 @@ static createAnalyticsNode2(group, color) {
       root.userData.visualReady = true;
       group.userData = group.userData || {};
       group.userData.visualReady = true;
+      group.userData.disableHologramShell = true;
       group.userData.nodeGeometryName = 'MYTHIC_CRACKED_PRISM';
       group.add(root);
       return group;

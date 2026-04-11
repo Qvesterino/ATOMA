@@ -326,7 +326,7 @@ export function createLinkPointFXMaterial({
 
   const buildMaterial = () => {
     if (vertexShader || fragmentShader) {
-      return new THREE.ShaderMaterial({
+      const material = new THREE.ShaderMaterial({
         uniforms: materialUniforms,
         vertexShader: vertexShader || `
           attribute float aSize;
@@ -361,6 +361,24 @@ export function createLinkPointFXMaterial({
         `,
         ...shaderMaterialOptions
       });
+      if (!material.userData) material.userData = {};
+      if (!material.userData.__linkPointFXProgramCacheKeyBound) {
+        const shaderSignature = `${vertexShader ? hashString(vertexShader) : 'default-vs'}:${fragmentShader ? hashString(fragmentShader) : 'default-fs'}`;
+        const cacheSignature = [
+          'ATOMA_LINK_POINT_FX_v1',
+          `preset=${preset}`,
+          `shader=${shaderSignature}`,
+          `transparent=${material.transparent === true ? 'true' : 'false'}`,
+          `blending=${material.blending ?? 'null'}`,
+          `depthTest=${material.depthTest === true ? 'true' : 'false'}`,
+          `depthWrite=${material.depthWrite === true ? 'true' : 'false'}`,
+          `toneMapped=${material.toneMapped === true ? 'true' : 'false'}`,
+          `vertexColors=${material.vertexColors === true ? 'true' : 'false'}`
+        ].join('|');
+        material.customProgramCacheKey = () => cacheSignature;
+        material.userData.__linkPointFXProgramCacheKeyBound = true;
+      }
+      return material;
     }
 
     return new THREE.PointsMaterial({

@@ -648,6 +648,45 @@ export class RegionalEquilibriumFieldSystem {
     getRegions() {
         return Array.from(this.regions.values());
     }
+
+    /**
+     * IMPROVEMENT: Get healing priority data for the most damaged region.
+     * Returns { nodeIds: Set<string>, boostFactor: number } for HarmonicHealingVisualSystem.
+     * Links connected to nodes in high-damage regions get boosted healing wave priority.
+     */
+    getMostDamagedRegionPriority() {
+        let worstRegion = null;
+        let worstScore = -Infinity;
+
+        for (const region of this.regions.values()) {
+            // Damage score: high corruption + instability + historical tension, low harmony
+            const damageScore =
+                region.corruption * 0.4 +
+                region.instability * 0.3 +
+                (region.historicalTension || 0) * 0.2 +
+                (1 - region.harmony) * 0.1;
+
+            if (damageScore > worstScore) {
+                worstScore = damageScore;
+                worstRegion = region;
+            }
+        }
+
+        if (!worstRegion || worstScore < 0.2) return null;
+
+        const nodeIds = new Set();
+        for (const node of worstRegion.nodes) {
+            const id = node?.id ?? node?.userData?.nodeId ?? node?.userData?.id;
+            if (id !== undefined && id !== null) nodeIds.add(String(id));
+        }
+
+        return {
+            nodeIds,
+            boostFactor: Math.min(0.5, worstScore * 0.6),
+            regionId: worstRegion.id,
+            damageScore: worstScore
+        };
+    }
     
     /**
      * Get region state info (for debugging)

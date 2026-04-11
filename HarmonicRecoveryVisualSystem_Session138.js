@@ -60,13 +60,48 @@ void main() {
     float dist = length(p) * 2.0;
     if (dist > 1.0) discard;
 
-    float ringOuter = 1.0 - smoothstep(0.68, 0.95, dist);
-    float ringInner = smoothstep(0.10, 0.55, dist);
-    float alpha = max(ringOuter * 0.72, ringInner * 0.18);
-    
-    // Soft noise/distortion based on harmony (more harmony = smoother)
-    float harmonyWarm = mix(1.0, 1.25, clamp(uHarmony, 0.0, 1.0));
+    // Expanding ring band — moves outward as life progresses
+    float ringCenter = 0.25 + uLife * 0.65;
+    float ringWidth = 0.18 + uHarmony * 0.08;
+    float ring = smoothstep(ringCenter - ringWidth, ringCenter, dist)
+               * (1.0 - smoothstep(ringCenter, ringCenter + ringWidth, dist));
+
+    // Soft inner glow
+    float innerGlow = (1.0 - smoothstep(0.0, 0.45, dist)) * 0.25;
+
+    // Outer fade
+    float outerFade = 1.0 - smoothstep(0.7, 1.0, dist);
+
+    float alpha = (ring * 0.85 + innerGlow) * outerFade;
+
+    // Harmony warmth — more harmony = brighter, warmer recovery
+    float harmonyWarm = mix(1.0, 1.3, clamp(uHarmony, 0.0, 1.0));
     alpha *= harmonyWarm;
+
+    // Fade out over lifecycle
+    alpha *= (1.0 - uLife * uLife);
+
+    // Subtle pulse
+    alpha *= 0.9 + 0.1 * sin(uTime * 3.0 + dist * 8.0);
+
+    gl_FragColor = vec4(uColor, alpha);
+}
+`;
+
+const RECOVERY_HALO_VERTEX_SHADER = `
+varying vec2 vUv;
+varying vec3 vWorldPos;
+
+void main() {
+    vUv = uv;
+    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+    vWorldPos = worldPos.xyz;
+    gl_Position = projectionMatrix * viewMatrix * worldPos;
+}
+`;
+
+const RECOVERY_HALO_FRAGMENT_SHADER = `
+uniform float uTime;
 uniform float uLife;
 uniform vec3 uColor;
 
@@ -77,12 +112,27 @@ void main() {
     float dist = length(p) * 2.0;
     if (dist > 1.0) discard;
 
-    float alpha = 1.0 - smoothstep(0.05, 0.5, dist);
-    
+    // Pulsing concentric rings for recovery halo
+    float ring1 = smoothstep(0.28, 0.32, dist) * (1.0 - smoothstep(0.32, 0.36, dist));
+    float ring2 = smoothstep(0.48, 0.52, dist) * (1.0 - smoothstep(0.52, 0.56, dist));
+    float ring3 = smoothstep(0.68, 0.72, dist) * (1.0 - smoothstep(0.72, 0.76, dist));
+
+    // Animate ring brightness with phase offset
+    float pulse1 = 0.7 + 0.3 * sin(uTime * 4.0);
+    float pulse2 = 0.7 + 0.3 * sin(uTime * 4.0 + 2.094);
+    float pulse3 = 0.7 + 0.3 * sin(uTime * 4.0 + 4.189);
+
+    float rings = ring1 * pulse1 + ring2 * pulse2 + ring3 * pulse3;
+
+    // Soft center glow
+    float centerGlow = (1.0 - smoothstep(0.0, 0.35, dist)) * 0.35;
+
+    float alpha = (rings * 0.6 + centerGlow);
+
     // Fade out over life
     alpha *= (1.0 - uLife);
-    alpha *= 0.60; // Softer halo so it does not dominate the healing layer
-    
+    alpha *= 0.55;
+
     gl_FragColor = vec4(uColor, alpha);
 }
 `;
@@ -121,6 +171,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         this._eventDrivenEnabled = false;
         this._unsubscribeHarmonyHigh = null;
         this._unsubscribeHarmonyMid = null;
+        this._unsubscribeCascadeEnd = null;
         
         this._setupEventSubscriptions();
         
@@ -144,6 +195,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             vertexShader: RECOVERY_HALO_VERTEX_SHADER,
             fragmentShader: RECOVERY_HALO_FRAGMENT_SHADER,
             uniforms: {
+                uTime: { value: 0 },
                 uLife: { value: 0 },
                 uColor: { value: new THREE.Color(0xffff33) } // Neon yellow
             },
@@ -279,6 +331,19 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             };
         }
 
+        // IMPROVEMENT: Cascade→Recovery bridge — listen for cascade completion
+        this._onCascadeEnd = (payload = {}) => {
+            this._handleCascadeEnd(payload);
+        };
+        const unsubCascade = this.semanticBus.subscribe('cascade.end', this._onCascadeEnd);
+        if (typeof unsubCascade === 'function') {
+            this._unsubscribeCascadeEnd = unsubCascade;
+        } else if (typeof this.semanticBus.unsubscribe === 'function') {
+            this._unsubscribeCascadeEnd = () => {
+                this.semanticBus.unsubscribe('cascade.end', this._onCascadeEnd);
+            };
+        }
+
         this._eventDrivenEnabled = true;
     }
 
@@ -289,8 +354,12 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         if (typeof this._unsubscribeHarmonyMid === 'function') {
             this._unsubscribeHarmonyMid();
         }
+        if (typeof this._unsubscribeCascadeEnd === 'function') {
+            this._unsubscribeCascadeEnd();
+        }
         this._unsubscribeHarmonyHigh = null;
         this._unsubscribeHarmonyMid = null;
+        this._unsubscribeCascadeEnd = null;
         this._eventDrivenEnabled = false;
     }
 
@@ -324,6 +393,39 @@ export class HarmonicRecoveryVisualSystem_Session138 {
 
         this._spawnReStitching(linkId, now);
         this._setCooldown(linkId, now);
+    }
+
+    /**
+     * IMPROVEMENT: Cascade→Recovery bridge
+     * When a cascade completes, spawn recovery zones at affected nodes.
+     * This creates the visual narrative: destruction → healing.
+     */
+    _handleCascadeEnd(payload = {}) {
+        const sourceNode = payload?.sourceNode;
+        const now = Number.isFinite(VisualTime?.now) ? VisualTime.now : performance.now() / 1000;
+
+        if (!sourceNode?.position) return;
+
+        // Spawn recovery halo at cascade origin
+        this._spawnHalo(sourceNode, now);
+
+        // Spawn coherence wave centered on the cascade origin
+        if (this.recoveringZones.length < this.config.maxActiveZones) {
+            this.recoveringZones.push({
+                active: true,
+                pos: sourceNode.position.clone(),
+                linkId: `cascade_recovery_${Date.now()}`,
+                startNode: sourceNode,
+                endNode: null,
+                life: 0,
+                startTime: now - (this._timeOrigin ?? 0),
+                maxLife: this.config.minRecoveryDuration + Math.random() * 3.0,
+                waveMeshIdx: -1,
+                lastStitchTime: now - (this._timeOrigin ?? 0),
+                waveOnly: true,
+                linkYaw: 0
+            });
+        }
     }
 
     _checkCooldown(id, now) {
@@ -701,6 +803,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             if (cameraPosition) mesh.lookAt(cameraPosition);
             
             mesh.material.uniforms.uLife.value = progress;
+            mesh.material.uniforms.uTime.value = currentVisualTime;
             
             if (elapsed >= item.maxLife) {
                 item.active = false;

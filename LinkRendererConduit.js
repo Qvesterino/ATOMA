@@ -1673,13 +1673,44 @@ export class LinkRendererConduit {
         return material.userData?.isLinkCore === true;
     }
 
+    _bindLinkProgramCacheKey(material, scope = 'LINK_STACK') {
+        if (!material || material.userData?.__linkProgramCacheKeyBound) return;
+
+        const previousKey = typeof material.customProgramCacheKey === 'function'
+            ? material.customProgramCacheKey.bind(material)
+            : null;
+        const cacheSignature = [
+            scope,
+            material.type || 'unknown',
+            material.userData?.isLinkCore === true ? 'core' : 'aux',
+            material.userData?.travelRelevant === true ? 'travel' : 'static',
+            material.transparent === true ? 'transparent' : 'opaque',
+            material.depthWrite === true ? 'depth-write' : 'no-depth-write',
+            material.colorWrite === false ? 'color-write-off' : 'color-write-on',
+            material.blending ?? 'normal',
+            material.side ?? 'default'
+        ].join('|');
+
+        material.customProgramCacheKey = () => {
+            const previous = previousKey ? String(previousKey() ?? '') : '';
+            return previous ? `${previous}|${cacheSignature}` : cacheSignature;
+        };
+        ensureUserData(material).__linkProgramCacheKeyBound = true;
+    }
+
     _registerLinkMaterialWithBridge(material) {
         if (!material) return;
+        if (material.userData?.__skipLinkShaderStack === true) return;
+        if (!(material instanceof THREE.ShaderMaterial) && material.userData?.isLinkCore !== true && material.userData?.travelRelevant !== true) {
+            return;
+        }
+        this._bindLinkProgramCacheKey(material, 'LINK_STACK_v2');
         const bridge = this.waveShaderBridge || window.game?.waveShaderBridge;
         const travelPack = this.waveTravelShaderPack || window.game?.waveTravelShaderPack;
         const waveShaderMaterialPatch = window.game?.waveShaderMaterialPatch;
         const registerOne = (mat) => {
             if (!mat) return;
+            if (mat.userData?.__skipLinkShaderStack === true) return;
             if (bridge?.registerLinkMaterial) {
                 bridge.registerLinkMaterial(mat, 'DEFAULT');
             }
@@ -1687,6 +1718,7 @@ export class LinkRendererConduit {
                 waveShaderMaterialPatch.patch(mat, 'SYNERGY');
             }
             if (travelPack?.register && this._shouldRegisterForTravelPack(mat)) {
+                this._bindLinkProgramCacheKey(mat, 'LINK_TRAVEL_v2');
                 travelPack.register(mat, 'TRAVEL_INTERFERENCE');
             }
         };
@@ -2484,6 +2516,7 @@ export class LinkRendererConduit {
         skinMaterial.userData.waveDirection = directionVec;
         skinMaterial.userData.waveLength = linkLength;
         skinMaterial.userData.wavePhaseOffset = wavePhaseOffset;
+        this._bindLinkProgramCacheKey(skinMaterial, 'LINK_SKIN_v2');
         this._attachWaveDirectionUniform(skinMaterial, directionVec, linkLength, wavePhaseOffset);
         // Freeze variant properties immediately after material creation
         freezeMaterialFlags(skinMaterial, 'LinkRenderer');
@@ -2635,7 +2668,8 @@ export class LinkRendererConduit {
                     colorWrite: false,
                     side: THREE.DoubleSide
                 });
-                this._registerLinkMaterialWithBridge(depthMaterial);
+                ensureUserData(depthMaterial);
+                depthMaterial.userData.__skipLinkShaderStack = true;
                 const depthMesh = new THREE.Mesh(geometry, depthMaterial);
                 Object.assign(ensureUserData(depthMesh), { strandIndex: i, strandDepthPrepass: true });
                 depthMesh.frustumCulled = false;

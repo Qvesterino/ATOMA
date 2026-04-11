@@ -189,3 +189,23 @@ Original prompt: reduce synergy cascade visual clutter and make the repeated bea
 - Follow-up visual pass strengthened the node silhouette and link language further: `_NodeVisuals4_0.js` now has a larger tri-axis aura stack and stronger outer shell presence, while `NodeLinkingSystem.js` adds anchor flares at link endpoints/midpoint and higher-contrast additive glow layers.
 - `_UICategoryLegend3_1.js` marker text was corrected so the category bars no longer show the extra prefix marker.
 
+
+## 2026-04-11
+- Headless Playwright measurement in Edge confirmed the link-hot path is deferred to the next render frame, not the synchronous createLink call.
+- One fresh link on a clean runtime raised enderer.info.programs from 96 to 108, with createLinkById sync time only ~11 ms but the next two frames taking ~611 ms total.
+- A 4-link burst measured per-link frame stalls of ~1277 ms, ~372 ms, ~254 ms, and ~317 ms, so the issue is a shader compile/link burst on link visuals rather than an unbounded leak.
+- Canonical lookup for link creation uses 
+ode.userData.nodeId, not numeric 
+ode.id; createLinkById must use the canonical string ids.
+
+
+## 2026-04-11
+- Identified the synergy shader hot path: SynergyBonusFXLayer_v1 and SynergyResonanceShaderPack_v1 are initialized in main.js around lines 10151/10171 and updated in the visual scheduler around lines 4609/4614 and 11443/11448.
+- Added a runtime helper window.disableSynergyShaderStacks() in main.js to dispose/null the two synergy shader packs without touching the rest of the link stack.
+- Added a boot-time flag in main.js and index.html to try disabling the stack by default, but the live browser verification still shows the flag being overridden / not sticking in the current boot path. That needs one more boot-order pass before it can be treated as verified.
+- Verified main.js still passes 
+ode --check after the change.
+
+- 2026-04-11: Performance pass in link hot path started. Stabilized program cache keys for `LinkRendererConduit`, `WaveTravelShaderPack_v1`, `LinkStateVisualLanguageIntegration`, and `LinkAuraShader`; `LinkRendererConduit` now also binds a canonical key for `skinMaterial` coming from `createLinkAuraMaterial`. Next step is a browser timing run on first-link and multi-link bursts to see whether the render-frame compile spike dropped.
+- 2026-04-11: Added canonical program cache keys to `LinkRendererConduit`, `WaveTravelShaderPack_v1`, `LinkStateVisualLanguageIntegration`, `LinkAuraShader`, and `LinkPointFXBase` (for spark/link point FX). Also bound the link skin material from `createLinkAuraMaterial` to the link cache key in `LinkRendererConduit`.
+- 2026-04-11: Browser timing in `quantum` still shows a large first-link compile burst (`renderer.info.programs` jumping roughly 86 -> 106/103 on the first link and then small deltas after that). The four-module pass did not materially remove the first-link stall. Next hotspot to inspect is the post-link fanout in `main.js` (`LinkSparkSystem` / `linkAuraSystem.registerLink`) and any remaining link-specific FX helpers.

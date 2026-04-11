@@ -457,6 +457,7 @@ if (typeof window !== 'undefined') {
         spawnLogs: window.ATOMA_DEBUG_SPAWN_LOGS ?? false,
         linkSpawn: window.ATOMA_DEBUG_LINK_SPAWN ?? false,
         visualKill: window.ATOMA_DEBUG_VISUAL_KILL ?? false,
+        disableSynergyShaderStacks: window.ATOMA_DISABLE_SYNERGY_SHADER_STACK !== false,
         glyphFusionIntegrity: window.ATOMA_DEBUG_GLYPH_FUSION_INTEGRITY ?? false,
         probeSpawn: window.ATOMA_PROBE_SPAWN ?? false,
         worldProbe: window.ATOMA_WORLD_PROBE ?? false,
@@ -483,6 +484,7 @@ if (typeof window !== 'undefined') {
     
     // Debug Log Level (separate for backward compatibility)
     window.ATOMA_LOG_LEVEL = window.ATOMA_FLAGS.debug.logLevel;
+    window.ATOMA_DISABLE_SYNERGY_SHADER_STACK = window.ATOMA_FLAGS?.visual?.disableSynergyShaderStacks ?? false;
     
     debugLog(window.ATOMA_FLAGS.debug.enabled, '[ATOMA] Flags initialized:', window.ATOMA_FLAGS);
 }
@@ -4453,6 +4455,13 @@ class AtomaGame {
                     this.ruptureSystem,
                     this.standingWaveSystem
                 );
+
+                // IMPROVEMENT: Bridge RegionalEquilibrium → HarmonicHealing priority
+                // Feed most damaged region to healing system so it prioritizes repair there
+                if (this.harmonicHealing?.setRegionalPriority) {
+                    const priority = this.regionalEquilibrium.getMostDamagedRegionPriority?.();
+                    this.harmonicHealing.setRegionalPriority(priority);
+                }
             }
         }, 'simulation.regionalEquilibrium');
         this.frameScheduler.register('simulation', (dt) => {
@@ -10146,50 +10155,50 @@ window.__ATOMA_SCENE__ = this.scene;
         // Emissive boosting (10–90%), multi-frequency pulsing (0.5–3 Hz), chroma flares
         // Evaluates 1500+ links in <1ms with per-material shader patches
         // Reads from: canonical link.userData.synergy.{score, synergyNorm} via SemanticMetricAdapter
-        try {
-            this.synergyBonusFXLayer = new SynergyBonusFXLayer_v1({
-                maxLinksPerFrame: null,  // No frame limit
-                globalIntensity: 1.0,
-                enableRipples: true,
-                enableChroma: true,
-                debugEnabled: false
-            });
-            console.log('[main.js] SynergyBonusFXLayer_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] SynergyBonusFXLayer_v1 failed:', err);
-        }
-
-        // ====================================================================
-        // WEEK 20: SYNERGY RESONANCE SHADER PACK (Multi-Frequency Resonance FX)
-        // ====================================================================
-        // Initialize SynergyResonanceShaderPack_v1 (advanced resonance effects)
-        // This system provides multi-frequency pulse, chromatic ripples, and flow mapping
-        // Works alongside Week 19 FXLayer for layered, expressive synergy visuals
-        // Per-material shader patching with dynamic uniform updates
-        // Reads from: canonical link.userData.synergy.{score, synergyNorm} via SemanticMetricAdapter
-        try {
-            this.synergyResonanceShaderPack = new SynergyResonanceShaderPack_v1({
-                debugEnabled: false,
-                globalMultiFreqStrength: 1.0,    // Multi-frequency pulse intensity
-                globalChromaticStrength: 1.0,    // Chromatic aberration intensity
-                globalFlowSpeed: 1.0             // Coherence flow animation speed
-            });
-            console.log('[main.js] SynergyResonanceShaderPack_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] SynergyResonanceShaderPack_v1 failed:', err);
-        }
-
-        try {
-            const currentLinks = this.linkingSystem?.links || this.nodeLinking?.links || [];
-            if (this.synergyBonusFXLayer?.primeMaterials && Array.isArray(currentLinks) && currentLinks.length > 0) {
-                this.synergyBonusFXLayer.primeMaterials(currentLinks);
+        if (!window.ATOMA_FLAGS?.visual?.disableSynergyShaderStacks) {
+            try {
+                this.synergyBonusFXLayer = new SynergyBonusFXLayer_v1({
+                    maxLinksPerFrame: null,  // No frame limit
+                    globalIntensity: 1.0,
+                    enableRipples: true,
+                    enableChroma: true,
+                    debugEnabled: false
+                });
+                console.log('[main.js] SynergyBonusFXLayer_v1 initialized ✓');
+            } catch (err) {
+                console.warn('[main.js] SynergyBonusFXLayer_v1 failed:', err);
             }
-            if (this.synergyResonanceShaderPack?.primeMaterials && Array.isArray(currentLinks) && currentLinks.length > 0) {
-                this.synergyResonanceShaderPack.primeMaterials(currentLinks);
+
+            // ====================================================================
+            // WEEK 20: SYNERGY RESONANCE SHADER PACK (Multi-Frequency Resonance FX)
+            // ====================================================================
+            // Initialize SynergyResonanceShaderPack_v1 (advanced resonance effects)
+            // This system provides multi-frequency pulse, chromatic ripples, and flow mapping
+            // Works alongside Week 19 FXLayer for layered, expressive synergy visuals
+            // Per-material shader patching with dynamic uniform updates
+            // Reads from: canonical link.userData.synergy.{score, synergyNorm} via SemanticMetricAdapter
+            try {
+                this.synergyResonanceShaderPack = new SynergyResonanceShaderPack_v1({
+                    debugEnabled: false,
+                    globalMultiFreqStrength: 1.0,    // Multi-frequency pulse intensity
+                    globalChromaticStrength: 1.0,    // Chromatic aberration intensity
+                    globalFlowSpeed: 1.0             // Coherence flow animation speed
+                });
+                console.log('[main.js] SynergyResonanceShaderPack_v1 initialized ✓');
+            } catch (err) {
+                console.warn('[main.js] SynergyResonanceShaderPack_v1 failed:', err);
             }
-            this.scheduleSceneShaderWarmup('synergy-shader-prime');
-        } catch (err) {
-            console.warn('[main.js] Synergy shader priming failed:', err);
+
+            try {
+                const currentLinks = this.linkingSystem?.links || this.nodeLinking?.links || [];
+                this.primeLinkShaderMaterials(currentLinks, 'synergy-shader-prime');
+            } catch (err) {
+                console.warn('[main.js] Synergy shader priming failed:', err);
+            }
+        } else {
+            this.synergyBonusFXLayer = null;
+            this.synergyResonanceShaderPack = null;
+            console.log('[main.js] Synergy shader stack disabled via ATOMA_FLAGS.visual.disableSynergyShaderStacks');
         }
 
         // ====================================================================
@@ -12109,6 +12118,27 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
     scheduleVisualOnce(fn) {
         this.scheduleSemanticOnce(fn, { priority: this.semanticBus?.priority?.NORMAL });
+    }
+
+    primeLinkShaderMaterials(links = [], reason = 'link-shader-prime') {
+        const linkList = Array.isArray(links) ? links.filter(Boolean) : (links ? [links] : []);
+        if (linkList.length === 0) {
+            return 0;
+        }
+
+        let primedCount = 0;
+        if (this.synergyBonusFXLayer?.primeMaterials) {
+            primedCount += this.synergyBonusFXLayer.primeMaterials(linkList) || 0;
+        }
+        if (this.synergyResonanceShaderPack?.primeMaterials) {
+            primedCount += this.synergyResonanceShaderPack.primeMaterials(linkList) || 0;
+        }
+
+        if (primedCount > 0) {
+            this.scheduleSceneShaderWarmup(reason);
+        }
+
+        return primedCount;
     }
 
     scheduleSceneShaderWarmup(reason = 'scene') {
@@ -14693,6 +14723,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                         targetPosition: targetNode?.position ? { x: targetNode.position.x, y: targetNode.position.y, z: targetNode.position.z } : null,
                         intensity: link?.userData?.synergy?.score ?? link?.synergyScore ?? link?.userData?.metrics?.synergy ?? 0
                     });
+                    if (link) {
+                        this.primeLinkShaderMaterials(link, 'link-created-shader-prime');
+                    }
                 }), {
                     layerKey: 'LINK_WAVE',
                     immediate: true
@@ -15063,20 +15096,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 };
             }
 
-            // Register CascadingRuptureSystem update loop to FrameScheduler
-            if (this.frameScheduler && this.cascadingRuptures && !this.frameScheduler.isRegistered?.('simulation.cascadingRuptures')) {
-                this.frameScheduler.register('simulation', (dt) => {
-                    if (this.cascadingRuptures && this.cascadingRuptures.enabled) {
-                        this.cascadingRuptures.update(
-                            dt,
-                            this.time,
-                            this.cascadingRuptures,
-                            this.harmonyStabilizationSystem
-                        );
-                    }
-                }, 'simulation.cascadingRuptures');
-                console.log('[main.js] CascadingRuptureSystem registered to FrameScheduler ✓');
-            }
+            // NOTE: CascadingRuptureSystem is already registered to FrameScheduler
+            // in the slow semantic block (simulation.cascadingRuptures).
+            // No duplicate registration here — the guard above was redundant.
 
             // Register HarmonicCascadeAmplification update loop to FrameScheduler
             if (this.frameScheduler && this.harmonicCascadeAmplification) {
@@ -17806,6 +17828,34 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 window.game.proceduralMeaningEngine.enabled = false;
                 console.log('✓ Procedural Meaning Engine 1.0 disabled');
             }
+        };
+
+        window.disableSynergyShaderStacks = function () {
+            const game = window.game;
+            if (!game) {
+                console.warn('Synergy shader stacks disabled flag set, but game is not initialized yet');
+                window.ATOMA_DISABLE_SYNERGY_SHADER_STACK = true;
+                window.ATOMA_FLAGS = window.ATOMA_FLAGS || {};
+                window.ATOMA_FLAGS.visual = window.ATOMA_FLAGS.visual || {};
+                window.ATOMA_FLAGS.visual.disableSynergyShaderStacks = true;
+                return;
+            }
+
+            window.ATOMA_DISABLE_SYNERGY_SHADER_STACK = true;
+            window.ATOMA_FLAGS = window.ATOMA_FLAGS || {};
+            window.ATOMA_FLAGS.visual = window.ATOMA_FLAGS.visual || {};
+            window.ATOMA_FLAGS.visual.disableSynergyShaderStacks = true;
+
+            try {
+                game.synergyBonusFXLayer?.dispose?.();
+                game.synergyResonanceShaderPack?.dispose?.();
+            } catch (err) {
+                console.warn('[main.js] Synergy shader stack disposal failed:', err);
+            }
+
+            game.synergyBonusFXLayer = null;
+            game.synergyResonanceShaderPack = null;
+            console.log('✓ Synergy shader stacks disabled');
         };
 
         // ========== COMPUTE SYNERGY SCORE 2.0 DEBUG COMMANDS ==========

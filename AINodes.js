@@ -2792,6 +2792,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // Use stable nodeRoot as reference point
     const nodeRoot = node.userData.nodeRoot || node;
     const nodeCategory = data.category || node.userData.category || '';
+    const disableHologramShell = nodeRoot.userData?.disableHologramShell === true;
     const coreMesh = findDescendantByPredicate(nodeRoot, (child) =>
       child.isMesh && child.userData.visualLayer === 'CORE' && !child.userData.isHologramShell
     );
@@ -2799,7 +2800,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
                         nodeCategory.toLowerCase().includes('quantum') ||
                         nodeCategory.toLowerCase().includes('procedural');
     
-    if (isRiskyNode) {
+    if (isRiskyNode && !disableHologramShell) {
       // Find core mesh in stable nodeRoot and verify shell integrity
       if (coreMesh) {
         reassertNodeHologramShell(nodeRoot, coreMesh, node.userData.color || 0x00ffff);
@@ -3376,12 +3377,15 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         if (issue.type === 'MISSING_HOLOGRAM_SHELL') {
           // Re-assert hologram shell
           const nodeRoot = node.userData.nodeRoot || node;
-          const coreMesh = findDescendantByPredicate(nodeRoot, (child) =>
-            child.isMesh && child.userData.visualLayer === 'CORE'
-          );
-          if (coreMesh) {
-            reassertNodeHologramShell(nodeRoot, coreMesh, node.userData.color || 0x00ffff);
-            fixed = true;
+          const disableHologramShell = nodeRoot.userData?.disableHologramShell === true;
+          if (!disableHologramShell) {
+            const coreMesh = findDescendantByPredicate(nodeRoot, (child) =>
+              child.isMesh && child.userData.visualLayer === 'CORE'
+            );
+            if (coreMesh) {
+              reassertNodeHologramShell(nodeRoot, coreMesh, node.userData.color || 0x00ffff);
+              fixed = true;
+            }
           }
         }
 

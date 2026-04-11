@@ -56,7 +56,7 @@ export class PHASE5_CascadePropagationVisuals {
       threatCascadeColor: config.threatCascadeColor ?? 0xff6600,
       
       // Ring intensity
-      baseOpacity: config.baseOpacity ?? 0.96,
+      baseOpacity: config.baseOpacity ?? 0.35,
       emissiveIntensity: config.emissiveIntensity ?? 0.75,
       
       // Performance settings
@@ -352,7 +352,6 @@ export class PHASE5_CascadePropagationVisuals {
       linewidth: this.config.ringThickness * 2,
       fog: false,
       depthWrite: false,
-      depthTest: false,
       blending: THREE.AdditiveBlending
     });
     
@@ -396,8 +395,7 @@ export class PHASE5_CascadePropagationVisuals {
       transparent: true,
       opacity: this.config.rippleOpacity * Math.min(1, 0.5 + ripple.intensity * 0.5),
       blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      depthTest: false
+      depthWrite: false
     });
 
     const rippleLine = new THREE.Line(ringGeometry, rippleMaterial);
@@ -468,10 +466,7 @@ export class PHASE5_CascadePropagationVisuals {
       transparent: true,
       opacity: this.config.baseOpacity,
       fog: false,
-      emissive: color,
-      emissiveIntensity: this.config.emissiveIntensity,
       depthWrite: false,
-      depthTest: false,
       blending: THREE.AdditiveBlending
     });
     

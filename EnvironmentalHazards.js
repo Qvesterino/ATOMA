@@ -73,7 +73,7 @@ export class EnvironmentalHazards {
   /**
    * Create electrical storm hazard
    */
-  createElectricalStorm(position, radius = 30, intensity = 1) {
+  createElectricalStorm(position, radius = 18, intensity = 1) {
     const hazard = {
       type: 'electricalStorm',
       identity: 'thunder crown',
@@ -108,7 +108,7 @@ export class EnvironmentalHazards {
         depthWrite: false
       })
     );
-    core.scale.setScalar(radius * 0.35);
+    core.scale.setScalar(radius * 0.22);
     const shell = new THREE.Mesh(
       this._sharedUnitSphereGeometry,
       new THREE.MeshBasicMaterial({
@@ -119,18 +119,18 @@ export class EnvironmentalHazards {
         depthWrite: false
       })
     );
-    shell.scale.setScalar(radius * 0.95);
+    shell.scale.setScalar(radius * 0.7);
     const ringA = new THREE.Mesh(
       this._sharedUnitTorusGeometry,
       this._sharedOrbitMaterial.clone()
     );
-    ringA.scale.setScalar(radius * 0.7);
+    ringA.scale.setScalar(radius * 0.5);
     ringA.rotation.x = Math.PI * 0.5;
     const ringB = new THREE.Mesh(
       this._sharedUnitTorusGeometry,
       this._sharedOrbitMaterial.clone()
     );
-    ringB.scale.setScalar(radius * 1.05);
+    ringB.scale.setScalar(radius * 0.75);
     
     ringB.rotation.y = Math.PI * 0.35;
     const backplate = new THREE.Mesh(
@@ -255,7 +255,7 @@ export class EnvironmentalHazards {
   /**
    * Create gravitational anomaly
    */
-  createGravitationalAnomaly(position, radius = 25, strength = 1) {
+  createGravitationalAnomaly(position, radius = 15, strength = 1) {
     const hazard = {
       type: 'gravitationalAnomaly',
       identity: 'singularity eclipse',
@@ -289,7 +289,7 @@ export class EnvironmentalHazards {
         depthWrite: false
       })
     );
-    core.scale.setScalar(radius * 0.28);
+    core.scale.setScalar(radius * 0.18);
     
     const accretionRing = new THREE.Mesh(
       this._sharedUnitRingGeometry,
@@ -320,7 +320,7 @@ export class EnvironmentalHazards {
     const veil = new THREE.Mesh(
       this._sharedUnitPlaneGeometry,
       new THREE.MeshBasicMaterial({
-        color: HAZARD_PALETTE.voidDeep,
+        color: HAZARD_PALETTE.deepVoid,
         transparent: true,
         opacity: 0.08,
         side: THREE.DoubleSide,
@@ -593,7 +593,10 @@ export class EnvironmentalHazards {
 
     if (!hazard) return;
     hazard.active = false;
-    if (hazard.group) this.root.remove(hazard.group);
+
+    // Handle both stormGroup (electrical storm) and group (gravitational anomaly)
+    const groupToRemove = hazard.stormGroup || hazard.group;
+    if (groupToRemove) this.root.remove(groupToRemove);
 
     if (Array.isArray(hazard.bolts)) {
       hazard.bolts.forEach(bolt => {
@@ -735,6 +738,15 @@ export class EnvironmentalHazards {
     }
     const after = (phase - envelope.birth - envelope.crest - envelope.decay) / envelope.afterglow;
     return Math.max(0, 1 - after);
+  }
+
+  _getHazardSignalModifiers() {
+    return {
+      corruptionHigh: this._isSignalActive('corruption.high'),
+      loadPressureHigh: this._isSignalActive('loadPressure.high'),
+      stabilityLow: this._isSignalActive('stability.low'),
+      stabilityHigh: this._isSignalActive('stability.high')
+    };
   }
 
   _emitHazardEvent(eventName, hazard) {

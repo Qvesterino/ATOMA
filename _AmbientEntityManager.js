@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { AmbientEntityRegistry } from './_AmbientEntityRegistry.js';
-import { canEmissive, safeSetEmissive } from './_EmissiveUtils.js';
 
 /**
  * AMBIENT ENTITY MANAGER
@@ -268,88 +267,136 @@ export class AmbientEntityManager {
   }
   
   /**
-   * Create Ghost Orb - floating glowing sphere
+   * Create Ghost Orb - layered ethereal glow with animated geometry
    */
   createGhostOrb(entity) {
     const group = new THREE.Group();
-    
-    // Core wireframe skirt
-    const coreGeometry = new THREE.IcosahedronGeometry(0.3, 1);
-    const coreMaterial = new THREE.MeshBasicMaterial({
+
+    // Outer atmospheric shell — soft BackSide glow
+    const outerGeo = new THREE.IcosahedronGeometry(0.55, 2);
+    const outerMat = new THREE.MeshBasicMaterial({
+      color: 0x00ddff,
+      transparent: true,
+      opacity: 0.06,
+      side: THREE.BackSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const outer = new THREE.Mesh(outerGeo, outerMat);
+    outer.name = 'outerShell';
+    group.add(outer);
+
+    // Mid-layer wireframe icosahedron — rotating cage of light
+    const midGeo = new THREE.IcosahedronGeometry(0.3, 1);
+    const midMat = new THREE.MeshBasicMaterial({
       color: 0x00ffff,
       wireframe: true,
       transparent: true,
-      opacity: 0.6
+      opacity: 0.45,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
     });
-    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    const mid = new THREE.Mesh(midGeo, midMat);
+    mid.name = 'midCage';
+    group.add(mid);
+
+    // Inner core — soft pulsing point light
+    const coreGeo = new THREE.IcosahedronGeometry(0.1, 2);
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.7,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const core = new THREE.Mesh(coreGeo, coreMat);
+    core.name = 'innerCore';
     group.add(core);
 
-    // Inner glow sphere
-    const innerGlowGeometry = new THREE.SphereGeometry(0.15, 16, 16);
-    const innerGlowMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      emissive: 0xffffff,
-      emissiveIntensity: 0.9,
+    // Secondary ring orbit — thin torus for depth
+    const ringGeo = new THREE.TorusGeometry(0.35, 0.008, 8, 32);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x88ffff,
       transparent: true,
-      opacity: 0.8
+      opacity: 0.25,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
     });
-    const innerGlow = new THREE.Mesh(innerGlowGeometry, innerGlowMaterial);
-    group.add(innerGlow);
-    
-    // Glow halo
-    const haloGeometry = new THREE.SphereGeometry(0.8, 16, 16);
-    const haloMaterial = new THREE.MeshBasicMaterial({
-      color: 0x00ddff,
-      transparent: true,
-      opacity: 0.15,
-      side: THREE.BackSide
-    });
-    const halo = new THREE.Mesh(haloGeometry, haloMaterial);
-    group.add(halo);
-    
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.name = 'orbitRing';
+    ring.rotation.x = Math.PI * 0.5;
+    group.add(ring);
+
     group.userData.type = 'GHOST_ORB';
-    group.userData.floatAmplitude = Math.random() * 0.5;
-    group.userData.floatSpeed = 0.5 + Math.random() * 1.5;
+    group.userData.floatAmplitude = 0.2 + Math.random() * 0.3;
+    group.userData.floatSpeed = 0.4 + Math.random() * 1.0;
     group.userData.floatTime = 0;
-    
+
     return group;
   }
   
   /**
-   * Create AI Spectre - thin holographic silhouette
+   * Create AI Spectre - holographic vertical scan figure with layered rings
    */
   createAISpectre(entity) {
     const group = new THREE.Group();
 
-    // Vertical hologram body
-    const torusGeometry = new THREE.TorusGeometry(0.3, 0.03, 8, 32);
-    const torusMaterial = new THREE.MeshBasicMaterial({
-      color: 0xff0088,
-      transparent: true,
-      opacity: 0.3
-    });
-    const body = new THREE.Mesh(torusGeometry, torusMaterial);
-    body.rotation.x = Math.PI / 2;
-    body.position.y = 0.3;
-    group.add(body);
+    // Multiple horizontal scan rings at different heights
+    const ringCount = 5;
+    for (let i = 0; i < ringCount; i++) {
+      const y = (i / (ringCount - 1)) * 1.8 - 0.3;
+      const radius = 0.15 + Math.sin((i / ringCount) * Math.PI) * 0.2;
+      const ringGeo = new THREE.TorusGeometry(radius, 0.012, 6, 24);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0xff0088,
+        transparent: true,
+        opacity: 0.22 + (i % 2) * 0.08,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = y;
+      ring.name = `scanRing_${i}`;
+      group.add(ring);
+    }
 
-    // Scanline overlay
-    const scanlineGeometry = new THREE.PlaneGeometry(0.8, 2);
-    const scanlineMaterial = new THREE.MeshBasicMaterial({
+    // Vertical spine line
+    const spinePoints = [];
+    for (let i = 0; i <= 12; i++) {
+      const t = i / 12;
+      spinePoints.push(new THREE.Vector3(0, t * 2.0 - 0.3, 0));
+    }
+    const spineGeo = new THREE.BufferGeometry().setFromPoints(spinePoints);
+    const spineMat = new THREE.LineBasicMaterial({
+      color: 0xff44aa,
+      transparent: true,
+      opacity: 0.15,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const spine = new THREE.Line(spineGeo, spineMat);
+    spine.name = 'spine';
+    group.add(spine);
+
+    // Scanline sweep plane
+    const scanlineGeo = new THREE.PlaneGeometry(0.6, 0.04);
+    const scanlineMat = new THREE.MeshBasicMaterial({
       color: 0xff0088,
       transparent: true,
-      opacity: 0.1,
-      side: THREE.DoubleSide
+      opacity: 0.18,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
     });
-    const scanline = new THREE.Mesh(scanlineGeometry, scanlineMaterial);
+    const scanline = new THREE.Mesh(scanlineGeo, scanlineMat);
     scanline.name = 'scanline';
-    scanline.position.y = 1.0;
+    scanline.position.y = 0.5;
     group.add(scanline);
 
     group.userData.type = 'AI_SPECTRE';
     group.userData.glitchTimer = 0;
     group.userData.glitchIntensity = 0;
-    group.userData.body = body;
     return group;
   }
   
@@ -389,11 +436,10 @@ export class AmbientEntityManager {
       const colorHex = this.lerpColor(0xaaff00, 0xffff00, distFactor);
       const material = new THREE.MeshBasicMaterial({
         color: colorHex,
-        emissive: colorHex,
-        emissiveIntensity: 0.6,
         transparent: true,
         opacity: 0.7,
-        wireframe: false
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
       });
       const fragment = new THREE.Mesh(geometry, material);
 
@@ -494,11 +540,10 @@ export class AmbientEntityManager {
     const pixelSize = 0.5;
     const material = new THREE.MeshBasicMaterial({
       color: 0xff00ff,
-      emissive: 0xff00ff,
-      emissiveIntensity: 0.8,
       transparent: true,
-      opacity: 0.3,
-      wireframe: false
+      opacity: 0.25,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
     });
 
     // Head
@@ -618,10 +663,8 @@ export class AmbientEntityManager {
     for (let i = 0; i < 2; i++) {
       const ribbonMat = new THREE.MeshBasicMaterial({
         color: 0x00ffff,
-        emissive: 0x00ffff,
-        emissiveIntensity: 0.4,
         transparent: true,
-        opacity: 0.16,
+        opacity: 0.14,
         side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending,
         depthWrite: false
@@ -757,40 +800,51 @@ export class AmbientEntityManager {
    * Update Ghost Orb visuals
    */
   updateGhostOrbVisuals(mesh, entity, fadeProgress, deltaTime) {
-    const time = Date.now() * 0.001;
     mesh.userData.floatTime = (mesh.userData.floatTime || 0) + deltaTime;
-    
+    const ft = mesh.userData.floatTime;
+
     // Float up / wobble
-    const floatOffset = Math.sin(mesh.userData.floatTime * mesh.userData.floatSpeed)
-      * mesh.userData.floatAmplitude;
-    const wobble = Math.sin(mesh.userData.floatTime * 2.5) * 0.08;
+    const floatOffset = Math.sin(ft * mesh.userData.floatSpeed) * mesh.userData.floatAmplitude;
+    const wobble = Math.sin(ft * 2.5) * 0.06;
     mesh.position.y = entity.position.y + floatOffset + wobble;
-    
-    // Rotate gently
-    mesh.rotation.y += deltaTime * 0.3;
-    
-    // Color shift over time
-    const colorTime = Date.now() * 0.0003;
-    const hue = colorTime % 1.0;
-    const color = new THREE.Color().setHSL(hue, 1.0, 0.5);
-    if (mesh.children[0]?.material) {
-      mesh.children[0].material.color.copy(color);
+
+    // Gentle rotation
+    mesh.rotation.y += deltaTime * 0.25;
+
+    // Color shift — slow hue drift
+    const hue = (Date.now() * 0.00008) % 1.0;
+    const color = new THREE.Color().setHSL(hue, 0.8, 0.55);
+
+    const midCage = mesh.getObjectByName('midCage');
+    if (midCage) {
+      midCage.material.color.copy(color);
+      midCage.rotation.x += deltaTime * 0.4;
+      midCage.rotation.z += deltaTime * 0.2;
     }
-    if (mesh.children[2]?.material) {
-      mesh.children[2].material.color.copy(color);
+
+    const outerShell = mesh.getObjectByName('outerShell');
+    if (outerShell) {
+      outerShell.material.color.copy(color);
+      const breathe = 1.0 + Math.sin(ft * 1.5) * 0.08;
+      outerShell.scale.setScalar(breathe);
     }
-    
-    // Inner pulse
-    const pulseTime = Date.now() * 0.002;
-    const pulse = 0.5 + 0.5 * Math.sin(pulseTime);
-    if (mesh.children[1]?.material) {
-      mesh.children[1].material.opacity = 0.6 + pulse * 0.4;
+
+    // Inner core pulse
+    const pulse = 0.5 + 0.5 * Math.sin(ft * 3.0);
+    const innerCore = mesh.getObjectByName('innerCore');
+    if (innerCore) {
+      innerCore.material.opacity = (0.5 + pulse * 0.5) * (1 - fadeProgress);
+      const coreScale = 0.8 + pulse * 0.3;
+      innerCore.scale.setScalar(coreScale);
     }
-    if (mesh.children[0]) {
-      const pulseScale = 1 + pulse * 0.1;
-      mesh.children[0].scale.setScalar(pulseScale);
+
+    // Orbit ring tilt
+    const orbitRing = mesh.getObjectByName('orbitRing');
+    if (orbitRing) {
+      orbitRing.rotation.x = Math.PI * 0.5 + Math.sin(ft * 0.8) * 0.3;
+      orbitRing.rotation.z = ft * 0.6;
     }
-    
+
     // Fade visibility
     mesh.children.forEach((child) => {
       if (child.material && child.material.transparent) {
@@ -805,58 +859,48 @@ export class AmbientEntityManager {
    */
   updateSpectreVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.glitchTimer += deltaTime;
+    const gt = mesh.userData.glitchTimer;
 
-    // Scanline sweep
+    // Scanline sweep — moves up and down
     const scanline = mesh.getObjectByName('scanline');
     if (scanline) {
-      const scanTime = (Date.now() * 0.001) % 2.0;
-      const scanY = 1.0 - scanTime * 1.0;
+      const scanCycle = (gt * 0.6) % 2.4;
+      const scanY = -0.3 + (scanCycle < 1.2 ? scanCycle / 1.2 : (2.4 - scanCycle) / 1.2) * 2.1;
       scanline.position.y = scanY;
-      const edgeFade = Math.min(1, Math.min(scanTime, 2 - scanTime) / 0.5);
-      scanline.material.opacity = 0.1 * edgeFade * entity.intensity;
+      const edgeFade = Math.min(1, Math.min(scanCycle, 2.4 - scanCycle) / 0.4);
+      scanline.material.opacity = 0.18 * edgeFade * entity.intensity * (1 - fadeProgress);
     }
 
-    // Chromatic glitch effect
-    if (Math.random() < 0.02) {
-      const offset = (Math.random() - 0.5) * 0.5;
-      const body = mesh.userData.body || mesh.children[0];
-      if (body) {
-        body.position.x = offset;
-        if (!mesh.userData.chromaClone) {
-          const clone = body.clone();
-          clone.material = body.material.clone();
-          clone.material.color.setHex(0x0088ff);
-          clone.material.opacity = 0.2;
-          clone.userData.isChroma = true;
-          mesh.add(clone);
-          mesh.userData.chromaClone = clone;
-        }
-        if (mesh.userData.chromaClone) {
-          mesh.userData.chromaClone.position.x = -offset * 1.5;
-        }
-        setTimeout(() => {
-          if (mesh.userData && mesh.userData.chromaClone) {
-            mesh.remove(mesh.userData.chromaClone);
-            mesh.userData.chromaClone = null;
-          }
-          if (body) {
-            body.position.x = 0;
-          }
-        }, 50);
+    // Animate scan rings — subtle breathing
+    for (let i = 0; i < 5; i++) {
+      const ring = mesh.getObjectByName(`scanRing_${i}`);
+      if (ring) {
+        const breathe = 1.0 + Math.sin(gt * 2.0 + i * 0.8) * 0.06;
+        ring.scale.setScalar(breathe);
+        ring.rotation.z += deltaTime * (0.2 + i * 0.05);
       }
     }
 
-    mesh.userData.glitchIntensity *= 0.95;
+    // Spine flicker
+    const spine = mesh.getObjectByName('spine');
+    if (spine) {
+      spine.material.opacity = (0.08 + Math.sin(gt * 6) * 0.04) * entity.intensity * (1 - fadeProgress);
+    }
 
-    // Flicker with gradient noise
-    const flickerBase = 0.05;
-    const flickerSpeed = 8;
-    const flickerRange = 0.08;
-    const flicker = flickerBase + Math.sin(mesh.userData.glitchTimer * flickerSpeed) * flickerRange;
-    const noiseFlicker = Math.random() * 0.03;
+    // Chromatic glitch — offset entire group briefly
+    if (Math.random() < 0.015) {
+      const offset = (Math.random() - 0.5) * 0.3;
+      mesh.position.x += offset;
+      setTimeout(() => {
+        if (mesh.userData) mesh.position.x -= offset;
+      }, 60);
+    }
+
+    // Overall opacity flicker
+    const flicker = 0.08 + Math.sin(gt * 8) * 0.04 + Math.random() * 0.02;
     mesh.traverse((child) => {
-      if (child.material && child.material.opacity !== undefined && !child.userData.isChroma) {
-        child.material.opacity = (0.1 + flicker + noiseFlicker) * entity.intensity * (1 - fadeProgress);
+      if (child.material && child.material.opacity !== undefined && child.name !== 'scanline') {
+        child.material.opacity = Math.min(child.material.opacity, flicker * entity.intensity * (1 - fadeProgress) * 3);
       }
     });
   }
@@ -1092,7 +1136,46 @@ export class AmbientEntityManager {
     this.registry.clearAll();
     this.entityMeshes = {};
     this.entityParticles = {};
+    this.entityTrailParticles = {};
     this.interpretationAccumulator = this.interpretationInterval;
     this.refreshAmbientInterpretation();
+  }
+
+  /**
+   * Dispose — clean up all resources and remove from scene
+   */
+  dispose() {
+    // Remove all entity meshes
+    for (const id in this.entityMeshes) {
+      const mesh = this.entityMeshes[id];
+      if (mesh) {
+        mesh.traverse((child) => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach(m => m.dispose());
+            } else {
+              child.material.dispose();
+            }
+          }
+        });
+        if (mesh.parent) mesh.parent.remove(mesh);
+      }
+    }
+    this.entityMeshes = {};
+    this.entityParticles = {};
+    this.entityTrailParticles = {};
+
+    // Clear registry
+    if (this.registry && typeof this.registry.clearAll === 'function') {
+      this.registry.clearAll();
+    }
+
+    // Remove VFX container from scene
+    if (this.vfxContainer) {
+      if (this.vfxContainer.parent) {
+        this.vfxContainer.parent.remove(this.vfxContainer);
+      }
+    }
   }
 }

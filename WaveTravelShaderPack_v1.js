@@ -293,6 +293,28 @@ export class WaveTravelShaderPack_v1 {
             this.materialProfiles.set(material, profile);
             this._recordRegistrationTrace(material, profile);
 
+            if (!material.userData) material.userData = {};
+            if (!material.userData.__waveTravelProgramCacheKeyBound) {
+                const previousKey = typeof material.customProgramCacheKey === 'function'
+                    ? material.customProgramCacheKey.bind(material)
+                    : null;
+                const cacheSignature = [
+                    'ATOMA_WAVE_TRAVEL_v2',
+                    profile,
+                    material.type || 'unknown',
+                    material.transparent === true ? 'transparent' : 'opaque',
+                    material.depthWrite === true ? 'depth-write' : 'no-depth-write',
+                    material.depthTest === true ? 'depth-test' : 'no-depth-test',
+                    material.side ?? 'default',
+                    material.blending ?? 'normal'
+                ].join('|');
+                material.customProgramCacheKey = () => {
+                    const previous = previousKey ? String(previousKey() ?? '') : '';
+                    return previous ? `${previous}|${cacheSignature}` : cacheSignature;
+                };
+                material.userData.__waveTravelProgramCacheKeyBound = true;
+            }
+
             // Store original onBeforeCompile
             this.originalOnBeforeCompile.set(material, material.onBeforeCompile || (() => {}));
 
@@ -388,6 +410,28 @@ export class WaveTravelShaderPack_v1 {
 
             // Update profile
             this.materialProfiles.set(material, profile);
+
+            if (!material.userData) material.userData = {};
+            if (!material.userData.__waveTravelProgramCacheKeyBound) {
+                const previousKey = typeof material.customProgramCacheKey === 'function'
+                    ? material.customProgramCacheKey.bind(material)
+                    : null;
+                const cacheSignature = [
+                    'ATOMA_WAVE_TRAVEL_v2',
+                    profile,
+                    material.type || 'unknown',
+                    material.transparent === true ? 'transparent' : 'opaque',
+                    material.depthWrite === true ? 'depth-write' : 'no-depth-write',
+                    material.depthTest === true ? 'depth-test' : 'no-depth-test',
+                    material.side ?? 'default',
+                    material.blending ?? 'normal'
+                ].join('|');
+                material.customProgramCacheKey = () => {
+                    const previous = previousKey ? String(previousKey() ?? '') : '';
+                    return previous ? `${previous}|${cacheSignature}` : cacheSignature;
+                };
+                material.userData.__waveTravelProgramCacheKeyBound = true;
+            }
 
             // Force shader recompilation on next render
             material.needsUpdate = true;

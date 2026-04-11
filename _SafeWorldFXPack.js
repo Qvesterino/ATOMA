@@ -1213,8 +1213,8 @@ export class SafeWorldFXPack {
     const ringFinal = coreColor.clone().lerp(edgeColor, 0.45).lerp(whiteHighlight, 0.12);
     const haloFinal = edgeColor.clone().lerp(coreColor, 0.46).lerp(whiteHighlight, 0.08);
 
-    // Dark axiomatic core
-    const coreGeo = this._getSharedGeometry('quantum_rift.core.geo', () => new THREE.IcosahedronGeometry(8, 3));
+    // Dark axiomatic core (reduced from 8 to 4 for less intrusiveness)
+    const coreGeo = this._getSharedGeometry('quantum_rift.core.geo', () => new THREE.IcosahedronGeometry(4, 2));
     const coreMat = new THREE.MeshStandardMaterial({
       color: coreFinal,
       emissive: coreFinal,
@@ -1233,8 +1233,8 @@ export class SafeWorldFXPack {
     coreMesh.userData = { isWorldFX: true, type: 'quantum_rift_core', signature: 'revelation_breach_core' };
     this.root.add(coreMesh);
 
-    // Accretion ring
-    const ringGeo = this._getSharedGeometry('quantum_rift.ring.geo', () => new THREE.TorusGeometry(14, 1.4, 10, 80));
+    // Accretion ring (reduced from 14 to 8 for subtlety)
+    const ringGeo = this._getSharedGeometry('quantum_rift.ring.geo', () => new THREE.TorusGeometry(8, 0.8, 10, 64));
     const ringMat = new THREE.MeshStandardMaterial({
       color: ringFinal,
       emissive: ringFinal,
@@ -1258,8 +1258,8 @@ export class SafeWorldFXPack {
     const haloGeo = this._getSharedGeometry('quantum_rift.halo.geo', () => {
       const geo = new THREE.BufferGeometry();
       const points = [];
-      const segments = 56;
-      const radius = 22;
+      const segments = 48;
+      const radius = 14;
       for (let i = 0; i <= segments; i++) {
         const angle = (i / segments) * Math.PI * 2;
         points.push(new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius));
@@ -1282,7 +1282,7 @@ export class SafeWorldFXPack {
     this.root.add(haloMesh);
 
     // Veil omen
-    const veilGeo = this._getSharedGeometry('quantum_rift.veil.geo', () => new THREE.RingGeometry(18, 37, 32));
+    const veilGeo = this._getSharedGeometry('quantum_rift.veil.geo', () => new THREE.RingGeometry(10, 22, 32));
     const veilMat = new THREE.MeshBasicMaterial({
       color: whiteHighlight,
       transparent: true,
@@ -1828,13 +1828,11 @@ export class SafeWorldFXPack {
     
     // Clean quantum rifts
     this.vfxLayers.quantumRifts.forEach(rift => {
-      if (rift.mesh) {
-        this.root.remove(rift.mesh);
-        this._releaseMeshResources(rift.mesh);
-      }
-      rift.ripples.forEach(r => {
-        this.root.remove(r.mesh);
-        this._releaseMeshResources(r.mesh);
+      ['core', 'ring', 'halo', 'veil'].forEach(part => {
+        if (rift[part]) {
+          this.root.remove(rift[part]);
+          this._releaseMeshResources(rift[part]);
+        }
       });
     });
     
