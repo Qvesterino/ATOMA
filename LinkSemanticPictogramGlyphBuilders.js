@@ -187,8 +187,8 @@ export class LinkSemanticPictogramGlyphBuilders {
         const mat = this.getMaterialFromPool(0xffffff, 1.0, THREE.AdditiveBlending);
         const lockMat = this.getMaterialFromPool(0x9db2ff, 0.28, THREE.AdditiveBlending);
 
-        const outer = size * 0.28;
-        const inner = size * 0.16;
+        const outer = size * 0.14;
+        const inner = size * 0.08;
         const shape = new THREE.Shape();
         shape.moveTo(-outer, -outer);
         shape.lineTo(outer, -outer);
@@ -204,7 +204,7 @@ export class LinkSemanticPictogramGlyphBuilders {
         shape.holes.push(hole);
 
         const frameGeom = new THREE.ExtrudeGeometry(shape, {
-            depth: Math.max(0.008, size * 0.012),
+            depth: Math.max(0.008, size * 0.006),
             bevelEnabled: false
         });
         frameGeom.rotateX(-Math.PI / 2);
@@ -213,15 +213,15 @@ export class LinkSemanticPictogramGlyphBuilders {
         group.add(frame);
 
         const lockRing = new THREE.Mesh(this.getGeometryFromCache('torus_small'), lockMat);
-        lockRing.scale.setScalar(size * 0.35);
+        lockRing.scale.setScalar(size * 0.175);
         lockRing.renderOrder = renderOrder;
         group.add(lockRing);
 
         const innerGeom = this.getGeometryFromCache('plane_diamond').clone();
-        innerGeom.scale(size * 0.4, size * 0.4, 1);
+        innerGeom.scale(size * 0.2, size * 0.2, 1);
         const innerMesh = new THREE.Mesh(innerGeom, mat);
         innerMesh.rotation.z = Math.PI / 4;
-        innerMesh.position.set(0, 0, size * 0.008);
+        innerMesh.position.set(0, 0, size * 0.004);
         innerMesh.renderOrder = renderOrder;
         group.add(innerMesh);
 
@@ -235,8 +235,8 @@ export class LinkSemanticPictogramGlyphBuilders {
         ];
         anchorOffsets.forEach(([x, y], index) => {
             const anchor = new THREE.Mesh(this.getGeometryFromCache('sphere_spark'), anchorMat);
-            anchor.position.set(x, y, size * 0.018);
-            anchor.scale.setScalar(size * 0.18);
+            anchor.position.set(x, y, size * 0.009);
+            anchor.scale.setScalar(size * 0.09);
             anchor.renderOrder = renderOrder;
             anchor.userData.basePosition = anchor.position.clone();
             anchor.userData.phase = index * 1.7;
@@ -245,12 +245,12 @@ export class LinkSemanticPictogramGlyphBuilders {
         });
 
         const braceX = new THREE.Mesh(this.getGeometryFromCache('box_beam'), lockMat);
-        braceX.scale.set(size * 0.45, size * 0.08, size * 0.08);
+        braceX.scale.set(size * 0.225, size * 0.04, size * 0.04);
         braceX.renderOrder = renderOrder;
         group.add(braceX);
 
         const braceZ = new THREE.Mesh(this.getGeometryFromCache('box_beam'), lockMat);
-        braceZ.scale.set(size * 0.45, size * 0.08, size * 0.08);
+        braceZ.scale.set(size * 0.225, size * 0.04, size * 0.04);
         braceZ.rotation.z = Math.PI / 2;
         braceZ.renderOrder = renderOrder;
         group.add(braceZ);

@@ -89,9 +89,9 @@ export class LinkResonanceFlowSystem_Session124 {
       stabilityOpacityBoost: config.stabilityOpacityBoost ?? 0.24,
       
       // Pulse appearance
-      pulseRadiusBase: config.pulseRadiusBase ?? 0.28,
-      pulseRadiusLoadPressureMult: config.pulseRadiusLoadPressureMult ?? config.pulseRadiusSynergyMult ?? 0.18,
-      pulseMaxRadius: config.pulseMaxRadius ?? 0.8,
+      pulseRadiusBase: config.pulseRadiusBase ?? 0.14,
+      pulseRadiusLoadPressureMult: config.pulseRadiusLoadPressureMult ?? config.pulseRadiusSynergyMult ?? 0.09,
+      pulseMaxRadius: config.pulseMaxRadius ?? 0.4,
       pulseGlowIntensity: config.pulseGlowIntensity ?? 1.5,
       pulseSheathOpacity: config.pulseSheathOpacity ?? 0.54,
       pulseTrailOpacity: config.pulseTrailOpacity ?? 0.34,
@@ -1689,7 +1689,7 @@ export class LinkResonanceFlowSystem_Session124 {
     const parts = {};
     const partConfigs = {
       core: {
-        baseScale: [0.30, 0.40, 0.30],
+        baseScale: [0.15, 0.20, 0.15],
         basePosition: [0, 0.02, 0],
         baseRotation: [0.06, 0.12, 0.0],
         rotationSpeed: [0.18, 0.28, 0.16],
@@ -1713,7 +1713,7 @@ export class LinkResonanceFlowSystem_Session124 {
         lodVisibleAt: 0.5,
       },
       sheath: {
-        baseScale: [0.66, 0.88, 0.66],
+        baseScale: [0.33, 0.44, 0.33],
         basePosition: [0, -0.03, 0],
         baseRotation: [0.08, 0.18, 0.02],
         rotationSpeed: [0.1, -0.12, 0.12],
@@ -1737,7 +1737,7 @@ export class LinkResonanceFlowSystem_Session124 {
         lodVisibleAt: 0.56,
       },
       shellOuter: {
-        baseScale: [1.1, 1.28, 1.1],
+        baseScale: [0.55, 0.64, 0.55],
         basePosition: [0, 0.05, 0],
         baseRotation: [0.14, 0.34, 0.08],
         rotationSpeed: [0.05, 0.09, 0.04],
@@ -1761,7 +1761,7 @@ export class LinkResonanceFlowSystem_Session124 {
         lodVisibleAt: 0.78,
       },
       trail: {
-        baseScale: [0.06, 1.22, 0.08],
+        baseScale: [0.03, 0.61, 0.04],
         basePosition: [0, -0.36, 0],
         baseRotation: [0.02, 0.18, 0.0],
         rotationSpeed: [0.12, 0.44, 0.1],
@@ -1785,7 +1785,7 @@ export class LinkResonanceFlowSystem_Session124 {
         lodVisibleAt: 0.74,
       },
       overloadA: {
-        baseScale: [0.08, 0.44, 0.08],
+        baseScale: [0.04, 0.22, 0.04],
         basePosition: [0.34, 0.08, 0.02],
         baseRotation: [0.14, 0.46, 0.18],
         rotationSpeed: [0.24, 0.66, 0.16],
@@ -1810,7 +1810,7 @@ export class LinkResonanceFlowSystem_Session124 {
         stateVisibleFor: ['deviate', 'judgment', 'echo'],
       },
       overloadB: {
-        baseScale: [0.07, 0.40, 0.07],
+        baseScale: [0.035, 0.20, 0.035],
         basePosition: [-0.30, -0.06, -0.02],
         baseRotation: [-0.18, -0.42, -0.12],
         rotationSpeed: [-0.18, -0.56, -0.14],
@@ -1835,7 +1835,7 @@ export class LinkResonanceFlowSystem_Session124 {
         stateVisibleFor: ['deviate', 'judgment', 'echo'],
       },
       halo: {
-        baseScale: [1.32, 0.72, 1.24],
+        baseScale: [0.66, 0.36, 0.62],
         basePosition: [0, 0.03, 0],
         baseRotation: [0.18, 0.42, 0.0],
         rotationSpeed: [0.06, 0.08, 0.04],
@@ -1859,7 +1859,7 @@ export class LinkResonanceFlowSystem_Session124 {
         lodVisibleAt: 0.5,
       },
       swirl: {
-        baseScale: [0.74, 0.74, 0.74],
+        baseScale: [0.37, 0.37, 0.37],
         basePosition: [0, 0.02, 0],
         baseRotation: [0.62, 0.18, 0.42],
         rotationSpeed: [0.44, 0.36, 0.28],
@@ -1883,7 +1883,7 @@ export class LinkResonanceFlowSystem_Session124 {
         lodVisibleAt: 0.66,
       },
       echoGhost: {
-        baseScale: [0.84, 0.98, 0.84],
+        baseScale: [0.42, 0.49, 0.42],
         basePosition: [0, -0.04, 0],
         baseRotation: [0.1, 0.28, 0.0],
         rotationSpeed: [0.08, 0.22, 0.1],

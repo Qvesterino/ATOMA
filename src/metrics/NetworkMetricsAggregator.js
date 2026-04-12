@@ -61,7 +61,7 @@ export class NetworkMetricsAggregator {
         const degree = links?.length || 0;
         if (degree === 0) continue;
 
-        this._accumulateNodeMetrics(totals, node.userData.metrics, 1);
+        this._accumulateNodeMetrics(totals, node.userData.metrics, 1, node);
         contributingNodes++;
       }
     }
@@ -145,7 +145,8 @@ export class NetworkMetricsAggregator {
         this._accumulateNodeMetrics(
           totals,
           node.userData.metrics,
-          nodeWeight
+          nodeWeight,
+          node
         );
 
         totalWeight += nodeWeight;
@@ -274,11 +275,12 @@ export class NetworkMetricsAggregator {
     };
   }
 
-  _accumulateNodeMetrics(totals, metrics, weight) {
+  _accumulateNodeMetrics(totals, metrics, weight, node = null) {
+    const archetypeMetrics = node?.userData?.archetypeMetrics || {};
     totals.synergy += (metrics.synergy ?? 0) * weight;
     totals.harmony += (metrics.harmony ?? 0) * weight;
     totals.stability += (metrics.stability ?? 0) * weight;
-    totals.corruption += (metrics.corruption ?? 0) * weight;
+    totals.corruption += Math.max(metrics.corruption ?? 0, archetypeMetrics.corruption ?? 0) * weight;
     totals.loadPressure += (metrics.loadPressure ?? 0) * weight;
   }
 
@@ -286,11 +288,14 @@ export class NetworkMetricsAggregator {
     if (divisor === 0) {
       return this._emptyMetrics();
     }
+    const stability = this._clamp(totals.stability / divisor);
 
     const result = {
       networkSynergy: this._clamp(totals.synergy / divisor),
       harmonyFlow: this._clamp(totals.harmony / divisor),
-      networkStress: this._clamp(totals.stability / divisor),
+      networkStress: this._clamp(1 - stability),
+      stability,
+      stabilityNorm: stability,
       corruptionLevel: this._clamp(totals.corruption / divisor),
       loadPressure: this._clamp(totals.loadPressure / divisor),
 
@@ -319,6 +324,8 @@ export class NetworkMetricsAggregator {
       networkSynergy: 0,
       harmonyFlow: 0,
       networkStress: 0,
+      stability: 1,
+      stabilityNorm: 1,
       corruptionLevel: 0,
       loadPressure: 0,
       nodeCount: 0,

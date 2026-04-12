@@ -196,7 +196,7 @@ function computeTypeSynergy(link, correlationEngine) {
     const cat2 = link.targetNode?.category || link.target?.category || 'unknown';
     
     // Simple category compatibility matrix
-    const compatibility = getCategoeyCompatibility(cat1, cat2);
+    const compatibility = getCategoryCompatibility(cat1, cat2);
     return Math.min(1.0, compatibility);
   } catch (e) {
     return 0.3; // Default moderate synergy
@@ -372,12 +372,17 @@ function computeTopologySynergy(link, linkingSystem) {
  * CATEGORY COMPATIBILITY MATRIX
  * ═══════════════════════════════════════════════════════════════
  */
-function getCategoeyCompatibility(cat1, cat2) {
+function getCategoryCompatibility(cat1, cat2) {
   // Normalize categories
   const c1 = (cat1 || 'unknown').toLowerCase();
   const c2 = (cat2 || 'unknown').toLowerCase();
 
   if (c1 === c2) return 0.8; // Same category = high compatibility
+
+  const specialCategories = new Set(['quantum', 'sigma', 'mythic', 'prime', 'error', 'emotional']);
+  if (specialCategories.has(c1) && specialCategories.has(c2)) {
+    return 0.9; // Special categories are broadly highly compatible with each other
+  }
 
   // Compatibility matrix (symmetric)
   const compat = {
@@ -394,6 +399,13 @@ function getCategoeyCompatibility(cat1, cat2) {
     'sigma-prime': 0.95,
     'sigma-quantum': 0.85,
     'prime-quantum': 0.8,
+    'mythic-prime': 0.95,
+    'mythic-sigma': 0.9,
+    'mythic-quantum': 0.88,
+    'prime-error': 0.8,
+    'error-emotional': 0.75,
+    'prime-emotional': 0.85,
+    'mythic-emotional': 0.85
   };
 
   // Check both directions
@@ -502,7 +514,8 @@ function testPair(cat1, cat2) {
 function testAll() {
   const categories = [
     'control', 'integration', 'analytics', 'process',
-    'storage', 'input', 'sigma', 'prime', 'quantum'
+    'storage', 'input', 'sigma', 'prime', 'quantum',
+    'mythic', 'error', 'emotional'
   ];
 
   console.log('\n═══════════════════════════════════════════════════════════');

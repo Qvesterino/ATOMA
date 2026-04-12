@@ -4,6 +4,7 @@ import { MetricsRuntime_v1 } from '../MetricsRuntime_v1.js';
 import { LinkQualityCalculator } from '../LinkQualityCalculator.js';
 import { HarmonicHubAuraSystem_Session126 } from '../HarmonicHubAuraSystem_Session126.js';
 import { buildScopedMetricEventName } from '../src/metrics/MetricTierClassifier.js';
+import { aggregateNetworkCanonicalMetrics, projectHudMetrics, withGlobalMetricAliases, updateHudMetrics } from '../SemanticMetricAdapter.js';
 
 function createTestBus() {
   const handlers = new Map();
@@ -153,6 +154,57 @@ test('MetricsRuntime_v1 prefers canonical metrics container over legacy top-leve
   assert.ok(Math.abs(aggregated.networkSynergy - 0.9) < 1e-6, 'Expected canonical synergy value from metrics container');
   assert.ok(Math.abs(aggregated.networkStress - 0.2) < 1e-6, 'Expected canonical stability/stress from metrics container');
   assert.ok(Math.abs(aggregated.loadPressure - 0.3) < 1e-6, 'Expected canonical loadPressure value from metrics container');
+});
+
+test('MetricsRuntime_v1 canonical fallback preserves registry stability and corruption values', () => {
+  const node = {
+    userData: {
+      nodeId: 'prime-1',
+      visualCode: 1001,
+      metrics: {
+        synergy: 0.9,
+        harmony: 0.9,
+        stability: 0.9,
+        corruption: 0.005,
+        loadPressure: 0.62
+      }
+    }
+  };
+
+  const runtime = new MetricsRuntime_v1({ nodes: [node], links: [], linkSystem: null, metricsSystems: {} });
+  runtime._ensureNodeCanonicalFallbacks([node]);
+
+  assert.ok(Math.abs(node.userData.metrics.stability - 0.9) < 1e-6, 'Expected stability to survive canonical fallback');
+  assert.ok(Math.abs(node.userData.metrics.corruption - 0.005) < 1e-6, 'Expected corruption to survive canonical fallback');
+  assert.ok(Math.abs(node.userData.stability - 0.9) < 1e-6, 'Expected userData.stability mirror to stay aligned');
+  assert.ok(Math.abs(node.userData.instability - 0.1) < 1e-6, 'Expected userData.instability mirror to stay inverted');
+});
+
+test('SemanticMetricAdapter derives networkStress from stability and preserves stability aliases', () => {
+  const emptyProjected = projectHudMetrics({});
+  assert.strictEqual(emptyProjected.networkStress, 0, 'Expected empty HUD projection to stay neutral, not max stress');
+
+  const projected = projectHudMetrics({ stability: 0.8 });
+  assert.ok(Math.abs(projected.networkStress - 0.2) < 1e-6, 'Expected networkStress to invert stability for HUD projection');
+  assert.ok(Math.abs(projected.stability - 0.8) < 1e-6, 'Expected stability to be preserved for HUD projection');
+  assert.ok(Math.abs(projected.stabilityNorm - 0.8) < 1e-6, 'Expected stabilityNorm to mirror stability');
+
+  const aliased = withGlobalMetricAliases({ stability: 0.8 });
+  assert.ok(Math.abs(aliased.networkStress - 0.2) < 1e-6, 'Expected canonical global aliasing to invert stability into stress');
+  assert.ok(Math.abs(aliased.stability - 0.8) < 1e-6, 'Expected canonical global aliasing to preserve stability');
+  assert.ok(Math.abs(aliased.stabilityNorm - 0.8) < 1e-6, 'Expected stabilityNorm alias to remain stability');
+
+  const hudMetrics = updateHudMetrics(null, { stabilityNorm: 0.8 });
+  assert.ok(Math.abs(hudMetrics.networkStress - 0.2) < 1e-6, 'Expected HUD update to derive stress from vm stabilityNorm');
+});
+
+test('aggregateNetworkCanonicalMetrics returns inverted networkStress for stable nodes', () => {
+  const aggregated = aggregateNetworkCanonicalMetrics([
+    createMockNode({ stability: 0.8 })
+  ]);
+
+  assert.ok(Math.abs(aggregated.stability - 0.8) < 1e-6, 'Expected aggregated stability to match input stability');
+  assert.ok(Math.abs(aggregated.networkStress - 0.2) < 1e-6, 'Expected aggregated networkStress to invert stability');
 });
 
 test('MetricsRuntime_v1 runtime update maintains full canonical __ATOMA_LIVE_METRICS__ shape', () => {

@@ -630,6 +630,15 @@ export class PauseMenu {
             settings.visuals = visualLevels[nextIndex];
         } else if (settingId === 'particles') {
             settings.particles = !settings.particles;
+        } else if (settingId === 'postProcessing') {
+            settings.postProcessing = !settings.postProcessing;
+            if (typeof window !== 'undefined') {
+                if (window.game?.setPostProcessingEnabled) {
+                    window.game.setPostProcessingEnabled(settings.postProcessing);
+                } else {
+                    window.__ATOMA_POSTPROCESSING_PENDING__ = settings.postProcessing;
+                }
+            }
         }
 
         this.profile.settings = settings;

@@ -6285,6 +6285,10 @@ this.setHudDirty('nodeInspect');
         // ========================================================================
         // Expose AtomaGame instance and subsystems globally (debug-safe)
         window.game = this;
+        if (window.__ATOMA_POSTPROCESSING_PENDING__ !== undefined) {
+            this.setPostProcessingEnabled(!!window.__ATOMA_POSTPROCESSING_PENDING__);
+            delete window.__ATOMA_POSTPROCESSING_PENDING__;
+        }
         removeLegacyRuntimeHudElements();
         window.linkQualityFeedbackLoop = this.linkQualityFeedbackLoop;
         window.linkMLRecommendationEngine = this.linkMLRecommendationEngine;
@@ -6564,7 +6568,7 @@ window.__ATOMA_SCENE__ = this.scene;
         if (!this.postProcessing) {
             this.postProcessing = getSharedPostProcessingPipeline(this.renderer, this.scene, this.camera);
             this.postProcessing?.onWindowResize?.(this.renderer.domElement.width, this.renderer.domElement.height);
-            this.postProcessingEnabled = true;
+            this.postProcessingEnabled = false;
         }
         this.setPostProcessingEnabled = (enabled = true) => {
             const next = !!enabled;
@@ -6577,7 +6581,9 @@ window.__ATOMA_SCENE__ = this.scene;
             return this.postProcessingEnabled;
         };
 
-        void this.postProcessing?.warmup?.(this.renderer);
+        if (this.postProcessingEnabled) {
+            void this.postProcessing?.warmup?.(this.renderer);
+        }
 
         // === Wave shader stack (init early so warm-up uses patched shaders) ===
         try {
@@ -10443,27 +10449,44 @@ window.__ATOMA_SCENE__ = this.scene;
         // Integrates: CascadingHarmonicResonance → ParticleStreamCascadeAcceleration → WaveParticleEmitter
         // Performance: <1ms per frame, zero impact for non-cascaded nodes
         try {
-            this.cascadeAccelSetup = new ParticleStreamCascadeAccelerationIntegrationSetup(
-                this.nodeDynamicMetrics,
-                this.linkingSystem,
-                this.particleEmitter,
-                {
-                    enableCascadingResonance: true,
-                    enableCascadeAcceleration: true,
-                    enableIntegrationPatch: true,
-                    setupConsoleAPIs: true,
-                    consoleAPIPrefix: 'cascadeParticle',
-                    debugMode: false
-                }
-            );
-            this.cascadeAccelSetup.frameScheduler = this.frameScheduler;
-            
-            // Defer initialization until after all systems are ready
-            // (nodeDynamicMetrics and linkingSystem must be fully initialized)
-            setTimeout(() => {
-                this.cascadeAccelSetup.initialize(this.scene, this);
-                console.log('[main.js] ParticleStreamCascadeAcceleration initialized ✓');
-            }, 500);
+            const disableParticleCascadeAcceleration =
+                window.ATOMA_DISABLE_PARTICLE_CASCADE_ACCELERATION !== false;
+
+            if (disableParticleCascadeAcceleration) {
+                this.cascadeAccelSetup = null;
+                window.ATOMA_DISABLE_PARTICLE_CASCADE_ACCELERATION = true;
+                window.enableParticleCascadeAcceleration = () => {
+                    window.ATOMA_DISABLE_PARTICLE_CASCADE_ACCELERATION = false;
+                    console.log('✓ ParticleStreamCascadeAcceleration will stay disabled until next reload');
+                };
+                window.disableParticleCascadeAcceleration = () => {
+                    window.ATOMA_DISABLE_PARTICLE_CASCADE_ACCELERATION = true;
+                    console.log('✓ ParticleStreamCascadeAcceleration disabled');
+                };
+                console.log('[main.js] ParticleStreamCascadeAcceleration disabled by default');
+            } else {
+                this.cascadeAccelSetup = new ParticleStreamCascadeAccelerationIntegrationSetup(
+                    this.nodeDynamicMetrics,
+                    this.linkingSystem,
+                    this.particleEmitter,
+                    {
+                        enableCascadingResonance: true,
+                        enableCascadeAcceleration: true,
+                        enableIntegrationPatch: true,
+                        setupConsoleAPIs: true,
+                        consoleAPIPrefix: 'cascadeParticle',
+                        debugMode: false
+                    }
+                );
+                this.cascadeAccelSetup.frameScheduler = this.frameScheduler;
+                
+                // Defer initialization until after all systems are ready
+                // (nodeDynamicMetrics and linkingSystem must be fully initialized)
+                setTimeout(() => {
+                    this.cascadeAccelSetup.initialize(this.scene, this);
+                    console.log('[main.js] ParticleStreamCascadeAcceleration initialized ✓');
+                }, 500);
+            }
         } catch (err) {
             console.warn('[main.js] ParticleStreamCascadeAcceleration initialization failed:', err);
         }

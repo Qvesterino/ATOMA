@@ -37,6 +37,60 @@ function firstDefined(...values) {
   return undefined;
 }
 
+function resolveStressAndStability(globalMetrics = {}) {
+  const hasStress = globalMetrics.networkStress !== undefined && globalMetrics.networkStress !== null;
+  const hasStability = globalMetrics.stability !== undefined && globalMetrics.stability !== null;
+  const hasStabilityNorm = globalMetrics.stabilityNorm !== undefined && globalMetrics.stabilityNorm !== null;
+  const hasMetricContext = [
+    'sampleSize',
+    'nodeCount',
+    'networkSynergy',
+    'harmonyFlow',
+    'corruptionLevel',
+    'loadPressure',
+    'networkLoad',
+    'energyNorm',
+    'loadNorm',
+    'loadRatio',
+    'load',
+    'pressure'
+  ].some((key) => Number.isFinite(globalMetrics[key]) && globalMetrics[key] !== 0);
+
+  if (!hasStress && !hasStability && !hasStabilityNorm) {
+    return { networkStress: 0, stability: 0 };
+  }
+
+  const explicitStress = hasStress ? clamp01(globalMetrics.networkStress) : undefined;
+  const stabilityCandidate = firstDefined(
+    hasStability ? clamp01(globalMetrics.stability) : undefined,
+    hasStabilityNorm ? clamp01(globalMetrics.stabilityNorm) : undefined
+  );
+
+  if (explicitStress !== undefined) {
+    const stability = stabilityCandidate !== undefined && !(stabilityCandidate === 0 && hasMetricContext === false)
+      ? stabilityCandidate
+      : clamp01(1 - explicitStress);
+
+    return {
+      networkStress: explicitStress,
+      stability
+    };
+  }
+
+  if (stabilityCandidate !== undefined) {
+    if (stabilityCandidate === 0 && hasMetricContext === false) {
+      return { networkStress: 0, stability: 0 };
+    }
+
+    return {
+      networkStress: clamp01(1 - stabilityCandidate),
+      stability: stabilityCandidate
+    };
+  }
+
+  return { networkStress: 0, stability: 0 };
+}
+
 /**
  * Resolve a node's metrics into canonical names using legacy fallbacks.
  * Does not mutate the node.
@@ -123,12 +177,28 @@ export function aggregateNetworkCanonicalMetrics(nodes = []) {
     sampleSize += 1;
   }
 
-  const divisor = sampleSize > 0 ? sampleSize : 1;
+  if (sampleSize === 0) {
+    return {
+      networkSynergy: 0,
+      harmonyFlow: 0,
+      networkStress: 0,
+      stability: 0,
+      stabilityNorm: 0,
+      corruptionLevel: 0,
+      loadPressure: 0,
+      sampleSize
+    };
+  }
+
+  const divisor = sampleSize;
+  const stability = clamp01(sumStability / divisor);
 
   return {
     networkSynergy: sumSynergy / divisor,
     harmonyFlow: sumHarmony / divisor,
-    networkStress: sumStability / divisor,
+    networkStress: clamp01(1 - stability),
+    stability,
+    stabilityNorm: stability,
     corruptionLevel: sumCorruption / divisor,
     loadPressure: sumLoadPressure / divisor,
     sampleSize
@@ -148,12 +218,14 @@ export function withGlobalMetricAliases(globalMetrics = {}) {
     globalMetrics.load,
     globalMetrics.pressure
   );
+  const { networkStress, stability } = resolveStressAndStability(globalMetrics);
 
   return {
     ...globalMetrics,
     networkSynergy: firstDefined(globalMetrics.networkSynergy, globalMetrics.synergy),
     harmonyFlow: firstDefined(globalMetrics.harmonyFlow, globalMetrics.harmony, globalMetrics.harmonyNorm),
-    networkStress: firstDefined(globalMetrics.networkStress, globalMetrics.stability, globalMetrics.stabilityNorm, globalMetrics.stability),
+    networkStress,
+    stability,
     corruptionLevel: firstDefined(globalMetrics.corruptionLevel, globalMetrics.corruption, globalMetrics.corruptionNorm),
     loadPressure,
     load: loadPressure,
@@ -161,7 +233,7 @@ export function withGlobalMetricAliases(globalMetrics = {}) {
     pressure: loadPressure,
     // Legacy norm aliases kept for compatibility with existing consumers
     harmonyNorm: firstDefined(globalMetrics.harmonyNorm, globalMetrics.harmonyFlow),
-    stabilityNorm: firstDefined(globalMetrics.stabilityNorm, globalMetrics.networkStress),
+    stabilityNorm: stability,
     corruptionNorm: firstDefined(globalMetrics.corruptionNorm, globalMetrics.corruptionLevel),
     energyNorm: firstDefined(globalMetrics.energyNorm, globalMetrics.loadPressure),
     loadNorm: firstDefined(globalMetrics.loadNorm, globalMetrics.loadPressure)
@@ -174,12 +246,15 @@ export function withGlobalMetricAliases(globalMetrics = {}) {
 export function projectHudMetrics(metrics = {}) {
   const safeValue = (value) => (value === undefined || value === null ? 0 : value);
   const loadPressure = safeValue(metrics.loadPressure ?? metrics.networkLoad ?? metrics.loadNorm ?? metrics.loadRatio ?? metrics.load ?? metrics.pressure);
+  const { networkStress, stability } = resolveStressAndStability(metrics);
 
   return {
     networkSynergy: safeValue(metrics.networkSynergy ?? metrics.synergy ?? metrics.synergyNorm),
     harmonyFlow: safeValue(metrics.harmonyFlow ?? metrics.harmony ?? metrics.harmonyNorm),
     harmonyLevel: safeValue(metrics.harmonyLevel ?? metrics.harmonyFlow ?? metrics.harmony ?? metrics.harmonyNorm),
-    networkStress: safeValue(metrics.networkStress ?? metrics.stability ?? metrics.stabilityNorm),
+    networkStress,
+    stability,
+    stabilityNorm: stability,
     corruptionLevel: safeValue(metrics.corruptionLevel ?? metrics.corruption ?? metrics.corruptionNorm),
     loadPressure,
     load: loadPressure,
@@ -340,7 +415,8 @@ export function updateHudMetrics(link, vm) {
   const globalMetrics = withGlobalMetricAliases({
     networkSynergy: vm?.networkSynergy ?? vm?.synergy ?? link?.['synergyScore'],
     harmonyFlow: vm?.harmonyFlow ?? vm?.harmonyNorm ?? vm?.harmony,
-    networkStress: vm?.networkStress ?? vm?.stabilityNorm ?? vm?.stability,
+    networkStress: vm?.networkStress,
+    stability: vm?.stability ?? vm?.stabilityNorm,
     corruptionLevel: vm?.corruptionLevel ?? vm?.corruptionNorm ?? vm?.corruption,
     loadPressure: vm?.loadPressure ?? vm?.loadNorm ?? vm?.networkLoad ?? vm?.energyNorm
   });

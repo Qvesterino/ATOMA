@@ -298,7 +298,7 @@ function emitNodeThresholdEvents(node) {
 function writeMetric(metrics, key, nextValue, targetId = 'unknown-node', node = null) {
   const before = metrics[key];
   const after = clamp01(nextValue);
-  if (before === after) return;
+  if (before === after) return false;
   metrics[key] = after;
   if (key === 'loadPressure') {
     metrics.load = after;
@@ -308,17 +308,35 @@ function writeMetric(metrics, key, nextValue, targetId = 'unknown-node', node = 
   emitNodeMetricUpdated(key, after, targetId);
   emitMetricTierChanged(node, key, before, after, targetId);
   emitSemanticMetricEvent(key, before, after, targetId);
+  return true;
 }
 
 function syncLoadAliases(node) {
-  if (!node?.userData?.metrics) return;
+  if (!node?.userData?.metrics) return false;
   const metrics = node.userData.metrics;
   const loadPressure = clamp01(metrics.loadPressure ?? 0);
-  metrics.loadPressure = loadPressure;
-  metrics.load = loadPressure;
-  metrics.loadRatio = loadPressure;
-  node.userData.load = loadPressure;
-  node.userData.loadRatio = loadPressure;
+  let changed = false;
+  if (metrics.loadPressure !== loadPressure) {
+    metrics.loadPressure = loadPressure;
+    changed = true;
+  }
+  if (metrics.load !== loadPressure) {
+    metrics.load = loadPressure;
+    changed = true;
+  }
+  if (metrics.loadRatio !== loadPressure) {
+    metrics.loadRatio = loadPressure;
+    changed = true;
+  }
+  if (node.userData.load !== loadPressure) {
+    node.userData.load = loadPressure;
+    changed = true;
+  }
+  if (node.userData.loadRatio !== loadPressure) {
+    node.userData.loadRatio = loadPressure;
+    changed = true;
+  }
+  return changed;
 }
 
 function getNodeId(node) {
@@ -476,23 +494,30 @@ function clamp01(v) {
 // Passive safety clamp - enforces archetype identity boundaries
 // NodeMetricEngine must never redefine archetype identity
 function applyArchetypeClamp(node) {
-  if (!node?.userData?.archetypeMetrics) return;
+  if (!node?.userData?.archetypeMetrics) return false;
 
-  const arch = node.userData.archetypeMetrics;
   const m = node.userData.metrics;
-  if (!m) return;
+  if (!m) return false;
 
-  // Clamp to archetype-defined bounds
-  m.synergy = clamp01(m.synergy);
-  m.harmony = clamp01(m.harmony);
-  m.stability = clamp01(m.stability);
-  m.corruption = clamp01(m.corruption);
-  m.loadPressure = clamp01(m.loadPressure);
-  m.load = m.loadPressure;
-  m.loadRatio = m.loadPressure;
-  node.userData.load = m.loadPressure;
-  node.userData.loadRatio = m.loadPressure;
+  const nextSynergy = clamp01(m.synergy);
+  const nextHarmony = clamp01(m.harmony);
+  const nextStability = clamp01(m.stability);
+  const nextCorruption = clamp01(m.corruption);
+  const nextLoadPressure = clamp01(m.loadPressure);
+  const nextLoad = nextLoadPressure;
+  const nextLoadRatio = nextLoadPressure;
 
+  let changed = false;
+  if (m.synergy !== nextSynergy) { m.synergy = nextSynergy; changed = true; }
+  if (m.harmony !== nextHarmony) { m.harmony = nextHarmony; changed = true; }
+  if (m.stability !== nextStability) { m.stability = nextStability; changed = true; }
+  if (m.corruption !== nextCorruption) { m.corruption = nextCorruption; changed = true; }
+  if (m.loadPressure !== nextLoadPressure) { m.loadPressure = nextLoadPressure; changed = true; }
+  if (m.load !== nextLoad) { m.load = nextLoad; changed = true; }
+  if (m.loadRatio !== nextLoadRatio) { m.loadRatio = nextLoadRatio; changed = true; }
+  if (node.userData.load !== nextLoad) { node.userData.load = nextLoad; changed = true; }
+  if (node.userData.loadRatio !== nextLoadRatio) { node.userData.loadRatio = nextLoadRatio; changed = true; }
+  return changed;
 }
 
 function installMetricsPropertyGuard(node) {
@@ -645,7 +670,7 @@ function deriveSynergy(node, dtScale = 1) {
   const target = deriveSynergyTarget(m);
   const smoothing = Math.min(1, SYNERGY_DERIVATION.smoothing * dtScale);
   const next = (m.synergy ?? 0) + (target - (m.synergy ?? 0)) * smoothing;
-  writeMetric(m, 'synergy', next, id, node);
+  return writeMetric(m, 'synergy', next, id, node);
 }
 
 function applyCappedPositiveGain(metrics, key, baseGain, capByNode, capPerTick, targetId, node = null) {
@@ -654,8 +679,8 @@ function applyCappedPositiveGain(metrics, key, baseGain, capByNode, capPerTick, 
   if (consumed >= capPerTick) return;
   const allowed = Math.min(baseGain, capPerTick - consumed);
   if (allowed <= 0) return;
-  writeMetric(metrics, key, (metrics[key] ?? 0) + allowed, targetId, node);
   capByNode.set(targetId, consumed + allowed);
+  return writeMetric(metrics, key, (metrics[key] ?? 0) + allowed, targetId, node);
 }
 
 export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) {
@@ -669,6 +694,7 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
   const links = resolveLinkList(linkSystem);
   const activeLinks = [];
   const activeNodes = new Set();
+  const touchedNodes = new Set();
   const resolveLinkEndpointNode = (...candidates) => {
     for (const candidate of candidates) {
       if (candidate) return candidate;
@@ -705,12 +731,10 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
     }
 
     const next = applyCrossMetricInteractions(m, base, dtScale);
-    writeMetric(m, 'harmony', next.harmony, id, node);
-    writeMetric(m, 'stability', next.stability, id, node);
-    writeMetric(m, 'corruption', next.corruption, id, node);
-    writeMetric(m, 'loadPressure', next.loadPressure, id, node);
-    applyArchetypeClamp(node);
-    syncLoadAliases(node);
+    if (writeMetric(m, 'harmony', next.harmony, id, node)) touchedNodes.add(node);
+    if (writeMetric(m, 'stability', next.stability, id, node)) touchedNodes.add(node);
+    if (writeMetric(m, 'corruption', next.corruption, id, node)) touchedNodes.add(node);
+    if (writeMetric(m, 'loadPressure', next.loadPressure, id, node)) touchedNodes.add(node);
   }
 
   if (activeLinks.length) {
@@ -739,12 +763,12 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
       const equalizeStability = LINK_EQUALIZE.stability * strength * dtScale;
 
       const dH = ((mb.harmony ?? 0) - (ma.harmony ?? 0)) * equalizeHarmony;
-      writeMetric(ma, 'harmony', (ma.harmony ?? 0) + dH, idA, nodeA);
-      writeMetric(mb, 'harmony', (mb.harmony ?? 0) - dH, idB, nodeB);
+      if (writeMetric(ma, 'harmony', (ma.harmony ?? 0) + dH, idA, nodeA)) touchedNodes.add(nodeA);
+      if (writeMetric(mb, 'harmony', (mb.harmony ?? 0) - dH, idB, nodeB)) touchedNodes.add(nodeB);
 
       const dSt = ((mb.stability ?? 0) - (ma.stability ?? 0)) * equalizeStability;
-      writeMetric(ma, 'stability', (ma.stability ?? 0) + dSt, idA, nodeA);
-      writeMetric(mb, 'stability', (mb.stability ?? 0) - dSt, idB, nodeB);
+      if (writeMetric(ma, 'stability', (ma.stability ?? 0) + dSt, idA, nodeA)) touchedNodes.add(nodeA);
+      if (writeMetric(mb, 'stability', (mb.stability ?? 0) - dSt, idB, nodeB)) touchedNodes.add(nodeB);
 
       const synergyA = clamp01(ma.synergy ?? 0);
       const synergyB = clamp01(mb.synergy ?? 0);
@@ -755,7 +779,7 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
       const harmonyGain = SYNERGY_RESONANCE.harmonyGain * strength;
       const stabilityGain = SYNERGY_RESONANCE.stabilityGain * strength;
 
-      applyCappedPositiveGain(
+      if (applyCappedPositiveGain(
         ma,
         'harmony',
         harmonyGain,
@@ -763,8 +787,8 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
         SYNERGY_RESONANCE.maxHarmonyPerTick,
         idA,
         nodeA
-      );
-      applyCappedPositiveGain(
+      )) touchedNodes.add(nodeA);
+      if (applyCappedPositiveGain(
         mb,
         'harmony',
         harmonyGain,
@@ -772,8 +796,8 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
         SYNERGY_RESONANCE.maxHarmonyPerTick,
         idB,
         nodeB
-      );
-      applyCappedPositiveGain(
+      )) touchedNodes.add(nodeB);
+      if (applyCappedPositiveGain(
         ma,
         'stability',
         stabilityGain,
@@ -781,8 +805,8 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
         SYNERGY_RESONANCE.maxStabilityPerTick,
         idA,
         nodeA
-      );
-      applyCappedPositiveGain(
+      )) touchedNodes.add(nodeA);
+      if (applyCappedPositiveGain(
         mb,
         'stability',
         stabilityGain,
@@ -790,15 +814,17 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
         SYNERGY_RESONANCE.maxStabilityPerTick,
         idB,
         nodeB
-      );
-      syncLoadAliases(nodeA);
-      syncLoadAliases(nodeB);
+      )) touchedNodes.add(nodeB);
     }
   }
 
   for (const node of nodes) {
     if (!activeNodes.has(node)) continue;
-    deriveSynergy(node, dtScale);
+    if (deriveSynergy(node, dtScale)) touchedNodes.add(node);
+  }
+
+  for (const node of touchedNodes) {
+    if (!node) continue;
     applyArchetypeClamp(node);
     syncLoadAliases(node);
   }

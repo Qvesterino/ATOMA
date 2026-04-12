@@ -68,6 +68,7 @@ export function createEmptyCoreMetricsViewModel() {
       networkSynergy: 0,
       harmonyFlow: 0,
       networkStress: 0,
+      stability: 0,
       corruptionLevel: 0,
       loadPressure: 0,
       // Legacy norm aliases preserved for compatibility
@@ -112,12 +113,13 @@ export function updateCoreMetricsViewModel(coreMetricsVM, aiNodes, frameId) {
   coreMetricsVM.metrics.networkSynergy = metrics.networkSynergy;
   coreMetricsVM.metrics.harmonyFlow = metrics.harmonyFlow;
   coreMetricsVM.metrics.networkStress = metrics.networkStress;
+  coreMetricsVM.metrics.stability = metrics.stability ?? metrics.stabilityNorm ?? (1 - metrics.networkStress);
   coreMetricsVM.metrics.corruptionLevel = metrics.corruptionLevel;
   coreMetricsVM.metrics.loadPressure = metrics.loadPressure;
 
   // Legacy aliases (kept to avoid breaking existing consumers)
   coreMetricsVM.metrics.harmonyNorm = metrics.harmonyFlow;
-  coreMetricsVM.metrics.stabilityNorm = metrics.networkStress;
+  coreMetricsVM.metrics.stabilityNorm = metrics.stabilityNorm ?? metrics.stability ?? (1 - metrics.networkStress);
   coreMetricsVM.metrics.corruptionNorm = metrics.corruptionLevel;
   coreMetricsVM.metrics.energyNorm = metrics.loadPressure;
 
@@ -133,11 +135,11 @@ export function updateCoreMetricsViewModel(coreMetricsVM, aiNodes, frameId) {
     if (now - lastDebugLog >= DEBUG_INTERVAL_MS) {
       lastDebugLog = now;
       console.log(
-        `[CoreMetricsVM] nodes=${nodeCount} samples=${sampleSize} ` +
+        `[CoreMetricsVM] nodes=${nodeCount} samples=${coreMetricsVM.meta.sampleSize} ` +
         `H=${coreMetricsVM.metrics.harmonyNorm.toFixed(3)} ` +
         `S=${coreMetricsVM.metrics.stabilityNorm.toFixed(3)} ` +
         `C=${coreMetricsVM.metrics.corruptionNorm.toFixed(3)} ` +
-        `E=${coreMetricsVM.metrics.SynergyNorm.toFixed(3)}`
+        `E=${coreMetricsVM.metrics.energyNorm.toFixed(3)}`
       );
     }
   }

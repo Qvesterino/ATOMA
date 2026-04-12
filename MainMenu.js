@@ -19,6 +19,7 @@ const DEFAULT_SETTINGS = Object.freeze({
     visuals: 'HIGH',
     particles: true,
     audioMuted: false,
+    postProcessing: false,
 });
 
 const MENU_MAPS = Object.freeze([
@@ -212,6 +213,7 @@ function sanitizeSettings(value) {
         visuals: VISUAL_LEVELS.includes(visuals) ? visuals : DEFAULT_SETTINGS.visuals,
         particles: settings.particles !== false,
         audioMuted,
+        postProcessing: settings.postProcessing === true,
     };
 }
 
@@ -739,6 +741,13 @@ export function getSettingsRows(settings) {
             label: 'PARTICLES',
             value: `[ ${settings.particles ? 'ON' : 'OFF'} ]`,
             description: 'Enables or disables the menu atmosphere particle drift.',
+        },
+        {
+            type: 'toggle',
+            id: 'postProcessing',
+            label: 'POSTPROCESSING',
+            value: `[ ${settings.postProcessing ? 'ON' : 'OFF'} ]`,
+            description: 'Enable or disable bloom/composite postprocessing effects.',
         },
         ...getUIVisibilitySettingsRows(),
     ];
@@ -1370,6 +1379,15 @@ export class MainMenu {
             settings.visuals = VISUAL_LEVELS[nextIndex];
         } else if (settingId === 'particles') {
             settings.particles = !settings.particles;
+        } else if (settingId === 'postProcessing') {
+            settings.postProcessing = !settings.postProcessing;
+            if (typeof window !== 'undefined') {
+                if (window.game?.setPostProcessingEnabled) {
+                    window.game.setPostProcessingEnabled(settings.postProcessing);
+                } else {
+                    window.__ATOMA_POSTPROCESSING_PENDING__ = settings.postProcessing;
+                }
+            }
         }
 
         this.profile.settings = settings;

@@ -49,6 +49,7 @@ export class CoreMetricsOverlay {
       synergy: 0,
       harmony: 0,
       stability: 0,
+      networkStress: 0,
       corruption: 0,
       loadPressure: 0,
       networkLoad: 0
@@ -171,6 +172,7 @@ export class CoreMetricsOverlay {
       const key = this._getNodeMetricKey(node);
       if (!key) continue;
       if (!activeNodeIds.has(key)) continue;
+      const archetypeMetrics = node?.userData?.archetypeMetrics || {};
 
       let snapshot = this._nodeMetricCache.get(key);
       if (!snapshot) {
@@ -180,8 +182,18 @@ export class CoreMetricsOverlay {
           synergy: this._sanitizeMetric('synergy', metrics.synergy ?? 0.5),
           harmony: this._sanitizeMetric('harmony', metrics.harmony ?? 0.5),
           stability: this._sanitizeMetric('stability', metrics.stability ?? 0.5),
-          corruption: this._sanitizeMetric('corruption', metrics.corruption ?? 0),
+          corruption: this._sanitizeMetric('corruption', Math.max(metrics.corruption ?? 0, archetypeMetrics.corruption ?? 0)),
           loadPressure: this._sanitizeMetric('loadPressure', metrics.loadPressure ?? metrics.load ?? metrics.loadRatio ?? 0)
+        };
+        this._nodeMetricCache.set(key, snapshot);
+      } else {
+        const metrics = node?.userData?.metrics || {};
+        snapshot = {
+          synergy: this._sanitizeMetric('synergy', snapshot.synergy ?? metrics.synergy ?? 0.5),
+          harmony: this._sanitizeMetric('harmony', snapshot.harmony ?? metrics.harmony ?? 0.5),
+          stability: this._sanitizeMetric('stability', snapshot.stability ?? metrics.stability ?? 0.5),
+          corruption: this._sanitizeMetric('corruption', Math.max(snapshot.corruption ?? metrics.corruption ?? 0, archetypeMetrics.corruption ?? 0)),
+          loadPressure: this._sanitizeMetric('loadPressure', snapshot.loadPressure ?? metrics.loadPressure ?? metrics.load ?? metrics.loadRatio ?? 0)
         };
         this._nodeMetricCache.set(key, snapshot);
       }
@@ -229,7 +241,7 @@ export class CoreMetricsOverlay {
         this.currentMetrics = this._getEventDrivenMetrics(aiNodes, linkingSystem);
       } else {
         this.metricsCalculator.update(visualDelta, aiNodes, linkingSystem, nodeEvolution, nodeArchetypes);
-        this.currentMetrics = this.metricsCalculator.getMetrics();
+        this.currentMetrics = withGlobalMetricAliases(this.metricsCalculator.getMetrics());
       }
       
       // Update temporal system

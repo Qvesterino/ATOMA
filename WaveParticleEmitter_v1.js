@@ -1336,30 +1336,27 @@ export class WaveParticleEmitter_v1 {
           ? 0.12 + Math.random() * 0.05
           : 0.07 + Math.random() * 0.04;
 
-        if (mode === 'link' && sourcePosition && targetPosition) {
-          const arcPath = this._createLinkArcPath(sourcePosition, targetPosition, normalizedStrength);
-          const startT = Math.random() * 0.08;
-          particle.data.arcPath = arcPath;
-          particle.data.arcStartT = startT;
-          particle.data.arcT = startT;
-          particle.position.copy(this._sampleQuadraticBezier(arcPath.start, arcPath.control, arcPath.end, startT));
-          particle.data.formationCenter.copy(particle.position);
-          this._applyEmissionOffset(particle.position, mode, 0.12, 0.35, direction);
-          particle.data.buildOffset.copy(particle.position).sub(particle.data.formationCenter);
-          particle.data.releaseVelocity.copy(this._sampleQuadraticBezierTangent(arcPath.start, arcPath.control, arcPath.end, startT)).normalize();
-          particle.data.releaseVelocity.multiplyScalar((6 + Math.random() * 4) * linkModeSpeedScale);
+        if (mode === 'link') {
+          const emissionOrigin = sourcePosition?.clone?.() ?? pos.clone();
+          particle.data.arcStartT = 0;
+          particle.data.arcT = 0;
+          particle.position.copy(emissionOrigin);
+          particle.data.formationCenter.copy(emissionOrigin);
+          particle.data.buildOffset.set(0, 0, 0);
+          const straightDirection = this._resolveConstructiveLaunchDirection(node, 'node');
+          particle.data.releaseVelocity.copy(straightDirection).multiplyScalar((6 + Math.random() * 4) * linkModeSpeedScale);
           particle.velocity.copy(particle.data.releaseVelocity).multiplyScalar(0.08 * linkModeSpeedScale);
-          particle.maxLifetime *= linkModeLifetimeScale;
+          particle.maxLifetime = 0.30 + Math.random() * 0.12;
         } else {
           particle.data.formationCenter.copy(pos);
           particle.position.copy(pos);
-          this._applyEmissionOffset(particle.position, mode, 0.55, 1.2, direction);
-          particle.data.buildOffset.copy(particle.position).sub(particle.data.formationCenter);
+          particle.data.buildOffset.set(0, 0, 0);
 
           const speed = mode === 'link'
             ? 6 + Math.random() * 5
             : 4 + Math.random() * 4;
-          this._setParticleVelocity(particle.data.releaseVelocity, mode, speed, direction, 0.45, 0.2);
+          const straightDirection = this._resolveConstructiveLaunchDirection(node, mode);
+          particle.data.releaseVelocity.copy(straightDirection).multiplyScalar(speed);
           particle.velocity.copy(particle.data.releaseVelocity).multiplyScalar(0.12);
           particle.data.arcT = 0;
         }
@@ -1588,6 +1585,40 @@ export class WaveParticleEmitter_v1 {
       }
     }
     return null;
+  }
+
+  _resolveConstructiveLaunchDirection(target, mode = 'node', sourcePosition = null, targetPosition = null) {
+    if (mode === 'link' && sourcePosition && targetPosition) {
+      this._tmpEmitterDirection.subVectors(targetPosition, sourcePosition);
+      if (this._tmpEmitterDirection.lengthSq() > 1e-6) {
+        return this._tmpEmitterDirection.normalize().clone();
+      }
+    }
+
+    const directDirection = this._resolveEmitterDirection(target);
+    if (directDirection) return directDirection;
+
+    if (target && typeof target.getWorldDirection === 'function') {
+      target.getWorldDirection(this._tmpEmitterDirection);
+      if (this._tmpEmitterDirection.lengthSq() > 1e-6) {
+        return this._tmpEmitterDirection.normalize().clone();
+      }
+    }
+
+    const pos = target?.position;
+    if (
+      pos &&
+      Number.isFinite(pos.x) &&
+      Number.isFinite(pos.y) &&
+      Number.isFinite(pos.z)
+    ) {
+      this._tmpEmitterDirection.copy(pos);
+      if (this._tmpEmitterDirection.lengthSq() > 1e-6) {
+        return this._tmpEmitterDirection.normalize().clone();
+      }
+    }
+
+    return new THREE.Vector3(0, 1, 0);
   }
 
   _applyEmissionOffset(position, mode, nodeRadius, linkRadius, direction = null) {
@@ -1936,8 +1967,7 @@ export class WaveParticleEmitter_v1 {
           particle.data.formationDuration ?? 0.08
         );
 
-        if (particle.data.mode === 'link' && particle.data.arcPath) {
-          const arcPath = particle.data.arcPath;
+        if (particle.data.mode === 'link') {
           if (particle.lifetime < formationDuration) {
             const buildT = particle.lifetime / Math.max(0.0001, formationDuration);
             const easedBuild = buildT * buildT * (3 - 2 * buildT);
@@ -1947,11 +1977,11 @@ export class WaveParticleEmitter_v1 {
             return;
           }
 
-          const releaseProgress = (particle.lifetime - formationDuration) / Math.max(0.001, particle.maxLifetime - formationDuration);
-          const nextT = particle.data.arcStartT + (1 - particle.data.arcStartT) * this._clamp01(releaseProgress);
-          particle.data.arcT = nextT;
-          particle.position.copy(this._sampleQuadraticBezier(arcPath.start, arcPath.control, arcPath.end, nextT));
-          particle.velocity.copy(this._sampleQuadraticBezierTangent(arcPath.start, arcPath.control, arcPath.end, nextT));
+          particle.velocity.lerp(particle.data.releaseVelocity, Math.min(1, deltaTime * 9));
+          particle.velocity.multiplyScalar(0.92);
+          particle.position.add(
+            new THREE.Vector3().copy(particle.velocity).multiplyScalar(deltaTime)
+          );
           if (particle.velocity.lengthSq() > 1e-6) {
             particle.data.streak.copy(particle.velocity).normalize();
           }

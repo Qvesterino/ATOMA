@@ -230,3 +230,55 @@ ode --check after the change.
 - Verified with Node syntax checks and a Playwright/Edge smoke:
   - glyph scale helper exists and updates runtime scale
   - link create/remove path now drops active pictograms to zero after unlink
+
+## 2026-04-12 — Core metrics semantics fix
+
+- Fixed the `networkStress` drift in `SemanticMetricAdapter.js`: HUD/global projection now treats `networkStress` as the inverse of `stability`, while preserving `stability`/`stabilityNorm` as the stability value.
+- `CoreMetricsViewModel.js` now stores actual stability separately from `networkStress`, instead of mirroring stress into `stabilityNorm`.
+- `CoreMetricsOverlay.js` now normalizes its fallback calculator path through `withGlobalMetricAliases()`, so the HUD sees the same canonical metric shape in both overlay modes.
+- `src/metrics/NetworkMetricsAggregator.js` now publishes `stability` alongside inverted `networkStress`.
+- Added regression tests in `tests/MetricsAuthority.test.js` for:
+  - empty HUD projection staying neutral
+  - `stability -> networkStress` inversion
+  - `updateHudMetrics()` deriving stress from `stabilityNorm`
+- Verification:
+  - `node --check` passed on all touched files
+  - `node tests/MetricsAuthority.test.js` passed
+
+## 2026-04-12 — Registry metrics propagation fix
+
+- Fixed `MetricsRuntime_v1._ensureNodeCanonicalFallbacks()` so it no longer collapses registry-backed node stability to `1` when `userData.instability` is missing.
+- The fallback now prefers `node.userData.metrics.stability` / `userData.stability` before deriving from instability, and mirrors `stability` + `instability` back onto `node.userData`.
+- Fixed `CoreMetricsOverlay` event-fed cache reads so partial metric updates are merged with the node's canonical metrics instead of replacing them. This prevents harmony-only cache snapshots from zeroing `stability`, `corruption`, and `loadPressure`.
+- Added a regression test for canonical fallback preservation on a prime node snapshot.
+- Verification:
+  - `node --check MetricsRuntime_v1.js`
+  - `node --check CoreMetricsOverlay.js`
+  - `node tests/MetricsAuthority.test.js`
+
+## 2026-04-12 — Metrics write-path and wave emitter cleanup
+
+- `NodeMetricEngine.updateNodeMetrics()` now batches clamp/load-alias writes by touched node instead of rewriting aliases repeatedly in the hot loop. This should reduce the `applyArchetypeClamp` / `syncLoadAliases` proxy churn visible in the performance call tree.
+- `ParticleStreamCascadeAccelerationIntegrationPatch` no longer applies cascade acceleration to constructive bursts, so the synergy constructive-trident family keeps its original straight-out emission feel instead of picking up the sideways cascade deflection.
+- Verification:
+  - `node --check src/metrics/NodeMetricEngine.js`
+  - `node --check ParticleStreamCascadeAccelerationIntegrationPatch.js`
+  - `node tests/MetricsAuthority.test.js`
+
+## 2026-04-12 — Cascade acceleration disabled
+
+- `ParticleStreamCascadeAccelerationIntegrationSetup` is no longer booted by default in `main.js`.
+- The runtime now leaves `window.ATOMA_DISABLE_PARTICLE_CASCADE_ACCELERATION = true` on startup, so the cascade acceleration / flow deflection layer stays disconnected and particles keep the simpler straight emission path.
+- Runtime toggles were added for manual control if needed:
+  - `window.enableParticleCascadeAcceleration()`
+  - `window.disableParticleCascadeAcceleration()`
+- Verification:
+  - `node --check main.js`
+
+## 2026-04-12 — Constructive particle path straightened
+
+- `WaveParticleEmitter_v1` no longer emits constructive link bursts along the quadratic arc path with lateral offsets.
+- Constructive link particles now spawn from the source position, keep zero build-offset, and continue with a straight release vector instead of the old side-bending curve.
+- Verification:
+  - `node --check WaveParticleEmitter_v1.js`
+  - `node --check main.js`

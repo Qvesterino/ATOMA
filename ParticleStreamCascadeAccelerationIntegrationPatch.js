@@ -104,17 +104,10 @@ export class ParticleStreamCascadeAccelerationIntegrationPatch {
       );
 
       this.waveParticleEmitter.emitConstructiveBurst = (nodeId, position, count) => {
-        // Call original emission
+        // Keep constructive tridents straight out of the node.
+        // Cascade acceleration is still applied to destructive/ripple families,
+        // but constructive bursts should preserve their original radial feel.
         originalMethod(nodeId, position, count);
-
-        // Apply cascade acceleration modifications to emitted particles
-        this._applyAccelerationToLatestParticles(
-          'constructiveBurst',
-          nodeId,
-          position,
-          count,
-          { type: 'constructive', color: 'cyan' }
-        );
       };
     } catch (err) {
       console.warn('[ParticleStreamCascadeAccelerationIntegrationPatch] Failed to patch constructiveBurst:', err.message);

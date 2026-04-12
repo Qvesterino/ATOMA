@@ -97,6 +97,8 @@ Legacy systems moved out of the active path on 2026-03-03:
 - Selective bloom refresh should prefer explicit refresh requests, with the periodic scene traversal acting as fallback only.
 - Shader patchers that wrap `onBeforeCompile` should preserve/combine `customProgramCacheKey` so identical shader source reuses one program variant.
 - Late shader priming should be followed by a scene warmup pass so patched programs compile outside the first render frame.
+- Hot metric update loops should batch alias/clamp writes by touched node instead of rewriting the same proxy-backed fields repeatedly inside the same tick.
+- Constructive wave particle bursts should preserve straight radial emission; cascade acceleration / flow deflection should not be applied to the constructive family if it introduces sideways drift.
 - Runtime browser A/B tests must first confirm the game is in a stable gameplay state, not menu/boot overlay. If `window.game` is absent, the page falls back to menu, or `render_game_to_text` does not reflect live gameplay, the result is invalid and must be discarded before drawing conclusions.
 - Semantic pictogram teardown must happen after the link is removed from live link arrays, otherwise the pictogram system can respawn stale glyphs from `_lastLinks` / live-link cache.
 - Link semantic pictogram builder logic is now separated from lifecycle/state management into `LinkSemanticPictogramGlyphBuilders.js`; keep glyph construction and unlink cleanup isolated from pool/state orchestration.
