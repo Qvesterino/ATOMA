@@ -13,6 +13,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 const CORRUPTION_SEED_VERTEX_SHADER = `
 varying vec2 vUv;
@@ -348,7 +349,15 @@ export class TIER4_CorruptionFeedbackVisuals {
   }
 
   _readSeedCorruptionLevel(link) {
-    const corruptionLevel = Number(link?.userData?.corruptionLevel);
+    const corruptionLevel = Number(
+      link?.group?.userData?.conduitState?.metrics?.corruption ??
+      link?.userData?.metrics?.corruption ??
+      link?.userData?.corruptionLevel ??
+      link?.userData?.corruption ??
+      link?.corruptionLevel ??
+      link?.corruption ??
+      0
+    );
     if (!Number.isFinite(corruptionLevel)) return 0;
     return Math.max(0, Math.min(1, corruptionLevel));
   }
@@ -641,7 +650,7 @@ export class TIER4_CorruptionFeedbackVisuals {
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(6), 3));
       const line = new THREE.Line(geometry, this._createSeedConnectionMaterial());
-      line.renderOrder = 2;
+      line.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_IMPACTS');
       bloomRoot.add(line);
       connections.push({ line, a, b, kind });
     };

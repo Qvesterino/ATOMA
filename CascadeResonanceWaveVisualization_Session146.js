@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 /**
  * CascadeResonanceWaveVisualization_Session146.js
@@ -199,7 +200,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
 
       const line = new THREE.Line(geometry, material);
       line.visible = false;
-      line.renderOrder = 110;
+      line.renderOrder = VisualHierarchyRegistry?.getRenderOrder?.(VisualHierarchyRegistry.LAYER_LINK_CASCADE) ?? 13;
       scene.add(line);
 
       this._beamGeometryPool.push({
@@ -278,7 +279,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
     for (let i = 0; i < ringCount; i++) {
       const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
       ringMesh.visible = false;
-      ringMesh.renderOrder = 100; // High render order for overlay effect
+      ringMesh.renderOrder = VisualHierarchyRegistry?.getRenderOrder?.(VisualHierarchyRegistry.LAYER_LINK_CASCADE) ?? 13; // High render order for overlay effect
       scene.add(ringMesh);
       this._ringGeometryPool.push({
         mesh: ringMesh,
@@ -1109,7 +1110,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
 
       // Add a slight motion bias along the link direction using userData
       beamEntry.line.userData._wavePhase = waveData.wavePhase;
-      beamEntry.line.renderOrder = 110;
+      beamEntry.line.renderOrder = VisualHierarchyRegistry?.getRenderOrder?.(VisualHierarchyRegistry.LAYER_LINK_CASCADE) ?? 13;
       usedBeams += 1;
       this._activeBeams.push(beamEntry);
     }

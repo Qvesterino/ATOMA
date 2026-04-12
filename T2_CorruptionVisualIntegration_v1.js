@@ -6,6 +6,27 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+
+/**
+ * Create an irregular corruption shard geometry.
+ * Based on OctahedronGeometry with vertex perturbation for a broken-crystal silhouette.
+ */
+function createCorruptionShardGeometry(size = 0.1) {
+  const geo = new THREE.OctahedronGeometry(size, 0);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    // Deterministic hash-based displacement for irregular shard shape
+    const hash = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+    const disp = (hash - Math.floor(hash)) * 0.35 + 0.82;
+    pos.setXYZ(i, x * disp, y * disp, z * disp);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
 
 export class T2_CorruptionVisualIntegration_v1 {
   constructor(scene, linkingSystem, corruptionVisualFX, aiNodes = null) {
@@ -40,14 +61,59 @@ export class T2_CorruptionVisualIntegration_v1 {
     };
 
     this.particlePool = [];
-    this._particleGeometry = new THREE.TetrahedronGeometry(0.1, 0);
-    this._particleMaterial = new THREE.MeshLambertMaterial({
-      color: 0xff0000,
-      emissive: 0xff0000,
-      emissiveIntensity: 0.8,
+    this._particleGeometry = createCorruptionShardGeometry(0.1);
+    this._particleMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uPulseSpeed: { value: 4.0 },
+        uFresnelPower: { value: 2.5 },
+        uEmissiveIntensity: { value: 1.8 }
+      },
+      vertexShader: `
+        attribute vec3 instanceColor;
+        varying vec3 vNormal;
+        varying vec3 vViewPosition;
+        varying vec3 vColor;
+        void main() {
+          vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+          vViewPosition = -mvPosition.xyz;
+          mat3 normalMat = mat3(modelViewMatrix) * mat3(instanceMatrix);
+          vNormal = normalize(normalMat * normal);
+          vColor = instanceColor;
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+        uniform float uTime;
+        uniform float uPulseSpeed;
+        uniform float uFresnelPower;
+        uniform float uEmissiveIntensity;
+        varying vec3 vNormal;
+        varying vec3 vViewPosition;
+        varying vec3 vColor;
+        void main() {
+          vec3 viewDir = normalize(vViewPosition);
+          vec3 n = normalize(vNormal);
+          // Fresnel: bright at edges, dark at center — corruption energy leaks from fractures
+          float fresnel = 1.0 - abs(dot(viewDir, n));
+          fresnel = pow(fresnel, uFresnelPower);
+          // Corruption energy pulse
+          float pulse = 0.65 + 0.35 * sin(uTime * uPulseSpeed);
+          // Color: corruption energy radiating from edges
+          vec3 color = vColor * fresnel * pulse * uEmissiveIntensity;
+          // Subtle base glow so shard is never fully invisible
+          color += vColor * 0.06;
+          float alpha = clamp(fresnel * pulse * 0.92 + 0.08, 0.0, 1.0);
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
       transparent: true,
-      opacity: 0.9,
-      depthWrite: false
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: true,
+      toneMapped: false,
+      side: THREE.DoubleSide
     });
     this._semanticSubscriptions = [];
     this._tmpPullVector = new THREE.Vector3();
@@ -60,12 +126,20 @@ export class T2_CorruptionVisualIntegration_v1 {
     this.instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.instancedMesh.frustumCulled = false;
     this.instancedMesh.visible = true;
+    this.instancedMesh.renderOrder = VisualHierarchyRegistry?.getRenderOrder?.(VisualHierarchyRegistry.LAYER_LINK_PARTICLES) ?? 17;
     this.particleRoot.add(this.instancedMesh);
 
+    // Pre-initialize instance colors for shader compatibility
+    const _initColor = new THREE.Color(0x000000);
+    for (let i = 0; i < this.config.particlePoolSize; i++) {
+      this.instancedMesh.setColorAt(i, _initColor);
+    }
+    this.instancedMesh.instanceColor.needsUpdate = true;
+
     const auraMaterial = new THREE.MeshBasicMaterial({
-      color: 0x00ffff,
+      color: 0xff0033,
       transparent: true,
-      opacity: 0.25,
+      opacity: 0.15,
       depthWrite: false,
       blending: THREE.AdditiveBlending
     });
@@ -73,6 +147,7 @@ export class T2_CorruptionVisualIntegration_v1 {
     this.instancedAuraMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.instancedAuraMesh.frustumCulled = false;
     this.instancedAuraMesh.visible = true;
+    this.instancedAuraMesh.renderOrder = VisualHierarchyRegistry?.getRenderOrder?.(VisualHierarchyRegistry.LAYER_LINK_PARTICLES) ?? 17;
     this.particleRoot.add(this.instancedAuraMesh);
 
     this.availableIndices = Array.from({length: this.config.particlePoolSize}, (_, i) => i).reverse();
@@ -474,6 +549,8 @@ export class T2_CorruptionVisualIntegration_v1 {
 
   updateParticles(deltaTime) {
     if (!this.registry.activeParticles.length) return;
+
+    this._particleMaterial.uniforms.uTime.value = this.registry.time;
 
     const dt = Number.isFinite(deltaTime) && deltaTime > 0 ? deltaTime : 0;
     for (let i = this.registry.activeParticles.length - 1; i >= 0; i--) {

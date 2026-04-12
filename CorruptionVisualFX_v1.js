@@ -23,6 +23,7 @@
 
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 const CASCADE_CORRUPTION_THRESHOLD = 0.35;
 
@@ -157,7 +158,7 @@ export class CorruptionVisualFX_v1 {
 
     const mesh = new THREE.Mesh(this._particleGeometry, material);
     mesh.frustumCulled = false;
-    mesh.renderOrder = 9999;
+    mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
     mesh.position.copy(particle.position);
     mesh.scale.setScalar(particle.size);
     return mesh;

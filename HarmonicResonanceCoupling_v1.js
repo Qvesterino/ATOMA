@@ -41,6 +41,7 @@
 
 import * as THREE from 'three';
 import { getLinkSynergy, getNodeCanonicalMetrics } from './SemanticMetricAdapter.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class HarmonicResonanceCoupling_v1 {
   constructor(scene, linkingSystem) {
@@ -60,6 +61,8 @@ export class HarmonicResonanceCoupling_v1 {
     this._linkColorScratch = new THREE.Color();
     this._nodeColorScratch = new THREE.Color();
     this._resonanceVisualGroup = new THREE.Group();
+    this._resonanceVisualGroup.name = 'HarmonicResonanceCoupling';
+    this._resonanceVisualGroup.renderOrder = VisualHierarchyRegistry?.getRenderOrder?.(VisualHierarchyRegistry.LAYER_LINK_RESONANCE) ?? 12;
     if (this.scene && typeof this.scene.add === 'function') {
       this.scene.add(this._resonanceVisualGroup);
     }

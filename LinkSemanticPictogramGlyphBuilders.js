@@ -258,62 +258,33 @@ export class LinkSemanticPictogramGlyphBuilders {
         return group;
     }
 
-    buildStabilityGlyph(size = 1.0, renderOrder = 246, metricType = 'stability', metricValue = 1.0) {
-        const colors = this._getMetricColors(metricType);
-        const intensity = THREE.MathUtils.clamp(metricValue, 0, 1);
-        const scale = this._normalizeGlyphSize(size);
-        const group = this._createGlyphGroup(renderOrder);
+    buildStabilityGlyph(size = 1.0, renderOrder = 246) {
+        const group = new THREE.Group();
+        const coreMat = this.getMaterialFromPool(0x5a2ea6, 1.0, THREE.AdditiveBlending);
 
-        const baseOpacity = 0.38 + intensity * 0.5;
-        const accentOpacity = 0.18 + intensity * 0.45;
-        const sparkOpacity = 0.7 + intensity * 0.18;
-
-        const ringMat = this.getMaterialFromPool(colors.primary, baseOpacity, THREE.AdditiveBlending);
-        const shellMat = this.getMaterialFromPool(colors.accent, accentOpacity, THREE.AdditiveBlending);
-        const coreMat = this.getMaterialFromPool(0xf4f7ff, 0.94, THREE.AdditiveBlending);
-        const sparkMat = this.getMaterialFromPool(colors.accent, sparkOpacity, THREE.AdditiveBlending);
-
-        const outerRing = new THREE.Mesh(this.getGeometryFromCache('torus_small'), ringMat);
-        outerRing.rotation.x = Math.PI / 2;
-        outerRing.scale.set(0.46 * scale, 0.05 * scale, 0.34 * scale);
-        outerRing.position.set(0, 0, -0.01 * scale);
-        outerRing.renderOrder = renderOrder;
-        outerRing.userData.baseScale = new THREE.Vector3(0.46 * scale, 0.05 * scale, 0.34 * scale);
-        group.add(outerRing);
-
-        const innerShell = new THREE.Mesh(this.getGeometryFromCache('torus_small'), shellMat);
-        innerShell.rotation.x = Math.PI / 2;
-        innerShell.scale.set(0.3 * scale, 0.08 * scale, 0.3 * scale);
-        innerShell.position.set(0, 0, 0.005 * scale);
-        innerShell.renderOrder = renderOrder;
-        innerShell.userData.baseScale = new THREE.Vector3(0.3 * scale, 0.08 * scale, 0.3 * scale);
-        group.add(innerShell);
-
-        const core = new THREE.Mesh(this.getGeometryFromCache('sphere_core'), coreMat);
-        core.scale.setScalar(0.16 * scale);
-        core.position.set(0, 0, 0.02 * scale);
+        const core = new THREE.Mesh(this.getGeometryFromCache('torus_core'), coreMat);
         core.renderOrder = renderOrder;
         group.add(core);
 
-        const sparks = [];
-        const sparkRadius = 0.18 * scale;
-        for (let i = 0; i < 3; i++) {
-            const angle = i * (Math.PI * 2 / 3) + Math.PI / 6;
-            const spark = new THREE.Mesh(this.getGeometryFromCache('sphere_spark'), sparkMat);
-            spark.position.set(Math.cos(angle) * sparkRadius, Math.sin(angle) * sparkRadius, 0.015 * scale);
-            spark.scale.setScalar(0.055 * scale);
-            spark.renderOrder = renderOrder;
-            spark.userData.basePosition = spark.position.clone();
-            spark.userData.phase = i * 1.8;
-            group.add(spark);
-            sparks.push(spark);
-        }
+        const orbitMat = this.getMaterialFromPool(0x5a2ea6, 1.0, THREE.AdditiveBlending);
+        const orbit1 = new THREE.Mesh(this.getGeometryFromCache('torus_orbit'), orbitMat);
+        orbit1.renderOrder = renderOrder;
+        group.add(orbit1);
 
-        group.userData.kind = 'stability';
-        group.userData.stabilityOuterRing = outerRing;
-        group.userData.stabilityInnerShell = innerShell;
-        group.userData.stabilityCore = core;
-        group.userData.stabilitySparks = sparks;
+        const orbit2 = new THREE.Mesh(this.getGeometryFromCache('torus_orbit'), orbitMat);
+        orbit2.rotation.set(Math.PI / 4, 0, Math.PI / 6);
+        orbit2.renderOrder = renderOrder;
+        group.add(orbit2);
+
+        const sparkMat = this.getMaterialFromPool(0xffaa33, 1.0, THREE.AdditiveBlending);
+        const spark = new THREE.Mesh(this.getGeometryFromCache('sphere_spark'), sparkMat);
+        spark.renderOrder = renderOrder;
+        group.add(spark);
+
+        group.userData.orbit1 = orbit1;
+        group.userData.orbit2 = orbit2;
+        group.userData.spark = spark;
+        group.userData.sparkOrbitRadius = orbit1.geometry.parameters.radius * size;
         return group;
     }
     buildCorruptionGlyph(size = 1.0, renderOrder = 246, metricType = 'corruption', metricValue = 1.0) {

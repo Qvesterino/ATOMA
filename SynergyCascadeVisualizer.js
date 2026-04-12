@@ -2529,7 +2529,7 @@ export class SynergyCascadeVisualizer {
     const rippleLine = new THREE.Line(ringGeometry, rippleMaterial);
     rippleLine.position.copy(position);
     rippleLine.position.y += Number(options.verticalOffset ?? 0) || 0;
-    rippleLine.renderOrder = 999;
+    rippleLine.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_CASCADE');
     rippleLine.frustumCulled = false;
     
     ripple.mesh = rippleLine;
@@ -2549,7 +2549,7 @@ export class SynergyCascadeVisualizer {
     const haloLine = new THREE.Line(haloGeometry, haloMaterial);
     haloLine.position.copy(position);
     haloLine.position.y += Number(options.verticalOffset ?? 0) || 0;
-    haloLine.renderOrder = 998;
+    haloLine.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_CASCADE') + 1;
     haloLine.frustumCulled = false;
     ripple.haloMesh = haloLine;
     this.scene.add(haloLine);
