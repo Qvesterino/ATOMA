@@ -78,6 +78,11 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
 - Root cause refinement: `CompositeGlyphGenerator` was flattening the orbit structure into a merged `BufferGeometry`, which can turn the visual into a static blob. Added `generateCompositeVisual()` so fusion can keep a live `Object3D` instead.
 - Fixed a missing `getCompositeColor()` helper in `CompositeGlyphGenerator` that broke the new live visual path at runtime.
 - Runtime smoke test now confirms `generateCompositeVisual(['RING','ARROW'], ...)` returns an `Object3D` with children instead of a geometry blob.
+
+## 2026-04-12 -- NodeMetricEngine archetype seeding fix
+- `ensureMetrics()` now seeds placeholder/default canonical metrics from `node.userData.archetypeMetrics` instead of leaving nodes at `{ stability: 1, corruption: 0 }` when a registry snapshot exists.
+- Added regression coverage for placeholder seeding vs live-value preservation.
+- Verification: `node --check src/metrics/NodeMetricEngine.js`, `node --check tests/MetricsAuthority.test.js`, `node tests/MetricsAuthority.test.js`.
 - Added an origin safety guard in `ProceduralHarmonicGlyphGenerator` so procedural glyphs do not spawn in the center cluster when `region.center` is near the map origin.
 - Found the middle-map pictogram artifact source: `LinkSemanticPictogramSystem_Enhanced` was resolving link endpoints only from `link.userData.nodeA/nodeB`, while active links in `main.js` store endpoints on `sourceNode/targetNode` and `source/target`. This left pictograms stuck at `(0,0,0)` when no curve was present.
 - Fixed the enhanced pictogram link resolver to use the same endpoint fallbacks as the rest of the link stack so glyphs travel on links instead of accumulating at the world origin.
@@ -282,3 +287,9 @@ ode --check after the change.
 - Verification:
   - `node --check WaveParticleEmitter_v1.js`
   - `node --check main.js`
+
+## 2026-04-12 — WaveParticleEmitter rollback to commit baseline
+- Restored constructive link burst behavior in WaveParticleEmitter_v1.js to match commit 5f0811c0a2bd5bc85ba1bc4cbf58e53b9a5085f8: link bursts use arcPath + tangent release again, and the extra straight-line fallback / helper was removed.
+- Verified with git diff against the commit: WaveParticleEmitter_v1.js now matches the baseline exactly.
+- Verification: node --check WaveParticleEmitter_v1.js passed.
+

@@ -588,49 +588,108 @@ function installLegacyFieldGuards(node) {
   node.userData.__legacyMetricGuardInstalled = true;
 }
 
+function isPlaceholderCanonicalMetrics(metrics) {
+  if (!metrics || typeof metrics !== 'object') return false;
+  const synergy = Number(metrics.synergy);
+  const harmony = Number(metrics.harmony);
+  const stability = Number(metrics.stability);
+  const corruption = Number(metrics.corruption);
+  const loadPressure = Number.isFinite(metrics.loadPressure)
+    ? Number(metrics.loadPressure)
+    : (Number.isFinite(metrics.load)
+        ? Number(metrics.load)
+        : Number(metrics.loadRatio));
+
+  return (
+    (!Number.isFinite(synergy) || synergy === DEFAULT_METRICS.synergy) &&
+    (!Number.isFinite(harmony) || harmony === DEFAULT_METRICS.harmony) &&
+    (!Number.isFinite(stability) || stability === DEFAULT_METRICS.stability) &&
+    (!Number.isFinite(corruption) || corruption === DEFAULT_METRICS.corruption) &&
+    (!Number.isFinite(loadPressure) || loadPressure === DEFAULT_METRICS.loadPressure)
+  );
+}
+
+function seedCanonicalMetricsFromArchetype(node, metrics) {
+  const archetype = node?.userData?.archetypeMetrics;
+  if (!metrics || !archetype) return false;
+
+  let changed = false;
+  for (const key of ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure']) {
+    const archetypeValue = Number(archetype[key]);
+    if (!Number.isFinite(archetypeValue)) continue;
+
+    const currentValue = Number(metrics[key]);
+    if (!Number.isFinite(currentValue) || currentValue === DEFAULT_METRICS[key]) {
+      const nextValue = clamp01(archetypeValue);
+      if (metrics[key] !== nextValue) {
+        metrics[key] = nextValue;
+        changed = true;
+      }
+    }
+  }
+
+  if (changed) {
+    metrics.load = metrics.loadPressure;
+    metrics.loadRatio = metrics.loadPressure;
+    node.userData.load = metrics.loadPressure;
+    node.userData.loadRatio = metrics.loadPressure;
+    syncLoadAliases(node);
+  }
+
+  return changed;
+}
+
 export function ensureMetrics(node) {
   if (!node || !node.userData) return null;
   installMetricsPropertyGuard(node);
   if (node.userData.metrics) {
-    if (
-      node.userData.__metricsGuardInstalled === true &&
-      node.userData.__legacyMetricGuardInstalled === true &&
-      node.userData.metrics.__guarded === true
-    ) {
-      return node.userData.metrics;
+    installLegacyFieldGuards(node);
+    const metrics = node.userData.metrics.__guarded === true
+      ? node.userData.metrics
+      : wrapMetricsWithGuard(node.userData.metrics);
+    node.userData.metrics = metrics;
+
+    if (node.userData.archetypeMetrics && isPlaceholderCanonicalMetrics(metrics)) {
+      seedCanonicalMetricsFromArchetype(node, metrics);
+    } else {
+      const seededLoadPressure = Number.isFinite(metrics.loadPressure)
+        ? metrics.loadPressure
+        : (Number.isFinite(metrics.load)
+            ? metrics.load
+            : (Number.isFinite(metrics.loadRatio)
+                ? metrics.loadRatio
+                : 0));
+      metrics.loadPressure = clamp01(seededLoadPressure);
+      metrics.load = metrics.loadPressure;
+      metrics.loadRatio = metrics.loadPressure;
+      syncLoadAliases(node);
     }
 
-    installLegacyFieldGuards(node);
-    node.userData.metrics = wrapMetricsWithGuard(node.userData.metrics);
-    const seededLoadPressure = Number.isFinite(node.userData.metrics.loadPressure)
-      ? node.userData.metrics.loadPressure
-      : (Number.isFinite(node.userData.metrics.load)
-          ? node.userData.metrics.load
-          : (Number.isFinite(node.userData.metrics.loadRatio)
-              ? node.userData.metrics.loadRatio
-              : 0));
-    node.userData.metrics.loadPressure = clamp01(seededLoadPressure);
-    node.userData.metrics.load = node.userData.metrics.loadPressure;
-    node.userData.metrics.loadRatio = node.userData.metrics.loadPressure;
-    syncLoadAliases(node);
     return node.userData.metrics;
   }
 
+  const archetype = node.userData.archetypeMetrics || null;
   const legacyHarmony = Number.isFinite(node.userData.harmony)
     ? node.userData.harmony
     : Number.isFinite(node.userData.harmonyLevel)
       ? node.userData.harmonyLevel
-      : DEFAULT_METRICS.harmony;
+      : (Number.isFinite(archetype?.harmony)
+          ? archetype.harmony
+          : DEFAULT_METRICS.harmony);
   const legacyCorruption = Number.isFinite(node.userData.corruption)
     ? node.userData.corruption
     : Number.isFinite(node.userData.corruptionLevel)
       ? node.userData.corruptionLevel
-      : DEFAULT_METRICS.corruption;
+      : (Number.isFinite(archetype?.corruption)
+          ? archetype.corruption
+          : DEFAULT_METRICS.corruption);
   const legacyStability = Number.isFinite(node.userData.stability)
     ? node.userData.stability
     : Number.isFinite(node.userData.instability)
       ? 1 - clamp01(node.userData.instability)
-      : DEFAULT_METRICS.stability;
+      : (Number.isFinite(archetype?.stability)
+          ? archetype.stability
+          : DEFAULT_METRICS.stability);
   const legacyLoadPressure = Number.isFinite(node.userData.loadPressure)
     ? node.userData.loadPressure
     : Number.isFinite(node.userData.load)
@@ -639,10 +698,17 @@ export function ensureMetrics(node) {
         ? node.userData.loadRatio
         : Number.isFinite(node.userData.pressure)
           ? node.userData.pressure
-          : DEFAULT_METRICS.loadPressure;
+          : (Number.isFinite(archetype?.loadPressure)
+              ? archetype.loadPressure
+              : DEFAULT_METRICS.loadPressure);
+  const legacySynergy = Number.isFinite(node.userData.synergy)
+    ? node.userData.synergy
+    : (Number.isFinite(archetype?.synergy)
+        ? archetype.synergy
+        : DEFAULT_METRICS.synergy);
 
   const metrics = (node.userData.metrics = {
-    synergy: DEFAULT_METRICS.synergy,
+    synergy: clamp01(legacySynergy),
     harmony: clamp01(legacyHarmony),
     stability: clamp01(legacyStability),
     corruption: clamp01(legacyCorruption),

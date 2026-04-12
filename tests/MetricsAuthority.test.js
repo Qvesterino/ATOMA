@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { applyMetricImpulse, setMetric } from '../src/metrics/NodeMetricEngine.js';
+import { applyMetricImpulse, ensureMetrics, setMetric } from '../src/metrics/NodeMetricEngine.js';
 import { MetricsRuntime_v1 } from '../MetricsRuntime_v1.js';
 import { LinkQualityCalculator } from '../LinkQualityCalculator.js';
 import { HarmonicHubAuraSystem_Session126 } from '../HarmonicHubAuraSystem_Session126.js';
@@ -178,6 +178,66 @@ test('MetricsRuntime_v1 canonical fallback preserves registry stability and corr
   assert.ok(Math.abs(node.userData.metrics.corruption - 0.005) < 1e-6, 'Expected corruption to survive canonical fallback');
   assert.ok(Math.abs(node.userData.stability - 0.9) < 1e-6, 'Expected userData.stability mirror to stay aligned');
   assert.ok(Math.abs(node.userData.instability - 0.1) < 1e-6, 'Expected userData.instability mirror to stay inverted');
+});
+
+test('ensureMetrics seeds placeholder canonical metrics from archetype snapshot without overwriting live values', () => {
+  const seededNode = {
+    userData: {
+      nodeId: 'error-1',
+      visualCode: 1105,
+      archetypeMetrics: {
+        synergy: 0.163333,
+        harmony: 0.163333,
+        stability: 0.300000,
+        corruption: 0.873333,
+        loadPressure: 0.793333
+      },
+      metrics: {
+        synergy: 0,
+        harmony: 0,
+        stability: 1,
+        corruption: 0,
+        loadPressure: 0,
+        load: 0,
+        loadRatio: 0
+      }
+    }
+  };
+
+  const metrics = ensureMetrics(seededNode);
+  assert.ok(Math.abs(metrics.synergy - 0.163333) < 1e-6, 'Expected synergy to seed from archetype snapshot');
+  assert.ok(Math.abs(metrics.harmony - 0.163333) < 1e-6, 'Expected harmony to seed from archetype snapshot');
+  assert.ok(Math.abs(metrics.stability - 0.3) < 1e-6, 'Expected stability to seed from archetype snapshot');
+  assert.ok(Math.abs(metrics.corruption - 0.873333) < 1e-6, 'Expected corruption to seed from archetype snapshot');
+  assert.ok(Math.abs(metrics.loadPressure - 0.793333) < 1e-6, 'Expected loadPressure to seed from archetype snapshot');
+  assert.ok(Math.abs(seededNode.userData.load - 0.793333) < 1e-6, 'Expected load alias to stay aligned');
+
+  const liveNode = {
+    userData: {
+      nodeId: 'control-1',
+      visualCode: 602,
+      archetypeMetrics: {
+        synergy: 0.530526,
+        harmony: 0.728421,
+        stability: 0.826842,
+        corruption: 0.022632,
+        loadPressure: 0.370526
+      },
+      metrics: {
+        synergy: 0.5,
+        harmony: 0.6,
+        stability: 0.7,
+        corruption: 0.12,
+        loadPressure: 0.25,
+        load: 0.25,
+        loadRatio: 0.25
+      }
+    }
+  };
+
+  const liveMetrics = ensureMetrics(liveNode);
+  assert.ok(Math.abs(liveMetrics.synergy - 0.5) < 1e-6, 'Expected live synergy to remain unchanged');
+  assert.ok(Math.abs(liveMetrics.corruption - 0.12) < 1e-6, 'Expected live corruption to remain unchanged');
 });
 
 test('SemanticMetricAdapter derives networkStress from stability and preserves stability aliases', () => {
