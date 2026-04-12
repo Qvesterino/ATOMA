@@ -7814,7 +7814,7 @@ getLinksForNode(node) {
       conduit.trailEmitters.delete(link.id);
     }
     if (conduit?.pictogramSystem?.clearLink) {
-      conduit.pictogramSystem.clearLink(link);
+      conduit.pictogramSystem.clearLink(link, { immediate: true });
     }
     if (conduit?.clearLinkAuxVisuals) {
       conduit.clearLinkAuxVisuals(link);
@@ -7866,6 +7866,13 @@ getLinksForNode(node) {
     }
     
     this.links = this.links.filter(l => l !== link);
+
+    // Semantic pictograms are cleared only after the link is no longer live,
+    // otherwise the pictogram cache can immediately respawn them from stale link refs.
+    const linkKey = link.id || link.uuid || link.userData?.id || link.userData?.linkId || null;
+    if (conduit?.pictogramSystem?.disposeLinkGlyphs && linkKey !== null && linkKey !== undefined) {
+      conduit.pictogramSystem.disposeLinkGlyphs(linkKey);
+    }
     
     // Refresh HUD if a node is selected
     if (window.game && window.game.selectedHUD && this.selectedNode) {
@@ -8762,7 +8769,7 @@ export function warmUpArchetypeShaders(renderer, patchers = {}) {
   if (!renderer || typeof renderer.render !== 'function') return;
   if (typeof window !== 'undefined' && window.__shaderWarmupDone === true) return;
 
-  const categories = ['input', 'process', 'integration', 'analytics', 'storage', 'control', 'quantum'];
+  const categories = ['input', 'process', 'integration', 'analytics', 'storage', 'control', 'quantum', 'sigma', 'mythic', 'prime', 'error', 'emotional'];
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 10);
   camera.position.z = 2;

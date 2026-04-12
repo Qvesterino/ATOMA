@@ -216,7 +216,7 @@ export function warmupAllVisualVariants(renderer, scene, camera) {
         disposables.push(obj);
     };
 
-    const categories = ['input', 'process', 'integration', 'analytics', 'storage', 'control', 'quantum'];
+    const categories = ['input', 'process', 'integration', 'analytics', 'storage', 'control', 'quantum', 'sigma', 'mythic', 'prime', 'error', 'emotional'];
     EnhancedNodeModels.ensureRegistryReady?.();
 
     for (const cat of categories) {

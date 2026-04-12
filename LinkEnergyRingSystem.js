@@ -28,7 +28,7 @@ const hashString32 = (value = '') => {
  */
 
 export class LinkEnergyRingSystem {
-    constructor(scene) {
+    constructor(scene, options = {}) {
         this.scene = scene;
         this.rings = [];
         this.baseGeometry = new THREE.TorusGeometry(1, 0.072, 8, 40);
@@ -40,11 +40,16 @@ export class LinkEnergyRingSystem {
         this.materialPool = new Map();
         this.geometryPool = new Map();
         this.maxPoolSize = 50;
+        this._geometryPoolInitialized = false;
+        this._deferGeometryPool = options?.deferGeometryPool === true;
         
-        this._initializeGeometryPool();
+        if (!this._deferGeometryPool) {
+            this._initializeGeometryPool();
+        }
     }
     
     _initializeGeometryPool() {
+        if (this._geometryPoolInitialized) return;
         const geometries = [
             { key: 'sphere_small', factory: () => new THREE.SphereGeometry(0.16, 12, 10) },
             { key: 'sphere_tiny', factory: () => new THREE.SphereGeometry(0.04, 8, 8) },
@@ -68,9 +73,17 @@ export class LinkEnergyRingSystem {
         geometries.forEach(({ key, factory }) => {
             this.geometryPool.set(key, factory());
         });
+        this._geometryPoolInitialized = true;
+    }
+
+    ensureGeometryPool() {
+        if (!this._geometryPoolInitialized) {
+            this._initializeGeometryPool();
+        }
     }
     
     _getGeometryFromPool(key) {
+        this.ensureGeometryPool();
         if (this.geometryPool.has(key)) {
             return this.geometryPool.get(key);
         }
@@ -1357,6 +1370,7 @@ export class LinkEnergyRingSystem {
         
         this.geometryPool.forEach(geo => geo?.dispose?.());
         this.geometryPool.clear();
+        this._geometryPoolInitialized = false;
         this.materialPool.forEach(mat => mat?.dispose?.());
         this.materialPool.clear();
     }

@@ -32,6 +32,7 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 // PictogramLibrary disabled during visual design; keep material factory only
 import { createPictogramMaterial } from './LinkPictogramLibrary.js';
 import { getLinkSynergy } from './SemanticMetricAdapter.js';
+import { LinkSemanticPictogramGlyphBuilders } from './LinkSemanticPictogramGlyphBuilders.js';
 
 // ============================================================================
 // CONFIGURATION
@@ -82,8 +83,6 @@ const CONFIG = {
     SIZE_LARGE: 0.45,
     SIZE_MEDIUM: 0.4,
     SIZE_SMALL: 0.35,
-    UNIFORM_GLYPH_SCALE: 0.6,
-    
     // Motion
     BASE_DRIFT_SPEED: 0.25,
     SYNERGY_SPEED_MULTIPLIER: 1.8,
@@ -293,6 +292,28 @@ class EnhancedPictogramInstance {
         this.isAlignedByHealing = false;
         this.isTenseFromRupture = false;
         this._warnedMissingCurve = false;
+        this._linkKey = null;
+        this._stateKey = null;
+        this._metricType = null;
+        this._glyphScale = null;
+        this._orbit1 = null;
+        this._orbit2 = null;
+        this._spark = null;
+    }
+
+    releaseVisual() {
+        if (this.mesh?.parent) {
+            this.mesh.parent.remove(this.mesh);
+        }
+        this._orbit1 = null;
+        this._orbit2 = null;
+        this._spark = null;
+        this._linkKey = null;
+        this._stateKey = null;
+        this._metricType = null;
+        this._glyphScale = null;
+        this._setVisibleRecursive(this.mesh, false);
+        this.mesh = null;
     }
 
     spawn(link, layer, state, size, depthOffset, linkKey = null, metricType = 'loadPressure') {
@@ -907,6 +928,20 @@ export class LinkSemanticPictogramSystem_Enhanced {
         // Geometry cache
         this.geometryCache = new Map();
         this.initializeGeometryCache();
+        this.glyphBuilders = new LinkSemanticPictogramGlyphBuilders({
+            getGeometryFromCache: this._getGeometryFromCache.bind(this),
+            getMaterialFromPool: this._getMaterialFromPool.bind(this)
+        });
+
+        this.glyphScale = 1.0;
+        this.metricGlyphScale = {
+            harmony: 1.0,
+            stability: 0.92,
+            synergy: 1.0,
+            loadPressure: 1.0,
+            corruption: 1.0,
+            default: 1.0
+        };
 
         this._inactiveTimer = 0;
         this._lastRecoveryTime = 0;
@@ -1612,6 +1647,47 @@ export class LinkSemanticPictogramSystem_Enhanced {
         return [];
     }
 
+    getGlyphScale(size = 1.0, metricType = 'loadPressure') {
+        const baseSize = Math.max(0.01, size || CONFIG.SIZE_MEDIUM || 0.4);
+        const metricScale = this.metricGlyphScale?.[metricType] ?? this.metricGlyphScale?.default ?? 1.0;
+        const configScale = CONFIG.UNIFORM_GLYPH_SCALE || 1.0;
+        return Math.max(0.01, baseSize * configScale * this.glyphScale * metricScale);
+    }
+
+    setGlyphScale(scale, { refreshActive = true } = {}) {
+        const nextScale = Number.isFinite(scale) ? Math.max(0.1, scale) : 1.0;
+        this.glyphScale = nextScale;
+        if (refreshActive) {
+            this.refreshActiveGlyphScales();
+        }
+        return this.glyphScale;
+    }
+
+    setMetricGlyphScale(metricType, scale, { refreshActive = true } = {}) {
+        if (!metricType) return this.metricGlyphScale;
+        const nextScale = Number.isFinite(scale) ? Math.max(0.1, scale) : 1.0;
+        this.metricGlyphScale[metricType] = nextScale;
+        if (refreshActive) {
+            this.refreshActiveGlyphScales(metricType);
+        }
+        return this.metricGlyphScale;
+    }
+
+    refreshActiveGlyphScales(metricFilter = null) {
+        this.pictograms.forEach((pictogram) => {
+            if (!pictogram?.active || !pictogram.mesh) return;
+            if (metricFilter && pictogram._metricType !== metricFilter) return;
+            const size = pictogram.size ?? CONFIG.SIZE_MEDIUM ?? 0.4;
+            const metricType = pictogram._metricType || 'loadPressure';
+            pictogram._glyphScale = this.getGlyphScale(size, metricType);
+            pictogram.mesh.scale.setScalar(pictogram._glyphScale);
+        });
+    }
+
+    disposeLinkGlyphs(linkOrId) {
+        return this.clearLink(linkOrId, { immediate: true });
+    }
+
     // ========================================================================
     // SPAWNING
     // ========================================================================
@@ -1636,9 +1712,11 @@ export class LinkSemanticPictogramSystem_Enhanced {
         if (!glyph.material) {
             glyph.material = this._findFirstMaterial(glyph);
         }
-        const uniformScale = Math.max(0.01, size * (CONFIG.UNIFORM_GLYPH_SCALE || 1.0));
+        const uniformScale = this.getGlyphScale(size, metricType);
         glyph.scale.setScalar(uniformScale);
         pictogram.mesh = glyph;
+        pictogram._metricType = metricType;
+        pictogram._glyphScale = uniformScale;
         this._applyRenderSettings(glyph, glyph.renderOrder);
         pictogram._orbit1 = glyph.userData.orbit1;
         pictogram._orbit2 = glyph.userData.orbit2;
@@ -1653,43 +1731,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
     }
 
     buildOrbitalGlyph(size, metricType = 'loadPressure') {
-        const pictoRO = (VisualHierarchyRegistry.getRenderOrder && VisualHierarchyRegistry.getRenderOrder('LINK_PICTO')) || 246;
-        const container = new THREE.Group();
-        container.scale.setScalar(1.0);
-        container.renderOrder = pictoRO;
-        container.frustumCulled = false;
-
-        // Dispatch to metric-specific visual builder
-        let glyph = null;
-        switch (metricType) {
-            case 'synergy':
-                glyph = this.buildSynergyArrowCluster(pictoRO);
-                break;
-            case 'harmony':
-                glyph = this.buildHarmonyGlyph(size, pictoRO);
-                break;
-            case 'stability':
-                glyph = this.buildStabilityGlyph(size, pictoRO);
-                break;
-            case 'corruption':
-                glyph = this.buildCorruptionGlyph(size, pictoRO);
-                break;
-            case 'loadPressure':
-            default:
-                glyph = this.buildLoadPressureGlyph(size, pictoRO);
-                break;
-        }
-
-        if (glyph) {
-            glyph.renderOrder = pictoRO;
-            container.add(glyph);
-            // Preserve userData helpers if present
-            if (glyph.userData) {
-                container.userData = { ...container.userData, ...glyph.userData };
-            }
-        }
-
-        return container;
+        return this.glyphBuilders.buildOrbitalGlyph(size, metricType);
     }
 
     ensureMetricMinimums() {
@@ -1748,294 +1790,27 @@ export class LinkSemanticPictogramSystem_Enhanced {
         });
     }
 
-    // Load pressure torus-based glyph (existing visual)
     buildLoadPressureGlyph(size = 1.0, renderOrder = 246) {
-        const group = new THREE.Group();
-        const coreMat = this._getMaterialFromPool(0x5a2ea6, 1.0, THREE.AdditiveBlending);
-        const haloMat = this._getMaterialFromPool(0x8d77ff, 0.22, THREE.AdditiveBlending);
-        const orbitAccentMat = this._getMaterialFromPool(0x7d4cff, 0.45, THREE.AdditiveBlending);
-        const sparkMat = this._getMaterialFromPool(0xffaa33, 1.0, THREE.AdditiveBlending);
-
-        const core = new THREE.Mesh(this._getGeometryFromCache('torus_core'), coreMat);
-        core.scale.setScalar(1.06);
-        core.renderOrder = renderOrder;
-        group.add(core);
-
-        const pulseShell = new THREE.Mesh(this._getGeometryFromCache('torus_harmony'), haloMat);
-        pulseShell.rotation.x = Math.PI / 2;
-        pulseShell.scale.setScalar(0.98);
-        pulseShell.renderOrder = renderOrder;
-        group.add(pulseShell);
-
-        const orbit1 = new THREE.Mesh(this._getGeometryFromCache('torus_orbit'), coreMat);
-        orbit1.renderOrder = renderOrder;
-        group.add(orbit1);
-
-        const orbit2 = new THREE.Mesh(this._getGeometryFromCache('torus_orbit'), coreMat);
-        orbit2.rotation.set(Math.PI / 4, 0, Math.PI / 6);
-        orbit2.renderOrder = renderOrder;
-        group.add(orbit2);
-
-        const orbit3 = new THREE.Mesh(this._getGeometryFromCache('torus_small'), orbitAccentMat);
-        orbit3.rotation.set(Math.PI / 2.3, Math.PI / 5, -Math.PI / 5);
-        orbit3.renderOrder = renderOrder;
-        group.add(orbit3);
-
-        const sparks = [];
-        for (let i = 0; i < 3; i++) {
-            const spark = new THREE.Mesh(this._getGeometryFromCache('sphere_spark'), sparkMat);
-            spark.renderOrder = renderOrder;
-            spark.position.set((i - 1) * 0.08, i === 1 ? 0.03 : 0, i === 1 ? 0.06 : 0);
-            group.add(spark);
-            sparks.push(spark);
-        }
-
-        group.userData.kind = 'loadPressure';
-        group.userData.orbit1 = orbit1;
-        group.userData.orbit2 = orbit2;
-        group.userData.orbit3 = orbit3;
-        group.userData.pulseShell = pulseShell;
-        group.userData.spark = sparks[0];
-        group.userData.sparks = sparks;
-        group.userData.sparkOrbitRadius = orbit1.geometry.parameters.radius * size; // parametric torus orbit radius
-        return group;
+        return this.glyphBuilders.buildLoadPressureGlyph(size, renderOrder);
     }
 
-    buildSynergyArrowCluster(renderOrder) {
-        const cluster = new THREE.Group();
-        const mat = this._getMaterialFromPool(0x66ffff, 1.0, THREE.AdditiveBlending);
-        const bridgeMat = this._getMaterialFromPool(0xc9ffff, 0.42, THREE.AdditiveBlending);
-
-        const ringA = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
-        ringA.position.set(-0.14, 0.0, 0.0);
-        ringA.rotation.y = Math.PI / 2;
-        ringA.renderOrder = renderOrder;
-
-        const ringB = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
-        ringB.position.set(0.14, 0.0, 0.0);
-        ringB.rotation.y = Math.PI / 2;
-        ringB.renderOrder = renderOrder;
-
-        const ringC = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
-        ringC.position.set(0.0, 0.12, 0.0);
-        ringC.rotation.x = Math.PI / 2;
-        ringC.renderOrder = renderOrder;
-
-        const bridge = new THREE.Mesh(this._getGeometryFromCache('box_beam'), bridgeMat);
-        bridge.scale.set(0.45, 0.18, 0.18);
-        bridge.rotation.z = Math.PI / 2;
-        bridge.renderOrder = renderOrder;
-
-        cluster.add(ringA);
-        cluster.add(ringB);
-        cluster.add(ringC);
-        cluster.add(bridge);
-
-        cluster.userData.synergyArrows = [ringA, ringB, ringC];
-        cluster.userData.synergyBridge = bridge;
-        cluster.userData.baseScale = 1.0;
-        cluster.userData.phase = Math.random() * Math.PI * 2;
-        cluster.userData.spinSpeed = 0.8;
-        cluster.userData.kind = 'synergy';
-        return cluster;
+    buildSynergyArrowCluster(size = 1.0, renderOrder = 246) {
+        return this.glyphBuilders.buildSynergyArrowCluster(size, renderOrder);
     }
 
     // Harmony glyph: two interlocking cyan rings
     buildHarmonyGlyph(size = 1.0, renderOrder = 246) {
-        const group = new THREE.Group();
-        const mat = this._getMaterialFromPool(0x00ffff, 1.0, THREE.AdditiveBlending);
-        const auraMat = this._getMaterialFromPool(0x8efcff, 0.32, THREE.AdditiveBlending);
-        const coreMat = this._getMaterialFromPool(0xffffff, 0.9, THREE.AdditiveBlending);
-
-        // Use a smaller torus geometry so the harmony glyph matches loadPressure scale.
-        const ringA = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
-        ringA.position.set(-size * 0.12, 0, 0);
-        ringA.renderOrder = renderOrder;
-
-        const ringB = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
-        ringB.position.set(size * 0.12, 0, 0);
-        ringB.rotation.y = Math.PI / 2;
-        ringB.renderOrder = renderOrder;
-
-        const haloRing = new THREE.Mesh(this._getGeometryFromCache('torus_harmony'), auraMat);
-        haloRing.rotation.x = Math.PI / 2;
-        haloRing.scale.setScalar(0.78);
-        haloRing.renderOrder = renderOrder;
-
-        const core = new THREE.Mesh(this._getGeometryFromCache('sphere_core'), coreMat);
-        core.scale.setScalar(1.2);
-        core.renderOrder = renderOrder;
-
-        group.add(ringA);
-        group.add(ringB);
-        group.add(haloRing);
-        group.add(core);
-
-        group.userData.harmonyRings = [ringA, ringB, haloRing];
-        group.userData.harmonyCore = core;
-        group.userData.rotors = [ringA, ringB];
-        group.userData.kind = 'harmony';
-        return group;
+        return this.glyphBuilders.buildHarmonyGlyph(size, renderOrder);
     }
 
     // Stability glyph: square frame + inner rotated square
     buildStabilityGlyph(size = 1.0, renderOrder = 246) {
-        const group = new THREE.Group();
-        const mat = this._getMaterialFromPool(0xffffff, 1.0, THREE.AdditiveBlending);
-        const lockMat = this._getMaterialFromPool(0x9db2ff, 0.28, THREE.AdditiveBlending);
-
-        const outer = size * 0.5;
-        const inner = size * 0.32;
-        const shape = new THREE.Shape();
-        shape.moveTo(-outer, -outer);
-        shape.lineTo(outer, -outer);
-        shape.lineTo(outer, outer);
-        shape.lineTo(-outer, outer);
-        shape.lineTo(-outer, -outer);
-        const hole = new THREE.Path();
-        hole.moveTo(-inner, -inner);
-        hole.lineTo(inner, -inner);
-        hole.lineTo(inner, inner);
-        hole.lineTo(-inner, inner);
-        hole.lineTo(-inner, -inner);
-        shape.holes.push(hole);
-
-        const frameGeom = new THREE.ExtrudeGeometry(shape, {
-            depth: Math.max(0.012, size * 0.016),
-            bevelEnabled: false
-        });
-        frameGeom.rotateX(-Math.PI / 2);
-        const frame = new THREE.Mesh(frameGeom, mat);
-        frame.renderOrder = renderOrder;
-        group.add(frame);
-
-        const lockRing = new THREE.Mesh(this._getGeometryFromCache('torus_small'), lockMat);
-        lockRing.scale.setScalar(1.4);
-        lockRing.renderOrder = renderOrder;
-        group.add(lockRing);
-
-        // Inner diamond (rotated square)
-        const innerGeom = this._getGeometryFromCache('plane_diamond').clone();
-        innerGeom.scale(size * 0.85, size * 0.85, 1);
-        const innerMesh = new THREE.Mesh(innerGeom, mat);
-        innerMesh.rotation.z = Math.PI / 4;
-        innerMesh.position.set(0, 0, size * 0.01);
-        innerMesh.renderOrder = renderOrder;
-        group.add(innerMesh);
-
-        const anchors = [];
-        const anchorMat = this._getMaterialFromPool(0xffffff, 0.95, THREE.AdditiveBlending);
-        const anchorOffsets = [
-            [-outer, -outer],
-            [outer, -outer],
-            [outer, outer],
-            [-outer, outer]
-        ];
-        anchorOffsets.forEach(([x, y], index) => {
-            const anchor = new THREE.Mesh(this._getGeometryFromCache('sphere_spark'), anchorMat);
-            anchor.position.set(x, y, size * 0.025);
-            anchor.scale.setScalar(1.2);
-            anchor.renderOrder = renderOrder;
-            anchor.userData.basePosition = anchor.position.clone();
-            anchor.userData.phase = index * 1.7;
-            group.add(anchor);
-            anchors.push(anchor);
-        });
-
-        const braceX = new THREE.Mesh(this._getGeometryFromCache('box_beam'), lockMat);
-        braceX.scale.set(size * 0.82, 0.10, 0.10);
-        braceX.renderOrder = renderOrder;
-        group.add(braceX);
-
-        const braceZ = new THREE.Mesh(this._getGeometryFromCache('box_beam'), lockMat);
-        braceZ.scale.set(size * 0.82, 0.10, 0.10);
-        braceZ.rotation.z = Math.PI / 2;
-        braceZ.renderOrder = renderOrder;
-        group.add(braceZ);
-
-        group.userData.stabilityFrame = frame;
-        group.userData.stabilityDiamond = innerMesh;
-        group.userData.stabilityAnchors = anchors;
-        group.userData.stabilityLockRing = lockRing;
-        group.userData.stabilityBraces = [braceX, braceZ];
-        group.userData.rotor = innerMesh;
-        group.userData.kind = 'stability';
-        return group;
+        return this.glyphBuilders.buildStabilityGlyph(size, renderOrder);
     }
 
     // Corruption glyph: fractured ring of arc segments
     buildCorruptionGlyph(size = 1.0, renderOrder = 246) {
-        const group = new THREE.Group();
-        const mat = this._getMaterialFromPool(0xff0044, 1.0, THREE.AdditiveBlending);
-        const shardMat = this._getMaterialFromPool(0xff5a86, 0.92, THREE.AdditiveBlending);
-        const coreMat = this._getMaterialFromPool(0x4a001b, 0.92, THREE.AdditiveBlending);
-
-        const segCount = 7;
-        const outerRadius = 0.35 * size;
-        const tube = 0.04 * size;
-        const arc = Math.PI * 0.35;
-
-        const segments = [];
-        const shards = [];
-
-        const core = new THREE.Mesh(this._getGeometryFromCache('sphere_core'), coreMat);
-        core.scale.setScalar(1.15);
-        core.renderOrder = renderOrder;
-        group.add(core);
-
-        // Inner fractured ring
-        for (let i = 0; i < segCount; i++) {
-            const segGeom = this._getGeometryFromCache('torus_arc').clone();
-            segGeom.scale(size, size, 1);
-            const seg = new THREE.Mesh(segGeom, mat);
-            seg.rotation.z = i * (Math.PI * 2 / segCount) + (Math.random() - 0.5) * 0.18;
-            seg.position.x += (Math.sin(i * 1.3) * 0.055 + (Math.random() - 0.5) * 0.022) * size;
-            seg.position.y += (Math.cos(i * 0.9) * 0.035) * size;
-            seg.renderOrder = renderOrder;
-            group.add(seg);
-            segments.push(seg);
-        }
-
-        // Outer fractured ring (opposite rotation direction)
-        for (let i = 0; i < segCount; i++) {
-            const segGeom = this._getGeometryFromCache('torus_arc').clone();
-            segGeom.scale(size * 1.08, size, 1);
-            const seg = new THREE.Mesh(segGeom, mat);
-            seg.rotation.z = -i * (Math.PI * 2 / segCount) + (Math.random() - 0.5) * 0.18;
-            seg.position.x += (Math.sin(i * 1.1 + 0.5) * 0.065 + (Math.random() - 0.5) * 0.03) * size;
-            seg.position.y += (Math.cos(i * 1.2 + 0.3) * 0.025) * size;
-            seg.renderOrder = renderOrder;
-            group.add(seg);
-            segments.push(seg);
-        }
-
-        for (let i = 0; i < 6; i++) {
-            const shard = new THREE.Mesh(this._getGeometryFromCache('box_shard'), shardMat);
-            shard.scale.set(0.035 * size, 0.18 * size, 0.03 * size);
-            const angle = (Math.PI * 2 * i / 6) + (Math.random() - 0.5) * 0.32;
-            const radius = outerRadius + 0.05 * size + Math.random() * 0.06 * size;
-            shard.position.set(
-                Math.cos(angle) * radius,
-                Math.sin(angle) * radius,
-                (Math.random() - 0.5) * 0.10 * size
-            );
-            shard.rotation.z = angle + Math.PI / 2 + (Math.random() - 0.5) * 0.3;
-            shard.rotation.x = (Math.random() - 0.5) * 0.6;
-            shard.renderOrder = renderOrder;
-            shard.userData.basePosition = shard.position.clone();
-            shard.userData.phase = Math.random() * Math.PI * 2;
-            group.add(shard);
-            shards.push(shard);
-        }
-
-        group.userData.kind = 'corruption';
-        group.userData.rotors = segments;
-        group.userData.corruptionSegments = segments;
-        group.userData.corruptionShards = shards;
-        group.userData.corruptionCore = core;
-        group.userData.spinSpeed = 0.25;
-        group.userData.flickerPhase = Math.random() * Math.PI * 2;
-        return group;
+        return this.glyphBuilders.buildCorruptionGlyph(size, renderOrder);
     }
 
     getCategoryColorRestrained(category) {
@@ -2092,6 +1867,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
             const pictogramLinkId = pictogram._linkKey || this.getLinkKey(pictogram.link);
             if (pictogramLinkId !== linkId) return;
             if (immediate) {
+                pictogram.releaseVisual?.();
                 pictogram.reset();
             } else {
                 pictogram.beginOrphanFade();
@@ -2115,7 +1891,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
         this._lastLinks = Array.isArray(this._lastLinks)
             ? this._lastLinks.filter(link => this.getLinkKey(link) !== linkId)
             : [];
-        this.invalidateSpawnState(false);
+        this.invalidateSpawnState(immediate);
 
         return cleared;
     }
@@ -2139,6 +1915,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
             }
 
             if (immediate) {
+                pictogram.releaseVisual?.();
                 pictogram.reset();
             } else {
                 pictogram.beginOrphanFade();
@@ -2169,7 +1946,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
         }
 
         if (cleared > 0) {
-            this.invalidateSpawnState(false);
+            this.invalidateSpawnState(immediate);
         }
 
         return cleared;
@@ -2204,16 +1981,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
 
         this.pictograms.forEach((pictogram) => {
             if (!pictogram) return;
-            if (pictogram.mesh?.parent) {
-                pictogram.mesh.parent.remove(pictogram.mesh);
-            }
+            pictogram.releaseVisual?.();
             pictogram.reset();
-            pictogram._orbit1 = null;
-            pictogram._orbit2 = null;
-            pictogram._spark = null;
-            if (pictogram.mesh) {
-                pictogram.mesh.visible = false;
-            }
         });
 
         this.linkImportanceScores.clear();
@@ -2231,7 +2000,10 @@ export class LinkSemanticPictogramSystem_Enhanced {
     }
 
     dispose() {
-        this.pictograms.forEach(p => p.reset());
+        this.pictograms.forEach((p) => {
+            p.releaseVisual?.();
+            p.reset();
+        });
         this.linkImportanceScores.clear();
         this.linkPictogramCounts.clear();
         this.linkSpawnTimers.clear();

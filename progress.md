@@ -217,3 +217,16 @@ ode --check after the change.
 - 2026-04-11: `LinkCreateStagePolicy` was updated to match the new bootstrap split so the stage manifest stays aligned with runtime behavior (`ring trails + pulse dust emitter` now in phase 3, `pulse ring + arc discharge + directional streaks` in phase 4).
 - 2026-04-11: Fresh browser smoke after the bootstrap split stayed clean and visually readable. On one created link, the staged samples progressed as expected: first the ring was absent, then the pulse ring appeared, then ring trails + dust emitter became visible, and finally sparks joined in. Screenshot artifact: `output/web-game/fx-stack-smoke-2.png`.
 - 2026-04-11: `LinkRingArcDischarges` now boots in slices instead of all at once: constructor creates only the core group when `deferPools` is enabled, then the impact spark pool, ripple pool, and packet pool are warmed in later conduit bootstrap slices. Spawn paths can still lazy-init their pool if a pulse hits before the staged warmup completes. Browser smoke on a fresh reload stayed visually intact; the staged samples showed the ring first, then pulse ring / dust, then arc discharges, then sparks and trails.
+- 2026-04-11: Continued link FX cleanup on the directional / ring side. `LinkDirectionalStreaks` now lazily creates its color-dynamics and gradient-polish helpers and no longer emits periodic opacity logs in the normal hot path. `LinkEnergyRingSystem` now supports deferred geometry-pool initialization, and `LinkRendererConduit` boots the ring system with deferred geometry then warms the pool later in the staged link bootstrap. Browser smoke on `http://127.0.0.1:5500/index.html` stayed visually intact: one created link showed `streaks=true`, `rings=true`, `arcDischarges=true`, and a manual `emitRing()` call succeeded with `poolReady=true`. Screenshot artifact: `output/web-game/link-stack-directional-energy-smoke.png`.
+- 2026-04-12: Disabled `CanonicalTemplate3_StressVisuals` and `StressVisualShaderSystem` by default via `window.stressVisualSystemsEnabled = false` in `main.js`.
+- Added runtime toggles: `window.enableStressVisualSystems()` and `window.disableStressVisualSystems()`.
+- Verified in Edge smoke: `stressEnabled=false`, both helpers exist, stress node maps remain empty at boot.
+## 2026-04-12 — Link semantic pictogram refactor
+
+- Extracted the active glyph builders from `LinkSemanticPictogramSystem_Enhanced.js` into `LinkSemanticPictogramGlyphBuilders.js` so lifecycle/state code is separated from glyph construction.
+- Added runtime glyph scale control on the pictogram system: `setGlyphScale()`, `setMetricGlyphScale()`, `getGlyphScale()`, and `refreshActiveGlyphScales()`.
+- Fixed size handling so synergy glyphs now respect the same scale contract as the other active glyph builders.
+- Fixed link removal cleanup order: semantic pictograms now dispose only after the link is removed from live link arrays, preventing respawn from stale `_lastLinks` cache.
+- Verified with Node syntax checks and a Playwright/Edge smoke:
+  - glyph scale helper exists and updates runtime scale
+  - link create/remove path now drops active pictograms to zero after unlink

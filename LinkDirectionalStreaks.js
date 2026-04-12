@@ -79,13 +79,11 @@ export class LinkDirectionalStreaks {
         // Pulse wave injection system
         this.pulseInjector = new LinkPulseWaveInjector();
         
-        // Color dynamics system (NEW - Session 115)
-        this.colorDynamics = new LinkStreakColorDynamics({
-            enabled: true,
-            debugMode: false
-        });
-
-        this.gradientPolish = new LinkDirectionalGradientPolish();
+        // Lazily created helpers keep the constructor light and avoid front-loading
+        // work that is only needed once streaks actually render.
+        this._colorDynamics = null;
+        this._gradientPolish = null;
+        this._debugLoggingEnabled = false;
 
         // Reusable geometry buffers to avoid per-frame allocations.
         const maxStreaks = this.config.streakCountMax;
@@ -100,6 +98,23 @@ export class LinkDirectionalStreaks {
         };
         this._positionsBuffer = new Float32Array(this._geometryBufferCapacity.maxVertices * 3);
         this._indicesBuffer = new Uint32Array(this._geometryBufferCapacity.maxIndices);
+    }
+
+    _getColorDynamics() {
+        if (!this._colorDynamics) {
+            this._colorDynamics = new LinkStreakColorDynamics({
+                enabled: true,
+                debugMode: false
+            });
+        }
+        return this._colorDynamics;
+    }
+
+    _getGradientPolish() {
+        if (!this._gradientPolish) {
+            this._gradientPolish = new LinkDirectionalGradientPolish();
+        }
+        return this._gradientPolish;
     }
 
     /**
@@ -269,8 +284,9 @@ export class LinkDirectionalStreaks {
         
         // --- COMPUTE STATE-DRIVEN PARAMETERS ---
         let gradientSample = null;
-        if (this.gradientPolish && link?.id) {
-            this.gradientPolish._computeLinkGradient({
+        const gradientPolish = link?.id ? this._getGradientPolish() : null;
+        if (gradientPolish && link?.id) {
+            gradientPolish._computeLinkGradient({
                 id: link.id,
                 synergy,
                 harmony,
@@ -279,7 +295,7 @@ export class LinkDirectionalStreaks {
                 active: true,
                 mesh: streaks.mesh
             });
-            gradientSample = this.gradientPolish.getGradientAtT(link.id, 0.35);
+            gradientSample = gradientPolish.getGradientAtT(link.id, 0.35);
         }
         
         // Synergy controls speed and count
@@ -523,7 +539,7 @@ export class LinkDirectionalStreaks {
             streaks.material.opacity = THREE.MathUtils.clamp(baseOpacity, 0.28, 0.85);
 
             // Log opacity for debugging (throttled to 1 per second)
-            if (typeof window !== 'undefined') {
+            if (this._debugLoggingEnabled && typeof window !== 'undefined') {
                 this._streakOpacityLogTime = this._streakOpacityLogTime || 0;
                 this._streakOpacityLogTime += safeDelta;
                 if (this._streakOpacityLogTime > 1.0) {
@@ -648,7 +664,7 @@ export class LinkDirectionalStreaks {
                 }
 
                 // === NEW (Session 115): Apply color dynamics based on harmony + specialization ===
-                const dynamicColor = this.colorDynamics.computeStreakColor(
+                const dynamicColor = this._getColorDynamics().computeStreakColor(
                     color,
                     harmony,
                     specialization,
@@ -794,8 +810,9 @@ export class LinkDirectionalStreaks {
     dispose(streaks) {
         if (!streaks) return;
 
-        if (this.gradientPolish && streaks.linkId) {
-            this.gradientPolish.linkGradients.delete(streaks.linkId);
+        const gradientPolish = this._gradientPolish;
+        if (gradientPolish && streaks.linkId) {
+            gradientPolish.linkGradients.delete(streaks.linkId);
         }
         
         if (streaks.geometry) {

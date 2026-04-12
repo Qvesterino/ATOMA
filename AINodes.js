@@ -3223,13 +3223,17 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       nodesByCategory: {}
     };
     
-    this.nodeCategories.forEach(category => {
+    AINodes.SAFE_CATEGORIES.forEach(category => {
       info.nodesByCategory[category] = 0;
     });
     
     this.activeNodes.forEach(node => {
       const category = node.userData.category;
-      info.nodesByCategory[category] = (info.nodesByCategory[category] || 0) + 1;
+      if (category && info.nodesByCategory[category] !== undefined) {
+        info.nodesByCategory[category] += 1;
+      } else {
+        info.nodesByCategory[category] = (info.nodesByCategory[category] || 0) + 1;
+      }
     });
     
     return info;
@@ -3583,8 +3587,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       return null; // Allow multiple
     }
     
-    // 2. If archetype is one of the standard categories, it's Generic
-    if (this.nodeCategories.includes(cleanArchetype.toLowerCase())) {
+    // 2. If archetype is one of the safe categories, it's Generic
+    if (AINodes.SAFE_CATEGORIES.includes(cleanArchetype.toLowerCase())) {
       return null;
     }
     
@@ -3674,13 +3678,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    * UNIFORM SELECTION: All categories have equal probability
    */
   getWeightedRandomCategory() {
-    // Combine all category options into a single uniform pool
-    const allCategories = [
-      ...this.nodeCategories,      // Standard: input, process, integration, analytics, storage, control
-      ...this.newNodeCategories,  // New: mythic, prime, error
-      ...this.specialNodeTypes,   // Special: sigma, quantum, emotional
-      'extreme'                 // EXTREME archetypes
-    ];
+    // Combine canonical safe categories into a single uniform pool
+    const allCategories = [...AINodes.SAFE_CATEGORIES, 'extreme'];
     
     // Uniform random selection - each category has equal probability
     return allCategories[Math.floor(Math.random() * allCategories.length)];

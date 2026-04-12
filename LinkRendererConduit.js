@@ -2773,7 +2773,7 @@ export class LinkRendererConduit {
             }
             case 6: { // Frame 6: arc spark pool + beads
                 state.arcDischarges?.ensureImpactSparkPool?.();
-                if (!state.rings && LinkEnergyRingSystem) state.rings = new LinkEnergyRingSystem(this.scene);
+                if (!state.rings && LinkEnergyRingSystem) state.rings = new LinkEnergyRingSystem(this.scene, { deferGeometryPool: true });
                 if (!state.beads && LinkBeadVisualizer) {
                     state.beads = new LinkBeadVisualizer(link, this.scene);
                     group.add(state.beads.getGroup());
@@ -2821,6 +2821,7 @@ export class LinkRendererConduit {
                     const emitter = new LinkHealingEmitter(link, this.healingParticles);
                     this.healingEmitters.set(link.id, emitter);
                 }
+                state.rings?.ensureGeometryPool?.();
                 break;
             }
             case 10: { // Frame 10: flow resonance
@@ -5369,11 +5370,6 @@ const makeWaveSlice = () => {
         // Clear trail particles still in the shared system
         if (link && this.trailParticles && link.id) {
             this.trailParticles.clearLink(link.id);
-        }
-
-        // Clear semantic pictograms for this link immediately on unlink
-        if (link && this.pictogramSystem?.clearLink) {
-            this.pictogramSystem.clearLink(link);
         }
 
         if (link && this.linkResonanceFlowSystem?.clearLink) {

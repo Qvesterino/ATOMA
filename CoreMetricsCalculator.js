@@ -148,8 +148,20 @@ export class CoreMetricsCalculator {
       const links = linkingSystem?.links || [];
       for (const link of links) {
         if (!link || link.active === false) continue;
-        const sourceId = this._getNodeId(link.source || link.nodeA || link.sourceNode);
-        const targetId = this._getNodeId(link.target || link.nodeB || link.targetNode);
+        const sourceNode = link.source ?? link.nodeA ?? link.sourceNode ?? link.startNode ?? link.from;
+        const targetNode = link.target ?? link.nodeB ?? link.targetNode ?? link.endNode ?? link.to;
+        const sourceId =
+          this._getNodeId(sourceNode) ??
+          (typeof sourceNode === 'string' ? sourceNode : null) ??
+          link.sourceNodeId ??
+          link.sourceId ??
+          link.fromId;
+        const targetId =
+          this._getNodeId(targetNode) ??
+          (typeof targetNode === 'string' ? targetNode : null) ??
+          link.targetNodeId ??
+          link.targetId ??
+          link.toId;
         if (sourceId !== null && sourceId !== undefined) activeNodeIds.add(String(sourceId));
         if (targetId !== null && targetId !== undefined) activeNodeIds.add(String(targetId));
       }

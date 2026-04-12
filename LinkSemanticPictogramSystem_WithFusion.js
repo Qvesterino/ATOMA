@@ -81,6 +81,26 @@ export class LinkSemanticPictogramSystem_WithFusion {
         }
     }
 
+    setGlyphScale(scale, options = {}) {
+        return this.pictogramSystem?.setGlyphScale?.(scale, options) ?? null;
+    }
+
+    setMetricGlyphScale(metricType, scale, options = {}) {
+        return this.pictogramSystem?.setMetricGlyphScale?.(metricType, scale, options) ?? null;
+    }
+
+    getGlyphScale(size = 1.0, metricType = 'loadPressure') {
+        return this.pictogramSystem?.getGlyphScale?.(size, metricType) ?? size;
+    }
+
+    refreshActiveGlyphScales(metricFilter = null) {
+        return this.pictogramSystem?.refreshActiveGlyphScales?.(metricFilter) ?? null;
+    }
+
+    disposeLinkGlyphs(linkOrId) {
+        return this.pictogramSystem?.disposeLinkGlyphs?.(linkOrId) ?? 0;
+    }
+
     resetForWorldSwitch({ scene = this.scene, worldRoot = this.worldRoot, camera = this.camera, linkingSystem = this.linkingSystem, aiNodes = null } = {}) {
         this.scene = scene || this.scene;
         this.worldRoot = worldRoot || this.worldRoot;
