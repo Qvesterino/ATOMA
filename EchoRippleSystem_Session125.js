@@ -143,7 +143,7 @@ export class EchoRippleSystem_Session125 {
     }
 
     this._processPropagationQueue(links);
-    this._updateRipples(delta, camera);
+    this._updateRipples(delta, camera, links);
 
     this.stats.activeRipples = this._activeRipples.length;
   }
@@ -668,7 +668,7 @@ export class EchoRippleSystem_Session125 {
     }
   }
 
-  _updateRipples(deltaTime) {
+  _updateRipples(deltaTime, camera = null, links = null) {
     if (this._activeRipples.length === 0) return;
 
     for (let i = this._activeRipples.length - 1; i >= 0; i -= 1) {
@@ -712,18 +712,20 @@ export class EchoRippleSystem_Session125 {
 
       if (ripple.allowPropagation && ripple.depth < Math.max(0, this.config.maxPropagationDepth) && !ripple.propagationQueued && ripple.age >= ripple.propagationDelay) {
         ripple.propagationQueued = true;
-        this._schedulePropagation(ripple);
+        this._schedulePropagation(ripple, links);
       }
     }
   }
 
-  _schedulePropagation(ripple) {
+  _schedulePropagation(ripple, links = null) {
     if (!ripple || !ripple.nodeId || ripple.intensity < this.config.minPropagationIntensity) return;
 
     const currentDepth = Number.isFinite(ripple.depth) ? ripple.depth : 0;
     if (currentDepth >= Math.max(0, this.config.maxPropagationDepth)) return;
 
-    const links = Array.isArray(this.linkResonanceSystem?.world?.linkingSystem?.links)
+    const resolvedLinks = Array.isArray(links)
+      ? links
+      : Array.isArray(this.linkResonanceSystem?.world?.linkingSystem?.links)
       ? this.linkResonanceSystem.world.linkingSystem.links
       : Array.isArray(this.world?.linkingSystem?.links)
         ? this.world.linkingSystem.links
@@ -731,13 +733,13 @@ export class EchoRippleSystem_Session125 {
           ? globalThis.game.linkingSystem.links
           : [];
 
-    if (links.length === 0) return;
+    if (resolvedLinks.length === 0) return;
 
     const neighbors = [];
     const visited = new Set((ripple.path || []).map((entry) => String(entry)));
     visited.add(String(ripple.nodeId));
 
-    for (const link of links) {
+    for (const link of resolvedLinks) {
       const endpoints = this._resolveLinkEndpoints(link);
       if (!endpoints.sourceId && !endpoints.targetId) continue;
 

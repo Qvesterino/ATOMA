@@ -40,11 +40,12 @@
  *    - Synergy: improves spacing, better legibility
  *    - Instability: reduces echo count, accelerates decay
  * 
- * VISUAL RESTRAINT:
- * - Same geometry as source composite
- * - Neutral grey-white, transparent
- * - Softer edges, reduced contrast
- * - NO glow, NO particles, NO color saturation
+ * VISUAL DESIGN (V2):
+ * - Luminous echo imprints with multi-lobe glow shader
+ * - Additive blending for ethereal transparency
+ * - Color evolution: cyan-white (new) → warm gold (fading)
+ * - Hot core + inner glow + soft halo + energy shimmer
+ * - Harmony boosts luminance, corruption adds flicker
  * 
  * ============================================================================
  */
@@ -82,7 +83,7 @@ const CONFIG = {
     ECHO_OPACITY_SOFTNESS: 0.18,      // POLISHED: increased from 0.15 (softer edges)
     
     // Echo geometry quality
-    ECHO_CIRCLE_SEGMENTS: 12,         // IMPROVED: was 8 (smoother silhouette)
+    ECHO_CIRCLE_SEGMENTS: 24,         // V2: was 12 (smooth luminous silhouette)
     ECHO_BASE_RADIUS: 0.4,            // Base radius for echo circle geometry
     
     // Performance
@@ -129,6 +130,7 @@ class EchoInstance {
         this.depthOffset = 0.0;
         this._baseColor = new THREE.Color(0xc8c8c8);
         this._residueColor = new THREE.Color(0xc8c8c8);
+        this._uniforms = null;            // V2: ShaderMaterial uniform refs
         
         // State for visual modulation (canonical composite metrics)
         this.harmony = 0.5;      // Canonical: node.userData.metrics.harmony
@@ -227,18 +229,32 @@ class EchoInstance {
             0.72
         );
         this.currentOpacity = this.targetOpacity;
+        // V2: Vibrant cyan-white base → warm gold residue
         this._baseColor.setRGB(
-            0.88 + harmony * 0.08 + stability * 0.05,
-            0.88 + synergy * 0.06 + stability * 0.05,
-            0.90 + synergy * 0.05 + stability * 0.06
+            0.78 + harmony * 0.14 + stability * 0.08,
+            0.86 + synergy * 0.10 + harmony * 0.06,
+            0.94 + synergy * 0.04 + stability * 0.04
         );
         this._residueColor.setRGB(
-            0.82 + harmony * 0.03 - corruption * 0.04,
-            0.83 + synergy * 0.02 - corruption * 0.05,
-            0.85 + stability * 0.04 - corruption * 0.03
+            0.92 + harmony * 0.06 - corruption * 0.08,
+            0.76 + synergy * 0.06 - corruption * 0.10,
+            0.55 + stability * 0.12 - corruption * 0.12
         );
-        this.mesh.material.opacity = this.targetOpacity * (0.96 + (Number.isFinite(profile.opacityBoost) ? profile.opacityBoost : 0.0) * 0.5);
-        this.mesh.material.color.copy(this._baseColor).lerp(this._residueColor, Math.min(0.28, (Number.isFinite(profile.temperatureMix) ? profile.temperatureMix : 0.08) * 0.5));
+        const spawnOpacity = this.targetOpacity * (0.96 + (Number.isFinite(profile.opacityBoost) ? profile.opacityBoost : 0.0) * 0.5);
+        const spawnTempMix = Math.min(0.28, (Number.isFinite(profile.temperatureMix) ? profile.temperatureMix : 0.08) * 0.5);
+        if (this._uniforms) {
+            this._uniforms.uOpacity.value = spawnOpacity;
+            this._uniforms.uBaseColor.value.copy(this._baseColor);
+            this._uniforms.uResidueColor.value.copy(this._residueColor);
+            this._uniforms.uTemperatureMix.value = spawnTempMix;
+            this._uniforms.uHarmony.value = harmony;
+            this._uniforms.uCorruption.value = corruption;
+            this._uniforms.uLayerDepth.value = this.depthOffset;
+            this._uniforms.uTime.value = currentVisualTime;
+        } else {
+            this.mesh.material.opacity = spawnOpacity;
+            this.mesh.material.color.copy(this._baseColor).lerp(this._residueColor, spawnTempMix);
+        }
         this.mesh.scale.setScalar(Math.max(0.62, this.baseScale));
         
         // Update geometry if provided (for simplified silhouette)
@@ -302,12 +318,19 @@ class EchoInstance {
         
         // Update opacity with smooth fade
         this.currentOpacity = this.targetOpacity * temporalEnvelope.opacity;
-        this.mesh.material.opacity = Math.max(0, this.currentOpacity);
-        this.mesh.scale.setScalar(Math.max(0.62, this.baseScale * temporalEnvelope.scale));
-        if (this.mesh.material?.color && this._baseColor && this._residueColor) {
-            const temperatureMix = THREE.MathUtils.clamp((this.fadeProfile?.temperatureMix ?? 0.08) + progress * 0.3, 0, 1);
-            this.mesh.material.color.copy(this._baseColor).lerp(this._residueColor, temperatureMix);
+        const updatedOpacity = Math.max(0, this.currentOpacity);
+        const temperatureMix = THREE.MathUtils.clamp((this.fadeProfile?.temperatureMix ?? 0.08) + progress * 0.3, 0, 1);
+        if (this._uniforms) {
+            this._uniforms.uOpacity.value = updatedOpacity;
+            this._uniforms.uTime.value = currentVisualTime;
+            this._uniforms.uTemperatureMix.value = temperatureMix;
+        } else {
+            this.mesh.material.opacity = updatedOpacity;
+            if (this.mesh.material?.color && this._baseColor && this._residueColor) {
+                this.mesh.material.color.copy(this._baseColor).lerp(this._residueColor, temperatureMix);
+            }
         }
+        this.mesh.scale.setScalar(Math.max(0.62, this.baseScale * temporalEnvelope.scale));
         
         // POLISHED: Removed distortion (kept echoes stable and calm)
         // Stability comes from stillness, not motion
@@ -456,7 +479,6 @@ export class ResonanceEchoTrailSystem {
         this.enabled = true;
         this.init();
         
-        console.log('[ResonanceEchoTrailSystem] Initialized');
     }
 
     _logLifecycle(key, message, details = null, intervalMs = RESONANCE_ECHO_LOG_THROTTLE_MS) {
@@ -567,25 +589,106 @@ export class ResonanceEchoTrailSystem {
         this.root.add(container);
         this.container = container;
         
-        // IMPROVED: Shared geometry — all echoes use the same circle, no per-instance allocation
+        // V2: Shared geometry — smooth luminous circle
         this.baseGeometry = new THREE.CircleGeometry(CONFIG.ECHO_BASE_RADIUS, CONFIG.ECHO_CIRCLE_SEGMENTS);
-        
+
+        // V2: Custom echo shader — multi-lobe glow with color evolution
+        const echoVertexShader = `
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `;
+
+        const echoFragmentShader = `
+            uniform float uOpacity;
+            uniform vec3 uBaseColor;
+            uniform vec3 uResidueColor;
+            uniform float uTemperatureMix;
+            uniform float uTime;
+            uniform float uHarmony;
+            uniform float uCorruption;
+            uniform float uLayerDepth;
+
+            varying vec2 vUv;
+
+            void main() {
+                vec2 center = vUv - 0.5;
+                float dist = length(center) * 2.0;
+
+                // Multi-lobe glow: hot core + inner glow + soft halo
+                float core = exp(-dist * dist * 10.0);
+                float innerGlow = exp(-dist * dist * 4.0);
+                float halo = exp(-dist * 2.0) * 0.35;
+
+                // Subtle energy pulse (breathing)
+                float pulse = 0.94 + 0.06 * sin(uTime * 2.5 + uLayerDepth * 3.0);
+
+                // Shimmer during body phase
+                float shimmerPhase = sin(dist * 14.0 - uTime * 2.0) * 0.5 + 0.5;
+                float shimmerMask = exp(-dist * 5.0);
+                float shimmer = shimmerPhase * shimmerMask * 0.18 * (1.0 - uCorruption * 0.5);
+
+                // Color evolution: base → residue over lifetime
+                vec3 color = mix(uBaseColor, uResidueColor, uTemperatureMix);
+
+                // Hot core whitening
+                color += vec3(core * 0.28, core * 0.22, core * 0.18);
+
+                // Harmony luminance boost
+                color *= (0.88 + uHarmony * 0.16);
+
+                // Corruption flicker
+                float corruptionFlicker = 1.0;
+                if (uCorruption > 0.3) {
+                    corruptionFlicker = 0.85 + 0.15 * sin(uTime * 8.0 + dist * 20.0);
+                }
+
+                // Compose glow layers
+                float glow = (core * 0.50 + innerGlow * 0.32 + halo * 0.18) * pulse;
+                glow += shimmer;
+                glow *= corruptionFlicker;
+
+                float finalAlpha = glow * uOpacity;
+                if (finalAlpha < 0.004) discard;
+
+                gl_FragColor = vec4(color, finalAlpha);
+            }
+        `;
+
         for (let i = 0; i < CONFIG.POOL_SIZE; i++) {
-            const material = new THREE.MeshBasicMaterial({
-                color: 0xc8c8c8,           // POLISHED: slightly warmer neutral
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    uOpacity: { value: CONFIG.BASE_ECHO_OPACITY },
+                    uBaseColor: { value: new THREE.Color(0.88, 0.90, 0.94) },
+                    uResidueColor: { value: new THREE.Color(0.92, 0.78, 0.58) },
+                    uTemperatureMix: { value: 0.0 },
+                    uTime: { value: 0.0 },
+                    uHarmony: { value: 0.5 },
+                    uCorruption: { value: 0.0 },
+                    uLayerDepth: { value: 0.0 }
+                },
+                vertexShader: echoVertexShader,
+                fragmentShader: echoFragmentShader,
                 transparent: true,
-                opacity: CONFIG.BASE_ECHO_OPACITY,
+                depthWrite: false,
                 side: THREE.DoubleSide,
-                depthWrite: false,         // POLISHED: prevent z-fighting
-                fog: false                 // POLISHED: echoes always visible (not affected by fog)
+                blending: THREE.AdditiveBlending,
+                fog: false
             });
+            material.customProgramCacheKey = () => 'ATOMA_ECHO_TRAIL_v2';
+            material.toneMapped = false;
+
             const mesh = new THREE.Mesh(this.baseGeometry, material);
             mesh.visible = false;
             mesh.renderOrder = this.renderOrder;
-            
+            mesh.frustumCulled = false;
+
             container.add(mesh);
-            
+
             const instance = new EchoInstance(mesh);
+            instance._uniforms = material.uniforms;
             this.echoInstances.push(instance);
         }
     }
@@ -694,7 +797,7 @@ export class ResonanceEchoTrailSystem {
                                 stability: metrics.stability,
                                 visibilityScore: band.visibilityScore,
                                 spawnCount: spawned,
-                                activeEchoes: this.echoInstances.filter((echo) => echo.active).length
+                                activeEchoes: this._countActiveEchoes()
                             });
                             echoSpawnCount += spawned;
                         }
@@ -708,7 +811,7 @@ export class ResonanceEchoTrailSystem {
         this._logLifecycle('summary', 'composite echo summary', {
             activeComposites: trackedActiveComposites,
             trackedComposites: this.compositeTrackers.size,
-            activeEchoes: this.echoInstances.filter((echo) => echo.active).length,
+            activeEchoes: this._countActiveEchoes(),
             spawnedThisTick: echoSpawnCount
         }, 20000);
     }
@@ -767,7 +870,7 @@ export class ResonanceEchoTrailSystem {
         };
 
         this._spawnLayeredEchoes(
-            new THREE.Vector3(x, y, z),
+            this._echoSpawnScratch.set(x, y, z),
             pooledGeometry,
             finalMetrics,
             currentVisualTime,
@@ -1007,13 +1110,11 @@ export class ResonanceEchoTrailSystem {
     
     enable() {
         this.enabled = true;
-        console.log('[ResonanceEchoTrailSystem] ENABLED');
     }
     
     disable() {
         this.enabled = false;
         this.resetAll();
-        console.log('[ResonanceEchoTrailSystem] DISABLED');
     }
     
     resetAll() {
@@ -1021,6 +1122,15 @@ export class ResonanceEchoTrailSystem {
             echo.reset();
         }
         this.compositeTrackers.clear();
+    }
+
+    /** V2: Zero-allocation active echo count (replaces .filter()) */
+    _countActiveEchoes() {
+        let count = 0;
+        for (let i = 0; i < this.echoInstances.length; i++) {
+            if (this.echoInstances[i].active) count++;
+        }
+        return count;
     }
     
     // ========================================================================

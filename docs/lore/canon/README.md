@@ -10,9 +10,9 @@ Source Slovak files in `docs/lore` remain inspirational references and should no
 - `SYSTEM_PSYCHIC.md` - complete
 - `MULTIVERSALITY_OF_ATOMA.md` - complete
 - `SYSTEM_EVOLUTION.md` - complete
-- `KULTÚRA.md` - pending
-- `12 EPICKÝCH NODE KATEGÓRIÍ.md` - pending
-- `5 EPICKÝCH METRIK ATOMA.md` - pending
+- `CULTURE_OF_ATOMA.md` - complete
+- `FIVE_METRICS_OF_ATOMA.md` - complete
+- `NODE_CATEGORIES_OF_ATOMA.md` - complete
 
 ## Canon Rules
 

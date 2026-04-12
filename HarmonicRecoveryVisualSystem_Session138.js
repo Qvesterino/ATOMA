@@ -46,6 +46,9 @@ void main() {
 }
 `;
 
+// ATOMA_RECOVERY_v2: Enhanced coherence wave with multi-ring expansion,
+// energy shimmer, hot core flash, and color evolution
+
 const COHERENCE_WAVE_FRAGMENT_SHADER = `
 uniform float uTime;
 uniform float uLife;      // 0.0 to 1.0 (lifecycle)
@@ -55,36 +58,74 @@ uniform float uHarmony;
 varying vec2 vUv;
 
 void main() {
-    // Soft radial recovery wave with readable ring.
     vec2 p = vUv - vec2(0.5);
     float dist = length(p) * 2.0;
     if (dist > 1.0) discard;
 
-    // Expanding ring band — moves outward as life progresses
-    float ringCenter = 0.25 + uLife * 0.65;
-    float ringWidth = 0.18 + uHarmony * 0.08;
-    float ring = smoothstep(ringCenter - ringWidth, ringCenter, dist)
-               * (1.0 - smoothstep(ringCenter, ringCenter + ringWidth, dist));
+    // === MULTI-RING EXPANSION (ATOMA_RECOVERY_v2) ===
+    // Three rings expanding outward at different speeds
+    float ringBase = 0.15 + uLife * 0.7;
+    
+    // Primary ring — bold, wide
+    float rw1 = 0.14 + uHarmony * 0.06;
+    float ring1 = smoothstep(ringBase - rw1, ringBase, dist)
+                * (1.0 - smoothstep(ringBase, ringBase + rw1, dist));
+    
+    // Secondary ring — ahead of primary, thinner
+    float ring2Center = ringBase + 0.12;
+    float rw2 = 0.06;
+    float ring2 = smoothstep(ring2Center - rw2, ring2Center, dist)
+                * (1.0 - smoothstep(ring2Center, ring2Center + rw2, dist));
+    
+    // Trailing ring — behind primary, soft
+    float ring3Center = max(0.05, ringBase - 0.15);
+    float rw3 = 0.08;
+    float ring3 = smoothstep(ring3Center - rw3, ring3Center, dist)
+                * (1.0 - smoothstep(ring3Center, ring3Center + rw3, dist));
 
-    // Soft inner glow
-    float innerGlow = (1.0 - smoothstep(0.0, 0.45, dist)) * 0.25;
+    // === HOT CORE FLASH (early lifecycle) ===
+    float coreFlash = (1.0 - smoothstep(0.0, 0.25, dist)) * (1.0 - smoothstep(0.0, 0.15, uLife)) * 0.6;
 
-    // Outer fade
+    // === SOFT INNER GLOW ===
+    float innerGlow = (1.0 - smoothstep(0.0, 0.45, dist)) * 0.2;
+
+    // === OUTER FADE ===
     float outerFade = 1.0 - smoothstep(0.7, 1.0, dist);
 
-    float alpha = (ring * 0.85 + innerGlow) * outerFade;
+    // === ENERGY SHIMMER along rings ===
+    float angle = atan(p.y, p.x);
+    float shimmer = 0.92 + 0.08 * sin(angle * 6.0 + uTime * 4.0 + dist * 12.0);
+    
+    // === SPARKLE FRINGE at outer edge ===
+    float fringeSparkle = pow(max(0.0, 1.0 - abs(dist - ringBase - 0.08) * 8.0), 3.0)
+                        * (0.5 + 0.5 * sin(angle * 12.0 + uTime * 8.0));
 
-    // Harmony warmth — more harmony = brighter, warmer recovery
-    float harmonyWarm = mix(1.0, 1.3, clamp(uHarmony, 0.0, 1.0));
+    // Combine
+    float rings = ring1 * 0.75 + ring2 * 0.35 + ring3 * 0.25;
+    float alpha = (rings + innerGlow + coreFlash + fringeSparkle * 0.15) * outerFade * shimmer;
+
+    // Harmony warmth
+    float harmonyWarm = mix(1.0, 1.35, clamp(uHarmony, 0.0, 1.0));
     alpha *= harmonyWarm;
 
     // Fade out over lifecycle
     alpha *= (1.0 - uLife * uLife);
 
     // Subtle pulse
-    alpha *= 0.9 + 0.1 * sin(uTime * 3.0 + dist * 8.0);
+    alpha *= 0.88 + 0.12 * sin(uTime * 3.0 + dist * 8.0);
 
-    gl_FragColor = vec4(uColor, alpha);
+    // === COLOR EVOLUTION ===
+    // Early: warm gold → Late: luminous cyan (based on harmony)
+    vec3 warmGold = vec3(1.0, 0.88, 0.5);
+    vec3 luminousCyan = vec3(0.4, 1.0, 0.95);
+    vec3 evolvedColor = mix(warmGold, luminousCyan, uHarmony * 0.6 + uLife * 0.3);
+    
+    // Hot core is white
+    vec3 finalColor = mix(evolvedColor, vec3(1.0), coreFlash * 1.5);
+    // Sparkle fringe is brighter
+    finalColor += vec3(0.6, 0.9, 1.0) * fringeSparkle * 0.2;
+
+    gl_FragColor = vec4(finalColor, alpha);
 }
 `;
 
@@ -100,6 +141,9 @@ void main() {
 }
 `;
 
+// ATOMA_RECOVERY_v2: Enhanced recovery halo with expanding rings,
+// hot center glow, energy shimmer, rotating pattern
+
 const RECOVERY_HALO_FRAGMENT_SHADER = `
 uniform float uTime;
 uniform float uLife;
@@ -112,28 +156,56 @@ void main() {
     float dist = length(p) * 2.0;
     if (dist > 1.0) discard;
 
-    // Pulsing concentric rings for recovery halo
-    float ring1 = smoothstep(0.28, 0.32, dist) * (1.0 - smoothstep(0.32, 0.36, dist));
-    float ring2 = smoothstep(0.48, 0.52, dist) * (1.0 - smoothstep(0.52, 0.56, dist));
-    float ring3 = smoothstep(0.68, 0.72, dist) * (1.0 - smoothstep(0.72, 0.76, dist));
+    float angle = atan(p.y, p.x);
 
-    // Animate ring brightness with phase offset
-    float pulse1 = 0.7 + 0.3 * sin(uTime * 4.0);
-    float pulse2 = 0.7 + 0.3 * sin(uTime * 4.0 + 2.094);
-    float pulse3 = 0.7 + 0.3 * sin(uTime * 4.0 + 4.189);
+    // === EXPANDING CONVERGENCE RINGS (ATOMA_RECOVERY_v2) ===
+    // Rings expand outward over lifetime instead of fixed positions
+    float baseRadius = 0.15 + uLife * 0.55;
+    
+    // Ring 1: primary convergence ring (widest)
+    float rw1 = 0.06 + uLife * 0.02;
+    float ring1 = smoothstep(baseRadius - rw1, baseRadius, dist)
+                * (1.0 - smoothstep(baseRadius, baseRadius + rw1, dist));
+    
+    // Ring 2: inner ring (tighter, brighter)
+    float innerR = max(0.08, baseRadius - 0.18);
+    float rw2 = 0.04;
+    float ring2 = smoothstep(innerR - rw2, innerR, dist)
+                * (1.0 - smoothstep(innerR, innerR + rw2, dist));
+    
+    // Ring 3: outer scout ring (faint, ahead)
+    float outerR = min(0.95, baseRadius + 0.15);
+    float rw3 = 0.03;
+    float ring3 = smoothstep(outerR - rw3, outerR, dist)
+                * (1.0 - smoothstep(outerR, outerR + rw3, dist));
 
-    float rings = ring1 * pulse1 + ring2 * pulse2 + ring3 * pulse3;
+    // === ROTATING BRIGHTNESS PATTERN ===
+    float rotSpeed = uTime * 1.5;
+    float rotPattern1 = 0.65 + 0.35 * sin(angle * 3.0 + rotSpeed);
+    float rotPattern2 = 0.65 + 0.35 * sin(angle * 5.0 - rotSpeed * 0.7 + 2.094);
+    float rotPattern3 = 0.65 + 0.35 * sin(angle * 4.0 + rotSpeed * 1.3 + 4.189);
 
-    // Soft center glow
-    float centerGlow = (1.0 - smoothstep(0.0, 0.35, dist)) * 0.35;
+    float rings = ring1 * rotPattern1 * 0.7 + ring2 * rotPattern2 * 0.5 + ring3 * rotPattern3 * 0.3;
 
-    float alpha = (rings * 0.6 + centerGlow);
+    // === HOT CENTER GLOW ===
+    float centerGlow = (1.0 - smoothstep(0.0, 0.30, dist)) * 0.45;
+    // White-hot core
+    float hotCore = (1.0 - smoothstep(0.0, 0.10, dist)) * 0.3 * (1.0 - uLife);
+
+    // === ENERGY SHIMMER between rings ===
+    float shimmer = 0.9 + 0.1 * sin(dist * 25.0 - uTime * 6.0 + angle * 3.0);
+
+    float alpha = (rings + centerGlow + hotCore) * shimmer;
 
     // Fade out over life
-    alpha *= (1.0 - uLife);
-    alpha *= 0.55;
+    alpha *= (1.0 - uLife * uLife);
+    alpha *= 0.72;
 
-    gl_FragColor = vec4(uColor, alpha);
+    // === COLOR: center is white-hot, rings are colored ===
+    vec3 coreColor = mix(vec3(1.0), uColor, 0.3);
+    vec3 finalColor = mix(coreColor, uColor, smoothstep(0.1, 0.4, dist));
+
+    gl_FragColor = vec4(finalColor, alpha);
 }
 `;
 
@@ -160,6 +232,13 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             linkCooldown: 4.0
         };
         
+        // ATOMA_RECOVERY_v2: Pre-allocated temp objects (zero per-frame allocation)
+        this._tmpColor = new THREE.Color();
+        this._tmpVec3A = new THREE.Vector3();
+        this._tmpVec3B = new THREE.Vector3();
+        this._tmpColorWhite = new THREE.Color(0xffffff);
+        this._tmpColorGold = new THREE.Color(0xffcc00);
+        
         this.activeRuptureIds = new Set();
         this.recoveringZones = [];
         
@@ -182,13 +261,14 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             uniforms: {
                 uTime: { value: 0 },
                 uLife: { value: 0 },
-                uColor: { value: new THREE.Color(0x00ffff) }, // Neon cyan
+                uColor: { value: new THREE.Color(0x00ffff) },
                 uHarmony: { value: 0.5 }
             },
             transparent: true,
             depthWrite: false,
             side: THREE.DoubleSide,
-            blending: THREE.AdditiveBlending
+            blending: THREE.AdditiveBlending,
+            toneMapped: false    // ATOMA_RECOVERY_v2: HDR brightness
         });
         
         this.haloMaterial = new THREE.ShaderMaterial({
@@ -197,11 +277,12 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             uniforms: {
                 uTime: { value: 0 },
                 uLife: { value: 0 },
-                uColor: { value: new THREE.Color(0xffff33) } // Neon yellow
+                uColor: { value: new THREE.Color(0xffff33) }
             },
             transparent: true,
             depthWrite: false,
-            blending: THREE.AdditiveBlending
+            blending: THREE.AdditiveBlending,
+            toneMapped: false    // ATOMA_RECOVERY_v2: HDR brightness
         });
         
         this._initPools();
@@ -492,19 +573,21 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             const t1 = scanProgress * 0.5;
             const t2 = 1.0 - (scanProgress * 0.5);
             
-            const pos1 = new THREE.Vector3().lerpVectors(p1, p2, t1);
-            const pos2 = new THREE.Vector3().lerpVectors(p1, p2, t2);
+            // ATOMA_RECOVERY_v2: Zero-allocation re-stitching spawn
+            const pos1 = this._tmpVec3A.lerpVectors(p1, p2, t1);
+            const pos2 = this._tmpVec3B.lerpVectors(p1, p2, t2);
             
-            const angle = now * 10.0;
-            const offset = new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0).multiplyScalar(0.1);
+            const sAngle = now * 10.0;
+            const offX = Math.cos(sAngle) * 0.1;
+            const offY = Math.sin(sAngle) * 0.1;
             
-            pos1.add(offset);
-            pos2.add(offset.clone().negate());
+            pos1.x += offX; pos1.y += offY;
+            pos2.x -= offX; pos2.y -= offY;
             
             const intensity = 0.85;
             
-            this.healingParticles.emitHealingTrail(pos1, new THREE.Vector3(0,0,0), intensity, now, new THREE.Color(0xffffff));
-            this.healingParticles.emitHealingTrail(pos2, new THREE.Vector3(0,0,0), intensity, now, new THREE.Color(0xffcc00));
+            this.healingParticles.emitHealingTrail(pos1, this._tmpVec3A.set(0,0,0), intensity, now, this._tmpColorWhite);
+            this.healingParticles.emitHealingTrail(pos2, this._tmpVec3B.set(0,0,0), intensity, now, this._tmpColorGold);
         }
 
         const beamGeometry = new THREE.BufferGeometry().setFromPoints([
@@ -737,8 +820,9 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                 const scale = (1.02 + zone.life * this.config.waveExpansionSpeed * (1.0 + synergy)) * (this.config.debugVisualBoost ? 1.02 : 1.0);
                 mesh.scale.set(scale, scale, scale);
 
-                const waveColor = new THREE.Color().setHSL(0.08 + harmony * 0.42, 0.92, 0.62);
-                mesh.material.uniforms.uColor.value.copy(waveColor);
+                // ATOMA_RECOVERY_v2: Zero-allocation color update
+                this._tmpColor.setHSL(0.08 + harmony * 0.42, 0.92, 0.62);
+                mesh.material.uniforms.uColor.value.copy(this._tmpColor);
                 mesh.material.uniforms.uLife.value = progress;
                 mesh.material.uniforms.uHarmony.value = harmony;
 
@@ -758,19 +842,21 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                         const t1 = scanProgress * 0.5;
                         const t2 = 1.0 - (scanProgress * 0.5);
                         
-                        const pos1 = new THREE.Vector3().lerpVectors(p1, p2, t1);
-                        const pos2 = new THREE.Vector3().lerpVectors(p1, p2, t2);
+                        // ATOMA_RECOVERY_v2: Zero-allocation re-stitching
+                        const pos1 = this._tmpVec3A.lerpVectors(p1, p2, t1);
+                        const pos2 = this._tmpVec3B.lerpVectors(p1, p2, t2);
                         
-                        const angle = zone.life * 10.0;
-                        const offset = new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0).multiplyScalar(0.1);
+                        const stitchAngle = zone.life * 10.0;
+                        const offX = Math.cos(stitchAngle) * 0.1;
+                        const offY = Math.sin(stitchAngle) * 0.1;
                         
-                        pos1.add(offset);
-                        pos2.add(offset.clone().negate());
+                        pos1.x += offX; pos1.y += offY;
+                        pos2.x -= offX; pos2.y -= offY;
                         
                         const intensity = Math.min(1, 0.85 * harmony + 0.35);
                         
-                        this.healingParticles.emitHealingTrail(pos1, new THREE.Vector3(0,0,0), intensity, currentVisualTime, new THREE.Color(0xffffff));
-                        this.healingParticles.emitHealingTrail(pos2, new THREE.Vector3(0,0,0), intensity, currentVisualTime, new THREE.Color(0xffcc00));
+                        this.healingParticles.emitHealingTrail(pos1, this._tmpVec3A.set(0,0,0), intensity, currentVisualTime, this._tmpColorWhite);
+                        this.healingParticles.emitHealingTrail(pos2, this._tmpVec3B.set(0,0,0), intensity, currentVisualTime, this._tmpColorGold);
                     }
                 }
             }
@@ -794,8 +880,8 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             const progress = elapsed / item.maxLife;
             const mesh = item.mesh;
             
-            // Expand slightly
-            const scale = 2.0 + Math.sin(progress * Math.PI) * 0.5;
+            // ATOMA_RECOVERY_v2: Larger halo with more dramatic expansion
+            const scale = 2.5 + Math.sin(progress * Math.PI) * 0.8;
             mesh.scale.set(scale, scale, scale);
             
             // Billboard
@@ -820,7 +906,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             const item = this.haloMeshPool[slot];
             item.active = true;
             item.life = 0;
-            item.maxLife = 2.0;
+            item.maxLife = 2.5;  // ATOMA_RECOVERY_v2: longer halo duration
             item.startTime = currentVisualTime;
             item.mesh.visible = true;
             item.mesh.position.copy(node.position);
@@ -832,8 +918,9 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                     ? node.userData.harmony
                     : 0.5;
             const nodeHarmony = Math.max(0, Math.min(1, rawHarmony));
-            const haloColor = new THREE.Color().setHSL(0.08 + nodeHarmony * 0.42, 0.92, 0.58);
-            item.mesh.material.uniforms.uColor.value.copy(haloColor);
+            // ATOMA_RECOVERY_v2: Zero-allocation halo color
+            this._tmpColor.setHSL(0.08 + nodeHarmony * 0.42, 0.92, 0.58);
+            item.mesh.material.uniforms.uColor.value.copy(this._tmpColor);
             item.mesh.material.uniforms.uLife.value = 0;
         }
     }

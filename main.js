@@ -15964,7 +15964,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             // Apply echo ripple integration
             // Connects LinkResonanceFlowSystem with ripple spawning on wave burst and cascade hop
             try {
-                applyEchoRippleIntegration(this.linkResonanceFlowSystem, this.cascadeSystem);
+                applyEchoRippleIntegration(this.linkResonanceFlowSystem, this.cascadeSystem, this.nodeAuraSystem);
                 console.log('✓ EchoRippleIntegration applied');
             } catch (err) {
                 console.warn('⚠ EchoRippleIntegration failed:', err);

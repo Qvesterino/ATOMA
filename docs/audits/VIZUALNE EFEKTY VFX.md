@@ -312,7 +312,7 @@ Kompletný katalóg viditeľných VFX efektov v ATOMA. Dokument dokumentov pre v
 
 ---
 
-### 1.2 ResonanceEchoTrailSystem.js
+### 1.2 n
 
 **Type**: 🎨 GEOMETRY/MESH EMITTER
 
