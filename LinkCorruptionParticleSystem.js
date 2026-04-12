@@ -97,6 +97,9 @@ export class LinkCorruptionParticleSystem {
           vDepth = -mvPosition.z;
           float sizeFade = mix(1.0, 0.7, vT);
           float size = mix(uSizeRange.x, uSizeRange.y, 1.0 - vT) * aScale * sizeFade;
+          // Subtle breathing — unstable pulsing, unique per shard
+          float breath = 1.0 + sin(age * 8.0 + aSeed * 6.28) * 0.05;
+          size *= breath;
           gl_PointSize = size * (10.0 / -mvPosition.z);
           gl_Position = projectionMatrix * mvPosition;
         }
@@ -157,15 +160,32 @@ export class LinkCorruptionParticleSystem {
           float skew = (hash11(vSeed * 91.7) - 0.5) * 0.45;
           float stretch = 0.9 + hash11(vSeed * 57.3) * 0.9;
           float shape = shardMask(uv, skew, stretch);
-          float lifeFade = smoothstep(0.0, 0.08, vT) * (1.0 - smoothstep(0.7, 1.0, vT));
-          float flash = smoothstep(0.88, 1.0, vT) * 0.6;
+          float lifeFade = smoothstep(0.0, 0.06, vT) * (1.0 - smoothstep(0.65, 1.0, vT));
+          // Enhanced flash: wider range, brighter peak for corruption burnout
+          float flash = smoothstep(0.82, 1.0, vT) * 0.9;
           float radial = clamp(1.0 - length(gl_PointCoord * 2.0 - 1.0), 0.0, 1.0);
           float streak = flash * radial;
           float alpha = shape * (lifeFade + flash + streak) * depthFade * uOpacity;
           if (alpha < 0.01) discard;
 
+          // Ember glow: hot core with luminous depth
+          vec2 p = uv * 2.0 - 1.0;
+          float dist = length(p);
+          float ember = 1.0 - smoothstep(0.0, 0.22, dist);
+          float outerGlow = 1.0 - smoothstep(0.08, 0.45, dist);
+
           vec3 base = mix(uBaseColor, uEdgeColor, 0.35 + 0.25 * hash11(vSeed * 151.0));
-          base += (flash + streak) * 0.25;
+          // Hot ember core shifts toward bright orange-yellow
+          base += vec3(ember * 0.42, ember * 0.22, ember * 0.06);
+          // Outer glow adds crimson depth
+          base += outerGlow * vec3(0.12, 0.02, 0.0);
+          // Color evolution: shift hotter as shard dies (ember burnout effect)
+          base = mix(base, base + vec3(0.18, 0.10, 0.02), vT * 0.6);
+          base += (flash + streak) * 0.35;
+          // Subtle shimmer — unstable flicker
+          float shimmer = 1.0 + sin(vT * 18.0 + dist * 15.0) * 0.03;
+          base *= shimmer;
+
           gl_FragColor = vec4(base, alpha);
         }
       `,
@@ -173,8 +193,8 @@ export class LinkCorruptionParticleSystem {
         uTime: { value: 0 },
         uBaseColor: { value: new THREE.Color(0xff1744) },
         uEdgeColor: { value: new THREE.Color(0xff5a36) },
-        uOpacity: { value: 2.2 },
-        uSizeRange: { value: new THREE.Vector2(4.5, 10.5) },
+        uOpacity: { value: 2.6 },
+        uSizeRange: { value: new THREE.Vector2(5.5, 13.0) },
         uSoftNear: { value: 0.28 },
         uSoftRange: { value: 0.55 }
       },
@@ -422,7 +442,7 @@ export class LinkCorruptionParticleSystem {
 
       const jitterDir = radial.clone().multiplyScalar(0.35).addScaledVector(binormal, 0.12).normalize();
 
-      const life = 0.24 + Math.random() * 0.12;
+      const life = 0.30 + Math.random() * 0.20;
       const scale = 0.75 + Math.random() * 0.35;
       const stretch = THREE.MathUtils.lerp(1.0, 1.6, corruption);
       const rotRate = (Math.random() - 0.5) * 6.0;
@@ -481,8 +501,8 @@ export class LinkCorruptionParticleSystem {
     }
 
     this.material.uniforms.uTime.value = now;
-    this.material.uniforms.uOpacity.value = 2.2;
-    this.material.uniforms.uSizeRange.value.set(4.5, 10.5);
+    this.material.uniforms.uOpacity.value = 2.6;
+    this.material.uniforms.uSizeRange.value.set(5.5, 13.0);
     this.points.visible = true;
   }
 
@@ -567,7 +587,7 @@ export class LinkCorruptionParticleSystem {
     this.jitterDir[i3 + 1] = 0;
     this.jitterDir[i3 + 2] = 0;
     this.lifeAttr[idx * 2] = now;
-    this.lifeAttr[idx * 2 + 1] = 0.22 + Math.random() * 0.12;
+    this.lifeAttr[idx * 2 + 1] = 0.28 + Math.random() * 0.14;
     this.scaleAttr[idx] *= 0.92;
     this.detaching[idx] = true;
   }

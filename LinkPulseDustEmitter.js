@@ -9,7 +9,7 @@ const TMP_OFFSET = new THREE.Vector3();
 const TMP_EMIT_POS = new THREE.Vector3();
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const WORLD_RIGHT = new THREE.Vector3(1, 0, 0);
-const SEGMENT_ANGLES = [0, Math.PI * 0.5, Math.PI, Math.PI * 1.5];
+const SEGMENT_ANGLES = [0, Math.PI * 0.25, Math.PI * 0.5, Math.PI * 0.75, Math.PI, Math.PI * 1.25, Math.PI * 1.5, Math.PI * 1.75];
 
 const DUST_VS = `
 attribute vec3 aVelocity;
@@ -20,6 +20,7 @@ uniform float uTime;
 
 varying vec3 vColor;
 varying float vAlpha;
+varying float vLifeProgress;
 
 void main() {
     float age = uTime - aInfo.x;
@@ -31,26 +32,42 @@ void main() {
     }
 
     float lifeProgress = age / aInfo.y;
-    vec3 currentPos = position + aVelocity * age;
+    vLifeProgress = lifeProgress;
+
+    // Gentle drift with deceleration over lifetime
+    float drift = age * (1.0 - lifeProgress * 0.25);
+    vec3 currentPos = position + aVelocity * drift;
 
     vec4 mvPosition = modelViewMatrix * vec4(currentPos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
 
-    float fadeIn = min(1.0, age / 0.08);
-    float fadeOut = 1.0 - lifeProgress;
-    float size = aInfo.z * mix(1.15, 2.7, lifeProgress);
+    // Bell curve size: small birth → peak at ~35% → gentle shrink
+    float sizeCurve = sin(lifeProgress * 3.14159) * 0.82 + 0.18;
+    float size = aInfo.z * mix(1.0, 2.5, sizeCurve);
+
+    // Subtle breathing pulse — unique phase per particle from birthTime
+    float breath = 1.0 + sin(age * 7.5 + aInfo.x * 6.28) * 0.055;
 
     // Match LinkSparkSystem attenuation pattern exactly.
-    gl_PointSize = size * (10.0 / -mvPosition.z);
+    gl_PointSize = size * breath * (10.0 / -mvPosition.z);
+
+    // Richer fade: quick bright birth → sustained glow → graceful death
+    float fadeIn = smoothstep(0.0, 0.055, age);
+    float sustain = 1.0 - smoothstep(0.25, 0.85, lifeProgress);
+    float fadeOut = smoothstep(1.0, 0.6, lifeProgress);
 
     vColor = aColor;
-    vAlpha = 0.68 * fadeIn * fadeOut;
+    // Evolve toward warmer luminous tones as particle ages
+    vColor = mix(vColor, vColor + vec3(0.14, 0.09, 0.03), lifeProgress * 0.55);
+
+    vAlpha = 0.88 * fadeIn * (0.35 + sustain * 0.65) * fadeOut;
 }
 `;
 
 const DUST_FS = `
 varying vec3 vColor;
 varying float vAlpha;
+varying float vLifeProgress;
 
 void main() {
     if (vAlpha <= 0.002) discard;
@@ -59,8 +76,22 @@ void main() {
     float dist2 = dot(coord, coord);
     if (dist2 > 0.25) discard;
 
-    float fog = 1.0 - smoothstep(0.02, 0.5, sqrt(dist2));
-    gl_FragColor = vec4(vColor, vAlpha * fog);
+    float dist = sqrt(dist2);
+
+    // Multi-lobe glow: hot core + soft membrane + ethereal halo
+    float core     = 1.0 - smoothstep(0.0,  0.10, dist);
+    float membrane = 1.0 - smoothstep(0.04, 0.30, dist);
+    float halo     = 1.0 - smoothstep(0.08, 0.50, dist);
+
+    float glow = core * 0.52 + membrane * 0.32 + halo * 0.16;
+
+    // Hot center shifts toward luminous white
+    vec3 hotColor = vColor + vec3(core * 0.38, core * 0.30, core * 0.18);
+
+    // Subtle shimmer — brightness micro-variation
+    float shimmer = 1.0 + sin(vLifeProgress * 12.56 + dist * 20.0) * 0.035;
+
+    gl_FragColor = vec4(hotColor * shimmer, vAlpha * glow);
 }
 `;
 
@@ -76,7 +107,8 @@ function getDustMaterialBase() {
             depthWrite: false,
             depthTest: true,
             toneMapped: false,
-            vertexColors: true
+            vertexColors: true,
+            customProgramCacheKey: () => 'ATOMA_DUST_v2'
         });
     }
     return __dustMaterialBase;
@@ -91,7 +123,7 @@ function lerp(a, b, t) {
 }
 
 export class LinkPulseDustEmitter {
-    constructor(maxParticles = 128) {
+    constructor(maxParticles = 192) {
         this.maxParticles = Math.max(24, maxParticles | 0);
         this.enabled = true;
         this.visible = true;
@@ -186,7 +218,7 @@ export class LinkPulseDustEmitter {
 
         const openAmount = clamp01(splitGap / 0.8);
         const pulseBoost = 0.25 + openAmount * 0.95 + clamp01(pulsePhase) * 0.2;
-        const emissionRate = lerp(52, 132, pulseBoost);
+        const emissionRate = lerp(64, 155, pulseBoost);
         this.spawnAccumulator += emissionRate * dt;
 
         let touched = false;
@@ -234,9 +266,11 @@ export class LinkPulseDustEmitter {
         this.positions[i3 + 1] = TMP_EMIT_POS.y;
         this.positions[i3 + 2] = TMP_EMIT_POS.z;
 
-        const backwardSpeed = 0.14 + Math.random() * 0.14;
-        const outwardSpeed = 0.05 + Math.random() * 0.09;
-        const swirl = (Math.random() - 0.5) * 0.06;
+        const isHero = Math.random() < 0.12;
+        const speedMul = isHero ? 1.45 : 1.0;
+        const backwardSpeed = (0.14 + Math.random() * 0.16) * speedMul;
+        const outwardSpeed = (0.05 + Math.random() * 0.12) * speedMul;
+        const swirl = (Math.random() - 0.5) * 0.08;
 
         this.velocities[i3] =
             -tangent.x * backwardSpeed +
@@ -255,15 +289,19 @@ export class LinkPulseDustEmitter {
         if (targetColor) {
             TMP_COLOR.lerp(targetColor, clamp01(progress));
         }
-        TMP_COLOR.offsetHSL(0.0, -0.22, 0.08);
+        TMP_COLOR.offsetHSL(
+            (Math.random() - 0.5) * 0.04,
+            -0.22 + (Math.random() - 0.5) * 0.06,
+            0.08 + Math.random() * 0.06
+        );
 
         this.colors[i3] = TMP_COLOR.r;
         this.colors[i3 + 1] = TMP_COLOR.g;
         this.colors[i3 + 2] = TMP_COLOR.b;
 
         this.infos[i3] = this.time;
-        this.infos[i3 + 1] = 1.1 + Math.random() * 0.45;
-        this.infos[i3 + 2] = 6.8 + Math.random() * 5.2;
+        this.infos[i3 + 1] = (isHero ? 1.5 : 1.0) * (1.2 + Math.random() * 0.6);
+        this.infos[i3 + 2] = (isHero ? 1.5 : 1.0) * (7.2 + Math.random() * 6.8);
 
         this.writeIndex = (this.writeIndex + 1) % this.maxParticles;
     }

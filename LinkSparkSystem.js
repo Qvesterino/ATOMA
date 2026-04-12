@@ -4,6 +4,8 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { LinkPointFXBase } from './LinkPointFXBase.js';
 
 const SPARK_RENDER_ORDER = VisualHierarchyRegistry.getRenderOrder('LINK_SPARKS');
+const SPARK_LIFETIME_MIN = 0.14;
+const SPARK_LIFETIME_MAX = 0.24;
 
 const SPARK_VS = `
 attribute float aSpawnTime;
@@ -42,7 +44,8 @@ void main() {
     
     // Check if particle is alive
     if (age < 0.0 || age > aLifeTime) {
-        gl_Position = vec4(0.0, 0.0, 0.0, 0.0); // Discard
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        gl_PointSize = 0.0;
         vAlpha = 0.0;
         return;
     }
@@ -71,7 +74,7 @@ void main() {
 
     // 3. Apply Drift (Motion)
     // Drift outward from surface + slight upward float
-    vec3 drift = radialDir * (aSpeed * age) + vec3(0.0, 0.1, 0.0) * (age * age);
+    vec3 drift = radialDir * (aSpeed * age * 0.7) + vec3(0.0, 0.06, 0.0) * (age * age * 0.6);
     
     vec3 finalPos = startPos + drift;
 
@@ -84,8 +87,8 @@ void main() {
     gl_PointSize = aSize * (10.0 / -mvPosition.z);
 
     // Alpha Fade: Quick in, Slow out
-    float fadeIn = smoothstep(0.0, 0.2, vLifeProgress);
-    float fadeOut = 1.0 - smoothstep(0.5, 1.0, vLifeProgress);
+    float fadeIn = smoothstep(0.0, 0.12, vLifeProgress);
+    float fadeOut = 1.0 - smoothstep(0.2, 1.0, vLifeProgress);
     vAlpha = fadeIn * fadeOut;
 }
 `;
@@ -151,21 +154,7 @@ function getSparkMaterialBase() {
         });
         material.customProgramCacheKey = () => 'ATOMA_LINK_SPARK_v1|ShaderMaterial|transparent|no-depth-write|depth-test|additive|toneMapped-off|vertexColors-off';
         material.userData = material.userData || {};
-        material.userData.__sparkSharedMaterial = true;
-        material.onBeforeRender = (_renderer, _scene, _camera, _geometry, object) => {
-            const state = object?.userData?.__sparkRenderState;
-            if (!state) return;
-            const uniforms = material.uniforms;
-            const source = state;
-            if (source.uTime) uniforms.uTime.value = source.uTime.value;
-            if (source.uStart?.value && uniforms.uStart?.value?.copy) uniforms.uStart.value.copy(source.uStart.value);
-            if (source.uMid?.value && uniforms.uMid?.value?.copy) uniforms.uMid.value.copy(source.uMid.value);
-            if (source.uEnd?.value && uniforms.uEnd?.value?.copy) uniforms.uEnd.value.copy(source.uEnd.value);
-            if (source.uThickness) uniforms.uThickness.value = source.uThickness.value;
-            if (source.uPulse) uniforms.uPulse.value = source.uPulse.value;
-            if (source.uColor?.value && uniforms.uColor?.value?.copy) uniforms.uColor.value.copy(source.uColor.value);
-            if (source.uOpacity) uniforms.uOpacity.value = source.uOpacity.value;
-        };
+        material.userData.__sparkTemplateMaterial = true;
         __sparkMaterialBase = material;
     }
     __sparkMaterialRefCount += 1;
@@ -176,7 +165,6 @@ function releaseSparkMaterialBase() {
     if (!__sparkMaterialBase) return;
     __sparkMaterialRefCount = Math.max(0, __sparkMaterialRefCount - 1);
     if (__sparkMaterialRefCount > 0) return;
-    __sparkMaterialBase.onBeforeRender = null;
     __sparkMaterialBase.dispose?.();
     __sparkMaterialBase = null;
 }
@@ -251,9 +239,10 @@ export class LinkSparkSystem {
             uOpacity: { value: 0.75 }
         };
 
-        // Shared shader material for all spark systems. Per-instance state is
-        // applied in onBeforeRender from each Points object's userData.
-        const material = getSparkMaterialBase();
+        // Clone the template material so each link owns its own uniform state.
+        const material = getSparkMaterialBase().clone();
+        material.uniforms = this.uniforms;
+        material.customProgramCacheKey = () => 'ATOMA_LINK_SPARK_v1|ShaderMaterial|transparent|no-depth-write|depth-test|additive|toneMapped-off|vertexColors-off';
 
         this.points = new THREE.Points(geometry, material);
         this.points.frustumCulled = false; // Always render
@@ -263,6 +252,7 @@ export class LinkSparkSystem {
         applyLinkRenderLayer(this.points, 'LINK_SPARKS');
         const ud = this.points.userData || (Object.defineProperty(this.points, 'userData', { value: {}, writable: true, configurable: true }), this.points.userData);
         Object.assign(ud, { isSparkSystem: true, __sparkRenderState: this.uniforms });
+
         if (DEBUG_SPARKS) console.log('SPARK MESH', this.points);
         
         // Add to scene
@@ -296,6 +286,32 @@ export class LinkSparkSystem {
         }
         const spawnTimes = geo.attributes.aSpawnTime.array;
         const lifeTimes = geo.attributes.aLifeTime.array;
+        const tAttr = geo.attributes.aT;
+        const angleAttr = geo.attributes.aAngle;
+        const speedAttr = geo.attributes.aSpeed;
+        const sizeAttr = geo.attributes.aSize;
+        let expiredCount = 0;
+        for (let i = 0; i < this.maxSparks; i++) {
+            const spawnTime = spawnTimes[i];
+            const lifeTime = lifeTimes[i];
+            if (spawnTime >= 0 && lifeTime > 0 && time - spawnTime > lifeTime) {
+                spawnTimes[i] = -100.0;
+                lifeTimes[i] = 0.0;
+                if (tAttr) tAttr.array[i] = 0.0;
+                if (angleAttr) angleAttr.array[i] = 0.0;
+                if (speedAttr) speedAttr.array[i] = 0.0;
+                if (sizeAttr) sizeAttr.array[i] = 0.0;
+                expiredCount += 1;
+            }
+        }
+        if (expiredCount > 0) {
+            geo.attributes.aSpawnTime.needsUpdate = true;
+            geo.attributes.aLifeTime.needsUpdate = true;
+            if (tAttr) tAttr.needsUpdate = true;
+            if (angleAttr) angleAttr.needsUpdate = true;
+            if (speedAttr) speedAttr.needsUpdate = true;
+            if (sizeAttr) sizeAttr.needsUpdate = true;
+        }
         let active = 0;
         for (let i = 0; i < this.maxSparks; i++) {
             if (time - spawnTimes[i] < lifeTimes[i] && spawnTimes[i] >= 0) {
@@ -393,8 +409,8 @@ export class LinkSparkSystem {
             // Activate
             aSpawnTime.setX(idx, time);
             
-            // TEMP: longer lifetime for visibility
-            aLifeTime.setX(idx, 0.35 + Math.random() * 0.15);
+            // Short, strict lifetime so sparks die cleanly instead of lingering.
+            aLifeTime.setX(idx, SPARK_LIFETIME_MIN + Math.random() * (SPARK_LIFETIME_MAX - SPARK_LIFETIME_MIN));
 
             // Random Position on Curve
             // Bias towards ends slightly? No, random is fine for "friction"
@@ -445,7 +461,7 @@ export class LinkSparkSystem {
     dispose() {
         if (this.points) {
             this.points.parent?.remove(this.points);
-            this.points.onBeforeRender = null;
+            this.points.material?.dispose?.();
             this.points.geometry?.dispose?.();
             this.points = null;
         }

@@ -19,8 +19,8 @@ import * as THREE from 'three';
 import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
 
 const DEFAULT_POOL = 320;
-const MIN_SIZE = 6.0;   // px
-const MAX_SIZE = 14.0;  // px
+const MIN_SIZE = 7.0;   // px
+const MAX_SIZE = 16.0;  // px
 const PER_LINK_CAP = 20;
 
 function ensureUserData(obj) {
@@ -111,10 +111,10 @@ export class LinkHealingParticleSystem {
       blending: THREE.AdditiveBlending,
       uniforms: {
         uTime: { value: 0 },
-        uBaseColor: { value: new THREE.Color(0x39ff14) }, // debug neon green
-        uEdgeColor: { value: new THREE.Color(0x7fff4d) }, // debug neon green edge
+        uBaseColor: { value: new THREE.Color(0x39ff14) }, // harmony neon green
+        uEdgeColor: { value: new THREE.Color(0x7fff4d) }, // harmony neon green edge
         uSizeRange: { value: new THREE.Vector2(MIN_SIZE, MAX_SIZE) },
-        uOpacity: { value: 2.5 },
+        uOpacity: { value: 2.8 },
         uSofteningNear: { value: 0.3 },   // meters from camera to start fading
         uSofteningRange: { value: 0.6 }   // fade span
       },
@@ -141,6 +141,9 @@ export class LinkHealingParticleSystem {
           // size shrinks slightly, brightens near end
           float sizeFade = mix(1.0, 0.65, vLifeT);
           float size = mix(uSizeRange.x, uSizeRange.y, 1.0 - vLifeT) * sizeFade;
+          // Subtle breathing pulse — each particle has unique phase
+          float breath = 1.0 + sin(age * 5.0 + aSeed * 6.2831853) * 0.04;
+          size *= breath;
           vSeed = aSeed;
           vVariant = aVariant;
           vTint = aTint;
@@ -214,10 +217,11 @@ export class LinkHealingParticleSystem {
           float useBloom = step(0.5, vVariant);
           float shape = mix(knot(uv), bloomPetal(uv), useBloom);
 
-          float lifeFade = smoothstep(0.0, 0.08, vLifeT) * (1.0 - smoothstep(0.68, 1.0, vLifeT));
+          float lifeFade = smoothstep(0.0, 0.06, vLifeT) * (1.0 - smoothstep(0.62, 1.0, vLifeT));
           // Match spark-style visibility: only soften when particles get too close to the camera.
           float depthFade = smoothstep(uSofteningNear, uSofteningNear + uSofteningRange, vDepth);
-          float flash = smoothstep(0.92, 1.0, vLifeT) * 1.1;
+          // Enhanced flash: wider range, brighter peak for luminous absorption
+          float flash = smoothstep(0.85, 1.0, vLifeT) * 1.4;
           
           // Unified hash for all randomization
           float h = hash11(vSeed + vLifeT * 13.7);
@@ -227,18 +231,31 @@ export class LinkHealingParticleSystem {
           float radial = clamp(1.0 - length(gl_PointCoord * 2.0 - 1.0), 0.0, 1.0);
           float streak = flash * radial * (0.6 + 0.4 * angJitter);
 
+          // Luminous hot core — particles glow from within
+          float dist = length(p);
+          float core = 1.0 - smoothstep(0.0, 0.18, dist);
+          float innerGlow = 1.0 - smoothstep(0.05, 0.35, dist);
+          // Subtle shimmer
+          float shimmer = 1.0 + sin(vLifeT * 15.7 + dist * 12.0) * 0.04;
+
           vec3 base = mix(uBaseColor, vec3(0.84, 1.0, 0.92), useBloom * 0.48);
           vec3 edge = mix(uEdgeColor, vec3(0.72, 1.0, 0.98), useBloom * 0.56);
           vec3 color = mix(base, edge, 0.35 + 0.25 * randTint);
-          color += (flash + streak) * mix(0.32, 0.42, useBloom);
-          color += useBloom * 0.08;
+          // Hot core shifts toward luminous white-cyan
+          color += vec3(core * 0.28, core * 0.38, core * 0.32);
+          // Inner glow adds ethereal depth
+          color += innerGlow * vec3(0.06, 0.12, 0.10);
+          color += (flash + streak) * mix(0.38, 0.48, useBloom);
+          color += useBloom * 0.10;
+          color *= shimmer;
 
-          float driftFade = 1.0 - smoothstep(0.65, 1.0, vLifeT);
+          float driftFade = 1.0 - smoothstep(0.60, 1.0, vLifeT);
           float alpha = shape * (lifeFade + flash + streak) * depthFade * driftFade * uOpacity;
           if (alpha < 0.01) discard;
           gl_FragColor = vec4(color, alpha);
         }
-      `
+      `,
+      customProgramCacheKey: () => 'ATOMA_HEALING_v2'
     });
 
     this.points = new THREE.Points(this.geometry, this.material);
@@ -279,9 +296,9 @@ export class LinkHealingParticleSystem {
 
       const orbitPhase = burstPhase !== null ? burstPhase : Math.random() * Math.PI * 2.0;
       const orbitSpeed = 0.45 + Math.random() * 0.25;
-      const orbitRadius = 0.055 + Math.random() * 0.03;
+      const orbitRadius = 0.06 + Math.random() * 0.04;
       const driftSpeed = 0.045 + Math.random() * 0.03;
-      const life = 0.75 + Math.random() * 0.22;
+      const life = 0.85 + Math.random() * 0.25;
       const seed = Math.random();
       const variant = Math.random() < 0.5 ? 0.0 : 1.0;
 
@@ -383,7 +400,7 @@ export class LinkHealingParticleSystem {
     }
 
     this.material.uniforms.uTime.value = safeTime;
-    this.material.uniforms.uOpacity.value = 2.5;
+    this.material.uniforms.uOpacity.value = 2.8;
     this.points.visible = true;
     let anyActive = false;
 

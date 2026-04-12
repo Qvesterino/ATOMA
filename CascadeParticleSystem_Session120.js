@@ -1649,7 +1649,19 @@ export class CascadeParticleSystem_Session120 {
     for (const link of links) {
       if (!link?.id || link.active === false) continue;
       const linkState = this._getCascadeLinkState(link, this._currentCamera);
-      if (!linkState.isRelevant) continue;
+      // FIX: Removed isRelevant gating — links without cascade-specific data
+      // (where intensity defaults to 0) were never spawning particles.
+      // The _emitFromLinkState already has this check disabled too.
+      // if (!linkState.isRelevant) continue;
+      // Instead, use a minimum fallback intensity for links with no cascade data
+      if (linkState.intensity <= 0 && !link?.userData?.cascadeIntensity && !link?.userData?.flowState?.intensity) {
+        // Provide baseline intensity from synergy metric so normal links can spawn
+        const synergy = Number(link?.userData?.metrics?.synergy ?? 0) || 0;
+        if (synergy < this.config.minimumVisibleIntensity) continue;
+        // Patch: set a minimum intensity so _emitFromLinkState can proceed
+        linkState.intensity = Math.max(0.08, synergy);
+        linkState.isRelevant = true;
+      }
       const spawnState = this._linkSpawnState.get(link.id);
       const emissionInterval = this._getEmissionInterval(linkState);
       const lastSpawnTime = spawnState?.lastSpawnTime ?? -Infinity;

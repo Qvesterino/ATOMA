@@ -503,36 +503,37 @@ class EnhancedPictogramInstance {
             }
         }
 
-        // Animate stability glyph with calm locking motion
-        if (this.mesh?.userData?.stabilityFrame) {
-            const frame = this.mesh.userData.stabilityFrame;
-            const diamond = this.mesh.userData.stabilityDiamond;
-            const anchors = this.mesh.userData.stabilityAnchors || [];
-            const lockRing = this.mesh.userData.stabilityLockRing;
-            const braces = this.mesh.userData.stabilityBraces || [];
+        // Animate stability glyph with faster torus pulse
+        if (this.mesh?.userData?.stabilityOuterRing) {
+            const ring = this.mesh.userData.stabilityOuterRing;
+            const base = ring.userData.baseScale;
+            const pulse = 1.0 + Math.sin(this.age * 3.2) * 0.025;
+            ring.scale.set(base.x * pulse, base.y, base.z / pulse);
+        }
 
-            frame.rotation.z += deltaTime * (0.08 + stability * 0.04);
-            if (diamond) {
-                diamond.rotation.z += deltaTime * (0.10 + stability * 0.05);
-                diamond.scale.setScalar(1 + Math.sin(this.age * 2.0) * 0.03);
-            }
-            if (lockRing) {
-                lockRing.rotation.z -= deltaTime * (0.12 + stability * 0.05);
-                lockRing.scale.setScalar(1.62 + Math.sin(this.age * 1.8) * 0.03);
-            }
-            anchors.forEach((anchor, idx) => {
-                const base = anchor.userData.basePosition || anchor.position.clone();
-                const anchorPulse = 1 + Math.sin(this.age * 2.2 + (anchor.userData.phase || idx)) * 0.03;
-                anchor.position.copy(base).add(new THREE.Vector3(
-                    Math.sin(this.age * 1.4 + idx) * 0.008,
-                    Math.cos(this.age * 1.7 + idx) * 0.008,
+        if (this.mesh?.userData?.stabilityInnerShell) {
+            const shell = this.mesh.userData.stabilityInnerShell;
+            const base = shell.userData.baseScale;
+            const pulse = 1.0 + Math.sin(this.age * 4.6) * 0.03;
+            shell.scale.set(base.x * pulse, base.y, base.z * pulse);
+        }
+
+        if (this.mesh?.userData?.stabilityCore) {
+            const core = this.mesh.userData.stabilityCore;
+            core.scale.setScalar(0.16 * (1.0 + Math.sin(this.age * 2.2) * 0.02 + stability * 0.02));
+        }
+
+        if (this.mesh?.userData?.stabilitySparks) {
+            const sparks = this.mesh.userData.stabilitySparks;
+            sparks.forEach((spark, idx) => {
+                const base = spark.userData.basePosition || spark.position.clone();
+                const offset = 0.006 + stability * 0.003;
+                spark.position.copy(base).add(new THREE.Vector3(
+                    Math.sin(this.age * 2.8 + idx) * offset,
+                    Math.cos(this.age * 2.4 + idx) * offset,
                     0
                 ));
-                anchor.scale.setScalar(anchorPulse);
-            });
-            braces.forEach((brace, idx) => {
-                brace.scale.x = (this.mesh?.scale?.x || 1) * (0.88 + stability * 0.18);
-                brace.rotation.z += deltaTime * (0.05 + idx * 0.02);
+                spark.scale.setScalar(0.055 * (1.0 + Math.sin(this.age * 3.1 + idx) * 0.08));
             });
         }
 
@@ -1704,7 +1705,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
         this.activePictograms.add(pictogram);
 
         // Replace placeholder mesh with orbital glyph group
-        const glyph = this.buildOrbitalGlyph(size, metricType);
+        const metricValue = this._readLinkMetric(link, metricType, 0.5);
+        const glyph = this.buildOrbitalGlyph(size, metricType, metricValue);
         // Ensure container owns the glyph
         if (pictogram.mesh && pictogram.mesh.parent) {
             pictogram.mesh.parent.remove(pictogram.mesh);
@@ -1804,9 +1806,9 @@ export class LinkSemanticPictogramSystem_Enhanced {
         return this.glyphBuilders.buildHarmonyGlyph(size, renderOrder);
     }
 
-    // Stability glyph: square frame + inner rotated square
+    // Stability glyph: compact torus shell with pulse
     buildStabilityGlyph(size = 1.0, renderOrder = 246) {
-        return this.glyphBuilders.buildStabilityGlyph(size, renderOrder);
+        return this.glyphBuilders.buildStabilityGlyph(size, renderOrder, 'stability', 1.0);
     }
 
     // Corruption glyph: fractured ring of arc segments
