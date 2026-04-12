@@ -173,11 +173,12 @@ const WAVE_SPARK_RATIOS = {
   microJump: [0.30, 0.25, 0.40, 0.05],
   bridgeContact: [0.25, 0.40, 0.30, 0.05]
 };
+// Polish: +15% size across all glyphs for better visibility
 const WAVE_SPARK_PROFILE = [
-  { lifeMin: 0.18, lifeMax: 0.32, sizeMin: 7.0, sizeMax: 13.0, speedMin: 0.95, speedMax: 1.45, spinMin: -1.2, spinMax: 1.2, gainMin: 0.55, gainMax: 0.85, accentMix: 0.20, hotMix: 0.14 },
-  { lifeMin: 0.22, lifeMax: 0.38, sizeMin: 8.0, sizeMax: 14.0, speedMin: 0.72, speedMax: 1.08, spinMin: -1.8, spinMax: 1.8, gainMin: 0.42, gainMax: 0.70, accentMix: 0.45, hotMix: 0.14 },
-  { lifeMin: 0.14, lifeMax: 0.26, sizeMin: 9.0, sizeMax: 16.0, speedMin: 0.82, speedMax: 1.20, spinMin: -2.1, spinMax: 2.1, gainMin: 0.48, gainMax: 0.78, accentMix: 0.50, hotMix: 0.20 },
-  { lifeMin: 0.09, lifeMax: 0.18, sizeMin: 6.0, sizeMax: 11.0, speedMin: 1.15, speedMax: 1.85, spinMin: -2.8, spinMax: 2.8, gainMin: 0.65, gainMax: 1.0, accentMix: 0.15, hotMix: 0.72 }
+  { lifeMin: 0.18, lifeMax: 0.32, sizeMin: 8.0, sizeMax: 15.0, speedMin: 0.95, speedMax: 1.45, spinMin: -1.2, spinMax: 1.2, gainMin: 0.55, gainMax: 0.85, accentMix: 0.20, hotMix: 0.14 },
+  { lifeMin: 0.22, lifeMax: 0.38, sizeMin: 9.2, sizeMax: 16.1, speedMin: 0.72, speedMax: 1.08, spinMin: -1.8, spinMax: 1.8, gainMin: 0.42, gainMax: 0.70, accentMix: 0.45, hotMix: 0.14 },
+  { lifeMin: 0.14, lifeMax: 0.26, sizeMin: 10.4, sizeMax: 18.4, speedMin: 0.82, speedMax: 1.20, spinMin: -2.1, spinMax: 2.1, gainMin: 0.48, gainMax: 0.78, accentMix: 0.50, hotMix: 0.20 },
+  { lifeMin: 0.09, lifeMax: 0.18, sizeMin: 6.9, sizeMax: 12.7, speedMin: 1.15, speedMax: 1.85, spinMin: -2.8, spinMax: 2.8, gainMin: 0.65, gainMax: 1.0, accentMix: 0.15, hotMix: 0.72 }
 ];
 const weightedPickIndex = (weights) => {
   let total = 0;
@@ -292,14 +293,17 @@ const strandSparkFragmentShader = `
             shape = shapeEmber(p);
         }
 
-        float fadeIn = smoothstep(0.0, 0.09, vAge);
+        // Polish: faster fade-in for snappier appearance (was 0.09)
+        float fadeIn = smoothstep(0.0, 0.06, vAge);
         float fadeOut = 1.0 - smoothstep(0.68, 1.0, vAge);
         float core = 1.0 - smoothstep(0.0, 0.62, length(p));
-        float flicker = 0.88 + 0.12 * sin((1.0 - vAge) * 29.0 + vShape * 7.7 + p.x * 5.0);
+        // Polish: more dynamic flicker range (was 0.88 + 0.12)
+        float flicker = 0.84 + 0.18 * sin((1.0 - vAge) * 29.0 + vShape * 7.7 + p.x * 5.0);
         float alpha = shape * fadeIn * fadeOut * vGain * flicker;
         if (alpha < 0.01) discard;
 
-        vec3 color = vColor + vec3(core * 0.32);
+        // Polish: hotter spark centers (was core * 0.32)
+        vec3 color = vColor + vec3(core * 0.48);
         gl_FragColor = vec4(color, alpha);
     }
 `;

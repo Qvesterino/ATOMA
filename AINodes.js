@@ -3486,7 +3486,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     const guardNextTimeSpawn = (configObj) => {
       if (!DEV_GUARDS_ENABLED) return;
       
-      const rawNextTimeSpawn = Date.now() + 5000; // Initial seed value
+      let rawNextTimeSpawn = Date.now() + 5000; // Initial seed value
       
       Object.defineProperty(configObj, 'nextTimeSpawn', {
         get: () => rawNextTimeSpawn,

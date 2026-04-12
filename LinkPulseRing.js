@@ -69,8 +69,8 @@ export class LinkPulseRing {
             uniforms: {
                 uColor: { value: new THREE.Color(0xffffff) },
                 uOpacity: { value: 0.5 },
-                uFresnelPower: { value: 2.5 },
-                uFresnelIntensity: { value: 2.4 }
+                uFresnelPower: { value: 2.2 },        // Polish: wider glow spread (was 2.5)
+                uFresnelIntensity: { value: 3.0 }     // Polish: sharper, more dramatic rim (was 2.4)
             },
             
             vertexShader: `
@@ -101,7 +101,7 @@ export class LinkPulseRing {
                     fresnel = clamp(fresnel, 0.0, 1.0);
                     fresnel *= uFresnelIntensity;
                     
-                    vec3 base = uColor * 0.15;
+                    vec3 base = uColor * 0.22;  // Polish: brighter inner energy (was 0.15)
                     vec3 finalColor = base + uColor * fresnel;
                     
                     gl_FragColor = vec4(finalColor, uOpacity * fresnel);
@@ -172,7 +172,7 @@ export class LinkPulseRing {
         
         // === LAYER 3: TRAIL (Echo rings) ===
         this.trailMeshes = [];
-        this.TRAIL_COUNT = 2;
+        this.TRAIL_COUNT = 3;  // Polish: richer echo trail (was 2)
         this._trailsDeferred = deferTrails;
         this._trailsInitialized = false;
 
@@ -273,8 +273,8 @@ export class LinkPulseRing {
         if (!this._trailsDeferred) {
             this._initTrails();
         }
-        // DEBUG ISOLATION: aura layer disabled so segment split stays readable.
-        // this.mesh.add(this.auraMesh);
+        // Polish: re-enabled aura layer for outer glow halo (was disabled for debug isolation)
+        if (this.auraMesh) this.mesh.add(this.auraMesh);
 
         this.ensureAttached(this._attachRoot);
     }
@@ -432,7 +432,7 @@ export class LinkPulseRing {
             return;
         }
         this.mesh.visible = true;
-        if (this.auraMesh) this.auraMesh.visible = false;
+        if (this.auraMesh) this.auraMesh.visible = true;  // Polish: re-enabled aura (was false)
         this._time += dt;
 
         // === 1. Motion Logic ===
@@ -468,14 +468,11 @@ export class LinkPulseRing {
         const baseScale = 0.12 + (synergy * 0.08);
         
         // === SECOND HARMONIC PULSE: Dvojfrekvenčný pulz ===
-        // Primary oscilátor
-        // DEBUG ISOLATION: suppress scale pulse so only segment split communicates motion.
-        // const primary = Math.sin(this.progress * Math.PI * 6);
-        const primary = 0;
+        // Polish: re-enabled gentle breathing scale (was zeroed for debug isolation)
+        const primary = Math.sin(this.progress * Math.PI * 6) * 0.10;
         
-        // Harmonic oscilátor (dvojnásobná frekvencia, 40% amplitúda)
-        // const harmonic = Math.sin(this.progress * Math.PI * 12) * 0.4;
-        const harmonic = 0;
+        // Harmonic oscilátor (dvojnásobná frekvencia)
+        const harmonic = Math.sin(this.progress * Math.PI * 12) * 0.04;
         
         // Kombinovaný pulz (nie jeden tep, ale komplexný pulz)
         const combinedPulse = 1.0 + primary * 0.15 + harmonic * 0.08;
@@ -511,10 +508,9 @@ export class LinkPulseRing {
         // Drift rýchlosť podľa synergy
         const driftSpeed = 0.2 + synergy * 0.8;
         
-        // Jemný posun hue (menší než 0.02 aby to nebolo cirkus!)
-        // DEBUG ISOLATION: disable hue drift to keep the ring visually stable while testing split.
-        // const hueDrift = Math.sin(this._time * driftSpeed) * 0.015;
-        // hsl.h += hueDrift;
+        // Polish: re-enabled subtle hue drift for living color (was disabled for debug)
+        const hueDrift = Math.sin(this._time * driftSpeed) * 0.012;
+        hsl.h += hueDrift;
         
         // Wrap hue (0-1)
         if (hsl.h > 1.0) hsl.h -= 1.0;
@@ -534,9 +530,12 @@ export class LinkPulseRing {
         this.currentSpinAngle = (this.currentSpinAngle + dt * spinRate) % (Math.PI * 2);
         this.segmentGroup.rotation.z = this.currentSpinAngle;
         this._applyRingVisuals(this.material, this._tempColor, finalOpacity);
-        // DEBUG ISOLATION: aura disabled because it visually bridges the segment gap.
-        // this._applyRingVisuals(this.auraMaterial, this._tempColor, finalOpacity * 0.45 * gapFade, 1.2);
-        // this.auraMesh.scale.setScalar(1.0 + gap * 0.35);
+        // Polish: re-enabled aura for outer glow halo (was disabled for debug)
+        const gapFade = 1.0 - gap * 0.3;
+        if (this.auraMaterial) {
+            this._applyRingVisuals(this.auraMaterial, this._tempColor, finalOpacity * 0.35 * gapFade, 1.2);
+        }
+        if (this.auraMesh) this.auraMesh.scale.setScalar(1.0 + gap * 0.35);
 
         this.segments.forEach((seg, i) => {
             seg.position.copy(this.segmentDirections[i]).multiplyScalar(gap);

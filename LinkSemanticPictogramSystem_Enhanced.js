@@ -1651,7 +1651,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
         const baseSize = Math.max(0.01, size || CONFIG.SIZE_MEDIUM || 0.4);
         const metricScale = this.metricGlyphScale?.[metricType] ?? this.metricGlyphScale?.default ?? 1.0;
         const configScale = CONFIG.UNIFORM_GLYPH_SCALE || 1.0;
-        return Math.max(0.01, baseSize * configScale * this.glyphScale * metricScale);
+        const stabilityScale = metricType === 'stability' ? 0.72 : 1.0;
+        return Math.max(0.01, baseSize * configScale * this.glyphScale * metricScale * stabilityScale);
     }
 
     setGlyphScale(scale, { refreshActive = true } = {}) {
@@ -1825,7 +1826,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
                 return new THREE.Color(baseTone + tintStrength * 0.2, baseTone - tintStrength * 0.1, baseTone - tintStrength * 0.1).getHex();
             case 'synergy':
                 return new THREE.Color(baseTone - tintStrength * 0.1, baseTone + tintStrength * 0.2, baseTone).getHex();
-            case 'instability':
+            case 'stability':
                 return new THREE.Color(baseTone + tintStrength * 0.2, baseTone + tintStrength * 0.1, baseTone - tintStrength * 0.1).getHex();
             case 'healing':
                 return new THREE.Color(baseTone, baseTone + tintStrength * 0.2, baseTone + tintStrength * 0.2).getHex();

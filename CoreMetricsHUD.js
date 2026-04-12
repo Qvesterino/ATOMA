@@ -69,10 +69,12 @@ export class CoreMetricsHUD {
     this.networkTimePulseActive = false;
     this.networkTimePulseElapsed = 0;
     
-    // Update throttling (2Hz = 500ms)
-    this.lastUpdateTime = 0;
-    this.updateInterval = 500; // 2 updates per second
-    this.metricApproachRate = 0.2; // 0->1 in ~5s when target is stable
+    // Display smoothing: treat metric changes as a tween so link creation
+    // does not snap the HUD to the final network state in a single frame.
+    this.metricTweenMinDuration = 1.15;
+    this.metricTweenMaxDuration = 3.0;
+    this.metricTweenEase = (t) => 1 - Math.pow(1 - t, 3);
+    this._metricTween = null;
     this.displayedMetrics = {
       synergy: 0,
       harmony: 0,
@@ -363,18 +365,11 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
 
   // === SMOOTH DISPLAY STATE TOWARD TARGETS ===
   const dt = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0.016;
-  const maxStep = this.metricApproachRate * dt;
-  const approach = (current, target) => {
-    const delta = target - current;
-    if (Math.abs(delta) <= maxStep) return target;
-    return current + Math.sign(delta) * maxStep;
-  };
-
-  this.displayedMetrics.synergy = approach(this.displayedMetrics.synergy, targetMetrics.networkSynergy);
-  this.displayedMetrics.harmony = approach(this.displayedMetrics.harmony, targetMetrics.harmonyFlow);
-  this.displayedMetrics.stability = approach(this.displayedMetrics.stability, targetMetrics.networkStress);
-  this.displayedMetrics.corruption = approach(this.displayedMetrics.corruption, targetMetrics.corruptionLevel);
-  this.displayedMetrics.loadPressure = approach(this.displayedMetrics.loadPressure, targetMetrics.loadPressure);
+  const targetSnapshot = this._buildMetricSnapshot(targetMetrics);
+  if (!this._metricTween || !this._snapshotEquals(this._metricTween.target, targetSnapshot, 0.001)) {
+    this._metricTween = this._createMetricTween(targetSnapshot);
+  }
+  this._advanceMetricTween(dt);
 
   // === RENDER HUD (smoothed, 0..1 floats) ===
   this.updateMetricDisplay('synergy', this.displayedMetrics.synergy);
@@ -408,7 +403,88 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   
   // === UPDATE TEMPORAL ELEMENTS ===
   this.updateTemporalElements(temporalDisplay);
-}
+  }
+  
+  /**
+   * Create a canonical metric snapshot for display tweening.
+   */
+  _buildMetricSnapshot(source = {}) {
+    return {
+      synergy: this.clamp01(source?.networkSynergy ?? source?.synergy ?? 0),
+      harmony: this.clamp01(source?.harmonyFlow ?? source?.harmony ?? 0),
+      stability: this.clamp01(source?.networkStress ?? source?.stability ?? 0),
+      corruption: this.clamp01(source?.corruptionLevel ?? source?.corruption ?? 0),
+      loadPressure: this.clamp01(source?.loadPressure ?? source?.load ?? 0)
+    };
+  }
+
+  /**
+   * Compare metric snapshots with a small epsilon so tiny floating noise does not
+   * restart the tween every frame.
+   */
+  _snapshotEquals(a, b, epsilon = 0.001) {
+    if (!a || !b) return false;
+    return (
+      Math.abs((a.synergy ?? 0) - (b.synergy ?? 0)) <= epsilon &&
+      Math.abs((a.harmony ?? 0) - (b.harmony ?? 0)) <= epsilon &&
+      Math.abs((a.stability ?? 0) - (b.stability ?? 0)) <= epsilon &&
+      Math.abs((a.corruption ?? 0) - (b.corruption ?? 0)) <= epsilon &&
+      Math.abs((a.loadPressure ?? 0) - (b.loadPressure ?? 0)) <= epsilon
+    );
+  }
+
+  /**
+   * Start a new tween from the current displayed values toward the target snapshot.
+   */
+  _createMetricTween(targetSnapshot) {
+    const start = { ...this.displayedMetrics };
+    const target = { ...targetSnapshot };
+    const maxDelta = Math.max(
+      Math.abs(target.synergy - start.synergy),
+      Math.abs(target.harmony - start.harmony),
+      Math.abs(target.stability - start.stability),
+      Math.abs(target.corruption - start.corruption),
+      Math.abs(target.loadPressure - start.loadPressure)
+    );
+    const duration = Math.min(
+      this.metricTweenMaxDuration,
+      Math.max(this.metricTweenMinDuration, this.metricTweenMinDuration + maxDelta * 1.75)
+    );
+
+    return {
+      start,
+      target,
+      elapsed: 0,
+      duration
+    };
+  }
+
+  /**
+   * Advance the display tween and write the interpolated values into displayedMetrics.
+   */
+  _advanceMetricTween(deltaTime) {
+    if (!this._metricTween) return;
+    const tween = this._metricTween;
+    tween.elapsed = Math.min(tween.elapsed + deltaTime, tween.duration);
+    const t = tween.duration <= 0 ? 1 : tween.elapsed / tween.duration;
+    const eased = this.metricTweenEase(Math.max(0, Math.min(1, t)));
+
+    const lerp = (a, b) => a + (b - a) * eased;
+    this.displayedMetrics.synergy = lerp(tween.start.synergy, tween.target.synergy);
+    this.displayedMetrics.harmony = lerp(tween.start.harmony, tween.target.harmony);
+    this.displayedMetrics.stability = lerp(tween.start.stability, tween.target.stability);
+    this.displayedMetrics.corruption = lerp(tween.start.corruption, tween.target.corruption);
+    this.displayedMetrics.loadPressure = lerp(tween.start.loadPressure, tween.target.loadPressure);
+
+    if (t >= 1) {
+      this.displayedMetrics.synergy = tween.target.synergy;
+      this.displayedMetrics.harmony = tween.target.harmony;
+      this.displayedMetrics.stability = tween.target.stability;
+      this.displayedMetrics.corruption = tween.target.corruption;
+      this.displayedMetrics.loadPressure = tween.target.loadPressure;
+      this._metricTween = null;
+    }
+  }
 
   /**
    * Update temporal display elements (cycle, epoch, aeon)

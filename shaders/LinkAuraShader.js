@@ -88,7 +88,7 @@ export function createLinkAuraMaterial(config = {}) {
     const cachedMaterial = LINK_AURA_MATERIAL_CACHE.get(key);
     if (cachedMaterial && !cachedMaterial.userData?.__linkAuraProgramCacheKeyBound) {
       if (!cachedMaterial.userData) cachedMaterial.userData = {};
-      cachedMaterial.customProgramCacheKey = () => 'ATOMA_LINK_AURA_v1|ShaderMaterial|transparent|no-depth-write|depth-test|double-side|normal';
+      cachedMaterial.customProgramCacheKey = () => 'ATOMA_LINK_AURA_v2|ShaderMaterial|transparent|no-depth-write|depth-test|double-side|additive';
       cachedMaterial.userData.__linkAuraProgramCacheKeyBound = true;
     }
     return cachedMaterial;
@@ -231,7 +231,7 @@ export function createLinkAuraMaterial(config = {}) {
         float birthPhase = mod(uTime * 2.5, 1.0);
         float fadeIn = smoothstep(0.0, 0.4, birthPhase);
         float hold = 1.0 - smoothstep(0.5, 1.0, birthPhase);
-        linkBirthPulse = fadeIn * hold * 0.15;
+        linkBirthPulse = fadeIn * hold * 0.28;  // Polish: more dramatic birth flash (was 0.15)
       }
       
       float linkRemovalPulse = 0.0;
@@ -302,7 +302,8 @@ export function createLinkAuraMaterial(config = {}) {
       float rim = rimBase * rimBase;
       
       // Base color: IDENTICAL to node aura (soft gray-white) - Profile: baseColor
-      vec3 auraColor = vec3(0.85, 0.85, 0.9);
+      // Polish: slightly warmer, more alive
+      vec3 auraColor = vec3(0.88, 0.87, 0.94);
       
       // Harmony influence: IDENTICAL to node aura - Profile: harmonyColor, blend 0.3
       auraColor = mix(auraColor, vec3(0.8, 0.8, 0.88), uHarmony * 0.3);
@@ -326,8 +327,11 @@ export function createLinkAuraMaterial(config = {}) {
       // ========================================================================
       // SIMPLIFIED DIRECTIONAL RIM LIGHTING
       // ========================================================================
-      // Static coefficients, reduced calculations
-      auraColor += rim * vec3(0.1) * (1.0 - uDesaturation * 0.3);
+      // Polish: stronger rim for depth and glow feel
+      auraColor += rim * vec3(0.18) * (1.0 - uDesaturation * 0.3);
+
+      // Polish: subtle self-illumination for richness
+      auraColor += auraColor * 0.08;
       
       // ========================================================================
       // OPACITY CONSTRAINTS - MAINTAIN HIERARCHY (from EnergyVisualProfile)
@@ -340,8 +344,8 @@ export function createLinkAuraMaterial(config = {}) {
       float opacity = uOpacity * (0.6 + rim * 0.2);  // Reduced from node's (0.7 + rim*0.3)
       opacity *= (0.7 + vDisplacementFactor * 0.15);  // Reduced modulation
       
-      // Clamp to ensure link never exceeds node visually
-      opacity = min(opacity, 0.16);  // Hard cap from EnergyVisualProfile.linkOpacityCap
+      // Polish: raised opacity cap for more visible link aura (was 0.16, still below node 0.25)
+      opacity = min(opacity, 0.24);
       
       // ========================================================================
       // BLEND ZONE FADE - ALLOW NODE AURA DOMINANCE NEAR ENDPOINTS
@@ -377,11 +381,11 @@ export function createLinkAuraMaterial(config = {}) {
     transparent: true,
     depthWrite: false,
     side: THREE.DoubleSide,
-    blending: THREE.NormalBlending,
+    blending: THREE.AdditiveBlending,  // Polish: additive for energy glow feel (was NormalBlending)
   });
 
   if (!material.userData) material.userData = {};
-  material.customProgramCacheKey = () => 'ATOMA_LINK_AURA_v1|ShaderMaterial|transparent|no-depth-write|depth-test|double-side|normal';
+  material.customProgramCacheKey = () => 'ATOMA_LINK_AURA_v2|ShaderMaterial|transparent|no-depth-write|depth-test|double-side|additive';
   material.userData.__linkAuraProgramCacheKeyBound = true;
 
   LINK_AURA_MATERIAL_CACHE.set(key, material);

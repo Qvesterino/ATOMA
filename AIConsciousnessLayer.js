@@ -169,13 +169,18 @@ export class AIConsciousnessLayer {
         progress: 0,
         speed: 1,
         color: new THREE.Color(),
+        colorA: new THREE.Color(),
+        colorB: new THREE.Color(),
         mesh: null,
+        trailMesh: null,
+        trailPositions: [],
         life: 1,
         age: 0,
         duration: 1,
         active: false,
         link: null,
-        category: 'stable'
+        category: 'stable',
+        speedVariation: 0
       };
       this.particlePools.pulsePackets.push(pulse);
     }
@@ -263,26 +268,30 @@ export class AIConsciousnessLayer {
     const posB = link.nodeB.position;
     const distance = posA.distanceTo(posB);
     
-    // Dynamic control point offset based on distance and category
+    // Dynamic control point offset based on distance and category with Perlin noise
     const offset = Math.min(distance * 0.15, 2.0);
     const categoryInfluence = this._getCategoryInfluence(link.nodeA, link.nodeB);
-    const seed = this._getLinkSeed(link, posA, posB);
+    const seed = this._hashTo01(`${link.id}:${posA.x},${posA.y},${posA.z}|${posB.x},${posB.y},${posB.z}`);
     const phase = this.time * 0.28;
     
-    // Deterministic offsets derived from link identity and signal phase
-    const baseX = this._hashTo01(`${seed}-x`);
-    const baseY = this._hashTo01(`${seed}-y`);
-    const baseZ = this._hashTo01(`${seed}-z`);
+    // Organic noise-based offsets
+    const noiseScale = 0.8;
+    const noiseX1 = this._perlinNoise(phase * noiseScale + seed * 10, 0, 0);
+    const noiseY1 = this._perlinNoise(0, phase * noiseScale + seed * 10, 0);
+    const noiseZ1 = this._perlinNoise(0, 0, phase * noiseScale + seed * 10);
+    const noiseX2 = this._perlinNoise(phase * noiseScale * 1.2 + seed * 15, seed * 5, 0);
+    const noiseY2 = this._perlinNoise(seed * 5, phase * noiseScale * 1.2 + seed * 15, 0);
+    const noiseZ2 = this._perlinNoise(0, seed * 5, phase * noiseScale * 1.2 + seed * 15);
     
     this._threadOffset1.set(
-      (baseX - 0.5) * offset * 0.55 + Math.sin(phase + baseY * Math.PI * 2) * offset * 0.12,
-      Math.sin(phase * 0.72 + baseZ * Math.PI * 1.5) * offset * 0.28,
-      (baseY - 0.5) * offset * 0.55 + Math.cos(phase + baseX * Math.PI * 2) * offset * 0.10
+      noiseX1 * offset * 0.45,
+      noiseY1 * offset * 0.28,
+      noiseZ1 * offset * 0.45
     );
     this._threadOffset2.set(
-      (baseZ - 0.5) * offset * categoryInfluence * 0.55 + Math.cos(phase * 0.88 + baseX * Math.PI * 1.8) * offset * 0.10,
-      Math.cos(phase * 0.65 + baseY * Math.PI * 1.7) * offset * 0.24,
-      (baseX - 0.5) * offset * categoryInfluence * 0.55 + Math.sin(phase * 0.95 + baseZ * Math.PI * 2.2) * offset * 0.08
+      noiseX2 * offset * categoryInfluence * 0.45,
+      noiseY2 * offset * 0.24,
+      noiseZ2 * offset * categoryInfluence * 0.45
     );
     
     const controlPoint1 = this._threadControlPoint1.copy(posA).add(this._threadOffset1);
@@ -316,6 +325,57 @@ export class AIConsciousnessLayer {
     }
     return ((hash >>> 0) % 1000) / 1000;
   }
+
+  /**
+   * Simple Perlin-like noise for organic movement
+   */
+  _perlinNoise(x, y = 0, z = 0) {
+    const X = Math.floor(x) & 255;
+    const Y = Math.floor(y) & 255;
+    const Z = Math.floor(z) & 255;
+    
+    x -= Math.floor(x);
+    y -= Math.floor(y);
+    z -= Math.floor(z);
+    
+    const u = this._fade(x);
+    const v = this._fade(y);
+    const w = this._fade(z);
+    
+    const A = this._perm[X] + Y;
+    const AA = this._perm[A] + Z;
+    const AB = this._perm[A + 1] + Z;
+    const B = this._perm[X + 1] + Y;
+    const BA = this._perm[B] + Z;
+    const BB = this._perm[B + 1] + Z;
+    
+    return this._lerp(w, 
+      this._lerp(v, 
+        this._lerp(u, this._grad(this._perm[AA], x, y, z), this._grad(this._perm[BA], x - 1, y, z)),
+        this._lerp(u, this._grad(this._perm[AB], x, y - 1, z), this._grad(this._perm[BB], x - 1, y - 1, z))),
+      this._lerp(v,
+        this._lerp(u, this._grad(this._perm[AA + 1], x, y, z - 1), this._grad(this._perm[BA + 1], x - 1, y, z - 1)),
+        this._lerp(u, this._grad(this._perm[AB + 1], x, y - 1, z - 1), this._grad(this._perm[BB + 1], x - 1, y - 1, z - 1)))
+    );
+  }
+
+  _fade(t) {
+    return t * t * t * (t * (t * 6 - 15) + 10);
+  }
+
+  _lerp(t, a, b) {
+    return a + t * (b - a);
+  }
+
+  _grad(hash, x, y, z) {
+    const h = hash & 15;
+    const u = h < 8 ? x : y;
+    const v = h < 4 ? y : h === 12 || h === 14 ? x : z;
+    return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+  }
+
+  // Permutation table for Perlin noise
+  _perm = [151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180];
   
   /**
    * Cubic Bézier interpolation
@@ -539,15 +599,26 @@ export class AIConsciousnessLayer {
     
     const stability = Math.max(0, Math.min(1, link.stability ?? 0.5));
     const harmony = Math.max(0, Math.min(1, link.harmony ?? 0.5));
-    pulse.speed = this.config.pulseSpeed * (0.65 + stability * 0.3 + harmony * 0.2 + this.config.intensity * 0.25);
+    
+    // Speed variation: different pulses travel at different speeds
+    pulse.speedVariation = 0.8 + Math.random() * 0.4;
+    pulse.speed = this.config.pulseSpeed * (0.65 + stability * 0.3 + harmony * 0.2 + this.config.intensity * 0.25) * pulse.speedVariation;
     pulse.category = stability > 0.6 ? 'corrupted' : 'stable';
     
-    const baseColor = this._getCategoryBlendColor(link.nodeA, link.nodeB);
+    // Color gradient: store start and end colors for interpolation
+    pulse.colorA.copy(this._getCategoryBlendColor(link.nodeA, link.nodeB));
+    pulse.colorB.copy(this._getCategoryBlendColor(link.nodeB, link.nodeA));
     const harmonyTint = new THREE.Color(0x77F7DB).lerp(new THREE.Color(0x6DEAFF), harmony);
     const stabilityTint = new THREE.Color(0xF7FBFF).lerp(new THREE.Color(0x05131A), 1 - stability);
-    pulse.color = baseColor.clone().lerp(harmonyTint, 0.32).lerp(stabilityTint, 0.14);
+    pulse.color = pulse.colorA.clone().lerp(harmonyTint, 0.32).lerp(stabilityTint, 0.14);
     if (stability > 0.6) {
       pulse.color.lerp(new THREE.Color(0xD07BFF), 0.18);
+    }
+    pulse.colorA.lerp(harmonyTint, 0.32).lerp(stabilityTint, 0.14);
+    pulse.colorB.lerp(harmonyTint, 0.32).lerp(stabilityTint, 0.14);
+    if (stability > 0.6) {
+      pulse.colorA.lerp(new THREE.Color(0xD07BFF), 0.18);
+      pulse.colorB.lerp(new THREE.Color(0xD07BFF), 0.18);
     }
     
     if (!pulse.mesh) {
@@ -564,11 +635,34 @@ export class AIConsciousnessLayer {
       this.consciousnessGroup.add(pulse.mesh);
     }
     
+    // Create trail mesh if not exists
+    if (!pulse.trailMesh) {
+      const trailGeometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(30 * 3); // 30 trail points
+      trailGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const trailMaterial = new THREE.LineBasicMaterial({
+        color: pulse.color,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        fog: false
+      });
+      pulse.trailMesh = new THREE.Line(trailGeometry, trailMaterial);
+      pulse.trailMesh.userData.isPulseTrail = true;
+      this.consciousnessGroup.add(pulse.trailMesh);
+    }
+    
+    // Reset trail positions
+    pulse.trailPositions = [];
+    
     pulse.mesh.position.copy(pulse.position);
     pulse.mesh.material.color.copy(pulse.color);
     pulse.mesh.material.opacity = 0.0;
     pulse.mesh.scale.setScalar(0.45 + this.config.intensity * 0.15);
     pulse.mesh.visible = true;
+    pulse.trailMesh.material.color.copy(pulse.color);
+    pulse.trailMesh.visible = true;
     
     if (!this.activeThoughts.pulsePackets.includes(pulse)) {
       this.activeThoughts.pulsePackets.push(pulse);
@@ -850,7 +944,15 @@ export class AIConsciousnessLayer {
       const intensity = this.config.intensity;
       const baseOpacity = 0.18 + activity * 0.25 * intensity + (categoryPressure - 0.9) * 0.12 * intensity;
       const breath = Math.sin(this.time * 1.3) * 0.03 * intensity;
-      line.material.opacity = Math.min(0.6, Math.max(0.12, baseOpacity + breath));
+      
+      // Handle flash effect from passing pulses
+      let flashAdd = 0;
+      if (line.userData.flashIntensity > 0) {
+        flashAdd = line.userData.flashIntensity * 0.6;
+        line.userData.flashIntensity = Math.max(0, line.userData.flashIntensity - (line.userData.flashDecay || 0.1));
+      }
+      
+      line.material.opacity = Math.min(0.85, Math.max(0.12, baseOpacity + breath + flashAdd));
       
       // Regenerate geometry only when necessary, with a stable interval and more nuance for active links
       const lastUpdate = line.userData.lastThreadUpdate || 0;
@@ -874,6 +976,7 @@ export class AIConsciousnessLayer {
       if (!pulse.active || !pulse.link) {
         this.activeThoughts.pulsePackets.splice(i, 1);
         if (pulse.mesh) pulse.mesh.visible = false;
+        if (pulse.trailMesh) pulse.trailMesh.visible = false;
         this.stats.pulsesActive--;
         continue;
       }
@@ -889,6 +992,7 @@ export class AIConsciousnessLayer {
       if (progressNorm >= 1 || pulse.life <= 0) {
         pulse.active = false;
         if (pulse.mesh) pulse.mesh.visible = false;
+        if (pulse.trailMesh) pulse.trailMesh.visible = false;
         this.activeThoughts.pulsePackets.splice(i, 1);
         this.stats.pulsesActive--;
         continue;
@@ -897,11 +1001,57 @@ export class AIConsciousnessLayer {
       pulse.position.lerpVectors(pulse.startPos, pulse.endPos, motionProgress);
       pulse.mesh.position.copy(pulse.position);
       
+      // Color gradient based on progress
+      const gradientT = progressNorm;
+      pulse.mesh.material.color.copy(pulse.colorA).lerp(pulse.colorB, gradientT);
+      pulse.trailMesh.material.color.copy(pulse.colorA).lerp(pulse.colorB, gradientT);
+      
+      // Update trail
+      pulse.trailPositions.push(pulse.position.clone());
+      if (pulse.trailPositions.length > 30) {
+        pulse.trailPositions.shift();
+      }
+      if (pulse.trailPositions.length >= 2) {
+        const positions = pulse.trailMesh.geometry.attributes.position.array;
+        for (let j = 0; j < 30; j++) {
+          const idx = j * 3;
+          if (j < pulse.trailPositions.length) {
+            positions[idx] = pulse.trailPositions[j].x;
+            positions[idx + 1] = pulse.trailPositions[j].y;
+            positions[idx + 2] = pulse.trailPositions[j].z;
+          } else {
+            positions[idx] = pulse.position.x;
+            positions[idx + 1] = pulse.position.y;
+            positions[idx + 2] = pulse.position.z;
+          }
+        }
+        pulse.trailMesh.geometry.attributes.position.needsUpdate = true;
+        // Trail opacity fades with pulse life and position along trail
+        pulse.trailMesh.material.opacity = Math.min(0.4, 0.08 + pulse.life * envelope * 0.35 * this.config.intensity);
+      }
+      
       pulse.mesh.material.opacity = Math.min(0.88, 0.08 + pulse.life * envelope * 0.78 * this.config.intensity);
       
       const stability = Math.max(0, Math.min(1, pulse.link?.stability ?? 0.5));
-      const scaleBase = 0.26 + envelope * 0.84;
+      let scaleBase = 0.26 + envelope * 0.84;
+      
+      // Pulse glow burst at arrival (last 5% of travel)
+      if (progressNorm >= 0.95) {
+        const burstFactor = (progressNorm - 0.95) / 0.05;
+        scaleBase += burstFactor * 0.8;
+        pulse.mesh.material.opacity += burstFactor * 0.3;
+      }
+      
       pulse.mesh.scale.setScalar(scaleBase + stability * 0.12 + this.config.intensity * 0.08);
+      
+      // Link pulsation: flash thread when pulse passes through
+      if (Math.random() < 0.08) {
+        const thread = this.activeThoughts.threadMeshes.get(pulse.link.id);
+        if (thread) {
+          thread.userData.flashIntensity = 0.8;
+          thread.userData.flashDecay = 0.15;
+        }
+      }
     }
   }
   
@@ -1254,6 +1404,13 @@ export class AIConsciousnessLayer {
         pulse.mesh.material.dispose();
         pulse.mesh = null;
       }
+      if (pulse.trailMesh) {
+        this.consciousnessGroup.remove(pulse.trailMesh);
+        pulse.trailMesh.geometry.dispose();
+        pulse.trailMesh.material.dispose();
+        pulse.trailMesh = null;
+      }
+      pulse.trailPositions = [];
     }
     this.activeThoughts.pulsePackets = [];
     

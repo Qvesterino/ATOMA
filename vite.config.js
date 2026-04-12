@@ -13,7 +13,7 @@ export default defineConfig({
       },
       {
         find: /^three$/,
-        replacement: path.resolve(__dirname, 'three160.mjs')
+        replacement: path.resolve(__dirname, 'node_modules/three/build/three.module.js')
       },
       {
         find: /^tone$/,

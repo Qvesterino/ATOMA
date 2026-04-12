@@ -65,7 +65,7 @@ const COLOR_WHITE = new THREE.Color(0xffffff);
 const STRAND_FILAMENT_STYLE = {
     ENABLED: true,
     COUNT_PER_STRAND: 32,
-    BASE_OPACITY: 0.54,
+    BASE_OPACITY: 0.68,          // Polish: raised from 0.54 for more visible filaments
     RADIAL_PUSH: 1.16,
     LENGTH_SCALE: 2.05,
     SWAY_SPEED: 3.25,
@@ -1572,14 +1572,15 @@ export class LinkRendererConduit {
                 cBase.set(0xffffff);
             }
 
-            const startGain = (isMicroJump ? (0.34 + jumpVisibility * 0.38) : (isBridge ? 0.58 : 0.66)) + load * 0.40 + pulse * 0.22;
-            const midGain = (isMicroJump ? (0.42 + jumpVisibility * 0.36) : (isBridge ? 0.68 : 0.76)) + harmony * 0.28 + pulse * 0.18;
-            const tipGain = (isMicroJump ? (0.60 + jumpVisibility * 0.42) : (isBridge ? 0.86 : 1.0)) + harmony * 0.30 + detach * 0.78;
+            // Polish: boosted gains for more vivid, energetic filaments
+            const startGain = (isMicroJump ? (0.42 + jumpVisibility * 0.42) : (isBridge ? 0.68 : 0.78)) + load * 0.40 + pulse * 0.22;
+            const midGain = (isMicroJump ? (0.50 + jumpVisibility * 0.40) : (isBridge ? 0.78 : 0.88)) + harmony * 0.28 + pulse * 0.18;
+            const tipGain = (isMicroJump ? (0.70 + jumpVisibility * 0.48) : (isBridge ? 0.98 : 1.15)) + harmony * 0.30 + detach * 1.05;
             cTip.copy(cBase).lerp(
                 COLOR_WHITE,
-                THREE.MathUtils.clamp((isMicroJump ? (0.3 + jumpVisibility * 0.46) : (isBridge ? 0.48 : 0.64)) + detach * 0.58 + corruption * 0.28, 0.0, 1.0)
+                THREE.MathUtils.clamp((isMicroJump ? (0.36 + jumpVisibility * 0.52) : (isBridge ? 0.56 : 0.78)) + detach * 0.68 + corruption * 0.28, 0.0, 1.0)
             );
-            cMid.copy(cBase).lerp(cTip, isMicroJump ? (0.36 + jumpVisibility * 0.34) : (isBridge ? 0.66 : 0.54));
+            cMid.copy(cBase).lerp(cTip, isMicroJump ? (0.40 + jumpVisibility * 0.38) : (isBridge ? 0.70 : 0.58));
 
             colors[p] = cBase.r * startGain;
             colors[p + 1] = cBase.g * startGain;
@@ -1596,7 +1597,7 @@ export class LinkRendererConduit {
 
             // Detached sparks from filament tips (rare, burst-like).
             const sparkPulse = Math.sin(visualTime * 7.4 + phase[idx] * 2.7 + idx * 0.37);
-            const sparkChanceGate = isMicroJump ? -0.25 : -0.35;
+            const sparkChanceGate = isMicroJump ? -0.30 : -0.42;  // Polish: slightly more frequent sparks
             const sparkAccent = (strandIndex % 2 === 0 ? state.colorB : state.colorA) || cBase;
             if ((detach > 0.02 || isMicroJump) && sparkPulse > sparkChanceGate) {
                 if (isBridge || isMicroJump) {
@@ -2516,7 +2517,7 @@ export class LinkRendererConduit {
         skinMaterial.userData.waveDirection = directionVec;
         skinMaterial.userData.waveLength = linkLength;
         skinMaterial.userData.wavePhaseOffset = wavePhaseOffset;
-        this._bindLinkProgramCacheKey(skinMaterial, 'LINK_SKIN_v2');
+        this._bindLinkProgramCacheKey(skinMaterial, 'LINK_SKIN_v3');
         this._attachWaveDirectionUniform(skinMaterial, directionVec, linkLength, wavePhaseOffset);
         // Freeze variant properties immediately after material creation
         freezeMaterialFlags(skinMaterial, 'LinkRenderer');

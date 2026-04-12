@@ -347,20 +347,27 @@ function createPhaseShiftedBarsPictogram(size = 1.0) {
  * Generate incomplete symbol (instability fragmentation)
  */
 function createIncompleteSymbolPictogram(size = 1.0) {
-    const shape = new THREE.Shape();
-    
-    // Square with missing corner
-    shape.moveTo(-size * 0.3, -size * 0.3);
-    shape.lineTo(size * 0.3, -size * 0.3);
-    shape.lineTo(size * 0.3, size * 0.1);
-    shape.lineTo(size * 0.1, size * 0.3);
-    shape.lineTo(-size * 0.3, size * 0.3);
-    shape.closePath();
-    
-    const geometry = new THREE.ShapeGeometry(shape);
-    geometry.rotateX(-Math.PI / 2);
-    
-    return geometry;
+    const group = new THREE.Group();
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, side: THREE.DoubleSide });
+    const fillMat = new THREE.MeshBasicMaterial({ color: 0x9db2ff, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+
+    const outerRing = new THREE.Mesh(new THREE.TorusGeometry(size * 0.15, size * 0.025, 8, 24), ringMat);
+    outerRing.rotation.x = Math.PI / 2;
+    group.add(outerRing);
+
+    const diamondShape = new THREE.Shape();
+    diamondShape.moveTo(0, size * 0.12);
+    diamondShape.lineTo(size * 0.08, 0);
+    diamondShape.lineTo(0, -size * 0.12);
+    diamondShape.lineTo(-size * 0.08, 0);
+    diamondShape.closePath();
+
+    const diamondGeom = new THREE.ShapeGeometry(diamondShape);
+    diamondGeom.rotateX(-Math.PI / 2);
+    const diamond = new THREE.Mesh(diamondGeom, fillMat);
+    group.add(diamond);
+
+    return group;
 }
 
 /**

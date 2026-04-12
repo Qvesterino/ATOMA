@@ -185,82 +185,43 @@ export class LinkSemanticPictogramGlyphBuilders {
     buildStabilityGlyph(size = 1.0, renderOrder = 246) {
         const group = new THREE.Group();
         const mat = this.getMaterialFromPool(0xffffff, 1.0, THREE.AdditiveBlending);
-        const lockMat = this.getMaterialFromPool(0x9db2ff, 0.28, THREE.AdditiveBlending);
+        const accentMat = this.getMaterialFromPool(0x9db2ff, 0.45, THREE.AdditiveBlending);
 
-        const outer = size * 0.14;
-        const inner = size * 0.08;
-        const shape = new THREE.Shape();
-        shape.moveTo(-outer, -outer);
-        shape.lineTo(outer, -outer);
-        shape.lineTo(outer, outer);
-        shape.lineTo(-outer, outer);
-        shape.lineTo(-outer, -outer);
-        const hole = new THREE.Path();
-        hole.moveTo(-inner, -inner);
-        hole.lineTo(inner, -inner);
-        hole.lineTo(inner, inner);
-        hole.lineTo(-inner, inner);
-        hole.lineTo(-inner, -inner);
-        shape.holes.push(hole);
+        const outerRing = new THREE.Mesh(this.getGeometryFromCache('torus_small'), mat);
+        outerRing.scale.setScalar(size * 0.42);
+        outerRing.rotation.x = Math.PI / 4;
+        outerRing.renderOrder = renderOrder;
+        group.add(outerRing);
 
-        const frameGeom = new THREE.ExtrudeGeometry(shape, {
-            depth: Math.max(0.008, size * 0.006),
-            bevelEnabled: false
-        });
-        frameGeom.rotateX(-Math.PI / 2);
-        const frame = new THREE.Mesh(frameGeom, mat);
-        frame.renderOrder = renderOrder;
-        group.add(frame);
+        const innerRing = new THREE.Mesh(this.getGeometryFromCache('torus_small'), accentMat);
+        innerRing.scale.setScalar(size * 0.28);
+        innerRing.rotation.x = Math.PI / 2.5;
+        innerRing.renderOrder = renderOrder;
+        group.add(innerRing);
 
-        const lockRing = new THREE.Mesh(this.getGeometryFromCache('torus_small'), lockMat);
-        lockRing.scale.setScalar(size * 0.175);
-        lockRing.renderOrder = renderOrder;
-        group.add(lockRing);
+        const detailRing = new THREE.Mesh(this.getGeometryFromCache('torus_small'), mat);
+        detailRing.scale.setScalar(size * 0.18);
+        detailRing.rotation.y = Math.PI / 3;
+        detailRing.renderOrder = renderOrder;
+        group.add(detailRing);
 
-        const innerGeom = this.getGeometryFromCache('plane_diamond').clone();
-        innerGeom.scale(size * 0.2, size * 0.2, 1);
-        const innerMesh = new THREE.Mesh(innerGeom, mat);
-        innerMesh.rotation.z = Math.PI / 4;
-        innerMesh.position.set(0, 0, size * 0.004);
-        innerMesh.renderOrder = renderOrder;
-        group.add(innerMesh);
-
+        const anchorMat = this.getMaterialFromPool(0x9db2ff, 0.6, THREE.AdditiveBlending);
         const anchors = [];
-        const anchorMat = this.getMaterialFromPool(0xffffff, 0.95, THREE.AdditiveBlending);
-        const anchorOffsets = [
-            [-outer * 0.9, -outer * 0.9],
-            [outer * 0.9, -outer * 0.9],
-            [outer * 0.9, outer * 0.9],
-            [-outer * 0.9, outer * 0.9]
-        ];
-        anchorOffsets.forEach(([x, y], index) => {
+        for (let i = 0; i < 4; i++) {
             const anchor = new THREE.Mesh(this.getGeometryFromCache('sphere_spark'), anchorMat);
-            anchor.position.set(x, y, size * 0.009);
-            anchor.scale.setScalar(size * 0.09);
+            const angle = (Math.PI / 2) * i;
+            anchor.position.set(Math.cos(angle) * size * 0.28, Math.sin(angle) * size * 0.28, size * 0.01);
+            anchor.scale.setScalar(size * 0.06);
             anchor.renderOrder = renderOrder;
-            anchor.userData.basePosition = anchor.position.clone();
-            anchor.userData.phase = index * 1.7;
             group.add(anchor);
             anchors.push(anchor);
-        });
+        }
 
-        const braceX = new THREE.Mesh(this.getGeometryFromCache('box_beam'), lockMat);
-        braceX.scale.set(size * 0.225, size * 0.04, size * 0.04);
-        braceX.renderOrder = renderOrder;
-        group.add(braceX);
-
-        const braceZ = new THREE.Mesh(this.getGeometryFromCache('box_beam'), lockMat);
-        braceZ.scale.set(size * 0.225, size * 0.04, size * 0.04);
-        braceZ.rotation.z = Math.PI / 2;
-        braceZ.renderOrder = renderOrder;
-        group.add(braceZ);
-
-        group.userData.stabilityFrame = frame;
-        group.userData.stabilityDiamond = innerMesh;
+        group.userData.stabilityFrame = outerRing;
+        group.userData.stabilityDiamond = detailRing;
         group.userData.stabilityAnchors = anchors;
-        group.userData.stabilityLockRing = lockRing;
-        group.userData.stabilityBraces = [braceX, braceZ];
-        group.userData.rotor = innerMesh;
+        group.userData.stabilityLockRing = innerRing;
+        group.userData.stabilityBraces = anchors;
         group.userData.kind = 'stability';
         return group;
     }

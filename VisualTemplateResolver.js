@@ -48,38 +48,6 @@ const TEMPLATE_SPECS = {
     materialModule: './HarmonyAuraShaderMaterial.js',
 
     schema: {
-      inputSignal: 'visualHarmony',
-      signalRange: [0, 1],
-      uniforms: {
-        uTime: 'float',
-        uAuraIntensity: 'float',
-        uAuraWarmth: 'float',
-        uAuraGlow: 'float',
-        uAuraColor: 'vec3',
-      },
-      canonical: {
-        opacityFormula: '0.2 + (visualHarmony * 0.8)',
-        warmthFormula: 'visualHarmony * 1.5',
-        pulseFrequency: '0.8 Hz',
-        pulseDepth: '±8%',
-        color: '#fffacd', // golden-white
-      },
-    },
-  },
-
-  HARMONY_AURA: {
-    id: 'HARMONY_AURA',
-    name: 'Harmony Aura',
-    authority: 'CanonicalVisualTemplateLibrary.md #TEMPLATE_2',
-    status: 'LOCKED',
-
-    // Lazy-loaded (imported on first use)
-    controllerClassName: 'HarmonyAuraController',
-    controllerModule: './HarmonyAuraController.js',
-    materialFactory: 'createHarmonyAuraMaterial',
-    materialModule: './HarmonyAuraShaderMaterial.js',
-
-    schema: {
       inputSignal: 'harmonyAuraStrength',
       signalRange: [0, 1],
       uniforms: {

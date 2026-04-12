@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ATOMA - AI Dream Realm</title>
+    <link rel="icon" href="data:,">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Meroitic&family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        overflow: hidden;
+        font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+        background: #000;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100vh;
+      }
+
+      /* =========================================================
+         STATIC CROSSHAIR (performance-safe)
+         ========================================================= */
+
+      #crosshair {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 24px;
+        height: 24px;
+        pointer-events: none;
+        z-index: 1000;
+      }
+
+      .crosshair-dot {
+        position: absolute;
+        width: 2px;
+        height: 2px;
+        background: #00ccff;
+        border-radius: 50%;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        box-shadow:
+          0 0 6px rgba(0, 204, 255, 0.6),
+          0 0 12px rgba(0, 204, 255, 0.3);
+        opacity: 0.8;
+      }
+
+      .crosshair-plus {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+      }
+
+      .crosshair-horizontal,
+      .crosshair-vertical {
+        position: absolute;
+        background: linear-gradient(to right, transparent, #00ccff, transparent);
+        opacity: 0.6;
+        transform: translate(-50%, -50%);
+      }
+
+      .crosshair-horizontal {
+        width: 12px;
+        height: 1px;
+      }
+
+      .crosshair-vertical {
+        width: 1px;
+        height: 12px;
+      }
+
+      body.atoma-preboot #crosshair {
+        display: none;
+      }
+
+      /* =====================================================
+         PERFORMANCE MODE — BLUR DISABLED (GLOBAL GATE)
+         ===================================================== */
+      html.atoma-no-blur * {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+      }
+
+      /* =====================================================
+         PERFORMANCE MODE — DISABLE CORE METRICS GLOW ANIMATION
+         ===================================================== */
+      html.atoma-no-animated-glow #core-metrics-hud {
+        animation: none !important;
+        box-shadow: none !important;
+      }
+
+      /* =====================================================
+         PERFORMANCE MODE — HARD KILL PARASITIC DOM OVERLAYS
+         ===================================================== */
+      html.atoma-hard-kill-parasitic-dom
+        #atoma-language-engine-3-container,
+      html.atoma-hard-kill-parasitic-dom
+        #auto-link-tooltip-overlay,
+      html.atoma-hard-kill-parasitic-dom
+        #atoma-debug-hud {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+
+      /* =====================================================
+         PERFORMANCE MODE — DISABLE PARASITIC FULLSCREEN HUDS
+         ===================================================== */
+      html.atoma-disable-parasitic-huds
+        #atoma-language-engine,
+      html.atoma-disable-parasitic-huds
+        #auto-link-tooltip-overlay {
+        display: none !important;
+      }
+
+      /* =====================================================
+         HARD OFF — ATOMA LANGUAGE ENGINE & AUTO LINK TOOLTIP
+         ===================================================== */
+      html.atoma-hard-off-language-engine {
+        --atoma-language-engine-disabled: 1;
+      }
+
+      html.atoma-hard-off-language-engine
+        #atoma-language-engine-3-container,
+      html.atoma-hard-off-language-engine
+        #auto-link-tooltip-overlay {
+        display: none !important;
+        pointer-events: none !important;
+      }
+    </style>
+
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://esm.sh/three@0.160.0",
+          "three/": "https://esm.sh/three@0.160.0/",
+          "tone": "https://esm.sh/tone@14.7.77"
+        }
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-x_pynJTc.js"></script>
+  </head>
+
+  <body class="atoma-preboot">
+    <!-- Static crosshair only -->
+    <div id="crosshair">
+      <div class="crosshair-dot"></div>
+      <div class="crosshair-plus">
+        <div class="crosshair-horizontal"></div>
+        <div class="crosshair-vertical"></div>
+      </div>
+    </div>
+
+    <script>
+      window.ATOMA_DISABLE_SYNERGY_SHADER_STACK = true;
+      window.__ATOMA_SKIP_AUTO_BOOT = true;
+    </script>
+
+  </body>
+</html>

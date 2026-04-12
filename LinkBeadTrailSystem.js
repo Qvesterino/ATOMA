@@ -62,8 +62,8 @@ void main() {
     // Size attenuates with distance and life
     gl_PointSize = aInfo.z * (1.0 - lifeProgress) * (40.0 / -mvPosition.z);
     
-    // Alpha fades out linearly
-    vAlpha = 0.76 * (1.0 - lifeProgress);
+    // Polish: brighter overall trail particles (was 0.76)
+    vAlpha = 0.88 * (1.0 - lifeProgress);
 }
 `;
 
@@ -81,8 +81,9 @@ void main() {
     p.x += wobble;
     p.y += sin((p.x - p.y + vLife * 5.2) * 3.14159) * 0.05 * (1.0 - vLife);
 
+    // Polish: slightly larger bright core for hotter center
     vec2 e0 = vec2(p.x * 1.02, p.y * 1.18);
-    float core = 1.0 - smoothstep(0.18, 0.78, length(e0));
+    float core = 1.0 - smoothstep(0.14, 0.68, length(e0));
 
     float lobeA = 1.0 - smoothstep(0.10, 0.50, length(p - vec2(0.24, -0.08)));
     float lobeB = 1.0 - smoothstep(0.10, 0.52, length(p - vec2(-0.22, 0.10)));
@@ -93,9 +94,10 @@ void main() {
     shape = smoothstep(0.03, 0.92, shape);
     if (shape < 0.01) discard;
 
-    // Keep hue readable (avoid white washing).
-    float innerGlow = 0.86 + core * 0.12;
-    gl_FragColor = vec4(vColor * innerGlow, vAlpha * shape);
+    // Polish: hotter inner glow with white-hot center point
+    float innerGlow = 0.92 + core * 0.22;
+    vec3 hotCenter = vColor + vec3(core * 0.15);
+    gl_FragColor = vec4(hotCenter * innerGlow, vAlpha * shape);
 }
 `;
 
@@ -149,9 +151,9 @@ export class LinkBeadTrailSystem {
         
         // Configuration
         this.config = {
-            emissionRate: 96,  // bring trails back without turning them into a space plume
+            emissionRate: 110,  // Polish: denser trail for richer comet tail (was 96)
             lifetime: 0.42,    // readable trail length while still staying near the rope body
-            sizeMultiplier: 1.15
+            sizeMultiplier: 1.30  // Polish: slightly larger particles for visibility (was 1.15)
         };
         
         this.initSystem();

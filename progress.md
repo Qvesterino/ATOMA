@@ -83,6 +83,12 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
 - `ensureMetrics()` now seeds placeholder/default canonical metrics from `node.userData.archetypeMetrics` instead of leaving nodes at `{ stability: 1, corruption: 0 }` when a registry snapshot exists.
 - Added regression coverage for placeholder seeding vs live-value preservation.
 - Verification: `node --check src/metrics/NodeMetricEngine.js`, `node --check tests/MetricsAuthority.test.js`, `node tests/MetricsAuthority.test.js`.
+
+## 2026-04-12 -- CoreMetricsHUD tween smoothing
+- `CoreMetricsHUD` now animates metric display changes with an explicit tween state instead of stepping directly toward the new target each frame.
+- This keeps HUD values and bars from snapping to the final post-link network metrics in a single update.
+- Runtime probe on the local app confirmed the HUD values move gradually over successive 500 ms samples after forcing a stable target snapshot.
+- Verification: `node --check CoreMetricsHUD.js`, `node --check CoreMetricsOverlay.js`, `node --check main.js`, plus a Playwright browser probe against `http://127.0.0.1:5500/index.html`.
 - Added an origin safety guard in `ProceduralHarmonicGlyphGenerator` so procedural glyphs do not spawn in the center cluster when `region.center` is near the map origin.
 - Found the middle-map pictogram artifact source: `LinkSemanticPictogramSystem_Enhanced` was resolving link endpoints only from `link.userData.nodeA/nodeB`, while active links in `main.js` store endpoints on `sourceNode/targetNode` and `source/target`. This left pictograms stuck at `(0,0,0)` when no curve was present.
 - Fixed the enhanced pictogram link resolver to use the same endpoint fallbacks as the rest of the link stack so glyphs travel on links instead of accumulating at the world origin.
