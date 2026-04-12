@@ -428,6 +428,8 @@ export class PauseMenu {
     _renderLore() {
         const activeSection = this._getLoreSection();
         const entries = getLoreEntriesBySection(activeSection?.id);
+        const featuredEntry = entries[0] || null;
+        const supportingEntries = entries.slice(1);
 
         const panel = document.createElement('div');
         panel.className = 'atoma-main-menu__lore-panel';
@@ -465,10 +467,70 @@ export class PauseMenu {
 
         sectionCopy.append(kicker, summary);
 
-        const grid = document.createElement('div');
-        grid.className = 'atoma-main-menu__lore-grid';
+        const featured = document.createElement('div');
+        featured.className = 'atoma-main-menu__lore-featured';
 
-        entries.forEach((entry) => {
+        const featuredCopy = document.createElement('div');
+        featuredCopy.className = 'atoma-main-menu__lore-featured-copy';
+
+        const featuredLabel = document.createElement('div');
+        featuredLabel.className = 'atoma-main-menu__lore-featured-label';
+        featuredLabel.textContent = featuredEntry ? `Featured canon / ${activeSection?.label || 'Lore'}` : 'Featured canon';
+
+        const featuredTitle = document.createElement('div');
+        featuredTitle.className = 'atoma-main-menu__lore-featured-title';
+        featuredTitle.textContent = featuredEntry?.title || 'No entry available';
+
+        const featuredSubtitle = document.createElement('div');
+        featuredSubtitle.className = 'atoma-main-menu__lore-featured-subtitle';
+        featuredSubtitle.textContent = featuredEntry?.subtitle || '';
+
+        const featuredSummary = document.createElement('div');
+        featuredSummary.className = 'atoma-main-menu__lore-featured-summary';
+        featuredSummary.textContent = featuredEntry?.summary || featuredEntry?.body || '';
+
+        featuredCopy.append(featuredLabel, featuredTitle, featuredSubtitle, featuredSummary);
+
+        const featuredMeta = document.createElement('div');
+        featuredMeta.className = 'atoma-main-menu__lore-featured-meta';
+
+        const featuredCanon = document.createElement('div');
+        featuredCanon.className = 'atoma-main-menu__lore-featured-stat';
+        const featuredCanonLabel = document.createElement('div');
+        featuredCanonLabel.className = 'atoma-main-menu__lore-featured-stat-label';
+        featuredCanonLabel.textContent = 'Canon';
+        const featuredCanonValue = document.createElement('div');
+        featuredCanonValue.className = 'atoma-main-menu__lore-featured-stat-value';
+        featuredCanonValue.textContent = featuredEntry?.canon || '';
+        featuredCanon.append(featuredCanonLabel, featuredCanonValue);
+
+        const featuredMeaning = document.createElement('div');
+        featuredMeaning.className = 'atoma-main-menu__lore-featured-stat';
+        const featuredMeaningLabel = document.createElement('div');
+        featuredMeaningLabel.className = 'atoma-main-menu__lore-featured-stat-label';
+        featuredMeaningLabel.textContent = 'Meaning';
+        const featuredMeaningValue = document.createElement('div');
+        featuredMeaningValue.className = 'atoma-main-menu__lore-featured-stat-value';
+        featuredMeaningValue.textContent = featuredEntry?.meaning || '';
+        featuredMeaning.append(featuredMeaningLabel, featuredMeaningValue);
+
+        const featuredRelevance = document.createElement('div');
+        featuredRelevance.className = 'atoma-main-menu__lore-featured-stat';
+        const featuredRelevanceLabel = document.createElement('div');
+        featuredRelevanceLabel.className = 'atoma-main-menu__lore-featured-stat-label';
+        featuredRelevanceLabel.textContent = 'Relevance';
+        const featuredRelevanceValue = document.createElement('div');
+        featuredRelevanceValue.className = 'atoma-main-menu__lore-featured-stat-value';
+        featuredRelevanceValue.textContent = featuredEntry?.relevance || '';
+        featuredRelevance.append(featuredRelevanceLabel, featuredRelevanceValue);
+
+        featuredMeta.append(featuredCanon, featuredMeaning, featuredRelevance);
+        featured.append(featuredCopy, featuredMeta);
+
+        const archive = document.createElement('div');
+        archive.className = 'atoma-main-menu__lore-grid';
+
+        supportingEntries.forEach((entry) => {
             const card = document.createElement('article');
             card.className = 'atoma-main-menu__lore-card';
 
@@ -476,15 +538,19 @@ export class PauseMenu {
             title.className = 'atoma-main-menu__lore-card-title';
             title.textContent = entry.title;
 
-            const text = document.createElement('div');
-            text.className = 'atoma-main-menu__lore-card-text';
-            text.textContent = entry.body;
+            const subtitle = document.createElement('div');
+            subtitle.className = 'atoma-main-menu__lore-card-subtitle';
+            subtitle.textContent = entry.subtitle || '';
 
-            card.append(title, text);
-            grid.appendChild(card);
+            const summaryBlock = document.createElement('div');
+            summaryBlock.className = 'atoma-main-menu__lore-card-summary';
+            summaryBlock.textContent = entry.summary || entry.body || '';
+
+            card.append(title, subtitle, summaryBlock);
+            archive.appendChild(card);
         });
 
-        this.loreBody.append(sectionCopy, grid);
+        this.loreBody.append(sectionCopy, featured, archive);
         panel.append(tabs, this.loreBody);
         this.content.appendChild(panel);
     }
@@ -637,6 +703,24 @@ export class PauseMenu {
                     window.game.setPostProcessingEnabled(settings.postProcessing);
                 } else {
                     window.__ATOMA_POSTPROCESSING_PENDING__ = settings.postProcessing;
+                }
+            }
+        } else if (settingId === 'semanticPictograms') {
+            settings.semanticPictograms = !settings.semanticPictograms;
+            if (typeof window !== 'undefined') {
+                if (window.game?.setSemanticPictogramsEnabled) {
+                    window.game.setSemanticPictogramsEnabled(settings.semanticPictograms);
+                } else {
+                    window.__ATOMA_SEMANTIC_PICTOGRAMS_PENDING__ = settings.semanticPictograms;
+                }
+            }
+        } else if (settingId === 'environmentalHazards') {
+            settings.environmentalHazards = !settings.environmentalHazards;
+            if (typeof window !== 'undefined') {
+                if (window.game?.setEnvironmentalHazardsEnabled) {
+                    window.game.setEnvironmentalHazardsEnabled(settings.environmentalHazards);
+                } else {
+                    window.__ATOMA_ENVIRONMENTAL_HAZARDS_PENDING__ = settings.environmentalHazards;
                 }
             }
         }

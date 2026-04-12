@@ -31,6 +31,9 @@ function getAtomaVisualDebugMode() {
  * ============================================================================
  */
 
+// ATOMA_HEALING_SESSION136_v2: Upgraded shaders — circular glow, hot core, shimmer,
+// reduced hypercube chaos, smoothstep fade, size decay, color evolution
+
 const SPARKLE_VERTEX_SHADER = `
 uniform float uTime;
 uniform float uScale;
@@ -44,24 +47,27 @@ attribute float layer;
 varying vec3 vColor;
 varying float vAlpha;
 varying float vLayer;
+varying float vProgress;
 
 void main() {
     float age = uTime - birthTime;
     
     // Cull inactive/dead particles
     if (age < 0.0 || age > lifetime) {
-        gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // Move outside clip space
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
         return;
     }
     
     // Normalized life progress (0.0 to 1.0)
     float progress = age / lifetime;
+    vProgress = progress;
     
-    // Physics: Simple linear velocity + slight rise
-    vec3 pos = position + velocity * age;
-    pos.y += 0.2 * age * age; // Gentle upward drift
+    // Physics: velocity with drag deceleration + gentle rise
+    float drag = 1.0 / (1.0 + age * 1.5);
+    vec3 pos = position + velocity * age * drag;
+    pos.y += 0.15 * age * age; // Gentle upward drift
 
-    // 4D hypercube stereographic projection
+    // 4D hypercube stereographic projection (ATOMA_HEALING_SESSION136_v2: reduced to 35%)
     float layerNorm = (layer / 15.0) * 2.0 - 1.0;
     float driveTime = uTime * 0.65 + layer * 0.4;
     float c0 = cos(driveTime);
@@ -80,28 +86,34 @@ void main() {
     denom = max(denom, 0.15);
     vec3 hyperPos = rotated.xyz / denom;
 
-    // Blend between base and hypercube to keep continuity
-    vec3 finalPos = mix(pos, hyperPos * 0.65, 0.86);
+    // Reduced hypercube blend: 86% → 35% for calmer, more readable healing motion
+    vec3 finalPos = mix(pos, hyperPos * 0.65, 0.35);
 
     vec4 mvPosition = modelViewMatrix * vec4(finalPos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
 
-    // Size attenuation with layer-dependent pulsation
-    float sizePulse = 1.0 + 0.35 * sin(uTime * 4.0 + layer * 0.5);
-    gl_PointSize = size * uScale * sizePulse * (300.0 / -mvPosition.z);
+    // Size:衰减 with lifetime + breathing pulse + layer shimmer
+    float lifeDecay = 1.0 - progress * 0.4; // Shrink to 60% at end of life
+    float sizePulse = 1.0 + 0.18 * sin(uTime * 3.5 + layer * 0.5);
+    float breathe = 1.0 + 0.06 * sin(uTime * 1.8 + birthTime * 2.0);
+    gl_PointSize = size * uScale * sizePulse * lifeDecay * breathe * (300.0 / -mvPosition.z);
     
-    // Fade in/out, preserved as pop effect
-    float alpha = 1.0;
-    if (progress < 0.1) alpha = progress * 10.0;
-    else alpha = 1.0 - ((progress - 0.1) / 0.9);
+    // Smoothstep fade in/out (ATOMA_HEALING_SESSION136_v2)
+    float fadeIn = smoothstep(0.0, 0.08, progress);
+    float fadeOut = 1.0 - smoothstep(0.5, 1.0, progress);
+    float alpha = fadeIn * fadeOut;
     
     vAlpha = alpha;
     vLayer = layer / 15.0;
-    vec3 baseColor = mix(color, vec3(0.35, 0.9, 1.0), 0.35 + 0.35 * sin(uTime * 0.8 + layer));
+    
+    // Color evolution: base → luminous cyan over lifetime
+    vec3 evolvedColor = mix(color, vec3(0.4, 0.95, 1.0), progress * 0.4);
+    // Subtle time-based color shift per layer
+    evolvedColor = mix(evolvedColor, vec3(0.35, 0.9, 1.0), 0.2 + 0.2 * sin(uTime * 0.8 + layer));
     if (uForceRedParticles > 0.5) {
-        baseColor = vec3(1.0, 0.0, 0.0);
+        evolvedColor = vec3(1.0, 0.0, 0.0);
     }
-    vColor = baseColor;
+    vColor = evolvedColor;
 }
 `;
 
@@ -110,27 +122,45 @@ uniform float uForceRedParticles;
 varying vec3 vColor;
 varying float vAlpha;
 varying float vLayer;
+varying float vProgress;
 
 void main() {
-    // Debug-friendly square particle shape with hard readable edges.
-    vec2 p = abs(gl_PointCoord.xy - vec2(0.5));
-    float d = max(p.x, p.y);
-    if (d > 0.5) discard;
-
-    float boxGlow = 1.0 - smoothstep(0.18, 0.5, d);
-    float edgeGlow = smoothstep(0.48, 0.36, d);
-
-    // Hypercube layer color shift
-    vec3 layerTint = mix(vec3(0.95, 0.65, 1.0), vec3(0.15, 1.0, 0.9), vLayer);
-    vec3 finalColor = vColor;
+    // ATOMA_HEALING_SESSION136_v2: Circular soft glow particle
+    vec2 uv = gl_PointCoord.xy - vec2(0.5);
+    float dist = length(uv);
+    if (dist > 0.5) discard;
+    
+    // Multi-lobe glow: hot core + inner glow + soft halo
+    float hotCore = 1.0 - smoothstep(0.0, 0.12, dist);
+    float innerGlow = 1.0 - smoothstep(0.05, 0.30, dist);
+    float softHalo = 1.0 - smoothstep(0.15, 0.50, dist);
+    
+    // Combine: hot core is white, inner glow is colored, halo is soft
+    vec3 coreColor = mix(vColor, vec3(1.0, 1.0, 1.0), 0.85); // Near-white hot center
+    vec3 glowColor = vColor * 1.3;
+    vec3 haloColor = vColor * 0.6;
+    
+    vec3 finalColor = coreColor * hotCore * 2.0
+                    + glowColor * innerGlow * 0.8
+                    + haloColor * softHalo * 0.3;
+    
+    // Shimmer: subtle energy sparkle
+    float shimmer = 0.92 + 0.08 * sin(vProgress * 20.0 + dist * 15.0);
+    finalColor *= shimmer;
+    
+    // Layer color tint (subtle)
+    vec3 layerTint = mix(vec3(0.95, 0.75, 1.0), vec3(0.2, 1.0, 0.92), vLayer);
     bool isForcedRed = (uForceRedParticles > 0.5);
-    if (isForcedRed) {
+    if (!isForcedRed) {
+        finalColor += layerTint * 0.15 * softHalo;
+    } else {
         finalColor = vec3(1.0, 0.0, 0.0);
     }
-    vec3 tinted = isForcedRed ? finalColor : (finalColor + layerTint * 0.8);
-    vec3 boosted = tinted * (1.25 + edgeGlow * 0.75);
-
-    gl_FragColor = vec4(boosted, vAlpha * boxGlow);
+    
+    // Alpha from glow shape + lifetime fade
+    float glowAlpha = hotCore * 1.0 + innerGlow * 0.6 + softHalo * 0.2;
+    
+    gl_FragColor = vec4(finalColor, vAlpha * glowAlpha);
 }
 `;
 
@@ -145,9 +175,9 @@ export class HealingParticleSystem_Session136 {
         
         this.config = {
             maxParticles: 3500,
-            sparkleRate: 1.15,     // Sparkles per scar per second; keeps scars readable without over-spawning
-            baseLifetime: 2.0,
-            baseSize: 0.24,
+            sparkleRate: 1.15,     // Sparkles per scar per second
+            baseLifetime: 1.8,     // ATOMA_HEALING_SESSION136_v2: slightly snappier
+            baseSize: 0.32,        // ATOMA_HEALING_SESSION136_v2: boosted 0.24→0.32
             trailDensity: 5,       // Particles per unit distance
             lodDistance: 100,
             debugVisualBoost: false,
@@ -157,6 +187,11 @@ export class HealingParticleSystem_Session136 {
             debugSpawnLogs: false,
             ...config
         };
+        
+        // ATOMA_HEALING_SESSION136_v2: Pre-allocated temp objects (zero per-frame allocation)
+        this._tmpVec3A = new THREE.Vector3();
+        this._tmpVec3B = new THREE.Vector3();
+        this._tmpColor = new THREE.Color();
         
         // Pools & State
         this.particleIndex = 0;
@@ -247,6 +282,7 @@ export class HealingParticleSystem_Session136 {
                 transparent: true,
                 depthWrite: false,
                 blending: THREE.AdditiveBlending,
+                toneMapped: false,    // ATOMA_HEALING_SESSION136_v2: HDR brightness
                 vertexColors: false
             })
             : new THREE.ShaderMaterial({
@@ -259,8 +295,14 @@ export class HealingParticleSystem_Session136 {
             },
             transparent: true,
             depthWrite: false,
-            blending: THREE.AdditiveBlending
+            blending: THREE.AdditiveBlending,
+            toneMapped: false        // ATOMA_HEALING_SESSION136_v2: HDR brightness
         });
+        
+        // ATOMA_HEALING_SESSION136_v2: Shader program cache key
+        if (this.material && typeof this.material.customProgramCacheKey === 'undefined') {
+            this.material.customProgramCacheKey = () => 'ATOMA_HEALING_SESSION136_v2';
+        }
         
         this.mesh = new THREE.Points(this.geometry, this.material);
         this.mesh.frustumCulled = false; // Always update (particles move)
@@ -307,27 +349,27 @@ export class HealingParticleSystem_Session136 {
      */
     spawnParticle(pos, vel, color, size, life, startTime) {
         const i = this.particleIndex;
+        const attrs = this.geometry.attributes;
         
         // Update attributes at current index
-        this.geometry.attributes.position.setXYZ(i, pos.x, pos.y, pos.z);
-        this.geometry.attributes.velocity.setXYZ(i, vel.x, vel.y, vel.z);
-        this.geometry.attributes.color.setXYZ(i, color.r, color.g, color.b);
-        this.geometry.attributes.birthTime.setX(i, startTime);
-        this.geometry.attributes.lifetime.setX(i, life);
-        this.geometry.attributes.size.setX(i, size);
+        attrs.position.setXYZ(i, pos.x, pos.y, pos.z);
+        attrs.velocity.setXYZ(i, vel.x, vel.y, vel.z);
+        attrs.color.setXYZ(i, color.r, color.g, color.b);
+        attrs.birthTime.setX(i, startTime);
+        attrs.lifetime.setX(i, life);
+        attrs.size.setX(i, size);
 
         // Hypercube layer index 0..15
-        const layerIndex = Math.floor(Math.random() * 16);
-        this.geometry.attributes.layer.setX(i, layerIndex);
+        attrs.layer.setX(i, (Math.random() * 16) | 0);
         
-        // Mark for update
-        this.geometry.attributes.position.needsUpdate = true; // Optimization: set ranges?
-        this.geometry.attributes.velocity.needsUpdate = true;
-        this.geometry.attributes.color.needsUpdate = true;
-        this.geometry.attributes.birthTime.needsUpdate = true;
-        this.geometry.attributes.lifetime.needsUpdate = true;
-        this.geometry.attributes.size.needsUpdate = true;
-        this.geometry.attributes.layer.needsUpdate = true;
+        // ATOMA_HEALING_SESSION136_v2: Single needsUpdate flag per attribute
+        attrs.position.needsUpdate = true;
+        attrs.velocity.needsUpdate = true;
+        attrs.color.needsUpdate = true;
+        attrs.birthTime.needsUpdate = true;
+        attrs.lifetime.needsUpdate = true;
+        attrs.size.needsUpdate = true;
+        attrs.layer.needsUpdate = true;
         
         // Advance circular buffer
         this.particleIndex = (this.particleIndex + 1) % this.config.maxParticles;
@@ -433,29 +475,30 @@ export class HealingParticleSystem_Session136 {
         const mesh = scar?.mesh?.mesh;
         if (!mesh) return;
         
-        // Random point on scar mesh (plane)
-        // Scar is scaled by link length (x) and width (y)
+        // ATOMA_HEALING_SESSION136_v2: Zero-allocation spawning using pre-allocated temps
         const scale = mesh.scale;
         const randX = (Math.random() - 0.5) * scale.x;
         const randY = (Math.random() - 0.5) * scale.y;
         
-        // Local to World
-        const localPos = new THREE.Vector3(randX, randY, 0);
+        // Local to World (reuse _tmpVec3A)
+        const localPos = this._tmpVec3A.set(randX, randY, 0);
         localPos.applyMatrix4(mesh.matrixWorld);
         
-        // Gentle drift velocity (upward + outward)
-        const vel = new THREE.Vector3(
+        // Gentle drift velocity (upward + outward, reuse _tmpVec3B)
+        const vel = this._tmpVec3B.set(
             (Math.random() - 0.5) * 0.2,
-            0.2 + Math.random() * 0.3, // Upward bias
+            0.2 + Math.random() * 0.3,
             (Math.random() - 0.5) * 0.2
         );
         
-        // Color: Warm white/gold or forced red for debug.
-        const color = this.config.debugForceRedParticles
-            ? new THREE.Color(0xff0000)
-            : new THREE.Color(1.0, 0.95, 0.8);
-        if (!this.config.debugForceRedParticles && (state?.harmonyFlow ?? 0) > 0.6) {
-            color.setHex(0x00ffff); // Neon cyan tint for high harmony
+        // Color: Warm white/gold or forced red for debug (reuse _tmpColor)
+        const color = this._tmpColor;
+        if (this.config.debugForceRedParticles) {
+            color.setHex(0xff0000);
+        } else if ((state?.harmonyFlow ?? 0) > 0.6) {
+            color.setRGB(0.5, 1.0, 0.95); // Luminous cyan for high harmony
+        } else {
+            color.setRGB(1.0, 0.95, 0.85); // Warm gold
         }
         
         const lifetime = this.config.baseLifetime * (0.8 + Math.random() * 0.4);
@@ -473,12 +516,17 @@ export class HealingParticleSystem_Session136 {
 
         const normalizedIntensity = Math.max(0, Math.min(1, Number(intensity) || 0));
         
-        // Elongated appearance is simulated by velocity streaking in perception
-        // or we could use specific textures. For Points, we rely on density.
-        
-        const color = this.config.debugForceRedParticles ? new THREE.Color(0xff0000) : (colorOverride instanceof THREE.Color ? colorOverride : new THREE.Color(0x66f7ff)); // experimental red override
-        const size = this.config.baseSize * (0.18 + normalizedIntensity * 0.8); // Slightly smaller particles for clean trails
-        const life = 0.5 + normalizedIntensity * 0.8; // Shorter lifetimes for faster motion
+        // ATOMA_HEALING_SESSION136_v2: Zero-allocation color handling
+        const color = this._tmpColor;
+        if (this.config.debugForceRedParticles) {
+            color.setHex(0xff0000);
+        } else if (colorOverride instanceof THREE.Color) {
+            color.copy(colorOverride);
+        } else {
+            color.setHex(0x66f7ff); // Luminous cyan
+        }
+        const size = this.config.baseSize * (0.18 + normalizedIntensity * 0.8);
+        const life = 0.5 + normalizedIntensity * 0.8;
         
         // Throttle debug log to max once per 30 seconds
         if (!this.lastDebugLogTime) {
@@ -489,16 +537,14 @@ export class HealingParticleSystem_Session136 {
             this.lastDebugLogTime = time;
         }
 
-        // Add slight spread
-        const spread = new THREE.Vector3(
-            (Math.random() - 0.5) * 0.1,
-            (Math.random() - 0.5) * 0.1,
-            (Math.random() - 0.5) * 0.1
-        );
-        const pos = position.clone().add(spread);
+        // ATOMA_HEALING_SESSION136_v2: Zero-allocation position + spread (reuse _tmpVec3A)
+        const pos = this._tmpVec3A.copy(position);
+        pos.x += (Math.random() - 0.5) * 0.1;
+        pos.y += (Math.random() - 0.5) * 0.1;
+        pos.z += (Math.random() - 0.5) * 0.1;
         
-        // Trail follows incoming velocity for more readable motion
-        const vel = velocity.clone().multiplyScalar(0.7);
+        // Trail follows incoming velocity (reuse _tmpVec3B)
+        const vel = this._tmpVec3B.copy(velocity).multiplyScalar(0.7);
 
         // debugging log already throttled above; no repeated logs here
         if (this.config.debugSpawnProbe && this.debugProbe) {
@@ -533,33 +579,36 @@ export class HealingParticleSystem_Session136 {
             this.audioSystem.triggerHealingTone(position, normalizedIntensity);
         }
 
-        const particleCount = Math.max(8, Math.floor(14 * normalizedIntensity)); // Burst size based on intensity
+        const particleCount = Math.max(8, Math.floor(14 * normalizedIntensity));
+        const color = this._tmpColor;
         
         for (let i = 0; i < particleCount; i++) {
-            // Random direction in sphere
-            const dir = new THREE.Vector3(
+            // ATOMA_HEALING_SESSION136_v2: Zero-allocation random direction (reuse _tmpVec3B)
+            const dir = this._tmpVec3B.set(
                 Math.random() - 0.5,
                 Math.random() - 0.5,
                 Math.random() - 0.5
             ).normalize();
 
-            // Speed variation
-            const speed = 2.0 + Math.random() * 3.0; 
-            const vel = dir.multiplyScalar(speed * normalizedIntensity);
+            const speed = 2.0 + Math.random() * 3.0;
+            dir.multiplyScalar(speed * normalizedIntensity);
 
-            // Color: Golden/Cyan burst, optionally forced red for debug.
-            const color = this.config.debugForceRedParticles
-                ? new THREE.Color(0xff0000)
-                : new THREE.Color(1.0, 0.15, 0.95); // Neon magenta base
-            if (!this.config.debugForceRedParticles && Math.random() > 0.5) {
-                color.setHex(0x00ffff); // Cyan accents
+            // ATOMA_HEALING_SESSION136_v2: Healing-appropriate colors (golden/cyan/white)
+            if (this.config.debugForceRedParticles) {
+                color.setHex(0xff0000);
+            } else if (Math.random() > 0.6) {
+                color.setRGB(0.5, 1.0, 0.95);   // Luminous cyan accent
+            } else if (Math.random() > 0.4) {
+                color.setRGB(1.0, 0.95, 0.85);   // Warm gold
+            } else {
+                color.setRGB(0.85, 1.0, 1.0);    // White-cyan highlight
             }
 
             const size = this.config.baseSize * (1.1 + Math.random() * 1.2);
             const life = 0.5 + Math.random() * 0.5;
 
-            // Start exactly at position
-            this.spawnParticle(position.clone(), vel, color, size, life, time);
+            // ATOMA_HEALING_SESSION136_v2: Reuse _tmpVec3A for position
+            this.spawnParticle(this._tmpVec3A.copy(position), dir, color, size, life, time);
         }
     }
 

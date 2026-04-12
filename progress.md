@@ -79,6 +79,12 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
 - Fixed a missing `getCompositeColor()` helper in `CompositeGlyphGenerator` that broke the new live visual path at runtime.
 - Runtime smoke test now confirms `generateCompositeVisual(['RING','ARROW'], ...)` returns an `Object3D` with children instead of a geometry blob.
 
+## 2026-04-12 -- Menu-owned environmental hazards toggle
+- Added `environmentalHazards` to menu profile settings and exposed it in both Main Menu and Pause Menu alongside postprocessing and semantic pictograms.
+- `main.js` now applies `menuSettings.environmentalHazards` at boot and exposes `setEnvironmentalHazardsEnabled(...)` for runtime toggling.
+- `EnvironmentalHazards.js` now has a real enabled/disable gate that hides the root, skips update/effect queries, and can be re-enabled without reload.
+- Browser smoke confirmed the toggle persists in localStorage, boots into `window.game.environmentalHazardsEnabled=false`, and can be flipped back on from the pause menu.
+
 ## 2026-04-12 -- NodeMetricEngine archetype seeding fix
 - `ensureMetrics()` now seeds placeholder/default canonical metrics from `node.userData.archetypeMetrics` instead of leaving nodes at `{ stability: 1, corruption: 0 }` when a registry snapshot exists.
 - Added regression coverage for placeholder seeding vs live-value preservation.

@@ -188,20 +188,20 @@ export class GlyphLayer4_MultiFusion {
 
   _getEvolutionOrbitRadius(glyphKey, stage = 1) {
     const radiusMap = {
-      controlIntegration: 0.76,
-      analyticsEmotional: 0.7,
-      inputProcess: 0.64,
-      errorSigma: 0.58,
-      primeMythic: 0.82,
-      quantumStorage: 0.78,
-      1: 0.76,
-      2: 0.7,
-      3: 0.64,
-      4: 0.58
+      controlIntegration: 0.96,
+      analyticsEmotional: 0.9,
+      inputProcess: 0.84,
+      errorSigma: 0.78,
+      primeMythic: 1.05,
+      quantumStorage: 1.0,
+      1: 0.96,
+      2: 0.9,
+      3: 0.84,
+      4: 0.78
     };
 
     const resolvedStage = Math.max(1, Math.min(4, Math.round(Number(stage) || 1)));
-    return radiusMap[glyphKey] ?? radiusMap[resolvedStage] ?? 0.7;
+    return radiusMap[glyphKey] ?? radiusMap[resolvedStage] ?? 0.9;
   }
 
   _applyEvolutionOrbitMotion(evoGroup, deltaTime) {

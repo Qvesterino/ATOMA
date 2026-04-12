@@ -4,8 +4,8 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { LinkPointFXBase } from './LinkPointFXBase.js';
 
 const SPARK_RENDER_ORDER = VisualHierarchyRegistry.getRenderOrder('LINK_SPARKS');
-const SPARK_LIFETIME_MIN = 0.14;
-const SPARK_LIFETIME_MAX = 0.24;
+const SPARK_LIFETIME_MIN = 0.50;
+const SPARK_LIFETIME_MAX = 0.85;
 
 const SPARK_VS = `
 attribute float aSpawnTime;

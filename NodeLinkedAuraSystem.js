@@ -98,16 +98,17 @@ export class NodeLinkedAuraSystem {
     this._metricSubscriptionDisposer = null;
     this._hasMetricSubscription = false;
     
-    // Visual parameters
+    // Visual parameters (ATOMA_AURA_v2: boosted presence)
     this.visualParams = {
-      baseOpacity: 0.09,
-      minOpacity: 0.06,
-      maxOpacity: 0.12,
+      baseOpacity: 0.16,
+      minOpacity: 0.10,
+      maxOpacity: 0.28,
       harmonyBands: options.harmonyBands ?? DEFAULT_LINKED_AURA_HARMONY_BANDS,
-      baseScale: 1.15,
-      maxScale: 1.25,
-      color: new THREE.Color(0.85, 0.88, 0.9),  // Desaturated grey-white
-      accentColor: new THREE.Color(0.7, 0.85, 0.88),  // Desaturated cyan
+      baseScale: 1.22,
+      maxScale: 1.38,
+      color: new THREE.Color(0.55, 0.92, 0.85),  // Vibrant aquamarine
+      accentColor: new THREE.Color(0.3, 0.95, 0.9),  // Bright cyan
+      coreColor: new THREE.Color(0.78, 1.0, 0.94),   // Hot white-cyan core
       roughness: 0.95,
       metalness: 0.0
     };
@@ -261,11 +262,7 @@ export class NodeLinkedAuraSystem {
    */
   update(deltaTime, nodes) {
     if (typeof window !== 'undefined' && window.ATOMA_VISUAL_BASELINE) return;
-    if (!this.enabled) {
-      console.log("AuraSystem disabled internally");
-      return;
-    }
-    console.log("Aura check nodes:", nodes?.length ?? 0);
+    if (!this.enabled) return;
     
     const startTime = performance.now();
     
@@ -277,9 +274,6 @@ export class NodeLinkedAuraSystem {
       if (!node || !node.userData) continue;
       
       const linkCount = this.getNodeLinkCount(node);
-      if (linkCount > 0) {
-        console.log("Node should have aura:", node.id || node.uuid || 'unknown', linkCount);
-      }
       
       // Early exit: Node has no links
       if (linkCount === 0) {
@@ -318,24 +312,19 @@ export class NodeLinkedAuraSystem {
    * Create aura for a node
    */
   createAura(node) {
-    console.log("CREATE AURA", node);
-    // Create torn, irregular mesh geometry
+    // Create torn, irregular mesh geometry (detail=2 for richer flame motion)
     const geometry = this.createTornAuraGeometry();
-    console.log("Creating aura for node:", node.id || node.uuid || 'unknown');
     
     // PHASE S-5: Variant properties set at creation time, then frozen
     // NO runtime mutations to transparent, depthWrite, depthTest, side, blending allowed
     const material = createMultiBandFresnelRimAura({
-      auraColor: new THREE.Color(0x7fffd4),
-      rimPower1: 0.9,
-      rimPower2: 1.6
+      auraColor: this.visualParams.color.clone(),
+      edgeColor: this.visualParams.accentColor.clone(),
+      coreColor: this.visualParams.coreColor.clone(),
+      rimPower1: 1.2,
+      rimPower2: 2.8,
+      rimPower3: 5.5,
     });
-    
-    // DEBUG: Force white color to identify this aura system
-    if (material && material.color) {
-      material.color.set(0xffffff);
-      console.log("AURA DEBUG: forcing white aura", node.id);
-    }
     
     // Freeze variant properties immediately after material creation
     material.userData = material.userData || {};
@@ -358,7 +347,7 @@ export class NodeLinkedAuraSystem {
         this.scene,
         node.position,
         {
-            radius: node.scale.x * 1.8,
+            radius: node.scale.x * 1.85,
             segmentCount: 64
         }
     );
@@ -366,17 +355,12 @@ export class NodeLinkedAuraSystem {
     // Add orbit as child of aura mesh (orbits automatically follow node)
     mesh.add(orbit.mesh);
     
-    // DEBUG
-    console.log("orbit mesh", orbit.mesh);
-    console.log("instances", orbit.mesh.instanceCount || orbit.mesh.count);
-    
     this.scene.add(mesh);
     try {
       mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_SKIN');
     } catch (e) {
       mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_SKIN');
     }
-    console.log("Aura added to scene");
     
     // Store aura data
     const auraData = {
@@ -420,8 +404,8 @@ export class NodeLinkedAuraSystem {
    * Generates an organic, uneven mesh shell (NOT a smooth sphere)
    */
   createTornAuraGeometry() {
-    const segments = 16;  // Lower poly for performance
-    const geometry = new THREE.IcosahedronGeometry(1, 1);  // Base shape
+    // ATOMA_AURA_v2: detail=2 for 162 vertices → richer flame motion
+    const geometry = new THREE.IcosahedronGeometry(1, 2);
     
     // Distort to create torn, irregular appearance
     const positions = geometry.attributes.position;
@@ -457,7 +441,6 @@ export class NodeLinkedAuraSystem {
    * Update aura motion and appearance
    */
   updateAura(node, linkCount, deltaTime) {
-    console.log("UPDATE AURA", node.id);
     const auraData = this.nodeAuras.get(node);
     if (!auraData) return;
     
@@ -467,15 +450,13 @@ export class NodeLinkedAuraSystem {
         this.scene,
         node.position,
         {
-          radius: node.scale.x * 1.8,
+          radius: node.scale.x * 1.85,
           segmentCount: 64
         }
       );
       
       auraData.mesh.add(orbit.mesh);
       auraData.orbit = orbit;
-      
-      console.log("ORBIT LAZY INIT", node.id);
     }
     
     // Update link count
@@ -606,9 +587,14 @@ export class NodeLinkedAuraSystem {
     
     // Update mesh transform
     auraData.mesh.position.copy(node.position);
-    const scalePulse = 1.0 + Math.sin(this.globalTime * 1.5) * 0.08;
+    const scalePulse = 1.0 + Math.sin(this.globalTime * 1.5) * 0.06;
     auraData.mesh.scale.setScalar(this.visualParams.baseScale * node.scale.x * scalePulse);
-    auraData.mesh.rotation.y += deltaTime * 0.5 * linkStrength;
+    auraData.mesh.rotation.y += deltaTime * 0.3 * linkStrength;
+    
+    // ATOMA_AURA_v2: Update shader time uniform for breathing/shimmer
+    if (auraData.material.uniforms && auraData.material.uniforms.uTime) {
+      auraData.material.uniforms.uTime.value = this.globalTime;
+    }
     
     // Apply flame-like motion to vertices
     this.applyFlameMotion(auraData, deltaTime);
@@ -650,7 +636,8 @@ export class NodeLinkedAuraSystem {
       targetOpacity = Math.max(this.visualParams.minOpacity * 0.5, Math.min(this.visualParams.maxOpacity * 1.35, targetOpacity));
     }
     
-    const pulse = 0.6 + Math.sin(this.globalTime * 2.0) * 0.4;
+    // ATOMA_AURA_v2: Gentler pulse modulation (was 0.6 floor, too aggressive)
+    const pulse = 0.78 + Math.sin(this.globalTime * 2.0) * 0.22;
     targetOpacity *= pulse;
 
     auraData.material.opacity = THREE.MathUtils.lerp(

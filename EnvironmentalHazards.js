@@ -24,6 +24,7 @@ export class EnvironmentalHazards {
     this.root = new THREE.Group();
     this.root.name = 'EnvironmentalHazardsRoot';
     this.scene?.add?.(this.root);
+    this.enabled = true;
     this.hazards = new Map();
     this._hazardSequence = 0;
     this._hazardEffectScratch = new THREE.Vector3();
@@ -412,6 +413,10 @@ export class EnvironmentalHazards {
    * Calculate hazard effect on position
    */
   getHazardEffect(position) {
+    if (!this.enabled) {
+      return this._hazardEffectScratch.set(0, 0, 0);
+    }
+
     const force = this._hazardEffectScratch || (this._hazardEffectScratch = new THREE.Vector3());
     force.set(0, 0, 0);
     const direction = this._hazardDirectionScratch || (this._hazardDirectionScratch = new THREE.Vector3());
@@ -451,7 +456,7 @@ export class EnvironmentalHazards {
    * Update hazards
    */
   update(deltaTime) {
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (!this.enabled || !this.frameScheduler?.shouldRunVisual?.()) return;
     for (const hazard of this.hazards.values()) {
       if (!hazard.active) continue;
       
@@ -570,6 +575,10 @@ export class EnvironmentalHazards {
    * Check if position is in danger zone
    */
   isInDangerZone(position) {
+    if (!this.enabled) {
+      return null;
+    }
+
     for (const hazard of this.hazards.values()) {
       if (hazard.active) {
         const distance = position.distanceTo(hazard.position);
@@ -609,6 +618,22 @@ export class EnvironmentalHazards {
     }
 
     this.hazards.delete(hazard.id);
+  }
+
+  setEnabled(enabled = true) {
+    this.enabled = !!enabled;
+    if (this.root) {
+      this.root.visible = this.enabled;
+    }
+    return this.enabled;
+  }
+
+  enable() {
+    return this.setEnabled(true);
+  }
+
+  disable() {
+    return this.setEnabled(false);
   }
 
   dispose() {

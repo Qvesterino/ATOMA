@@ -20,6 +20,8 @@ const DEFAULT_SETTINGS = Object.freeze({
     particles: true,
     audioMuted: false,
     postProcessing: false,
+    semanticPictograms: true,
+    environmentalHazards: true,
 });
 
 const MENU_MAPS = Object.freeze([
@@ -214,6 +216,8 @@ function sanitizeSettings(value) {
         particles: settings.particles !== false,
         audioMuted,
         postProcessing: settings.postProcessing === true,
+        semanticPictograms: settings.semanticPictograms !== false,
+        environmentalHazards: settings.environmentalHazards !== false,
     };
 }
 
@@ -538,7 +542,7 @@ export function ensureMenuStyles() {
 
         .atoma-main-menu__lore-tabs {
             display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
             gap: 8px;
         }
 
@@ -573,7 +577,7 @@ export function ensureMenuStyles() {
             display: flex;
             flex-direction: column;
             gap: 12px;
-            max-height: min(42vh, 420px);
+            max-height: min(46vh, 520px);
             padding: 16px;
             border: 1px solid rgba(101, 234, 255, 0.16);
             border-radius: 18px;
@@ -614,17 +618,99 @@ export function ensureMenuStyles() {
             text-transform: none;
         }
 
+        .atoma-main-menu__lore-featured {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr);
+            gap: 14px;
+            padding: 18px;
+            border: 1px solid rgba(108, 234, 255, 0.18);
+            border-radius: 20px;
+            background:
+                radial-gradient(circle at top left, rgba(90, 236, 255, 0.10), transparent 42%),
+                linear-gradient(180deg, rgba(10, 26, 36, 0.84), rgba(6, 16, 24, 0.72));
+            box-shadow:
+                0 0 24px rgba(90, 236, 255, 0.08),
+                inset 0 0 28px rgba(117, 246, 255, 0.04);
+        }
+
+        .atoma-main-menu__lore-featured-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .atoma-main-menu__lore-featured-label {
+            color: rgba(119, 243, 255, 0.9);
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+
+        .atoma-main-menu__lore-featured-title {
+            color: #f1feff;
+            font-family: 'Orbitron', 'Segoe UI', sans-serif;
+            font-size: clamp(22px, 3vw, 34px);
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .atoma-main-menu__lore-featured-subtitle {
+            color: rgba(119, 243, 255, 0.84);
+            font-size: 11px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+        }
+
+        .atoma-main-menu__lore-featured-summary {
+            color: rgba(214, 247, 252, 0.86);
+            font-size: 13px;
+            line-height: 1.7;
+            letter-spacing: 0.05em;
+            text-transform: none;
+        }
+
+        .atoma-main-menu__lore-featured-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 14px;
+            border-radius: 16px;
+            background: rgba(5, 13, 19, 0.42);
+            border: 1px solid rgba(108, 234, 255, 0.10);
+        }
+
+        .atoma-main-menu__lore-featured-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .atoma-main-menu__lore-featured-stat-label {
+            color: rgba(119, 243, 255, 0.70);
+            font-size: 9px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+        }
+
+        .atoma-main-menu__lore-featured-stat-value {
+            color: rgba(232, 252, 255, 0.90);
+            font-size: 12px;
+            line-height: 1.55;
+            letter-spacing: 0.04em;
+            text-transform: none;
+        }
+
         .atoma-main-menu__lore-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
             gap: 12px;
         }
 
         .atoma-main-menu__lore-card {
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            min-height: 164px;
+            gap: 6px;
+            min-height: 180px;
             padding: 16px;
             border: 1px solid rgba(108, 234, 255, 0.14);
             border-radius: 18px;
@@ -635,16 +721,45 @@ export function ensureMenuStyles() {
 
         .atoma-main-menu__lore-card-title {
             color: #f1feff;
-            font-size: 15px;
-            letter-spacing: 0.12em;
+            font-size: 14px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .atoma-main-menu__lore-card-subtitle {
+            color: rgba(119, 243, 255, 0.88);
+            font-size: 10px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+        }
+
+        .atoma-main-menu__lore-card-summary {
+            color: rgba(210, 244, 248, 0.82);
+            font-size: 12px;
+            line-height: 1.6;
+            letter-spacing: 0.04em;
+            text-transform: none;
+        }
+
+        .atoma-main-menu__lore-card-block {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding-top: 2px;
+        }
+
+        .atoma-main-menu__lore-card-label {
+            color: rgba(119, 243, 255, 0.72);
+            font-size: 9px;
+            letter-spacing: 0.16em;
             text-transform: uppercase;
         }
 
         .atoma-main-menu__lore-card-text {
             color: rgba(210, 244, 248, 0.82);
-            font-size: 13px;
-            line-height: 1.72;
-            letter-spacing: 0.04em;
+            font-size: 12px;
+            line-height: 1.6;
+            letter-spacing: 0.03em;
             text-transform: none;
         }
 
@@ -748,6 +863,20 @@ export function getSettingsRows(settings) {
             label: 'POSTPROCESSING',
             value: `[ ${settings.postProcessing ? 'ON' : 'OFF'} ]`,
             description: 'Enable or disable bloom/composite postprocessing effects.',
+        },
+        {
+            type: 'toggle',
+            id: 'semanticPictograms',
+            label: 'SEMANTIC PICTOGRAMS',
+            value: `[ ${settings.semanticPictograms ? 'ON' : 'OFF'} ]`,
+            description: 'Enable or disable the orbiting link semantic pictogram layer.',
+        },
+        {
+            type: 'toggle',
+            id: 'environmentalHazards',
+            label: 'ENVIRONMENTAL HAZARDS',
+            value: `[ ${settings.environmentalHazards ? 'ON' : 'OFF'} ]`,
+            description: 'Enable or disable the hazard visuals and environmental danger overlays.',
         },
         ...getUIVisibilitySettingsRows(),
     ];
@@ -1140,6 +1269,8 @@ export class MainMenu {
     _renderLore() {
         const activeSection = this._getLoreSection();
         const entries = getLoreEntriesBySection(activeSection?.id);
+        const featuredEntry = entries[0] || null;
+        const supportingEntries = entries.slice(1);
 
         const panel = document.createElement('div');
         panel.className = 'atoma-main-menu__lore-panel';
@@ -1177,10 +1308,70 @@ export class MainMenu {
 
         sectionCopy.append(kicker, summary);
 
-        const grid = document.createElement('div');
-        grid.className = 'atoma-main-menu__lore-grid';
+        const featured = document.createElement('div');
+        featured.className = 'atoma-main-menu__lore-featured';
 
-        entries.forEach((entry) => {
+        const featuredCopy = document.createElement('div');
+        featuredCopy.className = 'atoma-main-menu__lore-featured-copy';
+
+        const featuredLabel = document.createElement('div');
+        featuredLabel.className = 'atoma-main-menu__lore-featured-label';
+        featuredLabel.textContent = featuredEntry ? `Featured canon / ${activeSection?.label || 'Lore'}` : 'Featured canon';
+
+        const featuredTitle = document.createElement('div');
+        featuredTitle.className = 'atoma-main-menu__lore-featured-title';
+        featuredTitle.textContent = featuredEntry?.title || 'No entry available';
+
+        const featuredSubtitle = document.createElement('div');
+        featuredSubtitle.className = 'atoma-main-menu__lore-featured-subtitle';
+        featuredSubtitle.textContent = featuredEntry?.subtitle || '';
+
+        const featuredSummary = document.createElement('div');
+        featuredSummary.className = 'atoma-main-menu__lore-featured-summary';
+        featuredSummary.textContent = featuredEntry?.summary || featuredEntry?.body || '';
+
+        featuredCopy.append(featuredLabel, featuredTitle, featuredSubtitle, featuredSummary);
+
+        const featuredMeta = document.createElement('div');
+        featuredMeta.className = 'atoma-main-menu__lore-featured-meta';
+
+        const featuredCanon = document.createElement('div');
+        featuredCanon.className = 'atoma-main-menu__lore-featured-stat';
+        const featuredCanonLabel = document.createElement('div');
+        featuredCanonLabel.className = 'atoma-main-menu__lore-featured-stat-label';
+        featuredCanonLabel.textContent = 'Canon';
+        const featuredCanonValue = document.createElement('div');
+        featuredCanonValue.className = 'atoma-main-menu__lore-featured-stat-value';
+        featuredCanonValue.textContent = featuredEntry?.canon || '';
+        featuredCanon.append(featuredCanonLabel, featuredCanonValue);
+
+        const featuredMeaning = document.createElement('div');
+        featuredMeaning.className = 'atoma-main-menu__lore-featured-stat';
+        const featuredMeaningLabel = document.createElement('div');
+        featuredMeaningLabel.className = 'atoma-main-menu__lore-featured-stat-label';
+        featuredMeaningLabel.textContent = 'Meaning';
+        const featuredMeaningValue = document.createElement('div');
+        featuredMeaningValue.className = 'atoma-main-menu__lore-featured-stat-value';
+        featuredMeaningValue.textContent = featuredEntry?.meaning || '';
+        featuredMeaning.append(featuredMeaningLabel, featuredMeaningValue);
+
+        const featuredRelevance = document.createElement('div');
+        featuredRelevance.className = 'atoma-main-menu__lore-featured-stat';
+        const featuredRelevanceLabel = document.createElement('div');
+        featuredRelevanceLabel.className = 'atoma-main-menu__lore-featured-stat-label';
+        featuredRelevanceLabel.textContent = 'Relevance';
+        const featuredRelevanceValue = document.createElement('div');
+        featuredRelevanceValue.className = 'atoma-main-menu__lore-featured-stat-value';
+        featuredRelevanceValue.textContent = featuredEntry?.relevance || '';
+        featuredRelevance.append(featuredRelevanceLabel, featuredRelevanceValue);
+
+        featuredMeta.append(featuredCanon, featuredMeaning, featuredRelevance);
+        featured.append(featuredCopy, featuredMeta);
+
+        const archive = document.createElement('div');
+        archive.className = 'atoma-main-menu__lore-grid';
+
+        supportingEntries.forEach((entry) => {
             const card = document.createElement('article');
             card.className = 'atoma-main-menu__lore-card';
 
@@ -1188,15 +1379,19 @@ export class MainMenu {
             title.className = 'atoma-main-menu__lore-card-title';
             title.textContent = entry.title;
 
-            const text = document.createElement('div');
-            text.className = 'atoma-main-menu__lore-card-text';
-            text.textContent = entry.body;
+            const subtitle = document.createElement('div');
+            subtitle.className = 'atoma-main-menu__lore-card-subtitle';
+            subtitle.textContent = entry.subtitle || '';
 
-            card.append(title, text);
-            grid.appendChild(card);
+            const summaryBlock = document.createElement('div');
+            summaryBlock.className = 'atoma-main-menu__lore-card-summary';
+            summaryBlock.textContent = entry.summary || entry.body || '';
+
+            card.append(title, subtitle, summaryBlock);
+            archive.appendChild(card);
         });
 
-        this.loreBody.append(sectionCopy, grid);
+        this.loreBody.append(sectionCopy, featured, archive);
         panel.append(tabs, this.loreBody);
         this.content.appendChild(panel);
     }
@@ -1386,6 +1581,24 @@ export class MainMenu {
                     window.game.setPostProcessingEnabled(settings.postProcessing);
                 } else {
                     window.__ATOMA_POSTPROCESSING_PENDING__ = settings.postProcessing;
+                }
+            }
+        } else if (settingId === 'semanticPictograms') {
+            settings.semanticPictograms = !settings.semanticPictograms;
+            if (typeof window !== 'undefined') {
+                if (window.game?.setSemanticPictogramsEnabled) {
+                    window.game.setSemanticPictogramsEnabled(settings.semanticPictograms);
+                } else {
+                    window.__ATOMA_SEMANTIC_PICTOGRAMS_PENDING__ = settings.semanticPictograms;
+                }
+            }
+        } else if (settingId === 'environmentalHazards') {
+            settings.environmentalHazards = !settings.environmentalHazards;
+            if (typeof window !== 'undefined') {
+                if (window.game?.setEnvironmentalHazardsEnabled) {
+                    window.game.setEnvironmentalHazardsEnabled(settings.environmentalHazards);
+                } else {
+                    window.__ATOMA_ENVIRONMENTAL_HAZARDS_PENDING__ = settings.environmentalHazards;
                 }
             }
         }

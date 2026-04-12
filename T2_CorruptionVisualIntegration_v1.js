@@ -70,7 +70,6 @@ export class T2_CorruptionVisualIntegration_v1 {
         uEmissiveIntensity: { value: 1.8 }
       },
       vertexShader: `
-        attribute vec3 instanceColor;
         varying vec3 vNormal;
         varying vec3 vViewPosition;
         varying vec3 vColor;
@@ -119,6 +118,8 @@ export class T2_CorruptionVisualIntegration_v1 {
     this._tmpPullVector = new THREE.Vector3();
     this._tmpSourceWorldPos = new THREE.Vector3();
     this._tmpTargetWorldPos = new THREE.Vector3();
+    this._hiddenParticlePosition = new THREE.Vector3(0, 0, 0);
+    this._hiddenParticleColor = new THREE.Color(0x000000);
     this.particleRoot = new THREE.Group();
     this.particleRoot.name = 'T2_CorruptionParticlePool';
 
@@ -285,6 +286,14 @@ export class T2_CorruptionVisualIntegration_v1 {
   _releaseParticleInstance(instanceId) {
     if (instanceId === null || instanceId === undefined) return;
     if (this.availableIndices.includes(instanceId)) return;
+    this._updateInstanceMatrixAt(
+      instanceId,
+      this._hiddenParticlePosition,
+      0.0001,
+      0,
+      this._hiddenParticleColor,
+      true
+    );
     this.availableIndices.push(instanceId);
   }
 
@@ -518,7 +527,7 @@ export class T2_CorruptionVisualIntegration_v1 {
       targetAnchor,
       isBurst: true
     });
-    return particle?.mesh ?? null;
+    return particle ?? null;
   }
 
   update(deltaTime, links) {
@@ -644,11 +653,21 @@ export class T2_CorruptionVisualIntegration_v1 {
       this._releaseParticleInstance(particle?.instanceId);
     }
     this.registry.activeParticles.length = 0;
+    this.availableIndices = Array.from({ length: this.config.particlePoolSize }, (_, i) => this.config.particlePoolSize - 1 - i);
+
+    if (this.instancedMesh) {
+      this.instancedMesh.parent?.remove(this.instancedMesh);
+    }
+    if (this.instancedAuraMesh) {
+      this.instancedAuraMesh.parent?.remove(this.instancedAuraMesh);
+    }
 
     while (this.particlePool.length) {
       const mesh = this.particlePool.pop();
       mesh?.material?.dispose?.();
     }
+
+    this.particleRoot?.clear?.();
 
     // UNIFIED CLEANUP CONTRACT - Remove and dispose all tracked objects
     this._createdObjects.forEach(obj => {
@@ -659,6 +678,8 @@ export class T2_CorruptionVisualIntegration_v1 {
     this._createdObjects = [];
 
     this.particleRoot?.parent?.remove(this.particleRoot);
+    this._particleMaterial?.dispose?.();
+    this.instancedAuraMesh?.material?.dispose?.();
     this._particleGeometry?.dispose?.();
   }
 }

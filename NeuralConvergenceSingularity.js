@@ -475,7 +475,7 @@ export class NeuralConvergenceSingularity {
         this.connectedNodes = [];
         this.orbitAnchor = new THREE.Vector3();
         this.orbitRadius = 0.42;
-        this.orbitHeight = 0.08;
+        this.orbitHeight = 0.18;
         this.orbitSpeed = 0.6;
         this.orbitPhase = Math.random() * Math.PI * 2;
         this.orbitBobPhase = Math.random() * Math.PI * 2;
@@ -1275,7 +1275,7 @@ export class NeuralConvergenceSingularity {
         this.connectedNodes = [];
         this.orbitAnchor.set(0, 0, 0);
         this.orbitRadius = 0.42;
-        this.orbitHeight = 0.08;
+        this.orbitHeight = 0.18;
         this.orbitSpeed = 0.6;
         this.orbitPhase = Math.random() * Math.PI * 2;
         this.orbitBobPhase = Math.random() * Math.PI * 2;

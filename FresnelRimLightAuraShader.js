@@ -427,16 +427,19 @@ export function createMultiBandFresnelRimAura(options = {}) {
   const {
     auraColor = new THREE.Color(0x7fffd4),
     edgeColor = new THREE.Color(0x00ffff), // Bright cyan for edge
+    coreColor = new THREE.Color(0xc8fff0), // Hot white-cyan core
     rimPower1 = 1.5,
     rimPower2 = 3.0,
+    rimPower3 = 5.0,  // ATOMA_AURA_v2: ultra-sharp halo band
   } = options;
 
   const material = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
     depthTest: true,
-    blending: THREE.NormalBlending,
+    blending: THREE.AdditiveBlending,
     side: THREE.FrontSide,
+    toneMapped: false,
 
     uniforms: {
       uTime: { value: 0 },
@@ -446,20 +449,25 @@ export function createMultiBandFresnelRimAura(options = {}) {
       uAuraPulse: { value: 1.0 },
       uAuraColor: { value: auraColor.clone() },
       uEdgeColor: { value: edgeColor.clone() },
+      uCoreColor: { value: coreColor.clone() },
       
       uRimPower1: { value: rimPower1 },  // Softer outer band
       uRimPower2: { value: rimPower2 },  // Sharper inner band
+      uRimPower3: { value: rimPower3 },  // ATOMA_AURA_v2: ultra-sharp halo
     },
 
     vertexShader: `
       varying vec3 vNormal;
       varying vec3 vViewDir;
+      varying vec3 vWorldPos;
       varying vec2 vUv;
 
       void main() {
         vUv = uv;
         vNormal = normalize(normalMatrix * normal);
-        vViewDir = normalize(cameraPosition - (modelMatrix * vec4(position, 1.0)).xyz);
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vViewDir = normalize(cameraPosition - wp.xyz);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
@@ -472,12 +480,15 @@ export function createMultiBandFresnelRimAura(options = {}) {
       uniform float uAuraPulse;
       uniform vec3 uAuraColor;
       uniform vec3 uEdgeColor;
+      uniform vec3 uCoreColor;
       
       uniform float uRimPower1;
       uniform float uRimPower2;
+      uniform float uRimPower3;
 
       varying vec3 vNormal;
       varying vec3 vViewDir;
+      varying vec3 vWorldPos;
       varying vec2 vUv;
 
       float fresnel(float nDotV, float power) {
@@ -490,41 +501,69 @@ export function createMultiBandFresnelRimAura(options = {}) {
         vec3 V = normalize(vViewDir);
         float nDotV = clamp(dot(N, V), 0.0, 1.0);
         
-        // First fresnel band (soft, wide)
+        // === THREE-BAND FRESNEL RIM (ATOMA_AURA_v2) ===
+        
+        // Band 1: Soft wide outer glow
         float rim1 = fresnel(nDotV, uRimPower1);
-        rim1 = mix(0.1, 1.0, rim1); // Remap to [0.1, 1.0]
+        rim1 = mix(0.08, 1.0, rim1);
         
-        // Second fresnel band (sharp, concentrated at edges)
+        // Band 2: Sharp concentrated edge
         float rim2 = fresnel(nDotV, uRimPower2);
-        rim2 = mix(0.2, 0.8, rim2); // Remap to [0.2, 0.8]
+        rim2 = mix(0.15, 0.85, rim2);
         
-        // Combine with smooth interpolation
-        float rimLight = mix(rim1, rim2, 0.5);
+        // Band 3: Ultra-sharp halo (ATOMA_AURA_v2)
+        float rim3 = fresnel(nDotV, uRimPower3);
+        rim3 = mix(0.3, 0.7, rim3);
         
-        // Breathing animation
-        float pulse = sin(uTime * 2.0) * 0.2 + 1.0;
-        rimLight *= pulse;
+        // Combine bands with weighted blend
+        float rimLight = rim1 * 0.4 + rim2 * 0.4 + rim3 * 0.2;
+        
+        // === HOT CORE GLOW ===
+        // Center-facing fragments get a subtle bright core
+        float coreGlow = pow(nDotV, 3.0) * 0.15;
+        rimLight += coreGlow;
+        
+        // === SHIMMER LAYER ===
+        // Subtle energy shimmer across the surface
+        float shimmer = sin(uTime * 6.0 + vWorldPos.y * 12.0 + vWorldPos.x * 8.0) * 0.04
+                      + sin(uTime * 9.3 + vWorldPos.z * 10.0) * 0.02;
+        rimLight += shimmer * rim2;
+        
+        // === BREATHING ANIMATION ===
+        float breath = sin(uTime * 1.8) * 0.15 + 1.0;
+        float microPulse = sin(uTime * 4.7 + nDotV * 3.14) * 0.05 + 1.0;
+        rimLight *= breath * microPulse;
         
         // Apply aura parameters
         rimLight *= uAuraRadius;
         rimLight *= uAuraPulse;
         rimLight *= uAuraStrength;
         
-        // Color: blend between aura and edge colors based on rim intensity
-        vec3 color = mix(uAuraColor, uEdgeColor, rim2);
+        // === COLOR COMPOSITION ===
+        // Three-layer color: core → aura → edge based on rim intensity
+        vec3 baseCol = mix(uCoreColor, uAuraColor, smoothstep(0.1, 0.4, rimLight));
+        vec3 color = mix(baseCol, uEdgeColor, rim3 * 0.7);
+        
+        // Add hot core contribution
+        color += uCoreColor * coreGlow * 2.0;
+        
+        // Color brightness boost from shimmer
+        color += vec3(0.6, 0.8, 1.0) * max(0.0, shimmer) * rim2;
+        
         color *= rimLight;
         
         float alpha = rimLight * uAuraOpacity;
         
         // PERFORMANCE FIX: Early exit for near-invisible fragments
-        // Prevents expensive multi-band blend ops for faint pixels
-        if (alpha < 0.01) discard;
+        if (alpha < 0.005) discard;
         
         alpha = clamp(alpha, 0.0, 1.0);
         
         gl_FragColor = vec4(color, alpha);
       }
     `,
+
+    customProgramCacheKey: () => 'ATOMA_AURA_v2',
   });
 
   return material;

@@ -385,7 +385,7 @@ export class CascadeParticleSystem_Session120 {
       `,
       transparent: true,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
       toneMapped: false,
       blending: THREE.NormalBlending,
     });
@@ -633,7 +633,7 @@ export class CascadeParticleSystem_Session120 {
       `,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
       transparent: true,
       toneMapped: false,
     });

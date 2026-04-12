@@ -6289,6 +6289,14 @@ this.setHudDirty('nodeInspect');
             this.setPostProcessingEnabled(!!window.__ATOMA_POSTPROCESSING_PENDING__);
             delete window.__ATOMA_POSTPROCESSING_PENDING__;
         }
+        if (window.__ATOMA_SEMANTIC_PICTOGRAMS_PENDING__ !== undefined) {
+            this.setSemanticPictogramsEnabled(!!window.__ATOMA_SEMANTIC_PICTOGRAMS_PENDING__);
+            delete window.__ATOMA_SEMANTIC_PICTOGRAMS_PENDING__;
+        }
+        if (window.__ATOMA_ENVIRONMENTAL_HAZARDS_PENDING__ !== undefined) {
+            this.setEnvironmentalHazardsEnabled(!!window.__ATOMA_ENVIRONMENTAL_HAZARDS_PENDING__);
+            delete window.__ATOMA_ENVIRONMENTAL_HAZARDS_PENDING__;
+        }
         removeLegacyRuntimeHudElements();
         window.linkQualityFeedbackLoop = this.linkQualityFeedbackLoop;
         window.linkMLRecommendationEngine = this.linkMLRecommendationEngine;
@@ -6581,8 +6589,52 @@ window.__ATOMA_SCENE__ = this.scene;
             return this.postProcessingEnabled;
         };
 
+        this.setSemanticPictogramsEnabled = (enabled = true) => {
+            const next = !!enabled;
+            const pictogramSystem = this.linkPictogramSystem || this.linkSemanticPictograms || null;
+            if (pictogramSystem) {
+                if (next) {
+                    pictogramSystem.enable?.();
+                    pictogramSystem.fusionZoneManager?.enable?.();
+                } else {
+                    pictogramSystem.disable?.();
+                    pictogramSystem.fusionZoneManager?.disable?.();
+                }
+            }
+            this.semanticPictogramsEnabled = next;
+            return this.semanticPictogramsEnabled;
+        };
+
+        this.setEnvironmentalHazardsEnabled = (enabled = true) => {
+            const next = !!enabled;
+            const hazardSystem = this.environmentDomain?.instances?.environmentalHazards || this.hazards || null;
+            if (hazardSystem?.setEnabled) {
+                hazardSystem.setEnabled(next);
+            } else if (hazardSystem) {
+                hazardSystem.enabled = next;
+                if (hazardSystem.root) {
+                    hazardSystem.root.visible = next;
+                }
+            }
+            this.environmentalHazardsEnabled = next;
+            return this.environmentalHazardsEnabled;
+        };
+
         if (this.postProcessingEnabled) {
             void this.postProcessing?.warmup?.(this.renderer);
+        }
+
+        const bootMenuSettings = this.bootOptions?.menuSettings || null;
+        if (bootMenuSettings) {
+            if (bootMenuSettings.postProcessing !== undefined) {
+                this.setPostProcessingEnabled(bootMenuSettings.postProcessing !== false);
+            }
+            if (bootMenuSettings.semanticPictograms !== undefined) {
+                this.setSemanticPictogramsEnabled(bootMenuSettings.semanticPictograms !== false);
+            }
+            if (bootMenuSettings.environmentalHazards !== undefined) {
+                this.setEnvironmentalHazardsEnabled(bootMenuSettings.environmentalHazards !== false);
+            }
         }
 
         // === Wave shader stack (init early so warm-up uses patched shaders) ===
@@ -7863,6 +7915,7 @@ window.__ATOMA_SCENE__ = this.scene;
         this.emergentThoughtStorms = this.environmentDomain?.instances?.emergentThoughtStorms || this.emergentThoughtStorms;
         this.colonyManager = this.environmentDomain?.instances?.colonyExpansion || this.colonyManager;
         this.hazards = this.environmentDomain?.instances?.environmentalHazards || this.hazards;
+        this.setEnvironmentalHazardsEnabled?.(this.environmentalHazardsEnabled ?? true);
         this._syncDreamDepthRefs();
         if (this.hazards && this.currentMode === 'fractal') {
             // Fractal Valley world pass: no inherited anomaly set pieces here.
@@ -15222,6 +15275,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             // ENHANCED PICTOGRAM PATH (preferred)
             // WithFusion wraps LinkSemanticPictogramSystem_Enhanced.
             this.linkPictogramSystem = this.linkSemanticPictograms;
+            const semanticPictogramsEnabled =
+                window?.__ATOMA_SEMANTIC_PICTOGRAMS_PENDING__ !== undefined
+                    ? !!window.__ATOMA_SEMANTIC_PICTOGRAMS_PENDING__
+                    : (this.semanticPictogramsEnabled ?? true);
+            this.setSemanticPictogramsEnabled?.(semanticPictogramsEnabled);
+            if (typeof window !== 'undefined' && window.__ATOMA_SEMANTIC_PICTOGRAMS_PENDING__ !== undefined) {
+                delete window.__ATOMA_SEMANTIC_PICTOGRAMS_PENDING__;
+            }
             // Expose for console debugging
             if (typeof window !== 'undefined') {
                 window.linkSemanticPictograms = this.linkSemanticPictograms;

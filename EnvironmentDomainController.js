@@ -13,7 +13,7 @@ const ENVIRONMENT_SYSTEMS = [
   'SafeDreamDepthPack',
   'DreamDepthEffectManager',
   'SafeColonyExpansion2',
-  'MythicRitualController',
+  'wnec',
   // REMOVED: EnergyOrbManager - moved to LEGACY (dead code, never initialized)
   'EnvironmentalHazards',
 ];

@@ -1472,6 +1472,8 @@ export class LinkedGlyphMessaging3_0 {
       message.auraMeshes.forEach(mesh => {
         this._returnAuraToPool(mesh);
       });
+
+      message.meshGroup.clear?.();
     }
 
     message.meshes.length = 0;
@@ -1571,6 +1573,7 @@ export class LinkedGlyphMessaging3_0 {
     this.stats.messagesActive = 0;
     this.stats.linksActive = 0;
     this._updateAccum = 0;
+    this.messageContainer.clear?.();
     console.log('✓ Linked Glyph Messaging 3.0 cleaned up');
   }
   

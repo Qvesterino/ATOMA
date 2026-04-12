@@ -54,8 +54,6 @@ import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { buildScopedMetricEventName } from './src/metrics/MetricTierClassifier.js';
 
-import { MythicRitualPlayer } from './_MythicRitualPlayer.js';
-
 export class MythicRitualController {
   // 🔥 GLOBAL SAFETY FLAG - Mythic Rituals disabled by default
   static get ENABLED() {
@@ -125,12 +123,6 @@ export class MythicRitualController {
 
     // Base world state backup
     this.worldStateBackup = null;
-
-    // Player participation system
-    this.ritualPlayer = null;
-    if (this.player) {
-      this.ritualPlayer = new MythicRitualPlayer(this.scene, this.camera, this.player, this.semanticBus);
-    }
 
     this._setupWorldMoodBridge();
 
@@ -383,6 +375,7 @@ export class MythicRitualController {
       transparent: true,
       opacity: 0,
       blending: THREE.AdditiveBlending,
+      toneMapped: false,
     });
 
     const beam = new THREE.Mesh(beamGeometry, beamMaterial);
@@ -390,24 +383,46 @@ export class MythicRitualController {
     beam.renderOrder = this.renderOrder;
     beam.userData.isRitualFX = true;
     this.scene.add(beam);
-    this._createdObjects.push(beam);  // UNIFIED CLEANUP CONTRACT
+    this._createdObjects.push(beam);
 
     this.ritualVisuals.set('central_beam', {
       object: beam,
       type: 'beam',
-      targetOpacity: 0.4,
+      targetOpacity: 0.55,
     });
 
-    // Ascending rings
+    // Glory beam — wider, softer outer glow for volumetric feel
+    const gloryGeometry = new THREE.CylinderGeometry(5, 9, 100, 32);
+    const gloryMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffee88,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+    });
+    const gloryBeam = new THREE.Mesh(gloryGeometry, gloryMaterial);
+    gloryBeam.position.set(0, 50, 0);
+    gloryBeam.renderOrder = this.renderOrder;
+    gloryBeam.userData.isRitualFX = true;
+    this.scene.add(gloryBeam);
+    this._createdObjects.push(gloryBeam);
+    this.ritualVisuals.set('glory_beam', {
+      object: gloryBeam,
+      type: 'beam',
+      targetOpacity: 0.18,
+    });
+
+    // Ascending rings — wider bands for visibility
     const ringCount = 5;
     for (let i = 0; i < ringCount; i++) {
-      const ringGeometry = new THREE.RingGeometry(5 + i * 3, 5.5 + i * 3, 32);
+      const ringGeometry = new THREE.RingGeometry(5 + i * 3, 7 + i * 3, 32);
       const ringMaterial = new THREE.MeshBasicMaterial({
         color: 0xffd700,
         transparent: true,
         opacity: 0,
         side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending,
+        toneMapped: false,
       });
 
       const ring = new THREE.Mesh(ringGeometry, ringMaterial);
@@ -416,18 +431,18 @@ export class MythicRitualController {
       ring.renderOrder = this.renderOrder;
       ring.userData.isRitualFX = true;
       this.scene.add(ring);
-      this._createdObjects.push(ring);  // UNIFIED CLEANUP CONTRACT
+      this._createdObjects.push(ring);
 
       this.ritualVisuals.set(`ascension_ring_${i}`, {
         object: ring,
         type: 'ascending_ring',
-        targetOpacity: 0.6,
+        targetOpacity: 0.75,
         startHeight: i * 5,
       });
     }
 
-    // Particle burst
-    this.createParticleBurst(0xffd700, 50);
+    // Particle burst — enhanced count
+    this.createParticleBurst(0xffd700, 75);
   }
 
   /**
@@ -441,6 +456,7 @@ export class MythicRitualController {
       transparent: true,
       opacity: 0,
       blending: THREE.AdditiveBlending,
+      toneMapped: false,
     });
 
     const fissure = new THREE.Mesh(fissureGeometry, fissureMaterial);
@@ -453,11 +469,11 @@ export class MythicRitualController {
     this.ritualVisuals.set('quantum_fissure', {
       object: fissure,
       type: 'fissure',
-      targetOpacity: 0.8,
+      targetOpacity: 0.9,
     });
 
     // Chaos particles
-    this.createParticleBurst(0xff00ff, 80);
+    this.createParticleBurst(0xff00ff, 110);
 
     // Distortion rings
     for (let i = 0; i < 3; i++) {
@@ -467,6 +483,7 @@ export class MythicRitualController {
         transparent: true,
         opacity: 0,
         blending: THREE.AdditiveBlending,
+        toneMapped: false,
       });
 
       const ring = new THREE.Mesh(ringGeometry, ringMaterial);
@@ -479,7 +496,7 @@ export class MythicRitualController {
       this.ritualVisuals.set(`fissure_ring_${i}`, {
         object: ring,
         type: 'fissure_ring',
-        targetOpacity: 0.5,
+        targetOpacity: 0.65,
       });
     }
   }
@@ -503,6 +520,7 @@ export class MythicRitualController {
         transparent: true,
         opacity: 0,
         blending: THREE.AdditiveBlending,
+        toneMapped: false,
       });
 
       const beam = new THREE.Mesh(beamGeometry, beamMaterial);
@@ -517,7 +535,7 @@ export class MythicRitualController {
       this.ritualVisuals.set(`harmony_beam_${i}`, {
         object: beam,
         type: 'converging_beam',
-        targetOpacity: 0.6,
+        targetOpacity: 0.75,
         direction: dir,
       });
     });
@@ -529,6 +547,7 @@ export class MythicRitualController {
       transparent: true,
       opacity: 0,
       blending: THREE.AdditiveBlending,
+      toneMapped: false,
     });
 
     const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
@@ -541,10 +560,38 @@ export class MythicRitualController {
     this.ritualVisuals.set('harmony_sphere', {
       object: sphere,
       type: 'harmony_sphere',
-      targetOpacity: 0.4,
+      targetOpacity: 0.55,
     });
 
-    this.createParticleBurst(0x00ffaa, 40);
+    // Orbiting motes around harmony sphere
+    const moteCount = 12;
+    for (let m = 0; m < moteCount; m++) {
+      const moteGeo = new THREE.SphereGeometry(0.3, 8, 8);
+      const moteMat = new THREE.MeshBasicMaterial({
+        color: 0x88ffcc,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+      });
+      const mote = new THREE.Mesh(moteGeo, moteMat);
+      mote.position.set(0, 5, 0);
+      mote.renderOrder = this.renderOrder;
+      mote.userData.isRitualFX = true;
+      this.scene.add(mote);
+      this._createdObjects.push(mote);
+      this.ritualVisuals.set(`harmony_mote_${m}`, {
+        object: mote,
+        type: 'orbiting_mote',
+        targetOpacity: 0.7,
+        orbitAngle: (m / moteCount) * Math.PI * 2,
+        orbitRadius: 5 + Math.random() * 2,
+        orbitSpeed: 0.8 + Math.random() * 0.6,
+        orbitTilt: (Math.random() - 0.5) * 0.5,
+      });
+    }
+
+    this.createParticleBurst(0x00ffaa, 60);
   }
 
   /**
@@ -570,6 +617,7 @@ export class MythicRitualController {
       transparent: true,
       opacity: 0,
       blending: THREE.AdditiveBlending,
+      toneMapped: false,
     });
 
     const spiral = new THREE.Line(spiralGeometry, spiralMaterial);
@@ -581,11 +629,11 @@ export class MythicRitualController {
     this.ritualVisuals.set('chaos_spiral', {
       object: spiral,
       type: 'spiral',
-      targetOpacity: 0.7,
+      targetOpacity: 0.85,
     });
 
     // Chaotic particles
-    this.createParticleBurst(0xff0088, 60);
+    this.createParticleBurst(0xff0088, 90);
 
     // Random lightning bolts
     for (let i = 0; i < 5; i++) {
@@ -595,6 +643,7 @@ export class MythicRitualController {
         transparent: true,
         opacity: 0,
         blending: THREE.AdditiveBlending,
+        toneMapped: false,
       });
 
       const bolt = new THREE.Mesh(boltGeometry, boltMaterial);
@@ -608,7 +657,7 @@ export class MythicRitualController {
       this.ritualVisuals.set(`chaos_bolt_${i}`, {
         object: bolt,
         type: 'chaos_bolt',
-        targetOpacity: 0.8,
+        targetOpacity: 0.9,
       });
     }
   }
@@ -643,6 +692,7 @@ export class MythicRitualController {
         opacity: 0,
         side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending,
+        toneMapped: false,
       });
 
       const mandala = new THREE.Mesh(geometry, material);
@@ -656,12 +706,12 @@ export class MythicRitualController {
       this.ritualVisuals.set(`mandala_layer_${layer}`, {
         object: mandala,
         type: 'mandala',
-        targetOpacity: 0.3,
+        targetOpacity: 0.45,
         rotationSpeed: 0.1 + layer * 0.05,
       });
     }
 
-    this.createParticleBurst(0xffffff, 30);
+    this.createParticleBurst(0xffffff, 50);
   }
 
   /**
@@ -677,6 +727,7 @@ export class MythicRitualController {
         opacity: 0,
         side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending,
+        toneMapped: false,
       });
 
       const wave = new THREE.Mesh(waveGeometry, waveMaterial);
@@ -690,56 +741,71 @@ export class MythicRitualController {
       this.ritualVisuals.set(`echo_wave_${i}`, {
         object: wave,
         type: 'echo_wave',
-        targetOpacity: 0.5,
+        targetOpacity: 0.65,
         delay: i * 0.5,
         startTime: Date.now() / 1000,
       });
     }
 
     // Memory trails
-    this.createParticleBurst(0x8888ff, 40);
+    this.createParticleBurst(0x8888ff, 60);
   }
 
   /**
    * Create particle burst
    */
   createParticleBurst(color, count) {
+    const actualCount = Math.ceil(count * 1.4);
     const geometry = new THREE.BufferGeometry();
-    const positions = [];
+    const positions = new Float32Array(actualCount * 3);
+    const velocities = new Float32Array(actualCount * 3);
 
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < actualCount; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const r = 5 + Math.random() * 15;
+      const r = 3 + Math.random() * 12;
 
       const x = r * Math.sin(phi) * Math.cos(theta);
       const y = 10 + r * Math.sin(phi) * Math.sin(theta);
       const z = r * Math.cos(phi);
 
-      positions.push(x, y, z);
+      const i3 = i * 3;
+      positions[i3] = x;
+      positions[i3 + 1] = y;
+      positions[i3 + 2] = z;
+
+      // Outward drift velocity with slight upward bias
+      const speed = 0.4 + Math.random() * 1.2;
+      const len = Math.sqrt(x * x + (y - 10) * (y - 10) + z * z) || 1;
+      velocities[i3] = (x / len) * speed;
+      velocities[i3 + 1] = ((y - 10) / len) * speed + 0.25;
+      velocities[i3 + 2] = (z / len) * speed;
     }
 
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
     const material = new THREE.PointsMaterial({
       color,
-      size: 0.5,
+      size: 1.2,
       transparent: true,
       opacity: 0,
       blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      sizeAttenuation: true,
     });
 
     const particles = new THREE.Points(geometry, material);
     particles.renderOrder = this.renderOrder;
     particles.userData.isRitualFX = true;
     this.scene.add(particles);
-    this._createdObjects.push(particles);  // UNIFIED CLEANUP CONTRACT
+    this._createdObjects.push(particles);
 
     const burstKey = `particle_burst_${this._ritualVisualId++}`;
     this.ritualVisuals.set(burstKey, {
       object: particles,
       type: 'particles',
-      targetOpacity: 0.8,
+      targetOpacity: 1.0,
+      velocities,
     });
   }
 
@@ -824,7 +890,7 @@ export class MythicRitualController {
           break;
 
         case 'ascending_ring':
-          // Rise and fade
+          // Rise and fade with pulsing
           if (visual.object.material) {
             visual.object.material.opacity = THREE.MathUtils.lerp(
               visual.object.material.opacity,
@@ -834,6 +900,9 @@ export class MythicRitualController {
 
             visual.object.position.y = visual.startHeight + this.ritualProgress * 20;
             visual.object.rotation.z += deltaTime * 0.5;
+            // Scale pulse — rings breathe as they ascend
+            const ringPulse = 1.0 + Math.sin(Date.now() / 500 + visual.startHeight) * 0.08;
+            visual.object.scale.setScalar(ringPulse);
           }
           break;
 
@@ -873,7 +942,7 @@ export class MythicRitualController {
           break;
 
         case 'harmony_sphere':
-          // Pulse
+          // Dramatic pulse
           if (visual.object.material) {
             visual.object.material.opacity = THREE.MathUtils.lerp(
               visual.object.material.opacity,
@@ -881,8 +950,27 @@ export class MythicRitualController {
               0.05
             );
 
-            const pulseFactor = 1 + Math.sin(Date.now() / 300) * 0.2;
+            const pulseFactor = 1 + Math.sin(Date.now() / 300) * 0.3 * phaseIntensity;
             visual.object.scale.setScalar(pulseFactor);
+          }
+          break;
+
+        case 'orbiting_mote':
+          // Orbit around harmony sphere center
+          if (visual.object.material) {
+            visual.object.material.opacity = THREE.MathUtils.lerp(
+              visual.object.material.opacity,
+              visual.targetOpacity * phaseIntensity,
+              0.05
+            );
+            const t = Date.now() / 1000;
+            const angle = visual.orbitAngle + t * visual.orbitSpeed;
+            const r = visual.orbitRadius;
+            visual.object.position.set(
+              Math.cos(angle) * r,
+              5 + Math.sin(angle * 0.7 + visual.orbitTilt) * 2,
+              Math.sin(angle) * r
+            );
           }
           break;
 
@@ -900,15 +988,15 @@ export class MythicRitualController {
           break;
 
         case 'chaos_bolt':
-          // Flicker
+          // Sinusoidal flicker — more organic than random
           if (visual.object.material) {
-            const flickerIntensity = Math.random() > 0.5 ? 1.0 : 0.3;
-            visual.object.material.opacity = visual.targetOpacity * phaseIntensity * flickerIntensity;
+            const flicker = 0.25 + Math.abs(Math.sin(Date.now() / 80 + visual.object.position.x * 10)) * 0.75;
+            visual.object.material.opacity = visual.targetOpacity * phaseIntensity * flicker;
           }
           break;
 
         case 'mandala':
-          // Rotate layers
+          // Rotate layers with breathing
           if (visual.object.material) {
             visual.object.material.opacity = THREE.MathUtils.lerp(
               visual.object.material.opacity,
@@ -917,6 +1005,9 @@ export class MythicRitualController {
             );
 
             visual.object.rotation.z += deltaTime * visual.rotationSpeed;
+            // Breathing scale — sacred geometry breathes
+            const breath = 1.0 + Math.sin(Date.now() / 800 + visual.rotationSpeed * 10) * 0.05;
+            visual.object.scale.setScalar(breath);
           }
           break;
 
@@ -935,13 +1026,25 @@ export class MythicRitualController {
           break;
 
         case 'particles':
-          // Fade in/out
+          // Fade in/out with outward drift
           if (visual.object.material) {
             visual.object.material.opacity = THREE.MathUtils.lerp(
               visual.object.material.opacity,
               visual.targetOpacity * phaseIntensity,
               0.05
             );
+            // Drift particles outward
+            if (visual.velocities && visual.object.geometry) {
+              const pos = visual.object.geometry.attributes.position;
+              const vel = visual.velocities;
+              for (let i = 0; i < pos.count; i++) {
+                const i3 = i * 3;
+                pos.array[i3] += vel[i3] * deltaTime;
+                pos.array[i3 + 1] += vel[i3 + 1] * deltaTime;
+                pos.array[i3 + 2] += vel[i3 + 2] * deltaTime;
+              }
+              pos.needsUpdate = true;
+            }
           }
           break;
       }

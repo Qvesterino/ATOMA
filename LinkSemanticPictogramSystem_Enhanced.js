@@ -307,7 +307,8 @@ class EnhancedPictogramInstance {
         this.isOrphanFading = false;
         this.orphanFadeAge = 0.0;
         
-        this.linkProgress = Math.random();
+        // Start near the beginning so the glyph can traverse the link cleanly.
+        this.linkProgress = 0.02 + Math.random() * 0.08;
         this.lateralPhase = Math.random() * Math.PI * 2;
         this.verticalPhase = Math.random() * Math.PI * 2;
         this.microRotationPhase = Math.random() * Math.PI * 2;
@@ -411,19 +412,27 @@ class EnhancedPictogramInstance {
         
         // Handle oscillation or wrapping
         if (this.isOscillating) {
-            if (this.linkProgress > 0.8 || this.linkProgress < 0.2) {
-                if (Math.random() < CONFIG.STANDING_WAVE_REVERSAL_CHANCE) {
-                    this.oscillationDirection *= -1;
-                }
+            const minProgress = 0.2;
+            const maxProgress = 0.8;
+
+            if (this.linkProgress > maxProgress) {
+                const overshoot = this.linkProgress - maxProgress;
+                this.linkProgress = maxProgress - overshoot;
+                this.oscillationDirection = -Math.abs(this.oscillationDirection);
+            } else if (this.linkProgress < minProgress) {
+                const overshoot = minProgress - this.linkProgress;
+                this.linkProgress = minProgress + overshoot;
+                this.oscillationDirection = Math.abs(this.oscillationDirection);
             }
-            if (this.linkProgress > 1.0) this.linkProgress = 0.8;
-            if (this.linkProgress < 0.0) this.linkProgress = 0.2;
+
+            this.linkProgress = THREE.MathUtils.clamp(this.linkProgress, minProgress, maxProgress);
         } else {
-            if (this.linkProgress > 1.0) {
+            if (this.linkProgress >= 1.0) {
                 this.linkProgress = 1.0;
                 this.beginOrphanFade();
                 return;
             }
+            if (this.linkProgress < 0.0) this.linkProgress = 0.0;
         }
 
         // Update phases
@@ -528,7 +537,7 @@ class EnhancedPictogramInstance {
         if (!this.link) return;
         const curve = this.link?.curve;
         const hasCurve = curve && typeof curve.getPointAt === 'function' && typeof curve.getTangentAt === 'function';
-        const t = this.linkProgress % 1;
+        const t = THREE.MathUtils.clamp(this.linkProgress, 0.0, 1.0);
 
         const basePos = this._tmpPos;
         const tangent = this._tmpTan;

@@ -353,7 +353,7 @@ Kompletný katalóg viditeľných VFX efektov v ATOMA. Dokument dokumentov pre v
 
 ---
 
-### 1.3 HarmonicResonanceCoupling_v1.js
+### 1.3c
 
 **Type**: 🎨 GEOMETRY/MESH EMITTER (Transient Particles)
 

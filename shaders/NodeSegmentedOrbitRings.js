@@ -23,6 +23,7 @@ depthWrite:false,
 depthTest:true,
 side: THREE.DoubleSide,
 blending:THREE.AdditiveBlending,
+toneMapped: false,
 uniforms:{
 time:{value:0},
 color:{value:new THREE.Color(0x7fdcff)},
