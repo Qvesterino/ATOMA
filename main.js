@@ -718,9 +718,27 @@ const LORE_TO_LANGUAGE = Object.freeze({
     'node.control.basic': 'lore.node.control',
     'node.storage.basic': 'lore.node.storage',
     'node.analytics.basic': 'lore.node.analytics',
+    'node.integration.basic': 'lore.node.integration',
+    'node.integration': 'lore.node.integration',
+    'node.sigma.basic': 'lore.node.sigma',
+    'node.sigma': 'lore.node.sigma',
+    'node.quantum.basic': 'lore.node.quantum',
+    'node.quantum': 'lore.node.quantum',
+    'node.emotional.basic': 'lore.node.emotional',
+    'node.emotional': 'lore.node.emotional',
+    'node.mythic.basic': 'lore.node.mythic',
+    'node.mythic': 'lore.node.mythic',
+    'node.prime.basic': 'lore.node.prime',
+    'node.prime': 'lore.node.prime',
+    'node.error.basic': 'lore.node.error',
+    'node.error': 'lore.node.error',
     'metric.synergy.basic': 'lore.metric.synergy',
     'metric.harmony.basic': 'lore.metric.harmony',
     'metric.corruption.basic': 'lore.metric.corruption',
+    'metric.stability.basic': 'lore.metric.stability',
+    'metric.stability': 'lore.metric.stability',
+    'metric.loadPressure.basic': 'lore.metric.loadPressure',
+    'metric.loadPressure': 'lore.metric.loadPressure',
     'link.basic': 'lore.link',
     'phenomena.cascade': 'lore.cascade'
 });
@@ -6305,6 +6323,10 @@ this.setHudDirty('nodeInspect');
             this.setEnvironmentalHazardsEnabled(!!window.__ATOMA_ENVIRONMENTAL_HAZARDS_PENDING__);
             delete window.__ATOMA_ENVIRONMENTAL_HAZARDS_PENDING__;
         }
+        if (window.__ATOMA_VISUAL_QUALITY_PENDING__ !== undefined) {
+            this.setVisualQuality(window.__ATOMA_VISUAL_QUALITY_PENDING__);
+            delete window.__ATOMA_VISUAL_QUALITY_PENDING__;
+        }
         removeLegacyRuntimeHudElements();
         window.linkQualityFeedbackLoop = this.linkQualityFeedbackLoop;
         window.linkMLRecommendationEngine = this.linkMLRecommendationEngine;
@@ -6628,6 +6650,40 @@ window.__ATOMA_SCENE__ = this.scene;
             return this.environmentalHazardsEnabled;
         };
 
+        // Visual quality: LOW / MEDIUM / HIGH
+        // LOW    → VisualUpgradeSuperpack OFF, CinematicUpgrade OFF
+        // MEDIUM → VisualUpgradeSuperpack ON,  CinematicUpgrade OFF
+        // HIGH   → VisualUpgradeSuperpack ON,  CinematicUpgrade ON
+        this.setVisualQuality = (level) => {
+            const normalized = typeof level === 'string' ? level.toUpperCase() : 'HIGH';
+            this.visualQualityLevel = normalized;
+
+            const superpackOn = normalized === 'MEDIUM' || normalized === 'HIGH';
+            const cinematicOn = normalized === 'HIGH';
+
+            if (this.visualSuperpack) {
+                this.visualSuperpack.setVisible(superpackOn);
+            }
+            if (this.cinematicUpgrade) {
+                this.cinematicUpgrade.setVisible(cinematicOn);
+            }
+
+            // Restore / reset renderer tone mapping based on superpack state
+            if (this.renderer) {
+                if (superpackOn && this.visualSuperpack) {
+                    const s = this.visualSuperpack.getRendererSettings();
+                    this.renderer.toneMapping = s.toneMapping;
+                    this.renderer.toneMappingExposure = s.toneMappingExposure;
+                    this.renderer.outputColorSpace = s.outputColorSpace;
+                } else {
+                    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                    this.renderer.toneMappingExposure = 1.0;
+                }
+            }
+
+            return this.visualQualityLevel;
+        };
+
         if (this.postProcessingEnabled) {
             void this.postProcessing?.warmup?.(this.renderer);
         }
@@ -6642,6 +6698,9 @@ window.__ATOMA_SCENE__ = this.scene;
             }
             if (bootMenuSettings.environmentalHazards !== undefined) {
                 this.setEnvironmentalHazardsEnabled(bootMenuSettings.environmentalHazards !== false);
+            }
+            if (bootMenuSettings.visuals !== undefined) {
+                this.setVisualQuality(bootMenuSettings.visuals);
             }
         }
 

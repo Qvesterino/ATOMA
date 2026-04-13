@@ -1,212 +1,83 @@
-# Prehľad Harmony VFX Efektov v ATOMA
+# Harmony / Harmonic VFX Audit
 
-Podľa analýzy kódovej základne sú harmonické VFX efekty organizované do niekoľkých prepojených systémov. Tu je kompletný prehľad:
+This audit covers workspace modules that create harmony/harmonic visuals, drive those visuals, or exist as debug and legacy helpers. The main split is simple: does the module own visible geometry, or does it only modify existing meshes and materials?
 
----
+Classification used below:
+- geometry producer: creates its own visible mesh, points, or lines
+- shader/material layer: changes existing geometry only
+- controller/orchestrator: updates state used by other visual systems
+- debug/legacy: useful for inspection, but not part of the primary runtime stack
 
-## Hlavné Harmony VFX Systémy
+## Visual Geometry Producers
 
-### 1. **HarmonyAuraController.js**
-- **Popis:** Riadi harmóniu aura efektov pre jednotlivé uzly (opacity, radius, breathing)
-- **Trigger Event:** `event:harmonyResonance` (čítanie)
-- **Wiring:** 
-  - Inicializovaný v `main.js` pre uzly
-  - Používa `node.userData.harmonyAuraStrength` (0..1)
-  - Aktualizuje shader uniforms: `uAuraOpacity`, `uAuraStrength`, `uAuraRadius`, `uAuraPulse`
+- `HarmonicHubAuraSystem_Session126.js`: shared resonance field around harmonic hubs. Geometry: outer and inner `IcosahedronGeometry`, optional `TorusGeometry` ring, and a debug `SphereGeometry`. Notes: the field is built as a layered group, so the shell reads as a calm hub envelope instead of a flat glow.
 
----
+- `HarmonicNodeResonanceHalos.js`: soft volumetric halo around hubs. Geometry: custom `BufferGeometry` ring/halo surface built from inner and outer radius layers. Notes: cached per node, so the halo behaves like a stable hub authority signal.
 
-### 2. **HarmonicHubAuraSystem_Session126.js**
-- **Popis:** Vytvára zdieľané rezonančné polia medzi blízkymi harmónickými hubmi (uzly s 2+ linkmi a harmony > corruption)
-- **Trigger Event:** 
-  - Číta: `event:harmonyResonance`
-  - Emituje: `harmonic.cascade.start`
-- **Wiring:**
-  - `setupHarmonicHubAuraSystem()` v `main.js`
-  - Update loop: `visual.harmonicHubAuraSystem` (FrameScheduler)
-  - Metóda: `this.harmonicHubAuraSystemTick(deltaTime)`
-  - Používa: `nodeAuraSystem`, `linkResonanceSystem`
+- `HarmonicResonanceCoupling_v1.js`: resonance line between linked nodes plus a midpoint orb. Geometry: `BufferGeometry` line rendered as `THREE.Line`, plus a `SphereGeometry(0.04, 8, 8)` orb. Notes: the visible pulse is line-first and orb-second.
 
----
+- `HarmonicInfluencePropagationSystem_Session127.js`: transparent flame-like influence aura around active nodes and flow segments on links. Geometry: `IcosahedronGeometry(1.0, 3)` aura, LOD `IcosahedronGeometry(1.0, 2)`, and `CylinderGeometry` link flows. Notes: additive, subtle, and LOD-aware.
 
-### 3. **HarmonicNodeResonanceHalos.js**
-- **Popis:** Soft, volumetrické halos okolo harmónických hubov, pulzujúce synchronizovane
-- **Trigger Event:** 
-  - Číta: `event:harmonyResonance`
-  - Čítanie event-driven cez semanticBus
-- **Wiring:**
-  - `setupHarmonicNodeResonanceHalos()` v `main.js`
-  - Update loop: `visual.harmonicNodeResonanceHalos`
-  - Metóda: `this.harmonicNodeHalosTick(deltaTime)`
-  - Používa: `hubSystemData` (z HarmonicHubAuraSystem), `harmonicManagerData` (z NodeHarmonicManager)
+- `LinkResonanceFlowSystem_Session124.js`: the most complex link pulse rig in the stack. Geometry: `IcosahedronGeometry` core, sheath, shell, and ghost; `CylinderGeometry` trail; `OctahedronGeometry` shards; `TorusGeometry` halo; `TorusKnotGeometry` swirl. Notes: this is a composite `THREE.Group`, not a single primitive.
 
----
+- `LinkSemanticPictogramSystem_Enhanced.js`: symbolic link pictograms for harmony, synergy, stability, corruption, and load pressure. Geometry: `TorusGeometry` family for rings and arcs, `SphereGeometry` for cores and sparks, `PlaneGeometry` for diamond tokens. Notes: this is the active semantic link language, and it owns the final pictogram scale.
 
-### 4. **HarmonicResonanceCoupling_v1.js**
-- **Popis:** Synergy-driven vizuálne prepájanie prepojených uzlov (rezonančné častice, shimmer, link glow)
-- **Trigger Event:** Automatický, závislý od synergy medzi uzlami
-- **Wiring:**
-  - `setupHarmonicResonanceCoupling()` v `main.js`
-  - Update loop: `visual.harmonicResonanceCoupling`
-  - Metóda: `this.harmonicResonanceCouplingTick(deltaTime)`
-  - Register: `registerLink(link)` pri vytvorení linku
+- `RegionalHarmonyZones.js`: soft clustered regional harmony zones. Geometry: `IcosahedronGeometry(radius, 3)`. Notes: the zones are world overlays with very low opacity, not hard boundaries.
 
----
+- `ProceduralHarmonicGlyphGenerator.js`: emergent glyph language derived from topology and regional history. Geometry: `BufferGeometry` line sets in arc, loop, radial, and woven patterns, rendered as stacked line layers. Notes: the glyphs are line-based, not mesh-based.
 
-### 5. **CascadingHarmonicResonanceAmplification.js**
-- **Popis:** Kaskádová amplifikácia rezonancie cez topologické vrstvy siete (hub → susedi → sekundárne huby)
-- **Trigger Event:** 
-  - Emituje: `cascade.triggered` (pri prekročení secondary-hub threshold 0.7)
-- **Wiring:**
-  - `setupHarmonicCascadeAmplification()` v `main.js`
-  - Update loop: `simulation.harmonicCascadeAmplification`
-  - Používa: `aiNodes`, `harmonicHubAuraSystem`, `harmonicResonanceCoupling`
-  - Zapisuje do: `node.userData.cascadeStrength`, `node.userData.waveField`
+- `HarmonicResonanceFeedbackSystem.js`: probability clouds and resonance fields. Geometry: `BufferGeometry` + `THREE.Points`; debug field uses `SphereGeometry(1, 16, 16)`. Notes: the particle cloud is the effect, not a side object.
 
----
+- `HarmonicRecoveryVisualSystem_Session138.js`: recovery waves and halo blooms after rupture. Geometry: `PlaneGeometry(1, 1)` for both the coherence wave and the recovery halo. Notes: fully shader-driven, flat quads with circular masks.
 
-### 6. **HarmonicPhaseSynchronization_Session146.js**
-- **Popis:** Synchronizácia fáz medzi blízkymi hubmi pre koherentné vizuálne efekty
-- **Trigger Event:** Automatický, založený na blízkosti hubov (proximity pairs)
-- **Wiring:**
-  - `setupHarmonicPhaseSynchronization()` v `main.js`
-  - Update loop: `visual.harmonicPhaseSynchronization`
-  - Používa: `harmonicCascadeAmplification.getProximityPairs()`, `harmonicHubAuraSystem.hubs`
-  - Aktualizuje: `hub.harmonicPhase` (0 až 2π)
+- `HealingParticleSystem_Session136.js`: healing trails and scar sparkles. Geometry: `BufferGeometry` + `THREE.Points`; debug cube uses `BoxGeometry(80, 80, 80)` and debug probe uses `SphereGeometry(0.25, 10, 10)`. Notes: the runtime effect is particle-based.
 
----
+- `CascadeResonanceWaveVisualization_Session146.js`: subtle wavefront rings and link beams during cascade convergence. Geometry: `PlaneGeometry(1, 1, 32, 32)` ring planes and `BufferGeometry` line beams. Notes: the wave is intentionally ghost-level, but it is still a real mesh system.
 
-### 7. **HarmonicInfluencePropagationSystem_Session127.js**
-- **Popis:** Vizualizuje tok harmónie z hubov cez sieť
-- **Trigger Event:** Automatický, založený na hub detekcii
-- **Wiring:**
-  - `setupHarmonicInfluencePropagation()` v `main.js`
-  - Update loop: `visual.harmonicInfluencePropagation`
-  - Používa: `harmonicHubAuraSystem`, `nodeAuraSystem`
+- `HarmonicTopologyLearningSystem.js`: topology memory, flow bias, and scar traces. Geometry: debug `SphereGeometry(0.3, 8, 8)` markers, `SphereGeometry(0.5, 8, 8)` scar markers, and `BufferGeometry` lines for flow bias. Notes: geometry is debug-only unless the topology debug flag is enabled.
 
----
+## Shader and Material Layers
 
-### 8. **HarmonicRecoveryVisualSystem_Session138.js**
-- **Popis:** Vizuálne zotavenie siete po rupture (Golden Waves)
-- **Trigger Event:** Rupture completion
-- **Wiring:**
-  - `setupHarmonicRecovery()` v `main.js`
-  - Používa: `resonanceRupture`, `healingParticles`
+- `HarmonyAuraController.js`: canonical node aura controller. Geometry: none; it only writes shader uniforms on an existing aura material. Notes: reads `node.userData.harmonyAuraStrength` and keeps the signal read-only.
 
----
+- `HarmonyAuraShaderMaterial.js`: canonical harmony aura shader. Geometry: none; it is a material overlay for existing node geometry. Notes: soft cyan/teal/mint envelope with gentle breathing.
 
-### 9. **HarmonicHealingVisualSystem_Session134.js**
-- **Popis:** Golden Wave vizuálne efekty pre healing
-- **Trigger Event:** Healing pulse events
-- **Wiring:**
-  - `setupHarmonicHealingSystem()` v `main.js`
+- `VisualEchoTrails_v1_Integration.js`: echo trails on link pulses. Geometry: none; the shader is applied to existing `THREE.Line` geometry. Notes: no standalone shape is created.
 
----
+- `HarmonyDebugOverlay.js`: debug tint overlay for harmony state. Geometry: none; it only recolors existing node and link materials. Notes: debug-only and safe to keep disabled.
 
-### 10. **HarmonicAudioReactivitySystem_Session135.js**
-- **Popis:** Audio reaktivita pre harmóniu
-- **Trigger Event:** Audio events
-- **Wiring:**
-  - `setupHarmonicHealingSystem()` v `main.js`
+## Controllers and Orchestrators
 
----
+- `HarmonicPhaseSynchronization_Session146.js`: elastic phase alignment between proximal hubs. Geometry: none. Notes: it updates `hub.harmonicPhase` for downstream visuals.
 
-### 11. **HarmonicResonanceFeedbackSystem.js**
-- **Popis:** Reznančné polia emitované kompozitnými glypmi ovplyvňujúce linky
-- **Trigger Event:** Composite glyph movement
-- **Wiring:**
-  - `setupHarmonicResonanceFeedback()` v `main.js`
-  - Update loop: `visual.harmonicResonanceFeedback` (30 Hz)
+- `HarmonicCascadeAmplification_Session145.js`: cascade orchestration across proximity, phase sync, pre-cascade hints, and wave visualization. Geometry: none by itself. Notes: the submodules do the drawing.
 
----
+- `PreCascadeVisualHint_Session146.js`: subtle tension cues before cascade. Geometry: none. Notes: it biases existing aura, link, and field animation only; no rings, particles, or new geometry.
 
-### 12. **VisualEchoTrails_v1_Shader.js**
-- **Popis:** Harmonické afterimages ako temporálna pamäť pohybu glyphov
-- **Trigger Event:** Glyph movement
-- **Wiring:**
-  - `setupVisualEchoTrails()` v `main.js`
+- `HarmonicHealingVisualSystem_Session134.js`: high-level healing visual driver. Geometry: none. Notes: it mostly wraps the particle system and routes healing state into it.
 
----
+- `HarmonicAudioReactivitySystem_Session135.js`: harmonic soundscape and rupture audio. Geometry: none. Notes: audio-only, so it is excluded from the visual geometry matrix.
 
-### 13. **HarmonicTopologyLearningSystem.js**
-- **Popis:** Vizualizácia dlhodobého učenia siete cez topológiu
-- **Trigger Event:** Network topology changes
-- **Wiring:**
-  - `setupHarmonicTopologyLearning()` v `main.js`
+- `HarmonicHubDebugger.js`: console inspection utilities for harmonic hubs. Geometry: none. Notes: debug tooling, not a render system.
 
----
+## Legacy and Archived Visual Modules
 
-### 14. **ProceduralHarmonicGlyphGenerator.js**
-- **Popis:** Generovanie emergentného vizuálneho jazyka z topológie
-- **Trigger Event:** Topology history
-- **Wiring:**
-  - `setupProceduralHarmonicGlyphs()` v `main.js`
+- `src/legacy/T2_HarmonyVisualConsumer_v1.js`: archived harmony aura, oasis zones, and healing pulses. Geometry: `TubeGeometry` borromean rings, `BoxGeometry` pulse shards, and `SphereGeometry` aura/pulse volumes. Notes: archived because it violates the current visual policy.
 
----
+## Geometry Family Index
 
-### 15. **RegionalHarmonicCycleController.js**
-- **Popis:** Správa harmonických aktivitných cyklov pre regióny
-- **Trigger Event:** Regional phase cycles
-- **Wiring:**
-  - `setupRegionalHarmonicCycles()` v `main.js`
+- `IcosahedronGeometry`: hub fields, regional zones, influence auras, and several link pulse shells
+- `TorusGeometry`: resonance rings, harmony glyphs, pictogram rings, and halo layers
+- `SphereGeometry`: cores, sparks, orbs, debug markers, and probes
+- `PlaneGeometry`: recovery waves, recovery halos, and cascade rings
+- `CylinderGeometry`: link flow segments and trails
+- `BufferGeometry`: custom halos, particles, point clouds, and line glyphs
+- `OctahedronGeometry`: resonance shards in the link pulse rig
+- `TorusKnotGeometry`: swirl accent in the link pulse rig
+- `TubeGeometry`: archived borromean rings in the legacy harmony consumer
 
----
+## Practical Read
 
-### 16. **LinkResonanceFlowSystem_Session124.js**
-- **Popis:** Rezančný tok v linkoch
-- **Trigger Event:** Link resonance events
-- **Wiring:**
-  - `setupLinkResonanceFlowSystem()` v `main.js`
+The visually heaviest active systems are `LinkResonanceFlowSystem_Session124`, `HarmonicHubAuraSystem_Session126`, `LinkSemanticPictogramSystem_Enhanced`, and `HarmonicRecoveryVisualSystem_Session138`.
 
----
-
-### 17. **PreCascadeVisualHint_Session146.js**
-- **Popis:** Subtílne vizuálne náznaky pred kaskádou
-- **Trigger Event:** Phase synchronization prepínače
-- **Wiring:**
-  - `setupPreCascadeVisualHint()` v `main.js`
-
----
-
-## Súhrn Trigger Eventov
-
-| Event | Zdroj | Cieľ |
-|-------|-------|------|
-| `event:harmonyResonance` | CoreMetricsCalculator | HarmonicHubAuraSystem, HarmonicNodeResonanceHalos |
-| `harmonic.cascade.start` | HarmonicHubAuraSystem | Cascade systémy |
-| `cascade.triggered` | CascadingHarmonicResonanceAmplification | Wave/particle systémy |
-| Synergy threshold | Link metrics | HarmonicResonanceCoupling |
-| Hub proximity (2+ links) | Node topology | HarmonicHubAuraSystem, HarmonicNodeResonanceHalos |
-| Rupture completion | ResonanceRuptureSystem | HarmonicRecoveryVisualSystem |
-
----
-
-## Wiring Flowchart
-
-```
-CoreMetricsCalculator
-    ↓ (event:harmonyResonance)
-    ├→ HarmonicHubAuraSystem → (harmonic.cascade.start)
-    │   ↓
-    │   └→ CascadingHarmonicResonanceAmplification → (cascade.triggered)
-    │       ↓
-    │       └→ Wave/Particle Systems
-    │
-    └→ HarmonicNodeResonanceHalos (event-driven)
-
-NodeLinkingSystem
-    ↓
-    ├→ HarmonicResonanceCoupling (synergy-based)
-    │
-    └→ LinkResonanceFlowSystem
-
-HarmonicHubAuraSystem
-    ↓
-    ├→ HarmonicPhaseSynchronization
-    └→ HarmonicInfluencePropagation
-
-HarmonicTopologyLearningSystem
-    ↓
-    ├→ ProceduralHarmonicGlyphGenerator
-    └→ RegionalHarmonicCycleController
-```
+If you are checking for accidental origin spawns, only the geometry producer section can create visible world objects. The controller and shader layers cannot spawn standalone meshes by themselves.

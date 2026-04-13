@@ -178,6 +178,7 @@ export class SafeLegendaryWorldEvents {
     this.renderer = renderer;
     this.root = new THREE.Group();
     this.worldRoot.add(this.root);
+    this.root.position.y = 15;
 
     this.worldOverlayRenderOrder = VisualHierarchyRegistry.getRenderOrder(
       VisualHierarchyRegistry.LAYER_WORLD_OVERLAY
@@ -551,6 +552,30 @@ export class SafeLegendaryWorldEvents {
     return line;
   }
 
+  _createLegendaryWireCage(geometry, options = {}) {
+    const cageGeometry = new THREE.EdgesGeometry(geometry);
+    const material = this._createLegendaryLineMaterial({
+      color: options.color,
+      opacity: options.opacity ?? 0.18,
+      blending: THREE.AdditiveBlending,
+      depthWrite: options.depthWrite ?? false,
+      depthTest: options.depthTest ?? false,
+      linewidth: options.linewidth ?? 1
+    });
+    const cage = new THREE.LineSegments(cageGeometry, material);
+    cage.userData = {
+      isLegendaryWorldVFX: true,
+      type: options.type || 'legendary_cage',
+      phaseOffset: options.phaseOffset ?? 0,
+      baseOpacity: options.baseOpacity ?? (options.opacity ?? 0.18),
+      baseScale: options.baseScale ?? 1
+    };
+    cage.position.copy(options.position || new THREE.Vector3());
+    cage.rotation.copy(options.rotation || new THREE.Euler());
+    cage.scale.setScalar(options.scale ?? 1);
+    return cage;
+  }
+
   _createLegendaryBackdropSheet({
     type,
     color,
@@ -860,6 +885,23 @@ export class SafeLegendaryWorldEvents {
     clampSphere(core);
     this._registerLegendaryObject('meshes', core);
 
+    const resonanceCage = this._createLegendaryWireCage(
+      new THREE.IcosahedronGeometry(13, 0),
+      {
+        type: 'cosmic_cage',
+        color: palette.glow,
+        opacity: 0.18,
+        phaseOffset: seed * 0.29,
+        baseOpacity: 0.18,
+        baseScale: 1.08,
+        scale: 1.08,
+        depthWrite: false,
+        depthTest: false
+      }
+    );
+    resonanceCage.rotation.set(Math.PI * 0.28, Math.PI * 0.18, Math.PI * 0.08);
+    this._registerLegendaryObject('meshes', resonanceCage);
+
     const innerRing = this._createLegendaryMesh(
       new THREE.TorusGeometry(18, 1.1, 16, 176),
       this._createLegendaryMeshMaterial({
@@ -1051,6 +1093,13 @@ export class SafeLegendaryWorldEvents {
         mesh.scale.setScalar(coreScale);
         mesh.material.opacity = 0.4 + envelope.body * 0.28 + envelope.crest * 0.22 + pulse * 0.22;
         mesh.material.color.copy(palette.base).lerp(palette.accent, envelope.body * 0.42 + envelope.crest * 0.22 + beat * 0.12);
+      } else if (type === 'cosmic_cage') {
+        mesh.scale.setScalar(mesh.userData.baseScale * (1.02 + pulse * 0.28 + envelope.body * 0.08 + beat * 0.05));
+        mesh.rotation.x += deltaTime * 0.2;
+        mesh.rotation.y -= deltaTime * 0.16;
+        mesh.rotation.z += deltaTime * 0.09;
+        mesh.material.opacity = mesh.userData.baseOpacity * (0.58 + pulse * 0.86 + envelope.afterglow * 0.2 + beat * 0.1);
+        mesh.material.color.copy(palette.glow).lerp(palette.accent, envelope.body * 0.22 + beat * 0.14);
       } else if (type === 'cosmic_ring_inner') {
         mesh.scale.setScalar((1 + pulse * (0.22 + envelope.body * 0.1)) * mesh.userData.baseScale);
         mesh.rotation.z += deltaTime * 0.35;
@@ -1142,6 +1191,24 @@ export class SafeLegendaryWorldEvents {
     tagAllowedSphere(core, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
     clampSphere(core);
     this._registerLegendaryObject('meshes', core);
+
+    const growthCage = this._createLegendaryWireCage(
+      new THREE.DodecahedronGeometry(9.5, 0),
+      {
+        type: 'fractal_cage',
+        color: palette.aura,
+        opacity: 0.14,
+        phaseOffset: seed * 0.22,
+        baseOpacity: 0.14,
+        baseScale: 1.02,
+        scale: 1.02,
+        depthWrite: false,
+        depthTest: false
+      }
+    );
+    growthCage.position.set(0, 12, 0);
+    growthCage.rotation.set(Math.PI * 0.18, Math.PI * 0.24, Math.PI * 0.07);
+    this._registerLegendaryObject('meshes', growthCage);
 
     const ring = this._createLegendaryMesh(
       new THREE.RingGeometry(20, 34, 120),
@@ -1298,6 +1365,13 @@ export class SafeLegendaryWorldEvents {
         mesh.scale.setScalar(1 + pulse * (0.36 + envelope.body * 0.16) + beat * 0.06 + envelope.crest * 0.04);
         mesh.material.opacity = mesh.userData.baseOpacity + envelope.body * 0.16 + envelope.crest * 0.18 + pulse * 0.16;
         mesh.material.color.copy(palette.accent).lerp(palette.glow, beat * 0.3 + envelope.body * 0.18);
+      } else if (type === 'fractal_cage') {
+        mesh.scale.setScalar(mesh.userData.baseScale * (1.01 + pulse * 0.22 + envelope.body * 0.08 + beat * 0.05));
+        mesh.rotation.x += deltaTime * 0.14;
+        mesh.rotation.y += deltaTime * 0.18;
+        mesh.rotation.z -= deltaTime * 0.1;
+        mesh.material.opacity = mesh.userData.baseOpacity * (0.56 + pulse * 0.82 + envelope.afterglow * 0.18 + beat * 0.08);
+        mesh.material.color.copy(palette.aura).lerp(palette.accent, envelope.body * 0.2 + beat * 0.12);
       } else if (type === 'fractal_ring') {
         mesh.rotation.z += deltaTime * 0.22;
         mesh.scale.setScalar(1 + pulse * (0.14 + envelope.afterglow * 0.08));
@@ -1385,6 +1459,24 @@ export class SafeLegendaryWorldEvents {
     breachPlane.position.set(0, 0, -108);
     breachPlane.rotation.z = 0.02;
     this._registerLegendaryObject('overlays', breachPlane);
+
+    const breachCage = this._createLegendaryWireCage(
+      new THREE.OctahedronGeometry(12.5, 0),
+      {
+        type: 'sigma_cage',
+        color: palette.glow,
+        opacity: 0.16,
+        phaseOffset: seed * 0.25,
+        baseOpacity: 0.16,
+        baseScale: 1.05,
+        scale: 1.05,
+        depthWrite: false,
+        depthTest: false
+      }
+    );
+    breachCage.position.set(0, 10, -108);
+    breachCage.rotation.set(Math.PI * 0.2, Math.PI * 0.25, Math.PI * 0.1);
+    this._registerLegendaryObject('meshes', breachCage);
 
     const shroud = this._createLegendaryBackdropSheet({
       type: 'sigma_shroud',
@@ -1582,7 +1674,19 @@ export class SafeLegendaryWorldEvents {
 
     for (let i = 0; i < this.vfxContainer.meshes.length; i++) {
       const fragment = this.vfxContainer.meshes[i];
-      if (fragment?.userData?.type !== 'sigma_fragment') continue;
+      const type = fragment?.userData?.type;
+      if (!type) continue;
+
+      if (type === 'sigma_cage') {
+        fragment.scale.setScalar(fragment.userData.baseScale * (1.02 + pulse * 0.18 + envelope.body * 0.08 + beat * 0.05));
+        fragment.rotation.x += deltaTime * 0.16;
+        fragment.rotation.y -= deltaTime * (0.2 + pulse * 0.06);
+        fragment.rotation.z += deltaTime * 0.12;
+        fragment.material.opacity = fragment.userData.baseOpacity * (0.52 + pulse * 1.02 + envelope.afterglow * 0.16 + beat * 0.1);
+        fragment.material.color.copy(palette.glow).lerp(palette.accent, envelope.body * 0.18 + pulse * 0.1);
+      } else if (type !== 'sigma_fragment') {
+        continue;
+      }
 
       fragment.position.x += Math.cos(this.animationTime * 0.2 + fragment.userData.phaseOffset) * deltaTime * fragment.userData.driftSpeed * (0.4 + pulse * 0.8);
       fragment.position.z += Math.sin(this.animationTime * 0.24 + fragment.userData.phaseOffset) * deltaTime * fragment.userData.driftSpeed * (0.3 + pulse * 0.7);

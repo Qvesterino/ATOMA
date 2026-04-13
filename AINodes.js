@@ -412,7 +412,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     this.nodes = [];
     this.nodesMap = new Map();
     this.connections = [];
-    this._linkMaterialCache = new Map(); // opacityKey -> shared material
     this.activationDistance = 8;
     this.activationHysteresis = 2; // PHASE VD-3 FIX: Prevent flickering at threshold
     this.connectionDistance = 15;
@@ -983,17 +982,19 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     return mode === 'chamber' ? 80 : 120;
   }
 
-  _getSharedLinkMaterial(opacity = 0) {
-    const key = opacity.toFixed(3);
-    if (this._linkMaterialCache.has(key)) return this._linkMaterialCache.get(key);
-    const mat = new THREE.LineBasicMaterial({
-      color: 0x00ffff,
+  _createEpicLinkMaterial(opacity = 0, color = 0x9ffcff, extra = {}) {
+    const colorValue = color instanceof THREE.Color ? color.clone() : new THREE.Color(color);
+    return new THREE.LineBasicMaterial({
+      color: colorValue,
       transparent: true,
       opacity,
-      depthWrite: false
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+      fog: false,
+      ...extra
     });
-    this._linkMaterialCache.set(key, mat);
-    return mat;
   }
 
   _processLinkJobs() {
@@ -2606,17 +2607,57 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     ];
     
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const material = this._getSharedLinkMaterial(0.05);
-    
-    const line = new THREE.Line(geometry, material);
+    const distance = points[0].distanceTo(points[1]);
+    const pulsePhase = (
+      node1.position.x * 0.31 +
+      node1.position.y * 0.17 +
+      node1.position.z * 0.23 +
+      node2.position.x * 0.29 +
+      node2.position.y * 0.19 +
+      node2.position.z * 0.27
+    );
+    const glowLift = Math.min(0.32, 0.06 + distance * 0.012);
+    const coreColor = new THREE.Color(0xf4ffff);
+    const glowColor = new THREE.Color(0x00dbff);
+
+    const coreMaterial = this._createEpicLinkMaterial(0.3, coreColor);
+    const glowMaterial = this._createEpicLinkMaterial(0.18, glowColor);
+
+    const line = new THREE.Line(geometry, coreMaterial);
+    const glowLine = new THREE.Line(geometry.clone(), glowMaterial);
+    const renderOrderBase = (VisualHierarchyRegistry.getRenderOrder && VisualHierarchyRegistry.getRenderOrder('LINK_PICTO')) || 250;
+
+    line.renderOrder = renderOrderBase + 0.2;
+    glowLine.renderOrder = renderOrderBase + 0.1;
+    line.frustumCulled = false;
+    glowLine.frustumCulled = false;
     line.userData = {
       node1: node1,
       node2: node2,
-      baseOpacity: 0.15,
-      activeOpacity: 0.5,
-      idleOpacity: 0.05
+      baseOpacity: 0.58,
+      activeOpacity: 1,
+      idleOpacity: 0.24,
+      pulsePhase,
+      glowLift,
+      coreColor,
+      glowColor,
+      coreMaterial,
+      glowMaterial,
+      glowLine
     };
+
+    glowLine.userData = {
+      node1: node1,
+      node2: node2,
+      parentConnection: line
+    };
+    glowLine.position.set(
+      Math.sin(pulsePhase * 0.7) * glowLift * 0.2,
+      glowLift,
+      Math.cos(pulsePhase * 0.9) * glowLift * 0.2
+    );
     
+    this.scene.add(glowLine);
     this.scene.add(line);
     this.connections.push(line);
   }
@@ -2765,7 +2806,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // AURA LOD CULLING: Update aura visibility based on distance
     // Update connections
     const connStart = profileStart('updateConnections');
-    this.updateConnections();
+    this.updateConnections(time);
     profileEnd('updateConnections', connStart);
   }
   
@@ -3004,7 +3045,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   /**
    * Update connection lines
    */
-  updateConnections() {
+  updateConnections(time = 0) {
     this.connections.forEach(connection => {
       // LIFECYCLE GUARD: Skip if connection or geometry is disposed
       if (!connection || !connection.geometry || 
@@ -3016,32 +3057,67 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       
       const node1 = connection.userData.node1;
       const node2 = connection.userData.node2;
+      const glowLine = connection.userData.glowLine;
+      const coreMaterial = connection.userData.coreMaterial || connection.material;
+      const glowMaterial = connection.userData.glowMaterial || glowLine?.material;
       
       const isNode1Active = node1.userData.isActive;
       const isNode2Active = node2.userData.isActive;
       
-      const idleOpacity = connection.userData.idleOpacity ?? 0.05;
+      const idleOpacity = connection.userData.idleOpacity ?? 0.2;
       let targetOpacity = idleOpacity;
+      let activationMix = 0;
       // Connection glows when both nodes are active
       if (isNode1Active && isNode2Active) {
         const activation1 = node1.userData.activationLevel;
         const activation2 = node2.userData.activationLevel;
         const avgActivation = (activation1 + activation2) / 2;
         targetOpacity = Math.max(idleOpacity, connection.userData.activeOpacity * avgActivation);
+        activationMix = avgActivation;
       } else if (isNode1Active || isNode2Active) {
         // Dim connection if only one is active
         const activeNode = isNode1Active ? node1 : node2;
         targetOpacity = Math.max(idleOpacity, connection.userData.baseOpacity * 
           activeNode.userData.activationLevel);
+        activationMix = activeNode.userData.activationLevel * 0.6;
       }
+      const pulsePhase = connection.userData.pulsePhase ?? 0;
+      const corePulse = 0.92 + 0.18 * Math.sin((time * 3.1) + pulsePhase);
+      const glowPulse = 0.84 + 0.24 * Math.sin((time * 4.7) + pulsePhase * 1.7 + 1.2);
+      const coreOpacity = Math.min(1, Math.max(idleOpacity, targetOpacity * corePulse + activationMix * 0.12));
+      const glowOpacity = Math.min(0.95, Math.max(idleOpacity * 0.85, coreOpacity * 0.72 + glowPulse * 0.12 + activationMix * 0.06));
 
-      connection.material = this._getSharedLinkMaterial(targetOpacity);
+      coreMaterial.opacity = coreOpacity;
+      if (connection.userData.coreColor) {
+        coreMaterial.color.copy(connection.userData.coreColor);
+      }
+      if (glowMaterial) {
+        glowMaterial.opacity = glowOpacity;
+        if (connection.userData.glowColor) {
+          glowMaterial.color.copy(connection.userData.glowColor);
+        }
+      }
       
       // Update line positions (in case nodes move)
       const positionAttribute = connection.geometry.attributes.position;
       positionAttribute.setXYZ(0, node1.position.x, node1.position.y, node1.position.z);
       positionAttribute.setXYZ(1, node2.position.x, node2.position.y, node2.position.z);
       positionAttribute.needsUpdate = true;
+
+      if (glowLine?.geometry?.attributes?.position) {
+        const glowPositionAttribute = glowLine.geometry.attributes.position;
+        glowPositionAttribute.setXYZ(0, node1.position.x, node1.position.y, node1.position.z);
+        glowPositionAttribute.setXYZ(1, node2.position.x, node2.position.y, node2.position.z);
+        glowPositionAttribute.needsUpdate = true;
+
+        const lift = connection.userData.glowLift ?? 0.08;
+        const liftPulse = 0.88 + glowPulse * 0.18;
+        glowLine.position.set(
+          Math.sin(pulsePhase * 0.7) * lift * 0.2 * liftPulse,
+          lift * liftPulse,
+          Math.cos(pulsePhase * 0.9) * lift * 0.2 * liftPulse
+        );
+      }
     });
   }
 
@@ -4995,7 +5071,13 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     });
     
     this.connections.forEach(connection => {
+      const glowLine = connection.userData?.glowLine;
       this.scene.remove(connection);
+      if (glowLine) {
+        this.scene.remove(glowLine);
+        if (glowLine.geometry) glowLine.geometry.dispose();
+        if (glowLine.material) glowLine.material.dispose();
+      }
       connection.geometry.dispose();
       connection.material.dispose();
     });

@@ -195,6 +195,7 @@ export class SafeWorldResetFix1_0 {
       nodePersonality: null,
       evolvingLinkFX: null,
       worldFXPack: null,
+      cascadeBurstVisual: null,
       scene: null,
       renderer: null,
       aiNodes: null  // VISUAL BOOTSTRAP 3.0: AINodes reference
@@ -324,7 +325,14 @@ export class SafeWorldResetFix1_0 {
     } catch (e) {
       console.warn('⚠ Failed to remove world FX overlays:', e.message);
     }
-    
+
+    try {
+      // Remove cascade burst visual (burst effects)
+      this._removeCascadeBurstVisuals();
+    } catch (e) {
+      console.warn('⚠ Failed to remove cascade burst visual:', e.message);
+    }
+
     // Process deferred cleanup queue
     while (this.cleanupQueue.length > 0) {
       const item = this.cleanupQueue.shift();
@@ -704,7 +712,24 @@ if (!Array.isArray(nodeArray)) {
     
     console.log('  ✓ World FX overlays removed');
   }
-  
+
+  _removeCascadeBurstVisuals() {
+    const cascadeBurstVisual = this.systemRefs.cascadeBurstVisual;
+    if (!cascadeBurstVisual) return;
+
+    // Dispose cascade burst visual (removes all meshes from scene)
+    if (typeof cascadeBurstVisual.dispose === 'function') {
+      try {
+        cascadeBurstVisual.dispose();
+      } catch (e) {
+        console.warn('⚠ Failed to dispose cascade burst visual:', e.message);
+      }
+    }
+
+    this.systemRefs.cascadeBurstVisual = null;
+    console.log('  ✓ Cascade burst visual disposed');
+  }
+
   _rebuildEventReferences() {
     // DISABLED: Legacy metric reactive system
     const eventMgr = null; // this.systemRefs.metricReactiveEvents;

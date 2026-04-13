@@ -592,6 +592,33 @@ export class CinematicUpgrade {
   }
   
   /**
+   * Toggle visibility of all cinematic effects
+   */
+  setVisible(visible) {
+    const vis = !!visible;
+    this.volumetricLights.forEach(lightGroup => {
+      lightGroup.visible = vis;
+    });
+    this.atmosphericLayers.forEach(layer => {
+      layer.visible = vis;
+    });
+    this.dustParticles.forEach(particle => {
+      particle.visible = vis;
+    });
+    if (this.edgeGlowPass?.group) {
+      this.edgeGlowPass.group.visible = vis;
+    }
+    this._visible = vis;
+  }
+
+  /**
+   * Check if effects are currently visible
+   */
+  isVisible() {
+    return this._visible !== false;
+  }
+
+  /**
    * Cleanup
    */
   dispose() {

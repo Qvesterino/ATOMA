@@ -733,6 +733,13 @@ export class PauseMenu {
             const currentIndex = visualLevels.indexOf(settings.visuals);
             const nextIndex = (currentIndex + direction + visualLevels.length) % visualLevels.length;
             settings.visuals = visualLevels[nextIndex];
+            if (typeof window !== 'undefined') {
+                if (window.game?.setVisualQuality) {
+                    window.game.setVisualQuality(settings.visuals);
+                } else {
+                    window.__ATOMA_VISUAL_QUALITY_PENDING__ = settings.visuals;
+                }
+            }
         } else if (settingId === 'particles') {
             settings.particles = !settings.particles;
         } else if (settingId === 'postProcessing') {

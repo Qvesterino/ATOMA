@@ -864,7 +864,7 @@ export function getSettingsRows(settings) {
             id: 'visuals',
             label: 'VISUALS',
             value: `[ ${settings.visuals} ]`,
-            description: 'Adjusts menu presentation intensity without touching live gameplay systems.',
+            description: 'LOW: base visuals only · MEDIUM: +Visual Superpack · HIGH: +Cinematic Upgrade',
         },
         {
             type: 'setting',
@@ -1627,6 +1627,13 @@ export class MainMenu {
             const currentIndex = VISUAL_LEVELS.indexOf(settings.visuals);
             const nextIndex = (currentIndex + direction + VISUAL_LEVELS.length) % VISUAL_LEVELS.length;
             settings.visuals = VISUAL_LEVELS[nextIndex];
+            if (typeof window !== 'undefined') {
+                if (window.game?.setVisualQuality) {
+                    window.game.setVisualQuality(settings.visuals);
+                } else {
+                    window.__ATOMA_VISUAL_QUALITY_PENDING__ = settings.visuals;
+                }
+            }
         } else if (settingId === 'particles') {
             settings.particles = !settings.particles;
         } else if (settingId === 'postProcessing') {

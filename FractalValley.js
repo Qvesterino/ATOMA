@@ -20,6 +20,7 @@ export class FractalValley {
     this.hexTerraces = [];
     this.hexTerraceColliders = [];
     this.fractalFragments = [];
+    this.fractalCrystals = [];
     this.fragmentGlowMaterial = null;
     this.fragmentLightningLines = [];
     this.dataRivers = [];
@@ -30,6 +31,11 @@ export class FractalValley {
     this.riverBlockers = [];
     this.collisionObjects = []; // Track collision meshes
     this.playerGroundOffset = 1;
+    this.ambientSpores = null;
+    this.ambientSporeData = null;
+    this.riverDataStream = null;
+    this.riverDataStreamData = null;
+    this.echoBridgeCrystals = [];
     
     // Session 112+: Initialize map configuration and reference plane
     this.initializeMapConfig();
@@ -57,6 +63,9 @@ export class FractalValley {
     
     // World FX Policy: gate decorative world FX creation
     if (this.enableDecorativeWorldFX) {
+      this.createFractalCrystals();
+      this.createAmbientSpores();
+      this.createRiverDataStream();
       this.createFloatingFragments();
       this.createParticleDrift();
       this.createFractalHolograms();
@@ -175,7 +184,8 @@ export class FractalValley {
     ];
     this.riverCurve = this.createRiverCurve();
     this.bridgePlacements = [
-      { type: 'hero', t: 0.5 }
+      { type: 'hero', t: 0.5 },
+      { type: 'echo', t: 0.72 }
     ];
   }
 
@@ -963,6 +973,60 @@ export class FractalValley {
     return;
   }
 
+  /**
+   * Create fractal crystal formations growing from the valley terrain.
+   * These are mathematical thoughts crystallized into physical form —
+   * octahedral, icosahedral, and tetrahedral shapes with inner glow.
+   */
+  createFractalCrystals() {
+    const crystalCount = 14;
+    const crystalGeometries = [
+      new THREE.OctahedronGeometry(1, 0),
+      new THREE.IcosahedronGeometry(1, 0),
+      new THREE.TetrahedronGeometry(1, 0)
+    ];
+
+    const crystalMaterial = materialRegistry.getStandard('world.fractalvalley.crystal', {
+      color: 0x45b5be,
+      roughness: 0.15,
+      metalness: 0.7,
+      emissive: 0x2ca8c0,
+      emissiveIntensity: 0.15,
+      transparent: true,
+      opacity: 0.82
+    });
+
+    for (let i = 0; i < crystalCount; i++) {
+      const geoIndex = Math.floor(Math.random() * crystalGeometries.length);
+      const size = 0.3 + Math.random() * 0.8;
+      const side = i % 2 === 0 ? -1 : 1;
+      const z = -90 + (i / crystalCount) * 180 + (Math.random() * 2 - 1) * 20;
+      const riverCenterX = this.getRiverCenterX(z);
+      const riverWidth = this.getRiverWidth(z);
+      const x = riverCenterX + side * (riverWidth + 10 + Math.random() * 35);
+      const y = this.sampleTerrainHeight(x, z);
+
+      const crystal = new THREE.Mesh(crystalGeometries[geoIndex], crystalMaterial.clone());
+      crystal.scale.set(size, size * (1.2 + Math.random() * 1.5), size);
+      crystal.position.set(x, y + size * 0.5, z);
+      crystal.rotation.set(
+        (Math.random() - 0.5) * 0.3,
+        Math.random() * Math.PI,
+        (Math.random() - 0.5) * 0.3
+      );
+      crystal.userData = {
+        pulseOffset: Math.random() * Math.PI * 2,
+        baseEmissiveIntensity: 0.1 + Math.random() * 0.15,
+        originalY: y + size * 0.5,
+        floatAmplitude: 0.04 + Math.random() * 0.08,
+        floatSpeed: 0.3 + Math.random() * 0.4
+      };
+      crystal.castShadow = true;
+      this.worldRoot.add(crystal);
+      this.fractalCrystals.push(crystal);
+    }
+  }
+
   createFragmentLightningLine() {
     const segmentCount = 6;
     const lineGeometry = new THREE.BufferGeometry();
@@ -1241,18 +1305,22 @@ export class FractalValley {
   }
 
   createRiverBridges() {
-    this.bridgePlacements
-      .filter((placement) => placement.type === 'hero')
-      .slice(0, 1)
-      .forEach((placement) => {
-        const frame = this.getRiverFrameAt(placement.t);
-        const group = this.createHeroBridge(frame);
+    this.bridgePlacements.forEach((placement) => {
+      const frame = this.getRiverFrameAt(placement.t);
+      let group;
 
+      if (placement.type === 'hero') {
+        group = this.createHeroBridge(frame);
+        this.heroBridgeAnchor = frame.point.clone();
+      } else if (placement.type === 'echo') {
+        group = this.createEchoBridge(frame);
+      }
+
+      if (group) {
         this.worldRoot.add(group);
         this.bridges.push(group);
-
-        this.heroBridgeAnchor = frame.point.clone();
-      });
+      }
+    });
   }
 
   createRiverCollision() {
@@ -1476,6 +1544,184 @@ export class FractalValley {
   createDistantBridge(frame) {
     return new THREE.Group();
   }
+
+  /**
+   * Create the Echo Bridge — an ancient, partially ruined stone structure
+   * spanning a dry riverbed in the northern valley. Fractal crystal formations
+   * grow from the weathered stone, suggesting mathematics itself is alive.
+   * No railings remain — they crumbled long ago.
+   */
+  createEchoBridge(frame) {
+    const span = Math.max(this.getRiverChannelHalfWidth(frame.point.z) * 1.5 + 3.0, 14);
+    const deckWidth = 4.0;
+    const deckRise = 0.38;
+    const deckLowering = 0.12;
+
+    const leftBank = frame.point.clone().add(frame.lateral.clone().multiplyScalar(span * 0.55));
+    const rightBank = frame.point.clone().add(frame.lateral.clone().multiplyScalar(-span * 0.55));
+    const bankHeight = Math.max(
+      this.sampleTerrainHeight(leftBank.x, leftBank.z),
+      this.sampleTerrainHeight(rightBank.x, rightBank.z)
+    );
+    const deckY = Math.max(bankHeight + deckLowering, this.getRiverSurfaceHeight(frame.point.x, frame.point.z) + 2.2);
+
+    const group = new THREE.Group();
+    this.orientGroupToRiverFrame(group, frame, deckY);
+
+    // Ancient weathered stone
+    const ancientStone = materialRegistry.getStandard('world.fractalvalley.bridge.echo.stone', {
+      color: 0x3a3640,
+      roughness: 0.97,
+      metalness: 0.02
+    });
+
+    // Moss-covered stone variant
+    const mossStone = materialRegistry.getStandard('world.fractalvalley.bridge.echo.moss', {
+      color: 0x3d4a3f,
+      roughness: 0.95,
+      metalness: 0.03,
+      emissive: 0x1a3a2a,
+      emissiveIntensity: 0.03
+    });
+
+    // Crystal growth material
+    const crystalMat = materialRegistry.getStandard('world.fractalvalley.bridge.echo.crystal', {
+      color: 0x45b5be,
+      roughness: 0.12,
+      metalness: 0.78,
+      emissive: 0x2ca8c0,
+      emissiveIntensity: 0.3,
+      transparent: true,
+      opacity: 0.85
+    });
+
+    // Main deck — two sections with a small gap (partially ruined)
+    const gapCenter = span * 0.12;
+    const gapWidth = 0.6;
+    const leftSpan = (span * 0.5 + gapCenter) - gapWidth * 0.5;
+    const rightSpan = (span * 0.5 - gapCenter) - gapWidth * 0.5;
+
+    // Left deck section
+    const leftDeckX = -gapCenter * 0.5 - gapWidth * 0.5 - leftSpan * 0.5;
+    group.add(this.createBoxPart(
+      ancientStone,
+      new THREE.Vector3(leftSpan, 0.24, deckWidth),
+      new THREE.Vector3(leftDeckX, deckRise * 0.3, 0)
+    ));
+
+    // Right deck section
+    const rightDeckX = -gapCenter * 0.5 + gapWidth * 0.5 + rightSpan * 0.5;
+    group.add(this.createBoxPart(
+      mossStone,
+      new THREE.Vector3(rightSpan, 0.24, deckWidth),
+      new THREE.Vector3(rightDeckX, deckRise * 0.3, 0)
+    ));
+
+    // Stone arch supports underneath
+    const archCount = 3;
+    for (let i = 0; i < archCount; i++) {
+      const archT = (i + 1) / (archCount + 1);
+      const archX = -span * 0.5 + archT * span;
+      const archHeight = 1.8 + Math.sin(archT * Math.PI) * 0.6;
+      group.add(this.createBoxPart(
+        ancientStone,
+        new THREE.Vector3(0.6, archHeight, deckWidth * 0.85),
+        new THREE.Vector3(archX, -archHeight * 0.3, 0)
+      ));
+    }
+
+    // Crystal growths — fractal formations emerging from the stone
+    const crystalGeo = new THREE.OctahedronGeometry(1, 0);
+    const crystalPositions = [
+      { x: -span * 0.35, z: deckWidth * 0.3, scale: 0.6 },
+      { x: -span * 0.15, z: -deckWidth * 0.25, scale: 0.45 },
+      { x: span * 0.2, z: deckWidth * 0.35, scale: 0.55 },
+      { x: span * 0.4, z: -deckWidth * 0.15, scale: 0.35 },
+      { x: -span * 0.05, z: deckWidth * 0.4, scale: 0.4 },
+      { x: span * 0.1, z: -deckWidth * 0.38, scale: 0.5 }
+    ];
+
+    this.echoBridgeCrystals = [];
+    crystalPositions.forEach((cp) => {
+      const crystal = new THREE.Mesh(crystalGeo, crystalMat.clone());
+      const s = cp.scale;
+      crystal.scale.set(s * 0.5, s * (1.0 + Math.random() * 0.8), s * 0.5);
+      crystal.position.set(cp.x, deckRise * 0.3 + 0.12 + s * 0.3, cp.z);
+      crystal.rotation.set(
+        (Math.random() - 0.5) * 0.4,
+        Math.random() * Math.PI,
+        (Math.random() - 0.5) * 0.3
+      );
+      crystal.userData = {
+        pulseOffset: Math.random() * Math.PI * 2,
+        baseEmissive: 0.2 + Math.random() * 0.15
+      };
+      group.add(crystal);
+      this.echoBridgeCrystals.push(crystal);
+    });
+
+    // Broken railing remnants — just a few posts surviving
+    const remainingPosts = [
+      { x: -span * 0.4, z: deckWidth * 0.42, height: 0.5 },
+      { x: -span * 0.15, z: -deckWidth * 0.42, height: 0.35 },
+      { x: span * 0.3, z: deckWidth * 0.42, height: 0.6 }
+    ];
+    remainingPosts.forEach((post) => {
+      group.add(this.createBoxPart(
+        ancientStone,
+        new THREE.Vector3(0.12, post.height, 0.12),
+        new THREE.Vector3(post.x, deckRise * 0.3 + post.height * 0.5, post.z)
+      ));
+    });
+
+    // Landing areas
+    [-1, 1].forEach((side) => {
+      const endX = side * (span * 0.5 + 3.0);
+      const landingTerrainY = this.sampleTerrainHeight(
+        frame.point.x + frame.lateral.x * endX,
+        frame.point.z + frame.lateral.z * endX
+      ) - deckY;
+      group.add(this.createBoxPart(
+        mossStone,
+        new THREE.Vector3(5.0, 0.18, deckWidth + 0.5),
+        new THREE.Vector3(endX, Math.min(deckRise * 0.3 - 0.05, landingTerrainY + 0.15), 0)
+      ));
+    });
+
+    // Ground surface for player walking
+    this.bridgeGroundSurfaces.push({
+      type: 'echo',
+      point: frame.point.clone(),
+      tangent: frame.tangent.clone(),
+      lateral: frame.lateral.clone(),
+      span,
+      halfWidth: deckWidth * 0.5,
+      deckY,
+      deckRise: deckRise * 0.3,
+      surfaceOffset: 0.12
+    });
+
+    // Collision deck
+    const deckCollider = new THREE.Mesh(
+      this.sharedWorldGeometries.box,
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    deckCollider.name = 'fractalValleyEchoBridgeDeckCollider';
+    deckCollider.scale.set(span * 0.95, 0.2, deckWidth * 0.9);
+    deckCollider.position.set(0, 0.05, 0);
+    deckCollider.userData = {
+      collisionEnabled: true,
+      isWalkable: true,
+      collisionRole: 'terrain',
+      terrainType: 'bridgeDeck',
+      bridgeType: 'echo'
+    };
+    group.add(deckCollider);
+    this.collisionObjects.push(deckCollider);
+
+    group.name = 'fractalValleyEchoBridge';
+    return group;
+  }
   
   /**
    * Create valley mist
@@ -1521,7 +1767,10 @@ export class FractalValley {
         uHorizonColor: { value: new THREE.Color(0x2a3042) },
         uNebulaColor1: { value: new THREE.Color(0x5b5378) },
         uNebulaColor2: { value: new THREE.Color(0x244f5e) },
-        uStarIntensity: { value: 0.42 }
+        uNebulaColor3: { value: new THREE.Color(0x3a2855) },
+        uAuroraColor1: { value: new THREE.Color(0x2ca8c0) },
+        uAuroraColor2: { value: new THREE.Color(0x7b68ae) },
+        uStarIntensity: { value: 0.55 }
       },
       vertexShader: `
         varying vec3 vWorldPosition;
@@ -1537,6 +1786,9 @@ export class FractalValley {
         uniform vec3 uHorizonColor;
         uniform vec3 uNebulaColor1;
         uniform vec3 uNebulaColor2;
+        uniform vec3 uNebulaColor3;
+        uniform vec3 uAuroraColor1;
+        uniform vec3 uAuroraColor2;
         uniform float uStarIntensity;
         varying vec3 vWorldPosition;
 
@@ -1551,24 +1803,56 @@ export class FractalValley {
           return smoothstep(0.985, 1.0, pattern);
         }
 
+        float fractalNoise(vec2 uv, float t) {
+          float v = 0.0;
+          v += sin(uv.x * 3.7 + t * 0.12) * sin(uv.y * 4.3 - t * 0.09) * 0.5;
+          v += sin(uv.x * 7.1 - t * 0.08 + uv.y * 2.9) * 0.25;
+          v += sin(uv.x * 13.3 + uv.y * 11.7 + t * 0.05) * 0.125;
+          return v;
+        }
+
         void main() {
           vec3 dir = normalize(vWorldPosition);
           float height = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
           vec3 baseColor = mix(uHorizonColor, uTopColor, height);
 
           vec2 uv = dir.xz * 0.7;
+
+          // Nebula blobs — drifting fractal clouds
           vec2 blob1 = uv + vec2(sin(uTime * 0.08) * 0.3, cos(uTime * 0.11) * 0.25);
           vec2 blob2 = uv + vec2(cos(uTime * 0.1) * 0.25, sin(uTime * 0.13) * 0.3);
+          vec2 blob3 = uv + vec2(sin(uTime * 0.06) * 0.2, cos(uTime * 0.09) * 0.35);
           float n1 = softBlob(blob1, vec2(-0.2, 0.1), 0.7);
           float n2 = softBlob(blob2, vec2(0.3, -0.2), 0.6);
           float n3 = softBlob(uv, vec2(0.0, 0.3), 0.5);
+          float n4 = softBlob(blob3, vec2(-0.4, -0.15), 0.55);
 
-          float stars = starLayer(uv * 2.8, 0.23) * 0.55 + starLayer(uv * 4.5, 1.57) * 0.4;
+          // Stars — three layers for depth
+          float stars = starLayer(uv * 2.8, 0.23) * 0.55
+                      + starLayer(uv * 4.5, 1.57) * 0.4
+                      + starLayer(uv * 7.2, 3.14) * 0.25;
+
+          // Aurora bands — slow-shifting curtains of light near the horizon
+          float auroraHeight = smoothstep(0.15, 0.55, dir.y) * smoothstep(0.85, 0.55, dir.y);
+          float auroraWave1 = sin(dir.x * 4.5 + uTime * 0.15) * sin(dir.z * 3.2 - uTime * 0.08);
+          float auroraWave2 = sin(dir.x * 6.8 - uTime * 0.12 + dir.z * 2.1) * 0.5;
+          float auroraMask = auroraHeight * (0.5 + 0.5 * auroraWave1 + auroraWave2 * 0.3);
+          auroraMask *= 0.35;
+
+          // Fractal noise overlay for nebula depth
+          float fNoise = fractalNoise(uv * 1.5, uTime);
+
           vec3 color = baseColor;
           color += uNebulaColor1 * n1 * 0.18;
           color += uNebulaColor2 * n2 * 0.14;
+          color += uNebulaColor3 * n4 * 0.12;
           color += mix(uNebulaColor1, uNebulaColor2, 0.5) * n3 * 0.08;
+          color += mix(uNebulaColor1, uNebulaColor3, 0.6) * (0.5 + 0.5 * fNoise) * 0.06;
           color += vec3(1.0) * stars * 0.08 * uStarIntensity;
+
+          // Aurora contribution
+          vec3 auroraColor = mix(uAuroraColor1, uAuroraColor2, 0.5 + 0.5 * auroraWave1);
+          color += auroraColor * auroraMask;
 
           gl_FragColor = vec4(color, 1.0);
         }
@@ -1691,6 +1975,184 @@ export class FractalValley {
   createParticleDrift() {
     // Particle drift removed to keep the foreground composition clean and focused.
     return;
+  }
+
+  /**
+   * Create ambient luminous spores drifting through the valley.
+   * These are fragments of recursive ideas floating between the ridges —
+   * gentle, slow-moving particles that give the valley a sense of life.
+   */
+  createAmbientSpores() {
+    const particleCount = 45;
+    const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+    const alphas = new Float32Array(particleCount);
+    const speeds = new Float32Array(particleCount);
+    const driftX = new Float32Array(particleCount);
+    const driftZ = new Float32Array(particleCount);
+
+    const colorBase = new THREE.Color(0x70bcc2);
+    const colorAccent = new THREE.Color(0xa088cc);
+
+    for (let i = 0; i < particleCount; i++) {
+      const x = (Math.random() - 0.5) * 200;
+      const z = (Math.random() - 0.5) * 200;
+      const y = 2 + Math.random() * 18;
+
+      positions[i * 3] = x;
+      positions[i * 3 + 1] = y;
+      positions[i * 3 + 2] = z;
+
+      const color = Math.random() > 0.7 ? colorAccent : colorBase;
+      colors[i * 3] = color.r;
+      colors[i * 3 + 1] = color.g;
+      colors[i * 3 + 2] = color.b;
+
+      alphas[i] = 0.15 + Math.random() * 0.25;
+      speeds[i] = 0.15 + Math.random() * 0.25;
+      driftX[i] = (Math.random() - 0.5) * 0.3;
+      driftZ[i] = (Math.random() - 0.5) * 0.3;
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1));
+
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uPixelRatio: { value: window.devicePixelRatio || 1 }
+      },
+      vertexShader: `
+        uniform float uPixelRatio;
+        attribute float aAlpha;
+        attribute vec3 aColor;
+        varying vec3 vColor;
+        varying float vAlpha;
+        void main() {
+          vColor = aColor;
+          vAlpha = aAlpha;
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = 12.0 * (uPixelRatio / -mvPosition.z);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        varying float vAlpha;
+        void main() {
+          vec2 uv = gl_PointCoord * 2.0 - 1.0;
+          float dist = length(uv);
+          float mask = smoothstep(1.0, 0.2, dist);
+          float alpha = clamp(mask * vAlpha, 0.0, 1.0);
+          if (alpha < 0.01) discard;
+          gl_FragColor = vec4(vColor, alpha);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    const spores = new THREE.Points(geometry, material);
+    spores.name = 'fractalValleyAmbientSpores';
+    spores.renderOrder = 10;
+    this.worldRoot.add(spores);
+
+    this.ambientSpores = spores;
+    this.ambientSporeData = {
+      speeds,
+      driftX,
+      driftZ,
+      particleCount
+    };
+  }
+
+  /**
+   * Create luminous data particles flowing along the river surface.
+   * These represent the stream of consciousness — bright cyan dots
+   * traveling the river path at varying speeds.
+   */
+  createRiverDataStream() {
+    const particleCount = 35;
+    const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+    const tValues = new Float32Array(particleCount);
+    const lateralOffsets = new Float32Array(particleCount);
+    const speeds = new Float32Array(particleCount);
+
+    const colorBright = new THREE.Color(0x7ed9e5);
+    const colorDim = new THREE.Color(0x35b9c6);
+
+    for (let i = 0; i < particleCount; i++) {
+      tValues[i] = Math.random();
+      lateralOffsets[i] = (Math.random() - 0.5) * 1.6;
+      speeds[i] = 0.015 + Math.random() * 0.02;
+
+      const t = tValues[i];
+      const point = this.riverCurve.getPointAt(t);
+      const tangent = this.riverCurve.getTangentAt(t).normalize();
+      const lateral = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+      const halfWidth = this.getRiverWidth(point.z) * 0.5;
+
+      positions[i * 3] = point.x + lateral.x * lateralOffsets[i] * halfWidth;
+      positions[i * 3 + 1] = this.getRiverSurfaceHeight(point.x, point.z) + 0.15;
+      positions[i * 3 + 2] = point.z + lateral.z * lateralOffsets[i] * halfWidth;
+
+      const color = colorDim.clone().lerp(colorBright, Math.random());
+      colors[i * 3] = color.r;
+      colors[i * 3 + 1] = color.g;
+      colors[i * 3 + 2] = color.b;
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uPixelRatio: { value: window.devicePixelRatio || 1 }
+      },
+      vertexShader: `
+        uniform float uPixelRatio;
+        attribute vec3 aColor;
+        varying vec3 vColor;
+        void main() {
+          vColor = aColor;
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = 8.0 * (uPixelRatio / -mvPosition.z);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        void main() {
+          vec2 uv = gl_PointCoord * 2.0 - 1.0;
+          float dist = length(uv);
+          float alpha = smoothstep(1.0, 0.15, dist) * 0.6;
+          if (alpha < 0.01) discard;
+          gl_FragColor = vec4(vColor, alpha);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    const stream = new THREE.Points(geometry, material);
+    stream.name = 'fractalValleyRiverDataStream';
+    stream.renderOrder = 5;
+    this.worldRoot.add(stream);
+
+    this.riverDataStream = stream;
+    this.riverDataStreamData = {
+      tValues,
+      lateralOffsets,
+      speeds,
+      particleCount,
+      colorBright,
+      colorDim
+    };
   }
 
   /**
@@ -1886,7 +2348,86 @@ export class FractalValley {
         layer.material.opacity = baseOpacities[index] + pulse * amplitudes[index];
       });
     }
-    
+
+    // Fractal crystals pulse and gentle float
+    if (this.allowWorldTimeModulation && this.fractalCrystals) {
+      this.fractalCrystals.forEach(crystal => {
+        const data = crystal.userData;
+        const pulse = 0.5 + 0.5 * Math.sin(time * 0.6 + data.pulseOffset);
+        crystal.material.emissiveIntensity = data.baseEmissiveIntensity + pulse * 0.12;
+        crystal.position.y = data.originalY + Math.sin(time * data.floatSpeed + data.pulseOffset) * data.floatAmplitude;
+      });
+    }
+
+    // Echo bridge crystal glow
+    if (this.allowWorldTimeModulation && this.echoBridgeCrystals) {
+      this.echoBridgeCrystals.forEach(crystal => {
+        const data = crystal.userData;
+        const pulse = 0.5 + 0.5 * Math.sin(time * 0.8 + data.pulseOffset);
+        crystal.material.emissiveIntensity = data.baseEmissive + pulse * 0.18;
+      });
+    }
+
+    // Ambient spores drift
+    if (this.enableDecorativeWorldFX && this.ambientSpores && this.ambientSporeData) {
+      const positions = this.ambientSpores.geometry.attributes.position.array;
+      const data = this.ambientSporeData;
+
+      for (let i = 0; i < data.particleCount; i++) {
+        const idx = i * 3;
+        positions[idx] += data.driftX[i] * deltaTime;
+        positions[idx + 1] += data.speeds[i] * deltaTime;
+        positions[idx + 2] += data.driftZ[i] * deltaTime;
+
+        // Reset spores that drift too high or too far
+        if (positions[idx + 1] > 28 ||
+            Math.abs(positions[idx]) > 110 ||
+            Math.abs(positions[idx + 2]) > 110) {
+          positions[idx] = (Math.random() - 0.5) * 200;
+          positions[idx + 1] = 1 + Math.random() * 3;
+          positions[idx + 2] = (Math.random() - 0.5) * 200;
+        }
+      }
+
+      this.ambientSpores.geometry.attributes.position.needsUpdate = true;
+    }
+
+    // River data stream flow
+    if (this.enableDecorativeWorldFX && this.riverDataStream && this.riverDataStreamData) {
+      const positions = this.riverDataStream.geometry.attributes.position.array;
+      const colors = this.riverDataStream.geometry.attributes.aColor.array;
+      const data = this.riverDataStreamData;
+
+      for (let i = 0; i < data.particleCount; i++) {
+        data.tValues[i] += data.speeds[i] * deltaTime;
+        if (data.tValues[i] > 1.0) {
+          data.tValues[i] -= 1.0;
+        }
+
+        const t = data.tValues[i];
+        const point = this.riverCurve.getPointAt(t);
+        const tangent = this.riverCurve.getTangentAt(t).normalize();
+        const lateral = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+        const halfWidth = this.getRiverWidth(point.z) * 0.5;
+        const lateralOffset = data.lateralOffsets[i] * halfWidth;
+
+        const idx = i * 3;
+        positions[idx] = point.x + lateral.x * lateralOffset;
+        positions[idx + 1] = this.getRiverSurfaceHeight(point.x, point.z) + 0.15;
+        positions[idx + 2] = point.z + lateral.z * lateralOffset;
+
+        // Color shifts along the flow
+        const colorMix = 0.5 + 0.5 * Math.sin(t * Math.PI * 4 + time * 0.5);
+        const color = data.colorDim.clone().lerp(data.colorBright, colorMix);
+        colors[idx] = color.r;
+        colors[idx + 1] = color.g;
+        colors[idx + 2] = color.b;
+      }
+
+      this.riverDataStream.geometry.attributes.position.needsUpdate = true;
+      this.riverDataStream.geometry.attributes.aColor.needsUpdate = true;
+    }
+
     // World FX Policy: gate decorative FX updates
     // Particles drift
     if (this.enableDecorativeWorldFX && this.particles) {

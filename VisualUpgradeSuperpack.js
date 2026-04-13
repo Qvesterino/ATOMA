@@ -1053,6 +1053,30 @@ export class VisualUpgradeSuperpack {
     }
 
     /**
+     * Toggle visibility of all visual upgrade effects
+     */
+    setVisible(visible) {
+        const vis = !!visible;
+        this.volumetricLights.forEach(obj => { obj.visible = vis; });
+        this.atmosphericLayers.forEach(obj => { obj.visible = vis; });
+        this.edgeGlowObjects.forEach(obj => { obj.visible = vis; });
+        this.distortionZones.forEach(obj => { obj.visible = vis; });
+        this.rifts.forEach(obj => { obj.visible = vis; });
+        this.particles.forEach(obj => { obj.visible = vis; });
+        if (this.cameraAura) {
+            this.cameraAura.visible = vis;
+        }
+        this._visible = vis;
+    }
+
+    /**
+     * Check if effects are currently visible
+     */
+    isVisible() {
+        return this._visible !== false;
+    }
+
+    /**
      * Get renderer settings for post-processing
      */
     getRendererSettings() {
