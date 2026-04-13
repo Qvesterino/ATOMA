@@ -99,19 +99,46 @@ export class CascadeResonanceWaveVisualization_Session146 {
       enabled: config.enabled ?? true,
       debugMode: config.debugMode ?? false,
       maxWaveActivePairs: config.maxWaveActivePairs ?? 30,
+      
       // Phase 1: Visible wavefront ripples
       wavefrontRipplesEnabled: config.wavefrontRipplesEnabled ?? true,
+      
+      // Phase 2: Three-Tier Wave Rings (PARALLAX)
+      threeTierRingsEnabled: config.threeTierRingsEnabled ?? true,
+      
+      // Inner Ring (fast, bright)
+      innerRingSpeed: config.innerRingSpeed ?? 2.0,
+      innerRingOpacity: config.innerRingOpacity ?? 0.45,
+      innerRingLifetime: config.innerRingLifetime ?? 0.8,
+      innerRingColor: config.innerRingColor ?? new THREE.Color(0xffffff), // White-cyan
+      
+      // Middle Ring (medium)
+      middleRingSpeed: config.middleRingSpeed ?? 1.0,
+      middleRingOpacity: config.middleRingOpacity ?? 0.30,
+      middleRingLifetime: config.middleRingLifetime ?? 1.2,
+      middleRingColor: config.middleRingColor ?? new THREE.Color(0x00ffff), // Cyan
+      
+      // Outer Ring (slow, diffuse)
+      outerRingSpeed: config.outerRingSpeed ?? 0.5,
+      outerRingOpacity: config.outerRingOpacity ?? 0.15,
+      outerRingLifetime: config.outerRingLifetime ?? 2.0,
+      outerRingColor: config.outerRingColor ?? new THREE.Color(0xaa88ff), // Violet
+      
+      // Common ring parameters
       wavefrontRingCount: config.wavefrontRingCount ?? 3,
       wavefrontRingMaxRadius: config.wavefrontRingMaxRadius ?? 4.0,
       wavefrontRingMinRadius: config.wavefrontRingMinRadius ?? 0.3,
       wavefrontRingSpeed: config.wavefrontRingSpeed ?? 2.0,
       wavefrontRingOpacity: config.wavefrontRingOpacity ?? 0.35,   // Amplified from 0.12
+      
       // Phase 1: Aura tightening pulse
       auraTighteningPulseEnabled: config.auraTighteningPulseEnabled ?? true,
       auraTighteningAmount: config.auraTighteningAmount ?? 0.15,   // Amplified from 0.08
       auraPulseSpeed: config.auraPulseSpeed ?? 3.0,
+      
       // Phase 1: Smooth wave phase transitions
       smoothPhaseTransitionsEnabled: config.smoothPhaseTransitionsEnabled ?? true,
+      
       // Phase 3: Premium interference + echo effects
       interferenceEnabled: config.interferenceEnabled ?? true,
       interferenceBoost: config.interferenceBoost ?? 0.15,         // Amplified from 0.08
@@ -119,7 +146,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
       echoTrailEnabled: config.echoTrailEnabled ?? true,
       echoTrailDuration: config.echoTrailDuration ?? 0.8,
       echoTrailOpacity: config.echoTrailOpacity ?? 0.12,           // Amplified from 0.03
-      echoTrailThreshold: config.echoTrailThreshold ?? 0.15,       // Lowered from 0.2
+      echoTrailThreshold: config.echoTrailThreshold ?? 0.15,       // Lowered from 0.2,
+      
       // Phase 2: Glow and beam effects
       hubGlowModulationEnabled: config.hubGlowModulationEnabled ?? true,
       hubGlowIntensity: config.hubGlowIntensity ?? 0.20,           // Amplified from 0.05
@@ -127,6 +155,25 @@ export class CascadeResonanceWaveVisualization_Session146 {
       linkResonanceBeamEnabled: config.linkResonanceBeamEnabled ?? true,
       linkBeamOpacity: config.linkBeamOpacity ?? 0.25,             // Amplified from 0.08
       linkBeamColor: config.linkBeamColor ?? new THREE.Color(0x9fdfff),
+      
+      // Phase 2: Multi-Layer Link Beams
+      multiLayerBeamsEnabled: config.multiLayerBeamsEnabled ?? true,
+      
+      // Core Beam (hot)
+      coreBeamWidth: config.coreBeamWidth ?? 1.0,
+      coreBeamOpacity: config.coreBeamOpacity ?? 0.5,
+      coreBeamPulseSpeed: config.coreBeamPulseSpeed ?? 3.0,
+      
+      // Glow Layer
+      glowLayerWidth: config.glowLayerWidth ?? 2.5,
+      glowLayerOpacity: config.glowLayerOpacity ?? 0.25,
+      glowLayerPulseSpeed: config.glowLayerPulseSpeed ?? 1.5,
+      
+      // Aura Layer
+      auraLayerWidth: config.auraLayerWidth ?? 4.0,
+      auraLayerOpacity: config.auraLayerOpacity ?? 0.12,
+      auraLayerPulseSpeed: config.auraLayerPulseSpeed ?? 0.8,
+      
       waveStrengthIndicatorEnabled: config.waveStrengthIndicatorEnabled ?? true
     };
     
@@ -137,8 +184,13 @@ export class CascadeResonanceWaveVisualization_Session146 {
     // Phase 1: Wavefront ring pool (reused geometries)
     this._ringGeometryPool = null;
     this._ringMaterial = null;
-    this._activeRings = []; // Array of { mesh, waveKey, startTime, hubAId, hubBId }
+    this._activeRings = []; // Array of { mesh, waveKey, startTime, hubAId, hubBId, tier }
     this._freeRingIndices = [];
+
+    // Phase 2: Three-tier ring indices for parallax
+    this._innerRingIndices = [];
+    this._middleRingIndices = [];
+    this._outerRingIndices = [];
 
     // Phase 2: Resonance beam pool (reused line meshes)
     this._beamGeometryPool = null;
@@ -171,7 +223,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
   }
 
   /**
-   * Phase 2: Initialize link resonance beam system
+   * Phase 2: Initialize link resonance beam system with EPIC shader (ATM_RESONANCE_BEAM_v2)
+   * Phase 2: Multi-layer beams (Core, Glow, Aura) for depth and richness
    */
   _initLinkResonanceBeamSystem() {
     if (!this.config.linkResonanceBeamEnabled) return;
@@ -183,22 +236,149 @@ export class CascadeResonanceWaveVisualization_Session146 {
 
     const beamCount = Math.max(1, Math.min(this.config.maxWaveActivePairs, 32));
 
-    for (let i = 0; i < beamCount; i++) {
-      const geometry = new THREE.BufferGeometry();
-      const positions = new Float32Array(6);
-      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      geometry.setDrawRange(0, 2);
+    // EPIC RESONANCE BEAM SHADER (ATM_RESONANCE_BEAM_v2)
+    // Features:
+    // - Core hot line: exp(-dist²×18) — white-hot center
+    // - Primary glow: exp(-dist²×6) — colored
+    // - Secondary outer glow: exp(-dist²×2) — soft
+    // - Energy pulse traveling: bright pulse moves along the beam
+    // - Cross-interference: when beams overlap
+    // - Harmony luminance boost: 0.85 + harmony × 0.20
+    // - Corruption flicker: >0.3 corruption triggers high-frequency flicker
+    const beamMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uColor: { value: new THREE.Color(0x9fdfff) }, // Cyan-white
+        uTime: { value: 0.0 },
+        uOpacity: { value: 0.0 },
+        uPulsePhase: { value: 0.0 }, // Pulse traveling phase
+        uHarmony: { value: 0.5 }, // Harmony for luminance boost
+        uCorruption: { value: 0.0 }, // Corruption for flicker
+        uBeamLength: { value: 1.0 }, // Beam length for pulse calculation
+        uLayerType: { value: 0 } // 0=core, 1=glow, 2=aura
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying float vDistFromCenter;
+        
+        void main() {
+          vUv = uv;
+          // Distance from center line (UV.x = 0.5 is center)
+          vDistFromCenter = abs(uv.x - 0.5) * 2.0;
+          
+          // Path displacement: beam pulses along the link
+          float pulseDisplacement = sin(uv.y * 10.0 - uTime * 3.0) * 0.02 * vDistFromCenter;
+          
+          vec3 newPos = position;
+          newPos.x += pulseDisplacement;
+          
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor;
+        uniform float uTime;
+        uniform float uOpacity;
+        uniform float uPulsePhase;
+        uniform float uHarmony;
+        uniform float uCorruption;
+        uniform float uBeamLength;
+        uniform float uLayerType;
+        
+        varying vec2 vUv;
+        varying float vDistFromCenter;
+        
+        // Random function for flicker
+        float random(vec2 st) {
+          return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+        }
+        
+        void main() {
+          // Layer-specific glow intensity
+          float coreIntensity = (uLayerType == 0.0) ? 1.0 : 0.0;
+          float glowIntensity = (uLayerType == 1.0) ? 1.0 : 0.0;
+          float auraIntensity = (uLayerType == 2.0) ? 1.0 : 0.0;
+          
+          // Core hot line: exp(-dist²×18) — white-hot center
+          float hotCore = exp(-pow(vDistFromCenter, 2.0) * 18.0) * coreIntensity;
+          
+          // Primary glow: exp(-dist²×6) — colored
+          float primaryGlow = exp(-pow(vDistFromCenter, 2.0) * 6.0) * 0.8 * (coreIntensity + glowIntensity);
+          
+          // Secondary outer glow: exp(-dist²×2) — soft
+          float outerGlow = exp(-pow(vDistFromCenter, 2.0) * 2.0) * 0.4 * (glowIntensity + auraIntensity);
+          
+          // Energy pulse traveling: bright pulse moves along the beam
+          float pulsePos = (uPulsePhase + vUv.y) * 3.14159;
+          float travelingPulse = exp(-pow(sin(pulsePos), 2.0) * 8.0) * 0.6;
+          travelingPulse *= smoothstep(0.0, 0.2, vDistFromCenter);
+          travelingPulse *= (coreIntensity + glowIntensity * 0.7);
+          
+          // Combine all glow layers
+          float glow = hotCore + primaryGlow + outerGlow + travelingPulse;
+          
+          // Harmony luminance boost: 0.85 + harmony × 0.20
+          float harmonyBoost = 0.85 + uHarmony * 0.20;
+          glow *= harmonyBoost;
+          
+          // Corruption flicker: >0.3 corruption triggers high-frequency flicker
+          float corruptionFlicker = 1.0;
+          if (uCorruption > 0.3) {
+            float flickerIntensity = (uCorruption - 0.3) / 0.7;
+            float flickerNoise = random(vec2(uTime * 20.0, vUv.y * 10.0));
+            corruptionFlicker = 1.0 + (flickerNoise - 0.5) * flickerIntensity * 0.5;
+            glow *= corruptionFlicker;
+          }
+          
+          // Cross-interference: subtle variation along beam
+          float interference = sin(vUv.y * 20.0 + uTime * 2.0) * 0.5 + 0.5;
+          glow *= (0.9 + interference * 0.1);
+          
+          // Hot core whitening: white center with colored glow
+          vec3 finalColor = mix(uColor, vec3(1.0), hotCore * 0.8);
+          finalColor += vec3(travelingPulse) * 0.3;
+          
+          float alpha = glow * uOpacity;
+          
+          gl_FragColor = vec4(finalColor, alpha);
+          
+          // Early discard for performance
+          if (alpha < 0.003) discard;
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+      customProgramCacheKey: () => 'ATM_RESONANCE_BEAM_v2'
+    });
 
-      const material = new THREE.LineBasicMaterial({
-        color: this.config.linkBeamColor.clone(),
-        transparent: true,
-        opacity: 0.0,
-        depthWrite: false,
-        depthTest: true,
-        blending: THREE.AdditiveBlending
-      });
+    // Create MULTI-LAYER beams (core, glow, aura per wave pair)
+    const layersPerBeam = 3; // Core, Glow, Aura
+    const totalMeshes = beamCount * layersPerBeam;
 
-      const line = new THREE.Line(geometry, material);
+    for (let i = 0; i < totalMeshes; i++) {
+      const wavePairIndex = Math.floor(i / layersPerBeam);
+      const layerIndex = i % layersPerBeam;
+      
+      let radius;
+      if (layerIndex === 0) {
+        radius = this.config.coreBeamWidth * 0.15; // Core
+      } else if (layerIndex === 1) {
+        radius = this.config.glowLayerWidth * 0.15; // Glow
+      } else {
+        radius = this.config.auraLayerWidth * 0.15; // Aura
+      }
+      
+      // Use CylinderGeometry for thick beam effect
+      const geometry = new THREE.CylinderGeometry(radius, radius, 1.0, 8, 1, true);
+      geometry.rotateZ(Math.PI / 2); // Rotate to align with Y-axis (beam direction)
+
+      const material = beamMaterial.clone();
+      material.uniforms.uLayerType.value = layerIndex;
+
+      const line = new THREE.Mesh(geometry, material);
       line.visible = false;
       line.renderOrder = VisualHierarchyRegistry?.getRenderOrder?.(VisualHierarchyRegistry.LAYER_LINK_CASCADE) ?? 13;
       scene.add(line);
@@ -207,14 +387,17 @@ export class CascadeResonanceWaveVisualization_Session146 {
         line,
         geometry,
         active: false,
-        index: i
+        index: i,
+        wavePairIndex: wavePairIndex,
+        layerType: layerIndex // 0=core, 1=glow, 2=aura
       });
       this._freeBeamIndices.push(i);
     }
   }
 
   /**
-   * Phase 1: Initialize wavefront ring system
+   * Phase 1: Initialize wavefront ring system with EPIC shader (ATM_WAVE_RING_v3)
+   * Phase 2: Three-tier ring system for parallax effect
    */
   _initWavefrontRingSystem() {
     if (!this.config.wavefrontRipplesEnabled) return;
@@ -222,68 +405,154 @@ export class CascadeResonanceWaveVisualization_Session146 {
     
     const scene = this.harmonicHubSystem.world.scene;
     
-    // Create ring geometry (plane with circle shader)
-    const ringGeometry = new THREE.PlaneGeometry(1, 1, 32, 32);
+    // Create ring geometry (plane with circle shader) - higher detail for EPIC shaders
+    const ringGeometry = new THREE.PlaneGeometry(1, 1, 64, 64);
     
-    // Create ring material (cyan-white, circular gradient)
+    // EPIC RING SHADER (ATM_WAVE_RING_v3)
+    // Features:
+    // - Multi-lobe glow: hot core (exp×12) + inner (exp×6) + soft halo (exp×3)
+    // - Energy shimmer: radial sine pattern
+    // - Iridescent color shift: cyan ↔ violet ↔ gold based on wave phase
+    // - Hot core whitening: additive white at high intensity
+    // - Interference pattern: cross-ring interference for multiple waves
+    // - Sparkle fringe: high-frequency sparkle at outer edge
+    // - Early discard: alpha < 0.003
     const ringMaterial = new THREE.ShaderMaterial({
       uniforms: {
-        uColor: { value: new THREE.Color(0x7ffcff) }, // Cyan-white
+        uColor: { value: new THREE.Color(0x7ffcff) }, // Cyan-white base
+        uTime: { value: 0.0 },
         uOpacity: { value: 1.0 },
-        uTime: { value: 0 }
+        uWavePhase: { value: 0.0 }, // Wave phase for iridescence
+        uIntensity: { value: 1.0 }, // Intensity for hot core whitening
+        uInterference: { value: 0.0 } // Interference factor
       },
       vertexShader: `
         varying vec2 vUv;
+        varying float vDist;
+        
         void main() {
           vUv = uv;
+          vec2 center = uv - 0.5;
+          vDist = length(center);
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
         uniform vec3 uColor;
-        uniform float uOpacity;
         uniform float uTime;
+        uniform float uOpacity;
+        uniform float uWavePhase;
+        uniform float uIntensity;
+        uniform float uInterference;
+        
         varying vec2 vUv;
+        varying float vDist;
+        
+        // Hash function for noise
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+        }
         
         void main() {
           vec2 center = vUv - 0.5;
           float dist = length(center);
+          float angle = atan(center.y, center.x);
           
-          // Circular ring with soft edges
-          float ring = smoothstep(0.45, 0.48, dist) * (1.0 - smoothstep(0.48, 0.50, dist));
+          // Circular ring with soft edges (expanded from simple ring)
+          float ringBase = smoothstep(0.44, 0.465, dist) * (1.0 - smoothstep(0.465, 0.50, dist));
           
-          // Inner glow
-          float innerGlow = smoothstep(0.48, 0.45, dist) * 0.3;
+          // Multi-lobe glow: hot core + inner glow + soft halo
+          float hotCore = exp(-pow(dist - 0.455, 2.0) * 12.0);
+          float innerGlow = exp(-pow(dist - 0.455, 2.0) * 6.0) * 0.6;
+          float softHalo = exp(-pow(dist - 0.455, 2.0) * 3.0) * 0.3;
+          float multiLobe = hotCore + innerGlow + softHalo;
           
-          float alpha = (ring + innerGlow) * uOpacity;
+          // Energy shimmer: radial sine pattern
+          float shimmer = sin(angle * 8.0 + uTime * 3.0 + dist * 20.0) * 0.5 + 0.5;
+          shimmer *= smoothstep(0.50, 0.45, dist) * smoothstep(0.42, 0.45, dist);
           
-          gl_FragColor = vec4(uColor, alpha);
+          // Iridescent color shift: cyan ↔ violet ↔ gold based on wave phase
+          vec3 cyanColor = vec3(0.0, 0.9, 1.0);
+          vec3 violetColor = vec3(0.6, 0.2, 1.0);
+          vec3 goldColor = vec3(1.0, 0.8, 0.0);
           
-          if (alpha < 0.01) discard;
+          float phaseShift = sin(uWavePhase * 6.28318 + dist * 4.0) * 0.5 + 0.5;
+          vec3 iridescentColor;
+          if (phaseShift < 0.5) {
+            float t = phaseShift * 2.0;
+            iridescentColor = mix(cyanColor, violetColor, t);
+          } else {
+            float t = (phaseShift - 0.5) * 2.0;
+            iridescentColor = mix(violetColor, goldColor, t);
+          }
+          
+          // Hot core whitening: additive white at high intensity
+          float hotCoreWhite = hotCore * uIntensity;
+          vec3 finalColor = mix(iridescentColor, vec3(1.0), hotCoreWhite * 0.7);
+          finalColor += shimmer * 0.15;
+          
+          // Interference pattern: cross-ring interference for multiple waves
+          float interferencePattern = sin(angle * 16.0 + uTime * 2.0) * 0.5 + 0.5;
+          interferencePattern *= uInterference;
+          finalColor += interferencePattern * 0.2;
+          
+          // Sparkle fringe: high-frequency sparkle at outer edge
+          float sparkleNoise = hash(vUv * 50.0 + uTime * 2.0);
+          float sparkleFringe = smoothstep(0.48, 0.50, dist) * sparkleNoise * 0.4;
+          finalColor += sparkleFringe;
+          
+          // Combine all effects
+          float alpha = (multiLobe + shimmer * 0.2 + sparkleFringe) * uOpacity * (1.0 + uInterference * 0.3);
+          
+          vec3 color = mix(uColor, finalColor, 0.7);
+          color += vec3(1.0) * hotCoreWhite * 0.5;
+          
+          gl_FragColor = vec4(color, alpha);
+          
+          // Early discard for performance
+          if (alpha < 0.003) discard;
         }
       `,
       transparent: true,
       depthWrite: false,
       depthTest: false,
       blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
+      toneMapped: false,
+      customProgramCacheKey: () => 'ATM_WAVE_RING_v3'
     });
     
     this._ringGeometry = ringGeometry;
     this._ringMaterial = ringMaterial;
     
-    // Create ring pool (reused meshes)
+    // Create ring pool (reused meshes) - THREE TIERS for parallax
     this._ringGeometryPool = [];
-    const ringCount = this.config.maxWaveActivePairs * this.config.wavefrontRingCount;
+    const ringsPerTier = Math.ceil(this.config.maxWaveActivePairs * this.config.wavefrontRingCount / 3);
+    const ringCount = ringsPerTier * 3; // 3 tiers
     
     for (let i = 0; i < ringCount; i++) {
-      const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+      const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial.clone());
       ringMesh.visible = false;
       ringMesh.renderOrder = VisualHierarchyRegistry?.getRenderOrder?.(VisualHierarchyRegistry.LAYER_LINK_CASCADE) ?? 13; // High render order for overlay effect
       scene.add(ringMesh);
+      
+      // Assign tier for parallax
+      let tier;
+      if (i < ringsPerTier) {
+        tier = 'inner';
+        this._innerRingIndices.push(i);
+      } else if (i < ringsPerTier * 2) {
+        tier = 'middle';
+        this._middleRingIndices.push(i);
+      } else {
+        tier = 'outer';
+        this._outerRingIndices.push(i);
+      }
+      
       this._ringGeometryPool.push({
         mesh: ringMesh,
         index: i,
+        tier: tier,
         active: false
       });
       this._freeRingIndices.push(i);
@@ -291,12 +560,38 @@ export class CascadeResonanceWaveVisualization_Session146 {
   }
 
   /**
-   * Phase 1: Allocate ring from pool
+   * Phase 1: Allocate ring from pool (tier-aware for parallax)
    */
-  _allocateRing() {
+  _allocateRing(tier = 'any') {
     if (!this._freeRingIndices || this._freeRingIndices.length === 0) return null;
-    const index = this._freeRingIndices.pop();
-    const ringEntry = this._ringGeometryPool[index];
+    
+    // Try to allocate from specific tier first, then any
+    let targetIndex = -1;
+    if (tier !== 'any') {
+      const tierIndices = tier === 'inner' ? this._innerRingIndices : 
+                          tier === 'middle' ? this._middleRingIndices : 
+                          this._outerRingIndices;
+      
+      for (const idx of tierIndices) {
+        if (this._freeRingIndices.includes(idx)) {
+          targetIndex = idx;
+          break;
+        }
+      }
+    }
+    
+    if (targetIndex === -1) {
+      targetIndex = this._freeRingIndices.pop();
+    } else {
+      const freeIdx = this._freeRingIndices.indexOf(targetIndex);
+      if (freeIdx !== -1) {
+        this._freeRingIndices.splice(freeIdx, 1);
+      }
+    }
+    
+    if (targetIndex === -1) return null;
+    
+    const ringEntry = this._ringGeometryPool[targetIndex];
     if (!ringEntry) return null;
     
     ringEntry.active = true;
@@ -936,8 +1231,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
   }
 
   /**
-   * Phase 1: Update wavefront ring ripples
-   * Spawns visible ring ripples from hubs when waves are active.
+   * Phase 1: Update wavefront ring ripples with EPIC shader parameters
+   * Phase 2: Three-tier parallax effect with different speeds, colors, and lifetimes
    */
   _updateWavefrontRipples() {
     if (!this.config.wavefrontRipplesEnabled) return;
@@ -946,8 +1241,28 @@ export class CascadeResonanceWaveVisualization_Session146 {
     // Update existing active rings
     for (let i = this._activeRings.length - 1; i >= 0; i--) {
       const activeRing = this._activeRings[i];
+      
+      // Get tier-specific parameters for parallax
+      let ringSpeed, ringLifetime, ringOpacity, ringColor;
+      if (activeRing.tier === 'inner') {
+        ringSpeed = this.config.innerRingSpeed;
+        ringLifetime = this.config.innerRingLifetime;
+        ringOpacity = this.config.innerRingOpacity;
+        ringColor = this.config.innerRingColor;
+      } else if (activeRing.tier === 'middle') {
+        ringSpeed = this.config.middleRingSpeed;
+        ringLifetime = this.config.middleRingLifetime;
+        ringOpacity = this.config.middleRingOpacity;
+        ringColor = this.config.middleRingColor;
+      } else {
+        ringSpeed = this.config.outerRingSpeed;
+        ringLifetime = this.config.outerRingLifetime;
+        ringOpacity = this.config.outerRingOpacity;
+        ringColor = this.config.outerRingColor;
+      }
+      
       const age = this.globalWaveTime - activeRing.startTime;
-      const maxAge = this.config.wavefrontRingMaxRadius / this.config.wavefrontRingSpeed;
+      const maxAge = this.config.wavefrontRingMaxRadius / (this.config.wavefrontRingSpeed * ringSpeed);
       const progress = age / maxAge;
 
       if (progress >= 1.0) {
@@ -961,17 +1276,33 @@ export class CascadeResonanceWaveVisualization_Session146 {
       const radius = this.config.wavefrontRingMinRadius + progress * (this.config.wavefrontRingMaxRadius - this.config.wavefrontRingMinRadius);
       activeRing.ringEntry.mesh.scale.setScalar(radius);
 
-      // Fade out opacity (peaked at 30% lifetime, fades after)
-      const fadeProgress = progress < 0.3 ? progress / 0.3 : 1 - (progress - 0.3) / 0.7;
-      const opacity = fadeProgress * activeRing.influence * this.config.wavefrontRingOpacity;
-      activeRing.ringEntry.mesh.material.uniforms.uOpacity.value = opacity;
-      activeRing.ringEntry.mesh.material.uniforms.uTime.value = this.globalWaveTime;
+      // Parallax fade-out: rings fade at different rates
+      // Inner rings fade quickly, outer rings fade slowly
+      let fadeProgress;
+      if (activeRing.tier === 'inner') {
+        fadeProgress = progress < 0.2 ? progress / 0.2 : 1 - (progress - 0.2) / 0.8;
+      } else if (activeRing.tier === 'middle') {
+        fadeProgress = progress < 0.25 ? progress / 0.25 : 1 - (progress - 0.25) / 0.75;
+      } else {
+        fadeProgress = progress < 0.3 ? progress / 0.3 : 1 - (progress - 0.3) / 0.7;
+      }
+      
+      const opacity = fadeProgress * activeRing.influence * ringOpacity;
+      
+      // EPIC shader uniforms
+      const uniforms = activeRing.ringEntry.mesh.material.uniforms;
+      uniforms.uOpacity.value = opacity;
+      uniforms.uTime.value = this.globalWaveTime;
+      uniforms.uWavePhase.value = (this.globalWaveTime * 0.5 * ringSpeed + activeRing.wavePhase) % 1.0;
+      uniforms.uIntensity.value = activeRing.influence;
+      uniforms.uInterference.value = 0.3 * Math.sin(this.globalWaveTime * 3.0 + activeRing.wavePhase * Math.PI * 2) * 0.5 + 0.5;
+      uniforms.uColor.value.copy(ringColor);
     }
 
-    // Spawn new rings for active waves
+    // Spawn new rings for active waves - THREE TIERS for parallax
     if (this.activeWaves.size > 0 && this._activeRings.length < this._ringGeometryPool.length) {
       for (const [waveKey, waveData] of this.activeWaves.entries()) {
-        // Only spawn ring when wave phase crosses threshold (periodic spawn)
+        // Only spawn rings when wave phase crosses threshold (periodic spawn)
         const phaseInCycle = (this.globalWaveTime * this.config.wavefrontRingSpeed) % 1.0;
         const shouldSpawn = phaseInCycle < 0.05 && waveData.influence > 0.3;
 
@@ -984,20 +1315,36 @@ export class CascadeResonanceWaveVisualization_Session146 {
         const hubPosition = this._resolveHubWorldPosition(hubA);
         if (!hubPosition) continue;
 
-        const ringEntry = this._allocateRing();
-        if (!ringEntry) continue;
+        // Try to spawn all three tiers for parallax effect
+        const tiers = ['inner', 'middle', 'outer'];
+        for (const tier of tiers) {
+          const ringEntry = this._allocateRing(tier);
+          if (!ringEntry) continue;
 
-        ringEntry.mesh.position.copy(hubPosition);
-        ringEntry.mesh.scale.setScalar(this.config.wavefrontRingMinRadius);
+          ringEntry.mesh.position.copy(hubPosition);
+          ringEntry.mesh.scale.setScalar(this.config.wavefrontRingMinRadius);
 
-        this._activeRings.push({
-          ringEntry,
-          waveKey,
-          startTime: this.globalWaveTime,
-          influence: waveData.influence,
-          hubAId: waveData.hubAId,
-          hubBId: waveData.hubBId
-        });
+          // Stagger spawn times for parallax (inner first, then middle, then outer)
+ let spawnDelay = 0;
+          if (tier === 'inner') {
+            spawnDelay = 0;
+          } else if (tier === 'middle') {
+            spawnDelay = 0.15; // 150ms delay
+          } else {
+            spawnDelay = 0.30; // 300ms delay
+          }
+
+          this._activeRings.push({
+            ringEntry,
+            waveKey,
+            startTime: this.globalWaveTime - spawnDelay, // Negative start time for staggered spawn
+            influence: waveData.influence,
+            wavePhase: waveData.wavePhase,
+            hubAId: waveData.hubAId,
+            hubBId: waveData.hubBId,
+            tier: tier
+          });
+        }
       }
     }
   }
@@ -1074,9 +1421,12 @@ export class CascadeResonanceWaveVisualization_Session146 {
     }
     this._activeBeams.length = 0;
 
-    let usedBeams = 0;
+    let usedBeamPairs = 0;
+    const layersPerBeam = 3; // Core, Glow, Aura
+    const maxBeamPairs = Math.floor(this._beamGeometryPool.length / layersPerBeam);
+
     for (const waveData of this.activeWaves.values()) {
-      if (usedBeams >= this._beamGeometryPool.length) break;
+      if (usedBeamPairs >= maxBeamPairs) break;
       if (waveData.influence <= 0.15) continue;
 
       const hubA = this.harmonicHubSystem.hubs?.get(waveData.hubAId);
@@ -1087,32 +1437,80 @@ export class CascadeResonanceWaveVisualization_Session146 {
       const posB = this._resolveHubWorldPosition(hubB);
       if (!posA || !posB) continue;
 
-      const beamEntry = this._allocateBeam();
-      if (!beamEntry) break;
+      // Allocate all three layers for this wave pair
+      let allocatedLayers = 0;
+      for (let layerIndex = 0; layerIndex < layersPerBeam; layerIndex++) {
+        const beamEntry = this._allocateBeam();
+        if (!beamEntry) break;
+        
+        // Position and orient the beam (CylinderGeometry)
+        const direction = new THREE.Vector3().subVectors(posB, posA);
+        const beamLength = direction.length();
+        beamEntry.line.scale.set(1, beamLength, 1);
+        
+        // Position at midpoint
+        const midpoint = new THREE.Vector3().addVectors(posA, posB).multiplyScalar(0.5);
+        beamEntry.line.position.copy(midpoint);
+        
+        // Orient to look at target
+        beamEntry.line.lookAt(posB);
+        
+        // Layer-specific parameters
+        let pulseSpeed, baseOpacity;
+        if (layerIndex === 0) {
+          // Core Beam (hot)
+          pulseSpeed = this.config.coreBeamPulseSpeed;
+          baseOpacity = this.config.coreBeamOpacity;
+        } else if (layerIndex === 1) {
+          // Glow Layer
+          pulseSpeed = this.config.glowLayerPulseSpeed;
+          baseOpacity = this.config.glowLayerOpacity;
+        } else {
+          // Aura Layer
+          pulseSpeed = this.config.auraLayerPulseSpeed;
+          baseOpacity = this.config.auraLayerOpacity;
+        }
+        
+        // EPIC shader uniforms
+        const uniforms = beamEntry.line.material.uniforms;
+        
+        // Pulse traveling phase (layer-specific speed)
+        const phasePulse = Math.sin(this.globalWaveTime * pulseSpeed + waveData.wavePhase * Math.PI * 2) * 0.5 + 0.5;
+        const opacity = Math.min(1.0, baseOpacity * waveData.influence * (0.6 + 0.4 * phasePulse));
+        uniforms.uOpacity.value = opacity;
+        uniforms.uTime.value = this.globalWaveTime;
+        uniforms.uPulsePhase.value = this.globalWaveTime * 0.8 * (pulseSpeed / 3.0) + waveData.wavePhase;
+        uniforms.uBeamLength.value = beamLength;
+        uniforms.uLayerType.value = layerIndex;
+        
+        // Harmony and corruption from hubs
+        const hubAState = this._readHubWaveState(hubA);
+        const hubBState = this._readHubWaveState(hubB);
+        const avgHarmony = (hubAState.harmony + hubBState.harmony) * 0.5;
+        const avgCorruption = (hubAState.corruption + hubBState.corruption) * 0.5;
+        
+        uniforms.uHarmony.value = avgHarmony;
+        uniforms.uCorruption.value = avgCorruption;
+        
+        // Color based on harmony (shift toward gold when high harmony)
+        if (avgHarmony > 0.7) {
+          const harmonyColor = new THREE.Color(0xffcc66); // Gold
+          uniforms.uColor.value.lerp(harmonyColor, (avgHarmony - 0.7) / 0.3);
+        } else {
+          uniforms.uColor.value.copy(this.config.linkBeamColor);
+        }
 
-      const positions = beamEntry.geometry.attributes.position.array;
-      positions[0] = posA.x;
-      positions[1] = posA.y;
-      positions[2] = posA.z;
-      positions[3] = posB.x;
-      positions[4] = posB.y;
-      positions[5] = posB.z;
-      beamEntry.geometry.attributes.position.needsUpdate = true;
-      beamEntry.geometry.computeBoundingSphere?.();
-
-      const beamMaterial = beamEntry.line.material;
-      const phasePulse = Math.sin(this.globalWaveTime * 2.0 + waveData.wavePhase * Math.PI * 2) * 0.5 + 0.5;
-      const opacity = Math.min(1.0, this.config.linkBeamOpacity * waveData.influence * (0.6 + 0.4 * phasePulse));
-      beamMaterial.opacity = opacity;
-      if (beamMaterial.color) {
-        beamMaterial.color.copy(this.config.linkBeamColor);
+        // Add a slight motion bias along the link direction using userData
+        beamEntry.line.userData._wavePhase = waveData.wavePhase;
+        beamEntry.line.renderOrder = VisualHierarchyRegistry?.getRenderOrder?.(VisualHierarchyRegistry.LAYER_LINK_CASCADE) ?? 13;
+        
+        this._activeBeams.push(beamEntry);
+        allocatedLayers++;
       }
-
-      // Add a slight motion bias along the link direction using userData
-      beamEntry.line.userData._wavePhase = waveData.wavePhase;
-      beamEntry.line.renderOrder = VisualHierarchyRegistry?.getRenderOrder?.(VisualHierarchyRegistry.LAYER_LINK_CASCADE) ?? 13;
-      usedBeams += 1;
-      this._activeBeams.push(beamEntry);
+      
+      if (allocatedLayers === layersPerBeam) {
+        usedBeamPairs++;
+      }
     }
   }
 
@@ -1131,26 +1529,48 @@ export class CascadeResonanceWaveVisualization_Session146 {
       const hub = this.harmonicHubSystem.hubs?.get(hubId);
       if (!hub || !hub.aura || !hub.aura.material) continue;
 
+      const hubState = this._readHubWaveState(hub);
+      
+      // EPIC: Wave passing modulation with multiple layers
       const glowPulse = Math.sin((this.globalWaveTime + totalInfluence) * Math.PI * 2) * 0.5 + 0.5;
       const glowStrength = Math.min(1, totalInfluence) * this.config.hubGlowIntensity * glowPulse;
       const material = hub.aura.material;
 
+      // Emissive intensity modulation
       if (Number.isFinite(material.emissiveIntensity)) {
         if (hub._baseAuraEmissiveIntensity === undefined) {
           hub._baseAuraEmissiveIntensity = material.emissiveIntensity;
         }
-        material.emissiveIntensity = hub._baseAuraEmissiveIntensity * (1 + glowStrength);
+        // EPIC: Elastic overshoot for intensity
+        const elasticOvershoot = 1.0 + Math.sin(this.globalWaveTime * 4.0) * 0.15 * totalInfluence;
+        material.emissiveIntensity = hub._baseAuraEmissiveIntensity * (1 + glowStrength) * elasticOvershoot;
       }
 
+      // Color lerp with iridescent shift
       if (material.emissive && typeof material.emissive.copy === 'function') {
         if (!hub._baseAuraEmissiveColor) {
           hub._baseAuraEmissiveColor = material.emissive.clone();
         }
-        material.emissive.copy(hub._baseAuraEmissiveColor).lerp(this.config.hubGlowColor, Math.min(1, totalInfluence * 0.5));
+        // EPIC: Iridescent color shift based on harmony
+        const iridescentShift = Math.sin(this.globalWaveTime * 2.0 + hubState.harmony * Math.PI) * 0.5 + 0.5;
+        const colorMix = Math.min(1, totalInfluence * 0.5) * (0.7 + iridescentShift * 0.3);
+        material.emissive.copy(hub._baseAuraEmissiveColor).lerp(this.config.hubGlowColor, colorMix);
       }
 
+      // EPIC: Wave passing distortion (Fresnel modulation)
       if (material.uniforms?.uGlowIntensity) {
-        material.uniforms.uGlowIntensity.value = Math.max(material.uniforms.uGlowIntensity.value, glowStrength);
+        const wavePhase = Math.sin(this.globalWaveTime * 3.0) * 0.5 + 0.5;
+        material.uniforms.uGlowIntensity.value = Math.max(material.uniforms.uGlowIntensity.value, glowStrength * wavePhase);
+      }
+      
+      // EPIC: Phase-aligned shimmer
+      if (material.uniforms?.uWavePhase) {
+        material.uniforms.uWavePhase.value = this.globalWaveTime;
+      }
+      
+      // EPIC: Fresnel wave distortion
+      if (material.uniforms?.uWaveDistortion) {
+        material.uniforms.uWaveDistortion.value = totalInfluence * 0.3;
       }
     }
   }
@@ -1170,22 +1590,52 @@ export class CascadeResonanceWaveVisualization_Session146 {
       const hub = this.harmonicHubSystem.hubs?.get(hubId);
       if (!hub || !hub.aura || !hub.aura.material) continue;
 
+      const hubState = this._readHubWaveState(hub);
       const strength = Math.min(1, totalInfluence);
-      const indicatorPulse = Math.sin(this.globalWaveTime * 1.5 + strength * Math.PI) * 0.5 + 0.5;
-      const indicatorIntensity = strength * 0.12 * indicatorPulse;
+      
+      // EPIC: Multi-phase indicator pulse (not just simple sine)
+      const indicatorPhase = this.globalWaveTime * 1.5 + strength * Math.PI;
+      const indicatorPulse = Math.sin(indicatorPhase) * 0.5 + 0.5;
+      
+      // Add secondary harmonic for more organic feel
+      const harmonicPulse = Math.sin(indicatorPhase * 2.1) * 0.25 + 0.75;
+      const combinedPulse = indicatorPulse * harmonicPulse;
+      
+      const indicatorIntensity = strength * 0.15 * combinedPulse;
       const material = hub.aura.material;
 
+      // Opacity modulation
       if (Number.isFinite(material.opacity)) {
         const baseOpacity = hub._baseAuraOpacity ?? material.opacity;
         if (hub._baseAuraOpacity === undefined) hub._baseAuraOpacity = baseOpacity;
-        material.opacity = Math.max(0, Math.min(1, baseOpacity + indicatorIntensity));
+        
+        // EPIC: Elastic breathing
+        const elasticBreathing = 1.0 + Math.sin(this.globalWaveTime * 3.5) * 0.1 * strength;
+        material.opacity = Math.max(0, Math.min(1, baseOpacity + indicatorIntensity * elasticBreathing));
       }
 
+      // Aura color modulation
       if (material.uniforms?.uAuraColor && material.uniforms.uAuraColor.value) {
         if (!hub._baseAuraColor) {
           hub._baseAuraColor = material.uniforms.uAuraColor.value.clone();
         }
-        material.uniforms.uAuraColor.value.copy(hub._baseAuraColor).lerp(this.config.hubGlowColor, strength * 0.2);
+        
+        // EPIC: Color shift based on harmony + influence
+        const colorShift = strength * 0.3;
+        const harmonyBoost = hubState.harmony > 0.6 ? (hubState.harmony - 0.6) / 0.4 : 0;
+        const finalColorMix = colorShift * (1.0 + harmonyBoost * 0.5);
+        
+        material.uniforms.uAuraColor.value.copy(hub._baseAuraColor).lerp(this.config.hubGlowColor, finalColorMix);
+      }
+      
+      // EPIC: Wave passing distortion effect
+      if (material.uniforms?.uWavePassing) {
+        material.uniforms.uWavePassing.value = strength;
+      }
+      
+      // EPIC: Wave speed modulation
+      if (material.uniforms?.uWaveSpeed) {
+        material.uniforms.uWaveSpeed.value = 1.0 + strength * 0.5;
       }
     }
   }
@@ -1207,16 +1657,32 @@ export class CascadeResonanceWaveVisualization_Session146 {
       const constructive = coherence;
       const destructive = 1 - coherence;
 
+      // EPIC: Enhanced interference with visual feedback
       const interferenceDelta = constructive * this.config.interferenceBoost - destructive * this.config.interferenceDampening;
+      
+      // Emissive intensity with interference modulation
       if (Number.isFinite(material.emissiveIntensity)) {
         if (hub._baseAuraEmissiveIntensity === undefined) {
           hub._baseAuraEmissiveIntensity = material.emissiveIntensity;
         }
-        material.emissiveIntensity = Math.max(0, hub._baseAuraEmissiveIntensity * (1 + interferenceDelta));
+        // EPIC: Constructive = bright and hot, Destructive = dim and cool
+        const intensityMod = 1.0 + interferenceDelta * 2.0;
+        material.emissiveIntensity = Math.max(0, hub._baseAuraEmissiveIntensity * intensityMod);
       }
 
+      // EPIC: Color shift based on interference type
       if (material.uniforms?.uGlowIntensity) {
         material.uniforms.uGlowIntensity.value = Math.max(material.uniforms.uGlowIntensity.value, Math.max(0, interferenceDelta));
+      }
+      
+      // EPIC: Visual coherence indicator (uniform for aura shader)
+      if (material.uniforms?.uCoherence) {
+        material.uniforms.uCoherence.value = coherence;
+      }
+      
+      // EPIC: Interference pattern uniform
+      if (material.uniforms?.uInterferencePattern) {
+        material.uniforms.uInterferencePattern.value = constructive;
       }
 
       const echoStrength = Math.min(1, total) * coherence;

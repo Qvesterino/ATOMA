@@ -186,11 +186,11 @@ test('ensureMetrics seeds placeholder canonical metrics from archetype snapshot 
       nodeId: 'error-1',
       visualCode: 1105,
       archetypeMetrics: {
-        synergy: 0.163333,
-        harmony: 0.163333,
-        stability: 0.300000,
-        corruption: 0.873333,
-        loadPressure: 0.793333
+        synergy: 0.140157,
+        harmony: 0.128969,
+        stability: 0.224775,
+        corruption: 0.781345,
+        loadPressure: 0.609660
       },
       metrics: {
         synergy: 0,
@@ -205,23 +205,23 @@ test('ensureMetrics seeds placeholder canonical metrics from archetype snapshot 
   };
 
   const metrics = ensureMetrics(seededNode);
-  assert.ok(Math.abs(metrics.synergy - 0.163333) < 1e-6, 'Expected synergy to seed from archetype snapshot');
-  assert.ok(Math.abs(metrics.harmony - 0.163333) < 1e-6, 'Expected harmony to seed from archetype snapshot');
-  assert.ok(Math.abs(metrics.stability - 0.3) < 1e-6, 'Expected stability to seed from archetype snapshot');
-  assert.ok(Math.abs(metrics.corruption - 0.873333) < 1e-6, 'Expected corruption to seed from archetype snapshot');
-  assert.ok(Math.abs(metrics.loadPressure - 0.793333) < 1e-6, 'Expected loadPressure to seed from archetype snapshot');
-  assert.ok(Math.abs(seededNode.userData.load - 0.793333) < 1e-6, 'Expected load alias to stay aligned');
+  assert.ok(Math.abs(metrics.synergy - 0.140157) < 1e-6, 'Expected synergy to seed from archetype snapshot');
+  assert.ok(Math.abs(metrics.harmony - 0.128969) < 1e-6, 'Expected harmony to seed from archetype snapshot');
+  assert.ok(Math.abs(metrics.stability - 0.224775) < 1e-6, 'Expected stability to seed from archetype snapshot');
+  assert.ok(Math.abs(metrics.corruption - 0.781345) < 1e-6, 'Expected corruption to seed from archetype snapshot');
+  assert.ok(Math.abs(metrics.loadPressure - 0.609660) < 1e-6, 'Expected loadPressure to seed from archetype snapshot');
+  assert.ok(Math.abs(seededNode.userData.load - 0.609660) < 1e-6, 'Expected load alias to stay aligned');
 
   const liveNode = {
     userData: {
       nodeId: 'control-1',
       visualCode: 602,
       archetypeMetrics: {
-        synergy: 0.530526,
-        harmony: 0.728421,
-        stability: 0.826842,
-        corruption: 0.022632,
-        loadPressure: 0.370526
+        synergy: 0.401263,
+        harmony: 0.591847,
+        stability: 0.682174,
+        corruption: 0.019836,
+        loadPressure: 0.326841
       },
       metrics: {
         synergy: 0.5,

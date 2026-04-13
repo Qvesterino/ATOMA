@@ -4983,11 +4983,29 @@ class AtomaGame {
         // REMOVED: Memory trails update - moved to LEGACY/GRAVEYARD (2026-04-05)
         this.frameScheduler.register('visual', (dt) => {
             if (this.visualSuperpack) {
+                const liveMetrics = typeof window !== 'undefined' ? (window.__ATOMA_LIVE_METRICS__ || null) : null;
+                if (liveMetrics) {
+                    this.visualSuperpack.setMetrics({
+                        harmony: liveMetrics.harmony,
+                        corruption: liveMetrics.corruption,
+                        synergy: liveMetrics.synergy,
+                        stability: liveMetrics.stability
+                    });
+                }
                 this.visualSuperpack.update(dt);
             }
         }, 'visual.visualSuperpack');
         this.frameScheduler.register('visual', (dt) => {
             if (this.cinematicUpgrade) {
+                const liveMetrics = typeof window !== 'undefined' ? (window.__ATOMA_LIVE_METRICS__ || null) : null;
+                if (liveMetrics) {
+                    this.cinematicUpgrade.setMetrics({
+                        harmony: liveMetrics.harmony,
+                        corruption: liveMetrics.corruption,
+                        synergy: liveMetrics.synergy,
+                        stability: liveMetrics.stability
+                    });
+                }
                 this.cinematicUpgrade.update(dt);
             }
         }, 'visual.cinematicUpgrade');
@@ -13060,6 +13078,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         // Apply color grading
         this.cinematicUpgrade.applyColorGrading(this.renderer);
+
+        // Wire into post-processing pipeline for real bloom/vignette modulation
+        if (this.postProcessing) {
+            this.cinematicUpgrade.setPostProcessing(this.postProcessing);
+        }
     }
 
     /**

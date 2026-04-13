@@ -1,32 +1,66 @@
 import * as THREE from 'three';
 
 /**
- * CinematicUpgrade - Non-destructive Cinematic Visual Enhancement
- * Adds volumetric lighting, atmospheric effects, and color grading
- * WITHOUT modifying terrain, materials, or base environment
+ * CinematicUpgrade - Premium Cinematic Visual Enhancement Layer
+ *
+ * This is the HIGH-tier visual upgrade that adds effects ON TOP of
+ * VisualUpgradeSuperpack (MEDIUM tier). It does NOT duplicate the
+ * superpack's volumetric lights, fog, or camera aura.
+ *
+ * Unique effects provided:
+ * - Floating dust field (camera-proximate orbiting particles)
+ * - Holographic edge glow (camera-attached cinematic halo)
+ * - Real post-processing parameter modulation (bloom, vignette, chromatic)
+ * - Metrics-reactive color temperature and exposure
+ * - Smooth fade transitions when toggled
+ *
+ * Performance: All per-frame allocations are cached.
  */
 export class CinematicUpgrade {
   constructor(scene, camera) {
     this.scene = scene;
     this.camera = camera;
-    
-    this.volumetricLights = [];
-    this.atmosphericLayers = [];
+
+    // Cached vectors — zero per-frame allocations
+    this._vec3a = new THREE.Vector3();
+    this._vec3b = new THREE.Vector3();
+
+    // Effect containers (only unique effects, no duplication with Superpack)
     this.dustParticles = [];
     this.edgeGlowPass = null;
     this.sharedTextures = {};
     this.time = 0;
+
+    // Smooth fade
+    this._fadeOpacity = 1;
+    this._targetOpacity = 1;
+    this._fadeSpeed = 2.5; // opacity units per second
+
+    // Metrics reactivity (smoothed)
+    this._metrics = {
+      harmony: 0.5,
+      corruption: 0,
+      synergy: 0.5,
+      stability: 0.5
+    };
+
+    // Post-processing integration
+    this._renderer = null;
+    this._postProcessing = null;
+    this._baseExposure = 0.98;
   }
-  
+
   /**
-   * Apply cinematic enhancements
+   * Apply cinematic enhancements (unique effects only)
    */
   initialize() {
-    this.createVolumetricLighting();
-    this.createAtmosphericLayers();
     this.createFloatingDustField();
     this.createHolographicEdgeGlow();
   }
+
+  // ============================================================
+  // TEXTURE HELPERS
+  // ============================================================
 
   _toRgba(color, alpha) {
     const rgb = new THREE.Color(color);
@@ -94,196 +128,10 @@ export class CinematicUpgrade {
       }
     });
   }
-  
-  /**
-   * Create soft volumetric lighting cones
-   */
-  createVolumetricLighting() {
-    const lightPositions = [
-      { pos: new THREE.Vector3(50, 40, 30), color: 0x00ffff, intensity: 0.15 },
-      { pos: new THREE.Vector3(-50, 35, -40), color: 0xff00ff, intensity: 0.12 },
-      { pos: new THREE.Vector3(0, 50, -60), color: 0xff99ff, intensity: 0.1 }
-    ];
 
-    const glowTexture = this._createRadialGradientTexture('volumetricGlow', [
-      [0.0, 0xffffff, 0.95],
-      [0.18, 0xffffff, 0.72],
-      [0.45, 0xffffff, 0.28],
-      [1.0, 0xffffff, 0.0]
-    ]);
-
-    const coneGeometry = new THREE.ConeGeometry(1, 1, 32, 1, true);
-    const coreGeometry = new THREE.SphereGeometry(1, 16, 16);
-
-    const createLightMaterial = (color, opacity) => new THREE.MeshBasicMaterial({
-      color,
-      map: glowTexture || null,
-      alphaMap: glowTexture || null,
-      transparent: true,
-      opacity,
-      blending: THREE.AdditiveBlending,
-      side: THREE.BackSide,
-      depthWrite: false,
-      fog: false,
-      toneMapped: false
-    });
-
-    const createLayer = (role, scale, color, opacity, rotationZ = 0) => {
-      const mesh = new THREE.Mesh(coneGeometry, createLightMaterial(color, opacity));
-      mesh.scale.set(scale[0], scale[1], scale[2]);
-      mesh.rotation.x = Math.PI / 2;
-      mesh.rotation.z = rotationZ;
-      mesh.userData = {
-        role,
-        baseScale: new THREE.Vector3(scale[0], scale[1], scale[2]),
-        baseOpacity: opacity
-      };
-      return mesh;
-    };
-    
-    lightPositions.forEach(light => {
-      const lightGroup = new THREE.Group();
-      lightGroup.position.copy(light.pos);
-      lightGroup.renderOrder = 12;
-      lightGroup.userData = {
-        basePosition: light.pos.clone(),
-        pulseSpeed: 0.45 + Math.random() * 0.25,
-        phase: Math.random() * Math.PI * 2,
-        driftRadius: 1.5 + Math.random() * 1.5,
-        driftHeight: 0.8 + Math.random() * 0.6
-      };
-
-      const outerCone = createLayer('outerCone', [34, 86, 34], light.color, light.intensity * 0.18, Math.PI / 7);
-      const bloomCone = createLayer('bloomCone', [26, 68, 26], 0xffffff, light.intensity * 0.14, -Math.PI / 10);
-      const innerCone = createLayer('innerCone', [16, 46, 16], light.color, light.intensity * 0.3, Math.PI / 12);
-
-      const core = new THREE.Mesh(
-        coreGeometry,
-        new THREE.MeshBasicMaterial({
-          color: light.color,
-          transparent: true,
-          opacity: light.intensity * 0.9,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-          fog: false,
-          toneMapped: false
-        })
-      );
-      core.scale.set(0.9, 0.9, 0.9);
-      core.userData = {
-        role: 'core',
-        baseScale: new THREE.Vector3(0.9, 0.9, 0.9),
-        baseOpacity: light.intensity * 0.9
-      };
-
-      const haloRing = new THREE.Mesh(
-        new THREE.TorusGeometry(0.95, 0.05, 8, 32),
-        new THREE.MeshBasicMaterial({
-          color: light.color,
-          transparent: true,
-          opacity: light.intensity * 0.12,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-          fog: false,
-          toneMapped: false
-        })
-      );
-      haloRing.rotation.x = Math.PI / 2;
-      haloRing.userData = {
-        role: 'haloRing',
-        baseScale: new THREE.Vector3(1, 1, 1),
-        baseOpacity: light.intensity * 0.12
-      };
-
-      lightGroup.add(outerCone);
-      lightGroup.add(bloomCone);
-      lightGroup.add(innerCone);
-      lightGroup.add(haloRing);
-      lightGroup.add(core);
-
-      this.scene.add(lightGroup);
-      this.volumetricLights.push(lightGroup);
-    });
-  }
-  
-  /**
-   * Create 3-layer atmospheric fog system
-   */
-  createAtmosphericLayers() {
-    const mistTexture = this._createRadialGradientTexture('atmosphereMist', [
-      [0.0, 0xffffff, 0.24],
-      [0.35, 0xffffff, 0.16],
-      [0.72, 0xffffff, 0.05],
-      [1.0, 0xffffff, 0.0]
-    ], 512);
-
-    const layers = [
-      {
-        name: 'groundMist',
-        height: 1,
-        color: new THREE.Color(0xd4a5ff),
-        opacity: 0.12,
-        size: 250,
-        followFactor: 0.92,
-        driftRadius: 4.5,
-        pulseSpeed: 0.22
-      },
-      {
-        name: 'midHaze',
-        height: 25,
-        color: new THREE.Color(0xccb5ff),
-        opacity: 0.08,
-        size: 300,
-        followFactor: 0.56,
-        driftRadius: 8.5,
-        pulseSpeed: 0.16
-      },
-      {
-        name: 'distantGlow',
-        height: 50,
-        color: new THREE.Color(0xffffee),
-        opacity: 0.05,
-        size: 350,
-        followFactor: 0.22,
-        driftRadius: 12.5,
-        pulseSpeed: 0.11
-      }
-    ];
-    
-    layers.forEach(layer => {
-      const geometry = new THREE.PlaneGeometry(layer.size, layer.size);
-      const material = new THREE.MeshBasicMaterial({
-        color: layer.color,
-        map: mistTexture || null,
-        alphaMap: mistTexture || null,
-        transparent: true,
-        opacity: layer.opacity,
-        blending: THREE.AdditiveBlending,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-        fog: false,
-        toneMapped: false
-      });
-      
-      const plane = new THREE.Mesh(geometry, material);
-      plane.position.y = layer.height;
-      plane.rotation.x = -Math.PI / 2;
-      plane.userData = {
-        layer: layer.name,
-        baseOpacity: layer.opacity,
-        pulseSpeed: layer.pulseSpeed,
-        followFactor: layer.followFactor,
-        driftRadius: layer.driftRadius,
-        driftSpeed: 0.05 + Math.random() * 0.03,
-        driftPhase: Math.random() * Math.PI * 2,
-        baseHeight: layer.height
-      };
-      plane.renderOrder = 5;
-      
-      this.scene.add(plane);
-      this.atmosphericLayers.push(plane);
-    });
-  }
+  // ============================================================
+  // UNIQUE EFFECT: FLOATING DUST FIELD
+  // ============================================================
 
   /**
    * Create a subtle floating dust field around the camera
@@ -298,7 +146,7 @@ export class CinematicUpgrade {
 
     const dustColors = [0xffffff, 0xbefcff, 0xe9d8ff, 0xfff0fb];
     const dustCount = 28;
-    const cameraPosition = this.camera?.position || new THREE.Vector3();
+    const cameraPosition = this.camera?.position || this._vec3a.set(0, 0, 0);
 
     for (let index = 0; index < dustCount; index++) {
       const color = dustColors[index % dustColors.length];
@@ -338,9 +186,13 @@ export class CinematicUpgrade {
       this.dustParticles.push(sprite);
     }
   }
-  
+
+  // ============================================================
+  // UNIQUE EFFECT: HOLOGRAPHIC EDGE GLOW (camera-attached)
+  // ============================================================
+
   /**
-   * Create holographic edge glow effect
+   * Create holographic edge glow effect attached to camera
    */
   createHolographicEdgeGlow() {
     const haloTexture = this._createRadialGradientTexture('edgeHalo', [
@@ -415,90 +267,123 @@ export class CinematicUpgrade {
       sprites: [centralGlow, violetHalo, cyanSplit]
     };
   }
-  
+
+  // ============================================================
+  // POST-PROCESSING INTEGRATION
+  // ============================================================
+
   /**
-   * Update cinematic effects
+   * Apply color grading to renderer and store reference
+   */
+  applyColorGrading(renderer) {
+    this._renderer = renderer;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = this._baseExposure;
+  }
+
+  /**
+   * Connect to the shared post-processing pipeline for real effect modulation
+   */
+  setPostProcessing(pipeline) {
+    this._postProcessing = pipeline;
+  }
+
+  // ============================================================
+  // METRICS REACTIVITY
+  // ============================================================
+
+  /**
+   * Receive live metrics from the game loop.
+   * Expected shape: { harmony, corruption, synergy, stability } (all 0..1)
+   */
+  setMetrics(metrics) {
+    if (!metrics) return;
+    if (metrics.harmony !== undefined) this._metrics.harmony = metrics.harmony;
+    if (metrics.corruption !== undefined) this._metrics.corruption = metrics.corruption;
+    if (metrics.synergy !== undefined) this._metrics.synergy = metrics.synergy;
+    if (metrics.stability !== undefined) this._metrics.stability = metrics.stability;
+  }
+
+  // ============================================================
+  // VISIBILITY WITH SMOOTH FADE
+  // ============================================================
+
+  /**
+   * Toggle visibility with smooth fade transition
+   */
+  setVisible(visible) {
+    this._targetOpacity = visible ? 1 : 0;
+    if (visible) {
+      // Immediately make objects visible so fade-in is visible
+      this.dustParticles.forEach(p => { p.visible = true; });
+      if (this.edgeGlowPass?.group) this.edgeGlowPass.group.visible = true;
+    }
+  }
+
+  /**
+   * Check if effects are targeted to be visible
+   */
+  isVisible() {
+    return this._targetOpacity > 0;
+  }
+
+  // ============================================================
+  // UPDATE LOOP
+  // ============================================================
+
+  /**
+   * Update cinematic effects with metrics reactivity and smooth fade
    */
   update(deltaTime) {
     if (this.frameScheduler?.shouldRunVisual?.() === false) return;
 
     this.time += deltaTime;
 
-    const cameraPosition = this.camera?.position || new THREE.Vector3();
+    // --- Smooth fade interpolation ---
+    if (Math.abs(this._fadeOpacity - this._targetOpacity) > 0.001) {
+      const direction = this._targetOpacity > this._fadeOpacity ? 1 : -1;
+      this._fadeOpacity += direction * this._fadeSpeed * deltaTime;
+      this._fadeOpacity = Math.max(0, Math.min(1, this._fadeOpacity));
 
-    // Update volumetric lights pulsing and drift
-    this.volumetricLights.forEach(lightGroup => {
-      const pulse = Math.sin(this.time * lightGroup.userData.pulseSpeed + lightGroup.userData.phase) * 0.5 + 0.5;
-      const driftX = Math.sin(this.time * 0.18 + lightGroup.userData.phase) * lightGroup.userData.driftRadius;
-      const driftY = Math.cos(this.time * 0.14 + lightGroup.userData.phase * 0.7) * lightGroup.userData.driftHeight;
-      const driftZ = Math.sin(this.time * 0.16 + lightGroup.userData.phase * 1.3) * (lightGroup.userData.driftRadius * 0.65);
+      // Hide objects when fully faded out
+      if (this._fadeOpacity <= 0) {
+        this.dustParticles.forEach(p => { p.visible = false; });
+        if (this.edgeGlowPass?.group) this.edgeGlowPass.group.visible = false;
+        return; // Skip rest of update when invisible
+      } else {
+        this.dustParticles.forEach(p => { p.visible = true; });
+        if (this.edgeGlowPass?.group) this.edgeGlowPass.group.visible = true;
+      }
+    }
 
-      lightGroup.position.set(
-        lightGroup.userData.basePosition.x + driftX,
-        lightGroup.userData.basePosition.y + driftY,
-        lightGroup.userData.basePosition.z + driftZ
-      );
+    const fade = this._fadeOpacity;
 
-      lightGroup.rotation.x = Math.sin(this.time * 0.08 + lightGroup.userData.phase) * 0.035;
-      lightGroup.rotation.y = Math.cos(this.time * 0.1 + lightGroup.userData.phase) * 0.05;
-      lightGroup.rotation.z = Math.sin(this.time * 0.12 + lightGroup.userData.phase) * 0.08;
+    // --- Metrics-driven parameters ---
+    const { harmony, corruption, synergy, stability } = this._metrics;
+    const pulseMultiplier = 1 + (1 - stability) * 0.3; // faster with instability
 
-      lightGroup.children.forEach(child => {
-        if (!child.material) return;
+    // --- Renderer exposure modulation ---
+    if (this._renderer) {
+      const targetExposure = this._baseExposure + synergy * 0.08 - corruption * 0.06;
+      this._renderer.toneMappingExposure += (targetExposure - this._renderer.toneMappingExposure) * 0.02;
+    }
 
-        if (child.userData?.role === 'innerCone') {
-          const baseScale = child.userData.baseScale;
-          const scalePulse = 0.98 + pulse * 0.05;
-          child.scale.set(baseScale.x * scalePulse, baseScale.y * scalePulse, baseScale.z * scalePulse);
-          child.material.opacity = child.userData.baseOpacity * (0.86 + pulse * 0.35);
-          child.rotation.z += deltaTime * 0.12;
-        }
-
-        if (child.userData?.role === 'bloomCone') {
-          const baseScale = child.userData.baseScale;
-          const scalePulse = 0.98 + pulse * 0.03;
-          child.scale.set(baseScale.x * scalePulse, baseScale.y * scalePulse, baseScale.z * scalePulse);
-          child.material.opacity = child.userData.baseOpacity * (0.72 + pulse * 0.28);
-          child.rotation.z -= deltaTime * 0.08;
-        }
-
-        if (child.userData?.role === 'outerCone') {
-          const baseScale = child.userData.baseScale;
-          const scalePulse = 0.99 + pulse * 0.025;
-          child.scale.set(baseScale.x * scalePulse, baseScale.y * scalePulse, baseScale.z * scalePulse);
-          child.material.opacity = child.userData.baseOpacity * (0.78 + pulse * 0.24);
-        }
-
-        if (child.userData?.role === 'haloRing') {
-          const baseScale = child.userData.baseScale;
-          const scalePulse = 0.95 + pulse * 0.08;
-          child.scale.set(baseScale.x * scalePulse, baseScale.y * scalePulse, baseScale.z * scalePulse);
-          child.material.opacity = child.userData.baseOpacity * (0.8 + pulse * 0.35);
-          child.rotation.y += deltaTime * 0.18;
-        }
-
-        if (child.userData?.role === 'core') {
-          const baseScale = child.userData.baseScale;
-          const scalePulse = 0.92 + pulse * 0.12;
-          child.scale.set(baseScale.x * scalePulse, baseScale.y * scalePulse, baseScale.z * scalePulse);
-          child.material.opacity = child.userData.baseOpacity * (0.72 + pulse * 0.34);
-        }
+    // --- Post-processing parameter modulation ---
+    if (this._postProcessing?.updateParams) {
+      this._postProcessing.updateParams({
+        strength: 0.8 + synergy * 0.4,
+        threshold: 0.2 + corruption * 0.1,
+        vignetteStrength: 0.19 + corruption * 0.15,
+        chromaticStrength: 0.00045 + (1 - stability) * 0.001
       });
-    });
-    
-    // Update atmospheric layers
-    this.atmosphericLayers.forEach(layer => {
-      const pulse = Math.sin(this.time * layer.userData.pulseSpeed + layer.userData.driftPhase) * 0.5 + 0.5;
-      layer.position.x = cameraPosition.x * layer.userData.followFactor + Math.cos(this.time * layer.userData.driftSpeed + layer.userData.driftPhase) * layer.userData.driftRadius;
-      layer.position.z = cameraPosition.z * layer.userData.followFactor + Math.sin(this.time * layer.userData.driftSpeed * 0.9 + layer.userData.driftPhase * 1.2) * layer.userData.driftRadius;
-      layer.rotation.z = Math.sin(this.time * 0.02 + layer.userData.driftPhase) * 0.012;
-      layer.scale.setScalar(0.985 + pulse * 0.03);
-      layer.material.opacity = layer.userData.baseOpacity * (0.68 + pulse * 0.38);
-    });
+    }
 
-    // Update floating dust field around the camera
+    // --- Camera position (cached vector, zero allocation) ---
+    const cameraPosition = this.camera?.position || this._vec3a.set(0, 0, 0);
+
+    // --- Update floating dust field ---
     this.dustParticles.forEach(particle => {
-      const phase = particle.userData.orbitPhase + this.time * particle.userData.orbitSpeed;
+      const phase = particle.userData.orbitPhase + this.time * particle.userData.orbitSpeed * pulseMultiplier;
       const pulse = Math.sin(this.time * particle.userData.pulseSpeed + particle.userData.phaseOffset) * 0.5 + 0.5;
       const radius = particle.userData.orbitRadius + Math.sin(this.time * 0.33 + particle.userData.phaseOffset) * 2.2;
       const height = particle.userData.orbitHeight + Math.cos(this.time * 0.28 + particle.userData.phaseOffset) * particle.userData.verticalDrift;
@@ -506,12 +391,12 @@ export class CinematicUpgrade {
       particle.position.x = cameraPosition.x + Math.cos(phase) * radius;
       particle.position.y = cameraPosition.y + height;
       particle.position.z = cameraPosition.z + Math.sin(phase) * radius;
-      particle.material.opacity = particle.userData.baseOpacity * (0.42 + pulse * 0.58);
+      particle.material.opacity = particle.userData.baseOpacity * (0.42 + pulse * 0.58) * fade;
       particle.scale.setScalar(particle.userData.baseScale * (0.65 + pulse * 0.65));
       particle.material.rotation = phase * 0.25;
     });
 
-    // Update camera halo glow
+    // --- Update camera halo glow ---
     if (this.edgeGlowPass?.group) {
       const glowPhase = this.edgeGlowPass.group.userData?.phase ?? 0;
       const haloPulse = Math.sin(this.time * 0.42 + glowPhase) * 0.5 + 0.5;
@@ -521,7 +406,7 @@ export class CinematicUpgrade {
       this.edgeGlowPass.sprites.forEach((sprite, index) => {
         const spritePulse = Math.sin(this.time * (0.55 + index * 0.12) + sprite.userData.phase) * 0.5 + 0.5;
         const baseScale = sprite.userData.baseScale;
-        sprite.material.opacity = sprite.userData.baseOpacity * (0.7 + spritePulse * 0.3);
+        sprite.material.opacity = sprite.userData.baseOpacity * (0.7 + spritePulse * 0.3) * fade;
         sprite.scale.set(
           baseScale.x * (0.95 + haloPulse * 0.1),
           baseScale.y * (0.95 + haloPulse * 0.1),
@@ -531,107 +416,15 @@ export class CinematicUpgrade {
       });
     }
   }
-  
-  /**
-   * Apply color grading to scene (post-processing simulation)
-   */
-  applyColorGrading(renderer) {
-    // Cinematic color grading parameters
-    const toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMapping = toneMapping;
-    renderer.toneMappingExposure = 0.98;
-    
-    // Color balance adjustments
-    const colorBalance = {
-      shadows: new THREE.Vector3(0.98, 0.95, 1.03),      // Slight cyan in shadows
-      midtones: new THREE.Vector3(1.0, 1.0, 1.0),       // Neutral
-      highlights: new THREE.Vector3(1.02, 0.97, 0.97)   // Slight magenta in highlights
-    };
-    
-    return colorBalance;
-  }
-  
-  /**
-   * Enhance bloom effect (post-processing)
-   */
-  getBloomSettings() {
-    return {
-      strength: 0.8,
-      threshold: 0.2,
-      radius: 0.4
-    };
-  }
-  
-  /**
-   * Get exposure stabilization values
-   */
-  getExposureSettings() {
-    return {
-      baseExposure: 1.0,
-      adaptationRate: 0.1,
-      minExposure: 0.8,
-      maxExposure: 1.3
-    };
-  }
-  
-  /**
-   * Get depth-based fog layering
-   */
-  getDepthFogSettings() {
-    return {
-      near: 0.1,
-      far: 200,
-      color: 0xf0d8e8,
-      density: 0.004,
-      layers: [
-        { distance: 50, opacity: 0.1, color: 0xf5e5f0 },
-        { distance: 100, opacity: 0.2, color: 0xf0d8e8 },
-        { distance: 150, opacity: 0.35, color: 0xe8c8e0 }
-      ]
-    };
-  }
-  
-  /**
-   * Toggle visibility of all cinematic effects
-   */
-  setVisible(visible) {
-    const vis = !!visible;
-    this.volumetricLights.forEach(lightGroup => {
-      lightGroup.visible = vis;
-    });
-    this.atmosphericLayers.forEach(layer => {
-      layer.visible = vis;
-    });
-    this.dustParticles.forEach(particle => {
-      particle.visible = vis;
-    });
-    if (this.edgeGlowPass?.group) {
-      this.edgeGlowPass.group.visible = vis;
-    }
-    this._visible = vis;
-  }
+
+  // ============================================================
+  // CLEANUP
+  // ============================================================
 
   /**
-   * Check if effects are currently visible
-   */
-  isVisible() {
-    return this._visible !== false;
-  }
-
-  /**
-   * Cleanup
+   * Cleanup all effects
    */
   dispose() {
-    this.volumetricLights.forEach(lightGroup => {
-      this.scene.remove(lightGroup);
-      this._disposeObject3D(lightGroup);
-    });
-    
-    this.atmosphericLayers.forEach(layer => {
-      this.scene.remove(layer);
-      this._disposeObject3D(layer);
-    });
-
     this.dustParticles.forEach(particle => {
       this.scene.remove(particle);
       this._disposeObject3D(particle);
@@ -647,9 +440,7 @@ export class CinematicUpgrade {
         texture.dispose();
       }
     });
-    
-    this.volumetricLights = [];
-    this.atmosphericLayers = [];
+
     this.dustParticles = [];
     this.edgeGlowPass = null;
     this.sharedTextures = {};

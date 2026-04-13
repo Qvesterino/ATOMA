@@ -123,6 +123,11 @@ export class VisualUpgradeSuperpack {
         this._timeOrigin = undefined;
         this._lastVisualTime = undefined;
 
+        // Cached vectors — zero per-frame allocations
+        this._vec3a = new THREE.Vector3();
+        this._vec3b = new THREE.Vector3();
+        this._vec3c = new THREE.Vector3();
+
         // Pack components
         this.volumetricLights = [];
         this.atmosphericLayers = [];
@@ -139,6 +144,31 @@ export class VisualUpgradeSuperpack {
             shimmer: null
         };
         this._applied = false;
+
+        // Smooth fade
+        this._fadeOpacity = 1;
+        this._targetOpacity = 1;
+        this._fadeSpeed = 2.5;
+
+        // Metrics reactivity (smoothed)
+        this._metrics = {
+            harmony: 0.5,
+            corruption: 0,
+            synergy: 0.5,
+            stability: 0.5
+        };
+    }
+
+    /**
+     * Receive live metrics from the game loop.
+     * Expected shape: { harmony, corruption, synergy, stability } (all 0..1)
+     */
+    setMetrics(metrics) {
+        if (!metrics) return;
+        if (metrics.harmony !== undefined) this._metrics.harmony = metrics.harmony;
+        if (metrics.corruption !== undefined) this._metrics.corruption = metrics.corruption;
+        if (metrics.synergy !== undefined) this._metrics.synergy = metrics.synergy;
+        if (metrics.stability !== undefined) this._metrics.stability = metrics.stability;
     }
 
     /**
@@ -844,12 +874,46 @@ export class VisualUpgradeSuperpack {
             : Math.max(0, currentTime - this._lastVisualTime);
         this._lastVisualTime = currentTime;
         this.time = currentTime;
-        const cameraPosition = this.camera?.position || new THREE.Vector3();
-        const cameraDirection = new THREE.Vector3();
+        const cameraPosition = this.camera?.position || this._vec3a.set(0, 0, 0);
+        const cameraDirection = this._vec3b.set(0, 0, 0);
 
         if (this.camera) {
             this.camera.getWorldDirection(cameraDirection);
         }
+
+        // --- Smooth fade interpolation ---
+        if (Math.abs(this._fadeOpacity - this._targetOpacity) > 0.001) {
+            const fadeDir = this._targetOpacity > this._fadeOpacity ? 1 : -1;
+            this._fadeOpacity += fadeDir * this._fadeSpeed * deltaTime;
+            this._fadeOpacity = Math.max(0, Math.min(1, this._fadeOpacity));
+
+            if (this._fadeOpacity <= 0) {
+                const hide = obj => { obj.visible = false; };
+                this.volumetricLights.forEach(hide);
+                this.atmosphericLayers.forEach(hide);
+                this.edgeGlowObjects.forEach(hide);
+                this.distortionZones.forEach(hide);
+                this.rifts.forEach(hide);
+                this.particles.forEach(hide);
+                if (this.cameraAura) this.cameraAura.visible = false;
+                return; // Skip rest of update when invisible
+            } else {
+                const show = obj => { obj.visible = true; };
+                this.volumetricLights.forEach(show);
+                this.atmosphericLayers.forEach(show);
+                this.edgeGlowObjects.forEach(show);
+                this.distortionZones.forEach(show);
+                this.rifts.forEach(show);
+                this.particles.forEach(show);
+                if (this.cameraAura) this.cameraAura.visible = true;
+            }
+        }
+
+        const fade = this._fadeOpacity;
+
+        // --- Metrics-driven parameters ---
+        const { harmony, corruption, synergy, stability } = this._metrics;
+        const pulseMultiplier = 1 + (1 - stability) * 0.25;
 
         // GLOBAL SAFETY: Ensure all animated objects have valid rotation order
         this.edgeGlowObjects.forEach(o => this.ensureRotationOrder(o));
@@ -891,7 +955,7 @@ export class VisualUpgradeSuperpack {
                 light.scale.setScalar(scalePulse);
             }
 
-            light.material.opacity = light.userData.baseOpacity * (0.55 + pulse * 0.45);
+            light.material.opacity = light.userData.baseOpacity * (0.55 + pulse * 0.45) * fade;
 
             if (light.material?.color && light.userData?.tint) {
                 const tint = 0.96 + pulse * 0.06;
@@ -917,7 +981,7 @@ export class VisualUpgradeSuperpack {
             layer.position.z = cameraPosition.z * layer.userData.followFactor + driftZ;
             layer.rotation.z = Math.sin(this.time * 0.02 + layer.userData.phase) * 0.01;
             layer.scale.setScalar(0.985 + pulse * 0.03);
-            layer.material.opacity = layer.userData.baseOpacity * (0.65 + pulse * 0.35);
+            layer.material.opacity = layer.userData.baseOpacity * (0.65 + pulse * 0.35) * fade;
         });
 
         // Update distortion zones
@@ -938,7 +1002,7 @@ export class VisualUpgradeSuperpack {
             const pulse = Math.sin(this.time * rift.userData.pulseSpeed + rift.userData.phase) * 0.5 + 0.5;
 
             if (rift.material.opacity !== undefined) {
-                rift.material.opacity = rift.userData.baseOpacity * (0.5 + pulse * 0.5);
+                rift.material.opacity = rift.userData.baseOpacity * (0.5 + pulse * 0.5) * fade;
             }
 
             if (rift.material.emissiveIntensity !== undefined) {
@@ -982,7 +1046,7 @@ export class VisualUpgradeSuperpack {
 
             const systemPulse = Math.sin(this.time * (0.35 + system.userData.system.speed * 20) + system.id) * 0.5 + 0.5;
             if (system.material) {
-                system.material.opacity = 0.3 + systemPulse * 0.18;
+                system.material.opacity = (0.3 + systemPulse * 0.18) * fade;
             }
             system.rotation.y += visualDelta * 0.01;
             system.scale.setScalar(0.98 + systemPulse * 0.03);
@@ -1021,12 +1085,12 @@ export class VisualUpgradeSuperpack {
 
             // Fresnel effect based on camera angle
             if (glow.material && this.camera) {
-                const surfaceNormal = new THREE.Vector3(0, 1, 0);
+                const surfaceNormal = this._vec3c.set(0, 1, 0);
 
                 const fresnel = Math.abs(cameraDirection.dot(surfaceNormal));
                 const distance = this.camera.position.distanceTo(mesh.position || glow.position);
                 const distanceFactor = THREE.MathUtils.clamp(1 - distance / 260, 0.25, 1);
-                glow.material.opacity = glow.userData.baseOpacity * (0.18 + fresnel * 0.82) * distanceFactor;
+                glow.material.opacity = glow.userData.baseOpacity * (0.18 + fresnel * 0.82) * distanceFactor * fade;
             }
         });
 
@@ -1041,7 +1105,7 @@ export class VisualUpgradeSuperpack {
             this.cameraAura.children.forEach((sprite, index) => {
                 const spritePulse = Math.sin(this.time * (0.5 + index * 0.09) + sprite.userData.phase) * 0.5 + 0.5;
                 const baseScale = sprite.userData.baseScale;
-                sprite.material.opacity = sprite.userData.baseOpacity * (0.62 + spritePulse * 0.38);
+                sprite.material.opacity = sprite.userData.baseOpacity * (0.62 + spritePulse * 0.38) * fade;
                 sprite.scale.set(
                     baseScale.x * (0.94 + auraPulse * 0.08),
                     baseScale.y * (0.94 + auraPulse * 0.08),
@@ -1053,27 +1117,28 @@ export class VisualUpgradeSuperpack {
     }
 
     /**
-     * Toggle visibility of all visual upgrade effects
+     * Toggle visibility with smooth fade transition
      */
     setVisible(visible) {
-        const vis = !!visible;
-        this.volumetricLights.forEach(obj => { obj.visible = vis; });
-        this.atmosphericLayers.forEach(obj => { obj.visible = vis; });
-        this.edgeGlowObjects.forEach(obj => { obj.visible = vis; });
-        this.distortionZones.forEach(obj => { obj.visible = vis; });
-        this.rifts.forEach(obj => { obj.visible = vis; });
-        this.particles.forEach(obj => { obj.visible = vis; });
-        if (this.cameraAura) {
-            this.cameraAura.visible = vis;
+        this._targetOpacity = visible ? 1 : 0;
+        if (visible) {
+            // Immediately make objects visible so fade-in is visible
+            const show = obj => { obj.visible = true; };
+            this.volumetricLights.forEach(show);
+            this.atmosphericLayers.forEach(show);
+            this.edgeGlowObjects.forEach(show);
+            this.distortionZones.forEach(show);
+            this.rifts.forEach(show);
+            this.particles.forEach(show);
+            if (this.cameraAura) this.cameraAura.visible = true;
         }
-        this._visible = vis;
     }
 
     /**
-     * Check if effects are currently visible
+     * Check if effects are targeted to be visible
      */
     isVisible() {
-        return this._visible !== false;
+        return this._targetOpacity > 0;
     }
 
     /**
