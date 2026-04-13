@@ -714,31 +714,43 @@ const LORE_TO_LANGUAGE = Object.freeze({
     'codex-metrics': 'lore.codex.metrics',
     'codex-nodes': 'lore.codex.nodes',
     'node.input.basic': 'lore.node.input',
+    'node-input': 'lore.node.input',
     'node.process.basic': 'lore.node.process',
+    'node-process': 'lore.node.process',
     'node.control.basic': 'lore.node.control',
+    'node-control': 'lore.node.control',
     'node.storage.basic': 'lore.node.storage',
+    'node-storage': 'lore.node.storage',
     'node.analytics.basic': 'lore.node.analytics',
+    'node-analytics': 'lore.node.analytics',
     'node.integration.basic': 'lore.node.integration',
-    'node.integration': 'lore.node.integration',
-    'node.sigma.basic': 'lore.node.sigma',
-    'node.sigma': 'lore.node.sigma',
+    'node-integration': 'lore.node.integration',
+    'node.memory.basic': 'lore.node.storage',
+    'node-memory': 'lore.node.storage',
+    'node.higherOrders.basic': 'lore.node.higherOrders',
+    'node-higher-orders': 'lore.node.higherOrders',
     'node.quantum.basic': 'lore.node.quantum',
-    'node.quantum': 'lore.node.quantum',
+    'node-quantum': 'lore.node.quantum',
+    'node.sigma.basic': 'lore.node.sigma',
+    'node-sigma': 'lore.node.sigma',
     'node.emotional.basic': 'lore.node.emotional',
-    'node.emotional': 'lore.node.emotional',
+    'node-emotional': 'lore.node.emotional',
     'node.mythic.basic': 'lore.node.mythic',
-    'node.mythic': 'lore.node.mythic',
+    'node-mythic': 'lore.node.mythic',
     'node.prime.basic': 'lore.node.prime',
-    'node.prime': 'lore.node.prime',
+    'node-prime': 'lore.node.prime',
     'node.error.basic': 'lore.node.error',
-    'node.error': 'lore.node.error',
+    'node-error': 'lore.node.error',
     'metric.synergy.basic': 'lore.metric.synergy',
+    'metric-synergy': 'lore.metric.synergy',
     'metric.harmony.basic': 'lore.metric.harmony',
+    'metric-harmony': 'lore.metric.harmony',
     'metric.corruption.basic': 'lore.metric.corruption',
+    'metric-corruption': 'lore.metric.corruption',
     'metric.stability.basic': 'lore.metric.stability',
-    'metric.stability': 'lore.metric.stability',
+    'metric-stability': 'lore.metric.stability',
     'metric.loadPressure.basic': 'lore.metric.loadPressure',
-    'metric.loadPressure': 'lore.metric.loadPressure',
+    'metric-load-pressure': 'lore.metric.loadPressure',
     'link.basic': 'lore.link',
     'phenomena.cascade': 'lore.cascade'
 });
@@ -1028,7 +1040,7 @@ import { setupHarmonyHealingTestRunner } from './T4004_HARMONY_HEALING_TEST_RUNN
 // ✅ T2-003: Harmony Visual Feedback Consumer
 // ============================================================================
 import { T2_CorruptionVisualIntegration_v1 } from './T2_CorruptionVisualIntegration_v1.js';
-import { T2_HarmonyVisualConsumer_v1 } from './src/legacy/T2_HarmonyVisualConsumer_v1.js';
+import { T2_HarmonyVisualConsumer_v1 } from './T2_HarmonyVisualConsumer_v1.js';
 import { getGlobalWiringSystem } from './VisualAutoWiringSystem.js';
 
 // ============================================================================
@@ -13124,6 +13136,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     /**
      * Setup Safe Evolution Manager - External node evolution system
      * SAFE: Zero modifications to Node class, all state external
+     * Runs on the visual layer so evolution overlay updates are synchronized with 30Hz visuals.
      */
     setupEvolutionManager() {
         this.evolutionManager = new SafeEvolutionManager(this.scene);
@@ -13131,13 +13144,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // Auto-registers nodes on first update, no invasive setup needed
         if (this.frameScheduler) {
             this.frameScheduler.register(
-                'background',
+                'visual',
                 (dt) => {
                     if (this.evolutionManager && this.linkingSystem && this.aiNodes) {
                         this.evolutionManager.update(dt, this.aiNodes.nodes, this.linkingSystem);
                     }
                 },
-                'background.evolutionManager'
+                'visual.evolutionManager'
             );
         }
     }

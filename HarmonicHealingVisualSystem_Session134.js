@@ -102,13 +102,23 @@ export class HarmonicHealingVisualSystem_Session134 {
             repairVisualsOnly: false,
             debugVisualBoost: true,
             linkCooldown: 3.0,
-            harmonyThreshold: 0.25, // FIX: was missing — controls LOW healing state threshold
+            harmonyThreshold: 0.25,
             renderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
+            // DESIGN: Autonomous wave spawning config (works without semantic bus)
+            autonomousSpawnInterval: 1.8,   // seconds between autonomous wave spawns
+            autonomousHighRate: 0.6,         // seconds between waves at HIGH healing
+            autonomousMedRate: 1.4,          // seconds between waves at MEDIUM healing
+            autonomousLowRate: 2.5,          // seconds between waves at LOW healing
             ...config
         };
         
         this.waves = [];
         this._lastResolvedHealingState = null;
+        this._autonomousSpawnTimer = 0;  // DESIGN: timer for autonomous wave spawning
+        
+        // FIX: Pre-allocated temp objects to avoid per-frame allocation in _updateWaves
+        this._tmpTrailVel = new THREE.Vector3();
+        this._tmpTrailColor = new THREE.Color(0x66f7ff);
         
         this._linkCooldowns = new Map();
         
@@ -348,6 +358,22 @@ export class HarmonicHealingVisualSystem_Session134 {
 
         const healingState = this._resolveHealingState(networkState);
         this._lastResolvedHealingState = healingState;
+
+        // DESIGN: Autonomous wave spawning — works even without semantic bus
+        // Spawns healing waves based on network healing state at varying rates
+        if (healingState.recoveryReady !== 'IDLE') {
+            this._autonomousSpawnTimer += deltaTime;
+            const spawnRate = healingState.recoveryReady === 'HIGH'
+                ? this.config.autonomousHighRate
+                : healingState.recoveryReady === 'MEDIUM'
+                    ? this.config.autonomousMedRate
+                    : this.config.autonomousLowRate;
+
+            if (this._autonomousSpawnTimer >= spawnRate) {
+                this._autonomousSpawnTimer = 0;
+                this._spawnSingleWave(healingState, time);
+            }
+        }
         
         this._updateWaves(deltaTime, time);
     }
@@ -447,15 +473,15 @@ export class HarmonicHealingVisualSystem_Session134 {
             if (wave.active) {
                 activeWaves.push(wave);
                 
-                // Emit visual trail via Particle System
+                // Emit visual trail via Particle System (FIX: zero per-frame allocation)
                 if (this.particles) {
-                    const trailVelocity = wave.currentDir.clone().multiplyScalar(wave.speed * 0.3);
+                    this._tmpTrailVel.copy(wave.currentDir).multiplyScalar(wave.speed * 0.3);
                     this.particles.emitHealingTrail(
                         wave.currentPos,
-                        trailVelocity,
+                        this._tmpTrailVel,
                         wave.intensity,
                         time,
-                        new THREE.Color(0x66f7ff) // primary healing color
+                        this._tmpTrailColor
                     );
                 }
             } else {
@@ -656,7 +682,8 @@ export class HarmonicHealingVisualSystem_Session134 {
      */
     triggerWaveBatch(count = 10) {
         for(let i=0; i<count; i++) {
-            this._spawnSingleWave(1.0);
+            // FIX: Pass object with healingDrive, not bare number 1.0
+            this._spawnSingleWave({ healingDrive: 1.0, harmony: 1.0 });
         }
     }
 

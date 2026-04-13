@@ -610,6 +610,36 @@ export class HealingParticleSystem_Session136 {
             // ATOMA_HEALING_SESSION136_v2: Reuse _tmpVec3A for position
             this.spawnParticle(this._tmpVec3A.copy(position), dir, color, size, life, time);
         }
+
+        // DESIGN: Convergence ring — expanding ring of particles at splash point
+        // Creates a dramatic "healing pulse" ring at high intensity
+        if (normalizedIntensity > 0.5) {
+            const ringParticleCount = Math.floor(8 + normalizedIntensity * 10);
+            const ringRadius = 0.3 + normalizedIntensity * 0.5;
+            for (let i = 0; i < ringParticleCount; i++) {
+                const angle = (i / ringParticleCount) * Math.PI * 2;
+                const ringDir = this._tmpVec3B.set(
+                    Math.cos(angle) * ringRadius,
+                    0.1 + Math.random() * 0.15,
+                    Math.sin(angle) * ringRadius
+                ).normalize();
+
+                const speed = 1.5 + normalizedIntensity * 2.0;
+                ringDir.multiplyScalar(speed);
+
+                // Ring particles are brighter — white-cyan
+                if (!this.config.debugForceRedParticles) {
+                    color.setRGB(0.7 + Math.random() * 0.3, 1.0, 0.95 + Math.random() * 0.05);
+                } else {
+                    color.setHex(0xff0000);
+                }
+
+                const ringSize = this.config.baseSize * (0.8 + normalizedIntensity * 0.6);
+                const ringLife = 0.35 + normalizedIntensity * 0.3;
+
+                this.spawnParticle(this._tmpVec3A.copy(position), ringDir, color, ringSize, ringLife, time);
+            }
+        }
     }
 
     getStats() {

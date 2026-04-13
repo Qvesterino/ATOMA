@@ -16,12 +16,34 @@ function getSemanticBus() {
   return globalThis?.semanticBus ?? null;
 }
 
+function getUnlockTriggers(entry) {
+  const unlock = entry?.unlock;
+  if (!unlock) return [];
+
+  const rawTriggers = [];
+  if (Array.isArray(unlock.triggers)) {
+    rawTriggers.push(...unlock.triggers);
+  }
+  if (unlock.trigger) {
+    rawTriggers.push(unlock.trigger);
+  }
+
+  return Array.from(new Set(
+    rawTriggers
+      .map((trigger) => String(trigger || '').trim())
+      .filter(Boolean)
+  ));
+}
+
 export default class LoreUnlockEngine {
   constructor() {
     this.state = {
       unlocked: new Set()
     };
     this._subscribedTriggers = new Set();
+    this._unlockQueue = [];
+    this._unlockQueueTimer = null;
+    this._unlockQueueSpacingMs = 900;
     this._subscribe();
   }
 
@@ -37,8 +59,29 @@ export default class LoreUnlockEngine {
     if (this.state.unlocked.has(id)) return false;
 
     this.state.unlocked.add(id);
-    getSemanticBus()?.emit?.('lore.unlocked', { id });
+    this._unlockQueue.push(id);
+    this._drainUnlockQueue();
     return true;
+  }
+
+  _drainUnlockQueue() {
+    if (this._unlockQueueTimer || this._unlockQueue.length === 0) {
+      return;
+    }
+
+    const emitNext = () => {
+      this._unlockQueueTimer = null;
+      const nextId = this._unlockQueue.shift();
+      if (nextId !== undefined) {
+        getSemanticBus()?.emit?.('lore.unlocked', { id: nextId });
+      }
+
+      if (this._unlockQueue.length > 0) {
+        this._unlockQueueTimer = setTimeout(emitNext, this._unlockQueueSpacingMs);
+      }
+    };
+
+    this._unlockQueueTimer = setTimeout(emitNext, 0);
   }
 
   _subscribe() {
@@ -46,19 +89,24 @@ export default class LoreUnlockEngine {
     if (!semanticBus?.on) return;
 
     for (const entry of getRegistryEntries()) {
-      const trigger = entry?.unlock?.trigger;
-      if (!trigger || this._subscribedTriggers.has(trigger)) continue;
+      const triggers = getUnlockTriggers(entry);
+      if (triggers.length === 0) continue;
 
-      this._subscribedTriggers.add(trigger);
-      semanticBus.on(trigger, (eventData = {}) => {
-        this._handleTrigger(trigger, eventData);
-      });
+      for (const trigger of triggers) {
+        if (this._subscribedTriggers.has(trigger)) continue;
+
+        this._subscribedTriggers.add(trigger);
+        semanticBus.on(trigger, (eventData = {}) => {
+          this._handleTrigger(trigger, eventData);
+        });
+      }
     }
   }
 
   _handleTrigger(trigger, eventData = {}) {
     for (const entry of getRegistryEntries()) {
-      if (entry?.unlock?.trigger !== trigger) continue;
+      const triggers = getUnlockTriggers(entry);
+      if (triggers.length === 0 || !triggers.includes(trigger)) continue;
 
       const passes = typeof entry.condition === 'function'
         ? entry.condition(eventData)

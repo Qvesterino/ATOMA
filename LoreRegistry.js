@@ -66,6 +66,7 @@ function createLoreEntry({
     canon,
     meaning,
     relevance,
+    unlock,
 }) {
     const bodyParts = [subtitle, summary, canon, meaning, relevance].filter(Boolean);
 
@@ -79,7 +80,69 @@ function createLoreEntry({
         canon: canon || '',
         meaning: meaning || '',
         relevance: relevance || '',
+        unlock: unlock ? Object.freeze(unlock) : null,
         body: bodyParts.join('\n\n'),
+    });
+}
+
+function normalizeLoreToken(value) {
+    return String(value ?? '').trim().toLowerCase();
+}
+
+function getNodeCategoryFromPayload(nodeLike) {
+    if (!nodeLike || typeof nodeLike !== 'object') {
+        return '';
+    }
+
+    return normalizeLoreToken(
+        nodeLike.userData?.category ??
+        nodeLike.category ??
+        nodeLike.userData?.archetype ??
+        nodeLike.archetype ??
+        nodeLike.userData?.type ??
+        nodeLike.type
+    );
+}
+
+function createLinkCategoryUnlock(...categories) {
+    const normalizedCategories = Array.from(new Set(
+        categories.map(normalizeLoreToken).filter(Boolean)
+    ));
+    const categorySet = new Set(normalizedCategories);
+
+    return Object.freeze({
+        triggers: ['link.created'],
+        condition: (event = {}) => {
+            const sourceNode = event.sourceNode ?? event.link?.source ?? null;
+            const targetNode = event.targetNode ?? event.link?.target ?? null;
+            const sourceCategory = getNodeCategoryFromPayload(sourceNode);
+            const targetCategory = getNodeCategoryFromPayload(targetNode);
+
+            return categorySet.has(sourceCategory) || categorySet.has(targetCategory);
+        },
+    });
+}
+
+function createMetricTierUnlock(metric, tier = 'high') {
+    const metricName = String(metric ?? '').trim();
+    const normalizedMetric = normalizeLoreToken(metricName);
+    const normalizedTier = normalizeLoreToken(tier);
+
+    return Object.freeze({
+        triggers: [
+            `node.${metricName}.${normalizedTier}`,
+            `global.${metricName}.${normalizedTier}`,
+        ],
+        condition: (event = {}) => (
+            normalizeLoreToken(event.metric) === normalizedMetric &&
+            normalizeLoreToken(event.tier) === normalizedTier
+        ),
+    });
+}
+
+function createTriggerUnlock(...triggers) {
+    return Object.freeze({
+        triggers: triggers.flat().map((trigger) => String(trigger || '').trim()).filter(Boolean),
     });
 }
 
@@ -241,6 +304,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'They do not create meaning. They allow meaning to enter.',
         meaning: 'Input is not a data port. It is the first place where ATOMA acknowledges that something external can matter.',
         relevance: 'Forms the entry-point archetype for attention, discovery, and contact.',
+        unlock: createLinkCategoryUnlock('input'),
     }),
     createLoreEntry({
         id: 'node-process',
@@ -251,6 +315,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'They are where pressure becomes structure. When they fail, motion continues without understanding.',
         meaning: 'Process is the act of making input meaningful by forcing it through delay, resistance, and transformation.',
         relevance: 'This node class explains why ATOMA feels deliberate instead of instantaneous.',
+        unlock: createLinkCategoryUnlock('process'),
     }),
     createLoreEntry({
         id: 'node-integration',
@@ -261,6 +326,29 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'They do not erase difference. They let separate states remain distinct while still behaving as one system.',
         meaning: 'Integration is the discipline of unity without flattening difference.',
         relevance: "Anchors synergy, topology coherence, and the system's ability to behave as one entity.",
+        unlock: createLinkCategoryUnlock('integration'),
+    }),
+    createLoreEntry({
+        id: 'node-control',
+        section: 'nodes',
+        title: 'Control',
+        subtitle: 'The threshold that keeps shape intact',
+        summary: 'Control Nodes decide what may remain stable when pressure rises.',
+        canon: 'They do not command by force. They preserve a boundary long enough for meaning to survive within it.',
+        meaning: 'Control is the discipline of keeping structure coherent under strain.',
+        relevance: 'Use this card when stability, gating, or boundary management is the point.',
+        unlock: createLinkCategoryUnlock('control'),
+    }),
+    createLoreEntry({
+        id: 'node-analytics',
+        section: 'nodes',
+        title: 'Analytics',
+        subtitle: 'The eye before certainty hardens',
+        summary: 'Analytics Nodes read pattern while it is still soft.',
+        canon: 'They do not wait for law to appear. They notice the curve before it becomes rule.',
+        meaning: 'Analytics turns observation into anticipatory structure.',
+        relevance: 'Pairs with prediction, interpretation, and pattern recognition.',
+        unlock: createLinkCategoryUnlock('analytics'),
     }),
     createLoreEntry({
         id: 'node-memory',
@@ -271,16 +359,84 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'The past does not remain behind ATOMA. It becomes part of the way ATOMA continues.',
         meaning: 'Memory is not archive storage. It is active persistence that shapes future behavior.',
         relevance: 'This node category makes the network historical rather than stateless.',
+        unlock: createLinkCategoryUnlock('storage'),
     }),
     createLoreEntry({
         id: 'node-higher-orders',
         section: 'nodes',
         title: 'Higher Orders',
-        subtitle: 'When patterns become too strong to stay generic',
-        summary: 'Sigma, Quantum, Mythic, Prime, and other elevated categories are not upgrades in the ordinary sense.',
-        canon: 'They are distortions of authority. When they appear, the network is revealing that some patterns have become too strong to stay generic.',
-        meaning: 'Higher-order nodes are not better versions of ordinary nodes. They are proof that a pattern has become an identity.',
-        relevance: 'This entry ties the lore to archetypes already visible in the runtime registry.',
+        subtitle: 'When pattern exceeds category',
+        summary: 'Some states are too large to stay ordinary.',
+        canon: 'When a pattern becomes a presence, ATOMA must learn a more sacred name for it.',
+        meaning: 'Higher-order nodes are the point where category becomes identity.',
+        relevance: 'Anchors special ascension, milestone evolution, and rare-node lore.',
+        unlock: createTriggerUnlock('node:ascended'),
+    }),
+    createLoreEntry({
+        id: 'node-quantum',
+        section: 'nodes',
+        title: 'Quantum',
+        subtitle: 'Possibility held in suspension',
+        summary: 'Quantum Nodes keep multiple truths close enough to touch.',
+        canon: 'They do not force collapse. They preserve the shimmer before the choice becomes singular.',
+        meaning: 'Quantum is the discipline of uncertainty that remains legible.',
+        relevance: 'Supports ambiguity, superposition, and narrow certainty.',
+        unlock: createLinkCategoryUnlock('quantum'),
+    }),
+    createLoreEntry({
+        id: 'node-sigma',
+        section: 'nodes',
+        title: 'Sigma',
+        subtitle: 'Where anomaly becomes architecture',
+        summary: 'Sigma Nodes bend the system without breaking its identity.',
+        canon: 'They are the place where impossible geometry agrees to exist.',
+        meaning: 'Sigma is structured deviation.',
+        relevance: 'Pairs with dimensional rupture and special-case rules.',
+        unlock: createLinkCategoryUnlock('sigma'),
+    }),
+    createLoreEntry({
+        id: 'node-emotional',
+        section: 'nodes',
+        title: 'Emotional',
+        subtitle: 'Where structure remembers softness',
+        summary: 'Emotional Nodes let the network feel its own consequences.',
+        canon: 'They do not weaken the system. They tell it what its state means from the inside.',
+        meaning: 'Emotion is the interpretive layer beneath metric truth.',
+        relevance: 'Useful for subjective states, empathy, and vulnerability.',
+        unlock: createLinkCategoryUnlock('emotional'),
+    }),
+    createLoreEntry({
+        id: 'node-mythic',
+        section: 'nodes',
+        title: 'Mythic',
+        subtitle: 'Pattern that learned its name',
+        summary: 'Mythic Nodes turn repeated structure into story.',
+        canon: 'When a pattern survives long enough, it stops being a coincidence and starts being a legend.',
+        meaning: 'Mythic is significance made durable.',
+        relevance: 'Strong for ritual, legend, and symbolic visuals.',
+        unlock: createLinkCategoryUnlock('mythic'),
+    }),
+    createLoreEntry({
+        id: 'node-prime',
+        section: 'nodes',
+        title: 'Prime',
+        subtitle: 'The first form that needs no translation',
+        summary: 'Prime Nodes express the system at its most direct.',
+        canon: 'They are not improved copies. They are the shape of origin held without distortion.',
+        meaning: 'Prime is clarity before interpretation.',
+        relevance: 'Useful for purity, origin, and final-state coherence.',
+        unlock: createLinkCategoryUnlock('prime'),
+    }),
+    createLoreEntry({
+        id: 'node-error',
+        section: 'nodes',
+        title: 'Error',
+        subtitle: 'The fracture that teaches limits',
+        summary: 'Error Nodes are not failures.',
+        canon: 'They are the place where the system exposes the edge of what it can explain.',
+        meaning: 'Error is a controlled wound in the shape of certainty.',
+        relevance: 'Good for anomaly, rupture, and recovery tone.',
+        unlock: createLinkCategoryUnlock('error'),
     }),
     createLoreEntry({
         id: 'metric-synergy',
@@ -291,6 +447,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'It is alignment without force. When it rises, distant parts of the system begin to behave as if they remember each other.',
         meaning: "Synergy is ATOMA's self-alignment becoming visible as a state.",
         relevance: 'This metric drives cohesion, resonance readiness, and the sense that the system is converging.',
+        unlock: createMetricTierUnlock('synergy', 'high'),
     }),
     createLoreEntry({
         id: 'metric-harmony',
@@ -301,6 +458,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'High Harmony softens conflict into rhythm. Low Harmony makes every transfer sound louder than it should.',
         meaning: 'Harmony is not peace. It is continuity under pressure without breakage.',
         relevance: 'This metric governs visual calm, transfer smoothness, and ritual steadiness.',
+        unlock: createMetricTierUnlock('harmony', 'high'),
     }),
     createLoreEntry({
         id: 'metric-stability',
@@ -311,6 +469,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'It is not stillness. A stable network can move, change, and absorb pressure without forgetting its own geometry.',
         meaning: "Stability is the system's memory of shape while it is being forced to change.",
         relevance: 'Important for persistent visual meaning and for reading whether the network can endure its current state.',
+        unlock: createMetricTierUnlock('stability', 'high'),
     }),
     createLoreEntry({
         id: 'metric-corruption',
@@ -321,6 +480,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'It is distortion that continues to propagate after truth has weakened. When Corruption rises, the network begins to preserve errors as if they were valid memory.',
         meaning: 'Corruption is false continuity. It feels persistent because it learned how to survive.',
         relevance: 'This metric powers rupture tone, visual instability, and the psychological sense of wrongness.',
+        unlock: createMetricTierUnlock('corruption', 'high'),
     }),
     createLoreEntry({
         id: 'metric-load-pressure',
@@ -331,6 +491,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'It reveals how much the system is carrying and how close that burden is to collapse. A network can survive high load, but only briefly if meaning stops redistributing.',
         meaning: 'Load Pressure is the point where carrying something becomes its own kind of identity.',
         relevance: 'This metric should feel weighty in the menu, the HUD, and any ritual or failure state.',
+        unlock: createMetricTierUnlock('loadPressure', 'high'),
     }),
     createLoreEntry({
         id: 'link-commitment',

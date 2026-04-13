@@ -47,7 +47,7 @@ import { isVisualLocked } from './VisualAuthorityFlag.js';
  *    - Displayed in inspect overlay
  * 
  * PERFORMANCE:
- * - Updates at 10-20Hz (50-100ms intervals)
+ * - Updates at 30Hz by default
  * - Skips if scene is large (>100 nodes) or frame rate low
  * - Zero per-frame allocations
  * - Auto-scales intensity based on node count
@@ -61,9 +61,9 @@ export class NodeMicroEvents {
     this.camera = camera;
     this.metricBus = this._resolveMetricBus();
     
-    // Timing control (15Hz default = ~67ms)
+    // Timing control (30Hz default = ~33ms)
     this.lastUpdateTime = 0;
-    this.updateInterval = 1 / 15; // 15Hz
+    this.updateInterval = 1 / 30; // 30Hz
     
     // Event registry
     this.nodeEvents = new Map(); // uuid -> event data
@@ -135,13 +135,13 @@ export class NodeMicroEvents {
     // Performance check: skip if too many nodes or low FPS
     if (nodes.length > 100 || deltaTime > 0.05) {
       this.performanceMode = 'minimal';
-      this.updateInterval = 1 / 10; // Reduce to 10Hz
+      this.updateInterval = 1 / 20; // Reduce to 20Hz under heavy load
     } else if (nodes.length > 50) {
       this.performanceMode = 'reduced';
-      this.updateInterval = 1 / 12; // 12Hz
+      this.updateInterval = 1 / 25; // 25Hz under moderate load
     } else {
       this.performanceMode = 'normal';
-      this.updateInterval = 1 / 15; // 15Hz
+      this.updateInterval = 1 / 30; // 30Hz
     }
     
     // Register any new nodes

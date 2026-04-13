@@ -228,42 +228,544 @@ Kompletný katalóg viditeľných VFX efektov v ATOMA. Dokument dokumentov pre v
 
 ---
 
-### 0.8 LinkSemanticPictogramSystem_WithFusion.js
+### 0.9 LinkDirectionalGradientPolish.js
 
-**Type**: 🎨 GLYPH SYSTEM LAYER
+**Type**: 🎨 LINK VISUAL POLISH
 
 **Scene Additions**:
-- Link pictograms (signal / modulator / memory types)
-- LinkSemanticPictogramSystem_Enhanced (core pictogram generation)
-- GlyphFusionZoneManager (convergence detection)
-- CompositeGlyphGenerator (generated composite geometry)
-- NeuralConvergenceSingularity (visible runtime shell)
-- ResonanceEchoTrailSystem (memory/afterimage trails)
+- Gradient colors along link curves
+- Directional color transitions
+- Smooth gradient interpolation
 
 **What it Does**:
-- Creates glyphs that travel along links
-- Decides glyph family, state, and spawn budget
-- Detects convergences and starts fusion
-- Builds composite glyphs when glyphs converge
-- Provides resonance echo trails after composites active
+- Applies color gradients along link direction
+- Creates smooth visual flow from source to target
+- Enhances directional clarity
+- Improves visual quality of links
 
 **Wiring**:
-- Wrapped by LinkSemanticPictogramSystem_Enhanced
-- Fusion zone updates from pictogram convergence data
-- Triggers ResonanceEchoTrailSystem events
+- Reads: Link direction, node colors, metrics
+- Applies: Gradient to link material
+- Integration: Part of LinkRendererConduit
 
-**Trigger conditions**:
-- Active link pictograms spawn based on link quality
-- Convergence detection when glyphs within FUSION_RADIUS of node
-- Fusion zones spawn composite glyphs after sufficient convergence
-- Composite glyphs emit resonance echoes
+---
 
-**Submetrics Read**:
-- link.userData.metrics (synergy, harmony, stability, corruption)
-- link.userData.category
-- link.userData.evolutionStage
-- link.userData.personality
-- Node positions (for convergence calculation)
+### 0.10 LinkDirectionalStreaks.js
+
+**Type**: 🎨 LINK DIRECTION VISUALS
+
+**Purpose**:
+Creates directional streak effects on links showing energy flow direction.
+
+**What it Does**:
+- Renders streak patterns along link curves
+- Animate streaks from source to target
+- Modulates streak intensity based on flow
+- Provides clear directional indication
+
+**Integration**:
+- Reads: Link direction, flow metrics
+- Uses: Shader-based streak rendering
+- Performance: GPU-driven, minimal CPU cost
+
+---
+
+### 0.11 LinkStreakColorDynamics_Session115.js
+
+**Type**: 🎨 LINK STREAK DYNAMICS
+
+**Purpose**:
+Dynamic color management for link streak effects.
+
+**What it Does**:
+- Animates streak colors over time
+- Modulates color based on link state
+- Creates color flow along streaks
+- Provides dynamic streak visualization
+
+**Integration**:
+- Reads: Link metrics, time
+- Updates: Streak material colors
+- Performance: Shader-based color modulation
+
+---
+
+### 0.12 LinkRingArcDischarges.js
+
+**Type**: 🎨 LINK ENERGY EFFECTS
+
+**Purpose**:
+Creates arc discharge effects on link rings.
+
+**What it Does**:
+- Generates electrical arc visuals
+- Triggers discharges on high energy events
+- Animates arc paths along rings
+- Provides dynamic energy visual
+
+**Integration**:
+- Reads: Link energy, cascade events
+- Triggers: On cascade, resonance, high synergy
+- Visual: Electric arc geometry with glow
+
+---
+
+### 0.13 LinkSurfacePhaseRipples.js
+
+**Type**: 🎨 LINK SURFACE EFFECTS
+
+**Purpose**:
+Creates phase-based ripple effects on link surfaces.
+
+**What it Does**:
+- Animates ripple patterns on link geometry
+- Synchronizes ripples with harmonic phase
+- Creates wave propagation visual on link surface
+- Enhances visual complexity
+
+**Integration**:
+- Reads: Harmonic phase, link metrics
+- Uses: Shader-based ripple animation
+- Submetrics: Phase, amplitude, frequency
+
+---
+
+### 0.14 LinkEventVisualCoordinator_v1.js
+
+**Type**: 🎨 LINK EVENT COORDINATION
+
+**Purpose**:
+Coordinates visual events on links.
+
+**What it Does**:
+- Manages event-based link visuals
+- Coordinates multiple event effects
+- Prioritizes conflicting events
+- Provides unified event visual response
+
+**Integration**:
+- Reads: Link events, metrics
+- Triggers: Event-based visual effects
+- Performance: Event filtering and batching
+
+---
+
+### 0.15 LinkCategoryColorContract.js
+
+**Type**: 🎨 LINK COLOR SYSTEM
+
+**Purpose**:
+Defines color contracts for link categories.
+
+**What it Does**:
+- Specifies color schemes per category
+- Enforces color consistency
+- Provides category color queries
+- Maintains color taxonomy
+
+**Integration**:
+- Used by: Link visual systems
+- Provides: Color definitions, color queries
+
+---
+
+### 0.16 LinkQualityCalculator.js
+
+**Type**: 🎨 LINK QUALITY SYSTEM
+
+**Purpose**:
+Calculates link quality metrics for visual mapping.
+
+**What it Does**:
+- Computes overall link quality score
+- Factors in multiple metrics (synergy, harmony, stability)
+- Provides quality-based visual mapping
+- Normalizes quality for visual use
+
+**Integration**:
+- Reads: Link metrics
+- Outputs: Quality score (0-1)
+- Used by: Visual mapping systems
+
+---
+
+### 0.17 LinkQualityPredictor1_0.js
+
+**Type**: 🎨 LINK QUALITY PREDICTION
+
+**Purpose**:
+Predicts future link quality for proactive visual changes.
+
+**What it Does**:
+- Predicts quality trend
+- Anticipates quality changes
+- Provides predictive visual cues
+- Enables proactive visual response
+
+**Integration**:
+- Reads: Historical quality data
+- Uses: Trend analysis, prediction models
+- Outputs: Predicted quality, confidence
+
+---
+
+### 0.18 LinkDecayEffectApplier.js
+
+**Type**: 🎨 LINK DECAY VISUALS
+
+**Purpose**:
+Applies visual decay effects to deteriorating links.
+
+**What it Does**:
+- Shows link degradation over time
+- Applies decay color/opacity
+- Creates decay animation
+- Provides visual feedback on link health
+
+**Integration**:
+- Reads: Link age, quality
+- Applies: Decay effects to material
+- Visual: Fading, desaturation, breakdown
+
+---
+
+### 0.19 LinkDegradationSystem.js
+
+**Type**: 🎨 LINK DEGRADATION SYSTEM
+
+**Purpose**:
+Manages link degradation lifecycle.
+
+**What it Does**:
+- Tracks link degradation state
+- Triggers degradation events
+- Manages degradation visual stages
+- Provides degradation feedback
+
+**Stages**:
+- Healthy → Warning → Critical → Failed
+- Visual progression per stage
+- Event triggers per stage
+
+---
+
+### 0.20 LinkCollapseSystem.js
+
+**Type**: 🎨 LINK COLLAPSE VISUALS
+
+**Purpose**:
+Visualizes link collapse events.
+
+**What it Does**:
+- Shows collapse animation
+- Triggers collapse visual effects
+- Creates debris/fragment effects
+- Provides dramatic visual feedback
+
+**Integration**:
+- Reads: Collapse events, link state
+- Triggers: Collapse animation, particle burst
+- Visual: Shatter, fade, debris
+
+---
+
+### 0.21 LinkEmissionPulsingSystem.js
+
+**Type**: 🎨 LINK EMISSION VISUALS
+
+**Purpose**:
+Creates emission pulsing effects on links.
+
+**What it Does**:
+- Pulses link emission intensity
+- Synchronizes with network rhythm
+- Creates rhythmic visual patterns
+- Provides emission-based feedback
+
+**Integration**:
+- Reads: Network rhythm, link state
+- Modulates: Emission intensity, pulse rate
+- Visual: Pulsing glow, rhythmic brightness
+
+---
+
+### 0.22 LinkBeadTrailSystem.js
+
+**Type**: 🎨 BEAD TRAIL VISUALS
+
+**Purpose**:
+Creates trail effects for link beads.
+
+**What it Does**:
+- Generates trail behind moving beads
+- Animates trail fade-out
+- Creates motion blur effect
+- Enhances bead movement visual
+
+**Integration**:
+- Reads: Bead position, velocity
+- Uses: Trail geometry, fade shader
+- Performance: Line-based trails, efficient
+
+---
+
+### 0.23 LinkPointFXBase.js
+
+**Type**: 🎨 POINT FX BASE CLASS
+
+**Purpose**:
+Base class for point-based FX systems.
+
+**What it Does**:
+- Provides common point FX functionality
+- Manages particle pools
+- Handles point rendering
+- Provides shared utilities
+
+**Subclasses**:
+- LinkSparkSystem
+- LinkHealingParticleSystem
+- LinkCorruptionParticleSystem
+
+---
+
+### 0.24 LinkVisualStateAdapter.js
+
+**Type**: 🎨 LINK STATE ADAPTER
+
+**Purpose**:
+Adapts link state to visual parameters.
+
+**What it Does**:
+- Maps link state to visual params
+- Normalizes state for visual use
+- Provides state-based visual queries
+- Handles state transitions
+
+**Integration**:
+- Reads: Link userData, metrics
+- Outputs: Visual parameters (color, intensity, speed)
+- Used by: All link visual systems
+
+---
+
+### 0.25 LinkRenderLayerPolicy.js
+
+**Type**: 🎨 RENDER LAYER POLICY
+
+**Purpose**:
+Defines render layer policy for link visuals.
+
+**What it Does**:
+- Assigns links to render layers
+- Manages layer ordering
+- Provides layer queries
+- Enforces layer policy
+
+**Integration**:
+- Used by: VisualHierarchyRegistry
+- Defines: Link render priorities
+
+---
+
+### 0.26 LinkSemanticMetricsBridge_v1.js
+
+**Type**: 🎨 SEMANTIC METRICS BRIDGE
+
+**Purpose**:
+Bridges semantic metrics to visual systems.
+
+**What it Does**:
+- Converts semantic metrics to visual params
+- Provides semantic-based visual queries
+- Manages semantic-visual mapping
+- Handles semantic state changes
+
+**Integration**:
+- Reads: Semantic metrics from SemanticMetricAdapter
+- Outputs: Visual parameters
+- Used by: Link visual systems
+
+---
+
+### 0.27 LinkShaderMetricsIntegration_v1.js
+
+**Type**: 🎨 SHADER METRICS INTEGRATION
+
+**Purpose**:
+Integrates metrics into link shader uniforms.
+
+**What it Does**:
+- Updates shader uniforms with metrics
+- Manages uniform lifecycle
+- Optimizes uniform updates
+- Handles shader-metric binding
+
+**Integration**:
+- Reads: Link metrics
+- Updates: Shader uniforms
+- Performance: Batched uniform updates
+
+---
+
+### 0.28 LinkThicknessMetricsIntegrationPatch_v1.js
+
+**Type**: 🎨 THICKNESS METRICS INTEGRATION
+
+**Purpose**:
+Integrates metrics into link thickness.
+
+**What it Does**:
+- Maps metrics to thickness
+- Animates thickness changes
+- Provides metric-based thickness
+- Handles thickness transitions
+
+**Integration**:
+- Reads: Link metrics (synergy, harmony, corruption)
+- Updates: Link geometry thickness
+- Visual: Dynamic line width
+
+---
+
+### 0.29 LinkThicknessScaling_v1.js
+
+**Type**: 🎨 LINK THICKNESS SCALING
+
+**Purpose**:
+Scales link thickness based on various factors.
+
+**What it Does**:
+- Computes target thickness
+- Animates thickness changes
+- Applies scaling factors
+- Handles thickness limits
+
+**Scaling Factors**:
+- Synergy level
+- Load pressure
+- Cascade intensity
+- User preference
+
+---
+
+### 0.30 LinkStateVisualLanguageIntegration.js
+
+**Type**: 🎨 VISUAL LANGUAGE INTEGRATION
+
+**Purpose**:
+Integrates visual language encoding into link shaders.
+
+**What it Does**:
+- Encodes link state in visual patterns
+- Applies visual language to shaders
+- Provides state-based visual encoding
+- Maintains visual language consistency
+
+**Integration**:
+- Reads: Link state, visual language definitions
+- Applies: Shader modifications
+- Used by: LinkRendererConduit
+
+---
+
+### 0.31 LinkCascadePulseManager.js
+
+**Type**: 🎨 CASCADE PULSE MANAGEMENT
+
+**Purpose**:
+Manages cascade pulses on links.
+
+**What it Does**:
+- Spawns cascade pulses
+- Tracks pulse propagation
+- Manages pulse lifecycle
+- Coordinates pulse visuals
+
+**Integration**:
+- Reads: Cascade events, link state
+- Triggers: Cascade pulse visuals
+- Feeds: Pulse visual systems
+
+---
+
+### 0.32 LinkCascadeInfectionSystem.js
+
+**Type**: 🎨 CASCADE INFECTION VISUALS
+
+**Purpose**:
+Visualizes cascade infection spreading along links.
+
+**What it Does**:
+- Shows infection propagation
+- Animates infection spread
+- Creates infection visual indicators
+- Provides infection feedback
+
+**Integration**:
+- Reads: Cascade infection state
+- Applies: Infection visual effects
+- Visual: Propagation animation, color shift
+
+---
+
+### 0.33 LinkPersonalityStateMachine_v1.js
+
+**Type**: 🎨 LINK PERSONALITY SYSTEM
+
+**Purpose**:
+Manages personality state for links.
+
+**What it Does**:
+- Tracks link personality state
+- Handles personality transitions
+- Provides personality-based queries
+- Drives personality visuals
+
+**Personality States**:
+- Aggressive, Passive, Balanced, Chaotic
+- State transitions based on metrics
+- Visual encoding per state
+
+---
+
+### 0.34 LinkCorruptionTransmission_v1.js
+
+**Type**: 🎨 CORRUPTION TRANSMISSION VISUALS
+
+**Purpose**:
+Visualizes corruption transmission along links.
+
+**What it Does**:
+- Shows corruption flow between nodes
+- Animates transmission progress
+- Creates corruption visual indicators
+- Provides transmission feedback
+
+**Integration**:
+- Reads: Corruption levels, link state
+- Applies: Transmission visual effects
+- Visual: Flow animation, color shift
+
+---
+
+### 0.35 LinkCorruptionSpreadAnimator.js
+
+**Type**: 🎨 CORRUPTION SPREAD ANIMATION
+
+**Purpose**:
+Animates corruption spread across links.
+
+**What it Does**:
+- Interpolates corruption spread
+- Creates smooth spread animation
+- Provides spread progress visual
+- Handles spread completion
+
+**Integration**:
+- Reads: Spread progress, corruption levels
+- Updates: Visual spread state
+- Visual: Progressive color/opacity change
 
 ---
 
@@ -464,38 +966,62 @@ Kompletný katalóg viditeľných VFX efektov v ATOMA. Dokument dokumentov pre v
 
 ---
 
-### 1.6 ResonanceCascadeVisualization_Session117B.js
+### 1.7 HarmonicResonanceFeedbackSystem.js
 
-**Type**: 🎨 GEOMETRY/MESH EMITTER
+**Type**: 🎨 RESONANCE FEEDBACK VISUALS
 
-**Scene Additions**:
-- ResonanceCascadeVisualization_Session117B_Root group
-- Shared SphereGeometry and TorusGeometry visual markers
-- Cascade visual groups for radial and link-based propagation
-- Optional node glow and link distortion meshes
+**Purpose**:
+Provides visual feedback for harmonic resonance events.
 
 **What it Does**:
-- Visualizes link-born resonance blooms and load-pressure surges
-- Spawns radial energy waves and link-propagation ripple visuals
-- Illuminates affected nodes and distorts links under cascade stress
-- Uses mesh groups and shaders for transient cascade geometry
+- Shows resonance active state
+- Animates resonance intensity
+- Creates resonance visual indicators
+- Provides resonance feedback
 
-**Wiring**:
-- Subscribes to semantic events: link.created and global.loadPressure.high
-- Reads: link birth data, load pressure spikes, cascade intensity
-- Uses: Three.js Group, shared geometries, shader materials
-- Registers scene root group and updates visual meshes each frame
+**Integration**:
+- Reads: Resonance state, intensity
+- Triggers: Resonance visual effects
+- Visual: Glow, pulse, color shift
 
-**Trigger conditions**:
-- New link creation events
-- Global load pressure high events
-- Load-pressure cascades and link birth cascades
+---
 
-**Submetrics Read**:
-- link load pressure and cascade intensity
-- affected node illumination weights
-- link born cascade event payloads
-- propagation mode / radial vs link-based visual state
+### 1.8 CompositeGlyphResonanceFeedback.js
+
+**Type**: 🎨 GLYPH RESONANCE FEEDBACK
+
+**Purpose**:
+Provides resonance feedback through composite glyphs.
+
+**What it Does**:
+- Shows resonance in glyph behavior
+- Modifies glyph appearance on resonance
+- Creates glyph-based resonance indicators
+- Provides glyph-level feedback
+
+**Integration**:
+- Reads: Composite glyph state, resonance
+- Updates: Glyph visual properties
+- Visual: Glow, color, animation change
+
+---
+
+### 1.9 LinkResonanceFlowIntegrationPatch_Session124.js
+
+**Type**: 🎨 RESONANCE INTEGRATION PATCH
+
+**Purpose**:
+Integrates resonance flow system with other visual systems.
+
+**What it Does**:
+- Connects resonance flow to other systems
+- Manages integration state
+- Handles integration conflicts
+- Provides unified resonance visuals
+
+**Integration**:
+- Connects: LinkResonanceFlowSystem to visual systems
+- Manages: Integration lifecycle
 
 ---
 
@@ -568,33 +1094,254 @@ Kompletný katalóg viditeľných VFX efektov v ATOMA. Dokument dokumentov pre v
 
 ---
 
-### 2.3 CascadingRuptureSystem.js
+### 2.4 CascadeWaveParticles.js
 
-**Type**: 🎨 GEOMETRY/MESH MODIFIER
+**Type**: 🎨 CASCADE WAVE PARTICLES
 
-**Purpose**: Visualizes rupture energy propagating across network regions
+**Purpose**:
+Wave-based particle effects for cascade events.
 
 **What it Does**:
-- Detects cascade opportunities based on corruption/stability
-- Propagates rupture energy through network hops
-- Triggers visual effects on links and nodes
+- Creates wave-front particles
+- Animates particle wave propagation
+- Shows cascade wave fronts
+- Provides wave-based cascade visualization
 
-**Visual Effects (Modifies Existing)**:
-1. Tear - Phase destabilization along links
-   - link.userData.visualTear - Phase destabilization
-   - Modifies link material properties
+**Integration**:
+- Reads: Cascade wave data
+- Spawns: Wave-front particles
+- Visual: Particle wave front
 
-2. Destabilize - Phase destabilization on nodes
-   - node.userData.visualDestabilization - Stability disruption
+---
 
-3. Coherence Loss - Sudden coherence loss
-   - link.userData.visualCoherenceLoss - Link dimming/flicker
+### 2.5 CascadeBurstVisual_Session147.js
 
-**Visual Impact**: Modifies existing link/node materials, does not create new geometry
+**Type**: 🎨 CASCADE BURST VISUALS
 
-**Performance**:
-- Max active cascades: 8
-- Visual pool size: 32 pre-allocated effects
+**Purpose**:
+Visual effects for cascade burst events.
+
+**What it Does**:
+- Shows cascade burst explosions
+- Creates burst particle effects
+- Animates burst expansion
+- Provides dramatic burst feedback
+
+**Integration**:
+- Reads: Cascade burst events
+- Triggers: Burst animation, particles
+- Visual: Explosion, flash, particle burst
+
+---
+
+### 2.6 ParticleCascadeFlowDeflection.js
+
+**Type**: 🎨 PARTICLE FLOW DEFLECTION
+
+**Purpose**:
+Deflects particle flow during cascade events.
+
+**What it Does**:
+- Deflects particles based on cascade
+- Creates flow diversion effects
+- Shows cascade influence on flow
+- Provides deflection visualization
+
+**Integration**:
+- Reads: Cascade state, particle flow
+- Modifies: Particle trajectories
+- Visual: Flow bending, deflection curves
+
+---
+
+### 2.7 ParticleStreamCascadeAcceleration.js
+
+**Type**: 🎨 CASCADE ACCELERATION
+
+**Purpose**:
+Accelerates particle streams during cascade events.
+
+**What it Does**:
+- Increases particle speed during cascade
+- Creates acceleration visual effects
+- Shows cascade energy boost
+- Provides acceleration feedback
+
+**Integration**:
+- Reads: Cascade intensity, particle streams
+- Modifies: Particle velocities
+- Visual: Speed increase, motion blur
+
+---
+
+### 2.8 ParticleStreamCascadeAccelerationIntegrationSetup.js
+
+**Type**: 🎨 ACCELERATION INTEGRATION SETUP
+
+**Purpose**:
+Sets up cascade acceleration integration.
+
+**What it Does**:
+- Initializes acceleration integration
+- Connects acceleration to systems
+- Manages setup lifecycle
+- Provides integration entry point
+
+---
+
+### 2.9 ParticleStreamCascadeAccelerationIntegrationPatch.js
+
+**Type**: 🎨 ACCELERATION INTEGRATION PATCH
+
+**Purpose**:
+Patches cascade acceleration into particle systems.
+
+**What it Does**:
+- Applies acceleration patches
+- Manages patch lifecycle
+- Handles patch conflicts
+- Provides unified acceleration behavior
+
+---
+
+### 2.10 HarmonicCascadeAmplification_Session145.js
+
+**Type**: 🎨 HARMONIC CASCADE AMPLIFICATION
+
+**Purpose**:
+Amplifies harmonic cascade effects.
+
+**What it Does**:
+- Increases cascade intensity
+- Amplifies harmonic resonance
+- Creates amplification visuals
+- Provides amplification feedback
+
+**Integration**:
+- Reads: Cascade state, harmonic data
+- Modifies: Cascade intensity, visual scale
+- Visual: Brightness increase, scale boost
+
+---
+
+### 2.11 CascadeEventBridge_v1.js
+
+**Type**: 🎨 CASCADE EVENT BRIDGE
+
+**Purpose**:
+Bridges cascade events to visual systems.
+
+**What it Does**:
+- Converts cascade events to visual signals
+- Routes events to appropriate systems
+- Manages event delivery
+- Provides unified event interface
+
+**Integration**:
+- Reads: Cascade events
+- Outputs: Visual event signals
+- Feeds: Cascade visual systems
+
+---
+
+### 2.12 CascadeToWaveBridge_v1.js
+
+**Type**: 🎨 CASCADE-WAVE BRIDGE
+
+**Purpose**:
+Bridges cascade events to wave systems.
+
+**What it Does**:
+- Converts cascade data to wave format
+- Triggers wave generation from cascade
+- Manages cascade-wave conversion
+- Provides cascade-driven waves
+
+**Integration**:
+- Reads: Cascade events
+- Outputs: Wave burst events
+- Feeds: Wave systems
+
+---
+
+### 2.13 CascadeSystemConsoleAPI.js
+
+**Type**: 🎨 CASCADE CONSOLE API
+
+**Purpose**:
+Provides console API for cascade system debugging and control.
+
+**What it Does**:
+- Exposes cascade state to console
+- Provides cascade control functions
+- Enables cascade debugging
+- Offers cascade statistics
+
+**API Functions**:
+- getCascadeStats()
+- triggerCascade(node, intensity)
+- setCascadeDebug(enabled)
+- getCascadeHistory()
+
+---
+
+### 2.14 CascadingHarmonicResonanceAmplification.js
+
+**Type**: 🎨 HARMONIC AMPLIFICATION
+
+**Purpose**:
+Amplifies harmonic resonance during cascades.
+
+**What it Does**:
+- Increases resonance intensity
+- Amplifies harmonic effects
+- Creates resonance amplification visuals
+- Provides amplification feedback
+
+**Integration**:
+- Reads: Cascade state, harmonic resonance
+- Modifies: Resonance intensity, visual scale
+- Visual: Glow increase, pulse boost
+
+---
+
+### 2.15 PreCascadeVisualHint_Session146.js
+
+**Type**: 🎨 PRE-CASCADE VISUAL HINTS
+
+**Purpose**:
+Provides visual warnings before cascade events.
+
+**What it Does**:
+- Shows pre-cascade warning indicators
+- Animates warning intensity
+- Creates anticipatory visuals
+- Provides early cascade warning
+
+**Integration**:
+- Reads: Pre-cascade state, prediction data
+- Triggers: Warning visual effects
+- Visual: Warning color, pulsing, glow
+
+---
+
+### 2.16 PHASE5_CorruptionBridge_v1.js
+
+**Type**: 🎨 CORRUPTION BRIDGE
+
+**Purpose**:
+Bridges corruption events to visual systems.
+
+**What it Does**:
+- Converts corruption events to visual signals
+- Routes corruption events to visual systems
+- Manages corruption event delivery
+- Provides unified corruption visual interface
+
+**Integration**:
+- Reads: Corruption events, levels
+- Outputs: Corruption visual signals
+- Feeds: Corruption visual systems
 
 ---
 
@@ -669,6 +1416,39 @@ Kompletný katalóg viditeľných VFX efektov v ATOMA. Dokument dokumentov pre v
 - waveField.sourceCount
 - Wave source positions
 - Wave amplitude envelope
+
+---
+
+### 3.3 StandingWaveOscillationTrapSystem_Session130.js
+
+**Type**: 🎨 WAVE PHYSICS SYSTEM
+
+**Scene Additions**:
+- Trap detection data structures (no direct geometry)
+- Trap state tracking and lifecycle management
+- Provides data for OscillationTrapVisualSystem
+
+**What it Does**:
+- Detects standing wave formation in harmonic field
+- Identifies oscillation trap regions where energy accumulates
+- Tracks trap lifecycle (formation, stability, collapse)
+- Provides physics data to visual systems
+
+**Wiring**:
+- Reads: Harmonic field data, wave interference patterns
+- Outputs: Trap detection events, trap state data
+- Feeds: OscillationTrapVisualSystem, ResonanceRuptureVisualSystem
+
+**Trigger Conditions**:
+- Constructive interference sustained > threshold time
+- Phase lock between multiple wave sources
+- Energy concentration in spatial region
+
+**Submetrics Read**:
+- Harmonic field amplitude and phase
+- Wave source positions and frequencies
+- Interference pattern metrics
+- Energy density in spatial regions
 
 ---
 
@@ -778,6 +1558,90 @@ Kompletný katalóg viditeľných VFX efektov v ATOMA. Dokument dokumentov pre v
 - Phase relationships between colliding waves
 - Wave frequencies and amplitudes
 - Proximity and alignment metrics
+
+---
+
+### 3.6 WaveInterferenceEngine_v1.js
+
+**Type**: 🎨 WAVE PHYSICS ENGINE
+
+**Scene Additions**:
+- Interference calculation engine (no direct geometry)
+- Wave superposition state tracking
+- Interference field data structures
+
+**What it Does**:
+- Computes wave superposition and interference patterns
+- Tracks constructive and destructive interference zones
+- Provides interference data to visual systems
+- Calculates beat frequencies from wave interactions
+
+**Wiring**:
+- Reads: Wave source data, reflection data from back-pressure system
+- Outputs: Interference field data, zone classifications
+- Feeds: WaveInterferencePatternSystem, StandingWaveVisualRenderer
+
+**Trigger Conditions**:
+- Multiple waves in same spatial region
+- Reflected waves collide with incident waves
+- Frequency differences create beat patterns
+
+**Submetrics Read**:
+- Wave source positions and frequencies
+- Reflection wave vectors and amplitudes
+- Phase relationships
+- Spatial overlap calculations
+
+---
+
+### 3.7 WaveBurstRouter_v1.js
+
+**Type**: 🎨 EVENT ROUTING SYSTEM
+
+**Purpose**:
+Routes wave burst events to appropriate visual systems based on wave type, intensity, and spatial context.
+
+**What it Does**:
+- Classifies wave bursts by type (constructive, destructive, standing)
+- Routes events to appropriate visual handlers
+- Filters and prioritizes burst events based on intensity
+- Manages event delivery to particle systems and renderers
+
+**Integration**:
+- Subscribes to semantic bus wave events
+- Routes to: WaveParticleEmitter, StandingWaveVisualRenderer, ResonanceEchoTrailSystem
+- Performance: O(n) where n = burst events per frame
+
+---
+
+### 3.8 HarmonicPhaseSynchronization_Session146.js
+
+**Type**: 🎨 HARMONIC PHASE SYSTEM
+
+**Purpose**:
+Synchronizes harmonic phases across the network to create coherent resonance patterns.
+
+**What it Does**:
+- Tracks phase of harmonic nodes across network
+- Identifies phase-locked node groups
+- Drives phase synchronization visualization
+- Enables coordinated harmonic events
+
+**Wiring**:
+- Reads: HarmonicHub state, node phase data
+- Outputs: Phase synchronization events, lock status
+- Feeds: HarmonicNodeResonanceHalos, CascadeResonanceWaveVisualization
+
+**Trigger Conditions**:
+- Nodes within phase alignment threshold
+- Sufficient harmonic connectivity between nodes
+- Stable phase relationship maintained over time
+
+**Submetrics Read**:
+- Node harmonic phases
+- Hub synchronization strength
+- Phase coherence metrics
+- Link harmonic connectivity
 
 ---
 
@@ -1017,36 +1881,79 @@ Particle sparks emitting along link curves using parametric motion. Visual: smal
 
 ---
 
-### 4.9 LinkTrailParticleSystem.js
+### 4.10 ParticleEmissionScaler.js
 
-**Type**: 🎨 PARTICLE SYSTEM
+**Type**: 🎨 PARTICLE EMISSION CONTROL
 
-**What it does**:
-Emits organic particle trails that flow along links using same noise function as link aura and node aura systems. Particles follow links from source → target, creating visual continuity of energy flow.
+**Purpose**:
+Scales particle emission rates dynamically.
 
-**Design Principles**:
-- Same Simplex-like noise for trajectory calculation
-- Pooled particles (no new allocations per frame)
-- Directional flow from source → target
-- Color & size tied to link state (harmony/corruption)
-- Smooth fade-in/out (no pop)
-- Synchronized animation timing with aura systems
+**What it Does**:
+- Adjusts emission rate based on conditions
+- Provides performance-based scaling
+- Manages emission budgets
+- Enables adaptive particle density
 
-**Performance**:
-- Particle pool: reused meshes (not created/destroyed)
-- Noise calculation: GPU-free (CPU, microseconds per particle)
-- Memory: fixed allocation per link
-- Update: <1ms for 100 particles
+**Scaling Factors**:
+- Performance level
+- Distance from camera
+- System importance
+- User settings
 
-**Connections**:
-- Uses same noise function as LinkAuraShader
-- Part of unified energy aesthetic across auras and particles
+---
 
-**Submetrics Read**:
-- link.userData.synergy
-- link.userData.harmony
-- link.userData.corruption
-- link source/target positions
+### 4.11 ParticleEmissionRateScaling.js
+
+**Type**: 🎨 EMISSION RATE SCALING
+
+**Purpose**:
+Scales particle emission rates based on metrics.
+
+**What it Does**:
+- Maps metrics to emission rates
+- Provides dynamic rate adjustment
+- Handles rate transitions
+- Maintains rate consistency
+
+**Integration**:
+- Reads: System metrics, performance
+- Outputs: Emission rate multipliers
+- Used by: Particle systems
+
+---
+
+### 4.12 ParticleEmissionIntegrationPatch.js
+
+**Type**: 🎨 EMISSION INTEGRATION PATCH
+
+**Purpose**:
+Integrates emission scaling into particle systems.
+
+**What it Does**:
+- Patches emission rate into systems
+- Manages integration state
+- Handles integration conflicts
+- Provides unified emission control
+
+---
+
+### 4.13 StressBasedParticleScaler_v1.js
+
+**Type**: 🎨 STRESS-BASED SCALING
+
+**Purpose**:
+Scales particle emission based on stress levels.
+
+**What it Does**:
+- Maps stress to particle density
+- Increases particles during high stress
+- Reduces particles during low stress
+- Provides stress-based visual feedback
+
+**Integration**:
+- Reads: Stress metrics
+- Outputs: Particle emission multipliers
+- Visual: More particles = higher stress
 
 ---
 
@@ -1115,93 +2022,203 @@ Emits organic particle trails that flow along links using same noise function as
 
 ---
 
-## 6 HARMONY VFX
+## 6.2 HarmonicInfluencePropagationSystem_Session127.js
 
-### 6.1 HarmonicNodeResonanceHalos.js
-
-**Type**: 🎨 GEOMETRY/MESH EMITTER
-
-**Scene Additions**:
-- Soft resonance halo meshes attached to harmonic hub nodes
-- Emissive materials with phase-synced breathing and pulse modulation
-- Single cached halo mesh per node, no per-frame geometry allocation
-
-**What it Does**:
-- Visualizes harmonic hub authority, stability, and health through halos
-- Activates when nodes have sufficient active links and synchronization strength
-- Modulates halo distortion based on harmony, synergy, corruption, and recovery
-
-**Wiring**:
-- Reads: hub phase, active link count, synchronization strength, resilience state
-- Subscribes to semantic/harmony events and updates cached halo materials
-- Uses: cached geometry/material and deterministic phase computation
-
-**Trigger conditions**:
-- activeLinkCount >= 2 and hubSynchronizationStrength > 0
-- Higher harmony levels increase clarity and smoothness
-- Corruption/stress introduces wobble, distortion, flicker
-
-**Submetrics Read**:
-- harmony, synergy, corruption, stability, resilience
-- hub phase frequency and alignment
-- active link density around node
-
----
-
-## 7 CORRUPTION VFX
-
-### 7.1 CorruptionVisualFX_v1.js
-
-**Type**: 🎨 GEOMETRY/MESH FX LAYER
-
-**Scene Additions**:
-- Dynamic color tinting and glow on corrupted nodes/links
-- Shader UV distortion, warping, mesh jitter effects
-- CorruptionVisualFX_Particles group for chaos particle emission
-- Delegates particle handling to T2_CorruptionVisualIntegration_v1
-
-**What it Does**:
-- Visualizes corruption progression from subtle to extreme
-- Applies visual distortion, glow flicker, and particle feedback
-- Uses VisualTime for canonical timing and safe THREE.js fallback
-
-**Wiring**:
-- Initialized via new CorruptionVisualFX_v1(this.scene, this.aiNodes, false)
-- Reads corruption from: nodeModel.userData.metrics.corruption, gameplay.corruptionLevel, userData.corruption
-- Does not bind direct semantic listeners in current shell; particle pulses delegated to T2 integration
-- triggerCorruptionPulse(nodeId) forwards to T2_CorruptionVisualIntegration_v1.triggerCorruptionPulse
-
-**Trigger conditions**:
-- corruption thresholds at ~0.25, 0.45, 0.65, 0.85
-- CASCADE_CORRUPTION_THRESHOLD (0.35) enables stronger particle/chaos effects
-
-**Submetrics Read**:
-- node/link corruption values and flags
-- high corruption state markers like corruptionHigh and isCorrupted
-- cascade corruption state and per-node visual intensity
-
----
-
-### 7.2 TIER4_CorruptionFeedbackVisuals_v1.js
-
-**Type**: 🎨 GEOMETRY/MESH FX LAYER
+**Type**: 🎨 INFLUENCE PROPAGATION VISUALS
 
 **Purpose**:
-- Visual feedback for player actions affecting corruption
-- Display gameplay feedback when links are created/destroyed
-- Corruption seed visualization on link creation
-- Cascade warning indicators
-- Harmony restoration VFX on link destruction
-- Real-time corruption network health display
+Visualizes harmonic influence propagation through network.
 
 **What it Does**:
-- Pure rendering layer — reads gameplay state, writes to THREE.js scene
+- Shows influence spreading from hubs
+- Animates influence propagation
+- Creates influence visual indicators
+- Provides propagation feedback
 
-**Submetrics Read**:
-- Link creation/destruction events
-- Node positions for spawn points
-- Corruption intensity for seed visual intensity
-- Cascade state for warning indicators
+**Integration**:
+- Reads: Influence data, propagation state
+- Renders: Influence wave fronts
+- Visual: Expanding influence zones
+
+---
+
+### 6.3 HarmonicInfluencePropagationIntegrationPatch_Session127.js
+
+**Type**: 🎨 INFLUENCE INTEGRATION PATCH
+
+**Purpose**:
+Integrates influence propagation with visual systems.
+
+**What it Does**:
+- Connects influence to visual systems
+- Manages integration state
+- Handles integration conflicts
+- Provides unified influence visuals
+
+---
+
+### 6.4 HarmonicHealingVisualSystem_Session134.js
+
+**Type**: 🎨 HEALING VISUALS
+
+**Purpose**:
+Visualizes harmonic healing effects.
+
+**What it Does**:
+- Shows healing wave propagation
+- Animates healing effects
+- Creates healing visual indicators
+- Provides healing feedback
+
+**Integration**:
+- Reads: Healing events, harmonic state
+- Triggers: Healing wave, particle effects
+- Visual: Green/cyan healing waves, sparkles
+
+---
+
+### 6.5 HarmonicHubAuraSystem_Session126.js
+
+**Type**: 🎨 HUB AURA VISUALS
+
+**Purpose**:
+Creates aura effects around harmonic hubs.
+
+**What it Does**:
+- Generates hub aura geometry
+- Animates aura intensity
+- Shows hub harmonic strength
+- Provides hub status visualization
+
+**Integration**:
+- Reads: Hub harmonic data
+- Renders: Aura geometry with shader
+- Visual: Glowing aura around hubs
+
+---
+
+### 6.6 HarmonicSyncEffectApplier.js
+
+**Type**: 🎨 SYNC EFFECT APPLIER
+
+**Purpose**:
+Applies harmonic synchronization visual effects.
+
+**What it Does**:
+- Applies sync effects to nodes
+- Animates synchronization visuals
+- Shows sync state
+- Provides sync feedback
+
+**Integration**:
+- Reads: Sync state, harmonic data
+- Applies: Sync visual effects
+- Visual: Pulsing sync indicators
+
+---
+
+### 6.7 NodeHarmonicManager.js
+
+**Type**: 🎨 NODE HARMONIC MANAGER
+
+**Purpose**:
+Manages harmonic state for nodes.
+
+**What it Does**:
+- Tracks node harmonic state
+- Manages harmonic lifecycle
+- Provides harmonic queries
+- Drives harmonic visuals
+
+**Integration**:
+- Reads: Node metrics, harmonic events
+- Outputs: Harmonic state
+- Used by: Harmonic visual systems
+
+---
+
+### 6.8 NodeHarmonicSyncController.js
+
+**Type**: 🎨 NODE SYNC CONTROLLER
+
+**Purpose**:
+Controls harmonic synchronization for nodes.
+
+**What it Does**:
+- Manages node sync state
+- Controls sync transitions
+- Provides sync queries
+- Drives sync visuals
+
+**Integration**:
+- Reads: Node harmonic data, sync state
+- Outputs: Sync control signals
+- Used by: Harmonic visual systems
+
+---
+
+### 6.9 HarmonyStabilizationIntegrationPatch_v1.js
+
+**Type**: 🎨 STABILIZATION INTEGRATION PATCH
+
+**Purpose**:
+Integrates stabilization with visual systems.
+
+**What it Does**:
+- Connects stabilization to visuals
+- Manages integration state
+- Handles integration conflicts
+- Provides unified stabilization visuals
+
+---
+
+## 7.3 CorruptionVisualIntegrationPatch_v1.js
+
+**Type**: 🎨 CORRUPTION INTEGRATION PATCH
+
+**Purpose**:
+Integrates corruption visuals with other systems.
+
+**What it Does**:
+- Connects corruption to visual systems
+- Manages integration state
+- Handles integration conflicts
+- Provides unified corruption visuals
+
+---
+
+### 7.4 CorruptionDesaturationIntegrationPatch.js
+
+**Type**: 🎨 DESATURATION INTEGRATION PATCH
+
+**Purpose**:
+Integrates corruption desaturation effects.
+
+**What it Does**:
+- Patches desaturation into visual systems
+- Manages desaturation state
+- Handles desaturation conflicts
+- Provides unified desaturation behavior
+
+---
+
+### 7.5 CorruptionDrivenAuraDesaturationSystem.js
+
+**Type**: 🎨 DESATURATION SYSTEM
+
+**Purpose**:
+Desaturates auras based on corruption level.
+
+**What it Does**:
+- Reduces aura saturation with corruption
+- Creates desaturation transition
+- Shows corruption through color loss
+- Provides desaturation feedback
+
+**Integration**:
+- Reads: Corruption level, aura state
+- Modifies: Aura color saturation
+- Visual: Fading to gray/monochrome
 
 ---
 
@@ -1498,56 +2515,110 @@ GPU-ready visualization system highlighting high-synergy links with special visu
 
 ---
 
-### 9.7 SynergyBonusFXLayer_v1.js
+### 9.8 SynergyColorTransition.js
 
-**Type**: 🎨 GPU SHADER SYSTEM
+**Type**: 🎨 COLOR TRANSITION SYSTEM
 
 **Purpose**:
-GPU-based visual effects layer that renders synergy flares on high-synergy links. Reads canonical link.userData.synergy.{score, synergyNorm} via SemanticMetricAdapter and applies shader-based visual enhancements.
+Handles smooth color transitions for synergy visuals.
 
-**Core Features**:
-- 4 synergy tier visualization (NONE → MYTHIC_RESONANCE)
-- GPU shader integration via onBeforeCompile
-- Dynamic emissive boosting (10–90% intensity scaling)
-- Multi-frequency pulsing (1–3 Hz range)
-- Chromatic flare effects (color shift oscillation)
-- Resonance ripples (subtle vertex distortion)
-- EMA smoothing for all effects (α = 0.15, 0.10, 0.08)
-- Per-link state tracking via WeakMap
-- Performance: 1500+ links in <1ms
-- Optional chaining throughout
-- Comprehensive error handling
+**What it Does**:
+- Interpolates color changes
+- Manages transition timing
+- Provides smooth color shifts
+- Handles transition conflicts
 
-**Synergy Tiers & Visual Profiles**:
-0 = NONE (no extra effects, baseline)
-1 = SOFT_BOOST (subtle emissive +10–20%, gentle pulsing 0.5–1.0 Hz)
-2 = STRONG_PULSE (noticeable emissive +30–50%, faster pulse 1.5–2.5 Hz)
-3 = MYTHIC_RESONANCE (strong emissive +60–90%, multi-frequency pulse)
+**Integration**:
+- Reads: Synergy state, target colors
+- Outputs: Current interpolated color
+- Used by: Synergy visual systems
 
 ---
 
-## 10 ARCHETYPE VFX
+### 9.9 SynergyGlowIntegrationGuide.js
 
-### 10.1 ArchetypeVisualDifferentiationSystem_v1.js
-
-**Type**: 🎨 ARCHETYPE VISUAL SYSTEM
+**Type**: 🎨 GLOW INTEGRATION GUIDE
 
 **Purpose**:
-Applies distinct visual treatments to nodes based on their extreme archetype. Integrates seamlessly with existing visual bootstrap and personality systems.
+Guide for integrating synergy glow effects.
 
-**Features**:
-- Per-archetype color shifts with HSL adjustments
-- Customized animation parameters (rotation, pulse, float)
-- Dynamic particle system modifications
-- Archetype-specific glow characteristics
-- Shader parameter customization
-- Non-breaking integration with existing code
-- Performance optimized with safe material handling
+**What it Does**:
+- Provides integration instructions
+- Documents glow system usage
+- Offers integration examples
+- Maintains integration best practices
+
+---
+
+## 10.2 ArchetypeVisualProfiles_v1.js
+
+**Type**: 🎨 ARCHETYPE PROFILES
+
+**Purpose**:
+Defines visual profiles for archetypes.
+
+**What it Does**:
+- Provides archetype visual definitions
+- Specifies color schemes per archetype
+- Defines animation parameters
+- Maintains archetype visual consistency
+
+**Profile Contents**:
+- Color palettes (HSL adjustments)
+- Animation parameters (rotation, pulse, float)
+- Particle system modifications
+- Glow characteristics
+- Shader parameters
+
+---
+
+### 10.3 ArchetypeVisualTransitionEngine_v2.js
+
+**Type**: 🎨 TRANSITION ENGINE
+
+**Purpose**:
+Handles smooth transitions between archetype visuals.
+
+**What it Does**:
+- Interpolates archetype visual changes
+- Manages transition timing
+- Provides smooth visual transitions
+- Handles transition conflicts
 
 **Integration**:
-- Uses ArchetypeVisualProfiles_v1.js for archetype definitions
-- Uses ArchetypeVisualTransitionEngine_v2.js for smooth transitions
-- Legacy aura overlays kill-switch: ENABLE_LEGACY_AURAS = false
+- Reads: Source and target archetypes
+- Interpolates: Visual parameters
+- Performance: Smooth lerp transitions
+
+---
+
+### 10.4 ArchetypeVisualIntegrationPatch_v1.js
+
+**Type**: 🎨 INTEGRATION PATCH
+
+**Purpose**:
+Integrates archetype visuals with node systems.
+
+**What it Does**:
+- Patches archetype visuals into nodes
+- Manages integration state
+- Handles integration conflicts
+- Provides unified archetype behavior
+
+---
+
+### 10.5 ArchetypeShaderModes_v1.js
+
+**Type**: 🎨 SHADER MODE DEFINITIONS
+
+**Purpose**:
+Defines shader modes for archetypes.
+
+**What it Does**:
+- Specifies shader parameters per archetype
+- Provides shader mode queries
+- Manages shader mode transitions
+- Maintains shader consistency
 
 ---
 
@@ -1577,41 +2648,1223 @@ Safe living civilization visual effects system. Creates growth shells, signal or
 
 ---
 
-## 12 DREAM EFFECTS
+## 12.2 SafeDreamDepthPack.js
 
-### 12.1 DreamDepthEffectManager.js
-
-**Type**: 🎨 RICH OVERLAY SYSTEM
+**Type**: 🎨 LOW-COST DEPTH EFFECTS
 
 **Purpose**:
-Rich ATOMA dream aperture overlay. Primary rich overlay path for ATOMA depth-of-field VFX. SafeDreamDepthPack remains low-cost fallback depth layer.
-
-**Palette**:
-- void deep: #05131A
-- ATOMA cyan: #6DEAFF
-- mint: #77F7DB
-- ritual white: #F7FBFF
-- violet: #D07BFF
-- rose: #FF73CF
-
-**Weather States**:
-- calm, pressure, resonance, stormBias, ascensionHaze
+Low-cost fallback depth layer for ATOMA. Use when DreamDepthEffectManager is too expensive.
 
 **Features**:
-- Safe: Pure VFX rendering through canvas overlays
-- No camera mutations, no shader dependencies, no physics changes
+- Minimal performance impact
+- Simple depth of field
+- Basic vignette
+- Subtle dream atmosphere
+
+**Fallback Role**:
+- Activated when performance budget tight
+- Maintains dream aesthetic with low cost
+- Smooth transition from/to rich pack
+
+---
+
+### 12.3 DreamDesert.js
+
+**Type**: 🎨 ENVIRONMENT BACKGROUND
+
+**Purpose**:
+Desert environment background for ATOMA dream state.
+
+**What it Does**:
+- Creates desert landscape
+- Provides atmospheric depth
+- Adds environment texture
+- Enhances dream atmosphere
+
+**Visual Style**:
+- Sandy/earthy colors
+- Dunes and ridges
+- Hazy atmosphere
+- Dream-like distortion
+
+---
+
+### 12.4 DreamDesert2.js
+
+**Type**: 🎨 ENVIRONMENT BACKGROUND V2
+
+**Purpose**:
+Enhanced desert environment background.
+
+**What it Does**:
+- Improved desert landscape
+- Better atmospheric effects
+- Enhanced environment texture
+- Richer dream atmosphere
+
+**Improvements over V1**:
+- More detail in terrain
+- Better lighting
+- Improved atmosphere
+- Enhanced visual quality
+
+---
+
+### 12.5 FractalValley.js
+
+**Type**: 🎨 ENVIRONMENT BACKGROUND
+
+**Purpose**:
+Fractal valley environment background.
+
+**What it Does**:
+- Creates fractal valley landscape
+- Provides complex geometry
+- Adds mathematical beauty
+- Enhances visual interest
+
+**Visual Style**:
+- Fractal-based geometry
+- Mathematical patterns
+- Complex terrain
+- Intricate details
+
+---
+
+### 12.6 QuantumIsland.js
+
+**Type**: 🎨 ENVIRONMENT BACKGROUND
+
+**Purpose**:
+Quantum island environment background.
+
+**What it Does**:
+- Creates quantum-themed island
+- Provides sci-fi atmosphere
+- Adds quantum visual motifs
+- Enhances futuristic feel
+
+**Visual Style**:
+- Quantum patterns
+- Sci-fi aesthetics
+- Floating structures
+- Quantum effects
+
+---
+
+### 12.7 SigmaRiftChamber.js
+
+**Type**: 🎨 ENVIRONMENT BACKGROUND
+
+**Purpose**:
+Sigma rift chamber environment background.
+
+**What it Does**:
+- Creates rift chamber environment
+- Provides dramatic atmosphere
+- Adds rift visual motifs
+- Enhances tension
+
+**Visual Style**:
+- Rift geometry
+- Dramatic lighting
+- Tension-inducing effects
+- Powerful atmosphere
+
+---
+
+### 12.8 MemoryLane.js
+
+**Type**: 🎨 ENVIRONMENT EFFECT
+
+**Purpose**:
+Memory lane visual effect for ATOMA.
+
+**What it Does**:
+- Creates memory lane visualization
+- Shows past states/paths
+- Provides temporal context
+- Enhances narrative
+
+**Visual Style**:
+- Path-like structure
+- Ghostly trails
+- Temporal echoes
+- Memory fragments
+
+---
+
+### 12.9 CinematicUpgrade.js
+
+**Type**: 🎨 CINEMATIC EFFECTS
+
+**Purpose**:
+Cinematic visual upgrades for ATOMA.
+
+**What it Does**:
+- Adds cinematic effects
+- Enhances visual drama
+- Improves presentation quality
+- Provides film-like aesthetics
+
+**Effects**:
+- Enhanced lighting
+- Better color grading
+- Improved camera effects
+- Cinematic transitions
+
+---
+
+## 13 HARMONIC HUB CONTROLLERS
+
+### 13.1 HarmonicHubCollapseController.js
+
+**Type**: 🎨 HUB STATE VISUALS
+
+**Purpose**:
+Visualizes harmonic hub collapse events when synchronization breaks down.
+
+**What it Does**:
+- Triggers collapse visual effects on hub failure
+- Coordinates node and link response visuals
+- Manages collapse animation sequences
+- Provides visual feedback for hub lifecycle end
+
+**Wiring**:
+- Reads: Hub stability, synchronization strength
+- Triggers: Collapse animations, visual decay
+- Integrates with: HarmonicNodeResonanceHalos, CascadingRuptureSystem
+
+**Trigger Conditions**:
+- Hub synchronization falls below threshold
+- Active link count drops below minimum
+- Hub stability critical
+
+**Submetrics Read**:
+- Hub synchronization strength
+- Active link count
+- Node harmonic stability
+- Collapse trigger events
+
+---
+
+### 13.2 HarmonicHubRecoveryController.js
+
+**Type**: 🎨 HUB STATE VISUALS
+
+**Purpose**:
+Visualizes harmonic hub recovery and re-synchronization processes.
+
+**What it Does**:
+- Orchestrates recovery visual sequences
+- Coordinates healing effects on hub nodes
+- Manages re-synchronization animation
+- Provides positive feedback for hub restoration
+
+**Wiring**:
+- Reads: Recovery state, synchronization progress
+- Triggers: Recovery animations, healing effects
+- Integrates with: HarmonicHealingVisualSystem, HarmonicRecoveryVisualSystem
+
+**Trigger Conditions**:
+- Hub enters recovery state
+- Synchronization strength increases
+- Healing thresholds reached
+
+**Submetrics Read**:
+- Recovery progress
+- Synchronization restoration level
+- Hub node harmony
+- Healing event data
+
+---
+
+### 13.3 HarmonicHubResilienceController.js
+
+**Type**: 🎨 HUB STATE VISUALS
+
+**Purpose**:
+Visualizes harmonic hub resilience and adaptive response to stress.
+
+**What it Does**:
+- Shows hub resilience through visual stability
+- Modulates visuals based on stress/recovery balance
+- Displays adaptive response animations
+- Indicates hub health and capacity
+
+**Wiring**:
+- Reads: Resilience metrics, stress levels, recovery state
+- Modulates: Visual intensity, color, animation speed
+- Integrates with: HarmonicNodeResonanceHalos, StressVisualShaders
+
+**Trigger Conditions**:
+- Hub under stress but maintaining function
+- Resilience response activated
+- Recovery/collapse balance changes
+
+**Submetrics Read**:
+- Hub resilience score
+- Stress level metrics
+- Recovery rate
+- Adaptive response triggers
+
+---
+
+## 14 PULSE WAVE SYSTEMS
+
+### 14.1 PulseWaveSystemBridge_v1.js
+
+**Type**: 🎨 EVENT BRIDGE
+
+**Purpose**:
+Bridges pulse events to wave visual systems, converting pulse data into wave-compatible format.
+
+**What it Does**:
+- Converts pulse events to wave burst format
+- Routes pulse data to wave renderers
+- Synchronizes pulse timing with wave systems
+- Manages pulse-to-wave lifecycle
+
+**Integration**:
+- Reads: Link pulse events, LinkResonanceFlowSystem
+- Outputs: Wave burst events for WaveBurstRouter
+- Feeds: WaveParticleEmitter, StandingWaveVisualRenderer
+
+**Trigger Conditions**:
+- Pulse spawning from LinkResonanceFlowSystem
+- Pulse collision/intersection events
+- Pulse boundary interactions
+
+**Submetrics Read**:
+- Pulse position, intensity, direction
+- Link curve data
+- Pulse timing data
+
+---
+
+### 14.2 PulseIntersectionImpulseAdapter_v1.js
+
+**Type**: 🎨 INTERSECTION VISUALS
+
+**Purpose**:
+Creates visual effects when pulses intersect or collide on links.
+
+**What it Does**:
+- Detects pulse intersection events
+- Generates intersection impulse visuals
+- Modulates visual intensity based on pulse energy
+- Creates constructive/destructive interference effects at intersection
+
+**Integration**:
+- Reads: Pulse positions, collision events
+- Triggers: Intersection flash, particle burst, wave distortion
+- Performance: O(n²) intersection detection, optimized with spatial partitioning
+
+**Trigger Conditions**:
+- Two or more pulses in proximity
+- Pulse paths intersect or converge
+- Sufficient combined pulse energy
+
+**Submetrics Read**:
+- Pulse positions and velocities
+- Pulse intensity and energy
+- Intersection point calculation
+
+---
+
+### 14.3 PulseBoundaryInteractionAdapter_v1.js
+
+**Type**: 🎨 BOUNDARY VISUALS
+
+**Purpose**:
+Creates visual effects when pulses reach link boundaries (node endpoints).
+
+**What it Does**:
+- Detects pulse arrival at nodes
+- Generates absorption/rebound visuals
+- Shows energy transfer to target nodes
+- Creates boundary flash and ripple effects
+
+**Integration**:
+- Reads: Pulse positions, link endpoints
+- Triggers: Node absorption flash, ripple emission, energy transfer
+- Feeds: NodeImpactManager, ResonanceEchoTrailSystem
+
+**Trigger Conditions**:
+- Pulse reaches link endpoint
+- Pulse absorbed by node
+- Pulse rebounds (boundary reflection)
+
+**Submetrics Read**:
+- Pulse position and progress
+- Link endpoint coordinates
+- Target node state
+
+---
+
+## 15 VISUAL AUTHORITY SYSTEMS
+
+### 15.1 VisualAuthority.js
+
+**Type**: 🎨 CORE AUTHORITY SYSTEM
+
+**Purpose**:
+Defines canonical authority for visual systems in ATOMA. Establishes which systems have authority over which visual aspects.
+
+**What it Does**:
+- Declares visual authority domains (links, nodes, auras, particles, etc.)
+- Prevents conflicts between competing visual systems
+- Provides authority checking and validation
+- Manages authority flag distribution
+
+**Integration**:
+- Used by: All visual systems for authority registration
+- Checked by: ShaderVariantDetector, VisualAutoWiringSystem
+- Performance: O(1) authority lookups via Map
+
+---
+
+### 15.2 VisualAuthorityFlag.js
+
+**Type**: 🎨 AUTHORITY FLAGS
+
+**Purpose**:
+Defines flag constants for visual authority claims and system capabilities.
+
+**Authority Flags**:
+- LINK_VISUAL_AUTHORITY: Core link rendering
+- NODE_VISUAL_AUTHORITY: Core node rendering
+- AURA_VISUAL_AUTHORITY: Aura effect authority
+- PARTICLE_VISUAL_AUTHORITY: Particle system authority
+- SHADER_AUTHORITY: Shader modification authority
+
+---
+
+### 15.3 CoreVisualAuthoritySystem.js
+
+**Type**: 🎨 AUTHORITY ORCHESTRATION
+
+**Purpose**:
+Central system managing visual authority claims, conflicts, and resolution.
+
+**What it Does**:
+- Registers authority claims from visual systems
+- Detects and resolves authority conflicts
+- Provides authority status queries
+- Manages authority transfer and delegation
+
+**Integration**:
+- Called by: Visual systems during initialization
+- Provides: Authority validation, conflict resolution
+- Logs: Authority conflicts and resolutions
+
+---
+
+### 15.4 NodeVisualAuthorityRuntime.js
+
+**Type**: 🎨 NODE AUTHORITY RUNTIME
+
+**Purpose**:
+Runtime authority system specifically for node visual management.
+
+**What it Does**:
+- Manages node visual authority at runtime
+- Tracks which system controls each node's visuals
+- Handles dynamic authority changes
+- Provides node-level authority queries
+
+**Integration**:
+- Used by: NodeVisualRegistry, NodeVisualStateBinder
+- Reads: Node visual state, authority claims
+- Updates: Authority assignments on node creation/destruction
+
+---
+
+### 15.5 NodeVisualReadinessGate_v1.js
+
+**Type**: 🎨 READINESS GATE
+
+**Purpose**:
+Ensures node visuals are ready before activating visual systems.
+
+**What it Does**:
+- Checks node visual readiness (materials, geometry, shaders)
+- Gates visual system activation until nodes ready
+- Provides readiness callbacks
+- Manages readiness state for all nodes
+
+**Integration**:
+- Used by: VisualAutoWiringSystem, Shader systems
+- Prevents: Visual system activation on unready nodes
+- Performance: O(1) readiness checks
+
+---
+
+### 15.6 VisualTemplateRegistry.js
+
+**Type**: 🎨 TEMPLATE REGISTRY
+
+**Purpose**:
+Registry for canonical visual templates (SynergyGlow, HarmonyAura, StressTurbulence).
+
+**What it Does**:
+- Registers visual template definitions
+- Provides template access to visual systems
+- Manages template lifecycle
+- Enforces template constraints
+
+**Integration**:
+- Used by: VisualTemplateResolver, VisualAutoWiringSystem
+- Provides: Template definitions, parameters, constraints
+- Templates: #1 SynergyGlow, #2 HarmonyAura, #3 StressTurbulence
+
+---
+
+### 15.7 VisualTemplateResolver.js
+
+**Type**: 🎨 TEMPLATE RESOLVER
+
+**Purpose**:
+Resolves and applies visual templates to renderables based on state and context.
+
+**What it Does**:
+- Resolves appropriate template for each renderable
+- Applies template parameters to materials/shaders
+- Manages template transitions
+- Handles template overrides
+
+**Integration**:
+- Reads: Renderable state, metrics
+- Uses: VisualTemplateRegistry for templates
+- Outputs: Applied template parameters
+
+---
+
+### 15.8 VisualAutoWiringSystem.js
+
+**Type**: 🎨 AUTO-WIRING SYSTEM
+
+**Purpose**:
+Automatically wires visual controllers to renderables based on authority and templates.
+
+**What it Does**:
+- Auto-discovers renderables needing visual controllers
+- Wires appropriate controllers based on authority
+- Applies templates automatically
+- Manages controller lifecycle
+
+**Integration**:
+- Reads: VisualAuthority, VisualTemplateRegistry
+- Wires: SynergyGlowController, HarmonyAuraController, StressTurbulenceController
+- Performance: O(n) where n = renderables
+
+---
+
+## 16 ADDITIONAL LINK VFX
+
+### 16.1 NeonLinkVisuals.js
+
+**Type**: 🎨 LINK STYLE VARIANT
+
+**Purpose**:
+Alternative neon-style link visual effects.
+
+**What it Does**:
+- Applies neon color profiles to links
+- Adds glow and bloom effects
+- Creates high-contrast link visuals
+- Provides alternative aesthetic option
+
+**Visual Style**:
+- Bright, saturated neon colors
+- Strong glow/bloom effects
+- Sharp, clean line geometry
+- High visibility
+
+---
+
+### 16.2 DynamicLinkColorSystem.js
+
+**Type**: 🎨 LINK COLOR SYSTEM
+
+**Purpose**:
+Dynamic color assignment to links based on multiple factors.
+
+**What it Does**:
+- Calculates link colors based on metrics
+- Applies color transitions smoothly
+- Supports multiple color modes
+- Provides color-based visual feedback
+
+**Color Modes**:
+- Metric-based (synergy, harmony, corruption)
+- Category-based (node categories)
+- State-based (cascade, resonance, stress)
+- Custom user-defined
+
+---
+
+### 16.3 LinkDirectionalStreaks.js
+
+**Type**: 🎨 LINK DIRECTION VISUALS
+
+**Purpose**:
+Creates directional streak effects on links showing energy flow direction.
+
+**What it Does**:
+- Renders streak patterns along link curves
+- Animate streaks from source to target
+- Modulates streak intensity based on flow
+- Provides clear directional indication
+
+**Integration**:
+- Reads: Link direction, flow metrics
+- Uses: Shader-based streak rendering
+- Performance: GPU-driven, minimal CPU cost
+
+---
+
+### 16.4 LinkSurfacePhaseRipples.js
+
+**Type**: 🎨 LINK SURFACE EFFECTS
+
+**Purpose**:
+Creates phase-based ripple effects on link surfaces.
+
+**What it Does**:
+- Animates ripple patterns on link geometry
+- Synchronizes ripples with harmonic phase
+- Creates wave propagation visual on link surface
+- Enhances visual complexity
+
+**Integration**:
+- Reads: Harmonic phase, link metrics
+- Uses: Shader-based ripple animation
+- Submetrics: Phase, amplitude, frequency
+
+---
+
+### 16.5 LinkRingArcDischarges.js
+
+**Type**: 🎨 LINK ENERGY EFFECTS
+
+**Purpose**:
+Creates arc discharge effects on link rings.
+
+**What it Does**:
+- Generates electrical arc visuals
+- Triggers discharges on high energy events
+- Animates arc paths along rings
+- Provides dynamic energy visual
+
+**Integration**:
+- Reads: Link energy, cascade events
+- Triggers: On cascade, resonance, high synergy
+- Visual: Electric arc geometry with glow
+
+---
+
+## 17 NODE VISUAL SYSTEMS
+
+### 17.1 NodeHoverRingSystem.js
+
+**Type**: 🎨 NODE INTERACTION VISUALS
+
+**Purpose**:
+Creates hover ring effects when user interacts with nodes.
+
+**What it Does**:
+- Shows hover ring when node is hovered
+- Animates ring intensity and size
+- Provides interactive feedback
+- Indicates selectable/clickable nodes
+
+**Integration**:
+- Reads: Mouse/hover state, node position
+- Renders: Ring geometry around node
+- Performance: Only active on hover
+
+---
+
+### 17.2 NodeImpactManager.js
+
+**Type**: 🎨 NODE IMPACT VISUALS
+
+**Purpose**:
+Manages impact visual effects on nodes (pulses, ripples, shakes).
+
+**What it Does**:
+- Triggers impact visuals on events
+- Manages impact animation lifecycle
+- Coordinates multiple impact types
+- Provides event-based node feedback
+
+**Impact Types**:
+- Pulse (expanding ring)
+- Ripple (wave effect)
+- Shake (position displacement)
+- Flash (brightness spike)
+
+---
+
+### 17.3 NodeHierarchyEffectsPool_v1.js
+
+**Type**: 🎨 NODE HIERARCHY VISUALS
+
+**Purpose**:
+Pooled visual effects for node hierarchy visualization.
+
+**What it Does**:
+- Manages pooled effect objects for hierarchy
+- Reuses effects for performance
+- Shows parent-child relationships
+- Visualizes hierarchy depth
+
+**Integration**:
+- Reads: Node hierarchy data
+- Uses: Object pooling for efficiency
+- Visual: Connection lines, depth indicators
+
+---
+
+### 17.4 NodeHierarchyVisuals_v1.js
+
+**Type**: 🎨 NODE HIERARCHY VISUALS
+
+**Purpose**:
+Visualizes node hierarchy and relationships.
+
+**What it Does**:
+- Renders hierarchy connection lines
+- Shows parent-child relationships
+- Visualizes hierarchy depth levels
+- Provides structural context
+
+**Integration**:
+- Reads: Node hierarchy structure
+- Renders: Line geometry for connections
+- Performance: O(n) where n = hierarchy edges
+
+---
+
+### 17.5 NodeHierarchyVisualFeedback_v1.js
+
+**Type**: 🎨 HIERARCHY FEEDBACK
+
+**Purpose**:
+Provides visual feedback for hierarchy-related events.
+
+**What it Does**:
+- Shows hierarchy creation/destruction
+- Visualizes hierarchy changes
+- Provides feedback on hierarchy operations
+- Animates hierarchy transitions
+
+---
+
+## 18 AUDIO-REACTIVE VFX
+
+### 18.1 HarmonicAudioReactivitySystem_Session135.js
+
+**Type**: 🎨 CROSS-MODAL VFX
+
+**Purpose**:
+Creates visual effects synchronized with audio signals from harmonic events.
+
+**What it Does**:
+- Listens to audio system for harmonic tones
+- Triggers visual effects on audio events
+- Synchronizes visual pulse with audio rhythm
+- Creates cross-modal feedback (audio + visual)
+
+**Integration**:
+- Reads: Audio events, harmonic state
+- Triggers: Visual pulse, ripple, glow
+- Feeds: AudioSystem for tone triggers
+
+**Visual Effects**:
+- Pulse on tone start
+- Ripple on sustained tone
+- Glow modulation with amplitude
+- Color shift with pitch
+
+---
+
+## 19 PROCEDURAL GLYPH SYSTEMS
+
+### 19.1 ProceduralHarmonicGlyphGenerator.js
+
+**Type**: 🎨 PROCEDURAL GLYPH GENERATION
+
+**Purpose**:
+Generates procedural glyphs with harmonic properties.
+
+**What it Does**:
+- Creates glyph geometry procedurally
+- Encodes harmonic data in glyph shape
+- Generates glyphs on demand
+- Provides unlimited glyph variety
+
+**Generation Parameters**:
+- Harmony level (controls complexity)
+- Synergy (controls structure)
+- Phase (controls orientation)
+- Corruption (adds distortion)
+
+**Integration**:
+- Feeds: LinkSemanticPictogramSystem
+- Uses: Procedural geometry generation
+- Performance: On-demand generation with caching
+
+---
+
+### 19.2 LinkSemanticPictogramGlyphBuilders.js
+
+**Type**: 🎨 GLYPH BUILDER UTILITIES
+
+**Purpose**:
+Builder utilities for creating semantic pictogram glyphs.
+
+**What it Does**:
+- Provides glyph building functions
+- Constructs composite glyph geometry
+- Handles glyph fusion operations
+- Manages glyph assembly
+
+**Glyph Types**:
+- Signal glyphs (communication)
+- Modulator glyphs (regulation)
+- Memory glyphs (storage)
+- Composite glyphs (fusion result)
+
+---
+
+## 20 ENVIRONMENTAL VFX
+
+### 20.1 _SafeWorldFXPack.js
+
+**Type**: 🎨 ENVIRONMENTAL FX PACK
+
+**Purpose**:
+Safe, non-intrusive environmental visual effects pack.
+
+**What it Does**:
+- Adds atmospheric haze
+- Creates subtle particle fields
+- Applies gentle ambient animation
+- Enhances scene depth
+
+**Safety**:
+- Read-only scene modifications
+- No gameplay impact
+- Fully reversible
+- Low performance cost
+
+---
+
+### 20.2 SafeMetricsFX1_1.js
+
+**Type**: 🎨 METRICS-BASED FX
+
+**Purpose**:
+Visual effects driven by network metrics (harmony, synergy, corruption).
+
+**What it Does**:
+- Modifies scene based on network state
+- Color shifts with metrics
+- Intensity scales with network health
+- Provides ambient metric feedback
+
+**Metric Mapping**:
+- Harmony → Cyan/Blue tint
+- Synergy → Gold glow
+- Corruption → Red/orange shift
+- Stability → Camera stability
+
+---
+
+### 20.3 EnvironmentalHazards.js
+
+**Type**: 🎨 HAZARD VISUALS
+
+**Purpose**:
+Visualizes environmental hazards and danger zones.
+
+**What it Does**:
+- Shows hazard areas
+- Animates hazard effects
+- Provides danger indication
+- Creates environmental tension
+
+**Hazard Types**:
+- Corruption zones
+- Cascade risk areas
+- Unstable regions
+- Critical state warnings
+
+---
+
+### 20.4 MetricReactiveWorldEvents.js
+
+**Type**: 🎨 METRIC-REACTIVE EVENTS
+
+**Purpose**:
+World events that react to network metrics.
+
+**What it Does**:
+- Triggers world events on metric thresholds
+- Creates metric-driven environmental changes
+- Provides large-scale metric feedback
+- Connects network state to world
+
+**Event Types**:
+- Storm on high corruption
+- Clear weather on high harmony
+- Resonance events on high synergy
+- Instability on low stability
+
+---
+
+### 20.5 EventVisualSuppression_v1.js
+
+**Type**: 🎨 VISUAL SUPPRESSION
+
+**Purpose**:
+Suppresses visual events when needed for performance or clarity.
+
+**What it Does**:
+- Filters visual events
+- Prioritizes important visuals
+- Suppresses redundant effects
+- Manages visual load
+
+**Suppression Criteria**:
+- Performance throttling
+- Visual clutter reduction
+- Event importance
+- Distance-based culling
+
+---
+
+### 20.6 TemporalEventEffects.js
+
+**Type**: 🎨 TEMPORAL VISUALS
+
+**Purpose**:
+Visual effects with temporal duration and lifecycle.
+
+**What it Does**:
+- Manages time-based effects
+- Animates effect lifecycle
+- Handles effect sequencing
+- Creates temporal visual narratives
+
+**Temporal Features**:
+- Effect duration control
+- Sequencing and chaining
+- Fade in/out transitions
+- Timeline management
+
+---
+
+## 21 VISUAL PERFORMANCE SYSTEMS
+
+### 21.1 FXRuntime_v1.js
+
+**Type**: 🎨 FX ORCHESTRATION
+
+**Purpose**:
+Centralized orchestration for all global FX systems.
+
+**What it Does**:
+- Manages FX system lifecycle
+- Coordinates multiple FX layers
+- Provides FX runtime control
+- Integrates with frame scheduler
+
+**FX Layers**:
+- World FX (environmental)
+- Visual FX (nodes, links)
+- Aura FX (harmonic auras)
+- Event FX (cascade, pulse)
+- Post-processing (bloom, effects)
+
+---
+
+### 21.2 FXPerformanceController_v1.js
+
+**Type**: 🎨 PERFORMANCE CONTROL
+
+**Purpose**:
+Controls VFX performance through quality settings and throttling.
+
+**What it Does**:
+- Monitors VFX performance
+- Adjusts quality based on performance
+- Throttles expensive effects
+- Provides performance metrics
+
+**Control Methods**:
+- Quality level adjustment
+- Effect count limiting
+- LOD distance scaling
+- Frame time budgeting
+
+---
+
+### 21.3 FXPerformanceScaler_v1.js
+
+**Type**: 🎨 DYNAMIC SCALING
+
+**Purpose**:
+Dynamically scales VFX quality based on system performance.
+
+**What it Does**:
+- Measures frame time and GPU load
+- Scales VFX intensity smoothly
+- Maintains target frame rate
+- Adapts to hardware capability
+
+**Scaling Dimensions**:
+- Particle count
+- Shader complexity
+- Effect intensity
+- Draw call count
+
+---
+
+### 21.4 FXPerformanceSmoothTransition_v1.js
+
+**Type**: 🎨 SMOOTH TRANSITIONS
+
+**Purpose**:
+Smooth transitions between VFX performance levels.
+
+**What it Does**:
+- Interpolates quality changes
+- Prevents visual jarring
+- Maintains visual coherence
+- Provides smooth degradation/improvement
+
+**Transition Features**:
+- Lerp-based smoothing
+- Gradual quality adjustment
+- Stable visual appearance
+- No sudden changes
+
+---
+
+## 22 SHADER BRIDGE SYSTEMS
+
+### 22.1 WaveShaderBridge_v1.js
+
+**Type**: 🎨 WAVE-SHADER BRIDGE
+
+**Purpose**:
+Bridges wave systems to shader-based visual effects.
+
+**What it Does**:
+- Converts wave data to shader uniforms
+- Updates shader parameters per frame
+- Manages shader lifecycle for waves
+- Optimizes uniform updates
+
+**Integration**:
+- Reads: Wave system data
+- Updates: Shader uniforms (amplitude, phase, frequency)
+- Performance: Batched uniform updates
+
+---
+
+### 22.2 WaveShaderMaterialPatch_v1.js
+
+**Type**: 🎨 SHADER PATCHING
+
+**Purpose**:
+Patches shader materials for wave visual effects.
+
+**What it Does**:
+- Applies onBeforeCompile patches
+- Injects wave shader code
+- Maintains shader compatibility
+- Provides safe fallbacks
+
+**Patch Types**:
+- Vertex displacement
+- Fragment color modulation
+- Time-based animation
+- Noise injection
+
+---
+
+### 22.3 WaveTravelShaderPack_v1.js
+
+**Type**: 🎨 TRAVELING WAVE SHADERS
+
+**Purpose**:
+Collection of traveling wave shader effects.
+
+**What it Does**:
+- Provides traveling wave shader code
+- Supports multiple wave types
+- Manages shader uniforms
+- Handles wave animation
+
+**Wave Types**:
+- Sine waves
+- Cosine waves
+- Sawtooth waves
+- Square waves
+- Custom waveforms
+
+---
+
+### 22.4 WaveDynamicsShaderPack_v1.js
+
+**Type**: 🎨 WAVE DYNAMICS SHADERS
+
+**Purpose**:
+Shader pack for wave dynamics and physics.
+
+**What it Does**:
+- Renders wave interference patterns
+- Shows wave reflection
+- Visualizes wave superposition
+- Displays wave dynamics
+
+**Effects**:
+- Interference bands
+- Reflection ripples
+- Superposition visualization
+- Standing wave patterns
+
+---
+
+### 22.5 SynergyResonanceShaderPack_v1.js
+
+**Type**: 🎨 SYNERGY RESONANCE SHADERS
+
+**Purpose**:
+Shader pack for synergy and resonance effects.
+
+**What it Does**:
+- Renders synergy-based glow
+- Shows resonance patterns
+- Visualizes harmonic coupling
+- Displays synergy flow
+
+**Effects**:
+- Synergy glow
+- Resonance pulses
+- Harmonic coupling
+- Energy flow
+
+---
+
+### 22.6 PersonalityShaderBridge_v1.js
+
+**Type**: 🎨 PERSONALITY-SHADER BRIDGE
+
+**Purpose**:
+Bridges node personality to shader visual effects.
+
+**What it Does**:
+- Maps personality traits to visual parameters
+- Updates shader uniforms per node
+- Manages personality-based shaders
+- Provides personality visualization
+
+**Personality Mappings**:
+- Aggressive → Red, fast motion
+- Passive → Blue, slow motion
+- Balanced → Green, steady motion
+- Chaotic → Purple, erratic motion
+
+---
+
+### 22.7 PersonalityShaderAdvancedFX_v1.js
+
+**Type**: 🎨 ADVANCED PERSONALITY FX
+
+**Purpose**:
+Advanced shader effects based on node personality.
+
+**What it Does**:
+- Complex personality visual encoding
+- Multi-layer personality effects
+- Dynamic personality transitions
+- Advanced shader techniques
+
+**Advanced Features**:
+- Multi-channel personality encoding
+- Personality-based particle effects
+- Dynamic color transitions
+- Advanced motion patterns
+
+---
+
+### 22.8 PersonalityShaderStabilizedFX_v1.js
+
+**Type**: 🎨 STABILIZED PERSONALITY FX
+
+**Purpose**:
+Stabilized, performance-friendly personality shader effects.
+
+**What it Does**:
+- Optimized personality visualization
+- Stable visual output
+- Reduced shader complexity
+- Consistent performance
+
+**Stabilization Features**:
+- Cached personality states
+- Reduced uniform updates
+- Simplified shader code
+- Consistent frame time
+
+---
+
+### 22.9 PersonalityShaderEffects_Pack_v1.js
+
+**Type**: 🎨 PERSONALITY FX PACK
+
+**Purpose**:
+Complete pack of personality-based visual effects.
+
+**What it Does**:
+- Provides all personality FX types
+- Manages personality FX lifecycle
+- Handles personality transitions
+- Offers personality presets
+
+**FX Types**:
+- Basic personality tint
+- Personality glow
+- Personality particles
+- Personality distortion
+- Personality trails
 
 ---
 
 ## STRUCTURAL NOTE
 
-The document is organized into 12 main categories:
+The document is organized into 22 main categories:
 - 0-7: Core VFX categories (Link, Resonance, Cascade, Waves, Particles, Synergy, Harmony, Corruption)
 - 8: Ritual VFX (Phase8 + RitualVisualOrchestrator)
 - 9: Synergy VFX Engine (7 subsystems)
 - 10: Archetype VFX
 - 11: Colony VFX
 - 12: Dream Effects
+- 13: Harmonic Hub Controllers (3 systems)
+- 14: Pulse Wave Systems (3 systems)
+- 15: Visual Authority Systems (8 systems)
+- 16: Additional Link VFX (5 systems)
+- 17: Node Visual Systems (5 systems)
+- 18: Audio-Reactive VFX (1 system)
+- 19: Procedural Glyph Systems (2 systems)
+- 20: Environmental VFX (6 systems)
+- 21: Visual Performance Systems (4 systems)
+- 22: Shader Bridge Systems (9 systems)
 
 This structure reflects the multi-layered nature of ATOMA's visual system, with clear separation between:
 - Core rendering layers (link, particles, shaders)
@@ -1619,10 +3872,13 @@ This structure reflects the multi-layered nature of ATOMA's visual system, with 
 - Event-driven visualizations (rituals, cascades, waves)
 - System layers (VFX engine, archetype differentiation)
 - Environmental overlays (colony VFX, dream effects)
+- Performance and orchestration (FX runtime, performance control)
+- Shader infrastructure (bridges, packs, patches)
+- Authority and management (visual authority, templates, auto-wiring)
 
 ---
 
-**Last Updated:** 2026-04-10
+**Last Updated:** 2026-04-13
 **Author:** Bystrik Matajzik
 **Phase:** EVOLUTION_V2
-**Total VFX Systems:** ~60 (including all core systems, engine layers, and environmental effects)
+**Total VFX Systems:** ~110 (including all core systems, engine layers, environmental effects, authority systems, and shader infrastructure)

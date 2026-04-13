@@ -144,6 +144,13 @@ const LORE_LANGUAGE_ENTRIES = Object.freeze({
         subtext: 'Fault consecrated / Boundary named',
         reveal: 'sacred',
     }),
+    'lore.node.higherOrders': Object.freeze({
+        text: 'Higher order is the moment pattern outgrows category and asks for a sacred name.',
+        tone: 'mythic',
+        tag: 'LORE / HIGHER ORDERS',
+        subtext: 'Threshold consecrated / Pattern elevated',
+        reveal: 'sacred',
+    }),
     'lore.metric.stability': Object.freeze({
         text: 'Stability is the vow that lets a pattern endure without turning brittle.',
         tone: 'stability',

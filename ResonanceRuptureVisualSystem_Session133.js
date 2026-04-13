@@ -1,4 +1,4 @@
-/**
+ /**
  * ============================================================================
  * RESONANCE RUPTURE VISUAL SYSTEM (Session 133)
  * ============================================================================
@@ -42,6 +42,53 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+
+// DESIGN: Stress indicator shader — pulsing red-orange warning glow on approaching-rupture links
+const STRESS_INDICATOR_VERTEX_SHADER = `
+varying vec2 vUv;
+void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+const STRESS_INDICATOR_FRAGMENT_SHADER = `
+uniform float uTime;
+uniform float uStress;     // 0.5 to 1.0
+uniform float uIntensity;  // sharpened stress visual intensity
+uniform vec3 uColor;
+
+varying vec2 vUv;
+
+void main() {
+    vec2 p = vUv - vec2(0.5);
+    float dist = length(p) * 2.0;
+    if (dist > 1.0) discard;
+
+    // Stress-normalized pulse: faster as stress approaches rupture
+    float stressNorm = clamp((uStress - 0.5) * 2.0, 0.0, 1.0);
+    float pulseFreq = 2.0 + stressNorm * 12.0;  // 2Hz at 50% → 14Hz at 100%
+    float pulse = 0.6 + 0.4 * sin(uTime * pulseFreq + dist * 4.0);
+
+    // Multi-band glow: hot core + tension ring + outer halo
+    float core = (1.0 - smoothstep(0.0, 0.25, dist)) * 0.5;
+    float tensionRing = smoothstep(0.3, 0.45, dist) * (1.0 - smoothstep(0.45, 0.6, dist));
+    float halo = (1.0 - smoothstep(0.2, 0.9, dist)) * 0.3;
+
+    // Angular flicker — chaotic energy pattern
+    float angle = atan(p.y, p.x);
+    float flicker = 0.85 + 0.15 * sin(angle * 8.0 + uTime * stressNorm * 15.0);
+
+    float alpha = (core + tensionRing * 0.8 * stressNorm + halo) * pulse * flicker * uIntensity;
+    alpha *= (1.0 - smoothstep(0.7, 1.0, dist));  // outer fade
+
+    // Color: shift from deep red to hot orange-white at high stress
+    vec3 hotColor = mix(uColor, vec3(1.0, 0.6, 0.2), stressNorm * 0.7);
+    hotColor = mix(hotColor, vec3(1.0, 0.9, 0.8), core * stressNorm);  // white-hot center
+
+    gl_FragColor = vec4(hotColor, alpha);
+}
+`;
 
 function getAtomaVisualDebugMode() {
     const mode = (typeof window !== 'undefined' && window.__ATOMA_VISUAL_DEBUG_MODE__)
@@ -179,9 +226,11 @@ export class ResonanceRuptureVisualSystem_Session133 {
         this.ruptureEventPool = [];
         this.propagationPulsePool = [];
         this.scarMeshPool = [];
+        this.stressIndicatorPool = [];  // DESIGN: visual stress warning meshes
         
         // Material cache
         this.stressMaterial = null;
+        this.stressShaderMaterial = null;  // DESIGN: shader-based stress indicator
         this.ruptureMaterial = null;
         this.propagationMaterial = null;
         this.scarMaterial = null;
@@ -277,6 +326,34 @@ export class ResonanceRuptureVisualSystem_Session133 {
                 scarData: null,
                 birthTime: 0
             });
+        }
+
+        // DESIGN: Pre-allocate stress indicator pool — shader-based pulsing warning glow
+        this.stressShaderMaterial = new THREE.ShaderMaterial({
+            vertexShader: STRESS_INDICATOR_VERTEX_SHADER,
+            fragmentShader: STRESS_INDICATOR_FRAGMENT_SHADER,
+            uniforms: {
+                uTime: { value: 0 },
+                uStress: { value: 0.5 },
+                uIntensity: { value: 0 },
+                uColor: { value: new THREE.Color(0xff2f00) }
+            },
+            transparent: true,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            toneMapped: false
+        });
+
+        const stressGeo = new THREE.PlaneGeometry(1, 1);
+        const maxStressIndicators = this.config.maxConcurrentRuptures * 2;
+        for (let i = 0; i < maxStressIndicators; i++) {
+            const mesh = new THREE.Mesh(stressGeo, this.stressShaderMaterial.clone());
+            mesh.visible = false;
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.renderOrder = this.config.renderOrder - 1;  // below rupture visuals
+            this.scene.add(mesh);
+            this.stressIndicatorPool.push({ mesh, active: false, linkId: null });
         }
         
         this.initialized = true;
@@ -552,8 +629,16 @@ export class ResonanceRuptureVisualSystem_Session133 {
 
     /**
      * Update pre-rupture stress indicator zones
+     * DESIGN: Now renders visual stress glow on approaching-rupture links
      */
     _updatePreRuptureIndicators(deltaTime) {
+        // Reset all pool items
+        for (const item of this.stressIndicatorPool) {
+            item.active = false;
+            item.linkId = null;
+            item.mesh.visible = false;
+        }
+
         this.preRuptureZones = [];
         
         if (!this.standingWaveTrapSystem) return;
@@ -568,11 +653,48 @@ export class ResonanceRuptureVisualSystem_Session133 {
             
             // Only show stress zones when stress > 50%
             if (stress > 0.5) {
+                const intensity = Math.pow(stress - 0.5, 1.5);  // Sharpen at higher stress
                 this.preRuptureZones.push({
                     linkId: trapId,
                     stress: stress,
-                    intensity: Math.pow(stress - 0.5, 1.5)  // Sharpen at higher stress
+                    intensity: intensity
                 });
+
+                // DESIGN: Position and activate a stress indicator mesh on this link
+                const poolItem = this.stressIndicatorPool.find(item => !item.active);
+                if (!poolItem) return;
+
+                const link = this._getLinkById(trapId);
+                const startPos = link ? this._getLinkSource(link)?.position : null;
+                const endPos = link ? this._getLinkTarget(link)?.position : null;
+                if (!startPos || !endPos) return;
+
+                const center = new THREE.Vector3().addVectors(startPos, endPos).multiplyScalar(0.5);
+                const linkDir = new THREE.Vector3().subVectors(endPos, startPos);
+                const linkLength = linkDir.length();
+
+                poolItem.active = true;
+                poolItem.linkId = trapId;
+                poolItem.mesh.visible = true;
+                poolItem.mesh.position.copy(center);
+                poolItem.mesh.position.y += 0.05;
+
+                // Scale: wider and taller at higher stress
+                const stressScale = 0.5 + stress * 1.5;
+                poolItem.mesh.scale.set(
+                    Math.max(0.5, linkLength * 0.6),
+                    Math.max(0.5, linkLength * 0.6),
+                    stressScale
+                );
+
+                // Orient along link (flat on ground)
+                const yaw = linkDir.lengthSq() > 1e-6 ? Math.atan2(linkDir.z, linkDir.x) : 0;
+                poolItem.mesh.rotation.set(-Math.PI / 2, 0, yaw);
+
+                // Update shader uniforms
+                poolItem.mesh.material.uniforms.uTime.value = this.time;
+                poolItem.mesh.material.uniforms.uStress.value = stress;
+                poolItem.mesh.material.uniforms.uIntensity.value = intensity;
             }
         });
     }
@@ -638,25 +760,31 @@ export class ResonanceRuptureVisualSystem_Session133 {
     _createRuptureBurst(rupture) {
         if (this.config.debugVisualBoost || this.config.forceRuptureVfx) {
             const bloom = this._createFractureBloomScarRoot();
-            bloom.position.copy(rupture.convergencePoint);
             bloom.renderOrder = this.config.renderOrder;
             bloom.userData.ruptureBurst = true;
             const burstSeed = this._hashBurstSeed(rupture.linkId ?? rupture.trapId ?? `${this.time.toFixed(3)}:${rupture.intensity.toFixed(3)}`);
-            const rollVariance = this.config.fractureBloomRotationVariance || 0.42;
             const driftRate = this.config.fractureBloomDriftRate || 0.26;
+
+            // DESIGN: Orient fracture bloom along the ruptured link direction
+            const link = this._getLinkById(rupture.linkId);
+            const startPos = link ? this._getLinkSource(link)?.position : null;
+            const endPos = link ? this._getLinkTarget(link)?.position : null;
+            if (startPos && endPos) {
+                this._layoutFractureBloomScar(bloom, startPos, endPos, rupture.intensity, rupture.linkId);
+            } else {
+                bloom.position.copy(rupture.convergencePoint);
+            }
+
             bloom.userData.burstSpin = new THREE.Vector3(
-                ((burstSeed.x * 2 - 1) * rollVariance) * 0.34,
-                ((burstSeed.y * 2 - 1) * rollVariance) * 0.34,
-                ((burstSeed.z * 2 - 1) * rollVariance) * 0.28
-            );
-            bloom.rotation.set(
-                (burstSeed.x - 0.5) * rollVariance,
-                (burstSeed.y - 0.5) * rollVariance,
-                (burstSeed.z - 0.5) * rollVariance
+                ((burstSeed.x * 2 - 1) * 0.42) * 0.34,
+                ((burstSeed.y * 2 - 1) * 0.42) * 0.34,
+                ((burstSeed.z * 2 - 1) * 0.42) * 0.28
             );
             bloom.userData.burstDrift = driftRate;
             this.scene.add(bloom);
-            this._createdObjects.push(bloom);  // UNIFIED CLEANUP CONTRACT
+            if (!this._createdObjects.includes(bloom)) {
+                this._createdObjects.push(bloom);  // UNIFIED CLEANUP CONTRACT
+            }
             return bloom;
         }
 
@@ -1566,6 +1694,18 @@ export class ResonanceRuptureVisualSystem_Session133 {
 
     _layoutFractureBloomScar(root, startPos, endPos, intensity, seed = 0) {
         if (!root) return;
+
+        // FIX: Remove previous extra shards before re-layout to prevent accumulation
+        const baseShardCount = 11; // base shards from _createFractureBloomScarRoot
+        if (root.userData?.shards && root.userData.shards.length > baseShardCount) {
+            while (root.userData.shards.length > baseShardCount) {
+                const extra = root.userData.shards.pop();
+                root.remove(extra);
+                if (extra.geometry) extra.geometry.dispose();
+                if (extra.material) extra.material.dispose();
+            }
+        }
+
         const center = new THREE.Vector3().addVectors(startPos, endPos).multiplyScalar(0.5);
         const linkVector = new THREE.Vector3().subVectors(endPos, startPos);
         const linkLength = linkVector.length();
@@ -2171,6 +2311,17 @@ export class ResonanceRuptureVisualSystem_Session133 {
         });
         this.scarMeshPool = [];
         
+        // DESIGN: Clean up stress indicator pool
+        this.stressIndicatorPool.forEach(item => {
+            if (item.mesh) {
+                this.scene.remove(item.mesh);
+                item.mesh.geometry.dispose();
+                item.mesh.material.dispose();
+            }
+        });
+        this.stressIndicatorPool = [];
+        if (this.stressShaderMaterial) this.stressShaderMaterial.dispose();
+
         // Clean up materials
         if (this.stressMaterial) this.stressMaterial.dispose();
         if (this.ruptureMaterial) this.ruptureMaterial.dispose();

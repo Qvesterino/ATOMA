@@ -236,6 +236,8 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         this._tmpColor = new THREE.Color();
         this._tmpVec3A = new THREE.Vector3();
         this._tmpVec3B = new THREE.Vector3();
+        this._tmpVelA = new THREE.Vector3();  // dedicated velocity temps (fix: aliasing bug)
+        this._tmpVelB = new THREE.Vector3();
         this._tmpColorWhite = new THREE.Color(0xffffff);
         this._tmpColorGold = new THREE.Color(0xffcc00);
         
@@ -246,6 +248,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         this.haloMeshPool = [];
         
         this._linkCooldowns = new Map();
+        this._activeBeams = [];  // FIX: tracked beams for managed cleanup (replaces setTimeout)
         
         this._eventDrivenEnabled = false;
         this._unsubscribeHarmonyHigh = null;
@@ -586,18 +589,29 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             
             const intensity = 0.85;
             
-            this.healingParticles.emitHealingTrail(pos1, this._tmpVec3A.set(0,0,0), intensity, now, this._tmpColorWhite);
-            this.healingParticles.emitHealingTrail(pos2, this._tmpVec3B.set(0,0,0), intensity, now, this._tmpColorGold);
+            // FIX: Use dedicated velocity temps to avoid aliasing with position temps
+            this.healingParticles.emitHealingTrail(pos1, this._tmpVelA.set(0,0,0), intensity, now, this._tmpColorWhite);
+            this.healingParticles.emitHealingTrail(pos2, this._tmpVelB.set(0,0,0), intensity, now, this._tmpColorGold);
         }
 
-        const beamGeometry = new THREE.BufferGeometry().setFromPoints([
-            endpoints.startPos.clone(),
-            endpoints.endPos.clone()
-        ]);
+        // DESIGN: Multi-segment energy thread beam with stitch points
+        // Instead of a single line, create a multi-point beam with energy nodes
+        const beamPoints = [];
+        const stitchCount = 6;
+        for (let i = 0; i <= stitchCount; i++) {
+            const t = i / stitchCount;
+            const point = new THREE.Vector3().lerpVectors(endpoints.startPos, endpoints.endPos, t);
+            // Add subtle sine wave displacement for "energy thread" look
+            const wave = Math.sin(t * Math.PI * 3 + (currentVisualTime ?? 0) * 8) * 0.04;
+            point.y += wave;
+            beamPoints.push(point);
+        }
+
+        const beamGeometry = new THREE.BufferGeometry().setFromPoints(beamPoints);
         const beamMaterial = new THREE.LineBasicMaterial({
             color: new THREE.Color(0x88ffdd),
             transparent: true,
-            opacity: 0.48,
+            opacity: 0.55,
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
@@ -605,11 +619,33 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         beam.renderOrder = this.config.renderOrder + 2;
         this.scene.add(beam);
 
-        setTimeout(() => {
-            if (beam.parent) beam.parent.remove(beam);
-            beamGeometry.dispose();
-            beamMaterial.dispose();
-        }, 180);
+        // DESIGN: Emit stitch-point particles along the beam for "thread weaving" effect
+        if (this.healingParticles) {
+            const stitchColor = this._tmpColor;
+            for (let i = 1; i < stitchCount; i++) {
+                const t = i / stitchCount;
+                const stitchPos = this._tmpVec3A.lerpVectors(endpoints.startPos, endpoints.endPos, t);
+                stitchPos.y += Math.sin(t * Math.PI * 3 + (currentVisualTime ?? 0) * 8) * 0.04;
+
+                // Alternate between gold and cyan stitches
+                if (i % 2 === 0) {
+                    stitchColor.setRGB(1.0, 0.85, 0.4);  // warm gold
+                } else {
+                    stitchColor.setRGB(0.5, 1.0, 0.9);    // luminous cyan
+                }
+
+                this.healingParticles.emitHealingTrail(
+                    stitchPos,
+                    this._tmpVelA.set(0, 0.05, 0),
+                    0.5,
+                    now,
+                    stitchColor
+                );
+            }
+        }
+
+        // FIX: Track beam for managed cleanup instead of fragile setTimeout
+        this._activeBeams.push({ mesh: beam, disposeAt: (currentVisualTime ?? 0) + 0.18 });
 
         return true;
     }
@@ -699,6 +735,17 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         // 3. Update Visuals
         this.waveMaterial.uniforms.uTime.value = currentVisualTime;
         // Note: Individual uniforms are updated in _updateRecoveringZones
+
+        // 4. FIX: Prune expired beams (managed cleanup replacing setTimeout)
+        this._activeBeams = this._activeBeams.filter(b => {
+            if (currentVisualTime >= b.disposeAt) {
+                if (b.mesh.parent) b.mesh.parent.remove(b.mesh);
+                b.mesh.geometry.dispose();
+                b.mesh.material.dispose();
+                return false;
+            }
+            return true;
+        });
     }
     
     _detectRuptureEvents(currentVisualTime) {
@@ -855,8 +902,9 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                         
                         const intensity = Math.min(1, 0.85 * harmony + 0.35);
                         
-                        this.healingParticles.emitHealingTrail(pos1, this._tmpVec3A.set(0,0,0), intensity, currentVisualTime, this._tmpColorWhite);
-                        this.healingParticles.emitHealingTrail(pos2, this._tmpVec3B.set(0,0,0), intensity, currentVisualTime, this._tmpColorGold);
+                        // FIX: Use dedicated velocity temps to avoid aliasing with position temps
+                        this.healingParticles.emitHealingTrail(pos1, this._tmpVelA.set(0,0,0), intensity, currentVisualTime, this._tmpColorWhite);
+                        this.healingParticles.emitHealingTrail(pos2, this._tmpVelB.set(0,0,0), intensity, currentVisualTime, this._tmpColorGold);
                     }
                 }
             }
@@ -1011,6 +1059,14 @@ export class HarmonicRecoveryVisualSystem_Session138 {
          
          this.waveMaterial.dispose();
          this.haloMaterial.dispose();
+         
+         // FIX: Clean up tracked beams
+         this._activeBeams.forEach(b => {
+             if (b.mesh.parent) b.mesh.parent.remove(b.mesh);
+             b.mesh.geometry.dispose();
+             b.mesh.material.dispose();
+         });
+         this._activeBeams = [];
          
          this._teardownEventSubscriptions();
          this._linkCooldowns.clear();
