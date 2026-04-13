@@ -284,6 +284,7 @@ export class MythicRitualController {
     console.log(`✨ MYTHIC RITUAL TRIGGERED: ${ritualType}`);
 
     this.activeRitual = ritualType;
+    this._currentRitualNodes = Array.isArray(nodes) ? nodes.slice() : [];
     this.pendingRitualEvaluation = false;
     this.ritualPhase = 'INIT';
     this.ritualProgress = 0;
@@ -292,6 +293,12 @@ export class MythicRitualController {
 
     // EMIT EVENT FOR EVENT-DRIVEN SYSTEMS
     if (this.semanticBus) {
+      this.semanticBus.emit('ritual.prelude', {
+        ritualType: ritualType,
+        targetNodeId: this._getNodeId(nodes?.[0]),
+        nodes: nodes?.map((node) => this._getNodeId(node)).filter((id) => id !== null && id !== undefined) ?? [],
+        timestamp: performance.now()
+      }, { priority: this.semanticBus.priority?.INTERACTIVE });
       this.semanticBus.emit('semantic.ritual.started', {
         ritualType: ritualType,
         targetNodeId: this._getNodeId(nodes?.[0]),
@@ -861,6 +868,21 @@ export class MythicRitualController {
       this.ritualStartTime = Date.now() / 1000;
       this.ritualProgress = 0;
 
+      if (this.semanticBus) {
+        const phasePayload = {
+          ritualType: this.activeRitual,
+          phase: this.ritualPhase,
+          timestamp: performance.now(),
+          nodes: this._currentRitualNodes?.map((node) => this._getNodeId(node)).filter((id) => id !== null && id !== undefined) ?? [],
+        };
+
+        if (this.ritualPhase === 'RISE') {
+          this.semanticBus.emit('ritual.active', phasePayload, { priority: this.semanticBus.priority?.INTERACTIVE });
+        } else if (this.ritualPhase === 'PEAK') {
+          this.semanticBus.emit('ritual.crest', phasePayload, { priority: this.semanticBus.priority?.INTERACTIVE });
+        }
+      }
+
       console.log(`Ritual phase: ${this.ritualPhase}`);
     } else {
       // Ritual complete
@@ -1215,12 +1237,18 @@ export class MythicRitualController {
         success: true,
         timestamp: performance.now()
       }, { priority: this.semanticBus.priority.INTERACTIVE });
+      this.semanticBus.emit('ritual.release', {
+        ritualType: completedRitualType,
+        success: true,
+        timestamp: performance.now()
+      }, { priority: this.semanticBus.priority.INTERACTIVE });
       console.log(`✓ Ritual completed event emitted: ${completedRitualType}`);
     }
     this._emitMetricBridgeForRitual(completedRitualType, 'completed');
 
     // Reset state
     this.activeRitual = null;
+    this._currentRitualNodes = [];
     this.ritualPhase = 'NONE';
     this.ritualProgress = 0;
   }

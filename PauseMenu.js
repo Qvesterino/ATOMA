@@ -751,6 +751,15 @@ export class PauseMenu {
                     window.__ATOMA_POSTPROCESSING_PENDING__ = settings.postProcessing;
                 }
             }
+        } else if (settingId === 'nodeRotations') {
+            settings.nodeRotations = !settings.nodeRotations;
+            if (typeof window !== 'undefined') {
+                if (window.game?.setNodeRotationsEnabled) {
+                    window.game.setNodeRotationsEnabled(settings.nodeRotations);
+                } else {
+                    window.__ATOMA_NODE_ROTATIONS_PENDING__ = settings.nodeRotations;
+                }
+            }
         } else if (settingId === 'semanticPictograms') {
             settings.semanticPictograms = !settings.semanticPictograms;
             if (typeof window !== 'undefined') {

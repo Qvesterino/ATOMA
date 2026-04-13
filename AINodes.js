@@ -735,6 +735,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     this.activityCounters = { active: 0, semiActive: 0, dormant: 0 };
     this._edgeCageFadeAccumulator = 0;
     this._edgeCageWorldPos = new THREE.Vector3();
+    this._nodeWorldPos = new THREE.Vector3();
+    this._playerWorldPos = new THREE.Vector3();
     this._edgeCageObjects = [];
 
     // Runtime spawn intent rotation to avoid INPUT lock-in
@@ -2698,8 +2700,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       this._recordProfileSample(name, performance.now() - start);
     };
 
-    const playerPos = this.player.position;
-
     const useActivityModel = typeof window !== 'undefined' && window.__ATOMA_ACTIVITY_MODEL__ === true;
     if (useActivityModel) {
       this._ensureActivityModelSeeded();
@@ -2717,8 +2717,22 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       // VISUAL BOOTSTRAP 3.0: Monitor for fallback detection (MeshStandardMaterial >1 frame)
       this.visualBootstrap.updateMonitoring(node);
       
-      // Check distance to player
-      const distance = node.position.distanceTo(playerPos);
+      // Check distance to player using world-space positions for robustness
+      const playerWorldPos = this._playerWorldPos;
+      if (this.player?.getWorldPosition) {
+        this.player.getWorldPosition(playerWorldPos);
+      } else if (this.player?.position) {
+        playerWorldPos.copy(this.player.position);
+      } else {
+        playerWorldPos.set(0, 0, 0);
+      }
+      const nodeWorldPos = this._nodeWorldPos;
+      if (node?.getWorldPosition) {
+        node.getWorldPosition(nodeWorldPos);
+      } else {
+        nodeWorldPos.copy(node.position);
+      }
+      const distance = nodeWorldPos.distanceTo(playerWorldPos);
       
       // PHASE VD-3 FIX: Apply hysteresis to prevent visual flickering
       // Only change state when clearly inside or clearly outside threshold

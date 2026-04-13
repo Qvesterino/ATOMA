@@ -1570,11 +1570,10 @@ const adapter = this._createLinkSystemAdapter(
         for (const entry of entries) {
             const previousTier = normalizeMetricTier(tiers[entry.metric] ?? null);
             const nextTier = classifyMetricTier(entry.value, previousTier, getDefaultMetricThresholds(entry.metric));
-            if (previousTier === null) {
-                tiers[entry.metric] = nextTier;
-                continue;
-            }
-            if (nextTier === previousTier) {
+
+            // Emit on initial classification (previousTier === null) and on tier transitions.
+            // Skip only when the tier is unchanged from a previous classification.
+            if (previousTier !== null && nextTier === previousTier) {
                 continue;
             }
 
@@ -1591,6 +1590,7 @@ const adapter = this._createLinkSystemAdapter(
                 linkCount,
                 timestamp: now,
                 source: 'MetricsRuntime_v1',
+                initial: previousTier === null
             };
             // Internal hook only:
             // - use this when tooling needs a generic tier transition feed

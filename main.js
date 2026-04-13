@@ -713,6 +713,41 @@ const LORE_TO_LANGUAGE = Object.freeze({
     'codex-culture': 'lore.codex.culture',
     'codex-metrics': 'lore.codex.metrics',
     'codex-nodes': 'lore.codex.nodes',
+    'link-commitment': 'lore.link.commitment',
+    'link-formation': 'lore.link.formation',
+    'link-transmission': 'lore.link.transmission',
+    'link-collapse': 'lore.link.collapse',
+    'world-fractal-valley': 'lore.world.fractalValley',
+    'world-dream-desert': 'lore.world.dreamDesert',
+    'world-mirage-veil': 'lore.world.mirageVeil',
+    'world-quantum-island': 'lore.world.quantumIsland',
+    'world-memory-lane': 'lore.world.memoryLane',
+    'world-sigma-chamber': 'lore.world.sigmaChamber',
+    'event-cascade': 'lore.event.cascade',
+    'event-resonance': 'lore.event.resonance',
+    'event-outbreak': 'lore.event.outbreak',
+    'event-collapse': 'lore.event.collapse',
+    'psychology-self-reference': 'lore.psychology.selfReference',
+    'psychology-healing': 'lore.psychology.healing',
+    'psychology-collapse': 'lore.psychology.collapse',
+    'psychology-memory': 'lore.psychology.memory',
+    'psychology-burden': 'lore.psychology.burden',
+    'psychology-disquiet': 'lore.psychology.disquiet',
+    'psychology-reflection': 'lore.psychology.reflection',
+    'psychology-threshold': 'lore.psychology.threshold',
+    'psychology-resonance': 'lore.psychology.resonance',
+    'culture-templates': 'lore.culture.templates',
+    'culture-ritual-tone': 'lore.culture.ritualTone',
+    'culture-shared-practice': 'lore.culture.sharedPractice',
+    'culture-transmission': 'lore.culture.transmission',
+    'evolution-differentiation': 'lore.evolution.differentiation',
+    'evolution-specialization': 'lore.evolution.specialization',
+    'evolution-transcendence': 'lore.evolution.transcendence',
+    'evolution-memory': 'lore.evolution.memory',
+    'ritual-prelude': 'lore.ritual.prelude',
+    'ritual-active': 'lore.ritual.active',
+    'ritual-crest': 'lore.ritual.crest',
+    'ritual-release': 'lore.ritual.release',
     'node.input.basic': 'lore.node.input',
     'node-input': 'lore.node.input',
     'node.process.basic': 'lore.node.process',
@@ -1589,6 +1624,12 @@ class SemanticEventBus {
             ['semantic.ascension', { decayStages: [{ afterMs: 1500, priority: this.priority.NORMAL }], expiresMs: 3000, cooldownMs: 250, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
             ['semantic.ritual.started', { decayStages: [{ afterMs: 1000, priority: this.priority.NORMAL }], expiresMs: 2500, cooldownMs: 200, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
             ['semantic.ritual.completed', { decayStages: [{ afterMs: 1000, priority: this.priority.NORMAL }], expiresMs: 2500, cooldownMs: 200, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
+            ['ritual.autoTriggered', { decayStages: [{ afterMs: 1000, priority: this.priority.NORMAL }], expiresMs: 2500, cooldownMs: 200, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
+            ['ritual.prelude', { decayStages: [{ afterMs: 1000, priority: this.priority.NORMAL }], expiresMs: 2500, cooldownMs: 200, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
+            ['ritual.active', { decayStages: [{ afterMs: 1000, priority: this.priority.NORMAL }], expiresMs: 2500, cooldownMs: 200, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
+            ['ritual.crest', { decayStages: [{ afterMs: 1000, priority: this.priority.NORMAL }], expiresMs: 2500, cooldownMs: 200, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
+            ['ritual.release', { decayStages: [{ afterMs: 1000, priority: this.priority.NORMAL }], expiresMs: 2500, cooldownMs: 200, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
+            ['world.loaded', { decayStages: [{ afterMs: 1000, priority: this.priority.NORMAL }], expiresMs: 2500, cooldownMs: 250, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
 
             // Canonical semantic vocabulary (category:event)
             ['network:stabilityDrop', { cooldownMs: 250, aggregateWithinMs: 500, aggregationStrategy: 'latest' }],
@@ -4402,16 +4443,11 @@ class AtomaGame {
                 this.cascadeAccelSetup.update(dt, this.time);
             }
         }, 'simulation.cascadeAccelSetup');
-        this.frameScheduler.register('simulation', (dt) => {
+        this.frameScheduler.register('visual', (dt) => {
             if (this.coreMetricsOverlay) {
                 this.runCoreMetricsOverlayTick(dt);
             }
-        }, 'simulation.coreMetricsOverlay');
-        this.frameScheduler.register('simulation', () => {
-            if (this.primaryNodeTopBar) {
-                this.primaryNodeTopBar.update();
-            }
-        }, 'simulation.primaryNodeTopBar');
+        }, 'visual.coreMetricsOverlay');
         this.frameScheduler.register('visual', (dt) => {
             this.activeWorld?.update?.(dt, this.time);
         }, 'visual.activeWorld');
@@ -4445,15 +4481,15 @@ class AtomaGame {
                 this.updateUndoRedoUI();
             }
         }, 'simulation.undoRedoUi');
-        this.frameScheduler.register('simulation', (dt) => {
+        this.frameScheduler.register('visual', (dt) => {
             this.runVisualOverlayTick(dt);
-        }, 'simulation.visualOverlayTick');
-        this.frameScheduler.register('simulation', (dt) => {
+        }, 'visual.visualOverlayTick');
+        this.frameScheduler.register('visual', (dt) => {
             this.linkMetricsToVisualBridge?.update?.(dt);
-        }, 'simulation.linkMetricsToVisualBridge');
-        this.frameScheduler.register('simulation', (dt) => {
+        }, 'visual.linkMetricsToVisualBridge');
+        this.frameScheduler.register('visual', (dt) => {
             this.stressBasedParticleScaler?.update?.(dt);
-        }, 'simulation.stressBasedParticleScaler');
+        }, 'visual.stressBasedParticleScaler');
         this.frameScheduler.register('simulation', (dt) => {
             this.linkDegradationSystem?.update?.(dt);
         }, 'simulation.linkDegradationSystem');
@@ -5869,7 +5905,7 @@ this.setHudDirty('nodeInspect');
 
         // ATOMA UI 3.7 - Double-Click Primary Node System
         // ========================================================================
-        this.primaryNodeTopBar = null;    // HUD bar showing primary node info
+        this.primaryNodeTopBar = null;    // Legacy primary node HUD is disabled and removed
 
         // OLD UI 3.0 - To be disabled
         this.nodeInspectPanel = null;     // Used by UI 3.2 for persistence
@@ -6345,6 +6381,10 @@ this.setHudDirty('nodeInspect');
             this.setPostProcessingEnabled(!!window.__ATOMA_POSTPROCESSING_PENDING__);
             delete window.__ATOMA_POSTPROCESSING_PENDING__;
         }
+        if (window.__ATOMA_NODE_ROTATIONS_PENDING__ !== undefined) {
+            this.setNodeRotationsEnabled(!!window.__ATOMA_NODE_ROTATIONS_PENDING__);
+            delete window.__ATOMA_NODE_ROTATIONS_PENDING__;
+        }
         if (window.__ATOMA_SEMANTIC_PICTOGRAMS_PENDING__ !== undefined) {
             this.setSemanticPictogramsEnabled(!!window.__ATOMA_SEMANTIC_PICTOGRAMS_PENDING__);
             delete window.__ATOMA_SEMANTIC_PICTOGRAMS_PENDING__;
@@ -6649,6 +6689,13 @@ window.__ATOMA_SCENE__ = this.scene;
             return this.postProcessingEnabled;
         };
 
+        this.setNodeRotationsEnabled = (enabled = true) => {
+            const next = !!enabled;
+            EnhancedNodeModels.nodeRotationsEnabled = next;
+            this.nodeRotationsEnabled = next;
+            return this.nodeRotationsEnabled;
+        };
+
         this.setSemanticPictogramsEnabled = (enabled = true) => {
             const next = !!enabled;
             const pictogramSystem = this.linkPictogramSystem || this.linkSemanticPictograms || null;
@@ -6722,6 +6769,9 @@ window.__ATOMA_SCENE__ = this.scene;
         if (bootMenuSettings) {
             if (bootMenuSettings.postProcessing !== undefined) {
                 this.setPostProcessingEnabled(bootMenuSettings.postProcessing !== false);
+            }
+            if (bootMenuSettings.nodeRotations !== undefined) {
+                this.setNodeRotationsEnabled(bootMenuSettings.nodeRotations !== false);
             }
             if (bootMenuSettings.semanticPictograms !== undefined) {
                 this.setSemanticPictogramsEnabled(bootMenuSettings.semanticPictograms !== false);
@@ -11037,12 +11087,24 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
             this.worldResetFix.cleanOldScene();
 
+            const previousWorldId = this.currentMode ?? null;
             this.currentMode = worldId;
             this.currentTheme = worldId;
 
             this._pendingCreateWorldReason = 'MAP_SWITCH';
             fn();
             this._rebindWorldLifecycleSystems();
+
+            if (this.semanticBus?.emit) {
+                this.semanticBus.emit('world.loaded', {
+                    worldId,
+                    previousWorldId,
+                    currentMode: this.currentMode,
+                    currentTheme: this.currentTheme,
+                    timestamp: performance.now()
+                }, { priority: this.semanticBus.priority?.NORMAL });
+            }
+
             console.log('[LOADWORLD] after registry', worldId);
         } catch (e) {
             console.error('[LOADWORLD] ERROR', worldId, e);
@@ -11555,7 +11617,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
         });
         // SemanticEventBus drain + HUD lanes tick (critical for event-driven audio routing).
-        regGuard('visualOverlayTick', 'simulation.visualOverlayTick', (dt) => this.runVisualOverlayTick(dt));
+        regGuard('visualOverlayTick', 'visual.visualOverlayTick', (dt) => this.runVisualOverlayTick(dt));
 
 
         // DEACTIVATED: Replaced by VisualHierarchyRegistry (Daniel request 2026-03-03)
@@ -11564,8 +11626,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('linkQualityCalculator', 'simulation.linkQualityCalculator', (dt) => this.linkQualityCalculator?.update?.(dt));
         regGuard('linkDegradationSystem', 'simulation.linkDegradationSystem', (dt) => this.linkDegradationSystem?.update?.(dt));
 
-        regGuard('linkMetricsToVisualBridge', 'simulation.linkMetricsToVisualBridge', (dt) => this.linkMetricsToVisualBridge?.update?.(dt));
-        regGuard('stressBasedParticleScaler', 'simulation.stressBasedParticleScaler', (dt) => this.stressBasedParticleScaler?.update?.(dt));
+        regGuard('linkMetricsToVisualBridge', 'visual.linkMetricsToVisualBridge', (dt) => this.linkMetricsToVisualBridge?.update?.(dt));
+        regGuard('stressBasedParticleScaler', 'visual.stressBasedParticleScaler', (dt) => this.stressBasedParticleScaler?.update?.(dt));
         regGuard('cascadeVisualizerTick', 'visual.cascadeVisualizer', (dt) => { if (!this._runCascadeVisualizerPending) this.cascadeVisualizerTick?.(dt); });
         regGuard('visualNetworkTimeElasticity', 'simulation.visualNetworkTimeElasticity', (_dt) => {
             if (this._runElasticityPending) {
@@ -15711,13 +15773,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * Disabled: UIPrimaryNodeTopBar3_7 has been removed from active use.
      */
     setupPrimaryNodeSystem() {
-        // Primary node top bar disabled. Keep property null for safety.
+        // Primary node top bar is fully disabled and no longer registered.
         this.primaryNodeTopBar = null;
 
         this.nodeLinking = this.linkingSystem;
 
         console.log("✓ NodeLinking2_3 confirmed active");
-        console.log('✓ Primary Node System 3.7 disabled (UIPrimaryNodeTopBar3_7 disconnected)');
+        console.log('✓ Primary Node System 3.7 disabled and disconnected');
     }
 
     /**
@@ -15755,7 +15817,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.selectedNodeBadge,
                 this.selectedNodeHighlight,
                 this.selectedNodeLabel,
-                this.primaryNodeTopBar
+                null
             );
             this.nodeLinking.setSelectionCore(this.selectionCore);
 

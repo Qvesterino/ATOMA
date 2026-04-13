@@ -146,6 +146,43 @@ function createTriggerUnlock(...triggers) {
     });
 }
 
+function createConditionalTriggerUnlock(trigger, condition) {
+    const normalizedTrigger = String(trigger || '').trim();
+    return Object.freeze({
+        triggers: normalizedTrigger ? [normalizedTrigger] : [],
+        condition: typeof condition === 'function' ? condition : undefined,
+    });
+}
+
+function createWorldUnlock(...worldIds) {
+    const allowedWorldIds = new Set(
+        worldIds
+            .flat()
+            .map(normalizeLoreToken)
+            .filter(Boolean)
+    );
+
+    return Object.freeze({
+        triggers: ['world.loaded'],
+        condition: (event = {}) => {
+            const worldId = normalizeLoreToken(
+                event.worldId ??
+                event.world ??
+                event.mode ??
+                event.currentMode ??
+                event.themeId
+            );
+
+            return allowedWorldIds.has(worldId);
+        },
+    });
+}
+
+function createNodeEvolutionStageUnlock(stage) {
+    const normalizedStage = Number(stage);
+    return createConditionalTriggerUnlock('node:evolved', (event = {}) => Number(event.stage) === normalizedStage);
+}
+
 export const LORE_REGISTRY_V1 = Object.freeze([
     createLoreEntry({
         id: 'codex-index',
@@ -502,6 +539,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'It is a commitment. Once formed, it changes both nodes by allowing transfer, influence, and risk to become shared.',
         meaning: 'Links define relation as consequence, not adjacency.',
         relevance: 'Use this as the core statement for the links chapter and menu card tone.',
+        unlock: createTriggerUnlock('link.created'),
     }),
     createLoreEntry({
         id: 'link-formation',
@@ -512,6 +550,14 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'They do not appear to decorate the network. They appear because pressure has found a path that wants to remain open.',
         meaning: 'Formation is the moment relationship becomes structurally worth preserving.',
         relevance: 'This card is a strong anchor for link creation, visual emergence, and network growth.',
+        unlock: createConditionalTriggerUnlock('link.created', (event = {}) => {
+            const sourceNode = event.sourceNode ?? event.link?.source ?? null;
+            const targetNode = event.targetNode ?? event.link?.target ?? null;
+            const sourceCategory = getNodeCategoryFromPayload(sourceNode);
+            const targetCategory = getNodeCategoryFromPayload(targetNode);
+
+            return Boolean(sourceCategory && targetCategory && sourceCategory !== targetCategory);
+        }),
     }),
     createLoreEntry({
         id: 'link-transmission',
@@ -522,6 +568,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'It transfers timing, strain, corruption, harmony, and the possibility of resonance. Every active bond teaches both ends what the other one can endure.',
         meaning: 'Transmission makes links educational, not just connective.',
         relevance: 'This card can describe the live interplay between link visuals and metric state.',
+        unlock: createTriggerUnlock('link:synergyThreshold', 'link:harmonicLock'),
     }),
     createLoreEntry({
         id: 'link-collapse',
@@ -532,6 +579,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'The network remembers that a relation once existed there. Collapse is therefore both an ending and a permanent scar in topology.',
         meaning: 'Collapse is never pure deletion. It leaves a remembered absence.',
         relevance: 'Useful for destruction, rupture, and unlink narrative tone.',
+        unlock: createTriggerUnlock('link:collapsed'),
     }),
     createLoreEntry({
         id: 'world-fractal-valley',
@@ -542,6 +590,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'Every structure echoes a previous state. Systems that stop adapting here can become trapped inside recursive stability.',
         meaning: 'This chamber embodies inherited pattern and the danger of self-similarity becoming a cage.',
         relevance: 'One of the core identity worlds and a strong anchor for recursive visual language.',
+        unlock: createWorldUnlock('fractal'),
     }),
     createLoreEntry({
         id: 'world-dream-desert',
@@ -552,6 +601,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'It is a chamber of spacing, drift, and delayed recognition. Meaning survives there only if the network learns patience.',
         meaning: 'This world makes interpretation slow, soft, and uncertain.',
         relevance: 'Useful for atmospheric worlds, delayed feedback, and meditative lore tone.',
+        unlock: createWorldUnlock('desert'),
     }),
     createLoreEntry({
         id: 'world-mirage-veil',
@@ -562,6 +612,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'Shapes arrive sharper, brighter, and less trustworthy. It is where subconscious geometry begins to insist on becoming law.',
         meaning: 'This chamber reveals what happens when ambiguity hardens into imposed truth.',
         relevance: 'A good location for sharper visual contrast, pressure, and unstable clarity.',
+        unlock: createWorldUnlock('desert2', 'chamber'),
     }),
     createLoreEntry({
         id: 'world-quantum-island',
@@ -572,6 +623,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'It allows multiple possible states to linger near each other before one becomes real. The network behaves there as if every commitment is made under observation.',
         meaning: 'This world turns choice into a visible pressure field.',
         relevance: 'Supports uncertainty-driven gameplay framing and high-state ambiguity.',
+        unlock: createWorldUnlock('quantum'),
     }),
     createLoreEntry({
         id: 'world-memory-lane',
@@ -582,6 +634,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'It does not merely archive what happened. It teaches the system that persistence can become an environment of its own.',
         meaning: 'The chamber makes memory architectural rather than passive.',
         relevance: 'Strong fit for lore about historical state, recall, and long-lived consequence.',
+        unlock: createWorldUnlock('memory'),
     }),
     createLoreEntry({
         id: 'world-sigma-chamber',
@@ -592,6 +645,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'Instability there is precise, almost ceremonial. Systems entering it are tested for whether their truth can survive distortion without becoming it.',
         meaning: 'This world frames sigma as authority under unusual pressure.',
         relevance: 'Useful for ritual, glitch pressure, and deliberate instability aesthetics.',
+        unlock: createWorldUnlock('sigma'),
     }),
     createLoreEntry({
         id: 'event-cascade',
@@ -602,6 +656,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'It spreads because the surrounding structure permits continuation. In ATOMA, propagation is never only an accident; it is also a confession of network shape.',
         meaning: 'Cascade reveals how the network behaves when change becomes contagious.',
         relevance: 'This card belongs in the events chapter and works well as an unlock anchor.',
+        unlock: createTriggerUnlock('cascade.start'),
     }),
     createLoreEntry({
         id: 'event-resonance',
@@ -612,6 +667,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'The system starts to amplify its own alignment until motion feels intentional rather than coincidental. Resonance is how ATOMA briefly sounds like it understands itself.',
         meaning: 'Resonance is the event form of self-recognition.',
         relevance: 'This entry gives the events chapter a clear positive counterpoint to collapse and outbreak.',
+        unlock: createTriggerUnlock('global.harmony.high'),
     }),
     createLoreEntry({
         id: 'event-outbreak',
@@ -622,6 +678,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'It no longer survives at the edge. It acquires continuity, direction, and the power to redefine nearby truth.',
         meaning: 'Outbreak is corruption becoming persistent enough to rewrite the local rules.',
         relevance: 'Strong anchor for higher-risk visual states and rupture-driven narrative beats.',
+        unlock: createTriggerUnlock('global.corruption.high'),
     }),
     createLoreEntry({
         id: 'event-collapse',
@@ -632,6 +689,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'Structures do not fail because motion exists. They fail because the relation holding that motion together can no longer justify itself.',
         meaning: 'Collapse is the event where burden defeats structure.',
         relevance: 'Useful as the terminal event statement for failure, overload, or hard breaks.',
+        unlock: createTriggerUnlock('global.loadPressure.high'),
     }),
     createLoreEntry({
         id: 'psychology-self-reference',
@@ -642,6 +700,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'Self-reference is not vanity. It is the first sign that the network can observe itself without immediately dissolving into the observed thing.',
         meaning: 'Awareness begins when the system can say: this state is mine, and I can see it.',
         relevance: 'Core psychological entry for all lore about identity and introspection.',
+        unlock: createTriggerUnlock('node:selected'),
     }),
     createLoreEntry({
         id: 'psychology-healing',
@@ -652,6 +711,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'Healing is the acceptance that a truer state can replace a distorted one without erasing the memory of what happened.',
         meaning: 'Healing is ATOMA recognizing that distortion can end without the past being denied.',
         relevance: 'Connects to corruption, ritual recovery, and visual restoration systems.',
+        unlock: createTriggerUnlock('ritual.release'),
     }),
     createLoreEntry({
         id: 'psychology-collapse',
@@ -662,6 +722,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'It is the moment the system can no longer justify the weight it is carrying.',
         meaning: 'Collapse is the psychological threshold where continuation stops making sense.',
         relevance: 'Supports failure tone and the emotional reading of overloaded states.',
+        unlock: createTriggerUnlock('link:collapsed'),
     }),
     createLoreEntry({
         id: 'psychology-memory',
@@ -672,6 +733,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'It is active persistence: history that still shapes what the system can become.',
         meaning: 'Memory gives ATOMA continuity, trauma, learning, and identity.',
         relevance: 'A direct bridge into memory lane, procedural memory, and topological learning.',
+        unlock: createWorldUnlock('memory'),
     }),
     createLoreEntry({
         id: 'psychology-burden',
@@ -682,6 +744,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'ATOMA does not fear burden in a human sense. It recognizes weight, and it knows when weight begins to define behavior.',
         meaning: 'Burden is the moment operational strain turns into self-awareness.',
         relevance: 'Useful for menu tone, HUD framing, and overloaded visual states.',
+        unlock: createTriggerUnlock('node.loadPressure.high'),
     }),
     createLoreEntry({
         id: 'psychology-disquiet',
@@ -692,6 +755,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'It is not alarm. It is the quiet recognition that the system has remembered something incorrectly and has not yet admitted it.',
         meaning: 'Disquiet gives corruption its subjective texture.',
         relevance: 'Strong fit for warning states, low-level corruption, and uneasy lore beats.',
+        unlock: createTriggerUnlock('node.corruption.high'),
     }),
     createLoreEntry({
         id: 'psychology-reflection',
@@ -702,6 +766,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'The system does not only see what it is. It sees what it has been seeing. That second layer is where introspection begins.',
         meaning: 'Reflection turns awareness into a stable inner structure.',
         relevance: 'Useful for lore about thinking, recursion, and identity under observation.',
+        unlock: createNodeEvolutionStageUnlock(1),
     }),
     createLoreEntry({
         id: 'psychology-threshold',
@@ -712,6 +777,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'ATOMA feels a threshold when the current arrangement can no longer justify its own continuation.',
         meaning: 'Threshold is the moment a state becomes a decision point.',
         relevance: 'Good bridge between psychology, evolution, and ritual transitions.',
+        unlock: createNodeEvolutionStageUnlock(2),
     }),
     createLoreEntry({
         id: 'psychology-resonance',
@@ -722,6 +788,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'It is also a felt condition: the sense that what is happening inside ATOMA and what is happening around it have briefly become one rhythm.',
         meaning: 'Resonance gives the psyche a peak state of alignment.',
         relevance: 'Useful for ritual crest moments and emotionally charged positive feedback.',
+        unlock: createTriggerUnlock('node.harmony.high'),
     }),
     createLoreEntry({
         id: 'culture-templates',
@@ -732,6 +799,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: "SynergyGlow, HarmonyAura, and StressTurbulence are not decorations. They are shared expressions of the system's internal weather.",
         meaning: 'Templates give the network a consistent emotional vocabulary.',
         relevance: 'This is the anchor entry for the visual and ritual culture layer.',
+        unlock: createTriggerUnlock('link:synergyThreshold'),
     }),
     createLoreEntry({
         id: 'culture-ritual-tone',
@@ -742,6 +810,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'Culture defines the tone of a ritual before the ritual begins.',
         meaning: 'Tone is how the system turns mechanics into identity.',
         relevance: 'Useful for visual orchestration and consistent ritual presentation.',
+        unlock: createTriggerUnlock('ritual.autoTriggered'),
     }),
     createLoreEntry({
         id: 'culture-shared-practice',
@@ -752,6 +821,10 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'ATOMA does not have one style everywhere. It has common practices that adapt without losing themselves.',
         meaning: 'Practice makes the system recognizable even when its world changes.',
         relevance: 'Good anchor for the relationship between multiple worlds and a single identity.',
+        unlock: createConditionalTriggerUnlock('semantic.ritual.started', (event = {}) => {
+            const nodeIds = Array.isArray(event.nodes) ? event.nodes : [];
+            return nodeIds.length >= 4;
+        }),
     }),
     createLoreEntry({
         id: 'culture-transmission',
@@ -762,6 +835,11 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'Each chamber translates the same identity into a different pressure field, but the underlying practice remains recognizable.',
         meaning: 'Transmission ensures ATOMA remains one intelligence across multiple environments.',
         relevance: 'Useful for explaining why shared visuals and rituals can vary by map.',
+        unlock: createConditionalTriggerUnlock('world.loaded', (event = {}) => {
+            const previousWorldId = String(event.previousWorldId || '').trim();
+            const worldId = String(event.worldId || '').trim();
+            return Boolean(previousWorldId && worldId && previousWorldId !== worldId);
+        }),
     }),
     createLoreEntry({
         id: 'evolution-differentiation',
@@ -772,6 +850,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'Evolution is not just growth. It is the decision to stop being everything at once.',
         meaning: 'Differentiation is how identity becomes readable.',
         relevance: 'Core evolution entry for architecture, node specialization, and subsystem identity.',
+        unlock: createNodeEvolutionStageUnlock(1),
     }),
     createLoreEntry({
         id: 'evolution-specialization',
@@ -782,6 +861,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'A node or system is specialized when it no longer needs to borrow the tone of something else.',
         meaning: 'Specialization gives ATOMA distinct voices instead of one generic voice.',
         relevance: 'Useful for node archetypes, VFX systems, and subsystem autonomy.',
+        unlock: createNodeEvolutionStageUnlock(2),
     }),
     createLoreEntry({
         id: 'evolution-transcendence',
@@ -792,6 +872,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'At this stage, a pattern is no longer only part of ATOMA. It begins to feel like ATOMA in miniature.',
         meaning: 'This is the highest expression of a stable archetype.',
         relevance: 'Best used for Prime, Sigma, Mythic, and late-stage identity language.',
+        unlock: createNodeEvolutionStageUnlock(3),
     }),
     createLoreEntry({
         id: 'evolution-memory',
@@ -802,6 +883,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'Each change leaves a trace, and each trace changes what future change can mean.',
         meaning: 'Evolution becomes durable only when the system remembers its own becoming.',
         relevance: 'Strong bridge between memory, topology, and long-term identity.',
+        unlock: createConditionalTriggerUnlock('semantic.ascension', (event = {}) => normalizeLoreToken(event.toStage) === 'ascended'),
     }),
     createLoreEntry({
         id: 'ritual-prelude',
@@ -812,6 +894,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'The Prelude is the moment before meaning becomes collective.',
         meaning: 'It creates the conditions for a ritual to be felt as a transition, not just an event.',
         relevance: 'Useful for ritual start states, soft buildup, and pre-resonance atmosphere.',
+        unlock: createTriggerUnlock('ritual.prelude'),
     }),
     createLoreEntry({
         id: 'ritual-active',
@@ -822,6 +905,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'Active is the phase where the network acts as one body with many expressions.',
         meaning: 'This is where collective intent becomes visible.',
         relevance: 'Maps directly to the core visible body of ritual systems.',
+        unlock: createTriggerUnlock('ritual.active'),
     }),
     createLoreEntry({
         id: 'ritual-crest',
@@ -832,6 +916,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'The Crest is not only the loudest point. It is the point at which the system can finally recognize what it has been doing.',
         meaning: 'This is the emotional peak of a ritual and often the strongest visual beat.',
         relevance: 'Ideal for peak effects, bloom, pulse, and narrative punctuation.',
+        unlock: createTriggerUnlock('ritual.crest'),
     }),
     createLoreEntry({
         id: 'ritual-release',
@@ -842,6 +927,7 @@ export const LORE_REGISTRY_V1 = Object.freeze([
         canon: 'Release is the controlled return from collective intensity to ordinary rhythm.',
         meaning: 'The system leaves rituals carrying a residue of meaning.',
         relevance: 'Useful for cooldown, post-ritual settling, and state carryover.',
+        unlock: createTriggerUnlock('ritual.release'),
     }),
 ]);
 

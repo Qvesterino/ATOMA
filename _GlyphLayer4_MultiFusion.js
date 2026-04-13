@@ -646,6 +646,7 @@ export class GlyphLayer4_MultiFusion {
       mote.userData = {
         glyphComponent: 'quantumStorageMote',
         moteIndex: index,
+        baseOrbitPhase: phase,
         orbitPhase: phase,
         orbitRadius: 0.18 + (index % 2) * 0.045,
         orbitSpeed: 0.8 + index * 0.08,
@@ -719,7 +720,7 @@ export class GlyphLayer4_MultiFusion {
       }
 
       if (child.userData?.glyphComponent === 'quantumStorageMote') {
-        const orbitPhase = child.userData.orbitPhase + glyphGroup.userData.fluxPhase * child.userData.orbitSpeed;
+        const orbitPhase = (child.userData.baseOrbitPhase ?? 0) + glyphGroup.userData.fluxPhase * child.userData.orbitSpeed;
         const orbitRadius = child.userData.orbitRadius + Math.sin(glyphGroup.userData.fluxPhase * 1.35 + child.userData.moteIndex) * 0.015;
         child.position.x = Math.cos(orbitPhase) * orbitRadius;
         child.position.z = Math.sin(orbitPhase) * orbitRadius;
@@ -1614,12 +1615,15 @@ export class GlyphLayer4_MultiFusion {
       evoGroup.scale.setScalar(0.94 + organPulse * 0.06 + tissueBreath * 0.02);
 
       evoGroup.traverse((child) => {
+        const material = Array.isArray(child.material) ? child.material[0] : child.material;
+        if (!material) return;
+
         if (child.userData?.glyphComponent === 'alienOrganCore') {
           child.rotation.y += deltaTime * 0.28;
           child.rotation.x += deltaTime * 0.16;
           child.scale.setScalar(0.92 + organPulse * 0.12);
-          child.material.opacity = 0.58 + organPulse * 0.24;
-          child.material.color.setHex(corruptionWave > 0.64 ? 0xff8fd1 : 0xf7fff8);
+          material.opacity = 0.58 + organPulse * 0.24;
+          material.color?.setHex?.(corruptionWave > 0.64 ? 0xff8fd1 : 0xf7fff8);
         }
 
         if (child.userData?.glyphComponent === 'alienOrganShell') {
@@ -1630,7 +1634,7 @@ export class GlyphLayer4_MultiFusion {
             0.92 + organPulse * 0.06,
             1.0 + tissueBreath * 0.06
           );
-          child.material.opacity = 0.18 + organPulse * 0.18;
+          material.opacity = 0.18 + organPulse * 0.18;
         }
 
         if (child.userData?.glyphComponent === 'alienOrganLobe') {
@@ -1643,8 +1647,8 @@ export class GlyphLayer4_MultiFusion {
           child.rotation.y += deltaTime * (0.08 + lobeIndex * 0.02);
           child.rotation.z += deltaTime * 0.06;
           child.scale.setScalar(0.9 + lobePulse * 0.2);
-          child.material.opacity = 0.26 + lobePulse * 0.2;
-          child.material.color.setHex(lobeIndex === 1 && corruptionWave > 0.55 ? 0xff6fbd : 0xc9f2ff);
+          material.opacity = 0.26 + lobePulse * 0.2;
+          material.color?.setHex?.(lobeIndex === 1 && corruptionWave > 0.55 ? 0xff6fbd : 0xc9f2ff);
         }
 
         if (child.userData?.glyphComponent === 'alienOrganSpine') {
@@ -1657,7 +1661,7 @@ export class GlyphLayer4_MultiFusion {
           child.position.y = child.userData.basePosition.y + Math.cos(organPhase * 0.66 + spineIndex * 0.4) * 0.018;
           child.position.z = child.userData.basePosition.z + Math.sin(organPhase * 0.58 + spineIndex * 0.7) * 0.018;
           child.scale.setScalar(0.92 + spinePulse * 0.2);
-          child.material.opacity = 0.34 + spinePulse * 0.24 + corruptionWave * 0.08;
+          material.opacity = 0.34 + spinePulse * 0.24 + corruptionWave * 0.08;
         }
 
         if (child.userData?.glyphComponent === 'alienOrganNodule') {
@@ -1666,8 +1670,8 @@ export class GlyphLayer4_MultiFusion {
           child.rotation.y += deltaTime * (0.18 + noduleIndex * 0.03);
           child.rotation.x += deltaTime * 0.08;
           child.scale.setScalar(0.78 + nodulePulse * 0.18 + corruptionWave * 0.04);
-          child.material.opacity = 0.42 + nodulePulse * 0.22;
-          child.material.color.setHex(noduleIndex === 2 && corruptionWave > 0.66 ? 0xff78a8 : 0xf2fff7);
+          material.opacity = 0.42 + nodulePulse * 0.22;
+          material.color?.setHex?.(noduleIndex === 2 && corruptionWave > 0.66 ? 0xff78a8 : 0xf2fff7);
         }
 
         if (child.userData?.glyphComponent === 'alienOrganTendril') {
@@ -1688,7 +1692,7 @@ export class GlyphLayer4_MultiFusion {
             child.geometry.attributes.position.needsUpdate = true;
           }
           child.rotation.z += deltaTime * (0.08 + tendrilIndex * 0.03);
-          child.material.opacity = 0.24 + tendrilPulse * 0.26 + tissueBreath * 0.08;
+          material.opacity = 0.24 + tendrilPulse * 0.26 + tissueBreath * 0.08;
         }
       });
     }
@@ -1911,7 +1915,18 @@ export class GlyphLayer4_MultiFusion {
     const speeds = [0.3, -0.2, 0.25];
     
     radii.forEach((radius, idx) => {
-      const torus = new THREE.TorusGeometry(radius, 0.02, 12, 60);
+      const ringPoints = [];
+      const segments = 64;
+      for (let i = 0; i <= segments; i++) {
+        const angle = (i / segments) * Math.PI * 2;
+        ringPoints.push(new THREE.Vector3(
+          Math.cos(angle) * radius,
+          0,
+          Math.sin(angle) * radius
+        ));
+      }
+
+      const ringGeometry = new THREE.BufferGeometry().setFromPoints(ringPoints);
       const mat = new THREE.LineBasicMaterial({
         color: colors[idx],
         transparent: true,
@@ -1919,11 +1934,7 @@ export class GlyphLayer4_MultiFusion {
         fog: false
       });
       
-      const ring = new THREE.LineLoop(
-        torus.getAttribute('position'),
-        new THREE.BufferAttribute(new Uint16Array(torus.getIndex().array), 1)
-      );
-      ring.material = mat;
+      const ring = new THREE.LineLoop(ringGeometry, mat);
       ring.userData = {
         glyphComponent: 'ascendedRing',
         ringIndex: idx,
@@ -2678,16 +2689,19 @@ export class GlyphLayer4_MultiFusion {
   
   update(deltaTime) {
     if (!this.enabled) return;
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler?.shouldRunVisual?.() === false) return;
 
     if (this._glyphTimeOrigin === undefined) {
       this._glyphTimeOrigin = VisualTime.now; // Phase 2A: canonical VisualTime anchor for glyph timing
     }
     const currentVisualTime = VisualTime.now - this._glyphTimeOrigin; // Phase 2A: VisualTime canonical clock (behavior-preserving)
-    const visualDelta = this._lastVisualTime === undefined
-      ? 0
-      : Math.max(0, currentVisualTime - this._lastVisualTime); // Phase 2A: derived delta from VisualTime (behavior-preserving)
+    let visualDelta = this._lastVisualTime === undefined
+      ? deltaTime
+      : currentVisualTime - this._lastVisualTime;
     this._lastVisualTime = currentVisualTime;
+    if (!Number.isFinite(visualDelta) || visualDelta <= 0) {
+      visualDelta = Math.max(0, deltaTime);
+    }
     deltaTime = visualDelta;
 
     for (const [nodeId, fusionData] of this.fusionRegistry) {

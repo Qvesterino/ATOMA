@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS = Object.freeze({
     particles: true,
     audioMuted: false,
     postProcessing: false,
+    nodeRotations: true,
     semanticPictograms: true,
     environmentalHazards: true,
 });
@@ -216,6 +217,7 @@ function sanitizeSettings(value) {
         particles: settings.particles !== false,
         audioMuted,
         postProcessing: settings.postProcessing === true,
+        nodeRotations: settings.nodeRotations !== false,
         semanticPictograms: settings.semanticPictograms !== false,
         environmentalHazards: settings.environmentalHazards !== false,
     };
@@ -879,6 +881,13 @@ export function getSettingsRows(settings) {
             label: 'POSTPROCESSING',
             value: `[ ${settings.postProcessing ? 'ON' : 'OFF'} ]`,
             description: 'Enable or disable bloom/composite postprocessing effects.',
+        },
+        {
+            type: 'toggle',
+            id: 'nodeRotations',
+            label: 'NODE ROTATIONS',
+            value: `[ ${settings.nodeRotations ? 'ON' : 'OFF'} ]`,
+            description: 'Enable or disable the slow self-axis rotation on active nodes.',
         },
         {
             type: 'toggle',
@@ -1643,6 +1652,15 @@ export class MainMenu {
                     window.game.setPostProcessingEnabled(settings.postProcessing);
                 } else {
                     window.__ATOMA_POSTPROCESSING_PENDING__ = settings.postProcessing;
+                }
+            }
+        } else if (settingId === 'nodeRotations') {
+            settings.nodeRotations = !settings.nodeRotations;
+            if (typeof window !== 'undefined') {
+                if (window.game?.setNodeRotationsEnabled) {
+                    window.game.setNodeRotationsEnabled(settings.nodeRotations);
+                } else {
+                    window.__ATOMA_NODE_ROTATIONS_PENDING__ = settings.nodeRotations;
                 }
             }
         } else if (settingId === 'semanticPictograms') {

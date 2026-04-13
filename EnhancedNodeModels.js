@@ -14431,6 +14431,7 @@ export class EnhancedNodeModels {
   static __registryMissing = [];
   static _ALL_NODE_FACTORIES = null;
   static __ALL_NODE_FACTORIES = null;
+  static nodeRotationsEnabled = true;
 
   // ============================================================================
   // LEGACY SCALE PULSE AUDIT & DISABLE (Session 107)
@@ -31039,14 +31040,16 @@ static createAnalyticsNode2(group, color) {
       return;
     }
 
-    // Gentle primary rotation
-    nodeGroup.rotation.y += deltaTime * 0.3;
+    if (EnhancedNodeModels.nodeRotationsEnabled !== false) {
+      // Gentle primary rotation
+      nodeGroup.rotation.y += deltaTime * 0.3;
 
-    // Category-specific rotations
-    if (nodeGroup.userData.rotationAxis) {
-      const axis = nodeGroup.userData.rotationAxis;
-      nodeGroup.rotation.x += deltaTime * 0.2 * axis.x;
-      nodeGroup.rotation.z += deltaTime * 0.2 * axis.z;
+      // Category-specific rotations
+      if (nodeGroup.userData.rotationAxis) {
+        const axis = nodeGroup.userData.rotationAxis;
+        nodeGroup.rotation.x += deltaTime * 0.2 * axis.x;
+        nodeGroup.rotation.z += deltaTime * 0.2 * axis.z;
+      }
     }
 
     // CONTROL_V2 deterministic motion (no random traversal)
@@ -34504,221 +34507,6 @@ static createAnalyticsNode2(group, color) {
         });
       }
     }
-
-      nodeGroup.scale.set(
-
-        baseScale.x * (1 + Math.sin(time * breathSpeed + phase) * breathAmplitude),
-        baseScale.y * (1 + Math.cos(time * breathSpeed * 0.84 + phase) * breathAmplitude * 0.72),
-        baseScale.z * (1 + Math.sin(time * breathSpeed * 0.76 + phase * 0.5) * breathAmplitude * 0.88)
-      );
-
-      if (refs.basinGroup) {
-        const basinBaseRotation = refs.basinGroup.userData.baseRotation || (refs.basinGroup.userData.baseRotation = refs.basinGroup.rotation.clone());
-        refs.basinGroup.rotation.set(
-          basinBaseRotation.x + Math.sin(time * breathSpeed * 0.46 + phase) * 0.0012,
-          basinBaseRotation.y + deltaTime * terraceSpinSpeed * 0.18,
-          basinBaseRotation.z + Math.cos(time * breathSpeed * 0.4 + phase) * 0.0008
-        );
-      }
-
-      if (Array.isArray(refs.shellMeshes)) {
-        refs.shellMeshes.forEach((shell, idx) => {
-          const basePosition = shell.userData.basePosition || (shell.userData.basePosition = shell.position.clone());
-          const baseRotation = shell.userData.baseRotation || (shell.userData.baseRotation = shell.rotation.clone());
-          const baseScale = shell.userData.baseScale || (shell.userData.baseScale = shell.scale.clone());
-          const shellPhase = phase + idx * 0.61;
-          shell.position.set(
-            basePosition.x + Math.sin(time * breathSpeed * 0.44 + shellPhase) * 0.0012,
-            basePosition.y + Math.cos(time * breathSpeed * 0.38 + shellPhase) * 0.001,
-            basePosition.z + Math.sin(time * breathSpeed * 0.36 + shellPhase) * 0.0011
-          );
-          shell.rotation.set(
-            baseRotation.x + Math.sin(time * breathSpeed * 0.54 + shellPhase) * 0.0015,
-            baseRotation.y + deltaTime * terraceSpinSpeed * (0.2 - idx * 0.03),
-            baseRotation.z + Math.cos(time * breathSpeed * 0.5 + shellPhase) * 0.0012
-          );
-          shell.scale.set(
-            baseScale.x * (1 + Math.sin(time * breathSpeed * 0.32 + shellPhase) * 0.001),
-            baseScale.y * (1 + Math.cos(time * breathSpeed * 0.3 + shellPhase) * 0.0008),
-            baseScale.z * (1 + Math.sin(time * breathSpeed * 0.28 + shellPhase) * 0.001)
-          );
-        });
-      }
-
-      if (Array.isArray(refs.terraceMeshes)) {
-        refs.terraceMeshes.forEach((terrace, idx) => {
-          const basePosition = terrace.userData.basePosition || (terrace.userData.basePosition = terrace.position.clone());
-          const baseRotation = terrace.userData.baseRotation || (terrace.userData.baseRotation = terrace.rotation.clone());
-          const baseScale = terrace.userData.baseScale || (terrace.userData.baseScale = terrace.scale.clone());
-          const terracePhase = phase + idx * 0.77;
-          terrace.position.set(
-            basePosition.x,
-            basePosition.y + Math.sin(time * breathSpeed * 0.42 + terracePhase) * 0.0014,
-            basePosition.z
-          );
-          terrace.rotation.set(
-            baseRotation.x + Math.sin(time * rimDriftSpeed * 0.9 + terracePhase) * 0.0018,
-            baseRotation.y + deltaTime * terraceSpinSpeed * 0.12,
-            baseRotation.z + Math.cos(time * rimDriftSpeed * 0.82 + terracePhase) * 0.0012
-          );
-          terrace.scale.set(
-            baseScale.x * (1 + Math.sin(time * breathSpeed * 0.36 + terracePhase) * 0.0008),
-            baseScale.y * (1 + Math.cos(time * breathSpeed * 0.3 + terracePhase) * 0.0008),
-            baseScale.z * (1 + Math.sin(time * breathSpeed * 0.34 + terracePhase) * 0.0008)
-          );
-        });
-      }
-
-      if (refs.coreGroup) {
-        const coreBaseRotation = refs.coreGroup.userData.baseRotation || (refs.coreGroup.userData.baseRotation = refs.coreGroup.rotation.clone());
-        refs.coreGroup.rotation.set(
-          coreBaseRotation.x + Math.sin(time * corePulseSpeed * 0.46 + phase) * 0.0012,
-          coreBaseRotation.y + deltaTime * corePulseSpeed * 0.12,
-          coreBaseRotation.z + Math.cos(time * corePulseSpeed * 0.4 + phase) * 0.0008
-        );
-      }
-
-      if (refs.coreHalo) {
-        const haloBaseRotation = refs.coreHalo.userData.baseRotation || (refs.coreHalo.userData.baseRotation = refs.coreHalo.rotation.clone());
-        const haloBaseScale = refs.coreHalo.userData.baseScale || (refs.coreHalo.userData.baseScale = refs.coreHalo.scale.clone());
-        refs.coreHalo.rotation.set(
-          haloBaseRotation.x + Math.sin(time * corePulseSpeed * 0.5 + phase) * 0.001,
-          haloBaseRotation.y + deltaTime * corePulseSpeed * 0.06,
-          haloBaseRotation.z + Math.cos(time * corePulseSpeed * 0.42 + phase) * 0.0008
-        );
-        refs.coreHalo.scale.set(
-          haloBaseScale.x * (1 + Math.sin(time * corePulseSpeed * 0.52 + phase) * 0.003),
-          haloBaseScale.y * (1 + Math.cos(time * corePulseSpeed * 0.48 + phase) * 0.0022),
-          haloBaseScale.z * (1 + Math.sin(time * corePulseSpeed * 0.44 + phase) * 0.003)
-        );
-      }
-
-      if (refs.coreShell) {
-        const coreShellBasePosition = refs.coreShell.userData.basePosition || (refs.coreShell.userData.basePosition = refs.coreShell.position.clone());
-        const coreShellBaseRotation = refs.coreShell.userData.baseRotation || (refs.coreShell.userData.baseRotation = refs.coreShell.rotation.clone());
-        const coreShellBaseScale = refs.coreShell.userData.baseScale || (refs.coreShell.userData.baseScale = refs.coreShell.scale.clone());
-        refs.coreShell.position.set(
-          coreShellBasePosition.x + Math.sin(time * corePulseSpeed * 0.38 + phase) * 0.0008,
-          coreShellBasePosition.y + Math.cos(time * corePulseSpeed * 0.34 + phase) * 0.0006,
-          coreShellBasePosition.z + Math.sin(time * corePulseSpeed * 0.3 + phase) * 0.0006
-        );
-        refs.coreShell.rotation.set(
-          coreShellBaseRotation.x + Math.sin(time * corePulseSpeed * 0.52 + phase) * 0.0014,
-          coreShellBaseRotation.y + deltaTime * corePulseSpeed * 0.08,
-          coreShellBaseRotation.z + Math.cos(time * corePulseSpeed * 0.44 + phase) * 0.0012
-        );
-        refs.coreShell.scale.set(
-          coreShellBaseScale.x * (1 + Math.sin(time * corePulseSpeed * 0.42 + phase) * 0.0022),
-          coreShellBaseScale.y * (1 + Math.cos(time * corePulseSpeed * 0.38 + phase) * 0.0018),
-          coreShellBaseScale.z * (1 + Math.sin(time * corePulseSpeed * 0.36 + phase) * 0.0022)
-        );
-      }
-
-      if (refs.coreSeed) {
-        const coreSeedBasePosition = refs.coreSeed.userData.basePosition || (refs.coreSeed.userData.basePosition = refs.coreSeed.position.clone());
-        const coreSeedBaseRotation = refs.coreSeed.userData.baseRotation || (refs.coreSeed.userData.baseRotation = refs.coreSeed.rotation.clone());
-        const coreSeedBaseScale = refs.coreSeed.userData.baseScale || (refs.coreSeed.userData.baseScale = refs.coreSeed.scale.clone());
-        refs.coreSeed.position.set(
-          coreSeedBasePosition.x + Math.sin(time * corePulseSpeed * 0.56 + phase) * 0.0008,
-          coreSeedBasePosition.y + Math.cos(time * corePulseSpeed * 0.48 + phase) * 0.0005,
-          coreSeedBasePosition.z + Math.sin(time * corePulseSpeed * 0.46 + phase) * 0.0005
-        );
-        refs.coreSeed.rotation.set(
-          coreSeedBaseRotation.x + Math.sin(time * corePulseSpeed * 0.58 + phase) * 0.0016,
-          coreSeedBaseRotation.y + deltaTime * corePulseSpeed * 0.1,
-          coreSeedBaseRotation.z + Math.cos(time * corePulseSpeed * 0.52 + phase) * 0.0012
-        );
-        refs.coreSeed.scale.set(
-          coreSeedBaseScale.x * (1 + Math.sin(time * corePulseSpeed * 0.46 + phase) * 0.003),
-          coreSeedBaseScale.y * (1 + Math.cos(time * corePulseSpeed * 0.42 + phase) * 0.0022),
-          coreSeedBaseScale.z * (1 + Math.sin(time * corePulseSpeed * 0.4 + phase) * 0.003)
-        );
-      }
-
-      if (refs.rimGroup) {
-        const rimBaseRotation = refs.rimGroup.userData.baseRotation || (refs.rimGroup.userData.baseRotation = refs.rimGroup.rotation.clone());
-        refs.rimGroup.rotation.set(
-          rimBaseRotation.x + Math.sin(time * rimDriftSpeed * 0.72 + phase) * 0.0012,
-          rimBaseRotation.y + deltaTime * rimDriftSpeed * 0.2,
-          rimBaseRotation.z + Math.cos(time * rimDriftSpeed * 0.62 + phase) * 0.0009
-        );
-      }
-
-      if (Array.isArray(refs.rimAccents)) {
-        refs.rimAccents.forEach((rimAccent, idx) => {
-          const baseRotation = rimAccent.userData.baseRotation || (rimAccent.userData.baseRotation = rimAccent.rotation.clone());
-          const baseScale = rimAccent.userData.baseScale || (rimAccent.userData.baseScale = rimAccent.scale.clone());
-          const accentPhase = phase + idx * 0.37;
-          rimAccent.rotation.set(
-            baseRotation.x + Math.sin(time * rimDriftSpeed * 0.88 + accentPhase) * 0.0012,
-            baseRotation.y + deltaTime * rimDriftSpeed * 0.08,
-            baseRotation.z + Math.cos(time * rimDriftSpeed * 0.76 + accentPhase) * 0.001
-          );
-          rimAccent.scale.set(
-            baseScale.x * (1 + Math.sin(time * rimDriftSpeed * 0.52 + accentPhase) * 0.0015),
-            baseScale.y * (1 + Math.cos(time * rimDriftSpeed * 0.48 + accentPhase) * 0.0012),
-            baseScale.z * (1 + Math.sin(time * rimDriftSpeed * 0.44 + accentPhase) * 0.0015)
-          );
-        });
-      }
-
-      if (Array.isArray(refs.indexMarkers)) {
-        refs.indexMarkers.forEach((marker, idx) => {
-          const basePosition = marker.userData.basePosition || (marker.userData.basePosition = marker.position.clone());
-          const baseRotation = marker.userData.baseRotation || (marker.userData.baseRotation = marker.rotation.clone());
-          const baseScale = marker.userData.baseScale || (marker.userData.baseScale = marker.scale.clone());
-          const markerPhase = phase + idx * 0.61;
-          marker.position.set(
-            basePosition.x + Math.sin(time * rimDriftSpeed * 0.46 + markerPhase) * 0.0006,
-            basePosition.y + Math.cos(time * rimDriftSpeed * 0.42 + markerPhase) * 0.0004,
-            basePosition.z + Math.sin(time * rimDriftSpeed * 0.4 + markerPhase) * 0.0006
-          );
-          marker.rotation.set(
-            baseRotation.x + Math.sin(time * rimDriftSpeed * 0.58 + markerPhase) * 0.001,
-            baseRotation.y + deltaTime * rimDriftSpeed * 0.04,
-            baseRotation.z + Math.cos(time * rimDriftSpeed * 0.5 + markerPhase) * 0.0008
-          );
-          marker.scale.set(
-            baseScale.x * (1 + Math.sin(time * rimDriftSpeed * 0.5 + markerPhase) * 0.0012),
-            baseScale.y * (1 + Math.cos(time * rimDriftSpeed * 0.45 + markerPhase) * 0.001),
-            baseScale.z * (1 + Math.sin(time * rimDriftSpeed * 0.4 + markerPhase) * 0.0012)
-          );
-        });
-      }
-
-      if (refs.channelGroup) {
-        const channelBaseRotation = refs.channelGroup.userData.baseRotation || (refs.channelGroup.userData.baseRotation = refs.channelGroup.rotation.clone());
-        refs.channelGroup.rotation.set(
-          channelBaseRotation.x + Math.sin(time * channelFlowSpeed * 0.44 + phase) * 0.0008,
-          channelBaseRotation.y + deltaTime * channelFlowSpeed * 0.18,
-          channelBaseRotation.z + Math.cos(time * channelFlowSpeed * 0.4 + phase) * 0.0006
-        );
-      }
-
-      if (Array.isArray(refs.overflowChannels)) {
-        refs.overflowChannels.forEach((channel, idx) => {
-          const basePosition = channel.userData.basePosition || (channel.userData.basePosition = channel.position.clone());
-          const baseRotation = channel.userData.baseRotation || (channel.userData.baseRotation = channel.rotation.clone());
-          const baseScale = channel.userData.baseScale || (channel.userData.baseScale = channel.scale.clone());
-          const channelPhase = (channel.userData.channelPhase || phase) + idx * 0.19;
-          const flow = Math.sin(time * channelFlowSpeed + channelPhase) * 0.002;
-          channel.position.set(
-            basePosition.x + Math.cos(time * channelFlowSpeed * 0.52 + channelPhase) * 0.0008,
-            basePosition.y + flow,
-            basePosition.z + Math.sin(time * channelFlowSpeed * 0.48 + channelPhase) * 0.0008
-          );
-          channel.rotation.set(
-            baseRotation.x + Math.sin(time * channelFlowSpeed * 0.58 + channelPhase) * 0.0012,
-            baseRotation.y + deltaTime * channelFlowSpeed * 0.08,
-            baseRotation.z + Math.cos(time * channelFlowSpeed * 0.54 + channelPhase) * 0.001
-          );
-          channel.scale.set(
-            baseScale.x * (1 + Math.sin(time * channelFlowSpeed * 0.46 + channelPhase) * 0.001),
-            baseScale.y * (1 + Math.cos(time * channelFlowSpeed * 0.42 + channelPhase) * 0.0008),
-            baseScale.z * (1 + Math.sin(time * channelFlowSpeed * 0.4 + channelPhase) * 0.001)
-          );
-        });
-      }
 
     // ============================================================================
     // INPUT SENSORY ANIMATIONS (Session 111 - Kinetic Update)

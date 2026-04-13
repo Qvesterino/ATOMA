@@ -441,6 +441,40 @@ test('node.harmony.high reaches a world-event subscriber', () => {
   assert.strictEqual(called, true, 'Expected world-event subscriber to receive node.harmony.high');
 });
 
+// Node initial tier emission (previously skipped when previousTier === null)
+test('NodeMetricEngine emits node.harmony.high on initial classification', () => {
+  const bus = createTestBus();
+  globalThis.semanticBus = bus;
+  const captured = [];
+  bus.subscribe('node.harmony.high', (payload) => captured.push(payload));
+
+  // No pre-seeded __metricEventState — simulates first-ever metric write
+  const node = createMockNode({ harmony: 0.5, synergy: 0.2, stability: 0.7, corruption: 0.1, loadPressure: 0.1 });
+  node.userData._metricActiveLink = true;
+
+  setMetric(node, 'harmony', 0.85, { source: 'test' });
+
+  assert.strictEqual(captured.length, 1, 'Expected node.harmony.high on initial classification');
+  assert.strictEqual(captured[0].initial, true, 'Expected initial flag');
+});
+
+// Global initial tier emission (previously skipped when previousTier === null)
+test('MetricsRuntime_v1 emits global.harmony.high on initial classification', () => {
+  const bus = createTestBus();
+  globalThis.semanticBus = bus;
+  const captured = [];
+  bus.subscribe('global.harmony.high', (payload) => captured.push(payload));
+
+  const runtime = new MetricsRuntime_v1({ nodes: [], links: [], linkSystem: null, metricsSystems: {} });
+  // No pre-seeded tiers — simulates first-ever global metrics computation
+  runtime._semanticSignalState = { tiers: {} };
+
+  runtime._emitMetricTierSignals({ networkSynergy: 0, harmonyFlow: 0.85, networkStress: 0.1, corruptionLevel: 0, loadPressure: 0 }, { nodeCount: 1, linkCount: 0 });
+
+  assert.strictEqual(captured.length, 1, 'Expected global.harmony.high on initial classification');
+  assert.strictEqual(captured[0].initial, true, 'Expected initial flag');
+});
+
 for (const { name, fn } of tests) {
   try {
     fn();

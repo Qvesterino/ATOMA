@@ -206,7 +206,9 @@ function emitMetricTierChanged(node, metric, before, after, targetId) {
   state.metricTiers[metric] = nextTier;
   state.metricPhases = state.metricTiers;
 
-  if (previousTier === null || previousTier === nextTier) {
+  // Emit on initial classification (previousTier === null) and on tier transitions.
+  // Skip only when the tier is unchanged from a previous classification.
+  if (previousTier !== null && previousTier === nextTier) {
     return;
   }
 
@@ -217,7 +219,8 @@ function emitMetricTierChanged(node, metric, before, after, targetId) {
     tier: nextTier,
     previousTier,
     value: after,
-    source: 'NodeMetricEngine'
+    source: 'NodeMetricEngine',
+    initial: previousTier === null
   };
 
   // Internal hook only:
