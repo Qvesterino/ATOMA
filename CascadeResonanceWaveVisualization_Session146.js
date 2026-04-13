@@ -72,6 +72,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
     this.harmonicHubSystem = harmonicHubSystem;
     this.linkResonanceSystem = linkResonanceSystem;
     this.semanticBus = config.semanticBus ?? globalThis?.semanticBus ?? null;
+    this.camera = config.camera ?? this.harmonicHubSystem?.world?.camera ?? null;
     
     // Configuration
     this.config = {
@@ -148,6 +149,79 @@ export class CascadeResonanceWaveVisualization_Session146 {
       echoTrailOpacity: config.echoTrailOpacity ?? 0.12,           // Amplified from 0.03
       echoTrailThreshold: config.echoTrailThreshold ?? 0.15,       // Lowered from 0.2,
       
+      // Phase 3: Particle movement + detail
+      wavefrontParticlesEnabled: config.wavefrontParticlesEnabled ?? true,
+      wavefrontParticlesPerRing: config.wavefrontParticlesPerRing ?? 40,
+      wavefrontParticleSizeMin: config.wavefrontParticleSizeMin ?? 0.08,
+      wavefrontParticleSizeMax: config.wavefrontParticleSizeMax ?? 0.14,
+      wavefrontParticleSpeedMin: config.wavefrontParticleSpeedMin ?? 0.5,
+      wavefrontParticleSpeedMax: config.wavefrontParticleSpeedMax ?? 1.2,
+      wavefrontParticleTrailSegments: config.wavefrontParticleTrailSegments ?? 3,
+
+      resonanceSparksEnabled: config.resonanceSparksEnabled ?? true,
+      resonanceSparkCountPerWave: config.resonanceSparkCountPerWave ?? 50,
+      resonanceSparkSize: config.resonanceSparkSize ?? 0.1,
+      resonanceSparkGravity: config.resonanceSparkGravity ?? 0.2,
+      resonanceSparkLifetimeMin: config.resonanceSparkLifetimeMin ?? 0.6,
+      resonanceSparkLifetimeMax: config.resonanceSparkLifetimeMax ?? 1.0,
+      resonanceSparkBloom: config.resonanceSparkBloom ?? 0.6,
+
+      echoTrailParticlesEnabled: config.echoTrailParticlesEnabled ?? true,
+      echoTrailParticlesPerBeam: config.echoTrailParticlesPerBeam ?? 24,
+      echoTrailParticleDriftSpeed: config.echoTrailParticleDriftSpeed ?? 0.01,
+      echoTrailLifetimeMin: config.echoTrailLifetimeMin ?? 0.4,
+      echoTrailLifetimeMax: config.echoTrailLifetimeMax ?? 0.7,
+      echoTrailFade: config.echoTrailFade ?? 0.9,
+
+      interferenceParticlesEnabled: config.interferenceParticlesEnabled ?? true,
+      interferenceParticleCount: config.interferenceParticleCount ?? 30,
+      interferenceOrbitalSpeed: config.interferenceOrbitalSpeed ?? 1.1,
+      interferenceRadius: config.interferenceRadius ?? 1.2,
+      interferenceConstructiveColor: config.interferenceConstructiveColor ?? new THREE.Color(0x99ffff),
+      interferenceDestructiveColor: config.interferenceDestructiveColor ?? new THREE.Color(0x8a58ff),
+      interferenceMinActiveWaves: config.interferenceMinActiveWaves ?? 2,
+
+      // Phase 4: Post-processing and scene-wide energy effects
+      postProcessingEnabled: config.postProcessingEnabled ?? true,
+      innerRingBloomThreshold: config.innerRingBloomThreshold ?? 0.6,
+      innerRingBloomStrength: config.innerRingBloomStrength ?? 1.5,
+      middleRingBloomThreshold: config.middleRingBloomThreshold ?? 0.5,
+      middleRingBloomStrength: config.middleRingBloomStrength ?? 1.0,
+      outerRingBloomThreshold: config.outerRingBloomThreshold ?? 0.4,
+      outerRingBloomStrength: config.outerRingBloomStrength ?? 0.6,
+      coreBeamBloomStrength: config.coreBeamBloomStrength ?? 1.5,
+      coreBeamBloomThreshold: config.coreBeamBloomThreshold ?? 0.6,
+      resonanceSparkBloomStrength: config.resonanceSparkBloomStrength ?? 0.9,
+      chromaticAberrationEnabled: config.chromaticAberrationEnabled ?? true,
+      chromaticAberrationMin: config.chromaticAberrationMin ?? 0.001,
+      chromaticAberrationMax: config.chromaticAberrationMax ?? 0.003,
+      distortionEnabled: config.distortionEnabled ?? true,
+      distortionStrengthMin: config.distortionStrengthMin ?? 0.002,
+      distortionStrengthMax: config.distortionStrengthMax ?? 0.008,
+      distortionRadiusMultiplier: config.distortionRadiusMultiplier ?? 1.2,
+      cameraEffectDistance: config.cameraEffectDistance ?? 18.0,
+      cameraEffectFalloff: config.cameraEffectFalloff ?? 28.0,
+      maxWavePoolSize: config.maxWavePoolSize ?? 50,
+      softWaveActiveLimit: config.softWaveActiveLimit ?? 30,
+      dynamicLightingEnabled: config.dynamicLightingEnabled ?? true,
+      waveLightCount: config.waveLightCount ?? 4,
+      waveLightIntensityMax: config.waveLightIntensityMax ?? 3.0,
+      waveLightRangeMin: config.waveLightRangeMin ?? 8.0,
+      waveLightRangeMax: config.waveLightRangeMax ?? 12.0,
+      waveLightDecay: config.waveLightDecay ?? 3.33,
+      visualPushEnabled: config.visualPushEnabled ?? true,
+      visualPushStrengthMin: config.visualPushStrengthMin ?? 0.5,
+      visualPushStrengthMax: config.visualPushStrengthMax ?? 2.0,
+      visualPushRadiusMin: config.visualPushRadiusMin ?? 5.0,
+      visualPushRadiusMax: config.visualPushRadiusMax ?? 8.0,
+      audioEnabled: config.audioEnabled ?? false,
+      audioThumpVolume: config.audioThumpVolume ?? 0.18,
+      audioShimmerVolume: config.audioShimmerVolume ?? 0.08,
+      audioEchoVolume: config.audioEchoVolume ?? 0.06,
+      lodNearDistance: config.lodNearDistance ?? 30.0,
+      lodMidDistance: config.lodMidDistance ?? 80.0,
+      lodFarDistance: config.lodFarDistance ?? 120.0,
+      
       // Phase 2: Glow and beam effects
       hubGlowModulationEnabled: config.hubGlowModulationEnabled ?? true,
       hubGlowIntensity: config.hubGlowIntensity ?? 0.20,           // Amplified from 0.05
@@ -198,6 +272,32 @@ export class CascadeResonanceWaveVisualization_Session146 {
     this._activeBeams = [];
     this._freeBeamIndices = [];
 
+    // Phase 3: Particle systems
+    this._wavefrontParticlePool = [];
+    this._freeWavefrontParticleIndices = [];
+    this._activeWavefrontParticles = [];
+
+    this._resonanceSparkPool = [];
+    this._freeResonanceSparkIndices = [];
+    this._activeResonanceSparks = [];
+
+    this._echoTrailPool = [];
+    this._freeEchoTrailIndices = [];
+    this._activeEchoTrails = [];
+
+    this._interferenceParticlePool = [];
+    this._freeInterferenceParticleIndices = [];
+    this._activeInterferenceParticles = [];
+
+    // Phase 5: Interaction effects
+    this._waveLightPool = [];
+    this._freeWaveLightIndices = [];
+    this._activeWaveLights = [];
+    this._audioContext = null;
+
+    // Reusable scratch objects
+    this._scratchColor = new THREE.Color();
+
     // Global time accumulator for wave period calculation
     this.globalWaveTime = 0;
     
@@ -220,6 +320,12 @@ export class CascadeResonanceWaveVisualization_Session146 {
     
     // Phase 2: Initialize link resonance beam system
     this._initLinkResonanceBeamSystem();
+
+    // Phase 3: Particle systems for movement and detail
+    this._initPhase3ParticleSystems();
+
+    // Phase 5: Interaction effects (lighting, push, audio)
+    this._initPhase5InteractionSystems();
   }
 
   /**
@@ -255,6 +361,9 @@ export class CascadeResonanceWaveVisualization_Session146 {
         uCorruption: { value: 0.0 }, // Corruption for flicker
         uBeamLength: { value: 1.0 }, // Beam length for pulse calculation
         uLayerType: { value: 0 } // 0=core, 1=glow, 2=aura
+        ,uBloomStrength: { value: 0.0 },
+        uBloomThreshold: { value: 0.6 },
+        uChromaticShift: { value: 0.0 }
       },
       vertexShader: `
         varying vec2 vUv;
@@ -336,6 +445,14 @@ export class CascadeResonanceWaveVisualization_Session146 {
           // Hot core whitening: white center with colored glow
           vec3 finalColor = mix(uColor, vec3(1.0), hotCore * 0.8);
           finalColor += vec3(travelingPulse) * 0.3;
+
+          float bloomMask = smoothstep(uBloomThreshold, uBloomThreshold + 0.1, glow);
+          float bloomGlow = bloomMask * uBloomStrength;
+          finalColor += vec3(1.0) * bloomGlow * 0.4;
+
+          // Chromatic aberration pulse along the beam
+          finalColor.r += uChromaticShift * smoothstep(0.0, 1.0, vUv.y) * 0.8;
+          finalColor.b -= uChromaticShift * (1.0 - smoothstep(0.0, 1.0, vUv.y)) * 0.5;
           
           float alpha = glow * uOpacity;
           
@@ -395,6 +512,320 @@ export class CascadeResonanceWaveVisualization_Session146 {
     }
   }
 
+  _initPhase3ParticleSystems() {
+    if (!this.harmonicHubSystem?.world?.scene) return;
+    const scene = this.harmonicHubSystem.world.scene;
+
+    // Wavefront particles pool
+    const wavefrontCount = Math.min(240, this.config.maxWaveActivePairs * this.config.wavefrontRingCount * this.config.wavefrontParticlesPerRing);
+    for (let i = 0; i < wavefrontCount; i++) {
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(3);
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const particles = new THREE.Points(geometry, this._createWavefrontParticleMaterial());
+      particles.visible = false;
+      particles.renderOrder = VisualHierarchyRegistry?.getRenderOrder?.(VisualHierarchyRegistry.LAYER_LINK_CASCADE) ?? 13;
+      scene.add(particles);
+      this._wavefrontParticlePool.push({
+        index: i,
+        points: particles,
+        geometry,
+        active: false,
+        life: 0,
+        maxLife: 0,
+        angle: 0,
+        speed: 0,
+        radius: 0,
+        ringEntry: null,
+        tier: 'inner',
+        visible: false
+      });
+      this._freeWavefrontParticleIndices.push(i);
+    }
+
+    // Resonance spark pool
+    const sparkCount = Math.min(120, this.config.maxWaveActivePairs * this.config.resonanceSparkCountPerWave);
+    for (let i = 0; i < sparkCount; i++) {
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(3);
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const points = new THREE.Points(geometry, this._createResonanceSparkMaterial());
+      points.visible = false;
+      points.renderOrder = VisualHierarchyRegistry?.getRenderOrder?.(VisualHierarchyRegistry.LAYER_LINK_CASCADE) ?? 13;
+      scene.add(points);
+      this._resonanceSparkPool.push({
+        index: i,
+        points,
+        geometry,
+        active: false,
+        life: 0,
+        maxLife: 0,
+        velocity: new THREE.Vector3(),
+        color: new THREE.Color(),
+        visible: false
+      });
+      this._freeResonanceSparkIndices.push(i);
+    }
+
+    // Echo trail pool
+    const echoCount = Math.min(120, this.config.maxWaveActivePairs * this.config.echoTrailParticlesPerBeam);
+    for (let i = 0; i < echoCount; i++) {
+      const trailSegments = 3;
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(trailSegments * 3);
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const line = new THREE.Line(geometry, this._createEchoTrailMaterial());
+      line.visible = false;
+      line.renderOrder = VisualHierarchyRegistry?.getRenderOrder?.(VisualHierarchyRegistry.LAYER_LINK_CASCADE) ?? 13;
+      scene.add(line);
+      this._echoTrailPool.push({
+        index: i,
+        line,
+        geometry,
+        active: false,
+        life: 0,
+        maxLife: 0,
+        speed: 0,
+        drift: 0,
+        direction: new THREE.Vector3(),
+        currentT: 0,
+        startPos: new THREE.Vector3(),
+        length: 0,
+        visible: false
+      });
+      this._freeEchoTrailIndices.push(i);
+    }
+
+    // Interference particles pool
+    const interferenceCount = Math.min(60, this.config.interferenceParticleCount);
+    for (let i = 0; i < interferenceCount; i++) {
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(3);
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const points = new THREE.Points(geometry, this._createInterferenceParticleMaterial());
+      points.visible = false;
+      points.renderOrder = VisualHierarchyRegistry?.getRenderOrder?.(VisualHierarchyRegistry.LAYER_LINK_CASCADE) ?? 13;
+      scene.add(points);
+      this._interferenceParticlePool.push({
+        index: i,
+        points,
+        geometry,
+        active: false,
+        life: 0,
+        maxLife: 0,
+        angle: 0,
+        radius: 0,
+        speed: 0,
+        hubId: null,
+        constructive: true,
+        visible: false
+      });
+      this._freeInterferenceParticleIndices.push(i);
+    }
+  }
+
+  _initPhase5InteractionSystems() {
+    if (!this.config.dynamicLightingEnabled) return;
+    if (!this.harmonicHubSystem?.world?.scene) return;
+    const scene = this.harmonicHubSystem.world.scene;
+
+    const lightCount = Math.max(3, Math.min(this.config.waveLightCount, 5));
+    for (let i = 0; i < lightCount; i++) {
+      const light = new THREE.PointLight(new THREE.Color(0x99ffff), 0.0, this.config.waveLightRangeMax, 2);
+      light.visible = false;
+      light.renderOrder = VisualHierarchyRegistry?.getRenderOrder?.(VisualHierarchyRegistry.LAYER_LINK_CASCADE) ?? 13;
+      scene.add(light);
+      this._waveLightPool.push({
+        index: i,
+        light,
+        active: false,
+        life: 0,
+        maxLife: 0,
+        peakIntensity: 0,
+        rangeStart: this.config.waveLightRangeMin,
+        rangeEnd: this.config.waveLightRangeMax
+      });
+      this._freeWaveLightIndices.push(i);
+    }
+  }
+
+  _allocateWaveLight() {
+    if (!this._freeWaveLightIndices || this._freeWaveLightIndices.length === 0) return null;
+    const index = this._freeWaveLightIndices.pop();
+    const entry = this._waveLightPool[index];
+    if (!entry) return null;
+    entry.active = true;
+    entry.light.visible = true;
+    return entry;
+  }
+
+  _releaseWaveLight(entry) {
+    if (!entry || entry.index === undefined) return;
+    entry.active = false;
+    entry.light.visible = false;
+    entry.life = 0;
+    entry.peakIntensity = 0;
+    this._freeWaveLightIndices.push(entry.index);
+  }
+
+  _triggerWaveLightFlash(position, intensity) {
+    if (!this.config.dynamicLightingEnabled || !position) return;
+    const lightEntry = this._allocateWaveLight();
+    if (!lightEntry) return;
+
+    lightEntry.light.position.copy(position);
+    lightEntry.light.color.set(0x99ffff);
+    lightEntry.light.intensity = 0;
+    lightEntry.light.distance = THREE.MathUtils.lerp(this.config.waveLightRangeMin, this.config.waveLightRangeMax, intensity);
+    lightEntry.life = 0;
+    lightEntry.maxLife = 0.3;
+    lightEntry.peakIntensity = THREE.MathUtils.lerp(0.8, this.config.waveLightIntensityMax, intensity);
+    this._activeWaveLights.push(lightEntry);
+  }
+
+  _updateWaveLights(deltaTime) {
+    if (!this._activeWaveLights || this._activeWaveLights.length === 0) return;
+    const toRelease = [];
+    for (let i = 0; i < this._activeWaveLights.length; i++) {
+      const entry = this._activeWaveLights[i];
+      if (!entry || !entry.active) {
+        toRelease.push(i);
+        continue;
+      }
+      entry.life += deltaTime;
+      if (entry.life >= entry.maxLife) {
+        toRelease.push(i);
+        continue;
+      }
+      const t = entry.life / entry.maxLife;
+      const intensity = t < 0.5
+        ? THREE.MathUtils.lerp(0.0, entry.peakIntensity, t * 2)
+        : THREE.MathUtils.lerp(entry.peakIntensity, 0.0, (t - 0.5) * 2);
+      entry.light.intensity = intensity;
+      entry.light.distance = THREE.MathUtils.lerp(entry.rangeStart, entry.rangeEnd, t);
+      entry.light.decay = 2.0;
+    }
+    for (let i = toRelease.length - 1; i >= 0; i--) {
+      const index = toRelease[i];
+      this._releaseWaveLight(this._activeWaveLights[index]);
+      this._activeWaveLights.splice(index, 1);
+    }
+  }
+
+  _triggerVisualPush(origin, influence) {
+    if (!this.config.visualPushEnabled || !origin) return;
+    const radius = THREE.MathUtils.lerp(this.config.visualPushRadiusMin, this.config.visualPushRadiusMax, influence);
+    const strength = THREE.MathUtils.lerp(this.config.visualPushStrengthMin, this.config.visualPushStrengthMax, influence);
+
+    const pushCandidate = (item, attrName = 'position') => {
+      if (!item || !item.active || !item.geometry || !item.geometry.attributes.position) return;
+      const posAttr = item.geometry.attributes.position;
+      const x = posAttr.getX(0);
+      const y = posAttr.getY(0);
+      const z = posAttr.getZ(0);
+      const pos = new THREE.Vector3(x, y, z);
+      const distance = pos.distanceTo(origin);
+      if (distance <= 0 || distance > radius) return;
+      const push = pos.clone().sub(origin).normalize().multiplyScalar(strength * (1 - distance / radius) * 0.08);
+      pos.add(push);
+      posAttr.setXYZ(0, pos.x, pos.y, pos.z);
+      posAttr.needsUpdate = true;
+    };
+
+    for (const spark of this._activeResonanceSparks) {
+      pushCandidate(spark);
+    }
+    for (const interference of this._activeInterferenceParticles) {
+      pushCandidate(interference);
+    }
+  }
+
+  _triggerWaveAudio(intensity, position) {
+    if (!this.config.audioEnabled || typeof window === 'undefined') return;
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    if (!this._audioContext) {
+      try { this._audioContext = new AudioContext(); } catch (e) { return; }
+    }
+    const now = this._audioContext.currentTime;
+    const bass = this._audioContext.createOscillator();
+    const bassGain = this._audioContext.createGain();
+    bass.type = 'sine';
+    bass.frequency.value = 80 + intensity * 40;
+    bassGain.gain.setValueAtTime(0, now);
+    bassGain.gain.linearRampToValueAtTime(this.config.audioThumpVolume * intensity, now + 0.02);
+    bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    bass.connect(bassGain).connect(this._audioContext.destination);
+    bass.start(now);
+    bass.stop(now + 0.2);
+
+    const shimmer = this._audioContext.createOscillator();
+    const shimmerGain = this._audioContext.createGain();
+    shimmer.type = 'triangle';
+    shimmer.frequency.value = 600 + intensity * 400;
+    shimmerGain.gain.setValueAtTime(0, now);
+    shimmerGain.gain.linearRampToValueAtTime(this.config.audioShimmerVolume * intensity, now + 0.02);
+    shimmerGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    shimmer.connect(shimmerGain).connect(this._audioContext.destination);
+    shimmer.start(now);
+    shimmer.stop(now + 0.25);
+  }
+
+  _createWavefrontParticleMaterial() {
+    return new THREE.PointsMaterial({
+      color: new THREE.Color(0x99ffff),
+      size: 0.12,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: true,
+      sizeAttenuation: true,
+      toneMapped: false
+    });
+  }
+
+  _createResonanceSparkMaterial() {
+    return new THREE.PointsMaterial({
+      color: new THREE.Color(0xffffff),
+      size: this.config.resonanceSparkSize,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: true,
+      sizeAttenuation: true,
+      toneMapped: false
+    });
+  }
+
+  _createEchoTrailMaterial() {
+    return new THREE.LineBasicMaterial({
+      color: new THREE.Color(0x99ffff),
+      transparent: true,
+      opacity: 0.0,
+      linewidth: 1,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: true,
+      toneMapped: false
+    });
+  }
+
+  _createInterferenceParticleMaterial() {
+    return new THREE.PointsMaterial({
+      color: new THREE.Color(0x99ffff),
+      size: 0.14,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: true,
+      sizeAttenuation: true,
+      toneMapped: false
+    });
+  }
+
   /**
    * Phase 1: Initialize wavefront ring system with EPIC shader (ATM_WAVE_RING_v3)
    * Phase 2: Three-tier ring system for parallax effect
@@ -424,7 +855,11 @@ export class CascadeResonanceWaveVisualization_Session146 {
         uOpacity: { value: 1.0 },
         uWavePhase: { value: 0.0 }, // Wave phase for iridescence
         uIntensity: { value: 1.0 }, // Intensity for hot core whitening
-        uInterference: { value: 0.0 } // Interference factor
+        uInterference: { value: 0.0 }, // Interference factor
+        uBloomStrength: { value: 0.0 },
+        uBloomThreshold: { value: 0.6 },
+        uChromaticShift: { value: 0.0 },
+        uDistortionStrength: { value: 0.0 }
       },
       vertexShader: `
         varying vec2 vUv;
@@ -500,10 +935,21 @@ export class CascadeResonanceWaveVisualization_Session146 {
           float sparkleNoise = hash(vUv * 50.0 + uTime * 2.0);
           float sparkleFringe = smoothstep(0.48, 0.50, dist) * sparkleNoise * 0.4;
           finalColor += sparkleFringe;
-          
-          // Combine all effects
-          float alpha = (multiLobe + shimmer * 0.2 + sparkleFringe) * uOpacity * (1.0 + uInterference * 0.3);
-          
+
+          // Bloom overlay around active rings
+          float bloomMask = smoothstep(uBloomThreshold, uBloomThreshold + 0.12, multiLobe + shimmer * 0.2);
+          float bloomGlow = bloomMask * uBloomStrength;
+          finalColor += vec3(1.0) * bloomGlow * 0.35;
+
+          // Distortion halo around outer ring
+          float distortionHalo = smoothstep(0.48, 0.55, dist) * (1.0 - smoothstep(0.55, 0.62, dist)) * uDistortionStrength;
+          finalColor += vec3(0.6, 0.8, 1.0) * distortionHalo * 0.25;
+          float alpha = (multiLobe + shimmer * 0.2 + sparkleFringe) * uOpacity * (1.0 + uInterference * 0.3) + distortionHalo * 0.18;
+
+          // Chromatic shift pulse
+          finalColor.r += uChromaticShift * 0.6;
+          finalColor.b -= uChromaticShift * 0.4;
+
           vec3 color = mix(uColor, finalColor, 0.7);
           color += vec3(1.0) * hotCoreWhite * 0.5;
           
@@ -739,6 +1185,11 @@ export class CascadeResonanceWaveVisualization_Session146 {
     if (config.frameScheduler !== undefined) {
       this.frameScheduler = config.frameScheduler;
     }
+    if (config.camera !== undefined) {
+      this.camera = config.camera;
+    } else if (!this.camera) {
+      this.camera = this.harmonicHubSystem?.world?.camera ?? this.camera;
+    }
 
     this._subscribeCascadeEvents();
     return this;
@@ -775,6 +1226,52 @@ export class CascadeResonanceWaveVisualization_Session146 {
 
   _clamp01(value) {
     return Math.max(0, Math.min(1, Number(value) || 0));
+  }
+
+  _computeCameraDistanceFade(position) {
+    if (!this.camera || !position || !this.config.cameraEffectFalloff) return 1.0;
+    const distance = position.distanceTo(this.camera.position);
+    if (distance <= this.config.cameraEffectDistance) return 1.0;
+    const fadeRange = Math.max(0.001, this.config.cameraEffectFalloff - this.config.cameraEffectDistance);
+    return Math.max(0, 1.0 - (distance - this.config.cameraEffectDistance) / fadeRange);
+  }
+
+  _getLODLevel(position) {
+    if (!this.camera || !position) return 'near';
+    const dist = position.distanceTo(this.camera.position);
+    if (dist <= this.config.lodNearDistance) return 'near';
+    if (dist <= this.config.lodMidDistance) return 'mid';
+    return 'far';
+  }
+
+  _getRingBloomParams(tier, influence) {
+    if (!this.config.postProcessingEnabled) return { threshold: 1.0, strength: 0.0 };
+    if (tier === 'inner') {
+      return {
+        threshold: this.config.innerRingBloomThreshold,
+        strength: this.config.innerRingBloomStrength * Math.min(1, influence * 1.3)
+      };
+    }
+    if (tier === 'middle') {
+      return {
+        threshold: this.config.middleRingBloomThreshold,
+        strength: this.config.middleRingBloomStrength * Math.min(1, influence * 1.1)
+      };
+    }
+    return {
+      threshold: this.config.outerRingBloomThreshold,
+      strength: this.config.outerRingBloomStrength * Math.min(1, influence * 0.9)
+    };
+  }
+
+  _getBeamBloomParams(layerIndex, influence) {
+    if (!this.config.postProcessingEnabled) return { threshold: 1.0, strength: 0.0 };
+    const baseStrength = layerIndex === 0 ? this.config.coreBeamBloomStrength : this.config.coreBeamBloomStrength * 0.45;
+    const threshold = layerIndex === 0 ? this.config.coreBeamBloomThreshold : Math.max(0.35, this.config.coreBeamBloomThreshold - 0.1);
+    return {
+      threshold,
+      strength: baseStrength * Math.min(1, influence * 1.4)
+    };
   }
 
   _resolveWaveActivation(event = {}) {
@@ -890,17 +1387,68 @@ export class CascadeResonanceWaveVisualization_Session146 {
     const hopDecay = Math.pow(0.9, hop);
     const influenceRange = this.config.waveInfluenceMax - this.config.waveInfluenceMin;
     const influence = this.config.waveInfluenceMin + clampedIntensity * hopDecay * influenceRange;
+    const resolvedInfluence = Math.max(this.config.waveInfluenceMin, Math.min(this.config.waveInfluenceMax, influence));
 
-    this.activeWaves.set(waveKey, {
+    if (this.activeWaves.has(waveKey)) {
+      this.activeWaves.delete(waveKey);
+    }
+
+    if (this.activeWaves.size >= this.config.maxWavePoolSize) {
+      let oldestKey = null;
+      let oldestCreatedAt = Infinity;
+      for (const [key, data] of this.activeWaves.entries()) {
+        if ((data.createdAt ?? Infinity) < oldestCreatedAt) {
+          oldestCreatedAt = data.createdAt;
+          oldestKey = key;
+        }
+      }
+      if (oldestKey) {
+        this.activeWaves.delete(oldestKey);
+      }
+    } else if (this.activeWaves.size >= this.config.softWaveActiveLimit) {
+      let lowestKey = null;
+      let lowestInfluence = Infinity;
+      for (const [key, data] of this.activeWaves.entries()) {
+        if (data.influence < lowestInfluence) {
+          lowestInfluence = data.influence;
+          lowestKey = key;
+        }
+      }
+      if (lowestKey && lowestInfluence < resolvedInfluence) {
+        this.activeWaves.delete(lowestKey);
+      }
+    }
+
+    const waveData = {
       wavePhase: this.globalWaveTime % 1,
-      influence: Math.max(this.config.waveInfluenceMin, Math.min(this.config.waveInfluenceMax, influence)),
+      influence: resolvedInfluence,
       hubAId: sourceId,
       hubBId: targetId,
-      // Phase 1: Smooth phase transition tracking
+      createdAt: this.globalWaveTime,
+      decayRate: this._resolveWaveDecayRate(resolvedInfluence),
       previousInfluence: 0,
-      targetInfluence: Math.max(this.config.waveInfluenceMin, Math.min(this.config.waveInfluenceMax, influence)),
+      targetInfluence: resolvedInfluence,
       influenceTransitionProgress: 1.0
-    });
+    };
+
+    this.activeWaves.set(waveKey, waveData);
+
+    const sourcePos = this._resolveNodeWorldPosition(resolvedSource) ?? this._resolveNodeWorldPosition(this._findNodeById(sourceId));
+    const targetPos = this._resolveNodeWorldPosition(resolvedTarget) ?? this._resolveNodeWorldPosition(this._findNodeById(targetId));
+
+    if (this.config.dynamicLightingEnabled) {
+      this._triggerWaveLightFlash(sourcePos, resolvedInfluence);
+      this._triggerWaveLightFlash(targetPos, resolvedInfluence);
+    }
+
+    if (this.config.visualPushEnabled) {
+      this._triggerVisualPush(sourcePos, resolvedInfluence);
+      this._triggerVisualPush(targetPos, resolvedInfluence);
+    }
+
+    if (this.config.audioEnabled) {
+      this._triggerWaveAudio(resolvedInfluence, sourcePos || targetPos);
+    }
   }
 
   /**
@@ -935,7 +1483,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
     }
     
     // Apply wave effects to visual systems
-    this._applyWaveEffects();
+    this._applyWaveEffects(deltaTime);
     
     // Update statistics
     this.stats.activeWaves = waveCount;
@@ -1100,7 +1648,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
    * Apply wave effects to link and aura systems
    * @private
    */
-  _applyWaveEffects() {
+  _applyWaveEffects(deltaTime) {
     if (!this.harmonicHubSystem) {
       return;
     }
@@ -1108,9 +1656,34 @@ export class CascadeResonanceWaveVisualization_Session146 {
     // Phase 1: Update active rings
     this._updateWavefrontRipples();
 
+    // Phase 3: Wavefront particles
+    if (this.config.wavefrontParticlesEnabled) {
+      this._updateWavefrontParticles(deltaTime);
+    }
+
+    // Phase 3: Resonance sparks
+    if (this.config.resonanceSparksEnabled) {
+      this._updateResonanceSparks(deltaTime);
+    }
+
     // Phase 2: Update resonance beams
     if (this.config.linkResonanceBeamEnabled) {
       this._updateLinkResonanceBeams();
+    }
+
+    // Phase 5: Update lighting flash
+    if (this.config.dynamicLightingEnabled) {
+      this._updateWaveLights(deltaTime);
+    }
+
+    // Phase 3: Echo trail particles
+    if (this.config.echoTrailParticlesEnabled) {
+      this._updateEchoTrails(deltaTime);
+    }
+
+    // Phase 3: Interference particles
+    if (this.config.interferenceParticlesEnabled) {
+      this._updateInterferenceParticles(deltaTime);
     }
 
     // Phase 1: Apply aura tightening pulse
@@ -1230,6 +1803,327 @@ export class CascadeResonanceWaveVisualization_Session146 {
     }
   }
 
+  _allocateWavefrontParticle() {
+    if (!this._freeWavefrontParticleIndices || this._freeWavefrontParticleIndices.length === 0) return null;
+    const index = this._freeWavefrontParticleIndices.pop();
+    const particle = this._wavefrontParticlePool[index];
+    if (!particle) return null;
+    particle.active = true;
+    particle.points.visible = true;
+    return particle;
+  }
+
+  _releaseWavefrontParticle(particle) {
+    if (!particle || particle.index === undefined) return;
+    particle.active = false;
+    particle.points.visible = false;
+    particle.life = 0;
+    particle.ringEntry = null;
+    this._freeWavefrontParticleIndices.push(particle.index);
+  }
+
+  _spawnWavefrontParticles(activeRing) {
+    if (!activeRing?.ringEntry || !this.config.wavefrontParticlesEnabled) return;
+    const available = Math.min(this.config.wavefrontParticlesPerRing, this._freeWavefrontParticleIndices.length);
+    for (let i = 0; i < available; i++) {
+      const particle = this._allocateWavefrontParticle();
+      if (!particle) break;
+      const ringRadius = activeRing.ringEntry.mesh.scale.x;
+      particle.life = 0;
+      particle.maxLife = activeRing.tier === 'outer' ? this.config.outerRingLifetime : activeRing.tier === 'middle' ? this.config.middleRingLifetime : this.config.innerRingLifetime;
+      particle.angle = Math.random() * Math.PI * 2;
+      particle.speed = THREE.MathUtils.lerp(this.config.wavefrontParticleSpeedMin, this.config.wavefrontParticleSpeedMax, Math.random()) * (0.6 + activeRing.influence * 0.8);
+      particle.radius = ringRadius;
+      particle.ringEntry = activeRing.ringEntry;
+      particle.tier = activeRing.tier;
+      particle.visible = true;
+      particle.points.material.size = THREE.MathUtils.lerp(this.config.wavefrontParticleSizeMin, this.config.wavefrontParticleSizeMax, Math.random());
+      particle.points.material.opacity = 1.0;
+      particle.points.material.color.copy(activeRing.tier === 'outer' ? new THREE.Color(0x88bbff) : activeRing.tier === 'middle' ? new THREE.Color(0x99ffff) : new THREE.Color(0xffffff));
+      this._activeWavefrontParticles.push(particle);
+    }
+  }
+
+  _updateWavefrontParticles(deltaTime) {
+    if (!this._activeWavefrontParticles) return;
+    const toRelease = [];
+    for (let i = 0; i < this._activeWavefrontParticles.length; i++) {
+      const particle = this._activeWavefrontParticles[i];
+      if (!particle || !particle.ringEntry || !particle.ringEntry.active) {
+        toRelease.push(i);
+        continue;
+      }
+      particle.life += deltaTime;
+      if (particle.life >= particle.maxLife) {
+        toRelease.push(i);
+        continue;
+      }
+      particle.angle += particle.speed * deltaTime;
+      const radius = particle.ringEntry.mesh.scale.x;
+      const hubPos = particle.ringEntry.mesh.position;
+      const x = Math.cos(particle.angle) * radius;
+      const z = Math.sin(particle.angle) * radius;
+      const y = hubPos.y + (particle.tier === 'inner' ? 0.0 : 0.02);
+      const posAttr = particle.geometry.attributes.position;
+      posAttr.setXYZ(0, hubPos.x + x, y, hubPos.z + z);
+      posAttr.needsUpdate = true;
+      const alpha = 1.0 - particle.life / particle.maxLife;
+      particle.points.material.opacity = alpha;
+      particle.points.material.size = THREE.MathUtils.lerp(this.config.wavefrontParticleSizeMax, this.config.wavefrontParticleSizeMin, particle.life / particle.maxLife);
+    }
+    for (let i = toRelease.length - 1; i >= 0; i--) {
+      const index = toRelease[i];
+      this._releaseWavefrontParticle(this._activeWavefrontParticles[index]);
+      this._activeWavefrontParticles.splice(index, 1);
+    }
+  }
+
+  _allocateResonanceSpark() {
+    if (!this._freeResonanceSparkIndices || this._freeResonanceSparkIndices.length === 0) return null;
+    const index = this._freeResonanceSparkIndices.pop();
+    const spark = this._resonanceSparkPool[index];
+    if (!spark) return null;
+    spark.active = true;
+    spark.points.visible = true;
+    return spark;
+  }
+
+  _releaseResonanceSpark(spark) {
+    if (!spark || spark.index === undefined) return;
+    spark.active = false;
+    spark.points.visible = false;
+    spark.life = 0;
+    spark.velocity.set(0, 0, 0);
+    this._freeResonanceSparkIndices.push(spark.index);
+  }
+
+  _spawnResonanceSparks(hubPosition, intensity) {
+    if (!this.config.resonanceSparksEnabled) return;
+    const count = Math.min(this.config.resonanceSparkCountPerWave, this._freeResonanceSparkIndices.length);
+    for (let i = 0; i < count; i++) {
+      const spark = this._allocateResonanceSpark();
+      if (!spark) break;
+      spark.life = 0;
+      spark.maxLife = THREE.MathUtils.lerp(this.config.resonanceSparkLifetimeMin, this.config.resonanceSparkLifetimeMax, Math.random());
+      const theta = Math.random() * Math.PI * 2;
+      const radial = 0.1 + Math.random() * 0.15;
+      spark.points.material.size = this.config.resonanceSparkSize * THREE.MathUtils.lerp(0.8, 1.2, Math.random());
+      spark.points.material.opacity = 1.0;
+      spark.points.material.color.copy(new THREE.Color(0xffffff));
+      spark.color.copy(hubPosition ? new THREE.Color(0xffffff) : new THREE.Color(0xffffff));
+      spark.velocity.set(Math.cos(theta), 0.1, Math.sin(theta)).multiplyScalar(THREE.MathUtils.lerp(1.2, 1.8, intensity));
+      spark.velocity.y -= this.config.resonanceSparkGravity * 0.5;
+      spark.geometry.attributes.position.setXYZ(0, hubPosition.x + Math.cos(theta) * radial, hubPosition.y + 0.05, hubPosition.z + Math.sin(theta) * radial);
+      spark.geometry.attributes.position.needsUpdate = true;
+      this._activeResonanceSparks.push(spark);
+    }
+  }
+
+  _updateResonanceSparks(deltaTime) {
+    const toRelease = [];
+    for (let i = 0; i < this._activeResonanceSparks.length; i++) {
+      const spark = this._activeResonanceSparks[i];
+      if (!spark || !spark.active) {
+        toRelease.push(i);
+        continue;
+      }
+      spark.life += deltaTime;
+      if (spark.life >= spark.maxLife) {
+        toRelease.push(i);
+        continue;
+      }
+      spark.velocity.y -= this.config.resonanceSparkGravity * deltaTime;
+      const posAttr = spark.geometry.attributes.position;
+      let x = posAttr.getX(0) + spark.velocity.x * deltaTime;
+      let y = posAttr.getY(0) + spark.velocity.y * deltaTime;
+      let z = posAttr.getZ(0) + spark.velocity.z * deltaTime;
+      posAttr.setXYZ(0, x, y, z);
+      posAttr.needsUpdate = true;
+      const alpha = 1.0 - spark.life / spark.maxLife;
+      const bloomAlpha = Math.min(1.0, alpha * this.config.resonanceSparkBloomStrength);
+      spark.points.material.opacity = bloomAlpha * 0.85;
+      spark.points.material.size = this.config.resonanceSparkSize * (1.0 + alpha * 0.35);
+      spark.points.material.color.setHSL(0.55 + 0.2 * alpha, 1.0, 0.7 + alpha * 0.15);
+    }
+    for (let i = toRelease.length - 1; i >= 0; i--) {
+      const index = toRelease[i];
+      this._releaseResonanceSpark(this._activeResonanceSparks[index]);
+      this._activeResonanceSparks.splice(index, 1);
+    }
+  }
+
+  _allocateEchoTrail() {
+    if (!this._freeEchoTrailIndices || this._freeEchoTrailIndices.length === 0) return null;
+    const index = this._freeEchoTrailIndices.pop();
+    const trail = this._echoTrailPool[index];
+    if (!trail) return null;
+    trail.active = true;
+    trail.line.visible = true;
+    return trail;
+  }
+
+  _releaseEchoTrail(trail) {
+    if (!trail || trail.index === undefined) return;
+    trail.active = false;
+    trail.line.visible = false;
+    trail.life = 0;
+    trail.speed = 0;
+    trail.drift = 0;
+    this._freeEchoTrailIndices.push(trail.index);
+  }
+
+  _spawnEchoTrail(beamEntry) {
+    if (!this.config.echoTrailParticlesEnabled || !beamEntry?.line) return;
+    const trail = this._allocateEchoTrail();
+    if (!trail) return;
+    trail.life = 0;
+    trail.maxLife = THREE.MathUtils.lerp(this.config.echoTrailLifetimeMin, this.config.echoTrailLifetimeMax, Math.random());
+    trail.speed = THREE.MathUtils.lerp(0.2, 0.35, Math.random());
+    trail.drift = (Math.random() - 0.5) * this.config.echoTrailParticleDriftSpeed;
+
+    const start = new THREE.Vector3();
+    const end = new THREE.Vector3();
+    beamEntry.line.localToWorld(start.set(-0.5, 0, 0));
+    beamEntry.line.localToWorld(end.set(0.5, 0, 0));
+    trail.direction = new THREE.Vector3().subVectors(end, start).normalize();
+    trail.currentT = Math.random();
+    trail.startPos = start;
+    trail.length = start.distanceTo(end);
+
+    const positions = trail.geometry.attributes.position;
+    for (let s = 0; s < positions.count; s++) {
+      const t = trail.currentT - (s / (positions.count - 1)) * 0.1;
+      const point = new THREE.Vector3().lerpVectors(start, end, THREE.MathUtils.clamp(t, 0, 1));
+      positions.setXYZ(s, point.x, point.y, point.z);
+    }
+    positions.needsUpdate = true;
+    trail.line.material.opacity = 1.0;
+    this._activeEchoTrails.push(trail);
+  }
+
+  _updateEchoTrails(deltaTime) {
+    const toRelease = [];
+    for (let i = 0; i < this._activeEchoTrails.length; i++) {
+      const trail = this._activeEchoTrails[i];
+      if (!trail || !trail.active) {
+        toRelease.push(i);
+        continue;
+      }
+      trail.life += deltaTime;
+      if (trail.life >= trail.maxLife) {
+        toRelease.push(i);
+        continue;
+      }
+      trail.currentT += trail.speed * deltaTime * 0.5;
+      const positions = trail.geometry.attributes.position;
+      for (let s = 0; s < positions.count; s++) {
+        const t = trail.currentT - (s / (positions.count - 1)) * 0.08;
+        const point = new THREE.Vector3().lerpVectors(trail.startPos, trail.startPos.clone().add(trail.direction.clone().multiplyScalar(trail.length)), THREE.MathUtils.clamp(t, 0, 1));
+        point.x += Math.sin(t * Math.PI * 2 + s) * trail.drift;
+        point.z += Math.cos(t * Math.PI * 2 + s) * trail.drift;
+        positions.setXYZ(s, point.x, point.y, point.z);
+      }
+      positions.needsUpdate = true;
+      trail.line.material.opacity = (1.0 - trail.life / trail.maxLife) * this.config.echoTrailFade;
+    }
+    for (let i = toRelease.length - 1; i >= 0; i--) {
+      const index = toRelease[i];
+      this._releaseEchoTrail(this._activeEchoTrails[index]);
+      this._activeEchoTrails.splice(index, 1);
+    }
+  }
+
+  _allocateInterferenceParticle() {
+    if (!this._freeInterferenceParticleIndices || this._freeInterferenceParticleIndices.length === 0) return null;
+    const index = this._freeInterferenceParticleIndices.pop();
+    const particle = this._interferenceParticlePool[index];
+    if (!particle) return null;
+    particle.active = true;
+    particle.points.visible = true;
+    return particle;
+  }
+
+  _releaseInterferenceParticle(particle) {
+    if (!particle || particle.index === undefined) return;
+    particle.active = false;
+    particle.points.visible = false;
+    particle.life = 0;
+    particle.hubId = null;
+    this._freeInterferenceParticleIndices.push(particle.index);
+  }
+
+  _spawnInterferenceParticle(hubId, hubPosition, constructive) {
+    if (!hubPosition || !this.config.interferenceParticlesEnabled) return;
+    const particle = this._allocateInterferenceParticle();
+    if (!particle) return;
+    particle.life = 0;
+    particle.maxLife = 1.0;
+    particle.hubId = hubId;
+    particle.radius = this.config.interferenceRadius * THREE.MathUtils.lerp(0.8, 1.2, Math.random());
+    particle.angle = Math.random() * Math.PI * 2;
+    particle.speed = this.config.interferenceOrbitalSpeed * THREE.MathUtils.lerp(0.8, 1.2, Math.random());
+    particle.constructive = constructive;
+    particle.points.material.opacity = 1.0;
+    particle.points.material.color.copy(constructive ? this.config.interferenceConstructiveColor : this.config.interferenceDestructiveColor);
+    particle.points.material.size = THREE.MathUtils.lerp(0.08, 0.12, Math.random());
+    particle.points.geometry.attributes.position.setXYZ(0, hubPosition.x + Math.cos(particle.angle) * particle.radius, hubPosition.y + 0.1, hubPosition.z + Math.sin(particle.angle) * particle.radius);
+    particle.points.geometry.attributes.position.needsUpdate = true;
+    this._activeInterferenceParticles.push(particle);
+  }
+
+  _updateInterferenceParticles(deltaTime) {
+    const hubCounts = new Map();
+    for (const waveData of this.activeWaves.values()) {
+      if (waveData.hubAId) hubCounts.set(waveData.hubAId, (hubCounts.get(waveData.hubAId) || 0) + 1);
+      if (waveData.hubBId) hubCounts.set(waveData.hubBId, (hubCounts.get(waveData.hubBId) || 0) + 1);
+    }
+
+    // Spawn new interference nodes for hubs with 2+ waves
+    for (const [hubId, count] of hubCounts.entries()) {
+      if (count < this.config.interferenceMinActiveWaves) continue;
+      const hub = this.harmonicHubSystem.hubs?.get(hubId);
+      const hubPosition = this._resolveHubWorldPosition(hub);
+      if (!hubPosition) continue;
+      const constructive = count > 2;
+      const spawnCount = Math.min(2, this._freeInterferenceParticleIndices.length);
+      for (let i = 0; i < spawnCount; i++) {
+        this._spawnInterferenceParticle(hubId, hubPosition, constructive);
+      }
+    }
+
+    const toRelease = [];
+    for (let i = 0; i < this._activeInterferenceParticles.length; i++) {
+      const particle = this._activeInterferenceParticles[i];
+      if (!particle || !particle.active) {
+        toRelease.push(i);
+        continue;
+      }
+      particle.life += deltaTime;
+      if (particle.life >= particle.maxLife) {
+        toRelease.push(i);
+        continue;
+      }
+      particle.angle += particle.speed * deltaTime;
+      const hub = this.harmonicHubSystem.hubs?.get(particle.hubId);
+      const hubPosition = this._resolveHubWorldPosition(hub);
+      if (!hubPosition) {
+        toRelease.push(i);
+        continue;
+      }
+      const x = hubPosition.x + Math.cos(particle.angle) * particle.radius;
+      const z = hubPosition.z + Math.sin(particle.angle) * particle.radius;
+      const y = hubPosition.y + 0.08 + Math.sin(particle.life * 10.0) * 0.02;
+      particle.geometry.attributes.position.setXYZ(0, x, y, z);
+      particle.geometry.attributes.position.needsUpdate = true;
+      particle.points.material.opacity = 1.0 - (particle.life / particle.maxLife);
+    }
+    for (let i = toRelease.length - 1; i >= 0; i--) {
+      const index = toRelease[i];
+      this._releaseInterferenceParticle(this._activeInterferenceParticles[index]);
+      this._activeInterferenceParticles.splice(index, 1);
+    }
+  }
+
   /**
    * Phase 1: Update wavefront ring ripples with EPIC shader parameters
    * Phase 2: Three-tier parallax effect with different speeds, colors, and lifetimes
@@ -1261,6 +2155,19 @@ export class CascadeResonanceWaveVisualization_Session146 {
         ringColor = this.config.outerRingColor;
       }
       
+      const lodLevel = this._getLODLevel(activeRing.ringEntry.mesh.position);
+      if (lodLevel === 'far' && activeRing.tier !== 'outer') {
+        this._releaseRing(activeRing.ringEntry);
+        this._activeRings.splice(i, 1);
+        continue;
+      }
+      if (lodLevel === 'mid' && activeRing.tier === 'inner') {
+        this._releaseRing(activeRing.ringEntry);
+        this._activeRings.splice(i, 1);
+        continue;
+      }
+      const detailFactor = lodLevel === 'near' ? 1.0 : lodLevel === 'mid' ? 0.65 : 0.25;
+      
       const age = this.globalWaveTime - activeRing.startTime;
       const maxAge = this.config.wavefrontRingMaxRadius / (this.config.wavefrontRingSpeed * ringSpeed);
       const progress = age / maxAge;
@@ -1272,8 +2179,11 @@ export class CascadeResonanceWaveVisualization_Session146 {
         continue;
       }
 
-      // Expand ring
-      const radius = this.config.wavefrontRingMinRadius + progress * (this.config.wavefrontRingMaxRadius - this.config.wavefrontRingMinRadius);
+      // Elastic expansion + damped oscillation
+      const baseRadius = this.config.wavefrontRingMinRadius + progress * (this.config.wavefrontRingMaxRadius - this.config.wavefrontRingMinRadius);
+      const burst = Math.sin(progress * Math.PI * 3.0) * Math.exp(-progress * 3.0) * 0.18;
+      const overshoot = 1.0 + burst * (activeRing.tier === 'inner' ? 1.2 : 0.8);
+      const radius = baseRadius * (1.0 + (overshoot - 1.0) * 0.6);
       activeRing.ringEntry.mesh.scale.setScalar(radius);
 
       // Parallax fade-out: rings fade at different rates
@@ -1287,16 +2197,36 @@ export class CascadeResonanceWaveVisualization_Session146 {
         fadeProgress = progress < 0.3 ? progress / 0.3 : 1 - (progress - 0.3) / 0.7;
       }
       
-      const opacity = fadeProgress * activeRing.influence * ringOpacity;
+      const opacity = fadeProgress * activeRing.influence * ringOpacity * detailFactor;
       
+      const hubA = this.harmonicHubSystem?.hubs?.get(activeRing.hubAId);
+      const hubB = this.harmonicHubSystem?.hubs?.get(activeRing.hubBId);
+      const harmony = Math.max(0, Math.min(1, (this._readHubWaveState(hubA).harmony + this._readHubWaveState(hubB).harmony) * 0.5));
+      const shiftedColor = this._scratchColor.copy(ringColor);
+      if (harmony > 0.7) {
+        shiftedColor.lerp(new THREE.Color(0xffcc66), (harmony - 0.7) / 0.3);
+      }
+      if (activeRing.influence > 0.75) {
+        shiftedColor.lerp(new THREE.Color(0xffffff), 0.35);
+      }
+      if (progress > 0.7) {
+        shiftedColor.lerp(new THREE.Color(0x4466ff), (progress - 0.7) / 0.3);
+      }
+
       // EPIC shader uniforms
       const uniforms = activeRing.ringEntry.mesh.material.uniforms;
+      const distanceFade = this._computeCameraDistanceFade(activeRing.ringEntry.mesh.position);
+      const bloomParams = this._getRingBloomParams(activeRing.tier, activeRing.influence);
       uniforms.uOpacity.value = opacity;
       uniforms.uTime.value = this.globalWaveTime;
       uniforms.uWavePhase.value = (this.globalWaveTime * 0.5 * ringSpeed + activeRing.wavePhase) % 1.0;
       uniforms.uIntensity.value = activeRing.influence;
       uniforms.uInterference.value = 0.3 * Math.sin(this.globalWaveTime * 3.0 + activeRing.wavePhase * Math.PI * 2) * 0.5 + 0.5;
-      uniforms.uColor.value.copy(ringColor);
+      uniforms.uColor.value.copy(shiftedColor);
+      uniforms.uBloomStrength.value = bloomParams.strength * distanceFade;
+      uniforms.uBloomThreshold.value = bloomParams.threshold;
+      uniforms.uChromaticShift.value = this.config.chromaticAberrationEnabled ? THREE.MathUtils.lerp(this.config.chromaticAberrationMin, this.config.chromaticAberrationMax, activeRing.influence) * distanceFade * 0.5 : 0.0;
+      uniforms.uDistortionStrength.value = this.config.distortionEnabled ? THREE.MathUtils.lerp(this.config.distortionStrengthMin, this.config.distortionStrengthMax, activeRing.influence) * distanceFade : 0.0;
     }
 
     // Spawn new rings for active waves - THREE TIERS for parallax
@@ -1317,6 +2247,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
 
         // Try to spawn all three tiers for parallax effect
         const tiers = ['inner', 'middle', 'outer'];
+        const spawnedRings = [];
         for (const tier of tiers) {
           const ringEntry = this._allocateRing(tier);
           if (!ringEntry) continue;
@@ -1325,7 +2256,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
           ringEntry.mesh.scale.setScalar(this.config.wavefrontRingMinRadius);
 
           // Stagger spawn times for parallax (inner first, then middle, then outer)
- let spawnDelay = 0;
+          let spawnDelay = 0;
           if (tier === 'inner') {
             spawnDelay = 0;
           } else if (tier === 'middle') {
@@ -1334,7 +2265,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
             spawnDelay = 0.30; // 300ms delay
           }
 
-          this._activeRings.push({
+          const ringData = {
             ringEntry,
             waveKey,
             startTime: this.globalWaveTime - spawnDelay, // Negative start time for staggered spawn
@@ -1343,7 +2274,24 @@ export class CascadeResonanceWaveVisualization_Session146 {
             hubAId: waveData.hubAId,
             hubBId: waveData.hubBId,
             tier: tier
-          });
+          };
+          this._activeRings.push(ringData);
+          spawnedRings.push(ringData);
+        }
+
+        if (this.config.wavefrontParticlesEnabled) {
+          for (const ringData of spawnedRings) {
+            this._spawnWavefrontParticles(ringData);
+          }
+        }
+
+        if (this.config.resonanceSparksEnabled) {
+          this._spawnResonanceSparks(hubPosition, waveData.influence);
+          const hubB = this.harmonicHubSystem?.hubs?.get(waveData.hubBId);
+          const hubBPosition = this._resolveHubWorldPosition(hubB);
+          if (hubBPosition) {
+            this._spawnResonanceSparks(hubBPosition, waveData.influence);
+          }
         }
       }
     }
@@ -1437,9 +2385,14 @@ export class CascadeResonanceWaveVisualization_Session146 {
       const posB = this._resolveHubWorldPosition(hubB);
       if (!posA || !posB) continue;
 
-      // Allocate all three layers for this wave pair
+      const midpoint = new THREE.Vector3().addVectors(posA, posB).multiplyScalar(0.5);
+      const lodLevel = this._getLODLevel(midpoint);
+      if (lodLevel === 'far' && waveData.influence < 0.55) continue;
+      const targetLayerCount = lodLevel === 'mid' ? 2 : layersPerBeam;
+
+      // Allocate beam layers for this wave pair
       let allocatedLayers = 0;
-      for (let layerIndex = 0; layerIndex < layersPerBeam; layerIndex++) {
+      for (let layerIndex = 0; layerIndex < targetLayerCount; layerIndex++) {
         const beamEntry = this._allocateBeam();
         if (!beamEntry) break;
         
@@ -1449,8 +2402,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
         beamEntry.line.scale.set(1, beamLength, 1);
         
         // Position at midpoint
-        const midpoint = new THREE.Vector3().addVectors(posA, posB).multiplyScalar(0.5);
-        beamEntry.line.position.copy(midpoint);
+        const beamMidpoint = new THREE.Vector3().addVectors(posA, posB).multiplyScalar(0.5);
+        beamEntry.line.position.copy(beamMidpoint);
         
         // Orient to look at target
         beamEntry.line.lookAt(posB);
@@ -1473,6 +2426,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
         
         // EPIC shader uniforms
         const uniforms = beamEntry.line.material.uniforms;
+        const distanceFade = this._computeCameraDistanceFade(midpoint);
+        const bloomParams = this._getBeamBloomParams(layerIndex, waveData.influence);
         
         // Pulse traveling phase (layer-specific speed)
         const phasePulse = Math.sin(this.globalWaveTime * pulseSpeed + waveData.wavePhase * Math.PI * 2) * 0.5 + 0.5;
@@ -1482,6 +2437,9 @@ export class CascadeResonanceWaveVisualization_Session146 {
         uniforms.uPulsePhase.value = this.globalWaveTime * 0.8 * (pulseSpeed / 3.0) + waveData.wavePhase;
         uniforms.uBeamLength.value = beamLength;
         uniforms.uLayerType.value = layerIndex;
+        uniforms.uBloomStrength.value = bloomParams.strength * distanceFade;
+        uniforms.uBloomThreshold.value = bloomParams.threshold;
+        uniforms.uChromaticShift.value = this.config.chromaticAberrationEnabled ? THREE.MathUtils.lerp(this.config.chromaticAberrationMin, this.config.chromaticAberrationMax, waveData.influence) * distanceFade : 0.0;
         
         // Harmony and corruption from hubs
         const hubAState = this._readHubWaveState(hubA);
@@ -1503,6 +2461,9 @@ export class CascadeResonanceWaveVisualization_Session146 {
         // Add a slight motion bias along the link direction using userData
         beamEntry.line.userData._wavePhase = waveData.wavePhase;
         beamEntry.line.renderOrder = VisualHierarchyRegistry?.getRenderOrder?.(VisualHierarchyRegistry.LAYER_LINK_CASCADE) ?? 13;
+        if (this.config.echoTrailParticlesEnabled && Math.random() < 0.18) {
+          this._spawnEchoTrail(beamEntry);
+        }
         
         this._activeBeams.push(beamEntry);
         allocatedLayers++;
@@ -1897,6 +2858,48 @@ export class CascadeResonanceWaveVisualization_Session146 {
       this._beamGeometryPool = [];
       this._activeBeams = [];
       this._freeBeamIndices = [];
+    }
+
+    // Phase 3: Cleanup particle systems
+    if (this._wavefrontParticlePool) {
+      for (const particle of this._wavefrontParticlePool) {
+        if (particle.points?.parent) particle.points.parent.remove(particle.points);
+        if (particle.points?.material) particle.points.material.dispose();
+        if (particle.geometry) particle.geometry.dispose();
+      }
+      this._wavefrontParticlePool = [];
+      this._activeWavefrontParticles = [];
+      this._freeWavefrontParticleIndices = [];
+    }
+    if (this._resonanceSparkPool) {
+      for (const spark of this._resonanceSparkPool) {
+        if (spark.points?.parent) spark.points.parent.remove(spark.points);
+        if (spark.points?.material) spark.points.material.dispose();
+        if (spark.geometry) spark.geometry.dispose();
+      }
+      this._resonanceSparkPool = [];
+      this._activeResonanceSparks = [];
+      this._freeResonanceSparkIndices = [];
+    }
+    if (this._echoTrailPool) {
+      for (const trail of this._echoTrailPool) {
+        if (trail.line?.parent) trail.line.parent.remove(trail.line);
+        if (trail.line?.material) trail.line.material.dispose();
+        if (trail.geometry) trail.geometry.dispose();
+      }
+      this._echoTrailPool = [];
+      this._activeEchoTrails = [];
+      this._freeEchoTrailIndices = [];
+    }
+    if (this._interferenceParticlePool) {
+      for (const particle of this._interferenceParticlePool) {
+        if (particle.points?.parent) particle.points.parent.remove(particle.points);
+        if (particle.points?.material) particle.points.material.dispose();
+        if (particle.geometry) particle.geometry.dispose();
+      }
+      this._interferenceParticlePool = [];
+      this._activeInterferenceParticles = [];
+      this._freeInterferenceParticleIndices = [];
     }
   }
 }
