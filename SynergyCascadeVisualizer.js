@@ -890,6 +890,7 @@ export class SynergyCascadeVisualizer {
         cascadeId: event.cascadeId ?? event.id ?? this._resolveLinkId(resolvedLink) ?? `cascade-${++this.cascadeId}`,
       intensity,
       anchor,
+      burstAnchor: this._resolveBurstAnchor(event, resolvedLink, kind),
       sourcePosition,
       targetPosition
     };
@@ -942,7 +943,7 @@ export class SynergyCascadeVisualizer {
     }
 
     if (this.config.visualizations.burstParticles) {
-      this.spawnBurstParticles(context.anchor, Math.max(0.3, visualIntensity), {
+      this.spawnBurstParticles(context.burstAnchor ?? context.anchor, Math.max(0.3, visualIntensity), {
         link,
         cascadeIntensity: visualIntensity,
         intensity: visualIntensity,
@@ -1766,10 +1767,7 @@ export class SynergyCascadeVisualizer {
     return { intensity, anchor };
   }
 
-  _resolveBurstAnchor(event = {}, link = null) {
-    const direct = this._asVector3(event.anchor ?? event.center ?? event.position ?? event.origin);
-    if (direct) return direct;
-
+  _resolveBurstAnchor(event = {}, link = null, kind = 'start') {
     const resolvedLink = link ?? this._resolveLinkById(event.linkId ?? event.id ?? event.linkRef);
     const sourcePos = this._asVector3(
       event.sourcePosition ??
@@ -1785,6 +1783,17 @@ export class SynergyCascadeVisualizer {
       resolvedLink?.nodeB?.position ??
       null
     );
+
+    const direct = this._asVector3(event.burstAnchor ?? event.anchor ?? event.center ?? event.position ?? event.origin);
+    if (resolvedLink && (sourcePos || targetPos)) {
+      if (kind === 'hop') {
+        return targetPos || sourcePos || direct;
+      }
+
+      return sourcePos || targetPos || direct;
+    }
+
+    if (direct) return direct;
 
     if (sourcePos && targetPos) {
       return new THREE.Vector3().addVectors(sourcePos, targetPos).multiplyScalar(0.5);
@@ -1889,7 +1898,7 @@ export class SynergyCascadeVisualizer {
       }
 
       if (this.config.visualizations.burstParticles) {
-        this.spawnBurstParticles(anchor, Math.max(0.3, visualIntensity), {
+        this.spawnBurstParticles(context.burstAnchor ?? anchor, Math.max(0.3, visualIntensity), {
           ...event,
           link,
           cascadeIntensity: visualIntensity,
@@ -1945,7 +1954,7 @@ export class SynergyCascadeVisualizer {
         this._spawnRippleCluster(anchor, Math.max(0.1, visualIntensity), band.rippleCount, { ...band, flatRipple: true });
       }
       if (anchor && this.config.visualizations.burstParticles) {
-        this.spawnBurstParticles(anchor, Math.max(0.3, visualIntensity), {
+        this.spawnBurstParticles(context.burstAnchor ?? anchor, Math.max(0.3, visualIntensity), {
           ...event,
           link,
           cascadeIntensity: visualIntensity,
@@ -1979,7 +1988,7 @@ export class SynergyCascadeVisualizer {
       this.createRipple(anchor, Math.max(0.09, intensity * 0.5));
     }
     if (anchor && this.config.visualizations.burstParticles) {
-      this.spawnBurstParticles(anchor, intensity * 0.75, event);
+      this.spawnBurstParticles(context.burstAnchor ?? anchor, intensity * 0.75, event);
     }
   }
 

@@ -7932,6 +7932,9 @@ function _createProcessChronoForgeReactorNode(group, visualCode, color) {
     obj.userData.baseScaleX = obj.scale.x;
     obj.userData.baseScaleY = obj.scale.y;
     obj.userData.baseScaleZ = obj.scale.z;
+    obj.userData.basePosition = obj.position.clone();
+    obj.userData.baseRotation = obj.rotation.clone();
+    obj.userData.baseScale = obj.scale.clone();
     return obj;
   };
 
@@ -33341,17 +33344,16 @@ static createAnalyticsNode2(group, color) {
         if (child.userData.isRecomposerShard) {
           // Slow drift and rotation
           const speed = child.userData.driftSpeed || 0.1;
+          const basePosition = child.userData.basePosition || (child.userData.basePosition = child.position.clone());
+          const driftAxis = child.userData.driftAxis || (child.userData.driftAxis = new THREE.Vector3(0, 1, 0));
           
           // Rotate shard around its own center
           child.rotation.z += deltaTime * speed;
           child.rotation.x += deltaTime * speed * 0.5;
           
-          // Slight positional drift
-          // We apply a sine wave offset to the initial position concept
-          // Since we don't store initial pos explicitly on child here, we assume current is close enough
-          // or just oscillate rotation more aggressively to simulate reconfiguration
+          // Keep the drift anchored to the creation pose so the cloud does not expand forever.
           const wobble = Math.sin(time * speed) * 0.002;
-          child.position.y += wobble;
+          child.position.copy(basePosition).addScaledVector(driftAxis, wobble);
         }
         if (child.userData.isFlowCore) {
            child.rotation.y -= deltaTime * 0.2;

@@ -94,6 +94,8 @@ export class NodeInspectOverlay1_0 {
     // Metric display mode (numeric/glyph)
     this.metricDisplayMode = METRIC_DISPLAY_MODES.NUMERIC;
     this.modeToggleButton = null;
+    this.activeOverlaysDebugEnabled = false;
+    this.activeOverlayDebugButton = null;
     
     // Raycaster for crosshair detection
     this.raycaster = new THREE.Raycaster();
@@ -187,12 +189,16 @@ export class NodeInspectOverlay1_0 {
         console.table(this.getStats());
       },
       getStats: () => this.getStats(),
+      toggleActiveOverlayDebugMode: () => this.toggleActiveOverlayDebugMode(),
+      setActiveOverlayDebugMode: (enabled) => this.setActiveOverlayDebugMode(enabled),
+      getActiveOverlayDebugMode: () => this.activeOverlaysDebugEnabled,
       close: () => {
         this.hideOverlay();
         this.currentNode = null;
         console.log('✓ Overlay closed');
       },
-      getCurrentNode: () => this.currentNode
+      getCurrentNode: () => this.currentNode,
+      getActiveOverlays: () => this._collectActiveOverlaySystems()
     };
     
     console.log('✓ Node Inspect Overlay 1.0 console API: window.nodeInspect1.enable(), window.nodeInspect1.disable(), window.nodeInspect1.stats(), window.nodeInspect1.close()');
@@ -273,6 +279,7 @@ export class NodeInspectOverlay1_0 {
       <div id="node-personality" style="color: #ffaa00; font-size: 11px; margin-bottom: 6px;"></div>
       <div id="node-storm-mood" style="color: #ff00ff; font-size: 11px; margin-bottom: 6px; display: none;"></div>
       <div id="node-authority-status" style="margin-bottom: 8px; border-top: 1px solid rgba(0, 255, 255, 0.3); padding-top: 6px; display: none;"></div>
+      <div id="node-active-overlays" style="font-size: 10px; margin-bottom: 8px; border-top: 1px solid rgba(0, 255, 255, 0.3); padding-top: 6px; display: none;"></div>
       <div id="node-event-log" style="color: #ff00ff; font-size: 10px; margin-bottom: 8px; border-top: 1px solid rgba(255, 0, 255, 0.3); padding-top: 6px; display: none;"></div>
       <div id="node-metrics" style="font-size: 11px; line-height: 1.6;"></div>
     `;
@@ -294,6 +301,25 @@ export class NodeInspectOverlay1_0 {
     modeToggle.addEventListener('click', () => this.toggleMetricDisplayMode());
     this.hudPanel.appendChild(modeToggle);
     this.modeToggleButton = modeToggle;
+
+    const overlayDebugToggle = document.createElement('button');
+    overlayDebugToggle.id = 'node-inspect-overlay-active-overlays-toggle';
+    overlayDebugToggle.textContent = 'Show Active Overlays';
+    overlayDebugToggle.style.cssText = `
+      margin-top: 4px;
+      padding: 3px 6px;
+      font-size: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      border: 1px solid rgba(0, 255, 255, 0.5);
+      color: #00ffff;
+      cursor: pointer;
+      pointer-events: auto;
+      border-radius: 3px;
+    `;
+    overlayDebugToggle.addEventListener('click', () => this.toggleActiveOverlayDebugMode());
+    this.hudPanel.appendChild(overlayDebugToggle);
+    this.activeOverlayDebugButton = overlayDebugToggle;
+    this._syncActiveOverlayDebugButton();
 
     document.body.appendChild(this.hudPanel);
   }
@@ -604,6 +630,9 @@ export class NodeInspectOverlay1_0 {
       // Update Authority Status (if available)
       this._updateAuthorityStatus(category, archetypeCode);
 
+      // Update active runtime overlay systems
+      this._updateActiveOverlays();
+
       // Update event log display (if available)
       const eventLogEl = this.hudPanel.querySelector('#node-event-log');
       if (eventLogEl) {
@@ -691,6 +720,341 @@ export class NodeInspectOverlay1_0 {
       // If authority check fails, hide the section
       authorityEl.style.display = 'none';
     }
+  }
+
+  _updateActiveOverlays() {
+    const overlaysEl = this.hudPanel.querySelector('#node-active-overlays');
+    if (!overlaysEl) return;
+
+    if (!this.activeOverlaysDebugEnabled) {
+      overlaysEl.style.display = 'none';
+      overlaysEl.innerHTML = '';
+      return;
+    }
+
+    const activeOverlays = this._collectActiveOverlaySystems();
+    if (activeOverlays.length === 0) {
+      overlaysEl.innerHTML = `
+        <div style="font-weight: bold; margin-bottom: 3px; color: #9fe7ff;">Active Overlays:</div>
+        <div style="margin-left: 8px; color: #88ff88;">No active overlays</div>
+      `;
+      overlaysEl.style.display = 'block';
+      return;
+    }
+
+    overlaysEl.innerHTML = `
+      <div style="font-weight: bold; margin-bottom: 3px; color: #9fe7ff;">Active Overlays:</div>
+      ${activeOverlays.map(({ name, detail }) => `
+        <div style="margin-left: 8px; margin-bottom: 3px;">
+          <span style="color: #9fe7ff;">${this._escapeHtml(name)}</span>
+          ${detail ? `<span style="color: #88ff88;"> · ${this._escapeHtml(detail)}</span>` : ''}
+        </div>
+      `).join('')}
+    `;
+    overlaysEl.style.display = 'block';
+  }
+
+  toggleActiveOverlayDebugMode() {
+    return this.setActiveOverlayDebugMode(!this.activeOverlaysDebugEnabled);
+  }
+
+  setActiveOverlayDebugMode(enabled) {
+    this.activeOverlaysDebugEnabled = !!enabled;
+    this._syncActiveOverlayDebugButton();
+
+    if (this.currentNode) {
+      this._updateActiveOverlays();
+    } else {
+      this._hideActiveOverlaysSection();
+    }
+
+    return this.activeOverlaysDebugEnabled;
+  }
+
+  _syncActiveOverlayDebugButton() {
+    if (!this.activeOverlayDebugButton) return;
+    this.activeOverlayDebugButton.textContent = this.activeOverlaysDebugEnabled
+      ? 'Hide Active Overlays'
+      : 'Show Active Overlays';
+  }
+
+  _hideActiveOverlaysSection() {
+    const overlaysEl = this.hudPanel?.querySelector('#node-active-overlays');
+    if (!overlaysEl) return;
+    overlaysEl.style.display = 'none';
+    overlaysEl.innerHTML = '';
+  }
+
+  _collectActiveOverlaySystems(node = this.currentNode) {
+    if (!node) return [];
+
+    const entries = [];
+    const nodeId = this._getRuntimeNodeKey(node);
+    const nodeUuid = node?.uuid || null;
+
+    const evolutionState = nodeId ? this.game?.evolutionManager?.registry?.[nodeId] : null;
+    if (Array.isArray(evolutionState?.activeMutations) && evolutionState.activeMutations.length > 0) {
+      const detailParts = [`stage ${evolutionState.stage}`];
+      const mutationList = this._formatOverlayList(evolutionState.activeMutations);
+      if (mutationList) {
+        detailParts.push(mutationList);
+      }
+      entries.push({
+        name: 'SafeEvolutionManager',
+        detail: detailParts.join(' · ')
+      });
+    }
+
+    const microEventKeys = this._getNodeMicroEventKeys(nodeUuid);
+    if (microEventKeys.length > 0) {
+      entries.push({
+        name: 'NodeMicroEvents',
+        detail: this._formatOverlayList(microEventKeys)
+      });
+    }
+
+    const fusionEntry = this._getGlyphFusionOverlayEntry(nodeId, nodeUuid);
+    if (fusionEntry) {
+      entries.push(fusionEntry);
+    }
+
+    const linkedAuraEntry = this._getLinkedAuraOverlayEntry(node);
+    if (linkedAuraEntry) {
+      entries.push(linkedAuraEntry);
+    }
+
+    const hubAuraEntry = this._getHarmonicHubOverlayEntry(nodeId);
+    if (hubAuraEntry) {
+      entries.push(hubAuraEntry);
+    }
+
+    const selectionEntry = this._getSelectionOverlayEntry(node);
+    if (selectionEntry) {
+      entries.push(selectionEntry);
+    }
+
+    const embeddedOverlayKeys = this._getVisibleEmbeddedOverlayKeys(node);
+    if (embeddedOverlayKeys.length > 0) {
+      entries.push({
+        name: 'AINodes Embedded Overlays',
+        detail: this._formatOverlayList(embeddedOverlayKeys)
+      });
+    }
+
+    return entries;
+  }
+
+  _getRuntimeNodeKey(node) {
+    return node?.userData?.nodeId || node?.id || node?.uuid || null;
+  }
+
+  _getNodeMicroEventKeys(nodeUuid) {
+    if (!nodeUuid) return [];
+
+    const activeVisuals = this.game?.nodeMicroEvents?.activeVisuals;
+    if (!(activeVisuals instanceof Map)) {
+      return [];
+    }
+
+    const prefix = `${nodeUuid}_`;
+    const keys = new Set();
+    for (const visualKey of activeVisuals.keys()) {
+      if (typeof visualKey !== 'string' || !visualKey.startsWith(prefix)) {
+        continue;
+      }
+      keys.add(this._humanizeOverlayToken(visualKey.slice(prefix.length)));
+    }
+
+    return Array.from(keys).sort();
+  }
+
+  _getGlyphFusionOverlayEntry(nodeId, nodeUuid) {
+    const fusionOverlay = this.game?.glyphFusionOverlay;
+    if (!fusionOverlay || fusionOverlay.enabled === false) {
+      return null;
+    }
+
+    const fusionKey =
+      (nodeId && fusionOverlay.nodeFusionMap?.has?.(nodeId) && nodeId) ||
+      (nodeUuid && fusionOverlay.nodeFusionMap?.has?.(nodeUuid) && nodeUuid) ||
+      null;
+
+    if (!fusionKey) {
+      return null;
+    }
+
+    const fusionData = fusionOverlay.nodeFusionMap?.get?.(fusionKey) || null;
+    const animState = fusionOverlay.animationState?.get?.(fusionKey) || null;
+    const intensity = Number.isFinite(fusionData?.intensity)
+      ? fusionData.intensity
+      : (Number.isFinite(animState?.currentFadeTarget) ? animState.currentFadeTarget : 0);
+    const meshCount = Array.isArray(fusionData?.meshes) ? fusionData.meshes.length : 0;
+
+    if (meshCount === 0 && intensity <= 0.05) {
+      return null;
+    }
+
+    const detailParts = [];
+    if (fusionData?.meaningType) {
+      detailParts.push(this._humanizeOverlayToken(fusionData.meaningType));
+    }
+    if (meshCount > 0) {
+      detailParts.push(`${meshCount} meshes`);
+    }
+    if (intensity > 0.05) {
+      detailParts.push(`intensity ${this.clamp01(intensity).toFixed(2)}`);
+    }
+
+    return {
+      name: 'GlyphFusionOverlay4_1',
+      detail: detailParts.join(' · ') || 'active'
+    };
+  }
+
+  _getLinkedAuraOverlayEntry(node) {
+    const auraSystem = this.game?.nodeAuraSystem;
+    if (!auraSystem || auraSystem.enabled === false) {
+      return null;
+    }
+
+    const auraData = auraSystem.nodeAuras?.get?.(node) || null;
+    if (!auraData || auraData.linkCount <= 0) {
+      return null;
+    }
+
+    const detailParts = [`${auraData.linkCount} links`];
+    if (auraData.harmonyBand) {
+      detailParts.push(`band ${this._humanizeOverlayToken(auraData.harmonyBand)}`);
+    }
+    if (auraData.spikeActive) {
+      detailParts.push('spike');
+    }
+
+    return {
+      name: 'NodeLinkedAuraSystem',
+      detail: detailParts.join(' · ')
+    };
+  }
+
+  _getHarmonicHubOverlayEntry(nodeId) {
+    if (!nodeId) {
+      return null;
+    }
+
+    const hubSystem = this.game?.harmonicHubAuraSystem;
+    if (!hubSystem || hubSystem.config?.enabled === false) {
+      return null;
+    }
+
+    const hubId = hubSystem.nodeToHub?.get?.(nodeId) || null;
+    if (!hubId) {
+      return null;
+    }
+
+    const hub = hubSystem.hubs?.get?.(hubId) || null;
+    if (!hub?.active) {
+      return null;
+    }
+
+    const detailParts = [hubId];
+    if (Array.isArray(hub.nodes) && hub.nodes.length > 0) {
+      detailParts.push(`${hub.nodes.length} nodes`);
+    }
+    if (Number.isFinite(hub.harmony)) {
+      detailParts.push(`harmony ${this.clamp01(hub.harmony).toFixed(2)}`);
+    }
+
+    return {
+      name: 'HarmonicHubAuraSystem',
+      detail: detailParts.join(' · ')
+    };
+  }
+
+  _getSelectionOverlayEntry(node) {
+    const linkingSystem = this.game?.linkingSystem || this.game?.nodeLinking || null;
+    if (!linkingSystem) {
+      return null;
+    }
+
+    const detailParts = [];
+    if (linkingSystem.hoveredNodeForSelection === node || linkingSystem.nodeSelectionGlows?.has?.(node)) {
+      detailParts.push('hover glow');
+    }
+    if (linkingSystem.selectedNode === node || linkingSystem.primaryNode === node) {
+      detailParts.push('primary highlight');
+    }
+
+    if (detailParts.length === 0) {
+      return null;
+    }
+
+    return {
+      name: 'NodeLinkingSystem',
+      detail: detailParts.join(' · ')
+    };
+  }
+
+  _getVisibleEmbeddedOverlayKeys(node) {
+    const overlays = node?.userData?.overlays;
+    if (!overlays || typeof overlays !== 'object') {
+      return [];
+    }
+
+    const ignoredKeys = new Set(['interaction-proxy', 'point-light']);
+    const visibleKeyCounts = new Map();
+
+    for (const [key, overlay] of Object.entries(overlays)) {
+      if (ignoredKeys.has(key) || !overlay) {
+        continue;
+      }
+
+      if (overlay.visible === false || overlay.userData?.neutralized === true) {
+        continue;
+      }
+
+      const label = this._humanizeOverlayToken(String(key).replace(/-[0-9a-f-]{8,}$/i, ''));
+      visibleKeyCounts.set(label, (visibleKeyCounts.get(label) || 0) + 1);
+    }
+
+    return Array.from(visibleKeyCounts.entries())
+      .map(([label, count]) => count > 1 ? `${label} x${count}` : label)
+      .sort();
+  }
+
+  _formatOverlayList(items, maxItems = 3) {
+    if (!Array.isArray(items) || items.length === 0) {
+      return '';
+    }
+
+    const filtered = items.filter(Boolean);
+    const shown = filtered.slice(0, maxItems).join(', ');
+    if (filtered.length <= maxItems) {
+      return shown;
+    }
+
+    return `${shown} +${filtered.length - maxItems}`;
+  }
+
+  _humanizeOverlayToken(value) {
+    const normalized = String(value || '')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!normalized) {
+      return '';
+    }
+
+    return normalized.replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
+  _escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   _getSnapshotMetrics(node) {

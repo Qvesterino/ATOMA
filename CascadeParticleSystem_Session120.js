@@ -914,22 +914,6 @@ export class CascadeParticleSystem_Session120 {
       }
     }
 
-    // Metric-based conflict type derivation for links without active cascades.
-    // This ensures particle shape diversity even when CascadeEventBridge is not
-    // actively writing conflict types.
-    if (this.config.enableConflictTypeDetection) {
-      const linkCorruption = Number(u.corruptionLevel ?? u.metrics?.corruption ?? 0) || 0;
-      const linkStability = Number(u.stability ?? u.metrics?.stability ?? 1) || 1;
-      const linkSynergy = Number(u.metrics?.synergy ?? u.synergy?.score ?? 0) || 0;
-      const linkLoad = Number(u.metrics?.loadPressure ?? u.loadPressure ?? 0) || 0;
-
-      if (linkCorruption > 0.3) return 'corruption';
-      if (linkStability < 0.3) return 'oscillatory_balance';
-      if (linkLoad > 0.7) return 'fatigue_yield';
-      if (linkSynergy < 0.3) return 'destructive';
-      if (linkSynergy > 0.7) return 'resolved_harmony';
-    }
-
     return 'none';
   }
 
@@ -2147,10 +2131,8 @@ export class CascadeParticleSystem_Session120 {
       colors[renderSlot * 3 + 2] = this._tmpParticleColor.b * colorPulse;
       
       // Rotate based on conflict type
-      if (p.conflictType === 'oscillatory_balance' || p.conflictType === 'corruption') {
+      if (p.conflictType === 'stability' || p.conflictType === 'corruption') {
         angles[renderSlot] += deltaTime * 5.0; // Spin fast for chaos
-      } else if (p.conflictType === 'destructive' || p.conflictType === 'fatigue_yield') {
-        angles[renderSlot] += deltaTime * 1.5; // Slow drift for tension
       } else {
         // Align with path (approximation)
         angles[renderSlot] = 0;
@@ -2205,15 +2187,10 @@ export class CascadeParticleSystem_Session120 {
     p.position.add(p.pathOffset);
     
     // Add semantic motion noise
-    if (p.conflictType === 'oscillatory_balance' || p.conflictType === 'fatigue_yield') {
+    if (p.conflictType === 'stability') {
       p.position.x += (Math.random() - 0.5) * 0.1;
       p.position.y += (Math.random() - 0.5) * 0.1;
       p.position.z += (Math.random() - 0.5) * 0.1;
-    } else if (p.conflictType === 'corruption') {
-      // Corruption: jittery, erratic motion
-      p.position.x += (Math.random() - 0.5) * 0.15;
-      p.position.y += (Math.random() - 0.5) * 0.15;
-      p.position.z += (Math.random() - 0.5) * 0.15;
     }
   }
   
@@ -2273,13 +2250,13 @@ export class CascadeParticleSystem_Session120 {
    */
   _getShapeIndexForConflict(type) {
     switch (type) {
-      case 'destructive': return 0; // Phase (Arcs/Crescents)
-      case 'resolved_harmony': return 0; // Smooth arcs — resolved state
-      case 'neutral': return 0; // Default arcs
-      case 'specialization_drift': return 1; // Polarity (Forks/Split)
+      case 'destructive': return 0; // Phase (Arcs)
+      case 'specialization_drift': return 1; // Polarity (Forks)
       case 'corruption': return 2; // Corruption (Shards)
-      case 'oscillatory_balance': return 3; // Stability (Irregular Blobs)
-      case 'fatigue_yield': return 3; // Blobs — depleted, unreliable
+      case 'oscillatory_balance': return 3; // stability (Blobs)
+      case 'fatigue_yield': return 0; // Default to arcs
+      case 'resolved_harmony': return 0;
+      case 'neutral': return 0;
       default: return 0;
     }
   }
@@ -2482,25 +2459,29 @@ export class CascadeParticleSystem_Session120 {
     const angleAttribute = this.geometry.attributes.angle;
     const shapeIndexAttribute = this.geometry.attributes.shapeIndex;
 
-    positionAttribute.updateRange.offset = 0;
-    positionAttribute.updateRange.count = activeCount * positionAttribute.itemSize;
-    colorAttribute.updateRange.offset = 0;
-    colorAttribute.updateRange.count = activeCount * colorAttribute.itemSize;
-    opacityAttribute.updateRange.offset = 0;
-    opacityAttribute.updateRange.count = activeCount;
-    sizeAttribute.updateRange.offset = 0;
-    sizeAttribute.updateRange.count = activeCount;
-    angleAttribute.updateRange.offset = 0;
-    angleAttribute.updateRange.count = activeCount;
-    shapeIndexAttribute.updateRange.offset = 0;
-    shapeIndexAttribute.updateRange.count = activeCount;
+    const markAttributeDirty = (attribute, count) => {
+      if (!attribute) return;
 
-    positionAttribute.needsUpdate = true;
-    colorAttribute.needsUpdate = true;
-    opacityAttribute.needsUpdate = true;
-    sizeAttribute.needsUpdate = true;
-    angleAttribute.needsUpdate = true;
-    shapeIndexAttribute.needsUpdate = true;
+      if (typeof attribute.clearUpdateRanges === 'function') {
+        attribute.clearUpdateRanges();
+      }
+
+      if (typeof attribute.addUpdateRange === 'function') {
+        attribute.addUpdateRange(0, count);
+      } else if (attribute.updateRange) {
+        attribute.updateRange.offset = 0;
+        attribute.updateRange.count = count;
+      }
+
+      attribute.needsUpdate = true;
+    };
+
+    markAttributeDirty(positionAttribute, activeCount * positionAttribute.itemSize);
+    markAttributeDirty(colorAttribute, activeCount * colorAttribute.itemSize);
+    markAttributeDirty(opacityAttribute, activeCount);
+    markAttributeDirty(sizeAttribute, activeCount);
+    markAttributeDirty(angleAttribute, activeCount);
+    markAttributeDirty(shapeIndexAttribute, activeCount);
 
     // Draw only compacted active slots.
     this.geometry.setDrawRange(0, activeCount);
