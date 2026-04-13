@@ -128,15 +128,70 @@ void main() {
 }
 `;
 
-let __sparkMaterialBase;
-let __sparkMaterialRefCount = 0;
+// ============================================================================
+// SPARK VARIANT 2: Photon Ring — bright core + modulated ring + outer halo
+// Contrasts with Variant 1 (angular star) via circular/ring-based design
+// ============================================================================
+
+const SPARK_FS_V2 = `
+uniform vec3 uColor;
+uniform float uOpacity;
+
+varying float vAlpha;
+varying float vLifeProgress;
+varying float vSpeed;
+
+void main() {
+    vec2 p = gl_PointCoord * 2.0 - 1.0;
+    float r = length(p);
+    float angle = atan(p.y, p.x);
+
+    // Slow rotation over lifetime (240 degrees)
+    float rotAngle = angle + vLifeProgress * 4.18879;
+
+    // Hot center core (white-hot intensity)
+    float core = exp(-r * r * 14.0);
+
+    // Primary ring with 3 bright nodes that rotate
+    float ringR = 0.42 + sin(vLifeProgress * 6.283) * 0.05;
+    float ringDist = abs(r - ringR);
+    float ring = exp(-ringDist * ringDist * 50.0);
+    float angularMod = 0.55 + 0.45 * pow(max(0.0, cos(rotAngle * 3.0)), 2.0);
+    ring *= angularMod;
+
+    // Secondary faint outer ring
+    float outerRingR = 0.72;
+    float outerRingDist = abs(r - outerRingR);
+    float outerRing = exp(-outerRingDist * outerRingDist * 30.0) * 0.25;
+
+    // Soft inner glow
+    float innerGlow = exp(-r * 4.0) * 0.2;
+
+    // Combine layers
+    float spark = core * 0.55 + ring * 0.35 + outerRing + innerGlow;
+    spark *= smoothstep(1.0, 0.2, r);
+
+    if (spark <= 0.01) discard;
+
+    gl_FragColor = vec4(uColor, spark * vAlpha * uOpacity * (0.7 + vSpeed * 0.6));
+}
+`;
+
+const SPARK_VARIANT_CACHE_KEYS = {
+    1: 'ATOMA_LINK_SPARK_v1|ShaderMaterial|transparent|no-depth-write|depth-test|additive|toneMapped-off|vertexColors-off',
+    2: 'ATOMA_LINK_SPARK_v2|ShaderMaterial|transparent|no-depth-write|depth-test|additive|toneMapped-off|vertexColors-off'
+};
+
+let __sparkMaterialBases = {};
+let __sparkMaterialRefCounts = {};
 const DEBUG_SPARKS = false;
 
-function getSparkMaterialBase() {
-    if (!__sparkMaterialBase) {
+function getSparkMaterialBase(variant = 1) {
+    if (!__sparkMaterialBases[variant]) {
+        const fs = variant === 2 ? SPARK_FS_V2 : SPARK_FS;
         const material = new THREE.ShaderMaterial({
             vertexShader: SPARK_VS,
-            fragmentShader: SPARK_FS,
+            fragmentShader: fs,
             uniforms: {
                 uTime: { value: 0 },
                 uStart: { value: new THREE.Vector3() },
@@ -152,25 +207,27 @@ function getSparkMaterialBase() {
             depthWrite: false,
             depthTest: true
         });
-        material.customProgramCacheKey = () => 'ATOMA_LINK_SPARK_v1|ShaderMaterial|transparent|no-depth-write|depth-test|additive|toneMapped-off|vertexColors-off';
+        material.customProgramCacheKey = () => SPARK_VARIANT_CACHE_KEYS[variant] || SPARK_VARIANT_CACHE_KEYS[1];
         material.userData = material.userData || {};
         material.userData.__sparkTemplateMaterial = true;
-        __sparkMaterialBase = material;
+        material.userData.__sparkVariant = variant;
+        __sparkMaterialBases[variant] = material;
     }
-    __sparkMaterialRefCount += 1;
-    return __sparkMaterialBase;
+    __sparkMaterialRefCounts[variant] = (__sparkMaterialRefCounts[variant] || 0) + 1;
+    return __sparkMaterialBases[variant];
 }
 
-function releaseSparkMaterialBase() {
-    if (!__sparkMaterialBase) return;
-    __sparkMaterialRefCount = Math.max(0, __sparkMaterialRefCount - 1);
-    if (__sparkMaterialRefCount > 0) return;
-    __sparkMaterialBase.dispose?.();
-    __sparkMaterialBase = null;
+function releaseSparkMaterialBase(variant = 1) {
+    if (!__sparkMaterialBases[variant]) return;
+    __sparkMaterialRefCounts[variant] = Math.max(0, (__sparkMaterialRefCounts[variant] || 0) - 1);
+    if (__sparkMaterialRefCounts[variant] > 0) return;
+    __sparkMaterialBases[variant].dispose?.();
+    delete __sparkMaterialBases[variant];
+    delete __sparkMaterialRefCounts[variant];
 }
 
 export class LinkSparkSystem {
-    constructor(scene, maxSparks = 60) {
+    constructor(scene, maxSparks = 60, options = {}) {
         if (DEBUG_SPARKS) console.log("SPARK SYSTEM CONSTRUCTED");
         this.scene = scene;
         this.maxSparks = maxSparks;
@@ -189,6 +246,9 @@ export class LinkSparkSystem {
             baseOpacity: 0.0, // Default off
             thickness: 0.05
         };
+
+        // Variant selection (1 = star, 2 = photon ring)
+        this.variant = options.variant || (Math.random() < 0.5 ? 1 : 2);
 
         // Initialize
         this.initSystem();
@@ -240,9 +300,9 @@ export class LinkSparkSystem {
         };
 
         // Clone the template material so each link owns its own uniform state.
-        const material = getSparkMaterialBase().clone();
+        const material = getSparkMaterialBase(this.variant).clone();
         material.uniforms = this.uniforms;
-        material.customProgramCacheKey = () => 'ATOMA_LINK_SPARK_v1|ShaderMaterial|transparent|no-depth-write|depth-test|additive|toneMapped-off|vertexColors-off';
+        material.customProgramCacheKey = () => SPARK_VARIANT_CACHE_KEYS[this.variant] || SPARK_VARIANT_CACHE_KEYS[1];
 
         this.points = new THREE.Points(geometry, material);
         this.points.frustumCulled = false; // Always render
@@ -465,7 +525,7 @@ export class LinkSparkSystem {
             this.points.geometry?.dispose?.();
             this.points = null;
         }
-        releaseSparkMaterialBase();
+        releaseSparkMaterialBase(this.variant);
     }
 
     getDebugStats() {

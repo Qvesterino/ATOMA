@@ -661,6 +661,14 @@ export function ensureMenuStyles() {
             text-transform: uppercase;
         }
 
+        .atoma-main-menu__lore-featured-order {
+            color: rgba(255, 214, 140, 0.92);
+            font-size: 11px;
+            line-height: 1.6;
+            letter-spacing: 0.05em;
+            text-transform: none;
+        }
+
         .atoma-main-menu__lore-featured-summary {
             color: rgba(214, 247, 252, 0.86);
             font-size: 13px;
@@ -731,6 +739,14 @@ export function ensureMenuStyles() {
             font-size: 10px;
             letter-spacing: 0.18em;
             text-transform: uppercase;
+        }
+
+        .atoma-main-menu__lore-card-order {
+            color: rgba(255, 214, 140, 0.90);
+            font-size: 10px;
+            line-height: 1.55;
+            letter-spacing: 0.05em;
+            text-transform: none;
         }
 
         .atoma-main-menu__lore-card-summary {
@@ -1326,11 +1342,22 @@ export class MainMenu {
         featuredSubtitle.className = 'atoma-main-menu__lore-featured-subtitle';
         featuredSubtitle.textContent = featuredEntry?.subtitle || '';
 
+        const featuredOrder = document.createElement('div');
+        featuredOrder.className = 'atoma-main-menu__lore-featured-order';
+        featuredOrder.textContent = activeSection?.id === 'codex' && featuredEntry?.readingOrder
+            ? `Reading order: ${featuredEntry.readingOrder}`
+            : '';
+
         const featuredSummary = document.createElement('div');
         featuredSummary.className = 'atoma-main-menu__lore-featured-summary';
         featuredSummary.textContent = featuredEntry?.summary || featuredEntry?.body || '';
 
-        featuredCopy.append(featuredLabel, featuredTitle, featuredSubtitle, featuredSummary);
+        const featuredCopyParts = [featuredLabel, featuredTitle, featuredSubtitle];
+        if (featuredOrder.textContent) {
+            featuredCopyParts.push(featuredOrder);
+        }
+        featuredCopyParts.push(featuredSummary);
+        featuredCopy.append(...featuredCopyParts);
 
         const featuredMeta = document.createElement('div');
         featuredMeta.className = 'atoma-main-menu__lore-featured-meta';
@@ -1365,7 +1392,24 @@ export class MainMenu {
         featuredRelevanceValue.textContent = featuredEntry?.relevance || '';
         featuredRelevance.append(featuredRelevanceLabel, featuredRelevanceValue);
 
-        featuredMeta.append(featuredCanon, featuredMeaning, featuredRelevance);
+        const featuredReadingOrder = document.createElement('div');
+        featuredReadingOrder.className = 'atoma-main-menu__lore-featured-stat';
+        const featuredReadingOrderLabel = document.createElement('div');
+        featuredReadingOrderLabel.className = 'atoma-main-menu__lore-featured-stat-label';
+        featuredReadingOrderLabel.textContent = 'Reading order';
+        const featuredReadingOrderValue = document.createElement('div');
+        featuredReadingOrderValue.className = 'atoma-main-menu__lore-featured-stat-value';
+        featuredReadingOrderValue.textContent = activeSection?.id === 'codex' ? featuredEntry?.readingOrder || '' : '';
+        if (featuredReadingOrderValue.textContent) {
+            featuredReadingOrder.append(featuredReadingOrderLabel, featuredReadingOrderValue);
+        }
+
+        const featuredMetaParts = [featuredCanon, featuredMeaning];
+        if (featuredReadingOrderValue.textContent) {
+            featuredMetaParts.push(featuredReadingOrder);
+        }
+        featuredMetaParts.push(featuredRelevance);
+        featuredMeta.append(...featuredMetaParts);
         featured.append(featuredCopy, featuredMeta);
 
         const archive = document.createElement('div');
@@ -1383,11 +1427,22 @@ export class MainMenu {
             subtitle.className = 'atoma-main-menu__lore-card-subtitle';
             subtitle.textContent = entry.subtitle || '';
 
+            const order = document.createElement('div');
+            order.className = 'atoma-main-menu__lore-card-order';
+            order.textContent = activeSection?.id === 'codex' && entry.readingOrder
+                ? entry.readingOrder
+                : '';
+
             const summaryBlock = document.createElement('div');
             summaryBlock.className = 'atoma-main-menu__lore-card-summary';
             summaryBlock.textContent = entry.summary || entry.body || '';
 
-            card.append(title, subtitle, summaryBlock);
+            const cardParts = [title, subtitle];
+            if (order.textContent) {
+                cardParts.push(order);
+            }
+            cardParts.push(summaryBlock);
+            card.append(...cardParts);
             archive.appendChild(card);
         });
 

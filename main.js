@@ -705,6 +705,14 @@ import { initializeHardInteractionAuthority } from './HARD_INTERACTION_AUTHORITY
 // REMOVED: ControlledUnfreezeSystem_v1 - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 
 const LORE_TO_LANGUAGE = Object.freeze({
+    'codex-index': 'lore.codex.index',
+    'codex-philosophical-birth': 'lore.codex.philosophicalBirth',
+    'codex-system-psychic': 'lore.codex.systemPsychic',
+    'codex-multiversality': 'lore.codex.multiversality',
+    'codex-evolution': 'lore.codex.evolution',
+    'codex-culture': 'lore.codex.culture',
+    'codex-metrics': 'lore.codex.metrics',
+    'codex-nodes': 'lore.codex.nodes',
     'node.input.basic': 'lore.node.input',
     'node.process.basic': 'lore.node.process',
     'node.control.basic': 'lore.node.control',
@@ -14354,7 +14362,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         this.poetryEngine = new AtomaLanguageEngine3_0(
             this.languageEngine,
             this.consciousnessLayer ? this.consciousnessLayer.storms : null,
-            this.consciousnessLayer
+            this.consciousnessLayer,
+            this.semanticBus
         );
 
         // Enable poetry engine

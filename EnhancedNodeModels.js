@@ -14653,6 +14653,8 @@ export class EnhancedNodeModels {
       });
     }
 
+    EnhancedNodeModels._attachSelectionAura(rootGroup, color);
+
     // Generate canonical nodeId (factory-level identity)
     if (!rootGroup.userData.nodeId) {
       rootGroup.userData.nodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -14685,6 +14687,7 @@ export class EnhancedNodeModels {
     });
 
     if (!hasFactoryCage) return;
+
     rootGroup.userData = rootGroup.userData || {};
     rootGroup.userData.hasFactoryCage = true;
     rootGroup.traverse((child) => {
@@ -14693,6 +14696,81 @@ export class EnhancedNodeModels {
       child.userData.hasEdgeCage = true;
     });
   }
+
+  /**
+   * Attach a compact selection aura that can be toggled by the node runtime.
+   * Hidden by default; AINodes enables it only while a node is selected.
+   */
+  static _attachSelectionAura(rootGroup, color) {
+    if (!rootGroup || !THREE?.Group || !THREE?.TorusGeometry || !THREE?.MeshBasicMaterial) {
+      return null;
+    }
+
+    if (rootGroup.userData?.selectionAuraGroup) {
+      return rootGroup.userData.selectionAuraGroup;
+    }
+
+    let auraRadius = 1.02;
+    try {
+      rootGroup.updateMatrixWorld?.(true);
+      const bounds = new THREE.Box3().setFromObject(rootGroup);
+      const size = new THREE.Vector3();
+      bounds.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      if (Number.isFinite(maxDim) && maxDim > 0) {
+        auraRadius = Math.max(0.72, maxDim * 0.58);
+      }
+    } catch (err) {
+      auraRadius = 1.02;
+    }
+
+    const auraColor = new THREE.Color(color ?? 0x8feeff).lerp(new THREE.Color(0xf7ffff), 0.28);
+    const auraGroup = new THREE.Group();
+    auraGroup.name = 'SelectionAuraGroup';
+    auraGroup.visible = false;
+    auraGroup.frustumCulled = false;
+    auraGroup.renderOrder = EnhancedNodeModels._getArchetypeRenderOrder() + 2;
+    auraGroup.userData = auraGroup.userData || {};
+    auraGroup.userData.isSelectionAura = true;
+    auraGroup.userData.visualLayer = 'SELECTION';
+    auraGroup.userData.ignoreWaveColor = true;
+    auraGroup.userData.isInteractive = false;
+    auraGroup.userData.baseRadius = auraRadius;
+
+    const auraGeometry = new THREE.TorusGeometry(auraRadius, Math.max(0.018, auraRadius * 0.05), 8, 40);
+    const auraMaterial = new THREE.MeshBasicMaterial({
+      color: auraColor,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: false,
+      fog: false,
+      blending: THREE.AdditiveBlending
+    });
+
+    const auraRing = new THREE.Mesh(auraGeometry, auraMaterial);
+    auraRing.name = 'SelectionAuraRing';
+    auraRing.rotation.x = Math.PI / 2;
+    auraRing.userData = {
+      isSelectionAuraRing: true,
+      visualLayer: 'SELECTION',
+      ignoreWaveColor: true,
+      isInteractive: false,
+      baseOpacity: 0.62
+    };
+    auraRing.raycast = () => null;
+    auraGroup.add(auraRing);
+
+    auraGroup.userData.selectionAuraRing = auraRing;
+    rootGroup.add(auraGroup);
+    rootGroup.userData = rootGroup.userData || {};
+    rootGroup.userData.selectionAuraGroup = auraGroup;
+    rootGroup.userData.selectionAura = auraGroup;
+    rootGroup.userData.selectionAuraRing = auraRing;
+
+    return auraGroup;
+  }
+
   // ===== INPUT NODES (Cyan - 4 variants) =====
 
   /**

@@ -878,6 +878,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
             { key: 'torus_harmony', factory: () => new THREE.TorusGeometry(0.5, 0.08, 12, 32) },
             { key: 'torus_arc', factory: () => new THREE.TorusGeometry(0.35, 0.04, 8, 32, Math.PI * 0.35) },
             { key: 'sphere_spark', factory: () => new THREE.SphereGeometry(0.05, 10, 10) },
+            { key: 'sphere_core', factory: () => new THREE.SphereGeometry(0.10, 12, 12) },
             { key: 'plane_diamond', factory: () => new THREE.PlaneGeometry(0.55, 0.55) },
         ];
         
@@ -1665,80 +1666,152 @@ export class LinkSemanticPictogramSystem_Enhanced {
         return group;
     }
 
+    // Synergy glyph: triangular convergence — 3 rings merging into a central core
     buildSynergyArrowCluster(renderOrder) {
         const cluster = new THREE.Group();
-        const mat = this._getMaterialFromPool(0x66ffff, 1.0, THREE.AdditiveBlending);
+        const mat = this._getMaterialFromPool(0x00eaff, 0.85, THREE.AdditiveBlending);
+        const accentMat = this._getMaterialFromPool(0xa6ffff, 0.55, THREE.AdditiveBlending);
+        const coreMat = this._getMaterialFromPool(0xffffff, 0.92, THREE.AdditiveBlending);
 
+        // 3 converging rings in triangular arrangement
         const ringA = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
-        ringA.position.x = -0.12;
+        ringA.position.set(-0.14, -0.08, 0);
         ringA.rotation.y = Math.PI / 2;
+        ringA.rotation.z = Math.PI / 10;
         ringA.renderOrder = renderOrder;
+        ringA.userData.spinSpeed = 0.8;
+        ringA.userData.baseScale = 0.78;
 
         const ringB = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
-        ringB.position.x = 0.12;
+        ringB.position.set(0.14, -0.08, 0);
         ringB.rotation.y = Math.PI / 2;
+        ringB.rotation.z = -Math.PI / 10;
         ringB.renderOrder = renderOrder;
+        ringB.userData.spinSpeed = 0.8;
+        ringB.userData.baseScale = 0.78;
 
-        cluster.add(ringA);
-        cluster.add(ringB);
+        const ringC = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
+        ringC.position.set(0, 0.12, 0);
+        ringC.rotation.x = Math.PI / 2;
+        ringC.rotation.z = Math.PI / 2;
+        ringC.renderOrder = renderOrder;
+        ringC.userData.spinSpeed = 0.6;
+        ringC.userData.baseScale = 0.66;
 
-        cluster.userData.arrows = [ringA, ringB];
+        // Central convergence core (bright white)
+        const core = new THREE.Mesh(this._getGeometryFromCache('sphere_core'), coreMat);
+        core.scale.setScalar(0.9);
+        core.renderOrder = renderOrder;
+
+        // Connecting bridge arc
+        const bridge = new THREE.Mesh(this._getGeometryFromCache('torus_arc'), accentMat);
+        bridge.scale.set(0.48, 0.48, 0.25);
+        bridge.rotation.z = Math.PI / 2;
+        bridge.renderOrder = renderOrder;
+
+        cluster.add(ringA, ringB, ringC, core, bridge);
+
+        cluster.userData.synergyArrows = [ringA, ringB, ringC];
+        cluster.userData.synergyBridge = bridge;
+        cluster.userData.synergyCore = core;
         cluster.userData.baseScale = 1.0;
         cluster.userData.phase = Math.random() * Math.PI * 2;
         cluster.userData.spinSpeed = 0.8;
         return cluster;
     }
 
-    // Harmony glyph: two interlocking cyan rings
+    // Harmony glyph: interlocking resonance rings with balance halo and core
     buildHarmonyGlyph(size = 1.0, renderOrder = 246) {
         const group = new THREE.Group();
-        const mat = this._getMaterialFromPool(0x00ffff, 1.0, THREE.AdditiveBlending);
+        const mat = this._getMaterialFromPool(0x00ffcc, 0.8, THREE.AdditiveBlending);
+        const auraMat = this._getMaterialFromPool(0xb6ffe6, 0.28, THREE.AdditiveBlending);
+        const coreMat = this._getMaterialFromPool(0xffffff, 0.92, THREE.AdditiveBlending);
 
-        // Use a smaller torus geometry so the harmony glyph matches loadPressure scale.
+        // Two interlocking rings at complementary angles
         const ringA = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
-        ringA.position.set(-size * 0.12, 0, 0);
+        ringA.position.set(-size * 0.08, size * 0.04, 0);
+        ringA.rotation.z = Math.PI / 8;
         ringA.renderOrder = renderOrder;
 
         const ringB = new THREE.Mesh(this._getGeometryFromCache('torus_small'), mat);
-        ringB.position.set(size * 0.12, 0, 0);
+        ringB.position.set(size * 0.08, -size * 0.04, 0);
         ringB.rotation.y = Math.PI / 2;
+        ringB.rotation.z = -Math.PI / 8;
         ringB.renderOrder = renderOrder;
 
-        group.add(ringA);
-        group.add(ringB);
+        // Outer resonance halo (horizontal)
+        const halo = new THREE.Mesh(this._getGeometryFromCache('torus_harmony'), auraMat);
+        halo.rotation.x = Math.PI / 2;
+        halo.scale.setScalar(0.38 * size);
+        halo.renderOrder = renderOrder;
+
+        // Central resonance core (bright white-teal)
+        const core = new THREE.Mesh(this._getGeometryFromCache('sphere_core'), coreMat);
+        core.scale.setScalar(0.9 * size);
+        core.renderOrder = renderOrder;
+
+        // Balance pulses above and below (equilibrium indicators)
+        const upperPulse = new THREE.Mesh(this._getGeometryFromCache('sphere_spark'), auraMat);
+        upperPulse.position.set(0, 0.16 * size, 0.03 * size);
+        upperPulse.scale.setScalar(0.9);
+        upperPulse.renderOrder = renderOrder;
+
+        const lowerPulse = new THREE.Mesh(this._getGeometryFromCache('sphere_spark'), auraMat);
+        lowerPulse.position.set(0, -0.16 * size, -0.03 * size);
+        lowerPulse.scale.setScalar(0.9);
+        lowerPulse.renderOrder = renderOrder;
+
+        group.add(ringA, ringB, halo, core, upperPulse, lowerPulse);
 
         group.userData.rotors = [ringA, ringB];
+        group.userData.harmonyRings = [ringA, ringB, halo];
+        group.userData.harmonyCore = core;
+        group.userData.harmonyPulses = [upperPulse, lowerPulse];
         return group;
     }
 
-    // Stability glyph: torus core with layered orbit and spark
+    // Stability glyph: gold gyroscope anchor — 3-axis balance with orbiting energy
     buildStabilityGlyph(size = 1.0, renderOrder = 246) {
         const group = new THREE.Group();
-        const coreMat = this._getMaterialFromPool(0x5a2ea6, 1.0, THREE.AdditiveBlending);
+        const coreMat = this._getMaterialFromPool(0xc4a300, 0.9, THREE.AdditiveBlending);
+        const ringMat = this._getMaterialFromPool(0xffe066, 0.65, THREE.AdditiveBlending);
+        const sparkMat = this._getMaterialFromPool(0xffffff, 0.95, THREE.AdditiveBlending);
 
+        // Central anchor torus (warm gold)
         const core = new THREE.Mesh(this._getGeometryFromCache('torus_core'), coreMat);
+        core.rotation.x = Math.PI / 3.6;
         core.renderOrder = renderOrder;
         group.add(core);
 
-        const orbitMat = this._getMaterialFromPool(0x5a2ea6, 1.0, THREE.AdditiveBlending);
-        const orbit1 = new THREE.Mesh(this._getGeometryFromCache('torus_orbit'), orbitMat);
-        orbit1.renderOrder = renderOrder;
-        group.add(orbit1);
+        // Gyroscope ring 1 — horizontal equator
+        const gyro1 = new THREE.Mesh(this._getGeometryFromCache('torus_orbit'), ringMat);
+        gyro1.rotation.x = Math.PI / 2;
+        gyro1.renderOrder = renderOrder;
+        group.add(gyro1);
 
-        const orbit2 = new THREE.Mesh(this._getGeometryFromCache('torus_orbit'), orbitMat);
-        orbit2.rotation.set(Math.PI / 4, 0, Math.PI / 6);
-        orbit2.renderOrder = renderOrder;
-        group.add(orbit2);
+        // Gyroscope ring 2 — tilted axis
+        const gyro2 = new THREE.Mesh(this._getGeometryFromCache('torus_orbit'), ringMat);
+        gyro2.rotation.set(Math.PI / 4, 0, Math.PI / 6);
+        gyro2.renderOrder = renderOrder;
+        group.add(gyro2);
 
-        const sparkMat = this._getMaterialFromPool(0xffaa33, 1.0, THREE.AdditiveBlending);
+        // Gyroscope ring 3 — opposing tilt (3-axis stability)
+        const gyro3 = new THREE.Mesh(this._getGeometryFromCache('torus_small'), ringMat);
+        gyro3.rotation.set(-Math.PI / 3.5, Math.PI / 5, -Math.PI / 4);
+        gyro3.renderOrder = renderOrder;
+        group.add(gyro3);
+
+        // Orbiting stability spark (bright white-gold energy)
         const spark = new THREE.Mesh(this._getGeometryFromCache('sphere_spark'), sparkMat);
+        spark.scale.setScalar(1.2);
         spark.renderOrder = renderOrder;
         group.add(spark);
 
-        group.userData.orbit1 = orbit1;
-        group.userData.orbit2 = orbit2;
+        group.userData.orbit1 = gyro1;
+        group.userData.orbit2 = gyro2;
         group.userData.spark = spark;
-        group.userData.sparkOrbitRadius = orbit1.geometry.parameters.radius * size;
+        group.userData.sparkOrbitRadius = 0.26 * size;
+        group.userData.stabilityGyros = [gyro1, gyro2, gyro3];
         return group;
     }
 

@@ -2343,7 +2343,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
     
     // ========== ULTRA NODE EDITION: Node data with all systems ==========
+    const existingNodeUserData = nodeModel.userData || {};
     nodeModel.userData = {
+      ...existingNodeUserData,
       category: safeCategory,  // Use validated/redirected category
       requestedCategory: category,  // Store original request for debugging
       categoryValidation: {
@@ -2369,6 +2371,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       vfxHolo: null,
       vfxRings: orbitRings,
       layerColors: layerColors,
+      selectionAura: existingNodeUserData.selectionAuraGroup || existingNodeUserData.selectionAura || null,
+      selectionAuraGroup: existingNodeUserData.selectionAuraGroup || existingNodeUserData.selectionAura || null,
+      selectionAuraMesh: existingNodeUserData.selectionAuraRing || existingNodeUserData.selectionAuraMesh || null,
+      selectionAuraRing: existingNodeUserData.selectionAuraRing || existingNodeUserData.selectionAuraMesh || null,
       
       // ULTRA EDITION: Multi-Core System
       ultraMode: true,
@@ -2922,14 +2928,49 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
     
     // ========== ULTRA EDITION: NODE HIGHLIGHT ON HOVER ==========
-    if (data.ultraMode) {
-      // Smooth hover boost
-      if (data.hoveredState) {
-        data.hoverBoost = Math.min(data.hoverBoost + deltaTime * 3, 0.3);
-      } else {
-        data.hoverBoost = Math.max(data.hoverBoost - deltaTime * 3, 0);
+    const selectionAura = data.selectionAura || data.selectionAuraGroup || null;
+    const selectionAuraMesh =
+      data.selectionAuraMesh ||
+      selectionAura?.userData?.selectionAuraRing ||
+      selectionAura?.children?.find((child) => child?.isMesh) ||
+      null;
+    const setSelectionAuraState = (visible, opacity = 0) => {
+      if (!selectionAura) return;
+      selectionAura.visible = visible;
+      if (selectionAuraMesh?.material) {
+        selectionAuraMesh.material.opacity = visible ? opacity : 0;
       }
-      
+      if (visible) {
+        const pulse = 1 + Math.sin(time * 5.2) * 0.025;
+        selectionAura.scale.setScalar(pulse);
+        if (selectionAuraMesh) {
+          selectionAuraMesh.rotation.z += deltaTime * 0.6;
+        }
+      } else {
+        selectionAura.scale.setScalar(1);
+      }
+    };
+    const applySelectedAura = () => {
+      setSelectionAuraState(true, 0.68);
+      data.hoverBoost = Math.max((data.hoverBoost || 0) - deltaTime * 4, 0);
+    };
+    const applyHoverBoost = () => {
+      data.hoverBoost = Math.min((data.hoverBoost || 0) + deltaTime * 3, 0.3);
+      setSelectionAuraState(false);
+    };
+    const isSelected = data.isSelected === true || node.userData?.isSelected === true;
+    const isHovered = data.hoveredState === true;
+
+    if (isSelected) {
+      applySelectedAura();
+    } else if (isHovered) {
+      applyHoverBoost();
+    } else {
+      setSelectionAuraState(false);
+      data.hoverBoost = Math.max((data.hoverBoost || 0) - deltaTime * 3, 0);
+    }
+
+    if (data.ultraMode) {
       // NOTE: Core meshes removed; hover feedback limited to aura/overlay meshes
       if (data.vfxGlow && !data.vfxGlow.userData?.neutralized) {
         if (data.originalGlowOpacity === undefined) {

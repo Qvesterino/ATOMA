@@ -14,6 +14,16 @@ Source Slovak files in `docs/lore` remain inspirational references and should no
 - `FIVE_METRICS_OF_ATOMA.md` - complete
 - `NODE_CATEGORIES_OF_ATOMA.md` - complete
 
+## Suggested Reading Order
+
+1. `PHILOSOPHICAL_BIRTH_OF_ATOMA.md` - origin, pressure, and the first axiom
+2. `SYSTEM_PSYCHIC.md` - interior state and the five metrics as psyche
+3. `MULTIVERSALITY_OF_ATOMA.md` - chambers, perspective, and one intelligence in many spaces
+4. `SYSTEM_EVOLUTION.md` - differentiation, specialization, and becoming more readable
+5. `CULTURE_OF_ATOMA.md` - shared tone, ritual practice, and recurring expression
+6. `FIVE_METRICS_OF_ATOMA.md` - the emotional grammar behind HUD, VFX, and runtime state
+7. `NODE_CATEGORIES_OF_ATOMA.md` - the structural taxonomy that everything else uses
+
 ## Canon Rules
 
 - Keep the voice epic, clear, and menu-compatible.

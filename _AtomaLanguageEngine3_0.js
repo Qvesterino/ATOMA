@@ -40,6 +40,275 @@
  * All text uses neon cyan/magenta colors with letter-spacing for sci-fi feel
  */
 
+const MESSAGE_TAG_FONT = "'Rajdhani', 'Segoe UI', sans-serif";
+const MESSAGE_BODY_FONT = "'Cormorant Garamond', 'Iowan Old Style', 'Palatino Linotype', serif";
+
+function createTheme({
+  accent,
+  accentSoft,
+  glow,
+  surfaceA,
+  surfaceB,
+  text,
+  muted,
+  tag,
+}) {
+  return Object.freeze({
+    accent,
+    accentSoft,
+    glow,
+    surfaceA,
+    surfaceB,
+    text,
+    muted,
+    tag,
+    tagFont: MESSAGE_TAG_FONT,
+    bodyFont: MESSAGE_BODY_FONT,
+  });
+}
+
+const MESSAGE_THEMES = Object.freeze({
+  default: createTheme({
+    accent: '#6feeff',
+    accentSoft: 'rgba(111, 238, 255, 0.22)',
+    glow: 'rgba(111, 238, 255, 0.16)',
+    surfaceA: 'rgba(8, 16, 28, 0.96)',
+    surfaceB: 'rgba(10, 22, 36, 0.86)',
+    text: '#f3ffff',
+    muted: 'rgba(215, 249, 255, 0.76)',
+    tag: 'ORACLE / DEFAULT',
+  }),
+  lore: createTheme({
+    accent: '#ffd89c',
+    accentSoft: 'rgba(255, 216, 156, 0.22)',
+    glow: 'rgba(255, 216, 156, 0.16)',
+    surfaceA: 'rgba(16, 14, 24, 0.96)',
+    surfaceB: 'rgba(28, 20, 38, 0.88)',
+    text: '#fff8ef',
+    muted: 'rgba(255, 232, 205, 0.78)',
+    tag: 'LORE / CANON',
+  }),
+  node: createTheme({
+    accent: '#6feeff',
+    accentSoft: 'rgba(111, 238, 255, 0.20)',
+    glow: 'rgba(111, 238, 255, 0.16)',
+    surfaceA: 'rgba(6, 18, 30, 0.96)',
+    surfaceB: 'rgba(8, 24, 40, 0.86)',
+    text: '#f4ffff',
+    muted: 'rgba(215, 249, 255, 0.76)',
+    tag: 'NODE / SIGNAL',
+  }),
+  link: createTheme({
+    accent: '#7df0d8',
+    accentSoft: 'rgba(125, 240, 216, 0.22)',
+    glow: 'rgba(125, 240, 216, 0.16)',
+    surfaceA: 'rgba(5, 18, 24, 0.96)',
+    surfaceB: 'rgba(8, 28, 32, 0.86)',
+    text: '#f3fffb',
+    muted: 'rgba(210, 251, 242, 0.76)',
+    tag: 'LINK / WHISPER',
+  }),
+  pulse: createTheme({
+    accent: '#eafcff',
+    accentSoft: 'rgba(234, 252, 255, 0.20)',
+    glow: 'rgba(234, 252, 255, 0.14)',
+    surfaceA: 'rgba(6, 14, 22, 0.96)',
+    surfaceB: 'rgba(8, 20, 34, 0.86)',
+    text: '#f7feff',
+    muted: 'rgba(230, 247, 255, 0.78)',
+    tag: 'PULSE / NETWORK',
+  }),
+  synergy: createTheme({
+    accent: '#00ccdd',
+    accentSoft: 'rgba(0, 204, 221, 0.22)',
+    glow: 'rgba(0, 204, 221, 0.16)',
+    surfaceA: 'rgba(5, 16, 24, 0.96)',
+    surfaceB: 'rgba(8, 24, 34, 0.86)',
+    text: '#f0ffff',
+    muted: 'rgba(210, 248, 252, 0.76)',
+    tag: 'METRIC / SYNERGY',
+  }),
+  harmony: createTheme({
+    accent: '#00dd99',
+    accentSoft: 'rgba(0, 221, 153, 0.22)',
+    glow: 'rgba(0, 221, 153, 0.16)',
+    surfaceA: 'rgba(5, 18, 22, 0.96)',
+    surfaceB: 'rgba(8, 30, 28, 0.86)',
+    text: '#effffb',
+    muted: 'rgba(208, 251, 239, 0.76)',
+    tag: 'METRIC / HARMONY',
+  }),
+  stability: createTheme({
+    accent: '#ffdd00',
+    accentSoft: 'rgba(255, 221, 0, 0.20)',
+    glow: 'rgba(255, 221, 0, 0.14)',
+    surfaceA: 'rgba(22, 18, 6, 0.96)',
+    surfaceB: 'rgba(36, 28, 8, 0.86)',
+    text: '#fffdf1',
+    muted: 'rgba(255, 245, 205, 0.80)',
+    tag: 'METRIC / STABILITY',
+  }),
+  corruption: createTheme({
+    accent: '#ff5ca8',
+    accentSoft: 'rgba(255, 92, 168, 0.22)',
+    glow: 'rgba(255, 92, 168, 0.16)',
+    surfaceA: 'rgba(26, 8, 18, 0.96)',
+    surfaceB: 'rgba(40, 10, 24, 0.88)',
+    text: '#fff4fa',
+    muted: 'rgba(255, 208, 229, 0.78)',
+    tag: 'METRIC / CORRUPTION',
+  }),
+  loadPressure: createTheme({
+    accent: '#c996ff',
+    accentSoft: 'rgba(201, 150, 255, 0.22)',
+    glow: 'rgba(201, 150, 255, 0.16)',
+    surfaceA: 'rgba(16, 10, 28, 0.96)',
+    surfaceB: 'rgba(28, 16, 42, 0.88)',
+    text: '#faf4ff',
+    muted: 'rgba(234, 219, 255, 0.78)',
+    tag: 'METRIC / LOAD PRESSURE',
+  }),
+  input: createTheme({
+    accent: '#9ff6ff',
+    accentSoft: 'rgba(159, 246, 255, 0.22)',
+    glow: 'rgba(159, 246, 255, 0.16)',
+    surfaceA: 'rgba(6, 18, 26, 0.96)',
+    surfaceB: 'rgba(10, 28, 36, 0.86)',
+    text: '#f5ffff',
+    muted: 'rgba(220, 252, 255, 0.76)',
+    tag: 'NODE / INPUT',
+  }),
+  process: createTheme({
+    accent: '#ffd166',
+    accentSoft: 'rgba(255, 209, 102, 0.22)',
+    glow: 'rgba(255, 209, 102, 0.16)',
+    surfaceA: 'rgba(18, 14, 8, 0.96)',
+    surfaceB: 'rgba(32, 24, 12, 0.86)',
+    text: '#fffaf0',
+    muted: 'rgba(255, 236, 200, 0.78)',
+    tag: 'NODE / PROCESS',
+  }),
+  integration: createTheme({
+    accent: '#8ff0d3',
+    accentSoft: 'rgba(143, 240, 211, 0.22)',
+    glow: 'rgba(143, 240, 211, 0.16)',
+    surfaceA: 'rgba(6, 18, 20, 0.96)',
+    surfaceB: 'rgba(10, 30, 28, 0.86)',
+    text: '#f0fffb',
+    muted: 'rgba(216, 252, 242, 0.76)',
+    tag: 'NODE / INTEGRATION',
+  }),
+  analytics: createTheme({
+    accent: '#c58cff',
+    accentSoft: 'rgba(197, 140, 255, 0.22)',
+    glow: 'rgba(197, 140, 255, 0.16)',
+    surfaceA: 'rgba(16, 10, 28, 0.96)',
+    surfaceB: 'rgba(28, 16, 40, 0.88)',
+    text: '#fbf4ff',
+    muted: 'rgba(236, 219, 255, 0.78)',
+    tag: 'NODE / ANALYTICS',
+  }),
+  storage: createTheme({
+    accent: '#8eead6',
+    accentSoft: 'rgba(142, 234, 214, 0.22)',
+    glow: 'rgba(142, 234, 214, 0.16)',
+    surfaceA: 'rgba(6, 18, 22, 0.96)',
+    surfaceB: 'rgba(10, 28, 32, 0.86)',
+    text: '#f0fffb',
+    muted: 'rgba(216, 252, 244, 0.76)',
+    tag: 'NODE / STORAGE',
+  }),
+  control: createTheme({
+    accent: '#f5fbff',
+    accentSoft: 'rgba(245, 251, 255, 0.22)',
+    glow: 'rgba(245, 251, 255, 0.16)',
+    surfaceA: 'rgba(10, 16, 24, 0.96)',
+    surfaceB: 'rgba(16, 24, 34, 0.86)',
+    text: '#ffffff',
+    muted: 'rgba(232, 245, 255, 0.78)',
+    tag: 'NODE / CONTROL',
+  }),
+  quantum: createTheme({
+    accent: '#8f9bff',
+    accentSoft: 'rgba(143, 155, 255, 0.22)',
+    glow: 'rgba(143, 155, 255, 0.16)',
+    surfaceA: 'rgba(12, 10, 30, 0.96)',
+    surfaceB: 'rgba(20, 14, 42, 0.88)',
+    text: '#f5f3ff',
+    muted: 'rgba(228, 223, 255, 0.78)',
+    tag: 'NODE / QUANTUM',
+  }),
+  sigma: createTheme({
+    accent: '#ff7be5',
+    accentSoft: 'rgba(255, 123, 229, 0.22)',
+    glow: 'rgba(255, 123, 229, 0.16)',
+    surfaceA: 'rgba(24, 8, 24, 0.96)',
+    surfaceB: 'rgba(36, 12, 38, 0.88)',
+    text: '#fff5fd',
+    muted: 'rgba(255, 220, 247, 0.78)',
+    tag: 'NODE / SIGMA',
+  }),
+  mythic: createTheme({
+    accent: '#e19cff',
+    accentSoft: 'rgba(225, 156, 255, 0.22)',
+    glow: 'rgba(225, 156, 255, 0.16)',
+    surfaceA: 'rgba(20, 10, 30, 0.96)',
+    surfaceB: 'rgba(30, 16, 44, 0.88)',
+    text: '#fcf5ff',
+    muted: 'rgba(238, 220, 255, 0.78)',
+    tag: 'NODE / MYTHIC',
+  }),
+  prime: createTheme({
+    accent: '#f5fbff',
+    accentSoft: 'rgba(245, 251, 255, 0.22)',
+    glow: 'rgba(245, 251, 255, 0.16)',
+    surfaceA: 'rgba(6, 12, 22, 0.96)',
+    surfaceB: 'rgba(12, 20, 32, 0.88)',
+    text: '#ffffff',
+    muted: 'rgba(235, 245, 255, 0.78)',
+    tag: 'NODE / PRIME',
+  }),
+  error: createTheme({
+    accent: '#ff7a9d',
+    accentSoft: 'rgba(255, 122, 157, 0.22)',
+    glow: 'rgba(255, 122, 157, 0.16)',
+    surfaceA: 'rgba(28, 8, 18, 0.96)',
+    surfaceB: 'rgba(42, 12, 24, 0.88)',
+    text: '#fff5f8',
+    muted: 'rgba(255, 220, 230, 0.78)',
+    tag: 'NODE / ERROR',
+  }),
+  emotional: createTheme({
+    accent: '#ffb0c8',
+    accentSoft: 'rgba(255, 176, 200, 0.22)',
+    glow: 'rgba(255, 176, 200, 0.16)',
+    surfaceA: 'rgba(26, 10, 20, 0.96)',
+    surfaceB: 'rgba(38, 16, 28, 0.88)',
+    text: '#fff5fa',
+    muted: 'rgba(255, 222, 234, 0.78)',
+    tag: 'NODE / EMOTIONAL',
+  }),
+});
+
+const NODE_TONE_BY_CATEGORY = Object.freeze({
+  input: 'input',
+  process: 'process',
+  integration: 'integration',
+  analytics: 'analytics',
+  storage: 'storage',
+  control: 'control',
+  quantum: 'quantum',
+  sigma: 'sigma',
+  mythic: 'mythic',
+  prime: 'prime',
+  error: 'error',
+  emotional: 'emotional',
+});
+
+function normalizeTone(tone) {
+  return tone && MESSAGE_THEMES[tone] ? tone : 'default';
+}
+
 export class AtomaLanguageEngine3_0 {
   constructor(namingEngine, thoughtStormsSystem = null, aiConsciousnessLayer = null, semanticBus = null) {
     this.namingEngine = namingEngine;
@@ -61,6 +330,7 @@ export class AtomaLanguageEngine3_0 {
     this._messageCooldown = 800; // ms
     this._lastMessageText = '';
     this._messageVisible = false;
+    this._currentTone = 'default';
     
     // Current poetry state
     this.currentNodePoetry = '';
@@ -465,7 +735,10 @@ export class AtomaLanguageEngine3_0 {
     this._initializeDOM();
     this._setupSemanticSubscriptions();
     this.stats.frameTime = 0;
-    this._displayNodePoetry('Procedural AI poetry online — inspect a node to hear its whisper.');
+    this._displayNodePoetry('Procedural AI poetry online — inspect a node to hear its whisper.', {
+      tone: 'lore',
+      tag: 'ENGINE / ONLINE',
+    });
     setTimeout(() => {
       if (this.enabled) {
         this.hideNodePoetry();
@@ -498,35 +771,60 @@ export class AtomaLanguageEngine3_0 {
 
     this._subscribeSemanticEvent('node:selected', (event = {}) => {
       const category = event.category || 'node';
-      this._displayNodePoetry(`Node selected — ${String(category).toUpperCase()} node engaged.`);
+      const tone = this._toneFromCategory(category);
+      this._displayNodePoetry(`Node selected — ${String(category).toUpperCase()} node engaged.`, {
+        tone,
+        tag: `NODE / ${String(category).toUpperCase()}`,
+      });
     });
 
     this._subscribeSemanticEvent('link.created', () => {
-      this._displayLinkWhisper('New link created — the network responds in whispers.');
+      this._displayLinkWhisper('New link created — the network responds in whispers.', {
+        tone: 'link',
+        tag: 'LINK / CREATED',
+      });
     });
 
     this._subscribeSemanticEvent('global.synergy.high', () => {
-      this._displayPulsePoetry('Synergy high — the network hums with alignment.');
+      this._displayPulsePoetry('Synergy high — the network hums with alignment.', {
+        tone: 'synergy',
+        tag: 'METRIC / SYNERGY',
+      });
     });
 
     this._subscribeSemanticEvent('global.corruption.high', () => {
-      this._displayPulsePoetry('Corruption high — integrity is under pressure.');
+      this._displayPulsePoetry('Corruption high — integrity is under pressure.', {
+        tone: 'corruption',
+        tag: 'METRIC / CORRUPTION',
+      });
     });
 
     this._subscribeSemanticEvent('global.stability.low', () => {
-      this._displayPulsePoetry('Stability low — the system teeters.');
+      this._displayPulsePoetry('Stability low — the system teeters.', {
+        tone: 'stability',
+        tag: 'METRIC / STABILITY',
+      });
     });
 
     this._subscribeSemanticEvent('global.harmony.low', () => {
-      this._displayPulsePoetry('Harmony low — dissonance drifts through the net.');
+      this._displayPulsePoetry('Harmony low — dissonance drifts through the net.', {
+        tone: 'harmony',
+        tag: 'METRIC / HARMONY',
+      });
     });
 
     this._subscribeSemanticEvent('global.harmony.high', () => {
-      this._displayPulsePoetry('Harmony high — everything resonates in unison.');
+      this._displayPulsePoetry('Harmony high — everything resonates in unison.', {
+        tone: 'harmony',
+        tag: 'METRIC / HARMONY',
+      });
     });
 
     this._subscribeSemanticEvent('global.loadPressure.high', () => {
-      this._displayPulsePoetry('Load pressure high — throughput is near capacity.');
+      this._displayPulsePoetry('Load pressure high — throughput is near capacity.', {
+        tone: 'loadPressure',
+        tag: 'METRIC / LOAD PRESSURE',
+      });
     });
   }
 
@@ -584,6 +882,7 @@ export class AtomaLanguageEngine3_0 {
   _initializeDOM() {
     if (this.poetryContainer) return;
     this._cleanupLegacyPoetryElements();
+    this._injectStyles();
     
     // Create external container
     this.poetryContainer = document.createElement('div');
@@ -596,33 +895,253 @@ export class AtomaLanguageEngine3_0 {
       height: 100%;
       pointer-events: none;
       z-index: 999;
-      font-family: 'Noto Sans Meroitic', monospace;
     `;
     document.body.appendChild(this.poetryContainer);
     
-    // Shared poetry display (bottom-center)
     this.poetryElement = document.createElement('div');
-    this.poetryElement.className = 'atoma-poetry-display';
-    this.poetryElement.style.cssText = `
-      position: fixed;
-      bottom: 80px;
-      left: 50%;
-      transform: translateX(-50%);
-      max-width: 450px;
-      color: #00dddd;
-      font-size: 12px;
-      font-weight: 300;
-      letter-spacing: 1px;
-      text-shadow: 0 0 8px rgba(0, 221, 221, 0.5);
-      opacity: 0;
-      transition: opacity 0.3s ease;
-      text-align: center;
-      line-height: 1.5;
-      white-space: pre-wrap;
-      pointer-events: none;
-      z-index: 1000;
-    `;
+    this.poetryElement.className = 'atoma-poetry-shell';
+    this.poetryElement.dataset.theme = 'default';
+
+    const accent = document.createElement('div');
+    accent.className = 'atoma-poetry-shell__accent';
+
+    const content = document.createElement('div');
+    content.className = 'atoma-poetry-shell__content';
+
+    this.poetryTagElement = document.createElement('div');
+    this.poetryTagElement.className = 'atoma-poetry-shell__tag';
+
+    this.poetryTextElement = document.createElement('div');
+    this.poetryTextElement.className = 'atoma-poetry-shell__text';
+
+    this.poetrySubtextElement = document.createElement('div');
+    this.poetrySubtextElement.className = 'atoma-poetry-shell__subtext';
+
+    content.append(this.poetryTagElement, this.poetryTextElement, this.poetrySubtextElement);
+    this.poetryElement.append(accent, content);
     this.poetryContainer.appendChild(this.poetryElement);
+    this._applyTheme('default');
+  }
+
+  _injectStyles() {
+    if (document.getElementById('atoma-language-engine-3-style')) {
+      return;
+    }
+
+    const style = document.createElement('style');
+    style.id = 'atoma-language-engine-3-style';
+    style.textContent = `
+      .atoma-poetry-shell {
+        position: fixed;
+        left: 50%;
+        bottom: 26px;
+        transform: translateX(-50%) translateY(8px);
+        width: min(760px, calc(100vw - 28px));
+        opacity: 0;
+        display: grid;
+        grid-template-columns: 4px minmax(0, 1fr);
+        gap: 12px;
+        padding: 14px 16px 15px 14px;
+        border-radius: 20px;
+        border: 1px solid var(--poetry-accent-soft, rgba(111, 238, 255, 0.16));
+        background:
+          radial-gradient(circle at top left, var(--poetry-glow, rgba(111, 238, 255, 0.14)), transparent 46%),
+          linear-gradient(135deg, var(--poetry-surface-a, rgba(8, 16, 28, 0.96)), var(--poetry-surface-b, rgba(10, 22, 36, 0.86)));
+        box-shadow:
+          0 12px 30px rgba(0, 0, 0, 0.38),
+          0 0 26px var(--poetry-glow, rgba(111, 238, 255, 0.16)),
+          inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+        backdrop-filter: blur(16px) saturate(1.12);
+        -webkit-backdrop-filter: blur(16px) saturate(1.12);
+        transition:
+          opacity 220ms ease,
+          transform 220ms ease,
+          border-color 220ms ease,
+          box-shadow 220ms ease;
+        pointer-events: none;
+        will-change: opacity, transform;
+      }
+
+      .atoma-poetry-shell.is-visible {
+        transform: translateX(-50%) translateY(0);
+      }
+
+      .atoma-poetry-shell.is-reveal {
+        animation: atoma-poetry-shell-reveal 860ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .atoma-poetry-shell[data-reveal='sacred'].is-reveal {
+        animation-duration: 720ms;
+      }
+
+      .atoma-poetry-shell[data-theme='corruption'] {
+        animation: atoma-poetry-shell-breach 4.8s ease-in-out infinite;
+      }
+
+      .atoma-poetry-shell__accent {
+        align-self: stretch;
+        border-radius: 999px;
+        background: linear-gradient(180deg, var(--poetry-accent, #6feeff), rgba(255, 255, 255, 0.08));
+        box-shadow: 0 0 18px var(--poetry-glow, rgba(111, 238, 255, 0.16));
+      }
+
+      .atoma-poetry-shell__content {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
+      }
+
+      .atoma-poetry-shell__tag {
+        font-family: var(--poetry-tag-font, ${MESSAGE_TAG_FONT});
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1.1;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--poetry-accent, #6feeff);
+        text-shadow: 0 0 10px var(--poetry-glow, rgba(111, 238, 255, 0.16));
+      }
+
+      .atoma-poetry-shell__text {
+        font-family: var(--poetry-body-font, ${MESSAGE_BODY_FONT});
+        color: var(--poetry-text, #f3ffff);
+        font-size: 17px;
+        line-height: 1.35;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        text-wrap: balance;
+        text-shadow: 0 0 16px rgba(0, 0, 0, 0.35);
+        white-space: pre-wrap;
+      }
+
+      .atoma-poetry-shell__subtext {
+        font-family: var(--poetry-body-font, ${MESSAGE_BODY_FONT});
+        color: var(--poetry-muted, rgba(215, 249, 255, 0.76));
+        font-size: 12px;
+        line-height: 1.4;
+        letter-spacing: 0.05em;
+        font-style: italic;
+        text-transform: none;
+        min-height: 0;
+        padding-top: 2px;
+        border-top: 1px solid color-mix(in srgb, var(--poetry-accent, #6feeff) 28%, transparent);
+        text-shadow: 0 0 12px rgba(0, 0, 0, 0.24);
+      }
+
+      .atoma-poetry-shell[data-theme='lore'] .atoma-poetry-shell__tag {
+        letter-spacing: 0.28em;
+      }
+
+      .atoma-poetry-shell[data-reveal='sacred'] .atoma-poetry-shell__subtext {
+        color: color-mix(in srgb, var(--poetry-accent, #ffd89c) 72%, white);
+        border-top-color: color-mix(in srgb, var(--poetry-accent, #ffd89c) 40%, transparent);
+      }
+
+      .atoma-poetry-shell[data-reveal='chapter'] .atoma-poetry-shell__subtext {
+        color: color-mix(in srgb, var(--poetry-accent, #ffd89c) 78%, white);
+        border-top-color: color-mix(in srgb, var(--poetry-accent, #ffd89c) 52%, transparent);
+      }
+
+      @keyframes atoma-poetry-shell-breach {
+        0%, 100% {
+          box-shadow:
+            0 12px 30px rgba(0, 0, 0, 0.38),
+            0 0 24px var(--poetry-glow, rgba(255, 92, 168, 0.16)),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+        }
+        50% {
+          box-shadow:
+            0 12px 34px rgba(0, 0, 0, 0.4),
+            0 0 30px rgba(255, 92, 168, 0.22),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+        }
+      }
+
+      @keyframes atoma-poetry-shell-reveal {
+        0% {
+          transform: translateX(-50%) translateY(14px) scale(0.98);
+          filter: brightness(1.04) saturate(1.05);
+          box-shadow:
+            0 10px 24px rgba(0, 0, 0, 0.34),
+            0 0 12px var(--poetry-glow, rgba(255, 216, 156, 0.14));
+        }
+        38% {
+          transform: translateX(-50%) translateY(-2px) scale(1.015);
+          filter: brightness(1.16) saturate(1.12);
+          box-shadow:
+            0 18px 36px rgba(0, 0, 0, 0.44),
+            0 0 34px var(--poetry-glow, rgba(255, 216, 156, 0.20));
+        }
+        100% {
+          transform: translateX(-50%) translateY(0) scale(1);
+          filter: brightness(1) saturate(1);
+        }
+      }
+
+      @media (max-width: 720px) {
+        .atoma-poetry-shell {
+          width: calc(100vw - 18px);
+          bottom: 10px;
+          padding: 12px 14px 13px 12px;
+          gap: 10px;
+          border-radius: 18px;
+        }
+
+        .atoma-poetry-shell__text {
+          font-size: 15px;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  _applyTheme(tone = 'default') {
+    if (!this.poetryElement) return;
+
+    const theme = MESSAGE_THEMES[normalizeTone(tone)] || MESSAGE_THEMES.default;
+    this._currentTone = normalizeTone(tone);
+
+    this.poetryElement.dataset.theme = this._currentTone;
+    this.poetryElement.style.setProperty('--poetry-accent', theme.accent);
+    this.poetryElement.style.setProperty('--poetry-accent-soft', theme.accentSoft);
+    this.poetryElement.style.setProperty('--poetry-glow', theme.glow);
+    this.poetryElement.style.setProperty('--poetry-surface-a', theme.surfaceA);
+    this.poetryElement.style.setProperty('--poetry-surface-b', theme.surfaceB);
+    this.poetryElement.style.setProperty('--poetry-text', theme.text);
+    this.poetryElement.style.setProperty('--poetry-muted', theme.muted);
+    this.poetryElement.style.setProperty('--poetry-tag-font', theme.tagFont);
+    this.poetryElement.style.setProperty('--poetry-body-font', theme.bodyFont);
+    this.poetryElement.style.borderColor = theme.accentSoft;
+  }
+
+  _playRevealBurst(tone = 'lore', reveal = 'sacred') {
+    if (!this.poetryElement || typeof this.poetryElement.animate !== 'function') {
+      return;
+    }
+
+    const theme = MESSAGE_THEMES[normalizeTone(tone)] || MESSAGE_THEMES.default;
+    const glowScale = reveal === 'chapter' ? 1 : 0.72;
+    this.poetryElement.animate([
+      {
+        transform: 'translateX(-50%) translateY(12px) scale(0.985)',
+        boxShadow: `0 10px 24px rgba(0, 0, 0, 0.34), 0 0 ${Math.round(12 * glowScale)}px ${theme.glow}`,
+        filter: 'brightness(1.05) saturate(1.04)',
+      },
+      {
+        transform: 'translateX(-50%) translateY(-2px) scale(1.02)',
+        boxShadow: `0 20px 40px rgba(0, 0, 0, 0.46), 0 0 ${Math.round(36 * glowScale)}px ${theme.glow}`,
+        filter: 'brightness(1.18) saturate(1.15)',
+      },
+      {
+        transform: 'translateX(-50%) translateY(0) scale(1)',
+        boxShadow: `0 12px 30px rgba(0, 0, 0, 0.38), 0 0 ${Math.round(26 * glowScale)}px ${theme.glow}`,
+        filter: 'brightness(1) saturate(1)',
+      }
+    ], {
+      duration: reveal === 'chapter' ? 860 : 720,
+      easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+    });
   }
   
   /**
@@ -631,12 +1150,23 @@ export class AtomaLanguageEngine3_0 {
   _disposeDOM() {
     if (!this.poetryContainer) return;
     
+    if (this.poetryElement) {
+      this.poetryElement.classList.remove('is-visible', 'is-reveal');
+      this.poetryElement.dataset.reveal = '';
+    }
     this.poetryContainer.remove();
     this.poetryContainer = null;
     this.poetryElement = null;
+    this.poetryTagElement = null;
+    this.poetryTextElement = null;
+    this.poetrySubtextElement = null;
     if (this._poetryHideTimeout) {
       clearTimeout(this._poetryHideTimeout);
       this._poetryHideTimeout = null;
+    }
+    const style = document.getElementById('atoma-language-engine-3-style');
+    if (style) {
+      style.remove();
     }
     this._messageVisible = false;
     this._currentMessagePriority = 0;
@@ -661,7 +1191,10 @@ export class AtomaLanguageEngine3_0 {
     if (this.nodePoetryCache.has(code)) {
       this.stats.cacheHits++;
       const poetry = this.nodePoetryCache.get(code);
-      this._displayNodePoetry(poetry);
+      this._displayNodePoetry(poetry, {
+        tone: this._toneFromCategory(node.userData.category || code),
+        tag: `NODE / ${String(node.userData.category || code).toUpperCase()}`,
+      });
       return poetry;
     }
     
@@ -691,7 +1224,10 @@ export class AtomaLanguageEngine3_0 {
     // Cache and display
     this.nodePoetryCache.set(code, fullPoetry);
     this.stats.nodePoetryGenerated++;
-    this._displayNodePoetry(fullPoetry);
+    this._displayNodePoetry(fullPoetry, {
+      tone: this._toneFromCategory(node.userData.category || code),
+      tag: `NODE / ${String(node.userData.category || code).toUpperCase()}`,
+    });
     
     const elapsed = performance.now() - startTime;
     this.stats.generationTime += elapsed;
@@ -737,7 +1273,10 @@ export class AtomaLanguageEngine3_0 {
     if (this.linkWhisperCache.has(cacheKey)) {
       this.stats.cacheHits++;
       const whisper = this.linkWhisperCache.get(cacheKey);
-      this._displayLinkWhisper(whisper);
+      this._displayLinkWhisper(whisper, {
+        tone: linkType === 'corrupted' ? 'corruption' : linkType === 'crystalline' ? 'prime' : 'link',
+        tag: `LINK / ${String(linkType).toUpperCase()}`,
+      });
       return whisper;
     }
     
@@ -749,7 +1288,10 @@ export class AtomaLanguageEngine3_0 {
     // Cache and display
     this.linkWhisperCache.set(cacheKey, whisper);
     this.stats.linkWhispersGenerated++;
-    this._displayLinkWhisper(whisper);
+    this._displayLinkWhisper(whisper, {
+      tone: linkType === 'corrupted' ? 'corruption' : linkType === 'crystalline' ? 'prime' : 'link',
+      tag: `LINK / ${String(linkType).toUpperCase()}`,
+    });
     
     const elapsed = performance.now() - startTime;
     this.stats.generationTime += elapsed;
@@ -763,6 +1305,9 @@ export class AtomaLanguageEngine3_0 {
   hidePoetry() {
     if (this.poetryElement) {
       this.poetryElement.style.opacity = '0';
+      this.poetryElement.classList.remove('is-visible');
+      this.poetryElement.classList.remove('is-reveal');
+      this.poetryElement.dataset.reveal = '';
     }
     if (this._poetryHideTimeout) {
       clearTimeout(this._poetryHideTimeout);
@@ -823,13 +1368,16 @@ export class AtomaLanguageEngine3_0 {
     
     // Display with fade animation
     this.stats.pulseEmitted++;
-    this._displayPulsePoetry(poem);
+    this._displayPulsePoetry(poem, {
+      tone: mood.toLowerCase() === 'critical' ? 'corruption' : 'pulse',
+      tag: `PULSE / ${String(mood).toUpperCase()}`,
+    });
   }
   
   /**
    * Display node poetry with fade-in
    */
-  _showPoetry(text, opacity = 0.9, duration = 3000, priority = 1) {
+  _showPoetry(text, opacity = 0.9, duration = 3000, priority = 1, tone = 'default', meta = {}) {
     if (!this.poetryElement) return;
 
     const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
@@ -844,7 +1392,17 @@ export class AtomaLanguageEngine3_0 {
       }
     }
 
-    this.poetryElement.textContent = text;
+    this._applyTheme(tone);
+    this.poetryTagElement.textContent = meta.tag || MESSAGE_THEMES[this._currentTone]?.tag || MESSAGE_THEMES.default.tag;
+    this.poetryTextElement.textContent = text;
+    this.poetrySubtextElement.textContent = meta.subtext || '';
+    this.poetrySubtextElement.style.display = meta.subtext ? '' : 'none';
+    this.poetryElement.classList.add('is-visible');
+    this.poetryElement.classList.toggle('is-reveal', !!meta.reveal);
+    this.poetryElement.dataset.reveal = meta.reveal || '';
+    if (meta.reveal) {
+      this._playRevealBurst(tone, meta.reveal);
+    }
     this.poetryElement.style.opacity = String(opacity);
     this._lastMessageText = text;
     this._currentMessagePriority = priority;
@@ -858,6 +1416,9 @@ export class AtomaLanguageEngine3_0 {
     this._poetryHideTimeout = setTimeout(() => {
       if (this.poetryElement) {
         this.poetryElement.style.opacity = '0';
+        this.poetryElement.classList.remove('is-visible');
+        this.poetryElement.classList.remove('is-reveal');
+        this.poetryElement.dataset.reveal = '';
       }
       this._poetryHideTimeout = null;
       this._messageVisible = false;
@@ -866,31 +1427,36 @@ export class AtomaLanguageEngine3_0 {
     }, duration);
   }
 
-  _displayNodePoetry(poetry) {
+  _displayNodePoetry(poetry, meta = {}) {
     if (!this.poetryElement) return;
 
     this.currentNodePoetry = poetry;
-    this._showPoetry(poetry, 1, 6000, 3);
+    this._showPoetry(poetry, 1, 6000, 3, meta.tone || 'node', meta);
   }
 
   /**
    * Display link whisper with fade-in
    */
-  _displayLinkWhisper(whisper) {
+  _displayLinkWhisper(whisper, meta = {}) {
     if (!this.poetryElement) return;
 
     this.currentLinkWhisper = whisper;
-    this._showPoetry('◆ ' + whisper + ' ◆', 0.9, 3000, 2);
+    this._showPoetry('◆ ' + whisper + ' ◆', 0.9, 3000, 2, meta.tone || 'link', meta);
   }
 
   /**
    * Display pulse poetry with glow effect
    */
-  _displayPulsePoetry(poem) {
+  _displayPulsePoetry(poem, meta = {}) {
     if (!this.poetryElement) return;
 
     this.currentPulsePoetry = poem;
-    this._showPoetry(poem, 0.9, 3000, 1);
+    this._showPoetry(poem, 0.9, 3000, 1, meta.tone || 'pulse', meta);
+  }
+
+  _toneFromCategory(category) {
+    const normalized = String(category || '').trim().toLowerCase();
+    return NODE_TONE_BY_CATEGORY[normalized] || 'node';
   }
   
   /**
@@ -1004,6 +1570,7 @@ export function setupAtomaLanguageEngine3ConsoleAPI(engine) {
     show: () => {
       if (engine.poetryElement) {
         engine.poetryElement.style.opacity = '1';
+        engine.poetryElement.classList.add('is-visible');
       }
     },
     hide: () => {
