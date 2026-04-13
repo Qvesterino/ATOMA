@@ -107,11 +107,21 @@ export function createLinkAuraMaterial(config = {}) {
     uniform float uBlendZoneRadius;   // Smooth fade distance at node endpoints
     uniform vec3 uNodePositionA;      // Source node center (world space)
     uniform vec3 uNodePositionB;      // Target node center (world space)
+    uniform float u_rippleIntensity;
+    uniform float u_ripplesActive;
+    uniform float u_rippleSaturation;
+    uniform float u_ripplePhase;
+    uniform float u_rippleEnergy;
+    uniform float u_rippleLength;
+    uniform float u_rippleVisibility;
+    uniform float u_rippleBandCount;
     
     varying vec3 vNormal;
     varying vec3 vPosition;
     varying float vDisplacementFactor;
     varying float vBlendFactor;       // Blend fade [0-1] near nodes
+    varying float vRippleCoord;
+    varying float vRippleWave;
     
     // ========================================================================
     // SHARED NOISE FUNCTION - CANONICAL (MATCHES NodeAuraShader)
@@ -271,6 +281,15 @@ export function createLinkAuraMaterial(config = {}) {
       // Within blend radius, smoothly fade to 0
       // Outside blend radius, full 1.0
       vBlendFactor = smoothstep(0.0, uBlendZoneRadius, minDistToNode);
+
+      vec3 linkDirection = normalize(uLinkDirection);
+      float linkLength = max(distance(uNodePositionA, uNodePositionB), 0.0001);
+      float linkCoord = clamp(dot(worldPos - uNodePositionA, linkDirection) / linkLength, 0.0, 1.0);
+      float rippleBandCount = max(2.0, u_rippleBandCount);
+      float ripplePhase = (u_ripplePhase * 0.18) + (uTime * 0.14);
+      float rippleLengthFactor = clamp(12.0 / max(1.0, u_rippleLength), 0.75, 1.25);
+      vRippleCoord = linkCoord;
+      vRippleWave = sin((linkCoord * rippleBandCount - ripplePhase) * 6.28318) * step(0.5, u_ripplesActive) * u_rippleVisibility * rippleLengthFactor;
       
       gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
     }
@@ -282,11 +301,21 @@ export function createLinkAuraMaterial(config = {}) {
     uniform float uCorruption;
     uniform float uSynergy;
     uniform float uDesaturation;
+    uniform float u_rippleIntensity;
+    uniform float u_ripplesActive;
+    uniform float u_rippleSaturation;
+    uniform float u_ripplePhase;
+    uniform float u_rippleEnergy;
+    uniform float u_rippleLength;
+    uniform float u_rippleVisibility;
+    uniform float u_rippleBandCount;
     
     varying vec3 vNormal;
     varying vec3 vPosition;
     varying float vDisplacementFactor;
     varying float vBlendFactor;       // Blend fade [0-1] near nodes
+    varying float vRippleCoord;
+    varying float vRippleWave;
     
     // Convert RGB to grayscale using luminance
     float getGrayscale(vec3 color) {
@@ -332,6 +361,16 @@ export function createLinkAuraMaterial(config = {}) {
 
       // Polish: subtle self-illumination for richness
       auraColor += auraColor * 0.08;
+
+      float ripplePulse = 0.5 + 0.5 * vRippleWave;
+      float rippleCenter = 1.0 - abs(vRippleCoord - 0.5) * 2.0;
+      float rippleStrength = ripplePulse * rippleCenter * (0.12 + abs(u_rippleIntensity) * 0.22 + u_rippleEnergy * 0.14);
+      rippleStrength *= max(0.0, u_ripplesActive) * u_rippleVisibility;
+      rippleStrength *= clamp(12.0 / max(1.0, u_rippleLength), 0.75, 1.25);
+      float rippleTone = 0.5 + 0.5 * sin(u_ripplePhase * 0.15);
+      vec3 rippleColor = mix(vec3(0.84, 0.92, 1.0), vec3(1.0, 0.84, 0.72), clamp(0.35 + rippleTone * 0.3 + u_rippleSaturation * 0.25, 0.0, 1.0));
+      auraColor += rippleColor * rippleStrength * 0.18;
+      auraColor += vec3(rippleStrength * 0.18);
       
       // ========================================================================
       // OPACITY CONSTRAINTS - MAINTAIN HIERARCHY (from EnergyVisualProfile)
@@ -343,6 +382,8 @@ export function createLinkAuraMaterial(config = {}) {
       
       float opacity = uOpacity * (0.6 + rim * 0.2);  // Reduced from node's (0.7 + rim*0.3)
       opacity *= (0.7 + vDisplacementFactor * 0.15);  // Reduced modulation
+      opacity *= (1.0 + max(0.0, u_rippleIntensity) * rippleStrength * 0.08);
+      opacity *= (1.0 - max(0.0, -u_rippleIntensity) * rippleStrength * 0.06);
       
       // Polish: raised opacity cap for more visible link aura (was 0.16, still below node 0.25)
       opacity = min(opacity, 0.24);
@@ -375,6 +416,14 @@ export function createLinkAuraMaterial(config = {}) {
       uNodePositionA: { value: new THREE.Vector3(0, 0, 0) },
       uNodePositionB: { value: new THREE.Vector3(1, 0, 0) },
       uLOD: { value: 0 },
+      u_rippleIntensity: { value: 0.0 },
+      u_ripplesActive: { value: 0.0 },
+      u_rippleSaturation: { value: 0.5 },
+      u_ripplePhase: { value: 0.0 },
+      u_rippleEnergy: { value: 0.0 },
+      u_rippleLength: { value: 1.0 },
+      u_rippleVisibility: { value: 0.0 },
+      u_rippleBandCount: { value: 2.0 },
     },
     vertexShader,
     fragmentShader,

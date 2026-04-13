@@ -309,6 +309,40 @@ export class MetricReactiveWorldEvents {
     
     console.log('✓ Metric-Reactive World Events 1.0 initialized');
   }
+
+  /**
+   * Create epic glow material with additive blending and HDR brightness.
+   * Replaces flat MeshBasicMaterial for all world event effects.
+   */
+  _createGlowMaterial(color, opacity = 0.5, extra = {}) {
+    const colorObj = color instanceof THREE.Color ? color : new THREE.Color(color);
+    return new THREE.MeshBasicMaterial({
+      color: colorObj,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+      ...extra
+    });
+  }
+
+  /**
+   * Create epic glow line material with additive blending.
+   */
+  _createGlowLine(color, opacity = 0.4, extra = {}) {
+    const colorObj = color instanceof THREE.Color ? color : new THREE.Color(color);
+    return new THREE.LineBasicMaterial({
+      color: colorObj,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+      ...extra
+    });
+  }
   
   /**
    * Main update loop - call every frame
@@ -701,7 +735,7 @@ export class MetricReactiveWorldEvents {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
     const texture = new THREE.CanvasTexture(canvas);
-    const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+    const material = this._createGlowMaterial(0xffffff, 0.6, { map: texture });
     const geometry = new THREE.PlaneGeometry(20, 2);
     const mesh = new THREE.Mesh(geometry, material);
     
@@ -716,12 +750,7 @@ export class MetricReactiveWorldEvents {
    */
   createColorTint(color, intensity, fadeInDuration, fadeOutDuration) {
     const geometry = new THREE.PlaneGeometry(100, 100);
-    const material = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(color),
-      transparent: true,
-      opacity: intensity,
-      depthWrite: false
-    });
+    const material = this._createGlowMaterial(color, intensity);
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.z = -50;
@@ -746,12 +775,7 @@ export class MetricReactiveWorldEvents {
     for (let i = 0; i < ringCount; i++) {
       const radius = baseRadius + i * 2;
       const geometry = new THREE.RingGeometry(radius - 0.1, radius + 0.1, 48);
-      const material = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(color),
-        transparent: true,
-        opacity: 0.18,
-        side: THREE.DoubleSide
-      });
+      const material = this._createGlowMaterial(color, 0.35);
       const ring = new THREE.Mesh(geometry, material);
       ring.rotation.x = Math.PI / 2;
       ring.userData.ringData = { duration, elapsedTime: 0, scale: 1 + i * 0.08 };
@@ -766,12 +790,7 @@ export class MetricReactiveWorldEvents {
    */
   createSoftHalo(color, intensity, duration, size) {
     const geometry = new THREE.PlaneGeometry(size, size);
-    const material = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(color),
-      transparent: true,
-      opacity: intensity,
-      depthWrite: false
-    });
+    const material = this._createGlowMaterial(color, intensity);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.z = -45;
     mesh.renderOrder = 0;
@@ -800,7 +819,7 @@ export class MetricReactiveWorldEvents {
         );
       }
       geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(points), 3));
-      const material = new THREE.LineBasicMaterial({ color: new THREE.Color(color), linewidth: 1, transparent: true, opacity: 0.14 });
+      const material = this._createGlowLine(color, 0.35);
       const line = new THREE.Line(geometry, material);
       line.userData.arcData = { duration, elapsedTime: 0 };
       group.add(line);
@@ -817,12 +836,7 @@ export class MetricReactiveWorldEvents {
     group.name = 'short-beam-spikes';
     for (let i = 0; i < count; i++) {
       const geometry = new THREE.PlaneGeometry(0.3, 4);
-      const material = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(color),
-        transparent: true,
-        opacity: 0.18,
-        side: THREE.DoubleSide
-      });
+      const material = this._createGlowMaterial(color, 0.4);
       const beam = new THREE.Mesh(geometry, material);
       const angle = (i / count) * Math.PI * 2;
       beam.position.set(Math.cos(angle) * 8, 2, Math.sin(angle) * 8);
@@ -842,12 +856,7 @@ export class MetricReactiveWorldEvents {
     group.name = 'fractured-ring-core';
     for (let i = 0; i < segmentCount; i++) {
       const geometry = new THREE.PlaneGeometry(0.5, 2.4);
-      const material = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(color),
-        transparent: true,
-        opacity: 0.28,
-        side: THREE.DoubleSide
-      });
+      const material = this._createGlowMaterial(color, 0.5);
       const segment = new THREE.Mesh(geometry, material);
       const angle = (i / segmentCount) * Math.PI * 2;
       const radius = 4.5 + (Math.random() - 0.5) * 0.6;
@@ -869,12 +878,7 @@ export class MetricReactiveWorldEvents {
     group.name = 'glitch-bars';
     for (let i = 0; i < count; i++) {
       const geometry = new THREE.PlaneGeometry(0.4, 3.2);
-      const material = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(color),
-        transparent: true,
-        opacity: 0.2,
-        side: THREE.DoubleSide
-      });
+      const material = this._createGlowMaterial(color, 0.45);
       const bar = new THREE.Mesh(geometry, material);
       const angle = (i / count) * Math.PI * 2;
       bar.position.set(Math.cos(angle) * 2.5, 1.0, Math.sin(angle) * 2.5);
@@ -904,12 +908,7 @@ export class MetricReactiveWorldEvents {
     group.name = 'pressure-bands';
     for (let i = 0; i < count; i++) {
       const geometry = new THREE.PlaneGeometry(28, 1.2);
-      const material = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(color),
-        transparent: true,
-        opacity: 0.16,
-        side: THREE.DoubleSide
-      });
+      const material = this._createGlowMaterial(color, 0.35);
       const band = new THREE.Mesh(geometry, material);
       band.position.set(0, 1.5 + i * 0.6, -32 - i * 1.5);
       band.rotation.x = -Math.PI / 2.7;
@@ -928,11 +927,7 @@ export class MetricReactiveWorldEvents {
     particleGroup.name = 'orbiting-motes';
     for (let i = 0; i < count; i++) {
       const geometry = new THREE.SphereGeometry(0.08, 6, 6);
-      const material = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(color),
-        transparent: true,
-        opacity: 0.45
-      });
+      const material = this._createGlowMaterial(color, 0.7);
       const particle = new THREE.Mesh(geometry, material);
       tagAllowedSphere(particle, { role: 'vfx', source: 'MetricReactiveWorldEvents.createSmallOrbitingMotes' });
       clampSphere(particle);
@@ -961,11 +956,7 @@ export class MetricReactiveWorldEvents {
     
     for (let i = 0; i < count; i++) {
       const geometry = new THREE.SphereGeometry(0.1, 8, 8);
-      const material = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(color),
-        transparent: true,
-        opacity: 0.6
-      });
+      const material = this._createGlowMaterial(color, 0.8);
       
       const particle = new THREE.Mesh(geometry, material);
       tagAllowedSphere(particle, { role: 'vfx', source: 'MetricReactiveWorldEvents.createOrbitalParticles' });
@@ -1002,11 +993,7 @@ export class MetricReactiveWorldEvents {
     
     for (let i = 0; i < count; i++) {
       const geometry = new THREE.SphereGeometry(0.08, 6, 6);
-      const material = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(color),
-        transparent: true,
-        opacity: 0.5
-      });
+      const material = this._createGlowMaterial(color, 0.7);
       
       const particle = new THREE.Mesh(geometry, material);
       tagAllowedSphere(particle, { role: 'vfx', source: 'MetricReactiveWorldEvents.createFloatingParticles' });
@@ -1046,12 +1033,7 @@ export class MetricReactiveWorldEvents {
     ctx.fillText(glyphChar, 128, 128);
     
     const texture = new THREE.CanvasTexture(canvas);
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
-      transparent: true,
-      emissive: 0x00dd99,
-      emissiveIntensity: 0.5
-    });
+    const material = this._createGlowMaterial(0x00dd99, 0.8, { map: texture });
     
     const geometry = new THREE.PlaneGeometry(5, 5);
     const mesh = new THREE.Mesh(geometry, material);
@@ -1082,7 +1064,7 @@ export class MetricReactiveWorldEvents {
     }
     
     geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(points), 3));
-    const material = new THREE.LineBasicMaterial({ color: 0x9900ff, linewidth: 2 });
+    const material = this._createGlowLine(0x9900ff, 0.6);
     const line = new THREE.Line(geometry, material);
     
     line.position.set(0, 5, 0);
@@ -1100,11 +1082,7 @@ export class MetricReactiveWorldEvents {
     
     for (let i = 0; i < count; i++) {
       const geometry = new THREE.SphereGeometry(0.12, 8, 8);
-      const material = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(color),
-        transparent: true,
-        opacity: 0.4
-      });
+      const material = this._createGlowMaterial(color, 0.7);
       
       const particle = new THREE.Mesh(geometry, material);
       tagAllowedSphere(particle, { role: 'vfx', source: 'MetricReactiveWorldEvents.createRotatingParticles' });
@@ -1147,11 +1125,7 @@ export class MetricReactiveWorldEvents {
     ctx.fillRect(0, 0, 256, 256);
     
     const texture = new THREE.CanvasTexture(canvas);
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
-      transparent: true,
-      opacity: maxIntensity
-    });
+    const material = this._createGlowMaterial(0xffffff, maxIntensity, { map: texture });
     
     const geometry = new THREE.PlaneGeometry(50, 50);
     const mesh = new THREE.Mesh(geometry, material);
@@ -1170,11 +1144,7 @@ export class MetricReactiveWorldEvents {
     
     for (let i = 0; i < count; i++) {
       const geometry = new THREE.SphereGeometry(0.15, 4, 4);
-      const material = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(color),
-        transparent: true,
-        opacity: 0.3
-      });
+      const material = this._createGlowMaterial(color, 0.55);
       
       const particle = new THREE.Mesh(geometry, material);
       tagAllowedSphere(particle, { role: 'vfx', source: 'MetricReactiveWorldEvents.createVoidFragments' });
@@ -1210,7 +1180,7 @@ export class MetricReactiveWorldEvents {
     }
     
     geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(points), 3));
-    const material = new THREE.LineBasicMaterial({ color: 0xdd0099, linewidth: 2 });
+    const material = this._createGlowLine(0xdd0099, 0.5);
     const line = new THREE.Line(geometry, material);
     
     line.userData.lineData = { duration, elapsedTime: 0 };
@@ -1222,12 +1192,7 @@ export class MetricReactiveWorldEvents {
    */
   createExpandingRing(duration, color) {
     const geometry = new THREE.RingGeometry(0.5, 1.0, 32);
-    const material = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(color),
-      transparent: true,
-      opacity: 0.6,
-      side: THREE.DoubleSide
-    });
+    const material = this._createGlowMaterial(color, 0.8);
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.y = 0;
@@ -1256,7 +1221,7 @@ export class MetricReactiveWorldEvents {
     }
     
     geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(points), 3));
-    const material = new THREE.LineBasicMaterial({ color: new THREE.Color(color), linewidth: 2 });
+    const material = this._createGlowLine(color, 0.5);
     const line = new THREE.Line(geometry, material);
     
     line.userData.arcData = { duration, elapsedTime: 0 };
@@ -1284,12 +1249,7 @@ export class MetricReactiveWorldEvents {
     ctx.fillText(glyphChar, 256, 256);
     
     const texture = new THREE.CanvasTexture(canvas);
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
-      transparent: true,
-      emissive: 0xffdd00,
-      emissiveIntensity: 0.8
-    });
+    const material = this._createGlowMaterial(0xffdd00, 0.9, { map: texture });
     
     const geometry = new THREE.PlaneGeometry(10, 10);
     const mesh = new THREE.Mesh(geometry, material);
@@ -1306,13 +1266,7 @@ export class MetricReactiveWorldEvents {
    */
   createSkyBeam(duration) {
     const geometry = new THREE.PlaneGeometry(0.5, 30);
-    const material = new THREE.MeshBasicMaterial({
-      color: 0xaa00ff,
-      transparent: true,
-      opacity: 0.3,
-      emissive: 0xaa00ff,
-      emissiveIntensity: 0.5
-    });
+    const material = this._createGlowMaterial(0xaa00ff, 0.6);
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(Math.random() * 20 - 10, 15, Math.random() * 20 - 10);
@@ -1409,12 +1363,7 @@ export class MetricReactiveWorldEvents {
    */
   applyHaloEffect(duration, color) {
     const geometry = new THREE.SphereGeometry(1, 32, 32);
-    const material = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(color),
-      transparent: true,
-      opacity: 0.1,
-      side: THREE.BackSide
-    });
+    const material = this._createGlowMaterial(color, 0.25, { side: THREE.BackSide });
     
     const halo = new THREE.Mesh(geometry, material);
     tagAllowedSphere(halo, { role: 'vfx', source: 'MetricReactiveWorldEvents.applyHaloEffect' });
@@ -1431,12 +1380,7 @@ export class MetricReactiveWorldEvents {
   createDistortionOverlay(strength, fadeInDuration, fadeOutDuration) {
     // Create minimal distortion mesh
     const geometry = new THREE.PlaneGeometry(100, 100);
-    const material = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: strength,
-      depthWrite: false
-    });
+    const material = this._createGlowMaterial(0xffffff, strength);
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.z = -40;
@@ -1462,11 +1406,7 @@ export class MetricReactiveWorldEvents {
    */
   applyHorizonPulse(color, intensity, duration) {
     const geometry = new THREE.PlaneGeometry(200, 20);
-    const material = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(color),
-      transparent: true,
-      opacity: intensity
-    });
+    const material = this._createGlowMaterial(color, intensity);
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(0, 0, -50);

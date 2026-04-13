@@ -26,6 +26,7 @@ import { LinkExtensionConfig } from './LinkExtensionConfig.js';
 import { LINK_CREATE_STAGE_MAX_PHASE, getLinkCreateStageByPhase } from './LinkCreateStagePolicy.js';
 import { ImpactManagerCollection } from './NodeImpactManager.js';
 import { WaveTravelShaderPack_v1 } from './WaveTravelShaderPack_v1.js';
+import { LinkSurfacePhaseRipples } from './LinkSurfacePhaseRipples.js';
 import VisualTime from './src/time/VisualTime.js';
 import { LinkSemanticPictogramSystem_WithFusion } from './LinkSemanticPictogramSystem_WithFusion.js';
 import { getLinkCategoryHex } from './LinkCategoryColorContract.js';
@@ -951,6 +952,9 @@ export class LinkRendererConduit {
         // Reusable texture
         this.flowTexture = this.generateFlowTexture();
 
+        // Surface ripple driver for link shell and strand materials
+        this.linkSurfacePhaseRipples = new LinkSurfacePhaseRipples();
+
         // Math cache to reduce allocations
         this._vec3 = new THREE.Vector3();
         this._pulseDustWorldPos = new THREE.Vector3();
@@ -1791,6 +1795,37 @@ export class LinkRendererConduit {
         }
     }
 
+    _applyLinkSurfaceRipples(link, state, metrics = {}, deltaTime = 0.016) {
+        const rippleSystem = this.linkSurfacePhaseRipples;
+        if (!rippleSystem || !link || !state) return null;
+
+        const ripple = rippleSystem.update(link, metrics, deltaTime);
+        if (!ripple) return null;
+
+        const materials = new Set();
+        const addMaterial = (candidate) => {
+            if (candidate?.uniforms) materials.add(candidate);
+        };
+
+        addMaterial(state.skinMesh?.material);
+        if (Array.isArray(state.strands)) {
+            for (const strandMesh of state.strands) {
+                addMaterial(strandMesh?.material);
+            }
+        }
+        if (Array.isArray(state.strandOverlays)) {
+            for (const overlay of state.strandOverlays) {
+                addMaterial(overlay?.material);
+            }
+        }
+
+        for (const material of materials) {
+            rippleSystem.applyRipplesToMaterial(link, material, metrics);
+        }
+
+        return ripple;
+    }
+
     /**
      * Canonical writer for link wave metrics (called once per frame for all links)
      * Ensures waveDirection, waveLength, wavePhaseOffset are always defined
@@ -2505,7 +2540,10 @@ export class LinkRendererConduit {
             depthTest: true,
             side: THREE.DoubleSide,
             blending: THREE.AdditiveBlending
-        });
+        }).clone();
+        skinMaterial.userData = {};
+        skinMaterial.customProgramCacheKey = null;
+        skinMaterial.onBeforeCompile = null;
         const skinGeometry = createLinkAuraGeometry(0.4, 16);
         const skinMesh = new THREE.Mesh(skinGeometry, skinMaterial);
         skinMesh.frustumCulled = false;
@@ -2519,6 +2557,7 @@ export class LinkRendererConduit {
         skinMaterial.userData.wavePhaseOffset = wavePhaseOffset;
         this._bindLinkProgramCacheKey(skinMaterial, 'LINK_SKIN_v3');
         this._attachWaveDirectionUniform(skinMaterial, directionVec, linkLength, wavePhaseOffset);
+        this.linkSurfacePhaseRipples?.prepareMaterial(skinMaterial);
         // Freeze variant properties immediately after material creation
         freezeMaterialFlags(skinMaterial, 'LinkRenderer');
         applyLinkRenderLayer(skinMesh, 'LINK_SKIN');
@@ -2587,6 +2626,8 @@ export class LinkRendererConduit {
             }
         });
 
+        this.linkSurfacePhaseRipples?.initializeLink(link);
+
         return group;
     }
 
@@ -2637,7 +2678,15 @@ export class LinkRendererConduit {
                         uBaseColor: { value: categoryColor.clone() },
                         uAccentColor: { value: accentColor.clone() },
                         uStrandIndex: { value: i },
-                        uStrandCount: { value: strandCount }
+                        uStrandCount: { value: strandCount },
+                        u_rippleIntensity: { value: 0.0 },
+                        u_ripplesActive: { value: 0.0 },
+                        u_rippleSaturation: { value: 0.5 },
+                        u_ripplePhase: { value: 0.0 },
+                        u_rippleEnergy: { value: 0.0 },
+                        u_rippleLength: { value: 1.0 },
+                        u_rippleVisibility: { value: 0.0 },
+                        u_rippleBandCount: { value: 2.0 }
                     }
                 });
                 ensureUserData(material);
@@ -2659,6 +2708,7 @@ export class LinkRendererConduit {
                 this._registerLinkMaterialWithBridge(material);
                 if (this.travelingWaveFX?.registerMaterial) this.travelingWaveFX.registerMaterial(material, { type: 'link-strand', polarity: 'resonance' });
                 this._attachWaveDirectionUniform(material, directionVec, waveLength, wavePhaseOffset);
+                this.linkSurfacePhaseRipples?.prepareMaterial(material);
 
                 const geometry = new THREE.BufferGeometry();
                 const depthMaterial = new THREE.MeshBasicMaterial({
@@ -4218,6 +4268,8 @@ export class LinkRendererConduit {
             applyMaterialPatch(strandMesh.material, patch);
         }
 
+        this._applyLinkSurfaceRipples(link, state, metrics, visualDelta);
+
         // Final-pass wave modulation (single authoritative per-link flow path).
         runtime.lastSynergy = synergy;
         runtime.lastTraffic = trafficLoad;
@@ -5400,6 +5452,11 @@ const makeWaveSlice = () => {
             if (state.skinMesh) {
                 if(state.skinMesh.geometry) state.skinMesh.geometry.dispose();
                 if(state.skinMesh.material) state.skinMesh.material.dispose();
+            }
+
+            if (link) {
+                link.rippleState = null;
+                link.materialRippleData = null;
             }
 
             if (state.beads) state.beads.dispose();

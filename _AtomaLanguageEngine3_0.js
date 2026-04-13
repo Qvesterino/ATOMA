@@ -1018,15 +1018,17 @@ export class AtomaLanguageEngine3_0 {
       .atoma-poetry-shell__subtext {
         font-family: var(--poetry-body-font, ${MESSAGE_BODY_FONT});
         color: var(--poetry-muted, rgba(215, 249, 255, 0.76));
-        font-size: 12px;
-        line-height: 1.4;
-        letter-spacing: 0.05em;
+        font-size: 11px;
+        line-height: 1.25;
+        letter-spacing: 0.02em;
         font-style: italic;
         text-transform: none;
         min-height: 0;
-        padding-top: 2px;
-        border-top: 1px solid color-mix(in srgb, var(--poetry-accent, #6feeff) 28%, transparent);
-        text-shadow: 0 0 12px rgba(0, 0, 0, 0.24);
+        margin-top: 2px;
+        padding-top: 4px;
+        border-top: 0.5px solid color-mix(in srgb, var(--poetry-accent, #6feeff) 22%, transparent);
+        text-shadow: 0 0 8px rgba(0, 0, 0, 0.22);
+        opacity: 0.94;
       }
 
       .atoma-poetry-shell[data-theme='lore'] .atoma-poetry-shell__tag {
@@ -1034,13 +1036,15 @@ export class AtomaLanguageEngine3_0 {
       }
 
       .atoma-poetry-shell[data-reveal='sacred'] .atoma-poetry-shell__subtext {
-        color: color-mix(in srgb, var(--poetry-accent, #ffd89c) 72%, white);
-        border-top-color: color-mix(in srgb, var(--poetry-accent, #ffd89c) 40%, transparent);
+        color: color-mix(in srgb, var(--poetry-accent, #ffd89c) 76%, white);
+        border-top-color: color-mix(in srgb, var(--poetry-accent, #ffd89c) 30%, transparent);
+        text-shadow: 0 0 10px color-mix(in srgb, var(--poetry-accent, #ffd89c) 16%, transparent);
       }
 
       .atoma-poetry-shell[data-reveal='chapter'] .atoma-poetry-shell__subtext {
         color: color-mix(in srgb, var(--poetry-accent, #ffd89c) 78%, white);
-        border-top-color: color-mix(in srgb, var(--poetry-accent, #ffd89c) 52%, transparent);
+        border-top-color: color-mix(in srgb, var(--poetry-accent, #ffd89c) 38%, transparent);
+        text-shadow: 0 0 10px color-mix(in srgb, var(--poetry-accent, #ffd89c) 18%, transparent);
       }
 
       @keyframes atoma-poetry-shell-breach {

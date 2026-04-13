@@ -243,6 +243,14 @@ export const linkStateVertexShaderSimple = `
   uniform float uStrandCount;
   uniform vec3 uBaseColor;
   uniform vec3 uAccentColor;
+  uniform float u_rippleIntensity;
+  uniform float u_ripplesActive;
+  uniform float u_rippleSaturation;
+  uniform float u_ripplePhase;
+  uniform float u_rippleEnergy;
+  uniform float u_rippleLength;
+  uniform float u_rippleVisibility;
+  uniform float u_rippleBandCount;
   
   varying float vNetworkStress;
   varying float vLocalLoad;
@@ -255,6 +263,8 @@ export const linkStateVertexShaderSimple = `
   varying vec3 vNormal;
   varying vec3 vWorldPos;
   varying vec2 vUv;
+  varying float vRippleWave;
+  varying float vRippleMask;
   
   void main() {
     vNetworkStress = uNetworkStress;
@@ -266,6 +276,11 @@ export const linkStateVertexShaderSimple = `
     vAccentColor = uAccentColor;
     vNormal = normalize(normalMatrix * normal);
     vUv = uv;
+    float rippleBandCount = max(2.0, u_rippleBandCount);
+    float ripplePhase = (u_ripplePhase * 0.18) + (u_rippleLength * 0.03);
+    float rippleTravel = (vUv.x * rippleBandCount) - ripplePhase;
+    vRippleWave = sin(rippleTravel * 6.28318);
+    vRippleMask = step(0.5, u_ripplesActive) * u_rippleVisibility;
     
     // Simple pulse
     float freq = 2.0 + uLocalLoad * 6.0;
@@ -289,8 +304,18 @@ export const linkStateFragmentShaderSimple = `
   varying vec3 vNormal;
   varying vec3 vWorldPos;
   varying vec2 vUv;
+  varying float vRippleWave;
+  varying float vRippleMask;
   uniform float uSegmentCount;
   uniform float uTime;
+  uniform float u_rippleIntensity;
+  uniform float u_ripplesActive;
+  uniform float u_rippleSaturation;
+  uniform float u_ripplePhase;
+  uniform float u_rippleEnergy;
+  uniform float u_rippleLength;
+  uniform float u_rippleVisibility;
+  uniform float u_rippleBandCount;
 
   float hash11(float p) {
     p = fract(p * 0.1031);
@@ -372,9 +397,19 @@ export const linkStateFragmentShaderSimple = `
     vec3 corruptionHue = mix(vBaseColor, vAccentColor, 0.5 + 0.5 * sin(uTime * 0.7 + strandPhase));
     color = mix(color, mix(color, corruptionHue * (0.7 + vPulsePhase * 0.3), 0.55), vCorruption * 0.75);
     color *= (1.0 - vCorruption * 0.18);
+
+    float ripplePulse = 0.5 + 0.5 * vRippleWave;
+    float rippleLengthFactor = clamp(12.0 / max(1.0, u_rippleLength), 0.75, 1.25);
+    float rippleStrength = vRippleMask * ripplePulse * rippleLengthFactor * (0.12 + abs(u_rippleIntensity) * 0.22 + u_rippleEnergy * 0.16);
+    vec3 rippleColor = mix(vBaseColor, vAccentColor, clamp(0.35 + u_rippleSaturation * 0.4 + u_rippleIntensity * 0.08, 0.0, 1.0));
+    color += rippleColor * rippleStrength;
+    color += vec3(rippleStrength * 0.18);
+    color *= 1.0 + max(0.0, u_rippleIntensity) * rippleStrength * 0.12;
+    color *= 1.0 - max(0.0, -u_rippleIntensity) * rippleStrength * 0.08;
     
     // Alpha based on coherence (1 - corruption)
     float alpha = 0.86 + (1.0 - vCorruption) * 0.14 + fresnel * 0.12;
+    alpha = clamp(alpha + rippleStrength * 0.08, 0.0, 1.0);
     alpha = clamp(alpha, 0.0, 1.0);
     
     gl_FragColor = vec4(color, alpha);

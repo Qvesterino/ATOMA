@@ -2606,14 +2606,15 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     ];
     
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const material = this._getSharedLinkMaterial(0);
+    const material = this._getSharedLinkMaterial(0.05);
     
     const line = new THREE.Line(geometry, material);
     line.userData = {
       node1: node1,
       node2: node2,
       baseOpacity: 0.15,
-      activeOpacity: 0.5
+      activeOpacity: 0.5,
+      idleOpacity: 0.05
     };
     
     this.scene.add(line);
@@ -3019,18 +3020,19 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       const isNode1Active = node1.userData.isActive;
       const isNode2Active = node2.userData.isActive;
       
-      let targetOpacity = 0;
+      const idleOpacity = connection.userData.idleOpacity ?? 0.05;
+      let targetOpacity = idleOpacity;
       // Connection glows when both nodes are active
       if (isNode1Active && isNode2Active) {
         const activation1 = node1.userData.activationLevel;
         const activation2 = node2.userData.activationLevel;
         const avgActivation = (activation1 + activation2) / 2;
-        targetOpacity = connection.userData.activeOpacity * avgActivation;
+        targetOpacity = Math.max(idleOpacity, connection.userData.activeOpacity * avgActivation);
       } else if (isNode1Active || isNode2Active) {
         // Dim connection if only one is active
         const activeNode = isNode1Active ? node1 : node2;
-        targetOpacity = connection.userData.baseOpacity * 
-          activeNode.userData.activationLevel;
+        targetOpacity = Math.max(idleOpacity, connection.userData.baseOpacity * 
+          activeNode.userData.activationLevel);
       }
 
       connection.material = this._getSharedLinkMaterial(targetOpacity);
