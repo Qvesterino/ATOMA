@@ -1,22 +1,257 @@
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { EnvironmentEventCoordinator } from './EnvironmentEventCoordinator.js';
 
-const ENVIRONMENT_SYSTEMS = [
-  'SafeWorldFXPack',
-  'SafeAIWeatherPack',
-  'SafeQuantumIllusionsPack1',
-  'AmbientEntityManager',
-  'EmergentThoughtStorms5_0',
-  'SafeLegendaryWorldEvents',
-  'WorldPersonalityController',
-  'MetricReactiveWorldEvents',
-  'SafeDreamDepthPack',
-  'DreamDepthEffectManager',
-  'SafeColonyExpansion2',
-  'wnec',
-  // REMOVED: EnergyOrbManager - moved to LEGACY (dead code, never initialized)
-  'EnvironmentalHazards',
-];
+// Central environment/world VFX catalog.
+// Not every listed system is EnvironmentDomainController-owned at runtime;
+// `extended` and `support` keep the broader world/environment VFX surface in one place.
+const describeEnvironmentVfx = (
+  id,
+  role,
+  ownership,
+  runtimeStatus,
+  spawnConditions = [],
+  renderLayer = 'UNSPECIFIED',
+  schedulerLayer = 'event-driven'
+) => Object.freeze({
+  id,
+  role,
+  ownership,
+  runtimeStatus,
+  spawnConditions: Object.freeze(spawnConditions),
+  renderLayer,
+  schedulerLayer
+});
+
+export const ENVIRONMENT_VFX_REGISTRY = Object.freeze({
+  core: Object.freeze([
+    describeEnvironmentVfx(
+      'SafeWorldFXPack',
+      'Foundational world ambience, breathing layers, haze, rifts, and macro background motion.',
+      'EnvironmentDomainController',
+      'active-domain-owned',
+      ['global.synergy.high', 'global.loadPressure.high', 'global.corruption.high', 'global.stability.low', 'global.stability.high'],
+      'WORLD_BACKGROUND',
+      'visual'
+    ),
+    describeEnvironmentVfx(
+      'SafeAIWeatherPack',
+      'Weather-state atmosphere layer for fog, sky motion, and condition-driven world mood.',
+      'EnvironmentDomainController',
+      'active-domain-owned',
+      ['world.weather.candidate', 'link.synergy.aggregate', 'link.loadPressure.aggregate', 'world.event.active'],
+      'WORLD_BACKGROUND',
+      'visual'
+    ),
+    describeEnvironmentVfx(
+      'SafeQuantumIllusionsPack1',
+      'Quantum-space distortion, illusion, and unreality overlays bound to the active world.',
+      'EnvironmentDomainController',
+      'active-domain-owned',
+      ['world.event.type.active', 'link.throughput.high', 'link.synergy.aggregate', 'node.synergy.high', 'node.motion.fast'],
+      'WORLD_OVERLAY',
+      'visual'
+    ),
+    describeEnvironmentVfx(
+      'AmbientEntityManager',
+      'Ambient entities such as wisps, ghost orbs, and roaming spectral life.',
+      'EnvironmentDomainController',
+      'active-domain-owned',
+      ['world.ambient.active'],
+      'WORLD_OVERLAY',
+      'visual'
+    ),
+    describeEnvironmentVfx(
+      'EmergentThoughtStorms5_0',
+      'Large-scale thought-storm phenomena that externalize AI mood as weather.',
+      'EnvironmentDomainController',
+      'conditional-domain-owned',
+      ['system.recursiveGlyphMessaging.ready', 'system.semanticGlyphAI.ready'],
+      'WORLD_OVERLAY',
+      'visual'
+    ),
+    describeEnvironmentVfx(
+      'SafeLegendaryWorldEvents',
+      'High-impact world event presentation layer for rare environmental states and event reveals.',
+      'EnvironmentDomainController',
+      'active-domain-owned',
+      ['world.legendary.eventPotential.high', 'world.event.cooldown.ready', 'world.event.roll.success'],
+      'WORLD_OVERLAY',
+      'visual'
+    ),
+    describeEnvironmentVfx(
+      'WorldPersonalityController',
+      'Global world mood and personality modulation layer that shapes atmosphere over time.',
+      'EnvironmentDomainController',
+      'active-domain-owned',
+      ['global.harmony.high', 'global.harmony.mid', 'global.loadPressure.high', 'global.stability.low', 'world.personality.aggregate.ready'],
+      'WORLD_OVERLAY',
+      'simulation'
+    ),
+    describeEnvironmentVfx(
+      'MythicRitualController',
+      'Mythic ritual world-event visuals that stage ceremonial, transcendent environment states.',
+      'EnvironmentDomainController',
+      'active-domain-owned',
+      ['semantic.ritual.started', 'semantic.ritual.completed'],
+      'WORLD_OVERLAY',
+      'simulation'
+    ),
+    describeEnvironmentVfx(
+      'MetricReactiveWorldEvents',
+      'Metric-driven world events that translate canonical runtime state into environmental spectacle.',
+      'EnvironmentDomainController',
+      'active-domain-owned',
+      ['global.synergy.low|mid|high', 'global.harmony.low|mid|high', 'global.stability.low|mid|high', 'global.corruption.low|mid|high', 'global.loadPressure.low|mid|high'],
+      'WORLD_OVERLAY',
+      'visual'
+    ),
+    describeEnvironmentVfx(
+      'SafeDreamDepthPack',
+      'Low-cost dream-depth fallback layer for atmospheric depth, vignettes, and focus mood.',
+      'EnvironmentDomainController',
+      'active-domain-owned',
+      ['world.weather.active', 'world.event.active', 'world.focusTarget.present'],
+      'WORLD_OVERLAY',
+      'visual'
+    ),
+    describeEnvironmentVfx(
+      'DreamDepthEffectManager',
+      'Primary rich dream-depth atmosphere layer with focus, pulse, and depth-event styling.',
+      'EnvironmentDomainController',
+      'active-domain-owned',
+      ['world.weather.active', 'world.event.active', 'world.focusTarget.present', 'world.depthPulse.triggered'],
+      'WORLD_OVERLAY',
+      'visual'
+    ),
+    describeEnvironmentVfx(
+      'SafeColonyExpansion2',
+      'Living colony ecosystem overlay that grows ambient civilization structures inside the world.',
+      'EnvironmentDomainController',
+      'active-domain-owned',
+      ['colony.cluster.detected', 'colony.linkConnectivity.valid', 'world.event.active', 'world.weather.active'],
+      'WORLD_OVERLAY',
+      'visual'
+    ),
+    describeEnvironmentVfx(
+      'EnvironmentalHazards',
+      'Hazard and anomaly layer for dangerous environmental zones, storms, fractures, and instability.',
+      'EnvironmentDomainController',
+      'active-domain-owned',
+      ['global.corruption.high', 'global.loadPressure.high', 'global.stability.low', 'global.stability.high'],
+      'WORLD_OVERLAY',
+      'visual'
+    )
+  ]),
+  extended: Object.freeze([
+    describeEnvironmentVfx(
+      'WaveParticleEmitter_v1',
+      'World-space particle field for wave interference, standing-wave ripples, and reactive burst motion.',
+      'main.js',
+      'active-main-owned',
+      ['node.synergy.low|mid|high', 'node.harmony.low|mid|high', 'node.stability.low|mid|high', 'node.corruption.low|mid|high', 'node.loadPressure.low|mid|high'],
+      'WORLD_OVERLAY',
+      'visual'
+    ),
+    describeEnvironmentVfx(
+      'ResonanceCascadeVisualization_Session117B',
+      'Cascade and resonance propagation overlay for radial surges, blooms, and influence echoes.',
+      'main.js',
+      'active-main-owned',
+      ['link.created', 'global.loadPressure.high'],
+      'WORLD_OVERLAY',
+      'visual'
+    ),
+    describeEnvironmentVfx(
+      'HarmonicHubAuraSystem_Session126',
+      'Shared harmonic field layer around hub constellations and local resonance regions.',
+      'main.js',
+      'active-main-owned',
+      ['hub.harmony.high', 'hub.harmony.mid', 'hub.harmony.low'],
+      'WORLD_OVERLAY',
+      'visual'
+    ),
+    describeEnvironmentVfx(
+      'CanonicalTemplate3_StressVisuals',
+      'Global stress-pressure ambience affecting fog, color, lighting mood, and network tension atmosphere.',
+      'main.js',
+      'active-main-owned',
+      ['global.metricFrame.updated', 'node.loadPressure.active'],
+      'WORLD_OVERLAY',
+      'main-loop'
+    ),
+    describeEnvironmentVfx(
+      'AIConsciousnessLayer',
+      'Global cognitive atmosphere layer with thought threads, pulse traffic, and consciousness-field presence.',
+      'main.js',
+      'active-main-owned',
+      ['link.active', 'link.trafficIntensity.active', 'link.harmony.active', 'link.stability.active', 'system.storms.enabled'],
+      'WORLD_OVERLAY',
+      'visual'
+    ),
+    describeEnvironmentVfx(
+      'CognitiveHorizonPlane',
+      'Map foundation plane that provides horizon language, ground mood, and deep-space environmental framing.',
+      'MapReferencePlaneFactory',
+      'active-map-owned',
+      ['map.referencePlane.selected', 'world.focusTarget.present', 'world.memoryPressure.active'],
+      'MAP_FOUNDATION',
+      'visual'
+    )
+  ]),
+  support: Object.freeze([
+    describeEnvironmentVfx(
+      'EnvironmentEventCoordinator',
+      'Support coordinator that arbitrates event ownership and sequencing between environment systems.',
+      'EnvironmentDomainController',
+      'active-domain-owned-support',
+      ['global.synergy.high', 'global.harmony.high', 'global.corruption.high', 'global.stability.high', 'global.loadPressure.high', 'semantic.ritual.started', 'semantic.ritual.completed'],
+      'INTERNAL_SUPPORT',
+      'event-driven'
+    ),
+    describeEnvironmentVfx(
+      'ColonyVFXManager',
+      'Internal colony VFX payload builder responsible for colony halos, rings, particles, and transitions.',
+      'SafeColonyExpansion2',
+      'active-indirect-support',
+      ['colony.birth', 'colony.growth', 'colony.merge', 'colony.split', 'colony.transformation', 'world.event.active'],
+      'WORLD_OVERLAY',
+      'visual-indirect'
+    ),
+    describeEnvironmentVfx(
+      'SafeMetricsFX1_1',
+      'Support polish layer that converts global metrics into lightweight visual modulation and feedback.',
+      'main.js',
+      'active-main-owned-support',
+      ['node.metric.updated'],
+      'NODE_SURFACE',
+      'event-driven'
+    ),
+    describeEnvironmentVfx(
+      'TemporalEventEffects',
+      'Temporal overlay effects used by the metrics/HUD layer rather than world-space environment rendering.',
+      'CoreMetricsOverlay',
+      'active-overlay-support',
+      ['global.harmony.high', 'global.synergy.high', 'time.epoch.changed', 'time.aeon.changed'],
+      'HUD_OVERLAY',
+      'hud-loop'
+    ),
+    describeEnvironmentVfx(
+      'CinematicUpgrade',
+      'Presentation-grade cinematic enhancement layer for premium framing, mood, and visual polish.',
+      'main.js',
+      'active-main-owned-support',
+      ['global.metricFrame.updated', 'quality.high'],
+      'POST_PROCESS',
+      'main-loop'
+    )
+  ])
+});
+
+const ENVIRONMENT_SYSTEMS = Object.freeze([
+  ...ENVIRONMENT_VFX_REGISTRY.core.map((entry) => entry.id),
+  ...ENVIRONMENT_VFX_REGISTRY.extended.map((entry) => entry.id),
+  ...ENVIRONMENT_VFX_REGISTRY.support.map((entry) => entry.id)
+]);
 
 const ENVIRONMENT_RENDER_LAYERS = Object.freeze({
   worldFXPack: 'WORLD_BACKGROUND',

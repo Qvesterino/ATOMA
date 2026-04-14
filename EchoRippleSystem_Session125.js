@@ -60,6 +60,26 @@ export class EchoRippleSystem_Session125 {
       corruptionColor: new THREE.Color(0xff685d),
       harmonyColor: new THREE.Color(0x86f5ff),
       cascadeColor: new THREE.Color(0xffb781),
+
+      // ── LoadPressure autonomous spawning ──
+      loadPressureSpawn: {
+        enabled: true,
+        threshold: 0.55,           // loadPressure >= this triggers spawning
+        interval: 3.0,             // seconds between spawns per node
+        intensity: 0.6,            // base intensity of spawned ripples
+        maxConcurrentPerNode: 3,   // max active loadPressure ripples per node
+        kind: 'loadPressure',      // ripple kind identifier
+        color: new THREE.Color(0xffb781),  // warm amber for pressure ripples
+      },
+
+      // ── Visual upgrade config ──
+      chromaticShift: 0.18,        // color shift intensity over lifetime
+      energyShimmerSpeed: 6.0,     // radial shimmer oscillation speed
+      glowPulseFreq: 4.2,          // brightness pulse frequency
+      echoRingEnabled: true,       // outer echo ring for depth
+      echoRingScale: 1.38,         // scale multiplier for echo ring
+      echoRingOpacity: 0.12,       // base opacity of echo ring
+
       ...config
     };
 
@@ -89,6 +109,13 @@ export class EchoRippleSystem_Session125 {
     this._previousImpactManager = null;
     this._ownsImpactManager = false;
     this._impactManager = null;
+
+    // ── LoadPressure spawn state ──
+    this._lpSpawnTimers = new Map();       // nodeId → lastSpawnTime
+    this._lpActiveCounts = new Map();      // nodeId → active loadPressure ripple count
+    this._lpNodesCache = null;             // cached node array
+    this._lpNodesCacheTime = -Infinity;    // cache refresh timestamp
+    this._lpNodesCacheInterval = 2.0;      // seconds between cache refreshes
 
     this._sceneRoot = new THREE.Group();
     this._sceneRoot.name = 'EchoRippleSystem_Session125';
@@ -144,6 +171,7 @@ export class EchoRippleSystem_Session125 {
 
     this._processPropagationQueue(links);
     this._updateRipples(delta, camera, links);
+    this._updateLoadPressureSpawning(delta);
 
     this.stats.activeRipples = this._activeRipples.length;
   }
@@ -157,7 +185,9 @@ export class EchoRippleSystem_Session125 {
       spawnedRipples: this.stats.spawnedRipples,
       propagatedRipples: this.stats.propagatedRipples,
       suppressedRipples: this.stats.suppressedRipples,
-      droppedRipples: this.stats.droppedRipples
+      droppedRipples: this.stats.droppedRipples,
+      loadPressureActiveNodes: this._lpActiveCounts.size,
+      loadPressureTrackedNodes: this._lpSpawnTimers.size
     };
   }
 
@@ -167,6 +197,8 @@ export class EchoRippleSystem_Session125 {
     this._nodeCooldownUntilById.clear();
     this._linkCooldownUntilById.clear();
     this._nodeActiveRippleCounts.clear();
+    this._lpSpawnTimers.clear();
+    this._lpActiveCounts.clear();
     this._globalCooldownUntil = -Infinity;
   }
 
@@ -366,12 +398,33 @@ export class EchoRippleSystem_Session125 {
     ripple.root.userData.depth = ripple.depth;
     ripple.root.userData.direction = direction ? direction.clone() : null;
 
-    ripple.ringMesh.material.color.copy(color);
+    // ── Set shader uniforms for upgraded ring ──
+    const ringUniforms = ripple.ringMesh.material.uniforms;
+    if (ringUniforms) {
+      ringUniforms.uColor.value.copy(color);
+      ringUniforms.uOpacity.value = baseOpacity;
+      ringUniforms.uProgress.value = 0;
+      ringUniforms.uIntensity.value = intensity;
+      ringUniforms.uTime.value = 0;
+      ringUniforms.uWobbleSeed.value = ripple.wobbleSeed;
+    }
     ripple.haloMesh.material.color.copy(this._blendColors(color, this.config.haloColor, 0.38));
     ripple.coreMesh.material.color.copy(this._blendColors(color, new THREE.Color(0xffffff), 0.42));
-    ripple.ringMesh.material.opacity = baseOpacity;
     ripple.haloMesh.material.opacity = haloOpacity;
     ripple.coreMesh.material.opacity = coreOpacity;
+
+    // ── Echo ring setup ──
+    if (ripple.echoRingMesh) {
+      ripple.echoRingMesh.material.color.copy(this._blendColors(color, this.config.haloColor, 0.55));
+      ripple.echoRingMesh.material.opacity = Math.max(0.02, (this.config.echoRingOpacity ?? 0.12) * (0.6 + intensity * 0.5));
+      ripple.echoRingMesh.scale.setScalar(this.config.echoRingScale ?? 1.38);
+    }
+
+    // ── Track loadPressure ripples ──
+    if (kind === 'loadPressure' && nodeId !== null && nodeId !== undefined) {
+      const key = String(nodeId);
+      this._lpActiveCounts.set(key, (this._lpActiveCounts.get(key) ?? 0) + 1);
+    }
 
     this._sceneRoot.add(ripple.root);
     this._activeRipples.push(ripple);
@@ -517,10 +570,71 @@ export class EchoRippleSystem_Session125 {
     root.visible = false;
     root.userData = {};
 
-    const ringMaterial = new THREE.MeshBasicMaterial({
-      color: this.config.rippleColor,
+    // ── UPGRADED: ShaderMaterial for ring with chromatic shift + energy shimmer ──
+    const ringMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uColor: { value: this.config.rippleColor.clone() },
+        uOpacity: { value: 0 },
+        uProgress: { value: 0 },
+        uIntensity: { value: 0.5 },
+        uTime: { value: 0 },
+        uChromaticShift: { value: this.config.chromaticShift },
+        uShimmerSpeed: { value: this.config.energyShimmerSpeed },
+        uGlowPulseFreq: { value: this.config.glowPulseFreq },
+        uWobbleSeed: { value: 0 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vPos;
+        void main() {
+          vUv = uv;
+          vPos = position;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor;
+        uniform float uOpacity;
+        uniform float uProgress;
+        uniform float uIntensity;
+        uniform float uTime;
+        uniform float uChromaticShift;
+        uniform float uShimmerSpeed;
+        uniform float uGlowPulseFreq;
+        uniform float uWobbleSeed;
+        varying vec2 vUv;
+        varying vec3 vPos;
+
+        void main() {
+          // Radial distance from ring center (0 = inner edge, 1 = outer edge)
+          float radial = length(vUv - 0.5) * 2.0;
+
+          // Ring band: sharp edge with soft falloff
+          float ringBand = smoothstep(0.62, 0.72, radial) * (1.0 - smoothstep(0.88, 0.96, radial));
+
+          // Energy shimmer: radial sine pattern
+          float angle = atan(vUv.y - 0.5, vUv.x - 0.5);
+          float shimmer = sin(angle * 8.0 + uTime * uShimmerSpeed + uWobbleSeed) * 0.15 + 0.85;
+
+          // Glow pulse: brightness oscillation
+          float glowPulse = 0.82 + 0.18 * sin(uTime * uGlowPulseFreq + uProgress * 6.28318);
+
+          // Chromatic color shift over lifetime
+          vec3 chromaR = uColor * (1.0 + uChromaticShift * sin(uProgress * 3.14159));
+          vec3 chromaG = uColor * (1.0 + uChromaticShift * 0.6 * sin(uProgress * 3.14159 + 2.094));
+          vec3 chromaB = uColor * (1.0 + uChromaticShift * 0.3 * sin(uProgress * 3.14159 + 4.188));
+          vec3 chromaColor = vec3(chromaR.r, chromaG.g, chromaB.b);
+
+          // Hot core whitening at early progress
+          float hotCore = (1.0 - smoothstep(0.0, 0.35, uProgress)) * uIntensity * 0.4;
+          chromaColor += vec3(hotCore);
+
+          // Combine
+          float alpha = ringBand * shimmer * glowPulse * uOpacity;
+          gl_FragColor = vec4(chromaColor, alpha);
+        }
+      `,
       transparent: true,
-      opacity: 0,
       depthWrite: false,
       depthTest: false,
       blending: THREE.AdditiveBlending,
@@ -566,7 +680,23 @@ export class EchoRippleSystem_Session125 {
     coreMesh.renderOrder = this._sceneRoot.renderOrder + 2;
     coreMesh.frustumCulled = false;
 
-    root.add(coreMesh, ringMesh, haloMesh);
+    // ── Echo ring: outer depth layer ──
+    const echoRingMaterial = new THREE.MeshBasicMaterial({
+      color: this.config.haloColor,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      toneMapped: false
+    });
+    const echoRingMesh = new THREE.Mesh(this._haloGeometry, echoRingMaterial);
+    echoRingMesh.rotation.x = -Math.PI / 2;
+    echoRingMesh.renderOrder = this._sceneRoot.renderOrder - 1;
+    echoRingMesh.frustumCulled = false;
+
+    root.add(echoRingMesh, coreMesh, ringMesh, haloMesh);
 
     return {
       active: false,
@@ -574,6 +704,7 @@ export class EchoRippleSystem_Session125 {
       ringMesh,
       haloMesh,
       coreMesh,
+      echoRingMesh,
       color: new THREE.Color(),
       nodeId: null,
       originNodeId: null,
@@ -606,6 +737,17 @@ export class EchoRippleSystem_Session125 {
   _returnRippleToPool(ripple) {
     if (!ripple) return;
 
+    // ── Decrement loadPressure active count ──
+    if (ripple.kind === 'loadPressure' && ripple.nodeId !== null && ripple.nodeId !== undefined) {
+      const key = String(ripple.nodeId);
+      const count = (this._lpActiveCounts.get(key) ?? 1) - 1;
+      if (count > 0) {
+        this._lpActiveCounts.set(key, count);
+      } else {
+        this._lpActiveCounts.delete(key);
+      }
+    }
+
     this._decrementNodeRippleCount(ripple.nodeId);
     ripple.active = false;
     ripple.age = 0;
@@ -630,9 +772,22 @@ export class EchoRippleSystem_Session125 {
     ripple.root.visible = false;
     ripple.root.position.set(0, -9999, 0);
     ripple.root.scale.setScalar(1);
-    ripple.ringMesh.material.opacity = 0;
+
+    // ── Reset shader uniforms ──
+    const ringUniforms = ripple.ringMesh.material.uniforms;
+    if (ringUniforms) {
+      ringUniforms.uOpacity.value = 0;
+      ringUniforms.uProgress.value = 0;
+    } else {
+      ripple.ringMesh.material.opacity = 0;
+    }
     ripple.haloMesh.material.opacity = 0;
     ripple.coreMesh.material.opacity = 0;
+
+    // ── Reset echo ring ──
+    if (ripple.echoRingMesh) {
+      ripple.echoRingMesh.material.opacity = 0;
+    }
 
     if (this._ripplePool.length < Math.max(1, this.config.maxTotalRipples)) {
       this._ripplePool.push(ripple);
@@ -646,6 +801,7 @@ export class EchoRippleSystem_Session125 {
     ripple.ringMesh?.material?.dispose?.();
     ripple.haloMesh?.material?.dispose?.();
     ripple.coreMesh?.material?.dispose?.();
+    ripple.echoRingMesh?.material?.dispose?.();
   }
 
   _disposeGeometry(geometry) {
@@ -706,9 +862,27 @@ export class EchoRippleSystem_Session125 {
       ripple.haloMesh.scale.setScalar(ripple.haloScale);
       ripple.coreMesh.scale.setScalar(0.32 + progress * 0.18);
 
-      ripple.ringMesh.material.opacity = Math.max(0, ripple.baseOpacity * envelope * pulse * debugBoost);
+      // ── Drive shader uniforms for upgraded ring ──
+      const ringUniforms = ripple.ringMesh.material.uniforms;
+      if (ringUniforms) {
+        ringUniforms.uOpacity.value = Math.max(0, ripple.baseOpacity * envelope * pulse * debugBoost);
+        ringUniforms.uProgress.value = progress;
+        ringUniforms.uIntensity.value = ripple.intensity;
+        ringUniforms.uTime.value = ripple.age;
+      } else {
+        ripple.ringMesh.material.opacity = Math.max(0, ripple.baseOpacity * envelope * pulse * debugBoost);
+      }
       ripple.haloMesh.material.opacity = Math.max(0, ripple.haloOpacity * envelope * (0.76 + pulse * 0.18) * debugBoost);
       ripple.coreMesh.material.opacity = Math.max(0, ripple.coreOpacity * corePulse * (0.78 + ripple.intensity * 0.38) * debugBoost);
+
+      // ── Echo ring: outer depth layer with delayed fade ──
+      if (ripple.echoRingMesh && this.config.echoRingEnabled) {
+        const echoEnvelope = Math.max(0, easeIn * Math.max(0, 1 - Math.pow(Math.max(0, (progress - 0.45) / 0.55), 1.6)));
+        const echoPulse = 0.78 + Math.sin(ripple.age * 7.2 + ripple.wobbleSeed * 1.3) * 0.14;
+        const echoBase = Math.max(0.02, (this.config.echoRingOpacity ?? 0.12) * (0.5 + ripple.intensity * 0.5));
+        ripple.echoRingMesh.material.opacity = Math.max(0, echoBase * echoEnvelope * echoPulse * debugBoost);
+        ripple.echoRingMesh.scale.setScalar((this.config.echoRingScale ?? 1.38) * (0.96 + progress * 0.08));
+      }
 
       if (ripple.allowPropagation && ripple.depth < Math.max(0, this.config.maxPropagationDepth) && !ripple.propagationQueued && ripple.age >= ripple.propagationDelay) {
         ripple.propagationQueued = true;
@@ -838,7 +1012,11 @@ export class EchoRippleSystem_Session125 {
 
     let baseColor = this.config.rippleColor.clone();
 
-    if (kindKey === 'cascadeHop') {
+    if (kindKey === 'loadPressure') {
+      // Warm amber → shifts toward corruption red at high pressure
+      baseColor = (this.config.loadPressureSpawn?.color ?? this.config.cascadeColor).clone();
+      baseColor.lerp(this.config.corruptionColor, clamp01(loadPressure - 0.5) * 0.5);
+    } else if (kindKey === 'cascadeHop') {
       baseColor = this.config.cascadeColor.clone();
     } else if (kindKey === 'propagation') {
       baseColor = this.config.harmonyColor.clone().lerp(this.config.cascadeColor, 0.18);
@@ -1019,6 +1197,95 @@ export class EchoRippleSystem_Session125 {
     if (this._sceneRoot.parent !== this.scene) {
       this.scene.add(this._sceneRoot);
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // LoadPressure Autonomous Spawning
+  // Spawns ripples on nodes where loadPressure exceeds threshold.
+  // Configurable interval (default 3s), intensity, and max concurrent.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  _updateLoadPressureSpawning(deltaTime) {
+    const lpConfig = this.config.loadPressureSpawn;
+    if (!lpConfig?.enabled || this._disposed || !this.config.enabled) return;
+
+    const threshold = Math.max(0.1, lpConfig.threshold ?? 0.55);
+    const interval = Math.max(0.5, lpConfig.interval ?? 3.0);
+    const baseIntensity = clamp01(lpConfig.intensity ?? 0.6);
+    const maxConcurrent = Math.max(1, lpConfig.maxConcurrentPerNode ?? 3);
+
+    // ── Refresh node cache periodically ──
+    if (this._elapsedTime - this._lpNodesCacheTime > this._lpNodesCacheInterval) {
+      this._lpNodesCache = this._collectNodes();
+      this._lpNodesCacheTime = this._elapsedTime;
+    }
+
+    const nodes = this._lpNodesCache;
+    if (!nodes || nodes.length === 0) return;
+
+    for (const node of nodes) {
+      const nodeId = this._resolveNodeId(node);
+      if (nodeId === null || nodeId === undefined) continue;
+
+      // ── Check loadPressure metric ──
+      const metrics = this._resolveNodeMetrics(node);
+      const loadPressure = clamp01(metrics.loadPressure ?? 0);
+      if (loadPressure < threshold) continue;
+
+      // ── Check concurrent limit ──
+      const activeCount = this._lpActiveCounts.get(String(nodeId)) ?? 0;
+      if (activeCount >= maxConcurrent) continue;
+
+      // ── Check interval timer ──
+      const lastSpawn = this._lpSpawnTimers.get(String(nodeId)) ?? -Infinity;
+      if (this._elapsedTime - lastSpawn < interval) continue;
+
+      // ── Scale intensity by how much pressure exceeds threshold ──
+      const pressureExcess = clamp01((loadPressure - threshold) / (1.0 - threshold));
+      const intensity = baseIntensity * (0.5 + pressureExcess * 0.5);
+
+      // ── Spawn ripple ──
+      this.createRippleEffect(node, {
+        kind: 'loadPressure',
+        intensity,
+        nodeId,
+        color: lpConfig.color ?? this.config.cascadeColor,
+        metrics,
+        depth: 0,
+        allowPropagation: false,  // loadPressure ripples don't propagate
+        lifetime: this.config.rippleLifetime * (0.85 + pressureExcess * 0.3),
+        maxRadius: this.config.rippleMaxRadius * (0.7 + pressureExcess * 0.5),
+      });
+
+      this._lpSpawnTimers.set(String(nodeId), this._elapsedTime);
+    }
+
+    // ── Clean up stale timers ──
+    if (this._lpSpawnTimers.size > 200) {
+      const cutoff = this._elapsedTime - interval * 3;
+      for (const [key, time] of this._lpSpawnTimers) {
+        if (time < cutoff) this._lpSpawnTimers.delete(key);
+      }
+    }
+  }
+
+  _collectNodes() {
+    const sources = [
+      this.world?.nodes,
+      this.world?.aiNodes?.nodes,
+      this.linkResonanceSystem?.world?.nodes,
+      this.linkResonanceSystem?.world?.aiNodes?.nodes,
+      globalThis.game?.aiNodes?.nodes,
+      globalThis.game?.world?.nodes
+    ];
+
+    for (const collection of sources) {
+      if (!collection) continue;
+      if (collection instanceof Map) return [...collection.values()];
+      if (Array.isArray(collection) && collection.length > 0) return collection;
+    }
+
+    return [];
   }
 
   _attachImpactManager(nodeAuraSystem) {

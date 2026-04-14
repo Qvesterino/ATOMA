@@ -80,7 +80,46 @@ export class NodeMicroEvents {
     // Temporary visuals for effects
     this.activeVisuals = new Map(); // uuid -> visual objects
     
-    console.log('✓ Node Micro-Events 1.0 initialized');
+    // Elapsed time tracker
+    this._elapsedTime = 0;
+
+    // Geometry pool for reuse (future optimization)
+    this.geometryPool = {
+      rings: [],
+      spheres: [],
+      cylinders: [],
+    };
+
+    // Material pool for reuse (future optimization)
+    this.materialPool = {
+      rings: [],
+      spheres: [],
+      cylinders: [],
+    };
+
+    // Spatial grid for faster proximity checks (future optimization)
+    this.spatialGrid = new Map();
+    this.gridCellSize = 2.0; // Same as proximity threshold
+    
+    // ── Config ──────────────────────────────────────────────────────
+    this.config = {
+      visualIntensity: 1.0,
+      additiveBlending: true,
+      glowPulseSpeed: 3.0,
+      ringGlowEnabled: true,
+      trailEnabled: true,
+      trailOpacity: 0.3,
+      trailDelay: 0.1,
+      // Metric thresholds
+      stability:  { low: 0.2, mid: 0.45, high: 0.65 },
+      harmony:    { low: 0.25, mid: 0.5, high: 0.7 },
+      synergy:    { low: 0.3, mid: 0.55, high: 0.8 },
+      corruption: { low: 0.3, mid: 0.55, high: 0.75 },
+      loadPressure: { low: 0.3, mid: 0.55, high: 0.75 },
+      clarity:    { low: 0.25, mid: 0.5, high: 0.75 },
+    };
+    
+    console.log('✓ Node Micro-Events 2.0 initialized (epic edition)');
   }
   
   /**
@@ -143,6 +182,11 @@ export class NodeMicroEvents {
       this.performanceMode = 'normal';
       this.updateInterval = 1 / 30; // 30Hz
     }
+
+    // Dynamic intensity scaling based on node count
+    // More nodes = lower intensity to reduce visual noise
+    const intensityMultiplier = Math.max(0.5, Math.min(1.0, 100 / nodes.length));
+    this.config.visualIntensity = intensityMultiplier;
     
     // Register any new nodes
     nodes.forEach(node => {
@@ -173,6 +217,7 @@ export class NodeMicroEvents {
     });
     
     // Update active visual effects
+    this._elapsedTime += actualDelta;
     this.updateActiveVisuals(actualDelta);
   }
   
@@ -409,13 +454,15 @@ export class NodeMicroEvents {
   }
   
   createResonanceHalo(node) {
-    // Glowing ring expanding outward
-    const ringGeometry = new THREE.RingGeometry(0.5, 0.55, 32);
+    // Glowing ring expanding outward — EPIC: additive glow + chromatic pulse
+    const ringGeometry = new THREE.RingGeometry(0.5, 0.58, 48);
     const ringMaterial = new THREE.MeshBasicMaterial({
       color: 0x00ffaa,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.7,
       side: THREE.DoubleSide,
+      blending: this.config.additiveBlending ? THREE.AdditiveBlending : THREE.NormalBlending,
+      depthWrite: false,
     });
     
     const ring = new THREE.Mesh(ringGeometry, ringMaterial);
@@ -423,12 +470,29 @@ export class NodeMicroEvents {
     ring.rotation.x = Math.PI / 2;
     this.scene.add(ring);
     
+    // Echo ring (outer ghost)
+    const echoGeometry = new THREE.RingGeometry(0.7, 0.73, 48);
+    const echoMaterial = new THREE.MeshBasicMaterial({
+      color: 0x44ffcc,
+      transparent: true,
+      opacity: 0.15,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const echoRing = new THREE.Mesh(echoGeometry, echoMaterial);
+    echoRing.position.copy(node.position);
+    echoRing.rotation.x = Math.PI / 2;
+    this.scene.add(echoRing);
+    
     const visual = {
       type: 'resonance_halo',
       node,
       ring,
+      echoRing,
       startTime: Date.now(),
-      duration: 1.5,
+      duration: 1.8,
+      baseColor: new THREE.Color(0x00ffaa),
     };
     
     this.activeVisuals.set(`${node.uuid}_resonance_halo`, visual);
@@ -605,14 +669,16 @@ export class NodeMicroEvents {
   }
   
   createAscendedFlare(node) {
-    // Dual rings + vertical particle burst
-    const ring1Geometry = new THREE.RingGeometry(0.8, 0.85, 32);
-    const ring2Geometry = new THREE.RingGeometry(1.2, 1.25, 32);
+    // Dual rings + vertical beam + additive glow — EPIC edition
+    const ring1Geometry = new THREE.RingGeometry(0.8, 0.88, 48);
+    const ring2Geometry = new THREE.RingGeometry(1.2, 1.28, 48);
     const ringMaterial = new THREE.MeshBasicMaterial({
       color: 0xffaa00,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.85,
       side: THREE.DoubleSide,
+      blending: this.config.additiveBlending ? THREE.AdditiveBlending : THREE.NormalBlending,
+      depthWrite: false,
     });
     
     const ring1 = new THREE.Mesh(ring1Geometry, ringMaterial);
@@ -626,69 +692,144 @@ export class NodeMicroEvents {
     this.scene.add(ring1);
     this.scene.add(ring2);
     
+    // Vertical beam (pillar of light)
+    const beamHeight = 3.0;
+    const beamGeometry = new THREE.CylinderGeometry(0.03, 0.08, beamHeight, 8);
+    const beamMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffcc44,
+      transparent: true,
+      opacity: 0.5,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const beam = new THREE.Mesh(beamGeometry, beamMaterial);
+    beam.position.copy(node.position);
+    beam.position.y += beamHeight * 0.5;
+    this.scene.add(beam);
+    
     const visual = {
       type: 'ascended_flare',
       node,
       ring1,
       ring2,
+      beam,
       startTime: Date.now(),
-      duration: 2.0,
+      duration: 2.5,
     };
     
     this.activeVisuals.set(`${node.uuid}_ascended_flare`, visual);
   }
   
   /**
-   * Check for metric-based additive events
+   * Check for metric-based additive events — COMPREHENSIVE EDITION
+   * Emits node.<metric>.<tier> events for ALL metrics and tiers.
+   * Each tier triggers a unique visual effect.
    */
   checkMetricEvents(node, metrics) {
-    const stability = Number.isFinite(metrics?.stability) ? metrics.stability : 0;
-    const harmony = Number.isFinite(metrics?.harmony) ? metrics.harmony : 0;
-    const synergy = Number.isFinite(metrics?.synergy) ? metrics.synergy : 0;
-    const loadPressure = Number.isFinite(metrics?.loadPressure) ? metrics.loadPressure : 0;
-
-    // High stability: jitter burst
-    if (stability > 0.6) {
-      this._emitEvent('node.stability.high', {
-        nodeId: node.userData?.nodeId || node.id || node.uuid,
-        value: stability,
-        source: 'NodeMicroEvents'
-      });
+    if (!metrics) return;
+    
+    const nodeId = node.userData?.nodeId || node.id || node.uuid;
+    const basePayload = { nodeId, source: 'NodeMicroEvents', node, position: node.position.clone() };
+    
+    // ── STABILITY ─────────────────────────────────────────────────
+    const stability = Number.isFinite(metrics.stability) ? metrics.stability : 0;
+    const st = this.config.stability;
+    if (stability <= st.low) {
+      this._emitEvent('node.stability.low', { ...basePayload, value: stability });
+      this.createDimPulse(node);
+      this.logEvent(node, 'stability_low_dim');
+    } else if (stability >= st.mid && stability < st.high) {
+      this._emitEvent('node.stability.mid', { ...basePayload, value: stability });
+      this.createStabilityAnchor(node, stability);
+      this.logEvent(node, 'stability_anchor');
+    } else if (stability >= st.high) {
+      this._emitEvent('node.stability.high', { ...basePayload, value: stability });
       this.createJitterBurst(node);
       this.logEvent(node, 'jitter_burst');
     }
     
-    // High harmony: glowing resonance ring
-    if (harmony > 0.7) {
-      this._emitEvent('node.harmony.high', {
-        nodeId: node.userData?.nodeId || node.id || node.uuid,
-        value: harmony,
-        source: 'NodeMicroEvents'
-      });
+    // ── HARMONY ───────────────────────────────────────────────────
+    const harmony = Number.isFinite(metrics.harmony) ? metrics.harmony : 0;
+    const ht = this.config.harmony;
+    if (harmony <= ht.low) {
+      this._emitEvent('node.harmony.low', { ...basePayload, value: harmony });
+      this.createDensityDarkening(node);
+      this.logEvent(node, 'harmony_low_dark');
+    } else if (harmony >= ht.mid && harmony < ht.high) {
+      this._emitEvent('node.harmony.mid', { ...basePayload, value: harmony });
+      this.createBreathingShift(node);
+      this.logEvent(node, 'harmony_breath');
+    } else if (harmony >= ht.high) {
+      this._emitEvent('node.harmony.high', { ...basePayload, value: harmony });
       this.createHarmonyRing(node);
       this.logEvent(node, 'harmony_ring');
     }
     
-    // High clarity: glyph spark
-    if (synergy > 0.8) {
-      this._emitEvent('node.synergy.high', {
-        nodeId: node.userData?.nodeId || node.id || node.uuid,
-        value: synergy,
-        source: 'NodeMicroEvents'
-      });
+    // ── SYNERGY ───────────────────────────────────────────────────
+    const synergy = Number.isFinite(metrics.synergy) ? metrics.synergy : 0;
+    const sy = this.config.synergy;
+    if (synergy <= sy.low) {
+      this._emitEvent('node.synergy.low', { ...basePayload, value: synergy });
+      this.createDimPulse(node);
+      this.logEvent(node, 'synergy_low_dim');
+    } else if (synergy >= sy.mid && synergy < sy.high) {
+      this._emitEvent('node.synergy.mid', { ...basePayload, value: synergy });
+      this.createBalancedOscillation(node);
+      this.logEvent(node, 'balanced_oscillation');
+    } else if (synergy >= sy.high) {
+      this._emitEvent('node.synergy.high', { ...basePayload, value: synergy });
       this.createClaritySpark(node);
       this.logEvent(node, 'clarity_spark');
     }
     
-    // High energy: core overpulse
-    if (loadPressure > 0.8) {
-      this._emitEvent('node.loadPressure.high', {
-        nodeId: node.userData?.nodeId || node.id || node.uuid,
-        value: loadPressure,
-        source: 'NodeMicroEvents'
-      });
+    // ── CORRUPTION ────────────────────────────────────────────────
+    const corruption = Number.isFinite(metrics.corruption) ? metrics.corruption : 0;
+    const ct = this.config.corruption;
+    if (corruption >= ct.low && corruption < ct.mid) {
+      this._emitEvent('node.corruption.low', { ...basePayload, value: corruption });
+      this.createCorruptionTendril(node, corruption);
+      this.logEvent(node, 'corruption_tendril');
+    } else if (corruption >= ct.mid && corruption < ct.high) {
+      this._emitEvent('node.corruption.mid', { ...basePayload, value: corruption });
+      this.createCorruptionTendril(node, corruption);
+      this.createDensityDarkening(node);
+      this.logEvent(node, 'corruption_dark');
+    } else if (corruption >= ct.high) {
+      this._emitEvent('node.corruption.high', { ...basePayload, value: corruption });
+      this.createCorruptionTendril(node, corruption);
+      this.createFractalShimmer(node);
+      this.logEvent(node, 'corruption_shimmer');
+    }
+    
+    // ── LOAD PRESSURE ─────────────────────────────────────────────
+    const loadPressure = Number.isFinite(metrics.loadPressure) ? metrics.loadPressure : 0;
+    const lp = this.config.loadPressure;
+    if (loadPressure >= lp.low && loadPressure < lp.mid) {
+      this._emitEvent('node.loadPressure.low', { ...basePayload, value: loadPressure });
+      this.createBreathingShift(node);
+      this.logEvent(node, 'load_breath');
+    } else if (loadPressure >= lp.mid && loadPressure < lp.high) {
+      this._emitEvent('node.loadPressure.mid', { ...basePayload, value: loadPressure });
+      this.createEnergyOvercharge(node);
+      this.logEvent(node, 'load_overcharge');
+    } else if (loadPressure >= lp.high) {
+      this._emitEvent('node.loadPressure.high', { ...basePayload, value: loadPressure });
       this.createCorePulse(node);
       this.logEvent(node, 'core_overpulse');
+    }
+    
+    // ── CLARITY ───────────────────────────────────────────────────
+    const clarity = Number.isFinite(metrics.clarity) ? metrics.clarity : 0;
+    const cl = this.config.clarity;
+    if (clarity >= cl.mid && clarity < cl.high) {
+      this._emitEvent('node.clarity.mid', { ...basePayload, value: clarity });
+      this.createGlyphFlash(node);
+      this.logEvent(node, 'clarity_glyph');
+    } else if (clarity >= cl.high) {
+      this._emitEvent('node.clarity.high', { ...basePayload, value: clarity });
+      this.createClaritySpark(node);
+      this.createGlyphFlash(node);
+      this.logEvent(node, 'clarity_spark_glyph');
     }
   }
   
@@ -713,12 +854,15 @@ export class NodeMicroEvents {
   }
   
   createHarmonyRing(node) {
-    const ringGeometry = new THREE.RingGeometry(0.6, 0.65, 32);
+    // Harmony ring — EPIC: additive glow + color evolution
+    const ringGeometry = new THREE.RingGeometry(0.6, 0.68, 48);
     const ringMaterial = new THREE.MeshBasicMaterial({
       color: 0x00ff88,
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.6,
       side: THREE.DoubleSide,
+      blending: this.config.additiveBlending ? THREE.AdditiveBlending : THREE.NormalBlending,
+      depthWrite: false,
     });
     
     const ring = new THREE.Mesh(ringGeometry, ringMaterial);
@@ -726,24 +870,45 @@ export class NodeMicroEvents {
     ring.rotation.x = Math.PI / 2;
     this.scene.add(ring);
     
+    // Inner glow halo
+    const haloGeometry = new THREE.RingGeometry(0.3, 0.55, 32);
+    const haloMaterial = new THREE.MeshBasicMaterial({
+      color: 0x88ffbb,
+      transparent: true,
+      opacity: 0.2,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const halo = new THREE.Mesh(haloGeometry, haloMaterial);
+    halo.position.copy(node.position);
+    halo.position.y += 0.01;
+    halo.rotation.x = Math.PI / 2;
+    this.scene.add(halo);
+    
     const visual = {
       type: 'harmony_ring',
       node,
       ring,
+      halo,
       startTime: Date.now(),
-      duration: 1.2,
+      duration: 1.6,
+      baseColor: new THREE.Color(0x00ff88),
+      evolutionColor: new THREE.Color(0x4488ff),
     };
     
     this.activeVisuals.set(`${node.uuid}_harmony_ring`, visual);
   }
   
   createClaritySpark(node) {
-    // Small flash particle
-    const sparkGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+    // Clarity spark — EPIC: rising spark + trail particles
+    const sparkGeometry = new THREE.SphereGeometry(0.06, 8, 8);
     const sparkMaterial = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
       opacity: 1.0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
     });
     
     const spark = new THREE.Mesh(sparkGeometry, sparkMaterial);
@@ -751,12 +916,33 @@ export class NodeMicroEvents {
     spark.position.y += 0.8;
     this.scene.add(spark);
     
+    // Trail particles (small spheres left behind)
+    const trails = [];
+    for (let i = 0; i < 4; i++) {
+      const trailGeo = new THREE.SphereGeometry(0.025, 6, 6);
+      const trailMat = new THREE.MeshBasicMaterial({
+        color: 0xaaddff,
+        transparent: true,
+        opacity: 0.5,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const trail = new THREE.Mesh(trailGeo, trailMat);
+      trail.position.copy(spark.position);
+      trail.position.y -= (i + 1) * 0.08;
+      trail.position.x += (Math.random() - 0.5) * 0.06;
+      trail.position.z += (Math.random() - 0.5) * 0.06;
+      this.scene.add(trail);
+      trails.push({ mesh: trail, delay: i * 0.05, spawned: false });
+    }
+    
     const visual = {
       type: 'clarity_spark',
       node,
       spark,
+      trails,
       startTime: Date.now(),
-      duration: 0.6,
+      duration: 0.9,
     };
     
     this.activeVisuals.set(`${node.uuid}_clarity_spark`, visual);
@@ -767,12 +953,98 @@ export class NodeMicroEvents {
       type: 'core_pulse',
       node,
       startTime: Date.now(),
-      duration: 0.8,
+      duration: 1.0,
       originalIntensity: node.material.emissiveIntensity || 0.5,
-      pulseIntensity: 1.6,
+      pulseIntensity: 2.0,
     };
     
     this.activeVisuals.set(`${node.uuid}_core_pulse`, visual);
+  }
+  
+  /**
+   * NEW: Dim pulse for low-metric states
+   */
+  createDimPulse(node) {
+    if (!node.material) return;
+    const visual = {
+      type: 'dim_pulse',
+      node,
+      startTime: Date.now(),
+      duration: 1.0,
+      originalIntensity: node.material.emissiveIntensity || 0.5,
+      originalOpacity: node.material.opacity || 1.0,
+    };
+    this.activeVisuals.set(`${node.uuid}_dim_pulse`, visual);
+  }
+  
+  /**
+   * NEW: Stability anchor — grounding ring for mid-stability nodes
+   */
+  createStabilityAnchor(node, stability) {
+    const ringGeo = new THREE.RingGeometry(0.4, 0.44, 32);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x6688ff,
+      transparent: true,
+      opacity: 0.35 * Math.min(stability, 1.0),
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.position.copy(node.position);
+    ring.position.y -= 0.1;
+    ring.rotation.x = Math.PI / 2;
+    this.scene.add(ring);
+    
+    const visual = {
+      type: 'stability_anchor',
+      node,
+      ring,
+      startTime: Date.now(),
+      duration: 1.4,
+    };
+    this.activeVisuals.set(`${node.uuid}_stability_anchor`, visual);
+  }
+  
+  /**
+   * NEW: Corruption tendril — dark wisps for corruption states
+   */
+  createCorruptionTendril(node, corruption) {
+    const intensity = Math.min(corruption, 1.0);
+    const tendrilCount = Math.ceil(intensity * 3);
+    const tendrils = [];
+    
+    for (let i = 0; i < tendrilCount; i++) {
+      const angle = (i / tendrilCount) * Math.PI * 2 + Math.random() * 0.5;
+      const height = 0.3 + Math.random() * 0.4;
+      const tendrilGeo = new THREE.CylinderGeometry(0.008, 0.02, height, 4);
+      const tendrilMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color().lerpColors(new THREE.Color(0x880044), new THREE.Color(0xff0066), intensity),
+        transparent: true,
+        opacity: 0.4 * intensity,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const tendril = new THREE.Mesh(tendrilGeo, tendrilMat);
+      tendril.position.copy(node.position);
+      tendril.position.y += height * 0.5;
+      const radius = 0.3 + Math.random() * 0.2;
+      tendril.position.x += Math.cos(angle) * radius;
+      tendril.position.z += Math.sin(angle) * radius;
+      tendril.rotation.z = (Math.random() - 0.5) * 0.3;
+      this.scene.add(tendril);
+      tendrils.push(tendril);
+    }
+    
+    const visual = {
+      type: 'corruption_tendril',
+      node,
+      tendrils,
+      startTime: Date.now(),
+      duration: 1.2,
+      corruption: intensity,
+    };
+    this.activeVisuals.set(`${node.uuid}_corruption_tendril`, visual);
   }
   
   /**
@@ -785,6 +1057,7 @@ export class NodeMicroEvents {
     const personality = node.userData?.personality?.type;
     const metrics = node.userData?.metrics;
     const stability = Number.isFinite(metrics?.stability) ? metrics.stability : 0;
+    const nodeId = node.userData?.nodeId || node.id || node.uuid;
     
     if (!personality || !metrics) return;
     
@@ -792,27 +1065,100 @@ export class NodeMicroEvents {
       const nearbyPersonality = nearbyNode.userData?.personality?.type;
       const nearbyMetrics = nearbyNode.userData?.metrics;
       const nearbyStability = Number.isFinite(nearbyMetrics?.stability) ? nearbyMetrics.stability : 0;
+      const nearbyNodeId = nearbyNode.userData?.nodeId || nearbyNode.id || nearbyNode.uuid;
       
       if (!nearbyPersonality || !nearbyMetrics) return;
       
       // Compatible personalities: harmony flash
       if (this.areCompatiblePersonalities(personality, nearbyPersonality)) {
+        this._emitEvent('node.interaction.harmony_flash', {
+          nodeId,
+          targetNodeId: nearbyNodeId,
+          source: 'NodeMicroEvents',
+          node,
+          targetNode: nearbyNode,
+        });
         this.createHarmonyFlash(node, nearbyNode);
         this.logEvent(node, 'harmony_flash');
       }
       
       // Both high stability: chaos spark
       if (stability > 0.8 && nearbyStability > 0.8) {
+        this._emitEvent('node.interaction.chaos_spark', {
+          nodeId,
+          targetNodeId: nearbyNodeId,
+          stability,
+          targetStability: nearbyStability,
+          source: 'NodeMicroEvents',
+        });
         this.createChaosSpark(node, nearbyNode);
         this.logEvent(node, 'chaos_spark');
       }
       
       // Ascended presence: calm aura
       if (nearbyPersonality === 'ASCENDED_MYTHIC') {
+        this._emitEvent('node.interaction.calm_aura', {
+          nodeId,
+          ascendedNodeId: nearbyNodeId,
+          source: 'NodeMicroEvents',
+        });
         this.createCalmAura(node);
         this.logEvent(node, 'calm_aura');
       }
+      
+      // Link-aware: emit link events for connected nearby nodes
+      this._emitLinkProximityEvents(node, nearbyNode, metrics, nearbyMetrics);
     });
+  }
+  
+  /**
+   * NEW: Emit link.<metric>.<tier> events when two nearby nodes share link context
+   */
+  _emitLinkProximityEvents(nodeA, nodeB, metricsA, metricsB) {
+    const avgHarmony = ((metricsA.harmony || 0) + (metricsB.harmony || 0)) * 0.5;
+    const avgSynergy = ((metricsA.synergy || 0) + (metricsB.synergy || 0)) * 0.5;
+    const avgStability = ((metricsA.stability || 0) + (metricsB.stability || 0)) * 0.5;
+    const avgCorruption = ((metricsA.corruption || 0) + (metricsB.corruption || 0)) * 0.5;
+    
+    const nodeAId = nodeA.userData?.nodeId || nodeA.id || nodeA.uuid;
+    const nodeBId = nodeB.userData?.nodeId || nodeB.id || nodeB.uuid;
+    const basePayload = {
+      sourceNodeId: nodeAId,
+      targetNodeId: nodeBId,
+      source: 'NodeMicroEvents',
+    };
+    
+    // link.harmony events
+    if (avgHarmony >= this.config.harmony.high) {
+      this._emitEvent('link.harmony.high', { ...basePayload, value: avgHarmony });
+    } else if (avgHarmony >= this.config.harmony.mid) {
+      this._emitEvent('link.harmony.mid', { ...basePayload, value: avgHarmony });
+    } else if (avgHarmony <= this.config.harmony.low) {
+      this._emitEvent('link.harmony.low', { ...basePayload, value: avgHarmony });
+    }
+    
+    // link.synergy events
+    if (avgSynergy >= this.config.synergy.high) {
+      this._emitEvent('link.synergy.high', { ...basePayload, value: avgSynergy });
+    } else if (avgSynergy >= this.config.synergy.mid) {
+      this._emitEvent('link.synergy.mid', { ...basePayload, value: avgSynergy });
+    } else if (avgSynergy <= this.config.synergy.low) {
+      this._emitEvent('link.synergy.low', { ...basePayload, value: avgSynergy });
+    }
+    
+    // link.stability events
+    if (avgStability >= this.config.stability.high) {
+      this._emitEvent('link.stability.high', { ...basePayload, value: avgStability });
+    } else if (avgStability <= this.config.stability.low) {
+      this._emitEvent('link.stability.low', { ...basePayload, value: avgStability });
+    }
+    
+    // link.corruption events
+    if (avgCorruption >= this.config.corruption.high) {
+      this._emitEvent('link.corruption.high', { ...basePayload, value: avgCorruption });
+    } else if (avgCorruption >= this.config.corruption.mid) {
+      this._emitEvent('link.corruption.mid', { ...basePayload, value: avgCorruption });
+    }
   }
   
   areCompatiblePersonalities(p1, p2) {
@@ -831,13 +1177,15 @@ export class NodeMicroEvents {
   }
   
   createHarmonyFlash(node1, node2) {
-    // Light beam between nodes
+    // Energy beam between nodes — EPIC: additive glow + pulse traveling along beam
     const distance = node1.position.distanceTo(node2.position);
-    const beamGeometry = new THREE.CylinderGeometry(0.02, 0.02, distance, 8);
+    const beamGeometry = new THREE.CylinderGeometry(0.025, 0.025, distance, 8);
     const beamMaterial = new THREE.MeshBasicMaterial({
       color: 0x00ffaa,
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.5,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
     });
     
     const beam = new THREE.Mesh(beamGeometry, beamMaterial);
@@ -848,24 +1196,42 @@ export class NodeMicroEvents {
     
     this.scene.add(beam);
     
+    // Pulse orb traveling along beam
+    const pulseGeo = new THREE.SphereGeometry(0.05, 8, 8);
+    const pulseMat = new THREE.MeshBasicMaterial({
+      color: 0xaaffdd,
+      transparent: true,
+      opacity: 0.8,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const pulse = new THREE.Mesh(pulseGeo, pulseMat);
+    pulse.position.copy(node1.position);
+    this.scene.add(pulse);
+    
     const visual = {
       type: 'harmony_flash',
       beam,
+      pulse,
+      node1,
+      node2,
       startTime: Date.now(),
-      duration: 0.8,
+      duration: 1.0,
     };
     
     this.activeVisuals.set(`${node1.uuid}_harmony_flash`, visual);
   }
   
   createChaosSpark(node1, node2) {
-    // Erratic lightning between nodes
+    // Erratic lightning between nodes — EPIC: additive + erratic rotation + branch sparks
     const distance = node1.position.distanceTo(node2.position);
-    const sparkGeometry = new THREE.CylinderGeometry(0.01, 0.01, distance, 6);
+    const sparkGeometry = new THREE.CylinderGeometry(0.012, 0.012, distance, 6);
     const sparkMaterial = new THREE.MeshBasicMaterial({
       color: 0xff0088,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.7,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
     });
     
     const spark = new THREE.Mesh(sparkGeometry, sparkMaterial);
@@ -876,11 +1242,32 @@ export class NodeMicroEvents {
     
     this.scene.add(spark);
     
+    // Branch sparks (smaller offshoots)
+    const branches = [];
+    for (let i = 0; i < 2; i++) {
+      const branchGeo = new THREE.CylinderGeometry(0.005, 0.008, distance * 0.3, 4);
+      const branchMat = new THREE.MeshBasicMaterial({
+        color: 0xff4488,
+        transparent: true,
+        opacity: 0.4,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const branch = new THREE.Mesh(branchGeo, branchMat);
+      branch.position.copy(midpoint);
+      branch.position.x += (Math.random() - 0.5) * 0.15;
+      branch.position.z += (Math.random() - 0.5) * 0.15;
+      branch.rotation.z = (Math.random() - 0.5) * 1.2;
+      this.scene.add(branch);
+      branches.push(branch);
+    }
+    
     const visual = {
       type: 'chaos_spark',
       spark,
+      branches,
       startTime: Date.now(),
-      duration: 0.4,
+      duration: 0.5,
     };
     
     this.activeVisuals.set(`${node1.uuid}_chaos_spark`, visual);
@@ -941,15 +1328,39 @@ export class NodeMicroEvents {
         break;
       
       case 'breathing_shift':
+        // Sinusoidal scale pulse (3% depth)
+        if (visual.node && visual.originalScale !== undefined) {
+          const breathScale = visual.originalScale * (1 + 0.03 * Math.sin(progress * Math.PI * 2));
+          visual.node.scale.setScalar(breathScale);
+        }
         break;
       
       case 'resonance_halo':
         const haloScale = 1 + progress * 1.5;
         visual.ring.scale.setScalar(haloScale);
-        visual.ring.material.opacity = 0.6 * (1 - progress);
+        // Glow pulse modulation
+        const glowPulse = 0.7 + 0.3 * Math.sin(this._elapsedTime * this.config.glowPulseSpeed);
+        visual.ring.material.opacity = glowPulse * (1 - progress);
+        // Color evolution: green → cyan
+        if (visual.baseColor) {
+          const evolvedColor = visual.baseColor.clone().lerp(new THREE.Color(0x00ccff), progress * 0.5);
+          visual.ring.material.color.copy(evolvedColor);
+        }
+        // Echo ring (delayed, dimmer)
+        if (visual.echoRing) {
+          const echoProgress = Math.max(0, progress - 0.15);
+          const echoScale = 1 + echoProgress * 2.0;
+          visual.echoRing.scale.setScalar(echoScale);
+          visual.echoRing.material.opacity = 0.12 * (1 - echoProgress);
+        }
         break;
       
       case 'synchronized_pulse':
+        // Synchronized scale pulse across nearby nodes
+        if (visual.node && visual.originalScale !== undefined) {
+          const syncScale = visual.originalScale * (1 + 0.04 * Math.sin(progress * Math.PI));
+          visual.node.scale.setScalar(syncScale);
+        }
         break;
       
       case 'fractal_shimmer':
@@ -990,6 +1401,11 @@ export class NodeMicroEvents {
         break;
       
       case 'drifting_gesture':
+        // Smooth position drift using sin envelope
+        if (visual.node && visual.originalPosition && visual.driftOffset) {
+          const driftAmount = Math.sin(progress * Math.PI); // peak at center
+          visual.node.position.copy(visual.originalPosition).addScaledVector(visual.driftOffset, driftAmount);
+        }
         break;
       
       case 'glyph_flash':
@@ -1000,28 +1416,72 @@ export class NodeMicroEvents {
         break;
       
       case 'balanced_oscillation':
+        // Smooth sinusoidal scale oscillation
+        if (visual.node && visual.originalScale !== undefined) {
+          const oscScale = visual.originalScale * (1 + visual.oscillationDepth * Math.sin(progress * Math.PI * 3));
+          visual.node.scale.setScalar(oscScale);
+        }
         break;
       
       case 'ascended_flare':
         const flareScale = 1 + progress * 2;
+        const flareGlow = 0.85 + 0.15 * Math.sin(this._elapsedTime * 4.0);
         visual.ring1.scale.setScalar(flareScale);
         visual.ring2.scale.setScalar(flareScale * 0.8);
-        visual.ring1.material.opacity = 0.8 * (1 - progress);
-        visual.ring2.material.opacity = 0.8 * (1 - progress);
+        visual.ring1.material.opacity = flareGlow * (1 - progress);
+        visual.ring2.material.opacity = flareGlow * 0.7 * (1 - progress);
+        // Vertical beam fade
+        if (visual.beam) {
+          visual.beam.material.opacity = 0.5 * (1 - progress);
+          visual.beam.scale.y = 1 + progress * 0.5;
+        }
         break;
       
       case 'jitter_burst':
+        // Deterministic sinusoidal jitter
+        if (visual.node && visual.originalPosition) {
+          const jitterDecay = 1 - progress;
+          const jx = Math.sin(this._elapsedTime * 12 + visual.phaseX) * visual.jitterIntensity * jitterDecay;
+          const jy = Math.sin(this._elapsedTime * 15 + visual.phaseY) * visual.jitterIntensity * jitterDecay;
+          const jz = Math.sin(this._elapsedTime * 10 + visual.phaseZ) * visual.jitterIntensity * jitterDecay;
+          visual.node.position.copy(visual.originalPosition);
+          visual.node.position.x += jx;
+          visual.node.position.y += jy;
+          visual.node.position.z += jz;
+        }
         break;
       
       case 'harmony_ring':
-        const harmonyScale = 1 + progress * 1.2;
+        const harmonyScale = 1 + progress * 1.4;
+        const harmonyGlow = 0.6 + 0.2 * Math.sin(this._elapsedTime * this.config.glowPulseSpeed);
         visual.ring.scale.setScalar(harmonyScale);
-        visual.ring.material.opacity = 0.5 * (1 - progress);
+        visual.ring.material.opacity = harmonyGlow * (1 - progress);
+        // Color evolution: green → blue
+        if (visual.baseColor && visual.evolutionColor) {
+          const evolvedColor = visual.baseColor.clone().lerp(visual.evolutionColor, progress * 0.6);
+          visual.ring.material.color.copy(evolvedColor);
+        }
+        // Inner halo pulse
+        if (visual.halo) {
+          visual.halo.scale.setScalar(1 + progress * 0.8);
+          visual.halo.material.opacity = 0.2 * (1 - progress);
+        }
         break;
       
       case 'clarity_spark':
-        visual.spark.position.y += deltaTime * 0.5;
+        visual.spark.position.y += deltaTime * 0.6;
         visual.spark.material.opacity = 1.0 * (1 - progress);
+        // Spark scale grows slightly
+        const sparkScale = 1 + progress * 0.5;
+        visual.spark.scale.setScalar(sparkScale);
+        // Trail particles fade
+        if (visual.trails) {
+          visual.trails.forEach((t, i) => {
+            const trailProgress = Math.max(0, progress - t.delay * 2);
+            t.mesh.material.opacity = 0.5 * (1 - trailProgress);
+            t.mesh.position.y += deltaTime * 0.2;
+          });
+        }
         break;
       
       case 'core_pulse':
@@ -1033,21 +1493,72 @@ export class NodeMicroEvents {
       
       case 'harmony_flash':
         if (visual.beam) {
-          visual.beam.material.opacity = 0.4 * (1 - progress);
+          visual.beam.material.opacity = 0.5 * (1 - progress);
+        }
+        // Pulse orb travels from node1 to node2
+        if (visual.pulse && visual.node1 && visual.node2) {
+          visual.pulse.position.lerpVectors(visual.node1.position, visual.node2.position, progress);
+          visual.pulse.material.opacity = 0.8 * (1 - progress);
+          const pulseScale = 1 + Math.sin(progress * Math.PI) * 0.5;
+          visual.pulse.scale.setScalar(pulseScale);
         }
         break;
       
       case 'chaos_spark':
         if (visual.spark) {
-          visual.spark.material.opacity = 0.6 * (1 - progress);
+          visual.spark.material.opacity = 0.7 * (1 - progress);
           // Erratic rotation
-          visual.spark.rotation.z += deltaTime * 5;
+          visual.spark.rotation.z += deltaTime * 8;
+          visual.spark.rotation.x += deltaTime * 3;
+        }
+        // Branch sparks erratic movement
+        if (visual.branches) {
+          visual.branches.forEach((branch, i) => {
+            branch.material.opacity = 0.4 * (1 - progress);
+            branch.rotation.z += deltaTime * (6 + i * 3);
+            branch.rotation.y += deltaTime * 4;
+          });
         }
         break;
       
       case 'calm_aura':
-        // Calm aura affects other systems, but we just track it here
-        // The actual slow-down would be applied in NodePersonalitySystem2_0
+        // Calm aura: gentle emissive dimming
+        if (visual.node && visual.node.material.emissiveIntensity !== undefined) {
+          const calmPulse = 1 - 0.15 * Math.sin(progress * Math.PI * 2);
+          visual.node.material.emissiveIntensity = (visual.node.userData?.baseEmissive || 0.5) * calmPulse;
+        }
+        break;
+      
+      // ── NEW VISUAL TYPES ────────────────────────────────────────
+      case 'dim_pulse':
+        if (visual.node) {
+          // Dim the emissive + opacity briefly
+          if (visual.node.material.emissiveIntensity !== undefined) {
+            visual.node.material.emissiveIntensity = visual.originalIntensity * (1 - 0.4 * Math.sin(progress * Math.PI));
+          }
+          if (visual.node.material.opacity !== undefined) {
+            visual.node.material.opacity = visual.originalOpacity * (1 - 0.2 * Math.sin(progress * Math.PI));
+          }
+        }
+        break;
+      
+      case 'stability_anchor':
+        if (visual.ring) {
+          const anchorPulse = 1 + 0.1 * Math.sin(this._elapsedTime * 2.5);
+          visual.ring.scale.setScalar(anchorPulse);
+          visual.ring.material.opacity = 0.35 * (1 - progress);
+          visual.ring.rotation.z += deltaTime * 0.3;
+        }
+        break;
+      
+      case 'corruption_tendril':
+        if (visual.tendrils) {
+          visual.tendrils.forEach((tendril, i) => {
+            tendril.material.opacity = 0.4 * visual.corruption * (1 - progress);
+            tendril.rotation.z += deltaTime * (2 + i) * (i % 2 === 0 ? 1 : -1);
+            tendril.position.y += deltaTime * 0.05;
+          });
+        }
         break;
     }
   }
@@ -1068,44 +1579,156 @@ export class NodeMicroEvents {
         visual.node.material.opacity = visual.originalOpacity;
       }
       
+      // Reset scale
+      if (visual.originalScale !== undefined) {
+        visual.node.scale.setScalar(visual.originalScale);
+      }
+      
+      // Reset position (for drifting_gesture / jitter_burst)
+      if (visual.originalPosition) {
+        visual.node.position.copy(visual.originalPosition);
+      }
+      
       // Reset visibility
       if (visual.type === 'micro_blink') {
         visual.node.visible = true;
       }
     }
     
-    // Remove scene objects
-    if (visual.ring) {
-      this.scene.remove(visual.ring);
-      visual.ring.geometry.dispose();
-      visual.ring.material.dispose();
+    // Helper to safely dispose a mesh
+    const disposeMesh = (mesh) => {
+      if (!mesh) return;
+      this.scene.remove(mesh);
+      if (mesh.geometry) mesh.geometry.dispose();
+      if (mesh.material) mesh.material.dispose();
+    };
+    
+    // Remove scene objects — standard
+    disposeMesh(visual.ring);
+    disposeMesh(visual.ring1);
+    disposeMesh(visual.ring2);
+    disposeMesh(visual.spark);
+    disposeMesh(visual.beam);
+    
+    // Remove scene objects — new EPIC types
+    disposeMesh(visual.echoRing);
+    disposeMesh(visual.halo);
+    disposeMesh(visual.pulse);
+    
+    // Remove trail particles
+    if (visual.trails) {
+      visual.trails.forEach(t => disposeMesh(t.mesh));
     }
     
-    if (visual.ring1) {
-      this.scene.remove(visual.ring1);
-      visual.ring1.geometry.dispose();
-      visual.ring1.material.dispose();
+    // Remove branch sparks
+    if (visual.branches) {
+      visual.branches.forEach(b => disposeMesh(b));
     }
     
-    if (visual.ring2) {
-      this.scene.remove(visual.ring2);
-      visual.ring2.geometry.dispose();
-      visual.ring2.material.dispose();
+    // Remove tendrils
+    if (visual.tendrils) {
+      visual.tendrils.forEach(t => disposeMesh(t));
     }
-    
-    if (visual.spark) {
-      this.scene.remove(visual.spark);
-      visual.spark.geometry.dispose();
-      visual.spark.material.dispose();
+
+    // NEW: Remove single tendril (for corruption_tendril)
+    disposeMesh(visual.tendril);
+
+    // NEW: Remove stabilizer (for stability_anchor)
+    disposeMesh(visual.stabilizer);
+
+    // NEW: Remove any other mesh references (catch-all)
+    Object.values(visual).forEach(value => {
+      if (value instanceof THREE.Mesh && value.parent) {
+        // Check if not already disposed
+        if (value.geometry || value.material) {
+          this.scene.remove(value);
+          if (value.geometry && !value.geometry.isDisposed) {
+            value.geometry.dispose();
+            value.geometry.isDisposed = true;
+          }
+          if (value.material && !value.material.isDisposed) {
+            value.material.dispose();
+            value.material.isDisposed = true;
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * Get or create ring geometry from pool
+   * @private
+   * FUTURE: Use for geometry reuse optimization
+   */
+  _getRingGeometry(innerRadius, outerRadius, segments) {
+    const key = `${innerRadius}_${outerRadius}_${segments}`;
+    let geo = this.geometryPool.rings.find(g => g.userData.key === key && !g.userData.inUse);
+
+    if (!geo) {
+      geo = new THREE.RingGeometry(innerRadius, outerRadius, segments);
+      geo.userData.key = key;
+      geo.userData.inUse = true;
+      this.geometryPool.rings.push(geo);
+    } else {
+      geo.userData.inUse = true;
     }
-    
-    if (visual.beam) {
-      this.scene.remove(visual.beam);
-      visual.beam.geometry.dispose();
-      visual.beam.material.dispose();
+
+    return geo;
+  }
+
+  /**
+   * Get or create sphere geometry from pool
+   * @private
+   * FUTURE: Use for geometry reuse optimization
+   */
+  _getSphereGeometry(radius, widthSegments, heightSegments) {
+    const key = `${radius}_${widthSegments}_${heightSegments}`;
+    let geo = this.geometryPool.spheres.find(g => g.userData.key === key && !g.userData.inUse);
+
+    if (!geo) {
+      geo = new THREE.SphereGeometry(radius, widthSegments, heightSegments);
+      geo.userData.key = key;
+      geo.userData.inUse = true;
+      this.geometryPool.spheres.push(geo);
+    } else {
+      geo.userData.inUse = true;
+    }
+
+    return geo;
+  }
+
+  /**
+   * Get or create cylinder geometry from pool
+   * @private
+   * FUTURE: Use for geometry reuse optimization
+   */
+  _getCylinderGeometry(radiusTop, radiusBottom, height, radialSegments) {
+    const key = `${radiusTop}_${radiusBottom}_${height}_${radialSegments}`;
+    let geo = this.geometryPool.cylinders.find(g => g.userData.key === key && !g.userData.inUse);
+
+    if (!geo) {
+      geo = new THREE.CylinderGeometry(radiusTop, radiusBottom, height, radialSegments);
+      geo.userData.key = key;
+      geo.userData.inUse = true;
+      this.geometryPool.cylinders.push(geo);
+    } else {
+      geo.userData.inUse = true;
+    }
+
+    return geo;
+  }
+
+  /**
+   * Release geometry back to pool
+   * @private
+   * FUTURE: Use for geometry reuse optimization
+   */
+  _releaseGeometry(geometry) {
+    if (geometry && geometry.userData) {
+      geometry.userData.inUse = false;
     }
   }
-  
+
   /**
    * Log event to node's event log
    */
@@ -1131,6 +1754,91 @@ export class NodeMicroEvents {
    */
   getEventLog(node) {
     return node.userData?.eventLog || [];
+  }
+
+  /**
+   * Get system status and diagnostics
+   * @returns {Object} System status
+   */
+  getStatus() {
+    const eventCounts = {};
+    this.activeVisuals.forEach((visual) => {
+      eventCounts[visual.type] = (eventCounts[visual.type] || 0) + 1;
+    });
+
+    const totalEvents = Array.from(this.nodeEvents.values())
+      .reduce((sum, e) => sum + (e.eventCount || 0), 0);
+
+    return {
+      performanceMode: this.performanceMode,
+      updateInterval: this.updateInterval,
+      updateFrequency: Math.round(1 / this.updateInterval),
+      totalNodes: this.nodeEvents.size,
+      activeVisuals: this.activeVisuals.size,
+      interactionPairs: this.interactionCache.size,
+      totalEventsTriggered: totalEvents,
+      averageEventsPerNode: this.nodeEvents.size > 0 ? (totalEvents / this.nodeEvents.size).toFixed(2) : 0,
+      eventBreakdown: eventCounts,
+      elapsedTime: this._elapsedTime.toFixed(2),
+      config: {
+        visualIntensity: this.config.visualIntensity,
+        glowPulseSpeed: this.config.glowPulseSpeed,
+        ringGlowEnabled: this.config.ringGlowEnabled,
+        trailEnabled: this.config.trailEnabled,
+      }
+    };
+  }
+
+  /**
+   * Dispose all resources and clean up
+   * CRITICAL: Call this when removing NodeMicroEvents to prevent memory leaks
+   */
+  dispose() {
+    console.log('[NodeMicroEvents] Disposing...');
+
+    // Clean up all active visuals
+    this.activeVisuals.forEach((visual) => {
+      this.cleanupVisual(visual);
+    });
+    this.activeVisuals.clear();
+
+    // Clear event registry
+    this.nodeEvents.clear();
+
+    // Clear interaction cache
+    this.interactionCache.clear();
+
+    // Clear spatial grid if it exists
+    if (this.spatialGrid) {
+      this.spatialGrid.clear();
+    }
+
+    // Dispose geometry and material pools if they exist
+    if (this.geometryPool) {
+      Object.values(this.geometryPool).forEach(pool => {
+        pool.forEach(geo => {
+          if (geo) geo.dispose();
+        });
+      });
+      this.geometryPool = { rings: [], spheres: [], cylinders: [] };
+    }
+
+    if (this.materialPool) {
+      Object.values(this.materialPool).forEach(pool => {
+        pool.forEach(mat => {
+          if (mat) mat.dispose();
+        });
+      });
+      this.materialPool = { rings: [], spheres: [], cylinders: [] };
+    }
+
+    // Reset timers
+    this._elapsedTime = 0;
+    this.lastUpdateTime = 0;
+    this.lastInteractionCheck = 0;
+    this.performanceMode = 'normal';
+
+    console.log('[NodeMicroEvents] Disposed successfully');
   }
 
   _resolveMetricBus() {

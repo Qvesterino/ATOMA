@@ -814,7 +814,7 @@ Animates corruption spread across links.
 
 ---
 
-### 1.2 n
+### 1.2 ResonanceEchoTrail
 
 **Type**: 🎨 GEOMETRY/MESH EMITTER
 

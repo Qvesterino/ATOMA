@@ -151,6 +151,7 @@ export class StandingWaveVisualRenderer_Session131 {
         this._antinodeColorA = new THREE.Color();
         this._antinodeColorB = new THREE.Color();
         this._antinodeColorC = new THREE.Color();
+        this._shellTintCache = new THREE.Color(0.96, 0.98, 1.0);  // Cached to avoid per-frame alloc
         
         this.time = 0;
         this.initialized = false;
@@ -629,7 +630,10 @@ export class StandingWaveVisualRenderer_Session131 {
 
                 const age = Math.max(0, this.time - antinode.birthTime);
                 const attack = Math.min(1, age / 0.12);
-                const pulse = 0.76 + (Math.sin((age * this.config.antinodePulseFrequency * Math.PI * 2) + antinode.phaseSeed) * 0.24);
+                // Breathing pulse with secondary harmonic for organic feel
+                const primaryPulse = Math.sin((age * this.config.antinodePulseFrequency * Math.PI * 2) + antinode.phaseSeed);
+                const secondaryPulse = Math.sin((age * this.config.antinodePulseFrequency * Math.PI * 4.2) + antinode.phaseSeed * 1.7) * 0.15;
+                const pulse = 0.76 + (primaryPulse * 0.24) + (secondaryPulse * 0.08);
                 const fadeWindow = Math.max(0.001, this.config.antinodeFadeSeconds);
                 const dissolve = Math.max(0, Math.min(1, (antinode.expireTime - this.time) / fadeWindow));
                 const dissolveProgress = 1 - dissolve;
@@ -641,8 +645,9 @@ export class StandingWaveVisualRenderer_Session131 {
                 const displayIntensity = Math.max(0, antinode.intensity * attack * pulse * dissolve * Math.max(0.18, breakup));
 
                 const color = this._resolveAntinodeColor(link, this._antinodeColorC);
-                const colorIntensity = Math.min(0.72, 0.22 + displayIntensity * this.config.antinodeGlowIntensity * 0.42);
-                const shellTint = color.clone().lerp(new THREE.Color(0.96, 0.98, 1.0), 0.65);
+                const smoothIntensity = THREE.MathUtils.smoothstep(displayIntensity, 0.08, 0.75);
+                const colorIntensity = Math.min(0.72, 0.22 + smoothIntensity * this.config.antinodeGlowIntensity * 0.42);
+                const shellTint = color.clone().lerp(this._shellTintCache, THREE.MathUtils.smoothstep(displayIntensity, 0.0, 0.55) * 0.65);
                 this._setAntinodeMeshColor(antinode, color, shellTint, colorIntensity);
                 const dissolveFlicker = 0.88 + (0.12 * Math.sin(breakupPhase * 1.9));
                 this._setAntinodeMeshOpacity(
@@ -858,6 +863,8 @@ export class StandingWaveVisualRenderer_Session131 {
                 + trapZoneMesh.pulseSeed;
             const pulse = 0.84 + (Math.sin(pulsePhase) * 0.16);
             const warpPulse = 0.62 + (Math.sin(pulsePhase * 1.37) * 0.12);
+            // Color evolution: intensity drives blue → white shift
+            const intensityColorShift = Math.min(1, zone.intensity * 1.2);
             const fadeStrength = Math.max(0.24, Math.min(1, zone.intensity * 0.38));
             trapZoneMesh.group.scale.setScalar(singularityScale);
 
@@ -880,8 +887,8 @@ export class StandingWaveVisualRenderer_Session131 {
                 trapZoneMesh.orbitAMesh.scale.setScalar(0.92 + (zone.intensity * 0.06) + pressureBoost * 0.02);
                 trapZoneMesh.orbitAMesh.material.opacity = Math.max(0.06, this.config.trapZoneOpacityBase * (0.86 + pressureBoost) * fadeStrength);
                 trapZoneMesh.orbitAMesh.material.color.setRGB(
-                    this.config.trapZoneColor.r * (0.80 + pulse * 0.18),
-                    this.config.trapZoneColor.g * (0.80 + pulse * 0.14),
+                    this.config.trapZoneColor.r * (0.80 + pulse * 0.18) + intensityColorShift * 0.12,
+                    this.config.trapZoneColor.g * (0.80 + pulse * 0.14) + intensityColorShift * 0.08,
                     this.config.trapZoneColor.b * (0.94 + pulse * 0.06)
                 );
             }
@@ -898,19 +905,21 @@ export class StandingWaveVisualRenderer_Session131 {
                 trapZoneMesh.orbitBMesh.scale.setScalar(0.94);
                 trapZoneMesh.orbitBMesh.material.opacity = Math.max(0.04, this.config.trapZoneOpacityBase * (0.48 + pressureBoost * 0.28) * fadeStrength);
                 trapZoneMesh.orbitBMesh.material.color.setRGB(
-                    0.92,
-                    0.94,
+                    0.86 + intensityColorShift * 0.12,
+                    0.88 + intensityColorShift * 0.08,
                     1.0
                 );
             }
 
             if (trapZoneMesh.haloMesh) {
                 trapZoneMesh.haloMesh.rotation.z = pulsePhase * 0.04;
-                trapZoneMesh.haloMesh.scale.setScalar(1.0 + (pulse * 0.04));
+                // Breathing halo scale with intensity-driven expansion
+                trapZoneMesh.haloMesh.scale.setScalar(1.0 + (pulse * 0.04) + (zone.intensity * 0.06));
                 trapZoneMesh.haloMesh.material.opacity = Math.min(0.22, this.config.trapZoneOpacityBase * 0.48 * fadeStrength * (0.86 + pulse * 0.12));
+                // Halo color shifts warmer at high intensity
                 trapZoneMesh.haloMesh.material.color.setRGB(
-                    0.88,
-                    0.92,
+                    0.88 + intensityColorShift * 0.08,
+                    0.92 - intensityColorShift * 0.04,
                     1.0
                 );
             }
@@ -930,10 +939,6 @@ export class StandingWaveVisualRenderer_Session131 {
             if (fade <= 0.02) {
                 zone.active = false;
                 zone.group.visible = false;
-                if (zone.coreMesh?.material) zone.coreMesh.material.opacity = 0;
-                if (zone.orbitAMesh?.material) zone.orbitAMesh.material.opacity = 0;
-                if (zone.orbitBMesh?.material) zone.orbitBMesh.material.opacity = 0;
-                if (zone.haloMesh?.material) zone.haloMesh.material.opacity = 0;
                 if (zone.coreMesh?.material) zone.coreMesh.material.opacity = 0;
                 if (zone.orbitAMesh?.material) zone.orbitAMesh.material.opacity = 0;
                 if (zone.orbitBMesh?.material) zone.orbitBMesh.material.opacity = 0;
@@ -1037,7 +1042,7 @@ export class StandingWaveVisualRenderer_Session131 {
         
         // Smooth interpolation
         if (material.opacity !== undefined) {
-            material.opacity += (targetOpacity - material.opacity) * 0.08;
+            material.opacity += (targetOpacity - material.opacity) * Math.min(1, deltaTime * 5.0);
         }
     }
 
@@ -1078,12 +1083,7 @@ export class StandingWaveVisualRenderer_Session131 {
     _animateDamping(trap, progress) {
         // Fade amplitude
         trap.amplitude *= (1 - progress * this.config.dampingFadeRate);
-        
-        // Antinode glows fade
-        const material = this.antinodeMaterial;
-        if (material) {
-            material.opacity = this.config.antinodeOpacityBase * (1 - progress);
-        }
+        // Note: antinode per-instance fade is handled by dissolve logic in _updateAntinodeGlows
     }
 
     /**
@@ -1121,11 +1121,7 @@ export class StandingWaveVisualRenderer_Session131 {
         // Animate trap radius inward
         trap.trapRadius *= (1 - progress * this.config.collapseInwardRate);
         
-        // Fade antinodes
-        const material = this.antinodeMaterial;
-        if (material) {
-            material.opacity = this.config.antinodeOpacityBase * (1 - progress);
-        }
+        // Note: antinode per-instance fade handled by dissolve logic in _updateAntinodeGlows
         
         // Increase oscillation frequency (faster as it collapses)
         trap.frequency *= (1 + progress * 0.5);

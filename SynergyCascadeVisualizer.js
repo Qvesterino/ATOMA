@@ -95,6 +95,11 @@ export class SynergyCascadeVisualizer {
       rippleHaloOpacity: 0.12,                 // Base halo opacity for expanded ripple
       particleGlowSizeBoost: 1.12,             // Particle size boost for more luminous trails
       burstGlowSoftness: 0.82,                 // Softness of burst particle glow
+      burstGlowMultiplier: 1.25,               // Strength multiplier for burst particle glow
+      burstSizeBoost: 1.15,                    // Extra burst particle scale boost
+      flowGlowMultiplier: 1.28,                // Strength multiplier for flow particle glow
+      flowAlphaMultiplier: 1.22,               // Extra alpha boost for flow particles
+      flowSizeBoost: 1.18,                     // Extra size boost for flow particles
       
       // Performance
       batchSize: 30,                  // Update cascades in batches
@@ -116,6 +121,7 @@ export class SynergyCascadeVisualizer {
       echoRippleRadiusStep: 0.48,
       echoRippleOpacityFalloff: 0.12,
       echoRippleCooldownSeconds: 3.0,
+      synergyRippleCooldownSeconds: 3.5,
       topologyBiasRippleCount: 3,
       topologyBiasRippleRadiusStep: 0.32,
       topologyBiasRippleOpacityScale: 0.30,
@@ -151,6 +157,7 @@ export class SynergyCascadeVisualizer {
     this._rippleCooldownByLinkId = new Map();
     this._echoRippleCooldownByLinkId = new Map();
     this._topologyBiasCooldownByKey = new Map();
+    this._nodeSynergyRippleCooldownById = new Map();
     this._burstCooldownByLinkId = new Map();
     this._forcedBurstCooldownByLinkId = new Map();
     this._forcedFlowCooldownByLinkId = new Map();
@@ -160,6 +167,7 @@ export class SynergyCascadeVisualizer {
     this.frameCounter = 0;
     this._semanticBus = null;
     this._semanticHandlers = null;
+    this.scheduledBursts = [];
     
     // Debug mode
     this.debugMode = false;
@@ -196,6 +204,7 @@ export class SynergyCascadeVisualizer {
     // Update active cascades
     this.updateActiveCascades(deltaTime);
     this._updateCascadeHistoryHeartbeats(deltaTime);
+    this._updateScheduledBursts(deltaTime);
     
     // Update cascade particles
     this.updateCascadeParticles(deltaTime);
@@ -210,6 +219,68 @@ export class SynergyCascadeVisualizer {
     this.stats.lastUpdateTime = performance.now() - startTime;
     this.stats.activeCascades = this.activeCascades.length;
     this.stats.particlesActive = this.cascadeParticles.length + this.flowParticles.length;
+  }
+
+  _updateScheduledBursts(deltaTime) {
+    if (this.scheduledBursts.length === 0) return;
+
+    for (let i = this.scheduledBursts.length - 1; i >= 0; i -= 1) {
+      const scheduled = this.scheduledBursts[i];
+      scheduled.timeRemaining -= deltaTime;
+      if (scheduled.timeRemaining <= 0) {
+        this.spawnBurstParticles(scheduled.anchor, scheduled.intensity, scheduled.event, scheduled.options);
+        this.scheduledBursts.splice(i, 1);
+      }
+    }
+  }
+
+  _scheduleLinkBurstSequence(link, intensity, event = {}, options = {}, context = {}) {
+    if (!link || intensity <= 0) return;
+    const { sourcePos, targetPos } = this._getLinkEndpoints(link);
+    const positions = [];
+    if (sourcePos) positions.push(sourcePos.clone());
+    if (sourcePos && targetPos) {
+      positions.push(new THREE.Vector3().addVectors(sourcePos, targetPos).multiplyScalar(0.5));
+    }
+    if (targetPos) positions.push(targetPos.clone());
+    if (positions.length === 0) {
+      const anchor = this._asVector3(context.anchor ?? event.anchor ?? event.position ?? event.origin) ?? null;
+      if (anchor) positions.push(anchor.clone());
+    }
+
+    const midCurvePoint = this._resolveLinkCurveMidpoint(link);
+    if (midCurvePoint) {
+      if (positions.length >= 2) {
+        positions[1] = midCurvePoint.clone();
+      } else {
+        positions.push(midCurvePoint.clone());
+      }
+    }
+
+    const delays = [0.0, 0.55, 1.1];
+    const stageModifiers = [
+      { countMultiplier: 1.0, radiusMultiplier: 1.0, intensityMultiplier: 0.9, lifetimeMultiplier: 0.88 },
+      { countMultiplier: 1.2, radiusMultiplier: 1.15, intensityMultiplier: 1.0, lifetimeMultiplier: 0.82 },
+      { countMultiplier: 1.15, radiusMultiplier: 1.1, intensityMultiplier: 1.05, lifetimeMultiplier: 0.76 }
+    ];
+
+    for (let i = 0; i < positions.length; i += 1) {
+      const stage = stageModifiers[i] || stageModifiers[stageModifiers.length - 1];
+      this.scheduledBursts.push({
+        timeRemaining: delays[i] ?? 1.1,
+        anchor: positions[i],
+        intensity,
+        event: { ...event, forcedBurst: true, link },
+        options: {
+          ...options,
+          countMultiplier: Math.max(1, Number(options.countMultiplier) || 1) * stage.countMultiplier,
+          intensityMultiplier: Math.max(1, Number(options.intensityMultiplier) || 1) * stage.intensityMultiplier,
+          radiusMultiplier: Math.max(1, Number(options.radiusMultiplier) || 1) * stage.radiusMultiplier,
+          lifetimeMultiplier: Math.max(0.45, Number(options.lifetimeMultiplier) || 1) * stage.lifetimeMultiplier,
+          speedMultiplier: Math.max(1, Number(options.speedMultiplier) || 1)
+        }
+      });
+    }
   }
 
   _updateCascadeHistoryHeartbeats(deltaTime) {
@@ -289,7 +360,7 @@ export class SynergyCascadeVisualizer {
         this.config.forcedBurstIntervalSeconds
       )) {
         this.stats.forcedBurstSpawns++;
-        this.spawnBurstParticles(anchor, Math.max(0.25, linkIntensity), {
+        this._scheduleLinkBurstSequence(link, Math.max(0.25, linkIntensity), {
           link,
           cascadeIntensity: linkIntensity,
           intensity: linkIntensity,
@@ -300,7 +371,7 @@ export class SynergyCascadeVisualizer {
           radiusMultiplier: 1.22,
           lifetimeMultiplier: 1.0,
           speedMultiplier: 1.0
-        });
+        }, { anchor });
       }
 
       if (this.config.visualizations.flowParticles && this._canTriggerLinkEffect(this._flowCooldownByLinkId, linkId, band.flowCooldownSeconds)) {
@@ -349,6 +420,9 @@ export class SynergyCascadeVisualizer {
       onCascadeEnd: (event = {}) => this.renderCascadeEnd(event),
       onLinkCreated: (event = {}) => this._handleLinkCreated(event),
       onLinkHarmonyTier: (event = {}) => this.renderLinkHarmonyEcho(event),
+      onNodeSynergyLow: (event = {}) => this.renderNodeSynergyRipple({ ...event, tier: 'low' }),
+      onNodeSynergyMid: (event = {}) => this.renderNodeSynergyRipple({ ...event, tier: 'mid' }),
+      onNodeSynergyHigh: (event = {}) => this.renderNodeSynergyRipple({ ...event, tier: 'high' }),
       onTopologyBiasSnapshot: (event = {}) => this.applyTopologyBiasSnapshot(event)
     };
     on('cascade.hop', this._semanticHandlers.onCascadeHop);
@@ -358,6 +432,9 @@ export class SynergyCascadeVisualizer {
     on('link.harmony.low', this._semanticHandlers.onLinkHarmonyTier);
     on('link.harmony.mid', this._semanticHandlers.onLinkHarmonyTier);
     on('link.harmony.high', this._semanticHandlers.onLinkHarmonyTier);
+    on('node.synergy.low', this._semanticHandlers.onNodeSynergyLow);
+    on('node.synergy.mid', this._semanticHandlers.onNodeSynergyMid);
+    on('node.synergy.high', this._semanticHandlers.onNodeSynergyHigh);
     on('topology.bias.snapshot', this._semanticHandlers.onTopologyBiasSnapshot);
   }
 
@@ -375,6 +452,9 @@ export class SynergyCascadeVisualizer {
       try { off('link.harmony.low', handlers.onLinkHarmonyTier); } catch (_) {}
       try { off('link.harmony.mid', handlers.onLinkHarmonyTier); } catch (_) {}
       try { off('link.harmony.high', handlers.onLinkHarmonyTier); } catch (_) {}
+      try { off('node.synergy.low', handlers.onNodeSynergyLow); } catch (_) {}
+      try { off('node.synergy.mid', handlers.onNodeSynergyMid); } catch (_) {}
+      try { off('node.synergy.high', handlers.onNodeSynergyHigh); } catch (_) {}
       try { off('topology.bias.snapshot', handlers.onTopologyBiasSnapshot); } catch (_) {}
     }
 
@@ -395,6 +475,87 @@ export class SynergyCascadeVisualizer {
       nodeOrId.uuid ??
       null
     );
+  }
+
+  _getSynergyNodeCooldownKey(event = {}) {
+    const node = event.node ?? event.sourceNode ?? event.targetNode ?? event.source ?? event.target ?? null;
+    const resolvedId = this._resolveCascadeNodeId(node) || this._resolveCascadeNodeId(event.nodeId ?? event.sourceNodeId ?? event.targetNodeId ?? event.id);
+    if (!resolvedId) return null;
+    return `node-synergy-${resolvedId}`;
+  }
+
+  _canTriggerNodeSynergyEffect(key, cooldownSeconds) {
+    if (!key) return true;
+    return this._canTriggerLinkEffect(this._nodeSynergyRippleCooldownById, key, cooldownSeconds);
+  }
+
+  _resolveNodeSynergyAnchor(event = {}) {
+    const directAnchor = this._asVector3(event.anchor ?? event.position ?? event.center ?? event.origin);
+    if (directAnchor) return directAnchor;
+
+    const node = event.node ?? event.sourceNode ?? event.targetNode ?? event.source ?? event.target ?? null;
+    return this._getWorldPositionFromObject(node);
+  }
+
+  renderNodeSynergyRipple(event = {}) {
+    const tier = String(event.tier ?? event.phase ?? event.type ?? event.name ?? '').toLowerCase();
+    const anchor = this._resolveNodeSynergyAnchor(event);
+    if (!anchor) return;
+
+    const key = this._getSynergyNodeCooldownKey(event);
+    if (!this._canTriggerNodeSynergyEffect(key, this.config.synergyRippleCooldownSeconds)) {
+      return;
+    }
+
+    const intensity = this._clamp01(Number(event.intensity ?? event.value ?? event.synergy ?? 0) || 0.28);
+    if (tier === 'low') {
+      this._spawnRippleCluster(anchor, Math.max(0.12, intensity * 0.78), 1, {
+        radiusScale: 0.92,
+        opacityScale: 0.78,
+        lifetimeScale: 0.86,
+        intensityScale: 0.86,
+        flatRipple: true
+      });
+      return;
+    }
+
+    if (tier === 'mid') {
+      this._spawnRippleCluster(anchor, Math.max(0.18, intensity * 0.92), 2, {
+        radiusScale: 1.08,
+        opacityScale: 0.92,
+        lifetimeScale: 1.02,
+        intensityScale: 0.98,
+        flatRipple: true
+      });
+      return;
+    }
+
+    if (tier === 'high') {
+      this._spawnEchoRippleCluster(anchor, Math.max(0.24, intensity * 1.05), 2, {
+        colorPalette: [
+          this.config.cascadeColor,
+          this.config.waveColor,
+          new THREE.Color(0xff72d8)
+        ],
+        spacing: 0.18,
+        verticalOffset: 0.08,
+        radiusStep: 0.28,
+        opacityFalloff: 0.10,
+        opacityScale: 0.92,
+        intensityScale: 1.12,
+        radiusScaleBase: 1.32,
+        lifetimeScaleBase: 1.14
+      });
+      return;
+    }
+
+    this._spawnRippleCluster(anchor, Math.max(0.16, intensity * 0.88), 1, {
+      radiusScale: 1.0,
+      opacityScale: 0.84,
+      lifetimeScale: 0.92,
+      intensityScale: 0.92,
+      flatRipple: true
+    });
   }
 
   _resolveHookAnchor(node, signals = {}) {
@@ -943,7 +1104,7 @@ export class SynergyCascadeVisualizer {
     }
 
     if (this.config.visualizations.burstParticles) {
-      this.spawnBurstParticles(context.burstAnchor ?? context.anchor, Math.max(0.3, visualIntensity), {
+      this._scheduleLinkBurstSequence(link, Math.max(0.3, visualIntensity), {
         link,
         cascadeIntensity: visualIntensity,
         intensity: visualIntensity,
@@ -954,7 +1115,7 @@ export class SynergyCascadeVisualizer {
         radiusMultiplier: 1.22,
         lifetimeMultiplier: 1.0,
         speedMultiplier: 1.0
-      });
+      }, context);
     }
 
     if (!link.userData) link.userData = {};
@@ -1394,7 +1555,7 @@ export class SynergyCascadeVisualizer {
         varying float vAlpha;
         void main() {
           vec4 texel = texture2D(map, gl_PointCoord);
-          float alpha = texel.a * vAlpha;
+          float alpha = texel.a * vAlpha * 1.18;
           gl_FragColor = vec4(vColor, alpha);
         }
       `
@@ -1525,8 +1686,10 @@ export class SynergyCascadeVisualizer {
       const fade = 1.0 - progress;
       const pulse = 0.82 + 0.18 * Math.sin((particle.age * 10.0) + (particle.phase || 0));
       const forcedFlow = particle.forcedFlow === true;
-      const alpha = Math.max(0, fade * fade * (forcedFlow ? 0.92 + particle.intensity * 1.08 : 0.66 + particle.intensity * 0.95) * pulse);
-      const size = Math.max(forcedFlow ? 0.94 : 0.52, (particle.size || 1.0) * (forcedFlow ? 1.15 + particle.intensity * 0.58 : 0.98 + particle.intensity * 0.48) * (forcedFlow ? 0.82 + fade * 0.42 : 0.72 + fade * 0.38));
+      const alphaBase = forcedFlow ? 0.92 + particle.intensity * 1.08 : 0.66 + particle.intensity * 0.95;
+      const alpha = Math.max(0, fade * fade * alphaBase * pulse * this.config.flowAlphaMultiplier * this.config.flowGlowMultiplier);
+      const sizeBase = (particle.size || 1.0) * (forcedFlow ? 1.15 + particle.intensity * 0.58 : 0.98 + particle.intensity * 0.48);
+      const size = Math.max(forcedFlow ? 0.94 : 0.52, sizeBase * (forcedFlow ? 0.82 + fade * 0.42 : 0.72 + fade * 0.38) * this.config.flowSizeBoost);
       const color = particle.color || this.config.waveColor;
 
       positions[activeCount * 3] = particle.position.x;
@@ -1629,6 +1792,22 @@ export class SynergyCascadeVisualizer {
     );
 
     return { sourcePos, targetPos };
+  }
+
+  _resolveLinkCurveMidpoint(link) {
+    if (!link) return null;
+    const curve = link.curve || link.userData?.curve || null;
+    if (curve && typeof curve.getPointAt === 'function') {
+      try {
+        return curve.getPointAt(0.5, new THREE.Vector3());
+      } catch (_) {}
+    }
+    if (curve && typeof curve.getPoint === 'function') {
+      try {
+        return curve.getPoint(0.5, new THREE.Vector3());
+      } catch (_) {}
+    }
+    return null;
   }
 
   _distanceToSegment(point, start, end) {
@@ -1898,7 +2077,7 @@ export class SynergyCascadeVisualizer {
       }
 
       if (this.config.visualizations.burstParticles) {
-        this.spawnBurstParticles(context.burstAnchor ?? anchor, Math.max(0.3, visualIntensity), {
+        this._scheduleLinkBurstSequence(link, Math.max(0.3, visualIntensity), {
           ...event,
           link,
           cascadeIntensity: visualIntensity,
@@ -1910,7 +2089,7 @@ export class SynergyCascadeVisualizer {
           radiusMultiplier: 1.22,
           lifetimeMultiplier: 1.0,
           speedMultiplier: 1.0
-        });
+        }, context);
       }
       return;
     }
@@ -1954,7 +2133,7 @@ export class SynergyCascadeVisualizer {
         this._spawnRippleCluster(anchor, Math.max(0.1, visualIntensity), band.rippleCount, { ...band, flatRipple: true });
       }
       if (anchor && this.config.visualizations.burstParticles) {
-        this.spawnBurstParticles(context.burstAnchor ?? anchor, Math.max(0.3, visualIntensity), {
+        this._scheduleLinkBurstSequence(link, Math.max(0.3, visualIntensity), {
           ...event,
           link,
           cascadeIntensity: visualIntensity,
@@ -1966,7 +2145,7 @@ export class SynergyCascadeVisualizer {
           radiusMultiplier: 1.22,
           lifetimeMultiplier: 1.0,
           speedMultiplier: 1.0
-        });
+        }, context);
       }
       return;
     }
@@ -2113,7 +2292,6 @@ export class SynergyCascadeVisualizer {
     const wavePos = propagation.position;
     const waveIntensity = propagation.intensity;
     
-    // Create animated wave effect using link properties
     if (link.userData && !link.userData.cascadeWave) {
       link.userData.cascadeWave = {
         position: wavePos,
@@ -2126,35 +2304,37 @@ export class SynergyCascadeVisualizer {
     link.userData.cascadeWave.intensity = waveIntensity;
     link.userData.cascadeWave.phase = wavePos;
     
-    // Modify line width at wave position
     const visualTarget = this._resolveLinkVisualTarget(link);
-    if (visualTarget?.material) {
-      const baseMaterial = visualTarget.material;
-      const waveWidth = this.config.waveWidth;
-      
-      // Highlight wave position with brighter color
-      const distance = Math.abs(wavePos - 0.5) * 2; // Distance from center
-      const waveBrightness = Math.max(0, 1.0 - (distance / waveWidth));
-      const headStrength = Math.min(1, waveIntensity * (0.65 + waveBrightness * 0.8));
-      const tailStrength = Math.min(1, (history.trailIntensity || 0) * 0.85);
+    if (!visualTarget?.material) return;
 
-      if (baseMaterial.color) {
-        const headColor = this.config.cascadeColor.clone().lerp(this.config.waveColor, 0.35 + headStrength * 0.45);
-        baseMaterial.color.copy(headColor);
-      }
-      
-      if (baseMaterial.emissive) {
-        const waveColor = this.config.waveColor.clone().lerp(this.config.cascadeColor, 0.24);
-        baseMaterial.emissive.copy(waveColor);
-        baseMaterial.emissiveIntensity = Math.max(
-          baseMaterial.emissiveIntensity || 0,
-          (waveBrightness * waveIntensity * 2.8) + (tailStrength * 1.1) + (headStrength * 0.72)
-        );
-      }
+    const baseMaterial = visualTarget.material;
+    const waveWidth = Math.max(0.18, this.config.waveWidth);
+    const distance = Math.abs(wavePos - 0.5) * 2;
+    const waveFalloff = Math.max(0, 1.0 - (distance / waveWidth));
+    const envelope = Math.pow(waveFalloff, 1.95);
+    const headStrength = Math.min(1, waveIntensity * (0.55 + waveFalloff * 0.92));
+    const tailStrength = Math.min(1, (history.trailIntensity || 0) * 0.92);
 
-      if (baseMaterial.opacity !== undefined) {
-        baseMaterial.opacity = Math.min(1.0, (baseMaterial.opacity || 0.75) + headStrength * 0.12 + tailStrength * 0.05);
-      }
+    const baseColor = this.config.cascadeColor.clone().lerp(this.config.waveColor, 0.24 + envelope * 0.38);
+    const headColor = this.config.waveColor.clone().lerp(this.config.cascadeColor, 0.18 + envelope * 0.22);
+    const waveColor = this.config.waveColor.clone().lerp(this.config.cascadeColor, 0.24);
+
+    if (baseMaterial.color) {
+      const targetColor = baseColor.clone().lerp(headColor, envelope * 0.88);
+      baseMaterial.color.copy(targetColor);
+    }
+
+    if (baseMaterial.emissive) {
+      const emissiveColor = waveColor.clone().lerp(this.config.cascadeColor, Math.max(0, 0.28 - envelope * 0.08));
+      baseMaterial.emissive.copy(emissiveColor);
+      baseMaterial.emissiveIntensity = Math.max(
+        baseMaterial.emissiveIntensity || 0,
+        (waveFalloff * waveIntensity * 3.05) + (tailStrength * 1.25) + (headStrength * 0.88)
+      );
+    }
+
+    if (baseMaterial.opacity !== undefined) {
+      baseMaterial.opacity = Math.min(1.0, (baseMaterial.opacity || 0.75) + envelope * 0.14 + tailStrength * 0.06);
     }
   }
   
@@ -2207,21 +2387,31 @@ export class SynergyCascadeVisualizer {
     const material = visualTarget.material;
     const position = propagation.position;
     const intensity = propagation.intensity;
-    
-    // Create oscillating shimmer effect
-    const shimmerFrequency = 8.0; // Oscillations per unit
-    const shimmerPhase = (Date.now() % 1000) / 1000 * Math.PI * 2;
-    
+    const time = ((Date.now() % 2000) / 2000) * Math.PI * 2;
+
+    const shimmerFrequency = 6.2;
+    const shimmerPhase = time * 1.25 + position * 3.75;
     const shimmerWave = Math.sin(position * shimmerFrequency + shimmerPhase);
-    const shimmerAmount = Math.abs(shimmerWave) * intensity;
-    
-    // Apply shimmer by modulating emissive
+    const shimmerBand = Math.pow(Math.max(0, 1 - Math.abs(shimmerWave)), 1.86);
+    const flicker = 0.72 + 0.28 * Math.sin(time * 4.3 + position * 2.1);
+    const shimmerAmount = shimmerBand * intensity * flicker;
+    const trailIntensity = Math.min(1, (history.trailIntensity || 0) * 1.02);
+
     if (material.emissive) {
-      const shimmerColor = this.config.cascadeColor.clone();
-      shimmerColor.lerp(this.config.waveColor, shimmerWave * 0.5 + 0.5);
-      
+      const baseColor = this.config.cascadeColor.clone().lerp(this.config.waveColor, 0.42 + intensity * 0.18);
+      const highlight = this.config.waveColor.clone().lerp(new THREE.Color(0xff8ae8), 0.32);
+      const shimmerColor = baseColor.clone().lerp(highlight, Math.min(1, intensity * 0.34));
+
       material.emissive.copy(shimmerColor);
-      material.emissiveIntensity = shimmerAmount * 2.6;
+      material.emissiveIntensity = Math.max(
+        material.emissiveIntensity || 0,
+        shimmerAmount * 3.2 + trailIntensity * 0.9 + intensity * 0.45
+      );
+    }
+
+    if (material.color) {
+      const colorShift = material.color.clone().lerp(this.config.waveColor, Math.min(1, shimmerAmount * 0.14));
+      material.color.copy(colorShift);
     }
   }
   
@@ -2243,8 +2433,8 @@ export class SynergyCascadeVisualizer {
     );
     if (particleBudget <= 0) return;
 
-    const particleCount = Math.max(forcedFlow ? 8 : 2, particleBudget);
-    const flowScale = Math.max(forcedFlow ? 0.82 : 0.45, this._getCascadeVisualScale(
+    const particleCount = Math.max(forcedFlow ? 12 : 8, particleBudget);
+    const flowScale = Math.max(forcedFlow ? 0.92 : 0.62, this._getCascadeVisualScale(
       propagation.startPosition ?? propagation.targetPosition ?? propagation.link?.source?.position ?? propagation.link?.target?.position ?? null
     ));
     const startPos = propagation.startPosition
@@ -2276,15 +2466,17 @@ export class SynergyCascadeVisualizer {
       
       if (!particle) break; // No more particles available
       
-      // Calculate particle position
+      // Calculate particle position along the full link with a gentle spread.
+      const basePos = Number.isFinite(propagation.position) ? propagation.position : 0.5;
+      const scatter = (Math.random() - 0.5) * 0.72;
       const lerpPos = forcedFlow
         ? Math.random()
-        : Math.max(0, Math.min(1, propagation.position - Math.random() * 0.18));
+        : Math.max(0, Math.min(1, basePos + scatter));
       
       const position = new THREE.Vector3().lerpVectors(
         startPos,
         targetPos,
-        Math.max(0, Math.min(1, lerpPos))
+        lerpPos
       );
       const driftAmount = forcedFlow ? 0.02 + Math.random() * 0.04 : 0.04 + Math.random() * 0.08;
       position.addScaledVector(side, (Math.random() - 0.5) * driftAmount);
@@ -2305,11 +2497,11 @@ export class SynergyCascadeVisualizer {
         (Math.random() - 0.5) * (forcedFlow ? 0.085 : 0.105)
       );
       
-      particle.intensity = Math.max(forcedFlow ? 0.72 : 0.3, propagation.intensity);
-      particle.size = Math.max(forcedFlow ? 1.65 : 0.72, (forcedFlow ? 1.95 : 1.18) * flowScale * flowRadiusMultiplier * (0.92 + particle.intensity * 0.42) * this.config.particleGlowSizeBoost);
+      particle.intensity = Math.max(forcedFlow ? 0.72 : 0.42, propagation.intensity);
+      particle.size = Math.max(forcedFlow ? 1.65 : 0.92, (forcedFlow ? 1.95 : 1.28) * flowScale * flowRadiusMultiplier * (0.96 + particle.intensity * 0.42) * this.config.particleGlowSizeBoost);
       particle.color = forcedFlow
-        ? this.config.cascadeColor.clone().lerp(this.config.waveColor, 0.18 + Math.random() * 0.28)
-        : this.config.waveColor.clone().lerp(this.config.cascadeColor, Math.random() * 0.35);
+        ? this.config.cascadeColor.clone().lerp(this.config.waveColor, 0.24 + Math.random() * 0.30)
+        : this.config.waveColor.clone().lerp(this.config.cascadeColor, 0.46 + Math.random() * 0.24);
       particle.link = propagation.link ?? cascade?.link ?? null;
       particle.linkId = this._resolveLinkId(particle.link ?? propagation.linkId ?? cascade?.linkId ?? null);
       particle.cascadeId = cascade?.id ?? null;
@@ -2341,9 +2533,10 @@ export class SynergyCascadeVisualizer {
     if (particleBudget <= 0) return;
 
     const particleCount = Math.max(4, particleBudget);
-    const burstRadius = (forcedBurst ? 0.32 + burstIntensity * 0.74 : 0.12 + burstIntensity * 0.38) * radiusMultiplier * (forcedBurst ? 1.08 : 0.88);
-    const burstLifetime = Math.max(0.55, this.config.particleLifetime * 0.92 * lifetimeMultiplier * Math.max(0.6, this._getCascadeVisualScale(anchor)));
-    const burstSpeed = this.config.particleSpeed * (forcedBurst ? 0.9 + burstIntensity * 0.88 : 1.05 + burstIntensity * 1.0) * speedMultiplier;
+    const burstRadius = (forcedBurst ? 0.28 + burstIntensity * 0.84 : 0.12 + burstIntensity * 0.38) * radiusMultiplier * (forcedBurst ? 1.08 : 0.88);
+    const lifetimeBase = forcedBurst ? 0.78 : 0.92;
+    const burstLifetime = Math.max(0.42, this.config.particleLifetime * lifetimeBase * lifetimeMultiplier * Math.max(0.5, this._getCascadeVisualScale(anchor)));
+    const burstSpeed = this.config.particleSpeed * (forcedBurst ? 0.96 + burstIntensity * 0.72 : 1.05 + burstIntensity * 1.0) * speedMultiplier;
     const link = event?.link ?? null;
     const sourcePos = this._asVector3(
       event.sourcePosition ??
@@ -2406,7 +2599,7 @@ export class SynergyCascadeVisualizer {
       );
       particle.intensity = Math.max(forcedBurst ? 0.78 : 0.22, burstIntensity * intensityMultiplier);
       particle.color = forcedBurst
-        ? new THREE.Color(0.95 + Math.random() * 0.03, 0.08 + Math.random() * 0.08, 1.0).lerp(new THREE.Color(1.0, 0.5, 1.0), 0.14 + Math.random() * 0.14)
+        ? new THREE.Color(1.0, 0.05 + Math.random() * 0.10, 1.0).lerp(new THREE.Color(1.0, 0.45, 1.0), 0.24 + Math.random() * 0.18)
         : this.config.cascadeColor.clone().lerp(this.config.waveColor, 0.72 + Math.random() * 0.18);
       particle.baseScale = forcedBurst
         ? 3.0 + burstIntensity * 1.45
@@ -2463,8 +2656,8 @@ export class SynergyCascadeVisualizer {
       const pulse = 0.84 + 0.16 * Math.sin((particle.age * 10.0) + (particle.phase || 0));
       const color = particle.color || this.config.waveColor;
       const baseSize = Math.max(0.18, particle.baseScale || particle.size || 1);
-      const size = baseSize * (0.94 + fade * 0.48) * (0.98 + particle.intensity * 0.35);
-      const alphaBoost = Math.min(1.0, 0.16 + particle.intensity * 0.46);
+      const size = baseSize * (0.94 + fade * 0.48) * (0.98 + particle.intensity * 0.35) * this.config.burstSizeBoost;
+      const alphaBoost = Math.min(1.0, 0.16 + particle.intensity * 0.46) * this.config.burstGlowMultiplier;
 
       positions[activeCount * 3] = particle.position.x;
       positions[activeCount * 3 + 1] = particle.position.y;

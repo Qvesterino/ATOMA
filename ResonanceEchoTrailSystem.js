@@ -60,7 +60,7 @@ import VisualTime from './src/time/VisualTime.js';
 
 const CONFIG = {
     // Echo pool
-    POOL_SIZE: 30,                    // Max concurrent echoes
+    POOL_SIZE: 40,                    // Max concurrent echoes (increased for better coverage)
     
     // Spawn frequency - POLISH: Slower spawn rate for calmer accumulation
     ECHO_SPAWN_INTERVAL: 0.2,         // POLISHED: increased from 0.15 (fewer echoes)
@@ -331,6 +331,10 @@ class EchoInstance {
             }
         }
         this.mesh.scale.setScalar(Math.max(0.62, this.baseScale * temporalEnvelope.scale));
+        
+        // Slow rotation for visual depth (layer-dependent speed)
+        const rotSpeed = this.layerRole === 'short' ? 0.3 : this.layerRole === 'long' ? -0.15 : 0.2;
+        this.mesh.rotation.z += rotSpeed * 0.016; // ~60fps normalized
         
         // POLISHED: Removed distortion (kept echoes stable and calm)
         // Stability comes from stillness, not motion
@@ -616,37 +620,45 @@ export class ResonanceEchoTrailSystem {
             void main() {
                 vec2 center = vUv - 0.5;
                 float dist = length(center) * 2.0;
+                float angle = atan(center.y, center.x);
 
                 // Multi-lobe glow: hot core + inner glow + soft halo
                 float core = exp(-dist * dist * 10.0);
                 float innerGlow = exp(-dist * dist * 4.0);
                 float halo = exp(-dist * 2.0) * 0.35;
 
+                // Spectral ring: bright ring at echo boundary for luminous definition
+                float ringDist = abs(dist - 0.72);
+                float spectralRing = exp(-ringDist * ringDist * 28.0) * 0.22;
+                spectralRing *= (0.85 + 0.15 * sin(uTime * 3.0 + dist * 8.0));
+
                 // Subtle energy pulse (breathing)
                 float pulse = 0.94 + 0.06 * sin(uTime * 2.5 + uLayerDepth * 3.0);
 
-                // Shimmer during body phase
-                float shimmerPhase = sin(dist * 14.0 - uTime * 2.0) * 0.5 + 0.5;
+                // Shimmer during body phase (enhanced with angular variation)
+                float shimmerPhase = sin(dist * 14.0 - uTime * 2.0 + angle * 3.0) * 0.5 + 0.5;
                 float shimmerMask = exp(-dist * 5.0);
-                float shimmer = shimmerPhase * shimmerMask * 0.18 * (1.0 - uCorruption * 0.5);
+                float shimmer = shimmerPhase * shimmerMask * 0.20 * (1.0 - uCorruption * 0.5);
 
-                // Color evolution: base → residue over lifetime
+                // Color evolution: base -> residue over lifetime
                 vec3 color = mix(uBaseColor, uResidueColor, uTemperatureMix);
 
-                // Hot core whitening
-                color += vec3(core * 0.28, core * 0.22, core * 0.18);
+                // Hot core whitening (enhanced)
+                color += vec3(core * 0.32, core * 0.26, core * 0.20);
+
+                // Spectral ring tint (slightly blue-shifted)
+                color += vec3(0.15, 0.25, 0.45) * spectralRing * 1.5;
 
                 // Harmony luminance boost
                 color *= (0.88 + uHarmony * 0.16);
 
-                // Corruption flicker
+                // Corruption flicker (smooth transition instead of hard threshold)
                 float corruptionFlicker = 1.0;
-                if (uCorruption > 0.3) {
-                    corruptionFlicker = 0.85 + 0.15 * sin(uTime * 8.0 + dist * 20.0);
-                }
+                float corruptionSmooth = smoothstep(0.15, 0.55, uCorruption);
+                corruptionFlicker = mix(1.0, 0.85 + 0.15 * sin(uTime * 8.0 + dist * 20.0), corruptionSmooth);
 
                 // Compose glow layers
-                float glow = (core * 0.50 + innerGlow * 0.32 + halo * 0.18) * pulse;
+                float glow = (core * 0.50 + innerGlow * 0.32 + halo * 0.18 + spectralRing) * pulse;
                 glow += shimmer;
                 glow *= corruptionFlicker;
 
@@ -1063,6 +1075,14 @@ export class ResonanceEchoTrailSystem {
         if (!tracker.previousPosition || !tracker.lastPosition) return null;
 
         out.copy(tracker.previousPosition).add(currentPosition).multiplyScalar(0.5);
+        // Perpendicular offset for organic bridge positioning
+        const dir = new THREE.Vector3().subVectors(currentPosition, tracker.previousPosition);
+        const dirLen = dir.length();
+        if (dirLen > 0.001) {
+            dir.divideScalar(dirLen);
+            out.x += -dir.y * 0.03;
+            out.y += dir.x * 0.03;
+        }
         return out;
     }
 
@@ -1223,10 +1243,13 @@ export class ResonanceEchoTrailSystem {
     // ========================================================================
     
     getStatus() {
-        const activeEchoes = this.echoInstances.filter(e => e.active).length;
-        const averageEchoLifetime = this.echoInstances
-            .filter(e => e.active)
-            .reduce((sum, e) => sum + e.lifetime, 0) / Math.max(1, activeEchoes);
+        // Zero-allocation active echo count
+        const activeEchoes = this._countActiveEchoes();
+        let totalLifetime = 0;
+        for (let i = 0; i < this.echoInstances.length; i++) {
+            if (this.echoInstances[i].active) totalLifetime += this.echoInstances[i].lifetime;
+        }
+        const averageEchoLifetime = totalLifetime / Math.max(1, activeEchoes);
         
         return {
             enabled: this.enabled,

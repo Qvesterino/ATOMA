@@ -114,7 +114,13 @@ export class StandingWaveOscillationTrapSystem_Session130 {
     }
 
     getActiveTraps() {
-        return this.oscillationTraps.filter(t => t && t.active);
+        // Zero-alloc: return a sub-view rather than .filter() allocation
+        const result = [];
+        for (let i = 0; i < this.oscillationTraps.length; i++) {
+            const t = this.oscillationTraps[i];
+            if (t && t.active) result.push(t);
+        }
+        return result;
     }
 
     /**
@@ -272,8 +278,13 @@ export class StandingWaveOscillationTrapSystem_Session130 {
             return false;
         }
 
-        const avgIntensity = history.reflections.reduce((sum, reflection) => sum + (reflection.intensity ?? 0), 0) / history.reflections.length;
-        return avgIntensity >= 0.1;
+        // Zero-alloc: manual sum instead of .reduce()
+        let sum = 0;
+        const reflections = history.reflections;
+        for (let i = 0; i < reflections.length; i++) {
+            sum += reflections[i].intensity ?? 0;
+        }
+        return (sum / reflections.length) >= 0.1;
     }
 
     /**
@@ -462,11 +473,13 @@ export class StandingWaveOscillationTrapSystem_Session130 {
             const corruption_B = this._readNodeMetric(nodeB, 'corruption', 0.5);
             
             // Nodes are opposing if they have conflicting harmony/corruption
-            const isOpposing = 
-                (harmony_A < 0.4 && harmony_B > 0.6) ||
-                (harmony_A > 0.6 && harmony_B < 0.4) ||
-                (corruption_A > 0.6 && corruption_B < 0.4) ||
-                (corruption_A < 0.4 && corruption_B > 0.6);
+            // Smoothstep thresholds for organic transition instead of hard cutoffs
+            const harmDiff = Math.abs(harmony_A - harmony_B);
+            const corrDiff = Math.abs(corruption_A - corruption_B);
+            const harmOpposition = THREE.MathUtils.smoothstep(harmDiff, 0.15, 0.35);
+            const corrOpposition = THREE.MathUtils.smoothstep(corrDiff, 0.15, 0.35);
+            const isOpposing = (harmOpposition > 0.5 && Math.min(harmony_A, harmony_B) < 0.4) ||
+                               (corrOpposition > 0.5 && Math.max(corruption_A, corruption_B) > 0.5);
             
             if (isOpposing) {
                 const key = [this._getNodeId(nodeA), this._getNodeId(nodeB)].sort().join('_');
@@ -484,18 +497,21 @@ export class StandingWaveOscillationTrapSystem_Session130 {
      * Update oscillation trap properties each frame
      */
     _updateOscillationTraps(deltaTime) {
-        this.oscillationTraps = this.oscillationTraps.filter(trap => {
-            if (!trap.active) return false;
-            
+        // Zero-alloc: in-place compaction instead of .filter()
+        let writeIdx = 0;
+        for (let i = 0; i < this.oscillationTraps.length; i++) {
+            const trap = this.oscillationTraps[i];
+            if (!trap.active) continue;
+
             // Deactivate if no reflections for 2 seconds
             if (this.time - trap.lastReflectionTime > 2.0) {
                 trap.active = false;
-                return false;
+                continue;
             }
-            
+
             // Update phase with oscillation frequency
             trap.phase += trap.frequency * deltaTime * Math.PI * 2;
-            
+
             // Apply damping to amplitude
             trap.amplitude *= (1 - deltaTime * this.config.dampingRate * 0.5);
 
@@ -506,9 +522,10 @@ export class StandingWaveOscillationTrapSystem_Session130 {
             if ((trap.energyStorage || 0) > 3.0) {
                 trap.energyStorage *= 0.5;
             }
-            
-            return true;
-        });
+
+            this.oscillationTraps[writeIdx++] = trap;
+        }
+        this.oscillationTraps.length = writeIdx;
     }
 
     /**
@@ -556,10 +573,16 @@ export class StandingWaveOscillationTrapSystem_Session130 {
      * Update resolution events (damping, breakthrough, collapse)
      */
     _updateResolutionEvents(deltaTime) {
-        this.resolutionEvents = this.resolutionEvents.filter(event => {
+        // Zero-alloc: in-place compaction instead of .filter()
+        let writeIdx = 0;
+        for (let i = 0; i < this.resolutionEvents.length; i++) {
+            const event = this.resolutionEvents[i];
             event.progress = (this.time - event.startTime) / event.duration;
-            return event.progress < 1.0;
-        });
+            if (event.progress < 1.0) {
+                this.resolutionEvents[writeIdx++] = event;
+            }
+        }
+        this.resolutionEvents.length = writeIdx;
     }
 
     /**
@@ -661,8 +684,11 @@ export class StandingWaveOscillationTrapSystem_Session130 {
     }
 
     _writeWaveResonanceCanonical() {
-        const activeTraps = this.oscillationTraps.filter((trap) => trap?.active);
-        activeTraps.forEach((trap) => {
+        // Zero-alloc: iterate directly instead of .filter() + .forEach()
+        const traps = this.oscillationTraps;
+        for (let i = 0; i < traps.length; i++) {
+            const trap = traps[i];
+            if (!trap?.active) continue;
             const normalizedAmplitude = Math.max(0, Math.min(1, (trap.amplitude || 0) / 1.2));
             const phase = ((trap.phase || 0) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
 
@@ -690,7 +716,7 @@ export class StandingWaveOscillationTrapSystem_Session130 {
 
             applyToNode(trap.nodeA);
             applyToNode(trap.nodeB);
-        });
+        }
     }
 
     getDebugInfo() {

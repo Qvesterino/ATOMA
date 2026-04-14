@@ -49,6 +49,7 @@ export class PHASE5_CascadePropagationVisuals {
       expandSpeed: config.expandSpeed ?? 8.0,
       fadeDuration: config.fadeDuration ?? 0.8,
       maxRingSize: config.maxRingSize ?? 15.0,
+      ringGlowPulseFreq: config.ringGlowPulseFreq ?? 3.5,    // NEW: brightness pulse Hz
       
       // Cascade colors
       corruptionCascadeColor: config.corruptionCascadeColor ?? 0xff3333,
@@ -75,6 +76,10 @@ export class PHASE5_CascadePropagationVisuals {
       rippleColor: config.rippleColor ?? 0xfff3c4,
       rippleOpacity: config.rippleOpacity ?? 0.8,
       rippleLineWidth: config.rippleLineWidth ?? 2.0,
+      rippleTrailEnabled: config.rippleTrailEnabled ?? true,  // NEW: ghost trail
+      rippleTrailDelay: config.rippleTrailDelay ?? 0.12,     // NEW: trail delay in seconds
+      rippleTrailOpacityScale: config.rippleTrailOpacityScale ?? 0.35, // NEW: trail opacity multiplier
+      rippleColorEvolution: config.rippleColorEvolution ?? true,       // NEW: color shift over lifetime
       
       // Activation safety gate
       cascadeActivationThreshold: config.cascadeActivationThreshold ?? 0.3,
@@ -84,7 +89,19 @@ export class PHASE5_CascadePropagationVisuals {
       echoRingSpacing: config.echoRingSpacing ?? 0.42,
       echoRingVerticalOffset: config.echoRingVerticalOffset ?? 0.045,
       echoRingOpacityFalloff: config.echoRingOpacityFalloff ?? 0.16,
-      cascadeCooldownSeconds: config.cascadeCooldownSeconds ?? 3.0
+      cascadeCooldownSeconds: config.cascadeCooldownSeconds ?? 3.0,
+
+      // ── Stability-based autonomous spawning ──
+      stabilitySpawn: {
+        enabled: true,
+        interval: 2.5,                // seconds between spawns per node
+        midThreshold: 0.35,           // stability.mid threshold
+        highThreshold: 0.65,          // stability.high threshold
+        maxConcurrentPerNode: 2,      // max active stability ripples per node
+        rippleColor: 0x88ddff,        // cool blue for stability mid
+        echoColor: 0x44ffcc,          // teal for stability high
+        nodeCacheInterval: 3.0,       // seconds between node cache refreshes
+      }
     };
     
     // Visual objects
@@ -118,10 +135,17 @@ export class PHASE5_CascadePropagationVisuals {
     
     // Update timing
     this.lastUpdateTime = Date.now();
+    this._elapsedTime = 0;
     this.semanticBus = config.semanticBus ?? globalThis?.semanticBus ?? null;
     this._semanticEventsBound = false;
     this._boundCascadeHopHandler = null;
     this._boundStabilityHandler = null;
+    
+    // ── Stability spawn state ──
+    this._stabSpawnTimers = new Map();       // nodeId → lastSpawnTime
+    this._stabActiveCounts = new Map();      // nodeId → active stability ripple count
+    this._stabNodesCache = null;
+    this._stabNodesCacheTime = -Infinity;
     
     // Console API
     this.setupConsoleAPI();
@@ -368,12 +392,18 @@ export class PHASE5_CascadePropagationVisuals {
   createRipple(position, intensity, options = {}) {
     if (!this.config.rippleEnabled || !position) return;
 
+    const colorOption = options.color ?? this.config.rippleColor;
     const ripple = {
       center: position.clone(),
       age: 0,
-      lifetime: this.config.rippleLifetime,
+      lifetime: this.config.rippleLifetime * (Number(options.lifetimeScale) || 1.0),
       intensity: Math.max(0, Math.min(1, Number(intensity) || 0.1)),
-      mesh: null
+      mesh: null,
+      trailMesh: null,       // NEW: ghost trail line
+      trailSpawned: false,
+      baseColor: new THREE.Color(colorOption),
+      nodeId: options.nodeId ?? null,
+      kind: options.kind ?? 'default'
     };
 
     const ringGeometry = new THREE.BufferGeometry();
@@ -390,7 +420,7 @@ export class PHASE5_CascadePropagationVisuals {
     ringGeometry.setFromPoints(ringPoints);
 
     const rippleMaterial = new THREE.LineBasicMaterial({
-      color: this.config.rippleColor,
+      color: colorOption,
       linewidth: this.config.rippleLineWidth,
       transparent: true,
       opacity: this.config.rippleOpacity * Math.min(1, 0.5 + ripple.intensity * 0.5),
@@ -406,11 +436,34 @@ export class PHASE5_CascadePropagationVisuals {
 
     ripple.mesh = rippleLine;
     this.scene.add(rippleLine);
+
+    // ── NEW: Ghost trail line (delayed, dimmer copy) ──
+    if (this.config.rippleTrailEnabled) {
+      const trailGeometry = ringGeometry.clone();
+      const trailColor = new THREE.Color(colorOption).lerp(new THREE.Color(0xffffff), 0.15);
+      const trailMaterial = new THREE.LineBasicMaterial({
+        color: trailColor,
+        linewidth: Math.max(1, this.config.rippleLineWidth - 0.5),
+        transparent: true,
+        opacity: 0,   // starts invisible, fades in after delay
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const trailLine = new THREE.Line(trailGeometry, trailMaterial);
+      trailLine.position.copy(position);
+      trailLine.position.y += Number(options.verticalOffset || 0) + 0.005;
+      trailLine.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE) - 1;
+      trailLine.frustumCulled = false;
+      trailLine.visible = false;
+      ripple.trailMesh = trailLine;
+      this.scene.add(trailLine);
+    }
+
     this.ripples.push(ripple);
   }
 
   /**
-   * Update ripple line effects
+   * Update ripple line effects with trail and color evolution
    */
   updateRipples(deltaTime) {
     for (let i = this.ripples.length - 1; i >= 0; i--) {
@@ -424,14 +477,53 @@ export class PHASE5_CascadePropagationVisuals {
           ripple.mesh.geometry.dispose();
           ripple.mesh.material.dispose();
         }
+        if (ripple.trailMesh) {
+          this.scene.remove(ripple.trailMesh);
+          ripple.trailMesh.geometry.dispose();
+          ripple.trailMesh.material.dispose();
+        }
+        // Decrement stability active count
+        if (ripple.nodeId) {
+          const key = String(ripple.nodeId);
+          const count = (this._stabActiveCounts.get(key) ?? 1) - 1;
+          if (count > 0) this._stabActiveCounts.set(key, count);
+          else this._stabActiveCounts.delete(key);
+        }
         this.ripples.splice(i, 1);
         continue;
       }
 
       const radius = this.config.rippleBaseRadius + (this.config.rippleBaseRadius * this.config.rippleMaxRadiusScale * (1.0 - fadeRatio) * 8.0);
+      const progress = 1.0 - fadeRatio;
+
       if (ripple.mesh) {
         ripple.mesh.scale.setScalar(radius / this.config.rippleBaseRadius);
         ripple.mesh.material.opacity = Math.max(0.05, this.config.rippleOpacity * fadeRatio * ripple.intensity);
+
+        // ── Color evolution: warm → cool shift over lifetime ──
+        if (this.config.rippleColorEvolution && ripple.baseColor) {
+          const evolvedColor = ripple.baseColor.clone();
+          const coolTarget = new THREE.Color(0x4488ff);
+          evolvedColor.lerp(coolTarget, progress * 0.45);
+          ripple.mesh.material.color.copy(evolvedColor);
+        }
+      }
+
+      // ── Trail: spawn after delay, then expand behind ──
+      if (ripple.trailMesh && this.config.rippleTrailEnabled) {
+        const trailDelay = this.config.rippleTrailDelay ?? 0.12;
+        if (ripple.age >= trailDelay && !ripple.trailSpawned) {
+          ripple.trailSpawned = true;
+          ripple.trailMesh.visible = true;
+        }
+        if (ripple.trailSpawned) {
+          const trailAge = ripple.age - trailDelay;
+          const trailFadeRatio = Math.max(0, 1.0 - (trailAge / (ripple.lifetime - trailDelay)));
+          const trailRadius = this.config.rippleBaseRadius + (this.config.rippleBaseRadius * this.config.rippleMaxRadiusScale * (1.0 - trailFadeRatio) * 6.5);
+          ripple.trailMesh.scale.setScalar(trailRadius / this.config.rippleBaseRadius);
+          const trailOpacityScale = this.config.rippleTrailOpacityScale ?? 0.35;
+          ripple.trailMesh.material.opacity = Math.max(0.02, this.config.rippleOpacity * trailFadeRatio * ripple.intensity * trailOpacityScale);
+        }
       }
     }
   }
@@ -508,6 +600,7 @@ export class PHASE5_CascadePropagationVisuals {
     if (!this.frameScheduler?.shouldRunVisual?.()) return;
 
     const updateStart = Date.now();
+    this._elapsedTime = (this._elapsedTime ?? 0) + deltaTime;
     
     try {
       const ringsToRemove = [];
@@ -528,10 +621,11 @@ export class PHASE5_CascadePropagationVisuals {
         const scale = (ring.userData.baseScale ?? 1.0) * (1.0 + (expansion / this.config.ringRadius));
         ring.scale.setScalar(scale);
         
-        // Fade based on expansion
+        // Fade based on expansion + glow pulse
         const fadeProgress = ring.userData.elapsedTime / this.config.fadeDuration;
         const fadeMultiplier = Math.max(0, 1.0 - fadeProgress);
-        ring.material.opacity = this.config.baseOpacity * ring.userData.strength * fadeMultiplier;
+        const glowPulse = 0.82 + 0.18 * Math.sin(ring.userData.elapsedTime * (this.config.ringGlowPulseFreq ?? 3.5) * Math.PI * 2);
+        ring.material.opacity = this.config.baseOpacity * ring.userData.strength * fadeMultiplier * glowPulse;
         
         // Check if ring should be removed
         const currentRadius = this.config.ringRadius * scale;
@@ -549,6 +643,7 @@ export class PHASE5_CascadePropagationVisuals {
       }
 
       this.updateRipples(deltaTime);
+      this._updateStabilitySpawning();
       this.stats.lastUpdateDuration = Date.now() - updateStart;
       
     } catch (err) {
@@ -695,26 +790,39 @@ export class PHASE5_CascadePropagationVisuals {
           return;
         }
 
-        let intensity = 0.5;
         const eventName = event?.type || event?.name || 'node.stability.unknown';
+        const nodeId = node?.userData?.id ?? node?.id ?? null;
+        const stabConfig = this.config.stabilitySpawn;
+
+        // ── Differentiate by stability level ──
         if (eventName.endsWith?.('high')) {
-          intensity = 1.0;
+          // HIGH stability → ringEchoTriplet (stronger visual)
+          const intensity = 0.85;
+          if (this.config.enableDebug) {
+            console.log('[PHASE5_CascadePropagationVisuals] Stability HIGH → ringEchoTriplet', { nodeId, intensity });
+          }
+          this.createRingEchoTriplet(
+            node.position,
+            'harmony',
+            intensity,
+            0
+          );
         } else if (eventName.endsWith?.('mid')) {
-          intensity = 0.75;
-        } else if (eventName.endsWith?.('low')) {
-          intensity = 0.45;
+          // MID stability → ripple only (lighter visual)
+          const intensity = 0.6;
+          const color = stabConfig?.rippleColor ?? 0x88ddff;
+          if (this.config.enableDebug) {
+            console.log('[PHASE5_CascadePropagationVisuals] Stability MID → ripple', { nodeId, intensity });
+          }
+          this.createRipple(node.position, intensity, {
+            verticalOffset: 0.02,
+            color,
+            nodeId,
+            kind: 'stability'
+          });
         }
-
-        console.log('[PHASE5_CascadePropagationVisuals] Stability ripple spawn', {
-          event: eventName,
-          nodeId: node?.userData?.id ?? node?.id,
-          intensity,
-          position: node.position
-        });
-
-        this.createRipple(node.position, intensity, { verticalOffset: 0.02 });
+        // LOW stability → no visual (too noisy)
       };
-      this.semanticBus.on('node.stability.low', this._boundStabilityHandler);
       this.semanticBus.on('node.stability.mid', this._boundStabilityHandler);
       this.semanticBus.on('node.stability.high', this._boundStabilityHandler);
       this._semanticEventsBound = true;
@@ -807,8 +915,107 @@ export class PHASE5_CascadePropagationVisuals {
         ripple.mesh.geometry.dispose();
         ripple.mesh.material.dispose();
       }
+      if (ripple.trailMesh) {
+        this.scene.remove(ripple.trailMesh);
+        ripple.trailMesh.geometry.dispose();
+        ripple.trailMesh.material.dispose();
+      }
     }
     this.ripples = [];
+    this._stabActiveCounts.clear();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Stability Autonomous Spawning
+  // Polls node stability metrics and spawns effects based on thresholds.
+  //   stability.mid  → createRipple (lighter visual)
+  //   stability.high → createRingEchoTriplet (stronger visual)
+  // Interval: 2.5s default
+  // ═══════════════════════════════════════════════════════════════════════
+
+  _updateStabilitySpawning() {
+    const stabConfig = this.config.stabilitySpawn;
+    if (!stabConfig?.enabled) return;
+
+    const interval = Math.max(0.5, stabConfig.interval ?? 2.5);
+    const midThreshold = Math.max(0.1, stabConfig.midThreshold ?? 0.35);
+    const highThreshold = Math.max(midThreshold + 0.1, stabConfig.highThreshold ?? 0.65);
+    const maxConcurrent = Math.max(1, stabConfig.maxConcurrentPerNode ?? 2);
+
+    // ── Refresh node cache periodically ──
+    const cacheInterval = stabConfig.nodeCacheInterval ?? 3.0;
+    if (this._elapsedTime - this._stabNodesCacheTime > cacheInterval) {
+      this._stabNodesCache = this._collectNodes();
+      this._stabNodesCacheTime = this._elapsedTime;
+    }
+
+    const nodes = this._stabNodesCache;
+    if (!nodes || nodes.length === 0) return;
+
+    for (const node of nodes) {
+      if (!node?.position) continue;
+      const nodeId = node?.userData?.id ?? node?.id ?? null;
+      if (nodeId === null) continue;
+      const key = String(nodeId);
+
+      // ── Check interval timer ──
+      const lastSpawn = this._stabSpawnTimers.get(key) ?? -Infinity;
+      if (this._elapsedTime - lastSpawn < interval) continue;
+
+      // ── Read stability metric ──
+      const metrics = node?.userData?.metrics || {};
+      const stability = Math.max(0, Math.min(1, metrics.stability ?? 0.5));
+
+      if (stability >= highThreshold) {
+        // ── HIGH → ringEchoTriplet ──
+        const activeCount = this._stabActiveCounts.get(key) ?? 0;
+        if (activeCount >= maxConcurrent) continue;
+
+        const intensity = 0.6 + (stability - highThreshold) / (1.0 - highThreshold) * 0.35;
+        this.createRingEchoTriplet(node.position, 'harmony', intensity, 0);
+        this._stabActiveCounts.set(key, (this._stabActiveCounts.get(key) ?? 0) + 1);
+        this._stabSpawnTimers.set(key, this._elapsedTime);
+
+      } else if (stability >= midThreshold) {
+        // ── MID → ripple only ──
+        const activeCount = this._stabActiveCounts.get(key) ?? 0;
+        if (activeCount >= maxConcurrent) continue;
+
+        const intensity = 0.4 + (stability - midThreshold) / (highThreshold - midThreshold) * 0.3;
+        const color = stabConfig.echoColor ?? 0x44ffcc;
+        this.createRipple(node.position, intensity, {
+          verticalOffset: 0.02,
+          color,
+          nodeId: key,
+          kind: 'stability'
+        });
+        this._stabActiveCounts.set(key, (this._stabActiveCounts.get(key) ?? 0) + 1);
+        this._stabSpawnTimers.set(key, this._elapsedTime);
+      }
+    }
+
+    // ── Clean up stale timers ──
+    if (this._stabSpawnTimers.size > 200) {
+      const cutoff = this._elapsedTime - interval * 3;
+      for (const [key, time] of this._stabSpawnTimers) {
+        if (time < cutoff) this._stabSpawnTimers.delete(key);
+      }
+    }
+  }
+
+  _collectNodes() {
+    const sources = [
+      this.linkingSystem?.world?.nodes,
+      this.linkingSystem?.world?.aiNodes?.nodes,
+      globalThis.game?.aiNodes?.nodes,
+      globalThis.game?.world?.nodes
+    ];
+    for (const collection of sources) {
+      if (!collection) continue;
+      if (collection instanceof Map) return [...collection.values()];
+      if (Array.isArray(collection) && collection.length > 0) return collection;
+    }
+    return [];
   }
   
   /**

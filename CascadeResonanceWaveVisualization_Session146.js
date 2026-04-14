@@ -931,10 +931,13 @@ export class CascadeResonanceWaveVisualization_Session146 {
           interferencePattern *= uInterference;
           finalColor += interferencePattern * 0.2;
           
-          // Sparkle fringe: high-frequency sparkle at outer edge
+          // Sparkle fringe: high-frequency sparkle at outer edge (enhanced visibility)
           float sparkleNoise = hash(vUv * 50.0 + uTime * 2.0);
-          float sparkleFringe = smoothstep(0.48, 0.50, dist) * sparkleNoise * 0.4;
+          float sparkleFringe = smoothstep(0.46, 0.50, dist) * sparkleNoise * 0.55;
           finalColor += sparkleFringe;
+          // Secondary sparkle: finer grain at inner edge for depth
+          float innerSparkle = hash(vUv * 80.0 - uTime * 3.0) * smoothstep(0.44, 0.42, dist) * 0.2;
+          finalColor += innerSparkle;
 
           // Bloom overlay around active rings
           float bloomMask = smoothstep(uBloomThreshold, uBloomThreshold + 0.12, multiLobe + shimmer * 0.2);
@@ -2179,12 +2182,18 @@ export class CascadeResonanceWaveVisualization_Session146 {
         continue;
       }
 
-      // Elastic expansion + damped oscillation
+      // Elastic expansion + damped oscillation + breathing scale
       const baseRadius = this.config.wavefrontRingMinRadius + progress * (this.config.wavefrontRingMaxRadius - this.config.wavefrontRingMinRadius);
       const burst = Math.sin(progress * Math.PI * 3.0) * Math.exp(-progress * 3.0) * 0.18;
       const overshoot = 1.0 + burst * (activeRing.tier === 'inner' ? 1.2 : 0.8);
-      const radius = baseRadius * (1.0 + (overshoot - 1.0) * 0.6);
+      // Breathing: subtle sinusoidal scale oscillation for organic feel
+      const breathe = 1.0 + Math.sin(this.globalWaveTime * 2.5 + activeRing.wavePhase * Math.PI * 2) * 0.025 * (1 - progress);
+      const radius = baseRadius * (1.0 + (overshoot - 1.0) * 0.6) * breathe;
       activeRing.ringEntry.mesh.scale.setScalar(radius);
+      
+      // Slow ring rotation for visual richness (tier-dependent speed)
+      const rotSpeed = activeRing.tier === 'inner' ? 0.4 : activeRing.tier === 'middle' ? -0.25 : 0.15;
+      activeRing.ringEntry.mesh.rotation.z += rotSpeed * 0.016; // ~60fps normalized
 
       // Parallax fade-out: rings fade at different rates
       // Inner rings fade quickly, outer rings fade slowly
@@ -2203,14 +2212,18 @@ export class CascadeResonanceWaveVisualization_Session146 {
       const hubB = this.harmonicHubSystem?.hubs?.get(activeRing.hubBId);
       const harmony = Math.max(0, Math.min(1, (this._readHubWaveState(hubA).harmony + this._readHubWaveState(hubB).harmony) * 0.5));
       const shiftedColor = this._scratchColor.copy(ringColor);
-      if (harmony > 0.7) {
-        shiftedColor.lerp(new THREE.Color(0xffcc66), (harmony - 0.7) / 0.3);
+      // Smooth color transitions using smoothstep instead of hard thresholds
+      if (harmony > 0.5) {
+        const harmonyT = THREE.MathUtils.smoothstep(harmony, 0.5, 1.0);
+        shiftedColor.lerp(new THREE.Color(0xffcc66), harmonyT * 0.6);
       }
-      if (activeRing.influence > 0.75) {
-        shiftedColor.lerp(new THREE.Color(0xffffff), 0.35);
+      if (activeRing.influence > 0.6) {
+        const infT = THREE.MathUtils.smoothstep(activeRing.influence, 0.6, 1.0);
+        shiftedColor.lerp(new THREE.Color(0xffffff), infT * 0.4);
       }
-      if (progress > 0.7) {
-        shiftedColor.lerp(new THREE.Color(0x4466ff), (progress - 0.7) / 0.3);
+      if (progress > 0.55) {
+        const progT = THREE.MathUtils.smoothstep(progress, 0.55, 1.0);
+        shiftedColor.lerp(new THREE.Color(0x4466ff), progT * 0.5);
       }
 
       // EPIC shader uniforms
@@ -2234,7 +2247,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
       for (const [waveKey, waveData] of this.activeWaves.entries()) {
         // Only spawn rings when wave phase crosses threshold (periodic spawn)
         const phaseInCycle = (this.globalWaveTime * this.config.wavefrontRingSpeed) % 1.0;
-        const shouldSpawn = phaseInCycle < 0.05 && waveData.influence > 0.3;
+        const shouldSpawn = phaseInCycle < 0.08 && waveData.influence > 0.25;
 
         if (!shouldSpawn) continue;
 
@@ -2321,11 +2334,12 @@ export class CascadeResonanceWaveVisualization_Session146 {
       const pulse = Math.sin(this.globalWaveTime * this.config.auraPulseSpeed) * 0.5 + 0.5;
       const tightening = pulse * this.config.auraTighteningAmount * Math.min(1, totalInfluence);
 
-      // Apply to hub aura scale
+      // Apply to hub aura scale + subtle breathing pulse
       if (hub.aura) {
         const baseScale = hub._baseAuraScale ?? hub.aura.scale.x ?? 1;
         if (!hub._baseAuraScale) hub._baseAuraScale = baseScale;
-        hub.aura.scale.setScalar(baseScale * (1 - tightening));
+        const breathPulse = 1.0 + Math.sin(this.globalWaveTime * 1.8 + totalInfluence * Math.PI) * 0.015;
+        hub.aura.scale.setScalar(baseScale * (1 - tightening) * breathPulse);
       }
 
       // Apply to node scale (subtle)
@@ -2450,12 +2464,19 @@ export class CascadeResonanceWaveVisualization_Session146 {
         uniforms.uHarmony.value = avgHarmony;
         uniforms.uCorruption.value = avgCorruption;
         
-        // Color based on harmony (shift toward gold when high harmony)
-        if (avgHarmony > 0.7) {
+        // Color based on harmony (smooth transition toward gold when high harmony)
+        if (avgHarmony > 0.4) {
+          const harmonyT = THREE.MathUtils.smoothstep(avgHarmony, 0.4, 1.0);
           const harmonyColor = new THREE.Color(0xffcc66); // Gold
-          uniforms.uColor.value.lerp(harmonyColor, (avgHarmony - 0.7) / 0.3);
+          uniforms.uColor.value.copy(this.config.linkBeamColor).lerp(harmonyColor, harmonyT * 0.65);
         } else {
           uniforms.uColor.value.copy(this.config.linkBeamColor);
+        }
+        
+        // Corruption tint: shift toward red-magenta when high corruption
+        if (avgCorruption > 0.4) {
+          const corruptionT = THREE.MathUtils.smoothstep(avgCorruption, 0.4, 1.0);
+          uniforms.uColor.value.lerp(new THREE.Color(0xff4488), corruptionT * 0.35);
         }
 
         // Add a slight motion bias along the link direction using userData

@@ -303,6 +303,11 @@ class ProbabilityCloudsRenderer {
         this.time = 0;
         this.lastUpdateTime = 0;
 
+        // Reusable objects to avoid per-frame allocations
+        this._colorCache = new THREE.Color();
+        this._colorCacheA = new THREE.Color();
+        this._colorCacheB = new THREE.Color();
+
         // Initialize
         this._initializeParticleSystem();
     }
@@ -347,7 +352,7 @@ class ProbabilityCloudsRenderer {
             size[i] = this.config.particleSize;
         }
 
-        // Create custom shader material
+        // Create custom shader material — upgraded with spectral ring + shimmer
         this.particleMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 uTime: { value: 0 },
@@ -358,20 +363,12 @@ class ProbabilityCloudsRenderer {
             },
             vertexShader: `
                 uniform float uTime;
-                uniform vec3 uColorHighStability;
-                uniform vec3 uColorMidStability;
-                uniform vec3 uColorLowStability;
-
                 attribute float alpha;
                 attribute float size;
-
                 varying float vAlpha;
-                varying float vSize;
 
                 void main() {
                     vAlpha = alpha;
-                    vSize = size;
-
                     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
                     gl_PointSize = size * (300.0 / -mvPosition.z);
                     gl_Position = projectionMatrix * mvPosition;
@@ -381,22 +378,32 @@ class ProbabilityCloudsRenderer {
                 uniform vec3 uColorHighStability;
                 uniform vec3 uColorMidStability;
                 uniform vec3 uColorLowStability;
-
+                uniform float uTime;
                 varying float vAlpha;
-                varying float vSize;
 
                 void main() {
-                    // Soft circular particle
                     float dist = length(gl_PointCoord - vec2(0.5));
                     if (dist > 0.5) discard;
 
-                    // Soft glow
-                    float glow = exp(-dist * 4.0);
+                    // Core glow with soft falloff
+                    float glow = exp(-dist * 5.0);
 
-                    vec3 color = mix(uColorLowStability, uColorMidStability, vAlpha);
-                    color = mix(color, uColorHighStability, vAlpha * vAlpha);
+                    // Spectral ring at ~0.35 radius for depth
+                    float ring = exp(-pow((dist - 0.32) * 8.0, 2.0)) * 0.35;
 
-                    gl_FragColor = vec4(color, vAlpha * glow);
+                    // Subtle angular shimmer for liveliness
+                    float angle = atan(gl_PointCoord.y - 0.5, gl_PointCoord.x - 0.5);
+                    float shimmer = 0.88 + 0.12 * sin(angle * 3.0 + uTime * 1.5);
+
+                    // Stability-driven color: smoothstep instead of hard thresholds
+                    vec3 color = mix(uColorLowStability, uColorMidStability, smoothstep(0.2, 0.55, vAlpha));
+                    color = mix(color, uColorHighStability, smoothstep(0.55, 0.9, vAlpha));
+
+                    // Core whitening at high alpha
+                    color += vec3(0.15, 0.12, 0.08) * smoothstep(0.7, 1.0, vAlpha);
+
+                    float finalAlpha = vAlpha * (glow + ring) * shimmer;
+                    gl_FragColor = vec4(color, finalAlpha);
                 }
             `,
             transparent: true,
@@ -507,6 +514,7 @@ class ProbabilityCloudsRenderer {
         this.particleGeometry.attributes.position.needsUpdate = true;
         this.particleGeometry.attributes.color.needsUpdate = true;
         this.particleGeometry.attributes.alpha.needsUpdate = true;
+        this.particleGeometry.attributes.size.needsUpdate = true;
 
         // Update shader uniforms
         this._updateShaderUniforms();
@@ -538,6 +546,8 @@ class ProbabilityCloudsRenderer {
         const positions = this.particleGeometry.attributes.position.array;
         const colors = this.particleGeometry.attributes.color.array;
         const alphas = this.particleGeometry.attributes.alpha.array;
+        const sizes = this.particleGeometry.attributes.size.array;
+        const baseParticleSize = this.config.particleSize;
 
         for (let i = 0; i < this.config.maxParticles; i++) {
             const data = this.particleData[i];
@@ -567,31 +577,34 @@ class ProbabilityCloudsRenderer {
             // High stability = clustered, Low stability = scattered
             const spreadFactor = uncertainty * 0.8 + 0.2;  // 0.2 to 1.0
 
-            // Base position (spherical distribution)
-            const theta = data.localT * Math.PI * 2;
-            const phi = Math.acos(2 * Math.random() - 1);
-            const r = radius * Math.pow(Math.random(), 0.5) * spreadFactor;
+            // Smooth persistent orbit using localT + time (no random jumps)
+            const orbitAngle = data.localT * Math.PI * 2 + this.time * data.driftSpeed;
+            const elevation = data.randomOffset.x * Math.PI;  // persistent elevation
+            const orbitRadius = radius * (0.2 + Math.abs(data.randomOffset.y) * 0.8) * spreadFactor;
 
-            const baseX = r * Math.sin(phi) * Math.cos(theta);
-            const baseY = r * Math.sin(phi) * Math.sin(theta);
-            const baseZ = r * Math.cos(phi);
+            const baseX = orbitRadius * Math.sin(elevation) * Math.cos(orbitAngle);
+            const baseY = orbitRadius * Math.sin(elevation) * Math.sin(orbitAngle);
+            const baseZ = orbitRadius * Math.cos(elevation);
 
-            // Add quantum noise (more for low stability)
+            // Quantum noise overlay (more for low stability)
             const noiseScale = uncertainty * this.config.quantumNoiseStrength;
-            const noiseX = Math.sin(this.time * data.driftSpeed + data.randomOffset.x) * noiseScale * radius;
-            const noiseY = Math.cos(this.time * data.driftSpeed + data.randomOffset.y) * noiseScale * radius;
-            const noiseZ = Math.sin(this.time * data.driftSpeed + data.randomOffset.z) * noiseScale * radius;
+            const noiseX = Math.sin(this.time * data.driftSpeed * 1.7 + data.randomOffset.x * 10.0) * noiseScale * radius;
+            const noiseY = Math.cos(this.time * data.driftSpeed * 1.3 + data.randomOffset.y * 10.0) * noiseScale * radius;
+            const noiseZ = Math.sin(this.time * data.driftSpeed * 1.5 + data.randomOffset.z * 10.0) * noiseScale * radius;
 
             // Final position
             positions[i * 3] = fieldPosition.x + baseX + noiseX;
             positions[i * 3 + 1] = fieldPosition.y + baseY + noiseY;
             positions[i * 3 + 2] = fieldPosition.z + baseZ + noiseZ;
 
-            // Color based on stability
-            const color = this._getStabilityColor(stability);
-            colors[i * 3] = color.r;
-            colors[i * 3 + 1] = color.g;
-            colors[i * 3 + 2] = color.b;
+            // Color based on stability (zero-alloc: writes to cached color)
+            this._writeStabilityColor(stability);
+            colors[i * 3] = this._colorCache.r;
+            colors[i * 3 + 1] = this._colorCache.g;
+            colors[i * 3 + 2] = this._colorCache.b;
+
+            // Size variation: high stability = larger, more coherent particles
+            sizes[i] = baseParticleSize * (0.7 + stability * 0.6);
 
             // Opacity with fade
             let alpha = this.config.maxOpacity * field.strength;
@@ -615,25 +628,23 @@ class ProbabilityCloudsRenderer {
         }
     }
 
-    _getStabilityColor(stability) {
-        if (stability >= 0.8) {
-            return this.config.colorHighStability.clone();
-        } else if (stability >= 0.5) {
-            // Interpolate between mid and high
-            const t = (stability - 0.5) / 0.3;
-            return new THREE.Color().lerpColors(
-                this.config.colorMidStability,
-                this.config.colorHighStability,
-                t
-            );
+    /**
+     * Zero-alloc stability color: writes to _colorCache instead of creating new Color.
+     * Uses smoothstep transitions instead of hard thresholds.
+     */
+    _writeStabilityColor(stability) {
+        if (stability >= 0.65) {
+            // Smooth blend mid → high
+            const t = THREE.MathUtils.smoothstep(stability, 0.65, 0.9);
+            this._colorCacheA.copy(this.config.colorMidStability);
+            this._colorCacheB.copy(this.config.colorHighStability);
+            this._colorCache.lerpColors(this._colorCacheA, this._colorCacheB, t);
         } else {
-            // Interpolate between low and mid
-            const t = Math.min(1.0, stability / 0.5);
-            return new THREE.Color().lerpColors(
-                this.config.colorLowStability,
-                this.config.colorMidStability,
-                t
-            );
+            // Smooth blend low → mid
+            const t = THREE.MathUtils.smoothstep(stability, 0.0, 0.65);
+            this._colorCacheA.copy(this.config.colorLowStability);
+            this._colorCacheB.copy(this.config.colorMidStability);
+            this._colorCache.lerpColors(this._colorCacheA, this._colorCacheB, t);
         }
     }
 
@@ -642,18 +653,26 @@ class ProbabilityCloudsRenderer {
     }
 
     _cleanupDecayedFields() {
-        // Remove fields with no active particles
-        this.activeFields = this.activeFields.filter(af => {
+        // Zero-alloc: in-place compaction instead of .filter()
+        let writeIdx = 0;
+        for (let i = 0; i < this.activeFields.length; i++) {
+            const af = this.activeFields[i];
             if (af.fadePhase === 'out') {
-                // Check if all particles are faded out
-                const allFaded = af.particleIndices.every(idx => this.particleData[idx].life <= 0);
+                let allFaded = true;
+                for (let j = 0; j < af.particleIndices.length; j++) {
+                    if (this.particleData[af.particleIndices[j]].life > 0) {
+                        allFaded = false;
+                        break;
+                    }
+                }
                 if (allFaded) {
                     this.fieldParticleCounts.delete(af.field);
-                    return false;
+                    continue;
                 }
             }
-            return true;
-        });
+            this.activeFields[writeIdx++] = af;
+        }
+        this.activeFields.length = writeIdx;
     }
 
     /**
@@ -676,7 +695,12 @@ class ProbabilityCloudsRenderer {
      * Get statistics
      */
     getStats() {
-        const activeParticles = this.particleData.filter(d => d.fieldIndex !== -1 && d.life > 0).length;
+        // Zero-alloc: manual count instead of .filter()
+        let activeParticles = 0;
+        for (let i = 0; i < this.particleData.length; i++) {
+            const d = this.particleData[i];
+            if (d.fieldIndex !== -1 && d.life > 0) activeParticles++;
+        }
         return {
             enabled: this.config.enabled,
             maxParticles: this.config.maxParticles,
@@ -732,6 +756,11 @@ export class HarmonicResonanceFeedbackSystem {
         this.enabled = true;
         this.timeBudgetMs = 3.5;         // soft per-frame budget to avoid stalls
         this._influenceCursor = 0;       // round-robin field processing pointer
+
+        // Reusable scratch objects to avoid per-frame allocations
+        this._linkPosScratch = new THREE.Vector3();
+        this._linkPosScratch2 = new THREE.Vector3();
+        this._dirScratch = new THREE.Vector3();
 
         // Initialize Probability Clouds Renderer
         this.probabilityClouds = null;
@@ -972,12 +1001,12 @@ export class HarmonicResonanceFeedbackSystem {
             : null;
 
         if (curve?.getPointAt) {
-            return curve.getPointAt(0.5, new THREE.Vector3());
+            return curve.getPointAt(0.5, this._linkPosScratch);
         }
 
         const endpoints = this._getLinkEndpoints(link);
         if (endpoints.startPos && endpoints.endPos) {
-            return new THREE.Vector3().addVectors(endpoints.startPos, endpoints.endPos).multiplyScalar(0.5);
+            return this._linkPosScratch.addVectors(endpoints.startPos, endpoints.endPos).multiplyScalar(0.5);
         }
 
         if (link?.geometry?.attributes?.position) {
@@ -985,7 +1014,7 @@ export class HarmonicResonanceFeedbackSystem {
             const count = positions.count;
             if (count > 0) {
                 const midIndex = Math.floor(count / 2);
-                return new THREE.Vector3(
+                return this._linkPosScratch.set(
                     positions.getX(midIndex),
                     positions.getY(midIndex),
                     positions.getZ(midIndex)
@@ -1102,8 +1131,8 @@ export class HarmonicResonanceFeedbackSystem {
             
             // Gentle orientation alignment toward resonance center
             if (pictogram.mesh && field.compositeGlyph && field.compositeGlyph.mesh) {
-                const dirToResonance = field.position
-                    .clone()
+                // Zero-alloc: use scratch vector instead of .clone()
+                const dirToResonance = this._dirScratch.copy(field.position)
                     .sub(item.linkPos)
                     .normalize();
                 
@@ -1221,8 +1250,14 @@ export class HarmonicResonanceFeedbackSystem {
     // ========================================================================
     
     getStatus() {
-        const activeFields = this.resonanceFields.filter(f => f.active).length;
-        const decayingFields = this.resonanceFields.filter(f => !f.active && f.strength > 0.01).length;
+        // Zero-alloc: manual counting instead of .filter()
+        let activeFields = 0;
+        let decayingFields = 0;
+        for (let i = 0; i < this.resonanceFields.length; i++) {
+            const f = this.resonanceFields[i];
+            if (f.active) activeFields++;
+            else if (f.strength > 0.01) decayingFields++;
+        }
 
         const status = {
             enabled: this.enabled,
