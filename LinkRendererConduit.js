@@ -118,6 +118,234 @@ const weightedPickIndex = (weights) => {
     return Math.max(0, weights.length - 1);
 };
 const randRange = (min, max) => min + Math.random() * (max - min);
+/*
+const strandSparkVertexShader = `
+    attribute vec3 aColor;
+    attribute float aSize;
+    attribute float aShape;
+    attribute float aAngle;
+    attribute float aSpin;
+        mesh.visible = true;
+
+        const dir = surfaceDir?.clone ? surfaceDir.clone() : dockForward.clone();
+        if (dir.lengthSq() > 0.0001) {
+            dir.normalize();
+        } else {
+            dir.copy(dockForward);
+        }
+
+        mesh.position.copy(origin);
+        mesh.quaternion.setFromUnitVectors(dockForward, dir);
+        mesh.updateMatrix();
+        mesh.userData.birthTime = time;
+        mesh.userData.phaseSeed = mesh.userData.phaseSeed ?? randRange(0, Math.PI * 2);
+
+        const count = Math.min(40, maxParticles);
+        if (color) {
+            material.uniforms.uColor.value.copy(color);
+            const glowColor = material.uniforms.uColor.value.clone().lerp(COLOR_WHITE, 0.22);
+            shellMaterial.color.copy(glowColor);
+            fractureMaterial.color.copy(glowColor);
+            coreMaterial.color.copy(glowColor);
+            afterglowMaterial.color.copy(glowColor);
+        }
+
+        const dir = surfaceDir?.clone ? surfaceDir.clone() : dockForward.clone();
+        if (dir.lengthSq() > 0.0001) {
+            dir.normalize();
+            const glowColor = material.uniforms.uColor.value.clone().lerp(COLOR_WHITE, 0.22);
+            const i1 = idx;
+            const angle = (i / count) * Math.PI * 2 + randRange(-0.28, 0.28);
+            const ringRadius = randRange(0.035, 0.18);
+            const axialOffset = randRange(-0.06, 0.02);
+            const tangentialSpeed = randRange(0.18, 0.44);
+            const forwardSpeed = randRange(0.86, 1.56);
+
+            positions[i3] = Math.cos(angle) * ringRadius + randomUnit().x * randRange(0, 0.02);
+            positions[i3 + 1] = Math.sin(angle) * ringRadius + randomUnit().y * randRange(0, 0.02);
+            positions[i3 + 2] = axialOffset + randomUnit().z * randRange(0, 0.015);
+
+            velocities[i3] = -Math.sin(angle) * tangentialSpeed;
+            velocities[i3 + 1] = Math.cos(angle) * tangentialSpeed;
+            velocities[i3 + 2] = forwardSpeed;
+
+            intensity[i1] = 0.58 + randRange(0, 0.42);
+
+            life[i2] = material.uniforms.uTime.value;
+            life[i2 + 1] = randRange(0.34, 0.54);
+            coreMaterial.color.copy(glowColor);
+            afterglowMaterial.color.copy(glowColor);
+        }
+
+    attribute float aGain;
+        geometry.attributes.aIntensity.needsUpdate = true;
+
+    uniform float uTime;
+        vShape = aShape;
+            const i1 = idx;
+            const angle = (i / count) * Math.PI * 2 + randRange(-0.28, 0.28);
+        if (!mesh.visible) return;
+
+        const birthTime = Number.isFinite(mesh.userData.birthTime) ? mesh.userData.birthTime : time;
+        const age = Math.max(0, time - birthTime);
+        const fracturePhase = clamp01(age / 0.06);
+        const coreOpenPhase = clamp01((age - 0.05) / 0.11);
+        const afterglowPhase = clamp01((age - 0.12) / 0.22);
+        const pulse = 0.5 + 0.5 * Math.sin(time * 5.8 + (mesh.userData.phaseSeed || 0));
+        const globalOpacity = 0.72 + afterglowPhase * 0.28;
+
+        material.uniforms.uGlobalOpacity.value = globalOpacity;
+        mesh.scale.setScalar(1.0 + fracturePhase * 0.08 + afterglowPhase * 0.05);
+        portalRoot.rotation.z = time * (0.72 + afterglowPhase * 0.14);
+        portalRoot.scale.setScalar(0.95 + coreOpenPhase * 0.14 + pulse * 0.03);
+
+        shellRing.rotation.z = pulse * 0.08;
+        fractureBand.rotation.z = time * 0.45 + pulse * 0.12;
+        portalCore.rotation.z = -time * 0.2;
+
+        shellRing.scale.setScalar(1.0 + fracturePhase * 0.2 + coreOpenPhase * 0.08);
+        fractureBand.scale.setScalar(1.0 + fracturePhase * 0.26 + coreOpenPhase * 0.12);
+        portalCore.scale.setScalar(0.72 + coreOpenPhase * 0.58 + pulse * 0.04);
+        afterglowRing.scale.setScalar(1.0 + afterglowPhase * 0.34 + pulse * 0.05);
+
+        shellMaterial.opacity = (0.045 + fracturePhase * 0.05 + pulse * 0.02) * globalOpacity;
+        fractureMaterial.opacity = (0.06 + fracturePhase * 0.07 + coreOpenPhase * 0.03) * globalOpacity;
+        coreMaterial.opacity = (0.08 + coreOpenPhase * 0.11 + pulse * 0.03) * globalOpacity;
+        afterglowMaterial.opacity = (0.018 + afterglowPhase * 0.065) * globalOpacity;
+            const ringRadius = randRange(0.035, 0.18);
+            const axialOffset = randRange(-0.06, 0.02);
+            const tangentialSpeed = randRange(0.18, 0.44);
+            const forwardSpeed = randRange(0.86, 1.56);
+
+            positions[i3] = Math.cos(angle) * ringRadius + randomUnit().x * randRange(0, 0.02);
+            positions[i3 + 1] = Math.sin(angle) * ringRadius + randomUnit().y * randRange(0, 0.02);
+            positions[i3 + 2] = axialOffset + randomUnit().z * randRange(0, 0.015);
+        mesh.traverse((obj) => {
+            velocities[i3] = -Math.sin(angle) * tangentialSpeed;
+            velocities[i3 + 1] = Math.cos(angle) * tangentialSpeed;
+            velocities[i3 + 2] = forwardSpeed;
+
+            intensity[i1] = 0.58 + randRange(0, 0.42);
+
+            life[i2] = material.uniforms.uTime.value;
+            life[i2 + 1] = randRange(0.34, 0.54);
+
+        if (age < 0.0 || age > 1.0) {
+            gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+            gl_PointSize = 0.0;
+            return;
+        geometry.attributes.aIntensity.needsUpdate = true;
+        }
+
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        // Match LinkSparkSystem attenuation pattern exactly.
+        if (!mesh.visible) return;
+
+        const birthTime = Number.isFinite(mesh.userData.birthTime) ? mesh.userData.birthTime : time;
+        const age = Math.max(0, time - birthTime);
+        const fracturePhase = clamp01(age / 0.06);
+        const coreOpenPhase = clamp01((age - 0.05) / 0.11);
+        const afterglowPhase = clamp01((age - 0.12) / 0.22);
+        const pulse = 0.5 + 0.5 * Math.sin(time * 5.8 + (mesh.userData.phaseSeed || 0));
+        const globalOpacity = 0.72 + afterglowPhase * 0.28;
+
+        material.uniforms.uGlobalOpacity.value = globalOpacity;
+        mesh.scale.setScalar(1.0 + fracturePhase * 0.08 + afterglowPhase * 0.05);
+        portalRoot.rotation.z = time * (0.72 + afterglowPhase * 0.14);
+        portalRoot.scale.setScalar(0.95 + coreOpenPhase * 0.14 + pulse * 0.03);
+
+        shellRing.rotation.z = pulse * 0.08;
+        fractureBand.rotation.z = time * 0.45 + pulse * 0.12;
+        portalCore.rotation.z = -time * 0.2;
+
+        shellRing.scale.setScalar(1.0 + fracturePhase * 0.2 + coreOpenPhase * 0.08);
+        fractureBand.scale.setScalar(1.0 + fracturePhase * 0.26 + coreOpenPhase * 0.12);
+        portalCore.scale.setScalar(0.72 + coreOpenPhase * 0.58 + pulse * 0.04);
+        afterglowRing.scale.setScalar(1.0 + afterglowPhase * 0.34 + pulse * 0.05);
+
+        shellMaterial.opacity = (0.045 + fracturePhase * 0.05 + pulse * 0.02) * globalOpacity;
+        fractureMaterial.opacity = (0.06 + fracturePhase * 0.07 + coreOpenPhase * 0.03) * globalOpacity;
+        coreMaterial.opacity = (0.08 + coreOpenPhase * 0.11 + pulse * 0.03) * globalOpacity;
+        afterglowMaterial.opacity = (0.018 + afterglowPhase * 0.065) * globalOpacity;
+        gl_PointSize = aSize * (10.0 / -mvPosition.z);
+    }
+`;
+        if (mesh.parent) mesh.parent.remove(mesh);
+    precision highp float;
+
+    varying vec3 vColor;
+    varying float vShape;
+        mesh.traverse((obj) => {
+    varying float vAngle;
+    varying float vGain;
+
+    vec2 rot(vec2 p, float a) {
+        float c = cos(a);
+        float s = sin(a);
+        return vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+    }
+
+    float shapeSliver(vec2 p) {
+        float body = 1.0 - smoothstep(0.22, 0.48, abs(p.y) + abs(p.x) * 0.24);
+        float core = 1.0 - smoothstep(0.06, 0.16, abs(p.y));
+        return clamp(body * 0.75 + core * 0.25, 0.0, 1.0);
+    }
+
+    float shapeNotch(vec2 p) {
+        float segA = 1.0 - smoothstep(0.10, 0.24, abs(p.y + 0.22));
+        segA *= smoothstep(0.05, 0.44, abs(p.x));
+        float segB = 1.0 - smoothstep(0.10, 0.24, abs(p.y - 0.18));
+        segB *= smoothstep(0.05, 0.34, abs(p.x + 0.10));
+        return clamp(max(segA, segB), 0.0, 1.0);
+    }
+
+    float shapeRune(vec2 p) {
+        float r = length(p);
+        float ringOuter = 1.0 - smoothstep(0.64, 0.84, r);
+        float ringInner = smoothstep(0.32, 0.50, r);
+        float ring = ringOuter * ringInner;
+        float gap = smoothstep(-0.10, 0.24, p.x);
+        float shard = 1.0 - smoothstep(0.12, 0.28, length(p - vec2(0.34, 0.0)));
+        return clamp(ring * gap + shard * 0.5, 0.0, 1.0);
+    }
+
+    float shapeEmber(vec2 p) {
+        float dia = 1.0 - smoothstep(0.52, 0.78, abs(p.x) + abs(p.y));
+        vec2 tailOffset = p - vec2(-0.24, 0.0);
+        float tail = 1.0 - smoothstep(0.10 * 0.10, 0.24 * 0.24, dot(tailOffset, tailOffset));
+        return clamp(max(dia, tail * 0.75), 0.0, 1.0);
+    }
+
+    void main() {
+        if (vAge < 0.0 || vAge > 1.0 || vGain <= 0.001) discard;
+
+        vec2 p = gl_PointCoord * 2.0 - 1.0;
+        p = rot(p, vAngle);
+
+        float shape = 0.0;
+        if (vShape < 0.5) {
+            shape = shapeSliver(p);
+        } else if (vShape < 1.5) {
+            shape = shapeNotch(p);
+        } else if (vShape < 2.5) {
+            shape = shapeRune(p);
+        } else {
+            shape = shapeEmber(p);
+        }
+
+        float ageFade = smoothstep(0.0, 0.09, vAge) * (1.0 - smoothstep(0.68, 1.0, vAge));
+        float core = 1.0 - smoothstep(0.0, 0.384, dot(p, p));
+        float flicker = 0.92 + 0.08 * sin((1.0 - vAge) * 24.0 + vShape * 6.1 + p.x * 4.0);
+        float alpha = shape * ageFade * vGain * flicker;
+        if (alpha < 0.01) discard;
+
+        vec3 color = vColor + vec3(core * 0.32);
+        gl_FragColor = vec4(color, alpha);
+    }
+`;
+*/
+
 const strandSparkVertexShader = `
     attribute vec3 aColor;
     attribute float aSize;
@@ -299,27 +527,34 @@ const applyStrandThicknessProfile = (geometry, baseRadius, profile = {}) => {
 function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
     const positions = new Float32Array(maxParticles * 3);
     const velocities = new Float32Array(maxParticles * 3);
+    const intensity = new Float32Array(maxParticles);
     const life = new Float32Array(maxParticles * 2); // birth, duration
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('aVelocity', new THREE.BufferAttribute(velocities, 3));
+    geometry.setAttribute('aIntensity', new THREE.BufferAttribute(intensity, 1));
     geometry.setAttribute('aLife', new THREE.BufferAttribute(life, 2));
     geometry.attributes.position.usage = THREE.DynamicDrawUsage;
     geometry.attributes.aVelocity.usage = THREE.DynamicDrawUsage;
+    geometry.attributes.aIntensity.usage = THREE.DynamicDrawUsage;
     geometry.attributes.aLife.usage = THREE.DynamicDrawUsage;
 
     const vertexShader = `
         attribute vec3 aVelocity;
+        attribute float aIntensity;
         attribute vec2 aLife;
         uniform float uTime;
+        uniform float uGlobalOpacity;
         uniform vec3 uColor;
         varying vec3 vColor;
         varying float vAlpha;
+        varying float vIntensity;
         void main() {
             float age = uTime - aLife.x;
             if (age < 0.0 || age > aLife.y) {
                 vAlpha = 0.0;
+                vIntensity = 0.0;
                 gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
                 return;
             }
@@ -328,22 +563,29 @@ function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
             vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
             gl_Position = projectionMatrix * mvPosition;
             // True perspective attenuation: no minimum screen-space floor.
-            gl_PointSize = clamp(80.0 * (1.0 - t) / -mvPosition.z, 1.0, 20.0);
+            float glowBoost = clamp(aIntensity * uGlobalOpacity, 0.0, 2.0);
+            gl_PointSize = clamp((88.0 + glowBoost * 22.0) * (1.0 - t) / -mvPosition.z, 1.0, 24.0);
             vColor = uColor;
-            vAlpha = 0.8 * (1.0 - t);
+            vAlpha = (0.72 + glowBoost * 0.28) * (1.0 - t);
+            vIntensity = glowBoost;
         }
     `;
 
     const fragmentShader = `
         varying vec3 vColor;
         varying float vAlpha;
+        varying float vIntensity;
         void main() {
             if (vAlpha <= 0.01) discard;
             vec2 c = gl_PointCoord - vec2(0.5);
             float d = length(c);
             if (d > 0.5) discard;
-            float glow = 1.0 - smoothstep(0.3, 0.5, d);
-            gl_FragColor = vec4(vColor, vAlpha * glow);
+            float core = 1.0 - smoothstep(0.0, 0.18, d);
+            float halo = 1.0 - smoothstep(0.16, 0.5, d);
+            vec3 color = mix(vColor, vec3(1.0), 0.18 + core * 0.28);
+            color += vColor * 0.12 * halo;
+            float alpha = vAlpha * (0.65 * halo + 0.55 * core) * (0.55 + vIntensity * 0.45);
+            gl_FragColor = vec4(color, alpha);
         }
     `;
 
@@ -357,6 +599,7 @@ function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
         sizeAttenuation: true,
         uniforms: {
             uTime: { value: 0 },
+            uGlobalOpacity: { value: 1.0 },
             uColor: { value: new THREE.Color(0xffffff) }
         }
     });
@@ -366,6 +609,65 @@ function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
     mesh.matrixAutoUpdate = false;
     mesh.updateMatrix();
     mesh.renderOrder = renderOrder;
+    mesh.visible = false;
+
+    const portalRoot = new THREE.Group();
+    portalRoot.name = 'DockSprayPortalRoot';
+    portalRoot.renderOrder = renderOrder;
+    mesh.add(portalRoot);
+
+    const shellMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.05,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+    const fractureMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.06,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+    const coreMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.11,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+    const afterglowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.025,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+
+    const shellRing = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.025, 7, 28), shellMaterial);
+    shellRing.rotation.x = Math.PI * 0.5;
+    shellRing.position.z = -0.01;
+    portalRoot.add(shellRing);
+
+    const fractureBand = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.013, 6, 30), fractureMaterial);
+    fractureBand.rotation.x = Math.PI * 0.5;
+    fractureBand.position.z = 0.01;
+    portalRoot.add(fractureBand);
+
+    const portalCore = new THREE.Mesh(new THREE.RingGeometry(0.055, 0.145, 32), coreMaterial);
+    portalCore.rotation.x = Math.PI * 0.5;
+    portalCore.position.z = 0.02;
+    portalRoot.add(portalCore);
+
+    const afterglowRing = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.011, 6, 32), afterglowMaterial);
+    afterglowRing.rotation.x = Math.PI * 0.5;
+    afterglowRing.position.z = -0.03;
+    portalRoot.add(afterglowRing);
 
     const randRange = (min, max) => min + Math.random() * (max - min);
     const randomUnit = () => {
@@ -373,6 +675,7 @@ function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
         if (v.lengthSq() < 1e-4) v.set(0, 0, 1);
         return v.normalize();
     };
+    const dockForward = new THREE.Vector3(0, 0, 1);
 
     let writeIndex = 0;
 
@@ -424,6 +727,7 @@ function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
 function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) {
     const positions = new Float32Array(maxParticles * 3);
     const velocities = new Float32Array(maxParticles * 3);
+    const intensity = new Float32Array(maxParticles);
     const radialBasis = new Float32Array(maxParticles * 3);
     const swirlBasis = new Float32Array(maxParticles * 3);
     const params = new Float32Array(maxParticles * 4); // startRadius, endRadius, angularSpeed, phase
@@ -432,12 +736,14 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('aVelocity', new THREE.BufferAttribute(velocities, 3));
+    geometry.setAttribute('aIntensity', new THREE.BufferAttribute(intensity, 1));
     geometry.setAttribute('aRadialBasis', new THREE.BufferAttribute(radialBasis, 3));
     geometry.setAttribute('aSwirlBasis', new THREE.BufferAttribute(swirlBasis, 3));
     geometry.setAttribute('aParams', new THREE.BufferAttribute(params, 4));
     geometry.setAttribute('aLife', new THREE.BufferAttribute(life, 2));
     geometry.attributes.position.usage = THREE.DynamicDrawUsage;
     geometry.attributes.aVelocity.usage = THREE.DynamicDrawUsage;
+    geometry.attributes.aIntensity.usage = THREE.DynamicDrawUsage;
     geometry.attributes.aRadialBasis.usage = THREE.DynamicDrawUsage;
     geometry.attributes.aSwirlBasis.usage = THREE.DynamicDrawUsage;
     geometry.attributes.aParams.usage = THREE.DynamicDrawUsage;
@@ -445,18 +751,22 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
 
     const vertexShader = `
         attribute vec3 aVelocity;
+        attribute float aIntensity;
         attribute vec3 aRadialBasis;
         attribute vec3 aSwirlBasis;
         attribute vec4 aParams;
         attribute vec2 aLife;
         uniform float uTime;
+        uniform float uGlobalOpacity;
         uniform vec3 uColor;
         varying vec3 vColor;
         varying float vAlpha;
+        varying float vIntensity;
         void main() {
             float age = uTime - aLife.x;
             if (age < 0.0 || age > aLife.y) {
                 vAlpha = 0.0;
+                vIntensity = 0.0;
                 gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
                 return;
             }
@@ -468,22 +778,29 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
             vec3 pos = position + aVelocity * age + orbitDir * radius;
             vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
             gl_Position = projectionMatrix * mvPosition;
-            gl_PointSize = clamp(72.0 * (1.0 - t * 0.58) / -mvPosition.z, 1.2, 14.0);
+            float glowBoost = clamp(aIntensity * uGlobalOpacity, 0.0, 2.0);
+            gl_PointSize = clamp((74.0 + glowBoost * 18.0) * (1.0 - t * 0.58) / -mvPosition.z, 1.2, 16.0);
             vColor = uColor;
-            vAlpha = 0.65 * (1.0 - t) * mix(0.12, 1.0, intakeFade);
+            vAlpha = (0.62 + glowBoost * 0.22) * (1.0 - t) * mix(0.12, 1.0, intakeFade);
+            vIntensity = glowBoost;
         }
     `;
 
     const fragmentShader = `
         varying vec3 vColor;
         varying float vAlpha;
+        varying float vIntensity;
         void main() {
             if (vAlpha <= 0.01) discard;
             vec2 c = gl_PointCoord - vec2(0.5);
             float d = length(c);
             if (d > 0.5) discard;
-            float glow = 1.0 - smoothstep(0.12, 0.5, d);
-            gl_FragColor = vec4(vColor, vAlpha * glow);
+            float core = 1.0 - smoothstep(0.0, 0.16, d);
+            float halo = 1.0 - smoothstep(0.12, 0.5, d);
+            vec3 color = mix(vColor, vec3(1.0), 0.18 + core * 0.24);
+            color += vec3(0.08, 0.16, 0.12) * halo * vIntensity * 0.18;
+            float alpha = vAlpha * (0.6 * halo + 0.7 * core) * (0.7 + vIntensity * 0.3);
+            gl_FragColor = vec4(color, alpha);
         }
     `;
 
@@ -496,6 +813,7 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
         depthTest: true,
         uniforms: {
             uTime: { value: 0 },
+            uGlobalOpacity: { value: 1.0 },
             uColor: { value: new THREE.Color(0xffffff) }
         }
     });
@@ -505,8 +823,10 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
     points.renderOrder = renderOrder;
 
     const vortex = new THREE.Group();
+    vortex.name = 'SourceInjectionPortal';
     vortex.renderOrder = renderOrder;
     const fieldRoot = new THREE.Group();
+    fieldRoot.name = 'SourceInjectionIrisRoot';
     vortex.add(fieldRoot);
 
     const haloOuterMaterial = new THREE.MeshBasicMaterial({
@@ -533,7 +853,15 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
         depthWrite: false,
         side: THREE.DoubleSide
     });
-    const fieldMaterials = [haloOuterMaterial, haloInnerMaterial, vaneMaterial];
+    const irisCoreMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.1,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+    const fieldMaterials = [haloOuterMaterial, haloInnerMaterial, vaneMaterial, irisCoreMaterial];
 
     const haloOuter = new THREE.Mesh(
         new THREE.CylinderGeometry(0.11, 0.26, 0.30, 20, 1, true),
@@ -562,20 +890,28 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
     fieldMaterials.push(haloRing.material);
     fieldRoot.add(haloRing);
 
+    const irisCore = new THREE.Mesh(
+        new THREE.CircleGeometry(0.08, 28),
+        irisCoreMaterial
+    );
+    irisCore.rotation.x = Math.PI * 0.5;
+    irisCore.position.z = -0.005;
+    fieldRoot.add(irisCore);
+
     const vanePivots = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 6; i++) {
         const pivot = new THREE.Group();
-        pivot.userData.baseAngle = (i / 4) * Math.PI * 2;
+        pivot.userData.baseAngle = (i / 6) * Math.PI * 2;
         pivot.rotation.z = pivot.userData.baseAngle;
         const vane = new THREE.Mesh(
-            new THREE.PlaneGeometry(0.028, 0.18, 1, 1),
+            new THREE.PlaneGeometry(0.03, 0.22, 1, 1),
             vaneMaterial
         );
-        vane.position.x = 0.11;
+        vane.position.x = 0.09;
         vane.position.z = 0.03;
         vane.rotation.y = Math.PI * 0.5;
-        vane.rotation.z = 0.22;
-        vane.scale.set(1.0, 1.0 - i * 0.08, 1.0);
+        vane.rotation.z = 0.16;
+        vane.scale.set(1.0, 1.0 - i * 0.05, 1.0);
         pivot.add(vane);
         vanePivots.push(pivot);
         fieldRoot.add(pivot);
@@ -588,12 +924,14 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
     const swirlDir = new THREE.Vector3();
     let writeIndex = 0;
 
-    function spawnBurst(origin, forward, color, time = 0) {
+    function spawnBurst(origin, forward, color, time = 0, flow = 0) {
         material.uniforms.uTime.value = time;
         if (color) {
             material.uniforms.uColor.value.copy(color);
             fieldMaterials.forEach((mat) => mat.color.copy(color));
         }
+
+        const flowBoost = THREE.MathUtils.clamp(flow, 0, 1);
 
         const dir = forward.clone().normalize();
         const upSeed = Math.abs(dir.y) < 0.92 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
@@ -601,17 +939,17 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
         bitangent.crossVectors(dir, tangent).normalize();
 
         const endRadius = 0.014;
-        const count = Math.min(18, maxParticles);
+        const count = Math.min(18 + Math.floor(flowBoost * 6), maxParticles);
         for (let i = 0; i < count; i++) {
             const idx = writeIndex;
             const i3 = idx * 3;
             const i4 = idx * 4;
-            const angle = (i / count) * Math.PI * 2 + randRange(-0.26, 0.26);
-            const startRadius = randRange(0.11, 0.24);
-            const axialOffset = randRange(-0.12, 0.02);
-            const lifetime = randRange(0.22, 0.34);
-            const forwardSpeed = randRange(1.0, 1.75);
-            const angularSpeed = randRange(10.0, 18.0) * (Math.random() < 0.5 ? -1 : 1);
+            const angle = (i / count) * Math.PI * 2 + randRange(-0.18, 0.18);
+            const startRadius = randRange(0.11, 0.24 + flowBoost * 0.08);
+            const axialOffset = randRange(-0.1, 0.03);
+            const lifetime = randRange(0.24, 0.38);
+            const forwardSpeed = randRange(0.9 + flowBoost * 0.1, 1.6 + flowBoost * 0.28);
+            const angularSpeed = randRange(12.0, 22.0) * (Math.random() < 0.5 ? -1 : 1);
 
             radialDir.copy(tangent).multiplyScalar(Math.cos(angle));
             radialDir.addScaledVector(bitangent, Math.sin(angle)).normalize();
@@ -621,9 +959,11 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
             positions[i3 + 1] = origin.y + dir.y * axialOffset;
             positions[i3 + 2] = origin.z + dir.z * axialOffset;
 
-            velocities[i3] = dir.x * forwardSpeed;
-            velocities[i3 + 1] = dir.y * forwardSpeed;
-            velocities[i3 + 2] = dir.z * forwardSpeed;
+            velocities[i3] = dir.x * forwardSpeed + radialDir.x * -0.08 + swirlDir.x * 0.14;
+            velocities[i3 + 1] = dir.y * forwardSpeed + radialDir.y * -0.08 + swirlDir.y * 0.14;
+            velocities[i3 + 2] = dir.z * forwardSpeed + radialDir.z * -0.08 + swirlDir.z * 0.14;
+
+            intensity[idx] = 0.55 + flowBoost * 0.35 + randRange(0, 0.18);
 
             radialBasis[i3] = radialDir.x;
             radialBasis[i3 + 1] = radialDir.y;
@@ -647,6 +987,7 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
 
         geometry.attributes.position.needsUpdate = true;
         geometry.attributes.aVelocity.needsUpdate = true;
+        geometry.attributes.aIntensity.needsUpdate = true;
         geometry.attributes.aRadialBasis.needsUpdate = true;
         geometry.attributes.aSwirlBasis.needsUpdate = true;
         geometry.attributes.aParams.needsUpdate = true;
@@ -657,15 +998,29 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
         material.uniforms.uTime.value = time;
         const flowBoost = THREE.MathUtils.clamp(flow, 0, 1);
         const pulse = 1.0 + Math.sin(time * 2.6) * 0.06 + flowBoost * 0.025;
-        fieldRoot.scale.setScalar(pulse);
-        fieldRoot.rotation.set(0, 0, time * (0.55 + flowBoost * 0.08));
-        const flowOpacity = 0.9 + flowBoost * 0.28;
-        haloOuter.material.opacity = (0.042 + (Math.sin(time * 2.1) * 0.5 + 0.5) * 0.022) * flowOpacity;
-        haloInner.material.opacity = (0.068 + (Math.sin(time * 2.8 + 0.9) * 0.5 + 0.5) * 0.03) * flowOpacity;
-        haloRing.material.opacity = (0.02 + (Math.sin(time * 2.3 + 1.4) * 0.5 + 0.5) * 0.014) * flowOpacity;
+        const flowCurve = THREE.MathUtils.smoothstep(flowBoost, 0.05, 0.92);
+        const irisOpen = THREE.MathUtils.clamp(0.08 + (1 - Math.pow(1 - flowCurve, 3)) * 0.86 + (pulse - 1.0) * 0.03, 0.08, 1.0);
+        fieldRoot.scale.setScalar(0.9 + irisOpen * 0.2);
+        fieldRoot.rotation.set(0, 0, time * (0.38 + flowBoost * 0.1));
+        const flowOpacity = 0.88 + flowBoost * 0.32;
+        haloOuter.material.opacity = (0.042 + (Math.sin(time * 2.1) * 0.5 + 0.5) * 0.022) * flowOpacity * (0.78 + irisOpen * 0.22);
+        haloInner.material.opacity = (0.068 + (Math.sin(time * 2.8 + 0.9) * 0.5 + 0.5) * 0.03) * flowOpacity * (0.82 + irisOpen * 0.28);
+        haloRing.material.opacity = (0.02 + (Math.sin(time * 2.3 + 1.4) * 0.5 + 0.5) * 0.014) * flowOpacity * (0.72 + irisOpen * 0.38);
+        irisCore.material.opacity = (0.08 + irisOpen * 0.14 + pulse * 0.03) * flowOpacity;
+        irisCore.scale.setScalar(0.66 + irisOpen * 0.64);
         vanePivots.forEach((pivot, index) => {
-            pivot.rotation.z = pivot.userData.baseAngle + Math.sin(time * 1.8 + index * 0.7) * 0.07;
+            const phase = time * (1.55 + flowBoost * 0.35) + index * 0.55;
+            const blade = pivot.children[0];
+            pivot.rotation.z = pivot.userData.baseAngle + Math.sin(phase) * 0.045 + irisOpen * 0.24;
+            pivot.position.x = 0.003 + irisOpen * 0.014;
+            if (blade) {
+                blade.position.x = 0.085 + irisOpen * 0.1;
+                blade.rotation.z = 0.14 + Math.sin(time * 1.3 + index * 0.35) * 0.035;
+                blade.scale.set(1.0 + irisOpen * 0.08, 0.82 + irisOpen * 0.82, 1.0);
+                blade.material.opacity = (0.05 + irisOpen * 0.06 + pulse * 0.018) * (0.82 + flowBoost * 0.18);
+            }
         });
+        material.uniforms.uGlobalOpacity.value = 0.84 + irisOpen * 0.34;
         if (origin) vortex.position.copy(origin);
         if (forward) {
             const dir = forward.clone().normalize();
@@ -3158,8 +3513,9 @@ export class LinkRendererConduit {
                         0,
                         (layerRadii.length - 1 - layerIndex) * shellSpacing
                     );
-                    layerGroup.userData.baseZ = (layerRadii.length - 1 - layerIndex) * shellSpacing;
                     layerGroup.rotation.z = layerIndex * 0.08;
+                    layerGroup.userData.baseZ = (layerRadii.length - 1 - layerIndex) * shellSpacing;
+                    layerGroup.userData.baseRotation = layerGroup.rotation.z;
                     const mat = new THREE.MeshBasicMaterial({
                         color: ringColor,
                         transparent: true,
@@ -3170,6 +3526,7 @@ export class LinkRendererConduit {
                     });
                     this._registerLinkMaterialWithBridge(mat);
                     layerGroup.userData.baseOpacity = layerOpacity[layerIndex] ?? 0.5;
+                    layerGroup.userData.mainMaterial = mat;
                     const shellTilt = 0.16 + layerIndex * 0.06;
                     const shellLift = baseTubeRadius * (0.7 + layerIndex * 0.2);
 
@@ -3202,6 +3559,8 @@ export class LinkRendererConduit {
                         side: THREE.DoubleSide
                     });
                     this._registerLinkMaterialWithBridge(trailMat);
+                    layerGroup.userData.baseTrailOpacity = trailMat.opacity;
+                    layerGroup.userData.trailMaterial = trailMat;
                     const trailGeo = new THREE.TorusGeometry(
                         layerRadius * (1.0 + layerIndex * 0.015),
                         baseTubeRadius * 0.42,
@@ -3235,18 +3594,27 @@ export class LinkRendererConduit {
                     color: ringColor.clone()
                 };
                 ensureUserData(ring).__linkOwnerId = this._getLinkOwnerId(link);
+                ring.userData.phaseKind = 'core';
                 this.scene?.add(ring);
                 state.dockRing = ring;
                 state.dockRingColor = ringColor.clone();
                 state.dockRingRadii = layerRadii.slice();
                 state.dockRingSpeeds = layerSpeed.slice();
                 state.dockRingThickness = linkThickness;
+                state.dockChoreo = {
+                    startTime: visualTime,
+                    seed: Math.random() * Math.PI * 2,
+                    fractureDuration: 0.08,
+                    openDuration: 0.14,
+                    afterglowDuration: 0.28
+                };
                 state.dockGhostPending = {
-                    time: visualTime + 0.08,
+                    time: visualTime + 0.14,
                     color: ringColor.clone(),
                     layerRadii: layerRadii.slice(),
                     layerSpeed: layerSpeed.map(s => s * 0.8),
-                    thickness: linkThickness
+                    thickness: linkThickness,
+                    phaseKind: 'afterglow'
                 };
                 trace('afterDockRingCreated', {
                     layerCount: layerGroups.length
@@ -3291,8 +3659,9 @@ export class LinkRendererConduit {
                     0,
                     (pg.layerRadii.length - 1 - layerIndex) * shellSpacing
                 );
-                layerGroup.userData.baseZ = (pg.layerRadii.length - 1 - layerIndex) * shellSpacing;
                 layerGroup.rotation.z = layerIndex * 0.08;
+                layerGroup.userData.baseZ = (pg.layerRadii.length - 1 - layerIndex) * shellSpacing;
+                layerGroup.userData.baseRotation = layerGroup.rotation.z;
                 const mat = new THREE.MeshBasicMaterial({
                     color: ringColor,
                     transparent: true,
@@ -3303,6 +3672,7 @@ export class LinkRendererConduit {
                 });
                 this._registerLinkMaterialWithBridge(mat);
                 layerGroup.userData.baseOpacity = layerOpacity[layerIndex] ?? (0.5 * 0.35);
+                layerGroup.userData.mainMaterial = mat;
                 const shellTilt = 0.16 + layerIndex * 0.06;
                 const shellLift = baseTubeRadius * (0.65 + layerIndex * 0.18);
 
@@ -3335,6 +3705,8 @@ export class LinkRendererConduit {
                     side: THREE.DoubleSide
                 });
                 this._registerLinkMaterialWithBridge(trailMat);
+                layerGroup.userData.baseTrailOpacity = trailMat.opacity;
+                layerGroup.userData.trailMaterial = trailMat;
                 const trailGeo = new THREE.TorusGeometry(
                     layerRadius * 1.02,
                     baseTubeRadius * 0.36,
@@ -3359,6 +3731,7 @@ export class LinkRendererConduit {
             }
             ring.userData.layerGroups = layerGroups;
             ring.userData.layerSpeed = pg.layerSpeed;
+            ring.userData.phaseKind = 'afterglow';
             ensureUserData(ring).__linkOwnerId = this._getLinkOwnerId(link);
             this.scene?.add(ring);
             state.dockGhost = ring;
@@ -3367,13 +3740,47 @@ export class LinkRendererConduit {
 
         const updateDockRing = (ring) => {
             if (!ring) return false;
+            const dockChoreo = state.dockChoreo || ring.userData?.dockChoreo || null;
+            const ringKind = ring.userData?.phaseKind || 'core';
+            const startTime = dockChoreo?.startTime ?? visualTime;
+            const age = Math.max(0, visualTime - startTime);
+            const fractureDuration = dockChoreo?.fractureDuration ?? 0.08;
+            const openDuration = dockChoreo?.openDuration ?? 0.14;
+            const afterglowDuration = dockChoreo?.afterglowDuration ?? 0.28;
+            const fracturePhase = clamp01(age / fractureDuration);
+            const openPhase = clamp01((age - 0.05) / openDuration);
+            const afterglowPhase = clamp01((age - 0.13) / afterglowDuration);
+            const fractureEase = 1 - Math.pow(1 - fracturePhase, 3);
+            const openEase = openPhase * openPhase * (3 - 2 * openPhase);
+            const afterglowEase = 1 - Math.pow(1 - afterglowPhase, 2.5);
+            const phaseSeed = ring.userData?.phaseSeed ?? dockChoreo?.seed ?? 0;
+            const pulse = 0.5 + 0.5 * Math.sin(visualTime * 5.6 + phaseSeed);
+            const ringScale = ringKind === 'afterglow'
+                ? 1.0 + afterglowEase * 0.24 + pulse * 0.02
+                : 1.0 + fractureEase * 0.18 + openEase * 0.12;
+            ring.scale.setScalar(ringScale);
+
             if (ring.userData.layerGroups && ring.userData.layerSpeed) {
                 for (let i = 0; i < ring.userData.layerGroups.length; i++) {
                     const layerGroup = ring.userData.layerGroups[i];
                     const speed = ring.userData.layerSpeed[i] || 0;
                     const baseZ = layerGroup.userData?.baseZ ?? 0;
-                    layerGroup.rotation.z += speed * visualDelta;
-                    layerGroup.position.set(0, 0, baseZ);
+                    const baseRotation = layerGroup.userData?.baseRotation ?? 0;
+                    const mainMaterial = layerGroup.userData?.mainMaterial || null;
+                    const trailMaterial = layerGroup.userData?.trailMaterial || null;
+                    const baseOpacity = layerGroup.userData?.baseOpacity ?? (mainMaterial?.opacity ?? 0.5);
+                    const baseTrailOpacity = layerGroup.userData?.baseTrailOpacity ?? (trailMaterial?.opacity ?? 0.12);
+                    const layerPhase = ringKind === 'afterglow' ? afterglowEase : Math.max(fractureEase, openEase * 0.85);
+                    const wobble = Math.sin(visualTime * (1.55 + i * 0.11) + phaseSeed + i) * 0.024 * (0.35 + layerPhase);
+                    layerGroup.rotation.z = baseRotation + speed * visualTime + wobble + layerPhase * 0.16;
+                    layerGroup.position.set(0, 0, baseZ + layerPhase * (ringKind === 'afterglow' ? 0.06 : 0.04));
+                    layerGroup.scale.setScalar(1.0 + layerPhase * 0.16 + openEase * 0.06);
+                    if (mainMaterial) {
+                        mainMaterial.opacity = baseOpacity * (0.56 + fractureEase * 0.5 + openEase * 0.2);
+                    }
+                    if (trailMaterial) {
+                        trailMaterial.opacity = baseTrailOpacity * (0.3 + afterglowEase * 0.7);
+                    }
                 }
             }
             return false;
@@ -3398,6 +3805,7 @@ export class LinkRendererConduit {
             cleanupRing('dockRing');
             cleanupRing('dockGhost');
             state.dockGhostPending = null;
+            state.dockChoreo = null;
             if (state.dockSpray) {
                 state.dockSpray.dispose();
                 state.dockSpray = null;
@@ -3423,7 +3831,7 @@ export class LinkRendererConduit {
             this.scene?.add(state.sourceInjection.vortex);
             trace('afterSourceInjectionSceneAdd');
             state.sourceInjectionNextTime = visualTime;
-            state.sourceInjectionInterval = 0.075;
+            state.sourceInjectionInterval = 0.07;
         }
 
         if (heavyTick) {
@@ -3465,7 +3873,7 @@ export class LinkRendererConduit {
                 const injectionInterval = state.sourceInjectionInterval ?? 0.075;
                 if (lodAllowsParticles && visualTime >= nextInjectionTime) {
                     trace('beforeSourceInjectionBurst');
-                    state.sourceInjection.spawnBurst(injectionOrigin, linkDir, sourceColor, visualTime);
+                    state.sourceInjection.spawnBurst(injectionOrigin, linkDir, sourceColor, visualTime, injectionFlow);
                     trace('afterSourceInjectionBurst');
                     state.sourceInjectionNextTime = visualTime + injectionInterval;
                 }

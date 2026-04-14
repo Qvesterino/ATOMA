@@ -573,8 +573,95 @@ export class SafeWorldFXPack {
     return Math.min(1, weights[effectName] ?? 0.05);
   }
 
-  _emitWorldFXEvent(title, subtitle, tone, intensity, phase) {
-    const payload = { title, subtitle, tone, intensity, phase };
+  _getWorldFXEventFlavor(eventKey, title, subtitle, tone, intensity, phase) {
+    const state = this.atmosphereState || {};
+    const normalizedIntensity = Math.max(0, intensity ?? 0);
+
+    const flavors = {
+      dimensional_shift: {
+        subtitle: state.loadPressureHigh
+          ? 'Pressure seams are folding the horizon skin'
+          : state.stabilityLow
+            ? 'Reality is bending along unstable fracture curtains'
+            : subtitle,
+        tone: state.corruptionHigh ? 'pressure-corrupt' : 'pressure-fold',
+        semanticSubtitle: 'A dimensional fold is distorting the world shell and briefly reauthoring spatial continuity.',
+        semanticTags: ['worldFX', 'worldFX.dimensionalShift', state.loadPressureHigh ? 'signal.loadPressure.high' : 'signal.reality.fold'],
+        audioCue: state.loadPressureHigh ? 'worldfx.fold.pressure-shear' : 'worldfx.fold.reality-crease',
+        audioLayer: 'fold-rumble',
+        audioIntensity: normalizedIntensity + (state.loadPressureHigh ? 0.15 : 0)
+      },
+      rift_wave: {
+        subtitle: state.loadPressureHigh
+          ? 'A pressure front is marching through the world lattice'
+          : state.stabilityHigh
+            ? 'A coherent resonance wave is sweeping the horizon'
+            : subtitle,
+        tone: state.stabilityHigh ? 'stability-wave' : tone,
+        semanticSubtitle: 'A world-scale wavefront is propagating across the environment and marking active tension gradients.',
+        semanticTags: ['worldFX', 'worldFX.riftWave', state.loadPressureHigh ? 'signal.loadPressure.high' : 'signal.world-wave'],
+        audioCue: state.loadPressureHigh ? 'worldfx.wave.pressure-front' : 'worldfx.wave.resonance-surge',
+        audioLayer: 'seam-sweep',
+        audioIntensity: normalizedIntensity
+      },
+      global_pulse: {
+        subtitle: state.synergyHigh
+          ? 'Synergy is breathing through every visible layer'
+          : state.stabilityHigh
+            ? 'The world pulse settles into coherent flow'
+            : subtitle,
+        tone: state.synergyHigh ? 'flow-synergy' : tone,
+        semanticSubtitle: 'A global flow pulse is reinforcing ambient continuity and brightening shared field motion.',
+        semanticTags: ['worldFX', 'worldFX.globalPulse', state.synergyHigh ? 'signal.synergy.high' : 'signal.global.flow'],
+        audioCue: state.synergyHigh ? 'worldfx.pulse.synergy-breath' : 'worldfx.pulse.flow-rise',
+        audioLayer: 'ambient-bloom',
+        audioIntensity: normalizedIntensity * 0.9
+      },
+      quantum_breach: {
+        subtitle: state.corruptionHigh
+          ? 'A corrupted revelation tears through the upper order'
+          : state.legendaryCount > 0
+            ? 'Legendary pressure opens a higher-order revelation'
+            : subtitle,
+        tone: state.corruptionHigh ? 'revelation-corrupt' : 'revelation-ascendant',
+        semanticSubtitle: 'A rare breach is exposing impossible geometry and revelation-grade atmospheric structure.',
+        semanticTags: ['worldFX', 'worldFX.quantumBreach', state.corruptionHigh ? 'signal.corruption.high' : 'signal.revelation.high'],
+        audioCue: state.corruptionHigh ? 'worldfx.quantum.corrupted-breach' : 'worldfx.quantum.revelation-breach',
+        audioLayer: 'halo-choir',
+        audioIntensity: normalizedIntensity + (state.legendaryCount > 0 ? 0.12 : 0)
+      },
+      sigma_glitch: {
+        subtitle: state.loadPressureHigh
+          ? 'The system skin tears under pressure overload'
+          : state.corruptionHigh
+            ? 'Corruption is exposing the slit fracture stack'
+            : subtitle,
+        tone: state.loadPressureHigh ? 'corruption-pressure' : 'corruption-fracture',
+        semanticSubtitle: 'A sigma fracture is exposing a brief discontinuity in the world skin and leaving a hostile afterimage.',
+        semanticTags: ['worldFX', 'worldFX.sigmaGlitch', state.corruptionHigh ? 'signal.corruption.high' : 'signal.sigma.fracture'],
+        audioCue: state.loadPressureHigh ? 'worldfx.sigma.pressure-tear' : 'worldfx.sigma.skin-fracture',
+        audioLayer: 'digital-shear',
+        audioIntensity: normalizedIntensity
+      }
+    };
+
+    const flavor = flavors[eventKey] || {};
+    return {
+      title,
+      subtitle: flavor.subtitle || subtitle,
+      tone: flavor.tone || tone,
+      intensity,
+      phase,
+      semanticSubtitle: flavor.semanticSubtitle || subtitle,
+      semanticTags: flavor.semanticTags || ['worldFX', `worldFX.${eventKey || 'event'}`],
+      audioCue: flavor.audioCue || 'worldfx.generic',
+      audioLayer: flavor.audioLayer || 'worldfx-bed',
+      audioIntensity: flavor.audioIntensity ?? normalizedIntensity
+    };
+  }
+
+  _emitWorldFXEvent(eventKey, title, subtitle, tone, intensity, phase) {
+    const payload = this._getWorldFXEventFlavor(eventKey, title, subtitle, tone, intensity, phase);
     const bus = this.metricBus || this._resolveMetricBus();
     if (!bus) return;
     if (typeof bus.emit === 'function') {
@@ -955,7 +1042,7 @@ export class SafeWorldFXPack {
     };
 
     this.vfxLayers.dimensionalShifts.push(shift);
-    this._emitWorldFXEvent('Reality Fold', 'Pressure bending the world', 'pressure', this.config.dimensionalIntensity, 'attack');
+    this._emitWorldFXEvent('dimensional_shift', 'Reality Fold', 'Pressure bending the world', 'pressure', this.config.dimensionalIntensity, 'attack');
     this.triggerScreenOverlay('dimensional_shift', 0.85);
   }
   
@@ -1187,7 +1274,8 @@ export class SafeWorldFXPack {
     }
 
     this.vfxLayers.riftWaves.push(waveData);
-    this._emitWorldFXEvent('Seismic Resonance', 'A world signal pulses through reality', waveType === 'radial' ? 'conflict' : 'stability', waveIntensity, 'attack');
+    this._emitWorldFXEvent('rift_wave', 'Seismic Resonance', 'A world signal pulses through reality', waveType === 'radial' ? 'conflict' : 'stability', waveIntensity, 'attack');
+    this.triggerScreenOverlay('rift_wave', waveIntensity);
   }
   
   /**
@@ -1237,7 +1325,7 @@ export class SafeWorldFXPack {
       age: 0,
       intensity: this.config.pulseIntensity * (0.5 + intensity)
     });
-    this._emitWorldFXEvent('World Pulse', 'Energy flow increased', 'flow', intensity, 'crest');
+    this._emitWorldFXEvent('global_pulse', 'World Pulse', 'Energy flow increased', 'flow', intensity, 'crest');
   }
   
   /**
@@ -1608,7 +1696,7 @@ export class SafeWorldFXPack {
       halo: haloMesh,
       veil: veilMesh
     });
-    this._emitWorldFXEvent('Quantum Breach', 'A higher order revelation leaks through', 'revelation', intensity, 'attack');
+    this._emitWorldFXEvent('quantum_breach', 'Quantum Breach', 'A higher order revelation leaks through', 'revelation', intensity, 'attack');
     this.triggerScreenOverlay('quantum_breach', intensity);
   }
   
@@ -1638,13 +1726,32 @@ export class SafeWorldFXPack {
 
       if (fracture.mesh) {
         this.setOpacity(fracture.mesh.material, mainOpacity, 'sigma_fracture.update');
+        fracture.mesh.rotation.y += deltaTime * 0.22;
+        fracture.mesh.rotation.z = Math.sin(fracture.age * 12) * 0.03;
       }
       if (fracture.afterimage) {
         this.setOpacity(fracture.afterimage.material, afterimageOpacity, 'sigma_fracture.afterimage.update');
+        fracture.afterimage.rotation.y -= deltaTime * 0.18;
+      }
+      if (fracture.crown) {
+        this.setOpacity(fracture.crown.material, Math.max(0, mainOpacity * 0.42), 'sigma_fracture.crown.update');
+        fracture.crown.rotation.z += deltaTime * 0.35;
+      }
+      if (fracture.sliver) {
+        this.setOpacity(fracture.sliver.material, Math.max(0, mainOpacity * 0.58), 'sigma_fracture.sliver.update');
+        fracture.sliver.rotation.y += deltaTime * 0.28;
+      }
+      if (fracture.ghost) {
+        this.setOpacity(fracture.ghost.material, Math.max(0, mainOpacity * 0.34), 'sigma_fracture.ghost.update');
+        fracture.ghost.rotation.z -= deltaTime * 0.26;
+      }
+      if (fracture.spine) {
+        this.setOpacity(fracture.spine.material, Math.max(0, mainOpacity * 0.46), 'sigma_fracture.spine.update');
+        fracture.spine.rotation.z += deltaTime * 0.18;
       }
 
       if (fracture.age > this.config.sigmaGlitchDuration) {
-        ['mesh', 'afterimage'].forEach(part => {
+        ['mesh', 'afterimage', 'crown', 'sliver', 'ghost', 'spine'].forEach(part => {
           if (fracture[part]) {
             this.root.remove(fracture[part]);
             this._releaseMeshResources(fracture[part]);
@@ -1680,20 +1787,21 @@ export class SafeWorldFXPack {
     // Build fracture geometry
     const fractureGeo = new THREE.BufferGeometry();
     const fracturePoints = [];
-    const barCount = 2;
-    const wideCount = 1;
+    const barCount = 4;
+    const slashCount = 3;
     const segmentHeight = 16;
 
     for (let i = 0; i < barCount; i++) {
-      const offsetX = (i - 0.5) * 4;
+      const offsetX = (i - 1.5) * 2.6;
+      const lean = (i % 2 === 0 ? 1 : -1) * (1.1 + i * 0.25);
       fracturePoints.push(new THREE.Vector3(offsetX, 0, 0));
-      fracturePoints.push(new THREE.Vector3(offsetX, segmentHeight, 0));
+      fracturePoints.push(new THREE.Vector3(offsetX + lean, segmentHeight * (0.78 + i * 0.04), 0));
     }
 
-    for (let i = 0; i < wideCount; i++) {
-      const offsetX = (i - 0.5) * 10;
-      fracturePoints.push(new THREE.Vector3(offsetX, 0, 0));
-      fracturePoints.push(new THREE.Vector3(offsetX, segmentHeight * 0.9, 0));
+    for (let i = 0; i < slashCount; i++) {
+      const offsetX = -6 + i * 5.4;
+      fracturePoints.push(new THREE.Vector3(offsetX, 3 + i * 1.2, 0));
+      fracturePoints.push(new THREE.Vector3(offsetX + 3.4, 11 + i * 1.1, 0));
     }
 
     fractureGeo.setFromPoints(fracturePoints);
@@ -1711,6 +1819,94 @@ export class SafeWorldFXPack {
     fractureMesh.userData = { isWorldFX: true, type: 'sigma_fracture', signature: 'sigma_skin_fracture' };
     fractureMesh.position.copy(location);
     this.root.add(fractureMesh);
+
+    const crownGeo = new THREE.BufferGeometry();
+    crownGeo.setFromPoints([
+      new THREE.Vector3(-8, 14, 0),
+      new THREE.Vector3(-3.5, 16.5, 0),
+      new THREE.Vector3(-1, 13.6, 0),
+      new THREE.Vector3(2.2, 16.9, 0),
+      new THREE.Vector3(7.8, 14.1, 0)
+    ]);
+    const crownMat = new THREE.LineBasicMaterial({
+      color: finalColor.clone().lerp(accentColor, 0.22),
+      transparent: true,
+      opacity: 0.16,
+      fog: false
+    });
+    this.installOpacityUniform(crownMat, 0.16, 'line', 'sigma_fracture.crown');
+    this.freezeMaterialFlags(crownMat, 'sigma_fracture.crown');
+    const crownMesh = new THREE.Line(crownGeo, crownMat);
+    crownMesh.userData = { isWorldFX: true, type: 'sigma_fracture_crown', signature: 'sigma_slit_crown' };
+    crownMesh.position.copy(location);
+    this.root.add(crownMesh);
+
+    const sliverGeo = new THREE.BufferGeometry();
+    sliverGeo.setFromPoints([
+      new THREE.Vector3(-7, 5, 0),
+      new THREE.Vector3(-1.6, 12.4, 0),
+      new THREE.Vector3(0.6, 4.2, 0),
+      new THREE.Vector3(6.8, 11.1, 0)
+    ]);
+    const sliverMat = new THREE.LineBasicMaterial({
+      color: afterimageColor,
+      transparent: true,
+      opacity: 0.2,
+      fog: false
+    });
+    this.installOpacityUniform(sliverMat, 0.2, 'line', 'sigma_fracture.sliver');
+    this.freezeMaterialFlags(sliverMat, 'sigma_fracture.sliver');
+    const sliverMesh = new THREE.LineSegments(sliverGeo, sliverMat);
+    sliverMesh.userData = { isWorldFX: true, type: 'sigma_fracture_sliver', signature: 'sigma_diagonal_sliver' };
+    sliverMesh.position.copy(location);
+    sliverMesh.position.y += 0.1;
+    this.root.add(sliverMesh);
+
+    const ghostGeo = new THREE.BufferGeometry();
+    ghostGeo.setFromPoints([
+      new THREE.Vector3(-8.6, 2.8, 0),
+      new THREE.Vector3(-5.8, 7.4, 0),
+      new THREE.Vector3(-1.2, 6.1, 0),
+      new THREE.Vector3(2.4, 10.8, 0),
+      new THREE.Vector3(5.9, 8.7, 0),
+      new THREE.Vector3(8.5, 13.8, 0)
+    ]);
+    const ghostMat = new THREE.LineBasicMaterial({
+      color: finalColor.clone().lerp(afterimageColor, 0.55),
+      transparent: true,
+      opacity: 0.11,
+      fog: false
+    });
+    this.installOpacityUniform(ghostMat, 0.11, 'line', 'sigma_fracture.ghost');
+    this.freezeMaterialFlags(ghostMat, 'sigma_fracture.ghost');
+    const ghostMesh = new THREE.Line(ghostGeo, ghostMat);
+    ghostMesh.userData = { isWorldFX: true, type: 'sigma_fracture_ghost', signature: 'sigma_temporal_ghost' };
+    ghostMesh.position.copy(location);
+    ghostMesh.position.x += 0.7;
+    ghostMesh.position.y += 0.2;
+    this.root.add(ghostMesh);
+
+    const spineGeo = new THREE.BufferGeometry();
+    spineGeo.setFromPoints([
+      new THREE.Vector3(-1.2, 0.2, 0),
+      new THREE.Vector3(0.7, 4.8, 0),
+      new THREE.Vector3(-0.3, 8.2, 0),
+      new THREE.Vector3(1.4, 12.2, 0),
+      new THREE.Vector3(0.2, 16.1, 0)
+    ]);
+    const spineMat = new THREE.LineBasicMaterial({
+      color: new THREE.Color(this._getWorldFXPalette('ritualWhite')).lerp(finalColor, 0.35),
+      transparent: true,
+      opacity: 0.16,
+      fog: false
+    });
+    this.installOpacityUniform(spineMat, 0.16, 'line', 'sigma_fracture.spine');
+    this.freezeMaterialFlags(spineMat, 'sigma_fracture.spine');
+    const spineMesh = new THREE.Line(spineGeo, spineMat);
+    spineMesh.userData = { isWorldFX: true, type: 'sigma_fracture_spine', signature: 'sigma_central_spine' };
+    spineMesh.position.copy(location);
+    spineMesh.position.z += 0.02;
+    this.root.add(spineMesh);
 
     const afterimageGeo = this._getSharedGeometry('sigma_fracture.afterimage.geo', () => fractureGeo.clone());
     const afterimageMat = new THREE.LineBasicMaterial({
@@ -1733,9 +1929,14 @@ export class SafeWorldFXPack {
       intensity,
       baseOpacity,
       mesh: fractureMesh,
-      afterimage: afterimageMesh
+      afterimage: afterimageMesh,
+      crown: crownMesh,
+      sliver: sliverMesh,
+      ghost: ghostMesh,
+      spine: spineMesh
     });
-    this._emitWorldFXEvent('Sigma Fracture', 'The system skin tears briefly', 'corruption', intensity, 'attack');
+    this._emitWorldFXEvent('sigma_glitch', 'Sigma Fracture', 'The system skin tears briefly', 'corruption', intensity, 'attack');
+    this.triggerScreenOverlay('sigma_glitch', intensity);
   }
   
   /**
@@ -2006,24 +2207,61 @@ export class SafeWorldFXPack {
       const ringOpacity = Math.max(0, envelope * 0.45);
       const flashOpacity = Math.max(0, flashPhase * overlay.flashOpacity);
       const badgeOpacity = Math.max(0, envelope * 0.38);
+      const drift = Math.sin(overlay.age * (4.8 + overlay.intensity) + overlay.phaseOffset) * 0.026 * overlay.intensity;
+      const shear = Math.cos(overlay.age * (2.4 + overlay.intensity * 0.7) + overlay.phaseOffset) * 0.035;
 
       if (overlay.ring) {
-        overlay.ring.scale.setScalar(1 + envelope * 0.18);
+        overlay.ring.scale.set(
+          overlay.ringBaseScale * (1 + envelope * (0.14 + overlay.ringStretch)),
+          overlay.ringBaseScale * (1 + envelope * (0.05 - overlay.ringSquash * 0.08)),
+          1
+        );
+        overlay.ring.position.x = overlay.driftAxis.x * drift;
+        overlay.ring.position.y = overlay.driftAxis.y * drift;
+        overlay.ring.rotation.z = shear * overlay.ringShearScale;
         this.setOpacity(overlay.ring.material, ringOpacity, 'screen_overlay.ring');
       }
       if (overlay.flash) {
+        overlay.flash.rotation.z = -shear * overlay.flashShearScale;
         this.setOpacity(overlay.flash.material, flashOpacity, 'screen_overlay.flash');
       }
       if (overlay.badge) {
-        overlay.badge.rotation.z += deltaTime * 2.1;
+        overlay.badge.rotation.z += deltaTime * overlay.badgeSpin;
+        overlay.badge.position.x = overlay.badgeBasePosition.x + overlay.driftAxis.x * drift * 1.6;
+        overlay.badge.position.y = overlay.badgeBasePosition.y + overlay.driftAxis.y * drift * 1.6;
         this.setOpacity(overlay.badge.material, badgeOpacity, 'screen_overlay.badge');
       }
+      if (overlay.crown) {
+        overlay.crown.rotation.z -= deltaTime * overlay.crownSpin;
+        overlay.crown.position.x = overlay.driftAxis.x * drift * overlay.crownDriftScale.x;
+        overlay.crown.position.y = overlay.driftAxis.y * drift * overlay.crownDriftScale.y;
+        this.setOpacity(overlay.crown.material, Math.max(0, envelope * 0.24), 'screen_overlay.crown');
+      }
+      if (overlay.slash) {
+        overlay.slash.rotation.z += deltaTime * overlay.slashSpin;
+        overlay.slash.position.x = overlay.driftAxis.x * drift * overlay.slashDriftScale.x;
+        overlay.slash.position.y = overlay.driftAxis.y * drift * overlay.slashDriftScale.y;
+        this.setOpacity(overlay.slash.material, Math.max(0, envelope * 0.32), 'screen_overlay.slash');
+      }
+      if (overlay.aperture) {
+        overlay.aperture.rotation.z -= deltaTime * overlay.apertureSpin;
+        overlay.aperture.position.x = overlay.driftAxis.x * drift * overlay.apertureDriftScale.x;
+        overlay.aperture.position.y = overlay.driftAxis.y * drift * overlay.apertureDriftScale.y;
+        this.setOpacity(overlay.aperture.material, Math.max(0, envelope * 0.18), 'screen_overlay.aperture');
+      }
+      if (overlay.echo) {
+        overlay.echo.rotation.z += deltaTime * overlay.echoSpin;
+        overlay.echo.position.x = overlay.driftAxis.x * drift * overlay.echoDriftScale.x;
+        overlay.echo.position.y = overlay.driftAxis.y * drift * overlay.echoDriftScale.y;
+        this.setOpacity(overlay.echo.material, Math.max(0, envelope * 0.2), 'screen_overlay.echo');
+      }
       if (overlay.vignette) {
+        overlay.vignette.rotation.z = shear * overlay.vignetteShearScale;
         this.setOpacity(overlay.vignette.material, Math.max(0, envelope * 0.08), 'screen_overlay.vignette');
       }
 
       if (overlay.age > overlay.duration) {
-        ['ring', 'flash', 'badge', 'vignette'].forEach(part => {
+        ['ring', 'flash', 'badge', 'crown', 'slash', 'aperture', 'echo', 'vignette'].forEach(part => {
           if (overlay[part]) {
             this.screenOverlaysRoot.remove(overlay[part]);
             this._releaseMeshResources(overlay[part]);
@@ -2035,14 +2273,354 @@ export class SafeWorldFXPack {
     });
   }
 
+  _createOverlayFilledGeometry(points) {
+    const shape = new THREE.Shape();
+    if (!Array.isArray(points) || points.length < 3) {
+      return new THREE.CircleGeometry(0.08, 16);
+    }
+    shape.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      shape.lineTo(points[i].x, points[i].y);
+    }
+    shape.closePath();
+    return new THREE.ShapeGeometry(shape);
+  }
+
   triggerScreenOverlay(eventKey, intensity = 1) {
     if (!this.screenOverlaysRoot) return;
     const white = new THREE.Color(this._getWorldFXPalette('ritualWhite'));
     const cyan = new THREE.Color(this._getWorldFXPalette('cyan'));
     const violet = new THREE.Color(this._getWorldFXPalette('violet'));
-    const baseColor = cyan.clone().lerp(violet, this.atmosphereState.corruptionHigh ? 0.4 : 0.12);
+    const rose = new THREE.Color(this._getWorldFXPalette('rose'));
+    const overlayStyleMap = {
+      dimensional_shift: {
+        ringColor: cyan.clone().lerp(violet, 0.3),
+        flashColor: white.clone(),
+        badgeColor: white.clone().lerp(cyan, 0.2),
+        crownColor: white.clone().lerp(cyan, 0.34),
+        slashColor: cyan.clone().lerp(violet, 0.26),
+        apertureColor: white.clone().lerp(cyan, 0.3),
+        echoColor: cyan.clone().lerp(violet, 0.18),
+        vignetteColor: violet.clone(),
+        badgeOffset: new THREE.Vector3(-0.18, 0.22, 0),
+        ringScale: 1.08,
+        ringStretch: 0.08,
+        ringSquash: 0.04,
+        ringInner: 0.78,
+        ringOuter: 0.95,
+        ringSegments: 64,
+        flashSize: new THREE.Vector2(1.92, 1.18),
+        flashShearScale: 0.18,
+        ringShearScale: 1.2,
+        badgeSpin: 1.3,
+        crownSpin: 0.36,
+        slashSpin: 0.08,
+        apertureSpin: 0.22,
+        echoSpin: 0.12,
+        vignetteShearScale: 0.32,
+        crownDriftScale: new THREE.Vector2(0.28, 1.1),
+        slashDriftScale: new THREE.Vector2(-1.1, 0.24),
+        apertureDriftScale: new THREE.Vector2(1.2, 0.55),
+        echoDriftScale: new THREE.Vector2(-1.4, -0.08),
+        badgePoints: [
+          new THREE.Vector2(0, 0.1),
+          new THREE.Vector2(0.08, 0),
+          new THREE.Vector2(0, -0.1),
+          new THREE.Vector2(-0.08, 0)
+        ],
+        crownPoints: [
+          new THREE.Vector3(-0.34, 0.16, 0),
+          new THREE.Vector3(-0.18, 0.34, 0),
+          new THREE.Vector3(-0.04, 0.1, 0),
+          new THREE.Vector3(0.1, 0.28, 0),
+          new THREE.Vector3(0.3, 0.14, 0)
+        ],
+        slashPoints: [
+          new THREE.Vector3(-0.42, -0.06, 0),
+          new THREE.Vector3(-0.06, 0.08, 0),
+          new THREE.Vector3(-0.18, -0.28, 0),
+          new THREE.Vector3(0.16, -0.18, 0),
+          new THREE.Vector3(0.08, 0.22, 0),
+          new THREE.Vector3(0.4, 0.1, 0)
+        ],
+        aperturePoints: [
+          new THREE.Vector3(-0.26, 0.02, 0),
+          new THREE.Vector3(-0.06, 0.26, 0),
+          new THREE.Vector3(0.22, 0.18, 0),
+          new THREE.Vector3(0.08, -0.08, 0),
+          new THREE.Vector3(0.3, -0.2, 0),
+          new THREE.Vector3(-0.02, -0.24, 0),
+          new THREE.Vector3(-0.26, 0.02, 0)
+        ],
+        echoPoints: [
+          new THREE.Vector3(-0.46, 0.18, 0),
+          new THREE.Vector3(-0.18, 0.1, 0),
+          new THREE.Vector3(0.16, 0.24, 0),
+          new THREE.Vector3(0.42, 0.16, 0),
+          new THREE.Vector3(-0.48, -0.14, 0),
+          new THREE.Vector3(-0.12, -0.04, 0),
+          new THREE.Vector3(0.12, -0.18, 0),
+          new THREE.Vector3(0.46, -0.1, 0)
+        ]
+      },
+      quantum_breach: {
+        ringColor: violet.clone().lerp(white, 0.18),
+        flashColor: white.clone().lerp(rose, 0.08),
+        badgeColor: white.clone().lerp(violet, 0.36),
+        crownColor: white.clone().lerp(violet, 0.42),
+        slashColor: rose.clone().lerp(violet, 0.36),
+        apertureColor: white.clone().lerp(violet, 0.34),
+        echoColor: rose.clone().lerp(white, 0.1),
+        vignetteColor: violet.clone().lerp(rose, 0.28),
+        badgeOffset: new THREE.Vector3(0.16, 0.28, 0),
+        ringScale: 1.12,
+        ringStretch: 0.12,
+        ringSquash: -0.03,
+        ringInner: 0.74,
+        ringOuter: 0.93,
+        ringSegments: 72,
+        flashSize: new THREE.Vector2(1.78, 1.78),
+        flashShearScale: 0.42,
+        ringShearScale: 0.55,
+        badgeSpin: 0.72,
+        crownSpin: 1.18,
+        slashSpin: -0.16,
+        apertureSpin: 0.54,
+        echoSpin: 0.66,
+        vignetteShearScale: 0.14,
+        crownDriftScale: new THREE.Vector2(0.52, 1.3),
+        slashDriftScale: new THREE.Vector2(-0.24, 0.82),
+        apertureDriftScale: new THREE.Vector2(0.72, 1.42),
+        echoDriftScale: new THREE.Vector2(-0.62, -0.34),
+        badgePoints: [
+          new THREE.Vector2(0, 0.11),
+          new THREE.Vector2(0.05, 0.04),
+          new THREE.Vector2(0.11, 0),
+          new THREE.Vector2(0.05, -0.05),
+          new THREE.Vector2(0, -0.11),
+          new THREE.Vector2(-0.05, -0.04),
+          new THREE.Vector2(-0.11, 0),
+          new THREE.Vector2(-0.05, 0.05)
+        ],
+        crownPoints: [
+          new THREE.Vector3(-0.3, 0.12, 0),
+          new THREE.Vector3(-0.18, 0.32, 0),
+          new THREE.Vector3(0, 0.4, 0),
+          new THREE.Vector3(0.16, 0.3, 0),
+          new THREE.Vector3(0.3, 0.14, 0)
+        ],
+        slashPoints: [
+          new THREE.Vector3(-0.38, -0.08, 0),
+          new THREE.Vector3(-0.12, 0.12, 0),
+          new THREE.Vector3(-0.04, 0.16, 0),
+          new THREE.Vector3(0.12, -0.1, 0),
+          new THREE.Vector3(0.02, -0.24, 0),
+          new THREE.Vector3(0.3, 0.04, 0),
+          new THREE.Vector3(0.18, 0.26, 0),
+          new THREE.Vector3(0.4, 0.12, 0)
+        ],
+        aperturePoints: [
+          new THREE.Vector3(-0.18, 0.28, 0),
+          new THREE.Vector3(0.06, 0.3, 0),
+          new THREE.Vector3(0.24, 0.12, 0),
+          new THREE.Vector3(0.2, -0.14, 0),
+          new THREE.Vector3(-0.04, -0.28, 0),
+          new THREE.Vector3(-0.24, -0.06, 0),
+          new THREE.Vector3(-0.18, 0.28, 0)
+        ],
+        echoPoints: [
+          new THREE.Vector3(-0.44, 0.24, 0),
+          new THREE.Vector3(-0.22, 0.14, 0),
+          new THREE.Vector3(0.04, 0.34, 0),
+          new THREE.Vector3(0.22, 0.2, 0),
+          new THREE.Vector3(-0.34, -0.2, 0),
+          new THREE.Vector3(-0.08, -0.08, 0),
+          new THREE.Vector3(0.14, -0.3, 0),
+          new THREE.Vector3(0.34, -0.16, 0)
+        ]
+      },
+      rift_wave: {
+        ringColor: cyan.clone().lerp(white, 0.14),
+        flashColor: white.clone().lerp(cyan, 0.06),
+        badgeColor: cyan.clone().lerp(white, 0.24),
+        crownColor: white.clone().lerp(cyan, 0.28),
+        slashColor: cyan.clone().lerp(violet, 0.18),
+        apertureColor: white.clone().lerp(cyan, 0.2),
+        echoColor: cyan.clone().lerp(violet, 0.08),
+        vignetteColor: cyan.clone().lerp(violet, 0.18),
+        badgeOffset: new THREE.Vector3(0, 0.18, 0),
+        ringScale: 1.06,
+        ringStretch: 0.16,
+        ringSquash: 0.12,
+        ringInner: 0.84,
+        ringOuter: 0.98,
+        ringSegments: 68,
+        flashSize: new THREE.Vector2(2.06, 0.86),
+        flashShearScale: 0.12,
+        ringShearScale: 0.84,
+        badgeSpin: 0.54,
+        crownSpin: 0.24,
+        slashSpin: 0.06,
+        apertureSpin: 0.18,
+        echoSpin: 0.1,
+        vignetteShearScale: 0.12,
+        crownDriftScale: new THREE.Vector2(0.18, 0.46),
+        slashDriftScale: new THREE.Vector2(-1.38, 0.08),
+        apertureDriftScale: new THREE.Vector2(1.1, 0.24),
+        echoDriftScale: new THREE.Vector2(-1.54, -0.02),
+        badgePoints: [
+          new THREE.Vector2(-0.1, 0),
+          new THREE.Vector2(-0.04, 0.08),
+          new THREE.Vector2(0.04, 0.08),
+          new THREE.Vector2(0.1, 0),
+          new THREE.Vector2(0.04, -0.08),
+          new THREE.Vector2(-0.04, -0.08)
+        ],
+        crownPoints: [
+          new THREE.Vector3(-0.34, 0.1, 0),
+          new THREE.Vector3(-0.16, 0.2, 0),
+          new THREE.Vector3(0, 0.08, 0),
+          new THREE.Vector3(0.16, 0.2, 0),
+          new THREE.Vector3(0.34, 0.1, 0)
+        ],
+        slashPoints: [
+          new THREE.Vector3(-0.46, -0.02, 0),
+          new THREE.Vector3(-0.14, 0.06, 0),
+          new THREE.Vector3(-0.02, -0.18, 0),
+          new THREE.Vector3(0.18, -0.1, 0),
+          new THREE.Vector3(0.08, 0.08, 0),
+          new THREE.Vector3(0.46, 0.02, 0)
+        ],
+        aperturePoints: [
+          new THREE.Vector3(-0.3, 0.06, 0),
+          new THREE.Vector3(-0.14, 0.18, 0),
+          new THREE.Vector3(0.16, 0.16, 0),
+          new THREE.Vector3(0.32, 0.02, 0),
+          new THREE.Vector3(0.1, -0.12, 0),
+          new THREE.Vector3(-0.18, -0.12, 0),
+          new THREE.Vector3(-0.3, 0.06, 0)
+        ],
+        echoPoints: [
+          new THREE.Vector3(-0.5, 0.16, 0),
+          new THREE.Vector3(-0.22, 0.1, 0),
+          new THREE.Vector3(0.06, 0.14, 0),
+          new THREE.Vector3(0.36, 0.08, 0),
+          new THREE.Vector3(-0.48, -0.08, 0),
+          new THREE.Vector3(-0.16, -0.04, 0),
+          new THREE.Vector3(0.18, -0.12, 0),
+          new THREE.Vector3(0.46, -0.06, 0)
+        ]
+      },
+      sigma_glitch: {
+        ringColor: rose.clone().lerp(violet, 0.35),
+        flashColor: white.clone().lerp(rose, 0.18),
+        badgeColor: rose.clone().lerp(white, 0.2),
+        crownColor: rose.clone().lerp(white, 0.16),
+        slashColor: white.clone().lerp(rose, 0.4),
+        apertureColor: white.clone().lerp(rose, 0.42),
+        echoColor: violet.clone().lerp(rose, 0.4),
+        vignetteColor: violet.clone().lerp(rose, 0.5),
+        badgeOffset: new THREE.Vector3(-0.12, 0.12, 0),
+        ringScale: 0.98,
+        ringStretch: 0.05,
+        ringSquash: 0.08,
+        ringInner: 0.82,
+        ringOuter: 0.96,
+        ringSegments: 56,
+        flashSize: new THREE.Vector2(1.72, 1.34),
+        flashShearScale: 0.52,
+        ringShearScale: 1.28,
+        badgeSpin: 1.48,
+        crownSpin: 0.34,
+        slashSpin: 0.08,
+        apertureSpin: 0.62,
+        echoSpin: 0.82,
+        vignetteShearScale: 0.28,
+        crownDriftScale: new THREE.Vector2(0.22, 0.54),
+        slashDriftScale: new THREE.Vector2(-1.22, 0.22),
+        apertureDriftScale: new THREE.Vector2(1.02, 0.72),
+        echoDriftScale: new THREE.Vector2(-1.18, -0.12),
+        badgePoints: [
+          new THREE.Vector2(-0.08, 0.11),
+          new THREE.Vector2(0.02, 0.08),
+          new THREE.Vector2(0.1, 0.14),
+          new THREE.Vector2(0.06, 0),
+          new THREE.Vector2(0.12, -0.1),
+          new THREE.Vector2(0, -0.08),
+          new THREE.Vector2(-0.1, -0.14),
+          new THREE.Vector2(-0.04, -0.01)
+        ],
+        crownPoints: [
+          new THREE.Vector3(-0.36, 0.08, 0),
+          new THREE.Vector3(-0.2, 0.24, 0),
+          new THREE.Vector3(-0.02, 0.12, 0),
+          new THREE.Vector3(0.14, 0.28, 0),
+          new THREE.Vector3(0.34, 0.1, 0)
+        ],
+        slashPoints: [
+          new THREE.Vector3(-0.42, 0.12, 0),
+          new THREE.Vector3(-0.08, -0.04, 0),
+          new THREE.Vector3(-0.22, -0.26, 0),
+          new THREE.Vector3(0.02, -0.12, 0),
+          new THREE.Vector3(0.08, 0.2, 0),
+          new THREE.Vector3(0.32, 0.04, 0),
+          new THREE.Vector3(0.14, -0.28, 0),
+          new THREE.Vector3(0.42, -0.06, 0)
+        ],
+        aperturePoints: [
+          new THREE.Vector3(-0.28, 0.16, 0),
+          new THREE.Vector3(-0.04, 0.24, 0),
+          new THREE.Vector3(0.18, 0.1, 0),
+          new THREE.Vector3(0.26, -0.08, 0),
+          new THREE.Vector3(0.04, -0.22, 0),
+          new THREE.Vector3(-0.22, -0.12, 0),
+          new THREE.Vector3(-0.28, 0.16, 0)
+        ],
+        echoPoints: [
+          new THREE.Vector3(-0.48, 0.24, 0),
+          new THREE.Vector3(-0.2, 0.1, 0),
+          new THREE.Vector3(0.04, 0.3, 0),
+          new THREE.Vector3(0.3, 0.14, 0),
+          new THREE.Vector3(-0.44, -0.18, 0),
+          new THREE.Vector3(-0.1, -0.04, 0),
+          new THREE.Vector3(0.12, -0.26, 0),
+          new THREE.Vector3(0.4, -0.1, 0)
+        ]
+      }
+    };
+    const overlayStyle = overlayStyleMap[eventKey] || {
+      ringColor: cyan.clone().lerp(violet, this.atmosphereState.corruptionHigh ? 0.4 : 0.12),
+      flashColor: white.clone(),
+      badgeColor: white.clone(),
+      crownColor: white.clone().lerp(cyan, 0.22),
+      slashColor: cyan.clone(),
+      apertureColor: white.clone().lerp(cyan, 0.18),
+      echoColor: cyan.clone().lerp(violet, 0.1),
+      vignetteColor: violet.clone(),
+      badgeOffset: new THREE.Vector3(0, 0.24, 0),
+      ringScale: 1,
+      ringStretch: 0.06,
+      ringSquash: 0.02,
+      ringInner: 0.82,
+      ringOuter: 0.96,
+      ringSegments: 56,
+      flashSize: new THREE.Vector2(1.6, 1.6),
+      flashShearScale: 0.35,
+      ringShearScale: 1,
+      badgeSpin: 2.1,
+      crownSpin: 0.8,
+      slashSpin: 0.22,
+      apertureSpin: 0.44,
+      echoSpin: 0.54,
+      vignetteShearScale: 0.2,
+      crownDriftScale: new THREE.Vector2(0.6, 0.8),
+      slashDriftScale: new THREE.Vector2(-0.4, 0.5),
+      apertureDriftScale: new THREE.Vector2(0.9, 1.1),
+      echoDriftScale: new THREE.Vector2(-0.8, -0.3)
+    };
+    const baseColor = overlayStyle.ringColor;
 
-    const ringGeo = new THREE.RingGeometry(0.82, 0.96, 56);
+    const ringGeo = new THREE.RingGeometry(overlayStyle.ringInner, overlayStyle.ringOuter, overlayStyle.ringSegments);
     const ringMat = new THREE.MeshBasicMaterial({
       color: baseColor,
       transparent: true,
@@ -2055,13 +2633,14 @@ export class SafeWorldFXPack {
     this.freezeMaterialFlags(ringMat, 'screen_overlay.ring');
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.position.set(0, 0, -1.05);
+    ring.scale.setScalar(overlayStyle.ringScale);
     ring.renderOrder = this.screenOverlaysRoot.renderOrder;
     ring.userData = { isWorldFX: true, type: 'screen_overlay_ring', eventKey };
     this.screenOverlaysRoot.add(ring);
 
-    const flashGeo = new THREE.PlaneGeometry(1.6, 1.6);
+    const flashGeo = new THREE.PlaneGeometry(overlayStyle.flashSize.x, overlayStyle.flashSize.y);
     const flashMat = new THREE.MeshBasicMaterial({
-      color: white,
+      color: overlayStyle.flashColor,
       transparent: true,
       opacity: 0.0,
       depthTest: false,
@@ -2076,9 +2655,11 @@ export class SafeWorldFXPack {
     flash.userData = { isWorldFX: true, type: 'screen_overlay_flash', eventKey };
     this.screenOverlaysRoot.add(flash);
 
-    const badgeGeo = new THREE.CircleGeometry(0.08, 16);
+    const badgeGeo = Array.isArray(overlayStyle.badgePoints)
+      ? this._createOverlayFilledGeometry(overlayStyle.badgePoints)
+      : new THREE.CircleGeometry(0.08, 16);
     const badgeMat = new THREE.MeshBasicMaterial({
-      color: white,
+      color: overlayStyle.badgeColor,
       transparent: true,
       opacity: 0.2,
       depthTest: false,
@@ -2088,14 +2669,110 @@ export class SafeWorldFXPack {
     this.installOpacityUniform(badgeMat, 0.2, 'standard', 'screen_overlay.badge');
     this.freezeMaterialFlags(badgeMat, 'screen_overlay.badge');
     const badge = new THREE.Mesh(badgeGeo, badgeMat);
-    badge.position.set(0, 0.24, -1.02);
+    badge.position.set(overlayStyle.badgeOffset.x, overlayStyle.badgeOffset.y, -1.02);
     badge.renderOrder = this.screenOverlaysRoot.renderOrder;
     badge.userData = { isWorldFX: true, type: 'screen_overlay_badge', eventKey };
     this.screenOverlaysRoot.add(badge);
 
+    const crownGeo = new THREE.BufferGeometry();
+    crownGeo.setFromPoints(overlayStyle.crownPoints || [
+      new THREE.Vector3(-0.28, 0.22, 0),
+      new THREE.Vector3(-0.12, 0.36, 0),
+      new THREE.Vector3(0.02, 0.2, 0),
+      new THREE.Vector3(0.14, 0.34, 0),
+      new THREE.Vector3(0.3, 0.2, 0)
+    ]);
+    const crownMat = new THREE.LineBasicMaterial({
+      color: overlayStyle.crownColor,
+      transparent: true,
+      opacity: 0.18,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.installOpacityUniform(crownMat, 0.18, 'line', 'screen_overlay.crown');
+    this.freezeMaterialFlags(crownMat, 'screen_overlay.crown');
+    const crown = new THREE.Line(crownGeo, crownMat);
+    crown.position.set(0, 0, -1.03);
+    crown.renderOrder = this.screenOverlaysRoot.renderOrder;
+    crown.userData = { isWorldFX: true, type: 'screen_overlay_crown', eventKey };
+    this.screenOverlaysRoot.add(crown);
+
+    const slashGeo = new THREE.BufferGeometry();
+    slashGeo.setFromPoints(overlayStyle.slashPoints || [
+      new THREE.Vector3(-0.34, -0.22, 0),
+      new THREE.Vector3(-0.05, 0.05, 0),
+      new THREE.Vector3(0.06, -0.04, 0),
+      new THREE.Vector3(0.34, 0.2, 0)
+    ]);
+    const slashMat = new THREE.LineBasicMaterial({
+      color: overlayStyle.slashColor,
+      transparent: true,
+      opacity: 0.24,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.installOpacityUniform(slashMat, 0.24, 'line', 'screen_overlay.slash');
+    this.freezeMaterialFlags(slashMat, 'screen_overlay.slash');
+    const slash = new THREE.LineSegments(slashGeo, slashMat);
+    slash.position.set(0, 0, -1.04);
+    slash.renderOrder = this.screenOverlaysRoot.renderOrder;
+    slash.userData = { isWorldFX: true, type: 'screen_overlay_slash', eventKey };
+    this.screenOverlaysRoot.add(slash);
+
+    const apertureGeo = new THREE.BufferGeometry();
+    apertureGeo.setFromPoints(overlayStyle.aperturePoints || [
+      new THREE.Vector3(-0.24, 0.02, 0),
+      new THREE.Vector3(-0.12, 0.2, 0),
+      new THREE.Vector3(0.08, 0.24, 0),
+      new THREE.Vector3(0.24, 0.06, 0),
+      new THREE.Vector3(0.16, -0.18, 0),
+      new THREE.Vector3(-0.04, -0.22, 0),
+      new THREE.Vector3(-0.24, 0.02, 0)
+    ]);
+    const apertureMat = new THREE.LineBasicMaterial({
+      color: overlayStyle.apertureColor,
+      transparent: true,
+      opacity: 0.14,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.installOpacityUniform(apertureMat, 0.14, 'line', 'screen_overlay.aperture');
+    this.freezeMaterialFlags(apertureMat, 'screen_overlay.aperture');
+    const aperture = new THREE.Line(apertureGeo, apertureMat);
+    aperture.position.set(0.04, -0.02, -1.025);
+    aperture.renderOrder = this.screenOverlaysRoot.renderOrder;
+    aperture.userData = { isWorldFX: true, type: 'screen_overlay_aperture', eventKey };
+    this.screenOverlaysRoot.add(aperture);
+
+    const echoGeo = new THREE.BufferGeometry();
+    echoGeo.setFromPoints(overlayStyle.echoPoints || [
+      new THREE.Vector3(-0.44, 0.26, 0),
+      new THREE.Vector3(-0.26, 0.18, 0),
+      new THREE.Vector3(0.18, 0.34, 0),
+      new THREE.Vector3(0.34, 0.24, 0),
+      new THREE.Vector3(-0.36, -0.18, 0),
+      new THREE.Vector3(-0.16, -0.1, 0),
+      new THREE.Vector3(0.12, -0.28, 0),
+      new THREE.Vector3(0.32, -0.2, 0)
+    ]);
+    const echoMat = new THREE.LineBasicMaterial({
+      color: overlayStyle.echoColor,
+      transparent: true,
+      opacity: 0.16,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.installOpacityUniform(echoMat, 0.16, 'line', 'screen_overlay.echo');
+    this.freezeMaterialFlags(echoMat, 'screen_overlay.echo');
+    const echo = new THREE.LineSegments(echoGeo, echoMat);
+    echo.position.set(0, 0, -1.09);
+    echo.renderOrder = this.screenOverlaysRoot.renderOrder;
+    echo.userData = { isWorldFX: true, type: 'screen_overlay_echo', eventKey };
+    this.screenOverlaysRoot.add(echo);
+
     const vignetteGeo = new THREE.RingGeometry(0.92, 1.15, 32);
     const vignetteMat = new THREE.MeshBasicMaterial({
-      color: violet,
+      color: overlayStyle.vignetteColor,
       transparent: true,
       opacity: 0.06,
       depthTest: false,
@@ -2116,9 +2793,31 @@ export class SafeWorldFXPack {
       duration,
       intensity,
       flashOpacity: 0.72,
+      phaseOffset: Math.random() * Math.PI * 2,
+      driftAxis: new THREE.Vector3((Math.random() - 0.5) * 0.8, 0.6 + Math.random() * 0.4, 0),
+      ringBaseScale: overlayStyle.ringScale,
+      ringStretch: overlayStyle.ringStretch,
+      ringSquash: overlayStyle.ringSquash,
+      ringShearScale: overlayStyle.ringShearScale,
+      flashShearScale: overlayStyle.flashShearScale,
+      badgeSpin: overlayStyle.badgeSpin,
+      crownSpin: overlayStyle.crownSpin,
+      slashSpin: overlayStyle.slashSpin,
+      apertureSpin: overlayStyle.apertureSpin + intensity * 0.16,
+      echoSpin: overlayStyle.echoSpin + intensity * 0.08,
+      vignetteShearScale: overlayStyle.vignetteShearScale,
+      crownDriftScale: overlayStyle.crownDriftScale,
+      slashDriftScale: overlayStyle.slashDriftScale,
+      apertureDriftScale: overlayStyle.apertureDriftScale,
+      echoDriftScale: overlayStyle.echoDriftScale,
       ring,
       flash,
       badge,
+      badgeBasePosition: badge.position.clone(),
+      crown,
+      slash,
+      aperture,
+      echo,
       vignette
     });
   }
@@ -2160,10 +2859,12 @@ export class SafeWorldFXPack {
     
     // Clean sigma glitches
     this.vfxLayers.sigmaGlitches.forEach(glitch => {
-      if (glitch.mesh) {
-        this.root.remove(glitch.mesh);
-        this._releaseMeshResources(glitch.mesh);
-      }
+      ['mesh', 'afterimage', 'crown', 'sliver', 'ghost', 'spine'].forEach(part => {
+        if (glitch[part]) {
+          this.root.remove(glitch[part]);
+          this._releaseMeshResources(glitch[part]);
+        }
+      });
     });
     
     // Clean fractal sky

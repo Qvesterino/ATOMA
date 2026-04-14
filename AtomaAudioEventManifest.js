@@ -6,7 +6,7 @@
  */
 
 export const AUDIO_EVENT_MANIFEST = {
-    version: '2026-03-23',
+    version: '2026-04-14',
     events: {
         'node.synergy.high': {
             synth: 'synergySynth',
@@ -21,6 +21,18 @@ export const AUDIO_EVENT_MANIFEST = {
             cooldownMs: 900,
             priority: 'NORMAL',
             action: 'playSynergyFade'
+        },
+        'worldFX.event': {
+            cooldownMs: 180,
+            priority: 'NORMAL',
+            action: 'playRoutedEventAudio',
+            passPayload: true
+        },
+        'environment.hazard.active': {
+            cooldownMs: 220,
+            priority: 'NORMAL',
+            action: 'playRoutedEventAudio',
+            passPayload: true
         }
     }
 };
@@ -37,7 +49,7 @@ export function registerAtomaAudioEventManifest({ semanticBus, audioSystem }) {
     const lastTriggerAt = new Map();
     const unsubscribers = [];
 
-    const tryTrigger = (eventName, methodName) => {
+    const tryTrigger = (eventName, methodName, payload = undefined) => {
         const cfg = AUDIO_EVENT_MANIFEST.events[eventName];
         if (!cfg || !methodName) return;
         if (audioSystem.enabled === false) return;
@@ -50,7 +62,11 @@ export function registerAtomaAudioEventManifest({ semanticBus, audioSystem }) {
         const fn = audioSystem[methodName];
         if (typeof fn !== 'function') return;
 
-        fn.call(audioSystem);
+        if (cfg.passPayload) {
+            fn.call(audioSystem, payload, eventName, cfg);
+        } else {
+            fn.call(audioSystem);
+        }
         lastTriggerAt.set(key, now);
     };
 
@@ -60,10 +76,10 @@ export function registerAtomaAudioEventManifest({ semanticBus, audioSystem }) {
             if (cfg.routeByPayload) {
                 const eventType = payload?.type;
                 const methodName = cfg.routeByPayload[eventType];
-                tryTrigger(eventName, methodName);
+                tryTrigger(eventName, methodName, payload);
                 return;
             }
-            tryTrigger(eventName, cfg.action);
+            tryTrigger(eventName, cfg.action, payload);
         }, priority !== undefined ? { priority } : undefined);
 
         if (typeof unsubscribe === 'function') {

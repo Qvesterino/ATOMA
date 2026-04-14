@@ -64,6 +64,8 @@ export class LinkSurfacePhaseRipples {
 
         this._vec3 = new THREE.Vector3();
         this._hslColor = { h: 0, s: 0, l: 0 };
+        this._stressColor = new THREE.Color(0x7be6ff);
+        this._stressColorB = new THREE.Color(0xd07bff);
     }
 
     _resolveLinkIdentity(link) {
@@ -211,6 +213,7 @@ export class LinkSurfacePhaseRipples {
         const harmony = clamp01(metrics.harmony ?? link?.userData?.harmony ?? 0.5);
         const corruption = clamp01(metrics.corruption ?? 0.0);
         const instability = clamp01(metrics.instability ?? link?.userData?.instability ?? 0.0);
+        const stressField = this._readStressField(link);
         const isActive = link?.isActive !== false;
 
         this._refreshLinkMetrics(link, ripple, metrics);
@@ -225,27 +228,30 @@ export class LinkSurfacePhaseRipples {
         this._advanceVisibilityEnvelope(ripple, targetVisibility, deltaTime);
 
         const lengthFactor = Math.max(0.35, ripple.lengthFactor || 1.0);
-        const longitudinalSpeed = this.config.longitudinalSpeedBase * (0.5 + synergy) * lengthFactor;
+        const longitudinalSpeed = this.config.longitudinalSpeedBase * (0.5 + synergy + stressField.bias * 0.18) * lengthFactor;
         ripple.surfacePhase = (ripple.surfacePhase + longitudinalSpeed * Math.max(0, deltaTime)) % 1.0;
 
         const angularSpeed = this.config.angularSpeedBase + synergy * (this.config.angularSpeedMax - this.config.angularSpeedBase);
         ripple.angularPhase = (ripple.angularPhase + angularSpeed * Math.max(0, deltaTime)) % TAU;
 
-        this.updateCombinedPhase(ripple, harmony, corruption);
+        this.updateCombinedPhase(ripple, harmony, corruption, stressField);
 
         ripple.harmonySmoothingFactor = harmony * this.config.harmonySmoothing;
 
         const instabilityDamping = 1.0 - instability * this.config.instabilityDamping;
         const activeScale = isActive ? 1.0 : 0.85;
         ripple.amplitudeDamping = Math.max(0, instabilityDamping) * ripple.visibilityEnvelope * activeScale;
-        ripple.energy = ripple.amplitudeDamping * (0.35 + synergy * 0.45 + harmony * 0.2);
+        ripple.energy = ripple.amplitudeDamping * (0.35 + synergy * 0.45 + harmony * 0.2 + stressField.bias * 0.16);
         ripple.bandCount = clamp(
-            Math.round(this.config.bandCountMin + ripple.linkLengthNormalized * 1.1 + synergy * 2.0 + harmony * 1.5),
+            Math.round(this.config.bandCountMin + ripple.linkLengthNormalized * 1.1 + synergy * 2.0 + harmony * 1.5 + stressField.bias * 2.2),
             this.config.bandCountMin,
             this.config.bandCountMax
         );
         ripple.bandSpacing = 1 / Math.max(1, ripple.bandCount);
-        ripple.bandSharpness = clamp(0.7 + harmony * 0.45 - corruption * 0.15, 0.5, 1.55);
+        ripple.bandSharpness = clamp(0.7 + harmony * 0.45 - corruption * 0.15 + stressField.tension * 0.18, 0.5, 1.7);
+        ripple.stressFieldBias = stressField.bias;
+        ripple.stressFieldTension = stressField.tension;
+        ripple.stressFieldColor = stressField.colorHex;
         ripple.lastSynergy = synergy;
         ripple.isActive = isActive;
         ripple.isDisabled = ripple.visibilityHold > 0;
@@ -253,18 +259,18 @@ export class LinkSurfacePhaseRipples {
         return ripple;
     }
 
-    updateCombinedPhase(ripple, harmony, corruption) {
+    updateCombinedPhase(ripple, harmony, corruption, stressField = { bias: 0, tension: 0 }) {
         const lengthPhase = ripple.surfacePhase * Math.max(0.35, ripple.linkLengthNormalized || 1.0);
         const angularContribution = ripple.angularPhase * 0.2;
         const signaturePhase = (ripple.signaturePhase || 0.0) * this.config.signatureInfluence;
         const basePhase = lengthPhase + angularContribution + signaturePhase + (ripple.wavePhaseOffset || 0.0);
 
         const discontinuity = Math.sin((lengthPhase + signaturePhase + (ripple.wavePhaseOffset || 0.0)) * TAU * 4.0) *
-            corruption * this.config.corruptionJitter;
+            (corruption * this.config.corruptionJitter + stressField.tension * 0.16);
 
         ripple.basePhase = basePhase;
         ripple.discontinuityPhase = discontinuity;
-        ripple.phaseOffset = basePhase + discontinuity;
+        ripple.phaseOffset = basePhase + discontinuity + stressField.bias * 0.035;
         ripple.transitionFactor = harmony * this.config.harmonySmoothing;
     }
 
@@ -291,10 +297,11 @@ export class LinkSurfacePhaseRipples {
         const phaseCarve = Math.sin((ripple.phaseOffset + (ripple.wavePhaseOffset || 0.0) * 0.5) * TAU * 0.5 + (ripple.signaturePhase || 0.0) * TAU);
         const microBand = Math.sin((ripple.phaseOffset * 2.0 + (ripple.signaturePhase || 0.0)) * TAU);
         const waveValue = (bandCarrier * 0.58 + phaseCarve * 0.27 + microBand * 0.15) * this.config.phaseAmplitude;
+        const stressBias = clamp01(ripple.stressFieldBias || 0);
 
         const synergyScale = 0.42 + synergy * 0.58;
         const lengthScale = 0.88 + clamp01((ripple.linkLengthNormalized - 0.35) / 2.35) * 0.18;
-        const dampenedWave = waveValue * ripple.amplitudeDamping * synergyScale * lengthScale;
+        const dampenedWave = waveValue * ripple.amplitudeDamping * synergyScale * lengthScale * (1 + stressBias * 0.16);
         const smoothedWave = dampenedWave * (1.0 - ripple.transitionFactor * 0.45);
         const intensityScale = smoothedWave >= 0 ? this.config.emissiveIntensityMax : Math.abs(this.config.emissiveIntensityMin);
         const intensity = smoothedWave * intensityScale;
@@ -316,18 +323,21 @@ export class LinkSurfacePhaseRipples {
 
         const corruption = clamp01(metrics.corruption || 0.0);
         const harmony = clamp01(metrics.harmony || 0.5);
+        const stressBias = clamp01(ripple.stressFieldBias || 0);
 
         const waveValue = Math.sin((ripple.phaseOffset + (ripple.signaturePhase || 0.0) * 0.37) * TAU);
         const hueShift = waveValue * this.config.hueShiftMax;
-        const corruptionHueScale = 1.0 + corruption * 0.5;
+        const corruptionHueScale = 1.0 + corruption * 0.5 + stressBias * 0.18;
         const modulatedHueShift = hueShift * corruptionHueScale;
-        const saturation = (0.3 + harmony * 0.4) * ripple.amplitudeDamping * Math.max(0.35, ripple.visibilityEnvelope);
+        const saturation = (0.3 + harmony * 0.4 + stressBias * 0.16) * ripple.amplitudeDamping * Math.max(0.35, ripple.visibilityEnvelope);
 
         return {
             hueShift: modulatedHueShift,
             saturation: Math.max(0, saturation),
             factor: Math.abs(waveValue),
             visibility: ripple.visibilityEnvelope,
+            stressBias,
+            stressColor: ripple.stressFieldColor ?? 0x7be6ff,
         };
     }
 
@@ -409,6 +419,9 @@ export class LinkSurfacePhaseRipples {
         ensureUniform('u_rippleVisibility', 0.0);
         ensureUniform('u_rippleBandCount', 2.0);
         ensureUniform('u_rippleSignature', 0.0);
+        ensureUniform('u_stressFieldBias', 0.0);
+        ensureUniform('u_stressFieldTension', 0.0);
+        ensureUniform('u_stressFieldColor', new THREE.Color(0x7be6ff));
 
         return true;
     }
@@ -451,6 +464,15 @@ export class LinkSurfacePhaseRipples {
         if (uniforms.u_rippleSignature) {
             uniforms.u_rippleSignature.value = ripple?.signaturePhase || 0.0;
         }
+        if (uniforms.u_stressFieldBias) {
+            uniforms.u_stressFieldBias.value = ripple?.stressFieldBias || 0.0;
+        }
+        if (uniforms.u_stressFieldTension) {
+            uniforms.u_stressFieldTension.value = ripple?.stressFieldTension || 0.0;
+        }
+        if (uniforms.u_stressFieldColor) {
+            uniforms.u_stressFieldColor.value.setHex(ripple?.stressFieldColor || 0x7be6ff);
+        }
 
         if (!link.materialRippleData) {
             link.materialRippleData = {};
@@ -460,6 +482,32 @@ export class LinkSurfacePhaseRipples {
         link.materialRippleData.visibility = ripple?.visibilityEnvelope || 0.0;
         link.materialRippleData.bandCount = ripple?.bandCount || this.config.bandCountMin;
         link.materialRippleData.linkLength = ripple?.linkLength || 0.0;
+        link.materialRippleData.stressFieldBias = ripple?.stressFieldBias || 0.0;
+        link.materialRippleData.stressFieldTension = ripple?.stressFieldTension || 0.0;
+        link.materialRippleData.stressFieldColor = ripple?.stressFieldColor || 0x7be6ff;
+    }
+
+    _readStressField(link) {
+        const sourceData = link?.source?.userData || link?.sourceNode?.userData || {};
+        const targetData = link?.target?.userData || link?.targetNode?.userData || {};
+        const sourceBias = clamp01(sourceData.stressFieldBias ?? 0);
+        const targetBias = clamp01(targetData.stressFieldBias ?? 0);
+        const sourceTension = clamp01(sourceData.stressFieldTension ?? 0);
+        const targetTension = clamp01(targetData.stressFieldTension ?? 0);
+        const sourceColor = Number.isFinite(sourceData.stressFieldColor) ? sourceData.stressFieldColor : 0x7be6ff;
+        const targetColor = Number.isFinite(targetData.stressFieldColor) ? targetData.stressFieldColor : sourceColor;
+
+        const bias = (sourceBias + targetBias) * 0.5;
+        const tension = (sourceTension + targetTension) * 0.5;
+        this._stressColor.setHex(sourceColor);
+        this._stressColorB.setHex(targetColor);
+        this._stressColor.lerp(this._stressColorB, 0.5);
+
+        return {
+            bias,
+            tension,
+            colorHex: this._stressColor.getHex()
+        };
     }
 
     getRippleBlendFactor(link, metrics = {}) {

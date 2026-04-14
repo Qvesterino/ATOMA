@@ -42,42 +42,42 @@
 import * as THREE from 'three';
 
 const CONFIG = {
-    // Bias vector rendering - boosted so the layer is visibly alive by default
-    BIAS_VECTOR_LENGTH: 3.9,
+    // Bias vector rendering — spectral energy threads
+    BIAS_VECTOR_LENGTH: 4.2,
     BIAS_VECTOR_WIDTH: 0.24,
-    BIAS_VECTOR_OPACITY: 0.44,
+    BIAS_VECTOR_OPACITY: 0.38,
     BIAS_VECTOR_POOL_SIZE: 320,
     BIAS_VECTOR_DENSITY: 1.0,
     
-    // Vector animation - stronger motion so the topology bias can be read
-    VECTOR_BREATHING_SPEED: 0.8,
-    VECTOR_BREATHING_AMPLITUDE: 0.18,
-    VECTOR_DRIFT_SPEED: 0.34,
-    VECTOR_DRIFT_AMOUNT: 0.12,
+    // Vector animation — organic breathing with dimensional drift
+    VECTOR_BREATHING_SPEED: 0.65,
+    VECTOR_BREATHING_AMPLITUDE: 0.22,
+    VECTOR_DRIFT_SPEED: 0.28,
+    VECTOR_DRIFT_AMOUNT: 0.15,
     
-    // Flow field rendering - lifted so the learned field is perceptible
+    // Flow field rendering — interdimensional rift plane
     FLOW_FIELD_RESOLUTION: 3.0,
-    FLOW_FIELD_OPACITY: 0.34,
-    FLOW_FIELD_SPEED: 0.55,
-    FLOW_FIELD_CELLS_MAX: 64,          // Max cells for display
+    FLOW_FIELD_OPACITY: 0.28,
+    FLOW_FIELD_SPEED: 0.45,
+    FLOW_FIELD_CELLS_MAX: 64,
     
-    // State modulation - POLISH: Less dramatic state influence
-    HARMONY_COHERENCE_BOOST: 1.45,
-    CORRUPTION_BLUR: 0.68,
-    SYNERGY_CLARITY: 1.22,
-    INSTABILITY_BLUR: 0.76,
+    // State modulation — dramatic cosmic shifts
+    HARMONY_COHERENCE_BOOST: 1.55,
+    CORRUPTION_BLUR: 0.72,
+    SYNERGY_CLARITY: 1.3,
+    INSTABILITY_BLUR: 0.78,
     
-    // Interaction (contextual highlighting) - POLISH: Gentler response
-    INFLUENCE_ACTIVATION_RANGE: 8.0,   // How far influence affects vectors
-    INFLUENCE_SHARPNESS_BOOST: 1.6,    // POLISHED: reduced from 2.0 (60% boost - calmer)
-    INFLUENCE_SHARPNESS_DECAY: 0.96,   // POLISHED: increased from 0.95 (slower decay)
+    // Interaction — dimensional resonance response
+    INFLUENCE_ACTIVATION_RANGE: 9.0,
+    INFLUENCE_SHARPNESS_BOOST: 1.8,
+    INFLUENCE_SHARPNESS_DECAY: 0.965,
     
     // Influence tracking
-    INFLUENCE_MAX_AGE: 0.5,            // Max age before influence position expires
+    INFLUENCE_MAX_AGE: 0.6,
     
     // Performance
-    UPDATE_INTERVAL: 0.2,              // Update vectors every 0.2s (5 Hz)
-    COARSE_UPDATE_INTERVAL: 1.0,       // Flow field coarse update
+    UPDATE_INTERVAL: 0.2,
+    COARSE_UPDATE_INTERVAL: 1.0,
     
     // Debug
     DEBUG_DRAW_BIAS_VECTORS: false,
@@ -101,6 +101,7 @@ class BiasVectorInstance {
         // Modulation
         this.clarity = 1.0;              // Affected by harmony/corruption
         this.influenceSharpness = 0.0;   // Contextual boost from influence
+        this.pressureBias = 0.0;
     }
     
     activate(position, direction, strength) {
@@ -111,6 +112,7 @@ class BiasVectorInstance {
         this.active = true;
         this.clarity = 1.0;
         this.influenceSharpness = 0.0;
+        this.pressureBias = 0.0;
     }
     
     deactivate() {
@@ -180,6 +182,7 @@ class FlowFieldCell {
         this.scatterIntensity = 0.0;      // Conflicting micro-biases
         this.clarity = 1.0;
         this.influenceSharpness = 0.0;
+        this.pressureBias = 0.0;
         
         this.basePhase = Math.random() * Math.PI * 2;
         this.age = 0.0;
@@ -202,18 +205,24 @@ class FlowFieldCell {
         const corruption = state?.corruption || 0;
         const synergy = state?.synergy || 0;
         const instability = state?.instability || 0;
+        const loadPressure = state?.loadPressure || 0;
+        const stressPressure = state?.stressPressure || 0;
+        const stressLoadBias = state?.stressLoadBias || 0;
+        const pressureBias = Math.max(loadPressure, stressPressure * 0.8, stressLoadBias);
         
         // Harmony increases coherence
         this.clarity = CONFIG.HARMONY_COHERENCE_BOOST * Math.max(0.3, harmony);
         
         // Corruption introduces scatter
-        this.scatterIntensity = corruption * CONFIG.CORRUPTION_BLUR;
+        this.scatterIntensity = corruption * CONFIG.CORRUPTION_BLUR + pressureBias * 0.24;
         
         // Synergy improves clarity
         this.clarity *= (1.0 + synergy * (CONFIG.SYNERGY_CLARITY - 1.0));
         
         // Instability blurs
         this.clarity *= CONFIG.INSTABILITY_BLUR + (1.0 - CONFIG.INSTABILITY_BLUR) * (1.0 - instability);
+        this.clarity *= 1.0 - pressureBias * 0.12;
+        this.pressureBias = pressureBias;
         
         // Influence sharpness decay
         this.influenceSharpness *= CONFIG.INFLUENCE_SHARPNESS_DECAY;
@@ -292,14 +301,15 @@ export class TopologyBiasVisualizationLayer {
     // ========================================================================
     
     initializeBiasVectorSystem() {
-        // Create material for bias vectors
+        // Spectral energy thread material — prismatic cyan-white with dimensional glow
         this.biasVectorMaterial = new THREE.LineBasicMaterial({
-            color: 0x79ffff,
+            color: 0x88ddff,
             opacity: CONFIG.BIAS_VECTOR_OPACITY,
             transparent: true,
             fog: false,
             depthWrite: false,
-            blending: THREE.AdditiveBlending
+            blending: THREE.AdditiveBlending,
+            toneMapped: false
         });
         
         // Create pool of instances
@@ -313,7 +323,7 @@ export class TopologyBiasVisualizationLayer {
         this.root.add(this.biasVectorContainer);
     }
     
-    updateBiasVectors(deltaTime) {
+    updateBiasVectors(deltaTime, networkState = {}) {
         if (!this.enabled || !this.topologySystem) return;
         
         this.updateBiasVectorTimer += deltaTime;
@@ -345,14 +355,16 @@ export class TopologyBiasVisualizationLayer {
                     ];
 
                     for (let d = 0; d < directions.length && vectorIdx < fallbackVectors; d++) {
-                        const instance = this.biasVectorInstances[vectorIdx];
-                        instance.activate(
-                            inf.position,
-                            directions[d],
-                            baseStrength * (1.0 - d * 0.12)
-                        );
-                        vectorIdx++;
-                    }
+                    const instance = this.biasVectorInstances[vectorIdx];
+                    instance.activate(
+                        inf.position,
+                        directions[d],
+                        baseStrength * (1.0 - d * 0.12)
+                    );
+                    instance.pressureBias = Math.max(networkState?.loadPressure || 0, networkState?.stressPressure || 0, networkState?.stressLoadBias || 0);
+                    instance.clarity = Math.max(0.3, 1.0 - instance.pressureBias * 0.16 + (networkState?.synergy || 0) * 0.12);
+                    vectorIdx++;
+                }
                 }
 
                 for (let i = vectorIdx; i < this.biasVectorInstances.length; i++) {
@@ -405,6 +417,9 @@ export class TopologyBiasVisualizationLayer {
                 region.flowBias.length() > 0.01 ? region.flowBias : this.biasVectorDirection.set(0, 0, 1),
                 region.flowStrength
             );
+            const pressureBias = Math.max(networkState?.loadPressure || 0, networkState?.stressPressure || 0, networkState?.stressLoadBias || 0);
+            instance.pressureBias = pressureBias;
+            instance.clarity = Math.max(0.28, (1.0 - pressureBias * 0.14) * (0.88 + (networkState?.harmony || 0.5) * 0.3));
             
             vectorIdx++;
         }
@@ -436,7 +451,7 @@ export class TopologyBiasVisualizationLayer {
             // Create debug vector
             const length = instance.getVisibleLength();
             const direction = instance.getVisibleDirection(this.biasVectorDirection);
-            const opacity = instance.getEffectiveOpacity();
+            const opacity = instance.getEffectiveOpacity() * (1.0 + instance.pressureBias * 0.14);
             
             // Tapered line geometry
             const geometry = new THREE.BufferGeometry();
@@ -452,6 +467,12 @@ export class TopologyBiasVisualizationLayer {
             
             const line = new THREE.Line(geometry, this.biasVectorMaterial);
             line.material.opacity = Math.max(0.12, opacity);
+            const pressureHue = 0.56 + instance.pressureBias * 0.08;
+            line.material.color.setHSL(
+                pressureHue,
+                0.68 * instance.clarity + 0.1,
+                0.42 + instance.pressureBias * 0.12
+            );
             line.frustumCulled = false;
             line.renderOrder = 30;  // Lifted so topology bias reads clearly in-scene
             this.biasVectorContainer.add(line);
@@ -463,7 +484,7 @@ export class TopologyBiasVisualizationLayer {
     // ========================================================================
     
     initializeFlowFieldSystem() {
-        // Create material for flow field visualization
+        // Interdimensional rift shader — dimensional cracks, spectral nebula, vortex flow
         this.flowFieldMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 time: { value: 0 },
@@ -488,7 +509,7 @@ export class TopologyBiasVisualizationLayer {
                 varying vec3 vPosition;
                 varying vec2 vUv;
                 
-                // Improved hash-based noise for richer flow field texture
+                // Hash-based noise
                 float hash(vec2 p) {
                     vec3 p3 = fract(vec3(p.xyx) * 0.1031);
                     p3 += dot(p3, p3.yzx + 33.33);
@@ -498,7 +519,7 @@ export class TopologyBiasVisualizationLayer {
                 float smoothNoise(vec2 p) {
                     vec2 i = floor(p);
                     vec2 f = fract(p);
-                    f = f * f * (3.0 - 2.0 * f); // smoothstep
+                    f = f * f * (3.0 - 2.0 * f);
                     float a = hash(i);
                     float b = hash(i + vec2(1.0, 0.0));
                     float c = hash(i + vec2(0.0, 1.0));
@@ -506,31 +527,76 @@ export class TopologyBiasVisualizationLayer {
                     return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
                 }
                 
+                // Fractional Brownian Motion for nebula depth
+                float fbm(vec2 p) {
+                    float value = 0.0;
+                    float amplitude = 0.5;
+                    float frequency = 1.0;
+                    for (int i = 0; i < 4; i++) {
+                        value += amplitude * smoothNoise(p * frequency);
+                        frequency *= 2.1;
+                        amplitude *= 0.48;
+                    }
+                    return value;
+                }
+                
+                // Dimensional rift lines — thin glowing cracks in spacetime
+                float riftLines(vec2 p, float t) {
+                    float rift = 0.0;
+                    // Primary rift axis
+                    float d1 = abs(sin(p.x * 0.18 + t * 0.12) * cos(p.y * 0.14 - t * 0.08));
+                    rift += pow(d1, 12.0) * 2.5;
+                    // Secondary diagonal rift
+                    float d2 = abs(sin((p.x + p.y) * 0.12 + t * 0.06) * cos((p.x - p.y) * 0.1 - t * 0.04));
+                    rift += pow(d2, 16.0) * 1.8;
+                    // Tertiary micro-fractures
+                    float d3 = abs(sin(p.x * 0.45 + t * 0.15) * sin(p.y * 0.38 - t * 0.1));
+                    rift += pow(d3, 20.0) * 1.2;
+                    return rift;
+                }
+                
                 void main() {
-                    // Cell-based flow visualization
-                    vec2 cellCoord = floor(vPosition.xz / cellSize);
-                    float cellNoise = hash(cellCoord);
+                    vec2 pos = vPosition.xz;
+                    float t = time;
                     
-                    // Multi-octave gradient drift for organic flow feel
-                    float drift1 = sin(vPosition.x * 0.1 + time * 0.5) *
-                                   cos(vPosition.z * 0.1 + time * 0.3) * 0.5 + 0.5;
-                    float drift2 = sin(vPosition.x * 0.23 - time * 0.35) *
-                                   cos(vPosition.z * 0.17 + time * 0.22) * 0.5 + 0.5;
-                    float drift = mix(drift1, drift2, 0.35);
+                    // === LAYER 1: Nebula depth ===
+                    float nebula1 = fbm(pos * 0.08 + t * 0.03);
+                    float nebula2 = fbm(pos * 0.12 - t * 0.025 + 5.0);
+                    float nebulaDepth = nebula1 * 0.6 + nebula2 * 0.4;
                     
-                    // Soft directional texture with noise layer
-                    float pattern = sin(vPosition.x * 0.3 + time * 0.2) *
-                                    cos(vPosition.z * 0.3 - time * 0.15);
-                    float noiseLayer = smoothNoise(vPosition.xz * 0.15 + time * 0.08);
+                    // === LAYER 2: Dimensional rift lines ===
+                    float rifts = riftLines(pos, t);
                     
-                    float intensity = (drift + pattern * 0.3 + noiseLayer * 0.15) * 0.5;
+                    // === LAYER 3: Vortex flow ===
+                    vec2 centered = pos * 0.05;
+                    float angle = atan(centered.y, centered.x);
+                    float radius = length(centered);
+                    float vortex = sin(angle * 3.0 + radius * 4.0 - t * 0.3) * 0.5 + 0.5;
+                    vortex *= smoothstep(8.0, 0.0, radius); // Fade at center and edge
                     
-                    // Color shifts subtly with cell noise for visual richness
-                    vec3 baseColor = mix(
-                        vec3(0.0, 0.45, 1.0),   // Deep blue
-                        vec3(0.0, 0.65, 0.95),   // Cyan-blue
-                        cellNoise * 0.4 + drift * 0.3
-                    );
+                    // === LAYER 4: Spectral drift ===
+                    float drift1 = sin(pos.x * 0.08 + t * 0.12) * cos(pos.y * 0.06 + t * 0.08) * 0.5 + 0.5;
+                    float drift2 = sin(pos.x * 0.15 - t * 0.09) * cos(pos.y * 0.12 + t * 0.06) * 0.5 + 0.5;
+                    float drift = mix(drift1, drift2, 0.4);
+                    
+                    // === COMPOSITE ===
+                    float intensity = nebulaDepth * 0.35 + rifts * 0.6 + vortex * 0.2 + drift * 0.15;
+                    intensity = clamp(intensity, 0.0, 1.0);
+                    
+                    // === SPECTRAL COLOR PALETTE ===
+                    // Rifts glow hot white-cyan, nebula is deep cosmic blue-violet
+                    vec3 riftColor = vec3(0.75, 0.92, 1.0);    // Hot white-cyan
+                    vec3 nebulaColor = vec3(0.12, 0.18, 0.55);  // Deep cosmic blue
+                    vec3 vortexColor = vec3(0.35, 0.08, 0.45);  // Surreal violet
+                    vec3 driftColor = vec3(0.05, 0.35, 0.65);   // Oceanic blue
+                    
+                    vec3 baseColor = mix(nebulaColor, driftColor, drift);
+                    baseColor = mix(baseColor, vortexColor, vortex * 0.5);
+                    baseColor += riftColor * rifts * 1.5; // Rifts add bright spectral glow
+                    
+                    // Subtle prismatic shimmer on rifts
+                    float shimmer = sin(pos.x * 2.5 + pos.y * 1.8 + t * 1.5) * 0.5 + 0.5;
+                    baseColor += vec3(0.15, 0.05, 0.2) * shimmer * rifts;
                     
                     gl_FragColor = vec4(baseColor, intensity * opacity);
                 }
@@ -870,19 +936,23 @@ export class TopologyBiasVisualizationLayer {
             // Create grid cell visualization
             const size = CONFIG.FLOW_FIELD_RESOLUTION;
             
-            // Color based on flow strength and clarity
+            // Spectral color — shifts from cosmic blue to surreal violet based on flow
             const color = new THREE.Color();
+            const hue = 0.58 + cell.scatterIntensity * 0.12 + cell.pressureBias * 0.06; // Cyan → violet/pressure rose shift
             color.setHSL(
-                0.6,  // Cyan hue
-                0.8 * cell.clarity,
-                0.5 * cell.flowStrength
+                hue,
+                0.75 * cell.clarity + 0.15 + cell.pressureBias * 0.08,
+                0.4 * cell.flowStrength + 0.1 + cell.pressureBias * 0.06
             );
             
             const material = new THREE.MeshBasicMaterial({
                 color: color,
-                opacity: CONFIG.FLOW_FIELD_OPACITY * (0.6 + cell.clarity * 0.6),
+                opacity: CONFIG.FLOW_FIELD_OPACITY * (0.6 + cell.clarity * 0.6 + cell.pressureBias * 0.18),
                 transparent: true,
-                fog: false
+                fog: false,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                toneMapped: false
             });
             
             const mesh = new THREE.Mesh(this.flowFieldGeometry, material);
@@ -977,7 +1047,7 @@ export class TopologyBiasVisualizationLayer {
 
         const canRender = this.frameScheduler?.shouldRunVisual?.() ?? true;
         if (canRender) {
-            this.updateBiasVectors(clampedDelta);
+            this.updateBiasVectors(clampedDelta, networkState || {});
             this.updateFlowFields(clampedDelta, networkState || {});
             this.applyInfluenceHighlighting(clampedDelta);
         }

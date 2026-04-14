@@ -60,6 +60,8 @@ export class HarmonicResonanceCoupling_v1 {
     this._particleColorScratch = new THREE.Color();
     this._linkColorScratch = new THREE.Color();
     this._nodeColorScratch = new THREE.Color();
+    this._stressColorScratch = new THREE.Color();
+    this._stressColorScratchB = new THREE.Color();
     this._resonanceVisualGroup = new THREE.Group();
     this._resonanceVisualGroup.name = 'HarmonicResonanceCoupling';
     this._resonanceVisualGroup.renderOrder = VisualHierarchyRegistry?.getRenderOrder?.(VisualHierarchyRegistry.LAYER_LINK_RESONANCE) ?? 12;
@@ -239,37 +241,59 @@ export class HarmonicResonanceCoupling_v1 {
     const group = new THREE.Group();
     group.frustumCulled = false;
 
+    // Spectral resonance line — dimensional conduit between nodes
     const lineGeometry = new THREE.BufferGeometry();
     const linePositions = new Float32Array(6);
     lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
 
     const lineMaterial = new THREE.LineBasicMaterial({
-      color: 0x88ffcc,
+      color: 0xaaeeff,
       transparent: true,
       opacity: 0.0,
       depthWrite: false,
-      depthTest: true
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false
     });
     const line = new THREE.Line(lineGeometry, lineMaterial);
     line.frustumCulled = false;
     group.add(line);
 
-    const orbGeometry = new THREE.SphereGeometry(0.04, 8, 8);
+    // Resonance orb — interdimensional convergence point at midpoint
+    const orbGeometry = new THREE.SphereGeometry(0.06, 10, 10);
     const orbMaterial = new THREE.MeshBasicMaterial({
-      color: 0x88ffcc,
+      color: 0xddf0ff,
       transparent: true,
       opacity: 0.0,
       depthWrite: false,
-      depthTest: true
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false
     });
     const orb = new THREE.Mesh(orbGeometry, orbMaterial);
     orb.frustumCulled = false;
     orb.visible = false;
     group.add(orb);
 
+    // Halo ring — dimensional aperture around the orb
+    const haloGeometry = new THREE.TorusGeometry(0.12, 0.012, 6, 16);
+    const haloMaterial = new THREE.MeshBasicMaterial({
+      color: 0x88ccff,
+      transparent: true,
+      opacity: 0.0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false
+    });
+    const halo = new THREE.Mesh(haloGeometry, haloMaterial);
+    halo.frustumCulled = false;
+    halo.visible = false;
+    halo.rotation.x = Math.PI * 0.5;
+    group.add(halo);
+
     this._resonanceVisualGroup.add(group);
 
-    return { group, line, orb };
+    return { group, line, orb, halo };
   }
 
   _disposeResonanceVisuals(visuals) {
@@ -285,11 +309,15 @@ export class HarmonicResonanceCoupling_v1 {
       visuals.orb.geometry?.dispose();
       visuals.orb.material?.dispose();
     }
+    if (visuals.halo) {
+      visuals.halo.geometry?.dispose();
+      visuals.halo.material?.dispose();
+    }
   }
 
   _updateResonanceVisuals(resonance) {
     if (!resonance || !resonance.visuals || !resonance.link || !resonance.link.source || !resonance.link.target) return;
-    const { line, orb } = resonance.visuals;
+    const { line, orb, halo } = resonance.visuals;
     if (!line || !orb) return;
 
     const sourcePos = resonance.link.source.position;
@@ -307,23 +335,51 @@ export class HarmonicResonanceCoupling_v1 {
 
     const intensity = THREE.MathUtils.clamp(resonance.intensity * 1.2, 0, 1);
     const cadencePulse = resonance.cadencePulse ?? 0.5;
-    const opacity = THREE.MathUtils.clamp(intensity * 0.85 + (cadencePulse - 0.5) * 0.14, 0, 0.85);
+    const sourceStress = this._readNodeStressField(resonance.link.source, this._stressColorScratch);
+    const targetStress = this._readNodeStressField(resonance.link.target, this._stressColorScratchB);
+    const pressureBias = (sourceStress.bias + targetStress.bias) * 0.5;
+    const opacity = THREE.MathUtils.clamp(intensity * 0.85 + (cadencePulse - 0.5) * 0.14 + pressureBias * 0.08, 0, 0.9);
     line.material.opacity = opacity;
 
+    // Spectral link color — shifts from cosmic cyan to prismatic white-gold with intensity
+    const harmonyBlend = resonance.harmonyBlend ?? 0.5;
     const linkColor = this._linkColorScratch.setHSL(
-      0.08 + (resonance.harmonyBlend ?? 0.5) * 0.08,
-      0.18 + intensity * 0.14,
-      0.55 + intensity * 0.08
+      0.52 + harmonyBlend * 0.08,       // Cyan → blue shift with harmony
+      0.35 + intensity * 0.25,           // Saturation rises with resonance
+      0.55 + intensity * 0.2             // Brighter at high intensity
     );
+    linkColor.lerp(sourceStress.color, sourceStress.bias * 0.14);
+    linkColor.lerp(targetStress.color, targetStress.bias * 0.14);
     line.material.color.copy(linkColor);
 
+    // Resonance orb — interdimensional convergence point
     orb.visible = intensity > 0.02;
     orb.position.copy(sourcePos).lerp(targetPos, 0.5);
-    const baseSize = 0.03 + intensity * 0.08;
-    const pulse = Math.sin(this._visualTime * (resonance.frequency || this.config.baseFrequency) * 1.5) * 0.01;
+    const baseSize = 0.04 + intensity * 0.12;
+    const pulse = Math.sin(this._visualTime * (resonance.frequency || this.config.baseFrequency) * 1.5) * (0.015 + pressureBias * 0.01);
     orb.scale.setScalar(Math.max(0.02, baseSize + pulse));
-    orb.material.color.copy(linkColor);
+    // Orb whitens at high intensity — spectral bloom
+    const orbWhiten = THREE.MathUtils.smoothstep(intensity, 0.3, 0.9);
+    orb.material.color.setRGB(
+      Math.min(1, linkColor.r + orbWhiten * 0.4),
+      Math.min(1, linkColor.g + orbWhiten * 0.35),
+      Math.min(1, linkColor.b + orbWhiten * 0.2)
+    );
+    orb.material.color.lerp(this._nodeColorScratch.copy(sourceStress.color).lerp(targetStress.color, 0.5), pressureBias * 0.18);
     orb.material.opacity = THREE.MathUtils.clamp(intensity * 0.72 + 0.12, 0, 0.92);
+
+    // Dimensional halo ring — aperture effect around convergence point
+    if (halo) {
+      halo.visible = intensity > 0.08;
+      if (halo.visible) {
+        halo.position.copy(orb.position);
+        const haloScale = 0.8 + intensity * 0.6 + Math.sin(this._visualTime * 2.2) * 0.08;
+        halo.scale.setScalar(Math.max(0.3, haloScale));
+        halo.rotation.z = this._visualTime * 0.4;
+        halo.material.color.copy(linkColor).lerp(sourceStress.color, sourceStress.bias * 0.12).lerp(targetStress.color, targetStress.bias * 0.12);
+        halo.material.opacity = THREE.MathUtils.clamp(intensity * 0.35 + pressureBias * 0.06, 0, 0.56);
+      }
+    }
   }
   
   /**
@@ -352,13 +408,15 @@ export class HarmonicResonanceCoupling_v1 {
     const packetDensity = resonance.packetDensity ?? 0;
     const nodeHarmony = isTarget ? resonance.targetMetrics?.harmony : resonance.sourceMetrics?.harmony;
     const harmonyLift = Number.isFinite(nodeHarmony) ? nodeHarmony : 0.5;
+    const stressField = this._readNodeStressField(node, this._stressColorScratch);
     const shimmerBeat = THREE.MathUtils.clamp(
       beat * this.config.primaryBeatWeight + counterBeat * this.config.counterBeatWeight,
       0,
       1
     );
     const shimmer = 1 + ((shimmerBeat - 0.5) * 2 * this.config.shimmerIntensity * resonance.intensity) +
-      (packetDensity * this.config.packetDensityShimmerBoost);
+      (packetDensity * this.config.packetDensityShimmerBoost) +
+      (stressField.bias * 0.1);
 
     if (material.emissiveIntensity !== undefined) {
       const baseEmissive = Number.isFinite(visualState?.emissiveIntensity) ? visualState.emissiveIntensity : 1;
@@ -371,11 +429,13 @@ export class HarmonicResonanceCoupling_v1 {
 
     if (material.color) {
       const baseColor = visualState?.color ?? null;
+      // Spectral harmony color — prismatic shift based on harmony and resonance
       const harmonyColor = this._nodeColorScratch.setHSL(
-        0.08 + harmonyLift * 0.08 + (isTarget ? 0.01 : -0.01),
-        0.16 + resonance.intensity * 0.06 + packetDensity * 0.04,
-        0.56 + packetDensity * 0.04
+        0.52 + harmonyLift * 0.08 + (isTarget ? 0.04 : -0.02),  // Cyan → blue with harmony
+        0.4 + resonance.intensity * 0.15 + packetDensity * 0.06,
+        0.58 + packetDensity * 0.06
       );
+      harmonyColor.lerp(stressField.color, stressField.bias * 0.2);
       const blend = this.config.harmonyColorInfluence * (0.16 + resonance.intensity * 0.24 + packetDensity * 0.08);
       if (baseColor) {
         material.color.copy(baseColor).lerp(harmonyColor, blend);
@@ -395,8 +455,11 @@ export class HarmonicResonanceCoupling_v1 {
     const packetDensity = resonance.packetDensity ?? 0;
     const cadencePulse = resonance.cadencePulse ?? 0.5;
     const counterBeat = resonance.counterBeat ?? 0.5;
+    const sourceStress = this._readNodeStressField(link.source, this._stressColorScratch);
+    const targetStress = this._readNodeStressField(link.target, this._stressColorScratchB);
+    const pressureBias = (sourceStress.bias + targetStress.bias) * 0.5;
     const glowDrive = ((cadencePulse - 0.5) * 2 * 0.28 + (counterBeat - 0.5) * 0.14) * resonance.intensity;
-    const glowIntensity = 1 + glowDrive + packetDensity * this.config.packetDensityGlowBoost;
+    const glowIntensity = 1 + glowDrive + packetDensity * this.config.packetDensityGlowBoost + pressureBias * 0.18;
     const baseEmissive = Number.isFinite(resonance.linkVisualState?.emissiveIntensity) ? resonance.linkVisualState.emissiveIntensity : 1;
     link.mesh.material.emissiveIntensity = Math.max(0.1, baseEmissive * glowIntensity * this.config.glowModulation);
     
@@ -419,21 +482,41 @@ export class HarmonicResonanceCoupling_v1 {
     const harmonyDelta = sourceMetrics.harmony - targetMetrics.harmony;
     const stabilityBlend = (sourceMetrics.stability + targetMetrics.stability) / 2;
     const corruptionBlend = (sourceMetrics.corruption + targetMetrics.corruption) / 2;
+    const sourceStress = this._readNodeStressField(link.source, this._stressColorScratch);
+    const targetStress = this._readNodeStressField(link.target, this._stressColorScratchB);
+    const pressureBias = (sourceStress.bias + targetStress.bias) * 0.5;
+    // Spectral link harmony — cosmic cyan with corruption-aware violet shift
     const harmonyColor = this._linkColorScratch.setHSL(
-      0.08 + harmonyLerp * 0.08 + harmonyDelta * 0.015,
-      0.14 + resonance.intensity * 0.06 + (resonance.packetDensity ?? 0) * 0.05,
-      0.55 + stabilityBlend * 0.04 - corruptionBlend * 0.03
+      0.52 + harmonyLerp * 0.06 + harmonyDelta * 0.02 - corruptionBlend * 0.08,
+      0.4 + resonance.intensity * 0.15 + (resonance.packetDensity ?? 0) * 0.06,
+      0.55 + stabilityBlend * 0.06 - corruptionBlend * 0.04
     );
+    harmonyColor
+      .lerp(sourceStress.color, sourceStress.bias * 0.14)
+      .lerp(targetStress.color, targetStress.bias * 0.14);
     
     // Blend original color with harmony color
     const originalColor = link.mesh.material.color;
     const baseColor = resonance.linkVisualState?.color ?? null;
-    const blend = this.config.harmonyColorInfluence * (0.12 + resonance.intensity * 0.18 + (resonance.packetDensity ?? 0) * 0.1);
+    const blend = this.config.harmonyColorInfluence * (0.12 + resonance.intensity * 0.18 + (resonance.packetDensity ?? 0) * 0.1 + pressureBias * 0.12);
     if (baseColor) {
       originalColor.copy(baseColor).lerp(harmonyColor, blend);
     } else {
       originalColor.lerp(harmonyColor, blend);
     }
+  }
+
+  _readNodeStressField(node, colorTarget = this._stressColorScratch) {
+    const userData = node?.userData || {};
+    const bias = this._clampMetric(userData.stressFieldBias, 0);
+    const tension = this._clampMetric(userData.stressFieldTension, 0);
+    const colorValue = userData.stressFieldColor;
+    if (typeof colorValue === 'number' && Number.isFinite(colorValue)) {
+      colorTarget.setHex(colorValue);
+    } else {
+      colorTarget.setHSL(0.54 - tension * 0.07, 0.5 + bias * 0.12, 0.56 + bias * 0.08);
+    }
+    return { bias, tension, color: colorTarget };
   }
 
   _readNodeCanonicalMetrics(node, fallback = {}) {
@@ -672,10 +755,16 @@ export class HarmonicResonanceCoupling_v1 {
       const lanePhase = this._hashToUnit(signature.seed ?? 0, resonance.particleSpawnCursor + i) * Math.PI * 2;
       const laneSpread = (laneIndex - 1) * this.config.particleAnchorSpread * (signature.particleSpread ?? 1);
       const packetPosition = this._particleDirectionScratch.copy(targetPosition).sub(sourcePosition).multiplyScalar(laneSpread).add(anchorPosition);
+      // Dimensional gradient: source=amber, midpoint=white-cyan, target=spectral violet
+      const laneHue = laneIndex === 0
+        ? 0.08 + (resonance.harmonyBlend ?? 0.5) * 0.04    // Warm amber-gold at source
+        : laneIndex === 1
+          ? 0.52 + (resonance.harmonyBlend ?? 0.5) * 0.06  // Bright cyan at midpoint (bridge)
+          : 0.72 + (resonance.harmonyBlend ?? 0.5) * 0.05;  // Surreal violet at target
       const packetTone = this._particleColorScratch.setHSL(
-        0.08 + (resonance.harmonyBlend ?? 0.5) * 0.08,
-        0.10 + resonance.intensity * 0.06 + (resonance.packetDensity ?? 0) * 0.04,
-        0.56 + (laneIndex === 1 ? 0.04 : 0) + (resonance.cadencePulse ?? 0.5) * 0.04
+        laneHue,
+        0.45 + resonance.intensity * 0.2 + (resonance.packetDensity ?? 0) * 0.08,
+        0.55 + (laneIndex === 1 ? 0.12 : 0.04) + (resonance.cadencePulse ?? 0.5) * 0.06
       );
       const lifetime = this.config.particleLifetime * (0.86 + (resonance.cadencePulse ?? 0.5) * 0.18);
       const particle = {

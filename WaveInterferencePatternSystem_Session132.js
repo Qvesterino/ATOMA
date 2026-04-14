@@ -60,16 +60,16 @@ export class WaveInterferencePatternSystem_Session132 {
             phaseDifferenceThreshold: 0.2,    // Phase alignment required (0-1)
             minWaveIntensity: 0.1,            // Minimum intensity to participate
             
-            // Constructive interference (amplification)
-            constructiveColor: new THREE.Color(1.0, 0.8, 0.0),  // Gold
-            constructiveOpacity: 0.25,        // Base opacity
-            constructiveGlow: 1.5,            // Emissive multiplier
+            // Constructive interference (amplification) — redesigned spectral palette
+            constructiveColor: new THREE.Color(0.65, 0.88, 1.0),  // Cool spectral cyan-white
+            constructiveOpacity: 0.14,        // Lower base opacity for ethereal feel
+            constructiveGlow: 1.2,            // Emissive multiplier
             constructiveWidth: 0.08,          // Band width
-            constructiveAmplification: 1.8,   // Amplitude multiplication factor
-            birthSeedPulseScale: 1.24,        // Extra scale for seed birth visuals
-            birthSeedSpikeBoost: 1.35,        // Extra spike length bias for seed births
-            birthSeedOpacityBoost: 1.15,      // Visibility lift for seed births
-            birthSeedPulseOpacity: 0.18,      // Torus pulse opacity for seed births
+            constructiveAmplification: 1.5,   // Amplitude multiplication factor
+            birthSeedPulseScale: 1.18,        // Extra scale for seed birth visuals
+            birthSeedSpikeBoost: 1.2,         // Extra spike length bias for seed births
+            birthSeedOpacityBoost: 1.1,       // Visibility lift for seed births
+            birthSeedPulseOpacity: 0.22,      // Torus pulse opacity for seed births
             
             // Destructive interference (cancellation)
             destructiveColor: new THREE.Color(0.2, 0.2, 0.3),   // Dark blue-grey
@@ -84,10 +84,10 @@ export class WaveInterferencePatternSystem_Session132 {
             interferenceRenderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
             visualUpdateHz: 30,               // Explicit render pacing for this system
             beatMotionScale: 0.72,            // Slightly slower beat animation
-            spikeCount: 8,                    // Protrusions on the sphere
-            spikeLength: 0.92,                // Spike reach from center
-            spikeRadius: 0.11,                // Spike base radius
-            shellOpacity: 0.12,               // Thin structural shell
+            spikeCount: 5,                    // Protrusions on the sphere (reduced for elegance)
+            spikeLength: 0.55,                // Spike reach from center (shorter)
+            spikeRadius: 0.07,                // Spike base radius (thinner)
+            shellOpacity: 0.08,               // Thin structural shell (more subtle)
             
             // Beat frequency patterns
             beatFrequencyRange: [0.5, 4.0],   // Min-max Hz from frequency differences
@@ -147,14 +147,15 @@ export class WaveInterferencePatternSystem_Session132 {
     setup() {
         if (this.initialized) return;
         
-        // Create constructive interference material (bright, gold) - additive blending for glow
+        // Create constructive interference material — spectral cyan-white with additive glow
         this.constructiveMaterial = new THREE.MeshBasicMaterial({
             color: this.config.constructiveColor,
             transparent: true,
             opacity: this.config.constructiveOpacity,
             side: THREE.DoubleSide,
             depthWrite: false,
-            blending: THREE.AdditiveBlending
+            blending: THREE.AdditiveBlending,
+            toneMapped: false
         });
         
         // Create destructive interference material (dark, dim) - additive blending for subtle glow
@@ -167,10 +168,11 @@ export class WaveInterferencePatternSystem_Session132 {
             blending: THREE.AdditiveBlending
         });
         
-        this._coreGeometry = new THREE.IcosahedronGeometry(0.85, 2);
-        this._shellGeometry = new THREE.IcosahedronGeometry(1.0, 1);
-        this._spikeGeometry = new THREE.ConeGeometry(0.12, this.config.spikeLength, 5, 1, false);
-        this._birthPulseGeometry = new THREE.TorusGeometry(1.14, 0.055, 5, 18);
+        // Redesigned: smaller, softer core; thinner shell; elegant proportions
+        this._coreGeometry = new THREE.SphereGeometry(0.32, 10, 10);
+        this._shellGeometry = new THREE.IcosahedronGeometry(0.52, 1);
+        this._spikeGeometry = new THREE.ConeGeometry(0.06, this.config.spikeLength, 4, 1, false);
+        this._birthPulseGeometry = new THREE.TorusGeometry(0.72, 0.035, 6, 24);
         
         // Pre-allocate interference mesh pool
         for (let i = 0; i < this.config.maxInterferenceMeshes; i++) {
@@ -987,41 +989,48 @@ export class WaveInterferencePatternSystem_Session132 {
         group.matrixAutoUpdate = true;
         group.renderOrder = this.config.interferenceRenderOrder;
 
+        // Layer 1: Soft spectral core — small sphere with warm white center glow
         const coreMaterial = this.constructiveMaterial.clone();
-        coreMaterial.opacity = this.config.constructiveOpacity;
-        const shellMaterial = this.constructiveMaterial.clone();
-        shellMaterial.opacity = this.config.shellOpacity;
-        const spikeMaterial = this.constructiveMaterial.clone();
-        spikeMaterial.opacity = this.config.constructiveOpacity * 0.95;
-        const pulseMaterial = this.constructiveMaterial.clone();
-        pulseMaterial.opacity = this.config.birthSeedPulseOpacity;
-
+        coreMaterial.opacity = this.config.constructiveOpacity * 0.9;
+        coreMaterial.color = new THREE.Color(0.85, 0.94, 1.0); // Warm white-cyan core
         const coreMesh = new THREE.Mesh(this._coreGeometry, coreMaterial);
         coreMesh.renderOrder = this.config.interferenceRenderOrder;
         group.add(coreMesh);
 
+        // Layer 2: Outer halo shell — thin wireframe with spectral tint
+        const shellMaterial = this.constructiveMaterial.clone();
+        shellMaterial.opacity = this.config.shellOpacity;
+        shellMaterial.color = new THREE.Color(0.55, 0.78, 1.0); // Cooler spectral tint
+        shellMaterial.wireframe = true;
         const shellMesh = new THREE.Mesh(this._shellGeometry, shellMaterial);
         shellMesh.renderOrder = this.config.interferenceRenderOrder + 1;
-        shellMesh.material.wireframe = true;
         group.add(shellMesh);
 
+        // Layer 3: Elegant thin spikes — fewer, subtler protrusions
         const spikeMeshes = [];
         const spikeBase = new THREE.Vector3(0, 1, 0);
         const spikeCount = Math.max(1, this.config.spikeCount);
+        const spikeMaterial = this.constructiveMaterial.clone();
+        spikeMaterial.opacity = this.config.constructiveOpacity * 0.6;
+        spikeMaterial.color = new THREE.Color(0.6, 0.82, 1.0);
         for (let i = 0; i < spikeCount; i++) {
             const direction = this._spikeDirections[i % this._spikeDirections.length];
             if (!direction) continue;
             const spikeMesh = new THREE.Mesh(this._spikeGeometry, spikeMaterial);
             spikeMesh.renderOrder = this.config.interferenceRenderOrder + 2;
-            spikeMesh.position.copy(direction).multiplyScalar(0.72);
+            spikeMesh.position.copy(direction).multiplyScalar(0.42);
             spikeMesh.quaternion.setFromUnitVectors(spikeBase, direction.clone().normalize());
-            spikeMesh.scale.set(1, 0.8 + (i % 3) * 0.12, 1);
+            spikeMesh.scale.set(0.8, 0.7 + (i % 3) * 0.08, 0.8);
             spikeMesh.userData.basePosition = spikeMesh.position.clone();
             spikeMesh.userData.baseScale = spikeMesh.scale.clone();
             group.add(spikeMesh);
             spikeMeshes.push(spikeMesh);
         }
 
+        // Layer 4: Birth pulse ring — elegant torus with warm glow
+        const pulseMaterial = this.constructiveMaterial.clone();
+        pulseMaterial.opacity = this.config.birthSeedPulseOpacity;
+        pulseMaterial.color = new THREE.Color(0.75, 0.9, 1.0); // Bright spectral ring
         const pulseMesh = new THREE.Mesh(this._birthPulseGeometry, pulseMaterial);
         pulseMesh.renderOrder = this.config.interferenceRenderOrder + 3;
         pulseMesh.rotation.x = Math.PI * 0.5;
@@ -1052,32 +1061,36 @@ export class WaveInterferencePatternSystem_Session132 {
 
         meshItem.parts.forEach(({ material, role }) => {
             if (!material) return;
+            // Smoothstep-based color scaling for elegant transitions
+            const t = THREE.MathUtils.smoothstep(colorIntensity, 0.1, 0.9);
             const colorScale = role === 'core'
-                ? 1.0
+                ? 0.85 + t * 0.15
+                : role === 'shell'
+                    ? 0.45 + t * 0.15
+                    : role === 'pulse'
+                        ? 0.95 + t * 0.2
+                        : 0.7 + t * 0.18;
+            const opacityScale = role === 'core'
+                ? 0.85
                 : role === 'shell'
                     ? 0.55
                     : role === 'pulse'
-                        ? 1.15
-                        : 0.88;
-            const opacityScale = role === 'core'
-                ? 1.0
-                : role === 'shell'
-                    ? 0.65
-                    : role === 'pulse'
-                        ? 1.2
-                        : 0.92;
+                        ? 1.3
+                        : 0.75;
 
             if (material.color) {
+                // Core whitens at high intensity for spectral bloom effect
+                const bloomMix = role === 'core' ? THREE.MathUtils.smoothstep(colorIntensity, 0.5, 1.0) * 0.3 : 0;
                 material.color.setRGB(
-                    baseColor.r * colorIntensity * colorScale,
-                    baseColor.g * colorIntensity * colorScale,
-                    baseColor.b * colorIntensity * colorScale
+                    Math.min(1, baseColor.r * colorIntensity * colorScale + bloomMix),
+                    Math.min(1, baseColor.g * colorIntensity * colorScale + bloomMix),
+                    Math.min(1, baseColor.b * colorIntensity * colorScale + bloomMix * 0.5)
                 );
             }
 
             if (material.opacity !== undefined) {
                 material.opacity = Math.max(
-                    0.02,
+                    0.015,
                     (meshItem.baseOpacity ?? this.config.constructiveOpacity) * opacityFactor * opacityScale * modulation
                 );
             }

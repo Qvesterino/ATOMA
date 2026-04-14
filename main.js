@@ -11972,11 +11972,15 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('topologyViz', 'simulation.topologyViz', (dt) => {
             if (!this._runSlowSemanticPending) return;
             if (this.topologyViz?.enabled) {
+                const pressureField = this.canonicalTemplate3_StressVisuals?.getPressureFieldState?.() || {};
                 const networkState = {
                     harmony: this.nodeDynamicMetrics?.avgHarmony || 0.5,
                     corruption: this.nodeDynamicMetrics?.avgCorruption || 0,
                     synergy: this.nodeDynamicMetrics?.avgSynergy || 0,
-                    instability: this.nodeDynamicMetrics?.avgInstability || 0
+                    instability: this.nodeDynamicMetrics?.avgInstability || 0,
+                    loadPressure: this.nodeDynamicMetrics?.avgLoadPressure || 0,
+                    stressPressure: pressureField.pressure || 0,
+                    stressLoadBias: pressureField.loadBias || 0
                 };
                 this.topologyViz.update(dt, networkState);
             }

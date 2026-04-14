@@ -317,6 +317,73 @@ export class AtomaAudioSystem {
         this.synergySynth.disconnect();
         this.synergySynth.connect(this.synergyFilter);
 
+        // 5. WORLD / HAZARD EVENT ROUTING
+        this.eventLeadSynth = new Tone.PolySynth(Tone.MonoSynth, {
+            oscillator: { type: "triangle" },
+            envelope: {
+                attack: 0.01,
+                decay: 0.22,
+                sustain: 0.08,
+                release: 0.35
+            },
+            filterEnvelope: {
+                attack: 0.01,
+                decay: 0.18,
+                sustain: 0.0,
+                release: 0.28,
+                baseFrequency: 340,
+                octaves: 2.4
+            },
+            filter: {
+                type: "bandpass",
+                rolloff: -12,
+                Q: 1.6
+            }
+        }).connect(this.masterReverb);
+        this.eventLeadSynth.volume.value = -18;
+
+        this.eventAccentSynth = new Tone.MonoSynth({
+            oscillator: { type: "sawtooth" },
+            envelope: {
+                attack: 0.004,
+                decay: 0.12,
+                sustain: 0.0,
+                release: 0.18
+            },
+            filterEnvelope: {
+                attack: 0.003,
+                decay: 0.1,
+                sustain: 0.0,
+                release: 0.14,
+                baseFrequency: 480,
+                octaves: 3.1
+            },
+            filter: {
+                type: "bandpass",
+                rolloff: -12,
+                Q: 2.2
+            }
+        }).connect(this.masterReverb);
+        this.eventAccentSynth.volume.value = -22;
+
+        this.eventNoiseSynth = new Tone.NoiseSynth({
+            noise: { type: "pink" },
+            envelope: {
+                attack: 0.01,
+                decay: 0.16,
+                sustain: 0.0,
+                release: 0.18
+            }
+        }).connect(this.masterReverb);
+        this.eventNoiseFilter = new Tone.Filter({
+            type: "bandpass",
+            frequency: 900,
+            Q: 1.4
+        }).connect(this.masterReverb);
+        this.eventNoiseSynth.disconnect();
+        this.eventNoiseSynth.connect(this.eventNoiseFilter);
+        this.eventNoiseSynth.volume.value = -28;
+
         this._setDestinationMute(!this.enabled);
     }
 
@@ -422,5 +489,288 @@ export class AtomaAudioSystem {
         if (!this.initialized || !this.enabled) return;
         // Single lingering low tone fading out
         this.synergySynth.triggerAttackRelease(["C3"], "1n", undefined, 0.2);
+    }
+
+    playRoutedEventAudio(payload = {}, eventName = 'semantic.event') {
+        if (!this.initialized || !this.enabled) return;
+
+        const cue = String(payload?.audioCue || eventName || 'audio.event');
+        const layer = String(payload?.audioLayer || 'worldfx-bed');
+        const intensity = Math.max(0.12, Math.min(1.6, Number(payload?.audioIntensity) || 0.6));
+        if (!this.canTrigger(`routed:${cue}`, this._resolveRoutedEventCooldown(cue, intensity))) return;
+        if (!this.canTrigger(`routed-layer:${layer}`, this._resolveRoutedEventLayerCooldown(layer, cue, intensity))) return;
+
+        const now = Tone.now();
+        const profile = this._resolveRoutedEventProfile(cue, layer, intensity);
+        this._applyRoutedEventMix(profile, intensity);
+        const velocity = this._scaleEventVelocity(intensity, profile);
+
+        if (cue.includes('fold')) {
+            this.eventLeadSynth.triggerAttackRelease(["C3", "G3"], "8n", now, velocity * 0.7);
+            this.eventAccentSynth.triggerAttackRelease("D4", "16n", now + 0.03, velocity * 0.42);
+            this._triggerEventNoise(layer, intensity * profile.noiseScale, 420 + intensity * 220, "16n");
+            return;
+        }
+
+        if (cue.includes('wave')) {
+            this.eventLeadSynth.triggerAttackRelease(["G3", "D4"], "16n", now, velocity * 0.62);
+            this.eventLeadSynth.triggerAttackRelease(["A3", "E4"], "16n", now + 0.06, velocity * 0.46);
+            return;
+        }
+
+        if (cue.includes('pulse')) {
+            this.eventLeadSynth.triggerAttackRelease(["C4", "E4", "G4"], "8n", now, velocity * 0.52);
+            return;
+        }
+
+        if (cue.includes('quantum') || cue.includes('revelation')) {
+            this.eventLeadSynth.triggerAttackRelease(["D5", "A5"], "8n", now, velocity * 0.55);
+            this.eventAccentSynth.triggerAttackRelease("F#5", "16n", now + 0.04, velocity * 0.34);
+            this._triggerEventNoise(layer, intensity * profile.noiseScale, 1600 + intensity * 600, "32n");
+            return;
+        }
+
+        if (cue.includes('sigma')) {
+            this.eventAccentSynth.triggerAttackRelease("F#4", "32n", now, velocity * 0.42);
+            this.eventAccentSynth.triggerAttackRelease("C5", "32n", now + 0.018, velocity * 0.3);
+            this._triggerEventNoise(layer, intensity * profile.noiseScale, 2200 + intensity * 900, "32n");
+            return;
+        }
+
+        if (cue.includes('storm')) {
+            this.eventLeadSynth.triggerAttackRelease(["E4", "B4"], "16n", now, velocity * 0.55);
+            this.eventAccentSynth.triggerAttackRelease("E5", "32n", now + 0.028, velocity * 0.28);
+            this._triggerEventNoise(layer, intensity * profile.noiseScale, 1800 + intensity * 300, "32n");
+            return;
+        }
+
+        if (cue.includes('gravity') || cue.includes('singularity')) {
+            this.eventLeadSynth.triggerAttackRelease(["C2", "G2"], "8n", now, velocity * 0.58);
+            this.eventAccentSynth.triggerAttackRelease("D3", "16n", now + 0.05, velocity * 0.22);
+            this._triggerEventNoise(layer, intensity * profile.noiseScale, 280 + intensity * 140, "16n");
+            return;
+        }
+
+        if (cue.includes('chrono') || cue.includes('bloom')) {
+            this.eventLeadSynth.triggerAttackRelease(["C5", "G5"], "8n", now, velocity * 0.46);
+            this.eventAccentSynth.triggerAttackRelease("E5", "16n", now + 0.04, velocity * 0.28);
+            return;
+        }
+
+        this.eventLeadSynth.triggerAttackRelease(["C4", "G4"], "16n", now, velocity * 0.4);
+    }
+
+    _resolveRoutedEventCooldown(cue, intensity) {
+        if (cue.includes('sigma')) return 120;
+        if (cue.includes('storm')) return 180;
+        if (cue.includes('gravity')) return 240;
+        if (cue.includes('chrono')) return 320;
+        if (cue.includes('quantum')) return 300;
+        return Math.max(140, 260 - intensity * 40);
+    }
+
+    _resolveRoutedEventLayerCooldown(layer, cue, intensity) {
+        if (cue.includes('sigma') || layer === 'digital-shear') return 110;
+        if (cue.includes('storm') || layer === 'charged-choir') return 170;
+        if (cue.includes('gravity') || layer === 'void-drag') return 220;
+        if (cue.includes('quantum') || layer === 'halo-choir') return 260;
+        if (cue.includes('chrono') || layer === 'sigil-bells') return 320;
+        if (cue.includes('pulse') || layer === 'ambient-bloom') return 260;
+        return Math.max(130, 210 - intensity * 30);
+    }
+
+    _resolveRoutedEventProfile(cue, layer, intensity) {
+        const profile = {
+            leadDb: -24,
+            accentDb: -30,
+            noiseDb: -37,
+            leadBaseFrequency: 360,
+            leadOctaves: 2.2,
+            leadQ: 1.5,
+            accentBaseFrequency: 620,
+            accentOctaves: 2.8,
+            accentQ: 2.3,
+            noiseQ: 1.2,
+            velocityScale: 0.78,
+            noiseScale: 0.42
+        };
+
+        if (cue.includes('fold') || layer === 'fold-rumble') {
+            Object.assign(profile, {
+                leadDb: -22,
+                accentDb: -31,
+                noiseDb: -39,
+                leadBaseFrequency: 240,
+                leadOctaves: 1.7,
+                leadQ: 1.2,
+                accentBaseFrequency: 440,
+                accentOctaves: 2.1,
+                accentQ: 1.8,
+                noiseQ: 0.95,
+                velocityScale: 0.74,
+                noiseScale: 0.5
+            });
+        } else if (cue.includes('wave') || cue.includes('pulse') || layer === 'ambient-bloom' || layer === 'seam-sweep') {
+            Object.assign(profile, {
+                leadDb: -27,
+                accentDb: -34,
+                noiseDb: -42,
+                leadBaseFrequency: 520,
+                leadOctaves: 1.9,
+                leadQ: 1.1,
+                accentBaseFrequency: 760,
+                accentOctaves: 2.2,
+                accentQ: 1.7,
+                noiseQ: 0.8,
+                velocityScale: 0.62,
+                noiseScale: 0.18
+            });
+        } else if (cue.includes('quantum') || cue.includes('revelation') || layer === 'halo-choir') {
+            Object.assign(profile, {
+                leadDb: -25,
+                accentDb: -32,
+                noiseDb: -41,
+                leadBaseFrequency: 760,
+                leadOctaves: 2.7,
+                leadQ: 1.8,
+                accentBaseFrequency: 1240,
+                accentOctaves: 3.2,
+                accentQ: 2.6,
+                noiseQ: 1.1,
+                velocityScale: 0.7,
+                noiseScale: 0.22
+            });
+        } else if (cue.includes('sigma') || layer === 'digital-shear') {
+            Object.assign(profile, {
+                leadDb: -30,
+                accentDb: -26,
+                noiseDb: -36,
+                leadBaseFrequency: 900,
+                leadOctaves: 2.1,
+                leadQ: 2.0,
+                accentBaseFrequency: 1680,
+                accentOctaves: 3.4,
+                accentQ: 3.0,
+                noiseQ: 2.5,
+                velocityScale: 0.68,
+                noiseScale: 0.34
+            });
+        } else if (cue.includes('storm') || layer === 'charged-choir' || layer === 'pressure-rumble') {
+            Object.assign(profile, {
+                leadDb: -24,
+                accentDb: -30,
+                noiseDb: -37,
+                leadBaseFrequency: 520,
+                leadOctaves: 2.3,
+                leadQ: 1.7,
+                accentBaseFrequency: 980,
+                accentOctaves: 3.0,
+                accentQ: 2.4,
+                noiseQ: 1.8,
+                velocityScale: 0.74,
+                noiseScale: 0.38
+            });
+        } else if (cue.includes('gravity') || cue.includes('singularity') || layer === 'void-drag') {
+            Object.assign(profile, {
+                leadDb: -23,
+                accentDb: -33,
+                noiseDb: -40,
+                leadBaseFrequency: 180,
+                leadOctaves: 1.4,
+                leadQ: 1.25,
+                accentBaseFrequency: 340,
+                accentOctaves: 1.7,
+                accentQ: 1.5,
+                noiseQ: 0.9,
+                velocityScale: 0.7,
+                noiseScale: 0.28
+            });
+        } else if (cue.includes('chrono') || cue.includes('bloom') || layer === 'sigil-bells') {
+            Object.assign(profile, {
+                leadDb: -26,
+                accentDb: -33,
+                noiseDb: -46,
+                leadBaseFrequency: 840,
+                leadOctaves: 2.4,
+                leadQ: 1.15,
+                accentBaseFrequency: 1480,
+                accentOctaves: 2.7,
+                accentQ: 1.8,
+                noiseQ: 0.7,
+                velocityScale: 0.58,
+                noiseScale: 0.08
+            });
+        }
+
+        profile.leadDb += Math.min(1.2, intensity * 0.45);
+        profile.accentDb += Math.min(1.0, intensity * 0.35);
+        return profile;
+    }
+
+    _applyRoutedEventMix(profile, intensity) {
+        if (this.eventLeadSynth?.set) {
+            this.eventLeadSynth.volume.value = profile.leadDb;
+            this.eventLeadSynth.set({
+                filter: {
+                    type: "bandpass",
+                    rolloff: -12,
+                    Q: profile.leadQ
+                },
+                filterEnvelope: {
+                    attack: 0.01,
+                    decay: 0.18,
+                    sustain: 0.0,
+                    release: 0.28,
+                    baseFrequency: profile.leadBaseFrequency,
+                    octaves: profile.leadOctaves
+                }
+            });
+        }
+
+        if (this.eventAccentSynth?.set) {
+            this.eventAccentSynth.volume.value = profile.accentDb;
+            this.eventAccentSynth.set({
+                filter: {
+                    type: "bandpass",
+                    rolloff: -12,
+                    Q: profile.accentQ
+                },
+                filterEnvelope: {
+                    attack: 0.003,
+                    decay: 0.1,
+                    sustain: 0.0,
+                    release: 0.14,
+                    baseFrequency: profile.accentBaseFrequency,
+                    octaves: profile.accentOctaves
+                }
+            });
+        }
+
+        if (this.eventNoiseSynth) {
+            this.eventNoiseSynth.volume.value = profile.noiseDb - Math.max(0, 0.4 - intensity * 0.08);
+        }
+        if (this.eventNoiseFilter) {
+            this.eventNoiseFilter.Q.value = profile.noiseQ;
+        }
+    }
+
+    _scaleEventVelocity(intensity, profile = null) {
+        const base = 0.2 + intensity * 0.22;
+        const scaled = base * (profile?.velocityScale ?? 0.78);
+        return Math.max(0.12, Math.min(0.62, scaled));
+    }
+
+    _triggerEventNoise(layer, intensity, frequency, duration = "32n") {
+        if (!this.eventNoiseSynth || !this.eventNoiseFilter) return;
+
+        let targetFrequency = frequency;
+        if (layer === 'fold-rumble') targetFrequency *= 0.6;
+        if (layer === 'void-drag') targetFrequency *= 0.45;
+        if (layer === 'digital-shear') targetFrequency *= 1.35;
+        if (layer === 'sigil-bells') targetFrequency *= 1.1;
+
+        this.eventNoiseFilter.frequency.value = Math.max(120, Math.min(4200, targetFrequency));
+        this.eventNoiseFilter.Q.value = Math.max(0.8, Math.min(4, 1.1 + intensity * 1.2));
+        this.eventNoiseSynth.triggerAttackRelease(duration, undefined, Math.max(0.025, Math.min(0.16, 0.035 + intensity * 0.05)));
     }
 }
