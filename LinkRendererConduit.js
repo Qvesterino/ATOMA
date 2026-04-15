@@ -2187,6 +2187,21 @@ export class LinkRendererConduit {
             rippleSystem.applyRipplesToMaterial(link, material, metrics);
         }
 
+        const stressField = this._readLinkStressField(link, this._stressColorScratchA, this._stressFieldRead);
+        for (const material of materials) {
+            const uniforms = material?.uniforms;
+            if (!uniforms) continue;
+            if (uniforms.u_stressFieldBias) {
+                uniforms.u_stressFieldBias.value = stressField.bias;
+            }
+            if (uniforms.u_stressFieldTension) {
+                uniforms.u_stressFieldTension.value = stressField.tension;
+            }
+            if (uniforms.u_stressFieldColor?.value?.copy) {
+                uniforms.u_stressFieldColor.value.copy(this._stressColorScratchA);
+            }
+        }
+
         return ripple;
     }
 

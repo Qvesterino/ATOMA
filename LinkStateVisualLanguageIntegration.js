@@ -166,10 +166,6 @@ export const linkStateFragmentShader = `
   uniform float u_stressFieldBias;
   uniform float u_stressFieldTension;
   uniform vec3 u_stressFieldColor;
-  uniform float u_rippleSignature;
-  uniform float u_stressFieldBias;
-  uniform float u_stressFieldTension;
-  uniform vec3 u_stressFieldColor;
   
   // === COLOR PALETTE ===
   vec3 stressColorCool = vec3(0.22, 0.95, 1.0);
@@ -288,6 +284,14 @@ export const linkStateVertexShaderSimple = `
     float rippleTravel = (vUv.x * rippleBandCount) - ripplePhase;
     vRippleWave = sin(rippleTravel * 6.28318);
     vRippleMask = step(0.5, u_ripplesActive) * u_rippleVisibility;
+
+    float strandPhase = (uStrandIndex / max(1.0, uStrandCount)) * 6.28318;
+    float flowPhase = uTime * (0.65 + uLocalLoad * 1.15) + strandPhase + u_ripplePhase * 6.28318 + u_rippleSignature * 6.28318;
+    float rippleMotion = (sin((vUv.x * rippleBandCount * 6.28318) + flowPhase) * 0.65 + cos((vUv.x * 11.0) - flowPhase * 1.35) * 0.35);
+    float rippleAmplitude = (0.006 + u_rippleIntensity * 0.012 + u_rippleEnergy * 0.01 + vLocalLoad * 0.008) * (0.35 + vRippleMask * 0.65);
+    vec3 flowAxis = normalize(cross(normal, abs(normal.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
+    pos += normal * rippleMotion * rippleAmplitude;
+    pos += flowAxis * rippleMotion * rippleAmplitude * 0.35;
     
     // Simple pulse
     float freq = 2.0 + uLocalLoad * 6.0;
@@ -323,6 +327,10 @@ export const linkStateFragmentShaderSimple = `
   uniform float u_rippleLength;
   uniform float u_rippleVisibility;
   uniform float u_rippleBandCount;
+  uniform float u_rippleSignature;
+  uniform float u_stressFieldBias;
+  uniform float u_stressFieldTension;
+  uniform vec3 u_stressFieldColor;
 
   float hash11(float p) {
     p = fract(p * 0.1031);
@@ -346,10 +354,13 @@ export const linkStateFragmentShaderSimple = `
     float strandCountSafe = max(1.0, vStrandCount);
     float strandPhase = (vStrandIndex / strandCountSafe) * 6.28318;
     float travel = vUv.x;
-    float flowSpeed = 2.6 + vLocalLoad * 2.2;
+    float pulse = 0.5 + 0.5 * vPulsePhase;
+    float flowSpeed = 2.6 + vLocalLoad * 2.2 + pulse * 1.15;
     float flowBand = sin((travel * 24.0) - (uTime * flowSpeed) + strandPhase);
     float flowT = flowBand * 0.5 + 0.5;
-    vec3 strandFlowColor = mix(vBaseColor, vAccentColor, flowT);
+    vec3 animatedAccent = mix(vAccentColor, u_stressFieldColor, clamp(0.18 + pulse * 0.28 + u_stressFieldBias * 0.24, 0.0, 1.0));
+    vec3 strandFlowColor = mix(vBaseColor, animatedAccent, flowT);
+    strandFlowColor = mix(strandFlowColor, animatedAccent, pulse * 0.18);
     float stressMix = clamp(0.2 + effectiveStress * 0.55 + u_stressFieldBias * 0.25, 0.0, 1.0);
     vec3 stressTint = getStressColor(stressMix);
     vec3 membraneColor = mix(strandFlowColor, stressTint, 0.38);
@@ -369,8 +380,9 @@ export const linkStateFragmentShaderSimple = `
     float ripplePulse = 0.5 + 0.5 * vRippleWave;
     float rippleLengthFactor = clamp(12.0 / max(1.0, u_rippleLength), 0.75, 1.25);
     float rippleStrength = vRippleMask * pow(ripplePulse, mix(1.8, 2.8, vLocalLoad)) * rippleLengthFactor * (0.12 + abs(u_rippleIntensity) * 0.24 + u_rippleEnergy * 0.18);
-    vec3 rippleColor = mix(stressTint, vec3(0.96, 0.98, 1.0), clamp(0.34 + u_rippleSaturation * 0.32 + u_rippleIntensity * 0.08, 0.0, 1.0));
+    vec3 rippleColor = mix(stressTint, animatedAccent, clamp(0.34 + u_rippleSaturation * 0.32 + u_rippleIntensity * 0.08, 0.0, 1.0));
     color += rippleColor * rippleStrength;
+    color += animatedAccent * (0.04 + pulse * 0.08 + rippleStrength * 0.12);
     color += vec3(rippleStrength * 0.18);
 
     float cells = max(24.0, uSegmentCount);
