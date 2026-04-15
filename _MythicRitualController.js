@@ -131,6 +131,92 @@ export class MythicRitualController {
     console.log('✓ Mythic Ritual Controller 1.0 initialized');
   }
 
+  _getRitualPalette(ritualType) {
+    const palette = {
+      ASCENSION_RITUAL: {
+        primary: 0xffd700,
+        secondary: 0xfff1a8,
+        accent: 0xf7fbff,
+        void: 0x142648
+      },
+      QUANTUM_FISSURE: {
+        primary: 0xff4bff,
+        secondary: 0xc775ff,
+        accent: 0xf7d6ff,
+        void: 0x1c0934
+      },
+      HARMONY_CONVERGENCE: {
+        primary: 0x00ffaa,
+        secondary: 0x77f7db,
+        accent: 0xf7fbff,
+        void: 0x06263a
+      },
+      CHAOS_RITUAL: {
+        primary: 0xff2f7b,
+        secondary: 0xff73cf,
+        accent: 0xffd1ee,
+        void: 0x2b061a
+      },
+      MYTHIC_SIGNAL: {
+        primary: 0xf7fbff,
+        secondary: 0xb9d9ff,
+        accent: 0xffffff,
+        void: 0x121824
+      },
+      ECHO_RITUAL: {
+        primary: 0x8888ff,
+        secondary: 0x8fe2ff,
+        accent: 0xe7f1ff,
+        void: 0x101d3b
+      }
+    };
+
+    return palette[ritualType] || {
+      primary: 0xf7fbff,
+      secondary: 0xb9d9ff,
+      accent: 0xffffff,
+      void: 0x121824
+    };
+  }
+
+  _computeRitualAnchor(nodes) {
+    const validNodes = Array.isArray(nodes)
+      ? nodes.filter((node) => node?.position?.isVector3)
+      : [];
+
+    if (!validNodes.length) {
+      return { x: 0, y: 0, z: 0 };
+    }
+
+    const centroid = new THREE.Vector3();
+    for (const node of validNodes) {
+      centroid.add(node.position);
+    }
+    centroid.multiplyScalar(1 / validNodes.length);
+
+    return { x: centroid.x, y: centroid.y, z: centroid.z };
+  }
+
+  _buildRitualEventPayload(ritualType, nodes = this._currentRitualNodes, overrides = {}) {
+    const palette = this._getRitualPalette(ritualType);
+    const payload = {
+      ritualType,
+      phase: overrides.phase ?? this.ritualPhase,
+      phaseIntensity: Number.isFinite(overrides.phaseIntensity) ? overrides.phaseIntensity : this.getPhaseIntensity(),
+      progress: Number.isFinite(overrides.progress) ? overrides.progress : this.ritualProgress,
+      anchor: overrides.anchor ?? this._computeRitualAnchor(nodes),
+      palette,
+      worldMood: this.latestWorldMood ? { ...this.latestWorldMood } : null,
+      targetNodeId: this._getNodeId(nodes?.[0]),
+      nodes: nodes?.map((node) => this._getNodeId(node)).filter((id) => id !== null && id !== undefined) ?? [],
+      timestamp: performance.now(),
+      source: 'MythicRitualController',
+      ...overrides
+    };
+
+    return payload;
+  }
+
   /**
    * Initialize ritual HUD
    */
@@ -290,21 +376,16 @@ export class MythicRitualController {
     this.ritualProgress = 0;
     this.ritualStartTime = Date.now() / 1000;
     this.lastRitualTime = Date.now() / 1000;
+    const ritualPayload = this._buildRitualEventPayload(ritualType, nodes, {
+      phase: 'INIT',
+      progress: 0,
+      phaseIntensity: 0.08
+    });
 
     // EMIT EVENT FOR EVENT-DRIVEN SYSTEMS
     if (this.semanticBus) {
-      this.semanticBus.emit('ritual.prelude', {
-        ritualType: ritualType,
-        targetNodeId: this._getNodeId(nodes?.[0]),
-        nodes: nodes?.map((node) => this._getNodeId(node)).filter((id) => id !== null && id !== undefined) ?? [],
-        timestamp: performance.now()
-      }, { priority: this.semanticBus.priority?.INTERACTIVE });
-      this.semanticBus.emit('semantic.ritual.started', {
-        ritualType: ritualType,
-        targetNodeId: this._getNodeId(nodes?.[0]),
-        nodes: nodes?.map((node) => this._getNodeId(node)).filter((id) => id !== null && id !== undefined) ?? [],
-        timestamp: performance.now()
-        }, { priority: this.semanticBus.priority?.INTERACTIVE });
+      this.semanticBus.emit('ritual.prelude', ritualPayload, { priority: this.semanticBus.priority?.INTERACTIVE });
+      this.semanticBus.emit('semantic.ritual.started', ritualPayload, { priority: this.semanticBus.priority?.INTERACTIVE });
       console.log(`✓ Ritual started event emitted: ${ritualType}`);
     }
     this._emitMetricBridgeForRitual(ritualType, 'started');
@@ -869,17 +950,20 @@ export class MythicRitualController {
       this.ritualProgress = 0;
 
       if (this.semanticBus) {
-        const phasePayload = {
-          ritualType: this.activeRitual,
+        const phasePayload = this._buildRitualEventPayload(this.activeRitual, this._currentRitualNodes, {
           phase: this.ritualPhase,
-          timestamp: performance.now(),
-          nodes: this._currentRitualNodes?.map((node) => this._getNodeId(node)).filter((id) => id !== null && id !== undefined) ?? [],
-        };
+          progress: this.ritualProgress,
+          phaseIntensity: this.getPhaseIntensity()
+        });
+
+        this.semanticBus.emit('semantic.ritual.phase', phasePayload, { priority: this.semanticBus.priority?.INTERACTIVE });
 
         if (this.ritualPhase === 'RISE') {
           this.semanticBus.emit('ritual.active', phasePayload, { priority: this.semanticBus.priority?.INTERACTIVE });
         } else if (this.ritualPhase === 'PEAK') {
           this.semanticBus.emit('ritual.crest', phasePayload, { priority: this.semanticBus.priority?.INTERACTIVE });
+        } else if (this.ritualPhase === 'FALL') {
+          this.semanticBus.emit('ritual.descend', phasePayload, { priority: this.semanticBus.priority?.INTERACTIVE });
         }
       }
 
@@ -1232,16 +1316,14 @@ export class MythicRitualController {
 
     // EMIT EVENT FOR EVENT-DRIVEN SYSTEMS
     if (this.semanticBus) {
-      this.semanticBus.emit('semantic.ritual.completed', {
-        ritualType: completedRitualType,
-        success: true,
-        timestamp: performance.now()
-      }, { priority: this.semanticBus.priority.INTERACTIVE });
-      this.semanticBus.emit('ritual.release', {
-        ritualType: completedRitualType,
-        success: true,
-        timestamp: performance.now()
-      }, { priority: this.semanticBus.priority.INTERACTIVE });
+      const completionPayload = this._buildRitualEventPayload(completedRitualType, this._currentRitualNodes, {
+        phase: 'COMPLETED',
+        progress: 1,
+        phaseIntensity: 0,
+        success: true
+      });
+      this.semanticBus.emit('semantic.ritual.completed', completionPayload, { priority: this.semanticBus.priority.INTERACTIVE });
+      this.semanticBus.emit('ritual.release', completionPayload, { priority: this.semanticBus.priority.INTERACTIVE });
       console.log(`✓ Ritual completed event emitted: ${completedRitualType}`);
     }
     this._emitMetricBridgeForRitual(completedRitualType, 'completed');

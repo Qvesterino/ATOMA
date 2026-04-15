@@ -1,7 +1,10 @@
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 const TAU = Math.PI * 2;
 const SIGNAL_LIFETIME_MS = 5000;
+const HAZARD_WORLD_BACKGROUND_ORDER = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_BACKGROUND);
+const HAZARD_WORLD_OVERLAY_ORDER = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_OVERLAY);
 const HAZARD_TYPE_LIMITS = {
   electricalStorm: 2,
   gravitationalAnomaly: 2,
@@ -24,6 +27,81 @@ const HAZARD_PALETTE = {
   goldSigil: 0xfff4c2
 };
 
+const HAZARD_WORLD_PROFILE = {
+  default: {
+    modeKey: 'default',
+    tag: 'world.default',
+    titlePrefix: '',
+    toneSuffix: 'wildfield',
+    colors: {
+      stormEdge: HAZARD_PALETTE.electricEdge,
+      stormAura: HAZARD_PALETTE.primaryCyan,
+      stormShell: HAZARD_PALETTE.stormShadow,
+      gravityPrimary: HAZARD_PALETTE.primaryCyan,
+      gravitySecondary: HAZARD_PALETTE.quantumViolet,
+      gravityVeil: HAZARD_PALETTE.softHalo,
+      chronoPrimary: HAZARD_PALETTE.bloomMint,
+      chronoSecondary: HAZARD_PALETTE.quantumViolet,
+      chronoCore: HAZARD_PALETTE.ritualWhite,
+      chronoGold: HAZARD_PALETTE.goldSigil
+    },
+    motion: {
+      driftMul: 1,
+      shearMul: 1,
+      pulseMul: 1,
+      residueMul: 1
+    }
+  },
+  sigma: {
+    modeKey: 'sigma',
+    tag: 'world.sigma',
+    titlePrefix: 'Sigma',
+    toneSuffix: 'anomaly-rift',
+    colors: {
+      stormEdge: 0x36f0ff,
+      stormAura: 0x7dffb3,
+      stormShell: 0x040712,
+      gravityPrimary: 0x2df0ff,
+      gravitySecondary: 0xff5de4,
+      gravityVeil: 0x8d6cff,
+      chronoPrimary: 0x7dffb3,
+      chronoSecondary: 0xff5de4,
+      chronoCore: 0xf7fbff,
+      chronoGold: 0x8ffff0
+    },
+    motion: {
+      driftMul: 1.08,
+      shearMul: 1.4,
+      pulseMul: 1.15,
+      residueMul: 0.84
+    }
+  },
+  memory: {
+    modeKey: 'memory',
+    tag: 'world.memory',
+    titlePrefix: 'Archive',
+    toneSuffix: 'mnemonic-cathedral',
+    colors: {
+      stormEdge: 0x9feeff,
+      stormAura: 0x6fd7ff,
+      stormShell: 0x09131f,
+      gravityPrimary: 0x88e2ff,
+      gravitySecondary: 0xffd37a,
+      gravityVeil: 0xc6efff,
+      chronoPrimary: 0xa7f6ff,
+      chronoSecondary: 0xffd37a,
+      chronoCore: 0xfaf9f1,
+      chronoGold: 0xffe8ad
+    },
+    motion: {
+      driftMul: 0.82,
+      shearMul: 0.74,
+      pulseMul: 0.68,
+      residueMul: 1.22
+    }
+  }
+};
+
 /**
  * Environmental Hazards System
  * Spectacular world anomalies with signal-driven hazard spawning.
@@ -32,15 +110,30 @@ export class EnvironmentalHazards {
   constructor(scene, camera) {
     this.scene = scene;
     this.camera = camera;
+    this.worldProfile = this._resolveWorldProfile();
     this.root = new THREE.Group();
     this.root.name = 'EnvironmentalHazardsRoot';
+    this.root.renderOrder = HAZARD_WORLD_BACKGROUND_ORDER;
     this.root.userData = this.root.userData || {};
     this.root.userData.__environmentLayerId = 'EnvironmentalHazards';
     this.root.userData.__environmentOwner = 'EnvironmentalHazards';
+    this.root.userData.isWorldFX = true;
+    this.root.userData.currentMode = this.worldProfile.modeKey;
     this.scene?.add?.(this.root);
+    this.residueRoot = new THREE.Group();
+    this.residueRoot.name = 'EnvironmentalHazardsResidueRoot';
+    this.residueRoot.renderOrder = HAZARD_WORLD_BACKGROUND_ORDER;
+    this.residueRoot.userData = this.residueRoot.userData || {};
+    this.residueRoot.userData.__environmentLayerId = 'EnvironmentalHazards';
+    this.residueRoot.userData.__environmentOwner = 'EnvironmentalHazards';
+    this.residueRoot.userData.isWorldFX = true;
+    this.residueRoot.userData.type = 'hazardResidue';
+    this.residueRoot.userData.currentMode = this.worldProfile.modeKey;
+    this.root.add(this.residueRoot);
 
     this.enabled = true;
     this.hazards = new Map();
+    this.residueScars = [];
     this._hazardSequence = 0;
     this._hazardEffectScratch = new THREE.Vector3();
     this._hazardDirectionScratch = new THREE.Vector3();
@@ -108,7 +201,8 @@ export class EnvironmentalHazards {
       }
     });
 
-    const palette = this._getHazardPalette(hazard.type);
+    const palette = this._getHazardPalette(hazard.type, hazard);
+    const geometryBias = this._getHazardGeometryBias(hazard);
     const layers = this._createHazardLayerSet(hazard.root);
     hazard.layers = layers;
 
@@ -117,12 +211,12 @@ export class EnvironmentalHazards {
         this._createBrokenRingGeometry({
           radius: radius * (0.48 + i * 0.17),
           heightBias: (i - 1) * radius * 0.08,
-          segments: 88,
-          gapEvery: 5 + i,
-          gapLength: 1 + (i % 2),
-          radialJitter: radius * 0.06,
-          yJitter: radius * 0.03,
-          angleOffset: i * 0.36
+          segments: Math.max(56, Math.round(88 * geometryBias.segmentMul)),
+          gapEvery: Math.max(3, Math.round((5 + i) * geometryBias.gapEveryMul)),
+          gapLength: Math.max(1, 1 + (i % 2) + geometryBias.gapLengthAdd),
+          radialJitter: radius * 0.06 * geometryBias.jitterMul,
+          yJitter: radius * 0.03 * geometryBias.jitterMul,
+          angleOffset: i * 0.36 + geometryBias.angleShear * (i - 1)
         }),
         new THREE.LineBasicMaterial({
           color: i === 2 ? HAZARD_PALETTE.breachRose : palette.edge,
@@ -132,7 +226,11 @@ export class EnvironmentalHazards {
           depthWrite: false
         })
       );
-      ring.rotation.set(Math.PI * (0.28 + i * 0.11), i * 0.55, i * 0.24);
+      ring.rotation.set(
+        Math.PI * (0.28 + i * 0.11),
+        i * 0.55 + geometryBias.rotationYaw * (i - 1),
+        i * 0.24 + geometryBias.rotationRoll * (i - 1)
+      );
       ring.userData.baseOpacity = ring.material.opacity;
       layers.silhouetteLayer.add(this._tagHazardObject(ring, hazard.type, `storm-ring-${i}`));
     }
@@ -141,11 +239,11 @@ export class EnvironmentalHazards {
       const arc = new THREE.Line(
         this._createFilamentCurveGeometry({
           radius: radius * (0.38 + i * 0.09),
-          verticalSpan: radius * (0.7 + i * 0.08),
-          lateralAmplitude: radius * 0.14,
-          turns: 1.25 + i * 0.24,
-          segments: 40,
-          phase: i * 1.1
+          verticalSpan: radius * (0.7 + i * 0.08) * geometryBias.verticalMul,
+          lateralAmplitude: radius * 0.14 * geometryBias.lateralMul,
+          turns: 1.25 + i * 0.24 + geometryBias.turnsAdd,
+          segments: Math.max(24, Math.round(40 * geometryBias.segmentMul)),
+          phase: i * 1.1 + geometryBias.phaseShift * i
         }),
         new THREE.LineBasicMaterial({
           color: i % 2 === 0 ? palette.edge : HAZARD_PALETTE.ritualWhite,
@@ -155,8 +253,8 @@ export class EnvironmentalHazards {
           depthWrite: false
         })
       );
-      arc.rotation.y = i * 0.9;
-      arc.rotation.z = (i % 2 === 0 ? 1 : -1) * 0.22;
+      arc.rotation.y = i * 0.9 + geometryBias.rotationYaw * i;
+      arc.rotation.z = (i % 2 === 0 ? 1 : -1) * (0.22 + geometryBias.arcRoll);
       arc.userData.baseOpacity = arc.material.opacity;
       layers.filamentLayer.add(this._tagHazardObject(arc, hazard.type, `storm-arc-${i}`));
     }
@@ -164,12 +262,12 @@ export class EnvironmentalHazards {
     for (let i = 0; i < 3; i++) {
       const veil = new THREE.Mesh(
         this._createVeilStripGeometry({
-          width: radius * (0.72 + i * 0.18),
-          height: radius * (1.4 + i * 0.16),
-          segments: 18,
-          edgeNoise: radius * 0.08,
-          depthNoise: radius * 0.12,
-          taper: 0.72 - i * 0.08
+          width: radius * (0.72 + i * 0.18) * geometryBias.veilWidthMul,
+          height: radius * (1.4 + i * 0.16) * geometryBias.veilHeightMul,
+          segments: Math.max(14, Math.round(18 * geometryBias.segmentMul)),
+          edgeNoise: radius * 0.08 * geometryBias.jitterMul,
+          depthNoise: radius * 0.12 * geometryBias.depthMul,
+          taper: Math.max(0.28, 0.72 - i * 0.08 + geometryBias.veilTaperOffset)
         }),
         this._createHazardShaderMaterial({
           colorA: i === 1 ? palette.aura : palette.edge,
@@ -183,8 +281,8 @@ export class EnvironmentalHazards {
         })
       );
       veil.position.y = radius * (0.1 + i * 0.16);
-      veil.rotation.y = i * (TAU / 3) + 0.28;
-      veil.rotation.z = (i - 1) * 0.22;
+      veil.rotation.y = i * (TAU / 3) + 0.28 + geometryBias.rotationYaw * (i - 1);
+      veil.rotation.z = (i - 1) * (0.22 + geometryBias.veilRoll);
       veil.userData.baseOpacity = veil.material.uniforms.uOpacity.value;
       layers.veilLayer.add(this._tagHazardObject(veil, hazard.type, `storm-veil-${i}`));
     }
@@ -194,12 +292,12 @@ export class EnvironmentalHazards {
         this._createBrokenRingGeometry({
           radius: radius * (0.92 + i * 0.21),
           heightBias: -radius * 0.18 + i * radius * 0.1,
-          segments: 104,
-          gapEvery: 7 + i,
-          gapLength: 2,
-          radialJitter: radius * 0.08,
-          yJitter: radius * 0.04,
-          angleOffset: i * 0.5
+          segments: Math.max(64, Math.round(104 * geometryBias.segmentMul)),
+          gapEvery: Math.max(4, Math.round((7 + i) * geometryBias.gapEveryMul)),
+          gapLength: Math.max(1, 2 + geometryBias.gapLengthAdd),
+          radialJitter: radius * 0.08 * geometryBias.jitterMul,
+          yJitter: radius * 0.04 * geometryBias.jitterMul,
+          angleOffset: i * 0.5 + geometryBias.angleShear * i
         }),
         new THREE.LineBasicMaterial({
           color: i === 0 ? palette.aura : HAZARD_PALETTE.pressureAmber,
@@ -210,7 +308,8 @@ export class EnvironmentalHazards {
         })
       );
       wake.rotation.x = Math.PI * 0.45 + i * 0.18;
-      wake.rotation.z = i * 0.28;
+      wake.rotation.z = i * 0.28 + geometryBias.rotationRoll * (i + 1);
+      wake.scale.y = geometryBias.wakeScaleY;
       wake.userData.baseOpacity = wake.material.opacity;
       layers.wakeLayer.add(this._tagHazardObject(wake, hazard.type, `storm-wake-${i}`));
     }
@@ -256,6 +355,58 @@ export class EnvironmentalHazards {
     layers.shardLayer.add(this._tagHazardObject(shardField.points, hazard.type, 'storm-shards'));
     hazard.shardField = shardField;
 
+    if (geometryBias.modeKey === 'sigma') {
+      for (let i = 0; i < 2; i++) {
+        const sliver = new THREE.Line(
+          this._createFilamentCurveGeometry({
+            radius: radius * (0.22 + i * 0.08),
+            verticalSpan: radius * (1.12 + i * 0.12),
+            lateralAmplitude: radius * 0.06,
+            turns: 0.45 + i * 0.12,
+            segments: 22,
+            phase: i * 1.7 + 0.3
+          }),
+          new THREE.LineBasicMaterial({
+            color: i === 0 ? HAZARD_PALETTE.breachRose : palette.edge,
+            transparent: true,
+            opacity: 0.1,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+          })
+        );
+        sliver.rotation.y = i * 0.9 + 0.2;
+        sliver.rotation.z = (i === 0 ? 1 : -1) * 0.34;
+        sliver.userData.baseOpacity = sliver.material.opacity;
+        layers.silhouetteLayer.add(this._tagHazardObject(sliver, hazard.type, `storm-sigma-sliver-${i}`));
+      }
+    } else if (geometryBias.modeKey === 'memory') {
+      for (let i = 0; i < 2; i++) {
+        const archiveHalo = new THREE.LineSegments(
+          this._createBrokenRingGeometry({
+            radius: radius * (0.62 + i * 0.18),
+            heightBias: radius * (0.14 + i * 0.05),
+            segments: 76,
+            gapEvery: 12 + i,
+            gapLength: 1,
+            radialJitter: radius * 0.03,
+            yJitter: radius * 0.018,
+            angleOffset: i * 0.18
+          }),
+          new THREE.LineBasicMaterial({
+            color: i === 0 ? HAZARD_PALETTE.pressureAmber : HAZARD_PALETTE.ritualWhite,
+            transparent: true,
+            opacity: 0.08 - i * 0.012,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+          })
+        );
+        archiveHalo.rotation.x = Math.PI * (0.48 + i * 0.07);
+        archiveHalo.rotation.z = i * 0.1;
+        archiveHalo.userData.baseOpacity = archiveHalo.material.opacity;
+        layers.wakeLayer.add(this._tagHazardObject(archiveHalo, hazard.type, `storm-memory-halo-${i}`));
+      }
+    }
+
     hazard.bolts = [];
     for (let i = 0; i < 4; i++) {
       const bolt = this._createStormBolt(hazard, i);
@@ -300,7 +451,8 @@ export class EnvironmentalHazards {
       }
     });
 
-    const palette = this._getHazardPalette(hazard.type);
+    const palette = this._getHazardPalette(hazard.type, hazard);
+    const geometryBias = this._getHazardGeometryBias(hazard);
     const layers = this._createHazardLayerSet(hazard.root);
     hazard.layers = layers;
 
@@ -309,12 +461,12 @@ export class EnvironmentalHazards {
         this._createBrokenRingGeometry({
           radius: radius * (0.42 + i * 0.2),
           heightBias: (i - 1) * radius * 0.11,
-          segments: 92,
-          gapEvery: 8,
-          gapLength: 3,
-          radialJitter: radius * 0.09,
-          yJitter: radius * 0.08,
-          angleOffset: i * 0.62
+          segments: Math.max(56, Math.round(92 * geometryBias.segmentMul)),
+          gapEvery: Math.max(4, Math.round(8 * geometryBias.gapEveryMul)),
+          gapLength: Math.max(2, 3 + geometryBias.gapLengthAdd),
+          radialJitter: radius * 0.09 * geometryBias.jitterMul,
+          yJitter: radius * 0.08 * geometryBias.jitterMul,
+          angleOffset: i * 0.62 + geometryBias.angleShear * i
         }),
         new THREE.LineBasicMaterial({
           color: i === 0 ? palette.ringSecondary : palette.ringPrimary,
@@ -324,9 +476,9 @@ export class EnvironmentalHazards {
           depthWrite: false
         })
       );
-      slit.rotation.x = Math.PI * (0.22 + i * 0.17);
-      slit.rotation.y = i * 0.8;
-      slit.scale.set(1 + i * 0.06, 0.68 + i * 0.06, 1);
+      slit.rotation.x = Math.PI * (0.22 + i * 0.17) + geometryBias.slitTilt * (i - 1);
+      slit.rotation.y = i * 0.8 + geometryBias.rotationYaw * (i - 1);
+      slit.scale.set(1 + i * 0.06 + geometryBias.slitWidthAdd, (0.68 + i * 0.06) * geometryBias.wakeScaleY, 1);
       slit.userData.baseOpacity = slit.material.opacity;
       layers.silhouetteLayer.add(this._tagHazardObject(slit, hazard.type, `gravity-slit-${i}`));
     }
@@ -335,11 +487,11 @@ export class EnvironmentalHazards {
       const torsion = new THREE.Line(
         this._createFilamentCurveGeometry({
           radius: radius * (0.52 + i * 0.06),
-          verticalSpan: radius * 0.92,
-          lateralAmplitude: radius * (0.1 + i * 0.015),
-          turns: 1.9 + i * 0.2,
-          segments: 46,
-          phase: i * 1.3
+          verticalSpan: radius * 0.92 * geometryBias.verticalMul,
+          lateralAmplitude: radius * (0.1 + i * 0.015) * geometryBias.lateralMul,
+          turns: 1.9 + i * 0.2 + geometryBias.turnsAdd,
+          segments: Math.max(28, Math.round(46 * geometryBias.segmentMul)),
+          phase: i * 1.3 + geometryBias.phaseShift * i
         }),
         new THREE.LineBasicMaterial({
           color: i % 2 === 0 ? palette.ringPrimary : HAZARD_PALETTE.breachRose,
@@ -349,7 +501,7 @@ export class EnvironmentalHazards {
           depthWrite: false
         })
       );
-      torsion.rotation.z = (i % 2 === 0 ? 1 : -1) * 0.38;
+      torsion.rotation.z = (i % 2 === 0 ? 1 : -1) * (0.38 + geometryBias.arcRoll);
       torsion.userData.baseOpacity = torsion.material.opacity;
       layers.filamentLayer.add(this._tagHazardObject(torsion, hazard.type, `gravity-torsion-${i}`));
     }
@@ -357,12 +509,12 @@ export class EnvironmentalHazards {
     for (let i = 0; i < 3; i++) {
       const veil = new THREE.Mesh(
         this._createVeilStripGeometry({
-          width: radius * (0.78 + i * 0.15),
-          height: radius * (1.65 + i * 0.12),
-          segments: 20,
-          edgeNoise: radius * 0.09,
-          depthNoise: radius * 0.18,
-          taper: 0.62
+          width: radius * (0.78 + i * 0.15) * geometryBias.veilWidthMul,
+          height: radius * (1.65 + i * 0.12) * geometryBias.veilHeightMul,
+          segments: Math.max(16, Math.round(20 * geometryBias.segmentMul)),
+          edgeNoise: radius * 0.09 * geometryBias.jitterMul,
+          depthNoise: radius * 0.18 * geometryBias.depthMul,
+          taper: Math.max(0.3, 0.62 + geometryBias.veilTaperOffset)
         }),
         this._createHazardShaderMaterial({
           colorA: i === 0 ? palette.ringSecondary : HAZARD_PALETTE.deepVoid,
@@ -376,8 +528,8 @@ export class EnvironmentalHazards {
         })
       );
       veil.position.set((i - 1) * radius * 0.08, radius * 0.06, -radius * 0.1 * i);
-      veil.rotation.y = i * 0.72 + 0.18;
-      veil.rotation.z = (i - 1) * 0.26;
+      veil.rotation.y = i * 0.72 + 0.18 + geometryBias.rotationYaw * (i - 1);
+      veil.rotation.z = (i - 1) * (0.26 + geometryBias.veilRoll);
       veil.userData.baseOpacity = veil.material.uniforms.uOpacity.value;
       layers.veilLayer.add(this._tagHazardObject(veil, hazard.type, `gravity-veil-${i}`));
     }
@@ -387,12 +539,12 @@ export class EnvironmentalHazards {
         this._createBrokenRingGeometry({
           radius: radius * (0.95 + i * 0.22),
           heightBias: (i - 0.5) * radius * 0.15,
-          segments: 112,
-          gapEvery: 9,
-          gapLength: 2 + i,
-          radialJitter: radius * 0.1,
-          yJitter: radius * 0.06,
-          angleOffset: i * 0.48
+          segments: Math.max(72, Math.round(112 * geometryBias.segmentMul)),
+          gapEvery: Math.max(4, Math.round(9 * geometryBias.gapEveryMul)),
+          gapLength: Math.max(1, 2 + i + geometryBias.gapLengthAdd),
+          radialJitter: radius * 0.1 * geometryBias.jitterMul,
+          yJitter: radius * 0.06 * geometryBias.jitterMul,
+          angleOffset: i * 0.48 + geometryBias.angleShear * i
         }),
         new THREE.LineBasicMaterial({
           color: i === 0 ? palette.ringPrimary : HAZARD_PALETTE.softHalo,
@@ -403,8 +555,8 @@ export class EnvironmentalHazards {
         })
       );
       wake.rotation.x = Math.PI * (0.62 + i * 0.11);
-      wake.rotation.y = i * 0.52;
-      wake.scale.y = 0.72 + i * 0.08;
+      wake.rotation.y = i * 0.52 + geometryBias.rotationYaw * i;
+      wake.scale.y = (0.72 + i * 0.08) * geometryBias.wakeScaleY;
       wake.userData.baseOpacity = wake.material.opacity;
       layers.wakeLayer.add(this._tagHazardObject(wake, hazard.type, `gravity-wake-${i}`));
     }
@@ -449,6 +601,61 @@ export class EnvironmentalHazards {
     layers.shardLayer.add(this._tagHazardObject(shardField.points, hazard.type, 'gravity-shards'));
     hazard.shardField = shardField;
 
+    if (geometryBias.modeKey === 'sigma') {
+      for (let i = 0; i < 2; i++) {
+        const ghostSlit = new THREE.LineSegments(
+          this._createBrokenRingGeometry({
+            radius: radius * (0.34 + i * 0.3),
+            heightBias: -radius * 0.05 + i * radius * 0.09,
+            segments: 68,
+            gapEvery: 5,
+            gapLength: 2,
+            radialJitter: radius * 0.12,
+            yJitter: radius * 0.09,
+            angleOffset: 0.28 + i * 0.46
+          }),
+          new THREE.LineBasicMaterial({
+            color: i === 0 ? HAZARD_PALETTE.breachRose : palette.ringSecondary,
+            transparent: true,
+            opacity: 0.08,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+          })
+        );
+        ghostSlit.rotation.set(Math.PI * (0.16 + i * 0.18), i * 0.66, (i === 0 ? 1 : -1) * 0.32);
+        ghostSlit.scale.set(1.18, 0.54 + i * 0.06, 1);
+        ghostSlit.userData.baseOpacity = ghostSlit.material.opacity;
+        layers.silhouetteLayer.add(this._tagHazardObject(ghostSlit, hazard.type, `gravity-sigma-ghost-${i}`));
+      }
+    } else if (geometryBias.modeKey === 'memory') {
+      for (let i = 0; i < 2; i++) {
+        const archiveCorridor = new THREE.Mesh(
+          this._createVeilStripGeometry({
+            width: radius * (0.48 + i * 0.1),
+            height: radius * (1.24 + i * 0.08),
+            segments: 14,
+            edgeNoise: radius * 0.03,
+            depthNoise: radius * 0.08,
+            taper: 0.42
+          }),
+          this._createHazardShaderMaterial({
+            colorA: i === 0 ? palette.veil : HAZARD_PALETTE.pressureAmber,
+            colorB: palette.ringPrimary,
+            opacity: 0.07 - i * 0.01,
+            bias: -0.08 - i * 0.04,
+            pulse: 0.38 + i * 0.06,
+            flowSpeed: 0.18 + i * 0.04,
+            additive: true,
+            side: THREE.DoubleSide
+          })
+        );
+        archiveCorridor.position.set((i === 0 ? -1 : 1) * radius * 0.12, 0, -radius * (0.08 + i * 0.04));
+        archiveCorridor.rotation.y = (i === 0 ? -1 : 1) * 0.34;
+        archiveCorridor.userData.baseOpacity = archiveCorridor.material.uniforms.uOpacity.value;
+        layers.veilLayer.add(this._tagHazardObject(archiveCorridor, hazard.type, `gravity-memory-corridor-${i}`));
+      }
+    }
+
     hazard.group = hazard.root;
     hazard.core = core;
     hazard.accretionRing = layers.silhouetteLayer.children[0] || null;
@@ -483,19 +690,20 @@ export class EnvironmentalHazards {
       }
     });
 
-    const palette = this._getHazardPalette(hazard.type);
+    const palette = this._getHazardPalette(hazard.type, hazard);
+    const geometryBias = this._getHazardGeometryBias(hazard);
     const layers = this._createHazardLayerSet(hazard.root);
     hazard.layers = layers;
 
     for (let i = 0; i < 6; i++) {
       const petal = new THREE.Mesh(
         this._createVeilStripGeometry({
-          width: radius * 0.36,
-          height: radius * (0.88 + (i % 2) * 0.08),
-          segments: 16,
-          edgeNoise: radius * 0.05,
-          depthNoise: radius * 0.08,
-          taper: 0.42
+          width: radius * 0.36 * geometryBias.veilWidthMul,
+          height: radius * (0.88 + (i % 2) * 0.08) * geometryBias.veilHeightMul,
+          segments: Math.max(12, Math.round(16 * geometryBias.segmentMul)),
+          edgeNoise: radius * 0.05 * geometryBias.jitterMul,
+          depthNoise: radius * 0.08 * geometryBias.depthMul,
+          taper: Math.max(0.24, 0.42 + geometryBias.veilTaperOffset)
         }),
         this._createHazardShaderMaterial({
           colorA: i % 2 === 0 ? palette.ringPrimary : palette.ringSecondary,
@@ -509,9 +717,9 @@ export class EnvironmentalHazards {
         })
       );
       petal.position.y = radius * 0.18;
-      petal.rotation.y = (i / 6) * TAU;
+      petal.rotation.y = (i / 6) * TAU + geometryBias.rotationYaw * (i - 2.5);
       petal.rotation.z = Math.PI * 0.5;
-      petal.rotation.x = (i % 2 === 0 ? 1 : -1) * 0.22;
+      petal.rotation.x = (i % 2 === 0 ? 1 : -1) * (0.22 + geometryBias.veilRoll);
       petal.userData.baseOpacity = petal.material.uniforms.uOpacity.value;
       petal.userData.bloomOffset = i / 6;
       layers.veilLayer.add(this._tagHazardObject(petal, hazard.type, `chrono-petal-${i}`));
@@ -522,12 +730,12 @@ export class EnvironmentalHazards {
         this._createBrokenRingGeometry({
           radius: radius * (0.46 + i * 0.18),
           heightBias: radius * 0.04 * i,
-          segments: 96,
-          gapEvery: 10,
-          gapLength: 2,
-          radialJitter: radius * 0.04,
-          yJitter: radius * 0.025,
-          angleOffset: i * 0.28
+          segments: Math.max(64, Math.round(96 * geometryBias.segmentMul)),
+          gapEvery: Math.max(5, Math.round(10 * geometryBias.gapEveryMul)),
+          gapLength: Math.max(1, 2 + geometryBias.gapLengthAdd),
+          radialJitter: radius * 0.04 * geometryBias.jitterMul,
+          yJitter: radius * 0.025 * geometryBias.jitterMul,
+          angleOffset: i * 0.28 + geometryBias.angleShear * i
         }),
         new THREE.LineBasicMaterial({
           color: i === 0 ? palette.ringSecondary : palette.ringPrimary,
@@ -537,8 +745,8 @@ export class EnvironmentalHazards {
           depthWrite: false
         })
       );
-      ring.rotation.x = Math.PI * (0.5 + i * 0.08);
-      ring.rotation.z = i * 0.16;
+      ring.rotation.x = Math.PI * (0.5 + i * 0.08) + geometryBias.slitTilt * (i - 1);
+      ring.rotation.z = i * 0.16 + geometryBias.rotationRoll * i;
       ring.userData.baseOpacity = ring.material.opacity;
       layers.silhouetteLayer.add(this._tagHazardObject(ring, hazard.type, `chrono-ring-${i}`));
     }
@@ -547,11 +755,11 @@ export class EnvironmentalHazards {
       const sigil = new THREE.Line(
         this._createFilamentCurveGeometry({
           radius: radius * (0.2 + i * 0.08),
-          verticalSpan: radius * 0.8,
-          lateralAmplitude: radius * 0.06,
-          turns: 0.8 + i * 0.12,
-          segments: 32,
-          phase: i * 0.72
+          verticalSpan: radius * 0.8 * geometryBias.verticalMul,
+          lateralAmplitude: radius * 0.06 * geometryBias.lateralMul,
+          turns: 0.8 + i * 0.12 + geometryBias.turnsAdd * 0.35,
+          segments: Math.max(24, Math.round(32 * geometryBias.segmentMul)),
+          phase: i * 0.72 + geometryBias.phaseShift * i
         }),
         new THREE.LineBasicMaterial({
           color: i % 2 === 0 ? palette.ringPrimary : HAZARD_PALETTE.goldSigil,
@@ -561,8 +769,8 @@ export class EnvironmentalHazards {
           depthWrite: false
         })
       );
-      sigil.rotation.y = i * 0.65;
-      sigil.rotation.z = (i - 2) * 0.12;
+      sigil.rotation.y = i * 0.65 + geometryBias.rotationYaw * (i - 2);
+      sigil.rotation.z = (i - 2) * (0.12 + geometryBias.arcRoll * 0.35);
       sigil.userData.baseOpacity = sigil.material.opacity;
       layers.filamentLayer.add(this._tagHazardObject(sigil, hazard.type, `chrono-sigil-${i}`));
     }
@@ -572,12 +780,12 @@ export class EnvironmentalHazards {
         this._createBrokenRingGeometry({
           radius: radius * (0.96 + i * 0.2),
           heightBias: radius * 0.08 + i * radius * 0.04,
-          segments: 100,
-          gapEvery: 11,
-          gapLength: 2,
-          radialJitter: radius * 0.05,
-          yJitter: radius * 0.02,
-          angleOffset: i * 0.33
+          segments: Math.max(64, Math.round(100 * geometryBias.segmentMul)),
+          gapEvery: Math.max(5, Math.round(11 * geometryBias.gapEveryMul)),
+          gapLength: Math.max(1, 2 + geometryBias.gapLengthAdd),
+          radialJitter: radius * 0.05 * geometryBias.jitterMul,
+          yJitter: radius * 0.02 * geometryBias.jitterMul,
+          angleOffset: i * 0.33 + geometryBias.angleShear * i
         }),
         new THREE.LineBasicMaterial({
           color: i === 0 ? HAZARD_PALETTE.goldSigil : palette.ringSecondary,
@@ -587,7 +795,8 @@ export class EnvironmentalHazards {
           depthWrite: false
         })
       );
-      wake.rotation.x = Math.PI * 0.5;
+      wake.rotation.x = Math.PI * 0.5 + geometryBias.slitTilt * 0.5;
+      wake.scale.y = geometryBias.wakeScaleY;
       wake.userData.baseOpacity = wake.material.opacity;
       layers.wakeLayer.add(this._tagHazardObject(wake, hazard.type, `chrono-wake-${i}`));
     }
@@ -632,6 +841,56 @@ export class EnvironmentalHazards {
     });
     layers.shardLayer.add(this._tagHazardObject(shardField.points, hazard.type, 'chrono-shards'));
     hazard.shardField = shardField;
+
+    if (geometryBias.modeKey === 'sigma') {
+      for (let i = 0; i < 2; i++) {
+        const breachSpine = new THREE.Line(
+          this._createFilamentCurveGeometry({
+            radius: radius * (0.16 + i * 0.06),
+            verticalSpan: radius * (1.02 + i * 0.1),
+            lateralAmplitude: radius * 0.05,
+            turns: 0.42 + i * 0.08,
+            segments: 20,
+            phase: 0.2 + i * 1.1
+          }),
+          new THREE.LineBasicMaterial({
+            color: i === 0 ? HAZARD_PALETTE.breachRose : palette.ringSecondary,
+            transparent: true,
+            opacity: 0.08,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+          })
+        );
+        breachSpine.rotation.z = (i === 0 ? 1 : -1) * 0.28;
+        breachSpine.userData.baseOpacity = breachSpine.material.opacity;
+        layers.filamentLayer.add(this._tagHazardObject(breachSpine, hazard.type, `chrono-sigma-spine-${i}`));
+      }
+    } else if (geometryBias.modeKey === 'memory') {
+      for (let i = 0; i < 2; i++) {
+        const recallHalo = new THREE.LineSegments(
+          this._createBrokenRingGeometry({
+            radius: radius * (0.56 + i * 0.22),
+            heightBias: radius * (0.1 + i * 0.06),
+            segments: 84,
+            gapEvery: 13 + i,
+            gapLength: 1,
+            radialJitter: radius * 0.025,
+            yJitter: radius * 0.015,
+            angleOffset: i * 0.2
+          }),
+          new THREE.LineBasicMaterial({
+            color: i === 0 ? HAZARD_PALETTE.goldSigil : palette.ringSecondary,
+            transparent: true,
+            opacity: 0.075 - i * 0.01,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+          })
+        );
+        recallHalo.rotation.x = Math.PI * (0.5 + i * 0.04);
+        recallHalo.userData.baseOpacity = recallHalo.material.opacity;
+        layers.wakeLayer.add(this._tagHazardObject(recallHalo, hazard.type, `chrono-memory-halo-${i}`));
+      }
+    }
 
     hazard.group = hazard.root;
     hazard.core = core;
@@ -689,6 +948,7 @@ export class EnvironmentalHazards {
       (signals.stabilityLow ? 0.18 : 0) -
       (signals.stabilityHigh ? 0.15 : 0);
     this.sharedUniforms.uSignalBias.value = this.metricSignalBias;
+    this._updateResidueScars(deltaTime, signals);
 
     for (const hazard of Array.from(this.hazards.values())) {
       if (!hazard.active) continue;
@@ -715,19 +975,20 @@ export class EnvironmentalHazards {
     const lodScale = this._getHazardLODScale(hazard);
     const { pulse, slowPulse } = this._getHazardPhaseWeights(hazard);
     const { attack, crest, release } = this._getHazardPhaseState(hazard);
-    const palette = this._getHazardPalette(hazard.type);
+    const palette = this._getHazardPalette(hazard.type, hazard);
+    const motion = this._getHazardMotionProfile(hazard);
     const pressureBoost = this._getPressureBoost(hazard);
     const crestBias = crest + pressureBoost * 0.45;
-    const hover = Math.sin(hazard.time * 0.82) * hazard.radius * (0.015 + pressureBoost * 0.01);
-    const lateralDrift = Math.sin(hazard.time * 0.34) * hazard.radius * 0.012;
+    const hover = Math.sin(hazard.time * 0.82 * motion.pulseMul) * hazard.radius * (0.015 + pressureBoost * 0.01) * motion.driftMul;
+    const lateralDrift = Math.sin(hazard.time * 0.34 * motion.pulseMul) * hazard.radius * 0.012 * motion.driftMul;
 
     hazard.root.position.copy(hazard.basePosition);
     hazard.root.position.y += hover;
     hazard.root.position.x += lateralDrift;
 
-    hazard.root.scale.setScalar(1 + attack * 0.04 + crestBias * 0.08 - release * 0.03);
-    hazard.root.rotation.y += deltaTime * (0.12 + crestBias * 0.2);
-    hazard.root.rotation.x = Math.sin(hazard.time * 0.41) * (0.05 + pressureBoost * 0.05);
+    hazard.root.scale.setScalar(1 + attack * 0.04 + crestBias * 0.08 - release * 0.03 * motion.residueMul);
+    hazard.root.rotation.y += deltaTime * (0.12 + crestBias * 0.2) * motion.shearMul;
+    hazard.root.rotation.x = Math.sin(hazard.time * 0.41 * motion.pulseMul) * (0.05 + pressureBoost * 0.05) * motion.shearMul;
 
     this._applyLayerPulse(hazard.layers.silhouetteLayer, {
       opacityScale: lodScale * (0.65 + crestBias * 0.75),
@@ -799,19 +1060,20 @@ export class EnvironmentalHazards {
     const lodScale = this._getHazardLODScale(hazard);
     const { pulse, slowPulse } = this._getHazardPhaseWeights(hazard);
     const { attack, crest, release } = this._getHazardPhaseState(hazard);
-    const palette = this._getHazardPalette(hazard.type);
+    const palette = this._getHazardPalette(hazard.type, hazard);
+    const motion = this._getHazardMotionProfile(hazard);
     const pressureBoost = this._getPressureBoost(hazard);
     const collapseBias = crest + (signals.stabilityLow ? 0.22 : 0) + pressureBoost * 0.35;
-    const verticalSink = Math.sin(hazard.time * 0.46) * hazard.radius * 0.012;
-    const orbitDrift = Math.cos(hazard.time * 0.22) * hazard.radius * 0.01;
+    const verticalSink = Math.sin(hazard.time * 0.46 * motion.pulseMul) * hazard.radius * 0.012 * motion.driftMul;
+    const orbitDrift = Math.cos(hazard.time * 0.22 * motion.pulseMul) * hazard.radius * 0.01 * motion.driftMul;
 
     hazard.root.position.copy(hazard.basePosition);
     hazard.root.position.y += verticalSink;
     hazard.root.position.z += orbitDrift;
 
-    hazard.root.scale.setScalar(1 + attack * 0.02 + collapseBias * 0.06 - release * 0.02);
-    hazard.root.rotation.y -= deltaTime * (0.07 + collapseBias * 0.08);
-    hazard.root.rotation.z = Math.sin(hazard.time * 0.33) * 0.04;
+    hazard.root.scale.setScalar(1 + attack * 0.02 + collapseBias * 0.06 - release * 0.02 * motion.residueMul);
+    hazard.root.rotation.y -= deltaTime * (0.07 + collapseBias * 0.08) * motion.shearMul;
+    hazard.root.rotation.z = Math.sin(hazard.time * 0.33 * motion.pulseMul) * 0.04 * motion.shearMul;
 
     this._applyLayerPulse(hazard.layers.silhouetteLayer, {
       opacityScale: lodScale * (0.58 + collapseBias * 0.78),
@@ -872,18 +1134,19 @@ export class EnvironmentalHazards {
     const lodScale = this._getHazardLODScale(hazard);
     const { pulse, slowPulse } = this._getHazardPhaseWeights(hazard);
     const { attack, crest } = this._getHazardPhaseState(hazard);
-    const palette = this._getHazardPalette(hazard.type);
+    const palette = this._getHazardPalette(hazard.type, hazard);
+    const motion = this._getHazardMotionProfile(hazard);
     const revelationBias = crest + (signals.stabilityHigh ? 0.24 : 0);
-    const bloomLift = Math.sin(hazard.time * 0.64) * hazard.radius * 0.02;
-    const bloomDrift = Math.cos(hazard.time * 0.28) * hazard.radius * 0.015;
+    const bloomLift = Math.sin(hazard.time * 0.64 * motion.pulseMul) * hazard.radius * 0.02 * motion.driftMul;
+    const bloomDrift = Math.cos(hazard.time * 0.28 * motion.pulseMul) * hazard.radius * 0.015 * motion.driftMul;
 
     hazard.root.position.copy(hazard.basePosition);
     hazard.root.position.y += bloomLift;
     hazard.root.position.x += bloomDrift;
 
     hazard.root.scale.setScalar(1 + attack * 0.03 + revelationBias * 0.05);
-    hazard.root.rotation.y += deltaTime * 0.06;
-    hazard.root.rotation.z = Math.sin(hazard.time * 0.4) * 0.035;
+    hazard.root.rotation.y += deltaTime * 0.06 * motion.shearMul;
+    hazard.root.rotation.z = Math.sin(hazard.time * 0.4 * motion.pulseMul) * 0.035 * motion.shearMul;
 
     this._applyLayerPulse(hazard.layers.silhouetteLayer, {
       opacityScale: lodScale * (0.58 + revelationBias * 0.55),
@@ -958,6 +1221,8 @@ export class EnvironmentalHazards {
   }
 
   deactivateHazard(hazardRef) {
+    const options = arguments.length > 1 && arguments[1] ? arguments[1] : {};
+    const skipScar = options.skipScar === true;
     const hazard = typeof hazardRef === 'string'
       ? this.hazards.get(hazardRef)
       : hazardRef && hazardRef.id
@@ -965,6 +1230,10 @@ export class EnvironmentalHazards {
         : hazardRef;
 
     if (!hazard) return;
+    if (!hazard.active) return;
+    if (!skipScar) {
+      this._spawnResidueScar(hazard);
+    }
     hazard.active = false;
     this.root.remove(hazard.root);
     this._disposeObjectTree(hazard.root);
@@ -989,9 +1258,10 @@ export class EnvironmentalHazards {
 
   dispose() {
     for (const hazard of Array.from(this.hazards.values())) {
-      this.deactivateHazard(hazard);
+      this.deactivateHazard(hazard, { skipScar: true });
     }
 
+    this._clearResidueScars();
     this.hazards.clear();
     this._detachMetricTriggers();
     this.root?.removeFromParent?.();
@@ -1162,9 +1432,11 @@ export class EnvironmentalHazards {
     signalProfile = {},
     effectProfile = {}
   }) {
+    const worldProfile = this._resolveWorldProfile();
     const safePosition = position?.clone?.() || new THREE.Vector3();
     const root = new THREE.Group();
     root.name = `${type}Root`;
+    root.renderOrder = HAZARD_WORLD_BACKGROUND_ORDER;
     root.position.copy(safePosition);
 
     const hazard = {
@@ -1185,24 +1457,22 @@ export class EnvironmentalHazards {
       phase: 'detection',
       phaseTime: 0,
       phaseProgress: 0,
-      phaseDurations: {
-        detection: 0.18,
-        escalation: 0.28,
-        burst: 0.26,
-        residue: 0.28
-      },
+      phaseDurations: this._getHazardPhaseDurations(worldProfile),
       active: true,
       root,
       layers: null,
       uniforms: {},
       signalProfile,
       effectProfile,
+      worldProfile,
       group: root
     };
 
     root.userData = root.userData || {};
     root.userData.hazardPhase = hazard.phase;
+    root.userData.currentMode = worldProfile.modeKey;
     this._tagHazardObject(root, type, `${type}-root`);
+    root.renderOrder = HAZARD_WORLD_BACKGROUND_ORDER;
     return hazard;
   }
 
@@ -1218,7 +1488,7 @@ export class EnvironmentalHazards {
 
     Object.entries(layers).forEach(([key, group], index) => {
       group.name = key;
-      group.renderOrder = 20 + index;
+      group.renderOrder = HAZARD_WORLD_OVERLAY_ORDER;
       root.add(group);
     });
 
@@ -1525,6 +1795,352 @@ export class EnvironmentalHazards {
     };
   }
 
+  _resolveWorldModeKey() {
+    const raw = this.scene?.userData?.currentMode || 'default';
+    const normalized = typeof raw === 'string' ? raw.toLowerCase() : 'default';
+    if (normalized === 'sigma') return 'sigma';
+    if (normalized === 'memory') return 'memory';
+    return 'default';
+  }
+
+  _resolveWorldProfile() {
+    const modeKey = this._resolveWorldModeKey();
+    const profile = HAZARD_WORLD_PROFILE[modeKey] || HAZARD_WORLD_PROFILE.default;
+    return {
+      modeKey,
+      tag: profile.tag,
+      titlePrefix: profile.titlePrefix,
+      toneSuffix: profile.toneSuffix,
+      colors: { ...profile.colors },
+      motion: { ...profile.motion }
+    };
+  }
+
+  _getHazardPhaseDurations(worldProfile) {
+    if (worldProfile?.modeKey === 'sigma') {
+      return {
+        detection: 0.14,
+        escalation: 0.24,
+        burst: 0.32,
+        residue: 0.3
+      };
+    }
+    if (worldProfile?.modeKey === 'memory') {
+      return {
+        detection: 0.22,
+        escalation: 0.22,
+        burst: 0.18,
+        residue: 0.38
+      };
+    }
+    return {
+      detection: 0.18,
+      escalation: 0.28,
+      burst: 0.26,
+      residue: 0.28
+    };
+  }
+
+  _getHazardGeometryBias(hazard) {
+    const modeKey = hazard?.worldProfile?.modeKey || 'default';
+    if (modeKey === 'sigma') {
+      return {
+        modeKey,
+        segmentMul: 1.12,
+        gapEveryMul: 0.74,
+        gapLengthAdd: 1,
+        jitterMul: 1.42,
+        depthMul: 1.28,
+        angleShear: 0.24,
+        phaseShift: 0.18,
+        turnsAdd: 0.22,
+        lateralMul: 0.84,
+        verticalMul: 1.08,
+        veilWidthMul: 0.92,
+        veilHeightMul: 1.02,
+        veilTaperOffset: 0.12,
+        rotationYaw: 0.12,
+        rotationRoll: 0.08,
+        arcRoll: 0.12,
+        veilRoll: 0.1,
+        slitTilt: 0.08,
+        slitWidthAdd: 0.12,
+        wakeScaleY: 0.82
+      };
+    }
+
+    if (modeKey === 'memory') {
+      return {
+        modeKey,
+        segmentMul: 0.96,
+        gapEveryMul: 1.24,
+        gapLengthAdd: 0,
+        jitterMul: 0.76,
+        depthMul: 0.82,
+        angleShear: 0.08,
+        phaseShift: 0.05,
+        turnsAdd: -0.06,
+        lateralMul: 0.74,
+        verticalMul: 1.12,
+        veilWidthMul: 1.08,
+        veilHeightMul: 1.16,
+        veilTaperOffset: -0.1,
+        rotationYaw: 0.04,
+        rotationRoll: 0.03,
+        arcRoll: -0.04,
+        veilRoll: -0.05,
+        slitTilt: 0.03,
+        slitWidthAdd: -0.04,
+        wakeScaleY: 1.16
+      };
+    }
+
+    return {
+      modeKey,
+      segmentMul: 1,
+      gapEveryMul: 1,
+      gapLengthAdd: 0,
+      jitterMul: 1,
+      depthMul: 1,
+      angleShear: 0,
+      phaseShift: 0,
+      turnsAdd: 0,
+      lateralMul: 1,
+      verticalMul: 1,
+      veilWidthMul: 1,
+      veilHeightMul: 1,
+      veilTaperOffset: 0,
+      rotationYaw: 0,
+      rotationRoll: 0,
+      arcRoll: 0,
+      veilRoll: 0,
+      slitTilt: 0,
+      slitWidthAdd: 0,
+      wakeScaleY: 1
+    };
+  }
+
+  _spawnResidueScar(hazard) {
+    if (!hazard?.basePosition || !this.residueRoot) return null;
+
+    const worldProfile = hazard.worldProfile || this.worldProfile || this._resolveWorldProfile();
+    const palette = this._getHazardPalette(hazard.type, hazard);
+    const geometryBias = this._getHazardGeometryBias(hazard);
+    const scarRoot = new THREE.Group();
+    scarRoot.name = `${hazard.type}ResidueScar`;
+    scarRoot.renderOrder = HAZARD_WORLD_BACKGROUND_ORDER;
+    scarRoot.position.copy(hazard.basePosition);
+    scarRoot.userData = scarRoot.userData || {};
+    scarRoot.userData.__environmentLayerId = 'EnvironmentalHazards';
+    scarRoot.userData.__environmentOwner = 'EnvironmentalHazards';
+    scarRoot.userData.isWorldFX = true;
+    scarRoot.userData.type = hazard.type;
+    scarRoot.userData.signature = `${hazard.type}-residue-root`;
+    scarRoot.userData.currentMode = worldProfile.modeKey;
+
+    const ring = new THREE.LineSegments(
+      this._createBrokenRingGeometry({
+        radius: hazard.radius * (worldProfile.modeKey === 'sigma' ? 0.98 : worldProfile.modeKey === 'memory' ? 0.88 : 0.92),
+        heightBias: -hazard.radius * 0.08,
+        segments: Math.max(56, Math.round(88 * geometryBias.segmentMul)),
+        gapEvery: Math.max(4, Math.round((worldProfile.modeKey === 'sigma' ? 6 : 11) * geometryBias.gapEveryMul)),
+        gapLength: Math.max(1, (worldProfile.modeKey === 'sigma' ? 2 : 1) + geometryBias.gapLengthAdd),
+        radialJitter: hazard.radius * 0.05 * geometryBias.jitterMul,
+        yJitter: hazard.radius * 0.018 * geometryBias.jitterMul,
+        angleOffset: geometryBias.angleShear
+      }),
+      new THREE.LineBasicMaterial({
+        color: worldProfile.modeKey === 'sigma'
+          ? palette.ringSecondary || palette.edge
+          : worldProfile.modeKey === 'memory'
+            ? HAZARD_PALETTE.goldSigil
+            : palette.ringPrimary || palette.aura || palette.edge,
+        transparent: true,
+        opacity: worldProfile.modeKey === 'sigma' ? 0.09 : 0.075,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      })
+    );
+    ring.rotation.x = Math.PI * (worldProfile.modeKey === 'sigma' ? 0.58 : 0.5);
+    ring.rotation.z = worldProfile.modeKey === 'sigma' ? 0.22 : 0.08;
+    ring.userData.baseOpacity = ring.material.opacity;
+    scarRoot.add(this._tagHazardObject(ring, hazard.type, `${hazard.type}-residue-ring`));
+
+    const seam = new THREE.Mesh(
+      this._createVeilStripGeometry({
+        width: hazard.radius * (worldProfile.modeKey === 'memory' ? 0.72 : 0.52) * geometryBias.veilWidthMul,
+        height: hazard.radius * (worldProfile.modeKey === 'sigma' ? 1.34 : 1.12) * geometryBias.veilHeightMul,
+        segments: 16,
+        edgeNoise: hazard.radius * 0.035 * geometryBias.jitterMul,
+        depthNoise: hazard.radius * 0.08 * geometryBias.depthMul,
+        taper: Math.max(0.26, 0.46 + geometryBias.veilTaperOffset)
+      }),
+      this._createHazardShaderMaterial({
+        colorA: worldProfile.modeKey === 'sigma'
+          ? HAZARD_PALETTE.breachRose
+          : worldProfile.modeKey === 'memory'
+            ? HAZARD_PALETTE.pressureAmber
+            : palette.ringSecondary || palette.aura || palette.edge,
+        colorB: worldProfile.modeKey === 'memory'
+          ? palette.veil || palette.core
+          : palette.ringPrimary || palette.shadow || palette.edge,
+        opacity: worldProfile.modeKey === 'memory' ? 0.065 : 0.075,
+        bias: worldProfile.modeKey === 'sigma' ? -0.12 : 0.06,
+        pulse: worldProfile.modeKey === 'memory' ? 0.28 : 0.36,
+        flowSpeed: worldProfile.modeKey === 'sigma' ? 0.18 : 0.12,
+        additive: true,
+        side: THREE.DoubleSide
+      })
+    );
+    seam.position.y = worldProfile.modeKey === 'memory' ? hazard.radius * 0.1 : 0;
+    seam.rotation.y = worldProfile.modeKey === 'sigma' ? 0.36 : 0.18;
+    seam.rotation.z = worldProfile.modeKey === 'sigma' ? 0.22 : -0.08;
+    seam.userData.baseOpacity = seam.material.uniforms.uOpacity.value;
+    scarRoot.add(this._tagHazardObject(seam, hazard.type, `${hazard.type}-residue-seam`));
+
+    if (worldProfile.modeKey === 'sigma') {
+      for (let i = 0; i < 2; i++) {
+        const fracture = new THREE.Line(
+          this._createFilamentCurveGeometry({
+            radius: hazard.radius * (0.18 + i * 0.08),
+            verticalSpan: hazard.radius * (1.12 + i * 0.08),
+            lateralAmplitude: hazard.radius * 0.04,
+            turns: 0.46 + i * 0.08,
+            segments: 18,
+            phase: 0.24 + i * 1.3
+          }),
+          new THREE.LineBasicMaterial({
+            color: i === 0 ? HAZARD_PALETTE.breachRose : palette.ringPrimary || palette.edge,
+            transparent: true,
+            opacity: 0.075 - i * 0.01,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+          })
+        );
+        fracture.rotation.z = (i === 0 ? 1 : -1) * 0.3;
+        fracture.userData.baseOpacity = fracture.material.opacity;
+        scarRoot.add(this._tagHazardObject(fracture, hazard.type, `${hazard.type}-residue-fracture-${i}`));
+      }
+    } else if (worldProfile.modeKey === 'memory') {
+      const archiveHalo = new THREE.LineSegments(
+        this._createBrokenRingGeometry({
+          radius: hazard.radius * 0.64,
+          heightBias: hazard.radius * 0.1,
+          segments: 72,
+          gapEvery: 14,
+          gapLength: 1,
+          radialJitter: hazard.radius * 0.018,
+          yJitter: hazard.radius * 0.012,
+          angleOffset: 0.14
+        }),
+        new THREE.LineBasicMaterial({
+          color: HAZARD_PALETTE.pressureAmber,
+          transparent: true,
+          opacity: 0.06,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        })
+      );
+      archiveHalo.rotation.x = Math.PI * 0.48;
+      archiveHalo.userData.baseOpacity = archiveHalo.material.opacity;
+      scarRoot.add(this._tagHazardObject(archiveHalo, hazard.type, `${hazard.type}-residue-halo`));
+    }
+
+    const shardField = this._createShardField({
+      count: worldProfile.modeKey === 'sigma' ? 18 : worldProfile.modeKey === 'memory' ? 14 : 12,
+      radius: hazard.radius * (worldProfile.modeKey === 'sigma' ? 0.84 : 0.72),
+      height: hazard.radius * (worldProfile.modeKey === 'memory' ? 0.3 : 0.24),
+      size: hazard.radius * 0.012,
+      colorA: worldProfile.modeKey === 'sigma'
+        ? (palette.ringPrimary || palette.edge)
+        : (palette.ringSecondary || palette.aura || palette.edge),
+      colorB: worldProfile.modeKey === 'memory'
+        ? HAZARD_PALETTE.pressureAmber
+        : HAZARD_PALETTE.breachRose,
+      opacity: worldProfile.modeKey === 'memory' ? 0.16 : 0.18
+    });
+    scarRoot.add(this._tagHazardObject(shardField.points, hazard.type, `${hazard.type}-residue-shards`));
+
+    const scar = {
+      id: `residue.${hazard.id}`,
+      type: hazard.type,
+      worldProfile,
+      age: 0,
+      lifetime: hazard.radius * 0.16 + (worldProfile.modeKey === 'memory' ? 6.5 : worldProfile.modeKey === 'sigma' ? 4.2 : 5.1),
+      root: scarRoot,
+      basePosition: hazard.basePosition.clone(),
+      ring,
+      seam,
+      shardField
+    };
+
+    this.residueRoot.add(scarRoot);
+    this.residueScars.push(scar);
+    this._emitResidueScarEvent(scar, hazard);
+    return scar;
+  }
+
+  _updateResidueScars(deltaTime) {
+    if (!this.residueScars.length) return;
+
+    for (let i = this.residueScars.length - 1; i >= 0; i--) {
+      const scar = this.residueScars[i];
+      scar.age += deltaTime;
+      const t = Math.max(0, Math.min(1, scar.lifetime > 0 ? scar.age / scar.lifetime : 1));
+      const fade = 1 - this._smoothstep(0, 1, t);
+      const motion = scar.worldProfile?.motion || HAZARD_WORLD_PROFILE.default.motion;
+
+      scar.root.position.copy(scar.basePosition);
+      scar.root.position.y += Math.sin(this.sharedUniforms.uTime.value * (0.2 + motion.pulseMul * 0.08) + i * 0.4) * scar.root.scale.y * 0.02;
+      scar.root.rotation.y += deltaTime * (scar.worldProfile?.modeKey === 'sigma' ? 0.08 : 0.035) * motion.shearMul;
+
+      if (scar.ring?.material) {
+        scar.ring.material.opacity = (scar.ring.userData.baseOpacity || 0.06) * fade;
+        scar.ring.rotation.z += deltaTime * (scar.worldProfile?.modeKey === 'sigma' ? 0.06 : 0.02);
+        scar.ring.scale.setScalar(1 + (1 - fade) * (scar.worldProfile?.modeKey === 'memory' ? 0.1 : 0.16));
+      }
+
+      if (scar.seam?.material) {
+        this._updateShaderUniforms(scar.seam.material, {
+          opacity: (scar.seam.userData.baseOpacity || 0.06) * fade,
+          time: this.sharedUniforms.uTime.value,
+          pulse: scar.worldProfile?.modeKey === 'memory' ? 0.24 : 0.32
+        });
+        scar.seam.rotation.y += deltaTime * (scar.worldProfile?.modeKey === 'sigma' ? 0.09 : 0.03) * motion.shearMul;
+        scar.seam.scale.setScalar(1 + (1 - fade) * 0.08);
+      }
+
+      this._updateShardField(scar.shardField, {
+        radius: scar.shardField.baseRadius,
+        time: this.sharedUniforms.uTime.value
+      }, deltaTime, {
+        radialSpeed: scar.worldProfile?.modeKey === 'sigma' ? -0.06 : 0.02,
+        verticalMotion: scar.worldProfile?.modeKey === 'memory' ? 0.06 : 0.04,
+        swirl: scar.worldProfile?.modeKey === 'sigma' ? -0.18 : 0.12,
+        mode: 'residue',
+        lodScale: fade
+      });
+
+      if (scar.age >= scar.lifetime) {
+        this._disposeResidueScarAt(i);
+      }
+    }
+  }
+
+  _disposeResidueScarAt(index) {
+    const scar = this.residueScars[index];
+    if (!scar) return;
+    this.residueRoot?.remove?.(scar.root);
+    this._disposeObjectTree(scar.root);
+    this.residueScars.splice(index, 1);
+  }
+
+  _clearResidueScars() {
+    for (let i = this.residueScars.length - 1; i >= 0; i--) {
+      this._disposeResidueScarAt(i);
+    }
+  }
+
   _updateShardField(field, hazard, deltaTime, { radialSpeed, verticalMotion, swirl, mode, lodScale }) {
     if (!field?.points?.geometry?.attributes?.position) return;
 
@@ -1543,6 +2159,12 @@ export class EnvironmentalHazards {
         }
       } else if (mode === 'chrono') {
         field.radii[i] = field.baseRadius * (0.68 + Math.sin(hazard.time * 0.42 + field.phases[i]) * 0.12 + (i % 3) * 0.04);
+      } else if (mode === 'residue') {
+        field.radii[i] = THREE.MathUtils.clamp(
+          field.radii[i],
+          field.baseRadius * 0.36,
+          field.baseRadius * 1.08
+        );
       }
 
       const verticalWave = Math.sin(hazard.time * (0.8 + (i % 4) * 0.14) + field.phases[i]) * hazard.radius * 0.04;
@@ -1606,35 +2228,37 @@ export class EnvironmentalHazards {
     return Math.max(0.65, Math.min(1.55, scale));
   }
 
-  _getHazardPalette(type) {
+  _getHazardPalette(type, hazard = null) {
+    const worldProfile = hazard?.worldProfile || this.worldProfile || this._resolveWorldProfile();
+    const bias = worldProfile?.colors || HAZARD_WORLD_PROFILE.default.colors;
     switch (type) {
       case 'electricalStorm':
         return {
           core: HAZARD_PALETTE.coreWhite,
-          edge: HAZARD_PALETTE.electricEdge,
-          aura: HAZARD_PALETTE.primaryCyan,
-          shadow: HAZARD_PALETTE.stormShadow
+          edge: bias.stormEdge,
+          aura: bias.stormAura,
+          shadow: bias.stormShell
         };
       case 'gravitationalAnomaly':
         return {
           core: HAZARD_PALETTE.blackHole,
-          ringPrimary: HAZARD_PALETTE.primaryCyan,
-          ringSecondary: HAZARD_PALETTE.quantumViolet,
-          veil: HAZARD_PALETTE.softHalo
+          ringPrimary: bias.gravityPrimary,
+          ringSecondary: bias.gravitySecondary,
+          veil: bias.gravityVeil
         };
       case 'chronoBloom':
         return {
-          core: HAZARD_PALETTE.ritualWhite,
-          ringPrimary: HAZARD_PALETTE.bloomMint,
-          ringSecondary: HAZARD_PALETTE.quantumViolet,
-          veil: HAZARD_PALETTE.goldSigil
+          core: bias.chronoCore,
+          ringPrimary: bias.chronoPrimary,
+          ringSecondary: bias.chronoSecondary,
+          veil: bias.chronoGold
         };
       default:
         return {
           core: HAZARD_PALETTE.coreWhite,
-          edge: HAZARD_PALETTE.electricEdge,
-          aura: HAZARD_PALETTE.primaryCyan,
-          shadow: HAZARD_PALETTE.stormShadow
+          edge: bias.stormEdge,
+          aura: bias.stormAura,
+          shadow: bias.stormShell
         };
     }
   }
@@ -1647,6 +2271,10 @@ export class EnvironmentalHazards {
       pulse: Math.sin(hazard.time * 1.8) * 0.12 * intensityScale + 1.0,
       slowPulse: Math.sin(hazard.time * 0.95) * 0.06 * intensityScale + 1.0
     };
+  }
+
+  _getHazardMotionProfile(hazard) {
+    return hazard?.worldProfile?.motion || HAZARD_WORLD_PROFILE.default.motion;
   }
 
   _smoothstep(edge0, edge1, x) {
@@ -1741,25 +2369,40 @@ export class EnvironmentalHazards {
     const phase = hazard.phase || 'detection';
     const phaseSuffix = phase === 'burst' ? 'burst' : phase === 'residue' ? 'residue' : phase === 'escalation' ? 'escalation' : 'detection';
     const phaseTag = `hazard.phase.${phase}`;
+    const worldProfile = hazard?.worldProfile || this.worldProfile || this._resolveWorldProfile();
+    const worldTag = worldProfile?.tag || 'world.default';
 
     switch (hazard.type) {
       case 'electricalStorm':
         return {
-          subtitle: signals.corruptionHigh
+          subtitle: worldProfile.modeKey === 'sigma'
+            ? (signals.corruptionHigh
+              ? 'Rift conductors fork through corrupted anomaly seams'
+              : 'Sigma pressure forks through the chamber skin')
+            : worldProfile.modeKey === 'memory'
+              ? (signals.corruptionHigh
+                ? 'Mnemonic lightning tears through archival recall lanes'
+                : 'Archive conductors pulse across memory vault air')
+              : signals.corruptionHigh
             ? 'Corruption crowns the conductor ribs'
             : signals.loadPressureHigh
               ? 'Pressure forks through the cathedral lattice'
               : signals.stabilityHigh
                 ? 'Purified lightning gathers into ritual order'
                 : 'Cathedral storm of high pressure',
-          visualTone: signals.corruptionHigh ? `electric-corrupt-${phaseSuffix}` : `electric-sacred-${phaseSuffix}`,
-          semanticSubtitle: signals.loadPressureHigh
+          visualTone: signals.corruptionHigh ? `electric-corrupt-${worldProfile.toneSuffix}-${phaseSuffix}` : `electric-sacred-${worldProfile.toneSuffix}-${phaseSuffix}`,
+          semanticSubtitle: worldProfile.modeKey === 'sigma'
+            ? 'A sigma-rift conductor storm is discharging through fractured world seams.'
+            : worldProfile.modeKey === 'memory'
+              ? 'An archival lightning field is flashing through mnemonic air and recall corridors.'
+              : signals.loadPressureHigh
             ? 'A pressure-driven rupture field is discharging across the world shell.'
             : 'A charged storm lattice is asserting repulsive territory.',
           semanticTags: [
             'environment.hazard',
             'hazard.electricalStorm',
             phaseTag,
+            worldTag,
             signals.corruptionHigh ? 'signal.corruption.high' : 'signal.electric.field',
             signals.loadPressureHigh ? 'signal.loadPressure.high' : 'signal.rupture.pending'
           ],
@@ -1777,21 +2420,34 @@ export class EnvironmentalHazards {
         };
       case 'gravitationalAnomaly':
         return {
-          subtitle: signals.stabilityLow
+          subtitle: worldProfile.modeKey === 'sigma'
+            ? (signals.stabilityLow
+              ? 'Sigma slits close around a collapsing logic wound'
+              : 'Anomaly lenses shear the chamber into eclipse')
+            : worldProfile.modeKey === 'memory'
+              ? (signals.stabilityLow
+                ? 'Recall wells deepen into a quiet archive collapse'
+                : 'Memory lenses bend the aisle into impossible depth')
+              : signals.stabilityLow
             ? 'Collapse seams tighten into a silent eclipse'
             : signals.loadPressureHigh
               ? 'Lens curtains compress under impossible weight'
               : signals.corruptionHigh
                 ? 'Corrupted gravity twists the orbit skin'
                 : 'Silent gravitational authority',
-          visualTone: signals.corruptionHigh ? `cosmic-corrupt-${phaseSuffix}` : `cosmic-collapse-${phaseSuffix}`,
-          semanticSubtitle: signals.stabilityLow
+          visualTone: signals.corruptionHigh ? `cosmic-corrupt-${worldProfile.toneSuffix}-${phaseSuffix}` : `cosmic-collapse-${worldProfile.toneSuffix}-${phaseSuffix}`,
+          semanticSubtitle: worldProfile.modeKey === 'sigma'
+            ? 'A sigma collapse well is folding nearby space into slit-fracture torsion.'
+            : worldProfile.modeKey === 'memory'
+              ? 'A mnemonic gravity well is bending recall space into archive eclipse.'
+              : signals.stabilityLow
             ? 'A local region is folding inward and pulling surrounding space into torsion.'
             : 'A singularity field is imposing directional pull and lens distortion.',
           semanticTags: [
             'environment.hazard',
             'hazard.gravitationalAnomaly',
             phaseTag,
+            worldTag,
             signals.stabilityLow ? 'signal.stability.low' : 'signal.gravity.well',
             signals.loadPressureHigh ? 'signal.loadPressure.high' : 'signal.spatial-collapse'
           ],
@@ -1805,19 +2461,32 @@ export class EnvironmentalHazards {
         };
       case 'chronoBloom':
         return {
-          subtitle: signals.stabilityHigh
+          subtitle: worldProfile.modeKey === 'sigma'
+            ? (signals.stabilityHigh
+              ? 'A sigma bloom opens like a controlled breach orchid'
+              : 'Temporal petals split across the rift skin')
+            : worldProfile.modeKey === 'memory'
+              ? (signals.stabilityHigh
+                ? 'Archive petals unfold into lucid recall sanctuaries'
+                : 'Time-scribed petals open through layered memory')
+              : signals.stabilityHigh
             ? 'Stable unreality opens into a majestic bloom'
             : signals.corruptionHigh
               ? 'Revelation petals split through corrupted time'
               : 'Majestic aperture of stable unreality',
-          visualTone: signals.corruptionHigh ? `revelation-corrupt-${phaseSuffix}` : `revelation-sacred-${phaseSuffix}`,
-          semanticSubtitle: signals.stabilityHigh
+          visualTone: signals.corruptionHigh ? `revelation-corrupt-${worldProfile.toneSuffix}-${phaseSuffix}` : `revelation-sacred-${worldProfile.toneSuffix}-${phaseSuffix}`,
+          semanticSubtitle: worldProfile.modeKey === 'sigma'
+            ? 'A rare sigma bloom is opening as a disciplined breach rather than a hostile collapse.'
+            : worldProfile.modeKey === 'memory'
+              ? 'A mnemonic bloom is opening a lucid archive field with low hostility.'
+              : signals.stabilityHigh
             ? 'A rare temporal bloom is opening a safe but surreal revelation field.'
             : 'A temporal aperture is unfolding layered perception without direct hostility.',
           semanticTags: [
             'environment.hazard',
             'hazard.chronoBloom',
             phaseTag,
+            worldTag,
             signals.stabilityHigh ? 'signal.stability.high' : 'signal.revelation.field',
             signals.corruptionHigh ? 'signal.corruption.edge' : 'signal.temporal-bloom'
           ],
@@ -1877,31 +2546,100 @@ export class EnvironmentalHazards {
     }
   }
 
+  _emitResidueScarEvent(scar, hazard) {
+    const bus = this.metricBus;
+    if (!bus || !scar || !hazard) return;
+
+    const worldModeRaw = typeof this.scene?.userData?.currentMode === 'string'
+      ? this.scene.userData.currentMode.toLowerCase()
+      : (scar.worldProfile?.modeKey || this.worldProfile?.modeKey || 'default');
+    const intensity = hazard.intensity ?? hazard.strength ?? 1;
+    const radius = hazard.radius ?? 0;
+
+    const payload = {
+      type: 'hazardResidueScar',
+      source: 'EnvironmentalHazards',
+      hazardType: hazard.type,
+      worldModeKey: scar.worldProfile?.modeKey || this.worldProfile?.modeKey || 'default',
+      worldModeRaw,
+      intensity,
+      radius,
+      lifetime: scar.lifetime ?? 0,
+      timestamp: this._now(),
+      position: {
+        x: scar.basePosition?.x ?? 0,
+        y: scar.basePosition?.y ?? 0,
+        z: scar.basePosition?.z ?? 0
+      },
+      coupling: {
+        horizonPressure: THREE.MathUtils.clamp(0.16 + intensity * 0.28 + radius * 0.008, 0.16, 0.92),
+        weatherPotential: THREE.MathUtils.clamp(0.05 + intensity * 0.14 + radius * 0.0025, 0.05, 0.4),
+        weatherIntensity: THREE.MathUtils.clamp(0.1 + intensity * 0.18, 0.1, 0.46),
+        windBoost: THREE.MathUtils.clamp(0.08 + intensity * 0.16, 0.08, 0.44),
+        duration: THREE.MathUtils.clamp(2.4 + radius * 0.1, 2.4, 7.2)
+      }
+    };
+
+    if (typeof bus.emit === 'function') {
+      bus.emit('environment.hazard.residueScar', payload);
+      return;
+    }
+    if (typeof bus.publish === 'function') {
+      bus.publish('environment.hazard.residueScar', payload);
+    }
+  }
+
   _getHazardEventData(hazard) {
+    const worldProfile = hazard?.worldProfile || this.worldProfile || this._resolveWorldProfile();
+    const prefix = worldProfile?.titlePrefix ? `${worldProfile.titlePrefix} ` : '';
     switch (hazard.type) {
       case 'electricalStorm':
         return {
           identity: 'thunder crown',
-          title: 'Thunder Crown',
-          subtitle: 'Cathedral storm of high pressure',
+          title: `${prefix}Thunder Crown`,
+          subtitle: worldProfile.modeKey === 'sigma'
+            ? 'Rift conductor storm over anomaly architecture'
+            : worldProfile.modeKey === 'memory'
+              ? 'Archive conductor storm over mnemonic halls'
+              : 'Cathedral storm of high pressure',
           visualTone: 'electric',
-          detail: 'A sacred-tech storm field radiating broken halo ribs, conductor arcs, and charged pressure wakes.'
+          detail: worldProfile.modeKey === 'sigma'
+            ? 'A sigma-tech storm field radiating fracture ribs, conductor arcs, and rift-pressure wakes.'
+            : worldProfile.modeKey === 'memory'
+              ? 'An archival storm field radiating recall arcs, ivory conductor ribs, and mnemonic afterglow wakes.'
+              : 'A sacred-tech storm field radiating broken halo ribs, conductor arcs, and charged pressure wakes.'
         };
       case 'gravitationalAnomaly':
         return {
           identity: 'singularity eclipse',
-          title: 'Singularity Eclipse',
-          subtitle: 'Silent gravitational authority',
+          title: `${prefix}Singularity Eclipse`,
+          subtitle: worldProfile.modeKey === 'sigma'
+            ? 'Slit-fracture gravity under anomaly strain'
+            : worldProfile.modeKey === 'memory'
+              ? 'Archive gravity distorting recall corridors'
+              : 'Silent gravitational authority',
           visualTone: 'cosmic',
-          detail: 'A void-surreal collapse field pulling space into slit fractures, lens curtains, and torsion orbits.'
+          detail: worldProfile.modeKey === 'sigma'
+            ? 'A sigma collapse field pulling space into glitch slits, lens scars, and torsion fracture orbits.'
+            : worldProfile.modeKey === 'memory'
+              ? 'A mnemonic collapse field bending recall space into archive wells, lens curtains, and soft torsion orbits.'
+              : 'A void-surreal collapse field pulling space into slit fractures, lens curtains, and torsion orbits.'
         };
       case 'chronoBloom':
         return {
           identity: 'chrono bloom',
-          title: 'Chrono Bloom',
-          subtitle: 'Majestic aperture of stable unreality',
+          title: `${prefix}Chrono Bloom`,
+          subtitle: worldProfile.modeKey === 'sigma'
+            ? 'Stable breach orchid of the rift shell'
+            : worldProfile.modeKey === 'memory'
+              ? 'Lucid archive aperture of preserved recall'
+              : 'Majestic aperture of stable unreality',
           visualTone: 'revelation',
-          detail: 'A rare revelation bloom opening petal halos, sigil crowns, and surreal temporal bloom curtains.'
+          detail: worldProfile.modeKey === 'sigma'
+            ? 'A rare sigma bloom opening breach petals, disciplined sigil crowns, and surreal anomaly curtains.'
+            : worldProfile.modeKey === 'memory'
+              ? 'A rare archive bloom opening recall petals, memory crowns, and temporal preservation curtains.'
+              : 'A rare revelation bloom opening petal halos, sigil crowns, and surreal temporal bloom curtains.'
         };
       default:
         return {
@@ -1917,6 +2655,7 @@ export class EnvironmentalHazards {
   _tagHazardObject(object, type, signature) {
     if (!object) return object;
     object.userData = object.userData || {};
+    object.renderOrder = HAZARD_WORLD_OVERLAY_ORDER;
     object.userData.__environmentLayerId = 'EnvironmentalHazards';
     object.userData.__environmentOwner = 'EnvironmentalHazards';
     object.userData.isWorldFX = true;

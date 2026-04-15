@@ -88,9 +88,27 @@ export class AIConsciousnessLayer {
     // Global field shell and edge halo
     this.globalFieldMesh = null;
     this.globalFieldEdge = null;
+    this.globalFieldChoir = null;
     
     // Thought storms sub-system (lazy-loaded)
     this.storms = null;
+    
+    // Ritual coupling: lets consciousness act like the world's ceremonial nervous system.
+    this.semanticBus = this._resolveSemanticBus();
+    this._ritualSubscriptions = [];
+    this.ritualState = {
+      active: false,
+      ritualType: null,
+      phase: 'NONE',
+      intensity: 0,
+      targetIntensity: 0,
+      anchor: new THREE.Vector3(),
+      palette: this._getRitualPalette(null),
+      stamp: 0
+    };
+    this.ritualFieldVeil = null;
+    this.ritualFieldWitness = null;
+    this._ritualWitnessBasePositions = null;
     
     // Performance tracking
     this.stats = {
@@ -117,6 +135,7 @@ export class AIConsciousnessLayer {
     
     this._initializeParticlePools();
     this._createGlobalField();
+    this._setupRitualBridge();
   }
   
   /**
@@ -222,6 +241,246 @@ export class AIConsciousnessLayer {
     edgeLines.userData.isGlobalFieldEdge = true;
     this.consciousnessGroup.add(edgeLines);
     this.globalFieldEdge = edgeLines;
+
+    const choirPositions = [];
+    const choirLoops = [
+      { radiusX: this.config.globalFieldScale * 0.92, radiusZ: this.config.globalFieldScale * 0.54, y: this.config.globalFieldScale * 0.14, wobble: 0.22, count: 52 },
+      { radiusX: this.config.globalFieldScale * 0.74, radiusZ: this.config.globalFieldScale * 0.92, y: -this.config.globalFieldScale * 0.08, wobble: 0.18, count: 46 },
+      { radiusX: this.config.globalFieldScale * 0.68, radiusZ: this.config.globalFieldScale * 0.68, y: this.config.globalFieldScale * 0.28, wobble: 0.3, count: 40 }
+    ];
+    for (const loop of choirLoops) {
+      for (let i = 0; i < loop.count; i++) {
+        const tA = (i / loop.count) * Math.PI * 2;
+        const tB = ((i + 1) / loop.count) * Math.PI * 2;
+        choirPositions.push(
+          Math.cos(tA) * loop.radiusX,
+          loop.y + Math.sin(tA * 2.0) * loop.wobble,
+          Math.sin(tA) * loop.radiusZ,
+          Math.cos(tB) * loop.radiusX,
+          loop.y + Math.sin(tB * 2.0) * loop.wobble,
+          Math.sin(tB) * loop.radiusZ
+        );
+      }
+    }
+    const choirGeometry = new THREE.BufferGeometry();
+    choirGeometry.setAttribute('position', new THREE.Float32BufferAttribute(choirPositions, 3));
+    const choirMaterial = new THREE.LineBasicMaterial({
+      color: 0xf7fbff,
+      transparent: true,
+      opacity: 0.06,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false
+    });
+    const choirLines = new THREE.LineSegments(choirGeometry, choirMaterial);
+    choirLines.name = 'GlobalConsciousnessChoir';
+    choirLines.userData.isGlobalFieldChoir = true;
+    this.consciousnessGroup.add(choirLines);
+    this.globalFieldChoir = choirLines;
+
+    const veilGeometry = new THREE.OctahedronGeometry(this.config.globalFieldScale * 0.86, 3);
+    const veilMaterial = new THREE.MeshBasicMaterial({
+      color: 0xf7fbff,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      fog: false
+    });
+    const veilMesh = new THREE.Mesh(veilGeometry, veilMaterial);
+    veilMesh.name = 'GlobalConsciousnessRitualVeil';
+    veilMesh.userData.isRitualField = true;
+    this.consciousnessGroup.add(veilMesh);
+    this.ritualFieldVeil = veilMesh;
+
+    const witnessCount = 144;
+    const witnessRadius = this.config.globalFieldScale * 0.96;
+    const witnessPositions = new Float32Array(witnessCount * 3);
+    for (let i = 0; i < witnessCount; i++) {
+      const t = i + 0.5;
+      const inclination = Math.acos(1 - (2 * t) / witnessCount);
+      const azimuth = Math.PI * (1 + Math.sqrt(5)) * t;
+      const idx = i * 3;
+      witnessPositions[idx] = Math.cos(azimuth) * Math.sin(inclination) * witnessRadius;
+      witnessPositions[idx + 1] = Math.cos(inclination) * witnessRadius;
+      witnessPositions[idx + 2] = Math.sin(azimuth) * Math.sin(inclination) * witnessRadius;
+    }
+    const witnessGeometry = new THREE.BufferGeometry();
+    witnessGeometry.setAttribute('position', new THREE.BufferAttribute(witnessPositions.slice(), 3));
+    const witnessMaterial = new THREE.PointsMaterial({
+      color: 0xf7fbff,
+      size: 0.22,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      sizeAttenuation: true,
+      fog: false
+    });
+    const witnessPoints = new THREE.Points(witnessGeometry, witnessMaterial);
+    witnessPoints.name = 'GlobalConsciousnessWitness';
+    witnessPoints.userData.isRitualWitness = true;
+    this.consciousnessGroup.add(witnessPoints);
+    this.ritualFieldWitness = witnessPoints;
+    this._ritualWitnessBasePositions = witnessPositions;
+  }
+
+  _resolveSemanticBus() {
+    if (globalThis?.ATOMA_BUS || globalThis?.semanticBus) {
+      return globalThis.ATOMA_BUS || globalThis.semanticBus || null;
+    }
+
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    return browserWindow?.ATOMA_BUS || browserWindow?.semanticBus || null;
+  }
+
+  _setupRitualBridge() {
+    const bus = this.semanticBus || this._resolveSemanticBus();
+    if (!bus?.subscribe) return;
+
+    this.semanticBus = bus;
+
+    const ritualOn = (payload = {}) => this._applyRitualPayload(payload, false);
+    const ritualOff = (payload = {}) => this._applyRitualPayload(payload, true);
+    const subscriptions = [
+      ['semantic.ritual.started', ritualOn],
+      ['semantic.ritual.phase', ritualOn],
+      ['ritual.prelude', ritualOn],
+      ['ritual.active', ritualOn],
+      ['ritual.crest', ritualOn],
+      ['ritual.descend', ritualOn],
+      ['ritual.release', ritualOff],
+      ['semantic.ritual.completed', ritualOff]
+    ];
+
+    for (const [eventName, handler] of subscriptions) {
+      const unsubscribe = bus.subscribe(eventName, handler);
+      if (typeof unsubscribe === 'function') {
+        this._ritualSubscriptions.push(unsubscribe);
+      } else if (typeof bus.unsubscribe === 'function') {
+        this._ritualSubscriptions.push(() => bus.unsubscribe(eventName, handler));
+      }
+    }
+  }
+
+  _disposeRitualBridge() {
+    while (this._ritualSubscriptions.length > 0) {
+      const unsubscribe = this._ritualSubscriptions.pop();
+      try {
+        if (typeof unsubscribe === 'function') unsubscribe();
+      } catch (err) {
+        console.warn('[AIConsciousnessLayer] Ritual bridge cleanup failed:', err);
+      }
+    }
+  }
+
+  _phaseToIntensity(phase) {
+    switch (phase) {
+      case 'INIT':
+        return 0.32;
+      case 'RISE':
+        return 0.72;
+      case 'PEAK':
+        return 1.0;
+      case 'FALL':
+        return 0.46;
+      case 'COMPLETED':
+      case 'NONE':
+      default:
+        return 0;
+    }
+  }
+
+  _getRitualPalette(ritualType, palettePayload = null) {
+    const payload = palettePayload || {};
+    const fallback = {
+      primary: new THREE.Color(0xf7fbff),
+      secondary: new THREE.Color(0xb9d9ff),
+      accent: new THREE.Color(0xffffff),
+      void: new THREE.Color(0x121824)
+    };
+
+    const paletteMap = {
+      ASCENSION_RITUAL: {
+        primary: new THREE.Color(payload.primary ?? 0xffd700),
+        secondary: new THREE.Color(payload.secondary ?? 0xfff1a8),
+        accent: new THREE.Color(payload.accent ?? 0xf7fbff),
+        void: new THREE.Color(payload.void ?? 0x142648)
+      },
+      QUANTUM_FISSURE: {
+        primary: new THREE.Color(payload.primary ?? 0xff4bff),
+        secondary: new THREE.Color(payload.secondary ?? 0xc775ff),
+        accent: new THREE.Color(payload.accent ?? 0xf7d6ff),
+        void: new THREE.Color(payload.void ?? 0x1c0934)
+      },
+      HARMONY_CONVERGENCE: {
+        primary: new THREE.Color(payload.primary ?? 0x00ffaa),
+        secondary: new THREE.Color(payload.secondary ?? 0x77f7db),
+        accent: new THREE.Color(payload.accent ?? 0xf7fbff),
+        void: new THREE.Color(payload.void ?? 0x06263a)
+      },
+      CHAOS_RITUAL: {
+        primary: new THREE.Color(payload.primary ?? 0xff2f7b),
+        secondary: new THREE.Color(payload.secondary ?? 0xff73cf),
+        accent: new THREE.Color(payload.accent ?? 0xffd1ee),
+        void: new THREE.Color(payload.void ?? 0x2b061a)
+      },
+      MYTHIC_SIGNAL: {
+        primary: new THREE.Color(payload.primary ?? 0xf7fbff),
+        secondary: new THREE.Color(payload.secondary ?? 0xb9d9ff),
+        accent: new THREE.Color(payload.accent ?? 0xffffff),
+        void: new THREE.Color(payload.void ?? 0x121824)
+      },
+      ECHO_RITUAL: {
+        primary: new THREE.Color(payload.primary ?? 0x8888ff),
+        secondary: new THREE.Color(payload.secondary ?? 0x8fe2ff),
+        accent: new THREE.Color(payload.accent ?? 0xe7f1ff),
+        void: new THREE.Color(payload.void ?? 0x101d3b)
+      }
+    };
+
+    return paletteMap[ritualType] || fallback;
+  }
+
+  _applyRitualPayload(payload = {}, release = false) {
+    const ritualType = payload.ritualType || this.ritualState.ritualType;
+    this.ritualState.ritualType = ritualType;
+    this.ritualState.phase = payload.phase ?? (release ? 'FALL' : this.ritualState.phase);
+    this.ritualState.palette = this._getRitualPalette(ritualType, payload.palette);
+    this.ritualState.stamp = performance.now();
+
+    if (payload.anchor && Number.isFinite(payload.anchor.x) && Number.isFinite(payload.anchor.y) && Number.isFinite(payload.anchor.z)) {
+      this.ritualState.anchor.set(payload.anchor.x, payload.anchor.y, payload.anchor.z);
+    }
+
+    const intensity = Number.isFinite(payload.phaseIntensity)
+      ? payload.phaseIntensity
+      : this._phaseToIntensity(payload.phase);
+    this.ritualState.active = !release;
+    this.ritualState.targetIntensity = release ? 0 : intensity;
+  }
+
+  _updateRitualState(visualDelta) {
+    const alpha = 1 - Math.exp(-Math.max(0.0001, visualDelta) * (this.ritualState.targetIntensity > this.ritualState.intensity ? 3.4 : 1.9));
+    this.ritualState.intensity = THREE.MathUtils.lerp(this.ritualState.intensity, this.ritualState.targetIntensity, alpha);
+
+    if (!this.ritualState.active && this.ritualState.intensity <= 0.02) {
+      this.ritualState.intensity = 0;
+      this.ritualState.targetIntensity = 0;
+      this.ritualState.ritualType = null;
+      this.ritualState.phase = 'NONE';
+    }
+  }
+
+  _blendWithRitualColor(baseColor, amount = 0.5) {
+    const ritualIntensity = this.ritualState.intensity;
+    if (ritualIntensity <= 0.001 || !baseColor) return baseColor.clone();
+
+    const blend = THREE.MathUtils.clamp(amount * ritualIntensity, 0, 1);
+    return baseColor.clone()
+      .lerp(this.ritualState.palette.primary, blend * 0.72)
+      .lerp(this.ritualState.palette.secondary, blend * 0.42);
   }
   
   /**
@@ -545,6 +804,8 @@ export class AIConsciousnessLayer {
     const semanticValue = this._hasLinkSemanticValue(link) ? 1 : 0.72;
     const recent = 0.65 + signal * 0.35;
     const baseStrength = (0.24 + signal * 0.46 + categoryInfluence * 0.18 + semanticValue * 0.12) * this.config.intensity;
+    const ritualBoost = 1 + this.ritualState.intensity * 0.38;
+    const ritualPatternBias = 1 + this.ritualState.intensity * 0.62;
 
     return {
       signal,
@@ -552,9 +813,9 @@ export class AIConsciousnessLayer {
       harmony,
       categoryInfluence,
       semanticValue,
-      threadProb: Math.min(0.42, 0.12 + baseStrength * 0.18 + signal * 0.07),
-      pulseWeight: Math.max(0.01, baseStrength * (0.5 + signal * 0.32 + categoryInfluence * 0.15) * this.config.particleDensity),
-      patternProb: Math.min(0.18, 0.04 + baseStrength * 0.14 + semanticValue * 0.08)
+      threadProb: Math.min(0.5, (0.12 + baseStrength * 0.18 + signal * 0.07) * ritualBoost),
+      pulseWeight: Math.max(0.01, baseStrength * (0.5 + signal * 0.32 + categoryInfluence * 0.15) * this.config.particleDensity * ritualBoost),
+      patternProb: Math.min(0.28, (0.04 + baseStrength * 0.14 + semanticValue * 0.08) * ritualPatternBias)
     };
   }
 
@@ -691,9 +952,10 @@ export class AIConsciousnessLayer {
     const clusterPos = link.nodeA.position.clone().lerp(link.nodeB.position, 0.5);
     clusterPos.y += 1.5; // Offset above link
     
-    const patternType = this._selectSemanticPatternType(link, meaning);
+    const grammar = this._selectSemanticPatternGrammar(link, meaning);
+    const patternType = grammar.type;
     const meaningColor = this._parseGlyphMeaningColor(meaning) || this._getCategoryBlendColor(link.nodeA, link.nodeB);
-    const geometryColor = meaningColor.clone();
+    const geometryColor = this._blendWithRitualColor(meaningColor.clone(), 0.46);
     const seed = this._hashTo01(`${link.id}-pattern`);
     const particles = [];
     
@@ -707,9 +969,9 @@ export class AIConsciousnessLayer {
       side: THREE.DoubleSide
     });
     
-    const count = 6;
-    const radius = 0.55 + seed * 0.28;
-    const thickness = 0.08 + seed * 0.05;
+    const count = 6 + (grammar.countBonus || 0);
+    const radius = (0.55 + seed * 0.28) * (grammar.radiusMul || 1);
+    const thickness = (0.08 + seed * 0.05) * (grammar.thicknessMul || 1);
     
     const patternBuilders = {
       ring: () => {
@@ -823,6 +1085,164 @@ export class AIConsciousnessLayer {
           this.consciousnessGroup.add(shard);
         }
       },
+      spire: () => {
+        const baseRing = new THREE.Mesh(
+          new THREE.TorusGeometry(radius * 0.42, thickness * 0.05, 8, 36),
+          material.clone()
+        );
+        baseRing.rotation.x = Math.PI * 0.5;
+        baseRing.position.copy(clusterPos);
+        baseRing.userData.isSemanticParticle = true;
+        baseRing.userData.basePos = clusterPos.clone();
+        baseRing.userData.angle = 0;
+        baseRing.userData.radius = 0;
+        particles.push(baseRing);
+        this.consciousnessGroup.add(baseRing);
+
+        for (let i = 0; i < count; i++) {
+          const angle = (i / count) * Math.PI * 2;
+          const spire = new THREE.Mesh(
+            new THREE.ConeGeometry(thickness * 0.42, thickness * 3.2, 5),
+            material.clone()
+          );
+          spire.position.set(
+            clusterPos.x + Math.cos(angle) * radius * 0.54,
+            clusterPos.y + thickness * 1.1,
+            clusterPos.z + Math.sin(angle) * radius * 0.54
+          );
+          spire.userData.isSemanticParticle = true;
+          spire.userData.basePos = spire.position.clone();
+          spire.userData.angle = angle;
+          spire.userData.radius = radius * 0.54;
+          particles.push(spire);
+          this.consciousnessGroup.add(spire);
+        }
+      },
+      fracture: () => {
+        for (let i = 0; i < count; i++) {
+          const angle = (i / count) * Math.PI * 2;
+          const split = new THREE.Mesh(
+            new THREE.BoxGeometry(thickness * 0.18, thickness * 2.4, thickness * 1.8),
+            material.clone()
+          );
+          split.position.set(
+            clusterPos.x + Math.cos(angle) * radius * 0.24,
+            clusterPos.y + Math.sin(angle * 2) * 0.06,
+            clusterPos.z + Math.sin(angle) * radius * 0.24
+          );
+          split.rotation.y = angle + Math.PI * 0.25;
+          split.rotation.z = (i % 2 === 0 ? 1 : -1) * 0.26;
+          split.userData.isSemanticParticle = true;
+          split.userData.basePos = split.position.clone();
+          split.userData.angle = angle;
+          split.userData.radius = radius * 0.24;
+          particles.push(split);
+          this.consciousnessGroup.add(split);
+        }
+      },
+      choir: () => {
+        const shell = new THREE.Mesh(
+          new THREE.TorusGeometry(radius * 0.52, thickness * 0.035, 8, 42),
+          material.clone()
+        );
+        shell.rotation.x = Math.PI * 0.5;
+        shell.position.copy(clusterPos);
+        shell.userData.isSemanticParticle = true;
+        shell.userData.basePos = clusterPos.clone();
+        shell.userData.angle = 0;
+        shell.userData.radius = 0;
+        particles.push(shell);
+        this.consciousnessGroup.add(shell);
+
+        for (let i = 0; i < count + 2; i++) {
+          const angle = (i / (count + 2)) * Math.PI * 2;
+          const mote = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(thickness * 0.42, 0),
+            material.clone()
+          );
+          const ringRadius = radius * (i % 2 === 0 ? 0.78 : 0.46);
+          mote.position.set(
+            clusterPos.x + Math.cos(angle) * ringRadius,
+            clusterPos.y + 0.08 * (i % 3 === 0 ? 1 : -0.4),
+            clusterPos.z + Math.sin(angle) * ringRadius
+          );
+          mote.userData.isSemanticParticle = true;
+          mote.userData.basePos = mote.position.clone();
+          mote.userData.angle = angle;
+          mote.userData.radius = ringRadius;
+          particles.push(mote);
+          this.consciousnessGroup.add(mote);
+        }
+      },
+      wound: () => {
+        for (let i = 0; i < count; i++) {
+          const angle = (i / count) * Math.PI * 2;
+          const thorn = new THREE.Mesh(
+            new THREE.BoxGeometry(thickness * 0.22, thickness * 2.7, thickness * 0.28),
+            material.clone()
+          );
+          thorn.position.set(
+            clusterPos.x + Math.cos(angle) * radius * 0.38,
+            clusterPos.y,
+            clusterPos.z + Math.sin(angle) * radius * 0.38
+          );
+          thorn.rotation.y = angle;
+          thorn.rotation.x = (i % 2 === 0 ? 1 : -1) * 0.42;
+          thorn.userData.isSemanticParticle = true;
+          thorn.userData.basePos = thorn.position.clone();
+          thorn.userData.angle = angle;
+          thorn.userData.radius = radius * 0.38;
+          particles.push(thorn);
+          this.consciousnessGroup.add(thorn);
+        }
+      },
+      mandala: () => {
+        const outer = new THREE.Mesh(
+          new THREE.TorusGeometry(radius * 0.68, thickness * 0.03, 8, 48),
+          material.clone()
+        );
+        outer.rotation.x = Math.PI * 0.5;
+        outer.position.copy(clusterPos);
+        outer.userData.isSemanticParticle = true;
+        outer.userData.basePos = clusterPos.clone();
+        outer.userData.angle = 0;
+        outer.userData.radius = 0;
+        particles.push(outer);
+        this.consciousnessGroup.add(outer);
+
+        for (let i = 0; i < count; i++) {
+          const angle = (i / count) * Math.PI * 2;
+          const spoke = new THREE.Mesh(
+            new THREE.BoxGeometry(thickness * 0.12, thickness * 0.12, radius * 0.92),
+            material.clone()
+          );
+          spoke.position.copy(clusterPos);
+          spoke.rotation.y = angle;
+          spoke.userData.isSemanticParticle = true;
+          spoke.userData.basePos = clusterPos.clone();
+          spoke.userData.angle = angle;
+          spoke.userData.radius = radius * 0.3;
+          particles.push(spoke);
+          this.consciousnessGroup.add(spoke);
+        }
+      },
+      memory: () => {
+        for (let i = 0; i < 3; i++) {
+          const wave = new THREE.Mesh(
+            new THREE.TorusGeometry(radius * (0.26 + i * 0.18), thickness * 0.03, 8, 40, Math.PI * 1.18),
+            material.clone()
+          );
+          wave.rotation.x = Math.PI * 0.5;
+          wave.rotation.z = i * 0.22;
+          wave.position.set(clusterPos.x, clusterPos.y + i * 0.05, clusterPos.z);
+          wave.userData.isSemanticParticle = true;
+          wave.userData.basePos = wave.position.clone();
+          wave.userData.angle = i * 0.6;
+          wave.userData.radius = radius * (0.26 + i * 0.18);
+          particles.push(wave);
+          this.consciousnessGroup.add(wave);
+        }
+      },
       cluster: () => {
         for (let i = 0; i < count + 2; i++) {
           const angle = (i / (count + 2)) * Math.PI * 2;
@@ -848,23 +1268,78 @@ export class AIConsciousnessLayer {
     
     const builder = patternBuilders[patternType] || patternBuilders.cluster;
     builder();
+    for (const particle of particles) {
+      particle.userData.baseColor = particle.material?.color?.clone?.() || geometryColor.clone();
+    }
     
     this.activeThoughts.patternClusters.set(link.id, {
       particles,
-      life: 3.0,
+      life: grammar.life || 3.0,
+      maxLife: grammar.life || 3.0,
       meaning,
       basePos: clusterPos.clone(),
-      type: patternType
+      type: patternType,
+      signature: grammar.signature || patternType
     });
     
     this.stats.patternsActive++;
   }
 
-  _selectSemanticPatternType(link, meaning) {
-    const types = ['ring', 'crown', 'seal', 'halo', 'shard', 'cluster'];
-    const key = `${link.id}:${typeof meaning === 'string' ? meaning : JSON.stringify(meaning)}`;
+  _selectSemanticPatternGrammar(link, meaning) {
+    const key = `${link.id}:${typeof meaning === 'string' ? meaning : JSON.stringify(meaning)}:${this.ritualState.ritualType || 'ambient'}`;
     const seed = this._hashTo01(key);
-    return types[Math.floor(seed * types.length)];
+    const base = [
+      { type: 'ring', weight: 1.0, life: 3.0, radiusMul: 1.0, thicknessMul: 1.0, countBonus: 0, signature: 'ambient-ring' },
+      { type: 'crown', weight: 0.9, life: 3.1, radiusMul: 1.0, thicknessMul: 0.92, countBonus: 0, signature: 'ambient-crown' },
+      { type: 'seal', weight: 0.82, life: 3.0, radiusMul: 0.94, thicknessMul: 1.0, countBonus: 0, signature: 'ambient-seal' },
+      { type: 'halo', weight: 0.78, life: 3.2, radiusMul: 1.08, thicknessMul: 0.86, countBonus: 0, signature: 'ambient-halo' },
+      { type: 'shard', weight: 0.92, life: 2.8, radiusMul: 1.0, thicknessMul: 0.88, countBonus: 0, signature: 'ambient-shard' },
+      { type: 'cluster', weight: 1.1, life: 3.0, radiusMul: 0.9, thicknessMul: 0.84, countBonus: 1, signature: 'ambient-cluster' }
+    ];
+
+    const ritualGrammar = {
+      ASCENSION_RITUAL: [
+        { type: 'spire', weight: 1.5, life: 4.2, radiusMul: 1.1, thicknessMul: 0.84, countBonus: 1, signature: 'ascension-spire' },
+        { type: 'halo', weight: 1.05, life: 3.8, radiusMul: 1.22, thicknessMul: 0.78, countBonus: 0, signature: 'ascension-halo' },
+        { type: 'crown', weight: 0.95, life: 3.7, radiusMul: 1.06, thicknessMul: 0.84, countBonus: 1, signature: 'ascension-crown' }
+      ],
+      QUANTUM_FISSURE: [
+        { type: 'fracture', weight: 1.45, life: 4.0, radiusMul: 0.82, thicknessMul: 0.7, countBonus: 1, signature: 'fissure-fracture' },
+        { type: 'wound', weight: 1.1, life: 3.6, radiusMul: 0.94, thicknessMul: 0.78, countBonus: 0, signature: 'fissure-wound' },
+        { type: 'shard', weight: 0.9, life: 3.2, radiusMul: 1.0, thicknessMul: 0.8, countBonus: 1, signature: 'fissure-shard' }
+      ],
+      HARMONY_CONVERGENCE: [
+        { type: 'choir', weight: 1.4, life: 4.3, radiusMul: 1.16, thicknessMul: 0.74, countBonus: 2, signature: 'harmony-choir' },
+        { type: 'mandala', weight: 1.12, life: 4.0, radiusMul: 1.12, thicknessMul: 0.7, countBonus: 2, signature: 'harmony-mandala' },
+        { type: 'halo', weight: 0.9, life: 3.6, radiusMul: 1.18, thicknessMul: 0.76, countBonus: 0, signature: 'harmony-halo' }
+      ],
+      CHAOS_RITUAL: [
+        { type: 'wound', weight: 1.5, life: 3.9, radiusMul: 0.96, thicknessMul: 0.82, countBonus: 1, signature: 'chaos-wound' },
+        { type: 'fracture', weight: 1.08, life: 3.5, radiusMul: 0.88, thicknessMul: 0.72, countBonus: 1, signature: 'chaos-fracture' },
+        { type: 'shard', weight: 0.94, life: 3.2, radiusMul: 1.0, thicknessMul: 0.86, countBonus: 1, signature: 'chaos-shard' }
+      ],
+      MYTHIC_SIGNAL: [
+        { type: 'mandala', weight: 1.48, life: 4.5, radiusMul: 1.18, thicknessMul: 0.66, countBonus: 2, signature: 'signal-mandala' },
+        { type: 'seal', weight: 1.0, life: 3.9, radiusMul: 1.02, thicknessMul: 0.82, countBonus: 1, signature: 'signal-seal' },
+        { type: 'choir', weight: 0.92, life: 3.8, radiusMul: 1.06, thicknessMul: 0.72, countBonus: 1, signature: 'signal-choir' }
+      ],
+      ECHO_RITUAL: [
+        { type: 'memory', weight: 1.52, life: 4.4, radiusMul: 1.2, thicknessMul: 0.68, countBonus: 0, signature: 'echo-memory' },
+        { type: 'halo', weight: 0.96, life: 3.7, radiusMul: 1.14, thicknessMul: 0.72, countBonus: 0, signature: 'echo-halo' },
+        { type: 'seal', weight: 0.84, life: 3.5, radiusMul: 0.94, thicknessMul: 0.84, countBonus: 0, signature: 'echo-seal' }
+      ]
+    };
+
+    const options = ritualGrammar[this.ritualState.ritualType] || base;
+    const totalWeight = options.reduce((sum, item) => sum + item.weight, 0);
+    let threshold = seed * totalWeight;
+
+    for (const option of options) {
+      threshold -= option.weight;
+      if (threshold <= 0) return option;
+    }
+
+    return options[options.length - 1];
   }
 
   _parseGlyphMeaningColor(meaning) {
@@ -894,6 +1369,7 @@ export class AIConsciousnessLayer {
       : Math.max(0, currentTime - this._lastVisualTime);
     this._lastVisualTime = currentTime;
     this.time = currentTime;
+    this._updateRitualState(visualDelta);
     
     // 1. Update neural threads
     this._updateThreads();
@@ -953,6 +1429,7 @@ export class AIConsciousnessLayer {
       }
       
       line.material.opacity = Math.min(0.85, Math.max(0.12, baseOpacity + breath + flashAdd));
+      line.material.color.copy(this._blendWithRitualColor(this._getThreadColor(link), 0.42));
       
       // Regenerate geometry only when necessary, with a stable interval and more nuance for active links
       const lastUpdate = line.userData.lastThreadUpdate || 0;
@@ -1003,8 +1480,10 @@ export class AIConsciousnessLayer {
       
       // Color gradient based on progress
       const gradientT = progressNorm;
-      pulse.mesh.material.color.copy(pulse.colorA).lerp(pulse.colorB, gradientT);
-      pulse.trailMesh.material.color.copy(pulse.colorA).lerp(pulse.colorB, gradientT);
+      const pulseColor = pulse.colorA.clone().lerp(pulse.colorB, gradientT);
+      const ritualPulseColor = this._blendWithRitualColor(pulseColor, 0.52);
+      pulse.mesh.material.color.copy(ritualPulseColor);
+      pulse.trailMesh.material.color.copy(ritualPulseColor);
       
       // Update trail
       pulse.trailPositions.push(pulse.position.clone());
@@ -1027,10 +1506,10 @@ export class AIConsciousnessLayer {
         }
         pulse.trailMesh.geometry.attributes.position.needsUpdate = true;
         // Trail opacity fades with pulse life and position along trail
-        pulse.trailMesh.material.opacity = Math.min(0.4, 0.08 + pulse.life * envelope * 0.35 * this.config.intensity);
+        pulse.trailMesh.material.opacity = Math.min(0.5, 0.08 + pulse.life * envelope * 0.35 * this.config.intensity + this.ritualState.intensity * 0.08);
       }
       
-      pulse.mesh.material.opacity = Math.min(0.88, 0.08 + pulse.life * envelope * 0.78 * this.config.intensity);
+      pulse.mesh.material.opacity = Math.min(0.92, 0.08 + pulse.life * envelope * 0.78 * this.config.intensity + this.ritualState.intensity * 0.1);
       
       const stability = Math.max(0, Math.min(1, pulse.link?.stability ?? 0.5));
       let scaleBase = 0.26 + envelope * 0.84;
@@ -1042,7 +1521,7 @@ export class AIConsciousnessLayer {
         pulse.mesh.material.opacity += burstFactor * 0.3;
       }
       
-      pulse.mesh.scale.setScalar(scaleBase + stability * 0.12 + this.config.intensity * 0.08);
+      pulse.mesh.scale.setScalar(scaleBase + stability * 0.12 + this.config.intensity * 0.08 + this.ritualState.intensity * 0.22);
       
       // Link pulsation: flash thread when pulse passes through
       if (Math.random() < 0.08) {
@@ -1074,12 +1553,13 @@ export class AIConsciousnessLayer {
         continue;
       }
       
-      const lifeNorm = Math.max(0, Math.min(1, pattern.life / 3.0));
+      const lifeNorm = Math.max(0, Math.min(1, pattern.life / (pattern.maxLife || 3.0)));
       const phase = this.time * 1.2 + this._hashTo01(`${linkId}-${pattern.type}`) * Math.PI * 2;
       const buildFactor = 1 - Math.pow(lifeNorm, 1.8);
       const fadeFactor = Math.max(0.08, lifeNorm * this.config.intensity);
       const rotationSpeed = 1.0 + (1 - lifeNorm) * 0.6 + this.config.intensity * 0.2;
       const baseAlpha = 0.14 + fadeFactor * 0.48;
+      const ritualAlpha = this.ritualState.intensity * 0.14;
       
       for (const particle of pattern.particles) {
         const basePos = particle.userData.basePos;
@@ -1120,13 +1600,65 @@ export class AIConsciousnessLayer {
             particle.rotation.x = phase * 0.22;
             particle.rotation.y = phase * 0.28;
             break;
+          case 'spire':
+            particle.position.x = basePos.x + Math.cos(angle) * radius * 0.34;
+            particle.position.y = basePos.y + 0.14 + buildFactor * 0.18 + Math.abs(Math.sin(phase + angle)) * 0.14;
+            particle.position.z = basePos.z + Math.sin(angle) * radius * 0.34;
+            particle.rotation.y = angle;
+            particle.rotation.x = Math.sin(phase * 0.5 + angle) * 0.18;
+            break;
+          case 'fracture':
+            particle.position.x = basePos.x + Math.cos(angle) * radius * 0.18 + Math.sin(phase * 1.8 + angle) * 0.1;
+            particle.position.y = basePos.y + Math.sin(angle * 2 + phase * 1.2) * 0.08;
+            particle.position.z = basePos.z + Math.sin(angle) * radius * 0.18;
+            particle.rotation.y = angle + Math.sin(phase * 1.4 + angle) * 0.24;
+            particle.rotation.z += visualDelta * rotationSpeed * 0.4;
+            break;
+          case 'choir':
+            particle.position.x = basePos.x + Math.cos(angle + phase * 0.24) * radius;
+            particle.position.y = basePos.y + Math.sin(angle * 1.7 + phase) * 0.12 + buildFactor * 0.06;
+            particle.position.z = basePos.z + Math.sin(angle + phase * 0.24) * radius * 0.82;
+            particle.rotation.x = phase * 0.24;
+            particle.rotation.y = phase * 0.18 + angle;
+            break;
+          case 'wound':
+            particle.position.x = basePos.x + Math.cos(angle) * radius * 0.26 + Math.sin(phase * 2.3 + angle) * 0.12;
+            particle.position.y = basePos.y + Math.sin(phase * 1.8 + angle * 2.0) * 0.12;
+            particle.position.z = basePos.z + Math.sin(angle) * radius * 0.26;
+            particle.rotation.y = angle + phase * 0.42;
+            particle.rotation.x = Math.sin(phase + angle) * 0.48;
+            break;
+          case 'mandala':
+            particle.position.x = basePos.x + Math.cos(angle) * radius * 0.1;
+            particle.position.y = basePos.y + Math.sin(phase * 0.8 + angle) * 0.04;
+            particle.position.z = basePos.z + Math.sin(angle) * radius * 0.1;
+            particle.rotation.y = angle + phase * 0.2;
+            particle.rotation.z += visualDelta * (rotationSpeed * 0.3 + 0.08);
+            break;
+          case 'memory':
+            particle.position.x = basePos.x;
+            particle.position.y = basePos.y + Math.sin(phase * 0.7 + angle) * 0.08 + buildFactor * 0.04;
+            particle.position.z = basePos.z;
+            particle.rotation.z = phase * 0.26 + angle;
+            particle.scale.setScalar(0.82 + buildFactor * 0.28 + (1 - lifeNorm) * 0.18);
+            break;
         }
         
         const ritualDip = Math.sin(phase * 0.6) * 0.02;
         particle.position.y += ritualDip;
         
-        particle.material.opacity = baseAlpha * fadeFactor * (0.78 + Math.sin(phase * 0.9) * 0.06);
-        particle.scale.setScalar(0.7 + buildFactor * 0.24 + this.config.intensity * 0.08);
+        particle.material.opacity = Math.min(0.82, baseAlpha * fadeFactor * (0.78 + Math.sin(phase * 0.9) * 0.06) + ritualAlpha);
+        const patternBaseColor = particle.userData.baseColor || particle.material.color;
+        particle.material.color.copy(this._blendWithRitualColor(patternBaseColor, 0.58));
+        particle.position.y += this.ritualState.intensity * 0.04 * Math.sin(phase + angle * 2.0);
+        const scaleBoost = pattern.type === 'memory'
+          ? 0.18
+          : pattern.type === 'mandala'
+            ? 0.12
+            : pattern.type === 'spire'
+              ? 0.1
+              : 0;
+        particle.scale.setScalar(0.7 + buildFactor * 0.24 + this.config.intensity * 0.08 + scaleBoost);
       }
     }
   }
@@ -1168,12 +1700,13 @@ export class AIConsciousnessLayer {
     const pressure = Math.min(1, avgLoadPressure + avgCorruption * 0.35 + (activeCount / linkCount) * 0.1);
     const corruptionBias = Math.min(1, avgCorruption * 1.2);
     const pulsePhase = Math.sin(this.time * 0.72 + pressure * Math.PI * 1.5);
-    const monumentScale = 1 + avgStability * 0.1 * this.config.intensity + pressure * 0.07;
+    const ritualIntensity = this.ritualState.intensity;
+    const monumentScale = 1 + avgStability * 0.1 * this.config.intensity + pressure * 0.07 + ritualIntensity * 0.1;
     const pulseScale = 1 + pulsePhase * 0.04 * (0.45 + networkMood * 0.45) * this.config.intensity;
 
     this.globalFieldMesh.scale.setScalar(monumentScale * pulseScale);
     if (this.globalFieldEdge) {
-      this.globalFieldEdge.scale.setScalar(monumentScale * 1.05);
+      this.globalFieldEdge.scale.setScalar(monumentScale * (1.05 + ritualIntensity * 0.05));
     }
 
     const calm = new THREE.Color(0x6DEAFF);
@@ -1183,15 +1716,72 @@ export class AIConsciousnessLayer {
 
     const moodColor = ritual.clone().lerp(calm, networkMood);
     const tint = moodColor.clone().lerp(storm, corruptionBias * 0.4).lerp(corrosion, pressure * 0.2);
-    this.globalFieldMesh.material.color.copy(tint);
+    const fieldColor = this._blendWithRitualColor(tint, 0.62);
+    this.globalFieldMesh.material.color.copy(fieldColor);
 
     const baseOpacity = (0.01 + avgStability * 0.01 + pressure * 0.01) * this.config.intensity;
-    this.globalFieldMesh.material.opacity = Math.min(0.06, baseOpacity + Math.abs(pulsePhase) * 0.006 * this.config.intensity);
+    this.globalFieldMesh.material.opacity = Math.min(0.11, baseOpacity + Math.abs(pulsePhase) * 0.006 * this.config.intensity + ritualIntensity * 0.035);
 
     if (this.globalFieldEdge) {
-      const edgeTint = tint.clone().lerp(new THREE.Color(0x05131A), 1 - networkMood * 0.5);
+      const edgeTint = this._blendWithRitualColor(
+        tint.clone().lerp(new THREE.Color(0x05131A), 1 - networkMood * 0.5),
+        0.82
+      );
       this.globalFieldEdge.material.color.copy(edgeTint);
-      this.globalFieldEdge.material.opacity = Math.min(0.16, 0.08 + pressure * 0.05 + Math.abs(pulsePhase) * 0.02);
+      this.globalFieldEdge.material.opacity = Math.min(0.24, 0.08 + pressure * 0.05 + Math.abs(pulsePhase) * 0.02 + ritualIntensity * 0.09);
+    }
+
+    if (this.globalFieldChoir) {
+      const choirColor = this._blendWithRitualColor(
+        tint.clone().lerp(new THREE.Color(0xf7fbff), networkMood * 0.34),
+        0.74
+      );
+      this.globalFieldChoir.material.color.copy(choirColor);
+      this.globalFieldChoir.material.opacity = Math.min(
+        0.2,
+        0.04 + networkMood * 0.05 + pressure * 0.04 + ritualIntensity * 0.08 + Math.abs(pulsePhase) * 0.018
+      );
+      this.globalFieldChoir.rotation.y += visualDelta * (0.04 + networkMood * 0.06 + ritualIntensity * 0.18);
+      this.globalFieldChoir.rotation.x = Math.sin(this.time * 0.14 + pressure) * 0.12 * (0.4 + ritualIntensity);
+      const choirScale = monumentScale * (0.98 + networkMood * 0.04 + ritualIntensity * 0.08);
+      this.globalFieldChoir.scale.setScalar(choirScale);
+    }
+
+    if (this.ritualFieldVeil) {
+      this.ritualFieldVeil.material.color.copy(this.ritualState.palette.secondary);
+      this.ritualFieldVeil.material.opacity = Math.min(0.18, ritualIntensity * (0.05 + pressure * 0.04) + Math.abs(pulsePhase) * 0.015 * ritualIntensity);
+      this.ritualFieldVeil.scale.setScalar(monumentScale * (0.94 + ritualIntensity * 0.18 + Math.abs(pulsePhase) * 0.03));
+      this.ritualFieldVeil.rotation.y += visualDelta * (0.05 + ritualIntensity * 0.18);
+      this.ritualFieldVeil.rotation.x = Math.sin(this.time * 0.12 + ritualIntensity) * 0.18 * ritualIntensity;
+      this.ritualFieldVeil.rotation.z += visualDelta * (0.02 + ritualIntensity * 0.08);
+    }
+
+    if (this.ritualFieldWitness && this._ritualWitnessBasePositions) {
+      const anchorDir = this.ritualState.anchor.lengthSq() > 0.0001
+        ? this.ritualState.anchor.clone().normalize()
+        : new THREE.Vector3(0, 1, 0);
+      const positions = this.ritualFieldWitness.geometry.attributes.position.array;
+      const base = this._ritualWitnessBasePositions;
+      for (let i = 0; i < positions.length; i += 3) {
+        const bx = base[i];
+        const by = base[i + 1];
+        const bz = base[i + 2];
+        const length = Math.sqrt(bx * bx + by * by + bz * bz) || 1;
+        const nx = bx / length;
+        const ny = by / length;
+        const nz = bz / length;
+        const resonance = Math.max(0, nx * anchorDir.x + ny * anchorDir.y + nz * anchorDir.z);
+        const swell = 1 + ritualIntensity * (0.05 + resonance * 0.18);
+        const shimmer = Math.sin(this.time * 1.4 + i * 0.11) * 0.22 * ritualIntensity;
+
+        positions[i] = bx * swell + anchorDir.x * shimmer;
+        positions[i + 1] = by * swell + anchorDir.y * shimmer;
+        positions[i + 2] = bz * swell + anchorDir.z * shimmer;
+      }
+      this.ritualFieldWitness.geometry.attributes.position.needsUpdate = true;
+      this.ritualFieldWitness.material.color.copy(this.ritualState.palette.accent);
+      this.ritualFieldWitness.material.opacity = Math.min(0.42, ritualIntensity * 0.3 + pressure * 0.05);
+      this.ritualFieldWitness.material.size = 0.22 + ritualIntensity * 0.22;
     }
   }
   
@@ -1210,7 +1800,8 @@ export class AIConsciousnessLayer {
       metrics: this._computeLinkSpawnMetrics(link)
     }));
 
-    const threadBudget = Math.max(1, Math.ceil(this.config.intensity * 1.2));
+    const ritualBudgetBoost = 1 + this.ritualState.intensity * 0.6;
+    const threadBudget = Math.max(1, Math.ceil(this.config.intensity * 1.2 * ritualBudgetBoost));
     const threadSelection = metrics
       .filter(({link, metrics: metric}) => !this.activeThoughts.threadMeshes.has(link.id))
       .map(({link, metrics: metric}) => ({link, weight: metric.threadProb}));
@@ -1228,7 +1819,7 @@ export class AIConsciousnessLayer {
       usedThread.add(chosen.id);
     }
 
-    const pulseBudget = Math.max(1, Math.ceil(this.config.particleDensity * 2));
+    const pulseBudget = Math.max(1, Math.ceil(this.config.particleDensity * (2 + this.ritualState.intensity * 1.8)));
     const pulseSelection = [];
     for (const {link, metrics: metric} of metrics) {
       pulseSelection.push({link, weight: metric.pulseWeight});
@@ -1247,7 +1838,7 @@ export class AIConsciousnessLayer {
       usedPulse.add(chosen.id);
     }
 
-    const patternBudget = Math.max(0, Math.floor(this.config.particleDensity * 0.6));
+    const patternBudget = Math.max(0, Math.floor(this.config.particleDensity * (0.6 + this.ritualState.intensity * 0.9)));
     const patternSelection = metrics
       .filter(({link, metrics: metric}) => !this.activeThoughts.patternClusters.has(link.id))
       .map(({link, metrics: metric}) => ({link, weight: metric.patternProb}));
@@ -1435,7 +2026,27 @@ export class AIConsciousnessLayer {
       this.consciousnessGroup.remove(this.globalFieldEdge);
       this.globalFieldEdge.geometry.dispose();
       this.globalFieldEdge.material.dispose();
+      this.globalFieldEdge = null;
     }
+    if (this.globalFieldChoir) {
+      this.consciousnessGroup.remove(this.globalFieldChoir);
+      this.globalFieldChoir.geometry.dispose();
+      this.globalFieldChoir.material.dispose();
+      this.globalFieldChoir = null;
+    }
+    if (this.ritualFieldVeil) {
+      this.consciousnessGroup.remove(this.ritualFieldVeil);
+      this.ritualFieldVeil.geometry.dispose();
+      this.ritualFieldVeil.material.dispose();
+      this.ritualFieldVeil = null;
+    }
+    if (this.ritualFieldWitness) {
+      this.consciousnessGroup.remove(this.ritualFieldWitness);
+      this.ritualFieldWitness.geometry.dispose();
+      this.ritualFieldWitness.material.dispose();
+      this.ritualFieldWitness = null;
+    }
+    this._disposeRitualBridge();
     
     // Remove container
     this.scene.remove(this.consciousnessGroup);

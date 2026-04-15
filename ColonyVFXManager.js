@@ -124,6 +124,7 @@ export class ColonyVFXManager {
       'legendary-crown': [],
       'sigil-ring': [],
       'ascension-beam': [],
+      'mood-canopy': [],
       'legendary-halo': [],
       'legendary-presence': [],
       'colony-label': []
@@ -184,6 +185,85 @@ export class ColonyVFXManager {
       config.side = side;
     }
     return new THREE.MeshBasicMaterial(config);
+  }
+
+  getMoodCanopySpec(mood, colonyType, stage, energy = 0) {
+    const effectiveMood = mood === 'CALM' ? 'HARMONY' : mood;
+    const energyFactor = Math.min(1, energy / 100);
+    const specs = {
+      HARMONY: {
+        panelCount: 5,
+        radiusMul: 1.12,
+        height: 0.42,
+        sway: 0.22,
+        spin: 0.1,
+        panelScale: 1.0,
+        opacity: 0.22,
+        shape: 'lotus'
+      },
+      STABILITY: {
+        panelCount: 4,
+        radiusMul: 1.02,
+        height: 0.5,
+        sway: 0.12,
+        spin: 0.06,
+        panelScale: 0.92,
+        opacity: 0.18,
+        shape: 'buttress'
+      },
+      CORRUPTION: {
+        panelCount: 6,
+        radiusMul: 0.94,
+        height: 0.38,
+        sway: 0.38,
+        spin: 0.2,
+        panelScale: 0.86,
+        opacity: 0.2,
+        shape: 'thorn'
+      },
+      SYNERGY: {
+        panelCount: 7,
+        radiusMul: 1.18,
+        height: 0.46,
+        sway: 0.3,
+        spin: 0.16,
+        panelScale: 1.08,
+        opacity: 0.24,
+        shape: 'braid'
+      },
+      LOAD_PRESSURE: {
+        panelCount: 5,
+        radiusMul: 0.98,
+        height: 0.32,
+        sway: 0.26,
+        spin: 0.14,
+        panelScale: 0.9,
+        opacity: 0.2,
+        shape: 'shroud'
+      }
+    };
+
+    const baseSpec = specs[effectiveMood] || specs.HARMONY;
+    const spec = {
+      ...baseSpec,
+      panelCount: Math.min(8, baseSpec.panelCount + Math.floor(Math.max(0, stage - 2) * 0.5) + (colonyType === 'LEGENDARY' ? 1 : 0)),
+      radiusMul: baseSpec.radiusMul + energyFactor * 0.08 + (colonyType === 'LEGENDARY' ? 0.08 : 0),
+      height: baseSpec.height + energyFactor * 0.08,
+      opacity: Math.min(0.32, baseSpec.opacity + energyFactor * 0.05),
+      panelScale: baseSpec.panelScale + energyFactor * 0.08
+    };
+
+    if (colonyType === 'QUANTUM') {
+      spec.shape = 'braid';
+      spec.spin += 0.08;
+      spec.sway += 0.06;
+    } else if (colonyType === 'SIGMA') {
+      spec.shape = 'thorn';
+      spec.sway += 0.08;
+      spec.opacity += 0.03;
+    }
+
+    return spec;
   }
 
   acquireVFXObject(type) {
@@ -353,6 +433,105 @@ export class ColonyVFXManager {
     }
     
     return rings;
+  }
+
+  createMoodCanopy(colonyId, center, stage, mood, colonyType, energy) {
+    const profile = this.getMoodProfile(mood);
+    const seeds = this.getColonyVisualSeeds(colonyId);
+    const baseColor = this.getColorForMood(mood, colonyType);
+    const color = this.blendColor(baseColor, profile.colorBias, 0.38);
+    const spec = this.getMoodCanopySpec(mood, colonyType, stage, energy);
+    const radius = this.getRadiusForStage(stage) * spec.radiusMul;
+    const tiltBase = 0.28 + profile.motionBias * 0.08;
+
+    let canopy = this.acquireVFXObject('mood-canopy');
+    if (!canopy) {
+      canopy = new THREE.Group();
+      canopy.name = `colony-mood-canopy-${colonyId}`;
+    } else {
+      canopy.visible = true;
+    }
+
+    const desiredPanels = spec.panelCount;
+    while (canopy.children.length < desiredPanels) {
+      const panelGeometry = new THREE.PlaneGeometry(0.62, 1.24, 1, 1);
+      const panelMaterial = this.createBasicMaterial(color, spec.opacity, THREE.DoubleSide);
+      panelMaterial.blending = THREE.AdditiveBlending;
+      panelMaterial.depthWrite = false;
+      const panel = new THREE.Mesh(panelGeometry, panelMaterial);
+      panel.userData.type = 'mood-canopy-panel';
+      canopy.add(panel);
+    }
+
+    while (canopy.children.length > desiredPanels) {
+      const panel = canopy.children[canopy.children.length - 1];
+      if (!panel) break;
+      canopy.remove(panel);
+      if (panel.geometry) panel.geometry.dispose();
+      if (panel.material) panel.material.dispose();
+    }
+
+    canopy.children.forEach((panel, index) => {
+      const angle = (index / desiredPanels) * Math.PI * 2;
+      const lift = spec.height + (index % 2 === 0 ? 0.06 : -0.02);
+      const localRadius = radius * (0.72 + (index % 3) * 0.08);
+
+      panel.material.color.setHex(color);
+      panel.material.opacity = spec.opacity;
+      panel.scale.set(
+        0.72 * spec.panelScale * (spec.shape === 'buttress' ? 0.82 : 1),
+        1.18 * spec.panelScale * (spec.shape === 'thorn' ? 0.9 : 1),
+        1
+      );
+
+      panel.position.set(
+        Math.cos(angle) * localRadius,
+        lift,
+        Math.sin(angle) * localRadius
+      );
+      panel.rotation.set(-Math.PI / 2 + tiltBase, angle, 0);
+
+      if (spec.shape === 'lotus') {
+        panel.rotation.z = Math.sin(angle) * 0.22;
+      } else if (spec.shape === 'buttress') {
+        panel.rotation.x = -Math.PI / 2 + 0.62;
+        panel.rotation.z = Math.cos(angle) * 0.08;
+      } else if (spec.shape === 'thorn') {
+        panel.rotation.x = -Math.PI / 2 + 0.34;
+        panel.rotation.z = (index % 2 === 0 ? 1 : -1) * 0.24;
+      } else if (spec.shape === 'braid') {
+        panel.rotation.x = -Math.PI / 2 + 0.48;
+        panel.rotation.z = Math.sin(angle * 2) * 0.18;
+      } else if (spec.shape === 'shroud') {
+        panel.rotation.x = -Math.PI / 2 + 0.4;
+        panel.rotation.z = Math.cos(angle * 1.5) * 0.16;
+      }
+
+      panel.userData.panelIndex = index;
+      panel.userData.baseAngle = angle;
+      panel.userData.baseLift = lift;
+      panel.userData.baseRadius = localRadius;
+      panel.userData.shape = spec.shape;
+    });
+
+    canopy.position.copy(center);
+    canopy.visible = true;
+    canopy.userData = {
+      colonyId,
+      type: 'mood-canopy',
+      mood,
+      shape: spec.shape,
+      sway: spec.sway,
+      spin: spec.spin + seeds.ringSpeedBias * 0.35,
+      radius,
+      color,
+      energyFactor: Math.min(1, energy / 100),
+      motionBias: profile.motionBias,
+      pulsePhase: seeds.phaseSeed * Math.PI * 2
+    };
+
+    this.vfxContainer.add(canopy);
+    return canopy;
   }
 
   createQuantumEdge(colonyId, center, stage, mood, colonyType, energy) {
@@ -863,6 +1042,39 @@ export class ColonyVFXManager {
       }
     }
   }
+
+  updateMoodCanopies(deltaTime) {
+    const time = performance.now() * 0.001;
+    for (const child of this.vfxContainer.children) {
+      if (child.userData && child.userData.type === 'mood-canopy') {
+        const userData = child.userData;
+        userData.pulsePhase += deltaTime * (0.8 + userData.motionBias * 0.22);
+        child.rotation.y += deltaTime * userData.spin;
+        child.position.y += Math.sin(userData.pulsePhase) * 0.002;
+
+        const canopyScale = 1 + Math.sin(userData.pulsePhase) * (0.04 + userData.motionBias * 0.02) + userData.energyFactor * 0.05;
+        child.scale.setScalar(canopyScale);
+
+        child.children.forEach((panel, index) => {
+          const baseAngle = panel.userData.baseAngle ?? 0;
+          const baseLift = panel.userData.baseLift ?? 0.4;
+          const baseRadius = panel.userData.baseRadius ?? 1;
+          const sway = Math.sin(time * (0.9 + userData.motionBias * 0.5) + index * 0.7 + userData.pulsePhase) * userData.sway;
+          const breathe = 1 + Math.sin(time * 1.2 + index * 0.6 + userData.pulsePhase) * 0.08;
+
+          panel.position.x = Math.cos(baseAngle + sway * 0.3) * baseRadius;
+          panel.position.y = baseLift + Math.sin(time * 1.4 + index) * 0.05 * (1 + userData.energyFactor);
+          panel.position.z = Math.sin(baseAngle + sway * 0.3) * baseRadius;
+          panel.rotation.y = baseAngle + sway * 0.12;
+          panel.rotation.z += deltaTime * 0.02 * (index % 2 === 0 ? 1 : -1);
+          panel.scale.y = Math.max(0.6, panel.scale.y * 0.9 + breathe * 0.1);
+          if (panel.material) {
+            panel.material.opacity = Math.min(0.42, (panel.material.opacity || 0.18) * 0.9 + (0.14 + userData.energyFactor * 0.08 + Math.abs(sway) * 0.08) * 0.1);
+          }
+        });
+      }
+    }
+  }
   
   /**
    * Update orbit rings (rotation + opacity pulse)
@@ -1055,6 +1267,20 @@ export class ColonyVFXManager {
           const scale = 1 + (envelope.crest ?? 0) * 0.09 + profile.motionBias * 0.08 + ((vfx.particleBias ?? 1) - 1) * 0.06;
           particle.userData.orbitSpeed = Math.max(0.2, particle.userData.orbitSpeed) * scale;
         }
+      }
+    }
+
+    if (vfx.canopy && vfx.canopy.userData?.type === 'mood-canopy') {
+      const canopyOpacity = 0.12 + stage * 0.025 + energyFactor * 0.08 + (envelope.crest ?? 0) * 0.1;
+      vfx.canopy.userData.motionBias = profile.motionBias;
+      vfx.canopy.userData.energyFactor = energyFactor;
+      vfx.canopy.userData.color = this.blendColor(color, breathingColor.getHex(), 0.24);
+      vfx.canopy.userData.spin = Math.max(0.04, (vfx.canopy.userData.spin ?? 0.08) + (envelope.attack ?? 0) * 0.05);
+
+      for (const panel of vfx.canopy.children) {
+        if (!panel.material) continue;
+        panel.material.color.setHex(vfx.canopy.userData.color);
+        panel.material.opacity = Math.min(0.42, canopyOpacity + profile.motionBias * 0.05);
       }
     }
     
@@ -1579,6 +1805,7 @@ export class ColonyVFXManager {
     if (!this.frameScheduler?.shouldRunSimulation?.()) return;
     this.updateParticles(deltaTime);
     this.updateAtmospheres(deltaTime);
+    this.updateMoodCanopies(deltaTime);
     this.updateRings(deltaTime);
     this.updateCentralGlows(deltaTime);
     this.updateCores(deltaTime);
@@ -1675,7 +1902,7 @@ export class ColonyVFXManager {
     for (const child of this.vfxContainer.children) {
       if (child.userData?.colonyId !== colonyId) continue;
       const type = child.userData.type;
-      if (['atmosphere', 'orbit-ring', 'sigil-ring', 'ascension-beam', 'core', 'central-glow', 'legendary-halo'].includes(type)) {
+      if (['atmosphere', 'orbit-ring', 'sigil-ring', 'ascension-beam', 'core', 'central-glow', 'legendary-halo', 'mood-canopy'].includes(type)) {
         child.userData.eventPulse = {
           intensity,
           duration,

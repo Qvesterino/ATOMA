@@ -48,39 +48,6 @@ The following are confirmed and should be treated as stable:
 
 ---
 
-## Legacy Cleanup Mandate
-
-Confirmed long-term policy:
-
-If a system is redundant, unclear, dormant, or adds complexity without value, it is valid to refactor, simplify, or remove it when:
-
-- system truth is preserved
-- compatibility is preserved
-- or migration is explicit and controlled
-
-Legacy is not preserved for its own sake.
-
----
-
-## Historical Stable Decisions
-
-Removed systems confirmed on 2026-03-03:
-
-- `UniqueSpawnService.js`
-- `UniqueSpawnRegistry.js`
-- `NodeSpawnRegistry.js`
-
-Rationale:
-
-- uniqueness enforcement is not part of the active ATOMA model
-
-Legacy systems moved out of the active path on 2026-03-03:
-
-- `_NodeLinking2_3.js`
-- `_RareNodeSpawner.js`
-- `SpawnerConsolidationDetector_v1.js` remains referenced only where explicitly wired
-
----
 
 ## Confirmed Runtime Lessons
 

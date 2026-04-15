@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 /**
  * SAFE AI WEATHER PACK
@@ -47,6 +48,114 @@ const ATMOSPHERE_PALETTE = {
   }
 };
 
+const WORLD_PALETTE_BIAS = {
+  quantum: {
+    key: 'quantum',
+    titleBias: 'Quantum Veil',
+    signatureBias: 'probability silk, cyan-violet refraction',
+    colors: {
+      core: 0x8f96ff,
+      haze: 0x52ffe3,
+      band: 0xd06dff,
+      void: 0x040816
+    },
+    mix: {
+      core: 0.42,
+      haze: 0.34,
+      band: 0.48,
+      void: 0.2
+    }
+  },
+  memory: {
+    key: 'memory',
+    titleBias: 'Memory Cathedral',
+    signatureBias: 'teal-gold recall mist, archival afterglow',
+    colors: {
+      core: 0x72d7ff,
+      haze: 0x9cf0ff,
+      band: 0xffd37a,
+      void: 0x08111d
+    },
+    mix: {
+      core: 0.26,
+      haze: 0.38,
+      band: 0.44,
+      void: 0.22
+    }
+  },
+  sigma: {
+    key: 'sigma',
+    titleBias: 'Sigma Rift',
+    signatureBias: 'acid-cyan fracture, anomaly magenta scar',
+    colors: {
+      core: 0x7dffb3,
+      haze: 0x2ef0ff,
+      band: 0xff5de4,
+      void: 0x03050e
+    },
+    mix: {
+      core: 0.36,
+      haze: 0.32,
+      band: 0.5,
+      void: 0.26
+    }
+  },
+  desert: {
+    key: 'desert',
+    titleBias: 'Dream Dune',
+    signatureBias: 'amber haze, ritual cyan mirage edge',
+    colors: {
+      core: 0x7ef3ff,
+      haze: 0xffc98c,
+      band: 0xff8fb8,
+      void: 0x100913
+    },
+    mix: {
+      core: 0.24,
+      haze: 0.46,
+      band: 0.3,
+      void: 0.18
+    }
+  },
+  desert2: {
+    key: 'desert2',
+    titleBias: 'Mirage Veil',
+    signatureBias: 'rose-gold mist, lucid ascension glow',
+    colors: {
+      core: 0x9ff8ff,
+      haze: 0xffd8b0,
+      band: 0xff9de1,
+      void: 0x120918
+    },
+    mix: {
+      core: 0.24,
+      haze: 0.44,
+      band: 0.42,
+      void: 0.2
+    }
+  },
+  fractal: {
+    key: 'fractal',
+    titleBias: 'Fractal Valley',
+    signatureBias: 'recursive jade haze, crystalline violet seams',
+    colors: {
+      core: 0x8effd6,
+      haze: 0x5fd8ff,
+      band: 0xb883ff,
+      void: 0x071019
+    },
+    mix: {
+      core: 0.32,
+      haze: 0.28,
+      band: 0.36,
+      void: 0.18
+    }
+  }
+};
+
+const WEATHER_BACKGROUND_ORDER = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_BACKGROUND);
+const WEATHER_RENDER_ORDER = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_OVERLAY);
+
 export class SafeAIWeatherPack {
   constructor(scene, worldRoot, environmentRoot, camera, sharedAssets = null) {
     this.scene = scene;
@@ -55,6 +164,13 @@ export class SafeAIWeatherPack {
     this.camera = camera;
     this.sharedAssets = sharedAssets ?? null;
     this.root = new THREE.Group();
+    this.root.renderOrder = WEATHER_BACKGROUND_ORDER;
+    this.root.userData = {
+      isAIWeatherRoot: true,
+      __environmentLayerId: 'SafeAIWeatherPack',
+      __environmentOwner: 'SafeAIWeatherPack',
+      isWorldFX: true
+    };
     this.environmentRoot.add(this.root);
     
     // EXTERNAL STATE - Never touch engine internals
@@ -208,11 +324,27 @@ export class SafeAIWeatherPack {
       particles: [],
       ribbons: [],
       overlays: [],
-      beams: []
+      beams: [],
+      veils: [],
+      seams: [],
+      crowns: [],
+      shards: []
     };
     
     this.windPhase = 0;
     this.recentWeatherHistory = [];
+    this.worldProfile = this._resolveWorldProfile();
+    this.semanticBus = this._resolveSemanticBus();
+    this._semanticSubscriptions = [];
+    this._residueCoupling = {
+      potentialBoost: 0,
+      intensityBoost: 0,
+      windBoost: 0,
+      ttl: 0,
+      maxTtl: 0,
+      moodHint: null
+    };
+    this._setupResidueCoupling();
   }
 
   _getSharedMaterial(key, factory) {
@@ -271,6 +403,389 @@ export class SafeAIWeatherPack {
     }
   }
 
+  _mixHexColor(baseHex, biasHex, amount = 0) {
+    const base = new THREE.Color(baseHex);
+    const bias = new THREE.Color(biasHex);
+    return base.lerp(bias, THREE.MathUtils.clamp(amount, 0, 1)).getHex();
+  }
+
+  _resolveWorldModeKey() {
+    const rootMode = this.environmentRoot?.userData?.currentMode
+      || this.worldRoot?.userData?.currentMode
+      || this.scene?.userData?.currentMode
+      || null;
+
+    if (!rootMode || typeof rootMode !== 'string') return 'default';
+
+    const normalized = rootMode.toLowerCase();
+    if (normalized === 'sigma') return 'sigma';
+    if (normalized === 'memory') return 'memory';
+    if (normalized === 'quantum') return 'quantum';
+    if (normalized === 'desert') return 'desert';
+    if (normalized === 'desert2' || normalized === 'chamber') return 'desert2';
+    if (normalized === 'fractal') return 'fractal';
+    return 'default';
+  }
+
+  _resolveWorldProfile() {
+    const modeKey = this._resolveWorldModeKey();
+    const bias = WORLD_PALETTE_BIAS[modeKey] || null;
+    return {
+      modeKey,
+      bias,
+      titleBias: bias?.titleBias ?? null,
+      signatureBias: bias?.signatureBias ?? null
+    };
+  }
+
+  _resolveSemanticBus() {
+    if (globalThis?.ATOMA_BUS || globalThis?.semanticBus) {
+      return globalThis.ATOMA_BUS || globalThis.semanticBus || null;
+    }
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    return browserWindow?.ATOMA_BUS || browserWindow?.semanticBus || null;
+  }
+
+  _setupResidueCoupling() {
+    const bus = this.semanticBus;
+    if (!bus) return;
+
+    const handler = (payload = {}) => {
+      this._applyResidueCoupling(payload);
+    };
+
+    if (typeof bus.on === 'function') {
+      bus.on('environment.hazard.residueScar', handler);
+      this._semanticSubscriptions.push({
+        eventName: 'environment.hazard.residueScar',
+        handler,
+        method: 'off'
+      });
+      return;
+    }
+
+    if (typeof bus.subscribe === 'function') {
+      bus.subscribe('environment.hazard.residueScar', handler);
+      this._semanticSubscriptions.push({
+        eventName: 'environment.hazard.residueScar',
+        handler,
+        method: 'unsubscribe'
+      });
+    }
+  }
+
+  _ensureResidueCouplingSubscription() {
+    if (this._semanticSubscriptions.length > 0) return;
+    if (!this.semanticBus) {
+      this.semanticBus = this._resolveSemanticBus();
+    }
+    if (!this.semanticBus) return;
+    this._setupResidueCoupling();
+  }
+
+  _detachResidueCoupling() {
+    const bus = this.semanticBus;
+    if (!bus || !this._semanticSubscriptions.length) return;
+
+    for (const subscription of this._semanticSubscriptions) {
+      if (subscription.method === 'off' && typeof bus.off === 'function') {
+        bus.off(subscription.eventName, subscription.handler);
+      } else if (subscription.method === 'unsubscribe' && typeof bus.unsubscribe === 'function') {
+        bus.unsubscribe(subscription.eventName, subscription.handler);
+      }
+    }
+
+    this._semanticSubscriptions = [];
+  }
+
+  _resolveCurrentWorldModeRaw() {
+    const rootMode = this.environmentRoot?.userData?.currentMode
+      || this.worldRoot?.userData?.currentMode
+      || this.scene?.userData?.currentMode
+      || this.worldProfile?.modeKey
+      || 'default';
+    return typeof rootMode === 'string' ? rootMode.toLowerCase() : 'default';
+  }
+
+  _matchesResidueWorld(payload = {}) {
+    const localRaw = this._resolveCurrentWorldModeRaw();
+    const payloadRaw = typeof payload.worldModeRaw === 'string' ? payload.worldModeRaw.toLowerCase() : null;
+    if (payloadRaw) {
+      return payloadRaw === localRaw;
+    }
+
+    const payloadMode = typeof payload.worldModeKey === 'string' ? payload.worldModeKey.toLowerCase() : null;
+    if (!payloadMode) return true;
+    if (payloadMode === localRaw) return true;
+    if (payloadMode === 'default' && localRaw !== 'sigma' && localRaw !== 'memory') return true;
+    return false;
+  }
+
+  _pickResidueMoodHint(hazardType) {
+    if (hazardType === 'electricalStorm') return 'stormBias';
+    if (hazardType === 'gravitationalAnomaly') return 'pressure';
+    if (hazardType === 'chronoBloom') return 'resonance';
+    return null;
+  }
+
+  _applyResidueCoupling(payload = {}) {
+    if (!this._matchesResidueWorld(payload)) return;
+
+    this.worldProfile = this._resolveWorldProfile();
+    const coupling = payload.coupling || {};
+    const intensity = Number.isFinite(payload.intensity) ? payload.intensity : 1;
+    const radius = Number.isFinite(payload.radius) ? payload.radius : 12;
+
+    const potentialBoost = THREE.MathUtils.clamp(
+      Number.isFinite(coupling.weatherPotential) ? coupling.weatherPotential : (0.08 + intensity * 0.12 + radius * 0.002),
+      0.05,
+      0.5
+    );
+    const intensityBoost = THREE.MathUtils.clamp(
+      Number.isFinite(coupling.weatherIntensity) ? coupling.weatherIntensity : (0.12 + intensity * 0.16),
+      0.08,
+      0.55
+    );
+    const windBoost = THREE.MathUtils.clamp(
+      Number.isFinite(coupling.windBoost) ? coupling.windBoost : (0.08 + intensity * 0.12),
+      0.06,
+      0.48
+    );
+    const duration = THREE.MathUtils.clamp(
+      Number.isFinite(coupling.duration) ? coupling.duration : (2.4 + radius * 0.08),
+      1.6,
+      8.5
+    );
+
+    this._residueCoupling.potentialBoost = Math.max(this._residueCoupling.potentialBoost, potentialBoost);
+    this._residueCoupling.intensityBoost = Math.max(this._residueCoupling.intensityBoost, intensityBoost);
+    this._residueCoupling.windBoost = Math.max(this._residueCoupling.windBoost, windBoost);
+    this._residueCoupling.ttl = Math.max(this._residueCoupling.ttl, duration);
+    this._residueCoupling.maxTtl = Math.max(this._residueCoupling.maxTtl, duration);
+    this._residueCoupling.moodHint = this._pickResidueMoodHint(payload.hazardType) || this._residueCoupling.moodHint;
+
+    this.lastWeatherCheck = Math.min(
+      this.lastWeatherCheck,
+      performance.now() - this.config.weatherCheckInterval * 1000
+    );
+  }
+
+  _getResidueCouplingWeight() {
+    if (this._residueCoupling.ttl <= 0 || this._residueCoupling.maxTtl <= 0) return 0;
+    return THREE.MathUtils.clamp(this._residueCoupling.ttl / this._residueCoupling.maxTtl, 0, 1);
+  }
+
+  _updateResidueCoupling(deltaTime) {
+    if (this._residueCoupling.ttl <= 0) return;
+
+    this._residueCoupling.ttl = Math.max(0, this._residueCoupling.ttl - Math.max(0, deltaTime || 0));
+    if (this._residueCoupling.ttl > 0) return;
+
+    this._residueCoupling.potentialBoost = 0;
+    this._residueCoupling.intensityBoost = 0;
+    this._residueCoupling.windBoost = 0;
+    this._residueCoupling.maxTtl = 0;
+    this._residueCoupling.moodHint = null;
+  }
+
+  _resolveWeatherPalette(moodState) {
+    const basePalette = ATMOSPHERE_PALETTE[moodState] || ATMOSPHERE_PALETTE.calm;
+    const profile = this.worldProfile || this._resolveWorldProfile();
+    const bias = profile?.bias;
+    if (!bias) return { ...basePalette };
+
+    return {
+      core: this._mixHexColor(basePalette.core, bias.colors.core, bias.mix.core),
+      haze: this._mixHexColor(basePalette.haze, bias.colors.haze, bias.mix.haze),
+      band: this._mixHexColor(basePalette.band, bias.colors.band, bias.mix.band),
+      void: this._mixHexColor(basePalette.void, bias.colors.void, bias.mix.void)
+    };
+  }
+
+  _resolveWeatherSignature(moodState) {
+    const signature = this.weatherSignatures[moodState] || this.weatherSignatures.calm;
+    const profile = this.worldProfile || this._resolveWorldProfile();
+    if (!profile?.bias) return signature;
+
+    return {
+      ...signature,
+      title: `${profile.titleBias} | ${signature.title}`,
+      signature: `${signature.signature}; ${profile.signatureBias}`
+    };
+  }
+
+  _tagWeatherObject(object, type, signature, baseOpacity, baseScale = 1, bucket = null) {
+    if (!object) return object;
+    object.renderOrder = WEATHER_RENDER_ORDER;
+    object.userData = {
+      ...(object.userData || {}),
+      isAIWeatherVFX: true,
+      isWorldFX: true,
+      __environmentLayerId: 'SafeAIWeatherPack',
+      __environmentOwner: 'SafeAIWeatherPack',
+      type,
+      signature,
+      baseOpacity,
+      targetOpacity: baseOpacity,
+      baseScale
+    };
+    if (bucket && Array.isArray(this.vfxLayers[bucket])) {
+      this.vfxLayers[bucket].push(object);
+    }
+    this.root.add(object);
+    return object;
+  }
+
+  _createWeatherMaterial(color, opacity, options = {}) {
+    return new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+      depthTest: true,
+      fog: false,
+      side: options.side ?? THREE.DoubleSide,
+      blending: options.blending ?? THREE.AdditiveBlending
+    });
+  }
+
+  _createVeilCurtains(color, count, options = {}) {
+    const veils = [];
+    const width = options.width ?? 180;
+    const height = options.height ?? 54;
+    const depth = options.depth ?? -92;
+    const y = options.y ?? 26;
+    const signature = options.signature ?? 'weather_veil';
+    const bucket = options.bucket ?? 'veils';
+
+    for (let i = 0; i < count; i++) {
+      const geometry = this._getSharedGeometry(`weather.veil.${signature}.${i}`, () => new THREE.PlaneGeometry(width, height, 1, 1));
+      const material = this._createWeatherMaterial(color, 0);
+      const veil = new THREE.Mesh(geometry, material);
+      veil.position.set(
+        (i - (count - 1) * 0.5) * (options.spacing ?? 18),
+        y + i * (options.verticalStep ?? 6),
+        depth - i * (options.depthStep ?? 4)
+      );
+      veil.rotation.set(
+        -(options.pitch ?? Math.PI / 2.55),
+        (i - (count - 1) * 0.5) * 0.05,
+        (Math.random() - 0.5) * (options.rollVariance ?? 0.18)
+      );
+      const baseOpacity = options.baseOpacity ?? (0.06 + i * 0.02);
+      veil.userData = {
+        driftPhase: Math.random() * Math.PI * 2,
+        driftSpeed: (options.speed ?? 0.12) + i * 0.03,
+        tension: 0.5 + Math.random() * 0.6,
+        depthBias: i / Math.max(1, count - 1),
+        baseX: veil.position.x,
+        baseY: veil.position.y
+      };
+      this._tagWeatherObject(veil, options.type ?? 'veil_curtain', signature, baseOpacity, 1, bucket);
+      veils.push(veil);
+    }
+
+    return veils;
+  }
+
+  _createShardHalo(color, count, options = {}) {
+    const shards = [];
+    const radius = options.radius ?? 58;
+    const y = options.y ?? 30;
+    const depth = options.depth ?? -86;
+    const signature = options.signature ?? 'weather_shards';
+    const bucket = options.bucket ?? 'shards';
+
+    for (let i = 0; i < count; i++) {
+      const geometry = this._getSharedGeometry(`weather.shard.${signature}`, () => new THREE.OctahedronGeometry(options.size ?? 0.9, 0));
+      const material = this._createWeatherMaterial(color, 0, { side: THREE.DoubleSide });
+      const shard = new THREE.Mesh(geometry, material);
+      const angle = (i / Math.max(1, count)) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
+      const localRadius = radius * (0.8 + Math.random() * 0.45);
+      shard.position.set(
+        Math.cos(angle) * localRadius,
+        y + (Math.random() - 0.5) * (options.heightJitter ?? 10),
+        depth + Math.sin(angle) * localRadius * 0.28
+      );
+      shard.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      const baseOpacity = options.baseOpacity ?? (0.14 + Math.random() * 0.08);
+      shard.userData = {
+        orbitAngle: angle,
+        orbitRadius: localRadius,
+        orbitSpeed: (options.speed ?? 0.24) * (0.6 + Math.random() * 0.8),
+        liftSpeed: 0.08 + Math.random() * 0.12,
+        baseY: shard.position.y
+      };
+      this._tagWeatherObject(shard, options.type ?? 'shard_halo', signature, baseOpacity, 1, bucket);
+      shards.push(shard);
+    }
+
+    return shards;
+  }
+
+  _createSeamLattice(color, count, options = {}) {
+    const seams = [];
+    const signature = options.signature ?? 'weather_seams';
+    const bucket = options.bucket ?? 'seams';
+
+    for (let i = 0; i < count; i++) {
+      const length = (options.length ?? 64) * (0.82 + Math.random() * 0.45);
+      const geometry = this._getSharedGeometry(`weather.seam.${signature}.${i}`, () => new THREE.PlaneGeometry(length, options.thickness ?? 1.8));
+      const material = this._createWeatherMaterial(color, 0);
+      const seam = new THREE.Mesh(geometry, material);
+      seam.position.set(
+        (Math.random() - 0.5) * (options.spreadX ?? 140),
+        (options.y ?? 26) + (Math.random() - 0.5) * (options.spreadY ?? 18),
+        (options.depth ?? -88) + (Math.random() - 0.5) * (options.spreadZ ?? 18)
+      );
+      seam.rotation.set(
+        -(options.pitch ?? Math.PI / 2.9),
+        (Math.random() - 0.5) * (options.yawVariance ?? 0.7),
+        (Math.random() - 0.5) * (options.rollVariance ?? 1.0)
+      );
+      const baseOpacity = options.baseOpacity ?? (0.08 + Math.random() * 0.06);
+      seam.userData = {
+        phase: Math.random() * Math.PI * 2,
+        pulseSpeed: 0.4 + Math.random() * 0.45,
+        stretchBias: 0.85 + Math.random() * 0.45,
+        baseX: seam.position.x,
+        baseY: seam.position.y
+      };
+      this._tagWeatherObject(seam, options.type ?? 'omen_seam', signature, baseOpacity, 1, bucket);
+      seams.push(seam);
+    }
+
+    return seams;
+  }
+
+  _createHaloCrown(color, options = {}) {
+    const geometry = this._getSharedGeometry(`weather.crown.${options.signature ?? 'default'}`, () => new THREE.TorusGeometry(options.radius ?? 72, options.thickness ?? 1.4, 8, 72, Math.PI * (options.arc ?? 1.35)));
+    const material = this._createWeatherMaterial(color, 0);
+    const crown = new THREE.Mesh(geometry, material);
+    crown.position.set(0, options.y ?? 36, options.depth ?? -90);
+    crown.rotation.set(-(options.pitch ?? Math.PI / 2.5), 0, options.roll ?? 0.22);
+    crown.userData = {
+      pulsePhase: Math.random() * Math.PI * 2,
+      pulseSpeed: options.speed ?? 0.55
+    };
+    return this._tagWeatherObject(
+      crown,
+      options.type ?? 'halo_crown',
+      options.signature ?? 'weather_crown',
+      options.baseOpacity ?? 0.12,
+      1,
+      options.bucket ?? 'crowns'
+    );
+  }
+
+  _getWeatherPhaseMix(phase) {
+    return {
+      attack: phase === 'attack' ? 1 : 0,
+      crest: phase === 'crest' ? 1 : 0,
+      release: phase === 'release' ? 1 : 0
+    };
+  }
+
   _createAtmosphericWash(color, opacity, depth) {
     const size = 320;
     const geo = this._getSharedGeometry(`atmosphere.wash.${color}.${depth}`, () => new THREE.PlaneGeometry(size, size));
@@ -287,10 +802,7 @@ export class SafeAIWeatherPack {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.z = depth;
     mesh.rotation.x = -Math.PI / 2;
-    mesh.userData = { isAIWeatherVFX: true, type: 'atmospheric_wash', baseOpacity: opacity, targetOpacity: opacity, baseScale: 1 };
-    this.root.add(mesh);
-    this.vfxLayers.overlays.push(mesh);
-    return mesh;
+    return this._tagWeatherObject(mesh, 'atmospheric_wash', 'weather_wash', opacity, 1, 'overlays');
   }
 
   _createAmbientHazeSheets(color, count, baseDepth) {
@@ -312,16 +824,11 @@ export class SafeAIWeatherPack {
       sheet.position.set(0, 18 + i * 10, baseDepth - i * 6);
       sheet.rotation.x = -Math.PI / 2.7;
       sheet.userData = {
-        isAIWeatherVFX: true,
-        type: 'ambient_haze',
         layer: i,
         speed: 0.015 + i * 0.008,
-        baseOpacity: 0.12,
-        targetOpacity: 0.12,
-        baseScale: 1
+        driftPhase: Math.random() * Math.PI * 2
       };
-      this.root.add(sheet);
-      this.vfxLayers.overlays.push(sheet);
+      this._tagWeatherObject(sheet, 'ambient_haze', 'weather_haze', 0.12, 1, 'overlays');
       sheets.push(sheet);
     }
     return sheets;
@@ -350,15 +857,10 @@ export class SafeAIWeatherPack {
       cloud.rotation.x = -Math.PI / 2;
       const baseOpacity = 0.08 + Math.random() * 0.06;
       cloud.userData = {
-        isAIWeatherVFX: true,
-        type: 'pulse_cloud',
         speed: 0.008 + Math.random() * 0.012,
-        baseOpacity,
-        targetOpacity: baseOpacity,
-        baseScale: 1
+        driftPhase: Math.random() * Math.PI * 2
       };
-      this.root.add(cloud);
-      this.vfxLayers.overlays.push(cloud);
+      this._tagWeatherObject(cloud, 'pulse_cloud', 'weather_cloud', baseOpacity, 1, 'overlays');
       clouds.push(cloud);
     }
     return clouds;
@@ -382,16 +884,11 @@ export class SafeAIWeatherPack {
       ribbon.rotation.x = -Math.PI / 2.6;
       const baseOpacity = 0.05 + Math.random() * 0.04;
       ribbon.userData = {
-        isAIWeatherVFX: true,
-        type: 'aurora_ribbon',
         index: i,
         speed: 0.018 + i * 0.008,
-        baseOpacity,
-        targetOpacity: baseOpacity,
-        baseScale: 1
+        driftPhase: Math.random() * Math.PI * 2
       };
-      this.root.add(ribbon);
-      this.vfxLayers.ribbons.push(ribbon);
+      this._tagWeatherObject(ribbon, 'aurora_ribbon', 'weather_ribbon', baseOpacity, 1, 'ribbons');
       ribbons.push(ribbon);
     }
     return ribbons;
@@ -415,16 +912,11 @@ export class SafeAIWeatherPack {
       band.rotation.x = -Math.PI / 2.9;
       const baseOpacity = 0.05 + i * 0.02;
       band.userData = {
-        isAIWeatherVFX: true,
-        type: 'pressure_band',
         index: i,
         speed: 0.02 + i * 0.005,
-        baseOpacity,
-        targetOpacity: baseOpacity,
-        baseScale: 1
+        driftPhase: Math.random() * Math.PI * 2
       };
-      this.root.add(band);
-      this.vfxLayers.beams.push(band);
+      this._tagWeatherObject(band, 'pressure_band', 'weather_band', baseOpacity, 1, 'beams');
       bands.push(band);
     }
     return bands;
@@ -479,16 +971,9 @@ export class SafeAIWeatherPack {
     mesh.rotation.copy(rotation);
     mesh.scale.setScalar(size);
     mesh.userData = {
-      isAIWeatherVFX: true,
-      type: `${type}_silhouette`,
-      baseOpacity: mat.opacity,
-      targetOpacity: mat.opacity,
-      baseScale: size,
       layerPriority: this.weatherSignatures[type]?.layerPriority || 'far'
     };
-    this.root.add(mesh);
-    this.vfxLayers.overlays.push(mesh);
-    return mesh;
+    return this._tagWeatherObject(mesh, `${type}_silhouette`, `weather_silhouette_${type}`, mat.opacity, size, 'overlays');
   }
 
   _applyWeatherOpacity(object, targetOpacity) {
@@ -517,8 +1002,10 @@ export class SafeAIWeatherPack {
    * Main update loop (called once per frame)
    */
   update(deltaTime, legendaryPack, linkingSystem, evolutionManager, worldEvents, worldMoodBias) {
+    this._ensureResidueCouplingSubscription();
     this.animationTime += deltaTime;
     this.windPhase += deltaTime;
+    this._updateResidueCoupling(deltaTime);
     
     // Phase B pilot: throttle interpretation/decisions to keep mood at ~4 Hz while visuals/motion stay 60 Hz
     this.interpretationAccumulator += deltaTime;
@@ -553,8 +1040,10 @@ export class SafeAIWeatherPack {
     // Don't trigger if weather is already active
     if (this.registry.active) return;
     
-    // Check cooldown
-    if (now - this.lastWeatherTime < this.config.weatherCooldown * 1000) {
+    // Check cooldown (residue coupling can temporarily relax it)
+    const residueWeight = this._getResidueCouplingWeight();
+    const cooldownMul = THREE.MathUtils.lerp(1, 0.35, residueWeight);
+    if (now - this.lastWeatherTime < this.config.weatherCooldown * 1000 * cooldownMul) {
       return;
     }
     
@@ -616,6 +1105,11 @@ export class SafeAIWeatherPack {
     const averageTraffic = links.length > 0 ? totalTraffic / links.length : 0;
     potential += Math.min(0.2, averageTraffic * 0.2);
     
+    const residueWeight = this._getResidueCouplingWeight();
+    if (residueWeight > 0) {
+      potential += this._residueCoupling.potentialBoost * residueWeight;
+    }
+
     return Math.min(1, potential);
   }
   
@@ -710,6 +1204,11 @@ export class SafeAIWeatherPack {
       });
     }
 
+    const residueWeight = this._getResidueCouplingWeight();
+    if (residueWeight > 0 && this._residueCoupling.moodHint && weights[this._residueCoupling.moodHint] !== undefined) {
+      weights[this._residueCoupling.moodHint] += 0.42 * residueWeight;
+    }
+
     return Object.fromEntries(
       Object.entries(weights).map(([key, value]) => [key, Math.max(0, value)])
     );
@@ -733,6 +1232,7 @@ export class SafeAIWeatherPack {
   startWeather(moodState, legendaryPack, linkingSystem) {
     const moodDef = this.moodStates[moodState];
     if (!moodDef) return;
+    this.worldProfile = this._resolveWorldProfile();
     
     // Preserve last weather for bias decisions
     this.registry.lastWeatherType = this.registry.active;
@@ -761,47 +1261,48 @@ export class SafeAIWeatherPack {
   createWeatherVFX(moodState, moodDef) {
     // Clean previous weather
     this.cleanupAllWeatherVFX();
+    const palette = this._resolveWeatherPalette(moodState);
     
     switch(moodState) {
       case 'calm':
-        this.createCalmAtmosphereVFX(moodDef);
+        this.createCalmAtmosphereVFX(moodDef, palette);
         break;
       case 'pressure':
-        this.createPressureFieldVFX(moodDef);
+        this.createPressureFieldVFX(moodDef, palette);
         break;
       case 'resonance':
-        this.createResonanceLayerVFX(moodDef);
+        this.createResonanceLayerVFX(moodDef, palette);
         break;
       case 'stormBias':
-        this.createStormPulseVFX(moodDef);
+        this.createStormPulseVFX(moodDef, palette);
         break;
       case 'ascensionHaze':
-        this.createAscensionHazeVFX(moodDef);
+        this.createAscensionHazeVFX(moodDef, palette);
         break;
       default:
-        this.createCalmAtmosphereVFX(moodDef);
+        this.createCalmAtmosphereVFX(moodDef, palette);
         break;
     }
   }
 
-  createCalmAtmosphereVFX(moodDef) {
-    this.createNeonRainVFX(moodDef);
+  createCalmAtmosphereVFX(moodDef, palette) {
+    this.createNeonRainVFX(moodDef, palette);
   }
 
-  createPressureFieldVFX(moodDef) {
-    this.createSigmaTurbulenceVFX(moodDef);
+  createPressureFieldVFX(moodDef, palette) {
+    this.createSigmaTurbulenceVFX(moodDef, palette);
   }
 
-  createResonanceLayerVFX(moodDef) {
-    this.createAuroraWindsVFX(moodDef);
+  createResonanceLayerVFX(moodDef, palette) {
+    this.createAuroraWindsVFX(moodDef, palette);
   }
 
-  createStormPulseVFX(moodDef) {
-    this.createQuantumStormVFX(moodDef);
+  createStormPulseVFX(moodDef, palette) {
+    this.createQuantumStormVFX(moodDef, palette);
   }
 
-  createAscensionHazeVFX(moodDef) {
-    this.createFractalFogVFX(moodDef);
+  createAscensionHazeVFX(moodDef, palette) {
+    this.createFractalFogVFX(moodDef, palette);
   }
 
   
@@ -844,6 +1345,12 @@ export class SafeAIWeatherPack {
       intensity *= 0.65;
     }
 
+    const residueWeight = this._getResidueCouplingWeight();
+    if (residueWeight > 0) {
+      intensity *= 1 + (this._residueCoupling.intensityBoost * residueWeight);
+    }
+    intensity = THREE.MathUtils.clamp(intensity, 0, 1);
+
     this.registry.intensity = intensity;
     this.registry.phase = phase;
     
@@ -865,7 +1372,68 @@ export class SafeAIWeatherPack {
         break;
     }
 
+    this._updateMysticWeatherLayers(intensity, phase, deltaTime);
+
     this._updateWeatherLOD();
+  }
+
+  _updateMysticWeatherLayers(intensity, phase, deltaTime) {
+    const phaseMix = this._getWeatherPhaseMix(phase);
+    const time = this.animationTime;
+
+    this.vfxLayers.veils.forEach((veil, index) => {
+      if (!veil?.material) return;
+      const drift = Math.sin(time * (0.18 + (veil.userData.driftSpeed ?? 0.15)) + (veil.userData.driftPhase ?? 0)) * 0.35;
+      const crestLift = 1 + phaseMix.crest * 0.08 + phaseMix.attack * 0.04 - phaseMix.release * 0.03;
+      veil.scale.set(
+        (veil.userData.baseScale ?? 1) * (1 + intensity * 0.12),
+        (veil.userData.baseScale ?? 1) * crestLift,
+        1
+      );
+      veil.position.x = (veil.userData.baseX ?? veil.position.x) + drift * (3 + intensity * 6);
+      veil.position.y = (veil.userData.baseY ?? veil.position.y) + Math.sin(time * 0.42 + index) * (0.4 + intensity * 0.75);
+      this._applyWeatherOpacity(
+        veil,
+        THREE.MathUtils.clamp((veil.userData.baseOpacity ?? 0.08) * (0.55 + intensity * 1.15 + phaseMix.crest * 0.2), 0, veil.userData.baseOpacity)
+      );
+    });
+
+    this.vfxLayers.seams.forEach((seam) => {
+      if (!seam?.material) return;
+      const pulse = 0.72 + Math.sin(time * (seam.userData.pulseSpeed ?? 0.5) + (seam.userData.phase ?? 0)) * 0.28;
+      seam.scale.x = (seam.userData.stretchBias ?? 1) * (0.94 + phaseMix.attack * 0.08 + phaseMix.crest * 0.16);
+      seam.scale.y = 1 + phaseMix.release * 0.08;
+      seam.rotation.z += deltaTime * 0.08 * (0.5 + intensity);
+      this._applyWeatherOpacity(
+        seam,
+        THREE.MathUtils.clamp((seam.userData.baseOpacity ?? 0.08) * pulse * (0.55 + intensity * 1.2), 0, seam.userData.baseOpacity)
+      );
+    });
+
+    this.vfxLayers.crowns.forEach((crown) => {
+      if (!crown?.material) return;
+      const pulse = 1 + Math.sin(time * (crown.userData.pulseSpeed ?? 0.5) + (crown.userData.pulsePhase ?? 0)) * (0.05 + intensity * 0.08);
+      crown.scale.setScalar((crown.userData.baseScale ?? 1) * pulse * (1 + phaseMix.crest * 0.06));
+      crown.rotation.z += deltaTime * 0.04;
+      this._applyWeatherOpacity(
+        crown,
+        THREE.MathUtils.clamp((crown.userData.baseOpacity ?? 0.12) * (0.65 + intensity * 0.95), 0, crown.userData.baseOpacity)
+      );
+    });
+
+    this.vfxLayers.shards.forEach((shard) => {
+      if (!shard?.material) return;
+      shard.userData.orbitAngle += deltaTime * (shard.userData.orbitSpeed ?? 0.2) * (0.6 + intensity);
+      shard.position.x = Math.cos(shard.userData.orbitAngle) * (shard.userData.orbitRadius ?? 40);
+      shard.position.z += Math.sin(shard.userData.orbitAngle * 1.3) * deltaTime * 0.9;
+      shard.position.y = (shard.userData.baseY ?? shard.position.y) + Math.sin(time * (shard.userData.liftSpeed ?? 0.1) * 8) * 0.45;
+      shard.rotation.x += deltaTime * 0.7;
+      shard.rotation.y += deltaTime * 0.5;
+      this._applyWeatherOpacity(
+        shard,
+        THREE.MathUtils.clamp((shard.userData.baseOpacity ?? 0.12) * (0.52 + intensity * 1.25 + phaseMix.crest * 0.16), 0, shard.userData.baseOpacity)
+      );
+    });
   }
   
   updateCalmAtmosphereVFX(intensity, phase, deltaTime) {
@@ -891,12 +1459,50 @@ export class SafeAIWeatherPack {
   /**
    * STORM BIAS - Storm envelope atmosphere
    */
-  createQuantumStormVFX(weatherDef) {
-    const palette = ATMOSPHERE_PALETTE.stormBias;
+  createQuantumStormVFX(weatherDef, palette = ATMOSPHERE_PALETTE.stormBias) {
     this._createAtmosphericWash(palette.void, Math.min(0.28, weatherDef.maxIntensity * 0.3), -100);
     this._createMoodSilhouette('stormBias', palette, -90, weatherDef);
     this._createPulseClouds(palette.core, 2, -92);
     this._createPressureBands(palette.band, 1);
+    this._createVeilCurtains(palette.haze, 2, {
+      type: 'storm_veil',
+      signature: 'storm_cathedral',
+      width: 168,
+      height: 64,
+      depth: -94,
+      y: 30,
+      baseOpacity: 0.12,
+      speed: 0.22
+    });
+    this._createSeamLattice(palette.core, 7, {
+      type: 'storm_seam',
+      signature: 'storm_cathedral',
+      y: 28,
+      depth: -86,
+      baseOpacity: 0.12,
+      length: 72,
+      thickness: 1.2
+    });
+    this._createShardHalo(0xf6f2ff, 9, {
+      type: 'storm_shard',
+      signature: 'storm_cathedral',
+      radius: 52,
+      y: 34,
+      depth: -86,
+      size: 0.8,
+      baseOpacity: 0.16,
+      speed: 0.4
+    });
+    this._createHaloCrown(palette.core, {
+      type: 'storm_crown',
+      signature: 'storm_cathedral',
+      radius: 64,
+      y: 38,
+      depth: -88,
+      baseOpacity: 0.15,
+      roll: -0.18,
+      speed: 0.62
+    });
   }
   
   /**
@@ -926,8 +1532,7 @@ export class SafeAIWeatherPack {
   /**
    * PRESSURE - Aurora pressure atmosphere
    */
-  createSigmaTurbulenceVFX(weatherDef) {
-    const palette = ATMOSPHERE_PALETTE.pressure;
+  createSigmaTurbulenceVFX(weatherDef, palette = ATMOSPHERE_PALETTE.pressure) {
     this._createAtmosphericWash(palette.haze, Math.min(0.14, weatherDef.maxIntensity * 0.2), -98);
     this._createMoodSilhouette('pressure', palette, -94, weatherDef);
     this._createPressureBands(palette.band, 1);
@@ -936,6 +1541,36 @@ export class SafeAIWeatherPack {
     ribbons.forEach(ribbon => {
       ribbon.userData.type = 'pressure_ribbon';
       ribbon.userData.baseScale = 1.1;
+    });
+    this._createVeilCurtains(palette.core, 2, {
+      type: 'pressure_veil',
+      signature: 'pressure_liturgy',
+      width: 192,
+      height: 48,
+      depth: -96,
+      y: 24,
+      baseOpacity: 0.08,
+      speed: 0.14
+    });
+    this._createSeamLattice(palette.band, 6, {
+      type: 'pressure_seam',
+      signature: 'pressure_liturgy',
+      y: 20,
+      depth: -88,
+      baseOpacity: 0.09,
+      length: 84,
+      thickness: 1.4,
+      spreadX: 120
+    });
+    this._createHaloCrown(palette.band, {
+      type: 'pressure_crown',
+      signature: 'pressure_liturgy',
+      radius: 74,
+      y: 28,
+      depth: -92,
+      arc: 1.08,
+      baseOpacity: 0.1,
+      speed: 0.34
     });
   }
   
@@ -964,12 +1599,31 @@ export class SafeAIWeatherPack {
   /**
    * CALM - Gentle atmospheric intelligence
    */
-  createNeonRainVFX(weatherDef) {
-    const palette = ATMOSPHERE_PALETTE.calm;
+  createNeonRainVFX(weatherDef, palette = ATMOSPHERE_PALETTE.calm) {
     this._createAtmosphericWash(palette.core, Math.min(0.12, weatherDef.maxIntensity * 0.16), -96);
     this._createMoodSilhouette('calm', palette, -94, weatherDef);
     this._createAuroraRibbons(palette.core, 2);
     this._createPulseClouds(palette.band, 1, -90);
+    this._createVeilCurtains(palette.haze, 2, {
+      type: 'calm_veil',
+      signature: 'civilized_horizon',
+      width: 150,
+      height: 40,
+      depth: -95,
+      y: 26,
+      baseOpacity: 0.06,
+      speed: 0.1
+    });
+    this._createShardHalo(palette.band, 6, {
+      type: 'calm_shard',
+      signature: 'civilized_horizon',
+      radius: 46,
+      y: 30,
+      depth: -88,
+      size: 0.6,
+      baseOpacity: 0.1,
+      speed: 0.2
+    });
   }
   
   /**
@@ -983,19 +1637,19 @@ export class SafeAIWeatherPack {
         overlay.position.x += Math.sin(this.animationTime * 0.18 + overlay.userData.speed * 4) * 0.01;
         overlay.position.y += Math.sin(this.animationTime * 0.12) * 0.02;
       }
-      if (overlay.userData.type === 'aurora_ribbon') {
-        const target = Math.min(0.18, intensity * 0.16 + 0.02);
-        this._applyWeatherOpacity(overlay, THREE.MathUtils.clamp(target, 0, overlay.userData.baseOpacity));
-        overlay.position.y += Math.sin(this.animationTime * 0.05 + overlay.userData.index) * 0.01;
-      }
+    });
+    this.vfxLayers.ribbons.forEach((ribbon) => {
+      if (ribbon.userData.type !== 'aurora_ribbon') return;
+      const target = Math.min(0.18, intensity * 0.16 + 0.02);
+      this._applyWeatherOpacity(ribbon, THREE.MathUtils.clamp(target, 0, ribbon.userData.baseOpacity));
+      ribbon.position.y += Math.sin(this.animationTime * 0.05 + ribbon.userData.index) * 0.01;
     });
   }
   
   /**
    * RESONANCE - Aurora ribbon overlay
    */
-  createAuroraWindsVFX(weatherDef) {
-    const palette = ATMOSPHERE_PALETTE.resonance;
+  createAuroraWindsVFX(weatherDef, palette = ATMOSPHERE_PALETTE.resonance) {
     this._createAtmosphericWash(palette.haze, Math.min(0.14, weatherDef.maxIntensity * 0.18), -96);
     this._createMoodSilhouette('resonance', palette, -94, weatherDef);
     const ribbons = this._createAuroraRibbons(palette.core, 2);
@@ -1003,6 +1657,37 @@ export class SafeAIWeatherPack {
       ribbon.userData.baseOpacity = Math.min(0.18, (weatherDef.maxIntensity || 0.7) * 0.18);
       ribbon.userData.targetOpacity = ribbon.userData.baseOpacity;
       ribbon.userData.index = index;
+    });
+    this._createVeilCurtains(palette.band, 3, {
+      type: 'resonance_veil',
+      signature: 'aurora_intelligence',
+      width: 174,
+      height: 52,
+      depth: -94,
+      y: 28,
+      baseOpacity: 0.08,
+      speed: 0.18
+    });
+    this._createHaloCrown(palette.core, {
+      type: 'resonance_crown',
+      signature: 'aurora_intelligence',
+      radius: 68,
+      y: 36,
+      depth: -90,
+      arc: 1.52,
+      baseOpacity: 0.11,
+      roll: 0.12,
+      speed: 0.48
+    });
+    this._createShardHalo(palette.haze, 8, {
+      type: 'resonance_shard',
+      signature: 'aurora_intelligence',
+      radius: 58,
+      y: 34,
+      depth: -86,
+      size: 0.72,
+      baseOpacity: 0.12,
+      speed: 0.26
     });
   }
   
@@ -1031,12 +1716,44 @@ export class SafeAIWeatherPack {
   /**
    * ASCENSION HAZE - Ascension haze layer
    */
-  createFractalFogVFX(weatherDef) {
-    const palette = ATMOSPHERE_PALETTE.ascensionHaze;
+  createFractalFogVFX(weatherDef, palette = ATMOSPHERE_PALETTE.ascensionHaze) {
     this._createAtmosphericWash(palette.haze, Math.min(0.14, weatherDef.maxIntensity * 0.18), -100);
     this._createMoodSilhouette('ascensionHaze', palette, -92, weatherDef);
     this._createAmbientHazeSheets(palette.band, 1, -96);
     this._createPulseClouds(palette.core, 1, -92);
+    this._createVeilCurtains(palette.haze, 2, {
+      type: 'ascension_veil',
+      signature: 'fractal_ascension',
+      width: 120,
+      height: 72,
+      depth: -92,
+      y: 34,
+      baseOpacity: 0.09,
+      speed: 0.12,
+      pitch: Math.PI / 2.75
+    });
+    this._createSeamLattice(0xffffff, 5, {
+      type: 'ascension_seam',
+      signature: 'fractal_ascension',
+      y: 32,
+      depth: -84,
+      baseOpacity: 0.08,
+      length: 54,
+      thickness: 1.1,
+      spreadX: 90,
+      spreadY: 22
+    });
+    this._createHaloCrown(0xffffff, {
+      type: 'ascension_crown',
+      signature: 'fractal_ascension',
+      radius: 48,
+      y: 40,
+      depth: -86,
+      arc: 1.72,
+      baseOpacity: 0.13,
+      roll: 0.28,
+      speed: 0.32
+    });
     
     for (let i = 0; i < 4; i++) {
       const fractalGeo = this._getSharedGeometry('fractalFog.fractalGeo', () => new THREE.TetrahedronGeometry(0.16, 1));
@@ -1056,8 +1773,6 @@ export class SafeAIWeatherPack {
       );
       const baseOpacity = 0.24 + Math.random() * 0.12;
       fractal.userData = {
-        isAIWeatherVFX: true,
-        type: 'fractal_particle',
         drift: new THREE.Vector3(
           (Math.random() - 0.5) * 0.15,
           (Math.random() - 0.5) * 0.12,
@@ -1065,12 +1780,10 @@ export class SafeAIWeatherPack {
         ),
         rotationSpeed: 0.5 + Math.random() * 0.8,
         baseOpacity,
-        targetOpacity: baseOpacity,
         baseScale: 1
       };
       
-      this.root.add(fractal);
-      this.vfxLayers.particles.push(fractal);
+      this._tagWeatherObject(fractal, 'fractal_particle', 'fractal_ascension', baseOpacity, 1, 'particles');
     }
   }
   
@@ -1146,9 +1859,11 @@ export class SafeAIWeatherPack {
     
     // Set wind vector
     const windSpeed = (Math.sin(windAngle) * 0.5 + 0.5) * (0.3 + synergyWeight * 0.7);
-    this.registry.windVector.x = Math.cos(windAngle) * windSpeed * this.registry.windStrength;
-    this.registry.windVector.z = Math.sin(windAngle) * windSpeed * this.registry.windStrength;
-    this.registry.windVector.y = Math.sin(this.windPhase * 0.3) * 0.2 * this.registry.windStrength * (0.6 + synergyWeight * 0.4);
+    const residueWeight = this._getResidueCouplingWeight();
+    const residueWindMul = 1 + this._residueCoupling.windBoost * residueWeight;
+    this.registry.windVector.x = Math.cos(windAngle) * windSpeed * this.registry.windStrength * residueWindMul;
+    this.registry.windVector.z = Math.sin(windAngle) * windSpeed * this.registry.windStrength * residueWindMul;
+    this.registry.windVector.y = Math.sin(this.windPhase * 0.3) * 0.2 * this.registry.windStrength * (0.6 + synergyWeight * 0.4) * residueWindMul;
   }
   
   /**
@@ -1170,40 +1885,22 @@ export class SafeAIWeatherPack {
    * Clean up all weather VFX
    */
   cleanupAllWeatherVFX() {
-    // Remove all overlays
-    this.vfxLayers.overlays.forEach(overlay => {
-      this.root.remove(overlay);
-      this._releaseMeshResources(overlay);
+    Object.keys(this.vfxLayers).forEach((bucket) => {
+      this.vfxLayers[bucket].forEach((object) => {
+        this.root.remove(object);
+        this._releaseMeshResources(object);
+      });
+      this.vfxLayers[bucket] = [];
     });
-    this.vfxLayers.overlays = [];
-    
-    // Remove all particles
-    this.vfxLayers.particles.forEach(particle => {
-      this.root.remove(particle);
-      this._releaseMeshResources(particle);
-    });
-    this.vfxLayers.particles = [];
-    
-    // Remove all ribbons
-    this.vfxLayers.ribbons.forEach(ribbon => {
-      this.root.remove(ribbon);
-      this._releaseMeshResources(ribbon);
-    });
-    this.vfxLayers.ribbons = [];
-
-    // Remove all beams
-    this.vfxLayers.beams.forEach(beam => {
-      this.root.remove(beam);
-      this._releaseMeshResources(beam);
-    });
-    this.vfxLayers.beams = [];
   }
 
   dispose() {
+    this._detachResidueCoupling();
     this.cleanupAllWeatherVFX();
     if (this.root?.parent) {
       this.root.parent.remove(this.root);
     }
+    this.semanticBus = null;
   }
   
   /**
@@ -1213,7 +1910,7 @@ export class SafeAIWeatherPack {
     if (!this.registry.active) return null;
     
     const moodDef = this.moodStates[this.registry.active];
-    const signature = this.weatherSignatures[this.registry.active] || {};
+    const signature = this._resolveWeatherSignature(this.registry.active) || {};
     return {
       title: signature.title || moodDef.description,
       subtitle: moodDef.subtitle,
@@ -1223,6 +1920,7 @@ export class SafeAIWeatherPack {
       overlay: signature.overlay,
       atmosphere: signature.atmosphere,
       motion: signature.motion,
+      worldBias: this.worldProfile?.modeKey || 'default',
       intensity: this.registry.intensity,
       phase: this.registry.phase
     };
@@ -1280,6 +1978,12 @@ export class SafeAIWeatherPack {
     };
     this.lastWeatherTime = 0;
     this.interpretationAccumulator = 0;
+    this._residueCoupling.potentialBoost = 0;
+    this._residueCoupling.intensityBoost = 0;
+    this._residueCoupling.windBoost = 0;
+    this._residueCoupling.ttl = 0;
+    this._residueCoupling.maxTtl = 0;
+    this._residueCoupling.moodHint = null;
   }
 
   /**
@@ -1305,5 +2009,11 @@ export class SafeAIWeatherPack {
     this.lastWeatherTime = 0;
     this.animationTime = 0;
     this.interpretationAccumulator = 0;
+    this._residueCoupling.potentialBoost = 0;
+    this._residueCoupling.intensityBoost = 0;
+    this._residueCoupling.windBoost = 0;
+    this._residueCoupling.ttl = 0;
+    this._residueCoupling.maxTtl = 0;
+    this._residueCoupling.moodHint = null;
   }
 }

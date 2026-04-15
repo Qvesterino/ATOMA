@@ -7878,9 +7878,25 @@ window.__ATOMA_SCENE__ = this.scene;
 
         this.worldRoot = new THREE.Group();
         this.worldRoot.name = "ATOMA_WorldRoot";
+        this.worldRoot.userData = {
+            ...(this.worldRoot.userData || {}),
+            currentMode: this.currentMode || 'quantum',
+            worldRole: 'worldRoot'
+        };
         this.scene.add(this.worldRoot);
         this.environmentRoot = new THREE.Group();
         this.environmentRoot.name = 'ATOMA_EnvironmentRoot';
+        this.environmentRoot.userData = {
+            ...(this.environmentRoot.userData || {}),
+            currentMode: this.currentMode || 'quantum',
+            worldRole: 'environmentRoot'
+        };
+        if (this.scene) {
+            this.scene.userData = {
+                ...(this.scene.userData || {}),
+                currentMode: this.currentMode || 'quantum'
+            };
+        }
         this.worldRoot.add(this.environmentRoot);
         if (this.vfxRoot) {
             this.worldRoot.add(this.vfxRoot);

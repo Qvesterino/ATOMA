@@ -368,6 +368,16 @@ export class SafeColonyExpansion2 {
           energy
         )
       : [];
+    vfx.canopy = stage >= 1
+      ? this.vfxManager.createMoodCanopy(
+          colonyId,
+          colony.center,
+          stage,
+          mood,
+          type,
+          energy
+        )
+      : null;
     vfx.core = stage >= 2
       ? this.vfxManager.createCentralGlow(
           colonyId,
