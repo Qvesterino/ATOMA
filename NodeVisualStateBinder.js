@@ -357,14 +357,57 @@ export function applyLinkFXOnly(node, options = {}) {
  * Pure FX, separate mesh, renderOrder = 50.
  * 
  * @private
+ * @param {Object} node - Source node
+ * @param {Object} options - Options object
+ * @param {THREE.Vector3} options.targetPosition - Target node position
+ * @param {THREE.Color} options.color - Arc color
+ * @param {number} options.opacity - Arc opacity (default: 0.6)
+ * @param {number} options.thickness - Arc thickness (default: 0.08)
+ * @param {number} options.arcHeight - Arc height (default: 0.3)
+ * @returns {THREE.Mesh|null} Arc mesh or null if invalid
  */
 function createLinkArcFX(node, options = {}) {
-  // This is a placeholder for the visual arc
-  // In actual implementation, create a Bezier curve mesh
-  // with glow/emission material, renderOrder 50
-
-  // For now, return null (FX created elsewhere)
-  return null;
+  if (!node || !node.position) return null;
+  
+  const targetPosition = options.targetPosition;
+  if (!targetPosition) return null;
+  
+  const color = options.color || new THREE.Color(0x88ccff);
+  const opacity = options.opacity ?? 0.6;
+  const thickness = options.thickness ?? 0.08;
+  const arcHeight = options.arcHeight ?? 0.3;
+  
+  // Create Bezier curve with control point for arc height
+  const startPoint = node.position.clone();
+  const endPoint = targetPosition.clone();
+  
+  // Calculate midpoint with arc height offset
+  const midPoint = new THREE.Vector3().addVectors(startPoint, endPoint).multiplyScalar(0.5);
+  midPoint.y += arcHeight;
+  
+  // Create Bezier curve
+  const curve = new THREE.QuadraticBezierCurve3(startPoint, midPoint, endPoint);
+  
+  // Create tube geometry along curve
+  const tubeGeometry = new THREE.TubeGeometry(curve, 32, thickness, 8, false);
+  
+  // Create glow/emission material
+  const tubeMaterial = new THREE.MeshBasicMaterial({
+    color: color,
+    transparent: true,
+    opacity: opacity,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+  
+  // Create mesh
+  const arcMesh = new THREE.Mesh(tubeGeometry, tubeMaterial);
+  arcMesh.renderOrder = 50;
+  arcMesh.userData.isLinkArcFX = true;
+  arcMesh.userData.visualLayer = 'LINK_FX';
+  
+  return arcMesh;
 }
 
 /**

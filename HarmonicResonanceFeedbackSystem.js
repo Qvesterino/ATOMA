@@ -1201,7 +1201,7 @@ export class HarmonicResonanceFeedbackSystem {
 
     ensureDebugResources() {
         if (!this.debugFieldGeometry) {
-            this.debugFieldGeometry = new THREE.SphereGeometry(1, 16, 16);
+            this.debugFieldGeometry = new THREE.IcosahedronGeometry(1, 2);
         }
 
         if (!this.debugFieldMaterial) {

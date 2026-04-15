@@ -184,17 +184,15 @@ export class HarmonicInfluencePropagationSystem_Session127 {
   }
   
   /**
-   * Create aura geometry (procedural flame mesh)
+   * Create aura geometry — ethereal field with organic displacement
+   * Uses low-poly icosahedrons for both LOD levels
    */
   _createAuraGeometry() {
-    // Base icosahedron for aura
-    const baseGeo = new THREE.IcosahedronGeometry(1.0, 3);
+    // Base icosahedron for aura — detail 2 = more organic, less uniform
+    this.auraGeometry = new THREE.IcosahedronGeometry(1.0, 2);
     
-    // High-quality version
-    this.auraGeometry = baseGeo;
-    
-    // LOD version (fewer segments)
-    this.auraGeometryLOD = new THREE.IcosahedronGeometry(1.0, 2);
+    // LOD version — detail 1 = very faceted, good for distance
+    this.auraGeometryLOD = new THREE.IcosahedronGeometry(1.0, 1);
   }
   
   /**

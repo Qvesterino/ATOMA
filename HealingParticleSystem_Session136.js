@@ -328,13 +328,14 @@ export class HealingParticleSystem_Session136 {
 
         if (this.config.debugSpawnProbe) {
             this.debugProbe = new THREE.Mesh(
-                new THREE.SphereGeometry(0.25, 10, 10),
+                new THREE.OctahedronGeometry(0.25, 0), // Sacred geometry probe
                 new THREE.MeshBasicMaterial({
                     color: 0xff4d7d,
                     transparent: true,
                     opacity: 0.92,
                     depthWrite: false,
-                    depthTest: false
+                    depthTest: false,
+                    flatShading: true
                 })
             );
             this.debugProbe.visible = false;

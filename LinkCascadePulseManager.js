@@ -270,6 +270,31 @@ export class LinkCascadePulseManager {
         
         return Array.from(connectedHubs);
     }
+    
+    /**
+     * Find link between two nodes
+     * @private
+     */
+    _findLinkBetweenNodes(nodeA, nodeB, nodeControllers) {
+        const controllerA = nodeControllers.get(nodeA);
+        if (!controllerA) return null;
+        
+        for (const linkData of controllerA.connectedLinks) {
+            const link = linkData.link;
+            if (!link) continue;
+            
+            // Check if link connects nodeA and nodeB
+            const connectsToNodeB = 
+                (link.source === nodeA && link.target === nodeB) ||
+                (link.source === nodeB && link.target === nodeA);
+            
+            if (connectsToNodeB) {
+                return link;
+            }
+        }
+        
+        return null;
+    }
 
     /**
      * Find cascade targets (neighboring hubs reachable through network)
@@ -303,8 +328,21 @@ export class LinkCascadePulseManager {
                 visited.add(neighbor);
                 
                 // Quality depends on link health
-                // (This is a placeholder; could be computed from link harmony/synergy)
-                const quality = current.quality * 0.9; // Slight quality loss per hop
+                // Compute from actual link harmony/synergy metrics
+                const link = this._findLinkBetweenNodes(current.hub, neighbor, nodeControllers);
+                let qualityFactor = 0.9; // Default fallback
+                
+                if (link && link.userData) {
+                    const linkHarmony = link.userData.metrics?.harmony || 0.5;
+                    const linkSynergy = link.userData.metrics?.synergy || 0.5;
+                    
+                    // Higher harmony/synergy = less quality loss
+                    // Range: 0.7 (excellent) to 0.95 (poor)
+                    qualityFactor = 0.95 - ((linkHarmony + linkSynergy) * 0.125);
+                    qualityFactor = Math.max(0.7, Math.min(0.95, qualityFactor));
+                }
+                
+                const quality = current.quality * qualityFactor;
                 
                 if (quality >= this.config.minHubConnectionQuality) {
                     queue.push({

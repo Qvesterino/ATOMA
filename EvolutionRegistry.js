@@ -475,20 +475,52 @@ export class EvolutionRegistry {
     const nodeId = this.getNodeId(node);
     const particleCount = 6 + Math.floor(intensity * 6);
     
-    // Create particles if needed
+    // Create particles if needed — now as Evolutionary Sparks
+    // Each spark: small octahedron core + 4 radiating spikes + pulsing emissive
     while (overlays.particleMeshes.length < particleCount) {
-      const particleGeometry = new THREE.SphereGeometry(0.08, 8, 8);
-      const particleColor = this.getNodePrimaryColor(node);
-      const particleMaterial = new THREE.MeshBasicMaterial({
-        color: particleColor,
+      const sparkColor = this.getNodePrimaryColor(node);
+      const sparkGroup = new THREE.Group();
+      sparkGroup.name = 'evolution-spark';
+      
+      // Core: small bright octahedron (diamond shape)
+      const coreGeo = new THREE.OctahedronGeometry(0.06, 0);
+      const coreMat = new THREE.MeshBasicMaterial({
+        color: sparkColor,
         transparent: true,
-        emissive: particleColor,
-        emissiveIntensity: 0.4,
+        opacity: 0.9,
+        emissive: sparkColor,
+        emissiveIntensity: 0.6,
         fog: false
       });
+      const core = new THREE.Mesh(coreGeo, coreMat);
+      sparkGroup.add(core);
       
-      const particle = new THREE.Mesh(particleGeometry, particleMaterial);
-      particle.userData = {
+      // Spikes: 4 thin elongated octahedrons radiating outward
+      const spikeDirections = [
+        new THREE.Vector3(1, 0, 0),
+        new THREE.Vector3(-1, 0, 0),
+        new THREE.Vector3(0, 1, 0),
+        new THREE.Vector3(0, -1, 0)
+      ];
+      spikeDirections.forEach(dir => {
+        const spikeGeo = new THREE.OctahedronGeometry(0.02, 0);
+        spikeGeo.scale(0.4, 2.0, 0.4); // Elongated
+        const spikeMat = new THREE.MeshBasicMaterial({
+          color: sparkColor.clone().lerp(new THREE.Color(0xffffff), 0.4),
+          transparent: true,
+          opacity: 0.6,
+          emissive: sparkColor,
+          emissiveIntensity: 0.3,
+          fog: false
+        });
+        const spike = new THREE.Mesh(spikeGeo, spikeMat);
+        spike.position.copy(dir.clone().multiplyScalar(0.1));
+        // Align spike along direction
+        spike.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+        sparkGroup.add(spike);
+      });
+      
+      sparkGroup.userData = {
         isEvolutionVFX: true,
         nodeId: nodeId,
         vfxType: 'particle',
@@ -498,10 +530,10 @@ export class EvolutionRegistry {
       };
       
       // VISUAL HIERARCHY: Render as background layer
-      particle.renderOrder = -1;
+      sparkGroup.renderOrder = -1;
       
-      overlayGroup.add(particle);
-      overlays.particleMeshes.push(particle);
+      overlayGroup.add(sparkGroup);
+      overlays.particleMeshes.push(sparkGroup);
     }
     
     // Update particles

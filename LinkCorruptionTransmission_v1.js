@@ -1937,17 +1937,6 @@ export class LinkCorruptionTransmission_v1 {
     // HARD BLOCK: effective synergy >= 85 completely blocks corruption
     if (effectiveSynergy >= 85) {
       synergyBlockMultiplier = 0.0;
-      
-      // TEMPORARY DEBUG LOG (marked for removal)
-      if (Math.random() < 0.01) {
-        console.log('[Corruption BLOCKED by SYNERGY]', {
-          linkId: link.id,
-          synergy: synergy.toFixed(1),
-          effectiveSynergy: effectiveSynergy.toFixed(1),
-          harmony: harmonyForAmplification.toFixed(2),
-          corruption: (link.userData?.corruptionLevel || 0).toFixed(3)
-        });
-      }
     }
     // SOFT DAMPING: effective synergy 60-85 gradually reduces transmission
     else if (effectiveSynergy >= 60) {
@@ -1969,15 +1958,6 @@ export class LinkCorruptionTransmission_v1 {
     // HARD BLOCK: harmony >= 0.8 strongly suppresses corruption
     if (harmony >= HARMONY_BLOCKING_THRESHOLDS.BLOCK_START) {
       harmonyBlockMultiplier = 0.0;
-      
-      // TEMPORARY DEBUG LOG (marked for removal)
-      if (Math.random() < 0.01) {
-        console.log('[Corruption BLOCKED by HARMONY]', {
-          linkId: link.id,
-          harmony: harmony.toFixed(2),
-          corruption: (link.userData?.corruptionLevel || 0).toFixed(3)
-        });
-      }
     }
     // SOFT DAMPING: harmony 0.4-0.8 gradually reduces transmission
     else if (harmony >= HARMONY_BLOCKING_THRESHOLDS.DAMP_BEGIN) {
@@ -2419,21 +2399,6 @@ export class LinkCorruptionTransmission_v1 {
     // Record cooldown timestamp (prevent re-entry)
     this.synergyFeedbackLastTime.set(linkId, now);
 
-    // OPTIONAL TEMPORARY DEBUG LOG (marked for removal after T1-004 validation)
-    if (Math.random() < 0.01) {
-      console.log('[T1-004 Synergy Feedback]', {
-        linkId: linkId,
-        blockedFraction: blockedFraction.toFixed(3),
-        hadHardBlock: hadHardBlock,
-        synergyBefore: synergyBefore.toFixed(1),
-        saturation: (1 - saturationMultiplier).toFixed(2),        // Show saturation %
-        saturationMultiplier: saturationMultiplier.toFixed(3),    // Show dampening factor
-        baseSynergyGain: synergyGain.toFixed(3),
-        dampenedGain: dampenedGain.toFixed(3),
-        synergyAfter: synergyAfter.toFixed(1)
-      });
-    }
-
     // Track synergy growth for stats (including saturation data for validation)
     this.synergyGrowthHistory.push({
       linkId: linkId,
@@ -2542,21 +2507,6 @@ export class LinkCorruptionTransmission_v1 {
 
     // Record cooldown timestamp (prevent re-entry)
     this.harmonyFeedbackLastTime.set(linkId, now);
-
-    // OPTIONAL TEMPORARY DEBUG LOG (marked for removal after Phase 3b validation)
-    if (Math.random() < 0.01) {
-      console.log('[Phase 3b Harmony Feedback]', {
-        linkId: linkId,
-        healedAmount: healedAmount.toFixed(4),
-        corruptionPressure: corruptionPressure.toFixed(3),
-        harmonyBefore: harmonyBefore.toFixed(3),
-        saturation: (1 - saturationMultiplier).toFixed(2),         // Show saturation %
-        saturationMultiplier: saturationMultiplier.toFixed(3),     // Show dampening factor
-        baseHarmonyGain: harmonyGain.toFixed(4),
-        dampenedGain: dampenedGain.toFixed(4),
-        harmonyAfter: harmonyAfter.toFixed(3)
-      });
-    }
 
     // Track harmony growth for stats (including saturation data for validation)
     this.harmonyGrowthHistory.push({
@@ -2672,19 +2622,6 @@ export class LinkCorruptionTransmission_v1 {
 
     // [Phase 3b] Apply harmony feedback: successful healing increases harmony
     this.applyHarmonyFeedback(link, healedAmount, harmony);
-
-    // OPTIONAL TEMPORARY DEBUG LOG (marked for removal)
-    if (Math.random() < 0.01) {
-      console.log('[Harmony Healing Cascade]', {
-        linkId: link.id,
-        harmonyLevel: harmony.toFixed(2),
-        integrityBefore: integrityData.lastIntegrityValue.toFixed(1),
-        integrityAfter: integrityData.integrity.toFixed(1),
-        corruptionBefore: (linkData.level + healedAmount).toFixed(3),
-        healedAmount: healedAmount.toFixed(3),
-        corruptionAfter: linkData.level.toFixed(3)
-      });
-    }
 
     // === HEALING CASCADE (Secondary Effect) ===
     // When link reaches zero corruption, emit healing pulse to connected links

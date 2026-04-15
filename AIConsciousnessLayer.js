@@ -883,16 +883,52 @@ export class AIConsciousnessLayer {
     }
     
     if (!pulse.mesh) {
-      const geometry = new THREE.SphereGeometry(0.12, 10, 8);
-      const material = new THREE.MeshBasicMaterial({
+      // Neural Thought Particle: dodecahedron core with inner glow + 3 synaptic tendrils as children
+      
+      // Core: dodecahedron (12 pentagonal faces — neural/brain feel)
+      const coreGeo = new THREE.DodecahedronGeometry(0.12, 0);
+      const coreMat = new THREE.MeshBasicMaterial({
         color: pulse.color,
         transparent: true,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
         fog: false
       });
-      pulse.mesh = new THREE.Mesh(geometry, material);
+      pulse.mesh = new THREE.Mesh(coreGeo, coreMat);
       pulse.mesh.userData.isPulsePacket = true;
+      
+      // Inner glow: smaller bright sphere inside core
+      const innerGeo = new THREE.IcosahedronGeometry(0.04, 0);
+      const innerMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(0xffffff),
+        transparent: true,
+        opacity: 0.6,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        fog: false
+      });
+      const inner = new THREE.Mesh(innerGeo, innerMat);
+      pulse.mesh.add(inner); // Child of core
+      
+      // 3 Synaptic tendrils: thin tapered shapes radiating outward
+      const tendrilAngles = [0, Math.PI * 2 / 3, Math.PI * 4 / 3];
+      tendrilAngles.forEach(angle => {
+        const tendrilGeo = new THREE.CylinderGeometry(0.005, 0.015, 0.12, 4);
+        const tendrilMat = new THREE.MeshBasicMaterial({
+          color: pulse.color.clone().lerp(new THREE.Color(0xffffff), 0.3),
+          transparent: true,
+          opacity: 0.5,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          fog: false
+        });
+        const tendril = new THREE.Mesh(tendrilGeo, tendrilMat);
+        tendril.position.set(Math.cos(angle) * 0.08, 0, Math.sin(angle) * 0.08);
+        tendril.rotation.z = Math.PI / 2;
+        tendril.rotation.y = angle;
+        pulse.mesh.add(tendril); // Child of core
+      });
+      
       this.consciousnessGroup.add(pulse.mesh);
     }
     
@@ -1990,6 +2026,11 @@ export class AIConsciousnessLayer {
     // Remove pulses
     for (const pulse of this.particlePools.pulsePackets) {
       if (pulse.mesh) {
+        // Dispose children (tendrils, inner glow)
+        pulse.mesh.children.forEach(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) child.material.dispose();
+        });
         this.consciousnessGroup.remove(pulse.mesh);
         pulse.mesh.geometry.dispose();
         pulse.mesh.material.dispose();

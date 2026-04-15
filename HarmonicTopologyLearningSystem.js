@@ -675,19 +675,20 @@ export class HarmonicTopologyLearningSystem {
 
     ensureDebugResources() {
         if (!this.debugMarkerGeometry) {
-            this.debugMarkerGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+            this.debugMarkerGeometry = new THREE.OctahedronGeometry(0.3, 0);
         }
 
         if (!this.debugMarkerMaterial) {
             this.debugMarkerMaterial = new THREE.MeshBasicMaterial({
                 color: 0x00ff00,
                 transparent: true,
-                opacity: 0.5
+                opacity: 0.5,
+                flatShading: true
             });
         }
 
         if (!this.debugScarGeometry) {
-            this.debugScarGeometry = new THREE.SphereGeometry(0.5, 8, 8);
+            this.debugScarGeometry = new THREE.OctahedronGeometry(0.5, 0);
         }
 
         if (!this.debugScarMaterial) {

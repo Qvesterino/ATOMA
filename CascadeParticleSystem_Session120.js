@@ -1622,8 +1622,7 @@ export class CascadeParticleSystem_Session120 {
       Math.min(1, Number(link?.userData?.metrics?.synergy ?? 0) || 0)
     );
     const clampedIntensity = Math.max(eventIntensity, canonicalIntensity);
-    // TEMPORARILY DISABLED: intensity gating to debug spawn issues
-    // if (clampedIntensity < this.config.minimumVisibleIntensity) return;
+    if (clampedIntensity < this.config.minimumVisibleIntensity) return;
 
     const hop = Math.max(0, Number(hopIndex) || 0);
     const hopDecay = Math.pow(this.config.hopDecay, hop);
@@ -1773,8 +1772,7 @@ export class CascadeParticleSystem_Session120 {
   }
 
   _emitFromLinkState(link, linkState, currentCascadeTime) {
-    // TEMPORARILY DISABLED: isRelevant gating to debug spawn issues
-    // if (!linkState?.isRelevant) return;
+    if (!linkState?.isRelevant) return;
 
     const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
     const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;

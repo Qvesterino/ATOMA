@@ -677,6 +677,15 @@ export class ColonyVFXManager {
   /**
    * Create the conscious core of a living civilization
    */
+  /**
+   * Create conscious core for colony
+   * 
+   * TODO [2026-04-15]: Replace raw IcosahedronGeometry with deformed/composite geometry
+   * - Current: Uses primitive icosahedron (doesn't meet 2026+ quality bar)
+   * - Target: Use deformed sphere with noise displacement or composite mesh
+   * - Impact: Better visual quality for colony core
+   * - Priority: MEDIUM (affects colony visual quality)
+   */
   createConsciousCore(colonyId, center, stage, mood, colonyType, energy) {
     const profile = this.getMoodProfile(mood);
     const color = this.getColorForMood(mood, colonyType);
@@ -684,18 +693,49 @@ export class ColonyVFXManager {
     const size = 0.3 + stage * 0.12 + energyFactor * 0.4;
     const motionBias = profile.motionBias;
     
-    const geometry = new THREE.IcosahedronGeometry(size, 2);
-    const material = this.createBasicMaterial(color, 0.35 + energyFactor * 0.25);
+    // LIVING COLONY CORE: Multi-layer organic structure
+    // Layer 1: Nucleus — deformed icosahedron (low detail = organic, irregular shape)
+    const nucleusGeo = new THREE.IcosahedronGeometry(size * 0.6, 1);
+    const nucleusMat = this.createBasicMaterial(color, 0.5 + energyFactor * 0.2);
+    nucleusMat.flatShading = true; // Organic faceted look
     
+    // Layer 2: Membrane — larger, more transparent icosahedron with different rotation
+    const membraneGeo = new THREE.IcosahedronGeometry(size, 2);
+    const membraneMat = this.createBasicMaterial(color, 0.18 + energyFactor * 0.12);
+    membraneMat.wireframe = true; // Mesh membrane feel
+    
+    // Layer 3: Orbital ring — thin torus rotating around core
+    const ringGeo = new THREE.TorusGeometry(size * 1.1, 0.015, 8, 32);
+    const ringMat = this.createBasicMaterial(color, 0.4 + energyFactor * 0.15);
+    
+    // Assemble: use nucleus as the main mesh (for pool compatibility)
     let core = this.acquireVFXObject('core');
     if (core) {
       if (core.geometry) core.geometry.dispose();
-      core.geometry = geometry;
+      core.geometry = nucleusGeo;
       core.material.color.setHex(color);
-      core.material.opacity = 0.35 + energyFactor * 0.25;
+      core.material.opacity = 0.5 + energyFactor * 0.2;
+      core.material.flatShading = true;
+      // Remove old children if any
+      core.children.forEach(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+      });
+      while (core.children.length > 0) core.remove(core.children[0]);
     } else {
-      core = new THREE.Mesh(geometry, material);
+      core = new THREE.Mesh(nucleusGeo, nucleusMat);
     }
+    
+    // Add membrane as child
+    const membrane = new THREE.Mesh(membraneGeo, membraneMat);
+    membrane.userData = { type: 'membrane', spinSpeed: 0.3 + motionBias * 0.2 };
+    core.add(membrane);
+    
+    // Add orbital ring as child
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = Math.PI / 3;
+    ring.userData = { type: 'orbital-ring', spinSpeed: 0.8 + energyFactor * 0.4 };
+    core.add(ring);
 
     core.position.copy(center);
     core.visible = true;
@@ -723,9 +763,12 @@ export class ColonyVFXManager {
     const profile = this.getMoodProfile(mood);
     const color = this.getColorForMood(mood, colonyType);
     
-    // Sphere glow at center
-    const geometry = new THREE.SphereGeometry(0.34 + stage * 0.12, 16, 16);
+    // Ethereal glow shell — low-poly icosahedron with BackSide rendering for volumetric feel
+    const glowSize = 0.34 + stage * 0.12;
+    const geometry = new THREE.IcosahedronGeometry(glowSize, 1); // faceted glow, not smooth sphere
     const material = this.createBasicMaterial(color, Math.min(1, 0.28 + (profile.glowIntensity || 0) * 0.08 + seeds.particleBias * 0.03));
+    material.side = THREE.BackSide; // Render from inside = ethereal volumetric glow
+    material.flatShading = true;
     
     let glow = this.acquireVFXObject('central-glow');
     if (glow) {
@@ -834,7 +877,7 @@ export class ColonyVFXManager {
       presence = new THREE.Group();
       for (let i = 0; i < 3; i++) {
         const orb = new THREE.Mesh(
-          new THREE.SphereGeometry(0.08, 8, 8),
+          new THREE.OctahedronGeometry(0.08, 0), // Faceted crystal orbs
           this.createBasicMaterial(this.config.colors.LEGENDARY, 0.6)
         );
         orb.position.set(Math.cos(i * Math.PI * 2 / 3) * 1.2, 0.2, Math.sin(i * Math.PI * 2 / 3) * 1.2);
@@ -1325,35 +1368,67 @@ export class ColonyVFXManager {
   }
   
   /**
-   * Trigger colony birth event (expanding ring burst)
+   * Trigger colony birth event — "Genesis Helix"
+   * A double helix spiral emerges from center, expanding outward like DNA unfurling.
+   * Symbolizes the birth of new life from genetic code.
    */
   triggerBirthEvent(colonyId, center, color) {
-    const geometry = new THREE.TorusGeometry(0.1, 0.05, 16, 32);
-    const material = this.createBasicMaterial(color, 1.0);
+    const birthGroup = new THREE.Group();
+    birthGroup.position.copy(center);
     
-    const burst = new THREE.Mesh(geometry, material);
-    burst.position.copy(center);
-    burst.scale.setScalar(0.1);
+    // Primary ring — expanding torus (the "birth cry")
+    const ringGeo = new THREE.TorusGeometry(0.1, 0.05, 16, 32);
+    const ringMat = this.createBasicMaterial(color, 1.0);
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    birthGroup.add(ring);
     
-    burst.userData = {
+    // Helix strand 1 — thin torus knot (DNA strand A)
+    const helixGeo1 = new THREE.TorusKnotGeometry(0.08, 0.015, 48, 8, 2, 3);
+    const helixMat1 = this.createBasicMaterial(color, 0.7);
+    const helix1 = new THREE.Mesh(helixGeo1, helixMat1);
+    birthGroup.add(helix1);
+    
+    // Helix strand 2 — same knot, offset rotation (DNA strand B)
+    const helixGeo2 = new THREE.TorusKnotGeometry(0.08, 0.015, 48, 8, 2, 3);
+    const helixMat2 = this.createBasicMaterial(
+      (new THREE.Color(color)).lerp(new THREE.Color(0xffffff), 0.3).getHex(),
+      0.7
+    );
+    const helix2 = new THREE.Mesh(helixGeo2, helixMat2);
+    helix2.rotation.y = Math.PI; // Offset by half turn
+    birthGroup.add(helix2);
+    
+    birthGroup.scale.setScalar(0.1);
+    birthGroup.userData = {
       type: 'birth-event',
       elapsed: 0,
       lifetime: 0.5,
-      expandSpeed: 3.0
+      expandSpeed: 3.0,
+      helix1,
+      helix2
     };
     
-    this.vfxContainer.add(burst);
-    return burst;
+    this.vfxContainer.add(birthGroup);
+    return birthGroup;
   }
   
   /**
    * Trigger colony collapse event (implosion)
+   * Uses wireframe dodecahedron that implodes — more dramatic than a sphere
    */
   triggerCollapseEvent(colonyId, center, color) {
-    const geometry = new THREE.SphereGeometry(1.0, 16, 16);
-    const material = this.createBasicMaterial(color, 0.5);
+    // Core implosion sphere
+    const coreGeo = new THREE.SphereGeometry(1.0, 16, 16);
+    const coreMat = this.createBasicMaterial(color, 0.5);
+    const collapse = new THREE.Mesh(coreGeo, coreMat);
     
-    const collapse = new THREE.Mesh(geometry, material);
+    // Wireframe shell — fracturing cage
+    const shellGeo = new THREE.DodecahedronGeometry(1.2, 1);
+    const shellMat = this.createBasicMaterial(color, 0.3);
+    shellMat.wireframe = true;
+    const shell = new THREE.Mesh(shellGeo, shellMat);
+    collapse.add(shell);
+    
     collapse.position.copy(center);
     
     collapse.userData = {
@@ -1368,16 +1443,39 @@ export class ColonyVFXManager {
   }
 
   /**
-   * Trigger colony growth event (bloom)
+   * Trigger colony growth event — "Organic Membrane"
+   * A breathing organic shell expands outward with gentle pulsation.
+   * Two concentric icosahedrons at different rotation speeds create depth.
    */
   triggerGrowthEvent(colonyId, center, color, stage = 1) {
-    const geometry = new THREE.RingGeometry(0.4, 0.56 + stage * 0.06, 28, 2);
-    const material = this.createBasicMaterial(color, 0.35, THREE.DoubleSide);
-
-    const growth = new THREE.Mesh(geometry, material);
-    growth.position.copy(center);
-    growth.rotation.x = Math.PI / 2;
-    growth.userData = {
+    const growthGroup = new THREE.Group();
+    growthGroup.position.copy(center);
+    growthGroup.rotation.x = Math.PI / 2;
+    
+    // Outer membrane — low-poly icosahedron, semi-transparent
+    const outerGeo = new THREE.IcosahedronGeometry(0.5 + stage * 0.04, 1);
+    const outerMat = this.createBasicMaterial(color, 0.25, THREE.DoubleSide);
+    outerMat.flatShading = true;
+    const outer = new THREE.Mesh(outerGeo, outerMat);
+    outer.userData.role = 'outer-membrane';
+    growthGroup.add(outer);
+    
+    // Inner breath — smaller, brighter, rotates opposite
+    const innerGeo = new THREE.IcosahedronGeometry(0.3 + stage * 0.03, 0);
+    const innerColor = (new THREE.Color(color)).lerp(new THREE.Color(0xffffff), 0.4).getHex();
+    const innerMat = this.createBasicMaterial(innerColor, 0.4, THREE.DoubleSide);
+    innerMat.flatShading = true;
+    const inner = new THREE.Mesh(innerGeo, innerMat);
+    inner.userData.role = 'inner-breath';
+    growthGroup.add(inner);
+    
+    // Spine ring — thin torus marking equator
+    const spineGeo = new THREE.TorusGeometry(0.45 + stage * 0.03, 0.008, 6, 24);
+    const spineMat = this.createBasicMaterial(color, 0.5);
+    const spine = new THREE.Mesh(spineGeo, spineMat);
+    growthGroup.add(spine);
+    
+    growthGroup.userData = {
       colonyId: colonyId,
       type: 'growth-event',
       elapsed: 0,
@@ -1386,44 +1484,101 @@ export class ColonyVFXManager {
       rotationAxis: new THREE.Vector3(Math.random(), Math.random(), Math.random()).normalize()
     };
 
-    growth.scale.setScalar(growth.userData.initialScale);
-    this.vfxContainer.add(growth);
-    return growth;
+    growthGroup.scale.setScalar(growthGroup.userData.initialScale);
+    this.vfxContainer.add(growthGroup);
+    return growthGroup;
   }
 
   /**
-   * Trigger colony merge event (convergence pulse)
+   * Trigger colony merge event — "Convergence Dance"
+   * Two interlocked torus knots spinning toward each other.
+   * Symbolizes two colonies spiraling into unity.
    */
   triggerMergeEvent(colonyId, center, color) {
-    const geometry = new THREE.TorusGeometry(0.5, 0.1, 16, 48);
-    const material = this.createBasicMaterial(color, 0.45);
-
-    const merge = new THREE.Mesh(geometry, material);
-    merge.position.copy(center);
-    merge.rotation.x = Math.PI / 2;
-    merge.userData = {
+    const mergeGroup = new THREE.Group();
+    mergeGroup.position.copy(center);
+    
+    // Outer convergence ring
+    const ringGeo = new THREE.TorusGeometry(0.5, 0.1, 16, 48);
+    const ringMat = this.createBasicMaterial(color, 0.45);
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = Math.PI / 2;
+    mergeGroup.add(ring);
+    
+    // Spiral strand A — torus knot spinning clockwise
+    const knotGeoA = new THREE.TorusKnotGeometry(0.25, 0.02, 64, 8, 2, 5);
+    const knotMatA = this.createBasicMaterial(color, 0.5);
+    const knotA = new THREE.Mesh(knotGeoA, knotMatA);
+    knotA.userData.role = 'convergence-a';
+    mergeGroup.add(knotA);
+    
+    // Spiral strand B — same knot, opposite color shift, counter-clockwise
+    const knotColorB = (new THREE.Color(color)).lerp(new THREE.Color(0xffffff), 0.5).getHex();
+    const knotGeoB = new THREE.TorusKnotGeometry(0.25, 0.02, 64, 8, 2, 5);
+    const knotMatB = this.createBasicMaterial(knotColorB, 0.5);
+    const knotB = new THREE.Mesh(knotGeoB, knotMatB);
+    knotB.userData.role = 'convergence-b';
+    mergeGroup.add(knotB);
+    
+    mergeGroup.userData = {
       colonyId: colonyId,
       type: 'merge-event',
       elapsed: 0,
       lifetime: 0.9,
-      spinSpeed: 1.4
+      spinSpeed: 1.4,
+      knotA,
+      knotB
     };
 
-    this.vfxContainer.add(merge);
-    return merge;
+    this.vfxContainer.add(mergeGroup);
+    return mergeGroup;
   }
 
   /**
-   * Trigger colony split event (fracture ring)
+   * Trigger colony split event — "Fracture Shards"
+   * Ring geometry shatters into angular shards.
+   * A central octahedron cracks open.
    */
   triggerSplitEvent(colonyId, center, color) {
-    const geometry = new THREE.RingGeometry(0.3, 0.55, 24, 2);
-    const material = this.createBasicMaterial(color, 0.5, THREE.DoubleSide);
-
-    const split = new THREE.Mesh(geometry, material);
-    split.position.copy(center);
-    split.rotation.x = Math.PI / 2;
-    split.userData = {
+    const splitGroup = new THREE.Group();
+    splitGroup.position.copy(center);
+    splitGroup.rotation.x = Math.PI / 2;
+    
+    // Base fracture ring
+    const ringGeo = new THREE.RingGeometry(0.3, 0.55, 6, 2); // Hexagonal = fractured look
+    const ringMat = this.createBasicMaterial(color, 0.5, THREE.DoubleSide);
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    splitGroup.add(ring);
+    
+    // Shards — 6 triangular pieces drifting outward
+    const shardMat = this.createBasicMaterial(color, 0.6, THREE.DoubleSide);
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
+      const shardGeo = new THREE.BufferGeometry();
+      // Simple triangle
+      const vertices = new Float32Array([
+        0, 0, 0,
+        Math.cos(angle) * 0.2, Math.sin(angle) * 0.2, 0,
+        Math.cos(angle + 0.3) * 0.25, Math.sin(angle + 0.3) * 0.25, 0
+      ]);
+      shardGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      shardGeo.computeVertexNormals();
+      const shard = new THREE.Mesh(shardGeo, shardMat.clone());
+      shard.userData = { role: 'shard', angle, driftSpeed: 1.5 + Math.random() * 1.5 };
+      splitGroup.add(shard);
+    }
+    
+    // Central crack — octahedron splitting apart
+    const crackGeo = new THREE.OctahedronGeometry(0.12, 0);
+    const crackMat = this.createBasicMaterial(
+      (new THREE.Color(color)).lerp(new THREE.Color(0xff4444), 0.3).getHex(), 0.8
+    );
+    crackMat.wireframe = true;
+    const crack = new THREE.Mesh(crackGeo, crackMat);
+    crack.userData = { role: 'crack' };
+    splitGroup.add(crack);
+    
+    splitGroup.userData = {
       colonyId: colonyId,
       type: 'split-event',
       elapsed: 0,
@@ -1432,8 +1587,8 @@ export class ColonyVFXManager {
       wobble: Math.random() * 0.4 + 0.2
     };
 
-    this.vfxContainer.add(split);
-    return split;
+    this.vfxContainer.add(splitGroup);
+    return splitGroup;
   }
 
   triggerMergeFlash(colonyId, center, intensity = 1.0, duration = 0.6) {
@@ -1474,38 +1629,106 @@ export class ColonyVFXManager {
     return rupture;
   }
 
+  /**
+   * Trigger colony transformation event — "Morphic Shift"
+   * An octahedron morphs into a dodecahedron via rotating intermediate shapes.
+   * Symbolizes fundamental change of form.
+   */
   triggerTransformationEvent(colonyId, center, duration = 1.0) {
-    const geometry = new THREE.RingGeometry(0.22, 0.38, 28, 2);
-    const material = this.createBasicMaterial(0xdde8ff, 0.72, THREE.DoubleSide);
-    const transform = new THREE.Mesh(geometry, material);
-    transform.position.copy(center);
-    transform.rotation.x = Math.PI / 2;
-    transform.userData = {
+    const transformGroup = new THREE.Group();
+    transformGroup.position.copy(center);
+    transformGroup.rotation.x = Math.PI / 2;
+    
+    // Shape A: Octahedron (the old form)
+    const shapeAGeo = new THREE.OctahedronGeometry(0.3, 0);
+    const shapeAMat = this.createBasicMaterial(0xdde8ff, 0.72, THREE.DoubleSide);
+    shapeAMat.flatShading = true;
+    const shapeA = new THREE.Mesh(shapeAGeo, shapeAMat);
+    shapeA.userData = { role: 'morph-from' };
+    transformGroup.add(shapeA);
+    
+    // Shape B: Dodecahedron (the new form)
+    const shapeBGeo = new THREE.DodecahedronGeometry(0.28, 0);
+    const shapeBMat = this.createBasicMaterial(0xeeddff, 0.72, THREE.DoubleSide);
+    shapeBMat.flatShading = true;
+    const shapeB = new THREE.Mesh(shapeBGeo, shapeBMat);
+    shapeB.scale.setScalar(0.01); // Start invisible
+    shapeB.userData = { role: 'morph-to' };
+    transformGroup.add(shapeB);
+    
+    // Rotating ring — transitional boundary
+    const ringGeo = new THREE.RingGeometry(0.22, 0.38, 6, 2); // Hexagonal
+    const ringMat = this.createBasicMaterial(0xffffff, 0.3, THREE.DoubleSide);
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.userData = { role: 'transition-ring' };
+    transformGroup.add(ring);
+    
+    transformGroup.userData = {
       colonyId,
       type: 'transformation-event',
       elapsed: 0,
-      lifetime: duration
+      lifetime: duration,
+      shapeA,
+      shapeB
     };
-    this.vfxContainer.add(transform);
+    this.vfxContainer.add(transformGroup);
     this.triggerEventPulse(colonyId, 0.7, duration * 0.9);
-    return transform;
+    return transformGroup;
   }
 
+  /**
+   * Trigger colony rebirth event — "Phoenix Ascent"
+   * A rising diamond shape with wing-like triangles ascending upward.
+   * Symbolizes rebirth — rising from ashes.
+   */
   triggerRebirthEvent(colonyId, center, duration = 0.9) {
-    const geometry = new THREE.CircleGeometry(0.2, 32);
-    const material = this.createBasicMaterial(0xa8f3ff, 0.65, THREE.DoubleSide);
-    const rebirth = new THREE.Mesh(geometry, material);
-    rebirth.position.copy(center);
-    rebirth.rotation.x = Math.PI / 2;
-    rebirth.userData = {
+    const rebirthGroup = new THREE.Group();
+    rebirthGroup.position.copy(center);
+    
+    // Phoenix core — elongated octahedron (diamond body)
+    const coreGeo = new THREE.OctahedronGeometry(0.15, 0);
+    coreGeo.scale(1, 2, 1); // Elongated vertically
+    const coreMat = this.createBasicMaterial(0xa8f3ff, 0.8);
+    coreMat.flatShading = true;
+    const core = new THREE.Mesh(coreGeo, coreMat);
+    core.userData = { role: 'phoenix-core' };
+    rebirthGroup.add(core);
+    
+    // Wings — two flat triangles (bird wings)
+    const wingMat = this.createBasicMaterial(0xc8f8ff, 0.5, THREE.DoubleSide);
+    [-1, 1].forEach(side => {
+      const wingGeo = new THREE.BufferGeometry();
+      const w = 0.5 * side;
+      const vertices = new Float32Array([
+        0, 0, 0,
+        w, 0.15, -0.1,
+        w * 0.6, 0.3, 0.1
+      ]);
+      wingGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      wingGeo.computeVertexNormals();
+      const wing = new THREE.Mesh(wingGeo, wingMat.clone());
+      wing.userData = { role: 'wing', side };
+      rebirthGroup.add(wing);
+    });
+    
+    // Ascension glow — small bright sphere at top
+    const glowGeo = new THREE.IcosahedronGeometry(0.05, 0);
+    const glowMat = this.createBasicMaterial(0xffffff, 0.9);
+    const glow = new THREE.Mesh(glowGeo, glowMat);
+    glow.position.y = 0.35;
+    glow.userData = { role: 'ascension-glow' };
+    rebirthGroup.add(glow);
+    
+    rebirthGroup.rotation.x = Math.PI / 2;
+    rebirthGroup.userData = {
       colonyId,
       type: 'rebirth-event',
       elapsed: 0,
       lifetime: duration
     };
-    this.vfxContainer.add(rebirth);
+    this.vfxContainer.add(rebirthGroup);
     this.triggerEventPulse(colonyId, 0.6, duration * 0.8);
-    return rebirth;
+    return rebirthGroup;
   }
   
   /**
@@ -1524,9 +1747,20 @@ export class ColonyVFXManager {
         const progress = userData.elapsed / userData.lifetime;
 
         child.scale.setScalar(0.1 + progress * userData.expandSpeed);
-        child.material.opacity = 1 - progress;
+        // Fade all children (ring + helix strands)
+        child.children.forEach(c => {
+          if (c.material) c.material.opacity = (1 - progress) * (c.material.opacity > 0.5 ? 1.0 : 0.7);
+        });
+        // Spin helix strands in opposite directions
+        if (userData.helix1) userData.helix1.rotation.z += deltaTime * 4.0;
+        if (userData.helix2) userData.helix2.rotation.z -= deltaTime * 4.0;
 
         if (progress >= 1) {
+          // Dispose children
+          child.children.forEach(c => {
+            if (c.geometry) c.geometry.dispose();
+            if (c.material) c.material.dispose();
+          });
           this.vfxContainer.remove(child);
         }
       }
@@ -1548,10 +1782,28 @@ export class ColonyVFXManager {
         const progress = userData.elapsed / userData.lifetime;
         const scale = userData.initialScale + progress * 1.2;
         child.scale.setScalar(scale);
-        child.material.opacity = Math.max(0, 0.35 - progress * 0.35);
         child.rotation.y += deltaTime * 0.6;
+        
+        // Animate inner layers differently
+        child.children.forEach(c => {
+          if (c.material) {
+            c.material.opacity = Math.max(0, (c.userData?.role === 'inner-breath' ? 0.4 : 0.25) - progress * 0.3);
+          }
+          // Counter-rotate inner breath for organic feel
+          if (c.userData?.role === 'inner-breath') {
+            c.rotation.y -= deltaTime * 1.2;
+            c.rotation.x += deltaTime * 0.4;
+          }
+          if (c.userData?.role === 'outer-membrane') {
+            c.rotation.y += deltaTime * 0.3;
+          }
+        });
 
         if (progress >= 1) {
+          child.children.forEach(c => {
+            if (c.geometry) c.geometry.dispose();
+            if (c.material) c.material.dispose();
+          });
           this.vfxContainer.remove(child);
         }
       }
@@ -1560,10 +1812,29 @@ export class ColonyVFXManager {
         userData.elapsed += deltaTime;
         const progress = userData.elapsed / userData.lifetime;
         child.scale.setScalar(1.0 + progress * 0.8);
-        child.material.opacity = Math.max(0, 0.45 - progress * 0.45);
+        
+        // Spiral convergence knots
+        if (userData.knotA) {
+          userData.knotA.rotation.y += deltaTime * userData.spinSpeed;
+          userData.knotA.rotation.x += deltaTime * 0.5;
+          if (userData.knotA.material) userData.knotA.material.opacity = Math.max(0, 0.5 - progress * 0.5);
+        }
+        if (userData.knotB) {
+          userData.knotB.rotation.y -= deltaTime * userData.spinSpeed;
+          userData.knotB.rotation.x -= deltaTime * 0.5;
+          if (userData.knotB.material) userData.knotB.material.opacity = Math.max(0, 0.5 - progress * 0.5);
+        }
+        // Fade ring
+        child.children.forEach(c => {
+          if (c.material && !c.userData?.role) c.material.opacity = Math.max(0, 0.45 - progress * 0.45);
+        });
         child.rotation.z += deltaTime * userData.spinSpeed;
 
         if (progress >= 1) {
+          child.children.forEach(c => {
+            if (c.geometry) c.geometry.dispose();
+            if (c.material) c.material.dispose();
+          });
           this.vfxContainer.remove(child);
         }
       }
@@ -1571,12 +1842,31 @@ export class ColonyVFXManager {
       if (userData.type === 'split-event') {
         userData.elapsed += deltaTime;
         const progress = userData.elapsed / userData.lifetime;
-        child.scale.setScalar(1.0 + Math.sin(progress * Math.PI * 2) * 0.25);
-        child.material.opacity = Math.max(0, 0.5 - progress * 0.5);
+        const baseScale = 1.0 + Math.sin(progress * Math.PI * 2) * 0.25;
+        child.scale.setScalar(baseScale);
         child.rotation.y += deltaTime * (userData.pulseSpeed + userData.wobble);
         child.rotation.x += deltaTime * 0.4;
+        
+        // Animate shards drifting outward + fade all
+        child.children.forEach(c => {
+          if (c.userData?.role === 'shard') {
+            const drift = progress * c.userData.driftSpeed;
+            c.position.x += Math.cos(c.userData.angle) * drift * deltaTime * 2;
+            c.position.y += Math.sin(c.userData.angle) * drift * deltaTime * 2;
+          }
+          if (c.userData?.role === 'crack') {
+            c.rotation.x += deltaTime * 3;
+            c.rotation.z += deltaTime * 2;
+            c.scale.setScalar(1.0 + progress * 1.5);
+          }
+          if (c.material) c.material.opacity = Math.max(0, (c.userData?.role === 'crack' ? 0.8 : 0.5) - progress * 0.5);
+        });
 
         if (progress >= 1) {
+          child.children.forEach(c => {
+            if (c.geometry) c.geometry.dispose();
+            if (c.material) c.material.dispose();
+          });
           this.vfxContainer.remove(child);
         }
       }
@@ -1608,11 +1898,35 @@ export class ColonyVFXManager {
       if (userData.type === 'transformation-event') {
         userData.elapsed += deltaTime;
         const progress = userData.elapsed / userData.lifetime;
+        
+        // Morph: shape A shrinks, shape B grows
+        child.children.forEach(c => {
+          if (c.userData?.role === 'morph-from' && c.material) {
+            c.scale.setScalar(Math.max(0.01, 1.0 - progress * 1.5));
+            c.rotation.y += deltaTime * 2.0;
+            c.rotation.x += deltaTime * 1.0;
+            c.material.opacity = Math.max(0, 0.72 * (1.0 - progress * 1.5));
+          }
+          if (c.userData?.role === 'morph-to') {
+            c.scale.setScalar(Math.min(1.0, progress * 1.5));
+            c.rotation.y -= deltaTime * 2.0;
+            c.rotation.x -= deltaTime * 1.0;
+            if (c.material) c.material.opacity = Math.min(0.72, progress * 1.5 * 0.72);
+          }
+          if (c.userData?.role === 'transition-ring') {
+            c.rotation.z += deltaTime * 3.0;
+            c.scale.setScalar(1.0 + Math.sin(progress * Math.PI) * 0.5);
+            if (c.material) c.material.opacity = Math.sin(progress * Math.PI) * 0.3;
+          }
+        });
         child.scale.setScalar(1.0 + Math.sin(progress * Math.PI) * 0.22);
-        child.material.opacity = Math.max(0, 0.72 - progress * 0.72);
         child.rotation.y += deltaTime * 1.1;
 
         if (progress >= 1) {
+          child.children.forEach(c => {
+            if (c.geometry) c.geometry.dispose();
+            if (c.material) c.material.dispose();
+          });
           this.vfxContainer.remove(child);
         }
       }
@@ -1620,11 +1934,36 @@ export class ColonyVFXManager {
       if (userData.type === 'rebirth-event') {
         userData.elapsed += deltaTime;
         const progress = userData.elapsed / userData.lifetime;
+        const ascent = progress * 2.0; // Rise upward
+        
+        child.children.forEach(c => {
+          if (c.userData?.role === 'phoenix-core') {
+            c.rotation.y += deltaTime * 3.0;
+            if (c.material) c.material.opacity = Math.max(0, 0.8 - progress * 0.8);
+          }
+          if (c.userData?.role === 'wing') {
+            // Flap wings
+            const flapAngle = Math.sin(progress * Math.PI * 6) * 0.3;
+            c.rotation.z = flapAngle * c.userData.side;
+            if (c.material) c.material.opacity = Math.max(0, 0.5 - progress * 0.5);
+          }
+          if (c.userData?.role === 'ascension-glow') {
+            c.position.y = 0.35 + progress * 0.5;
+            c.scale.setScalar(1.0 + progress * 2.0);
+            if (c.material) c.material.opacity = Math.max(0, 0.9 - progress);
+          }
+        });
+        
+        // Rise the whole group
+        child.position.y += deltaTime * ascent;
         child.scale.setScalar(0.6 + progress * 1.6);
-        child.material.opacity = Math.max(0, 0.65 - progress * 0.7);
         child.rotation.z += deltaTime * 2.2;
 
         if (progress >= 1) {
+          child.children.forEach(c => {
+            if (c.geometry) c.geometry.dispose();
+            if (c.material) c.material.dispose();
+          });
           this.vfxContainer.remove(child);
         }
       }

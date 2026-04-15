@@ -411,7 +411,7 @@ export class ArchetypeVisualDifferentiationSystem_v1 {
     const particles = [];
     const count = profile.particles?.count ?? 0;
     if (count > 0) {
-      const pGeom = new THREE.SphereGeometry(0.05, 6, 6);
+      const pGeom = new THREE.OctahedronGeometry(0.05, 0); // Faceted particles, not smooth spheres
       for (let i = 0; i < count; i++) {
         const phase = this.seededRandom(nodeModel.uuid || nodeModel.id || 'node', `p-phase-${i}`) * Math.PI * 2;
         const pMat = new THREE.MeshBasicMaterial({

@@ -3259,63 +3259,12 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   /**
    * Create visual pulse effect on activation
    * 
-   * FIXED (Session 37+ Part 2): Converted requestAnimationFrame loop to orchestrator effect.
-   * Now driven by deltaTime instead of wall-clock performance.now().
+   * NOTE: This method is currently a no-op. The pulse effect was disabled
+   * due to orchestrator integration issues. To restore, implement proper
+   * orchestrator-driven visual effect.
    */
   createActivationPulse(node) {
     return null;
-    const pulseGeometry = new THREE.RingGeometry(0.5, 0.6, 32);
-    const pulseMaterial = new THREE.MeshBasicMaterial({
-      color: node.userData.baseColor,
-      transparent: true,
-      opacity: 0.8,
-      side: THREE.DoubleSide
-    });
-    
-    const pulse = new THREE.Mesh(pulseGeometry, pulseMaterial);
-    pulse.position.copy(node.position);
-    pulse.rotation.x = Math.PI / 2;
-    
-    this.scene.add(pulse);
-    
-    // Register with orchestrator instead of requestAnimationFrame
-    if (this.effectOrchestrator) {
-      const effect = {
-        id: `activation-pulse-${node.uuid}`,
-        type: 'activationPulse',
-        elapsed: 0,
-        duration: 1.0, // 1 second in game time
-        pulse: pulse,
-        baseColor: node.userData.baseColor,
-        
-        update: (dt, time) => {
-          const progress = Math.min(this.elapsed / this.duration, 1);
-          
-          // Scale from 1 to 3
-          const scale = 1 + (3 - 1) * progress;
-          pulse.scale.set(scale, scale, 1);
-          
-          // Fade out
-          pulse.material.opacity = 0.8 * (1 - progress);
-          
-          return { done: progress >= 1 };
-        },
-        
-        dispose: () => {
-          this.scene.remove(pulse);
-          pulse.geometry.dispose();
-          pulse.material.dispose();
-        }
-      };
-      
-      this.effectOrchestrator.add(effect);
-    } else {
-      // Fallback: immediate cleanup if orchestrator unavailable
-      console.warn('[AINodes] effectOrchestrator not available for activation pulse');
-      this.scene.remove(pulse);
-      pulse.geometry.dispose();
-      pulse.material.dispose();
-    }
   }
   
   /**
@@ -3884,8 +3833,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
 
     // Keep child state untouched; only enforce root visibility and report bad scale.
     node.visible = true;
-    // TEMP DEBUG: prevent frustum culling on spawned node root to diagnose disappearing visuals
-    node.frustumCulled = false;
     const scaleNonFinite =
       !Number.isFinite(node.scale?.x) ||
       !Number.isFinite(node.scale?.y) ||

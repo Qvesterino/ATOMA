@@ -920,57 +920,105 @@ export class MetricReactiveWorldEvents {
   }
   
   /**
-   * Create small orbiting motes
+   * Create a "Living Data Crystal" — faceted icosahedron with inner glow,
+   * directional rotation, and micro-trail.
+   * 
+   * Visual concept: Data in ATOMA is not soft clouds — it's crystalline,
+   * faceted, alive. Each crystal looks like a miniature data shard
+   * with sharp edges, inner luminance, and a trailing afterglow.
+   * 
+   * @param {number} size - Base size of the crystal
+   * @param {THREE.Color|string} color - Crystal color
+   * @param {number} opacity - Crystal opacity
+   * @returns {{ crystal: THREE.Group, core: THREE.Mesh, trail: THREE.Mesh }}
    */
-  createSmallOrbitingMotes(count, duration, color) {
-    const particleGroup = new THREE.Group();
-    particleGroup.name = 'orbiting-motes';
-    for (let i = 0; i < count; i++) {
-      const geometry = new THREE.SphereGeometry(0.08, 6, 6);
-      const material = this._createGlowMaterial(color, 0.7);
-      const particle = new THREE.Mesh(geometry, material);
-      tagAllowedSphere(particle, { role: 'vfx', source: 'MetricReactiveWorldEvents.createSmallOrbitingMotes' });
-      clampSphere(particle);
-      const angle = (i / count) * Math.PI * 2;
-      const radius = 4 + Math.random() * 2;
-      particle.position.set(Math.cos(angle) * radius, 1.5 + Math.random() * 1.5, Math.sin(angle) * radius);
-      particle.userData.orbitData = {
-        duration,
-        elapsedTime: 0,
-        angle,
-        radius,
-        speed: 1.5 + Math.random() * 1.2
-      };
-      particleGroup.add(particle);
-    }
-    this.overlayGroup.add(particleGroup);
-    return particleGroup;
+  _createDataCrystal(size = 0.1, color = 0x88ccff, opacity = 0.7) {
+    const crystalGroup = new THREE.Group();
+    crystalGroup.name = 'data-crystal';
+    const colorObj = color instanceof THREE.Color ? color : new THREE.Color(color);
+    
+    // Layer 1: Core crystal — faceted icosahedron (detail=1 gives 80 triangular faces)
+    const coreGeometry = new THREE.IcosahedronGeometry(size, 1);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+      color: colorObj,
+      transparent: true,
+      opacity: opacity,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+      flatShading: true  // Sharp faceted look
+    });
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    crystalGroup.add(core);
+    tagAllowedSphere(crystalGroup, { role: 'vfx', source: 'MetricReactiveWorldEvents._createDataCrystal' });
+    clampSphere(crystalGroup);
+    
+    // Layer 2: Inner glow — smaller bright sphere inside for luminance depth
+    const innerGeometry = new THREE.IcosahedronGeometry(size * 0.5, 0);
+    const innerMaterial = new THREE.MeshBasicMaterial({
+      color: colorObj.clone().lerp(new THREE.Color(0xffffff), 0.6),
+      transparent: true,
+      opacity: opacity * 1.2,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false
+    });
+    const inner = new THREE.Mesh(innerGeometry, innerMaterial);
+    crystalGroup.add(inner);
+    
+    // Layer 3: Micro-trail — elongated diamond shape pointing backward
+    const trailGeometry = new THREE.OctahedronGeometry(size * 0.4, 0);
+    // Stretch along Y to create comet-tail shape
+    trailGeometry.scale(0.4, 2.0, 0.4);
+    const trailMaterial = new THREE.MeshBasicMaterial({
+      color: colorObj.clone().lerp(new THREE.Color(0xffffff), 0.3),
+      transparent: true,
+      opacity: opacity * 0.35,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false
+    });
+    const trail = new THREE.Mesh(trailGeometry, trailMaterial);
+    trail.position.set(0, -size * 1.5, 0); // Offset behind crystal
+    crystalGroup.add(trail);
+    
+    // Store references for animation
+    crystalGroup.userData.crystalData = {
+      core,
+      inner,
+      trail,
+      baseSize: size,
+      pulsePhase: Math.random() * Math.PI * 2,
+      pulseSpeed: 2.0 + Math.random() * 3.0,
+      spinAxis: new THREE.Vector3(
+        Math.random() - 0.5,
+        Math.random() - 0.5,
+        Math.random() - 0.5
+      ).normalize()
+    };
+    
+    return { crystal: crystalGroup, core, trail };
   }
   
   /**
-   * Create orbital particles
+   * Create orbital particles — now as Living Data Crystals
    */
   createOrbitalParticles(count, duration, color) {
     const particleGroup = new THREE.Group();
     particleGroup.name = 'orbital-particles';
     
     for (let i = 0; i < count; i++) {
-      const geometry = new THREE.SphereGeometry(0.1, 8, 8);
-      const material = this._createGlowMaterial(color, 0.8);
-      
-      const particle = new THREE.Mesh(geometry, material);
-      tagAllowedSphere(particle, { role: 'vfx', source: 'MetricReactiveWorldEvents.createOrbitalParticles' });
-      clampSphere(particle);
+      const { crystal } = this._createDataCrystal(0.1, color, 0.8);
       const angle = (i / count) * Math.PI * 2;
       const radius = 3 + Math.random() * 2;
       
-      particle.position.set(
+      crystal.position.set(
         Math.cos(angle) * radius,
         2 + Math.random() * 3,
         Math.sin(angle) * radius
       );
       
-      particle.userData.particleData = {
+      crystal.userData.particleData = {
         angle,
         radius,
         duration,
@@ -978,40 +1026,35 @@ export class MetricReactiveWorldEvents {
         orbitalSpeed: Math.random() * 2 + 1
       };
       
-      particleGroup.add(particle);
+      particleGroup.add(crystal);
     }
     
     this.overlayGroup.add(particleGroup);
   }
   
   /**
-   * Create floating particles
+   * Create floating particles — now as Living Data Crystals
    */
   createFloatingParticles(count, duration, color) {
     const particleGroup = new THREE.Group();
     particleGroup.name = 'floating-particles';
     
     for (let i = 0; i < count; i++) {
-      const geometry = new THREE.SphereGeometry(0.08, 6, 6);
-      const material = this._createGlowMaterial(color, 0.7);
-      
-      const particle = new THREE.Mesh(geometry, material);
-      tagAllowedSphere(particle, { role: 'vfx', source: 'MetricReactiveWorldEvents.createFloatingParticles' });
-      clampSphere(particle);
-      particle.position.set(
+      const { crystal } = this._createDataCrystal(0.08, color, 0.7);
+      crystal.position.set(
         (Math.random() - 0.5) * 10,
         Math.random() * 5,
         (Math.random() - 0.5) * 10
       );
       
-      particle.userData.floatData = {
+      crystal.userData.floatData = {
         duration,
         elapsedTime: 0,
         driftY: Math.random() * 2 + 1,
         driftX: (Math.random() - 0.5) * 1
       };
       
-      particleGroup.add(particle);
+      particleGroup.add(crystal);
     }
     
     this.overlayGroup.add(particleGroup);
@@ -1074,35 +1117,30 @@ export class MetricReactiveWorldEvents {
   }
   
   /**
-   * Create rotating particles
+   * Create rotating particles — now as Living Data Crystals
    */
   createRotatingParticles(count, duration, color) {
     const particleGroup = new THREE.Group();
     particleGroup.name = 'rotating-particles';
     
     for (let i = 0; i < count; i++) {
-      const geometry = new THREE.SphereGeometry(0.12, 8, 8);
-      const material = this._createGlowMaterial(color, 0.7);
-      
-      const particle = new THREE.Mesh(geometry, material);
-      tagAllowedSphere(particle, { role: 'vfx', source: 'MetricReactiveWorldEvents.createRotatingParticles' });
-      clampSphere(particle);
+      const { crystal } = this._createDataCrystal(0.12, color, 0.7);
       const angle = (i / count) * Math.PI * 2;
       
-      particle.position.set(
+      crystal.position.set(
         Math.cos(angle) * 4,
         0,
         Math.sin(angle) * 4
       );
       
-      particle.userData.rotateData = {
+      crystal.userData.rotateData = {
         angle,
         duration,
         elapsedTime: 0,
         rotationSpeed: Math.random() * 3 + 2
       };
       
-      particleGroup.add(particle);
+      particleGroup.add(crystal);
     }
     
     this.overlayGroup.add(particleGroup);
@@ -1136,32 +1174,28 @@ export class MetricReactiveWorldEvents {
   }
   
   /**
-   * Create void fragments
+   * Create void fragments — now as jagged Living Data Crystals
    */
   createVoidFragments(count, duration, color) {
     const particleGroup = new THREE.Group();
     particleGroup.name = 'void-fragments';
     
     for (let i = 0; i < count; i++) {
-      const geometry = new THREE.SphereGeometry(0.15, 4, 4);
-      const material = this._createGlowMaterial(color, 0.55);
+      const { crystal } = this._createDataCrystal(0.15, color, 0.55);
       
-      const particle = new THREE.Mesh(geometry, material);
-      tagAllowedSphere(particle, { role: 'vfx', source: 'MetricReactiveWorldEvents.createVoidFragments' });
-      clampSphere(particle);
-      particle.position.set(
+      crystal.position.set(
         (Math.random() - 0.5) * 10,
         0,
         (Math.random() - 0.5) * 10
       );
       
-      particle.userData.voidData = {
+      crystal.userData.voidData = {
         duration,
         elapsedTime: 0,
         driftY: Math.random() * 3 + 2
       };
       
-      particleGroup.add(particle);
+      particleGroup.add(crystal);
     }
     
     this.overlayGroup.add(particleGroup);

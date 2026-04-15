@@ -259,8 +259,8 @@ export class HarmonicResonanceCoupling_v1 {
     line.frustumCulled = false;
     group.add(line);
 
-    // Resonance orb — interdimensional convergence point at midpoint
-    const orbGeometry = new THREE.SphereGeometry(0.06, 10, 10);
+    // Resonance orb — diamond convergence point at midpoint
+    const orbGeometry = new THREE.OctahedronGeometry(0.06, 0);
     const orbMaterial = new THREE.MeshBasicMaterial({
       color: 0xddf0ff,
       transparent: true,
@@ -268,7 +268,8 @@ export class HarmonicResonanceCoupling_v1 {
       depthWrite: false,
       depthTest: true,
       blending: THREE.AdditiveBlending,
-      toneMapped: false
+      toneMapped: false,
+      flatShading: true
     });
     const orb = new THREE.Mesh(orbGeometry, orbMaterial);
     orb.frustumCulled = false;

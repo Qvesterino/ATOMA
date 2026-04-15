@@ -124,9 +124,10 @@ export class EchoRippleSystem_Session125 {
     this._sceneRoot.userData.isEchoRippleSystem = true;
     this._sceneRoot.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_CASCADE);
 
-    this._ringGeometry = new THREE.RingGeometry(0.82, 1.0, 40, 1);
-    this._haloGeometry = new THREE.RingGeometry(0.74, 1.0, 40, 1);
-    this._coreGeometry = new THREE.CircleGeometry(1.0, 24);
+    // Hexagonal rings instead of round — echoes have angular, crystalline character
+    this._ringGeometry = new THREE.RingGeometry(0.82, 1.0, 6, 1);  // 6 sides = hexagonal echo
+    this._haloGeometry = new THREE.RingGeometry(0.74, 1.0, 8, 1);  // 8 sides = octagonal halo
+    this._coreGeometry = new THREE.CircleGeometry(1.0, 6);  // Hexagonal core
     this._ringGeometry.rotateX(-Math.PI / 2);
     this._haloGeometry.rotateX(-Math.PI / 2);
     this._coreGeometry.rotateX(-Math.PI / 2);

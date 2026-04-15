@@ -74,12 +74,42 @@ class HealingWave {
         if (this.progress >= 1.0) {
             this.progress = 1.0;
             this.active = false;
-            // TODO: Trigger arrival event (healing impact)
+            // Trigger arrival event (healing impact)
+            this._triggerArrivalEvent();
         }
         
         // Update position and direction
         this.currentPos.lerpVectors(startPos, endPos, this.progress);
         this.currentDir.subVectors(endPos, startPos).normalize();
+    }
+    
+    /**
+     * Trigger arrival visual effect when healing wave reaches target
+     */
+    _triggerArrivalEvent() {
+        // Create impact burst at target position
+        const impactPosition = this.endNode.position.clone();
+        
+        // Emit healing impact particles
+        if (this.particles && this.particles.emitHealingImpact) {
+            this.particles.emitHealingImpact(impactPosition, this.intensity);
+        }
+        
+        // Create visual glow flash
+        if (typeof window !== 'undefined' && window.__HEALING_IMPACT_HANDLER__) {
+            window.__HEALING_IMPACT_HANDLER__.createImpactFlash(impactPosition, this.intensity);
+        }
+        
+        // Trigger semantic event if bus is available
+        if (typeof window !== 'undefined' && window.semanticBus) {
+            window.semanticBus.emit('healing.arrival', {
+                link: this.link,
+                sourceNode: this.startNode,
+                targetNode: this.endNode,
+                intensity: this.intensity,
+                position: impactPosition
+            });
+        }
     }
 }
 

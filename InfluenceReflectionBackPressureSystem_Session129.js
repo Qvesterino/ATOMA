@@ -86,6 +86,7 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
         this.pressureZones = [];             // { linkId, nodeId, intensity, time }
         this.reflectionPulses = [];          // { linkId, fromNode, toNode, life, maxLife }
         this.surfaceRipples = [];            // { nodeId, time, maxTime, intensity }
+        this._compressionEffects = new Map(); // linkId -> { mesh, intensity, createdAt, lifetime }
         
         // Object pools
         this.reflectionPulsePool = [];
@@ -512,13 +513,174 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
      * This is where visual modifications happen (non-destructive)
      */
     _applyVisualEffects() {
-        // Visual-only: this method would apply effects to link materials, node shells, etc.
-        // For this stub, we defer full implementation to next iteration
-        // Effects would include:
-        // - Link thickness modulation in pressure zones
-        // - Wave compression visualization
-        // - Color shifts in reflection waves
-        // - Surface ripple meshes on nodes
+        // Apply link thickness modulation in pressure zones
+        this._applyLinkThicknessModulation();
+        
+        // Apply wave compression visualization
+        this._applyWaveCompression();
+        
+        // Apply color shifts in reflection waves
+        this._applyReflectionColorShifts();
+        
+        // Apply surface ripple meshes on nodes
+        this._applySurfaceRipples();
+    }
+    
+    /**
+     * Apply link thickness modulation in pressure zones
+     */
+    _applyLinkThicknessModulation() {
+        this.pressureZones.forEach(zone => {
+            if (!zone.link || !zone.link.userData) return;
+            
+            const linkData = zone.link.userData;
+            const pressureFactor = zone.pressure || 0.5;
+            
+            // Modulate link thickness based on pressure
+            if (linkData.mesh) {
+                const baseThickness = linkData.baseThickness || 1.0;
+                const targetThickness = baseThickness * this.config.pressureThickness * (1.0 + pressureFactor);
+                
+                // Smoothly interpolate thickness
+                linkData.mesh.scale.y = THREE.MathUtils.lerp(linkData.mesh.scale.y, targetThickness, 0.1);
+            }
+            
+            // Increase glow in pressure zone
+            if (linkData.material && linkData.material.uniforms) {
+                const glowIntensity = this.config.pressureGlowBase * (1.0 + pressureFactor * 2.0);
+                if (linkData.material.uniforms.uGlowIntensity) {
+                    linkData.material.uniforms.uGlowIntensity.value = THREE.MathUtils.lerp(
+                        linkData.material.uniforms.uGlowIntensity.value,
+                        glowIntensity,
+                        0.1
+                    );
+                }
+            }
+        });
+    }
+    
+    /**
+     * Apply wave compression visualization
+     */
+    _applyWaveCompression() {
+        this.pressureZones.forEach(zone => {
+            if (!zone.link || !zone.link.userData) return;
+            
+            const pressureFactor = zone.pressure || 0.5;
+            
+            // Create compression visualization along link
+            if (pressureFactor > 0.3) {
+                this._createCompressionEffect(zone.link, pressureFactor);
+            }
+        });
+    }
+    
+    /**
+     * Create compression effect on a link
+     */
+    _createCompressionEffect(link, pressureFactor) {
+        // Check if compression effect already exists for this link
+        const existingEffect = this._compressionEffects.get(link.id);
+        if (existingEffect) {
+            // Update existing effect
+            existingEffect.intensity = pressureFactor;
+            return;
+        }
+        
+        // Create new compression effect
+        const compressionMesh = this._createCompressionMesh(link);
+        if (!compressionMesh) return;
+        
+        this._compressionEffects.set(link.id, {
+            mesh: compressionMesh,
+            intensity: pressureFactor,
+            createdAt: performance.now(),
+            lifetime: 0.5 // Short lifetime for compression effects
+        });
+        
+        this.scene.add(compressionMesh);
+    }
+    
+    /**
+     * Create compression mesh for a link
+     */
+    _createCompressionMesh(link) {
+        if (!link.geometry) return null;
+        
+        const material = new THREE.MeshBasicMaterial({
+            color: 0x88aaff,
+            transparent: true,
+            opacity: 0.3,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        
+        const mesh = new THREE.Mesh(link.geometry.clone(), material);
+        mesh.position.copy(link.position);
+        mesh.rotation.copy(link.rotation);
+        mesh.scale.copy(link.scale);
+        mesh.scale.multiplyScalar(1.2); // Slightly larger than link
+        
+        return mesh;
+    }
+    
+    /**
+     * Apply color shifts in reflection waves
+     */
+    _applyReflectionColorShifts() {
+        this.reflectionPulses.forEach(pulse => {
+            if (!pulse.mesh || !pulse.mesh.material) return;
+            
+            // Shift color toward blue based on reflection intensity
+            const baseColor = new THREE.Color(0x4444ff);
+            const shiftFactor = this.config.reflectionColorShift * pulse.intensity;
+            const targetColor = new THREE.Color(0x8888ff).lerp(baseColor, shiftFactor);
+            
+            pulse.mesh.material.color.lerp(targetColor, 0.1);
+            
+            // Modulate opacity by pulse lifetime
+            const age = (performance.now() - pulse.createdAt) / 1000;
+            const lifeProgress = Math.min(age / pulse.lifetime, 1.0);
+            const fadeFactor = 1.0 - lifeProgress;
+            
+            pulse.mesh.material.opacity = this.config.reflectionPulseOpacity * fadeFactor * pulse.intensity;
+        });
+    }
+    
+    /**
+     * Apply surface ripple meshes on nodes
+     */
+    _applySurfaceRipples() {
+        this.surfaceRipples.forEach(ripple => {
+            if (!ripple.mesh || !ripple.mesh.material) return;
+            
+            // Expand ripple over time
+            const age = (performance.now() - ripple.createdAt) / 1000;
+            const lifeProgress = Math.min(age / ripple.lifetime, 1.0);
+            const scale = 1.0 + lifeProgress * 2.0;
+            
+            ripple.mesh.scale.setScalar(scale);
+            
+            // Fade out over lifetime
+            const fadeFactor = 1.0 - lifeProgress;
+            ripple.mesh.material.opacity = this.config.surfaceRippleOpacity * fadeFactor;
+        });
+        
+        // Remove expired ripples
+        const now = performance.now();
+        for (let i = this.surfaceRipples.length - 1; i >= 0; i--) {
+            const ripple = this.surfaceRipples[i];
+            const age = (now - ripple.createdAt) / 1000;
+            
+            if (age >= ripple.lifetime) {
+                if (ripple.mesh) {
+                    this.scene.remove(ripple.mesh);
+                    if (ripple.mesh.geometry) ripple.mesh.geometry.dispose();
+                    if (ripple.mesh.material) ripple.mesh.material.dispose();
+                }
+                this.surfaceRipples.splice(i, 1);
+            }
+        }
     }
 
     /**
@@ -531,6 +693,16 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
         this.reflectionPulsePool = [];
         this.resistantNodes.clear();
         this.incomingInfluence.clear();
+        
+        // Cleanup compression effects
+        this._compressionEffects.forEach(effect => {
+            if (effect.mesh) {
+                this.scene.remove(effect.mesh);
+                if (effect.mesh.geometry) effect.mesh.geometry.dispose();
+                if (effect.mesh.material) effect.mesh.material.dispose();
+            }
+        });
+        this._compressionEffects.clear();
     }
 
     _getNodeId(node) {

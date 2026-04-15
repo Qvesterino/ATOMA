@@ -203,10 +203,11 @@ function createDefaultAura(nodeData, options = {}) {
  * @param {THREE.Mesh} auraMesh The aura mesh
  * @param {number} time Current time in seconds
  * @param {Object} state Node state (strength, opacity, etc.)
+ * @param {THREE.Camera} camera Optional camera for view-dependent effects
  */
 let _fresnelAuraTimeOrigin;
 
-export function updateFresnelAuraUniforms(auraMesh, time, state = {}) {
+export function updateFresnelAuraUniforms(auraMesh, time, state = {}, camera = null) {
   if (!auraMesh || !auraMesh.material || !auraMesh.material.uniforms) {
     return;
   }
@@ -236,9 +237,24 @@ export function updateFresnelAuraUniforms(auraMesh, time, state = {}) {
 
   // Update camera position for distance falloff (if using distance variant)
   if (uniforms.uCameraPosition) {
-    // NOTE: Camera object must be in scope; update this with actual camera
-    // This is a placeholder - integrate with your camera instance
-    // uniforms.uCameraPosition.value.copy(camera.position);
+    let cameraPosition = null;
+    
+    // Try to get camera from parameter
+    if (camera && camera.position) {
+      cameraPosition = camera.position;
+    }
+    // Fallback: try to get from global window object
+    else if (typeof window !== 'undefined' && window.__ATOMA_CAMERA__) {
+      cameraPosition = window.__ATOMA_CAMERA__.position;
+    }
+    // Fallback: try to get from renderer
+    else if (typeof window !== 'undefined' && window.__ATOMA_RENDERER__ && window.__ATOMA_RENDERER__.camera) {
+      cameraPosition = window.__ATOMA_RENDERER__.camera.position;
+    }
+    
+    if (cameraPosition) {
+      uniforms.uCameraPosition.value.copy(cameraPosition);
+    }
   }
 }
 
@@ -249,10 +265,10 @@ export function updateFresnelAuraUniforms(auraMesh, time, state = {}) {
  * @param {number} time Current time
  * @param {Array<Object>} states Array of state objects (one per mesh)
  */
-export function batchUpdateFresnelAuraUniforms(auraMeshes, time, states = []) {
+export function batchUpdateFresnelAuraUniforms(auraMeshes, time, states = [], camera = null) {
   for (let i = 0; i < auraMeshes.length; i++) {
     const state = states[i] || states[0] || {};
-    updateFresnelAuraUniforms(auraMeshes[i], time, state);
+    updateFresnelAuraUniforms(auraMeshes[i], time, state, camera);
   }
 }
 

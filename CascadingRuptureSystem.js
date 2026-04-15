@@ -364,9 +364,26 @@ export class CascadingRuptureSystem {
         // Factor 4: Standing wave presence (if system exists)
         // Standing waves indicate structural tension
         if (this.regionalEquilibrium) {
-            // This would need to query standing wave energy near node
-            // For now, placeholder
-            const standingWaveEnergy = 0.0; // TODO: query standing wave system
+            // Query standing wave system if available
+            let standingWaveEnergy = 0.0;
+            
+            // Try to get standing wave energy from regional equilibrium system
+            if (typeof this.regionalEquilibrium.getStandingWaveEnergy === 'function') {
+                standingWaveEnergy = this.regionalEquilibrium.getStandingWaveEnergy(node) || 0.0;
+            }
+            // Try alternative method if available
+            else if (typeof this.regionalEquilibrium.getWaveTension === 'function') {
+                standingWaveEnergy = this.regionalEquilibrium.getWaveTension(node) || 0.0;
+            }
+            // Try to get from node metrics if available
+            else if (node?.userData?.metrics?.waveEnergy !== undefined) {
+                standingWaveEnergy = node.userData.metrics.waveEnergy;
+            }
+            // Fallback: try to access global wave interference engine if available
+            else if (typeof window !== 'undefined' && window.__WAVE_INTERFERENCE_ENGINE__) {
+                standingWaveEnergy = window.__WAVE_INTERFERENCE_ENGINE__.getNodeWaveEnergy(node) || 0.0;
+            }
+            
             if (standingWaveEnergy > CONFIG.STANDING_WAVE_THRESHOLD) {
                 probability += 0.2;
             }

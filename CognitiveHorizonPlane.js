@@ -1238,7 +1238,7 @@ export class CognitiveHorizonPlane {
     const radius = this.config.size * this.config.crownRadiusScale;
     const count = this.config.crownCount;
 
-    const ringGeometry = new THREE.TorusGeometry(radius, 1.25, 8, 88);
+    const ringGeometry = new THREE.TorusGeometry(radius, 1.25, 8, 6); // Hexagonal crown ring — crystalline horizon
     const ringMaterial = new THREE.MeshBasicMaterial({
       color: 0x66f6ff,
       transparent: true,

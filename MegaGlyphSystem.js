@@ -591,20 +591,239 @@ export class MegaGlyphSystem {
     }
   }
 
-  // Placeholder for glyph animation methods - will be implemented in subsequent steps
-  updateAiConsciousnessGlyph() { /* TODO */ }
-  updateMythicSeedGlyph() { /* TODO */ }
-  updateAscendedNodeGlyph() { /* TODO */ }
-  updateEvolutionStage1Glyph() { /* TODO */ }
-  updateEvolutionStage2Glyph() { /* TODO */ }
-  updateEvolutionStage3Glyph() { /* TODO */ }
-  updatePersonalityHarmonyGlyph() { /* TODO */ }
-  updatePersonalityStabilityGlyph() { /* TODO */ }
-  updatePersonalityCorruptionGlyph() { /* TODO */ }
-  updatePersonalitySynergyGlyph() { /* TODO */ }
-  updateEventMythicRitualGlyph() { /* TODO */ }
-  updateEventClusterSurgeGlyph() { /* TODO */ }
-  updateEventWorldEventGlyph() { /* TODO */ }
+  // Glyph animation update methods
+  updateAiConsciousnessGlyph(glyphGroup, context, animState, visualDelta) {
+    // Slow pulsing glow based on synergy
+    const pulseSpeed = 2.0 + (context.synergy * 3.0);
+    const pulseScale = 1.0 + Math.sin(animState.time * pulseSpeed) * 0.1;
+    
+    glyphGroup.scale.setScalar(pulseScale);
+    
+    // Gentle rotation
+    glyphGroup.rotation.y += visualDelta * 0.5;
+    glyphGroup.rotation.z += visualDelta * 0.2;
+    
+    // Color shift based on clarity
+    if (glyphGroup.children.length > 0 && glyphGroup.children[0].material) {
+      const baseColor = new THREE.Color(0x88ccff);
+      const clarityColor = new THREE.Color(0xffffff).lerp(baseColor, context.clarity);
+      glyphGroup.children[0].material.color.lerp(clarityColor, visualDelta * 2.0);
+    }
+  }
+  
+  updateMythicSeedGlyph(glyphGroup, context, animState, visualDelta) {
+    // Subtle breathing animation
+    const breatheSpeed = 1.5 + (context.harmony * 2.0);
+    const breatheScale = 1.0 + Math.sin(animState.time * breatheSpeed) * 0.15;
+    
+    glyphGroup.scale.setScalar(breatheScale);
+    
+    // Slow rotation around Y axis
+    glyphGroup.rotation.y += visualDelta * 0.3;
+    
+    // Golden glow intensity based on mythic status
+    if (context.isMythic && glyphGroup.children.length > 0) {
+      glyphGroup.children.forEach(child => {
+        if (child.material) {
+          const glowIntensity = 0.5 + Math.sin(animState.time * 3.0) * 0.3;
+          child.material.opacity = glowIntensity;
+        }
+      });
+    }
+  }
+  
+  updateAscendedNodeGlyph(glyphGroup, context, animState, visualDelta) {
+    // Upward floating motion
+    const floatSpeed = 1.0 + (context.stability * 1.5);
+    const floatOffset = Math.sin(animState.time * floatSpeed) * 0.1;
+    glyphGroup.position.y += floatOffset * visualDelta;
+    
+    // Radiant rotation
+    glyphGroup.rotation.y += visualDelta * 0.8;
+    glyphGroup.rotation.x += visualDelta * 0.3;
+    
+    // Scale based on ascension level
+    const ascensionScale = 1.0 + (context.synergy * 0.3);
+    glyphGroup.scale.setScalar(ascensionScale);
+  }
+  
+  updateEvolutionStage1Glyph(glyphGroup, context, animState, visualDelta) {
+    // Gentle pulsing
+    const pulse = 1.0 + Math.sin(animState.time * 2.0) * 0.08;
+    glyphGroup.scale.setScalar(pulse);
+    
+    // Slow rotation
+    glyphGroup.rotation.y += visualDelta * 0.4;
+    
+    // Color evolution from blue to cyan
+    if (glyphGroup.children.length > 0 && glyphGroup.children[0].material) {
+      const t = Math.min(animState.time / 5.0, 1.0); // 5 second transition
+      const startColor = new THREE.Color(0x4488ff);
+      const endColor = new THREE.Color(0x00ffcc);
+      glyphGroup.children[0].material.color.lerpColors(startColor, endColor, t * visualDelta);
+    }
+  }
+  
+  updateEvolutionStage2Glyph(glyphGroup, context, animState, visualDelta) {
+    // More active pulsing
+    const pulse = 1.0 + Math.sin(animState.time * 3.0) * 0.12;
+    glyphGroup.scale.setScalar(pulse);
+    
+    // Faster rotation
+    glyphGroup.rotation.y += visualDelta * 0.6;
+    glyphGroup.rotation.z += visualDelta * 0.3;
+    
+    // Color evolution from cyan to purple
+    if (glyphGroup.children.length > 0 && glyphGroup.children[0].material) {
+      const t = Math.min(animState.time / 5.0, 1.0);
+      const startColor = new THREE.Color(0x00ffcc);
+      const endColor = new THREE.Color(0xaa44ff);
+      glyphGroup.children[0].material.color.lerpColors(startColor, endColor, t * visualDelta);
+    }
+  }
+  
+  updateEvolutionStage3Glyph(glyphGroup, context, animState, visualDelta) {
+    // Strong pulsing
+    const pulse = 1.0 + Math.sin(animState.time * 4.0) * 0.15;
+    glyphGroup.scale.setScalar(pulse);
+    
+    // Complex rotation
+    glyphGroup.rotation.y += visualDelta * 0.8;
+    glyphGroup.rotation.x += visualDelta * 0.4;
+    glyphGroup.rotation.z += visualDelta * 0.2;
+    
+    // Color evolution from purple to gold
+    if (glyphGroup.children.length > 0 && glyphGroup.children[0].material) {
+      const t = Math.min(animState.time / 5.0, 1.0);
+      const startColor = new THREE.Color(0xaa44ff);
+      const endColor = new THREE.Color(0xffdd44);
+      glyphGroup.children[0].material.color.lerpColors(startColor, endColor, t * visualDelta);
+      
+      // Increase opacity for evolved state
+      glyphGroup.children[0].material.opacity = 0.6 + Math.sin(animState.time * 2.0) * 0.2;
+    }
+  }
+  
+  updatePersonalityHarmonyGlyph(glyphGroup, context, animState, visualDelta) {
+    // Smooth breathing based on harmony level
+    const breatheSpeed = 1.0 + (context.harmony * 2.0);
+    const breatheScale = 1.0 + Math.sin(animState.time * breatheSpeed) * 0.1;
+    glyphGroup.scale.setScalar(breatheScale);
+    
+    // Gentle rotation
+    glyphGroup.rotation.y += visualDelta * 0.5;
+    
+    // Color shift to harmonious greens/blues
+    if (glyphGroup.children.length > 0 && glyphGroup.children[0].material) {
+      const harmonyColor = new THREE.Color(0x44ff88).lerp(new THREE.Color(0x4488ff), context.harmony);
+      glyphGroup.children[0].material.color.lerp(harmonyColor, visualDelta * 2.0);
+    }
+  }
+  
+  updatePersonalityStabilityGlyph(glyphGroup, context, animState, visualDelta) {
+    // Steady, minimal movement based on stability
+    const stabilityPulse = 1.0 + Math.sin(animState.time * 1.5) * 0.05 * context.stability;
+    glyphGroup.scale.setScalar(stabilityPulse);
+    
+    // Very slow rotation
+    glyphGroup.rotation.y += visualDelta * 0.2;
+    
+    // Color shift to stable blues/grays
+    if (glyphGroup.children.length > 0 && glyphGroup.children[0].material) {
+      const stabilityColor = new THREE.Color(0x8888ff).lerp(new THREE.Color(0xaaaaaa), context.stability);
+      glyphGroup.children[0].material.color.lerp(stabilityColor, visualDelta * 1.5);
+    }
+  }
+  
+  updatePersonalityCorruptionGlyph(glyphGroup, context, animState, visualDelta) {
+    // Unstable, jerky movement
+    const corruptionIntensity = Math.sin(animState.time * 5.0) * 0.15 * context.corruption;
+    glyphGroup.scale.setScalar(1.0 + corruptionIntensity);
+    
+    // Erratic rotation
+    glyphGroup.rotation.y += visualDelta * (1.0 + context.corruption);
+    glyphGroup.rotation.x += visualDelta * 0.5 * Math.sin(animState.time * 3.0);
+    
+    // Color shift to corrupted reds/oranges
+    if (glyphGroup.children.length > 0 && glyphGroup.children[0].material) {
+      const corruptionColor = new THREE.Color(0xff4444).lerp(new THREE.Color(0xff8800), context.corruption);
+      glyphGroup.children[0].material.color.lerp(corruptionColor, visualDelta * 3.0);
+      
+      // Flickering opacity
+      const flicker = 0.4 + Math.random() * 0.4 * context.corruption;
+      glyphGroup.children[0].material.opacity = flicker;
+    }
+  }
+  
+  updatePersonalitySynergyGlyph(glyphGroup, context, animState, visualDelta) {
+    // Energetic pulsing based on synergy
+    const synergyPulse = 1.0 + Math.sin(animState.time * (3.0 + context.synergy * 2.0)) * 0.12;
+    glyphGroup.scale.setScalar(synergyPulse);
+    
+    // Active rotation
+    glyphGroup.rotation.y += visualDelta * (0.5 + context.synergy * 0.5);
+    glyphGroup.rotation.z += visualDelta * 0.3;
+    
+    // Color shift to energetic oranges/yellows
+    if (glyphGroup.children.length > 0 && glyphGroup.children[0].material) {
+      const synergyColor = new THREE.Color(0xffaa00).lerp(new THREE.Color(0xffff44), context.synergy);
+      glyphGroup.children[0].material.color.lerp(synergyColor, visualDelta * 2.0);
+    }
+  }
+  
+  updateEventMythicRitualGlyph(glyphGroup, context, animState, visualDelta) {
+    // Dramatic, ritual-like animation
+    const ritualPulse = 1.0 + Math.sin(animState.time * 2.0) * 0.2;
+    glyphGroup.scale.setScalar(ritualPulse);
+    
+    // Majestic rotation
+    glyphGroup.rotation.y += visualDelta * 0.6;
+    glyphGroup.rotation.x += visualDelta * 0.2;
+    
+    // Golden radiance
+    if (glyphGroup.children.length > 0) {
+      glyphGroup.children.forEach(child => {
+        if (child.material) {
+          child.material.color.setHex(0xffdd44);
+          child.material.opacity = 0.7 + Math.sin(animState.time * 3.0) * 0.3;
+        }
+      });
+    }
+  }
+  
+  updateEventClusterSurgeGlyph(glyphGroup, context, animState, visualDelta) {
+    // Rapid, energetic animation
+    const surgeIntensity = 1.0 + Math.sin(animState.time * 6.0) * 0.15;
+    glyphGroup.scale.setScalar(surgeIntensity);
+    
+    // Fast rotation
+    glyphGroup.rotation.y += visualDelta * 1.5;
+    glyphGroup.rotation.z += visualDelta * 0.8;
+    
+    // Electric blue/white colors
+    if (glyphGroup.children.length > 0 && glyphGroup.children[0].material) {
+      const surgeColor = new THREE.Color(0x44aaff).lerp(new THREE.Color(0xffffff), Math.sin(animState.time * 4.0) * 0.5 + 0.5);
+      glyphGroup.children[0].material.color.copy(surgeColor);
+      glyphGroup.children[0].material.opacity = 0.8 + Math.random() * 0.2;
+    }
+  }
+  
+  updateEventWorldEventGlyph(glyphGroup, context, animState, visualDelta) {
+    // Grand, world-scale animation
+    const worldPulse = 1.0 + Math.sin(animState.time * 1.5) * 0.1;
+    glyphGroup.scale.setScalar(worldPulse);
+    
+    // Slow, majestic rotation
+    glyphGroup.rotation.y += visualDelta * 0.3;
+    
+    // Rainbow spectrum effect
+    if (glyphGroup.children.length > 0 && glyphGroup.children[0].material) {
+      const hue = (animState.time * 0.1) % 1.0;
+      const worldColor = new THREE.Color().setHSL(hue, 0.8, 0.6);
+      glyphGroup.children[0].material.color.lerp(worldColor, visualDelta * 2.0);
+      glyphGroup.children[0].material.opacity = 0.6 + Math.sin(animState.time * 2.0) * 0.2;
+    }
+  }
 
   // ============================================================
   // MESSAGING LAYER
