@@ -1,4 +1,4 @@
-py/**
+/**
  * SynapticConflictAdaptiveResolution_Session117.js
  * ============================================================================
  * Visualization system for synaptic conflicts when harmonic hubs compete for

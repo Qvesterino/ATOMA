@@ -4,5 +4,6 @@
             ".continue/**/*.yaml",
             "file:///c%3A/Users/danie/.continue/config.yaml"
         ]
-    }
+    },
+    "liveServer.settings.port": 5501
 }

@@ -523,6 +523,19 @@ export class AtomaAudioSystem {
             return;
         }
 
+        if (cue.includes('pressure') || cue.includes('residue') || cue.includes('phase-burst') || layer === 'pressure-rumble' || layer === 'residue-choir') {
+            if (cue.includes('burst') || cue.includes('phase-burst') || layer === 'pressure-rumble') {
+                this.eventLeadSynth.triggerAttackRelease(["C3", "G3", "D4"], "8n", now, velocity * 0.66);
+                this.eventAccentSynth.triggerAttackRelease("A4", "16n", now + 0.025, velocity * 0.34);
+                this._triggerEventNoise(layer, intensity * profile.noiseScale, 560 + intensity * 180, "16n");
+            } else {
+                this.eventLeadSynth.triggerAttackRelease(["E4", "B4"], "8n", now, velocity * 0.42);
+                this.eventAccentSynth.triggerAttackRelease("G5", "16n", now + 0.04, velocity * 0.22);
+                this._triggerEventNoise(layer, intensity * profile.noiseScale, 1240 + intensity * 220, "32n");
+            }
+            return;
+        }
+
         if (cue.includes('quantum') || cue.includes('revelation')) {
             this.eventLeadSynth.triggerAttackRelease(["D5", "A5"], "8n", now, velocity * 0.55);
             this.eventAccentSynth.triggerAttackRelease("F#5", "16n", now + 0.04, velocity * 0.34);
@@ -561,6 +574,7 @@ export class AtomaAudioSystem {
     }
 
     _resolveRoutedEventCooldown(cue, intensity) {
+        if (cue.includes('pressure') || cue.includes('residue')) return 220;
         if (cue.includes('sigma')) return 120;
         if (cue.includes('storm')) return 180;
         if (cue.includes('gravity')) return 240;
@@ -570,6 +584,7 @@ export class AtomaAudioSystem {
     }
 
     _resolveRoutedEventLayerCooldown(layer, cue, intensity) {
+        if (cue.includes('pressure') || layer === 'pressure-rumble' || layer === 'residue-choir') return 220;
         if (cue.includes('sigma') || layer === 'digital-shear') return 110;
         if (cue.includes('storm') || layer === 'charged-choir') return 170;
         if (cue.includes('gravity') || layer === 'void-drag') return 220;
@@ -609,6 +624,21 @@ export class AtomaAudioSystem {
                 noiseQ: 0.95,
                 velocityScale: 0.74,
                 noiseScale: 0.5
+            });
+        } else if (cue.includes('pressure') || cue.includes('residue') || layer === 'pressure-rumble' || layer === 'residue-choir') {
+            Object.assign(profile, {
+                leadDb: cue.includes('burst') ? -22 : -27,
+                accentDb: cue.includes('burst') ? -29 : -34,
+                noiseDb: cue.includes('burst') ? -38 : -44,
+                leadBaseFrequency: cue.includes('burst') ? 260 : 980,
+                leadOctaves: cue.includes('burst') ? 1.8 : 2.1,
+                leadQ: cue.includes('burst') ? 1.25 : 1.05,
+                accentBaseFrequency: cue.includes('burst') ? 620 : 1320,
+                accentOctaves: cue.includes('burst') ? 2.2 : 2.5,
+                accentQ: cue.includes('burst') ? 1.9 : 1.4,
+                noiseQ: cue.includes('burst') ? 1.35 : 0.82,
+                velocityScale: cue.includes('burst') ? 0.76 : 0.56,
+                noiseScale: cue.includes('burst') ? 0.34 : 0.12
             });
         } else if (cue.includes('wave') || cue.includes('pulse') || layer === 'ambient-bloom' || layer === 'seam-sweep') {
             Object.assign(profile, {

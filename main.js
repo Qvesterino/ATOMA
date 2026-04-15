@@ -1001,6 +1001,7 @@ import { setupSynapticGatingIntegration } from './SynapticGatingAdapter_v1.js';
 import { setupSynapticFatigueIntegration } from './SynapticFatigueAdapter_v1.js';
 import { NetworkFatigueSystem, setupNetworkFatigueConsoleAPI } from './NetworkFatigueSystem_v0.js';
 import { setupSynapticSpecializationIntegration } from './SynapticSpecializationAdapter_v1.js';
+import { setupInterdimensionalConflictIntegration } from './InterdimensionalConflictIntegration.js';
 
 // ============================================================================
 // SESSION 113+: COMPETITION & DOMINANCE VISUALIZATION (Territorial Politics)
@@ -6159,6 +6160,7 @@ this.setHudDirty('nodeInspect');
         this.setupResonanceEchoTrails();
         this.setupHarmonicTopologyLearning();
         this.setupSynapticConflictSystem();
+        this.setupInterdimensionalConflictSystem();
         this.setupTopologyBiasVisualization();
         this.setupProceduralHarmonicGlyphs();
         this.setupRegionalHarmonicCycles();
@@ -15547,6 +15549,33 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.log('[main.js] Features: phase beating, interference, fatigue yield, equilibrium drift');
         } catch (err) {
             console.warn('[main.js] SynapticConflictAdaptiveResolution init error:', err);
+        }
+    }
+
+    /**
+     * Setup Interdimensional Conflict Visualization (Session 118)
+     * Epic organic time-space rift effects for harmonic hub conflicts
+     */
+    setupInterdimensionalConflictSystem() {
+        try {
+            if (!this.synapticConflict) {
+                console.warn('[main.js] SynapticConflict not ready, skipping interdimensional conflict visualizer');
+                return;
+            }
+
+            this.interdimensionalConflictVisualizer = setupInterdimensionalConflictIntegration(this, {
+                enabled: true,
+                debugMode: false,
+                maxParticles: 500  // Adjust based on hardware (200-800)
+            });
+
+            if (this.interdimensionalConflictVisualizer) {
+                console.log('[main.js] InterdimensionalConflictVisualizer initialized ✓');
+                console.log('[main.js] Features: organic portal beams, time-space rifts, phase-based build-up');
+                console.log('[main.js] Debug: window.interdimensionalConflict.getStatus()');
+            }
+        } catch (err) {
+            console.warn('[main.js] InterdimensionalConflictVisualizer init error:', err);
         }
     }
 

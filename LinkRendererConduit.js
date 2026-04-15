@@ -1314,6 +1314,9 @@ export class LinkRendererConduit {
         this._vec3 = new THREE.Vector3();
         this._pulseDustWorldPos = new THREE.Vector3();
         this._lodMidpoint = new THREE.Vector3();
+        this._stressColorScratchA = new THREE.Color();
+        this._stressColorScratchB = new THREE.Color();
+        this._stressFieldRead = { bias: 0, tension: 0 };
 
         // Node interference management (visual only)
         this.nodeInterferenceManager = new NodeInterferenceManager(scene);
@@ -1712,8 +1715,12 @@ export class LinkRendererConduit {
         const corruption = clamp01(metrics.corruption ?? 0);
         const load = clamp01(metrics.loadPressure ?? 0);
         const stability = clamp01(1.0 - (metrics.stability ?? 1));
+        const stressField = this._readLinkStressField(link, this._stressColorScratchA, this._stressFieldRead);
+        const stressBias = stressField.bias;
+        const stressTension = stressField.tension;
+        const pressureDensity = clamp01(stressBias * 0.7 + stressTension * 0.42);
         material.opacity = THREE.MathUtils.clamp(
-            STRAND_FILAMENT_STYLE.BASE_OPACITY + load * 0.2 + corruption * 0.24 + synergy * 0.12,
+            STRAND_FILAMENT_STYLE.BASE_OPACITY + load * 0.2 + corruption * 0.24 + synergy * 0.12 + pressureDensity * 0.18,
             0.32,
             0.98
         );
@@ -1725,7 +1732,7 @@ export class LinkRendererConduit {
         const frames = ctx.frames;
         const segments = Math.max(1, ctx.segments || state.strandSegments || 1);
         const strandCount = Math.max(1, state.strandCount || strands.length || 1);
-        const activeRadius = Math.max(0.0001, ctx.activeRadius || this.config.baseRadius || 0.06);
+        const activeRadius = Math.max(0.0001, (ctx.activeRadius || this.config.baseRadius || 0.06) * (1 + pressureDensity * 0.09));
         const twistPhase = Number.isFinite(ctx.twistPhase) ? ctx.twistPhase : 0;
         const linkLength = Math.max(0.0001, ctx.linkDist || state.linkLength || state.waveLength || 1.0);
         const twists = linkLength / Math.max(0.01, this.config.twistSpacing || 2.0);
@@ -1742,7 +1749,7 @@ export class LinkRendererConduit {
         const edgeFadeSpan = 0.05;
         for (let idx = 0; idx < sampleCount; idx += 1) {
             const strandIndex = Math.min(strandCount - 1, strandSlot[idx] || 0);
-            const advect = visualTime * (STRAND_FILAMENT_STYLE.TRAVEL_SPEED + synergy * 0.08) * driftSign[idx];
+            const advect = visualTime * (STRAND_FILAMENT_STYLE.TRAVEL_SPEED + synergy * 0.08 + pressureDensity * 0.045) * driftSign[idx];
             const tRaw = rootT[idx] + advect;
             const tWrapped = ((tRaw % 1) + 1) % 1;
             const t = THREE.MathUtils.clamp(tWrapped, 0.015, 0.985);
@@ -1770,7 +1777,7 @@ export class LinkRendererConduit {
             const isMicroJump = variant === 2;
 
             const flare = 1.0 + Math.pow(2.0 * (t - 0.5), 2) * 0.2;
-            let radius = activeRadius * flare + Math.sin(t * 40.0 + strandIndex * 10.0) * noiseBase;
+            let radius = activeRadius * flare * (1.0 + pressureDensity * 0.06) + Math.sin(t * 40.0 + strandIndex * 10.0) * (noiseBase + pressureDensity * 0.0012);
             const edgeDistance = Math.min(t, 1.0 - t);
             if (edgeDistance < edgeFadeSpan) {
                 const fade = 1.0 - (edgeDistance / edgeFadeSpan);
@@ -1800,14 +1807,14 @@ export class LinkRendererConduit {
                 Math.max(0.0, Math.sin(visualTime * STRAND_FILAMENT_STYLE.DETACH_SPEED + phase[idx] * 1.7 + t * 9.0)),
                 6.0
             );
-            const detach = detachPulse * (0.35 + corruption * 0.95 + load * 0.25);
+            const detach = detachPulse * (0.35 + corruption * 0.95 + load * 0.25 + pressureDensity * 0.42);
             const filamentLength =
                 activeRadius *
                 STRAND_FILAMENT_STYLE.LENGTH_SCALE *
                 lengthScale[idx] *
-                (0.7 + harmony * 0.35 + load * 0.45) +
+                (0.7 + harmony * 0.35 + load * 0.45 + pressureDensity * 0.38) +
                 detach * STRAND_FILAMENT_STYLE.DETACH_BOOST;
-            const sway = (pulse - 0.5) * STRAND_FILAMENT_STYLE.SWAY_AMOUNT * (1.0 + stability * 0.6);
+            const sway = (pulse - 0.5) * STRAND_FILAMENT_STYLE.SWAY_AMOUNT * (1.0 + stability * 0.6 + pressureDensity * 0.22);
             let jumpVisibility = 1.0;
 
             if (isBridge || isMicroJump) {
@@ -1888,12 +1895,12 @@ export class LinkRendererConduit {
                     vMid.lerpVectors(vStart, vEnd, 0.5)
                         .addScaledVector(vRadial, filamentLength * (STRAND_FILAMENT_STYLE.BRIDGE_CURVE * (0.6 + 0.4 * pulse)))
                         .addScaledVector(vSide, filamentLength * sway * 0.55)
-                        .addScaledVector(vTangent2, filamentLength * (0.08 + load * 0.1))
+                        .addScaledVector(vTangent2, filamentLength * (0.08 + load * 0.1 + pressureDensity * 0.08))
                         .addScaledVector(vSide, filamentLength * flowWave * (STRAND_FILAMENT_STYLE.FLOW_WAVE_AMOUNT * 0.65));
                 }
             } else {
-                const forwardLean = filamentLength * (STRAND_FILAMENT_STYLE.FLOW_LEAN + load * 0.35 + synergy * 0.2);
-                const radialLean = filamentLength * (STRAND_FILAMENT_STYLE.RADIAL_LEAN + corruption * 0.18);
+                const forwardLean = filamentLength * (STRAND_FILAMENT_STYLE.FLOW_LEAN + load * 0.35 + synergy * 0.2 + pressureDensity * 0.22);
+                const radialLean = filamentLength * (STRAND_FILAMENT_STYLE.RADIAL_LEAN + corruption * 0.18 + pressureDensity * 0.16);
 
                 vEnd.copy(vStart)
                     .addScaledVector(vTangent, forwardLean)
@@ -1930,15 +1937,17 @@ export class LinkRendererConduit {
             } else {
                 cBase.set(0xffffff);
             }
+            cBase.lerp(this._stressColorScratchA, pressureDensity * 0.22);
 
             // Polish: boosted gains for more vivid, energetic filaments
-            const startGain = (isMicroJump ? (0.42 + jumpVisibility * 0.42) : (isBridge ? 0.68 : 0.78)) + load * 0.40 + pulse * 0.22;
-            const midGain = (isMicroJump ? (0.50 + jumpVisibility * 0.40) : (isBridge ? 0.78 : 0.88)) + harmony * 0.28 + pulse * 0.18;
-            const tipGain = (isMicroJump ? (0.70 + jumpVisibility * 0.48) : (isBridge ? 0.98 : 1.15)) + harmony * 0.30 + detach * 1.05;
+            const startGain = (isMicroJump ? (0.42 + jumpVisibility * 0.42) : (isBridge ? 0.68 : 0.78)) + load * 0.40 + pulse * 0.22 + pressureDensity * 0.18;
+            const midGain = (isMicroJump ? (0.50 + jumpVisibility * 0.40) : (isBridge ? 0.78 : 0.88)) + harmony * 0.28 + pulse * 0.18 + pressureDensity * 0.24;
+            const tipGain = (isMicroJump ? (0.70 + jumpVisibility * 0.48) : (isBridge ? 0.98 : 1.15)) + harmony * 0.30 + detach * 1.05 + pressureDensity * 0.34;
             cTip.copy(cBase).lerp(
                 COLOR_WHITE,
-                THREE.MathUtils.clamp((isMicroJump ? (0.36 + jumpVisibility * 0.52) : (isBridge ? 0.56 : 0.78)) + detach * 0.68 + corruption * 0.28, 0.0, 1.0)
+                THREE.MathUtils.clamp((isMicroJump ? (0.36 + jumpVisibility * 0.52) : (isBridge ? 0.56 : 0.78)) + detach * 0.68 + corruption * 0.28 + pressureDensity * 0.18, 0.0, 1.0)
             );
+            cTip.lerp(this._stressColorScratchA, pressureDensity * 0.18);
             cMid.copy(cBase).lerp(cTip, isMicroJump ? (0.40 + jumpVisibility * 0.38) : (isBridge ? 0.70 : 0.58));
 
             colors[p] = cBase.r * startGain;
@@ -1956,7 +1965,7 @@ export class LinkRendererConduit {
 
             // Detached sparks from filament tips (rare, burst-like).
             const sparkPulse = Math.sin(visualTime * 7.4 + phase[idx] * 2.7 + idx * 0.37);
-            const sparkChanceGate = isMicroJump ? -0.30 : -0.42;  // Polish: slightly more frequent sparks
+            const sparkChanceGate = (isMicroJump ? -0.30 : -0.42) - pressureDensity * 0.12;
             const sparkAccent = (strandIndex % 2 === 0 ? state.colorB : state.colorA) || cBase;
             if ((detach > 0.02 || isMicroJump) && sparkPulse > sparkChanceGate) {
                 if (isBridge || isMicroJump) {
@@ -1987,7 +1996,7 @@ export class LinkRendererConduit {
             }
 
             // Occasional bridge contact pulses: short glyph arcs at strand-to-strand touch moments.
-            if (isBridge && pulse > 0.972 && Math.sin(visualTime * 5.7 + phase[idx] * 1.9) > 0.82) {
+            if (isBridge && pulse > (0.972 - pressureDensity * 0.04) && Math.sin(visualTime * 5.7 + phase[idx] * 1.9) > (0.82 - pressureDensity * 0.08)) {
                 vSide.copy(vTangent2)
                     .addScaledVector(vRadial2, 0.75 + load * 0.25)
                     .normalize();
@@ -3041,7 +3050,11 @@ export class LinkRendererConduit {
                         u_rippleEnergy: { value: 0.0 },
                         u_rippleLength: { value: 1.0 },
                         u_rippleVisibility: { value: 0.0 },
-                        u_rippleBandCount: { value: 2.0 }
+                        u_rippleBandCount: { value: 2.0 },
+                        u_rippleSignature: { value: 0.0 },
+                        u_stressFieldBias: { value: 0.0 },
+                        u_stressFieldTension: { value: 0.0 },
+                        u_stressFieldColor: { value: new THREE.Color(0x7be6ff) }
                     }
                 });
                 ensureUserData(material);
@@ -4980,6 +4993,28 @@ export class LinkRendererConduit {
             node?.userData?.corruption,
             cached?.corruption
         );
+    }
+
+    _readLinkStressField(link, colorTarget = this._stressColorScratchA, out = this._stressFieldRead) {
+        const sourceNode = link?.source || link?.sourceNode || link?.from || null;
+        const targetNode = link?.target || link?.targetNode || link?.to || null;
+
+        const sourceBias = clamp01(sourceNode?.userData?.stressFieldBias ?? 0);
+        const targetBias = clamp01(targetNode?.userData?.stressFieldBias ?? sourceBias);
+        const sourceTension = clamp01(sourceNode?.userData?.stressFieldTension ?? 0);
+        const targetTension = clamp01(targetNode?.userData?.stressFieldTension ?? sourceTension);
+        const sourceColorHex = sourceNode?.userData?.stressFieldColor;
+        const targetColorHex = targetNode?.userData?.stressFieldColor;
+
+        if (colorTarget?.isColor) {
+            colorTarget.setHex(Number.isFinite(sourceColorHex) ? sourceColorHex : 0x8be6ff);
+            this._stressColorScratchB.setHex(Number.isFinite(targetColorHex) ? targetColorHex : colorTarget.getHex());
+            colorTarget.lerp(this._stressColorScratchB, 0.5);
+        }
+
+        out.bias = clamp01((sourceBias + targetBias) * 0.5);
+        out.tension = clamp01((sourceTension + targetTension) * 0.5);
+        return out;
     }
 
     _getLinkFeedbackNode(link) {

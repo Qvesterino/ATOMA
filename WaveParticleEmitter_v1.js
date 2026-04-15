@@ -891,7 +891,9 @@ export class WaveParticleEmitter_v1 {
       constructive = Math.max(constructive, minimumChannelValue);
       destructive = Math.max(destructive, minimumChannelValue);
       standing = Math.max(standing, minimumChannelValue);
-      const emissionRateMul = amplitude > 0.5 ? this.config.highAmplitudeEmissionMultiplier : 1.0;
+      const stressField = this._readNodeStressField(node);
+      const pressureGain = 1 + stressField.bias * 0.34 + stressField.tension * 0.18;
+      const emissionRateMul = (amplitude > 0.5 ? this.config.highAmplitudeEmissionMultiplier : 1.0) * pressureGain;
       const constructiveValue = Math.max(constructive, MIN_VISIBILITY) * emissionScale;
       const destructiveValue = Math.max(destructive, MIN_VISIBILITY) * emissionScale;
       const standingValue = Math.max(standing, MIN_VISIBILITY) * emissionScale;
@@ -902,9 +904,9 @@ export class WaveParticleEmitter_v1 {
       const cascadeIntensity = Number(node?.userData?.cascadeIntensity) || 0;
       const corruption = Number(node?.userData?.corruption) || Number(node?.userData?.corruptionLevel) || 0;
       
-      const constructiveThreshold = this.config.constructiveThreshold * (1 - cascadeIntensity * 0.5);
-      const destructiveThreshold = this.config.destructiveThreshold * (1 - corruption * 0.3);
-      const standingThreshold = this.config.standingWaveThreshold * (1 - cascadeIntensity * 0.3);
+      const constructiveThreshold = this.config.constructiveThreshold * (1 - cascadeIntensity * 0.5) * (1 - stressField.bias * 0.16);
+      const destructiveThreshold = this.config.destructiveThreshold * (1 - corruption * 0.3) * (1 - (stressField.bias * 0.18 + stressField.tension * 0.08));
+      const standingThreshold = this.config.standingWaveThreshold * (1 - cascadeIntensity * 0.3) * (1 - (stressField.bias * 0.14 + stressField.tension * 0.1));
       
       const emitConstructive = constructiveValue >= constructiveThreshold;
       const emitDestructive = destructiveValue >= destructiveThreshold;
@@ -920,15 +922,30 @@ export class WaveParticleEmitter_v1 {
           standing: standingValue,
           threshold: this.config.constructiveThreshold
         });
-        this._emitConstructiveBurst(node, constructiveValue, 'node', { source, emissionRateMul });
+        this._emitConstructiveBurst(node, constructiveValue, 'node', {
+          source,
+          emissionRateMul,
+          stressFieldBias: stressField.bias,
+          stressFieldTension: stressField.tension
+        });
       }
 
       if (emitDestructive) {
-        this._emitDestructiveChaos(node, destructiveValue, 'node', { source, emissionRateMul });
+        this._emitDestructiveChaos(node, destructiveValue, 'node', {
+          source,
+          emissionRateMul,
+          stressFieldBias: stressField.bias,
+          stressFieldTension: stressField.tension
+        });
       }
 
       if (emitStanding) {
-        this._emitStandingWaveRipple(node, standingValue, 'node', { source, emissionRateMul });
+        this._emitStandingWaveRipple(node, standingValue, 'node', {
+          source,
+          emissionRateMul,
+          stressFieldBias: stressField.bias,
+          stressFieldTension: stressField.tension
+        });
       }
 
       this._processAmplitudeSpike(nodeId, amplitude);
@@ -974,7 +991,9 @@ export class WaveParticleEmitter_v1 {
       constructive = Math.max(constructive, minimumChannelValue);
       destructive = Math.max(destructive, minimumChannelValue);
       standing = Math.max(standing, minimumChannelValue);
-      const emissionRateMul = amplitude > 0.5 ? this.config.highAmplitudeEmissionMultiplier : 1.0;
+      const stressField = this._readLinkStressField(link);
+      const pressureGain = 1 + stressField.bias * 0.42 + stressField.tension * 0.22;
+      const emissionRateMul = (amplitude > 0.5 ? this.config.highAmplitudeEmissionMultiplier : 1.0) * pressureGain;
       const constructiveValue = Math.max(constructive, MIN_VISIBILITY) * emissionScale;
       const destructiveValue = Math.max(destructive, MIN_VISIBILITY) * emissionScale;
       const standingValue = Math.max(standing, MIN_VISIBILITY) * emissionScale;
@@ -983,9 +1002,9 @@ export class WaveParticleEmitter_v1 {
       const cascadeIntensity = Number(link?.userData?.cascadeIntensity) || 0;
       const corruption = Number(link?.userData?.corruption) || Number(link?.source?.userData?.corruption) || 0;
       
-      const constructiveThreshold = this.config.constructiveThreshold * (1 - cascadeIntensity * 0.5);
-      const destructiveThreshold = this.config.destructiveThreshold * (1 - corruption * 0.3);
-      const standingThreshold = this.config.standingWaveThreshold * (1 - cascadeIntensity * 0.3);
+      const constructiveThreshold = this.config.constructiveThreshold * (1 - cascadeIntensity * 0.5) * (1 - stressField.bias * 0.18);
+      const destructiveThreshold = this.config.destructiveThreshold * (1 - corruption * 0.3) * (1 - (stressField.bias * 0.22 + stressField.tension * 0.1));
+      const standingThreshold = this.config.standingWaveThreshold * (1 - cascadeIntensity * 0.3) * (1 - (stressField.bias * 0.16 + stressField.tension * 0.12));
       
       const emitConstructive = constructiveValue >= constructiveThreshold;
       const emitDestructive = destructiveValue >= destructiveThreshold;
@@ -1003,15 +1022,30 @@ export class WaveParticleEmitter_v1 {
       };
 
       if (emitConstructive) {
-        this._emitConstructiveBurst(linkEmitterTarget, constructiveValue, 'link', { source, emissionRateMul });
+        this._emitConstructiveBurst(linkEmitterTarget, constructiveValue, 'link', {
+          source,
+          emissionRateMul,
+          stressFieldBias: stressField.bias,
+          stressFieldTension: stressField.tension
+        });
       }
 
       if (emitDestructive) {
-        this._emitDestructiveChaos(linkEmitterTarget, destructiveValue, 'link', { source, emissionRateMul });
+        this._emitDestructiveChaos(linkEmitterTarget, destructiveValue, 'link', {
+          source,
+          emissionRateMul,
+          stressFieldBias: stressField.bias,
+          stressFieldTension: stressField.tension
+        });
       }
 
       if (emitStanding) {
-        this._emitStandingWaveRipple(linkEmitterTarget, standingValue, 'link', { source, emissionRateMul });
+        this._emitStandingWaveRipple(linkEmitterTarget, standingValue, 'link', {
+          source,
+          emissionRateMul,
+          stressFieldBias: stressField.bias,
+          stressFieldTension: stressField.tension
+        });
       }
     } catch (err) {
       console.error('[WaveParticleEmitter_v1] Link event processing error:', err);
@@ -1051,6 +1085,23 @@ export class WaveParticleEmitter_v1 {
     const nodeId = this._resolveEntityId(node);
     const rawWaveField = waveEngine?.getNodeWaveField?.(nodeId, node) ?? node?.userData?.waveField ?? null;
     return rawWaveField ? this._normalizeWaveSnapshot(rawWaveField) : null;
+  }
+
+  _readNodeStressField(node) {
+    return {
+      bias: this._clamp01(Number(node?.userData?.stressFieldBias ?? 0)),
+      tension: this._clamp01(Number(node?.userData?.stressFieldTension ?? 0))
+    };
+  }
+
+  _readLinkStressField(link) {
+    const { sourceNode, targetNode } = this._resolveLinkEndpoints(link);
+    const sourceStress = this._readNodeStressField(sourceNode);
+    const targetStress = this._readNodeStressField(targetNode);
+    return {
+      bias: this._clamp01((sourceStress.bias + targetStress.bias) * 0.5),
+      tension: this._clamp01((sourceStress.tension + targetStress.tension) * 0.5)
+    };
   }
 
   _averageWaveFieldValue(sourceWaveField, targetWaveField, keys = [], clamp = true) {
@@ -1286,6 +1337,9 @@ export class WaveParticleEmitter_v1 {
       const normalizedStrength = this._clamp01(strength);
       const scaled = 0.6 + normalizedStrength * 0.8;
       const emissionRateMul = Number(runtimeOptions.emissionRateMul ?? 1) || 1;
+      const stressFieldBias = this._clamp01(Number(runtimeOptions.stressFieldBias ?? 0));
+      const stressFieldTension = this._clamp01(Number(runtimeOptions.stressFieldTension ?? 0));
+      const pressureGain = 1 + stressFieldBias * 0.22 + stressFieldTension * 0.1;
       const sourceCooldownMul = source === 'cascade' ? this.config.cascadeCooldownMultiplier : 1.0;
       const linkModeEmissionScale = mode === 'link' ? this.config.linkModeEmissionScale : 1;
       const linkModeSpeedScale = mode === 'link' ? this.config.linkModeSpeedScale : 1;
@@ -1302,7 +1356,7 @@ export class WaveParticleEmitter_v1 {
       // Emit 3-5 particles per burst
       const burstCount = Math.max(
         1,
-        Math.floor((3 + Math.random() * 2.99) * this.config.emissionRate * emissionRateMul * scaled * linkModeEmissionScale)
+        Math.floor((3 + Math.random() * 2.99) * this.config.emissionRate * emissionRateMul * pressureGain * scaled * linkModeEmissionScale)
       );
 
       for (let i = 0; i < burstCount; i++) {
@@ -1347,7 +1401,7 @@ export class WaveParticleEmitter_v1 {
           this._applyEmissionOffset(particle.position, mode, 0.12, 0.35, direction);
           particle.data.buildOffset.copy(particle.position).sub(particle.data.formationCenter);
           particle.data.releaseVelocity.copy(this._sampleQuadraticBezierTangent(arcPath.start, arcPath.control, arcPath.end, startT)).normalize();
-          particle.data.releaseVelocity.multiplyScalar((6 + Math.random() * 4) * linkModeSpeedScale);
+          particle.data.releaseVelocity.multiplyScalar((6 + Math.random() * 4) * linkModeSpeedScale * (1 + stressFieldBias * 0.18));
           particle.velocity.copy(particle.data.releaseVelocity).multiplyScalar(0.08 * linkModeSpeedScale);
           particle.maxLifetime *= linkModeLifetimeScale;
         } else {
@@ -1359,7 +1413,7 @@ export class WaveParticleEmitter_v1 {
           const speed = mode === 'link'
             ? 6 + Math.random() * 5
             : 4 + Math.random() * 4;
-          this._setParticleVelocity(particle.data.releaseVelocity, mode, speed, direction, 0.45, 0.2);
+          this._setParticleVelocity(particle.data.releaseVelocity, mode, speed * (1 + stressFieldBias * 0.14), direction, 0.45, 0.2);
           particle.velocity.copy(particle.data.releaseVelocity).multiplyScalar(0.12);
           particle.data.arcT = 0;
         }
@@ -1367,8 +1421,8 @@ export class WaveParticleEmitter_v1 {
         particle.data.streak.copy(particle.data.releaseVelocity).normalize();
         particle.lifetime = 0;
         particle.maxLifetime = mode === 'link'
-          ? 0.55 + Math.random() * 0.18
-          : 0.18 + Math.random() * 0.12;
+          ? (0.55 + Math.random() * 0.18) * (1 + stressFieldTension * 0.12)
+          : (0.18 + Math.random() * 0.12) * (1 + stressFieldTension * 0.08);
         particle.active = true;
       }
     } catch (err) {
@@ -1389,6 +1443,9 @@ export class WaveParticleEmitter_v1 {
       const normalizedStrength = this._clamp01(strength);
       const scaled = 0.6 + normalizedStrength * 0.8;
       const emissionRateMul = Number(runtimeOptions.emissionRateMul ?? 1) || 1;
+      const stressFieldBias = this._clamp01(Number(runtimeOptions.stressFieldBias ?? 0));
+      const stressFieldTension = this._clamp01(Number(runtimeOptions.stressFieldTension ?? 0));
+      const pressureGain = 1 + stressFieldBias * 0.34 + stressFieldTension * 0.16;
       const sourceCooldownMul = source === 'cascade' ? this.config.cascadeCooldownMultiplier : 1.0;
 
       // Check emission gate
@@ -1402,7 +1459,7 @@ export class WaveParticleEmitter_v1 {
       // Emit 5-8 chaotic particles
       const burstCount = Math.max(
         1,
-        Math.floor((5 + Math.random() * 3.99) * this.config.emissionRate * emissionRateMul * scaled)
+        Math.floor((5 + Math.random() * 3.99) * this.config.emissionRate * emissionRateMul * pressureGain * scaled)
       );
 
       for (let i = 0; i < burstCount; i++) {
@@ -1416,7 +1473,7 @@ export class WaveParticleEmitter_v1 {
         const speed = mode === 'link'
           ? 5 + Math.random() * 7
           : 6 + Math.random() * 8;
-        this._setParticleVelocity(particle.velocity, mode, speed, direction, 0.9, 1.2);
+        this._setParticleVelocity(particle.velocity, mode, speed * (1 + stressFieldBias * 0.22), direction, 0.9, 1.2);
 
         // Jitter force for runtime chaos
         particle.data.jitterForce.set(
@@ -1427,8 +1484,8 @@ export class WaveParticleEmitter_v1 {
 
         particle.lifetime = 0;
         particle.maxLifetime = mode === 'link'
-          ? 0.32 + Math.random() * 0.2
-          : 0.18 + Math.random() * 0.12;
+          ? (0.32 + Math.random() * 0.2) * (1 + stressFieldTension * 0.14)
+          : (0.18 + Math.random() * 0.12) * (1 + stressFieldTension * 0.12);
         particle.active = true;
       }
     } catch (err) {
@@ -1451,6 +1508,9 @@ export class WaveParticleEmitter_v1 {
       const normalizedStrength = this._clamp01(strength);
       const scaled = 0.6 + normalizedStrength * 0.8;
       const emissionRateMul = Number(runtimeOptions.emissionRateMul ?? 1) || 1;
+      const stressFieldBias = this._clamp01(Number(runtimeOptions.stressFieldBias ?? 0));
+      const stressFieldTension = this._clamp01(Number(runtimeOptions.stressFieldTension ?? 0));
+      const pressureGain = 1 + stressFieldBias * 0.28 + stressFieldTension * 0.14;
       const sourceCooldownMul = source === 'cascade' ? this.config.cascadeCooldownMultiplier : 1.0;
       const linkModeEmissionScale = mode === 'link' ? this.config.linkModeEmissionScale : 1;
       const linkModeSpeedScale = mode === 'link' ? this.config.linkModeSpeedScale : 1;
@@ -1466,7 +1526,7 @@ export class WaveParticleEmitter_v1 {
       // Emit subtle local harmonic cues on nodes and more readable travel cues on links
       const rippleCount = Math.max(
         1,
-        Math.floor(((mode === 'link' ? 1 + Math.random() * 1.99 : 0.85 + Math.random() * 0.75)) * this.config.emissionRate * emissionRateMul * scaled * linkModeEmissionScale)
+        Math.floor(((mode === 'link' ? 1 + Math.random() * 1.99 : 0.85 + Math.random() * 0.75)) * this.config.emissionRate * emissionRateMul * pressureGain * scaled * linkModeEmissionScale)
       );
 
       for (let i = 0; i < rippleCount; i++) {
@@ -1484,7 +1544,7 @@ export class WaveParticleEmitter_v1 {
           direction
         );
         if (mode === 'link') {
-          const speed = (1.5 + Math.random() * 2.0) * linkModeSpeedScale;
+          const speed = (1.5 + Math.random() * 2.0) * linkModeSpeedScale * (1 + stressFieldBias * 0.18);
           this._setParticleVelocity(particle.velocity, mode, speed, direction, 0.12, 0.05);
         } else {
           particle.velocity.set(
@@ -1496,8 +1556,8 @@ export class WaveParticleEmitter_v1 {
 
         particle.data.emissionRadius = 0;
         particle.data.maxRadius = mode === 'link'
-          ? 8 + Math.random() * 5
-          : 0.7 + Math.random() * 0.55;
+          ? (8 + Math.random() * 5) * (1 + stressFieldBias * 0.12)
+          : (0.7 + Math.random() * 0.55) * (1 + stressFieldBias * 0.08);
         particle.data.phase = Math.random() * Math.PI * 2;
         particle.data.baseColor = mode === 'link'
           ? new THREE.Color(0x9fd8ff)
@@ -1505,8 +1565,8 @@ export class WaveParticleEmitter_v1 {
 
         particle.lifetime = 0;
         particle.maxLifetime = mode === 'link'
-          ? 0.9 + Math.random() * 0.45
-          : 0.18 + Math.random() * 0.12;
+          ? (0.9 + Math.random() * 0.45) * (1 + stressFieldTension * 0.14)
+          : (0.18 + Math.random() * 0.12) * (1 + stressFieldTension * 0.08);
         particle.active = true;
       }
     } catch (err) {

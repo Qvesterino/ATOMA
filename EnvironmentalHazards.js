@@ -694,6 +694,7 @@ export class EnvironmentalHazards {
       if (!hazard.active) continue;
       hazard.age += deltaTime;
       hazard.time = hazard.age;
+      this._updateHazardLifecycle(hazard, deltaTime);
 
       if (hazard.age >= hazard.lifetime) {
         this.deactivateHazard(hazard);
@@ -1181,6 +1182,15 @@ export class EnvironmentalHazards {
       lifetime,
       age: 0,
       time: 0,
+      phase: 'detection',
+      phaseTime: 0,
+      phaseProgress: 0,
+      phaseDurations: {
+        detection: 0.18,
+        escalation: 0.28,
+        burst: 0.26,
+        residue: 0.28
+      },
       active: true,
       root,
       layers: null,
@@ -1190,6 +1200,8 @@ export class EnvironmentalHazards {
       group: root
     };
 
+    root.userData = root.userData || {};
+    root.userData.hazardPhase = hazard.phase;
     this._tagHazardObject(root, type, `${type}-root`);
     return hazard;
   }
@@ -1631,6 +1643,7 @@ export class EnvironmentalHazards {
     const intensityScale = this._getHazardIntensityScale();
     return {
       envelope: this._getHazardEnvelope(hazard),
+      phaseState: this._getHazardPhaseState(hazard),
       pulse: Math.sin(hazard.time * 1.8) * 0.12 * intensityScale + 1.0,
       slowPulse: Math.sin(hazard.time * 0.95) * 0.06 * intensityScale + 1.0
     };
@@ -1642,11 +1655,17 @@ export class EnvironmentalHazards {
   }
 
   _getHazardPhaseState(hazard) {
-    const t = (hazard.time % 4) / 4;
-    const attack = this._smoothstep(0.0, 0.18, t);
-    const crest = this._smoothstep(0.18, 0.72, t) * (1 - this._smoothstep(0.72, 1.0, t));
-    const release = this._smoothstep(0.72, 1.0, t);
-    return { t, attack, crest, release };
+    const progress = Math.max(0, Math.min(1, hazard.phaseProgress ?? 0));
+    const mix = {
+      detection: hazard.phase === 'detection' ? 1 : 0,
+      escalation: hazard.phase === 'escalation' ? 1 : 0,
+      burst: hazard.phase === 'burst' ? 1 : 0,
+      residue: hazard.phase === 'residue' ? 1 : 0
+    };
+    const attack = mix.detection * this._smoothstep(0, 1, progress) + mix.escalation;
+    const crest = mix.escalation * this._smoothstep(0, 1, progress) + mix.burst;
+    const release = mix.residue * this._smoothstep(0, 1, progress);
+    return { t: progress, attack, crest, release, mix };
   }
 
   _getHazardLODScale(hazard) {
@@ -1658,15 +1677,53 @@ export class EnvironmentalHazards {
   }
 
   _getHazardEnvelope(hazard) {
-    const envelope = this.hazardEnvelope;
-    const phase = (hazard.time % 4) / 4;
-    if (phase < envelope.birth) return phase / envelope.birth;
-    if (phase < envelope.birth + envelope.crest) return 1;
-    if (phase < envelope.birth + envelope.crest + envelope.decay) {
-      return 1 - ((phase - envelope.birth - envelope.crest) / envelope.decay);
+    const phaseState = this._getHazardPhaseState(hazard);
+    if (hazard.phase === 'detection') return Math.max(0.12, phaseState.attack * 0.52);
+    if (hazard.phase === 'escalation') return 0.58 + phaseState.crest * 0.42;
+    if (hazard.phase === 'burst') return 1.0;
+    return Math.max(0, 1 - phaseState.release * 0.9);
+  }
+
+  _setHazardPhase(hazard, nextPhase) {
+    if (!hazard || hazard.phase === nextPhase) return false;
+    hazard.phase = nextPhase;
+    hazard.phaseTime = 0;
+    hazard.phaseProgress = 0;
+    hazard.root.userData = hazard.root.userData || {};
+    hazard.root.userData.hazardPhase = nextPhase;
+    return true;
+  }
+
+  _updateHazardLifecycle(hazard, deltaTime) {
+    const durations = hazard.phaseDurations || { detection: 0.18, escalation: 0.28, burst: 0.26, residue: 0.28 };
+    const normalizedAge = Math.max(0, Math.min(1, hazard.lifetime > 0 ? hazard.age / hazard.lifetime : 1));
+    const detectionEnd = durations.detection;
+    const escalationEnd = detectionEnd + durations.escalation;
+    const burstEnd = escalationEnd + durations.burst;
+
+    let nextPhase = 'residue';
+    let start = burstEnd;
+    let duration = Math.max(0.0001, durations.residue);
+
+    if (normalizedAge < detectionEnd) {
+      nextPhase = 'detection';
+      start = 0;
+      duration = Math.max(0.0001, durations.detection);
+    } else if (normalizedAge < escalationEnd) {
+      nextPhase = 'escalation';
+      start = detectionEnd;
+      duration = Math.max(0.0001, durations.escalation);
+    } else if (normalizedAge < burstEnd) {
+      nextPhase = 'burst';
+      start = escalationEnd;
+      duration = Math.max(0.0001, durations.burst);
     }
-    const after = (phase - envelope.birth - envelope.crest - envelope.decay) / envelope.afterglow;
-    return Math.max(0, 1 - after);
+
+    hazard.phaseTime += deltaTime;
+    hazard.phaseProgress = Math.max(0, Math.min(1, (normalizedAge - start) / duration));
+    if (this._setHazardPhase(hazard, nextPhase)) {
+      this._emitHazardEvent('environment.hazard.phase', hazard);
+    }
   }
 
   _getHazardSignalModifiers() {
@@ -1681,6 +1738,9 @@ export class EnvironmentalHazards {
   _getHazardEventFlavor(hazard) {
     const signals = this._getHazardSignalModifiers();
     const intensity = Math.min(1.5, hazard.intensity ?? hazard.strength ?? 1);
+    const phase = hazard.phase || 'detection';
+    const phaseSuffix = phase === 'burst' ? 'burst' : phase === 'residue' ? 'residue' : phase === 'escalation' ? 'escalation' : 'detection';
+    const phaseTag = `hazard.phase.${phase}`;
 
     switch (hazard.type) {
       case 'electricalStorm':
@@ -1692,18 +1752,27 @@ export class EnvironmentalHazards {
               : signals.stabilityHigh
                 ? 'Purified lightning gathers into ritual order'
                 : 'Cathedral storm of high pressure',
-          visualTone: signals.corruptionHigh ? 'electric-corrupt' : 'electric-sacred',
+          visualTone: signals.corruptionHigh ? `electric-corrupt-${phaseSuffix}` : `electric-sacred-${phaseSuffix}`,
           semanticSubtitle: signals.loadPressureHigh
             ? 'A pressure-driven rupture field is discharging across the world shell.'
             : 'A charged storm lattice is asserting repulsive territory.',
           semanticTags: [
             'environment.hazard',
             'hazard.electricalStorm',
+            phaseTag,
             signals.corruptionHigh ? 'signal.corruption.high' : 'signal.electric.field',
             signals.loadPressureHigh ? 'signal.loadPressure.high' : 'signal.rupture.pending'
           ],
-          audioCue: signals.corruptionHigh ? 'hazard.storm.corruption-crown' : 'hazard.storm.cathedral-arc',
-          audioLayer: signals.loadPressureHigh ? 'pressure-rumble' : 'charged-choir',
+          audioCue: phase === 'burst'
+            ? 'hazard.storm.phase-burst'
+            : phase === 'residue'
+              ? 'hazard.storm.phase-residue'
+              : (signals.corruptionHigh ? 'hazard.storm.corruption-crown' : 'hazard.storm.cathedral-arc'),
+          audioLayer: phase === 'burst'
+            ? 'pressure-rumble'
+            : phase === 'residue'
+              ? 'residue-choir'
+              : (signals.loadPressureHigh ? 'pressure-rumble' : 'charged-choir'),
           audioIntensity: intensity
         };
       case 'gravitationalAnomaly':
@@ -1715,18 +1784,23 @@ export class EnvironmentalHazards {
               : signals.corruptionHigh
                 ? 'Corrupted gravity twists the orbit skin'
                 : 'Silent gravitational authority',
-          visualTone: signals.corruptionHigh ? 'cosmic-corrupt' : 'cosmic-collapse',
+          visualTone: signals.corruptionHigh ? `cosmic-corrupt-${phaseSuffix}` : `cosmic-collapse-${phaseSuffix}`,
           semanticSubtitle: signals.stabilityLow
             ? 'A local region is folding inward and pulling surrounding space into torsion.'
             : 'A singularity field is imposing directional pull and lens distortion.',
           semanticTags: [
             'environment.hazard',
             'hazard.gravitationalAnomaly',
+            phaseTag,
             signals.stabilityLow ? 'signal.stability.low' : 'signal.gravity.well',
             signals.loadPressureHigh ? 'signal.loadPressure.high' : 'signal.spatial-collapse'
           ],
-          audioCue: signals.corruptionHigh ? 'hazard.gravity.corrupted-well' : 'hazard.gravity.singularity-eclipse',
-          audioLayer: 'void-drag',
+          audioCue: phase === 'burst'
+            ? 'hazard.gravity.phase-burst'
+            : phase === 'residue'
+              ? 'hazard.gravity.phase-residue'
+              : (signals.corruptionHigh ? 'hazard.gravity.corrupted-well' : 'hazard.gravity.singularity-eclipse'),
+          audioLayer: phase === 'residue' ? 'residue-choir' : 'void-drag',
           audioIntensity: intensity
         };
       case 'chronoBloom':
@@ -1736,18 +1810,23 @@ export class EnvironmentalHazards {
             : signals.corruptionHigh
               ? 'Revelation petals split through corrupted time'
               : 'Majestic aperture of stable unreality',
-          visualTone: signals.corruptionHigh ? 'revelation-corrupt' : 'revelation-sacred',
+          visualTone: signals.corruptionHigh ? `revelation-corrupt-${phaseSuffix}` : `revelation-sacred-${phaseSuffix}`,
           semanticSubtitle: signals.stabilityHigh
             ? 'A rare temporal bloom is opening a safe but surreal revelation field.'
             : 'A temporal aperture is unfolding layered perception without direct hostility.',
           semanticTags: [
             'environment.hazard',
             'hazard.chronoBloom',
+            phaseTag,
             signals.stabilityHigh ? 'signal.stability.high' : 'signal.revelation.field',
             signals.corruptionHigh ? 'signal.corruption.edge' : 'signal.temporal-bloom'
           ],
-          audioCue: signals.corruptionHigh ? 'hazard.chrono.fractured-bloom' : 'hazard.chrono.revelation-bloom',
-          audioLayer: 'sigil-bells',
+          audioCue: phase === 'burst'
+            ? 'hazard.chrono.phase-burst'
+            : phase === 'residue'
+              ? 'hazard.chrono.phase-residue'
+              : (signals.corruptionHigh ? 'hazard.chrono.fractured-bloom' : 'hazard.chrono.revelation-bloom'),
+          audioLayer: phase === 'residue' ? 'residue-choir' : 'sigil-bells',
           audioIntensity: intensity * 0.88
         };
       default:
@@ -1755,7 +1834,7 @@ export class EnvironmentalHazards {
           subtitle: hazard.subtitle || 'Unspecified event',
           visualTone: hazard.visualTone || 'neutral',
           semanticSubtitle: 'A generic environmental hazard is active.',
-          semanticTags: ['environment.hazard', `hazard.${hazard.type || 'unknown'}`],
+          semanticTags: ['environment.hazard', `hazard.${hazard.type || 'unknown'}`, phaseTag],
           audioCue: 'hazard.generic',
           audioLayer: 'ambient-alert',
           audioIntensity: intensity
@@ -1775,6 +1854,8 @@ export class EnvironmentalHazards {
       title: hazard.title || eventData.title,
       subtitle: flavor.subtitle || hazard.subtitle || eventData.subtitle,
       visualTone: flavor.visualTone || hazard.visualTone || eventData.visualTone,
+      phase: hazard.phase || 'detection',
+      phaseProgress: hazard.phaseProgress ?? 0,
       intensity: hazard.intensity ?? hazard.strength ?? 1,
       radius: hazard.radius,
       source: 'EnvironmentalHazards',

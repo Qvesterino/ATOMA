@@ -1,6 +1,8 @@
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 const TAU = Math.PI * 2;
+const WORLD_OVERLAY_ORDER = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_OVERLAY);
 
 /**
  * CANONICAL TEMPLATE #3: NETWORK STRESS & LOAD PRESSURE VISUALS
@@ -43,7 +45,13 @@ export class CanonicalTemplate3_StressVisuals {
       averageNodeLoad: 0,
       stressedNodeRatio: 0,
       pulse: 0,
-      turbulence: 0
+      turbulence: 0,
+      phase: 'detection',
+      phaseTime: 0,
+      lastPressure: 0,
+      burstHold: 0,
+      residueHold: 0,
+      burstEcho: 0
     };
 
     this.palette = {
@@ -68,6 +76,7 @@ export class CanonicalTemplate3_StressVisuals {
     this._ambientLightBaselines = new Map();
     this._lightColorScratch = new THREE.Color();
     this._fogBaseline = null;
+    this.semanticBus = this._resolveSemanticBus();
 
     this.config = {
       rootRadius: 170,
@@ -80,7 +89,9 @@ export class CanonicalTemplate3_StressVisuals {
       loadSmoothing: 0.075,
       dustOpacity: 0.18,
       contourOpacity: 0.16,
-      veilOpacity: 0.11
+      veilOpacity: 0.11,
+      witnessOpacity: 0.085,
+      riftVeinOpacity: 0.095
     };
 
     this.root = null;
@@ -89,6 +100,8 @@ export class CanonicalTemplate3_StressVisuals {
       horizon: [],
       lattice: [],
       seamCrowns: [],
+      witnessArcs: [],
+      riftVeins: [],
       dust: null,
       shell: null
     };
@@ -161,6 +174,7 @@ export class CanonicalTemplate3_StressVisuals {
     this._setFieldVisibility(true);
     this._refreshLightRegistry();
     this._updatePressureTargets();
+    this._updatePressurePhaseState(deltaTime);
     this._updateAmbientStressField(deltaTime);
     this._updateFieldLayers(deltaTime);
     this.updateNodeStressOverlays(deltaTime);
@@ -171,17 +185,20 @@ export class CanonicalTemplate3_StressVisuals {
 
     this.root = new THREE.Group();
     this.root.name = 'CanonicalTemplate3_StressVisualsRoot';
-    this.root.renderOrder = -12;
+    this.root.renderOrder = WORLD_OVERLAY_ORDER;
     this.root.userData = this.root.userData || {};
     this.root.userData.isStressPressureField = true;
     this.root.userData.__environmentLayerId = 'CanonicalTemplate3_StressVisuals';
     this.root.userData.__environmentOwner = 'CanonicalTemplate3_StressVisuals';
+    this.root.userData.pressurePhase = this.pressureState.phase;
     this.scene.add(this.root);
 
     this._createCanopyVeils();
     this._createHorizonSeams();
     this._createLatticeContours();
     this._createSeamCrowns();
+    this._createWitnessArcs();
+    this._createRiftVeins();
     this._createPressureShell();
     this._createShardDust();
 
@@ -211,8 +228,8 @@ export class CanonicalTemplate3_StressVisuals {
       const mesh = new THREE.Mesh(geometry, material);
       mesh.position.set(0, spec.y, spec.z);
       mesh.rotation.set(spec.rotX, spec.rotY, index % 2 === 0 ? -0.12 : 0.09);
-      mesh.renderOrder = -15 + index;
-      mesh.userData = { isStressField: true, type: 'pressure_canopy_veil', key: spec.key };
+      mesh.renderOrder = this._getWorldRenderOrder(-4 + index);
+      mesh.userData = { isStressField: true, type: 'pressure_canopy_veil', key: spec.key, basePosition: mesh.position.clone() };
       this.root.add(mesh);
       this.fieldLayers.canopy.push(mesh);
     });
@@ -240,8 +257,8 @@ export class CanonicalTemplate3_StressVisuals {
       line.position.set(0, spec.y, spec.z);
       line.rotation.x = Math.PI * 0.49;
       line.rotation.z = index === 1 ? 0.07 : -0.04;
-      line.renderOrder = -10 + index;
-      line.userData = { isStressField: true, type: 'pressure_horizon_seam' };
+      line.renderOrder = this._getWorldRenderOrder(-2 + index);
+      line.userData = { isStressField: true, type: 'pressure_horizon_seam', basePosition: line.position.clone() };
       this.root.add(line);
       this.fieldLayers.horizon.push(line);
     });
@@ -267,6 +284,7 @@ export class CanonicalTemplate3_StressVisuals {
       const line = new THREE.LineLoop(geometry, material);
       line.position.set(0, spec.y, spec.z);
       line.rotation.set(spec.rotX, spec.rotY, index * 0.2);
+      line.renderOrder = this._getWorldRenderOrder(2 + index);
       line.userData = { isStressField: true, type: 'pressure_lattice_contour' };
       this.root.add(line);
       this.fieldLayers.lattice.push(line);
@@ -288,10 +306,67 @@ export class CanonicalTemplate3_StressVisuals {
       const line = new THREE.Line(geometry, material);
       line.position.set((i - 1.5) * 16, 2 + i * 4, -24 - i * 6);
       line.rotation.y = -0.16 + i * 0.12;
-      line.userData = { isStressField: true, type: 'pressure_seam_crown' };
+      line.renderOrder = this._getWorldRenderOrder(8 + i);
+      line.userData = { isStressField: true, type: 'pressure_seam_crown', basePosition: line.position.clone() };
       this.root.add(line);
       this.fieldLayers.seamCrowns.push(line);
     }
+  }
+
+  _createWitnessArcs() {
+    const specs = [
+      { radiusX: 62, radiusY: 18, y: 24, z: -30, rotX: 1.02, rotY: 0.28, rotZ: -0.12, opacity: 0.085 },
+      { radiusX: 74, radiusY: 22, y: 12, z: -38, rotX: 1.18, rotY: -0.22, rotZ: 0.18, opacity: 0.072 },
+      { radiusX: 88, radiusY: 26, y: 4, z: -48, rotX: 1.28, rotY: 0.14, rotZ: -0.2, opacity: 0.064 }
+    ];
+
+    specs.forEach((spec, index) => {
+      const geometry = this._createBrokenLoopGeometry(spec.radiusX, spec.radiusY, 46 + index * 6, index * 0.93, 0.11 + index * 0.02);
+      const material = new THREE.LineBasicMaterial({
+        color: this.palette.ritualWhite.clone(),
+        transparent: true,
+        opacity: spec.opacity,
+        depthWrite: false,
+        depthTest: false,
+        blending: THREE.AdditiveBlending,
+        fog: false
+      });
+      const line = new THREE.LineLoop(geometry, material);
+      line.position.set(0, spec.y, spec.z);
+      line.rotation.set(spec.rotX, spec.rotY, spec.rotZ);
+      line.renderOrder = this._getWorldRenderOrder(12 + index);
+      line.userData = { isStressField: true, type: 'pressure_witness_arc', basePosition: line.position.clone() };
+      this.root.add(line);
+      this.fieldLayers.witnessArcs.push(line);
+    });
+  }
+
+  _createRiftVeins() {
+    const specs = [
+      { width: 38, height: 42, x: -18, y: 14, z: -18, rotX: 0.36, rotY: -0.28, rotZ: -0.22, opacity: 0.11 },
+      { width: 44, height: 56, x: 22, y: 6, z: -26, rotX: 0.48, rotY: 0.24, rotZ: 0.16, opacity: 0.1 },
+      { width: 52, height: 68, x: 0, y: -2, z: -34, rotX: 0.58, rotY: -0.08, rotZ: -0.08, opacity: 0.084 }
+    ];
+
+    specs.forEach((spec, index) => {
+      const geometry = this._createFractureSpineGeometry(spec.width, spec.height, index * 0.77, 6 + index);
+      const material = new THREE.LineBasicMaterial({
+        color: this.palette.pressureRose.clone(),
+        transparent: true,
+        opacity: spec.opacity,
+        depthWrite: false,
+        depthTest: false,
+        blending: THREE.AdditiveBlending,
+        fog: false
+      });
+      const line = new THREE.Line(geometry, material);
+      line.position.set(spec.x, spec.y, spec.z);
+      line.rotation.set(spec.rotX, spec.rotY, spec.rotZ);
+      line.renderOrder = this._getWorldRenderOrder(16 + index);
+      line.userData = { isStressField: true, type: 'pressure_rift_vein', basePosition: line.position.clone() };
+      this.root.add(line);
+      this.fieldLayers.riftVeins.push(line);
+    });
   }
 
   _createPressureShell() {
@@ -309,6 +384,7 @@ export class CanonicalTemplate3_StressVisuals {
     shell.position.set(0, 12, -18);
     shell.rotation.x = Math.PI * 0.92;
     shell.rotation.z = 0.14;
+    shell.renderOrder = this._getWorldRenderOrder(20);
     shell.userData = { isStressField: true, type: 'pressure_shell' };
     this.root.add(shell);
     this.fieldLayers.shell = shell;
@@ -342,9 +418,22 @@ export class CanonicalTemplate3_StressVisuals {
 
     const points = new THREE.Points(geometry, material);
     points.position.set(0, 0, 0);
+    points.renderOrder = this._getWorldRenderOrder(24);
     points.userData = { isStressField: true, type: 'pressure_shard_dust' };
     this.root.add(points);
     this.fieldLayers.dust = points;
+  }
+
+  _getWorldRenderOrder(offset = 0) {
+    return WORLD_OVERLAY_ORDER + offset;
+  }
+
+  _resolveSemanticBus() {
+    if (globalThis?.ATOMA_BUS || globalThis?.semanticBus) {
+      return globalThis.ATOMA_BUS || globalThis.semanticBus || null;
+    }
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    return browserWindow?.ATOMA_BUS || browserWindow?.semanticBus || null;
   }
 
   _createVeilStripGeometry(width, height, segments, amplitude, seed) {
@@ -399,6 +488,18 @@ export class CanonicalTemplate3_StressVisuals {
       const x = (t - 0.5) * width;
       const y = Math.sin(t * Math.PI) * height * (0.55 + Math.sin(seed + t * TAU) * 0.08);
       points.push(new THREE.Vector3(x, y, Math.cos(seed + t * 3.4) * 0.8));
+    }
+    return new THREE.BufferGeometry().setFromPoints(points);
+  }
+
+  _createFractureSpineGeometry(width, height, seed = 0, segments = 7) {
+    const points = [];
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const x = Math.sin(seed + t * 6.2) * width * (0.12 + t * 0.28) + Math.cos(seed * 1.7 + t * 10.0) * width * 0.04;
+      const y = (t - 0.5) * height;
+      const z = Math.cos(seed + t * 5.3) * width * 0.06;
+      points.push(new THREE.Vector3(x, y, z));
     }
     return new THREE.BufferGeometry().setFromPoints(points);
   }
@@ -464,6 +565,102 @@ export class CanonicalTemplate3_StressVisuals {
     this.pressureState.turbulence = Math.cos(time * 0.26 + this.pressureState.currentPressure * Math.PI * 1.1);
   }
 
+  _setPressurePhase(nextPhase) {
+    if (this.pressureState.phase !== nextPhase) {
+      this.pressureState.phase = nextPhase;
+      this.pressureState.phaseTime = 0;
+    }
+  }
+
+  _emitPressurePhaseEvent(phase) {
+    const bus = this.semanticBus || this._resolveSemanticBus();
+    this.semanticBus = bus;
+    if (!bus || (phase !== 'burst' && phase !== 'residue')) return;
+
+    const pressure = this.pressureState.currentPressure;
+    const loadBias = this.pressureState.currentLoadBias;
+    const payload = {
+      type: 'stressPressureField',
+      phase,
+      title: phase === 'burst' ? 'Pressure Burst' : 'Pressure Residue',
+      subtitle: phase === 'burst'
+        ? 'The world shell tears open under accumulated pressure.'
+        : 'Afterimages of the rupture remain suspended in the air.',
+      visualTone: phase === 'burst' ? 'pressure-burst' : 'pressure-residue',
+      intensity: Math.max(0.2, Math.min(1.4, pressure * 1.1 + loadBias * 0.4)),
+      radius: this.config.rootRadius,
+      source: 'CanonicalTemplate3_StressVisuals',
+      timestamp: performance.now?.() ?? Date.now(),
+      semanticSubtitle: phase === 'burst'
+        ? 'A global pressure front is rupturing through the environment foundation layer.'
+        : 'The pressure field is settling into a pale interdimensional afterglow.',
+      semanticTags: [
+        'environment.pressure',
+        `pressure.phase.${phase}`,
+        phase === 'burst' ? 'signal.pressure.rupture' : 'signal.pressure.afterglow'
+      ],
+      audioCue: phase === 'burst' ? 'pressure.burst.world-shell' : 'pressure.residue.afterglow',
+      audioLayer: phase === 'burst' ? 'pressure-rumble' : 'residue-choir',
+      audioIntensity: Math.max(0.2, Math.min(1.2, pressure * 0.95 + loadBias * 0.3))
+    };
+
+    if (typeof bus.emit === 'function') {
+      bus.emit('environment.pressure.phase', payload);
+      return;
+    }
+    if (typeof bus.publish === 'function') {
+      bus.publish('environment.pressure.phase', payload);
+    }
+  }
+
+  _updatePressurePhaseState(deltaTime) {
+    const previousPhase = this.pressureState.phase;
+    const pressure = this.pressureState.currentPressure;
+    const loadBias = this.pressureState.currentLoadBias;
+    const pressureDelta = pressure - this.pressureState.lastPressure;
+    const burstTrigger =
+      pressure > 0.76 &&
+      (pressureDelta > 0.008 || loadBias > 0.64 || Math.abs(this.pressureState.pulse) > 0.92);
+
+    this.pressureState.phaseTime += deltaTime;
+    this.pressureState.burstHold = Math.max(0, this.pressureState.burstHold - deltaTime);
+    this.pressureState.residueHold = Math.max(0, this.pressureState.residueHold - deltaTime);
+    this.pressureState.burstEcho = Math.max(0, this.pressureState.burstEcho - deltaTime * 0.55);
+
+    if (burstTrigger && this.pressureState.burstHold <= 0) {
+      this.pressureState.burstHold = 0.55 + pressure * 0.35;
+      this.pressureState.residueHold = 1.4 + pressure * 0.9;
+      this.pressureState.burstEcho = 1;
+      this._setPressurePhase('burst');
+    } else if (this.pressureState.burstHold > 0) {
+      this._setPressurePhase('burst');
+    } else if (this.pressureState.residueHold > 0 && (pressure > 0.22 || loadBias > 0.18)) {
+      this._setPressurePhase('residue');
+    } else if (pressure > 0.3 || loadBias > 0.24) {
+      this._setPressurePhase('escalation');
+    } else {
+      this._setPressurePhase('detection');
+    }
+
+    this.pressureState.lastPressure = pressure;
+    if (this.root?.userData) {
+      this.root.userData.pressurePhase = this.pressureState.phase;
+    }
+    if (previousPhase !== this.pressureState.phase) {
+      this._emitPressurePhaseEvent(this.pressureState.phase);
+    }
+  }
+
+  _getPressurePhaseMix() {
+    const phase = this.pressureState.phase;
+    return {
+      detection: phase === 'detection' ? 1 : 0,
+      escalation: phase === 'escalation' ? 1 : 0,
+      burst: phase === 'burst' ? 1 : 0,
+      residue: phase === 'residue' ? 1 : 0
+    };
+  }
+
   _updateAmbientStressField(deltaTime) {
     if (!this.scene) return;
 
@@ -471,13 +668,16 @@ export class CanonicalTemplate3_StressVisuals {
     const loadBias = this.pressureState.currentLoadBias;
     const pulse = this.pressureState.pulse;
     const turbulence = this.pressureState.turbulence;
+    const phaseMix = this._getPressurePhaseMix();
+    const burstEcho = this.pressureState.burstEcho;
 
     const fogColor = this.palette.fogBase.clone()
-      .lerp(this.palette.calmCyan, pressure * 0.12)
-      .lerp(this.palette.pressureAmber, Math.max(0, pressure - 0.2) * 0.32)
-      .lerp(this.palette.pressureRose, Math.max(0, pressure - 0.48) * 0.24)
-      .lerp(this.palette.pressureViolet, Math.max(0, loadBias - 0.35) * 0.34)
-      .lerp(this.palette.ruptureRed, Math.max(0, pressure - 0.78) * 0.4);
+      .lerp(this.palette.calmCyan, pressure * 0.14)
+      .lerp(this.palette.pressureAmber, Math.max(0, pressure - 0.18) * 0.34)
+      .lerp(this.palette.pressureRose, Math.max(0, pressure - 0.42) * 0.3)
+      .lerp(this.palette.pressureViolet, Math.max(0, loadBias - 0.28) * 0.42)
+      .lerp(this.palette.ruptureRed, Math.max(0, pressure - 0.72) * 0.52 + phaseMix.burst * 0.18)
+      .lerp(this.palette.ritualWhite, phaseMix.residue * 0.06 + burstEcho * 0.04);
 
     if (this.scene.fog) {
       this.scene.fog.color.copy(fogColor);
@@ -485,7 +685,7 @@ export class CanonicalTemplate3_StressVisuals {
       const densityBoost = this.config.maxFogDensity - this.config.baseFogDensity;
       this.scene.fog.density = Math.max(
         baselineDensity,
-        this.config.baseFogDensity + pressure * densityBoost + Math.abs(pulse) * 0.0018 + loadBias * 0.0022
+        this.config.baseFogDensity + pressure * densityBoost + Math.abs(pulse) * 0.0024 + loadBias * 0.0032 + Math.max(0, pressure - 0.68) * 0.0035 + phaseMix.burst * 0.003 + phaseMix.residue * 0.0012
       );
     }
 
@@ -495,17 +695,21 @@ export class CanonicalTemplate3_StressVisuals {
       const baseColor = baseline.color ?? light.color ?? this.palette.ritualWhite;
 
       if (light.isAmbientLight) {
-        light.intensity = Math.max(0.12, baseIntensity * (1 - pressure * this.config.ambientDimStrength));
+        light.intensity = Math.max(0.12, baseIntensity * (1 - pressure * (this.config.ambientDimStrength + 0.05) - phaseMix.burst * 0.06));
         this._lightColorScratch.copy(baseColor)
-          .lerp(this.palette.calmCyan, pressure * 0.06)
-          .lerp(this.palette.pressureRose, Math.max(0, pressure - 0.5) * 0.08);
+          .lerp(this.palette.calmCyan, pressure * 0.08)
+          .lerp(this.palette.pressureRose, Math.max(0, pressure - 0.46) * 0.12)
+          .lerp(this.palette.pressureViolet, Math.max(0, loadBias - 0.4) * 0.08)
+          .lerp(this.palette.ritualWhite, phaseMix.residue * 0.05);
         light.color.copy(this._lightColorScratch);
       } else {
-        light.intensity = Math.max(0.12, baseIntensity * (1 - pressure * 0.12 + Math.abs(pulse) * 0.03));
+        light.intensity = Math.max(0.12, baseIntensity * (1 - pressure * 0.16 - phaseMix.burst * 0.04 + Math.abs(pulse) * 0.04 + phaseMix.residue * 0.02));
         if (light.color) {
           this._lightColorScratch.copy(baseColor)
-            .lerp(this.palette.pressureAmber, pressure * 0.05)
-            .lerp(this.palette.pressureViolet, Math.max(0, loadBias - 0.45) * 0.06);
+            .lerp(this.palette.pressureAmber, pressure * 0.08)
+            .lerp(this.palette.pressureViolet, Math.max(0, loadBias - 0.38) * 0.1)
+            .lerp(this.palette.ruptureRed, Math.max(0, pressure - 0.78) * 0.06 + phaseMix.burst * 0.08)
+            .lerp(this.palette.ritualWhite, phaseMix.residue * 0.04);
           light.color.copy(this._lightColorScratch);
         }
       }
@@ -520,6 +724,8 @@ export class CanonicalTemplate3_StressVisuals {
     const pulse = this.pressureState.pulse;
     const turbulence = this.pressureState.turbulence;
     const time = this.elapsedTime || 0;
+    const phaseMix = this._getPressurePhaseMix();
+    const burstEcho = this.pressureState.burstEcho;
 
     const calm = this.palette.calmMint;
     const seam = this.palette.calmCyan;
@@ -528,65 +734,120 @@ export class CanonicalTemplate3_StressVisuals {
     const voidViolet = this.palette.pressureViolet;
     const rupture = this.palette.ruptureRed;
 
+    this.root.position.y = Math.sin(time * 0.16 + turbulence * 0.4) * (0.12 + pressure * 0.34 + phaseMix.burst * 0.2);
+    this.root.rotation.z = Math.sin(time * 0.07 + loadBias * 1.3) * (0.008 + pressure * 0.018 + phaseMix.escalation * 0.008);
+    this.root.rotation.y = Math.sin(time * 0.05 + burstEcho * 0.8) * (pressure * 0.02 + phaseMix.residue * 0.03);
+
     this.fieldLayers.canopy.forEach((veil, index) => {
-      const opacity = this.config.veilOpacity + pressure * 0.09 + loadBias * 0.035 + index * 0.014;
+      const basePosition = veil.userData?.basePosition;
+      const opacity = this.config.veilOpacity + pressure * 0.14 + loadBias * 0.055 + index * 0.014 + phaseMix.escalation * 0.03 + phaseMix.burst * 0.045;
       const color = calm.clone()
         .lerp(seam, 0.32 + index * 0.08)
-        .lerp(tension, pressure * 0.26)
-        .lerp(fracture, Math.max(0, pressure - 0.56) * 0.24)
-        .lerp(voidViolet, loadBias * 0.2);
+        .lerp(tension, pressure * 0.32)
+        .lerp(fracture, Math.max(0, pressure - 0.5) * 0.34)
+        .lerp(voidViolet, loadBias * 0.28)
+        .lerp(rupture, phaseMix.burst * 0.14)
+        .lerp(this.palette.ritualWhite, phaseMix.residue * 0.06);
       veil.material.color.copy(color);
-      veil.material.opacity = Math.min(0.28, opacity);
-      veil.rotation.z += deltaTime * (0.016 + index * 0.005);
-      veil.position.y += Math.sin(time * 0.22 + index * 1.8) * 0.015;
-      veil.position.x = Math.sin(time * 0.08 + index) * (2.8 + pressure * 4.2);
+      veil.material.opacity = Math.min(0.42, opacity);
+      veil.rotation.z += deltaTime * (0.022 + index * 0.007 + pressure * 0.01 + phaseMix.burst * 0.014);
+      veil.rotation.y = Math.sin(time * 0.13 + index * 1.1) * (0.06 + pressure * 0.16);
+      veil.position.y = (basePosition?.y ?? veil.position.y) + Math.sin(time * 0.22 + index * 1.8) * (0.015 + pressure * 0.02);
+      veil.position.z = (basePosition?.z ?? veil.position.z) + Math.cos(time * 0.12 + index) * (1.2 + pressure * 2.8);
+      veil.position.x = (basePosition?.x ?? 0) + Math.sin(time * 0.08 + index) * (2.8 + pressure * 4.2 + loadBias * 2.2);
+      veil.scale.set(1 + pressure * 0.08, 1 + loadBias * 0.12 + Math.abs(turbulence) * 0.05, 1);
     });
 
     this.fieldLayers.horizon.forEach((line, index) => {
-      const opacity = 0.05 + pressure * 0.18 + Math.abs(pulse) * 0.03 + index * 0.016;
+      const basePosition = line.userData?.basePosition;
+      const opacity = 0.05 + pressure * 0.26 + Math.abs(pulse) * 0.04 + index * 0.016 + phaseMix.burst * 0.06 + phaseMix.residue * 0.02;
       const color = seam.clone()
         .lerp(calm, 0.18)
-        .lerp(tension, pressure * 0.24)
-        .lerp(rupture, Math.max(0, pressure - 0.72) * 0.28);
+        .lerp(tension, pressure * 0.32)
+        .lerp(rupture, Math.max(0, pressure - 0.64) * 0.4)
+        .lerp(voidViolet, loadBias * 0.16)
+        .lerp(this.palette.ritualWhite, phaseMix.residue * 0.08);
       line.material.color.copy(color);
-      line.material.opacity = Math.min(0.32, opacity);
-      line.rotation.z += deltaTime * (0.01 + index * 0.004);
-      line.scale.x = 1 + pressure * 0.05 + index * 0.01;
-      line.scale.y = 1 + loadBias * 0.08 + Math.abs(turbulence) * 0.04;
+      line.material.opacity = Math.min(0.44, opacity);
+      line.rotation.z += deltaTime * (0.014 + index * 0.006 + pressure * 0.008 + phaseMix.burst * 0.015);
+      line.position.x = (basePosition?.x ?? 0) + Math.sin(time * 0.09 + index * 1.7) * (0.8 + pressure * 2.8);
+      line.scale.x = 1 + pressure * 0.09 + index * 0.018;
+      line.scale.y = 1 + loadBias * 0.14 + Math.abs(turbulence) * 0.08 + Math.max(0, pressure - 0.6) * 0.1;
     });
 
     this.fieldLayers.lattice.forEach((line, index) => {
-      const opacity = 0.04 + pressure * 0.1 + loadBias * 0.06 + index * 0.01;
+      const opacity = 0.04 + pressure * 0.15 + loadBias * 0.08 + index * 0.01 + phaseMix.escalation * 0.03;
       const color = voidViolet.clone()
         .lerp(seam, 0.14)
-        .lerp(fracture, Math.max(0, pressure - 0.48) * 0.3);
+        .lerp(fracture, Math.max(0, pressure - 0.42) * 0.4)
+        .lerp(rupture, Math.max(0, pressure - 0.76) * 0.18 + phaseMix.burst * 0.12)
+        .lerp(this.palette.ritualWhite, phaseMix.residue * 0.04);
       line.material.color.copy(color);
-      line.material.opacity = Math.min(0.24, opacity);
-      line.rotation.z += deltaTime * (0.05 + index * 0.015);
-      line.rotation.y += deltaTime * (0.02 + loadBias * 0.03);
+      line.material.opacity = Math.min(0.34, opacity);
+      line.rotation.z += deltaTime * (0.06 + index * 0.02 + pressure * 0.02);
+      line.rotation.y += deltaTime * (0.026 + loadBias * 0.04);
+      line.scale.setScalar(1 + pressure * 0.08 + loadBias * 0.06 + phaseMix.escalation * 0.05);
     });
 
     this.fieldLayers.seamCrowns.forEach((line, index) => {
-      const opacity = 0.03 + pressure * 0.08 + index * 0.01;
+      const basePosition = line.userData?.basePosition;
+      const opacity = 0.03 + pressure * 0.12 + index * 0.01 + phaseMix.burst * 0.04;
       const color = this.palette.ritualWhite.clone()
         .lerp(seam, 0.18)
-        .lerp(fracture, Math.max(0, pressure - 0.66) * 0.22);
+        .lerp(fracture, Math.max(0, pressure - 0.58) * 0.34)
+        .lerp(voidViolet, loadBias * 0.18)
+        .lerp(this.palette.ritualWhite, phaseMix.residue * 0.08);
       line.material.color.copy(color);
-      line.material.opacity = Math.min(0.18, opacity);
-      line.rotation.z = Math.sin(time * 0.18 + index * 1.2) * 0.08;
-      line.position.y += Math.sin(time * 0.42 + index) * 0.02;
+      line.material.opacity = Math.min(0.28, opacity);
+      line.rotation.z = Math.sin(time * 0.18 + index * 1.2) * (0.08 + pressure * 0.16 + phaseMix.burst * 0.18);
+      line.rotation.y = Math.cos(time * 0.11 + index) * (0.03 + loadBias * 0.06);
+      line.position.y = (basePosition?.y ?? line.position.y) + Math.sin(time * 0.42 + index) * (0.02 + pressure * 0.03);
+    });
+
+    this.fieldLayers.witnessArcs.forEach((line, index) => {
+      const basePosition = line.userData?.basePosition;
+      const opacity = this.config.witnessOpacity + pressure * 0.11 + loadBias * 0.05 + index * 0.012 + phaseMix.residue * 0.05;
+      const color = this.palette.ritualWhite.clone()
+        .lerp(seam, 0.24)
+        .lerp(voidViolet, loadBias * 0.32)
+        .lerp(fracture, Math.max(0, pressure - 0.52) * 0.28)
+        .lerp(this.palette.ritualWhite, phaseMix.residue * 0.16 + burstEcho * 0.08);
+      line.material.color.copy(color);
+      line.material.opacity = Math.min(0.3, opacity);
+      line.rotation.z += deltaTime * (0.018 + index * 0.008 + loadBias * 0.01 + phaseMix.residue * 0.01);
+      line.rotation.y += deltaTime * (0.01 + pressure * 0.014);
+      line.scale.set(1 + pressure * 0.08, 1 + loadBias * 0.12, 1);
+      line.position.x = (basePosition?.x ?? 0) + Math.sin(time * 0.12 + index * 1.7) * (4 + pressure * 10);
+    });
+
+    this.fieldLayers.riftVeins.forEach((line, index) => {
+      const basePosition = line.userData?.basePosition;
+      const opacity = this.config.riftVeinOpacity + pressure * 0.16 + loadBias * 0.04 + index * 0.008 + phaseMix.escalation * 0.03 + phaseMix.burst * 0.06;
+      const color = fracture.clone()
+        .lerp(voidViolet, loadBias * 0.28)
+        .lerp(rupture, Math.max(0, pressure - 0.7) * 0.28)
+        .lerp(this.palette.ritualWhite, Math.max(0, pressure - 0.84) * 0.12 + phaseMix.residue * 0.08);
+      line.material.color.copy(color);
+      line.material.opacity = Math.min(0.36, opacity);
+      line.rotation.z += deltaTime * (0.022 + index * 0.012 + pressure * 0.014 + phaseMix.burst * 0.024);
+      line.rotation.y += deltaTime * (0.014 + loadBias * 0.01);
+      line.position.x = (basePosition?.x ?? line.position.x) + Math.sin(time * 0.16 + index * 2.2) * (0.014 + pressure * 0.03);
+      line.scale.setScalar(1 + pressure * 0.12 + loadBias * 0.08 + phaseMix.burst * 0.1);
     });
 
     if (this.fieldLayers.shell) {
       const shell = this.fieldLayers.shell;
       shell.material.color.copy(
         seam.clone()
-          .lerp(voidViolet, loadBias * 0.24)
-          .lerp(rupture, Math.max(0, pressure - 0.8) * 0.16)
+          .lerp(voidViolet, loadBias * 0.3)
+          .lerp(fracture, Math.max(0, pressure - 0.5) * 0.18)
+          .lerp(rupture, Math.max(0, pressure - 0.72) * 0.24 + phaseMix.burst * 0.16)
+          .lerp(this.palette.ritualWhite, phaseMix.residue * 0.08)
       );
-      shell.material.opacity = Math.min(0.22, 0.05 + pressure * 0.08 + Math.abs(pulse) * 0.02);
-      shell.rotation.z += deltaTime * 0.012;
-      shell.scale.setScalar(1 + pressure * 0.04 + Math.abs(pulse) * 0.02);
+      shell.material.opacity = Math.min(0.42, 0.06 + pressure * 0.14 + Math.abs(pulse) * 0.03 + loadBias * 0.03 + phaseMix.burst * 0.08);
+      shell.rotation.z += deltaTime * (0.016 + pressure * 0.008 + phaseMix.burst * 0.018);
+      shell.rotation.y = Math.sin(time * 0.08 + loadBias * 2.0) * (0.04 + pressure * 0.1);
+      shell.scale.set(1 + pressure * 0.08 + Math.abs(pulse) * 0.03 + phaseMix.burst * 0.12, 1 + loadBias * 0.16 + phaseMix.residue * 0.06, 1);
     }
 
     if (this.fieldLayers.dust) {
@@ -594,13 +855,15 @@ export class CanonicalTemplate3_StressVisuals {
       dust.material.color.copy(
         calm.clone()
           .lerp(seam, 0.22)
-          .lerp(tension, pressure * 0.18)
-          .lerp(voidViolet, loadBias * 0.12)
+          .lerp(tension, pressure * 0.22)
+          .lerp(voidViolet, loadBias * 0.18)
+          .lerp(fracture, Math.max(0, pressure - 0.7) * 0.18 + phaseMix.burst * 0.08)
+          .lerp(this.palette.ritualWhite, phaseMix.residue * 0.06)
       );
-      dust.material.opacity = Math.min(0.26, this.config.dustOpacity + pressure * 0.08 + loadBias * 0.04);
-      dust.material.size = 1.15 + pressure * 0.45 + Math.abs(turbulence) * 0.16;
-      dust.rotation.y += deltaTime * (0.026 + pressure * 0.02);
-      dust.rotation.z -= deltaTime * (0.014 + loadBias * 0.012);
+      dust.material.opacity = Math.min(0.38, this.config.dustOpacity + pressure * 0.11 + loadBias * 0.06 + phaseMix.burst * 0.04);
+      dust.material.size = 1.15 + pressure * 0.65 + Math.abs(turbulence) * 0.22 + phaseMix.burst * 0.25;
+      dust.rotation.y += deltaTime * (0.03 + pressure * 0.03 + phaseMix.escalation * 0.02);
+      dust.rotation.z -= deltaTime * (0.02 + loadBias * 0.018 + phaseMix.residue * 0.01);
     }
   }
 
@@ -670,7 +933,9 @@ export class CanonicalTemplate3_StressVisuals {
       pressure: this.pressureState.currentPressure,
       loadBias: this.pressureState.currentLoadBias,
       averageNodeLoad: this.pressureState.averageNodeLoad,
-      stressedNodeRatio: this.pressureState.stressedNodeRatio
+      stressedNodeRatio: this.pressureState.stressedNodeRatio,
+      phase: this.pressureState.phase,
+      burstEcho: this.pressureState.burstEcho
     };
   }
 
@@ -716,6 +981,12 @@ export class CanonicalTemplate3_StressVisuals {
     this.pressureState.stressedNodeRatio = 0;
     this.pressureState.pulse = 0;
     this.pressureState.turbulence = 0;
+    this.pressureState.phase = 'detection';
+    this.pressureState.phaseTime = 0;
+    this.pressureState.lastPressure = 0;
+    this.pressureState.burstHold = 0;
+    this.pressureState.residueHold = 0;
+    this.pressureState.burstEcho = 0;
 
     this._restoreSceneBaselines();
     this._setFieldVisibility(false);
@@ -742,6 +1013,8 @@ export class CanonicalTemplate3_StressVisuals {
       horizon: [],
       lattice: [],
       seamCrowns: [],
+      witnessArcs: [],
+      riftVeins: [],
       dust: null,
       shell: null
     };

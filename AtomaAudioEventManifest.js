@@ -33,6 +33,18 @@ export const AUDIO_EVENT_MANIFEST = {
             priority: 'NORMAL',
             action: 'playRoutedEventAudio',
             passPayload: true
+        },
+        'environment.pressure.phase': {
+            cooldownMs: 180,
+            priority: 'NORMAL',
+            action: 'playRoutedEventAudio',
+            passPayload: true
+        },
+        'environment.hazard.phase': {
+            cooldownMs: 180,
+            priority: 'NORMAL',
+            action: 'playRoutedEventAudio',
+            passPayload: true
         }
     }
 };
