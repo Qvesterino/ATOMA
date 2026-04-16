@@ -585,8 +585,6 @@ export class HarmonicHealingVisualSystem_Session134 {
                 ? link.userData.visualState.stability
                 : Number.isFinite(link.userData.metrics?.stability)
                     ? link.userData.metrics.stability
-                    : Number.isFinite(link.userData.stability)
-                        ? link.userData.stability
                         : 0.5;
             link.userData.visualState.stability = Math.min(1.0, currentStability + healingPower);
             link.userData.visualState.healingPower = healingPower;
@@ -643,13 +641,9 @@ export class HarmonicHealingVisualSystem_Session134 {
                 ? visualStability
                 : Number.isFinite(metrics.stability)
                     ? metrics.stability
-                    : Number.isFinite(link.userData?.stability)
-                        ? link.userData.stability
                         : 0.5;
             const corruption = Number.isFinite(metrics.corruption)
                 ? metrics.corruption
-                : Number.isFinite(link.userData?.corruption)
-                    ? link.userData.corruption
                     : 0;
             const cascadeIntensity = Number.isFinite(link.userData?.cascadeIntensity)
                 ? link.userData.cascadeIntensity

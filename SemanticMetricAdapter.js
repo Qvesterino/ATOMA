@@ -1,3 +1,5 @@
+import { checkLegacyRead } from './src/metrics/MetricAuthorityGuard.js';
+
 /**
  * Semantic Metric Naming Adapter
  * CENTRAL AUTHORITY for all metric reads in ATOMA.
@@ -22,12 +24,22 @@ function warnLegacyAccess(context, field, canonicalPath) {
   const key = `${context}.${field}`;
   if (!WARNED_LEGACY_ACCESS.has(key)) {
     WARNED_LEGACY_ACCESS.add(key);
+    const allowed = checkLegacyRead(key, { silent: true });
     console.warn(
-      `[SemanticMetricAdapter] ⚠️ LEGACY FIELD: ${context}.${field}. ` +
-      `Use ${canonicalPath} instead. ` +
-      `This warning appears only once per field.`
+      allowed
+        ? `[SemanticMetricAdapter] ⚠️ LEGACY FIELD: ${context}.${field}. ` +
+          `Use ${canonicalPath} instead. ` +
+          `This warning appears only once per field.`
+        : `[SemanticMetricAdapter] 🚫 LEGACY FIELD READ BLOCKED: ${context}.${field}. ` +
+          `Use ${canonicalPath} instead.`
     );
   }
+}
+
+function readLegacyValue(context, field, canonicalPath, value) {
+  if (value === undefined || value === null) return undefined;
+  warnLegacyAccess(context, field, canonicalPath);
+  return value;
 }
 
 function firstDefined(...values) {
@@ -106,29 +118,29 @@ export function getNodeCanonicalMetrics(node) {
 
   const harmony = firstDefined(
     metrics.harmony,
-    node?.userData?.harmonyLevel,
+    readLegacyValue('node', 'harmonyLevel', 'node.userData.metrics.harmony', node?.userData?.harmonyLevel),
     metrics.harmonyNorm
   );
 
   const stability = firstDefined(
     metrics.stability,
     metrics.stabilityNorm,
-    node?.userData?.stability,
-    metrics.integrity
+    readLegacyValue('node', 'stability', 'node.userData.metrics.stability', node?.userData?.stability),
+    readLegacyValue('node', 'integrity', 'node.userData.metrics.stability', metrics.integrity)
   );
 
   const corruption = firstDefined(
     metrics.corruption,
     metrics.corruptionNorm,
-    node?.userData?.corruptionLevel,
-    node?.userData?.corruption
+    readLegacyValue('node', 'corruptionLevel', 'node.userData.metrics.corruption', node?.userData?.corruptionLevel),
+    readLegacyValue('node', 'corruption', 'node.userData.metrics.corruption', node?.userData?.corruption)
   );
 
   let loadPressure = firstDefined(
     metrics.loadPressure,
-    metrics.load,
-    metrics.loadRatio,
-    metrics.pressure
+    readLegacyValue('node', 'load', 'node.userData.metrics.loadPressure', metrics.load),
+    readLegacyValue('node', 'loadRatio', 'node.userData.metrics.loadPressure', metrics.loadRatio),
+    readLegacyValue('node', 'pressure', 'node.userData.metrics.loadPressure', metrics.pressure)
   );
 
   // Return canonical name; keep legacy alias for compatibility with existing consumers.
@@ -238,6 +250,13 @@ export function withGlobalMetricAliases(globalMetrics = {}) {
     energyNorm: firstDefined(globalMetrics.energyNorm, globalMetrics.loadPressure),
     loadNorm: firstDefined(globalMetrics.loadNorm, globalMetrics.loadPressure)
   };
+}
+
+/**
+ * Alias for callers that want the canonical global metric shape.
+ */
+export function getGlobalCanonicalMetrics(globalMetrics = {}) {
+  return withGlobalMetricAliases(globalMetrics);
 }
 
 /**
@@ -412,7 +431,7 @@ export function getLinkSynergyVisualMetrics(link) {
  * @returns {Object} HUD-ready canonical metrics
  */
 export function updateHudMetrics(link, vm) {
-  const globalMetrics = withGlobalMetricAliases({
+  const globalMetrics = getGlobalCanonicalMetrics({
     networkSynergy: vm?.networkSynergy ?? vm?.synergy ?? link?.['synergyScore'],
     harmonyFlow: vm?.harmonyFlow ?? vm?.harmonyNorm ?? vm?.harmony,
     networkStress: vm?.networkStress,

@@ -169,7 +169,7 @@ export class HarmonyStabilizationSystem_v1 {
     if (!node || !node.userData) return;
     const clampedLevel = Math.max(0, Math.min(1, Number(level) || 0));
     setMetric(node, 'harmony', clampedLevel, { source });
-    node.userData.harmonyLevel = clampedLevel;
+    // Mirror removed (P0.2 migration): canonical path is userData.metrics.harmony via setMetric
   }
 
   _writeLinkHarmonyLevel(link, level) {
@@ -177,7 +177,7 @@ export class HarmonyStabilizationSystem_v1 {
     const clampedLevel = Math.max(0, Math.min(1, Number(level) || 0));
     link.userData.metrics = link.userData.metrics || {};
     link.userData.metrics.harmony = clampedLevel;
-    link.userData.harmonyLevel = clampedLevel;
+    // Mirror removed (P0.2 migration): canonical path is userData.metrics.harmony
   }
 
   _readNodeHarmonyLevel(node) {
@@ -1307,12 +1307,7 @@ export class HarmonyStabilizationSystem_v1 {
     vis.rotationStabilization = Math.max(0, Math.min(1, vis.rotationStabilization));
     
     // Store for shader/visual integration
-    // Mirror canonical harmony -> userData for visual consumers
-    const canonicalHarmony = (typeof node?.harmony === 'number') ? node.harmony : level;
-    node.userData.harmonyLevel = canonicalHarmony;
-    if (!PHASE_C3_METRIC_WRITE_LOCK && node.userData.harmonyLevel !== undefined) {
-      
-    }
+    // P0.2 migration: visual consumers read from userData.metrics.harmony via SemanticMetricAdapter
     node.userData.isHarmonized = level > 0.2;
   }
 
@@ -1358,12 +1353,7 @@ export class HarmonyStabilizationSystem_v1 {
 
     vis.ribbonIntensity = Math.max(0, Math.min(1, vis.ribbonIntensity));
     
-    // Mirror canonical harmony -> userData for visual consumers
-    const canonicalHarmony = (typeof link?.harmony === 'number') ? link.harmony : level;
-    link.userData.harmonyLevel = canonicalHarmony;
-    if (!PHASE_C3_METRIC_WRITE_LOCK && link.userData.harmonyLevel !== undefined) {
-      
-    }
+    // P0.2 migration: visual consumers read from userData.metrics.harmony via SemanticMetricAdapter
   }
 
   /**

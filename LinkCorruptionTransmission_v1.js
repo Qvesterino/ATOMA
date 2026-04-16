@@ -3994,7 +3994,7 @@ export class LinkCorruptionTransmission_v1 {
 
       // [Phase 3b] Get detailed link harmony info
       linkHarmonyInfo: (link) => {
-        const harmonyLevel = link.userData?.harmonyLevel ?? link.source?.userData?.harmonyLevel ?? 0;
+        const harmonyLevel = link.userData?.metrics?.harmony ?? link.source?.userData?.metrics?.harmony ?? 0;
         const lastGainTime = this.harmonyFeedbackLastTime.get(link.id) || 0;
         const timeSinceLastGain = (Date.now() - lastGainTime) / 1000;
         const canGainHarmony = timeSinceLastGain >= (HARMONY_FEEDBACK_THRESHOLDS.FEEDBACK_COOLDOWN_MS / 1000);
