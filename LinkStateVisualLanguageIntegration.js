@@ -61,7 +61,6 @@ export const linkStateVertexShader = `
   varying float vNoise;
   varying float vPulsePhase;
   varying vec3 vPosition;
-  varying vec3 vWorldPos;
   varying vec3 vNormal;
   
   // Pseudo-random function for noise
@@ -122,9 +121,7 @@ export const linkStateVertexShader = `
     pos += normal * (uLocalLoad * 0.03) * vPulsePhase;
     
     vPosition = pos;
-    vNormal = normalize(normalMatrix * normal);
-    vec4 worldPos = modelMatrix * vec4(pos, 1.0);
-    vWorldPos = worldPos.xyz;
+    vNormal = normal;
     
     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
   }
@@ -150,28 +147,15 @@ export const linkStateFragmentShader = `
   varying float vNoise;
   varying float vPulsePhase;
   varying vec3 vPosition;
-  varying vec3 vWorldPos;
   varying vec3 vNormal;
   
-  uniform float uTime;
-  uniform float u_rippleIntensity;
-  uniform float u_ripplesActive;
-  uniform float u_rippleSaturation;
-  uniform float u_ripplePhase;
-  uniform float u_rippleEnergy;
-  uniform float u_rippleLength;
-  uniform float u_rippleVisibility;
-  uniform float u_rippleBandCount;
-  uniform float u_rippleSignature;
-  uniform float u_stressFieldBias;
-  uniform float u_stressFieldTension;
-  uniform vec3 u_stressFieldColor;
-  
   // === COLOR PALETTE ===
-  vec3 stressColorCool = vec3(0.22, 0.95, 1.0);
-  vec3 stressColorWarm = vec3(0.76, 0.34, 1.0);
-  vec3 stressColorHot = vec3(0.96, 0.98, 1.0);
+  // Network stress interpolation
+  vec3 stressColorCool = vec3(0.2, 0.5, 0.8);     // Cool blue (low stress)
+  vec3 stressColorWarm = vec3(0.9, 0.6, 0.2);     // Warm orange (medium)
+  vec3 stressColorHot = vec3(1.0, 0.3, 0.2);      // Muted red (high stress)
   
+  // Get color based on network stress
   vec3 getStressColor(float stress) {
     if (stress < 0.5) {
       float t = stress * 2.0;
@@ -183,51 +167,64 @@ export const linkStateFragmentShader = `
   }
   
   void main() {
-    float coherence = clamp(vSynergy, 0.0, 1.0);
-    float harmony = clamp(vHarmony, 0.0, 1.0);
-    float corruption = clamp(vCorruption, 0.0, 1.0);
-    float load = clamp(vLocalLoad, 0.0, 1.0);
-    float pulse = 0.5 + 0.5 * vPulsePhase;
-
-    vec3 n = normalize(vNormal);
-    vec3 viewDir = normalize(cameraPosition - vWorldPos);
-    float fresnel = pow(max(0.0, 1.0 - dot(n, viewDir)), 2.4);
-
+    // === CHANNEL 1: NETWORK STRESS â†’ COLOR HUE ===
+    // Global color shift (slow, applied to all links uniformly)
     vec3 baseColor = getStressColor(vNetworkStress);
-    vec3 spectralTint = mix(baseColor, u_stressFieldColor, clamp(0.25 + u_stressFieldBias * 0.35 + u_stressFieldTension * 0.15, 0.0, 1.0));
-    vec3 pearl = vec3(0.96, 0.98, 1.0);
-    vec3 membraneColor = mix(spectralTint, pearl, 0.16 + fresnel * 0.22 + pulse * 0.08 + u_rippleSaturation * 0.04);
-
-    float chaos = vNoise + pulse * 0.35 + (1.0 - coherence) * 0.4;
-    float dampedChaos = chaos * (1.0 - harmony * 0.85);
-    float membraneEnergy = clamp(1.0 - dampedChaos * 0.18, 0.58, 1.14);
-
-    float rippleMask = clamp(u_ripplesActive * u_rippleVisibility, 0.0, 1.0);
-    float rippleBandCount = max(2.0, u_rippleBandCount);
-    float rippleTravel = vPosition.x * (0.72 + rippleBandCount * 0.14) + vPosition.y * 0.22 + uTime * (0.8 + load * 0.7) + u_ripplePhase * 0.11 + u_rippleSignature * 6.28318;
-    float rippleWave = 0.5 + 0.5 * sin(rippleTravel * 6.28318);
-    rippleWave = pow(rippleWave, mix(2.0, 1.4, load));
-    float rippleStrength = rippleMask * rippleWave * (0.14 + abs(u_rippleIntensity) * 0.22 + u_rippleEnergy * 0.18 + load * 0.08);
-
-    float fractureSeed = fract(sin(dot(vPosition.xy, vec2(17.31, 41.97)) + u_rippleSignature * 11.3) * 43758.5453);
-    float fractureGate = smoothstep(0.12, 0.95, corruption + u_stressFieldTension * 0.55 + vNoise * 0.25);
-    float crackWave = fract(vPosition.x * (3.8 + rippleBandCount * 0.35) + vPosition.y * (2.2 + fractureSeed * 1.4) + uTime * (0.06 + fractureGate * 0.12) + fractureSeed);
-    float fractureLine = 1.0 - smoothstep(0.03, 0.18, abs(crackWave - 0.5));
-    vec3 fractureColor = mix(vec3(1.0, 0.98, 0.92), u_stressFieldColor, 0.42 + fractureSeed * 0.2);
-
-    vec3 finalColor = membraneColor;
-    finalColor += spectralTint * rippleStrength * (0.34 + pulse * 0.18);
-    finalColor += pearl * fresnel * (0.22 + load * 0.08 + rippleStrength * 0.14);
-    finalColor += fractureColor * fractureLine * fractureGate * (0.22 + rippleStrength * 0.34);
-    finalColor += spectralTint * vNoise * 0.08;
-    finalColor *= membraneEnergy * (1.0 + rippleStrength * 0.1);
-    finalColor = mix(finalColor, spectralTint, corruption * 0.08 + load * 0.05);
-
-    float alpha = 0.74 + coherence * 0.16 + fresnel * 0.08;
-    alpha *= 1.0 - corruption * 0.12;
-    alpha *= 1.0 + harmony * 0.05;
-    alpha = clamp(alpha + rippleStrength * 0.06, 0.0, 1.0);
-
+    
+    // === CHANNEL 2: LOAD PRESSURE â†’ THICKNESS + PULSE ===
+    // Pulse effect (pulsing glow, not color change)
+    float pulseIntensity = vPulsePhase * vLocalLoad;
+    
+    // === CHANNEL 3: CORRUPTION â†’ NOISE / EDGE DECAY ===
+    // Edge breakup and directional distortion
+    // Corruption makes edges irregular and unstable
+    float edgeNoise = vNoise;  // This was calculated in vertex shader
+    
+    // === CHANNEL 4: SYNERGY â†’ SMOOTHNESS / COHERENCE ===
+    // High synergy = smooth, stable link appearance
+    // Low synergy = subtle jitter in edges
+    // Synergy doesn't change color; it affects stability
+    float coherence = vSynergy;  // 0â€“1, already normalized
+    float instability = 1.0 - coherence;  // Low synergy = high instability
+    
+    // === CHANNEL 5: HARMONY â†’ DAMPING ===
+    // Harmony reduces ALL chaotic effects (never amplifies)
+    // Damping factor: 0.0 (no damping) to 1.0 (maximum chaos reduction)
+    float chaos = edgeNoise + pulseIntensity + instability;
+    float damping = vHarmony;  // 0â€“1: more harmony = more damping
+    float dampedChaos = chaos * (1.0 - damping);
+    
+    // === COMPOSITION (NO MATHEMATICAL MULTIPLICATION) ===
+    // Layer effects perceptually, not mathematically
+    
+    // Base color from network stress
+    vec3 finalColor = baseColor;
+    
+    // Add subtle glow from load pulse (perceptual layering)
+    float glowFromLoad = pulseIntensity * 0.3;
+    finalColor += vec3(glowFromLoad);
+    
+    // Reduce brightness if corrupted (edge effect)
+    float corruptionDim = vCorruption * 0.4;
+    finalColor *= (1.0 - corruptionDim);
+    
+    // Add edge breakup from corruption (texture, not color)
+    finalColor += vec3(edgeNoise * vCorruption * 0.2);
+    
+    // Instability adds subtle shimmer (perceptual, not mathematical)
+    finalColor += vec3(instability * 0.1) * sin(vPosition.x * 10.0);
+    
+    // === ALPHA (TRANSPARENCY) ===
+    // High synergy = fully opaque (confident, solid)
+    // Low synergy = more transparent (uncertain, fragile)
+    // Corruption adds haziness
+    float alpha = mix(0.6, 1.0, coherence);  // 0.6 to 1.0 range
+    alpha *= (1.0 - vCorruption * 0.3);  // Corruption reduces opacity
+    
+    // Harmony damping affects overall appearance, not just alpha
+    alpha *= (1.0 + damping * 0.1);  // Harmony slightly increases clarity
+    
+    // === FINAL OUTPUT ===
     gl_FragColor = vec4(finalColor, alpha);
   }
 `;
@@ -284,14 +281,6 @@ export const linkStateVertexShaderSimple = `
     float rippleTravel = (vUv.x * rippleBandCount) - ripplePhase;
     vRippleWave = sin(rippleTravel * 6.28318);
     vRippleMask = step(0.5, u_ripplesActive) * u_rippleVisibility;
-
-    float strandPhase = (uStrandIndex / max(1.0, uStrandCount)) * 6.28318;
-    float flowPhase = uTime * (0.65 + uLocalLoad * 1.15) + strandPhase + u_ripplePhase * 6.28318 + u_rippleSignature * 6.28318;
-    float rippleMotion = (sin((vUv.x * rippleBandCount * 6.28318) + flowPhase) * 0.65 + cos((vUv.x * 11.0) - flowPhase * 1.35) * 0.35);
-    float rippleAmplitude = (0.006 + u_rippleIntensity * 0.012 + u_rippleEnergy * 0.01 + vLocalLoad * 0.008) * (0.35 + vRippleMask * 0.65);
-    vec3 flowAxis = normalize(cross(normal, abs(normal.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
-    pos += normal * rippleMotion * rippleAmplitude;
-    pos += flowAxis * rippleMotion * rippleAmplitude * 0.35;
     
     // Simple pulse
     float freq = 2.0 + uLocalLoad * 6.0;
@@ -327,10 +316,6 @@ export const linkStateFragmentShaderSimple = `
   uniform float u_rippleLength;
   uniform float u_rippleVisibility;
   uniform float u_rippleBandCount;
-  uniform float u_rippleSignature;
-  uniform float u_stressFieldBias;
-  uniform float u_stressFieldTension;
-  uniform vec3 u_stressFieldColor;
 
   float hash11(float p) {
     p = fract(p * 0.1031);
@@ -340,9 +325,9 @@ export const linkStateFragmentShaderSimple = `
   }
 
   vec3 getStressColor(float stress) {
-    vec3 cool = vec3(0.22, 0.95, 1.0);
-    vec3 warm = vec3(0.76, 0.34, 1.0);
-    vec3 hot = vec3(0.96, 0.98, 1.0);
+    vec3 cool = vec3(0.2, 0.5, 0.8);
+    vec3 warm = vec3(0.9, 0.6, 0.2);
+    vec3 hot = vec3(1.0, 0.3, 0.2);
 
     float warmMix = clamp(stress * 2.0, 0.0, 1.0);
     float hotMix = clamp((stress - 0.5) * 2.0, 0.0, 1.0);
@@ -354,70 +339,79 @@ export const linkStateFragmentShaderSimple = `
     float strandCountSafe = max(1.0, vStrandCount);
     float strandPhase = (vStrandIndex / strandCountSafe) * 6.28318;
     float travel = vUv.x;
-    float pulse = 0.5 + 0.5 * vPulsePhase;
-    float flowSpeed = 2.6 + vLocalLoad * 2.2 + pulse * 1.15;
+    float flowSpeed = 2.6 + vLocalLoad * 2.2;
     float flowBand = sin((travel * 24.0) - (uTime * flowSpeed) + strandPhase);
     float flowT = flowBand * 0.5 + 0.5;
-    vec3 animatedAccent = mix(vAccentColor, u_stressFieldColor, clamp(0.18 + pulse * 0.28 + u_stressFieldBias * 0.24, 0.0, 1.0));
-    vec3 strandFlowColor = mix(vBaseColor, animatedAccent, flowT);
-    strandFlowColor = mix(strandFlowColor, animatedAccent, pulse * 0.18);
-    float stressMix = clamp(0.2 + effectiveStress * 0.55 + u_stressFieldBias * 0.25, 0.0, 1.0);
-    vec3 stressTint = getStressColor(stressMix);
-    vec3 membraneColor = mix(strandFlowColor, stressTint, 0.38);
-    membraneColor = mix(membraneColor, u_stressFieldColor, clamp(0.18 + u_stressFieldTension * 0.5, 0.0, 1.0));
-
+    vec3 strandFlowColor = mix(vBaseColor, vAccentColor, flowT);
+    vec3 stressTint = getStressColor(effectiveStress);
+    vec3 color = mix(strandFlowColor, stressTint, 0.14 + vCorruption * 0.08);
+    
+    // Simple Lambert + rim for plasticity
     vec3 n = normalize(vNormal);
     vec3 lightDir = normalize(vec3(0.3, 0.7, 0.6));
-    float lambert = clamp(dot(n, lightDir), 0.38, 1.0);
+    float lambert = clamp(dot(n, lightDir), 0.45, 1.0);
     vec3 viewDir = normalize(cameraPosition - vWorldPos);
     float fresnelBase = max(0.0, 1.0 - dot(n, viewDir));
     float fresnel = fresnelBase * fresnelBase;
     float lightRim = 1.0 - abs(dot(n, lightDir));
-    float rim = (lightRim * lightRim) * 0.5 + fresnel * 0.85;
-    float lighting = lambert * 0.9 + rim * 0.55;
-    vec3 color = membraneColor * lighting;
+    float rim = (lightRim * lightRim) * 0.5 + fresnel * 0.75;
+    float lighting = lambert * 0.95 + rim * 0.45;
+    color *= lighting;
+    color += strandFlowColor * (0.15 + vLocalLoad * 0.12);
+    
+    // Hot energetic streaks that travel along strands (orchestral spark lanes).
+    float streakSpeed = 4.2 + vLocalLoad * 2.8;
+    float streakCoord = fract((travel * 36.0) - (uTime * streakSpeed) + strandPhase * 0.28);
+    float streak = 1.0 - smoothstep(0.08, 0.28, abs(streakCoord - 0.5));
+    vec3 streakColor = mix(vBaseColor, vAccentColor, 0.5 + 0.5 * sin(strandPhase + uTime * 0.8));
+    streakColor = mix(streakColor, vec3(1.0), 0.22);
+    color += streakColor * streak * (0.24 + vLocalLoad * 0.34 + vPulsePhase * 0.18);
 
-    float ripplePulse = 0.5 + 0.5 * vRippleWave;
-    float rippleLengthFactor = clamp(12.0 / max(1.0, u_rippleLength), 0.75, 1.25);
-    float rippleStrength = vRippleMask * pow(ripplePulse, mix(1.8, 2.8, vLocalLoad)) * rippleLengthFactor * (0.12 + abs(u_rippleIntensity) * 0.24 + u_rippleEnergy * 0.18);
-    vec3 rippleColor = mix(stressTint, animatedAccent, clamp(0.34 + u_rippleSaturation * 0.32 + u_rippleIntensity * 0.08, 0.0, 1.0));
-    color += rippleColor * rippleStrength;
-    color += animatedAccent * (0.04 + pulse * 0.08 + rippleStrength * 0.12);
-    color += vec3(rippleStrength * 0.18);
-
+    // Thin slash-like segment mask (static in UV, low-cost).
+    // Keep roughly world-stable spacing by driving segment cell count from conduit.
     float cells = max(24.0, uSegmentCount);
     float x = vUv.x * cells;
     float cellId = floor(x);
     float localX = fract(x);
 
-    float seed = hash11(cellId + 7.13 + u_rippleSignature * 19.0);
-    float seedB = hash11(cellId + 17.91 + u_rippleSignature * 31.0);
+    float seed = hash11(cellId + 7.13);
+    float seedB = hash11(cellId + 17.91);
+    // Two narrow opposite lanes so slashes are visible from both view sides.
     float laneDist = min(abs(vUv.y - 0.25), abs(vUv.y - 0.75));
     float laneMask = 1.0 - smoothstep(0.070, 0.180, laneDist);
 
-    float skew = mix(2.2, 3.0, seedB);
-    float slashCoord = fract(localX + (vUv.y - 0.5) * skew + seed * 0.22 + uTime * 0.01 * (0.5 + vLocalLoad));
-    float slash = 1.0 - smoothstep(0.022, 0.128, abs(slashCoord - 0.5));
-    float slashTrim = 1.0 - smoothstep(0.22, 0.5, abs(localX - 0.5 + (seed - 0.5) * 0.12));
+    // Narrow diagonal slash per segment cell.
+    float skew = mix(2.6, 3.4, seedB);
+    float slashCoord = fract(localX + (vUv.y - 0.5) * skew + seed * 0.22);
+    float slash = 1.0 - smoothstep(0.032, 0.145, abs(slashCoord - 0.5));
+
+    // Small width/phase variance without morphing feel.
+    float slashTrim = 1.0 - smoothstep(0.24, 0.48, abs(localX - 0.5 + (seed - 0.5) * 0.12));
     float segmentMask = clamp(slash * slashTrim * laneMask, 0.0, 1.0);
+    segmentMask = smoothstep(0.38, 0.88, segmentMask);
 
-    float seamGlow = segmentMask * (0.12 + vCorruption * 0.18 + u_stressFieldTension * 0.22);
-    vec3 seamColor = mix(vec3(0.98, 1.0, 0.96), rippleColor, 0.55);
-    color += seamColor * seamGlow;
+    float darken = segmentMask * (0.09 + vCorruption * 0.06 + vLocalLoad * 0.01);
+    color *= (1.0 - darken);
+    
+    // Corruption front warms the strand palette rather than only dimming it.
+    vec3 corruptionHue = mix(vBaseColor, vAccentColor, 0.5 + 0.5 * sin(uTime * 0.7 + strandPhase));
+    color = mix(color, mix(color, corruptionHue * (0.7 + vPulsePhase * 0.3), 0.55), vCorruption * 0.75);
+    color *= (1.0 - vCorruption * 0.18);
 
-    float fractureGate = smoothstep(0.25, 0.92, vCorruption + u_stressFieldTension * 0.45);
-    float crackCoord = fract(localX * (1.0 + seed * 0.55) + vUv.y * (1.6 + seedB * 1.2) + uTime * (0.05 + fractureGate * 0.08) + u_rippleSignature);
-    float crack = 1.0 - smoothstep(0.03, 0.16, abs(crackCoord - 0.5));
-    vec3 crackColor = mix(vec3(1.0, 0.98, 0.92), seamColor, 0.35 + seed * 0.25);
-    color += crackColor * crack * fractureGate * (0.18 + rippleStrength * 0.34);
-
-    color = mix(color, membraneColor, vCorruption * 0.12);
+    float ripplePulse = 0.5 + 0.5 * vRippleWave;
+    float rippleLengthFactor = clamp(12.0 / max(1.0, u_rippleLength), 0.75, 1.25);
+    float rippleStrength = vRippleMask * ripplePulse * rippleLengthFactor * (0.12 + abs(u_rippleIntensity) * 0.22 + u_rippleEnergy * 0.16);
+    vec3 rippleColor = mix(vBaseColor, vAccentColor, clamp(0.35 + u_rippleSaturation * 0.4 + u_rippleIntensity * 0.08, 0.0, 1.0));
+    color += rippleColor * rippleStrength;
+    color += vec3(rippleStrength * 0.18);
     color *= 1.0 + max(0.0, u_rippleIntensity) * rippleStrength * 0.12;
-    color *= 1.0 - max(0.0, -u_rippleIntensity) * rippleStrength * 0.05;
-
-    float alpha = 0.88 + (1.0 - vCorruption) * 0.08 + fresnel * 0.05;
-    alpha = clamp(alpha + rippleStrength * 0.05, 0.0, 1.0);
-
+    color *= 1.0 - max(0.0, -u_rippleIntensity) * rippleStrength * 0.08;
+    
+    // Alpha based on coherence (1 - corruption)
+    float alpha = 0.86 + (1.0 - vCorruption) * 0.14 + fresnel * 0.12;
+    alpha = clamp(alpha + rippleStrength * 0.08, 0.0, 1.0);
+    alpha = clamp(alpha, 0.0, 1.0);
+    
     gl_FragColor = vec4(color, alpha);
   }
 `;
@@ -583,9 +577,9 @@ export class LinkStateVisualLanguageIntegration {
    * @returns {string} Color description
    */
   describeColorShift(stress) {
-    if (stress < 0.3) return 'Neon cyan (calm)';
-    if (stress < 0.6) return 'Violet membrane (active)';
-    return 'Pearl fracture (critical)';
+    if (stress < 0.3) return 'Cool blue (calm)';
+    if (stress < 0.6) return 'Warming orange (alert)';
+    return 'Hot red (critical)';
   }
 
   /**
@@ -625,19 +619,7 @@ function getCanonicalLinkStateMaterial() {
       uCorruption: { value: 0 },
       uSynergy: { value: 50 },
       uHarmony: { value: 0 },
-      uTime: { value: 0 },
-      u_rippleIntensity: { value: 0 },
-      u_ripplesActive: { value: 0 },
-      u_rippleSaturation: { value: 0.5 },
-      u_ripplePhase: { value: 0 },
-      u_rippleEnergy: { value: 0 },
-      u_rippleLength: { value: 1 },
-      u_rippleVisibility: { value: 0 },
-      u_rippleBandCount: { value: 2 },
-      u_rippleSignature: { value: 0 },
-      u_stressFieldBias: { value: 0 },
-      u_stressFieldTension: { value: 0 },
-      u_stressFieldColor: { value: new THREE.Color(0x7be6ff) }
+      uTime: { value: 0 }
     },
     vertexShader: linkStateVertexShader,
     fragmentShader: linkStateFragmentShader,
@@ -652,7 +634,7 @@ function getCanonicalLinkStateMaterial() {
   });
 
   // Freeze program cache to a single entry for all links
-  __linkStateMaterial.customProgramCacheKey = () => 'ATOMA_LINK_CANONICAL_v2';
+  __linkStateMaterial.customProgramCacheKey = () => 'ATOMA_LINK_CANONICAL_v1';
 
   // Per-draw uniform application to avoid shared-uniform crosstalk
   __linkStateMaterial.onBeforeRender = (renderer, scene, camera, geometry, object) => {

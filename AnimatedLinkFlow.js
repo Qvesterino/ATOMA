@@ -63,6 +63,8 @@ export class AnimatedLinkFlow {
     this._packetNormal = new THREE.Vector3();
     this._packetBinormal = new THREE.Vector3();
     this._packetMatrix = new THREE.Matrix4();
+    this.packetGeometry = new THREE.IcosahedronGeometry(0.14, 2);
+    this.maxPacketInstances = this.config.criticalTrafficDensity;
   }
 
   init({ linkingSystem = null, semanticBus = null } = {}) {
@@ -145,17 +147,51 @@ export class AnimatedLinkFlow {
    * Create reusable materials for flow visualization
    */
   createMaterials() {
+    const packetMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uColor: { value: new THREE.Color(0x00ddff) }
+      },
+      vertexShader: `
+        attribute vec3 instanceColor;
+        attribute float instanceGlow;
+        varying vec3 vColor;
+        varying float vGlow;
+        varying vec2 vUv;
+
+        void main() {
+          vColor = instanceColor;
+          vGlow = instanceGlow;
+          vUv = uv;
+          vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        varying vec3 vColor;
+        varying float vGlow;
+        varying vec2 vUv;
+
+        void main() {
+          float dist = length(vUv - vec2(0.5));
+          float alpha = smoothstep(0.5, 0.18, dist);
+          float pulse = 0.6 + 0.4 * sin(uTime * 4.0 + vGlow);
+          vec3 color = vColor * pulse;
+          gl_FragColor = vec4(color, alpha * 0.85);
+          if (gl_FragColor.a < 0.02) discard;
+        }
+      `,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      transparent: true,
+      vertexColors: true,
+      toneMapped: false,
+    });
+
     return {
-      // Main data packet material
-      packet: new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x00ddff),
-        emissive: new THREE.Color(0x00ddff),
-        emissiveIntensity: 1.5,
-        roughness: 0.2,
-        metalness: 0.8,
-        wireframe: false,
-        toneMapped: false,
-      }),
+      // Main data packet material (instanced)
+      packet: packetMaterial,
       
       // Trail/secondary flow material
       trail: new THREE.MeshStandardMaterial({
@@ -246,27 +282,53 @@ export class AnimatedLinkFlow {
    */
   createFlowPackets(flowState) {
     const density = this.getFlowDensity(flowState.traffic);
-    
+    const maxInstances = this.maxPacketInstances;
+    const packetMesh = new THREE.InstancedMesh(this.packetGeometry, this.materials.packet, maxInstances);
+    packetMesh.name = `FlowPacketInstancedMesh_${flowState.linkId}`;
+    packetMesh.count = density;
+    packetMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+    const colorArray = new Float32Array(maxInstances * 3);
+    const glowArray = new Float32Array(maxInstances);
+    const instanceColorAttr = new THREE.InstancedBufferAttribute(colorArray, 3);
+    const instanceGlowAttr = new THREE.InstancedBufferAttribute(glowArray, 1);
+    packetMesh.instanceColor = instanceColorAttr;
+    packetMesh.geometry.setAttribute('instanceGlow', instanceGlowAttr);
+
     for (let i = 0; i < density; i++) {
       const packet = {
-        geometry: new THREE.IcosahedronGeometry(this.config.packetSize, 2),
-        material: this.materials.packet.clone(),
-        mesh: null,
-        position: i / density, // 0–1 along curve
+        instanceId: i,
+        position: i / density,
         speed: this.config.packetSpeed * (0.8 + Math.random() * 0.4),
         curveIndex: i % flowState.curves.length,
         glow: Math.random() * Math.PI * 2,
-        trail: [],
+        color: new THREE.Color(0x00ddff),
+        trail: []
       };
-      
-      // Create and add mesh
-      packet.mesh = new THREE.Mesh(packet.geometry, packet.material);
-      const ud = (packet.mesh && typeof packet.mesh.userData === 'object' && packet.mesh.userData) ? packet.mesh.userData : (() => { try { Object.defineProperty(packet.mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return packet.mesh.userData || {}; })();
-      Object.assign(ud, { isFlowPacket: true, linkId: flowState.linkId });
-      this.scene.add(packet.mesh);
-      
+
+      packetMesh.setColorAt(i, packet.color);
+      packetMesh.geometry.attributes.instanceGlow.setX(i, packet.glow);
       flowState.packets.push(packet);
+      this._updatePacketInstanceTransform(packetMesh, packet, flowState.curves[packet.curveIndex].getPoint(packet.position, this._packetPoint));
     }
+
+    packetMesh.instanceColor.needsUpdate = true;
+    packetMesh.geometry.attributes.instanceGlow.needsUpdate = true;
+    packetMesh.instanceMatrix.needsUpdate = true;
+    this.scene.add(packetMesh);
+
+    flowState.packetMesh = packetMesh;
+    flowState.packetCount = density;
+  }
+
+  _updatePacketInstanceTransform(packetMesh, packet, currentPoint) {
+    const scaleVariation = 0.22 + Math.sin(packet.glow * 0.5) * 0.05;
+    this._packetMatrix.compose(
+      currentPoint,
+      new THREE.Quaternion(),
+      new THREE.Vector3(scaleVariation, scaleVariation, scaleVariation)
+    );
+    packetMesh.setMatrixAt(packet.instanceId, this._packetMatrix);
   }
   
   /**
@@ -318,12 +380,15 @@ export class AnimatedLinkFlow {
     
     // Update packet colors if provided
     if (updateData.color) {
-      flowState.packets.forEach(p => {
-        if (p.material.color) {
-          p.material.color.copy(updateData.color);
-          p.material.emissive.copy(updateData.color);
-        }
-      });
+      const color = updateData.color;
+      const packetMesh = flowState.packetMesh;
+      if (packetMesh && packetMesh.setColorAt) {
+        flowState.packets.forEach((packet) => {
+          packet.color.copy(color);
+          packetMesh.setColorAt(packet.instanceId, packet.color);
+        });
+        packetMesh.instanceColor.needsUpdate = true;
+      }
       
       if (flowState.beam && flowState.beam.material) {
         flowState.beam.material.color.copy(updateData.color);
@@ -343,14 +408,12 @@ export class AnimatedLinkFlow {
     const flowState = this.flowsByLink.get(linkId);
     if (!flowState) return;
     
-    // Dispose packets
-    flowState.packets.forEach(p => {
-      if (p.mesh) {
-        this.scene.remove(p.mesh);
-        p.geometry.dispose();
-        p.material.dispose();
-      }
-    });
+    // Dispose packet mesh
+    if (flowState.packetMesh) {
+      this.scene.remove(flowState.packetMesh);
+      flowState.packetMesh.geometry.dispose();
+      flowState.packetMesh.material.dispose();
+    }
     
     // Dispose beam
     if (flowState.beam) {
@@ -416,32 +479,24 @@ export class AnimatedLinkFlow {
       
       // Sample position from curve
       const point = curve.getPoint(packet.position, this._packetPoint);
-      packet.mesh.position.copy(point);
-      
-      // Rotate packet for directional effect
-      const tangent = curve.getTangent(packet.position, this._packetTangent).normalize();
-      const normal = this._packetNormal.set(0, 1, 0);
-      if (Math.abs(tangent.dot(normal)) > 0.99) {
-        normal.set(1, 0, 0);
-      }
-      const binormal = this._packetBinormal.crossVectors(normal, tangent).normalize();
-      normal.crossVectors(tangent, binormal);
-      
-      // Build rotation matrix from frame
-      this._packetMatrix.makeBasis(tangent, normal, binormal);
-      packet.mesh.quaternion.setFromRotationMatrix(this._packetMatrix);
-      
-      // Pulse glow effect
       packet.glow += this.config.pulseFrequency * deltaTime;
-      const glowIntensity = 0.8 + Math.sin(packet.glow) * 0.2;
-      packet.material.emissiveIntensity = this.config.glowIntensity * glowIntensity * (0.5 + flowState.synergy);
-      
-      // Scale with synergy
-      const scaleVariation = 1 + Math.sin(packet.glow * 0.5) * 0.15;
-      packet.mesh.scale.setScalar(scaleVariation * (0.8 + flowState.synergy * 0.4));
-      
-      // Opacity varies with traffic
-      packet.material.opacity = 0.7 + flowState.traffic * 0.3;
+      const scaleVariation = 0.22 + Math.sin(packet.glow * 0.5) * 0.05 + flowState.synergy * 0.04;
+      const packetMesh = flowState.packetMesh;
+      if (packetMesh) {
+        this._packetMatrix.compose(
+          point,
+          new THREE.Quaternion(),
+          new THREE.Vector3(scaleVariation, scaleVariation, scaleVariation)
+        );
+        packetMesh.setMatrixAt(packet.instanceId, this._packetMatrix);
+        packetMesh.geometry.attributes.instanceGlow.setX(packet.instanceId, packet.glow);
+      }
+    }
+
+    const packetMesh = flowState.packetMesh;
+    if (packetMesh) {
+      packetMesh.instanceMatrix.needsUpdate = true;
+      packetMesh.geometry.attributes.instanceGlow.needsUpdate = true;
     }
   }
   

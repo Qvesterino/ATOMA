@@ -187,6 +187,27 @@ export class ColonyVFXManager {
     return new THREE.MeshBasicMaterial(config);
   }
 
+  createOrganicCoreGeometry(radius, detail = 2, displacement = 0.18, seed = 0) {
+    const geometry = new THREE.IcosahedronGeometry(radius, detail);
+    const position = geometry.attributes.position;
+    const vertex = new THREE.Vector3();
+
+    for (let i = 0; i < position.count; i++) {
+      vertex.fromBufferAttribute(position, i);
+      const noise = (
+        Math.sin(vertex.x * 12.17 + vertex.y * 7.39 + vertex.z * 4.11 + seed * 31.7) * 0.5 + 0.5
+      ) * 0.45 + (
+        Math.cos(vertex.x * 5.31 + vertex.y * 9.73 + vertex.z * 2.66 + seed * 17.3) * 0.5 + 0.5
+      ) * 0.25;
+      const offset = 1 + noise * displacement;
+      vertex.normalize().multiplyScalar(radius * offset);
+      position.setXYZ(i, vertex.x, vertex.y, vertex.z);
+    }
+
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
   getMoodCanopySpec(mood, colonyType, stage, energy = 0) {
     const effectiveMood = mood === 'CALM' ? 'HARMONY' : mood;
     const energyFactor = Math.min(1, energy / 100);
@@ -692,67 +713,100 @@ export class ColonyVFXManager {
     const energyFactor = Math.min(1, energy / 100);
     const size = 0.3 + stage * 0.12 + energyFactor * 0.4;
     const motionBias = profile.motionBias;
-    
-    // LIVING COLONY CORE: Multi-layer organic structure
-    // Layer 1: Nucleus — deformed icosahedron (low detail = organic, irregular shape)
-    const nucleusGeo = new THREE.IcosahedronGeometry(size * 0.6, 1);
-    const nucleusMat = this.createBasicMaterial(color, 0.5 + energyFactor * 0.2);
-    nucleusMat.flatShading = true; // Organic faceted look
-    
-    // Layer 2: Membrane — larger, more transparent icosahedron with different rotation
-    const membraneGeo = new THREE.IcosahedronGeometry(size, 2);
-    const membraneMat = this.createBasicMaterial(color, 0.18 + energyFactor * 0.12);
-    membraneMat.wireframe = true; // Mesh membrane feel
-    
-    // Layer 3: Orbital ring — thin torus rotating around core
-    const ringGeo = new THREE.TorusGeometry(size * 1.1, 0.015, 8, 32);
-    const ringMat = this.createBasicMaterial(color, 0.4 + energyFactor * 0.15);
-    
-    // Assemble: use nucleus as the main mesh (for pool compatibility)
+    const seed = this.getColonyVisualSeeds(colonyId).phaseSeed;
+
+    // LIVING COLONY CORE: organically deformed nucleus with layered halo and ring
+    const nucleusGeo = this.createOrganicCoreGeometry(size * 0.55, 2, 0.22, seed);
+    const nucleusMat = new THREE.MeshStandardMaterial({
+      color: color,
+      emissive: new THREE.Color(color),
+      emissiveIntensity: 0.8 + energyFactor * 0.2,
+      roughness: 0.24,
+      metalness: 0.35,
+      transparent: true,
+      opacity: 0.72 + energyFactor * 0.15,
+      flatShading: true,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+      fog: false
+    });
+
+    const membraneGeo = this.createOrganicCoreGeometry(size * 0.92, 1, 0.16, seed + 0.12);
+    const membraneMat = new THREE.MeshStandardMaterial({
+      color: color,
+      emissive: new THREE.Color(color),
+      emissiveIntensity: 0.55,
+      roughness: 0.78,
+      metalness: 0.08,
+      transparent: true,
+      opacity: 0.24 + energyFactor * 0.08,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+      fog: false
+    });
+
+    const ringGeo = new THREE.TorusGeometry(size * 1.05, 0.02, 14, 64);
+    const ringMat = new THREE.MeshStandardMaterial({
+      color: color,
+      emissive: new THREE.Color(color),
+      emissiveIntensity: 0.75,
+      roughness: 0.42,
+      metalness: 0.28,
+      transparent: true,
+      opacity: 0.44 + energyFactor * 0.12,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+      fog: false
+    });
+
     let core = this.acquireVFXObject('core');
     if (core) {
       if (core.geometry) core.geometry.dispose();
       core.geometry = nucleusGeo;
-      core.material.color.setHex(color);
-      core.material.opacity = 0.5 + energyFactor * 0.2;
-      core.material.flatShading = true;
-      // Remove old children if any
-      core.children.forEach(child => {
+      if (core.material) core.material.dispose();
+      core.material = nucleusMat;
+      while (core.children.length > 0) {
+        const child = core.children[0];
         if (child.geometry) child.geometry.dispose();
-        if (child.material) child.material.dispose();
-      });
-      while (core.children.length > 0) core.remove(core.children[0]);
+        if (child.material) {
+          if (Array.isArray(child.material)) child.material.forEach((m) => m?.dispose?.());
+          else child.material.dispose();
+        }
+        core.remove(child);
+      }
     } else {
       core = new THREE.Mesh(nucleusGeo, nucleusMat);
     }
-    
-    // Add membrane as child
+
     const membrane = new THREE.Mesh(membraneGeo, membraneMat);
-    membrane.userData = { type: 'membrane', spinSpeed: 0.3 + motionBias * 0.2 };
+    membrane.userData = { type: 'membrane', spinSpeed: 0.28 + motionBias * 0.14 };
+    membrane.rotation.x = Math.PI * 0.18;
     core.add(membrane);
-    
-    // Add orbital ring as child
+
     const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.rotation.x = Math.PI / 3;
-    ring.userData = { type: 'orbital-ring', spinSpeed: 0.8 + energyFactor * 0.4 };
+    ring.rotation.x = Math.PI / 3.2;
+    ring.userData = { type: 'orbital-ring', spinSpeed: 1.0 + energyFactor * 0.28 };
     core.add(ring);
 
     core.position.copy(center);
     core.visible = true;
     core.userData = {
-      colonyId: colonyId,
+      colonyId,
       type: 'core',
-      stage: stage,
+      stage,
       pulsePhase: Math.random() * Math.PI * 2,
       pulseSpeed: 1.2 + Math.max(0, stage - 1) * 0.22 + energyFactor * 0.5 + motionBias * 0.2,
-      energyFactor: energyFactor,
-      motionBias: motionBias
+      energyFactor,
+      motionBias
     };
-    
+
     this.vfxContainer.add(core);
     return core;
   }
-  
+
   /**
    * Create central glow (for higher stages)
    */
@@ -1171,7 +1225,7 @@ export class ColonyVFXManager {
    */
   updateCores(deltaTime) {
     for (const child of this.vfxContainer.children) {
-        if (child.userData && child.userData.type === 'core') {
+      if (child.userData && child.userData.type === 'core') {
         const userData = child.userData;
         userData.pulsePhase += deltaTime * userData.pulseSpeed;
         const isActivePulse = userData.stage >= 2;
@@ -1180,6 +1234,15 @@ export class ColonyVFXManager {
         child.scale.setScalar(pulse);
         child.rotation.y += deltaTime * (0.22 + (userData.motionBias ?? 0.35) * 0.12);
         child.rotation.x += deltaTime * (0.08 + (userData.motionBias ?? 0.35) * 0.06);
+
+        for (const sub of child.children) {
+          if (sub.userData?.type === 'orbital-ring') {
+            sub.rotation.z += deltaTime * (sub.userData.spinSpeed ?? 1.0);
+          }
+          if (sub.userData?.type === 'membrane') {
+            sub.rotation.y += deltaTime * (sub.userData.spinSpeed ?? 0.3);
+          }
+        }
       }
     }
   }

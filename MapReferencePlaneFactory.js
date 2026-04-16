@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CognitiveHorizonPlane } from './CognitiveHorizonPlane.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 /**
  * ============================================================================
@@ -240,12 +241,38 @@ export function initMapReferencePlane(scene, parent, camera, planeType, options 
     console.log(`[REFERENCE PLANE INIT] Plane group position: (${plane.planeGroup.position.x}, ${plane.planeGroup.position.y}, ${plane.planeGroup.position.z})`);
     console.log(`[REFERENCE PLANE INIT] Plane group scale: (${plane.planeGroup.scale.x}, ${plane.planeGroup.scale.y}, ${plane.planeGroup.scale.z})`);
     console.log(`[REFERENCE PLANE INIT] Plane group rotation: (${plane.planeGroup.rotation.x.toFixed(3)}, ${plane.planeGroup.rotation.y.toFixed(3)}, ${plane.planeGroup.rotation.z.toFixed(3)})`);
-    console.log(`[REFERENCE PLANE INIT] Plane group children: ${plane.planeGroup.children.length}`);
+  console.log(`[REFERENCE PLANE INIT] Plane group children: ${plane.planeGroup.children.length}`);
+  applyReferencePlaneRenderOrder(plane);
   } else {
     console.error(`[REFERENCE PLANE INIT] ✗ ERROR: Plane creation failed or planeGroup is undefined`);
   }
   
   return plane;
+}
+
+function applyReferencePlaneRenderOrder(plane) {
+  if (!plane || !plane.planeGroup || typeof plane.planeGroup.traverse !== 'function') return;
+  const worldBackground = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_BACKGROUND);
+  const worldOverlay = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_OVERLAY);
+
+  plane.planeGroup.traverse((node) => {
+    if (!node || (!node.isMesh && !node.isPoints && !node.isSprite)) return;
+    if (node.renderOrder !== null && node.renderOrder !== undefined && node.renderOrder !== 0) return;
+
+    const material = node.material;
+    let isTransparent = false;
+    let hasDepthWrite = true;
+
+    if (Array.isArray(material)) {
+      isTransparent = material.some((m) => m?.transparent || (typeof m?.opacity === 'number' && m.opacity < 1));
+      hasDepthWrite = material.every((m) => m?.depthWrite !== false);
+    } else {
+      isTransparent = material?.transparent || (typeof material?.opacity === 'number' && material.opacity < 1);
+      hasDepthWrite = material?.depthWrite !== false;
+    }
+
+    node.renderOrder = isTransparent && !hasDepthWrite ? worldOverlay : worldBackground;
+  });
 }
 
 /**

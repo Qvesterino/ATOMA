@@ -77,6 +77,9 @@ export class AIConsciousnessLayer {
       pulsePackets: [],
       threadSegments: []
     };
+    this.pulsePointCloud = null;
+    this._pulsePointAttributes = null;
+    this._maxPulseInstances = 200;
     
     // Active thought activity tracking
     this.activeThoughts = {
@@ -134,6 +137,7 @@ export class AIConsciousnessLayer {
     this._threadOffset2 = new THREE.Vector3();
     
     this._initializeParticlePools();
+    this._createPulsePacketSystem();
     this._createGlobalField();
     this._setupRitualBridge();
   }
@@ -179,9 +183,10 @@ export class AIConsciousnessLayer {
    * Initialize reusable particle pools to prevent garbage collection
    */
   _initializeParticlePools() {
-    // Pre-allocate 200 pulse particles
-    for (let i = 0; i < 200; i++) {
+    // Pre-allocate 200 pulse packet states only; visuals are handled by a shared point cloud
+    for (let i = 0; i < this._maxPulseInstances; i++) {
       const pulse = {
+        index: i,
         position: new THREE.Vector3(),
         startPos: new THREE.Vector3(),
         endPos: new THREE.Vector3(),
@@ -190,36 +195,151 @@ export class AIConsciousnessLayer {
         color: new THREE.Color(),
         colorA: new THREE.Color(),
         colorB: new THREE.Color(),
-        mesh: null,
-        trailMesh: null,
-        trailPositions: [],
         life: 1,
         age: 0,
         duration: 1,
         active: false,
         link: null,
+        linkId: null,
         category: 'stable',
         speedVariation: 0
       };
       this.particlePools.pulsePackets.push(pulse);
     }
   }
-  
+
+  _createPulsePacketSystem() {
+    const count = this._maxPulseInstances;
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const scales = new Float32Array(count);
+    const opacities = new Float32Array(count);
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('aScale', new THREE.BufferAttribute(scales, 1));
+    geometry.setAttribute('aOpacity', new THREE.BufferAttribute(opacities, 1));
+
+    this._pulsePointAttributes = {
+      positions,
+      colors,
+      scales,
+      opacities
+    };
+
+    const material = this._createPulsePacketMaterial();
+    const points = new THREE.Points(geometry, material);
+    points.name = 'PulsePacketCloud';
+    points.frustumCulled = false;
+    points.renderOrder = 250;
+    points.userData.isPulsePacketCloud = true;
+    this.consciousnessGroup.add(points);
+    this.pulsePointCloud = points;
+  }
+
+  _createPulsePacketMaterial() {
+    return new THREE.ShaderMaterial({
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      vertexColors: true,
+      fog: false,
+      uniforms: {
+        uTime: { value: 0 },
+        uIntensity: { value: this.config.intensity }
+      },
+      vertexShader: `
+        attribute float aScale;
+        attribute float aOpacity;
+        varying vec3 vColor;
+        varying float vOpacity;
+        void main() {
+          vColor = color;
+          vOpacity = aOpacity;
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = aScale * (160.0 / max(1.0, -mvPosition.z));
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        varying float vOpacity;
+        void main() {
+          vec2 uv = gl_PointCoord - vec2(0.5);
+          float dist = length(uv);
+          float core = smoothstep(0.38, 0.18, dist);
+          float ring = smoothstep(0.56, 0.44, dist) * (1.0 - smoothstep(0.24, 0.22, dist));
+          float alpha = core + ring * 0.24;
+          alpha *= vOpacity;
+          gl_FragColor = vec4(vColor * (0.85 + core * 0.25), alpha);
+        }
+      `
+    });
+  }
+
+  _createSemanticGlyphMaterial(baseColor) {
+    const material = new THREE.ShaderMaterial({
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+      side: THREE.DoubleSide,
+      uniforms: {
+        uBaseColor: { value: baseColor.clone() },
+        uTime: { value: 0 },
+        uIntensity: { value: this.config.intensity }
+      },
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+        uniform float uTime;
+        void main() {
+          vNormal = normal;
+          vPosition = position;
+          float pulse = sin(uTime * 1.7 + position.y * 3.8 + position.x * 2.4) * 0.03;
+          vec3 transformed = position + normal * pulse;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+        uniform vec3 uBaseColor;
+        uniform float uIntensity;
+        void main() {
+          float fresnel = pow(1.0 - dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), 2.0);
+          float edge = smoothstep(0.0, 0.7, fresnel);
+          vec3 color = uBaseColor * (0.6 + edge * 0.5 + uIntensity * 0.3);
+          float radial = length(vPosition) / 1.4;
+          float alpha = smoothstep(1.0, 0.8, radial) * 0.52 + edge * 0.28;
+          gl_FragColor = vec4(color, alpha);
+        }
+      `
+    });
+    material.color = material.uniforms.uBaseColor.value;
+    return material;
+  }
+
+  _setPulsePointAttributes(index, position, color, scale, opacity, positions, colors, scales, opacities) {
+    const base = index * 3;
+    positions[base] = position.x;
+    positions[base + 1] = position.y;
+    positions[base + 2] = position.z;
+    colors[base] = color.r;
+    colors[base + 1] = color.g;
+    colors[base + 2] = color.b;
+    scales[index] = scale;
+    opacities[index] = opacity;
+  }
+
   /**
    * Create the global consciousness field mesh
    */
   _createGlobalField() {
     // Quiet ATOMA halo shell with layered glow and soft edge definition
-    const shellGeometry = new THREE.IcosahedronGeometry(this.config.globalFieldScale, 4);
-    const shellMaterial = new THREE.MeshBasicMaterial({
-      color: 0x00ffff,
-      transparent: true,
-      opacity: 0.018,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.BackSide,
-      fog: false
-    });
+    const shellGeometry = new THREE.SphereGeometry(this.config.globalFieldScale, 48, 32);
+    const shellMaterial = this._createGlobalFieldShellMaterial();
     
     const shellMesh = new THREE.Mesh(shellGeometry, shellMaterial);
     shellMesh.name = 'GlobalConsciousnessShell';
@@ -836,42 +956,37 @@ export class AIConsciousnessLayer {
    */
   _spawnPulsePacket(link) {
     if (!this.config.enabled) return;
-    
-    // HARD STOP: Validate link has required properties
     if (!link || !link.nodeA || !link.nodeB) return;
-    
-    // Get from pool, but don't reuse an already active packet.
+
     const pulse = this.particlePools.pulsePackets.find(p => !p.active);
     if (!pulse) {
       return; // Pool is full, keep the system bounded
     }
-    
+
     pulse.link = link;
+    pulse.linkId = link.id;
     pulse.startPos.copy(link.nodeA.position);
     pulse.endPos.copy(link.nodeB.position);
+    pulse.position.copy(pulse.startPos);
     pulse.progress = 0;
     pulse.age = 0;
     pulse.active = true;
-    pulse.linkId = link.id;
-    
+
     const categoryPressure = this._getCategoryInfluence(link.nodeA, link.nodeB);
     pulse.duration = 0.8 + Math.min(0.6, (categoryPressure - 0.9) * 0.8);
     pulse.life = 1.0;
-    
+
     const stability = Math.max(0, Math.min(1, link.stability ?? 0.5));
     const harmony = Math.max(0, Math.min(1, link.harmony ?? 0.5));
-    
-    // Speed variation: different pulses travel at different speeds
     pulse.speedVariation = 0.8 + Math.random() * 0.4;
     pulse.speed = this.config.pulseSpeed * (0.65 + stability * 0.3 + harmony * 0.2 + this.config.intensity * 0.25) * pulse.speedVariation;
     pulse.category = stability > 0.6 ? 'corrupted' : 'stable';
-    
-    // Color gradient: store start and end colors for interpolation
+
     pulse.colorA.copy(this._getCategoryBlendColor(link.nodeA, link.nodeB));
     pulse.colorB.copy(this._getCategoryBlendColor(link.nodeB, link.nodeA));
     const harmonyTint = new THREE.Color(0x77F7DB).lerp(new THREE.Color(0x6DEAFF), harmony);
     const stabilityTint = new THREE.Color(0xF7FBFF).lerp(new THREE.Color(0x05131A), 1 - stability);
-    pulse.color = pulse.colorA.clone().lerp(harmonyTint, 0.32).lerp(stabilityTint, 0.14);
+    pulse.color.copy(pulse.colorA).lerp(harmonyTint, 0.32).lerp(stabilityTint, 0.14);
     if (stability > 0.6) {
       pulse.color.lerp(new THREE.Color(0xD07BFF), 0.18);
     }
@@ -881,86 +996,7 @@ export class AIConsciousnessLayer {
       pulse.colorA.lerp(new THREE.Color(0xD07BFF), 0.18);
       pulse.colorB.lerp(new THREE.Color(0xD07BFF), 0.18);
     }
-    
-    if (!pulse.mesh) {
-      // Neural Thought Particle: dodecahedron core with inner glow + 3 synaptic tendrils as children
-      
-      // Core: dodecahedron (12 pentagonal faces — neural/brain feel)
-      const coreGeo = new THREE.DodecahedronGeometry(0.12, 0);
-      const coreMat = new THREE.MeshBasicMaterial({
-        color: pulse.color,
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        fog: false
-      });
-      pulse.mesh = new THREE.Mesh(coreGeo, coreMat);
-      pulse.mesh.userData.isPulsePacket = true;
-      
-      // Inner glow: smaller bright sphere inside core
-      const innerGeo = new THREE.IcosahedronGeometry(0.04, 0);
-      const innerMat = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(0xffffff),
-        transparent: true,
-        opacity: 0.6,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        fog: false
-      });
-      const inner = new THREE.Mesh(innerGeo, innerMat);
-      pulse.mesh.add(inner); // Child of core
-      
-      // 3 Synaptic tendrils: thin tapered shapes radiating outward
-      const tendrilAngles = [0, Math.PI * 2 / 3, Math.PI * 4 / 3];
-      tendrilAngles.forEach(angle => {
-        const tendrilGeo = new THREE.CylinderGeometry(0.005, 0.015, 0.12, 4);
-        const tendrilMat = new THREE.MeshBasicMaterial({
-          color: pulse.color.clone().lerp(new THREE.Color(0xffffff), 0.3),
-          transparent: true,
-          opacity: 0.5,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-          fog: false
-        });
-        const tendril = new THREE.Mesh(tendrilGeo, tendrilMat);
-        tendril.position.set(Math.cos(angle) * 0.08, 0, Math.sin(angle) * 0.08);
-        tendril.rotation.z = Math.PI / 2;
-        tendril.rotation.y = angle;
-        pulse.mesh.add(tendril); // Child of core
-      });
-      
-      this.consciousnessGroup.add(pulse.mesh);
-    }
-    
-    // Create trail mesh if not exists
-    if (!pulse.trailMesh) {
-      const trailGeometry = new THREE.BufferGeometry();
-      const positions = new Float32Array(30 * 3); // 30 trail points
-      trailGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      const trailMaterial = new THREE.LineBasicMaterial({
-        color: pulse.color,
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        fog: false
-      });
-      pulse.trailMesh = new THREE.Line(trailGeometry, trailMaterial);
-      pulse.trailMesh.userData.isPulseTrail = true;
-      this.consciousnessGroup.add(pulse.trailMesh);
-    }
-    
-    // Reset trail positions
-    pulse.trailPositions = [];
-    
-    pulse.mesh.position.copy(pulse.position);
-    pulse.mesh.material.color.copy(pulse.color);
-    pulse.mesh.material.opacity = 0.0;
-    pulse.mesh.scale.setScalar(0.45 + this.config.intensity * 0.15);
-    pulse.mesh.visible = true;
-    pulse.trailMesh.material.color.copy(pulse.color);
-    pulse.trailMesh.visible = true;
-    
+
     if (!this.activeThoughts.pulsePackets.includes(pulse)) {
       this.activeThoughts.pulsePackets.push(pulse);
       this.stats.pulsesActive++;
@@ -993,321 +1029,88 @@ export class AIConsciousnessLayer {
     const meaningColor = this._parseGlyphMeaningColor(meaning) || this._getCategoryBlendColor(link.nodeA, link.nodeB);
     const geometryColor = this._blendWithRitualColor(meaningColor.clone(), 0.46);
     const seed = this._hashTo01(`${link.id}-pattern`);
-    const particles = [];
-    
-    const material = new THREE.MeshBasicMaterial({
-      color: geometryColor,
-      transparent: true,
-      opacity: 0.45,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      fog: false,
-      side: THREE.DoubleSide
-    });
-    
     const count = 6 + (grammar.countBonus || 0);
     const radius = (0.55 + seed * 0.28) * (grammar.radiusMul || 1);
-    const thickness = (0.08 + seed * 0.05) * (grammar.thicknessMul || 1);
-    
+    const glyphMaterial = this._createSemanticGlyphMaterial(geometryColor);
+    const haloMaterial = new THREE.LineBasicMaterial({
+      color: geometryColor,
+      transparent: true,
+      opacity: 0.34,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false
+    });
+    const particles = [];
+
+    const createShell = (scale = 1.0) => {
+      const shell = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(radius * 0.68 * scale, 1),
+        glyphMaterial
+      );
+      shell.position.copy(clusterPos);
+      shell.userData.isSemanticParticle = true;
+      shell.userData.basePos = clusterPos.clone();
+      shell.userData.angle = 0;
+      shell.userData.radius = radius * scale;
+      particles.push(shell);
+      this.consciousnessGroup.add(shell);
+    };
+
+    const createOrbit = (orbitRadius, segmentCount = 64, opacity = 0.28) => {
+      const ringPoints = [];
+      for (let i = 0; i <= segmentCount; i++) {
+        const t = (i / segmentCount) * Math.PI * 2;
+        ringPoints.push(Math.cos(t) * orbitRadius, 0, Math.sin(t) * orbitRadius);
+      }
+      const geometry = new THREE.BufferGeometry().setFromPoints(ringPoints);
+      const orbit = new THREE.LineLoop(geometry, haloMaterial.clone());
+      orbit.position.copy(clusterPos);
+      orbit.material.opacity = opacity;
+      orbit.userData.isSemanticParticle = true;
+      orbit.userData.basePos = clusterPos.clone();
+      orbit.userData.angle = 0;
+      orbit.userData.radius = orbitRadius;
+      particles.push(orbit);
+      this.consciousnessGroup.add(orbit);
+    };
+
     const patternBuilders = {
       ring: () => {
-        const ring = new THREE.Mesh(
-          new THREE.RingGeometry(radius * 0.6, radius * 0.72, 24),
-          material.clone()
-        );
-        ring.rotation.x = Math.PI * 0.5;
-        ring.position.copy(clusterPos);
-        ring.userData.isSemanticParticle = true;
-        ring.userData.basePos = clusterPos.clone();
-        ring.userData.angle = 0;
-        ring.userData.radius = 0;
-        particles.push(ring);
-        this.consciousnessGroup.add(ring);
-      },
-      crown: () => {
-        for (let i = 0; i < count; i++) {
-          const angle = (i / count) * Math.PI * 2;
-          const shard = new THREE.Mesh(
-            new THREE.ConeGeometry(thickness * 0.75, thickness * 2.5, 5),
-            material.clone()
-          );
-          shard.position.set(
-            clusterPos.x + Math.cos(angle) * radius,
-            clusterPos.y + 0.05,
-            clusterPos.z + Math.sin(angle) * radius
-          );
-          shard.rotation.y = -angle;
-          shard.userData.isSemanticParticle = true;
-          shard.userData.basePos = shard.position.clone();
-          shard.userData.angle = angle;
-          shard.userData.radius = radius;
-          particles.push(shard);
-          this.consciousnessGroup.add(shard);
-        }
-      },
-      seal: () => {
-        const disc = new THREE.Mesh(
-          new THREE.CircleGeometry(radius * 0.56, 28),
-          material.clone()
-        );
-        disc.rotation.x = Math.PI * 0.5;
-        disc.position.copy(clusterPos);
-        disc.material.opacity = 0.32;
-        disc.userData.isSemanticParticle = true;
-        disc.userData.basePos = clusterPos.clone();
-        disc.userData.angle = 0;
-        disc.userData.radius = 0;
-        particles.push(disc);
-        this.consciousnessGroup.add(disc);
-
-        const glyph = new THREE.Mesh(
-          new THREE.TorusGeometry(radius * 0.28, thickness * 0.08, 10, 40),
-          material.clone()
-        );
-        glyph.rotation.x = Math.PI * 0.5;
-        glyph.position.copy(clusterPos);
-        glyph.userData.isSemanticParticle = true;
-        glyph.userData.basePos = clusterPos.clone();
-        glyph.userData.angle = 0;
-        glyph.userData.radius = 0;
-        particles.push(glyph);
-        this.consciousnessGroup.add(glyph);
+        createOrbit(radius * 1.02, 56, 0.26);
+        createShell(0.84);
       },
       halo: () => {
-        const halo = new THREE.Mesh(
-          new THREE.TorusGeometry(radius * 0.64, thickness * 0.04, 8, 48),
-          material.clone()
-        );
-        halo.rotation.x = Math.PI * 0.5;
-        halo.position.copy(clusterPos);
-        halo.userData.isSemanticParticle = true;
-        halo.userData.basePos = clusterPos.clone();
-        halo.userData.angle = 0;
-        halo.userData.radius = 0;
-        particles.push(halo);
-        this.consciousnessGroup.add(halo);
-
-        const inner = new THREE.Mesh(
-          new THREE.TorusGeometry(radius * 0.38, thickness * 0.03, 8, 40),
-          material.clone()
-        );
-        inner.rotation.x = Math.PI * 0.5;
-        inner.position.copy(clusterPos);
-        inner.userData.isSemanticParticle = true;
-        inner.userData.basePos = clusterPos.clone();
-        inner.userData.angle = 0;
-        inner.userData.radius = 0;
-        particles.push(inner);
-        this.consciousnessGroup.add(inner);
-      },
-      shard: () => {
-        for (let i = 0; i < count; i++) {
-          const angle = (i / count) * Math.PI * 2;
-          const shard = new THREE.Mesh(
-            new THREE.BoxGeometry(thickness * 0.5, thickness * 1.8, thickness * 0.12),
-            material.clone()
-          );
-          shard.position.set(
-            clusterPos.x + Math.cos(angle) * radius * 0.92,
-            clusterPos.y + 0.08,
-            clusterPos.z + Math.sin(angle) * radius * 0.92
-          );
-          shard.rotation.y = angle;
-          shard.userData.isSemanticParticle = true;
-          shard.userData.basePos = shard.position.clone();
-          shard.userData.angle = angle;
-          shard.userData.radius = radius * 0.92;
-          particles.push(shard);
-          this.consciousnessGroup.add(shard);
-        }
-      },
-      spire: () => {
-        const baseRing = new THREE.Mesh(
-          new THREE.TorusGeometry(radius * 0.42, thickness * 0.05, 8, 36),
-          material.clone()
-        );
-        baseRing.rotation.x = Math.PI * 0.5;
-        baseRing.position.copy(clusterPos);
-        baseRing.userData.isSemanticParticle = true;
-        baseRing.userData.basePos = clusterPos.clone();
-        baseRing.userData.angle = 0;
-        baseRing.userData.radius = 0;
-        particles.push(baseRing);
-        this.consciousnessGroup.add(baseRing);
-
-        for (let i = 0; i < count; i++) {
-          const angle = (i / count) * Math.PI * 2;
-          const spire = new THREE.Mesh(
-            new THREE.ConeGeometry(thickness * 0.42, thickness * 3.2, 5),
-            material.clone()
-          );
-          spire.position.set(
-            clusterPos.x + Math.cos(angle) * radius * 0.54,
-            clusterPos.y + thickness * 1.1,
-            clusterPos.z + Math.sin(angle) * radius * 0.54
-          );
-          spire.userData.isSemanticParticle = true;
-          spire.userData.basePos = spire.position.clone();
-          spire.userData.angle = angle;
-          spire.userData.radius = radius * 0.54;
-          particles.push(spire);
-          this.consciousnessGroup.add(spire);
-        }
-      },
-      fracture: () => {
-        for (let i = 0; i < count; i++) {
-          const angle = (i / count) * Math.PI * 2;
-          const split = new THREE.Mesh(
-            new THREE.BoxGeometry(thickness * 0.18, thickness * 2.4, thickness * 1.8),
-            material.clone()
-          );
-          split.position.set(
-            clusterPos.x + Math.cos(angle) * radius * 0.24,
-            clusterPos.y + Math.sin(angle * 2) * 0.06,
-            clusterPos.z + Math.sin(angle) * radius * 0.24
-          );
-          split.rotation.y = angle + Math.PI * 0.25;
-          split.rotation.z = (i % 2 === 0 ? 1 : -1) * 0.26;
-          split.userData.isSemanticParticle = true;
-          split.userData.basePos = split.position.clone();
-          split.userData.angle = angle;
-          split.userData.radius = radius * 0.24;
-          particles.push(split);
-          this.consciousnessGroup.add(split);
-        }
+        createOrbit(radius * 1.18, 72, 0.22);
+        createShell(0.74);
       },
       choir: () => {
-        const shell = new THREE.Mesh(
-          new THREE.TorusGeometry(radius * 0.52, thickness * 0.035, 8, 42),
-          material.clone()
-        );
-        shell.rotation.x = Math.PI * 0.5;
-        shell.position.copy(clusterPos);
-        shell.userData.isSemanticParticle = true;
-        shell.userData.basePos = clusterPos.clone();
-        shell.userData.angle = 0;
-        shell.userData.radius = 0;
-        particles.push(shell);
-        this.consciousnessGroup.add(shell);
-
-        for (let i = 0; i < count + 2; i++) {
-          const angle = (i / (count + 2)) * Math.PI * 2;
-          const mote = new THREE.Mesh(
-            new THREE.IcosahedronGeometry(thickness * 0.42, 0),
-            material.clone()
-          );
-          const ringRadius = radius * (i % 2 === 0 ? 0.78 : 0.46);
-          mote.position.set(
-            clusterPos.x + Math.cos(angle) * ringRadius,
-            clusterPos.y + 0.08 * (i % 3 === 0 ? 1 : -0.4),
-            clusterPos.z + Math.sin(angle) * ringRadius
-          );
-          mote.userData.isSemanticParticle = true;
-          mote.userData.basePos = mote.position.clone();
-          mote.userData.angle = angle;
-          mote.userData.radius = ringRadius;
-          particles.push(mote);
-          this.consciousnessGroup.add(mote);
-        }
-      },
-      wound: () => {
-        for (let i = 0; i < count; i++) {
-          const angle = (i / count) * Math.PI * 2;
-          const thorn = new THREE.Mesh(
-            new THREE.BoxGeometry(thickness * 0.22, thickness * 2.7, thickness * 0.28),
-            material.clone()
-          );
-          thorn.position.set(
-            clusterPos.x + Math.cos(angle) * radius * 0.38,
-            clusterPos.y,
-            clusterPos.z + Math.sin(angle) * radius * 0.38
-          );
-          thorn.rotation.y = angle;
-          thorn.rotation.x = (i % 2 === 0 ? 1 : -1) * 0.42;
-          thorn.userData.isSemanticParticle = true;
-          thorn.userData.basePos = thorn.position.clone();
-          thorn.userData.angle = angle;
-          thorn.userData.radius = radius * 0.38;
-          particles.push(thorn);
-          this.consciousnessGroup.add(thorn);
-        }
+        createOrbit(radius * 1.12, 68, 0.18);
+        createShell(0.78);
       },
       mandala: () => {
-        const outer = new THREE.Mesh(
-          new THREE.TorusGeometry(radius * 0.68, thickness * 0.03, 8, 48),
-          material.clone()
-        );
-        outer.rotation.x = Math.PI * 0.5;
-        outer.position.copy(clusterPos);
-        outer.userData.isSemanticParticle = true;
-        outer.userData.basePos = clusterPos.clone();
-        outer.userData.angle = 0;
-        outer.userData.radius = 0;
-        particles.push(outer);
-        this.consciousnessGroup.add(outer);
-
-        for (let i = 0; i < count; i++) {
-          const angle = (i / count) * Math.PI * 2;
-          const spoke = new THREE.Mesh(
-            new THREE.BoxGeometry(thickness * 0.12, thickness * 0.12, radius * 0.92),
-            material.clone()
-          );
-          spoke.position.copy(clusterPos);
-          spoke.rotation.y = angle;
-          spoke.userData.isSemanticParticle = true;
-          spoke.userData.basePos = clusterPos.clone();
-          spoke.userData.angle = angle;
-          spoke.userData.radius = radius * 0.3;
-          particles.push(spoke);
-          this.consciousnessGroup.add(spoke);
-        }
+        createOrbit(radius * 1.16, 72, 0.24);
+        createShell(0.72);
       },
       memory: () => {
-        for (let i = 0; i < 3; i++) {
-          const wave = new THREE.Mesh(
-            new THREE.TorusGeometry(radius * (0.26 + i * 0.18), thickness * 0.03, 8, 40, Math.PI * 1.18),
-            material.clone()
-          );
-          wave.rotation.x = Math.PI * 0.5;
-          wave.rotation.z = i * 0.22;
-          wave.position.set(clusterPos.x, clusterPos.y + i * 0.05, clusterPos.z);
-          wave.userData.isSemanticParticle = true;
-          wave.userData.basePos = wave.position.clone();
-          wave.userData.angle = i * 0.6;
-          wave.userData.radius = radius * (0.26 + i * 0.18);
-          particles.push(wave);
-          this.consciousnessGroup.add(wave);
-        }
+        createOrbit(radius * 0.88, 48, 0.16);
+        createOrbit(radius * 1.04, 48, 0.12);
+        createShell(0.66);
       },
-      cluster: () => {
-        for (let i = 0; i < count + 2; i++) {
-          const angle = (i / (count + 2)) * Math.PI * 2;
-          const dist = radius * (0.3 + (i % 2) * 0.18);
-          const node = new THREE.Mesh(
-            new THREE.IcosahedronGeometry(thickness * 0.6, 1),
-            material.clone()
-          );
-          node.position.set(
-            clusterPos.x + Math.cos(angle) * dist,
-            clusterPos.y + 0.05 * ((i % 3) - 1),
-            clusterPos.z + Math.sin(angle) * dist
-          );
-          node.userData.isSemanticParticle = true;
-          node.userData.basePos = node.position.clone();
-          node.userData.angle = angle;
-          node.userData.radius = dist;
-          particles.push(node);
-          this.consciousnessGroup.add(node);
-        }
-      }
+      crown: () => createShell(1.02),
+      seal: () => createShell(0.96),
+      spire: () => createShell(1.08),
+      shard: () => createShell(0.88),
+      fracture: () => createShell(0.94),
+      wound: () => createShell(0.96),
+      cluster: () => createShell(1.0)
     };
-    
+
     const builder = patternBuilders[patternType] || patternBuilders.cluster;
     builder();
     for (const particle of particles) {
       particle.userData.baseColor = particle.material?.color?.clone?.() || geometryColor.clone();
     }
-    
+
     this.activeThoughts.patternClusters.set(link.id, {
       particles,
       life: grammar.life || 3.0,
@@ -1317,7 +1120,7 @@ export class AIConsciousnessLayer {
       type: patternType,
       signature: grammar.signature || patternType
     });
-    
+
     this.stats.patternsActive++;
   }
 
@@ -1483,83 +1286,53 @@ export class AIConsciousnessLayer {
    * Update all pulse packets
    */
   _updatePulses(visualDelta) {
+    if (!this.pulsePointCloud || !this._pulsePointAttributes) return;
+
+    const positions = this._pulsePointAttributes.positions;
+    const colors = this._pulsePointAttributes.colors;
+    const scales = this._pulsePointAttributes.scales;
+    const opacities = this._pulsePointAttributes.opacities;
+
     for (let i = this.activeThoughts.pulsePackets.length - 1; i >= 0; i--) {
       const pulse = this.activeThoughts.pulsePackets[i];
-      
       if (!pulse.active || !pulse.link) {
         this.activeThoughts.pulsePackets.splice(i, 1);
-        if (pulse.mesh) pulse.mesh.visible = false;
-        if (pulse.trailMesh) pulse.trailMesh.visible = false;
+        pulse.active = false;
+        this._setPulsePointAttributes(pulse.index, pulse.position, new THREE.Color(0x000000), 0.0, 0.0, positions, colors, scales, opacities);
         this.stats.pulsesActive--;
         continue;
       }
-      
+
       pulse.age += visualDelta;
       pulse.progress += pulse.speed * visualDelta;
       pulse.life = Math.max(0, 1 - pulse.age / pulse.duration);
-      
+
       const progressNorm = Math.min(1, pulse.progress);
       const motionProgress = this._pulseMotionProgress(progressNorm);
       const envelope = this._pulseEnvelope(progressNorm);
-      
+
       if (progressNorm >= 1 || pulse.life <= 0) {
         pulse.active = false;
-        if (pulse.mesh) pulse.mesh.visible = false;
-        if (pulse.trailMesh) pulse.trailMesh.visible = false;
         this.activeThoughts.pulsePackets.splice(i, 1);
         this.stats.pulsesActive--;
+        this._setPulsePointAttributes(pulse.index, pulse.position, new THREE.Color(0x000000), 0.0, 0.0, positions, colors, scales, opacities);
         continue;
       }
-      
+
       pulse.position.lerpVectors(pulse.startPos, pulse.endPos, motionProgress);
-      pulse.mesh.position.copy(pulse.position);
-      
-      // Color gradient based on progress
       const gradientT = progressNorm;
       const pulseColor = pulse.colorA.clone().lerp(pulse.colorB, gradientT);
       const ritualPulseColor = this._blendWithRitualColor(pulseColor, 0.52);
-      pulse.mesh.material.color.copy(ritualPulseColor);
-      pulse.trailMesh.material.color.copy(ritualPulseColor);
-      
-      // Update trail
-      pulse.trailPositions.push(pulse.position.clone());
-      if (pulse.trailPositions.length > 30) {
-        pulse.trailPositions.shift();
-      }
-      if (pulse.trailPositions.length >= 2) {
-        const positions = pulse.trailMesh.geometry.attributes.position.array;
-        for (let j = 0; j < 30; j++) {
-          const idx = j * 3;
-          if (j < pulse.trailPositions.length) {
-            positions[idx] = pulse.trailPositions[j].x;
-            positions[idx + 1] = pulse.trailPositions[j].y;
-            positions[idx + 2] = pulse.trailPositions[j].z;
-          } else {
-            positions[idx] = pulse.position.x;
-            positions[idx + 1] = pulse.position.y;
-            positions[idx + 2] = pulse.position.z;
-          }
-        }
-        pulse.trailMesh.geometry.attributes.position.needsUpdate = true;
-        // Trail opacity fades with pulse life and position along trail
-        pulse.trailMesh.material.opacity = Math.min(0.5, 0.08 + pulse.life * envelope * 0.35 * this.config.intensity + this.ritualState.intensity * 0.08);
-      }
-      
-      pulse.mesh.material.opacity = Math.min(0.92, 0.08 + pulse.life * envelope * 0.78 * this.config.intensity + this.ritualState.intensity * 0.1);
-      
       const stability = Math.max(0, Math.min(1, pulse.link?.stability ?? 0.5));
-      let scaleBase = 0.26 + envelope * 0.84;
-      
-      // Pulse glow burst at arrival (last 5% of travel)
-      if (progressNorm >= 0.95) {
-        const burstFactor = (progressNorm - 0.95) / 0.05;
-        scaleBase += burstFactor * 0.8;
-        pulse.mesh.material.opacity += burstFactor * 0.3;
+      let scaleBase = 6.0 + envelope * 9.0 + stability * 2.0 + this.config.intensity * 3.2 + this.ritualState.intensity * 2.4;
+      if (progressNorm >= 0.92) {
+        const burstFactor = (progressNorm - 0.92) / 0.08;
+        scaleBase += burstFactor * 10.0;
       }
-      
-      pulse.mesh.scale.setScalar(scaleBase + stability * 0.12 + this.config.intensity * 0.08 + this.ritualState.intensity * 0.22);
-      
-      // Link pulsation: flash thread when pulse passes through
+
+      const opacity = Math.min(0.92, 0.08 + pulse.life * envelope * 0.88 * this.config.intensity + this.ritualState.intensity * 0.12);
+      this._setPulsePointAttributes(pulse.index, pulse.position, ritualPulseColor, scaleBase, opacity, positions, colors, scales, opacities);
+
       if (Math.random() < 0.08) {
         const thread = this.activeThoughts.threadMeshes.get(pulse.link.id);
         if (thread) {
@@ -1568,6 +1341,11 @@ export class AIConsciousnessLayer {
         }
       }
     }
+
+    this.pulsePointCloud.geometry.attributes.position.needsUpdate = true;
+    this.pulsePointCloud.geometry.attributes.color.needsUpdate = true;
+    this.pulsePointCloud.geometry.attributes.aScale.needsUpdate = true;
+    this.pulsePointCloud.geometry.attributes.aOpacity.needsUpdate = true;
   }
   
   /**
@@ -1739,6 +1517,7 @@ export class AIConsciousnessLayer {
     const ritualIntensity = this.ritualState.intensity;
     const monumentScale = 1 + avgStability * 0.1 * this.config.intensity + pressure * 0.07 + ritualIntensity * 0.1;
     const pulseScale = 1 + pulsePhase * 0.04 * (0.45 + networkMood * 0.45) * this.config.intensity;
+    const shellOpacity = Math.min(0.11, (0.01 + avgStability * 0.01 + pressure * 0.01) * this.config.intensity + Math.abs(pulsePhase) * 0.006 * this.config.intensity + ritualIntensity * 0.035);
 
     this.globalFieldMesh.scale.setScalar(monumentScale * pulseScale);
     if (this.globalFieldEdge) {
@@ -1753,16 +1532,28 @@ export class AIConsciousnessLayer {
     const moodColor = ritual.clone().lerp(calm, networkMood);
     const tint = moodColor.clone().lerp(storm, corruptionBias * 0.4).lerp(corrosion, pressure * 0.2);
     const fieldColor = this._blendWithRitualColor(tint, 0.62);
-    this.globalFieldMesh.material.color.copy(fieldColor);
-
-    const baseOpacity = (0.01 + avgStability * 0.01 + pressure * 0.01) * this.config.intensity;
-    this.globalFieldMesh.material.opacity = Math.min(0.11, baseOpacity + Math.abs(pulsePhase) * 0.006 * this.config.intensity + ritualIntensity * 0.035);
+    const edgeTint = this._blendWithRitualColor(
+      tint.clone().lerp(new THREE.Color(0x05131A), 1 - networkMood * 0.5),
+      0.82
+    );
+    const shellMaterial = this.globalFieldMesh.material;
+    const shellSynced = this._syncGlobalFieldShellMaterial(shellMaterial, {
+      time: this.time,
+      color: fieldColor,
+      edgeColor: edgeTint,
+      ritualColor: this.ritualState.palette.secondary.clone(),
+      opacity: shellOpacity,
+      pressure,
+      networkMood,
+      ritualIntensity,
+      pulsePhase
+    });
+    if (!shellSynced) {
+      shellMaterial.color.copy(fieldColor);
+      shellMaterial.opacity = shellOpacity;
+    }
 
     if (this.globalFieldEdge) {
-      const edgeTint = this._blendWithRitualColor(
-        tint.clone().lerp(new THREE.Color(0x05131A), 1 - networkMood * 0.5),
-        0.82
-      );
       this.globalFieldEdge.material.color.copy(edgeTint);
       this.globalFieldEdge.material.opacity = Math.min(0.24, 0.08 + pressure * 0.05 + Math.abs(pulsePhase) * 0.02 + ritualIntensity * 0.09);
     }
@@ -1905,9 +1696,7 @@ export class AIConsciousnessLayer {
     for (const mesh of this.activeThoughts.threadMeshes.values()) {
       mesh.visible = true;
     }
-    for (const pulse of this.particlePools.pulsePackets) {
-      if (pulse.mesh && pulse.active) pulse.mesh.visible = true;
-    }
+    if (this.pulsePointCloud) this.pulsePointCloud.visible = true;
     for (const pattern of this.activeThoughts.patternClusters.values()) {
       for (const mesh of pattern.particles) {
         mesh.visible = true;
@@ -1928,8 +1717,8 @@ export class AIConsciousnessLayer {
     for (const mesh of this.activeThoughts.threadMeshes.values()) {
       mesh.visible = false;
     }
+    if (this.pulsePointCloud) this.pulsePointCloud.visible = false;
     for (const pulse of this.particlePools.pulsePackets) {
-      if (pulse.mesh) pulse.mesh.visible = false;
       pulse.active = false;
     }
     for (const pattern of this.activeThoughts.patternClusters.values()) {
@@ -2025,24 +1814,17 @@ export class AIConsciousnessLayer {
     
     // Remove pulses
     for (const pulse of this.particlePools.pulsePackets) {
-      if (pulse.mesh) {
-        // Dispose children (tendrils, inner glow)
-        pulse.mesh.children.forEach(child => {
-          if (child.geometry) child.geometry.dispose();
-          if (child.material) child.material.dispose();
-        });
-        this.consciousnessGroup.remove(pulse.mesh);
-        pulse.mesh.geometry.dispose();
-        pulse.mesh.material.dispose();
-        pulse.mesh = null;
-      }
-      if (pulse.trailMesh) {
-        this.consciousnessGroup.remove(pulse.trailMesh);
-        pulse.trailMesh.geometry.dispose();
-        pulse.trailMesh.material.dispose();
-        pulse.trailMesh = null;
-      }
+      pulse.active = false;
+      pulse.link = null;
+      pulse.linkId = null;
       pulse.trailPositions = [];
+    }
+    if (this.pulsePointCloud) {
+      this.consciousnessGroup.remove(this.pulsePointCloud);
+      this.pulsePointCloud.geometry.dispose();
+      this.pulsePointCloud.material.dispose();
+      this.pulsePointCloud = null;
+      this._pulsePointAttributes = null;
     }
     this.activeThoughts.pulsePackets = [];
     

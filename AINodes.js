@@ -2627,7 +2627,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
 
     const line = new THREE.Line(geometry, coreMaterial);
     const glowLine = new THREE.Line(geometry.clone(), glowMaterial);
-    const renderOrderBase = (VisualHierarchyRegistry.getRenderOrder && VisualHierarchyRegistry.getRenderOrder('LINK_PICTO')) || 250;
+    const renderOrderBase = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE') || 266;
 
     line.renderOrder = renderOrderBase + 0.2;
     glowLine.renderOrder = renderOrderBase + 0.1;
@@ -3258,13 +3258,79 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   
   /**
    * Create visual pulse effect on activation
-   * 
-   * NOTE: This method is currently a no-op. The pulse effect was disabled
-   * due to orchestrator integration issues. To restore, implement proper
-   * orchestrator-driven visual effect.
    */
   createActivationPulse(node) {
-    return null;
+    if (!node || typeof node.add !== 'function') return null;
+
+    if (node.userData?.activationPulse) {
+      const existing = node.userData.activationPulse;
+      existing.parent?.remove(existing);
+      existing.geometry?.dispose?.();
+      existing.material?.dispose?.();
+      node.userData.activationPulse = null;
+    }
+
+    const ringInner = 0.22;
+    const ringOuter = 0.38;
+    const pulseGeometry = new THREE.RingGeometry(ringInner, ringOuter, 32, 1);
+    const pulseMaterial = new THREE.MeshBasicMaterial({
+      color: 0x88f8ff,
+      transparent: true,
+      opacity: 0.72,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+
+    const pulseMesh = new THREE.Mesh(pulseGeometry, pulseMaterial);
+    pulseMesh.name = 'ActivationPulse';
+    pulseMesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE') || 266;
+    pulseMesh.frustumCulled = false;
+    pulseMesh.rotation.x = Math.PI * 0.5;
+    pulseMesh.scale.setScalar(0.3);
+    pulseMesh.position.set(0, 0, 0);
+
+    node.add(pulseMesh);
+    node.userData.activationPulse = pulseMesh;
+
+    const startTime = performance.now();
+    const durationMs = 520;
+    const fadeStartMs = 280;
+
+    const tick = () => {
+      if (!pulseMesh.parent) {
+        pulseGeometry.dispose();
+        pulseMaterial.dispose();
+        if (node.userData?.activationPulse === pulseMesh) {
+          node.userData.activationPulse = null;
+        }
+        return;
+      }
+
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(1, elapsed / durationMs);
+      const scale = 0.3 + progress * 1.2;
+      pulseMesh.scale.setScalar(scale);
+
+      if (elapsed >= fadeStartMs) {
+        const fadeProgress = Math.min(1, (elapsed - fadeStartMs) / (durationMs - fadeStartMs));
+        pulseMaterial.opacity = Math.max(0, 0.72 * (1 - fadeProgress));
+      }
+
+      if (elapsed < durationMs) {
+        requestAnimationFrame(tick);
+      } else {
+        pulseMesh.parent?.remove(pulseMesh);
+        pulseGeometry.dispose();
+        pulseMaterial.dispose();
+        if (node.userData?.activationPulse === pulseMesh) {
+          node.userData.activationPulse = null;
+        }
+      }
+    };
+
+    requestAnimationFrame(tick);
+    return pulseMesh;
   }
   
   /**

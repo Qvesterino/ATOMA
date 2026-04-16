@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { initMapReferencePlane } from './MapReferencePlaneFactory.js';
 import { getMapConfig } from './MapConfigBase.js';
 import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 /**
  * Quantum Island - Floating landmass in singularity void
@@ -35,6 +36,8 @@ export class QuantumIsland {
     this.islandRadius = 20;
     this.islandTopHeight = 1.5;
     this.quantumPulse = 0;
+    this.WORLD_BACKGROUND_ORDER = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_BACKGROUND);
+    this.WORLD_OVERLAY_ORDER = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_OVERLAY);
     
     // Session 112+: Initialize map reference plane from config
     this.initializeMapConfig();
@@ -58,6 +61,7 @@ export class QuantumIsland {
     this.createFractalPatterns();
     this.createMist();
     this.createCircuitDome();
+    this._applyDefaultWorldRenderOrder();
   }
   
   /**
@@ -184,6 +188,50 @@ export class QuantumIsland {
       center: new THREE.Vector3(0, 0, 0),
       radius: this.islandRadius + 26
     };
+  }
+
+  _applyDefaultWorldRenderOrder() {
+    if (!this.worldRoot || !Array.isArray(this.worldRoot.children)) return;
+
+    const ignoredRoots = new Set([
+      'ATOMA_EnvironmentRoot',
+      'ATOMA_LinkRoot',
+      'ATOMA_WorldLightingRoot',
+      'VFX_ROOT',
+      'ATOMA_GlyphRoot',
+      'ATOMA_UIRoot',
+      'ATOMA_UI_ROOT'
+    ]);
+
+    for (const child of this.worldRoot.children) {
+      if (!child || ignoredRoots.has(child.name)) continue;
+      this._assignWorldRenderOrder(child);
+    }
+  }
+
+  _assignWorldRenderOrder(root) {
+    if (!root || typeof root.traverse !== 'function') return;
+
+    root.traverse((node) => {
+      if (!node || !node.isMesh && !node.isPoints && !node.isSprite) return;
+      if (node.renderOrder !== null && node.renderOrder !== undefined && node.renderOrder !== 0) return;
+
+      const material = node.material;
+      let isTransparent = false;
+      let hasDepthWrite = true;
+
+      if (Array.isArray(material)) {
+        isTransparent = material.some((m) => m?.transparent || (typeof m?.opacity === 'number' && m.opacity < 1));
+        hasDepthWrite = material.every((m) => m?.depthWrite !== false);
+      } else {
+        isTransparent = material?.transparent || (typeof material?.opacity === 'number' && material.opacity < 1);
+        hasDepthWrite = material?.depthWrite !== false;
+      }
+
+      node.renderOrder = isTransparent && !hasDepthWrite
+        ? this.WORLD_OVERLAY_ORDER
+        : this.WORLD_BACKGROUND_ORDER;
+    });
   }
 
   /**
