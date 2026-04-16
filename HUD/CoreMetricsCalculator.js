@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { withGlobalMetricAliases } from './SemanticMetricAdapter.js';
+import { withGlobalMetricAliases } from '../SemanticMetricAdapter.js';
 
 // Include legacy aliases so we can read and fold them into canonical loadPressure.
 const NODE_METRIC_KEYS = [

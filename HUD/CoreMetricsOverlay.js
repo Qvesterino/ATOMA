@@ -1,9 +1,9 @@
 import { CoreMetricsCalculator } from './CoreMetricsCalculator.js';
-import { TemporalUnitSystem } from './TemporalUnitSystem.js';
+import { TemporalUnitSystem } from '../TemporalUnitSystem.js';
 import { CoreMetricsHUD } from './CoreMetricsHUD.js';
-import { TemporalEventEffects } from './TemporalEventEffects.js';
-import { updateHudMetrics, projectHudMetrics, withGlobalMetricAliases } from './SemanticMetricAdapter.js';
-import VisualTime from './src/time/VisualTime.js';
+import { TemporalEventEffects } from '../TemporalEventEffects.js';
+import { updateHudMetrics, projectHudMetrics, withGlobalMetricAliases } from '../SemanticMetricAdapter.js';
+import VisualTime from '../src/time/VisualTime.js';
 
 /**
  * ATOMA CORE METRICS OVERLAY 1.0

@@ -59,8 +59,8 @@
  * ✅ 100% reliable LINKED category display (no "LINKED: NONE" false negatives)
  */
 
-import { LinkPrioritySystem } from './LinkPrioritySystem.js';
-import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from './ui/config/UIVisibilityConfig.js';
+import { LinkPrioritySystem } from '../LinkPrioritySystem.js';
+import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from '../ui/config/UIVisibilityConfig.js';
 
 export class UISelectedHUD {
     // Curated charset: tech + symbolism + visual density

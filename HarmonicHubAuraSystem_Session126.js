@@ -58,7 +58,7 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
-import { CoreMetricsCalculator } from './CoreMetricsCalculator.js';
+import { CoreMetricsCalculator } from './hud/CoreMetricsCalculator.js';
 import { buildScopedMetricEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './src/metrics/MetricTierClassifier.js';
 
 export class HarmonicHubAuraSystem_Session126 {

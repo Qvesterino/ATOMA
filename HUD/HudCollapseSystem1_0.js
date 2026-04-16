@@ -1,13 +1,14 @@
 /**
- * HUD COLLAPSE SYSTEM 1.0
+ * HUD COLLAPSE SYSTEM 2.0
  * 
  * Master integration module for collapsible HUD functionality.
  * Handles initialization, wiring, and lifecycle management.
+ * Integrates with HUDLayerManager for layer-based visibility.
  * 
  * SAFETY: Pure UI state management - zero gameplay impact
  */
 
-import { HUD_REGISTRY, getAllHudIds, getHudConfig } from './HUDRegistry.js';
+import { HUD_REGISTRY, getAllHudIds, getHudConfig, getHudElement } from './HUDRegistry.js';
 import { 
   initializeHudLayoutManager, 
   resetHudLayout, 
@@ -15,15 +16,18 @@ import {
   toggleHudByKey,
   isHudCollapsed
 } from './HUDLayoutManager.js';
+import { initializeHUDLayerManager, debugLayerState } from './HUDLayerManager.js';
+import { initializeDeveloperToggle } from './DeveloperToggle.js';
+import { initializeHudDragManager } from './HUDDragManager.js';
 import { addCollapseHeaderToExistingHud } from './CollapsibleHudWrapper.js';
 
 /**
- * Initialize the entire HUD collapse system
- * Call this once after the game UI is set up (after all HUDs are created)
+ * Initialize the entire HUD collapse system.
+ * Call this once after the game UI is set up (after all HUDs are created).
  */
 export function initializeHudCollapseSystem() {
   console.log('\n%c╔════════════════════════════════════════════════════════════╗', 'color: cyan;');
-  console.log('%c║  HUD COLLAPSE SYSTEM 1.0 — INITIALIZATION                ║', 'color: cyan; font-weight: bold;');
+  console.log('%c║  HUD SYSTEM 2.0 — CONSOLIDATED COMMAND CENTER            ║', 'color: cyan; font-weight: bold;');
   console.log('%c╚════════════════════════════════════════════════════════════╝', 'color: cyan;');
   
   let successCount = 0;
@@ -32,10 +36,17 @@ export function initializeHudCollapseSystem() {
   // Process each registered HUD
   getAllHudIds().forEach(hudKey => {
     const config = getHudConfig(hudKey);
-    const hudElement = document.getElementById(config.id);
+    const hudElement = getHudElement(hudKey);
     
     if (!hudElement) {
       console.warn(`  ⊘ ${config.title}: Not found in DOM (skipped)`);
+      skippedCount++;
+      return;
+    }
+
+    // Skip HUDs that explicitly disable collapse (e.g., compact panels)
+    if (config.collapsible === false) {
+      console.log(`  ⊘ ${config.title}: Non-collapsible (skipped)`);
       skippedCount++;
       return;
     }
@@ -47,8 +58,17 @@ export function initializeHudCollapseSystem() {
   
   console.log(`\n%c✓ HUDs processed: ${successCount} collapsible, ${skippedCount} skipped`, 'color: lime;');
   
-  // Initialize layout manager
+  // Initialize layer manager (visibility rules)
+  initializeHUDLayerManager();
+  
+  // Initialize layout manager (collapse state)
   initializeHudLayoutManager();
+  
+  // Initialize developer toggle (F4 key)
+  initializeDeveloperToggle();
+  
+  // Initialize drag-to-reposition system (F3 to unlock)
+  initializeHudDragManager();
   
   // Expose debug utilities globally
   window.resetAtomaHudLayout = () => {
@@ -60,9 +80,10 @@ export function initializeHudCollapseSystem() {
   window.toggleHud = (hudKey) => {
     toggleHudByKey(hudKey);
   };
-  
+
   window.debugHuds = () => {
     debugHudLayout();
+    debugLayerState();
   };
   
   window.getHudState = () => {
@@ -77,26 +98,32 @@ export function initializeHudCollapseSystem() {
   };
   
   // Print final status
-  console.log('%c\n[HUD COLLAPSE SYSTEM STATUS]', 'color: cyan; font-weight: bold;');
-  console.log('%cEnabled HUDs:', 'color: lime;');
-  getAllHudIds().forEach(hudKey => {
-    const config = getHudConfig(hudKey);
-    const hudElement = document.getElementById(config.id);
-    if (hudElement) {
-      console.log(`  ✓ ${config.title} (collapsible)`);
-    }
-  });
+  console.log('%c\n[HUD SYSTEM 2.0 STATUS]', 'color: cyan; font-weight: bold;');
+  console.log('%cLayer Architecture:', 'color: lime;');
+  console.log('  PLAYER_CRITICAL — Always visible during gameplay');
+  console.log('  CONTEXTUAL_INSPECT — Visible on interaction');
+  console.log('  DEBUG_AUTHORING — F4 developer toggle only');
   
   console.log('%c\nLayout persistence:', 'color: lime;');
   console.log('  ✓ Storage key: atoma_hud_layout_v1');
   console.log('  ✓ Collapsed state saved per HUD: YES');
+  console.log('  ✓ Developer mode saved: YES');
   console.log('  ✓ localStorage persistence: ENABLED');
   
-  console.log('%c\nDebug Commands (in console):', 'color: lime;');
+  console.log('%c\nControls:', 'color: lime;');
+  console.log('  F3 — Toggle layout edit mode (drag to reposition)');
+  console.log('  F4 — Toggle developer mode (show/hide debug HUDs)');
+  console.log('%c\nConsole Commands:', 'color: lime;');
   console.log('  window.toggleHud(\'automationHUD\')    — Toggle specific HUD');
-  console.log('  window.resetAtomaHudLayout()         — Reset to defaults');
-  console.log('  window.debugHuds()                  — Print layout state');
-  console.log('  window.getHudState()                — Get current state');
+  console.log('  window.resetAtomaHudLayout()         — Reset collapse state');
+  console.log('  window.resetHudPositions()           — Reset positions to defaults');
+  console.log('  window.saveHudPositions()            — Save current positions');
+  console.log('  window.toggleLayoutLock()            — Lock/unlock layout editing');
+  console.log('  window.getHudPositions()             — Show all HUD positions');
+  console.log('  window.debugHuds()                   — Print layout + layer state');
+  console.log('  window.getHudState()                 — Get current state');
+  console.log('  window.devMode.toggle()              — Toggle developer mode');
+  console.log('  window.devMode.status()              — Full layer debug info');
   
   console.log('%c\nGameplay impact: NONE (UI-only)', 'color: lime;');
   console.log('%cStatus: PRODUCTION READY\n', 'color: lime; font-weight: bold;');
@@ -106,14 +133,14 @@ export function initializeHudCollapseSystem() {
  * Verify HUD collapse system is working
  */
 export function verifyHudCollapseSystem() {
-  console.log('%c=== HUD COLLAPSE SYSTEM VERIFICATION ===', 'color: cyan; font-weight: bold;');
+  console.log('%c=== HUD SYSTEM 2.0 VERIFICATION ===', 'color: cyan; font-weight: bold;');
   
   let allValid = true;
   
   // Check each HUD
   getAllHudIds().forEach(hudKey => {
     const config = getHudConfig(hudKey);
-    const hudElement = document.getElementById(config.id);
+    const hudElement = getHudElement(hudKey);
     
     if (!hudElement) {
       console.warn(`✗ ${config.title}: Not in DOM`);
@@ -131,7 +158,7 @@ export function verifyHudCollapseSystem() {
       return;
     }
     
-    console.log(`✓ ${config.title}: Collapsible components OK`);
+    console.log(`✓ ${config.title}: layer=${config.layer} collapsible=OK`);
   });
   
   // Check localStorage
@@ -149,4 +176,4 @@ export function verifyHudCollapseSystem() {
   return allValid;
 }
 
-console.log('✓ HUD Collapse System 1.0 module loaded');
+console.log('✓ HUD Collapse System 2.0 module loaded');

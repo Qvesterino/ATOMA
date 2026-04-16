@@ -1,6 +1,6 @@
 ﻿// UI ONLY – Debug scaffold for AI Automation HUD (read-only, no data wiring, no authority)
 import * as HudCollapseSystem from './HudCollapseSystem1_0.js';
-import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from './ui/config/UIVisibilityConfig.js';
+import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from '../ui/config/UIVisibilityConfig.js';
 /**
  * VARIANT A – FROZEN
  * ------------------

@@ -25,9 +25,10 @@ export class AtomaDebugHUD_1_0 {
         this.updateInterval = null;
         
         this.initializeHUD();
-        this.attachKeyListener();
+        // NOTE: F4 key listener removed — DeveloperToggle now handles dev mode globally.
+        // Visibility is controlled by HUDLayerManager's DEBUG_AUTHORING layer.
         
-        console.log('✅ [AtomaDebugHUD] Initialized - Press F4 to toggle');
+        console.log('✅ [AtomaDebugHUD] Initialized — controlled by DeveloperToggle (F4)');
     }
 
     /**
@@ -439,14 +440,12 @@ export class AtomaDebugHUD_1_0 {
     }
 
     /**
-     * Attach F4 key listener
+     * Attach F4 key listener.
+     * DEPRECATED: DeveloperToggle now handles F4 globally.
+     * Kept as no-op for backward compatibility.
      */
     attachKeyListener() {
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'F4') {
-                this.toggle();
-            }
-        });
+        // No-op — DeveloperToggle handles F4 globally
     }
 
     /**

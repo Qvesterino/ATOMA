@@ -530,8 +530,8 @@ if (typeof window !== 'undefined') {
 // REMOVED: EvolvingLinkFX2_0 - moved to LEGACY (2026-04-03)
 // REMOVED: NodePersonality2_0 - moved to LEGACY (2026-04-03)
 // import { NodePersonality2_0 } from './NodePersonality2_0.js';
-import { CoreMetricsOverlay } from './CoreMetricsOverlay.js';
-import { createEmptyCoreMetricsViewModel, updateCoreMetricsViewModel } from './CoreMetricsViewModel.js';
+import { CoreMetricsOverlay } from './hud/CoreMetricsOverlay.js';
+import { createEmptyCoreMetricsViewModel, updateCoreMetricsViewModel } from './hud/CoreMetricsViewModel.js';
 import { SystemStateOverlay } from './SystemStateOverlay.js';
 import { ZoneAudioReactivity } from './ZoneAudioReactivity.js';
 // DISABLED: Legacy metric reactive system (replaced by Phase 5-7 architecture)
@@ -587,7 +587,7 @@ import { LinkDegradationSystem } from './LinkDegradationSystem.js';
 import { NetworkStressAggregator, setupNetworkStressAggregatorConsoleAPI } from './NetworkStressAggregator.js';
 // REMOVED: NodeShellSizeAuthority - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 import { ParticleEmissionScaler } from './ParticleEmissionScaler.js';
-import { mountAIAutomationHUD, updateAIAutomationHUD } from './AIAutomationHUD.js';
+import { mountAIAutomationHUD, updateAIAutomationHUD } from './hud/AIAutomationHUD.js';
 import { mountVariantBAdvisorHUD, updateVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
 import { getSharedPostProcessingPipeline } from './PostProcessing.js';
 
@@ -1356,7 +1356,7 @@ import { InputRuntime_v1 } from './InputRuntime_v1.js';
 // ============================================================================
 // HUD COLLAPSE SYSTEM 1.0 (Lightweight collapsible HUD management)
 // ============================================================================
-import { initializeHudCollapseSystem, verifyHudCollapseSystem } from './HudCollapseSystem1_0.js';
+import { initializeHudCollapseSystem, verifyHudCollapseSystem } from './hud/HudCollapseSystem1_0.js';
 
 // ============================================================================
 // INTEGRATION NODE SELECTION FIX (Targeted Compatibility)
@@ -1378,7 +1378,7 @@ import LinkAutomationMonitor3_0 from './LinkAutomationMonitor3_0.js';
 // ============================================================================
 // AUTO LINK VISUALIZATION FEEDBACK UI 1.0 (Session 19 Extended)
 // ============================================================================
-import { AutoLinkFeedbackUI1_0 } from './AutoLinkFeedbackUI1_0.js';
+import { AutoLinkFeedbackUI1_0 } from './hud/AutoLinkFeedbackUI1_0.js';
 
 // ============================================================================
 // LINK QUALITY PREDICTOR 1.0 (Session 19 Extended)
@@ -1388,7 +1388,7 @@ import { LinkQualityPredictor1_0 } from './LinkQualityPredictor1_0.js';
 // ============================================================================
 // HUD SYNCHRONIZATION PATCH 1.0 (Session 27 Continuation)
 // ============================================================================
-import { SelectedHUDSyncPatch1_0 } from './SelectedHUDSyncPatch1_0.js';
+import { SelectedHUDSyncPatch1_0 } from './hud/SelectedHUDSyncPatch1_0.js';
 
 // ============================================================================
 // LINK PRIORITY DECAY ENGINE 1.0 (Session 27 Extended)
@@ -1399,7 +1399,7 @@ import { UserAcceptanceTracker1_0 } from './UserAcceptanceTracker1_0.js';
 // ============================================================================
 // SYNERGY RECOMMENDATION DEBUG HUD 1.0 (Session 19 Extended)
 // ============================================================================
-import { SynergyRecommendationDebugHUD } from './SynergyRecommendationDebugHUD.js';
+import { SynergyRecommendationDebugHUD } from './hud/SynergyRecommendationDebugHUD.js';
 
 // ============================================================================
 // ATOMA UI 3.1 - DISABLED (Replaced by 3.4–3.7)
@@ -1427,7 +1427,7 @@ import { AIEmotionalFeed3_1 } from './_AIEmotionalFeed3_1.js';
 // ATOMA UI 3.4–3.7 - ACTIVE SYSTEMS (Core Selection + Primary Node Linking)
 // ============================================================================
 import { NodeSelectionCore3_4 } from './_NodeSelectionCore3_4.js';
-import { getSelectedHUD } from './UISelectedHUD.js';
+import { getSelectedHUD } from './hud/UISelectedHUD.js';
 // REMOVED: UIPrimaryNodeTopBar3_7 - disabled and moved to LEGACY
 // REMOVED: NodeLinking2_0, NodeLinking2_1, NodeLinking2_2 (superseded by 2.3)
 

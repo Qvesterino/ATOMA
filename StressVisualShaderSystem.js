@@ -15,7 +15,7 @@
  */
 
 import * as THREE from 'three';
-import { CoreMetricsCalculator } from './CoreMetricsCalculator.js';
+import { CoreMetricsCalculator } from './hud/CoreMetricsCalculator.js';
 import {
     stressAmbientVertexShader,
     stressAmbientFragmentShader,

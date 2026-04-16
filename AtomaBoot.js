@@ -1,4 +1,4 @@
-import { mountAIAutomationHUD } from './AIAutomationHUD.js';
+import { mountAIAutomationHUD } from './hud/AIAutomationHUD.js';
 import { startAtomaGame } from './main.js';
 import {
     MainMenu,

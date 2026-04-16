@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { projectHudMetrics } from './SemanticMetricAdapter.js';
+import { projectHudMetrics } from '../SemanticMetricAdapter.js';
 import { CoreMetricsCalculator } from './CoreMetricsCalculator.js';
-import { VisualNetworkTimeElasticity_v1 } from './VisualNetworkTimeElasticity_v1.js';
-import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from './ui/config/UIVisibilityConfig.js';
+import { VisualNetworkTimeElasticity_v1 } from '../VisualNetworkTimeElasticity_v1.js';
+import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from '../ui/config/UIVisibilityConfig.js';
 
 const METRIC_DISPLAY_MODES = Object.freeze({
   NUMERIC: 'numeric',

@@ -1,13 +1,20 @@
 /**
- * HUD LAYOUT MANAGER 1.0
+ * HUD LAYOUT MANAGER 2.0
  * 
  * Manages collapsible state, layout persistence, and HUD visibility.
+ * Integrates with HUDLayerManager for layer-based visibility rules.
  * Handles localStorage save/load and provides debug utilities.
+ * 
+ * LAYER AWARENESS:
+ * - Checks HUDLayerManager.shouldHudBeVisible() before showing any HUD
+ * - Collapse state is independent of layer visibility
+ * - Layer visibility is the primary gate, collapse is secondary
  * 
  * SAFETY: Pure UI state management - zero gameplay impact
  */
 
 import { HUD_REGISTRY, getAllHudIds, getHudConfig, getHudKeyByDomId } from './HUDRegistry.js';
+import { shouldHudBeVisible, applyLayout } from './HUDLayerManager.js';
 
 const HUD_LAYOUT_STORAGE_KEY = 'atoma_hud_layout_v1';
 
@@ -35,10 +42,11 @@ export function initializeHudLayoutManager() {
   // Set up toggle listeners on all HUDs
   setupHudToggleListeners();
   
-  console.log('✓ HUD Layout Manager 1.0 initialized');
+  console.log('✓ HUD Layout Manager 2.0 initialized');
   console.log('  - Loaded saved layout state');
   console.log('  - Registered toggle listeners');
   console.log('  - Layout persistence enabled');
+  console.log('  - Layer-aware visibility active');
 }
 
 /**
@@ -54,7 +62,6 @@ function loadHudLayout() {
       hudLayoutState = parsed;
       console.log('✓ HUD layout loaded from localStorage');
     } else {
-      // Initialize with defaults
       initializeDefaultLayout();
       console.log('✓ HUD layout initialized with defaults');
     }
@@ -80,23 +87,27 @@ function initializeDefaultLayout() {
 }
 
 /**
- * Apply loaded layout to existing HUD elements in DOM
+ * Apply loaded layout to existing HUD elements in DOM.
+ * Respects layer visibility as the primary gate.
  * @private
  */
 function applyHudLayout() {
   getAllHudIds().forEach(hudKey => {
     const config = getHudConfig(hudKey);
+    if (config.collapsible === false) return; // Skip non-collapsible HUDs
     const hudElement = document.getElementById(config.id);
     
-    if (!hudElement) {
-      return; // HUD not in DOM yet
-    }
+    if (!hudElement) return;
     
+    // Apply collapse state
     const state = hudLayoutState[config.id];
     if (state && state.collapsed !== undefined) {
       setHudCollapsed(hudElement, state.collapsed);
     }
   });
+
+  // Apply layer-based visibility (primary gate)
+  applyLayout();
 }
 
 /**
@@ -106,22 +117,16 @@ function applyHudLayout() {
 function setupHudToggleListeners() {
   getAllHudIds().forEach(hudKey => {
     const config = getHudConfig(hudKey);
+    if (config.collapsible === false) return; // Skip non-collapsible HUDs
     const hudElement = document.getElementById(config.id);
     
-    if (!hudElement) {
-      return; // HUD not in DOM yet
-    }
+    if (!hudElement) return;
     
-    // Mark HUD with registry key for future identification
     hudElement.setAttribute('data-hud-key', hudKey);
     
-    // Find collapse button within HUD
     const collapseButton = hudElement.querySelector('.hud-collapse-button');
-    if (!collapseButton) {
-      return; // No collapse button yet
-    }
+    if (!collapseButton) return;
     
-    // Create callback with closure over hudKey
     const callback = (e) => {
       e.stopPropagation();
       toggleHudByKey(hudKey);
@@ -151,20 +156,15 @@ export function toggleHudByKey(hudKey) {
     return;
   }
   
-  // Get current state
   const currentState = hudLayoutState[domId];
   const isCurrentlyCollapsed = currentState ? currentState.collapsed : config.defaultCollapsed;
   
-  // Toggle state
   const newCollapsed = !isCurrentlyCollapsed;
   
-  // Update in-memory state
   hudLayoutState[domId] = { collapsed: newCollapsed };
   
-  // Update visual state
   setHudCollapsed(hudElement, newCollapsed);
   
-  // Persist to localStorage
   saveHudLayout();
   
   console.log(`✓ HUD toggled: ${config.title} → ${newCollapsed ? 'collapsed' : 'expanded'}`);
@@ -190,15 +190,12 @@ export function toggleHudByDomId(domId) {
 function setHudCollapsed(hudElement, collapsed) {
   const body = hudElement.querySelector('.hud-body');
   
-  if (!body) {
-    return; // No collapsible body
-  }
+  if (!body) return;
   
   if (collapsed) {
     body.style.display = 'none';
     hudElement.classList.add('hud-collapsed');
     
-    // Update collapse button icon
     const collapseButton = hudElement.querySelector('.hud-collapse-button');
     if (collapseButton) {
       collapseButton.setAttribute('aria-expanded', 'false');
@@ -208,7 +205,6 @@ function setHudCollapsed(hudElement, collapsed) {
     body.style.display = '';
     hudElement.classList.remove('hud-collapsed');
     
-    // Update collapse button icon
     const collapseButton = hudElement.querySelector('.hud-collapse-button');
     if (collapseButton) {
       collapseButton.setAttribute('aria-expanded', 'true');
@@ -232,7 +228,6 @@ function saveHudLayout() {
 
 /**
  * Reset all HUD layouts to defaults
- * Clears localStorage and resets all HUDs to expanded state
  */
 export function resetHudLayout() {
   try {
@@ -242,10 +237,7 @@ export function resetHudLayout() {
     console.warn('⚠ Failed to clear HUD layout storage:', err.message);
   }
   
-  // Reset in-memory state
   initializeDefaultLayout();
-  
-  // Apply defaults to all HUDs
   applyHudLayout();
   
   console.log('✓ All HUDs reset to default layout');
@@ -290,13 +282,8 @@ export function setHudCollapsedByKey(hudKey, collapsed) {
     return;
   }
   
-  // Update state
   hudLayoutState[config.id] = { collapsed };
-  
-  // Update visual state
   setHudCollapsed(hudElement, collapsed);
-  
-  // Persist
   saveHudLayout();
 }
 
@@ -312,8 +299,9 @@ export function debugHudLayout() {
   getAllHudIds().forEach(hudKey => {
     const config = getHudConfig(hudKey);
     const collapsed = isHudCollapsed(hudKey);
-    console.log(`  ${hudKey}: ${collapsed ? '[COLLAPSED]' : '[EXPANDED]'}`);
+    const layerVisible = shouldHudBeVisible(hudKey);
+    console.log(`  ${hudKey}: ${collapsed ? '[COLLAPSED]' : '[EXPANDED]'} layer=${layerVisible ? 'VISIBLE' : 'HIDDEN'} (${config.layer})`);
   });
 }
 
-console.log('✓ HUD Layout Manager 1.0 module loaded');
+console.log('✓ HUD Layout Manager 2.0 module loaded');

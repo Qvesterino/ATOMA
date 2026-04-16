@@ -98,9 +98,9 @@ ATOMA má pôsobiť ako:
 - gameplay aj VFX čítajú rovnakú pravdu,
 - debugging metrických bugov ide podľa jednej cesty,
 - zmiznú konflikty medzi canonical metrics a legacy mirrorami.
-
+_______________________
 ### P0.3 LinkRendererConduit performance rescue bez vizuálneho downgrade
-
+\\NEDOKONČENE\\  **POZOR NEDOKONČENE**
 **Prečo:** Linky sú hlavný symbol ATOMA. Zároveň práve tam je jedno z najdrahších miest runtime. Ak nebudú lacné a stabilné, všetko ostatné trpí.
 
 **Implementačný smer:**
@@ -126,7 +126,7 @@ ATOMA má pôsobiť ako:
 - linky ostanú „ATOMA hero feature“,
 - zlepší sa frame stability pri väčšej sieti,
 - vizuálny downgrade nebude viditeľný v bežnej hre.
-
+____________________________________________________
 ### P0.4 Cascade and particle budget discipline
 
 **Prečo:** Cascade a world particles robia veľký wow efekt, ale bez budgetu vedia projekt veľmi rýchlo premeniť na noisy, nestabilnú hmlu.

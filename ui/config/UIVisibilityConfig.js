@@ -9,6 +9,8 @@ export const UIVisibilityConfig = {
   selectedHUD: true,
   aiHUD: true,
   advisorHUD: true,
+  /** Developer mode — controls DEBUG_AUTHORING layer visibility */
+  developerMode: false
 };
 
 function isPlainObject(value) {
@@ -122,11 +124,18 @@ export function getUIVisibilitySettingsRows() {
       action: () => toggleUIVisibilityFlag('selectedHUD'),
     },
     {
+      type: 'section',
+      id: 'dev-visibility-section',
+      label: 'DEVELOPER',
+      description: 'Debug and authoring HUDs. Only visible when developer mode is active (F4).',
+      selectable: false,
+    },
+    {
       type: 'visibility',
       id: 'aiHUD',
       label: 'AI Automation',
       value: UIVisibilityConfig.aiHUD ? '[ ON ]' : '[ OFF ]',
-      description: 'Controls the AI automation HUD.',
+      description: 'Controls the AI automation HUD (requires dev mode).',
       action: () => toggleUIVisibilityFlag('aiHUD'),
     },
     {
@@ -134,7 +143,7 @@ export function getUIVisibilitySettingsRows() {
       id: 'advisorHUD',
       label: 'Advisor HUD',
       value: UIVisibilityConfig.advisorHUD ? '[ ON ]' : '[ OFF ]',
-      description: 'Controls the advisor HUD.',
+      description: 'Controls the advisor HUD (requires dev mode).',
       action: () => toggleUIVisibilityFlag('advisorHUD'),
     },
   ];

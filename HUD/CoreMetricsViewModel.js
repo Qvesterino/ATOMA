@@ -1,4 +1,4 @@
-import { aggregateNetworkCanonicalMetrics, withGlobalMetricAliases } from './SemanticMetricAdapter.js';
+import { aggregateNetworkCanonicalMetrics, withGlobalMetricAliases } from '../SemanticMetricAdapter.js';
 
 const NETWORK_METRICS_OVERRIDE_KEY = '__ATOMA_NETWORK_METRICS_AGGREGATOR_OVERRIDE__';
 const OVERRIDE_FIELDS = [
