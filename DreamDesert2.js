@@ -100,7 +100,7 @@ export class DreamDesert2 {
    */
   createSkyAndAtmosphere() {
     if (this.scene) {
-      this.scene.fog = new THREE.FogExp2(0xf0bfcf, 0.0029);
+      this.scene.fog = new THREE.FogExp2(0xf0bfcf, 0.010);
       this.scene.background = new THREE.Color(0x14070f);
     }
 

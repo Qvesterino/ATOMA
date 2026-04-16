@@ -45,7 +45,7 @@ export class QuantumIsland {
 
     if (this.scene) {
       this.scene.background = new THREE.Color(0x020108);
-      this.scene.fog = new THREE.FogExp2(0x020108, 0.004);
+      this.scene.fog = new THREE.FogExp2(0x020108, 0.010);
     }
     this.createLighting();
         this.createIsland();
@@ -123,7 +123,9 @@ export class QuantumIsland {
     const islandMaterial = materialRegistry.getStandard('world.quantumisland.island', {
       color: 0x0a0a0a,
       roughness: 0.3,
-      metalness: 0.8
+      metalness: 0.8,
+      emissive: 0x050510,
+      emissiveIntensity: 0.05
     });
     
     this.island = new THREE.Mesh(islandGeometry, islandMaterial);
@@ -531,7 +533,7 @@ export class QuantumIsland {
     hemiLight.name = 'quantumIslandHemisphereLight';
     this.scene.add(hemiLight);
 
-    const dirLight = new THREE.DirectionalLight(0x4466ff, 0.3);
+    const dirLight = new THREE.DirectionalLight(0x4466ff, 0.5);
     dirLight.position.set(30, 50, 20);
     dirLight.name = 'quantumIslandDirectionalLight';
     this.scene.add(dirLight);

@@ -324,7 +324,9 @@ export class SigmaRiftChamber {
       vertexColors: true,
       metalness: 0.2,
       roughness: 0.9,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
+      emissive: 0x050510,
+      emissiveIntensity: 0.03
     });
     
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);

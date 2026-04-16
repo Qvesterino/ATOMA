@@ -696,13 +696,10 @@ const adapter = this._createLinkSystemAdapter(
                         : 0)
             );
 
-            // Canonical harmony/corruption write + legacy mirrors (inlined for performance)
+            // Canonical harmony/corruption write + canonical harmonyLevel mirror only
             if (this._writeCanonicalField(metrics, 'harmony', harmony)) touchedFields.add('harmony');
             if (this._writeCanonicalField(metrics, 'corruption', corruption)) touchedFields.add('corruption');
-            if (this._writeCanonicalField(userData, 'harmony', harmony)) touchedFields.add('harmony');
             if (this._writeCanonicalField(userData, 'harmonyLevel', harmony)) touchedFields.add('harmonyLevel');
-            if (this._writeCanonicalField(userData, 'corruption', corruption)) touchedFields.add('corruption');
-            if (this._writeCanonicalField(userData, 'corruptionLevel', corruption)) touchedFields.add('corruptionLevel');
 
             // Harmony stabilization canonical defaults (inlined)
             if (typeof userData.harmonyStabilized !== 'boolean') {
@@ -717,21 +714,14 @@ const adapter = this._createLinkSystemAdapter(
                 touchedFields.add('harmonyDampingFactor');
             }
 
-            // Canonical load aliases for legacy readers (inlined)
-            if (this._writeCanonicalField(userData, 'loadPressure', load)) touchedFields.add('loadPressure');
+            // Canonical load metrics only; remove root-level legacy alias writes
             if (this._writeCanonicalField(metrics, 'loadPressure', load)) touchedFields.add('loadPressure');
             if (this._writeCanonicalField(metrics, 'load', load)) touchedFields.add('load');
             if (this._writeCanonicalField(metrics, 'loadRatio', load)) touchedFields.add('loadRatio');
-            if (this._writeCanonicalField(userData, 'load', load)) touchedFields.add('load');
-            if (this._writeCanonicalField(userData, 'loadRatio', load)) touchedFields.add('loadRatio');
-            if (this._writeCanonicalField(userData, 'pressure', load)) touchedFields.add('pressure');
 
-            // Keep stability/instability readable from both canonical and legacy paths (inlined)
+            // Canonical stability/instability only; remove root-level legacy alias writes
             if (this._writeCanonicalField(metrics, 'stability', stability)) touchedFields.add('stability');
-            if (this._writeCanonicalField(userData, 'stability', stability)) touchedFields.add('stability');
-            if (this._writeCanonicalField(userData, 'stabilityNorm', stability)) touchedFields.add('stabilityNorm');
             if (this._writeCanonicalField(metrics, 'instability', instability)) touchedFields.add('instability');
-            if (this._writeCanonicalField(userData, 'instability', instability)) touchedFields.add('instability');
 
             if (touchedFields.size > 0) {
                 this._touchCanonicalWrites(userData, Array.from(touchedFields));
@@ -758,7 +748,7 @@ const adapter = this._createLinkSystemAdapter(
             const linkCorruption = this._readLinkCorruption(link, metrics, userData);
             const linkIntegrity = metrics?.integrity ?? userData?.integrity ?? 100;
 
-            // Write canonical corruption metrics
+            // Write canonical corruption metric
             this._writeCanonicalLinkCorruptionFields(userData, metrics, linkCorruption, touchedFields);
 
             // Write legacy integrity alias
@@ -787,16 +777,12 @@ const adapter = this._createLinkSystemAdapter(
     }
 
     /**
-     * Write canonical corruption fields (corruption, corruptionLevel)
+     * Write canonical corruption field.
      */
     _writeCanonicalLinkCorruptionFields(userData, metrics, corruption, touchedFields) {
         const nextCorruption = Number.isFinite(corruption) ? Math.max(0, Math.min(1, corruption)) : 0;
         userData.metrics = userData.metrics || {};
         userData.metrics.corruption = nextCorruption;
-        touchedFields.add('corruption');
-        userData.corruptionLevel = nextCorruption;
-        touchedFields.add('corruptionLevel');
-        userData.corruption = nextCorruption;
         touchedFields.add('corruption');
     }
 

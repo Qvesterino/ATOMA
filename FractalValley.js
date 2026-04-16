@@ -622,7 +622,9 @@ export class FractalValley {
       roughness: 0.96,
       metalness: 0.04,
       flatShading: false,
-      vertexColors: true
+      vertexColors: true,
+      emissive: 0x050508,
+      emissiveIntensity: 0.02
     });
     
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
@@ -1728,7 +1730,7 @@ export class FractalValley {
    */
   createMist() {
     if (this.scene) {
-      this.scene.fog = new THREE.Fog(0x171b27, 46, 220);
+      this.scene.fog = new THREE.FogExp2(0x171b27, 0.018);
     }
 
     const createLayer = (size, y, color, opacity) => {

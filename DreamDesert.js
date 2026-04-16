@@ -736,7 +736,7 @@ export class DreamDesert {
    */
   createLighting() {
     if (this.scene) {
-      this.scene.fog = new THREE.FogExp2(0xe2c0a8, 0.0036);
+      this.scene.fog = new THREE.FogExp2(0xe2c0a8, 0.010);
       this.scene.background = new THREE.Color(0x12070d);
     }
 

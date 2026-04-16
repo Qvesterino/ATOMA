@@ -561,7 +561,7 @@ export class VisualUpgradeSuperpack {
     applyCinematicColorGradingPack() {
         // Apply tone mapping and color grading
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.0;
+        this.renderer.toneMappingExposure = 1.2;
 
         // Store color grading parameters
         this.colorGrading = {
@@ -1147,7 +1147,7 @@ export class VisualUpgradeSuperpack {
     getRendererSettings() {
         return {
             toneMapping: THREE.ACESFilmicToneMapping,
-            toneMappingExposure: 1.0,
+            toneMappingExposure: 1.2,
             outputColorSpace: THREE.SRGBColorSpace
         };
     }

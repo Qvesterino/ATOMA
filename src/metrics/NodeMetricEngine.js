@@ -18,7 +18,7 @@ const DEFAULT_METRICS = {
 };
 
 
-const LEGACY_KEYS = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure', 'load', 'loadRatio'];
+const LEGACY_KEYS = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure', 'load', 'loadRatio', 'pressure', 'stabilityNorm', 'instability'];
 const MAX_IMPULSE = 0.25;
 
 // TODO: Replace placeholder step sizes with design-approved values.
@@ -331,14 +331,6 @@ function syncLoadAliases(node) {
     metrics.loadRatio = loadPressure;
     changed = true;
   }
-  if (node.userData.load !== loadPressure) {
-    node.userData.load = loadPressure;
-    changed = true;
-  }
-  if (node.userData.loadRatio !== loadPressure) {
-    node.userData.loadRatio = loadPressure;
-    changed = true;
-  }
   return changed;
 }
 
@@ -518,8 +510,6 @@ function applyArchetypeClamp(node) {
   if (m.loadPressure !== nextLoadPressure) { m.loadPressure = nextLoadPressure; changed = true; }
   if (m.load !== nextLoad) { m.load = nextLoad; changed = true; }
   if (m.loadRatio !== nextLoadRatio) { m.loadRatio = nextLoadRatio; changed = true; }
-  if (node.userData.load !== nextLoad) { node.userData.load = nextLoad; changed = true; }
-  if (node.userData.loadRatio !== nextLoadRatio) { node.userData.loadRatio = nextLoadRatio; changed = true; }
   return changed;
 }
 
@@ -564,7 +554,17 @@ function installLegacyFieldGuards(node) {
         enumerable: false,
         get() {
           const metrics = this.metrics;
-          if (metrics && Object.prototype.hasOwnProperty.call(metrics, key)) {
+          if (!metrics) return undefined;
+          if (key === 'pressure') {
+            return metrics.loadPressure;
+          }
+          if (key === 'stabilityNorm') {
+            return metrics.stability;
+          }
+          if (key === 'instability') {
+            return Number.isFinite(metrics.stability) ? 1 - metrics.stability : undefined;
+          }
+          if (Object.prototype.hasOwnProperty.call(metrics, key)) {
             return metrics[key];
           }
           return undefined;
@@ -578,6 +578,14 @@ function installLegacyFieldGuards(node) {
               metrics.loadPressure = next;
               metrics.load = next;
               metrics.loadRatio = next;
+            } else if (key === 'pressure') {
+              metrics.loadPressure = next;
+              metrics.load = next;
+              metrics.loadRatio = next;
+            } else if (key === 'stabilityNorm') {
+              metrics.stability = next;
+            } else if (key === 'instability') {
+              metrics.stability = 1 - next;
             } else {
               metrics[key] = next;
             }
@@ -634,8 +642,6 @@ function seedCanonicalMetricsFromArchetype(node, metrics) {
   if (changed) {
     metrics.load = metrics.loadPressure;
     metrics.loadRatio = metrics.loadPressure;
-    node.userData.load = metrics.loadPressure;
-    node.userData.loadRatio = metrics.loadPressure;
     syncLoadAliases(node);
   }
 

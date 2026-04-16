@@ -6652,7 +6652,7 @@ window.__ATOMA_SCENE__ = this.scene;
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.0;
+        this.renderer.toneMappingExposure = 1.2;
         if (this.renderer?.debug) {
             this.renderer.debug.checkShaderErrors = !!(
                 window.DEBUG_VISUAL_MODE === true ||
@@ -6756,7 +6756,7 @@ window.__ATOMA_SCENE__ = this.scene;
                     this.renderer.outputColorSpace = s.outputColorSpace;
                 } else {
                     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-                    this.renderer.toneMappingExposure = 1.0;
+                    this.renderer.toneMappingExposure = 1.2;
                 }
             }
 
@@ -7117,7 +7117,7 @@ window.__ATOMA_SCENE__ = this.scene;
         lightParent?.add(ambientLight);
 
         // Soft key light with cyan tint
-        const keyLight = new THREE.DirectionalLight(0x00ccdd, 0.15);
+        const keyLight = new THREE.DirectionalLight(0x00ccdd, 0.3);
         keyLight.position.set(30, 20, 30);
         lightParent?.add(keyLight);
 
@@ -7142,7 +7142,7 @@ window.__ATOMA_SCENE__ = this.scene;
         this.scene.background = skyColors.middle;
 
         // Ground fog
-        this.scene.fog = new THREE.FogExp2(0xccbbff, 0.008);
+        this.scene.fog = new THREE.FogExp2(0xccbbff, 0.010);
 
         const lightParent = this.worldLightingRoot || this.worldRoot;
         lightParent?.clear?.();
@@ -7285,7 +7285,7 @@ window.__ATOMA_SCENE__ = this.scene;
         this.scene.background = new THREE.Color(0x5544bb);
 
         // Distant fog for depth
-        this.scene.fog = new THREE.FogExp2(0x7766cc, 0.006);
+        this.scene.fog = new THREE.FogExp2(0x7766cc, 0.018);
 
         const lightParent = this.worldLightingRoot || this.worldRoot;
         lightParent?.clear?.();
@@ -7336,7 +7336,7 @@ window.__ATOMA_SCENE__ = this.scene;
         lightParent?.add(ambientLight);
 
         // Directional light from above
-        const directionalLight = new THREE.DirectionalLight(0x6666aa, 0.4);
+        const directionalLight = new THREE.DirectionalLight(0x6666aa, 0.5);
         directionalLight.position.set(0, 20, 10);
         directionalLight.castShadow = false;
         lightParent?.add(directionalLight);

@@ -176,8 +176,8 @@ test('MetricsRuntime_v1 canonical fallback preserves registry stability and corr
 
   assert.ok(Math.abs(node.userData.metrics.stability - 0.9) < 1e-6, 'Expected stability to survive canonical fallback');
   assert.ok(Math.abs(node.userData.metrics.corruption - 0.005) < 1e-6, 'Expected corruption to survive canonical fallback');
-  assert.ok(Math.abs(node.userData.stability - 0.9) < 1e-6, 'Expected userData.stability mirror to stay aligned');
-  assert.ok(Math.abs(node.userData.instability - 0.1) < 1e-6, 'Expected userData.instability mirror to stay inverted');
+  assert.ok(Math.abs(node.userData.stability - 0.9) < 1e-6, 'Expected userData.stability legacy fallback to stay aligned');
+  assert.ok(Math.abs(node.userData.instability - 0.1) < 1e-6, 'Expected userData.instability legacy fallback to stay inverted');
 });
 
 test('ensureMetrics seeds placeholder canonical metrics from archetype snapshot without overwriting live values', () => {

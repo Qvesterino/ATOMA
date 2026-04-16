@@ -9,6 +9,11 @@ export class MemoryLane {
   constructor(scene, worldRoot) {
     this.scene = scene;
     this.worldRoot = worldRoot;
+
+    // Atmosphere: exponential fog for depth and scene cohesion
+    if (this.scene) {
+      this.scene.fog = new THREE.FogExp2(0x0a0a14, 0.008);
+    }
     this.serverTowers = [];
     this.serverClusters = [];
     this.coolingTowers = [];
