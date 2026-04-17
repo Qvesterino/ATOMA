@@ -36,6 +36,7 @@ export class QuantumIsland {
     this.islandRadius = 20;
     this.islandTopHeight = 1.5;
     this.quantumPulse = 0;
+    this.AURA_BACKGROUND_ORDER = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_AURA_BACKGROUND);
     this.WORLD_BACKGROUND_ORDER = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_BACKGROUND);
     this.WORLD_OVERLAY_ORDER = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_OVERLAY);
     
@@ -130,6 +131,7 @@ export class QuantumIsland {
     
     this.island = new THREE.Mesh(islandGeometry, islandMaterial);
     this.island.position.y = 0;
+    this.island.renderOrder = this.AURA_BACKGROUND_ORDER;
     this.island.userData = {
       collisionEnabled: true,
       isWalkable: true,
@@ -275,6 +277,7 @@ export class QuantumIsland {
     const sprite = new THREE.Sprite(spriteMaterial);
     sprite.position.set(0, 2, 0);
     sprite.scale.set(6, 6, 1);
+    sprite.renderOrder = this.AURA_BACKGROUND_ORDER;
     this.worldRoot.add(sprite);
     this.singularitySprite = sprite;
 
@@ -319,6 +322,7 @@ export class QuantumIsland {
     });
 
     const points = new THREE.Points(particleGeometry, particleMaterial);
+    points.renderOrder = this.AURA_BACKGROUND_ORDER;
     points.position.set(0, 0, 0);
     this.worldRoot.add(points);
     this.singularityParticles = points;
@@ -481,6 +485,7 @@ export class QuantumIsland {
       });
       
       const rock = new THREE.Mesh(geometry, material);
+      rock.renderOrder = this.AURA_BACKGROUND_ORDER;
       
       const orbitRadius = 25 + Math.random() * 10;
       const orbitHeight = 3 + Math.random() * 8;
@@ -519,7 +524,7 @@ export class QuantumIsland {
       depthWrite: false
     });
     grid.position.y = 1.55;
-    grid.renderOrder = 20;
+    grid.renderOrder = this.WORLD_OVERLAY_ORDER;
     this.worldRoot.add(grid);
     this.hologramGrid = grid;
   }
@@ -596,6 +601,7 @@ export class QuantumIsland {
     });
 
     const trailPoints = new THREE.Points(trailGeometry, trailMaterial);
+    trailPoints.renderOrder = this.AURA_BACKGROUND_ORDER;
     this.worldRoot.add(trailPoints);
     this.orbitingRockTrails = trailPoints;
     this.orbitingRockTrailData = {
@@ -671,8 +677,8 @@ export class QuantumIsland {
       
       const material = materialRegistry.getStandard('world.quantumisland.shard', {
         color: 0x2a2a3a,
-        transparent: true,
-        opacity: 0.4,
+        transparent: false,
+        opacity: 1,
         metalness: 0.8,
         roughness: 0.3,
         emissive: 0x003355,
@@ -680,6 +686,7 @@ export class QuantumIsland {
       });
       
       const shard = new THREE.Mesh(geometry, material);
+      shard.renderOrder = this.AURA_BACKGROUND_ORDER;
       
       const angle = Math.random() * Math.PI * 2;
       const distance = 40 + Math.random() * 40;
@@ -723,6 +730,7 @@ export class QuantumIsland {
       });
 
       const entanglementLine = new THREE.Line(lineGeometry, lineMaterial);
+      entanglementLine.renderOrder = this.AURA_BACKGROUND_ORDER;
       entanglementLine.userData = { shardA: a, shardB: b };
       this.worldRoot.add(entanglementLine);
       this.entanglementLines.push(entanglementLine);
@@ -778,6 +786,7 @@ export class QuantumIsland {
     });
     
     this.quantumParticles = new THREE.Points(geometry, material);
+    this.quantumParticles.renderOrder = this.AURA_BACKGROUND_ORDER;
     this.quantumParticles.userData.velocities = velocities;
     this.worldRoot.add(this.quantumParticles);
   }

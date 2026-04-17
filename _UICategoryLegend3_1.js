@@ -76,151 +76,172 @@ export class UICategoryLegend3_1 {
   }
   
   /**
-   * Initialize DOM structure
+   * Initialize DOM structure — same visual language as CoreMetricsHUD v2.0
    */
   _initializeDOM() {
+    // ── Inject CSS (once) ────────────────────────────────────────────
+    if (!document.getElementById('atoma-category-legend-styles')) {
+      const style = document.createElement('style');
+      style.id = 'atoma-category-legend-styles';
+      style.textContent = `
+        /* ── ATOMA Category Legend — Minimalist v2.0 ── */
+        #ui-category-legend {
+          position: fixed;
+          top: 10px;
+          left: 10px;
+          max-width: 150px;
+          max-height: 420px;
+          background: rgba(8, 12, 20, 0.75);
+          backdrop-filter: blur(16px) saturate(1.2);
+          -webkit-backdrop-filter: blur(16px) saturate(1.2);
+          border-left: 2px solid rgba(0, 200, 220, 0.35);
+          border-radius: 0 8px 8px 0;
+          padding: 16px 14px;
+          font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+          font-size: 10px;
+          color: rgba(200, 225, 245, 0.85);
+          letter-spacing: 0.4px;
+          z-index: 1200;
+          overflow-y: auto;
+          user-select: none;
+        }
+        #ui-category-legend .hud-header {
+          font-size: 8px;
+          letter-spacing: 0.25em;
+          text-transform: uppercase;
+          color: rgba(0, 200, 220, 0.4);
+          margin-bottom: 12px;
+          padding-bottom: 6px;
+          border-bottom: 1px solid rgba(0, 200, 220, 0.1);
+        }
+        #ui-category-legend .mood-section {
+          display: none;
+          margin-bottom: 10px;
+          padding-bottom: 8px;
+          border-bottom: 1px solid rgba(0, 200, 220, 0.1);
+        }
+        #ui-category-legend .mood-title {
+          font-size: 8px;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: rgba(0, 200, 220, 0.4);
+          margin-bottom: 4px;
+        }
+        #ui-category-legend .mood-value {
+          font-size: 11px;
+          font-weight: 600;
+          margin-bottom: 3px;
+        }
+        #ui-category-legend .mood-intensity {
+          font-size: 10px;
+          letter-spacing: 0.1em;
+          opacity: 0.9;
+        }
+        #ui-category-legend .category-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin: 3px 0;
+          padding: 3px 6px;
+          border-radius: 3px;
+          transition: background 0.2s ease, transform 0.2s ease;
+          cursor: default;
+        }
+        #ui-category-legend .category-item:hover {
+          background: rgba(0, 200, 220, 0.08);
+          transform: translateX(1px);
+        }
+        #ui-category-legend .category-item.has-nodes {
+          background: rgba(0, 200, 220, 0.04);
+        }
+        #ui-category-legend .category-dot {
+          width: 5px;
+          height: 5px;
+          border-radius: 50%;
+          flex-shrink: 0;
+          transition: box-shadow 0.3s ease;
+        }
+        #ui-category-legend .category-item:hover .category-dot {
+          box-shadow: 0 0 6px currentColor;
+        }
+        #ui-category-legend .category-label {
+          flex: 1;
+          white-space: pre;
+          font-size: 9px;
+          font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+          color: rgba(200, 225, 245, 0.45);
+          transition: color 0.3s ease;
+        }
+        #ui-category-legend .category-item.has-nodes .category-label {
+          color: rgba(200, 225, 245, 0.85);
+        }
+        /* Scrollbar */
+        #ui-category-legend::-webkit-scrollbar {
+          width: 3px;
+        }
+        #ui-category-legend::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        #ui-category-legend::-webkit-scrollbar-thumb {
+          background: rgba(0, 200, 220, 0.2);
+          border-radius: 2px;
+        }
+        #ui-category-legend::-webkit-scrollbar-thumb:hover {
+          background: rgba(0, 200, 220, 0.35);
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    // ── Main container ───────────────────────────────────────────────
     this.element = document.createElement('div');
     this.element.id = 'ui-category-legend';
-    this.element.style.cssText = `
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      max-width: 150px;
-      max-height: 420px;
-      background: linear-gradient(180deg, rgba(12, 18, 35, 0.84), rgba(8, 12, 24, 0.72));
-      border: 1px solid rgba(54, 242, 255, 0.75);
-      box-shadow: 0 0 24px rgba(54, 242, 255, 0.15), inset 0 0 20px rgba(54, 242, 255, 0.04);
-      border-radius: 10px;
-      padding: 10px 9px 9px;
-      font-family: 'Rajdhani', 'Segoe UI', sans-serif;
-      font-size: 10px;
-      color: #36F2FF;
-      letter-spacing: 0.4px;
-      z-index: 1200;
-      overflow-y: auto;
-      backdrop-filter: blur(12px) saturate(1.1);
-    `;
 
-    // Mood display panel
+    // ── Mood display section ─────────────────────────────────────────
     this.moodWrapper = document.createElement('div');
-    this.moodWrapper.className = 'ui-category-legend-mood';
-    this.moodWrapper.style.cssText = `
-      display: none;
-      margin-bottom: 10px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-    `;
+    this.moodWrapper.className = 'mood-section';
 
     this.moodTitleElement = document.createElement('div');
-    this.moodTitleElement.className = 'ui-category-legend-mood-title';
-    this.moodTitleElement.style.cssText = `
-      font-family: 'Orbitron', 'Segoe UI', sans-serif;
-      font-weight: bold;
-      margin-bottom: 2px;
-      font-size: 10px;
-    `;
+    this.moodTitleElement.className = 'mood-title';
     this.moodTitleElement.textContent = 'ATOMA MOOD';
 
     this.moodValueElement = document.createElement('div');
-    this.moodValueElement.className = 'ui-category-legend-mood-value';
-    this.moodValueElement.style.cssText = `
-      font-size: 11px;
-      font-weight: 600;
-      margin-bottom: 3px;
-    `;
+    this.moodValueElement.className = 'mood-value';
     this.moodValueElement.textContent = 'NEUTRAL';
 
     this.moodIntensityElement = document.createElement('div');
-    this.moodIntensityElement.className = 'ui-category-legend-mood-intensity';
-    this.moodIntensityElement.style.cssText = `
-      font-size: 10px;
-      letter-spacing: 0.1em;
-      opacity: 0.9;
-    `;
+    this.moodIntensityElement.className = 'mood-intensity';
 
     this.moodWrapper.appendChild(this.moodTitleElement);
     this.moodWrapper.appendChild(this.moodValueElement);
     this.moodWrapper.appendChild(this.moodIntensityElement);
     this.element.appendChild(this.moodWrapper);
-    
-    // Category items
+
+    // ── Category items ───────────────────────────────────────────────
     for (const [name, color] of Object.entries(this.categories)) {
       const item = document.createElement('div');
-      item.style.cssText = `
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-bottom: 4px;
-        padding: 2px 5px;
-        border-radius: 4px;
-        transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
-      `;
-      
-      // Dot indicator
+      item.className = 'category-item';
+
+      // Dot indicator (color set via inline style — per-category)
       const dot = document.createElement('div');
-      dot.style.cssText = `
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: ${color};
-        flex-shrink: 0;
-        box-shadow: 0 0 4px ${color};
-      `;
-      
+      dot.className = 'category-dot';
+      dot.style.background = color;
+      dot.style.color = color; // for currentColor in hover glow
+
       // Label
       const label = document.createElement('span');
-      label.style.cssText = `
-        flex: 1;
-        white-space: pre;
-        font-size: 9px;
-        font-family: 'Courier New', monospace;
-        text-shadow: 0 0 8px rgba(54, 242, 255, 0.2);
-      `;
-      // Initial label with no count
+      label.className = 'category-label';
       label.textContent = this._formatLabelText(name, 0);
-      
-      // Cache label element reference
+
       this.labelElements.set(name, label);
-      
+
       item.appendChild(dot);
       item.appendChild(label);
       this.itemElements.set(name, item);
-      
-      // Hover effect
-      item.addEventListener('mouseenter', () => {
-        item.style.background = `rgba(54, 242, 255, 0.12)`;
-        item.style.boxShadow = 'inset 0 0 0 1px rgba(54, 242, 255, 0.16)';
-        item.style.transform = 'translateX(1px)';
-      });
-      item.addEventListener('mouseleave', () => {
-        item.style.background = 'transparent';
-        item.style.boxShadow = 'none';
-        item.style.transform = 'translateX(0)';
-      });
-      
+
       this.element.appendChild(item);
     }
-    
-    // Add scrollbar styling
-    const style = document.createElement('style');
-    style.textContent = `
-      #ui-category-legend::-webkit-scrollbar {
-        width: 6px;
-      }
-      #ui-category-legend::-webkit-scrollbar-track {
-        background: rgba(54, 242, 255, 0.05);
-        border-radius: 3px;
-      }
-      #ui-category-legend::-webkit-scrollbar-thumb {
-        background: rgba(54, 242, 255, 0.3);
-        border-radius: 3px;
-      }
-      #ui-category-legend::-webkit-scrollbar-thumb:hover {
-        background: rgba(54, 242, 255, 0.5);
-      }
-    `;
-    document.head.appendChild(style);
-    
+
     document.body.appendChild(this.element);
   }
 
@@ -289,7 +310,7 @@ export class UICategoryLegend3_1 {
       }
     }
     
-    // Update label text efficiently (no DOM rebuilding)
+    // Update label text + active state via CSS class
     for (const [category, count] of this.categoryCounts.entries()) {
       const labelElement = this.labelElements.get(category);
       const itemElement = this.itemElements.get(category);
@@ -297,13 +318,7 @@ export class UICategoryLegend3_1 {
         labelElement.textContent = this._formatLabelText(category, count);
       }
       if (itemElement) {
-        if (count > 0) {
-          itemElement.style.background = 'rgba(54, 242, 255, 0.08)';
-          itemElement.style.boxShadow = 'inset 0 0 0 1px rgba(54, 242, 255, 0.12)';
-        } else {
-          itemElement.style.background = 'transparent';
-          itemElement.style.boxShadow = 'none';
-        }
+        itemElement.classList.toggle('has-nodes', count > 0);
       }
     }
   }

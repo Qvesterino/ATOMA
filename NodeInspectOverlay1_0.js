@@ -245,77 +245,199 @@ export class NodeInspectOverlay1_0 {
    * Creates a simple, lightweight HTML overlay
    */
   initializeHUD() {
-    // Create container
-    // SIMPLE FIX: Hard-coded position at top: 170px
-    // Position: left: 10px, top: 170px (absolute, no dynamic calculation)
-    // Shows node data ONLY, no title bar, no collapse arrow
+    // ── Inject CSS (once) ────────────────────────────────────────────
+    if (!document.getElementById('atoma-node-inspect-styles')) {
+      const style = document.createElement('style');
+      style.id = 'atoma-node-inspect-styles';
+      style.textContent = `
+        /* ── ATOMA Node Inspect Overlay — Minimalist v2.0 ── */
+        #node-inspect-overlay {
+          position: fixed;
+          left: 10px;
+          top: 315px;
+          max-width: 280px;
+          padding: 16px 18px;
+          background: rgba(8, 12, 20, 0.75);
+          backdrop-filter: blur(16px) saturate(1.2);
+          -webkit-backdrop-filter: blur(16px) saturate(1.2);
+          border-left: 2px solid rgba(0, 200, 220, 0.35);
+          border-radius: 0 8px 8px 0;
+          font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+          font-size: 12px;
+          color: rgba(200, 225, 245, 0.85);
+          z-index: 1150;
+          pointer-events: none;
+          user-select: none;
+          display: none;
+        }
+        #node-inspect-overlay .inspect-archetype {
+          font-weight: 700;
+          font-size: 14px;
+          margin-bottom: 4px;
+          letter-spacing: 0.05em;
+        }
+        #node-inspect-overlay .inspect-code {
+          color: #ffc107;
+          font-size: 10px;
+          margin-bottom: 6px;
+          font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+        }
+        #node-inspect-overlay .inspect-meaning {
+          color: #00e5a0;
+          font-size: 10px;
+          margin-bottom: 8px;
+          font-style: italic;
+          opacity: 0.8;
+        }
+        #node-inspect-overlay .inspect-personality {
+          color: #ffc107;
+          font-size: 11px;
+          margin-bottom: 6px;
+        }
+        #node-inspect-overlay .inspect-storm-mood {
+          color: #ff3d8e;
+          font-size: 11px;
+          margin-bottom: 6px;
+        }
+        #node-inspect-overlay .inspect-section {
+          margin-bottom: 8px;
+          border-top: 1px solid rgba(0, 200, 220, 0.1);
+          padding-top: 6px;
+        }
+        #node-inspect-overlay .inspect-metrics {
+          font-size: 11px;
+          line-height: 1.6;
+        }
+        #node-inspect-overlay .inspect-metric-row {
+          display: flex;
+          align-items: center;
+          margin: 4px 0;
+          gap: 8px;
+        }
+        #node-inspect-overlay .inspect-metric-label {
+          font-size: 8px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: rgba(200, 225, 245, 0.35);
+          width: 28px;
+          flex-shrink: 0;
+          font-weight: 700;
+        }
+        #node-inspect-overlay .inspect-metric-bar-track {
+          flex: 1;
+          height: 3px;
+          background: rgba(255, 255, 255, 0.04);
+          border-radius: 2px;
+          overflow: hidden;
+        }
+        #node-inspect-overlay .inspect-metric-bar-fill {
+          height: 100%;
+          border-radius: 2px;
+          transition: width 0.3s ease;
+        }
+        #node-inspect-overlay .inspect-metric-bar-fill.bar-synergy {
+          background: linear-gradient(90deg, rgba(0, 212, 255, 0.15), #00d4ff);
+        }
+        #node-inspect-overlay .inspect-metric-bar-fill.bar-harmony {
+          background: linear-gradient(90deg, rgba(0, 229, 160, 0.15), #00e5a0);
+        }
+        #node-inspect-overlay .inspect-metric-bar-fill.bar-stability {
+          background: linear-gradient(90deg, rgba(255, 193, 7, 0.15), #ffc107);
+        }
+        #node-inspect-overlay .inspect-metric-bar-fill.bar-corruption {
+          background: linear-gradient(90deg, rgba(255, 61, 142, 0.15), #ff3d8e);
+        }
+        #node-inspect-overlay .inspect-metric-bar-fill.bar-loadPressure {
+          background: linear-gradient(90deg, rgba(180, 77, 255, 0.15), #b44dff);
+        }
+        #node-inspect-overlay .inspect-metric-value {
+          font-size: 11px;
+          font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+          font-weight: 500;
+          min-width: 36px;
+          text-align: right;
+          flex-shrink: 0;
+        }
+        #node-inspect-overlay .inspect-button {
+          margin-top: 6px;
+          padding: 3px 8px;
+          font-size: 9px;
+          background: rgba(0, 200, 220, 0.08);
+          border: 1px solid rgba(0, 200, 220, 0.2);
+          color: rgba(0, 200, 220, 0.6);
+          cursor: pointer;
+          pointer-events: auto;
+          border-radius: 3px;
+          font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+          letter-spacing: 0.05em;
+          transition: background 0.2s ease, color 0.2s ease;
+        }
+        #node-inspect-overlay .inspect-button:hover {
+          background: rgba(0, 200, 220, 0.15);
+          color: rgba(0, 200, 220, 0.9);
+        }
+        #node-inspect-overlay .authority-row {
+          font-size: 10px;
+          color: rgba(200, 225, 245, 0.5);
+          margin: 2px 0;
+        }
+        #node-inspect-overlay .authority-value {
+          font-weight: 700;
+        }
+        #node-inspect-overlay .authority-value.pass { color: #00e5a0; }
+        #node-inspect-overlay .authority-value.warn { color: #ffc107; }
+        #node-inspect-overlay .authority-value.fail { color: #ff3d8e; }
+        #node-inspect-overlay .overlay-header {
+          font-weight: 700;
+          margin-bottom: 3px;
+          color: rgba(0, 200, 220, 0.6);
+          font-size: 9px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+        #node-inspect-overlay .overlay-entry {
+          margin-left: 8px;
+          margin-bottom: 2px;
+          font-size: 10px;
+        }
+        #node-inspect-overlay .overlay-name { color: rgba(0, 200, 220, 0.7); }
+        #node-inspect-overlay .overlay-detail { color: #00e5a0; }
+        #node-inspect-overlay .event-entry {
+          margin-left: 8px;
+          color: #ff3d8e;
+          font-size: 10px;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    // ── Main container ───────────────────────────────────────────────
     this.hudPanel = document.createElement('div');
     this.hudPanel.id = 'node-inspect-overlay';
     this.hudPanel.setAttribute('data-hud-id', 'inspectorHUD');
-    this.hudPanel.style.cssText = `
-      position: fixed;
-      left: 10px;
-      top: 315px;
-      transform: none;
-      width: auto;
-      max-width: 280px;
-      padding: 12px 16px;
-      background: rgba(0, 0, 0, 0.7);
-      border: 1px solid rgba(0, 255, 255, 0.5);
-      border-radius: 4px;
-      font-family: 'Rajdhani', 'Segoe UI', sans-serif;
-      font-size: 12px;
-      color: #00ffff;
-      z-index: 1150;
-      pointer-events: none;
-      box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
-      display: none;
-    `;
 
     this.hudPanel.innerHTML = `
-      <div id="node-archetype" style="font-family: 'Orbitron', 'Segoe UI', sans-serif; font-weight: bold; margin-bottom: 4px; font-size: 14px;"></div>
-      <div id="node-archetype-code" style="color: #ffaa00; font-size: 10px; margin-bottom: 6px; font-family: 'Courier New', monospace;"></div>
-      <div id="node-archetype-meaning" style="color: #88ff88; font-size: 10px; margin-bottom: 8px; font-style: italic;"></div>
-      <div id="node-personality" style="color: #ffaa00; font-size: 11px; margin-bottom: 6px;"></div>
-      <div id="node-storm-mood" style="color: #ff00ff; font-size: 11px; margin-bottom: 6px; display: none;"></div>
-      <div id="node-authority-status" style="margin-bottom: 8px; border-top: 1px solid rgba(0, 255, 255, 0.3); padding-top: 6px; display: none;"></div>
-      <div id="node-active-overlays" style="font-size: 10px; margin-bottom: 8px; border-top: 1px solid rgba(0, 255, 255, 0.3); padding-top: 6px; display: none;"></div>
-      <div id="node-event-log" style="color: #ff00ff; font-size: 10px; margin-bottom: 8px; border-top: 1px solid rgba(255, 0, 255, 0.3); padding-top: 6px; display: none;"></div>
-      <div id="node-metrics" style="font-size: 11px; line-height: 1.6;"></div>
+      <div id="node-archetype" class="inspect-archetype"></div>
+      <div id="node-archetype-code" class="inspect-code"></div>
+      <div id="node-archetype-meaning" class="inspect-meaning"></div>
+      <div id="node-personality" class="inspect-personality"></div>
+      <div id="node-storm-mood" class="inspect-storm-mood" style="display:none;"></div>
+      <div id="node-authority-status" class="inspect-section" style="display:none;"></div>
+      <div id="node-active-overlays" class="inspect-section" style="display:none;"></div>
+      <div id="node-event-log" class="inspect-section" style="display:none;"></div>
+      <div id="node-metrics" class="inspect-metrics"></div>
     `;
 
     const modeToggle = document.createElement('button');
-    modeToggle.id = 'node-inspect-overlay-display-mode-toggle';
+    modeToggle.className = 'inspect-button';
     modeToggle.textContent = 'Switch to Glyph Mode';
-    modeToggle.style.cssText = `
-      margin-top: 8px;
-      padding: 3px 6px;
-      font-size: 10px;
-      background: rgba(0, 0, 0, 0.7);
-      border: 1px solid rgba(0, 255, 255, 0.5);
-      color: #00ffff;
-      cursor: pointer;
-      pointer-events: auto;
-      border-radius: 3px;
-    `;
     modeToggle.addEventListener('click', () => this.toggleMetricDisplayMode());
     this.hudPanel.appendChild(modeToggle);
     this.modeToggleButton = modeToggle;
 
     const overlayDebugToggle = document.createElement('button');
-    overlayDebugToggle.id = 'node-inspect-overlay-active-overlays-toggle';
+    overlayDebugToggle.className = 'inspect-button';
     overlayDebugToggle.textContent = 'Show Active Overlays';
-    overlayDebugToggle.style.cssText = `
-      margin-top: 4px;
-      padding: 3px 6px;
-      font-size: 10px;
-      background: rgba(0, 0, 0, 0.7);
-      border: 1px solid rgba(0, 255, 255, 0.5);
-      color: #00ffff;
-      cursor: pointer;
-      pointer-events: auto;
-      border-radius: 3px;
-    `;
     overlayDebugToggle.addEventListener('click', () => this.toggleActiveOverlayDebugMode());
     this.hudPanel.appendChild(overlayDebugToggle);
     this.activeOverlayDebugButton = overlayDebugToggle;
@@ -639,8 +761,8 @@ export class NodeInspectOverlay1_0 {
         const eventLog = userData.eventLog;
         if (eventLog && eventLog.length > 0) {
           eventLogEl.innerHTML = `
-            <div style="font-weight: bold; margin-bottom: 3px;">Recent Events:</div>
-            ${eventLog.map(event => `<div style="margin-left: 8px; color: #ff88ff;">• ${event}</div>`).join('')}
+            <div class="overlay-header">Recent Events:</div>
+            ${eventLog.map(event => `<div class="event-entry">• ${event}</div>`).join('')}
           `;
           eventLogEl.style.display = 'block';
         } else {
@@ -702,16 +824,14 @@ export class NodeInspectOverlay1_0 {
       }
       
       // Build authority HTML
-      let html = '<div style="font-size: 10px;">';
-      html += `<div style="color: #aaaaaa;">Compliance: <span style="color: ${isCompliant ? '#00ff00' : '#ff0000'}; font-weight: bold;">${isCompliant ? 'VERIFIED' : 'FAILED'}</span></div>`;
-      html += `<div style="color: #aaaaaa;">Integrity: <span style="color: ${isLocked ? '#00ff00' : '#ffff00'}; font-weight: bold;">${isLocked ? 'LOCKED' : 'OPEN'}</span></div>`;
+      let html = '';
+      html += `<div class="authority-row">Compliance: <span class="authority-value ${isCompliant ? 'pass' : 'fail'}">${isCompliant ? 'VERIFIED' : 'FAILED'}</span></div>`;
+      html += `<div class="authority-row">Integrity: <span class="authority-value ${isLocked ? 'pass' : 'warn'}">${isLocked ? 'LOCKED' : 'OPEN'}</span></div>`;
       
       // Only show uniqueness if we could determine it
       if (window.nodeSpawnRegistry) {
-        html += `<div style="color: #aaaaaa;">Uniqueness: <span style="color: ${isUnique ? '#ffaa00' : '#aaaaaa'}; font-weight: bold;">${isUnique ? 'SINGLETON' : 'GENERIC'}</span></div>`;
+        html += `<div class="authority-row">Uniqueness: <span class="authority-value ${isUnique ? 'warn' : ''}">${isUnique ? 'SINGLETON' : 'GENERIC'}</span></div>`;
       }
-      
-      html += '</div>';
       
       authorityEl.innerHTML = html;
       authorityEl.style.display = 'block';
@@ -735,19 +855,19 @@ export class NodeInspectOverlay1_0 {
     const activeOverlays = this._collectActiveOverlaySystems();
     if (activeOverlays.length === 0) {
       overlaysEl.innerHTML = `
-        <div style="font-weight: bold; margin-bottom: 3px; color: #9fe7ff;">Active Overlays:</div>
-        <div style="margin-left: 8px; color: #88ff88;">No active overlays</div>
+        <div class="overlay-header">Active Overlays:</div>
+        <div class="overlay-entry"><span class="overlay-detail">No active overlays</span></div>
       `;
       overlaysEl.style.display = 'block';
       return;
     }
 
     overlaysEl.innerHTML = `
-      <div style="font-weight: bold; margin-bottom: 3px; color: #9fe7ff;">Active Overlays:</div>
+      <div class="overlay-header">Active Overlays:</div>
       ${activeOverlays.map(({ name, detail }) => `
-        <div style="margin-left: 8px; margin-bottom: 3px;">
-          <span style="color: #9fe7ff;">${this._escapeHtml(name)}</span>
-          ${detail ? `<span style="color: #88ff88;"> · ${this._escapeHtml(detail)}</span>` : ''}
+        <div class="overlay-entry">
+          <span class="overlay-name">${this._escapeHtml(name)}</span>
+          ${detail ? `<span class="overlay-detail"> · ${this._escapeHtml(detail)}</span>` : ''}
         </div>
       `).join('')}
     `;
@@ -1208,12 +1328,12 @@ export class NodeInspectOverlay1_0 {
    * Gracefully skips missing metrics
    */
   renderMetricsTable(metrics) {
-  const metricsList = [
-    { name: 'Synergy', key: 'synergy' },
-    { name: 'Harmony', key: 'harmony' },
-    { name: 'Stability', key: 'stability' },
-    { name: 'Corruption', key: 'corruption' },
-    { name: 'Load', key: 'loadPressure' },
+    const metricsList = [
+      { name: 'SYN', key: 'synergy' },
+      { name: 'HRM', key: 'harmony' },
+      { name: 'STB', key: 'stability' },
+      { name: 'CPT', key: 'corruption' },
+      { name: 'LOD', key: 'loadPressure' },
     ];
 
     return metricsList.map(metric => {
@@ -1223,19 +1343,18 @@ export class NodeInspectOverlay1_0 {
       if (value === undefined || value === null) {
         return '';
       }
-const v = Math.max(0, Math.min(1, value));
-const barLength = Math.round(v * 10);
-const bar = '█'.repeat(barLength) + '░'.repeat(10 - barLength);
 
-      // Create simple bar (5-10 segments)
-
+      const v = Math.max(0, Math.min(1, value));
+      const widthPercent = (v * 100).toFixed(1);
 
       return `
-        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-          <span>${metric.name}:</span>
-          <span style="font-weight: bold; color: #00ff88;">${this.formatMetricValue(value)}</span>
+        <div class="inspect-metric-row">
+          <span class="inspect-metric-label">${metric.name}</span>
+          <div class="inspect-metric-bar-track">
+            <div class="inspect-metric-bar-fill bar-${metric.key}" style="width:${widthPercent}%"></div>
+          </div>
+          <span class="inspect-metric-value">${this.formatMetricValue(value)}</span>
         </div>
-        <div style="font-size: 10px; color: #00ff88; margin-bottom: 4px;">${bar}</div>
       `;
     }).join('');
   }
@@ -1280,7 +1399,7 @@ const bar = '█'.repeat(barLength) + '░'.repeat(10 - barLength);
    * Format a clamped float (0..1) for display
    */
   formatFloat(value) {
-    return this.clamp01(value).toFixed(6);
+    return this.clamp01(value).toFixed(2);
   }
   /**
    * Force hide overlay (for debugging/special states)

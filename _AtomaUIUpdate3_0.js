@@ -341,7 +341,7 @@ export class AtomaUIUpdate3_0 {
       outer: '#0099ff'
     };
     
-    let html = '<div style="margin-bottom: 4px; color: #00ffff; font-weight: bold;">NODE CATEGORIES</div>';
+    let html = '<div style="margin-bottom: 4px; color: #00ffff; font-weight: bold;">CATEGORIES</div>';
     
     for (const [category, count] of sorted) {
       if (count > 0) {

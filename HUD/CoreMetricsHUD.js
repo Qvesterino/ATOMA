@@ -92,16 +92,16 @@ export class CoreMetricsHUD {
       loadPressure: null
     };
     
-    // Color palette (ATOMA-themed)
+    // Color palette (ATOMA-themed — refined v2.0)
     this.colors = {
-      synergy: '#00ccdd',      // Cyan
-      harmony: '#00dd99',      // Green-teal
-      stability: '#ffdd00',  // Amber
-      corruption: '#dd0099',   // Magenta
-      loadPressure: '#aa00ff', // Violet
-      text: '#00ffff',         // Bright cyan
-      background: 'rgba(10, 10, 20, 0.8)',
-      border: '#00ccdd'
+      synergy: '#00d4ff',
+      harmony: '#00e5a0',
+      stability: '#ffc107',
+      corruption: '#ff3d8e',
+      loadPressure: '#b44dff',
+      text: 'rgba(200, 225, 245, 0.85)',
+      background: 'rgba(8, 12, 20, 0.75)',
+      accent: 'rgba(0, 200, 220, 0.35)'
     };
 
     // Metric display mode (numeric or glyph)
@@ -127,88 +127,200 @@ export class CoreMetricsHUD {
   }
   
   /**
-   * Create HUD DOM elements
+   * Create HUD DOM elements — World-Class Minimalist v2.0
+   * Glass-morphism container, gradient bars, trend arrows, prominent Network Time.
    */
   createHUD() {
-    // Main container
-    // ULTRA CLEAN PATCH (v2.5): Left column positioning (third in stack)
-    // Position: top: 330px (below Node Inspector)
-    // Left alignment: left: 10px (perfect left column)
-    // Z-index: 1145 (third in hierarchy)
+    // ── Inject CSS (once) ────────────────────────────────────────────
+    if (!document.getElementById('atoma-core-hud-styles')) {
+      const style = document.createElement('style');
+      style.id = 'atoma-core-hud-styles';
+      style.textContent = `
+        /* ── ATOMA Core Metrics HUD — Minimalist v2.0 ── */
+        #core-metrics-hud {
+          position: fixed;
+          top: 740px;
+          left: 10px;
+          z-index: 1145;
+          font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+          color: rgba(200, 225, 245, 0.85);
+          background: rgba(8, 12, 20, 0.75);
+          backdrop-filter: blur(16px) saturate(1.2);
+          -webkit-backdrop-filter: blur(16px) saturate(1.2);
+          border-left: 2px solid rgba(0, 200, 220, 0.35);
+          border-radius: 0 8px 8px 0;
+          padding: 16px 18px;
+          min-width: 240px;
+          max-width: 300px;
+          user-select: none;
+          transition: box-shadow 0.4s ease;
+        }
+        #core-metrics-hud.atoma-glow-active {
+          box-shadow: 0 0 30px rgba(0, 200, 220, 0.12),
+                      inset 0 0 20px rgba(0, 200, 220, 0.03);
+        }
+        #core-metrics-hud .hud-header {
+          font-size: 8px;
+          letter-spacing: 0.25em;
+          text-transform: uppercase;
+          color: rgba(0, 200, 220, 0.4);
+          margin-bottom: 12px;
+          padding-bottom: 6px;
+          border-bottom: 1px solid rgba(0, 200, 220, 0.1);
+        }
+        #core-metrics-hud .metric-row {
+          display: flex;
+          align-items: center;
+          margin: 5px 0;
+          gap: 10px;
+        }
+        #core-metrics-hud .metric-label {
+          font-size: 8px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: rgba(200, 225, 245, 0.35);
+          width: 28px;
+          flex-shrink: 0;
+          font-weight: 700;
+        }
+        #core-metrics-hud .metric-bar-track {
+          flex: 1;
+          height: 3px;
+          background: rgba(255, 255, 255, 0.04);
+          border-radius: 2px;
+          overflow: hidden;
+        }
+        #core-metrics-hud .metric-bar-fill {
+          height: 100%;
+          width: 0%;
+          border-radius: 2px;
+          transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        #core-metrics-hud .metric-bar-fill.bar-synergy {
+          background: linear-gradient(90deg, rgba(0, 212, 255, 0.15), #00d4ff);
+          box-shadow: 0 0 6px rgba(0, 212, 255, 0.25);
+        }
+        #core-metrics-hud .metric-bar-fill.bar-harmony {
+          background: linear-gradient(90deg, rgba(0, 229, 160, 0.15), #00e5a0);
+          box-shadow: 0 0 6px rgba(0, 229, 160, 0.25);
+        }
+        #core-metrics-hud .metric-bar-fill.bar-stability {
+          background: linear-gradient(90deg, rgba(255, 193, 7, 0.15), #ffc107);
+          box-shadow: 0 0 6px rgba(255, 193, 7, 0.25);
+        }
+        #core-metrics-hud .metric-bar-fill.bar-corruption {
+          background: linear-gradient(90deg, rgba(255, 61, 142, 0.15), #ff3d8e);
+          box-shadow: 0 0 6px rgba(255, 61, 142, 0.25);
+        }
+        #core-metrics-hud .metric-bar-fill.bar-loadPressure {
+          background: linear-gradient(90deg, rgba(180, 77, 255, 0.15), #b44dff);
+          box-shadow: 0 0 6px rgba(180, 77, 255, 0.25);
+        }
+        #core-metrics-hud .metric-value {
+          font-size: 11px;
+          font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+          font-weight: 500;
+          min-width: 38px;
+          text-align: right;
+          flex-shrink: 0;
+          transition: color 0.4s ease;
+        }
+        #core-metrics-hud .metric-trend {
+          font-size: 8px;
+          width: 10px;
+          text-align: center;
+          flex-shrink: 0;
+          opacity: 0.5;
+          transition: color 0.3s ease;
+        }
+        #core-metrics-hud .network-time-section {
+          margin-top: 12px;
+          padding-top: 10px;
+          border-top: 1px solid rgba(0, 200, 220, 0.1);
+          display: flex;
+          align-items: baseline;
+          gap: 8px;
+        }
+        #core-metrics-hud .network-time-label {
+          font-size: 8px;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: rgba(0, 200, 220, 0.45);
+          font-weight: 700;
+        }
+        #core-metrics-hud .network-time-value {
+          font-size: 18px;
+          font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+          font-weight: 700;
+          color: #00ffff;
+          letter-spacing: 0.06em;
+          transition: color 0.4s ease, text-shadow 0.4s ease;
+        }
+        #core-metrics-hud .network-time-value.frozen {
+          color: #ffc107;
+        }
+        #core-metrics-hud .network-time-value.rewinding {
+          color: #ff8c00;
+          text-shadow: 0 0 12px rgba(255, 140, 0, 0.4);
+        }
+        #core-metrics-hud .time-elasticity-badge {
+          font-size: 7px;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: #ffc107;
+          margin-left: 4px;
+          animation: atoma-pulse-soft 1.5s ease-in-out infinite;
+        }
+        @keyframes atoma-pulse-soft {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 1; }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    // ── Main container ───────────────────────────────────────────────
     this.hudContainer = document.createElement('div');
     this.hudContainer.id = 'core-metrics-hud';
-    this.hudContainer.style.cssText = `
-      position: fixed;
-      top: 740px;
-      left: 10px;
-      font-family: 'Rajdhani', 'Segoe UI', sans-serif;
-      font-size: 12px;
-      line-height: 1.2;
-      letter-spacing: 0.05em;
-      color: ${this.colors.text};
-      background: ${this.colors.background};
-      border: 1px solid ${this.colors.border};
-      border-radius: 4px;
-      padding: 12px;
-      z-index: 1145;
-      text-shadow: 0 0 10px ${this.colors.border};
-      max-width: 400px;
-      box-shadow: 0 0 20px rgba(0, 200, 220, 0.3);
-    `;
-    
-    // Metrics rows
+
+    // Header (also serves as drag handle for HUDDragManager)
+    const header = document.createElement('div');
+    header.className = 'hud-header';
+    header.textContent = 'ATOMA NETWORK';
+    this.hudContainer.appendChild(header);
+
+    // ── Metric rows ──────────────────────────────────────────────────
     const metrics = [
-      { key: 'synergy', label: 'NETWORK SYNERGY', color: this.colors.synergy },
-      { key: 'harmony', label: 'HARMONY FLOW', color: this.colors.harmony },
-      { key: 'stability', label: 'NETWORK STRESS', color: this.colors.stability },
-      { key: 'corruption', label: 'CORRUPTION LEVEL', color: this.colors.corruption },
-      { key: 'loadPressure', label: 'LOAD PRESSURE', color: this.colors.loadPressure }
+      { key: 'synergy', label: 'SYN', color: this.colors.synergy },
+      { key: 'harmony', label: 'HRM', color: this.colors.harmony },
+      { key: 'stability', label: 'STB', color: this.colors.stability },
+      { key: 'corruption', label: 'CPT', color: this.colors.corruption },
+      { key: 'loadPressure', label: 'LOD', color: this.colors.loadPressure }
     ];
-    
+
     metrics.forEach(metric => {
       const row = this.createMetricRow(metric.label, metric.key, metric.color);
       this.hudContainer.appendChild(row);
     });
-    
-    // Network Time (Network Time Pressure mechanic)
-    const networkTimeRow = document.createElement('div');
-    networkTimeRow.style.cssText = 'margin: 8px 0 0 0; font-weight: bold;';
-    networkTimeRow.innerHTML = `<span style="color: #00ffff;">NETWORK TIME:</span> <span id="network-time" style="color: #00ffff;">00000</span>`;
-    this.hudContainer.appendChild(networkTimeRow);
-    this.hudElements.networkTime = networkTimeRow.querySelector('#network-time');
 
-    // Display mode toggle (numbers vs glyphs)
-    const modeToggle = document.createElement('button');
-    modeToggle.id = 'core-metrics-hud-display-mode-toggle';
-    modeToggle.textContent = 'Switch to Glyph Mode';
-    modeToggle.style.cssText = `
-      margin-top: 8px;
-      padding: 4px 8px;
-      background: rgba(20, 20, 40, 0.9);
-      border: 1px solid ${this.colors.border};
-      color: ${this.colors.text};
-      border-radius: 3px;
-      cursor: pointer;
-      font-size: 10px;
-      font-family: 'Rajdhani', 'Segoe UI', sans-serif;
-    `;
-    modeToggle.addEventListener('click', () => this.toggleMetricDisplayMode());
-    this.hudContainer.appendChild(modeToggle);
-    this.modeToggleButton = modeToggle;
-    
-    // === CSS FOR ELASTICITY PULSE ANIMATION ===
-    if (!document.getElementById('core-metrics-hud-pulse-style')) {
-      const pulseStyle = document.createElement('style');
-      pulseStyle.id = 'core-metrics-hud-pulse-style';
-      pulseStyle.textContent = `
-        @keyframes elasticity-pulse {
-          0%, 100% { opacity: 0.6; transform: scale(1); }
-          50% { opacity: 1; transform: scale(1.05); }
-        }
-      `;
-      document.head.appendChild(pulseStyle);
-    }
-    
+    // ── Network Time section (prominent) ─────────────────────────────
+    const ntSection = document.createElement('div');
+    ntSection.className = 'network-time-section';
+
+    const ntLabel = document.createElement('span');
+    ntLabel.className = 'network-time-label';
+    ntLabel.textContent = 'NET TIME';
+
+    const ntValue = document.createElement('span');
+    ntValue.className = 'network-time-value';
+    ntValue.id = 'network-time';
+    ntValue.textContent = '00000';
+
+    ntSection.appendChild(ntLabel);
+    ntSection.appendChild(ntValue);
+    this.hudContainer.appendChild(ntSection);
+    this.hudElements.networkTime = ntValue;
+
     document.body.appendChild(this.hudContainer);
   }
 
@@ -265,74 +377,51 @@ export class CoreMetricsHUD {
 
   
   /**
-   * Create a single metric row with bar
+   * Create a single metric row — single-line layout with gradient bar + trend arrow.
    */
   createMetricRow(label, key, color) {
     const row = document.createElement('div');
-    row.style.cssText = `
-      margin: 4px 0;
-      font-size: 10px;
-    `;
-    
-    // Label and percentage - single line
+    row.className = 'metric-row';
+
+    // Label (3-char abbreviation)
     const labelSpan = document.createElement('span');
-    labelSpan.style.cssText = `
-      display: inline-block;
-      color: ${color};
-      font-family: 'Orbitron', 'Segoe UI', sans-serif;
-      font-weight: bold;
-      font-size: 10px;
-    `;
-    labelSpan.textContent = `${label}:`;
-    
-    const percentSpan = document.createElement('span');
-    percentSpan.id = `${key}-percent`;
-    percentSpan.style.cssText = `
-      display: inline-block;
-      margin-left: 8px;
-      color: ${this.colors.text};
-      font-family: 'Courier New', monospace;
-      font-weight: bold;
-      font-size: 10px;
-    `;
-    percentSpan.textContent = '0.000000';
-    
-    row.appendChild(labelSpan);
-    row.appendChild(percentSpan);
-    
-    // Bar container
-    const barContainer = document.createElement('div');
-    barContainer.style.cssText = `
-      width: 100%;
-      height: 10px;
-      background: rgba(0, 0, 0, 0.8);
-      margin-top: 3px;
-      border: 1px solid ${color};
-      border-radius: 2px;
-      overflow: hidden;
-      box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.8);
-    `;
-    
+    labelSpan.className = 'metric-label';
+    labelSpan.textContent = label;
+
+    // Bar track + fill
+    const barTrack = document.createElement('div');
+    barTrack.className = 'metric-bar-track';
+
     const barFill = document.createElement('div');
+    barFill.className = `metric-bar-fill bar-${key}`;
     barFill.id = `${key}-bar`;
-    barFill.style.cssText = `
-      height: 100%;
-      width: 0%;
-      background: ${color};
-      box-shadow: 0 0 5px ${color};
-      transition: width 0.2s ease;
-    `;
-    
-    barContainer.appendChild(barFill);
-    row.appendChild(barContainer);
-    
-    // Store element references
+    barTrack.appendChild(barFill);
+
+    // Value (right-aligned, metric color)
+    const valueSpan = document.createElement('span');
+    valueSpan.className = 'metric-value';
+    valueSpan.id = `${key}-percent`;
+    valueSpan.style.color = color;
+    valueSpan.textContent = '0.00';
+
+    // Trend arrow (↑ ↓ →)
+    const trendSpan = document.createElement('span');
+    trendSpan.className = 'metric-trend';
+    trendSpan.textContent = '→';
+
+    row.appendChild(labelSpan);
+    row.appendChild(barTrack);
+    row.appendChild(valueSpan);
+    row.appendChild(trendSpan);
+
+    // Store element references (same API as before + trend)
     this.hudElements[key] = {
-      percent: percentSpan,
+      percent: valueSpan,
       bar: barFill,
+      trend: trendSpan,
       color: color
     };
-    
+
     return row;
   }
   
@@ -505,44 +594,42 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   }
 
   /**
-   * Update a single metric display with color indication
-   * Green when value increases, red when decreases
+   * Update a single metric display with trend arrow.
+   * Value stays in metric's own color — direction shown by trend arrow only.
    */
   updateMetricDisplay(key, value) {
     const element = this.hudElements[key];
     if (!element) return;
-    
+
     if (window.DEBUG_HUD) {
       console.log('[HUD] updateMetricDisplay', key, value);
     }
-    
+
     const clamped = this.clamp01(value);
     const previousValue = this.previousValues[key];
-    
-    // Determine color based on value direction
-    if (previousValue !== null) {
-      if (clamped > previousValue) {
-        // Value increased - green
-        element.percent.style.color = '#00ff00';
-      } else if (clamped < previousValue) {
-        // Value decreased - red
-        element.percent.style.color = '#ff0000';
-      } else {
-        // Value unchanged - default color
-        element.percent.style.color = this.colors.text;
-      }
-    } else {
-      // First update - default color
-      element.percent.style.color = this.colors.text;
-    }
-    
+
     // Update metric text (numeric or glyph depending on user selection)
     element.percent.textContent = this.formatMetricValue(clamped);
 
     // Update bar width
-    const widthPercent = (clamped * 100).toFixed(2);
+    const widthPercent = (clamped * 100).toFixed(1);
     element.bar.style.width = `${widthPercent}%`;
-    
+
+    // Trend arrow — direction indicator
+    if (previousValue !== null && element.trend) {
+      const delta = clamped - previousValue;
+      if (delta > 0.001) {
+        element.trend.textContent = '↑';
+        element.trend.style.color = '#00e5a0';
+      } else if (delta < -0.001) {
+        element.trend.textContent = '↓';
+        element.trend.style.color = '#ff3d8e';
+      } else {
+        element.trend.textContent = '→';
+        element.trend.style.color = 'rgba(200, 225, 245, 0.25)';
+      }
+    }
+
     // Store current value for next comparison
     this.previousValues[key] = clamped;
   }
@@ -556,55 +643,47 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   }
 
   /**
-   * Format clamped float for display (six decimals).
+   * Format clamped float for display (two decimals — clean player-facing precision).
    */
   formatFloat(value) {
-    return this.clamp01(value).toFixed(6);
+    return this.clamp01(value).toFixed(2);
   }
   
   /**
-   * Update Network Time Pressure counter
-   * - Increments by 5 units/sec when synergy < 85%
-   * - Freezes when synergy >= 85%
-   * - Never decreases or resets
-   * - Displays as integer with cyan (running) or gold (frozen) color
+   * Update Network Time Pressure counter.
+   * Uses CSS classes for state (frozen/running) instead of inline color.
    */
   updateNetworkTime(synergy, deltaTime) {
     if (!this.hudElements.networkTime) return;
-    
+
     const safeSynergy = this.clamp01(synergy);
     const wasFrozen = this.networkTimeFrozen;
     this.networkTimeFrozen = safeSynergy >= 0.85;
-    
+
     // Increment counter: 5 units per second
     if (!this.networkTimeFrozen) {
       this.networkTimeCounter += 5 * deltaTime;
     }
-    
+
     // Format as 5-digit integer (00000)
     const displayValue = Math.floor(this.networkTimeCounter).toString().padStart(5, '0');
     this.hudElements.networkTime.textContent = displayValue;
-    
-    // Color based on state
-    if (this.networkTimeFrozen) {
-      this.hudElements.networkTime.style.color = '#ffdd00'; // Gold when frozen
-    } else {
-      this.hudElements.networkTime.style.color = '#00ffff'; // Cyan when running
-    }
-    
+
+    // State via CSS class
+    this.hudElements.networkTime.classList.toggle('frozen', this.networkTimeFrozen);
+
     // Pulse on state change
     if (wasFrozen !== this.networkTimeFrozen) {
       this.networkTimePulseActive = true;
       this.networkTimePulseElapsed = 0;
     }
-    
+
     // Update pulse animation
     if (this.networkTimePulseActive) {
       this.networkTimePulseElapsed += deltaTime;
       if (this.networkTimePulseElapsed < 0.3) {
         const pulsePhase = (this.networkTimePulseElapsed / 0.3) * Math.PI;
-        const pulseScale = Math.sin(pulsePhase);
-        const opacity = 0.5 + pulseScale * 0.5;
+        const opacity = 0.5 + Math.sin(pulsePhase) * 0.5;
         this.hudElements.networkTime.style.opacity = opacity.toString();
       } else {
         this.networkTimePulseActive = false;
@@ -614,55 +693,35 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   }
   
   /**
-   * Update Visual Network Time Elasticity visualization
-   * - Shows when time rewind effect is active (synergy > 85% for 5+ seconds)
-   * - Changes color and adds visual indicator
-   * - Smooth fade-in/fade-out based on fadeAlpha
+   * Update Visual Network Time Elasticity visualization.
+   * Uses CSS classes for rewinding state — no inline color manipulation.
    */
   updateTimeElasticityVisualization() {
     if (!this.hudElements.networkTime) return;
-    
+
     const isRewinding = this.timeElasticity.isRewinding();
     const fadeAlpha = this.timeElasticity.getFadeAlpha();
-    
+
     if (isRewinding) {
-      // Change color based on fade intensity (gold → orange-red)
-      const hue = 50 - (fadeAlpha * 30); // 50 (gold) → 20 (orangered)
-      const saturation = 100;
-      const lightness = 60;
-      
-      this.hudElements.networkTime.style.color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-      
-      // Add glow effect based on fade intensity
-      const glowIntensity = 10 + (fadeAlpha * 10);
-      this.hudElements.networkTime.style.textShadow = `0 0 ${glowIntensity}px hsl(${hue}, ${saturation}%, ${lightness}%)`;
-      this.hudElements.networkTime.style.fontWeight = 'bold';
-      
-      // Add indicator element
+      // Rewinding state via CSS class
+      this.hudElements.networkTime.classList.add('rewinding');
+      this.hudElements.networkTime.classList.remove('frozen');
+
+      // Elasticity badge (CSS-animated)
       if (!this.timeElasticityIndicator) {
-        const indicator = document.createElement('span');
-        indicator.id = 'time-elasticity-indicator';
-        indicator.style.cssText = `
-          margin-left: 8px;
-          font-size: 10px;
-          color: #ffdd00;
-          animation: elasticity-pulse 1s infinite;
-          opacity: ${fadeAlpha};
-        `;
-        indicator.textContent = '⏪ TIME ELASTIC';
-        this.hudElements.networkTime.parentElement.appendChild(indicator);
-        this.timeElasticityIndicator = indicator;
-      } else {
-        // Update opacity of existing indicator
-        this.timeElasticityIndicator.style.opacity = fadeAlpha.toString();
+        const badge = document.createElement('span');
+        badge.className = 'time-elasticity-badge';
+        badge.textContent = 'ELASTIC';
+        this.hudElements.networkTime.parentElement.appendChild(badge);
+        this.timeElasticityIndicator = badge;
       }
+      this.timeElasticityIndicator.style.opacity = fadeAlpha.toString();
     } else {
-      // Normal state - reset to default
-      this.hudElements.networkTime.style.color = '#00ffff';
+      // Normal state
+      this.hudElements.networkTime.classList.remove('rewinding');
       this.hudElements.networkTime.style.textShadow = '';
-      this.hudElements.networkTime.style.fontWeight = 'normal';
-      
-      // Remove indicator element
+
+      // Remove badge
       if (this.timeElasticityIndicator) {
         this.timeElasticityIndicator.remove();
         this.timeElasticityIndicator = null;
@@ -683,28 +742,24 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
 
   
   /**
-   * Update glow animation
+   * Update glow animation — CSS class toggle, no inline boxShadow.
    */
   updateGlow(deltaTime) {
     if (document?.documentElement?.classList.contains('atoma-no-animated-glow')) {
       return;
     }
     if (!this.glowActive) return;
-    
+
     this.glowElapsedTime += deltaTime;
-    
+
     if (this.glowElapsedTime >= this.glowDuration) {
       this.glowActive = false;
-      this.hudContainer.style.boxShadow = `0 0 20px rgba(0, 200, 220, 0.3)`;
+      this.hudContainer.classList.remove('atoma-glow-active');
       return;
     }
-    
-    // Animate glow intensity
-    const progress = this.glowElapsedTime / this.glowDuration;
-    const glowIntensity = Math.sin(progress * Math.PI) * 0.7 + 0.3;
-    const glowAlpha = glowIntensity * 0.5;
-    
-    this.hudContainer.style.boxShadow = `0 0 ${20 + glowIntensity * 20}px rgba(0, 200, 220, ${glowAlpha})`;
+
+    // Activate glow via CSS class
+    this.hudContainer.classList.add('atoma-glow-active');
   }
   
   /**

@@ -80,26 +80,27 @@ export function mountVariantBAdvisorHUD(rootElement, { skipVisibilitySync = fals
 
 
 .variant-b-advisor-hud .panel {
-  background: rgba(8, 14, 22, 0.55);
-  border: 1px solid rgba(0, 220, 255, 0.28);
-  box-shadow: 0 0 14px rgba(0, 200, 255, 0.12);
-  backdrop-filter: blur(6px);
-  border-radius: 6px;
-  padding: 12px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  background: rgba(8, 12, 20, 0.75);
+  border-right: 2px solid rgba(0, 200, 220, 0.35);
+  border-radius: 8px 0 0 8px;
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  padding: 14px 16px;
+  transition: border-color 0.3s ease;
 }
 
 .variant-b-advisor-hud:hover .panel {
-  border-color: rgba(0, 220, 255, 0.4);
-  box-shadow: 0 0 16px rgba(0, 200, 255, 0.18);
+  border-right-color: rgba(0, 200, 220, 0.55);
 }
 
 .variant-b-advisor-hud .header {
-  font-family: 'Orbitron', 'Segoe UI', sans-serif;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  color: #6FF3FF;
-  margin-bottom: 6px;
+  font-size: 8px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: rgba(0, 200, 220, 0.4);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(0, 200, 220, 0.1);
 }
 
 .variant-b-advisor-hud .body {
@@ -118,15 +119,19 @@ export function mountVariantBAdvisorHUD(rootElement, { skipVisibilitySync = fals
 
 .variant-b-advisor-hud .label {
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.1em;
+  font-size: 9px;
+  color: rgba(200, 225, 245, 0.4);
 }
 
 .variant-b-advisor-hud .value {
-  color: #BEEFFF;
+  color: rgba(200, 225, 245, 0.85);
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  font-size: 11px;
 }
 
 .variant-b-advisor-hud .muted {
-  opacity: 0.6;
+  opacity: 0.5;
 }
 /* Disable legacy AI automation HUD */
 .ai-automation-hud {
@@ -136,13 +141,9 @@ export function mountVariantBAdvisorHUD(rootElement, { skipVisibilitySync = fals
   opacity: 0;
   max-height: 0;
   overflow: hidden;
-  transition: opacity 0.2s ease, max-height 0.2s ease, margin-top 0.2s ease;
+  transition: opacity 0.3s ease, max-height 0.3s ease, margin-top 0.3s ease;
 }
-.variant-b-advisor-hud .label {
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: rgba(190, 239, 255, 0.85);
-}
+
 .variant-b-advisor-hud:hover .extra {
   opacity: 1;
   max-height: 120px;
@@ -150,21 +151,22 @@ export function mountVariantBAdvisorHUD(rootElement, { skipVisibilitySync = fals
 }
 
 .variant-b-advisor-hud .insight {
-  margin-top: 6px;
-  border-top: 1px solid rgba(0, 220, 255, 0.18);
-  padding-top: 6px;
+  margin-top: 8px;
+  border-top: 1px solid rgba(0, 200, 220, 0.1);
+  padding-top: 8px;
 }
 
 .variant-b-advisor-hud .insight-label {
-  font-size: 11px;
-  color: #6FF3FF;
-  letter-spacing: 0.04em;
-  margin-bottom: 3px;
+  font-size: 8px;
+  color: rgba(0, 200, 220, 0.4);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
 }
 
 .variant-b-advisor-hud .insight-value {
   font-size: 11px;
-  color: #BEEFFF;
+  color: rgba(200, 225, 245, 0.85);
 }
     `;
     document.head.appendChild(style);

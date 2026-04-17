@@ -6190,18 +6190,22 @@ this.setHudDirty('nodeInspect');
                     'top:calc(12px + 1.5cm)',
                     'right:12px',
                     'z-index:2147483647',
-                    'padding:8px 10px',
-                    'border:1px solid rgba(120,220,255,0.45)',
-                    'border-radius:8px',
-                    'background:rgba(5,10,18,0.78)',
-                    'color:#bdf6ff',
-                    'font:600 12px/1.2 Consolas, monospace',
-                    'letter-spacing:0.04em',
-                    'box-shadow:0 6px 24px rgba(0,0,0,0.35)',
+                    'padding:16px 18px',
+                    'border-right:2px solid rgba(0,200,220,0.35)',
+                    'border-radius:8px 0 0 8px',
+                    'background:rgba(8,12,20,0.75)',
+                    'backdrop-filter:blur(16px) saturate(1.2)',
+                    '-webkit-backdrop-filter:blur(16px) saturate(1.2)',
+                    'color:rgba(200,225,245,0.85)',
+                    "font-family:'Rajdhani','Segoe UI',sans-serif",
+                    'font-size:11px',
+                    'line-height:1.5',
+                    'letter-spacing:0.03em',
                     'pointer-events:none',
+                    'user-select:none',
                     'white-space:pre'
                 ].join(';');
-                overlay.textContent = 'R:0 | T:0 | A:0';
+                overlay.textContent = 'Loading Wave HUD...';
                 const mountPoint = window.document.body || window.document.documentElement;
                 mountPoint?.appendChild?.(overlay);
                 return overlay;
@@ -6284,14 +6288,30 @@ this.setHudDirty('nodeInspect');
                 const overlay = ensureWaveDebugOverlay();
                 if (overlay) {
                     overlay.textContent = [
-                        `R:${state.reflectionActive} | T:${state.traps} | A:${state.antinodeMeshes}`,
-                        `P:${state.pressureZonesActive} | amp:${state.activeTrapAverageAmplitude.toFixed(2)} | peak:${state.activeTrapAmplitude.toFixed(2)}`
-                        ,
-                        `state:${state.primaryTrapState} | radius:${state.primaryTrapRadius.toFixed(2)}`,
-                        `rupt:${state.ruptureCount} | casc:${state.activeCascades} | pre:${state.preRuptureZones}`,
-                        `recovery: zones:${state.recoveringZones} | waves:${state.wavePoolActive} | halos:${state.haloPoolActive} | parts:${state.activeParticles}`
+                        `=== WAVE SYSTEM ===`,
+                        `Active Links:      ${state.activeLinks}`,
+                        `Resistant Nodes:   ${state.resistantNodes}`,
+                        `---`,
+                        `Reflections:       ${state.reflectionActive}`,
+                        `Pressure Zones:    ${state.pressureZonesActive}`,
+                        `---`,
+                        `Standing Traps:    ${state.traps}`,
+                        `Trap State:        ${state.primaryTrapState}`,
+                        `Trap Radius:       ${state.primaryTrapRadius.toFixed(2)}`,
+                        `Avg Amplitude:     ${state.activeTrapAverageAmplitude.toFixed(2)}`,
+                        `Peak Amplitude:    ${state.activeTrapAmplitude.toFixed(2)}`,
+                        `Antinodes:         ${state.antinodeMeshes}`,
+                        `---`,
+                        `Ruptures:          ${state.ruptureCount}`,
+                        `Active Cascades:   ${state.activeCascades}`,
+                        `Pre-Rupture Zones: ${state.preRuptureZones}`,
+                        `---`,
+                        `Recovering Zones:  ${state.recoveringZones}`,
+                        `Wave Pool:         ${state.wavePoolActive}`,
+                        `Halo Pool:         ${state.haloPoolActive}`,
+                        `Active Particles:  ${state.activeParticles}`
                     ].join('\n');
-                    overlay.title = `links=${state.activeLinks}, resistant=${state.resistantNodes}, pressure=${state.pressureZones}, reflections=${state.reflectionActive}, zones=${state.pressureZonesActive}, traps=${state.traps}, state=${state.primaryTrapState}, radius=${state.primaryTrapRadius.toFixed(2)}, ampAvg=${state.activeTrapAverageAmplitude.toFixed(2)}, ampPeak=${state.activeTrapAmplitude.toFixed(2)}, antinodes=${state.antinodeMeshes}, ruptures=${state.ruptureCount}, cascades=${state.activeCascades}, preZones=${state.preRuptureZones}, recoveryZones=${state.recoveringZones}, wavePool=${state.wavePoolActive}, haloPool=${state.haloPoolActive}, activeParticles=${state.activeParticles}`;
+                    overlay.title = `Wave System Status - Links: ${state.activeLinks}, Resistant: ${state.resistantNodes}, Reflections: ${state.reflectionActive}, Pressure Zones: ${state.pressureZonesActive}, Traps: ${state.traps}, State: ${state.primaryTrapState}, Radius: ${state.primaryTrapRadius.toFixed(2)}, Avg Amp: ${state.activeTrapAverageAmplitude.toFixed(2)}, Peak Amp: ${state.activeTrapAmplitude.toFixed(2)}, Antinodes: ${state.antinodeMeshes}, Ruptures: ${state.ruptureCount}, Cascades: ${state.activeCascades}, Pre-Zones: ${state.preRuptureZones}, Recovery Zones: ${state.recoveringZones}, Wave Pool: ${state.wavePoolActive}, Halo Pool: ${state.haloPoolActive}, Particles: ${state.activeParticles}`;
                 }
 
                 return state;

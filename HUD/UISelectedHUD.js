@@ -191,23 +191,26 @@ export class UISelectedHUD {
         
         this.hudElement = document.createElement('div');
         this.hudElement.id = 'selected-hud';
-        this.hudElement.style.position = 'fixed';
-        this.hudElement.style.top = '20px';
-        this.hudElement.style.right = '140px';
-        this.hudElement.style.padding = '8px 14px';
-        this.hudElement.style.background = 'rgba(0, 0, 0, 0.35)';
-        this.hudElement.style.backdropFilter = 'blur(6px)';
-        this.hudElement.style.color = '#7FFFD4';
-        this.hudElement.style.fontFamily = "Rajdhani, 'Segoe UI', sans-serif";
-        this.hudElement.style.letterSpacing = '1px';
-        this.hudElement.style.borderRadius = '12px';
-        this.hudElement.style.zIndex = '999999';
-        this.hudElement.style.pointerEvents = 'none';
-        this.hudElement.style.fontSize = '12px';
-        this.hudElement.style.fontWeight = '500';
-        this.hudElement.style.textShadow = '0 0 8px rgba(127, 255, 212, 0.3)';
-        this.hudElement.style.border = '1px solid rgba(127, 255, 212, 0.2)';
-        this.hudElement.style.whiteSpace = 'nowrap';
+        this.hudElement.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 140px;
+            padding: 10px 16px;
+            background: rgba(8, 12, 20, 0.75);
+            backdrop-filter: blur(16px) saturate(1.2);
+            -webkit-backdrop-filter: blur(16px) saturate(1.2);
+            border-right: 2px solid rgba(0, 200, 220, 0.35);
+            border-radius: 8px 0 0 8px;
+            color: rgba(200, 225, 245, 0.85);
+            font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.08em;
+            z-index: 999999;
+            pointer-events: none;
+            user-select: none;
+            white-space: nowrap;
+        `;
         
         this.hudElement.textContent = 'SELECTED: NONE';
         document.body.appendChild(this.hudElement);
@@ -239,24 +242,23 @@ export class UISelectedHUD {
             
             #selected-hud {
                 animation: selected-hud-fade-in 0.3s ease-out;
+                transition: color 0.3s ease, border-color 0.3s ease;
             }
             
             #selected-hud.selected {
-                color: #7FFFD4;
-                text-shadow: 0 0 12px rgba(127, 255, 212, 0.6);
-                border-color: rgba(127, 255, 212, 0.4);
+                color: #00e5a0;
+                border-right-color: rgba(0, 229, 160, 0.5);
             }
             
             #selected-hud.none {
-                color: #666;
-                text-shadow: 0 0 4px rgba(102, 102, 102, 0.3);
-                border-color: rgba(102, 102, 102, 0.2);
+                color: rgba(200, 225, 245, 0.3);
+                border-right-color: rgba(0, 200, 220, 0.15);
             }
 
             @keyframes scramble-glow-pulse {
-                0% { text-shadow: 0 0 8px rgba(127, 255, 212, 0.3); }
-                50% { text-shadow: 0 0 20px rgba(127, 255, 212, 0.8), 0 0 40px rgba(127, 255, 212, 0.4); }
-                100% { text-shadow: 0 0 8px rgba(127, 255, 212, 0.3); }
+                0% { text-shadow: 0 0 6px rgba(0, 229, 160, 0.2); }
+                50% { text-shadow: 0 0 16px rgba(0, 229, 160, 0.6), 0 0 30px rgba(0, 229, 160, 0.3); }
+                100% { text-shadow: 0 0 6px rgba(0, 229, 160, 0.2); }
             }
 
             #selected-hud.scramble-glow {
