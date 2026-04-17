@@ -66,12 +66,31 @@ export class VisualNetworkTimeElasticity_v1 {
     this._fadeOutDuration = config.fadeOutDuration ?? 1.0;
     this._visualRewindSpeed = config.visualRewindSpeed ?? 0.4;
 
+    // ── Session stats ───────────────────────────────────────────────
+    this._sessionStats = {
+      bestNetworkTime: 0,         // lowest (best) network time achieved during rewind
+      totalRewindTime: 0,         // total seconds spent in REWIND direction
+      maxSynergyAchieved: 0,      // highest synergy ever seen
+      gamesWon: 0,
+      gamesPlayed: 0,
+    };
+
     // ── Event system ────────────────────────────────────────────────
     this._eventHandlers = {
       'score:forward': [],
       'score:rewinding': [],
       'score:won': []
     };
+
+    // ── Session stats ───────────────────────────────────────────────
+    this._sessionStats = {
+      bestNetworkTime: 0,
+      totalRewindTime: 0,
+      maxSynergyAchieved: 0,
+      gamesWon: 0,
+      gamesPlayed: 0,
+    };
+    this.loadSessionStats();
   }
 
   // ================================================================
@@ -276,9 +295,14 @@ export class VisualNetworkTimeElasticity_v1 {
     }
 
     // ============================================================
-    // PHASE 1: Check synergy threshold
+    // PHASE 1: Check synergy threshold + track stats
     // ============================================================
     const synergyHigh = this.avgSynergy >= this._synergyThreshold;
+
+    // Track max synergy achieved
+    if (this.avgSynergy > this._sessionStats.maxSynergyAchieved) {
+      this._sessionStats.maxSynergyAchieved = this.avgSynergy;
+    }
 
     if (synergyHigh) {
       // Accumulate sustain timer
@@ -329,17 +353,32 @@ export class VisualNetworkTimeElasticity_v1 {
     } else if (this._direction === SCORE_DIRECTION.REWIND) {
       this._networkTimeCounter -= this._rewindSpeed * dt;
 
+      // Track total rewind time
+      this._sessionStats.totalRewindTime += dt;
+
       // Check win condition
       if (this._networkTimeCounter <= 0) {
         this._networkTimeCounter = 0;
         this._direction = SCORE_DIRECTION.WON;
         this._won = true;
+
+        // Track win stats
+        this._sessionStats.gamesWon++;
+        this._saveSessionStats();
+
         this._emit('score:won', {
           networkTime: 0,
           gameTime: gameTime,
-          avgSynergy: this.avgSynergy
+          avgSynergy: this.avgSynergy,
+          sessionStats: this.getSessionStats()
         });
       }
+    }
+
+    // Track best network time (highest pressure reached)
+    const currentTime = this.getNetworkTime();
+    if (currentTime > this._sessionStats.bestNetworkTime) {
+      this._sessionStats.bestNetworkTime = currentTime;
     }
 
     // ============================================================
@@ -368,6 +407,79 @@ export class VisualNetworkTimeElasticity_v1 {
   }
 
   // ================================================================
+  // WORLD CONFIG
+  // ================================================================
+
+  /**
+   * Apply per-world difficulty config.
+   * @param {Object} config - { sustainDuration, rewindSpeed, forwardSpeed?, synergyThreshold? }
+   */
+  applyWorldConfig(config = {}) {
+    if (config.sustainDuration != null) this._sustainDuration = config.sustainDuration;
+    if (config.rewindSpeed != null) this._rewindSpeed = config.rewindSpeed;
+    if (config.forwardSpeed != null) this._forwardSpeed = config.forwardSpeed;
+    if (config.synergyThreshold != null) this._synergyThreshold = config.synergyThreshold;
+
+    // Reset state for new world
+    this.reset();
+
+    console.log(`[NetworkTimeScore] World config applied:`, {
+      sustainDuration: this._sustainDuration,
+      rewindSpeed: this._rewindSpeed,
+      forwardSpeed: this._forwardSpeed,
+      synergyThreshold: this._synergyThreshold
+    });
+  }
+
+  // ================================================================
+  // SESSION STATS
+  // ================================================================
+
+  /**
+   * Get session statistics (for display and persistence).
+   */
+  getSessionStats() {
+    return {
+      bestNetworkTime: this._sessionStats.bestNetworkTime,
+      totalRewindTime: this._sessionStats.totalRewindTime.toFixed(1),
+      maxSynergyAchieved: this._sessionStats.maxSynergyAchieved.toFixed(3),
+      gamesWon: this._sessionStats.gamesWon,
+      gamesPlayed: this._sessionStats.gamesPlayed,
+    };
+  }
+
+  /**
+   * Load session stats from localStorage.
+   */
+  loadSessionStats() {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const stored = localStorage.getItem('atoma.score.sessionStats');
+      if (!stored) return;
+      const parsed = JSON.parse(stored);
+      if (parsed.bestNetworkTime != null) this._sessionStats.bestNetworkTime = parsed.bestNetworkTime;
+      if (parsed.totalRewindTime != null) this._sessionStats.totalRewindTime = parsed.totalRewindTime;
+      if (parsed.maxSynergyAchieved != null) this._sessionStats.maxSynergyAchieved = parsed.maxSynergyAchieved;
+      if (parsed.gamesWon != null) this._sessionStats.gamesWon = parsed.gamesWon;
+      if (parsed.gamesPlayed != null) this._sessionStats.gamesPlayed = parsed.gamesPlayed;
+    } catch (_e) {
+      // Silent — localStorage not available
+    }
+  }
+
+  /**
+   * Persist session stats to localStorage.
+   */
+  _saveSessionStats() {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      localStorage.setItem('atoma.score.sessionStats', JSON.stringify(this._sessionStats));
+    } catch (_e) {
+      // Silent
+    }
+  }
+
+  // ================================================================
   // LIFECYCLE
   // ================================================================
 
@@ -385,9 +497,12 @@ export class VisualNetworkTimeElasticity_v1 {
   }
 
   /**
-   * Reset for new game
+   * Reset for new game (preserves session stats).
    */
   reset() {
+    // Track game played
+    this._sessionStats.gamesPlayed++;
+
     this._networkTimeCounter = 0;
     this._direction = SCORE_DIRECTION.FORWARD;
     this._won = false;
@@ -419,3 +534,5 @@ export function validateVisualNetworkTimeElasticity() {
   console.log('  - Visual: time rewind at 40% speed (preserved from v1)');
   console.log('  - Events: score:forward, score:rewinding, score:won');
 }
+
+

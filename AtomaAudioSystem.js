@@ -491,6 +491,53 @@ export class AtomaAudioSystem {
         this.synergySynth.triggerAttackRelease(["C3"], "1n", undefined, 0.2);
     }
 
+    // --- NETWORK TIME SCORE AUDIO CUES ---
+
+    /**
+     * Play ascending tone when Network Time starts rewinding (synergy sustained 7s).
+     * Bright, hopeful — the reward moment.
+     */
+    playScoreRewindStart() {
+        if (!this.initialized || !this.enabled) return;
+        if (!this.canTrigger('score:rewind', 2000)) return;
+        const now = Tone.now();
+        // Ascending arpeggio: C5 → E5 → G5 (bright, hopeful)
+        this.synergySynth.triggerAttackRelease("C5", "16n", now, 0.4);
+        this.synergySynth.triggerAttackRelease("E5", "16n", now + 0.08, 0.35);
+        this.synergySynth.triggerAttackRelease("G5", "8n", now + 0.16, 0.45);
+    }
+
+    /**
+     * Play descending tone when rewind stops (synergy dropped).
+     * Subtle, fading — the loss moment.
+     */
+    playScoreRewindEnd() {
+        if (!this.initialized || !this.enabled) return;
+        if (!this.canTrigger('score:forward', 2000)) return;
+        const now = Tone.now();
+        // Descending: G4 → E4 → C4 (gentle fade)
+        this.synergySynth.triggerAttackRelease("G4", "16n", now, 0.25);
+        this.synergySynth.triggerAttackRelease("E4", "16n", now + 0.1, 0.2);
+        this.synergySynth.triggerAttackRelease("C4", "8n", now + 0.2, 0.15);
+    }
+
+    /**
+     * Play victory chord when Network Time reaches 0.
+     * Full, resonant, satisfying — the completion moment.
+     */
+    playScoreVictory() {
+        if (!this.initialized || !this.enabled) return;
+        if (!this.canTrigger('score:won', 10000)) return;
+        const now = Tone.now();
+        // Major chord spread: C4 → E4 → G4 → C5 (full resolution)
+        this.synergySynth.triggerAttackRelease("C4", "4n", now, 0.35);
+        this.synergySynth.triggerAttackRelease("E4", "4n", now + 0.06, 0.3);
+        this.synergySynth.triggerAttackRelease("G4", "4n", now + 0.12, 0.35);
+        this.synergySynth.triggerAttackRelease("C5", "2n", now + 0.2, 0.45);
+        // Add high shimmer
+        this.selectionSynth.triggerAttackRelease("E6", "2n", now + 0.3, 0.2);
+    }
+
     playRoutedEventAudio(payload = {}, eventName = 'semantic.event') {
         if (!this.initialized || !this.enabled) return;
 

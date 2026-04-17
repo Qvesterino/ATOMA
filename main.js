@@ -11087,6 +11087,16 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         });
     }
 
+    // ── Per-world score difficulty config (mirrors MENU_MAPS scoreConfig) ──
+    static WORLD_SCORE_CONFIG = Object.freeze({
+        fractal:  { sustainDuration: 5,  rewindSpeed: 4   },  // easiest
+        desert:   { sustainDuration: 6,  rewindSpeed: 3.5 },  // easy
+        desert2:  { sustainDuration: 7,  rewindSpeed: 3   },  // default
+        quantum:  { sustainDuration: 7,  rewindSpeed: 3   },  // default
+        memory:   { sustainDuration: 6,  rewindSpeed: 3.5 },  // easy
+        sigma:    { sustainDuration: 10, rewindSpeed: 2   },  // hardest
+    });
+
     loadWorld(worldId) {
         // World Transition Guard - prevent re-entrant execution
         if (this._worldTransitionInProgress) {
@@ -11132,6 +11142,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this._pendingCreateWorldReason = 'MAP_SWITCH';
             fn();
             this._rebindWorldLifecycleSystems();
+
+            // Apply per-world score difficulty config
+            if (this.visualNetworkTimeElasticity?.applyWorldConfig) {
+                const worldScoreConfig = AtomaGame.WORLD_SCORE_CONFIG[worldId];
+                if (worldScoreConfig) {
+                    this.visualNetworkTimeElasticity.applyWorldConfig(worldScoreConfig);
+                }
+            }
 
             if (this.semanticBus?.emit) {
                 this.semanticBus.emit('world.loaded', {
@@ -16342,18 +16360,33 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     setupVisualNetworkTimeElasticity() {
         this.visualNetworkTimeElasticity = new VisualNetworkTimeElasticity_v1();
         
-        // Wire score:won event — freeze simulation and show victory
+        // Wire score:won event — freeze simulation, play victory audio, show overlay
         this.visualNetworkTimeElasticity.on('score:won', (payload) => {
             console.log('%c🏆 NETWORK TIME REACHED ZERO — GAME WON!', 'color: #00ff88; font-size: 18px; font-weight: bold;');
             console.log('  Game Time:', payload.gameTime.toFixed(1), 'seconds');
             console.log('  Final Synergy:', (payload.avgSynergy * 100).toFixed(1) + '%');
+            if (this.audioSystem?.playScoreVictory) this.audioSystem.playScoreVictory();
             this._handleGameWon(payload);
         });
 
-        // Wire score:rewinding event — log for feedback
+        // Wire score:rewinding event — ascending audio cue + slow temporal system
         this.visualNetworkTimeElasticity.on('score:rewinding', (payload) => {
             console.log('%c⏪ NETWORK TIME REWINDING', 'color: #ff8c00; font-weight: bold;',
                 'Time:', payload.networkTime, 'Synergy:', (payload.avgSynergy * 100).toFixed(1) + '%');
+            if (this.audioSystem?.playScoreRewindStart) this.audioSystem.playScoreRewindStart();
+            // Slow temporal system during rewind (cycle clock ticks slower)
+            if (this.coreMetricsOverlay?.temporalSystem?.setTimeScale) {
+                this.coreMetricsOverlay.temporalSystem.setTimeScale(0.3, true);
+            }
+        });
+
+        // Wire score:forward event — descending audio cue (rewind ended) + restore temporal
+        this.visualNetworkTimeElasticity.on('score:forward', (payload) => {
+            if (this.audioSystem?.playScoreRewindEnd) this.audioSystem.playScoreRewindEnd();
+            // Restore temporal system to normal speed
+            if (this.coreMetricsOverlay?.temporalSystem?.setTimeScale) {
+                this.coreMetricsOverlay.temporalSystem.setTimeScale(1.0, false);
+            }
         });
 
         // Wire score system to CoreMetricsHUD (if overlay already created)
@@ -16381,13 +16414,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     }
 
     /**
-     * Handle game won — freeze simulation, show victory state.
-     * Can be extended with victory overlay, menu return, etc.
+     * Handle game won — freeze simulation, show victory overlay.
      */
     _handleGameWon(payload) {
         // Pause the simulation — game is won
         if (this.frameScheduler) {
-            // Keep visual layer running for the victory glow, pause simulation
             console.log('[NetworkTimeScore] Simulation paused — victory state active');
         }
 
@@ -16401,15 +16432,181 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }, { priority: this.semanticBus.priority?.CRITICAL });
         }
 
-        // Show victory notification via Tier4NotificationSystem if available
-        if (this.tier4Notifications) {
-            this.tier4Notifications.queueNotification({
-                type: 'victory',
-                title: '🏆 NETWORK COLLAPSED',
-                message: 'Network Time reached zero. The network is complete.',
-                duration: 10000
+        // Show victory overlay
+        this._showVictoryOverlay(payload);
+    }
+
+    /**
+     * Show full-screen victory overlay with stats and Play Again button.
+     */
+    _showVictoryOverlay(payload) {
+        // Prevent duplicate overlays
+        if (document.getElementById('atoma-victory-overlay')) return;
+
+        const gameTimeStr = payload.gameTime ?
+            `${Math.floor(payload.gameTime / 60)}:${Math.floor(payload.gameTime % 60).toString().padStart(2, '0')}` : '--:--';
+        const synergyStr = payload.avgSynergy ? `${(payload.avgSynergy * 100).toFixed(1)}%` : '--';
+        const linkCount = this.linkingSystem?.links?.length ?? 0;
+        const nodeCount = this.aiNodes?.nodes?.length ?? 0;
+
+        const overlay = document.createElement('div');
+        overlay.id = 'atoma-victory-overlay';
+        overlay.innerHTML = `
+            <style>
+                #atoma-victory-overlay {
+                    position: fixed;
+                    top: 0; left: 0; right: 0; bottom: 0;
+                    z-index: 9999;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: rgba(4, 8, 16, 0.85);
+                    backdrop-filter: blur(20px) saturate(1.4);
+                    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+                    animation: atoma-victory-fadein 1.2s ease-out;
+                    font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+                    color: rgba(200, 225, 245, 0.9);
+                }
+                @keyframes atoma-victory-fadein {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                .victory-card {
+                    text-align: center;
+                    max-width: 420px;
+                    padding: 48px 40px;
+                    animation: atoma-victory-scale 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+                }
+                @keyframes atoma-victory-scale {
+                    from { transform: scale(0.8); opacity: 0; }
+                    to { transform: scale(1); opacity: 1; }
+                }
+                .victory-icon {
+                    font-size: 48px;
+                    margin-bottom: 16px;
+                    animation: atoma-victory-glow 2s ease-in-out infinite;
+                }
+                @keyframes atoma-victory-glow {
+                    0%, 100% { filter: brightness(1); }
+                    50% { filter: brightness(1.4); }
+                }
+                .victory-title {
+                    font-size: 28px;
+                    font-weight: 700;
+                    letter-spacing: 0.12em;
+                    text-transform: uppercase;
+                    color: #00ff88;
+                    text-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+                    margin-bottom: 8px;
+                }
+                .victory-subtitle {
+                    font-size: 11px;
+                    letter-spacing: 0.2em;
+                    text-transform: uppercase;
+                    color: rgba(0, 255, 136, 0.5);
+                    margin-bottom: 32px;
+                }
+                .victory-stats {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 12px 24px;
+                    margin-bottom: 36px;
+                    text-align: left;
+                }
+                .victory-stat {
+                    padding: 8px 0;
+                    border-bottom: 1px solid rgba(0, 200, 220, 0.08);
+                }
+                .victory-stat-label {
+                    font-size: 8px;
+                    letter-spacing: 0.15em;
+                    text-transform: uppercase;
+                    color: rgba(200, 225, 245, 0.35);
+                    margin-bottom: 2px;
+                }
+                .victory-stat-value {
+                    font-size: 16px;
+                    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+                    font-weight: 600;
+                    color: #00d4ff;
+                }
+                .victory-button {
+                    display: inline-block;
+                    padding: 12px 36px;
+                    background: rgba(0, 255, 136, 0.1);
+                    border: 1px solid rgba(0, 255, 136, 0.3);
+                    border-radius: 4px;
+                    color: #00ff88;
+                    font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+                    font-size: 13px;
+                    font-weight: 700;
+                    letter-spacing: 0.15em;
+                    text-transform: uppercase;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                }
+                .victory-button:hover {
+                    background: rgba(0, 255, 136, 0.2);
+                    border-color: rgba(0, 255, 136, 0.6);
+                    box-shadow: 0 0 20px rgba(0, 255, 136, 0.15);
+                }
+            </style>
+            <div class="victory-card">
+                <div class="victory-icon">🏆</div>
+                <div class="victory-title">Network Collapsed</div>
+                <div class="victory-subtitle">Network Time reached zero</div>
+                <div class="victory-stats">
+                    <div class="victory-stat">
+                        <div class="victory-stat-label">Game Time</div>
+                        <div class="victory-stat-value">${gameTimeStr}</div>
+                    </div>
+                    <div class="victory-stat">
+                        <div class="victory-stat-label">Final Synergy</div>
+                        <div class="victory-stat-value">${synergyStr}</div>
+                    </div>
+                    <div class="victory-stat">
+                        <div class="victory-stat-label">Nodes Active</div>
+                        <div class="victory-stat-value">${nodeCount}</div>
+                    </div>
+                    <div class="victory-stat">
+                        <div class="victory-stat-label">Links Active</div>
+                        <div class="victory-stat-value">${linkCount}</div>
+                    </div>
+                </div>
+                <button class="victory-button" id="atoma-victory-play-again">Play Again</button>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        // Wire Play Again button
+        const playAgainBtn = document.getElementById('atoma-victory-play-again');
+        if (playAgainBtn) {
+            playAgainBtn.addEventListener('click', () => {
+                this._resetGame();
             });
         }
+    }
+
+    /**
+     * Reset game state for a new playthrough.
+     */
+    _resetGame() {
+        // Remove victory overlay
+        const overlay = document.getElementById('atoma-victory-overlay');
+        if (overlay) overlay.remove();
+
+        // Reset score system
+        if (this.visualNetworkTimeElasticity) {
+            this.visualNetworkTimeElasticity.reset();
+        }
+
+        // Restore temporal system to normal speed
+        if (this.coreMetricsOverlay?.temporalSystem?.setTimeScale) {
+            this.coreMetricsOverlay.temporalSystem.setTimeScale(1.0, false);
+        }
+
+        console.log('[NetworkTimeScore] Game reset — new playthrough started');
     }
 
     /**

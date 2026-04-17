@@ -256,6 +256,13 @@ export class CoreMetricsHUD {
         #core-metrics-hud .network-time-value.frozen {
           color: #ffc107;
         }
+        #core-metrics-hud .network-time-arrow {
+          font-size: 14px;
+          font-weight: 700;
+          color: #00d4ff;
+          margin-right: 2px;
+          transition: color 0.4s ease;
+        }
         #core-metrics-hud .network-time-value.rewinding {
           color: #ff8c00;
           text-shadow: 0 0 12px rgba(255, 140, 0, 0.4);
@@ -269,6 +276,15 @@ export class CoreMetricsHUD {
           0%, 100% { text-shadow: 0 0 20px rgba(0, 255, 136, 0.3); }
           50% { text-shadow: 0 0 30px rgba(0, 255, 136, 0.8); }
         }
+        #core-metrics-hud .temporal-rewinding {
+          color: #ff8c00 !important;
+          text-shadow: 0 0 10px rgba(255, 140, 0, 0.5);
+          animation: atoma-temporal-rewind 1.2s ease-in-out infinite;
+        }
+        @keyframes atoma-temporal-rewind {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
         #core-metrics-hud .time-elasticity-badge {
           font-size: 7px;
           letter-spacing: 0.18em;
@@ -280,6 +296,39 @@ export class CoreMetricsHUD {
         @keyframes atoma-pulse-soft {
           0%, 100% { opacity: 0.4; }
           50% { opacity: 1; }
+        }
+        #core-metrics-hud .sustain-progress-section {
+          margin-top: 4px;
+          opacity: 0;
+          transition: opacity 0.4s ease;
+        }
+        #core-metrics-hud .sustain-progress-section.visible {
+          opacity: 1;
+        }
+        #core-metrics-hud .sustain-progress-track {
+          height: 2px;
+          background: rgba(0, 200, 220, 0.08);
+          border-radius: 1px;
+          overflow: hidden;
+        }
+        #core-metrics-hud .sustain-progress-fill {
+          height: 100%;
+          width: 0%;
+          background: linear-gradient(90deg, rgba(0, 212, 255, 0.3), #00d4ff);
+          border-radius: 1px;
+          transition: width 0.15s linear;
+          box-shadow: 0 0 4px rgba(0, 212, 255, 0.3);
+        }
+        #core-metrics-hud .sustain-progress-fill.complete {
+          background: linear-gradient(90deg, rgba(255, 140, 0, 0.5), #ff8c00);
+          box-shadow: 0 0 8px rgba(255, 140, 0, 0.5);
+        }
+        #core-metrics-hud .sustain-progress-label {
+          font-size: 6px;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          color: rgba(0, 200, 220, 0.35);
+          margin-top: 2px;
         }
       `;
       document.head.appendChild(style);
@@ -317,15 +366,43 @@ export class CoreMetricsHUD {
     ntLabel.className = 'network-time-label';
     ntLabel.textContent = 'NET TIME';
 
+    const ntArrow = document.createElement('span');
+    ntArrow.className = 'network-time-arrow';
+    ntArrow.textContent = '↑';
+
     const ntValue = document.createElement('span');
     ntValue.className = 'network-time-value';
     ntValue.id = 'network-time';
     ntValue.textContent = '00000';
 
     ntSection.appendChild(ntLabel);
+    ntSection.appendChild(ntArrow);
     ntSection.appendChild(ntValue);
     this.hudContainer.appendChild(ntSection);
     this.hudElements.networkTime = ntValue;
+    this.hudElements.networkTimeArrow = ntArrow;
+
+    // ── Sustain Progress Bar ──────────────────────────────────────────
+    const sustainSection = document.createElement('div');
+    sustainSection.className = 'sustain-progress-section';
+
+    const sustainTrack = document.createElement('div');
+    sustainTrack.className = 'sustain-progress-track';
+
+    const sustainFill = document.createElement('div');
+    sustainFill.className = 'sustain-progress-fill';
+
+    sustainTrack.appendChild(sustainFill);
+    sustainSection.appendChild(sustainTrack);
+
+    const sustainLabel = document.createElement('div');
+    sustainLabel.className = 'sustain-progress-label';
+    sustainLabel.textContent = 'SYNERGY SUSTAIN';
+    sustainSection.appendChild(sustainLabel);
+
+    this.hudContainer.appendChild(sustainSection);
+    this.hudElements.sustainProgress = sustainFill;
+    this.hudElements.sustainSection = sustainSection;
 
     document.body.appendChild(this.hudContainer);
   }
@@ -584,6 +661,12 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
     
     if (this.hudElements.cycleTime) {
       this.hudElements.cycleTime.textContent = temporalDisplay.cycle;
+      // Toggle rewind visual state on cycle time element
+      if (temporalDisplay.isRewinding) {
+        this.hudElements.cycleTime.classList.add('temporal-rewinding');
+      } else {
+        this.hudElements.cycleTime.classList.remove('temporal-rewinding');
+      }
     }
     if (this.hudElements.epochNumber) {
       this.hudElements.epochNumber.textContent = temporalDisplay.epoch;
@@ -680,13 +763,26 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
     // Remove all state classes
     this.hudElements.networkTime.classList.remove('frozen', 'rewinding', 'won');
 
-    // Apply state class
+    // Apply state class + direction arrow
     if (direction === SCORE_DIRECTION.WON) {
       this.hudElements.networkTime.classList.add('won');
+      if (this.hudElements.networkTimeArrow) {
+        this.hudElements.networkTimeArrow.textContent = '✓';
+        this.hudElements.networkTimeArrow.style.color = '#00ff88';
+      }
     } else if (direction === SCORE_DIRECTION.REWIND) {
       this.hudElements.networkTime.classList.add('rewinding');
+      if (this.hudElements.networkTimeArrow) {
+        this.hudElements.networkTimeArrow.textContent = '↓';
+        this.hudElements.networkTimeArrow.style.color = '#ff8c00';
+      }
+    } else {
+      // FORWARD
+      if (this.hudElements.networkTimeArrow) {
+        this.hudElements.networkTimeArrow.textContent = '↑';
+        this.hudElements.networkTimeArrow.style.color = '#00d4ff';
+      }
     }
-    // FORWARD: no special class, default cyan color
 
     // Direction badge
     const prevDirection = this._lastDirection;
@@ -723,6 +819,23 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
         this.timeElasticityIndicator.remove();
         this.timeElasticityIndicator = null;
       }
+    }
+
+    // ── Sustain progress bar ──────────────────────────────────────────
+    if (this.hudElements.sustainProgress && this.hudElements.sustainSection) {
+      const sustainRatio = this._scoreSystem.getSustainProgressRatio();
+      const isSustaining = sustainRatio > 0.001;
+      const isComplete = sustainRatio >= 1.0;
+
+      // Show/hide sustain section
+      this.hudElements.sustainSection.classList.toggle('visible', isSustaining || direction === SCORE_DIRECTION.REWIND);
+
+      // Update fill width
+      const fillPercent = (Math.min(sustainRatio, 1.0) * 100).toFixed(1);
+      this.hudElements.sustainProgress.style.width = `${fillPercent}%`;
+
+      // Complete state (orange glow when ready to rewind)
+      this.hudElements.sustainProgress.classList.toggle('complete', isComplete || direction === SCORE_DIRECTION.REWIND);
     }
 
     // Pulse on direction change

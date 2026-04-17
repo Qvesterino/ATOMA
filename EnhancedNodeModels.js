@@ -391,6 +391,24 @@ const CONTROL_COMMAND_PYRAMID_CACHE = {
   seedEdgesGeometry: null
 };
 const CONTROL_COMMAND_PYRAMID_MATERIALS = new Map(); // keyed by color hex
+const CONTROL_AUTHORITY_SPIRE_CACHE = {
+  baseLowerGeometry: null,
+  baseLowerEdgesGeometry: null,
+  baseUpperGeometry: null,
+  baseUpperEdgesGeometry: null,
+  spineGeometry: null,
+  spineEdgesGeometry: null,
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  crownGeometry: null,
+  crownEdgesGeometry: null,
+  meridianGeometry: null,
+  finGeometry: null,
+  finEdgesGeometry: null,
+  markerGeometry: null,
+  markerEdgesGeometry: null
+};
+const CONTROL_AUTHORITY_SPIRE_MATERIALS = new Map(); // keyed by color hex
 
 // ANALYTICS v2 caches
 const ANALYTICS_V2_CACHE = {
@@ -6043,6 +6061,130 @@ function _getControlCommandPyramidMaterials(color) {
   }
 
   CONTROL_COMMAND_PYRAMID_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+function _getControlAuthoritySpireGeometries() {
+  if (!CONTROL_AUTHORITY_SPIRE_CACHE.baseLowerGeometry) {
+    CONTROL_AUTHORITY_SPIRE_CACHE.baseLowerGeometry = new THREE.CylinderGeometry(0.66, 0.76, 0.11, 7, 1);
+    CONTROL_AUTHORITY_SPIRE_CACHE.baseLowerGeometry.computeBoundingSphere();
+    CONTROL_AUTHORITY_SPIRE_CACHE.baseLowerEdgesGeometry = safeCreateEdgesGeometry(CONTROL_AUTHORITY_SPIRE_CACHE.baseLowerGeometry, 12);
+
+    CONTROL_AUTHORITY_SPIRE_CACHE.baseUpperGeometry = new THREE.CylinderGeometry(0.44, 0.51, 0.09, 9, 1);
+    CONTROL_AUTHORITY_SPIRE_CACHE.baseUpperGeometry.computeBoundingSphere();
+    CONTROL_AUTHORITY_SPIRE_CACHE.baseUpperEdgesGeometry = safeCreateEdgesGeometry(CONTROL_AUTHORITY_SPIRE_CACHE.baseUpperGeometry, 12);
+
+    const spineGeometry = new THREE.CylinderGeometry(0.11, 0.07, 1.58, 6, 1);
+    spineGeometry.scale(0.9, 1.0, 1.08);
+    spineGeometry.computeBoundingSphere();
+    CONTROL_AUTHORITY_SPIRE_CACHE.spineGeometry = spineGeometry;
+    CONTROL_AUTHORITY_SPIRE_CACHE.spineEdgesGeometry = safeCreateEdgesGeometry(spineGeometry, 12);
+
+    CONTROL_AUTHORITY_SPIRE_CACHE.coreGeometry = new THREE.OctahedronGeometry(0.29, 1);
+    CONTROL_AUTHORITY_SPIRE_CACHE.coreGeometry.computeBoundingSphere();
+    CONTROL_AUTHORITY_SPIRE_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(CONTROL_AUTHORITY_SPIRE_CACHE.coreGeometry, 14);
+
+    CONTROL_AUTHORITY_SPIRE_CACHE.crownGeometry = new THREE.TorusGeometry(0.46, 0.013, 8, 26, Math.PI * 1.38);
+    CONTROL_AUTHORITY_SPIRE_CACHE.crownGeometry.computeBoundingSphere();
+    CONTROL_AUTHORITY_SPIRE_CACHE.crownEdgesGeometry = safeCreateEdgesGeometry(CONTROL_AUTHORITY_SPIRE_CACHE.crownGeometry, 12);
+
+    CONTROL_AUTHORITY_SPIRE_CACHE.meridianGeometry = new THREE.TorusGeometry(0.58, 0.008, 8, 32, Math.PI * 1.12);
+    CONTROL_AUTHORITY_SPIRE_CACHE.meridianGeometry.computeBoundingSphere();
+
+    CONTROL_AUTHORITY_SPIRE_CACHE.finGeometry = new THREE.BoxGeometry(0.12, 0.95, 0.16);
+    CONTROL_AUTHORITY_SPIRE_CACHE.finGeometry.computeBoundingSphere();
+    CONTROL_AUTHORITY_SPIRE_CACHE.finEdgesGeometry = safeCreateEdgesGeometry(CONTROL_AUTHORITY_SPIRE_CACHE.finGeometry, 12);
+
+    CONTROL_AUTHORITY_SPIRE_CACHE.markerGeometry = new THREE.ConeGeometry(0.065, 0.34, 5, 1);
+    CONTROL_AUTHORITY_SPIRE_CACHE.markerGeometry.computeBoundingSphere();
+    CONTROL_AUTHORITY_SPIRE_CACHE.markerEdgesGeometry = safeCreateEdgesGeometry(CONTROL_AUTHORITY_SPIRE_CACHE.markerGeometry, 10);
+  }
+
+  return CONTROL_AUTHORITY_SPIRE_CACHE;
+}
+
+function _getControlAuthoritySpireMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : new THREE.Color(color ?? 0xff0088).getHex();
+  if (CONTROL_AUTHORITY_SPIRE_MATERIALS.has(colorHex)) return CONTROL_AUTHORITY_SPIRE_MATERIALS.get(colorHex);
+
+  const colorKey = colorHex.toString(16).padStart(6, '0');
+  const baseColor = new THREE.Color(colorHex);
+  const deepBodyColor = baseColor.clone().lerp(new THREE.Color(0x151b23), 0.2);
+  const spireColor = baseColor.clone().lerp(new THREE.Color(0xf6fbff), 0.12);
+  const coreColor = baseColor.clone().lerp(new THREE.Color(0xffffff), 0.18);
+  const edgeColor = baseColor.clone().lerp(new THREE.Color(0xe7fbff), 0.48);
+  const spectralColor = baseColor.clone().lerp(new THREE.Color(0xd5f7ff), 0.4);
+
+  const bodyMat = MaterialCache.get(`control.authoritySpire.body.meshStandard.${colorKey}`, () => new THREE.MeshStandardMaterial({
+    color: deepBodyColor,
+    emissive: baseColor.clone().lerp(new THREE.Color(0x64d3ff), 0.14),
+    emissiveIntensity: 0.16,
+    metalness: 0.9,
+    roughness: 0.22,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  }));
+
+  const spireMat = MaterialCache.get(`control.authoritySpire.spire.meshStandard.${colorKey}`, () => new THREE.MeshStandardMaterial({
+    color: spireColor,
+    emissive: baseColor.clone().lerp(new THREE.Color(0xbdf6ff), 0.2),
+    emissiveIntensity: 0.24,
+    metalness: 0.82,
+    roughness: 0.14,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  }));
+
+  const coreMat = MaterialCache.get(`control.authoritySpire.core.meshStandard.${colorKey}`, () => new THREE.MeshStandardMaterial({
+    color: coreColor,
+    emissive: baseColor.clone().lerp(new THREE.Color(0xf8feff), 0.26),
+    emissiveIntensity: 0.34,
+    metalness: 0.72,
+    roughness: 0.1,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  }));
+
+  const accentMat = MaterialCache.get(`control.authoritySpire.accent.meshBasic.${colorKey}.transparent.default`, () => new THREE.MeshBasicMaterial({
+    color: spectralColor,
+    transparent: true,
+    opacity: 0.32,
+    depthWrite: false
+  }));
+
+  const edgeMat = MaterialCache.get(`control.authoritySpire.edge.lineBasic.${colorKey}.transparent.default`, () => new THREE.LineBasicMaterial({
+    color: edgeColor,
+    transparent: true,
+    opacity: 0.58,
+    depthWrite: false
+  }));
+
+  const markerMat = MaterialCache.get(`control.authoritySpire.marker.meshStandard.${colorKey}`, () => new THREE.MeshStandardMaterial({
+    color: spectralColor.clone().lerp(new THREE.Color(0xffffff), 0.16),
+    emissive: edgeColor.clone().lerp(new THREE.Color(0xffffff), 0.18),
+    emissiveIntensity: 0.32,
+    metalness: 0.76,
+    roughness: 0.08,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  }));
+
+  const mats = { bodyMat, spireMat, coreMat, accentMat, edgeMat, markerMat };
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.isShared = true;
+    mat.userData.noMaterialMutation = true;
+  }
+
+  CONTROL_AUTHORITY_SPIRE_MATERIALS.set(colorHex, mats);
   return mats;
 }
 
@@ -21876,81 +22018,194 @@ static createAnalyticsNode2(group, color) {
    * Control Node 1: Sharp tetrahedral pyramid
    */
   static createControlNode1(group, color) {
-    const bodyMat = new THREE.MeshStandardMaterial({
-      color,
-      emissive: color,
-      emissiveIntensity: 0.22,
-      metalness: 0.8,
-      roughness: 0.2
-    });
-    const accentMat = new THREE.MeshBasicMaterial({
-      color: 0xd9f6ff,
-      transparent: true,
-      opacity: 0.42
-    });
+    group.userData = group.userData || {};
+    const colorHex = typeof color === 'number' ? color : new THREE.Color(color ?? 0xff0088).getHex();
+    const geometries = _getControlAuthoritySpireGeometries();
+    const materials = _getControlAuthoritySpireMaterials(colorHex);
+    const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+    const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+    const shellColor = new THREE.Color(colorHex).lerp(new THREE.Color(0xeafcff), 0.22).getHex();
+
+    group.userData.visualVariant = 'CONTROL_AUTHORITY_SPIRE_V2';
+    group.userData.controlVariant = 'AUTHORITY_SPIRE';
+    group.userData.visualCoreImmutable = true;
+    group.userData.nodeGeometryName = 'CONTROL_AUTHORITY_SPIRE';
 
     // 1) Ceremonial base - lower authority plinth
-    const baseLower = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.76, 0.11, 7, 1), bodyMat);
+    const baseLower = new THREE.Mesh(geometries.baseLowerGeometry, materials.bodyMat);
     baseLower.position.y = -0.46;
     baseLower.rotation.y = Math.PI * 0.06;
+    baseLower.renderOrder = coreOrder;
+    baseLower.userData.visualCoreImmutable = true;
     validateMeshGeometry(baseLower, 'createControlNode1:baseLower');
     group.add(baseLower);
 
+    const baseLowerEdges = new THREE.LineSegments(geometries.baseLowerEdgesGeometry, materials.edgeMat);
+    baseLowerEdges.position.copy(baseLower.position);
+    baseLowerEdges.rotation.copy(baseLower.rotation);
+    baseLowerEdges.scale.copy(baseLower.scale).multiplyScalar(1.004);
+    baseLowerEdges.renderOrder = archOrder;
+    validateMeshGeometry(baseLowerEdges, 'createControlNode1:baseLowerEdges');
+    group.add(baseLowerEdges);
+
     // 2) Ceremonial base - upper command plate
-    const baseUpper = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.51, 0.09, 9, 1), bodyMat);
+    const baseUpper = new THREE.Mesh(geometries.baseUpperGeometry, materials.bodyMat);
     baseUpper.position.y = -0.33;
     baseUpper.rotation.y = -Math.PI * 0.08;
+    baseUpper.renderOrder = coreOrder;
+    baseUpper.userData.visualCoreImmutable = true;
     validateMeshGeometry(baseUpper, 'createControlNode1:baseUpper');
     group.add(baseUpper);
 
+    const baseUpperEdges = new THREE.LineSegments(geometries.baseUpperEdgesGeometry, materials.edgeMat);
+    baseUpperEdges.position.copy(baseUpper.position);
+    baseUpperEdges.rotation.copy(baseUpper.rotation);
+    baseUpperEdges.scale.copy(baseUpper.scale).multiplyScalar(1.004);
+    baseUpperEdges.renderOrder = archOrder;
+    validateMeshGeometry(baseUpperEdges, 'createControlNode1:baseUpperEdges');
+    group.add(baseUpperEdges);
+
     // 3) Command spine - dominant ascended obelisk
-    const spineGeo = new THREE.CylinderGeometry(0.11, 0.07, 1.58, 6, 1);
-    spineGeo.scale(0.9, 1.0, 1.08);
-    const spine = new THREE.Mesh(spineGeo, bodyMat);
+    const spine = new THREE.Mesh(geometries.spineGeometry, materials.spireMat);
     spine.position.y = 0.35;
     spine.rotation.set(0.015, Math.PI * 0.11, -0.012);
+    spine.renderOrder = coreOrder;
+    spine.userData.visualCoreImmutable = true;
     validateMeshGeometry(spine, 'createControlNode1:spine');
     group.add(spine);
 
+    const spineEdges = new THREE.LineSegments(geometries.spineEdgesGeometry, materials.edgeMat);
+    spineEdges.position.copy(spine.position);
+    spineEdges.rotation.copy(spine.rotation);
+    spineEdges.scale.copy(spine.scale).multiplyScalar(1.004);
+    spineEdges.renderOrder = archOrder;
+    validateMeshGeometry(spineEdges, 'createControlNode1:spineEdges');
+    group.add(spineEdges);
+
     // 4) Control core - ascended relic seed
-    const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.29, 1), bodyMat);
+    const core = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
     core.position.y = 1.02;
     core.rotation.set(Math.PI * 0.05, Math.PI * 0.24, Math.PI * 0.02);
     core.userData.isCore = true;
+    core.userData.visualCoreImmutable = true;
+    core.renderOrder = coreOrder;
     validateMeshGeometry(core, 'createControlNode1:core');
     group.add(core);
 
+    const coreEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.edgeMat);
+    coreEdges.position.copy(core.position);
+    coreEdges.rotation.copy(core.rotation);
+    coreEdges.scale.copy(core.scale).multiplyScalar(1.004);
+    coreEdges.renderOrder = archOrder;
+    validateMeshGeometry(coreEdges, 'createControlNode1:coreEdges');
+    group.add(coreEdges);
+
+    const coreShell = createNodeHologramShell(core, shellColor);
+    if (coreShell) {
+      coreShell.name = 'AuthoritySpireCoreShell';
+      coreShell.position.copy(core.position);
+      coreShell.quaternion.copy(core.quaternion);
+      coreShell.scale.copy(core.scale).multiplyScalar(1.15);
+      coreShell.frustumCulled = false;
+      coreShell.renderOrder = archOrder;
+      if (coreShell.material?.uniforms?.uOpacity) coreShell.material.uniforms.uOpacity.value = 0.042;
+      group.add(coreShell);
+    }
+
+    const coreGlow = createNodeNeonEdgeGlowShell(core, shellColor, {
+      glowIntensity: 0.82,
+      edgeWidth: 0.052,
+      pulseAmount: 0.0
+    });
+    if (coreGlow) {
+      coreGlow.name = 'AuthoritySpireCoreGlow';
+      coreGlow.position.copy(core.position);
+      coreGlow.quaternion.copy(core.quaternion);
+      coreGlow.scale.copy(core.scale).multiplyScalar(1.028);
+      coreGlow.frustumCulled = false;
+      coreGlow.renderOrder = archOrder;
+      group.add(coreGlow);
+    }
+
     // 5) Symbolic frame - thin broken crown/orbit of authority
-    const crown = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.013, 8, 26, Math.PI * 1.38), accentMat);
+    const crown = new THREE.Mesh(geometries.crownGeometry, materials.accentMat);
     crown.position.set(0.01, 1.02, 0.0);
     crown.rotation.set(Math.PI * 0.36, Math.PI * 0.2, -Math.PI * 0.13);
+    crown.renderOrder = archOrder;
+    crown.userData.visualCoreImmutable = true;
     validateMeshGeometry(crown, 'createControlNode1:crown');
     group.add(crown);
 
+    const crownEdges = new THREE.LineSegments(geometries.crownEdgesGeometry, materials.edgeMat);
+    crownEdges.position.copy(crown.position);
+    crownEdges.rotation.copy(crown.rotation);
+    crownEdges.scale.copy(crown.scale).multiplyScalar(1.004);
+    crownEdges.renderOrder = archOrder + 1;
+    validateMeshGeometry(crownEdges, 'createControlNode1:crownEdges');
+    group.add(crownEdges);
+
+    const meridian = new THREE.Mesh(geometries.meridianGeometry, materials.accentMat);
+    meridian.position.set(-0.01, 1.06, 0.02);
+    meridian.rotation.set(Math.PI * 0.12, Math.PI * 0.34, Math.PI * 0.08);
+    meridian.renderOrder = archOrder;
+    meridian.userData.visualCoreImmutable = true;
+    validateMeshGeometry(meridian, 'createControlNode1:meridian');
+    group.add(meridian);
+
     // 6) Left relic buttress - command support spine
-    const buttressGeo = new THREE.BoxGeometry(0.12, 0.95, 0.16);
-    const finLeft = new THREE.Mesh(buttressGeo, bodyMat);
+    const finLeft = new THREE.Mesh(geometries.finGeometry, materials.bodyMat);
     finLeft.position.set(-0.22, 0.12, 0.14);
     finLeft.rotation.set(-0.06, Math.PI * 0.14, 0.05);
+    finLeft.renderOrder = coreOrder;
+    finLeft.userData.visualCoreImmutable = true;
     validateMeshGeometry(finLeft, 'createControlNode1:finLeft');
     group.add(finLeft);
 
+    const finLeftEdges = new THREE.LineSegments(geometries.finEdgesGeometry, materials.edgeMat);
+    finLeftEdges.position.copy(finLeft.position);
+    finLeftEdges.rotation.copy(finLeft.rotation);
+    finLeftEdges.scale.copy(finLeft.scale).multiplyScalar(1.004);
+    finLeftEdges.renderOrder = archOrder;
+    validateMeshGeometry(finLeftEdges, 'createControlNode1:finLeftEdges');
+    group.add(finLeftEdges);
+
     // 7) Right relic buttress - asymmetric counter-command
-    const finRight = new THREE.Mesh(buttressGeo, bodyMat);
+    const finRight = new THREE.Mesh(geometries.finGeometry, materials.bodyMat);
     finRight.position.set(0.2, 0.18, -0.18);
     finRight.rotation.set(0.05, -Math.PI * 0.12, -0.06);
+    finRight.renderOrder = coreOrder;
+    finRight.userData.visualCoreImmutable = true;
     validateMeshGeometry(finRight, 'createControlNode1:finRight');
     group.add(finRight);
 
+    const finRightEdges = new THREE.LineSegments(geometries.finEdgesGeometry, materials.edgeMat);
+    finRightEdges.position.copy(finRight.position);
+    finRightEdges.rotation.copy(finRight.rotation);
+    finRightEdges.scale.copy(finRight.scale).multiplyScalar(1.004);
+    finRightEdges.renderOrder = archOrder;
+    validateMeshGeometry(finRightEdges, 'createControlNode1:finRightEdges');
+    group.add(finRightEdges);
+
     // 8) Upper authority marker - ascended command relic tip
-    const marker = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.34, 5, 1), accentMat);
+    const marker = new THREE.Mesh(geometries.markerGeometry, materials.markerMat);
     marker.position.set(-0.02, 1.58, 0.01);
     marker.rotation.set(0.06, Math.PI * 0.27, -0.03);
+    marker.renderOrder = archOrder + 1;
+    marker.userData.visualCoreImmutable = true;
     validateMeshGeometry(marker, 'createControlNode1:marker');
     group.add(marker);
 
-    group.userData.visualTier = "CONTROL_AUTHORITY_SPIRE";
+    const markerEdges = new THREE.LineSegments(geometries.markerEdgesGeometry, materials.edgeMat);
+    markerEdges.position.copy(marker.position);
+    markerEdges.rotation.copy(marker.rotation);
+    markerEdges.scale.copy(marker.scale).multiplyScalar(1.006);
+    markerEdges.renderOrder = archOrder + 1;
+    validateMeshGeometry(markerEdges, 'createControlNode1:markerEdges');
+    group.add(markerEdges);
+
+    group.userData.visualTier = 'CONTROL_AUTHORITY_SPIRE';
     group.userData.hasAuthoritySpine = true;
+    group.userData.visualReady = true;
 
     return group;
   }
@@ -22871,93 +23126,325 @@ static createAnalyticsNode2(group, color) {
    */
   static createControlHierarchyTower(group, color) {
     try {
+      group.userData = group.userData || {};
+
       const levelCount = 6;
-      const towerMaterial = new THREE.MeshStandardMaterial({
-        transparent: false,
-        opacity: 1,
-        depthWrite: true,
-        depthTest: true,
-        side: THREE.FrontSide,
-        color: color,
-        metalness: 0.8,
+      const colorHex = typeof color === 'number' ? color : new THREE.Color(color ?? 0xff0088).getHex();
+      const baseColor = new THREE.Color(colorHex);
+      const shellColor = baseColor.clone().lerp(new THREE.Color(0xe8fcff), 0.28).getHex();
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: baseColor.clone().lerp(new THREE.Color(0x0e1620), 0.24),
+        emissive: baseColor.clone().lerp(new THREE.Color(0x5dd7ff), 0.12),
+        emissiveIntensity: 0.16,
+        metalness: 0.88,
         roughness: 0.2,
-        emissive: color,
-        emissiveIntensity: 0.3
-
-      });
-
-      // Create hierarchy levels (progressively narrower)
-      for (let i = 0; i < levelCount; i++) {
-        // Create octagonal level (8-sided for authoritative structure)
-        const levelRadius = 0.5 - (i * 0.06);
-        const levelHeight = 0.25;
-        const levelGeometry = new THREE.CylinderGeometry(
-          levelRadius,
-          levelRadius,
-          levelHeight,
-          8
-        );
-        
-        const level = new THREE.Mesh(levelGeometry, towerMaterial);
-        
-        // Stack vertically
-        const yPos = (levelCount / 2 - i) * (levelHeight + 0.08);
-        level.position.y = yPos;
-        
-        // Slight rotation per level for hierarchical visual
-        level.rotation.z = (i * Math.PI / 16);
-        
-        level.userData.isHierarchyLevel = true;
-        level.userData.levelIndex = i;
-        level.userData.baseY = yPos;
-        level.userData.visualCoreImmutable = true;
-        group.add(level);
-      }
-
-      // Create central command axis (chain of command)
-      const axisGeometry = new THREE.CylinderGeometry(0.1, 0.1, levelCount * 0.33, 6);
-      const axisMaterial = new THREE.MeshStandardMaterial({
         transparent: false,
         opacity: 1,
         depthWrite: true,
         depthTest: true,
-        side: THREE.FrontSide,
-        color: color,
-        metalness: 0.95,
-        roughness: 0.05,
-        emissive: color,
-        emissiveIntensity: 0.5
-
+        side: THREE.FrontSide
       });
-      const axis = new THREE.Mesh(axisGeometry, axisMaterial);
-      axis.userData.isCommandAxis = true;
-      axis.userData.visualCoreImmutable = true;
-      group.add(axis);
+      const spineMat = new THREE.MeshStandardMaterial({
+        color: baseColor.clone().lerp(new THREE.Color(0xf5fcff), 0.12),
+        emissive: baseColor.clone().lerp(new THREE.Color(0xccf7ff), 0.24),
+        emissiveIntensity: 0.24,
+        metalness: 0.92,
+        roughness: 0.1,
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide
+      });
+      const coreMat = new THREE.MeshStandardMaterial({
+        color: baseColor.clone().lerp(new THREE.Color(0xffffff), 0.18),
+        emissive: baseColor.clone().lerp(new THREE.Color(0xf9feff), 0.3),
+        emissiveIntensity: 0.36,
+        metalness: 0.7,
+        roughness: 0.08,
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide
+      });
+      const edgeMat = new THREE.LineBasicMaterial({
+        color: baseColor.clone().lerp(new THREE.Color(0xe8fcff), 0.48),
+        transparent: true,
+        opacity: 0.62,
+        depthWrite: false,
+        depthTest: true
+      });
+      const frameMat = new THREE.MeshBasicMaterial({
+        color: baseColor.clone().lerp(new THREE.Color(0xe0fbff), 0.38),
+        transparent: true,
+        opacity: 0.24,
+        depthWrite: false,
+        depthTest: true,
+        side: THREE.DoubleSide
+      });
+      const haloMat = new THREE.MeshBasicMaterial({
+        color: baseColor.clone().lerp(new THREE.Color(0xffffff), 0.2),
+        transparent: true,
+        opacity: 0.3,
+        depthWrite: false,
+        depthTest: true,
+        side: THREE.DoubleSide
+      });
 
-      // Add subtle connector rings between levels
-      for (let i = 0; i < levelCount - 1; i++) {
-        const ringGeometry = new THREE.TorusGeometry(0.52 - (i * 0.06), 0.05, 8, 32);
-        const ringMaterial = new THREE.MeshBasicMaterial({
-          color: color,
-          transparent: true,
-          opacity: 0.25
-        });
-        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-        
-        const yPos = (levelCount / 2 - i - 0.5) * 0.33;
-        ring.position.y = yPos;
-        ring.userData.isLevelConnector = true;
-        ring.userData.visualCoreImmutable = true;
-        group.add(ring);
+      const plinthGeometry = new THREE.CylinderGeometry(0.88, 1.0, 0.12, 8, 1);
+      const plinthEdgesGeometry = safeCreateEdgesGeometry(plinthGeometry, 12);
+      const upperPlinthGeometry = new THREE.CylinderGeometry(0.66, 0.78, 0.1, 8, 1);
+      const upperPlinthEdgesGeometry = safeCreateEdgesGeometry(upperPlinthGeometry, 12);
+      const spineGeometry = new THREE.CylinderGeometry(0.16, 0.11, 2.18, 6, 1);
+      const spineEdgesGeometry = safeCreateEdgesGeometry(spineGeometry, 12);
+      const innerAxisGeometry = new THREE.CylinderGeometry(0.045, 0.045, 2.34, 6, 1);
+      const ribGeometry = new THREE.BoxGeometry(0.08, 1.68, 0.11);
+      const ribEdgesGeometry = safeCreateEdgesGeometry(ribGeometry, 12);
+      const levelGeometry = new THREE.CylinderGeometry(1.0, 0.92, 0.16, 10, 1);
+      const levelEdgesGeometry = safeCreateEdgesGeometry(levelGeometry, 12);
+      const levelFrameGeometry = new THREE.RingGeometry(0.72, 0.9, 10, 1, Math.PI * 0.09, Math.PI * 1.82);
+      const connectorGeometry = new THREE.TorusGeometry(0.58, 0.022, 8, 24, Math.PI * 1.52);
+      const crownGeometry = new THREE.TorusGeometry(0.52, 0.028, 8, 24, Math.PI * 1.58);
+      const crownEdgesGeometry = safeCreateEdgesGeometry(crownGeometry, 12);
+      const meridianGeometry = new THREE.TorusGeometry(0.66, 0.014, 8, 30, Math.PI * 1.16);
+      const coreGeometry = new THREE.OctahedronGeometry(0.24, 0);
+      const coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 12);
+      const crownSpikeGeometry = new THREE.ConeGeometry(0.065, 0.3, 5, 1);
+      const crownSpikeEdgesGeometry = safeCreateEdgesGeometry(crownSpikeGeometry, 10);
+
+      const plinth = new THREE.Mesh(plinthGeometry, bodyMat);
+      plinth.position.y = -0.8;
+      plinth.rotation.y = Math.PI * 0.08;
+      plinth.renderOrder = coreOrder;
+      plinth.userData.visualCoreImmutable = true;
+      validateMeshGeometry(plinth, 'createControlHierarchyTower:plinth');
+      group.add(plinth);
+
+      const plinthEdges = new THREE.LineSegments(plinthEdgesGeometry, edgeMat);
+      plinthEdges.position.copy(plinth.position);
+      plinthEdges.rotation.copy(plinth.rotation);
+      plinthEdges.scale.copy(plinth.scale).multiplyScalar(1.004);
+      plinthEdges.renderOrder = archOrder;
+      validateMeshGeometry(plinthEdges, 'createControlHierarchyTower:plinthEdges');
+      group.add(plinthEdges);
+
+      const upperPlinth = new THREE.Mesh(upperPlinthGeometry, bodyMat);
+      upperPlinth.position.y = -0.62;
+      upperPlinth.rotation.y = -Math.PI * 0.06;
+      upperPlinth.renderOrder = coreOrder;
+      upperPlinth.userData.visualCoreImmutable = true;
+      validateMeshGeometry(upperPlinth, 'createControlHierarchyTower:upperPlinth');
+      group.add(upperPlinth);
+
+      const upperPlinthEdges = new THREE.LineSegments(upperPlinthEdgesGeometry, edgeMat);
+      upperPlinthEdges.position.copy(upperPlinth.position);
+      upperPlinthEdges.rotation.copy(upperPlinth.rotation);
+      upperPlinthEdges.scale.copy(upperPlinth.scale).multiplyScalar(1.004);
+      upperPlinthEdges.renderOrder = archOrder;
+      validateMeshGeometry(upperPlinthEdges, 'createControlHierarchyTower:upperPlinthEdges');
+      group.add(upperPlinthEdges);
+
+      const spine = new THREE.Mesh(spineGeometry, spineMat);
+      spine.position.y = 0.12;
+      spine.rotation.set(0.0, Math.PI * 0.08, 0.01);
+      spine.renderOrder = coreOrder;
+      spine.userData.isCommandAxis = true;
+      spine.userData.visualCoreImmutable = true;
+      validateMeshGeometry(spine, 'createControlHierarchyTower:spine');
+      group.add(spine);
+
+      const spineEdges = new THREE.LineSegments(spineEdgesGeometry, edgeMat);
+      spineEdges.position.copy(spine.position);
+      spineEdges.rotation.copy(spine.rotation);
+      spineEdges.scale.copy(spine.scale).multiplyScalar(1.004);
+      spineEdges.renderOrder = archOrder;
+      validateMeshGeometry(spineEdges, 'createControlHierarchyTower:spineEdges');
+      group.add(spineEdges);
+
+      const innerAxis = new THREE.Mesh(innerAxisGeometry, coreMat);
+      innerAxis.position.y = 0.12;
+      innerAxis.rotation.copy(spine.rotation);
+      innerAxis.scale.set(1.0, 0.98, 1.0);
+      innerAxis.renderOrder = coreOrder + 1;
+      innerAxis.userData.visualCoreImmutable = true;
+      validateMeshGeometry(innerAxis, 'createControlHierarchyTower:innerAxis');
+      group.add(innerAxis);
+
+      for (let i = 0; i < 3; i++) {
+        const angle = (i / 3) * Math.PI * 2 + Math.PI * 0.17;
+        const rib = new THREE.Mesh(ribGeometry, bodyMat);
+        rib.position.set(Math.cos(angle) * 0.35, 0.02, Math.sin(angle) * 0.35);
+        rib.rotation.set(-0.06, -angle + Math.PI * 0.5, 0.08);
+        rib.renderOrder = coreOrder;
+        rib.userData.visualCoreImmutable = true;
+        validateMeshGeometry(rib, `createControlHierarchyTower:rib${i}`);
+        group.add(rib);
+
+        const ribEdges = new THREE.LineSegments(ribEdgesGeometry, edgeMat);
+        ribEdges.position.copy(rib.position);
+        ribEdges.rotation.copy(rib.rotation);
+        ribEdges.scale.copy(rib.scale).multiplyScalar(1.004);
+        ribEdges.renderOrder = archOrder;
+        validateMeshGeometry(ribEdges, `createControlHierarchyTower:ribEdges${i}`);
+        group.add(ribEdges);
       }
 
-      // Store animation metadata
-      group.userData.towerRotationSpeed = 0.08; // Very slow
-      group.userData.levelOscillationAmplitude = 0.04; // ±4% gentle bobbing
+      for (let i = 0; i < levelCount; i++) {
+        const levelGroup = new THREE.Group();
+        const scale = 0.8 - (i * 0.08);
+        const yPos = 0.84 - (i * 0.35);
+        const skewScale = (i % 2 === 0) ? 1.04 : 0.92;
+
+        const levelPlate = new THREE.Mesh(levelGeometry, bodyMat);
+        levelPlate.rotation.y = i * Math.PI * 0.11;
+        levelPlate.scale.set(scale, 1.0, scale * skewScale);
+        levelPlate.renderOrder = coreOrder;
+        levelPlate.userData.visualCoreImmutable = true;
+        validateMeshGeometry(levelPlate, `createControlHierarchyTower:levelPlate${i}`);
+        levelGroup.add(levelPlate);
+
+        const levelEdges = new THREE.LineSegments(levelEdgesGeometry, edgeMat);
+        levelEdges.rotation.copy(levelPlate.rotation);
+        levelEdges.scale.copy(levelPlate.scale).multiplyScalar(1.006);
+        levelEdges.renderOrder = archOrder;
+        validateMeshGeometry(levelEdges, `createControlHierarchyTower:levelEdges${i}`);
+        levelGroup.add(levelEdges);
+
+        const levelFrame = new THREE.Mesh(levelFrameGeometry, frameMat);
+        levelFrame.position.y = 0.014;
+        levelFrame.rotation.set(Math.PI * 0.5, i * Math.PI * 0.08, i * Math.PI * 0.06);
+        levelFrame.scale.set(scale * 0.96, 1.0, scale * 0.9);
+        levelFrame.renderOrder = archOrder + 1;
+        levelFrame.userData.visualCoreImmutable = true;
+        validateMeshGeometry(levelFrame, `createControlHierarchyTower:levelFrame${i}`);
+        levelGroup.add(levelFrame);
+
+        levelGroup.position.y = yPos;
+        levelGroup.userData.isHierarchyLevel = true;
+        levelGroup.userData.levelIndex = i;
+        levelGroup.userData.baseY = yPos;
+        levelGroup.userData.visualCoreImmutable = true;
+        group.add(levelGroup);
+      }
+
+      for (let i = 0; i < levelCount - 1; i++) {
+        const connector = new THREE.Mesh(connectorGeometry, haloMat);
+        connector.position.y = 0.665 - (i * 0.35);
+        connector.rotation.set(
+          Math.PI * (0.5 + ((i % 2 === 0) ? 0.0 : 0.12)),
+          i * Math.PI * 0.13,
+          (i % 2 === 0) ? Math.PI * 0.08 : -Math.PI * 0.1
+        );
+        connector.scale.set(1.0 - (i * 0.08), 1.0, 0.86 - (i * 0.05));
+        connector.renderOrder = archOrder;
+        connector.userData.isLevelConnector = true;
+        connector.userData.visualCoreImmutable = true;
+        validateMeshGeometry(connector, `createControlHierarchyTower:connector${i}`);
+        group.add(connector);
+      }
+
+      const commandCore = new THREE.Mesh(coreGeometry, coreMat);
+      commandCore.position.set(0.0, 1.42, 0.0);
+      commandCore.rotation.set(Math.PI * 0.09, Math.PI * 0.26, Math.PI * 0.04);
+      commandCore.renderOrder = coreOrder + 1;
+      commandCore.userData.visualCoreImmutable = true;
+      validateMeshGeometry(commandCore, 'createControlHierarchyTower:commandCore');
+      group.add(commandCore);
+
+      const commandCoreEdges = new THREE.LineSegments(coreEdgesGeometry, edgeMat);
+      commandCoreEdges.position.copy(commandCore.position);
+      commandCoreEdges.rotation.copy(commandCore.rotation);
+      commandCoreEdges.scale.copy(commandCore.scale).multiplyScalar(1.01);
+      commandCoreEdges.renderOrder = archOrder + 1;
+      validateMeshGeometry(commandCoreEdges, 'createControlHierarchyTower:commandCoreEdges');
+      group.add(commandCoreEdges);
+
+      const commandCoreShell = createNodeHologramShell(commandCore, shellColor);
+      if (commandCoreShell) {
+        commandCoreShell.name = 'HierarchyTowerCommandCoreShell';
+        commandCoreShell.position.copy(commandCore.position);
+        commandCoreShell.quaternion.copy(commandCore.quaternion);
+        commandCoreShell.scale.copy(commandCore.scale).multiplyScalar(1.16);
+        commandCoreShell.frustumCulled = false;
+        commandCoreShell.renderOrder = archOrder;
+        if (commandCoreShell.material?.uniforms?.uOpacity) commandCoreShell.material.uniforms.uOpacity.value = 0.044;
+        group.add(commandCoreShell);
+      }
+
+      const commandCoreGlow = createNodeNeonEdgeGlowShell(commandCore, shellColor, {
+        glowIntensity: 0.86,
+        edgeWidth: 0.052,
+        pulseAmount: 0.0
+      });
+      if (commandCoreGlow) {
+        commandCoreGlow.name = 'HierarchyTowerCommandCoreGlow';
+        commandCoreGlow.position.copy(commandCore.position);
+        commandCoreGlow.quaternion.copy(commandCore.quaternion);
+        commandCoreGlow.scale.copy(commandCore.scale).multiplyScalar(1.03);
+        commandCoreGlow.frustumCulled = false;
+        commandCoreGlow.renderOrder = archOrder + 1;
+        group.add(commandCoreGlow);
+      }
+
+      const crown = new THREE.Mesh(crownGeometry, haloMat);
+      crown.position.set(0.0, 1.34, -0.01);
+      crown.rotation.set(Math.PI * 0.32, Math.PI * 0.18, -Math.PI * 0.08);
+      crown.renderOrder = archOrder;
+      crown.userData.visualCoreImmutable = true;
+      validateMeshGeometry(crown, 'createControlHierarchyTower:crown');
+      group.add(crown);
+
+      const crownEdges = new THREE.LineSegments(crownEdgesGeometry, edgeMat);
+      crownEdges.position.copy(crown.position);
+      crownEdges.rotation.copy(crown.rotation);
+      crownEdges.scale.copy(crown.scale).multiplyScalar(1.004);
+      crownEdges.renderOrder = archOrder + 1;
+      validateMeshGeometry(crownEdges, 'createControlHierarchyTower:crownEdges');
+      group.add(crownEdges);
+
+      const meridian = new THREE.Mesh(meridianGeometry, frameMat);
+      meridian.position.set(0.0, 1.38, 0.0);
+      meridian.rotation.set(Math.PI * 0.12, Math.PI * 0.3, Math.PI * 0.1);
+      meridian.renderOrder = archOrder;
+      meridian.userData.visualCoreImmutable = true;
+      validateMeshGeometry(meridian, 'createControlHierarchyTower:meridian');
+      group.add(meridian);
+
+      for (let i = 0; i < 3; i++) {
+        const angle = (i / 3) * Math.PI * 2 + Math.PI * 0.17;
+        const crownSpike = new THREE.Mesh(crownSpikeGeometry, coreMat);
+        crownSpike.position.set(
+          Math.cos(angle) * 0.34,
+          1.52 + ((i === 1) ? 0.08 : 0.0),
+          Math.sin(angle) * 0.34
+        );
+        crownSpike.rotation.set(0.04, -angle + Math.PI, (i % 2 === 0) ? 0.12 : -0.08);
+        crownSpike.renderOrder = archOrder + 1;
+        crownSpike.userData.visualCoreImmutable = true;
+        validateMeshGeometry(crownSpike, `createControlHierarchyTower:crownSpike${i}`);
+        group.add(crownSpike);
+
+        const crownSpikeEdges = new THREE.LineSegments(crownSpikeEdgesGeometry, edgeMat);
+        crownSpikeEdges.position.copy(crownSpike.position);
+        crownSpikeEdges.rotation.copy(crownSpike.rotation);
+        crownSpikeEdges.scale.copy(crownSpike.scale).multiplyScalar(1.008);
+        crownSpikeEdges.renderOrder = archOrder + 1;
+        validateMeshGeometry(crownSpikeEdges, `createControlHierarchyTower:crownSpikeEdges${i}`);
+        group.add(crownSpikeEdges);
+      }
+
+      group.userData.visualVariant = 'CONTROL_HIERARCHY_TOWER_V2';
+      group.userData.controlVariant = 'HIERARCHY_TOWER';
+      group.userData.towerRotationSpeed = 0.08;
+      group.userData.levelOscillationAmplitude = 0.04;
       group.userData.levelOscillationSpeed = 0.4;
       group.userData.levelCount = levelCount;
-
       group.userData.visualCoreImmutable = true;
+      group.userData.visualReady = true;
       group.userData.nodeGeometryName = 'CONTROL_HIERARCHY_TOWER';
 
       return group;

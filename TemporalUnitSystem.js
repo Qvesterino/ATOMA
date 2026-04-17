@@ -33,6 +33,10 @@ export class TemporalUnitSystem {
     this.newCycleThisFrame = false;
     this.newEpochThisFrame = false;
     this.newAeonThisFrame = false;
+
+    // ── Score integration: time scaling ─────────────────────────────
+    this._timeScale = 1.0;       // 1.0 = normal, <1.0 = slowed during rewind
+    this._isRewinding = false;   // Display flag for ⏪ indicator
   }
   
   /**
@@ -40,6 +44,16 @@ export class TemporalUnitSystem {
    * @param {number} deltaTime - Delta time in seconds
    * @returns {object} - Event flags
    */
+  /**
+   * Set time scale (called by score system during rewind).
+   * @param {number} scale - 1.0 = normal, 0.3 = slowed during rewind
+   * @param {boolean} isRewinding - Whether score is currently rewinding
+   */
+  setTimeScale(scale, isRewinding = false) {
+    this._timeScale = Math.max(0, Math.min(1, scale));
+    this._isRewinding = isRewinding;
+  }
+
   update(deltaTime) {
     if (!this.frameScheduler?.shouldRunSimulation?.()) return;
 
@@ -48,8 +62,8 @@ export class TemporalUnitSystem {
     this.newEpochThisFrame = false;
     this.newAeonThisFrame = false;
     
-    // Advance time
-    this.elapsedTime += deltaTime;
+    // Advance time (scaled during score rewind)
+    this.elapsedTime += deltaTime * this._timeScale;
     
     // Calculate current indices
     const newCycleIndex = Math.floor(this.elapsedTime / this.CYCLE_LENGTH);
@@ -118,11 +132,14 @@ export class TemporalUnitSystem {
    * Get formatted temporal display
    */
   getFormattedDisplay() {
+    const rewindPrefix = this._isRewinding ? '⏪ ' : '';
     return {
-      cycle: this.getCycleTimeFormatted(),
+      cycle: rewindPrefix + this.getCycleTimeFormatted(),
       cycleNumber: this.cycleIndex,
       epoch: this.epochIndex.toString().padStart(2, '0'),
-      aeon: this.aeonIndex.toString().padStart(2, '0')
+      aeon: this.aeonIndex.toString().padStart(2, '0'),
+      isRewinding: this._isRewinding,
+      timeScale: this._timeScale
     };
   }
   

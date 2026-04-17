@@ -38,6 +38,7 @@ const MENU_MAPS = Object.freeze([
         prosperity: 'high',
         accentColor: '#00e5a0',
         accentRgb: '0, 229, 160',
+        scoreConfig: { sustainDuration: 5, rewindSpeed: 4 },  // easiest — calm world
     },
     {
         id: 'desert',
@@ -51,6 +52,7 @@ const MENU_MAPS = Object.freeze([
         prosperity: 'moderate',
         accentColor: '#ffc107',
         accentRgb: '255, 193, 7',
+        scoreConfig: { sustainDuration: 6, rewindSpeed: 3.5 },  // easy
     },
     {
         id: 'desert2',
@@ -64,6 +66,7 @@ const MENU_MAPS = Object.freeze([
         prosperity: 'high',
         accentColor: '#ff9800',
         accentRgb: '255, 152, 0',
+        scoreConfig: { sustainDuration: 7, rewindSpeed: 3 },  // default difficulty
     },
     {
         id: 'quantum',
@@ -77,6 +80,7 @@ const MENU_MAPS = Object.freeze([
         prosperity: 'moderate',
         accentColor: '#00d4ff',
         accentRgb: '0, 212, 255',
+        scoreConfig: { sustainDuration: 7, rewindSpeed: 3 },  // default difficulty
     },
     {
         id: 'memory',
@@ -90,6 +94,7 @@ const MENU_MAPS = Object.freeze([
         prosperity: 'moderate',
         accentColor: '#b44dff',
         accentRgb: '180, 77, 255',
+        scoreConfig: { sustainDuration: 6, rewindSpeed: 3.5 },  // easy
     },
     {
         id: 'sigma',
@@ -103,6 +108,7 @@ const MENU_MAPS = Object.freeze([
         prosperity: 'extreme',
         accentColor: '#ff3d8e',
         accentRgb: '255, 61, 142',
+        scoreConfig: { sustainDuration: 10, rewindSpeed: 2 },  // hardest — extreme world
     },
 ]);
 
