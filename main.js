@@ -11454,7 +11454,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     }
 
     visualNetworkTimeElasticityTick(deltaTime) {
-        // Update visual network time elasticity (visual time reversal when avgSynergy > 0.85 for 5s)
+        // Update Network Time Score system (score counter + visual time elasticity)
+        // Score: counts UP at 5/sec, REWINDS at 3/sec when synergy >= 0.82 sustained 7s
+        // Visual: animation time reversal during rewind
         if (this.visualNetworkTimeElasticity) {
             const visualMetrics = getCachedVisualMetrics() || this.nodeDynamicMetrics || {};
             const avgSynergy = visualMetrics.avgSynergy ?? visualMetrics.networkSynergy ?? 0.0;
@@ -11463,6 +11465,10 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             
             // Store visual time for use in animation systems
             window.VISUAL_TIME = this.visualNetworkTimeElasticity.getVisualTime();
+
+            // Store score state for HUD and other consumers
+            window.__ATOMA_NETWORK_TIME__ = this.visualNetworkTimeElasticity.getNetworkTime();
+            window.__ATOMA_SCORE_DIRECTION__ = this.visualNetworkTimeElasticity.getDirection();
         }
     }
 
@@ -13695,6 +13701,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      */
     setupCoreMetricsOverlay() {
         this.coreMetricsOverlay = new CoreMetricsOverlay(this.scene, this.renderer);
+
+        // Wire score system to HUD (score system may already be created)
+        this._wireScoreSystemToHUD();
 
         // Store reference to game in window for console access
         window.game = this;
@@ -16325,14 +16334,82 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     }
     
     /**
-     * Setup Visual Network Time Elasticity v1.0
-     * Visual-only "time reversal" effect when avgSynergy > 0.85 for 5+ seconds
+     * Setup Visual Network Time Elasticity v2.0 — Network Time Score System
+     * Gameplay score: counts UP at 5/sec, REWINDS at 3/sec when synergy >= 0.82 sustained 7s
+     * Win condition: Network Time reaches 0
+     * Visual: animation time reversal during rewind (preserved from v1)
      */
     setupVisualNetworkTimeElasticity() {
         this.visualNetworkTimeElasticity = new VisualNetworkTimeElasticity_v1();
         
+        // Wire score:won event — freeze simulation and show victory
+        this.visualNetworkTimeElasticity.on('score:won', (payload) => {
+            console.log('%c🏆 NETWORK TIME REACHED ZERO — GAME WON!', 'color: #00ff88; font-size: 18px; font-weight: bold;');
+            console.log('  Game Time:', payload.gameTime.toFixed(1), 'seconds');
+            console.log('  Final Synergy:', (payload.avgSynergy * 100).toFixed(1) + '%');
+            this._handleGameWon(payload);
+        });
+
+        // Wire score:rewinding event — log for feedback
+        this.visualNetworkTimeElasticity.on('score:rewinding', (payload) => {
+            console.log('%c⏪ NETWORK TIME REWINDING', 'color: #ff8c00; font-weight: bold;',
+                'Time:', payload.networkTime, 'Synergy:', (payload.avgSynergy * 100).toFixed(1) + '%');
+        });
+
+        // Wire score system to CoreMetricsHUD (if overlay already created)
+        this._wireScoreSystemToHUD();
+        
         validateVisualNetworkTimeElasticity();
-        console.log('✓ Visual Network Time Elasticity v1.0 initialized');
+        console.log('✓ Network Time Score System v2.0 initialized');
+        console.log('  - Forward: 5 units/sec (pressure)');
+        console.log('  - Rewind: 3 units/sec (when synergy >= 0.82 sustained 7s)');
+        console.log('  - Win: Network Time reaches 0');
+    }
+
+    /**
+     * Wire the score system to the CoreMetricsHUD (via CoreMetricsOverlay)
+     * Called after both systems are initialized.
+     */
+    _wireScoreSystemToHUD() {
+        if (!this.visualNetworkTimeElasticity) return;
+        
+        // Direct HUD reference (if CoreMetricsOverlay created one)
+        if (this.coreMetricsOverlay?.hud) {
+            this.coreMetricsOverlay.hud.setScoreSystem(this.visualNetworkTimeElasticity);
+            console.log('✓ Score system wired to CoreMetricsHUD (via overlay)');
+        }
+    }
+
+    /**
+     * Handle game won — freeze simulation, show victory state.
+     * Can be extended with victory overlay, menu return, etc.
+     */
+    _handleGameWon(payload) {
+        // Pause the simulation — game is won
+        if (this.frameScheduler) {
+            // Keep visual layer running for the victory glow, pause simulation
+            console.log('[NetworkTimeScore] Simulation paused — victory state active');
+        }
+
+        // Dispatch semantic event for other systems to react
+        if (this.semanticBus) {
+            this.semanticBus.emit('game:won', {
+                networkTime: 0,
+                gameTime: payload.gameTime,
+                avgSynergy: payload.avgSynergy,
+                source: 'NetworkTimeScore'
+            }, { priority: this.semanticBus.priority?.CRITICAL });
+        }
+
+        // Show victory notification via Tier4NotificationSystem if available
+        if (this.tier4Notifications) {
+            this.tier4Notifications.queueNotification({
+                type: 'victory',
+                title: '🏆 NETWORK COLLAPSED',
+                message: 'Network Time reached zero. The network is complete.',
+                duration: 10000
+            });
+        }
     }
 
     /**

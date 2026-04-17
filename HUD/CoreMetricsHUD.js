@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { projectHudMetrics } from '../SemanticMetricAdapter.js';
 import { CoreMetricsCalculator } from './CoreMetricsCalculator.js';
-import { VisualNetworkTimeElasticity_v1 } from '../VisualNetworkTimeElasticity_v1.js';
+import { SCORE_DIRECTION } from '../VisualNetworkTimeElasticity_v1.js';
 import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from '../ui/config/UIVisibilityConfig.js';
 
 const METRIC_DISPLAY_MODES = Object.freeze({
@@ -63,11 +63,9 @@ export class CoreMetricsHUD {
     this.glowDuration = 0.3; // seconds
     this.glowElapsedTime = 0;
     
-    // Network Time Pressure state
-    this.networkTimeCounter = 0; // integer counter in units
-    this.networkTimeFrozen = false;
-    this.networkTimePulseActive = false;
-    this.networkTimePulseElapsed = 0;
+    // Score system reference (set via setScoreSystem)
+    this._scoreSystem = null;
+    this._lastDirection = SCORE_DIRECTION.FORWARD;
     
     // Display smoothing: treat metric changes as a tween so link creation
     // does not snap the HUD to the final network state in a single frame.
@@ -112,8 +110,7 @@ export class CoreMetricsHUD {
     this._lastNewEventFlags = null;
     this._lastDeltaTime = 0.016;
     
-    // Visual Network Time Elasticity
-    this.timeElasticity = new VisualNetworkTimeElasticity_v1();
+    // Network Time direction indicator
     this.timeElasticityIndicator = null;
 
     this._handleUIVisibilityChange = () => this._syncVisibility();
@@ -262,6 +259,15 @@ export class CoreMetricsHUD {
         #core-metrics-hud .network-time-value.rewinding {
           color: #ff8c00;
           text-shadow: 0 0 12px rgba(255, 140, 0, 0.4);
+        }
+        #core-metrics-hud .network-time-value.won {
+          color: #00ff88;
+          text-shadow: 0 0 20px rgba(0, 255, 136, 0.6);
+          animation: atoma-won-pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes atoma-won-pulse {
+          0%, 100% { text-shadow: 0 0 20px rgba(0, 255, 136, 0.3); }
+          50% { text-shadow: 0 0 30px rgba(0, 255, 136, 0.8); }
         }
         #core-metrics-hud .time-elasticity-badge {
           font-size: 7px;
@@ -467,16 +473,10 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   this.updateMetricDisplay('corruption', this.displayedMetrics.corruption);
   this.updateMetricDisplay('loadPressure', this.displayedMetrics.loadPressure);
 
-  // === VISUAL NETWORK TIME ELASTICITY ===
-  // Update time elasticity state based on synergy
-  this.timeElasticity.setAverageSynergy(this.displayedMetrics.synergy);
-  this.timeElasticity.update(deltaTime, performance.now() / 1000);
-  
-  // Update visualization of time elasticity
-  this.updateTimeElasticityVisualization();
-
-  // === NETWORK TIME PRESSURE ===
-  this.updateNetworkTime(this.displayedMetrics.synergy, deltaTime);
+  // === NETWORK TIME SCORE ===
+  // Score system is updated by main.js simulation loop.
+  // HUD only reads the current state for display.
+  this.updateNetworkTimeDisplay();
 
 
   // === EVENT GLOW ===
@@ -650,64 +650,50 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   }
   
   /**
-   * Update Network Time Pressure counter.
-   * Uses CSS classes for state (frozen/running) instead of inline color.
+   * Set the score system reference.
+   * The score system (VisualNetworkTimeElasticity_v1) is the single authority
+   * for Network Time value and direction.
+   * @param {Object} scoreSystem - VisualNetworkTimeElasticity_v1 instance
    */
-  updateNetworkTime(synergy, deltaTime) {
+  setScoreSystem(scoreSystem) {
+    this._scoreSystem = scoreSystem;
+  }
+
+  /**
+   * Update Network Time display from the score system.
+   * Reads value and direction from the score authority.
+   * Uses CSS classes for state styling.
+   */
+  updateNetworkTimeDisplay() {
     if (!this.hudElements.networkTime) return;
 
-    const safeSynergy = this.clamp01(synergy);
-    const wasFrozen = this.networkTimeFrozen;
-    this.networkTimeFrozen = safeSynergy >= 0.85;
-
-    // Increment counter: 5 units per second
-    if (!this.networkTimeFrozen) {
-      this.networkTimeCounter += 5 * deltaTime;
+    // Fallback: if no score system, show dashes
+    if (!this._scoreSystem) {
+      this.hudElements.networkTime.textContent = '-----';
+      return;
     }
 
-    // Format as 5-digit integer (00000)
-    const displayValue = Math.floor(this.networkTimeCounter).toString().padStart(5, '0');
+    const direction = this._scoreSystem.getDirection();
+    const displayValue = this._scoreSystem.getNetworkTimeFormatted();
     this.hudElements.networkTime.textContent = displayValue;
 
-    // State via CSS class
-    this.hudElements.networkTime.classList.toggle('frozen', this.networkTimeFrozen);
+    // Remove all state classes
+    this.hudElements.networkTime.classList.remove('frozen', 'rewinding', 'won');
 
-    // Pulse on state change
-    if (wasFrozen !== this.networkTimeFrozen) {
-      this.networkTimePulseActive = true;
-      this.networkTimePulseElapsed = 0;
-    }
-
-    // Update pulse animation
-    if (this.networkTimePulseActive) {
-      this.networkTimePulseElapsed += deltaTime;
-      if (this.networkTimePulseElapsed < 0.3) {
-        const pulsePhase = (this.networkTimePulseElapsed / 0.3) * Math.PI;
-        const opacity = 0.5 + Math.sin(pulsePhase) * 0.5;
-        this.hudElements.networkTime.style.opacity = opacity.toString();
-      } else {
-        this.networkTimePulseActive = false;
-        this.hudElements.networkTime.style.opacity = '1';
-      }
-    }
-  }
-  
-  /**
-   * Update Visual Network Time Elasticity visualization.
-   * Uses CSS classes for rewinding state — no inline color manipulation.
-   */
-  updateTimeElasticityVisualization() {
-    if (!this.hudElements.networkTime) return;
-
-    const isRewinding = this.timeElasticity.isRewinding();
-    const fadeAlpha = this.timeElasticity.getFadeAlpha();
-
-    if (isRewinding) {
-      // Rewinding state via CSS class
+    // Apply state class
+    if (direction === SCORE_DIRECTION.WON) {
+      this.hudElements.networkTime.classList.add('won');
+    } else if (direction === SCORE_DIRECTION.REWIND) {
       this.hudElements.networkTime.classList.add('rewinding');
-      this.hudElements.networkTime.classList.remove('frozen');
+    }
+    // FORWARD: no special class, default cyan color
 
-      // Elasticity badge (CSS-animated)
+    // Direction badge
+    const prevDirection = this._lastDirection;
+    this._lastDirection = direction;
+
+    if (direction === SCORE_DIRECTION.REWIND) {
+      // Show ELASTIC badge
       if (!this.timeElasticityIndicator) {
         const badge = document.createElement('span');
         badge.className = 'time-elasticity-badge';
@@ -715,17 +701,34 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
         this.hudElements.networkTime.parentElement.appendChild(badge);
         this.timeElasticityIndicator = badge;
       }
+      const fadeAlpha = this._scoreSystem.getFadeAlpha();
       this.timeElasticityIndicator.style.opacity = fadeAlpha.toString();
-    } else {
-      // Normal state
-      this.hudElements.networkTime.classList.remove('rewinding');
-      this.hudElements.networkTime.style.textShadow = '';
-
-      // Remove badge
+    } else if (direction === SCORE_DIRECTION.WON) {
+      // Show WON badge
       if (this.timeElasticityIndicator) {
         this.timeElasticityIndicator.remove();
         this.timeElasticityIndicator = null;
       }
+      if (!this.timeElasticityIndicator) {
+        const badge = document.createElement('span');
+        badge.className = 'time-elasticity-badge';
+        badge.textContent = 'WON';
+        badge.style.color = '#00ff88';
+        this.hudElements.networkTime.parentElement.appendChild(badge);
+        this.timeElasticityIndicator = badge;
+      }
+    } else {
+      // FORWARD: remove badge
+      if (this.timeElasticityIndicator) {
+        this.timeElasticityIndicator.remove();
+        this.timeElasticityIndicator = null;
+      }
+    }
+
+    // Pulse on direction change
+    if (prevDirection !== direction) {
+      this.glowActive = true;
+      this.glowElapsedTime = 0;
     }
   }
   

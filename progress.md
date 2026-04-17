@@ -309,3 +309,6 @@ ode --check after the change.
 - QuantumIsland cleanup: disabled the map-owned reference plane for `QuantumIsland` and stopped creating the local mist plane so the square ground-sheet artifacts disappear from this world.
 - Performance fix: `_SafeEvolutionManager` no longer does a full `scene.traverse()` for every registered node on every frame; it now rebuilds a per-frame node lookup from the provided `nodes` array and only falls back to traversal on cache misses.
 - Validation: `node --check _SafeEvolutionManager.js`, `node --check MapConfigBase.js`, `node --check QuantumIsland.js`.
+- Added temporary runtime debug toggles for `NodeVisuals4_0`, `SafeEvolutionManager`, and `NodeMicroEvents` via `window.__DEBUG` and `window.ATOMA_DEBUG_TOGGLES`.
+- Each system now has a real `enabled` gate so the visual stack can be isolated live without reload.
+- Verification: `node --check _NodeVisuals4_0.js`, `node --check _SafeEvolutionManager.js`, `node --check _NodeMicroEvents.js`, `node --check main.js`.

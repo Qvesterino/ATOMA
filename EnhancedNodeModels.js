@@ -359,6 +359,38 @@ const CONTROL_EXTREME_608_CACHE = {
   auraRingGeometry: null
 };
 const CONTROL_EXTREME_608_MATERIALS = new Map(); // keyed by color hex
+const CONTROL_SOVEREIGN_STABILIZER_CACHE = {
+  daisGeometry: null,
+  daisEdgesGeometry: null,
+  pylonGeometry: null,
+  pylonEdgesGeometry: null,
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  kernelGeometry: null,
+  kernelEdgesGeometry: null,
+  haloGeometryA: null,
+  haloGeometryB: null,
+  sigilGeometry: null,
+  sigilEdgesGeometry: null
+};
+const CONTROL_SOVEREIGN_STABILIZER_MATERIALS = new Map(); // keyed by color hex
+const CONTROL_COMMAND_PYRAMID_CACHE = {
+  baseGeometry: null,
+  baseEdgesGeometry: null,
+  liftPlateGeometry: null,
+  liftPlateEdgesGeometry: null,
+  pyramidGeometry: null,
+  pyramidEdgesGeometry: null,
+  frameGeometry: null,
+  frameEdgesGeometry: null,
+  crownGeometry: null,
+  crownEdgesGeometry: null,
+  pylonGeometry: null,
+  pylonEdgesGeometry: null,
+  seedGeometry: null,
+  seedEdgesGeometry: null
+};
+const CONTROL_COMMAND_PYRAMID_MATERIALS = new Map(); // keyed by color hex
 
 // ANALYTICS v2 caches
 const ANALYTICS_V2_CACHE = {
@@ -5772,6 +5804,245 @@ function _getControlV2Materials(color) {
     mat.userData.noMaterialMutation = true;
   });
   CONTROL_V2_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+function _getControlSovereignStabilizerGeometries() {
+  if (!CONTROL_SOVEREIGN_STABILIZER_CACHE.daisGeometry) {
+    CONTROL_SOVEREIGN_STABILIZER_CACHE.daisGeometry = new THREE.BoxGeometry(0.78, 0.12, 0.34);
+    CONTROL_SOVEREIGN_STABILIZER_CACHE.daisEdgesGeometry = safeCreateEdgesGeometry(CONTROL_SOVEREIGN_STABILIZER_CACHE.daisGeometry, 14);
+
+    CONTROL_SOVEREIGN_STABILIZER_CACHE.pylonGeometry = new THREE.BoxGeometry(0.11, 1.0, 0.11);
+    CONTROL_SOVEREIGN_STABILIZER_CACHE.pylonEdgesGeometry = safeCreateEdgesGeometry(CONTROL_SOVEREIGN_STABILIZER_CACHE.pylonGeometry, 14);
+
+    CONTROL_SOVEREIGN_STABILIZER_CACHE.coreGeometry = new THREE.OctahedronGeometry(0.34, 0);
+    CONTROL_SOVEREIGN_STABILIZER_CACHE.coreGeometry.computeBoundingSphere();
+    CONTROL_SOVEREIGN_STABILIZER_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(CONTROL_SOVEREIGN_STABILIZER_CACHE.coreGeometry, 16);
+
+    CONTROL_SOVEREIGN_STABILIZER_CACHE.kernelGeometry = new THREE.TetrahedronGeometry(0.18, 0);
+    CONTROL_SOVEREIGN_STABILIZER_CACHE.kernelGeometry.computeBoundingSphere();
+    CONTROL_SOVEREIGN_STABILIZER_CACHE.kernelEdgesGeometry = safeCreateEdgesGeometry(CONTROL_SOVEREIGN_STABILIZER_CACHE.kernelGeometry, 14);
+
+    CONTROL_SOVEREIGN_STABILIZER_CACHE.haloGeometryA = new THREE.TorusGeometry(0.84, 0.045, 10, 42, Math.PI * 1.42);
+    CONTROL_SOVEREIGN_STABILIZER_CACHE.haloGeometryA.computeBoundingSphere();
+    CONTROL_SOVEREIGN_STABILIZER_CACHE.haloGeometryB = new THREE.TorusGeometry(0.92, 0.035, 10, 42, Math.PI * 1.18);
+    CONTROL_SOVEREIGN_STABILIZER_CACHE.haloGeometryB.computeBoundingSphere();
+
+    CONTROL_SOVEREIGN_STABILIZER_CACHE.sigilGeometry = new THREE.TetrahedronGeometry(0.1, 0);
+    CONTROL_SOVEREIGN_STABILIZER_CACHE.sigilGeometry.computeBoundingSphere();
+    CONTROL_SOVEREIGN_STABILIZER_CACHE.sigilEdgesGeometry = safeCreateEdgesGeometry(CONTROL_SOVEREIGN_STABILIZER_CACHE.sigilGeometry, 12);
+  }
+
+  return CONTROL_SOVEREIGN_STABILIZER_CACHE;
+}
+
+function _getControlSovereignStabilizerMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : new THREE.Color(color ?? 0x00ffff).getHex();
+  if (CONTROL_SOVEREIGN_STABILIZER_MATERIALS.has(colorHex)) return CONTROL_SOVEREIGN_STABILIZER_MATERIALS.get(colorHex);
+
+  const colorKey = colorHex.toString(16).padStart(6, '0');
+  const baseColor = new THREE.Color(colorHex);
+  const deepColor = baseColor.clone().lerp(new THREE.Color(0x12161e), 0.18);
+  const coreColor = baseColor.clone().lerp(new THREE.Color(0xf6fcff), 0.12);
+  const kernelColor = baseColor.clone().lerp(new THREE.Color(0xffffff), 0.2);
+  const edgeColor = baseColor.clone().lerp(new THREE.Color(0xeafcff), 0.42);
+
+  const bodyMat = MaterialCache.get(`control.sovereignStabilizer.body.meshStandard.${colorKey}`, () => new THREE.MeshStandardMaterial({
+    color: deepColor,
+    emissive: baseColor.clone().lerp(new THREE.Color(0x5ac6ff), 0.18),
+    emissiveIntensity: 0.16,
+    metalness: 0.9,
+    roughness: 0.22,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  }));
+
+  const coreMat = MaterialCache.get(`control.sovereignStabilizer.core.meshStandard.${colorKey}`, () => new THREE.MeshStandardMaterial({
+    color: coreColor,
+    emissive: baseColor.clone().lerp(new THREE.Color(0xbef7ff), 0.34),
+    emissiveIntensity: 0.34,
+    metalness: 0.76,
+    roughness: 0.14,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  }));
+
+  const kernelMat = MaterialCache.get(`control.sovereignStabilizer.kernel.meshStandard.${colorKey}`, () => new THREE.MeshStandardMaterial({
+    color: kernelColor,
+    emissive: baseColor.clone().lerp(new THREE.Color(0xf4feff), 0.42),
+    emissiveIntensity: 0.42,
+    metalness: 0.66,
+    roughness: 0.08,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  }));
+
+  const haloMat = MaterialCache.get(`control.sovereignStabilizer.halo.meshBasic.${colorKey}.transparent.default`, () => new THREE.MeshBasicMaterial({
+    color: edgeColor,
+    transparent: true,
+    opacity: 0.28,
+    depthWrite: false
+  }));
+
+  const edgeMat = MaterialCache.get(`control.sovereignStabilizer.edge.lineBasic.${colorKey}.transparent.default`, () => new THREE.LineBasicMaterial({
+    color: edgeColor,
+    transparent: true,
+    opacity: 0.56,
+    depthWrite: false
+  }));
+
+  const sigilMat = MaterialCache.get(`control.sovereignStabilizer.sigil.meshStandard.${colorKey}`, () => new THREE.MeshStandardMaterial({
+    color: coreColor.clone().lerp(new THREE.Color(0xffffff), 0.08),
+    emissive: edgeColor.clone().lerp(new THREE.Color(0xffffff), 0.16),
+    emissiveIntensity: 0.24,
+    metalness: 0.68,
+    roughness: 0.12,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  }));
+
+  const mats = { bodyMat, coreMat, kernelMat, haloMat, edgeMat, sigilMat };
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.isShared = true;
+    mat.userData.noMaterialMutation = true;
+  }
+
+  CONTROL_SOVEREIGN_STABILIZER_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+function _getControlCommandPyramidGeometries() {
+  if (!CONTROL_COMMAND_PYRAMID_CACHE.baseGeometry) {
+    CONTROL_COMMAND_PYRAMID_CACHE.baseGeometry = new THREE.CylinderGeometry(0.62, 0.72, 0.1, 8, 1);
+    CONTROL_COMMAND_PYRAMID_CACHE.baseGeometry.computeBoundingSphere();
+    CONTROL_COMMAND_PYRAMID_CACHE.baseEdgesGeometry = safeCreateEdgesGeometry(CONTROL_COMMAND_PYRAMID_CACHE.baseGeometry, 12);
+
+    CONTROL_COMMAND_PYRAMID_CACHE.liftPlateGeometry = new THREE.CylinderGeometry(0.42, 0.5, 0.08, 8, 1);
+    CONTROL_COMMAND_PYRAMID_CACHE.liftPlateGeometry.computeBoundingSphere();
+    CONTROL_COMMAND_PYRAMID_CACHE.liftPlateEdgesGeometry = safeCreateEdgesGeometry(CONTROL_COMMAND_PYRAMID_CACHE.liftPlateGeometry, 12);
+
+    CONTROL_COMMAND_PYRAMID_CACHE.pyramidGeometry = new THREE.ConeGeometry(0.3, 0.78, 4, 1);
+    CONTROL_COMMAND_PYRAMID_CACHE.pyramidGeometry.computeBoundingSphere();
+    CONTROL_COMMAND_PYRAMID_CACHE.pyramidEdgesGeometry = safeCreateEdgesGeometry(CONTROL_COMMAND_PYRAMID_CACHE.pyramidGeometry, 14);
+
+    CONTROL_COMMAND_PYRAMID_CACHE.frameGeometry = new THREE.TorusGeometry(0.46, 0.014, 8, 24, Math.PI * 1.35);
+    CONTROL_COMMAND_PYRAMID_CACHE.frameGeometry.computeBoundingSphere();
+    CONTROL_COMMAND_PYRAMID_CACHE.frameEdgesGeometry = safeCreateEdgesGeometry(CONTROL_COMMAND_PYRAMID_CACHE.frameGeometry, 12);
+
+    CONTROL_COMMAND_PYRAMID_CACHE.crownGeometry = new THREE.TorusGeometry(0.56, 0.01, 8, 26, Math.PI * 1.22);
+    CONTROL_COMMAND_PYRAMID_CACHE.crownGeometry.computeBoundingSphere();
+    CONTROL_COMMAND_PYRAMID_CACHE.crownEdgesGeometry = safeCreateEdgesGeometry(CONTROL_COMMAND_PYRAMID_CACHE.crownGeometry, 12);
+
+    CONTROL_COMMAND_PYRAMID_CACHE.pylonGeometry = new THREE.BoxGeometry(0.08, 0.64, 0.12);
+    CONTROL_COMMAND_PYRAMID_CACHE.pylonGeometry.computeBoundingSphere();
+    CONTROL_COMMAND_PYRAMID_CACHE.pylonEdgesGeometry = safeCreateEdgesGeometry(CONTROL_COMMAND_PYRAMID_CACHE.pylonGeometry, 12);
+
+    CONTROL_COMMAND_PYRAMID_CACHE.seedGeometry = new THREE.OctahedronGeometry(0.08, 0);
+    CONTROL_COMMAND_PYRAMID_CACHE.seedGeometry.computeBoundingSphere();
+    CONTROL_COMMAND_PYRAMID_CACHE.seedEdgesGeometry = safeCreateEdgesGeometry(CONTROL_COMMAND_PYRAMID_CACHE.seedGeometry, 10);
+  }
+
+  return CONTROL_COMMAND_PYRAMID_CACHE;
+}
+
+function _getControlCommandPyramidMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : new THREE.Color(color ?? 0xff0088).getHex();
+  if (CONTROL_COMMAND_PYRAMID_MATERIALS.has(colorHex)) return CONTROL_COMMAND_PYRAMID_MATERIALS.get(colorHex);
+
+  const colorKey = colorHex.toString(16).padStart(6, '0');
+  const baseColor = new THREE.Color(colorHex);
+  const deepColor = baseColor.clone().lerp(new THREE.Color(0x151a22), 0.22);
+  const commandColor = baseColor.clone().lerp(new THREE.Color(0xf7fcff), 0.14);
+  const apexColor = baseColor.clone().lerp(new THREE.Color(0xffffff), 0.24);
+  const edgeColor = baseColor.clone().lerp(new THREE.Color(0xeafcff), 0.5);
+  const crownColor = baseColor.clone().lerp(new THREE.Color(0xd8fbff), 0.34);
+
+  const bodyMat = MaterialCache.get(`control.commandPyramid.body.meshStandard.${colorKey}`, () => new THREE.MeshStandardMaterial({
+    color: deepColor,
+    emissive: baseColor.clone().lerp(new THREE.Color(0x5bc9ff), 0.18),
+    emissiveIntensity: 0.18,
+    metalness: 0.9,
+    roughness: 0.2,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  }));
+
+  const pyramidMat = MaterialCache.get(`control.commandPyramid.pyramid.meshStandard.${colorKey}`, () => new THREE.MeshStandardMaterial({
+    color: commandColor,
+    emissive: baseColor.clone().lerp(new THREE.Color(0xc8f8ff), 0.3),
+    emissiveIntensity: 0.32,
+    metalness: 0.82,
+    roughness: 0.14,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  }));
+
+  const pylonMat = MaterialCache.get(`control.commandPyramid.pylon.meshStandard.${colorKey}`, () => new THREE.MeshStandardMaterial({
+    color: apexColor,
+    emissive: baseColor.clone().lerp(new THREE.Color(0xf6feff), 0.22),
+    emissiveIntensity: 0.26,
+    metalness: 0.78,
+    roughness: 0.16,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  }));
+
+  const seedMat = MaterialCache.get(`control.commandPyramid.seed.meshStandard.${colorKey}`, () => new THREE.MeshStandardMaterial({
+    color: crownColor,
+    emissive: baseColor.clone().lerp(new THREE.Color(0xffffff), 0.34),
+    emissiveIntensity: 0.42,
+    metalness: 0.7,
+    roughness: 0.08,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  }));
+
+  const frameMat = MaterialCache.get(`control.commandPyramid.frame.meshBasic.${colorKey}.transparent.default`, () => new THREE.MeshBasicMaterial({
+    color: edgeColor,
+    transparent: true,
+    opacity: 0.38,
+    depthWrite: false
+  }));
+
+  const crownMat = MaterialCache.get(`control.commandPyramid.crown.meshBasic.${colorKey}.transparent.default`, () => new THREE.MeshBasicMaterial({
+    color: crownColor,
+    transparent: true,
+    opacity: 0.24,
+    depthWrite: false
+  }));
+
+  const edgeMat = MaterialCache.get(`control.commandPyramid.edge.lineBasic.${colorKey}.transparent.default`, () => new THREE.LineBasicMaterial({
+    color: edgeColor,
+    transparent: true,
+    opacity: 0.58,
+    depthWrite: false
+  }));
+
+  const mats = { bodyMat, pyramidMat, pylonMat, seedMat, frameMat, crownMat, edgeMat };
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.isShared = true;
+    mat.userData.noMaterialMutation = true;
+  }
+
+  CONTROL_COMMAND_PYRAMID_MATERIALS.set(colorHex, mats);
   return mats;
 }
 
@@ -21689,102 +21960,153 @@ static createAnalyticsNode2(group, color) {
    * Control Node 2: Ring-within-ring hierarchy structure
    */
   static createControlNode2(group, color) {
+    group.userData = group.userData || {};
     const nodeKey = group?.userData?.nodeId || group?.userData?.visualCode?.toString() || String(color || 0x00ffff);
     const seedValue = hashString(nodeKey);
     const seed = Math.abs(seedValue) || 1;
     const rng = _mythicSeededRng(seed);
-
-    const bodyMat = new THREE.MeshStandardMaterial({
-      color,
-      emissive: color,
-      emissiveIntensity: 0.24,
-      metalness: 0.82,
-      roughness: 0.18
-    });
-
-    const haloMat = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.34
-    });
-
-    const lineMat = new THREE.LineBasicMaterial({
-      color: 0xcaf4ff,
-      transparent: true,
-      opacity: 0.52
-    });
+    const colorHex = typeof color === 'number' ? color : new THREE.Color(color ?? 0x00ffff).getHex();
+    const geometries = _getControlSovereignStabilizerGeometries();
+    const materials = _getControlSovereignStabilizerMaterials(colorHex);
+    const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+    const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+    const shellColor = new THREE.Color(colorHex).lerp(new THREE.Color(0xeafcff), 0.22).getHex();
 
     const root = new THREE.Group();
     root.name = 'CONTROL_SOVEREIGN_STABILIZER';
+    root.userData.visualVariant = 'CONTROL_SOVEREIGN_STABILIZER_V2';
+    root.userData.nodeGeometryName = 'CONTROL_SOVEREIGN_STABILIZER';
+    root.userData.visualCoreImmutable = true;
+    root.userData.visualReady = true;
 
     // Fractured command dais: three floating authority slabs
-    const daisGeo = new THREE.BoxGeometry(0.78, 0.12, 0.34);
     const daisConfigs = [
-      { pos: [0.0, -0.5, 0.0], rot: [0, Math.PI * 0.08, 0], scale: [1.2, 1, 1.0] },
+      { pos: [0.0, -0.5, 0.0], rot: [0, Math.PI * 0.08, 0], scale: [1.22, 1, 1.0] },
       { pos: [-0.42, -0.36, 0.18], rot: [0.04, -Math.PI * 0.22, 0.18], scale: [0.88, 1, 0.72] },
       { pos: [0.44, -0.32, -0.22], rot: [-0.03, Math.PI * 0.18, -0.2], scale: [0.94, 1, 0.76] }
     ];
     daisConfigs.forEach((cfg, i) => {
-      const slab = new THREE.Mesh(daisGeo, bodyMat);
+      const slab = new THREE.Mesh(geometries.daisGeometry, materials.bodyMat);
       slab.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
       slab.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
       slab.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+      slab.renderOrder = coreOrder;
       validateMeshGeometry(slab, `createControlNode2:dais${i}`);
       root.add(slab);
+
+      const slabEdges = new THREE.LineSegments(geometries.daisEdgesGeometry, materials.edgeMat);
+      slabEdges.position.copy(slab.position);
+      slabEdges.rotation.copy(slab.rotation);
+      slabEdges.scale.copy(slab.scale).multiplyScalar(1.004);
+      slabEdges.renderOrder = archOrder;
+      validateMeshGeometry(slabEdges, `createControlNode2:daisEdges${i}`);
+      root.add(slabEdges);
     });
 
     // Sovereign pylons converging toward the command core
-    const pylonGeo = new THREE.BoxGeometry(0.11, 1.0, 0.11);
     const pylonConfigs = [
       { pos: [-0.28, 0.12, 0.22], rot: [0.1, 0.08, 0.2], scale: [1.0, 1.0, 1.0] },
       { pos: [0.26, 0.18, -0.18], rot: [-0.06, -0.12, -0.18], scale: [1.0, 1.08, 1.0] },
       { pos: [0.06, 0.14, 0.34], rot: [0.16, 0.18, -0.08], scale: [0.9, 0.9, 0.9] }
     ];
     pylonConfigs.forEach((cfg, i) => {
-      const pylon = new THREE.Mesh(pylonGeo, bodyMat);
+      const pylon = new THREE.Mesh(geometries.pylonGeometry, materials.bodyMat);
       pylon.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
       pylon.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
       pylon.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+      pylon.renderOrder = coreOrder;
       validateMeshGeometry(pylon, `createControlNode2:pylon${i}`);
       root.add(pylon);
+
+      const pylonEdges = new THREE.LineSegments(geometries.pylonEdgesGeometry, materials.edgeMat);
+      pylonEdges.position.copy(pylon.position);
+      pylonEdges.rotation.copy(pylon.rotation);
+      pylonEdges.scale.copy(pylon.scale).multiplyScalar(1.006);
+      pylonEdges.renderOrder = archOrder;
+      validateMeshGeometry(pylonEdges, `createControlNode2:pylonEdges${i}`);
+      root.add(pylonEdges);
     });
 
     // Fractured authority core
-    const coreGeo = new THREE.OctahedronGeometry(0.34, 0);
-    const core = new THREE.Mesh(coreGeo, bodyMat);
+    const core = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
     core.position.set(0.02, 0.84, -0.02);
     core.rotation.set(Math.PI * 0.12, Math.PI * 0.22, -Math.PI * 0.08);
     core.scale.set(1.12, 1.34, 0.92);
     core.userData.isCore = true;
+    core.renderOrder = coreOrder;
     validateMeshGeometry(core, 'createControlNode2:core');
     root.add(core);
 
-    const innerKernel = new THREE.Mesh(new THREE.TetrahedronGeometry(0.18, 0), bodyMat.clone());
+    const coreEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.edgeMat);
+    coreEdges.position.copy(core.position);
+    coreEdges.rotation.copy(core.rotation);
+    coreEdges.scale.copy(core.scale).multiplyScalar(1.004);
+    coreEdges.renderOrder = archOrder;
+    validateMeshGeometry(coreEdges, 'createControlNode2:coreEdges');
+    root.add(coreEdges);
+
+    const coreShell = createNodeHologramShell(core, shellColor);
+    if (coreShell) {
+      coreShell.name = 'ControlSovereignCoreShell';
+      coreShell.position.copy(core.position);
+      coreShell.quaternion.copy(core.quaternion);
+      coreShell.scale.copy(core.scale).multiplyScalar(1.16);
+      coreShell.frustumCulled = false;
+      coreShell.renderOrder = archOrder;
+      if (coreShell.material?.uniforms?.uOpacity) coreShell.material.uniforms.uOpacity.value = 0.044;
+      root.add(coreShell);
+    }
+
+    const coreGlow = createNodeNeonEdgeGlowShell(core, shellColor, {
+      glowIntensity: 0.84,
+      edgeWidth: 0.056,
+      pulseAmount: 0.0
+    });
+    if (coreGlow) {
+      coreGlow.name = 'ControlSovereignCoreGlow';
+      coreGlow.position.copy(core.position);
+      coreGlow.quaternion.copy(core.quaternion);
+      coreGlow.scale.copy(core.scale).multiplyScalar(1.028);
+      coreGlow.frustumCulled = false;
+      coreGlow.renderOrder = archOrder;
+      root.add(coreGlow);
+    }
+
+    const innerKernel = new THREE.Mesh(geometries.kernelGeometry, materials.kernelMat);
     innerKernel.position.set(0.0, 0.84, 0.03);
     innerKernel.rotation.set(-Math.PI * 0.14, Math.PI * 0.3, Math.PI * 0.1);
     innerKernel.scale.set(0.88, 1.2, 0.82);
-    innerKernel.material.emissiveIntensity = 0.36;
+    innerKernel.userData.isCore = true;
+    innerKernel.renderOrder = coreOrder;
     validateMeshGeometry(innerKernel, 'createControlNode2:innerKernel');
     root.add(innerKernel);
 
+    const innerKernelEdges = new THREE.LineSegments(geometries.kernelEdgesGeometry, materials.edgeMat);
+    innerKernelEdges.position.copy(innerKernel.position);
+    innerKernelEdges.rotation.copy(innerKernel.rotation);
+    innerKernelEdges.scale.copy(innerKernel.scale).multiplyScalar(1.004);
+    innerKernelEdges.renderOrder = archOrder;
+    validateMeshGeometry(innerKernelEdges, 'createControlNode2:innerKernelEdges');
+    root.add(innerKernelEdges);
+
     // Broken authority halos
     const haloConfigs = [
-      { radius: 0.84, tube: 0.045, arc: Math.PI * 1.42, pos: [0.0, 0.84, 0.0], rot: [Math.PI * 0.5, 0.18, 0.06] },
-      { radius: 0.92, tube: 0.035, arc: Math.PI * 1.18, pos: [0.04, 0.88, -0.04], rot: [Math.PI * 0.18, Math.PI * 0.22, Math.PI * 0.34] }
+      { geometry: geometries.haloGeometryA, pos: [0.0, 0.84, 0.0], rot: [Math.PI * 0.5, 0.18, 0.06] },
+      { geometry: geometries.haloGeometryB, pos: [0.04, 0.88, -0.04], rot: [Math.PI * 0.18, Math.PI * 0.22, Math.PI * 0.34] }
     ];
     haloConfigs.forEach((cfg, i) => {
-      const halo = new THREE.Mesh(new THREE.TorusGeometry(cfg.radius, cfg.tube, 10, 42, cfg.arc), haloMat);
+      const halo = new THREE.Mesh(cfg.geometry, materials.haloMat);
       halo.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
       halo.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
       halo.userData.isControlHalo = true;
+      halo.renderOrder = archOrder;
       validateMeshGeometry(halo, `createControlNode2:halo${i}`);
       root.add(halo);
     });
 
     // Control sigils / stabilizer shards
-    const sigilGeo = new THREE.TetrahedronGeometry(0.1, 0);
     for (let i = 0; i < 5; i++) {
-      const sigil = new THREE.Mesh(sigilGeo, haloMat);
+      const sigil = new THREE.Mesh(geometries.sigilGeometry, materials.sigilMat);
       const angle = (i / 5) * Math.PI * 2;
       const radius = 0.72 + rng() * 0.16;
       sigil.position.set(
@@ -21794,12 +22116,12 @@ static createAnalyticsNode2(group, color) {
       );
       sigil.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
       sigil.scale.set(0.8 + rng() * 0.45, 1.3 + rng() * 0.25, 0.8 + rng() * 0.35);
+      sigil.userData.isControlSigil = true;
+      sigil.renderOrder = archOrder + 1;
       validateMeshGeometry(sigil, `createControlNode2:sigil${i}`);
       root.add(sigil);
     }
 
-    root.userData.visualVariant = 'CONTROL_SOVEREIGN_STABILIZER_V2';
-    root.userData.nodeGeometryName = 'CONTROL_SOVEREIGN_STABILIZER';
     group.add(root);
     return group;
   }
@@ -22329,78 +22651,191 @@ static createAnalyticsNode2(group, color) {
    */
   static createControlCommandPyramid(group, color) {
     try {
-      const bodyMat = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.82,
-        roughness: 0.18,
-        emissive: color,
-        emissiveIntensity: 0.28
-      });
-      const frameMat = new THREE.MeshBasicMaterial({
-        color: 0xd7f5ff,
-        transparent: true,
-        opacity: 0.42
-      });
+      group.userData = group.userData || {};
+      const colorHex = typeof color === 'number' ? color : new THREE.Color(color ?? 0xff0088).getHex();
+      const geometries = _getControlCommandPyramidGeometries();
+      const materials = _getControlCommandPyramidMaterials(colorHex);
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+      const shellColor = new THREE.Color(colorHex).lerp(new THREE.Color(0xeafcff), 0.2).getHex();
+
+      group.userData.visualVariant = 'CONTROL_COMMAND_PYRAMID_V2';
+      group.userData.controlVariant = 'COMMAND_PYRAMID';
+      group.userData.nodeGeometryName = 'CONTROL_COMMAND_PYRAMID';
+      group.userData.visualCoreImmutable = true;
 
       // 1) Strategic base: command dais (disciplined, not bulky)
-      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.72, 0.1, 8, 1), bodyMat);
+      const base = new THREE.Mesh(geometries.baseGeometry, materials.bodyMat);
       base.position.y = -0.47;
       base.rotation.y = Math.PI * 0.06;
-      validateMeshGeometry(base, 'createControlCommandPyramid:base');
       base.userData.visualCoreImmutable = true;
+      base.renderOrder = coreOrder;
+      validateMeshGeometry(base, 'createControlCommandPyramid:base');
       group.add(base);
 
+      const baseEdges = new THREE.LineSegments(geometries.baseEdgesGeometry, materials.edgeMat);
+      baseEdges.position.copy(base.position);
+      baseEdges.rotation.copy(base.rotation);
+      baseEdges.scale.copy(base.scale).multiplyScalar(1.004);
+      baseEdges.renderOrder = archOrder;
+      validateMeshGeometry(baseEdges, 'createControlCommandPyramid:baseEdges');
+      group.add(baseEdges);
+
       // 2) Secondary lift plate: optical separation for elevated command core
-      const liftPlate = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 0.08, 8, 1), bodyMat);
+      const liftPlate = new THREE.Mesh(geometries.liftPlateGeometry, materials.bodyMat);
       liftPlate.position.y = -0.31;
       liftPlate.rotation.y = -Math.PI * 0.09;
-      validateMeshGeometry(liftPlate, 'createControlCommandPyramid:liftPlate');
       liftPlate.userData.visualCoreImmutable = true;
+      liftPlate.renderOrder = coreOrder;
+      validateMeshGeometry(liftPlate, 'createControlCommandPyramid:liftPlate');
       group.add(liftPlate);
 
+      const liftPlateEdges = new THREE.LineSegments(geometries.liftPlateEdgesGeometry, materials.edgeMat);
+      liftPlateEdges.position.copy(liftPlate.position);
+      liftPlateEdges.rotation.copy(liftPlate.rotation);
+      liftPlateEdges.scale.copy(liftPlate.scale).multiplyScalar(1.004);
+      liftPlateEdges.renderOrder = archOrder;
+      validateMeshGeometry(liftPlateEdges, 'createControlCommandPyramid:liftPlateEdges');
+      group.add(liftPlateEdges);
+
       // 3) Pyramid command focus: ascended directive core (not touching heavy base)
-      const pyramid = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.78, 4, 1), bodyMat);
+      const pyramid = new THREE.Mesh(geometries.pyramidGeometry, materials.pyramidMat);
       pyramid.position.y = 0.36;
       pyramid.rotation.set(0.0, Math.PI * 0.25, 0.02);
       pyramid.userData.isCommandPyramid = true;
       pyramid.userData.visualCoreImmutable = true;
+      pyramid.renderOrder = coreOrder;
       validateMeshGeometry(pyramid, 'createControlCommandPyramid:pyramid');
       group.add(pyramid);
 
+      const pyramidEdges = new THREE.LineSegments(geometries.pyramidEdgesGeometry, materials.edgeMat);
+      pyramidEdges.position.copy(pyramid.position);
+      pyramidEdges.rotation.copy(pyramid.rotation);
+      pyramidEdges.scale.copy(pyramid.scale).multiplyScalar(1.004);
+      pyramidEdges.renderOrder = archOrder;
+      validateMeshGeometry(pyramidEdges, 'createControlCommandPyramid:pyramidEdges');
+      group.add(pyramidEdges);
+
+      const pyramidShell = createNodeHologramShell(pyramid, shellColor);
+      if (pyramidShell) {
+        pyramidShell.name = 'CommandPyramidShell';
+        pyramidShell.position.copy(pyramid.position);
+        pyramidShell.quaternion.copy(pyramid.quaternion);
+        pyramidShell.scale.copy(pyramid.scale).multiplyScalar(1.14);
+        pyramidShell.frustumCulled = false;
+        pyramidShell.renderOrder = archOrder;
+        if (pyramidShell.material?.uniforms?.uOpacity) pyramidShell.material.uniforms.uOpacity.value = 0.044;
+        group.add(pyramidShell);
+      }
+
+      const pyramidGlow = createNodeNeonEdgeGlowShell(pyramid, shellColor, {
+        glowIntensity: 0.84,
+        edgeWidth: 0.05,
+        pulseAmount: 0.0
+      });
+      if (pyramidGlow) {
+        pyramidGlow.name = 'CommandPyramidGlow';
+        pyramidGlow.position.copy(pyramid.position);
+        pyramidGlow.quaternion.copy(pyramid.quaternion);
+        pyramidGlow.scale.copy(pyramid.scale).multiplyScalar(1.03);
+        pyramidGlow.frustumCulled = false;
+        pyramidGlow.renderOrder = archOrder;
+        group.add(pyramidGlow);
+      }
+
       // 4) Directive frame: thin broken command orbit/crown
-      const frame = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.014, 8, 24, Math.PI * 1.35), frameMat);
+      const frame = new THREE.Mesh(geometries.frameGeometry, materials.frameMat);
       frame.position.set(0.02, 0.37, -0.01);
       frame.rotation.set(Math.PI * 0.34, Math.PI * 0.16, -Math.PI * 0.12);
       frame.userData.visualCoreImmutable = true;
+      frame.renderOrder = archOrder;
       validateMeshGeometry(frame, 'createControlCommandPyramid:frame');
       group.add(frame);
 
+      const frameEdges = new THREE.LineSegments(geometries.frameEdgesGeometry, materials.edgeMat);
+      frameEdges.position.copy(frame.position);
+      frameEdges.rotation.copy(frame.rotation);
+      frameEdges.scale.copy(frame.scale).multiplyScalar(1.004);
+      frameEdges.renderOrder = archOrder + 1;
+      validateMeshGeometry(frameEdges, 'createControlCommandPyramid:frameEdges');
+      group.add(frameEdges);
+
+      const crown = new THREE.Mesh(geometries.crownGeometry, materials.crownMat);
+      crown.position.set(0.0, 0.58, 0.01);
+      crown.rotation.set(Math.PI * 0.2, Math.PI * 0.34, -Math.PI * 0.08);
+      crown.userData.isAuthorityCrown = true;
+      crown.userData.visualCoreImmutable = true;
+      crown.renderOrder = archOrder;
+      validateMeshGeometry(crown, 'createControlCommandPyramid:crown');
+      group.add(crown);
+
+      const crownEdges = new THREE.LineSegments(geometries.crownEdgesGeometry, materials.edgeMat);
+      crownEdges.position.copy(crown.position);
+      crownEdges.rotation.copy(crown.rotation);
+      crownEdges.scale.copy(crown.scale).multiplyScalar(1.004);
+      crownEdges.renderOrder = archOrder + 1;
+      validateMeshGeometry(crownEdges, 'createControlCommandPyramid:crownEdges');
+      group.add(crownEdges);
+
       // 5-7) Vertical authority accents: directive pylons (discipline markers)
-      const pylonGeo = new THREE.BoxGeometry(0.08, 0.64, 0.12);
       const pylonConfigs = [
-        { pos: [-0.24, 0.0, 0.18], rot: [-0.05, Math.PI * 0.12, 0.05] },
-        { pos: [0.26, 0.08, -0.16], rot: [0.04, -Math.PI * 0.1, -0.06] },
-        { pos: [0.0, -0.02, -0.27], rot: [0.02, Math.PI * 0.02, 0.0] }
+        { pos: [-0.24, 0.02, 0.18], rot: [-0.05, Math.PI * 0.12, 0.05], scale: [0.96, 1.04, 0.94] },
+        { pos: [0.26, 0.08, -0.16], rot: [0.04, -Math.PI * 0.1, -0.06], scale: [0.92, 1.12, 0.9] },
+        { pos: [0.0, -0.02, -0.27], rot: [0.02, Math.PI * 0.02, 0.0], scale: [0.92, 0.98, 0.88] }
       ];
       pylonConfigs.forEach((cfg, i) => {
-        const pylon = new THREE.Mesh(pylonGeo, bodyMat);
+        const pylon = new THREE.Mesh(geometries.pylonGeometry, materials.pylonMat);
         pylon.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
         pylon.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+        pylon.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
         pylon.userData.isDirectivePylon = true;
         pylon.userData.pylonIndex = i;
         pylon.userData.visualCoreImmutable = true;
+        pylon.renderOrder = coreOrder;
         validateMeshGeometry(pylon, `createControlCommandPyramid:pylon${i}`);
         group.add(pylon);
+
+        const pylonEdges = new THREE.LineSegments(geometries.pylonEdgesGeometry, materials.edgeMat);
+        pylonEdges.position.copy(pylon.position);
+        pylonEdges.rotation.copy(pylon.rotation);
+        pylonEdges.scale.copy(pylon.scale).multiplyScalar(1.004);
+        pylonEdges.renderOrder = archOrder;
+        validateMeshGeometry(pylonEdges, `createControlCommandPyramid:pylonEdges${i}`);
+        group.add(pylonEdges);
       });
 
       // 8) Optional top cap: command seed beacon
-      const seed = new THREE.Mesh(new THREE.OctahedronGeometry(0.08, 0), frameMat);
+      const seed = new THREE.Mesh(geometries.seedGeometry, materials.seedMat);
       seed.position.set(0.0, 0.84, -0.01);
       seed.rotation.set(0.06, Math.PI * 0.2, -0.03);
       seed.userData.isAuthorityGlow = true;
       seed.userData.visualCoreImmutable = true;
+      seed.renderOrder = archOrder + 1;
       validateMeshGeometry(seed, 'createControlCommandPyramid:seed');
       group.add(seed);
+
+      const seedEdges = new THREE.LineSegments(geometries.seedEdgesGeometry, materials.edgeMat);
+      seedEdges.position.copy(seed.position);
+      seedEdges.rotation.copy(seed.rotation);
+      seedEdges.scale.copy(seed.scale).multiplyScalar(1.006);
+      seedEdges.renderOrder = archOrder + 1;
+      validateMeshGeometry(seedEdges, 'createControlCommandPyramid:seedEdges');
+      group.add(seedEdges);
+
+      const seedGlow = createNodeNeonEdgeGlowShell(seed, shellColor, {
+        glowIntensity: 0.38,
+        edgeWidth: 0.016,
+        pulseAmount: 0.0
+      });
+      if (seedGlow) {
+        seedGlow.name = 'CommandSeedGlow';
+        seedGlow.position.copy(seed.position);
+        seedGlow.quaternion.copy(seed.quaternion);
+        seedGlow.scale.copy(seed.scale).multiplyScalar(1.02);
+        seedGlow.frustumCulled = false;
+        seedGlow.renderOrder = archOrder + 1;
+        group.add(seedGlow);
+      }
 
       // Keep metadata fields for compatibility; set static-friendly values.
       group.userData.commandRotationSpeed = 0.0;
@@ -22408,6 +22843,7 @@ static createAnalyticsNode2(group, color) {
       group.userData.commandPulseSpeed = 0.0;
 
       group.userData.visualCoreImmutable = true;
+      group.userData.visualReady = true;
       group.userData.nodeGeometryName = 'CONTROL_COMMAND_PYRAMID';
 
       return group;
