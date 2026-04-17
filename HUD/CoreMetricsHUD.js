@@ -314,6 +314,30 @@ export class CoreMetricsHUD {
           color: #ffd700 !important;
           text-shadow: 0 0 12px rgba(255, 215, 0, 0.5);
         }
+        #core-metrics-hud .combo-badge {
+          font-size: 7px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: #00e5ff;
+          margin-left: 4px;
+          font-weight: bold;
+          opacity: 0;
+          transition: opacity 0.3s ease, color 0.3s ease;
+        }
+        #core-metrics-hud .combo-badge.active {
+          opacity: 1;
+          animation: atoma-combo-pulse 1.2s ease-in-out infinite;
+        }
+        #core-metrics-hud .combo-badge.high-combo {
+          color: #ff8c00;
+        }
+        #core-metrics-hud .combo-badge.max-combo {
+          color: #ffd700;
+        }
+        @keyframes atoma-combo-pulse {
+          0%, 100% { opacity: 0.7; }
+          50% { opacity: 1; }
+        }
         #core-metrics-hud .sustain-progress-section {
           margin-top: 4px;
           opacity: 0;
@@ -346,6 +370,28 @@ export class CoreMetricsHUD {
           text-transform: uppercase;
           color: rgba(0, 200, 220, 0.35);
           margin-top: 2px;
+        }
+        #core-metrics-hud .nt-sparkline-container {
+          margin-top: 6px;
+          opacity: 0.8;
+          transition: opacity 0.3s ease;
+        }
+        #core-metrics-hud .nt-sparkline-container:hover {
+          opacity: 1;
+        }
+        #core-metrics-hud .nt-sparkline-label {
+          font-size: 6px;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          color: rgba(0, 200, 220, 0.3);
+          margin-bottom: 3px;
+        }
+        #core-metrics-hud .nt-sparkline-canvas {
+          display: block;
+          width: 100%;
+          height: 36px;
+          border-radius: 3px;
+          background: rgba(0, 0, 0, 0.2);
         }
       `;
       document.head.appendChild(style);
@@ -420,6 +466,24 @@ export class CoreMetricsHUD {
     this.hudContainer.appendChild(sustainSection);
     this.hudElements.sustainProgress = sustainFill;
     this.hudElements.sustainSection = sustainSection;
+
+    // ── Network Time Sparkline (Phase 6B) ─────────────────────────────
+    const sparklineContainer = document.createElement('div');
+    sparklineContainer.className = 'nt-sparkline-container';
+
+    const sparklineLabel = document.createElement('div');
+    sparklineLabel.className = 'nt-sparkline-label';
+    sparklineLabel.textContent = 'NT HISTORY · 60s';
+
+    const sparklineCanvas = document.createElement('canvas');
+    sparklineCanvas.className = 'nt-sparkline-canvas';
+    sparklineCanvas.width = 240;
+    sparklineCanvas.height = 36;
+
+    sparklineContainer.appendChild(sparklineLabel);
+    sparklineContainer.appendChild(sparklineCanvas);
+    this.hudContainer.appendChild(sparklineContainer);
+    this.hudElements.ntSparkline = sparklineCanvas;
 
     document.body.appendChild(this.hudContainer);
   }
@@ -870,10 +934,134 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
       this.hudElements.networkTime.classList.toggle('drama-zone', inDramaZone);
     }
 
+    // ── Combo indicator (Phase 5A) ─────────────────────────────────────
+    const comboCount = this._scoreSystem.getScoreState?.()?.combo ?? 0;
+    if (comboCount >= 2) {
+      if (!this._comboBadge) {
+        const badge = document.createElement('span');
+        badge.className = 'combo-badge';
+        this.hudElements.networkTime.parentElement.appendChild(badge);
+        this._comboBadge = badge;
+      }
+      const mult = this._scoreSystem.getScoreState?.()?.comboMultiplier ?? '1.0';
+      this._comboBadge.textContent = `×${mult}`;
+      this._comboBadge.classList.add('active');
+      this._comboBadge.classList.toggle('high-combo', comboCount >= 3);
+      this._comboBadge.classList.toggle('max-combo', comboCount >= 4);
+    } else if (this._comboBadge) {
+      this._comboBadge.classList.remove('active', 'high-combo', 'max-combo');
+    }
+
     // Pulse on direction change
     if (prevDirection !== direction) {
       this.glowActive = true;
       this.glowElapsedTime = 0;
+    }
+
+    // ── Network Time Sparkline (Phase 6B) ─────────────────────────────
+    this._drawNTSparkline();
+  }
+
+  /**
+   * Draw the NT history sparkline onto the canvas element.
+   * Reads from scoreSystem.getNetworkTimeHistory() → Array<{time, value}>
+   */
+  _drawNTSparkline() {
+    const canvas = this.hudElements.ntSparkline;
+    if (!canvas || !this._scoreSystem) return;
+
+    const history = this._scoreSystem.getNetworkTimeHistory?.();
+    if (!history || history.length < 2) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const PAD_Y = 4;
+
+    // Clear
+    ctx.clearRect(0, 0, W, H);
+
+    // Find value range
+    let minVal = Infinity;
+    let maxVal = -Infinity;
+    for (let i = 0; i < history.length; i++) {
+      const v = history[i].value;
+      if (v < minVal) minVal = v;
+      if (v > maxVal) maxVal = v;
+    }
+    // Ensure minimum range to avoid division by zero
+    const range = Math.max(maxVal - minVal, 1);
+    // Add 10% padding top/bottom
+    const paddedRange = range * 1.2;
+    const baseY = minVal - range * 0.1;
+
+    // Map data to pixels
+    const xStep = W / (history.length - 1);
+    const yScale = (H - PAD_Y * 2) / paddedRange;
+
+    const toX = (i) => i * xStep;
+    const toY = (v) => H - PAD_Y - (v - baseY) * yScale;
+
+    // ── Fill gradient under the line ──────────────────────────────────
+    ctx.beginPath();
+    ctx.moveTo(toX(0), toY(history[0].value));
+    for (let i = 1; i < history.length; i++) {
+      ctx.lineTo(toX(i), toY(history[i].value));
+    }
+    ctx.lineTo(toX(history.length - 1), H);
+    ctx.lineTo(toX(0), H);
+    ctx.closePath();
+
+    const fillGrad = ctx.createLinearGradient(0, 0, 0, H);
+    fillGrad.addColorStop(0, 'rgba(0, 200, 220, 0.15)');
+    fillGrad.addColorStop(1, 'rgba(0, 200, 220, 0.02)');
+    ctx.fillStyle = fillGrad;
+    ctx.fill();
+
+    // ── Line stroke ───────────────────────────────────────────────────
+    ctx.beginPath();
+    ctx.moveTo(toX(0), toY(history[0].value));
+    for (let i = 1; i < history.length; i++) {
+      ctx.lineTo(toX(i), toY(history[i].value));
+    }
+    const lineGrad = ctx.createLinearGradient(0, 0, W, 0);
+    lineGrad.addColorStop(0, 'rgba(0, 212, 255, 0.3)');
+    lineGrad.addColorStop(1, 'rgba(0, 212, 255, 0.9)');
+    ctx.strokeStyle = lineGrad;
+    ctx.lineWidth = 1.5;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+
+    // ── Current value dot (rightmost point) ───────────────────────────
+    const lastX = toX(history.length - 1);
+    const lastY = toY(history[history.length - 1].value);
+
+    // Outer glow
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 212, 255, 0.25)';
+    ctx.fill();
+
+    // Inner dot
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#00d4ff';
+    ctx.fill();
+
+    // ── Drama zone golden tint ────────────────────────────────────────
+    if (this._scoreSystem.isInDramaZone?.()) {
+      ctx.beginPath();
+      ctx.moveTo(toX(0), toY(history[0].value));
+      for (let i = 1; i < history.length; i++) {
+        ctx.lineTo(toX(i), toY(history[i].value));
+      }
+      ctx.lineTo(toX(history.length - 1), H);
+      ctx.lineTo(toX(0), H);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(255, 215, 0, 0.08)';
+      ctx.fill();
     }
   }
   

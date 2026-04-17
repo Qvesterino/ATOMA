@@ -56,6 +56,28 @@ export class VisualNetworkTimeElasticity_v1 {
     this._dramaZoneThreshold = config.dramaZoneThreshold ?? 20;      // NT below this = drama zone
     this._inDramaZone = false;
 
+    // ── Phase 5A: Rewind Combo Stacking ─────────────────────────────
+    this._comboCount = 0;            // consecutive rewind sessions
+    this._comboMultiplier = 1.0;     // current combo speed multiplier
+    this._lastRewindStartNT = 0;     // NT when last rewind started (for ground-lost detection)
+    this._comboMultipliers = [       // indexed by combo count
+      1.0,  // 0: no rewind yet
+      1.0,  // 1: first rewind (no bonus)
+      1.2,  // 2: second consecutive
+      1.5,  // 3: third consecutive
+      1.8,  // 4+: cap
+    ];
+
+    // ── Phase 5B: Milestone tracking ────────────────────────────────
+    this._milestonesTriggered = new Set();   // '75', '50', '25' — one-shot per game
+    this._peakNT = 0;                         // highest NT seen (used for rewind % calc)
+
+    // ── Phase 6B: NT History for sparkline ──────────────────────────
+    this._ntHistory = [];                     // { time, value } samples
+    this._ntHistoryMaxSamples = 120;          // ~60 seconds at 2 samples/sec (simulation rate)
+    this._ntHistorySampleAcc = 0;             // accumulator for sample interval
+    this._ntHistorySampleInterval = 0.5;      // sample every 0.5 seconds
+
     // ── Score state ─────────────────────────────────────────────────
     this._networkTimeCounter = 0;    // the actual score counter
     this._direction = SCORE_DIRECTION.FORWARD;
@@ -90,7 +112,8 @@ export class VisualNetworkTimeElasticity_v1 {
       'score:forward': [],
       'score:rewinding': [],
       'score:won': [],
-      'score:dramaZone': []
+      'score:dramaZone': [],
+      'score:milestone': []
     };
 
     // ── Session stats ───────────────────────────────────────────────
@@ -187,7 +210,9 @@ export class VisualNetworkTimeElasticity_v1 {
       synergyQualityMultiplier: this._direction === SCORE_DIRECTION.REWIND
         ? (1 + (Math.max(0, this.avgSynergy - this._synergyThreshold) * this._synergyQualityScale)).toFixed(2)
         : '1.00',
-      escalationFactor: (1 + (this._networkTimeCounter / this._escalationDivisor)).toFixed(2)
+      escalationFactor: (1 + (this._networkTimeCounter / this._escalationDivisor)).toFixed(2),
+      combo: this._comboCount,
+      comboMultiplier: this._comboMultiplier.toFixed(1)
     };
   }
 
@@ -355,18 +380,27 @@ export class VisualNetworkTimeElasticity_v1 {
       this._direction = SCORE_DIRECTION.FORWARD;
     }
 
-    // Emit direction change events
+    // Emit direction change events + combo tracking
     if (previousDirection !== this._direction) {
       if (this._direction === SCORE_DIRECTION.REWIND) {
+        // Phase 5A: Increment combo on each new rewind session
+        this._comboCount++;
+        this._lastRewindStartNT = this._networkTimeCounter;
+        this._comboMultiplier = this._comboMultipliers[
+          Math.min(this._comboCount, this._comboMultipliers.length - 1)
+        ];
         this._emit('score:rewinding', {
           networkTime: this.getNetworkTime(),
           sustainedDuration: this._sustainedDuration,
-          avgSynergy: this.avgSynergy
+          avgSynergy: this.avgSynergy,
+          combo: this._comboCount,
+          comboMultiplier: this._comboMultiplier
         });
       } else if (this._direction === SCORE_DIRECTION.FORWARD && previousDirection === SCORE_DIRECTION.REWIND) {
         this._emit('score:forward', {
           networkTime: this.getNetworkTime(),
-          avgSynergy: this.avgSynergy
+          avgSynergy: this.avgSynergy,
+          combo: this._comboCount
         });
       }
     }
@@ -375,6 +409,12 @@ export class VisualNetworkTimeElasticity_v1 {
     // PHASE 3: Update Network Time counter (with dynamic speeds)
     // ============================================================
     if (this._direction === SCORE_DIRECTION.FORWARD) {
+      // Phase 5A: Combo reset — if NT exceeds where last rewind started, player lost ground
+      if (this._comboCount > 0 && this._networkTimeCounter > this._lastRewindStartNT) {
+        this._comboCount = 0;
+        this._comboMultiplier = 1.0;
+      }
+
       // Phase 4B: Pressure Escalation — forward speed grows with Network Time
       // At NT=0: base speed. At NT=escalationDivisor: 2x base speed.
       const escalationFactor = 1 + (this._networkTimeCounter / this._escalationDivisor);
@@ -387,7 +427,7 @@ export class VisualNetworkTimeElasticity_v1 {
       // At threshold (0.82): base speed. At 1.0 synergy: base × (1 + 0.18 × scale).
       const synergyAboveThreshold = Math.max(0, this.avgSynergy - this._synergyThreshold);
       const qualityMultiplier = 1 + (synergyAboveThreshold * this._synergyQualityScale);
-      const effectiveRewindSpeed = this._rewindSpeed * qualityMultiplier;
+      const effectiveRewindSpeed = this._rewindSpeed * qualityMultiplier * this._comboMultiplier;
       this._lastEffectiveRewindSpeed = effectiveRewindSpeed;
       this._networkTimeCounter -= effectiveRewindSpeed * dt;
 
@@ -420,6 +460,37 @@ export class VisualNetworkTimeElasticity_v1 {
     }
 
     // ============================================================
+    // PHASE 3.4: Milestone detection (Phase 5B)
+    // ============================================================
+    // Update peak NT (highest pressure ever reached)
+    if (this._networkTimeCounter > this._peakNT) {
+      this._peakNT = this._networkTimeCounter;
+    }
+
+    // During rewind, check milestone progress
+    if (this._direction === SCORE_DIRECTION.REWIND && this._peakNT > 0) {
+      const rewindProgress = 1 - (this._networkTimeCounter / this._peakNT); // 0→1 as we rewind
+      const milestones = [
+        { id: '75', threshold: 0.25, label: '⭐ Three quarters!', stars: 1 },
+        { id: '50', threshold: 0.50, label: '⭐⭐ Halfway there!', stars: 2 },
+        { id: '25', threshold: 0.75, label: '⭐⭐⭐ Almost there!', stars: 3 },
+      ];
+      for (const ms of milestones) {
+        if (rewindProgress >= ms.threshold && !this._milestonesTriggered.has(ms.id)) {
+          this._milestonesTriggered.add(ms.id);
+          this._emit('score:milestone', {
+            milestoneId: ms.id,
+            label: ms.label,
+            stars: ms.stars,
+            rewindPercent: (rewindProgress * 100).toFixed(0),
+            networkTime: this.getNetworkTime(),
+            peakNT: Math.floor(this._peakNT)
+          });
+        }
+      }
+    }
+
+    // ============================================================
     // PHASE 3.5: Drama Zone detection (Phase 4C)
     // ============================================================
     const shouldDramaZone = this._direction === SCORE_DIRECTION.REWIND
@@ -444,6 +515,8 @@ export class VisualNetworkTimeElasticity_v1 {
     // Expose drama zone state for other systems (corruption reduction)
     if (typeof window !== 'undefined') {
       window.__ATOMA_DRAMA_ZONE__ = this._inDramaZone;
+      // Phase 5C: Deep rewind flag — REWIND + synergy > 0.90 = network healing
+      window.__ATOMA_DEEP_REWIND__ = this._direction === SCORE_DIRECTION.REWIND && this.avgSynergy > 0.90;
     }
 
     // ============================================================
@@ -469,6 +542,24 @@ export class VisualNetworkTimeElasticity_v1 {
     }
 
     this._gameTime = gameTime;
+
+    // ── Phase 6B: Record NT history for sparkline ──────────────────
+    this._ntHistorySampleAcc += dt;
+    if (this._ntHistorySampleAcc >= this._ntHistorySampleInterval) {
+      this._ntHistorySampleAcc = 0;
+      this._ntHistory.push({ time: gameTime, value: this._networkTimeCounter });
+      if (this._ntHistory.length > this._ntHistoryMaxSamples) {
+        this._ntHistory.shift();
+      }
+    }
+  }
+
+  /**
+   * Get NT history for sparkline rendering.
+   * @returns {Array<{time: number, value: number}>}
+   */
+  getNetworkTimeHistory() {
+    return this._ntHistory;
   }
 
   // ================================================================
@@ -579,6 +670,11 @@ export class VisualNetworkTimeElasticity_v1 {
     this._fadeAlpha = 0.0;
     this.avgSynergy = 0.0;
     this._inDramaZone = false;
+    this._comboCount = 0;
+    this._comboMultiplier = 1.0;
+    this._lastRewindStartNT = 0;
+    this._milestonesTriggered.clear();
+    this._peakNT = 0;
     if (typeof window !== 'undefined') window.__ATOMA_DRAMA_ZONE__ = false;
   }
 
@@ -586,7 +682,7 @@ export class VisualNetworkTimeElasticity_v1 {
    * Dispose and clean up
    */
   dispose() {
-    this._eventHandlers = { 'score:forward': [], 'score:rewinding': [], 'score:won': [], 'score:dramaZone': [] };
+    this._eventHandlers = { 'score:forward': [], 'score:rewinding': [], 'score:won': [], 'score:dramaZone': [], 'score:milestone': [] };
     this.reset();
   }
 }

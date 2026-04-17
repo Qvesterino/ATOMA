@@ -539,6 +539,32 @@ export class AtomaAudioSystem {
     }
 
     /**
+     * Play milestone chime — celebratory tone when rewind progress milestone is reached.
+     * More stars = richer chord.
+     */
+    playMilestoneChime(stars = 1) {
+        if (!this.initialized || !this.enabled) return;
+        if (!this.canTrigger('score:milestone', 3000)) return;
+        const now = Tone.now();
+        if (stars >= 3) {
+            // ⭐⭐⭐ Almost there — full triumphant chord
+            this.synergySynth.triggerAttackRelease("E5", "8n", now, 0.3);
+            this.synergySynth.triggerAttackRelease("G5", "8n", now + 0.05, 0.28);
+            this.synergySynth.triggerAttackRelease("B5", "8n", now + 0.1, 0.32);
+            this.synergySynth.triggerAttackRelease("E6", "4n", now + 0.15, 0.25);
+        } else if (stars >= 2) {
+            // ⭐⭐ Halfway — major triad
+            this.synergySynth.triggerAttackRelease("C5", "8n", now, 0.28);
+            this.synergySynth.triggerAttackRelease("E5", "8n", now + 0.06, 0.25);
+            this.synergySynth.triggerAttackRelease("G5", "4n", now + 0.12, 0.3);
+        } else {
+            // ⭐ Three quarters — single bright tone
+            this.synergySynth.triggerAttackRelease("G5", "8n", now, 0.25);
+            this.synergySynth.triggerAttackRelease("C6", "8n", now + 0.08, 0.2);
+        }
+    }
+
+    /**
      * Play drama zone heartbeat — subtle low pulse when near win.
      * Uses a soft bass thud at ~40BPM (1.5s interval).
      */

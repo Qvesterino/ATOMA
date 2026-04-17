@@ -16400,6 +16400,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
         });
 
+        // Wire score:milestone event — celebratory chime at rewind progress milestones
+        this.visualNetworkTimeElasticity.on('score:milestone', (payload) => {
+            console.log(`%c${payload.label}`, `color: #00e5ff; font-weight: bold; font-size: 14px;`,
+                `Rewind: ${payload.rewindPercent}% | NT: ${payload.networkTime} / Peak: ${payload.peakNT}`);
+            if (this.audioSystem?.playMilestoneChime) this.audioSystem.playMilestoneChime(payload.stars);
+        });
+
         // Wire score system to CoreMetricsHUD (if overlay already created)
         this._wireScoreSystemToHUD();
         
@@ -16459,6 +16466,17 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         const synergyStr = payload.avgSynergy ? `${(payload.avgSynergy * 100).toFixed(1)}%` : '--';
         const linkCount = this.linkingSystem?.links?.length ?? 0;
         const nodeCount = this.aiNodes?.nodes?.length ?? 0;
+
+        // Phase 6A: Enhanced stats from session stats
+        const sessionStats = this.visualNetworkTimeElasticity?.getSessionStats?.() ?? {};
+        const maxSynergy = sessionStats.maxSynergyAchieved ? `${(parseFloat(sessionStats.maxSynergyAchieved) * 100).toFixed(1)}%` : '--';
+        const totalRewindTime = sessionStats.totalRewindTime ? `${parseFloat(sessionStats.totalRewindTime).toFixed(1)}s` : '--';
+        const bestNT = sessionStats.bestNetworkTime ?? '--';
+        const gamesPlayed = sessionStats.gamesPlayed ?? '--';
+        const gamesWon = sessionStats.gamesWon ?? '--';
+        const worldName = this.currentMode ? String(this.currentMode).toUpperCase() : '--';
+        const worldConfig = AtomaGame.WORLD_SCORE_CONFIG?.[this.currentMode];
+        const difficulty = worldConfig ? `${worldConfig.sustainDuration}s / ${worldConfig.rewindSpeed}x` : 'Default';
 
         const overlay = document.createElement('div');
         overlay.id = 'atoma-victory-overlay';
@@ -16568,12 +16586,20 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 <div class="victory-subtitle">Network Time reached zero</div>
                 <div class="victory-stats">
                     <div class="victory-stat">
-                        <div class="victory-stat-label">Game Time</div>
+                        <div class="victory-stat-label">⏱ Game Time</div>
                         <div class="victory-stat-value">${gameTimeStr}</div>
                     </div>
                     <div class="victory-stat">
-                        <div class="victory-stat-label">Final Synergy</div>
-                        <div class="victory-stat-value">${synergyStr}</div>
+                        <div class="victory-stat-label">🔥 Max Synergy Peak</div>
+                        <div class="victory-stat-value">${maxSynergy}</div>
+                    </div>
+                    <div class="victory-stat">
+                        <div class="victory-stat-label">⚡ Total Rewind Time</div>
+                        <div class="victory-stat-value">${totalRewindTime}</div>
+                    </div>
+                    <div class="victory-stat">
+                        <div class="victory-stat-label">📊 Best Network Time</div>
+                        <div class="victory-stat-value">${bestNT}</div>
                     </div>
                     <div class="victory-stat">
                         <div class="victory-stat-label">Nodes Active</div>
@@ -16582,6 +16608,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     <div class="victory-stat">
                         <div class="victory-stat-label">Links Active</div>
                         <div class="victory-stat-value">${linkCount}</div>
+                    </div>
+                    <div class="victory-stat">
+                        <div class="victory-stat-label">🏆 Games Won / Played</div>
+                        <div class="victory-stat-value">${gamesWon} / ${gamesPlayed}</div>
+                    </div>
+                    <div class="victory-stat">
+                        <div class="victory-stat-label">🌍 World</div>
+                        <div class="victory-stat-value">${worldName} <span style="font-size:10px;color:rgba(200,225,245,0.4)">${difficulty}</span></div>
                     </div>
                 </div>
                 <button class="victory-button" id="atoma-victory-play-again">Play Again</button>

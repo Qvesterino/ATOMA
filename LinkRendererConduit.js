@@ -93,9 +93,21 @@ const CONSERVATIVE_FILAMENT_GATING = Object.freeze({
     LOD_SKIP_LEVEL: 2,
     HARMONY_SKIP_THRESHOLD: 0.94
 });
+const CONSERVATIVE_FRENET_CACHE = Object.freeze({
+    ENABLED: true,
+    REUSE_WINDOW_SEC: 0.24,
+    POSITION_EPSILON_SQ: 0.0004
+});
 const isConservativeFilamentGatingEnabled = () => {
     if (!CONSERVATIVE_FILAMENT_GATING.ENABLED) return false;
     if (typeof window !== 'undefined' && window.__ATOMA_DISABLE_FILAMENT_GATING__ === true) {
+        return false;
+    }
+    return true;
+};
+const isConservativeFrenetCacheEnabled = () => {
+    if (!CONSERVATIVE_FRENET_CACHE.ENABLED) return false;
+    if (typeof window !== 'undefined' && window.__ATOMA_DISABLE_FRENET_CACHE__ === true) {
         return false;
     }
     return true;
@@ -115,6 +127,7 @@ const createDefaultLinkRuntimeState = () => ({
     healingEmitterTicks: 0,
     flowModulationTicks: 0,
     frenetFrameRecomputes: 0,
+    frenetFrameCacheHits: 0,
     braidGeometryRebuilds: 0,
     skinGeometryRebuilds: 0,
     strandUniformWritePasses: 0,
@@ -125,7 +138,9 @@ const createDefaultLinkRuntimeState = () => ({
     filamentSkipHarmony: 0,
     filamentSkipBudget: 0,
     filamentKillSwitchDisabled: false,
-    lastFilamentDecision: 'uninitialized'
+    lastFilamentDecision: 'uninitialized',
+    frenetCacheKillSwitchDisabled: false,
+    lastFrenetDecision: 'uninitialized'
 });
 const WAVE_SPARK_GLYPH = {
     SLIVER: 0,
@@ -563,25 +578,37 @@ const applyStrandThicknessProfile = (geometry, baseRadius, profile = {}) => {
 };
 
 // Lightweight dock spray system (per-link, instanced points)
-function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
+function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 72) {
     const positions = new Float32Array(maxParticles * 3);
     const velocities = new Float32Array(maxParticles * 3);
     const intensity = new Float32Array(maxParticles);
+    const radialBasis = new Float32Array(maxParticles * 3);
+    const swirlBasis = new Float32Array(maxParticles * 3);
+    const params = new Float32Array(maxParticles * 4); // startRadius, endRadius, angularSpeed, phase
     const life = new Float32Array(maxParticles * 2); // birth, duration
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('aVelocity', new THREE.BufferAttribute(velocities, 3));
     geometry.setAttribute('aIntensity', new THREE.BufferAttribute(intensity, 1));
+    geometry.setAttribute('aRadialBasis', new THREE.BufferAttribute(radialBasis, 3));
+    geometry.setAttribute('aSwirlBasis', new THREE.BufferAttribute(swirlBasis, 3));
+    geometry.setAttribute('aParams', new THREE.BufferAttribute(params, 4));
     geometry.setAttribute('aLife', new THREE.BufferAttribute(life, 2));
     geometry.attributes.position.usage = THREE.DynamicDrawUsage;
     geometry.attributes.aVelocity.usage = THREE.DynamicDrawUsage;
     geometry.attributes.aIntensity.usage = THREE.DynamicDrawUsage;
+    geometry.attributes.aRadialBasis.usage = THREE.DynamicDrawUsage;
+    geometry.attributes.aSwirlBasis.usage = THREE.DynamicDrawUsage;
+    geometry.attributes.aParams.usage = THREE.DynamicDrawUsage;
     geometry.attributes.aLife.usage = THREE.DynamicDrawUsage;
 
     const vertexShader = `
         attribute vec3 aVelocity;
         attribute float aIntensity;
+        attribute vec3 aRadialBasis;
+        attribute vec3 aSwirlBasis;
+        attribute vec4 aParams;
         attribute vec2 aLife;
         uniform float uTime;
         uniform float uGlobalOpacity;
@@ -589,23 +616,34 @@ function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
         varying vec3 vColor;
         varying float vAlpha;
         varying float vIntensity;
+        varying float vLifeProgress;
         void main() {
             float age = uTime - aLife.x;
             if (age < 0.0 || age > aLife.y) {
                 vAlpha = 0.0;
                 vIntensity = 0.0;
+                vLifeProgress = 0.0;
                 gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
                 return;
             }
             float t = age / aLife.y;
-            vec3 pos = position + aVelocity * age;
+            vLifeProgress = t;
+            float radius = mix(aParams.x, aParams.y, pow(t, 1.18));
+            float theta = aParams.w + aParams.z * age;
+            vec3 orbitDir = aRadialBasis * cos(theta) + aSwirlBasis * sin(theta);
+            float intakeAccel = 1.0 + t * 0.55 + t * t * 0.35;
+            vec3 pos = position + aVelocity * age * intakeAccel + orbitDir * radius;
             vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
             gl_Position = projectionMatrix * mvPosition;
             // True perspective attenuation: no minimum screen-space floor.
             float glowBoost = clamp(aIntensity * uGlobalOpacity, 0.0, 2.0);
-            gl_PointSize = clamp((88.0 + glowBoost * 22.0) * (1.0 - t) / -mvPosition.z, 1.0, 24.0);
-            vColor = uColor;
-            vAlpha = (0.72 + glowBoost * 0.28) * (1.0 - t);
+            float sizeCurve = sin(t * 3.14159) * 0.74 + 0.26;
+            gl_PointSize = clamp((102.0 + glowBoost * 28.0) * sizeCurve * (1.0 - t * 0.28) / -mvPosition.z, 1.4, 30.0);
+            vColor = mix(uColor, uColor + vec3(0.16, 0.12, 0.05), t * 0.48);
+            float fadeIn = smoothstep(0.0, 0.05, age);
+            float sustain = 1.0 - smoothstep(0.32, 0.88, t);
+            float fadeOut = smoothstep(1.0, 0.62, t);
+            vAlpha = (0.86 + glowBoost * 0.22) * fadeIn * (0.38 + sustain * 0.62) * fadeOut;
             vIntensity = glowBoost;
         }
     `;
@@ -614,17 +652,28 @@ function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
         varying vec3 vColor;
         varying float vAlpha;
         varying float vIntensity;
+        varying float vLifeProgress;
         void main() {
             if (vAlpha <= 0.01) discard;
             vec2 c = gl_PointCoord - vec2(0.5);
             float d = length(c);
             if (d > 0.5) discard;
-            float core = 1.0 - smoothstep(0.0, 0.18, d);
-            float halo = 1.0 - smoothstep(0.16, 0.5, d);
-            vec3 color = mix(vColor, vec3(1.0), 0.18 + core * 0.28);
-            color += vColor * 0.12 * halo;
-            float alpha = vAlpha * (0.65 * halo + 0.55 * core) * (0.55 + vIntensity * 0.45);
-            gl_FragColor = vec4(color, alpha);
+            float angle = atan(c.y, c.x);
+            float core = 1.0 - smoothstep(0.0, 0.10, d);
+            float membrane = 1.0 - smoothstep(0.05, 0.28, d);
+            float halo = 1.0 - smoothstep(0.10, 0.5, d);
+            float petal = 1.0 - smoothstep(0.08, 0.34, abs(c.x) + abs(c.y) * 0.72);
+            float crescent = 1.0 - smoothstep(0.05, 0.22, length(c - vec2(-0.12, 0.0)));
+            float segmentWave = 0.5 + 0.5 * cos(angle * 6.0 + vLifeProgress * 9.5);
+            float segmentMask = smoothstep(0.54, 0.9, segmentWave) * (1.0 - smoothstep(0.12, 0.40, d));
+            float glow = core * 0.42 + membrane * 0.28 + halo * 0.16 + petal * 0.10 + crescent * 0.08 + segmentMask * 0.12;
+            vec3 hotColor = vColor + vec3(core * 0.34, core * 0.26, core * 0.16);
+            vec3 intakeBias = mix(vec3(0.04, 0.18, 0.16), vec3(0.19, 0.11, 0.04), core * 0.72 + segmentMask * 0.28);
+            vec3 veilColor = hotColor + vec3(crescent * 0.12, petal * 0.08, halo * 0.04) + intakeBias * (segmentMask * 0.34 + halo * 0.08);
+            float shimmer = 1.0 + sin(vLifeProgress * 11.4 + d * 20.0) * 0.04;
+            float alpha = vAlpha * glow * (0.62 + vIntensity * 0.38);
+            if (alpha < 0.01) discard;
+            gl_FragColor = vec4(veilColor * shimmer, alpha);
         }
     `;
 
@@ -715,38 +764,77 @@ function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
         return v.normalize();
     };
     const dockForward = new THREE.Vector3(0, 0, 1);
+    const tangent = new THREE.Vector3();
+    const bitangent = new THREE.Vector3();
+    const radialDir = new THREE.Vector3();
+    const swirlDir = new THREE.Vector3();
 
     let writeIndex = 0;
 
     function spawnBurst(origin, surfaceDir, color, time = 0) {
         // Sync time so freshly spawned particles start at age 0
         material.uniforms.uTime.value = time;
-        const count = Math.min(40, maxParticles);
+        mesh.visible = true;
+        const count = Math.min(52, maxParticles);
         if (color) material.uniforms.uColor.value.copy(color);
+        const axisDir = (surfaceDir?.clone?.() || dockForward.clone()).normalize();
+        const upSeed = Math.abs(axisDir.y) < 0.92 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+        tangent.crossVectors(axisDir, upSeed).normalize();
+        bitangent.crossVectors(axisDir, tangent).normalize();
         for (let i = 0; i < count; i++) {
             const idx = writeIndex;
             const i3 = idx * 3;
+            const i4 = idx * 4;
             // Spawn with slight positional jitter to widen spray footprint
             const jitterDir = randomUnit();
-            const jitterMag = randRange(0, 0.12);
-            positions[i3] = origin.x + jitterDir.x * jitterMag;
-            positions[i3 + 1] = origin.y + jitterDir.y * jitterMag;
-            positions[i3 + 2] = origin.z + jitterDir.z * jitterMag;
+            const jitterMag = randRange(0, 0.018);
+            const angle = (i / count) * Math.PI * 2 + randRange(-0.22, 0.22);
+            const startRadius = randRange(0.004, 0.018);
+            const endRadius = randRange(0.143, 0.286);
+            const lifetime = randRange(0.368, 0.552);
+            const speed = randRange(0.58, 1.04);
+            const angularSpeed = randRange(3.8, 7.2) * (Math.random() < 0.5 ? -1 : 1);
+            const axialOffset = randRange(-0.018, 0.063);
 
-            const dir = randomUnit().lerp(surfaceDir, 0.6).normalize();
-            const speed = randRange(0.6, 1.4);
-            velocities[i3] = dir.x * speed;
-            velocities[i3 + 1] = dir.y * speed;
-            velocities[i3 + 2] = dir.z * speed;
+            radialDir.copy(tangent).multiplyScalar(Math.cos(angle));
+            radialDir.addScaledVector(bitangent, Math.sin(angle)).normalize();
+            swirlDir.crossVectors(axisDir, radialDir).normalize();
+
+            positions[i3] = origin.x + axisDir.x * axialOffset + jitterDir.x * jitterMag;
+            positions[i3 + 1] = origin.y + axisDir.y * axialOffset + jitterDir.y * jitterMag;
+            positions[i3 + 2] = origin.z + axisDir.z * axialOffset + jitterDir.z * jitterMag;
+
+            velocities[i3] = axisDir.x * speed + radialDir.x * 0.016 + swirlDir.x * 0.028;
+            velocities[i3 + 1] = axisDir.y * speed + radialDir.y * 0.016 + swirlDir.y * 0.028;
+            velocities[i3 + 2] = axisDir.z * speed + radialDir.z * 0.016 + swirlDir.z * 0.028;
+
+            intensity[idx] = randRange(0.86, 1.22);
+
+            radialBasis[i3] = radialDir.x;
+            radialBasis[i3 + 1] = radialDir.y;
+            radialBasis[i3 + 2] = radialDir.z;
+
+            swirlBasis[i3] = swirlDir.x;
+            swirlBasis[i3 + 1] = swirlDir.y;
+            swirlBasis[i3 + 2] = swirlDir.z;
+
+            params[i4] = startRadius;
+            params[i4 + 1] = endRadius;
+            params[i4 + 2] = angularSpeed;
+            params[i4 + 3] = angle;
 
             const i2 = idx * 2;
             life[i2] = material.uniforms.uTime.value;
-            life[i2 + 1] = 0.45;
+            life[i2 + 1] = lifetime;
 
             writeIndex = (writeIndex + 1) % maxParticles;
         }
         geometry.attributes.position.needsUpdate = true;
         geometry.attributes.aVelocity.needsUpdate = true;
+        geometry.attributes.aIntensity.needsUpdate = true;
+        geometry.attributes.aRadialBasis.needsUpdate = true;
+        geometry.attributes.aSwirlBasis.needsUpdate = true;
+        geometry.attributes.aParams.needsUpdate = true;
         geometry.attributes.aLife.needsUpdate = true;
     }
 
@@ -1745,6 +1833,40 @@ export class LinkRendererConduit {
         return { skip: false, reason: 'updated', gatingEnabled };
     }
 
+    _getFrenetFrameDecision(state, ctx = {}) {
+        const cachingEnabled = isConservativeFrenetCacheEnabled();
+        if (!cachingEnabled) {
+            return { reuse: false, reason: 'kill-switch-disabled', cachingEnabled };
+        }
+
+        const frames = state?.__cachedFrenetFrames || null;
+        const cacheState = state?.__frenetCacheState || null;
+        if (!frames || !cacheState?.ready) {
+            return { reuse: false, reason: 'cache-miss', cachingEnabled };
+        }
+
+        if (!Number.isFinite(ctx.segments) || cacheState.segments !== ctx.segments) {
+            return { reuse: false, reason: 'segments-changed', cachingEnabled };
+        }
+
+        if (!ctx.start || !ctx.end) {
+            return { reuse: false, reason: 'missing-geometry', cachingEnabled };
+        }
+
+        if (!Number.isFinite(ctx.visualTime) || ctx.visualTime > (cacheState.reuseUntil || 0)) {
+            return { reuse: false, reason: 'window-expired', cachingEnabled };
+        }
+
+        const epsilonSq = CONSERVATIVE_FRENET_CACHE.POSITION_EPSILON_SQ;
+        const startChanged = cacheState.start.distanceToSquared(ctx.start) > epsilonSq;
+        const endChanged = cacheState.end.distanceToSquared(ctx.end) > epsilonSq;
+        if (startChanged || endChanged) {
+            return { reuse: false, reason: 'anchors-moved', cachingEnabled };
+        }
+
+        return { reuse: true, reason: 'cache-hit', cachingEnabled };
+    }
+
     _updateStrandFilaments(link, state, ctx = {}) {
         if (!STRAND_FILAMENT_STYLE.ENABLED || !state) return;
         const strands = Array.isArray(state.strands) ? state.strands : [];
@@ -2655,6 +2777,7 @@ export class LinkRendererConduit {
                 corruptionSpreadTicks: runtime.corruptionSpreadTicks || 0,
                 corruptionParticleTicks: runtime.corruptionParticleTicks || 0,
                 frenetFrameRecomputes: runtime.frenetFrameRecomputes || 0,
+                frenetFrameCacheHits: runtime.frenetFrameCacheHits || 0,
                 braidGeometryRebuilds: runtime.braidGeometryRebuilds || 0,
                 skinGeometryRebuilds: runtime.skinGeometryRebuilds || 0,
                 strandUniformWritePasses: runtime.strandUniformWritePasses || 0,
@@ -2665,7 +2788,9 @@ export class LinkRendererConduit {
                 filamentSkipHarmony: runtime.filamentSkipHarmony || 0,
                 filamentSkipBudget: runtime.filamentSkipBudget || 0,
                 filamentKillSwitchDisabled: runtime.filamentKillSwitchDisabled === true,
-                lastFilamentDecision: runtime.lastFilamentDecision || 'uninitialized'
+                lastFilamentDecision: runtime.lastFilamentDecision || 'uninitialized',
+                frenetCacheKillSwitchDisabled: runtime.frenetCacheKillSwitchDisabled === true,
+                lastFrenetDecision: runtime.lastFrenetDecision || 'uninitialized'
             },
             triggerContext: {
                 corruption: metrics.corruption ?? 0,
@@ -3679,7 +3804,7 @@ export class LinkRendererConduit {
                 ring.userData.sprayInterval = 0.12;
                 ring.userData.nextSprayTime = visualTime;
                 ring.userData.sprayPayload = {
-                    origin: dockPos.clone().lerp(dockOffset, 0.24),
+                    origin: dockPos.clone().lerp(dockOffset, 0.58),
                     direction: surfaceDir.clone().negate(),
                     color: ringColor.clone()
                 };
@@ -3714,7 +3839,7 @@ export class LinkRendererConduit {
                 if (!state.dockSpray) {
                     trace('beforeDockSprayCreate');
                     const sprayOrder = VisualHierarchyRegistry.getRenderOrder('LINK_IMPACTS');
-                    state.dockSpray = createDockSpraySystem(this.scene, sprayOrder, 48);
+                    state.dockSpray = createDockSpraySystem(this.scene, sprayOrder, 72);
                     if (state.dockSpray?.mesh) {
                         ensureUserData(state.dockSpray.mesh).__linkOwnerId = this._getLinkOwnerId(link);
                     }
@@ -4020,15 +4145,42 @@ export class LinkRendererConduit {
             ? computeSegmentsFromLength(mainCurve)
             : (state.strandSegments || computeSegmentsFromLength(mainCurve));
         let frames = state.__cachedFrenetFrames || null;
+        const frenetCacheState = state.__frenetCacheState || (state.__frenetCacheState = {
+            ready: false,
+            start: new THREE.Vector3(),
+            end: new THREE.Vector3(),
+            segments: 0,
+            reuseUntil: 0
+        });
+        if (!(frenetCacheState.start instanceof THREE.Vector3)) frenetCacheState.start = new THREE.Vector3();
+        if (!(frenetCacheState.end instanceof THREE.Vector3)) frenetCacheState.end = new THREE.Vector3();
         if (geometryTick) {
-            trace('beforeComputeFrenetFrames', {
-                segments
+            const frenetDecision = this._getFrenetFrameDecision(state, {
+                start,
+                end,
+                segments,
+                visualTime
             });
-            frames = mainCurve.computeFrenetFrames(segments, false);
-            trace('afterComputeFrenetFrames');
-            state.__cachedFrenetFrames = frames;
-            state.__cachedFrenetSegments = segments;
-            runtime.frenetFrameRecomputes += 1;
+            runtime.frenetCacheKillSwitchDisabled = !frenetDecision.cachingEnabled;
+            runtime.lastFrenetDecision = frenetDecision.reason;
+            if (frenetDecision.reuse) {
+                runtime.frenetFrameCacheHits += 1;
+            } else {
+                trace('beforeComputeFrenetFrames', {
+                    segments,
+                    reason: frenetDecision.reason
+                });
+                frames = mainCurve.computeFrenetFrames(segments, false);
+                trace('afterComputeFrenetFrames');
+                state.__cachedFrenetFrames = frames;
+                state.__cachedFrenetSegments = segments;
+                frenetCacheState.ready = true;
+                frenetCacheState.start.copy(start);
+                frenetCacheState.end.copy(end);
+                frenetCacheState.segments = segments;
+                frenetCacheState.reuseUntil = visualTime + CONSERVATIVE_FRENET_CACHE.REUSE_WINDOW_SEC;
+                runtime.frenetFrameRecomputes += 1;
+            }
         }
         frameState.geometry.frames = frames;
         frameState.geometry.segments = segments;

@@ -868,6 +868,11 @@ export class LinkCorruptionTransmission_v1 {
     if (typeof window !== 'undefined' && window.__ATOMA_DRAMA_ZONE__) {
       adjustedTransmissionRate *= 0.7;
     }
+    // [DEEP REWIND] Reduce corruption spread by 40% during deep rewind (Phase 5C)
+    // Network healing — high synergy + rewinding = corruption recedes
+    if (typeof window !== 'undefined' && window.__ATOMA_DEEP_REWIND__) {
+      adjustedTransmissionRate *= 0.6;
+    }
 
     // Update link corruption level with smooth lerp
     const sourceCorruption =
