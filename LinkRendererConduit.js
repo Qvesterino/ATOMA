@@ -88,6 +88,45 @@ const STRAND_FILAMENT_STYLE = {
     MICRO_JUMP_CURVE: 0.96,
     MICRO_JUMP_SPEED: 5.8
 };
+const CONSERVATIVE_FILAMENT_GATING = Object.freeze({
+    ENABLED: true,
+    LOD_SKIP_LEVEL: 2,
+    HARMONY_SKIP_THRESHOLD: 0.94
+});
+const isConservativeFilamentGatingEnabled = () => {
+    if (!CONSERVATIVE_FILAMENT_GATING.ENABLED) return false;
+    if (typeof window !== 'undefined' && window.__ATOMA_DISABLE_FILAMENT_GATING__ === true) {
+        return false;
+    }
+    return true;
+};
+const createDefaultLinkRuntimeState = () => ({
+    updateCalls: 0,
+    lastVisualTime: 0,
+    lastCorruption: 0,
+    lastHarmony: 0,
+    lastSynergy: 0,
+    lastTraffic: 0,
+    lastLOD: null,
+    corruptionSpreadTicks: 0,
+    corruptionParticleTicks: 0,
+    trailEmitterTicks: 0,
+    trailSharedCorruptionEmits: 0,
+    healingEmitterTicks: 0,
+    flowModulationTicks: 0,
+    frenetFrameRecomputes: 0,
+    braidGeometryRebuilds: 0,
+    skinGeometryRebuilds: 0,
+    strandUniformWritePasses: 0,
+    strandUniformWrites: 0,
+    filamentUpdateTicks: 0,
+    filamentSkippedTicks: 0,
+    filamentSkipLOD: 0,
+    filamentSkipHarmony: 0,
+    filamentSkipBudget: 0,
+    filamentKillSwitchDisabled: false,
+    lastFilamentDecision: 'uninitialized'
+});
 const WAVE_SPARK_GLYPH = {
     SLIVER: 0,
     NOTCH: 1,
@@ -1688,10 +1727,43 @@ export class LinkRendererConduit {
         return state.strandFilaments;
     }
 
+    _getStrandFilamentDecision(ctx = {}) {
+        const gatingEnabled = isConservativeFilamentGatingEnabled();
+        if (!gatingEnabled) {
+            return { skip: false, reason: 'kill-switch-disabled', gatingEnabled };
+        }
+        if (ctx.heavyTick === false) {
+            return { skip: true, reason: 'budget', gatingEnabled };
+        }
+        if (Number.isFinite(ctx.lod) && ctx.lod >= CONSERVATIVE_FILAMENT_GATING.LOD_SKIP_LEVEL) {
+            return { skip: true, reason: 'lod', gatingEnabled };
+        }
+        const harmony = clamp01(ctx.metrics?.harmony ?? 0);
+        if (harmony >= CONSERVATIVE_FILAMENT_GATING.HARMONY_SKIP_THRESHOLD) {
+            return { skip: true, reason: 'harmony', gatingEnabled };
+        }
+        return { skip: false, reason: 'updated', gatingEnabled };
+    }
+
     _updateStrandFilaments(link, state, ctx = {}) {
         if (!STRAND_FILAMENT_STYLE.ENABLED || !state) return;
         const strands = Array.isArray(state.strands) ? state.strands : [];
         if (!strands.length) return;
+
+        const runtime = ctx.runtime || state.__runtime || (state.__runtime = createDefaultLinkRuntimeState());
+        const decision = this._getStrandFilamentDecision(ctx);
+        runtime.filamentKillSwitchDisabled = !decision.gatingEnabled;
+        runtime.lastFilamentDecision = decision.reason;
+        if (decision.skip) {
+            runtime.filamentSkippedTicks += 1;
+            if (decision.reason === 'lod') runtime.filamentSkipLOD += 1;
+            if (decision.reason === 'harmony') runtime.filamentSkipHarmony += 1;
+            if (decision.reason === 'budget') runtime.filamentSkipBudget += 1;
+            if (state.strandFilaments?.mesh) {
+                state.strandFilaments.mesh.visible = false;
+            }
+            return;
+        }
 
         const filamentState = this._ensureStrandFilaments(link, state);
         if (!filamentState) return;
@@ -1699,6 +1771,8 @@ export class LinkRendererConduit {
         const material = filamentState.material;
         const geometry = filamentState.geometry;
         if (!mesh || !material || !geometry) return;
+        mesh.visible = true;
+        runtime.filamentUpdateTicks += 1;
 
         if (!mesh.parent) {
             const parent = link?.group || strands[0]?.parent || null;
@@ -2573,12 +2647,25 @@ export class LinkRendererConduit {
                 lastHarmony: runtime.lastHarmony ?? metrics.harmony ?? 0,
                 lastSynergy: runtime.lastSynergy ?? metrics.synergy ?? 0,
                 lastTraffic: runtime.lastTraffic ?? metrics.loadPressure ?? 0,
+                lastLOD: runtime.lastLOD ?? null,
                 flowModulationTicks: runtime.flowModulationTicks || 0,
                 trailEmitterTicks: runtime.trailEmitterTicks || 0,
                 trailSharedCorruptionEmits: runtime.trailSharedCorruptionEmits || 0,
                 healingEmitterTicks: runtime.healingEmitterTicks || 0,
                 corruptionSpreadTicks: runtime.corruptionSpreadTicks || 0,
-                corruptionParticleTicks: runtime.corruptionParticleTicks || 0
+                corruptionParticleTicks: runtime.corruptionParticleTicks || 0,
+                frenetFrameRecomputes: runtime.frenetFrameRecomputes || 0,
+                braidGeometryRebuilds: runtime.braidGeometryRebuilds || 0,
+                skinGeometryRebuilds: runtime.skinGeometryRebuilds || 0,
+                strandUniformWritePasses: runtime.strandUniformWritePasses || 0,
+                strandUniformWrites: runtime.strandUniformWrites || 0,
+                filamentUpdateTicks: runtime.filamentUpdateTicks || 0,
+                filamentSkippedTicks: runtime.filamentSkippedTicks || 0,
+                filamentSkipLOD: runtime.filamentSkipLOD || 0,
+                filamentSkipHarmony: runtime.filamentSkipHarmony || 0,
+                filamentSkipBudget: runtime.filamentSkipBudget || 0,
+                filamentKillSwitchDisabled: runtime.filamentKillSwitchDisabled === true,
+                lastFilamentDecision: runtime.lastFilamentDecision || 'uninitialized'
             },
             triggerContext: {
                 corruption: metrics.corruption ?? 0,
@@ -2604,20 +2691,7 @@ export class LinkRendererConduit {
         const link = this._resolveLinkForRuntimeReport(linkId);
         if (!link?.group?.userData?.conduitState) return false;
         const state = link.group.userData.conduitState;
-        state.__runtime = {
-            updateCalls: 0,
-            lastVisualTime: 0,
-            lastCorruption: 0,
-            lastHarmony: 0,
-            lastSynergy: 0,
-            lastTraffic: 0,
-            corruptionSpreadTicks: 0,
-            corruptionParticleTicks: 0,
-            trailEmitterTicks: 0,
-            trailSharedCorruptionEmits: 0,
-            healingEmitterTicks: 0,
-            flowModulationTicks: 0
-        };
+        state.__runtime = createDefaultLinkRuntimeState();
         return true;
     }
 
@@ -3345,20 +3419,7 @@ export class LinkRendererConduit {
         state.metrics = metrics;
         this.synergyBonusVisualization?.updateLink?.(link, visualDelta, visualTime);
         const strandOwnerState = this._beginStrandOwnershipFrame(state, metrics, visualTime);
-        const runtime = state.__runtime || (state.__runtime = {
-            updateCalls: 0,
-            lastVisualTime: 0,
-            lastCorruption: 0,
-            lastHarmony: 0,
-            lastSynergy: 0,
-            lastTraffic: 0,
-            corruptionSpreadTicks: 0,
-            corruptionParticleTicks: 0,
-            trailEmitterTicks: 0,
-            trailSharedCorruptionEmits: 0,
-            healingEmitterTicks: 0,
-            flowModulationTicks: 0
-        });
+        const runtime = state.__runtime || (state.__runtime = createDefaultLinkRuntimeState());
         const effectFrameFlags = frameStateOverride?.flags || {};
         const effectFrameIndex = effectFrameFlags.effectFrameIndex ?? Math.floor((visualTime || 0) * 30);
         const linkEffectKey = link?.id || link?.uuid || link?.source?.userData?.nodeId || link?.target?.userData?.nodeId || state?.bootstrap?.id || 'link';
@@ -3486,6 +3547,7 @@ export class LinkRendererConduit {
         const lodVisualScale = lod >= 2 ? 0.45 : 1.0;
         const lodAllowsParticles = lod < 2;
         const lodAllowsSecondaryVfx = lod < 2;
+        runtime.lastLOD = lod;
 
         frameState.geometry = { start: start.clone(), end: end.clone(), linkDir: linkDir.clone(), linkDist };
         trace('afterGeometry');
@@ -3966,6 +4028,7 @@ export class LinkRendererConduit {
             trace('afterComputeFrenetFrames');
             state.__cachedFrenetFrames = frames;
             state.__cachedFrenetSegments = segments;
+            runtime.frenetFrameRecomputes += 1;
         }
         frameState.geometry.frames = frames;
         frameState.geometry.segments = segments;
@@ -4058,6 +4121,7 @@ export class LinkRendererConduit {
             strandCount: Array.isArray(state.strands) ? state.strands.length : 0
         });
         if (runStrandMotion) {
+            let strandUniformWritesThisFrame = 0;
             for (let i = 0; i < state.strands.length; i += 1) {
                 const mesh = state.strands[i];
                 if (isCoreNodeMesh(mesh)) {
@@ -4073,28 +4137,42 @@ export class LinkRendererConduit {
                     mat.userData.__strandOwnerLinkId = link?.id || link?.uuid || 'link-unknown';
                 }
                 if (mat?.uniforms) {
+                    runtime.strandUniformWritePasses += 1;
                     mat.uniforms.uTime.value = visualTime;
+                    strandUniformWritesThisFrame += 1;
                     const m = link?.userData?.metrics;
                     if (!m) continue;
 
-                if (mat.uniforms.uCorruption) mat.uniforms.uCorruption.value = m.corruption ?? 0;
-                if (mat.uniforms.uNetworkStress) mat.uniforms.uNetworkStress.value = 1.0 - (m.stability ?? 1);
+                if (mat.uniforms.uCorruption) {
+                    mat.uniforms.uCorruption.value = m.corruption ?? 0;
+                    strandUniformWritesThisFrame += 1;
+                }
+                if (mat.uniforms.uNetworkStress) {
+                    mat.uniforms.uNetworkStress.value = 1.0 - (m.stability ?? 1);
+                    strandUniformWritesThisFrame += 1;
+                }
                 if (mat.uniforms.uLocalLoad && !mat.userData?.__uLocalLoadOwnedByEnergyWave) {
                     mat.uniforms.uLocalLoad.value = m.loadPressure ?? 0;
+                    strandUniformWritesThisFrame += 1;
                 }
                 if (mat.uniforms.uWaveDirection?.value?.copy) {
                     mat.uniforms.uWaveDirection.value.copy(waveDirection);
+                    strandUniformWritesThisFrame += 1;
                 } else if (mat.uniforms.uWaveDirection) {
                     mat.uniforms.uWaveDirection.value = waveDirection;
+                    strandUniformWritesThisFrame += 1;
                 }
                 if (mat.uniforms.uWaveLength) {
                     mat.uniforms.uWaveLength.value = waveLength;
+                    strandUniformWritesThisFrame += 1;
                 }
                 if (mat.uniforms.uWavePhaseOffset) {
                     mat.uniforms.uWavePhaseOffset.value = wavePhaseOffset;
+                    strandUniformWritesThisFrame += 1;
                 }
                 if (mat.uniforms.uSegmentCount) {
                     mat.uniforms.uSegmentCount.value = overlaySegmentCount;
+                    strandUniformWritesThisFrame += 1;
                 }
             }
                 if (mat?.userData) {
@@ -4182,6 +4260,7 @@ export class LinkRendererConduit {
                     this.config.radialSegments,
                     false
                 );
+                runtime.braidGeometryRebuilds += 1;
                 applyStrandThicknessProfile(mesh.geometry, this.config.strandRadius, {
                     bellyCenter: 0.40 + seededNoise((i + 1) * 0.19) * 0.22,
                     bellyWidth: 0.14 + seededNoise((i + 3) * 0.23) * 0.11,
@@ -4219,6 +4298,7 @@ export class LinkRendererConduit {
                 braidGeometryState.segments = segments;
                 braidGeometryState.nextRebuildTime = visualTime + (isInitialGeometryBuild ? 0.06 : 0.18);
             }
+            runtime.strandUniformWrites += strandUniformWritesThisFrame;
         }
         trace('afterStrandMotion');
 
@@ -4233,7 +4313,10 @@ export class LinkRendererConduit {
                 activeRadius,
                 twistPhase,
                 noiseBase,
-                linkDist
+                linkDist,
+                lod,
+                heavyTick,
+                runtime
             });
         }
 
@@ -4278,6 +4361,7 @@ export class LinkRendererConduit {
                      8,
                      false
                  );
+                 runtime.skinGeometryRebuilds += 1;
                  skinGeometryState.ready = true;
                  skinGeometryState.start.copy(skinStart);
                  skinGeometryState.end.copy(skinEnd);

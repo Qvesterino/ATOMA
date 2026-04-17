@@ -41,10 +41,20 @@ export class VisualNetworkTimeElasticity_v1 {
     this.enabled = true;
 
     // ── Score configuration ─────────────────────────────────────────
-    this._forwardSpeed = config.forwardSpeed ?? 5;        // units/sec counting up
-    this._rewindSpeed = config.rewindSpeed ?? 3;          // units/sec counting down (slower = harder)
+    this._forwardSpeed = config.forwardSpeed ?? 5;        // base units/sec counting up
+    this._rewindSpeed = config.rewindSpeed ?? 3;          // base units/sec counting down (slower = harder)
     this._synergyThreshold = config.synergyThreshold ?? 0.82;  // aligned with MetricsRuntime global.synergy.high
     this._sustainDuration = config.sustainDuration ?? 7.0;     // seconds of sustained high synergy
+
+    // ── Phase 4: Dynamic speed scaling ──────────────────────────────
+    this._synergyQualityScale = config.synergyQualityScale ?? 5.0;   // rewind bonus per unit synergy above threshold
+    this._escalationDivisor = config.escalationDivisor ?? 300;       // forward speed doubles at this NT value
+    this._lastEffectiveForwardSpeed = this._forwardSpeed;
+    this._lastEffectiveRewindSpeed = this._rewindSpeed;
+
+    // ── Phase 4C: Drama Zone ────────────────────────────────────────
+    this._dramaZoneThreshold = config.dramaZoneThreshold ?? 20;      // NT below this = drama zone
+    this._inDramaZone = false;
 
     // ── Score state ─────────────────────────────────────────────────
     this._networkTimeCounter = 0;    // the actual score counter
@@ -79,7 +89,8 @@ export class VisualNetworkTimeElasticity_v1 {
     this._eventHandlers = {
       'score:forward': [],
       'score:rewinding': [],
-      'score:won': []
+      'score:won': [],
+      'score:dramaZone': []
     };
 
     // ── Session stats ───────────────────────────────────────────────
@@ -146,6 +157,14 @@ export class VisualNetworkTimeElasticity_v1 {
   }
 
   /**
+   * Check if score is in the near-win Drama Zone
+   * @returns {boolean}
+   */
+  isInDramaZone() {
+    return this._inDramaZone;
+  }
+
+  /**
    * Get current score state info (for debugging/HUD)
    * @returns {Object}
    */
@@ -155,13 +174,20 @@ export class VisualNetworkTimeElasticity_v1 {
       networkTimeFormatted: this.getNetworkTimeFormatted(),
       direction: this._direction,
       isWon: this._won,
+      inDramaZone: this._inDramaZone,
       avgSynergy: this.avgSynergy,
       sustainProgress: this._sustainedDuration.toFixed(2),
       sustainRatio: this.getSustainProgressRatio().toFixed(3),
       synergyThreshold: this._synergyThreshold,
       sustainRequired: this._sustainDuration,
       forwardSpeed: this._forwardSpeed,
-      rewindSpeed: this._rewindSpeed
+      rewindSpeed: this._rewindSpeed,
+      effectiveForwardSpeed: this._lastEffectiveForwardSpeed.toFixed(2),
+      effectiveRewindSpeed: this._lastEffectiveRewindSpeed.toFixed(2),
+      synergyQualityMultiplier: this._direction === SCORE_DIRECTION.REWIND
+        ? (1 + (Math.max(0, this.avgSynergy - this._synergyThreshold) * this._synergyQualityScale)).toFixed(2)
+        : '1.00',
+      escalationFactor: (1 + (this._networkTimeCounter / this._escalationDivisor)).toFixed(2)
     };
   }
 
@@ -346,12 +372,24 @@ export class VisualNetworkTimeElasticity_v1 {
     }
 
     // ============================================================
-    // PHASE 3: Update Network Time counter
+    // PHASE 3: Update Network Time counter (with dynamic speeds)
     // ============================================================
     if (this._direction === SCORE_DIRECTION.FORWARD) {
-      this._networkTimeCounter += this._forwardSpeed * dt;
+      // Phase 4B: Pressure Escalation — forward speed grows with Network Time
+      // At NT=0: base speed. At NT=escalationDivisor: 2x base speed.
+      const escalationFactor = 1 + (this._networkTimeCounter / this._escalationDivisor);
+      const effectiveForwardSpeed = this._forwardSpeed * escalationFactor;
+      this._lastEffectiveForwardSpeed = effectiveForwardSpeed;
+      this._networkTimeCounter += effectiveForwardSpeed * dt;
+
     } else if (this._direction === SCORE_DIRECTION.REWIND) {
-      this._networkTimeCounter -= this._rewindSpeed * dt;
+      // Phase 4A: Synergy Quality Multiplier — rewind speed scales with synergy quality
+      // At threshold (0.82): base speed. At 1.0 synergy: base × (1 + 0.18 × scale).
+      const synergyAboveThreshold = Math.max(0, this.avgSynergy - this._synergyThreshold);
+      const qualityMultiplier = 1 + (synergyAboveThreshold * this._synergyQualityScale);
+      const effectiveRewindSpeed = this._rewindSpeed * qualityMultiplier;
+      this._lastEffectiveRewindSpeed = effectiveRewindSpeed;
+      this._networkTimeCounter -= effectiveRewindSpeed * dt;
 
       // Track total rewind time
       this._sessionStats.totalRewindTime += dt;
@@ -379,6 +417,33 @@ export class VisualNetworkTimeElasticity_v1 {
     const currentTime = this.getNetworkTime();
     if (currentTime > this._sessionStats.bestNetworkTime) {
       this._sessionStats.bestNetworkTime = currentTime;
+    }
+
+    // ============================================================
+    // PHASE 3.5: Drama Zone detection (Phase 4C)
+    // ============================================================
+    const shouldDramaZone = this._direction === SCORE_DIRECTION.REWIND
+      && this._networkTimeCounter > 0
+      && this._networkTimeCounter <= this._dramaZoneThreshold;
+
+    if (shouldDramaZone && !this._inDramaZone) {
+      this._inDramaZone = true;
+      this._emit('score:dramaZone', {
+        active: true,
+        networkTime: this.getNetworkTime(),
+        threshold: this._dramaZoneThreshold
+      });
+    } else if (!shouldDramaZone && this._inDramaZone) {
+      this._inDramaZone = false;
+      this._emit('score:dramaZone', {
+        active: false,
+        networkTime: this.getNetworkTime()
+      });
+    }
+
+    // Expose drama zone state for other systems (corruption reduction)
+    if (typeof window !== 'undefined') {
+      window.__ATOMA_DRAMA_ZONE__ = this._inDramaZone;
     }
 
     // ============================================================
@@ -513,24 +578,28 @@ export class VisualNetworkTimeElasticity_v1 {
     this._isRewinding = false;
     this._fadeAlpha = 0.0;
     this.avgSynergy = 0.0;
+    this._inDramaZone = false;
+    if (typeof window !== 'undefined') window.__ATOMA_DRAMA_ZONE__ = false;
   }
 
   /**
    * Dispose and clean up
    */
   dispose() {
-    this._eventHandlers = { 'score:forward': [], 'score:rewinding': [], 'score:won': [] };
+    this._eventHandlers = { 'score:forward': [], 'score:rewinding': [], 'score:won': [], 'score:dramaZone': [] };
     this.reset();
   }
 }
 
 // Quick validation function
 export function validateVisualNetworkTimeElasticity() {
-  console.log('✓ VisualNetworkTimeElasticity_v2.0 (Network Time Score) loaded');
+  console.log('✓ VisualNetworkTimeElasticity_v2.1 (Network Time Score + Dynamic Speeds) loaded');
   console.log('  - Trigger: avgSynergy >= 0.82 for 7+ seconds');
-  console.log('  - Forward: 5 units/sec (pressure)');
-  console.log('  - Rewind: 3 units/sec (reward, slower = harder)');
+  console.log('  - Forward: 5 base units/sec (escalates with Network Time)');
+  console.log('  - Rewind: 3 base units/sec (scales with synergy quality above threshold)');
   console.log('  - Win: Network Time reaches 0');
+  console.log('  - Phase 4A: Synergy Quality Multiplier — higher synergy = faster rewind');
+  console.log('  - Phase 4B: Pressure Escalation — higher NT = faster forward pressure');
   console.log('  - Visual: time rewind at 40% speed (preserved from v1)');
   console.log('  - Events: score:forward, score:rewinding, score:won');
 }

@@ -862,7 +862,12 @@ export class LinkCorruptionTransmission_v1 {
     
     // [CATEGORY-AWARE] Apply category-based corruption propagation multiplier
     const corruptionCategoryMultiplier = this.getCorruptionPropagationMultiplier(sourceNode, targetNode);
-    const adjustedTransmissionRate = transmissionRate * corruptionCategoryMultiplier;
+    let adjustedTransmissionRate = transmissionRate * corruptionCategoryMultiplier;
+
+    // [DRAMA ZONE] Reduce corruption spread by 30% when near win (Phase 4C)
+    if (typeof window !== 'undefined' && window.__ATOMA_DRAMA_ZONE__) {
+      adjustedTransmissionRate *= 0.7;
+    }
 
     // Update link corruption level with smooth lerp
     const sourceCorruption =

@@ -538,6 +538,19 @@ export class AtomaAudioSystem {
         this.selectionSynth.triggerAttackRelease("E6", "2n", now + 0.3, 0.2);
     }
 
+    /**
+     * Play drama zone heartbeat — subtle low pulse when near win.
+     * Uses a soft bass thud at ~40BPM (1.5s interval).
+     */
+    playDramaZoneHeartbeat() {
+        if (!this.initialized || !this.enabled) return;
+        if (!this.canTrigger('score:dramaZone', 1500)) return;
+        const now = Tone.now();
+        // Soft bass heartbeat: low E2 thud with gentle resonance
+        this.synergySynth.triggerAttackRelease("E2", "8n", now, 0.2);
+        this.synergySynth.triggerAttackRelease("E2", "8n", now + 0.15, 0.12);
+    }
+
     playRoutedEventAudio(payload = {}, eventName = 'semantic.event') {
         if (!this.initialized || !this.enabled) return;
 

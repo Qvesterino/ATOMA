@@ -297,6 +297,23 @@ export class CoreMetricsHUD {
           0%, 100% { opacity: 0.4; }
           50% { opacity: 1; }
         }
+        #core-metrics-hud.drama-zone {
+          border: 1px solid rgba(255, 193, 7, 0.3);
+          box-shadow: 0 0 15px rgba(255, 193, 7, 0.15), inset 0 0 10px rgba(255, 193, 7, 0.05);
+          animation: atoma-drama-zone-pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes atoma-drama-zone-pulse {
+          0%, 100% { border-color: rgba(255, 193, 7, 0.2); box-shadow: 0 0 10px rgba(255, 193, 7, 0.1); }
+          50% { border-color: rgba(255, 193, 7, 0.6); box-shadow: 0 0 25px rgba(255, 193, 7, 0.3); }
+        }
+        #core-metrics-hud .sustain-progress-fill.drama-zone {
+          background: linear-gradient(90deg, rgba(255, 193, 7, 0.6), #ffd700) !important;
+          box-shadow: 0 0 6px rgba(255, 215, 0, 0.5);
+        }
+        #core-metrics-hud .network-time-value.drama-zone {
+          color: #ffd700 !important;
+          text-shadow: 0 0 12px rgba(255, 215, 0, 0.5);
+        }
         #core-metrics-hud .sustain-progress-section {
           margin-top: 4px;
           opacity: 0;
@@ -836,6 +853,21 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
 
       // Complete state (orange glow when ready to rewind)
       this.hudElements.sustainProgress.classList.toggle('complete', isComplete || direction === SCORE_DIRECTION.REWIND);
+    }
+
+    // ── Drama Zone (Phase 4C) ──────────────────────────────────────────
+    const inDramaZone = this._scoreSystem.isInDramaZone?.() ?? false;
+    // Golden border on HUD container
+    if (this.container) {
+      this.container.classList.toggle('drama-zone', inDramaZone);
+    }
+    // Golden sustain fill
+    if (this.hudElements.sustainProgress) {
+      this.hudElements.sustainProgress.classList.toggle('drama-zone', inDramaZone);
+    }
+    // Golden network time text
+    if (this.hudElements.networkTime) {
+      this.hudElements.networkTime.classList.toggle('drama-zone', inDramaZone);
     }
 
     // Pulse on direction change

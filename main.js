@@ -12179,6 +12179,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this._runHarmonicPhaseSyncPending = true;
             this._pendingHarmonicNodeHalosDt = deltaTime;
             this._runHarmonicNodeHalosPending = true;
+            this._pendingElasticityDt = deltaTime;
+            this._runElasticityPending = true;
         }
         this.semanticSlowAcc += deltaTime;
         const runSlowSemantic = this.semanticSlowAcc >= this.semanticSlowInterval;
@@ -16386,6 +16388,15 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             // Restore temporal system to normal speed
             if (this.coreMetricsOverlay?.temporalSystem?.setTimeScale) {
                 this.coreMetricsOverlay.temporalSystem.setTimeScale(1.0, false);
+            }
+        });
+
+        // Wire score:dramaZone event — heartbeat audio when near win
+        this.visualNetworkTimeElasticity.on('score:dramaZone', (payload) => {
+            if (payload.active) {
+                console.log('%c✨ DRAMA ZONE — Almost there!', 'color: #ffd700; font-weight: bold;',
+                    'NT:', payload.networkTime, '/ Threshold:', payload.threshold);
+                if (this.audioSystem?.playDramaZoneHeartbeat) this.audioSystem.playDramaZoneHeartbeat();
             }
         });
 

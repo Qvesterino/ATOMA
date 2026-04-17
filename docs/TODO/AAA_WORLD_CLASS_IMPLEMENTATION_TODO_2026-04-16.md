@@ -126,6 +126,107 @@ _______________________
 - linky ostanú „ATOMA hero feature“,
 - zlepší sa frame stability pri väčšej sieti,
 - vizuálny downgrade nebude viditeľný v bežnej hre.
+
+**Technický status k 2026-04-17:**
+
+- už hotové low-risk kroky v runtime:
+  - scratch vectors namiesto časti per-frame `clone()` alokácií,
+  - dock ring / dock spray cadence znížené na nižšiu frekvenciu,
+  - source injection gating podľa LOD,
+  - adaptívny geometry rebuild threshold pre stabilné vs. nestabilné linky,
+  - metric uniform write gating pri nezmenených metrikách,
+- stále otvorené cost centrá:
+  - skutočná deduplikácia uniform write operácií medzi strand materiálmi,
+  - ďalšie obmedzenie filament update pri vyššom LOD a vysokej harmónii,
+  - zriedenie `computeFrenetFrames()` / geometry rebuild pri stabilných endpointoch,
+  - selective thickness profile pre vzdialené linky,
+  - formálny `hero / near / mid / far` budget kontrakt na link.
+
+**Bezproblémový implementačný TODO:**
+
+**Fáza A — Baseline a guardraily pred ďalším zásahom**
+
+- spraviť krátky performance baseline pre 3 scény: `hero cluster`, `mid-density network`, `stress network`,
+- pre každý scenár zmerať:
+  - počet live linkov,
+  - počet `heavy` linkov za frame,
+  - počet geometry rebuildov za sekundu,
+  - počet uniform write update cyklov za sekundu,
+  - frame time p50 / p95,
+- potvrdiť vizuálnu nedotknuteľnosť týchto vrstiev: core braid silhouette, aura envelope, pulse readability, bead readability,
+- zaviesť jednoduché pravidlo: žiadna optimalizácia v P0.3 nesmie meniť gameplay logiku, metric authority ani link lifecycle.
+
+**Fáza B — Uzavretie low-risk CPU únikov**
+
+- v `LinkRendererConduit.js` dorobiť explicitné gating pravidlo pre strand filament update:
+  - skip pri vyššom LOD,
+  - skip pri vysokej harmónii,
+  - skip mimo `heavy` budgetu,
+- dotiahnuť cache pravidlo pre `computeFrenetFrames()`:
+  - recompute iba pri skutočnom pohybe endpointov alebo významnej zmene dĺžky,
+  - inak reuse cache na časové okno namiesto fixného každého geometry ticku,
+- zaviesť selective thickness profile:
+  - `hero` a `near` = plný profil,
+  - `mid` = zjednodušený profil,
+  - `far` = takmer konštantná hrúbka bez detailného vertex walku,
+- nechať dock sekundárne vrstvy bežať na nižšej cadence než core braid / aura.
+
+**Fáza C — Link budget kontrakt ako jediná autorita pre drahé vrstvy**
+
+- zaviesť jeden runtime budget objekt na link: `hero`, `near`, `mid`, `far`,
+- budget musí riadiť tieto rozhodnutia z jedného miesta:
+  - geometry rebuild cadence,
+  - filament enablement,
+  - dock ring / dock spray cadence,
+  - bead trail detail,
+  - thickness profile variant,
+- naviazať budget na kombináciu:
+  - distance to camera,
+  - selected / primary / inspected state,
+  - link quality importance,
+  - prípadne world-signature alebo ritual relevance,
+- cieľ je odstrániť roztrúsené ad-hoc podmienky a mať jednu čitateľnú performance autoritu pre link vrstvy.
+
+**Fáza D — Uniform a material pass bez vizuálneho rozbitia**
+
+- overiť, ktoré strand uniformy sú skutočne per-link a ktoré iba per-frame shared,
+- zaviesť deduplikáciu write operácií len tam, kde je hodnota identická medzi strandmi toho istého linku,
+- ak bude potrebné material pooling riešenie, držať ho striktne intra-link alebo intra-variant; nerobiť globálne sharing bez dôkazu, že nerozbije farebnú a stavovú identitu,
+- neprerábať shader vizuálny jazyk v rámci P0.3; optimalizačný pass má meniť scheduling, gating a write patterns, nie vizuálny design.
+
+**Fáza E — Integrácia s bead a trail subsystémami**
+
+- `LinkBeadSystem.js`: doplniť budget-aware update cadence a fallback pre vzdialené linky,
+- `LinkBeadTrailSystem.js`: znížiť detail alebo update cadence mimo `hero / near`,
+- skontrolovať, či bead / trail update nebeží zbytočne aj v stave, kde hlavný link už spadol do `mid / far` budgetu,
+- zachovať pravidlo: bead a trail sú sekundárna vrstva, nikdy nesmú diktovať cadence core link mesh pipeline.
+
+**Fáza F — Verifikácia a stop podmienky**
+
+- po každej fáze spraviť A/B porovnanie na rovnakom world seede alebo porovnateľnej sieti,
+- ak sa zhorší silhouette, pulse čitateľnosť alebo endpoint feedback pri bežnej kamere, zmena sa neberie ďalej,
+- P0.3 uzavrieť až keď platí naraz:
+  - heavy frames nemajú viditeľné spikes z link geometry churn,
+  - `mid` a `far` linky sú lacnejšie bez očividného downgrade,
+  - `hero` linky ostávajú vizuálne bohaté,
+  - bead / trail / dock sekundárne vrstvy rešpektujú rovnaký budget kontrakt.
+
+**Poradie implementácie odporúčané pre minimálne riziko:**
+
+1. baseline + counters
+2. filament gating
+3. `computeFrenetFrames()` cache sprísnenie
+4. selective thickness profile
+5. unified `hero / near / mid / far` budget contract
+6. bead / trail alignment
+7. uniform dedup / material strategy až ako posledný krok
+
+**Čo v P0.3 vedome nerobiť:**
+
+- nerobiť shader redesign pod zámienkou výkonu,
+- nerozširovať počet nových link vrstiev,
+- nemiešať do P0.3 gameplay balance alebo metric semantics,
+- neísť do veľkého geometry rewrite bez baseline dát, že low-risk gating nestačí.
 ____________________________________________________
 ### P0.4 Cascade and particle budget discipline
 
