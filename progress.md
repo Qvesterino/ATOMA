@@ -305,3 +305,7 @@ ode --check after the change.
 - Verified with git diff against the commit: WaveParticleEmitter_v1.js now matches the baseline exactly.
 - Verification: node --check WaveParticleEmitter_v1.js passed.
 
+## 2026-04-17
+- QuantumIsland cleanup: disabled the map-owned reference plane for `QuantumIsland` and stopped creating the local mist plane so the square ground-sheet artifacts disappear from this world.
+- Performance fix: `_SafeEvolutionManager` no longer does a full `scene.traverse()` for every registered node on every frame; it now rebuilds a per-frame node lookup from the provided `nodes` array and only falls back to traversal on cache misses.
+- Validation: `node --check _SafeEvolutionManager.js`, `node --check MapConfigBase.js`, `node --check QuantumIsland.js`.

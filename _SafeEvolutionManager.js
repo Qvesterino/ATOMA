@@ -22,6 +22,7 @@ export class SafeEvolutionManager {
     // EXTERNAL STATE - Never touch node internals
     this.registry = {};
     this.vfxMeshes = {};
+    this.nodeLookup = new Map();
     
     // Burst effect pool
     this.burstPool = [];
@@ -53,6 +54,7 @@ export class SafeEvolutionManager {
    */
   registerNode(node) {
     const nodeId = this.getNodeId(node);
+    this.cacheNode(node);
     
     // Skip if already registered
     if (this.registry[nodeId]) return;
@@ -86,6 +88,7 @@ export class SafeEvolutionManager {
   update(deltaTime, nodes, linkingSystem) {
     // Ensure all visible nodes are registered
     if (nodes) {
+      this.rebuildNodeLookup(nodes);
       nodes.forEach(node => this.registerNode(node));
     }
     
@@ -127,16 +130,64 @@ export class SafeEvolutionManager {
    * Find node in scene by ID (safe lookup)
    */
   findNodeById(nodeId) {
+    const cachedNode = this.nodeLookup.get(nodeId);
+    if (this.isSceneAttached(cachedNode)) {
+      return cachedNode;
+    }
+
+    if (cachedNode) {
+      this.nodeLookup.delete(nodeId);
+      if (cachedNode.uuid) {
+        this.nodeLookup.delete(cachedNode.uuid);
+      }
+    }
+
     let found = null;
     this.scene.traverse(obj => {
+      if (found) return;
       if (obj.userData && obj.userData.nodeId === nodeId) {
         found = obj;
+        return;
       }
       if (obj.uuid === nodeId) {
         found = obj;
       }
     });
+
+    if (found) {
+      this.cacheNode(found);
+    }
+
     return found;
+  }
+
+  rebuildNodeLookup(nodes) {
+    this.nodeLookup.clear();
+    nodes.forEach(node => this.cacheNode(node));
+  }
+
+  cacheNode(node) {
+    if (!node) return;
+
+    const nodeId = node.userData?.nodeId;
+    if (nodeId) {
+      this.nodeLookup.set(nodeId, node);
+    }
+
+    if (node.uuid) {
+      this.nodeLookup.set(node.uuid, node);
+    }
+  }
+
+  isSceneAttached(node) {
+    if (!node) return false;
+
+    let current = node;
+    while (current) {
+      if (current === this.scene) return true;
+      current = current.parent;
+    }
+    return false;
   }
   
   /**
@@ -593,6 +644,12 @@ export class SafeEvolutionManager {
    * Unregister node
    */
   unregisterNode(nodeId) {
+    const cachedNode = this.nodeLookup.get(nodeId);
+    if (cachedNode?.uuid) {
+      this.nodeLookup.delete(cachedNode.uuid);
+    }
+    this.nodeLookup.delete(nodeId);
+
     // Clean up VFX
     if (this.vfxMeshes[nodeId]) {
       this.removeGlow(this.vfxMeshes[nodeId]);
@@ -628,6 +685,7 @@ export class SafeEvolutionManager {
     
     this.registry = {};
     this.vfxMeshes = {};
+    this.nodeLookup.clear();
     this.activeBursts = [];
   }
 }

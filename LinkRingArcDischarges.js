@@ -258,7 +258,7 @@ export class LinkRingArcDischarges {
             opacity: 0.7 * 2.3,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
-            depthTest: false,
+            depthTest: true,
             linewidth: this.config.arcThickness * 140.0,
             fog: false,
         });
@@ -318,7 +318,7 @@ export class LinkRingArcDischarges {
                         opacity: 0.6,
                         blending: THREE.AdditiveBlending,
                         depthWrite: false,
-                        depthTest: false,
+                        depthTest: true,
                         linewidth: 0.95,
                         fog: false,
                     });
@@ -547,7 +547,7 @@ export class LinkRingArcDischarges {
             opacity: maxOpacity * 2.3, // slightly higher base opacity
             blending: THREE.AdditiveBlending,
             depthWrite: false,
-            depthTest: false,
+            depthTest: true,
             linewidth: 1.25,
             fog: false,
         });
@@ -617,7 +617,7 @@ export class LinkRingArcDischarges {
                     opacity: branchOpacity,
                     blending: THREE.AdditiveBlending,
                     depthWrite: false,
-                    depthTest: false,
+                    depthTest: true,
                     linewidth: 0.9, // Slightly thinner than main arc
                     fog: false,
                 });

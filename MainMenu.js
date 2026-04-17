@@ -31,36 +31,78 @@ const MENU_MAPS = Object.freeze([
         label: 'FRACTAL VALLEY',
         footerLabel: 'Fractal Valley',
         description: 'Recursive mathematical space. Calm, structured, and self-similar.',
+        tagline: 'Where mathematics breathes',
+        mood: ['serene', 'infinite', 'geometric'],
+        fantasy: 'A contemplative space where patterns repeat into eternity. Ideal for understanding network harmony through observation.',
+        risk: 'calm',
+        prosperity: 'high',
+        accentColor: '#00e5a0',
+        accentRgb: '0, 229, 160',
     },
     {
         id: 'desert',
         label: 'DREAM DESERT',
         footerLabel: 'Dream Desert',
         description: 'Surreal cognitive horizon with wide spacing and soft atmospheric drift.',
+        tagline: 'Thoughts drift like dunes',
+        mood: ['surreal', 'vast', 'contemplative'],
+        fantasy: 'An open dreamscape where nodes have room to breathe. Sparse placement rewards deliberate connection strategy.',
+        risk: 'low',
+        prosperity: 'moderate',
+        accentColor: '#ffc107',
+        accentRgb: '255, 193, 7',
     },
     {
         id: 'desert2',
         label: 'MIRAGE VEIL',
-        footerLabel: 'Dream Desert II',
+        footerLabel: 'Mirage Veil',
         description: 'A denser second dreamscape with sharper dunes, brighter mirage pressure, and a deeper horizon.',
+        tagline: 'Reality shimmers at the edge',
+        mood: ['hallucinatory', 'dense', 'shifting'],
+        fantasy: 'A compressed dreamscape where mirages distort perception. Dense node placement creates cascade pressure.',
+        risk: 'moderate',
+        prosperity: 'high',
+        accentColor: '#ff9800',
+        accentRgb: '255, 152, 0',
     },
     {
         id: 'quantum',
         label: 'QUANTUM ISLAND',
         footerLabel: 'Quantum Island',
         description: 'Probabilistic terrain with unstable gradients and uncertain silhouettes.',
+        tagline: 'Probability collapses into form',
+        mood: ['uncertain', 'electric', 'emergent'],
+        fantasy: 'The default proving ground. Unstable gradients force rapid adaptation. Every link is a gamble that might pay off.',
+        risk: 'moderate',
+        prosperity: 'moderate',
+        accentColor: '#00d4ff',
+        accentRgb: '0, 212, 255',
     },
     {
         id: 'memory',
         label: 'MEMORY LANE',
         footerLabel: 'Memory Lane',
         description: 'Endless corridor of archived echoes, server towers, and slow drifting recollection.',
+        tagline: 'Every echo remembers you',
+        mood: ['nostalgic', 'linear', 'haunted'],
+        fantasy: 'A corridor of archived signals. Linear topology rewards chain-building and sequential harmony propagation.',
+        risk: 'low',
+        prosperity: 'moderate',
+        accentColor: '#b44dff',
+        accentRgb: '180, 77, 255',
     },
     {
         id: 'sigma',
         label: 'SIGMA CHAMBER',
         footerLabel: 'Sigma Chamber',
         description: 'Anomalous chamber with sharper tension, instability, and glitch pressure.',
+        tagline: 'The system tests itself here',
+        mood: ['tense', 'glitched', 'adversarial'],
+        fantasy: 'A pressure chamber designed to push networks to failure. High risk, high reward. Only for those who understand cascade mechanics.',
+        risk: 'extreme',
+        prosperity: 'extreme',
+        accentColor: '#ff3d8e',
+        accentRgb: '255, 61, 142',
     },
 ]);
 
@@ -302,9 +344,9 @@ export function ensureMenuStyles() {
         }
 
         .atoma-main-menu.atoma-pause-menu {
-            background: rgba(3, 10, 16, 0.28);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            background: rgba(3, 10, 16, 0.18);
+            backdrop-filter: blur(18px) saturate(1.3);
+            -webkit-backdrop-filter: blur(18px) saturate(1.3);
         }
 
         .atoma-main-menu.atoma-pause-menu .atoma-main-menu__canvas {
@@ -318,7 +360,68 @@ export function ensureMenuStyles() {
         .atoma-main-menu.atoma-pause-menu .atoma-main-menu__panel {
             min-height: auto;
             max-width: 700px;
-            background: linear-gradient(180deg, rgba(7, 17, 24, 0.76), rgba(4, 10, 16, 0.60));
+            background: linear-gradient(180deg, rgba(7, 17, 24, 0.82), rgba(4, 10, 16, 0.68));
+            border-color: rgba(96, 236, 255, 0.12);
+        }
+
+        .atoma-main-menu__pause-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 16px;
+            border-radius: 999px;
+            background: rgba(255, 61, 142, 0.10);
+            border: 1px solid rgba(255, 61, 142, 0.25);
+            font-size: 9px;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: rgba(255, 130, 175, 0.90);
+        }
+
+        .atoma-main-menu__pause-badge-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #ff3d8e;
+            animation: atoma-pause-pulse 1.8s ease-in-out infinite;
+        }
+
+        @keyframes atoma-pause-pulse {
+            0%, 100% { opacity: 0.4; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+
+        .atoma-main-menu__pause-status {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .atoma-main-menu__pause-status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 9px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+        }
+
+        .atoma-main-menu__pause-status-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+        }
+
+        .atoma-main-menu__pause-status-dot--paused {
+            background: #ff3d8e;
+            box-shadow: 0 0 6px rgba(255, 61, 142, 0.5);
+        }
+
+        .atoma-main-menu__pause-status-dot--alive {
+            background: #00e5a0;
+            box-shadow: 0 0 6px rgba(0, 229, 160, 0.5);
+            animation: atoma-pause-pulse 2.4s ease-in-out infinite;
         }
 
         .atoma-main-menu.is-hidden {
@@ -804,6 +907,219 @@ export function ensureMenuStyles() {
             background: rgba(7, 17, 24, 0.36);
         }
 
+        /* ── World Cards (MAP screen) ── */
+
+        .atoma-main-menu__world-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+            width: 100%;
+        }
+
+        .atoma-main-menu__world-card {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 16px;
+            border: 1px solid rgba(108, 234, 255, 0.10);
+            border-radius: 16px;
+            background: linear-gradient(180deg, rgba(10, 26, 36, 0.60), rgba(6, 16, 24, 0.40));
+            cursor: pointer;
+            transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+            overflow: hidden;
+        }
+
+        .atoma-main-menu__world-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: var(--world-accent, rgba(108, 234, 255, 0.3));
+            border-radius: 3px 0 0 3px;
+            opacity: 0.4;
+            transition: opacity 160ms ease, width 160ms ease;
+        }
+
+        .atoma-main-menu__world-card:hover {
+            border-color: rgba(108, 234, 255, 0.20);
+            background: linear-gradient(180deg, rgba(12, 30, 42, 0.70), rgba(8, 20, 30, 0.50));
+        }
+
+        .atoma-main-menu__world-card.is-selected {
+            border-color: rgba(108, 234, 255, 0.30);
+            background: linear-gradient(180deg, rgba(14, 34, 48, 0.80), rgba(10, 24, 36, 0.60));
+            box-shadow: 0 0 24px rgba(90, 236, 255, 0.10), inset 0 0 20px rgba(117, 246, 255, 0.04);
+            transform: scale(1.02);
+        }
+
+        .atoma-main-menu__world-card.is-selected::before {
+            opacity: 1;
+            width: 4px;
+        }
+
+        .atoma-main-menu__world-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .atoma-main-menu__world-card-name {
+            font-family: 'Orbitron', 'Segoe UI', sans-serif;
+            font-size: 13px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: #f1feff;
+        }
+
+        .atoma-main-menu__world-card-risk {
+            font-size: 8px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.10);
+        }
+
+        .atoma-main-menu__world-card-risk--calm { color: #00e5a0; border-color: rgba(0, 229, 160, 0.25); background: rgba(0, 229, 160, 0.08); }
+        .atoma-main-menu__world-card-risk--low { color: #00d4ff; border-color: rgba(0, 212, 255, 0.25); background: rgba(0, 212, 255, 0.08); }
+        .atoma-main-menu__world-card-risk--moderate { color: #ffc107; border-color: rgba(255, 193, 7, 0.25); background: rgba(255, 193, 7, 0.08); }
+        .atoma-main-menu__world-card-risk--extreme { color: #ff3d8e; border-color: rgba(255, 61, 142, 0.25); background: rgba(255, 61, 142, 0.08); }
+
+        .atoma-main-menu__world-card-tagline {
+            font-size: 11px;
+            color: rgba(180, 230, 240, 0.70);
+            font-style: italic;
+            letter-spacing: 0.04em;
+        }
+
+        .atoma-main-menu__world-card-fantasy {
+            font-size: 11px;
+            color: rgba(161, 227, 235, 0.60);
+            line-height: 1.6;
+            letter-spacing: 0.03em;
+        }
+
+        .atoma-main-menu__world-card-mood {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .atoma-main-menu__world-card-mood-tag {
+            font-size: 8px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            padding: 2px 7px;
+            border-radius: 999px;
+            border: 1px solid rgba(108, 234, 255, 0.12);
+            color: rgba(160, 226, 235, 0.65);
+            background: rgba(10, 28, 40, 0.20);
+        }
+
+        .atoma-main-menu__world-card-bars {
+            display: flex;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .atoma-main-menu__world-card-bar-group {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .atoma-main-menu__world-card-bar-label {
+            font-size: 7px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: rgba(119, 243, 255, 0.60);
+        }
+
+        .atoma-main-menu__world-card-bar-track {
+            height: 3px;
+            border-radius: 2px;
+            background: rgba(108, 234, 255, 0.08);
+            overflow: hidden;
+        }
+
+        .atoma-main-menu__world-card-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 300ms ease;
+        }
+
+        .atoma-main-menu__world-card-bar-fill--risk {
+            background: linear-gradient(90deg, #00e5a0, #ffc107, #ff3d8e);
+        }
+
+        .atoma-main-menu__world-card-bar-fill--prosperity {
+            background: linear-gradient(90deg, #00d4ff, #00e5a0, #b44dff);
+        }
+
+        /* ── Map Preview Panel ── */
+
+        .atoma-main-menu__map-preview {
+            width: 100%;
+            padding: 14px 18px;
+            border: 1px solid rgba(108, 234, 255, 0.12);
+            border-radius: 14px;
+            background: linear-gradient(180deg, rgba(8, 20, 28, 0.50), rgba(5, 14, 20, 0.30));
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .atoma-main-menu__map-preview-tagline {
+            font-family: 'Orbitron', 'Segoe UI', sans-serif;
+            font-size: 11px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: rgba(119, 243, 255, 0.80);
+        }
+
+        .atoma-main-menu__map-preview-description {
+            font-size: 12px;
+            color: rgba(180, 230, 240, 0.65);
+            line-height: 1.6;
+            letter-spacing: 0.03em;
+        }
+
+        /* ── Settings Panel Sections ── */
+
+        .atoma-main-menu__settings-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .atoma-main-menu__settings-group-title {
+            font-size: 8px;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: rgba(119, 243, 255, 0.55);
+            padding: 0 4px;
+            border-bottom: 1px solid rgba(108, 234, 255, 0.08);
+            padding-bottom: 4px;
+        }
+
+        /* ── Enhanced Button Selected State ── */
+
+        .atoma-main-menu__button.is-selected {
+            border-left: 3px solid rgba(0, 212, 255, 0.50);
+            padding-left: 15px;
+        }
+
+        .atoma-main-menu__button.is-selected .atoma-main-menu__marker {
+            opacity: 1;
+            color: #00d4ff;
+            text-shadow: 0 0 12px rgba(0, 212, 255, 0.6);
+        }
+
         @media (max-width: 720px) {
             .atoma-main-menu__overlay {
                 padding: 28px 16px 20px;
@@ -838,6 +1154,10 @@ export function ensureMenuStyles() {
 
             .atoma-main-menu__lore-card {
                 min-height: 0;
+            }
+
+            .atoma-main-menu__world-cards {
+                grid-template-columns: 1fr;
             }
         }
     `;
@@ -943,6 +1263,8 @@ export class MainMenu {
         this._backgroundHeight = 0;
         this._particlePool = [];
         this._strandPool = [];
+        this._latticeNodes = [];
+        this._latticeEdges = [];
 
         this._handleKeyDown = (event) => this._onKeyDown(event);
         this._handleResize = () => this._onResize();
@@ -995,6 +1317,8 @@ export class MainMenu {
         this._entryAnimationState.clear();
         this._particlePool = [];
         this._strandPool = [];
+        this._latticeNodes = [];
+        this._latticeEdges = [];
     }
 
     refresh() {
@@ -1108,6 +1432,7 @@ export class MainMenu {
                 meta: map.description,
                 type: 'map',
                 selectable: true,
+                mapData: map,
             }));
         }
 
@@ -1159,13 +1484,11 @@ export class MainMenu {
         }
 
         if (this.state.screen === 'MAP') {
-            const selectedMap = this._getSelectedEntry();
-            this.subtitle.textContent = 'Select the world that should boot when the network wakes.';
-            this.screenTitle.textContent = 'SELECT MAP';
-            this.description.textContent = selectedMap ? selectedMap.meta : '';
-            this.hint.textContent = '[ ENTER ] START  |  [ ESC ] BACK';
-            this.status.textContent = 'Changing the map updates the main screen footer immediately.';
-            this._renderEntryList(this._screenEntries);
+            this.subtitle.textContent = 'Each world shapes the network differently. Choose your proving ground.';
+            this.screenTitle.textContent = 'SELECT WORLD';
+            this.hint.textContent = '[ UP / DOWN ] SELECT  |  [ ENTER ] LAUNCH  |  [ ESC ] BACK';
+            this.status.textContent = 'World identity persists across sessions. Risk and prosperity define the experience.';
+            this._renderWorldCards();
             return;
         }
 
@@ -1217,6 +1540,9 @@ export class MainMenu {
             if (entry.type === 'map') {
                 button.classList.add('atoma-main-menu__button--map');
             }
+            if (index === this.state.selectedIndex) {
+                button.classList.add('is-selected');
+            }
 
             const marker = document.createElement('span');
             marker.className = 'atoma-main-menu__marker';
@@ -1261,6 +1587,134 @@ export class MainMenu {
         });
 
         this.content.appendChild(list);
+    }
+
+    _renderWorldCards() {
+        const RISK_LEVELS = { calm: 15, low: 30, moderate: 55, extreme: 90 };
+        const PROSPERITY_LEVELS = { low: 25, moderate: 50, high: 75, extreme: 95 };
+
+        const grid = document.createElement('div');
+        grid.className = 'atoma-main-menu__world-cards';
+
+        MENU_MAPS.forEach((map, index) => {
+            const isSelected = index === this.state.selectedIndex;
+            const card = document.createElement('div');
+            card.className = 'atoma-main-menu__world-card';
+            if (isSelected) {
+                card.classList.add('is-selected');
+            }
+            card.style.setProperty('--world-accent', `rgba(${map.accentRgb}, 0.6)`);
+            card.dataset.entryKey = `MAP:${map.id}`;
+            card.dataset.entryIndex = String(index);
+
+            // Header: name + risk badge
+            const header = document.createElement('div');
+            header.className = 'atoma-main-menu__world-card-header';
+
+            const name = document.createElement('div');
+            name.className = 'atoma-main-menu__world-card-name';
+            name.textContent = map.label;
+
+            const riskBadge = document.createElement('div');
+            riskBadge.className = `atoma-main-menu__world-card-risk atoma-main-menu__world-card-risk--${map.risk}`;
+            riskBadge.textContent = map.risk.toUpperCase();
+
+            header.append(name, riskBadge);
+
+            // Tagline
+            const tagline = document.createElement('div');
+            tagline.className = 'atoma-main-menu__world-card-tagline';
+            tagline.textContent = map.tagline;
+
+            // Fantasy description
+            const fantasy = document.createElement('div');
+            fantasy.className = 'atoma-main-menu__world-card-fantasy';
+            fantasy.textContent = map.fantasy;
+
+            // Mood tags
+            const moodContainer = document.createElement('div');
+            moodContainer.className = 'atoma-main-menu__world-card-mood';
+            for (const mood of map.mood) {
+                const tag = document.createElement('span');
+                tag.className = 'atoma-main-menu__world-card-mood-tag';
+                tag.textContent = mood;
+                moodContainer.appendChild(tag);
+            }
+
+            // Risk / Prosperity bars
+            const bars = document.createElement('div');
+            bars.className = 'atoma-main-menu__world-card-bars';
+
+            const riskGroup = document.createElement('div');
+            riskGroup.className = 'atoma-main-menu__world-card-bar-group';
+            const riskLabel = document.createElement('div');
+            riskLabel.className = 'atoma-main-menu__world-card-bar-label';
+            riskLabel.textContent = 'RISK';
+            const riskTrack = document.createElement('div');
+            riskTrack.className = 'atoma-main-menu__world-card-bar-track';
+            const riskFill = document.createElement('div');
+            riskFill.className = 'atoma-main-menu__world-card-bar-fill atoma-main-menu__world-card-bar-fill--risk';
+            riskFill.style.width = `${RISK_LEVELS[map.risk] || 30}%`;
+            riskTrack.appendChild(riskFill);
+            riskGroup.append(riskLabel, riskTrack);
+
+            const propGroup = document.createElement('div');
+            propGroup.className = 'atoma-main-menu__world-card-bar-group';
+            const propLabel = document.createElement('div');
+            propLabel.className = 'atoma-main-menu__world-card-bar-label';
+            propLabel.textContent = 'PROSPERITY';
+            const propTrack = document.createElement('div');
+            propTrack.className = 'atoma-main-menu__world-card-bar-track';
+            const propFill = document.createElement('div');
+            propFill.className = 'atoma-main-menu__world-card-bar-fill atoma-main-menu__world-card-bar-fill--prosperity';
+            propFill.style.width = `${PROSPERITY_LEVELS[map.prosperity] || 50}%`;
+            propTrack.appendChild(propFill);
+            propGroup.append(propLabel, propTrack);
+
+            bars.append(riskGroup, propGroup);
+
+            card.append(header, tagline, fantasy, moodContainer, bars);
+
+            // Interaction
+            card.addEventListener('mouseenter', () => {
+                this.setSelectedIndex(index);
+            });
+            card.addEventListener('click', () => {
+                this.setSelectedIndex(index);
+                this.activateSelected();
+            });
+
+            grid.appendChild(card);
+            this._focusableRefs.push({
+                key: card.dataset.entryKey,
+                element: card,
+                marker: { style: {} },
+                entryIndex: index,
+            });
+        });
+
+        // Map preview panel for selected world
+        const selectedEntry = this._getSelectedEntry();
+        if (selectedEntry?.mapData) {
+            const map = selectedEntry.mapData;
+            const preview = document.createElement('div');
+            preview.className = 'atoma-main-menu__map-preview';
+
+            const previewTagline = document.createElement('div');
+            previewTagline.className = 'atoma-main-menu__map-preview-tagline';
+            previewTagline.textContent = map.tagline;
+
+            const previewDesc = document.createElement('div');
+            previewDesc.className = 'atoma-main-menu__map-preview-description';
+            previewDesc.textContent = map.description;
+
+            preview.append(previewTagline, previewDesc);
+
+            this.description.textContent = '';
+            this.content.append(grid, preview);
+        } else {
+            this.content.appendChild(grid);
+        }
     }
 
     _getLoreSection() {
@@ -1824,12 +2278,13 @@ export class MainMenu {
     _updateFocusableVisuals(pulse) {
         this._focusableRefs.forEach((ref, index) => {
             const selected = ref.entryIndex === this.state.selectedIndex;
-            const targetScale = selected ? 1.08 + (pulse * 0.018) : 1;
-            const targetOpacity = selected ? 1 : 0.46;
+            const isWorldCard = ref.element.classList.contains('atoma-main-menu__world-card');
+            const targetScale = selected ? (isWorldCard ? 1.02 : 1.08 + (pulse * 0.018)) : 1;
+            const targetOpacity = selected ? 1 : (isWorldCard ? 0.55 : 0.46);
             const targetGlow = selected ? 1 : 0;
             const state = this._entryAnimationState.get(ref.key) || {
                 scale: 1,
-                opacity: 0.46,
+                opacity: isWorldCard ? 0.55 : 0.46,
                 glow: 0,
             };
 
@@ -1840,13 +2295,25 @@ export class MainMenu {
 
             ref.element.style.transform = `scale(${state.scale})`;
             ref.element.style.opacity = String(state.opacity);
-            ref.element.style.borderColor = `rgba(108, 234, 255, ${0.12 + (state.glow * 0.22)})`;
-            ref.element.style.background = `rgba(10, 28, 40, ${0.10 + (state.glow * 0.22)})`;
-            ref.element.style.boxShadow = `0 0 ${10 + (state.glow * 18)}px rgba(90, 236, 255, ${state.glow * 0.22})`;
-            ref.marker.style.opacity = selected ? '1' : '0';
-            ref.element.style.textShadow = selected
-                ? '0 0 18px rgba(98, 238, 255, 0.28)'
-                : 'none';
+
+            if (isWorldCard) {
+                // World cards use CSS classes for selection state
+                if (selected) {
+                    ref.element.classList.add('is-selected');
+                } else {
+                    ref.element.classList.remove('is-selected');
+                }
+            } else {
+                ref.element.style.borderColor = `rgba(108, 234, 255, ${0.12 + (state.glow * 0.22)})`;
+                ref.element.style.background = `rgba(10, 28, 40, ${0.10 + (state.glow * 0.22)})`;
+                ref.element.style.boxShadow = `0 0 ${10 + (state.glow * 18)}px rgba(90, 236, 255, ${state.glow * 0.22})`;
+                if (ref.marker?.style) {
+                    ref.marker.style.opacity = selected ? '1' : '0';
+                }
+                ref.element.style.textShadow = selected
+                    ? '0 0 18px rgba(98, 238, 255, 0.28)'
+                    : 'none';
+            }
         });
     }
 
@@ -1888,6 +2355,46 @@ export class MainMenu {
             phase: Math.random() * Math.PI * 2,
             lengthFactor: 0.48 + index * 0.08,
         }));
+
+        // Link lattice nodes — fixed positions forming a network grid
+        const latticeCols = quality === 'HIGH' ? 8 : quality === 'MEDIUM' ? 6 : 4;
+        const latticeRows = quality === 'HIGH' ? 5 : quality === 'MEDIUM' ? 4 : 3;
+        const marginX = this._backgroundWidth * 0.12;
+        const marginY = this._backgroundHeight * 0.10;
+        const spacingX = (this._backgroundWidth - marginX * 2) / Math.max(1, latticeCols - 1);
+        const spacingY = (this._backgroundHeight - marginY * 2) / Math.max(1, latticeRows - 1);
+
+        this._latticeNodes = [];
+        for (let row = 0; row < latticeRows; row++) {
+            for (let col = 0; col < latticeCols; col++) {
+                this._latticeNodes.push({
+                    x: marginX + col * spacingX + (Math.random() - 0.5) * spacingX * 0.3,
+                    y: marginY + row * spacingY + (Math.random() - 0.5) * spacingY * 0.3,
+                    baseRadius: 1.5 + Math.random() * 1.5,
+                    phase: Math.random() * Math.PI * 2,
+                    pulseSpeed: 0.5 + Math.random() * 0.8,
+                });
+            }
+        }
+
+        // Pre-compute lattice edges (connections between nearby nodes)
+        const maxDist = Math.max(spacingX, spacingY) * 1.6;
+        this._latticeEdges = [];
+        for (let i = 0; i < this._latticeNodes.length; i++) {
+            for (let j = i + 1; j < this._latticeNodes.length; j++) {
+                const dx = this._latticeNodes[i].x - this._latticeNodes[j].x;
+                const dy = this._latticeNodes[i].y - this._latticeNodes[j].y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < maxDist) {
+                    this._latticeEdges.push({
+                        from: i,
+                        to: j,
+                        pulsePhase: Math.random() * Math.PI * 2,
+                        pulseSpeed: 0.3 + Math.random() * 0.5,
+                    });
+                }
+            }
+        }
     }
 
     _drawBackground(dt, timeSeconds) {
@@ -1899,6 +2406,54 @@ export class MainMenu {
         context.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
         context.clearRect(0, 0, this._backgroundWidth, this._backgroundHeight);
 
+        // Draw lattice edges (link connections)
+        if (this._latticeEdges && this._latticeNodes) {
+            for (const edge of this._latticeEdges) {
+                const fromNode = this._latticeNodes[edge.from];
+                const toNode = this._latticeNodes[edge.to];
+                const pulseT = (Math.sin(timeSeconds * edge.pulseSpeed + edge.pulsePhase) + 1) * 0.5;
+                const alpha = 0.03 + pulseT * 0.06;
+
+                context.beginPath();
+                context.moveTo(fromNode.x, fromNode.y);
+                context.lineTo(toNode.x, toNode.y);
+                context.strokeStyle = `rgba(102, 228, 244, ${alpha})`;
+                context.lineWidth = 0.6 + pulseT * 0.4;
+                context.stroke();
+
+                // Pulse dot traveling along the edge
+                if (pulseT > 0.7) {
+                    const travelT = (timeSeconds * edge.pulseSpeed * 0.5 + edge.pulsePhase) % 1;
+                    const px = fromNode.x + (toNode.x - fromNode.x) * travelT;
+                    const py = fromNode.y + (toNode.y - fromNode.y) * travelT;
+                    context.beginPath();
+                    context.arc(px, py, 1.2, 0, Math.PI * 2);
+                    context.fillStyle = `rgba(140, 244, 255, ${(pulseT - 0.7) * 1.5})`;
+                    context.fill();
+                }
+            }
+
+            // Draw lattice nodes (network nodes)
+            for (const node of this._latticeNodes) {
+                const pulseT = (Math.sin(timeSeconds * node.pulseSpeed + node.phase) + 1) * 0.5;
+                const radius = node.baseRadius + pulseT * 1.2;
+                const alpha = 0.08 + pulseT * 0.14;
+
+                // Outer glow
+                context.beginPath();
+                context.arc(node.x, node.y, radius * 3, 0, Math.PI * 2);
+                context.fillStyle = `rgba(77, 238, 255, ${alpha * 0.15})`;
+                context.fill();
+
+                // Core
+                context.beginPath();
+                context.arc(node.x, node.y, radius, 0, Math.PI * 2);
+                context.fillStyle = `rgba(140, 244, 255, ${alpha})`;
+                context.fill();
+            }
+        }
+
+        // Draw bezier strands (atmospheric curves)
         for (const strand of this._strandPool) {
             const startX = this._backgroundWidth * 0.16;
             const endX = this._backgroundWidth * (0.16 + strand.lengthFactor);
@@ -1915,11 +2470,12 @@ export class MainMenu {
                 endX,
                 y,
             );
-            context.strokeStyle = 'rgba(102, 228, 244, 0.10)';
-            context.lineWidth = 1.2;
+            context.strokeStyle = 'rgba(102, 228, 244, 0.06)';
+            context.lineWidth = 1.0;
             context.stroke();
         }
 
+        // Draw particles
         for (const particle of this._particlePool) {
             particle.x += particle.vx * dt;
             particle.y += particle.vy * dt;

@@ -5009,7 +5009,7 @@ getLinksForNode(node) {
       transparent: true,
       opacity: isSpecial ? 0.12 : 0.08,
       linewidth: isSpecial ? 48 : 40,  // Massive cinematic bloom
-      depthTest: false,   // ⚠️ CRITICAL: Aura overlay does NOT read depth
+      depthTest: true,    // World-space aura must respect terrain/world occlusion
       depthWrite: false   // ⚠️ CRITICAL: Aura overlay does NOT write depth
     });
     const bloomAuraLine = new THREE.Line(curveGeometry.clone(), bloomAuraMaterial);

@@ -1775,6 +1775,7 @@ export class EnvironmentalHazards {
       opacity,
       vertexColors: true,
       blending: THREE.AdditiveBlending,
+      depthTest: true,
       depthWrite: false
     });
 

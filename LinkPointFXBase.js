@@ -239,7 +239,7 @@ export const LINK_POINT_FX_PRESETS = {
     layerKey: 'LINK_CASCADE',
     textureKind: 'cascade',
     blending: THREE.NormalBlending,
-    depthTest: false,
+    depthTest: true,
     depthWrite: false,
     toneMapped: false,
     baseColor: 0x66d9ff,

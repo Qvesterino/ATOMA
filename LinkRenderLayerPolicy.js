@@ -76,7 +76,7 @@ const LAYER_POLICY = {
     registryKey: 'LINK_CASCADE',
     transparent: true,
     depthWrite: false,
-    depthTest: false,
+    depthTest: true,
     blending: THREE.NormalBlending
   },
   LINK_RESONANCE: {

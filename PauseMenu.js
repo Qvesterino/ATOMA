@@ -234,8 +234,27 @@ export class PauseMenu {
         this.footerBuild = document.createElement('div');
         this.footerBuild.className = 'atoma-main-menu__footer-pill';
 
+        // Pause badge
+        this.pauseBadge = document.createElement('div');
+        this.pauseBadge.className = 'atoma-main-menu__pause-badge';
+        const pauseDot = document.createElement('span');
+        pauseDot.className = 'atoma-main-menu__pause-badge-dot';
+        this.pauseBadge.appendChild(pauseDot);
+        this.pauseBadge.appendChild(document.createTextNode('SIMULATION PAUSED'));
+
+        // Pause status bar
+        this.pauseStatus = document.createElement('div');
+        this.pauseStatus.className = 'atoma-main-menu__pause-status';
+        const statusPaused = document.createElement('div');
+        statusPaused.className = 'atoma-main-menu__pause-status-item';
+        statusPaused.innerHTML = '<span class="atoma-main-menu__pause-status-dot atoma-main-menu__pause-status-dot--paused"></span><span style="color:rgba(255,130,175,0.80)">Simulation frozen</span>';
+        const statusAlive = document.createElement('div');
+        statusAlive.className = 'atoma-main-menu__pause-status-item';
+        statusAlive.innerHTML = '<span class="atoma-main-menu__pause-status-dot atoma-main-menu__pause-status-dot--alive"></span><span style="color:rgba(0,229,160,0.80)">Visuals alive</span>';
+        this.pauseStatus.append(statusPaused, statusAlive);
+
         this.hero.append(this.logo, this.title, this.subtitle);
-        this.panel.append(this.hero, this.divider, this.screenTitle, this.content, this.description, this.hint, this.status, this.footer);
+        this.panel.append(this.pauseBadge, this.hero, this.divider, this.screenTitle, this.content, this.description, this.hint, this.status, this.pauseStatus, this.footer);
         this.footer.append(this.footerWorld, this.footerBuild);
         this.overlay.appendChild(this.panel);
         this.root.appendChild(this.overlay);
@@ -249,6 +268,7 @@ export class PauseMenu {
                 meta: map.description,
                 type: 'map',
                 selectable: true,
+                mapData: map,
             }));
         }
 
@@ -283,23 +303,21 @@ export class PauseMenu {
         this.loreBody = null;
 
         if (this.state.screen === 'MAIN') {
-            this.subtitle.textContent = 'Live scene remains visible beneath the pause overlay.';
-            this.screenTitle.textContent = 'GAME FROZEN';
-            this.description.textContent = 'Simulation updates are paused. Resume, adjust menu-owned settings, switch worlds, or end the current run.';
+            this.subtitle.textContent = 'The network breathes beneath this overlay. Simulation frozen, visuals alive.';
+            this.screenTitle.textContent = 'PAUSED';
+            this.description.textContent = 'Resume the simulation, adjust settings, switch worlds, or end the current run.';
             this.hint.textContent = 'UP / DOWN TO SELECT  |  ENTER TO ACTIVATE  |  ESC TO RESUME';
-            this.status.textContent = 'The active game instance stays mounted. This overlay only pauses runtime updates.';
+            this.status.textContent = '';
             this._renderEntryList(this._screenEntries);
             return;
         }
 
         if (this.state.screen === 'MAP') {
-            const selectedMap = this._getSelectedEntry();
-            this.subtitle.textContent = 'Select the world that should replace the current environment.';
-            this.screenTitle.textContent = 'MAP SELECT';
-            this.description.textContent = selectedMap ? selectedMap.meta : '';
+            this.subtitle.textContent = 'Switch the active world without leaving the runtime.';
+            this.screenTitle.textContent = 'SWITCH WORLD';
             this.hint.textContent = 'UP / DOWN TO SELECT  |  ENTER TO SWITCH  |  ESC TO BACK';
             this.status.textContent = 'World switching stays inside the current runtime. No full reboot is performed.';
-            this._renderEntryList(this._screenEntries);
+            this._renderWorldCards();
             return;
         }
 
@@ -351,6 +369,9 @@ export class PauseMenu {
             if (entry.type === 'map') {
                 button.classList.add('atoma-main-menu__button--map');
             }
+            if (index === this.state.selectedIndex) {
+                button.classList.add('is-selected');
+            }
 
             const marker = document.createElement('span');
             marker.className = 'atoma-main-menu__marker';
@@ -395,6 +416,120 @@ export class PauseMenu {
         });
 
         this.content.appendChild(list);
+    }
+
+    _renderWorldCards() {
+        const RISK_LEVELS = { calm: 15, low: 30, moderate: 55, extreme: 90 };
+        const PROSPERITY_LEVELS = { low: 25, moderate: 50, high: 75, extreme: 95 };
+        const maps = getMenuMaps();
+
+        const grid = document.createElement('div');
+        grid.className = 'atoma-main-menu__world-cards';
+
+        maps.forEach((map, index) => {
+            const isSelected = index === this.state.selectedIndex;
+            const card = document.createElement('div');
+            card.className = 'atoma-main-menu__world-card';
+            if (isSelected) {
+                card.classList.add('is-selected');
+            }
+            card.style.setProperty('--world-accent', `rgba(${map.accentRgb}, 0.6)`);
+            card.dataset.entryKey = `MAP:${map.id}`;
+            card.dataset.entryIndex = String(index);
+
+            const header = document.createElement('div');
+            header.className = 'atoma-main-menu__world-card-header';
+            const name = document.createElement('div');
+            name.className = 'atoma-main-menu__world-card-name';
+            name.textContent = map.label;
+            const riskBadge = document.createElement('div');
+            riskBadge.className = `atoma-main-menu__world-card-risk atoma-main-menu__world-card-risk--${map.risk}`;
+            riskBadge.textContent = map.risk.toUpperCase();
+            header.append(name, riskBadge);
+
+            const tagline = document.createElement('div');
+            tagline.className = 'atoma-main-menu__world-card-tagline';
+            tagline.textContent = map.tagline;
+
+            const fantasy = document.createElement('div');
+            fantasy.className = 'atoma-main-menu__world-card-fantasy';
+            fantasy.textContent = map.fantasy;
+
+            const moodContainer = document.createElement('div');
+            moodContainer.className = 'atoma-main-menu__world-card-mood';
+            for (const mood of map.mood) {
+                const tag = document.createElement('span');
+                tag.className = 'atoma-main-menu__world-card-mood-tag';
+                tag.textContent = mood;
+                moodContainer.appendChild(tag);
+            }
+
+            const bars = document.createElement('div');
+            bars.className = 'atoma-main-menu__world-card-bars';
+
+            const riskGroup = document.createElement('div');
+            riskGroup.className = 'atoma-main-menu__world-card-bar-group';
+            const riskLabel = document.createElement('div');
+            riskLabel.className = 'atoma-main-menu__world-card-bar-label';
+            riskLabel.textContent = 'RISK';
+            const riskTrack = document.createElement('div');
+            riskTrack.className = 'atoma-main-menu__world-card-bar-track';
+            const riskFill = document.createElement('div');
+            riskFill.className = 'atoma-main-menu__world-card-bar-fill atoma-main-menu__world-card-bar-fill--risk';
+            riskFill.style.width = `${RISK_LEVELS[map.risk] || 30}%`;
+            riskTrack.appendChild(riskFill);
+            riskGroup.append(riskLabel, riskTrack);
+
+            const propGroup = document.createElement('div');
+            propGroup.className = 'atoma-main-menu__world-card-bar-group';
+            const propLabel = document.createElement('div');
+            propLabel.className = 'atoma-main-menu__world-card-bar-label';
+            propLabel.textContent = 'PROSPERITY';
+            const propTrack = document.createElement('div');
+            propTrack.className = 'atoma-main-menu__world-card-bar-track';
+            const propFill = document.createElement('div');
+            propFill.className = 'atoma-main-menu__world-card-bar-fill atoma-main-menu__world-card-bar-fill--prosperity';
+            propFill.style.width = `${PROSPERITY_LEVELS[map.prosperity] || 50}%`;
+            propTrack.appendChild(propFill);
+            propGroup.append(propLabel, propTrack);
+
+            bars.append(riskGroup, propGroup);
+            card.append(header, tagline, fantasy, moodContainer, bars);
+
+            card.addEventListener('mouseenter', () => {
+                this.setSelectedIndex(index);
+            });
+            card.addEventListener('click', () => {
+                this.setSelectedIndex(index);
+                this.activateSelected();
+            });
+
+            grid.appendChild(card);
+            this._focusableRefs.push({
+                key: card.dataset.entryKey,
+                element: card,
+                marker: { style: {} },
+                entryIndex: index,
+            });
+        });
+
+        const selectedEntry = this._getSelectedEntry();
+        if (selectedEntry?.mapData) {
+            const map = selectedEntry.mapData;
+            const preview = document.createElement('div');
+            preview.className = 'atoma-main-menu__map-preview';
+            const previewTagline = document.createElement('div');
+            previewTagline.className = 'atoma-main-menu__map-preview-tagline';
+            previewTagline.textContent = map.tagline;
+            const previewDesc = document.createElement('div');
+            previewDesc.className = 'atoma-main-menu__map-preview-description';
+            previewDesc.textContent = map.description;
+            preview.append(previewTagline, previewDesc);
+            this.description.textContent = '';
+            this.content.append(grid, preview);
+        } else {
+            this.content.appendChild(grid);
+        }
     }
 
     _getLoreSection() {
@@ -939,12 +1074,13 @@ export class PauseMenu {
     _updateFocusableVisuals(pulse) {
         this._focusableRefs.forEach((ref, index) => {
             const selected = ref.entryIndex === this.state.selectedIndex;
-            const targetScale = selected ? 1.08 + (pulse * 0.018) : 1;
-            const targetOpacity = selected ? 1 : 0.46;
+            const isWorldCard = ref.element.classList.contains('atoma-main-menu__world-card');
+            const targetScale = selected ? (isWorldCard ? 1.02 : 1.08 + (pulse * 0.018)) : 1;
+            const targetOpacity = selected ? 1 : (isWorldCard ? 0.55 : 0.46);
             const targetGlow = selected ? 1 : 0;
             const state = this._entryAnimationState.get(ref.key) || {
                 scale: 1,
-                opacity: 0.46,
+                opacity: isWorldCard ? 0.55 : 0.46,
                 glow: 0,
             };
 
@@ -955,13 +1091,24 @@ export class PauseMenu {
 
             ref.element.style.transform = `scale(${state.scale})`;
             ref.element.style.opacity = String(state.opacity);
-            ref.element.style.borderColor = `rgba(108, 234, 255, ${0.12 + (state.glow * 0.22)})`;
-            ref.element.style.background = `rgba(10, 28, 40, ${0.10 + (state.glow * 0.22)})`;
-            ref.element.style.boxShadow = `0 0 ${10 + (state.glow * 18)}px rgba(90, 236, 255, ${state.glow * 0.22})`;
-            ref.marker.style.opacity = selected ? '1' : '0';
-            ref.element.style.textShadow = selected
-                ? '0 0 18px rgba(98, 238, 255, 0.28)'
-                : 'none';
+
+            if (isWorldCard) {
+                if (selected) {
+                    ref.element.classList.add('is-selected');
+                } else {
+                    ref.element.classList.remove('is-selected');
+                }
+            } else {
+                ref.element.style.borderColor = `rgba(108, 234, 255, ${0.12 + (state.glow * 0.22)})`;
+                ref.element.style.background = `rgba(10, 28, 40, ${0.10 + (state.glow * 0.22)})`;
+                ref.element.style.boxShadow = `0 0 ${10 + (state.glow * 18)}px rgba(90, 236, 255, ${state.glow * 0.22})`;
+                if (ref.marker?.style) {
+                    ref.marker.style.opacity = selected ? '1' : '0';
+                }
+                ref.element.style.textShadow = selected
+                    ? '0 0 18px rgba(98, 238, 255, 0.28)'
+                    : 'none';
+            }
         });
     }
 }

@@ -33,7 +33,7 @@ export const MapConfigBase = {
   QuantumIsland: {
     mapId: 'quantum_island',
     theme: 'quantum',
-    referencePlane: 'quantum_plane',
+    referencePlane: null,
     description: 'Quantum probability space - Uncertain, superposition-like landscape'
   },
   

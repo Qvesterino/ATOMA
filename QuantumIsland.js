@@ -28,6 +28,8 @@ export class QuantumIsland {
     this.hologramGridTimer = 12 + Math.random() * 4;
     this.hologramGridActive = false;
     this.hologramGridProgress = 0;
+    this.islandDepthOccluder = null;
+    this.occlusionAuditTimer = 0;
     this.singularitySprite = null;
     this.singularityParticles = null;
     this.singularityData = null;
@@ -60,9 +62,9 @@ export class QuantumIsland {
     this.createQuantumParticles();
     this.createGlitchRibbons();
     this.createFractalPatterns();
-    this.createMist();
     this.createCircuitDome();
     this._applyDefaultWorldRenderOrder();
+    this._enforceWorldOcclusionPolicy();
   }
   
   /**
@@ -80,6 +82,12 @@ export class QuantumIsland {
    * Session 112+: Universal system for all maps
    */
   initializeReferencePlane() {
+    if (!this.mapConfig.referencePlane || this.mapConfig.referencePlane === 'none') {
+      this.referencePlane = null;
+      console.log(`[REFERENCE PLANE] skipped for ${this.mapConfig.mapId}`);
+      return;
+    }
+
     try {
       this.referencePlane = initMapReferencePlane(
         this.scene,
@@ -126,7 +134,10 @@ export class QuantumIsland {
       roughness: 0.3,
       metalness: 0.8,
       emissive: 0x050510,
-      emissiveIntensity: 0.05
+      emissiveIntensity: 0.05,
+      transparent: false,
+      depthWrite: true,
+      depthTest: true
     });
     
     this.island = new THREE.Mesh(islandGeometry, islandMaterial);
@@ -140,6 +151,26 @@ export class QuantumIsland {
     };
     this.worldRoot.add(this.island);
     this.collisionObjects.push(this.island);
+
+    // Depth-only occluder keeps world overlays and point shards from bleeding through the island silhouette.
+    const islandDepthMaterial = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      side: THREE.DoubleSide,
+      transparent: false,
+      depthWrite: true,
+      depthTest: true
+    });
+    islandDepthMaterial.colorWrite = false;
+
+    this.islandDepthOccluder = new THREE.Mesh(islandGeometry.clone(), islandDepthMaterial);
+    this.islandDepthOccluder.name = 'QuantumIslandDepthOccluder';
+    this.islandDepthOccluder.position.copy(this.island.position);
+    this.islandDepthOccluder.renderOrder = this.WORLD_BACKGROUND_ORDER - 1;
+    this.islandDepthOccluder.userData = {
+      isDepthOccluder: true,
+      depthOnly: true
+    };
+    this.worldRoot.add(this.islandDepthOccluder);
     
     // Neon edge highlights
     const edgeCount = 32;
@@ -235,6 +266,56 @@ export class QuantumIsland {
       node.renderOrder = isTransparent && !hasDepthWrite
         ? this.WORLD_OVERLAY_ORDER
         : this.WORLD_BACKGROUND_ORDER;
+    });
+  }
+
+  _isAttachedToCamera(object) {
+    if (!object || !this.camera) return false;
+    let current = object.parent;
+    while (current) {
+      if (current === this.camera) return true;
+      current = current.parent;
+    }
+    return false;
+  }
+
+  _shouldForceWorldDepth(object) {
+    if (!object || object.userData?.screenSpace) return false;
+    if (this._isAttachedToCamera(object)) return false;
+    if ((object.renderOrder ?? 0) >= VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_UI_PRIMARY)) {
+      return false;
+    }
+
+    const tag = object.userData || {};
+    return !!(
+      tag.__environmentLayerId ||
+      tag.isWorldFX ||
+      tag.isStressField ||
+      tag.isVFX ||
+      tag.vfxType ||
+      ((object.renderOrder ?? 0) >= VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_SKIN) &&
+       (object.renderOrder ?? 0) < VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_UI_PRIMARY))
+    );
+  }
+
+  _enforceMaterialDepth(material) {
+    if (!material || material.depthTest !== false) return;
+    material.depthTest = true;
+    material.needsUpdate = true;
+  }
+
+  _enforceWorldOcclusionPolicy() {
+    if (!this.scene || typeof this.scene.traverse !== 'function') return;
+
+    this.scene.traverse((object) => {
+      if (!object || (!object.isMesh && !object.isLine && !object.isPoints && !object.isSprite)) return;
+      if (!this._shouldForceWorldDepth(object)) return;
+
+      if (Array.isArray(object.material)) {
+        object.material.forEach((material) => this._enforceMaterialDepth(material));
+      } else {
+        this._enforceMaterialDepth(object.material);
+      }
     });
   }
 
@@ -961,6 +1042,11 @@ export class QuantumIsland {
     
     // Quantum tidal pulse
     this.quantumPulse = (Math.sin(time * 1.5) + 1) / 2;
+    this.occlusionAuditTimer -= deltaTime;
+    if (this.occlusionAuditTimer <= 0) {
+      this._enforceWorldOcclusionPolicy();
+      this.occlusionAuditTimer = 2.0;
+    }
 
     // Island edge highlights pulse
     if (this.island) {

@@ -220,7 +220,7 @@ export class CanonicalTemplate3_StressVisuals {
         transparent: true,
         opacity: spec.opacity,
         depthWrite: false,
-        depthTest: false,
+        depthTest: true,
         side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending,
         fog: false
@@ -249,7 +249,7 @@ export class CanonicalTemplate3_StressVisuals {
         transparent: true,
         opacity: spec.opacity,
         depthWrite: false,
-        depthTest: false,
+        depthTest: true,
         blending: THREE.AdditiveBlending,
         fog: false
       });
@@ -278,7 +278,7 @@ export class CanonicalTemplate3_StressVisuals {
         transparent: true,
         opacity: spec.opacity,
         depthWrite: false,
-        depthTest: false,
+        depthTest: true,
         fog: false
       });
       const line = new THREE.LineLoop(geometry, material);
@@ -299,7 +299,7 @@ export class CanonicalTemplate3_StressVisuals {
         transparent: true,
         opacity: 0.06 + i * 0.012,
         depthWrite: false,
-        depthTest: false,
+        depthTest: true,
         blending: THREE.AdditiveBlending,
         fog: false
       });
@@ -327,7 +327,7 @@ export class CanonicalTemplate3_StressVisuals {
         transparent: true,
         opacity: spec.opacity,
         depthWrite: false,
-        depthTest: false,
+        depthTest: true,
         blending: THREE.AdditiveBlending,
         fog: false
       });
@@ -355,7 +355,7 @@ export class CanonicalTemplate3_StressVisuals {
         transparent: true,
         opacity: spec.opacity,
         depthWrite: false,
-        depthTest: false,
+        depthTest: true,
         blending: THREE.AdditiveBlending,
         fog: false
       });
@@ -376,7 +376,7 @@ export class CanonicalTemplate3_StressVisuals {
       transparent: true,
       opacity: 0.08,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
       blending: THREE.AdditiveBlending,
       fog: false
     });
@@ -410,7 +410,7 @@ export class CanonicalTemplate3_StressVisuals {
       transparent: true,
       opacity: this.config.dustOpacity,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
       blending: THREE.AdditiveBlending,
       sizeAttenuation: true,
       fog: false
