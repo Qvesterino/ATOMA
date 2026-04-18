@@ -208,6 +208,12 @@ export class SafeNodePersonalityFX {
   determinePersonality(node, nodeId, linkingSystem, evolutionRegistry) {
     let personality = null;
     let score = 0;
+    const linkCount = this.getActiveLinkCountForNode(node, linkingSystem);
+
+    // Personality VFX must stay dormant until node has at least one active link.
+    if (linkCount <= 0) {
+      return null;
+    }
     
     // Check evolution stage
     if (evolutionRegistry && evolutionRegistry.registry && evolutionRegistry.registry[nodeId]) {
@@ -250,13 +256,15 @@ export class SafeNodePersonalityFX {
     
     // Check synergy/traffic for special types
     if (linkingSystem && linkingSystem.links) {
-      let linkCount = 0;
       let totalSynergy = 0;
       
       linkingSystem.links.forEach(link => {
-        if ((link.source === node || link.target === node) && link.glowData) {
-          linkCount++;
-          totalSynergy += link.glowData.synergy || 0;
+        if (link.source === node || link.target === node) {
+          totalSynergy +=
+            (link?.glowData?.synergy ??
+             link?.userData?.metrics?.synergy ??
+             link?.userData?.synergy ??
+             0);
         }
       });
       
@@ -276,6 +284,31 @@ export class SafeNodePersonalityFX {
     }
     
     return personality;
+  }
+
+  getActiveLinkCountForNode(node, linkingSystem) {
+    const metricsCount = node?.userData?.metrics?.activeLinkCount;
+    if (Number.isFinite(metricsCount)) return Math.max(0, Math.floor(metricsCount));
+
+    const legacyCount = node?.userData?.activeLinkCount;
+    if (Number.isFinite(legacyCount)) return Math.max(0, Math.floor(legacyCount));
+
+    if (Array.isArray(node?.userData?.linkedNodeIds)) {
+      return node.userData.linkedNodeIds.length;
+    }
+
+    if (linkingSystem && Array.isArray(linkingSystem.links)) {
+      let count = 0;
+      for (const link of linkingSystem.links) {
+        if (!link) continue;
+        const source = link.source || link.sourceNode || link.from || null;
+        const target = link.target || link.targetNode || link.to || null;
+        if (source === node || target === node) count += 1;
+      }
+      return count;
+    }
+
+    return 0;
   }
   
   /**

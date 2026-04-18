@@ -14674,7 +14674,17 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         this.loreFragmentEmitter = new LoreFragmentEmitter(
             this.semanticBus,
-            () => this.currentMode || 'quantum'
+            () => this.currentMode || 'quantum',
+            () => {
+                // Get current corruption from MetricsRuntime or metrics overlay
+                try {
+                    const metrics = this.coreMetricsOverlay?.currentMetrics;
+                    if (metrics) {
+                        return metrics.corruption ?? metrics.corruptionLevel ?? 0;
+                    }
+                } catch { /* fallback */ }
+                return 0;
+            }
         );
 
         // Debug console API

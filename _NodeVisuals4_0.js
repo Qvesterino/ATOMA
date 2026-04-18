@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { classifyMetricTier, getDefaultMetricThresholds } from './src/metrics/MetricTierClassifier.js';
 
 function vfxFlag(name, def = true) {
   const v = (typeof window !== 'undefined') ? window[name] : undefined;
@@ -131,6 +132,67 @@ export class NodeVisuals4_0 {
 
     return categoryColorMap[category] ?? fallback;
   }
+
+  _getNodeMetricValue(node, nodeData, metricName) {
+    const metrics = node?.userData?.metrics || null;
+    const nodeValue = metrics?.[metricName] ?? node?.userData?.[metricName];
+    if (Number.isFinite(nodeValue)) return Math.max(0, Math.min(1, nodeValue));
+
+    const dataMetrics = nodeData?.metrics || null;
+    const dataValue = dataMetrics?.[metricName] ?? nodeData?.[metricName];
+    if (Number.isFinite(dataValue)) return Math.max(0, Math.min(1, dataValue));
+
+    return 0;
+  }
+
+  _getNodeMetricTier(node, nodeData, metricName) {
+    const value = this._getNodeMetricValue(node, nodeData, metricName);
+    const thresholds = getDefaultMetricThresholds(metricName);
+    return classifyMetricTier(value, null, thresholds);
+  }
+
+  _resolveNodeLinkCount(node, nodeData) {
+    const metricsCount = node?.userData?.metrics?.activeLinkCount;
+    if (Number.isFinite(metricsCount)) return Math.max(0, Math.floor(metricsCount));
+
+    const legacyCount = node?.userData?.activeLinkCount;
+    if (Number.isFinite(legacyCount)) return Math.max(0, Math.floor(legacyCount));
+
+    if (Array.isArray(node?.userData?.linkedNodeIds)) {
+      return node.userData.linkedNodeIds.length;
+    }
+
+    const dataMetricsCount = nodeData?.metrics?.activeLinkCount;
+    if (Number.isFinite(dataMetricsCount)) return Math.max(0, Math.floor(dataMetricsCount));
+
+    if (Number.isFinite(nodeData?.activeLinkCount)) {
+      return Math.max(0, Math.floor(nodeData.activeLinkCount));
+    }
+
+    return 0;
+  }
+
+  _resolveActivationState(node, nodeData = {}) {
+    const linkCount = this._resolveNodeLinkCount(node, nodeData);
+    const isLinked = linkCount > 0;
+
+    const harmonyTier = this._getNodeMetricTier(node, nodeData, 'harmony');
+    const synergyTier = this._getNodeMetricTier(node, nodeData, 'synergy');
+    const stabilityTier = this._getNodeMetricTier(node, nodeData, 'stability');
+    const corruptionTier = this._getNodeMetricTier(node, nodeData, 'corruption');
+
+    const isCorruptionHigh = corruptionTier === 'high';
+    const hasMidSignal = harmonyTier !== 'low' || synergyTier !== 'low' || stabilityTier !== 'low';
+    const hasHighSignal = harmonyTier === 'high' || synergyTier === 'high' || stabilityTier === 'high' || isCorruptionHigh;
+
+    return {
+      linkCount,
+      isLinked,
+      hasMidSignal,
+      hasHighSignal,
+      isCorruptionHigh
+    };
+  }
   
   /**
    * Upgrade a node to 4.0 visual standard
@@ -139,6 +201,18 @@ export class NodeVisuals4_0 {
     if (typeof window !== 'undefined' && window.ATOMA_VISUAL_BASELINE) return;
 
     if (!node || !node.children) return;
+
+    const activation = this._resolveActivationState(node, nodeData);
+    if (!activation.isLinked) {
+      // Node visuals must stay dormant until the node has at least one active link.
+      this.downgradeNode(node);
+      return;
+    }
+
+    if (!activation.hasMidSignal && !activation.hasHighSignal) {
+      this.downgradeNode(node);
+      return;
+    }
     
     const allowAnimatedScale = node.userData?.allowAnimatedScale === true;
     const nodeId = node.uuid || Math.random().toString();
@@ -170,39 +244,31 @@ export class NodeVisuals4_0 {
       visualData.components.extremeArchetypeId = extremeArchetypeId;
     }
     
-    // Step 1: Enhance core with hologram glow
+    // Baseline stage: linked node + at least mid metric signal.
     this.addHologramCore(visualData, baseColor);
-    
-    // Step 2: Add spectral energy ring
-    this.addSpectralEnergyRing(visualData, baseColor);
-    
-    // Step 3: Add levitation field (local oscillation) — opt-in
-    if (allowAnimatedScale) {
-      this.addLevitationField(visualData, baseColor);
+    this.addNeonRimLight(visualData, baseColor);
+
+    // High-expression stage: linked node + high tier signal.
+    if (activation.hasHighSignal) {
+      this.addSpectralEnergyRing(visualData, baseColor);
+
+      if (allowAnimatedScale) {
+        this.addLevitationField(visualData, baseColor);
+      }
+
+      this.addOcclusionHalo(visualData, baseColor);
+      this.addAtmosphericShell(visualData, baseColor);
+      this.addOrbitCrown(visualData, baseColor, nodeId);
+      this.addTriAxisAura(visualData, baseColor);
     }
     
-    // Step 4: Add neon rim-light
-    this.addNeonRimLight(visualData, baseColor);
-    
-    // Step 5: Add soft shadow/occlusion halo
-    this.addOcclusionHalo(visualData, baseColor);
-
-    // Step 6: Add a faint outer atmosphere shell for presence at distance
-    this.addAtmosphericShell(visualData, baseColor);
-
-    // Step 7: Add orbit crown accents around the node perimeter
-    this.addOrbitCrown(visualData, baseColor, nodeId);
-
-    // Step 8: Add a tri-axis aura frame so the node reads from wider camera angles
-    this.addTriAxisAura(visualData, baseColor);
-    
     // T2-001: Add secondary glow layer for extreme nodes (ring/chromatic halo)
-    if (isExtreme) {
+    if (isExtreme && activation.hasHighSignal) {
       this.addExtremeSecondaryGlowLayer(visualData, baseColor);
     }
     
     // Step 9: Mark for internal pulse (opt-in)
-    if (allowAnimatedScale) {
+    if (allowAnimatedScale && activation.hasHighSignal) {
       visualData.components.pulseEnabled = true;
       visualData.components.pulseTime = 0;
     }

@@ -330,6 +330,31 @@ export class NodeMicroEvents {
   randomChoice(array) {
     return array[Math.floor(Math.random() * array.length)];
   }
+
+  _resolveNodeLinkCount(node) {
+    const metricsCount = node?.userData?.metrics?.activeLinkCount;
+    if (Number.isFinite(metricsCount)) return Math.max(0, Math.floor(metricsCount));
+
+    const directCounts = [
+      node?.userData?.activeLinkCount,
+      node?.userData?.activeLinks,
+      node?.userData?.linkCount,
+    ];
+
+    for (const count of directCounts) {
+      if (Number.isFinite(count)) return Math.max(0, Math.floor(count));
+    }
+
+    if (Array.isArray(node?.userData?.linkedNodeIds)) {
+      return node.userData.linkedNodeIds.length;
+    }
+
+    if (Array.isArray(node?.userData?.links)) {
+      return node.userData.links.length;
+    }
+
+    return 0;
+  }
   
   /**
    * Execute a micro-event
@@ -727,6 +752,9 @@ export class NodeMicroEvents {
    */
   checkMetricEvents(node, metrics) {
     if (!metrics) return;
+
+    const linkCount = this._resolveNodeLinkCount(node);
+    if (linkCount <= 0) return;
     
     const nodeId = node.userData?.nodeId || node.id || node.uuid;
     const basePayload = { nodeId, source: 'NodeMicroEvents', node, position: node.position.clone() };

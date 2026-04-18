@@ -65,7 +65,7 @@ auraData.mesh.position.copy(node.position);
 - **Pozícia:** Presne na `node.position`
 - **Kontext:** Vytvára sa keď node má linky
 - **Dopad:** Visuálny aura efekt na strednej pozícii uzla
-
+>
 ### 2.2 SynergyVFX - Synergy aura
 **Súbor:** `SynergyVFX1_0.js:228, 428`
 ```javascript

@@ -476,6 +476,23 @@ ____________________________________________________
 
 **Cieľ:** Hra musí mať momenty, ktoré ľudia chcú clipovať, screenshotovať a zdieľať.
 
+**Aktuálny live základ, na ktorom sa dá stavať:**
+
+- `EventDramaturgyEngine.js` už dáva veľkým eventom fázy `telegraph -> escalation -> payoff`, ale dnes ich najmä prekladá do overlay/fog/audio modulácie.
+- `Phase8RitualVisualOrchestration.js` už má čitateľný 4-fázový ritual stack `PRELUDE -> ACTIVE -> CREST -> RELEASE`.
+- `_MythicRitualController.js` už má 6 silných ritual archetypov s vlastnými paletami a peak fázou.
+- `MetricReactiveWorldEvents.js` už má threshold-driven world eventy pre `synergy`, `harmony`, `stability`, `corruption`, `loadPressure`.
+- `AIConsciousnessLayer.js` už vie fungovať ako globálny „nervový systém“ sveta a reaguje na ritual aktivitu.
+- `SafeLegendaryWorldEvents.js` a `SafeQuantumIllusionsPack1.js` už obsahujú world-scale vrstvy, ktoré vedia vytvoriť veľký payoff.
+
+**Najväčšia aktuálna medzera:**
+
+- veľa eventov už má build-up, ale ešte nie `signature framing`,
+- chýba jednotná vrstva pre `camera emphasis / focal staging / aftermath memory`,
+- chýba world-specific verzia payoffov,
+- veľké momenty často skončia ako „silnejší VFX pass“, nie ako jasne oddelená scéna, ktorú si hráč okamžite všimne,
+- chýba vedomé pravidlo, ktoré eventy sú iba systémové a ktoré sú už `signature-tier` a teda smú krátko ovládnuť obraz, audio aj pacing.
+
 **Implementačný smer:**
 
 - navrhnúť 8-12 `signature moments`, napríklad:
@@ -486,6 +503,229 @@ ____________________________________________________
   - total harmony bloom,
   - memory recovery event,
 - každý signature moment potrebuje unikátne tempo, farbu, audio a kamerový dôraz.
+
+**Doplnený implementačný rámec:**
+
+- zaviesť `SignatureMomentDirector` ako tenkú orchestráciu nad existujúcimi systémami; nie nový gameplay engine,
+- director má byť read-only consumer nad:
+  - `EventDramaturgyEngine`,
+  - `MetricReactiveWorldEvents`,
+  - `Phase8RitualVisualOrchestration`,
+  - `_MythicRitualController`,
+  - `AIConsciousnessLayer`,
+  - `SafeLegendaryWorldEvents`,
+- director má riešiť iba 5 vecí:
+  - či je event `signature-tier`,
+  - aký je jeho `focal anchor` v priestore,
+  - aký krátky `camera emphasis` profil použiť,
+  - aký `audio crest` a `aftermath envelope` použiť,
+  - aký `world-specific skin` má mať podľa mapy,
+- žiadny signature moment nesmie meniť gameplay pravidlá; iba framing, dramatizáciu a aftermath vrstvu,
+- každý signature moment musí mať 4 kontrakty:
+  - `trigger contract` — presne čo ho spustí,
+  - `staging contract` — čo sa má stať v priestore a obraze,
+  - `audio contract` — čo hráč počuje ako peak,
+  - `aftermath contract` — čo zostane 3-12 sekúnd po vrchole.
+
+**Čo konkrétne dnes chýba, aby boli momenty naozaj screenshot-worthy:**
+
+- `camera emphasis` je v dramaturgy profile naznačený, ale dnes je väčšinou preložený len do vignette/glow, nie do skutočného eye-guidance,
+- chýba `anchor-first staging`: veľký event musí mať jasný epicenter alebo líniu šírenia, nie iba globálny wash,
+- chýba `persistent aftermath`: scar, echo trail, ritual residue, stabilized glow, world stain,
+- chýba `world skinning`: rovnaký typ eventu má mať inú chuť v `quantum`, inú v `memory`, inú v `sigma`,
+- chýba `hero suppression`: počas signature momentu treba dočasne stíšiť menej dôležité ambient vrstvy, aby obraz nebol noisy.
+
+**Navrhnutých 10 signature moments s nízkorizikovými hookmi:**
+
+1. `Synergy Apex / Network Resonance Surge`
+   - hook: `MetricReactiveWorldEvents.js` (`coherenceApex`) + `EventDramaturgyEngine.js`
+   - fantasy: celá sieť sa na pár sekúnd správa ako jeden organizmus
+   - staging: synchronizovaný pulse wave cez hero linky, cyan-white coherence wash, krátky center-weighted zoom
+   - aftermath: 3-5 s link afterglow residue
+
+2. `Grand Corruption Breach`
+   - hook: `SafeQuantumIllusionsPack1.js` (`VEIL_BREACH`) + corruption high eventy
+   - fantasy: realita sa trhá okolo najviac narušeného epicentra
+   - staging: jeden jasný breach anchor, converging shards, distortion scar, krátky impact shake
+   - aftermath: 8-12 s corruption scar / veil residue
+
+3. `Harmony Convergence / Ascension Platform`
+   - hook: `_MythicRitualController.js` (`HARMONY_CONVERGENCE`)
+   - fantasy: sieť sa z chaosu preklopí do majestátneho poriadku
+   - staging: center-lift framing, gold-white rise, harmonické halo stacky, ceremonial beam crown
+   - aftermath: mäkký harmony veil nad klastrom
+
+4. `Cascade Reconstruction Beacon`
+   - hook: `Phase8RitualVisualOrchestration.js` success path + `NetworkRituals_v1.js`
+   - fantasy: poškodená časť siete sa znovu rozsvieti ako rekonštrukčný obrad
+   - staging: healing wave ide od epicentra cez znovuobnovené linky, bell-like release audio, dočasné utíšenie okolia
+   - aftermath: heal residue na obnovených linkoch
+
+5. `Consciousness Bloom`
+   - hook: `AIConsciousnessLayer.js` + thought-storm / consciousness state transitions
+   - fantasy: hráč prvýkrát cíti, že svet „myslí nahlas“
+   - staging: global neural veil expand, thread brightening, cool-violet thought aurora
+   - aftermath: zvýšená glyph/micro-pulse aktivita na pár sekúnd
+
+6. `Heroic Stabilization Before Collapse`
+   - hook: `LinkCollapseSystem` / `HarmonyStabilizationSystem_v1.js` / load-pressure high path
+   - fantasy: posledná obranná vlna tesne pred tým, než sa sieť rozpadne
+   - staging: warning red funnel -> green restoration rings -> release chord
+   - aftermath: krátke stabilized marks na zachránených uzloch
+
+7. `Legendary Bond Manifestation`
+   - hook: `SafeLegendaryWorldEvents.js` + high-value link creation/completion
+   - fantasy: vznikne spojenie, ktoré pôsobí ako „mythic bond“
+   - staging: krátke fokusovanie na link corridor, endpoint pulse sync, golden-cyan link halo
+   - aftermath: dlhší golden mark na danom linku
+
+8. `Memory Recovery Event`
+   - hook: `ResonanceEchoTrailSystem`, `LinkedGlyphMessaging`, `Memory Lane`-specific eventy
+   - fantasy: stará stopa siete sa na chvíľu znovu poskladá do čitateľnej pamäťovej cesty
+   - staging: ghost path reveal, memory glyph echoes, soft pale-cyan temporal bloom
+   - aftermath: 2-4 s echo route lingering in world space
+
+9. `World Personality Shift`
+   - hook: `WorldPersonalityController.js` + `EnvironmentEventCoordinator.js`
+   - fantasy: hráč necíti len nový metric state, ale nový temperament sveta
+   - staging: fog/personality wash, ambient retune, atmospheric density shift, bez násilnej kamery
+   - aftermath: 10 s world mood stain v atmosfére
+
+10. `Mythic Signal / Dimensional Gateway`
+    - hook: `_MythicRitualController.js` (`MYTHIC_SIGNAL`) + `Phase8RitualVisualOrchestration.js`
+    - fantasy: najvzácnejší moment, kde sieť vyzerá ako by otvorila vlastnú bránu alebo oltár
+    - staging: dominantný center anchor, ritual geometry crown, portal-like aperture, najväčší audio crest
+    - aftermath: pomalé zatváranie gateway s residue sigilom
+
+**Odporúčaná priorita implementácie podľa rizika a payoffu:**
+
+- `Tier A / low-risk, vysoký payoff`:
+  - `Synergy Apex / Network Resonance Surge`
+  - `Cascade Reconstruction Beacon`
+  - `Memory Recovery Event`
+  - `World Personality Shift`
+- `Tier B / medium-risk, signature grade`:
+  - `Grand Corruption Breach`
+  - `Consciousness Bloom`
+  - `Legendary Bond Manifestation`
+  - `Heroic Stabilization Before Collapse`
+- `Tier C / high-risk, headline moments`:
+  - `Harmony Convergence / Ascension Platform`
+  - `Mythic Signal / Dimensional Gateway`
+
+**Jedno implementačné pravidlo navyše:**
+
+- nie každý veľký event má byť signature moment,
+- signature moment sa má spustiť iba vtedy, keď vie krátko prebrať rytmus obrazu,
+- ak event nemá vlastný anchor, kamerový dôraz, audio crest a aftermath, je to stále len „dobrý VFX event“, nie signature moment.
+
+**Konkrétny technický plan pre `SignatureMomentDirector`:**
+
+**Umiestnenie a zodpovednosť**
+- nový súbor `SignatureMomentDirector.js` v root-e vedľa `EnvironmentEventCoordinator.js` a `_MythicRitualController.js`,
+- bude to coordinator, nie engine: žiadna simulácia, žiadne mutácie gameplay state, žiadne nové pravidlá pre node/link logiku,
+- bude bežať vo visual ticku cez `FrameScheduler`; všetko ostatné rieši len cez eventy a snapshoty,
+- ak chýba kamera alebo audio adapter, director sa nesmie rozbiť; iba degraduje na emit-only režim.
+
+**Vstupy a dáta**
+- `semanticBus` je jediný povinný transport,
+- `getContext()` callback vráti snapshot s `worldId`, `timestamp`, `camera`, `metrics`, `consciousness`, `dramaturgy`, `ritual`, `legendary`,
+- `adapters` sú voliteľné: `camera`, `audio`, `overlay`, `worldSkin`,
+- stav nemá byť čítaný priamo z interných polí cudzích tried; ak getter neexistuje, `main.js` dodá tenký provider callback,
+- director musí vedieť fungovať aj bez priameho prístupu na scénu, len z context snapshotu a semantic bus eventov.
+
+**Verejné API**
+```js
+class SignatureMomentDirector {
+  constructor(config = {}) {}
+  initialize() {}
+  update(deltaTime, frameState = {}) {}
+  dispose() {}
+  enable() {}
+  disable(reason = 'manual') {}
+  getState() {}
+  getActiveMoment() {}
+  getHistory(limit = 5) {}
+  preview(momentId, overrides = {}) {}
+  registerBlueprint(definition) {}
+}
+```
+- `initialize()` zavesí subscriptions a pripraví registry,
+- `update()` iba vyhodnocuje kandidátov, posúva timeline a expiruje aftermath,
+- `preview()` je debug-only a nesmie meniť gameplay,
+- `registerBlueprint()` pridá moment bez potreby meniť core director.
+
+**Blueprint contract**
+```js
+{
+  id,
+  tier,                // 'A' | 'B' | 'C'
+  family,              // 'synergy' | 'harmony' | 'corruption' | 'ritual' | 'memory' | 'personality' | 'legendary'
+  sourceEvents,        // semantic bus event names alebo state providers
+  minScore,
+  cooldownMs,
+  maxConcurrent,
+  minAnchorConfidence,
+  trigger(ctx),
+  buildAnchor(ctx),
+  buildCameraIntent(ctx),
+  buildAudioIntent(ctx),
+  buildAftermath(ctx),
+  buildWorldSkin(ctx)
+}
+```
+- `trigger()` je čistý predicate,
+- `build*` funkcie nesmú mutovať externý stav,
+- `buildAnchor()` musí vracať jasný fokusový bod alebo `null`; bez anchoru sa moment nespustí,
+- `buildCameraIntent()` vracia intent, nie priamu manipuláciu kamery,
+- `buildWorldSkin()` prepína iba tematický skin momentu, nie core world rules.
+
+**Emisný model**
+- `signature.moment.started`,
+- `signature.moment.crest`,
+- `signature.moment.afterglow`,
+- `signature.moment.completed`,
+- `signature.camera.intent`,
+- `signature.audio.intent`,
+- `signature.world.skin`,
+- `signature.debug.snapshot`,
+- payload musí niesť `momentId`, `tier`, `family`, `anchor`, `worldId`, `durationMs`, `camera`, `audio`, `aftermath`, `sourceEvent`.
+
+**Riadenie výberu momentu**
+- director sleduje len momenty, ktoré sú nad prahom `signature-tier`,
+- pre výber používa `readabilityBudget` a `anchorConfidence`,
+- ak je obraz už príliš hlučný, moment sa má odložiť, nie vynútiť,
+- na obraz sa môže krátko dostať iba jeden dominantný signature moment,
+- globálny cooldown je povinný, aby sa signature momenty nezliali do obyčajného VFX spam-u.
+
+**Semantické vstupy, ktoré director číta**
+- `dramaturgy.phase`,
+- `semantic.ritual.started`, `semantic.ritual.phase`, `semantic.ritual.completed`,
+- `consciousness.state.changed`,
+- `global.synergy.high`, `global.harmony.high`, `global.corruption.high`, `global.stability.high`, `global.loadPressure.high`,
+- podľa potreby aj `world.personality.aggregate.ready` a `time.epoch.changed` pre world skinning,
+- z `EventDramaturgyEngine` sa berie len phase/intensity/origin/environment envelope, nie vlastná autorita nad scénou.
+
+**Integrácia do main.js**
+- `main.js` vytvorí director až po inicializácii `EventDramaturgyEngine`, `Phase8RitualVisualOrchestration`, `_MythicRitualController`, `AIConsciousnessLayer` a `EnvironmentEventCoordinator`,
+- director sa zaregistruje do `FrameScheduler` na visual lane,
+- `main.js` mu dodá `getContext()` snapshot z už existujúcich runtime zdrojov,
+- camera authority zostane externá; director len publikuje intent, nie priamy kamerový zápis,
+- ak `window.CAMERA_AUTHORITY_MODE === 'fp_only'`, camera adapter ostane vypnutý a director stále funguje v intent-only režime.
+
+**Prvá implementačná dávka**
+- Tier A: `Synergy Apex / Network Resonance Surge`,
+- Tier A: `Cascade Reconstruction Beacon`,
+- Tier A: `Memory Recovery Event`,
+- Tier A: `World Personality Shift`,
+- Tier B/C headline momenty prídu až po tom, čo prvá štvorka ukáže, že anchor, crest a aftermath fungujú čitateľne.
+
+**Kontrolné kritériá**
+- moment sa spustí iba vtedy, keď vie získať anchor a poctivý aftermath,
+- director nesmie meniť gameplay hodnoty ani gameplay autoritu iných systémov,
+- debug API musí vedieť ukázať aktívny moment, cooldown, dôvod suppression a posledný trigger,
+- výsledok musí byť stabilný aj pri chýbajúcom audio alebo camera adaptri,
+- ak nie je kaméra pripravená na zásah, director zostane len v intent layeri a nezhasne celý event.
 
 ### P2.2 Photo mode / cinematic capture mode
 

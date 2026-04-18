@@ -1,4 +1,4 @@
-import{C as o}from"./index-BnFHY5uA.js";const e={name:"LuminosityHighPassShader",uniforms:{tDiffuse:{value:null},luminosityThreshold:{value:1},smoothWidth:{value:1},defaultColor:{value:new o(0)},defaultOpacity:{value:0}},vertexShader:`
+import{C as o}from"./index-Bm27V4zq.js";const e={name:"LuminosityHighPassShader",uniforms:{tDiffuse:{value:null},luminosityThreshold:{value:1},smoothWidth:{value:1},defaultColor:{value:new o(0)},defaultOpacity:{value:0}},vertexShader:`
 
 		varying vec2 vUv;
 
