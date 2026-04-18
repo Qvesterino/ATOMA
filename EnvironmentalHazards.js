@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { normalizeEnvironmentGeometry } from './RoundedEnvironmentGeometry.js';
 
 const TAU = Math.PI * 2;
 const SIGNAL_LIFETIME_MS = 5000;
@@ -172,7 +173,7 @@ export class EnvironmentalHazards {
     this._sharedCoreGeometry = new THREE.IcosahedronGeometry(1, 1);
     this._sharedAccentGeometry = new THREE.OctahedronGeometry(1, 0);
     this._sharedMiniAccentGeometry = new THREE.IcosahedronGeometry(1, 0);
-    this._sharedUnitPlaneGeometry = new THREE.PlaneGeometry(1, 1);
+    this._sharedUnitPlaneGeometry = normalizeEnvironmentGeometry(new THREE.PlaneGeometry(1, 1));
 
     this._setupMetricTriggers();
   }

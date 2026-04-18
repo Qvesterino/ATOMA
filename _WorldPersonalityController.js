@@ -44,6 +44,8 @@
  */
 
 import * as THREE from 'three';
+import { normalizeEnvironmentGeometry } from './RoundedEnvironmentGeometry.js';
+import { createSoftPointSpriteTexture } from './SoftPointSpriteTexture.js';
 import { buildScopedMetricEventName } from './src/metrics/MetricTierClassifier.js';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
@@ -53,6 +55,7 @@ export class WorldPersonalityController {
     this.worldRoot = worldRoot || scene;
     this.camera = camera;
     this.renderer = renderer;
+    this._pointSpriteTexture = null;
     this.atomaPalette = ['#05131A', '#6DEAFF', '#77F7DB', '#F7FBFF', '#D07BFF', '#FF73CF'];
     this.moodVisualPresets = {
       HARMONIC_CALM: {
@@ -996,6 +999,8 @@ export class WorldPersonalityController {
     
     const material = new THREE.PointsMaterial({
       color,
+      map: this._getSoftPointSpriteTexture(),
+      alphaTest: 0.02,
       size,
       transparent: true,
       opacity: opacityScalar * intensity,
@@ -1012,6 +1017,13 @@ export class WorldPersonalityController {
       startTime: Date.now(),
       type: 'harmonic_shafts',
     });
+  }
+
+  _getSoftPointSpriteTexture(size = 128) {
+    if (!this._pointSpriteTexture) {
+      this._pointSpriteTexture = createSoftPointSpriteTexture(size);
+    }
+    return this._pointSpriteTexture;
   }
   
   /**
@@ -1052,6 +1064,8 @@ export class WorldPersonalityController {
     
     const material = new THREE.PointsMaterial({
       color,
+      map: this._getSoftPointSpriteTexture(),
+      alphaTest: 0.02,
       size,
       transparent: true,
       opacity: opacityScalar * intensity,
@@ -1175,6 +1189,8 @@ export class WorldPersonalityController {
         transparent: true,
         opacity: opacityScalar * intensity,
         blending: THREE.AdditiveBlending,
+        map: this._getSoftPointSpriteTexture(),
+        alphaTest: 0.02,
         vertexColors: true,
       });
       this.tagFXMaterial(material);
@@ -1219,7 +1235,7 @@ export class WorldPersonalityController {
     const group = new THREE.Group();
     
     for (let i = 0; i < bandCount; i++) {
-      const geometry = new THREE.PlaneGeometry(180, 8);
+      const geometry = normalizeEnvironmentGeometry(new THREE.PlaneGeometry(180, 8));
       const material = new THREE.MeshBasicMaterial({
         color,
         transparent: true,
@@ -1282,6 +1298,8 @@ export class WorldPersonalityController {
     
     const material = new THREE.PointsMaterial({
       color,
+      map: this._getSoftPointSpriteTexture(),
+      alphaTest: 0.02,
       size,
       transparent: true,
       opacity: opacityScalar * intensity,
@@ -1528,6 +1546,8 @@ export class WorldPersonalityController {
       
       const material = new THREE.PointsMaterial({
         color: moodTint.chaos,
+        map: this._getSoftPointSpriteTexture(),
+        alphaTest: 0.02,
         size: 0.3,
         transparent: true,
         opacity: moodOpacity,
@@ -1698,6 +1718,11 @@ export class WorldPersonalityController {
     
     if (this.scene.background && this.baseWorldState.backgroundColor) {
       this.scene.background.copy(this.baseWorldState.backgroundColor);
+    }
+
+    if (this._pointSpriteTexture) {
+      this._pointSpriteTexture.dispose?.();
+      this._pointSpriteTexture = null;
     }
   }
   

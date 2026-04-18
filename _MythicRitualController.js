@@ -51,6 +51,7 @@
  */
 
 import * as THREE from 'three';
+import { normalizeEnvironmentGeometry } from './RoundedEnvironmentGeometry.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { buildScopedMetricEventName } from './src/metrics/MetricTierClassifier.js';
 
@@ -538,7 +539,7 @@ export class MythicRitualController {
    */
   createQuantumFissureVisuals(nodes) {
     // Vertical fissure plane
-    const fissureGeometry = new THREE.PlaneGeometry(0.5, 80);
+    const fissureGeometry = normalizeEnvironmentGeometry(new THREE.PlaneGeometry(0.5, 80));
     const fissureMaterial = new THREE.MeshBasicMaterial({
       color: 0xff00ff,
       transparent: true,

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
+import { normalizeEnvironmentGeometry } from './RoundedEnvironmentGeometry.js';
 
 // Legacy aura overlays kill-switch
 const ENABLE_LEGACY_AURAS = false;
@@ -533,7 +534,7 @@ export class SafeLegendaryWorldEvents {
   }
 
   _createLegendaryMesh(geometry, material, userData = {}) {
-    const mesh = new THREE.Mesh(geometry, material);
+    const mesh = new THREE.Mesh(normalizeEnvironmentGeometry(geometry), material);
     mesh.userData = {
       isLegendaryWorldVFX: true,
       ...userData

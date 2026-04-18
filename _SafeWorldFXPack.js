@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { safeSetEmissive } from './_EmissiveUtils.js';
+import { normalizeEnvironmentGeometry } from './RoundedEnvironmentGeometry.js';
+import { createSoftPointSpriteTexture } from './SoftPointSpriteTexture.js';
 
 /**
  * SAFE WORLD FX PACK 3.0
@@ -66,6 +68,7 @@ export class SafeWorldFXPack {
     this._tmpVecA = new THREE.Vector3();
     this._tmpVecB = new THREE.Vector3();
     this._tmpVecC = new THREE.Vector3();
+    this._softPointSpriteTexture = null;
 
     this.root = new THREE.Group();
     this.root.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_BACKGROUND);
@@ -184,10 +187,18 @@ export class SafeWorldFXPack {
   }
 
   _getSharedGeometry(key, factory) {
+    const resolveGeometry = () => normalizeEnvironmentGeometry(factory());
     if (this.sharedAssets?.getSharedGeometry) {
-      return this.sharedAssets.getSharedGeometry(`SafeWorldFXPack:${key}`, factory);
+      return this.sharedAssets.getSharedGeometry(`SafeWorldFXPack:${key}`, resolveGeometry);
     }
-    return factory();
+    return resolveGeometry();
+  }
+
+  _getSoftPointSpriteTexture(size = 128) {
+    if (!this._softPointSpriteTexture) {
+      this._softPointSpriteTexture = createSoftPointSpriteTexture(size);
+    }
+    return this._softPointSpriteTexture;
   }
 
   _releaseMaterial(material) {
@@ -1410,6 +1421,8 @@ export class SafeWorldFXPack {
     const shardGeo = this._getSharedGeometry('fractal_sky.shards.geo', () => this._createShardConstellationGeometry(92, 60, 96));
     const shardMat = this._getSharedMaterial('fractal_sky.shards.mat', () => new THREE.PointsMaterial({
       color: this._getWorldFXPalette('ritualWhite'),
+      map: this._getSoftPointSpriteTexture(),
+      alphaTest: 0.02,
       transparent: true,
       opacity: 0.24,
       size: 1.35,
@@ -2020,6 +2033,8 @@ export class SafeWorldFXPack {
       const beadGeo = this._getSharedGeometry(`energy_stream.${def.role}.beads.geo`, () => this._createShardConstellationGeometry(18 + riverIndex * 6, def.baseY * 8, 36));
       const beadMat = this._getSharedMaterial(`energy_stream.${def.role}.beads.mat`, () => new THREE.PointsMaterial({
         color: this._getWorldFXPalette('ritualWhite'),
+        map: this._getSoftPointSpriteTexture(),
+        alphaTest: 0.02,
         transparent: true,
         opacity: 0.14,
         size: def.role === 'dominant' ? 0.9 : 0.65,
@@ -2987,6 +3002,10 @@ export class SafeWorldFXPack {
     this.disableAll();
     if (this.root?.parent) {
       this.root.parent.remove(this.root);
+    }
+    if (this._softPointSpriteTexture) {
+      this._softPointSpriteTexture.dispose?.();
+      this._softPointSpriteTexture = null;
     }
   }
 }

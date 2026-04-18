@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { normalizeEnvironmentGeometry } from './RoundedEnvironmentGeometry.js';
 
 /**
  * SAFE AI WEATHER PACK
@@ -365,10 +366,11 @@ export class SafeAIWeatherPack {
   }
 
   _getSharedGeometry(key, factory) {
+    const resolveGeometry = () => normalizeEnvironmentGeometry(factory());
     if (this.sharedAssets?.getSharedGeometry) {
-      return this.sharedAssets.getSharedGeometry(`SafeAIWeatherPack:${key}`, factory);
+      return this.sharedAssets.getSharedGeometry(`SafeAIWeatherPack:${key}`, resolveGeometry);
     }
-    return factory();
+    return resolveGeometry();
   }
 
   _createGradientTexture(startColor, endColor) {

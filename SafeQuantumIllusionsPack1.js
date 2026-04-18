@@ -29,6 +29,8 @@
 
 import * as THREE from 'three';
 import { QuantumIllusionRegistry } from './QuantumIllusionRegistry.js';
+import { normalizeEnvironmentGeometry } from './RoundedEnvironmentGeometry.js';
+import { createSoftPointSpriteTexture } from './SoftPointSpriteTexture.js';
 
 export class SafeQuantumIllusionsPack1 {
   constructor(scene, environmentRoot, camera, aiNodes, linkingSystem, worldEvents, weatherPack, legendaryPack, sharedAssets = null) {
@@ -48,6 +50,7 @@ export class SafeQuantumIllusionsPack1 {
     // Central illusion registry
     this.registry = new QuantumIllusionRegistry(scene, this.sharedAssets);
     this.localGeometryCache = new Map();
+    this._pointSpriteTexture = null;
     
     // Triggering conditions
     this.synergy = 0;
@@ -179,15 +182,23 @@ export class SafeQuantumIllusionsPack1 {
   }
 
   _getSharedGeometry(key, factory) {
+    const resolveGeometry = () => normalizeEnvironmentGeometry(factory());
     if (this.sharedAssets?.getSharedGeometry) {
-      return this.sharedAssets.getSharedGeometry(`SafeQuantumIllusionsPack1:${key}`, factory);
+      return this.sharedAssets.getSharedGeometry(`SafeQuantumIllusionsPack1:${key}`, resolveGeometry);
     }
     if (this.localGeometryCache.has(key)) {
       return this.localGeometryCache.get(key);
     }
-    const geometry = factory();
+    const geometry = resolveGeometry();
     this.localGeometryCache.set(key, geometry);
     return geometry;
+  }
+
+  _getSoftPointSpriteTexture(size = 128) {
+    if (!this._pointSpriteTexture) {
+      this._pointSpriteTexture = createSoftPointSpriteTexture(size);
+    }
+    return this._pointSpriteTexture;
   }
 
   _disposeObject3D(object3D) {
@@ -1437,6 +1448,8 @@ export class SafeQuantumIllusionsPack1 {
     
     const pointsMaterial = new THREE.PointsMaterial({
       color: this.getModeColor(1),
+      map: this._getSoftPointSpriteTexture(),
+      alphaTest: 0.02,
       size: 0.18,
       sizeAttenuation: true,
       transparent: true,
@@ -2001,6 +2014,10 @@ export class SafeQuantumIllusionsPack1 {
     }
 
     this._disposeCachedGeometries();
+    if (this._pointSpriteTexture) {
+      this._pointSpriteTexture.dispose?.();
+      this._pointSpriteTexture = null;
+    }
     this.registry = null;
     this.localGeometryCache = null;
   }
