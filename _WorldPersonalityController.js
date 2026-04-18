@@ -45,7 +45,7 @@
 
 import * as THREE from 'three';
 import { normalizeEnvironmentGeometry } from './RoundedEnvironmentGeometry.js';
-import { createSoftPointSpriteTexture } from './SoftPointSpriteTexture.js';
+import { getEnvSpriteTexture } from './EnvironmentPointFXBase.js';
 import { buildScopedMetricEventName } from './src/metrics/MetricTierClassifier.js';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
@@ -55,7 +55,6 @@ export class WorldPersonalityController {
     this.worldRoot = worldRoot || scene;
     this.camera = camera;
     this.renderer = renderer;
-    this._pointSpriteTexture = null;
     this.atomaPalette = ['#05131A', '#6DEAFF', '#77F7DB', '#F7FBFF', '#D07BFF', '#FF73CF'];
     this.moodVisualPresets = {
       HARMONIC_CALM: {
@@ -1019,11 +1018,8 @@ export class WorldPersonalityController {
     });
   }
 
-  _getSoftPointSpriteTexture(size = 128) {
-    if (!this._pointSpriteTexture) {
-      this._pointSpriteTexture = createSoftPointSpriteTexture(size);
-    }
-    return this._pointSpriteTexture;
+  _getSoftPointSpriteTexture() {
+    return getEnvSpriteTexture('shimmer');
   }
   
   /**
@@ -1720,10 +1716,7 @@ export class WorldPersonalityController {
       this.scene.background.copy(this.baseWorldState.backgroundColor);
     }
 
-    if (this._pointSpriteTexture) {
-      this._pointSpriteTexture.dispose?.();
-      this._pointSpriteTexture = null;
-    }
+
   }
   
   /**

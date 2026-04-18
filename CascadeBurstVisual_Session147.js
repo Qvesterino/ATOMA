@@ -29,6 +29,7 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { getEnvSpriteTexture } from './EnvironmentPointFXBase.js';
 
 const MAX_BURSTS = 8;
 const BURST_DURATION = 1.2; // seconds
@@ -515,6 +516,8 @@ export class CascadeBurstVisual_Session147 {
       depthWrite: false,
       depthTest: true,
       sizeAttenuation: true,
+      map: getEnvSpriteTexture('plasma'),
+      alphaTest: 0.02
     });
   }
 

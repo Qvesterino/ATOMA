@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
+import { getEnvSpriteTexture } from './EnvironmentPointFXBase.js';
 
 /**
  * AI CONSCIOUSNESS LAYER 2.0 - NEURAL THOUGHT VISUALIZATION + EMERGENT STORMS
@@ -704,7 +705,9 @@ export class AIConsciousnessLayer {
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       sizeAttenuation: true,
-      fog: false
+      fog: false,
+      map: getEnvSpriteTexture('aura'),
+      alphaTest: 0.02
     });
     const witnessPoints = new THREE.Points(witnessGeometry, witnessMaterial);
     witnessPoints.name = 'GlobalConsciousnessWitness';

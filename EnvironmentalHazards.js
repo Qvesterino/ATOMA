@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { normalizeEnvironmentGeometry } from './RoundedEnvironmentGeometry.js';
+import { getEnvSpriteTexture } from './EnvironmentPointFXBase.js';
 
 const TAU = Math.PI * 2;
 const SIGNAL_LIFETIME_MS = 5000;
@@ -1777,7 +1778,9 @@ export class EnvironmentalHazards {
       vertexColors: true,
       blending: THREE.AdditiveBlending,
       depthTest: true,
-      depthWrite: false
+      depthWrite: false,
+      map: getEnvSpriteTexture('dust'),
+      alphaTest: 0.02
     });
 
     const points = new THREE.Points(geometry, material);

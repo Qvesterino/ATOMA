@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { getEnvSpriteTexture } from './EnvironmentPointFXBase.js';
 
 /**
  * CascadeResonanceWaveVisualization_Session146.js
@@ -781,7 +782,9 @@ export class CascadeResonanceWaveVisualization_Session146 {
       depthWrite: false,
       depthTest: true,
       sizeAttenuation: true,
-      toneMapped: false
+      toneMapped: false,
+      map: getEnvSpriteTexture('plasma'),
+      alphaTest: 0.02
     });
   }
 
@@ -795,7 +798,9 @@ export class CascadeResonanceWaveVisualization_Session146 {
       depthWrite: false,
       depthTest: true,
       sizeAttenuation: true,
-      toneMapped: false
+      toneMapped: false,
+      map: getEnvSpriteTexture('plasma'),
+      alphaTest: 0.02
     });
   }
 
@@ -822,7 +827,9 @@ export class CascadeResonanceWaveVisualization_Session146 {
       depthWrite: false,
       depthTest: true,
       sizeAttenuation: true,
-      toneMapped: false
+      toneMapped: false,
+      map: getEnvSpriteTexture('plasma'),
+      alphaTest: 0.02
     });
   }
 

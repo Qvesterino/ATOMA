@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { safeSetEmissive } from './_EmissiveUtils.js';
 import { normalizeEnvironmentGeometry } from './RoundedEnvironmentGeometry.js';
-import { createSoftPointSpriteTexture } from './SoftPointSpriteTexture.js';
+import { getEnvSpriteTexture } from './EnvironmentPointFXBase.js';
 
 /**
  * SAFE WORLD FX PACK 3.0
@@ -68,8 +68,6 @@ export class SafeWorldFXPack {
     this._tmpVecA = new THREE.Vector3();
     this._tmpVecB = new THREE.Vector3();
     this._tmpVecC = new THREE.Vector3();
-    this._softPointSpriteTexture = null;
-
     this.root = new THREE.Group();
     this.root.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_BACKGROUND);
     this.root.userData = this.root.userData || {};
@@ -194,11 +192,8 @@ export class SafeWorldFXPack {
     return resolveGeometry();
   }
 
-  _getSoftPointSpriteTexture(size = 128) {
-    if (!this._softPointSpriteTexture) {
-      this._softPointSpriteTexture = createSoftPointSpriteTexture(size);
-    }
-    return this._softPointSpriteTexture;
+  _getSoftPointSpriteTexture() {
+    return getEnvSpriteTexture('field');
   }
 
   _releaseMaterial(material) {
@@ -3003,9 +2998,6 @@ export class SafeWorldFXPack {
     if (this.root?.parent) {
       this.root.parent.remove(this.root);
     }
-    if (this._softPointSpriteTexture) {
-      this._softPointSpriteTexture.dispose?.();
-      this._softPointSpriteTexture = null;
-    }
+
   }
 }

@@ -30,7 +30,7 @@
 import * as THREE from 'three';
 import { QuantumIllusionRegistry } from './QuantumIllusionRegistry.js';
 import { normalizeEnvironmentGeometry } from './RoundedEnvironmentGeometry.js';
-import { createSoftPointSpriteTexture } from './SoftPointSpriteTexture.js';
+import { getEnvSpriteTexture } from './EnvironmentPointFXBase.js';
 
 export class SafeQuantumIllusionsPack1 {
   constructor(scene, environmentRoot, camera, aiNodes, linkingSystem, worldEvents, weatherPack, legendaryPack, sharedAssets = null) {
@@ -50,8 +50,6 @@ export class SafeQuantumIllusionsPack1 {
     // Central illusion registry
     this.registry = new QuantumIllusionRegistry(scene, this.sharedAssets);
     this.localGeometryCache = new Map();
-    this._pointSpriteTexture = null;
-    
     // Triggering conditions
     this.synergy = 0;
     this.lastSynergy = 0;
@@ -194,11 +192,8 @@ export class SafeQuantumIllusionsPack1 {
     return geometry;
   }
 
-  _getSoftPointSpriteTexture(size = 128) {
-    if (!this._pointSpriteTexture) {
-      this._pointSpriteTexture = createSoftPointSpriteTexture(size);
-    }
-    return this._pointSpriteTexture;
+  _getSoftPointSpriteTexture() {
+    return getEnvSpriteTexture('plasma');
   }
 
   _disposeObject3D(object3D) {
@@ -2014,10 +2009,7 @@ export class SafeQuantumIllusionsPack1 {
     }
 
     this._disposeCachedGeometries();
-    if (this._pointSpriteTexture) {
-      this._pointSpriteTexture.dispose?.();
-      this._pointSpriteTexture = null;
-    }
+
     this.registry = null;
     this.localGeometryCache = null;
   }
