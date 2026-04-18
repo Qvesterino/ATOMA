@@ -692,6 +692,7 @@ import { AtomaLanguageEngine2_0, setupAtomaNamingConsoleAPI } from './_AtomaLang
 import { NodeInspectLinguisticOverlay, setupLinguisticOverlayConsoleAPI } from './_NodeInspectLinguisticOverlay.js';
 import { atomaNamingEngine } from './_AtomaNamingEngine.js';
 import LoreUnlockEngine from './LoreSystem/LoreUnlockEngine.js';
+import LoreFragmentEmitter from './LoreSystem/LoreFragmentEmitter.js';
 import AtomaLanguageEngine3_0, { setupAtomaLanguageEngine3ConsoleAPI } from './AtomaLanguageEngine3_0.js';
 // REMOVED (2026-03-01): CompleteVisualLock disabled for new visual modules
 // import { setupCompleteVisualLock, teardownCompleteVisualLock } from './_VisualLockCompleteIntegration.js';
@@ -6030,7 +6031,8 @@ this.setHudDirty('nodeInspect');
         this.setupLanguageEngine();
         this.setupLinguisticOverlay();
         this.setupPoetryEngine();
-        
+        this.setupLoreFragmentEmitter();
+
         // ========================================================================
         // SESSION 108+: LINK MICRO-IMPULSES (Event-Driven Electrical Responses)
         // ========================================================================
@@ -14656,6 +14658,50 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
             AtomaLanguageEngine3_0.emit(key);
         });
+    }
+
+    /**
+     * Setup Lore Fragment Emitter (P1.7)
+     * World-aware lore whispers that appear during gameplay.
+     * Short, strong sentences — not wiki blocks.
+     * Lore as reward for understanding the system.
+     */
+    setupLoreFragmentEmitter() {
+        if (!this.semanticBus) {
+            console.warn('LoreFragmentEmitter: no semantic bus, skipping');
+            return;
+        }
+
+        this.loreFragmentEmitter = new LoreFragmentEmitter(
+            this.semanticBus,
+            () => this.currentMode || 'quantum'
+        );
+
+        // Debug console API
+        if (typeof window !== 'undefined') {
+            window.fragments = {
+                stats: () => this.loreFragmentEmitter?.getStats(),
+                list: () => this.loreFragmentEmitter?.getFragmentIds(),
+                world: (w) => this.loreFragmentEmitter?.getFragmentsForWorld(w || this.currentMode),
+                show: (id) => this.loreFragmentEmitter?.forceShow(id),
+                reset: () => this.loreFragmentEmitter?.reset(),
+                enable: () => this.loreFragmentEmitter?.enable(),
+                disable: () => this.loreFragmentEmitter?.disable(),
+                help: () => {
+                    console.log('=== Lore Fragment Emitter (P1.7) ===');
+                    console.log('  fragments.stats()           — Show emitter statistics');
+                    console.log('  fragments.list()            — List all fragment IDs');
+                    console.log('  fragments.world(id?)        — Show fragments for world (default: current)');
+                    console.log('  fragments.show(id)          — Force-show a specific fragment');
+                    console.log('  fragments.reset()           — Reset session state');
+                    console.log('  fragments.enable/disable()  — Toggle emitter');
+                },
+            };
+        }
+
+        console.log('%c✓ Lore Fragment Emitter (P1.7) initialized', 'color: #ffd89c; font-weight: bold;');
+        console.log('%c  World-aware lore whispers active', 'color: #ffd89c;');
+        console.log('%c  API: window.fragments.*', 'color: #ffd89c; font-size: 11px;');
     }
 
     /**

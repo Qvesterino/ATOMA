@@ -458,6 +458,10 @@ export default class AtomaLanguageEngine3_0 extends BaseAtomaLanguageEngine3_0 {
     constructor(...args) {
         super(...args);
         activeEngine = this;
+        // Register globally so LoreFragmentEmitter can access without circular import
+        if (typeof globalThis !== 'undefined') {
+            globalThis.__AtomaLanguageEngine3_0 = AtomaLanguageEngine3_0;
+        }
     }
 
     enable() {
@@ -514,6 +518,34 @@ export default class AtomaLanguageEngine3_0 extends BaseAtomaLanguageEngine3_0 {
                 reveal: entry.reveal || '',
             });
         }
+    }
+
+    /**
+     * Show a short lore fragment in-game (P1.7).
+     * Used by LoreFragmentEmitter for world-specific whispers.
+     * Lower priority and shorter duration than full lore unlocks.
+     *
+     * @param {string} text - Fragment text (1-2 sentences)
+     * @param {string} tone - Poetry overlay tone
+     * @param {object} options - { tag, duration, priority }
+     * @returns {boolean} Whether the fragment was displayed
+     */
+    static showFragment(text, tone = 'lore', options = {}) {
+        if (!text) return false;
+
+        const engine = activeEngine;
+        if (!engine || !engine.enabled || typeof engine._showPoetry !== 'function') {
+            return false;
+        }
+
+        const duration = options.duration || 1400;
+        const priority = options.priority || 1;
+        engine._showPoetry(text, 0.88, duration, priority, tone, {
+            tag: options.tag || 'LORE / WHISPER',
+            subtext: '',
+            reveal: 'fragment',
+        });
+        return true;
     }
 }
 
