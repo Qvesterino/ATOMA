@@ -56,8 +56,9 @@ export default class LoreFragmentEmitter {
      * @param {function} getCurrentWorldId - Returns current world ID string
      * @param {function} getCorruption - Returns current corruption level 0-1
      * @param {object} config - Optional config overrides
+     * @param {function} getMetrics - Optional: returns { harmony, corruption, stability, synergy, loadPressure } 0-1
      */
-    constructor(semanticBus, getCurrentWorldId, getCorruption = () => 0, config = {}) {
+    constructor(semanticBus, getCurrentWorldId, getCorruption = () => 0, config = {}, getMetrics = null) {
         this.semanticBus = semanticBus || null;
         this.getCurrentWorldId = typeof getCurrentWorldId === 'function'
             ? getCurrentWorldId
@@ -65,6 +66,9 @@ export default class LoreFragmentEmitter {
         this.getCorruption = typeof getCorruption === 'function'
             ? getCorruption
             : () => 0;
+        this.getMetrics = typeof getMetrics === 'function'
+            ? getMetrics
+            : () => ({ harmony: 0, corruption: 0, stability: 0, synergy: 0, loadPressure: 0 });
 
         this.config = Object.freeze({ ...DEFAULT_CONFIG, ...config });
         this.enabled = this.config.enabled;
@@ -378,17 +382,19 @@ export default class LoreFragmentEmitter {
 
     /**
      * Emit a fragment through the poetry overlay.
-     * Applies corruption distortion to the text if corruption is elevated.
+     * Applies state-mutating text selection and corruption distortion.
      */
     _emitFragment(fragment) {
         const Engine = this._getEngineClass();
         if (Engine && typeof Engine.showFragment === 'function') {
+            // Resolve state-mutating variant text (Proposal 6)
+            let displayText = this._resolveStateVariant(fragment);
+
             // Apply corruption distortion to the text
-            let displayText = fragment.text;
             try {
                 const corruption = this.getCorruption();
                 if (corruption > 0.20) {
-                    displayText = corruptText(fragment.text, corruption);
+                    displayText = corruptText(displayText, corruption);
                 }
             } catch {
                 // If corruption getter fails, show clean text
@@ -403,6 +409,75 @@ export default class LoreFragmentEmitter {
                     priority: this.config.fragmentPriority,
                 }
             );
+        }
+    }
+
+    /**
+     * Resolve state-mutating text variant (Proposal 6).
+     * Checks current metrics and picks the best variant text.
+     * Falls back to default fragment.text if no variant matches.
+     */
+    _resolveStateVariant(fragment) {
+        if (!fragment.stateVariants) return fragment.text;
+
+        try {
+            const metrics = this.getMetrics();
+            const harmony = metrics.harmony ?? 0;
+            const corruption = metrics.corruption ?? metrics.corruptionLevel ?? 0;
+            const load = metrics.loadPressure ?? metrics.load ?? 0;
+
+            const variants = fragment.stateVariants;
+
+            // Priority: corruption > harmony > load (most dramatic state wins)
+            if (corruption > 0.55 && variants.highCorruption) {
+                return variants.highCorruption;
+            }
+            if (harmony > 0.65 && variants.highHarmony) {
+                return variants.highHarmony;
+            }
+            if (load > 0.60 && variants.highLoad) {
+                return variants.highLoad;
+            }
+        } catch {
+            // Metrics unavailable — use default text
+        }
+
+        return fragment.text;
+    }
+
+    /**
+     * Handle a thought storm event (Proposal 5).
+     * Called when EmergentThoughtStorms spawn a new storm.
+     * Triggers the 'thought.storm' fragment selection with storm type context.
+     *
+     * @param {string} stormType - 'coherence' | 'chaotic' | 'corruption' | 'ascended' | 'balanced'
+     */
+    handleThoughtStorm(stormType) {
+        if (!this.enabled) return;
+
+        this._updateStage();
+
+        // Thought storm fragments have their own cooldown but share global cooldown
+        const now = performance.now();
+        if (now - this._lastGlobalShow < this.config.globalCooldownMs * 0.5) return;
+
+        // Higher chance for dream fragments (storms are special moments)
+        if (Math.random() > 0.70) return;
+
+        // Select from dream fragments
+        const fragment = this._selectFragment('thought.storm', { stormType });
+        if (!fragment) return;
+
+        // Once gate
+        if (fragment.once && this._shownOnce.has(fragment.id)) return;
+
+        this._emitFragment(fragment);
+
+        this._lastGlobalShow = now;
+        this._lastTriggerShow.set('thought.storm', now);
+        this._totalShown++;
+        if (fragment.once) {
+            this._shownOnce.add(fragment.id);
         }
     }
 

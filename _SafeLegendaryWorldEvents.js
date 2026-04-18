@@ -881,7 +881,7 @@ export class SafeLegendaryWorldEvents {
         baseOpacity: 0.62
       }
     );
-    core.position.set(0, 0, 0);
+    core.position.set(0, 8, 0);
     tagAllowedSphere(core, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
     clampSphere(core);
     this._registerLegendaryObject('meshes', core);

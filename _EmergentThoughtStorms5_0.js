@@ -61,6 +61,10 @@ export class EmergentThoughtStorms5_0 {
     
     // Dramaturgy modulation state (set by EventDramaturgyEngine)
     this._dramaturgyModulation = null;
+
+    // Callback for lore system (set by main.js)
+    // Fires when a storm spawns: onStormSpawned(stormType)
+    this.onStormSpawned = null;
     
     // Active storms (nodeClusterId → stormArray)
     this.activeStorms = new Map();
@@ -791,6 +795,11 @@ export class EmergentThoughtStorms5_0 {
     this.createStormMeshes(storm);
     
     clusters.push(storm);
+
+    // Notify lore system (Proposal 5: Network's Dream)
+    if (typeof this.onStormSpawned === 'function') {
+        try { this.onStormSpawned(stormType); } catch { /* non-critical */ }
+    }
   }
   
   /**

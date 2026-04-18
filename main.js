@@ -575,6 +575,7 @@ import { AINarrativePatterns6_0 } from './_AINarrativePatterns6_0.js';
 // import { ExtremeLinkVisualPack3 } from './_ExtremeLinkVisualPack3.js'; // LEGACY
 // import { NeuralCurveLinkVisuals, setupNeuralCurveConsoleAPI } from './_NeuralCurveLinkVisuals.js'; // LEGACY
 import { AIConsciousnessLayer, setupAIConsciousnessConsoleAPI } from './AIConsciousnessLayer.js';
+import { SignatureMomentDirector, installSignatureMomentDirectorDebugAPI } from './SignatureMomentDirector.js';
 import { AIThoughtStorms2_0, setupAIThoughtStormsConsoleAPI } from './_AIThoughtStorms2_0.js';
 // import { ExtremeLinkVisuals4_0, setupExtremeLinkVisualsV4ConsoleAPI } from './_ExtremeLinkVisuals4_0.js'; // LEGACY
 // REMOVED: LinkVisualMoodSystem - moved to LEGACY (2026-04-03)
@@ -693,6 +694,7 @@ import { NodeInspectLinguisticOverlay, setupLinguisticOverlayConsoleAPI } from '
 import { atomaNamingEngine } from './_AtomaNamingEngine.js';
 import LoreUnlockEngine from './LoreSystem/LoreUnlockEngine.js';
 import LoreFragmentEmitter from './LoreSystem/LoreFragmentEmitter.js';
+import NetworkChronicle from './LoreSystem/NetworkChronicle.js';
 import AtomaLanguageEngine3_0, { setupAtomaLanguageEngine3ConsoleAPI } from './AtomaLanguageEngine3_0.js';
 // REMOVED (2026-03-01): CompleteVisualLock disabled for new visual modules
 // import { setupCompleteVisualLock, teardownCompleteVisualLock } from './_VisualLockCompleteIntegration.js';
@@ -5742,6 +5744,9 @@ this.setHudDirty('nodeInspect');
         // Mythic Ritual Controller 1.0 (rare ceremonial events)
         this.mythicRitualController = null; // Initialized after world controller ready
 
+        // Signature Moment Director (cinematic event orchestration)
+        this.signatureMomentDirector = null;
+
         // ====================================================================
         // SYNERGY VISUAL EFFECTS v1.0 — Pure world-space visual feedback
         // Soft pulse + visual time elasticity (zero gameplay impact)
@@ -6028,6 +6033,7 @@ this.setHudDirty('nodeInspect');
         // this.setupExtremeLinkVisuals4();     // Temporarily disabled for overlay-free link diagnostics
         // DISABLED: this.setupLinkVisualMoodSystem(); // moved to LEGACY (2026-04-03)
         this.setupAIConsciousnessLayer();
+        this.setupSignatureMomentDirector();
         this.setupLanguageEngine();
         this.setupLinguisticOverlay();
         this.setupPoetryEngine();
@@ -8073,6 +8079,11 @@ window.__ATOMA_SCENE__ = this.scene;
         if (this.environmentDomain) {
             this.environmentDomain.dispose();
             this.environmentDomain = null;
+        }
+
+        if (this.signatureMomentDirector?.dispose) {
+            this.signatureMomentDirector.dispose();
+            this.signatureMomentDirector = null;
         }
 
         // Clear environment-layer content before rebuilding world
@@ -14672,20 +14683,33 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             return;
         }
 
+        // Metrics getter for state-mutating fragments (Proposal 6)
+        const getMetrics = () => {
+            try {
+                const m = this.coreMetricsOverlay?.currentMetrics;
+                if (m) {
+                    return {
+                        harmony: m.harmony ?? 0,
+                        corruption: m.corruption ?? m.corruptionLevel ?? 0,
+                        stability: m.stability ?? 0,
+                        synergy: m.synergy ?? 0,
+                        loadPressure: m.loadPressure ?? m.load ?? 0,
+                    };
+                }
+            } catch { /* fallback */ }
+            return { harmony: 0, corruption: 0, stability: 0, synergy: 0, loadPressure: 0 };
+        };
+
         this.loreFragmentEmitter = new LoreFragmentEmitter(
             this.semanticBus,
             () => this.currentMode || 'quantum',
-            () => {
-                // Get current corruption from MetricsRuntime or metrics overlay
-                try {
-                    const metrics = this.coreMetricsOverlay?.currentMetrics;
-                    if (metrics) {
-                        return metrics.corruption ?? metrics.corruptionLevel ?? 0;
-                    }
-                } catch { /* fallback */ }
-                return 0;
-            }
+            () => getMetrics().corruption,
+            {}, // default config
+            getMetrics
         );
+
+        // Wire thought storm → dream lore bridge (Proposal 5)
+        this._wireThoughtStormLoreBridge();
 
         // Debug console API
         if (typeof window !== 'undefined') {
@@ -14711,7 +14735,100 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         console.log('%c✓ Lore Fragment Emitter (P1.7) initialized', 'color: #ffd89c; font-weight: bold;');
         console.log('%c  World-aware lore whispers active', 'color: #ffd89c;');
+        console.log('%c  State-mutating fragments enabled (P1.7.6)', 'color: #ffd89c; font-size: 11px;');
         console.log('%c  API: window.fragments.*', 'color: #ffd89c; font-size: 11px;');
+
+        // Setup Network Chronicle (Proposal 7: The Living Chronicle)
+        this.setupNetworkChronicle();
+    }
+
+    /**
+     * Setup Network Chronicle (P1.7 Proposal 7).
+     * A procedural diary that builds from the player's actual session.
+     * Each playthrough generates a unique, shareable narrative document.
+     */
+    setupNetworkChronicle() {
+        if (!this.semanticBus) {
+            console.warn('NetworkChronicle: no semantic bus, skipping');
+            return;
+        }
+
+        const getMetrics = () => {
+            try {
+                const m = this.coreMetricsOverlay?.currentMetrics;
+                if (m) {
+                    return {
+                        harmony: m.harmony ?? 0,
+                        corruption: m.corruption ?? m.corruptionLevel ?? 0,
+                        stability: m.stability ?? 0,
+                        synergy: m.synergy ?? 0,
+                        loadPressure: m.loadPressure ?? m.load ?? 0,
+                    };
+                }
+            } catch { /* fallback */ }
+            return { harmony: 0, corruption: 0, stability: 0, synergy: 0, loadPressure: 0 };
+        };
+
+        this.networkChronicle = new NetworkChronicle(
+            this.semanticBus,
+            () => this.currentMode || 'unknown',
+            getMetrics
+        );
+
+        // Debug console API
+        if (typeof window !== 'undefined') {
+            window.chronicle = {
+                read: () => this.networkChronicle?.getFullText(),
+                entries: () => this.networkChronicle?.getChronicle(),
+                stats: () => this.networkChronicle?.getStats(),
+                print: () => this.networkChronicle?.print(),
+                reset: () => this.networkChronicle?.reset(),
+                json: () => this.networkChronicle?.toJSON(),
+                help: () => {
+                    console.log('=== Network Chronicle (P1.7.7) — The Living Chronicle ===');
+                    console.log('  chronicle.read()    — Read the full chronicle text');
+                    console.log('  chronicle.entries() — Get structured entries array');
+                    console.log('  chronicle.stats()   — Show chronicle statistics');
+                    console.log('  chronicle.print()   — Print chronicle to console');
+                    console.log('  chronicle.reset()   — Reset chronicle (new session)');
+                    console.log('  chronicle.json()    — Export as JSON');
+                },
+            };
+        }
+
+        console.log('%c✓ Network Chronicle (P1.7.7) initialized', 'color: #c0e0ff; font-weight: bold;');
+        console.log('%c  The network writes its own history', 'color: #c0e0ff;');
+        console.log('%c  API: window.chronicle.*', 'color: #c0e0ff; font-size: 11px;');
+    }
+
+    /**
+     * Wire thought storm → dream lore bridge (Proposal 5).
+     * When EmergentThoughtStorms spawn, the lore emitter shows dream fragments.
+     */
+    _wireThoughtStormLoreBridge() {
+        // Deferred wiring — thought storms may not exist yet
+        const wire = () => {
+            const storms = this.emergentThoughtStorms;
+            if (storms && typeof storms.onStormSpawned !== 'undefined') {
+                storms.onStormSpawned = (stormType) => {
+                    this.loreFragmentEmitter?.handleThoughtStorm(stormType);
+                };
+                console.log('%c✓ Thought Storm → Dream Lore bridge wired (P1.7.5)', 'color: #e0c0ff;');
+                return true;
+            }
+            return false;
+        };
+
+        // Try immediately
+        if (!wire()) {
+            // Retry after a short delay (thought storms initialize late)
+            setTimeout(() => {
+                if (!wire()) {
+                    // Final attempt after longer delay
+                    setTimeout(wire, 3000);
+                }
+            }, 1000);
+        }
     }
 
     /**
@@ -17432,6 +17549,100 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.log('  - Use consciousStorms.debugState() for storms status');
         } catch (err) {
             console.warn('AIConsciousnessLayer initialization failed:', err);
+        }
+    }
+
+    /**
+     * Setup Signature Moment Director
+     * Cinematic orchestration over existing metric, ritual, audio, and world state.
+     */
+    setupSignatureMomentDirector() {
+        if (!this.semanticBus) {
+            console.warn('Semantic bus not initialized, skipping Signature Moment Director setup');
+            return;
+        }
+
+        try {
+            if (this.signatureMomentDirector?.dispose) {
+                this.signatureMomentDirector.dispose();
+            }
+
+            const getContext = (meta = {}) => {
+                const consciousnessState = this.consciousnessLayer?.getConsciousnessState?.()
+                    || this.consciousnessLayer?.consciousnessState
+                    || null;
+
+                return {
+                    timestamp: performance.now(),
+                    sourceEvent: meta.sourceEvent || null,
+                    sourcePayload: meta.sourcePayload || null,
+                    stage: meta.stage || null,
+                    force: meta.force === true,
+                    preview: meta.preview === true,
+                    worldId: this.currentWorldId || this.currentWorldName || this.currentMode || this.world?.name || 'unknown',
+                    currentMode: this.currentMode || null,
+                    camera: this.camera || null,
+                    scene: this.scene || null,
+                    metrics: this.coreMetricsOverlay?.currentMetrics || this.worldMetrics || this.nodeDynamicMetrics || null,
+                    consciousness: consciousnessState,
+                    dramaturgy: this.environmentDomain?.instances?.eventDramaturgy?.getState?.() || null,
+                    eventDramaturgy: this.environmentDomain?.instances?.eventDramaturgy || null,
+                    ritual: this.mythicRitualController?.getState?.() || null,
+                    phase8: this.phase8RitualOrchestration?.getStats?.() || null,
+                    audioSystem: this.audioSystem || null,
+                    metricReactiveEvents: this.metricReactiveEvents || this.environmentDomain?.instances?.metricReactiveEvents || null,
+                    linkCorruptionTransmission: this.linkCorruptionTransmission || this.corruptionTransmission || this.aiNodes?.linkCorruption || null,
+                    worldPersonalityController: this.worldPersonalityController || null,
+                    worldMoodState: this.worldPersonalityController?.getMoodState?.() || null,
+                    worldEvents: this.worldEvents || null,
+                    networkChronicle: this.networkChronicle || null,
+                    chronicleStats: this.networkChronicle?.getStats?.() || null,
+                    memoryLane: this.memoryLane || null,
+                    memoryWorldActive: this.currentMode === 'memory'
+                        || this.currentWorldId === 'memory'
+                        || this.activeWorld === this.memoryLane
+                        || String(this.currentWorldName || '').toLowerCase() === 'memory lane',
+                    memoryPressure: this.coreMetricsOverlay?.currentMetrics?.memoryPressure
+                        ?? this.worldMetrics?.memoryPressure
+                        ?? this.nodeDynamicMetrics?.memoryPressure
+                        ?? null,
+                    selectedNode: this.selectedNode || this.linkingSystem?.selectedNode || this.aiNodes?.selectedNode || null,
+                    primaryNode: this.linkingSystem?.primaryNode || this.primaryNode || null,
+                    selectedLink: this.linkingSystem?.selectedLink || this.selectedLink || null,
+                    primaryLink: this.linkingSystem?.primaryLink || this.primaryLink || null,
+                    focusNode: this.linkingSystem?.primaryNode || this.selectedNode || this.primaryNode || this.aiNodes?.selectedNode || null,
+                    focusLink: this.linkingSystem?.primaryLink || this.linkingSystem?.selectedLink || this.selectedLink || null,
+                    linkingSystem: this.linkingSystem || null,
+                    nodes: this.aiNodes?.nodes || [],
+                    links: this.linkingSystem?.links || [],
+                    linkCount: this.linkingSystem?.links?.length || 0,
+                    activeLinkCount: consciousnessState?.activeLinkCount
+                        ?? this.coreMetricsOverlay?.currentMetrics?.activeLinkCount
+                        ?? 0,
+                    cameraAuthorityMode: typeof window !== 'undefined' ? (window.CAMERA_AUTHORITY_MODE || 'fp_only') : 'fp_only'
+                };
+            };
+
+            this.signatureMomentDirector = new SignatureMomentDirector({
+                semanticBus: this.semanticBus,
+                getContext
+            });
+            this.signatureMomentDirector.initialize();
+
+            if (this.frameScheduler?.isRegistered?.('background.signatureMomentDirector') === true) {
+                this.frameScheduler.unregister('background.signatureMomentDirector');
+            }
+            this.frameScheduler?.register('background', (dt) => {
+                this.signatureMomentDirector?.update?.(dt);
+            }, 'background.signatureMomentDirector');
+
+            installSignatureMomentDirectorDebugAPI(this.signatureMomentDirector);
+
+            console.log('✓ Signature Moment Director initialized');
+            console.log('  - Tier A blueprints: Synergy Apex / Network Resonance Surge, Cascade Reconstruction Beacon, Memory Recovery Event, World Personality Shift');
+            console.log('  - Use window.signatureMoments.status() for diagnostics');
+        } catch (err) {
+            console.warn('SignatureMomentDirector initialization failed:', err);
         }
     }
 
