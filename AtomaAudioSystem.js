@@ -656,7 +656,100 @@ export class AtomaAudioSystem {
             return;
         }
 
+        // Dramaturgy phase cues — distinct sound per phase and family
+        if (cue.includes('dramaturgy')) {
+            this._playDramaturgyCue(cue, now, velocity, intensity);
+            return;
+        }
+
         this.eventLeadSynth.triggerAttackRelease(["C4", "G4"], "16n", now, velocity * 0.4);
+    }
+
+    /**
+     * Play dramaturgy phase cue — distinct sound per family and phase.
+     * Telegraph: subtle warning hint
+     * Escalation: full impact
+     * Payoff: resolution / settling
+     */
+    _playDramaturgyCue(cue, now, velocity, intensity) {
+        const isTelegraph = cue.includes('telegraph');
+        const isEscalation = cue.includes('escalation');
+        const isPayoff = cue.includes('payoff');
+
+        // Cascade — tearing energy
+        if (cue.includes('cascade')) {
+            if (isTelegraph) {
+                this.eventLeadSynth.triggerAttackRelease(["C3"], "32n", now, velocity * 0.18);
+                this._triggerEventNoise('dramaturgy-cascade', intensity * 0.15, 200, "32n");
+            } else if (isEscalation) {
+                this.eventLeadSynth.triggerAttackRelease(["C3", "G3", "D4"], "16n", now, velocity * 0.55);
+                this.eventAccentSynth.triggerAttackRelease("A4", "16n", now + 0.03, velocity * 0.3);
+                this._triggerEventNoise('dramaturgy-cascade', intensity * 0.4, 350 + intensity * 200, "16n");
+            } else if (isPayoff) {
+                this.eventLeadSynth.triggerAttackRelease(["E4", "B4"], "8n", now, velocity * 0.22);
+            }
+            return;
+        }
+
+        // Corruption — dark dissonance
+        if (cue.includes('corruption')) {
+            if (isTelegraph) {
+                this.eventLeadSynth.triggerAttackRelease(["C#2"], "16n", now, velocity * 0.15);
+                this._triggerEventNoise('dramaturgy-corruption', intensity * 0.12, 180, "16n");
+            } else if (isEscalation) {
+                this.eventLeadSynth.triggerAttackRelease(["C#2", "G#2", "D#3"], "8n", now, velocity * 0.5);
+                this.eventAccentSynth.triggerAttackRelease("F#3", "16n", now + 0.04, velocity * 0.28);
+                this._triggerEventNoise('dramaturgy-corruption', intensity * 0.45, 250 + intensity * 150, "16n");
+            } else if (isPayoff) {
+                this.eventLeadSynth.triggerAttackRelease(["E4", "G4"], "4n", now, velocity * 0.18);
+            }
+            return;
+        }
+
+        // Resonance — bright harmonic bloom
+        if (cue.includes('resonance')) {
+            if (isTelegraph) {
+                this.eventLeadSynth.triggerAttackRelease(["E5"], "32n", now, velocity * 0.15);
+            } else if (isEscalation) {
+                this.eventLeadSynth.triggerAttackRelease(["C5", "E5", "G5"], "8n", now, velocity * 0.4);
+                this.eventAccentSynth.triggerAttackRelease("B5", "16n", now + 0.05, velocity * 0.22);
+            } else if (isPayoff) {
+                this.eventLeadSynth.triggerAttackRelease(["G5", "C6"], "4n", now, velocity * 0.2);
+            }
+            return;
+        }
+
+        // Ritual — ceremonial / transcendent
+        if (cue.includes('ritual')) {
+            if (isTelegraph) {
+                this.eventLeadSynth.triggerAttackRelease(["A3", "E4"], "4n", now, velocity * 0.2);
+            } else if (isEscalation) {
+                this.eventLeadSynth.triggerAttackRelease(["A3", "C#4", "E4", "A4"], "2n", now, velocity * 0.45);
+                this.eventAccentSynth.triggerAttackRelease("C#5", "4n", now + 0.1, velocity * 0.25);
+            } else if (isPayoff) {
+                this.eventLeadSynth.triggerAttackRelease(["E4", "A4", "C#5"], "2n", now, velocity * 0.3);
+                this.selectionSynth.triggerAttackRelease("E5", "4n", now + 0.15, velocity * 0.15);
+            }
+            return;
+        }
+
+        // Hazard — warning / impact
+        if (cue.includes('hazard')) {
+            if (isTelegraph) {
+                this.eventLeadSynth.triggerAttackRelease(["C2", "G2"], "16n", now, velocity * 0.25);
+                this._triggerEventNoise('dramaturgy-hazard', intensity * 0.2, 220, "16n");
+            } else if (isEscalation) {
+                this.eventLeadSynth.triggerAttackRelease(["C2", "G2", "D3"], "8n", now, velocity * 0.6);
+                this.eventAccentSynth.triggerAttackRelease("A3", "16n", now + 0.02, velocity * 0.35);
+                this._triggerEventNoise('dramaturgy-hazard', intensity * 0.5, 300 + intensity * 200, "16n");
+            } else if (isPayoff) {
+                this.eventLeadSynth.triggerAttackRelease(["G3", "D4"], "8n", now, velocity * 0.2);
+            }
+            return;
+        }
+
+        // Generic dramaturgy fallback
+        this.eventLeadSynth.triggerAttackRelease(["C4", "G4"], "16n", now, velocity * 0.3);
     }
 
     _resolveRoutedEventCooldown(cue, intensity) {
@@ -666,6 +759,7 @@ export class AtomaAudioSystem {
         if (cue.includes('gravity')) return 240;
         if (cue.includes('chrono')) return 320;
         if (cue.includes('quantum')) return 300;
+        if (cue.includes('dramaturgy')) return cue.includes('telegraph') ? 600 : cue.includes('escalation') ? 400 : 500;
         return Math.max(140, 260 - intensity * 40);
     }
 
@@ -677,6 +771,7 @@ export class AtomaAudioSystem {
         if (cue.includes('quantum') || layer === 'halo-choir') return 260;
         if (cue.includes('chrono') || layer === 'sigil-bells') return 320;
         if (cue.includes('pulse') || layer === 'ambient-bloom') return 260;
+        if (layer?.includes('dramaturgy')) return 400;
         return Math.max(130, 210 - intensity * 30);
     }
 

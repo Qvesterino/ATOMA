@@ -120,8 +120,46 @@ export class AIConsciousnessLayer {
       patternsActive: 0,
       frameTime: 0,
       enabled: true,
-      stormsFrameTime: 0
+      stormsFrameTime: 0,
+      networkHealth: 0,
+      networkPressure: 0,
+      trafficIntensity: 0,
+      patternDensity: 0,
+      moodTag: 'CALM',
+      heroPhase: 'LISTENING'
     };
+
+    this.consciousnessState = {
+      networkMood: 'CALM',
+      moodTag: 'CALM',
+      heroPhase: 'LISTENING',
+      networkHealth: 0.5,
+      networkPressure: 0,
+      trafficIntensity: 0,
+      ritualIntensity: 0,
+      patternDensity: 0,
+      coherence: 0.5,
+      volatility: 0,
+      heroIntensity: 0.5,
+      activeLinkCount: 0,
+      activeLinkRatio: 0,
+      linkCount: 0,
+      patternCount: 0,
+      avgStability: 0,
+      avgHarmony: 0,
+      avgCorruption: 0,
+      avgLoadPressure: 0,
+      avgTrafficIntensity: 0,
+      threadBias: 1,
+      pulseBias: 1,
+      patternBias: 1,
+      ritualActive: false,
+      ritualType: null,
+      ritualPhase: 'NONE',
+      lastUpdated: 0
+    };
+
+    this._lastConsciousnessSignature = '';
 
     // Spawn state tracking for repeat suppression
     this.linkSpawnState = new Map();
@@ -140,6 +178,236 @@ export class AIConsciousnessLayer {
     this._createPulsePacketSystem();
     this._createGlobalField();
     this._setupRitualBridge();
+  }
+
+  _clamp01(value) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return 0;
+    }
+    return Math.max(0, Math.min(1, numericValue));
+  }
+
+  _deriveConsciousnessMoodTag(state) {
+    if (!state) return 'CALM';
+
+    const health = this._clamp01(state.networkHealth);
+    const pressure = this._clamp01(state.networkPressure);
+    const traffic = this._clamp01(state.trafficIntensity);
+    const ritual = this._clamp01(state.ritualIntensity);
+    const pattern = this._clamp01(state.patternDensity);
+    const corruption = this._clamp01(state.avgCorruption);
+    const activeRatio = this._clamp01(state.activeLinkRatio);
+
+    if (health <= 0.22 || pressure >= 0.82) {
+      return 'CRITICAL';
+    }
+    if (pressure >= 0.68 || corruption >= 0.5) {
+      return 'CHAOTIC';
+    }
+    if (ritual >= 0.55 && pattern >= 0.2) {
+      return 'SYNERGIC';
+    }
+    if (traffic >= 0.68 || activeRatio >= 0.65) {
+      return 'FOCUSED';
+    }
+    if (health >= 0.72 && pressure <= 0.34 && pattern >= 0.18) {
+      return 'BALANCED';
+    }
+    if (health >= 0.56) {
+      return 'CALM';
+    }
+
+    return ritual >= 0.3 ? 'TENSE' : 'CALM';
+  }
+
+  _deriveHeroPhase(state) {
+    if (!state) return 'LISTENING';
+
+    switch (state.networkMood) {
+      case 'CRITICAL':
+        return 'DEFENSE';
+      case 'CHAOTIC':
+        return 'FRACTURE';
+      case 'SYNERGIC':
+        return 'RITUAL';
+      case 'FOCUSED':
+        return 'CONDUCTING';
+      case 'BALANCED':
+        return 'HARMONIC_CORE';
+      case 'TENSE':
+        return state.networkPressure >= 0.6 ? 'SURGE' : 'LISTENING';
+      case 'CALM':
+      default:
+        return state.heroIntensity >= 0.68 ? 'AWAKENING' : 'LISTENING';
+    }
+  }
+
+  _updateConsciousnessState(metrics = {}) {
+    const state = this.consciousnessState || (this.consciousnessState = {});
+    const smoothing = metrics.visualDelta > 0
+      ? 1 - Math.exp(-Math.max(0.0001, metrics.visualDelta) * 3.2)
+      : 1;
+    const lerpValue = (key, target) => {
+      const current = Number.isFinite(state[key]) ? state[key] : target;
+      const nextValue = THREE.MathUtils.lerp(current, target, smoothing);
+      state[key] = nextValue;
+      return nextValue;
+    };
+
+    const linkCount = Math.max(1, metrics.linkCount || 0);
+    const activeLinkRatio = this._clamp01((metrics.activeLinkCount || 0) / linkCount);
+    const patternDensityTarget = this._clamp01((metrics.patternCount || 0) / Math.max(1, linkCount * 0.28));
+    const networkHealthTarget = this._clamp01(
+      (metrics.avgStability || 0) * 0.38 +
+      (metrics.avgHarmony || 0) * 0.32 +
+      (1 - this._clamp01(metrics.avgCorruption || 0)) * 0.18 +
+      (1 - this._clamp01(metrics.avgLoadPressure || 0)) * 0.12
+    );
+    const networkPressureTarget = this._clamp01(
+      this._clamp01(metrics.avgLoadPressure || 0) * 0.34 +
+      this._clamp01(metrics.avgCorruption || 0) * 0.34 +
+      this._clamp01(metrics.avgTrafficIntensity || 0) * 0.2 +
+      activeLinkRatio * 0.12
+    );
+    const ritualIntensityTarget = this._clamp01(metrics.ritualIntensity || 0);
+    const coherenceTarget = this._clamp01(
+      networkHealthTarget * 0.52 +
+      patternDensityTarget * 0.18 +
+      ritualIntensityTarget * 0.14 +
+      this._clamp01(metrics.avgTrafficIntensity || 0) * 0.08 -
+      networkPressureTarget * 0.22
+    );
+    const volatilityTarget = this._clamp01(
+      networkPressureTarget * 0.72 +
+      this._clamp01(metrics.avgTrafficIntensity || 0) * 0.2 +
+      ritualIntensityTarget * 0.08
+    );
+    const heroIntensityTarget = this._clamp01(
+      coherenceTarget * 0.66 +
+      ritualIntensityTarget * 0.12 +
+      patternDensityTarget * 0.1 +
+      this._clamp01(metrics.avgTrafficIntensity || 0) * 0.12
+    );
+
+    const networkHealth = lerpValue('networkHealth', networkHealthTarget);
+    const networkPressure = lerpValue('networkPressure', networkPressureTarget);
+    const trafficIntensity = lerpValue('trafficIntensity', this._clamp01(metrics.avgTrafficIntensity || 0));
+    const ritualIntensity = lerpValue('ritualIntensity', ritualIntensityTarget);
+    const patternDensity = lerpValue('patternDensity', patternDensityTarget);
+    const coherence = lerpValue('coherence', coherenceTarget);
+    const volatility = lerpValue('volatility', volatilityTarget);
+    const heroIntensity = lerpValue('heroIntensity', heroIntensityTarget);
+    const avgStability = lerpValue('avgStability', this._clamp01(metrics.avgStability || 0));
+    const avgHarmony = lerpValue('avgHarmony', this._clamp01(metrics.avgHarmony || 0));
+    const avgCorruption = lerpValue('avgCorruption', this._clamp01(metrics.avgCorruption || 0));
+    const avgLoadPressure = lerpValue('avgLoadPressure', this._clamp01(metrics.avgLoadPressure || 0));
+    const avgTrafficIntensity = lerpValue('avgTrafficIntensity', this._clamp01(metrics.avgTrafficIntensity || 0));
+
+    state.linkCount = metrics.linkCount || 0;
+    state.activeLinkCount = metrics.activeLinkCount || 0;
+    state.activeLinkRatio = activeLinkRatio;
+    state.patternCount = metrics.patternCount || 0;
+    state.networkMood = this._deriveConsciousnessMoodTag({
+      networkHealth,
+      networkPressure,
+      trafficIntensity,
+      ritualIntensity,
+      patternDensity,
+      avgCorruption,
+      activeLinkRatio,
+    });
+    state.moodTag = state.networkMood;
+    state.heroPhase = this._deriveHeroPhase(state);
+    state.threadBias = this._clamp01(0.65 + networkHealth * 0.28 + patternDensity * 0.18 - networkPressure * 0.15);
+    state.pulseBias = this._clamp01(0.6 + trafficIntensity * 0.35 + ritualIntensity * 0.22 + heroIntensity * 0.12);
+    state.patternBias = this._clamp01(0.5 + patternDensity * 0.42 + ritualIntensity * 0.18 + heroIntensity * 0.08);
+    state.ritualActive = this.ritualState.active;
+    state.ritualType = this.ritualState.ritualType;
+    state.ritualPhase = this.ritualState.phase;
+    state.lastUpdated = this.time;
+    state.fieldScale = this._clamp01(0.9 + networkHealth * 0.08 + coherence * 0.05 - networkPressure * 0.06);
+
+    this.stats.networkHealth = networkHealth;
+    this.stats.networkPressure = networkPressure;
+    this.stats.trafficIntensity = trafficIntensity;
+    this.stats.patternDensity = patternDensity;
+    this.stats.moodTag = state.networkMood;
+    this.stats.heroPhase = state.heroPhase;
+
+    if (this.consciousnessGroup?.userData) {
+      this.consciousnessGroup.userData.consciousnessState = state;
+      this.consciousnessGroup.userData.consciousnessMood = state.networkMood;
+      this.consciousnessGroup.userData.heroPhase = state.heroPhase;
+    }
+
+    const signature = [
+      state.networkMood,
+      state.heroPhase,
+      networkHealth.toFixed(2),
+      networkPressure.toFixed(2),
+      trafficIntensity.toFixed(2),
+      ritualIntensity.toFixed(2),
+      patternDensity.toFixed(2)
+    ].join('|');
+
+    if (signature !== this._lastConsciousnessSignature) {
+      this._lastConsciousnessSignature = signature;
+      if (this.semanticBus?.emit) {
+        const payload = {
+          source: 'AIConsciousnessLayer',
+          timestamp: performance.now(),
+          ...this.getConsciousnessState(),
+        };
+        const priority = this.semanticBus.priority?.NORMAL ?? this.semanticBus.priority?.LOW;
+        if (priority !== undefined) {
+          this.semanticBus.emit('consciousness.state.changed', payload, { priority });
+          this.semanticBus.emit('consciousness.snapshot', payload, { priority: this.semanticBus.priority?.LOW ?? priority });
+        } else {
+          this.semanticBus.emit('consciousness.state.changed', payload);
+          this.semanticBus.emit('consciousness.snapshot', payload);
+        }
+      }
+    }
+
+    return state;
+  }
+
+  getNetworkMood() {
+    return this.consciousnessState?.networkMood || 'CALM';
+  }
+
+  getConsciousnessState() {
+    const state = this.consciousnessState || {};
+    return {
+      networkMood: state.networkMood || 'CALM',
+      moodTag: state.moodTag || state.networkMood || 'CALM',
+      heroPhase: state.heroPhase || 'LISTENING',
+      networkHealth: state.networkHealth ?? 0,
+      networkPressure: state.networkPressure ?? 0,
+      trafficIntensity: state.trafficIntensity ?? 0,
+      ritualIntensity: state.ritualIntensity ?? 0,
+      patternDensity: state.patternDensity ?? 0,
+      coherence: state.coherence ?? 0,
+      volatility: state.volatility ?? 0,
+      heroIntensity: state.heroIntensity ?? 0,
+      activeLinkCount: state.activeLinkCount ?? 0,
+      activeLinkRatio: state.activeLinkRatio ?? 0,
+      linkCount: state.linkCount ?? 0,
+      patternCount: state.patternCount ?? 0,
+      avgStability: state.avgStability ?? 0,
+      avgHarmony: state.avgHarmony ?? 0,
+      avgCorruption: state.avgCorruption ?? 0,
+      avgLoadPressure: state.avgLoadPressure ?? 0,
+      avgTrafficIntensity: state.avgTrafficIntensity ?? 0,
+      threadBias: state.threadBias ?? 1,
+      pulseBias: state.pulseBias ?? 1,
+      patternBias: state.patternBias ?? 1,
+      ritualActive: state.ritualActive === true,
+      ritualType: state.ritualType || null,
+      ritualPhase: state.ritualPhase || 'NONE',
+      lastUpdated: state.lastUpdated ?? 0,
+    };
   }
   
   /**
@@ -926,6 +1194,12 @@ export class AIConsciousnessLayer {
     const baseStrength = (0.24 + signal * 0.46 + categoryInfluence * 0.18 + semanticValue * 0.12) * this.config.intensity;
     const ritualBoost = 1 + this.ritualState.intensity * 0.38;
     const ritualPatternBias = 1 + this.ritualState.intensity * 0.62;
+    const state = this.consciousnessState || {};
+    const healthBias = 0.72 + this._clamp01(state.networkHealth ?? 0.5) * 0.48;
+    const pressureBias = 1 - this._clamp01(state.networkPressure ?? 0) * 0.22;
+    const trafficBias = 0.78 + this._clamp01(state.trafficIntensity ?? signal) * 0.45;
+    const patternBias = 0.84 + this._clamp01(state.patternDensity ?? 0) * 0.56;
+    const heroBias = 0.84 + this._clamp01(state.heroIntensity ?? 0.5) * 0.52;
 
     return {
       signal,
@@ -933,9 +1207,9 @@ export class AIConsciousnessLayer {
       harmony,
       categoryInfluence,
       semanticValue,
-      threadProb: Math.min(0.5, (0.12 + baseStrength * 0.18 + signal * 0.07) * ritualBoost),
-      pulseWeight: Math.max(0.01, baseStrength * (0.5 + signal * 0.32 + categoryInfluence * 0.15) * this.config.particleDensity * ritualBoost),
-      patternProb: Math.min(0.28, (0.04 + baseStrength * 0.14 + semanticValue * 0.08) * ritualPatternBias)
+      threadProb: Math.min(0.5, (0.12 + baseStrength * 0.18 + signal * 0.07) * ritualBoost * healthBias * heroBias),
+      pulseWeight: Math.max(0.01, baseStrength * (0.5 + signal * 0.32 + categoryInfluence * 0.15) * this.config.particleDensity * ritualBoost * trafficBias * pressureBias),
+      patternProb: Math.min(0.28, (0.04 + baseStrength * 0.14 + semanticValue * 0.08) * ritualPatternBias * patternBias * heroBias)
     };
   }
 
@@ -1488,6 +1762,7 @@ export class AIConsciousnessLayer {
     let avgHarmony = 0;
     let avgCorruption = 0;
     let avgLoadPressure = 0;
+    let avgTrafficIntensity = 0;
     let activeCount = 0;
 
     for (const link of links) {
@@ -1501,6 +1776,7 @@ export class AIConsciousnessLayer {
       avgHarmony += harmony;
       avgCorruption += corruption;
       avgLoadPressure += loadPressure;
+      avgTrafficIntensity += intensity;
       if (intensity > 0.55) activeCount++;
     }
 
@@ -1509,19 +1785,33 @@ export class AIConsciousnessLayer {
     avgHarmony /= linkCount;
     avgCorruption /= linkCount;
     avgLoadPressure /= linkCount;
+    avgTrafficIntensity /= linkCount;
 
-    const networkMood = Math.max(0, Math.min(1, avgHarmony * 0.65 + avgStability * 0.35));
-    const pressure = Math.min(1, avgLoadPressure + avgCorruption * 0.35 + (activeCount / linkCount) * 0.1);
+    const consciousnessState = this._updateConsciousnessState({
+      visualDelta,
+      linkCount: links.length,
+      activeLinkCount: activeCount,
+      patternCount: this.activeThoughts.patternClusters.size,
+      avgStability,
+      avgHarmony,
+      avgCorruption,
+      avgLoadPressure,
+      avgTrafficIntensity,
+      ritualIntensity: this.ritualState.intensity,
+    });
+
+    const networkMood = this._clamp01(consciousnessState.networkHealth * 0.6 + consciousnessState.coherence * 0.4);
+    const pressure = consciousnessState.networkPressure;
     const corruptionBias = Math.min(1, avgCorruption * 1.2);
     const pulsePhase = Math.sin(this.time * 0.72 + pressure * Math.PI * 1.5);
     const ritualIntensity = this.ritualState.intensity;
-    const monumentScale = 1 + avgStability * 0.1 * this.config.intensity + pressure * 0.07 + ritualIntensity * 0.1;
-    const pulseScale = 1 + pulsePhase * 0.04 * (0.45 + networkMood * 0.45) * this.config.intensity;
-    const shellOpacity = Math.min(0.11, (0.01 + avgStability * 0.01 + pressure * 0.01) * this.config.intensity + Math.abs(pulsePhase) * 0.006 * this.config.intensity + ritualIntensity * 0.035);
+    const monumentScale = 1 + avgStability * 0.1 * this.config.intensity + pressure * 0.07 + ritualIntensity * 0.1 + consciousnessState.heroIntensity * 0.08;
+    const pulseScale = 1 + pulsePhase * 0.04 * (0.45 + networkMood * 0.45 + consciousnessState.trafficIntensity * 0.15) * this.config.intensity;
+    const shellOpacity = Math.min(0.16, (0.01 + avgStability * 0.01 + pressure * 0.012 + consciousnessState.patternDensity * 0.01) * this.config.intensity + Math.abs(pulsePhase) * 0.006 * this.config.intensity + ritualIntensity * 0.04 + consciousnessState.heroIntensity * 0.02);
 
     this.globalFieldMesh.scale.setScalar(monumentScale * pulseScale);
     if (this.globalFieldEdge) {
-      this.globalFieldEdge.scale.setScalar(monumentScale * (1.05 + ritualIntensity * 0.05));
+      this.globalFieldEdge.scale.setScalar(monumentScale * (1.05 + ritualIntensity * 0.05 + consciousnessState.heroIntensity * 0.04));
     }
 
     const calm = new THREE.Color(0x6DEAFF);
@@ -1565,12 +1855,12 @@ export class AIConsciousnessLayer {
       );
       this.globalFieldChoir.material.color.copy(choirColor);
       this.globalFieldChoir.material.opacity = Math.min(
-        0.2,
-        0.04 + networkMood * 0.05 + pressure * 0.04 + ritualIntensity * 0.08 + Math.abs(pulsePhase) * 0.018
+        0.24,
+        0.04 + networkMood * 0.05 + pressure * 0.04 + ritualIntensity * 0.08 + Math.abs(pulsePhase) * 0.018 + consciousnessState.patternDensity * 0.04
       );
-      this.globalFieldChoir.rotation.y += visualDelta * (0.04 + networkMood * 0.06 + ritualIntensity * 0.18);
-      this.globalFieldChoir.rotation.x = Math.sin(this.time * 0.14 + pressure) * 0.12 * (0.4 + ritualIntensity);
-      const choirScale = monumentScale * (0.98 + networkMood * 0.04 + ritualIntensity * 0.08);
+      this.globalFieldChoir.rotation.y += visualDelta * (0.04 + networkMood * 0.06 + ritualIntensity * 0.18 + consciousnessState.heroIntensity * 0.04);
+      this.globalFieldChoir.rotation.x = Math.sin(this.time * 0.14 + pressure) * 0.12 * (0.4 + ritualIntensity + consciousnessState.patternDensity * 0.5);
+      const choirScale = monumentScale * (0.98 + networkMood * 0.04 + ritualIntensity * 0.08 + consciousnessState.heroIntensity * 0.05);
       this.globalFieldChoir.scale.setScalar(choirScale);
     }
 
@@ -1607,8 +1897,8 @@ export class AIConsciousnessLayer {
       }
       this.ritualFieldWitness.geometry.attributes.position.needsUpdate = true;
       this.ritualFieldWitness.material.color.copy(this.ritualState.palette.accent);
-      this.ritualFieldWitness.material.opacity = Math.min(0.42, ritualIntensity * 0.3 + pressure * 0.05);
-      this.ritualFieldWitness.material.size = 0.22 + ritualIntensity * 0.22;
+      this.ritualFieldWitness.material.opacity = Math.min(0.48, ritualIntensity * 0.3 + pressure * 0.05 + consciousnessState.heroIntensity * 0.08);
+      this.ritualFieldWitness.material.size = 0.22 + ritualIntensity * 0.22 + consciousnessState.patternDensity * 0.05;
     }
   }
   
@@ -1627,8 +1917,9 @@ export class AIConsciousnessLayer {
       metrics: this._computeLinkSpawnMetrics(link)
     }));
 
+    const state = this.consciousnessState || {};
     const ritualBudgetBoost = 1 + this.ritualState.intensity * 0.6;
-    const threadBudget = Math.max(1, Math.ceil(this.config.intensity * 1.2 * ritualBudgetBoost));
+    const threadBudget = Math.max(1, Math.ceil(this.config.intensity * 1.1 * ritualBudgetBoost * (0.82 + this._clamp01(state.networkHealth ?? 0.5) * 0.42 + this._clamp01(state.heroIntensity ?? 0.5) * 0.28)));
     const threadSelection = metrics
       .filter(({link, metrics: metric}) => !this.activeThoughts.threadMeshes.has(link.id))
       .map(({link, metrics: metric}) => ({link, weight: metric.threadProb}));
@@ -1638,7 +1929,7 @@ export class AIConsciousnessLayer {
       const chosen = this._pickWeightedLink(threadSelection, usedThread);
       if (!chosen) break;
       const spawnState = this._getLinkSpawnState(chosen);
-      const threadGap = Math.max(0.7, 1.4 - this.config.intensity * 0.8);
+      const threadGap = Math.max(0.5, 1.4 - this.config.intensity * 0.8 - this._clamp01(state.heroIntensity ?? 0.5) * 0.24);
       if (this.time - spawnState.lastThread >= threadGap) {
         this._createNeuralThread(chosen);
         spawnState.lastThread = this.time;
@@ -1646,7 +1937,7 @@ export class AIConsciousnessLayer {
       usedThread.add(chosen.id);
     }
 
-    const pulseBudget = Math.max(1, Math.ceil(this.config.particleDensity * (2 + this.ritualState.intensity * 1.8)));
+    const pulseBudget = Math.max(1, Math.ceil(this.config.particleDensity * (2 + this.ritualState.intensity * 1.6 + this._clamp01(state.trafficIntensity ?? 0) * 1.2 + this._clamp01(state.heroIntensity ?? 0.5) * 0.4)));
     const pulseSelection = [];
     for (const {link, metrics: metric} of metrics) {
       pulseSelection.push({link, weight: metric.pulseWeight});
@@ -1657,7 +1948,7 @@ export class AIConsciousnessLayer {
       const chosen = this._pickWeightedLink(pulseSelection, usedPulse);
       if (!chosen) break;
       const spawnState = this._getLinkSpawnState(chosen);
-      const pulseGap = Math.max(0.55, 1.1 - this.config.particleDensity * 0.6 - this.config.intensity * 0.2);
+      const pulseGap = Math.max(0.42, 1.1 - this.config.particleDensity * 0.6 - this.config.intensity * 0.2 - this._clamp01(state.trafficIntensity ?? 0) * 0.18);
       if (this.time - spawnState.lastPulse >= pulseGap) {
         this._spawnPulsePacket(chosen);
         spawnState.lastPulse = this.time;
@@ -1665,7 +1956,7 @@ export class AIConsciousnessLayer {
       usedPulse.add(chosen.id);
     }
 
-    const patternBudget = Math.max(0, Math.floor(this.config.particleDensity * (0.6 + this.ritualState.intensity * 0.9)));
+    const patternBudget = Math.max(0, Math.floor(this.config.particleDensity * (0.45 + this.ritualState.intensity * 0.85 + this._clamp01(state.patternDensity ?? 0) * 1.5 + this._clamp01(state.heroIntensity ?? 0.5) * 0.2)));
     const patternSelection = metrics
       .filter(({link, metrics: metric}) => !this.activeThoughts.patternClusters.has(link.id))
       .map(({link, metrics: metric}) => ({link, weight: metric.patternProb}));
@@ -1675,7 +1966,7 @@ export class AIConsciousnessLayer {
       const chosen = this._pickWeightedLink(patternSelection, usedPattern);
       if (!chosen) break;
       const spawnState = this._getLinkSpawnState(chosen);
-      const patternGap = Math.max(1.5, 2.8 - this.config.intensity * 0.9);
+      const patternGap = Math.max(1.1, 2.8 - this.config.intensity * 0.9 - this._clamp01(state.patternDensity ?? 0) * 0.5);
       if (this.time - spawnState.lastPattern >= patternGap) {
         this._createSemanticPattern(chosen);
         spawnState.lastPattern = this.time;
@@ -1763,9 +2054,11 @@ export class AIConsciousnessLayer {
     const stormsLoaded = !!this.storms;
     const stormActive = this.storms?.stormState?.activeStorm || 'none';
     const stormMood = this.storms?.stormState?.currentMood || 'n/a';
+    const state = this.consciousnessState || {};
 
     console.log('%c=== AI CONSCIOUSNESS LAYER 2.0 DEBUG ===', 'color: #00ffff; font-weight: bold;');
     console.log(`Status: ${this.config.enabled ? '🟢 ENABLED' : '🔴 DISABLED'} | Intensity: ${this.config.intensity.toFixed(2)} | Density: ${this.config.particleDensity.toFixed(2)}`);
+    console.log(`Mood: ${state.networkMood || 'CALM'} | Hero Phase: ${state.heroPhase || 'LISTENING'} | Health: ${(state.networkHealth ?? 0).toFixed(2)} | Traffic: ${(state.trafficIntensity ?? 0).toFixed(2)} | Ritual: ${(state.ritualIntensity ?? 0).toFixed(2)} | Patterns: ${(state.patternDensity ?? 0).toFixed(2)}`);
     console.log(`Threads: ${this.stats.threadsActive} | Pulses: ${this.stats.pulsesActive} | Patterns: ${this.stats.patternsActive}`);
     console.log(`Global Field: ${fieldVisible} (${edgeVisible}) | opacity=${fieldOpacity} | scale=${fieldScale}`);
     console.log(`Storms: ${this.config.stormsEnabled ? 'ENABLED' : 'DISABLED'} | loaded=${stormsLoaded} | active=${stormActive} | mood=${stormMood}`);
@@ -1911,6 +2204,9 @@ export function setupAIConsciousnessConsoleAPI(consciousnessLayer) {
     status: () => {
       console.log('%c--- AI CONSCIOUSNESS 2.0 STATUS ---', 'color: #00ffff');
       console.log(`Enabled: ${consciousnessLayer.config.enabled}`);
+      const state = consciousnessLayer.getConsciousnessState?.() || {};
+      console.log(`Mood: ${state.networkMood || 'CALM'} | Hero Phase: ${state.heroPhase || 'LISTENING'}`);
+      console.log(`Health: ${(state.networkHealth ?? 0).toFixed(2)} | Traffic: ${(state.trafficIntensity ?? 0).toFixed(2)} | Ritual: ${(state.ritualIntensity ?? 0).toFixed(2)} | Patterns: ${(state.patternDensity ?? 0).toFixed(2)}`);
       console.log(`Threads: ${consciousnessLayer.stats.threadsActive}`);
       console.log(`Pulses: ${consciousnessLayer.stats.pulsesActive}`);
       console.log(`Patterns: ${consciousnessLayer.stats.patternsActive}`);

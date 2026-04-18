@@ -1679,7 +1679,12 @@ class SemanticEventBus {
             ['metric:harmonyPeak', { cooldownMs: 150, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
             ['metric:stabilityDrop', { cooldownMs: 120, aggregateWithinMs: 240, aggregationStrategy: 'latest' }],
             ['metric:corruptionRise', { cooldownMs: 120, aggregateWithinMs: 240, aggregationStrategy: 'latest' }],
-            ['metric:loadPressureHigh', { cooldownMs: 180, aggregateWithinMs: 320, aggregationStrategy: 'latest' }]
+            ['metric:loadPressureHigh', { cooldownMs: 180, aggregateWithinMs: 320, aggregationStrategy: 'latest' }],
+
+            // Dramaturgy engine events (P1.4 — 3-phase event lifecycle)
+            ['dramaturgy.sequence.start', { cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
+            ['dramaturgy.sequence.end', { cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
+            ['dramaturgy.phase', { cooldownMs: 50, aggregateWithinMs: 50, aggregationStrategy: 'latest' }]
         ]);
         this.cooldownMap = new Map();
         // Phase E.3: aggregation buffers keyed by semantic tag
@@ -5956,6 +5961,7 @@ this.setHudDirty('nodeInspect');
                 coreMetricsOverlay: this.coreMetricsOverlay,
                 semanticBus: this.semanticBus,
                 player: this.player,
+                audioSystem: this.audioSystem || null,
                 synergyMap: this.synergyMap || {},
                 trafficMap: this.trafficMap || {}
             }
@@ -8085,6 +8091,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 coreMetricsOverlay: this.coreMetricsOverlay,
                 semanticBus: this.semanticBus,
                 player: this.player,
+                audioSystem: this.audioSystem || null,
                 synergyMap: this.synergyMap || {},
                 trafficMap: this.trafficMap || {}
             }
@@ -10370,7 +10377,12 @@ window.__ATOMA_SCENE__ = this.scene;
             this.advancedShaderFX = new PersonalityShaderAdvancedFX_v1({
                 scene: this.scene,
                 lowFXProvider: () => this.lowFXModeEnabled ?? false,
+                gameProvider: () => this,
             });
+            if (this.aiNodes) {
+                this.aiNodes.advancedShaderFX = this.advancedShaderFX;
+            }
+            this.aiNodes?.registerAdvancedShaderFXNodes?.();
             console.log('[main.js] AdvancedFX initialized ✓');
         } catch (err) {
             console.warn('[main.js] AdvancedFX init error:', err);
@@ -17315,6 +17327,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.aiNodes,
                 this.glyphLayer4
             );
+            this.aiConsciousnessLayer = this.consciousnessLayer;
 
             // Initialize Emergent Thought Storms 2.0 as sub-system
             try {

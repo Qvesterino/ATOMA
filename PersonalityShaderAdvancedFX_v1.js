@@ -36,6 +36,13 @@ export class PersonalityShaderAdvancedFX_v1 {
     this.enabled = options.enabled !== false;
     this.lowFXMode = options.lowFXMode === true;
     this.updateFrequency = options.updateFrequency || 1; // Update every N frames
+    this.gameProvider = typeof options.gameProvider === 'function'
+      ? options.gameProvider
+      : () => globalThis?.window?.game || globalThis?.game || null;
+    this.stateGateThresholds = {
+      resonance: options.resonanceGateThreshold ?? 0.72,
+      corruption: options.corruptionGateThreshold ?? 0.45,
+    };
     
     // Material registry (for onBeforeCompile hooking)
     this.materials = new Map();
@@ -52,6 +59,44 @@ export class PersonalityShaderAdvancedFX_v1 {
       distortion: this._buildDistortionCode(),
       fragNoise: this._buildFragmentNoiseCode(),
     };
+  }
+
+  _getGame() {
+    try {
+      return this.gameProvider?.() || null;
+    } catch {
+      return null;
+    }
+  }
+
+  _firstFinite(...values) {
+    for (const value of values) {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  _getAdvancedUniforms(material) {
+    material.userData = material.userData || {};
+    if (!material.userData.advancedFXUniforms) {
+      material.userData.advancedFXUniforms = {
+        uSynergy: { value: 0.0 },
+        uHarmony: { value: 0.0 },
+        uCorruption: { value: 0.0 },
+        uStability: { value: 0.0 },
+        uLoadPressure: { value: 0.0 },
+        uQuality: { value: 0.0 },
+        uTime: { value: 0.0 },
+        uLowFXMode: { value: 0.0 },
+        uEntropy: { value: 0.0 },
+        uFocus: { value: 0.0 },
+        uEnergy: { value: 0.0 },
+        uResonance: { value: 0.0 },
+      };
+    }
+    return material.userData.advancedFXUniforms;
   }
 
   /**
@@ -202,9 +247,13 @@ export class PersonalityShaderAdvancedFX_v1 {
     material[ADVANCED_FX_PATCHED] = true;
 
     const originalOnBeforeCompile = material.onBeforeCompile;
+    material.userData = material.userData || {};
+    material.userData.__advancedFXOriginalOnBeforeCompile = originalOnBeforeCompile || null;
     
     const self = this;
     material.onBeforeCompile = function(shader) {
+      const advancedFXUniforms = self._getAdvancedUniforms(material);
+
       // Call original hook if it exists
       if (originalOnBeforeCompile) {
         originalOnBeforeCompile.call(this, shader);
@@ -240,20 +289,8 @@ export class PersonalityShaderAdvancedFX_v1 {
         `
       );
 
-      // Add uniforms for personality signals (graceful fallback if not present)
       shader.uniforms = shader.uniforms || {};
-      shader.uniforms.uSynergy = { value: 0.0 };
-      shader.uniforms.uHarmony = { value: 0.0 };
-      shader.uniforms.uCorruption = { value: 0.0 };
-      shader.uniforms.uStability = { value: 0.0 };
-      shader.uniforms.uLoadPressure = { value: 0.0 };
-      shader.uniforms.uQuality = { value: 1.0 };
-      shader.uniforms.uTime = { value: 0.0 };
-      shader.uniforms.uLowFXMode = { value: 0.0 };
-      shader.uniforms.uEntropy = shader.uniforms.uEntropy || { value: 0.0 };
-      shader.uniforms.uFocus = shader.uniforms.uFocus || { value: 0.0 };
-      shader.uniforms.uEnergy = shader.uniforms.uEnergy || { value: 0.0 };
-      shader.uniforms.uResonance = shader.uniforms.uResonance || { value: 0.0 };
+      Object.assign(shader.uniforms, advancedFXUniforms);
     };
   }
 
@@ -264,22 +301,46 @@ export class PersonalityShaderAdvancedFX_v1 {
   _getDistortionLogic(profile) {
     switch (profile) {
       case 'chaos':
-        return `distortedPos = chaosDistortion(position, max(uLoadPressure, uCorruption), uTime) * mix(1.0, 0.75, uLowFXMode) * uQuality;`;
+        return `
+          vec3 fxPos = chaosDistortion(position, max(uLoadPressure, uCorruption), uTime);
+          float fxMix = clamp((1.0 - uLowFXMode * 0.25) * uQuality * 0.75, 0.0, 1.0);
+          distortedPos = mix(position, fxPos, fxMix);
+        `;
       
       case 'energy':
-        return `distortedPos = energyRipple(position, uSynergy, uTime) * mix(1.0, 0.6, uLowFXMode) * uQuality;`;
+        return `
+          vec3 fxPos = energyRipple(position, uSynergy, uTime);
+          float fxMix = clamp((1.0 - uLowFXMode * 0.4) * uQuality * 0.6, 0.0, 1.0);
+          distortedPos = mix(position, fxPos, fxMix);
+        `;
       
       case 'resonance':
-        return `distortedPos = resonanceBands(position, uHarmony, uTime) * mix(1.0, 0.5, uLowFXMode) * uQuality;`;
+        return `
+          vec3 fxPos = resonanceBands(position, uHarmony, uTime);
+          float fxMix = clamp((1.0 - uLowFXMode * 0.5) * uQuality * 0.5, 0.0, 1.0);
+          distortedPos = mix(position, fxPos, fxMix);
+        `;
       
       case 'focus':
-        return `distortedPos = focusWarp(position, uStability, uTime) * mix(1.0, 0.4, uLowFXMode) * uQuality;`;
+        return `
+          vec3 fxPos = focusWarp(position, uStability, uTime);
+          float fxMix = clamp((1.0 - uLowFXMode * 0.6) * uQuality * 0.4, 0.0, 1.0);
+          distortedPos = mix(position, fxPos, fxMix);
+        `;
       
       case 'corruption':
-        return `distortedPos = corruptionFracture(position, uCorruption, uTime) * mix(1.0, 0.3, uLowFXMode) * uQuality;`;
+        return `
+          vec3 fxPos = corruptionFracture(position, uCorruption, uTime);
+          float fxMix = clamp((1.0 - uLowFXMode * 0.7) * uQuality * 0.3, 0.0, 1.0);
+          distortedPos = mix(position, fxPos, fxMix);
+        `;
       
       case 'link_flux':
-        return `distortedPos = energyRipple(position, uSynergy * 0.75 + uLoadPressure * 0.25, uTime) * uQuality * (1.0 - uLowFXMode * 0.5);`;
+        return `
+          vec3 fxPos = energyRipple(position, uSynergy * 0.75 + uLoadPressure * 0.25, uTime);
+          float fxMix = clamp(uQuality * (1.0 - uLowFXMode * 0.5) * 0.55, 0.0, 1.0);
+          distortedPos = mix(position, fxPos, fxMix);
+        `;
       
       default:
         // Blend multiple effects using current metric signals
@@ -287,9 +348,180 @@ export class PersonalityShaderAdvancedFX_v1 {
           vec3 d1 = chaosDistortion(position, max(uLoadPressure, uCorruption), uTime);
           vec3 d2 = energyRipple(position, uSynergy, uTime);
           vec3 d3 = resonanceBands(position, uHarmony, uTime);
-          distortedPos = mix(d1, mix(d2, d3, 0.5), 0.33) * uQuality * (1.0 - uLowFXMode * 0.7);
+          vec3 blended = mix(d1, mix(d2, d3, 0.5), 0.33);
+          float fxMix = clamp(uQuality * (1.0 - uLowFXMode * 0.35) * 0.6, 0.0, 1.0);
+          distortedPos = mix(position, blended, fxMix);
         `;
     }
+  }
+
+  _getInspectedNode(game) {
+    const overlay = game?.nodeInspectOverlay;
+    if (!overlay) {
+      return null;
+    }
+    if (typeof overlay.getCurrentNode === 'function') {
+      return overlay.getCurrentNode();
+    }
+    return overlay.currentNode || null;
+  }
+
+  _isSelectedNode(game, node) {
+    return (
+      game?.selectionCore?.selectedNode === node ||
+      game?.selectionCore?.primaryNode === node ||
+      game?.linkingSystem?.selectedNode === node ||
+      game?.nodeLinking?.selectedNode === node ||
+      game?.selectedNode === node
+    );
+  }
+
+  _normalizeExternalSignals(personalitySignals = {}) {
+    return {
+      synergy: this._clamp01(personalitySignals.synergy ?? 0),
+      harmony: this._clamp01(personalitySignals.harmony ?? 0),
+      corruption: this._clamp01(personalitySignals.corruption ?? 0),
+      stability: this._clamp01(personalitySignals.stability ?? 0),
+      loadPressure: this._clamp01(personalitySignals.loadPressure ?? personalitySignals.aLoadPressure ?? 0),
+      resonance: this._clamp01(personalitySignals.resonance ?? personalitySignals.harmony ?? 0),
+      entropy: this._clamp01(personalitySignals.entropy ?? personalitySignals.corruption ?? 0),
+      focus: this._clamp01(personalitySignals.focus ?? personalitySignals.stability ?? 0),
+      energy: this._clamp01(personalitySignals.energy ?? personalitySignals.synergy ?? 0),
+      selected: false,
+      inspected: false,
+      corrupted: false,
+      highResonance: false,
+    };
+  }
+
+  _getNodeSignals(node, game = null) {
+    const userData = node?.userData || {};
+    const metrics = userData.visualMetrics || userData.metrics || {};
+    const personalityVisual = userData.personalityVisual || {};
+    const resonanceFeedback = userData.resonanceFeedback || {};
+
+    const synergy = this._clamp01(this._firstFinite(
+      userData.visualSynergyGlowIntensity,
+      userData.synergy?.synergyNorm,
+      userData.synergy?.score,
+      metrics.synergyNorm,
+      metrics.synergy,
+      metrics.networkSynergy,
+      0
+    ) ?? 0);
+    const harmony = this._clamp01(this._firstFinite(
+      userData.visualHarmonyAuraStrength,
+      userData.harmonyAuraStrength,
+      metrics.harmonyNorm,
+      metrics.harmony,
+      resonanceFeedback.localResonance,
+      0
+    ) ?? 0);
+    const stability = this._clamp01(this._firstFinite(
+      userData.visualIntegrityHealth,
+      metrics.stabilityNorm,
+      metrics.stability,
+      metrics.integrity,
+      0.5
+    ) ?? 0.5);
+    const corruption = this._clamp01(this._firstFinite(
+      userData.visualCorruptionIntensity,
+      userData.corruptionLevel,
+      metrics.corruptionNorm,
+      metrics.corruption,
+      personalityVisual.corruptionSignal,
+      0
+    ) ?? 0);
+    const loadPressure = this._clamp01(this._firstFinite(
+      metrics.loadPressure,
+      metrics.loadNorm,
+      metrics.load,
+      metrics.loadRatio,
+      metrics.pressure,
+      0
+    ) ?? 0);
+    const resonance = this._clamp01(this._firstFinite(
+      personalityVisual.resonanceBoost,
+      resonanceFeedback.localResonance,
+      harmony,
+      synergy,
+      0
+    ) ?? 0);
+    const entropy = this._clamp01(this._firstFinite(
+      personalityVisual.entropyPenalty,
+      corruption,
+      0
+    ) ?? 0);
+    const focus = this._clamp01(this._firstFinite(
+      personalityVisual.focusShift,
+      stability,
+      0
+    ) ?? 0);
+    const energy = this._clamp01(this._firstFinite(
+      personalityVisual.energy,
+      metrics.energyNorm,
+      synergy,
+      0
+    ) ?? 0);
+
+    const explicitCorrupted =
+      userData?.gameplay?.isCorrupted === true ||
+      userData?.visualState?.isCorrupted === true ||
+      userData?.corrupted === true;
+    const selected = this._isSelectedNode(game, node);
+    const inspected = this._getInspectedNode(game) === node;
+    const corrupted = explicitCorrupted || corruption >= this.stateGateThresholds.corruption;
+    const highResonance = resonance >= this.stateGateThresholds.resonance;
+
+    return {
+      synergy,
+      harmony,
+      corruption,
+      stability,
+      loadPressure,
+      resonance,
+      entropy,
+      focus,
+      energy,
+      selected,
+      inspected,
+      corrupted,
+      highResonance,
+    };
+  }
+
+  _hasExternalSignals(signals) {
+    return (
+      signals.synergy > 0.01 ||
+      signals.harmony > 0.01 ||
+      signals.corruption > 0.01 ||
+      signals.loadPressure > 0.01 ||
+      signals.resonance > 0.01
+    );
+  }
+
+  _shouldApplyNodeFX(nodeSignals) {
+    return !!(
+      nodeSignals.selected ||
+      nodeSignals.inspected ||
+      nodeSignals.corrupted ||
+      nodeSignals.highResonance
+    );
+  }
+
+  _getMaterialQuality(entry, nodeSignals) {
+    const roleScale = entry.materialRole === 'shell' ? 0.68 : 1.0;
+    let stateScale = 0.0;
+
+    if (nodeSignals.selected || nodeSignals.inspected) {
+      stateScale = 1.0;
+    } else if (nodeSignals.corrupted) {
+      stateScale = 0.92;
+    } else if (nodeSignals.highResonance) {
+      stateScale = 0.82;
+    }
+
+    return this._clamp01(this.qualityScale * roleScale * stateScale);
   }
 
   /**
@@ -300,20 +532,32 @@ export class PersonalityShaderAdvancedFX_v1 {
    * - Instance-level guard (this.materials.has): Fast check for this system instance
    * - Material-level guard (ADVANCED_FX_PATCHED Symbol): Authoritative, survives re-initialization
    */
-  register(material, profile = 'default') {
-    if (!material || !material.onBeforeCompile !== undefined) {
+  register(material, profile = 'default', options = {}) {
+    if (!material || typeof material !== 'object') {
       console.warn('[AdvancedFX] Invalid material object');
       return false;
     }
 
     // Instance-level guard (fast check)
     if (this.materials.has(material)) {
+      const existing = this.materials.get(material);
+      if (existing && options && typeof options === 'object') {
+        existing.ownerNode = options.ownerNode ?? existing.ownerNode ?? null;
+        existing.ownerId = options.ownerId ?? existing.ownerId ?? existing.ownerNode?.userData?.nodeId ?? existing.ownerNode?.uuid ?? null;
+        existing.materialRole = options.materialRole ?? existing.materialRole ?? 'unknown';
+      }
       return true; // Already registered in this instance
     }
 
+    const registrationOptions = options && typeof options === 'object' ? options : {};
     this._createShaderHook(material, profile);
-    this.materials.set(material, profile);
-    this.materialHooks.set(material, material.onBeforeCompile);
+    this.materials.set(material, {
+      profile,
+      ownerNode: registrationOptions.ownerNode ?? null,
+      ownerId: registrationOptions.ownerId ?? registrationOptions.ownerNode?.userData?.nodeId ?? registrationOptions.ownerNode?.uuid ?? null,
+      materialRole: registrationOptions.materialRole ?? 'unknown',
+    });
+    this.materialHooks.set(material, material.userData?.__advancedFXOriginalOnBeforeCompile ?? null);
 
     return true;
   }
@@ -369,18 +613,33 @@ export class PersonalityShaderAdvancedFX_v1 {
     const loadPressure = personalitySignals.loadPressure ?? personalitySignals.aLoadPressure ?? 0.0;
     const quality = personalitySignals.quality ?? this.qualityScale;
 
+    const game = this._getGame();
+
     // Update uniforms for all registered materials
-    this.materials.forEach((profile, material) => {
-      if (material.uniforms) {
-        material.uniforms.uSynergy.value = synergy;
-        material.uniforms.uHarmony.value = harmony;
-        material.uniforms.uCorruption.value = corruption;
-        material.uniforms.uStability.value = stability;
-        material.uniforms.uLoadPressure.value = loadPressure;
-        material.uniforms.uQuality.value = quality;
-        material.uniforms.uTime.value = currentVisualTime;
-        material.uniforms.uLowFXMode.value = this.lowFXMode ? 1.0 : 0.0;
-      }
+    this.materials.forEach((entry, material) => {
+      const uniforms = this._getAdvancedUniforms(material);
+      const nodeSignals = entry?.ownerNode
+        ? this._getNodeSignals(entry.ownerNode, game)
+        : this._normalizeExternalSignals(personalitySignals);
+      const shouldApply = entry?.ownerNode
+        ? this._shouldApplyNodeFX(nodeSignals)
+        : this._hasExternalSignals(nodeSignals);
+      const materialQuality = entry?.ownerNode
+        ? this._getMaterialQuality(entry, nodeSignals)
+        : this._clamp01(quality);
+
+      uniforms.uSynergy.value = entry?.ownerNode ? nodeSignals.synergy : synergy;
+      uniforms.uHarmony.value = entry?.ownerNode ? nodeSignals.harmony : harmony;
+      uniforms.uCorruption.value = entry?.ownerNode ? nodeSignals.corruption : corruption;
+      uniforms.uStability.value = entry?.ownerNode ? nodeSignals.stability : stability;
+      uniforms.uLoadPressure.value = entry?.ownerNode ? nodeSignals.loadPressure : loadPressure;
+      uniforms.uQuality.value = shouldApply ? materialQuality : 0.0;
+      uniforms.uTime.value = currentVisualTime;
+      uniforms.uLowFXMode.value = this.lowFXMode ? 1.0 : 0.0;
+      uniforms.uEntropy.value = nodeSignals.entropy;
+      uniforms.uFocus.value = nodeSignals.focus;
+      uniforms.uEnergy.value = nodeSignals.energy;
+      uniforms.uResonance.value = nodeSignals.resonance;
     });
   }
 

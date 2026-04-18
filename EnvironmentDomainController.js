@@ -1,5 +1,6 @@
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { EnvironmentEventCoordinator } from './EnvironmentEventCoordinator.js';
+import { EventDramaturgyEngine, installDramaturgyDebugAPI } from './EventDramaturgyEngine.js';
 
 // Central environment/world VFX catalog.
 // Not every listed system is EnvironmentDomainController-owned at runtime;
@@ -199,6 +200,15 @@ export const ENVIRONMENT_VFX_REGISTRY = Object.freeze({
     )
   ]),
   support: Object.freeze([
+    describeEnvironmentVfx(
+      'EventDramaturgyEngine',
+      '3-phase event lifecycle engine (telegraph → escalation → payoff) for cascade, corruption, resonance, ritual, and hazard events.',
+      'EnvironmentDomainController',
+      'active-domain-owned-support',
+      ['cascade.start', 'cascade.end', 'network:corruptionSpread', 'event:harmonyResonance', 'semantic.ritual.started', 'semantic.ritual.completed', 'environment.hazard.active', 'dramaturgy.phase'],
+      'INTERNAL_SUPPORT',
+      'visual'
+    ),
     describeEnvironmentVfx(
       'EnvironmentEventCoordinator',
       'Support coordinator that arbitrates event ownership and sequencing between environment systems.',
@@ -572,6 +582,17 @@ export class EnvironmentDomainController {
       }
     }
 
+    // Event Dramaturgy Engine — 3-phase event lifecycle (telegraph → escalation → payoff)
+    this.instances.eventDramaturgy =
+      new EventDramaturgyEngine({
+        semanticBus: d.semanticBus,
+        camera: d.camera,
+        audioSystem: d.audioSystem || null,
+        environmentDomain: this
+      });
+    this.instances.eventDramaturgy.init();
+    installDramaturgyDebugAPI(this.instances.eventDramaturgy);
+
     this._applyRenderLayerPolicies();
   }
 
@@ -670,6 +691,7 @@ export class EnvironmentDomainController {
     if (!this.frameScheduler) return;
 
     const DREAM_DEPTH_KEYS = new Set(['safeDreamDepthPack', 'dreamDepthEffectManager']);
+    const SKIP_UPDATE_KEYS = new Set([...DREAM_DEPTH_KEYS, 'eventDramaturgy']);
 
     this.frameScheduler.register(
       'visual',
@@ -707,12 +729,17 @@ export class EnvironmentDomainController {
             return;
           }
 
-          if (DREAM_DEPTH_KEYS.has(key)) return;
+          if (SKIP_UPDATE_KEYS.has(key)) return;
 
           sys.update(dt);
         });
 
         this._updateDreamDepthPair(dt, worldSystems);
+
+        // Event Dramaturgy Engine — 3-phase lifecycle tick (visual lane)
+        if (this.instances.eventDramaturgy) {
+          this.instances.eventDramaturgy.update(dt);
+        }
       },
       this.schedulerId
     );

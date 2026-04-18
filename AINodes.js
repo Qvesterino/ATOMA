@@ -3869,6 +3869,148 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     return root;
   }
 
+  _getPersonalityAdvancedFXRuntime() {
+    if (this.advancedShaderFX?.register) {
+      return this.advancedShaderFX;
+    }
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    return window.game?.advancedShaderFX || null;
+  }
+
+  _getPersonalityAdvancedFXProfile(node) {
+    const category = String(node?.userData?.category || '').toLowerCase().trim();
+    switch (category) {
+      case 'control':
+        return 'focus';
+      case 'integration':
+        return 'resonance';
+      case 'sigma':
+      case 'error':
+        return 'chaos';
+      case 'emotional':
+        return 'energy';
+      case 'corrupted':
+      case 'corrupted_node':
+        return 'corruption';
+      default:
+        return 'default';
+    }
+  }
+
+  _replaceMeshMaterial(mesh, originalMaterial, nextMaterial) {
+    if (!mesh) return;
+    if (mesh.material === originalMaterial) {
+      mesh.material = nextMaterial;
+      return;
+    }
+    if (Array.isArray(mesh.material)) {
+      mesh.material = mesh.material.map((material) =>
+        material === originalMaterial ? nextMaterial : material
+      );
+    }
+  }
+
+  _ensurePersonalityFXMaterialOwnership(mesh, material, ownerNodeId) {
+    if (!material || typeof material !== 'object') {
+      return null;
+    }
+
+    material.userData = material.userData || {};
+    const existingOwnerId = material.userData.__advancedFXOwnerNodeId || null;
+    const needsClone = material.userData.sharedCore === true || (existingOwnerId && existingOwnerId !== ownerNodeId);
+
+    let nextMaterial = material;
+    if (needsClone && typeof material.clone === 'function') {
+      nextMaterial = material.clone();
+      nextMaterial.userData = { ...(material.userData || {}) };
+      delete nextMaterial.userData.__advancedFXOwnerNodeId;
+      nextMaterial.needsUpdate = true;
+      this._replaceMeshMaterial(mesh, material, nextMaterial);
+    }
+
+    nextMaterial.userData = nextMaterial.userData || {};
+    nextMaterial.userData.__advancedFXOwnerNodeId = ownerNodeId;
+    return nextMaterial;
+  }
+
+  _collectPersonalityFXTargets(node) {
+    const root = node?.userData?.nodeRoot || node;
+    const targets = [];
+    const seenMeshes = new Set();
+    const pushMesh = (mesh, materialRole) => {
+      if (!mesh?.isMesh || seenMeshes.has(mesh)) {
+        return;
+      }
+      seenMeshes.add(mesh);
+      targets.push({ mesh, materialRole });
+    };
+
+    pushMesh(node?.userData?.coreMesh, 'core');
+    pushMesh(node?.userData?.linkTarget, 'core');
+
+    root?.traverse?.((child) => {
+      if (!child?.isMesh) return;
+      const userData = child.userData || {};
+      if (userData.isHologramShell === true || userData.visualLayer === 'CORE_SHELL') {
+        pushMesh(child, 'shell');
+        return;
+      }
+      if (userData.visualLayer === 'CORE' || userData.isCoreMesh === true || userData.isNodeCore === true) {
+        pushMesh(child, 'core');
+      }
+    });
+
+    return targets;
+  }
+
+  _registerNodePersonalityFX(node) {
+    const advancedShaderFX = this._getPersonalityAdvancedFXRuntime();
+    if (!advancedShaderFX?.register || node?.userData?.__nonRenderable === true) {
+      return 0;
+    }
+
+    const ownerNodeId = node.userData?.nodeId || node.userData?.id || node.uuid;
+    const profile = this._getPersonalityAdvancedFXProfile(node);
+    const targets = this._collectPersonalityFXTargets(node);
+    const seenMaterials = new Set();
+    let registeredCount = 0;
+
+    for (const target of targets) {
+      const materialRef = target.mesh?.material;
+      if (!materialRef) continue;
+      const materials = Array.isArray(materialRef) ? materialRef : [materialRef];
+      for (const material of materials) {
+        const ownedMaterial = this._ensurePersonalityFXMaterialOwnership(target.mesh, material, ownerNodeId);
+        if (!ownedMaterial || seenMaterials.has(ownedMaterial)) continue;
+        seenMaterials.add(ownedMaterial);
+        if (advancedShaderFX.register(ownedMaterial, profile, {
+          ownerNode: node,
+          ownerId: ownerNodeId,
+          materialRole: target.materialRole,
+        })) {
+          registeredCount++;
+        }
+      }
+    }
+
+    node.userData.__advancedFXRegistrationCount = registeredCount;
+    return registeredCount;
+  }
+
+  registerAdvancedShaderFXNodes(nodes = this.nodes) {
+    if (!Array.isArray(nodes) || nodes.length === 0) {
+      return 0;
+    }
+
+    let registeredCount = 0;
+    for (const node of nodes) {
+      registeredCount += this._registerNodePersonalityFX(node);
+    }
+    return registeredCount;
+  }
+
   /**
    * Canonical spawn finalizer: ensures visibility, scene attachment, and registration.
    * All spawn entrypoints must route through this to guarantee on-screen results.
@@ -4107,6 +4249,11 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         node.userData.category = src.userData.category;
       }
     }
+
+    if (!node.visualObject) {
+      node.visualObject = node.userData?.nodeRoot || node;
+    }
+    this._registerNodePersonalityFX(node);
 
     return { node, sceneAdded, renderableCount, badBoundsCount };
   }
