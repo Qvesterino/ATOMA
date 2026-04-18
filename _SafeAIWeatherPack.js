@@ -344,6 +344,16 @@ export class SafeAIWeatherPack {
       maxTtl: 0,
       moodHint: null
     };
+
+    // Dramaturgy modulation state — driven by EventDramaturgyEngine
+    this._dramaturgyModulation = {
+      active: false,
+      family: null,       // cascade | corruption | resonance | ritual | hazard
+      phase: null,        // telegraph | escalation | payoff
+      intensity: 0,       // 0-1
+      ttl: 0              // auto-decay when dramaturgy stops pushing
+    };
+
     this._setupResidueCoupling();
   }
 
@@ -586,6 +596,119 @@ export class SafeAIWeatherPack {
     this._residueCoupling.windBoost = 0;
     this._residueCoupling.maxTtl = 0;
     this._residueCoupling.moodHint = null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dramaturgy Modulation — Weather Awakening
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Receive dramaturgy state from EventDramaturgyEngine.
+   * Maps event families → weather mood states, phases → weather behavior.
+   *
+   * Family → Mood:
+   *   corruption  → stormBias      (charged storm envelope)
+   *   ritual      → ascensionHaze  (luminous ascension haze)
+   *   resonance   → resonance      (harmonic ribbon resonance)
+   *   hazard      → pressure       (compressed aurora tension)
+   *   cascade     → stormBias      (charged storm envelope)
+   *
+   * Phase → Behavior:
+   *   telegraph   → fog thickens, sky darkens, weather starts shifting
+   *   escalation  → weather peaks (storm, aurora, quantum rain)
+   *   payoff      → weather clears, calm transition
+   */
+  setDramaturgyModulation(state) {
+    if (!state || !state.dominantFamily) {
+      // Dramaturgy ended — let TTL decay handle graceful fade
+      return;
+    }
+
+    this._dramaturgyModulation.active = true;
+    this._dramaturgyModulation.family = state.dominantFamily;
+    this._dramaturgyModulation.phase = state.dominantPhase || 'telegraph';
+    this._dramaturgyModulation.intensity = state.dominantIntensity || 0;
+    this._dramaturgyModulation.ttl = 2.0; // Refresh TTL — 2s grace after dramaturgy stops
+  }
+
+  /**
+   * Map dramaturgy family → weather mood state.
+   */
+  _getDramaturgyMoodOverride() {
+    const mod = this._dramaturgyModulation;
+    if (!mod.active || mod.ttl <= 0) return null;
+
+    const FAMILY_TO_MOOD = {
+      corruption: 'stormBias',
+      ritual: 'ascensionHaze',
+      resonance: 'resonance',
+      hazard: 'pressure',
+      cascade: 'stormBias'
+    };
+
+    return FAMILY_TO_MOOD[mod.family] || null;
+  }
+
+  /**
+   * Get potential multiplier from dramaturgy phase.
+   * Telegraph: moderate boost to start shifting weather
+   * Escalation: maximum boost for peak weather
+   * Payoff: gentle — let weather naturally wind down
+   */
+  _getDramaturgyPotentialMultiplier() {
+    const mod = this._dramaturgyModulation;
+    if (!mod.active || mod.ttl <= 0) return 1.0;
+
+    switch (mod.phase) {
+      case 'telegraph':  return 0.7;
+      case 'escalation': return 1.0;
+      case 'payoff':     return 0.3;
+      default:           return 1.0;
+    }
+  }
+
+  /**
+   * Get intensity multiplier from dramaturgy phase.
+   * Telegraph: subdued — fog thickens, sky darkens
+   * Escalation: boosted — weather at full power
+   * Payoff: reduced — weather clears
+   */
+  _getDramaturgyIntensityMultiplier() {
+    const mod = this._dramaturgyModulation;
+    if (!mod.active || mod.ttl <= 0) return 1.0;
+
+    switch (mod.phase) {
+      case 'telegraph':  return 0.6;
+      case 'escalation': return 1.35;
+      case 'payoff':     return 0.4;
+      default:           return 1.0;
+    }
+  }
+
+  /**
+   * Should dramaturgy bypass the normal weather trigger gates?
+   * Active during telegraph and escalation phases.
+   */
+  _isDramaturgyOverrideActive() {
+    const mod = this._dramaturgyModulation;
+    return mod.active && mod.ttl > 0 && mod.phase !== 'payoff';
+  }
+
+  /**
+   * Decay dramaturgy modulation TTL when no longer receiving updates.
+   */
+  _decayDramaturgyModulation(deltaTime) {
+    const mod = this._dramaturgyModulation;
+    if (!mod.active) return;
+
+    mod.ttl -= deltaTime;
+    if (mod.ttl <= 0) {
+      mod.active = false;
+      mod.family = null;
+      mod.phase = null;
+      mod.intensity = 0;
+      mod.ttl = 0;
+    }
   }
 
   _resolveWeatherPalette(moodState) {
@@ -1006,6 +1129,7 @@ export class SafeAIWeatherPack {
     this.animationTime += deltaTime;
     this.windPhase += deltaTime;
     this._updateResidueCoupling(deltaTime);
+    this._decayDramaturgyModulation(deltaTime);
     
     // Phase B pilot: throttle interpretation/decisions to keep mood at ~4 Hz while visuals/motion stay 60 Hz
     this.interpretationAccumulator += deltaTime;
@@ -1048,12 +1172,22 @@ export class SafeAIWeatherPack {
     }
     
     // Skip if world event is active (weather yields to events)
-    if (worldEvents && worldEvents.isEventActive()) {
+    // EXCEPTION: dramaturgy override can bypass this gate
+    if (worldEvents && worldEvents.isEventActive() && !this._isDramaturgyOverrideActive()) {
       return;
     }
     
     // Calculate weather potential
     const potential = this.calculateWeatherPotential(legendaryPack, linkingSystem, evolutionManager);
+    
+    // Dramaturgy override: force weather trigger with mapped mood
+    if (this._isDramaturgyOverrideActive() && !this.registry.active) {
+      const overrideMood = this._getDramaturgyMoodOverride();
+      if (overrideMood && potential > 0.05) {
+        this.startWeather(overrideMood, legendaryPack, linkingSystem);
+        return;
+      }
+    }
     
     // Chance to trigger
     if (Math.random() < this.config.weatherChance * potential) {
@@ -1084,6 +1218,19 @@ export class SafeAIWeatherPack {
     });
 
     const averageSynergy = synergyCount > 0 ? totalSynergy / synergyCount : 0;
+    // Dramaturgy override: bypass synergy gate when events are active
+    if (this._isDramaturgyOverrideActive()) {
+      const dramPotential = this._getDramaturgyPotentialMultiplier() * 0.6;
+      // Still add legendary and traffic bonuses
+      let bonus = 0;
+      if (legendaryPack) {
+        bonus += Math.min(0.3, (legendaryPack.getActiveLegendaryCount?.() ?? 0) * 0.15);
+      }
+      const avgTraffic = links.length > 0 ? totalTraffic / links.length : 0;
+      bonus += Math.min(0.2, avgTraffic * 0.2);
+      return Math.min(1, dramPotential + bonus);
+    }
+
     if (averageSynergy < this.config.minSynergyForWeather) {
       return 0;
     }
@@ -1207,6 +1354,20 @@ export class SafeAIWeatherPack {
     const residueWeight = this._getResidueCouplingWeight();
     if (residueWeight > 0 && this._residueCoupling.moodHint && weights[this._residueCoupling.moodHint] !== undefined) {
       weights[this._residueCoupling.moodHint] += 0.42 * residueWeight;
+    }
+
+    // Dramaturgy mood bias — heavily push toward the mapped mood state
+    const dramMood = this._getDramaturgyMoodOverride();
+    if (dramMood && weights[dramMood] !== undefined) {
+      const dramBoost = this._getDramaturgyPotentialMultiplier();
+      // Suppress all other moods, boost the dramaturgy mood
+      for (const key of Object.keys(weights)) {
+        if (key === dramMood) {
+          weights[key] += 1.2 * dramBoost;
+        } else {
+          weights[key] *= (1 - 0.5 * dramBoost);
+        }
+      }
     }
 
     return Object.fromEntries(
@@ -1341,8 +1502,14 @@ export class SafeAIWeatherPack {
       return;
     }
     
-    if (worldEvents?.isEventActive?.()) {
+    if (worldEvents?.isEventActive?.() && !this._isDramaturgyOverrideActive()) {
       intensity *= 0.65;
+    }
+
+    // Dramaturgy intensity modulation
+    const dramIntensityMul = this._getDramaturgyIntensityMultiplier();
+    if (dramIntensityMul !== 1.0) {
+      intensity *= dramIntensityMul;
     }
 
     const residueWeight = this._getResidueCouplingWeight();

@@ -103,16 +103,16 @@ export class GlyphFusionOverlay4_1 {
     // Color palette
     this.colors = {
       // Semantic state colors
-      focused: 0x00F2FF,      // Cyan
-      stressed: 0xFF8800,     // Orange
-      calm: 0x00DDAA,         // Teal
-      exploring: 0x00FFAA,    // Mint
-      leader: 0xFFD700,       // Gold
-      conflict: 0xFF00FF,     // Magenta
-      'cluster-sync': 0x84FFE6, // Light cyan
+      focused: 0x6f85bf,      // muted blue
+      stressed: 0x8b6a7b,     // muted rose
+      calm: 0x728096,         // steel
+      exploring: 0x66508f,    // violet
+      leader: 0x9c8a5a,       // muted gold
+      conflict: 0x7a69c0,     // indigo-violet
+      'cluster-sync': 0xa0a9b8, // ash
       
       // Blend base
-      neutral: 0xFFFFFF       // White
+      neutral: 0xdbe2ee       // frost
     };
     
     // Statistics

@@ -41,11 +41,11 @@ export class SystemStateOverlay {
     // Color palette
     this.colors = {
       harmonyLow: new THREE.Color(0x4a5568),      // cool blue-gray
-      harmonyMed: new THREE.Color(0x00ccdd),      // soft cyan
-      harmonyHigh: new THREE.Color(0x40ddc8),     // warm turquoise
+      harmonyMed: new THREE.Color(0x6f85bf),      // muted blue
+      harmonyHigh: new THREE.Color(0x66508f),     // muted violet
       
-      synergyBase: new THREE.Color(0x00ddff),     // cyan
-      synergyBright: new THREE.Color(0xddffff),   // near-white cyan
+      synergyBase: new THREE.Color(0x728096),     // steel
+      synergyBright: new THREE.Color(0xdbe2ee),   // frost
       
       corruptionBase: new THREE.Color(0x6b5b95),  // muted purple
       corruptionMute: new THREE.Color(0x4a4a6a),  // neutral gray → purple

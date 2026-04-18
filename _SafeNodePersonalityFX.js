@@ -27,7 +27,7 @@ export class SafeNodePersonalityFX {
     // Personality definitions with behavioral parameters
     this.personalityTypes = {
       CURIOUS: {
-        color: 0x00ffff,
+        color: 0x6f85bf,
         pulseSpeed: 2.0,
         orbitCount: 4,
         orbitSpeed: 0.5,
@@ -35,7 +35,7 @@ export class SafeNodePersonalityFX {
         volatility: 0.3
       },
       AGGRESSIVE: {
-        color: 0xff0088,
+        color: 0x8b6a7b,
         pulseSpeed: 4.0,
         orbitCount: 3,
         orbitSpeed: 2.0,
@@ -43,7 +43,7 @@ export class SafeNodePersonalityFX {
         volatility: 0.8
       },
       PASSIVE: {
-        color: 0x88ff00,
+        color: 0xa0a9b8,
         pulseSpeed: 0.5,
         orbitCount: 1,
         orbitSpeed: 0.1,
@@ -51,7 +51,7 @@ export class SafeNodePersonalityFX {
         volatility: 0.1
       },
       ANALYTICAL: {
-        color: 0xaa00ff,
+        color: 0x66508f,
         pulseSpeed: 1.5,
         orbitCount: 6,
         orbitSpeed: 1.0,
@@ -59,7 +59,7 @@ export class SafeNodePersonalityFX {
         volatility: 0.2
       },
       CHAOTIC: {
-        color: 0xff00ff,
+        color: 0x7a69c0,
         pulseSpeed: 3.5,
         orbitCount: 5,
         orbitSpeed: 3.0,
@@ -67,7 +67,7 @@ export class SafeNodePersonalityFX {
         volatility: 0.95
       },
       WISE: {
-        color: 0xffff00,
+        color: 0x9c8a5a,
         pulseSpeed: 1.0,
         orbitCount: 8,
         orbitSpeed: 0.3,

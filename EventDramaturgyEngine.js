@@ -21,15 +21,15 @@
  * INTEGRATION:
  *   - Reads: SemanticEventBus events (trigger + end signals)
  *   - Writes: dramaturgy.phase, dramaturgy.sequence.start, dramaturgy.sequence.end
- *   - Drives: camera micro-reactions, audio cues, environment VFX modulation
+ *   - Drives: visual overlay (vignette + directional glow), audio cues, environment VFX modulation
  *   - Owned by: EnvironmentDomainController
  *   - Scheduler: visual lane (30Hz update)
  *
  * DESIGN PRINCIPLES:
  *   - Every phase is optional — profiles can skip telegraph or payoff
  *   - Intensity is always bounded [0, 1]
- *   - Camera reactions are subtle (micro-shake, drift) — never jarring
- *   - Audio cues use existing AtomaAudioSystem routing
+ *   - Visual overlay: CSS vignette + directional glow — no camera manipulation
+ *   - Audio cues use existing AtomaAudioSystem routing with spatial panning
  *   - Environment modulation is additive — never overrides base state
  *
  * @author ATOMA Evolution V2 — P1.4 Event Dramaturgy
@@ -184,8 +184,8 @@ class DramaturgySequence {
     this.active = true;
 
     // Computed per-frame
-    this.cameraShake = 0;
-    this.cameraDrift = 0;
+    this.vignetteIntensity = 0;
+    this.glowStrength = 0;
     this.desaturation = 0;
     this.fogShift = 0;
   }
@@ -287,14 +287,14 @@ class DramaturgySequence {
         break;
     }
 
-    // Camera values snap at boundaries
+    // Visual overlay values snap at boundaries (repurposed from camera config)
     const cam = profile.camera[to];
     if (cam) {
-      this.cameraShake = cam.shake;
-      this.cameraDrift = cam.drift;
+      this.vignetteIntensity = cam.shake;   // shake → vignette darkness
+      this.glowStrength = cam.drift;         // drift → directional glow
     } else {
-      this.cameraShake = 0;
-      this.cameraDrift = 0;
+      this.vignetteIntensity = 0;
+      this.glowStrength = 0;
     }
 
     // Environment values snap at boundaries
@@ -321,11 +321,11 @@ class DramaturgySequence {
     const decayed = 1 - Math.pow(t, 0.5);
     this.intensity = phaseConfig.intensity * decayed;
 
-    // Camera and environment also decay
+    // Visual overlay and environment also decay
     const cam = this.profile.camera.payoff;
     if (cam) {
-      this.cameraShake = cam.shake * decayed;
-      this.cameraDrift = cam.drift * (1 - t);
+      this.vignetteIntensity = cam.shake * decayed;
+      this.glowStrength = cam.drift * (1 - t);
     }
     const env = this.profile.environment.payoff;
     if (env) {
@@ -370,8 +370,8 @@ export class EventDramaturgyEngine {
 
     // Aggregated environment state (additive across all active sequences)
     this.aggregatedState = {
-      cameraShake: 0,
-      cameraDrift: 0,
+      vignette: 0,
+      glow: 0,
       desaturation: 0,
       fogShift: 0,
       dominantFamily: null,
@@ -379,11 +379,11 @@ export class EventDramaturgyEngine {
       activeCount: 0
     };
 
-    // Camera reaction state
-    this._cameraBasePosition = null;
-    this._cameraShakeOffset = { x: 0, y: 0 };
-    this._cameraDriftTarget = null;
-    this._cameraDriftProgress = 0;
+    // Visual overlay state (CSS-based vignette + directional glow)
+    this._overlayRoot = null;
+    this._overlayVignette = null;
+    this._overlayGlow = null;
+    this._overlayState = { vignette: 0, glow: 0, glowAngle: 0, tintR: 0, tintG: 0, tintB: 0 };
 
     this._initialized = false;
     this._enabled = true;
@@ -414,9 +414,6 @@ export class EventDramaturgyEngine {
    */
   setCamera(camera) {
     this.camera = camera;
-    if (camera && !this._cameraBasePosition) {
-      this._cameraBasePosition = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
-    }
   }
 
   /**
@@ -484,8 +481,8 @@ export class EventDramaturgyEngine {
     // Aggregate state from all active sequences
     this._aggregateState(dominantFamily, dominantIntensity);
 
-    // Apply camera micro-reactions
-    this._applyCameraReaction(dt);
+    // Apply visual overlay (vignette + directional glow)
+    this._applyVisualOverlay(dt);
 
     // Apply environment modulation
     this._applyEnvironmentModulation();
@@ -524,8 +521,8 @@ export class EventDramaturgyEngine {
     this._subscriptions = [];
     this._initialized = false;
 
-    // Restore camera if we were shaking it
-    this._restoreCamera();
+    // Destroy visual overlay DOM
+    this._destroyOverlay();
   }
 
   // ==========================================================================
@@ -694,22 +691,22 @@ export class EventDramaturgyEngine {
   // ==========================================================================
 
   _aggregateState(dominantFamily, dominantIntensity) {
-    let totalShake = 0;
-    let totalDrift = 0;
+    let totalVignette = 0;
+    let totalGlow = 0;
     let totalDesat = 0;
     let totalFog = 0;
 
     for (const [, seq] of this.activeSequences) {
       if (!seq.active) continue;
-      totalShake += seq.cameraShake * seq.intensity;
-      totalDrift += seq.cameraDrift * seq.intensity;
+      totalVignette += seq.vignetteIntensity * seq.intensity;
+      totalGlow += seq.glowStrength * seq.intensity;
       totalDesat += seq.desaturation * seq.intensity;
       totalFog += seq.fogShift * seq.intensity;
     }
 
     this.aggregatedState = {
-      cameraShake: Math.min(0.15, totalShake),
-      cameraDrift: Math.min(1.0, totalDrift),
+      vignette: Math.min(0.15, totalVignette),
+      glow: Math.min(1.0, totalGlow),
       desaturation: Math.max(-0.15, Math.min(0.3, totalDesat)),
       fogShift: Math.max(-0.1, Math.min(0.2, totalFog)),
       dominantFamily,
@@ -719,59 +716,124 @@ export class EventDramaturgyEngine {
   }
 
   // ==========================================================================
-  // PRIVATE — Camera micro-reactions
+  // PRIVATE — Visual overlay (vignette + directional glow)
   // ==========================================================================
 
-  _applyCameraReaction(dt) {
-    if (!this.camera) return;
+  /** Family → overlay tint colors */
+  static OVERLAY_COLORS = {
+    cascade:    { r: 68,  g: 136, b: 255 },   // Blue
+    corruption: { r: 170, g: 68,  b: 255 },   // Purple
+    resonance:  { r: 255, g: 204, b: 68  },   // Gold
+    ritual:     { r: 200, g: 220, b: 255 },   // Silver
+    hazard:     { r: 255, g: 102, b: 68  }    // Red-orange
+  };
 
+  _ensureOverlay() {
+    if (this._overlayRoot) return;
+
+    const root = document.createElement('div');
+    root.id = 'dramaturgy-overlay';
+    root.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:100;overflow:hidden;';
+
+    // Vignette layer — radial darkening from center
+    const vignette = document.createElement('div');
+    vignette.style.cssText =
+      'position:absolute;inset:0;opacity:0;transition:opacity 0.4s ease-out;' +
+      'background:radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.7) 100%);';
+    root.appendChild(vignette);
+
+    // Directional glow layer — colored light from event direction
+    const glow = document.createElement('div');
+    glow.style.cssText =
+      'position:absolute;inset:0;opacity:0;transition:opacity 0.3s ease-out, background 0.5s ease-out;';
+    root.appendChild(glow);
+
+    document.body.appendChild(root);
+    this._overlayRoot = root;
+    this._overlayVignette = vignette;
+    this._overlayGlow = glow;
+  }
+
+  _applyVisualOverlay(dt) {
     const state = this.aggregatedState;
-    if (state.cameraShake < 0.001 && state.cameraDrift < 0.001) {
-      this._restoreCamera();
+    if (state.vignette < 0.001 && state.glow < 0.001) {
+      this._clearOverlay();
       return;
     }
 
-    // Store base position on first shake
-    if (!this._cameraBasePosition) {
-      this._cameraBasePosition = {
-        x: this.camera.position.x,
-        y: this.camera.position.y,
-        z: this.camera.position.z
-      };
-    }
+    this._ensureOverlay();
 
-    // Micro-shake: small random offset, decays fast
-    if (state.cameraShake > 0.001) {
-      const shakeAmp = state.cameraShake;
-      this._cameraShakeOffset.x = (Math.random() - 0.5) * 2 * shakeAmp;
-      this._cameraShakeOffset.y = (Math.random() - 0.5) * 2 * shakeAmp;
-    } else {
-      this._cameraShakeOffset.x *= 0.9;
-      this._cameraShakeOffset.y *= 0.9;
-    }
+    // Vignette — scale intensity for visible effect (profile values are 0-0.15, map to 0-0.8 opacity)
+    const vignetteOpacity = Math.min(0.8, state.vignette * 5.5 * state.dominantIntensity);
+    this._overlayVignette.style.opacity = vignetteOpacity.toFixed(3);
 
-    // Drift toward dominant event origin
-    if (state.cameraDrift > 0.01) {
-      const dominantSeq = this._findDominantSequence();
-      if (dominantSeq?.origin?.position) {
-        const target = dominantSeq.origin.position;
-        const driftSpeed = state.cameraDrift * dt * 0.3;
-        this.camera.position.x += (target.x - this.camera.position.x) * driftSpeed * 0.01;
-        this.camera.position.y += (target.y - this.camera.position.y) * driftSpeed * 0.01;
+    // Directional glow — compute angle from dominant event origin relative to camera
+    const dominantSeq = this._findDominantSequence();
+    let glowAngle = 180; // default: from bottom
+    let tintR = 100, tintG = 100, tintB = 255;
+
+    if (dominantSeq?.origin?.position && this.camera?.position) {
+      const ox = dominantSeq.origin.position.x - this.camera.position.x;
+      const oz = dominantSeq.origin.position.z - this.camera.position.z;
+      glowAngle = Math.atan2(ox, oz) * (180 / Math.PI);
+      if (glowAngle < 0) glowAngle += 360;
+
+      // Camera forward direction for relative angle
+      if (this.camera.getWorldDirection) {
+        const dir = { x: 0, y: 0, z: 0 };
+        this.camera.getWorldDirection(dir);
+        const camAngle = Math.atan2(dir.x, dir.z) * (180 / Math.PI);
+        glowAngle = glowAngle - camAngle + 180;
+        if (glowAngle < 0) glowAngle += 360;
+        if (glowAngle >= 360) glowAngle -= 360;
       }
     }
 
-    // Apply shake offset
-    this.camera.position.x += this._cameraShakeOffset.x;
-    this.camera.position.y += this._cameraShakeOffset.y;
+    // Family tint color
+    const family = state.dominantFamily;
+    const colors = EventDramaturgyEngine.OVERLAY_COLORS[family];
+    if (colors) {
+      tintR = colors.r;
+      tintG = colors.g;
+      tintB = colors.b;
+    }
+
+    // Glow — scale intensity for visible effect
+    const glowOpacity = Math.min(0.6, state.glow * 0.7 * state.dominantIntensity);
+    const glowStop = Math.min(70, 30 + state.dominantIntensity * 40);
+    this._overlayGlow.style.opacity = glowOpacity.toFixed(3);
+    this._overlayGlow.style.background =
+      `linear-gradient(${glowAngle.toFixed(0)}deg, ` +
+      `rgba(${tintR},${tintG},${tintB},0.5) 0%, ` +
+      `rgba(${tintR},${tintG},${tintB},0.15) ${glowStop.toFixed(0)}%, ` +
+      `transparent 100%)`;
+
+    // Smooth interpolation for overlay state
+    this._overlayState.vignette = vignetteOpacity;
+    this._overlayState.glow = glowOpacity;
+    this._overlayState.glowAngle = glowAngle;
+    this._overlayState.tintR = tintR;
+    this._overlayState.tintG = tintG;
+    this._overlayState.tintB = tintB;
   }
 
-  _restoreCamera() {
-    // Camera is not restored to base — the game camera system owns position.
-    // We only clear our offsets. The shake offsets naturally decay.
-    this._cameraShakeOffset.x = 0;
-    this._cameraShakeOffset.y = 0;
-    this._cameraBasePosition = null;
+  _clearOverlay() {
+    if (!this._overlayRoot) return;
+
+    // Fade out via CSS transitions
+    this._overlayVignette.style.opacity = '0';
+    this._overlayGlow.style.opacity = '0';
+
+    this._overlayState.vignette = 0;
+    this._overlayState.glow = 0;
+  }
+
+  _destroyOverlay() {
+    if (!this._overlayRoot) return;
+    this._overlayRoot.remove();
+    this._overlayRoot = null;
+    this._overlayVignette = null;
+    this._overlayGlow = null;
   }
 
   _findDominantSequence() {
@@ -821,6 +883,30 @@ export class EventDramaturgyEngine {
         worldFX.setDramaturgyModulation(state);
       }
     }
+
+    // Push to thought storms for threshold/type modulation
+    if (this.environmentDomain?.instances?.emergentThoughtStorms) {
+      const storms = this.environmentDomain.instances.emergentThoughtStorms;
+      if (typeof storms.setDramaturgyModulation === 'function') {
+        storms.setDramaturgyModulation(state);
+      }
+    }
+
+    // Push to quantum illusions for conditional activation
+    if (this.environmentDomain?.instances?.quantumIllusions) {
+      const illusions = this.environmentDomain.instances.quantumIllusions;
+      if (typeof illusions.setDramaturgyModulation === 'function') {
+        illusions.setDramaturgyModulation(state);
+      }
+    }
+
+    // Push to world personality controller for emotional response
+    if (this.environmentDomain?.instances?.worldPersonalityController) {
+      const personality = this.environmentDomain.instances.worldPersonalityController;
+      if (typeof personality.setDramaturgyModulation === 'function') {
+        personality.setDramaturgyModulation(state);
+      }
+    }
   }
 
   // ==========================================================================
@@ -832,6 +918,12 @@ export class EventDramaturgyEngine {
 
     const profile = sequence.profile;
     const cue = `${profile.audioCue}.${phase}`;
+
+    // Set spatial context for position-aware audio
+    if (typeof this.audioSystem.setDramaturgySpatialContext === 'function') {
+      const origin = sequence.origin?.position || sequence.origin || null;
+      this.audioSystem.setDramaturgySpatialContext(origin, this._camera);
+    }
 
     if (typeof this.audioSystem.playRoutedEventAudio === 'function') {
       const intensity = this._phaseIntensity(sequence, phase);
@@ -911,10 +1003,10 @@ export class EventDramaturgyEngine {
     }
     this.activeSequences.clear();
     this._familyConcurrentCount.clear();
-    this._restoreCamera();
+    this._clearOverlay();
     this.aggregatedState = {
-      cameraShake: 0,
-      cameraDrift: 0,
+      vignette: 0,
+      glow: 0,
       desaturation: 0,
       fogShift: 0,
       dominantFamily: null,
@@ -944,8 +1036,8 @@ export function installDramaturgyDebugAPI(engine) {
       console.log(`Active sequences: ${sequences.length}`);
       console.log(`Dominant family: ${state.dominantFamily || 'none'}`);
       console.log(`Dominant intensity: ${state.dominantIntensity.toFixed(3)}`);
-      console.log(`Camera shake: ${state.cameraShake.toFixed(4)}`);
-      console.log(`Camera drift: ${state.cameraDrift.toFixed(4)}`);
+      console.log(`Vignette: ${state.vignette.toFixed(4)}`);
+      console.log(`Directional glow: ${state.glow.toFixed(4)}`);
       console.log(`Desaturation: ${state.desaturation.toFixed(4)}`);
       console.log(`Fog shift: ${state.fogShift.toFixed(4)}`);
       if (sequences.length > 0) {

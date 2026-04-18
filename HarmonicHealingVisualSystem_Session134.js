@@ -126,6 +126,15 @@ export class HarmonicHealingVisualSystem_Session134 {
         // IMPROVEMENT: Regional healing priority — set by external system
         this._regionalPriority = null; // { nodeIds: Set, boostFactor: number }
 
+        // Dramaturgy modulation — driven by EventDramaturgyEngine via main.js
+        this._dramaturgyModulation = {
+            active: false,
+            family: null,
+            phase: null,
+            intensity: 0,
+            ttl: 0
+        };
+
         this.config = {
             waveSpeed: 4.25,
             maxWaves: 120,
@@ -160,6 +169,53 @@ export class HarmonicHealingVisualSystem_Session134 {
         this._setupEventSubscriptions();
 
         console.log('✨ [HarmonicHealing] System Initialized (Event-Driven Mode)');
+    }
+
+    // ---------------------------------------------------------------------------
+    // Dramaturgy Modulation — Healing Awakening
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Receive dramaturgy state.
+     * During corruption payoff → forces healingDrive to HIGH, spawns recovery waves.
+     * During corruption escalation → suppresses healing (darkness before dawn).
+     */
+    setDramaturgyModulation(state) {
+        if (!state || !state.dominantFamily) return;
+        this._dramaturgyModulation.active = true;
+        this._dramaturgyModulation.family = state.dominantFamily;
+        this._dramaturgyModulation.phase = state.dominantPhase || 'telegraph';
+        this._dramaturgyModulation.intensity = state.dominantIntensity || 0;
+        this._dramaturgyModulation.ttl = 3.0; // 3s grace — healing lingers after payoff
+    }
+
+    _decayDramaturgyModulation(deltaTime) {
+        const mod = this._dramaturgyModulation;
+        if (!mod.active) return;
+        mod.ttl -= deltaTime;
+        if (mod.ttl <= 0) {
+            mod.active = false;
+            mod.family = null;
+            mod.phase = null;
+            mod.intensity = 0;
+            mod.ttl = 0;
+        }
+    }
+
+    /**
+     * Get dramaturgy healing override.
+     * corruption payoff → healingDrive forced HIGH (recovery wave surge)
+     * corruption escalation → healingDrive forced IDLE (suppressed)
+     * other → no override
+     */
+    _getDramaturgyHealingOverride() {
+        const mod = this._dramaturgyModulation;
+        if (!mod.active || mod.ttl <= 0) return null;
+        if (mod.family === 'corruption' && mod.phase === 'payoff') return 'HIGH';
+        if (mod.family === 'corruption' && mod.phase === 'escalation') return 'SUPPRESS';
+        // Other families during payoff also boost healing moderately
+        if (mod.phase === 'payoff') return 'MEDIUM';
+        return null;
     }
 
     attachScene(scene) {
@@ -386,6 +442,8 @@ export class HarmonicHealingVisualSystem_Session134 {
         if (mode !== 'all' && mode !== 'healing') return;
         if (this.frameScheduler && this.frameScheduler.shouldRunVisual?.() === false) return;
 
+        this._decayDramaturgyModulation(deltaTime);
+
         const healingState = this._resolveHealingState(networkState);
         this._lastResolvedHealingState = healingState;
 
@@ -461,13 +519,35 @@ export class HarmonicHealingVisualSystem_Session134 {
 
         // Healing should become more active when the network is cohesive and stable,
         // but still remain possible when harmony is moderate.
-        const healingDrive = clamp01(
+        let healingDrive = clamp01(
             harmony * 0.38 +
             synergy * 0.18 +
             stability * 0.28 -
             corruption * 0.10 -
             loadPressure * 0.06
         );
+
+        // Dramaturgy override — corruption payoff forces healing surge
+        const dramOverride = this._getDramaturgyHealingOverride();
+        let recoveryReady;
+        if (dramOverride === 'HIGH') {
+            healingDrive = 0.9;
+            recoveryReady = 'HIGH';
+        } else if (dramOverride === 'MEDIUM') {
+            healingDrive = Math.max(healingDrive, 0.6);
+            recoveryReady = 'MEDIUM';
+        } else if (dramOverride === 'SUPPRESS') {
+            healingDrive = 0;
+            recoveryReady = 'IDLE';
+        } else {
+            recoveryReady = healingDrive >= 0.75
+                ? 'HIGH'
+                : healingDrive >= 0.5
+                    ? 'MEDIUM'
+                    : healingDrive >= this.config.harmonyThreshold
+                        ? 'LOW'
+                        : 'IDLE';
+        }
 
         return {
             harmony,
@@ -477,13 +557,7 @@ export class HarmonicHealingVisualSystem_Session134 {
             networkStress,
             stability,
             healingDrive,
-            recoveryReady: healingDrive >= 0.75
-                ? 'HIGH'
-                : healingDrive >= 0.5
-                    ? 'MEDIUM'
-                    : healingDrive >= this.config.harmonyThreshold
-                        ? 'LOW'
-                        : 'IDLE'
+            recoveryReady
         };
     }
     

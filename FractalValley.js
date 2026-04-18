@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
 import { initMapReferencePlane } from './MapReferencePlaneFactory.js';
 import { getMapConfig } from './MapConfigBase.js';
@@ -111,6 +112,7 @@ export class FractalValley {
       outcrop: new THREE.CylinderGeometry(1, 1, 1, 6, 1, false),
       stone: new THREE.DodecahedronGeometry(1, 0)
     };
+    this.roundedBoxGeometryCache = new Map();
 
     this._riverScratchPoint = new THREE.Vector3();
     this._riverScratchTangent = new THREE.Vector3();
@@ -1335,9 +1337,35 @@ export class FractalValley {
     group.setRotationFromMatrix(basis);
   }
 
+  _getRoundedBoxGeometry(width, height, depth) {
+    const safeWidth = Math.max(0.001, Math.abs(width));
+    const safeHeight = Math.max(0.001, Math.abs(height));
+    const safeDepth = Math.max(0.001, Math.abs(depth));
+    const shortestSide = Math.min(safeWidth, safeHeight, safeDepth);
+    const radius = Math.min(shortestSide * 0.18, shortestSide * 0.5 - 0.001);
+    const segments = 2;
+    const key = [
+      safeWidth.toFixed(3),
+      safeHeight.toFixed(3),
+      safeDepth.toFixed(3),
+      segments,
+      radius.toFixed(3)
+    ].join('|');
+
+    let geometry = this.roundedBoxGeometryCache.get(key);
+    if (!geometry) {
+      geometry = new RoundedBoxGeometry(safeWidth, safeHeight, safeDepth, segments, radius);
+      this.roundedBoxGeometryCache.set(key, geometry);
+    }
+
+    return geometry;
+  }
+
   createBoxPart(material, scale, position) {
-    const mesh = new THREE.Mesh(this.sharedWorldGeometries.box, material);
-    mesh.scale.copy(scale);
+    const mesh = new THREE.Mesh(
+      this._getRoundedBoxGeometry(scale.x, scale.y, scale.z),
+      material
+    );
     mesh.position.copy(position);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -1345,11 +1373,14 @@ export class FractalValley {
   }
 
   createBeamBetween(material, start, end, thickness) {
-    const beam = new THREE.Mesh(this.sharedWorldGeometries.box, material);
     const direction = new THREE.Vector3().subVectors(end, start);
     const midpoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+    const length = direction.length();
+    const beam = new THREE.Mesh(
+      this._getRoundedBoxGeometry(length, thickness, thickness),
+      material
+    );
     beam.position.copy(midpoint);
-    beam.scale.set(direction.length(), thickness, thickness);
     beam.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), direction.normalize());
     beam.castShadow = true;
     beam.receiveShadow = true;
@@ -1357,11 +1388,14 @@ export class FractalValley {
   }
 
   createOrientedBridgePart(material, start, end, height, width) {
-    const mesh = new THREE.Mesh(this.sharedWorldGeometries.box, material);
     const direction = new THREE.Vector3().subVectors(end, start);
     const midpoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+    const length = direction.length();
+    const mesh = new THREE.Mesh(
+      this._getRoundedBoxGeometry(length, height, width),
+      material
+    );
     mesh.position.copy(midpoint);
-    mesh.scale.set(direction.length(), height, width);
     mesh.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), direction.normalize());
     mesh.castShadow = true;
     mesh.receiveShadow = true;

@@ -409,11 +409,11 @@ export class DreamDesert {
   createDistantMonolith() {
     const group = new THREE.Group();
     const stoneBase = materialRegistry.getStandard('world.dreamdesert.monolithStone', {
-      color: 0xb99e84,
-      roughness: 0.9,
-      metalness: 0.08,
-      emissive: 0x8d5f48,
-      emissiveIntensity: 0.03
+      color: 0x5f6f82,
+      roughness: 0.96,
+      metalness: 0.05,
+      emissive: 0x20314f,
+      emissiveIntensity: 0.015
     });
 
     const main = new THREE.Mesh(
@@ -1123,14 +1123,14 @@ export class DreamDesert {
     for (let i = 0; i < fragmentCount; i++) {
       const geometry = geometries[Math.floor(Math.random() * geometries.length)].clone();
       const material = materialRegistry.getStandard('world.dreamdesert.fragment', {
-        color: 0xe8d0bb,
+          color: 0x728096,
         transparent: true,
-        opacity: 0.24,
+          opacity: 0.18,
         side: THREE.DoubleSide,
-        metalness: 0.28,
-        roughness: 0.55,
-        emissive: 0xb47d4f,
-        emissiveIntensity: 0.06,
+          metalness: 0.16,
+          roughness: 0.7,
+          emissive: 0x66508f,
+          emissiveIntensity: 0.025,
         depthWrite: false               // ✅ Ghostly floating fragments
       });
       
@@ -1148,6 +1148,12 @@ export class DreamDesert {
         Math.random() * Math.PI,
         Math.random() * Math.PI,
         Math.random() * Math.PI
+      );
+      const fragmentScale = 0.84 + Math.random() * 0.24;
+      fragment.scale.set(
+        fragmentScale * (0.92 + Math.random() * 0.12),
+        fragmentScale * (0.78 + Math.random() * 0.14),
+        fragmentScale * (0.92 + Math.random() * 0.12)
       );
       
       fragment.userData = {
@@ -1173,9 +1179,9 @@ export class DreamDesert {
     
     const particleCount = 160;
     
-    const color1 = new THREE.Color(0xffd6ad);
-    const color2 = new THREE.Color(0xf0c9d6);
-    const color3 = new THREE.Color(0xa7e1d8);
+    const color1 = new THREE.Color(0x6f85bf);
+    const color2 = new THREE.Color(0x66508f);
+    const color3 = new THREE.Color(0x728096);
     
     for (let i = 0; i < particleCount; i++) {
       const angle = Math.random() * Math.PI * 2;
@@ -1202,10 +1208,10 @@ export class DreamDesert {
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     
     const material = new THREE.PointsMaterial({
-      size: 0.09,
+      size: 0.065,
       vertexColors: true,
       transparent: true,
-      opacity: 0.32,
+      opacity: 0.24,
       blending: THREE.AdditiveBlending,
       depthWrite: false                 // ✅ Particles shouldn't block depth
     });
@@ -1258,11 +1264,11 @@ export class DreamDesert {
     geometry.setAttribute('aSize', new THREE.BufferAttribute(new Float32Array(particleCount).map(() => 2.0 + Math.random() * 1.2), 1));
 
     const material = new THREE.PointsMaterial({
-      color: 0xf1d0b6,
-      size: 1.85,
+      color: 0x728096,
+      size: 1.35,
       sizeAttenuation: true,
       transparent: true,
-      opacity: 0.58,
+      opacity: 0.42,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       fog: false

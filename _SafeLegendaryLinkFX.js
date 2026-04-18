@@ -29,32 +29,32 @@ export class SafeLegendaryLinkFX {
     // Legendary link type definitions
     this.legendaryTypes = {
       AURORA: {
-        colors: [0x00ff88, 0x00ffff, 0xff00ff, 0xffff00, 0x00ff00],
+        colors: [0x20314f, 0x6f85bf, 0x7a69c0, 0xa0a9b8, 0x728096],
         bandCount: 3,
         pulseSpeed: 2.0,
         glowIntensity: 0.8
       },
       FRACTAL: {
-        primaryColor: 0xaa00ff,
-        panelColor: 0xff00ff,
+        primaryColor: 0x7a69c0,
+        panelColor: 0x66508f,
         panelCount: 4,
         shardCount: 6,
         shimmerIntensity: 0.6
       },
       SINGULARITY: {
-        coreColor: 0x6600ff,
-        trailColor: 0x8800ff,
-        shockwaveColor: 0xaa00ff,
+        coreColor: 0x20314f,
+        trailColor: 0x66508f,
+        shockwaveColor: 0x7a69c0,
         distortionIntensity: 0.4
       },
       SIGMA_PRIME: {
-        baseColor: 0x00ff88,
-        glitchColor: 0xff0088,
-        frameColor: 0x00ffff,
+        baseColor: 0x20314f,
+        glitchColor: 0x8b6a7b,
+        frameColor: 0x6f85bf,
         sparkCount: 5
       },
       QUANTUM_CROWN: {
-        spectrumColors: [0xff0000, 0xff7f00, 0xffff00, 0x00ff00, 0x0000ff, 0x4b0082, 0x9400d3],
+        spectrumColors: [0x20314f, 0x728096, 0x66508f, 0x7a69c0, 0xa0a9b8, 0x6f85bf, 0x8b6a7b],
         echoOpacity: 0.3,
         pulseFrequency: 1.5,
         particleCount: 8
@@ -838,10 +838,10 @@ export class SafeLegendaryLinkFX {
       const mat = this.getMaterial(
         'quantum-echo',
         () => new THREE.MeshStandardMaterial({
-          color: 0x00ddff,
+          color: 0x6f85bf,
           transparent: true,
-          emissive: 0x00ddff,
-          emissiveIntensity: 0.3,
+          emissive: 0x6f85bf,
+          emissiveIntensity: 0.18,
           fog: false
         })
       );
@@ -864,10 +864,10 @@ export class SafeLegendaryLinkFX {
     const mat = this.getMaterial(
       'quantum-particle',
       () => new THREE.MeshStandardMaterial({
-        color: 0xff00ff,
+        color: 0x7a69c0,
         transparent: true,
-        emissive: 0xff00ff,
-        emissiveIntensity: 0.8,
+        emissive: 0x7a69c0,
+        emissiveIntensity: 0.38,
         fog: false
       })
     );
@@ -910,10 +910,10 @@ export class SafeLegendaryLinkFX {
     
     const geo = new THREE.IcosahedronGeometry(0.2, 2);
     const mat = new THREE.MeshBasicMaterial({
-      color: 0x00ffff,
+      color: 0xa0a9b8,
       transparent: true,
-      emissive: 0x00ffff,
-      emissiveIntensity: 1.0,
+      emissive: 0xa0a9b8,
+      emissiveIntensity: 0.45,
       fog: false
     });
     

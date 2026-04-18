@@ -6157,6 +6157,27 @@ this.setHudDirty('nodeInspect');
         this.setupHarmonicRecovery();
 
         // ========================================================================
+        // DRAMATURGY → HEALING COUPLING
+        // Wire dramaturgy phase events to healing systems so that corruption payoff
+        // triggers recovery waves, healing particles, and restoration halos.
+        // ========================================================================
+        if (this.semanticBus) {
+            this.semanticBus.subscribe('dramaturgy.phase', (payload) => {
+                const state = {
+                    dominantFamily: payload?.family || null,
+                    dominantPhase: payload?.phase || null,
+                    dominantIntensity: payload?.intensity || 0
+                };
+                if (this.harmonicHealing && typeof this.harmonicHealing.setDramaturgyModulation === 'function') {
+                    this.harmonicHealing.setDramaturgyModulation(state);
+                }
+                if (this.harmonicRecovery && typeof this.harmonicRecovery.setDramaturgyModulation === 'function') {
+                    this.harmonicRecovery.setDramaturgyModulation(state);
+                }
+            });
+        }
+
+        // ========================================================================
         // REGIONAL EQUILIBRIUM FIELD SYSTEM
         // Visualizes territorial equilibrium and long-term power balance shifts
         // ========================================================================

@@ -59,6 +59,21 @@ export class AmbientEntityManager {
     // Timing and performance
     this.updateTimer = 0;
     this.particleUpdateInterval = 0.016; // Update particles every frame
+
+    // ATOMA ambient palette: deep blue, violet, steel, ash
+    this.ambientPalette = {
+      void: 0x071019,
+      midnight: 0x111b2d,
+      deepBlue: 0x20314f,
+      indigo: 0x47406f,
+      violet: 0x66508f,
+      steel: 0x728096,
+      ash: 0xa0a9b8,
+      frost: 0xdbe2ee,
+      glowBlue: 0x6f85bf,
+      glowViolet: 0x7a69c0,
+      haze: 0x394358
+    };
   }
   
   /**
@@ -275,9 +290,9 @@ export class AmbientEntityManager {
     // Outer atmospheric shell — soft BackSide glow
     const outerGeo = new THREE.IcosahedronGeometry(0.55, 2);
     const outerMat = new THREE.MeshBasicMaterial({
-      color: 0x00ddff,
+      color: this.ambientPalette.midnight,
       transparent: true,
-      opacity: 0.06,
+      opacity: 0.08,
       side: THREE.BackSide,
       blending: THREE.AdditiveBlending,
       depthWrite: false
@@ -289,10 +304,10 @@ export class AmbientEntityManager {
     // Mid-layer wireframe icosahedron — rotating cage of light
     const midGeo = new THREE.IcosahedronGeometry(0.3, 1);
     const midMat = new THREE.MeshBasicMaterial({
-      color: 0x00ffff,
+      color: this.ambientPalette.violet,
       wireframe: true,
       transparent: true,
-      opacity: 0.45,
+      opacity: 0.28,
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
@@ -303,9 +318,9 @@ export class AmbientEntityManager {
     // Inner core — soft pulsing point light
     const coreGeo = new THREE.IcosahedronGeometry(0.1, 2);
     const coreMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
+      color: this.ambientPalette.frost,
       transparent: true,
-      opacity: 0.7,
+      opacity: 0.58,
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
@@ -316,9 +331,9 @@ export class AmbientEntityManager {
     // Secondary ring orbit — thin torus for depth
     const ringGeo = new THREE.TorusGeometry(0.35, 0.008, 8, 32);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x88ffff,
+      color: this.ambientPalette.steel,
       transparent: true,
-      opacity: 0.25,
+      opacity: 0.16,
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
@@ -348,9 +363,9 @@ export class AmbientEntityManager {
       const radius = 0.15 + Math.sin((i / ringCount) * Math.PI) * 0.2;
       const ringGeo = new THREE.TorusGeometry(radius, 0.012, 6, 24);
       const ringMat = new THREE.MeshBasicMaterial({
-        color: 0xff0088,
+        color: this.ambientPalette.indigo,
         transparent: true,
-        opacity: 0.22 + (i % 2) * 0.08,
+        opacity: 0.16 + (i % 2) * 0.05,
         blending: THREE.AdditiveBlending,
         depthWrite: false
       });
@@ -369,9 +384,9 @@ export class AmbientEntityManager {
     }
     const spineGeo = new THREE.BufferGeometry().setFromPoints(spinePoints);
     const spineMat = new THREE.LineBasicMaterial({
-      color: 0xff44aa,
+      color: this.ambientPalette.steel,
       transparent: true,
-      opacity: 0.15,
+      opacity: 0.1,
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
@@ -382,9 +397,9 @@ export class AmbientEntityManager {
     // Scanline sweep plane
     const scanlineGeo = new THREE.PlaneGeometry(0.6, 0.04);
     const scanlineMat = new THREE.MeshBasicMaterial({
-      color: 0xff0088,
+      color: this.ambientPalette.glowBlue,
       transparent: true,
-      opacity: 0.18,
+      opacity: 0.12,
       side: THREE.DoubleSide,
       blending: THREE.AdditiveBlending,
       depthWrite: false
@@ -433,11 +448,11 @@ export class AmbientEntityManager {
       }
 
       const distFactor = Math.random();
-      const colorHex = this.lerpColor(0xaaff00, 0xffff00, distFactor);
+      const colorHex = this.lerpColor(0x22324f, 0x65538d, distFactor);
       const material = new THREE.MeshBasicMaterial({
         color: colorHex,
         transparent: true,
-        opacity: 0.7,
+        opacity: 0.5,
         blending: THREE.AdditiveBlending,
         depthWrite: false
       });
@@ -473,7 +488,7 @@ export class AmbientEntityManager {
     const particleGeometry = new THREE.SphereGeometry(0.02, 8, 8);
     for (let i = 0; i < 20; i++) {
       const particleMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffff00,
+        color: this.ambientPalette.steel,
         transparent: true,
         opacity: 0.0
       });
@@ -494,7 +509,7 @@ export class AmbientEntityManager {
     for (let streamIndex = 0; streamIndex < streamCount; streamIndex++) {
       for (let trailIndex = 0; trailIndex < 6; trailIndex++) {
         const particleMaterial = new THREE.MeshBasicMaterial({
-          color: 0x99ffff,
+          color: this.ambientPalette.ash,
           transparent: true,
           opacity: 0.0,
           blending: THREE.AdditiveBlending,
@@ -521,7 +536,7 @@ export class AmbientEntityManager {
     const lineMaterial = new THREE.LineBasicMaterial({
       color: color,
       transparent: true,
-      opacity: 0.4
+      opacity: 0.24
     });
     return new THREE.LineSegments(edges, lineMaterial);
   }
@@ -539,9 +554,9 @@ export class AmbientEntityManager {
     // Pixelated body made of boxes
     const pixelSize = 0.5;
     const material = new THREE.MeshBasicMaterial({
-      color: 0xff00ff,
+      color: this.ambientPalette.violet,
       transparent: true,
-      opacity: 0.25,
+      opacity: 0.18,
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
@@ -582,7 +597,7 @@ export class AmbientEntityManager {
     parts.forEach((partName) => {
       const part = group.getObjectByName(partName);
       if (part) {
-        const glow = this.createEdgeGlow(part.geometry, 0xff00ff);
+        const glow = this.createEdgeGlow(part.geometry, this.ambientPalette.steel);
         glow.name = `${partName}_glow`;
         part.add(glow);
       }
@@ -627,13 +642,13 @@ export class AmbientEntityManager {
       const points = curve.getPoints(30);
       const positions = [];
       const colors = [];
-      const streamColor = new THREE.Color(this.lerpColor(0x00ffff, 0xff00ff, i / (streamCount - 1)));
+      const streamColor = new THREE.Color(this.lerpColor(0x253553, 0x6a5694, i / (streamCount - 1)));
 
       points.forEach((point, index) => {
         positions.push(point.x, point.y, point.z);
         const centerProgress = Math.abs(index - (points.length - 1) / 2) / ((points.length - 1) / 2);
         const brighten = 0.25 + (1.0 - centerProgress) * 0.25;
-        const vertexColor = streamColor.clone().lerp(new THREE.Color(0xffffff), brighten);
+        const vertexColor = streamColor.clone().lerp(new THREE.Color(this.ambientPalette.frost), brighten);
         colors.push(vertexColor.r, vertexColor.g, vertexColor.b);
       });
 
@@ -662,9 +677,9 @@ export class AmbientEntityManager {
     const ribbonGeo = new THREE.PlaneGeometry(0.3, 2);
     for (let i = 0; i < 2; i++) {
       const ribbonMat = new THREE.MeshBasicMaterial({
-        color: 0x00ffff,
+        color: this.ambientPalette.haze,
         transparent: true,
-        opacity: 0.14,
+        opacity: 0.1,
         side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending,
         depthWrite: false
@@ -811,9 +826,11 @@ export class AmbientEntityManager {
     // Gentle rotation
     mesh.rotation.y += deltaTime * 0.25;
 
-    // Color shift — slow hue drift
-    const hue = (Date.now() * 0.00008) % 1.0;
-    const color = new THREE.Color().setHSL(hue, 0.8, 0.55);
+    // Color shift — slow drift inside the ATOMA dark palette
+    const hue = 0.63 + Math.sin(ft * 0.18) * 0.02;
+    const color = new THREE.Color().setHSL(hue, 0.38, 0.24 + Math.sin(ft * 0.7) * 0.025);
+    const ringColor = new THREE.Color().setHSL(0.6 + Math.sin(ft * 0.22) * 0.018, 0.24, 0.44 + Math.sin(ft * 1.2) * 0.025);
+    const coreColor = new THREE.Color().setHSL(0.61, 0.12, 0.76 + Math.sin(ft * 3.0) * 0.03);
 
     const midCage = mesh.getObjectByName('midCage');
     if (midCage) {
@@ -824,7 +841,7 @@ export class AmbientEntityManager {
 
     const outerShell = mesh.getObjectByName('outerShell');
     if (outerShell) {
-      outerShell.material.color.copy(color);
+      outerShell.material.color.copy(color).lerp(new THREE.Color(this.ambientPalette.void), 0.22);
       const breathe = 1.0 + Math.sin(ft * 1.5) * 0.08;
       outerShell.scale.setScalar(breathe);
     }
@@ -833,6 +850,7 @@ export class AmbientEntityManager {
     const pulse = 0.5 + 0.5 * Math.sin(ft * 3.0);
     const innerCore = mesh.getObjectByName('innerCore');
     if (innerCore) {
+      innerCore.material.color.copy(coreColor);
       innerCore.material.opacity = (0.5 + pulse * 0.5) * (1 - fadeProgress);
       const coreScale = 0.8 + pulse * 0.3;
       innerCore.scale.setScalar(coreScale);
@@ -841,6 +859,7 @@ export class AmbientEntityManager {
     // Orbit ring tilt
     const orbitRing = mesh.getObjectByName('orbitRing');
     if (orbitRing) {
+      orbitRing.material.color.copy(ringColor);
       orbitRing.rotation.x = Math.PI * 0.5 + Math.sin(ft * 0.8) * 0.3;
       orbitRing.rotation.z = ft * 0.6;
     }
@@ -860,10 +879,13 @@ export class AmbientEntityManager {
   updateSpectreVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.glitchTimer += deltaTime;
     const gt = mesh.userData.glitchTimer;
+    const spectralColor = new THREE.Color().setHSL(0.62 + Math.sin(gt * 0.15) * 0.015, 0.25, 0.36 + Math.sin(gt * 0.45) * 0.03);
+    const accentColor = new THREE.Color().setHSL(0.58, 0.12, 0.7);
 
     // Scanline sweep — moves up and down
     const scanline = mesh.getObjectByName('scanline');
     if (scanline) {
+      scanline.material.color.copy(spectralColor);
       const scanCycle = (gt * 0.6) % 2.4;
       const scanY = -0.3 + (scanCycle < 1.2 ? scanCycle / 1.2 : (2.4 - scanCycle) / 1.2) * 2.1;
       scanline.position.y = scanY;
@@ -875,6 +897,7 @@ export class AmbientEntityManager {
     for (let i = 0; i < 5; i++) {
       const ring = mesh.getObjectByName(`scanRing_${i}`);
       if (ring) {
+        ring.material.color.copy(spectralColor);
         const breathe = 1.0 + Math.sin(gt * 2.0 + i * 0.8) * 0.06;
         ring.scale.setScalar(breathe);
         ring.rotation.z += deltaTime * (0.2 + i * 0.05);
@@ -884,6 +907,7 @@ export class AmbientEntityManager {
     // Spine flicker
     const spine = mesh.getObjectByName('spine');
     if (spine) {
+      spine.material.color.copy(accentColor);
       spine.material.opacity = (0.08 + Math.sin(gt * 6) * 0.04) * entity.intensity * (1 - fadeProgress);
     }
 
@@ -978,6 +1002,8 @@ export class AmbientEntityManager {
   updatePhantomVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.glitchTimer += deltaTime;
     mesh.userData.fadeCycleTime = (mesh.userData.fadeCycleTime || 0) + deltaTime;
+    const phantomBase = new THREE.Color().setHSL(0.72 + Math.sin(mesh.userData.glitchTimer * 0.2) * 0.015, 0.28, 0.27);
+    const phantomGlow = new THREE.Color().setHSL(0.61, 0.14, 0.64);
 
     // Random glitch teleport
     if (Math.random() < 0.03) {
@@ -1010,6 +1036,9 @@ export class AmbientEntityManager {
 
     mesh.traverse((child) => {
       if (child.material && child.material.opacity !== undefined && !child.name.includes('_glow')) {
+        if (child.material.color) {
+          child.material.color.copy(child.name.includes('head') || child.name.includes('body') ? phantomBase : phantomGlow);
+        }
         child.material.opacity = (noiseOpacity + flicker + noiseFlicker) * entity.intensity * (1 - fadeProgress) * fadeMultiplier;
       }
     });
@@ -1021,6 +1050,8 @@ export class AmbientEntityManager {
   updateWispVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.waveTime += deltaTime;
     const waveTime = Date.now() * 0.001;
+    const ribbonTint = new THREE.Color().setHSL(0.64 + Math.sin(waveTime * 0.2) * 0.02, 0.3, 0.34);
+    const glowTint = new THREE.Color().setHSL(0.59, 0.14, 0.72);
 
     mesh.children.forEach((child) => {
       if (child.userData.streamIndex !== undefined) {
@@ -1035,11 +1066,11 @@ export class AmbientEntityManager {
         child.scale.set(1, pulse, 1);
 
         // Color shift
-        const hueShift = Math.sin(waveTime + offset * 2) * 0.1;
-        const baseHue = 0.5;
-        const newColor = new THREE.Color().setHSL(baseHue + hueShift, 1.0, 0.5);
+        const hueShift = Math.sin(waveTime + offset * 2) * 0.03;
+        const baseHue = 0.62;
+        const newColor = new THREE.Color().setHSL(baseHue + hueShift, 0.42, 0.28);
         if (child.material && child.material.color) {
-          child.material.color.copy(newColor);
+          child.material.color.copy(newColor).lerp(glowTint, 0.25);
         }
 
         if (child.material && child.material.opacity !== undefined) {
@@ -1080,7 +1111,8 @@ export class AmbientEntityManager {
           particle.visible = true;
           particle.position.copy(point.pos);
           const life = Math.max(0, 1 - point.age / TRAIL_LIFETIME);
-          particle.material.opacity = 0.25 * life * entity.intensity * (1 - fadeProgress);
+          particle.material.color.copy(ribbonTint);
+          particle.material.opacity = 0.18 * life * entity.intensity * (1 - fadeProgress);
           particle.scale.setScalar(0.04 * (0.5 + life * 0.5));
           particleIndex += 1;
         }

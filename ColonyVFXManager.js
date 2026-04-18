@@ -21,20 +21,35 @@ export class ColonyVFXManager {
     
     // Texture for particles
     this.particleTexture = this.createParticleTexture();
+
+    this.palette = {
+      void: 0x071019,
+      midnight: 0x111b2d,
+      deepBlue: 0x20314f,
+      slate: 0x47576e,
+      indigo: 0x47406f,
+      violet: 0x66508f,
+      ash: 0xa0a9b8,
+      frost: 0xdbe2ee,
+      glowBlue: 0x6f85bf,
+      glowViolet: 0x7a69c0,
+      mutedGold: 0x9c8a5a,
+      mutedRose: 0x8b6a7b
+    };
     
     // Configuration
     this.config = {
       colors: {
-        HARMONY: 0x00d4ff,      // Bright cyan
-        STABILITY: 0x89b8ff,    // Soft sky blue
-        CORRUPTION: 0xd961ff,   // Deep magenta
-        SYNERGY: 0xffd860,      // Warm gold
-        LOAD_PRESSURE: 0xff7a88,// Tense coral
+        HARMONY: this.palette.deepBlue,
+        STABILITY: this.palette.slate,
+        CORRUPTION: this.palette.indigo,
+        SYNERGY: this.palette.mutedGold,
+        LOAD_PRESSURE: this.palette.mutedRose,
 
-        DEFAULT: 0x00d4ff,
-        QUANTUM: 0x00ff88,
-        SIGMA: 0xff00ff,
-        LEGENDARY: 0xffff00
+        DEFAULT: this.palette.deepBlue,
+        QUANTUM: this.palette.glowBlue,
+        SIGMA: this.palette.glowViolet,
+        LEGENDARY: this.palette.ash
       },
       
       atmosphere: {
@@ -51,7 +66,7 @@ export class ColonyVFXManager {
       
       moodProfiles: {
         HARMONY: {
-          colorBias: 0x9ff7ff,
+          colorBias: 0x5b77a4,
           motionBias: 0.22,
           particleDensity: 0.95,
           ringThickness: 0.7,
@@ -60,7 +75,7 @@ export class ColonyVFXManager {
           glowIntensity: 0.88
         },
         STABILITY: {
-          colorBias: 0xdde8ff,
+          colorBias: 0x8897b0,
           motionBias: 0.18,
           particleDensity: 0.8,
           ringThickness: 1.0,
@@ -69,7 +84,7 @@ export class ColonyVFXManager {
           glowIntensity: 0.82
         },
         CORRUPTION: {
-          colorBias: 0xdd55ff,
+          colorBias: 0x5f4b91,
           motionBias: 1.1,
           particleDensity: 0.55,
           ringThickness: 0.6,
@@ -78,7 +93,7 @@ export class ColonyVFXManager {
           glowIntensity: 1.2
         },
         SYNERGY: {
-          colorBias: 0xffe4a0,
+          colorBias: 0x8d7a57,
           motionBias: 1.3,
           particleDensity: 1.4,
           ringThickness: 1.3,
@@ -87,7 +102,7 @@ export class ColonyVFXManager {
           glowIntensity: 1.1
         },
         LOAD_PRESSURE: {
-          colorBias: 0xff7a88,
+          colorBias: 0x7e6573,
           motionBias: 0.6,
           particleDensity: 1.05,
           ringThickness: 1.45,
@@ -557,7 +572,7 @@ export class ColonyVFXManager {
 
   createQuantumEdge(colonyId, center, stage, mood, colonyType, energy) {
     const baseColor = this.getColorForMood(mood, colonyType);
-    const color = this.blendColor(baseColor, 0xD07BFF, 0.45);
+    const color = this.blendColor(baseColor, this.palette.glowViolet, 0.35);
     const radius = this.getRadiusForStage(stage) * 1.35;
     const geometry = new THREE.TorusGeometry(radius, 0.06, 16, 64);
     const material = this.createBasicMaterial(color, 0.22);
@@ -587,7 +602,7 @@ export class ColonyVFXManager {
 
   createSigmaCrackAccent(colonyId, center, stage, mood, colonyType, energy) {
     const baseColor = this.getColorForMood(mood, colonyType);
-    const color = this.blendColor(baseColor, 0xFF73CF, 0.55);
+    const color = this.blendColor(baseColor, this.palette.mutedRose, 0.35);
     const radius = this.getRadiusForStage(stage) * 1.2;
     const geometry = new THREE.TorusGeometry(radius, 0.09, 12, 64);
     const material = this.createBasicMaterial(color, 0.28);
@@ -959,7 +974,7 @@ export class ColonyVFXManager {
     return presence;
   }
 
-  createDebugLabel(colonyId, center, lines, color = 0xffffff) {
+  createDebugLabel(colonyId, center, lines, color = 0xdbe2ee) {
     const canvas = document.createElement('canvas');
     canvas.width = 256;
     canvas.height = 128;
@@ -969,7 +984,7 @@ export class ColonyVFXManager {
     ctx.fillStyle = 'rgba(8, 12, 20, 0.88)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.font = 'bold 18px Courier New';
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#dbe2ee';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     const margin = 12;
@@ -1012,7 +1027,7 @@ export class ColonyVFXManager {
     return label;
   }
 
-  updateDebugLabel(label, lines, color = 0xffffff) {
+  updateDebugLabel(label, lines, color = 0xdbe2ee) {
     if (!label || !label.userData || !label.userData.ctx) return;
     const ctx = label.userData.ctx;
     const canvas = label.userData.canvas;
@@ -1021,7 +1036,7 @@ export class ColonyVFXManager {
     ctx.fillStyle = 'rgba(8, 12, 20, 0.88)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.font = 'bold 18px Courier New';
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#dbe2ee';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     const margin = 12;
@@ -1454,7 +1469,7 @@ export class ColonyVFXManager {
     // Helix strand 2 — same knot, offset rotation (DNA strand B)
     const helixGeo2 = new THREE.TorusKnotGeometry(0.08, 0.015, 48, 8, 2, 3);
     const helixMat2 = this.createBasicMaterial(
-      (new THREE.Color(color)).lerp(new THREE.Color(0xffffff), 0.3).getHex(),
+      (new THREE.Color(color)).lerp(new THREE.Color(this.palette.frost), 0.18).getHex(),
       0.7
     );
     const helix2 = new THREE.Mesh(helixGeo2, helixMat2);
@@ -1525,7 +1540,7 @@ export class ColonyVFXManager {
     
     // Inner breath — smaller, brighter, rotates opposite
     const innerGeo = new THREE.IcosahedronGeometry(0.3 + stage * 0.03, 0);
-    const innerColor = (new THREE.Color(color)).lerp(new THREE.Color(0xffffff), 0.4).getHex();
+    const innerColor = (new THREE.Color(color)).lerp(new THREE.Color(this.palette.frost), 0.24).getHex();
     const innerMat = this.createBasicMaterial(innerColor, 0.4, THREE.DoubleSide);
     innerMat.flatShading = true;
     const inner = new THREE.Mesh(innerGeo, innerMat);
@@ -1576,7 +1591,7 @@ export class ColonyVFXManager {
     mergeGroup.add(knotA);
     
     // Spiral strand B — same knot, opposite color shift, counter-clockwise
-    const knotColorB = (new THREE.Color(color)).lerp(new THREE.Color(0xffffff), 0.5).getHex();
+    const knotColorB = (new THREE.Color(color)).lerp(new THREE.Color(this.palette.frost), 0.28).getHex();
     const knotGeoB = new THREE.TorusKnotGeometry(0.25, 0.02, 64, 8, 2, 5);
     const knotMatB = this.createBasicMaterial(knotColorB, 0.5);
     const knotB = new THREE.Mesh(knotGeoB, knotMatB);
@@ -1634,7 +1649,7 @@ export class ColonyVFXManager {
     // Central crack — octahedron splitting apart
     const crackGeo = new THREE.OctahedronGeometry(0.12, 0);
     const crackMat = this.createBasicMaterial(
-      (new THREE.Color(color)).lerp(new THREE.Color(0xff4444), 0.3).getHex(), 0.8
+      (new THREE.Color(color)).lerp(new THREE.Color(this.palette.mutedRose), 0.22).getHex(), 0.8
     );
     crackMat.wireframe = true;
     const crack = new THREE.Mesh(crackGeo, crackMat);
@@ -1656,7 +1671,7 @@ export class ColonyVFXManager {
 
   triggerMergeFlash(colonyId, center, intensity = 1.0, duration = 0.6) {
     const geometry = new THREE.RingGeometry(0.28, 0.42 + intensity * 0.06, 32, 2);
-    const material = this.createBasicMaterial(0xffffff, 0.88, THREE.DoubleSide);
+    const material = this.createBasicMaterial(this.palette.frost, 0.52, THREE.DoubleSide);
     const flash = new THREE.Mesh(geometry, material);
     flash.position.copy(center);
     flash.rotation.x = Math.PI / 2;
@@ -1669,13 +1684,13 @@ export class ColonyVFXManager {
     };
     this.vfxContainer.add(flash);
     this.triggerEventPulse(colonyId, 0.9 * intensity, duration * 0.85);
-    this.triggerEventColorShift(colonyId, 0xffffff, duration * 0.45);
+    this.triggerEventColorShift(colonyId, this.palette.frost, duration * 0.45);
     return flash;
   }
 
   triggerSplitRupture(colonyId, center, intensity = 1.0, duration = 1.0) {
     const geometry = new THREE.RingGeometry(0.35, 0.5 + intensity * 0.08, 32, 2);
-    const material = this.createBasicMaterial(0xffaa88, 0.78, THREE.DoubleSide);
+    const material = this.createBasicMaterial(this.palette.mutedRose, 0.46, THREE.DoubleSide);
     const rupture = new THREE.Mesh(geometry, material);
     rupture.position.copy(center);
     rupture.rotation.x = Math.PI / 2;
@@ -1688,7 +1703,7 @@ export class ColonyVFXManager {
     };
     this.vfxContainer.add(rupture);
     this.triggerEventPulse(colonyId, 0.65 * intensity, duration * 0.75);
-    this.triggerEventColorShift(colonyId, 0xff8866, duration * 0.7);
+    this.triggerEventColorShift(colonyId, this.palette.mutedRose, duration * 0.7);
     return rupture;
   }
 
@@ -1704,7 +1719,7 @@ export class ColonyVFXManager {
     
     // Shape A: Octahedron (the old form)
     const shapeAGeo = new THREE.OctahedronGeometry(0.3, 0);
-    const shapeAMat = this.createBasicMaterial(0xdde8ff, 0.72, THREE.DoubleSide);
+    const shapeAMat = this.createBasicMaterial(this.palette.slate, 0.56, THREE.DoubleSide);
     shapeAMat.flatShading = true;
     const shapeA = new THREE.Mesh(shapeAGeo, shapeAMat);
     shapeA.userData = { role: 'morph-from' };
@@ -1712,7 +1727,7 @@ export class ColonyVFXManager {
     
     // Shape B: Dodecahedron (the new form)
     const shapeBGeo = new THREE.DodecahedronGeometry(0.28, 0);
-    const shapeBMat = this.createBasicMaterial(0xeeddff, 0.72, THREE.DoubleSide);
+    const shapeBMat = this.createBasicMaterial(this.palette.frost, 0.56, THREE.DoubleSide);
     shapeBMat.flatShading = true;
     const shapeB = new THREE.Mesh(shapeBGeo, shapeBMat);
     shapeB.scale.setScalar(0.01); // Start invisible
@@ -1721,7 +1736,7 @@ export class ColonyVFXManager {
     
     // Rotating ring — transitional boundary
     const ringGeo = new THREE.RingGeometry(0.22, 0.38, 6, 2); // Hexagonal
-    const ringMat = this.createBasicMaterial(0xffffff, 0.3, THREE.DoubleSide);
+    const ringMat = this.createBasicMaterial(this.palette.glowBlue, 0.18, THREE.DoubleSide);
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.userData = { role: 'transition-ring' };
     transformGroup.add(ring);
@@ -1751,14 +1766,14 @@ export class ColonyVFXManager {
     // Phoenix core — elongated octahedron (diamond body)
     const coreGeo = new THREE.OctahedronGeometry(0.15, 0);
     coreGeo.scale(1, 2, 1); // Elongated vertically
-    const coreMat = this.createBasicMaterial(0xa8f3ff, 0.8);
+    const coreMat = this.createBasicMaterial(this.palette.glowBlue, 0.58);
     coreMat.flatShading = true;
     const core = new THREE.Mesh(coreGeo, coreMat);
     core.userData = { role: 'phoenix-core' };
     rebirthGroup.add(core);
     
     // Wings — two flat triangles (bird wings)
-    const wingMat = this.createBasicMaterial(0xc8f8ff, 0.5, THREE.DoubleSide);
+    const wingMat = this.createBasicMaterial(this.palette.ash, 0.34, THREE.DoubleSide);
     [-1, 1].forEach(side => {
       const wingGeo = new THREE.BufferGeometry();
       const w = 0.5 * side;
@@ -1776,7 +1791,7 @@ export class ColonyVFXManager {
     
     // Ascension glow — small bright sphere at top
     const glowGeo = new THREE.IcosahedronGeometry(0.05, 0);
-    const glowMat = this.createBasicMaterial(0xffffff, 0.9);
+    const glowMat = this.createBasicMaterial(this.palette.frost, 0.52);
     const glow = new THREE.Mesh(glowGeo, glowMat);
     glow.position.y = 0.35;
     glow.userData = { role: 'ascension-glow' };

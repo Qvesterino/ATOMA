@@ -54,7 +54,26 @@ export class SafeColonyExpansion2 {
    * Call this after all systems are created
    */
   initialize(worldSystems) {
-    this.nodes = worldSystems.nodes || {};
+    const sourceNodes = worldSystems.nodes || {};
+    this.nodes = {};
+
+    if (Array.isArray(sourceNodes)) {
+      for (const node of sourceNodes) {
+        const nodeId = this.getNodeId(node);
+        if (nodeId) {
+          this.nodes[nodeId] = node;
+        }
+      }
+    } else {
+      for (const [key, node] of Object.entries(sourceNodes)) {
+        if (!node) continue;
+        const nodeId = this.getNodeId(node) || String(key);
+        if (nodeId) {
+          this.nodes[nodeId] = node;
+        }
+      }
+    }
+
     this.links = worldSystems.links || [];
     this.legendaryRegistry = worldSystems.legendaryRegistry || null;
     this.weatherRegistry = worldSystems.weatherRegistry || null;
@@ -73,6 +92,13 @@ export class SafeColonyExpansion2 {
     if (this.vfxManager) {
       this.vfxManager.frameScheduler = frameScheduler;
     }
+  }
+
+  getNodeId(node) {
+    if (!node) return null;
+    if (typeof node === 'string') return node;
+
+    return node.userData?.nodeId || node.uuid || null;
   }
   
   /**
@@ -194,10 +220,10 @@ export class SafeColonyExpansion2 {
           let otherNodeId = null;
 
           // Check link endpoints (use canonical nodeId)
-          if (link.from && link.from.userData && link.from.userData.nodeId === currentId) {
-            otherNodeId = link.to.userData.nodeId;
-          } else if (link.to && link.to.userData && link.to.userData.nodeId === currentId) {
-            otherNodeId = link.from.userData.nodeId;
+          if (this.getNodeId(link.from) === currentId) {
+            otherNodeId = this.getNodeId(link.to);
+          } else if (this.getNodeId(link.to) === currentId) {
+            otherNodeId = this.getNodeId(link.from);
           }
           
           if (!otherNodeId) continue;
@@ -216,7 +242,7 @@ export class SafeColonyExpansion2 {
       }
       
       // Check if cluster meets minimum requirements
-      if (cluster.length >= this.registry.config.minNodesPerClony) {
+      if (cluster.length >= this.registry.config.minNodesPerColony) {
         // Verify connectivity threshold
         const connectivityRatio = this.calculateConnectivityRatio(cluster);
         if (connectivityRatio >= this.registry.config.minLinkConnectivity) {
@@ -237,8 +263,8 @@ export class SafeColonyExpansion2 {
     const nodeSet = new Set(nodeIds);
     
     for (const link of this.links) {
-      const fromId = link.from?.userData?.id;
-      const toId = link.to?.userData?.id;
+      const fromId = this.getNodeId(link.from);
+      const toId = this.getNodeId(link.to);
       
       if (nodeSet.has(fromId) && nodeSet.has(toId)) {
         linkedCount++;
@@ -582,8 +608,8 @@ export class SafeColonyExpansion2 {
         
         // Check if linked
         for (const link of this.links) {
-          const fromId = link.from?.userData?.id;
-          const toId = link.to?.userData?.id;
+          const fromId = this.getNodeId(link.from);
+          const toId = this.getNodeId(link.to);
           
           if ((fromId === nodeId1 && toId === nodeId2) ||
               (fromId === nodeId2 && toId === nodeId1)) {
@@ -673,10 +699,10 @@ export class SafeColonyExpansion2 {
         for (const link of this.links) {
           let otherNodeId = null;
           
-          if (link.from?.userData?.id === currentId) {
-            otherNodeId = link.to?.userData?.id;
-          } else if (link.to?.userData?.id === currentId) {
-            otherNodeId = link.from?.userData?.id;
+          if (this.getNodeId(link.from) === currentId) {
+            otherNodeId = this.getNodeId(link.to);
+          } else if (this.getNodeId(link.to) === currentId) {
+            otherNodeId = this.getNodeId(link.from);
           }
           
           if (otherNodeId && colony.nodes.has(otherNodeId) && !visited.has(otherNodeId)) {
@@ -703,8 +729,8 @@ export class SafeColonyExpansion2 {
     const nodeArray = Array.from(colony.nodes);
     
     for (const link of this.links) {
-      const fromId = link.from?.userData?.id;
-      const toId = link.to?.userData?.id;
+      const fromId = this.getNodeId(link.from);
+      const toId = this.getNodeId(link.to);
       
       if (nodeArray.includes(fromId) && nodeArray.includes(toId)) {
         linkedCount++;

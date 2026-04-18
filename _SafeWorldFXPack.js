@@ -37,11 +37,11 @@ export class SafeWorldFXPack {
 
     this.palette = {
       base: 0x05131A,
-      cyan: 0x6DEAFF,
-      mint: 0x77F7DB,
-      violet: 0xD07BFF,
-      rose: 0xFF73CF,
-      ritualWhite: 0xF7FBFF
+      cyan: 0x6f85bf,
+      mint: 0x728096,
+      violet: 0x66508f,
+      rose: 0x8b6a7b,
+      ritualWhite: 0xdbe2ee
     };
 
     this.atmosphereState = {

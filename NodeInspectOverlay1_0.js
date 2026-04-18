@@ -260,11 +260,11 @@ export class NodeInspectOverlay1_0 {
           background: rgba(8, 12, 20, 0.75);
           backdrop-filter: blur(16px) saturate(1.2);
           -webkit-backdrop-filter: blur(16px) saturate(1.2);
-          border-left: 2px solid rgba(0, 200, 220, 0.35);
+          border-left: 2px solid rgba(111, 133, 191, 0.35);
           border-radius: 0 8px 8px 0;
           font-family: 'Rajdhani', 'Segoe UI', sans-serif;
           font-size: 12px;
-          color: rgba(200, 225, 245, 0.85);
+          color: rgba(219, 226, 238, 0.85);
           z-index: 1150;
           pointer-events: none;
           user-select: none;
@@ -277,31 +277,31 @@ export class NodeInspectOverlay1_0 {
           letter-spacing: 0.05em;
         }
         #node-inspect-overlay .inspect-code {
-          color: #ffc107;
+          color: #9c8a5a;
           font-size: 10px;
           margin-bottom: 6px;
           font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
         }
         #node-inspect-overlay .inspect-meaning {
-          color: #00e5a0;
+          color: #6f85bf;
           font-size: 10px;
           margin-bottom: 8px;
           font-style: italic;
           opacity: 0.8;
         }
         #node-inspect-overlay .inspect-personality {
-          color: #ffc107;
+          color: #9c8a5a;
           font-size: 11px;
           margin-bottom: 6px;
         }
         #node-inspect-overlay .inspect-storm-mood {
-          color: #ff3d8e;
+          color: #8b6a7b;
           font-size: 11px;
           margin-bottom: 6px;
         }
         #node-inspect-overlay .inspect-section {
           margin-bottom: 8px;
-          border-top: 1px solid rgba(0, 200, 220, 0.1);
+          border-top: 1px solid rgba(111, 133, 191, 0.1);
           padding-top: 6px;
         }
         #node-inspect-overlay .inspect-metrics {
@@ -318,7 +318,7 @@ export class NodeInspectOverlay1_0 {
           font-size: 8px;
           letter-spacing: 0.14em;
           text-transform: uppercase;
-          color: rgba(200, 225, 245, 0.35);
+          color: rgba(219, 226, 238, 0.35);
           width: 28px;
           flex-shrink: 0;
           font-weight: 700;
@@ -326,7 +326,7 @@ export class NodeInspectOverlay1_0 {
         #node-inspect-overlay .inspect-metric-bar-track {
           flex: 1;
           height: 3px;
-          background: rgba(255, 255, 255, 0.04);
+          background: rgba(111, 133, 191, 0.06);
           border-radius: 2px;
           overflow: hidden;
         }
@@ -336,19 +336,19 @@ export class NodeInspectOverlay1_0 {
           transition: width 0.3s ease;
         }
         #node-inspect-overlay .inspect-metric-bar-fill.bar-synergy {
-          background: linear-gradient(90deg, rgba(0, 212, 255, 0.15), #00d4ff);
+          background: linear-gradient(90deg, rgba(111, 133, 191, 0.15), #6f85bf);
         }
         #node-inspect-overlay .inspect-metric-bar-fill.bar-harmony {
-          background: linear-gradient(90deg, rgba(0, 229, 160, 0.15), #00e5a0);
+          background: linear-gradient(90deg, rgba(122, 105, 192, 0.15), #7a69c0);
         }
         #node-inspect-overlay .inspect-metric-bar-fill.bar-stability {
-          background: linear-gradient(90deg, rgba(255, 193, 7, 0.15), #ffc107);
+          background: linear-gradient(90deg, rgba(160, 169, 184, 0.15), #a0a9b8);
         }
         #node-inspect-overlay .inspect-metric-bar-fill.bar-corruption {
-          background: linear-gradient(90deg, rgba(255, 61, 142, 0.15), #ff3d8e);
+          background: linear-gradient(90deg, rgba(107, 91, 149, 0.15), #6b5b95);
         }
         #node-inspect-overlay .inspect-metric-bar-fill.bar-loadPressure {
-          background: linear-gradient(90deg, rgba(180, 77, 255, 0.15), #b44dff);
+          background: linear-gradient(90deg, rgba(139, 106, 123, 0.15), #8b6a7b);
         }
         #node-inspect-overlay .inspect-metric-value {
           font-size: 11px;
@@ -362,9 +362,9 @@ export class NodeInspectOverlay1_0 {
           margin-top: 6px;
           padding: 3px 8px;
           font-size: 9px;
-          background: rgba(0, 200, 220, 0.08);
-          border: 1px solid rgba(0, 200, 220, 0.2);
-          color: rgba(0, 200, 220, 0.6);
+          background: rgba(111, 133, 191, 0.08);
+          border: 1px solid rgba(111, 133, 191, 0.2);
+          color: rgba(111, 133, 191, 0.6);
           cursor: pointer;
           pointer-events: auto;
           border-radius: 3px;
@@ -373,24 +373,24 @@ export class NodeInspectOverlay1_0 {
           transition: background 0.2s ease, color 0.2s ease;
         }
         #node-inspect-overlay .inspect-button:hover {
-          background: rgba(0, 200, 220, 0.15);
-          color: rgba(0, 200, 220, 0.9);
+          background: rgba(111, 133, 191, 0.15);
+          color: rgba(219, 226, 238, 0.9);
         }
         #node-inspect-overlay .authority-row {
           font-size: 10px;
-          color: rgba(200, 225, 245, 0.5);
+          color: rgba(219, 226, 238, 0.5);
           margin: 2px 0;
         }
         #node-inspect-overlay .authority-value {
           font-weight: 700;
         }
-        #node-inspect-overlay .authority-value.pass { color: #00e5a0; }
-        #node-inspect-overlay .authority-value.warn { color: #ffc107; }
-        #node-inspect-overlay .authority-value.fail { color: #ff3d8e; }
+        #node-inspect-overlay .authority-value.pass { color: #a0a9b8; }
+        #node-inspect-overlay .authority-value.warn { color: #9c8a5a; }
+        #node-inspect-overlay .authority-value.fail { color: #8b6a7b; }
         #node-inspect-overlay .overlay-header {
           font-weight: 700;
           margin-bottom: 3px;
-          color: rgba(0, 200, 220, 0.6);
+          color: rgba(111, 133, 191, 0.6);
           font-size: 9px;
           letter-spacing: 0.1em;
           text-transform: uppercase;
@@ -400,11 +400,11 @@ export class NodeInspectOverlay1_0 {
           margin-bottom: 2px;
           font-size: 10px;
         }
-        #node-inspect-overlay .overlay-name { color: rgba(0, 200, 220, 0.7); }
-        #node-inspect-overlay .overlay-detail { color: #00e5a0; }
+        #node-inspect-overlay .overlay-name { color: rgba(111, 133, 191, 0.7); }
+        #node-inspect-overlay .overlay-detail { color: #a0a9b8; }
         #node-inspect-overlay .event-entry {
           margin-left: 8px;
-          color: #ff3d8e;
+          color: #8b6a7b;
           font-size: 10px;
         }
       `;
@@ -1302,25 +1302,25 @@ export class NodeInspectOverlay1_0 {
    */
   getArchetypeColor(archetype) {
     const colors = {
-      'CRYSTAL': '#00ffff',
-      'HARMONIC': '#00ff88',
-      'FRACTAL': '#ff00ff',
-      'QUANTUM': '#ff0080',
-      'UMBRA': '#8800ff',
-      'SOLAR': '#ffcc00',
-      'GLYPH': '#00ff00',
-      'ECHO': '#8080ff',
-      'CONVERGENCE': '#ff8000',
-      'ASCENDED': '#ffffff',
-      'INPUT': '#00ff88',
-      'PROCESS': '#0080ff',
-      'INTEGRATION': '#aa00ff',
-      'ANALYTICS': '#ff00ff',
-      'STORAGE': '#00ffaa',
-      'CONTROL': '#ffaa00',
+      'CRYSTAL': '#6f85bf',
+      'HARMONIC': '#66508f',
+      'FRACTAL': '#7a69c0',
+      'QUANTUM': '#8b6a7b',
+      'UMBRA': '#4a5568',
+      'SOLAR': '#9c8a5a',
+      'GLYPH': '#728096',
+      'ECHO': '#6f85bf',
+      'CONVERGENCE': '#66508f',
+      'ASCENDED': '#dbe2ee',
+      'INPUT': '#728096',
+      'PROCESS': '#6f85bf',
+      'INTEGRATION': '#7a69c0',
+      'ANALYTICS': '#8b6a7b',
+      'STORAGE': '#a0a9b8',
+      'CONTROL': '#9c8a5a',
     };
 
-    return colors[archetype] || '#00ffff';
+    return colors[archetype] || '#6f85bf';
   }
 
   /**

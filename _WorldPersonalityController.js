@@ -236,8 +236,81 @@ export class WorldPersonalityController {
     
     this.initializeHUD();
     this.captureBaseWorldState();
+    // Dramaturgy modulation — driven by EventDramaturgyEngine
+    this._dramaturgyModulation = {
+      active: false,
+      family: null,
+      phase: null,
+      intensity: 0,
+      ttl: 0
+    };
     
     console.log('✓ World Personality Controller 2.0 initialized');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dramaturgy Modulation — World Personality Coupling
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Receive dramaturgy state from EventDramaturgyEngine.
+   * Maps event families × phases → world mood labels.
+   *
+   * Mapping:
+   *   corruption telegraph  → UMBRA_PRESSURE     (anxious, dark fog)
+   *   corruption escalation → QUANTUM_CHAOS       (dark surge, distortion)
+   *   corruption payoff     → HARMONIC_CALM       (relief, warm sky)
+   *   resonance telegraph   → FOCUSED_ANALYSIS    (focused, crisp)
+   *   resonance escalation  → ASCENDED_ALIGNMENT  (euphoric, aurora)
+   *   resonance payoff      → HARMONIC_CALM       (serene)
+   *   ritual telegraph      → ECHO_DRIFT          (anticipation, streaks)
+   *   ritual escalation     → ASCENDED_ALIGNMENT  (transcendent, pillars)
+   *   ritual payoff         → HARMONIC_CALM       (serene)
+   *   hazard telegraph      → UMBRA_PRESSURE      (ominous)
+   *   hazard escalation     → RADIANT_STORM       (defensive, arcs)
+   *   hazard payoff         → HARMONIC_CALM       (relief)
+   *   cascade telegraph     → ECHO_DRIFT          (anticipation)
+   *   cascade escalation    → RADIANT_STORM       (intense, surging)
+   *   cascade payoff        → HARMONIC_CALM       (relief)
+   */
+  setDramaturgyModulation(state) {
+    if (!state || !state.dominantFamily) return;
+    this._dramaturgyModulation.active = true;
+    this._dramaturgyModulation.family = state.dominantFamily;
+    this._dramaturgyModulation.phase = state.dominantPhase || 'telegraph';
+    this._dramaturgyModulation.intensity = state.dominantIntensity || 0;
+    this._dramaturgyModulation.ttl = 3.0;
+  }
+
+  _decayDramaturgyModulation(deltaTime) {
+    const mod = this._dramaturgyModulation;
+    if (!mod.active) return;
+    mod.ttl -= deltaTime;
+    if (mod.ttl <= 0) {
+      mod.active = false;
+      mod.family = null;
+      mod.phase = null;
+      mod.intensity = 0;
+      mod.ttl = 0;
+    }
+  }
+
+  /**
+   * Get dramaturgy mood override. Returns a mood label or null.
+   */
+  _getDramaturgyMoodOverride() {
+    const mod = this._dramaturgyModulation;
+    if (!mod.active || mod.ttl <= 0) return null;
+
+    const MOOD_MAP = {
+      corruption: { telegraph: 'UMBRA_PRESSURE', escalation: 'QUANTUM_CHAOS', payoff: 'HARMONIC_CALM' },
+      resonance:  { telegraph: 'FOCUSED_ANALYSIS', escalation: 'ASCENDED_ALIGNMENT', payoff: 'HARMONIC_CALM' },
+      ritual:     { telegraph: 'ECHO_DRIFT', escalation: 'ASCENDED_ALIGNMENT', payoff: 'HARMONIC_CALM' },
+      hazard:     { telegraph: 'UMBRA_PRESSURE', escalation: 'RADIANT_STORM', payoff: 'HARMONIC_CALM' },
+      cascade:    { telegraph: 'ECHO_DRIFT', escalation: 'RADIANT_STORM', payoff: 'HARMONIC_CALM' }
+    };
+
+    return MOOD_MAP[mod.family]?.[mod.phase] || null;
   }
 
   tagFXMaterial(material) {
@@ -289,7 +362,9 @@ export class WorldPersonalityController {
    */
   update(deltaTime, nodes, worldMetrics = null) {
     if (!nodes || nodes.length === 0) return;
-    
+
+    this._decayDramaturgyModulation(deltaTime);
+
     const globalMetrics = this._resolveGlobalMetrics(worldMetrics);
     
     // Phase B pilot: low-frequency interpretation gating
@@ -437,7 +512,14 @@ export class WorldPersonalityController {
       visualContext,
     };
 
-    if (moodChanged && timeSinceLastChange >= this.minMoodDuration) {
+    // Dramaturgy override — bypass normal mood determination and min duration
+    const dramMood = this._getDramaturgyMoodOverride();
+    if (dramMood && dramMood !== this.activeMoodLabel) {
+      this.triggerMoodTransition(this.activeMoodLabel, dramMood);
+      this.worldMood.label = dramMood;
+      this.worldMood.intensity = Math.max(this.worldMood.intensity, 0.5);
+      this.activeMoodLabel = dramMood;
+    } else if (moodChanged && timeSinceLastChange >= this.minMoodDuration) {
       this.triggerMoodTransition(previousMoodLabel, resolvedMoodLabel);
     }
     

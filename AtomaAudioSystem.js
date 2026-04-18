@@ -384,6 +384,13 @@ export class AtomaAudioSystem {
         this.eventNoiseSynth.connect(this.eventNoiseFilter);
         this.eventNoiseSynth.volume.value = -28;
 
+        // Dramaturgy spatial panner — routes event synths through position-aware panning
+        this._dramaturgyPanner = new Tone.Panner(0).connect(this.masterReverb);
+        this._dramaturgySpatialOrigin = null; // { x, y, z } or null
+        this._dramaturgyCamera = null;
+        this._dramaturgyRoutingActive = false;
+        this._dramaturgyRoutingTimeout = null;
+
         this._setDestinationMute(!this.enabled);
     }
 
@@ -671,10 +678,115 @@ export class AtomaAudioSystem {
      * Escalation: full impact
      * Payoff: resolution / settling
      */
+    // ---------------------------------------------------------------------------
+    // Dramaturgy Spatial Audio
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Set the spatial context for dramaturgy audio.
+     * Called by EventDramaturgyEngine before playing a cue.
+     */
+    setDramaturgySpatialContext(origin, camera) {
+        this._dramaturgySpatialOrigin = origin || null;
+        this._dramaturgyCamera = camera || null;
+    }
+
+    /**
+     * Compute stereo pan value from event origin relative to camera.
+     * Returns -1 (left) to 1 (right).
+     *
+     * Telegraph: directional — audio comes from event direction
+     * Escalation: center/wide — audio fills full stereo field
+     * Payoff: fading — audio drifts toward event origin
+     */
+    _computeDramaturgyPan(phase) {
+        const origin = this._dramaturgySpatialOrigin;
+        const camera = this._dramaturgyCamera;
+
+        if (!origin || !camera || !camera.position) return 0;
+
+        const camPos = camera.position;
+        const dx = (origin.x || 0) - camPos.x;
+        const dz = (origin.z || 0) - camPos.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < 0.5) return 0;
+
+        // Get camera forward direction for left/right determination
+        let fwdX = 0, fwdZ = -1;
+        if (camera.getWorldDirection) {
+            const dir = { x: 0, y: 0, z: 0 };
+            camera.getWorldDirection(dir);
+            fwdX = dir.x;
+            fwdZ = dir.z;
+        }
+
+        // Cross product (2D) determines left vs right
+        const cross = fwdX * dz - fwdZ * dx;
+        const panRaw = Math.max(-1, Math.min(1, cross / dist));
+
+        // Phase-dependent spatial behavior
+        switch (phase) {
+            case 'telegraph':  return panRaw * 0.8;   // Directional — from event direction
+            case 'escalation': return panRaw * 0.12;   // Center/wide — fills stereo field
+            case 'payoff':     return panRaw * 0.5;    // Fading toward origin
+            default:           return 0;
+        }
+    }
+
+    /**
+     * Route event synths through dramaturgy panner for spatial audio.
+     */
+    _routeDramaturgySpatial(panValue) {
+        if (this._dramaturgyRoutingActive) {
+            // Already routed — just update pan
+            this._dramaturgyPanner.pan.value = panValue;
+            return;
+        }
+
+        this._dramaturgyPanner.pan.value = panValue;
+
+        // Route event synths through panner
+        try {
+            this.eventLeadSynth.disconnect(this.masterReverb);
+            this.eventLeadSynth.connect(this._dramaturgyPanner);
+            this.eventAccentSynth.disconnect(this.masterReverb);
+            this.eventAccentSynth.connect(this._dramaturgyPanner);
+            this.eventNoiseFilter.disconnect(this.masterReverb);
+            this.eventNoiseFilter.connect(this._dramaturgyPanner);
+        } catch (_) { /* ignore disconnect errors */ }
+
+        this._dramaturgyRoutingActive = true;
+
+        // Auto-restore normal routing after 2.5s (longest dramaturgy note duration)
+        if (this._dramaturgyRoutingTimeout) clearTimeout(this._dramaturgyRoutingTimeout);
+        this._dramaturgyRoutingTimeout = setTimeout(() => {
+            this._restoreDramaturgyRouting();
+        }, 2500);
+    }
+
+    _restoreDramaturgyRouting() {
+        if (!this._dramaturgyRoutingActive) return;
+        try {
+            this.eventLeadSynth.disconnect(this._dramaturgyPanner);
+            this.eventLeadSynth.connect(this.masterReverb);
+            this.eventAccentSynth.disconnect(this._dramaturgyPanner);
+            this.eventAccentSynth.connect(this.masterReverb);
+            this.eventNoiseFilter.disconnect(this._dramaturgyPanner);
+            this.eventNoiseFilter.connect(this.masterReverb);
+        } catch (_) { /* ignore disconnect errors */ }
+        this._dramaturgyRoutingActive = false;
+        this._dramaturgyRoutingTimeout = null;
+    }
+
     _playDramaturgyCue(cue, now, velocity, intensity) {
         const isTelegraph = cue.includes('telegraph');
         const isEscalation = cue.includes('escalation');
         const isPayoff = cue.includes('payoff');
+
+        // Compute and apply spatial panning
+        const phase = isTelegraph ? 'telegraph' : isEscalation ? 'escalation' : isPayoff ? 'payoff' : 'telegraph';
+        const panValue = this._computeDramaturgyPan(phase);
+        this._routeDramaturgySpatial(panValue);
 
         // Cascade — tearing energy
         if (cue.includes('cascade')) {

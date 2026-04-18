@@ -59,6 +59,9 @@ export class EmergentThoughtStorms5_0 {
     // Enable/disable
     this.enabled = true;
     
+    // Dramaturgy modulation state (set by EventDramaturgyEngine)
+    this._dramaturgyModulation = null;
+    
     // Active storms (nodeClusterId → stormArray)
     this.activeStorms = new Map();
     
@@ -156,6 +159,93 @@ export class EmergentThoughtStorms5_0 {
     if (!value) {
       this.clearAllStorms();
     }
+  }
+
+  /**
+   * Receive dramaturgy modulation from EventDramaturgyEngine.
+   * Allows thought storms to respond to event phases:
+   *   - corruption escalation → storms intensify (lower thresholds)
+   *   - ritual escalation → storms become coherent/organized
+   *   - resonance payoff → storms calm/suppress
+   *   - hazard escalation → storms become chaotic
+   *
+   * @param {object} state - Aggregated dramaturgy state from the engine
+   */
+  setDramaturgyModulation(state) {
+    if (!state) {
+      this._dramaturgyModulation = null;
+      return;
+    }
+    this._dramaturgyModulation = state;
+  }
+
+  /**
+   * Get the current effective threshold multiplier based on dramaturgy state.
+   * Returns 1.0 (no change) when no dramaturgy is active.
+   */
+  _getDramaturgyThresholdMultiplier() {
+    const mod = this._dramaturgyModulation;
+    if (!mod || mod.activeCount === 0) return 1.0;
+
+    const family = mod.dominantFamily;
+    const intensity = mod.dominantIntensity;
+
+    switch (family) {
+      case 'corruption':
+        // Corruption escalation → storms much easier to trigger
+        return Math.max(0.3, 1.0 - intensity * 0.7);
+      case 'hazard':
+        // Hazard escalation → storms easier to trigger
+        return Math.max(0.4, 1.0 - intensity * 0.5);
+      case 'ritual':
+        // Ritual → storms moderately easier
+        return Math.max(0.5, 1.0 - intensity * 0.4);
+      case 'resonance':
+        // Resonance payoff → storms suppress (higher thresholds)
+        return 1.0 + intensity * 0.5;
+      case 'cascade':
+        // Cascade → storms slightly easier
+        return Math.max(0.6, 1.0 - intensity * 0.3);
+      default:
+        return 1.0;
+    }
+  }
+
+  /**
+   * Get the dramaturgy-biased storm type override.
+   * Returns null when no bias should be applied.
+   */
+  _getDramaturgyStormTypeBias() {
+    const mod = this._dramaturgyModulation;
+    if (!mod || mod.activeCount === 0) return null;
+
+    const family = mod.dominantFamily;
+    const intensity = mod.dominantIntensity;
+
+    // Only bias when intensity is strong enough
+    if (intensity < 0.4) return null;
+
+    switch (family) {
+      case 'corruption':
+        return 'corruption'; // Force corruption storms
+      case 'ritual':
+        return 'ascended';  // Force ascended/ceremonial storms
+      case 'hazard':
+        return 'chaotic';   // Force chaotic storms
+      case 'resonance':
+        return 'coherence'; // Force coherence storms
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Get the dramaturgy intensity multiplier for storm visuals.
+   */
+  _getDramaturgyIntensityMultiplier() {
+    const mod = this._dramaturgyModulation;
+    if (!mod || mod.activeCount === 0) return 1.0;
+    return 1.0 + mod.dominantIntensity * 0.5;
   }
 
   /**
@@ -498,7 +588,9 @@ export class EmergentThoughtStorms5_0 {
       
       // Check trigger conditions
       if (this.shouldSpawnStorm(localMetrics)) {
-        const stormType = this.determineStormType(localMetrics);
+        // Use dramaturgy-biased storm type when active, otherwise determine from metrics
+        const dramaturgyBias = this._getDramaturgyStormTypeBias();
+        const stormType = dramaturgyBias || this.determineStormType(localMetrics);
         this.spawnStorm(node, stormType, localMetrics);
         
         this.stats.stormsTriggeredThisFrame++;
@@ -588,23 +680,26 @@ export class EmergentThoughtStorms5_0 {
    * Determine if storm should spawn
    */
   shouldSpawnStorm(metrics) {
+    // Dramaturgy threshold modulation — events lower/raise thresholds
+    const thresholdMod = this._getDramaturgyThresholdMultiplier();
+
     // Thought density trigger
-    if (metrics.thoughtDensity > this.config.thoughtDensityThreshold) {
+    if (metrics.thoughtDensity > this.config.thoughtDensityThreshold * thresholdMod) {
       return true;
     }
     
     // Synergy trigger
-    if (metrics.synergy > this.config.synergyThreshold && metrics.nodeCount >= 3) {
+    if (metrics.synergy > this.config.synergyThreshold * thresholdMod && metrics.nodeCount >= 3) {
       return true;
     }
     
     // Corruption trigger
-    if (metrics.corruption > this.config.corruptionThreshold) {
+    if (metrics.corruption > this.config.corruptionThreshold * thresholdMod) {
       return true;
     }
     
     // Harmony trigger
-    if (metrics.harmony > this.config.harmonyThreshold) {
+    if (metrics.harmony > this.config.harmonyThreshold * thresholdMod) {
       return true;
     }
     

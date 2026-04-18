@@ -58,6 +58,16 @@ export class SafeQuantumIllusionsPack1 {
     this.lastLegendaryCount = 0;
     this.runtimeEnabled = true;
     this.echoSpawnCooldown = 0;
+
+    // Dramaturgy modulation — driven by EventDramaturgyEngine
+    this._dramaturgyModulation = {
+      active: false,
+      family: null,       // cascade | corruption | resonance | ritual | hazard
+      phase: null,        // telegraph | escalation | payoff
+      intensity: 0,       // 0-1
+      ttl: 0              // auto-decay when dramaturgy stops pushing
+    };
+    this._dramaturgySpawnBoost = 0;
     
     // Global illusion envelope profile
     this.illusionEnvelopeProfile = {
@@ -291,6 +301,90 @@ export class SafeQuantumIllusionsPack1 {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Dramaturgy Modulation — Conditional Activation
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Receive dramaturgy state from EventDramaturgyEngine.
+   * Maps event families → illusion modes, phases → spawn intensity.
+   *
+   * Family → Mode:
+   *   cascade     → VEIL_BREACH  (shards, afterPaths, ghostMarkers, worldBends)
+   *   corruption  → VEIL_BREACH  (dark distortions)
+   *   ritual      → ASCENSION    (echoes, symbols, ghostMarkers, worldBends, sigma)
+   *   resonance   → REVELATION   (echoes, drifts, symbols, hyperfocus)
+   *   hazard      → VEIL_BREACH  (unstable distortions)
+   *
+   * Phase → Spawn Boost:
+   *   telegraph   → 0.15 (subtle reality flickers)
+   *   escalation  → 0.40 (full quantum distortions)
+   *   payoff      → 0.08 (fading)
+   */
+  setDramaturgyModulation(state) {
+    if (!state || !state.dominantFamily) {
+      return;
+    }
+
+    this._dramaturgyModulation.active = true;
+    this._dramaturgyModulation.family = state.dominantFamily;
+    this._dramaturgyModulation.phase = state.dominantPhase || 'telegraph';
+    this._dramaturgyModulation.intensity = state.dominantIntensity || 0;
+    this._dramaturgyModulation.ttl = 2.5; // Refresh TTL — 2.5s grace after dramaturgy stops
+  }
+
+  /**
+   * Map dramaturgy family → myth mode override.
+   */
+  _getDramaturgyModeOverride() {
+    const mod = this._dramaturgyModulation;
+    if (!mod.active || mod.ttl <= 0) return null;
+
+    const FAMILY_TO_MODE = {
+      cascade: 'VEIL_BREACH',
+      corruption: 'VEIL_BREACH',
+      ritual: 'ASCENSION',
+      resonance: 'REVELATION',
+      hazard: 'VEIL_BREACH'
+    };
+
+    return FAMILY_TO_MODE[mod.family] || null;
+  }
+
+  /**
+   * Get spawn boost from dramaturgy phase.
+   * This boost is added to spawn scores and multiplied with random chances.
+   */
+  _getDramaturgySpawnBoost() {
+    const mod = this._dramaturgyModulation;
+    if (!mod.active || mod.ttl <= 0) return 0;
+
+    switch (mod.phase) {
+      case 'telegraph':  return 0.15;
+      case 'escalation': return 0.40;
+      case 'payoff':     return 0.08;
+      default:           return 0;
+    }
+  }
+
+  /**
+   * Decay dramaturgy modulation TTL when no longer receiving updates.
+   */
+  _decayDramaturgyModulation(deltaTime) {
+    const mod = this._dramaturgyModulation;
+    if (!mod.active) return;
+
+    mod.ttl -= deltaTime;
+    if (mod.ttl <= 0) {
+      mod.active = false;
+      mod.family = null;
+      mod.phase = null;
+      mod.intensity = 0;
+      mod.ttl = 0;
+      this._dramaturgySpawnBoost = 0;
+    }
+  }
+
   setMode(mode) {
     if (!this.mythModes[mode]) {
       console.warn(`SafeQuantumIllusionsPack1: unknown mode '${mode}', keeping current mode '${this.mode}'.`);
@@ -320,6 +414,9 @@ export class SafeQuantumIllusionsPack1 {
     if (!this.runtimeEnabled) return;
     
     if (!this.scene) return;
+
+    // Decay dramaturgy modulation
+    this._decayDramaturgyModulation(deltaTime);
     
     // Update registry lifetime tracking
     this.registry.update(deltaTime);
@@ -393,9 +490,18 @@ export class SafeQuantumIllusionsPack1 {
       this.highTrafficBurst = highTraffic > this.linkingSystem.links.length * 0.3;
     }
 
+    // Compute dramaturgy spawn boost for all generate methods
+    this._dramaturgySpawnBoost = this._dramaturgyModulation.active && this._dramaturgyModulation.ttl > 0
+      ? this._getDramaturgySpawnBoost()
+      : 0;
+
     // Determine current myth mode from meaningful world state.
+    // Dramaturgy mode override takes priority.
+    const dramMode = this._getDramaturgyModeOverride();
     let nextMode = this.mode;
-    if (legendarySurge || legendaryEventActive) {
+    if (dramMode) {
+      nextMode = dramMode;
+    } else if (legendarySurge || legendaryEventActive) {
       nextMode = 'ASCENSION';
     } else if (this.quantumStormActive || ['QUANTUM_ECLIPSE', 'SIGMA_INVASION'].includes(activeEventType)) {
       nextMode = 'VEIL_BREACH';
@@ -453,9 +559,10 @@ export class SafeQuantumIllusionsPack1 {
         const awakenBoost = this.lastAwakenTime < 1 ? 0.24 : 0;
         const movementBoost = Math.min(1, motion / 12) * 0.28;
         const fluxBoost = Math.min(1, flux) * 0.18;
+        const dramBoost = this._dramaturgySpawnBoost;
         return {
           node,
-          score: base + nodeSynergy * 0.5 + movementBoost + fluxBoost + stormBoost + awakenBoost
+          score: base + nodeSynergy * 0.5 + movementBoost + fluxBoost + stormBoost + awakenBoost + dramBoost
         };
       })
       .sort((a, b) => b.score - a.score);
@@ -544,8 +651,10 @@ export class SafeQuantumIllusionsPack1 {
     const count = this.registry.getIllusionsByType('shards').length;
     if (count >= this.config.shards.maxActive) return;
     
-    // Spawn during sigma turbulence or high synergy
-    const shouldSpawn = (this.quantumStormActive || this.synergy > 0.75) && Math.random() < 0.02;
+    // Spawn during sigma turbulence, high synergy, or dramaturgy events
+    const dramSpawnChance = this._dramaturgySpawnBoost > 0 ? this._dramaturgySpawnBoost * 2 : 0;
+    const shouldSpawn = (this.quantumStormActive || this.synergy > 0.75) && Math.random() < (0.02 + dramSpawnChance)
+      || (this._dramaturgySpawnBoost > 0.1 && Math.random() < this._dramaturgySpawnBoost);
     if (!shouldSpawn) return;
     
     // Random position in front of camera
@@ -663,8 +772,9 @@ export class SafeQuantumIllusionsPack1 {
     const count = this.registry.getIllusionsByType('drifts').length;
     if (count >= this.config.drifts.maxActive) return;
     
-    // Spawn during node evolution or high link traffic
-    const shouldSpawn = (this.aiNodes && this.aiNodes.nodes?.length > 0) && Math.random() < 0.015;
+    // Spawn during node evolution, high link traffic, or dramaturgy events
+    const dramDriftChance = this._dramaturgySpawnBoost > 0 ? this._dramaturgySpawnBoost * 1.5 : 0;
+    const shouldSpawn = (this.aiNodes && this.aiNodes.nodes?.length > 0) && Math.random() < (0.015 + dramDriftChance);
     if (!shouldSpawn) return;
     
     // Place near random node or player
@@ -753,7 +863,7 @@ export class SafeQuantumIllusionsPack1 {
     if (this.aiNodes?.nodes?.length > 0) {
       for (const node of this.aiNodes.nodes) {
         if (node.mesh && node.velocity && node.velocity.length() > 5) {
-          if (Math.random() < 0.05) {
+          if (Math.random() < (0.05 + this._dramaturgySpawnBoost * 0.8)) {
             spawnPos = node.mesh.position.clone();
             direction = node.velocity.clone().normalize();
             shouldSpawn = true;
@@ -842,8 +952,9 @@ export class SafeQuantumIllusionsPack1 {
     const count = this.registry.getIllusionsByType('symbols').length;
     if (count >= this.config.symbols.maxActive) return;
     
-    // Spawn near high-energy nodes or during events
-    const shouldSpawn = (this.lastAwakenTime < 2 || this.synergy > 0.8) && Math.random() < 0.01;
+    // Spawn near high-energy nodes, during events, or dramaturgy
+    const dramSymbolChance = this._dramaturgySpawnBoost > 0 ? this._dramaturgySpawnBoost * 2 : 0;
+    const shouldSpawn = (this.lastAwakenTime < 2 || this.synergy > 0.8 || this._dramaturgySpawnBoost > 0.15) && Math.random() < (0.01 + dramSymbolChance);
     if (!shouldSpawn) return;
     
     // Place near a node or a mysterious random position to feel ritualistic
@@ -930,7 +1041,7 @@ export class SafeQuantumIllusionsPack1 {
   updateHyperfocusMoment() {
     if (!this.config.hyperfocus.enabled || !this.isModeActive('hyperfocus')) return;
 
-    const strongState = this.lastAwakenTime < 1 || this.quantumStormActive || this.synergy > 0.75 || this.highTrafficBurst;
+    const strongState = this.lastAwakenTime < 1 || this.quantumStormActive || this.synergy > 0.75 || this.highTrafficBurst || this._dramaturgySpawnBoost > 0.2;
     if (!strongState) return;
 
     const activeFocus = this.registry.getIllusionsByType('focusEffects');
@@ -1088,7 +1199,7 @@ export class SafeQuantumIllusionsPack1 {
     if (this.aiNodes?.nodes?.length > 0) {
       for (const node of this.aiNodes.nodes) {
         if (node.mesh && node.velocity && node.velocity.length() > 8) {
-          if (Math.random() < 0.04) {
+          if (Math.random() < (0.04 + this._dramaturgySpawnBoost * 0.6)) {
             spawnPos = node.mesh.position.clone();
             spawnPos.y += 0.2;
             shouldSpawn = true;

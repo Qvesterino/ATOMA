@@ -28,6 +28,7 @@ export class EnvironmentEventCoordinator {
     this._initialized = true;
 
     this._bindMetricTriggers();
+    this._bindConsciousnessTriggers();
     this._bindRitualHooks();
   }
 
@@ -103,6 +104,14 @@ export class EnvironmentEventCoordinator {
     this._subscribe('global.harmony.mid', () => this._markLegendaryEvaluation());
   }
 
+  _bindConsciousnessTriggers() {
+    if (!this.semanticBus) return;
+
+    this._subscribe('consciousness.state.changed', (payload) => {
+      this._routeConsciousnessState(payload);
+    });
+  }
+
   _bindRitualHooks() {
     if (!this.semanticBus) return;
 
@@ -166,6 +175,41 @@ export class EnvironmentEventCoordinator {
     if (this._isOnCooldown(worldEventType)) return;
 
     this._triggerWorldEvent(worldEventType);
+  }
+
+  _routeConsciousnessState(payload) {
+    const worldEventType = this._getConsciousnessWorldEventType(payload);
+    if (!worldEventType) return;
+    if (this._isRitualActive()) return;
+    if (this._isPostRitualCooldown()) return;
+    if (this.worldEvents?.isEventActive?.()) return;
+    if (this.worldEvents?._isSuppressed?.()) return;
+    if (this._isOnCooldown(worldEventType)) return;
+
+    this._triggerWorldEvent(worldEventType);
+  }
+
+  _getConsciousnessWorldEventType(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+
+    const state = payload.consciousnessState && typeof payload.consciousnessState === 'object'
+      ? payload.consciousnessState
+      : payload;
+    const networkMood = String(state.networkMood || state.moodTag || '').toUpperCase();
+    const heroPhase = String(state.heroPhase || '').toUpperCase();
+    const networkPressure = Number(state.networkPressure) || 0;
+    const volatility = Number(state.volatility) || 0;
+
+    const tensionSpike =
+      networkMood === 'CRITICAL' ||
+      networkMood === 'CHAOTIC' ||
+      heroPhase === 'DEFENSE' ||
+      heroPhase === 'FRACTURE' ||
+      (networkMood === 'TENSE' && (networkPressure >= 0.58 || volatility >= 0.55));
+
+    if (!tensionSpike) return null;
+
+    return 'FRACTAL_STORM';
   }
 
   _markLegendaryEvaluation() {

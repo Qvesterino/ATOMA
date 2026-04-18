@@ -293,8 +293,88 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         this._timeOrigin = undefined;
         this._lastUpdateTime = undefined;
         this._fallbackRecoveryTimer = 0;
-        
+
+        // Dramaturgy modulation — driven by EventDramaturgyEngine via main.js
+        this._dramaturgyModulation = {
+            active: false,
+            family: null,
+            phase: null,
+            intensity: 0,
+            ttl: 0
+        };
+        this._dramaturgyRecoveryTimer = 0;
+
         console.log('✨ [Session 138] HarmonicRecoveryVisualSystem initialized');
+    }
+
+    // ---------------------------------------------------------------------------
+    // Dramaturgy Modulation — Recovery Awakening
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Receive dramaturgy state.
+     * During corruption payoff → forces recovery pulses on all links.
+     * This creates the "restoration halo" effect after corruption surge.
+     */
+    setDramaturgyModulation(state) {
+        if (!state || !state.dominantFamily) return;
+        this._dramaturgyModulation.active = true;
+        this._dramaturgyModulation.family = state.dominantFamily;
+        this._dramaturgyModulation.phase = state.dominantPhase || 'telegraph';
+        this._dramaturgyModulation.intensity = state.dominantIntensity || 0;
+        this._dramaturgyModulation.ttl = 3.0;
+    }
+
+    _decayDramaturgyModulation(deltaTime) {
+        const mod = this._dramaturgyModulation;
+        if (!mod.active) return;
+        mod.ttl -= deltaTime;
+        if (mod.ttl <= 0) {
+            mod.active = false;
+            mod.family = null;
+            mod.phase = null;
+            mod.intensity = 0;
+            mod.ttl = 0;
+        }
+    }
+
+    /**
+     * Should dramaturgy force recovery pulses?
+     * Active during corruption payoff and any family payoff.
+     */
+    _isDramaturgyRecoveryActive() {
+        const mod = this._dramaturgyModulation;
+        return mod.active && mod.ttl > 0 && mod.phase === 'payoff';
+    }
+
+    /**
+     * Force recovery pulses on random links during dramaturgy payoff.
+     * Creates the "restoration halo" visual effect.
+     */
+    _dramaturgyForceRecoveryPulse(currentVisualTime) {
+        if (!this.linkingSystem?.links) return;
+        const links = this.linkingSystem.links;
+        if (links.length === 0) return;
+
+        // Pick a random active link and trigger recovery
+        const activeLinks = links.filter(l => l && l.active !== false);
+        if (activeLinks.length === 0) return;
+
+        const link = activeLinks[Math.floor(Math.random() * activeLinks.length)];
+        const linkId = link.id || link.linkId || link.uuid;
+        if (!linkId) return;
+
+        // Check cooldown
+        const now = this._getCurrentTime?.() || performance.now() / 1000;
+        const lastTime = this._linkCooldowns.get(linkId);
+        if (lastTime !== undefined && (now - lastTime) < this.config.linkCooldown * 0.5) return;
+        this._linkCooldowns.set(linkId, now);
+
+        this.triggerRecoveryPulse(link, currentVisualTime);
+    }
+
+    _getCurrentTime() {
+        return (typeof performance !== 'undefined' ? performance.now() / 1000 : Date.now() / 1000);
     }
 
     attachScene(scene) {
@@ -700,6 +780,8 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         if (mode !== 'all' && mode !== 'recovery') return;
         if (!this.enabled) return;
 
+        this._decayDramaturgyModulation(deltaTime);
+
         const visualNow = Number.isFinite(VisualTime?.now)
             ? VisualTime.now
             : (Number.isFinite(time) ? time : 0);
@@ -719,6 +801,15 @@ export class HarmonicRecoveryVisualSystem_Session138 {
 
         // 1. Detect Rupture Completions
         this._detectRuptureEvents(currentVisualTime);
+
+        // 1b. Dramaturgy recovery override — force recovery pulses during payoff
+        if (this._isDramaturgyRecoveryActive()) {
+            this._dramaturgyRecoveryTimer += sinceLast;
+            if (this._dramaturgyRecoveryTimer >= 0.8) {
+                this._dramaturgyRecoveryTimer = 0;
+                this._dramaturgyForceRecoveryPulse(currentVisualTime);
+            }
+        }
 
         // Fallback: if no ruptures found and debug mode, force recovery pulses from links
         if (this.config.debugForceRecoveryPulse) {
