@@ -31,6 +31,14 @@ export class AmbientEntityManager {
     this.entityMeshes = {}; // id -> mesh/group
     this.entityParticles = {}; // id -> particles array
     this.entityTrailParticles = {}; // id -> fragment trails
+    this.sharedGeometryCache = new Map();
+    this.sharedGeometrySet = new Set();
+    this._tempColorA = new THREE.Color();
+    this._tempColorB = new THREE.Color();
+    this._tempColorC = new THREE.Color();
+    this._tempVectorA = new THREE.Vector3();
+    this._tempVectorB = new THREE.Vector3();
+    this._tempVectorC = new THREE.Vector3();
     
     // Spawning
     this.spawnChance = 0.003; // 0.3% per second
@@ -74,6 +82,17 @@ export class AmbientEntityManager {
       glowViolet: 0x7a69c0,
       haze: 0x394358
     };
+  }
+
+  _getSharedGeometry(key, factory) {
+    if (this.sharedGeometryCache.has(key)) {
+      return this.sharedGeometryCache.get(key);
+    }
+
+    const geometry = factory();
+    this.sharedGeometryCache.set(key, geometry);
+    this.sharedGeometrySet.add(geometry);
+    return geometry;
   }
   
   /**
@@ -197,8 +216,12 @@ export class AmbientEntityManager {
    */
   spawnEntity(type, position) {
     const lifetime = 20 + Math.random() * 30; // 20-50s
-    const intensity = 0.5 + Math.random() * 0.5;
-    
+    let activeCount = 0;
+    for (const entityId in this.registry.entities) {
+      if (this.registry.entities[entityId]?.isActive) {
+        activeCount += 1;
+      }
+    }
     // Initial velocity based on type
     let velocity = { x: 0, y: 0, z: 0 };
     switch (type) {
@@ -288,7 +311,7 @@ export class AmbientEntityManager {
     const group = new THREE.Group();
 
     // Outer atmospheric shell — soft BackSide glow
-    const outerGeo = new THREE.IcosahedronGeometry(0.55, 2);
+    const outerGeo = this._getSharedGeometry('ghostOrb.outer', () => new THREE.IcosahedronGeometry(0.55, 2));
     const outerMat = new THREE.MeshBasicMaterial({
       color: this.ambientPalette.midnight,
       transparent: true,
@@ -302,7 +325,7 @@ export class AmbientEntityManager {
     group.add(outer);
 
     // Mid-layer wireframe icosahedron — rotating cage of light
-    const midGeo = new THREE.IcosahedronGeometry(0.3, 1);
+    const midGeo = this._getSharedGeometry('ghostOrb.mid', () => new THREE.IcosahedronGeometry(0.3, 1));
     const midMat = new THREE.MeshBasicMaterial({
       color: this.ambientPalette.violet,
       wireframe: true,
@@ -316,7 +339,7 @@ export class AmbientEntityManager {
     group.add(mid);
 
     // Inner core — soft pulsing point light
-    const coreGeo = new THREE.IcosahedronGeometry(0.1, 2);
+    const coreGeo = this._getSharedGeometry('ghostOrb.core', () => new THREE.IcosahedronGeometry(0.1, 2));
     const coreMat = new THREE.MeshBasicMaterial({
       color: this.ambientPalette.frost,
       transparent: true,
@@ -329,7 +352,7 @@ export class AmbientEntityManager {
     group.add(core);
 
     // Secondary ring orbit — thin torus for depth
-    const ringGeo = new THREE.TorusGeometry(0.35, 0.008, 8, 32);
+    const ringGeo = this._getSharedGeometry('ghostOrb.ring', () => new THREE.TorusGeometry(0.35, 0.008, 8, 32));
     const ringMat = new THREE.MeshBasicMaterial({
       color: this.ambientPalette.steel,
       transparent: true,
@@ -361,7 +384,7 @@ export class AmbientEntityManager {
     for (let i = 0; i < ringCount; i++) {
       const y = (i / (ringCount - 1)) * 1.8 - 0.3;
       const radius = 0.15 + Math.sin((i / ringCount) * Math.PI) * 0.2;
-      const ringGeo = new THREE.TorusGeometry(radius, 0.012, 6, 24);
+      const ringGeo = this._getSharedGeometry(`spectre.ring.${radius.toFixed(3)}`, () => new THREE.TorusGeometry(radius, 0.012, 6, 24));
       const ringMat = new THREE.MeshBasicMaterial({
         color: this.ambientPalette.indigo,
         transparent: true,
@@ -377,12 +400,14 @@ export class AmbientEntityManager {
     }
 
     // Vertical spine line
-    const spinePoints = [];
-    for (let i = 0; i <= 12; i++) {
-      const t = i / 12;
-      spinePoints.push(new THREE.Vector3(0, t * 2.0 - 0.3, 0));
-    }
-    const spineGeo = new THREE.BufferGeometry().setFromPoints(spinePoints);
+    const spineGeo = this._getSharedGeometry('spectre.spine', () => {
+      const spinePoints = [];
+      for (let i = 0; i <= 12; i++) {
+        const t = i / 12;
+        spinePoints.push(new THREE.Vector3(0, t * 2.0 - 0.3, 0));
+      }
+      return new THREE.BufferGeometry().setFromPoints(spinePoints);
+    });
     const spineMat = new THREE.LineBasicMaterial({
       color: this.ambientPalette.steel,
       transparent: true,
@@ -395,7 +420,7 @@ export class AmbientEntityManager {
     group.add(spine);
 
     // Scanline sweep plane
-    const scanlineGeo = new THREE.PlaneGeometry(0.6, 0.04);
+    const scanlineGeo = this._getSharedGeometry('spectre.scanline', () => new THREE.PlaneGeometry(0.6, 0.04));
     const scanlineMat = new THREE.MeshBasicMaterial({
       color: this.ambientPalette.glowBlue,
       transparent: true,
@@ -485,7 +510,7 @@ export class AmbientEntityManager {
     const trailContainer = new THREE.Group();
     trailContainer.userData.isTrailContainer = true;
 
-    const particleGeometry = new THREE.SphereGeometry(0.02, 8, 8);
+    const particleGeometry = this._getSharedGeometry('trail.particle02', () => new THREE.SphereGeometry(0.02, 8, 8));
     for (let i = 0; i < 20; i++) {
       const particleMaterial = new THREE.MeshBasicMaterial({
         color: this.ambientPalette.steel,
@@ -505,7 +530,7 @@ export class AmbientEntityManager {
     const trailContainer = new THREE.Group();
     trailContainer.userData.isWispTrailContainer = true;
 
-    const particleGeometry = new THREE.SphereGeometry(0.03, 8, 8);
+    const particleGeometry = this._getSharedGeometry('trail.particle03', () => new THREE.SphereGeometry(0.03, 8, 8));
     for (let streamIndex = 0; streamIndex < streamCount; streamIndex++) {
       for (let trailIndex = 0; trailIndex < 6; trailIndex++) {
         const particleMaterial = new THREE.MeshBasicMaterial({
@@ -532,7 +557,7 @@ export class AmbientEntityManager {
   }
 
   createEdgeGlow(geometry, color) {
-    const edges = new THREE.EdgesGeometry(geometry);
+    const edges = this._getSharedGeometry(`edgeGlow.${geometry.uuid}`, () => new THREE.EdgesGeometry(geometry));
     const lineMaterial = new THREE.LineBasicMaterial({
       color: color,
       transparent: true,
@@ -562,14 +587,14 @@ export class AmbientEntityManager {
     });
 
     // Head
-    const headGeo = new THREE.BoxGeometry(pixelSize, pixelSize, pixelSize);
+    const headGeo = this._getSharedGeometry('phantom.head', () => new THREE.BoxGeometry(pixelSize, pixelSize, pixelSize));
     const head = new THREE.Mesh(headGeo, material.clone());
     head.position.y = 1.5;
     head.name = 'head';
     group.add(head);
 
     // Body
-    const bodyGeo = new THREE.BoxGeometry(pixelSize * 0.8, pixelSize * 2.0, pixelSize);
+    const bodyGeo = this._getSharedGeometry('phantom.body', () => new THREE.BoxGeometry(pixelSize * 0.8, pixelSize * 2.0, pixelSize));
     const body = new THREE.Mesh(bodyGeo, material.clone());
     body.position.y = 0.3;
     body.name = 'body';
@@ -577,7 +602,7 @@ export class AmbientEntityManager {
 
     // Arms
     for (let side of [-1, 1]) {
-      const armGeo = new THREE.BoxGeometry(pixelSize * 0.4, pixelSize * 1.2, pixelSize);
+      const armGeo = this._getSharedGeometry('phantom.arm', () => new THREE.BoxGeometry(pixelSize * 0.4, pixelSize * 1.2, pixelSize));
       const arm = new THREE.Mesh(armGeo, material.clone());
       arm.position.set(side * 0.7, -0.3, 0);
       arm.name = side === -1 ? 'leftArm' : 'rightArm';
@@ -586,7 +611,7 @@ export class AmbientEntityManager {
 
     // Legs
     for (let side of [-1, 1]) {
-      const legGeo = new THREE.BoxGeometry(pixelSize * 0.3, pixelSize * 1.2, pixelSize);
+      const legGeo = this._getSharedGeometry('phantom.leg', () => new THREE.BoxGeometry(pixelSize * 0.3, pixelSize * 1.2, pixelSize));
       const leg = new THREE.Mesh(legGeo, material.clone());
       leg.position.set(side * 0.25, -0.9, 0);
       leg.name = side === -1 ? 'leftLeg' : 'rightLeg';
@@ -674,7 +699,7 @@ export class AmbientEntityManager {
     }
 
     // Add ribbon-like planes
-    const ribbonGeo = new THREE.PlaneGeometry(0.3, 2);
+    const ribbonGeo = this._getSharedGeometry('wisp.ribbon', () => new THREE.PlaneGeometry(0.3, 2));
     for (let i = 0; i < 2; i++) {
       const ribbonMat = new THREE.MeshBasicMaterial({
         color: this.ambientPalette.haze,
@@ -828,9 +853,9 @@ export class AmbientEntityManager {
 
     // Color shift — slow drift inside the ATOMA dark palette
     const hue = 0.63 + Math.sin(ft * 0.18) * 0.02;
-    const color = new THREE.Color().setHSL(hue, 0.38, 0.24 + Math.sin(ft * 0.7) * 0.025);
-    const ringColor = new THREE.Color().setHSL(0.6 + Math.sin(ft * 0.22) * 0.018, 0.24, 0.44 + Math.sin(ft * 1.2) * 0.025);
-    const coreColor = new THREE.Color().setHSL(0.61, 0.12, 0.76 + Math.sin(ft * 3.0) * 0.03);
+    const color = this._tempColorA.setHSL(hue, 0.38, 0.24 + Math.sin(ft * 0.7) * 0.025);
+    const ringColor = this._tempColorB.setHSL(0.6 + Math.sin(ft * 0.22) * 0.018, 0.24, 0.44 + Math.sin(ft * 1.2) * 0.025);
+    const coreColor = this._tempColorC.setHSL(0.61, 0.12, 0.76 + Math.sin(ft * 3.0) * 0.03);
 
     const midCage = mesh.getObjectByName('midCage');
     if (midCage) {
@@ -879,8 +904,8 @@ export class AmbientEntityManager {
   updateSpectreVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.glitchTimer += deltaTime;
     const gt = mesh.userData.glitchTimer;
-    const spectralColor = new THREE.Color().setHSL(0.62 + Math.sin(gt * 0.15) * 0.015, 0.25, 0.36 + Math.sin(gt * 0.45) * 0.03);
-    const accentColor = new THREE.Color().setHSL(0.58, 0.12, 0.7);
+    const spectralColor = this._tempColorA.setHSL(0.62 + Math.sin(gt * 0.15) * 0.015, 0.25, 0.36 + Math.sin(gt * 0.45) * 0.03);
+    const accentColor = this._tempColorB.setHSL(0.58, 0.12, 0.7);
 
     // Scanline sweep — moves up and down
     const scanline = mesh.getObjectByName('scanline');
@@ -935,13 +960,14 @@ export class AmbientEntityManager {
   updateSwarmVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.orbitTime += deltaTime;
     const time = mesh.userData.orbitTime;
-    const fragments = mesh.children.filter(child => !child.userData.isTrailContainer);
     const trailContainer = mesh.userData.trailContainer;
     const trailParticles = entity.trailParticles || [];
     const TRAIL_LENGTH = 8;
     const TRAIL_LIFETIME = 0.3;
 
-    fragments.forEach((fragment, i) => {
+    for (let childIndex = 0; childIndex < mesh.children.length; childIndex++) {
+      const fragment = mesh.children[childIndex];
+      if (!fragment || fragment.userData.isTrailContainer) continue;
       const basePos = fragment.userData.basePos;
       const orbitSpeed = fragment.userData.orbitSpeed;
       const orbitRadius = fragment.userData.orbitRadius;
@@ -967,7 +993,7 @@ export class AmbientEntityManager {
       if (fragment.material && fragment.material.opacity !== undefined) {
         fragment.material.opacity = 0.7 * ageFactor * entity.intensity;
       }
-    });
+    }
 
     if (trailContainer && trailContainer.children.length > 0) {
       let particleIndex = 0;
@@ -1002,8 +1028,8 @@ export class AmbientEntityManager {
   updatePhantomVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.glitchTimer += deltaTime;
     mesh.userData.fadeCycleTime = (mesh.userData.fadeCycleTime || 0) + deltaTime;
-    const phantomBase = new THREE.Color().setHSL(0.72 + Math.sin(mesh.userData.glitchTimer * 0.2) * 0.015, 0.28, 0.27);
-    const phantomGlow = new THREE.Color().setHSL(0.61, 0.14, 0.64);
+    const phantomBase = this._tempColorA.setHSL(0.72 + Math.sin(mesh.userData.glitchTimer * 0.2) * 0.015, 0.28, 0.27);
+    const phantomGlow = this._tempColorB.setHSL(0.61, 0.14, 0.64);
 
     // Random glitch teleport
     if (Math.random() < 0.03) {
@@ -1050,8 +1076,8 @@ export class AmbientEntityManager {
   updateWispVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.waveTime += deltaTime;
     const waveTime = Date.now() * 0.001;
-    const ribbonTint = new THREE.Color().setHSL(0.64 + Math.sin(waveTime * 0.2) * 0.02, 0.3, 0.34);
-    const glowTint = new THREE.Color().setHSL(0.59, 0.14, 0.72);
+    const ribbonTint = this._tempColorA.setHSL(0.64 + Math.sin(waveTime * 0.2) * 0.02, 0.3, 0.34);
+    const glowTint = this._tempColorB.setHSL(0.59, 0.14, 0.72);
 
     mesh.children.forEach((child) => {
       if (child.userData.streamIndex !== undefined) {
@@ -1146,6 +1172,18 @@ export class AmbientEntityManager {
       if (!entity.isActive) {
         const mesh = this.entityMeshes[id];
         if (mesh && mesh.parent) {
+          mesh.traverse((child) => {
+            if (child.geometry && !this.sharedGeometrySet.has(child.geometry)) {
+              child.geometry.dispose();
+            }
+            if (child.material) {
+              if (Array.isArray(child.material)) {
+                child.material.forEach(m => m?.dispose?.());
+              } else {
+                child.material.dispose?.();
+              }
+            }
+          });
           mesh.parent.remove(mesh);
         }
         delete this.entityMeshes[id];
@@ -1182,12 +1220,12 @@ export class AmbientEntityManager {
       const mesh = this.entityMeshes[id];
       if (mesh) {
         mesh.traverse((child) => {
-          if (child.geometry) child.geometry.dispose();
+          if (child.geometry && !this.sharedGeometrySet.has(child.geometry)) child.geometry.dispose();
           if (child.material) {
             if (Array.isArray(child.material)) {
-              child.material.forEach(m => m.dispose());
+              child.material.forEach(m => m?.dispose?.());
             } else {
-              child.material.dispose();
+              child.material.dispose?.();
             }
           }
         });
@@ -1209,5 +1247,11 @@ export class AmbientEntityManager {
         this.vfxContainer.parent.remove(this.vfxContainer);
       }
     }
+
+    for (const geometry of this.sharedGeometrySet) {
+      geometry?.dispose?.();
+    }
+    this.sharedGeometrySet.clear();
+    this.sharedGeometryCache.clear();
   }
 }

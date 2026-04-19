@@ -259,18 +259,8 @@ class EchoInstance {
         
         // Update geometry if provided (for simplified silhouette)
         if (compositeGeometry && compositeGeometry !== this.mesh.geometry) {
-            if (this._sourceGeometryRef !== compositeGeometry) {
-                const nextGeometry = typeof compositeGeometry.clone === 'function'
-                    ? compositeGeometry.clone()
-                    : compositeGeometry;
-                // FIX: Don't dispose shared baseGeometry — only dispose per-instance cloned geometries
-                const currentGeometry = this.mesh.geometry;
-                if (currentGeometry && currentGeometry !== nextGeometry && this._sourceGeometryRef !== null) {
-                    currentGeometry.dispose();
-                }
-                this.mesh.geometry = nextGeometry;
-                this._sourceGeometryRef = compositeGeometry;
-            }
+            this.mesh.geometry = compositeGeometry;
+            this._sourceGeometryRef = compositeGeometry;
         }
     }
     
@@ -448,6 +438,7 @@ export class ResonanceEchoTrailSystem {
         this.root.name = 'ResonanceEchoTrailRoot';
         this.root.renderOrder = this.renderOrder;
         this._attachRoot.add(this.root);
+        this._ownedGeometries = new Set();
         
         // Echo pool
         this.echoInstances = [];
@@ -595,6 +586,7 @@ export class ResonanceEchoTrailSystem {
         
         // V2: Shared geometry — smooth luminous circle
         this.baseGeometry = new THREE.CircleGeometry(CONFIG.ECHO_BASE_RADIUS, CONFIG.ECHO_CIRCLE_SEGMENTS);
+        this._ownedGeometries.add(this.baseGeometry);
 
         // V2: Custom echo shader — multi-lobe glow with color evolution
         const echoVertexShader = `
@@ -1170,6 +1162,7 @@ export class ResonanceEchoTrailSystem {
     ensureDebugResources() {
         if (!this.debugMarkerGeometry) {
             this.debugMarkerGeometry = new THREE.SphereGeometry(1, 8, 8);
+            this._ownedGeometries.add(this.debugMarkerGeometry);
         }
 
         if (!this.debugMarkerMaterial) {
@@ -1189,6 +1182,7 @@ export class ResonanceEchoTrailSystem {
 
             this.debugRingGeometry = new THREE.BufferGeometry();
             this.debugRingGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+            this._ownedGeometries.add(this.debugRingGeometry);
         }
 
         if (!this.debugRingMaterial) {
@@ -1269,7 +1263,7 @@ export class ResonanceEchoTrailSystem {
 
         this.root?.traverse(obj => {
             if (obj.isMesh || obj.isLine) {
-                if (obj.geometry && !disposedGeometries.has(obj.geometry)) {
+                if (obj.geometry && this._ownedGeometries.has(obj.geometry) && !disposedGeometries.has(obj.geometry)) {
                     disposedGeometries.add(obj.geometry);
                     obj.geometry.dispose();
                 }
@@ -1294,12 +1288,10 @@ export class ResonanceEchoTrailSystem {
             this.root.parent.remove(this.root);
         }
         this.root?.clear?.();
-        this.baseGeometry?.dispose?.();
         this.baseGeometry = null;
-        this.debugMarkerGeometry?.dispose?.();
         this.debugMarkerMaterial?.dispose?.();
-        this.debugRingGeometry?.dispose?.();
         this.debugRingMaterial?.dispose?.();
+        this._ownedGeometries.clear();
         this.semanticBus = null;
     }
 }

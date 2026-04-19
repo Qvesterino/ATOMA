@@ -36,21 +36,22 @@ function getAtomaVisualDebugMode() {
 
 class HealingWave {
     constructor(link, startNode, endNode, speed, intensity) {
+        this.currentPos = new THREE.Vector3();
+        this.currentDir = new THREE.Vector3();
+        this.reset(link, startNode, endNode, speed, intensity);
+    }
+
+    reset(link, startNode, endNode, speed, intensity) {
         this.link = link;
         this.startNode = startNode;
         this.endNode = endNode;
-        this.speed = speed;       // Units per second
-        this.intensity = intensity; // 0.0 - 1.0
-        
-        this.progress = 0.0;      // 0.0 - 1.0
+        this.speed = speed;
+        this.intensity = intensity;
+        this.progress = 0.0;
         this.active = true;
-        
-        // Cache positions to avoid recalculating every frame if nodes don't move much
-        // But nodes DO move, so we'll grab them in update.
-        
-        // Direction for particles
-        this.currentPos = new THREE.Vector3();
-        this.currentDir = new THREE.Vector3();
+        this.currentPos.set(0, 0, 0);
+        this.currentDir.set(0, 0, 0);
+        return this;
     }
     
     update(deltaTime) {
@@ -152,6 +153,7 @@ export class HarmonicHealingVisualSystem_Session134 {
         };
         
         this.waves = [];
+        this.wavePool = [];
         this._lastResolvedHealingState = null;
         this._autonomousSpawnTimer = 0;  // DESIGN: timer for autonomous wave spawning
         
@@ -433,6 +435,25 @@ export class HarmonicHealingVisualSystem_Session134 {
             endPos: endNode?.position || null
         };
     }
+
+    _acquireWave(link, startNode, endNode, speed, intensity) {
+        const wave = this.wavePool.pop();
+        if (wave) {
+            return wave.reset(link, startNode, endNode, speed, intensity);
+        }
+        return new HealingWave(link, startNode, endNode, speed, intensity);
+    }
+
+    _releaseWave(wave) {
+        if (!wave) return;
+        wave.active = false;
+        wave.link = null;
+        wave.startNode = null;
+        wave.endNode = null;
+        if (this.wavePool.length < this.config.maxWaves) {
+            this.wavePool.push(wave);
+        }
+    }
     
     /**
      * Main update loop
@@ -565,17 +586,14 @@ export class HarmonicHealingVisualSystem_Session134 {
      * Update all active waves
      */
     _updateWaves(deltaTime, time) {
-        // Filter out dead waves in place-ish (create new array is cleaner for JS)
-        // Optimization: Use a pool if this creates too much garbage, 
-        // but for <50 waves, simple array operations are fine.
-        
-        const activeWaves = [];
-        
-        for (const wave of this.waves) {
+        let writeIndex = 0;
+
+        for (let i = 0; i < this.waves.length; i++) {
+            const wave = this.waves[i];
             wave.update(deltaTime);
             
             if (wave.active) {
-                activeWaves.push(wave);
+                this.waves[writeIndex++] = wave;
                 
                 // Emit visual trail via Particle System (FIX: zero per-frame allocation)
                 if (this.particles) {
@@ -591,10 +609,11 @@ export class HarmonicHealingVisualSystem_Session134 {
             } else {
                 // Wave arrived! 
                 this._handleWaveArrival(wave, time);
+                this._releaseWave(wave);
             }
         }
         
-        this.waves = activeWaves;
+        this.waves.length = writeIndex;
     }
 
     /**
@@ -689,8 +708,7 @@ export class HarmonicHealingVisualSystem_Session134 {
             (0.45 + Math.min(1, (healingState.healingDrive ?? healingState.harmony ?? 0)) * 0.55) * debugBoost
         );
         
-        const wave = new HealingWave(targetLink, start, end, speed, intensity);
-        this.waves.push(wave);
+        this.waves.push(this._acquireWave(targetLink, start, end, speed, intensity));
 
         if (this.particles?.emitSplash && start?.position) {
             this.particles.emitSplash(start.position, Math.min(1, intensity * 0.75), time);

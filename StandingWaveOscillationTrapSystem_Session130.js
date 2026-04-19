@@ -104,6 +104,8 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         
         // Object pools
         this.trapPool = [];
+        this.trapZonePool = [];
+        this.interferencePatternPool = [];
         
         // Tracking
         this.opposingNodePairs = new Map();   // nodeIdA_nodeIdB -> { nodeA, nodeB, linkIds, opposing }
@@ -150,6 +152,23 @@ export class StandingWaveOscillationTrapSystem_Session130 {
                 energyStorage: 0,
                 maxEnergy: 5.0,
                 decayRate: 0.02
+            });
+
+            this.trapZonePool.push({
+                linkId: null,
+                trapCenter: this.config.trapCenterOffset,
+                radiusStart: 0,
+                radiusEnd: 0,
+                intensity: 0,
+                frequency: 0,
+                phase: 0
+            });
+
+            this.interferencePatternPool.push({
+                trapId: null,
+                spacing: this.config.interferenceSpacing,
+                contrast: this.config.interferenceContrast,
+                beatPhase: 0
             });
         }
         
@@ -532,41 +551,56 @@ export class StandingWaveOscillationTrapSystem_Session130 {
      * Update trap zone geometry and intensity
      */
     _updateTrapZones(deltaTime) {
-        this.trapZones = [];
+        let writeIdx = 0;
         
         this.oscillationTraps.forEach(trap => {
             if (!trap.active || trap.amplitude < 0.05) return;
-            
-            const zone = {
-                linkId: trap.linkId,
+
+            const zone = this.trapZonePool[writeIdx] || {
+                linkId: null,
                 trapCenter: this.config.trapCenterOffset,
-                radiusStart: Math.max(0, 0.5 - trap.trapRadius * 0.5),
-                radiusEnd: Math.min(1, 0.5 + trap.trapRadius * 0.5),
-                intensity: trap.amplitude,
-                frequency: trap.frequency,
-                phase: trap.phase
+                radiusStart: 0,
+                radiusEnd: 0,
+                intensity: 0,
+                frequency: 0,
+                phase: 0
             };
-            
-            this.trapZones.push(zone);
+            zone.linkId = trap.linkId;
+            zone.trapCenter = this.config.trapCenterOffset;
+            zone.radiusStart = Math.max(0, 0.5 - trap.trapRadius * 0.5);
+            zone.radiusEnd = Math.min(1, 0.5 + trap.trapRadius * 0.5);
+            zone.intensity = trap.amplitude;
+            zone.frequency = trap.frequency;
+            zone.phase = trap.phase;
+            this.trapZonePool[writeIdx] = zone;
+            this.trapZones[writeIdx++] = zone;
         });
+
+        this.trapZones.length = writeIdx;
     }
 
     /**
      * Calculate interference patterns within trap zones
      */
     _updateInterferencePatterns(deltaTime) {
-        this.interferencePatterns = [];
-        
+        let writeIdx = 0;
+
         this.trapZones.forEach(zone => {
-            const pattern = {
-                trapId: zone.linkId,
+            const pattern = this.interferencePatternPool[writeIdx] || {
+                trapId: null,
                 spacing: this.config.interferenceSpacing,
                 contrast: this.config.interferenceContrast,
-                beatPhase: zone.phase * this.config.synergyClarity
+                beatPhase: 0
             };
-            
-            this.interferencePatterns.push(pattern);
+            pattern.trapId = zone.linkId;
+            pattern.spacing = this.config.interferenceSpacing;
+            pattern.contrast = this.config.interferenceContrast;
+            pattern.beatPhase = zone.phase * this.config.synergyClarity;
+            this.interferencePatternPool[writeIdx] = pattern;
+            this.interferencePatterns[writeIdx++] = pattern;
         });
+
+        this.interferencePatterns.length = writeIdx;
     }
 
     /**
@@ -763,6 +797,8 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         this.trapZones = [];
         this.interferencePatterns = [];
         this.resolutionEvents = [];
+        this.trapZonePool = [];
+        this.interferencePatternPool = [];
         this.opposingNodePairs.clear();
         this.lastReflectionTime.clear();
     }

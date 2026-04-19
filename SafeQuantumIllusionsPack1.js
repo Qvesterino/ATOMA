@@ -50,6 +50,12 @@ export class SafeQuantumIllusionsPack1 {
     // Central illusion registry
     this.registry = new QuantumIllusionRegistry(scene, this.sharedAssets);
     this.localGeometryCache = new Map();
+    this._tempColorA = new THREE.Color();
+    this._tempColorB = new THREE.Color();
+    this._tempColorC = new THREE.Color();
+    this._tempVectorA = new THREE.Vector3();
+    this._tempVectorB = new THREE.Vector3();
+    this._tempVectorC = new THREE.Vector3();
     // Triggering conditions
     this.synergy = 0;
     this.lastSynergy = 0;
@@ -554,30 +560,35 @@ export class SafeQuantumIllusionsPack1 {
     const nodes = Array.isArray(this.aiNodes.nodes) ? this.aiNodes.nodes : [];
     if (nodes.length === 0) return;
 
-    const nodeScores = nodes
-      .filter((node) => node?.mesh)
-      .map((node) => {
-        const base = 0.15;
-        const nodeSynergy = typeof node?.glowData?.synergy === 'number' ? node.glowData.synergy : this.synergy;
-        const motion = node.velocity?.length() ?? 0;
-        const flux = node.linkFlux ?? node.flux ?? 0;
-        const stormBoost = this.quantumStormActive ? 0.24 : 0;
-        const awakenBoost = this.lastAwakenTime < 1 ? 0.24 : 0;
-        const movementBoost = Math.min(1, motion / 12) * 0.28;
-        const fluxBoost = Math.min(1, flux) * 0.18;
-        const dramBoost = this._dramaturgySpawnBoost;
-        return {
-          node,
-          score: base + nodeSynergy * 0.5 + movementBoost + fluxBoost + stormBoost + awakenBoost + dramBoost
-        };
-      })
-      .sort((a, b) => b.score - a.score);
+    const nodeScores = [];
+    for (const node of nodes) {
+      if (!node?.mesh) continue;
+      const base = 0.15;
+      const nodeSynergy = typeof node?.glowData?.synergy === 'number' ? node.glowData.synergy : this.synergy;
+      const motion = node.velocity?.length() ?? 0;
+      const flux = node.linkFlux ?? node.flux ?? 0;
+      const stormBoost = this.quantumStormActive ? 0.24 : 0;
+      const awakenBoost = this.lastAwakenTime < 1 ? 0.24 : 0;
+      const movementBoost = Math.min(1, motion / 12) * 0.28;
+      const fluxBoost = Math.min(1, flux) * 0.18;
+      const dramBoost = this._dramaturgySpawnBoost;
+      nodeScores.push({
+        node,
+        score: base + nodeSynergy * 0.5 + movementBoost + fluxBoost + stormBoost + awakenBoost + dramBoost
+      });
+    }
+    nodeScores.sort((a, b) => b.score - a.score);
 
     if (nodeScores.length === 0) return;
     
     const selection = nodeScores[0].node;
-    const targetPos = selection.mesh.position.clone();
-    const clusterNearby = activeEchoes.filter((entry) => entry.mesh?.position?.distanceTo(targetPos) < 4).length;
+    const targetPos = this._tempVectorA.copy(selection.mesh.position);
+    let clusterNearby = 0;
+    for (const entry of activeEchoes) {
+      if (entry.mesh?.position?.distanceTo(targetPos) < 4) {
+        clusterNearby += 1;
+      }
+    }
     if (clusterNearby >= this.config.echoes.maxCluster) return;
 
     const intensity = Math.min(1, Math.max(0, (this.synergy - 0.4) * 1.3 + (this.quantumStormActive ? 0.22 : 0) + (this.lastAwakenTime < 1 ? 0.22 : 0)));
@@ -603,11 +614,14 @@ export class SafeQuantumIllusionsPack1 {
 
     const sourceGeometry = selection.mesh.geometry;
     if (!sourceGeometry || typeof sourceGeometry.clone !== 'function') return;
-    const geometry = sourceGeometry.clone();
+    const geometry = sourceGeometry;
 
-    const dir = selection.velocity?.clone().normalize() || new THREE.Vector3(0, 0, -1);
-    const offset = dir.clone().multiplyScalar(0.22).add(new THREE.Vector3(0, 0.05, 0));
-    const ghostPos = targetPos.clone().add(offset);
+    const dir = this._tempVectorB.set(0, 0, -1);
+    if (selection.velocity) {
+      dir.copy(selection.velocity).normalize();
+    }
+    const offset = this._tempVectorC.set(0, 0.05, 0).addScaledVector(dir, 0.22);
+    const ghostPos = this._tempVectorA.copy(targetPos).add(offset);
 
     const ghostRoot = new THREE.Group();
     ghostRoot.name = 'EchoWitnessRoot';
@@ -617,7 +631,7 @@ export class SafeQuantumIllusionsPack1 {
     primaryGhost.scale.multiplyScalar(0.78);
     ghostRoot.add(primaryGhost);
 
-    const afterImage = new THREE.Mesh(geometry.clone(), afterImageMaterial);
+    const afterImage = new THREE.Mesh(geometry, afterImageMaterial);
     afterImage.position.copy(dir).multiplyScalar(-0.24);
     afterImage.scale.multiplyScalar(0.85);
     ghostRoot.add(afterImage);
@@ -787,7 +801,7 @@ export class SafeQuantumIllusionsPack1 {
     let spawnPos;
     if (this.aiNodes?.nodes?.length > 0 && Math.random() > 0.3) {
       const node = this.aiNodes.nodes[Math.floor(Math.random() * this.aiNodes.nodes.length)];
-      spawnPos = node.mesh?.position?.clone() || new THREE.Vector3(0, 2, 0);
+      spawnPos = node.mesh?.position ? this._tempVectorA.copy(node.mesh.position) : this._tempVectorA.set(0, 2, 0);
     } else {
       spawnPos = this.camera.position.clone().add(new THREE.Vector3(
         (Math.random() - 0.5) * 12,
@@ -809,7 +823,7 @@ export class SafeQuantumIllusionsPack1 {
       depthWrite: false
     });
     const veilEdge = new THREE.LineBasicMaterial({
-      color: new THREE.Color(this.palette.sacredWhite),
+      color: this.palette.sacredWhite,
       transparent: true,
       opacity: 0.2,
       linewidth: 1
@@ -870,8 +884,8 @@ export class SafeQuantumIllusionsPack1 {
       for (const node of this.aiNodes.nodes) {
         if (node.mesh && node.velocity && node.velocity.length() > 5) {
           if (Math.random() < (0.05 + this._dramaturgySpawnBoost * 0.8)) {
-            spawnPos = node.mesh.position.clone();
-            direction = node.velocity.clone().normalize();
+            spawnPos = this._tempVectorA.copy(node.mesh.position);
+            direction = this._tempVectorB.copy(node.velocity).normalize();
             shouldSpawn = true;
             break;
           }
@@ -919,7 +933,7 @@ export class SafeQuantumIllusionsPack1 {
 
     const highlightGeo = this._getSharedGeometry('afterPaths.highlightGeo', () => new THREE.PlaneGeometry(0.05, 3.5, 1, 1));
     const highlightMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(this.palette.sacredWhite),
+      color: this.palette.sacredWhite,
       transparent: true,
       opacity: 0.18,
       side: THREE.DoubleSide,
@@ -1206,7 +1220,7 @@ export class SafeQuantumIllusionsPack1 {
       for (const node of this.aiNodes.nodes) {
         if (node.mesh && node.velocity && node.velocity.length() > 8) {
           if (Math.random() < (0.04 + this._dramaturgySpawnBoost * 0.6)) {
-            spawnPos = node.mesh.position.clone();
+            spawnPos = this._tempVectorA.copy(node.mesh.position);
             spawnPos.y += 0.2;
             shouldSpawn = true;
             break;
@@ -1291,12 +1305,12 @@ export class SafeQuantumIllusionsPack1 {
     const shouldSpawn = (this.quantumStormActive || this.synergy > 0.7 || this.lastAwakenTime < 1.5) && Math.random() < 0.02;
     if (!shouldSpawn) return;
     
-    const forward = new THREE.Vector3(0, 0, -1);
+    const forward = this._tempVectorB.set(0, 0, -1);
     if (this.camera?.getWorldDirection) {
       this.camera.getWorldDirection(forward);
     }
-    const spawnPos = this.camera?.position?.clone() || new THREE.Vector3(0, 0, 0);
-    spawnPos.add(forward.clone().multiplyScalar(10));
+    const spawnPos = this._tempVectorA.copy(this.camera?.position || this._tempVectorA.set(0, 0, 0));
+    spawnPos.addScaledVector(forward, 10);
     spawnPos.y = (this.camera?.position?.y ?? 1.6) - 1.0;
     
     const bendRoot = new THREE.Group();
@@ -1400,12 +1414,12 @@ export class SafeQuantumIllusionsPack1 {
     // Very rare spawn
     if (Math.random() > this.config.sigmaHallucination.rarity) return;
     
-    const spawnBase = this.camera?.position?.clone() || new THREE.Vector3(0, 0, 0);
-    const forward = new THREE.Vector3(0, 0, -1);
+    const spawnBase = this._tempVectorA.copy(this.camera?.position || this._tempVectorA.set(0, 0, 0));
+    const forward = this._tempVectorB.set(0, 0, -1);
     if (this.camera?.getWorldDirection) {
       this.camera.getWorldDirection(forward);
     }
-    const spawnPos = spawnBase.add(forward.multiplyScalar(10));
+    const spawnPos = spawnBase.addScaledVector(forward, 10);
     spawnPos.y += 1.2;
     
     const apparitionRoot = new THREE.Group();
