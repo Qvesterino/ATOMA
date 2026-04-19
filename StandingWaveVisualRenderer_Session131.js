@@ -85,7 +85,7 @@ export class StandingWaveVisualRenderer_Session131 {
             trapZoneSingularityScale: 0.78,    // Overall composite size multiplier
             trapZoneCoreRadius: 0.13,          // Inner singularity core radius
             trapZoneOrbitRadius: 0.4,         // Primary orbital ring radius
-            trapZoneHaloRadius: 0.78,          // Event-horizon disc radius
+            trapZoneHaloRadius: 0.58,          // Event-horizon disc radius
             trapZonePulseRingRadius: 0.53,     // Seed-like pulse ring radius
             trapZonePulseRingThickness: 0.018, // Pulse ring thickness
             trapZonePulseRingOpacity: 0.18,    // Pulse ring opacity
@@ -328,8 +328,8 @@ export class StandingWaveVisualRenderer_Session131 {
 
             const halo = new THREE.Mesh(
                 new THREE.RingGeometry(
-                    Math.max(0.24, this.config.trapZoneHaloRadius * 0.54),
-                    Math.max(0.42, this.config.trapZoneHaloRadius),
+                    Math.max(0.18, this.config.trapZoneHaloRadius * 0.62),
+                    Math.max(0.34, this.config.trapZoneHaloRadius),
                     40,
                     1
                 ),
@@ -914,8 +914,8 @@ export class StandingWaveVisualRenderer_Session131 {
             if (trapZoneMesh.haloMesh) {
                 trapZoneMesh.haloMesh.rotation.z = pulsePhase * 0.04;
                 // Breathing halo scale with intensity-driven expansion
-                trapZoneMesh.haloMesh.scale.setScalar(1.0 + (pulse * 0.04) + (zone.intensity * 0.06));
-                trapZoneMesh.haloMesh.material.opacity = Math.min(0.22, this.config.trapZoneOpacityBase * 0.48 * fadeStrength * (0.86 + pulse * 0.12));
+                trapZoneMesh.haloMesh.scale.setScalar(1.0 + (pulse * 0.03) + (zone.intensity * 0.04));
+                trapZoneMesh.haloMesh.material.opacity = Math.min(0.18, this.config.trapZoneOpacityBase * 0.48 * fadeStrength * (0.86 + pulse * 0.12));
                 // Halo color shifts warmer at high intensity
                 trapZoneMesh.haloMesh.material.color.setRGB(
                     0.88 + intensityColorShift * 0.08,
@@ -939,6 +939,9 @@ export class StandingWaveVisualRenderer_Session131 {
             if (fade <= 0.02) {
                 zone.active = false;
                 zone.group.visible = false;
+                zone.group.scale.setScalar(0.001);
+                zone.group.position.set(0, -9999, 0);
+                zone.linkId = null;
                 if (zone.coreMesh?.material) zone.coreMesh.material.opacity = 0;
                 if (zone.orbitAMesh?.material) zone.orbitAMesh.material.opacity = 0;
                 if (zone.orbitBMesh?.material) zone.orbitBMesh.material.opacity = 0;

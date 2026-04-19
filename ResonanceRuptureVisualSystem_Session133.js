@@ -2243,6 +2243,78 @@ export class ResonanceRuptureVisualSystem_Session133 {
         });
     }
 
+    clearWorldState() {
+        this.ruptures.forEach((rupture) => {
+            if (rupture?.burstMesh) {
+                if (rupture.burstMesh.parent) {
+                    rupture.burstMesh.parent.remove(rupture.burstMesh);
+                }
+                this._disposeBurstMesh(rupture.burstMesh);
+                const createdIndex = this._createdObjects.indexOf(rupture.burstMesh);
+                if (createdIndex >= 0) {
+                    this._createdObjects.splice(createdIndex, 1);
+                }
+                rupture.burstMesh = null;
+            }
+            rupture.active = false;
+        });
+
+        this.propagationPulses.forEach((pulse) => {
+            if (pulse?.mesh) {
+                if (pulse.mesh.parent) {
+                    pulse.mesh.parent.remove(pulse.mesh);
+                }
+                if (pulse.mesh.geometry) {
+                    pulse.mesh.geometry.dispose();
+                }
+                if (pulse.mesh.material) {
+                    pulse.mesh.material.dispose();
+                }
+                const createdIndex = this._createdObjects.indexOf(pulse.mesh);
+                if (createdIndex >= 0) {
+                    this._createdObjects.splice(createdIndex, 1);
+                }
+                pulse.mesh = null;
+            }
+            pulse.active = false;
+            pulse.startLink = null;
+            pulse.currentLink = null;
+            pulse.pathDistance = 0;
+            pulse.life = 0;
+        });
+
+        this.scarMeshPool.forEach((item) => {
+            if (!item) return;
+            item.active = false;
+            item.scarData = null;
+            item.birthTime = 0;
+            if (item.mesh) {
+                item.mesh.visible = false;
+            }
+        });
+
+        this.stressIndicatorPool.forEach((item) => {
+            if (!item) return;
+            item.active = false;
+            item.linkId = null;
+            if (item.mesh) {
+                item.mesh.visible = false;
+            }
+        });
+
+        this.ruptures = [];
+        this.propagationPulses = [];
+        this.resonanceScars = [];
+        this.preRuptureZones = [];
+        this.nodeReactions.clear();
+        this.stressAccumulation.clear();
+        this.trapLifetimes.clear();
+        this.trapPhaseDivergence.clear();
+        this.ruptureOccurrences.clear();
+        this.eventPressureByLink.clear();
+        this.globalStressBias = 0;
+    }
+
     _ensureCanonicalLinkDefaults() {
         const links = this.linkingSystem?.links || [];
         links.forEach((link) => {
@@ -2370,6 +2442,8 @@ export class ResonanceRuptureVisualSystem_Session133 {
      * Rebind after world switch (updates linkingSystem, aiNodes, semanticBus)
      */
     rebind(config = {}) {
+        this.clearWorldState();
+
         // Update references if provided
         if (config.linkingSystem !== undefined) {
             this.linkingSystem = config.linkingSystem;

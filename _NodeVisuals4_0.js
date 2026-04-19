@@ -27,10 +27,11 @@ function vfxFlag(name, def = true) {
  */
 
 export class NodeVisuals4_0 {
-  constructor(scene) {
+  constructor(scene, linkingSystem = null) {
     if (typeof window !== 'undefined' && window.ATOMA_VISUAL_BASELINE) {
       // Soft disable: keep instance but mark disabled
       this.scene = scene;
+      this.linkingSystem = linkingSystem;
       this.nodeVisualRegistry = new Map();
       this.config = { enabled: false };
       this.registry = { upgradeCount: 0, time: 0, frameCounter: 0 };
@@ -38,6 +39,7 @@ export class NodeVisuals4_0 {
     }
 
     this.scene = scene;
+    this.linkingSystem = linkingSystem;
     this.nodeVisualRegistry = new Map();
     
     this.config = {
@@ -152,6 +154,11 @@ export class NodeVisuals4_0 {
   }
 
   _resolveNodeLinkCount(node, nodeData) {
+    const liveLinkCount = this._getLiveNodeLinkCount(node);
+    if (liveLinkCount !== null) {
+      return liveLinkCount;
+    }
+
     const metricsCount = node?.userData?.metrics?.activeLinkCount;
     if (Number.isFinite(metricsCount)) return Math.max(0, Math.floor(metricsCount));
 
@@ -170,6 +177,35 @@ export class NodeVisuals4_0 {
     }
 
     return 0;
+  }
+
+  _getLiveNodeLinkCount(node) {
+    const linkingSystem = this.linkingSystem;
+    if (!linkingSystem) return null;
+
+    let links = null;
+    if (typeof linkingSystem.getNodeLinks === 'function') {
+      links = linkingSystem.getNodeLinks(node);
+    } else if (typeof linkingSystem.getLinksForNode === 'function') {
+      links = linkingSystem.getLinksForNode(node);
+    } else if (Array.isArray(linkingSystem.links)) {
+      links = linkingSystem.links;
+    }
+
+    if (!Array.isArray(links)) return null;
+
+    let count = 0;
+    for (const link of links) {
+      if (!link) continue;
+      if (link.active === false || link.isActive === false) continue;
+      count += 1;
+    }
+
+    return count;
+  }
+
+  setLinkingSystem(linkingSystem) {
+    this.linkingSystem = linkingSystem;
   }
 
   _resolveActivationState(node, nodeData = {}) {

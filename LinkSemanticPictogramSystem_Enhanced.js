@@ -1181,7 +1181,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
     }
 
     updateSpawnTimers(deltaTime) {
-        const links = this._getLinks();
+        const links = this._getDirectLiveLinks();
         if (!links.length) return;
 
         links.forEach(link => {
@@ -1194,7 +1194,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
 
     spawnPictograms(deltaTime = 0, time) {
         if (CONFIG.DETERMINISTIC_GLYPHS) return;
-        const links = this._getLinks();
+        const links = this._getDirectLiveLinks();
         if (!links.length) return;
 
         links.forEach(link => {
@@ -1319,7 +1319,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
     }
 
     updateActivePictograms(deltaTime, cameraPos) {
-        const liveLinks = this._getLinks();
+        const liveLinks = this._getDirectLiveLinks();
         this.pictograms.forEach(pictogram => {
             if (!pictogram.active) return;
 

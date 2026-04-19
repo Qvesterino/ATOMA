@@ -45,10 +45,10 @@ export class EchoRippleSystem_Session125 {
       propagationDelay: 0.16,
       propagationDecay: 0.72,
       rippleLifetime: 0.92,
-      rippleStartRadius: 0.16,
-      rippleMaxRadius: 2.8,
+      rippleStartRadius: 0.10,
+      rippleMaxRadius: 1.6,
       rippleRadiusVariance: 0.18,
-      rippleHaloScale: 1.16,
+      rippleHaloScale: 1.05,
       rippleOpacity: 0.34,
       rippleHaloOpacity: 0.14,
       rippleCoreOpacity: 0.22,
@@ -258,6 +258,7 @@ export class EchoRippleSystem_Session125 {
 
   spawnRippleOnWaveBurst(link, pulse = null) {
     if (this._disposed || !this.config.enabled || !link) return null;
+    if (!this._isLiveLink(link)) return null;
 
     const endpoints = this._resolveLinkEndpoints(link);
     const targetNode = endpoints.targetNode;
@@ -291,6 +292,7 @@ export class EchoRippleSystem_Session125 {
 
   spawnRippleOnCascadeHop(node, intensity = 0.6, context = {}) {
     if (this._disposed || !this.config.enabled || !node) return null;
+    if (this._getLiveNodeLinkCount(node) <= 0) return null;
 
     const nodeId = this._resolveNodeId(node);
     const position = this._resolvePosition(node);
@@ -1063,13 +1065,17 @@ export class EchoRippleSystem_Session125 {
     const node = nodeOrValue && !nodeOrValue.isVector3 ? nodeOrValue : null;
     const pulse = context.pulse ?? null;
     const metrics = node?.userData?.metrics || context.metrics || pulse?.metrics || {};
+    const nodeRef = node || context.node || context.nodeRef || context.nodeId || null;
+    const activeLinkCount = this._getLiveNodeLinkCount(nodeRef);
+    const loadPressure = activeLinkCount > 0 ? clamp01(metrics.loadPressure ?? pulse?.loadPressure ?? 0) : 0;
 
     return {
       synergy: clamp01(metrics.synergy ?? metrics.harmony ?? pulse?.synergy ?? 0.5),
       harmony: clamp01(metrics.harmony ?? pulse?.harmony ?? metrics.synergy ?? 0.5),
       corruption: clamp01(metrics.corruption ?? pulse?.corruption ?? 0),
       stability: clamp01(metrics.stability ?? pulse?.stability ?? 0.5),
-      loadPressure: clamp01(metrics.loadPressure ?? pulse?.loadPressure ?? 0)
+      loadPressure,
+      activeLinkCount
     };
   }
 
@@ -1082,6 +1088,47 @@ export class EchoRippleSystem_Session125 {
       stability: clamp01(metrics.stability ?? pulse?.stability ?? link?.userData?.stability ?? 0.5),
       loadPressure: clamp01(metrics.loadPressure ?? pulse?.loadPressure ?? link?.userData?.loadPressure ?? 0)
     };
+  }
+
+  _getLiveLinks() {
+    const sources = [
+      this.linkResonanceSystem?.world?.linkingSystem?.links,
+      this.linkResonanceSystem?.linkingSystem?.links,
+      this.world?.linkingSystem?.links,
+      globalThis.game?.linkingSystem?.links
+    ];
+
+    for (const collection of sources) {
+      if (Array.isArray(collection)) return collection;
+      if (collection instanceof Map) return [...collection.values()];
+    }
+
+    return [];
+  }
+
+  _getLiveNodeLinkCount(nodeOrValue) {
+    const nodeId = this._resolveNodeId(nodeOrValue);
+    if (nodeId === null || nodeId === undefined) return 0;
+
+    let count = 0;
+    for (const link of this._getLiveLinks()) {
+      const endpoints = this._resolveLinkEndpoints(link);
+      if (endpoints.sourceId === nodeId || endpoints.targetId === nodeId) {
+        count += 1;
+      }
+    }
+
+    return count;
+  }
+
+  _isLiveLink(link) {
+    if (!link) return false;
+
+    const linkId = this._resolveLinkId(link);
+    const liveLinks = this._getLiveLinks();
+    if (liveLinks.length === 0) return false;
+
+    return liveLinks.some((liveLink) => liveLink === link || (linkId && this._resolveLinkId(liveLink) === linkId));
   }
 
   _resolveNodePosition(nodeId) {
@@ -1227,6 +1274,13 @@ export class EchoRippleSystem_Session125 {
     for (const node of nodes) {
       const nodeId = this._resolveNodeId(node);
       if (nodeId === null || nodeId === undefined) continue;
+
+      const activeLinkCount = this._getLiveNodeLinkCount(node);
+      if (activeLinkCount <= 0) {
+        this._lpSpawnTimers.delete(String(nodeId));
+        this._lpActiveCounts.delete(String(nodeId));
+        continue;
+      }
 
       // ── Check loadPressure metric ──
       const metrics = this._resolveNodeMetrics(node);

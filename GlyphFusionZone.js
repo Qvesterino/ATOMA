@@ -262,6 +262,7 @@ export class GlyphFusionZoneManager {
         this.scene = scene;
         this.worldRoot = worldRoot;
         this._attachRoot = worldRoot || scene;
+        this.linkingSystem = null;
         this.compositeGlyphGenerator = compositeGlyphGenerator;
         this.narrativePatterns = null;
 
@@ -331,6 +332,38 @@ export class GlyphFusionZoneManager {
     _getNodeKey(node) {
         if (!node) return null;
         return node.uuid || node.userData?.nodeId || node.userData?.id || node.id || null;
+    }
+
+    _getLiveLinks(linkingSystem = this.linkingSystem) {
+        const links = linkingSystem?.links;
+        if (Array.isArray(links)) return links;
+        if (links instanceof Map) return [...links.values()];
+        return [];
+    }
+
+    _getLiveNodeLinkCount(nodeOrKey, linkingSystem = this.linkingSystem) {
+        const nodeKey = typeof nodeOrKey === 'string' ? nodeOrKey : this._getNodeKey(nodeOrKey);
+        if (!nodeKey) return 0;
+
+        let count = 0;
+        for (const link of this._getLiveLinks(linkingSystem)) {
+            const { nodeA, nodeB } = this._resolveLinkEndpoints(link);
+            if (this._getNodeKey(nodeA) === nodeKey || this._getNodeKey(nodeB) === nodeKey) {
+                count += 1;
+            }
+        }
+
+        return count;
+    }
+
+    _isLiveLink(link, linkingSystem = this.linkingSystem) {
+        if (!link) return false;
+
+        const linkKey = this._getLinkKey(link);
+        const liveLinks = this._getLiveLinks(linkingSystem);
+        if (liveLinks.length === 0) return false;
+
+        return liveLinks.some((liveLink) => liveLink === link || (linkKey && this._getLinkKey(liveLink) === linkKey));
     }
 
     _clearNodeZoneMapping(nodeKey, zone = null) {
@@ -419,6 +452,7 @@ export class GlyphFusionZoneManager {
         this.scene = scene || this.scene;
         this.worldRoot = worldRoot || this.worldRoot;
         this._attachRoot = this.worldRoot || this.scene;
+        this.linkingSystem = linkingSystem || this.linkingSystem;
 
         if (this.container && this._attachRoot && this.container.parent !== this._attachRoot) {
             this.container.parent?.remove(this.container);
@@ -441,6 +475,8 @@ export class GlyphFusionZoneManager {
     // ========================================================================
 
     update(deltaTime, pictograms, linkingSystem, aiNodes) {
+        this.linkingSystem = linkingSystem || this.linkingSystem;
+
         // Detect convergence zones
         this.detectConvergenceZones(pictograms, linkingSystem, aiNodes);
 
@@ -458,15 +494,42 @@ export class GlyphFusionZoneManager {
     detectConvergenceZones(pictograms, linkingSystem, aiNodes) {
         if (!linkingSystem || !aiNodes) return;
 
+        this.linkingSystem = linkingSystem || this.linkingSystem;
+
+        const liveLinks = this._getLiveLinks(linkingSystem);
+        const liveLinkCountByNode = new Map();
+        for (const link of liveLinks) {
+            const { nodeA, nodeB } = this._resolveLinkEndpoints(link);
+            const nodeAKey = this._getNodeKey(nodeA);
+            const nodeBKey = this._getNodeKey(nodeB);
+            if (nodeAKey) {
+                liveLinkCountByNode.set(nodeAKey, (liveLinkCountByNode.get(nodeAKey) ?? 0) + 1);
+            }
+            if (nodeBKey) {
+                liveLinkCountByNode.set(nodeBKey, (liveLinkCountByNode.get(nodeBKey) ?? 0) + 1);
+            }
+        }
+
+        this.zones.forEach((zone) => {
+            if (!zone.active || !zone.nodeKey) return;
+            const liveLinkCount = liveLinkCountByNode.get(zone.nodeKey) ?? 0;
+            if (liveLinkCount >= CONFIG.CONVERGENCE_THRESHOLD) return;
+
+            this._clearNodeZoneMapping(zone.nodeKey, zone);
+            zone.reset();
+        });
+
         // Build node-to-glyphs map
         const nodeGlyphMap = new Map();
 
         pictograms.forEach(pictogram => {
             const endpoint = this._resolveEndpointGlyph(pictogram);
             if (!endpoint) return;
+            if (!this._isLiveLink(endpoint.link, linkingSystem)) return;
 
             const nodeId = this._getNodeKey(endpoint.node);
             if (!nodeId) return;
+            if ((liveLinkCountByNode.get(nodeId) ?? 0) < CONFIG.CONVERGENCE_THRESHOLD) return;
 
             if (!nodeGlyphMap.has(nodeId)) {
                 nodeGlyphMap.set(nodeId, []);

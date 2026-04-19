@@ -101,6 +101,14 @@ export class LinkSemanticPictogramSystem_WithFusion {
         return this.pictogramSystem?.disposeLinkGlyphs?.(linkOrId) ?? 0;
     }
 
+    clearLink(linkOrId, options = {}) {
+        return this.pictogramSystem?.clearLink?.(linkOrId, options) ?? 0;
+    }
+
+    clearLinkBetweenNodes(nodeA, nodeB, options = {}) {
+        return this.pictogramSystem?.clearLinkBetweenNodes?.(nodeA, nodeB, options) ?? 0;
+    }
+
     resetForWorldSwitch({ scene = this.scene, worldRoot = this.worldRoot, camera = this.camera, linkingSystem = this.linkingSystem, aiNodes = null } = {}) {
         this.scene = scene || this.scene;
         this.worldRoot = worldRoot || this.worldRoot;

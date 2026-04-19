@@ -1069,7 +1069,7 @@ import { LinkCorruptionTransmission_v1 } from './LinkCorruptionTransmission_v1.j
 import { HarmonyStabilizationSystem_v1 } from './HarmonyStabilizationSystem_v1.js';
 import { applyHarmonyStabilizationIntegration } from './HarmonyStabilizationIntegrationPatch_v1.js';
 // REMOVED: _T4003_CORRUPTION_CASCADE_TEST_RUNNER - moved to LEGACY (2026-04-08)
-import { setupHarmonyHealingTestRunner } from './T4004_HARMONY_HEALING_TEST_RUNNER.js';
+// REMOVED: T4004_HARMONY_HEALING_TEST_RUNNER - moved to DELETE/cleanup (2026-04-18)
 
 // ============================================================================
 // TIER 2 VISUAL INTEGRATION — Visual System Wiring
@@ -7734,6 +7734,14 @@ window.__ATOMA_SCENE__ = this.scene;
         }
 
         try {
+            if (this.nodeVisuals4 && typeof this.nodeVisuals4.setLinkingSystem === 'function') {
+                this.nodeVisuals4.setLinkingSystem(linkingSystem);
+            }
+        } catch (err) {
+            console.warn('[main.js] NodeVisuals4_0 linkingSystem update failed:', err?.message || err);
+        }
+
+        try {
             if (this.linkTrailParticles && typeof this.linkTrailParticles.rebind === 'function') {
                 this.linkTrailParticles.rebind({
                     scene: this.scene,
@@ -9973,16 +9981,6 @@ window.__ATOMA_SCENE__ = this.scene;
         this.linkRendererMetricsIntegration = null;
         this.coreMetricsCalculator = null;
 
-        // ====================================================================
-        // T4-004: HARMONY HEALING TEST RUNNER (Debug Console)
-        // Setup console commands for harmony validation
-        // ====================================================================
-        try {
-            setupHarmonyHealingTestRunner(this);
-            console.log('[main.js] T4-004 Harmony Healing Test Runner initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] T4-004 Test Runner initialization error:', err);
-        }
 
         // ====================================================================
         // PHASE 3C ARCHetype shader模式 (Week 16 - GPU shader mode orchestration)
@@ -13653,7 +13651,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             return;
         }
 
-        this.nodeVisuals4 = new NodeVisuals4_0(this.scene);
+        this.nodeVisuals4 = new NodeVisuals4_0(this.scene, this.linkingSystem ?? this.nodeLinkingSystem ?? this.nodeLinking ?? null);
         this.nodeVisuals4.upgradeAllNodes(this.aiNodes.nodes);
         this.nodeVisuals4.printStatusReport();
 
