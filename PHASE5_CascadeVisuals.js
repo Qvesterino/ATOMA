@@ -114,6 +114,7 @@ export class PHASE5_CascadePropagationVisuals {
     this.activeRings = [];
     this.ringPool = [];
     this.ripples = [];
+    this._rippleGeometryCache = new Map();
     
     // Ring material cache
     this.ringMaterials = new Map();
@@ -406,18 +407,7 @@ export class PHASE5_CascadePropagationVisuals {
       kind: options.kind ?? 'default'
     };
 
-    const ringGeometry = new THREE.BufferGeometry();
-    const ringPoints = [];
-    const segments = Math.max(8, Number(this.config.rippleSegments) || 32);
-
-    for (let i = 0; i <= segments; i++) {
-      const angle = (i / segments) * Math.PI * 2;
-      const x = Math.cos(angle) * this.config.rippleBaseRadius;
-      const z = Math.sin(angle) * this.config.rippleBaseRadius;
-      ringPoints.push(new THREE.Vector3(x, 0.01, z));
-    }
-
-    ringGeometry.setFromPoints(ringPoints);
+    const ringGeometry = this._getRippleGeometry();
 
     const rippleMaterial = new THREE.LineBasicMaterial({
       color: colorOption,
@@ -439,7 +429,6 @@ export class PHASE5_CascadePropagationVisuals {
 
     // ── NEW: Ghost trail line (delayed, dimmer copy) ──
     if (this.config.rippleTrailEnabled) {
-      const trailGeometry = ringGeometry.clone();
       const trailColor = new THREE.Color(colorOption).lerp(new THREE.Color(0xffffff), 0.15);
       const trailMaterial = new THREE.LineBasicMaterial({
         color: trailColor,
@@ -449,7 +438,7 @@ export class PHASE5_CascadePropagationVisuals {
         blending: THREE.AdditiveBlending,
         depthWrite: false
       });
-      const trailLine = new THREE.Line(trailGeometry, trailMaterial);
+      const trailLine = new THREE.Line(ringGeometry, trailMaterial);
       trailLine.position.copy(position);
       trailLine.position.y += Number(options.verticalOffset || 0) + 0.005;
       trailLine.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE) - 1;
@@ -474,12 +463,10 @@ export class PHASE5_CascadePropagationVisuals {
       if (fadeRatio <= 0) {
         if (ripple.mesh) {
           this.scene.remove(ripple.mesh);
-          ripple.mesh.geometry.dispose();
           ripple.mesh.material.dispose();
         }
         if (ripple.trailMesh) {
           this.scene.remove(ripple.trailMesh);
-          ripple.trailMesh.geometry.dispose();
           ripple.trailMesh.material.dispose();
         }
         // Decrement stability active count
@@ -526,6 +513,33 @@ export class PHASE5_CascadePropagationVisuals {
         }
       }
     }
+  }
+
+  /**
+   * Get the shared ripple geometry used by ripple and trail meshes.
+   */
+  _getRippleGeometry() {
+    const segments = Math.max(8, Number(this.config.rippleSegments) || 32);
+    const radius = Number(this.config.rippleBaseRadius) || 0.02;
+    const cacheKey = `${segments}:${radius}`;
+
+    if (this._rippleGeometryCache.has(cacheKey)) {
+      return this._rippleGeometryCache.get(cacheKey);
+    }
+
+    const ringGeometry = new THREE.BufferGeometry();
+    const ringPoints = [];
+
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      ringPoints.push(new THREE.Vector3(x, 0.01, z));
+    }
+
+    ringGeometry.setFromPoints(ringPoints);
+    this._rippleGeometryCache.set(cacheKey, ringGeometry);
+    return ringGeometry;
   }
   
   /**

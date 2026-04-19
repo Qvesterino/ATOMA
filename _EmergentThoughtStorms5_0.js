@@ -74,7 +74,15 @@ export class EmergentThoughtStorms5_0 {
       storms: [],
       glyphMeshes: [],
       arcMeshes: [],
-      rippleMeshes: []
+      rippleMeshes: [],
+      arcGeometries: []
+    };
+
+    this.geometryCaches = {
+      core: new Map(),
+      shell: new Map(),
+      halo: new Map(),
+      ripple: new Map()
     };
     
     // Container for all storm meshes
@@ -153,6 +161,64 @@ export class EmergentThoughtStorms5_0 {
     this.glyphShapes.ring = new THREE.TorusGeometry(0.045, 0.01, 8, 32);
     this.glyphShapes.shard = new THREE.TetrahedronGeometry(0.035);
     this.glyphShapes.circleDot = new THREE.SphereGeometry(0.04, 6, 6);
+  }
+
+  _getCachedGeometry(cache, key, factory) {
+    if (cache.has(key)) {
+      return cache.get(key);
+    }
+
+    const geometry = factory();
+    cache.set(key, geometry);
+    return geometry;
+  }
+
+  _getCoreGeometry(profile, stormType) {
+    const size = profile.coreSize ?? this.config.coreSize;
+    const key = `${stormType}:core:${size}:10:10`;
+    return this._getCachedGeometry(this.geometryCaches.core, key, () => new THREE.SphereGeometry(size, 10, 10));
+  }
+
+  _getShellGeometry(profile, stormType) {
+    const size = (profile.coreSize ?? this.config.coreSize) * (profile.shellScale ?? 5);
+    const detail = profile.shellDetail ?? 1;
+    const key = `${stormType}:shell:${size}:${detail}`;
+    return this._getCachedGeometry(this.geometryCaches.shell, key, () => new THREE.IcosahedronGeometry(size, detail));
+  }
+
+  _getHaloGeometry(profile, stormType) {
+    const coreSize = profile.coreSize ?? this.config.coreSize;
+    const radius = coreSize * (profile.haloScale ?? 4.2);
+    const tube = coreSize * (profile.haloTube ?? 0.024);
+    const key = `${stormType}:halo:${radius}:${tube}:10:96`;
+    return this._getCachedGeometry(this.geometryCaches.halo, key, () => new THREE.TorusGeometry(radius, tube, 10, 96));
+  }
+
+  _getRippleGeometry(profile, stormType, rippleIndex) {
+    const coreSize = profile.coreSize ?? this.config.coreSize;
+    const radius = coreSize * (2.3 + rippleIndex * 1.25);
+    const tube = coreSize * 0.12;
+    const key = `${stormType}:ripple:${rippleIndex}:${radius}:${tube}:24:96`;
+    return this._getCachedGeometry(this.geometryCaches.ripple, key, () => new THREE.TorusGeometry(radius, tube, 24, 96));
+  }
+
+  _acquireArcGeometry() {
+    return this.stormPools.arcGeometries.pop() || new THREE.BufferGeometry();
+  }
+
+  _releaseArcGeometry(geometry) {
+    if (!geometry) return;
+
+    const position = geometry.getAttribute('position');
+    if (position) {
+      position.needsUpdate = false;
+    }
+
+    if (this.stormPools.arcGeometries.length < 128) {
+      this.stormPools.arcGeometries.push(geometry);
+    } else {
+      geometry.dispose();
+    }
   }
   
   /**
@@ -841,7 +907,7 @@ export class EmergentThoughtStorms5_0 {
       transparent: true
     });
     
-    const coreGeom = new THREE.SphereGeometry(profile.coreSize ?? this.config.coreSize, 10, 10);
+    const coreGeom = this._getCoreGeometry(profile, storm.stormType);
     const coreMesh = new THREE.Mesh(coreGeom, coreMaterial);
     coreMesh.position.copy(storm.position);
     coreMesh.userData.isStormCore = true;
@@ -858,7 +924,7 @@ export class EmergentThoughtStorms5_0 {
       depthWrite: false,
       depthTest: false
     });
-    const shellGeom = new THREE.IcosahedronGeometry((profile.coreSize ?? this.config.coreSize) * (profile.shellScale ?? 5), profile.shellDetail ?? 1);
+    const shellGeom = this._getShellGeometry(profile, storm.stormType);
     const shellMesh = new THREE.Mesh(shellGeom, shellMaterial);
     shellMesh.position.copy(storm.position);
     shellMesh.userData.isStormShell = true;
@@ -876,12 +942,7 @@ export class EmergentThoughtStorms5_0 {
       depthTest: false,
       side: THREE.DoubleSide
     });
-    const haloGeom = new THREE.TorusGeometry(
-      (profile.coreSize ?? this.config.coreSize) * (profile.haloScale ?? 4.2),
-      (profile.coreSize ?? this.config.coreSize) * (profile.haloTube ?? 0.024),
-      10,
-      96
-    );
+    const haloGeom = this._getHaloGeometry(profile, storm.stormType);
     const haloMesh = new THREE.Mesh(haloGeom, haloMaterial);
     haloMesh.position.copy(storm.position);
     haloMesh.rotation.x = Math.PI * 0.5;
@@ -950,7 +1011,7 @@ export class EmergentThoughtStorms5_0 {
    */
   createStormArc(storm, arcIndex) {
     const profile = storm.visualProfile || this.getStormVisualProfile(storm.stormType);
-    const arcGeom = new THREE.BufferGeometry();
+    const arcGeom = this._acquireArcGeometry();
     
     // Create a stable link between glyphs so the arc actually tracks the orbit.
     const glyphCount = storm.stormGlyphs.length;
@@ -975,7 +1036,14 @@ export class EmergentThoughtStorms5_0 {
       glyph2.position.x, glyph2.position.y, glyph2.position.z
     ]);
     
-    arcGeom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const existingPosition = arcGeom.getAttribute('position');
+    if (existingPosition && existingPosition.array?.length === positions.length) {
+      existingPosition.array.set(positions);
+      existingPosition.needsUpdate = true;
+    } else {
+      arcGeom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    }
+    arcGeom.computeBoundingSphere();
     
     const color = this.getStormColor(storm.stormType);
     const lineMaterial = new THREE.LineBasicMaterial({
@@ -987,6 +1055,7 @@ export class EmergentThoughtStorms5_0 {
     
     const arcMesh = new THREE.Line(arcGeom, lineMaterial);
     arcMesh.userData.isStormArc = true;
+    arcMesh.userData.geometryPoolKind = 'arc';
     arcMesh.userData.stormId = storm.id;
     arcMesh.userData.glyphAIndex = glyphAIndex;
     arcMesh.userData.glyphBIndex = glyphBIndex;
@@ -1002,12 +1071,7 @@ export class EmergentThoughtStorms5_0 {
    */
   createRippleWave(storm, rippleIndex) {
     const profile = storm.visualProfile || this.getStormVisualProfile(storm.stormType);
-    const ringGeom = new THREE.TorusGeometry(
-      (profile.coreSize ?? this.config.coreSize) * (2.3 + rippleIndex * 1.25),
-      (profile.coreSize ?? this.config.coreSize) * 0.12,
-      24,
-      96
-    );
+    const ringGeom = this._getRippleGeometry(profile, storm.stormType, rippleIndex);
     
     const color = this.getStormColor(storm.stormType);
     const material = new THREE.MeshBasicMaterial({
@@ -1325,6 +1389,10 @@ export class EmergentThoughtStorms5_0 {
     for (const mesh of meshes) {
       if (mesh) {
         this.stormContainer.remove(mesh);
+        if (mesh.userData?.geometryPoolKind === 'arc' && mesh.geometry) {
+          this._releaseArcGeometry(mesh.geometry);
+          mesh.geometry = null;
+        }
       }
     }
   }
@@ -1387,6 +1455,21 @@ export class EmergentThoughtStorms5_0 {
     this.activeStorms.clear();
     this.stats.activeStomsCount = 0;
     this.stats.glyphCount = 0;
+    this._releaseCachedStormGeometries();
+  }
+
+  _releaseCachedStormGeometries() {
+    for (const cache of Object.values(this.geometryCaches)) {
+      for (const geometry of cache.values()) {
+        geometry.dispose();
+      }
+      cache.clear();
+    }
+
+    for (const geometry of this.stormPools.arcGeometries) {
+      geometry.dispose();
+    }
+    this.stormPools.arcGeometries.length = 0;
   }
   
   /**

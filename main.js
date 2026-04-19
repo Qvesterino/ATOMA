@@ -4605,6 +4605,9 @@ class AtomaGame {
         this.frameScheduler.register('simulation', (dt) => {
             this.metricsRuntime_v1?.update?.(dt);
         }, 'simulation.metricsRuntime_v1');
+        this.frameScheduler.register('simulation', () => {
+            this._refreshAIHudReports?.();
+        }, 'simulation.aiHudReports');
         this.frameScheduler.register('simulation', (dt) => {
             this.networkStressAggregator?.update?.(dt);
         }, 'simulation.networkStress');
@@ -4667,6 +4670,9 @@ class AtomaGame {
             this.phase5MultiNetworkOrchestrator?.update?.(dt);
         }, 'simulation.phase5MultiNetworkOrchestrator');
         this.frameScheduler.register('visual', (dt) => {
+            this.phase5InterNetworkVisualizationBridge?.update?.(dt);
+        }, 'visual.phase5InterNetworkVisualizationBridge');
+        this.frameScheduler.register('visual', (dt) => {
             this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem);
         }, 'visual.emergentThoughtStorms');
         this.frameScheduler.register('simulation', (dt) => {
@@ -4679,6 +4685,9 @@ class AtomaGame {
             this.nodePersonality?.update?.(dt, this.time);
         }, 'simulation.nodePersonality');
         this.frameScheduler.register('simulation', (dt) => {
+            this.mythicRitualController?.update?.(dt, this.aiNodes?.nodes);
+        }, 'simulation.mythicRitualController');
+        this.frameScheduler.register('simulation', (dt) => {
             this.tier4GameplayIntegration?.update?.(dt);
         }, 'simulation.tier4GameplayIntegration');
         this.frameScheduler.register('simulation', (dt) => {
@@ -4687,7 +4696,14 @@ class AtomaGame {
 
         this.frameScheduler.register('realtime', this.runCameraControllerTick.bind(this), 'realtime.cameraController');
         this.frameScheduler.register('realtime', this.runPlayerControllerTick.bind(this), 'realtime.playerController');
+        this.frameScheduler.register('realtime', (dt) => {
+            const runtime = this.inputRuntime ?? this.inputRuntime_v1;
+            runtime?.update?.(dt);
+        }, 'InputRuntime_v1');
         this.frameScheduler.register('visual', this.runNodeAuraSystemTick.bind(this), 'visual.nodeAuraSystem');
+        this.frameScheduler.register('visual', (dt) => {
+            this.nodeAuraRenderer?.update?.(dt);
+        }, 'visual.nodeAuraRenderer');
         this.frameScheduler.register('visual', (dt) => {
             this.corruptionAuraDesaturation?.update?.(dt);
         }, 'visual.corruptionAuraDesaturation');
@@ -4721,6 +4737,8 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.fxRuntime_v1?.update?.(dt), 'visual.fxRuntime_v1');
         this.frameScheduler.register('visual', (dt) => this.personalityShaderBridge?.update?.(dt), 'visual.personalityShaderBridge');
         this.frameScheduler.register('visual', (dt) => this.advancedShaderFX?.update?.(dt), 'visual.advancedShaderFX');
+        this.frameScheduler.register('visual', (dt) => this.archetypeAuraFX?.update?.(dt), 'visual.archetypeAuraFX');
+        this.frameScheduler.register('visual', (dt) => this.archetypeColorFX?.update?.(dt), 'visual.archetypeColorFX');
         this.frameScheduler.register('visual', (dt) => this.archetypeShaderModes?.update?.(dt), 'visual.archetypeShaderModes');
         this.frameScheduler.register('visual', (dt) => this.nodeShaderActivation?.update?.(dt), 'visual.nodeShaderActivation');
         this.frameScheduler.register('visual', (dt) => this.glyphLayer4?.update?.(dt), 'visual.glyphLayer4');
@@ -5105,6 +5123,16 @@ class AtomaGame {
                 this.synergyTravelingWaveFX.update(dt, this.time || 0);
             }
         }, 'visual.synergyTravelingWaveFX');
+        this.frameScheduler.register('visual', (dt) => {
+            if (!this.synergyHighwayVisuals3D) return;
+            this._synergyHighwayRefreshAcc = (this._synergyHighwayRefreshAcc || 0) + dt;
+            if (this._synergyHighwayRefreshAcc >= 0.5) {
+                this.synergyHighwayVisuals3D.updateVisuals?.();
+                this.synergyHighwayVisuals3D.refreshFromHighways?.();
+                this._synergyHighwayRefreshAcc = 0;
+            }
+            this.synergyHighwayVisuals3D.update?.(dt);
+        }, 'visual.synergyHighwayVisuals3D');
         this.frameScheduler.register('simulation', (dt) => {
             if (this.waveInterferenceEngine) {
                 this.waveInterferenceEngine.update(dt);
@@ -6726,7 +6754,7 @@ window.__ATOMA_SCENE__ = this.scene;
             );
         }
         document.body.appendChild(this.renderer.domElement);
-        this.gpuSanity = setupGpuSanity(this.renderer);
+        this.gpuSanity = setupGpuSanity(this.renderer, { materialRegistry: this.materialRegistry });
 
         if (typeof window !== 'undefined' && (window.DEBUG_VISUAL_MODE === true || window.__ATOMA_SHADER_FREEZE === true) && window.__ATOMA_WARMUP_COMPLETE !== true) {
             warmupAllVisualVariants(this.renderer, this.scene, this.camera);
@@ -10653,6 +10681,7 @@ window.__ATOMA_SCENE__ = this.scene;
             this.synergyChainReaction?.update?.(dt, this.nodes || this.aiNodes?.nodes || []);
         }, 'simulation.synergyChainReaction');
         this.frameScheduler.register('simulation', () => this.updateHoverGlyphTarget?.(), 'simulation.semanticHoverGlyph');
+        this.frameScheduler.register('simulation', () => this.nodeHierarchyBridge?.update?.(), 'simulation.nodeHierarchyBridge');
         this.frameScheduler.register('visual', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt), 'visual.phase5CascadeVisualizationBridge');
         this.frameScheduler.register('visual', (dt) => this.preCascadeVisualHint?.update?.(dt), 'visual.preCascadeVisualHint');
 
@@ -11923,10 +11952,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.nodeAuraSystem?.update?.(dt, this.aiNodes?.nodes);
         });
         regGuard('linkAuraSystem', 'visual.linkAuraSystem', (dt) => this.linkAuraSystem?.update?.(dt));
-        regGuard('mythicAuraIntegration', 'visual.mythicAuraIntegration', (dt) => this.mythicAuraIntegration?.update?.(dt));
-        regGuard('linkBeadSystem', 'visual.linkBeadSystem', (dt) => {
-            this.linkBeadSystem?.update?.(dt);
-        });
         regGuard('linkTrailParticles', 'visual.linkTrailParticles', (dt) => {
             this.linkTrailParticles?.update?.(dt, this.time);
         });
@@ -12631,6 +12656,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         const profile = this.renderProfile;
         profile?.startFrame();
         let usedPostProcessing = false;
+        const renderAuditContext = {
+            frameId,
+            mode: 'baseScene',
+            status: 'ok'
+        };
+
+        this.gpuSanity?.beginRenderAudit?.(renderAuditContext);
 
         try {
             this.standingWaveRenderer?.syncTrapZones?.(deltaTime);
@@ -12690,6 +12722,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     );
 
                     usedPostProcessing = true;
+                    renderAuditContext.mode = 'postProcessing';
                 }
             }
 
@@ -12711,6 +12744,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 );
             }
         } catch (err) {
+            renderAuditContext.status = 'error';
+            renderAuditContext.error = err?.message || String(err);
+            this.gpuSanity?.endRenderAudit?.({
+                ...renderAuditContext,
+                scene: this.scene,
+                materialRegistry: this.materialRegistry
+            });
             if (!this.__renderWarningLogged) {
                 console.warn('[FrameScheduler] renderer.render skipped due to runtime error:', err);
                 this.__renderWarningLogged = true;
@@ -12718,6 +12758,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             profile?.endFrame();
             return;
         }
+
+        this.gpuSanity?.endRenderAudit?.({
+            ...renderAuditContext,
+            scene: this.scene,
+            materialRegistry: this.materialRegistry
+        });
 
         profile?.endFrame();
 

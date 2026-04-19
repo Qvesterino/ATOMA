@@ -403,37 +403,19 @@ class EnhancedPictogramInstance {
         // Update context awareness
         this.updateContextAwareness(linkContext);
 
-        // Calculate drift speed with context modifiers
-        let speed = this.calculateContextualSpeed(linkContext);
+        // Keep traversal speed stable and independent from live metric values.
+        const speed = this.calculateContextualSpeed();
 
         // Update progress along link
         const normLen = this.curveLength || this.link?.userData?.length || 10.0;
         this.linkProgress += (speed * deltaTime) / normLen;
         
-        // Handle oscillation or wrapping
-        if (this.isOscillating) {
-            const minProgress = 0.2;
-            const maxProgress = 0.8;
-
-            if (this.linkProgress > maxProgress) {
-                const overshoot = this.linkProgress - maxProgress;
-                this.linkProgress = maxProgress - overshoot;
-                this.oscillationDirection = -Math.abs(this.oscillationDirection);
-            } else if (this.linkProgress < minProgress) {
-                const overshoot = minProgress - this.linkProgress;
-                this.linkProgress = minProgress + overshoot;
-                this.oscillationDirection = Math.abs(this.oscillationDirection);
-            }
-
-            this.linkProgress = THREE.MathUtils.clamp(this.linkProgress, minProgress, maxProgress);
-        } else {
-            if (this.linkProgress >= 1.0) {
-                this.linkProgress = 1.0;
-                this.beginOrphanFade();
-                return;
-            }
-            if (this.linkProgress < 0.0) this.linkProgress = 0.0;
+        if (this.linkProgress >= 1.0) {
+            this.linkProgress = 1.0;
+            this.beginOrphanFade();
+            return;
         }
+        if (this.linkProgress < 0.0) this.linkProgress = 0.0;
 
         // Update phases
         this.lateralPhase += deltaTime * 0.4;
@@ -451,10 +433,9 @@ class EnhancedPictogramInstance {
         if (this.mesh?.userData?.synergyArrows) {
             const pulse = 1 + Math.sin(this.age * 6) * 0.12;
             this.mesh.userData.synergyArrows.forEach((cluster, idx) => {
-                const synergyBoost = (this.linkContextCache?.synergy || 0);
-                const spinFactor = 0.22 + synergyBoost * 0.38;
+                const spinFactor = 0.34;
                 cluster.rotation.z += (cluster.userData.spinSpeed || 0.8) * spinFactor * deltaTime;
-                const s = cluster.userData.baseScale * pulse * (1 + synergyBoost * 0.5);
+                const s = cluster.userData.baseScale * pulse;
                 cluster.scale.setScalar(s);
             });
         }
@@ -481,15 +462,7 @@ class EnhancedPictogramInstance {
         this.isAlignedByHealing = false;
         this.isTenseFromRupture = false;
 
-        // Check resistance
-        if (linkContext.hasResistance && linkContext.resistance > CONFIG.RESISTANCE_THRESHOLD) {
-            this.isSlowingForResistance = true;
-        }
-
-        // Check standing wave
-        if (linkContext.hasStandingWave && linkContext.standingWaveIntensity > CONFIG.STANDING_WAVE_THRESHOLD) {
-            this.isOscillating = true;
-        }
+        if (!linkContext) return;
 
         // Check healing
         if (linkContext.isHealing && linkContext.healingIntensity > CONFIG.HEALING_THRESHOLD) {
@@ -502,35 +475,8 @@ class EnhancedPictogramInstance {
         }
     }
 
-    calculateContextualSpeed(linkContext) {
-        let speed = this.baseSpeed;
-
-        // Synergy multiplier
-        const synergyMultiplier = 1.0 + (linkContext.synergy || 0) * CONFIG.SYNERGY_SPEED_MULTIPLIER;
-        speed *= synergyMultiplier;
-
-        // Resistance slowing
-        if (this.isSlowingForResistance) {
-            speed *= CONFIG.RESISTANCE_SLOW_FACTOR;
-        }
-
-        // Standing wave oscillation
-        if (this.isOscillating) {
-            const oscillation = Math.sin(this.age * Math.PI * 2) * CONFIG.STANDING_WAVE_OSCILLATION;
-            speed *= (1.0 + oscillation) * this.oscillationDirection;
-        }
-
-        // Healing smoothing (stable speed)
-        if (this.isAlignedByHealing) {
-            speed *= CONFIG.HEALING_ALIGNMENT_STRENGTH;
-        }
-
-        // Rupture hesitation
-        if (this.isTenseFromRupture) {
-            speed *= CONFIG.RUPTURE_HESITATION_FACTOR;
-        }
-
-        return speed;
+    calculateContextualSpeed() {
+        return this.baseSpeed;
     }
 
     updatePositionAlongLink(linkContext, cameraPosition) {
@@ -692,41 +638,11 @@ class EnhancedPictogramInstance {
     checkAndInitiateMorph(linkContext) {
         if (!this.currentState) return;
 
-        // Determine target state based on link context
+        // Keep morphing independent from link metrics to preserve stable behavior.
         const possibleTargets = MorphingPaths[this.currentState] || [];
         if (possibleTargets.length === 0) return;
 
-        // Select target based on context
-        let targetState = null;
-
-        // Healing context: morph toward healing states
-        if (linkContext.isHealing && linkContext.healingIntensity > 0.5) {
-            const healingTargets = possibleTargets.filter(s => s.includes('REFORMING') || s.includes('CLOSING'));
-            if (healingTargets.length > 0) {
-                targetState = healingTargets[Math.floor(Math.random() * healingTargets.length)];
-            }
-        }
-
-        // Corruption context: morph toward corruption states
-        if (!targetState && linkContext.corruption > 0.6) {
-            const corruptionTargets = possibleTargets.filter(s => s.includes('BROKEN') || s.includes('FRACTURED'));
-            if (corruptionTargets.length > 0) {
-                targetState = corruptionTargets[Math.floor(Math.random() * corruptionTargets.length)];
-            }
-        }
-
-        // Standing wave: morph toward wave states
-        if (!targetState && linkContext.hasStandingWave) {
-            const waveTargets = possibleTargets.filter(s => s.includes('OSCILLATION') || s.includes('WAVE'));
-            if (waveTargets.length > 0) {
-                targetState = waveTargets[Math.floor(Math.random() * waveTargets.length)];
-            }
-        }
-
-        // Default: random valid target
-        if (!targetState) {
-            targetState = possibleTargets[Math.floor(Math.random() * possibleTargets.length)];
-        }
+        const targetState = possibleTargets[Math.floor(Math.random() * possibleTargets.length)];
 
         // Initiate morph
         this.targetState = targetState;
@@ -1337,16 +1253,9 @@ export class LinkSemanticPictogramSystem_Enhanced {
             const linkContext = pictogram.link ? this.analyzeLinkContext(pictogram.link) : null;
             pictogram.update(deltaTime, linkContext, cameraPos);
 
-            // Animate orbital glyph layers: calm drift + occasional metric accent.
-            const sy = linkContext?.synergy || 0;
-            const co = linkContext?.corruption || 0;
-            const sw = linkContext?.standingWaveIntensity || 0;
-            const accent = (sy > 0.62 || co > 0.55 || sw > 0.6) ? 1.0 : 0.0;
-            const pulse = 0.5 + 0.5 * Math.sin((pictogram.age || 0) * 0.9 + (pictogram.depthLayer || 0) * 0.7);
-            const accentBoost = accent * (0.25 + pulse * 0.75);
-            const orbit1Rate = 0.28 + accentBoost * 0.35;
-            const orbit2Rate = 0.22 + accentBoost * 0.30;
-            const meshYRate = 0.08 + accentBoost * 0.12;
+            const orbit1Rate = 0.28;
+            const orbit2Rate = 0.22;
+            const meshYRate = 0.08;
 
             if (pictogram._orbit1) pictogram._orbit1.rotation.x += deltaTime * orbit1Rate;
             if (pictogram._orbit2) pictogram._orbit2.rotation.z += deltaTime * orbit2Rate;
@@ -1591,7 +1500,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
         const size = CONFIG.SIZE_MEDIUM || 0.4;
         const depthOffset = CONFIG.LAYER_A_DEPTH_OFFSET;
 
-        const links = this._getLinks();
+        const links = this._getDirectLiveLinks();
         if (!links.length) return;
 
         links.forEach(link => {
