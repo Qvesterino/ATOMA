@@ -25,7 +25,6 @@ import { createHarmonyAuraMaterialSphere } from './HarmonyAuraShaderMaterial.js'
 import NetworkStateAIReasoner, { buildNetworkStateSnapshot } from './NetworkStateAIReasoner.js';
 import { linkEventOrderValidator } from './LinkEventOrderValidator.js';
 import { LinkPrioritySystem } from './LinkPrioritySystem.js';
-import { DynamicLinkThicknessSystem } from './_DynamicLinkThicknessSystem.js';
 import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
 import { 
   applyFinalNodeVisualState, 
@@ -611,10 +610,8 @@ export class NodeLinkingSystem {
       }, 100); // Small delay to ensure linking system is fully initialized
     }
 
-    // [Dynamic Thickness v1.0] Real-time traffic-based link thickness
-    this.thicknessSystem = new DynamicLinkThicknessSystem(scene, this.visuals);
     this.visualModules = {
-      thickness: true,
+      thickness: false,
       flow: globalThis?.ATOMA_ENABLE_ANIMATED_LINK_FLOW !== false,
       beads: true,
       sparks: true,
@@ -4655,10 +4652,6 @@ getLinksForNode(node) {
 
     // 4. Register with sub-systems
       this.visuals.registerLink(link.id, link.group);
-      
-      if (this.thicknessSystem) {
-        this.thicknessSystem.registerLinkCurve(link.group, link);
-      }
 
       // Register link with harmonic sync manager (if available)
       if (this.conduitRenderer?.nodeHarmonicManager) {
@@ -4864,9 +4857,6 @@ getLinksForNode(node) {
       link.group = linkGroup;
 
       this.visuals.registerLink(link.id, link.group);
-      if (this.thicknessSystem) {
-        this.thicknessSystem.registerLinkCurve(link.group, link);
-      }
       LinkEmissionPulsingSystem.initializeLinkEmissionPulsing(link, link.traffic.load);
 
       this._fireLinkCreatedCallbacks(sourceNode, targetNode, link);
@@ -5264,12 +5254,7 @@ getLinksForNode(node) {
     
     // [Metrics Integration v1.0] Register with visuals
     this.visuals.registerLink(link.id, link.group);
-    
-    // [Dynamic Thickness v1.0] Register link for real-time thickness updates
-    if (this.thicknessSystem) {
-      this.thicknessSystem.registerLinkCurve(link.group, link);
-    }
-    
+
     // [LinkPriority v1.0] Initialize priority system (non-destructive add-on)
     LinkPrioritySystem.initializeLinkPriority(link);
     
@@ -6006,19 +5991,7 @@ getLinksForNode(node) {
       if (shouldTraceUpdate && link === tracedLink) {
         traceUpdate('afterColorTransitions');
       }
-      
-      // [Dynamic Thickness v1.0] Update link thickness based on traffic load
-      if (this.thicknessSystem && this.visualModules.thickness) {
-        if (shouldTraceUpdate && link === tracedLink) {
-          traceUpdate('beforeThicknessUpdate');
-        }
-        const metrics = this.getLinkMetricsSnapshot(link);
-        this.thicknessSystem.updateLinkThickness(link.id, metrics.loadPressure ?? metrics.traffic ?? 0);
-        if (shouldTraceUpdate && link === tracedLink) {
-          traceUpdate('afterThicknessUpdate');
-        }
-      }
-      
+
       // ===== POST-UPDATE NODE PROTECTION: RESTORE NODE VISUALS =====
       // After all link animations, verify nodes haven't been modified
       // Links are SECONDARY and must not override nodes
@@ -6074,11 +6047,6 @@ getLinksForNode(node) {
         avgCorruption,
         avgInstability
       );
-    }
-    
-    // [Dynamic Thickness v1.0] Animate all links toward target thickness values
-    if (this.thicknessSystem && this.visualModules.thickness) {
-      this.thicknessSystem.animateAllLinks(deltaTime);
     }
     
     // [LinkGuard] Clean up dead links after iteration (safe cleanup)
@@ -7766,11 +7734,6 @@ getLinksForNode(node) {
       this.visuals.unregisterLink(link.id);
     }
     
-    // [Dynamic Thickness v1.0] Unregister link from thickness system
-    if (link.id && this.thicknessSystem) {
-      this.thicknessSystem.unregisterLinkCurve(link.id);
-    }
-    
     // [SESSION 76] Remove core synergy glow from both nodes when link is removed
     // Restores core glow intensity to baseline (before synergy scaling was applied)
     if (link.source && link.target) {
@@ -8113,15 +8076,10 @@ getLinksForNode(node) {
     }
     
     try {
-      // [Dynamic Thickness v1.0] Dispose thickness system (defensive)
-      if (this.thicknessSystem && typeof this.thicknessSystem.dispose === 'function') {
-        this.thicknessSystem.dispose();
-      }
-      this.thicknessSystem = null;
     } catch (err) {
       console.warn('[NodeLinkingSystem] Error disposing thickness system:', err);
     }
-    
+
     // Clear callback arrays
     try {
       if (Array.isArray(this.onSelectCallbacks)) {

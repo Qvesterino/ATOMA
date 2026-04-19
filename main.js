@@ -1683,6 +1683,8 @@ class SemanticEventBus {
             ['metric:stabilityDrop', { cooldownMs: 120, aggregateWithinMs: 240, aggregationStrategy: 'latest' }],
             ['metric:corruptionRise', { cooldownMs: 120, aggregateWithinMs: 240, aggregationStrategy: 'latest' }],
             ['metric:loadPressureHigh', { cooldownMs: 180, aggregateWithinMs: 320, aggregationStrategy: 'latest' }],
+            ['event:loadCollapse', { cooldownMs: 0, aggregateWithinMs: 0, aggregationStrategy: 'latest' }],
+            ['topology.healing', { cooldownMs: 0, aggregateWithinMs: 0, aggregationStrategy: 'latest' }],
 
             // Dramaturgy engine events (P1.4 — 3-phase event lifecycle)
             ['dramaturgy.sequence.start', { cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
@@ -5316,6 +5318,14 @@ this.setHudDirty('nodeInspect');
             cooldownMs: 0
         });
         this.semanticBus?.eventPolicies?.set('link.created', {
+            aggregateWithinMs: 0,
+            cooldownMs: 0
+        });
+        this.semanticBus?.eventPolicies?.set('link:synergyThreshold', {
+            aggregateWithinMs: 0,
+            cooldownMs: 0
+        });
+        this.semanticBus?.eventPolicies?.set('link:harmonicLock', {
             aggregateWithinMs: 0,
             cooldownMs: 0
         });
@@ -17585,6 +17595,10 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     scene: this.scene || null,
                     metrics: this.coreMetricsOverlay?.currentMetrics || this.worldMetrics || this.nodeDynamicMetrics || null,
                     consciousness: consciousnessState,
+                    consciousnessLayer: this.consciousnessLayer || null,
+                    thoughtStorms: this.consciousnessLayer?.storms || null,
+                    linkCollapseSystem: this.linkCollapseSystem || null,
+                    harmonyStabilizationSystem: this.harmonyStabilizationSystem || null,
                     dramaturgy: this.environmentDomain?.instances?.eventDramaturgy?.getState?.() || null,
                     eventDramaturgy: this.environmentDomain?.instances?.eventDramaturgy || null,
                     ritual: this.mythicRitualController?.getState?.() || null,
@@ -17639,7 +17653,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             installSignatureMomentDirectorDebugAPI(this.signatureMomentDirector);
 
             console.log('✓ Signature Moment Director initialized');
-            console.log('  - Tier A blueprints: Synergy Apex / Network Resonance Surge, Cascade Reconstruction Beacon, Memory Recovery Event, World Personality Shift');
+            console.log('  - Blueprints: Synergy Apex / Network Resonance Surge, Cascade Reconstruction Beacon, Memory Recovery Event, Legendary Bond Manifestation, Consciousness Bloom, Harmony Convergence / Ascension Platform, Mythic Signal / Dimensional Gateway, Grand Corruption Breach, Heroic Stabilization Before Collapse, World Personality Shift');
             console.log('  - Use window.signatureMoments.status() for diagnostics');
         } catch (err) {
             console.warn('SignatureMomentDirector initialization failed:', err);

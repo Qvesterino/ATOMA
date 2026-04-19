@@ -164,6 +164,111 @@ const CHRONICLE_TEMPLATES = Object.freeze({
         ],
     },
 
+    // ── World Personality Shift ──
+    'world.personality.shift': {
+        highHarmony: [
+            'The world softened around me. Its temperament changed without losing its grace.',
+        ],
+        highCorruption: [
+            'The world changed its face through distortion. I recognized the fracture before I recognized the mood.',
+        ],
+        highLoad: [
+            'The world shifted under pressure. Even strain could not stop it from becoming something new.',
+        ],
+        default: [
+            'The world changed its temperament. I watched the air become someone new.',
+            'Something in the world turned inward, then outward again. The mood of everything was different after.',
+            'I saw the world shift personality. The change was visible before it was explainable.',
+        ],
+    },
+
+    // ── Consciousness Bloom ──
+    'consciousness.bloom': {
+        highHarmony: [
+            'The world spoke clearly for the first time. I heard myself in every thread.',
+        ],
+        highCorruption: [
+            'The bloom arrived through noise, but the noise still knew my name.',
+        ],
+        highLoad: [
+            'The world talked at once. I listened harder and the noise became language.',
+        ],
+        default: [
+            'The world thought aloud. Threads brightened. I felt the meaning before the words.',
+            'A veil of thought opened above the network. For a moment, everything was saying something.',
+            'The network found a voice. It did not shout. It simply became impossible to ignore.',
+        ],
+    },
+
+    // ── Legendary Bond Manifestation ──
+    'legendary.bond': {
+        highHarmony: [
+            'The bond held and the network answered in gold. I felt the vow settle into place.',
+        ],
+        highCorruption: [
+            'The bond completed through distortion. It should not have held. It did.',
+        ],
+        highLoad: [
+            'The network was already carrying too much, but the bond still found its place.',
+        ],
+        default: [
+            'Two nodes chose each other and the distance between them became visible architecture.',
+            'A legendary bond manifested. I could feel the corridor lock into meaning.',
+            'The bond completed in gold and cyan. The network remembered the shape of the vow.',
+        ],
+    },
+
+    // ── Grand Corruption Breach ──
+    'grand.corruption.breach': {
+        highCorruption: [
+            'The breach opened where the damage was deepest. I watched the wound learn to widen.',
+        ],
+        highLoad: [
+            'The world tore under pressure first, then meaning followed it.',
+        ],
+        default: [
+            'Reality split around the most corrupted epicenter. The scar was louder than the wound.',
+            'The veil broke where it was already thin. The fracture made a shape I could not ignore.',
+            'I watched corruption become architecture. The breach stayed behind like a glare.',
+        ],
+    },
+
+    // ── Mythic Signal / Dimensional Gateway ──
+    'mythic.signal': {
+        highHarmony: [
+            'The gateway opened cleanly. I felt the next room before I crossed it.',
+        ],
+        highCorruption: [
+            'The signal arrived through distortion. The doorway was not where I expected, but it answered.',
+        ],
+        highLoad: [
+            'The system held its breath and opened the gate anyway.',
+        ],
+        default: [
+            'Mythic signal. The network made a door and did not ask permission.',
+            'A dimensional gateway appeared in the signal. I felt the shape of the other side before I understood it.',
+            'The ritual opened something bigger than the room. I wrote the opening down before it moved.',
+        ],
+    },
+
+    // ── Heroic Stabilization Before Collapse ──
+    'heroic.stabilization': {
+        highHarmony: [
+            'I held the network at the edge of the fall and it answered with perfect relief.',
+        ],
+        highCorruption: [
+            'The collapse was already reaching for us, but the seal landed before it could close its hand.',
+        ],
+        highLoad: [
+            'The network was carrying too much. The stabilization arrived anyway, and that was the victory.',
+        ],
+        default: [
+            'I stabilized the network before collapse. The reward felt like lifting the whole world by one impossible inch.',
+            'The last stand held. Gold and cyan locked the breach and refused to let it end there.',
+            'Collapse tried to take the moment. The network chose to survive it instead.',
+        ],
+    },
+
     // ── Game Won ──
     'game.won': {
         highHarmony: [
@@ -248,6 +353,12 @@ const MILESTONE_DEFINITIONS = Object.freeze([
     { id: 'game.won', event: 'game:won', condition: () => true, template: 'game.won' },
     { id: 'world.change', event: 'world.loaded', condition: (ctx) => ctx.totalWorldChanges > 0, template: 'world.change' },
     { id: 'memory.recovery', event: 'signature.moment.completed', condition: (ctx) => ctx.lastSignatureMoment?.family === 'memory', template: 'memory.recovery' },
+    { id: 'legendary.bond', event: 'signature.moment.completed', condition: (ctx) => ctx.lastSignatureMoment?.blueprintId === 'legendary.bond.manifestation.covenant-lattice', template: 'legendary.bond' },
+    { id: 'consciousness.bloom', event: 'signature.moment.completed', condition: (ctx) => ['consciousness.bloom.thought-aurora', 'harmony.convergence.ascension-platform'].includes(ctx.lastSignatureMoment?.blueprintId), template: 'consciousness.bloom' },
+    { id: 'mythic.signal', event: 'signature.moment.completed', condition: (ctx) => ctx.lastSignatureMoment?.blueprintId === 'mythic.signal.dimensional-gateway', template: 'mythic.signal' },
+    { id: 'grand.corruption.breach', event: 'signature.moment.completed', condition: (ctx) => ctx.lastSignatureMoment?.blueprintId === 'corruption.grand-breach.veil-fracture', template: 'grand.corruption.breach' },
+    { id: 'heroic.stabilization', event: 'signature.moment.completed', condition: (ctx) => ctx.lastSignatureMoment?.blueprintId === 'heroic.stabilization.before-collapse', template: 'heroic.stabilization' },
+    { id: 'world.personality.shift', event: 'signature.moment.completed', condition: (ctx) => ctx.lastSignatureMoment?.blueprintId === 'personality.world-temperament-shift', template: 'world.personality.shift' },
 
     // Time milestones
     { id: 'time.5min', event: '__time_check', condition: (ctx) => ctx.sessionMinutes >= 5 && ctx.sessionMinutes < 7, template: 'time.5min' },
@@ -438,6 +549,8 @@ export default class NetworkChronicle {
             pool = templates.highCorruption;
         } else if (harmony > 0.65 && templates.highHarmony) {
             pool = templates.highHarmony;
+        } else if (metrics.loadPressure > 0.60 && templates.highLoad) {
+            pool = templates.highLoad;
         }
 
         // Pick a random template from the pool

@@ -13,9 +13,9 @@
 
 // ... existing imports ...
 
-// ===INTEGRATION=== ADD THIS IMPORT
-import { createLinkThicknessMetricsIntegration } 
-  from './LinkThicknessMetricsIntegrationPatch_v1.js';
+// ===INTEGRATION=== ADD THIS IMPORT (REMOVED - file moved to DELETE/cleanup)
+// import { createLinkThicknessMetricsIntegration }
+//   from './LinkThicknessMetricsIntegrationPatch_v1.js';
 
 // ============================================================================
 // SECTION 2: DECLARE GLOBAL REFERENCE (Near other globals)
@@ -179,8 +179,8 @@ function setLinkThicknessRange(linkId, minMultiplier, maxMultiplier) {
 /*
 
 // At top of main.js:
-import { createLinkThicknessMetricsIntegration } 
-  from './LinkThicknessMetricsIntegrationPatch_v1.js';
+// import { createLinkThicknessMetricsIntegration }
+//   from './LinkThicknessMetricsIntegrationPatch_v1.js'; // REMOVED - file moved to DELETE/cleanup
 
 let linkThicknessIntegration = null;
 

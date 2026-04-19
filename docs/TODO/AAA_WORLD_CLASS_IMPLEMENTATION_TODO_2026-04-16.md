@@ -548,6 +548,7 @@ ____________________________________________________
    - fantasy: realita sa trhá okolo najviac narušeného epicentra
    - staging: jeden jasný breach anchor, converging shards, distortion scar, krátky impact shake
    - aftermath: 8-12 s corruption scar / veil residue
+  - chronicle: `signature.moment.completed` -> `grand.corruption.breach` narrative record
 
 3. `Harmony Convergence / Ascension Platform`
    - hook: `_MythicRitualController.js` (`HARMONY_CONVERGENCE`)
@@ -589,6 +590,7 @@ ____________________________________________________
    - hook: `WorldPersonalityController.js` + `EnvironmentEventCoordinator.js`
    - fantasy: hráč necíti len nový metric state, ale nový temperament sveta
    - staging: fog/personality wash, ambient retune, atmospheric density shift, bez násilnej kamery
+  - chronicle: `signature.moment.completed` -> `world.personality.shift` narrative record
    - aftermath: 10 s world mood stain v atmosfére
 
 10. `Mythic Signal / Dimensional Gateway`
@@ -611,6 +613,8 @@ ____________________________________________________
   - `Heroic Stabilization Before Collapse`
 - `Tier C / high-risk, headline moments`:
   - `Harmony Convergence / Ascension Platform`
+    - status: live via `SignatureMomentDirector` + bloom bridge in `AIConsciousnessLayer.js`
+    - chronicle: `signature.moment.completed` -> `consciousness.bloom` narrative record
   - `Mythic Signal / Dimensional Gateway`
 
 **Jedno implementačné pravidlo navyše:**

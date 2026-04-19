@@ -22,7 +22,7 @@ export class InterferenceEffectApplier {
      * Apply interference effects to a link's visual components
      * @param {THREE.Group} linkGroup - The link visual group
      * @param {Object} linkState - The link's conduit state
-     * @param {Object} interferenceFeedback - Feedback from NodeSynergyInterferenceController
+     * @param {Object} interferenceFeedback - Feedback from interference controller
      */
     apply(linkGroup, linkState, interferenceFeedback) {
         if (!linkGroup || !linkState || !interferenceFeedback) return;

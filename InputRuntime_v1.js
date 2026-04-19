@@ -70,6 +70,8 @@ export class InputRuntime_v1 {
         // Event listener references (for cleanup)
         this._keyDownHandler = (e) => this._onKeyDown(e);
         this._keyUpHandler = (e) => this._onKeyUp(e);
+        this._pointerDownHandler = (e) => this._onPointerDown(e);
+        this._lastSignatureMomentNudgeAt = 0;
     }
 
     /**
@@ -204,6 +206,7 @@ export class InputRuntime_v1 {
         try {
             window.addEventListener('keydown', this._keyDownHandler);
             window.addEventListener('keyup', this._keyUpHandler);
+            window.addEventListener('pointerdown', this._pointerDownHandler);
         } catch (e) {
             console.warn('[InputRuntime_v1] Failed to attach global listeners:', e);
         }
@@ -217,6 +220,12 @@ export class InputRuntime_v1 {
         try {
             this.keyState[e.key] = true;
             this.keyState[`code:${e.code}`] = true;
+            this._maybeEmitSignatureMomentNudge({
+                inputKind: 'keydown',
+                key: e.key,
+                inputCode: e.code,
+                repeat: e.repeat === true
+            });
         } catch (e) {
             console.warn('[InputRuntime_v1] keydown handler error:', e);
         }
@@ -233,6 +242,59 @@ export class InputRuntime_v1 {
         } catch (e) {
             console.warn('[InputRuntime_v1] keyup handler error:', e);
         }
+    }
+
+    /**
+     * Handle global pointer-down event
+     * @private
+     */
+    _onPointerDown(e) {
+        try {
+            this._maybeEmitSignatureMomentNudge({
+                inputKind: 'pointerdown',
+                pointerType: e.pointerType || 'mouse',
+                button: e.button,
+                isPrimary: e.isPrimary === true
+            });
+        } catch (error) {
+            console.warn('[InputRuntime_v1] pointerdown handler error:', error);
+        }
+    }
+
+    _maybeEmitSignatureMomentNudge(input = {}) {
+        const game = this.game;
+        const semanticBus = game?.semanticBus;
+        const director = game?.signatureMomentDirector;
+        if (!semanticBus?.emit || !director?.getActiveMoment) return;
+
+        const activeMoment = director.getActiveMoment();
+        if (!activeMoment || !['harmony', 'mythic'].includes(activeMoment.family)) return;
+        if (!['telegraph', 'crest', 'afterglow'].includes(activeMoment.stage)) return;
+
+        const now = typeof performance !== 'undefined' && typeof performance.now === 'function'
+            ? performance.now()
+            : Date.now();
+        if (now - this._lastSignatureMomentNudgeAt < 160) return;
+        if (input.repeat === true) return;
+
+        const tagName = String(globalThis?.document?.activeElement?.tagName || '').toUpperCase();
+        if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return;
+
+        this._lastSignatureMomentNudgeAt = now;
+        semanticBus.emit('signature.moment.nudge', {
+            source: 'InputRuntime_v1',
+            momentId: activeMoment.id || activeMoment.blueprintId || null,
+            blueprintId: activeMoment.blueprintId || null,
+            family: activeMoment.family || null,
+            stage: activeMoment.stage || null,
+            inputKind: input.inputKind || 'unknown',
+            key: input.key || null,
+            inputCode: input.inputCode || null,
+            pointerType: input.pointerType || null,
+            button: Number.isFinite(input.button) ? input.button : null,
+            strength: input.inputKind === 'pointerdown' ? 0.26 : 0.18,
+            timestamp: now
+        }, 'NORMAL');
     }
 
     /**
@@ -311,6 +373,7 @@ export class InputRuntime_v1 {
         try {
             window.removeEventListener('keydown', this._keyDownHandler);
             window.removeEventListener('keyup', this._keyUpHandler);
+            window.removeEventListener('pointerdown', this._pointerDownHandler);
         } catch (e) {
             console.warn('[InputRuntime_v1] Failed to detach global listeners:', e);
         }

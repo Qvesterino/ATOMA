@@ -2,6 +2,151 @@ import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
 import { getEnvSpriteTexture } from './EnvironmentPointFXBase.js';
 
+const CONSCIOUSNESS_BLOOM_BLUEPRINT_ID = 'consciousness.bloom.thought-aurora';
+const HARMONY_CONVERGENCE_BLUEPRINT_ID = 'harmony.convergence.ascension-platform';
+const HEROIC_STABILIZATION_BLUEPRINT_ID = 'heroic.stabilization.before-collapse';
+const MYTHIC_SIGNAL_BLUEPRINT_ID = 'mythic.signal.dimensional-gateway';
+
+const SIGNATURE_BLOOM_STAGE_PRESETS = Object.freeze({
+  telegraph: {
+    target: 0.62,
+    ttl: 2.2,
+    veilBoost: 0.16,
+    threadBoost: 0.12,
+    pulseBoost: 0.1,
+    patternBoost: 0.08,
+  },
+  crest: {
+    target: 0.84,
+    ttl: 2.8,
+    veilBoost: 0.24,
+    threadBoost: 0.2,
+    pulseBoost: 0.18,
+    patternBoost: 0.14,
+  },
+  afterglow: {
+    target: 0.48,
+    ttl: 3.6,
+    veilBoost: 0.18,
+    threadBoost: 0.16,
+    pulseBoost: 0.24,
+    patternBoost: 0.24,
+  },
+  completed: {
+    target: 0,
+    ttl: 1.1,
+    veilBoost: 0.08,
+    threadBoost: 0.08,
+    pulseBoost: 0.12,
+    patternBoost: 0.12,
+  }
+});
+
+const SIGNATURE_STABILITY_STAGE_PRESETS = Object.freeze({
+  telegraph: {
+    target: 0.72,
+    ttl: 2.4,
+    veilBoost: 0.18,
+    threadBoost: 0.18,
+    pulseBoost: 0.16,
+    patternBoost: 0.12,
+  },
+  crest: {
+    target: 0.9,
+    ttl: 3.2,
+    veilBoost: 0.28,
+    threadBoost: 0.28,
+    pulseBoost: 0.24,
+    patternBoost: 0.2,
+  },
+  afterglow: {
+    target: 0.58,
+    ttl: 4.4,
+    veilBoost: 0.22,
+    threadBoost: 0.2,
+    pulseBoost: 0.28,
+    patternBoost: 0.24,
+  },
+  completed: {
+    target: 0,
+    ttl: 1.4,
+    veilBoost: 0.1,
+    threadBoost: 0.1,
+    pulseBoost: 0.14,
+    patternBoost: 0.14,
+  }
+});
+
+const SIGNATURE_HARMONY_STAGE_PRESETS = Object.freeze({
+  telegraph: {
+    target: 0.78,
+    ttl: 2.8,
+    veilBoost: 0.22,
+    threadBoost: 0.18,
+    pulseBoost: 0.16,
+    patternBoost: 0.14,
+  },
+  crest: {
+    target: 0.94,
+    ttl: 3.8,
+    veilBoost: 0.3,
+    threadBoost: 0.26,
+    pulseBoost: 0.22,
+    patternBoost: 0.22,
+  },
+  afterglow: {
+    target: 0.62,
+    ttl: 4.8,
+    veilBoost: 0.26,
+    threadBoost: 0.22,
+    pulseBoost: 0.26,
+    patternBoost: 0.2,
+  },
+  completed: {
+    target: 0,
+    ttl: 1.5,
+    veilBoost: 0.1,
+    threadBoost: 0.1,
+    pulseBoost: 0.14,
+    patternBoost: 0.14,
+  }
+});
+
+const SIGNATURE_MYTHIC_STAGE_PRESETS = Object.freeze({
+  telegraph: {
+    target: 0.74,
+    ttl: 3.0,
+    veilBoost: 0.2,
+    threadBoost: 0.16,
+    pulseBoost: 0.16,
+    patternBoost: 0.14,
+  },
+  crest: {
+    target: 0.92,
+    ttl: 4.2,
+    veilBoost: 0.3,
+    threadBoost: 0.24,
+    pulseBoost: 0.22,
+    patternBoost: 0.24,
+  },
+  afterglow: {
+    target: 0.56,
+    ttl: 5.2,
+    veilBoost: 0.22,
+    threadBoost: 0.2,
+    pulseBoost: 0.28,
+    patternBoost: 0.24,
+  },
+  completed: {
+    target: 0,
+    ttl: 1.6,
+    veilBoost: 0.1,
+    threadBoost: 0.1,
+    pulseBoost: 0.14,
+    patternBoost: 0.14,
+  }
+});
+
 /**
  * AI CONSCIOUSNESS LAYER 2.0 - NEURAL THOUGHT VISUALIZATION + EMERGENT STORMS
  * 
@@ -113,6 +258,41 @@ export class AIConsciousnessLayer {
     this.ritualFieldVeil = null;
     this.ritualFieldWitness = null;
     this._ritualWitnessBasePositions = null;
+    this._signatureMomentSubscriptions = [];
+    this._signatureBloom = {
+      active: false,
+      family: null,
+      blueprintId: null,
+      phase: 'NONE',
+      intensity: 0,
+      targetIntensity: 0,
+      veilBoost: 0,
+      threadBoost: 0,
+      pulseBoost: 0,
+      patternBoost: 0,
+      ttl: 0,
+      anchor: new THREE.Vector3()
+    };
+    this._signatureBloomCoreColor = new THREE.Color(0x8E7DFF);
+    this._signatureBloomAuroraColor = new THREE.Color(0xD7C8FF);
+    this._signatureBloomCyanColor = new THREE.Color(0x6DEAFF);
+    this._signatureBloomWhiteColor = new THREE.Color(0xF7FBFF);
+    this._signatureBloomDeepColor = new THREE.Color(0x05131A);
+    this._signatureHarmonyCoreColor = new THREE.Color(0xFFD66B);
+    this._signatureHarmonyAuroraColor = new THREE.Color(0xFFF4D2);
+    this._signatureHarmonyCyanColor = new THREE.Color(0x6DEAFF);
+    this._signatureHarmonyWhiteColor = new THREE.Color(0xFFFBEA);
+    this._signatureHarmonyDeepColor = new THREE.Color(0x08111A);
+    this._signatureStabilityCoreColor = new THREE.Color(0xFFD66B);
+    this._signatureStabilityAuroraColor = new THREE.Color(0xFFF4D1);
+    this._signatureStabilityCyanColor = new THREE.Color(0x8AF2E3);
+    this._signatureStabilityWhiteColor = new THREE.Color(0xFFF8E8);
+    this._signatureStabilityDeepColor = new THREE.Color(0x071018);
+    this._signatureMythicCoreColor = new THREE.Color(0xA98BFF);
+    this._signatureMythicAuroraColor = new THREE.Color(0xFFF1C9);
+    this._signatureMythicCyanColor = new THREE.Color(0x76F7E0);
+    this._signatureMythicWhiteColor = new THREE.Color(0xFDF8FF);
+    this._signatureMythicDeepColor = new THREE.Color(0x050615);
     
     // Performance tracking
     this.stats = {
@@ -179,6 +359,7 @@ export class AIConsciousnessLayer {
     this._createPulsePacketSystem();
     this._createGlobalField();
     this._setupRitualBridge();
+    this._setupSignatureMomentBridge();
   }
 
   _clamp01(value) {
@@ -380,6 +561,7 @@ export class AIConsciousnessLayer {
 
   getConsciousnessState() {
     const state = this.consciousnessState || {};
+    const bloom = this._signatureBloom || {};
     return {
       networkMood: state.networkMood || 'CALM',
       moodTag: state.moodTag || state.networkMood || 'CALM',
@@ -407,6 +589,10 @@ export class AIConsciousnessLayer {
       ritualActive: state.ritualActive === true,
       ritualType: state.ritualType || null,
       ritualPhase: state.ritualPhase || 'NONE',
+      signatureBloomActive: bloom.active === true,
+      signatureBloomFamily: bloom.family || 'NONE',
+      signatureBloomPhase: bloom.phase || 'NONE',
+      signatureBloomIntensity: bloom.intensity ?? 0,
       lastUpdated: state.lastUpdated ?? 0,
     };
   }
@@ -763,6 +949,210 @@ export class AIConsciousnessLayer {
       } catch (err) {
         console.warn('[AIConsciousnessLayer] Ritual bridge cleanup failed:', err);
       }
+    }
+  }
+
+  _setupSignatureMomentBridge() {
+    const bus = this.semanticBus || this._resolveSemanticBus();
+    if (!bus?.subscribe) return;
+
+    this.semanticBus = bus;
+
+    const wire = (eventName, stage) => {
+      const handler = (payload = {}) => this._applySignatureMomentPayload(payload, stage);
+      const unsubscribe = bus.subscribe(eventName, handler);
+      if (typeof unsubscribe === 'function') {
+        this._signatureMomentSubscriptions.push(unsubscribe);
+      } else if (typeof bus.unsubscribe === 'function') {
+        this._signatureMomentSubscriptions.push(() => bus.unsubscribe(eventName, handler));
+      }
+    };
+
+    wire('signature.moment.started', 'telegraph');
+    wire('signature.moment.response', 'response');
+    wire('signature.moment.crest', 'crest');
+    wire('signature.moment.afterglow', 'afterglow');
+    wire('signature.moment.completed', 'completed');
+  }
+
+  _disposeSignatureMomentBridge() {
+    while (this._signatureMomentSubscriptions.length > 0) {
+      const unsubscribe = this._signatureMomentSubscriptions.pop();
+      try {
+        if (typeof unsubscribe === 'function') unsubscribe();
+      } catch (err) {
+        console.warn('[AIConsciousnessLayer] Signature moment bridge cleanup failed:', err);
+      }
+    }
+  }
+
+  _applySignatureMomentPayload(payload = {}, stage = 'telegraph') {
+    const isHarmonyConvergence = payload?.family === 'harmony' || payload?.blueprintId === HARMONY_CONVERGENCE_BLUEPRINT_ID;
+    const isMythicSignal = payload?.family === 'mythic' || payload?.blueprintId === MYTHIC_SIGNAL_BLUEPRINT_ID;
+    const isHeroicStabilization = payload?.family === 'stability' || payload?.blueprintId === HEROIC_STABILIZATION_BLUEPRINT_ID;
+    const isConsciousnessBloom = payload?.family === 'consciousness' || payload?.blueprintId === CONSCIOUSNESS_BLOOM_BLUEPRINT_ID;
+    const isResponsePulse = stage === 'response';
+
+    if (!payload || (!isConsciousnessBloom && !isHarmonyConvergence && !isMythicSignal && !isHeroicStabilization)) {
+      if (stage === 'completed' && ['consciousness', 'harmony', 'mythic', 'stability'].includes(this._signatureBloom.family)) {
+        this._releaseSignatureBloom();
+      }
+      return;
+    }
+
+    if (
+      payload.blueprintId
+      && payload.blueprintId !== CONSCIOUSNESS_BLOOM_BLUEPRINT_ID
+      && payload.blueprintId !== HARMONY_CONVERGENCE_BLUEPRINT_ID
+      && payload.blueprintId !== MYTHIC_SIGNAL_BLUEPRINT_ID
+      && payload.blueprintId !== HEROIC_STABILIZATION_BLUEPRINT_ID
+    ) {
+      return;
+    }
+
+    const presets = isMythicSignal
+      ? SIGNATURE_MYTHIC_STAGE_PRESETS
+      : isHarmonyConvergence
+        ? SIGNATURE_HARMONY_STAGE_PRESETS
+        : isHeroicStabilization
+          ? SIGNATURE_STABILITY_STAGE_PRESETS
+          : SIGNATURE_BLOOM_STAGE_PRESETS;
+    const preset = isResponsePulse
+      ? {
+          ...(presets.telegraph || presets.completed || SIGNATURE_BLOOM_STAGE_PRESETS.telegraph),
+          target: this._clamp01((presets.telegraph?.target ?? 0.6) + 0.08),
+          ttl: 1.1,
+          veilBoost: (presets.telegraph?.veilBoost ?? 0.12) * 1.1,
+          threadBoost: (presets.telegraph?.threadBoost ?? 0.1) * 1.08,
+          pulseBoost: (presets.telegraph?.pulseBoost ?? 0.08) * 1.12,
+          patternBoost: (presets.telegraph?.patternBoost ?? 0.08) * 1.08,
+        }
+      : (presets[stage] || presets.telegraph);
+    const score = this._clamp01(payload.score ?? 0.55);
+    const aftermathLinger = this._clamp01(payload.aftermath?.lingerIntensity ?? 0);
+
+    if (stage === 'completed') {
+      this._releaseSignatureBloom();
+      return;
+    }
+
+    this._signatureBloom.active = true;
+    this._signatureBloom.family = isMythicSignal
+      ? 'mythic'
+      : isHarmonyConvergence
+        ? 'harmony'
+        : isHeroicStabilization
+          ? 'stability'
+          : 'consciousness';
+    this._signatureBloom.blueprintId = payload.blueprintId || payload.id || CONSCIOUSNESS_BLOOM_BLUEPRINT_ID;
+    this._signatureBloom.phase = isResponsePulse ? 'response' : stage;
+    this._signatureBloom.targetIntensity = this._clamp01(
+      preset.target
+      + score * (isResponsePulse ? 0.1 : isMythicSignal ? 0.18 : isHarmonyConvergence ? 0.16 : isHeroicStabilization ? 0.14 : 0.16)
+      + aftermathLinger * (isResponsePulse ? 0.08 : 0.12)
+    );
+    this._signatureBloom.veilBoost = preset.veilBoost + score * (isResponsePulse ? 0.05 : isMythicSignal ? 0.08 : isHarmonyConvergence ? 0.08 : isHeroicStabilization ? 0.08 : 0.06);
+    this._signatureBloom.threadBoost = preset.threadBoost + score * (isResponsePulse ? 0.06 : isMythicSignal ? 0.1 : isHarmonyConvergence ? 0.1 : isHeroicStabilization ? 0.1 : 0.08);
+    this._signatureBloom.pulseBoost = preset.pulseBoost + score * (isResponsePulse ? 0.08 : isMythicSignal ? 0.12 : isHarmonyConvergence ? 0.12 : isHeroicStabilization ? 0.12 : 0.08);
+    this._signatureBloom.patternBoost = preset.patternBoost + score * (isResponsePulse ? 0.06 : isMythicSignal ? 0.14 : isHarmonyConvergence ? 0.12 : isHeroicStabilization ? 0.12 : 0.1);
+    this._signatureBloom.ttl = Math.max(this._signatureBloom.ttl, preset.ttl + score * (isResponsePulse ? 0.45 : isMythicSignal ? 1.2 : isHarmonyConvergence ? 1.0 : isHeroicStabilization ? 1.0 : 0.8));
+
+    if (payload.anchor && Number.isFinite(payload.anchor.x) && Number.isFinite(payload.anchor.y) && Number.isFinite(payload.anchor.z)) {
+      this._signatureBloom.anchor.set(payload.anchor.x, payload.anchor.y, payload.anchor.z);
+    }
+  }
+
+  _releaseSignatureBloom() {
+    const bloom = this._signatureBloom;
+    bloom.active = false;
+    bloom.phase = 'completed';
+    bloom.targetIntensity = 0;
+    const releaseTtl = bloom.family === 'mythic'
+      ? 1.8
+      : bloom.family === 'harmony'
+        ? 1.5
+        : bloom.family === 'stability'
+          ? 1.4
+          : bloom.family === 'consciousness'
+            ? 1.25
+            : 1.1;
+    bloom.ttl = Math.max(bloom.ttl, releaseTtl);
+    bloom.veilBoost = Math.max(bloom.veilBoost, 0.08);
+    bloom.threadBoost = Math.max(bloom.threadBoost, 0.08);
+    bloom.pulseBoost = Math.max(bloom.pulseBoost, 0.12);
+    bloom.patternBoost = Math.max(bloom.patternBoost, 0.12);
+  }
+
+  _resolveSignatureMomentPalette(bloom = this._signatureBloom) {
+    const isHarmonyConvergence = bloom?.family === 'harmony' || bloom?.blueprintId === HARMONY_CONVERGENCE_BLUEPRINT_ID;
+    const isMythicSignal = bloom?.family === 'mythic' || bloom?.blueprintId === MYTHIC_SIGNAL_BLUEPRINT_ID;
+    const isHeroicStabilization = bloom?.family === 'stability' || bloom?.blueprintId === HEROIC_STABILIZATION_BLUEPRINT_ID;
+    if (isMythicSignal) {
+      return {
+        hero: true,
+        core: this._signatureMythicCoreColor,
+        aurora: this._signatureMythicAuroraColor,
+        cyan: this._signatureMythicCyanColor,
+        white: this._signatureMythicWhiteColor,
+        deep: this._signatureMythicDeepColor,
+      };
+    }
+
+    if (isHarmonyConvergence) {
+      return {
+        hero: true,
+        core: this._signatureHarmonyCoreColor,
+        aurora: this._signatureHarmonyAuroraColor,
+        cyan: this._signatureHarmonyCyanColor,
+        white: this._signatureHarmonyWhiteColor,
+        deep: this._signatureHarmonyDeepColor,
+      };
+    }
+
+    if (isHeroicStabilization) {
+      return {
+        hero: true,
+        core: this._signatureStabilityCoreColor,
+        aurora: this._signatureStabilityAuroraColor,
+        cyan: this._signatureStabilityCyanColor,
+        white: this._signatureStabilityWhiteColor,
+        deep: this._signatureStabilityDeepColor,
+      };
+    }
+
+    return {
+      hero: false,
+      core: this._signatureBloomCoreColor,
+      aurora: this._signatureBloomAuroraColor,
+      cyan: this._signatureBloomCyanColor,
+      white: this._signatureBloomWhiteColor,
+      deep: this._signatureBloomDeepColor,
+    };
+  }
+
+  _updateSignatureBloom(visualDelta) {
+    const bloom = this._signatureBloom;
+    if (!bloom) return;
+
+    if (bloom.ttl > 0) {
+      bloom.ttl = Math.max(0, bloom.ttl - visualDelta);
+    }
+
+    const target = bloom.ttl > 0 || bloom.targetIntensity > 0 ? bloom.targetIntensity : 0;
+    const lerpFactor = 1 - Math.exp(-Math.max(0.0001, visualDelta) * (target > bloom.intensity ? 4.4 : bloom.phase === 'completed' ? 1.45 : 2.0));
+    bloom.intensity = THREE.MathUtils.lerp(bloom.intensity, target, lerpFactor);
+
+    if (!bloom.active && bloom.ttl <= 0 && bloom.intensity <= 0.01) {
+      bloom.intensity = 0;
+      bloom.targetIntensity = 0;
+      bloom.family = null;
+      bloom.blueprintId = null;
+      bloom.phase = 'NONE';
+      bloom.veilBoost = 0;
+      bloom.threadBoost = 0;
+      bloom.pulseBoost = 0;
+      bloom.patternBoost = 0;
+      bloom.responsePulse = false;
     }
   }
 
@@ -1486,6 +1876,7 @@ export class AIConsciousnessLayer {
     this._lastVisualTime = currentTime;
     this.time = currentTime;
     this._updateRitualState(visualDelta);
+    this._updateSignatureBloom(visualDelta);
     
     // 1. Update neural threads
     this._updateThreads();
@@ -1517,6 +1908,11 @@ export class AIConsciousnessLayer {
    * Update all neural threads
    */
   _updateThreads() {
+    const bloom = this._signatureBloom || {};
+    const bloomIntensity = this._clamp01(bloom.intensity || 0);
+    const palette = this._resolveSignatureMomentPalette(bloom);
+    const bloomThreadLift = bloomIntensity * (palette.hero ? 0.24 + (bloom.threadBoost || 0) * 0.62 : 0.16 + (bloom.threadBoost || 0) * 0.5);
+
     for (const [linkId, line] of this.activeThoughts.threadMeshes) {
       const link = line.userData.link;
       
@@ -1544,8 +1940,12 @@ export class AIConsciousnessLayer {
         line.userData.flashIntensity = Math.max(0, line.userData.flashIntensity - (line.userData.flashDecay || 0.1));
       }
       
-      line.material.opacity = Math.min(0.85, Math.max(0.12, baseOpacity + breath + flashAdd));
+      line.material.opacity = Math.min(0.92, Math.max(0.12, baseOpacity + breath + flashAdd + bloomThreadLift));
       line.material.color.copy(this._blendWithRitualColor(this._getThreadColor(link), 0.42));
+      if (bloomIntensity > 0) {
+        line.material.color.lerp(palette.core, bloomIntensity * 0.34);
+        line.material.color.lerp(palette.white, bloomIntensity * 0.08);
+      }
       
       // Regenerate geometry only when necessary, with a stable interval and more nuance for active links
       const lastUpdate = line.userData.lastThreadUpdate || 0;
@@ -1564,6 +1964,11 @@ export class AIConsciousnessLayer {
    */
   _updatePulses(visualDelta) {
     if (!this.pulsePointCloud || !this._pulsePointAttributes) return;
+
+    const bloom = this._signatureBloom || {};
+    const bloomIntensity = this._clamp01(bloom.intensity || 0);
+    const palette = this._resolveSignatureMomentPalette(bloom);
+    const bloomPulseLift = bloomIntensity * (palette.hero ? 1.72 + (bloom.pulseBoost || 0) * 4.4 : 1.4 + (bloom.pulseBoost || 0) * 4.0);
 
     const positions = this._pulsePointAttributes.positions;
     const colors = this._pulsePointAttributes.colors;
@@ -1601,14 +2006,17 @@ export class AIConsciousnessLayer {
       const pulseColor = pulse.colorA.clone().lerp(pulse.colorB, gradientT);
       const ritualPulseColor = this._blendWithRitualColor(pulseColor, 0.52);
       const stability = Math.max(0, Math.min(1, pulse.link?.stability ?? 0.5));
-      let scaleBase = 6.0 + envelope * 9.0 + stability * 2.0 + this.config.intensity * 3.2 + this.ritualState.intensity * 2.4;
+      let scaleBase = 6.0 + envelope * 9.0 + stability * 2.0 + this.config.intensity * 3.2 + this.ritualState.intensity * 2.4 + bloomPulseLift;
       if (progressNorm >= 0.92) {
         const burstFactor = (progressNorm - 0.92) / 0.08;
         scaleBase += burstFactor * 10.0;
       }
 
-      const opacity = Math.min(0.92, 0.08 + pulse.life * envelope * 0.88 * this.config.intensity + this.ritualState.intensity * 0.12);
-      this._setPulsePointAttributes(pulse.index, pulse.position, ritualPulseColor, scaleBase, opacity, positions, colors, scales, opacities);
+      const opacity = Math.min(0.96, 0.08 + pulse.life * envelope * 0.88 * this.config.intensity + this.ritualState.intensity * 0.12 + bloomIntensity * 0.12);
+      const bloomPulseColor = bloomIntensity > 0
+        ? ritualPulseColor.clone().lerp(palette.aurora, bloomIntensity * 0.42).lerp(palette.white, bloomIntensity * 0.1)
+        : ritualPulseColor;
+      this._setPulsePointAttributes(pulse.index, pulse.position, bloomPulseColor, scaleBase, opacity, positions, colors, scales, opacities);
 
       if (Math.random() < 0.08) {
         const thread = this.activeThoughts.threadMeshes.get(pulse.link.id);
@@ -1629,6 +2037,11 @@ export class AIConsciousnessLayer {
    * Update semantic pattern clusters
    */
   _updatePatterns(visualDelta) {
+    const bloom = this._signatureBloom || {};
+    const bloomIntensity = this._clamp01(bloom.intensity || 0);
+    const palette = this._resolveSignatureMomentPalette(bloom);
+    const bloomPatternLift = bloomIntensity * (palette.hero ? 0.1 + (bloom.patternBoost || 0) * 0.26 : 0.06 + (bloom.patternBoost || 0) * 0.22);
+
     for (const [linkId, pattern] of this.activeThoughts.patternClusters) {
       pattern.life -= visualDelta;
       
@@ -1647,7 +2060,7 @@ export class AIConsciousnessLayer {
       const lifeNorm = Math.max(0, Math.min(1, pattern.life / (pattern.maxLife || 3.0)));
       const phase = this.time * 1.2 + this._hashTo01(`${linkId}-${pattern.type}`) * Math.PI * 2;
       const buildFactor = 1 - Math.pow(lifeNorm, 1.8);
-      const fadeFactor = Math.max(0.08, lifeNorm * this.config.intensity);
+      const fadeFactor = Math.max(0.08, lifeNorm * this.config.intensity + bloomPatternLift);
       const rotationSpeed = 1.0 + (1 - lifeNorm) * 0.6 + this.config.intensity * 0.2;
       const baseAlpha = 0.14 + fadeFactor * 0.48;
       const ritualAlpha = this.ritualState.intensity * 0.14;
@@ -1738,9 +2151,13 @@ export class AIConsciousnessLayer {
         const ritualDip = Math.sin(phase * 0.6) * 0.02;
         particle.position.y += ritualDip;
         
-        particle.material.opacity = Math.min(0.82, baseAlpha * fadeFactor * (0.78 + Math.sin(phase * 0.9) * 0.06) + ritualAlpha);
+        particle.material.opacity = Math.min(0.9, baseAlpha * fadeFactor * (0.78 + Math.sin(phase * 0.9) * 0.06) + ritualAlpha + bloomIntensity * 0.08);
         const patternBaseColor = particle.userData.baseColor || particle.material.color;
         particle.material.color.copy(this._blendWithRitualColor(patternBaseColor, 0.58));
+        if (bloomIntensity > 0) {
+          particle.material.color.lerp(palette.aurora, bloomIntensity * 0.34);
+          particle.material.color.lerp(palette.white, bloomIntensity * 0.08);
+        }
         particle.position.y += this.ritualState.intensity * 0.04 * Math.sin(phase + angle * 2.0);
         const scaleBoost = pattern.type === 'memory'
           ? 0.18
@@ -1749,7 +2166,7 @@ export class AIConsciousnessLayer {
             : pattern.type === 'spire'
               ? 0.1
               : 0;
-        particle.scale.setScalar(0.7 + buildFactor * 0.24 + this.config.intensity * 0.08 + scaleBoost);
+        particle.scale.setScalar(0.7 + buildFactor * 0.24 + this.config.intensity * 0.08 + scaleBoost + bloomIntensity * 0.08);
       }
     }
   }
@@ -1759,6 +2176,10 @@ export class AIConsciousnessLayer {
    */
   _updateGlobalField(visualDelta) {
     if (!this.globalFieldMesh) return;
+
+    const bloom = this._signatureBloom || {};
+    const bloomIntensity = this._clamp01(bloom.intensity || 0);
+    const palette = this._resolveSignatureMomentPalette(bloom);
 
     const links = this.linkingSystem?.links || [];
     let avgStability = 0;
@@ -1808,9 +2229,9 @@ export class AIConsciousnessLayer {
     const corruptionBias = Math.min(1, avgCorruption * 1.2);
     const pulsePhase = Math.sin(this.time * 0.72 + pressure * Math.PI * 1.5);
     const ritualIntensity = this.ritualState.intensity;
-    const monumentScale = 1 + avgStability * 0.1 * this.config.intensity + pressure * 0.07 + ritualIntensity * 0.1 + consciousnessState.heroIntensity * 0.08;
-    const pulseScale = 1 + pulsePhase * 0.04 * (0.45 + networkMood * 0.45 + consciousnessState.trafficIntensity * 0.15) * this.config.intensity;
-    const shellOpacity = Math.min(0.16, (0.01 + avgStability * 0.01 + pressure * 0.012 + consciousnessState.patternDensity * 0.01) * this.config.intensity + Math.abs(pulsePhase) * 0.006 * this.config.intensity + ritualIntensity * 0.04 + consciousnessState.heroIntensity * 0.02);
+    const monumentScale = 1 + avgStability * 0.1 * this.config.intensity + pressure * 0.07 + ritualIntensity * 0.1 + consciousnessState.heroIntensity * 0.08 + bloomIntensity * (palette.hero ? 0.18 : 0.14);
+    const pulseScale = 1 + pulsePhase * 0.04 * (0.45 + networkMood * 0.45 + consciousnessState.trafficIntensity * 0.15) * this.config.intensity + bloomIntensity * (palette.hero ? 0.06 : 0.04);
+    const shellOpacity = Math.min(0.22, (0.01 + avgStability * 0.01 + pressure * 0.012 + consciousnessState.patternDensity * 0.01) * this.config.intensity + Math.abs(pulsePhase) * 0.006 * this.config.intensity + ritualIntensity * 0.04 + consciousnessState.heroIntensity * 0.02 + bloomIntensity * (palette.hero ? 0.05 : 0.03));
 
     this.globalFieldMesh.scale.setScalar(monumentScale * pulseScale);
     if (this.globalFieldEdge) {
@@ -1825,10 +2246,18 @@ export class AIConsciousnessLayer {
     const moodColor = ritual.clone().lerp(calm, networkMood);
     const tint = moodColor.clone().lerp(storm, corruptionBias * 0.4).lerp(corrosion, pressure * 0.2);
     const fieldColor = this._blendWithRitualColor(tint, 0.62);
+    if (bloomIntensity > 0) {
+      fieldColor.lerp(palette.core, bloomIntensity * 0.42);
+      fieldColor.lerp(palette.white, bloomIntensity * 0.12);
+    }
     const edgeTint = this._blendWithRitualColor(
       tint.clone().lerp(new THREE.Color(0x05131A), 1 - networkMood * 0.5),
       0.82
     );
+    if (bloomIntensity > 0) {
+      edgeTint.lerp(palette.cyan, bloomIntensity * 0.24);
+      edgeTint.lerp(palette.aurora, bloomIntensity * 0.18);
+    }
     const shellMaterial = this.globalFieldMesh.material;
     const shellSynced = this._syncGlobalFieldShellMaterial(shellMaterial, {
       time: this.time,
@@ -1856,24 +2285,29 @@ export class AIConsciousnessLayer {
         tint.clone().lerp(new THREE.Color(0xf7fbff), networkMood * 0.34),
         0.74
       );
+      if (bloomIntensity > 0) {
+        choirColor.lerp(palette.aurora, bloomIntensity * 0.34);
+        choirColor.lerp(palette.white, bloomIntensity * 0.08);
+      }
       this.globalFieldChoir.material.color.copy(choirColor);
       this.globalFieldChoir.material.opacity = Math.min(
-        0.24,
-        0.04 + networkMood * 0.05 + pressure * 0.04 + ritualIntensity * 0.08 + Math.abs(pulsePhase) * 0.018 + consciousnessState.patternDensity * 0.04
+        0.28,
+        0.04 + networkMood * 0.05 + pressure * 0.04 + ritualIntensity * 0.08 + Math.abs(pulsePhase) * 0.018 + consciousnessState.patternDensity * 0.04 + bloomIntensity * 0.08
       );
-      this.globalFieldChoir.rotation.y += visualDelta * (0.04 + networkMood * 0.06 + ritualIntensity * 0.18 + consciousnessState.heroIntensity * 0.04);
-      this.globalFieldChoir.rotation.x = Math.sin(this.time * 0.14 + pressure) * 0.12 * (0.4 + ritualIntensity + consciousnessState.patternDensity * 0.5);
-      const choirScale = monumentScale * (0.98 + networkMood * 0.04 + ritualIntensity * 0.08 + consciousnessState.heroIntensity * 0.05);
+      this.globalFieldChoir.rotation.y += visualDelta * (0.04 + networkMood * 0.06 + ritualIntensity * 0.18 + consciousnessState.heroIntensity * 0.04 + bloomIntensity * 0.08);
+      this.globalFieldChoir.rotation.x = Math.sin(this.time * 0.14 + pressure) * 0.12 * (0.4 + ritualIntensity + consciousnessState.patternDensity * 0.5 + bloomIntensity * 0.36);
+      const choirScale = monumentScale * (0.98 + networkMood * 0.04 + ritualIntensity * 0.08 + consciousnessState.heroIntensity * 0.05 + bloomIntensity * 0.08);
       this.globalFieldChoir.scale.setScalar(choirScale);
     }
 
     if (this.ritualFieldVeil) {
-      this.ritualFieldVeil.material.color.copy(this.ritualState.palette.secondary);
-      this.ritualFieldVeil.material.opacity = Math.min(0.18, ritualIntensity * (0.05 + pressure * 0.04) + Math.abs(pulsePhase) * 0.015 * ritualIntensity);
-      this.ritualFieldVeil.scale.setScalar(monumentScale * (0.94 + ritualIntensity * 0.18 + Math.abs(pulsePhase) * 0.03));
-      this.ritualFieldVeil.rotation.y += visualDelta * (0.05 + ritualIntensity * 0.18);
-      this.ritualFieldVeil.rotation.x = Math.sin(this.time * 0.12 + ritualIntensity) * 0.18 * ritualIntensity;
-      this.ritualFieldVeil.rotation.z += visualDelta * (0.02 + ritualIntensity * 0.08);
+      const veilColor = bloomIntensity > 0 ? palette.aurora : this.ritualState.palette.secondary;
+      this.ritualFieldVeil.material.color.copy(veilColor);
+      this.ritualFieldVeil.material.opacity = Math.min(0.3, ritualIntensity * (0.05 + pressure * 0.04) + Math.abs(pulsePhase) * 0.015 * ritualIntensity + bloomIntensity * (palette.hero ? 0.16 : 0.12));
+      this.ritualFieldVeil.scale.setScalar(monumentScale * (0.94 + ritualIntensity * 0.18 + Math.abs(pulsePhase) * 0.03 + bloomIntensity * (palette.hero ? 0.16 : 0.12)));
+      this.ritualFieldVeil.rotation.y += visualDelta * (0.05 + ritualIntensity * 0.18 + bloomIntensity * (palette.hero ? 0.14 : 0.12));
+      this.ritualFieldVeil.rotation.x = Math.sin(this.time * 0.12 + ritualIntensity) * 0.18 * (ritualIntensity + bloomIntensity * 0.55);
+      this.ritualFieldVeil.rotation.z += visualDelta * (0.02 + ritualIntensity * 0.08 + bloomIntensity * (palette.hero ? 0.08 : 0.06));
     }
 
     if (this.ritualFieldWitness && this._ritualWitnessBasePositions) {
@@ -1899,9 +2333,10 @@ export class AIConsciousnessLayer {
         positions[i + 2] = bz * swell + anchorDir.z * shimmer;
       }
       this.ritualFieldWitness.geometry.attributes.position.needsUpdate = true;
-      this.ritualFieldWitness.material.color.copy(this.ritualState.palette.accent);
-      this.ritualFieldWitness.material.opacity = Math.min(0.48, ritualIntensity * 0.3 + pressure * 0.05 + consciousnessState.heroIntensity * 0.08);
-      this.ritualFieldWitness.material.size = 0.22 + ritualIntensity * 0.22 + consciousnessState.patternDensity * 0.05;
+      const witnessColor = bloomIntensity > 0 ? palette.white : this.ritualState.palette.accent;
+      this.ritualFieldWitness.material.color.copy(witnessColor);
+      this.ritualFieldWitness.material.opacity = Math.min(0.6, ritualIntensity * 0.3 + pressure * 0.05 + consciousnessState.heroIntensity * 0.08 + bloomIntensity * (palette.hero ? 0.18 : 0.14));
+      this.ritualFieldWitness.material.size = 0.22 + ritualIntensity * 0.22 + consciousnessState.patternDensity * 0.05 + bloomIntensity * (palette.hero ? 0.1 : 0.08);
     }
   }
   
@@ -1921,8 +2356,10 @@ export class AIConsciousnessLayer {
     }));
 
     const state = this.consciousnessState || {};
+    const bloom = this._signatureBloom || {};
+    const bloomIntensity = this._clamp01(bloom.intensity || 0);
     const ritualBudgetBoost = 1 + this.ritualState.intensity * 0.6;
-    const threadBudget = Math.max(1, Math.ceil(this.config.intensity * 1.1 * ritualBudgetBoost * (0.82 + this._clamp01(state.networkHealth ?? 0.5) * 0.42 + this._clamp01(state.heroIntensity ?? 0.5) * 0.28)));
+    const threadBudget = Math.max(1, Math.ceil(this.config.intensity * 1.1 * ritualBudgetBoost * (0.82 + this._clamp01(state.networkHealth ?? 0.5) * 0.42 + this._clamp01(state.heroIntensity ?? 0.5) * 0.28 + bloomIntensity * 0.24)));
     const threadSelection = metrics
       .filter(({link, metrics: metric}) => !this.activeThoughts.threadMeshes.has(link.id))
       .map(({link, metrics: metric}) => ({link, weight: metric.threadProb}));
@@ -1932,7 +2369,7 @@ export class AIConsciousnessLayer {
       const chosen = this._pickWeightedLink(threadSelection, usedThread);
       if (!chosen) break;
       const spawnState = this._getLinkSpawnState(chosen);
-      const threadGap = Math.max(0.5, 1.4 - this.config.intensity * 0.8 - this._clamp01(state.heroIntensity ?? 0.5) * 0.24);
+      const threadGap = Math.max(0.38, 1.4 - this.config.intensity * 0.8 - this._clamp01(state.heroIntensity ?? 0.5) * 0.24 - bloomIntensity * 0.18);
       if (this.time - spawnState.lastThread >= threadGap) {
         this._createNeuralThread(chosen);
         spawnState.lastThread = this.time;
@@ -1940,7 +2377,7 @@ export class AIConsciousnessLayer {
       usedThread.add(chosen.id);
     }
 
-    const pulseBudget = Math.max(1, Math.ceil(this.config.particleDensity * (2 + this.ritualState.intensity * 1.6 + this._clamp01(state.trafficIntensity ?? 0) * 1.2 + this._clamp01(state.heroIntensity ?? 0.5) * 0.4)));
+    const pulseBudget = Math.max(1, Math.ceil(this.config.particleDensity * (2 + this.ritualState.intensity * 1.6 + this._clamp01(state.trafficIntensity ?? 0) * 1.2 + this._clamp01(state.heroIntensity ?? 0.5) * 0.4 + bloomIntensity * 0.9)));
     const pulseSelection = [];
     for (const {link, metrics: metric} of metrics) {
       pulseSelection.push({link, weight: metric.pulseWeight});
@@ -1951,7 +2388,7 @@ export class AIConsciousnessLayer {
       const chosen = this._pickWeightedLink(pulseSelection, usedPulse);
       if (!chosen) break;
       const spawnState = this._getLinkSpawnState(chosen);
-      const pulseGap = Math.max(0.42, 1.1 - this.config.particleDensity * 0.6 - this.config.intensity * 0.2 - this._clamp01(state.trafficIntensity ?? 0) * 0.18);
+      const pulseGap = Math.max(0.34, 1.1 - this.config.particleDensity * 0.6 - this.config.intensity * 0.2 - this._clamp01(state.trafficIntensity ?? 0) * 0.18 - bloomIntensity * 0.16);
       if (this.time - spawnState.lastPulse >= pulseGap) {
         this._spawnPulsePacket(chosen);
         spawnState.lastPulse = this.time;
@@ -1959,7 +2396,7 @@ export class AIConsciousnessLayer {
       usedPulse.add(chosen.id);
     }
 
-    const patternBudget = Math.max(0, Math.floor(this.config.particleDensity * (0.45 + this.ritualState.intensity * 0.85 + this._clamp01(state.patternDensity ?? 0) * 1.5 + this._clamp01(state.heroIntensity ?? 0.5) * 0.2)));
+    const patternBudget = Math.max(0, Math.floor(this.config.particleDensity * (0.45 + this.ritualState.intensity * 0.85 + this._clamp01(state.patternDensity ?? 0) * 1.5 + this._clamp01(state.heroIntensity ?? 0.5) * 0.2 + bloomIntensity * 0.7)));
     const patternSelection = metrics
       .filter(({link, metrics: metric}) => !this.activeThoughts.patternClusters.has(link.id))
       .map(({link, metrics: metric}) => ({link, weight: metric.patternProb}));
@@ -1969,7 +2406,7 @@ export class AIConsciousnessLayer {
       const chosen = this._pickWeightedLink(patternSelection, usedPattern);
       if (!chosen) break;
       const spawnState = this._getLinkSpawnState(chosen);
-      const patternGap = Math.max(1.1, 2.8 - this.config.intensity * 0.9 - this._clamp01(state.patternDensity ?? 0) * 0.5);
+      const patternGap = Math.max(0.9, 2.8 - this.config.intensity * 0.9 - this._clamp01(state.patternDensity ?? 0) * 0.5 - bloomIntensity * 0.2);
       if (this.time - spawnState.lastPattern >= patternGap) {
         this._createSemanticPattern(chosen);
         spawnState.lastPattern = this.time;
@@ -2024,6 +2461,8 @@ export class AIConsciousnessLayer {
     if (this.storms) {
       this.storms.disable();
     }
+
+    this._releaseSignatureBloom();
   }
   
   /**
@@ -2058,10 +2497,12 @@ export class AIConsciousnessLayer {
     const stormActive = this.storms?.stormState?.activeStorm || 'none';
     const stormMood = this.storms?.stormState?.currentMood || 'n/a';
     const state = this.consciousnessState || {};
+    const bloom = this._signatureBloom || {};
 
     console.log('%c=== AI CONSCIOUSNESS LAYER 2.0 DEBUG ===', 'color: #00ffff; font-weight: bold;');
     console.log(`Status: ${this.config.enabled ? '🟢 ENABLED' : '🔴 DISABLED'} | Intensity: ${this.config.intensity.toFixed(2)} | Density: ${this.config.particleDensity.toFixed(2)}`);
     console.log(`Mood: ${state.networkMood || 'CALM'} | Hero Phase: ${state.heroPhase || 'LISTENING'} | Health: ${(state.networkHealth ?? 0).toFixed(2)} | Traffic: ${(state.trafficIntensity ?? 0).toFixed(2)} | Ritual: ${(state.ritualIntensity ?? 0).toFixed(2)} | Patterns: ${(state.patternDensity ?? 0).toFixed(2)}`);
+    console.log(`Bloom: ${bloom.phase || 'NONE'} | family=${bloom.family || 'NONE'} | intensity=${(bloom.intensity ?? 0).toFixed(2)} | ttl=${(bloom.ttl ?? 0).toFixed(2)}s`);
     console.log(`Threads: ${this.stats.threadsActive} | Pulses: ${this.stats.pulsesActive} | Patterns: ${this.stats.patternsActive}`);
     console.log(`Global Field: ${fieldVisible} (${edgeVisible}) | opacity=${fieldOpacity} | scale=${fieldScale}`);
     console.log(`Storms: ${this.config.stormsEnabled ? 'ENABLED' : 'DISABLED'} | loaded=${stormsLoaded} | active=${stormActive} | mood=${stormMood}`);
@@ -2099,6 +2540,10 @@ export class AIConsciousnessLayer {
       this.storms.dispose();
       this.storms = null;
     }
+
+    this._disposeSignatureMomentBridge();
+    this._disposeRitualBridge();
+    this._releaseSignatureBloom();
     
     // Remove threads
     for (const [linkId, line] of this.activeThoughts.threadMeshes) {
@@ -2165,7 +2610,6 @@ export class AIConsciousnessLayer {
       this.ritualFieldWitness.material.dispose();
       this.ritualFieldWitness = null;
     }
-    this._disposeRitualBridge();
     
     // Remove container
     this.scene.remove(this.consciousnessGroup);
@@ -2210,6 +2654,7 @@ export function setupAIConsciousnessConsoleAPI(consciousnessLayer) {
       const state = consciousnessLayer.getConsciousnessState?.() || {};
       console.log(`Mood: ${state.networkMood || 'CALM'} | Hero Phase: ${state.heroPhase || 'LISTENING'}`);
       console.log(`Health: ${(state.networkHealth ?? 0).toFixed(2)} | Traffic: ${(state.trafficIntensity ?? 0).toFixed(2)} | Ritual: ${(state.ritualIntensity ?? 0).toFixed(2)} | Patterns: ${(state.patternDensity ?? 0).toFixed(2)}`);
+      console.log(`Bloom: ${state.signatureBloomPhase || 'NONE'} | family=${state.signatureBloomFamily || 'NONE'} | intensity=${(state.signatureBloomIntensity ?? 0).toFixed(2)}`);
       console.log(`Threads: ${consciousnessLayer.stats.threadsActive}`);
       console.log(`Pulses: ${consciousnessLayer.stats.pulsesActive}`);
       console.log(`Patterns: ${consciousnessLayer.stats.patternsActive}`);

@@ -201,7 +201,16 @@ export class SafeLegendaryWorldEvents {
       intensity: 0,
       duration: 0,
       phase: 'idle', // idle, fadeIn, active, fadeOut
-      seed: 0
+      seed: 0,
+      sourceEvent: null,
+      sourcePayload: null,
+      bondStage: 'creation',
+      bondLinkId: null,
+      bondSignal: 0,
+      bondCompletionReached: false,
+      bondAnchor: null,
+      bondSourcePosition: null,
+      bondTargetPosition: null
     };
     
     // Event definitions
@@ -237,6 +246,15 @@ export class SafeLegendaryWorldEvents {
         maxIntensity: 0.85,
         color: 0xd07bff,
         description: 'Reality occluded by higher computation'
+      },
+      LEGENDARY_BOND: {
+        duration: 13.5,
+        fadeInDuration: 1.1,
+        fadeOutDuration: 3.2,
+        maxIntensity: 0.98,
+        color: 0xffd66b,
+        description: 'A high-value bond becomes ceremonial architecture',
+        randomEligible: false
       },
       AURORA_STATE: {
         duration: 14.0,
@@ -276,6 +294,7 @@ export class SafeLegendaryWorldEvents {
     this.animationTime = 0;
     this.interpretationAccumulator = this.config.eventInterpretationInterval; // prime first tick
     this.pendingEvaluation = false; // explicit triggers can flip this to force evaluation before the interval
+    this.pendingBondSignal = null;
     this.suppressed = false;
     this.suppressedUntil = 0;
     this.metricBus = this._resolveMetricBus();
@@ -283,6 +302,7 @@ export class SafeLegendaryWorldEvents {
     this.legendaryPalettes = this._createLegendaryPaletteLibrary();
     if (useMetricTriggers) {
       this._setupMetricTriggers();
+      this._setupLegendaryBondTriggers();
     }
   }
   
@@ -337,6 +357,10 @@ export class SafeLegendaryWorldEvents {
     // Need minimum legendary nodes or fallback network activity
     const legendaryCount = legendaryPack?.getActiveLegendaryCount?.() ?? this._inferLegendaryCount(linkingSystem, evolutionManager);
     if (legendaryCount < this.config.minLegendaryNodesForEvent) {
+      return;
+    }
+
+    if (this._dispatchPendingLegendaryBondSignal(legendaryCount, linkingSystem)) {
       return;
     }
     
@@ -451,6 +475,13 @@ export class SafeLegendaryWorldEvents {
         aura: new THREE.Color(0xd6fff3),
         deep: voidDeepCold,
         glow: new THREE.Color(0x72c7ff)
+      },
+      LEGENDARY_BOND: {
+        base: new THREE.Color(0xffd66b),
+        accent: new THREE.Color(0x6deaff),
+        aura: new THREE.Color(0xfff4cc),
+        deep: new THREE.Color(0x07101a),
+        glow: new THREE.Color(0xfff7da)
       },
       SIGMA_INVASION: {
         base: signalRose,
@@ -664,6 +695,11 @@ export class SafeLegendaryWorldEvents {
         subtitle: 'Benevolent intelligence veil',
         description: 'A calm intelligence curtain. The system breathes in ordered light.'
       },
+      LEGENDARY_BOND: {
+        title: 'Legendary Bond Manifestation',
+        subtitle: 'High-value link consecrated',
+        description: 'A bond crosses its threshold. Gold and cyan lock the corridor into visible meaning.'
+      },
       SIGMA_INVASION: {
         title: 'Sigma Invasion',
         subtitle: 'Controlled breach vector',
@@ -739,7 +775,9 @@ export class SafeLegendaryWorldEvents {
    * Trigger a random world event
    */
   triggerRandomEvent(legendaryCount, linkingSystem) {
-    const eventTypes = Object.keys(this.eventTypes);
+    const eventTypes = Object.entries(this.eventTypes)
+      .filter(([, definition]) => definition?.randomEligible !== false)
+      .map(([eventType]) => eventType);
     const eventType = eventTypes[Math.floor(Math.random() * eventTypes.length)];
     
     this.startWorldEvent(eventType, legendaryCount, linkingSystem);
@@ -791,6 +829,9 @@ export class SafeLegendaryWorldEvents {
         break;
       case 'QUANTUM_ECLIPSE':
         this.createQuantumEclipseVFX(eventDef);
+        break;
+      case 'LEGENDARY_BOND':
+        this.createLegendaryBondManifestationVFX(eventDef);
         break;
       case 'AURORA_STATE':
         this.createAuroraStateVFX(eventDef);
@@ -851,6 +892,9 @@ export class SafeLegendaryWorldEvents {
         break;
       case 'QUANTUM_ECLIPSE':
         this.updateQuantumEclipseVFX(intensity, deltaTime);
+        break;
+      case 'LEGENDARY_BOND':
+        this.updateLegendaryBondManifestationVFX(intensity, deltaTime);
         break;
       case 'AURORA_STATE':
         this.updateAuroraStateVFX(intensity, deltaTime);
@@ -2226,6 +2270,15 @@ export class SafeLegendaryWorldEvents {
     this.registry.timer = 0;
     this.registry.intensity = 0;
     this.registry.phase = 'idle';
+    this.registry.sourceEvent = null;
+    this.registry.sourcePayload = null;
+    this.registry.bondStage = 'creation';
+    this.registry.bondLinkId = null;
+    this.registry.bondSignal = 0;
+    this.registry.bondCompletionReached = false;
+    this.registry.bondAnchor = null;
+    this.registry.bondSourcePosition = null;
+    this.registry.bondTargetPosition = null;
     // Ensure we reevaluate promptly after an event finishes
     this.pendingEvaluation = true;
   }
@@ -2360,11 +2413,21 @@ export class SafeLegendaryWorldEvents {
       intensity: 0,
       duration: 0,
       phase: 'idle',
-      seed: 0
+      seed: 0,
+      sourceEvent: null,
+      sourcePayload: null,
+      bondStage: 'creation',
+      bondLinkId: null,
+      bondSignal: 0,
+      bondCompletionReached: false,
+      bondAnchor: null,
+      bondSourcePosition: null,
+      bondTargetPosition: null
     };
     this.lastEventTime = 0;
     this.interpretationAccumulator = this.config.eventInterpretationInterval;
     this.pendingEvaluation = true;
+    this.pendingBondSignal = null;
   }
 
   /**
@@ -2381,6 +2444,15 @@ export class SafeLegendaryWorldEvents {
       this.registry.duration = 0;
       this.registry.phase = 'idle';
       this.registry.seed = 0;
+      this.registry.sourceEvent = null;
+      this.registry.sourcePayload = null;
+      this.registry.bondStage = 'creation';
+      this.registry.bondLinkId = null;
+      this.registry.bondSignal = 0;
+      this.registry.bondCompletionReached = false;
+      this.registry.bondAnchor = null;
+      this.registry.bondSourcePosition = null;
+      this.registry.bondTargetPosition = null;
     }
 
     // Clear tracking timestamps
@@ -2388,6 +2460,7 @@ export class SafeLegendaryWorldEvents {
     this.lastEventTime = 0;
     this.interpretationAccumulator = this.config.eventInterpretationInterval;
     this.pendingEvaluation = true;
+    this.pendingBondSignal = null;
 
     // Clear VFX containers (but do NOT remove from scene)
     if (this.vfxContainer) {
