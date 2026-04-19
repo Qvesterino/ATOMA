@@ -30,7 +30,6 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 // PictogramLibrary disabled during visual design; keep material factory only
-import { createPictogramMaterial } from './LinkPictogramLibrary.js';
 import { getLinkSynergy } from './SemanticMetricAdapter.js';
 
 // ============================================================================
@@ -715,6 +714,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
         // Geometry cache
         this.geometryCache = new Map();
         this.initializeGeometryCache();
+        this.pictogramMaterial = null;
 
         this._inactiveTimer = 0;
         this._lastRecoveryTime = 0;
@@ -765,13 +765,26 @@ export class LinkSemanticPictogramSystem_Enhanced {
         container.renderOrder = pictoRenderOrder;
 
         for (let i = 0; i < CONFIG.POOL_SIZE; i++) {
-        const geometry = new THREE.PlaneGeometry(1, 1);
-        const material = createPictogramMaterial(CONFIG.BASE_COLOR, 0.7);
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.visible = false;
-        mesh.frustumCulled = false;
-        mesh.renderOrder = pictoRenderOrder;
-        // Never block node raycasts
+            const geometry = new THREE.PlaneGeometry(1, 1);
+            if (!this.pictogramMaterial) {
+                this.pictogramMaterial = new THREE.MeshBasicMaterial({
+                    color: 0xff3300,
+                    transparent: true,
+                    opacity: 1.0,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                    depthTest: true,
+                    blending: THREE.AdditiveBlending,
+                    polygonOffset: true,
+                    polygonOffsetFactor: 2,
+                    polygonOffsetUnits: 2
+                });
+            }
+            const mesh = new THREE.Mesh(geometry, this.pictogramMaterial);
+            mesh.visible = false;
+            mesh.frustumCulled = false;
+            mesh.renderOrder = pictoRenderOrder;
+            // Never block node raycasts
             mesh.raycast = () => {};
             mesh.userData.ignoreRaycast = true;
             
@@ -1968,6 +1981,11 @@ export class LinkSemanticPictogramSystem_Enhanced {
         if (this.materialPool) {
             this.materialPool.forEach(m => m.dispose());
             this.materialPool.clear();
+        }
+
+        if (this.pictogramMaterial) {
+            this.pictogramMaterial.dispose();
+            this.pictogramMaterial = null;
         }
         
         if (this.container) {

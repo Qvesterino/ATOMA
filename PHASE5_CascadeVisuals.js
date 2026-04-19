@@ -50,6 +50,7 @@ export class PHASE5_CascadePropagationVisuals {
       fadeDuration: config.fadeDuration ?? 0.8,
       maxRingSize: config.maxRingSize ?? 15.0,
       ringGlowPulseFreq: config.ringGlowPulseFreq ?? 3.5,    // NEW: brightness pulse Hz
+      ringGlowPulseStrength: config.ringGlowPulseStrength ?? 0.18, // NEW: pulse amplitude for ring opacity
       
       // Cascade colors
       corruptionCascadeColor: config.corruptionCascadeColor ?? 0xff3333,
@@ -73,12 +74,15 @@ export class PHASE5_CascadePropagationVisuals {
       rippleBaseRadius: config.rippleBaseRadius ?? 0.02,
       rippleMaxRadiusScale: config.rippleMaxRadiusScale ?? 1.0,
       rippleLifetime: config.rippleLifetime ?? 1.0,
+      rippleCooldownSeconds: config.rippleCooldownSeconds ?? 1.5,
       rippleColor: config.rippleColor ?? 0xfff3c4,
       rippleOpacity: config.rippleOpacity ?? 0.8,
       rippleLineWidth: config.rippleLineWidth ?? 2.0,
       rippleTrailEnabled: config.rippleTrailEnabled ?? true,  // NEW: ghost trail
       rippleTrailDelay: config.rippleTrailDelay ?? 0.12,     // NEW: trail delay in seconds
       rippleTrailOpacityScale: config.rippleTrailOpacityScale ?? 0.35, // NEW: trail opacity multiplier
+      rippleCoreScale: config.rippleCoreScale ?? 0.82,       // NEW: inner ring core scale
+      rippleCoreOpacity: config.rippleCoreOpacity ?? 0.26,   // NEW: inner ring core opacity
       rippleColorEvolution: config.rippleColorEvolution ?? true,       // NEW: color shift over lifetime
       
       // Activation safety gate
@@ -123,6 +127,7 @@ export class PHASE5_CascadePropagationVisuals {
     this.cascadeEvents = [];
     this.cascadeHistory = [];
     this._cascadeCooldowns = new Map();
+    this._rippleCooldowns = new Map();
     
     // Performance monitoring
     this.stats = {
@@ -196,7 +201,11 @@ export class PHASE5_CascadePropagationVisuals {
           depth
         );
         if (this.config.rippleEnabled) {
-          this.createRipple(sourcePosition, normalizedStrength, { verticalOffset: 0.02 });
+          this.createRipple(sourcePosition, normalizedStrength, {
+            verticalOffset: 0.02,
+            nodeId: sourceNodeId,
+            kind: 'source'
+          });
         }
       }
       
@@ -218,7 +227,11 @@ export class PHASE5_CascadePropagationVisuals {
                 depth + index + 1
               );
               if (this.config.rippleEnabled) {
-                this.createRipple(node.position, depthStrength, { verticalOffset: 0.02 });
+                this.createRipple(node.position, depthStrength, {
+                  verticalOffset: 0.02,
+                  nodeId: node?.userData?.id ?? node?.id ?? null,
+                  kind: 'path'
+                });
               }
             }, delay * 1000);
           }
@@ -346,7 +359,9 @@ export class PHASE5_CascadePropagationVisuals {
           verticalOffset: verticalOffset * 0.5,
           radiusScale: 0.95,
           opacityScale: opacityMultiplier,
-          lifetimeScale: 0.84
+          lifetimeScale: 0.84,
+          nodeId: sourceNodeId,
+          kind: 'echo'
         });
       }
     }
@@ -392,6 +407,12 @@ export class PHASE5_CascadePropagationVisuals {
    */
   createRipple(position, intensity, options = {}) {
     if (!this.config.rippleEnabled || !position) return;
+
+    const rippleCooldownKey = this._getRippleCooldownKey(position, options);
+    if (this._isRippleCooldownActive(rippleCooldownKey)) {
+      return;
+    }
+    this._markRippleCooldown(rippleCooldownKey);
 
     const colorOption = options.color ?? this.config.rippleColor;
     const ripple = {
@@ -448,6 +469,23 @@ export class PHASE5_CascadePropagationVisuals {
       this.scene.add(trailLine);
     }
 
+    // --- NEW: inner core ring for hero polish ---
+    const coreColor = new THREE.Color(colorOption).lerp(new THREE.Color(0xffffff), 0.24);
+    const coreMaterial = new THREE.LineBasicMaterial({
+      color: coreColor,
+      transparent: true,
+      opacity: Math.min(0.72, this.config.rippleCoreOpacity + (ripple.intensity * 0.24)),
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const coreLine = new THREE.Line(ringGeometry, coreMaterial);
+    coreLine.position.copy(position);
+    coreLine.position.y += Number(options.verticalOffset || 0) + 0.001;
+    coreLine.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE) + 1;
+    coreLine.frustumCulled = false;
+    ripple.coreMesh = coreLine;
+    this.scene.add(coreLine);
+    
     this.ripples.push(ripple);
   }
 
@@ -469,6 +507,10 @@ export class PHASE5_CascadePropagationVisuals {
           this.scene.remove(ripple.trailMesh);
           ripple.trailMesh.material.dispose();
         }
+        if (ripple.coreMesh) {
+          this.scene.remove(ripple.coreMesh);
+          ripple.coreMesh.material.dispose();
+        }
         // Decrement stability active count
         if (ripple.nodeId) {
           const key = String(ripple.nodeId);
@@ -485,7 +527,7 @@ export class PHASE5_CascadePropagationVisuals {
 
       if (ripple.mesh) {
         ripple.mesh.scale.setScalar(radius / this.config.rippleBaseRadius);
-        ripple.mesh.material.opacity = Math.max(0.05, this.config.rippleOpacity * fadeRatio * ripple.intensity);
+        ripple.mesh.material.opacity = Math.max(0.05, this.config.rippleOpacity * fadeRatio * ripple.intensity * (0.88 + progress * 0.12));
 
         // ── Color evolution: warm → cool shift over lifetime ──
         if (this.config.rippleColorEvolution && ripple.baseColor) {
@@ -494,6 +536,11 @@ export class PHASE5_CascadePropagationVisuals {
           evolvedColor.lerp(coolTarget, progress * 0.45);
           ripple.mesh.material.color.copy(evolvedColor);
         }
+      }
+
+      if (ripple.coreMesh) {
+        ripple.coreMesh.scale.setScalar((radius * this.config.rippleCoreScale) / this.config.rippleBaseRadius);
+        ripple.coreMesh.material.opacity = Math.max(0.08, (this.config.rippleCoreOpacity * fadeRatio * ripple.intensity) * (0.92 + progress * 0.18));
       }
 
       // ── Trail: spawn after delay, then expand behind ──
@@ -509,7 +556,11 @@ export class PHASE5_CascadePropagationVisuals {
           const trailRadius = this.config.rippleBaseRadius + (this.config.rippleBaseRadius * this.config.rippleMaxRadiusScale * (1.0 - trailFadeRatio) * 6.5);
           ripple.trailMesh.scale.setScalar(trailRadius / this.config.rippleBaseRadius);
           const trailOpacityScale = this.config.rippleTrailOpacityScale ?? 0.35;
-          ripple.trailMesh.material.opacity = Math.max(0.02, this.config.rippleOpacity * trailFadeRatio * ripple.intensity * trailOpacityScale);
+          ripple.trailMesh.material.opacity = Math.max(0.02, this.config.rippleOpacity * trailFadeRatio * ripple.intensity * trailOpacityScale * (0.82 + progress * 0.18));
+          if (ripple.trailMesh.material.color) {
+            const trailColor = ripple.baseColor.clone().lerp(new THREE.Color(0xffffff), 0.32);
+            ripple.trailMesh.material.color.copy(trailColor);
+          }
         }
       }
     }
@@ -638,7 +689,7 @@ export class PHASE5_CascadePropagationVisuals {
         // Fade based on expansion + glow pulse
         const fadeProgress = ring.userData.elapsedTime / this.config.fadeDuration;
         const fadeMultiplier = Math.max(0, 1.0 - fadeProgress);
-        const glowPulse = 0.82 + 0.18 * Math.sin(ring.userData.elapsedTime * (this.config.ringGlowPulseFreq ?? 3.5) * Math.PI * 2);
+        const glowPulse = 0.82 + (this.config.ringGlowPulseStrength ?? 0.18) * Math.sin(ring.userData.elapsedTime * (this.config.ringGlowPulseFreq ?? 3.5) * Math.PI * 2);
         ring.material.opacity = this.config.baseOpacity * ring.userData.strength * fadeMultiplier * glowPulse;
         
         // Check if ring should be removed
@@ -709,6 +760,29 @@ export class PHASE5_CascadePropagationVisuals {
   _markCascadeCooldown(key) {
     if (!key) return;
     this._cascadeCooldowns.set(key, Date.now());
+  }
+
+  _getRippleCooldownKey(position, options = {}) {
+    const kind = options.kind ?? 'default';
+    if (options.nodeId !== undefined && options.nodeId !== null) {
+      return `node:${options.nodeId}:${kind}`;
+    }
+    if (position?.isVector3) {
+      return `pos:${position.x.toFixed(2)}:${position.y.toFixed(2)}:${position.z.toFixed(2)}:${kind}`;
+    }
+    return `ripple:${kind}`;
+  }
+
+  _isRippleCooldownActive(key) {
+    if (!key) return false;
+    const lastTrigger = this._rippleCooldowns.get(key);
+    if (!Number.isFinite(lastTrigger)) return false;
+    return (Date.now() - lastTrigger) < (this.config.rippleCooldownSeconds * 1000);
+  }
+
+  _markRippleCooldown(key) {
+    if (!key) return;
+    this._rippleCooldowns.set(key, Date.now());
   }
 
   _resolveLinkById(linkId) {
@@ -920,6 +994,7 @@ export class PHASE5_CascadePropagationVisuals {
     this.clearRipples();
     this.cascadeEvents = [];
     this._cascadeCooldowns.clear();
+    this._rippleCooldowns.clear();
   }
 
   clearRipples() {
@@ -1063,6 +1138,7 @@ export class PHASE5_CascadePropagationVisuals {
     this.clearRipples();
     this.ringPool = [];
     this.ringMaterials.clear();
+    this._rippleCooldowns.clear();
     
     this._unsubscribeSemanticCascadeEvents();
     

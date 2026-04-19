@@ -167,9 +167,10 @@ class FusionZoneState {
 // ============================================================================
 
 class CompositeGlyphInstance {
-    constructor(singularity) {
+    constructor(singularity, attachRoot = null) {
         this.singularity = singularity;  // NeuralConvergenceSingularity instance
         this.mesh = singularity.group;   // Reference to group for compatibility
+        this.attachRoot = attachRoot;
         this.active = false;
         this.state = null;  // Reference to parent FusionZoneState
         this.progress = 0.0;  // 0-1 fade in
@@ -182,6 +183,7 @@ class CompositeGlyphInstance {
         if (this.singularity) {
             this.singularity.deactivate();
         }
+        this.mesh?.parent?.remove?.(this.mesh);
         this.state = null;
         this.generatedVisual = null;
     }
@@ -209,6 +211,10 @@ class CompositeGlyphInstance {
     }
 
     spawn(position, state) {
+        if (this.attachRoot && this.mesh?.parent !== this.attachRoot) {
+            this.attachRoot.add(this.mesh);
+        }
+
         this.active = true;
         this.state = state;
         this.progress = 0.0;
@@ -419,9 +425,9 @@ export class GlyphFusionZoneManager {
         const container = new THREE.Group();
         container.name = 'CompositeGlyphPool';
         container.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE);
-        this._attachRoot.add(container);
         this.container = container;
         this.root = container;
+        this.root.visible = false;
 
         for (let i = 0; i < CONFIG.POOL_SIZE; i++) {
             // NEW: Neural Convergence Singularity instead of placeholder plane
@@ -441,9 +447,8 @@ export class GlyphFusionZoneManager {
             });
             
             singularity.group.visible = false;
-            container.add(singularity.group);
 
-            const instance = new CompositeGlyphInstance(singularity);
+            const instance = new CompositeGlyphInstance(singularity, container);
             this.compositeGlyphs.push(instance);
         }
     }
@@ -1103,6 +1108,16 @@ export class GlyphFusionZoneManager {
             }
             composite.update(deltaTime, cameraPosition);
         });
+
+        if (activeCount > 0) {
+            if (this.root?.parent !== this._attachRoot && this._attachRoot?.add) {
+                this._attachRoot.add(this.root);
+            }
+            this.root.visible = true;
+        } else if (this.root) {
+            this.root.visible = false;
+            this.root.parent?.remove?.(this.root);
+        }
 
         this._logLifecycle('summary', 'composite pipeline summary', {
             activeComposites: activeCount,

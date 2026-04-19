@@ -1,79 +1,21 @@
 /**
  * ============================================================================
- * ARCHIVED: T2_HarmonyVisualConsumer_v1.js
+ * T2_HarmonyVisualConsumer_v1.js
  * ============================================================================
- * 
- * ARCHIVAL DATE: 2026-03-13
- * REASON: Violates ATOMA visual policy
- * 
- * ============================================================================
- * WHY ARCHIVED:
- * ============================================================================
- * 
- * This system was disabled in main.js (lines 637-639) because:
- * 
- * 1. USES PRIMITIVE GEOMETRIES:
- *    - Line 85: new THREE.SphereGeometry(1.5, 32, 32) for auras
- *    - Line 113: new THREE.SphereGeometry() for oasis zones
- *    - Line 152: new THREE.SphereGeometry() for healing pulses
- * 
- * 2. BYPASSES VISUAL AUTHORITY:
- *    - Creates geometries directly instead of through VisualTemplateResolver
- *    - Does not use EnhancedNodeModels canonical system
- *    - No coordination with CoreVisualAuthoritySystem
- * 
- * 3. DUPLICATES EXISTING FUNCTIONALITY:
- *    - HarmonyAuraController already provides cyan aura effects
- *    - HarmonyAuraController uses proper canonical templates
- *    - HarmonyAuraController integrates with VisualTemplateResolver
- * 
- * ============================================================================
- * PERFORMANCE OPTIMIZATIONS (2026-04-05):
- * ============================================================================
- * 
- * 1. Reduced healing pulse shards: 5 → 3 (40% reduction in mesh count)
- * 2. Reduced oasis zone groups: max 4 → 2 (50% reduction in clusters)
- * 3. LOD-aware borromean ring geometry:
- *    - LOD 0: 56 sections, 8 radial segments (full detail)
- *    - LOD 1: 40 sections, 6 radial segments (medium detail)
- *    - LOD 2+: 24 sections, 4 radial segments (low detail)
- * 4. Cached LOD levels: stored in userData.meshLODLevel to avoid repeated calculations
- * 5. LOD cache invalidation: updated on significant position change or periodically
- * 
- * Performance improvements:
- *    - ~40% fewer meshes for healing pulses
- *    - ~50% fewer mesh objects for oasis zones
- *    - ~50% fewer vertices for borromean rings at LOD 2
- *    - Reduced LOD calculation overhead via caching
- * 
- * Visual impact: Minimal - reduced detail at distance is natural and expected.
- * 
- * ============================================================================
- * REPLACEMENT:
- * ============================================================================
- * 
- * Use HarmonyAuraController.js instead:
- *    - Location: ./HarmonyAuraController.js (root)
- *    - Wiring: Via VisualTemplateResolver.js
- *    - Features: Canonical harmony aura with proper visual authority
- * 
- * ============================================================================
- * ORIGINAL DOCUMENTATION:
- * ============================================================================
- * 
- * T2-003: HARMONY VISUAL CONSUMER v1.0
- * 
+ *
  * TIER 2 VISUAL INTEGRATION — HARMONY FEEDBACK LAYER
- * Renders visual feedback from HarmonyStabilizationSystem_v1 runtime data
- * 
+ * Renders visual feedback from HarmonyStabilizationSystem_v1 runtime data.
+ *
  * ✅ RENDERING ONLY — Zero gameplay logic
- * ✅ Read-only consumer of canonical harmony state from HarmonyStabilizationSystem_v1
- * ✅ Three visual features:
- *    1. Cyan aura around high-harmony nodes (0.6–1.0)
- *    2. Oasis zones as soft radial bloom (visual zone markers)
+ * ✅ Read-only consumer of harmony state from HarmonyStabilizationSystem_v1
+ * ✅ Visual features:
+ *    1. Cyan aura around high-harmony nodes
+ *    2. Oasis zones as soft radial bloom
  *    3. Healing pulses emanating from high-harmony nodes
- * ✅ Safe to disable/enable at any time
- * ✅ No modifications to core systems
+ * ✅ Safe to disable or rebind at runtime
+ *
+ * This module is designed as a direct visual consumer and does not alter
+ * core gameplay state.
  */
 
 import * as THREE from 'three';
@@ -117,10 +59,11 @@ export class T2_HarmonyVisualConsumer_v1 {
     this.harmonySystem = harmonySystem; // Read-only reference to HarmonyStabilizationSystem_v1
     this.attachRoot = options.attachRoot || null;
     this.attachRootResolver = options.attachRootResolver || null;
-    
+    this.semanticBus = options.semanticBus || this._resolveSemanticBus();
     this.enabled = true;
     this.config = {
       harmonyFieldThreshold: 0.5,
+      enableNodeHarmonySemanticResponse: options.enableNodeHarmonySemanticResponse ?? true,
       harmonyHighThreshold: 0.7,
       pulseThreshold: 0.85,
       fieldBaseOpacity: 0.85,
@@ -183,6 +126,11 @@ export class T2_HarmonyVisualConsumer_v1 {
     this._tmpColor = new THREE.Color();
     this._tmpEmissive = new THREE.Color();
     this._tmpActiveLinkedNodeKeys = new Set();
+    this.aiNodes = null;
+    this._semanticSubscriptions = [];
+    this._boundNodeHarmonyHigh = this._handleNodeHarmonyEvent.bind(this, 'high');
+    this._boundNodeHarmonyMid = this._handleNodeHarmonyEvent.bind(this, 'mid');
+    this._setupSemanticSubscriptions();
   }
 
   _getDistanceLODController() {
@@ -563,6 +511,104 @@ export class T2_HarmonyVisualConsumer_v1 {
     return nextRoot;
   }
 
+  _resolveSemanticBus() {
+    return globalThis?.semanticBus || globalThis?.ATOMA_BUS || null;
+  }
+
+  _setupSemanticSubscriptions() {
+    this._teardownSemanticSubscriptions();
+    if (!this.config.enableNodeHarmonySemanticResponse || !this.semanticBus) {
+      return;
+    }
+
+    const subscribe = typeof this.semanticBus.on === 'function'
+      ? this.semanticBus.on.bind(this.semanticBus)
+      : typeof this.semanticBus.subscribe === 'function'
+        ? this.semanticBus.subscribe.bind(this.semanticBus)
+        : null;
+
+    if (!subscribe) {
+      return;
+    }
+
+    subscribe('node.harmony.high', this._boundNodeHarmonyHigh);
+    subscribe('node.harmony.mid', this._boundNodeHarmonyMid);
+    this._semanticSubscriptions.push(
+      { type: 'node.harmony.high', handler: this._boundNodeHarmonyHigh },
+      { type: 'node.harmony.mid', handler: this._boundNodeHarmonyMid }
+    );
+  }
+
+  _teardownSemanticSubscriptions() {
+    if (!this.semanticBus || this._semanticSubscriptions.length === 0) return;
+
+    const unsubscribe = typeof this.semanticBus.off === 'function'
+      ? this.semanticBus.off.bind(this.semanticBus)
+      : typeof this.semanticBus.unsubscribe === 'function'
+        ? this.semanticBus.unsubscribe.bind(this.semanticBus)
+        : null;
+
+    if (!unsubscribe) {
+      this._semanticSubscriptions = [];
+      return;
+    }
+
+    for (const subscription of this._semanticSubscriptions) {
+      try {
+        unsubscribe(subscription.type, subscription.handler);
+      } catch (err) {
+        // ignore errors during cleanup
+      }
+    }
+
+    this._semanticSubscriptions = [];
+  }
+
+  _handleNodeHarmonyEvent(tier, payload = {}) {
+    if (!this.enabled || !this.config.enableNodeHarmonySemanticResponse) return;
+
+    const node = this._resolveNodeFromPayload(payload);
+    if (!node) return;
+
+    if (!this.registry.nodeAuras.has(node.uuid)) {
+      this.registerNode(node);
+    }
+
+    const boostOptions = tier === 'high'
+      ? { duration: 0.85, intensityMultiplier: 1.8, scaleMultiplier: 1.3 }
+      : { duration: 0.55, intensityMultiplier: 1.25, scaleMultiplier: 1.12 };
+
+    this.flashHarmonyField(node, boostOptions);
+
+    if (tier === 'high') {
+      this.emitHealingPulse(node);
+    }
+  }
+
+  _resolveNodeFromPayload(payload = {}) {
+    if (!payload || typeof payload !== 'object') return null;
+
+    const candidate = payload.node || payload.sourceNode || payload.targetNode || payload.nodeId || payload.id || null;
+    if (!candidate) return null;
+
+    if (typeof candidate === 'string' || typeof candidate === 'number') {
+      const lookupKey = String(candidate);
+      if (this.aiNodes && Array.isArray(this.aiNodes.nodes)) {
+        for (const node of this.aiNodes.nodes) {
+          if (!node) continue;
+          if (String(node.id) === lookupKey || String(node.uuid) === lookupKey || String(node.userData?.nodeId) === lookupKey) {
+            return node;
+          }
+        }
+      }
+      return null;
+    }
+
+    if (candidate?.uuid) return candidate;
+    if (candidate?.id) return candidate;
+    return null;
+  }
+
   _normalizeHarmonyValue(value) {
     if (!Number.isFinite(value)) return null;
     if (value > 1) return Math.max(0, Math.min(1, value / 100));
@@ -876,6 +922,7 @@ export class T2_HarmonyVisualConsumer_v1 {
   update(deltaTime, aiNodes, harmonySystem) {
     if (!this.enabled) return;
     
+    this.aiNodes = aiNodes || this.aiNodes;
     this.registry.time += deltaTime;
     const resolvedHarmonySystem = harmonySystem || this.harmonySystem;
     this.harmonySystem = resolvedHarmonySystem || this.harmonySystem;

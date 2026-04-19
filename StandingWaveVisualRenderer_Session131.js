@@ -167,7 +167,7 @@ export class StandingWaveVisualRenderer_Session131 {
 
         this.root = new THREE.Group();
         this.root.name = 'StandingWaveVisualRendererRoot';
-        this._ensureAttachRoot();
+        this.root.visible = false;
         
         // Create antinode glow material - use MeshBasicMaterial with additive blending for proper glow
         this.antinodeMaterial = new THREE.MeshBasicMaterial({
@@ -274,7 +274,6 @@ export class StandingWaveVisualRenderer_Session131 {
             shell.renderOrder = this.config.renderOrder;
             group.add(shell);
 
-            this.root.add(group);
             this.antinodeMeshPool.push({
                 mesh: group,
                 group: group,
@@ -343,8 +342,6 @@ export class StandingWaveVisualRenderer_Session131 {
             group.add(orbitA);
             group.add(orbitB);
             group.add(halo);
-            this.root.add(group);
-
             this.trapZoneMeshPool.push({
                 mesh: group,
                 group: group,
@@ -373,7 +370,6 @@ export class StandingWaveVisualRenderer_Session131 {
      */
     update(deltaTime, currentTime) {
         if (!this.initialized) this.setup();
-        this._ensureAttachRoot();
         
         this.time = currentTime;
         
@@ -394,6 +390,8 @@ export class StandingWaveVisualRenderer_Session131 {
         
         // Step 6: Handle resolution animations
         this._updateResolutionAnimations(deltaTime);
+
+        this._syncRenderRootPresence();
     }
 
     /**
@@ -403,9 +401,9 @@ export class StandingWaveVisualRenderer_Session131 {
      */
     syncTrapZones(deltaTime = 0.016) {
         if (!this.initialized) this.setup();
-        this._ensureAttachRoot();
         this.time = this.time || 0;
         this._updateTrapZones(deltaTime);
+        this._syncRenderRootPresence();
     }
 
     /**
@@ -602,12 +600,16 @@ export class StandingWaveVisualRenderer_Session131 {
                     antinode.active = false;
                     antinode.group.visible = false;
                     antinode.mesh.visible = false;
+                    antinode.group.parent?.remove?.(antinode.group);
                     this._setAntinodeMeshOpacity(antinode, 0);
                     antinode.group.scale.setScalar(this.config.antinodeScaleBase);
                     continue;
                 }
 
                 antinode.active = true;
+                if (antinode.group.parent !== this.root) {
+                    this.root.add(antinode.group);
+                }
                 antinode.group.visible = true;
                 antinode.mesh.visible = true;
                 antinode.group.position.copy(antinodeWorldPos);
@@ -674,6 +676,7 @@ export class StandingWaveVisualRenderer_Session131 {
                 antinode.active = false;
                 antinode.group.visible = false;
                 antinode.mesh.visible = false;
+                antinode.group.parent?.remove?.(antinode.group);
                 this._setAntinodeMeshOpacity(antinode, 0);
                 return;
             }
@@ -695,6 +698,7 @@ export class StandingWaveVisualRenderer_Session131 {
             antinode.active = false;
             antinode.group.visible = false;
             antinode.mesh.visible = false;
+            antinode.group.parent?.remove?.(antinode.group);
             this._setAntinodeMeshOpacity(antinode, 0);
             antinode.group.scale.setScalar(this.config.antinodeScaleBase);
             antinode.lastSeenTime = now;
@@ -844,6 +848,9 @@ export class StandingWaveVisualRenderer_Session131 {
             const pressureBoost = (pressureMix * 0.18) + (overloadMix * 0.28);
             
             trapZoneMesh.active = true;
+            if (trapZoneMesh.group.parent !== this.root) {
+                this.root.add(trapZoneMesh.group);
+            }
             trapZoneMesh.group.visible = true;
             trapZoneMesh.lastSeenTime = this.time;
             trapZoneMesh.linkId = zone.linkId;
@@ -941,6 +948,7 @@ export class StandingWaveVisualRenderer_Session131 {
                 zone.group.visible = false;
                 zone.group.scale.setScalar(0.001);
                 zone.group.position.set(0, -9999, 0);
+                zone.group.parent?.remove?.(zone.group);
                 zone.linkId = null;
                 if (zone.coreMesh?.material) zone.coreMesh.material.opacity = 0;
                 if (zone.orbitAMesh?.material) zone.orbitAMesh.material.opacity = 0;
@@ -1220,6 +1228,47 @@ export class StandingWaveVisualRenderer_Session131 {
         }
 
         this.attachRoot = resolvedRoot;
+    }
+
+    _syncRenderRootPresence() {
+        if (!this.root) return;
+
+        this.antinodeMeshPool.forEach((entry) => {
+            if (!entry?.mesh) return;
+            if (entry.active) {
+                if (entry.mesh.parent !== this.root) {
+                    this.root.add(entry.mesh);
+                }
+                return;
+            }
+
+            entry.mesh.parent?.remove?.(entry.mesh);
+        });
+
+        this.trapZoneMeshPool.forEach((entry) => {
+            if (!entry?.group) return;
+            if (entry.active) {
+                if (entry.group.parent !== this.root) {
+                    this.root.add(entry.group);
+                }
+                return;
+            }
+
+            entry.group.parent?.remove?.(entry.group);
+        });
+
+        const activeAntinodes = this.antinodeMeshPool.some((entry) => entry?.active && entry.mesh?.parent === this.root);
+        const activeTrapZones = this.trapZoneMeshPool.some((entry) => entry?.active && entry.group?.parent === this.root);
+        const shouldBeVisible = activeAntinodes || activeTrapZones;
+
+        if (shouldBeVisible) {
+            this._ensureAttachRoot();
+            this.root.visible = true;
+            return;
+        }
+
+        this.root.visible = false;
+        this.root.parent?.remove?.(this.root);
     }
 
     _estimateLinkLength(linkCurve, link) {

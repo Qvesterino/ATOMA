@@ -20672,28 +20672,29 @@ static createAnalyticsNode2(group, color) {
     const seedValue = hashString(nodeKey);
     const seed = Math.abs(seedValue) || 1;
     const rng = _mythicSeededRng(seed);
+    const colorKey = typeof color === 'number' ? color.toString(16).padStart(6, '0') : String(color || 'default');
 
-    const shellMat = new THREE.MeshStandardMaterial({
+    const shellMat = MaterialCache.get(`storage.reliquary.shell.${colorKey}`, () => new THREE.MeshStandardMaterial({
       color,
       emissive: color,
       emissiveIntensity: 0.2,
       metalness: 0.78,
       roughness: 0.18
-    });
+    }));
 
-    const frameMat = new THREE.MeshBasicMaterial({
+    const frameMat = MaterialCache.get(`storage.reliquary.frame.${colorKey}`, () => new THREE.MeshBasicMaterial({
       color,
       transparent: true,
       opacity: 0.34
-    });
+    }));
 
-    const edgeMat = new THREE.LineBasicMaterial({
+    const edgeMat = MaterialCache.get('storage.reliquary.edge.c8f6ff', () => new THREE.LineBasicMaterial({
       color: 0xc8f6ff,
       transparent: true,
       opacity: 0.55
-    });
+    }));
 
-    const shardMat = new THREE.MeshStandardMaterial({
+    const shardMat = MaterialCache.get(`storage.reliquary.shard.${colorKey}`, () => new THREE.MeshStandardMaterial({
       color,
       emissive: color,
       emissiveIntensity: 0.28,
@@ -20701,7 +20702,7 @@ static createAnalyticsNode2(group, color) {
       roughness: 0.24,
       transparent: true,
       opacity: 0.92
-    });
+    }));
 
     const root = new THREE.Group();
     root.name = 'STORAGE_CAPSULE_RELIQUARY';
