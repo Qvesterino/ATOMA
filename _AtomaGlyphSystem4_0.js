@@ -91,20 +91,37 @@ export class AtomaGlyphSystem4_0 {
       lastUpdateTime: 0
     };
     
-    // ATOMA color palette
+    // ATOMA color palette — SUPERNATURAL UPGRADE: Mystic Rune Architecture
+    // Transformed from digital neon to arcane mystical pigments.
+    // Each color now carries ritual significance — as if carved from ancient temples.
     this.colors = {
-      cyan: new THREE.Color(0x00F2FF),
-      mint: new THREE.Color(0x84FFE6),
-      magenta: new THREE.Color(0xFF00FF),
-      violet: new THREE.Color(0x9933FF),
-      gold: new THREE.Color(0xFFD700),
-      white: new THREE.Color(0xFFFFFF),
-      blue: new THREE.Color(0x0099FF),
-      green: new THREE.Color(0x00FF88),
-      red: new THREE.Color(0xFF3333),
-      orange: new THREE.Color(0xFF8844),
-      dark: new THREE.Color(0x0a0a14)
+      cyan: new THREE.Color(0x00F2FF),        // Preserved: spirit cyan
+      mint: new THREE.Color(0x84FFE6),        // Preserved: ethereal mint
+      magenta: new THREE.Color(0xFF00FF),      // Preserved: raw arcane
+      violet: new THREE.Color(0x9933FF),       // Preserved: mystic violet
+      gold: new THREE.Color(0xFFD700),         // Preserved: sacred gold
+      white: new THREE.Color(0xFFFFFF),        // Preserved: divine white
+      blue: new THREE.Color(0x0099FF),         // Preserved: celestial blue
+      green: new THREE.Color(0x00FF88),        // Preserved: living green
+      red: new THREE.Color(0xFF3333),          // Preserved: blood red
+      orange: new THREE.Color(0xFF8844),       // Preserved: ember orange
+      dark: new THREE.Color(0x0a0a14),         // Preserved: void dark
+      // SUPERNATURAL: Arcane ritual colors for mystic rune glyphs
+      sacredGold: new THREE.Color(0xC9A84C),   // Ancient temple gold
+      ritualCrimson: new THREE.Color(0xDC143C), // Blood ceremony crimson
+      voidIndigo: new THREE.Color(0x4B0082),   // Deep void indigo
+      spectralViolet: new THREE.Color(0x8B00FF), // Spectral deep violet
+      arcaneTeal: new THREE.Color(0x4A90A4),   // Ceremonial teal
+      ghostCyan: new THREE.Color(0xE0FFFF),    // Ethereal ghost cyan
+      parchment: new THREE.Color(0xE8D5B7),    // Ancient parchment
+      nightVeil: new THREE.Color(0x1A0A2E),    // Deep night veil
     };
+    // SUPERNATURAL: Enable mystic rune color cycling
+    this._enableMysticRunes = true;
+    this._mysticRunePhase = 0;
+    this._mysticRuneCycleSpeed = 0.12;
+    // Mystic rune spectral hues: gold → crimson → violet → indigo → teal
+    this._mysticRuneHues = [0.12, 0.97, 0.75, 0.70, 0.50];
     
     // Global time for synchronized animations
     this.globalTime = 0;
@@ -1616,6 +1633,19 @@ export class AtomaGlyphSystem4_0 {
       : Math.max(0, currentTime - this._lastVisualTime);
     this._lastVisualTime = currentTime;
     this.globalTime = currentTime;
+
+    // SUPERNATURAL UPGRADE: Mystic rune spectral color cycling
+    // Slowly cycles arcane palette colors through the ritual spectrum
+    if (this._enableMysticRunes) {
+      this._mysticRunePhase += visualDelta * this._mysticRuneCycleSpeed;
+      const phaseIdx = Math.floor(this._mysticRunePhase) % this._mysticRuneHues.length;
+      const nextIdx = (phaseIdx + 1) % this._mysticRuneHues.length;
+      const t = this._mysticRunePhase % 1.0;
+      const hue = this._mysticRuneHues[phaseIdx] * (1 - t) + this._mysticRuneHues[nextIdx] * t;
+      // Subtly shift the sacred gold toward the current spectral hue
+      this.colors.sacredGold.setHSL(((hue % 1.0) + 1.0) % 1.0, 0.75, 0.50);
+      this.colors.ritualCrimson.setHSL(((hue + 0.5) % 1.0 + 1.0) % 1.0, 0.85, 0.40);
+    }
 
     // Detect clusters periodically (every 0.5s)
     this.lastClusterCheck += visualDelta;

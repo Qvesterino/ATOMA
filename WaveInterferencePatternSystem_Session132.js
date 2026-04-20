@@ -39,6 +39,283 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
+// ============================================================================
+// SUPERNATURAL UPGRADE: Prismatic Holographic Interference Shaders
+// ============================================================================
+
+// Shared HSL to RGB conversion for spectral color computation
+function _hslToRgb(h, s, l) {
+    h = ((h % 1) + 1) % 1;
+    const a = s * Math.min(l, 1 - l);
+    const f = (n) => {
+        const k = (n + h * 12) % 12;
+        return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    };
+    return [f(0), f(8), f(4)];
+}
+
+// --- Layer 1: Iridescent Core Shader (thin-film interference simulation) ---
+const IRIDESCENT_CORE_VERTEX = `
+varying vec3 vNormal;
+varying vec3 vViewDir;
+varying vec2 vUv;
+void main() {
+    vUv = uv;
+    vNormal = normalize(normalMatrix * normal);
+    vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+    vViewDir = normalize(-mvPos.xyz);
+    gl_Position = projectionMatrix * mvPos;
+}
+`;
+
+const IRIDESCENT_CORE_FRAGMENT = `
+uniform float uTime;
+uniform float uBeatPhase;
+uniform float uIntensity;
+uniform float uIridescenceThickness;
+uniform float uSpectralShift;
+uniform float uOpacity;
+uniform vec3 uBaseColor;
+uniform float uConstructive; // 1.0 = constructive, 0.0 = destructive
+
+varying vec3 vNormal;
+varying vec3 vViewDir;
+varying vec2 vUv;
+
+vec3 hsl2rgb(float h, float s, float l) {
+    h = fract(h);
+    float a = s * min(l, 1.0 - l);
+    float f(float n) {
+        float k = mod(n + h * 12.0, 12.0);
+        return l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0));
+    }
+    return vec3(f(0.0), f(8.0), f(4.0));
+}
+
+void main() {
+    float cosAngle = 1.0 - abs(dot(vViewDir, vNormal));
+    
+    // Thin-film interference: spectral hue depends on viewing angle and "thickness"
+    float filmThickness = uIridescenceThickness + sin(uBeatPhase * 0.5) * 0.15;
+    float spectralHue = fract(cosAngle * filmThickness * 2.5 + uSpectralShift + uTime * 0.08);
+    
+    // Constructive: warm spectral bloom (gold-white center, rainbow halo)
+    // Destructive: cool spectral void (deep indigo, dark rainbow edges)
+    vec3 spectralColor = hsl2rgb(spectralHue, 0.85, mix(0.25, 0.65, uConstructive));
+    
+    // Core bloom: brighten center
+    float coreBright = smoothstep(0.0, 0.6, cosAngle) * 0.4;
+    vec3 coreColor = mix(spectralColor, vec3(1.0), coreBright * uConstructive);
+    
+    // For destructive, darken and shift toward indigo
+    vec3 destructiveTint = mix(coreColor, vec3(0.05, 0.02, 0.12), (1.0 - uConstructive) * 0.6);
+    
+    // Pulsing intensity from beat
+    float beatPulse = 0.8 + 0.2 * sin(uBeatPhase);
+    float alpha = uOpacity * uIntensity * beatPulse * (0.6 + cosAngle * 0.4);
+    
+    gl_FragColor = vec4(destructiveTint * uIntensity * beatPulse, alpha);
+}
+`;
+
+// --- Layer 2: Holographic Membrane Shader (diffraction patterns) ---
+const HOLOGRAPHIC_MEMBRANE_VERTEX = `
+varying vec3 vNormal;
+varying vec3 vViewDir;
+varying vec2 vUv;
+varying vec3 vWorldPos;
+void main() {
+    vUv = uv;
+    vNormal = normalize(normalMatrix * normal);
+    vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+    vViewDir = normalize(-mvPos.xyz);
+    vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+    gl_Position = projectionMatrix * mvPos;
+}
+`;
+
+const HOLOGRAPHIC_MEMBRANE_FRAGMENT = `
+uniform float uTime;
+uniform float uBeatPhase;
+uniform float uIntensity;
+uniform float uOpacity;
+uniform float uConstructive;
+
+varying vec3 vNormal;
+varying vec3 vViewDir;
+varying vec2 vUv;
+varying vec3 vWorldPos;
+
+vec3 hsl2rgb(float h, float s, float l) {
+    h = fract(h);
+    float a = s * min(l, 1.0 - l);
+    float f(float n) {
+        float k = mod(n + h * 12.0, 12.0);
+        return l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0));
+    }
+    return vec3(f(0.0), f(8.0), f(4.0));
+}
+
+// Simple hash for procedural noise
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+void main() {
+    float cosAngle = 1.0 - abs(dot(vViewDir, vNormal));
+    
+    // Flowing diffraction bands across the surface
+    vec2 flowUv = vUv * 3.0 + vec2(uTime * 0.12, uTime * 0.08);
+    float flowNoise = noise(flowUv);
+    
+    // Spectral bands from viewing angle (diffraction grating effect)
+    float bandIndex = cosAngle * 6.0 + flowNoise * 2.0 + uBeatPhase * 0.3;
+    float spectralHue = fract(bandIndex * 0.15 + uTime * 0.05);
+    
+    vec3 spectralColor = hsl2rgb(spectralHue, 0.7, mix(0.15, 0.5, uConstructive));
+    
+    // Membrane transparency: constructive = more visible, destructive = ghost-like
+    float membraneAlpha = uOpacity * uIntensity * (0.3 + cosAngle * 0.5);
+    membraneAlpha *= mix(0.3, 1.0, uConstructive); // Destructive is much more subtle
+    
+    // Beat breathing
+    float breath = 0.85 + 0.15 * sin(uBeatPhase * 0.7);
+    
+    gl_FragColor = vec4(spectralColor * uIntensity * breath, membraneAlpha * breath);
+}
+`;
+
+// --- Layer 3: Spectral Light Ray Shader (prismatic refraction) ---
+const SPECTRAL_RAY_VERTEX = `
+varying vec2 vUv;
+varying vec3 vNormal;
+varying vec3 vViewDir;
+void main() {
+    vUv = uv;
+    vNormal = normalize(normalMatrix * normal);
+    vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+    vViewDir = normalize(-mvPos.xyz);
+    gl_Position = projectionMatrix * mvPos;
+}
+`;
+
+const SPECTRAL_RAY_FRAGMENT = `
+uniform float uTime;
+uniform float uBeatPhase;
+uniform float uIntensity;
+uniform float uOpacity;
+uniform float uRayHue;        // Each ray gets a unique spectral hue
+uniform float uConstructive;
+
+varying vec2 vUv;
+varying vec3 vNormal;
+varying vec3 vViewDir;
+
+vec3 hsl2rgb(float h, float s, float l) {
+    h = fract(h);
+    float a = s * min(l, 1.0 - l);
+    float f(float n) {
+        float k = mod(n + h * 12.0, 12.0);
+        return l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0));
+    }
+    return vec3(f(0.0), f(8.0), f(4.0));
+}
+
+void main() {
+    // Ray gradient: bright at base, fading to tip
+    float gradient = 1.0 - vUv.y; // y goes 0 (base) to 1 (tip)
+    gradient = pow(gradient, 0.6); // Soften the falloff
+    
+    // Spectral color with slight shift over time
+    float hue = fract(uRayHue + uTime * 0.04);
+    vec3 rayColor = hsl2rgb(hue, 0.9, mix(0.3, 0.7, uConstructive));
+    
+    // Bright core at base, spectral at tip
+    vec3 baseGlow = mix(vec3(1.0, 0.95, 0.9), rayColor, vUv.y);
+    
+    // Beat pulsation affects ray length visibility
+    float beatPulse = 0.7 + 0.3 * sin(uBeatPhase + uRayHue * 6.28);
+    
+    float alpha = uOpacity * uIntensity * gradient * beatPulse;
+    
+    gl_FragColor = vec4(baseGlow * uIntensity * beatPulse, alpha);
+}
+`;
+
+// --- Layer 4: Aurora Ring Shader (flowing aurora borealis bands) ---
+const AURORA_RING_VERTEX = `
+varying vec2 vUv;
+varying vec3 vNormal;
+varying vec3 vViewDir;
+void main() {
+    vUv = uv;
+    vNormal = normalize(normalMatrix * normal);
+    vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+    vViewDir = normalize(-mvPos.xyz);
+    gl_Position = projectionMatrix * mvPos;
+}
+`;
+
+const AURORA_RING_FRAGMENT = `
+uniform float uTime;
+uniform float uBeatPhase;
+uniform float uIntensity;
+uniform float uOpacity;
+uniform float uConstructive;
+
+varying vec2 vUv;
+varying vec3 vNormal;
+varying vec3 vViewDir;
+
+vec3 hsl2rgb(float h, float s, float l) {
+    h = fract(h);
+    float a = s * min(l, 1.0 - l);
+    float f(float n) {
+        float k = mod(n + h * 12.0, 12.0);
+        return l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0));
+    }
+    return vec3(f(0.0), f(8.0), f(4.0));
+}
+
+void main() {
+    // Aurora bands flow around the ring (using vUv.x as angular position)
+    float angle = vUv.x * 6.2832; // Full circle
+    
+    // Multiple flowing aurora bands
+    float band1 = sin(angle * 3.0 + uTime * 0.8 + uBeatPhase * 0.3) * 0.5 + 0.5;
+    float band2 = sin(angle * 5.0 - uTime * 0.5 + uBeatPhase * 0.2) * 0.5 + 0.5;
+    float band3 = sin(angle * 2.0 + uTime * 1.2) * 0.5 + 0.5;
+    
+    // Spectral hues for each band
+    vec3 color1 = hsl2rgb(fract(0.33 + uTime * 0.03), 0.9, mix(0.2, 0.6, uConstructive)); // Green-cyan
+    vec3 color2 = hsl2rgb(fract(0.55 + uTime * 0.02), 0.85, mix(0.15, 0.55, uConstructive)); // Blue-violet
+    vec3 color3 = hsl2rgb(fract(0.12 + uTime * 0.04), 0.8, mix(0.25, 0.65, uConstructive)); // Gold-magenta
+    
+    vec3 auroraColor = color1 * band1 * 0.4 + color2 * band2 * 0.35 + color3 * band3 * 0.25;
+    
+    // Ring cross-section: bright at center, fading at edges
+    float crossFade = 1.0 - abs(vUv.y - 0.5) * 2.0;
+    crossFade = pow(max(0.0, crossFade), 0.8);
+    
+    // Constructive: bright, alive aurora / Destructive: dark, ghost aurora
+    float alpha = uOpacity * uIntensity * crossFade * (0.6 + 0.4 * (band1 + band2) * 0.5);
+    alpha *= mix(0.25, 1.0, uConstructive);
+    
+    gl_FragColor = vec4(auroraColor * uIntensity, alpha);
+}
+`;
+
 export class WaveInterferencePatternSystem_Session132 {
     constructor(scene, reflectionSystem, linkingSystem, aiNodes, config = {}) {
         this.scene = scene;
@@ -108,6 +385,16 @@ export class WaveInterferencePatternSystem_Session132 {
             enableLOD: true,                  // Distance-based culling
             lodDistance: 35,                  // Culling distance
             maxConcurrentInterferences: 15,   // Max active patterns per frame
+            
+            // SUPERNATURAL UPGRADE: Prismatic Holographic parameters
+            iridescenceThickness: 1.8,        // Thin-film thickness for spectral color cycling
+            spectralFlowSpeed: 0.08,          // How fast spectral colors shift over time
+            auroraBandCount: 3,               // Number of aurora bands in ring
+            rayHueSpread: 0.6,               // Spectral hue spread across rays (0-1)
+            constructiveSpectralSaturation: 0.85, // Color saturation for constructive
+            destructiveSpectralSaturation: 0.4,   // Muted saturation for destructive
+            enablePrismaticUpgrade: true,     // Master switch for supernatural upgrade
+            
             ...config
         };
         
@@ -985,83 +1272,261 @@ export class WaveInterferencePatternSystem_Session132 {
     }
 
     _createInterferenceVisualItem() {
+        const usePrismatic = this.config.enablePrismaticUpgrade !== false;
         const group = new THREE.Group();
         group.matrixAutoUpdate = true;
         group.renderOrder = this.config.interferenceRenderOrder;
 
-        // Layer 1: Soft spectral core — small sphere with warm white center glow
-        const coreMaterial = this.constructiveMaterial.clone();
-        coreMaterial.opacity = this.config.constructiveOpacity * 0.9;
-        coreMaterial.color = new THREE.Color(0.85, 0.94, 1.0); // Warm white-cyan core
-        const coreMesh = new THREE.Mesh(this._coreGeometry, coreMaterial);
-        coreMesh.renderOrder = this.config.interferenceRenderOrder;
-        group.add(coreMesh);
+        if (usePrismatic) {
+            // ====================================================================
+            // SUPERNATURAL UPGRADE: Prismatic Holographic Interference
+            // ====================================================================
 
-        // Layer 2: Outer halo shell — thin wireframe with spectral tint
-        const shellMaterial = this.constructiveMaterial.clone();
-        shellMaterial.opacity = this.config.shellOpacity;
-        shellMaterial.color = new THREE.Color(0.55, 0.78, 1.0); // Cooler spectral tint
-        shellMaterial.wireframe = true;
-        const shellMesh = new THREE.Mesh(this._shellGeometry, shellMaterial);
-        shellMesh.renderOrder = this.config.interferenceRenderOrder + 1;
-        group.add(shellMesh);
+            // Layer 1: Iridescent Core — thin-film interference spectral orb
+            const coreUniforms = {
+                uTime: { value: 0 },
+                uBeatPhase: { value: 0 },
+                uIntensity: { value: 1 },
+                uIridescenceThickness: { value: this.config.iridescenceThickness },
+                uSpectralShift: { value: 0 },
+                uOpacity: { value: this.config.constructiveOpacity * 0.9 },
+                uBaseColor: { value: new THREE.Color(0.85, 0.94, 1.0) },
+                uConstructive: { value: 1.0 }
+            };
+            const coreMaterial = new THREE.ShaderMaterial({
+                vertexShader: IRIDESCENT_CORE_VERTEX,
+                fragmentShader: IRIDESCENT_CORE_FRAGMENT,
+                uniforms: coreUniforms,
+                transparent: true,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending,
+                toneMapped: false
+            });
+            const coreMesh = new THREE.Mesh(this._coreGeometry, coreMaterial);
+            coreMesh.renderOrder = this.config.interferenceRenderOrder;
+            group.add(coreMesh);
 
-        // Layer 3: Elegant thin spikes — fewer, subtler protrusions
-        const spikeMeshes = [];
-        const spikeBase = new THREE.Vector3(0, 1, 0);
-        const spikeCount = Math.max(1, this.config.spikeCount);
-        const spikeMaterial = this.constructiveMaterial.clone();
-        spikeMaterial.opacity = this.config.constructiveOpacity * 0.6;
-        spikeMaterial.color = new THREE.Color(0.6, 0.82, 1.0);
-        for (let i = 0; i < spikeCount; i++) {
-            const direction = this._spikeDirections[i % this._spikeDirections.length];
-            if (!direction) continue;
-            const spikeMesh = new THREE.Mesh(this._spikeGeometry, spikeMaterial);
-            spikeMesh.renderOrder = this.config.interferenceRenderOrder + 2;
-            spikeMesh.position.copy(direction).multiplyScalar(0.42);
-            spikeMesh.quaternion.setFromUnitVectors(spikeBase, direction.clone().normalize());
-            spikeMesh.scale.set(0.8, 0.7 + (i % 3) * 0.08, 0.8);
-            spikeMesh.userData.basePosition = spikeMesh.position.clone();
-            spikeMesh.userData.baseScale = spikeMesh.scale.clone();
-            group.add(spikeMesh);
-            spikeMeshes.push(spikeMesh);
+            // Layer 2: Holographic Membrane — diffraction pattern sphere
+            const shellUniforms = {
+                uTime: { value: 0 },
+                uBeatPhase: { value: 0 },
+                uIntensity: { value: 1 },
+                uOpacity: { value: this.config.shellOpacity },
+                uConstructive: { value: 1.0 }
+            };
+            const shellMaterial = new THREE.ShaderMaterial({
+                vertexShader: HOLOGRAPHIC_MEMBRANE_VERTEX,
+                fragmentShader: HOLOGRAPHIC_MEMBRANE_FRAGMENT,
+                uniforms: shellUniforms,
+                transparent: true,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending,
+                toneMapped: false,
+                wireframe: false
+            });
+            const shellMesh = new THREE.Mesh(this._shellGeometry, shellMaterial);
+            shellMesh.renderOrder = this.config.interferenceRenderOrder + 1;
+            group.add(shellMesh);
+
+            // Layer 3: Spectral Light Rays — prismatic refraction beams
+            const rayMeshes = [];
+            const spikeBase = new THREE.Vector3(0, 1, 0);
+            const rayCount = Math.max(1, this.config.spikeCount);
+            for (let i = 0; i < rayCount; i++) {
+                const direction = this._spikeDirections[i % this._spikeDirections.length];
+                if (!direction) continue;
+                // Each ray gets a unique spectral hue
+                const rayHue = (i / rayCount) * this.config.rayHueSpread;
+                const rayUniforms = {
+                    uTime: { value: 0 },
+                    uBeatPhase: { value: 0 },
+                    uIntensity: { value: 1 },
+                    uOpacity: { value: this.config.constructiveOpacity * 0.6 },
+                    uRayHue: { value: rayHue },
+                    uConstructive: { value: 1.0 }
+                };
+                const rayMaterial = new THREE.ShaderMaterial({
+                    vertexShader: SPECTRAL_RAY_VERTEX,
+                    fragmentShader: SPECTRAL_RAY_FRAGMENT,
+                    uniforms: rayUniforms,
+                    transparent: true,
+                    depthWrite: false,
+                    side: THREE.DoubleSide,
+                    blending: THREE.AdditiveBlending,
+                    toneMapped: false
+                });
+                const rayMesh = new THREE.Mesh(this._spikeGeometry, rayMaterial);
+                rayMesh.renderOrder = this.config.interferenceRenderOrder + 2;
+                rayMesh.position.copy(direction).multiplyScalar(0.42);
+                rayMesh.quaternion.setFromUnitVectors(spikeBase, direction.clone().normalize());
+                rayMesh.scale.set(0.8, 0.7 + (i % 3) * 0.08, 0.8);
+                rayMesh.userData.basePosition = rayMesh.position.clone();
+                rayMesh.userData.baseScale = rayMesh.scale.clone();
+                rayMesh.userData.rayHue = rayHue;
+                group.add(rayMesh);
+                rayMeshes.push(rayMesh);
+            }
+
+            // Layer 4: Aurora Pulse Ring — flowing aurora borealis bands
+            const auroraUniforms = {
+                uTime: { value: 0 },
+                uBeatPhase: { value: 0 },
+                uIntensity: { value: 1 },
+                uOpacity: { value: this.config.birthSeedPulseOpacity },
+                uConstructive: { value: 1.0 }
+            };
+            const auroraMaterial = new THREE.ShaderMaterial({
+                vertexShader: AURORA_RING_VERTEX,
+                fragmentShader: AURORA_RING_FRAGMENT,
+                uniforms: auroraUniforms,
+                transparent: true,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending,
+                toneMapped: false
+            });
+            const auroraMesh = new THREE.Mesh(this._birthPulseGeometry, auroraMaterial);
+            auroraMesh.renderOrder = this.config.interferenceRenderOrder + 3;
+            auroraMesh.rotation.x = Math.PI * 0.5;
+            auroraMesh.visible = false;
+            group.add(auroraMesh);
+
+            return {
+                mesh: group,
+                prismatic: true,
+                parts: [
+                    { mesh: coreMesh, role: 'core', material: coreMaterial, uniforms: coreUniforms },
+                    { mesh: shellMesh, role: 'shell', material: shellMaterial, uniforms: shellUniforms },
+                    { mesh: auroraMesh, role: 'pulse', material: auroraMaterial, uniforms: auroraUniforms },
+                    ...rayMeshes.map((mesh) => ({
+                        mesh,
+                        role: 'spike',
+                        material: mesh.material,
+                        uniforms: mesh.material.uniforms
+                    }))
+                ]
+            };
+
+        } else {
+            // ====================================================================
+            // LEGACY: Original visual layers (fallback)
+            // ====================================================================
+
+            // Layer 1: Soft spectral core — small sphere with warm white center glow
+            const coreMaterial = this.constructiveMaterial.clone();
+            coreMaterial.opacity = this.config.constructiveOpacity * 0.9;
+            coreMaterial.color = new THREE.Color(0.85, 0.94, 1.0);
+            const coreMesh = new THREE.Mesh(this._coreGeometry, coreMaterial);
+            coreMesh.renderOrder = this.config.interferenceRenderOrder;
+            group.add(coreMesh);
+
+            // Layer 2: Outer halo shell — thin wireframe with spectral tint
+            const shellMaterial = this.constructiveMaterial.clone();
+            shellMaterial.opacity = this.config.shellOpacity;
+            shellMaterial.color = new THREE.Color(0.55, 0.78, 1.0);
+            shellMaterial.wireframe = true;
+            const shellMesh = new THREE.Mesh(this._shellGeometry, shellMaterial);
+            shellMesh.renderOrder = this.config.interferenceRenderOrder + 1;
+            group.add(shellMesh);
+
+            // Layer 3: Elegant thin spikes
+            const spikeMeshes = [];
+            const spikeBase = new THREE.Vector3(0, 1, 0);
+            const spikeCount = Math.max(1, this.config.spikeCount);
+            const spikeMaterial = this.constructiveMaterial.clone();
+            spikeMaterial.opacity = this.config.constructiveOpacity * 0.6;
+            spikeMaterial.color = new THREE.Color(0.6, 0.82, 1.0);
+            for (let i = 0; i < spikeCount; i++) {
+                const direction = this._spikeDirections[i % this._spikeDirections.length];
+                if (!direction) continue;
+                const spikeMesh = new THREE.Mesh(this._spikeGeometry, spikeMaterial);
+                spikeMesh.renderOrder = this.config.interferenceRenderOrder + 2;
+                spikeMesh.position.copy(direction).multiplyScalar(0.42);
+                spikeMesh.quaternion.setFromUnitVectors(spikeBase, direction.clone().normalize());
+                spikeMesh.scale.set(0.8, 0.7 + (i % 3) * 0.08, 0.8);
+                spikeMesh.userData.basePosition = spikeMesh.position.clone();
+                spikeMesh.userData.baseScale = spikeMesh.scale.clone();
+                group.add(spikeMesh);
+                spikeMeshes.push(spikeMesh);
+            }
+
+            // Layer 4: Birth pulse ring
+            const pulseMaterial = this.constructiveMaterial.clone();
+            pulseMaterial.opacity = this.config.birthSeedPulseOpacity;
+            pulseMaterial.color = new THREE.Color(0.75, 0.9, 1.0);
+            const pulseMesh = new THREE.Mesh(this._birthPulseGeometry, pulseMaterial);
+            pulseMesh.renderOrder = this.config.interferenceRenderOrder + 3;
+            pulseMesh.rotation.x = Math.PI * 0.5;
+            pulseMesh.visible = false;
+            group.add(pulseMesh);
+
+            return {
+                mesh: group,
+                prismatic: false,
+                parts: [
+                    { mesh: coreMesh, role: 'core', material: coreMesh.material },
+                    { mesh: shellMesh, role: 'shell', material: shellMesh.material },
+                    { mesh: pulseMesh, role: 'pulse', material: pulseMesh.material },
+                    ...spikeMeshes.map((mesh) => ({ mesh, role: 'spike', material: mesh.material }))
+                ]
+            };
         }
-
-        // Layer 4: Birth pulse ring — elegant torus with warm glow
-        const pulseMaterial = this.constructiveMaterial.clone();
-        pulseMaterial.opacity = this.config.birthSeedPulseOpacity;
-        pulseMaterial.color = new THREE.Color(0.75, 0.9, 1.0); // Bright spectral ring
-        const pulseMesh = new THREE.Mesh(this._birthPulseGeometry, pulseMaterial);
-        pulseMesh.renderOrder = this.config.interferenceRenderOrder + 3;
-        pulseMesh.rotation.x = Math.PI * 0.5;
-        pulseMesh.visible = false;
-        group.add(pulseMesh);
-
-        return {
-            mesh: group,
-            parts: [
-                { mesh: coreMesh, role: 'core', material: coreMesh.material },
-                { mesh: shellMesh, role: 'shell', material: shellMesh.material },
-                { mesh: pulseMesh, role: 'pulse', material: pulseMesh.material },
-                ...spikeMeshes.map((mesh) => ({ mesh, role: 'spike', material: mesh.material }))
-            ]
-        };
     }
 
     _applyInterferenceMaterialState(meshItem, modulation = 1) {
         if (!meshItem?.parts?.length) return;
 
-        const baseColor = meshItem.baseColor ?? (
-            meshItem.zone?.type === 'constructive'
-                ? this.config.constructiveColor
-                : this.config.destructiveColor
-        );
+        const isConstructive = meshItem.zone?.type === 'constructive';
+        const constructiveValue = isConstructive ? 1.0 : 0.0;
         const opacityFactor = Math.max(0.06, meshItem.opacityFactor ?? 1);
         const colorIntensity = Math.min(1, (meshItem.colorIntensity ?? 1) * modulation);
 
+        // SUPERNATURAL UPGRADE: Update shader uniforms for prismatic materials
+        if (meshItem.prismatic) {
+            const beatPhase = meshItem.zone?.beatFrequency
+                ? this.time * meshItem.zone.beatFrequency * Math.PI * 2
+                : this.time * 2.0;
+
+            meshItem.parts.forEach(({ material, role, uniforms }) => {
+                if (!uniforms) return;
+
+                // Common uniforms
+                if (uniforms.uTime) uniforms.uTime.value = this.time;
+                if (uniforms.uBeatPhase) uniforms.uBeatPhase.value = beatPhase;
+                if (uniforms.uIntensity) uniforms.uIntensity.value = colorIntensity;
+                if (uniforms.uConstructive) uniforms.uConstructive.value = constructiveValue;
+                if (uniforms.uSpectralShift) uniforms.uSpectralShift.value = this.time * this.config.spectralFlowSpeed;
+
+                // Role-specific opacity
+                const opacityScale = role === 'core'
+                    ? 0.85
+                    : role === 'shell'
+                        ? 0.55
+                        : role === 'pulse'
+                            ? 1.3
+                            : 0.75;
+
+                if (uniforms.uOpacity) {
+                    uniforms.uOpacity.value = Math.max(
+                        0.015,
+                        (meshItem.baseOpacity ?? this.config.constructiveOpacity) * opacityFactor * opacityScale * modulation
+                    );
+                }
+            });
+            return;
+        }
+
+        // LEGACY: Original MeshBasicMaterial-based state application
+        const baseColor = meshItem.baseColor ?? (
+            isConstructive
+                ? this.config.constructiveColor
+                : this.config.destructiveColor
+        );
+
         meshItem.parts.forEach(({ material, role }) => {
             if (!material) return;
-            // Smoothstep-based color scaling for elegant transitions
             const t = THREE.MathUtils.smoothstep(colorIntensity, 0.1, 0.9);
             const colorScale = role === 'core'
                 ? 0.85 + t * 0.15
@@ -1079,7 +1544,6 @@ export class WaveInterferencePatternSystem_Session132 {
                         : 0.75;
 
             if (material.color) {
-                // Core whitens at high intensity for spectral bloom effect
                 const bloomMix = role === 'core' ? THREE.MathUtils.smoothstep(colorIntensity, 0.5, 1.0) * 0.3 : 0;
                 material.color.setRGB(
                     Math.min(1, baseColor.r * colorIntensity * colorScale + bloomMix),

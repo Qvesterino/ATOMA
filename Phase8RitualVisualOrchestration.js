@@ -107,15 +107,20 @@ const RITUAL_VISUAL_CONFIG = {
   },
 };
 
+// SUPERNATURAL UPGRADE: Arcane Ritual Convergence
+// Transformed from clean digital colors to deep arcane ritual palette.
+// Each archetype now carries mystical, ceremonial energy — as if the network
+// is performing ancient rites beyond human comprehension.
+
 const RITUAL_ARCHETYPE_PROFILES = {
   Ascension: {
-    coreColor: '#F7FBFF',
-    ringColor: '#F7FBFF',
-    sigilColor: '#77F7DB',
-    atmosphereColor: '#6DEAFF',
-    ribbonIntensity: 0.12,
-    haloIntensity: 0.18,
-    phaseFlash: 0.22,
+    coreColor: '#FFF8E7',          // Sacred inner light (warm divine white)
+    ringColor: '#E8D5B7',          // Ancient parchment ring
+    sigilColor: '#C9A84C',         // Ritual gold sigil
+    atmosphereColor: '#4A90A4',    // Deep ceremonial teal atmosphere
+    ribbonIntensity: 0.16,         // Stronger ritual ribbons
+    haloIntensity: 0.24,           // More pronounced divine halo
+    phaseFlash: 0.28,              // Brighter ritual flash
     coreShape: 'sigilCrown',
     overlayPattern: 'orbitRings',
     atmospherePattern: 'largeVeil',
@@ -124,13 +129,13 @@ const RITUAL_ARCHETYPE_PROFILES = {
     ringSupport: 'dominantPlusSupport',
   },
   Convergence: {
-    coreColor: '#6DEAFF',
-    ringColor: '#F7FBFF',
-    sigilColor: '#77F7DB',
-    atmosphereColor: '#F7FBFF',
-    ribbonIntensity: 0.14,
-    haloIntensity: 0.12,
-    phaseFlash: 0.18,
+    coreColor: '#7B68EE',          // Medium slate blue (arcane convergence)
+    ringColor: '#E6E0F0',          // Spectral white ring
+    sigilColor: '#9370DB',         // Medium purple sigil
+    atmosphereColor: '#F0E6FF',    // Ethereal lavender wash
+    ribbonIntensity: 0.18,         // Stronger mystical ribbons
+    haloIntensity: 0.16,           // Arcane halo
+    phaseFlash: 0.22,              // Mystical flash
     coreShape: 'sphereNucleus',
     overlayPattern: 'symmetricRibbons',
     atmospherePattern: 'wideWash',
@@ -139,13 +144,13 @@ const RITUAL_ARCHETYPE_PROFILES = {
     ringSupport: 'singleDominantRing',
   },
   QuantumFracture: {
-    coreColor: '#D07BFF',
-    ringColor: '#D07BFF',
-    sigilColor: '#BC76FF',
-    atmosphereColor: '#0C0816',
-    ribbonIntensity: 0.2,
-    haloIntensity: 0.16,
-    phaseFlash: 0.28,
+    coreColor: '#8B00FF',          // Deep violet (void fracture)
+    ringColor: '#4B0082',          // Indigo void ring
+    sigilColor: '#6A0DAD',         // Dark ritual purple sigil
+    atmosphereColor: '#0A0012',    // Near-void black atmosphere
+    ribbonIntensity: 0.26,         // Intense void ribbons
+    haloIntensity: 0.22,           // Void halo
+    phaseFlash: 0.35,              // Powerful void flash
     coreShape: 'eclipseRing',
     overlayPattern: 'phaseShards',
     atmospherePattern: 'voidPlate',
@@ -154,13 +159,13 @@ const RITUAL_ARCHETYPE_PROFILES = {
     ringSupport: 'singleDominantRing',
   },
   ChaosCeremony: {
-    coreColor: '#FF73CF',
-    ringColor: '#FFD4EF',
-    sigilColor: '#BC76FF',
-    atmosphereColor: '#D07BFF',
-    ribbonIntensity: 0.24,
-    haloIntensity: 0.18,
-    phaseFlash: 0.3,
+    coreColor: '#DC143C',          // Crimson (blood ceremony)
+    ringColor: '#FF6B9D',          // Ceremonial pink ring
+    sigilColor: '#8B008B',         // Dark magenta ritual sigil
+    atmosphereColor: '#4A0040',    // Deep ceremonial purple atmosphere
+    ribbonIntensity: 0.30,         // Intense chaotic ribbons
+    haloIntensity: 0.24,           // Chaotic halo
+    phaseFlash: 0.38,              // Powerful chaos flash
     coreShape: 'fracturedCore',
     overlayPattern: 'shardFragments',
     atmospherePattern: 'darkVeil',
@@ -169,22 +174,38 @@ const RITUAL_ARCHETYPE_PROFILES = {
     ringSupport: 'supportRing',
   },
   MemoryEcho: {
-    coreColor: '#67F2FF',
-    ringColor: '#D6FFF3',
-    sigilColor: '#F7FBFF',
-    atmosphereColor: '#F0D6FF',
-    ribbonIntensity: 0.12,
-    haloIntensity: 0.14,
-    phaseFlash: 0.18,
+    coreColor: '#00CED1',          // Dark turquoise (ethereal memory)
+    ringColor: '#B0E0E6',          // Powder blue memory ring
+    sigilColor: '#E0FFFF',         // Light cyan ghost sigil
+    atmosphereColor: '#D8BFD8',    // Thistle memory atmosphere
+    ribbonIntensity: 0.15,         // Gentle memory ribbons
+    haloIntensity: 0.18,           // Memory halo
+    phaseFlash: 0.22,              // Echo flash
+  },
+  // SUPERNATURAL: New arcane ritual archetype
+  ArcaneRitual: {
+    coreColor: '#FFD700',          // Sacred gold core
+    ringColor: '#800020',          // Burgundy ritual ring
+    sigilColor: '#4B0082',         // Indigo arcane sigil
+    atmosphereColor: '#1A0A2E',    // Deep night atmosphere
+    ribbonIntensity: 0.28,         // Strong ritual ribbons
+    haloIntensity: 0.22,           // Arcane halo
+    phaseFlash: 0.32,              // Powerful ritual flash
+    coreShape: 'sigilCrown',
+    overlayPattern: 'orbitRings',
+    atmospherePattern: 'largeVeil',
+    motionProfile: 'slowRise',
+    glyphDensity: 0.18,
+    ringSupport: 'dominantPlusSupport',
   },
   default: {
-    coreColor: '#77F7DB',
-    ringColor: '#F7FBFF',
-    sigilColor: '#6DEAFF',
-    atmosphereColor: '#D6FFF3',
-    ribbonIntensity: 0.14,
-    haloIntensity: 0.12,
-    phaseFlash: 0.2,
+    coreColor: '#C9A84C',          // Ritual gold (mystical default)
+    ringColor: '#E8D5B7',          // Parchment ring
+    sigilColor: '#7B68EE',         // Arcane sigil
+    atmosphereColor: '#B0C4DE',    // Light steel blue atmosphere
+    ribbonIntensity: 0.18,         // Balanced mystical ribbons
+    haloIntensity: 0.16,           // Balanced halo
+    phaseFlash: 0.24,              // Balanced flash
   },
 };
 

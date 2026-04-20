@@ -1,12 +1,241 @@
 import * as THREE from 'three';
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SUPERNATURAL UPGRADE: Bioluminescent Alien Civilization Shaders
+// Transforms colony visuals from flat MeshStandardMaterial into living,
+// breathing bioluminescent organisms with neural signal pathways,
+// organic membrane glow, and spectral spore particles.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const BIOLUMINESCENT_NUCLEUS_VERTEX = `
+  varying vec3 vNormalW;
+  varying vec3 vPositionW;
+  varying vec2 vUv;
+  varying vec3 vModelPos;
+
+  void main() {
+    vUv = uv;
+    vModelPos = position;
+    vNormalW = normalize(mat3(modelMatrix) * normal);
+    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+    vPositionW = worldPos.xyz;
+    gl_Position = projectionMatrix * viewMatrix * worldPos;
+  }
+`;
+
+const BIOLUMINESCENT_NUCLEUS_FRAGMENT = `
+  uniform float uTime;
+  uniform float uEnergy;
+  uniform vec3 uBaseColor;
+  uniform float uPulsePhase;
+  uniform float uMotionBias;
+
+  varying vec3 vNormalW;
+  varying vec3 vPositionW;
+  varying vec2 vUv;
+  varying vec3 vModelPos;
+
+  // Gradient noise for organic neural signals
+  vec3 hash33(vec3 p) {
+    p = vec3(dot(p, vec3(127.1, 311.7, 74.7)),
+             dot(p, vec3(269.5, 183.3, 246.1)),
+             dot(p, vec3(113.5, 271.9, 124.6)));
+    return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
+  }
+
+  float noise3D(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    vec3 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(dot(hash33(i + vec3(0,0,0)), f - vec3(0,0,0)),
+                       dot(hash33(i + vec3(1,0,0)), f - vec3(1,0,0)), u.x),
+                   mix(dot(hash33(i + vec3(0,1,0)), f - vec3(0,1,0)),
+                       dot(hash33(i + vec3(1,1,0)), f - vec3(1,1,0)), u.x), u.y),
+               mix(mix(dot(hash33(i + vec3(0,0,1)), f - vec3(0,0,1)),
+                       dot(hash33(i + vec3(1,0,1)), f - vec3(1,0,1)), u.x),
+                   mix(dot(hash33(i + vec3(0,1,1)), f - vec3(0,1,1)),
+                       dot(hash33(i + vec3(1,1,1)), f - vec3(1,1,1)), u.x), u.y), u.z);
+  }
+
+  // HSL to RGB for spectral bioluminescence
+  vec3 hsl2rgb(float h, float s, float l) {
+    h = fract(h);
+    float a = s * min(l, 1.0 - l);
+    float f(float n) {
+      float k = mod(n + h * 12.0, 12.0);
+      return l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0));
+    }
+    return vec3(f(0.0), f(8.0), f(4.0));
+  }
+
+  void main() {
+    // Fresnel rim: bioluminescent glow strongest at edges
+    vec3 viewDir = normalize(cameraPosition - vPositionW);
+    float fresnel = 1.0 - max(dot(vNormalW, viewDir), 0.0);
+    fresnel = pow(fresnel, 2.5);
+
+    // Neural signal pathways: organic noise traveling across the surface
+    float neuralSignal = noise3D(vModelPos * 3.5 + vec3(uTime * 0.4 * uMotionBias, uTime * 0.2, uTime * 0.3));
+    float neuralVeins = smoothstep(0.15, 0.35, neuralSignal) * (1.0 - smoothstep(0.35, 0.5, neuralSignal));
+
+    // Secondary neural layer: slower, wider pulses
+    float deepSignal = noise3D(vModelPos * 1.8 + vec3(0.0, uTime * 0.15, uTime * 0.1));
+    float deepVeins = smoothstep(0.1, 0.3, deepSignal) * (1.0 - smoothstep(0.3, 0.55, deepSignal));
+
+    // Bioluminescent pulse: rhythmic glow like a heartbeat
+    float heartbeat = sin(uTime * 1.8 + uPulsePhase) * 0.5 + 0.5;
+    float slowPulse = sin(uTime * 0.6 + uPulsePhase * 0.5) * 0.5 + 0.5;
+
+    // Base color with energy-driven intensity
+    vec3 baseCol = uBaseColor * (0.5 + uEnergy * 0.5);
+
+    // Neural vein color: spectral shift based on signal position
+    vec3 neuralColor = hsl2rgb(
+      0.55 + neuralSignal * 0.15 + uTime * 0.02,
+      0.7 + uEnergy * 0.2,
+      0.4 + heartbeat * 0.2
+    );
+
+    // Deep vein color: cooler, more ethereal
+    vec3 deepColor = hsl2rgb(
+      0.6 + deepSignal * 0.1,
+      0.5 + uEnergy * 0.3,
+      0.3 + slowPulse * 0.15
+    );
+
+    // Fresnel rim glow: spectral bioluminescent edge
+    vec3 rimColor = hsl2rgb(
+      0.52 + sin(uTime * 0.1) * 0.08,
+      0.8,
+      0.5 + fresnel * 0.3
+    ) * fresnel * (0.8 + uEnergy * 0.4);
+
+    // Combine layers
+    vec3 finalColor = baseCol;
+    finalColor += neuralColor * neuralVeins * (0.5 + heartbeat * 0.3) * uEnergy;
+    finalColor += deepColor * deepVeins * 0.3 * slowPulse;
+    finalColor += rimColor;
+
+    // Organic subsurface scattering approximation
+    float sss = pow(max(dot(-viewDir, vNormalW), 0.0), 1.5) * 0.15;
+    finalColor += uBaseColor * sss * (1.0 + heartbeat * 0.5);
+
+    float alpha = 0.72 + uEnergy * 0.15 + fresnel * 0.1;
+    gl_FragColor = vec4(finalColor, alpha);
+  }
+`;
+
+const BIOLUMINESCENT_MEMBRANE_FRAGMENT = `
+  uniform float uTime;
+  uniform float uEnergy;
+  uniform vec3 uBaseColor;
+  uniform float uPulsePhase;
+  uniform float uMotionBias;
+
+  varying vec3 vNormalW;
+  varying vec3 vPositionW;
+  varying vec2 vUv;
+  varying vec3 vModelPos;
+
+  vec3 hash33(vec3 p) {
+    p = vec3(dot(p, vec3(127.1, 311.7, 74.7)),
+             dot(p, vec3(269.5, 183.3, 246.1)),
+             dot(p, vec3(113.5, 271.9, 124.6)));
+    return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
+  }
+
+  float noise3D(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    vec3 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(dot(hash33(i + vec3(0,0,0)), f - vec3(0,0,0)),
+                       dot(hash33(i + vec3(1,0,0)), f - vec3(1,0,0)), u.x),
+                   mix(dot(hash33(i + vec3(0,1,0)), f - vec3(0,1,0)),
+                       dot(hash33(i + vec3(1,1,0)), f - vec3(1,1,0)), u.x), u.y),
+               mix(mix(dot(hash33(i + vec3(0,0,1)), f - vec3(0,0,1)),
+                       dot(hash33(i + vec3(1,0,1)), f - vec3(1,0,1)), u.x),
+                   mix(dot(hash33(i + vec3(0,1,1)), f - vec3(0,1,1)),
+                       dot(hash33(i + vec3(1,1,1)), f - vec3(1,1,1)), u.x), u.y), u.z);
+  }
+
+  void main() {
+    // Fresnel for translucent membrane
+    vec3 viewDir = normalize(cameraPosition - vPositionW);
+    float fresnel = 1.0 - max(dot(vNormalW, viewDir), 0.0);
+    fresnel = pow(fresnel, 1.8);
+
+    // Organic membrane texture: flowing cellular patterns
+    float membrane = noise3D(vModelPos * 4.0 + vec3(uTime * 0.2 * uMotionBias, uTime * 0.15, 0.0));
+    float cellPattern = smoothstep(-0.1, 0.2, membrane) * (1.0 - smoothstep(0.2, 0.45, membrane));
+
+    // Bioluminescent pulse through membrane
+    float pulse = sin(uTime * 1.2 + uPulsePhase + length(vModelPos) * 3.0) * 0.5 + 0.5;
+
+    // Membrane color: translucent with bioluminescent veins
+    vec3 membraneColor = uBaseColor * 0.4;
+    membraneColor += uBaseColor * cellPattern * (0.3 + pulse * 0.2) * uEnergy;
+    membraneColor += uBaseColor * fresnel * (0.5 + uEnergy * 0.3);
+
+    // Spectral edge glow
+    vec3 edgeGlow = mix(
+      uBaseColor,
+      vec3(0.4, 0.6, 1.0), // cool spectral shift at edges
+      fresnel * 0.4
+    ) * fresnel * (0.6 + pulse * 0.3);
+
+    membraneColor += edgeGlow;
+
+    float alpha = (0.18 + uEnergy * 0.08) * (1.0 + fresnel * 0.5 + cellPattern * 0.3);
+    gl_FragColor = vec4(membraneColor, alpha);
+  }
+`;
+
+const BIOLUMINESCENT_GLOW_FRAGMENT = `
+  uniform float uTime;
+  uniform float uEnergy;
+  uniform vec3 uBaseColor;
+  uniform float uPulsePhase;
+
+  varying vec3 vNormalW;
+  varying vec3 vPositionW;
+  varying vec3 vModelPos;
+
+  void main() {
+    // BackSide glow: volumetric bioluminescent aura
+    vec3 viewDir = normalize(cameraPosition - vPositionW);
+    float fresnel = max(dot(vNormalW, viewDir), 0.0); // Inverted for BackSide
+    fresnel = pow(fresnel, 1.2);
+
+    // Pulsing bioluminescent intensity
+    float pulse = sin(uTime * 1.5 + uPulsePhase) * 0.5 + 0.5;
+    float slowBreath = sin(uTime * 0.4 + uPulsePhase * 0.3) * 0.5 + 0.5;
+
+    // Depth-based volumetric glow
+    float depth = length(vModelPos);
+    float volumetric = exp(-depth * 2.0) * (0.5 + pulse * 0.3);
+
+    vec3 glowColor = uBaseColor * (0.3 + uEnergy * 0.4);
+    glowColor += uBaseColor * fresnel * (0.4 + pulse * 0.2);
+    glowColor += vec3(0.15, 0.25, 0.5) * volumetric * slowBreath;
+
+    float alpha = (0.15 + uEnergy * 0.1) * (fresnel * 0.6 + volumetric * 0.4);
+    gl_FragColor = vec4(glowColor, alpha);
+  }
+`;
+
 /**
  * ColonyVFXManager.js - Safe Living Civilization Visual Effects System
- * 
+ *
  * SAFE: 100% non-destructive VFX overlays
  * - Creates growth shells, signal orbitals, conscious cores, and status crowns
  * - All meshes stored in scene but completely separate from nodes
  * - Can be removed without affecting core systems
+ *
+ * SUPERNATURAL UPGRADE: Bioluminescent Alien Civilization
+ * - Custom GLSL shaders for organic nucleus, membrane, and glow
+ * - Neural signal pathways with noise-based organic patterns
+ * - Spectral bioluminescent rim lighting
+ * - Master switch: enableBioluminescentUpgrade (default: true)
  */
 
 export class ColonyVFXManager {
@@ -125,7 +354,13 @@ export class ColonyVFXManager {
         maxFrequency: 4.0,
         minIntensity: 0.5,
         maxIntensity: 2.0
-      }
+      },
+
+      // SUPERNATURAL UPGRADE: Bioluminescent Alien Civilization
+      enableBioluminescentUpgrade: true,
+      bioluminescentNeuralSpeed: 0.4,
+      bioluminescentPulseRate: 1.8,
+      bioluminescentFresnelPower: 2.5
     };
 
     this.config.moodVisualBiasMap = this.config.moodProfiles;
@@ -159,19 +394,51 @@ export class ColonyVFXManager {
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = 'rgba(255,255,255,0)';
     ctx.fillRect(0, 0, 64, 64);
-    
-    // Draw soft circle
-    ctx.fillStyle = 'rgba(255,255,255,1)';
-    ctx.beginPath();
-    ctx.arc(32, 32, 24, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // Blur effect
-    ctx.filter = 'blur(8px)';
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.beginPath();
-    ctx.arc(32, 32, 20, 0, Math.PI * 2);
-    ctx.fill();
+
+    // SUPERNATURAL UPGRADE: Bioluminescent spore texture
+    // Radial glow with organic ring pattern
+    if (this.config?.enableBioluminescentUpgrade !== false) {
+      // Outer glow ring
+      const outerGrad = ctx.createRadialGradient(32, 32, 8, 32, 32, 30);
+      outerGrad.addColorStop(0, 'rgba(180, 200, 255, 0.9)');
+      outerGrad.addColorStop(0.3, 'rgba(100, 150, 255, 0.6)');
+      outerGrad.addColorStop(0.6, 'rgba(60, 100, 200, 0.25)');
+      outerGrad.addColorStop(1, 'rgba(20, 40, 100, 0)');
+      ctx.fillStyle = outerGrad;
+      ctx.beginPath();
+      ctx.arc(32, 32, 30, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Inner bioluminescent core
+      const innerGrad = ctx.createRadialGradient(32, 32, 0, 32, 32, 14);
+      innerGrad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+      innerGrad.addColorStop(0.4, 'rgba(200, 220, 255, 0.8)');
+      innerGrad.addColorStop(0.7, 'rgba(120, 160, 255, 0.4)');
+      innerGrad.addColorStop(1, 'rgba(60, 100, 200, 0)');
+      ctx.fillStyle = innerGrad;
+      ctx.beginPath();
+      ctx.arc(32, 32, 14, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Organic ring detail
+      ctx.strokeStyle = 'rgba(150, 180, 255, 0.3)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(32, 32, 18, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      // Legacy: plain soft circle
+      ctx.fillStyle = 'rgba(255,255,255,1)';
+      ctx.beginPath();
+      ctx.arc(32, 32, 24, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.filter = 'blur(8px)';
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.beginPath();
+      ctx.arc(32, 32, 20, 0, Math.PI * 2);
+      ctx.fill();
+    }
     
     const texture = new THREE.CanvasTexture(canvas);
     return texture;
@@ -661,14 +928,21 @@ export class ColonyVFXManager {
       
       geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       
+      // SUPERNATURAL UPGRADE: Bioluminescent spore particles with additive blending
+      const sporeColor = this.config.enableBioluminescentUpgrade !== false
+        ? new THREE.Color().setHSL(0.55 + Math.random() * 0.15, 0.5 + energyFactor * 0.3, 0.4 + Math.random() * 0.2).getHex()
+        : color;
       const material = new THREE.PointsMaterial({
         size: 0.18 + Math.random() * 0.1 + energyFactor * 0.05,
         sizeAttenuation: true,
         map: this.particleTexture,
-        color: color,
+        color: sporeColor,
         transparent: true,
         opacity: 0.55 + energyFactor * 0.2,
-        fog: false
+        fog: false,
+        blending: this.config.enableBioluminescentUpgrade !== false ? THREE.AdditiveBlending : THREE.NormalBlending,
+        depthWrite: false,
+        toneMapped: false
       });
       
       let particle = this.acquireVFXObject('particle');
@@ -729,38 +1003,85 @@ export class ColonyVFXManager {
     const size = 0.3 + stage * 0.12 + energyFactor * 0.4;
     const motionBias = profile.motionBias;
     const seed = this.getColonyVisualSeeds(colonyId).phaseSeed;
+    const pulsePhase = Math.random() * Math.PI * 2;
 
     // LIVING COLONY CORE: organically deformed nucleus with layered halo and ring
     const nucleusGeo = this.createOrganicCoreGeometry(size * 0.55, 2, 0.22, seed);
-    const nucleusMat = new THREE.MeshStandardMaterial({
-      color: color,
-      emissive: new THREE.Color(color),
-      emissiveIntensity: 0.8 + energyFactor * 0.2,
-      roughness: 0.24,
-      metalness: 0.35,
-      transparent: true,
-      opacity: 0.72 + energyFactor * 0.15,
-      flatShading: true,
-      side: THREE.DoubleSide,
-      toneMapped: false,
-      fog: false
-    });
-
     const membraneGeo = this.createOrganicCoreGeometry(size * 0.92, 1, 0.16, seed + 0.12);
-    const membraneMat = new THREE.MeshStandardMaterial({
-      color: color,
-      emissive: new THREE.Color(color),
-      emissiveIntensity: 0.55,
-      roughness: 0.78,
-      metalness: 0.08,
-      transparent: true,
-      opacity: 0.24 + energyFactor * 0.08,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-      fog: false
-    });
+
+    let nucleusMat, membraneMat;
+    let bioluminescent = false;
+
+    // SUPERNATURAL UPGRADE: Bioluminescent nucleus + membrane shaders
+    if (this.config.enableBioluminescentUpgrade !== false) {
+      bioluminescent = true;
+      const baseColorVec = new THREE.Color(color);
+
+      nucleusMat = new THREE.ShaderMaterial({
+        vertexShader: BIOLUMINESCENT_NUCLEUS_VERTEX,
+        fragmentShader: BIOLUMINESCENT_NUCLEUS_FRAGMENT,
+        uniforms: {
+          uTime: { value: 0 },
+          uEnergy: { value: energyFactor },
+          uBaseColor: { value: baseColorVec },
+          uPulsePhase: { value: pulsePhase },
+          uMotionBias: { value: motionBias }
+        },
+        transparent: true,
+        side: THREE.DoubleSide,
+        flatShading: true,
+        toneMapped: false,
+        fog: false
+      });
+
+      membraneMat = new THREE.ShaderMaterial({
+        vertexShader: BIOLUMINESCENT_NUCLEUS_VERTEX, // reuse vertex shader
+        fragmentShader: BIOLUMINESCENT_MEMBRANE_FRAGMENT,
+        uniforms: {
+          uTime: { value: 0 },
+          uEnergy: { value: energyFactor },
+          uBaseColor: { value: baseColorVec.clone() },
+          uPulsePhase: { value: pulsePhase + 1.0 },
+          uMotionBias: { value: motionBias }
+        },
+        transparent: true,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+        fog: false
+      });
+    } else {
+      // Legacy MeshStandardMaterial fallback
+      nucleusMat = new THREE.MeshStandardMaterial({
+        color: color,
+        emissive: new THREE.Color(color),
+        emissiveIntensity: 0.8 + energyFactor * 0.2,
+        roughness: 0.24,
+        metalness: 0.35,
+        transparent: true,
+        opacity: 0.72 + energyFactor * 0.15,
+        flatShading: true,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+        fog: false
+      });
+
+      membraneMat = new THREE.MeshStandardMaterial({
+        color: color,
+        emissive: new THREE.Color(color),
+        emissiveIntensity: 0.55,
+        roughness: 0.78,
+        metalness: 0.08,
+        transparent: true,
+        opacity: 0.24 + energyFactor * 0.08,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+        fog: false
+      });
+    }
 
     const ringGeo = new THREE.TorusGeometry(size * 1.05, 0.02, 14, 64);
     const ringMat = new THREE.MeshStandardMaterial({
@@ -812,10 +1133,11 @@ export class ColonyVFXManager {
       colonyId,
       type: 'core',
       stage,
-      pulsePhase: Math.random() * Math.PI * 2,
+      pulsePhase,
       pulseSpeed: 1.2 + Math.max(0, stage - 1) * 0.22 + energyFactor * 0.5 + motionBias * 0.2,
       energyFactor,
-      motionBias
+      motionBias,
+      bioluminescent
     };
 
     this.vfxContainer.add(core);
@@ -831,20 +1153,47 @@ export class ColonyVFXManager {
     const seeds = this.getColonyVisualSeeds(colonyId);
     const profile = this.getMoodProfile(mood);
     const color = this.getColorForMood(mood, colonyType);
+    const pulsePhase = seeds.phaseSeed * Math.PI * 2;
     
     // Ethereal glow shell — low-poly icosahedron with BackSide rendering for volumetric feel
     const glowSize = 0.34 + stage * 0.12;
     const geometry = new THREE.IcosahedronGeometry(glowSize, 1); // faceted glow, not smooth sphere
-    const material = this.createBasicMaterial(color, Math.min(1, 0.28 + (profile.glowIntensity || 0) * 0.08 + seeds.particleBias * 0.03));
-    material.side = THREE.BackSide; // Render from inside = ethereal volumetric glow
-    material.flatShading = true;
+
+    let material;
+    let bioluminescent = false;
+
+    // SUPERNATURAL UPGRADE: Bioluminescent volumetric glow shader
+    if (this.config.enableBioluminescentUpgrade !== false) {
+      bioluminescent = true;
+      material = new THREE.ShaderMaterial({
+        vertexShader: BIOLUMINESCENT_NUCLEUS_VERTEX, // reuse vertex
+        fragmentShader: BIOLUMINESCENT_GLOW_FRAGMENT,
+        uniforms: {
+          uTime: { value: 0 },
+          uEnergy: { value: 0.5 },
+          uBaseColor: { value: new THREE.Color(color) },
+          uPulsePhase: { value: pulsePhase }
+        },
+        transparent: true,
+        side: THREE.BackSide,
+        flatShading: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+        fog: false
+      });
+    } else {
+      material = this.createBasicMaterial(color, Math.min(1, 0.28 + (profile.glowIntensity || 0) * 0.08 + seeds.particleBias * 0.03));
+      material.side = THREE.BackSide;
+      material.flatShading = true;
+    }
     
     let glow = this.acquireVFXObject('central-glow');
     if (glow) {
       if (glow.geometry) glow.geometry.dispose();
       glow.geometry = geometry;
-      glow.material.color.setHex(color);
-      glow.material.opacity = material.opacity;
+      if (glow.material) glow.material.dispose();
+      glow.material = material;
     } else {
       glow = new THREE.Mesh(geometry, material);
     }
@@ -854,9 +1203,10 @@ export class ColonyVFXManager {
     glow.userData = {
       colonyId: colonyId,
       type: 'central-glow',
-      pulsePhase: seeds.phaseSeed * Math.PI * 2,
+      pulsePhase,
       pulseSpeed: 2.0 + (profile.motionBias || 0) * 0.12 + seeds.pulseOffset * 0.15,
-      motionBias: profile.motionBias
+      motionBias: profile.motionBias,
+      bioluminescent
     };
     
     this.vfxContainer.add(glow);
@@ -1226,7 +1576,14 @@ export class ColonyVFXManager {
         // Pulse glow
         userData.pulsePhase += deltaTime * userData.pulseSpeed;
         const pulse = Math.sin(userData.pulsePhase) * (0.16 + (userData.motionBias ?? 0.35) * 0.06) + 0.28;
-        child.material.opacity = Math.min(1, 0.18 + pulse * 0.9);
+
+        // SUPERNATURAL UPGRADE: Update bioluminescent glow shader uniforms
+        if (userData.bioluminescent && child.material?.uniforms) {
+          child.material.uniforms.uTime.value = time;
+          child.material.uniforms.uPulsePhase.value = userData.pulsePhase;
+        } else {
+          child.material.opacity = Math.min(1, 0.18 + pulse * 0.9);
+        }
         
         // Scale pulse
         const scaleModifier = 0.88 + Math.sin(userData.pulsePhase) * (0.18 + (userData.motionBias ?? 0.35) * 0.04);
@@ -1239,6 +1596,7 @@ export class ColonyVFXManager {
    * Update conscious core animation
    */
   updateCores(deltaTime) {
+    const time = performance.now() * 0.001;
     for (const child of this.vfxContainer.children) {
       if (child.userData && child.userData.type === 'core') {
         const userData = child.userData;
@@ -1250,12 +1608,23 @@ export class ColonyVFXManager {
         child.rotation.y += deltaTime * (0.22 + (userData.motionBias ?? 0.35) * 0.12);
         child.rotation.x += deltaTime * (0.08 + (userData.motionBias ?? 0.35) * 0.06);
 
+        // SUPERNATURAL UPGRADE: Update bioluminescent shader uniforms
+        if (userData.bioluminescent && child.material?.uniforms) {
+          child.material.uniforms.uTime.value = time;
+          child.material.uniforms.uPulsePhase.value = userData.pulsePhase;
+        }
+
         for (const sub of child.children) {
           if (sub.userData?.type === 'orbital-ring') {
             sub.rotation.z += deltaTime * (sub.userData.spinSpeed ?? 1.0);
           }
           if (sub.userData?.type === 'membrane') {
             sub.rotation.y += deltaTime * (sub.userData.spinSpeed ?? 0.3);
+            // SUPERNATURAL: Update membrane shader uniforms
+            if (userData.bioluminescent && sub.material?.uniforms) {
+              sub.material.uniforms.uTime.value = time;
+              sub.material.uniforms.uPulsePhase.value = userData.pulsePhase + 1.0;
+            }
           }
         }
       }

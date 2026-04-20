@@ -159,7 +159,13 @@ export class HarmonicHealingVisualSystem_Session134 {
         
         // FIX: Pre-allocated temp objects to avoid per-frame allocation in _updateWaves
         this._tmpTrailVel = new THREE.Vector3();
+        // SUPERNATURAL UPGRADE: Ethereal Restoration Sanctum — spectral healing colors
         this._tmpTrailColor = new THREE.Color(0x66f7ff);
+        this._spectralHealingPhase = 0;
+        this._enableEtherealUpgrade = config.enableEtherealUpgrade !== false;
+        // Celestial restoration spectrum: gold → white → celestial blue → emerald
+        this._spectralHealingHues = [0.12, 0.0, 0.55, 0.35]; // gold, white, celestial blue, emerald
+        this._spectralHealingCycleSpeed = 0.15; // How fast the spectrum cycles
         
         this._linkCooldowns = new Map();
         
@@ -688,6 +694,20 @@ export class HarmonicHealingVisualSystem_Session134 {
      */
     _updateWaves(deltaTime, time) {
         let writeIndex = 0;
+
+        // SUPERNATURAL UPGRADE: Cycle trail color through celestial restoration spectrum
+        if (this._enableEtherealUpgrade) {
+            this._spectralHealingPhase += deltaTime * this._spectralHealingCycleSpeed;
+            const phaseIdx = Math.floor(this._spectralHealingPhase) % this._spectralHealingHues.length;
+            const nextIdx = (phaseIdx + 1) % this._spectralHealingHues.length;
+            const t = this._spectralHealingPhase % 1.0;
+            const hue = this._spectralHealingHues[phaseIdx] * (1 - t) + this._spectralHealingHues[nextIdx] * t;
+            // White is special: saturation drops to near zero for celestial white flash
+            const isWhite = (phaseIdx === 1 || nextIdx === 1);
+            const sat = isWhite ? 0.1 + t * 0.3 : 0.75 + Math.sin(time * 2.0) * 0.1;
+            const lit = 0.55 + Math.sin(time * 1.5) * 0.08;
+            this._tmpTrailColor.setHSL(((hue % 1.0) + 1.0) % 1.0, sat, lit);
+        }
 
         for (let i = 0; i < this.waves.length; i++) {
             const wave = this.waves[i];

@@ -84,10 +84,18 @@ export class SynergyCascadeVisualizer {
       particleSpeed: 1.2,             // Multiplier on propagation speed
       particleLifetime: 1.45,         // Seconds
       
-      // Color scheme
-      cascadeColor: new THREE.Color(0xffb11a), // Warm amber for cascade body
-      waveColor: new THREE.Color(0xfff3c4),    // Bright gold for pulse head
-      fadeColor: new THREE.Color(0xff6f22),    // Ember orange for fade / dust
+      // Color scheme — SUPERNATURAL UPGRADE: Spectral Cascade Convergence
+      cascadeColor: new THREE.Color(0xffb11a), // Warm amber for cascade body (legacy fallback)
+      waveColor: new THREE.Color(0xfff3c4),    // Bright gold for pulse head (legacy fallback)
+      fadeColor: new THREE.Color(0xff6f22),    // Ember orange for fade / dust (legacy fallback)
+      // SUPERNATURAL: Spectral cascade palette — ethereal energy from beyond
+      spectralCascadeHue: 0.08,               // Base hue for spectral cascade (warm gold)
+      spectralFlowHueSpread: 0.25,            // How far flow particles spread across the spectrum
+      spectralBurstHue: 0.83,                 // Arcane burst hue (mystical violet)
+      spectralRippleHue: 0.55,                // Dimensional ripple hue (celestial blue)
+      spectralSaturation: 0.85,               // Spectral color saturation
+      spectralLightBase: 0.55,                // Base lightness for spectral colors
+      enableSpectralUpgrade: true,            // Master switch for spectral cascade
       cascadeGlowAmbientBoost: 0.28,           // Extra ambient glow strength on cascade trails
       cascadeGlowHaloStrength: 0.42,           // Soft halo multiplier for link glow
       cascadeGlowHaloRadius: 0.18,             // Soft radius factor for glow halo
@@ -2540,9 +2548,19 @@ export class SynergyCascadeVisualizer {
       
       particle.intensity = Math.max(forcedFlow ? 0.72 : 0.42, propagation.intensity);
       particle.size = Math.max(forcedFlow ? 1.65 : 0.92, (forcedFlow ? 1.95 : 1.28) * flowScale * flowRadiusMultiplier * (0.96 + particle.intensity * 0.42) * this.config.particleGlowSizeBoost);
-      particle.color = forcedFlow
-        ? this.config.cascadeColor.clone().lerp(this.config.waveColor, 0.24 + Math.random() * 0.30)
-        : this.config.waveColor.clone().lerp(this.config.cascadeColor, 0.46 + Math.random() * 0.24);
+      
+      // SUPERNATURAL UPGRADE: Spectral flow particle colors
+      if (this.config.enableSpectralUpgrade !== false) {
+        const spectralTime = performance.now() * 0.001;
+        const hue = (this.config.spectralCascadeHue + Math.random() * this.config.spectralFlowHueSpread + spectralTime * 0.03) % 1.0;
+        const sat = this.config.spectralSaturation + Math.random() * 0.1;
+        const lit = this.config.spectralLightBase + particle.intensity * 0.2 + Math.random() * 0.1;
+        particle.color = new THREE.Color().setHSL(hue, sat, lit);
+      } else {
+        particle.color = forcedFlow
+          ? this.config.cascadeColor.clone().lerp(this.config.waveColor, 0.24 + Math.random() * 0.30)
+          : this.config.waveColor.clone().lerp(this.config.cascadeColor, 0.46 + Math.random() * 0.24);
+      }
       particle.link = propagation.link ?? cascade?.link ?? null;
       particle.linkId = this._resolveLinkId(particle.link ?? propagation.linkId ?? cascade?.linkId ?? null);
       particle.cascadeId = cascade?.id ?? null;
@@ -2639,9 +2657,23 @@ export class SynergyCascadeVisualizer {
         (Math.random() - 0.5) * (forcedBurst ? 0.08 : 0.045)
       );
       particle.intensity = Math.max(forcedBurst ? 0.78 : 0.22, burstIntensity * intensityMultiplier);
-      particle.color = forcedBurst
-        ? new THREE.Color(1.0, 0.05 + Math.random() * 0.10, 1.0).lerp(new THREE.Color(1.0, 0.45, 1.0), 0.24 + Math.random() * 0.18)
-        : this.config.cascadeColor.clone().lerp(this.config.waveColor, 0.72 + Math.random() * 0.18);
+      // SUPERNATURAL UPGRADE: Arcane spectral burst colors
+      if (this.config.enableSpectralUpgrade !== false) {
+        const spectralTime = performance.now() * 0.001;
+        if (forcedBurst) {
+          // Arcane burst: mystical violet to spectral white
+          const burstHue = (this.config.spectralBurstHue + Math.random() * 0.12 + spectralTime * 0.05) % 1.0;
+          particle.color = new THREE.Color().setHSL(burstHue, 0.7 + Math.random() * 0.25, 0.5 + burstIntensity * 0.35);
+        } else {
+          // Spectral cascade burst
+          const cascadeHue = (this.config.spectralCascadeHue + Math.random() * 0.2 + spectralTime * 0.03) % 1.0;
+          particle.color = new THREE.Color().setHSL(cascadeHue, this.config.spectralSaturation, this.config.spectralLightBase + burstIntensity * 0.3);
+        }
+      } else {
+        particle.color = forcedBurst
+          ? new THREE.Color(1.0, 0.05 + Math.random() * 0.10, 1.0).lerp(new THREE.Color(1.0, 0.45, 1.0), 0.24 + Math.random() * 0.18)
+          : this.config.cascadeColor.clone().lerp(this.config.waveColor, 0.72 + Math.random() * 0.18);
+      }
       particle.baseScale = forcedBurst
         ? 3.0 + burstIntensity * 1.45
         : 0.88 + burstIntensity * 0.42;
@@ -2745,11 +2777,17 @@ export class SynergyCascadeVisualizer {
    * Create ripple effect at position
    */
   createRipple(position, intensity, options = {}) {
-    const rippleColor = options.color?.isColor
-      ? options.color
-      : options.color instanceof THREE.Color
-        ? options.color
-        : this.config.waveColor;
+    // SUPERNATURAL UPGRADE: Spectral dimensional ripple colors
+    let rippleColor;
+    if (options.color?.isColor || options.color instanceof THREE.Color) {
+      rippleColor = options.color;
+    } else if (this.config.enableSpectralUpgrade !== false) {
+      const spectralTime = performance.now() * 0.001;
+      const rippleHue = (this.config.spectralRippleHue + Math.random() * 0.1 + spectralTime * 0.02) % 1.0;
+      rippleColor = new THREE.Color().setHSL(rippleHue, this.config.spectralSaturation, this.config.spectralLightBase + intensity * 0.2);
+    } else {
+      rippleColor = this.config.waveColor;
+    }
     const ripple = {
       center: position.clone(),
       startRadius: 0,
