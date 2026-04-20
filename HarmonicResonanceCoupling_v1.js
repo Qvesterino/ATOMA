@@ -1,39 +1,42 @@
 /**
- * HARMONIC RESONANCE COUPLING v1.0
+ * HARMONIC RESONANCE COUPLING v1.1
  * ==================================
  * Canonical-threshold visual coupling between linked nodes
- * 
+ *
  * 🎵 SPAWN CONDITIONS (simplified):
  * - Per-node harmony > 0.50
  * - Per-node synergy > 0.50
  * - linkedNodes >= 2
- * 
+ *
  * 🎵 WHAT IT DOES:
  * When two linked nodes have high synergy, they "resonate" together:
- * - Visual resonance particles flow between nodes
  * - Node auras shimmer in sync (phase coupling)
  * - Link becomes a visual conduit for harmonic energy
  * - Frequency of resonance increases with synergy strength
- * 
+ *
  * 🎯 PURE VISUAL SYSTEM:
  * - Zero gameplay impact (no stat modifications)
- * - Only affects visual parameters (scale, color, particles)
+ * - Only affects visual parameters (scale, color, glow)
  * - Reads-only from node synergy/harmony stats
  * - Non-invasive to existing systems
  * - <1ms overhead per link update
- * 
+ *
  * ⚡ RESONANCE MECHANICS (simplified):
  * Both nodes must meet: harmony > 0.50, synergy > 0.50, linkedNodes >= 2
  * Frequency = baseFrequency + (intensity × frequencyAmplitude)
- * 
+ *
  * 📊 VISUAL FEEDBACK:
- * 1. Resonance Particles: Energy packets flowing source → target → source
- * 2. Node Sync Shimmer: Target node pulses in sync with source
- * 3. Link Glow Modulation: Link becomes more prominent during resonance
- * 4. Harmonic Aura: Subtle color shift toward complementary harmony hue
- * 
+ * 1. Node Sync Shimmer: Target node pulses in sync with source
+ * 2. Link Glow Modulation: Link becomes more prominent during resonance
+ * 3. Harmonic Aura: Subtle color shift toward complementary harmony hue
+ *
+ * 🔒 ROLE SEPARATION (v1.1):
+ * - This system: ambient glow/shimmer (relationship quality indicator)
+ * - LinkResonanceFlowSystem: directional pulses (traffic/energy flow)
+ * - NO traveling particles — those belong to Flow system
+ *
  * 🔒 CONTRACTS:
- * - Only modifies: mesh.scale, material.color, material.emissive, particle positions
+ * - Only modifies: mesh.scale, material.color, material.emissive
  * - Never writes to: node.userData.* (read-only)
  * - Never affects: game time, deltaTime, physics, gameplay logic
  * - Never creates side effects: pure deterministic visual transform
@@ -51,13 +54,7 @@ export class HarmonicResonanceCoupling_v1 {
     
     // State tracking
     this.resonancePairs = new Map(); // linkId → { frequency, phase, intensity }
-    this.resonanceParticles = [];
     this._visualTime = 0;
-    this._particleSourceScratch = new THREE.Vector3();
-    this._particleTargetScratch = new THREE.Vector3();
-    this._particleMidpointScratch = new THREE.Vector3();
-    this._particleDirectionScratch = new THREE.Vector3();
-    this._particleColorScratch = new THREE.Color();
     this._linkColorScratch = new THREE.Color();
     this._nodeColorScratch = new THREE.Color();
     this._stressColorScratch = new THREE.Color();
@@ -81,12 +78,6 @@ export class HarmonicResonanceCoupling_v1 {
       maxFrequency: 5.0,
       frequencyAmplitude: 3.0,
       
-      // Particle system
-      particleEmissionRate: 0.02,    // Particles per frame per link
-      particleLifetime: 1.5,          // Seconds
-      particleSpeed: 0.15,            // Units per second
-      particleSize: 0.12,             // Base size
-      particleMaxSize: 0.25,          // At target node
       
       // Visual parameters
       shimmerIntensity: 0.08,         // Node scale variation
@@ -97,8 +88,6 @@ export class HarmonicResonanceCoupling_v1 {
       counterBeatWeight: 0.18,
       packetDensityGlowBoost: 0.22,
       packetDensityShimmerBoost: 0.16,
-      particleAnchorSpread: 0.14,
-      maxResonanceParticlesActive: 96,
       
       // Performance
       updateFrequency: 1,             // Update every frame
@@ -185,8 +174,6 @@ export class HarmonicResonanceCoupling_v1 {
       this._updateResonancePair(resonance, deltaTime);
     }
     
-    // Update all particles
-    this._updateResonanceParticles(deltaTime);
   }
   
   /**
@@ -232,7 +219,6 @@ export class HarmonicResonanceCoupling_v1 {
     this._applyNodeShimmer(link.target, resonance, true);
     this._applyLinkGlowModulation(link, resonance);
     this._updateResonanceVisuals(resonance);
-    this._emitResonanceParticles(link, resonance, deltaTime);
   }
   
   _createResonanceVisuals(link) {
@@ -711,154 +697,6 @@ export class HarmonicResonanceCoupling_v1 {
   }
   
   /**
-   * Emit resonance particles between nodes
-   * @private
-   */
-  _emitResonanceParticles(link, resonance, deltaTime) {
-    if (!link?.source?.position || !link?.target?.position) return;
-
-    // Accumulate fractional emissions so low rates still produce particles over time.
-    const cadenceLift = 0.82 + (resonance.cadencePulse ?? 0.5) * 0.18;
-    const spawnRate = this.config.particleEmissionRate * resonance.intensity * cadenceLift * 60;
-    resonance.particleSpawnAccumulator = (resonance.particleSpawnAccumulator || 0) + spawnRate * deltaTime;
-    const emissionCount = Math.floor(resonance.particleSpawnAccumulator);
-    if (emissionCount <= 0) return;
-    resonance.particleSpawnAccumulator -= emissionCount;
-
-    const overflow = Math.max(0, this.resonanceParticles.length + emissionCount - this.config.maxResonanceParticlesActive);
-    for (let i = 0; i < overflow; i += 1) {
-      const dropped = this.resonanceParticles.shift();
-      if (dropped?.resonance && dropped.resonance.activeParticleCount > 0) {
-        dropped.resonance.activeParticleCount -= 1;
-      }
-    }
-
-    const signature = resonance.signature || {};
-    const lanePermutation = Array.isArray(signature.lanePermutation) && signature.lanePermutation.length === 3
-      ? signature.lanePermutation
-      : [0, 1, 2];
-    const sourcePosition = this._particleSourceScratch.copy(link.source.position);
-    const targetPosition = this._particleTargetScratch.copy(link.target.position);
-    const midpointPosition = this._particleMidpointScratch.copy(sourcePosition).lerp(targetPosition, 0.5);
-    
-    for (let i = 0; i < emissionCount; i++) {
-      const laneIndex = lanePermutation[(resonance.particleSpawnCursor + i) % lanePermutation.length];
-      const anchorT = laneIndex === 0
-        ? signature.sourceAnchorT ?? 0.14
-        : laneIndex === 1
-          ? signature.midpointAnchorT ?? 0.5
-          : signature.targetAnchorT ?? 0.86;
-      const anchorPosition = laneIndex === 0
-        ? sourcePosition
-        : laneIndex === 1
-          ? midpointPosition
-          : targetPosition;
-      const lanePhase = this._hashToUnit(signature.seed ?? 0, resonance.particleSpawnCursor + i) * Math.PI * 2;
-      const laneSpread = (laneIndex - 1) * this.config.particleAnchorSpread * (signature.particleSpread ?? 1);
-      const packetPosition = this._particleDirectionScratch.copy(targetPosition).sub(sourcePosition).multiplyScalar(laneSpread).add(anchorPosition);
-      // Dimensional gradient: source=amber, midpoint=white-cyan, target=spectral violet
-      const laneHue = laneIndex === 0
-        ? 0.08 + (resonance.harmonyBlend ?? 0.5) * 0.04    // Warm amber-gold at source
-        : laneIndex === 1
-          ? 0.52 + (resonance.harmonyBlend ?? 0.5) * 0.06  // Bright cyan at midpoint (bridge)
-          : 0.72 + (resonance.harmonyBlend ?? 0.5) * 0.05;  // Surreal violet at target
-      const packetTone = this._particleColorScratch.setHSL(
-        laneHue,
-        0.45 + resonance.intensity * 0.2 + (resonance.packetDensity ?? 0) * 0.08,
-        0.55 + (laneIndex === 1 ? 0.12 : 0.04) + (resonance.cadencePulse ?? 0.5) * 0.06
-      );
-      const lifetime = this.config.particleLifetime * (0.86 + (resonance.cadencePulse ?? 0.5) * 0.18);
-      const particle = {
-        position: packetPosition.clone(),
-        sourceNode: link.source,
-        targetNode: link.target,
-        linePath: new THREE.LineCurve3(link.source.position, link.target.position),
-        progress: anchorT,
-        anchorT,
-        laneIndex,
-        phaseOffset: lanePhase,
-        lifetime,
-        maxLifetime: lifetime,
-        resonance: resonance,
-        color: packetTone.clone(),
-        size: this.config.particleSize + (laneIndex === 1 ? 0.03 : 0.015) + (resonance.intensity * 0.03)
-      };
-      
-      resonance.activeParticleCount += 1;
-      resonance.particleTrail.push({
-        laneIndex,
-        anchorT,
-        phaseOffset: lanePhase,
-        lifetime
-      });
-      if (resonance.particleTrail.length > 8) {
-        resonance.particleTrail.shift();
-      }
-      resonance.particleSpawnCursor = (resonance.particleSpawnCursor + 1) % lanePermutation.length;
-      this.resonanceParticles.push(particle);
-    }
-  }
-  
-  /**
-   * Update all active resonance particles
-   * @private
-   */
-  _updateResonanceParticles(deltaTime) {
-    const toRemove = [];
-    
-    for (let i = 0; i < this.resonanceParticles.length; i++) {
-      const particle = this.resonanceParticles[i];
-      
-      // Advance lifetime
-      particle.lifetime -= deltaTime;
-      
-      if (particle.lifetime <= 0) {
-        toRemove.push(i);
-        continue;
-      }
-      
-      // Move particle along link path
-      const moveDistance = this.config.particleSpeed * deltaTime;
-      const pathLength = Math.max(particle.sourceNode.position.distanceTo(particle.targetNode.position), 0.0001);
-      const moveProgress = moveDistance / pathLength;
-      
-      // Oscillate back and forth based on resonance
-      const oscillation = Math.sin(particle.resonance.phase + (particle.phaseOffset ?? 0)) * 0.08;
-      particle.progress += moveProgress * (0.92 + (particle.laneIndex === 1 ? 0.04 : 0)) + oscillation;
-      
-      // Wrap around path
-      if (particle.progress > 1) {
-        particle.progress -= 2; // Go backward
-      } else if (particle.progress < -1) {
-        particle.progress += 2; // Go forward
-      }
-      
-      // Clamp to valid range for rendering
-      const displayProgress = Math.abs(particle.progress);
-      if (displayProgress > 1) {
-        // Hidden, but still updating
-        continue;
-      }
-      
-      // Update position along path
-      particle.linePath.getPointAt(displayProgress, particle.position);
-      particle.fadeFactor = particle.lifetime / particle.maxLifetime;
-      particle.size = Math.max(0.05, this.config.particleSize * (0.82 + particle.fadeFactor * 0.34));
-      
-      // Fade out at end of life
-      const fadeFactor = particle.lifetime / particle.maxLifetime;
-    }
-    
-    // Remove dead particles
-    for (let i = toRemove.length - 1; i >= 0; i--) {
-      const removed = this.resonanceParticles.splice(toRemove[i], 1)[0];
-      if (removed?.resonance && removed.resonance.activeParticleCount > 0) {
-        removed.resonance.activeParticleCount -= 1;
-      }
-    }
-  }
-  
-  /**
    * Get visual representation data for debugging/inspection
    * @returns {Object} Current resonance state snapshot
    */
@@ -877,7 +715,6 @@ export class HarmonicResonanceCoupling_v1 {
     return {
       enabled: this.enabled,
       activeResonancePairs: activePairs.length,
-      particlesActive: this.resonanceParticles.length,
       pairs: activePairs,
       config: this.config
     };

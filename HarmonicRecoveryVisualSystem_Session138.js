@@ -253,7 +253,8 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         this._eventDrivenEnabled = false;
         this._unsubscribeHarmonyHigh = null;
         this._unsubscribeHarmonyMid = null;
-        this._unsubscribeCascadeEnd = null;
+        this._unsubscribeLinkStabilityMid = null;
+        this._unsubscribeNodeStabilityLow = null;
         
         this._setupEventSubscriptions();
         
@@ -495,16 +496,29 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             };
         }
 
-        // IMPROVEMENT: Cascade→Recovery bridge — listen for cascade completion
-        this._onCascadeEnd = (payload = {}) => {
-            this._handleCascadeEnd(payload);
+        // Canonical metric tier: stability returning to mid = recovery trigger
+        this._onLinkStabilityMid = (payload = {}) => {
+            this._handleLinkStabilityMid(payload);
         };
-        const unsubCascade = this.semanticBus.subscribe('cascade.end', this._onCascadeEnd);
-        if (typeof unsubCascade === 'function') {
-            this._unsubscribeCascadeEnd = unsubCascade;
+        const unsubLinkStabilityMid = this.semanticBus.subscribe('link.stability.mid', this._onLinkStabilityMid);
+        if (typeof unsubLinkStabilityMid === 'function') {
+            this._unsubscribeLinkStabilityMid = unsubLinkStabilityMid;
         } else if (typeof this.semanticBus.unsubscribe === 'function') {
-            this._unsubscribeCascadeEnd = () => {
-                this.semanticBus.unsubscribe('cascade.end', this._onCascadeEnd);
+            this._unsubscribeLinkStabilityMid = () => {
+                this.semanticBus.unsubscribe('link.stability.mid', this._onLinkStabilityMid);
+            };
+        }
+
+        // Canonical metric tier: node instability = prepare recovery halos
+        this._onNodeStabilityLow = (payload = {}) => {
+            this._handleNodeStabilityLow(payload);
+        };
+        const unsubNodeStabilityLow = this.semanticBus.subscribe('node.stability.low', this._onNodeStabilityLow);
+        if (typeof unsubNodeStabilityLow === 'function') {
+            this._unsubscribeNodeStabilityLow = unsubNodeStabilityLow;
+        } else if (typeof this.semanticBus.unsubscribe === 'function') {
+            this._unsubscribeNodeStabilityLow = () => {
+                this.semanticBus.unsubscribe('node.stability.low', this._onNodeStabilityLow);
             };
         }
 
@@ -518,12 +532,16 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         if (typeof this._unsubscribeHarmonyMid === 'function') {
             this._unsubscribeHarmonyMid();
         }
-        if (typeof this._unsubscribeCascadeEnd === 'function') {
-            this._unsubscribeCascadeEnd();
+        if (typeof this._unsubscribeLinkStabilityMid === 'function') {
+            this._unsubscribeLinkStabilityMid();
+        }
+        if (typeof this._unsubscribeNodeStabilityLow === 'function') {
+            this._unsubscribeNodeStabilityLow();
         }
         this._unsubscribeHarmonyHigh = null;
         this._unsubscribeHarmonyMid = null;
-        this._unsubscribeCascadeEnd = null;
+        this._unsubscribeLinkStabilityMid = null;
+        this._unsubscribeNodeStabilityLow = null;
         this._eventDrivenEnabled = false;
     }
 
@@ -560,35 +578,61 @@ export class HarmonicRecoveryVisualSystem_Session138 {
     }
 
     /**
-     * IMPROVEMENT: Cascade→Recovery bridge
-     * When a cascade completes, spawn recovery zones at affected nodes.
-     * This creates the visual narrative: destruction → healing.
+     * Handle link.stability.mid — stability returning from low triggers recovery.
+     * Uses canonical metric tier: link stability returning to mid = recovery begins.
      */
-    _handleCascadeEnd(payload = {}) {
-        const sourceNode = payload?.sourceNode;
+    _handleLinkStabilityMid(payload = {}) {
+        const linkId = payload?.linkId;
         const now = Number.isFinite(VisualTime?.now) ? VisualTime.now : performance.now() / 1000;
 
-        if (!sourceNode?.position) return;
+        if (!linkId) return;
+        if (this._checkCooldown(linkId, now)) return;
 
-        // Spawn recovery halo at cascade origin
-        this._spawnHalo(sourceNode, now);
+        const link = this._getLinkById(linkId);
+        if (link) {
+            const endpoints = this._getLinkEndpoints(link);
+            // Spawn recovery halos at both endpoints
+            if (endpoints.startNode) this._spawnHalo(endpoints.startNode, now);
+            if (endpoints.endNode) this._spawnHalo(endpoints.endNode, now);
 
-        // Spawn coherence wave centered on the cascade origin
-        if (this.recoveringZones.length < this.config.maxActiveZones) {
-            this.recoveringZones.push({
-                active: true,
-                pos: sourceNode.position.clone(),
-                linkId: `cascade_recovery_${Date.now()}`,
-                startNode: sourceNode,
-                endNode: null,
-                life: 0,
-                startTime: now - (this._timeOrigin ?? 0),
-                maxLife: this.config.minRecoveryDuration + Math.random() * 3.0,
-                waveMeshIdx: -1,
-                lastStitchTime: now - (this._timeOrigin ?? 0),
-                waveOnly: true,
-                linkYaw: 0
-            });
+            // Spawn re-stitching wave on the recovering link
+            this._spawnReStitching(linkId, now);
+        }
+
+        this._setCooldown(linkId, now);
+    }
+
+    /**
+     * Handle node.stability.low — unstable node triggers recovery preparation.
+     * Uses canonical metric tier: node stability dropping = prepare recovery halos.
+     */
+    _handleNodeStabilityLow(payload = {}) {
+        const nodeId = payload?.nodeId;
+        const now = Number.isFinite(VisualTime?.now) ? VisualTime.now : performance.now() / 1000;
+
+        if (!nodeId) return;
+
+        // Find the node and spawn a preparatory recovery zone
+        if (this.linkingSystem?.nodes) {
+            const node = this.linkingSystem.nodes.find(n =>
+                n && (n.id === nodeId || n.userData?.nodeId === nodeId)
+            );
+            if (node?.position && this.recoveringZones.length < this.config.maxActiveZones) {
+                this.recoveringZones.push({
+                    active: true,
+                    pos: node.position.clone(),
+                    linkId: `stability_recovery_${nodeId}_${Date.now()}`,
+                    startNode: node,
+                    endNode: null,
+                    life: 0,
+                    startTime: now - (this._timeOrigin ?? 0),
+                    maxLife: this.config.minRecoveryDuration + Math.random() * 2.0,
+                    waveMeshIdx: -1,
+                    lastStitchTime: now - (this._timeOrigin ?? 0),
+                    waveOnly: true,
+                    linkYaw: 0
+                });
+            }
         }
     }
 

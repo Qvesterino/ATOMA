@@ -2,3 +2,7 @@
 .edge-smoke-profile/
 output/
 *.log
+
+# Legacy codebase (poodpájané / disconnected systems)
+LEGACY/
+legacy/

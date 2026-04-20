@@ -11466,8 +11466,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 {
                     enabled: true,
                     debugMode: false,
-                    waveInfluenceMin: 0.02,
-                    waveInfluenceMax: 0.08,
+                    waveInfluenceMin: 0.25,
+                    waveInfluenceMax: 0.50,
+                    waveDecayRate: 0.98,
                     minHubCorruptionThreshold: 0.25,
                     minHubStabilityThreshold: 0.65,
                 }

@@ -6,58 +6,34 @@ import { getEnvSpriteTexture } from './EnvironmentPointFXBase.js';
  * CascadeResonanceWaveVisualization_Session146.js
  * ============================================================================
  * CASCADE RESONANCE WAVE VISUALIZATION SYSTEM
- * 
- * Introduces a ghost-level resonance wave visualization that propagates between
- * phase-synchronized harmonic hubs. This is pure temporal modulation — no visible
- * objects, no particles, no energy transfer. The wave suggests latent cascade
- * potential without actually triggering cascade mechanics.
- * 
+ *
+ * Resonance wave visualization that propagates between phase-synchronized
+ * harmonic hubs. Multi-phase visual system with wavefront rings, resonance
+ * beams, particles, interference patterns, and dynamic lighting.
+ *
  * DESIGN PHILOSOPHY:
- * The network "tests" resonance paths without committing. Players sense
- * latent directional tension, as if the system rehearses internally.
- * 
+ * The network reveals latent cascade potential through visible wave
+ * propagation. Players see directional tension between synchronized hubs
+ * as traveling wavefronts, beam pulses, and particle effects.
+ *
+ * VISUAL PHASES:
+ * Phase 1 — Wavefront ripple rings (three-tier parallax: inner/middle/outer)
+ * Phase 2 — Multi-layer resonance beams (core/glow/aura) between hub pairs
+ * Phase 3 — Particles: wavefront, resonance sparks, echo trails, interference
+ * Phase 4 — Post-processing: bloom, chromatic aberration, distortion
+ * Phase 5 — Dynamic lighting, visual push, audio feedback
+ *
  * WAVE BEHAVIOR:
- * - Virtual wave phase per hub pair (0–1, normalized)
+ * - Wave phase computed per hub pair (0–1, normalized)
  * - Slow oscillation (2–4 second period)
- * - Temporal modulation only (affects animation timing, not brightness)
- * - Influence: 5–8% of baseline parameters (barely perceptible)
- * - Auto-decay when synchronization weakens
+ * - Influence: 25–50% of baseline parameters (clearly visible)
+ * - Auto-decay when synchronization weakens (~3s lifetime)
  * - Zero per-frame allocations (reused buffers)
- * 
- * MANIFESTATION (EXTREMELY SUBTLE):
- * 
- * Links Between Synchronized Hubs:
- * - Slight temporal phase drift compression
- * - Micro delay alignment across braided strands
- * - Appears as soft "pressure" moving along link
- * - NO directional beam, NO pulse, NO brightness change
- * 
- * Hub Interaction:
- * - While synchronized: wave influence oscillates
- * - Influence scales with phase sync stability
- * - If sync weakens: wave dissolves immediately
- * 
- * Auras:
- * - Brief tightening as wave passes (NO opacity/color change)
- * - Micro reduction in noise randomness
- * - Barely visible to careful observation
- * 
- * CONSTRAINTS:
- * ❌ NO glow, color modulation, particles, rings, ripples
- * ❌ NO camera effects, visible "wavefront"
- * ❌ NO new geometry or mesh objects
- * ❌ NO gameplay state changes
- * ❌ NO actual energy transfer
- * 
- * IMPLEMENTATION:
- * - Wave phase computed per hub pair (virtual wave)
- * - Wave propagation driven by phase sync quality
- * - Temporal bias applied to existing animation parameters
- * - All effects normalized (0–1) and auto-decay
- * - Zero per-frame allocations
- * 
+ * - Bootstrap from active hubs when no cascade events fire
+ * - Event-driven via cascade.start / cascade.hop
+ *
  * @author VFX Technical Director — ATOMA Project Session 146 Extended
- * @version 1.0.0
+ * @version 2.0.0 — Visibility upgrade (amplified from ghost-level)
  */
 
 export class CascadeResonanceWaveVisualization_Session146 {
@@ -94,7 +70,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
       auraNoiseReduction: config.auraNoiseReduction ?? 0.20,       // Amplified from 0.14
 
       // Wave decay
-      waveDecayRate: config.waveDecayRate ?? 0.94,                 // Auto-decay speed
+      waveDecayRate: config.waveDecayRate ?? 0.98,                 // Auto-decay speed (~3s lifetime at 60Hz
       waveDissolveThreshold: config.waveDissolveThreshold ?? 0.02, // Threshold to completely fade
 
       // Safety
@@ -1513,7 +1489,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
   }
 
   _bootstrapWaveFromActiveHubs() {
-    if (this.activeWaves.size > 0) return false;
+    if (this.activeWaves.size >= this.config.softWaveActiveLimit) return false;
     if (!this.harmonicHubSystem?.hubs || typeof this.harmonicHubSystem.hubs.values !== 'function') return false;
 
     const activeHubs = Array.from(this.harmonicHubSystem.hubs.values()).filter((hub) => hub && hub.active !== false);

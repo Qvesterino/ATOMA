@@ -167,6 +167,9 @@ export class HarmonicHealingVisualSystem_Session134 {
         this._unsubscribeHarmonyHigh = null;
         this._unsubscribeHarmonyMid = null;
         this._unsubscribeHarmonyLow = null;
+        this._unsubscribeLinkCorruptionHigh = null;
+        this._unsubscribeLinkStabilityLow = null;
+        this._unsubscribeNodeCorruptionHigh = null;
         
         this._setupEventSubscriptions();
 
@@ -338,6 +341,47 @@ export class HarmonicHealingVisualSystem_Session134 {
             };
         }
 
+        // Canonical metric tier subscriptions — healing responds to corruption & instability
+        this._onLinkCorruptionHigh = (payload = {}) => {
+            this._handleLinkCorruptionHigh(payload);
+        };
+
+        this._onLinkStabilityLow = (payload = {}) => {
+            this._handleLinkStabilityLow(payload);
+        };
+
+        this._onNodeCorruptionHigh = (payload = {}) => {
+            this._handleNodeCorruptionHigh(payload);
+        };
+
+        const unsubLinkCorruption = this.semanticBus.subscribe('link.corruption.high', this._onLinkCorruptionHigh);
+        const unsubLinkStability = this.semanticBus.subscribe('link.stability.low', this._onLinkStabilityLow);
+        const unsubNodeCorruption = this.semanticBus.subscribe('node.corruption.high', this._onNodeCorruptionHigh);
+
+        if (typeof unsubLinkCorruption === 'function') {
+            this._unsubscribeLinkCorruptionHigh = unsubLinkCorruption;
+        } else if (typeof this.semanticBus.unsubscribe === 'function') {
+            this._unsubscribeLinkCorruptionHigh = () => {
+                this.semanticBus.unsubscribe('link.corruption.high', this._onLinkCorruptionHigh);
+            };
+        }
+
+        if (typeof unsubLinkStability === 'function') {
+            this._unsubscribeLinkStabilityLow = unsubLinkStability;
+        } else if (typeof this.semanticBus.unsubscribe === 'function') {
+            this._unsubscribeLinkStabilityLow = () => {
+                this.semanticBus.unsubscribe('link.stability.low', this._onLinkStabilityLow);
+            };
+        }
+
+        if (typeof unsubNodeCorruption === 'function') {
+            this._unsubscribeNodeCorruptionHigh = unsubNodeCorruption;
+        } else if (typeof this.semanticBus.unsubscribe === 'function') {
+            this._unsubscribeNodeCorruptionHigh = () => {
+                this.semanticBus.unsubscribe('node.corruption.high', this._onNodeCorruptionHigh);
+            };
+        }
+
         this._eventDrivenEnabled = true;
     }
 
@@ -392,6 +436,63 @@ export class HarmonicHealingVisualSystem_Session134 {
         if (link) {
             this._spawnWaveOnLink(link, 0.4, 'low');
             this._setCooldown(linkId);
+        }
+    }
+
+    /**
+     * Handle link.corruption.high — spawn healing wave on corrupted link.
+     * Uses canonical metric tier event: corruption above threshold = needs healing.
+     */
+    _handleLinkCorruptionHigh(payload = {}) {
+        const linkId = payload?.linkId;
+        if (!linkId) return;
+        if (this._checkCooldown(linkId)) return;
+
+        const link = this._getLinkById(linkId);
+        if (link) {
+            this._spawnWaveOnLink(link, 0.9, 'corruption_response');
+            this._setCooldown(linkId);
+        }
+    }
+
+    /**
+     * Handle link.stability.low — spawn healing wave on unstable link.
+     * Uses canonical metric tier event: stability below threshold = needs repair.
+     */
+    _handleLinkStabilityLow(payload = {}) {
+        const linkId = payload?.linkId;
+        if (!linkId) return;
+        if (this._checkCooldown(linkId)) return;
+
+        const link = this._getLinkById(linkId);
+        if (link) {
+            this._spawnWaveOnLink(link, 0.7, 'stability_response');
+            this._setCooldown(linkId);
+        }
+    }
+
+    /**
+     * Handle node.corruption.high — spawn healing waves on links connected to corrupted node.
+     * Uses canonical metric tier event: node corruption = surrounding links need healing.
+     */
+    _handleNodeCorruptionHigh(payload = {}) {
+        const nodeId = payload?.nodeId;
+        if (!nodeId || !this.linkingSystem?.links) return;
+
+        // Find links connected to this corrupted node and spawn healing on them
+        const links = this.linkingSystem.links;
+        for (const link of links) {
+            const endpoints = this._getLinkEndpoints(link);
+            const startId = endpoints.startNode?.id || endpoints.startNode?.userData?.nodeId;
+            const endId = endpoints.endNode?.id || endpoints.endNode?.userData?.nodeId;
+            if (startId === nodeId || endId === nodeId) {
+                const linkId = link?.id || link?.linkId;
+                if (linkId && !this._checkCooldown(linkId)) {
+                    this._spawnWaveOnLink(link, 0.8, 'node_corruption_response');
+                    this._setCooldown(linkId);
+                    break; // One wave per node corruption event is sufficient
+                }
+            }
         }
     }
 
@@ -812,6 +913,15 @@ export class HarmonicHealingVisualSystem_Session134 {
         }
         if (typeof this._unsubscribeHarmonyLow === 'function') {
             this._unsubscribeHarmonyLow();
+        }
+        if (typeof this._unsubscribeLinkCorruptionHigh === 'function') {
+            this._unsubscribeLinkCorruptionHigh();
+        }
+        if (typeof this._unsubscribeLinkStabilityLow === 'function') {
+            this._unsubscribeLinkStabilityLow();
+        }
+        if (typeof this._unsubscribeNodeCorruptionHigh === 'function') {
+            this._unsubscribeNodeCorruptionHigh();
         }
         
         // UNIFIED CLEANUP CONTRACT - Remove and dispose all tracked objects
