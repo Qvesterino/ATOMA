@@ -1163,6 +1163,7 @@ import { DynamicLinkColorSystem, setupDynamicLinkColorSystemConsoleAPI } from '.
 // Real-time visualization of synergy energy flowing through linked networks
 // ============================================================================
 import { SynergyCascadeVisualizer } from './SynergyCascadeVisualizer.js';
+import { CascadeWaveParticles } from './CascadeWaveParticles.js';
 
 // ============================================================================
 // CORE MATERIAL MUTATION DETECTOR v1.0 (Session 28)

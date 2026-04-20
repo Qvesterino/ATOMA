@@ -497,11 +497,30 @@ export class GlyphFusionZoneManager {
     // ========================================================================
 
     detectConvergenceZones(pictograms, linkingSystem, aiNodes) {
-        if (!linkingSystem || !aiNodes) return;
+        if (!linkingSystem || !aiNodes) {
+            if (typeof window !== 'undefined' && window.__DEBUG_SINGULARITY_SPAWN__) {
+                console.warn('[SingularitySpawn] EARLY RETURN: linkingSystem=', !!linkingSystem, 'aiNodes=', !!aiNodes, 'aiNodesLen=', Array.isArray(aiNodes) ? aiNodes.length : 'N/A');
+            }
+            return;
+        }
 
         this.linkingSystem = linkingSystem || this.linkingSystem;
 
         const liveLinks = this._getLiveLinks(linkingSystem);
+
+        // DIAGNOSTIC: Singularity spawn tracing (enable with window.__DEBUG_SINGULARITY_SPAWN__ = true)
+        if (typeof window !== 'undefined' && window.__DEBUG_SINGULARITY_SPAWN__) {
+            const activePics = pictograms?.filter(p => p.active) || [];
+            const picsWithLink = activePics.filter(p => p.link);
+            const picsAtEndpoint = activePics.filter(p => {
+                if (!p.link) return false;
+                const progress = Number.isFinite(p.linkProgress) ? p.linkProgress : -1;
+                return progress <= 0.18 || progress >= 0.82;
+            });
+            console.log(`[SingularitySpawn] liveLinks=${liveLinks.length} activePics=${activePics.length} picsWithLink=${picsWithLink.length} picsAtEndpoint=${picsAtEndpoint.length}`,
+                picsAtEndpoint.map(p => ({ progress: p.linkProgress?.toFixed(3), hasLink: !!p.link }))
+            );
+        }
         const liveLinkCountByNode = new Map();
         for (const link of liveLinks) {
             const { nodeA, nodeB } = this._resolveLinkEndpoints(link);
@@ -543,6 +562,17 @@ export class GlyphFusionZoneManager {
         });
 
         // Check fusion conditions
+        if (typeof window !== 'undefined' && window.__DEBUG_SINGULARITY_SPAWN__) {
+            const nodeEntries = [...nodeGlyphMap.entries()];
+            if (nodeEntries.length > 0) {
+                console.log(`[SingularitySpawn] nodeGlyphMap entries:`, nodeEntries.map(([id, glyphs]) => ({ nodeId: id, glyphCount: glyphs.length, needMin: CONFIG.CONVERGENCE_THRESHOLD })));
+            }
+            // Log nodes with enough live links
+            const convergingNodes = [...liveLinkCountByNode.entries()].filter(([, count]) => count >= CONFIG.CONVERGENCE_THRESHOLD);
+            if (convergingNodes.length > 0) {
+                console.log(`[SingularitySpawn] nodesWithEnoughLinks:`, convergingNodes.map(([id, count]) => ({ nodeId: id, linkCount: count })));
+            }
+        }
         nodeGlyphMap.forEach((glyphsAtNode, nodeId) => {
             if (glyphsAtNode.length < CONFIG.CONVERGENCE_THRESHOLD) return;
 
@@ -550,7 +580,12 @@ export class GlyphFusionZoneManager {
             const links = glyphsAtNode.map(g => g.link);
 
             // Check if node is in collapse state
-            if (node.userData?.isolated || node.userData?.failureCountdown) return;
+            if (node.userData?.isolated || node.userData?.failureCountdown) {
+                if (typeof window !== 'undefined' && window.__DEBUG_SINGULARITY_SPAWN__) {
+                    console.log(`[SingularitySpawn] BLOCKED: node in collapse state, nodeId=${nodeId}`);
+                }
+                return;
+            }
 
             // Find or create zone
             let zone = this.nodeZoneMap.get(nodeId);
@@ -574,6 +609,9 @@ export class GlyphFusionZoneManager {
             }
 
             // Initiate fusion
+            if (typeof window !== 'undefined' && window.__DEBUG_SINGULARITY_SPAWN__) {
+                console.log(`[SingularitySpawn] ✅ FUSION DETECTED at node=${nodeId}, glyphs=${glyphsAtNode.length}, harmony=${context.harmonyBalance?.toFixed(3)}`);
+            }
             zone.nodeKey = nodeId;
             this._logLifecycle(`fusion-detected:${nodeId}`, 'fusion detected', {
                 nodeId,

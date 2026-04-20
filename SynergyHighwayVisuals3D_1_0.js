@@ -31,13 +31,17 @@
  * - Aggregated highways expose: id, fromCategory, toCategory, avgSynergy,
  *   maxSynergy, trend, volatility, visuals {width, intensity, speed, color, bloomActive}
  * 
- * Visual Hierarchy:
- * this.group (THREE.Group in scene)
- *   ├─ Highway meshes (one per route)
- *   │  ├─ Main tube (with flowing shader)
- *   │  ├─ Glow layer (optional, higher opacity)
- *   │  └─ Halo (bloom effect, if critical)
- *   └─ Debug visuals (end nodes, if enabled)
+ *  Visual Hierarchy:
+ *  this.group (THREE.Group in scene)
+ *    ├─ Highway meshes (one per route)
+ *    │  ├─ Main tube (with flowing shader)
+ *    │  ├─ Glow layer (optional, higher opacity)
+ *    │  └─ Halo (bloom effect, if critical)
+ *    ├─ Chromatic Trail particles (Points, additive blending)
+ *    │  └─ Per-highway particles with source→target color gradient
+ *    ├─ Cluster Fields (soft wireframe spheres at category anchors)
+ *    │  └─ Breathing animation, color by aggregate synergy
+ *    └─ Debug visuals (end nodes, if enabled)
  * 
  * Performance:
  * - Per-highway creation: ~2-5ms
@@ -87,7 +91,17 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
   let debugEnabled = false;
   let _anchorsLastUpdate = 0;
   const _anchorUpdateInterval = 2.0;  // Re-compute anchors every 2 seconds
-  
+
+  // ── Chromatic Trail state ──
+  const trailParticles = [];
+  let trailPointsMesh = null;
+  let trailGeometry = null;
+  let trailMaterial = null;
+  const trailSpawnTimers = new Map();  // highwayId → lastSpawnTime
+
+  // ── Cluster Field state ──
+  const clusterFieldMeshes = new Map();  // category → { mesh, material, avgSynergy }
+
   const config = {
     enabled: true,
     rebuildThrottleMs: 500,
@@ -106,7 +120,24 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
     categoryPositions: {},      // Will be populated with computed centers
     enableDebugNodes: false,    // Draw debug spheres at category positions
     enableDebugVisuals: false,
-    enableLogging: false
+    enableLogging: false,
+
+    // ── Chromatic Trails ──
+    enableChromaticTrails: true,
+    trailSpawnInterval: 0.12,       // seconds between spawns per highway
+    trailParticleSize: 0.25,
+    trailLifetime: 2.0,            // seconds
+    trailSpeed: 0.3,               // units/s along curve tangent
+    trailMaxParticles: 200,
+
+    // ── Cluster Fields ──
+    enableClusterFields: true,
+    clusterFieldOpacity: 0.05,
+    clusterFieldMinSynergy: 0.3,
+    clusterFieldWireframe: true,
+    clusterFieldBaseRadius: 3.0,
+    clusterFieldBreathSpeed: 0.5,
+    clusterFieldBreathAmount: 0.1,
   };
 
   const validCategories = [
@@ -125,6 +156,19 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
     'sigma': new (THREE?.Vector3 || function() {})(5, 8, -5),
     'quantum': new (THREE?.Vector3 || function() {})(5, -8, 10),
     'emotional': new (THREE?.Vector3 || function() {})(-8, 2, -15)
+  };
+
+  // Category color palette for chromatic trails
+  const categoryColors = {
+    'input':        new (THREE.Color || function() {})(0x00ddff),
+    'process':      new (THREE.Color || function() {})(0x44ff88),
+    'integration':  new (THREE.Color || function() {})(0x88ff44),
+    'analytics':    new (THREE.Color || function() {})(0xffdd44),
+    'storage':      new (THREE.Color || function() {})(0xff8844),
+    'control':      new (THREE.Color || function() {})(0xff4488),
+    'sigma':        new (THREE.Color || function() {})(0xaa44ff),
+    'quantum':      new (THREE.Color || function() {})(0x4488ff),
+    'emotional':    new (THREE.Color || function() {})(0xff44aa),
   };
 
   function lerp(a, b, t) {
@@ -833,7 +877,267 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       console.warn('[SynergyHighwayVisuals] Mesh removal failed:', e.message);
     }
   }
-  
+
+  // ═══════════════════════════════════════════════════════════════
+  // CHROMATIC TRAILS — Particles flowing along highway curves
+  //   with color gradients from source → target category
+  // ═══════════════════════════════════════════════════════════════
+
+  function initChromaticTrails() {
+    if (trailPointsMesh) return;  // Already initialized
+
+    trailGeometry = new (THREE.BufferGeometry || function() {})();
+    const positions = new Float32Array(config.trailMaxParticles * 3);
+    const colors = new Float32Array(config.trailMaxParticles * 3);
+    trailGeometry.setAttribute('position', new (THREE.BufferAttribute || function() {})(positions, 3));
+    trailGeometry.setAttribute('color', new (THREE.BufferAttribute || function() {})(colors, 3));
+
+    trailMaterial = new (THREE.PointsMaterial || function() {})({
+      size: config.trailParticleSize,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      vertexColors: true,
+      sizeAttenuation: true,
+      opacity: 0.8,
+      fog: false,
+    });
+
+    trailPointsMesh = new (THREE.Points || function() {})(trailGeometry, trailMaterial);
+    trailPointsMesh.frustumCulled = false;
+    trailPointsMesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_BACKGROUND') + 1;
+
+    if (group) {
+      group.add(trailPointsMesh);
+    }
+  }
+
+  function spawnTrailParticles() {
+    if (!config.enableChromaticTrails || !trailGeometry) return;
+
+    for (const highway of highways) {
+      // Only spawn on synergy highways (not cascade overlays)
+      if (highway.type === 'cascade') continue;
+      if (highway.avgSynergy < 0.2) continue;
+
+      const timer = trailSpawnTimers.get(highway.id) || 0;
+      const spawnInterval = config.trailSpawnInterval / (0.5 + highway.avgSynergy);
+      if (elapsedTime - timer < spawnInterval) continue;
+
+      trailSpawnTimers.set(highway.id, elapsedTime);
+
+      // Recreate curve for this highway
+      const startPos = getCategoryPosition(highway.fromCategory);
+      const endPos = getCategoryPosition(highway.toCategory);
+      const curve = createCurvePath(startPos, endPos);
+      if (!curve) continue;
+
+      // Category colors for chromatic gradient
+      const sourceColor = categoryColors[highway.fromCategory] || new (THREE.Color || function() {})(0x00ddff);
+      const targetColor = categoryColors[highway.toCategory] || new (THREE.Color || function() {})(0xff00ff);
+
+      // Spawn 1–2 particles depending on synergy strength
+      const count = 1 + (highway.avgSynergy > 0.6 ? 1 : 0);
+      for (let i = 0; i < count; i++) {
+        if (trailParticles.length >= config.trailMaxParticles) break;
+
+        const progress = 0.1 + Math.random() * 0.8;
+        const point = curve.getPoint(progress);
+        const tangent = curve.getTangent(progress).normalize();
+
+        // Color interpolated along progress
+        const cr = sourceColor.r + (targetColor.r - sourceColor.r) * progress;
+        const cg = sourceColor.g + (targetColor.g - sourceColor.g) * progress;
+        const cb = sourceColor.b + (targetColor.b - sourceColor.b) * progress;
+
+        trailParticles.push({
+          x: point.x, y: point.y, z: point.z,
+          vx: tangent.x * config.trailSpeed * (0.8 + Math.random() * 0.4),
+          vy: tangent.y * config.trailSpeed * (0.8 + Math.random() * 0.4),
+          vz: tangent.z * config.trailSpeed * (0.8 + Math.random() * 0.4),
+          age: 0,
+          life: config.trailLifetime * (0.7 + Math.random() * 0.6),
+          cr, cg, cb,
+        });
+      }
+    }
+  }
+
+  function updateChromaticTrails(deltaTime) {
+    if (!config.enableChromaticTrails || !trailGeometry) return;
+
+    // Spawn new particles
+    spawnTrailParticles();
+
+    // Update existing particles
+    for (let i = trailParticles.length - 1; i >= 0; i--) {
+      const p = trailParticles[i];
+      p.age += deltaTime;
+      if (p.age >= p.life) {
+        trailParticles.splice(i, 1);
+        continue;
+      }
+      // Move along tangent velocity
+      p.x += p.vx * deltaTime;
+      p.y += p.vy * deltaTime;
+      p.z += p.vz * deltaTime;
+    }
+
+    // Write to GPU buffer
+    const posAttr = trailGeometry.attributes.position;
+    const colAttr = trailGeometry.attributes.color;
+    const count = Math.min(trailParticles.length, config.trailMaxParticles);
+
+    for (let i = 0; i < config.trailMaxParticles; i++) {
+      if (i < count) {
+        const p = trailParticles[i];
+        const fade = 1.0 - (p.age / p.life);
+        posAttr.array[i * 3]     = p.x;
+        posAttr.array[i * 3 + 1] = p.y;
+        posAttr.array[i * 3 + 2] = p.z;
+        colAttr.array[i * 3]     = p.cr * fade;
+        colAttr.array[i * 3 + 1] = p.cg * fade;
+        colAttr.array[i * 3 + 2] = p.cb * fade;
+      } else {
+        // Hide unused slots
+        posAttr.array[i * 3]     = 0;
+        posAttr.array[i * 3 + 1] = 0;
+        posAttr.array[i * 3 + 2] = 0;
+        colAttr.array[i * 3]     = 0;
+        colAttr.array[i * 3 + 1] = 0;
+        colAttr.array[i * 3 + 2] = 0;
+      }
+    }
+    posAttr.needsUpdate = true;
+    colAttr.needsUpdate = true;
+    trailGeometry.setDrawRange(0, count);
+  }
+
+  function disposeChromaticTrails() {
+    trailParticles.length = 0;
+    trailSpawnTimers.clear();
+    if (trailPointsMesh) {
+      if (group) group.remove(trailPointsMesh);
+      if (trailGeometry) trailGeometry.dispose();
+      if (trailMaterial) trailMaterial.dispose();
+      trailPointsMesh = null;
+      trailGeometry = null;
+      trailMaterial = null;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // CLUSTER FIELDS — Soft auras around category clusters
+  //   driven by aggregate synergy of connected highways
+  // ═══════════════════════════════════════════════════════════════
+
+  function updateClusterFields() {
+    if (!config.enableClusterFields || !group) return;
+
+    // Compute per-category aggregate synergy from all highways
+    const categorySynergy = new Map();  // category → { total, count, max }
+    for (const highway of highways) {
+      if (highway.type === 'cascade') continue;
+      for (const cat of [highway.fromCategory, highway.toCategory]) {
+        if (!categorySynergy.has(cat)) {
+          categorySynergy.set(cat, { total: 0, count: 0, max: 0 });
+        }
+        const d = categorySynergy.get(cat);
+        d.total += highway.avgSynergy;
+        d.count++;
+        d.max = Math.max(d.max, highway.maxSynergy);
+      }
+    }
+
+    // Remove fields for categories that no longer have highways
+    for (const [category, fieldData] of clusterFieldMeshes) {
+      const d = categorySynergy.get(category);
+      if (!d || d.count === 0) {
+        group.remove(fieldData.mesh);
+        fieldData.mesh.geometry.dispose();
+        fieldData.material.dispose();
+        clusterFieldMeshes.delete(category);
+      }
+    }
+
+    // Create or update fields
+    for (const [category, d] of categorySynergy) {
+      const avgSynergy = d.total / d.count;
+
+      if (avgSynergy < config.clusterFieldMinSynergy) {
+        // Below threshold — remove if it exists
+        if (clusterFieldMeshes.has(category)) {
+          const fd = clusterFieldMeshes.get(category);
+          group.remove(fd.mesh);
+          fd.mesh.geometry.dispose();
+          fd.material.dispose();
+          clusterFieldMeshes.delete(category);
+        }
+        continue;
+      }
+
+      const pos = getCategoryPosition(category);
+      const radius = config.clusterFieldBaseRadius * (0.5 + avgSynergy * 1.5);
+
+      // Color by synergy level (positive / neutral / low)
+      let color;
+      if (avgSynergy >= 0.75)      color = new (THREE.Color || function() {})(0x4BFFC3);
+      else if (avgSynergy >= 0.45) color = new (THREE.Color || function() {})(0xC09CFF);
+      else                         color = new (THREE.Color || function() {})(0x3d9f92);
+
+      if (clusterFieldMeshes.has(category)) {
+        // Update existing field
+        const fd = clusterFieldMeshes.get(category);
+        fd.mesh.position.copy(pos);
+        fd.mesh.scale.set(radius, radius, radius);
+        fd.material.color.copy(color);
+        fd.material.opacity = config.clusterFieldOpacity * (0.5 + avgSynergy);
+        fd.avgSynergy = avgSynergy;
+      } else {
+        // Create new field
+        const geometry = new (THREE.SphereGeometry || function() {})(1, 16, 12);
+        const material = new (THREE.MeshBasicMaterial || function() {})({
+          color,
+          transparent: true,
+          opacity: config.clusterFieldOpacity * (0.5 + avgSynergy),
+          wireframe: config.clusterFieldWireframe,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          fog: false,
+        });
+        const mesh = new (THREE.Mesh || function() {})(geometry, material);
+        mesh.position.copy(pos);
+        mesh.scale.set(radius, radius, radius);
+        mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_BACKGROUND') - 1;
+        group.add(mesh);
+        clusterFieldMeshes.set(category, { mesh, material, avgSynergy });
+      }
+    }
+  }
+
+  function animateClusterFields() {
+    if (!config.enableClusterFields) return;
+    for (const [, fieldData] of clusterFieldMeshes) {
+      const breathScale = 1.0 + Math.sin(elapsedTime * config.clusterFieldBreathSpeed * Math.PI * 2)
+        * config.clusterFieldBreathAmount;
+      const baseRadius = config.clusterFieldBaseRadius * (0.5 + fieldData.avgSynergy * 1.5);
+      fieldData.mesh.scale.set(
+        baseRadius * breathScale,
+        baseRadius * breathScale,
+        baseRadius * breathScale
+      );
+    }
+  }
+
+  function disposeClusterFields() {
+    for (const [, fieldData] of clusterFieldMeshes) {
+      if (group) group.remove(fieldData.mesh);
+      fieldData.mesh.geometry.dispose();
+      fieldData.material.dispose();
+    }
+    clusterFieldMeshes.clear();
+  }
+
   // ═══════════════════════════════════════════════════════════════
   // PUBLIC API
   // ═══════════════════════════════════════════════════════════════
@@ -883,6 +1187,10 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
 
       rebuildHighways();
 
+      // Initialize sub-systems
+      initChromaticTrails();
+      updateClusterFields();
+
       console.log('[SynergyHighwayVisuals] Initialized');
       return true;
     },
@@ -920,6 +1228,12 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
           mesh.material.uniforms.time.value = elapsedTime;
         }
       }
+
+      // Chromatic trail particles
+      updateChromaticTrails(deltaTime);
+
+      // Cluster field breathing animation
+      animateClusterFields();
     },
     
     /**
@@ -988,6 +1302,9 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
             removeHighwayHalo(highway.id);
           }
         }
+
+        // Update cluster fields to reflect current highway state
+        updateClusterFields();
       } catch (e) {
         console.warn('[SynergyHighwayVisuals] Refresh failed:', e.message);
       }
@@ -1223,6 +1540,10 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
      * Clean up and dispose
      */
     dispose() {
+      // Dispose sub-systems first
+      disposeChromaticTrails();
+      disposeClusterFields();
+
       for (const highwayId of Array.from(highwayMeshes.keys())) {
         removeHighwayMesh(highwayId);
       }

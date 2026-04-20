@@ -255,18 +255,21 @@ export class ExtremeAIShaderPack {
   // ═══════════════════════════════════════════════════════════════════════════
 
   /**
-   * Create a glassy refraction shader (fresnel + rim lighting)
+   * Create Multiversal Prism of Infinite Reflections shader
+   * Reality refraction layers with quantum entanglement and dimensional folding
    */
-  createGlassShaderMaterial(colorA, colorB) {
+  createMultiversalPrismShader(colorA, colorB) {
     const vertexShader = `
       varying vec3 vNormal;
       varying vec3 vViewDir;
       varying vec3 vPosition;
+      varying vec3 vWorldPosition;
 
       void main() {
         vNormal = normalize(normalMatrix * normal);
         vPosition = position;
-        vViewDir = normalize(cameraPosition - (modelMatrix * vec4(position, 1.0)).xyz);
+        vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+        vViewDir = normalize(cameraPosition - vWorldPosition);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `;
@@ -274,27 +277,79 @@ export class ExtremeAIShaderPack {
     const fragmentShader = `
       uniform float u_time;
       uniform float u_synergy;
+      uniform float u_harmony;
       uniform vec3 u_colorA;
       uniform vec3 u_colorB;
 
       varying vec3 vNormal;
       varying vec3 vViewDir;
+      varying vec3 vPosition;
+      varying vec3 vWorldPosition;
+
+      // Quantum entanglement pattern
+      float entanglementField(vec3 pos, float time) {
+        vec3 p = pos * 3.0;
+        float field = sin(p.x + time) * cos(p.y + time * 1.3) * sin(p.z + time * 0.7);
+        return (field + 1.0) * 0.5;
+      }
+
+      // Reality layer refraction
+      vec3 realityRefraction(vec3 viewDir, vec3 normal, float layer) {
+        float ior = 1.5 + layer * 0.5; // Increasing refraction for deeper realities
+        vec3 refracted = refract(viewDir, normal, 1.0 / ior);
+        return refracted;
+      }
+
+      // Dimensional folding distortion
+      vec3 dimensionalFold(vec3 pos, float time, float stability) {
+        float fold = sin(pos.x * 5.0 + time) * cos(pos.y * 5.0 + time * 1.2) * sin(pos.z * 5.0 + time * 0.8);
+        float distortion = fold * (1.0 - stability) * 0.1;
+        return pos + normal * distortion;
+      }
 
       void main() {
-        float fresnel = pow(1.0 - abs(dot(vNormal, vViewDir)), 2.0);
-        
-        // Time-based color shift
-        float colorLerp = (sin(u_time * 0.5) + 1.0) * 0.5;
-        vec3 color = mix(u_colorA, u_colorB, colorLerp);
-        
-        // Fresnel enhancement + rim glow
-        float rim = fresnel * (1.0 + u_synergy * 0.5);
-        color += vec3(0.2 * rim);
-        
-        // Subtle refraction distortion based on view angle
-        vec3 distorted = color + vec3(fresnel * 0.1);
-        
-        gl_FragColor = vec4(distorted, 0.85 + fresnel * 0.15);
+        vec3 foldedPosition = dimensionalFold(vWorldPosition, u_time, u_harmony);
+
+        // Primary fresnel
+        float fresnel = pow(1.0 - abs(dot(vNormal, vViewDir)), 3.0);
+
+        // Reality layer refractions (3 layers for multiversal effect)
+        vec3 layer1 = realityRefraction(vViewDir, vNormal, 0.0);
+        vec3 layer2 = realityRefraction(vViewDir, vNormal, 1.0);
+        vec3 layer3 = realityRefraction(vViewDir, vNormal, 2.0);
+
+        // Quantum entanglement sparks
+        float entanglement = entanglementField(foldedPosition, u_time);
+        float spark = step(0.85, entanglement) * u_synergy;
+
+        // Time-based reality shifting
+        float realityShift = sin(u_time * 0.3) * 0.5 + 0.5;
+        vec3 color = mix(u_colorA, u_colorB, realityShift);
+
+        // Layered color mixing
+        vec3 realityColor1 = color * (1.0 + dot(layer1, vec3(0.3, 0.6, 0.1)));
+        vec3 realityColor2 = color * (1.0 + dot(layer2, vec3(0.1, 0.3, 0.6)));
+        vec3 realityColor3 = color * (1.0 + dot(layer3, vec3(0.6, 0.1, 0.3)));
+
+        // Combine reality layers
+        vec3 finalColor = mix(realityColor1, realityColor2, fresnel * 0.5);
+        finalColor = mix(finalColor, realityColor3, fresnel * fresnel * 0.3);
+
+        // Add entanglement sparks
+        finalColor += vec3(1.0, 1.0, 0.8) * spark * 0.5;
+
+        // Enhanced rim glow with reality bleeding
+        float rim = fresnel * (1.0 + u_synergy * 0.8);
+        finalColor += vec3(0.3, 0.4, 0.6) * rim;
+
+        // Quantum foam interference
+        float foam = sin(foldedPosition.x * 20.0 + u_time * 2.0) *
+                    cos(foldedPosition.y * 20.0 + u_time * 2.3) *
+                    sin(foldedPosition.z * 20.0 + u_time * 1.7);
+        foam = (foam + 1.0) * 0.5;
+        finalColor += vec3(0.1, 0.2, 0.3) * foam * u_harmony * 0.3;
+
+        gl_FragColor = vec4(finalColor, 0.9 + fresnel * 0.1 - spark * 0.2);
       }
     `;
 
@@ -304,6 +359,7 @@ export class ExtremeAIShaderPack {
       uniforms: {
         u_time: { value: 0 },
         u_synergy: { value: 0 },
+        u_harmony: { value: 0 },
         u_colorA: { value: new THREE.Color(colorA) },
         u_colorB: { value: new THREE.Color(colorB) }
       },
@@ -312,6 +368,13 @@ export class ExtremeAIShaderPack {
       depthWrite: true,
       depthTest: true
     });
+  }
+
+  /**
+   * LEGACY: Create a glassy refraction shader (fresnel + rim lighting)
+   */
+  createGlassShaderMaterial(colorA, colorB) {
+    return this.createMultiversalPrismShader(colorA, colorB);
   }
 
   /**

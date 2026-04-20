@@ -17,113 +17,189 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
  */
 
 export class CascadeWaveParticles {
-  constructor(scene, config = {}) {
+  constructor(scene, options = {}) {
     this.scene = scene;
-    
+
+    // UNIFIED CLEANUP CONTRACT - Track all created objects
+    this._createdObjects = [];
+
+    this.frameScheduler = options.frameScheduler;
+    this.semanticBus = options.semanticBus || globalThis?.semanticBus;
+
     this.config = {
-      enabled: config.enabled ?? true,
-      maxParticles: config.maxParticles ?? 2000,
-      
+      enabled: options.config?.enabled ?? true,
+      maxParticles: options.config?.maxParticles ?? 2000,
+
       // Wavefront Particles
-      wavefrontParticlesEnabled: config.wavefrontParticlesEnabled ?? true,
-      wavefrontParticlesPerRing: config.wavefrontParticlesPerRing ?? 45,
-      wavefrontParticleSpeed: config.wavefrontParticleSpeed ?? 1.0,
-      wavefrontParticleSize: config.wavefrontParticleSize ?? 0.12,
-      
+      wavefrontParticlesEnabled: options.config?.wavefrontParticlesEnabled ?? true,
+      wavefrontParticlesPerRing: options.config?.wavefrontParticlesPerRing ?? 45,
+      wavefrontParticleSpeed: options.config?.wavefrontParticleSpeed ?? 1.0,
+      wavefrontParticleSize: options.config?.wavefrontParticleSize ?? 0.12,
+
       // Resonance Sparks
-      resonanceSparksEnabled: config.resonanceSparksEnabled ?? true,
-      resonanceSparksPerWave: config.resonanceSparksPerWave ?? 60,
-      sparkLifetime: config.sparkLifetime ?? 0.8,
-      sparkGravity: config.sparkGravity ?? 0.2,
-      
+      resonanceSparksEnabled: options.config?.resonanceSparksEnabled ?? true,
+      resonanceSparksPerWave: options.config?.resonanceSparksPerWave ?? 60,
+      sparkLifetime: options.config?.sparkLifetime ?? 0.8,
+      sparkGravity: options.config?.sparkGravity ?? 0.2,
+
       // Echo Trail Particles
-      echoTrailEnabled: config.echoTrailEnabled ?? true,
-      echoTrailParticlesPerBeam: config.echoTrailParticlesPerBeam ?? 25,
-      echoTrailLifetime: config.echoTrailLifetime ?? 0.5,
-      echoTrailDrift: config.echoTrailDrift ?? 0.01,
-      
+      echoTrailEnabled: options.config?.echoTrailEnabled ?? true,
+      echoTrailParticlesPerBeam: options.config?.echoTrailParticlesPerBeam ?? 25,
+      echoTrailLifetime: options.config?.echoTrailLifetime ?? 0.5,
+      echoTrailDrift: options.config?.echoTrailDrift ?? 0.01,
+
       // Interference Particles
-      interferenceParticlesEnabled: config.interferenceParticlesEnabled ?? true,
-      interferenceParticlesPerHub: config.interferenceParticlesPerHub ?? 35,
-      interferenceOrbitSpeed: config.interferenceOrbitSpeed ?? 0.8,
-      interferenceOrbitRadius: config.interferenceOrbitRadius ?? 1.2
+      interferenceParticlesEnabled: options.config?.interferenceParticlesEnabled ?? true,
+      interferenceParticlesPerHub: options.config?.interferenceParticlesPerHub ?? 35,
+      interferenceOrbitSpeed: options.config?.interferenceOrbitSpeed ?? 0.8,
+      interferenceOrbitRadius: options.config?.interferenceOrbitRadius ?? 1.2
     };
-    
+
     // Particle pools
     this._wavefrontParticlePool = [];
     this._resonanceSparkPool = [];
     this._echoTrailPool = [];
     this._interferencePool = [];
-    
+
     // Active particles
     this._activeWavefrontParticles = [];
     this._activeSparks = [];
     this._activeEchoTrails = [];
     this._activeInterference = [];
-    
+
     // Geometry and materials
     this._particleGeometry = null;
     this._particleMaterial = null;
     this._sparkMaterial = null;
     this._echoMaterial = null;
     this._interferenceMaterial = null;
-    
+
+    // Semantic event handlers
+    this._semanticBus = null;
+    this._semanticHandlers = null;
+
     this._initParticleSystems();
+    this.bindSemanticEvents();
   }
   
   _initParticleSystems() {
     // Create particle geometry (quad)
     this._particleGeometry = new THREE.PlaneGeometry(1, 1, 1, 1);
     
-    // EPIC WAVEFRONT PARTICLE SHADER (ATM_WAVEFRONT_PARTICLE_v1)
+    // EPIC AETHER RINGS OF ETERNITY SHADER (ATM_AETHER_RINGS_v2)
     this._particleMaterial = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0.0 },
-        uColor: { value: new THREE.Color(0x7ffcff) }
+        uColor: { value: new THREE.Color(0x4a0e4e) }, // Void purple base
+        uInfluence: { value: 1.0 }
       },
       vertexShader: `
         varying vec2 vUv;
+        varying vec3 vWorldPosition;
         void main() {
           vUv = uv;
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPos.xyz;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
         uniform float uTime;
         uniform vec3 uColor;
+        uniform float uInfluence;
         varying vec2 vUv;
-        
+        varying vec3 vWorldPosition;
+
+        // Fractal iteration for Mandelbrot-inspired patterns
+        vec2 mandelbrot(vec2 z, vec2 c) {
+          return vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y) + c;
+        }
+
+        float fractalField(vec2 pos, float time) {
+          vec2 z = vec2(0.0);
+          vec2 c = pos * 2.0 - 1.0 + sin(time * 0.5) * 0.1;
+          float iterations = 0.0;
+          const int maxIter = 8;
+
+          for(int i = 0; i < maxIter; i++) {
+            z = mandelbrot(z, c);
+            if(length(z) > 2.0) break;
+            iterations += 1.0;
+          }
+
+          return iterations / float(maxIter);
+        }
+
+        // Quantum foam effect
+        float quantumFoam(vec2 uv, float time) {
+          float noise = 0.0;
+          float scale = 8.0;
+          for(int i = 0; i < 3; i++) {
+            vec2 p = uv * scale + time * 0.3 * float(i + 1);
+            noise += sin(p.x) * cos(p.y) / scale;
+            scale *= 2.0;
+          }
+          return noise * 0.5 + 0.5;
+        }
+
         void main() {
           vec2 center = vUv - 0.5;
           float dist = length(center);
-          
-          // Hot core + soft glow
-          float core = exp(-dist * dist * 12.0);
-          float glow = exp(-dist * dist * 4.0) * 0.5;
-          
-          // Shimmer
-          float shimmer = sin(uTime * 5.0 + dist * 10.0) * 0.5 + 0.5;
-          
-          vec3 finalColor = mix(uColor, vec3(1.0), core);
-          finalColor += shimmer * 0.2;
-          
-          float alpha = (core + glow) * (0.8 + shimmer * 0.2);
-          
+
+          // Reality tear distortions
+          float tear = sin(uTime * 3.0 + dist * 20.0) * 0.1;
+          vec2 distortedUv = vUv + center * tear;
+
+          // Fractal ring structure
+          float fractal = fractalField(distortedUv, uTime);
+          float ringPattern = sin(dist * 15.0 - uTime * 2.0) * 0.5 + 0.5;
+
+          // Quantum tunneling effect
+          float quantum = quantumFoam(vUv, uTime);
+          float tunnel = exp(-dist * dist * 8.0) * quantum;
+
+          // Dimensional rift
+          float rift = exp(-abs(dist - 0.3) * 20.0) * sin(uTime * 4.0 + fractal * 10.0);
+
+          // Energy tendrils reaching to infinity
+          float tendrils = 0.0;
+          for(float i = 0.0; i < 5.0; i++) {
+            float angle = atan(center.y, center.x) + i * 1.2566; // 72 degrees
+            float radial = sin(angle * 3.0 + uTime * 2.0) * 0.5 + 0.5;
+            tendrils += exp(-abs(dist - radial * 0.4) * 15.0) * (1.0 - dist);
+          }
+
+          // Combine effects
+          float core = tunnel + rift + tendrils * 0.3;
+          float halo = exp(-dist * dist * 2.0) * 0.4;
+
+          // Iridescent spectral colors
+          vec3 spectralColor = vec3(
+            0.5 + 0.5 * sin(uTime + fractal * 6.28),
+            0.5 + 0.5 * sin(uTime + 2.094 + fractal * 6.28), // 120 degrees
+            0.5 + 0.5 * sin(uTime + 4.188 + fractal * 6.28)  // 240 degrees
+          );
+
+          vec3 finalColor = mix(uColor, spectralColor, core * uInfluence);
+          finalColor += vec3(1.0, 1.0, 0.8) * rift * 0.5; // White energy bursts
+
+          float alpha = (core + halo) * uInfluence * (0.6 + quantum * 0.4);
+
           gl_FragColor = vec4(finalColor, alpha);
-          
+
           if (alpha < 0.01) discard;
         }
       `,
       transparent: true,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
       toneMapped: false,
-      customProgramCacheKey: () => 'ATM_WAVEFRONT_PARTICLE_v1'
+      customProgramCacheKey: () => 'ATM_AETHER_RINGS_v2'
     });
     
-    // Resonance Spark Material (hot white-cyan with trail)
+    // Divine Essence Fragments Material
     this._sparkMaterial = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0.0 },
@@ -143,22 +219,68 @@ export class CascadeWaveParticles {
         uniform float uLifetime;
         varying vec2 vUv;
         
+        float flowerOfLife(vec2 uv, float time) {
+          float pattern = 0.0;
+          // Central circle
+          float center = exp(-length(uv) * 20.0);
+          pattern += center;
+          // Surrounding circles for Flower of Life
+          for(int i = 0; i < 6; i++) {
+            float angle = float(i) * 1.0472; // 60 degrees
+            vec2 offset = vec2(cos(angle), sin(angle)) * 0.3;
+            float circle = exp(-length(uv - offset) * 20.0);
+            pattern += circle * 0.7;
+          }
+          // Additional layers
+          for(int i = 0; i < 12; i++) {
+            float angle = float(i) * 0.5236; // 30 degrees
+            vec2 offset = vec2(cos(angle), sin(angle)) * 0.6;
+            float circle = exp(-length(uv - offset) * 15.0);
+            pattern += circle * 0.3;
+          }
+          return pattern;
+        }
+        
+        float crystalFacet(vec2 uv, float time) {
+          // Hexagonal crystal pattern
+          float angle = atan(uv.y, uv.x);
+          float radius = length(uv);
+          // Hexagonal distance
+          float hexAngle = angle / (3.14159 / 3.0);
+          float hexRadius = radius * cos(mod(hexAngle, 1.0) - 0.5);
+          float crystal = exp(-hexRadius * hexRadius * 30.0);
+          // Facet edges
+          float facet = sin(hexAngle * 6.0) * 0.5 + 0.5;
+          crystal += facet * exp(-radius * radius * 10.0) * 0.2;
+          return crystal;
+        }
+        
         void main() {
           vec2 center = vUv - 0.5;
           float dist = length(center);
           
-          // Spark shape (elongated along velocity)
-          float spark = exp(-dist * dist * 15.0);
+          // Sacred geometry overlay
+          float sacred = flowerOfLife(center, uTime) * uLifetime;
           
-          // Trail effect
-          float trail = exp(-dist * dist * 6.0) * 0.6 * uLifetime;
+          // Crystal structure
+          float crystal = crystalFacet(center, uTime) * (0.8 + sin(uTime * 3.0) * 0.2);
           
-          // Hot core
-          float hotCore = exp(-dist * dist * 25.0);
+          // Holographic layers
+          float hologram = 0.0;
+          for(float i = 1.0; i <= 3.0; i++) {
+            float layer = sin(uTime * 2.0 / i + dist * 10.0 / i) * 0.5 + 0.5;
+            hologram += layer / i;
+          }
+          hologram *= 0.3;
           
-          vec3 finalColor = mix(uColor, vec3(1.0), hotCore);
+          // Divine essence core
+          float core = exp(-dist * dist * 25.0) * (1.0 + hologram);
           
-          float alpha = (spark + trail + hotCore) * uLifetime;
+          // Color evolution (gold to white divine)
+          vec3 divineColor = mix(uColor, vec3(1.0, 1.0, 0.9), core);
+          vec3 finalColor = divineColor + vec3(0.8, 0.6, 0.2) * sacred * 0.5;
+          
+          float alpha = (core + sacred + crystal * 0.5) * uLifetime;
           
           gl_FragColor = vec4(finalColor, alpha);
           
@@ -171,10 +293,10 @@ export class CascadeWaveParticles {
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
       toneMapped: false,
-      customProgramCacheKey: () => 'ATM_RESONANCE_SPARK_v1'
+      customProgramCacheKey: () => 'ATM_DIVINE_ESSENCE_v2'
     });
     
-    // Echo Trail Material (cyan-gold gradient)
+    // Whispering Echoes of the Ancients Material
     this._echoMaterial = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0.0 },
@@ -194,18 +316,67 @@ export class CascadeWaveParticles {
         uniform float uLifetime;
         varying vec2 vUv;
         
+        float ghostForm(vec2 uv, float time) {
+          // Flowing robe shape
+          float robe = 1.0 - abs(uv.x) * 2.0; // Vertical drape
+          robe *= exp(-abs(uv.y + 0.2) * 4.0); // Bottom drape
+          // Flowing motion
+          robe += sin(uv.x * 10.0 + time * 2.0) * 0.1 * robe;
+          return robe;
+        }
+        
+        float ancientScript(vec2 uv, float time) {
+          // Procedural glyph generation using noise
+          float script = 0.0;
+          float scale = 20.0;
+          vec2 p = uv * scale;
+          // Layer multiple frequencies
+          for(int i = 0; i < 3; i++) {
+            float freq = float(i + 1) * 2.0;
+            script += sin(p.x * freq + time) * cos(p.y * freq + time * 0.7) / freq;
+          }
+          script = script * 0.5 + 0.5;
+          // Make it glyph-like with thresholding
+          script = smoothstep(0.3, 0.7, script);
+          return script;
+        }
+        
+        float memoryFragment(vec2 uv, float time) {
+          // Floating symbols
+          float fragment = 0.0;
+          for(int i = 0; i < 5; i++) {
+            vec2 offset = vec2(sin(float(i) * 1.2566 + time), cos(float(i) * 1.2566 + time)) * 0.3;
+            float symbol = exp(-length(uv - offset) * 15.0);
+            fragment += symbol;
+          }
+          return fragment;
+        }
+        
         void main() {
           vec2 center = vUv - 0.5;
           float dist = length(center);
           
+          // Ghost form
+          float ghost = ghostForm(center, uTime);
+          
+          // Ancient script overlay
+          float script = ancientScript(center, uTime) * uLifetime;
+          
+          // Memory fragments
+          float memory = memoryFragment(center, uTime) * (0.5 + uLifetime * 0.5);
+          
+          // Temporal distortion
+          float distortion = sin(dist * 20.0 - uTime * 3.0) * 0.1;
+          vec2 distortedUv = center + vec2(distortion);
+          
           // Soft glow
-          float glow = exp(-dist * dist * 8.0);
+          float glow = exp(-length(distortedUv) * length(distortedUv) * 8.0);
           
-          // Color evolution (cyan → gold)
-          vec3 goldColor = vec3(1.0, 0.8, 0.3);
-          vec3 finalColor = mix(uColor, goldColor, 1.0 - uLifetime);
+          // Color mixing
+          vec3 ghostColor = mix(uColor, vec3(0.8, 0.9, 1.0), ghost);
+          vec3 finalColor = ghostColor + vec3(0.2, 0.3, 0.5) * script;
           
-          float alpha = glow * uLifetime;
+          float alpha = (glow + ghost * 0.5 + memory * 0.3) * uLifetime;
           
           gl_FragColor = vec4(finalColor, alpha);
           
@@ -218,10 +389,10 @@ export class CascadeWaveParticles {
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
       toneMapped: false,
-      customProgramCacheKey: () => 'ATM_ECHO_TRAIL_v1'
+      customProgramCacheKey: () => 'ATM_WHISPERING_ECHOES_v2'
     });
     
-    // Interference Particle Material (pulse-based)
+    // Harmonic Convergence Orbs Material
     this._interferenceMaterial = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0.0 },
@@ -241,22 +412,50 @@ export class CascadeWaveParticles {
         uniform float uIntensity;
         varying vec2 vUv;
         
+        float probabilityWave(vec2 uv, float time, float freq) {
+          float wave = sin(length(uv) * freq - time * freq * 0.5) * 0.5 + 0.5;
+          return wave;
+        }
+        
         void main() {
           vec2 center = vUv - 0.5;
           float dist = length(center);
           float angle = atan(center.y, center.x);
           
-          // Orbital pulse
-          float pulse = sin(angle * 3.0 + uTime * 4.0) * 0.5 + 0.5;
+          // Multi-reality layers
+          float reality1 = probabilityWave(center, uTime, 10.0);
+          float reality2 = probabilityWave(center, uTime * 1.3, 15.0);
+          float reality3 = probabilityWave(center, uTime * 0.7, 8.0);
           
-          // Core + halo
+          // Layer opacity
+          float layer1 = reality1 * exp(-dist * dist * 5.0);
+          float layer2 = reality2 * exp(-dist * dist * 3.0) * 0.7;
+          float layer3 = reality3 * exp(-dist * dist * 7.0) * 0.5;
+          
+          // Quantum superposition - multiple states visible
+          float superposition = max(max(layer1, layer2), layer3);
+          
+          // Convergence core
           float core = exp(-dist * dist * 20.0);
-          float halo = exp(-dist * dist * 5.0) * 0.4;
           
-          vec3 finalColor = mix(uColor, vec3(1.0), core);
-          finalColor += pulse * 0.3 * uIntensity;
+          // Reality bridge connections
+          float bridges = 0.0;
+          for(int i = 0; i < 6; i++) {
+            float bridgeAngle = float(i) * 1.0472;
+            float bridge = exp(-abs(angle - bridgeAngle) * 5.0) * exp(-dist * 2.0);
+            bridges += bridge;
+          }
           
-          float alpha = (core + halo) * uIntensity;
+          // Color based on dominant reality
+          vec3 color1 = uColor; // base
+          vec3 color2 = vec3(0.8, 0.2, 0.8); // purple
+          vec3 color3 = vec3(0.2, 0.8, 0.8); // cyan
+          
+          vec3 finalColor = color1 * layer1 + color2 * layer2 + color3 * layer3;
+          finalColor = normalize(finalColor) * length(finalColor); // normalize mix
+          finalColor += vec3(1.0) * core * 0.5;
+          
+          float alpha = (superposition + core + bridges * 0.2) * uIntensity;
           
           gl_FragColor = vec4(finalColor, alpha);
           
@@ -269,7 +468,7 @@ export class CascadeWaveParticles {
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
       toneMapped: false,
-      customProgramCacheKey: () => 'ATM_INTERFERENCE_PARTICLE_v1'
+      customProgramCacheKey: () => 'ATM_HARMONIC_CONVERGENCE_v2'
     });
     
     // Initialize particle pools
@@ -377,6 +576,7 @@ export class CascadeWaveParticles {
       particle.lifetime = 1.5; // 1.5 seconds
       particle.age = 0;
       particle.influence = influence;
+      particle.mesh.material.uniforms.uInfluence.value = influence;
       particle.angle = angle;
       particle.angularSpeed = (this.config.wavefrontParticleSpeed * 2.0) / ringRadius;
     }
@@ -537,11 +737,7 @@ export class CascadeWaveParticles {
       // Fade out
       const lifetimeRatio = 1.0 - (particle.age / particle.lifetime);
       particle.mesh.material.uniforms.uTime.value = time;
-      particle.mesh.material.uniforms.uColor.value.setRGB(
-        0.5 * lifetimeRatio,
-        1.0 * lifetimeRatio,
-        1.0 * lifetimeRatio
-      );
+      particle.mesh.material.uniforms.uInfluence.value = particle.influence * lifetimeRatio;
       particle.mesh.scale.setScalar(this.config.wavefrontParticleSize * lifetimeRatio);
     }
   }

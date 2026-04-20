@@ -356,7 +356,14 @@ class EnhancedPictogramInstance {
         if (!this.active || this.isOrphanFading) return;
         this.isOrphanFading = true;
         this.orphanFadeAge = 0.0;
-        this.link = null;
+        // NOTE: this.link is intentionally NOT nulled here.
+        // Preserving the link reference allows GlyphFusionZone's convergence
+        // detection to still resolve this pictogram's endpoint during the
+        // orphan fade window (ORPHAN_FADE_DURATION = 0.55s). This fixes the
+        // source/target asymmetry where singularities only spawned at source
+        // nodes because the link was cleared before fusion could detect the
+        // pictogram at the target endpoint.
+        // Link will be nulled by reset() when the fade completes.
         this.linkContextCache = null;
         this.isMorphing = false;
         this.targetState = null;
