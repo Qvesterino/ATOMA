@@ -1445,10 +1445,11 @@ const adapter = this._createLinkSystemAdapter(
             }
         }
 
-        if (!flags.loadPressureHigh && current.loadPressure >= 0.75) {
+        // Rebalanced: 0.75→0.55, exit 0.65→0.45 per METRICS_REBALANCE_V2_FINAL.md
+        if (!flags.loadPressureHigh && current.loadPressure >= 0.55) {
             emit('metric:loadPressureHigh', current.loadPressure, prevLoad === null ? 0 : current.loadPressure - prevLoad, { metric: 'loadPressure' });
             flags.loadPressureHigh = true;
-        } else if (flags.loadPressureHigh && current.loadPressure <= 0.65) {
+        } else if (flags.loadPressureHigh && current.loadPressure <= 0.45) {
             flags.loadPressureHigh = false;
         }
 
@@ -1468,7 +1469,8 @@ const adapter = this._createLinkSystemAdapter(
 
         if (prevCorruption !== null) {
             const corruptionDelta = current.corruptionLevel - prevCorruption;
-            const crossedCorruption = prevCorruption < 0.6 && current.corruptionLevel >= 0.6;
+            // Rebalanced: 0.6→0.25 per METRICS_REBALANCE_V2_FINAL.md
+            const crossedCorruption = prevCorruption < 0.25 && current.corruptionLevel >= 0.25;
             if (corruptionDelta >= SEMANTIC_DELTA.corruptionLevel || crossedCorruption) {
                 emit('network:corruptionSpread', current.corruptionLevel, corruptionDelta, { metric: 'corruptionLevel' }, semanticBus.priority?.INTERACTIVE);
             }
@@ -1499,26 +1501,28 @@ const adapter = this._createLinkSystemAdapter(
         };
         const last = this._semanticSignalState?.last || {};
 
-        if (current.networkSynergy >= 0.82 && (last.networkSynergy ?? 0) < 0.82) {
+        // Rebalanced per METRICS_REBALANCE_V2_FINAL.md R2
+        // Network averages: synergy~0.35, harmony~0.48, corruption~0.08, load~0.40, stress~0.40
+        if (current.networkSynergy >= 0.45 && (last.networkSynergy ?? 0) < 0.45) {
             semanticBus.emit('event:synergyCascade', {
                 value: current.networkSynergy
             });
         }
 
-        if (current.harmonyFlow >= 0.85 && (last.harmonyFlow ?? 0) < 0.85) {
+        if (current.harmonyFlow >= 0.55 && (last.harmonyFlow ?? 0) < 0.55) {
             semanticBus.emit('event:harmonyResonance', {
                 value: current.harmonyFlow
             });
         }
 
-        if (current.corruptionLevel >= 0.6 && (last.corruptionLevel ?? 0) < 0.6) {
+        if (current.corruptionLevel >= 0.25 && (last.corruptionLevel ?? 0) < 0.25) {
             semanticBus.emit('event:corruptionOutbreak', {
                 value: current.corruptionLevel
             });
         }
 
-        const loadCollapseNow = current.loadPressure >= 0.8 && current.networkStress >= 0.6;
-        const loadCollapseBefore = (last.loadPressure ?? 0) >= 0.8 && (last.networkStress ?? 0) >= 0.6;
+        const loadCollapseNow = current.loadPressure >= 0.55 && current.networkStress >= 0.40;
+        const loadCollapseBefore = (last.loadPressure ?? 0) >= 0.55 && (last.networkStress ?? 0) >= 0.40;
         if (loadCollapseNow && !loadCollapseBefore) {
             semanticBus.emit('event:loadCollapse', {
                 load: current.loadPressure,
@@ -1526,7 +1530,7 @@ const adapter = this._createLinkSystemAdapter(
             });
         }
 
-        if (current.networkStress >= 0.75 && (last.networkStress ?? 0) < 0.75) {
+        if (current.networkStress >= 0.50 && (last.networkStress ?? 0) < 0.50) {
             semanticBus.emit('event:instabilityTrap', {
                 value: current.networkStress
             });

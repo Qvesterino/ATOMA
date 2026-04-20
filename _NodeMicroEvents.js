@@ -117,8 +117,29 @@ export class NodeMicroEvents {
       corruption: { low: 0.3, mid: 0.55, high: 0.75 },
       loadPressure: { low: 0.3, mid: 0.55, high: 0.75 },
       clarity:    { low: 0.25, mid: 0.5, high: 0.75 },
+      // Selection resonance cascade
+      selectionCascade: {
+        enabled: true,
+        maxHops: 3,
+        hopDelayMs: 300,
+        maxAffectedNodes: 20,
+        cooldownMs: 2000,
+        colors: [0xccffff, 0x00ccff, 0x00aa99, 0x006666],
+        ringOpacities: [0.8, 0.5, 0.3, 0.15],
+        ringDurations: [1.5, 1.2, 1.0, 0.8],
+        flashIntensities: [0.6, 0.3, 0.15, 0.08],
+        linkPulseSize: 0.06,
+      },
     };
-    
+
+    // Selection cascade state
+    this._lastSelectionCascadeTime = 0;
+    this._selectionCascadeTimers = [];
+    this._semanticSubscriptions = [];
+
+    // Subscribe to selection events
+    this._setupSelectionCascadeSubscription();
+
     console.log('✓ Node Micro-Events 2.0 initialized (epic edition)');
   }
   
@@ -1588,6 +1609,42 @@ export class NodeMicroEvents {
           });
         }
         break;
+
+      // ── SELECTION RESONANCE CASCADE ─────────────────────────────
+      case 'selection_flash':
+        if (visual.mesh?.material?.emissiveIntensity !== undefined) {
+          const flashCurve = Math.sin(progress * Math.PI);
+          visual.mesh.material.emissiveIntensity =
+            visual.originalIntensity + (visual.peakIntensity - visual.originalIntensity) * flashCurve;
+        }
+        break;
+
+      case 'selection_cascade_ring':
+        // Main ring expands and fades
+        if (visual.ring) {
+          const ringScale = 1 + progress * 2.0;
+          visual.ring.scale.setScalar(ringScale);
+          visual.ring.material.opacity = visual.baseOpacity * (1 - progress);
+        }
+        // Echo ring follows behind
+        if (visual.echoRing) {
+          const echoProgress = Math.max(0, progress - 0.15);
+          const echoScale = 1 + echoProgress * 2.5;
+          visual.echoRing.scale.setScalar(echoScale);
+          visual.echoRing.material.opacity = visual.baseOpacity * 0.3 * Math.max(0, 1 - echoProgress);
+        }
+        break;
+
+      case 'selection_link_pulse':
+        // Pulse travels from source to target
+        if (visual.pulse && visual.fromPos && visual.toPos) {
+          const t = easeOut;
+          visual.pulse.position.lerpVectors(visual.fromPos, visual.toPos, t);
+          visual.pulse.material.opacity = visual.baseOpacity * Math.max(0, 1 - progress * 0.5);
+          const sizeScale = 1 + 0.3 * Math.sin(progress * Math.PI);
+          visual.pulse.scale.setScalar(sizeScale);
+        }
+        break;
     }
   }
   
@@ -1817,6 +1874,273 @@ export class NodeMicroEvents {
     };
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // SELECTION RESONANCE CASCADE
+  // Visual chain reaction on node select — shows network REACH
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Subscribe to node.selection semantic event to trigger cascade.
+   */
+  _setupSelectionCascadeSubscription() {
+    const bus = this._resolveMetricBus();
+    if (!bus) return;
+
+    const handler = (payload) => {
+      if (payload?.type !== 'select') return;
+      const node = this._resolveCascadeNode(payload.nodeId);
+      if (node) this.triggerSelectionCascade(node);
+    };
+
+    if (typeof bus.on === 'function') {
+      bus.on('node.selection', handler);
+    } else if (typeof bus.subscribe === 'function') {
+      bus.subscribe('node.selection', handler);
+    }
+
+    this._semanticSubscriptions.push(['node.selection', handler]);
+  }
+
+  /**
+   * Resolve a node by ID from the game's aiNodes collection.
+   */
+  _resolveCascadeNode(nodeId) {
+    if (!nodeId) return null;
+
+    // Try registered nodes first
+    for (const [, data] of this.nodeEvents) {
+      const n = data.node;
+      if (n?.userData?.nodeId === nodeId || n?.id === nodeId || n?.uuid === nodeId) return n;
+    }
+
+    // Fallback: global game nodes
+    const aiNodes = globalThis?.game?.aiNodes;
+    if (Array.isArray(aiNodes)) {
+      return aiNodes.find(n => n?.userData?.nodeId === nodeId || n?.id === nodeId || n?.uuid === nodeId) || null;
+    }
+    if (aiNodes?.nodes instanceof Map) {
+      for (const [, n] of aiNodes.nodes) {
+        if (n?.userData?.nodeId === nodeId || n?.id === nodeId || n?.uuid === nodeId) return n;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Get the linking system for BFS traversal.
+   */
+  _getLinkingSystem() {
+    return globalThis?.game?.linkingSystem || null;
+  }
+
+  /**
+   * Get all links for a node via the linking system or node userData.
+   */
+  _getLinksForNode(node) {
+    const ls = this._getLinkingSystem();
+    if (ls && typeof ls.getLinksForNode === 'function') {
+      return ls.getLinksForNode(node);
+    }
+    return node?.userData?.links || [];
+  }
+
+  /**
+   * SELECTION RESONANCE CASCADE — Main trigger.
+   * BFS from selected node through links (max 3 hops).
+   * Each hop creates delayed ring + flash + link pulse with diminishing intensity.
+   */
+  triggerSelectionCascade(sourceNode) {
+    if (!sourceNode) return;
+
+    const cfg = this.config.selectionCascade;
+    if (!cfg.enabled) return;
+
+    // Cooldown check
+    const now = Date.now();
+    if (now - this._lastSelectionCascadeTime < cfg.cooldownMs) return;
+    this._lastSelectionCascadeTime = now;
+
+    // Clear any previous pending timers
+    for (const timer of this._selectionCascadeTimers) {
+      clearTimeout(timer);
+    }
+    this._selectionCascadeTimers = [];
+
+    // BFS traversal through links
+    const visited = new Set();
+    visited.add(sourceNode.uuid);
+    const hopSchedule = []; // { node, hop, fromNode?, link? }
+
+    const queue = [{ node: sourceNode, hop: 0 }];
+    let totalAffected = 0;
+
+    while (queue.length > 0 && totalAffected < cfg.maxAffectedNodes) {
+      const { node, hop } = queue.shift();
+      if (hop > cfg.maxHops) continue;
+
+      // Schedule effects for this node at this hop
+      hopSchedule.push({ node, hop });
+      totalAffected++;
+
+      if (hop >= cfg.maxHops) continue;
+
+      // Find connected neighbors
+      const links = this._getLinksForNode(node);
+      for (const link of links) {
+        const neighbor = (link.source === node) ? link.target
+                       : (link.target === node) ? link.source
+                       : null;
+        if (!neighbor || visited.has(neighbor.uuid)) continue;
+        visited.add(neighbor.uuid);
+
+        // Schedule link pulse + neighbor effects
+        hopSchedule.push({
+          node: neighbor,
+          hop: hop + 1,
+          fromNode: node,
+          link,
+        });
+
+        queue.push({ node: neighbor, hop: hop + 1 });
+      }
+    }
+
+    // Execute scheduled effects with staggered delays
+    for (const item of hopSchedule) {
+      const delay = item.hop * cfg.hopDelayMs;
+      const hopIdx = Math.min(item.hop, cfg.colors.length - 1);
+      const color = cfg.colors[hopIdx];
+      const opacity = cfg.ringOpacities[hopIdx];
+      const duration = cfg.ringDurations[hopIdx];
+      const flashIntensity = cfg.flashIntensities[hopIdx];
+
+      const timer = setTimeout(() => {
+        // Node flash
+        this._createSelectionFlash(item.node, flashIntensity, duration * 0.3);
+        // Expanding ring
+        this._createSelectionRing(item.node, color, opacity, duration);
+        // Link pulse (if this node was reached via a link)
+        if (item.fromNode && item.link) {
+          this._createLinkPulse(item.fromNode, item.node, color, opacity);
+        }
+      }, delay);
+
+      this._selectionCascadeTimers.push(timer);
+    }
+  }
+
+  /**
+   * Create a brief emissive flash on a node's meshes.
+   */
+  _createSelectionFlash(node, intensity, duration) {
+    if (!node?.traverse) return;
+
+    node.traverse((child) => {
+      if (!child.isMesh || !child.material) return;
+      if (child.material.emissiveIntensity === undefined) return;
+
+      const key = `${child.uuid}_sel_flash_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const origIntensity = child.material.emissiveIntensity ?? 0;
+
+      const visual = {
+        type: 'selection_flash',
+        mesh: child,
+        startTime: Date.now(),
+        duration: duration || 0.3,
+        originalIntensity: origIntensity,
+        peakIntensity: origIntensity + intensity,
+      };
+
+      this.activeVisuals.set(key, visual);
+    });
+  }
+
+  /**
+   * Create an expanding ring at a node's position (selection cascade style).
+   */
+  _createSelectionRing(node, color, opacity, duration) {
+    if (!node?.position || !this.scene) return;
+
+    const ringGeo = this._getRingGeometry(0.4, 0.48, 48);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.position.copy(node.position);
+    ring.rotation.x = Math.PI / 2;
+    this.scene.add(ring);
+
+    // Echo ring (delayed, dimmer)
+    const echoGeo = this._getRingGeometry(0.6, 0.63, 48);
+    const echoMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: opacity * 0.3,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const echoRing = new THREE.Mesh(echoGeo, echoMat);
+    echoRing.position.copy(node.position);
+    echoRing.rotation.x = Math.PI / 2;
+    this.scene.add(echoRing);
+
+    const key = `sel_ring_${node.uuid}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const visual = {
+      type: 'selection_cascade_ring',
+      node,
+      ring,
+      echoRing,
+      startTime: Date.now(),
+      duration: duration || 1.2,
+      baseOpacity: opacity,
+      baseColor: new THREE.Color(color),
+    };
+
+    this.activeVisuals.set(key, visual);
+  }
+
+  /**
+   * Create a small glowing sphere that travels along a link from source to target.
+   */
+  _createLinkPulse(fromNode, toNode, color, opacity) {
+    if (!fromNode?.position || !toNode?.position || !this.scene) return;
+
+    const cfg = this.config.selectionCascade;
+    const pulseGeo = this._getSphereGeometry(cfg.linkPulseSize, 8, 6);
+    const pulseMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: opacity * 0.8,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const pulse = new THREE.Mesh(pulseGeo, pulseMat);
+    pulse.position.copy(fromNode.position);
+    this.scene.add(pulse);
+
+    const key = `sel_pulse_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const visual = {
+      type: 'selection_link_pulse',
+      pulse,
+      fromPos: fromNode.position.clone(),
+      toPos: toNode.position.clone(),
+      startTime: Date.now(),
+      duration: 0.3,
+      baseOpacity: opacity * 0.8,
+    };
+
+    this.activeVisuals.set(key, visual);
+  }
+
   /**
    * Dispose all resources and clean up
    * CRITICAL: Call this when removing NodeMicroEvents to prevent memory leaks
@@ -1859,6 +2183,22 @@ export class NodeMicroEvents {
       });
       this.materialPool = { rings: [], spheres: [], cylinders: [] };
     }
+
+    // Clear pending selection cascade timers
+    for (const timer of this._selectionCascadeTimers) {
+      clearTimeout(timer);
+    }
+    this._selectionCascadeTimers = [];
+
+    // Unsubscribe from semantic events
+    const bus = this._resolveMetricBus();
+    const off = bus?.off?.bind(bus) || bus?.unsubscribe?.bind(bus);
+    if (off) {
+      for (const [eventName, handler] of this._semanticSubscriptions) {
+        off(eventName, handler);
+      }
+    }
+    this._semanticSubscriptions = [];
 
     // Reset timers
     this._elapsedTime = 0;

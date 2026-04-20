@@ -45,36 +45,48 @@ const RELAXATION = {
   loadPressure: 0.07
 };
 
+// Rebalanced per METRICS_REBALANCE_V2_FINAL.md R4
+// Key change: corruptionVulnerabilityGain 0.035→0.022 prevents Quantum runaway
+// corruptionHarmonySuppression increased: harmony fights corruption harder
+// stability gains slightly increased, losses slightly reduced
 const INTERACTION = {
   harmonyCoherenceGain: 0.025,
-  harmonyCorruptionLoss: 0.06,
-  corruptionVulnerabilityGain: 0.035,
-  corruptionHarmonySuppression: 0.045,
-  corruptionLoadGain: 0.02,
-  stabilityHarmonyGain: 0.015,
-  stabilityCorruptionLoss: 0.04,
-  stabilityLoadLoss: 0.02
+  harmonyCorruptionLoss: 0.055,
+  corruptionVulnerabilityGain: 0.022,
+  corruptionHarmonySuppression: 0.055,
+  corruptionLoadGain: 0.015,
+  stabilityHarmonyGain: 0.020,
+  stabilityCorruptionLoss: 0.035,
+  stabilityLoadLoss: 0.015
 };
 
+// R6: Added corruption equalization — subtle baseline bleed through links
+// Complements LinkCorruptionTransmission_v1 (which handles complex propagation)
+// This is the fundamental "corruption bleeds through connections" mechanic
+// Only flows from higher corruption → lower corruption (asymmetric, like infection)
+// Rate is intentionally low (0.004) to avoid competing with LinkCorruptionTransmission
 const LINK_EQUALIZE = {
   harmony: 0.02,
-  stability: 0.015
+  stability: 0.015,
+  corruption: 0.004
 };
 
+// Rebalanced per METRICS_REBALANCE_V2_FINAL.md R3
+// Synergy steady-state is 0.26-0.51 after A2 fix, so thresholds must match
 const SYNERGY_RESONANCE = {
-  threshold: 0.75,
-  harmonyGain: 0.002,
-  stabilityGain: 0.001,
-  maxHarmonyPerTick: 0.01,
-  maxStabilityPerTick: 0.005
+  threshold: 0.50,
+  harmonyGain: 0.003,
+  stabilityGain: 0.0015,
+  maxHarmonyPerTick: 0.012,
+  maxStabilityPerTick: 0.006
 };
 
 const SYNERGY_BURST = {
-  threshold: 0.85,
-  cooldownTicks: 120,
-  selfHarmonyBoost: 0.02,
-  selfStabilityBoost: 0.01,
-  neighborHarmonyBoost: 0.01
+  threshold: 0.60,
+  cooldownTicks: 80,
+  selfHarmonyBoost: 0.025,
+  selfStabilityBoost: 0.012,
+  neighborHarmonyBoost: 0.012
 };
 
 const UNLINKED_WRITE_POLICY = {
@@ -100,9 +112,10 @@ const SYNERGY_DERIVATION = {
 };
 
 const DYNAMICS_INERTIA = 0.85;
+// Rebalanced per METRICS_REBALANCE_V2_FINAL.md R3
 const NODE_SEMANTIC_EVENT_THRESHOLDS = {
-  synergyBurst: 0.85,
-  corruptionSpike: 0.65
+  synergyBurst: 0.60,
+  corruptionSpike: 0.50
 };
 const NODE_SEMANTIC_COOLDOWN_MS = 2000;
 
@@ -152,12 +165,15 @@ function emitSemanticMetricEvent(metric, before, after, nodeId) {
   const falling = delta < 0;
 
   let eventName = null;
+  // Rebalanced per METRICS_REBALANCE_V2_FINAL.md R5
+  // harmonyPeak: 0.85→0.65 (was unreachable for most archetypes)
+  // loadPressureHigh: 0.75→0.55 (was unreachable for all archetypes)
   switch (metric) {
     case 'synergy':
       if (rising && Math.abs(delta) >= threshold) eventName = 'metric:synergySpike';
       break;
     case 'harmony':
-      if (before < 0.85 && after >= 0.85) eventName = 'metric:harmonyPeak';
+      if (before < 0.65 && after >= 0.65) eventName = 'metric:harmonyPeak';
       break;
     case 'stability':
       if (falling && Math.abs(delta) >= threshold) eventName = 'metric:stabilityDrop';
@@ -166,7 +182,7 @@ function emitSemanticMetricEvent(metric, before, after, nodeId) {
       if (rising && Math.abs(delta) >= threshold) eventName = 'metric:corruptionRise';
       break;
     case 'loadPressure':
-      if (before < 0.75 && after >= 0.75) eventName = 'metric:loadPressureHigh';
+      if (before < 0.55 && after >= 0.55) eventName = 'metric:loadPressureHigh';
       break;
     default:
       break;
@@ -390,24 +406,30 @@ function resolveLinkList(linkSystem) {
   return [];
 }
 
-function deriveSynergyTarget(metrics) {
+function deriveSynergyTarget(metrics, archetypeMetrics = null) {
   const harmony = clamp01(metrics.harmony ?? 0);
   const stability = clamp01(metrics.stability ?? 0);
   const corruption = clamp01(metrics.corruption ?? 0);
   const loadPressure = clamp01(metrics.loadPressure ?? 0);
 
-  const harmonyField = harmony * harmony;
+  // Simple product formula: how well current metrics support synergy
+  // All nodes treated equally — no special resonance or extreme archetypes
+  const harmonyField = harmony;
   const stabilityField = stability;
   const corruptionField = 1 - corruption * SYNERGY_DERIVATION.corruptionDamping;
   const loadField = 1 - loadPressure * SYNERGY_DERIVATION.loadDamping;
 
-  const base = harmonyField * stabilityField * corruptionField * loadField;
-  const resonance =
-    Math.max(0, harmony - SYNERGY_DERIVATION.resonanceHarmonyThreshold) *
-    Math.max(0, stability - SYNERGY_DERIVATION.resonanceStabilityThreshold) *
-    SYNERGY_DERIVATION.resonanceScale;
+  const derived = harmonyField * stabilityField * corruptionField * loadField;
 
-  return clamp01(base + resonance);
+  // Archetype DNA component: preserve the node's inherent synergy potential
+  // This prevents synergy from collapsing to near-zero for all archetypes
+  const archetypeBase = archetypeMetrics?.synergy ?? derived;
+
+  // Blend: 60% archetype DNA + 40% runtime derived
+  // This balances archetype identity with dynamic gameplay behavior
+  const target = archetypeBase * 0.60 + derived * 0.40;
+
+  return clamp01(target);
 }
 
 function applyCrossMetricInteractions(metrics, base, dtScale) {
@@ -742,7 +764,8 @@ function deriveSynergy(node, dtScale = 1) {
   const m = ensureMetrics(node);
   if (!m) return;
   const id = getNodeId(node);
-  const target = deriveSynergyTarget(m);
+  const archetype = node?.userData?.archetypeMetrics || null;
+  const target = deriveSynergyTarget(m, archetype);
   const smoothing = Math.min(1, SYNERGY_DERIVATION.smoothing * dtScale);
   const next = (m.synergy ?? 0) + (target - (m.synergy ?? 0)) * smoothing;
   return writeMetric(m, 'synergy', next, id, node);
@@ -844,6 +867,21 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
       const dSt = ((mb.stability ?? 0) - (ma.stability ?? 0)) * equalizeStability;
       if (writeMetric(ma, 'stability', (ma.stability ?? 0) + dSt, idA, nodeA)) touchedNodes.add(nodeA);
       if (writeMetric(mb, 'stability', (mb.stability ?? 0) - dSt, idB, nodeB)) touchedNodes.add(nodeB);
+
+      // R6: Corruption equalization — bleeds from higher to lower corruption node
+      // Asymmetric: only the less-corrupted node gains corruption (infection direction)
+      // This is the baseline mechanic; LinkCorruptionTransmission_v1 handles complex propagation
+      const equalizeCorruption = LINK_EQUALIZE.corruption * strength * dtScale;
+      const corrA = ma.corruption ?? 0;
+      const corrB = mb.corruption ?? 0;
+      const dCorr = (corrB - corrA) * equalizeCorruption;
+      if (dCorr > 0) {
+        // B has more corruption → A gets infected
+        if (writeMetric(ma, 'corruption', corrA + dCorr, idA, nodeA)) touchedNodes.add(nodeA);
+      } else if (dCorr < 0) {
+        // A has more corruption → B gets infected
+        if (writeMetric(mb, 'corruption', corrB - dCorr, idB, nodeB)) touchedNodes.add(nodeB);
+      }
 
       const synergyA = clamp01(ma.synergy ?? 0);
       const synergyB = clamp01(mb.synergy ?? 0);

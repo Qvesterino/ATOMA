@@ -578,7 +578,15 @@ export class T2_HarmonyVisualConsumer_v1 {
       ? { duration: 0.85, intensityMultiplier: 1.8, scaleMultiplier: 1.3 }
       : { duration: 0.55, intensityMultiplier: 1.25, scaleMultiplier: 1.12 };
 
-    this.flashHarmonyField(node, boostOptions);
+    const overrideHarmony = this._normalizeHarmonyValue(payload.value ?? (tier === 'high' ? 0.9 : 0.65));
+    const minimumHarmony = tier === 'high' ? 0.35 : 0.25;
+
+    this.flashHarmonyField(node, {
+      ...boostOptions,
+      overrideHarmonyLevel: overrideHarmony,
+      minimumHarmonyLevel: minimumHarmony,
+      ignoreLinkRequirement: true
+    });
 
     if (tier === 'high') {
       this.emitHealingPulse(node);
@@ -781,7 +789,10 @@ export class T2_HarmonyVisualConsumer_v1 {
     const activeLinkedNodeKeys = options.activeLinkedNodeKeys instanceof Set
       ? options.activeLinkedNodeKeys
       : this._collectActiveLinkedNodeKeys(this.harmonySystem);
-    if (!this._hasNodeActiveLinks(node, activeLinkedNodeKeys)) return false;
+
+    if (!options.ignoreLinkRequirement && !this._hasNodeActiveLinks(node, activeLinkedNodeKeys)) {
+      return false;
+    }
 
     if (!this.registry.nodeAuras.has(node.uuid)) {
       this.registerNode(node);
@@ -790,8 +801,12 @@ export class T2_HarmonyVisualConsumer_v1 {
     const auraData = this.registry.nodeAuras.get(node.uuid);
     if (!auraData) return false;
 
-    const harmonyLevel = this._resolveNodeHarmonyLevel(node, this.harmonySystem);
-    if (!Number.isFinite(harmonyLevel) || harmonyLevel < this.config.harmonyHighThreshold) {
+    const harmonyLevel = options.overrideHarmonyLevel !== undefined && options.overrideHarmonyLevel !== null
+      ? this._normalizeHarmonyValue(options.overrideHarmonyLevel)
+      : this._resolveNodeHarmonyLevel(node, this.harmonySystem);
+
+    const minimumThreshold = options.minimumHarmonyLevel ?? this.config.harmonyHighThreshold;
+    if (!Number.isFinite(harmonyLevel) || harmonyLevel < minimumThreshold) {
       return false;
     }
 
@@ -970,21 +985,26 @@ export class T2_HarmonyVisualConsumer_v1 {
         const hasActiveLinks = this._hasNodeActiveLinks(node, activeLinkedNodeKeys);
         const hasPulseBoost = !!auraData.pulseBoost?.remaining;
 
-        if (hasActiveLinks && (harmonyLevel >= this.config.harmonyHighThreshold || hasPulseBoost)) {
-          const harmonyIntensity = hasPulseBoost
-            ? Math.max(0.35, Math.max(
-                0,
-                Math.min(1, (harmonyLevel - this.config.harmonyHighThreshold) / (1 - this.config.harmonyHighThreshold))
-              ))
-            : Math.max(
+        // Use harmonyFieldThreshold (0.5) as base visibility threshold
+        // harmonyHighThreshold (0.7) is used for healing pulse emission only
+        const baseThreshold = this.config.harmonyFieldThreshold;
+        const isHarmonyVisible = harmonyLevel >= baseThreshold || hasPulseBoost;
+
+        if (isHarmonyVisible) {
+          // Scale intensity from baseThreshold to 1.0, with pulseBoost providing a floor
+          const rawIntensity = Math.max(
             0,
-            Math.min(1, (harmonyLevel - this.config.harmonyHighThreshold) / (1 - this.config.harmonyHighThreshold))
+            Math.min(1, (harmonyLevel - baseThreshold) / (1 - baseThreshold))
           );
+          const harmonyIntensity = hasPulseBoost
+            ? Math.max(0.35, rawIntensity)
+            : rawIntensity;
 
           this._updateHarmonyFieldVisual(auraData, deltaTime, harmonyIntensity * lodScale);
           auraData.auraGroup.visible = true;
 
-          if (harmonyLevel >= this.config.pulseThreshold) {
+          // Healing pulses still require high harmony AND active links
+          if (hasActiveLinks && harmonyLevel >= this.config.pulseThreshold) {
             const pulseInterval = 1.0 / this.config.pulseEmitRate;
             const timeSinceLastPulse = this.registry.time % pulseInterval;
             if (timeSinceLastPulse < deltaTime) {

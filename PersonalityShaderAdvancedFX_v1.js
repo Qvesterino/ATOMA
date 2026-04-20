@@ -202,6 +202,91 @@ export class PersonalityShaderAdvancedFX_v1 {
         vec3 offset = position * corruption * jitter * 0.08;
         return position + offset;
       }
+
+      // =====================================================
+      // BREATHING ARCHITECTURE — Metric-driven shape morphing
+      // Node geometry IS the metric visualization
+      // =====================================================
+
+      // Harmony: swell outward, smooth normals, organic rounding
+      // High harmony → node expands, becomes rounder, more organic
+      vec3 harmonySwell(vec3 pos, vec3 norm, float harmony, float time) {
+        float swell = harmony * 0.12;
+        float organicA = sin(pos.x * 3.0 + time * 0.5) * sin(pos.y * 4.0 + time * 0.3);
+        float organicB = sin(pos.z * 2.5 + time * 0.4) * cos(pos.x * 2.0 - time * 0.2);
+        float organicNoise = (organicA + organicB) * 0.015 * harmony;
+        return pos + norm * (swell + organicNoise);
+      }
+
+      // Corruption: contract inward, angular faceting, crystalline
+      // High corruption → node contracts, becomes angular, crystalline
+      vec3 corruptionCrystallize(vec3 pos, vec3 norm, float corruption, float time) {
+        float contraction = corruption * 0.06;
+        // Facet effect: snap toward hexagonal grid
+        float facets = 5.0;
+        vec3 faceted = floor(pos * facets + 0.5) / facets;
+        float facetMix = corruption * corruption * 0.25;
+        // Add crystalline shimmer
+        float shimmer = sin(dot(pos, vec3(1.0, 2.0, 3.0)) * 10.0 + time * 2.0) * 0.01 * corruption;
+        vec3 result = mix(pos - norm * contraction, faceted, facetMix);
+        return result + norm * shimmer;
+      }
+
+      // Stability: push toward perfect sphere (geometric ideal)
+      // High stability → node becomes more perfectly geometric
+      vec3 stabilityPerfect(vec3 pos, float stability) {
+        float currentRadius = length(pos);
+        if (currentRadius < 0.001) return pos;
+        float idealRadius = 1.0;
+        float correction = (idealRadius - currentRadius) * stability * 0.08;
+        return pos + normalize(pos) * correction;
+      }
+
+      // Load pressure: flatten along Y axis (compression)
+      // High load → node compresses vertically like under weight
+      vec3 loadFlatten(vec3 pos, float loadPressure) {
+        float flattenFactor = 1.0 - loadPressure * 0.2;
+        pos.y *= flattenFactor;
+        // Slight horizontal expansion to compensate (volume preservation)
+        float expand = 1.0 + loadPressure * 0.06;
+        pos.xz *= expand;
+        return pos;
+      }
+
+      // Synergy: subtle internal complexity (fractal hint)
+      // High synergy → node develops intricate surface detail
+      vec3 synergyDetail(vec3 pos, vec3 norm, float synergy, float time) {
+        float detail = sin(pos.x * 8.0 + time * 1.2)
+                     * sin(pos.y * 8.0 - time * 0.9)
+                     * sin(pos.z * 8.0 + time * 0.6);
+        return pos + norm * detail * synergy * 0.018;
+      }
+
+      // Combined breathing displacement — the full pipeline
+      vec3 breathingDisplacement(
+        vec3 pos, vec3 norm,
+        float harmony, float corruption, float stability,
+        float loadPressure, float synergy, float time
+      ) {
+        vec3 result = pos;
+
+        // 1. Harmony swell (organic expansion)
+        result = harmonySwell(result, norm, harmony, time);
+
+        // 2. Corruption crystallize (angular contraction)
+        result = corruptionCrystallize(result, norm, corruption, time);
+
+        // 3. Stability perfection (geometric correction)
+        result = stabilityPerfect(result, stability);
+
+        // 4. Load flattening (compression)
+        result = loadFlatten(result, loadPressure);
+
+        // 5. Synergy detail (surface complexity)
+        result = synergyDetail(result, norm, synergy, time);
+
+        return result;
+      }
     `;
   }
 
@@ -390,6 +475,20 @@ export class PersonalityShaderAdvancedFX_v1 {
           vec3 fxPos = energyRipple(position, uSynergy * 0.75 + uLoadPressure * 0.25, uTime);
           float fxMix = clamp(uQuality * (1.0 - uLowFXMode * 0.5) * 0.55, 0.0, 1.0);
           distortedPos = mix(position, fxPos, fxMix);
+        `;
+      
+      case 'breathing':
+        // BREATHING ARCHITECTURE: Node geometry IS the metric visualization
+        // Harmony → swell, Corruption → crystallize, Stability → perfect,
+        // Load → flatten, Synergy → surface detail
+        return `
+          vec3 breathPos = breathingDisplacement(
+            position, normal,
+            uHarmony, uCorruption, uStability,
+            uLoadPressure, uSynergy, uTime
+          );
+          float breathMix = clamp((1.0 - uLowFXMode * 0.3) * uQuality * 0.85, 0.0, 1.0);
+          distortedPos = mix(position, breathPos, breathMix);
         `;
       
       default:

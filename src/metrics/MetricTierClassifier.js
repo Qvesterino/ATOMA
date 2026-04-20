@@ -1,9 +1,16 @@
+// Rebalanced per METRICS_REBALANCE_V2_FINAL.md R1
+// Thresholds differentiated per metric to match actual steady-state distributions
+// synergy:      steady-state 0.04-0.51, "high" catches Integration/Process top
+// harmony:      steady-state 0.05-0.74, "high" catches Control/Prime/Mythic
+// stability:    steady-state 0.14-0.82, naturally wide — slightly lower high
+// corruption:   steady-state 0.01-0.81, "low" at 0.08 = first sign, "high" at 0.35 = serious
+// loadPressure: steady-state 0.22-0.66, "high" at 0.55 catches heavy-load archetypes
 const DEFAULT_METRIC_THRESHOLDS = Object.freeze({
-  synergy: Object.freeze({ low: 0.25, high: 0.75, lowExit: 0.32, highExit: 0.68 }),
-  harmony: Object.freeze({ low: 0.25, high: 0.75, lowExit: 0.32, highExit: 0.68 }),
-  stability: Object.freeze({ low: 0.25, high: 0.75, lowExit: 0.32, highExit: 0.68 }),
-  corruption: Object.freeze({ low: 0.25, high: 0.75, lowExit: 0.32, highExit: 0.68 }),
-  loadPressure: Object.freeze({ low: 0.25, high: 0.75, lowExit: 0.32, highExit: 0.68 })
+  synergy:      Object.freeze({ low: 0.15, high: 0.45, lowExit: 0.22, highExit: 0.38 }),
+  harmony:      Object.freeze({ low: 0.20, high: 0.60, lowExit: 0.27, highExit: 0.53 }),
+  stability:    Object.freeze({ low: 0.25, high: 0.70, lowExit: 0.32, highExit: 0.63 }),
+  corruption:   Object.freeze({ low: 0.08, high: 0.35, lowExit: 0.15, highExit: 0.28 }),
+  loadPressure: Object.freeze({ low: 0.25, high: 0.55, lowExit: 0.32, highExit: 0.48 })
 });
 
 function clamp01(value) {

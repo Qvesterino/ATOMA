@@ -451,6 +451,10 @@ export class CorruptionVisualFX_v1 {
   applyShaderDistortion(nodeModel, corruptionLevel, deltaTime) {
     if (!THREE || !nodeModel?.traverse || !this.corruptionShaderVariant || !this._isNodeVisualTarget(nodeModel)) return;
 
+    // Compute directional creep from corrupted neighbors
+    const creepDirection = this._computeCorruptionDirection(nodeModel);
+    const clampedLevel = Math.max(0, Math.min(1, corruptionLevel || 0));
+
     nodeModel.traverse((child) => {
       if (!child.isMesh || !child.material || this._isVisualOnlyMesh(child)) return;
 
@@ -458,8 +462,10 @@ export class CorruptionVisualFX_v1 {
       const binding = child.userData?.[CORRUPTION_BINDING] || this._bindCorruptionVariantToMesh(child);
       if (!binding?.uniformState) return;
 
-      binding.uniformState.uCorruptionLevel = Math.max(0, Math.min(1, corruptionLevel || 0));
+      binding.uniformState.uCorruptionLevel = clampedLevel;
       binding.uniformState.uCorruptionTime += Math.max(0, deltaTime || 0);
+      binding.uniformState.uCorruptionDirection.copy(creepDirection);
+      binding.uniformState.uCorruptionCreepProgress = clampedLevel;
 
       if (child.material?.uniforms?.uCorruptionLevel) {
         child.material.uniforms.uCorruptionLevel.value = binding.uniformState.uCorruptionLevel;
@@ -468,6 +474,57 @@ export class CorruptionVisualFX_v1 {
         child.material.uniforms.uCorruptionTime.value = binding.uniformState.uCorruptionTime;
       }
     });
+  }
+
+  /**
+   * CORRUPTION CREEP — Compute the direction from which corruption is entering a node.
+   * Examines linked neighbors' corruption levels to find the weighted average direction.
+   * Returns a normalized Vector3 pointing FROM the most corrupted neighbor(s) TOWARD this node.
+   */
+  _computeCorruptionDirection(nodeModel) {
+    const fallback = new THREE.Vector3(0, 0, 1);
+    if (!nodeModel?.userData?.links) return fallback;
+
+    const links = nodeModel.userData.links;
+    if (!Array.isArray(links) || links.length === 0) return fallback;
+
+    const nodePos = nodeModel.position;
+    if (!nodePos) return fallback;
+
+    const weightedDir = new THREE.Vector3(0, 0, 0);
+    let totalWeight = 0;
+
+    for (const link of links) {
+      // Identify the other node in this link
+      const otherNode = (link.source === nodeModel) ? link.target :
+                        (link.target === nodeModel) ? link.source : null;
+      if (!otherNode?.position) continue;
+
+      const otherCorruption = Math.max(0, Math.min(1, (
+        otherNode?.userData?.metrics?.corruption ??
+        otherNode?.userData?.corruption ??
+        otherNode?.userData?.corruptionLevel ??
+        0
+      )));
+
+      // Only consider neighbors with meaningful corruption
+      if (otherCorruption < 0.1) continue;
+
+      // Direction FROM corrupted neighbor TOWARD this node
+      const dir = new THREE.Vector3().subVectors(nodePos, otherNode.position);
+      const dist = dir.length();
+      if (dist < 0.001) continue;
+      dir.divideScalar(dist); // normalize
+
+      weightedDir.add(dir.multiplyScalar(otherCorruption));
+      totalWeight += otherCorruption;
+    }
+
+    if (totalWeight > 0.001) {
+      return weightedDir.normalize();
+    }
+
+    return fallback;
   }
 
   _createCorruptionShaderVariant() {
@@ -479,15 +536,19 @@ export class CorruptionVisualFX_v1 {
         uEmissive: { value: new THREE.Color(0.0, 0.0, 0.0) },
         uOpacity: { value: 1.0 },
         uCorruptionLevel: { value: 0.0 },
-        uCorruptionTime: { value: 0.0 }
+        uCorruptionTime: { value: 0.0 },
+        uCorruptionDirection: { value: new THREE.Vector3(0, 0, 1) },
+        uCorruptionCreepProgress: { value: 0.0 }
       },
       vertexShader: `
         varying vec2 vUv;
         varying vec3 vNormalW;
         varying vec2 vPosWxy;
+        varying vec3 vModelPos;
 
         void main() {
           vUv = uv;
+          vModelPos = position;
           vNormalW = normalize(mat3(modelMatrix) * normal);
           vec4 worldPos = modelMatrix * vec4(position, 1.0);
           vPosWxy = worldPos.xy;
@@ -502,11 +563,37 @@ export class CorruptionVisualFX_v1 {
         uniform float uOpacity;
         uniform float uCorruptionLevel;
         uniform float uCorruptionTime;
+        uniform vec3 uCorruptionDirection;
+        uniform float uCorruptionCreepProgress;
 
         varying vec2 vUv;
         varying vec3 vNormalW;
         varying vec2 vPosWxy;
+        varying vec3 vModelPos;
 
+        // ── Gradient noise for organic rot front ──
+        vec3 hash33(vec3 p) {
+          p = vec3(dot(p, vec3(127.1, 311.7, 74.7)),
+                   dot(p, vec3(269.5, 183.3, 246.1)),
+                   dot(p, vec3(113.5, 271.9, 124.6)));
+          return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
+        }
+
+        float noise3D(vec3 p) {
+          vec3 i = floor(p);
+          vec3 f = fract(p);
+          vec3 u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(mix(dot(hash33(i + vec3(0,0,0)), f - vec3(0,0,0)),
+                             dot(hash33(i + vec3(1,0,0)), f - vec3(1,0,0)), u.x),
+                         mix(dot(hash33(i + vec3(0,1,0)), f - vec3(0,1,0)),
+                             dot(hash33(i + vec3(1,1,0)), f - vec3(1,1,0)), u.x), u.y),
+                     mix(mix(dot(hash33(i + vec3(0,0,1)), f - vec3(0,0,1)),
+                             dot(hash33(i + vec3(1,0,1)), f - vec3(1,0,1)), u.x),
+                         mix(dot(hash33(i + vec3(0,1,1)), f - vec3(0,1,1)),
+                             dot(hash33(i + vec3(1,1,1)), f - vec3(1,1,1)), u.x), u.y), u.z);
+        }
+
+        // Original uniform corruption distortion
         vec3 applyCorruption(vec3 color, vec2 uv) {
           float level = clamp(uCorruptionLevel, 0.0, 1.0);
           float t = uCorruptionTime;
@@ -515,6 +602,33 @@ export class CorruptionVisualFX_v1 {
           float distortion = warp * stripe * level;
           vec3 tint = vec3(1.0, 0.2, 0.5) * distortion * level;
           return color + tint;
+        }
+
+        // ── Directional creep mask ──
+        // Returns 1.0 where rot has reached, 0.0 where surface is still healthy
+        float computeCreepMask() {
+          float progress = clamp(uCorruptionCreepProgress, 0.0, 1.0);
+          if (progress < 0.001) return 0.0;
+          if (progress > 0.99) return 1.0;
+
+          // Safe normalize: model-space position → direction from node center
+          float modelLen = length(vModelPos);
+          vec3 dir = modelLen > 0.001 ? vModelPos / modelLen : vec3(0.0, 1.0, 0.0);
+          vec3 creepDir = normalize(uCorruptionDirection);
+
+          // How much this fragment faces the corruption source (0 = away, 1 = facing)
+          float sourceFacing = dot(dir, creepDir) * 0.5 + 0.5;
+
+          // Organic noise at the rot front boundary — two octaves for detail
+          float n1 = noise3D(vModelPos * 4.0 + vec3(uCorruptionTime * 0.3, 0.0, uCorruptionTime * 0.2)) * 0.14;
+          float n2 = noise3D(vModelPos * 9.0 + vec3(0.0, uCorruptionTime * 0.5, 0.0)) * 0.06;
+          float boundaryNoise = n1 + n2;
+
+          // Rot front moves from source-facing side (1.0) toward far side (0.0)
+          float frontEdge = 1.0 - progress + boundaryNoise;
+
+          // Smooth mask at the boundary
+          return smoothstep(frontEdge - 0.07, frontEdge + 0.07, sourceFacing);
         }
 
         void main() {
@@ -528,7 +642,24 @@ export class CorruptionVisualFX_v1 {
           vec3 lightDir = vec3(0.2519, 0.7558, 0.6048);
           float ndl = max(dot(normal, lightDir), 0.0);
           vec3 lit = baseColor * (0.35 + 0.65 * ndl) + uEmissive;
-          vec3 finalColor = applyCorruption(lit, vUv);
+
+          // Directional creep: blend healthy → corrupted based on rot spread
+          float creepMask = computeCreepMask();
+          vec3 corruptedColor = applyCorruption(lit, vUv);
+
+          // Rot front glow: bright leading edge at the boundary
+          float progress = clamp(uCorruptionCreepProgress, 0.0, 1.0);
+          float frontEdge = 1.0 - progress;
+          float modelLen = length(vModelPos);
+          vec3 dir = modelLen > 0.001 ? vModelPos / modelLen : vec3(0.0, 1.0, 0.0);
+          float sourceFacing = dot(dir, normalize(uCorruptionDirection)) * 0.5 + 0.5;
+          float frontDist = abs(sourceFacing - frontEdge);
+          float frontGlow = exp(-frontDist * frontDist * 64.0) * progress * 0.7;
+          vec3 glowColor = vec3(1.0, 0.15, 0.4) * frontGlow;
+
+          // Final: healthy base → corrupted where creep has reached + front glow
+          vec3 finalColor = mix(lit, corruptedColor, creepMask) + glowColor * step(0.01, creepMask);
+
           gl_FragColor = vec4(finalColor, texel.a * uOpacity);
         }
       `,
@@ -547,7 +678,9 @@ export class CorruptionVisualFX_v1 {
       sourceMaterial,
       uniformState: {
         uCorruptionLevel: 0,
-        uCorruptionTime: 0
+        uCorruptionTime: 0,
+        uCorruptionDirection: new THREE.Vector3(0, 0, 1),
+        uCorruptionCreepProgress: 0
       },
       renderState: {
         transparent: sourceMaterial.transparent === true,
@@ -586,6 +719,8 @@ export class CorruptionVisualFX_v1 {
         uniforms.uUseMap.value = map ? 1.0 : 0.0;
         uniforms.uCorruptionLevel.value = b.uniformState.uCorruptionLevel;
         uniforms.uCorruptionTime.value = b.uniformState.uCorruptionTime;
+        uniforms.uCorruptionDirection.value.copy(b.uniformState.uCorruptionDirection);
+        uniforms.uCorruptionCreepProgress.value = b.uniformState.uCorruptionCreepProgress;
 
         variant.transparent = b.renderState.transparent;
         variant.depthWrite = b.renderState.depthWrite;
