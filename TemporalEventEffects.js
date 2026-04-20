@@ -41,6 +41,18 @@ export class TemporalEventEffects {
         elapsed: 0,
         durations: { attack: 0.8, crest: 1.2, release: 3.0 },
         intensity: 0
+      },
+      aurora: {
+        state: 'idle',
+        elapsed: 0,
+        durations: { attack: 1.5, crest: 2.0, release: 4.0 },
+        intensity: 0
+      },
+      echo: {
+        state: 'idle',
+        elapsed: 0,
+        durations: { attack: 0.3, crest: 1.8, release: 2.2 },
+        intensity: 0
       }
     };
 
@@ -61,9 +73,16 @@ export class TemporalEventEffects {
     this.hologramGroup.frustumCulled = false;
     this.temporalOverlayRoot.add(this.hologramGroup);
 
+    this.auroraGroup = new THREE.Group();
+    this.auroraGroup.name = 'TemporalEventEffects_ConsciousnessAurora';
+    this.auroraGroup.frustumCulled = false;
+    this.scene.add(this.auroraGroup); // Aurora is global, not camera-relative
+
     this.camera = this._resolveCamera();
     this.aeonOverlay = null;
     this.hologramShaderMaterial = null;
+    this.auroraShaderMaterial = null;
+    this.auroraWavefronts = [];
 
     this.temporalEventPresets = {
       epoch: {
@@ -88,6 +107,16 @@ export class TemporalEventEffects {
         refractionStrength: 0.3,
         color: 0x88ddff,
         duration: 4.2
+      },
+      aurora: {
+        scatteringLayers: 4,
+        wavefrontCount: 6,
+        fieldLineCount: 12,
+        baseOpacity: 0.12,
+        waveSpeed: 8.0,
+        scatteringStrength: 0.8,
+        polarizationStates: 3,
+        duration: 7.5
       }
     };
 
@@ -95,10 +124,13 @@ export class TemporalEventEffects {
       newEpoch: false,
       newAeon: false,
       neuralHologram: false,
+      consciousnessAurora: false,
     };
 
     this._setupMetricTriggers();
     this._initializeHologramShader();
+    this._initializeAuroraShader();
+    this._initializeEchoShader();
   }
 
   _initializeHologramShader() {
@@ -232,6 +264,7 @@ export class TemporalEventEffects {
       newEpoch: Boolean(temporalEvents?.newEpoch || this.pendingMetricTemporalEvents.newEpoch),
       newAeon: Boolean(temporalEvents?.newAeon || this.pendingMetricTemporalEvents.newAeon),
       neuralHologram: Boolean(temporalEvents?.neuralHologram || this.pendingMetricTemporalEvents.neuralHologram),
+      consciousnessAurora: Boolean(temporalEvents?.consciousnessAurora || this.pendingMetricTemporalEvents.consciousnessAurora),
     };
 
     if (mergedTemporalEvents.newEpoch) {
@@ -246,15 +279,21 @@ export class TemporalEventEffects {
       this.triggerNeuralHologram();
       this.pendingMetricTemporalEvents.neuralHologram = false;
     }
+    if (mergedTemporalEvents.consciousnessAurora) {
+      this.triggerConsciousnessAurora();
+      this.pendingMetricTemporalEvents.consciousnessAurora = false;
+    }
 
     const activeEpoch = this.effects.epoch.state !== 'idle';
     const activeAeon = this.effects.aeon.state !== 'idle';
     const activeHologram = this.effects.hologram.state !== 'idle';
-    if (!mergedTemporalEvents.newEpoch && !mergedTemporalEvents.newAeon && !mergedTemporalEvents.neuralHologram && !activeEpoch && !activeAeon && !activeHologram) return;
+    const activeAurora = this.effects.aurora.state !== 'idle';
+    if (!mergedTemporalEvents.newEpoch && !mergedTemporalEvents.newAeon && !mergedTemporalEvents.neuralHologram && !mergedTemporalEvents.consciousnessAurora && !activeEpoch && !activeAeon && !activeHologram && !activeAurora) return;
 
     this.updateEpochShift(deltaTime);
     this.updateAeonPulse(deltaTime);
     this.updateNeuralHologram(deltaTime);
+    this.updateConsciousnessAurora(deltaTime);
     this.updateOverlayTransforms();
   }
   
@@ -452,6 +491,180 @@ export class TemporalEventEffects {
     }
   }
 
+  _initializeAuroraShader() {
+    try {
+        // Atmospheric scattering shader for aurora effects
+        this.auroraShaderMaterial = new THREE.ShaderMaterial({
+          uniforms: {
+            time: { value: 0.0 },
+            opacity: { value: 0.0 },
+            scatteringStrength: { value: 0.8 },
+            waveSpeed: { value: 8.0 },
+            cameraPosition: { value: new THREE.Vector3() },
+            auroraCenter: { value: new THREE.Vector3(0, 20, 0) },
+            auroraRadius: { value: 50.0 },
+            polarizationState: { value: 0 }
+          },
+          vertexShader: `
+            varying vec3 vWorldPosition;
+            varying vec3 vNormal;
+            varying vec2 vUv;
+            varying vec3 vViewDirection;
+    
+            void main() {
+              vUv = uv;
+              vNormal = normalize(normalMatrix * normal);
+    
+              vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+              vWorldPosition = worldPosition.xyz;
+    
+              vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+              vViewDirection = viewDirection;
+    
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            uniform float time;
+            uniform float opacity;
+            uniform float scatteringStrength;
+            uniform float waveSpeed;
+            uniform vec3 cameraPosition;
+            uniform vec3 auroraCenter;
+            uniform float auroraRadius;
+            uniform int polarizationState;
+    
+            varying vec3 vWorldPosition;
+            varying vec3 vNormal;
+            varying vec2 vUv;
+            varying vec3 vViewDirection;
+    
+            // Advanced noise functions for aurora patterns
+            float hash(vec2 p) {
+              return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+            }
+    
+            float noise(vec2 p) {
+              vec2 i = floor(p);
+              vec2 f = fract(p);
+              f = f * f * (3.0 - 2.0 * f);
+              return mix(
+                mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+                mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x),
+                f.y
+              );
+            }
+    
+            float fbm(vec2 p) {
+              float value = 0.0;
+              float amplitude = 0.5;
+              float frequency = 1.0;
+              for (int i = 0; i < 5; i++) {
+                value += amplitude * noise(p * frequency);
+                frequency *= 1.8;
+                amplitude *= 0.55;
+              }
+              return value;
+            }
+    
+            // Magnetic field line simulation
+            vec3 magneticField(vec3 pos, float time) {
+              vec3 field = vec3(0.0);
+    
+              // Multiple field lines creating aurora patterns
+              for (int i = 0; i < 3; i++) {
+                float phase = time * waveSpeed * (0.8 + float(i) * 0.3);
+                float angle = atan(pos.z, pos.x) + phase;
+                float radius = length(pos.xz);
+    
+                float fieldStrength = sin(angle * 2.0 + radius * 0.1) * 0.5 + 0.5;
+                fieldStrength *= exp(-radius * 0.02); // Falloff with distance
+    
+                vec3 fieldDir = normalize(vec3(-pos.z, 0.0, pos.x)); // Tangential direction
+                field += fieldDir * fieldStrength * (1.0 + sin(phase + float(i) * 1.57) * 0.3);
+              }
+    
+              return normalize(field) * length(field);
+            }
+    
+            // Polarimetric color generation
+            vec3 polarimetricColor(float intensity, int state) {
+              vec3 color;
+              if (state == 0) {
+                color = vec3(0.2, 0.8, 1.0);   // Cyan
+              } else if (state == 1) {
+                color = vec3(0.8, 0.3, 1.0);   // Magenta
+              } else {
+                color = vec3(1.0, 0.6, 0.2);   // Gold
+              }
+    
+              // Interference patterns creating rainbow effects
+              float interference = sin(intensity * 20.0) * 0.3 + 0.7;
+              color *= interference;
+    
+              return color;
+            }
+    
+            void main() {
+              vec3 worldPos = vWorldPosition;
+              vec3 localPos = worldPos - auroraCenter;
+              float height = localPos.y;
+              float horizontalDist = length(localPos.xz);
+    
+              // Aurora layer falloff
+              float heightFalloff = exp(-abs(height) * 0.1);
+              float radiusFalloff = 1.0 - smoothstep(0.0, auroraRadius, horizontalDist);
+              float totalFalloff = heightFalloff * radiusFalloff;
+    
+              // Atmospheric scattering simulation
+              vec3 scatterPos = worldPos * 0.01 + time * 0.1;
+              float scattering1 = fbm(scatterPos.xz);
+              float scattering2 = fbm(scatterPos.xz * 1.5 - time * 0.05);
+              float scattering3 = fbm(scatterPos.xz * 2.0 + time * 0.08);
+    
+              // Multi-layer scattering
+              float scatterIntensity = (scattering1 * 0.5 + scattering2 * 0.3 + scattering3 * 0.2) * scatteringStrength;
+    
+              // Magnetic field influence
+              vec3 magneticInfluence = magneticField(localPos, time);
+              float fieldStrength = length(magneticInfluence);
+    
+              // Energy wavefront propagation
+              float wave1 = sin(horizontalDist * 0.1 - time * waveSpeed) * 0.5 + 0.5;
+              float wave2 = sin(horizontalDist * 0.15 - time * waveSpeed * 0.7 + 1.57) * 0.5 + 0.5;
+              float wavefront = (wave1 + wave2) * 0.5;
+    
+              // Combine all effects
+              float auroraIntensity = scatterIntensity * fieldStrength * wavefront * totalFalloff;
+    
+              // Polarimetric glow based on polarization state
+              vec3 auroraColor = polarimetricColor(auroraIntensity, polarizationState);
+    
+              // Fresnel-like edge enhancement
+              float fresnel = 1.0 - abs(dot(vViewDirection, vec3(0, 1, 0)));
+              fresnel = pow(fresnel, 3.0);
+              auroraColor += vec3(0.5, 0.3, 0.8) * fresnel * auroraIntensity;
+    
+              float finalOpacity = auroraIntensity * opacity * 0.6;
+    
+              gl_FragColor = vec4(auroraColor, finalOpacity);
+            }
+          `,
+          transparent: true,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending
+        });
+    } catch (error) {
+      console.warn('Error creating aurora cascade:', error);
+    }
+  }
+
+  _initializeEchoShader() {
+    this.echoShaderMaterial = null;
+    this.echoOverlay = null;
+  }
+
   /**
    * Update neural hologram effect
    */
@@ -511,6 +724,232 @@ export class TemporalEventEffects {
       }
     });
     this.neuralHolograms = [];
+  }
+
+  /**
+   * Trigger consciousness aurora cascade
+   */
+  triggerConsciousnessAurora() {
+    this._startEnvelope('aurora');
+    this.createAuroraCascade();
+  }
+
+  /**
+   * Create the aurora cascade effect
+   */
+  createAuroraCascade() {
+    try {
+      this._cleanupAuroraCascade();
+      const preset = this.temporalEventPresets.aurora;
+
+      // Create scattering layers (atmospheric planes)
+      for (let layer = 0; layer < preset.scatteringLayers; layer++) {
+        const height = 15 + layer * 8; // Stack layers at different heights
+        const geometry = new THREE.SphereGeometry(60, 32, 16);
+
+        const material = this.auroraShaderMaterial.clone();
+        material.uniforms.auroraCenter.value.set(0, height, 0);
+        material.uniforms.auroraRadius.value = 80.0;
+        material.uniforms.polarizationState.value = layer % preset.polarizationStates;
+
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.y = height;
+        mesh.renderOrder = 10 + layer; // Ensure proper layering
+        mesh.frustumCulled = false;
+
+        this.auroraGroup.add(mesh);
+
+        // Store for updates
+        if (!this.auroraScatteringLayers) this.auroraScatteringLayers = [];
+        this.auroraScatteringLayers.push({
+          mesh: mesh,
+          height: height,
+          layerIndex: layer
+        });
+      }
+
+      // Create magnetic field lines
+      for (let i = 0; i < preset.fieldLineCount; i++) {
+        const curve = new THREE.CatmullRomCurve3(this._generateMagneticFieldCurve(i));
+        const geometry = new THREE.TubeGeometry(curve, 50, 0.1, 8, false);
+
+        const material = new THREE.MeshBasicMaterial({
+          color: 0x44aaff,
+          transparent: true,
+          opacity: 0.0,
+          blending: THREE.AdditiveBlending
+        });
+
+        const line = new THREE.Mesh(geometry, material);
+        line.renderOrder = 15;
+        line.frustumCulled = false;
+
+        this.auroraGroup.add(line);
+
+        // Store for updates
+        if (!this.auroraFieldLines) this.auroraFieldLines = [];
+        this.auroraFieldLines.push({
+          mesh: line,
+          curve: curve,
+          index: i,
+          baseOpacity: 0.4 + Math.random() * 0.3
+        });
+      }
+
+      // Create energy wavefronts
+      for (let w = 0; w < preset.wavefrontCount; w++) {
+        const geometry = new THREE.RingGeometry(5, 15, 32);
+        const material = new THREE.MeshBasicMaterial({
+          color: new THREE.Color().setHSL(0.6 + w * 0.1, 0.8, 0.6),
+          transparent: true,
+          opacity: 0.0,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending
+        });
+
+        const wavefront = new THREE.Mesh(geometry, material);
+        wavefront.rotation.x = -Math.PI / 2; // Lay flat
+        wavefront.position.set(0, 25 + w * 5, 0);
+        wavefront.renderOrder = 12;
+        wavefront.frustumCulled = false;
+
+        this.auroraGroup.add(wavefront);
+
+        // Store for updates
+        if (!this.auroraWavefronts) this.auroraWavefronts = [];
+        this.auroraWavefronts.push({
+          mesh: wavefront,
+          waveIndex: w,
+          age: 0,
+          speed: preset.waveSpeed * (0.8 + Math.random() * 0.4),
+          baseScale: 1.0,
+          baseOpacity: 0.6 + Math.random() * 0.2
+        });
+      }
+
+    } catch (error) {
+      console.warn('Error creating aurora cascade:', error);
+    }
+  }
+
+  /**
+   * Generate a magnetic field curve for aurora lines
+   */
+  _generateMagneticFieldCurve(index) {
+    const points = [];
+    const segments = 20;
+    const radius = 40 + index * 5;
+    const heightVariation = 10;
+
+    for (let i = 0; i <= segments; i++) {
+      const t = (i / segments) * Math.PI * 2;
+      const x = Math.cos(t) * radius;
+      const z = Math.sin(t) * radius;
+      const y = 20 + Math.sin(t * 3 + index) * heightVariation;
+      points.push(new THREE.Vector3(x, y, z));
+    }
+
+    return points;
+  }
+
+  /**
+   * Update consciousness aurora effect
+   */
+  updateConsciousnessAurora(deltaTime) {
+    const envelope = this.effects.aurora;
+    if (envelope.state === 'idle') return;
+
+    this._updateEnvelope(envelope, deltaTime);
+    this.updateAuroraCascade(deltaTime, envelope.intensity);
+
+    if (envelope.state === 'idle') {
+      this._cleanupAuroraCascade();
+    }
+  }
+
+  /**
+   * Update aurora cascade elements
+   */
+  updateAuroraCascade(deltaTime, intensity) {
+    // Update scattering layers
+    if (this.auroraScatteringLayers) {
+      this.auroraScatteringLayers.forEach(layer => {
+        layer.mesh.material.uniforms.time.value += deltaTime;
+        layer.mesh.material.uniforms.opacity.value = intensity * 0.8;
+        layer.mesh.material.uniforms.cameraPosition.value.copy(this.camera ? this.camera.position : new THREE.Vector3());
+      });
+    }
+
+    // Update magnetic field lines
+    if (this.auroraFieldLines) {
+      this.auroraFieldLines.forEach(line => {
+        line.mesh.material.opacity = line.baseOpacity * intensity;
+
+        // Animate the curve slightly
+        const time = performance.now() * 0.001;
+        const points = line.curve.points;
+        points.forEach((point, i) => {
+          const wave = Math.sin(time + i * 0.5 + line.index) * 2;
+          point.y = 20 + Math.sin((i / points.length) * Math.PI * 2 * 3 + line.index) * 10 + wave;
+        });
+        line.curve.needsUpdate = true;
+        line.mesh.geometry.dispose();
+        line.mesh.geometry = new THREE.TubeGeometry(line.curve, 50, 0.1, 8, false);
+      });
+    }
+
+    // Update energy wavefronts
+    if (this.auroraWavefronts) {
+      this.auroraWavefronts.forEach(wavefront => {
+        wavefront.age += deltaTime;
+        const expansion = wavefront.age * wavefront.speed;
+        const scale = wavefront.baseScale + expansion * 0.01;
+
+        wavefront.mesh.scale.setScalar(scale);
+        wavefront.mesh.material.opacity = wavefront.baseOpacity * intensity * Math.max(0, 1 - expansion * 0.02);
+
+        // Rotate slowly
+        wavefront.mesh.rotation.z += deltaTime * 0.5;
+      });
+    }
+  }
+
+  /**
+   * Clean up aurora cascade
+   */
+  _cleanupAuroraCascade() {
+    if (this.auroraScatteringLayers) {
+      this.auroraScatteringLayers.forEach(layer => {
+        if (layer.mesh) {
+          this.auroraGroup.remove(layer.mesh);
+          layer.mesh.geometry.dispose();
+          layer.mesh.material.dispose();
+        }
+      });
+      this.auroraScatteringLayers = [];
+    }
+
+    if (this.auroraFieldLines) {
+      this.auroraFieldLines.forEach(line => {
+        if (line.mesh) {
+          this.auroraGroup.remove(line.mesh);
+          line.mesh.geometry.dispose();
+          line.mesh.material.dispose();
+        }
+      });
+      this.auroraFieldLines = [];
+    }
+
+    if (this.auroraWavefronts) {
+      this.auroraWavefronts.forEach(wavefront => {
+        if (wavefront.mesh) {
+          this.auroraGroup.remove(wavefront.mesh);
+          wavefront.mesh.geometry.dispose();
+          wavefront.mesh.material.dispose();
+        }
+      });
+      this.auroraWavefronts = [];
+    }
   }
 
   /**
@@ -862,6 +1301,7 @@ export class TemporalEventEffects {
     this.disable();
     this._cleanupAeonGlyphs();
     this._cleanupNeuralHolograms();
+    this._cleanupAuroraCascade();
     this._removeEpochOverlay();
     if (this.overlayGroup && this.overlayGroup.parent) {
       this.overlayGroup.parent.remove(this.overlayGroup);
@@ -869,8 +1309,12 @@ export class TemporalEventEffects {
     if (this.temporalOverlayRoot && this.temporalOverlayRoot.parent) {
       this.temporalOverlayRoot.parent.remove(this.temporalOverlayRoot);
     }
+    if (this.auroraGroup && this.auroraGroup.parent) {
+      this.auroraGroup.parent.remove(this.auroraGroup);
+    }
     this.overlayGroup = null;
     this.temporalOverlayRoot = null;
+    this.auroraGroup = null;
     this.camera = null;
   }
 

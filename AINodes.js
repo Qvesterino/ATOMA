@@ -128,12 +128,12 @@ import { NODE_VISUAL_REGISTRY, CATEGORY_POOLS } from './NodeVisualRegistry.js';
 // LEGACY SPAWN MODULE REMOVED – HARD DISABLED
 // import { ExtremeAINodePack } from './_ExtremeAINodePack.js';
 // import { ExtremeNodeArchetypes_SafePack } from './_ExtremeNodeArchetypes_SafePack.js';
-import { spawnCycleValidator } from './SpawnCycleValidator.js';
+import { spawnCycleValidator } from './Engine/authority/SpawnCycleValidator.js';
 import { updateHologramShellMaterial, reassertNodeHologramShell } from './CoreHologramShader.js';
 import { reassertNodeNeonEdgeGlow } from './shaders/NeonEdgeGlowShader.js';
 import { NodeCategoryAudit, auditNodeVisuals } from './Engine/Debug/NodeCategoryAudit.js';
 import { assignLinkTarget } from './LinkTargetContract.js';
-import { NodeVisualAuthorityRuntime } from './NodeVisualAuthorityRuntime.js';
+import { NodeVisualAuthorityRuntime } from './Engine/authority/NodeVisualAuthorityRuntime.js';
 
 function vfxFlag(name, def = true) {
   const v = (typeof window !== 'undefined') ? window[name] : undefined;

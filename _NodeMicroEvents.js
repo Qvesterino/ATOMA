@@ -1,4 +1,4 @@
-import { isVisualLocked } from './VisualAuthorityFlag.js';
+import { isVisualLocked } from './Engine/authority/VisualAuthorityFlag.js';
 
 /**
  * NODE MICRO-EVENTS 1.0 – SAFE EDITION

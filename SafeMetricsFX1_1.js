@@ -1,4 +1,4 @@
-import { isVisualLocked } from './VisualAuthorityFlag.js';
+import { isVisualLocked } from './Engine/authority/VisualAuthorityFlag.js';
 
 /**
  * SAFE METRICS FX 1.1

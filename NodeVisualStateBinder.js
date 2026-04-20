@@ -54,7 +54,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { createCoreIdentityMaterial } from './CoreHologramShader.js';
-import { CoreVisualAuthorityGuard } from './CoreVisualAuthoritySystem.js';
+import { CoreVisualAuthorityGuard } from './Engine/authority/CoreVisualAuthoritySystem.js';
 
 function ensureUserData(obj) {
   if (!obj) return {};

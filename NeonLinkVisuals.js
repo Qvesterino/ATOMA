@@ -3,7 +3,7 @@ import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 import { SynergyStateResolver, SynergyState } from './SynergyStateResolver.js';
 import { CONFIG } from './config.js';
 import VisualTime from './src/time/VisualTime.js';
-import { isVisualLocked } from './VisualAuthorityFlag.js';
+import { isVisualLocked } from './Engine/authority/VisualAuthorityFlag.js';
 
 // NeonLinkVisuals is FX-only layer.
 // Metrics uniforms are owned exclusively by LinkRendererConduit.

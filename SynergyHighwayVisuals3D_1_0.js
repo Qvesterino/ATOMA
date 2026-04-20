@@ -131,10 +131,10 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
     trailMaxParticles: 200,
 
     // ── Cluster Fields ──
-    enableClusterFields: true,
+    enableClusterFields: false,
     clusterFieldOpacity: 0.05,
     clusterFieldMinSynergy: 0.3,
-    clusterFieldWireframe: true,
+    clusterFieldWireframe: false,
     clusterFieldBaseRadius: 3.0,
     clusterFieldBreathSpeed: 0.5,
     clusterFieldBreathAmount: 0.1,

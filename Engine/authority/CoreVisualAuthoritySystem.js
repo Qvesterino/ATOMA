@@ -40,7 +40,7 @@
  */
 
 import * as THREE from 'three';
-import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { VisualHierarchyRegistry } from '../../VisualHierarchyRegistry.js';
 // REMOVED: NodeCoreMaterialAuthority - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 // Stub for compatibility
 const NodeCoreMaterialAuthority = {

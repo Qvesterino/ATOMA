@@ -83,7 +83,7 @@ import './Engine/Debug/FXDebugSandbox.js';
 import { RenderCostProfile } from './RenderCostProfile.js';
 import { sanitizeTransmission, findTransmissionMaterials } from './src/render/TransmissionSanitizer.js';
 import { checkLateMaterialCreation, installMaterialDebugGuard } from './src/metrics/MaterialDebugGuard_v1.js';
-import { setVisualLock } from './VisualAuthorityFlag.js';
+import { setVisualLock } from './Engine/authority/VisualAuthorityFlag.js';
 
 function createMetricDirtyQueue() {
     const nodeIds = new Set();

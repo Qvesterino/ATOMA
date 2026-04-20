@@ -988,7 +988,7 @@ export class T2_HarmonyVisualConsumer_v1 {
         // Use harmonyFieldThreshold (0.5) as base visibility threshold
         // harmonyHighThreshold (0.7) is used for healing pulse emission only
         const baseThreshold = this.config.harmonyFieldThreshold;
-        const isHarmonyVisible = harmonyLevel >= baseThreshold || hasPulseBoost;
+        const isHarmonyVisible = (harmonyLevel >= baseThreshold || hasPulseBoost) && hasActiveLinks;
 
         if (isHarmonyVisible) {
           // Scale intensity from baseThreshold to 1.0, with pulseBoost providing a floor

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { tagAllowedSphere } from './VisualSpherePolicy.js';
-import { isVisualLocked, setVisualLock } from './VisualAuthorityFlag.js';
+import { isVisualLocked, setVisualLock } from './Engine/authority/VisualAuthorityFlag.js';
 
 const hardAuthDebugEnabled = () => (typeof window !== 'undefined' && window.ATOMA_DEBUG_HARD_INTERACTION_AUTHORITY === true);
 const hardLog = (...args) => { if (hardAuthDebugEnabled()) hardLog(...args); };
