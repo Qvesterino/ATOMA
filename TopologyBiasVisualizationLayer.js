@@ -1,3 +1,4 @@
+
 /**
  * ============================================================================
  * TOPOLOGY BIAS VISUALIZATION LAYER
@@ -97,18 +98,34 @@ class BiasVectorInstance {
         this.strength = 0.0;             // 0-1: How visible
         this.age = 0.0;
         this.active = false;
-        
+
         // Modulation
         this.clarity = 1.0;              // Affected by harmony/corruption
         this.influenceSharpness = 0.0;   // Contextual boost from influence
         this.pressureBias = 0.0;
+
+        // Smooth transitions
+        this.targetPosition = new THREE.Vector3();
+        this.targetDirection = new THREE.Vector3(0, 0, 1);
+        this.targetStrength = 0.0;
+        this.transitionSpeed = 2.0;      // How fast to interpolate (units per second)
+        this.fadeSpeed = 1.5;            // How fast to fade in/out
     }
     
     activate(position, direction, strength) {
-        this.position.copy(position);
-        this.direction.copy(direction).normalize();
-        this.strength = Math.max(0, Math.min(1, strength));
-        this.age = 0.0;
+        // Set target values for smooth transitions
+        this.targetPosition.copy(position);
+        this.targetDirection.copy(direction).normalize();
+        this.targetStrength = Math.max(0, Math.min(1, strength));
+
+        // If not currently active, initialize current values for fade-in
+        if (!this.active) {
+            this.position.copy(position);
+            this.direction.copy(direction).normalize();
+            this.strength = 0.0; // Start faded out
+            this.age = 0.0;
+        }
+
         this.active = true;
         this.clarity = 1.0;
         this.influenceSharpness = 0.0;
@@ -122,14 +139,27 @@ class BiasVectorInstance {
     
     update(deltaTime) {
         if (!this.active) return;
-        
+
         this.age += deltaTime;
-        
+
+        // Smooth interpolation towards target values
+        const interpFactor = Math.min(1.0, this.transitionSpeed * deltaTime);
+
+        // Interpolate position
+        this.position.lerp(this.targetPosition, interpFactor);
+
+        // Interpolate direction (spherical interpolation for smooth rotation)
+        this.direction.slerp(this.targetDirection, interpFactor);
+
+        // Interpolate strength with fade speed
+        const strengthDiff = this.targetStrength - this.strength;
+        this.strength += strengthDiff * Math.min(1.0, this.fadeSpeed * deltaTime);
+
         // Influence sharpness decay
         this.influenceSharpness *= CONFIG.INFLUENCE_SHARPNESS_DECAY;
-        
-        // Deactivate if too weak
-        if (this.strength < 0.01) {
+
+        // Deactivate if target strength is very low and current strength is fading out
+        if (this.targetStrength < 0.01 && this.strength < 0.005) {
             this.deactivate();
         }
     }
@@ -389,39 +419,59 @@ export class TopologyBiasVisualizationLayer {
             return;
         }
         
-        // Clear old vectors
+        // Weighted distribution based on flow strength and activity
+        const activeRegions = regions.filter(r => r.active && r.flowStrength >= 0.01);
+
+        // Calculate weights for each region
+        let totalWeight = 0;
+        const regionWeights = activeRegions.map(region => {
+            // Weight by flow strength, with bonus for very strong flows
+            const baseWeight = region.flowStrength;
+            const strengthBonus = region.flowStrength > 0.7 ? (region.flowStrength - 0.7) * 2.0 : 0;
+            const weight = baseWeight + strengthBonus;
+            totalWeight += weight;
+            return { region, weight };
+        });
+
+        // Determine how many vectors to allocate
+        const maxVectors = CONFIG.BIAS_VECTOR_POOL_SIZE;
         let vectorIdx = 0;
-        
-        // Calculate how many vectors to display
-        const totalVectors = Math.min(
-            CONFIG.BIAS_VECTOR_POOL_SIZE,
-            Math.floor(regions.length * CONFIG.BIAS_VECTOR_DENSITY)
-        );
-        
-        // Distribute vectors across regions
-        const step = Math.ceil(regions.length / totalVectors);
-        
-        for (let i = 0; i < regions.length && vectorIdx < totalVectors; i += step) {
-            const region = regions[i];
-            
-            if (!region.active || region.flowStrength < 0.01) continue;
-            
-            // Get or activate vector instance
-            if (vectorIdx >= this.biasVectorInstances.length) break;
-            
-            const instance = this.biasVectorInstances[vectorIdx];
-            
-            // Activate with region's flow bias
-            instance.activate(
-                region.center,
-                region.flowBias.length() > 0.01 ? region.flowBias : this.biasVectorDirection.set(0, 0, 1),
-                region.flowStrength
-            );
-            const pressureBias = Math.max(networkState?.loadPressure || 0, networkState?.stressPressure || 0, networkState?.stressLoadBias || 0);
-            instance.pressureBias = pressureBias;
-            instance.clarity = Math.max(0.28, (1.0 - pressureBias * 0.14) * (0.88 + (networkState?.harmony || 0.5) * 0.3));
-            
-            vectorIdx++;
+
+        // Distribute vectors proportionally by weight
+        for (const { region, weight } of regionWeights) {
+            const vectorsForRegion = Math.max(1, Math.round((weight / totalWeight) * maxVectors));
+
+            for (let v = 0; v < vectorsForRegion && vectorIdx < maxVectors; v++) {
+                if (vectorIdx >= this.biasVectorInstances.length) break;
+
+                const instance = this.biasVectorInstances[vectorIdx];
+
+                // Add some variation to position within region
+                const variationRadius = 2.0; // Spread vectors around region center
+                const angle = (v / vectorsForRegion) * Math.PI * 2;
+                const distance = (v === 0) ? 0 : (variationRadius * Math.random() * 0.5); // Center vector at exact position
+                const offset = new THREE.Vector3(
+                    Math.cos(angle) * distance,
+                    0,
+                    Math.sin(angle) * distance
+                );
+
+                const vectorPosition = region.center.clone().add(offset);
+                const vectorStrength = region.flowStrength * (0.8 + Math.random() * 0.4); // Some randomization
+
+                // Activate with smooth transitions
+                instance.activate(
+                    vectorPosition,
+                    region.flowBias.length() > 0.01 ? region.flowBias : this.biasVectorDirection.set(0, 0, 1),
+                    vectorStrength
+                );
+
+                const pressureBias = Math.max(networkState?.loadPressure || 0, networkState?.stressPressure || 0, networkState?.stressLoadBias || 0);
+                instance.pressureBias = pressureBias;
+                instance.clarity = Math.max(0.28, (1.0 - pressureBias * 0.14) * (0.88 + (networkState?.harmony || 0.5) * 0.3));
+
+                vectorIdx++;
+            }
         }
         
         // Deactivate remaining vectors
@@ -489,7 +539,11 @@ export class TopologyBiasVisualizationLayer {
             uniforms: {
                 time: { value: 0 },
                 opacity: { value: CONFIG.FLOW_FIELD_OPACITY },
-                cellSize: { value: CONFIG.FLOW_FIELD_RESOLUTION }
+                cellSize: { value: CONFIG.FLOW_FIELD_RESOLUTION },
+                flowDirection: { value: new THREE.Vector3(0, 0, 1) },
+                flowStrength: { value: 0.5 },
+                regionCenter: { value: new THREE.Vector3(0, 0, 0) },
+                regionRadius: { value: 15.0 }
             },
             vertexShader: `
                 varying vec3 vPosition;
@@ -505,7 +559,11 @@ export class TopologyBiasVisualizationLayer {
                 uniform float time;
                 uniform float opacity;
                 uniform float cellSize;
-                
+                uniform vec3 flowDirection;
+                uniform float flowStrength;
+                uniform vec3 regionCenter;
+                uniform float regionRadius;
+
                 varying vec3 vPosition;
                 varying vec2 vUv;
                 
@@ -557,30 +615,54 @@ export class TopologyBiasVisualizationLayer {
                 
                 void main() {
                     vec2 pos = vPosition.xz;
+                    vec2 worldPos = pos;
+                    vec2 localPos = pos - regionCenter.xz;
+                    float distanceFromCenter = length(localPos);
+                    float regionFalloff = 1.0 - smoothstep(0.0, regionRadius, distanceFromCenter);
+
                     float t = time;
-                    
+
+                    // Flow direction influence
+                    vec2 flowDir2D = normalize(flowDirection.xz);
+                    float flowAlignment = dot(normalize(localPos), flowDir2D);
+                    flowAlignment = (flowAlignment + 1.0) * 0.5; // 0-1 range
+
                     // === LAYER 1: Nebula depth ===
-                    float nebula1 = fbm(pos * 0.08 + t * 0.03);
-                    float nebula2 = fbm(pos * 0.12 - t * 0.025 + 5.0);
+                    vec2 nebulaPos = pos * 0.08 + t * 0.03 + flowDir2D * flowStrength * 0.5;
+                    float nebula1 = fbm(nebulaPos);
+                    vec2 nebulaPos2 = pos * 0.12 - t * 0.025 + 5.0 + flowDir2D * flowStrength * 0.3;
+                    float nebula2 = fbm(nebulaPos2);
                     float nebulaDepth = nebula1 * 0.6 + nebula2 * 0.4;
                     
                     // === LAYER 2: Dimensional rift lines ===
-                    float rifts = riftLines(pos, t);
-                    
+                    vec2 riftPos = pos + flowDir2D * flowStrength * 2.0 * flowAlignment;
+                    float rifts = riftLines(riftPos, t);
+
                     // === LAYER 3: Vortex flow ===
-                    vec2 centered = pos * 0.05;
+                    vec2 centered = localPos * 0.05;
                     float angle = atan(centered.y, centered.x);
                     float radius = length(centered);
+                    // Align vortex with flow direction
+                    float flowAngle = atan(flowDir2D.y, flowDir2D.x);
+                    float angleDiff = abs(angle - flowAngle);
+                    angleDiff = min(angleDiff, 2.0 * 3.14159 - angleDiff); // Handle angle wraparound
                     float vortex = sin(angle * 3.0 + radius * 4.0 - t * 0.3) * 0.5 + 0.5;
-                    vortex *= smoothstep(8.0, 0.0, radius); // Fade at center and edge
+                    vortex *= (1.0 - angleDiff / 3.14159) * flowStrength; // Stronger when aligned with flow
+                    vortex *= smoothstep(regionRadius * 0.05, 0.0, radius); // Fade at center and edge
+                    vortex *= regionFalloff;
                     
                     // === LAYER 4: Spectral drift ===
                     float drift1 = sin(pos.x * 0.08 + t * 0.12) * cos(pos.y * 0.06 + t * 0.08) * 0.5 + 0.5;
                     float drift2 = sin(pos.x * 0.15 - t * 0.09) * cos(pos.y * 0.12 + t * 0.06) * 0.5 + 0.5;
                     float drift = mix(drift1, drift2, 0.4);
                     
+                    // === LAYER 5: Flow-aligned streams ===
+                    float streamNoise = fbm(pos * 0.15 + flowDir2D * 3.0 + t * 0.1);
+                    float streams = smoothstep(0.4, 0.6, streamNoise) * flowAlignment * flowStrength;
+
                     // === COMPOSITE ===
-                    float intensity = nebulaDepth * 0.35 + rifts * 0.6 + vortex * 0.2 + drift * 0.15;
+                    float baseIntensity = nebulaDepth * 0.25 + rifts * 0.5 + vortex * 0.15 + drift * 0.1 + streams * 0.2;
+                    float intensity = baseIntensity * regionFalloff * flowStrength;
                     intensity = clamp(intensity, 0.0, 1.0);
                     
                     // === SPECTRAL COLOR PALETTE ===
@@ -613,6 +695,7 @@ export class TopologyBiasVisualizationLayer {
         this.root.add(this.flowFieldContainer);
 
         this.flowFieldGeometry = new THREE.PlaneGeometry(1, 1);
+        this.flowFieldMesh = null; // Will be created dynamically
     }
 
     initializeStabilityEventSubscriptions() {
@@ -919,14 +1002,75 @@ export class TopologyBiasVisualizationLayer {
             this.flowFieldMaterial.uniforms.time.value += deltaTime;
         }
         
+        // Update shader-based flow field rendering
+        this.updateFlowFieldRendering(regions);
+
         // Rebuild debug visualization
         if (this.debugFlowFields) {
             this.rebuildFlowFieldDebugVisualization();
         } else {
-            this.clearDebugContainer(this.flowFieldContainer, [this.flowFieldGeometry], []);
+            // Clear debug meshes but keep the shader-based flow field mesh
+            const geometriesToDispose = [];
+            const materialsToDispose = [];
+
+            this.flowFieldContainer.children.forEach(child => {
+                if (child !== this.flowFieldMesh) {
+                    if (child.geometry) geometriesToDispose.push(child.geometry);
+                    if (child.material) materialsToDispose.push(child.material);
+                    this.flowFieldContainer.remove(child);
+                }
+            });
+
+            geometriesToDispose.forEach(geo => geo.dispose());
+            materialsToDispose.forEach(mat => mat.dispose());
         }
     }
-    
+
+    updateFlowFieldRendering(regions) {
+        if (!this.enabled || !regions || regions.length === 0) {
+            // Remove existing mesh if no active regions
+            if (this.flowFieldMesh) {
+                this.flowFieldContainer.remove(this.flowFieldMesh);
+                this.flowFieldMesh.geometry.dispose();
+                this.flowFieldMesh = null;
+            }
+            return;
+        }
+
+        // Find the region with strongest flow for primary visualization
+        let primaryRegion = regions[0];
+        for (const region of regions) {
+            if (region.flowStrength > primaryRegion.flowStrength) {
+                primaryRegion = region;
+            }
+        }
+
+        // Update shader uniforms with region data
+        if (this.flowFieldMaterial) {
+            this.flowFieldMaterial.uniforms.flowDirection.value.copy(primaryRegion.flowBias);
+            this.flowFieldMaterial.uniforms.flowStrength.value = primaryRegion.flowStrength;
+            this.flowFieldMaterial.uniforms.regionCenter.value.copy(primaryRegion.center);
+            this.flowFieldMaterial.uniforms.regionRadius.value = 15.0; // Could be made configurable
+        }
+
+        // Create or update the mesh
+        if (!this.flowFieldMesh) {
+            this.flowFieldMesh = new THREE.Mesh(this.flowFieldGeometry, this.flowFieldMaterial);
+            this.flowFieldMesh.name = 'topology-flow-field-mesh';
+            this.flowFieldMesh.rotation.x = -Math.PI / 2; // Lay flat on ground
+            this.flowFieldMesh.position.y = 0.1; // Slightly above ground to avoid z-fighting
+            this.flowFieldMesh.renderOrder = 5; // Below nodes but above terrain
+            this.flowFieldMesh.frustumCulled = false;
+            this.flowFieldContainer.add(this.flowFieldMesh);
+        }
+
+        // Scale mesh to cover the active region
+        const scale = primaryRegion.radius || 20.0;
+        this.flowFieldMesh.scale.setScalar(scale);
+        this.flowFieldMesh.position.copy(primaryRegion.center);
+        this.flowFieldMesh.position.y = 0.1;
+    }
+
     rebuildFlowFieldDebugVisualization() {
         this.clearDebugContainer(this.flowFieldContainer, [this.flowFieldGeometry], []);
         
@@ -1130,7 +1274,14 @@ export class TopologyBiasVisualizationLayer {
         this.biasVectorMaterial?.dispose();
         this.flowFieldGeometry?.dispose();
         this.flowFieldMaterial?.dispose();
-        
+
+        // Dispose flow field mesh if it exists
+        if (this.flowFieldMesh) {
+            this.flowFieldContainer.remove(this.flowFieldMesh);
+            this.flowFieldMesh.geometry.dispose();
+            this.flowFieldMesh = null;
+        }
+
         this.biasVectorInstances = [];
         this.flowFieldCells.clear();
         this.recentInfluencePositions = [];

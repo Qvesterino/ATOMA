@@ -35,10 +35,17 @@ export class TemporalEventEffects {
         elapsed: 0,
         durations: { attack: 0.4, crest: 0.6, release: 2.0 },
         intensity: 0
+      },
+      hologram: {
+        state: 'idle',
+        elapsed: 0,
+        durations: { attack: 0.8, crest: 1.2, release: 3.0 },
+        intensity: 0
       }
     };
 
     this.aeonPulseGlyphs = [];
+    this.neuralHolograms = [];
     this.temporalOverlayRoot = new THREE.Group();
     this.temporalOverlayRoot.name = 'TemporalEventEffects_TemporalOverlayRoot';
     this.temporalOverlayRoot.frustumCulled = false;
@@ -48,8 +55,15 @@ export class TemporalEventEffects {
     this.overlayGroup.name = 'TemporalEventEffects_EventOverlayGroup';
     this.overlayGroup.frustumCulled = false;
     this.temporalOverlayRoot.add(this.overlayGroup);
+
+    this.hologramGroup = new THREE.Group();
+    this.hologramGroup.name = 'TemporalEventEffects_NeuralHolograms';
+    this.hologramGroup.frustumCulled = false;
+    this.temporalOverlayRoot.add(this.hologramGroup);
+
     this.camera = this._resolveCamera();
     this.aeonOverlay = null;
+    this.hologramShaderMaterial = null;
 
     this.temporalEventPresets = {
       epoch: {
@@ -65,15 +79,148 @@ export class TemporalEventEffects {
         baseScale: 0.48,
         speedScale: 0.1,
         duration: 2.4
+      },
+      hologram: {
+        planeCount: 8,
+        radius: 12.0,
+        height: 8.0,
+        baseOpacity: 0.15,
+        refractionStrength: 0.3,
+        color: 0x88ddff,
+        duration: 4.2
       }
     };
 
     this.pendingMetricTemporalEvents = {
       newEpoch: false,
       newAeon: false,
+      neuralHologram: false,
     };
 
     this._setupMetricTriggers();
+    this._initializeHologramShader();
+  }
+
+  _initializeHologramShader() {
+    this.hologramShaderMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0.0 },
+        opacity: { value: 0.0 },
+        refractionStrength: { value: 0.3 },
+        hologramColor: { value: new THREE.Color(0x88ddff) },
+        cameraPosition: { value: new THREE.Vector3() },
+        hologramCenter: { value: new THREE.Vector3() },
+        hologramRadius: { value: 12.0 },
+        hologramHeight: { value: 8.0 }
+      },
+      vertexShader: `
+        varying vec3 vWorldPosition;
+        varying vec3 vNormal;
+        varying vec2 vUv;
+        varying vec3 vViewDirection;
+
+        void main() {
+          vUv = uv;
+          vNormal = normalize(normalMatrix * normal);
+
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPosition.xyz;
+
+          vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+          vViewDirection = viewDirection;
+
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float time;
+        uniform float opacity;
+        uniform float refractionStrength;
+        uniform vec3 hologramColor;
+        uniform vec3 cameraPosition;
+        uniform vec3 hologramCenter;
+        uniform float hologramRadius;
+        uniform float hologramHeight;
+
+        varying vec3 vWorldPosition;
+        varying vec3 vNormal;
+        varying vec2 vUv;
+        varying vec3 vViewDirection;
+
+        // Noise functions for organic hologram patterns
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(
+            mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+            mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x),
+            f.y
+          );
+        }
+
+        float fbm(vec2 p) {
+          float value = 0.0;
+          float amplitude = 0.5;
+          for (int i = 0; i < 4; i++) {
+            value += amplitude * noise(p);
+            p *= 2.0;
+            amplitude *= 0.5;
+          }
+          return value;
+        }
+
+        void main() {
+          // Distance from hologram center
+          vec3 centerToPos = vWorldPosition - hologramCenter;
+          float horizontalDist = length(centerToPos.xz);
+          float verticalDist = abs(centerToPos.y);
+
+          // Falloff based on distance
+          float radiusFalloff = 1.0 - smoothstep(0.0, hologramRadius, horizontalDist);
+          float heightFalloff = 1.0 - smoothstep(0.0, hologramHeight * 0.5, verticalDist);
+          float totalFalloff = radiusFalloff * heightFalloff;
+
+          // Fresnel for edge glow
+          float fresnel = 1.0 - abs(dot(vViewDirection, vNormal));
+          fresnel = pow(fresnel, 2.0);
+
+          // Animated interference patterns
+          vec2 noisePos = vWorldPosition.xz * 0.1 + time * 0.2;
+          float pattern1 = fbm(noisePos);
+          float pattern2 = fbm(noisePos * 1.5 + time * 0.1);
+
+          // Neural network-inspired patterns
+          float neuralPattern = sin(horizontalDist * 0.5 + time * 2.0) *
+                               cos(verticalDist * 0.8 - time * 1.5) * 0.5 + 0.5;
+
+          // Combine patterns
+          float hologramIntensity = (pattern1 * 0.4 + pattern2 * 0.3 + neuralPattern * 0.3) * totalFalloff;
+
+          // Refraction effect
+          vec3 refractedColor = hologramColor;
+          refractedColor += vec3(0.2, 0.1, 0.3) * fresnel * refractionStrength;
+
+          // Depth scattering
+          float depth = length(vWorldPosition - cameraPosition);
+          float depthFade = 1.0 / (1.0 + depth * 0.01);
+
+          // Final color with all effects
+          vec3 finalColor = refractedColor * hologramIntensity * depthFade;
+          float finalOpacity = opacity * hologramIntensity * fresnel * 0.8;
+
+          gl_FragColor = vec4(finalColor, finalOpacity);
+        }
+      `,
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
   }
   
   /**
@@ -84,6 +231,7 @@ export class TemporalEventEffects {
     const mergedTemporalEvents = {
       newEpoch: Boolean(temporalEvents?.newEpoch || this.pendingMetricTemporalEvents.newEpoch),
       newAeon: Boolean(temporalEvents?.newAeon || this.pendingMetricTemporalEvents.newAeon),
+      neuralHologram: Boolean(temporalEvents?.neuralHologram || this.pendingMetricTemporalEvents.neuralHologram),
     };
 
     if (mergedTemporalEvents.newEpoch) {
@@ -94,13 +242,19 @@ export class TemporalEventEffects {
       this.triggerAeonPulse();
       this.pendingMetricTemporalEvents.newAeon = false;
     }
+    if (mergedTemporalEvents.neuralHologram) {
+      this.triggerNeuralHologram();
+      this.pendingMetricTemporalEvents.neuralHologram = false;
+    }
 
     const activeEpoch = this.effects.epoch.state !== 'idle';
     const activeAeon = this.effects.aeon.state !== 'idle';
-    if (!mergedTemporalEvents.newEpoch && !mergedTemporalEvents.newAeon && !activeEpoch && !activeAeon) return;
+    const activeHologram = this.effects.hologram.state !== 'idle';
+    if (!mergedTemporalEvents.newEpoch && !mergedTemporalEvents.newAeon && !mergedTemporalEvents.neuralHologram && !activeEpoch && !activeAeon && !activeHologram) return;
 
     this.updateEpochShift(deltaTime);
     this.updateAeonPulse(deltaTime);
+    this.updateNeuralHologram(deltaTime);
     this.updateOverlayTransforms();
   }
   
@@ -231,7 +385,134 @@ export class TemporalEventEffects {
     }
     this.aeonPulseGlyphs = nextGlyphs;
   }
-  
+
+  /**
+   * Trigger neural hologram projection
+   */
+  triggerNeuralHologram() {
+    this._startEnvelope('hologram');
+    this.createNeuralHolograms();
+  }
+
+  /**
+   * Create volumetric neural holograms
+   */
+  createNeuralHolograms() {
+    try {
+      this._cleanupNeuralHolograms();
+      const preset = this.temporalEventPresets.hologram;
+
+      // Get camera position for hologram placement
+      const cameraPos = this.camera ? this.camera.position.clone() : new THREE.Vector3(0, 5, 10);
+      const hologramCenter = cameraPos.clone().add(new THREE.Vector3(0, 2, -8));
+
+      // Create multiple intersecting planes for volumetric effect
+      for (let i = 0; i < preset.planeCount; i++) {
+        const angle = (i / preset.planeCount) * Math.PI * 2;
+        const heightOffset = (i - preset.planeCount * 0.5) * (preset.height / preset.planeCount);
+
+        // Create plane geometry
+        const geometry = new THREE.PlaneGeometry(preset.radius * 2, preset.height);
+
+        // Position and rotate the plane
+        const plane = new THREE.Mesh(geometry, this.hologramShaderMaterial.clone());
+        plane.position.copy(hologramCenter);
+        plane.position.y += heightOffset;
+
+        // Rotate around Y axis for volumetric effect
+        plane.rotation.y = angle;
+
+        // Slight X rotation for more intersection
+        plane.rotation.x = Math.sin(angle * 2) * 0.2;
+
+        // Set shader uniforms
+        plane.material.uniforms.hologramCenter.value.copy(hologramCenter);
+        plane.material.uniforms.hologramRadius.value = preset.radius;
+        plane.material.uniforms.hologramHeight.value = preset.height;
+        plane.material.uniforms.hologramColor.value.setHex(preset.color);
+        plane.material.uniforms.opacity.value = 0.0;
+
+        plane.renderOrder = 20 + i; // Ensure proper layering
+        plane.frustumCulled = false;
+
+        this.hologramGroup.add(plane);
+
+        this.neuralHolograms.push({
+          mesh: plane,
+          basePosition: hologramCenter.clone(),
+          heightOffset: heightOffset,
+          rotationAngle: angle,
+          age: 0,
+          duration: preset.duration,
+          baseOpacity: preset.baseOpacity
+        });
+      }
+    } catch (error) {
+      console.warn('Error creating neural holograms:', error);
+    }
+  }
+
+  /**
+   * Update neural hologram effect
+   */
+  updateNeuralHologram(deltaTime) {
+    const envelope = this.effects.hologram;
+    if (envelope.state === 'idle') return;
+
+    this._updateEnvelope(envelope, deltaTime);
+    this.updateNeuralHolograms(deltaTime, envelope.intensity);
+
+    if (envelope.state === 'idle') {
+      this._cleanupNeuralHolograms();
+    }
+  }
+
+  /**
+   * Update individual neural holograms
+   */
+  updateNeuralHolograms(deltaTime, intensity) {
+    if (this.neuralHolograms.length === 0) return;
+
+    // Update camera position in shader
+    if (this.camera) {
+      this.neuralHolograms.forEach(hologram => {
+        hologram.mesh.material.uniforms.cameraPosition.value.copy(this.camera.position);
+      });
+    }
+
+    // Update shader time
+    this.neuralHolograms.forEach(hologram => {
+      hologram.mesh.material.uniforms.time.value += deltaTime;
+      hologram.mesh.material.uniforms.opacity.value = hologram.baseOpacity * intensity;
+    });
+
+    // Animate hologram positions slightly
+    this.neuralHolograms.forEach((hologram, index) => {
+      hologram.age += deltaTime;
+
+      // Subtle floating motion
+      const floatOffset = Math.sin(hologram.age * 0.5 + index * 0.3) * 0.5;
+      hologram.mesh.position.y = hologram.basePosition.y + hologram.heightOffset + floatOffset;
+
+      // Very subtle rotation
+      hologram.mesh.rotation.y = hologram.rotationAngle + Math.sin(hologram.age * 0.2) * 0.05;
+    });
+  }
+
+  /**
+   * Clean up neural holograms
+   */
+  _cleanupNeuralHolograms() {
+    this.neuralHolograms.forEach(hologram => {
+      if (hologram.mesh) {
+        this.hologramGroup.remove(hologram.mesh);
+        hologram.mesh.geometry.dispose();
+        hologram.mesh.material.dispose();
+      }
+    });
+    this.neuralHolograms = [];
+  }
+
   /**
    * Start a common temporal envelope
    */
@@ -580,6 +861,7 @@ export class TemporalEventEffects {
   cleanup() {
     this.disable();
     this._cleanupAeonGlyphs();
+    this._cleanupNeuralHolograms();
     this._removeEpochOverlay();
     if (this.overlayGroup && this.overlayGroup.parent) {
       this.overlayGroup.parent.remove(this.overlayGroup);

@@ -585,7 +585,7 @@ export class T2_HarmonyVisualConsumer_v1 {
       ...boostOptions,
       overrideHarmonyLevel: overrideHarmony,
       minimumHarmonyLevel: minimumHarmony,
-      ignoreLinkRequirement: true
+      ignoreLinkRequirement: false
     });
 
     if (tier === 'high') {

@@ -1139,13 +1139,6 @@ import { EventVisualSuppression_v1, setupEventSuppressionConsoleAPI } from './Ev
 // ============================================================================
 
 // ============================================================================
-// ENHANCED NODE MODEL LINK STATE v1.0 (Session 28)
-// Boosts core visual presence when nodes are linked
-// ============================================================================
-// DISABLED (Session 56 Visual Authority Fix): EnhancedNodeModelLinkState violated base visual state immutability
-// import { EnhancedNodeModelLinkState, setupEnhancedNodeModelLinkStateConsoleAPI } from './EnhancedNodeModelLinkState.js';
-
-// ============================================================================
 // GLOBAL AURA OPACITY CLAMP v1.0 (Session 28)
 // Clamps all aura opacity to ≤ 0.10 after linking
 // ============================================================================
@@ -9445,15 +9438,6 @@ window.__ATOMA_SCENE__ = this.scene;
         // AURA MODULATION SYSTEM v1.0 (Session 27)
         // Receives redirected event intensity and applies modulation to auras
         // ====================================================================
-        // ENHANCED NODE MODEL LINK STATE v1.0 (Session 28) — DISABLED
-        // Reason: Violates visual authority lock. Linking is a relationship,
-        // not a visual mutation. BaseVisualState is immutable authority.
-        // Nodes must look IDENTICAL before and after linking.
-        // Link FX are applied as ADDITIVE layers only (arc, glow, pulse).
-        // ====================================================================
-        // DISABLED: this.enhancedNodeModelLinkState = new EnhancedNodeModelLinkState();
-        // Kept commented for reference but NOT instantiated
-        
         // ====================================================================
         // GLOBAL AURA OPACITY CLAMP v1.0 (Session 28)
         // Clamps all aura opacity to ≤ 0.10 after linking
