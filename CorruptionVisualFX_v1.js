@@ -34,18 +34,13 @@ const CORRUPTION_ORIGINAL_ON_BEFORE_RENDER = Symbol('corruptionOriginalOnBeforeR
 /**
  * Corruption color palette (HSL-friendly)
  * Ranges from healthy to fully corrupted
- * SUPERNATURAL UPGRADE: Extended with void and spectral corruption colors
  */
 const CORRUPTION_COLOR_PALETTE = {
   healthy: { r: 0.2, g: 0.8, b: 0.3 },     // Green
   mild: { r: 1.0, g: 0.6, b: 0.0 },        // Orange
   moderate: { r: 1.0, g: 0.2, b: 0.6 },    // Magenta
   strong: { r: 0.9, g: 0.1, b: 0.1 },      // Deep red
-  severe: { r: 0.5, g: 0.0, b: 0.5 },      // Purple/void
-  // SUPERNATURAL: Void corruption stages
-  voidEdge: { r: 0.3, g: 0.0, b: 0.6 },    // Spectral void edge
-  voidCore: { r: 0.05, g: 0.0, b: 0.1 },   // Deep void
-  spectralDecay: { r: 0.6, g: 0.1, b: 0.8 } // Spectral dissolution
+  severe: { r: 0.5, g: 0.0, b: 0.5 }       // Purple/void
 };
 
 /**
@@ -456,10 +451,6 @@ export class CorruptionVisualFX_v1 {
   applyShaderDistortion(nodeModel, corruptionLevel, deltaTime) {
     if (!THREE || !nodeModel?.traverse || !this.corruptionShaderVariant || !this._isNodeVisualTarget(nodeModel)) return;
 
-    // Compute directional creep from corrupted neighbors
-    const creepDirection = this._computeCorruptionDirection(nodeModel);
-    const clampedLevel = Math.max(0, Math.min(1, corruptionLevel || 0));
-
     nodeModel.traverse((child) => {
       if (!child.isMesh || !child.material || this._isVisualOnlyMesh(child)) return;
 
@@ -467,10 +458,8 @@ export class CorruptionVisualFX_v1 {
       const binding = child.userData?.[CORRUPTION_BINDING] || this._bindCorruptionVariantToMesh(child);
       if (!binding?.uniformState) return;
 
-      binding.uniformState.uCorruptionLevel = clampedLevel;
+      binding.uniformState.uCorruptionLevel = Math.max(0, Math.min(1, corruptionLevel || 0));
       binding.uniformState.uCorruptionTime += Math.max(0, deltaTime || 0);
-      binding.uniformState.uCorruptionDirection.copy(creepDirection);
-      binding.uniformState.uCorruptionCreepProgress = clampedLevel;
 
       if (child.material?.uniforms?.uCorruptionLevel) {
         child.material.uniforms.uCorruptionLevel.value = binding.uniformState.uCorruptionLevel;
@@ -479,57 +468,6 @@ export class CorruptionVisualFX_v1 {
         child.material.uniforms.uCorruptionTime.value = binding.uniformState.uCorruptionTime;
       }
     });
-  }
-
-  /**
-   * CORRUPTION CREEP — Compute the direction from which corruption is entering a node.
-   * Examines linked neighbors' corruption levels to find the weighted average direction.
-   * Returns a normalized Vector3 pointing FROM the most corrupted neighbor(s) TOWARD this node.
-   */
-  _computeCorruptionDirection(nodeModel) {
-    const fallback = new THREE.Vector3(0, 0, 1);
-    if (!nodeModel?.userData?.links) return fallback;
-
-    const links = nodeModel.userData.links;
-    if (!Array.isArray(links) || links.length === 0) return fallback;
-
-    const nodePos = nodeModel.position;
-    if (!nodePos) return fallback;
-
-    const weightedDir = new THREE.Vector3(0, 0, 0);
-    let totalWeight = 0;
-
-    for (const link of links) {
-      // Identify the other node in this link
-      const otherNode = (link.source === nodeModel) ? link.target :
-                        (link.target === nodeModel) ? link.source : null;
-      if (!otherNode?.position) continue;
-
-      const otherCorruption = Math.max(0, Math.min(1, (
-        otherNode?.userData?.metrics?.corruption ??
-        otherNode?.userData?.corruption ??
-        otherNode?.userData?.corruptionLevel ??
-        0
-      )));
-
-      // Only consider neighbors with meaningful corruption
-      if (otherCorruption < 0.1) continue;
-
-      // Direction FROM corrupted neighbor TOWARD this node
-      const dir = new THREE.Vector3().subVectors(nodePos, otherNode.position);
-      const dist = dir.length();
-      if (dist < 0.001) continue;
-      dir.divideScalar(dist); // normalize
-
-      weightedDir.add(dir.multiplyScalar(otherCorruption));
-      totalWeight += otherCorruption;
-    }
-
-    if (totalWeight > 0.001) {
-      return weightedDir.normalize();
-    }
-
-    return fallback;
   }
 
   _createCorruptionShaderVariant() {
@@ -541,19 +479,15 @@ export class CorruptionVisualFX_v1 {
         uEmissive: { value: new THREE.Color(0.0, 0.0, 0.0) },
         uOpacity: { value: 1.0 },
         uCorruptionLevel: { value: 0.0 },
-        uCorruptionTime: { value: 0.0 },
-        uCorruptionDirection: { value: new THREE.Vector3(0, 0, 1) },
-        uCorruptionCreepProgress: { value: 0.0 }
+        uCorruptionTime: { value: 0.0 }
       },
       vertexShader: `
         varying vec2 vUv;
         varying vec3 vNormalW;
         varying vec2 vPosWxy;
-        varying vec3 vModelPos;
 
         void main() {
           vUv = uv;
-          vModelPos = position;
           vNormalW = normalize(mat3(modelMatrix) * normal);
           vec4 worldPos = modelMatrix * vec4(position, 1.0);
           vPosWxy = worldPos.xy;
@@ -568,112 +502,19 @@ export class CorruptionVisualFX_v1 {
         uniform float uOpacity;
         uniform float uCorruptionLevel;
         uniform float uCorruptionTime;
-        uniform vec3 uCorruptionDirection;
-        uniform float uCorruptionCreepProgress;
 
         varying vec2 vUv;
         varying vec3 vNormalW;
         varying vec2 vPosWxy;
-        varying vec3 vModelPos;
-
-        // ── Gradient noise for organic rot front ──
-        vec3 hash33(vec3 p) {
-          p = vec3(dot(p, vec3(127.1, 311.7, 74.7)),
-                   dot(p, vec3(269.5, 183.3, 246.1)),
-                   dot(p, vec3(113.5, 271.9, 124.6)));
-          return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
-        }
-
-        float noise3D(vec3 p) {
-          vec3 i = floor(p);
-          vec3 f = fract(p);
-          vec3 u = f * f * (3.0 - 2.0 * f);
-          return mix(mix(mix(dot(hash33(i + vec3(0,0,0)), f - vec3(0,0,0)),
-                             dot(hash33(i + vec3(1,0,0)), f - vec3(1,0,0)), u.x),
-                         mix(dot(hash33(i + vec3(0,1,0)), f - vec3(0,1,0)),
-                             dot(hash33(i + vec3(1,1,0)), f - vec3(1,1,0)), u.x), u.y),
-                     mix(mix(dot(hash33(i + vec3(0,0,1)), f - vec3(0,0,1)),
-                             dot(hash33(i + vec3(1,0,1)), f - vec3(1,0,1)), u.x),
-                         mix(dot(hash33(i + vec3(0,1,1)), f - vec3(0,1,1)),
-                             dot(hash33(i + vec3(1,1,1)), f - vec3(1,1,1)), u.x), u.y), u.z);
-        }
-
-        // SUPERNATURAL UPGRADE: Void corruption distortion
-        // Chromatic dissolution + void energy pulsation + reality dissolution
-        float hslChannel(float n, float h, float a, float l) {
-          float k = mod(n + h * 12.0, 12.0);
-          return l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0));
-        }
-
-        vec3 hsl2rgb(float h, float s, float l) {
-          h = fract(h);
-          float a = s * min(l, 1.0 - l);
-          return vec3(
-            hslChannel(0.0, h, a, l),
-            hslChannel(8.0, h, a, l),
-            hslChannel(4.0, h, a, l)
-          );
-        }
 
         vec3 applyCorruption(vec3 color, vec2 uv) {
           float level = clamp(uCorruptionLevel, 0.0, 1.0);
           float t = uCorruptionTime;
-
-          // Layer 1: Original warp-stripe distortion (preserved)
           float warp = sin(uv.x * 20.0 + vPosWxy.y * 20.0 + t * 10.0) * 0.5 + 0.5;
           float stripe = sin(uv.y * 28.0 + vPosWxy.x * 28.0 - t * 7.5);
           float distortion = warp * stripe * level;
-
-          // Layer 2: SUPERNATURAL — Chromatic dissolution
-          // Matter breaking into spectral components at high corruption
-          float chromaticShift = level * level * 0.04;
-          vec2 chromaDir = normalize(vec2(uv.x - 0.5, uv.y - 0.5) + vec2(0.001));
-          float spectralR = sin((uv.x + chromaDir.x * chromaticShift) * 18.0 + t * 6.0) * 0.5 + 0.5;
-          float spectralB = sin((uv.x - chromaDir.x * chromaticShift) * 18.0 + t * 6.0) * 0.5 + 0.5;
-          vec3 chromaticDissolve = vec3(spectralR, 0.2, spectralB) * level * level * 0.3;
-
-          // Layer 3: SUPERNATURAL — Void energy pulsation
-          // Dark energy rhythmically consuming light
-          float voidPulse = sin(t * 3.0 + length(uv - 0.5) * 12.0) * 0.5 + 0.5;
-          float voidIntensity = level * level * level * voidPulse * 0.4;
-          vec3 voidColor = vec3(0.03, 0.0, 0.08) * voidIntensity;
-
-          // Layer 4: SUPERNATURAL — Spectral decay tendrils
-          // Organic noise-based decay patterns
-          float tendrilNoise = noise3D(vec3(uv * 8.0, t * 0.3));
-          float tendrilPattern = smoothstep(0.2, 0.5, tendrilNoise) * (1.0 - smoothstep(0.5, 0.7, tendrilNoise));
-          vec3 tendrilColor = hsl2rgb(fract(tendrilNoise * 0.4 + t * 0.05), 0.8, 0.4) * tendrilPattern * level * level * 0.35;
-
-          // Combine: original tint + chromatic dissolve + void + tendrils
           vec3 tint = vec3(1.0, 0.2, 0.5) * distortion * level;
-          return color + tint + chromaticDissolve - voidColor + tendrilColor;
-        }
-
-        // ── Directional creep mask ──
-        // Returns 1.0 where rot has reached, 0.0 where surface is still healthy
-        float computeCreepMask() {
-          float progress = clamp(uCorruptionCreepProgress, 0.0, 1.0);
-          if (progress < 0.001) return 0.0;
-          if (progress > 0.99) return 1.0;
-
-          // Safe normalize: model-space position → direction from node center
-          float modelLen = length(vModelPos);
-          vec3 dir = modelLen > 0.001 ? vModelPos / modelLen : vec3(0.0, 1.0, 0.0);
-          vec3 creepDir = normalize(uCorruptionDirection);
-
-          // How much this fragment faces the corruption source (0 = away, 1 = facing)
-          float sourceFacing = dot(dir, creepDir) * 0.5 + 0.5;
-
-          // Organic noise at the rot front boundary — two octaves for detail
-          float n1 = noise3D(vModelPos * 4.0 + vec3(uCorruptionTime * 0.3, 0.0, uCorruptionTime * 0.2)) * 0.14;
-          float n2 = noise3D(vModelPos * 9.0 + vec3(0.0, uCorruptionTime * 0.5, 0.0)) * 0.06;
-          float boundaryNoise = n1 + n2;
-
-          // Rot front moves from source-facing side (1.0) toward far side (0.0)
-          float frontEdge = 1.0 - progress + boundaryNoise;
-
-          // Smooth mask at the boundary
-          return smoothstep(frontEdge - 0.07, frontEdge + 0.07, sourceFacing);
+          return color + tint;
         }
 
         void main() {
@@ -687,33 +528,7 @@ export class CorruptionVisualFX_v1 {
           vec3 lightDir = vec3(0.2519, 0.7558, 0.6048);
           float ndl = max(dot(normal, lightDir), 0.0);
           vec3 lit = baseColor * (0.35 + 0.65 * ndl) + uEmissive;
-
-          // Directional creep: blend healthy → corrupted based on rot spread
-          float creepMask = computeCreepMask();
-          vec3 corruptedColor = applyCorruption(lit, vUv);
-
-          // SUPERNATURAL UPGRADE: Rot front glow — spectral void edge + chromatic boundary
-          float progress = clamp(uCorruptionCreepProgress, 0.0, 1.0);
-          float frontEdge = 1.0 - progress;
-          float modelLen = length(vModelPos);
-          vec3 dir = modelLen > 0.001 ? vModelPos / modelLen : vec3(0.0, 1.0, 0.0);
-          float sourceFacing = dot(dir, normalize(uCorruptionDirection)) * 0.5 + 0.5;
-          float frontDist = abs(sourceFacing - frontEdge);
-          float frontGlow = exp(-frontDist * frontDist * 64.0) * progress * 0.7;
-          
-          // Original magenta glow + spectral void edge
-          vec3 baseGlow = vec3(1.0, 0.15, 0.4) * frontGlow;
-          // Spectral chromatic edge at the rot boundary
-          float edgeAngle = atan(dir.z, dir.x);
-          vec3 spectralEdge = hsl2rgb(fract(edgeAngle / 6.2832 + uCorruptionTime * 0.15), 0.9, 0.55);
-          vec3 glowColor = mix(baseGlow, spectralEdge * frontGlow, progress * 0.5);
-          // Void energy at the core of the rot
-          float voidCore = frontGlow * progress * 0.3;
-          glowColor += vec3(0.05, 0.0, 0.12) * voidCore;
-
-          // Final: healthy base → corrupted where creep has reached + spectral front glow
-          vec3 finalColor = mix(lit, corruptedColor, creepMask) + glowColor * step(0.01, creepMask);
-
+          vec3 finalColor = applyCorruption(lit, vUv);
           gl_FragColor = vec4(finalColor, texel.a * uOpacity);
         }
       `,
@@ -732,9 +547,7 @@ export class CorruptionVisualFX_v1 {
       sourceMaterial,
       uniformState: {
         uCorruptionLevel: 0,
-        uCorruptionTime: 0,
-        uCorruptionDirection: new THREE.Vector3(0, 0, 1),
-        uCorruptionCreepProgress: 0
+        uCorruptionTime: 0
       },
       renderState: {
         transparent: sourceMaterial.transparent === true,
@@ -773,14 +586,6 @@ export class CorruptionVisualFX_v1 {
         uniforms.uUseMap.value = map ? 1.0 : 0.0;
         uniforms.uCorruptionLevel.value = b.uniformState.uCorruptionLevel;
         uniforms.uCorruptionTime.value = b.uniformState.uCorruptionTime;
-        uniforms.uCorruptionDirection.value.copy(b.uniformState.uCorruptionDirection);
-        uniforms.uCorruptionCreepProgress.value = b.uniformState.uCorruptionCreepProgress;
-
-        variant.transparent = b.renderState.transparent;
-        variant.depthWrite = b.renderState.depthWrite;
-        variant.depthTest = b.renderState.depthTest;
-        variant.side = b.renderState.side;
-        variant.blending = b.renderState.blending;
       }
 
       const original = mesh[CORRUPTION_ORIGINAL_ON_BEFORE_RENDER];
@@ -900,20 +705,6 @@ export class CorruptionVisualFX_v1 {
       (Math.random() - 0.5) * 0.3,
       (Math.random() - 0.5) * 0.3
     );
-
-    // SUPERNATURAL UPGRADE: Spectral void particle colors
-    // Particles shift from magenta through spectral violet to void purple
-    const spectralHue = 0.75 + corruptionLevel * 0.12 + Math.random() * 0.08;
-    const spectralSat = 0.6 + corruptionLevel * 0.3;
-    const spectralLit = 0.25 + corruptionLevel * 0.35;
-    const particleBaseColor = new THREE.Color().setHSL(spectralHue % 1.0, spectralSat, spectralLit);
-
-    // Void tendrils: at high corruption, some particles are deep void
-    const isVoidParticle = corruptionLevel > 0.7 && Math.random() < (corruptionLevel - 0.7) * 0.5;
-    if (isVoidParticle) {
-      particleBaseColor.setHSL(0.78 + Math.random() * 0.05, 0.3, 0.08 + Math.random() * 0.06);
-    }
-
     const particle = {
       position: nodePos.add(spawnOffset),
       startPosition: null, // will be set to position after creation
@@ -925,12 +716,9 @@ export class CorruptionVisualFX_v1 {
       age: 0,
       life: 1.0,
       maxLife: 0.5 + Math.random() * 0.5,
-      baseColor: particleBaseColor,
-      color: particleBaseColor.clone(),
-      size: 0.1 + Math.random() * 0.1,
-      // SUPERNATURAL: Track spectral type for color evolution
-      spectralHue: spectralHue,
-      isVoid: isVoidParticle
+      baseColor: new THREE.Color(1.0, 0.2 * corruptionLevel, 0.6 * corruptionLevel),
+      color: new THREE.Color(1.0, 0.2 * corruptionLevel, 0.6 * corruptionLevel),
+      size: 0.1 + Math.random() * 0.1
     };
 
     this._ensureParticleRoot();
@@ -983,29 +771,8 @@ export class CorruptionVisualFX_v1 {
         start.z + dispZ
       );
 
-      // SUPERNATURAL UPGRADE: Spectral color evolution during particle lifetime
-      // Void particles darken, spectral particles shift hue as they die
-      if (particle.isVoid) {
-        // Void particles: pulse between deep void and spectral edge
-        const voidPulse = Math.sin(particle.age * 8.0) * 0.5 + 0.5;
-        particle.color.setHSL(
-          0.78 + voidPulse * 0.06,
-          0.3 + voidPulse * 0.3,
-          (0.06 + voidPulse * 0.15) * particle.life
-        );
-      } else if (particle.spectralHue !== undefined) {
-        // Spectral particles: hue shifts as they age, cycling through void spectrum
-        const ageShift = particle.age * 0.8;
-        const evolvingHue = (particle.spectralHue + ageShift * 0.15) % 1.0;
-        particle.color.setHSL(
-          evolvingHue,
-          0.6 + particle.life * 0.3,
-          (0.2 + particle.life * 0.4)
-        );
-      } else {
-        // Legacy fallback
-        particle.color.copy(particle.baseColor || particle.color).multiplyScalar(particle.life);
-      }
+      // Fade out
+      particle.color.copy(particle.baseColor || particle.color).multiplyScalar(particle.life);
       if (particle.mesh?.material?.color) {
         particle.mesh.material.color.copy(particle.color);
         particle.mesh.material.opacity = Math.max(0, Math.min(1, particle.life));

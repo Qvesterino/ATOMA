@@ -428,7 +428,6 @@ class Phase8VisualBridge {
         if ('transparent' in material && material.opacity < 0.999) {
           material.transparent = true;
         }
-        material.needsUpdate = true;
       }
 
       if (typeof emissiveIntensity === 'number' && Number.isFinite(emissiveIntensity) && 'emissiveIntensity' in material) {
@@ -475,9 +474,13 @@ class Phase8VisualBridge {
         material.emissiveIntensity = emissiveIntensity;
       }
       if (typeof wireframe === 'boolean' && 'wireframe' in material) {
+        const wireframeChanged = material.wireframe !== wireframe;
         material.wireframe = wireframe;
+        if (wireframeChanged) {
+          // Keep shader invalidation only for compile-relevant state changes.
+          material.needsUpdate = true;
+        }
       }
-      material.needsUpdate = true;
     }
 
     this.renderableBaselineCache.delete(renderableId);

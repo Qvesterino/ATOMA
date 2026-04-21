@@ -631,3 +631,56 @@ vec3 voidEnergy(vec2 uv, float time) {
 4. ✅ Re-stitching beam: Sacred gold `0xFFD700` beam (was `0x88ffdd`), sacred gold / celestial teal stitch alternation
 5. ✅ HSL computation: Sacred spectrum range `0.12 + harmony * 0.38` (was `0.08 + harmony * 0.42`), reduced saturation 0.88 (was 0.92)
 6. ✅ Master switch: `enableSacredRecovery: true`
+
+---
+
+## Round 9: Polish Duo — Harmony Consumer + Orbit Rings
+
+### System 17: T2_HarmonyVisualConsumer_v1 → Sacred Harmony Aura Polish
+
+**Current State**: Borromean ring auras around high-harmony nodes using TubeGeometry torus rings with flow shader. Oasis zones as soft radial bloom. Healing pulse shards. Ring radius 1.1, tube radius 0.08, scale variants [1.0, 0.96, 1.04].
+
+**Upgrade**: Elegant polish — thinner torus rings, tighter spacing, sacred spectral palette, sacred shimmer in flow shader.
+
+#### Changes Applied
+1. **Thinner torus**: Tube radius `0.08` → `0.04` (50% thinner, more elegant)
+2. **Tighter radius**: Ring radius `1.1` → `0.95` (closer to node)
+3. **Tighter spacing**: Scale variants `[1.0, 0.96, 1.04]` → `[1.0, 0.985, 1.015]` (rings much closer together)
+4. **Sacred palette**: Base color `0x66ffd9` → celestial teal `0x40E0D0`
+5. **Sacred shimmer**: Fragment shader enhanced with sacred gold ↔ celestial teal spectral pulse
+6. **Master switch**: `enableSacredHarmonyPolish: true`
+
+### System 18: NodeSegmentedOrbitRings → Sacred Orbit Reactor
+
+**Current State**: InstancedMesh orbit ring system with 64 segments per ring, dual-ring lanes, custom GLSL shaders with trails, hot core, pulse wave, iridescent color shift. PlaneGeometry(0.72, 0.42).
+
+**Upgrade**: Thicker segments, inner particle trail (orbiting particle cluster), enhanced fog/mist trail.
+
+#### Changes Applied
+1. **Thicker segments**: PlaneGeometry `(0.72, 0.42)` → `(0.88, 0.56)` — 22% wider, 33% taller
+2. **Wider base ring**: Fragment shader `abs(uv.y) * 7.5` → `* 5.5` with softer falloff `pow(..., 2.2)` for thicker appearance
+3. **Enhanced fog trail**: Longer trail body, wider soft trail (`abs(uv.y) * 2.8` was `* 3.8`), stronger alpha for misty volumetric appearance
+4. **Inner particle trail**: New `THREE.Points` system with 20 orbiting particles at inner circumference (82% of ring radius)
+   - Custom GLSL vertex/fragment shaders for soft glow particles
+   - Sacred spectral tint: celestial teal base with sacred gold highlights
+   - Varied orbit speeds for organic cluster movement
+   - Hot core + soft glow dual-lobe rendering
+   - Synced with energy level and ring tilt
+5. **Integration**: Trail mesh attached via `getTrailMesh()` in both NodeLinkedAuraSystem creation sites
+6. **Performance**: 20 particles per node — lightweight, single draw call per orbit system
+
+### System 19: VisualUpgradeSuperpack → Sacred Spectral Atmosphere
+
+**Current State**: MEDIUM-tier visual quality layer with 8 enhancement packs: volumetric lights, ambient fog, edge glow, color grading, postFX, quantum distortion, sigma rifts, dream particles, camera aura. All using generic cyan/magenta/pink color palette.
+
+**Upgrade**: Full sacred spectral palette alignment across all 8 packs — creating unified visual identity with the 18 previously upgraded systems.
+
+#### Changes Applied
+1. **Volumetric lights**: Sacred gold `0xFFD700`, celestial teal `0x40E0D0`, mystic violet `0x9466EB`, spectral white-gold `0xFFF0D0` (was cyan/magenta/pink)
+2. **Fog layers**: Deep violet base `0x2A1840`, teal haze `0x1A3030`, gold horizon `0x302810` (was pink-white)
+3. **Edge glow**: Sacred teal `0x40E0D0` (was cyan `0x00ffff`)
+4. **Color grading**: Sacred gold-teal balance — teal shadows, warm midtones, gold highlights (was teal-magenta)
+5. **Distortion zones**: Mystic violet `0x9466EB` (was cyan `0x00ffff`)
+6. **Sigma rifts**: Mystic violet `0x9466EB`, sacred gold `0xFFD700`, celestial teal `0x40E0D0` (was generic green)
+7. **Dream particles**: Sacred gold `0xFFD700`, celestial teal `0x40E0D0`, mystic violet `0x9466EB` (was pink/white)
+8. **Camera aura**: Sacred gold, mystic violet, celestial teal, spectral white-gold (was cyan/pink)

@@ -46,7 +46,14 @@ void main() {
 
   float radial = 1.0 - clamp(length(vLocalPosition.xy) * 0.12, 0.0, 1.0);
   float mask = mix(flow, flow * radial, 0.35);
-  vec3 emissive = uBaseColor * mask;
+
+  // SACRED_HARMONY_POLISH: Sacred spectral shimmer — subtle gold-teal energy pulse
+  vec3 sacredGold = vec3(1.0, 0.84, 0.0);
+  vec3 celestialTeal = vec3(0.25, 0.88, 0.82);
+  float sacredPhase = sin(uTime * 1.5 + vUv.x * 6.28) * 0.5 + 0.5;
+  vec3 sacredShimmer = mix(sacredGold, celestialTeal, sacredPhase) * 0.15;
+
+  vec3 emissive = uBaseColor * mask + sacredShimmer * mask;
   float opacity = mask * uIntensity;
 
   gl_FragColor = vec4(emissive, opacity);
@@ -82,7 +89,8 @@ export class T2_HarmonyVisualConsumer_v1 {
       fieldPulseBoostDuration: 0.6,
       fieldPulseBoostIntensityMultiplier: 1.5,
       fieldPulseBoostScaleMultiplier: 1.2,
-      ringScaleVariants: [1.0, 0.96, 1.04],
+      // SACRED_HARMONY_POLISH: Tighter ring spacing (was [1.0, 0.96, 1.04])
+      ringScaleVariants: [1.0, 0.985, 1.015],
       ringRotationSpeeds: [
         { x: 0.2, y: 0.0, z: 0.0 },
         { x: 0.0, y: 0.15, z: 0.0 },
@@ -106,7 +114,8 @@ export class T2_HarmonyVisualConsumer_v1 {
       pulseColor: new THREE.Color(0x22ffd8),
       pulseMaxDistance: 50,
       pulseLifetime: 3.0, // seconds
-      pulseShardCount: 5  // Reduced from 5 for performance
+      pulseShardCount: 5,  // Reduced from 5 for performance
+      enableSacredHarmonyPolish: true  // SACRED_HARMONY_POLISH: master switch
     };
     
     this.registry = {
@@ -170,9 +179,9 @@ export class T2_HarmonyVisualConsumer_v1 {
   }
 
   _createBorromeanRingGeometries(lodLevel = 0) {
-    // LOD-based geometry complexity
-    const ringRadius = 1.1;
-    const tubeRadius = 0.08;
+    // SACRED_HARMONY_POLISH: Thinner tubes, tighter radius for elegant look
+    const ringRadius = 0.95;   // was 1.1 — tighter to node
+    const tubeRadius = 0.04;   // was 0.08 — thinner, more elegant torus
     // LOD 0: full detail, LOD 1: medium, LOD 2+: low
     const sections = lodLevel >= 2 ? 24 : lodLevel >= 1 ? 40 : 56;
     const radialSegments = lodLevel >= 2 ? 4 : lodLevel >= 1 ? 6 : 8;
@@ -756,7 +765,8 @@ export class T2_HarmonyVisualConsumer_v1 {
     const phaseOffsets = [0, Math.PI * 0.66, Math.PI * 1.33];
 
     this.registry.borromeanRingGeometries.forEach((geometry) => {
-      const ringMaterial = this._createFlowShaderMaterial(0x66ffd9);
+      // SACRED_HARMONY_POLISH: Sacred teal-gold base (was 0x66ffd9)
+      const ringMaterial = this._createFlowShaderMaterial(0x40E0D0);
 
       const ringMesh = new THREE.Mesh(geometry, ringMaterial);
       ringMesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');

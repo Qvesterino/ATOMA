@@ -306,7 +306,11 @@ export class SafeWorldFXPack {
   installOpacityUniform(material, initialOpacity, type, context) {
     if (!material) return;
     material.userData.opacityUniform = { value: initialOpacity };
+    const previousOnBeforeCompile = material.onBeforeCompile;
     material.onBeforeCompile = (shader) => {
+      if (typeof previousOnBeforeCompile === 'function') {
+        previousOnBeforeCompile.call(material, shader);
+      }
       shader.uniforms.uOpacity = material.userData.opacityUniform;
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <common>',

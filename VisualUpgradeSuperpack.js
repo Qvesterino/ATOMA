@@ -275,31 +275,32 @@ export class VisualUpgradeSuperpack {
             [1.0, 0xffffff, 0.0]
         ], 256);
 
+        // SACRED_SUPERPACK: Sacred spectral volumetric light colors
         const lightConfigs = [
             {
                 pos: new THREE.Vector3(60, 50, 40),
-                color: 0x00ffff,
+                color: 0xFFD700,    // Sacred gold (was 0x00ffff)
                 intensity: 0.12,
                 size: 50,
                 rotation: new THREE.Vector3(0.3, 0.2, 0)
             },
             {
                 pos: new THREE.Vector3(-60, 45, -50),
-                color: 0xff00ff,
+                color: 0x40E0D0,    // Celestial teal (was 0xff00ff)
                 intensity: 0.1,
                 size: 45,
                 rotation: new THREE.Vector3(-0.2, -0.3, 0)
             },
             {
                 pos: new THREE.Vector3(0, 55, -70),
-                color: 0xff99ff,
+                color: 0x9466EB,    // Mystic violet (was 0xff99ff)
                 intensity: 0.09,
                 size: 48,
                 rotation: new THREE.Vector3(0.1, 0, 0.2)
             },
             {
                 pos: new THREE.Vector3(-40, 40, 50),
-                color: 0x99ffff,
+                color: 0xFFF0D0,    // Spectral white-gold (was 0x99ffff)
                 intensity: 0.08,
                 size: 40,
                 rotation: new THREE.Vector3(-0.15, 0.25, 0)
@@ -429,11 +430,12 @@ export class VisualUpgradeSuperpack {
             [1.0, 0xffffff, 0.0]
         ], 512);
 
+        // SACRED_SUPERPACK: Sacred spectral mist colors
         const fogLayers = [
             {
                 name: 'groundMist',
                 height: 0.5,
-                color: 0xf0d8e8,
+                color: 0x2A1840,    // Deep violet base (was 0xf0d8e8)
                 opacity: 0.12,
                 size: 300,
                 speed: 0.2
@@ -441,7 +443,7 @@ export class VisualUpgradeSuperpack {
             {
                 name: 'midHaze',
                 height: 30,
-                color: 0xe8c0d8,
+                color: 0x1A3030,    // Teal haze (was 0xe8c0d8)
                 opacity: 0.08,
                 size: 350,
                 speed: 0.15
@@ -457,7 +459,7 @@ export class VisualUpgradeSuperpack {
             {
                 name: 'horizonFade',
                 height: 80,
-                color: 0xf5e8ff,
+                color: 0x302810,    // Gold horizon (was 0xf5e8ff)
                 opacity: 0.03,
                 size: 500,
                 speed: 0.05
@@ -505,8 +507,9 @@ export class VisualUpgradeSuperpack {
     // ============================================================
     applyHolographicEdgeGlowPack() {
         // Create edge glow overlays for scene geometry
+        // SACRED_SUPERPACK: Sacred teal edge glow (was 0x00ffff)
         const edgeGlowMaterial = new THREE.LineBasicMaterial({
-            color: 0x00ffff,
+            color: 0x40E0D0,
             transparent: true,
             opacity: 0.4,
             linewidth: 1.5,
@@ -564,11 +567,12 @@ export class VisualUpgradeSuperpack {
         this.renderer.toneMappingExposure = 1.2;
 
         // Store color grading parameters
+        // SACRED_SUPERPACK: Sacred gold-teal color grading (was teal-magenta)
         this.colorGrading = {
             tealMagentaBalance: {
-                shadows: new THREE.Vector3(0.96, 0.92, 1.08),  // Cyan in shadows
-                midtones: new THREE.Vector3(1.0, 1.0, 1.0),  // Neutral
-                highlights: new THREE.Vector3(1.06, 0.94, 0.98) // Magenta in highlights
+                shadows: new THREE.Vector3(0.92, 0.94, 1.06),    // Sacred teal in shadows (was cyan)
+                midtones: new THREE.Vector3(1.02, 1.0, 0.96),    // Warm neutral (was neutral)
+                highlights: new THREE.Vector3(1.08, 0.96, 0.88)  // Sacred gold in highlights (was magenta)
             },
             contrast: 1.06,
             saturation: 1.0,
@@ -624,10 +628,11 @@ export class VisualUpgradeSuperpack {
             // Create distortion effect through shader overlay
             const geometry = new THREE.IcosahedronGeometry(zone.radius, 3);
             const material = new THREE.MeshStandardMaterial({
-                color: 0x00ffff,
+                // SACRED_SUPERPACK: Mystic violet distortion (was 0x00ffff)
+                color: 0x9466EB,
                 transparent: true,
                 opacity: 0,
-                emissive: 0x00ffff,
+                emissive: 0x9466EB,
                 emissiveIntensity: zone.intensity * 0.1,
                 wireframe: false,
                 fog: false
@@ -652,10 +657,11 @@ export class VisualUpgradeSuperpack {
     // PACK 7: SIGMA RIFT VISUAL PACK
     // ============================================================
     applySigmaRiftVisualPack() {
+        // SACRED_SUPERPACK: Sacred spectral rift colors (was generic green)
         const riftConfigs = [
-            { pos: new THREE.Vector3(50, 20, 50), color: 0x00ff88, scale: 1.0 },
-            { pos: new THREE.Vector3(-50, 25, -50), color: 0x00dd99, scale: 0.9 },
-            { pos: new THREE.Vector3(0, 30, -60), color: 0x00ffaa, scale: 0.8 }
+            { pos: new THREE.Vector3(50, 20, 50), color: 0x9466EB, scale: 1.0 },     // Mystic violet (was 0x00ff88)
+            { pos: new THREE.Vector3(-50, 25, -50), color: 0xFFD700, scale: 0.9 },    // Sacred gold (was 0x00dd99)
+            { pos: new THREE.Vector3(0, 30, -60), color: 0x40E0D0, scale: 0.8 }       // Celestial teal (was 0x00ffaa)
         ];
 
         riftConfigs.forEach(config => {
@@ -730,25 +736,26 @@ export class VisualUpgradeSuperpack {
             [1.0, 0xffffff, 0.0]
         ], 128);
 
+        // SACRED_SUPERPACK: Sacred spectral dream particles (was pink/white)
         const particleSystems = [
             {
                 count: 200,
                 height: new THREE.Vector2(5, 40),
-                color: 0xffc8dd,
+                color: 0xFFD700,    // Sacred gold (was 0xffc8dd)
                 speed: 0.008,
                 size: 0.12
             },
             {
                 count: 150,
                 height: new THREE.Vector2(20, 60),
-                color: 0xffb8d8,
+                color: 0x40E0D0,    // Celestial teal (was 0xffb8d8)
                 speed: 0.006,
                 size: 0.08
             },
             {
                 count: 100,
                 height: new THREE.Vector2(40, 80),
-                color: 0xffffff,
+                color: 0x9466EB,    // Mystic violet (was 0xffffff)
                 speed: 0.004,
                 size: 0.06
             }
@@ -845,10 +852,11 @@ export class VisualUpgradeSuperpack {
             return sprite;
         };
 
-        auraGroup.add(makeAuraSprite(0x8fffff, 0.16, 3.1, 3.1, 0.0, 0.0));
-        auraGroup.add(makeAuraSprite(0xffa6f0, 0.1, 4.6, 3.2, 0.18, -0.08));
-        auraGroup.add(makeAuraSprite(0x69f7ff, 0.08, 6.8, 1.2, -0.24, 0.12));
-        auraGroup.add(makeAuraSprite(0xffffff, 0.055, 9.6, 0.72, 0.0, 0.0));
+        // SACRED_SUPERPACK: Sacred spectral camera aura (was generic cyan/pink)
+        auraGroup.add(makeAuraSprite(0xFFD700, 0.16, 3.1, 3.1, 0.0, 0.0));      // Sacred gold (was 0x8fffff)
+        auraGroup.add(makeAuraSprite(0x9466EB, 0.1, 4.6, 3.2, 0.18, -0.08));    // Mystic violet (was 0xffa6f0)
+        auraGroup.add(makeAuraSprite(0x40E0D0, 0.08, 6.8, 1.2, -0.24, 0.12));   // Celestial teal (was 0x69f7ff)
+        auraGroup.add(makeAuraSprite(0xFFF0D0, 0.055, 9.6, 0.72, 0.0, 0.0));    // Spectral white-gold (was 0xffffff)
 
         if (this.camera) {
             this.camera.add(auraGroup);

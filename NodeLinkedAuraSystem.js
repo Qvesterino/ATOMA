@@ -64,6 +64,18 @@ function freezeMaterialFlags(material, owner = 'NodeLinkedAuraSystem') {
 }
 
 /**
+ * Standalone 3D pseudo-noise (approximation for flame motion).
+ * Extracted from class to avoid per-call method dispatch overhead in hot vertex loop.
+ * Uses layered sine waves for organic feel.
+ */
+function simplexNoise3D(x, y, z) {
+  const n1 = Math.sin(x * 1.3 + y * 0.7 + z * 0.9);
+  const n2 = Math.sin(x * 2.7 - y * 1.4 + z * 1.8) * 0.5;
+  const n3 = Math.sin(x * 5.1 + y * 3.2 - z * 2.4) * 0.25;
+  return (n1 + n2 + n3) / 1.75;
+}
+
+/**
  * Node Linked Aura System - Dynamic breathing aura for connected nodes
  * 
  * Creates organic, torn-looking aura meshes with flame-like motion behavior.
@@ -152,6 +164,11 @@ export class NodeLinkedAuraSystem {
       lastUpdateTime: 0,
       avgUpdateTime: 0
     };
+
+    // Reusable temp vector — eliminates per-vertex allocations in hot loop
+    this._tmpVec3 = new THREE.Vector3();
+    // Frame counter for throttled normal recomputation
+    this._frameCounter = 0;
 
     this._initMetricSubscription();
     
@@ -267,6 +284,7 @@ export class NodeLinkedAuraSystem {
     const startTime = performance.now();
     
     this.globalTime += deltaTime * 1.8; // Increased motion speed
+    this._frameCounter++;
     let activeCount = 0;
     
     // Update existing auras and check for new nodes
@@ -302,10 +320,13 @@ export class NodeLinkedAuraSystem {
    */
   getNodeLinkCount(node) {
     if (!this.linkingSystem || !this.linkingSystem.links) return 0;
-    
-    return this.linkingSystem.links.filter(link => 
-      link.active && (link.source === node || link.target === node)
-    ).length;
+    const links = this.linkingSystem.links;
+    let count = 0;
+    for (let i = 0, len = links.length; i < len; i++) {
+      const link = links[i];
+      if (link.active && (link.source === node || link.target === node)) count++;
+    }
+    return count;
   }
   
   /**
@@ -354,6 +375,9 @@ export class NodeLinkedAuraSystem {
     
     // Add orbit as child of aura mesh (orbits automatically follow node)
     mesh.add(orbit.mesh);
+    // SACRED_ORBIT: Add inner particle trail as child of aura mesh
+    const trailMesh = orbit.getTrailMesh();
+    if (trailMesh) mesh.add(trailMesh);
     
     this.scene.add(mesh);
     try {
@@ -456,6 +480,9 @@ export class NodeLinkedAuraSystem {
       );
       
       auraData.mesh.add(orbit.mesh);
+      // SACRED_ORBIT: Add inner particle trail
+      const trailMesh = orbit.getTrailMesh();
+      if (trailMesh) auraData.mesh.add(trailMesh);
       auraData.orbit = orbit;
     }
     
@@ -511,11 +538,7 @@ export class NodeLinkedAuraSystem {
       // ====================================================================
       // Stability = inverse of corruption, modulated by harmony
       // Range: 0 (unstable, corrupted) to 1 (stable, harmonious)
-      const corruption = this._getNodeMetric(
-        node,
-        'corruption',
-        node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0
-      );
+      const corruption = corruptionLevel;  // Reuse already-computed corruption (line 487)
       const harmony = this._getNodeMetric(node, 'harmony', node.userData?.metrics?.harmony ?? 0);
       
       // Stability: start from (1 - corruption), boost with harmony
@@ -670,263 +693,186 @@ export class NodeLinkedAuraSystem {
     const positions = auraData.geometry.attributes.position;
     const original = auraData.originalPositions;
     const count = positions.count;
-    
-    // Get corruption influence (early exit if none)
+    const tmpVec = this._tmpVec3;
+
+    // Get corruption influence
     const corruption = auraData.corruptionInfluence ?? 0;
-    
-    // Get harmony stabilization (0-1, higher = more stabilized motion)
-    // Harmony reduces corruption's effect and stabilizes all layers
+
+    // Get harmony stabilization (0-0.4, higher = more stabilized motion)
     const harmonyStabilization = auraData.harmonyDampen > 1.0 ? 0 : (1.0 - auraData.harmonyDampen);
-    // harmonyStabilization ranges 0-0.4 (inverse of the dampening)
-    
-    // Calculate motion multiplier (includes link spike + particle impacts)
+
+    // ========================================================================
+    // HOISTED: All constant computations — identical for every vertex,
+    // previously recomputed 162× per frame. Now computed once.
+    // ========================================================================
+
+    // Motion multiplier (link spike + particle impacts)
     let motionMultiplier = 1.0;
-    
+
     if (auraData.spikeActive) {
-      // Spike envelope: quick rise, slow fall
       const t = auraData.spikeProgress;
-      const envelope = t < 0.3 
-        ? t / 0.3  // Quick rise
-        : 1.0 - ((t - 0.3) / 0.7) * 0.7;  // Slower fall with 30% sustain
-      
+      const envelope = t < 0.3
+        ? t / 0.3
+        : 1.0 - ((t - 0.3) / 0.7) * 0.7;
       motionMultiplier += envelope * 1.5;
     }
-    
-    // Apply particle impact amplitude (expansion/contraction during arrival)
-    // Corruption: -0.2 (inward), Harmony: +0.15 (outward)
+
     if (auraData.impactInfluence > 0) {
-      motionMultiplier += auraData.impactAmplitude * 2.0;  // Amplify for visual punch
+      motionMultiplier += auraData.impactAmplitude * 2.0;
     }
-    
+
     const amplitude = auraData.motionAmplitude * motionMultiplier;
-    
-    // Update each vertex
+
+    // Pre-compute phase shifts (constant across all vertices)
+    const corruptionPhaseShift = corruption * this.globalTime * 0.3;
+    const harmonyPhaseAlignment = harmonyStabilization * this.globalTime * 0.15;
+    const phaseShiftBlend = corruptionPhaseShift - harmonyPhaseAlignment;
+
+    // Layer 1 constants
+    const time1 = this.globalTime * this.motionParams.baseFreqX * (1.0 - corruption * 0.15 + harmonyStabilization * 0.08);
+    const time1Y = time1 * this.motionParams.baseFreqY;
+    const time1Z = time1 * this.motionParams.baseFreqZ;
+    const phaseBlendL1 = phaseShiftBlend * 0.2;
+
+    // Layer 2 constants
+    const time2 = this.globalTime * 0.8 * (1.0 - corruption * 0.1 + harmonyStabilization * 0.05);
+    const layer2Amplitude = 0.5 + corruption * 0.3 - harmonyStabilization * 0.2;
+    const time2Y = time2 * 1.2;
+    const phaseBlendL2X = phaseShiftBlend * 0.4;
+    const phaseBlendL2Y = phaseShiftBlend * 0.3;
+    const phaseBlendL2Z = phaseShiftBlend * 0.5;
+
+    // Layer 3 constants
+    const time3 = this.globalTime * 1.5 * (1.0 - corruption * 0.2 + harmonyStabilization * 0.1);
+    const layer3Amplitude = 0.2 + corruption * 0.15 - harmonyStabilization * 0.1;
+    const phaseBlendL3X = phaseShiftBlend;
+    const phaseBlendL3Y = phaseShiftBlend * 0.6;
+    const phaseBlendL3Z = phaseShiftBlend * 0.8;
+
+    // Drift bias (constant for all vertices)
+    const driftAmplitudeProduct = this.motionParams.upwardDriftBias
+      * (1.0 - corruption * 0.5 + harmonyStabilization * 0.3)
+      * amplitude;
+
+    // Breath phase (constant for all vertices)
+    const breathPhase = Math.sin(this.globalTime * this.motionParams.driftFrequency + auraData.phase);
+    const radialStretch = 1.0 + breathPhase * 0.03;
+
+    // Pre-compute ripple state (constant for all vertices — was checked 162× per frame)
+    let rippleActive = false;
+    let rippleWavefront = 0;
+    let waveWidth = 0;
+    let rippleStrengthScale = 0;
+
+    if (auraData.rippleAmplitude > 0 && auraData.rippleTriggerTime >= 0) {
+      const rippleElapsed = this.globalTime - auraData.rippleTriggerTime;
+      if (rippleElapsed >= 0 && rippleElapsed < 0.3) {
+        rippleActive = true;
+        const ripplePhase = rippleElapsed / 0.3;
+
+        // Visibility envelope
+        let visibilityEnvelope = 0.0;
+        if (ripplePhase < 0.4) {
+          visibilityEnvelope = Math.sin((ripplePhase / 0.4) * Math.PI / 2.0);
+        } else if (ripplePhase < 0.7) {
+          const decayProgress = (ripplePhase - 0.4) / 0.3;
+          visibilityEnvelope = 1.0 - decayProgress * decayProgress;
+        } else {
+          const finalFadeProgress = (ripplePhase - 0.7) / 0.3;
+          visibilityEnvelope = Math.max(0, 1.0 - finalFadeProgress * finalFadeProgress);
+        }
+
+        const contrastBoostFactor = visibilityEnvelope > 0.5 ? 2.2 : 1.0;
+        const rippleFade = 1.0 - ripplePhase;
+        rippleWavefront = ripplePhase * 1.5;
+        waveWidth = 0.3;
+        rippleStrengthScale = auraData.rippleAmplitude
+          * rippleFade
+          * 0.08
+          * (1.0 + visibilityEnvelope * 0.4)
+          * contrastBoostFactor;
+      }
+    }
+
+    // Pre-compute directional impact data (constant for all vertices)
+    const hasDirectionalImpact = auraData.impactInfluence > 0 && auraData.incomingDirection;
+    const impactFactorBase = hasDirectionalImpact
+      ? auraData.impactAmplitude * 2.0 * auraData.impactInfluence
+      : 0;
+    const incomingDir = hasDirectionalImpact ? auraData.incomingDirection : null;
+
+    // ========================================================================
+    // VERTEX LOOP — only per-vertex work remains
+    // ========================================================================
     for (let i = 0; i < count; i++) {
-      const origX = original[i * 3];
-      const origY = original[i * 3 + 1];
-      const origZ = original[i * 3 + 2];
-      
-      // Layered noise (creates flame-like folding/licking)
+      const i3 = i * 3;
+      const origX = original[i3];
+      const origY = original[i3 + 1];
+      const origZ = original[i3 + 2];
+
+      // Per-vertex noise seeds
       const noiseX = auraData.noiseOffset.x + origX * 2;
       const noiseY = auraData.noiseOffset.y + origY * 2;
       const noiseZ = auraData.noiseOffset.z + origZ * 2;
-      
-      // Corruption induces phase instability; harmony stabilizes and aligns layers
-      const corruptionPhaseShift = corruption * this.globalTime * 0.3;
-      // Harmony reduces phase drift (phase alignment with coherence)
-      const harmonyPhaseAlignment = harmonyStabilization * this.globalTime * 0.15;  // Up to 40% of destabilization
-      
+
       // Layer 1: Base curl (low frequency)
-      // - Corruption reduces sync (frequency lower)
-      // - Harmony increases sync (frequency restore + phase alignment)
-      const time1Corruption = corruption * 0.15;
-      const time1Harmony = harmonyStabilization * 0.08;  // Harmony partially restores frequency
-      const time1 = this.globalTime * this.motionParams.baseFreqX * (1.0 - time1Corruption + time1Harmony);
-      const noise1X = this.simplexNoise3D(noiseX + time1 + (corruptionPhaseShift - harmonyPhaseAlignment) * 0.2, noiseY, noiseZ);
-      const noise1Y = this.simplexNoise3D(noiseX, noiseY + time1 * this.motionParams.baseFreqY, noiseZ);
-      const noise1Z = this.simplexNoise3D(noiseX, noiseY, noiseZ + time1 * this.motionParams.baseFreqZ);
-      
+      const noise1X = simplexNoise3D(noiseX + time1 + phaseBlendL1, noiseY, noiseZ);
+      const noise1Y = simplexNoise3D(noiseX, noiseY + time1Y, noiseZ);
+      const noise1Z = simplexNoise3D(noiseX, noiseY, noiseZ + time1Z);
+
       // Layer 2: Medium frequency detail (licking motion)
-      // - Corruption increases irregularity
-      // - Harmony reduces irregularity (smoother licking)
-      const time2Corruption = corruption * 0.1;
-      const time2Harmony = harmonyStabilization * 0.05;  // Harmony stabilizes frequency
-      const time2 = this.globalTime * 0.8 * (1.0 - time2Corruption + time2Harmony);
-      const corruptionVariance2 = corruption * 0.3;  // Corruption adds up to 30%
-      const harmonyVarianceReduction = harmonyStabilization * 0.2;  // Harmony reduces by up to 20%
-      const layer2Amplitude = 0.5 + corruptionVariance2 - harmonyVarianceReduction;
-      const noise2X = this.simplexNoise3D(noiseX * 2.1 + time2 + (corruptionPhaseShift - harmonyPhaseAlignment) * 0.4, noiseY * 2.1, noiseZ * 2.1) * layer2Amplitude;
-      const noise2Y = this.simplexNoise3D(noiseX * 2.1, noiseY * 2.1 + time2 * 1.2 + (corruptionPhaseShift - harmonyPhaseAlignment) * 0.3, noiseZ * 2.1) * layer2Amplitude;
-      const noise2Z = this.simplexNoise3D(noiseX * 2.1, noiseY * 2.1, noiseZ * 2.1 + time2 + (corruptionPhaseShift - harmonyPhaseAlignment) * 0.5) * layer2Amplitude;
-      
+      const n2x = noiseX * 2.1;
+      const n2y = noiseY * 2.1;
+      const n2z = noiseZ * 2.1;
+      const noise2X = simplexNoise3D(n2x + time2 + phaseBlendL2X, n2y, n2z) * layer2Amplitude;
+      const noise2Y = simplexNoise3D(n2x, n2y + time2Y + phaseBlendL2Y, n2z) * layer2Amplitude;
+      const noise2Z = simplexNoise3D(n2x, n2y, n2z + time2 + phaseBlendL2Z) * layer2Amplitude;
+
       // Layer 3: High frequency shimmer (subtle)
-      // - Corruption asymmetrizes shimmer
-      // - Harmony symmetrizes and softens shimmer
-      const time3Corruption = corruption * 0.2;
-      const time3Harmony = harmonyStabilization * 0.1;  // Harmony stabilizes high frequency
-      const time3 = this.globalTime * 1.5 * (1.0 - time3Corruption + time3Harmony);
-      const corruptionVariance3 = corruption * 0.15;  // Corruption adds up to 15%
-      const harmonyVarianceReduction3 = harmonyStabilization * 0.1;  // Harmony reduces by up to 10%
-      const layer3Amplitude = 0.2 + corruptionVariance3 - harmonyVarianceReduction3;
-      const noise3X = this.simplexNoise3D(noiseX * 4.3 + time3 + (corruptionPhaseShift - harmonyPhaseAlignment), noiseY * 4.3, noiseZ * 4.3) * layer3Amplitude;
-      const noise3Y = this.simplexNoise3D(noiseX * 4.3, noiseY * 4.3 + time3 + (corruptionPhaseShift - harmonyPhaseAlignment) * 0.6, noiseZ * 4.3) * layer3Amplitude;
-      const noise3Z = this.simplexNoise3D(noiseX * 4.3, noiseY * 4.3, noiseZ * 4.3 + time3 + (corruptionPhaseShift - harmonyPhaseAlignment) * 0.8) * layer3Amplitude;
-      
+      const n3x = noiseX * 4.3;
+      const n3y = noiseY * 4.3;
+      const n3z = noiseZ * 4.3;
+      const noise3X = simplexNoise3D(n3x + time3 + phaseBlendL3X, n3y, n3z) * layer3Amplitude;
+      const noise3Y = simplexNoise3D(n3x, n3y + time3 + phaseBlendL3Y, n3z) * layer3Amplitude;
+      const noise3Z = simplexNoise3D(n3x, n3y, n3z + time3 + phaseBlendL3Z) * layer3Amplitude;
+
       // Combine layers with upward bias (flame drift)
       let offsetX = (noise1X + noise2X + noise3X) * amplitude;
       let offsetY = (noise1Y + noise2Y + noise3Y) * amplitude;
       let offsetZ = (noise1Z + noise2Z + noise3Z) * amplitude;
-      
-      // ====================================================================
-      // DIRECTIONAL BIAS FROM INCOMING PARTICLE IMPACT
-      // ====================================================================
-      // When a particle arrives, bias the aura deformation toward the
-      // incoming link direction, making it read as energy absorption
-      if (auraData.impactInfluence > 0 && auraData.incomingDirection) {
-        // Vertex normal (radial direction from center)
-        const vertexNormal = new THREE.Vector3(origX, origY, origZ).normalize();
-        
-        // Dot product: how much this vertex faces the incoming direction
-        // Range: 1 (facing directly) to -1 (facing away)
-        const directionBias = Math.max(0, vertexNormal.dot(auraData.incomingDirection));
-        
-        // Smooth bias: vertices facing the impact react more strongly
-        // Use smooth interpolation: 0 at 90°, 1 at 0° (face-on)
-        const smoothBias = Math.pow(directionBias, 2);  // Sharpen the effect slightly
-        
-        // Apply directional modulation to impact amplitude
-        // Impact affects all vertices, but those facing the incoming direction affected more
-        const directionModulation = THREE.MathUtils.lerp(0.7, 1.3, smoothBias);
-        
-        // Apply to displacement (contraction/expansion)
-        const directedImpactAmplitude = auraData.impactAmplitude * directionModulation;
-        
-        // Scale offsets by directed impact amplitude
-        const impactFactor = directedImpactAmplitude * 2.0;  // Same amplification as before
-        offsetX += origX * impactFactor * auraData.impactInfluence;
-        offsetY += origY * impactFactor * auraData.impactInfluence;
-        offsetZ += origZ * impactFactor * auraData.impactInfluence;
+
+      // Directional bias from incoming particle impact
+      if (hasDirectionalImpact) {
+        tmpVec.set(origX, origY, origZ).normalize();
+        const directionBias = Math.max(0, tmpVec.dot(incomingDir));
+        const smoothBias = directionBias * directionBias;
+        const directionModulation = 0.7 + smoothBias * 0.6;  // lerp(0.7, 1.3, smoothBias)
+        const impactFactor = impactFactorBase * directionModulation;
+        offsetX += origX * impactFactor;
+        offsetY += origY * impactFactor;
+        offsetZ += origZ * impactFactor;
       }
-      
-      // Add upward drift bias (flame tendency)
-      // - Corruption reduces it (aura feels heavier)
-      // - Harmony restores it (aura feels lighter, breathable)
-      const verticalPosition = origY;  // -1 to 1
-      const driftInfluence = (verticalPosition + 1) * 0.5;  // 0 at bottom, 1 at top
-      const corruptedDriftReduction = corruption * 0.5;  // Up to 50% reduction from corruption
-      const harmonyDriftRestoration = harmonyStabilization * 0.3;  // Harmony restores up to 30% of lost drift
-      const finalDriftBias = this.motionParams.upwardDriftBias * (1.0 - corruptedDriftReduction + harmonyDriftRestoration);
-      offsetY += finalDriftBias * amplitude * driftInfluence;
-      
-      // ====================================================================
-      // MICRO RIPPLE EFFECT - INTERNAL PRESSURE WAVE ON IMPACT
-      // Enhanced with phase-contrast amplification for perceptibility
-      // ====================================================================
-      // Subtle internal ripple triggered by particle impacts
-      // Creates a pressure wave that propagates inward/outward
-      // Phase-contrast boost makes it momentarily visible without structural change
-      if (auraData.rippleAmplitude > 0 && auraData.rippleTriggerTime >= 0) {
-        const rippleElapsed = this.globalTime - auraData.rippleTriggerTime;
-        const rippleDuration = 0.3;  // 300ms ripple lifetime
-        
-        if (rippleElapsed >= 0 && rippleElapsed < rippleDuration) {
-          // Ripple phase: 0 (start) → 1 (end)
-          const ripplePhase = rippleElapsed / rippleDuration;
-          
-          // ====================================================================
-          // TEMPORAL VISIBILITY ENVELOPE - MAKES RIPPLE CATCH EYE THEN FADE
-          // ====================================================================
-          // Peak visibility window: 0–120ms (first 40% of 300ms)
-          // Ease-in: first 80ms, peak: 80–120ms, ease-out: 120–300ms
-          
-          const visibilityPeakStart = 0.0;
-          const visibilityPeakEnd = 0.4;      // Peak ends at 120ms
-          const visibilityDecayEnd = 0.7;     // Decay phase completes at 210ms
-          
-          let visibilityEnvelope = 0.0;
-          if (ripplePhase < visibilityPeakStart) {
-            visibilityEnvelope = 0.0;  // Not started
-          } else if (ripplePhase < visibilityPeakEnd) {
-            // Ease-in: smooth rise to peak (first 40%)
-            // Creates immediate eye-catching effect without harshness
-            visibilityEnvelope = Math.sin((ripplePhase / visibilityPeakEnd) * Math.PI / 2.0);  // Smooth ease-in
-          } else if (ripplePhase < visibilityDecayEnd) {
-            // Peak hold then ease-out: sustain visibility then graceful fade
-            // 1.0 at peak → 0.0 by 210ms
-            const decayProgress = (ripplePhase - visibilityPeakEnd) / (visibilityDecayEnd - visibilityPeakEnd);
-            visibilityEnvelope = 1.0 - (decayProgress * decayProgress);  // Quadratic ease-out
-          } else {
-            // Fade to background (210ms–300ms)
-            // Ripple still there but barely perceptible, blends with noise
-            const finalFadeProgress = (ripplePhase - visibilityDecayEnd) / (1.0 - visibilityDecayEnd);
-            visibilityEnvelope = Math.max(0, 1.0 - finalFadeProgress * finalFadeProgress);
-          }
-          
-          // ====================================================================
-          // PHASE CONTRAST AMPLIFICATION - BOOST RIPPLE AGAINST BASE NOISE
-          // ====================================================================
-          // During peak visibility window, temporarily increase contrast
-          // This makes ripple "pop" without increasing overall amplitude globally
-          
-          const contrastBoostFactor = visibilityEnvelope > 0.5 ? 2.2 : 1.0;  // 2.2× boost during peak
-          
-          // Fade ripple amplitude over time (smooth decay base)
-          const rippleFade = 1.0 - ripplePhase;
-          
-          // Distance from vertex to aura center (0 = center, 1 = surface)
-          const distFromCenter = Math.sqrt(origX * origX + origY * origY + origZ * origZ);
-          
-          // Ripple wavefront: pressure wave travels outward from center
-          // Speed: travels from center to surface over ripple duration
-          const rippleWavefront = ripplePhase * 1.5;  // Travels slightly beyond surface
-          
-          // Wave oscillation: sin wave compressed by distance from wavefront
-          const distanceFromWave = Math.abs(distFromCenter - rippleWavefront);
-          const waveWidth = 0.3;  // Width of ripple band
-          const waveSharpness = Math.max(0, 1.0 - (distanceFromWave / waveWidth));
-          
-          // ====================================================================
-          // EDGE SHARPENING - IMPROVED LIGHT RESPONSE
-          // ====================================================================
-          // Sharpen wave edges to improve light response
-          // Makes ripple "catch light" without adding geometry or glow
-          // Power function creates more prominent peaks that refract better
-          const sharpedWaveSharpness = Math.pow(waveSharpness, 1.4);  // Sharpen edges ~40%
-          
-          // Oscillation with boosted peak sharpness
-          const waveOscillation = Math.sin(sharpedWaveSharpness * Math.PI * 3.0);  // 1.5 cycles, sharper peaks
-          
-          // ====================================================================
-          // ENHANCED RIPPLE DISPLACEMENT
-          // ====================================================================
-          // Apply all enhancements together:
-          // - Visibility envelope (eye-catching temporal window)
-          // - Contrast boost (pop against background)
-          // - Sharpened edges (better light response)
-          
-          const rippleStrength = auraData.rippleAmplitude          // Base intensity from impact
-                                * rippleFade                       // Natural decay over time
-                                * sharpedWaveSharpness             // Sharper wave edges
-                                * waveOscillation                  // Wave pattern
-                                * 0.08                             // 8% max amplitude
-                                * (1.0 + visibilityEnvelope * 0.4) // +40% boost during visibility window
-                                * contrastBoostFactor;             // 2.2× during peak
-          
-          // Radial ripple displacement (normal-oriented)
-          const vertexNormal = new THREE.Vector3(origX, origY, origZ).normalize();
-          
-          offsetX += vertexNormal.x * rippleStrength;
-          offsetY += vertexNormal.y * rippleStrength;
-          offsetZ += vertexNormal.z * rippleStrength;
-          
-          // ====================================================================
-          // OPTIONAL: SUBTLE LIGHT MODULATION FOR RIPPLE GRADIENT
-          // ====================================================================
-          // Make ripple catch light by slightly modulating normal
-          // This creates local light response without adding glow
-          // Effect: ripple appears to "shine" briefly as it passes
-          // Amplitude: ≤8% to avoid visible artifacts
-          
-          if (visibilityEnvelope > 0.3) {  // Only during strong visibility
-            // Ripple gradient (how fast wave changes spatially)
-            const rippleGradient = Math.abs(Math.cos(sharpedWaveSharpness * Math.PI * 3.0)) * visibilityEnvelope;
-            
-            // Subtle normal perturbation in ripple direction
-            // This affects lighting locally without adding geometry
-            const normalPerturbation = rippleGradient * 0.07 * auraData.rippleAmplitude;  // ≤7%
-            
-            // Store for potential shader use (if shader supports it)
-            // For now, just implicit in displacement
-            // The sharper edges already create better light response
-          }
-        }
+
+      // Upward drift bias (flame tendency)
+      offsetY += driftAmplitudeProduct * (origY + 1) * 0.5;
+
+      // Micro ripple effect — internal pressure wave on impact
+      if (rippleActive) {
+        const distFromCenter = Math.sqrt(origX * origX + origY * origY + origZ * origZ);
+        const distanceFromWave = Math.abs(distFromCenter - rippleWavefront);
+        const waveSharpness = Math.max(0, 1.0 - distanceFromWave / waveWidth);
+        const sharpedWaveSharpness = Math.pow(waveSharpness, 1.4);
+        const waveOscillation = Math.sin(sharpedWaveSharpness * Math.PI * 3.0);
+
+        const rippleStrength = rippleStrengthScale * sharpedWaveSharpness * waveOscillation;
+
+        tmpVec.set(origX, origY, origZ).normalize();
+        offsetX += tmpVec.x * rippleStrength;
+        offsetY += tmpVec.y * rippleStrength;
+        offsetZ += tmpVec.z * rippleStrength;
       }
-      
-      // Apply stretch/collapse (flame breathing)
-      const breathPhase = Math.sin(this.globalTime * this.motionParams.driftFrequency + auraData.phase);
-      const radialStretch = 1.0 + breathPhase * 0.03;
-      
-      // Apply offsets
+
+      // Apply stretch + offsets
       positions.setXYZ(
         i,
         origX * radialStretch + offsetX,
@@ -934,9 +880,14 @@ export class NodeLinkedAuraSystem {
         origZ * radialStretch + offsetZ
       );
     }
-    
+
     positions.needsUpdate = true;
-    auraData.geometry.computeVertexNormals();
+
+    // Throttle normal recomputation to every 2nd frame (halves cost, minimal visual difference
+    // for a translucent noise-driven aura with Fresnel rim lighting)
+    if (this._frameCounter & 1) {
+      auraData.geometry.computeVertexNormals();
+    }
   }
   
   /**
@@ -974,18 +925,8 @@ export class NodeLinkedAuraSystem {
     this.nodeAuras.delete(node);
   }
   
-  /**
-   * Simplified 3D noise (approximation for flame motion)
-   * Uses layered sine waves for organic feel
-   */
-  simplexNoise3D(x, y, z) {
-    // Layer multiple sine waves for pseudo-noise
-    const n1 = Math.sin(x * 1.3 + y * 0.7 + z * 0.9);
-    const n2 = Math.sin(x * 2.7 - y * 1.4 + z * 1.8) * 0.5;
-    const n3 = Math.sin(x * 5.1 + y * 3.2 - z * 2.4) * 0.25;
-    
-    return (n1 + n2 + n3) / 1.75;
-  }
+  // simplexNoise3D extracted to standalone function (top of file) for
+  // zero method-dispatch overhead in the hot vertex loop.
   
   /**
    * Enable/disable aura system

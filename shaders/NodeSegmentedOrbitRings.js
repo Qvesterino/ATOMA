@@ -14,8 +14,8 @@ this.radius = options.radius || 1.7;
 this.clock = new THREE.Clock();
 this.energy = 0.5; // Default energy level (0-1)
 
-// ATOMA_ORBIT_v2: Larger segments for more visual presence
-const geometry = new THREE.PlaneGeometry(0.72, 0.42);
+// SACRED_ORBIT: Thicker segments for more visual presence (was 0.72, 0.42)
+const geometry = new THREE.PlaneGeometry(0.88, 0.56);
 
 const material = new THREE.ShaderMaterial({
 transparent:true,
@@ -152,16 +152,20 @@ void main(){
     float asymmetry = mix(0.88, 1.12, fract(vSeed * 31.7));
     float phasePulse = 0.7 + 0.3 * sin(vArcPhase * 2.0 + time * 0.9 + vSeed * 19.0);
     float segmentMask = edgeTrim * phasePulse;
-    float baseRing = pow(max(0.0, 1.0 - abs(uv.y) * 7.5), 2.8);
-    float baseTrail = baseRing * (0.2 + 0.8 * smoothstep(0.98, 0.15, abs(uv.x)));
+    // SACRED_ORBIT: Wider base ring for thicker segment appearance
+    float baseRing = pow(max(0.0, 1.0 - abs(uv.y) * 5.5), 2.2);
+    // SACRED_ORBIT: Enhanced fog trail — wider, softer mist behind segments
+    float baseTrail = baseRing * (0.3 + 0.7 * smoothstep(0.98, 0.08, abs(uv.x)));
 
     float segmentCore = 1.0 - smoothstep(-0.03, 0.07, roundedBoxSDF(uv, vec2(0.52, 0.18), 0.15));
     float segmentGlow = 1.0 - smoothstep(0.12, 0.85, roundedBoxSDF(uv, vec2(0.72, 0.33), 0.28));
     float trailCoord = -uv.x * vTrailDir;
     float trailLength = mix(0.55, 1.05, gapJitter) + vHot * 0.2;
-    float trailBody = smoothstep(-0.08, 0.24, trailCoord) * (1.0 - smoothstep(trailLength, trailLength + 0.36, trailCoord));
-    float trailSoft = pow(max(0.0, 1.0 - abs(uv.y) * 3.8), 1.6);
-    float capsuleTrail = trailBody * trailSoft * (0.45 + segmentGlow * 0.55);
+    // SACRED_ORBIT: Longer, softer trail body for misty fog effect
+    float trailBody = smoothstep(-0.12, 0.30, trailCoord) * (1.0 - smoothstep(trailLength, trailLength + 0.50, trailCoord));
+    // SACRED_ORBIT: Wider soft trail for volumetric fog appearance
+    float trailSoft = pow(max(0.0, 1.0 - abs(uv.y) * 2.8), 1.3);
+    float capsuleTrail = trailBody * trailSoft * (0.55 + segmentGlow * 0.60);
 
     float spine = pow(max(0.0, 1.0 - abs(uv.y) * 5.5), 2.4);
     float sideFilamentA = pow(max(0.0, 1.0 - abs(uv.y - 0.34) * 18.0), 1.7);
@@ -212,13 +216,14 @@ void main(){
         hotColor * pulseGlow * hotBoost +
         vec3(0.95, 0.98, 1.0) * movingEnergy * 0.40 * hotBoost;
 
+    // SACRED_ORBIT: Enhanced alpha with stronger fog/mist trail
     float alpha =
-        baseTrail * 0.20 +
-        capsuleTrail * 0.16 +
-        segmentGlow * 0.25 * segmentMask +
-        segmentCore * 0.75 * segmentMask +
+        baseTrail * 0.28 +
+        capsuleTrail * 0.22 +
+        segmentGlow * 0.28 * segmentMask +
+        segmentCore * 0.78 * segmentMask +
         movingEnergy * 0.48 * segmentMask +
-        endBloom * 0.32 * segmentMask +
+        endBloom * 0.35 * segmentMask +
         hotCore * 0.5 +
         pulseGlow * 0.3;
 
@@ -282,12 +287,133 @@ this.mesh.instanceMatrix.needsUpdate = true;
 // Disable frustum culling for instanced shader
 this.mesh.frustumCulled = false;
 
+// SACRED_ORBIT: Inner particle trail — orbiting particle cluster on inner circumference
+this._initInnerParticleTrail();
+
+}
+
+/**
+ * SACRED_ORBIT: Create inner particle trail system
+ * Lightweight THREE.Points with ~20 particles orbiting at inner radius
+ */
+_initInnerParticleTrail() {
+    const particleCount = 20;
+    const positions = new Float32Array(particleCount * 3);
+    const angles = new Float32Array(particleCount);
+    const seeds = new Float32Array(particleCount);
+    const speeds = new Float32Array(particleCount);
+
+    for (let i = 0; i < particleCount; i++) {
+        angles[i] = (i / particleCount) * Math.PI * 2 + Math.random() * 0.3;
+        seeds[i] = Math.random();
+        speeds[i] = 0.6 + Math.random() * 0.8; // Varied orbit speeds
+    }
+
+    const trailGeometry = new THREE.BufferGeometry();
+    trailGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    trailGeometry.setAttribute('aAngle', new THREE.BufferAttribute(angles, 1));
+    trailGeometry.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 1));
+    trailGeometry.setAttribute('aSpeed', new THREE.BufferAttribute(speeds, 1));
+
+    const trailMaterial = new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        depthTest: true,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+        uniforms: {
+            time: { value: 0 },
+            radius: { value: this.radius * 0.82 }, // Inner circumference
+            baseColor: { value: new THREE.Color(0x40E0D0) } // Celestial teal
+        },
+        customProgramCacheKey: () => 'SACRED_ORBIT_TRAIL_v1',
+        vertexShader: `
+            attribute float aAngle;
+            attribute float aSeed;
+            attribute float aSpeed;
+            uniform float time;
+            uniform float radius;
+            varying float vAlpha;
+            varying float vSeed;
+
+            void main() {
+                vSeed = aSeed;
+                // Orbit at inner radius with varied speed
+                float orbitAngle = aAngle + time * aSpeed * 0.9;
+                float innerR = radius * (0.78 + aSeed * 0.08);
+                // Slight vertical oscillation
+                float yOsc = sin(orbitAngle * 2.0 + aSeed * 6.28) * 0.02;
+
+                vec3 pos = vec3(
+                    cos(orbitAngle) * innerR,
+                    yOsc,
+                    sin(orbitAngle) * innerR
+                );
+
+                // Apply ring tilt matching the orbit ring system
+                float tiltX = 0.82;
+                float cosT = cos(tiltX);
+                float sinT = sin(tiltX);
+                vec3 tilted = vec3(pos.x, pos.y * cosT - pos.z * sinT, pos.y * sinT + pos.z * cosT);
+                pos = tilted;
+
+                vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+                gl_Position = projectionMatrix * mv;
+
+                // Size: pulsing glow particles
+                float pulse = 0.8 + 0.4 * sin(time * 3.0 + aSeed * 12.0);
+                gl_PointSize = pulse * (4.0 + aSeed * 3.0) * (200.0 / -mv.z);
+
+                // Alpha: fade based on seed for organic look
+                vAlpha = 0.4 + 0.4 * sin(time * 2.0 + aSeed * 8.0);
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 baseColor;
+            varying float vAlpha;
+            varying float vSeed;
+
+            void main() {
+                vec2 uv = gl_PointCoord.xy - vec2(0.5);
+                float dist = length(uv);
+                if (dist > 0.5) discard;
+
+                // Soft glow particle
+                float glow = 1.0 - smoothstep(0.0, 0.5, dist);
+                float hotCore = 1.0 - smoothstep(0.0, 0.15, dist);
+
+                // Sacred spectral tint: mix celestial teal with sacred gold
+                vec3 sacredGold = vec3(1.0, 0.84, 0.0);
+                vec3 color = mix(baseColor, sacredGold, vSeed * 0.3);
+
+                vec3 finalColor = mix(color, vec3(1.0), hotCore * 0.7) + color * glow * 0.5;
+                float alpha = (glow * 0.6 + hotCore * 0.4) * vAlpha;
+
+                gl_FragColor = vec4(finalColor, alpha);
+            }
+        `
+    });
+
+    this._trailMesh = new THREE.Points(trailGeometry, trailMaterial);
+    this._trailMesh.frustumCulled = false;
+    this._trailGeometry = trailGeometry;
+    this._trailMaterial = trailMaterial;
+    this._trailAngles = angles;
+    this._trailSpeeds = speeds;
 }
 
 update(){
 
-this.mesh.material.uniforms.time.value =
-this.clock.getElapsedTime();
+const elapsed = this.clock.getElapsedTime();
+this.mesh.material.uniforms.time.value = elapsed;
+
+// SACRED_ORBIT: Update inner particle trail
+if (this._trailMesh && this._trailMaterial) {
+    this._trailMaterial.uniforms.time.value = elapsed;
+    // Sync energy-based speed to trail particles
+    const speedMult = 0.3 + this.energy * 2.2;
+    this._trailMaterial.uniforms.radius.value = this.radius * 0.82;
+}
 
 }
 
@@ -308,6 +434,17 @@ setEnergy(energyLevel){
  */
 setCenter(x, y, z){
     this.mesh.position.set(x, y, z);
+    // SACRED_ORBIT: Sync trail position
+    if (this._trailMesh) {
+        this._trailMesh.position.set(x, y, z);
+    }
+}
+
+/**
+ * SACRED_ORBIT: Get the inner particle trail mesh for attachment
+ */
+getTrailMesh() {
+    return this._trailMesh || null;
 }
 
 dispose(){
@@ -315,6 +452,14 @@ dispose(){
 this.scene.remove(this.mesh);
 this.mesh.geometry.dispose();
 this.mesh.material.dispose();
+
+// SACRED_ORBIT: Dispose inner particle trail
+if (this._trailMesh) {
+    this._trailMesh.parent?.remove(this._trailMesh);
+    this._trailGeometry.dispose();
+    this._trailMaterial.dispose();
+    this._trailMesh = null;
+}
 
 }
 

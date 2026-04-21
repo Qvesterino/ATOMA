@@ -64,8 +64,7 @@ export class FresnelRimLightController {
     if (this.material.uniforms.uFresnelMax) {
       this.material.uniforms.uFresnelMax.value = fresnelMax;
     }
-    
-    this.material.needsUpdate = true;
+
     return true;
   }
   
