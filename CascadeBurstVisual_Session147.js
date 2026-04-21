@@ -82,14 +82,19 @@ export class CascadeBurstVisual_Session147 {
       nebulaOpacity: config.nebulaOpacity ?? 0.22,
       coreFlashSize: config.coreFlashSize ?? 0.8,
       coreFlashOpacity: config.coreFlashOpacity ?? 0.9,
-      colorHarmonic: config.colorHarmonic ?? new THREE.Color(0x7ffcff), // Cyan-white
-      colorSynergy: config.colorSynergy ?? new THREE.Color(0xffd080),   // Warm gold
-      colorCorruption: config.colorCorruption ?? new THREE.Color(0xff4060), // Red
+      colorHarmonic: config.colorHarmonic ?? new THREE.Color(0xffe8c0), // Celestial plasma gold-white
+      colorSynergy: config.colorSynergy ?? new THREE.Color(0xffc040),   // Cosmic gold
+      colorCorruption: config.colorCorruption ?? new THREE.Color(0xcc0030), // Void crimson
       lodNearDistance: config.lodNearDistance ?? 20.0,
       lodFarDistance: config.lodFarDistance ?? 50.0,
       renderOrder: config.renderOrder ?? VisualHierarchyRegistry.getRenderOrder(
         VisualHierarchyRegistry.LAYER_LINK_RESONANCE
       ) + 5,
+
+      // ── Supernova Detonation Upgrade ──
+      enableSupernovaUpgrade: config.enableSupernovaUpgrade ?? true,
+      supernovaSpectrumHues: [0.12, 0.55, 0.75, 0.97], // sacred gold, arcane teal, mystic violet, ritual crimson
+      supernovaCycleSpeed: config.supernovaCycleSpeed ?? 0.1,
     };
 
     // Burst pool
@@ -101,6 +106,7 @@ export class CascadeBurstVisual_Session147 {
     this._vec3A = new THREE.Vector3();
     this._vec3B = new THREE.Vector3();
     this._colorScratch = new THREE.Color();
+    this._supernovaPhase = 0; // Supernova spectral cycling
 
     // Stats
     this.stats = {
@@ -199,7 +205,11 @@ export class CascadeBurstVisual_Session147 {
         coreSparkPositions[p + 2] = Math.sin(phi) * Math.sin(theta) * radius;
       }
       coreSparkGeometry.setAttribute('position', new THREE.BufferAttribute(coreSparkPositions, 3));
-      const coreSparks = new THREE.Points(coreSparkGeometry, this._createParticleMaterial(new THREE.Color(0xffffff), 0.08));
+      // ── Supernova: spectral core sparks instead of plain white ──
+      const coreSparkColor = this.config.enableSupernovaUpgrade
+        ? new THREE.Color(0xffd700) // Sacred gold sparks
+        : new THREE.Color(0xffffff);
+      const coreSparks = new THREE.Points(coreSparkGeometry, this._createParticleMaterial(coreSparkColor, 0.08));
       coreSparks.visible = false;
       coreSparks.renderOrder = this.config.renderOrder + 2.5;
 
@@ -914,6 +924,11 @@ export class CascadeBurstVisual_Session147 {
    */
   update(deltaTime, camera = null) {
     if (!this.config.enabled) return;
+
+    // ── Supernova: advance spectral phase ──
+    if (this.config.enableSupernovaUpgrade) {
+      this._supernovaPhase = (this._supernovaPhase + deltaTime * this.config.supernovaCycleSpeed) % 1.0;
+    }
 
     const now = performance.now() * 0.001;
     const toRemove = [];

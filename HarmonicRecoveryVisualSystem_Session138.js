@@ -114,16 +114,20 @@ void main() {
     // Subtle pulse
     alpha *= 0.88 + 0.12 * sin(uTime * 3.0 + dist * 8.0);
 
-    // === COLOR EVOLUTION ===
-    // Early: warm gold → Late: luminous cyan (based on harmony)
-    vec3 warmGold = vec3(1.0, 0.88, 0.5);
-    vec3 luminousCyan = vec3(0.4, 1.0, 0.95);
-    vec3 evolvedColor = mix(warmGold, luminousCyan, uHarmony * 0.6 + uLife * 0.3);
+    // === SACRED_RECOVERY: COLOR EVOLUTION ===
+    // Sacred spectral cycling: sacred gold → celestial teal → mystic violet shimmer
+    vec3 sacredGold = vec3(1.0, 0.84, 0.0);
+    vec3 celestialTeal = vec3(0.25, 0.88, 0.82);
+    vec3 mysticViolet = vec3(0.58, 0.35, 0.92);
+    float sacredPhase = uHarmony * 0.5 + uLife * 0.4;
+    vec3 evolvedColor = mix(sacredGold, celestialTeal, smoothstep(0.0, 0.5, sacredPhase));
+    evolvedColor = mix(evolvedColor, mysticViolet, smoothstep(0.6, 1.0, sacredPhase) * 0.35);
     
     // Hot core is white
     vec3 finalColor = mix(evolvedColor, vec3(1.0), coreFlash * 1.5);
-    // Sparkle fringe is brighter
-    finalColor += vec3(0.6, 0.9, 1.0) * fringeSparkle * 0.2;
+    // SACRED_RECOVERY: Sacred spectral sparkle fringe
+    vec3 sacredFringe = mix(vec3(1.0, 0.84, 0.4), celestialTeal, sin(uTime * 0.5) * 0.5 + 0.5);
+    finalColor += sacredFringe * fringeSparkle * 0.25;
 
     gl_FragColor = vec4(finalColor, alpha);
 }
@@ -201,9 +205,10 @@ void main() {
     alpha *= (1.0 - uLife * uLife);
     alpha *= 0.72;
 
-    // === COLOR: center is white-hot, rings are colored ===
-    vec3 coreColor = mix(vec3(1.0), uColor, 0.3);
-    vec3 finalColor = mix(coreColor, uColor, smoothstep(0.1, 0.4, dist));
+    // === SACRED_RECOVERY: Sacred convergence ring tinting ===
+    vec3 sacredRingTint = mix(uColor, vec3(0.25, 0.88, 0.82), ring1 * 0.3);
+    vec3 coreColor = mix(vec3(1.0), sacredRingTint, 0.35);
+    vec3 finalColor = mix(coreColor, sacredRingTint, smoothstep(0.1, 0.4, dist));
 
     gl_FragColor = vec4(finalColor, alpha);
 }
@@ -229,7 +234,8 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             renderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
             debugForceRecoveryPulse: false,
             debugForceRecoveryInterval: 2.0,
-            linkCooldown: 4.0
+            linkCooldown: 4.0,
+            enableSacredRecovery: true  // SACRED_RECOVERY: master switch for sacred spectral palette
         };
         
         // ATOMA_RECOVERY_v2: Pre-allocated temp objects (zero per-frame allocation)
@@ -265,7 +271,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             uniforms: {
                 uTime: { value: 0 },
                 uLife: { value: 0 },
-                uColor: { value: new THREE.Color(0x00ffff) },
+                uColor: { value: new THREE.Color(0x40E0D0) },  // SACRED_RECOVERY: celestial teal (was 0x00ffff)
                 uHarmony: { value: 0.5 }
             },
             transparent: true,
@@ -281,7 +287,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             uniforms: {
                 uTime: { value: 0 },
                 uLife: { value: 0 },
-                uColor: { value: new THREE.Color(0xffff33) }
+                uColor: { value: new THREE.Color(0xFFD700) }   // SACRED_RECOVERY: sacred gold (was 0xffff33)
             },
             transparent: true,
             depthWrite: false,
@@ -732,8 +738,9 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         }
 
         const beamGeometry = new THREE.BufferGeometry().setFromPoints(beamPoints);
+        // SACRED_RECOVERY: Sacred gold beam (was 0x88ffdd)
         const beamMaterial = new THREE.LineBasicMaterial({
-            color: new THREE.Color(0x88ffdd),
+            color: new THREE.Color(0xFFD700),
             transparent: true,
             opacity: 0.55,
             depthWrite: false,
@@ -752,10 +759,11 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                 stitchPos.y += Math.sin(t * Math.PI * 3 + (currentVisualTime ?? 0) * 8) * 0.04;
 
                 // Alternate between gold and cyan stitches
+                // SACRED_RECOVERY: Sacred gold / celestial teal stitch alternation
                 if (i % 2 === 0) {
-                    stitchColor.setRGB(1.0, 0.85, 0.4);  // warm gold
+                    stitchColor.setRGB(1.0, 0.84, 0.0);   // Sacred gold
                 } else {
-                    stitchColor.setRGB(0.5, 1.0, 0.9);    // luminous cyan
+                    stitchColor.setRGB(0.25, 0.88, 0.82);  // Celestial teal
                 }
 
                 this.healingParticles.emitHealingTrail(
@@ -1003,7 +1011,8 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                 mesh.scale.set(scale, scale, scale);
 
                 // ATOMA_RECOVERY_v2: Zero-allocation color update
-                this._tmpColor.setHSL(0.08 + harmony * 0.42, 0.92, 0.62);
+                // SACRED_RECOVERY: Sacred spectrum range (was 0.08 + harmony * 0.42)
+                this._tmpColor.setHSL(0.12 + harmony * 0.38, 0.88, 0.58);
                 mesh.material.uniforms.uColor.value.copy(this._tmpColor);
                 mesh.material.uniforms.uLife.value = progress;
                 mesh.material.uniforms.uHarmony.value = harmony;
@@ -1102,7 +1111,8 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                     : 0.5;
             const nodeHarmony = Math.max(0, Math.min(1, rawHarmony));
             // ATOMA_RECOVERY_v2: Zero-allocation halo color
-            this._tmpColor.setHSL(0.08 + nodeHarmony * 0.42, 0.92, 0.58);
+            // SACRED_RECOVERY: Sacred spectrum range for halo (was 0.08 + nodeHarmony * 0.42)
+            this._tmpColor.setHSL(0.12 + nodeHarmony * 0.38, 0.88, 0.55);
             item.mesh.material.uniforms.uColor.value.copy(this._tmpColor);
             item.mesh.material.uniforms.uLife.value = 0;
         }

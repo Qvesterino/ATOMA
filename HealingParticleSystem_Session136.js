@@ -106,10 +106,17 @@ void main() {
     vAlpha = alpha;
     vLayer = layer / 15.0;
     
-    // Color evolution: base → luminous cyan over lifetime
-    vec3 evolvedColor = mix(color, vec3(0.4, 0.95, 1.0), progress * 0.4);
-    // Subtle time-based color shift per layer
-    evolvedColor = mix(evolvedColor, vec3(0.35, 0.9, 1.0), 0.2 + 0.2 * sin(uTime * 0.8 + layer));
+    // SACRED_POLISH: Color evolution — sacred spectral cycling over lifetime
+    // Evolves from base → sacred gold → celestial teal → mystic violet shimmer
+    vec3 sacredGold = vec3(1.0, 0.84, 0.0);
+    vec3 celestialTeal = vec3(0.25, 0.88, 0.82);
+    vec3 mysticViolet = vec3(0.58, 0.35, 0.92);
+    float sacredPhase = progress * 0.4;
+    vec3 sacredTarget = mix(sacredGold, celestialTeal, smoothstep(0.0, 0.5, sacredPhase));
+    sacredTarget = mix(sacredTarget, mysticViolet, smoothstep(0.5, 1.0, sacredPhase) * 0.3);
+    vec3 evolvedColor = mix(color, sacredTarget, progress * 0.45);
+    // Sacred spectral shimmer per layer
+    evolvedColor = mix(evolvedColor, celestialTeal, 0.15 + 0.15 * sin(uTime * 0.8 + layer));
     if (uForceRedParticles > 0.5) {
         evolvedColor = vec3(1.0, 0.0, 0.0);
     }
@@ -148,8 +155,8 @@ void main() {
     float shimmer = 0.92 + 0.08 * sin(vProgress * 20.0 + dist * 15.0);
     finalColor *= shimmer;
     
-    // Layer color tint (subtle)
-    vec3 layerTint = mix(vec3(0.95, 0.75, 1.0), vec3(0.2, 1.0, 0.92), vLayer);
+    // SACRED_POLISH: Sacred spectral layer tint — sacred gold → celestial teal
+    vec3 layerTint = mix(vec3(1.0, 0.84, 0.4), vec3(0.25, 0.88, 0.82), vLayer);
     bool isForcedRed = (uForceRedParticles > 0.5);
     if (!isForcedRed) {
         finalColor += layerTint * 0.15 * softHalo;
@@ -185,6 +192,7 @@ export class HealingParticleSystem_Session136 {
             debugExtremeSpawnIndicator: false,
             debugSpawnProbe: false,
             debugSpawnLogs: false,
+            enableSacredHealingPolish: true, // SACRED_POLISH: master switch for sacred spectral palette
             ...config
         };
         
@@ -497,9 +505,11 @@ export class HealingParticleSystem_Session136 {
         if (this.config.debugForceRedParticles) {
             color.setHex(0xff0000);
         } else if ((state?.harmonyFlow ?? 0) > 0.6) {
-            color.setRGB(0.5, 1.0, 0.95); // Luminous cyan for high harmony
+            // SACRED_POLISH: Celestial teal for high harmony
+            color.setRGB(0.25, 0.88, 0.82);
         } else {
-            color.setRGB(1.0, 0.95, 0.85); // Warm gold
+            // SACRED_POLISH: Sacred gold
+            color.setRGB(1.0, 0.84, 0.0);
         }
         
         const lifetime = this.config.baseLifetime * (0.8 + Math.random() * 0.4);
@@ -524,7 +534,8 @@ export class HealingParticleSystem_Session136 {
         } else if (colorOverride instanceof THREE.Color) {
             color.copy(colorOverride);
         } else {
-            color.setHex(0x66f7ff); // Luminous cyan
+            // SACRED_POLISH: Celestial teal-gold
+            color.setRGB(0.35, 0.90, 0.82);
         }
         const size = this.config.baseSize * (0.18 + normalizedIntensity * 0.8);
         const life = 0.5 + normalizedIntensity * 0.8;
@@ -594,15 +605,15 @@ export class HealingParticleSystem_Session136 {
             const speed = 2.0 + Math.random() * 3.0;
             dir.multiplyScalar(speed * normalizedIntensity);
 
-            // ATOMA_HEALING_SESSION136_v2: Healing-appropriate colors (golden/cyan/white)
+            // SACRED_POLISH: Sacred healing palette (sacred gold / celestial teal / spectral white-gold)
             if (this.config.debugForceRedParticles) {
                 color.setHex(0xff0000);
             } else if (Math.random() > 0.6) {
-                color.setRGB(0.5, 1.0, 0.95);   // Luminous cyan accent
+                color.setRGB(0.25, 0.88, 0.82);   // Celestial teal accent
             } else if (Math.random() > 0.4) {
-                color.setRGB(1.0, 0.95, 0.85);   // Warm gold
+                color.setRGB(1.0, 0.84, 0.0);      // Sacred gold
             } else {
-                color.setRGB(0.85, 1.0, 1.0);    // White-cyan highlight
+                color.setRGB(1.0, 0.94, 0.82);     // Spectral white-gold highlight
             }
 
             const size = this.config.baseSize * (1.1 + Math.random() * 1.2);
@@ -629,8 +640,14 @@ export class HealingParticleSystem_Session136 {
                 ringDir.multiplyScalar(speed);
 
                 // Ring particles are brighter — white-cyan
+                // SACRED_POLISH: Ring particles — spectral white-gold / celestial teal
                 if (!this.config.debugForceRedParticles) {
-                    color.setRGB(0.7 + Math.random() * 0.3, 1.0, 0.95 + Math.random() * 0.05);
+                    const ringHue = Math.random();
+                    if (ringHue > 0.5) {
+                        color.setRGB(1.0, 0.94, 0.82);   // Spectral white-gold
+                    } else {
+                        color.setRGB(0.25, 0.88, 0.82);   // Celestial teal
+                    }
                 } else {
                     color.setHex(0xff0000);
                 }

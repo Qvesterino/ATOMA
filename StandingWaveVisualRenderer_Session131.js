@@ -98,7 +98,7 @@ export class StandingWaveVisualRenderer_Session131 {
             trapZoneOverloadThreshold: 0.65,   // Overload state threshold
             trapZonePressureBoost: 0.14,       // Light intensity boost under load
             trapZonePulseFrequency: 1.1,      // Trap zone pulse frequency
-            trapZoneColor: new THREE.Color(0.72, 0.82, 1.0),  // Pale blue
+            trapZoneColor: new THREE.Color(0.45, 0.35, 0.75),  // Ethereal violet (paranormal)
             
             // Wave material modification
             waveTravelSpeed: 0.0,             // Standing = 0, traveling > 0
@@ -120,6 +120,12 @@ export class StandingWaveVisualRenderer_Session131 {
             maxTrapZoneMeshes: 30,            // Pool size for trap zone visualizers
             enableLOD: true,                  // Enable distance-based culling
             renderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
+
+            // ── Ethereal Dimensional Membrane Upgrade ──
+            enableEtherealMembrane: config.enableEtherealMembrane ?? true,
+            etherealSpectrumHues: [0.75, 0.55, 0.12, 0.97], // mystic violet, arcane teal, sacred gold, ritual crimson
+            etherealCycleSpeed: config.etherealCycleSpeed ?? 0.05,
+
             ...config
         };
         
@@ -154,6 +160,7 @@ export class StandingWaveVisualRenderer_Session131 {
         this._shellTintCache = new THREE.Color(0.96, 0.98, 1.0);  // Cached to avoid per-frame alloc
         
         this.time = 0;
+        this._etherealPhase = 0;  // Dimensional membrane spectral cycling
         this.initialized = false;
         this.trapZoneUpdateCount = 0;
         this.lastTrapZoneRenderCount = 0;
@@ -169,9 +176,12 @@ export class StandingWaveVisualRenderer_Session131 {
         this.root.name = 'StandingWaveVisualRendererRoot';
         this.root.visible = false;
         
-        // Create antinode glow material - use MeshBasicMaterial with additive blending for proper glow
+        // ── Ethereal Dimensional Membrane: paranormal antinode materials ──
+        // Antinode glow: spectral violet wireframe (dimensional membrane)
         this.antinodeMaterial = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(0.35, 0.82, 1.0),
+            color: this.config.enableEtherealMembrane
+                ? new THREE.Color(0.45, 0.25, 0.85) // Deep spectral violet
+                : new THREE.Color(0.35, 0.82, 1.0),  // Legacy cyan
             transparent: true,
             opacity: Math.min(0.45, this.config.antinodeOpacityBase),
             wireframe: true,
@@ -179,8 +189,11 @@ export class StandingWaveVisualRenderer_Session131 {
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
+        // Shell: ghost-white dimensional membrane
         this.antinodeShellMaterial = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(0.82, 0.96, 1.0),
+            color: this.config.enableEtherealMembrane
+                ? new THREE.Color(0.85, 0.80, 1.0) // Ghost lavender-white
+                : new THREE.Color(0.82, 0.96, 1.0), // Legacy pale cyan
             transparent: true,
             opacity: Math.min(0.18, this.config.antinodeOpacityBase * 0.42),
             side: THREE.DoubleSide,
@@ -197,41 +210,54 @@ export class StandingWaveVisualRenderer_Session131 {
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
+        // Trap zone core: void singularity (paranormal dark core)
         this.trapZoneCoreMaterial = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(0.04, 0.02, 0.08),
+            color: this.config.enableEtherealMembrane
+                ? new THREE.Color(0.02, 0.01, 0.06) // Deep void core
+                : new THREE.Color(0.04, 0.02, 0.08),
             transparent: true,
-            opacity: 0.88,
+            opacity: 0.92,
             side: THREE.DoubleSide,
             depthWrite: false,
             depthTest: true
         });
+        // Halo: spectral dimensional rift glow
         this.trapZoneHaloMaterial = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(0.92, 0.9, 1.0),
+            color: this.config.enableEtherealMembrane
+                ? new THREE.Color(0.70, 0.50, 1.0) // Spectral violet halo
+                : new THREE.Color(0.92, 0.9, 1.0),
             transparent: true,
-            opacity: 0.12,
+            opacity: 0.15,
             side: THREE.DoubleSide,
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
+        // Ring: arcane dimensional orbit
         this.trapZoneRingMaterial = new THREE.MeshBasicMaterial({
             color: this.config.trapZoneColor.clone(),
             transparent: true,
-            opacity: 0.24,
+            opacity: 0.28,
             side: THREE.DoubleSide,
             depthWrite: false,
             blending: THREE.AdditiveBlending,
             wireframe: true
         });
+        // Shock: dimensional rupture flash
         this.trapZoneShockMaterial = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(0.95, 0.92, 1.0),
+            color: this.config.enableEtherealMembrane
+                ? new THREE.Color(0.85, 0.70, 1.0) // Paranormal rupture flash
+                : new THREE.Color(0.95, 0.92, 1.0),
             transparent: true,
-            opacity: 0.14,
+            opacity: 0.16,
             side: THREE.DoubleSide,
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
+        // Pulse: ethereal membrane pulse
         this.trapZonePulseMaterial = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(0.9, 0.95, 1.0),
+            color: this.config.enableEtherealMembrane
+                ? new THREE.Color(0.60, 0.80, 1.0) // Ethereal blue-violet pulse
+                : new THREE.Color(0.9, 0.95, 1.0),
             transparent: true,
             opacity: this.config.trapZonePulseRingOpacity,
             side: THREE.DoubleSide,
@@ -372,7 +398,12 @@ export class StandingWaveVisualRenderer_Session131 {
         if (!this.initialized) this.setup();
         
         this.time = currentTime;
-        
+
+        // ── Ethereal Dimensional Membrane: spectral phase cycling ──
+        if (this.config.enableEtherealMembrane) {
+            this._etherealPhase = (this._etherealPhase + deltaTime * this.config.etherealCycleSpeed) % 1.0;
+        }
+
         // Step 1: Update link materials for standing waves
         this._updateLinkWaveStates(deltaTime);
         
@@ -723,6 +754,19 @@ export class StandingWaveVisualRenderer_Session131 {
     }
 
     _resolveAntinodeColor(link, outColor = new THREE.Color()) {
+        // ── Ethereal Dimensional Membrane: paranormal spectral override ──
+        if (this.config.enableEtherealMembrane) {
+            const hues = this.config.etherealSpectrumHues;
+            const phase = this._etherealPhase;
+            // Cycle through mystic violet → arcane teal → sacred gold → ritual crimson
+            const cycleIdx = Math.floor(phase * hues.length) % hues.length;
+            const nextIdx = (cycleIdx + 1) % hues.length;
+            const frac = (phase * hues.length) % 1;
+            const hue = THREE.MathUtils.lerp(hues[cycleIdx], hues[nextIdx], frac);
+            return outColor.setHSL(hue, 0.75, 0.55);
+        }
+
+        // Legacy color resolution
         const sourceCategory = link?.sourceNode?.userData?.category
             || link?.source?.userData?.category
             || link?.from?.userData?.category

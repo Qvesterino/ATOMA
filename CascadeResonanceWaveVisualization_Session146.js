@@ -88,19 +88,19 @@ export class CascadeResonanceWaveVisualization_Session146 {
       innerRingSpeed: config.innerRingSpeed ?? 2.0,
       innerRingOpacity: config.innerRingOpacity ?? 0.45,
       innerRingLifetime: config.innerRingLifetime ?? 0.8,
-      innerRingColor: config.innerRingColor ?? new THREE.Color(0xffffff), // White-cyan
+      innerRingColor: config.innerRingColor ?? new THREE.Color(0xfff0d0), // Sacred white-gold
       
       // Middle Ring (medium)
       middleRingSpeed: config.middleRingSpeed ?? 1.0,
       middleRingOpacity: config.middleRingOpacity ?? 0.30,
       middleRingLifetime: config.middleRingLifetime ?? 1.2,
-      middleRingColor: config.middleRingColor ?? new THREE.Color(0x00ffff), // Cyan
+      middleRingColor: config.middleRingColor ?? new THREE.Color(0x40e0d0), // Celestial teal
       
       // Outer Ring (slow, diffuse)
       outerRingSpeed: config.outerRingSpeed ?? 0.5,
       outerRingOpacity: config.outerRingOpacity ?? 0.15,
       outerRingLifetime: config.outerRingLifetime ?? 2.0,
-      outerRingColor: config.outerRingColor ?? new THREE.Color(0xaa88ff), // Violet
+      outerRingColor: config.outerRingColor ?? new THREE.Color(0x7b5ea7), // Mystic violet-indigo
       
       // Common ring parameters
       wavefrontRingCount: config.wavefrontRingCount ?? 3,
@@ -154,8 +154,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
       interferenceParticleCount: config.interferenceParticleCount ?? 30,
       interferenceOrbitalSpeed: config.interferenceOrbitalSpeed ?? 1.1,
       interferenceRadius: config.interferenceRadius ?? 1.2,
-      interferenceConstructiveColor: config.interferenceConstructiveColor ?? new THREE.Color(0x99ffff),
-      interferenceDestructiveColor: config.interferenceDestructiveColor ?? new THREE.Color(0x8a58ff),
+      interferenceConstructiveColor: config.interferenceConstructiveColor ?? new THREE.Color(0xffd700), // Sacred gold
+      interferenceDestructiveColor: config.interferenceDestructiveColor ?? new THREE.Color(0x8b008b), // Ritual dark magenta
       interferenceMinActiveWaves: config.interferenceMinActiveWaves ?? 2,
 
       // Phase 4: Post-processing and scene-wide energy effects
@@ -202,10 +202,10 @@ export class CascadeResonanceWaveVisualization_Session146 {
       // Phase 2: Glow and beam effects
       hubGlowModulationEnabled: config.hubGlowModulationEnabled ?? true,
       hubGlowIntensity: config.hubGlowIntensity ?? 0.20,           // Amplified from 0.05
-      hubGlowColor: config.hubGlowColor ?? new THREE.Color(0x7ffcff), // Cyan-white
+      hubGlowColor: config.hubGlowColor ?? new THREE.Color(0xffe4b5), // Sacred warm gold
       linkResonanceBeamEnabled: config.linkResonanceBeamEnabled ?? true,
       linkBeamOpacity: config.linkBeamOpacity ?? 0.25,             // Amplified from 0.08
-      linkBeamColor: config.linkBeamColor ?? new THREE.Color(0x9fdfff),
+      linkBeamColor: config.linkBeamColor ?? new THREE.Color(0xb8d4e3), // Celestial silver-teal
       
       // Phase 2: Multi-Layer Link Beams
       multiLayerBeamsEnabled: config.multiLayerBeamsEnabled ?? true,
@@ -225,7 +225,14 @@ export class CascadeResonanceWaveVisualization_Session146 {
       auraLayerOpacity: config.auraLayerOpacity ?? 0.12,
       auraLayerPulseSpeed: config.auraLayerPulseSpeed ?? 0.8,
       
-      waveStrengthIndicatorEnabled: config.waveStrengthIndicatorEnabled ?? true
+      waveStrengthIndicatorEnabled: config.waveStrengthIndicatorEnabled ?? true,
+
+      // ── Sacred Wave Prophecy Upgrade ──
+      enableSacredWaveUpgrade: config.enableSacredWaveUpgrade ?? true,
+      sacredSpectrumHues: [0.12, 0.52, 0.75, 0.97], // sacred gold, celestial teal, mystic violet, ritual crimson
+      sacredSpectrumCycleSpeed: config.sacredSpectrumCycleSpeed ?? 0.06,
+      sacredBeamGoldBlend: config.sacredBeamGoldBlend ?? 0.55,
+      sacredSparkSpectral: config.sacredSparkSpectral ?? true,
     };
     
     // Wave state tracking (per hub pair)
@@ -277,6 +284,9 @@ export class CascadeResonanceWaveVisualization_Session146 {
 
     // Global time accumulator for wave period calculation
     this.globalWaveTime = 0;
+
+    // ── Sacred Wave Prophecy state ──
+    this._sacredSpectrumPhase = 0;
     
     // Statistics
     this.stats = {
@@ -750,7 +760,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
 
   _createWavefrontParticleMaterial() {
     return new THREE.PointsMaterial({
-      color: new THREE.Color(0x99ffff),
+      color: new THREE.Color(0xffd700), // Sacred gold particles
       size: 0.12,
       transparent: true,
       opacity: 0.0,
@@ -766,7 +776,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
 
   _createResonanceSparkMaterial() {
     return new THREE.PointsMaterial({
-      color: new THREE.Color(0xffffff),
+      color: new THREE.Color(0xfff5e0), // Sacred warm white sparks
       size: this.config.resonanceSparkSize,
       transparent: true,
       opacity: 0.0,
@@ -782,7 +792,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
 
   _createEchoTrailMaterial() {
     return new THREE.LineBasicMaterial({
-      color: new THREE.Color(0x99ffff),
+      color: new THREE.Color(0xc0e8e0), // Celestial teal echo trails
       transparent: true,
       opacity: 0.0,
       linewidth: 1,
@@ -795,7 +805,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
 
   _createInterferenceParticleMaterial() {
     return new THREE.PointsMaterial({
-      color: new THREE.Color(0x99ffff),
+      color: new THREE.Color(0xffd700), // Sacred gold interference particles
       size: 0.14,
       transparent: true,
       opacity: 0.0,
@@ -1453,6 +1463,11 @@ export class CascadeResonanceWaveVisualization_Session146 {
     
     // Accumulate global wave time
     this.globalWaveTime += deltaTime;
+
+    // ── Sacred Wave Prophecy: advance sacred spectrum phase ──
+    if (this.config.enableSacredWaveUpgrade) {
+      this._sacredSpectrumPhase = (this._sacredSpectrumPhase + deltaTime * this.config.sacredSpectrumCycleSpeed) % 1.0;
+    }
     
     // Event-driven mode: no proximity scanning, no cascadeSystem/hub polling triggers.
     this._decayAllWaves(deltaTime);
@@ -1825,7 +1840,25 @@ export class CascadeResonanceWaveVisualization_Session146 {
       particle.visible = true;
       particle.points.material.size = THREE.MathUtils.lerp(this.config.wavefrontParticleSizeMin, this.config.wavefrontParticleSizeMax, Math.random());
       particle.points.material.opacity = 1.0;
-      particle.points.material.color.copy(activeRing.tier === 'outer' ? new THREE.Color(0x88bbff) : activeRing.tier === 'middle' ? new THREE.Color(0x99ffff) : new THREE.Color(0xffffff));
+      // ── Sacred Wave Prophecy: spectral particle colors ──
+      if (this.config.enableSacredWaveUpgrade) {
+        const sacredHues = this.config.sacredSpectrumHues;
+        const specPhase = this._sacredSpectrumPhase;
+        if (activeRing.tier === 'outer') {
+          // Mystic violet-indigo with spectral cycling
+          const h = THREE.MathUtils.lerp(sacredHues[2], sacredHues[3], (Math.sin(specPhase * Math.PI * 2 + particle.angle) * 0.5 + 0.5));
+          particle.points.material.color.setHSL(h, 0.75, 0.55);
+        } else if (activeRing.tier === 'middle') {
+          // Celestial teal-gold cycling
+          const h = THREE.MathUtils.lerp(sacredHues[0], sacredHues[1], (Math.sin(specPhase * Math.PI * 2 + particle.angle * 0.7) * 0.5 + 0.5));
+          particle.points.material.color.setHSL(h, 0.8, 0.6);
+        } else {
+          // Sacred white-gold inner particles
+          particle.points.material.color.setHSL(0.12 + Math.sin(specPhase * Math.PI * 4) * 0.02, 0.5, 0.85);
+        }
+      } else {
+        particle.points.material.color.copy(activeRing.tier === 'outer' ? new THREE.Color(0x88bbff) : activeRing.tier === 'middle' ? new THREE.Color(0x99ffff) : new THREE.Color(0xffffff));
+      }
       this._activeWavefrontParticles.push(particle);
     }
   }
@@ -1895,8 +1928,17 @@ export class CascadeResonanceWaveVisualization_Session146 {
       const radial = 0.1 + Math.random() * 0.15;
       spark.points.material.size = this.config.resonanceSparkSize * THREE.MathUtils.lerp(0.8, 1.2, Math.random());
       spark.points.material.opacity = 1.0;
-      spark.points.material.color.copy(new THREE.Color(0xffffff));
-      spark.color.copy(hubPosition ? new THREE.Color(0xffffff) : new THREE.Color(0xffffff));
+      // ── Sacred Wave Prophecy: spectral spark colors ──
+      if (this.config.enableSacredWaveUpgrade && this.config.sacredSparkSpectral) {
+        const sacredHues = this.config.sacredSpectrumHues;
+        const sparkHue = sacredHues[Math.floor(Math.random() * sacredHues.length)];
+        const sacredColor = new THREE.Color().setHSL(sparkHue, 0.7 + Math.random() * 0.2, 0.7 + Math.random() * 0.15);
+        spark.points.material.color.copy(sacredColor);
+        spark.color.copy(sacredColor);
+      } else {
+        spark.points.material.color.copy(new THREE.Color(0xffffff));
+        spark.color.copy(new THREE.Color(0xffffff));
+      }
       spark.velocity.set(Math.cos(theta), 0.1, Math.sin(theta)).multiplyScalar(THREE.MathUtils.lerp(1.2, 1.8, intensity));
       spark.velocity.y -= this.config.resonanceSparkGravity * 0.5;
       spark.geometry.attributes.position.setXYZ(0, hubPosition.x + Math.cos(theta) * radial, hubPosition.y + 0.05, hubPosition.z + Math.sin(theta) * radial);
@@ -2198,7 +2240,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
       // Smooth color transitions using smoothstep instead of hard thresholds
       if (harmony > 0.5) {
         const harmonyT = THREE.MathUtils.smoothstep(harmony, 0.5, 1.0);
-        shiftedColor.lerp(new THREE.Color(0xffcc66), harmonyT * 0.6);
+        shiftedColor.lerp(new THREE.Color(0xffd700), harmonyT * 0.65); // Sacred gold harmony
       }
       if (activeRing.influence > 0.6) {
         const infT = THREE.MathUtils.smoothstep(activeRing.influence, 0.6, 1.0);
@@ -2206,7 +2248,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
       }
       if (progress > 0.55) {
         const progT = THREE.MathUtils.smoothstep(progress, 0.55, 1.0);
-        shiftedColor.lerp(new THREE.Color(0x4466ff), progT * 0.5);
+        shiftedColor.lerp(new THREE.Color(0x7b5ea7), progT * 0.55); // Mystic violet fade
       }
 
       // EPIC shader uniforms
@@ -2450,8 +2492,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
         // Color based on harmony (smooth transition toward gold when high harmony)
         if (avgHarmony > 0.4) {
           const harmonyT = THREE.MathUtils.smoothstep(avgHarmony, 0.4, 1.0);
-          const harmonyColor = new THREE.Color(0xffcc66); // Gold
-          uniforms.uColor.value.copy(this.config.linkBeamColor).lerp(harmonyColor, harmonyT * 0.65);
+          const harmonyColor = this.config.enableSacredWaveUpgrade ? new THREE.Color(0xffd700) : new THREE.Color(0xffcc66); // Sacred gold
+          uniforms.uColor.value.copy(this.config.linkBeamColor).lerp(harmonyColor, harmonyT * (this.config.enableSacredWaveUpgrade ? 0.75 : 0.65));
         } else {
           uniforms.uColor.value.copy(this.config.linkBeamColor);
         }
@@ -2459,7 +2501,9 @@ export class CascadeResonanceWaveVisualization_Session146 {
         // Corruption tint: shift toward red-magenta when high corruption
         if (avgCorruption > 0.4) {
           const corruptionT = THREE.MathUtils.smoothstep(avgCorruption, 0.4, 1.0);
-          uniforms.uColor.value.lerp(new THREE.Color(0xff4488), corruptionT * 0.35);
+          // Corruption tint: ritual crimson instead of plain red-magenta
+          const corruptionColor = this.config.enableSacredWaveUpgrade ? new THREE.Color(0x8b008b) : new THREE.Color(0xff4488);
+          uniforms.uColor.value.lerp(corruptionColor, corruptionT * (this.config.enableSacredWaveUpgrade ? 0.45 : 0.35));
         }
 
         // Add a slight motion bias along the link direction using userData

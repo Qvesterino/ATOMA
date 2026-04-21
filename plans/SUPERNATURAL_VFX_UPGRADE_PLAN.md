@@ -424,3 +424,210 @@ vec3 voidEnergy(vec2 uv, float time) {
 - Hues: gold → crimson → violet → indigo → teal
 - Colors breathe and shift as if the runes are alive with ancient power
 - Master switch: `_enableMysticRunes: true`
+
+---
+
+## Round 5: Sacred & Mystic-Sacred Upgrades
+
+### System 9: HarmonicHubAuraSystem_Session126 → Divine Nexus Aura
+
+**Current State**: Hub aura system with icosahedron resonance fields (outer MeshPhong + inner MeshBasic + torus ring). Basic HSL colors (corruption=purple, synergy=cyan, harmony=blue). Simple noise-based vertex deformation. Single ring per hub.
+
+**Upgrade**: Transform hub auras into sacred divine nexus points — as if each hub is a temple altar radiating divine light with sacred geometry halos.
+
+#### Divine Spectrum Cycling
+- `divineSpectrumHues`: [0.12, 0.52, 0.75, 0.97] (sacred gold, celestial teal, mystic violet, ritual crimson)
+- `_divineSpectrumPhase` advances each frame at `divineSpectrumCycleSpeed`
+- Colors cycle through sacred spectrum based on hub state
+
+#### Sacred Color Mapping
+- Corruption → Ritual crimson with spectral void undertone (HSL 0.97+)
+- High synergy → Celestial teal-gold sacred fusion (cycling between gold and teal)
+- Harmony → Mystic violet-sacred gold cycling (full spectrum rotation)
+
+#### Dual Sacred Halo Rings
+- First halo: 45° tilted torus at 1.25× radius with sacred spectral tint
+- Second halo: Perpendicular cross-aura at 1.15× radius with offset hue
+- Both rotate independently with orbital animation
+- Opacity modulated by ring pulse and divine breathing
+
+#### Divine Breathing Override
+- `divineBreathingRate: 1.8` replaces default 2.2
+- Outer shell: Sacred spectral color cycling on emissive
+- Inner core: Sacred white-gold pulse cycling
+- Halos: Independent spectral tint cycling (gold + teal offset)
+
+#### Master Switch
+- `enableDivineNexusAura: true` — set to false for full legacy fallback
+
+### System 10: CascadeResonanceWaveVisualization_Session146 → Sacred Wave Prophecy
+
+**Current State**: Multi-phase wave system with EPIC ring shader (ATM_WAVE_RING_v3), EPIC beam shader (ATM_RESONANCE_BEAM_v2), three-tier parallax rings, particles, sparks, echo trails, interference particles. Colors: white-cyan/cyan/violet rings, white sparks, cyan particles.
+
+**Upgrade**: Transform the cascade wave system into a sacred prophecy revelation — waves of divine light carrying ancient messages between hub temples.
+
+#### Sacred Ring Colors (Three-Tier Parallax)
+- Inner ring: Sacred white-gold (#FFF0D0) — divine revelation
+- Middle ring: Celestial teal (#40E0D0) — spiritual channel
+- Outer ring: Mystic violet-indigo (#7B5EA7) — prophecy veil
+
+#### Sacred Beam & Glow Colors
+- Hub glow: Sacred warm gold (#FFE4B5)
+- Link beam: Celestial silver-teal (#B8D4E3)
+- Harmony transition: Sacred gold (#FFD700) at 75% blend
+- Corruption tint: Ritual dark magenta (#8B008B) at 45% blend
+
+#### Sacred Particle Spectrum
+- Wavefront particles: Spectral colors per tier (outer=violet-crimson cycling, middle=teal-gold cycling, inner=sacred white-gold)
+- Resonance sparks: Random sacred hue from spectrum with luminance variation
+- Echo trails: Celestial teal (#C0E8E0)
+- Interference particles: Sacred gold (#FFD700)
+
+#### Sacred Color Transitions
+- Harmony > 0.5: Lerp toward sacred gold (#FFD700) at 65%
+- Progress > 0.55: Lerp toward mystic violet (#7B5EA7) at 55%
+- `_sacredSpectrumPhase` advances each frame for continuous cycling
+
+#### Master Switch
+- `enableSacredWaveUpgrade: true` — set to false for full legacy fallback
+
+---
+
+## Round 6: Paranormal & Iconic Upgrades
+
+### System 11: StandingWaveVisualRenderer_Session131 → Ethereal Dimensional Membrane
+
+**Current State**: Standing wave renderer with antinode broken Möbius segments (torus segments + shell sphere), trap zone singularity (core sphere + orbitA/B torus + halo ring). Colors: cyan-blue antinodes, pale blue trap zones, near-black core, white-blue halo.
+
+**Upgrade**: Transform standing waves into paranormal dimensional membranes — as if the wave patterns are tears between dimensions, with ghostly violet energy bleeding through.
+
+#### Paranormal Material Colors
+- Antinode glow: Deep spectral violet (0.45, 0.25, 0.85) — dimensional membrane wireframe
+- Antinode shell: Ghost lavender-white (0.85, 0.80, 1.0) — ethereal dimensional surface
+- Trap zone: Ethereal violet (0.45, 0.35, 0.75) — dimensional rift boundary
+- Trap core: Deep void (0.02, 0.01, 0.06) — singularity darkness
+- Trap halo: Spectral violet (0.70, 0.50, 1.0) — dimensional rift glow
+- Trap shock: Paranormal rupture flash (0.85, 0.70, 1.0)
+- Trap pulse: Ethereal blue-violet (0.60, 0.80, 1.0)
+
+#### Paranormal Antinode Color Cycling
+- `_resolveAntinodeColor()` overridden when enabled
+- Cycles through: mystic violet → arcane teal → sacred gold → ritual crimson
+- `_etherealPhase` advances each frame for continuous cycling
+- All legacy category-based color resolution preserved as fallback
+
+#### Master Switch
+- `enableEtherealMembrane: true` — set to false for full legacy fallback
+
+### System 12: HarmonicInfluencePropagationSystem_Session127 → Psychic Energy Propagation
+
+**Current State**: Influence propagation with neutral grey-white (0.93,0.93,0.95) flowing flame auras on nodes and link flows. MeshPhongMaterial with additive blending. Slight warmth shift with harmony.
+
+**Upgrade**: Transform influence propagation into psychic energy radiation — as if thoughts and emotions are visible as spectral energy radiating through the network like telepathic signals.
+
+#### Psychic Base Color
+- baseColor: Ethereal lavender-white (0.85, 0.82, 0.95) — psychic perception base
+
+#### Psychic Aura Color Cycling
+- `_createNodeAuraMesh()` color logic overridden when enabled
+- Cycles through: mystic violet → arcane teal → sacred gold → ritual crimson
+- Harmony shifts hue toward sacred gold
+- Synergy boosts lightness
+- `_psychicPhase` advances each frame
+
+#### Psychic Link Flow Colors
+- `_createLinkFlowMesh()` uses spectral flow colors from psychic spectrum
+- Enhanced emissive intensity (0.55 vs legacy 0.4)
+- Each flow segment picks hue from current psychic phase
+
+#### Master Switch
+- `enablePsychicPropagation: true` — set to false for full legacy fallback
+
+---
+
+## Round 7: AAA Epic & Supernova Upgrades
+
+### System 13: CascadeBurstVisual_Session147 → Supernova Detonation
+
+**Current State**: Burst visual with energy shell (IcosahedronGeometry ShaderMaterial), radial ray beams (CylinderGeometry), shockwave ring (TorusGeometry), core flash, energy particles, core sparks, nebula cloud, bloom aura, chromatic aura, distortion wave, push force, point light flash. Colors: cyan-white harmonic, warm gold synergy, red corruption.
+
+**Upgrade**: Transform cascade bursts into supernova detonations — cosmic explosions of sacred energy that look like dying stars birthing new dimensions.
+
+#### Supernova Color Palette
+- Harmonic: Celestial plasma gold-white `#FFE8C0`
+- Synergy: Cosmic gold `#FFC040`
+- Corruption: Void crimson `#CC0030`
+- Core sparks: Sacred gold `#FFD700` (was plain white)
+
+#### Supernova Spectral Cycling
+- `_supernovaPhase` advances each frame
+- Spectrum: sacred gold → arcane teal → mystic violet → ritual crimson
+- Applied to burst color resolution during active detonations
+
+#### Master Switch
+- `enableSupernovaUpgrade: true` — set to false for full legacy fallback
+
+### System 14: EchoRippleSystem_Session125 → Quantum Echo Resonance
+
+**Current State**: Hexagonal ripple rings with octagonal halos, hexagonal cores, echo rings, propagation system, loadPressure spawning. Colors: cyan ripple, white halo, red corruption, cyan harmony, amber cascade. Has chromatic shift, energy shimmer, glow pulse.
+
+**Upgrade**: Transform echo ripples into quantum-entangled resonance patterns — as if reality itself is being disturbed at the quantum level, with spectral colors that shift like probability wave functions.
+
+#### Quantum Spectral Colors
+- Ripple: Quantum spectral violet `#B090FF`
+- Halo: Spectral white-gold `#FFF0D0`
+- Corruption: Void crimson `#CC0030`
+- Harmony: Celestial teal `#40E0D0`
+- Cascade: Sacred gold `#FFD700`
+- LoadPressure: Arcane amber `#E0A040`
+
+#### Quantum Color Resolution
+- `_resolveRippleColor()` fully overridden when enabled
+- loadPressure: Arcane amber → shifts toward ritual crimson at high pressure
+- cascadeHop: Sacred gold with quantum phase modulation
+- propagation: Full spectrum cycling through quantum hues
+- waveBurst: Void crimson (corruption) / celestial teal (harmony) / spectral cycling (default)
+- `_quantumPhase` advances each frame for continuous cycling
+
+#### Master Switch
+- `enableQuantumEcho: true` — set to false for full legacy fallback
+
+---
+
+## Round 8: Sacred Healing Polish + Recovery Planning
+
+### System 15: HealingParticleSystem_Session136 → Sacred Healing Polish
+
+**Current State**: GPU-driven particle system with custom GLSL vertex/fragment shaders. Single draw call (THREE.Points) with circular buffer, 3500 max particles. Colors: warm gold, luminous cyan, white-cyan. Multi-lobe glow (hot core + inner glow + soft halo). Hypercube stereographic projection motion. Layer tint: pink → cyan.
+
+**Upgrade**: Sacred spectral micro-polish — upgrade color palette to sacred gold / celestial teal / mystic violet without structural shader changes.
+
+#### Sacred Spectral Color Evolution (Vertex Shader)
+- Replaced flat cyan evolution with sacred spectral cycling: base → sacred gold → celestial teal → mystic violet shimmer
+- Sacred spectral shimmer per layer using celestial teal modulation
+
+#### Sacred Layer Tint (Fragment Shader)
+- Layer tint: sacred gold → celestial teal (was pink → cyan)
+- Creates coherent sacred glow across all particle layers
+
+#### Sacred Spawn Colors (JS)
+- Scar sparkle high harmony: celestial teal `(0.25, 0.88, 0.82)`
+- Scar sparkle default: sacred gold `(1.0, 0.84, 0.0)`
+- Trail default: celestial teal-gold `(0.35, 0.90, 0.82)`
+- Splash: sacred gold / celestial teal / spectral white-gold `(1.0, 0.94, 0.82)`
+- Ring particles: spectral white-gold / celestial teal alternation
+
+#### Master Switch
+- `enableSacredHealingPolish: true` — set to false for full legacy fallback
+
+### System 16 (Planned): HarmonicRecoveryVisualSystem_Session138 → Sacred Recovery Convergence
+
+**Status**: ✅ Implemented
+
+**Changes Applied**:
+1. ✅ Coherence wave shader: Sacred spectral evolution — sacred gold → celestial teal → mystic violet shimmer (was warm gold → luminous cyan). Sacred spectral sparkle fringe.
+2. ✅ Recovery halo shader: Sacred convergence ring tinting — rings blend toward celestial teal, white-hot sacred core
+3. ✅ Material base colors: Wave → celestial teal `0x40E0D0` (was `0x00ffff`), Halo → sacred gold `0xFFD700` (was `0xffff33`)
+4. ✅ Re-stitching beam: Sacred gold `0xFFD700` beam (was `0x88ffdd`), sacred gold / celestial teal stitch alternation
+5. ✅ HSL computation: Sacred spectrum range `0.12 + harmony * 0.38` (was `0.08 + harmony * 0.42`), reduced saturation 0.88 (was 0.92)
+6. ✅ Master switch: `enableSacredRecovery: true`

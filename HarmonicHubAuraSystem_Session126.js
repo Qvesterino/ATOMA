@@ -139,6 +139,16 @@ export class HarmonicHubAuraSystem_Session126 {
       maxHubs: config.maxHubs ?? 64,
       enabled: config.enabled ?? true,
       debugMode: config.debugMode ?? false,
+
+      // ── Divine Nexus Aura Upgrade ──
+      enableDivineNexusAura: config.enableDivineNexusAura ?? true,
+      divineSpectrumHues: [0.12, 0.52, 0.75, 0.97], // sacred gold, celestial teal, mystic violet, ritual crimson
+      divineSpectrumCycleSpeed: config.divineSpectrumCycleSpeed ?? 0.08,
+      divineHaloEnabled: config.divineHaloEnabled ?? true,
+      divineHaloOpacity: config.divineHaloOpacity ?? 0.22,
+      divineCoronaParticles: config.divineCoronaParticles ?? true,
+      divineBreathingRate: config.divineBreathingRate ?? 1.8,
+      divinePulseIntensity: config.divinePulseIntensity ?? 0.35,
     };
 
     // Preserve baseline visual config so debug presets are reversible.
@@ -185,6 +195,9 @@ export class HarmonicHubAuraSystem_Session126 {
       waveInteractions: 0,
       fragmentsDeformed: 0,
     };
+
+    // ── Divine Nexus Aura state ──
+    this._divineSpectrumPhase = 0;
 
     this._hubCooldowns = new Map();
     this._cooldowns = {
@@ -244,6 +257,12 @@ export class HarmonicHubAuraSystem_Session126 {
     if (!this.config.enabled) return;
     if (!this.frameScheduler?.shouldRunVisual?.()) return;
     this.stats.phaseLockedNodes = 0;
+
+    // ── Divine Nexus Aura: advance sacred spectrum phase ──
+    if (this.config.enableDivineNexusAura) {
+      this._divineSpectrumPhase = (this._divineSpectrumPhase + deltaTime * this.config.divineSpectrumCycleSpeed) % 1.0;
+    }
+
     // Detect and create harmonic hubs
     this._detectHarmonyHubs();
     
@@ -794,6 +813,47 @@ export class HarmonicHubAuraSystem_Session126 {
       group.add(ringMesh);
     }
 
+    // ── Divine Nexus Aura: sacred halo ring (tilted 45°) ──
+    if (this.config.enableDivineNexusAura && this.config.divineHaloEnabled && !useLOD) {
+      const haloGeometry = new THREE.TorusGeometry(radius * 1.25, this.config.fieldRingWidth * 0.7, 8, 48);
+      const haloColor = boostedColor.clone();
+      haloColor.offsetHSL(0.05, 0.1, 0.15); // slightly shifted sacred tint
+      const haloMaterial = new THREE.MeshBasicMaterial({
+        color: haloColor,
+        transparent: true,
+        opacity: Math.min(0.4, this.config.divineHaloOpacity + cascadeOpacityBoost * 0.2),
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: true,
+        side: THREE.DoubleSide
+      });
+
+      const haloMesh = new THREE.Mesh(haloGeometry, haloMaterial);
+      haloMesh.name = 'hub-divine-halo';
+      haloMesh.rotation.x = Math.PI / 4; // 45° tilt — sacred geometry angle
+      haloMesh.rotation.y = Math.PI / 6;
+      haloMesh.renderOrder = this.config.fieldRenderOrder + 3;
+      group.add(haloMesh);
+
+      // Second sacred halo — perpendicular for cross-aura effect
+      const halo2Geometry = new THREE.TorusGeometry(radius * 1.15, this.config.fieldRingWidth * 0.5, 8, 48);
+      const halo2Material = new THREE.MeshBasicMaterial({
+        color: haloColor.clone().offsetHSL(-0.08, 0.05, 0.1),
+        transparent: true,
+        opacity: Math.min(0.3, this.config.divineHaloOpacity * 0.7),
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: true,
+        side: THREE.DoubleSide
+      });
+      const halo2Mesh = new THREE.Mesh(halo2Geometry, halo2Material);
+      halo2Mesh.name = 'hub-divine-halo-2';
+      halo2Mesh.rotation.x = -Math.PI / 3;
+      halo2Mesh.rotation.z = Math.PI / 5;
+      halo2Mesh.renderOrder = this.config.fieldRenderOrder + 4;
+      group.add(halo2Mesh);
+    }
+
     this._animateHubFieldGroup(group, hub, useLOD);
 
     return group;
@@ -826,6 +886,11 @@ export class HarmonicHubAuraSystem_Session126 {
     const pulse = hub.visualState?.pulse ?? 0;
     const ringPulse = hub.visualState?.ringPulse ?? 0;
     const harmonyInfluence = Math.max(0, hub.harmony - hub.corruption);
+    const isDivine = this.config.enableDivineNexusAura;
+
+    // Divine breathing rate override
+    const breathRate = isDivine ? this.config.divineBreathingRate : 2.2;
+    const divinePulseBoost = isDivine ? this.config.divinePulseIntensity : 0;
 
     const outer = group.getObjectByName('hub-outer-shell');
     if (outer) {
@@ -838,7 +903,7 @@ export class HarmonicHubAuraSystem_Session126 {
       const original = geometry.userData.originalPositions;
       const noiseAmp = this.config.fieldOuterNoise * (1 + pulse * 0.3) * (useLOD ? 0.6 : 1);
       const phase = time * this.config.fieldOuterNoiseSpeed;
-      const pulseScale = 1 + Math.sin(time * 2.2) * 0.06 + pulse * 0.08;
+      const pulseScale = 1 + Math.sin(time * breathRate) * 0.06 + pulse * (0.08 + divinePulseBoost);
 
       for (let i = 0; i < positions.count; i++) {
         const ox = original[i * 3];
@@ -856,15 +921,28 @@ export class HarmonicHubAuraSystem_Session126 {
 
       positions.needsUpdate = true;
       outer.rotation.y = time * 0.18 + pulse * 0.05;
-      outer.material.emissiveIntensity = this.config.fieldGlowIntensity * Math.max(0.35, harmonyInfluence) * this.config.fieldEmissiveBoost * (1 + pulse * 0.2);
+      outer.material.emissiveIntensity = this.config.fieldGlowIntensity * Math.max(0.35, harmonyInfluence) * this.config.fieldEmissiveBoost * (1 + pulse * (0.2 + divinePulseBoost));
+
+      // ── Divine spectral color cycling on outer shell ──
+      if (isDivine && outer.material.emissive) {
+        const specPhase = this._divineSpectrumPhase;
+        const sacredHue = THREE.MathUtils.lerp(0.12, 0.75, (Math.sin(specPhase * Math.PI * 2) * 0.5 + 0.5));
+        outer.material.emissive.offsetHSL(sacredHue * 0.02 - 0.01, 0.05 * Math.sin(time * 0.5), 0);
+      }
     }
 
     const inner = group.getObjectByName('hub-inner-core');
     if (inner) {
-      const innerScale = Math.max(0.5, this.config.fieldInnerScale + Math.sin(time * 2.8) * 0.02 + pulse * 0.08);
+      const innerScale = Math.max(0.5, this.config.fieldInnerScale + Math.sin(time * breathRate * 1.27) * 0.02 + pulse * (0.08 + divinePulseBoost * 0.5));
       inner.scale.setScalar(innerScale);
       inner.rotation.y = time * 0.4;
       inner.material.opacity = Math.max(0.08, Math.min(0.65, 0.24 + harmonyInfluence * 0.18 + pulse * 0.1));
+
+      // ── Divine inner core: sacred white-gold pulse ──
+      if (isDivine) {
+        const divineWhite = Math.sin(time * breathRate * 0.8) * 0.5 + 0.5;
+        inner.material.color.setHSL(0.12 + divineWhite * 0.02, 0.6 + divineWhite * 0.2, 0.6 + divineWhite * 0.15);
+      }
     }
 
     const ring = group.getObjectByName('hub-ring');
@@ -872,6 +950,27 @@ export class HarmonicHubAuraSystem_Session126 {
       ring.rotation.z = time * 0.95;
       ring.material.opacity = Math.max(0.05, this.config.fieldRingOpacity + ringPulse * 0.18);
       ring.scale.setScalar(1 + ringPulse * 0.08);
+    }
+
+    // ── Divine halo animation: sacred orbital rotation ──
+    if (isDivine) {
+      const halo = group.getObjectByName('hub-divine-halo');
+      if (halo) {
+        halo.rotation.z = time * 0.35;
+        halo.rotation.x = Math.PI / 4 + Math.sin(time * 0.6) * 0.08;
+        halo.material.opacity = Math.max(0.05, this.config.divineHaloOpacity + ringPulse * 0.12 + Math.sin(time * breathRate) * 0.04);
+        // Sacred spectral tint cycling
+        const haloHue = (this._divineSpectrumPhase * 0.3 + 0.12) % 1;
+        halo.material.color.setHSL(haloHue, 0.75, 0.6);
+      }
+      const halo2 = group.getObjectByName('hub-divine-halo-2');
+      if (halo2) {
+        halo2.rotation.z = -time * 0.25;
+        halo2.rotation.y = Math.sin(time * 0.45) * 0.1;
+        halo2.material.opacity = Math.max(0.04, this.config.divineHaloOpacity * 0.6 + ringPulse * 0.08);
+        const halo2Hue = (this._divineSpectrumPhase * 0.3 + 0.52) % 1;
+        halo2.material.color.setHSL(halo2Hue, 0.7, 0.55);
+      }
     }
   }
   
@@ -882,15 +981,34 @@ export class HarmonicHubAuraSystem_Session126 {
     const harmony = hub.harmony;
     const corruption = hub.corruption;
     const synergy = hub.synergy;
-    
+
+    // ── Divine Nexus Aura: sacred spectrum cycling ──
+    if (this.config.enableDivineNexusAura) {
+      const hues = this.config.divineSpectrumHues;
+      const phase = this._divineSpectrumPhase;
+      const cycleIdx = Math.floor(phase * hues.length) % hues.length;
+      const nextIdx = (cycleIdx + 1) % hues.length;
+      const frac = (phase * hues.length) % 1;
+      const baseHue = THREE.MathUtils.lerp(hues[cycleIdx], hues[nextIdx], frac);
+
+      if (corruption > harmony) {
+        // Ritual crimson with spectral void undertone
+        return new THREE.Color().setHSL(0.97 + corruption * 0.03, 0.85, 0.35 + corruption * 0.1);
+      } else if (synergy > 0.6) {
+        // Celestial teal-gold sacred fusion
+        return new THREE.Color().setHSL(baseHue, 0.8, 0.55 + synergy * 0.1);
+      } else {
+        // Mystic violet-sacred gold cycling
+        return new THREE.Color().setHSL(baseHue, 0.7, 0.5 + harmony * 0.1);
+      }
+    }
+
+    // Legacy fallback
     if (corruption > harmony) {
-      // Red/purple for corruption
       return new THREE.Color().setHSL(0.8 + corruption * 0.1, 0.8, 0.4);
     } else if (synergy > 0.6) {
-      // Cyan/green for high synergy
       return new THREE.Color().setHSL(0.5, 0.7, 0.6);
     } else {
-      // Blue for harmony
       return new THREE.Color().setHSL(0.6, 0.6, 0.5);
     }
   }

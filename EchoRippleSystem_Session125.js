@@ -55,11 +55,11 @@ export class EchoRippleSystem_Session125 {
       rippleVerticalOffset: 0.055,
       auraDeformationStrength: 0.35,
       auraImpactDuration: 0.18,
-      rippleColor: new THREE.Color(0x86f5ff),
-      haloColor: new THREE.Color(0xe8feff),
-      corruptionColor: new THREE.Color(0xff685d),
-      harmonyColor: new THREE.Color(0x86f5ff),
-      cascadeColor: new THREE.Color(0xffb781),
+      rippleColor: new THREE.Color(0xb090ff),     // Quantum spectral violet
+      haloColor: new THREE.Color(0xfff0d0),       // Spectral white-gold
+      corruptionColor: new THREE.Color(0xcc0030),  // Void crimson
+      harmonyColor: new THREE.Color(0x40e0d0),     // Celestial teal
+      cascadeColor: new THREE.Color(0xffd700),     // Sacred gold
 
       // ── LoadPressure autonomous spawning ──
       loadPressureSpawn: {
@@ -69,7 +69,7 @@ export class EchoRippleSystem_Session125 {
         intensity: 0.6,            // base intensity of spawned ripples
         maxConcurrentPerNode: 3,   // max active loadPressure ripples per node
         kind: 'loadPressure',      // ripple kind identifier
-        color: new THREE.Color(0xffb781),  // warm amber for pressure ripples
+        color: new THREE.Color(0xe0a040),  // Arcane amber for pressure ripples
       },
 
       // ── Visual upgrade config ──
@@ -79,6 +79,11 @@ export class EchoRippleSystem_Session125 {
       echoRingEnabled: true,       // outer echo ring for depth
       echoRingScale: 1.38,         // scale multiplier for echo ring
       echoRingOpacity: 0.12,       // base opacity of echo ring
+
+      // ── Quantum Echo Resonance Upgrade ──
+      enableQuantumEcho: config.enableQuantumEcho ?? true,
+      quantumSpectrumHues: [0.75, 0.55, 0.12, 0.97], // mystic violet, arcane teal, sacred gold, ritual crimson
+      quantumCycleSpeed: config.quantumCycleSpeed ?? 0.08,
 
       ...config
     };
@@ -99,6 +104,7 @@ export class EchoRippleSystem_Session125 {
 
     this._disposed = false;
     this._elapsedTime = 0;
+    this._quantumPhase = 0; // Quantum echo spectral cycling
     this._globalCooldownUntil = -Infinity;
     this._nodeCooldownUntilById = new Map();
     this._linkCooldownUntilById = new Map();
@@ -161,6 +167,11 @@ export class EchoRippleSystem_Session125 {
 
     const delta = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0;
     this._elapsedTime += delta;
+
+    // ── Quantum Echo: advance spectral phase ──
+    if (this.config.enableQuantumEcho) {
+      this._quantumPhase = (this._quantumPhase + delta * this.config.quantumCycleSpeed) % 1.0;
+    }
 
     if (this._sceneRoot.parent !== this.scene && this.scene) {
       this._attachScene(this.scene);
@@ -1013,10 +1024,43 @@ export class EchoRippleSystem_Session125 {
     const loadPressure = clamp01(metrics.loadPressure ?? 0);
     const stability = clamp01(metrics.stability ?? 0.5);
 
+    // ── Quantum Echo: spectral ripple color cycling ──
+    if (this.config.enableQuantumEcho) {
+      const hues = this.config.quantumSpectrumHues;
+      const phase = this._quantumPhase;
+      const cycleIdx = Math.floor(phase * hues.length) % hues.length;
+      const nextIdx = (cycleIdx + 1) % hues.length;
+      const frac = (phase * hues.length) % 1;
+      const baseHue = THREE.MathUtils.lerp(hues[cycleIdx], hues[nextIdx], frac);
+
+      if (kindKey === 'loadPressure') {
+        // Arcane amber with quantum spectral shift at high pressure
+        const pressureHue = THREE.MathUtils.lerp(0.08, 0.97, clamp01(loadPressure - 0.5) * 2.0);
+        return new THREE.Color().setHSL(pressureHue, 0.8, 0.5 + intensity * 0.15);
+      } else if (kindKey === 'cascadeHop') {
+        // Sacred gold cascade with quantum phase modulation
+        const cascadeHue = THREE.MathUtils.lerp(0.12, baseHue, 0.3);
+        return new THREE.Color().setHSL(cascadeHue, 0.85, 0.55 + intensity * 0.15);
+      } else if (kindKey === 'propagation') {
+        // Quantum spectral propagation — cycles through full spectrum
+        return new THREE.Color().setHSL(baseHue, 0.7, 0.55 + harmony * 0.1);
+      } else if (kindKey === 'waveBurst') {
+        // Quantum wave burst — corruption=void crimson, harmony=celestial teal, default=spectral cycling
+        if (corruption >= Math.max(harmony, stability * 0.72)) {
+          return new THREE.Color().setHSL(0.97, 0.85, 0.4 + corruption * 0.1);
+        } else if (harmony >= 0.54 || stability >= 0.56) {
+          return new THREE.Color().setHSL(0.48, 0.75, 0.55 + harmony * 0.1);
+        } else {
+          return new THREE.Color().setHSL(baseHue, 0.75, 0.55 + intensity * 0.1);
+        }
+      }
+      return new THREE.Color().setHSL(baseHue, 0.7, 0.55);
+    }
+
+    // Legacy color resolution
     let baseColor = this.config.rippleColor.clone();
 
     if (kindKey === 'loadPressure') {
-      // Warm amber → shifts toward corruption red at high pressure
       baseColor = (this.config.loadPressureSpawn?.color ?? this.config.cascadeColor).clone();
       baseColor.lerp(this.config.corruptionColor, clamp01(loadPressure - 0.5) * 0.5);
     } else if (kindKey === 'cascadeHop') {

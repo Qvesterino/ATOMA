@@ -91,7 +91,7 @@ export class HarmonicInfluencePropagationSystem_Session127 {
       linkFlowSpeed: config.linkFlowSpeed ?? 1.5,  // Multiplier on base speed
       
       // Color and material
-      baseColor: config.baseColor ?? new THREE.Color(0.93, 0.93, 0.95),  // Neutral grey-white
+      baseColor: config.baseColor ?? new THREE.Color(0.85, 0.82, 0.95),  // Ethereal lavender-white (psychic)
       warmthWithHarmony: config.warmthWithHarmony ?? 0.1,  // Slight warmth boost
       blendMode: config.blendMode ?? 'additive',  // 'additive' or 'alpha'
       
@@ -122,6 +122,11 @@ export class HarmonicInfluencePropagationSystem_Session127 {
       fieldRenderOrder: config.fieldRenderOrder ?? VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
       enabled: config.enabled ?? true,
       debugMode: config.debugMode ?? false,
+
+      // ── Psychic Energy Propagation Upgrade ──
+      enablePsychicPropagation: config.enablePsychicPropagation ?? true,
+      psychicSpectrumHues: [0.75, 0.55, 0.12, 0.97], // mystic violet, arcane teal, sacred gold, ritual crimson
+      psychicCycleSpeed: config.psychicCycleSpeed ?? 0.07,
     };
     
     this.root = new THREE.Group();
@@ -154,6 +159,9 @@ export class HarmonicInfluencePropagationSystem_Session127 {
       activeFlows: 0,
       totalPulses: 0,
     };
+
+    // ── Psychic Energy state ──
+    this._psychicPhase = 0;
     
     this.init();
     
@@ -218,6 +226,11 @@ export class HarmonicInfluencePropagationSystem_Session127 {
   update(deltaTime) {
     if (!this.config.enabled) return;
     if (this.frameScheduler?.shouldRunVisual?.() === false) return;
+    // ── Psychic Energy: advance spectral phase ──
+    if (this.config.enablePsychicPropagation) {
+      this._psychicPhase = (this._psychicPhase + deltaTime * this.config.psychicCycleSpeed) % 1.0;
+    }
+
     // Emit propagation pulses from active hubs
     this._emitPropagationPulses(deltaTime);
     
@@ -513,14 +526,31 @@ export class HarmonicInfluencePropagationSystem_Session127 {
     material.opacity = Math.max(0.05, Math.min(0.5, opacity));
     material.emissiveIntensity = material.opacity * 0.5;
     
-    // Update color with warmth
-    const color = this.config.baseColor.clone();
-    if (harmony > 0.3) {
-      // Add warmth (shift toward yellow)
-      color.r = Math.min(1.0, color.r + harmony * this.config.warmthWithHarmony);
-      color.g = Math.min(1.0, color.g + harmony * this.config.warmthWithHarmony * 0.5);
+    // ── Psychic Energy: spectral aura color cycling ──
+    if (this.config.enablePsychicPropagation) {
+      const hues = this.config.psychicSpectrumHues;
+      const phase = this._psychicPhase;
+      const cycleIdx = Math.floor(phase * hues.length) % hues.length;
+      const nextIdx = (cycleIdx + 1) % hues.length;
+      const frac = (phase * hues.length) % 1;
+      const baseHue = THREE.MathUtils.lerp(hues[cycleIdx], hues[nextIdx], frac);
+      // Harmony shifts toward sacred gold, corruption toward ritual crimson
+      const harmonyShift = harmony > 0.3 ? (harmony - 0.3) * 0.3 : 0;
+      const finalHue = (baseHue + harmonyShift) % 1;
+      const saturation = 0.6 + harmony * 0.2;
+      const lightness = 0.55 + synergy * 0.15;
+      const color = new THREE.Color().setHSL(finalHue, saturation, lightness);
+      material.emissive.copy(color);
+      material.color.copy(color).multiplyScalar(0.6);
+    } else {
+      // Legacy color with warmth
+      const color = this.config.baseColor.clone();
+      if (harmony > 0.3) {
+        color.r = Math.min(1.0, color.r + harmony * this.config.warmthWithHarmony);
+        color.g = Math.min(1.0, color.g + harmony * this.config.warmthWithHarmony * 0.5);
+      }
+      material.emissive.copy(color);
     }
-    material.emissive.copy(color);
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.frustumCulled = false;
@@ -590,9 +620,19 @@ export class HarmonicInfluencePropagationSystem_Session127 {
       4
     );
     
+    // ── Psychic Energy: spectral flow color ──
+    let flowEmissive;
+    if (this.config.enablePsychicPropagation) {
+      const hues = this.config.psychicSpectrumHues;
+      const phase = this._psychicPhase;
+      const flowHue = hues[Math.floor(phase * hues.length) % hues.length];
+      flowEmissive = new THREE.Color().setHSL(flowHue, 0.65, 0.55);
+    } else {
+      flowEmissive = this.config.baseColor;
+    }
     const material = new THREE.MeshPhongMaterial({
-      emissive: this.config.baseColor,
-      emissiveIntensity: 0.4,
+      emissive: flowEmissive,
+      emissiveIntensity: this.config.enablePsychicPropagation ? 0.55 : 0.4,
       transparent: true,
       opacity: this.config.linkFlowOpacity,
       depthWrite: false,

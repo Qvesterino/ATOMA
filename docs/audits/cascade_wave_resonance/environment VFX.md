@@ -174,7 +174,7 @@ Trigger: setup sa podarí len ak sú pripravené harmonicCascadeAmplification, h
 Evidence: main.js:9243, main.js:3994, CascadeResonanceWaveVisualization_Session146.js:5
 Vizuál: ghost-level temporal resonance wave, extrémne subtílna.
 
-RegionalEquilibriumFieldSystem
+ds
 Stav: conditional
 Trigger: setupne sa vždy, ale update vetva je guardovaná pomalým semantic tickom a vyžaduje harmonySystem aj ruptureSystem; bez nich zostáva ticho.
 Evidence: main.js:5002, main.js:11926, main.js:9843, RegionalEquilibriumFieldSystem.js:188

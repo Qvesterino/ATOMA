@@ -64,14 +64,19 @@ uniform vec3 uColor;
 
 varying vec2 vUv;
 
+float hslChannel(float n, float h, float a, float l) {
+    float k = mod(n + h * 12.0, 12.0);
+    return l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0));
+}
+
 vec3 hsl2rgb(float h, float s, float l) {
     h = fract(h);
     float a = s * min(l, 1.0 - l);
-    float f(float n) {
-        float k = mod(n + h * 12.0, 12.0);
-        return l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0));
-    }
-    return vec3(f(0.0), f(8.0), f(4.0));
+    return vec3(
+        hslChannel(0.0, h, a, l),
+        hslChannel(8.0, h, a, l),
+        hslChannel(4.0, h, a, l)
+    );
 }
 
 void main() {
@@ -150,14 +155,19 @@ varying vec2 vUv;
 varying vec3 vNormal;
 varying vec3 vViewDir;
 
+float hslChannel(float n, float h, float a, float l) {
+    float k = mod(n + h * 12.0, 12.0);
+    return l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0));
+}
+
 vec3 hsl2rgb(float h, float s, float l) {
     h = fract(h);
     float a = s * min(l, 1.0 - l);
-    float f(float n) {
-        float k = mod(n + h * 12.0, 12.0);
-        return l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0));
-    }
-    return vec3(f(0.0), f(8.0), f(4.0));
+    return vec3(
+        hslChannel(0.0, h, a, l),
+        hslChannel(8.0, h, a, l),
+        hslChannel(4.0, h, a, l)
+    );
 }
 
 // Simple hash for procedural noise
@@ -251,14 +261,19 @@ varying vec2 vUv;
 varying vec3 vNormal;
 varying vec3 vViewDir;
 
+float hslChannel(float n, float h, float a, float l) {
+    float k = mod(n + h * 12.0, 12.0);
+    return l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0));
+}
+
 vec3 hsl2rgb(float h, float s, float l) {
     h = fract(h);
     float a = s * min(l, 1.0 - l);
-    float f(float n) {
-        float k = mod(n + h * 12.0, 12.0);
-        return l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0));
-    }
-    return vec3(f(0.0), f(8.0), f(4.0));
+    return vec3(
+        hslChannel(0.0, h, a, l),
+        hslChannel(8.0, h, a, l),
+        hslChannel(4.0, h, a, l)
+    );
 }
 
 void main() {

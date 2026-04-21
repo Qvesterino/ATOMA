@@ -93,16 +93,15 @@ export class SafeDreamDepthPack {
       vignetteLayer: null,
       focusLayer: null,
       pulseLayer: null,
-      glazeLayer: null
+      glazeLayer: null,
+      sacredRing: null,
+      neuralLace: null,
+      dreamMotes: null,
+      chromaticTearCyan: null,
+      chromaticTearRose: null
     };
 
     this.intensityScale = 1.0;
-
-    this.setupOverlayQuad();
-
-    this.isActive = true;
-    this.currentFocus = null;
-    this.focusTransition = 0;
 
     this.config = {
       vignette: { opacity: 0.08, softness: 0.25, maxRadius: 0.7 },
@@ -121,8 +120,19 @@ export class SafeDreamDepthPack {
       glaze: { microBloom: 0.04 },
       stabilityThreshold: 0.5,
       stabilityDamping: 0.3,
-      transitionSpeed: 0.1
+      transitionSpeed: 0.1,
+      sacredRing: { baseRadius: 0.38, breathSpeed: 0.35, rotationSpeed: 0.04, opacity: 0.035 },
+      neuralLace: { lineCount: 7, pulseSpeed: 0.7, baseOpacity: 0.025, edgeMargin: 0.08 },
+      dreamMotes: { count: 28, driftSpeed: 0.015, baseOpacity: 0.045, respawnRadius: 1.1 },
+      chromaticTear: { offset: 0.0025, intensity: 0.055, stormMultiplier: 2.2 }
     };
+
+    this.setupOverlayQuad();
+    this.setupMysticalOverlays();
+
+    this.isActive = true;
+    this.currentFocus = null;
+    this.focusTransition = 0;
 
     this.time = 0;
     this.lastFrameTime = performance.now();
@@ -188,6 +198,119 @@ export class SafeDreamDepthPack {
       this.screenLayers.pulseLayer,
       this.screenLayers.glazeLayer
     );
+  }
+
+  setupMysticalOverlays() {
+    const baseRenderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_OVERLAY');
+    const cfg = this.config;
+
+    // Sacred Aperture Ring — breathing sacred geometry
+    const ringGeo = new THREE.RingGeometry(cfg.sacredRing.baseRadius * 0.9, cfg.sacredRing.baseRadius, 64);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: ATOMA_PALETTE.cyan,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    this.screenLayers.sacredRing = new THREE.Mesh(ringGeo, ringMat);
+    this.screenLayers.sacredRing.renderOrder = baseRenderOrder + 1;
+    this.screenLayers.sacredRing.position.z = 0.14;
+    this.vfxContainer.add(this.screenLayers.sacredRing);
+
+    // Neural Lace — subtle edge web
+    const laceCount = cfg.neuralLace.lineCount;
+    const lacePositions = new Float32Array(laceCount * 2 * 3);
+    const margin = cfg.neuralLace.edgeMargin;
+    for (let i = 0; i < laceCount; i++) {
+      const side = i % 4;
+      const t = (i / laceCount);
+      let x1, y1, x2, y2;
+      switch (side) {
+        case 0: x1 = -1 + t * 2; y1 = 1 - margin; x2 = -0.8 + t * 1.6; y2 = 0.6; break;
+        case 1: x1 = 1 - margin; y1 = 1 - t * 2; x2 = 0.6; y2 = 0.8 - t * 1.6; break;
+        case 2: x1 = 1 - t * 2; y1 = -1 + margin; x2 = 0.8 - t * 1.6; y2 = -0.6; break;
+        default: x1 = -1 + margin; y1 = -1 + t * 2; x2 = -0.6; y2 = -0.8 + t * 1.6; break;
+      }
+      lacePositions[i * 6 + 0] = x1; lacePositions[i * 6 + 1] = y1; lacePositions[i * 6 + 2] = 0;
+      lacePositions[i * 6 + 3] = x2; lacePositions[i * 6 + 4] = y2; lacePositions[i * 6 + 5] = 0;
+    }
+    const laceGeo = new THREE.BufferGeometry();
+    laceGeo.setAttribute('position', new THREE.BufferAttribute(lacePositions, 3));
+    const laceMat = new THREE.LineBasicMaterial({
+      color: ATOMA_PALETTE.mint,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.screenLayers.neuralLace = new THREE.LineSegments(laceGeo, laceMat);
+    this.screenLayers.neuralLace.renderOrder = baseRenderOrder + 1;
+    this.screenLayers.neuralLace.position.z = 0.15;
+    this.vfxContainer.add(this.screenLayers.neuralLace);
+
+    // Dream Motes — drifting consciousness dust
+    const moteCount = cfg.dreamMotes.count;
+    const motePositions = new Float32Array(moteCount * 3);
+    const moteVelocities = new Float32Array(moteCount * 3);
+    for (let i = 0; i < moteCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const r = Math.random() * cfg.dreamMotes.respawnRadius;
+      motePositions[i * 3 + 0] = Math.cos(angle) * r;
+      motePositions[i * 3 + 1] = Math.sin(angle) * r;
+      motePositions[i * 3 + 2] = 0;
+      moteVelocities[i * 3 + 0] = (Math.random() - 0.5) * cfg.dreamMotes.driftSpeed;
+      moteVelocities[i * 3 + 1] = (Math.random() - 0.5) * cfg.dreamMotes.driftSpeed;
+      moteVelocities[i * 3 + 2] = 0;
+    }
+    const moteGeo = new THREE.BufferGeometry();
+    moteGeo.setAttribute('position', new THREE.BufferAttribute(motePositions, 3));
+    const moteMat = new THREE.PointsMaterial({
+      color: ATOMA_PALETTE.ritualWhite,
+      size: 0.008,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthTest: false,
+      depthWrite: false,
+      sizeAttenuation: false
+    });
+    this.screenLayers.dreamMotes = new THREE.Points(moteGeo, moteMat);
+    this.screenLayers.dreamMotes.renderOrder = baseRenderOrder + 2;
+    this.screenLayers.dreamMotes.position.z = 0.16;
+    this.screenLayers.dreamMotes.userData = { velocities: moteVelocities };
+    this.vfxContainer.add(this.screenLayers.dreamMotes);
+
+    // Chromatic Tear — reality fracture during storm/pressure
+    const tearGeo = new THREE.PlaneGeometry(2.05, 2.05);
+    const tearCyanMat = new THREE.MeshBasicMaterial({
+      color: ATOMA_PALETTE.cyan,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthTest: false,
+      depthWrite: false
+    });
+    const tearRoseMat = new THREE.MeshBasicMaterial({
+      color: ATOMA_PALETTE.rose,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.screenLayers.chromaticTearCyan = new THREE.Mesh(tearGeo, tearCyanMat);
+    this.screenLayers.chromaticTearCyan.renderOrder = baseRenderOrder;
+    this.screenLayers.chromaticTearCyan.position.set(-cfg.chromaticTear.offset, cfg.chromaticTear.offset, 0.09);
+    this.vfxContainer.add(this.screenLayers.chromaticTearCyan);
+
+    this.screenLayers.chromaticTearRose = new THREE.Mesh(tearGeo, tearRoseMat);
+    this.screenLayers.chromaticTearRose.renderOrder = baseRenderOrder;
+    this.screenLayers.chromaticTearRose.position.set(cfg.chromaticTear.offset, -cfg.chromaticTear.offset, 0.09);
+    this.vfxContainer.add(this.screenLayers.chromaticTearRose);
   }
 
   createVignetteMask() {
@@ -326,6 +449,86 @@ export class SafeDreamDepthPack {
     state.vignetteOpacity = vignetteRelax;
 
     this.screenLayers.focusLayer.material.opacity = state.focusOpacity;
+  }
+
+  updateSacredRing(deltaTime) {
+    const ring = this.screenLayers.sacredRing;
+    if (!ring) return;
+    const cfg = this.config.sacredRing;
+    const t = this.time;
+
+    const breath = 1.0 + 0.06 * Math.sin(t * cfg.breathSpeed);
+    ring.scale.setScalar(breath);
+    ring.rotation.z += cfg.rotationSpeed * deltaTime;
+
+    const weatherColor = WEATHER_COLOR_MAP[this.currentWeatherKey] || WEATHER_COLOR_MAP.calm;
+    ring.material.color.lerp(new THREE.Color(weatherColor.pulse), 0.03);
+
+    const pulseBoost = this.pulseQueue.length > 0 ? 0.025 : 0;
+    const targetOpacity = (cfg.opacity + pulseBoost) * this.intensityScale;
+    ring.material.opacity += (targetOpacity - ring.material.opacity) * 0.06;
+  }
+
+  updateNeuralLace(deltaTime) {
+    const lace = this.screenLayers.neuralLace;
+    if (!lace) return;
+    const cfg = this.config.neuralLace;
+    const t = this.time;
+
+    const pulse = 0.5 + 0.5 * Math.sin(t * cfg.pulseSpeed);
+    const weatherColor = WEATHER_COLOR_MAP[this.currentWeatherKey] || WEATHER_COLOR_MAP.calm;
+    lace.material.color.lerp(new THREE.Color(weatherColor.glaze), 0.02);
+
+    const targetOpacity = cfg.baseOpacity * (0.7 + 0.3 * pulse) * this.intensityScale;
+    lace.material.opacity += (targetOpacity - lace.material.opacity) * 0.04;
+  }
+
+  updateDreamMotes(deltaTime) {
+    const motes = this.screenLayers.dreamMotes;
+    if (!motes) return;
+    const cfg = this.config.dreamMotes;
+    const positions = motes.geometry.attributes.position.array;
+    const velocities = motes.userData.velocities;
+    const count = cfg.count;
+
+    for (let i = 0; i < count; i++) {
+      positions[i * 3 + 0] += velocities[i * 3 + 0] * deltaTime;
+      positions[i * 3 + 1] += velocities[i * 3 + 1] * deltaTime;
+
+      const dist = Math.sqrt(positions[i * 3 + 0] ** 2 + positions[i * 3 + 1] ** 2);
+      if (dist > cfg.respawnRadius) {
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.random() * 0.3;
+        positions[i * 3 + 0] = Math.cos(angle) * r;
+        positions[i * 3 + 1] = Math.sin(angle) * r;
+        velocities[i * 3 + 0] = (Math.random() - 0.5) * cfg.driftSpeed;
+        velocities[i * 3 + 1] = (Math.random() - 0.5) * cfg.driftSpeed;
+      }
+    }
+    motes.geometry.attributes.position.needsUpdate = true;
+
+    const weatherColor = WEATHER_COLOR_MAP[this.currentWeatherKey] || WEATHER_COLOR_MAP.calm;
+    motes.material.color.lerp(new THREE.Color(weatherColor.vignette), 0.02);
+
+    const targetOpacity = cfg.baseOpacity * this.intensityScale;
+    motes.material.opacity += (targetOpacity - motes.material.opacity) * 0.03;
+  }
+
+  updateChromaticTear(deltaTime) {
+    const cyan = this.screenLayers.chromaticTearCyan;
+    const rose = this.screenLayers.chromaticTearRose;
+    if (!cyan || !rose) return;
+    const cfg = this.config.chromaticTear;
+
+    const isStormy = this.currentWeatherKey === 'stormBias' || this.currentWeatherKey === 'pressure';
+    const targetIntensity = isStormy ? cfg.intensity * cfg.stormMultiplier : 0;
+
+    cyan.material.opacity += (targetIntensity - cyan.material.opacity) * 0.03;
+    rose.material.opacity += (targetIntensity - rose.material.opacity) * 0.03;
+
+    const tearWobble = Math.sin(this.time * 0.5) * cfg.offset * 0.3;
+    cyan.position.x = -cfg.offset + tearWobble;
+    rose.position.x = cfg.offset - tearWobble;
   }
 
   triggerDepthPulse() {
@@ -570,6 +773,11 @@ export class SafeDreamDepthPack {
 
     this.applyDreamGlaze(visualDelta);
 
+    this.updateSacredRing(visualDelta);
+    this.updateNeuralLace(visualDelta);
+    this.updateDreamMotes(visualDelta);
+    this.updateChromaticTear(visualDelta);
+
     if (worldSystems && worldSystems.weatherRegistry) {
       const weather = worldSystems.weatherRegistry.currentWeather;
       this.applyWeatherEffects(weather);
@@ -641,6 +849,12 @@ export class SafeDreamDepthPack {
       this.screenLayers.focusLayer.visible = active;
       this.screenLayers.pulseLayer.visible = active;
       this.screenLayers.glazeLayer.visible = active;
+      if (this.screenLayers.sacredRing) this.screenLayers.sacredRing.visible = active;
+      if (this.screenLayers.neuralLace) this.screenLayers.neuralLace.visible = active;
+      if (this.screenLayers.dreamMotes) this.screenLayers.dreamMotes.visible = active;
+      if (this.screenLayers.chromaticTearCyan) this.screenLayers.chromaticTearCyan.visible = active;
+      if (this.screenLayers.chromaticTearRose) this.screenLayers.chromaticTearRose.visible = active;
+      this.screenLayers.glazeLayer.visible = active;
     }
   }
 
@@ -663,7 +877,17 @@ export class SafeDreamDepthPack {
         vignette: this.screenLayers.vignetteLayer?.visible ?? false,
         focus: this.screenLayers.focusLayer?.visible ?? false,
         pulse: this.screenLayers.pulseLayer?.visible ?? false,
-        glaze: this.screenLayers.glazeLayer?.visible ?? false
+        glaze: this.screenLayers.glazeLayer?.visible ?? false,
+        sacredRing: this.screenLayers.sacredRing?.visible ?? false,
+        neuralLace: this.screenLayers.neuralLace?.visible ?? false,
+        dreamMotes: this.screenLayers.dreamMotes?.visible ?? false,
+        chromaticTear: this.screenLayers.chromaticTearCyan?.visible ?? false
+      },
+      mysticalOverlays: {
+        sacredRingOpacity: parseFloat((this.screenLayers.sacredRing?.material?.opacity ?? 0).toFixed(3)),
+        neuralLaceOpacity: parseFloat((this.screenLayers.neuralLace?.material?.opacity ?? 0).toFixed(3)),
+        dreamMotesOpacity: parseFloat((this.screenLayers.dreamMotes?.material?.opacity ?? 0).toFixed(3)),
+        chromaticTearIntensity: parseFloat((this.screenLayers.chromaticTearCyan?.material?.opacity ?? 0).toFixed(3))
       },
       schedulerState: 'none',
       stabilityFactor: parseFloat(this.getStabilityFactor().toFixed(2))
@@ -673,10 +897,15 @@ export class SafeDreamDepthPack {
   cleanup() {
     for (const layer of Object.values(this.screenLayers)) {
       if (layer) {
-        layer.material.dispose();
+        if (layer.geometry) layer.geometry.dispose();
+        if (layer.material) layer.material.dispose();
       }
     }
-    this.screenLayers = { vignetteLayer: null, focusLayer: null, pulseLayer: null, glazeLayer: null };
+    this.screenLayers = {
+      vignetteLayer: null, focusLayer: null, pulseLayer: null, glazeLayer: null,
+      sacredRing: null, neuralLace: null, dreamMotes: null,
+      chromaticTearCyan: null, chromaticTearRose: null
+    };
 
     if (this.screenGeometry) {
       this.screenGeometry.dispose();

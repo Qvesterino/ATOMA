@@ -30,6 +30,10 @@ export class DreamDesert {
     this.sunGlowSprite = null;
     this.sunGlowTexture = null;
     this.sunPointLight = null;
+    this.groundDust = null;
+    this.groundMistPlanes = [];
+    this.skyMaterial = null;
+    this.hemisphereLight = null;
     this.sunOrbitRadiusX = 14;
     this.sunOrbitRadiusZ = 18;
     this.sunOrbitSpeed = (Math.PI * 2) / 420;
@@ -50,6 +54,8 @@ export class DreamDesert {
     this.createAuroraRibbons();
     this.createHorizonMirage();
     this.createCloudLayers();
+    this.createGroundDust();
+    this.createGroundMist();
   }
   
   /**
@@ -744,7 +750,8 @@ export class DreamDesert {
     const skyMaterial = new THREE.ShaderMaterial({
       uniforms: {
         uTopColor: { value: new THREE.Color(0xffdcc6) },
-        uBottomColor: { value: new THREE.Color(0x8a4f5d) }
+        uBottomColor: { value: new THREE.Color(0x8a4f5d) },
+        uTime: { value: 0 }
       },
       vertexShader: `
         varying vec3 vWorldPosition;
@@ -758,22 +765,30 @@ export class DreamDesert {
         varying vec3 vWorldPosition;
         uniform vec3 uTopColor;
         uniform vec3 uBottomColor;
+        uniform float uTime;
         void main() {
-          float t = normalize(vWorldPosition).y * 0.5 + 0.5;
+          vec3 dir = normalize(vWorldPosition);
+          float t = dir.y * 0.5 + 0.5;
           vec3 color = mix(uBottomColor, uTopColor, smoothstep(0.0, 1.0, t));
+          float horizonBand = exp(-abs(dir.y) * 5.5);
+          color += vec3(0.16, 0.08, 0.02) * horizonBand;
+          float highVar = sin(dir.x * 18.0 + uTime * 0.025) * 0.006
+                        + sin(dir.z * 14.0 - uTime * 0.018) * 0.004;
+          color += vec3(highVar * 0.8, highVar * 0.6, highVar * 0.4) * step(0.65, t);
           gl_FragColor = vec4(color, 1.0);
         }
       `,
       side: THREE.BackSide,
       depthWrite: false
     });
+    this.skyMaterial = skyMaterial;
     const skySphere = new THREE.Mesh(skyGeometry, skyMaterial);
     skySphere.name = 'dreamSkySphere';
     skySphere.renderOrder = -1;
     this.worldRoot.add(skySphere);
 
-    const hemisphere = new THREE.HemisphereLight(0xffe0ca, 0x3b1f28, 0.48);
-    this.worldRoot.add(hemisphere);
+    this.hemisphereLight = new THREE.HemisphereLight(0xffe0ca, 0x3b1f28, 0.48);
+    this.worldRoot.add(this.hemisphereLight);
 
     const directional = new THREE.DirectionalLight(0xffc98f, 0.62);
     directional.position.set(-45, 78, 38);
@@ -1454,6 +1469,88 @@ export class DreamDesert {
     }
   }
 
+  /**
+   * Create ground-level blowing sand dust
+   * Low horizontal drift particles simulating wind-carried sand
+   */
+  createGroundDust() {
+    const particleCount = 70;
+    const positions = new Float32Array(particleCount * 3);
+    const velocities = new Float32Array(particleCount * 3);
+
+    for (let i = 0; i < particleCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * this.desertRadius * 0.85;
+      positions[i * 3] = Math.cos(angle) * radius;
+      positions[i * 3 + 1] = 0.15 + Math.random() * 2.2;
+      positions[i * 3 + 2] = Math.sin(angle) * radius;
+
+      // Primary wind direction: +X with variation
+      velocities[i * 3] = 2.0 + Math.random() * 2.5;
+      velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.25;
+      velocities[i * 3 + 2] = (Math.random() - 0.5) * 1.2;
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    const material = new THREE.PointsMaterial({
+      color: 0xd4b896,
+      size: 0.22,
+      transparent: true,
+      opacity: 0.16,
+      blending: THREE.NormalBlending,
+      depthWrite: false,
+      sizeAttenuation: true,
+      fog: true
+    });
+
+    this.groundDust = new THREE.Points(geometry, material);
+    this.groundDust.renderOrder = 5;
+    this.groundDust.userData = { velocities };
+    this.worldRoot.add(this.groundDust);
+  }
+
+  /**
+   * Create subtle ground-level atmospheric haze planes
+   * Adds depth and heat-haze impression near the sand surface
+   */
+  createGroundMist() {
+    const mistConfigs = [
+      { x: 0, z: -30, width: 80, depth: 40, y: 0.8, opacity: 0.025 },
+      { x: -20, z: 20, width: 60, depth: 35, y: 1.0, opacity: 0.02 },
+      { x: 25, z: -10, width: 50, depth: 30, y: 0.6, opacity: 0.018 }
+    ];
+
+    mistConfigs.forEach((config) => {
+      const geometry = new THREE.PlaneGeometry(config.width, config.depth);
+      const material = new THREE.MeshBasicMaterial({
+        color: 0xe8c8a8,
+        transparent: true,
+        opacity: config.opacity,
+        depthWrite: false,
+        depthTest: true,
+        side: THREE.DoubleSide,
+        fog: true
+      });
+
+      const plane = new THREE.Mesh(geometry, material);
+      plane.rotation.x = -Math.PI / 2;
+      plane.position.set(config.x, config.y, config.z);
+      plane.renderOrder = 3;
+      plane.userData = {
+        baseOpacity: config.opacity,
+        baseY: config.y,
+        baseX: config.x,
+        phase: Math.random() * Math.PI * 2,
+        driftSpeed: 0.02 + Math.random() * 0.015
+      };
+
+      this.worldRoot.add(plane);
+      this.groundMistPlanes.push(plane);
+    });
+  }
+
   getCollisionObjects() {
     return this.collisionObjects;
   }
@@ -1654,6 +1751,62 @@ export class DreamDesert {
           landmark.userData.halo.material.opacity = 0.1 + pulse * 0.08;
         }
       });
+    }
+
+    // Sky time uniform for horizon glow animation
+    if (this.skyMaterial) {
+      this.skyMaterial.uniforms.uTime.value = time;
+    }
+
+    // Ground dust — horizontal sand drift near surface
+    if (this.groundDust) {
+      const dustPositions = this.groundDust.geometry.attributes.position.array;
+      const dustVelocities = this.groundDust.userData.velocities;
+
+      for (let i = 0; i < dustPositions.length; i += 3) {
+        dustPositions[i] += dustVelocities[i] * deltaTime;
+        dustPositions[i + 1] += dustVelocities[i + 1] * deltaTime;
+        dustPositions[i + 2] += dustVelocities[i + 2] * deltaTime;
+
+        const dist = Math.sqrt(
+          dustPositions[i] * dustPositions[i] +
+          dustPositions[i + 2] * dustPositions[i + 2]
+        );
+        if (dist > this.desertRadius || dustPositions[i + 1] > 4.0) {
+          const angle = Math.random() * Math.PI * 2;
+          const radius = Math.random() * this.desertRadius * 0.8;
+          dustPositions[i] = Math.cos(angle) * radius;
+          dustPositions[i + 1] = 0.15 + Math.random() * 1.5;
+          dustPositions[i + 2] = Math.sin(angle) * radius;
+        }
+      }
+
+      this.groundDust.geometry.attributes.position.needsUpdate = true;
+      this.groundDust.material.opacity = 0.14 + Math.sin(time * 0.3) * 0.04;
+    }
+
+    // Ground mist — subtle atmospheric haze drift
+    this.groundMistPlanes.forEach((plane) => {
+      const data = plane.userData;
+      const pulse = Math.sin(time * data.driftSpeed + data.phase);
+      plane.material.opacity = data.baseOpacity + pulse * 0.008;
+      plane.position.y = data.baseY + pulse * 0.12;
+      plane.position.x = data.baseX + Math.sin(time * 0.012 + data.phase) * 0.8;
+    });
+
+    // Dynamic fog color — warmer when sun is lower
+    if (this.scene && this.scene.fog) {
+      const orbitAngle = time * this.sunOrbitSpeed;
+      const sunElevation = Math.sin(orbitAngle * 0.55);
+      const warmth = 0.88 + sunElevation * 0.12;
+      this.scene.fog.color.setRGB(0.886 * warmth, 0.753 * warmth, 0.659 * warmth);
+    }
+
+    // Dynamic hemisphere light — intensity follows sun elevation
+    if (this.hemisphereLight) {
+      const orbitAngle = time * this.sunOrbitSpeed;
+      const sunElevation = Math.sin(orbitAngle * 0.55);
+      this.hemisphereLight.intensity = 0.42 + sunElevation * 0.12;
     }
   }
 }
