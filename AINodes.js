@@ -139,7 +139,11 @@ function vfxFlag(name, def = true) {
   const v = (typeof window !== 'undefined') ? window[name] : undefined;
   return (v === undefined) ? def : !!v;
 }
-import { NodeDepthAndHoloPreservationFix } from './NodeDepthAndHoloPreservationFix.js';
+// REMOVED: NodeDepthAndHoloPreservationFix — moved to LEGACY/april (2026-04-22)
+const NodeDepthAndHoloPreservationFix = {
+  enforceHolographicPreservation: () => {},
+  enforceLinkDepthAuthority: () => {},
+};
 import { initNodeMetrics, onNodeSpawn } from './src/metrics/NodeMetricEngine.js';
 // import { validateObject3D as validateSpherePolicyObject3D } from './VisualSpherePolicy.js';
 

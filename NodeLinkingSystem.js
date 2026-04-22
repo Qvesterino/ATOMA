@@ -35,17 +35,22 @@ import {
 } from './NodeVisualStateBinder.js';
 import { createFresnelAura } from './FresnelAuraIntegrationPatch.js';
 import { SelectedRingSystem } from './src/visual/SelectedRingSystem_v1.js';
-import {
-  initializeLinkSynergyColor,
-  updateLinkSynergyColor,
-  updateLinkColorTransition,
-  initializeParticleSynergyColors,
-  updateParticleColorTransition,
-  updateParticleSynergyOpacity,
-  updateParticleSynergyEmissive,
-  updateParticleCorruptionSpeed
-} from './LinkSynergyColorTransition.js';
-import { NodeDepthAndHoloPreservationFix } from './NodeDepthAndHoloPreservationFix.js';
+// REMOVED: LinkSynergyColorTransition — moved to LEGACY/april (2026-04-22)
+// Stub functions for compatibility (no-ops)
+const initializeLinkSynergyColor = () => {};
+const updateLinkSynergyColor = () => {};
+const updateLinkColorTransition = () => {};
+const initializeParticleSynergyColors = () => {};
+const updateParticleColorTransition = () => {};
+const updateParticleSynergyOpacity = () => {};
+const updateParticleSynergyEmissive = () => {};
+const updateParticleCorruptionSpeed = () => {};
+
+// REMOVED: NodeDepthAndHoloPreservationFix — moved to LEGACY/april (2026-04-22)
+const NodeDepthAndHoloPreservationFix = {
+  enforceLinkDepthAuthority: () => {},
+  enforceHolographicPreservation: () => {},
+};
 // REMOVED: AnimatedLinkFlow — moved to LEGACY/april (2026-04-22)
 // REMOVED: LinkEventVisualCoordinator_v1 — moved to LEGACY/april (2026-04-22)
 import { LinkRendererConduit } from './LinkRendererConduit.js';

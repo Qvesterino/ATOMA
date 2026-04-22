@@ -22,14 +22,13 @@
  */
 
 import * as THREE from 'three';
-import {
-  computeSynergyColor,
-  applySynergyColorToLink,
-  updateLinkColorTransition,
-  applySynergyColorToParticles,
-  getSynergyLevel,
-  batchUpdateLinkColors
-} from './LinkSynergyColorTransition.js';
+// REMOVED: LinkSynergyColorTransition — moved to LEGACY/april (2026-04-22)
+// Stub functions for compatibility (no-ops)
+const computeSynergyColor = () => new THREE.Color(0x00ff88);
+const applySynergyColorToLink = () => {};
+const updateLinkColorTransition = () => {};
+const applySynergyColorToParticles = () => {};
+const getSynergyLevel = () => 'MEDIUM';
 
 export class DynamicLinkColorSystem {
   constructor(linkingSystem) {

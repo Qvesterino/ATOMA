@@ -585,7 +585,7 @@ import { LinkQualityCalculator } from './LinkQualityCalculator.js';
 import { LinkDegradationSystem } from './LinkDegradationSystem.js';
 import { NetworkStressAggregator, setupNetworkStressAggregatorConsoleAPI } from './NetworkStressAggregator.js';
 // REMOVED: NodeShellSizeAuthority - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
-import { ParticleEmissionScaler } from './ParticleEmissionScaler.js';
+// REMOVED: ParticleEmissionScaler — moved to LEGACY/april (2026-04-22)
 import { mountAIAutomationHUD, updateAIAutomationHUD } from './hud/AIAutomationHUD.js';
 import { mountVariantBAdvisorHUD, updateVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
 import { getSharedPostProcessingPipeline } from './PostProcessing.js';
@@ -1315,7 +1315,7 @@ import { WaveParticleEmitter_v1 } from './WaveParticleEmitter_v1.js';
 // EXTRACTION PACK V1.0 — RUNTIME ORCHESTRATION
 // ============================================================================
 import { MetricsRuntime_v1 } from './MetricsRuntime_v1.js';
-import { PersonalityRuntime_v1 } from './PersonalityRuntime_v1.js';
+// REMOVED: PersonalityRuntime_v1 — moved to LEGACY/april (2026-04-22)
 import { MetricInterpretationLayer_v1, setupMetricInterpretationConsoleAPI } from './MetricInterpretationLayer_v1.js';
 import { StressVisualShaderSystem } from './StressVisualShaderSystem.js';
 import { CanonicalTemplate3_StressVisuals } from './CanonicalTemplate3_StressVisuals.js';
@@ -4643,9 +4643,7 @@ class AtomaGame {
             emitEvent(tierEvent, payload);
             emitEvent('cascade.start', { ...payload, level: tierEvent });
         }, 'simulation.networkStressCascadeBridge');
-        this.frameScheduler.register('simulation', (dt) => {
-            this.personalityRuntime_v1?.update?.(dt);
-        }, 'simulation.personalityRuntime_v1');
+        // REMOVED: personalityRuntime_v1 frame scheduler — moved to LEGACY/april (2026-04-22)
         // REMOVED: nodePersonalitySystem scheduler - moved to LEGACY (2026-04-03)
         // this.frameScheduler.register('simulation', (dt) => {
         //     this.nodePersonalitySystem?.update?.(dt, this.aiNodes?.nodes);
@@ -4973,11 +4971,7 @@ class AtomaGame {
                 );
             }
         }, 'visual.glyphAnimationModulator');
-        this.frameScheduler.register('visual', (dt) => {
-            if (this.particleEmissionScaler) {
-                this.particleEmissionScaler.update(dt);
-            }
-        }, 'visual.particleEmissionScaler');
+        // REMOVED: particleEmissionScaler frame scheduler — moved to LEGACY/april (2026-04-22)
         this.frameScheduler.register('visual', (dt) => {
             if (this.cascadeParticleSystem) {
                 const links = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : [];
@@ -5682,7 +5676,7 @@ this.setHudDirty('nodeInspect');
         // Extraction Pack v1.0 — Runtime Orchestration
         this.metricsRuntime_v1 = null;
         this.networkStressAggregator = null;
-        this.personalityRuntime_v1 = null;
+        // REMOVED: personalityRuntime_v1 — moved to LEGACY/april (2026-04-22)
 
         // Extraction Pack v1.1 — Runtime Orchestration (World & FX)
         this.worldRuntime_v1 = null;
@@ -9736,46 +9730,7 @@ window.__ATOMA_SCENE__ = this.scene;
         }
         console.log('[main.js] LinkCollapseSystem initialized ✓');
         
-        // ===================================================================
-        // [SESSION 91] PARTICLE EMISSION SCALER - Network corruption/stress driven
-        // ===================================================================
-        this.particleEmissionScaler = new ParticleEmissionScaler(
-            this.nodeDynamicMetrics,
-            this.linkingSystem,
-            {
-                // Network-level scaling sources
-                useNetworkCorruption: true,
-                useNetworkStress: true,
-                useNetworkLoad: true,
-                
-                // Corruption scaling
-                corruptionCurve: 'exponential',      // Accelerates as corruption increases
-                corruptionMultiplier: 2.0,           // Up to 2x more particles at max corruption
-                corruptionThreshold: 0.3,            // Start scaling at 30% corruption
-                
-                // Stress scaling
-                stressCurve: 'exponential',
-                stressMultiplier: 1.5,               // Up to 1.5x more at max stress
-                stressThreshold: 0.4,                // Start at 40% network stress
-                
-                // Load scaling
-                loadMultiplier: 1.2,                 // Up to 1.2x at max load
-                loadThreshold: 0.7,                  // Start at 70% load
-                
-                // Per-link scaling
-                perLinkCorruptionMultiplier: 1.5,    // Links scale by own corruption
-                perLinkDegradationMultiplier: 1.3,   // Links scale by quality degradation
-                
-                // Temporal smoothing (EMA)
-                emissionEMAAlpha: 0.15,              // Smooth transitions
-                
-                // Debug
-                enabled: true,
-                debugMode: false,
-            }
-        );
-        this.particleEmissionScaler.frameScheduler = this.frameScheduler;
-        console.log('[main.js] ParticleEmissionScaler initialized ✓');
+        // REMOVED: ParticleEmissionScaler initialization — moved to LEGACY/april (2026-04-22)
 
         // Canonical semantic link metrics bridge (0-1 normalized)
         this.linkSemanticMetricsBridge = null;
@@ -10828,21 +10783,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.warn('[main.js] CanonicalTemplate3_StressVisuals failed:', err);
         }
 
-        // ====================================================================
-        // EXTRACTION PACK V1.0 — PERSONALITY RUNTIME ORCHESTRATION
-        // ====================================================================
-        try {
-            this.personalityRuntime_v1 = new PersonalityRuntime_v1({
-                nodes: this.aiNodes,
-                personalitySystems: {
-                    shaderBridge: this.personalityShaderBridge,
-                    shaderFX: this.advancedShaderFX
-                }
-            });
-            console.log('[main.js] PersonalityRuntime_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] PersonalityRuntime_v1 failed:', err);
-        }
+        // REMOVED: PersonalityRuntime_v1 initialization — moved to LEGACY/april (2026-04-22)
 
         // ====================================================================
         // EXTRACTION PACK V1.1 — WORLD RUNTIME ORCHESTRATION
@@ -11664,7 +11605,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('nodeInteraction', 'realtime.nodeInteraction', (dt) => this.nodeInteractionEngine?.update?.(dt));
         regGuard('metricsRuntime_v1', 'simulation.metricsRuntime_v1', (dt) => this.metricsRuntime_v1?.update?.(dt));
         regGuard('aiHudReports', 'simulation.aiHudReports', () => this._refreshAIHudReports?.());
-        regGuard('personalityRuntime_v1', 'simulation.personalityRuntime_v1', (dt) => this.personalityRuntime_v1?.update?.(dt));
+        // REMOVED: personalityRuntime_v1 regGuard — moved to LEGACY/april (2026-04-22)
         regGuard('personalityShaderBridge', 'visual.personalityShaderBridge', (dt) => this.personalityShaderBridge?.update?.(dt));
         regGuard('advancedShaderFX', 'visual.advancedShaderFX', (dt) => this.advancedShaderFX?.update?.(dt));
         regGuard('archetypeAuraFX', 'visual.archetypeAuraFX', (dt) => this.archetypeAuraFX?.update?.(dt));
