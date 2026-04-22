@@ -4281,9 +4281,12 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             this.ambientEntityManager?.update?.(dt);
         }, 'visual.ambientEntityManager');
-        this.frameScheduler.register('background', (dt) => {
+        if (this.frameScheduler?.isRegistered?.('background.consciousnessLayer') === true) {
+            this.frameScheduler.unregister('background.consciousnessLayer');
+        }
+        this.frameScheduler.register('visual', (dt) => {
             this.consciousnessLayer?.update?.(dt);
-        }, 'background.consciousnessLayer');
+        }, 'visual.consciousnessLayer');
         this.frameScheduler.register('background', (dt) => {
             this.poetryEngine?.update?.(dt);
         }, 'background.poetryEngine');
@@ -12026,7 +12029,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // regGuard('extremeLinkVisuals4', 'visual.extremeLinkVisuals4', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera));
         // REMOVED: linkVisualMoodSystem - moved to LEGACY (2026-04-03)
         // regGuard('linkVisualMoodSystem', 'visual.linkVisualMoodSystem', (dt) => this.linkVisualMoodSystem?.update?.(dt));
-        regGuard('consciousnessLayer', 'background.consciousnessLayer', (dt) => this.consciousnessLayer?.update?.(dt));
+        regGuard('consciousnessLayer', 'visual.consciousnessLayer', (dt) => this.consciousnessLayer?.update?.(dt));
         regGuard('poetryEngine', 'background.poetryEngine', (dt) => this.poetryEngine?.update?.(dt, this.time));
         regGuard('emotionalFeed', 'background.emotionalFeed', (dt) => this.emotionalFeed?.update?.(dt));
         reg('nodeLinking', (dt) => {

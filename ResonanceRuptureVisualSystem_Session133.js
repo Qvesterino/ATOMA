@@ -43,11 +43,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
-// ============================================================================
-// SUPERNATURAL UPGRADE: Dimensional Rift Fracture Shaders
-// ============================================================================
-
-// DESIGN: Stress indicator shader — reality strain with chromatic aberration + void reveal
+// DESIGN: Stress indicator shader — pulsing red-orange warning glow on approaching-rupture links
 const STRESS_INDICATOR_VERTEX_SHADER = `
 varying vec2 vUv;
 void main() {
@@ -64,21 +60,6 @@ uniform vec3 uColor;
 
 varying vec2 vUv;
 
-float hslChannel(float n, float h, float a, float l) {
-    float k = mod(n + h * 12.0, 12.0);
-    return l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0));
-}
-
-vec3 hsl2rgb(float h, float s, float l) {
-    h = fract(h);
-    float a = s * min(l, 1.0 - l);
-    return vec3(
-        hslChannel(0.0, h, a, l),
-        hslChannel(8.0, h, a, l),
-        hslChannel(4.0, h, a, l)
-    );
-}
-
 void main() {
     vec2 p = vUv - vec2(0.5);
     float dist = length(p) * 2.0;
@@ -86,7 +67,7 @@ void main() {
 
     // Stress-normalized pulse: faster as stress approaches rupture
     float stressNorm = clamp((uStress - 0.5) * 2.0, 0.0, 1.0);
-    float pulseFreq = 2.0 + stressNorm * 12.0;
+    float pulseFreq = 2.0 + stressNorm * 12.0;  // 2Hz at 50% → 14Hz at 100%
     float pulse = 0.6 + 0.4 * sin(uTime * pulseFreq + dist * 4.0);
 
     // Multi-band glow: hot core + tension ring + outer halo
@@ -99,207 +80,13 @@ void main() {
     float flicker = 0.85 + 0.15 * sin(angle * 8.0 + uTime * stressNorm * 15.0);
 
     float alpha = (core + tensionRing * 0.8 * stressNorm + halo) * pulse * flicker * uIntensity;
-    alpha *= (1.0 - smoothstep(0.7, 1.0, dist));
+    alpha *= (1.0 - smoothstep(0.7, 1.0, dist));  // outer fade
 
-    // SUPERNATURAL: Chromatic aberration — RGB channel separation at high stress
-    float chromaticOffset = stressNorm * 0.03;
-    vec2 chromaDir = normalize(p + vec2(0.001));
-    float chromaR = (1.0 - smoothstep(0.0, 1.0, length((p + chromaDir * chromaticOffset) * 2.0)));
-    float chromaB = (1.0 - smoothstep(0.0, 1.0, length((p - chromaDir * chromaticOffset) * 2.0)));
-
-    // Base color: shift from deep red to hot orange-white at high stress
+    // Color: shift from deep red to hot orange-white at high stress
     vec3 hotColor = mix(uColor, vec3(1.0, 0.6, 0.2), stressNorm * 0.7);
-    hotColor = mix(hotColor, vec3(1.0, 0.9, 0.8), core * stressNorm);
+    hotColor = mix(hotColor, vec3(1.0, 0.9, 0.8), core * stressNorm);  // white-hot center
 
-    // SUPERNATURAL: Spectral chromatic edges at high stress
-    vec3 spectralEdge = hsl2rgb(fract(angle / 6.2832 + uTime * 0.15), 0.9, 0.55);
-    float edgeFactor = smoothstep(0.3, 0.55, dist) * (1.0 - smoothstep(0.55, 0.7, dist));
-    hotColor = mix(hotColor, spectralEdge, edgeFactor * stressNorm * 0.5);
-
-    // SUPERNATURAL: Void reveal — dark center appearing at critical stress
-    float voidReveal = smoothstep(0.85, 0.98, uStress) * core * 0.6;
-    hotColor = mix(hotColor, vec3(0.02, 0.0, 0.05), voidReveal);
-
-    // Apply chromatic aberration to final color
-    vec3 finalColor = vec3(
-        hotColor.r * (0.8 + chromaR * 0.4),
-        hotColor.g,
-        hotColor.b * (0.8 + chromaB * 0.4)
-    );
-
-    gl_FragColor = vec4(finalColor, alpha);
-}
-`;
-
-// SUPERNATURAL: Dimensional Rift Shader — for rupture burst visuals
-const DIMENSIONAL_RIFT_VERTEX = `
-varying vec2 vUv;
-varying vec3 vNormal;
-varying vec3 vViewDir;
-void main() {
-    vUv = uv;
-    vNormal = normalize(normalMatrix * normal);
-    vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
-    vViewDir = normalize(-mvPos.xyz);
-    gl_Position = projectionMatrix * mvPos;
-}
-`;
-
-const DIMENSIONAL_RIFT_FRAGMENT = `
-uniform float uTime;
-uniform float uIntensity;
-uniform float uLife;         // 0 to 1 (rupture progress)
-uniform float uRiftScale;
-
-varying vec2 vUv;
-varying vec3 vNormal;
-varying vec3 vViewDir;
-
-float hslChannel(float n, float h, float a, float l) {
-    float k = mod(n + h * 12.0, 12.0);
-    return l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0));
-}
-
-vec3 hsl2rgb(float h, float s, float l) {
-    h = fract(h);
-    float a = s * min(l, 1.0 - l);
-    return vec3(
-        hslChannel(0.0, h, a, l),
-        hslChannel(8.0, h, a, l),
-        hslChannel(4.0, h, a, l)
-    );
-}
-
-// Simple hash for procedural noise
-float hash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-}
-
-float noise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    float a = hash(i);
-    float b = hash(i + vec2(1.0, 0.0));
-    float c = hash(i + vec2(0.0, 1.0));
-    float d = hash(i + vec2(1.0, 1.0));
-    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-}
-
-void main() {
-    vec2 centered = vUv - vec2(0.5);
-    float dist = length(centered) * 2.0;
-    
-    // Elongated rift shape (wider than tall)
-    vec2 riftUv = centered * vec2(1.0, 2.2);
-    float riftDist = length(riftUv) * 2.0;
-    
-    // Noise-based rift edge distortion
-    float edgeNoise = noise(centered * 4.0 + uTime * 0.5) * 0.15;
-    float riftEdge = riftDist + edgeNoise;
-    
-    // Rift opening animation (tear effect)
-    float openProgress = smoothstep(0.0, 0.3, uLife);
-    float closeProgress = smoothstep(0.7, 1.0, uLife);
-    float riftOpen = openProgress * (1.0 - closeProgress);
-    
-    // Layer 1: Void core — dark center with swirling deep purple energy
-    float voidCore = 1.0 - smoothstep(0.0, 0.35 * riftOpen, riftEdge);
-    float swirl = sin(atan(centered.y, centered.x) * 3.0 + uTime * 2.0 + dist * 5.0) * 0.5 + 0.5;
-    vec3 voidColor = mix(vec3(0.02, 0.0, 0.05), vec3(0.12, 0.0, 0.25), swirl * voidCore);
-    
-    // Layer 2: Chromatic edge — rainbow refraction at rift boundary
-    float edgeBand = smoothstep(0.25, 0.4, riftEdge) * (1.0 - smoothstep(0.4, 0.55, riftEdge));
-    float edgeAngle = atan(centered.y, centered.x);
-    vec3 chromaticEdge = hsl2rgb(fract(edgeAngle / 6.2832 + uTime * 0.2 + dist * 0.5), 0.95, 0.6);
-    chromaticEdge *= edgeBand * riftOpen * 2.5;
-    
-    // Layer 3: Energy tendrils — bright spectral wisps escaping the rift
-    float tendrilNoise = noise(centered * 6.0 - uTime * 0.8);
-    float tendrilPattern = smoothstep(0.3, 0.6, tendrilNoise) * (1.0 - smoothstep(0.6, 0.8, tendrilNoise));
-    float tendrilMask = smoothstep(0.3, 0.7, riftEdge) * (1.0 - smoothstep(0.7, 1.0, riftEdge));
-    vec3 tendrilColor = hsl2rgb(fract(tendrilNoise * 0.5 + uTime * 0.1), 0.8, 0.65);
-    vec3 tendrils = tendrilColor * tendrilPattern * tendrilMask * riftOpen;
-    
-    // Combine layers
-    vec3 finalColor = voidColor * voidCore + chromaticEdge + tendrils;
-    float alpha = (voidCore * 0.8 + edgeBand * 0.9 + tendrilMask * tendrilPattern * 0.6) * riftOpen * uIntensity;
-    alpha *= (1.0 - smoothstep(0.8, 1.0, riftEdge)); // outer fade
-    
-    // Fresnel glow around the rift
-    float fresnel = 1.0 - abs(dot(vViewDir, vNormal));
-    fresnel = pow(fresnel, 2.0);
-    vec3 fresnelGlow = hsl2rgb(fract(uTime * 0.08), 0.7, 0.5) * fresnel * 0.3 * riftOpen;
-    finalColor += fresnelGlow;
-    alpha += fresnel * 0.15 * riftOpen * uIntensity;
-    
-    if (alpha < 0.01) discard;
-    gl_FragColor = vec4(finalColor, alpha);
-}
-`;
-
-// SUPERNATURAL: Void Energy Propagation Shader — for propagation pulse visuals
-const VOID_PROPAGATION_VERTEX = `
-varying vec2 vUv;
-varying vec3 vNormal;
-varying vec3 vViewDir;
-void main() {
-    vUv = uv;
-    vNormal = normalize(normalMatrix * normal);
-    vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
-    vViewDir = normalize(-mvPos.xyz);
-    gl_Position = projectionMatrix * mvPos;
-}
-`;
-
-const VOID_PROPAGATION_FRAGMENT = `
-uniform float uTime;
-uniform float uIntensity;
-uniform float uLife;
-
-varying vec2 vUv;
-varying vec3 vNormal;
-varying vec3 vViewDir;
-
-float hslChannel(float n, float h, float a, float l) {
-    float k = mod(n + h * 12.0, 12.0);
-    return l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0));
-}
-
-vec3 hsl2rgb(float h, float s, float l) {
-    h = fract(h);
-    float a = s * min(l, 1.0 - l);
-    return vec3(
-        hslChannel(0.0, h, a, l),
-        hslChannel(8.0, h, a, l),
-        hslChannel(4.0, h, a, l)
-    );
-}
-
-void main() {
-    vec2 centered = vUv - vec2(0.5);
-    float dist = length(centered) * 2.0;
-    
-    // Dark core with bright chromatic edge
-    float core = 1.0 - smoothstep(0.0, 0.4, dist);
-    float edge = smoothstep(0.3, 0.5, dist) * (1.0 - smoothstep(0.5, 0.7, dist));
-    
-    // Void core color
-    vec3 voidCore = vec3(0.03, 0.0, 0.08) * core;
-    
-    // Chromatic edge
-    float angle = atan(centered.y, centered.x);
-    vec3 chromaEdge = hsl2rgb(fract(angle / 6.2832 + uTime * 0.3), 0.9, 0.55) * edge;
-    
-    // Fresnel glow
-    float fresnel = pow(1.0 - abs(dot(vViewDir, vNormal)), 2.0);
-    vec3 fresnelColor = hsl2rgb(fract(uTime * 0.1), 0.7, 0.45) * fresnel * 0.4;
-    
-    vec3 finalColor = voidCore + chromaEdge + fresnelColor;
-    float alpha = (core * 0.7 + edge * 0.9 + fresnel * 0.2) * uIntensity * (1.0 - uLife);
-    
-    if (alpha < 0.01) discard;
-    gl_FragColor = vec4(finalColor, alpha);
+    gl_FragColor = vec4(hotColor, alpha);
 }
 `;
 
@@ -405,14 +192,6 @@ export class ResonanceRuptureVisualSystem_Session133 {
             renderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
             enableLOD: true,
             lodDistance: 40,
-            
-            // SUPERNATURAL UPGRADE: Dimensional Rift parameters
-            enableDimensionalRift: true,       // Master switch for supernatural upgrade
-            riftChromaticEdge: 0.9,            // Chromatic edge intensity (0-1)
-            voidEnergyIntensity: 0.8,          // Void core darkness intensity
-            dimensionalInstability: 0.6,       // How much the rift edge distorts
-            spectralTendrilCount: 3,           // Number of spectral tendrils in rift
-            
             ...config
         };
         
@@ -826,35 +605,6 @@ export class ResonanceRuptureVisualSystem_Session133 {
     }
 
     _createPropagationPulseMesh() {
-        // SUPERNATURAL UPGRADE: Void Energy propagation pulse
-        if (this.config.enableDimensionalRift !== false) {
-            const geometry = new THREE.SphereGeometry(0.15, 8, 8);
-            const material = new THREE.ShaderMaterial({
-                vertexShader: VOID_PROPAGATION_VERTEX,
-                fragmentShader: VOID_PROPAGATION_FRAGMENT,
-                uniforms: {
-                    uTime: { value: 0 },
-                    uIntensity: { value: 0.6 },
-                    uLife: { value: 0 }
-                },
-                transparent: true,
-                depthWrite: false,
-                side: THREE.DoubleSide,
-                blending: THREE.AdditiveBlending,
-                toneMapped: false
-            });
-            const mesh = new THREE.Mesh(geometry, material);
-            mesh.renderOrder = this.config.renderOrder;
-            mesh.userData.voidPropagation = true;
-            mesh.visible = false;
-            this.scene.add(mesh);
-            if (!this._createdObjects.includes(mesh)) {
-                this._createdObjects.push(mesh);
-            }
-            return mesh;
-        }
-        
-        // LEGACY: Original propagation pulse
         const geometry = this._getPropagationGeometry();
         const material = this.propagationMaterial.clone();
         const mesh = new THREE.Mesh(geometry, material);
@@ -1063,19 +813,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
             // Update burst appearance
             if (rupture.burstMesh) {
                 const scale = 1 + progress * 2;
-                
-                // SUPERNATURAL: Update dimensional rift shader uniforms
-                if (rupture.burstMesh.userData?.dimensionalRift && rupture.burstMesh.material?.uniforms) {
-                    const uniforms = rupture.burstMesh.material.uniforms;
-                    if (uniforms.uTime) uniforms.uTime.value = this.time;
-                    if (uniforms.uLife) uniforms.uLife.value = progress;
-                    if (uniforms.uIntensity) uniforms.uIntensity.value = rupture.intensity * (1 - progress * 0.7);
-                    // Scale rift outward as it opens
-                    const riftScale = scale * 1.2;
-                    rupture.burstMesh.scale.set(riftScale, riftScale * 0.6, 1);
-                }
-                // LEGACY: fracture bloom handling
-                else if (rupture.burstMesh.userData?.fractureBloom) {
+                if (rupture.burstMesh.userData?.fractureBloom) {
                     const burstSpin = rupture.burstMesh.userData?.burstSpin;
                     if (burstSpin) {
                         rupture.burstMesh.rotation.x += (burstSpin.x || 0) * deltaTime;
@@ -1084,16 +822,17 @@ export class ResonanceRuptureVisualSystem_Session133 {
                     }
                     this._setFractureBloomOpacity(rupture.burstMesh, rupture.intensity * (1 - progress));
                     rupture.burstMesh.scale.setScalar(scale);
-                }
-                // LEGACY: basic material handling
-                else {
+                } else {
                     rupture.burstMesh.material.opacity = rupture.intensity * (1 - progress);
+                    // For MeshBasicMaterial with additive blending, modulate color intensity
                     const colorIntensity = Math.min(1, this.config.ruptureBurstGlow * (1 - progress));
                     rupture.burstMesh.material.color.setRGB(
                         this.config.ruptureBurstColor.r * colorIntensity,
                         this.config.ruptureBurstColor.g * colorIntensity,
                         this.config.ruptureBurstColor.b * colorIntensity
                     );
+                    
+                    // Scale burst outward
                     rupture.burstMesh.scale.set(scale, scale, scale);
                 }
             }
@@ -1116,62 +855,14 @@ export class ResonanceRuptureVisualSystem_Session133 {
      * Create visual burst mesh for rupture
      */
     _createRuptureBurst(rupture) {
-        // SUPERNATURAL UPGRADE: Dimensional Rift burst
-        if (this.config.enableDimensionalRift !== false) {
-            const riftGeometry = new THREE.PlaneGeometry(1.2, 0.6, 16, 16);
-            const riftMaterial = new THREE.ShaderMaterial({
-                vertexShader: DIMENSIONAL_RIFT_VERTEX,
-                fragmentShader: DIMENSIONAL_RIFT_FRAGMENT,
-                uniforms: {
-                    uTime: { value: 0 },
-                    uIntensity: { value: rupture.intensity ?? 0.8 },
-                    uLife: { value: 0 },
-                    uRiftScale: { value: 1.0 }
-                },
-                transparent: true,
-                depthWrite: false,
-                side: THREE.DoubleSide,
-                blending: THREE.AdditiveBlending,
-                toneMapped: false
-            });
-            
-            const riftMesh = new THREE.Mesh(riftGeometry, riftMaterial);
-            riftMesh.renderOrder = this.config.renderOrder;
-            riftMesh.userData.dimensionalRift = true;
-            riftMesh.userData.ruptureBurst = true;
-            
-            // Orient rift along the link direction
-            const link = this._getLinkById(rupture.linkId);
-            const startPos = link ? this._getLinkSource(link)?.position : null;
-            const endPos = link ? this._getLinkTarget(link)?.position : null;
-            if (startPos && endPos) {
-                riftMesh.position.copy(rupture.convergencePoint);
-                riftMesh.lookAt(endPos);
-                const linkLength = startPos.distanceTo(endPos);
-                riftMesh.scale.set(
-                    Math.max(0.5, linkLength * 0.4),
-                    Math.max(0.3, linkLength * 0.2),
-                    1
-                );
-            } else {
-                riftMesh.position.copy(rupture.convergencePoint);
-            }
-            
-            riftMesh.visible = false;
-            this.scene.add(riftMesh);
-            if (!this._createdObjects.includes(riftMesh)) {
-                this._createdObjects.push(riftMesh);
-            }
-            return riftMesh;
-        }
-        
-        // LEGACY: Original burst creation (fallback)
         if (this.config.debugVisualBoost || this.config.forceRuptureVfx) {
             const bloom = this._createFractureBloomScarRoot();
             bloom.renderOrder = this.config.renderOrder;
             bloom.userData.ruptureBurst = true;
             const burstSeed = this._hashBurstSeed(rupture.linkId ?? rupture.trapId ?? `${this.time.toFixed(3)}:${rupture.intensity.toFixed(3)}`);
+            const driftRate = this.config.fractureBloomDriftRate || 0.26;
 
+            // DESIGN: Orient fracture bloom along the ruptured link direction
             const link = this._getLinkById(rupture.linkId);
             const startPos = link ? this._getLinkSource(link)?.position : null;
             const endPos = link ? this._getLinkTarget(link)?.position : null;
@@ -1186,10 +877,10 @@ export class ResonanceRuptureVisualSystem_Session133 {
                 ((burstSeed.y * 2 - 1) * 0.42) * 0.34,
                 ((burstSeed.z * 2 - 1) * 0.42) * 0.28
             );
-            bloom.userData.burstDrift = this.config.fractureBloomDriftRate || 0.26;
+            bloom.userData.burstDrift = driftRate;
             this.scene.add(bloom);
             if (!this._createdObjects.includes(bloom)) {
-                this._createdObjects.push(bloom);
+                this._createdObjects.push(bloom);  // UNIFIED CLEANUP CONTRACT
             }
             return bloom;
         }
@@ -1199,7 +890,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         mesh.position.copy(rupture.convergencePoint);
         mesh.renderOrder = this.config.renderOrder;
         this.scene.add(mesh);
-        this._createdObjects.push(mesh);
+        this._createdObjects.push(mesh);  // UNIFIED CLEANUP CONTRACT
         return mesh;
     }
 
@@ -1298,24 +989,14 @@ export class ResonanceRuptureVisualSystem_Session133 {
                 }
             }
 
-            // Update pulse mesh position along current link
+            // FIX 2: Update pulse mesh position along current link
             if (pulse.mesh) {
                 const src = this._getLinkSource(pulse.currentLink)?.position;
                 const tgt = this._getLinkTarget(pulse.currentLink)?.position;
                 if (src && tgt) {
                     pulse.mesh.position.lerpVectors(src, tgt, linkProgress);
                 }
-                
-                // SUPERNATURAL: Update void propagation shader uniforms
-                if (pulse.mesh.userData?.voidPropagation && pulse.mesh.material?.uniforms) {
-                    const uniforms = pulse.mesh.material.uniforms;
-                    if (uniforms.uTime) uniforms.uTime.value = this.time;
-                    if (uniforms.uIntensity) uniforms.uIntensity.value = pulse.intensity * 0.8;
-                    if (uniforms.uLife) uniforms.uLife.value = linkProgress;
-                } else {
-                    // LEGACY: basic material opacity
-                    pulse.mesh.material.opacity = pulse.intensity * 0.6;
-                }
+                pulse.mesh.material.opacity = pulse.intensity * 0.6;
             }
 
             if (pulse.life >= propagationDuration * this.config.propagationDistance) {
@@ -1403,12 +1084,8 @@ export class ResonanceRuptureVisualSystem_Session133 {
         root.userData.tempRight = new THREE.Vector3();
         root.userData.tempUp = new THREE.Vector3();
         root.userData.tempForward = new THREE.Vector3();
-        // SUPERNATURAL: Increased particle count for 5-tier dimensional scar system
-        const isDimensional = this.config.enableDimensionalRift !== false;
         root.userData.baseOpacity = this.config.debugVisualBoost ? 0.90 : 0.76;
-        root.userData.particleCount = this.config.debugVisualBoost
-            ? (isDimensional ? 36 : 32)
-            : (isDimensional ? 28 : 24);
+        root.userData.particleCount = this.config.debugVisualBoost ? 32 : 24;
         root.userData.sizeScale = this.config.debugVisualBoost ? 176.0 : 144.0;
         root.userData.texture = this._getScarParticleTexture();
 
@@ -1470,21 +1147,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         root.geometry = geometry;
         root.material = material;
 
-        // SUPERNATURAL UPGRADE: Dimensional scar particle tiers
-        // Added void, ghost, and spectral particle types for dimensional rift aesthetics
-        const tierSpecs = this.config.enableDimensionalRift !== false ? [
-            // Tier 0: Spectral core — bright white-gold with rainbow tint (replaces white-hot)
-            { count: 3, size: 5.2, color: [0.95, 0.92, 1.0], opacity: 1.0, rise: 0.10, spread: 0.04, velocity: 0.08, jitter: 0.02 },
-            // Tier 1: Void particles — deep purple-black with chromatic edges
-            { count: 4, size: 4.4, color: [0.15, 0.02, 0.25], opacity: 0.95, rise: 0.14, spread: 0.07, velocity: 0.11, jitter: 0.03 },
-            // Tier 2: Spectral remnants — rainbow-tinted orange shifting to chromatic
-            { count: 8, size: 3.4, color: [1.0, 0.35, 0.10], opacity: 0.88, rise: 0.20, spread: 0.12, velocity: 0.15, jitter: 0.03 },
-            // Tier 3: Ghost particles — ethereal violet, flickering between dimensions
-            { count: 7, size: 2.6, color: [0.35, 0.08, 0.45], opacity: 0.75, rise: 0.30, spread: 0.18, velocity: 0.19, jitter: 0.04 },
-            // Tier 4: Deep void — almost invisible dark particles
-            { count: 6, size: 1.8, color: [0.08, 0.01, 0.12], opacity: 0.55, rise: 0.38, spread: 0.24, velocity: 0.23, jitter: 0.05 }
-        ] : [
-            // LEGACY: Original tier specs
+        const tierSpecs = [
             { count: 4, size: 5.6, color: [1.0, 0.96, 0.90], opacity: 1.0, rise: 0.12, spread: 0.05, velocity: 0.10, jitter: 0.02 },
             { count: 10, size: 3.8, color: [1.0, 0.42, 0.14], opacity: 0.92, rise: 0.18, spread: 0.10, velocity: 0.14, jitter: 0.03 },
             { count: 10, size: 2.8, color: [0.58, 0.09, 0.15], opacity: 0.82, rise: 0.28, spread: 0.16, velocity: 0.18, jitter: 0.04 },

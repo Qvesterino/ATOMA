@@ -66,6 +66,11 @@ export class SafeQuantumIllusionsPack1 {
     this.runtimeEnabled = true;
     this.echoSpawnCooldown = 0;
 
+    // CPU optimization: spawn/condition logic throttled to ~10Hz
+    // Animation (updateAllIllusions) stays at full 30Hz for smooth visuals
+    this._spawnAccumulator = 0;
+    this._spawnInterval = 0.1; // 100ms = ~10Hz
+
     // Dramaturgy modulation — driven by EventDramaturgyEngine
     this._dramaturgyModulation = {
       active: false,
@@ -427,28 +432,36 @@ export class SafeQuantumIllusionsPack1 {
     
     if (!this.scene) return;
 
-    // Decay dramaturgy modulation
+    // Decay dramaturgy modulation (every tick — cheap)
     this._decayDramaturgyModulation(deltaTime);
     
-    // Update registry lifetime tracking
+    // Update registry lifetime tracking (every tick — needed for cleanup)
     this.registry.update(deltaTime);
     this.echoSpawnCooldown = Math.max(0, this.echoSpawnCooldown - deltaTime);
+
+    // CPU OPTIMIZATION: throttle spawn/condition logic to ~10Hz
+    // These methods read metrics, iterate links, and decide spawning — no need for 30Hz.
+    // Animation (updateAllIllusions) stays at full 30Hz for smooth visuals.
+    this._spawnAccumulator += deltaTime;
+    if (this._spawnAccumulator >= this._spawnInterval) {
+      const spawnDt = this._spawnAccumulator;
+      this._spawnAccumulator = 0;
+
+      this.updateTriggeringConditions(spawnDt);
+      
+      // Generate illusions based on conditions
+      this.generateEchoDoubles();
+      this.generateRealityShards();
+      this.generateSpaceDrift();
+      this.generateAfterPaths();
+      this.generateFloatingSymbols();
+      this.updateHyperfocusMoment();
+      this.generateGhostMarkers();
+      this.generateWorldBends();
+      this.generateSigmaHallucination();
+    }
     
-    // Update triggering conditions
-    this.updateTriggeringConditions(deltaTime);
-    
-    // Generate illusions based on conditions
-    this.generateEchoDoubles();
-    this.generateRealityShards();
-    this.generateSpaceDrift();
-    this.generateAfterPaths();
-    this.generateFloatingSymbols();
-    this.updateHyperfocusMoment();
-    this.generateGhostMarkers();
-    this.generateWorldBends();
-    this.generateSigmaHallucination();
-    
-    // Update all active illusions
+    // Update all active illusions (every tick — smooth 30Hz animation)
     this.updateAllIllusions(deltaTime);
   }
   

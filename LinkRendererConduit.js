@@ -1583,7 +1583,7 @@ export class LinkRendererConduit {
         };
         this._lastVfxDebugTime = 0;
 
-        // Impact material pool (colorHex -> stack of materials)
+        // Shared event material pool (impact + dock + dissolve)
         this._impactMaterialPool = new Map();
         this._impactPoolMaxSize = 20;
         
@@ -3731,15 +3731,11 @@ export class LinkRendererConduit {
                     layerGroup.rotation.z = layerIndex * 0.08;
                     layerGroup.userData.baseZ = (layerRadii.length - 1 - layerIndex) * shellSpacing;
                     layerGroup.userData.baseRotation = layerGroup.rotation.z;
-                    const mat = new THREE.MeshBasicMaterial({
-                        color: ringColor,
-                        transparent: true,
-                        opacity: layerOpacity[layerIndex] ?? 0.5,
-                        blending: THREE.AdditiveBlending,
-                        depthWrite: false,
-                        side: THREE.DoubleSide
-                    });
-                    this._registerLinkMaterialWithBridge(mat);
+                    const mat = this._getDockEventMaterial(
+                        'main',
+                        ringColor,
+                        layerOpacity[layerIndex] ?? 0.5
+                    );
                     layerGroup.userData.baseOpacity = layerOpacity[layerIndex] ?? 0.5;
                     layerGroup.userData.mainMaterial = mat;
                     const shellTilt = 0.16 + layerIndex * 0.06;
@@ -3765,15 +3761,11 @@ export class LinkRendererConduit {
                         layerGroup.add(segmentPivot);
                     }
 
-                    const trailMat = new THREE.MeshBasicMaterial({
-                        color: ringColor,
-                        transparent: true,
-                        opacity: (layerOpacity[layerIndex] ?? 0.5) * 0.32,
-                        blending: THREE.AdditiveBlending,
-                        depthWrite: false,
-                        side: THREE.DoubleSide
-                    });
-                    this._registerLinkMaterialWithBridge(trailMat);
+                    const trailMat = this._getDockEventMaterial(
+                        'trail',
+                        ringColor,
+                        (layerOpacity[layerIndex] ?? 0.5) * 0.32
+                    );
                     layerGroup.userData.baseTrailOpacity = trailMat.opacity;
                     layerGroup.userData.trailMaterial = trailMat;
                     const trailGeo = new THREE.TorusGeometry(
@@ -3877,15 +3869,11 @@ export class LinkRendererConduit {
                 layerGroup.rotation.z = layerIndex * 0.08;
                 layerGroup.userData.baseZ = (pg.layerRadii.length - 1 - layerIndex) * shellSpacing;
                 layerGroup.userData.baseRotation = layerGroup.rotation.z;
-                const mat = new THREE.MeshBasicMaterial({
-                    color: ringColor,
-                    transparent: true,
-                    opacity: layerOpacity[layerIndex] ?? (0.5 * 0.35),
-                    blending: THREE.AdditiveBlending,
-                    depthWrite: false,
-                    side: THREE.DoubleSide
-                });
-                this._registerLinkMaterialWithBridge(mat);
+                const mat = this._getDockEventMaterial(
+                    'main',
+                    ringColor,
+                    layerOpacity[layerIndex] ?? (0.5 * 0.35)
+                );
                 layerGroup.userData.baseOpacity = layerOpacity[layerIndex] ?? (0.5 * 0.35);
                 layerGroup.userData.mainMaterial = mat;
                 const shellTilt = 0.16 + layerIndex * 0.06;
@@ -3911,15 +3899,11 @@ export class LinkRendererConduit {
                     layerGroup.add(segmentPivot);
                 }
 
-                const trailMat = new THREE.MeshBasicMaterial({
-                    color: ringColor,
-                    transparent: true,
-                    opacity: (layerOpacity[layerIndex] ?? 0.12) * 0.22,
-                    blending: THREE.AdditiveBlending,
-                    depthWrite: false,
-                    side: THREE.DoubleSide
-                });
-                this._registerLinkMaterialWithBridge(trailMat);
+                const trailMat = this._getDockEventMaterial(
+                    'trail',
+                    ringColor,
+                    (layerOpacity[layerIndex] ?? 0.12) * 0.22
+                );
                 layerGroup.userData.baseTrailOpacity = trailMat.opacity;
                 layerGroup.userData.trailMaterial = trailMat;
                 const trailGeo = new THREE.TorusGeometry(
@@ -4012,7 +3996,7 @@ export class LinkRendererConduit {
                 if (obj?.material) materialSet.add(obj.material);
             });
             geometrySet.forEach((geo) => geo?.dispose?.());
-            materialSet.forEach((material) => material?.dispose?.());
+            materialSet.forEach((material) => this._returnPooledMaterial(material));
             state[ringRefName] = null;
         };
 
@@ -5027,16 +5011,7 @@ export class LinkRendererConduit {
         geom.attributes.position.usage = THREE.DynamicDrawUsage;
 
         const color = new THREE.Color(state?.baseColor || 0x00ffcc);
-        const mat = new THREE.PointsMaterial({
-            color,
-            size: 0.05,
-            transparent: true,
-            opacity: 0.85,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending,
-            sizeAttenuation: true
-        });
-        this._registerLinkMaterialWithBridge(mat);
+        const mat = this._getDissolvePointsMaterial(color);
 
         const points = new THREE.Points(geom, mat);
         points.userData = {
@@ -5075,9 +5050,9 @@ export class LinkRendererConduit {
             }
         }
         for (const pts of toRemove) {
-            this.scene.remove(pts);
+            pts.parent?.remove?.(pts);
             pts.geometry.dispose();
-            pts.material.dispose();
+            this._returnPooledMaterial(pts.material);
         }
         this._dissolveEffects = this._dissolveEffects.filter(p => !toRemove.includes(p));
     }
@@ -5387,6 +5362,9 @@ export class LinkRendererConduit {
         const stack = this._impactMaterialPool.get(key);
         if (stack && stack.length > 0) {
             const mat = stack.pop();
+            const ud = ensureUserData(mat);
+            ud.__impactPoolKey = key;
+            ud.__impactMaterialKind = 'impactWire';
             mat.opacity = 0.0; // start fully transparent; animated in updateImpacts
             return mat;
         }
@@ -5404,23 +5382,121 @@ export class LinkRendererConduit {
         ensureUserData(mat);
         mat.userData.__owner = 'LinkRenderer';
         mat.userData.__domain = 'link';
+        mat.userData.__impactPoolKey = key;
+        mat.userData.__impactMaterialKind = 'impactWire';
         freezeMaterialFlags(mat, 'LinkRenderer');
         return mat;
     }
 
     _returnImpactMaterial(mat) {
+        this._returnPooledMaterial(mat);
+    }
+
+    _normalizePoolColorHex(colorLike, fallbackHex = 0xffffff) {
+        if (colorLike?.isColor && typeof colorLike.getHex === 'function') {
+            return colorLike.getHex() >>> 0;
+        }
+        if (typeof colorLike === 'number' && Number.isFinite(colorLike)) {
+            return colorLike >>> 0;
+        }
+        return fallbackHex >>> 0;
+    }
+
+    _getDockEventMaterial(variant, colorLike, opacity = 0.12) {
+        const colorHex = this._normalizePoolColorHex(colorLike, 0xffffff);
+        const poolKey = `dock:${variant}:${colorHex}`;
+        const stack = this._impactMaterialPool.get(poolKey);
+        let mat = (stack && stack.length > 0) ? stack.pop() : null;
+
+        if (!mat) {
+            mat = new THREE.MeshBasicMaterial({
+                color: colorHex,
+                transparent: true,
+                opacity,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                depthTest: true,
+                side: THREE.DoubleSide
+            });
+            this._registerLinkMaterialWithBridge(mat);
+            const ud = ensureUserData(mat);
+            ud.__owner = 'LinkRenderer';
+            ud.__domain = 'link';
+            ud.__impactPoolKey = poolKey;
+            ud.__impactMaterialKind = 'dockEvent';
+            freezeMaterialFlags(mat, 'LinkRenderer');
+        }
+
+        mat.color.setHex(colorHex);
+        mat.opacity = opacity;
+        ensureUserData(mat).__poolBaseOpacity = opacity;
+        return mat;
+    }
+
+    _getDissolvePointsMaterial(colorLike) {
+        const colorHex = this._normalizePoolColorHex(colorLike, 0x00ffcc);
+        const poolKey = `dissolve:${colorHex}`;
+        const stack = this._impactMaterialPool.get(poolKey);
+        let mat = (stack && stack.length > 0) ? stack.pop() : null;
+
+        if (!mat) {
+            mat = new THREE.PointsMaterial({
+                color: colorHex,
+                size: 0.05,
+                transparent: true,
+                opacity: 0.85,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                sizeAttenuation: true
+            });
+            this._registerLinkMaterialWithBridge(mat);
+            const ud = ensureUserData(mat);
+            ud.__owner = 'LinkRenderer';
+            ud.__domain = 'link';
+            ud.__impactPoolKey = poolKey;
+            ud.__impactMaterialKind = 'dissolvePoints';
+        }
+
+        mat.color.setHex(colorHex);
+        mat.opacity = 0.85;
+        mat.size = 0.05;
+        return mat;
+    }
+
+    _returnPooledMaterial(mat) {
         if (!mat) return;
-        const key = mat.color?.getHex ? mat.color.getHex() >>> 0 : 0;
-        if (!this._impactMaterialPool.has(key)) {
-            this._impactMaterialPool.set(key, []);
+        const ud = mat.userData || {};
+        const poolKey = ud.__impactPoolKey;
+        if (poolKey === undefined || poolKey === null) {
+            mat.dispose?.();
+            return;
         }
-        const stack = this._impactMaterialPool.get(key);
-        if (stack.length < this._impactPoolMaxSize) {
-            mat.opacity = 0.0;
-            stack.push(mat);
-        } else {
-            mat.dispose();
+
+        if (!this._impactMaterialPool.has(poolKey)) {
+            this._impactMaterialPool.set(poolKey, []);
         }
+        const stack = this._impactMaterialPool.get(poolKey);
+        if (stack.length >= this._impactPoolMaxSize) {
+            mat.dispose?.();
+            return;
+        }
+
+        switch (ud.__impactMaterialKind) {
+            case 'impactWire':
+                mat.opacity = 0.0;
+                break;
+            case 'dockEvent':
+                mat.opacity = Number.isFinite(ud.__poolBaseOpacity) ? ud.__poolBaseOpacity : mat.opacity;
+                break;
+            case 'dissolvePoints':
+                mat.opacity = 0.85;
+                mat.size = 0.05;
+                break;
+            default:
+                break;
+        }
+
+        stack.push(mat);
     }
 
     triggerNodeImpact(state, node, bead) {
@@ -6051,13 +6127,17 @@ const makeWaveSlice = () => {
 
     _disposeObjectTree(root) {
         if (!root) return;
+        const geometries = new Set();
+        const materials = new Set();
         root.traverse((obj) => {
-            if (obj.geometry) obj.geometry.dispose?.();
+            if (obj.geometry) geometries.add(obj.geometry);
             if (obj.material) {
-                if (Array.isArray(obj.material)) obj.material.forEach((m) => m?.dispose?.());
-                else obj.material.dispose?.();
+                if (Array.isArray(obj.material)) obj.material.forEach((m) => materials.add(m));
+                else materials.add(obj.material);
             }
         });
+        geometries.forEach((geometry) => geometry?.dispose?.());
+        materials.forEach((material) => this._returnPooledMaterial(material));
     }
 
     clearLinkAuxVisuals(linkOrId) {
@@ -6276,6 +6356,13 @@ const makeWaveSlice = () => {
         if (this._geometryPool) {
             this._geometryPool.forEach(geo => geo?.dispose?.());
             this._geometryPool.clear();
+        }
+        if (this._impactMaterialPool) {
+            this._impactMaterialPool.forEach((stack) => {
+                if (!Array.isArray(stack)) return;
+                stack.forEach((material) => material?.dispose?.());
+            });
+            this._impactMaterialPool.clear();
         }
     }
 

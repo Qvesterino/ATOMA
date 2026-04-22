@@ -36,6 +36,11 @@ export class SafeColonyExpansion2 {
     this.time = 0;
     this.clusteringTimer = 0;
     this.moodUpdateTimer = 0;
+
+    // CPU OPTIMIZATION: throttle non-visual colony logic to ~5Hz
+    // Visual animation (updateVFX) stays at full 30Hz for smooth rendering
+    this._logicAccumulator = 0;
+    this._logicInterval = 0.2; // 200ms = ~5Hz
     
     // Performance tracking
     this.stats = {
@@ -110,46 +115,55 @@ export class SafeColonyExpansion2 {
     const startTime = performance.now();
     
     this.time += deltaTime;
-    
-    // Step 1: Detect and create clusters (every 0.5s)
-    this.clusteringTimer += deltaTime;
-    if (this.clusteringTimer >= this.registry.config.clusteringInterval) {
-      this.detectAndFormClusters();
-      this.clusteringTimer = 0;
+
+    // CPU OPTIMIZATION: throttle non-visual colony logic to ~5Hz.
+    // Clustering, centers, energy, moods, merges, splits, events, cleanup
+    // don't need 30Hz — only VFX animation does.
+    this._logicAccumulator += deltaTime;
+    const runLogic = this._logicAccumulator >= this._logicInterval;
+    if (runLogic) {
+      this._logicAccumulator = 0;
+
+      // Step 1: Detect and create clusters (every 0.5s)
+      this.clusteringTimer += this._logicInterval;
+      if (this.clusteringTimer >= this.registry.config.clusteringInterval) {
+        this.detectAndFormClusters();
+        this.clusteringTimer = 0;
+      }
+      
+      // Step 2: Update colony centers based on node positions
+      this.updateColonyCenters();
+      
+      // Step 3: Accumulate energy and update stages
+      this.accumulateEnergyAndUpdateStages();
+      
+      // Step 4: Update moods based on current conditions
+      this.moodUpdateTimer += this._logicInterval;
+      if (this.moodUpdateTimer >= 0.3) {
+        this.updateColonyMoods();
+        this.moodUpdateTimer = 0;
+      }
+      
+      // Step 5: Check for merges
+      this.checkAndExecuteMerges();
+      
+      // Step 6: Check for splits
+      this.checkAndExecuteSplits();
+
+      // Step 8: React to world events
+      this.reactToWorldEvents();
+      
+      // Step 9: Cleanup
+      this.cleanup();
+      
+      // Validate registry integrity
+      if (this.debugMode) {
+        this.registry.validateRegistry(this.nodes);
+      }
     }
     
-    // Step 2: Update colony centers based on node positions
-    this.updateColonyCenters();
-    
-    // Step 3: Accumulate energy and update stages
-    this.accumulateEnergyAndUpdateStages();
-    
-    // Step 4: Update moods based on current conditions
-    this.moodUpdateTimer += deltaTime;
-    if (this.moodUpdateTimer >= 0.3) {
-      this.updateColonyMoods();
-      this.moodUpdateTimer = 0;
-    }
-    
-    // Step 5: Check for merges
-    this.checkAndExecuteMerges();
-    
-    // Step 6: Check for splits
-    this.checkAndExecuteSplits();
-    
-    // Step 7: Update VFX
+    // Step 7: Update VFX (every tick — smooth 30Hz animation)
     this.updateVFX(deltaTime);
-    
-    // Step 8: React to world events
-    this.reactToWorldEvents();
-    
-    // Step 9: Cleanup
-    this.cleanup();
-    
-    // Validate registry integrity
-    if (this.debugMode) {
-      this.registry.validateRegistry(this.nodes);
-    }
     
     this.stats.lastUpdateTime = performance.now() - startTime;
   }

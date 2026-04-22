@@ -384,6 +384,7 @@ export class EventDramaturgyEngine {
     this._overlayVignette = null;
     this._overlayGlow = null;
     this._overlayState = { vignette: 0, glow: 0, glowAngle: 0, tintR: 0, tintG: 0, tintB: 0 };
+    this._overlayCleared = true; // CPU optimization: track idle state for early exit
 
     this._initialized = false;
     this._enabled = true;
@@ -439,6 +440,10 @@ export class EventDramaturgyEngine {
    */
   update(dt) {
     if (!this._enabled || !this._initialized) return;
+
+    // CPU OPTIMIZATION: skip entire update when no sequences active and overlay already cleared.
+    // Avoids per-frame aggregation, DOM writes, and environment modulation pushes when idle.
+    if (this.activeSequences.size === 0 && this._overlayCleared) return;
 
     const dtMs = dt * 1000;
 
@@ -634,6 +639,7 @@ export class EventDramaturgyEngine {
 
     this.activeSequences.set(id, sequence);
     this._familyConcurrentCount.set(family, currentCount + 1);
+    this._overlayCleared = false; // wake up from idle early-exit
     this._familyLastTrigger.set(family, now);
 
     // Emit sequence start
@@ -826,6 +832,7 @@ export class EventDramaturgyEngine {
 
     this._overlayState.vignette = 0;
     this._overlayState.glow = 0;
+    this._overlayCleared = true; // mark idle for early exit
   }
 
   _destroyOverlay() {
@@ -1057,6 +1064,7 @@ export function installDramaturgyDebugAPI(engine) {
       engine.activeSequences.set(id, sequence);
       const count = engine._familyConcurrentCount.get(family) || 0;
       engine._familyConcurrentCount.set(family, count + 1);
+      engine._overlayCleared = false; // wake up from idle early-exit
       engine._emitSequenceStart(sequence, 'debug.manual');
       engine._emitPhaseEvent(sequence, DRAMATURGY_PHASE.TELEGRAPH);
       console.log(`✓ Triggered debug ${family} dramaturgy sequence: ${id}`);

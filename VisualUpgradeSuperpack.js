@@ -280,28 +280,28 @@ export class VisualUpgradeSuperpack {
             {
                 pos: new THREE.Vector3(60, 50, 40),
                 color: 0xFFD700,    // Sacred gold (was 0x00ffff)
-                intensity: 0.12,
+                intensity: 0.5,
                 size: 50,
                 rotation: new THREE.Vector3(0.3, 0.2, 0)
             },
             {
                 pos: new THREE.Vector3(-60, 45, -50),
                 color: 0x40E0D0,    // Celestial teal (was 0xff00ff)
-                intensity: 0.1,
+                intensity: 0.45,
                 size: 45,
                 rotation: new THREE.Vector3(-0.2, -0.3, 0)
             },
             {
                 pos: new THREE.Vector3(0, 55, -70),
                 color: 0x9466EB,    // Mystic violet (was 0xff99ff)
-                intensity: 0.09,
+                intensity: 0.4,
                 size: 48,
                 rotation: new THREE.Vector3(0.1, 0, 0.2)
             },
             {
                 pos: new THREE.Vector3(-40, 40, 50),
                 color: 0xFFF0D0,    // Spectral white-gold (was 0x99ffff)
-                intensity: 0.08,
+                intensity: 0.35,
                 size: 40,
                 rotation: new THREE.Vector3(-0.15, 0.25, 0)
             }
@@ -332,7 +332,7 @@ export class VisualUpgradeSuperpack {
                 map: glowTexture || null,
                 alphaMap: glowTexture || null,
                 transparent: true,
-                opacity: config.intensity * 0.22,
+                opacity: config.intensity * 0.55,
                 blending: THREE.AdditiveBlending,
                 side: THREE.BackSide,
                 depthWrite: false,
@@ -346,7 +346,7 @@ export class VisualUpgradeSuperpack {
             cone.renderOrder = 10;
             cone.userData = {
                 kind: 'volumetricCone',
-                baseOpacity: config.intensity * 0.22,
+                baseOpacity: config.intensity * 0.55,
                 baseScale: 1,
                 color: config.color,
                 ...motion
@@ -361,7 +361,7 @@ export class VisualUpgradeSuperpack {
                 map: glowTexture || null,
                 alphaMap: glowTexture || null,
                 transparent: true,
-                opacity: config.intensity * 0.12,
+                opacity: config.intensity * 0.35,
                 blending: THREE.AdditiveBlending,
                 side: THREE.DoubleSide,
                 depthWrite: false,
@@ -376,7 +376,7 @@ export class VisualUpgradeSuperpack {
             rays.renderOrder = 11;
             rays.userData = {
                 kind: 'volumetricRays',
-                baseOpacity: config.intensity * 0.12,
+                baseOpacity: config.intensity * 0.35,
                 baseScale: 1,
                 color: config.color,
                 baseRotation: {
@@ -397,7 +397,7 @@ export class VisualUpgradeSuperpack {
                     map: glowTexture || null,
                     alphaMap: glowTexture || null,
                     transparent: true,
-                    opacity: config.intensity * 0.55,
+                    opacity: config.intensity * 0.85,
                     blending: THREE.AdditiveBlending,
                     depthWrite: false,
                     fog: false,
@@ -408,7 +408,7 @@ export class VisualUpgradeSuperpack {
             core.renderOrder = 12;
             core.userData = {
                 kind: 'volumetricCore',
-                baseOpacity: config.intensity * 0.55,
+                baseOpacity: config.intensity * 0.85,
                 baseScale: 1,
                 color: config.color,
                 ...motion
@@ -436,7 +436,7 @@ export class VisualUpgradeSuperpack {
                 name: 'groundMist',
                 height: 0.5,
                 color: 0x2A1840,    // Deep violet base (was 0xf0d8e8)
-                opacity: 0.12,
+                opacity: 0.35,
                 size: 300,
                 speed: 0.2
             },
@@ -444,7 +444,7 @@ export class VisualUpgradeSuperpack {
                 name: 'midHaze',
                 height: 30,
                 color: 0x1A3030,    // Teal haze (was 0xe8c0d8)
-                opacity: 0.08,
+                opacity: 0.25,
                 size: 350,
                 speed: 0.15
             },
@@ -452,7 +452,7 @@ export class VisualUpgradeSuperpack {
                 name: 'distantGlow',
                 height: 60,
                 color: 0xffffff,
-                opacity: 0.05,
+                opacity: 0.18,
                 size: 400,
                 speed: 0.1
             },
@@ -460,7 +460,7 @@ export class VisualUpgradeSuperpack {
                 name: 'horizonFade',
                 height: 80,
                 color: 0x302810,    // Gold horizon (was 0xf5e8ff)
-                opacity: 0.03,
+                opacity: 0.12,
                 size: 500,
                 speed: 0.05
             }
@@ -511,7 +511,7 @@ export class VisualUpgradeSuperpack {
         const edgeGlowMaterial = new THREE.LineBasicMaterial({
             color: 0x40E0D0,
             transparent: true,
-            opacity: 0.4,
+            opacity: 0.7,
             linewidth: 1.5,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
@@ -543,7 +543,7 @@ export class VisualUpgradeSuperpack {
                     wireframe.renderOrder = 20;
                     wireframe.userData = {
                         linkedMesh: child,
-                        baseOpacity: 0.3,
+                        baseOpacity: 0.55,
                         fresnel: true,
                         pulsePhase: Math.random() * Math.PI * 2,
                         baseScale: child.scale.clone()
@@ -619,9 +619,9 @@ export class VisualUpgradeSuperpack {
     // ============================================================
     applyQuantumDistortionPack() {
         const distortionZones = [
-            { pos: new THREE.Vector3(30, 10, -30), radius: 20, intensity: 0.08 },
-            { pos: new THREE.Vector3(-40, 8, 40), radius: 18, intensity: 0.07 },
-            { pos: new THREE.Vector3(0, 15, 0), radius: 25, intensity: 0.06 }
+            { pos: new THREE.Vector3(30, 10, -30), radius: 20, intensity: 0.35 },
+            { pos: new THREE.Vector3(-40, 8, 40), radius: 18, intensity: 0.3 },
+            { pos: new THREE.Vector3(0, 15, 0), radius: 25, intensity: 0.25 }
         ];
 
         distortionZones.forEach(zone => {
@@ -633,7 +633,7 @@ export class VisualUpgradeSuperpack {
                 transparent: true,
                 opacity: 0,
                 emissive: 0x9466EB,
-                emissiveIntensity: zone.intensity * 0.1,
+                emissiveIntensity: zone.intensity * 0.35,
                 wireframe: false,
                 fog: false
             });
@@ -670,7 +670,7 @@ export class VisualUpgradeSuperpack {
             const material = new THREE.LineBasicMaterial({
                 color: config.color,
                 transparent: true,
-                opacity: 0.15,
+                opacity: 0.4,
                 linewidth: 1,
                 blending: THREE.AdditiveBlending,
                 fog: false
@@ -688,7 +688,7 @@ export class VisualUpgradeSuperpack {
             const rift = new THREE.LineSegments(edges, material);
             rift.position.copy(config.pos);
             rift.userData = {
-                baseOpacity: 0.1,
+                baseOpacity: 0.3,
                 pulseSpeed: 0.3,
                 phase: Math.random() * Math.PI * 2,
                 color: config.color,
@@ -703,9 +703,9 @@ export class VisualUpgradeSuperpack {
             const glowMaterial = new THREE.MeshStandardMaterial({
                 color: config.color,
                 emissive: config.color,
-                emissiveIntensity: 0.15,
+                emissiveIntensity: 0.4,
                 transparent: true,
-                opacity: 0.05,
+                opacity: 0.15,
                 blending: THREE.AdditiveBlending,
                 side: THREE.BackSide,
                 fog: false
@@ -714,7 +714,7 @@ export class VisualUpgradeSuperpack {
             const glowField = new THREE.Mesh(glowGeometry, glowMaterial);
             glowField.position.copy(config.pos);
             glowField.userData = {
-                baseOpacity: 0.05,
+                baseOpacity: 0.15,
                 pulseSpeed: 0.25,
                 phase: Math.random() * Math.PI * 2,
                 type: 'riftGlow'
@@ -787,7 +787,7 @@ export class VisualUpgradeSuperpack {
                 size: system.size * 1.55,
                 sizeAttenuation: true,
                 transparent: true,
-                opacity: 0.52,
+                opacity: 0.75,
                 blending: THREE.AdditiveBlending,
                 depthWrite: false,
                 fog: true,
@@ -853,10 +853,10 @@ export class VisualUpgradeSuperpack {
         };
 
         // SACRED_SUPERPACK: Sacred spectral camera aura (was generic cyan/pink)
-        auraGroup.add(makeAuraSprite(0xFFD700, 0.16, 3.1, 3.1, 0.0, 0.0));      // Sacred gold (was 0x8fffff)
-        auraGroup.add(makeAuraSprite(0x9466EB, 0.1, 4.6, 3.2, 0.18, -0.08));    // Mystic violet (was 0xffa6f0)
-        auraGroup.add(makeAuraSprite(0x40E0D0, 0.08, 6.8, 1.2, -0.24, 0.12));   // Celestial teal (was 0x69f7ff)
-        auraGroup.add(makeAuraSprite(0xFFF0D0, 0.055, 9.6, 0.72, 0.0, 0.0));    // Spectral white-gold (was 0xffffff)
+        auraGroup.add(makeAuraSprite(0xFFD700, 0.4, 3.1, 3.1, 0.0, 0.0));       // Sacred gold (was 0.16)
+        auraGroup.add(makeAuraSprite(0x9466EB, 0.3, 4.6, 3.2, 0.18, -0.08));    // Mystic violet (was 0.1)
+        auraGroup.add(makeAuraSprite(0x40E0D0, 0.25, 6.8, 1.2, -0.24, 0.12));   // Celestial teal (was 0.08)
+        auraGroup.add(makeAuraSprite(0xFFF0D0, 0.18, 9.6, 0.72, 0.0, 0.0));     // Spectral white-gold (was 0.055)
 
         if (this.camera) {
             this.camera.add(auraGroup);
@@ -1054,7 +1054,7 @@ export class VisualUpgradeSuperpack {
 
             const systemPulse = Math.sin(this.time * (0.35 + system.userData.system.speed * 20) + system.id) * 0.5 + 0.5;
             if (system.material) {
-                system.material.opacity = (0.3 + systemPulse * 0.18) * fade;
+                system.material.opacity = (0.55 + systemPulse * 0.25) * fade;
             }
             system.rotation.y += visualDelta * 0.01;
             system.scale.setScalar(0.98 + systemPulse * 0.03);

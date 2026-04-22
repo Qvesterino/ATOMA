@@ -348,7 +348,10 @@ export class MetricReactiveWorldEvents {
    * Main update loop - call every frame
    */
   update(deltaTime) {
-    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
+    // FIXED: guard matches the scheduler lane this system runs on.
+    // EnvironmentDomainController registers this in the visual lane (30Hz),
+    // so we use shouldRunVisual instead of shouldRunSimulation.
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     if (!this.enabled) return;
     
     try {
