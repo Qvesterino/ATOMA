@@ -328,6 +328,21 @@ export class MetricReactiveWorldEvents {
     });
   }
 
+  // PERFORMANCE: Cached glow material — deduplicates across loop iterations.
+  // Same color + quantised opacity + same extra keys → one shared material.
+  _glowMaterialCache = new Map();
+  _getCachedGlowMaterial(color, opacity = 0.5, extra = {}) {
+    const qOpacity = Math.round(opacity * 20) / 20;
+    const extraKey = extra.map ? '_tex' : '';
+    const key = `${color}_${qOpacity}${extraKey}`;
+    let mat = this._glowMaterialCache.get(key);
+    if (!mat) {
+      mat = this._createGlowMaterial(color, qOpacity, extra);
+      this._glowMaterialCache.set(key, mat);
+    }
+    return mat;
+  }
+
   /**
    * Create epic glow line material with additive blending.
    */
@@ -837,10 +852,11 @@ export class MetricReactiveWorldEvents {
   createShortBeamSpikes(count, duration, color) {
     const group = new THREE.Group();
     group.name = 'short-beam-spikes';
+    // PERFORMANCE: share one geometry + one material across all beams
+    const beamGeo = new THREE.PlaneGeometry(0.3, 4);
+    const beamMat = this._getCachedGlowMaterial(color, 0.4);
     for (let i = 0; i < count; i++) {
-      const geometry = new THREE.PlaneGeometry(0.3, 4);
-      const material = this._createGlowMaterial(color, 0.4);
-      const beam = new THREE.Mesh(geometry, material);
+      const beam = new THREE.Mesh(beamGeo, beamMat);
       const angle = (i / count) * Math.PI * 2;
       beam.position.set(Math.cos(angle) * 8, 2, Math.sin(angle) * 8);
       beam.rotation.y = angle;
@@ -857,10 +873,11 @@ export class MetricReactiveWorldEvents {
   createFracturedRingCore(segmentCount, duration, color) {
     const group = new THREE.Group();
     group.name = 'fractured-ring-core';
+    // PERFORMANCE: share one geometry + one material across all segments
+    const segGeo = new THREE.PlaneGeometry(0.5, 2.4);
+    const segMat = this._getCachedGlowMaterial(color, 0.5);
     for (let i = 0; i < segmentCount; i++) {
-      const geometry = new THREE.PlaneGeometry(0.5, 2.4);
-      const material = this._createGlowMaterial(color, 0.5);
-      const segment = new THREE.Mesh(geometry, material);
+      const segment = new THREE.Mesh(segGeo, segMat);
       const angle = (i / segmentCount) * Math.PI * 2;
       const radius = 4.5 + (Math.random() - 0.5) * 0.6;
       segment.position.set(Math.cos(angle) * radius, 0.5, Math.sin(angle) * radius);
@@ -879,10 +896,11 @@ export class MetricReactiveWorldEvents {
   createGlitchBars(count, duration, color) {
     const group = new THREE.Group();
     group.name = 'glitch-bars';
+    // PERFORMANCE: share one geometry + one material across all bars
+    const barGeo = new THREE.PlaneGeometry(0.4, 3.2);
+    const barMat = this._getCachedGlowMaterial(color, 0.45);
     for (let i = 0; i < count; i++) {
-      const geometry = new THREE.PlaneGeometry(0.4, 3.2);
-      const material = this._createGlowMaterial(color, 0.45);
-      const bar = new THREE.Mesh(geometry, material);
+      const bar = new THREE.Mesh(barGeo, barMat);
       const angle = (i / count) * Math.PI * 2;
       bar.position.set(Math.cos(angle) * 2.5, 1.0, Math.sin(angle) * 2.5);
       bar.rotation.y = angle + (Math.random() - 0.5) * 0.6;
@@ -909,10 +927,11 @@ export class MetricReactiveWorldEvents {
   createPressureBands(count, duration, color) {
     const group = new THREE.Group();
     group.name = 'pressure-bands';
+    // PERFORMANCE: share one geometry + one material across all bands
+    const bandGeo = new THREE.PlaneGeometry(28, 1.2);
+    const bandMat = this._getCachedGlowMaterial(color, 0.35);
     for (let i = 0; i < count; i++) {
-      const geometry = new THREE.PlaneGeometry(28, 1.2);
-      const material = this._createGlowMaterial(color, 0.35);
-      const band = new THREE.Mesh(geometry, material);
+      const band = new THREE.Mesh(bandGeo, bandMat);
       band.position.set(0, 1.5 + i * 0.6, -32 - i * 1.5);
       band.rotation.x = -Math.PI / 2.7;
       band.userData.beamData = { duration, elapsedTime: 0 };

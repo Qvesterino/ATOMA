@@ -754,6 +754,15 @@ export class SafeQuantumIllusionsPack1 {
       shardGroup.add(edgeMesh);
     }
 
+    // PERFORMANCE: share one material across all 4 ring meshes (was 4 identical materials)
+    const ringMaterial = new THREE.MeshBasicMaterial({
+      color: this.getModeColor(1),
+      transparent: true,
+      opacity: 0.24,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
     const ringPositions = [
       [-0.45, 0.4, 0],
       [0.45, -0.4, 0],
@@ -761,14 +770,7 @@ export class SafeQuantumIllusionsPack1 {
       [0.3, 0.6, 0]
     ];
     for (let i = 0; i < ringPositions.length; i++) {
-      const ringMesh = new THREE.Mesh(fragmentRingGeometry, new THREE.MeshBasicMaterial({
-        color: this.getModeColor(1),
-        transparent: true,
-        opacity: 0.24,
-        side: THREE.DoubleSide,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false
-      }));
+      const ringMesh = new THREE.Mesh(fragmentRingGeometry, ringMaterial);
       ringMesh.position.set(...ringPositions[i]);
       ringMesh.rotation.z = i * Math.PI * 0.4;
       ringMesh.scale.setScalar(0.75 + i * 0.08);

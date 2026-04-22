@@ -809,10 +809,9 @@ import { StressBasedParticleScaler_v1, setupStressParticleScalerConsoleAPI } fro
 // stratification that communicates network hierarchy through motion patterns
 // ============================================================================
 import { CascadingHarmonicResonanceAmplification } from './CascadingHarmonicResonanceAmplification.js';
-import { ParticleStreamCascadeAcceleration } from './ParticleStreamCascadeAcceleration.js';
-import { ParticleCascadeFlowDeflection } from './ParticleCascadeFlowDeflection.js';
-import { ParticleStreamCascadeAccelerationIntegrationPatch } from './ParticleStreamCascadeAccelerationIntegrationPatch.js';
-import { ParticleStreamCascadeAccelerationIntegrationSetup } from './ParticleStreamCascadeAccelerationIntegrationSetup.js';
+// REMOVED: ParticleStreamCascadeAcceleration, ParticleCascadeFlowDeflection,
+//   ParticleStreamCascadeAccelerationIntegrationPatch, ParticleStreamCascadeAccelerationIntegrationSetup
+//   — moved to LEGACY/april (2026-04-22)
 
 // ============================================================================
 // ============================================================================
@@ -1056,7 +1055,7 @@ import { applyCorruptionDesaturationIntegration } from './CorruptionDesaturation
 import { HarmonicCascadeAmplification_Session145, setupCascadeConsoleAPI } from './HarmonicCascadeAmplification_Session145.js';
 import { CascadeBurstVisual_Session147 } from './CascadeBurstVisual_Session147.js';
 import { HarmonicPhaseSynchronization_Session146, setupPhaseSyncConsoleAPI } from './HarmonicPhaseSynchronization_Session146.js';
-import { PreCascadeVisualHint_Session146 } from './PreCascadeVisualHint_Session146.js';
+// REMOVED: PreCascadeVisualHint_Session146 — moved to LEGACY/april (2026-04-22)
 import { HarmonicNodeResonanceHalos } from './HarmonicNodeResonanceHalos.js';
 import { HarmonicHubDebugger } from './Engine/Debug/HarmonicHubDebugger.js';
 import { VisualEchoTrails_v1, VisualEchoTrails_v1_Integration, setupVisualEchoTrailsIntegration } from './VisualEchoTrails_v1_Integration.js';
@@ -4446,11 +4445,7 @@ class AtomaGame {
                 trapSystem.update(dt, this.time);
             }
         }, 'simulation.waveStandingTraps');
-        this.frameScheduler.register('simulation', (dt) => {
-            if (this.cascadeAccelSetup) {
-                this.cascadeAccelSetup.update(dt, this.time);
-            }
-        }, 'simulation.cascadeAccelSetup');
+        // REMOVED: cascadeAccelSetup frame scheduler — moved to LEGACY/april (2026-04-22)
         this.frameScheduler.register('visual', (dt) => {
             if (this.coreMetricsOverlay) {
                 this.runCoreMetricsOverlayTick(dt);
@@ -5623,8 +5618,7 @@ this.setHudDirty('nodeInspect');
         // Week 27: Wave Particle Emitter (GPU-reactive particle FX)
         this.particleEmitter = null;
 
-        // Particle Stream Cascade Acceleration (layer-depth based particle dynamics)
-        this.cascadeAccelSetup = null;
+        // REMOVED: cascadeAccelSetup — moved to LEGACY/april (2026-04-22)
 
         // Link Micro-Impulses (event-driven electrical responses)
         this.microImpulseAdapter = null;
@@ -5794,7 +5788,7 @@ this.setHudDirty('nodeInspect');
         this.harmonicCascadeAmplification = null; // Hub-to-hub cascade amplification (Session 145)
         this.linkResonanceFlowSystem = null;      // Directional link resonance flow (Session 124)
         this.harmonicPhaseSynchronization = null; // Hub phase alignment (Session 146)
-        this.preCascadeVisualHint = null;         // Pre-cascade subtle visual hinting (Session 146)
+        // REMOVED: preCascadeVisualHint — moved to LEGACY/april (2026-04-22)
         this.harmonicNodeResonanceHalos = null;   // Node resonance halos for harmonic hubs
         this.echoTrailsSystem = null;             // Echo trails shader system
         this.echoTrailsIntegration = null;        // Echo trails integration layer
@@ -6452,7 +6446,7 @@ this.setHudDirty('nodeInspect');
         this.setupHarmonicCascadeAmplification();
         this.setupLinkResonanceFlowSystem();
         this.setupHarmonicPhaseSynchronization();
-        this.setupPreCascadeVisualHint();
+        // REMOVED: setupPreCascadeVisualHint() — moved to LEGACY/april (2026-04-22)
         this.setupHarmonicNodeResonanceHalos();
         this.setupVisualEchoTrails();
 
@@ -7822,17 +7816,7 @@ window.__ATOMA_SCENE__ = this.scene;
             console.warn('[main.js] EchoTrailsIntegration rebind failed:', err?.message || err);
         }
 
-        try {
-            const flowSystem = this.linkingSystem?._flowSystem || this.linkingSystem?.flowSystem || null;
-            if (flowSystem && typeof flowSystem.rebind === 'function') {
-                flowSystem.rebind({
-                    linkingSystem,
-                    semanticBus
-                });
-            }
-        } catch (err) {
-            console.warn('[main.js] AnimatedLinkFlow rebind failed:', err?.message || err);
-        }
+        // REMOVED: AnimatedLinkFlow rebind — moved to LEGACY/april (2026-04-22)
     }
 
     /**
@@ -9299,22 +9283,7 @@ window.__ATOMA_SCENE__ = this.scene;
             this.dynamicLinkColorSystem = null;
         }
 
-        // ====================================================================
-        // ANIMATED LINK FLOW SYSTEM v1.0 (Session 112 - Data visualization)
-        // Visualizes data flow between nodes with animated packets and beams
-        // ====================================================================
-        try {
-            if (this.linkingSystem && this.linkingSystem.flowSystem) {
-                if (typeof setupAnimatedLinkFlowConsoleAPI === 'function') {
-                    setupAnimatedLinkFlowConsoleAPI(this.linkingSystem.flowSystem);
-                    console.log('[main.js] Animated Link Flow System console API initialized ✓');
-                } else {
-                    console.log('[main.js] AnimatedLinkFlow console API not installed (optional)');
-                }
-            }
-        } catch (err) {
-            console.warn('[main.js] Animated Link Flow System setup failed:', err);
-        }
+        // REMOVED: AnimatedLinkFlow console API setup — moved to LEGACY/april (2026-04-22)
 
         // ====================================================================
         // SYNERGY CASCADE PROPAGATION VISUALIZER v1.0 (NEW)
@@ -10671,7 +10640,7 @@ window.__ATOMA_SCENE__ = this.scene;
         this.frameScheduler.register('simulation', () => this.updateHoverGlyphTarget?.(), 'simulation.semanticHoverGlyph');
         this.frameScheduler.register('simulation', () => this.nodeHierarchyBridge?.update?.(), 'simulation.nodeHierarchyBridge');
         this.frameScheduler.register('visual', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt), 'visual.phase5CascadeVisualizationBridge');
-        this.frameScheduler.register('visual', (dt) => this.preCascadeVisualHint?.update?.(dt), 'visual.preCascadeVisualHint');
+        // REMOVED: preCascadeVisualHint frame scheduler — moved to LEGACY/april (2026-04-22)
 
         // ====================================================================
         // WEEK 22B: SYNERGY CASCADE FX BRIDGE (Cascade → Shader Effects)
@@ -10746,59 +10715,7 @@ window.__ATOMA_SCENE__ = this.scene;
             console.warn('[main.js] WaveParticleEmitter_v1 initialization failed:', err);
         }
 
-        // ====================================================================
-        // PARTICLE STREAM CASCADE ACCELERATION (Layer-Depth Based Particle Dynamics)
-        // ====================================================================
-        // Accelerates particle streams based on cascade layer depth:
-        // - Layer 0 (hubs): Slow, steady acceleration (strong harmonic control)
-        // - Layer 1-2: Medium acceleration (cascade propagating)
-        // - Layer 3-4: Faster acceleration (cascade attenuating, particles escape)
-        // - Layer 5+: Maximum acceleration (far field, weak constraint)
-        // 
-        // Integrates: CascadingHarmonicResonance → ParticleStreamCascadeAcceleration → WaveParticleEmitter
-        // Performance: <1ms per frame, zero impact for non-cascaded nodes
-        try {
-            const disableParticleCascadeAcceleration =
-                window.ATOMA_DISABLE_PARTICLE_CASCADE_ACCELERATION !== false;
-
-            if (disableParticleCascadeAcceleration) {
-                this.cascadeAccelSetup = null;
-                window.ATOMA_DISABLE_PARTICLE_CASCADE_ACCELERATION = true;
-                window.enableParticleCascadeAcceleration = () => {
-                    window.ATOMA_DISABLE_PARTICLE_CASCADE_ACCELERATION = false;
-                    console.log('✓ ParticleStreamCascadeAcceleration will stay disabled until next reload');
-                };
-                window.disableParticleCascadeAcceleration = () => {
-                    window.ATOMA_DISABLE_PARTICLE_CASCADE_ACCELERATION = true;
-                    console.log('✓ ParticleStreamCascadeAcceleration disabled');
-                };
-                console.log('[main.js] ParticleStreamCascadeAcceleration disabled by default');
-            } else {
-                this.cascadeAccelSetup = new ParticleStreamCascadeAccelerationIntegrationSetup(
-                    this.nodeDynamicMetrics,
-                    this.linkingSystem,
-                    this.particleEmitter,
-                    {
-                        enableCascadingResonance: true,
-                        enableCascadeAcceleration: true,
-                        enableIntegrationPatch: true,
-                        setupConsoleAPIs: true,
-                        consoleAPIPrefix: 'cascadeParticle',
-                        debugMode: false
-                    }
-                );
-                this.cascadeAccelSetup.frameScheduler = this.frameScheduler;
-                
-                // Defer initialization until after all systems are ready
-                // (nodeDynamicMetrics and linkingSystem must be fully initialized)
-                setTimeout(() => {
-                    this.cascadeAccelSetup.initialize(this.scene, this);
-                    console.log('[main.js] ParticleStreamCascadeAcceleration initialized ✓');
-                }, 500);
-            }
-        } catch (err) {
-            console.warn('[main.js] ParticleStreamCascadeAcceleration initialization failed:', err);
-        }
+        // REMOVED: ParticleStreamCascadeAcceleration entire block — moved to LEGACY/april (2026-04-22)
 
         // ====================================================================
         // PHASE 3C PERFORMANCE MODE (Centralized FX Scaling)
@@ -11988,7 +11905,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('phase5InterNetworkVisualizationBridge', 'visual.phase5InterNetworkVisualizationBridge', (dt) => this.phase5InterNetworkVisualizationBridge?.update?.(dt));
         regGuard('cascadePropagationVisuals', 'visual.cascadePropagation', (dt) => this.cascadePropagationVisuals?.update?.(dt));
         regGuard('phase5CascadeVisualizationBridge', 'visual.phase5CascadeVisualizationBridge', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt));
-        regGuard('preCascadeVisualHint', 'visual.preCascadeVisualHint', (dt) => this.preCascadeVisualHint?.update?.(dt));
+        // REMOVED: preCascadeVisualHint regGuard — moved to LEGACY/april (2026-04-22)
         regGuard('nodeHierarchyBridge', 'simulation.nodeHierarchyBridge', () => this.nodeHierarchyBridge?.update?.());
         regGuard('nodeEvolution', 'visual.nodeEvolution', (dt) => this.nodeEvolution?.update?.(dt, {}, this.linkingSystem));
         regGuard('legendaryPack', 'visual.legendaryPack', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer));
@@ -16459,9 +16376,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             if (this.harmonicCascadeAmplification) {
                 this.harmonicCascadeAmplification.linkResonanceSystem = this.linkResonanceSystem;
             }
-            if (this.preCascadeVisualHint) {
-                this.preCascadeVisualHint.linkResonanceSystem = this.linkResonanceSystem;
-            }
+            // REMOVED: preCascadeVisualHint linkResonanceSystem — moved to LEGACY/april (2026-04-22)
             console.log('✓ Link Resonance Flow System (Session 124) initialized');
             
             // Apply link resonance flow harmony integration
@@ -16538,29 +16453,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
     }
 
-    /**
-     * Setup Pre-Cascade Visual Hint System (Session 146)
-     * Subtle anticipatory cues before harmonic cascade expression
-     */
-    setupPreCascadeVisualHint() {
-        try {
-            this.preCascadeVisualHint = new PreCascadeVisualHint_Session146(
-                this.harmonicCascadeAmplification,
-                this.harmonicHubAuraSystem,
-                this.nodeAuraSystem,
-                this.linkResonanceSystem,
-                {
-                    enabled: true,
-                    debugMode: false
-                }
-            );
-            this.preCascadeVisualHint.frameScheduler = this.frameScheduler;
-            console.log('✓ PreCascade Visual Hint (Session 146) initialized');
-        } catch (err) {
-            this.preCascadeVisualHint = null;
-            console.warn('⚠ PreCascade Visual Hint initialization failed:', err);
-        }
-    }
+    // REMOVED: setupPreCascadeVisualHint() — moved to LEGACY/april (2026-04-22)
     
     /**
      * Setup Harmonic Node Resonance Halos

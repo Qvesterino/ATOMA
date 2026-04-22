@@ -33,7 +33,7 @@
 
 import { HubProximityDetector } from './HubProximityDetector.js';
 import { HarmonicPhaseSynchronization_Session146 } from './HarmonicPhaseSynchronization_Session146.js';
-import { PreCascadeVisualHint_Session146 } from './PreCascadeVisualHint_Session146.js';
+// REMOVED: PreCascadeVisualHint_Session146 — moved to LEGACY/april (2026-04-22)
 import { CascadeResonanceWaveVisualization_Session146 } from './CascadeResonanceWaveVisualization_Session146.js';
 import { CascadingHarmonicResonanceAmplification } from './CascadingHarmonicResonanceAmplification.js';
 
@@ -104,18 +104,7 @@ export class HarmonicCascadeAmplification_Session145 {
       }
     );
 
-    // Initialize pre-cascade visual hint system (provides tension cues)
-    this.precastHint = new PreCascadeVisualHint_Session146(
-      this,
-      harmonicHubSystem,
-      nodeAuraSystem,
-      linkResonanceSystem,
-      {
-        enabled: this.config.enabled,
-        debugMode: this.config.debugMode,
-        hintStrengthMult: 0.45, // Amplified from 0.15
-      }
-    );
+    // REMOVED: precastHint (PreCascadeVisualHint) — moved to LEGACY/april (2026-04-22)
 
     // Initialize cascade resonance wave visualization (visible wave propagation)
     this.cascadeWave = new CascadeResonanceWaveVisualization_Session146(
@@ -234,10 +223,7 @@ export class HarmonicCascadeAmplification_Session145 {
       }
     }
 
-    // ── Step 5: Run visual subsystems ──
-    if (this.precastHint) {
-      this.precastHint.update(deltaTime);
-    }
+    // REMOVED: precastHint.update() — moved to LEGACY/april (2026-04-22)
 
     if (this.cascadeWave) {
       this.cascadeWave.update(deltaTime);
@@ -274,9 +260,7 @@ export class HarmonicCascadeAmplification_Session145 {
     if (this.phaseSynchronization) {
       this.phaseSynchronization.dispose();
     }
-    if (this.precastHint) {
-      this.precastHint.dispose();
-    }
+    // REMOVED: precastHint.dispose() — moved to LEGACY/april (2026-04-22)
     if (this.cascadeWave) {
       this.cascadeWave.dispose();
     }
@@ -520,10 +504,7 @@ export class HarmonicCascadeAmplification_Session145 {
       this.phaseSynchronization.setupConsoleAPI(globalWindow);
     }
 
-    // Setup pre-cascade hint API
-    if (this.precastHint && this.precastHint.setupConsoleAPI) {
-      this.precastHint.setupConsoleAPI(globalWindow);
-    }
+    // REMOVED: precastHint console API — moved to LEGACY/april (2026-04-22)
 
     // Setup cascade resonance wave API
     if (this.cascadeWave && this.cascadeWave.setupConsoleAPI) {

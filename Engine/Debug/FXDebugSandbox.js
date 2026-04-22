@@ -590,15 +590,7 @@ FXDebugSandbox.prototype.spawnLinkDirectionalStreaks = function(config = {}) {
   return system;
 };
 
-/**
- * Animated Link Flow
- */
-FXDebugSandbox.prototype.spawnAnimatedLinkFlow = function(config = {}) {
-  console.log('[FX] AnimatedLinkFlow - Spawns particles');
-  const system = new AnimatedLinkFlow();
-  this.register('animatedLinkFlow', system);
-  return system;
-};
+// REMOVED: AnimatedLinkFlow spawn — moved to LEGACY/april (2026-04-22)
 
 // ============================================================================
 // CONVENIENCE ALIASES

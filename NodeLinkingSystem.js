@@ -46,11 +46,11 @@ import {
   updateParticleCorruptionSpeed
 } from './LinkSynergyColorTransition.js';
 import { NodeDepthAndHoloPreservationFix } from './NodeDepthAndHoloPreservationFix.js';
-import { AnimatedLinkFlow, setupAnimatedLinkFlowConsoleAPI } from './AnimatedLinkFlow.js';
+// REMOVED: AnimatedLinkFlow — moved to LEGACY/april (2026-04-22)
+// REMOVED: LinkEventVisualCoordinator_v1 — moved to LEGACY/april (2026-04-22)
 import { LinkRendererConduit } from './LinkRendererConduit.js';
 import { LinkEmissionPulsingSystem } from './LinkEmissionPulsingSystem.js';
 import { LinkStateVisualLanguageIntegration } from './LinkStateVisualLanguageIntegration.js';
-import { LinkEventVisualCoordinator_v1 } from './LinkEventVisualCoordinator_v1.js';
 import { onLinkCreated, onLinkRemoved, applyMetricImpulse } from './src/metrics/NodeMetricEngine.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 // REMOVED: NodeCoreMaterialAuthority - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
@@ -622,13 +622,8 @@ export class NodeLinkingSystem {
       aura: true
     };
     
-    // [Session 112] Animated Link Flow - Data visualization between nodes
-    this.flowSystem = globalThis?.ATOMA_ENABLE_ANIMATED_LINK_FLOW === false
-      ? null
-      : new AnimatedLinkFlow(scene, camera);
-    
-    // [Phase 2] Link Event Visual Coordinator - Orchestrates visual suppression during events
-    this.eventCoordinator = new LinkEventVisualCoordinator_v1();
+    // REMOVED: AnimatedLinkFlow — moved to LEGACY/april (2026-04-22)
+    // REMOVED: LinkEventVisualCoordinator_v1 — moved to LEGACY/april (2026-04-22)
     
     // [Phase 2] Link Category Transition System - Handles creation animations
     
@@ -4697,13 +4692,9 @@ getLinksForNode(node) {
 
     // Lifecycle fan-out:
     // - callback registry: legacy-compatible listeners attached via linkCreatedCallbacks
-    // - newer event path: eventCoordinator / semantic bus consumers
     this._fireLinkCreatedCallbacks(sourceNode, targetNode, link);
 
-    // [Phase 2] Trigger Event Coordinator (suppresses node auras during link creation)
-    if (this.eventCoordinator) {
-      this.eventCoordinator.onLinkEvent(sourceNode, targetNode);
-    }
+    // REMOVED: LinkEventVisualCoordinator_v1.onLinkEvent — moved to LEGACY/april (2026-04-22)
 
     if (this.aiNodes && this.aiNodes.maybeSpawnNodeFromLinkCreation) {
       this.aiNodes.maybeSpawnNodeFromLinkCreation({
@@ -4860,9 +4851,7 @@ getLinksForNode(node) {
       LinkEmissionPulsingSystem.initializeLinkEmissionPulsing(link, link.traffic.load);
 
       this._fireLinkCreatedCallbacks(sourceNode, targetNode, link);
-      if (this.eventCoordinator) {
-        this.eventCoordinator.onLinkEvent(sourceNode, targetNode);
-      }
+      // REMOVED: LinkEventVisualCoordinator_v1.onLinkEvent — moved to LEGACY/april (2026-04-22)
       // categoryTransitionSystem removed (unused)
 
       if (traceEnabled) {
@@ -5247,10 +5236,7 @@ getLinksForNode(node) {
     
     this.links.push(link);
     
-    // [Session 112] Initialize animated link flow visualization
-    if (this.flowSystem) {
-      this.flowSystem.initializeLinkFlow(link, linkId);
-    }
+    // REMOVED: AnimatedLinkFlow.initializeLinkFlow — moved to LEGACY/april (2026-04-22)
     
     // [Metrics Integration v1.0] Register with visuals
     this.visuals.registerLink(link.id, link.group);
@@ -5900,10 +5886,7 @@ getLinksForNode(node) {
 
     // Conduit visuals are updated per-link below using frameState (single entry point)
     
-    // [Session 112] Update animated link flow animations
-    if (this.flowSystem) {
-      this.flowSystem.animate(deltaTime, time);
-    }
+    // REMOVED: AnimatedLinkFlow.animate — moved to LEGACY/april (2026-04-22)
 
     // [LinkGuard] Collect dead links for cleanup after iteration
     const deadLinks = [];
@@ -7718,16 +7701,7 @@ getLinksForNode(node) {
       }
     }
     
-    // [Session 112] Remove animated link flow visualization
-    if (this.flowSystem) {
-      if (link.id) {
-        this.flowSystem.removeLinkFlow(link.id);
-      }
-      // Fallback: handle legacy links lacking stable id or id mismatch
-      if (typeof this.flowSystem.removeLinkFlowByLink === 'function') {
-        this.flowSystem.removeLinkFlowByLink(link);
-      }
-    }
+    // REMOVED: AnimatedLinkFlow.removeLinkFlow — moved to LEGACY/april (2026-04-22)
     
     // [Metrics Integration v1.0] Unregister link from visual metrics system
     if (link.id && this.visuals) {

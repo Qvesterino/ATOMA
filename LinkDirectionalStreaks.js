@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { LinkPulseWaveInjector } from './LinkPulseWaveInjector.js';
-import LinkStreakColorDynamics from './LinkStreakColorDynamics_Session115.js';
-import { LinkDirectionalGradientPolish } from './LinkDirectionalGradientPolish.js';
+// REMOVED: LinkStreakColorDynamics — moved to LEGACY/april (2026-04-22)
+// REMOVED: LinkDirectionalGradientPolish — moved to LEGACY/april (2026-04-22)
 
 /**
  * LinkDirectionalStreaks
@@ -81,8 +81,7 @@ export class LinkDirectionalStreaks {
         
         // Lazily created helpers keep the constructor light and avoid front-loading
         // work that is only needed once streaks actually render.
-        this._colorDynamics = null;
-        this._gradientPolish = null;
+        // REMOVED: _colorDynamics, _gradientPolish — moved to LEGACY/april (2026-04-22)
         this._debugLoggingEnabled = false;
 
         // Reusable geometry buffers to avoid per-frame allocations.
@@ -100,22 +99,7 @@ export class LinkDirectionalStreaks {
         this._indicesBuffer = new Uint32Array(this._geometryBufferCapacity.maxIndices);
     }
 
-    _getColorDynamics() {
-        if (!this._colorDynamics) {
-            this._colorDynamics = new LinkStreakColorDynamics({
-                enabled: true,
-                debugMode: false
-            });
-        }
-        return this._colorDynamics;
-    }
-
-    _getGradientPolish() {
-        if (!this._gradientPolish) {
-            this._gradientPolish = new LinkDirectionalGradientPolish();
-        }
-        return this._gradientPolish;
-    }
+    // REMOVED: _getColorDynamics(), _getGradientPolish() — moved to LEGACY/april (2026-04-22)
 
     /**
      * Initialize streaks for a single link
@@ -283,20 +267,7 @@ export class LinkDirectionalStreaks {
         }
         
         // --- COMPUTE STATE-DRIVEN PARAMETERS ---
-        let gradientSample = null;
-        const gradientPolish = link?.id ? this._getGradientPolish() : null;
-        if (gradientPolish && link?.id) {
-            gradientPolish._computeLinkGradient({
-                id: link.id,
-                synergy,
-                harmony,
-                corruption,
-                stability,
-                active: true,
-                mesh: streaks.mesh
-            });
-            gradientSample = gradientPolish.getGradientAtT(link.id, 0.35);
-        }
+        // REMOVED: gradientPolish computation — moved to LEGACY/april (2026-04-22)
         
         // Synergy controls speed and count
         const synergyVisual = Math.max(0.7, synergy);
@@ -663,22 +634,7 @@ export class LinkDirectionalStreaks {
                     color.lerp(resolvedTargetColor, 0.3);
                 }
 
-                // === NEW (Session 115): Apply color dynamics based on harmony + specialization ===
-                const dynamicColor = this._getColorDynamics().computeStreakColor(
-                    color,
-                    harmony,
-                    specialization,
-                    corruption,
-                    synergy
-                );
-                color.copy(dynamicColor);
-
-                if (gradientSample) {
-                    color.multiplyScalar(gradientSample.brightness || 1.0);
-                    color.getHSL(this._hsl);
-                    this._hsl.s = THREE.MathUtils.clamp(this._hsl.s * (gradientSample.saturation || 1.0), 0, 1);
-                    color.setHSL(this._hsl.h, this._hsl.s, this._hsl.l);
-                }
+                // REMOVED: color dynamics + gradient polish — moved to LEGACY/april (2026-04-22)
 
                 // Apply pulse saturation boost (on top of color dynamics)
                 if (pulseEffectData && pulseEffectData.hasPulse && pulseEffectData.saturation > 0) {
@@ -810,10 +766,7 @@ export class LinkDirectionalStreaks {
     dispose(streaks) {
         if (!streaks) return;
 
-        const gradientPolish = this._gradientPolish;
-        if (gradientPolish && streaks.linkId) {
-            gradientPolish.linkGradients.delete(streaks.linkId);
-        }
+        // REMOVED: gradientPolish cleanup — moved to LEGACY/april (2026-04-22)
         
         if (streaks.geometry) {
             streaks.geometry.dispose();
