@@ -54,9 +54,7 @@ import { MemoryLane } from './MemoryLane.js';
 import { EnvironmentDomainController } from './EnvironmentDomainController.js';
 import { AINodes } from './AINodes.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
-import { ArchetypeVisualProfiles } from './ArchetypeVisualProfiles_v1.js';
-import { ArchetypeVisualDifferentiationSystem_v1 } from './ArchetypeVisualDifferentiationSystem_v1.js';
-import { patchArchetypeVisuals } from './ArchetypeVisualIntegrationPatch_v1.js';
+// REMOVED: ArchetypeVisualProfiles, ArchetypeVisualDifferentiationSystem, patchArchetypeVisuals — moved to LEGACY/april (2026-04-22)
 import { AtomaAudioSystem } from './AtomaAudioSystem.js';
 import { AtomaAudioModulation } from './AtomaAudioModulation.js';
 import { registerAtomaAudioEventManifest } from './AtomaAudioEventManifest.js';
@@ -74,7 +72,7 @@ import { PHASE5_MultiNetworkManager, PHASE5_NetworkSynchronization, PHASE5_Multi
 import PHASE5_CorruptionBridge from './PHASE5_CorruptionBridge_v1.js';
 import { TIER4_CorruptionFeedbackVisuals } from './TIER4_CorruptionFeedbackVisuals_v1.js';
 import { CorruptionVisualFX_v1 } from './CorruptionVisualFX_v1.js';
-import { CorruptionDrivenAuraDesaturationSystem } from './CorruptionDrivenAuraDesaturationSystem.js';
+// REMOVED: CorruptionDrivenAuraDesaturationSystem — moved to LEGACY/april (2026-04-22)
 import './Engine/Debug/FXDebugSandbox.js';
 // REMOVED (2026-03-01): ShaderFreezeGuard disabled for new visual modules
 // import { installShaderFreezeGuard, warmupAllVisualVariants } from './Engine/Debug/ShaderFreezeGuard.js';
@@ -1043,7 +1041,7 @@ import { LinkAuraSystem_v1 } from './LEGACY/aura/LinkAuraSystem_v1.js';
 // SYNERGY VISUAL EFFECTS — Pure world-space visual feedback
 // Non-intrusive breathing pulse + visual time elasticity on extreme synergy
 // ============================================================================
-import { SynergyPulseVisuals_v1, validateSynergyPulseVisuals } from './SynergyPulseVisuals_v1.js';
+// REMOVED: SynergyPulseVisuals_v1 — moved to LEGACY/april (2026-04-22)
 import { VisualNetworkTimeElasticity_v1, validateVisualNetworkTimeElasticity } from './VisualNetworkTimeElasticity_v1.js';
 import { HarmonicResonanceCoupling_v1 } from './HarmonicResonanceCoupling_v1.js';
 import { HarmonicHubAuraSystem_Session126 } from './HarmonicHubAuraSystem_Session126.js';
@@ -1051,7 +1049,7 @@ import { HarmonicInfluencePropagationSystem_Session127 } from './HarmonicInfluen
 import { LinkResonanceFlowSystem_Session124 } from './LinkResonanceFlowSystem_Session124.js';
 import { applyLinkResonanceFlowHarmonyIntegration } from './LinkResonanceFlowIntegrationPatch_Session124.js';
 import { applyEchoRippleIntegration } from './EchoRippleIntegrationPatch_Session125.js';
-import { applyCorruptionDesaturationIntegration } from './CorruptionDesaturationIntegrationPatch.js';
+// REMOVED: CorruptionDesaturationIntegrationPatch — moved to LEGACY/april (2026-04-22)
 import { HarmonicCascadeAmplification_Session145, setupCascadeConsoleAPI } from './HarmonicCascadeAmplification_Session145.js';
 import { CascadeBurstVisual_Session147 } from './CascadeBurstVisual_Session147.js';
 import { HarmonicPhaseSynchronization_Session146, setupPhaseSyncConsoleAPI } from './HarmonicPhaseSynchronization_Session146.js';
@@ -1251,10 +1249,7 @@ import { NodeShaderActivation_v1 } from './NodeShaderActivation_v1.js';
 // ============================================================================
 import { LinkPersonalityStateMachine_v1 } from './LinkPersonalityStateMachine_v1.js';
 
-// ============================================================================
-// WEEK 19: SYNERGY BONUS VISUALIZATION (High-Synergy Link Effects)
-// ============================================================================
-import { SynergyBonusVisualization_v1 } from './SynergyBonusVisualization_v1.js';
+// REMOVED: SynergyBonusVisualization_v1 — moved to LEGACY/april (2026-04-22)
 
 // ============================================================================
 // WEEK 19 (ALT): SYNERGY BONUS FX LAYER (GPU-Based Synergy Flares)
@@ -1276,10 +1271,7 @@ import { ResonanceFeedback_v1 } from './ResonanceFeedback_v1.js';
 // ============================================================================
 import { SynergyChainReaction_v1 } from './SynergyChainReaction_v1.js';
 
-// ============================================================================
-// WEEK 22B: SYNERGY CASCADE FX BRIDGE (Cascade → Shader Effects)
-// ============================================================================
-import { SynergyCascadeFXBridge_v1 } from './SynergyCascadeFXBridge_v1.js';
+// REMOVED: SynergyCascadeFXBridge_v1 — moved to LEGACY/april (2026-04-22)
 
 // ============================================================================
 // WEEK 25 (BONUS): WAVE INTERFERENCE ENGINE (Multi-Origin Wave System)
@@ -4696,9 +4688,7 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             this.nodeAuraRenderer?.update?.(dt);
         }, 'visual.nodeAuraRenderer');
-        this.frameScheduler.register('visual', (dt) => {
-            this.corruptionAuraDesaturation?.update?.(dt);
-        }, 'visual.corruptionAuraDesaturation');
+        // REMOVED: corruptionAuraDesaturation frame scheduler — moved to LEGACY/april (2026-04-22)
         this.frameScheduler.register('visual', () => {
             this.corruptionDesaturation?.update?.();
         }, 'visual.corruptionDesaturation');
@@ -4717,15 +4707,7 @@ class AtomaGame {
                 this.synergyResonanceShaderPack.update(dt, this.nodeLinking.links || []);
             }
         }, 'visual.synergyResonanceShaderPack');
-        this.frameScheduler.register('visual', (dt) => {
-            if (this.synergyCascadeFXBridge && this.aiNodes && this.linkingSystem) {
-                this.synergyCascadeFXBridge.update(
-                    dt,
-                    this.aiNodes.nodes || [],
-                    this.linkingSystem.links || []
-                );
-            }
-        }, 'visual.synergyCascadeFXBridge');
+        // REMOVED: synergyCascadeFXBridge frame scheduler — moved to LEGACY/april (2026-04-22)
         this.frameScheduler.register('visual', (dt) => this.fxRuntime_v1?.update?.(dt), 'visual.fxRuntime_v1');
         this.frameScheduler.register('visual', (dt) => this.personalityShaderBridge?.update?.(dt), 'visual.personalityShaderBridge');
         this.frameScheduler.register('visual', (dt) => this.advancedShaderFX?.update?.(dt), 'visual.advancedShaderFX');
@@ -4841,13 +4823,7 @@ class AtomaGame {
                 this.visualNetworkTimeElasticityTick(this._pendingElasticityDt);
             }
         }, 'simulation.visualNetworkTimeElasticity');
-        this.frameScheduler.register('visual', () => {
-            if (!VISUAL_SYSTEMS_ENABLED) return;
-            if (this._runSynergyPulsePending) {
-                this._runSynergyPulsePending = false;
-                this.synergyPulseVisualsTick(this._pendingSynergyPulseDt);
-            }
-        }, 'visual.synergyPulseVisuals');
+        // REMOVED: synergyPulseVisuals frame scheduler — moved to LEGACY/april (2026-04-22)
         this.frameScheduler.register('visual', () => {
             if (this._runVisualSemanticPending) {
                 this._runVisualSemanticPending = false;
@@ -5577,8 +5553,7 @@ this.setHudDirty('nodeInspect');
         // Week 18 (Alt) Link Personality State Machine (dynamic link personalities)
         this.linkPersonalityStateMachine = null;
 
-        // Week 19 Synergy Bonus Visualization (high-synergy link effects)
-        this.synergyBonusVisualization = null;
+        // REMOVED: synergyBonusVisualization — moved to LEGACY/april (2026-04-22)
 
         // Week 19 (Alt) Synergy Bonus FX Layer (GPU-based synergy flares)
         this.synergyBonusFXLayer = null;
@@ -5592,8 +5567,7 @@ this.setHudDirty('nodeInspect');
         // Week 22 Synergy Chain Reactions (emergent cascade events)
         this.synergyChainReaction = null;
 
-        // Week 22B Synergy Cascade FX Bridge (cascade → shader effects)
-        this.synergyCascadeFXBridge = null;
+        // REMOVED: synergyCascadeFXBridge — moved to LEGACY/april (2026-04-22)
 
         // Synergy Highways (route computation) + 3D highway visuals
         this.synergyHighwayVisuals3D = null;
@@ -5678,7 +5652,7 @@ this.setHudDirty('nodeInspect');
         // ====================================================================
         this.nodeAuraRenderer = null;
         this.linkAuraSystem = null;
-        this.corruptionAuraDesaturation = null;
+        // REMOVED: corruptionAuraDesaturation — moved to LEGACY/april (2026-04-22)
 
         // ====================================================================
         // PHASE 3C WEEK 10: LINK AURA SYSTEM
@@ -5780,7 +5754,7 @@ this.setHudDirty('nodeInspect');
         // SYNERGY VISUAL EFFECTS v1.0 — Pure world-space visual feedback
         // Soft pulse + visual time elasticity (zero gameplay impact)
         // ====================================================================
-        this.synergyPulseVisuals = null;           // Simple breathing pulse effect
+        // REMOVED: synergyPulseVisuals — moved to LEGACY/april (2026-04-22)
         this.visualNetworkTimeElasticity = null;  // Extreme synergy time reversal effect
         this.harmonicResonanceCoupling = null;    // Synergy-driven link resonance coupling
         this.harmonicHubAuraSystem = null;        // Harmonic hub resonance fields (Session 126)
@@ -6434,11 +6408,7 @@ this.setHudDirty('nodeInspect');
         // --- Setup global double-click fallback ---
         this.setupDoubleClickFallback();
 
-        // ========================================================================
-        // SYNERGY VISUAL EFFECTS v1.0 - Pure world-space visual feedback
-        // Soft breathing pulse + visual time elasticity (zero gameplay impact)
-        // ========================================================================
-        this.setupSynergyPulseVisuals();
+        // REMOVED: setupSynergyPulseVisuals() — moved to LEGACY/april (2026-04-22)
         this.setupVisualNetworkTimeElasticity();
         this.setupHarmonicResonanceCoupling();
         this.setupHarmonicHubAuraSystem();
@@ -8355,9 +8325,7 @@ window.__ATOMA_SCENE__ = this.scene;
         // REMOVED: TASK 3 Rare Node Verification Tracker - moved to LEGACY (2026-04-03)
         // setupRareNodeVerificationTracker(this.aiNodes);
         
-        // Archetype Visual System – Activation
-        const archetypeVisualSystem = patchArchetypeVisuals(this.aiNodes, true);
-        console.log('✅ Archetype Visual System enabled (debug mode ON)');
+        // REMOVED: patchArchetypeVisuals — moved to LEGACY/april (2026-04-22)
         // Optional: first-spawn program-count log (guarded by PROGRAM_LOG)
         let __loggedFirstSpawn = false;
         const originalCreateNode = this.aiNodes.createNode.bind(this.aiNodes);
@@ -9193,8 +9161,7 @@ window.__ATOMA_SCENE__ = this.scene;
             this.linkingSystem,
             { enabled: true }  // Feature flag - enabled by default
         );
-        this.corruptionAuraDesaturation =
-            new CorruptionDrivenAuraDesaturationSystem(this.aiNodes);
+        // REMOVED: CorruptionDrivenAuraDesaturationSystem — moved to LEGACY/april (2026-04-22)
         
         // Wire orchestrator to linking system for effect registration
         this.linkingSystem.effectOrchestrator = this.effectOrchestrator;
@@ -10462,25 +10429,7 @@ window.__ATOMA_SCENE__ = this.scene;
             console.warn('[main.js] LinkPersonalityStateMachine_v1 failed:', err);
         }
 
-        // ====================================================================
-        // WEEK 19: SYNERGY BONUS VISUALIZATION (High-Synergy Link Effects)
-        // ====================================================================
-        // Initialize SynergyBonusVisualization_v1 (compute derived synergy visuals from canonical link.userData.synergy)
-        // This system highlights high-synergy links with dynamic visual effects
-        // Evaluates 1500+ links in <1ms with multi-tier EMA smoothing
-        // Outputs: link.userData.visualMetrics.synergyBonus (tier, pulseStrength, chromaShift, resonanceRipples)
-        // Reads from: canonical link.userData.synergy.{score, synergyNorm}
-        try {
-            this.synergyBonusVisualization = new SynergyBonusVisualization_v1({
-                debugEnabled: false
-            });
-            if (this.linkingSystem?.conduitRenderer) {
-                this.linkingSystem.conduitRenderer.synergyBonusVisualization = this.synergyBonusVisualization;
-            }
-            console.log('[main.js] SynergyBonusVisualization_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] SynergyBonusVisualization_v1 failed:', err);
-        }
+        // REMOVED: SynergyBonusVisualization_v1 initialization — moved to LEGACY/april (2026-04-22)
 
         // ====================================================================
         // WEEK 19 (ALT): SYNERGY BONUS FX LAYER (GPU-Based Synergy Flares)
@@ -10642,36 +10591,7 @@ window.__ATOMA_SCENE__ = this.scene;
         this.frameScheduler.register('visual', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt), 'visual.phase5CascadeVisualizationBridge');
         // REMOVED: preCascadeVisualHint frame scheduler — moved to LEGACY/april (2026-04-22)
 
-        // ====================================================================
-        // WEEK 22B: SYNERGY CASCADE FX BRIDGE (Cascade → Shader Effects)
-        // ====================================================================
-        // Initialize SynergyCascadeFXBridge_v1 (cascade event → shader signals)
-        // This system converts chain reaction events into GPU-friendly shader signals
-        // Connects cascade propagation to visual effects (pulses, waves, glows, distortions)
-        // Sends signals to: resonance shaders, bonus FX, auras, archetype systems
-        // Reads from: SynergyChainReaction_v1.getActiveReactions()
-        // Outputs: GPU cascade visual reactions (radial pulse, line waves, flashes, spikes)
-        try {
-            this.synergyCascadeFXBridge = new SynergyCascadeFXBridge_v1({
-                debugEnabled: false,
-                enableNodeGlow: true,           // Node aura cascade glow
-                enableLinkWaves: true,          // Link traveling waves
-                enableResonanceMode: true,      // Multi-freq resonance effects
-                enableArchetypeBoost: true,     // Archetype-specific cascade boost
-                maxNodesPerFrame: null,         // No frame limit
-                maxLinksPerFrame: null          // No frame limit
-            });
-            
-            // Register event source
-            this.synergyCascadeFXBridge.registerEventSource(this.synergyChainReaction);
-            
-            // Register target shader systems (will be available after initialization)
-            // These are registered in a second pass after all systems are initialized
-            
-            console.log('[main.js] SynergyCascadeFXBridge_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] SynergyCascadeFXBridge_v1 failed:', err);
-        }
+        // REMOVED: SynergyCascadeFXBridge_v1 initialization — moved to LEGACY/april (2026-04-22)
 
         // ====================================================================
         // WEEK 27: WAVE PARTICLE EMITTER (GPU-Reactive Particle FX)
@@ -10970,35 +10890,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // WEEK 22B: CASCADE FX BRIDGE TARGET SYSTEM REGISTRATION
         // ====================================================================
         // Second pass: Register all target shader systems with cascade bridge
-        // This must happen after all systems are initialized
-        if (this.synergyCascadeFXBridge) {
-            try {
-                if (this.cascadeVisualizer) {
-                    this.synergyCascadeFXBridge.registerTargetSystem('cascadeVisualizer', this.cascadeVisualizer);
-                }
-                if (this.synergyBonusFXLayer) {
-                    this.synergyCascadeFXBridge.registerTargetSystem('bonusFXLayer', this.synergyBonusFXLayer);
-                }
-                if (this.nodeAuraSystem) {
-                    this.synergyCascadeFXBridge.registerTargetSystem('nodeAuraSystem', this.nodeAuraSystem);
-                }
-                if (this.linkAuraSystem) {
-                    this.synergyCascadeFXBridge.registerTargetSystem('linkAuraSystem', this.linkAuraSystem);
-                }
-                if (this.nodeShaderActivation) {
-                    this.synergyCascadeFXBridge.registerTargetSystem('nodeShaderActivation', this.nodeShaderActivation);
-                }
-                if (this.archetypeShaderModes) {
-                    this.synergyCascadeFXBridge.registerTargetSystem('archetypeShaderModes', this.archetypeShaderModes);
-                }
-                if (this.synergyTravelingWaveFX) {
-                    this.synergyCascadeFXBridge.registerTargetSystem('travelingWaveFX', this.synergyTravelingWaveFX);
-                }
-                console.log('[main.js] SynergyCascadeFXBridge target systems registered ✓');
-            } catch (err) {
-                console.warn('[main.js] Cascade FX Bridge target registration failed:', err);
-            }
-        }
+        // REMOVED: synergyCascadeFXBridge target system registration — moved to LEGACY/april (2026-04-22)
 
         // ====================================================================
         // CRITICAL VISUAL INTEGRITY ENFORCEMENT (Session X)
@@ -11479,15 +11371,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
     }
 
-    synergyPulseVisualsTick(deltaTime) {
-        // Update synergy pulse visuals (soft breathing pulse when synergy > 0.6)
-        if (this.synergyPulseVisuals) {
-            const visualMetrics = getCachedVisualMetrics() || this.nodeDynamicMetrics || {};
-            const avgSynergy = visualMetrics.avgSynergy ?? visualMetrics.networkSynergy ?? 0.0;
-            this.synergyPulseVisuals.setAverageSynergy(avgSynergy);
-            this.synergyPulseVisuals.update(deltaTime, this.time);
-        }
-    }
+    // REMOVED: synergyPulseVisualsTick() — moved to LEGACY/april (2026-04-22)
 
     harmonicResonanceCouplingTick(deltaTime) {
         // Update harmonic resonance coupling (synergy-driven link resonance particles & effects)
@@ -11686,12 +11570,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.visualNetworkTimeElasticityTick?.(this._pendingElasticityDt);
             }
         });
-        regGuard('synergyPulseVisuals', 'visual.synergyPulseVisuals', (_dt) => {
-            if (this._runSynergyPulsePending) {
-                this._runSynergyPulsePending = false;
-                this.synergyPulseVisualsTick?.(this._pendingSynergyPulseDt);
-            }
-        });
+        // REMOVED: synergyPulseVisuals regGuard — moved to LEGACY/april (2026-04-22)
         regGuard('harmonicResonanceCoupling', 'visual.harmonicResonanceCoupling', (_dt) => {
             if (this._runHarmonicResonancePending) {
                 this._runHarmonicResonancePending = false;
@@ -11804,15 +11683,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
         });
 
-        regGuard('synergyCascadeFXBridge', 'visual.synergyCascadeFXBridge', (dt) => {
-            if (this.synergyCascadeFXBridge && this.aiNodes && this.nodeLinking) {
-                this.synergyCascadeFXBridge.update(
-                    dt,
-                    this.aiNodes.nodes || [],
-                    this.nodeLinking.links || []
-                );
-            }
-        });
+        // REMOVED: synergyCascadeFXBridge regGuard — moved to LEGACY/april (2026-04-22)
 
 
 
@@ -16106,21 +15977,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
     }
 
-    /**
-     * Setup Synergy Pulse Visuals v1.0
-     * Simple breathing pulse effect on nodes when synergy > 0.6
-     */
-    setupSynergyPulseVisuals() {
-        this.synergyPulseVisuals = new SynergyPulseVisuals_v1();
-        
-        // Register all current nodes
-        if (this.aiNodes && this.aiNodes.nodes) {
-            this.synergyPulseVisuals.registerNodes(this.aiNodes.nodes);
-        }
-        
-        validateSynergyPulseVisuals();
-        console.log('✓ Synergy Pulse Visuals v1.0 initialized');
-    }
+    // REMOVED: setupSynergyPulseVisuals() — moved to LEGACY/april (2026-04-22)
     
     /**
      * Setup Harmonic Resonance Coupling v1.0
@@ -16398,25 +16255,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 console.warn('⚠ EchoRippleIntegration failed:', err);
             }
             
-            // Apply corruption desaturation integration
-            // Visually desaturates corrupted parts of the network
-            try {
-                const nodes = this.aiNodes?.nodes || [];
-                const links = this.linkingSystem?.links || [];
-                this.corruptionDesaturation = applyCorruptionDesaturationIntegration(
-                    this.scene,
-                    nodes,
-                    links,
-                    {
-                        desaturationStrength: 0.7,
-                        enabled: true,
-                        debugMode: false
-                    }
-                );
-                console.log('✓ CorruptionDesaturationIntegration applied');
-            } catch (err) {
-                console.warn('⚠ CorruptionDesaturationIntegration failed:', err);
-            }
+            // REMOVED: applyCorruptionDesaturationIntegration — moved to LEGACY/april (2026-04-22)
         } catch (err) {
             console.warn('⚠ Link Resonance Flow System initialization failed:', err);
         }

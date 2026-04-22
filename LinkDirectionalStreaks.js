@@ -490,7 +490,7 @@ export class LinkDirectionalStreaks {
         }
         
         // --- UPDATE GEOMETRY BUFFER ---
-        this._updateGeometryBuffer(streaks, vertexCursor, indexCursor, activeStreakCount, harmony, corruption, desaturation, baseColor, targetColor, pulseEffectData, synergy, resolvedSpecialization, gradientSample);
+        this._updateGeometryBuffer(streaks, vertexCursor, indexCursor, activeStreakCount, harmony, corruption, desaturation, baseColor, targetColor, pulseEffectData, synergy, resolvedSpecialization, null);
         
         // --- UPDATE MATERIAL WITH PULSE EFFECTS ---
         if (streaks.material) {
@@ -502,9 +502,7 @@ export class LinkDirectionalStreaks {
                 baseBrightness += pulseEffectData.intensityBoost;
                 baseOpacity *= Math.max(1.0, pulseEffectData.alphaBoost);
             }
-            if (gradientSample) {
-                baseBrightness += gradientSample.emissiveBoost || 0;
-            }
+            // REMOVED: gradientSample emissiveBoost — moved to LEGACY/april (2026-04-22)
 
             streaks.material.emissiveIntensity = baseBrightness;
             streaks.material.opacity = THREE.MathUtils.clamp(baseOpacity, 0.28, 0.85);
