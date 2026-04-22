@@ -12,7 +12,7 @@ import { LinkPulseDustEmitter } from './LinkPulseDustEmitter.js';
 import { LinkRingArcDischarges } from './LinkRingArcDischarges.js';
 import { LinkVisualStateAdapter } from './LinkVisualStateAdapter.js';
 import { NodeInterferenceManager } from './NodeInterferenceManager.js';
-import { NodeHarmonicManager } from './NodeHarmonicManager.js';
+import { NodeHarmonicManager } from './HarmonicHubSync.js';
 import { LinkDirectionalStreaks } from './LinkDirectionalStreaks.js';
 import { LinkCorruptionSpreadAnimator } from './LinkCorruptionSpreadAnimator.js';
 import { LinkCorruptionParticleSystem } from './LinkCorruptionParticleSystem.js';

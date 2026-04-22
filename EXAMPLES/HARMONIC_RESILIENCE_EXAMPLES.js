@@ -5,7 +5,7 @@
  * All examples follow zero-allocation, adapter-only patterns.
  */
 
-import { HarmonicHubResilienceController } from './HarmonicHubResilienceController.js';
+import { HarmonicHubResilienceController } from './HarmonicHubLifecycle.js';
 
 // ============================================================================
 // 1. SETUP & INITIALIZATION

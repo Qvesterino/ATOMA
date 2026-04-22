@@ -5,7 +5,7 @@
  * 10 complete working examples showing all patterns
  */
 
-import { HarmonyStabilizationIntegrationPatch_v1 } from './HarmonyStabilizationIntegrationPatch_v1.js';
+import { HarmonyStabilizationIntegrationPatch_v1 } from './HarmonyStabilization.js';
 
 // ============================================================================
 // EXAMPLE 1: MINIMAL INTEGRATION

@@ -510,12 +510,10 @@ import { SafeColonyExpansion2 } from './SafeColonyExpansion2.js';
 import { SafeDreamDepthPack } from './SafeDreamDepthPack.js';
 import { DreamDepthEffectManager } from './DreamDepthEffectManager.js';
 import { SafeMobilityPack4 } from './SafeMobilityPack4.js';
-import { NodeVisuals4_0 } from './_NodeVisuals4_0.js';
 // REMOVED: _SIMULATION_INVARIANT_ENFORCEMENT - moved to LEGACY (2026-04-08)
 // REMOVED: _TASK_AUDIT_DEBUG_HELPERS - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 // REMOVED: _TASK_3_RARE_NODE_VERIFICATION - moved to LEGACY (2026-04-03)
 // import { setupRareNodeVerificationTracker } from './_TASK_3_RARE_NODE_VERIFICATION.js';
-import { NodeEvolution2_0 } from './_NodeEvolution2_0.js';
 import { SessionVariantEngine } from './SessionVariantEngine.js';
 import { setSessionVariantEngine } from './EnhancedNodeModels.js';
 
@@ -806,7 +804,7 @@ import { StressBasedParticleScaler_v1, setupStressParticleScalerConsoleAPI } fro
 // Accelerates particles based on cascade layer depth, creating visual
 // stratification that communicates network hierarchy through motion patterns
 // ============================================================================
-import { CascadingHarmonicResonanceAmplification } from './CascadingHarmonicResonanceAmplification.js';
+import { CascadingHarmonicResonanceAmplification } from './HarmonicHubCascade.js';
 // REMOVED: ParticleStreamCascadeAcceleration, ParticleCascadeFlowDeflection,
 //   ParticleStreamCascadeAccelerationIntegrationPatch, ParticleStreamCascadeAccelerationIntegrationSetup
 //   — moved to LEGACY/april (2026-04-22)
@@ -1052,7 +1050,7 @@ import { applyEchoRippleIntegration } from './EchoRippleIntegrationPatch_Session
 // REMOVED: CorruptionDesaturationIntegrationPatch — moved to LEGACY/april (2026-04-22)
 import { HarmonicCascadeAmplification_Session145, setupCascadeConsoleAPI } from './HarmonicCascadeAmplification_Session145.js';
 import { CascadeBurstVisual_Session147 } from './CascadeBurstVisual_Session147.js';
-import { HarmonicPhaseSynchronization_Session146, setupPhaseSyncConsoleAPI } from './HarmonicPhaseSynchronization_Session146.js';
+import { HarmonicPhaseSynchronization_Session146, setupPhaseSyncConsoleAPI } from './HarmonicHubCascade.js';
 // REMOVED: PreCascadeVisualHint_Session146 — moved to LEGACY/april (2026-04-22)
 import { HarmonicNodeResonanceHalos } from './HarmonicNodeResonanceHalos.js';
 import { HarmonicHubDebugger } from './Engine/Debug/HarmonicHubDebugger.js';
@@ -1063,8 +1061,8 @@ import { VisualEchoTrails_v1, VisualEchoTrails_v1_Integration, setupVisualEchoTr
 // Core active mechanics: corruption propagation + harmony stabilization
 // ============================================================================
 import { LinkCorruptionTransmission_v1 } from './LinkCorruptionTransmission_v1.js';
-import { HarmonyStabilizationSystem_v1 } from './HarmonyStabilizationSystem_v1.js';
-import { applyHarmonyStabilizationIntegration } from './HarmonyStabilizationIntegrationPatch_v1.js';
+import { HarmonyStabilizationSystem_v1 } from './HarmonyStabilization.js';
+import { applyHarmonyStabilizationIntegration } from './HarmonyStabilization.js';
 // REMOVED: _T4003_CORRUPTION_CASCADE_TEST_RUNNER - moved to LEGACY (2026-04-08)
 // REMOVED: T4004_HARMONY_HEALING_TEST_RUNNER - moved to DELETE/cleanup (2026-04-18)
 
@@ -4660,9 +4658,6 @@ class AtomaGame {
         this.frameScheduler.register('simulation', (dt) => {
             this.colonyManager?.update?.(dt);
         }, 'simulation.colonyManager');
-        this.frameScheduler.register('visual', (dt) => {
-            this.nodeEvolution?.update?.(dt, {}, this.linkingSystem);
-        }, 'visual.nodeEvolution');
         this.frameScheduler.register('simulation', (dt) => {
             this.nodePersonality?.update?.(dt, this.time);
         }, 'simulation.nodePersonality');
@@ -4738,7 +4733,6 @@ class AtomaGame {
             this.dreamDepthEffects?.update?.(dt);
         }, 'visual.dreamDepthEffects');
         this.frameScheduler.register('visual', (dt) => this.mobilityPack?.update?.(dt), 'visual.mobilityPack');
-        this.frameScheduler.register('visual', (dt) => this.nodeVisuals4?.update?.(dt), 'visual.nodeVisuals4');
         // REMOVED: extremeShaderTestSuite - moved to LEGACY (2026-04-03)
         // this.frameScheduler.register('visual', (dt) => this.extremeShaderTestSuite?.update?.(dt), 'visual.extremeShaderTestSuite');
         this.frameScheduler.register('visual', (dt) => this.newNodeCategories?.update?.(dt, this.time), 'visual.newNodeCategories');
@@ -5993,8 +5987,6 @@ this.setHudDirty('nodeInspect');
         // REMOVED: this.setupMemoryTrails(); - moved to LEGACY/GRAVEYARD (2026-04-05)
         this.setupColonyManager();
         this.setupMobilityPack();
-        this.setupNodeVisuals4();
-        this.setupNodeEvolution();
         // DISABLED: this.setupNodeArchetypesPack(); // System permanently disconnected
         // DISABLED: this.setupEvolvingLinkFX(); // moved to LEGACY (2026-04-03)
         this.setupNodePersonality();
@@ -7714,14 +7706,6 @@ window.__ATOMA_SCENE__ = this.scene;
             }
         } catch (err) {
             console.warn('[main.js] LinkRendererConduit rebind failed:', err?.message || err);
-        }
-
-        try {
-            if (this.nodeVisuals4 && typeof this.nodeVisuals4.setLinkingSystem === 'function') {
-                this.nodeVisuals4.setLinkingSystem(linkingSystem);
-            }
-        } catch (err) {
-            console.warn('[main.js] NodeVisuals4_0 linkingSystem update failed:', err?.message || err);
         }
 
         try {
@@ -11719,7 +11703,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('phase5CascadeVisualizationBridge', 'visual.phase5CascadeVisualizationBridge', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt));
         // REMOVED: preCascadeVisualHint regGuard — moved to LEGACY/april (2026-04-22)
         regGuard('nodeHierarchyBridge', 'simulation.nodeHierarchyBridge', () => this.nodeHierarchyBridge?.update?.());
-        regGuard('nodeEvolution', 'visual.nodeEvolution', (dt) => this.nodeEvolution?.update?.(dt, {}, this.linkingSystem));
         regGuard('legendaryPack', 'visual.legendaryPack', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer));
         regGuard('legendaryLinkFX', 'visual.legendaryLinkFX', (dt) => this.legendaryLinkFX?.update?.(dt, this.scene, this.camera, this.renderer));
         regGuard('worldEvents', 'background.worldEvents', (dt) => {
@@ -11747,8 +11730,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.dreamDepthEffects?.update?.(dt);
         });
         regGuard('mobilityPack', 'visual.mobilityPack', (dt) => this.mobilityPack?.update?.(dt));
-        regGuard('nodeVisuals4', 'visual.nodeVisuals4', (dt) => this.nodeVisuals4?.update?.(dt));
-        regGuard('nodeEvolution', 'visual.nodeEvolution', (dt) => this.nodeEvolution?.update?.(dt, {}, this.linkingSystem));
         regGuard('evolvingLinkFX', 'visual.evolvingLinkFX', (dt) => this.evolvingLinkFX?.update?.(dt, null, null));
         regGuard('nodePersonality', 'simulation.nodePersonality', (dt) => this.nodePersonality?.update?.(dt, this.time));
         // REMOVED: extremeShaderTestSuite - moved to LEGACY (2026-04-03)
@@ -13415,11 +13396,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             return;
         }
 
-        this.nodeVisuals4 = new NodeVisuals4_0(this.scene, this.linkingSystem ?? this.nodeLinkingSystem ?? this.nodeLinking ?? null);
-        this.nodeVisuals4.upgradeAllNodes(this.aiNodes.nodes);
-        this.nodeVisuals4.printStatusReport();
-
-        console.log('✓ Node Visuals 4.0 initialized');
+        console.log('⊗ Node Visuals 4.0 DISABLED (runtime kill switch)');
+        this.nodeVisuals4 = null;
+        return false;
     }
 
     /**
@@ -13436,18 +13415,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             return;
         }
 
-        this.nodeEvolution = new NodeEvolution2_0(this.scene, this.semanticBus);
-
-        // Register all current nodes for evolution tracking
-        this.aiNodes.nodes.forEach((node, index) => {
-            const nodeId = node.uuid || `node-${index}`;
-            this.nodeEvolution.registerNode(node, nodeId);
-            node.userData.originalPosition = node.position.clone();
-        });
-
-        this.nodeEvolution.printStatusReport();
-
-        console.log('✓ Node Evolution 2.0 initialized');
+        console.log('⊗ Node Evolution 2.0 DISABLED (runtime kill switch)');
+        this.nodeEvolution = null;
+        return false;
     }
 
     /**

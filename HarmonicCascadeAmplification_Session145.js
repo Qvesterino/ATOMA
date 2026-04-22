@@ -31,11 +31,9 @@
  * @version 2.0.0
  */
 
-import { HubProximityDetector } from './HubProximityDetector.js';
-import { HarmonicPhaseSynchronization_Session146 } from './HarmonicPhaseSynchronization_Session146.js';
+import { HubProximityDetector, HarmonicPhaseSynchronization_Session146, CascadingHarmonicResonanceAmplification } from './HarmonicHubCascade.js';
 // REMOVED: PreCascadeVisualHint_Session146 — moved to LEGACY/april (2026-04-22)
 import { CascadeResonanceWaveVisualization_Session146 } from './CascadeResonanceWaveVisualization_Session146.js';
-import { CascadingHarmonicResonanceAmplification } from './CascadingHarmonicResonanceAmplification.js';
 
 export class HarmonicCascadeAmplification_Session145 {
   /**
