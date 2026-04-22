@@ -77,7 +77,8 @@ export class CorruptionVisualFX_v1 {
     // DEV NOTE: Corruption visuals require realtime (RAF) visual time per AtomaShaderTimingContract.
     // VisualTime is the canonical source (Phase 2A); external time/delta params are maintained for legacy signatures only.
     this.visualTime = VisualTime;
-    this.corruptionShaderVariant = this._createCorruptionShaderVariant();
+    this.enableShaderDistortion = false;
+    this.corruptionShaderVariant = null;
     this._semanticSubscriptions = [];
     if (this.scene?.add) {
       this.scene.add(this.particleRoot);
@@ -449,7 +450,7 @@ export class CorruptionVisualFX_v1 {
    * Apply corruption shader distortion using precompiled uniforms only.
    */
   applyShaderDistortion(nodeModel, corruptionLevel, deltaTime) {
-    if (!THREE || !nodeModel?.traverse || !this.corruptionShaderVariant || !this._isNodeVisualTarget(nodeModel)) return;
+    if (!this.enableShaderDistortion || !THREE || !nodeModel?.traverse || !this.corruptionShaderVariant || !this._isNodeVisualTarget(nodeModel)) return;
 
     nodeModel.traverse((child) => {
       if (!child.isMesh || !child.material || this._isVisualOnlyMesh(child)) return;

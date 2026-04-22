@@ -547,10 +547,10 @@ import { MythicRitualController } from './_MythicRitualController.js';
 
 
 import { SimulationEffectOrchestrator } from './SimulationEffectOrchestrator.js';
-import { MythicSeedGlyph } from './_MythicSeedGlyph.js';
+// import { MythicSeedGlyph } from './_MythicSeedGlyph.js';  // LEGACY/april — disconnected 2026-04-22
 // REMOVED: LegacyDebugConeCleanup - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 // import { FractalHexMarker } from './_FractalHexMarker.js'; // DISABLED - legacy debug system
-import { LegacyGlyphCleanup } from './_LegacyGlyphCleanup.js';
+// import { LegacyGlyphCleanup } from './_LegacyGlyphCleanup.js';  // LEGACY/april — disconnected 2026-04-22
 import { AtomaGlyphSystem4_0 } from './_AtomaGlyphSystem4_0.js';
 import { GlyphLayer4_MultiFusion } from './_GlyphLayer4_MultiFusion.js';
 import { SemanticGlyphAI } from './_SemanticGlyphAI.js';
@@ -797,7 +797,7 @@ import { LinkMetricsToVisualBridge, setupLinkMetricsBridgeConsoleAPI } from './L
 // ============================================================================
 // SESSION 106+: STRESS-BASED PARTICLE SCALER (Particle effects from link stress)
 // ============================================================================
-import { StressBasedParticleScaler_v1, setupStressParticleScalerConsoleAPI } from './StressBasedParticleScaler_v1.js';
+// import { StressBasedParticleScaler_v1, setupStressParticleScalerConsoleAPI } from './StressBasedParticleScaler_v1.js';  // LEGACY/april — disconnected 2026-04-22
 
 // ============================================================================
 // PARTICLE STREAM CASCADE ACCELERATION (Layer-depth based particle dynamics)
@@ -1214,7 +1214,7 @@ import { PersonalityShaderEffects_Pack_v1 } from './PersonalityShaderEffects_Pac
 // PHASE 3C PERFORMANCE MODE (Centralized FX scaling controller)
 // ============================================================================
 import { FXPerformanceController_v1 } from './FXPerformanceController_v1.js';
-import { FXPerformanceScaler_v1 } from './FXPerformanceScaler_v1.js';
+// import { FXPerformanceScaler_v1 } from './FXPerformanceScaler_v1.js';  // LEGACY/april — disconnected 2026-04-22
 
 // ============================================================================
 // PHASE 3C ADAPTIVE PERFORMANCE MONITOR (FPS-based automatic LowFX toggle)
@@ -4299,11 +4299,12 @@ class AtomaGame {
             this._coreMaterialPropertyLockAcc = 0;
             this.coreMaterialPropertyLock?.enforceFrame?.();
         }, 'background.coreMaterialPropertyLock');
-        this.frameScheduler.register('simulation', (dt) => {
-            if (this.fxPerformanceScaler) {
-                this.fxPerformanceScaler.update(dt);
-            }
-        }, 'simulation.fxPerformanceScaler');
+        // LEGACY/april — FXPerformanceScaler disconnected 2026-04-22 (was multiplying by 1.0 every tick)
+        // this.frameScheduler.register('simulation', (dt) => {
+        //     if (this.fxPerformanceScaler) {
+        //         this.fxPerformanceScaler.update(dt);
+        //     }
+        // }, 'simulation.fxPerformanceScaler');
         this.frameScheduler.register('simulation', (dt) => {
             if (this.adaptivePerformanceMonitor) {
                 this.adaptivePerformanceMonitor.update(dt);
@@ -4480,9 +4481,9 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             this.linkMetricsToVisualBridge?.update?.(dt);
         }, 'visual.linkMetricsToVisualBridge');
-        this.frameScheduler.register('visual', (dt) => {
-            this.stressBasedParticleScaler?.update?.(dt);
-        }, 'visual.stressBasedParticleScaler');
+        // this.frameScheduler.register('visual', (dt) => {
+        //     this.stressBasedParticleScaler?.update?.(dt);
+        // }, 'visual.stressBasedParticleScaler');  // LEGACY/april
         this.frameScheduler.register('simulation', (dt) => {
             this.linkDegradationSystem?.update?.(dt);
         }, 'simulation.linkDegradationSystem');
@@ -4739,7 +4740,7 @@ class AtomaGame {
         // this.frameScheduler.register('visual', (dt) => this.extremeLinkVisuals?.update?.(dt), 'visual.extremeLinkVisuals');
         // this.frameScheduler.register('visual', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera), 'visual.extremeLinkVisuals4');
         this.frameScheduler.register('visual', (dt) => this.phase8RitualOrchestration?.update?.(dt * 1000), 'visual.phase8RitualOrchestration');
-        this.frameScheduler.register('visual', (dt) => this.mythicSeedGlyph?.update?.(dt, this.camera), 'visual.mythicSeedGlyph');
+        // this.frameScheduler.register('visual', (dt) => this.mythicSeedGlyph?.update?.(dt, this.camera), 'visual.mythicSeedGlyph');  // LEGACY/april
         // Infra/diagnostic: keep in visual for now to avoid sim cadence mismatch
         this.frameScheduler.register('visual', () => this.microImpulseAdapter?.update?.(), 'visual.microImpulseAdapter');
         // Safety net – low frequency; leave in visual until dedicated infra layer exists
@@ -5684,7 +5685,7 @@ this.setHudDirty('nodeInspect');
 
         // Phase 3c Performance Mode (centralized FX scaling controller)
         this.fxPerformance = null;
-        this.fxPerformanceScaler = null;
+        // this.fxPerformanceScaler = null;  // LEGACY/april — disconnected 2026-04-22
 
         // Phase 3c Adaptive Performance Monitor (automatic FPS-based LowFX toggling)
         this.adaptivePerformanceMonitor = null;
@@ -5764,7 +5765,7 @@ this.setHudDirty('nodeInspect');
         this.phase8RitualOrchestration = null;             // Initialized after wiring ready
 
         // Mythic Seed Glyph System (elegant visual markers)
-        this.mythicSeedGlyph = null; // Initialized after scene ready
+        // this.mythicSeedGlyph = null;  // LEGACY/april — disconnected 2026-04-22
 
         // Legacy Debug Cone Cleanup (removes old debug meshes)
         this.legacyConeCleanup = null; // Initialized after scene ready
@@ -7055,19 +7056,12 @@ window.__ATOMA_SCENE__ = this.scene;
         // Initialize Mythic Ritual Controller 1.0 (after world controller ready)
         this.mythicRitualController = this.environmentDomain?.instances?.mythicRitualController || this.mythicRitualController;
 
-        // Initialize Mythic Seed Glyph System (after scene ready)
-        this.mythicSeedGlyph = new MythicSeedGlyph(this.scene);
-
-        // Remove all old debug markers and yellow triangles
-        this.mythicSeedGlyph.removeOldMarkers();
-
-        // REMOVED: LegacyDebugConeCleanup - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
-
-        // Initialize Legacy Glyph Cleanup 1.0 (after scene ready)
-        // This removes ALL old 2D cyan hexagon debug markers and legacy slots
-        this.legacyGlyphCleanup = new LegacyGlyphCleanup(this.scene);
-        this.legacyGlyphCleanup.cleanupLegacyGlyphs();
-        this.legacyGlyphCleanup.printCleanupReport();
+        // LEGACY/april — MythicSeedGlyph + LegacyGlyphCleanup disconnected 2026-04-22
+        // this.mythicSeedGlyph = new MythicSeedGlyph(this.scene);
+        // this.mythicSeedGlyph.removeOldMarkers();
+        // this.legacyGlyphCleanup = new LegacyGlyphCleanup(this.scene);
+        // this.legacyGlyphCleanup.cleanupLegacyGlyphs();
+        // this.legacyGlyphCleanup.printCleanupReport();
 
         // DISABLED: Fractal Hex Marker System (legacy debug system - replaced by Glyph Slot System 2.0)
         // this.fractalHexMarker = new FractalHexMarker(this.scene);
@@ -9770,50 +9764,9 @@ window.__ATOMA_SCENE__ = this.scene;
         
         // ===================================================================
         // [SESSION 106+] STRESS-BASED PARTICLE SCALER - Particle scaling from link stress
-        // ===================================================================
-        // Scales link particle emission rates based on per-link stress values
-        // Higher stress = more/faster particles with color-coded feedback
-        this.stressBasedParticleScaler = null;
-        
-        setTimeout(() => {
-            if (!this.stressBasedParticleScaler && this.linkMetricsToVisualBridge && this.linkingSystem) {
-                try {
-                    this.stressBasedParticleScaler = new StressBasedParticleScaler_v1(
-                        this.linkMetricsToVisualBridge,
-                        this.linkingSystem,
-                        {
-                            // Particle emission scaling
-                            minParticleMultiplier: 0.5,        // Reduce to 0.5x at 0% stress
-                            maxParticleMultiplier: 3.0,        // Increase to 3.0x at 100% stress
-                            particleScalingCurve: 'quadratic', // 'linear', 'quadratic', 'exponential'
-                            
-                            // Particle speed scaling
-                            minParticleSpeed: 1.0,             // Min speed multiplier
-                            maxParticleSpeed: 2.5,             // Max speed multiplier
-                            
-                            // Color coding by stress
-                            enableStressColors: true,
-                            
-                            // Smoothing for temporal coherence
-                            enableSmoothing: true,
-                            smoothingAlpha: 0.2,
-                            
-                            // Performance
-                            enableCache: true,
-                            enableLogging: false,
-                            enabled: true,
-                        }
-                    );
-                    this.stressBasedParticleScaler.frameScheduler = this.frameScheduler;
-                    
-                    // Setup console debug API
-                    setupStressParticleScalerConsoleAPI(this.stressBasedParticleScaler);
-                    console.log('[main.js] StressBasedParticleScaler deferred initialization ✓');
-                } catch (err) {
-                    console.error('[main.js] StressBasedParticleScaler init error:', err);
-                }
-            }
-        }, 150);  // Wait 150ms to ensure LinkMetricsToVisualBridge is ready first
+        // LEGACY/april — StressBasedParticleScaler disconnected 2026-04-22 (orphaned, no consumers)
+        // this.stressBasedParticleScaler = null;
+        // setTimeout(() => { ... new StressBasedParticleScaler_v1(...) }, 150);
         
         // 2. User Acceptance Tracker 1.0 - Player interaction metrics
         this.userAcceptanceTracker = new UserAcceptanceTracker1_0();
@@ -10579,20 +10532,13 @@ window.__ATOMA_SCENE__ = this.scene;
         // ====================================================================
         // PHASE 3C PERFORMANCE MODE (Centralized FX Scaling)
         // ====================================================================
-        // Initialize FXPerformanceController_v1 + FXPerformanceScaler_v1
-        // This layer provides global scaling of all Phase 3c visual effects
-        // Toggle with F7 key (see keyboard event listener below)
+        // Initialize FXPerformanceController_v1 (Scaler moved to LEGACY/april — 2026-04-22)
         try {
             this.fxPerformance = new FXPerformanceController_v1({
                 enableDebug: false,
                 enableWarnings: false
             });
-            this.fxPerformanceScaler = new FXPerformanceScaler_v1(
-                this.aiNodes,
-                this.fxPerformance,
-                { enableDebug: false }
-            );
-            console.log('[main.js] FXPerformanceController_v1 + Scaler initialized ✓');
+            console.log('[main.js] FXPerformanceController_v1 initialized ✓');
         } catch (err) {
             console.warn('[main.js] Failed to initialize FXPerformanceController_v1:', err);
         }
@@ -11487,7 +11433,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('linkDegradationSystem', 'simulation.linkDegradationSystem', (dt) => this.linkDegradationSystem?.update?.(dt));
 
         regGuard('linkMetricsToVisualBridge', 'visual.linkMetricsToVisualBridge', (dt) => this.linkMetricsToVisualBridge?.update?.(dt));
-        regGuard('stressBasedParticleScaler', 'visual.stressBasedParticleScaler', (dt) => this.stressBasedParticleScaler?.update?.(dt));
+        // regGuard('stressBasedParticleScaler', 'visual.stressBasedParticleScaler', (dt) => this.stressBasedParticleScaler?.update?.(dt));  // LEGACY/april
         regGuard('cascadeVisualizerTick', 'visual.cascadeVisualizer', (dt) => { if (!this._runCascadeVisualizerPending) this.cascadeVisualizerTick?.(dt); });
         regGuard('visualNetworkTimeElasticity', 'simulation.visualNetworkTimeElasticity', (_dt) => {
             if (this._runElasticityPending) {
@@ -11677,7 +11623,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('nodeMicroEvents', 'visual.nodeMicroEvents', (dt) => this.nodeMicroEvents?.update?.(dt, this.aiNodes?.nodes));
         regGuard('mythicRitualController', 'simulation.mythicRitualController', (dt) => this.mythicRitualController?.update?.(dt, this.aiNodes?.nodes));
         regGuard('phase8RitualOrchestration', 'visual.phase8RitualOrchestration', (dt) => this.phase8RitualOrchestration?.update?.(dt * 1000));
-        regGuard('mythicSeedGlyph', 'visual.mythicSeedGlyph', (dt) => this.mythicSeedGlyph?.update?.(dt, this.camera));
+        // regGuard('mythicSeedGlyph', 'visual.mythicSeedGlyph', (dt) => this.mythicSeedGlyph?.update?.(dt, this.camera));  // LEGACY/april
         regGuard('glyphLayer4', 'visual.glyphLayer4', (dt) => this.glyphLayer4?.update?.(dt));
         regGuard('semanticHoverGlyph', 'simulation.semanticHoverGlyph', () => this.updateHoverGlyphTarget?.());
         regGuard('semanticGlyphAI', 'visual.semanticGlyphAI', (dt) => this.semanticGlyphAI?.update?.(dt, this.aiNodes?.nodes));
@@ -17585,12 +17531,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
         };
 
-        // Global debug function for mythic seed glyphs
-        window.debugMythicGlyphs = function () {
-            if (window.game && window.game.mythicSeedGlyph) {
-                window.game.mythicSeedGlyph.printStatusReport();
-            }
-        };
+        // LEGACY/april — debugMythicGlyphs disconnected 2026-04-22
+        // window.debugMythicGlyphs = function () {
+        //     if (window.game && window.game.mythicSeedGlyph) {
+        //         window.game.mythicSeedGlyph.printStatusReport();
+        //     }
+        // };
 
         // REMOVED: EXTREME AI SHADER TEST SUITE CONSOLE COMMANDS - moved to LEGACY (2026-04-03)
 
@@ -17753,13 +17699,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
         };
 
-        // Global function to remove old markers manually
-        window.removeOldMarkers = function () {
-            if (window.game && window.game.mythicSeedGlyph) {
-                window.game.mythicSeedGlyph.removeOldMarkers();
-                console.log('✓ Old markers removal triggered');
-            }
-        };
+        // LEGACY/april — removeOldMarkers disconnected 2026-04-22
+        // window.removeOldMarkers = function () {
+        //     if (window.game && window.game.mythicSeedGlyph) {
+        //         window.game.mythicSeedGlyph.removeOldMarkers();
+        //         console.log('✓ Old markers removal triggered');
+        //     }
+        // };
 
         // Global debug function for legacy cone cleanup
         window.debugLegacyConeCleanup = function () {
@@ -17781,39 +17727,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         // ========== LEGACY GLYPH CLEANUP 1.0 DEBUG COMMANDS ==========
 
-        // Manual cleanup of all legacy 2D cyan hexagon glyphs
-        window.cleanupLegacyGlyphs = function () {
-            if (window.game && window.game.legacyGlyphCleanup) {
-                const result = window.game.legacyGlyphCleanup.cleanupLegacyGlyphs();
-                console.group('🧹 Legacy Glyph Cleanup Complete');
-                console.log(`Meshes Removed: ${result.meshesRemoved}`);
-                console.log(`Geometries Disposed: ${result.geometriesDisposed}`);
-                console.log(`Materials Disposed: ${result.materialsDisposed}`);
-                console.log(`Time: ${result.timeMs.toFixed(2)}ms`);
-                if (result.removedNames.length > 0) {
-                    console.log('Removed Items:');
-                    result.removedNames.forEach(name => console.log(`  - ${name}`));
-                }
-                console.groupEnd();
-            } else {
-                console.warn('⚠ Legacy Glyph Cleanup not initialized');
-            }
-        };
+        // LEGACY/april — cleanupLegacyGlyphs disconnected 2026-04-22
+        // window.cleanupLegacyGlyphs = function () { ... };
 
-        // Debug legacy glyph cleanup statistics
-        window.debugLegacyGlyphCleanup = function () {
-            if (window.game && window.game.legacyGlyphCleanup) {
-                const stats = window.game.legacyGlyphCleanup.getStats();
-                console.group('📊 Legacy Glyph Cleanup Statistics');
-                console.log('Total Meshes Removed:', stats.meshesRemoved);
-                console.log('Total Geometries Disposed:', stats.geometriesDisposed);
-                console.log('Total Materials Disposed:', stats.materialsDisposed);
-                console.log('Last Cleanup Time:', stats.lastCleanupTime.toFixed(2) + 'ms');
-                console.groupEnd();
-            } else {
-                console.warn('⚠ Legacy Glyph Cleanup not initialized');
-            }
-        };
+        // LEGACY/april — debugLegacyGlyphCleanup disconnected 2026-04-22
+        // window.debugLegacyGlyphCleanup = function () { ... };
 
         // ========== GLYPH PURITY MODE 5.1 DEBUG COMMANDS ==========
 

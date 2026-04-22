@@ -41,6 +41,8 @@ class BoundaryEffectPool {
         duration: 0,
         intensity: 0,
         phase: 0,               // For wave-like effects
+        attackDuration: 0,
+        decayDuration: 0,
         data: {}                // Effect-specific data
       });
     }
@@ -67,6 +69,8 @@ class BoundaryEffectPool {
     effect.duration = config.duration || 200;
     effect.intensity = config.intensity || 1.0;
     effect.phase = 0;
+    effect.attackDuration = Math.max(1, config.attackDuration || 40);
+    effect.decayDuration = Math.max(1, config.decayDuration || Math.max(1, effect.duration - effect.attackDuration));
     Object.assign(effect.data, config.data || {});
 
     this.active.push(effect);
@@ -82,8 +86,14 @@ class BoundaryEffectPool {
       const elapsed = now - effect.startTime;
       if (elapsed > effect.duration) return false;
 
-      // Decay intensity from 1 to 0
-      effect.intensity = 1 - (elapsed / effect.duration);
+      const attackDuration = Math.max(1, effect.attackDuration || 1);
+      const decayDuration = Math.max(1, effect.decayDuration || 1);
+      const attackPhase = Math.min(1, elapsed / attackDuration);
+      const decayElapsed = Math.max(0, elapsed - attackDuration);
+      const decayPhase = 1 - Math.min(1, decayElapsed / decayDuration);
+
+      // Two-phase envelope: quick snap-in, slower fade-out.
+      effect.intensity = Math.min(attackPhase, decayPhase);
       effect.phase = (elapsed / effect.duration) * Math.PI * 2;
       return true;
     });
@@ -342,7 +352,8 @@ export class PulseBoundaryInteractionAdapter_v1 {
     const intensity = Math.max(0.3, 1.0 - (pulse.corruption ?? 0) * 0.5);
     const synergy = pulse.synergy ?? 0.5;
     
-    // Boost absorption with synergy
+    // Boost absorption with synergy.
+    // The visual output is intentionally limited to halo + link edge modulation.
     const boost = 0.6 + (synergy * 0.4);
     
     this.effectPool.spawn('absorption', {
@@ -350,10 +361,13 @@ export class PulseBoundaryInteractionAdapter_v1 {
       linkId: linkId,
       duration: this.absorptionDuration,
       intensity: intensity * boost,
+      attackDuration: 36,
+      decayDuration: Math.max(1, this.absorptionDuration - 36),
       data: {
-        haloBoost: 0.3 * boost,      // Emissive boost
-        haloScale: 1.08,              // Subtle inward pulse
-        rippleCoherence: 0.4          // Resonance increase
+        haloBoost: 0.32 * boost,
+        haloScale: 1.06,
+        edgePulse: 0.28 * boost,
+        rippleCoherence: 0.4
       }
     });
   }
@@ -492,25 +506,30 @@ export class PulseBoundaryInteractionAdapter_v1 {
         // Clear modulations if no active effects
         node.userData.boundaryHaloBoost = 0;
         node.userData.boundaryHaloScale = 1.0;
+        node.userData.boundaryEdgePulse = 0;
         continue;
       }
       
       // Blend active effects
       let totalHaloBoost = 0;
       let avgScale = 1.0;
+      let totalEdgePulse = 0;
       
       for (const effect of effects) {
         if (effect.type === 'absorption') {
           const haloBoost = effect.data.haloBoost * effect.intensity;
           const scale = 1.0 + ((effect.data.haloScale - 1.0) * effect.intensity);
+          const edgePulse = (effect.data.edgePulse || 0) * effect.intensity;
           
           totalHaloBoost += haloBoost;
           avgScale = (avgScale + scale) / 2;
+          totalEdgePulse += edgePulse;
         }
       }
       
       node.userData.boundaryHaloBoost = totalHaloBoost;
       node.userData.boundaryHaloScale = avgScale;
+      node.userData.boundaryEdgePulse = totalEdgePulse;
     }
     
     // Apply dissipation effects to links

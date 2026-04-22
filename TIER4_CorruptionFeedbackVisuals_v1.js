@@ -262,7 +262,7 @@ export class TIER4_CorruptionFeedbackVisuals {
       enableDebug: config.enableDebug ?? false,
       
       // Link creation effects
-      showCorruptionSeedPulse: config.showCorruptionSeedPulse ?? true,
+      showCorruptionSeedPulse: config.showCorruptionSeedPulse ?? false,
       corruptionSeedColor: config.corruptionSeedColor ?? 0xff6600,
       corruptionSeedIntensity: config.corruptionSeedIntensity ?? 0.78,
       corruptionSeedDuration: config.corruptionSeedDuration ?? 0.95,
@@ -306,9 +306,11 @@ export class TIER4_CorruptionFeedbackVisuals {
       })
     };
 
-    // Preload corruption seed shader templates for faster creation
+    // Preload corruption seed shader templates only when the seed effect is enabled
     this.seedMaterialCache = {};
-    this._preloadCorruptionSeedMaterials();
+    if (this.config.showCorruptionSeedPulse) {
+      this._preloadCorruptionSeedMaterials();
+    }
     
     // Geometry pool with LOD variants
     this.geometryPool = {
@@ -337,7 +339,9 @@ export class TIER4_CorruptionFeedbackVisuals {
     };
 
     // initialize pool now that geometry is ready
-    this._initializeSeedEffectPool();
+    if (this.config.showCorruptionSeedPulse) {
+      this._initializeSeedEffectPool();
+    }
     
     // Statistics
     this.stats = {
