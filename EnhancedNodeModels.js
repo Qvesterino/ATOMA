@@ -38547,18 +38547,6 @@ static createAnalyticsNode2(group, color) {
         auraGroup.add(shellA);
       }
 
-      const loopHero = loopGroup.children.find(child => child?.name === 'FigureEightLoop_A') || clasp;
-      const shellB = createNodeHologramShell(loopHero, 0xbfffe9);
-      if (shellB) {
-        shellB.name = 'LoopWitnessShell_B';
-        shellB.position.copy(loopHero.position);
-        shellB.quaternion.copy(loopHero.quaternion);
-        shellB.scale.copy(loopHero.scale).multiplyScalar(1.04);
-        shellB.frustumCulled = false;
-        shellB.renderOrder = archOrder;
-        auraGroup.add(shellB);
-      }
-
       const edgeGlow = createNodeNeonEdgeGlowShell(clasp, 0xa7ffe6, {
         glowIntensity: 0.52,
         edgeWidth: 0.054,
@@ -39069,27 +39057,366 @@ static createAnalyticsNode2(group, color) {
 
   /**
    * KNOT: Infinite Self-Intersecting Knot - INTEGRATION category
-   * Complex recursive structure with self-similar intersections
-   * Tubular parametric mesh with dense winding
+   * Noble recursive structure: nexus core, primary knot, ghost echo,
+   * orbital shards, witness trace, and ambient dust.
+   * Multi-layered design for depth and presence.
    */
   static createKnotInfiniteSelfIntersecting(group, color) {
     try {
-      const tube = this.generateTubularKnot(
+      const resolvedColor = (typeof color === 'number') ? color : 0x00ff88;
+
+      const root = new THREE.Group();
+      root.name = 'INTEGRATION_INFINITE_SELF_INTERSECTING_NODE';
+      root.userData.visualVariant = 'INTEGRATION_INFINITE_SELF_INTERSECTING_V2';
+      root.userData.integrationVariant = 'INFINITE_SELF_INTERSECTING';
+      root.userData.nodeGeometryName = 'KNOT_INFINITE_SELF_INTERSECTING';
+
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+
+      const markKnotMesh = (mesh) => {
+        if (!mesh?.isMesh) return;
+        mesh.userData = mesh.userData || {};
+        mesh.userData.isInteractive = true;
+        mesh.userData.isKnotMesh = true;
+        if (mesh.raycast === null || mesh.raycast === undefined) {
+          mesh.raycast = THREE.Mesh.prototype.raycast;
+        }
+      };
+
+      // --- Parametric curve definition ---
+      const knotCurve = (t) => {
+        const phases = [t, 1.3 * t, 0.7 * t];
+        const r = 0.45 + 0.15 * Math.cos(t);
+        const x = r * Math.cos(phases[0]) * (1 + 0.2 * Math.cos(phases[1]));
+        const y = r * Math.sin(phases[0]) * (1 + 0.2 * Math.sin(phases[2]));
+        const z = 0.35 * Math.sin(2.5 * t);
+        return [x, y, z];
+      };
+
+      // === CORE: Recursion Nexus ===
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+
+      const nexusGeometry = new THREE.OctahedronGeometry(0.14, 0);
+      const nexusPos = nexusGeometry.attributes.position;
+      for (let i = 0; i < nexusPos.count; i++) {
+        const x = nexusPos.getX(i);
+        const y = nexusPos.getY(i);
+        const z = nexusPos.getZ(i);
+        const twist = Math.sin(x * 5.2 + y * 3.8 + z * 4.1) * 0.015;
+        nexusPos.setXYZ(
+          i,
+          x * (0.9 + Math.abs(z) * 0.15) + twist,
+          y * (1.0 + Math.abs(x) * 0.1),
+          z * (0.95 + Math.abs(y) * 0.12)
+        );
+      }
+      nexusPos.needsUpdate = true;
+      nexusGeometry.computeVertexNormals();
+      nexusGeometry.computeBoundingSphere();
+
+      const nexusMat = new THREE.MeshStandardMaterial({
+        color: resolvedColor,
+        emissive: resolvedColor,
+        emissiveIntensity: 0.6,
+        metalness: 0.8,
+        roughness: 0.2,
+        transparent: false,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide
+      });
+
+      const nexus = new THREE.Mesh(nexusGeometry, nexusMat);
+      nexus.name = 'RecursionNexus';
+      nexus.userData.ignoreWaveColor = true;
+      nexus.position.set(0.0, 0.0, 0.0);
+      nexus.rotation.set(0.12, -0.18, 0.08);
+      nexus.renderOrder = coreOrder;
+      markKnotMesh(nexus);
+      coreGroup.add(nexus);
+
+      const nexusEdges = new THREE.LineSegments(
+        safeCreateEdgesGeometry(nexusGeometry, 10),
+        new THREE.LineBasicMaterial({ color: resolvedColor, transparent: true, opacity: 0.5 })
+      );
+      nexusEdges.name = 'RecursionNexus_Edges';
+      nexusEdges.userData.ignoreWaveColor = true;
+      nexusEdges.position.copy(nexus.position);
+      nexusEdges.rotation.copy(nexus.rotation);
+      nexusEdges.renderOrder = archOrder;
+      coreGroup.add(nexusEdges);
+
+      // Inner seed — tiny luminous tetrahedron inside nexus
+      const innerSeedGeo = new THREE.TetrahedronGeometry(0.06, 0);
+      innerSeedGeo.rotateY(0.4);
+      innerSeedGeo.rotateX(-0.2);
+      innerSeedGeo.computeBoundingSphere();
+      const innerSeedMat = new THREE.MeshStandardMaterial({
+        color: resolvedColor,
+        emissive: resolvedColor,
+        emissiveIntensity: 0.9,
+        metalness: 0.9,
+        roughness: 0.1,
+        transparent: false,
+        depthWrite: true
+      });
+      const innerSeed = new THREE.Mesh(innerSeedGeo, innerSeedMat);
+      innerSeed.name = 'InnerRecursionSeed';
+      innerSeed.userData.ignoreWaveColor = true;
+      innerSeed.position.set(0.0, 0.01, 0.0);
+      innerSeed.renderOrder = coreOrder;
+      markKnotMesh(innerSeed);
+      coreGroup.add(innerSeed);
+
+      root.add(coreGroup);
+
+      // === PRIMARY KNOT: Main tubular structure ===
+      const knotGroup = new THREE.Group();
+      knotGroup.name = 'KNOT_GROUP';
+
+      const primaryTube = this.generateTubularKnot(
+        knotCurve,
+        0, Math.PI * 2.5, 96, 0.17, 8, resolvedColor,
+        { pathScale: 0.6, tubeScale: 1.0 }
+      );
+      primaryTube.name = 'PrimaryInfiniteKnot';
+      primaryTube.userData.ignoreWaveColor = true;
+      primaryTube.renderOrder = coreOrder;
+      markKnotMesh(primaryTube);
+      knotGroup.add(primaryTube);
+
+      // === GHOST ECHO: Phase-shifted companion ===
+      const ghostTube = this.generateTubularKnot(
         (t) => {
-          const phases = [t, 1.3 * t, 0.7 * t];
-          const r = 0.45 + 0.15 * Math.cos(t);
+          const offset = 0.4;
+          const phases = [t + offset, 1.3 * (t + offset), 0.7 * (t + offset)];
+          const r = 0.45 + 0.15 * Math.cos(t + offset);
           const x = r * Math.cos(phases[0]) * (1 + 0.2 * Math.cos(phases[1]));
           const y = r * Math.sin(phases[0]) * (1 + 0.2 * Math.sin(phases[2]));
-          const z = 0.35 * Math.sin(2.5 * t);
+          const z = 0.35 * Math.sin(2.5 * (t + offset));
           return [x, y, z];
         },
-        0, Math.PI * 2.5, 96, 0.17, 8, color
+        0, Math.PI * 2.5, 72, 0.08, 6, resolvedColor,
+        { pathScale: 0.6, tubeScale: 1.0 }
       );
-      group.add(tube);
+      ghostTube.name = 'GhostEchoKnot';
+      ghostTube.userData.ignoreWaveColor = true;
+      ghostTube.material.transparent = true;
+      ghostTube.material.opacity = 0.3;
+      ghostTube.material.depthWrite = false;
+      ghostTube.material.emissiveIntensity = 0.15;
+      ghostTube.renderOrder = archOrder;
+      markKnotMesh(ghostTube);
+      knotGroup.add(ghostTube);
+
+      root.add(knotGroup);
+
+      // === ORBITAL SHARDS: Fragments at key curve positions ===
+      const shardGroup = new THREE.Group();
+      shardGroup.name = 'SHARD_GROUP';
+
+      const shardGeometry = new THREE.OctahedronGeometry(0.06, 0);
+      shardGeometry.scale(0.7, 1.3, 0.6);
+      shardGeometry.computeBoundingSphere();
+
+      const shardMat = new THREE.MeshStandardMaterial({
+        color: resolvedColor,
+        emissive: resolvedColor,
+        emissiveIntensity: 0.4,
+        metalness: 0.7,
+        roughness: 0.3,
+        transparent: true,
+        opacity: 0.7,
+        depthWrite: true,
+        side: THREE.FrontSide
+      });
+
+      const shardPositions = [
+        { t: 0.0, offset: [0.0, 0.0, 0.0] },
+        { t: Math.PI * 0.5, offset: [0.05, -0.03, 0.02] },
+        { t: Math.PI, offset: [-0.03, 0.04, -0.02] },
+        { t: Math.PI * 1.5, offset: [0.02, -0.02, 0.04] },
+        { t: Math.PI * 2.0, offset: [-0.04, 0.03, -0.01] }
+      ];
+
+      shardPositions.forEach((cfg, idx) => {
+        const pt = knotCurve(cfg.t);
+        const shard = new THREE.Mesh(shardGeometry, shardMat.clone());
+        shard.name = `OrbitalShard_${String.fromCharCode(65 + idx)}`;
+        shard.userData.ignoreWaveColor = true;
+        shard.position.set(
+          pt[0] * 0.6 + cfg.offset[0],
+          pt[1] * 0.6 + cfg.offset[1],
+          pt[2] * 0.6 + cfg.offset[2]
+        );
+        shard.rotation.set(
+          cfg.t * 0.3 + idx * 0.4,
+          cfg.t * 0.2 - idx * 0.3,
+          cfg.t * 0.15 + idx * 0.2
+        );
+        shard.scale.set(
+          0.8 + idx * 0.05,
+          0.9 + idx * 0.03,
+          0.7 + idx * 0.04
+        );
+        shard.renderOrder = archOrder;
+        markKnotMesh(shard);
+        shardGroup.add(shard);
+
+        const shardEdges = new THREE.LineSegments(
+          safeCreateEdgesGeometry(shardGeometry, 6),
+          new THREE.LineBasicMaterial({ color: resolvedColor, transparent: true, opacity: 0.35 })
+        );
+        shardEdges.name = `OrbitalShard_${String.fromCharCode(65 + idx)}_Edges`;
+        shardEdges.userData.ignoreWaveColor = true;
+        shardEdges.position.copy(shard.position);
+        shardEdges.rotation.copy(shard.rotation);
+        shardEdges.scale.copy(shard.scale);
+        shardEdges.renderOrder = archOrder;
+        shardGroup.add(shardEdges);
+      });
+
+      root.add(shardGroup);
+
+      // === WITNESS TRACE: Thin curve echoing the knot path ===
+      const witnessGroup = new THREE.Group();
+      witnessGroup.name = 'WITNESS_GROUP';
+
+      const witnessPositions = [];
+      for (let i = 0; i <= 60; i++) {
+        const t = (i / 60) * Math.PI * 2.5;
+        const pt = knotCurve(t);
+        witnessPositions.push(pt[0] * 0.63, pt[1] * 0.63, pt[2] * 0.63);
+      }
+      const witnessGeo = new THREE.BufferGeometry();
+      witnessGeo.setAttribute('position', new THREE.Float32BufferAttribute(witnessPositions, 3));
+      witnessGeo.computeBoundingSphere();
+
+      const witnessMat = new THREE.LineBasicMaterial({
+        color: resolvedColor,
+        transparent: true,
+        opacity: 0.18
+      });
+
+      const witnessLine = new THREE.Line(witnessGeo, witnessMat);
+      witnessLine.name = 'KnotWitnessTrace';
+      witnessLine.userData.ignoreWaveColor = true;
+      witnessLine.position.set(0.0, 0.0, 0.0);
+      witnessLine.rotation.set(0.05, -0.08, 0.03);
+      witnessLine.scale.set(1.06, 1.06, 1.06);
+      witnessLine.renderOrder = archOrder;
+      witnessGroup.add(witnessLine);
+
+      // Second witness trace — slightly different scale for parallax depth
+      const witnessPositions2 = [];
+      for (let i = 0; i <= 48; i++) {
+        const t = (i / 48) * Math.PI * 2.5;
+        const pt = knotCurve(t);
+        witnessPositions2.push(pt[0] * 0.55, pt[1] * 0.55, pt[2] * 0.55);
+      }
+      const witnessGeo2 = new THREE.BufferGeometry();
+      witnessGeo2.setAttribute('position', new THREE.Float32BufferAttribute(witnessPositions2, 3));
+      witnessGeo2.computeBoundingSphere();
+
+      const witnessLine2 = new THREE.Line(witnessGeo2, witnessMat.clone());
+      witnessLine2.material.opacity = 0.1;
+      witnessLine2.name = 'KnotWitnessTrace_Inner';
+      witnessLine2.userData.ignoreWaveColor = true;
+      witnessLine2.position.set(0.0, 0.0, 0.0);
+      witnessLine2.rotation.set(-0.04, 0.06, -0.02);
+      witnessLine2.renderOrder = archOrder;
+      witnessGroup.add(witnessLine2);
+
+      root.add(witnessGroup);
+
+      // === AURA: Edge glow on nexus + ambient dust ===
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+
+      const edgeGlow = createNodeNeonEdgeGlowShell(nexus, resolvedColor, {
+        glowIntensity: 0.45,
+        edgeWidth: 0.04,
+        pulseAmount: 0.0
+      });
+      if (edgeGlow) {
+        edgeGlow.name = 'NexusEdgeGlow';
+        edgeGlow.position.copy(nexus.position);
+        edgeGlow.quaternion.copy(nexus.quaternion);
+        edgeGlow.scale.copy(nexus.scale).multiplyScalar(1.15);
+        edgeGlow.frustumCulled = false;
+        edgeGlow.renderOrder = archOrder;
+        auraGroup.add(edgeGlow);
+      }
+
+      // Ambient dust particles
+      const dustCount = 40;
+      const dustPositions = [];
+      for (let i = 0; i < dustCount; i++) {
+        const angle = (i / dustCount) * Math.PI * 2;
+        const r = 0.3 + Math.random() * 0.25;
+        dustPositions.push(
+          Math.cos(angle) * r + (Math.random() - 0.5) * 0.1,
+          Math.sin(angle) * r * 0.6 + (Math.random() - 0.5) * 0.1,
+          Math.sin(angle * 2.5) * 0.15 + (Math.random() - 0.5) * 0.1
+        );
+      }
+      const dustGeo = new THREE.BufferGeometry();
+      dustGeo.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+      dustGeo.computeBoundingSphere();
+
+      const dustMat = new THREE.PointsMaterial({
+        color: resolvedColor,
+        size: 0.02,
+        transparent: true,
+        opacity: 0.4,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        sizeAttenuation: true
+      });
+
+      const dust = new THREE.Points(dustGeo, dustMat);
+      dust.name = 'RecursionDust';
+      dust.userData.ignoreWaveColor = true;
+      dust.position.set(0.0, 0.02, 0.0);
+      dust.frustumCulled = false;
+      dust.renderOrder = archOrder;
+      auraGroup.add(dust);
+
+      root.add(auraGroup);
+
+      // === FINALIZE ===
+      root.traverse((o) => {
+        if (o?.isMesh || o?.isPoints || o?.isLine || o?.isLineSegments) {
+          o.userData = o.userData || {};
+          if (o.userData.ignoreWaveColor !== false) o.userData.ignoreWaveColor = true;
+          if (o.isMesh) {
+            markKnotMesh(o);
+          }
+          const materialRefs = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+          for (const material of materialRefs) {
+            material.userData = {
+              ...(material.userData || {}),
+              wavePatchMode: 'DEFAULT',
+              ignoreWaveColor: true
+            };
+          }
+          validateMeshGeometry(o, o.name || 'integration-infinite-self-intersecting');
+        }
+      });
+
+      root.userData.visualReady = true;
+      group.userData = group.userData || {};
+      group.userData.visualReady = true;
+      group.userData.nodeGeometryName = 'KNOT_INFINITE_SELF_INTERSECTING';
+      group.add(root);
       return group;
     } catch (err) {
       console.error('[NodeVisualError]', {
         model: 'createKnotInfiniteSelfIntersecting',
+        category: 'integration',
+        reason: err?.message || err,
         error: err
       });
       return null;
