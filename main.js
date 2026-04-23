@@ -572,7 +572,8 @@ import { AINarrativePatterns6_0 } from './_AINarrativePatterns6_0.js';
 // import { NeuralCurveLinkVisuals, setupNeuralCurveConsoleAPI } from './_NeuralCurveLinkVisuals.js'; // LEGACY
 import { AIConsciousnessLayer, setupAIConsciousnessConsoleAPI } from './AIConsciousnessLayer.js';
 import { SignatureMomentDirector, installSignatureMomentDirectorDebugAPI } from './SignatureMomentDirector.js';
-import { AIThoughtStorms2_0, setupAIThoughtStormsConsoleAPI } from './_AIThoughtStorms2_0.js';
+// DEPRECATED (2026-04-23): _AIThoughtStorms2_0 superseded by _EmergentThoughtStorms5_0
+// import { AIThoughtStorms2_0, setupAIThoughtStormsConsoleAPI } from './_AIThoughtStorms2_0.js';
 // import { ExtremeLinkVisuals4_0, setupExtremeLinkVisualsV4ConsoleAPI } from './_ExtremeLinkVisuals4_0.js'; // LEGACY
 // REMOVED: LinkVisualMoodSystem - moved to LEGACY (2026-04-03)
 import { LinkSemanticMetricsBridge_v1 } from './LinkSemanticMetricsBridge_v1.js';
@@ -17194,17 +17195,18 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             );
             this.aiConsciousnessLayer = this.consciousnessLayer;
 
-            // Initialize Emergent Thought Storms 2.0 as sub-system
-            try {
-                this.consciousnessLayer.initializeStorms(AIThoughtStorms2_0);
-
-                // Setup storms console API
-                if (this.consciousnessLayer.storms) {
-                    setupAIThoughtStormsConsoleAPI(this.consciousnessLayer.storms);
-                }
-            } catch (err) {
-                console.warn('Thought Storms sub-system failed to initialize:', err);
-            }
+            // DEPRECATED (2026-04-23): _AIThoughtStorms2_0 removed.
+            // Emergent thought storms now provided exclusively by _EmergentThoughtStorms5_0
+            // via EnvironmentDomainController.
+            //
+            // try {
+            //     this.consciousnessLayer.initializeStorms(AIThoughtStorms2_0);
+            //     if (this.consciousnessLayer.storms) {
+            //         setupAIThoughtStormsConsoleAPI(this.consciousnessLayer.storms);
+            //     }
+            // } catch (err) {
+            //     console.warn('Thought Storms sub-system failed to initialize:', err);
+            // }
 
             // Setup consciousness layer console API (which now includes storms toggle)
             setupAIConsciousnessConsoleAPI(this.consciousnessLayer);

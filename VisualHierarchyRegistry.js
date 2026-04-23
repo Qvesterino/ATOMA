@@ -173,6 +173,7 @@ export class VisualHierarchyRegistry {
   // ========================================================================
   static LAYER_WORLD_BACKGROUND = 'WORLD_BACKGROUND';
   static LAYER_WORLD_OVERLAY = 'WORLD_OVERLAY';
+  static LAYER_WORLD_FOREGROUND = 'WORLD_FOREGROUND';
   static LAYER_UI_PRIMARY = 'UI_PRIMARY';
   static LAYER_UI_OVERLAY = 'UI_OVERLAY';
   static LAYER_DEBUG_GLOBAL = 'DEBUG_GLOBAL';
@@ -243,7 +244,8 @@ export class VisualHierarchyRegistry {
   // ========================================================================
   static WORLD_LAYER_ORDER = {
     WORLD_BACKGROUND: 400,
-    WORLD_OVERLAY: 450
+    WORLD_OVERLAY: 450,
+    WORLD_FOREGROUND: 470
   };
 
   static UI_LAYER_ORDER = {

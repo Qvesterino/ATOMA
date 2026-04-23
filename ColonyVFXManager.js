@@ -28,6 +28,9 @@ const BIOLUMINESCENT_NUCLEUS_FRAGMENT = `
   uniform float uTime;
   uniform float uEnergy;
   uniform vec3 uBaseColor;
+  uniform vec3 uNeuralColor;
+  uniform vec3 uDeepColor;
+  uniform vec3 uRimColor;
   uniform float uPulsePhase;
   uniform float uMotionBias;
 
@@ -36,42 +39,70 @@ const BIOLUMINESCENT_NUCLEUS_FRAGMENT = `
   varying vec2 vUv;
   varying vec3 vModelPos;
 
-  // Gradient noise for organic neural signals
-  vec3 hash33(vec3 p) {
-    p = vec3(dot(p, vec3(127.1, 311.7, 74.7)),
-             dot(p, vec3(269.5, 183.3, 246.1)),
-             dot(p, vec3(113.5, 271.9, 124.6)));
-    return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
-  }
+  vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+  vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+  vec4 permute(vec4 x) { return mod289(((x * 34.0) + 1.0) * x); }
+  vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
 
-  float noise3D(vec3 p) {
-    vec3 i = floor(p);
-    vec3 f = fract(p);
-    vec3 u = f * f * (3.0 - 2.0 * f);
-    return mix(mix(mix(dot(hash33(i + vec3(0,0,0)), f - vec3(0,0,0)),
-                       dot(hash33(i + vec3(1,0,0)), f - vec3(1,0,0)), u.x),
-                   mix(dot(hash33(i + vec3(0,1,0)), f - vec3(0,1,0)),
-                       dot(hash33(i + vec3(1,1,0)), f - vec3(1,1,0)), u.x), u.y),
-               mix(mix(dot(hash33(i + vec3(0,0,1)), f - vec3(0,0,1)),
-                       dot(hash33(i + vec3(1,0,1)), f - vec3(1,0,1)), u.x),
-                   mix(dot(hash33(i + vec3(0,1,1)), f - vec3(0,1,1)),
-                       dot(hash33(i + vec3(1,1,1)), f - vec3(1,1,1)), u.x), u.y), u.z);
-  }
+  float simplexNoise3D(vec3 v) {
+    const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
+    const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
 
-  // HSL to RGB for spectral bioluminescence
-  float hslChannel(float n, float h, float a, float l) {
-    float k = mod(n + h * 12.0, 12.0);
-    return l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0));
-  }
+    vec3 i = floor(v + dot(v, C.yyy));
+    vec3 x0 = v - i + dot(i, C.xxx);
 
-  vec3 hsl2rgb(float h, float s, float l) {
-    h = fract(h);
-    float a = s * min(l, 1.0 - l);
-    return vec3(
-      hslChannel(0.0, h, a, l),
-      hslChannel(8.0, h, a, l),
-      hslChannel(4.0, h, a, l)
-    );
+    vec3 g = step(x0.yzx, x0.xyz);
+    vec3 l = 1.0 - g;
+    vec3 i1 = min(g, l.zxy);
+    vec3 i2 = max(g, l.zxy);
+
+    vec3 x1 = x0 - i1 + C.xxx;
+    vec3 x2 = x0 - i2 + C.yyy;
+    vec3 x3 = x0 - D.yyy;
+
+    i = mod289(i);
+    vec4 p = permute(
+      permute(
+        permute(i.z + vec4(0.0, i1.z, i2.z, 1.0))
+        + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+      + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+
+    float n_ = 0.142857142857;
+    vec3 ns = n_ * D.wyz - D.xzx;
+
+    vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+
+    vec4 x_ = floor(j * ns.z);
+    vec4 y_ = floor(j - 7.0 * x_);
+
+    vec4 x = x_ * ns.x + ns.yyyy;
+    vec4 y = y_ * ns.x + ns.yyyy;
+    vec4 h = 1.0 - abs(x) - abs(y);
+
+    vec4 b0 = vec4(x.xy, y.xy);
+    vec4 b1 = vec4(x.zw, y.zw);
+
+    vec4 s0 = floor(b0) * 2.0 + 1.0;
+    vec4 s1 = floor(b1) * 2.0 + 1.0;
+    vec4 sh = -step(h, vec4(0.0));
+
+    vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+    vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+
+    vec3 p0 = vec3(a0.xy, h.x);
+    vec3 p1 = vec3(a0.zw, h.y);
+    vec3 p2 = vec3(a1.xy, h.z);
+    vec3 p3 = vec3(a1.zw, h.w);
+
+    vec4 norm = taylorInvSqrt(vec4(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
+    p0 *= norm.x;
+    p1 *= norm.y;
+    p2 *= norm.z;
+    p3 *= norm.w;
+
+    vec4 m = max(0.6 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
+    m = m * m;
+    return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
   }
 
   void main() {
@@ -81,12 +112,12 @@ const BIOLUMINESCENT_NUCLEUS_FRAGMENT = `
     fresnel = pow(fresnel, 2.5);
 
     // Neural signal pathways: organic noise traveling across the surface
-    float neuralSignal = noise3D(vModelPos * 3.5 + vec3(uTime * 0.4 * uMotionBias, uTime * 0.2, uTime * 0.3));
-    float neuralVeins = smoothstep(0.15, 0.35, neuralSignal) * (1.0 - smoothstep(0.35, 0.5, neuralSignal));
+    float neuralSignal = 0.5 + 0.5 * simplexNoise3D(vModelPos * 3.5 + vec3(uTime * 0.4 * uMotionBias, uTime * 0.2, uTime * 0.3));
+    float neuralVeins = smoothstep(0.28, 0.62, neuralSignal) * (1.0 - smoothstep(0.62, 0.88, neuralSignal));
 
     // Secondary neural layer: slower, wider pulses
-    float deepSignal = noise3D(vModelPos * 1.8 + vec3(0.0, uTime * 0.15, uTime * 0.1));
-    float deepVeins = smoothstep(0.1, 0.3, deepSignal) * (1.0 - smoothstep(0.3, 0.55, deepSignal));
+    float deepSignal = 0.5 + 0.5 * simplexNoise3D(vModelPos * 1.8 + vec3(0.0, uTime * 0.15, uTime * 0.1));
+    float deepVeins = smoothstep(0.22, 0.56, deepSignal) * (1.0 - smoothstep(0.56, 0.82, deepSignal));
 
     // Bioluminescent pulse: rhythmic glow like a heartbeat
     float heartbeat = sin(uTime * 1.8 + uPulsePhase) * 0.5 + 0.5;
@@ -96,25 +127,13 @@ const BIOLUMINESCENT_NUCLEUS_FRAGMENT = `
     vec3 baseCol = uBaseColor * (0.5 + uEnergy * 0.5);
 
     // Neural vein color: spectral shift based on signal position
-    vec3 neuralColor = hsl2rgb(
-      0.55 + neuralSignal * 0.15 + uTime * 0.02,
-      0.7 + uEnergy * 0.2,
-      0.4 + heartbeat * 0.2
-    );
+    vec3 neuralColor = mix(uBaseColor, uNeuralColor, clamp(neuralSignal * (0.7 + uEnergy * 0.2), 0.0, 1.0));
 
     // Deep vein color: cooler, more ethereal
-    vec3 deepColor = hsl2rgb(
-      0.6 + deepSignal * 0.1,
-      0.5 + uEnergy * 0.3,
-      0.3 + slowPulse * 0.15
-    );
+    vec3 deepColor = mix(uBaseColor, uDeepColor, clamp(deepSignal * (0.6 + uEnergy * 0.25), 0.0, 1.0));
 
     // Fresnel rim glow: spectral bioluminescent edge
-    vec3 rimColor = hsl2rgb(
-      0.52 + sin(uTime * 0.1) * 0.08,
-      0.8,
-      0.5 + fresnel * 0.3
-    ) * fresnel * (0.8 + uEnergy * 0.4);
+    vec3 rimColor = mix(uBaseColor, uRimColor, clamp(fresnel, 0.0, 1.0)) * fresnel * (0.8 + uEnergy * 0.4);
 
     // Combine layers
     vec3 finalColor = baseCol;
@@ -135,6 +154,7 @@ const BIOLUMINESCENT_MEMBRANE_FRAGMENT = `
   uniform float uTime;
   uniform float uEnergy;
   uniform vec3 uBaseColor;
+  uniform vec3 uEdgeGlowColor;
   uniform float uPulsePhase;
   uniform float uMotionBias;
 
@@ -143,25 +163,70 @@ const BIOLUMINESCENT_MEMBRANE_FRAGMENT = `
   varying vec2 vUv;
   varying vec3 vModelPos;
 
-  vec3 hash33(vec3 p) {
-    p = vec3(dot(p, vec3(127.1, 311.7, 74.7)),
-             dot(p, vec3(269.5, 183.3, 246.1)),
-             dot(p, vec3(113.5, 271.9, 124.6)));
-    return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
-  }
+  vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+  vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+  vec4 permute(vec4 x) { return mod289(((x * 34.0) + 1.0) * x); }
+  vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
 
-  float noise3D(vec3 p) {
-    vec3 i = floor(p);
-    vec3 f = fract(p);
-    vec3 u = f * f * (3.0 - 2.0 * f);
-    return mix(mix(mix(dot(hash33(i + vec3(0,0,0)), f - vec3(0,0,0)),
-                       dot(hash33(i + vec3(1,0,0)), f - vec3(1,0,0)), u.x),
-                   mix(dot(hash33(i + vec3(0,1,0)), f - vec3(0,1,0)),
-                       dot(hash33(i + vec3(1,1,0)), f - vec3(1,1,0)), u.x), u.y),
-               mix(mix(dot(hash33(i + vec3(0,0,1)), f - vec3(0,0,1)),
-                       dot(hash33(i + vec3(1,0,1)), f - vec3(1,0,1)), u.x),
-                   mix(dot(hash33(i + vec3(0,1,1)), f - vec3(0,1,1)),
-                       dot(hash33(i + vec3(1,1,1)), f - vec3(1,1,1)), u.x), u.y), u.z);
+  float simplexNoise3D(vec3 v) {
+    const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
+    const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+
+    vec3 i = floor(v + dot(v, C.yyy));
+    vec3 x0 = v - i + dot(i, C.xxx);
+
+    vec3 g = step(x0.yzx, x0.xyz);
+    vec3 l = 1.0 - g;
+    vec3 i1 = min(g, l.zxy);
+    vec3 i2 = max(g, l.zxy);
+
+    vec3 x1 = x0 - i1 + C.xxx;
+    vec3 x2 = x0 - i2 + C.yyy;
+    vec3 x3 = x0 - D.yyy;
+
+    i = mod289(i);
+    vec4 p = permute(
+      permute(
+        permute(i.z + vec4(0.0, i1.z, i2.z, 1.0))
+        + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+      + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+
+    float n_ = 0.142857142857;
+    vec3 ns = n_ * D.wyz - D.xzx;
+
+    vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+
+    vec4 x_ = floor(j * ns.z);
+    vec4 y_ = floor(j - 7.0 * x_);
+
+    vec4 x = x_ * ns.x + ns.yyyy;
+    vec4 y = y_ * ns.x + ns.yyyy;
+    vec4 h = 1.0 - abs(x) - abs(y);
+
+    vec4 b0 = vec4(x.xy, y.xy);
+    vec4 b1 = vec4(x.zw, y.zw);
+
+    vec4 s0 = floor(b0) * 2.0 + 1.0;
+    vec4 s1 = floor(b1) * 2.0 + 1.0;
+    vec4 sh = -step(h, vec4(0.0));
+
+    vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+    vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+
+    vec3 p0 = vec3(a0.xy, h.x);
+    vec3 p1 = vec3(a0.zw, h.y);
+    vec3 p2 = vec3(a1.xy, h.z);
+    vec3 p3 = vec3(a1.zw, h.w);
+
+    vec4 norm = taylorInvSqrt(vec4(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
+    p0 *= norm.x;
+    p1 *= norm.y;
+    p2 *= norm.z;
+    p3 *= norm.w;
+
+    vec4 m = max(0.6 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
+    m = m * m;
+    return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
   }
 
   void main() {
@@ -171,8 +236,8 @@ const BIOLUMINESCENT_MEMBRANE_FRAGMENT = `
     fresnel = pow(fresnel, 1.8);
 
     // Organic membrane texture: flowing cellular patterns
-    float membrane = noise3D(vModelPos * 4.0 + vec3(uTime * 0.2 * uMotionBias, uTime * 0.15, 0.0));
-    float cellPattern = smoothstep(-0.1, 0.2, membrane) * (1.0 - smoothstep(0.2, 0.45, membrane));
+    float membrane = 0.5 + 0.5 * simplexNoise3D(vModelPos * 4.0 + vec3(uTime * 0.2 * uMotionBias, uTime * 0.15, 0.0));
+    float cellPattern = smoothstep(0.28, 0.58, membrane) * (1.0 - smoothstep(0.58, 0.86, membrane));
 
     // Bioluminescent pulse through membrane
     float pulse = sin(uTime * 1.2 + uPulsePhase + length(vModelPos) * 3.0) * 0.5 + 0.5;
@@ -185,7 +250,7 @@ const BIOLUMINESCENT_MEMBRANE_FRAGMENT = `
     // Spectral edge glow
     vec3 edgeGlow = mix(
       uBaseColor,
-      vec3(0.4, 0.6, 1.0), // cool spectral shift at edges
+      uEdgeGlowColor,
       fresnel * 0.4
     ) * fresnel * (0.6 + pulse * 0.3);
 
@@ -200,6 +265,7 @@ const BIOLUMINESCENT_GLOW_FRAGMENT = `
   uniform float uTime;
   uniform float uEnergy;
   uniform vec3 uBaseColor;
+  uniform vec3 uAuraColor;
   uniform float uPulsePhase;
 
   varying vec3 vNormalW;
@@ -220,9 +286,9 @@ const BIOLUMINESCENT_GLOW_FRAGMENT = `
     float depth = length(vModelPos);
     float volumetric = exp(-depth * 2.0) * (0.5 + pulse * 0.3);
 
-    vec3 glowColor = uBaseColor * (0.3 + uEnergy * 0.4);
+    vec3 glowColor = mix(uBaseColor, uAuraColor, 0.35) * (0.3 + uEnergy * 0.4);
     glowColor += uBaseColor * fresnel * (0.4 + pulse * 0.2);
-    glowColor += vec3(0.15, 0.25, 0.5) * volumetric * slowBreath;
+    glowColor += uAuraColor * volumetric * slowBreath;
 
     float alpha = (0.15 + uEnergy * 0.1) * (fresnel * 0.6 + volumetric * 0.4);
     gl_FragColor = vec4(glowColor, alpha);
@@ -397,6 +463,25 @@ export class ColonyVFXManager {
     // from ~150 unique materials to ~15-25 and ~120 unique geometries to ~20.
     this._materialCache = new Map();
     this._geometryCache = new Map();
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // PERFORMANCE: Shared particle cloud — one draw call for all colonies
+    // ═══════════════════════════════════════════════════════════════════════
+    this._particleCapacity = 4096;
+    this._particleCloud = null;
+    this._particleCloudGeometry = null;
+    this._particleCloudMaterial = null;
+    this._particlePositionAttribute = null;
+    this._particleColorAttribute = null;
+    this._particleSizeAttribute = null;
+    this._particlePositions = new Float32Array(this._particleCapacity * 3);
+    this._particleColors = new Float32Array(this._particleCapacity * 4);
+    this._particleSizes = new Float32Array(this._particleCapacity);
+    this._particleSlots = new Array(this._particleCapacity).fill(null);
+    this._particleColonySlots = new Map();
+    this._particleActiveCount = 0;
+    this._particleTempColor = new THREE.Color();
+    this._particleTempVector = new THREE.Vector3();
 
     // ═══════════════════════════════════════════════════════════════════════
     // PERFORMANCE: InstancedMesh atmosphere pool
@@ -890,6 +975,11 @@ export class ColonyVFXManager {
       return;
     }
 
+    if (object.userData?.type === 'particle') {
+      this._releaseParticleHandle(object);
+      return;
+    }
+
     if (!object.userData) return;
     const type = object.userData.type;
     const pool = this.objectPools[type];
@@ -1242,17 +1332,256 @@ export class ColonyVFXManager {
     this.vfxContainer.add(accent);
     return accent;
   }
+
+  _ensureParticleCloud() {
+    if (this._particleCloud) return this._particleCloud;
+
+    const geometry = new THREE.BufferGeometry();
+    const positionAttribute = new THREE.BufferAttribute(this._particlePositions, 3);
+    const colorAttribute = new THREE.BufferAttribute(this._particleColors, 4);
+    const sizeAttribute = new THREE.BufferAttribute(this._particleSizes, 1);
+
+    positionAttribute.setUsage(THREE.DynamicDrawUsage);
+    colorAttribute.setUsage(THREE.DynamicDrawUsage);
+    sizeAttribute.setUsage(THREE.DynamicDrawUsage);
+
+    geometry.setAttribute('position', positionAttribute);
+    geometry.setAttribute('particleColor', colorAttribute);
+    geometry.setAttribute('size', sizeAttribute);
+    geometry.setDrawRange(0, 0);
+
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uMap: { value: this.particleTexture }
+      },
+      vertexShader: `
+        attribute float size;
+        attribute vec4 particleColor;
+
+        varying vec4 vParticleColor;
+
+        void main() {
+          vParticleColor = particleColor;
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          float pointSize = size * (280.0 / max(1.0, -mvPosition.z));
+          gl_PointSize = clamp(pointSize, 2.0, 64.0);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D uMap;
+
+        varying vec4 vParticleColor;
+
+        void main() {
+          vec4 tex = texture2D(uMap, gl_PointCoord);
+          float alpha = tex.a * vParticleColor.a;
+          if (alpha < 0.02) discard;
+          gl_FragColor = vec4(vParticleColor.rgb * tex.rgb, alpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+      fog: false
+    });
+
+    const cloud = new THREE.Points(geometry, material);
+    cloud.name = 'colony-particle-cloud';
+    cloud.visible = true;
+    cloud.frustumCulled = false;
+    cloud.userData = { type: 'particle-cloud' };
+
+    this._particleCloud = cloud;
+    this._particleCloudGeometry = geometry;
+    this._particleCloudMaterial = material;
+    this._particlePositionAttribute = positionAttribute;
+    this._particleColorAttribute = colorAttribute;
+    this._particleSizeAttribute = sizeAttribute;
+    this.vfxContainer.add(cloud);
+    return cloud;
+  }
+
+  _particleRandomSeed(colonyId, index) {
+    const idValue = Number(String(colonyId).replace(/[^0-9]/g, '')) || 0;
+    return ((idValue * 0.017 + index * 0.731 + 0.19) % 1 + 1) % 1;
+  }
+
+  _registerParticleHandle(particle) {
+    const colonyId = particle?.userData?.colonyId;
+    if (!colonyId) return;
+
+    if (!this._particleColonySlots.has(colonyId)) {
+      this._particleColonySlots.set(colonyId, new Set());
+    }
+
+    this._particleColonySlots.get(colonyId).add(particle);
+  }
+
+  _writeParticleSlot(slotIndex, particle, time = performance.now() * 0.001) {
+    if (slotIndex < 0 || slotIndex >= this._particleCapacity || !particle?.userData) return;
+
+    const data = particle.userData;
+    const positionOffset = slotIndex * 3;
+    const colorOffset = slotIndex * 4;
+
+    const startPos = data.startPos || this._particleTempVector.set(0, 0, 0);
+    const seed = data.seed ?? 0;
+    const orbitPhase = data.orbitPhase ?? 0;
+    const orbitRadius = data.orbitRadius ?? 1;
+    const radiusWobble = Math.sin(time * 0.8 + seed * 2.1) * 0.08;
+    const orbitX = Math.cos(orbitPhase) * (orbitRadius + radiusWobble);
+    const orbitZ = Math.sin(orbitPhase) * (orbitRadius + radiusWobble);
+    const jitterY = Math.sin(time * 1.4 + orbitPhase) * 0.08;
+
+    this._particlePositions[positionOffset] = startPos.x + orbitX + Math.sin(time * 1.7 + seed * 3.3) * 0.02;
+    this._particlePositions[positionOffset + 1] = startPos.y + jitterY + Math.sin(time * 0.9 + orbitPhase) * 0.03;
+    this._particlePositions[positionOffset + 2] = startPos.z + orbitZ + Math.cos(time * 1.5 + seed * 2.7) * 0.02;
+
+    const lifetime = Math.max(0.001, data.lifetime ?? 1);
+    const elapsed = Math.max(0, data.elapsed ?? 0);
+    const life = Math.max(0, 1 - elapsed / lifetime);
+    const fadeOut = data.fadeOut;
+    let fadeMultiplier = 1;
+    if (fadeOut) {
+      const fadeDelay = Math.max(0, fadeOut.delay ?? 0);
+      const fadeDuration = Math.max(0.001, fadeOut.duration ?? 1);
+      const fadeElapsed = Math.max(0, (fadeOut.timer ?? 0) - fadeDelay);
+      fadeMultiplier = Math.max(0, 1 - fadeElapsed / fadeDuration);
+    }
+
+    const tintHex = data.tintHex ?? data.baseTintHex ?? 0xffffff;
+    const opacity = Math.max(0, (data.particleOpacity ?? data.baseOpacity ?? 0.55) * life * fadeMultiplier);
+    const size = Math.max(0.04, data.particleSize ?? data.baseSize ?? 0.2);
+
+    this._particleTempColor.setHex(tintHex);
+    const brightness = Math.max(0.12, 0.55 + (data.particleBias ?? 0.8) * 0.45);
+    this._particleColors[colorOffset] = this._particleTempColor.r * brightness;
+    this._particleColors[colorOffset + 1] = this._particleTempColor.g * brightness;
+    this._particleColors[colorOffset + 2] = this._particleTempColor.b * brightness;
+    this._particleColors[colorOffset + 3] = opacity;
+    this._particleSizes[slotIndex] = size;
+  }
+
+  _releaseParticleHandle(particle) {
+    const userData = particle?.userData;
+    if (!userData) return;
+
+    const colonyId = userData.colonyId;
+    if (colonyId && this._particleColonySlots.has(colonyId)) {
+      const handles = this._particleColonySlots.get(colonyId);
+      handles.delete(particle);
+      if (handles.size === 0) {
+        this._particleColonySlots.delete(colonyId);
+      }
+    }
+
+    if (userData.__released) return;
+
+    const slotIndex = userData.slotIndex;
+    if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= this._particleActiveCount) {
+      userData.__released = true;
+      userData.slotIndex = -1;
+      return;
+    }
+
+    const lastIndex = this._particleActiveCount - 1;
+    const moved = this._particleSlots[lastIndex];
+
+    if (slotIndex !== lastIndex && moved) {
+      this._particleSlots[slotIndex] = moved;
+      moved.userData.slotIndex = slotIndex;
+      this._writeParticleSlot(slotIndex, moved);
+    }
+
+    this._particleSlots[lastIndex] = null;
+    this._particlePositions[lastIndex * 3] = 0;
+    this._particlePositions[lastIndex * 3 + 1] = 0;
+    this._particlePositions[lastIndex * 3 + 2] = 0;
+    this._particleColors[lastIndex * 4] = 0;
+    this._particleColors[lastIndex * 4 + 1] = 0;
+    this._particleColors[lastIndex * 4 + 2] = 0;
+    this._particleColors[lastIndex * 4 + 3] = 0;
+    this._particleSizes[lastIndex] = 0;
+    this._particleActiveCount = Math.max(0, this._particleActiveCount - 1);
+
+    if (this._particleCloudGeometry) {
+      this._particleCloudGeometry.setDrawRange(0, this._particleActiveCount);
+      this._particlePositionAttribute.needsUpdate = true;
+      this._particleColorAttribute.needsUpdate = true;
+      this._particleSizeAttribute.needsUpdate = true;
+    }
+
+    userData.__released = true;
+    userData.slotIndex = -1;
+  }
+
+  _releaseColonyParticles(colonyId, { soft = false, duration = 0.9, delay = 0 } = {}) {
+    const handles = this._particleColonySlots.get(colonyId);
+    if (!handles || handles.size === 0) return;
+
+    for (const particle of Array.from(handles)) {
+      const userData = particle?.userData;
+      if (!userData || userData.__released) continue;
+
+      if (soft) {
+        if (!userData.fadeOut) {
+          const fadeDuration = Math.max(0.001, duration);
+          userData.fadeOut = {
+            timer: 0,
+            duration: fadeDuration,
+            delay,
+            startOpacity: userData.particleOpacity ?? userData.baseOpacity ?? 1
+          };
+          userData.lifetime = Math.max(userData.lifetime ?? 0, (userData.elapsed ?? 0) + fadeDuration + delay + 0.05);
+        }
+      } else {
+        this._releaseParticleHandle(particle);
+      }
+    }
+  }
+
+  _disposeParticleCloud() {
+    this._particleColonySlots.clear();
+    this._particleSlots.fill(null);
+    this._particleActiveCount = 0;
+    this._particlePositions.fill(0);
+    this._particleColors.fill(0);
+    this._particleSizes.fill(0);
+
+    if (this._particleCloud?.parent) {
+      this._particleCloud.parent.remove(this._particleCloud);
+    }
+
+    if (this._particleCloudGeometry) {
+      this._particleCloudGeometry.dispose();
+    }
+
+    if (this._particleCloudMaterial) {
+      this._particleCloudMaterial.dispose();
+    }
+
+    this._particleCloud = null;
+    this._particleCloudGeometry = null;
+    this._particleCloudMaterial = null;
+    this._particlePositionAttribute = null;
+    this._particleColorAttribute = null;
+    this._particleSizeAttribute = null;
+  }
   
   /**
    * Create floating particles around civilization
    */
   createParticles(colonyId, center, stage, mood, colonyType, energy) {
     const particles = [];
+    this._ensureParticleCloud();
+
     const seeds = this.getColonyVisualSeeds(colonyId);
     const profile = this.getMoodProfile(mood);
     const effectiveStage = Math.max(1, stage);
     const baseColor = this.getColorForMood(mood, colonyType);
-    const color = this.blendColor(baseColor, profile.colorBias, 0.35);
+    const colonyTint = this.blendColor(baseColor, profile.colorBias, 0.35);
     const energyFactor = Math.min(1, energy / 100);
     const count = Math.ceil(
       this.config.particles.count * (effectiveStage / 4) *
@@ -1261,239 +1590,112 @@ export class ColonyVFXManager {
       (1 + energyFactor * 0.4) *
       (this.config.particles.maxPerColony / 100)
     );
-    
-    for (let i = 0; i < count; i++) {
-      const geometry = new THREE.BufferGeometry();
-      const positions = new Float32Array(3);
-      
-      const angle = Math.random() * Math.PI * 2;
-      const distance = Math.random() * (3 + energyFactor * 2) + 1;
-      positions[0] = center.x + Math.cos(angle) * distance;
-      positions[1] = center.y + Math.random() * 2;
-      positions[2] = center.z + Math.sin(angle) * distance;
-      
-      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      
-      // SUPERNATURAL UPGRADE: Bioluminescent spore particles with additive blending
-      const sporeColor = this.config.enableBioluminescentUpgrade !== false
-        ? new THREE.Color().setHSL(0.55 + Math.random() * 0.15, 0.5 + energyFactor * 0.3, 0.4 + Math.random() * 0.2).getHex()
-        : color;
-      const material = new THREE.PointsMaterial({
-        size: 0.18 + Math.random() * 0.1 + energyFactor * 0.05,
-        sizeAttenuation: true,
-        map: this.particleTexture,
-        color: sporeColor,
-        transparent: true,
-        opacity: 0.55 + energyFactor * 0.2,
-        fog: false,
-        blending: this.config.enableBioluminescentUpgrade !== false ? THREE.AdditiveBlending : THREE.NormalBlending,
-        depthWrite: false,
-        toneMapped: false
-      });
-      
-      let particle = this.acquireVFXObject('particle');
-      if (particle) {
-        if (particle.geometry) particle.geometry.dispose();
-        particle.geometry = geometry;
-        particle.material.color.setHex(color);
-        particle.material.opacity = 0.55 + energyFactor * 0.2;
-        particle.material.size = 0.18 + Math.random() * 0.1 + energyFactor * 0.05;
-      } else {
-        particle = new THREE.Points(geometry, material);
-      }
+    const available = this._particleCapacity - this._particleActiveCount;
+    const spawnCount = Math.max(0, Math.min(count, available));
 
+    if (spawnCount < count) {
+      console.warn('[ColonyVFXManager] Particle cloud capacity reached; some particles were skipped.', {
+        colonyId,
+        requested: count,
+        available
+      });
+    }
+
+    for (let i = 0; i < spawnCount; i++) {
+      const slotIndex = this._particleActiveCount;
+      const seed = this._particleRandomSeed(colonyId, i);
+      const sporeColor = this.config.enableBioluminescentUpgrade !== false
+        ? new THREE.Color().setHSL(0.55 + seed * 0.15, 0.5 + energyFactor * 0.3, 0.4 + seed * 0.2)
+        : new THREE.Color(colonyTint);
+      const baseSize = 0.18 + seed * 0.1 + energyFactor * 0.05;
+      const baseOpacity = 0.55 + energyFactor * 0.2;
+      const baseOrbitSpeed = 0.4 + profile.motionBias * 0.14 + seeds.phaseSeed * 0.2;
       const velocity = new THREE.Vector3(
-          (Math.random() - 0.5) * (0.28 + energyFactor * 0.28 + profile.motionBias * 0.22),
-          Math.random() * (0.18 + energyFactor * 0.18 + profile.motionBias * 0.12),
-          (Math.random() - 0.5) * (0.28 + energyFactor * 0.28 + profile.motionBias * 0.22)
-        );
-      particle.userData = {
-        colonyId: colonyId,
-        type: 'particle',
-        startPos: new THREE.Vector3().copy(center),
-        velocity: velocity.clone(),
-        baseVelocity: velocity,
-        lifetime: this.config.particles.lifetime,
-        elapsed: 0,
-        maxLifetime: this.config.particles.lifetime,
-        motionBias: profile.motionBias,
-        particleBias: seeds.particleBias,
-        orbitPhase: Math.random() * Math.PI * 2,
-        orbitRadius: 0.9 + stage * 0.35 + Math.random() * 0.6,
-        orbitSpeed: 0.4 + profile.motionBias * 0.14 + seeds.phaseSeed * 0.2
+        (Math.random() - 0.5) * (0.28 + energyFactor * 0.28 + profile.motionBias * 0.22),
+        Math.random() * (0.18 + energyFactor * 0.18 + profile.motionBias * 0.12),
+        (Math.random() - 0.5) * (0.28 + energyFactor * 0.28 + profile.motionBias * 0.22)
+      );
+
+      const particle = {
+        userData: {
+          colonyId,
+          type: 'particle',
+          startPos: new THREE.Vector3().copy(center),
+          velocity: velocity.clone(),
+          baseVelocity: velocity,
+          lifetime: this.config.particles.lifetime,
+          elapsed: 0,
+          maxLifetime: this.config.particles.lifetime,
+          motionBias: profile.motionBias,
+          particleBias: seeds.particleBias,
+          orbitPhase: seed * Math.PI * 2,
+          orbitRadius: 0.9 + stage * 0.35 + seed * 0.6,
+          orbitSpeed: baseOrbitSpeed,
+          baseOrbitSpeed,
+          seed,
+          baseTintHex: sporeColor.getHex(),
+          tintHex: sporeColor.getHex(),
+          baseSize,
+          particleSize: baseSize,
+          baseOpacity,
+          particleOpacity: baseOpacity,
+          slotIndex
+        }
       };
-      particle.visible = true;
-      this.vfxContainer.add(particle);
+
+      this._particleSlots[slotIndex] = particle;
+      this._particleActiveCount += 1;
+      this._registerParticleHandle(particle);
+      this._writeParticleSlot(slotIndex, particle);
       particles.push(particle);
     }
-    
+
+    if (this._particleCloudGeometry) {
+      this._particleCloudGeometry.setDrawRange(0, this._particleActiveCount);
+      this._particlePositionAttribute.needsUpdate = true;
+      this._particleColorAttribute.needsUpdate = true;
+      this._particleSizeAttribute.needsUpdate = true;
+    }
+
     return particles;
   }
 
-  /**
-   * Create the conscious core of a living civilization
-   */
-  /**
-   * Create conscious core for colony
-   * 
-   * TODO [2026-04-15]: Replace raw IcosahedronGeometry with deformed/composite geometry
-   * - Current: Uses primitive icosahedron (doesn't meet 2026+ quality bar)
-   * - Target: Use deformed sphere with noise displacement or composite mesh
-   * - Impact: Better visual quality for colony core
-   * - Priority: MEDIUM (affects colony visual quality)
-   */
-  createConsciousCore(colonyId, center, stage, mood, colonyType, energy) {
-    const profile = this.getMoodProfile(mood);
-    const color = this.getColorForMood(mood, colonyType);
-    const energyFactor = Math.min(1, energy / 100);
-    const size = 0.3 + stage * 0.12 + energyFactor * 0.4;
-    const motionBias = profile.motionBias;
-    const seed = this.getColonyVisualSeeds(colonyId).phaseSeed;
-    const pulsePhase = Math.random() * Math.PI * 2;
+  updateParticles(deltaTime) {
+    const time = performance.now() * 0.001;
 
-    // LIVING COLONY CORE: organically deformed nucleus with layered halo and ring
-    const nucleusGeo = this.createOrganicCoreGeometry(size * 0.55, 2, 0.22, seed);
-    const membraneGeo = this.createOrganicCoreGeometry(size * 0.92, 1, 0.16, seed + 0.12);
+    for (let i = 0; i < this._particleActiveCount; i++) {
+      const particle = this._particleSlots[i];
+      if (!particle?.userData || particle.userData.__released) continue;
 
-    let nucleusMat, membraneMat;
-    let bioluminescent = false;
+      const userData = particle.userData;
+      userData.orbitPhase += deltaTime * (userData.orbitSpeed ?? userData.baseOrbitSpeed ?? 0.4);
+      userData.elapsed += deltaTime;
 
-    // SUPERNATURAL UPGRADE: Bioluminescent nucleus + membrane shaders
-    if (this.config.enableBioluminescentUpgrade !== false) {
-      bioluminescent = true;
-      const baseColorVec = new THREE.Color(color);
-
-      nucleusMat = new THREE.ShaderMaterial({
-        vertexShader: BIOLUMINESCENT_NUCLEUS_VERTEX,
-        fragmentShader: BIOLUMINESCENT_NUCLEUS_FRAGMENT,
-        uniforms: {
-          uTime: { value: 0 },
-          uEnergy: { value: energyFactor },
-          uBaseColor: { value: baseColorVec },
-          uPulsePhase: { value: pulsePhase },
-          uMotionBias: { value: motionBias }
-        },
-        transparent: true,
-        side: THREE.DoubleSide,
-        flatShading: true,
-        toneMapped: false,
-        fog: false
-      });
-
-      membraneMat = new THREE.ShaderMaterial({
-        vertexShader: BIOLUMINESCENT_NUCLEUS_VERTEX, // reuse vertex shader
-        fragmentShader: BIOLUMINESCENT_MEMBRANE_FRAGMENT,
-        uniforms: {
-          uTime: { value: 0 },
-          uEnergy: { value: energyFactor },
-          uBaseColor: { value: baseColorVec.clone() },
-          uPulsePhase: { value: pulsePhase + 1.0 },
-          uMotionBias: { value: motionBias }
-        },
-        transparent: true,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        toneMapped: false,
-        fog: false
-      });
-    } else {
-      // Legacy MeshStandardMaterial fallback
-      nucleusMat = new THREE.MeshStandardMaterial({
-        color: color,
-        emissive: new THREE.Color(color),
-        emissiveIntensity: 0.8 + energyFactor * 0.2,
-        roughness: 0.24,
-        metalness: 0.35,
-        transparent: true,
-        opacity: 0.72 + energyFactor * 0.15,
-        flatShading: true,
-        side: THREE.DoubleSide,
-        toneMapped: false,
-        fog: false
-      });
-
-      membraneMat = new THREE.MeshStandardMaterial({
-        color: color,
-        emissive: new THREE.Color(color),
-        emissiveIntensity: 0.55,
-        roughness: 0.78,
-        metalness: 0.08,
-        transparent: true,
-        opacity: 0.24 + energyFactor * 0.08,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        toneMapped: false,
-        fog: false
-      });
-    }
-
-    const ringGeo = new THREE.TorusGeometry(size * 1.05, 0.02, 14, 64);
-    const ringMat = new THREE.MeshStandardMaterial({
-      color: color,
-      emissive: new THREE.Color(color),
-      emissiveIntensity: 0.75,
-      roughness: 0.42,
-      metalness: 0.28,
-      transparent: true,
-      opacity: 0.44 + energyFactor * 0.12,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-      fog: false
-    });
-
-    let core = this.acquireVFXObject('core');
-    if (core) {
-      if (core.geometry) core.geometry.dispose();
-      core.geometry = nucleusGeo;
-      if (core.material) core.material.dispose();
-      core.material = nucleusMat;
-      while (core.children.length > 0) {
-        const child = core.children[0];
-        if (child.geometry) child.geometry.dispose();
-        if (child.material) {
-          if (Array.isArray(child.material)) child.material.forEach((m) => m?.dispose?.());
-          else child.material.dispose();
-        }
-        core.remove(child);
+      if (userData.fadeOut) {
+        userData.fadeOut.timer += deltaTime;
       }
-    } else {
-      core = new THREE.Mesh(nucleusGeo, nucleusMat);
+
+      this._writeParticleSlot(i, particle, time);
+
+      const fadeOut = userData.fadeOut;
+      const fadeDelay = fadeOut ? Math.max(0, fadeOut.delay ?? 0) : 0;
+      const fadeDuration = fadeOut ? Math.max(0.001, fadeOut.duration ?? 1) : 0;
+      const fadeElapsed = fadeOut ? Math.max(0, (fadeOut.timer ?? 0) - fadeDelay) : 0;
+      const fadeProgress = fadeOut ? Math.min(1, fadeElapsed / fadeDuration) : 0;
+      const lifetimeProgress = Math.min(1, userData.elapsed / Math.max(0.001, userData.lifetime ?? 1));
+
+      if (lifetimeProgress >= 1 || (fadeOut && fadeProgress >= 1)) {
+        this._releaseParticleHandle(particle);
+        i -= 1;
+      }
     }
 
-    const membrane = new THREE.Mesh(membraneGeo, membraneMat);
-    membrane.userData = { type: 'membrane', spinSpeed: 0.28 + motionBias * 0.14 };
-    membrane.rotation.x = Math.PI * 0.18;
-    core.add(membrane);
-
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.rotation.x = Math.PI / 3.2;
-    ring.userData = { type: 'orbital-ring', spinSpeed: 1.0 + energyFactor * 0.28 };
-    core.add(ring);
-
-    core.position.copy(center);
-    core.visible = true;
-    core.userData = {
-      colonyId,
-      type: 'core',
-      stage,
-      pulsePhase,
-      pulseSpeed: 1.2 + Math.max(0, stage - 1) * 0.22 + energyFactor * 0.5 + motionBias * 0.2,
-      energyFactor,
-      motionBias,
-      bioluminescent
-    };
-
-    this.vfxContainer.add(core);
-
-    // BLOOM: Add volumetric glow overlay for the bioluminescent core
-    if (this.bloomOverlay) {
-      this.bloomOverlay.createForCore(colonyId, core, color, energyFactor, pulsePhase);
+    if (this._particleCloudGeometry) {
+      this._particlePositionAttribute.needsUpdate = true;
+      this._particleColorAttribute.needsUpdate = true;
+      this._particleSizeAttribute.needsUpdate = true;
+      this._particleCloudGeometry.setDrawRange(0, this._particleActiveCount);
     }
-
-    return core;
   }
 
   /**
@@ -1524,11 +1726,11 @@ export class ColonyVFXManager {
           uTime: { value: 0 },
           uEnergy: { value: 0.5 },
           uBaseColor: { value: new THREE.Color(color) },
-          uPulsePhase: { value: pulsePhase }
+          uPulsePhase: { value: pulsePhase },
+          uAuraColor: { value: new THREE.Color(this.palette.glowBlue).lerp(new THREE.Color(color), 0.18) }
         },
         transparent: true,
         side: THREE.BackSide,
-        flatShading: true,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
         toneMapped: false,
@@ -1537,7 +1739,6 @@ export class ColonyVFXManager {
     } else {
       material = this.createBasicMaterial(color, Math.min(1, 0.28 + (profile.glowIntensity || 0) * 0.08 + seeds.particleBias * 0.03));
       material.side = THREE.BackSide;
-      material.flatShading = true;
     }
     
     let glow = this.acquireVFXObject('central-glow');
@@ -1546,10 +1747,6 @@ export class ColonyVFXManager {
       glow.geometry = geometry;
       if (glow.material) glow.material.dispose();
       glow.material = material;
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.minFilter = THREE.LinearFilter;
-        texture.magFilter = THREE.LinearFilter;
-        texture.generateMipmaps = false;
     } else {
       glow = new THREE.Mesh(geometry, material);
     }
@@ -1829,30 +2026,6 @@ export class ColonyVFXManager {
     this.vfxContainer.add(beam);
     return beam;
   }
-  updateParticles(deltaTime) {
-    const time = performance.now() * 0.001;
-    for (const child of this.vfxContainer.children) {
-      if (child.userData && child.userData.type === 'particle') {
-        const userData = child.userData;
-      const pos = child.geometry.attributes.position.array;
-      userData.orbitPhase += deltaTime * userData.orbitSpeed;
-      const orbitRadius = userData.orbitRadius + Math.sin(time * 0.8 + userData.seed * 2.1) * 0.08;
-      const orbitX = Math.cos(userData.orbitPhase) * orbitRadius;
-      const orbitZ = Math.sin(userData.orbitPhase) * orbitRadius;
-      const jitterY = Math.sin(time * 1.4 + userData.orbitPhase) * 0.08;
-
-      pos[0] = userData.startPos.x + orbitX + Math.sin(time * 1.7 + userData.seed * 3.3) * 0.02;
-      pos[1] = userData.startPos.y + jitterY + Math.sin(time * 0.9 + userData.orbitPhase) * 0.03;
-      pos[2] = userData.startPos.z + orbitZ + Math.cos(time * 1.5 + userData.seed * 2.7) * 0.02;
-      child.geometry.attributes.position.needsUpdate = true;
-      
-      userData.elapsed += deltaTime;
-      const progress = userData.elapsed / userData.lifetime;
-      child.material.opacity = Math.max(0, 0.6 * (1 - progress));
-      }
-    }
-  }
-  
   /**
    * Update atmosphere animations (pulse, rotation)
    */
@@ -2142,16 +2315,19 @@ export class ColonyVFXManager {
       }
     }
 
+    const particleTintHex = this.blendColor(color, breathingColor.getHex(), 0.18);
+    const particleSize = 0.14 + energyFactor * 0.08 + (profile.particleDensity - 1.0) * 0.08 + (envelope.crest ?? 0) * 0.06 + ((vfx.particleBias ?? 1) - 1) * 0.05;
+    const particleOpacity = Math.min(1, 0.35 + stage * 0.08 + energyFactor * 0.22 + (profile.motionBias * 0.12) + (envelope.attack ?? 0) * 0.12);
+    const particleOrbitScale = 1 + (envelope.crest ?? 0) * 0.09 + profile.motionBias * 0.08 + ((vfx.particleBias ?? 1) - 1) * 0.06;
+
     for (const particle of vfx.particles) {
-      if (particle && particle.material) {
-        particle.material.color.setHex(this.blendColor(color, breathingColor.getHex(), 0.18));
-        particle.material.size = 0.14 + energyFactor * 0.08 + (profile.particleDensity - 1.0) * 0.08 + (envelope.crest ?? 0) * 0.06 + ((vfx.particleBias ?? 1) - 1) * 0.05;
-        particle.material.opacity = Math.min(1, 0.35 + stage * 0.08 + energyFactor * 0.22 + (profile.motionBias * 0.12) + (envelope.attack ?? 0) * 0.12);
-        if (particle.userData) {
-          const scale = 1 + (envelope.crest ?? 0) * 0.09 + profile.motionBias * 0.08 + ((vfx.particleBias ?? 1) - 1) * 0.06;
-          particle.userData.orbitSpeed = Math.max(0.2, particle.userData.orbitSpeed) * scale;
-        }
-      }
+      const userData = particle?.userData;
+      if (!userData || userData.__released || userData.fadeOut) continue;
+
+      userData.tintHex = particleTintHex;
+      userData.particleSize = particleSize;
+      userData.particleOpacity = particleOpacity;
+      userData.orbitSpeed = Math.max(0.2, userData.baseOrbitSpeed ?? userData.orbitSpeed ?? 0.2) * particleOrbitScale;
     }
 
     if (vfx.canopy && vfx.canopy.userData?.type === 'mood-canopy') {
@@ -2946,6 +3122,8 @@ export class ColonyVFXManager {
         this.releaseVFXObject(child);
       }
     }
+
+    this._releaseColonyParticles(colonyId, { soft, duration, delay });
   }
   
   /**
@@ -3196,6 +3374,7 @@ export class ColonyVFXManager {
       this.bloomOverlay.dispose();
       this.bloomOverlay = null;
     }
+    this._disposeParticleCloud();
     this.vfxContainer.clear();
     this.scene.remove(this.vfxContainer);
   }

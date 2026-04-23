@@ -98,12 +98,13 @@ export class AmbientEntityManager {
   /**
    * Register world systems (read-only)
    */
-  registerWorldSystems(legendary, events, weather, linking) {
+  registerWorldSystems(legendary, events, weather, linking, colonyExpansion = null) {
     this.worldSystems.legendaryPack = legendary;
     this.worldSystems.worldEvents = events;
     this.worldSystems.weatherPack = weather;
     this.worldSystems.linkingSystem = linking;
-    
+    this.worldSystems.colonyExpansion = colonyExpansion;
+
     // Keep interpretation snapshot aligned with current inputs
     this.refreshAmbientInterpretation();
   }
@@ -121,12 +122,77 @@ export class AmbientEntityManager {
   refreshAmbientInterpretation() {
     const activeWeather = this.worldSystems.weatherPack?.getActiveWeather?.();
     this.interpretationState.canSpawnFromWeather = Array.isArray(activeWeather) && activeWeather.length > 0;
-    
+
     this.interpretationState.canSpawnFromLegendary =
       this.worldSystems.legendaryPack?.getLegendaryNodeCount?.() > 0;
-    
+
     const activeEvents = this.worldSystems.worldEvents?.getActiveEvents?.();
     this.interpretationState.canSpawnFromEvents = Array.isArray(activeEvents) && activeEvents.length > 0;
+
+    // Ecosystem: cache colony and link state for behavior-driven spawning
+    this._refreshColonySnapshot();
+    this._refreshLinkSnapshot();
+  }
+
+  /**
+   * Cache colony centers and moods for ecosystem behavior.
+   */
+  _refreshColonySnapshot() {
+    const colonies = [];
+    const registry = this.worldSystems.colonyExpansion?.registry;
+    if (registry?.colonies) {
+      for (const colonyId in registry.colonies) {
+        const colony = registry.colonies[colonyId];
+        if (colony?.center) {
+          colonies.push({
+            id: colonyId,
+            center: colony.center,
+            mood: colony.mood,
+            stage: colony.stage,
+            type: colony.type,
+            energy: colony.energy || 0
+          });
+        }
+      }
+    }
+    this._colonySnapshot = colonies;
+  }
+
+  /**
+   * Cache active links for wisp traffic behavior.
+   */
+  _refreshLinkSnapshot() {
+    const links = this.worldSystems.linkingSystem?.links || [];
+    this._linkSnapshot = links.filter(l => l?.active !== false && l.nodeA?.position && l.nodeB?.position);
+  }
+
+  /**
+   * Pick a random active link endpoint for wisp spawning.
+   */
+  _pickRandomLink() {
+    if (!this._linkSnapshot?.length) return null;
+    return this._linkSnapshot[Math.floor(Math.random() * this._linkSnapshot.length)];
+  }
+
+  /**
+   * Pick a colony center weighted by stage/energy.
+   */
+  _pickColonyCenter(preferMood = null) {
+    if (!this._colonySnapshot?.length) return null;
+    let candidates = this._colonySnapshot;
+    if (preferMood) {
+      const filtered = candidates.filter(c => c.mood === preferMood);
+      if (filtered.length) candidates = filtered;
+    }
+    // Weight by stage + energy
+    const weights = candidates.map(c => c.stage + c.energy / 100);
+    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    let roll = Math.random() * totalWeight;
+    for (let i = 0; i < candidates.length; i++) {
+      roll -= weights[i];
+      if (roll <= 0) return candidates[i];
+    }
+    return candidates[0];
   }
   
   /**
@@ -157,58 +223,149 @@ export class AmbientEntityManager {
   }
   
   /**
-   * Check if we should spawn a new entity
+   * Check if we should spawn a new entity — ECOSYSTEM DRIVEN.
+   * Each entity type spawns in context of world state, not random Brownian.
    */
   updateSpawning() {
     const now = Date.now();
     if (now - this.lastSpawnTime < this.spawnCooldown) {
       return;
     }
-    
+
     this.lastSpawnTime = now;
-    
+
     // Don't spawn if at max
     const activeCount = Object.values(this.registry.entities)
       .filter(e => e.isActive).length;
     if (activeCount >= this.maxEntities) {
       return;
     }
-    
+
     // Random spawn chance
     if (Math.random() > this.spawnChance) {
       return;
     }
-    
-    // Determine spawn conditions
-    const {
-      canSpawnFromWeather,
-      canSpawnFromLegendary,
-      canSpawnFromEvents
-    } = this.interpretationState;
-    const randomSpawn = Math.random() < 0.5;
-    
-    if (!canSpawnFromWeather && !canSpawnFromLegendary && !canSpawnFromEvents && !randomSpawn) {
-      return;
+
+    // Ecosystem: pick entity type based on world state, not pure random
+    const type = this._selectEcosystemSpawnType();
+    if (!type) return;
+
+    // Ecosystem: pick spawn position based on entity type behavior
+    const spawnPos = this._selectEcosystemSpawnPosition(type);
+    if (!spawnPos) return;
+
+    // Spawn entity with behavior context
+    this.spawnEntity(type, spawnPos);
+  }
+
+  /**
+   * Select entity type weighted by world state.
+   */
+  _selectEcosystemSpawnType() {
+    const weights = new Map();
+    const types = this.registry.TYPES;
+
+    // Ghost orbs: more likely when colonies exist
+    const colonyCount = this._colonySnapshot?.length || 0;
+    weights.set(types.GHOST_ORB, 0.3 + colonyCount * 0.15);
+
+    // Quantum wisps: more likely when links exist
+    const linkCount = this._linkSnapshot?.length || 0;
+    weights.set(types.QUANTUM_WISP, 0.2 + Math.min(1, linkCount * 0.02));
+
+    // Sigma phantoms: more likely when corruption colonies exist
+    const corruptionColonies = this._colonySnapshot?.filter(c => c.mood === 'CORRUPTION').length || 0;
+    weights.set(types.SIGMA_PHANTOM, 0.15 + corruptionColonies * 0.25);
+
+    // AI spectre: more likely when corruption or high-stage colonies exist
+    const highStageColonies = this._colonySnapshot?.filter(c => c.stage >= 3).length || 0;
+    weights.set(types.AI_SPECTRE, 0.1 + corruptionColonies * 0.2 + highStageColonies * 0.1);
+
+    // Fragment swarm: always possible, neutral
+    weights.set(types.FRAGMENT_SWARM, 0.25);
+
+    // Normalize and roll
+    let total = 0;
+    for (const w of weights.values()) total += w;
+    let roll = Math.random() * total;
+    for (const [type, weight] of weights) {
+      roll -= weight;
+      if (roll <= 0) return type;
     }
-    
-    // Select random entity type
-    const types = Object.values(this.registry.TYPES);
-    const randomType = types[Math.floor(Math.random() * types.length)];
-    
-    // Generate random spawn position around player
+    return types.GHOST_ORB;
+  }
+
+  /**
+   * Select spawn position based on entity type behavior context.
+   */
+  _selectEcosystemSpawnPosition(type) {
+    const types = this.registry.TYPES;
+
+    // Ghost orbs: spawn near a colony center, offset for elliptical orbit
+    if (type === types.GHOST_ORB) {
+      const colony = this._pickColonyCenter();
+      if (colony) {
+        const orbitRadius = 3 + Math.random() * 4;
+        const angle = Math.random() * Math.PI * 2;
+        return {
+          x: colony.center.x + Math.cos(angle) * orbitRadius,
+          y: colony.center.y + 0.5 + Math.random() * 2,
+          z: colony.center.z + Math.sin(angle) * orbitRadius
+        };
+      }
+    }
+
+    // Quantum wisps: spawn at a link endpoint
+    if (type === types.QUANTUM_WISP) {
+      const link = this._pickRandomLink();
+      if (link?.nodeA?.position) {
+        const pos = link.nodeA.position;
+        return {
+          x: pos.x + (Math.random() - 0.5) * 2,
+          y: pos.y + Math.random() * 2,
+          z: pos.z + (Math.random() - 0.5) * 2
+        };
+      }
+    }
+
+    // Sigma phantoms: spawn near corruption colony edge
+    if (type === types.SIGMA_PHANTOM) {
+      const colony = this._pickColonyCenter('CORRUPTION');
+      if (colony) {
+        const guardRadius = 4 + Math.random() * 3;
+        const angle = Math.random() * Math.PI * 2;
+        return {
+          x: colony.center.x + Math.cos(angle) * guardRadius,
+          y: colony.center.y + Math.random() * 1.5,
+          z: colony.center.z + Math.sin(angle) * guardRadius
+        };
+      }
+    }
+
+    // AI spectre: spawn near high-stage or corruption colony
+    if (type === types.AI_SPECTRE) {
+      const colony = this._pickColonyCenter('CORRUPTION') || this._pickColonyCenter();
+      if (colony) {
+        const scanRadius = 2 + Math.random() * 3;
+        const angle = Math.random() * Math.PI * 2;
+        return {
+          x: colony.center.x + Math.cos(angle) * scanRadius,
+          y: colony.center.y + 1.5 + Math.random(),
+          z: colony.center.z + Math.sin(angle) * scanRadius
+        };
+      }
+    }
+
+    // Fragment swarm: random around player (neutral)
     const playerPos = this.camera.position;
     const spawnDist = 10 + Math.random() * 30;
     const angle = Math.random() * Math.PI * 2;
     const height = -5 + Math.random() * 15;
-    
-    const spawnPos = {
+    return {
       x: playerPos.x + Math.cos(angle) * spawnDist,
       y: playerPos.y + height,
       z: playerPos.z + Math.sin(angle) * spawnDist
     };
-    
-    // Spawn entity
-    this.spawnEntity(randomType, spawnPos);
   }
   
   /**
@@ -216,60 +373,169 @@ export class AmbientEntityManager {
    */
   spawnEntity(type, position) {
     const lifetime = 20 + Math.random() * 30; // 20-50s
-    let activeCount = 0;
-    for (const entityId in this.registry.entities) {
-      if (this.registry.entities[entityId]?.isActive) {
-        activeCount += 1;
-      }
-    }
-    // Initial velocity based on type
-    let velocity = { x: 0, y: 0, z: 0 };
-    switch (type) {
-      case this.registry.TYPES.GHOST_ORB:
-        velocity = {
-          x: (Math.random() - 0.5) * 0.5,
-          y: (Math.random() - 0.5) * 0.3,
-          z: (Math.random() - 0.5) * 0.5
-        };
-        break;
-      case this.registry.TYPES.AI_SPECTRE:
-        velocity = {
-          x: (Math.random() - 0.5) * 0.3,
-          y: 0.1,
-          z: (Math.random() - 0.5) * 0.3
-        };
-        break;
-      case this.registry.TYPES.FRAGMENT_SWARM:
-        velocity = {
-          x: (Math.random() - 0.5) * 0.8,
-          y: (Math.random() - 0.5) * 0.4,
-          z: (Math.random() - 0.5) * 0.8
-        };
-        break;
-      case this.registry.TYPES.SIGMA_PHANTOM:
-        velocity = {
-          x: (Math.random() - 0.5) * 0.4,
-          y: (Math.random() - 0.5) * 0.2,
-          z: (Math.random() - 0.5) * 0.4
-        };
-        break;
-      case this.registry.TYPES.QUANTUM_WISP:
-        velocity = {
-          x: (Math.random() - 0.5) * 0.6,
-          y: (Math.random() - 0.5) * 0.5,
-          z: (Math.random() - 0.5) * 0.6
-        };
-        break;
-    }
-    
+
+    // ECOSYSTEM: behavior context per entity type
+    const behaviorContext = this._buildBehaviorContext(type, position);
+
     const entity = this.registry.createEntity(type, position, {
-      velocity,
+      velocity: behaviorContext.velocity,
       lifetime,
-      intensity
+      intensity: behaviorContext.intensity,
+      userData: behaviorContext
     });
-    
+
     // Create visual representation
     this.createEntityVisuals(entity);
+  }
+
+  /**
+   * Build behavior context for each entity type.
+   * Replaces random Brownian motion with meaningful ecosystem behavior.
+   */
+  _buildBehaviorContext(type, position) {
+    const types = this.registry.TYPES;
+
+    // Ghost orb: elliptical orbit around nearest colony
+    if (type === types.GHOST_ORB) {
+      const colony = this._findNearestColony(position);
+      if (colony) {
+        const dx = position.x - colony.center.x;
+        const dz = position.z - colony.center.z;
+        const dist = Math.sqrt(dx * dx + dz * dz) || 1;
+        const orbitSpeed = 0.3 + Math.random() * 0.4;
+        const vx = -(dz / dist) * orbitSpeed;
+        const vz = (dx / dist) * orbitSpeed;
+        return {
+          velocity: { x: vx, y: (Math.random() - 0.5) * 0.15, z: vz },
+          intensity: 0.7 + Math.random() * 0.3,
+          orbitCenter: { x: colony.center.x, y: colony.center.y, z: colony.center.z },
+          orbitRadius: dist,
+          orbitSpeed,
+          orbitPhase: Math.atan2(dz, dx),
+          orbitTilt: (Math.random() - 0.5) * 0.3,
+          behavior: 'colony-orbit'
+        };
+      }
+    }
+
+    // Quantum wisp: flow along a link as energy packet
+    if (type === types.QUANTUM_WISP) {
+      const link = this._findNearestLink(position);
+      if (link?.nodeA?.position && link?.nodeB?.position) {
+        const start = link.nodeA.position;
+        const end = link.nodeB.position;
+        const dirX = end.x - start.x;
+        const dirY = end.y - start.y;
+        const dirZ = end.z - start.z;
+        const len = Math.sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ) || 1;
+        const flowSpeed = 1.2 + Math.random() * 1.5;
+        return {
+          velocity: { x: (dirX / len) * flowSpeed, y: (dirY / len) * flowSpeed, z: (dirZ / len) * flowSpeed },
+          intensity: 0.8 + Math.random() * 0.2,
+          linkStart: { x: start.x, y: start.y, z: start.z },
+          linkEnd: { x: end.x, y: end.y, z: end.z },
+          linkDir: { x: dirX / len, y: dirY / len, z: dirZ / len },
+          flowSpeed,
+          flowProgress: 0,
+          behavior: 'link-flow'
+        };
+      }
+    }
+
+    // Sigma phantom: guard corruption colony edge, mostly static
+    if (type === types.SIGMA_PHANTOM) {
+      const colony = this._findNearestColony(position, 'CORRUPTION');
+      if (colony) {
+        const dx = position.x - colony.center.x;
+        const dz = position.z - colony.center.z;
+        const dist = Math.sqrt(dx * dx + dz * dz) || 1;
+        return {
+          velocity: { x: 0, y: 0, z: 0 },
+          intensity: 0.6 + Math.random() * 0.4,
+          guardCenter: { x: colony.center.x, y: colony.center.y, z: colony.center.z },
+          guardRadius: dist,
+          guardAngle: Math.atan2(dz, dx),
+          glitchIntensity: 0.3 + Math.random() * 0.5,
+          behavior: 'corruption-guard'
+        };
+      }
+    }
+
+    // AI spectre: scan corruption or high-stage colony
+    if (type === types.AI_SPECTRE) {
+      const colony = this._findNearestColony(position, 'CORRUPTION')
+        || this._findNearestColony(position);
+      if (colony) {
+        return {
+          velocity: { x: 0, y: 0.05, z: 0 },
+          intensity: 0.7 + Math.random() * 0.3,
+          scanCenter: { x: colony.center.x, y: colony.center.y, z: colony.center.z },
+          scanRadius: 2 + Math.random() * 3,
+          scanPhase: Math.random() * Math.PI * 2,
+          scanSpeed: 0.4 + Math.random() * 0.3,
+          behavior: 'colony-scan'
+        };
+      }
+    }
+
+    // Fragment swarm: neutral, random Brownian
+    return {
+      velocity: {
+        x: (Math.random() - 0.5) * 0.8,
+        y: (Math.random() - 0.5) * 0.4,
+        z: (Math.random() - 0.5) * 0.8
+      },
+      intensity: 0.5 + Math.random() * 0.5,
+      behavior: 'neutral-swarm'
+    };
+  }
+
+  /**
+   * Find nearest colony to a position, optionally filtered by mood.
+   */
+  _findNearestColony(position, preferMood = null) {
+    if (!this._colonySnapshot?.length) return null;
+    let candidates = this._colonySnapshot;
+    if (preferMood) {
+      const filtered = candidates.filter(c => c.mood === preferMood);
+      if (filtered.length) candidates = filtered;
+    }
+    let nearest = null;
+    let nearestDist = Infinity;
+    for (const colony of candidates) {
+      const dx = colony.center.x - position.x;
+      const dy = colony.center.y - position.y;
+      const dz = colony.center.z - position.z;
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearest = colony;
+      }
+    }
+    return nearest;
+  }
+
+  /**
+   * Find nearest link to a position.
+   */
+  _findNearestLink(position) {
+    if (!this._linkSnapshot?.length) return null;
+    let nearest = null;
+    let nearestDist = Infinity;
+    for (const link of this._linkSnapshot) {
+      const midX = (link.nodeA.position.x + link.nodeB.position.x) * 0.5;
+      const midY = (link.nodeA.position.y + link.nodeB.position.y) * 0.5;
+      const midZ = (link.nodeA.position.z + link.nodeB.position.z) * 0.5;
+      const dx = midX - position.x;
+      const dy = midY - position.y;
+      const dz = midZ - position.z;
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearest = link;
+      }
+    }
+    return nearest;
   }
   
   /**
@@ -789,26 +1055,168 @@ export class AmbientEntityManager {
    */
   updateAllEntities(deltaTime) {
     const entities = this.registry.getAllEntities();
-    
+
     for (let entity of entities) {
-      // Update age and check lifetime
       const expired = this.registry.updateEntityAge(entity.id, deltaTime);
-      if (expired) {
-        continue;
+      if (expired) continue;
+
+      const behavior = entity.userData?.behaviorContext;
+      if (behavior) {
+        this._applyBehaviorMovement(entity, behavior, deltaTime);
+      } else {
+        // Legacy fallback: simple velocity integration
+        entity.position.x += entity.velocity.x * deltaTime;
+        entity.position.y += entity.velocity.y * deltaTime;
+        entity.position.z += entity.velocity.z * deltaTime;
       }
-      
-      // Update position based on velocity
-      entity.position.x += entity.velocity.x * deltaTime;
-      entity.position.y += entity.velocity.y * deltaTime;
-      entity.position.z += entity.velocity.z * deltaTime;
-      
-      // Apply subtle forces based on world state
+
+      // Apply ecosystem forces (colony attraction, link flow, corruption repulsion)
       this.applyWorldForces(entity, deltaTime);
-      
-      // Update mesh position
+
       const mesh = this.entityMeshes[entity.id];
       if (mesh) {
         mesh.position.copy(entity.position);
+      }
+    }
+  }
+
+  /**
+   * Apply behavior-driven movement based on entity type and context
+   */
+  _applyBehaviorMovement(entity, behavior, deltaTime) {
+    const pos = entity.position;
+    const vel = entity.velocity;
+
+    switch (behavior.type) {
+      case 'colony-orbit': {
+        // Elliptical orbit around colony center
+        const center = behavior.orbitCenter;
+        const radius = behavior.orbitRadius;
+        const speed = behavior.orbitSpeed;
+        let phase = behavior.orbitPhase;
+        phase += speed * deltaTime;
+        behavior.orbitPhase = phase;
+
+        const targetX = center.x + Math.cos(phase) * radius;
+        const targetZ = center.z + Math.sin(phase) * radius * 0.7; // elliptical
+        const targetY = center.y + Math.sin(phase * 2.1) * (radius * 0.15);
+
+        // Smooth steering toward orbit target
+        vel.x += (targetX - pos.x) * 1.2 - vel.x * 0.6;
+        vel.z += (targetZ - pos.z) * 1.2 - vel.z * 0.6;
+        vel.y += (targetY - pos.y) * 0.8 - vel.y * 0.5;
+
+        pos.x += vel.x * deltaTime;
+        pos.y += vel.y * deltaTime;
+        pos.z += vel.z * deltaTime;
+        break;
+      }
+
+      case 'link-flow': {
+        // Flow along link direction with slight sinusoidal drift
+        const dir = behavior.linkDirection;
+        const speed = behavior.flowSpeed;
+        let progress = behavior.flowProgress;
+        progress += speed * deltaTime;
+        behavior.flowProgress = progress;
+
+        // Primary flow along link
+        vel.x = dir.x * speed * 2.0;
+        vel.y = dir.y * speed * 2.0;
+        vel.z = dir.z * speed * 2.0;
+
+        // Perpendicular drift (ribbon-like sine wave)
+        const driftPhase = progress * 3.0;
+        const perpX = -dir.z;
+        const perpZ = dir.x;
+        vel.x += perpX * Math.sin(driftPhase) * speed * 0.4;
+        vel.z += perpZ * Math.sin(driftPhase) * speed * 0.4;
+        vel.y += Math.cos(driftPhase * 1.3) * speed * 0.25;
+
+        pos.x += vel.x * deltaTime;
+        pos.y += vel.y * deltaTime;
+        pos.z += vel.z * deltaTime;
+
+        // Reset if flowed too far from link midpoint
+        if (behavior.linkMidpoint) {
+          const dx = pos.x - behavior.linkMidpoint.x;
+          const dy = pos.y - behavior.linkMidpoint.y;
+          const dz = pos.z - behavior.linkMidpoint.z;
+          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          if (dist > behavior.linkLength * 0.7) {
+            // Teleport back to start of flow
+            pos.copy(behavior.linkStart);
+            behavior.flowProgress = 0;
+          }
+        }
+        break;
+      }
+
+      case 'corruption-guard': {
+        // Drift around guard center, staying within guard radius
+        const center = behavior.guardCenter;
+        const radius = behavior.guardRadius;
+        const intensity = behavior.glitchIntensity;
+
+        // Erratic drift with high frequency noise
+        const noiseT = Date.now() * 0.001 * intensity;
+        const driftX = (Math.sin(noiseT * 3.7) + Math.sin(noiseT * 7.3) * 0.5) * radius * 0.3;
+        const driftZ = (Math.cos(noiseT * 4.1) + Math.cos(noiseT * 6.7) * 0.5) * radius * 0.3;
+        const driftY = Math.sin(noiseT * 5.3) * radius * 0.15;
+
+        const targetX = center.x + driftX;
+        const targetZ = center.z + driftZ;
+        const targetY = center.y + driftY;
+
+        // Snap toward target with glitchy overshoot
+        vel.x += (targetX - pos.x) * 1.5 - vel.x * 0.4;
+        vel.z += (targetZ - pos.z) * 1.5 - vel.z * 0.4;
+        vel.y += (targetY - pos.y) * 1.0 - vel.y * 0.4;
+
+        pos.x += vel.x * deltaTime;
+        pos.y += vel.y * deltaTime;
+        pos.z += vel.z * deltaTime;
+        break;
+      }
+
+      case 'colony-scan': {
+        // Circular scan around colony center at scan radius
+        const center = behavior.scanCenter;
+        const radius = behavior.scanRadius;
+        const speed = behavior.scanSpeed;
+        let phase = behavior.scanPhase || 0;
+        phase += speed * deltaTime;
+        behavior.scanPhase = phase;
+
+        const targetX = center.x + Math.cos(phase) * radius;
+        const targetZ = center.z + Math.sin(phase) * radius;
+        const targetY = center.y + Math.sin(phase * 1.5) * (radius * 0.12);
+
+        // Smooth patrol with slight hover
+        vel.x += (targetX - pos.x) * 0.9 - vel.x * 0.5;
+        vel.z += (targetZ - pos.z) * 0.9 - vel.z * 0.5;
+        vel.y += (targetY - pos.y) * 0.6 - vel.y * 0.4;
+
+        pos.x += vel.x * deltaTime;
+        pos.y += vel.y * deltaTime;
+        pos.z += vel.z * deltaTime;
+        break;
+      }
+
+      case 'neutral-swarm':
+      default: {
+        // Brownian motion with velocity damping
+        pos.x += vel.x * deltaTime;
+        pos.y += vel.y * deltaTime;
+        pos.z += vel.z * deltaTime;
+
+        // Soft boundary: nudge back toward origin if too far
+        const distFromOrigin = Math.sqrt(pos.x * pos.x + pos.z * pos.z);
+        if (distFromOrigin > 40) {
+          vel.x -= pos.x * 0.002;
+          vel.z -= pos.z * 0.002;
+        }
+        break;
       }
     }
   }
@@ -817,35 +1225,132 @@ export class AmbientEntityManager {
    * Apply forces from world systems (read-only)
    */
   applyWorldForces(entity, deltaTime) {
+    const behavior = entity.userData?.behaviorContext;
+    const pos = entity.position;
+    const vel = entity.velocity;
+
+    // Colony-centric forces (ecosystem-driven)
+    if (behavior) {
+      switch (behavior.type) {
+        case 'colony-orbit': {
+          // Gentle pull toward orbit center to maintain stable orbit
+          const center = behavior.orbitCenter;
+          const dx = center.x - pos.x;
+          const dz = center.z - pos.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist > 0.1) {
+            const targetRadius = behavior.orbitRadius;
+            const radiusError = dist - targetRadius;
+            // Spring-like correction toward target radius
+            const springStrength = 0.15;
+            vel.x += (dx / dist) * radiusError * springStrength;
+            vel.z += (dz / dist) * radiusError * springStrength;
+            // Vertical damping
+            vel.y += (center.y - pos.y) * 0.08 - vel.y * 0.3;
+          }
+          break;
+        }
+
+        case 'link-flow': {
+          // Align velocity with link direction, resist perpendicular drift
+          const dir = behavior.linkDirection;
+          const dot = vel.x * dir.x + vel.y * dir.y + vel.z * dir.z;
+          const perpX = vel.x - dot * dir.x;
+          const perpY = vel.y - dot * dir.y;
+          const perpZ = vel.z - dot * dir.z;
+          // Dampen perpendicular velocity
+          vel.x -= perpX * 0.25;
+          vel.y -= perpY * 0.25;
+          vel.z -= perpZ * 0.25;
+          break;
+        }
+
+        case 'corruption-guard': {
+          // Repel fragment swarms and other entities from guard center
+          const center = behavior.guardCenter;
+          const dx = pos.x - center.x;
+          const dz = pos.z - center.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          const guardRadius = behavior.guardRadius;
+          if (dist < guardRadius && dist > 0.1) {
+            const repelStrength = 0.03 * (1 - dist / guardRadius);
+            vel.x += (dx / dist) * repelStrength;
+            vel.z += (dz / dist) * repelStrength;
+          }
+          // Self-agitation: corruption phantoms jitter more
+          const jitter = behavior.glitchIntensity * 0.02;
+          vel.x += (Math.random() - 0.5) * jitter;
+          vel.z += (Math.random() - 0.5) * jitter;
+          break;
+        }
+
+        case 'colony-scan': {
+          // Spectres maintain altitude relative to scan center
+          const center = behavior.scanCenter;
+          vel.y += (center.y + 2.0 - pos.y) * 0.06 - vel.y * 0.2;
+          // Tangential boost to maintain circular motion
+          const dx = pos.x - center.x;
+          const dz = pos.z - center.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist > 0.1) {
+            const tangentX = -dz / dist;
+            const tangentZ = dx / dist;
+            vel.x += tangentX * 0.008;
+            vel.z += tangentZ * 0.008;
+          }
+          break;
+        }
+
+        case 'neutral-swarm': {
+          // Fragment swarms are repelled by corruption colonies
+          if (this._colonySnapshot) {
+            for (const colony of this._colonySnapshot) {
+              if (colony.mood === 'corruption' || colony.mood === 'hostile') {
+                const cdx = pos.x - colony.center.x;
+                const cdz = pos.z - colony.center.z;
+                const cDist = Math.sqrt(cdx * cdx + cdz * cdz);
+                if (cDist < 25 && cDist > 0.1) {
+                  const repel = 0.025 * (1 - cDist / 25);
+                  vel.x += (cdx / cDist) * repel;
+                  vel.z += (cdz / cDist) * repel;
+                }
+              }
+            }
+          }
+          break;
+        }
+      }
+    }
+
     // Weather wind effect
     const activeWeather = this.worldSystems.weatherPack?.getActiveWeather?.();
     if (activeWeather && activeWeather.length > 0) {
       const weather = activeWeather[0];
       if (weather.windVector) {
-        entity.velocity.x += weather.windVector.x * 0.01;
-        entity.velocity.z += weather.windVector.z * 0.01;
+        vel.x += weather.windVector.x * 0.01;
+        vel.z += weather.windVector.z * 0.01;
       }
     }
-    
+
     // Legendary node attraction (read-only)
     const legendaryNodes = this.worldSystems.legendaryPack?.getLegendaryNodes?.();
     if (legendaryNodes && legendaryNodes.length > 0) {
       const nearestLegendary = legendaryNodes[0];
       if (nearestLegendary && nearestLegendary.position) {
-        const dx = nearestLegendary.position.x - entity.position.x;
-        const dy = nearestLegendary.position.y - entity.position.y;
-        const dz = nearestLegendary.position.z - entity.position.z;
-        const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-        
+        const dx = nearestLegendary.position.x - pos.x;
+        const dy = nearestLegendary.position.y - pos.y;
+        const dz = nearestLegendary.position.z - pos.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
         if (dist < 20 && dist > 0.1) {
           const strength = 0.02 * (1 - dist / 20);
-          entity.velocity.x += (dx / dist) * strength;
-          entity.velocity.y += (dy / dist) * strength;
-          entity.velocity.z += (dz / dist) * strength;
+          vel.x += (dx / dist) * strength;
+          vel.y += (dy / dist) * strength;
+          vel.z += (dz / dist) * strength;
         }
       }
     }
-    
+
     // World events intensity modulation
     const activeEvents = this.worldSystems.worldEvents?.getActiveEvents?.();
     if (activeEvents && activeEvents.length > 0) {

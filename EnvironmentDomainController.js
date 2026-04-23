@@ -227,12 +227,14 @@ export const ENVIRONMENT_VFX_REGISTRY = Object.freeze({
       'WORLD_OVERLAY',
       'visual-indirect'
     ),
+    // DEPRECATED (2026-04-23): _AIThoughtStorms2_0 superseded by _EmergentThoughtStorms5_0.
+    // Kept in registry for documentation drift detection only.
     describeEnvironmentVfx(
       'AIThoughtStorms2_0',
-      'Consciousness-layer thought storms that amplify network mood shifts, cluster turbulence, and rare storm bursts.',
+      '[DEPRECATED] Consciousness-layer thought storms — superseded by EmergentThoughtStorms5_0.',
       'AIConsciousnessLayer',
-      'active-indirect-support',
-      ['link.active', 'node.cluster.detected', 'node.synergy.high', 'node.corruption.high'],
+      'legacy-deprecated',
+      [],
       'WORLD_OVERLAY',
       'visual-indirect'
     ),
@@ -280,7 +282,9 @@ const ENVIRONMENT_RENDER_LAYERS = Object.freeze({
   worldPersonalityController: 'WORLD_OVERLAY',
   metricReactiveEvents: 'WORLD_OVERLAY',
   ambientEntityManager: 'WORLD_OVERLAY',
-  emergentThoughtStorms: 'WORLD_OVERLAY',
+  // EmergentThoughtStorms5_0 renders ABOVE colony VFX so storms sit on top
+  // of civilization halos/rings but BELOW UI/HUD.
+  emergentThoughtStorms: 'WORLD_FOREGROUND',
   safeDreamDepthPack: 'WORLD_OVERLAY',
   dreamDepthEffectManager: 'WORLD_OVERLAY',
   colonyExpansion: 'WORLD_OVERLAY',
