@@ -586,6 +586,7 @@ import { NetworkStressAggregator, setupNetworkStressAggregatorConsoleAPI } from 
 // REMOVED: ParticleEmissionScaler — moved to LEGACY/april (2026-04-22)
 import { mountAIAutomationHUD, updateAIAutomationHUD } from './hud/AIAutomationHUD.js';
 import { mountVariantBAdvisorHUD, updateVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
+import { UIVisibilityConfig } from './ui/config/UIVisibilityConfig.js';
 import { getSharedPostProcessingPipeline } from './PostProcessing.js';
 
 const ENABLE_SELECTED_NODE_BADGE = false;
@@ -1144,7 +1145,7 @@ import { EventVisualSuppression_v1, setupEventSuppressionConsoleAPI } from './Ev
 // DYNAMIC LINK COLOR SYSTEM v1.0 (NEW)
 // Real-time synergy-driven link color transitions
 // ============================================================================
-import { DynamicLinkColorSystem, setupDynamicLinkColorSystemConsoleAPI } from './DynamicLinkColorSystem.js';
+// import { DynamicLinkColorSystem, setupDynamicLinkColorSystemConsoleAPI } from './DynamicLinkColorSystem.js';  // LEGACY/april — disconnected 2026-04-22
 
 // ============================================================================
 // SYNERGY CASCADE PROPAGATION VISUALIZER v1.0 (NEW)
@@ -4143,6 +4144,7 @@ class AtomaGame {
                 zoneOverlay: false
             }
         };
+        this._aiHudLastRefresh = 0;
         this.hudDirty = {
             coreMetrics: true,
             nodeInspector: false,
@@ -5043,11 +5045,11 @@ class AtomaGame {
                 this.cinematicUpgrade.update(dt);
             }
         }, 'visual.cinematicUpgrade');
-        this.frameScheduler.register('visual', (dt) => {
-            if (this.dynamicLinkColorSystem) {
-                this.dynamicLinkColorSystem.update(dt);
-            }
-        }, 'visual.dynamicLinkColorSystem');
+        // this.frameScheduler.register('visual', (dt) => {
+        //     if (this.dynamicLinkColorSystem) {
+        //         this.dynamicLinkColorSystem.update(dt);
+        //     }
+        // }, 'visual.dynamicLinkColorSystem');  // LEGACY/april
         this.frameScheduler.register('visual', (dt) => {
             this.aiNodes?.updateEdgeCageDistanceFade?.(dt, this.camera);
         }, 'visual.edgeCageDistanceFade');
@@ -9200,27 +9202,8 @@ window.__ATOMA_SCENE__ = this.scene;
         */
 
         // ====================================================================
-        // DYNAMIC LINK COLOR SYSTEM v1.0 (NEW - Real-time synergy colors)
-        // Automatically updates link colors based on current synergy scores
-        // ====================================================================
-        try {
-            this.dynamicLinkColorSystem = new DynamicLinkColorSystem(this.linkingSystem);
-            
-            // Configure for smooth transitions
-            this.dynamicLinkColorSystem.configure({
-                enabled: true,
-                updateFrequency: 1,        // Update every frame
-                transitionDuration: 0.3,   // Smooth 300ms transitions
-                useParticleColors: true,   // Color particles too
-                batchSize: 50              // Process 50 links per batch
-            });
-            
-            setupDynamicLinkColorSystemConsoleAPI(this.dynamicLinkColorSystem);
-            console.log('[main.js] DynamicLinkColorSystem initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] DynamicLinkColorSystem initialization failed:', err);
-            this.dynamicLinkColorSystem = null;
-        }
+        // LEGACY/april — DynamicLinkColorSystem disconnected 2026-04-22 (all helpers are no-ops)
+        // this.dynamicLinkColorSystem = new DynamicLinkColorSystem(this.linkingSystem);
 
         // REMOVED: AnimatedLinkFlow console API setup — moved to LEGACY/april (2026-04-22)
 
@@ -11428,7 +11411,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         // DEACTIVATED: Replaced by VisualHierarchyRegistry (Daniel request 2026-03-03)
         // reg('visualHierarchyCorrection', (dt) => this.visualHierarchyCorrection?.update?.(dt));
-        regGuard('dynamicLinkColorSystem', 'visual.dynamicLinkColorSystem', (dt) => this.dynamicLinkColorSystem?.update?.(dt));
+        // regGuard('dynamicLinkColorSystem', 'visual.dynamicLinkColorSystem', (dt) => this.dynamicLinkColorSystem?.update?.(dt));  // LEGACY/april
         regGuard('linkQualityCalculator', 'simulation.linkQualityCalculator', (dt) => this.linkQualityCalculator?.update?.(dt));
         regGuard('linkDegradationSystem', 'simulation.linkDegradationSystem', (dt) => this.linkDegradationSystem?.update?.(dt));
 
@@ -11798,7 +11781,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     animate() {
         this.updateValidator?.startFrame();
         requestAnimationFrame(() => this.animate());
-        window.__enforceProxyVisualLock?.();
+        // REMOVED: window.__enforceProxyVisualLock?.() — was O(N) scene.traverse every frame
+        // Proxy visual lock now uses HitProxyRegistry (O(K)) — enforced at proxy creation time
 
         if (this._startupWorldRefreshPending) {
             this._startupWorldRefreshPending = false;
@@ -13470,6 +13454,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     runCoreMetricsOverlayTick(deltaTime) {
         if (!this.coreMetricsOverlay) return;
         if (!this.hudVisibility?.panels?.metricsOverlay) return;
+        if (!UIVisibilityConfig.coreMetrics) return;
         const nodeManager = this.aiNodes || null;
         const start = performance.now();
         this.coreMetricsOverlay.update(
@@ -13488,6 +13473,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
     runNodeInspectOverlayTick(deltaTime) {
         if (!this.nodeInspectOverlay) return;
+        if (!UIVisibilityConfig.nodeInspect) return;
         const start = performance.now();
         this.nodeInspectOverlay.update(deltaTime);
         this.updateValidator?.markSystemUpdate(
@@ -13961,15 +13947,29 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     }
 
     _refreshAIHudReports() {
+        // Visibility guard: skip entirely if both AI HUDs are hidden
+        const aiHudVisible = UIVisibilityConfig.aiHUD;
+        const advisorHudVisible = UIVisibilityConfig.advisorHUD;
+        if (!aiHudVisible && !advisorHudVisible) return;
+
+        // Throttle: ~5Hz (200ms interval) — AI HUD reports don't need 10Hz updates
+        const now = performance.now();
+        if (now - this._aiHudLastRefresh < 200) return;
+        this._aiHudLastRefresh = now;
+
         const snapshot = this._buildHudMetricsSnapshot();
 
-        const advisorReport = this._buildVariantBAdvisorReport(snapshot);
-        window.__ATOMA_AI_ADVISOR__ = advisorReport;
-        updateVariantBAdvisorHUD(advisorReport);
+        if (advisorHudVisible) {
+            const advisorReport = this._buildVariantBAdvisorReport(snapshot);
+            window.__ATOMA_AI_ADVISOR__ = advisorReport;
+            updateVariantBAdvisorHUD(advisorReport);
+        }
 
-        const automationReport = this._buildAIAutomationReport(snapshot);
-        window.__ATOMA_AI_AUTOMATION_REPORT__ = automationReport;
-        updateAIAutomationHUD(automationReport);
+        if (aiHudVisible) {
+            const automationReport = this._buildAIAutomationReport(snapshot);
+            window.__ATOMA_AI_AUTOMATION_REPORT__ = automationReport;
+            updateAIAutomationHUD(automationReport);
+        }
     }
 
     /**
@@ -17108,9 +17108,10 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             if (this.neonLinkVisuals) {
                 this.linkVisualMoodSystem.setNeonLinkVisuals(this.neonLinkVisuals);
             }
-            if (this.dynamicLinkColorSystem) {
-                this.linkVisualMoodSystem.setDynamicLinkColorSystem(this.dynamicLinkColorSystem);
-            }
+            // LEGACY/april — dynamicLinkColorSystem disconnected 2026-04-22
+            // if (this.dynamicLinkColorSystem) {
+            //     this.linkVisualMoodSystem.setDynamicLinkColorSystem(this.dynamicLinkColorSystem);
+            // }
             if (this.linkingSystem) {
                 this.linkVisualMoodSystem.setLinkingSystem(this.linkingSystem);
             }

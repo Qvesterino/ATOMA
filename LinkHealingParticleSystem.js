@@ -49,6 +49,11 @@ class HealingPool {
     this.curve = new Array(capacity).fill(null);
     this.normal = new Array(capacity).fill(null); // THREE.Vector3 per particle (reused)
     this.binormal = new Array(capacity).fill(null);
+    // O(1) slot acquisition - maintain free list head
+    this._freeHead = 0;
+    this._nextSlot = new Uint16Array(capacity);
+    for (let i = 0; i < capacity; i++) this._nextSlot[i] = i + 1;
+    this._nextSlot[capacity - 1] = 0xFFFF; // sentinel
   }
 
   activate(index, opts) {
@@ -75,6 +80,9 @@ class HealingPool {
     this.active[index] = false;
     this.link[index] = null;
     this.curve[index] = null;
+    // Return slot to free list O(1)
+    this._nextSlot[index] = this._freeHead;
+    this._freeHead = index;
   }
 }
 
@@ -170,10 +178,10 @@ export class LinkHealingParticleSystem {
         uniform float uSofteningRange;
 
         float hash11(float p) {
+          // Cheaper hash: 3 muls vs original 5
           p = fract(p * 0.1031);
           p *= p + 33.33;
-          p *= p + p;
-          return fract(p);
+          return fract(p + p * p * 0.267);
         }
 
         // Sharper six-petal rosette for readability.
@@ -292,7 +300,8 @@ export class LinkHealingParticleSystem {
       const pos = curve.getPointAt(progress);
       const tan = curve.getTangentAt(progress).normalize();
       const normal = this._makeNormal(tan, idx);
-      const binormal = new THREE.Vector3().crossVectors(tan, normal).normalize();
+      const binormal = this.pool.binormal[idx];
+      binormal.crossVectors(tan, normal).normalize();
 
       const orbitPhase = burstPhase !== null ? burstPhase : Math.random() * Math.PI * 2.0;
       const orbitSpeed = 0.45 + Math.random() * 0.25;
@@ -343,10 +352,8 @@ export class LinkHealingParticleSystem {
 
     this.geometry.attributes.position.needsUpdate = true;
     this.geometry.attributes.aSize.needsUpdate = true;
-    this.geometry.attributes.aLife.needsUpdate = true;
-    this.geometry.attributes.aSeed.needsUpdate = true;
-    this.geometry.attributes.aVariant.needsUpdate = true;
-    this.geometry.attributes.aTint.needsUpdate = true;
+    // Static attributes only set once on emit - don't flag per-frame
+    // aLife, aSeed, aVariant, aTint are set only during emitBackwardsAlongLink
   }
 
   update(deltaTime, time) {
@@ -479,10 +486,10 @@ export class LinkHealingParticleSystem {
   }
 
   _acquireSlot() {
-    for (let i = 0; i < this.poolSize; i++) {
-      if (!this.pool.active[i]) return i;
-    }
-    return -1;
+    if (this.pool._freeHead === 0xFFFF) return -1;
+    const idx = this.pool._freeHead;
+    this.pool._freeHead = this.pool._nextSlot[idx];
+    return idx;
   }
 
   _makeNormal(tangent, idx, reuse) {

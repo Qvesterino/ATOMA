@@ -3343,15 +3343,7 @@ export class LinkRendererConduit {
                 }
                 return !!state.pulseRing;
             }
-            case 3: { // Frame 3: ring trails + pulse dust emitter
-                if (state.pulseRing?.ensureTrails && !state.pulseRing._trailsInitialized) {
-                    const trailMeshes = state.pulseRing.ensureTrails();
-                    if (Array.isArray(trailMeshes)) {
-                        trailMeshes.forEach(mesh => {
-                            if (mesh && mesh.parent !== group) group.add(mesh);
-                        });
-                    }
-                }
+            case 3: { // Frame 3: pulse dust emitter (trail rings removed 2026-04-22)
                 if (!state.pulseDust && LinkPulseDustEmitter) {
                     state.pulseDust = new LinkPulseDustEmitter(160);
                     this.conduitRoot.add(state.pulseDust.getObject3D());

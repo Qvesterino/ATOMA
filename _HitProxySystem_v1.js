@@ -39,6 +39,7 @@
 
 import * as THREE from 'three';
 import { tagAllowedSphere } from './VisualSpherePolicy.js';
+import { HitProxyRegistry } from './HitProxyRegistry.js';
 
 // Shared node identity adapter (aligns with window.getNodeIdentity when present)
 const getNodeIdentity = typeof window !== 'undefined' && window.getNodeIdentity
@@ -164,10 +165,11 @@ class HitProxyFactory {
 }
 
 // ============================================================================
-// HIT PROXY REGISTRY — Maps Proxy Meshes ↔ Node IDs
+// HIT PROXY NODE MAP — Maps Proxy Meshes ↔ Node IDs (internal to HitProxySystem)
+// Renamed from HitProxyRegistry to avoid conflict with HitProxyRegistry.js import
 // ============================================================================
 
-class HitProxyRegistry {
+class HitProxyNodeMap {
   constructor() {
     this.proxyToNodeMap = new Map();      // proxy mesh → node ID
     this.nodeToProxyMap = new Map();      // node ID → proxy mesh
@@ -299,6 +301,7 @@ class HitProxyController {
     // Register and attach
     this.registry.registerProxy(proxy, nodeId);
     this.scene.add(proxy);
+    HitProxyRegistry.register(proxy);  // Global registry for O(1) lookup
 
     return proxy;
   }
@@ -311,6 +314,7 @@ class HitProxyController {
     if (proxy) {
       this.scene.remove(proxy);
       this.registry.unregisterProxy(proxy);
+      HitProxyRegistry.unregister(proxy);  // Remove from global registry
     }
   }
 
@@ -393,7 +397,7 @@ class HitProxySystem {
     this.options = options;
 
     // Initialize components
-    this.registry = new HitProxyRegistry();
+    this.registry = new HitProxyNodeMap();
     this.controller = new HitProxyController(scene, this.registry, options);
     this.layer = new HitProxyInteractionLayer(options);
 
@@ -504,6 +508,7 @@ class HitProxySystem {
     // Remove all proxies from scene
     for (const proxy of this.registry.getAllProxies()) {
       this.scene.remove(proxy);
+      HitProxyRegistry.unregister(proxy);  // Remove from global registry
     }
     this.registry.clear();
     this.proxiesCreated = false;
@@ -564,16 +569,31 @@ export function setupHitProxySystem(scene, aiNodes, options = {}) {
   return system;
 }
 
+/**
+ * Enforce proxy visual lock — registry-based, NO scene.traverse().
+ * Iterates only registered proxies (O(K)) instead of entire scene (O(N)).
+ */
 export function enforceProxyVisualLock(scene) {
-  scene.traverse(obj => {
-    if (obj.userData?.__hardInvisibleProxy === true) {
+  // Iterate registered proxies only — no scene traversal
+  for (const obj of HitProxyRegistry.iterate()) {
+    if (!obj || !obj.userData) continue;
+    if (obj.userData.__hardInvisibleProxy === true) {
       obj.visible = false;
       if (obj.material) {
         obj.material.visible = false;
         obj.material.opacity = 0;
       }
     }
-  });
+  }
+
+  // Also enforce on tracked disabled visuals
+  for (const obj of HitProxyRegistry.iterateDisabledVisuals()) {
+    if (!obj) continue;
+    // Re-disable raycast if somehow restored
+    if (obj.userData?.isNodeCore || obj.userData?.isAura || obj.userData?.isGlyph || obj.userData?.isHologram || obj.userData?.isShell) {
+      obj.raycast = () => {};
+    }
+  }
 }
 
 // ============================================================================
@@ -582,7 +602,7 @@ export function enforceProxyVisualLock(scene) {
 
 export {
   HitProxyFactory,
-  HitProxyRegistry,
+  HitProxyNodeMap,
   HitProxyController,
   HitProxyInteractionLayer,
   HitProxySystem

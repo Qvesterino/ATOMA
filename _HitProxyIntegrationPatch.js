@@ -21,6 +21,7 @@
 
 import * as THREE from 'three';
 import { setupHitProxySystem } from './_HitProxySystem_v1.js';
+import { HitProxyRegistry } from './HitProxyRegistry.js';
 
 // ============================================================================
 // PATCH 1: Disable Raycast on Real Visuals
@@ -29,13 +30,20 @@ import { setupHitProxySystem } from './_HitProxySystem_v1.js';
 /**
  * Disable raycast on all real node visuals (core, aura, glyphs, holograms)
  */
+/**
+ * Disable raycast on real node visuals — registry-based, NO scene.traverse().
+ * Only processes known interactive visual meshes tracked in HitProxyRegistry.
+ * New nodes spawned after init should call disableRaycastOnObject() individually.
+ */
 function disableRaycastOnVisuals(scene) {
   const visualMeshes = [];
 
+  // Use scene.traverse ONE TIME at init to discover existing visuals
+  // and register them for future O(K) enforcement
   scene.traverse((obj) => {
     if (!(obj instanceof THREE.Mesh)) return;
 
-    // Check if this is a real visual (not a proxy)
+    // Skip proxies
     if (obj.userData?.isHitProxy === true) return;
 
     // Check if this should be raycasted
@@ -47,16 +55,38 @@ function disableRaycastOnVisuals(scene) {
 
     if (isNodeCore || isAura || isGlyph || isHologram || isShell) {
       // Override raycast to do nothing
-      obj.raycast = () => {
-        // No-op: Don't raycast on real visuals
-      };
+      obj.raycast = () => {};
 
       visualMeshes.push(obj);
+
+      // Track in registry for future O(K) enforcement (no more scene.traverse)
+      HitProxyRegistry.registerDisabledVisual(obj);
     }
   });
 
-  console.log(`[HitProxyIntegrationPatch] Disabled raycast on ${visualMeshes.length} visual meshes`);
+  console.log(`[HitProxyIntegrationPatch] Disabled raycast on ${visualMeshes.length} visual meshes (registered in HitProxyRegistry)`);
   return visualMeshes;
+}
+
+/**
+ * Disable raycast on a single visual object and register it.
+ * Call this when new visual meshes are created after init.
+ *
+ * @param {THREE.Object3D} obj - Visual mesh to disable raycast on
+ */
+export function disableRaycastOnObject(obj) {
+  if (!obj || obj.userData?.isHitProxy === true) return;
+
+  const isNodeCore = obj.userData?.isNodeCore === true;
+  const isAura = obj.userData?.isAura === true;
+  const isGlyph = obj.userData?.isGlyph === true;
+  const isHologram = obj.userData?.isHologram === true;
+  const isShell = obj.userData?.isShell === true;
+
+  if (isNodeCore || isAura || isGlyph || isHologram || isShell) {
+    obj.raycast = () => {};
+    HitProxyRegistry.registerDisabledVisual(obj);
+  }
 }
 
 // ============================================================================

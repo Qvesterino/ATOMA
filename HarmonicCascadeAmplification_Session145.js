@@ -31,7 +31,7 @@
  * @version 2.0.0
  */
 
-import { HubProximityDetector, HarmonicPhaseSynchronization_Session146, CascadingHarmonicResonanceAmplification } from './HarmonicHubCascade.js';
+import { HubProximityDetector, HarmonicPhaseSynchronization_Session146, CascadingHarmonicResonanceAmplification, setupCascadingResonanceConsoleAPI } from './HarmonicHubCascade.js';
 // REMOVED: PreCascadeVisualHint_Session146 — moved to LEGACY/april (2026-04-22)
 import { CascadeResonanceWaveVisualization_Session146 } from './CascadeResonanceWaveVisualization_Session146.js';
 
@@ -509,22 +509,9 @@ export class HarmonicCascadeAmplification_Session145 {
       this.cascadeWave.setupConsoleAPI(globalWindow);
     }
 
-    // Setup CHRA console API
-    if (typeof window !== 'undefined') {
-      import('./CascadingHarmonicResonanceAmplification.js').then(mod => {
-        if (mod.setupCascadingResonanceConsoleAPI) {
-          mod.setupCascadingResonanceConsoleAPI(this.cascadingAmplification);
-        }
-      }).catch(() => {
-        // Fallback: set up manually
-        globalWindow.CascadeAPI = {
-          debug: (enabled = true) => this.cascadingAmplification.enableDebug(enabled),
-          stats: () => this.cascadingAmplification.getDebugStats(),
-          dump: (limit = 10) => this.cascadingAmplification.debugDumpCascadeState(limit),
-          queryNode: (nodeId) => globalWindow.cascade_queryNode(nodeId),
-          reset: () => globalWindow.cascade_reset(),
-        };
-      });
+    // Setup CHRA console API (static import from HarmonicHubCascade.js — fixed 2026-04-22)
+    if (typeof window !== 'undefined' && setupCascadingResonanceConsoleAPI) {
+      setupCascadingResonanceConsoleAPI(this.cascadingAmplification);
     }
   }
 }
