@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { RitualShaderPack } from './RitualShaderPack.js';
+import { ATOMAColorPalette } from './Engine/Visual/ATOMAColorPalette.js';
 
 /**
  * TEMPORAL EVENT EFFECTS
@@ -138,8 +140,8 @@ export class TemporalEventEffects {
       uniforms: {
         time: { value: 0.0 },
         opacity: { value: 0.0 },
-        refractionStrength: { value: 0.3 },
-        hologramColor: { value: new THREE.Color(0x88ddff) },
+        refractionStrength: { value: 0.35 },
+        hologramColor: { value: new THREE.Color(ATOMAColorPalette.ATOMA_CORE.mint) },
         cameraPosition: { value: new THREE.Vector3() },
         hologramCenter: { value: new THREE.Vector3() },
         hologramRadius: { value: 12.0 },
@@ -179,7 +181,6 @@ export class TemporalEventEffects {
         varying vec2 vUv;
         varying vec3 vViewDirection;
 
-        // Noise functions for organic hologram patterns
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
         }
@@ -207,43 +208,46 @@ export class TemporalEventEffects {
         }
 
         void main() {
-          // Distance from hologram center
           vec3 centerToPos = vWorldPosition - hologramCenter;
           float horizontalDist = length(centerToPos.xz);
           float verticalDist = abs(centerToPos.y);
 
-          // Falloff based on distance
           float radiusFalloff = 1.0 - smoothstep(0.0, hologramRadius, horizontalDist);
           float heightFalloff = 1.0 - smoothstep(0.0, hologramHeight * 0.5, verticalDist);
           float totalFalloff = radiusFalloff * heightFalloff;
 
-          // Fresnel for edge glow
           float fresnel = 1.0 - abs(dot(vViewDirection, vNormal));
-          fresnel = pow(fresnel, 2.0);
+          fresnel = pow(fresnel, 2.5);
 
-          // Animated interference patterns
           vec2 noisePos = vWorldPosition.xz * 0.1 + time * 0.2;
           float pattern1 = fbm(noisePos);
           float pattern2 = fbm(noisePos * 1.5 + time * 0.1);
 
-          // Neural network-inspired patterns
           float neuralPattern = sin(horizontalDist * 0.5 + time * 2.0) *
                                cos(verticalDist * 0.8 - time * 1.5) * 0.5 + 0.5;
 
-          // Combine patterns
           float hologramIntensity = (pattern1 * 0.4 + pattern2 * 0.3 + neuralPattern * 0.3) * totalFalloff;
 
-          // Refraction effect
-          vec3 refractedColor = hologramColor;
-          refractedColor += vec3(0.2, 0.1, 0.3) * fresnel * refractionStrength;
+          // Chromatic aberration on edges
+          vec3 caShift = vec3(
+            fbm(noisePos + vec2(0.03, 0.0)),
+            fbm(noisePos + vec2(0.0, 0.03)),
+            fbm(noisePos - vec2(0.03, 0.0))
+          );
+          vec3 refractedColor = hologramColor * (1.0 + caShift * fresnel * refractionStrength);
+          refractedColor += vec3(0.15, 0.05, 0.25) * fresnel * refractionStrength;
 
-          // Depth scattering
+          // Scanline data-stream effect
+          float scanline = sin(vUv.y * 120.0 + time * 3.0) * 0.5 + 0.5;
+          scanline = pow(scanline, 8.0) * 0.15;
+          float dataStream = step(0.92, fract(vUv.y * 8.0 - time * 0.6));
+          refractedColor += hologramColor * (scanline + dataStream * 0.25) * fresnel;
+
           float depth = length(vWorldPosition - cameraPosition);
           float depthFade = 1.0 / (1.0 + depth * 0.01);
 
-          // Final color with all effects
           vec3 finalColor = refractedColor * hologramIntensity * depthFade;
-          float finalOpacity = opacity * hologramIntensity * fresnel * 0.8;
+          float finalOpacity = opacity * hologramIntensity * fresnel * 0.85;
 
           gl_FragColor = vec4(finalColor, finalOpacity);
         }
@@ -493,12 +497,12 @@ export class TemporalEventEffects {
 
   _initializeAuroraShader() {
     try {
-        // Atmospheric scattering shader for aurora effects
+        const palette = ATOMAColorPalette.ATOMA_CORE;
         this.auroraShaderMaterial = new THREE.ShaderMaterial({
           uniforms: {
             time: { value: 0.0 },
             opacity: { value: 0.0 },
-            scatteringStrength: { value: 0.8 },
+            scatteringStrength: { value: 0.9 },
             waveSpeed: { value: 8.0 },
             cameraPosition: { value: new THREE.Vector3() },
             auroraCenter: { value: new THREE.Vector3(0, 20, 0) },
@@ -539,7 +543,6 @@ export class TemporalEventEffects {
             varying vec2 vUv;
             varying vec3 vViewDirection;
     
-            // Advanced noise functions for aurora patterns
             float hash(vec2 p) {
               return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
             }
@@ -567,41 +570,31 @@ export class TemporalEventEffects {
               return value;
             }
     
-            // Magnetic field line simulation
             vec3 magneticField(vec3 pos, float time) {
               vec3 field = vec3(0.0);
-    
-              // Multiple field lines creating aurora patterns
               for (int i = 0; i < 3; i++) {
                 float phase = time * waveSpeed * (0.8 + float(i) * 0.3);
                 float angle = atan(pos.z, pos.x) + phase;
                 float radius = length(pos.xz);
-    
                 float fieldStrength = sin(angle * 2.0 + radius * 0.1) * 0.5 + 0.5;
-                fieldStrength *= exp(-radius * 0.02); // Falloff with distance
-    
-                vec3 fieldDir = normalize(vec3(-pos.z, 0.0, pos.x)); // Tangential direction
+                fieldStrength *= exp(-radius * 0.02);
+                vec3 fieldDir = normalize(vec3(-pos.z, 0.0, pos.x));
                 field += fieldDir * fieldStrength * (1.0 + sin(phase + float(i) * 1.57) * 0.3);
               }
-    
               return normalize(field) * length(field);
             }
     
-            // Polarimetric color generation
             vec3 polarimetricColor(float intensity, int state) {
               vec3 color;
               if (state == 0) {
-                color = vec3(0.2, 0.8, 1.0);   // Cyan
+                color = vec3(0.42, 1.0, 0.85);   // Mint
               } else if (state == 1) {
-                color = vec3(0.8, 0.3, 1.0);   // Magenta
+                color = vec3(0.75, 0.35, 1.0);   // Violet
               } else {
-                color = vec3(1.0, 0.6, 0.2);   // Gold
+                color = vec3(0.97, 0.98, 1.0);   // Ritual white
               }
-    
-              // Interference patterns creating rainbow effects
               float interference = sin(intensity * 20.0) * 0.3 + 0.7;
               color *= interference;
-    
               return color;
             }
     
@@ -611,41 +604,43 @@ export class TemporalEventEffects {
               float height = localPos.y;
               float horizontalDist = length(localPos.xz);
     
-              // Aurora layer falloff
               float heightFalloff = exp(-abs(height) * 0.1);
               float radiusFalloff = 1.0 - smoothstep(0.0, auroraRadius, horizontalDist);
               float totalFalloff = heightFalloff * radiusFalloff;
     
-              // Atmospheric scattering simulation
               vec3 scatterPos = worldPos * 0.01 + time * 0.1;
               float scattering1 = fbm(scatterPos.xz);
               float scattering2 = fbm(scatterPos.xz * 1.5 - time * 0.05);
               float scattering3 = fbm(scatterPos.xz * 2.0 + time * 0.08);
     
-              // Multi-layer scattering
               float scatterIntensity = (scattering1 * 0.5 + scattering2 * 0.3 + scattering3 * 0.2) * scatteringStrength;
     
-              // Magnetic field influence
               vec3 magneticInfluence = magneticField(localPos, time);
               float fieldStrength = length(magneticInfluence);
     
-              // Energy wavefront propagation
               float wave1 = sin(horizontalDist * 0.1 - time * waveSpeed) * 0.5 + 0.5;
               float wave2 = sin(horizontalDist * 0.15 - time * waveSpeed * 0.7 + 1.57) * 0.5 + 0.5;
               float wavefront = (wave1 + wave2) * 0.5;
     
-              // Combine all effects
               float auroraIntensity = scatterIntensity * fieldStrength * wavefront * totalFalloff;
     
-              // Polarimetric glow based on polarization state
               vec3 auroraColor = polarimetricColor(auroraIntensity, polarizationState);
     
-              // Fresnel-like edge enhancement
+              // Solar wind streaks
+              float streak = fbm(vec2(localPos.x * 0.05 + time * 2.0, localPos.z * 0.05));
+              streak = pow(streak, 3.0) * 0.4;
+              auroraColor += vec3(0.3, 0.8, 1.0) * streak * auroraIntensity;
+    
+              // Energy curtain vertical ripple
+              float curtain = sin(height * 0.3 + time * 1.5 + horizontalDist * 0.05) * 0.5 + 0.5;
+              curtain = pow(curtain, 4.0) * 0.2;
+              auroraColor += vec3(0.5, 0.2, 0.9) * curtain * auroraIntensity;
+    
               float fresnel = 1.0 - abs(dot(vViewDirection, vec3(0, 1, 0)));
               fresnel = pow(fresnel, 3.0);
               auroraColor += vec3(0.5, 0.3, 0.8) * fresnel * auroraIntensity;
     
-              float finalOpacity = auroraIntensity * opacity * 0.6;
+              float finalOpacity = auroraIntensity * opacity * 0.65;
     
               gl_FragColor = vec4(auroraColor, finalOpacity);
             }
@@ -773,12 +768,10 @@ export class TemporalEventEffects {
         const curve = new THREE.CatmullRomCurve3(this._generateMagneticFieldCurve(i));
         const geometry = new THREE.TubeGeometry(curve, 50, 0.1, 8, false);
 
-        const material = new THREE.MeshBasicMaterial({
-          color: 0x44aaff,
-          transparent: true,
-          opacity: 0.0,
-          blending: THREE.AdditiveBlending
-        });
+        const material = RitualShaderPack.createBeamMaterial(
+          ATOMAColorPalette.ATOMA_CORE.mint,
+          { intensity: 0.6 }
+        );
 
         const line = new THREE.Mesh(geometry, material);
         line.renderOrder = 15;
@@ -799,13 +792,13 @@ export class TemporalEventEffects {
       // Create energy wavefronts
       for (let w = 0; w < preset.wavefrontCount; w++) {
         const geometry = new THREE.RingGeometry(5, 15, 32);
-        const material = new THREE.MeshBasicMaterial({
-          color: new THREE.Color().setHSL(0.6 + w * 0.1, 0.8, 0.6),
-          transparent: true,
-          opacity: 0.0,
-          side: THREE.DoubleSide,
-          blending: THREE.AdditiveBlending
-        });
+        const waveColor = w % 2 === 0
+          ? ATOMAColorPalette.ATOMA_CORE.mint
+          : ATOMAColorPalette.ATOMA_CORE.violet;
+        const material = RitualShaderPack.createRingMaterial(
+          waveColor,
+          { intensity: 0.5 }
+        );
 
         const wavefront = new THREE.Mesh(geometry, material);
         wavefront.rotation.x = -Math.PI / 2; // Lay flat
@@ -883,7 +876,13 @@ export class TemporalEventEffects {
     // Update magnetic field lines
     if (this.auroraFieldLines) {
       this.auroraFieldLines.forEach(line => {
-        line.mesh.material.opacity = line.baseOpacity * intensity;
+        const mat = line.mesh.material;
+        if (mat.uniforms && mat.uniforms.uIntensity) {
+          mat.uniforms.uIntensity.value = line.baseOpacity * intensity;
+          mat.uniforms.uTime.value = performance.now() * 0.001;
+        } else if (mat.opacity !== undefined) {
+          mat.opacity = line.baseOpacity * intensity;
+        }
 
         // Animate the curve slightly
         const time = performance.now() * 0.001;
@@ -906,7 +905,14 @@ export class TemporalEventEffects {
         const scale = wavefront.baseScale + expansion * 0.01;
 
         wavefront.mesh.scale.setScalar(scale);
-        wavefront.mesh.material.opacity = wavefront.baseOpacity * intensity * Math.max(0, 1 - expansion * 0.02);
+        const mat = wavefront.mesh.material;
+        const targetOpacity = wavefront.baseOpacity * intensity * Math.max(0, 1 - expansion * 0.02);
+        if (mat.uniforms && mat.uniforms.uIntensity) {
+          mat.uniforms.uIntensity.value = targetOpacity;
+          mat.uniforms.uTime.value = performance.now() * 0.001;
+        } else if (mat.opacity !== undefined) {
+          mat.opacity = targetOpacity;
+        }
 
         // Rotate slowly
         wavefront.mesh.rotation.z += deltaTime * 0.5;

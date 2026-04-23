@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
 import { getEnvSpriteTexture } from './EnvironmentPointFXBase.js';
+import { RitualShaderPack } from './RitualShaderPack.js';
+import { ATOMAColorPalette } from './Engine/Visual/ATOMAColorPalette.js';
 
 const CONSCIOUSNESS_BLOOM_BLUEPRINT_ID = 'consciousness.bloom.thought-aurora';
 const HARMONY_CONVERGENCE_BLUEPRINT_ID = 'harmony.convergence.ascension-platform';
@@ -794,7 +796,11 @@ export class AIConsciousnessLayer {
   _createGlobalField() {
     // Quiet ATOMA halo shell with layered glow and soft edge definition
     const shellGeometry = new THREE.SphereGeometry(this.config.globalFieldScale, 48, 32);
-    const shellMaterial = this._createGlobalFieldShellMaterial();
+    const shellMaterial = RitualShaderPack.createFieldShellMaterial(
+      ATOMAColorPalette.ATOMA_CORE.ritualWhite,
+      ATOMAColorPalette.ATOMA_CORE.mint,
+      { intensity: 0.6, breathSpeed: 0.6, pulseIntensity: 0.4 }
+    );
     
     const shellMesh = new THREE.Mesh(shellGeometry, shellMaterial);
     shellMesh.name = 'GlobalConsciousnessShell';
@@ -2259,18 +2265,13 @@ export class AIConsciousnessLayer {
       edgeTint.lerp(palette.aurora, bloomIntensity * 0.18);
     }
     const shellMaterial = this.globalFieldMesh.material;
-    const shellSynced = this._syncGlobalFieldShellMaterial(shellMaterial, {
-      time: this.time,
-      color: fieldColor,
-      edgeColor: edgeTint,
-      ritualColor: this.ritualState.palette.secondary.clone(),
-      opacity: shellOpacity,
-      pressure,
-      networkMood,
-      ritualIntensity,
-      pulsePhase
-    });
-    if (!shellSynced) {
+    if (shellMaterial && shellMaterial.uniforms) {
+      shellMaterial.uniforms.uTime.value = this.time;
+      shellMaterial.uniforms.uIntensity.value = shellOpacity;
+      shellMaterial.uniforms.uRitualBlend.value = ritualIntensity;
+      shellMaterial.uniforms.uBaseColor.value.copy(fieldColor);
+      shellMaterial.uniforms.uRitualColor.value.copy(this.ritualState.palette.secondary);
+    } else if (shellMaterial) {
       shellMaterial.color.copy(fieldColor);
       shellMaterial.opacity = shellOpacity;
     }

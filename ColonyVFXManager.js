@@ -2039,6 +2039,7 @@ export class ColonyVFXManager {
 
     // PERFORMANCE: Update legacy (non-instanced) atmospheres
     for (const child of this.vfxContainer.children) {
+      if (!child.visible) continue;
       if (child.userData && child.userData.type === 'atmosphere') {
         const userData = child.userData;
         const breath = 1 + Math.sin(time * 1.0 + (userData.pulseAmplitude ?? 0) * 1.2 + (userData.baseColor ?? 0) * 0) * 0.06;
@@ -2059,6 +2060,7 @@ export class ColonyVFXManager {
   updateMoodCanopies(deltaTime) {
     const time = performance.now() * 0.001;
     for (const child of this.vfxContainer.children) {
+      if (!child.visible) continue;
       if (child.userData && child.userData.type === 'mood-canopy') {
         const userData = child.userData;
 
@@ -2145,6 +2147,7 @@ export class ColonyVFXManager {
    */
   updateRings(deltaTime) {
     for (const child of this.vfxContainer.children) {
+      if (!child.visible) continue;
       if (child.userData && child.userData.type === 'orbit-ring') {
         const userData = child.userData;
         let spinSpeed = userData.rotationSpeed;
@@ -2172,6 +2175,7 @@ export class ColonyVFXManager {
     const time = performance.now() * 0.001;
     
     for (const child of this.vfxContainer.children) {
+      if (!child.visible) continue;
       if (child.userData && child.userData.type === 'central-glow') {
         const userData = child.userData;
         
@@ -2200,6 +2204,7 @@ export class ColonyVFXManager {
   updateCores(deltaTime) {
     const time = performance.now() * 0.001;
     for (const child of this.vfxContainer.children) {
+      if (!child.visible) continue;
       if (child.userData && child.userData.type === 'core') {
         const userData = child.userData;
         userData.pulsePhase += deltaTime * userData.pulseSpeed;
@@ -2249,6 +2254,7 @@ export class ColonyVFXManager {
   updateLegendaryHalos(deltaTime) {
     const time = performance.now() * 0.001;
     for (const child of this.vfxContainer.children) {
+      if (!child.visible) continue;
       if (child.userData && child.userData.type === 'legendary-halo') {
         const userData = child.userData;
         userData.pulsePhase += deltaTime * userData.pulseSpeed;
@@ -2262,6 +2268,7 @@ export class ColonyVFXManager {
   updateLegendaryPresence(deltaTime) {
     const time = performance.now() * 0.001;
     for (const child of this.vfxContainer.children) {
+      if (!child.visible) continue;
       if (child.userData && child.userData.type === 'legendary-presence') {
         const userData = child.userData;
         userData.pulsePhase += deltaTime * userData.pulseSpeed;
@@ -2282,6 +2289,7 @@ export class ColonyVFXManager {
   updateSigils(deltaTime) {
     const time = performance.now() * 0.001;
     for (const child of this.vfxContainer.children) {
+      if (!child.visible) continue;
       if (child.userData && child.userData.type === 'sigil-ring') {
         const userData = child.userData;
         userData.pulsePhase += deltaTime * userData.pulseSpeed;
@@ -2299,6 +2307,7 @@ export class ColonyVFXManager {
   updateBeams(deltaTime) {
     const time = performance.now() * 0.001;
     for (const child of this.vfxContainer.children) {
+      if (!child.visible) continue;
       if (child.userData && child.userData.type === 'ascension-beam') {
         const userData = child.userData;
         if (userData.stage4Ascension) {
@@ -2336,10 +2345,16 @@ export class ColonyVFXManager {
     const time = performance.now() * 0.001;
     const stablePhase = time + (vfx.phaseSeed ?? 0) * Math.PI * 1.4 + (vfx.pulseOffset ?? 0);
     const stablePulse = 0.96 + Math.sin(stablePhase) * 0.04;
+    const lodProfile = this._getColonyLODProfile(colony);
+    const lodLevel = lodProfile.level ?? 0;
+    const visualScale = lodProfile.visualScale ?? 1;
+    const motionScale = lodProfile.motionScale ?? 1;
+
+    this._applyColonyLODProfile(colonyId, colony, vfx, lodProfile);
 
     if (vfx.atmosphere) {
-      let atmoOpacity = Math.min(1, this.config.atmosphere.opacity + energyFactor * 0.25 + profile.motionBias * 0.14 + (envelope.crest ?? 0) * 0.08 + (vfx.halo?.userData?.haloPressure ?? 0));
-      let pulse = 1 + (envelope.attack ?? 0) * 0.1 + profile.motionBias * 0.04 + (envelope.crest ?? 0) * 0.06 + (stablePulse - 1) * 0.08;
+      let atmoOpacity = Math.min(1, (this.config.atmosphere.opacity + energyFactor * 0.25 + profile.motionBias * 0.14 + (envelope.crest ?? 0) * 0.08 + (vfx.halo?.userData?.haloPressure ?? 0)) * visualScale);
+      let pulse = 1 + ((envelope.attack ?? 0) * 0.1 + profile.motionBias * 0.04 + (envelope.crest ?? 0) * 0.06 + (stablePulse - 1) * 0.08) * motionScale;
 
       if (vfx.atmosphere.userData?.stage4Ascension) {
         const ascension = vfx.atmosphere.userData.stage4Ascension;
@@ -2377,10 +2392,15 @@ export class ColonyVFXManager {
         vfx.atmosphere.scale.setScalar(pulse);
       }
     }
+
+    if (lodLevel >= 2) {
+      return;
+    }
     
     const stage = Math.max(0, Math.min(4, colony.stage));
     const breathingColor = new THREE.Color(color).lerp(new THREE.Color(0xF7FBFF), Math.min(0.3, (envelope.crest ?? 0) * 0.18 + energyFactor * 0.05));
-    const visibleRingCount = stage === 1 ? 1 : stage === 2 ? Math.min(2, vfx.rings.length) : stage === 3 ? Math.min(4, vfx.rings.length) : vfx.rings.length;
+    const stageRingCount = stage === 1 ? 1 : stage === 2 ? Math.min(2, vfx.rings.length) : stage === 3 ? Math.min(4, vfx.rings.length) : vfx.rings.length;
+    const visibleRingCount = Math.min(stageRingCount, lodProfile.maxRings ?? vfx.rings.length);
 
     for (const ring of vfx.rings) {
       if (ring && ring.material) {
@@ -2407,6 +2427,16 @@ export class ColonyVFXManager {
           : 0;
         if (ring.userData) ring.userData.rotationSpeed = speed;
       }
+    }
+
+    if (lodLevel >= 1) {
+      const coreGlow = vfx.core || vfx.glow;
+      if (coreGlow && coreGlow.material) {
+        coreGlow.material.opacity = 0.25 + (envelope.crest ?? 0) * 0.18 + energyFactor * 0.1;
+        coreGlow.scale.setScalar((0.9 + colony.stage * 0.06 + (envelope.attack ?? 0) * 0.07) * visualScale);
+      }
+
+      return;
     }
 
     const particleTintHex = this.blendColor(color, breathingColor.getHex(), 0.18);
@@ -3284,6 +3314,127 @@ export class ColonyVFXManager {
     }
     
     return this.config.colors.DEFAULT;
+  }
+
+  _getDistanceLODController() {
+    if (typeof globalThis === 'undefined') return null;
+    return globalThis.window?.ATOMA_DISTANCE_LOD || globalThis.ATOMA_DISTANCE_LOD || null;
+  }
+
+  _getColonyLODProfile(colony) {
+    const controller = this._getDistanceLODController();
+    if (controller?.getColonyLODProfile && colony?.center) {
+      return controller.getColonyLODProfile(colony.center, 20, 50);
+    }
+
+    return {
+      level: 0,
+      visualScale: 1.0,
+      particleScale: 1.0,
+      motionScale: 1.0,
+      cadenceScale: 1.0,
+      allowAtmosphere: true,
+      allowGlow: true,
+      allowCore: true,
+      allowCanopy: true,
+      allowParticles: true,
+      allowRings: true,
+      maxRings: this.config.rings.maxRings,
+      allowBeam: true
+    };
+  }
+
+  _hasActiveColonyParticles(vfx) {
+    return Array.isArray(vfx?.particles) && vfx.particles.some((particle) => {
+      const userData = particle?.userData;
+      return Boolean(userData && !userData.__released && !userData.fadeOut);
+    });
+  }
+
+  _applyColonyLODProfile(colonyId, colony, vfx, lodProfile) {
+    if (!vfx || !lodProfile) return;
+
+    const level = lodProfile.level ?? 0;
+    const allowParticles = lodProfile.allowParticles !== false;
+    const allowRings = lodProfile.allowRings !== false;
+    const maxRings = Number.isFinite(lodProfile.maxRings) ? lodProfile.maxRings : this.config.rings.maxRings;
+
+    vfx.lodProfile = lodProfile;
+    vfx.lodLevel = level;
+
+    if (vfx.atmosphere) {
+      vfx.atmosphere.visible = true;
+      if (vfx.atmosphere.userData) {
+        vfx.atmosphere.userData.lodScale = lodProfile.visualScale ?? 1;
+        vfx.atmosphere.userData.lodMotionScale = lodProfile.motionScale ?? 1;
+      }
+    }
+
+    if (vfx.glow) {
+      vfx.glow.visible = lodProfile.allowGlow !== false;
+    }
+
+    if (vfx.core) {
+      vfx.core.visible = lodProfile.allowCore === true;
+    }
+
+    if (vfx.canopy) {
+      vfx.canopy.visible = lodProfile.allowCanopy === true;
+    }
+
+    if (vfx.beam) {
+      vfx.beam.visible = lodProfile.allowBeam === true;
+    }
+
+    if (vfx.crown) {
+      vfx.crown.visible = level === 0;
+    }
+
+    if (vfx.legendaryHalo) {
+      vfx.legendaryHalo.visible = level === 0;
+    }
+
+    if (vfx.legendaryPresence) {
+      vfx.legendaryPresence.visible = level === 0;
+    }
+
+    if (Array.isArray(vfx.sigils)) {
+      for (const sigil of vfx.sigils) {
+        if (sigil) sigil.visible = level === 0;
+      }
+    }
+
+    if (Array.isArray(vfx.rings)) {
+      for (const ring of vfx.rings) {
+        if (!ring) continue;
+        const ringIndex = ring.userData?.ringIndex ?? 0;
+        ring.visible = allowRings && ringIndex < maxRings;
+      }
+    }
+
+    if (!allowParticles) {
+      if (this._hasActiveColonyParticles(vfx)) {
+        this._releaseColonyParticles(colonyId, { soft: false });
+      }
+      vfx.particles = [];
+      vfx.lodParticleState = 'suppressed';
+      return;
+    }
+
+    const hasActiveParticles = this._hasActiveColonyParticles(vfx);
+    if (!hasActiveParticles && vfx.lodParticleState !== 'active') {
+      vfx.particles = this.createParticles(
+        colonyId,
+        colony.center,
+        colony.stage,
+        colony.mood,
+        colony.type,
+        colony.energy
+      );
+      vfx.lodParticleState = 'active';
+    } else if (hasActiveParticles) {
+      vfx.lodParticleState = 'active';
+    }
   }
   
   /**
