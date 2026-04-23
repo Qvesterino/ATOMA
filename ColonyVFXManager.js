@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ColonyBloomOverlay } from './ColonyBloomOverlay.js';
+import { ATOMAColorPalette } from './Engine/Visual/ATOMAColorPalette.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SUPERNATURAL UPGRADE: Bioluminescent Alien Civilization Shaders
@@ -323,34 +324,22 @@ export class ColonyVFXManager {
     // Texture for particles
     this.particleTexture = this.createParticleTexture();
 
-    this.palette = {
-      void: 0x071019,
-      midnight: 0x111b2d,
-      deepBlue: 0x20314f,
-      slate: 0x47576e,
-      indigo: 0x47406f,
-      violet: 0x66508f,
-      ash: 0xa0a9b8,
-      frost: 0xdbe2ee,
-      glowBlue: 0x6f85bf,
-      glowViolet: 0x7a69c0,
-      mutedGold: 0x9c8a5a,
-      mutedRose: 0x8b6a7b
-    };
-    
+    // ATOMA Core Palette — Single Source of Truth
+    this.palette = ATOMAColorPalette.ATOMA_CORE;
+
     // Configuration
     this.config = {
       colors: {
-        HARMONY: this.palette.deepBlue,
-        STABILITY: this.palette.slate,
-        CORRUPTION: this.palette.indigo,
-        SYNERGY: this.palette.mutedGold,
-        LOAD_PRESSURE: this.palette.mutedRose,
+        HARMONY: ATOMAColorPalette.getMoodColor('HARMONY'),
+        STABILITY: ATOMAColorPalette.getMoodColor('STABILITY'),
+        CORRUPTION: ATOMAColorPalette.getMoodColor('CORRUPTION'),
+        SYNERGY: ATOMAColorPalette.getMoodColor('SYNERGY'),
+        LOAD_PRESSURE: ATOMAColorPalette.getMoodColor('LOAD_PRESSURE'),
 
-        DEFAULT: this.palette.deepBlue,
-        QUANTUM: this.palette.glowBlue,
-        SIGMA: this.palette.glowViolet,
-        LEGENDARY: this.palette.ash
+        DEFAULT: ATOMAColorPalette.getMoodColor('DEFAULT'),
+        QUANTUM: ATOMAColorPalette.getMoodColor('QUANTUM'),
+        SIGMA: ATOMAColorPalette.getMoodColor('SIGMA'),
+        LEGENDARY: ATOMAColorPalette.getMoodColor('LEGENDARY')
       },
       
       atmosphere: {
@@ -1609,6 +1598,7 @@ export class ColonyVFXManager {
         : new THREE.Color(colonyTint);
       const baseSize = 0.18 + seed * 0.1 + energyFactor * 0.05;
       const baseOpacity = 0.55 + energyFactor * 0.2;
+      const baseOrbitRadius = 0.9 + stage * 0.35 + seed * 0.6;
       const baseOrbitSpeed = 0.4 + profile.motionBias * 0.14 + seeds.phaseSeed * 0.2;
       const velocity = new THREE.Vector3(
         (Math.random() - 0.5) * (0.28 + energyFactor * 0.28 + profile.motionBias * 0.22),
@@ -1629,7 +1619,8 @@ export class ColonyVFXManager {
           motionBias: profile.motionBias,
           particleBias: seeds.particleBias,
           orbitPhase: seed * Math.PI * 2,
-          orbitRadius: 0.9 + stage * 0.35 + seed * 0.6,
+          orbitRadius: baseOrbitRadius,
+          baseOrbitRadius,
           orbitSpeed: baseOrbitSpeed,
           baseOrbitSpeed,
           seed,
@@ -1670,6 +1661,20 @@ export class ColonyVFXManager {
       const userData = particle.userData;
       userData.orbitPhase += deltaTime * (userData.orbitSpeed ?? userData.baseOrbitSpeed ?? 0.4);
       userData.elapsed += deltaTime;
+
+      if (userData.mergeAbsorb) {
+        userData.mergeAbsorb.timer += deltaTime;
+        const progress = Math.min(1, userData.mergeAbsorb.timer / userData.mergeAbsorb.duration);
+        const ease = progress * progress * (3 - 2 * progress);
+        const sourceCenter = userData.mergeAbsorb.sourceCenter || userData.startPos;
+        userData.startPos.lerpVectors(sourceCenter, userData.mergeAbsorb.targetCenter, ease);
+        userData.orbitRadius = Math.max(0.1, (userData.baseOrbitRadius ?? userData.orbitRadius ?? 1) * (1 - ease * 0.75));
+        userData.particleOpacity = Math.max(0.12, (userData.baseOpacity ?? userData.particleOpacity ?? 0.55) * (1 - ease * 0.25));
+
+        if (progress >= 1) {
+          delete userData.mergeAbsorb;
+        }
+      }
 
       if (userData.fadeOut) {
         userData.fadeOut.timer += deltaTime;
@@ -2056,6 +2061,57 @@ export class ColonyVFXManager {
     for (const child of this.vfxContainer.children) {
       if (child.userData && child.userData.type === 'mood-canopy') {
         const userData = child.userData;
+
+        if (userData.splitTear) {
+          userData.splitTear.timer += deltaTime;
+          const progress = Math.min(1, userData.splitTear.timer / userData.splitTear.duration);
+          const ease = progress * progress * (3 - 2 * progress);
+          const sourceCenter = userData.splitTear.sourceCenter || child.position;
+          const targetA = userData.splitTear.targetCenters?.[0]
+            ? userData.splitTear.targetCenters[0].clone().sub(sourceCenter)
+            : new THREE.Vector3(-0.9, 0.1, 0);
+          const targetB = userData.splitTear.targetCenters?.[1]
+            ? userData.splitTear.targetCenters[1].clone().sub(sourceCenter)
+            : new THREE.Vector3(0.9, 0.1, 0);
+
+          child.children.forEach((panel, index) => {
+            const baseAngle = panel.userData.baseAngle ?? 0;
+            const baseLift = panel.userData.baseLift ?? 0.4;
+            const baseRadius = panel.userData.baseRadius ?? 1;
+            const sway = Math.sin(time * (0.9 + userData.motionBias * 0.5) + index * 0.7 + userData.pulsePhase) * userData.sway;
+            const breathe = 1 + Math.sin(time * 1.2 + index * 0.6 + userData.pulsePhase) * 0.08;
+            const currentX = Math.cos(baseAngle + sway * 0.3) * baseRadius;
+            const currentY = baseLift + Math.sin(time * 1.4 + index) * 0.05 * (1 + userData.energyFactor);
+            const currentZ = Math.sin(baseAngle + sway * 0.3) * baseRadius;
+            const side = panel.userData.splitSide ?? (Math.cos(baseAngle) >= 0 ? 1 : -1);
+            panel.userData.splitSide = side;
+            const target = side >= 0 ? targetB : targetA;
+
+            panel.position.x = currentX * (1 - ease) + target.x * ease;
+            panel.position.y = currentY * (1 - ease) + target.y * ease;
+            panel.position.z = currentZ * (1 - ease) + target.z * ease;
+            panel.rotation.y = baseAngle + sway * 0.12 + side * ease * 0.7;
+            panel.rotation.z += deltaTime * 0.02 * (index % 2 === 0 ? 1 : -1) + side * ease * 0.12;
+            panel.scale.y = Math.max(0.45, panel.scale.y * (1 - ease * 0.12) + breathe * (0.1 + (1 - ease) * 0.04));
+            if (panel.material) {
+              panel.material.opacity = Math.max(0.05, Math.min(0.42, (panel.material.opacity || 0.18) * (1 - ease * 0.45) + (0.14 + userData.energyFactor * 0.08 + Math.abs(sway) * 0.08) * 0.08));
+            }
+          });
+
+          if (progress >= 1) {
+            delete userData.splitTear;
+          }
+
+          userData.pulsePhase += deltaTime * (0.8 + userData.motionBias * 0.22);
+          child.rotation.y += deltaTime * userData.spin;
+          child.position.y += Math.sin(userData.pulsePhase) * 0.002;
+
+          const canopyScale = 1 + Math.sin(userData.pulsePhase) * (0.04 + userData.motionBias * 0.02) + userData.energyFactor * 0.05;
+          child.scale.setScalar(canopyScale);
+
+          continue;
+        }
+
         userData.pulsePhase += deltaTime * (0.8 + userData.motionBias * 0.22);
         child.rotation.y += deltaTime * userData.spin;
         child.position.y += Math.sin(userData.pulsePhase) * 0.002;
@@ -2245,10 +2301,22 @@ export class ColonyVFXManager {
     for (const child of this.vfxContainer.children) {
       if (child.userData && child.userData.type === 'ascension-beam') {
         const userData = child.userData;
-        userData.pulsePhase += deltaTime * userData.pulseSpeed;
-        const pulse = 0.8 + Math.sin(time * 2 + userData.pulsePhase) * 0.15 + userData.energyFactor * 0.1;
-        child.scale.y = pulse;
-        child.material.opacity = 0.16 + Math.sin(time * 3 + userData.pulsePhase) * 0.06;
+        if (userData.stage4Ascension) {
+          userData.stage4Ascension.timer += deltaTime;
+          const progress = Math.min(1, userData.stage4Ascension.timer / userData.stage4Ascension.duration);
+          const inhaleExhale = Math.sin(progress * Math.PI);
+          child.scale.y = 0.95 + inhaleExhale * 0.45;
+          child.material.opacity = userData.stage4Ascension.startOpacity + inhaleExhale * (userData.stage4Ascension.peakOpacity - userData.stage4Ascension.startOpacity);
+
+          if (progress >= 1) {
+            delete userData.stage4Ascension;
+          }
+        } else {
+          userData.pulsePhase += deltaTime * userData.pulseSpeed;
+          const pulse = 0.8 + Math.sin(time * 2 + userData.pulsePhase) * 0.15 + userData.energyFactor * 0.1;
+          child.scale.y = pulse;
+          child.material.opacity = 0.16 + Math.sin(time * 3 + userData.pulsePhase) * 0.06;
+        }
       }
     }
   }
@@ -2270,8 +2338,21 @@ export class ColonyVFXManager {
     const stablePulse = 0.96 + Math.sin(stablePhase) * 0.04;
 
     if (vfx.atmosphere) {
-      const atmoOpacity = Math.min(1, this.config.atmosphere.opacity + energyFactor * 0.25 + profile.motionBias * 0.14 + (envelope.crest ?? 0) * 0.08 + (vfx.halo?.userData?.haloPressure ?? 0));
-      const pulse = 1 + (envelope.attack ?? 0) * 0.1 + profile.motionBias * 0.04 + (envelope.crest ?? 0) * 0.06 + (stablePulse - 1) * 0.08;
+      let atmoOpacity = Math.min(1, this.config.atmosphere.opacity + energyFactor * 0.25 + profile.motionBias * 0.14 + (envelope.crest ?? 0) * 0.08 + (vfx.halo?.userData?.haloPressure ?? 0));
+      let pulse = 1 + (envelope.attack ?? 0) * 0.1 + profile.motionBias * 0.04 + (envelope.crest ?? 0) * 0.06 + (stablePulse - 1) * 0.08;
+
+      if (vfx.atmosphere.userData?.stage4Ascension) {
+        const ascension = vfx.atmosphere.userData.stage4Ascension;
+        ascension.timer += deltaTime;
+        const progress = Math.min(1, ascension.timer / ascension.duration);
+        const inhaleExhale = Math.sin(progress * Math.PI);
+        pulse *= 1 + inhaleExhale * ascension.pulseBoost;
+        atmoOpacity = Math.min(1, atmoOpacity + inhaleExhale * ascension.opacityBoost);
+
+        if (progress >= 1) {
+          delete vfx.atmosphere.userData.stage4Ascension;
+        }
+      }
 
       if (vfx.atmosphere.isInstancedAtmosphere) {
         // PERFORMANCE: Update InstancedMesh instance for this colony
@@ -2307,10 +2388,23 @@ export class ColonyVFXManager {
         ring.material.color.setHex(ringHue);
         const ringVisibility = ring.userData?.ringIndex < visibleRingCount;
         ring.visible = ringVisibility;
+        let speed = (ring.userData?.rotationSpeed ?? 0.4) + (envelope.attack ?? 0) * 0.16 + profile.motionBias * 0.15 + (vfx.ringSpeedBias ?? 0) * 0.18;
+
+        if (ring.userData?.stage4Ascension) {
+          const ascension = ring.userData.stage4Ascension;
+          ascension.timer += deltaTime;
+          const progress = Math.min(1, ascension.timer / ascension.duration);
+          const boost = 1 + (ascension.spinMultiplier - 1) * Math.sin(progress * Math.PI);
+          speed *= boost;
+
+          if (progress >= 1) {
+            delete ring.userData.stage4Ascension;
+          }
+        }
+
         ring.material.opacity = ringVisibility
           ? Math.min(1, this.config.rings.opacity + stage * 0.06 + (envelope.crest ?? 0) * 0.18 + profile.motionBias * 0.1)
           : 0;
-        const speed = (ring.userData?.rotationSpeed ?? 0.4) + (envelope.attack ?? 0) * 0.16 + profile.motionBias * 0.15 + (vfx.ringSpeedBias ?? 0) * 0.18;
         if (ring.userData) ring.userData.rotationSpeed = speed;
       }
     }
@@ -2504,6 +2598,44 @@ export class ColonyVFXManager {
     growthGroup.scale.setScalar(growthGroup.userData.initialScale);
     this.vfxContainer.add(growthGroup);
     return growthGroup;
+  }
+
+  triggerAscensionMoment(colonyId, center, stage, mood, colonyType, energy, duration = 1.0) {
+    const beam = this.createAscensionBeam(colonyId, center, stage, mood, colonyType, energy);
+    beam.userData.stage4Ascension = {
+      timer: 0,
+      duration,
+      startOpacity: 0.22,
+      peakOpacity: 0.8
+    };
+
+    if (beam.material) {
+      beam.material.opacity = 0.22;
+    }
+
+    for (const child of this.vfxContainer.children) {
+      if (child.userData?.colonyId !== colonyId) continue;
+
+      if (child.userData.type === 'atmosphere') {
+        child.userData.stage4Ascension = {
+          timer: 0,
+          duration,
+          pulseBoost: 0.18,
+          opacityBoost: 0.18
+        };
+      }
+
+      if (child.userData.type === 'orbit-ring' || child.userData.type === 'sigil-ring') {
+        child.userData.stage4Ascension = {
+          timer: 0,
+          duration,
+          spinMultiplier: 3.0
+        };
+      }
+    }
+
+    this.triggerEventPulse(colonyId, 1.15, duration);
+    return beam;
   }
 
   /**
@@ -3210,9 +3342,31 @@ export class ColonyVFXManager {
       };
       this.transitioningVFX.add(child);
     }
+
+    for (const sourceId of sourceIds) {
+      const handles = this._particleColonySlots.get(sourceId);
+      if (!handles || handles.size === 0) continue;
+
+      for (const particle of handles) {
+        const userData = particle?.userData;
+        if (!userData || userData.__released) continue;
+
+        userData.mergeAbsorb = {
+          timer: 0,
+          duration,
+          sourceCenter: userData.startPos?.clone?.() || new THREE.Vector3(),
+          targetCenter: mergedCenter.clone()
+        };
+
+        userData.lifetime = Math.max(
+          userData.lifetime ?? 0,
+          (userData.elapsed ?? 0) + duration + 0.05
+        );
+      }
+    }
   }
 
-  triggerSplitTransition(colonyId, duration = 1.2) {
+  triggerSplitTransition(colonyId, duration = 1.2, targetCenters = []) {
     for (const child of this.vfxContainer.children) {
       if (!child.userData || child.userData.colonyId !== colonyId) continue;
       const direction = new THREE.Vector3(
@@ -3227,6 +3381,16 @@ export class ColonyVFXManager {
         direction,
         startOpacity: child.material?.opacity ?? 1
       };
+
+      if (child.userData.type === 'mood-canopy' && targetCenters.length >= 2) {
+        child.userData.splitTear = {
+          timer: 0,
+          duration,
+          sourceCenter: child.position.clone(),
+          targetCenters: targetCenters.map((target) => target.clone())
+        };
+      }
+
       this.transitioningVFX.add(child);
     }
   }

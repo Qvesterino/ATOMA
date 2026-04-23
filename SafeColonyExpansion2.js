@@ -36,6 +36,7 @@ export class SafeColonyExpansion2 {
     this.time = 0;
     this.clusteringTimer = 0;
     this.moodUpdateTimer = 0;
+    this.pendingMergeTransactions = new Map();
 
     // CPU OPTIMIZATION: throttle non-visual colony logic to ~5Hz
     // Visual animation (updateVFX) stays at full 30Hz for smooth rendering
@@ -115,6 +116,7 @@ export class SafeColonyExpansion2 {
     const startTime = performance.now();
     
     this.time += deltaTime;
+    this.updatePendingMergeTransactions(deltaTime);
 
     // CPU OPTIMIZATION: throttle non-visual colony logic to ~5Hz.
     // Clustering, centers, energy, moods, merges, splits, events, cleanup
@@ -502,6 +504,8 @@ export class SafeColonyExpansion2 {
    */
   updateColonyCenters() {
     for (const colonyId in this.registry.colonies) {
+      const colony = this.registry.colonies[colonyId];
+      if (this.isColonyTransitionLocked(colony)) continue;
       this.registry.updateColonyCenter(colonyId, this.nodes);
     }
   }
@@ -512,7 +516,7 @@ export class SafeColonyExpansion2 {
   accumulateEnergyAndUpdateStages() {
     for (const colonyId in this.registry.colonies) {
       const colony = this.registry.colonies[colonyId];
-      if (!colony) continue;
+      if (this.isColonyTransitionLocked(colony)) continue;
 
       const previousStage = colony.stage;
       this.registry.accumulateEnergy(colonyId, this.nodes, this.synergyMap);
@@ -530,6 +534,7 @@ export class SafeColonyExpansion2 {
   updateColonyMoods() {
     for (const colonyId in this.registry.colonies) {
       const colony = this.registry.colonies[colonyId];
+      if (this.isColonyTransitionLocked(colony)) continue;
       
       // Check if world event is active
       const eventActive = this.worldEvents && this.worldEvents.isEventActive();
@@ -558,11 +563,14 @@ export class SafeColonyExpansion2 {
     
     for (let i = 0; i < colonies.length; i++) {
       const colony1 = colonies[i];
+      if (this.isColonyTransitionLocked(colony1)) continue;
       if (processed.has(colony1.id)) continue;
       
       for (let j = i + 1; j < colonies.length; j++) {
         const colony2 = colonies[j];
+        if (this.isColonyTransitionLocked(colony2)) continue;
         if (processed.has(colony2.id)) continue;
+        if (this.isColonyMergePending(colony1.id) || this.isColonyMergePending(colony2.id)) continue;
         
         // Check merge conditions
         const distance = colony1.center.distanceTo(colony2.center);
@@ -571,38 +579,16 @@ export class SafeColonyExpansion2 {
           const interconnection = this.calculateInterconnection(colony1, colony2);
           
           if (interconnection > 0.5) {
-            // Execute merge
-            const mergedId = this.registry.mergeColonies(colony1.id, colony2.id);
-            
-            if (mergedId) {
-              const mergedColony = this.registry.colonies[mergedId];
+            this.queueMergeTransaction(colony1, colony2);
 
-              // Dramatic merge flash for source colonies
-              this.vfxManager.triggerMergeFlash(colony1.id, colony1.center, 1.2);
-              this.vfxManager.triggerMergeFlash(colony2.id, colony2.center, 1.2);
+            processed.add(colony1.id);
+            processed.add(colony2.id);
 
-              // Create new VFX for merged colony and animate old visuals into it
-              this.createColonyVFX(mergedId);
-              this.vfxManager.triggerMergeTransition([colony1.id, colony2.id], mergedColony.center, 1.0);
-              this.vfxManager.triggerColonyTransformation(mergedId, mergedColony.center, 1.1);
-              this.vfxManager.triggerRebirthEvent(mergedId, mergedColony.center, 0.9);
-              this.vfxManager.cleanupColonyVFX(colony1.id, { soft: true, duration: 1.0 });
-              this.vfxManager.cleanupColonyVFX(colony2.id, { soft: true, duration: 1.0 });
-              
-              this.triggerColonyMerge(mergedId);
-              
-              processed.add(colony1.id);
-              processed.add(colony2.id);
-              processed.add(mergedId);
-              
-              this.stats.coloniesMerged++;
-              
-              if (this.debugMode) {
-                console.log(`[Civilization] Merged: ${colony1.id} + ${colony2.id} → ${mergedId}`);
-              }
-              
-              break;
+            if (this.debugMode) {
+              console.log(`[Civilization] Merge queued: ${colony1.id} + ${colony2.id}`);
             }
+
+            break;
           }
         }
       }
@@ -643,6 +629,7 @@ export class SafeColonyExpansion2 {
   checkAndExecuteSplits() {
     for (const colonyId in this.registry.colonies) {
       const colony = this.registry.colonies[colonyId];
+      if (this.isColonyTransitionLocked(colony)) continue;
       
       // Only split if colony has enough nodes
       if (colony.nodes.size < 6) continue;
@@ -663,16 +650,21 @@ export class SafeColonyExpansion2 {
           
           if (newIds.length > 0) {
             // Create VFX for new colonies before old visuals dissolve
+            const targetCenters = newIds
+              .map((newId) => this.registry.getColony(newId)?.center)
+              .filter(Boolean);
+
             for (const newId of newIds) {
               this.createColonyVFX(newId);
               this.vfxManager.triggerColonyTransformation(newId, this.registry.colonies[newId].center, 0.9);
               this.vfxManager.triggerRebirthEvent(newId, this.registry.colonies[newId].center, 0.9);
             }
             
-            this.vfxManager.triggerSplitTransition(colonyId, 1.2);
+            this.vfxManager.triggerSplitTransition(colonyId, 1.2, targetCenters);
             this.vfxManager.cleanupColonyVFX(colonyId, { soft: true, duration: 1.2 });
             
             this.triggerColonySplit(colonyId, newIds);
+            this.retireColonyRecord(colonyId, { reason: 'split', clearNodes: true });
             
             this.stats.coloniesSplit++;
             
@@ -764,6 +756,7 @@ export class SafeColonyExpansion2 {
     // Phase 1: sync position and base state
     for (const colonyId in this.registry.colonies) {
       const colony = this.registry.colonies[colonyId];
+      if (this.isColonyTransitionLocked(colony)) continue;
       const vfx = this.registry.colonyVFX[colonyId];
       if (!vfx) continue;
 
@@ -779,6 +772,7 @@ export class SafeColonyExpansion2 {
     // Phase 3: apply animated offsets and keep particles attached to the colony
     for (const colonyId in this.registry.colonies) {
       const colony = this.registry.colonies[colonyId];
+      if (this.isColonyTransitionLocked(colony)) continue;
       const vfx = this.registry.colonyVFX[colonyId];
       const envelope = envelopes[colonyId];
       if (!vfx || !envelope) continue;
@@ -1033,6 +1027,11 @@ export class SafeColonyExpansion2 {
     const color = this.vfxManager.getColorForMood(colony.mood, colony.type);
     this.vfxManager.triggerGrowthEvent(colonyId, colony.center, color, toStage);
 
+    if (toStage >= 4 && !colony.stage4AscensionPlayed) {
+      this.vfxManager.triggerAscensionMoment(colonyId, colony.center, toStage, colony.mood, colony.type, colony.energy, 1.2);
+      colony.stage4AscensionPlayed = true;
+    }
+
     if (this.debugMode) {
       console.log(`[Civilization] Growth: ${colonyId} from stage ${fromStage} to ${toStage}`);
     }
@@ -1073,6 +1072,102 @@ export class SafeColonyExpansion2 {
     const color = this.vfxManager.getColorForMood(colony.mood, colony.type);
     this.vfxManager.triggerSplitEvent(colonyId, colony.center, color);
     this.vfxManager.triggerCollapseEvent(colonyId, colony.center, color);
+  }
+
+  isColonyTransitionLocked(colony) {
+    return !colony || colony.pendingMerge || colony.retired;
+  }
+
+  isColonyMergePending(colonyId) {
+    const colony = this.registry.getColony(colonyId);
+    return Boolean(colony?.pendingMerge);
+  }
+
+  getMergeTransactionKey(colonyId1, colonyId2) {
+    return [colonyId1, colonyId2].sort().join('|');
+  }
+
+  queueMergeTransaction(colony1, colony2) {
+    if (!colony1 || !colony2) return null;
+
+    const mergeKey = this.getMergeTransactionKey(colony1.id, colony2.id);
+    if (this.pendingMergeTransactions.has(mergeKey)) {
+      return this.pendingMergeTransactions.get(mergeKey);
+    }
+
+    const mergedCenter = colony1.center.clone().add(colony2.center).multiplyScalar(0.5);
+    const duration = 1.2;
+
+    colony1.pendingMerge = true;
+    colony2.pendingMerge = true;
+
+    const transaction = {
+      key: mergeKey,
+      sourceIds: [colony1.id, colony2.id],
+      mergedCenter,
+      duration,
+      elapsed: 0
+    };
+
+    this.pendingMergeTransactions.set(mergeKey, transaction);
+
+    this.vfxManager.triggerMergeFlash(colony1.id, colony1.center, duration);
+    this.vfxManager.triggerMergeFlash(colony2.id, colony2.center, duration);
+    this.vfxManager.triggerMergeTransition([colony1.id, colony2.id], mergedCenter, duration);
+    this.vfxManager.cleanupColonyVFX(colony1.id, { soft: true, duration });
+    this.vfxManager.cleanupColonyVFX(colony2.id, { soft: true, duration });
+
+    return transaction;
+  }
+
+  updatePendingMergeTransactions(deltaTime) {
+    if (this.pendingMergeTransactions.size === 0) return;
+
+    for (const [mergeKey, transaction] of Array.from(this.pendingMergeTransactions.entries())) {
+      transaction.elapsed += deltaTime;
+      if (transaction.elapsed < transaction.duration) continue;
+
+      const [sourceId1, sourceId2] = transaction.sourceIds;
+      const mergedId = this.registry.mergeColonies(sourceId1, sourceId2);
+
+      if (mergedId) {
+        const mergedColony = this.registry.getColony(mergedId);
+        if (mergedColony) {
+          this.createColonyVFX(mergedId);
+          this.vfxManager.triggerColonyTransformation(mergedId, mergedColony.center, 1.1);
+          this.vfxManager.triggerRebirthEvent(mergedId, mergedColony.center, 0.9);
+          this.triggerColonyMerge(mergedId);
+        }
+
+        this.retireColonyRecord(sourceId1, { reason: 'merge', clearNodes: true });
+        this.retireColonyRecord(sourceId2, { reason: 'merge', clearNodes: true });
+        this.stats.coloniesMerged++;
+
+        if (this.debugMode) {
+          console.log(`[Civilization] Merged: ${sourceId1} + ${sourceId2} → ${mergedId}`);
+        }
+      } else {
+        const sourceColony1 = this.registry.getColony(sourceId1);
+        const sourceColony2 = this.registry.getColony(sourceId2);
+        if (sourceColony1) sourceColony1.pendingMerge = false;
+        if (sourceColony2) sourceColony2.pendingMerge = false;
+      }
+
+      this.pendingMergeTransactions.delete(mergeKey);
+    }
+  }
+
+  retireColonyRecord(colonyId, { reason = 'retired', clearNodes = false } = {}) {
+    const colony = this.registry.getColony(colonyId);
+    if (!colony) return;
+
+    if (clearNodes) {
+      colony.nodes.clear();
+    }
+
+    colony.pendingMerge = false;
+    colony.retired = true;
+    colony.retirementReason = reason;
   }
 
   triggerColonyTransformation(colonyId, targetCenter, duration = 1.0) {

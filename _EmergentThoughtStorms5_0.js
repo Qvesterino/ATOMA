@@ -48,6 +48,7 @@
  */
 
 import * as THREE from 'three';
+import { ATOMAColorPalette } from './Engine/Visual/ATOMAColorPalette.js';
 
 export class EmergentThoughtStorms5_0 {
   constructor(scene, environmentRoot, recursiveGlyphMessaging, semanticGlyphAI) {
@@ -379,12 +380,14 @@ export class EmergentThoughtStorms5_0 {
    * Cached profile for each storm archetype.
    */
   _createStormVisualProfiles() {
+    const core = ATOMAColorPalette.ATOMA_CORE;
+    const storm = ATOMAColorPalette.STORM;
     return {
       coherence: {
-        baseColor: 0x6cf9ff,
-        accentColor: 0xffffff,
-        auraColor: 0xb6fbff,
-        shellColor: 0x0d1a2c,
+        baseColor: storm.atomaCyan,
+        accentColor: storm.ritualWhite,
+        auraColor: core.glowBlue,
+        shellColor: core.midnight,
         coreSize: 0.18,
         shellScale: 5.0,
         shellOpacity: 0.10,
@@ -404,10 +407,10 @@ export class EmergentThoughtStorms5_0 {
         shellDetail: 1
       },
       chaotic: {
-        baseColor: 0xb96cff,
-        accentColor: 0xf8e6ff,
-        auraColor: 0x7c3cff,
-        shellColor: 0x1a0b33,
+        baseColor: storm.violet,
+        accentColor: core.frost,
+        auraColor: core.purple,
+        shellColor: core.deepViolet,
         coreSize: 0.17,
         shellScale: 5.5,
         shellOpacity: 0.14,
@@ -427,10 +430,10 @@ export class EmergentThoughtStorms5_0 {
         shellDetail: 1
       },
       corruption: {
-        baseColor: 0xff5e57,
-        accentColor: 0xffd0b8,
-        auraColor: 0xff7a2e,
-        shellColor: 0x1a0608,
+        baseColor: core.breachRose,
+        accentColor: core.mutedRose,
+        auraColor: core.ember,
+        shellColor: core.voidDeep,
         coreSize: 0.19,
         shellScale: 5.0,
         shellOpacity: 0.16,
@@ -450,10 +453,10 @@ export class EmergentThoughtStorms5_0 {
         shellDetail: 0
       },
       ascended: {
-        baseColor: 0xf7f8ff,
-        accentColor: 0x6cf9ff,
-        auraColor: 0xdff7ff,
-        shellColor: 0x071117,
+        baseColor: storm.ritualWhite,
+        accentColor: storm.atomaCyan,
+        auraColor: core.frost,
+        shellColor: core.voidDeep,
         coreSize: 0.20,
         shellScale: 5.6,
         shellOpacity: 0.11,
@@ -473,10 +476,10 @@ export class EmergentThoughtStorms5_0 {
         shellDetail: 1
       },
       balanced: {
-        baseColor: 0x6cf9ff,
-        accentColor: 0xffffff,
-        auraColor: 0xb6fbff,
-        shellColor: 0x0c1830,
+        baseColor: storm.atomaCyan,
+        accentColor: storm.ritualWhite,
+        auraColor: core.glowBlue,
+        shellColor: core.midnight,
         coreSize: 0.18,
         shellScale: 5.0,
         shellOpacity: 0.11,

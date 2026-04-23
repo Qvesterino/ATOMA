@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { AmbientEntityRegistry } from './_AmbientEntityRegistry.js';
+import { ATOMAColorPalette } from './Engine/Visual/ATOMAColorPalette.js';
 
 /**
  * AMBIENT ENTITY MANAGER
@@ -68,20 +69,8 @@ export class AmbientEntityManager {
     this.updateTimer = 0;
     this.particleUpdateInterval = 0.016; // Update particles every frame
 
-    // ATOMA ambient palette: deep blue, violet, steel, ash
-    this.ambientPalette = {
-      void: 0x071019,
-      midnight: 0x111b2d,
-      deepBlue: 0x20314f,
-      indigo: 0x47406f,
-      violet: 0x66508f,
-      steel: 0x728096,
-      ash: 0xa0a9b8,
-      frost: 0xdbe2ee,
-      glowBlue: 0x6f85bf,
-      glowViolet: 0x7a69c0,
-      haze: 0x394358
-    };
+    // ATOMA ambient palette — Single Source of Truth from ATOMAColorPalette
+    this.ambientPalette = ATOMAColorPalette.ATOMA_CORE;
   }
 
   _getSharedGeometry(key, factory) {
@@ -1406,14 +1395,16 @@ export class AmbientEntityManager {
   updateGhostOrbVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.floatTime = (mesh.userData.floatTime || 0) + deltaTime;
     const ft = mesh.userData.floatTime;
+    const behavior = entity.userData?.behaviorContext;
 
-    // Float up / wobble
+    // Float up / wobble — stronger when orbiting a colony
     const floatOffset = Math.sin(ft * mesh.userData.floatSpeed) * mesh.userData.floatAmplitude;
     const wobble = Math.sin(ft * 2.5) * 0.06;
     mesh.position.y = entity.position.y + floatOffset + wobble;
 
-    // Gentle rotation
-    mesh.rotation.y += deltaTime * 0.25;
+    // Gentle rotation — faster when in active orbit
+    const orbitBoost = (behavior?.type === 'colony-orbit') ? 1.6 : 1.0;
+    mesh.rotation.y += deltaTime * 0.25 * orbitBoost;
 
     // Color shift — slow drift inside the ATOMA dark palette
     const hue = 0.63 + Math.sin(ft * 0.18) * 0.02;
@@ -1424,8 +1415,8 @@ export class AmbientEntityManager {
     const midCage = mesh.getObjectByName('midCage');
     if (midCage) {
       midCage.material.color.copy(color);
-      midCage.rotation.x += deltaTime * 0.4;
-      midCage.rotation.z += deltaTime * 0.2;
+      midCage.rotation.x += deltaTime * 0.4 * orbitBoost;
+      midCage.rotation.z += deltaTime * 0.2 * orbitBoost;
     }
 
     const outerShell = mesh.getObjectByName('outerShell');
@@ -1445,12 +1436,22 @@ export class AmbientEntityManager {
       innerCore.scale.setScalar(coreScale);
     }
 
-    // Orbit ring tilt
+    // Orbit ring tilt — align with colony orbit plane when behavior context exists
     const orbitRing = mesh.getObjectByName('orbitRing');
     if (orbitRing) {
       orbitRing.material.color.copy(ringColor);
-      orbitRing.rotation.x = Math.PI * 0.5 + Math.sin(ft * 0.8) * 0.3;
-      orbitRing.rotation.z = ft * 0.6;
+      if (behavior?.type === 'colony-orbit') {
+        // Orbit ring precesses with the colony orbit phase
+        const phase = behavior.orbitPhase || ft * 0.6;
+        orbitRing.rotation.x = Math.PI * 0.5 + Math.sin(phase) * 0.4;
+        orbitRing.rotation.z = phase * 0.8;
+        // Slight scale pulse synced with orbit
+        const orbitPulse = 1.0 + Math.sin(phase * 2) * 0.06;
+        orbitRing.scale.setScalar(orbitPulse);
+      } else {
+        orbitRing.rotation.x = Math.PI * 0.5 + Math.sin(ft * 0.8) * 0.3;
+        orbitRing.rotation.z = ft * 0.6;
+      }
     }
 
     // Fade visibility
@@ -1468,28 +1469,46 @@ export class AmbientEntityManager {
   updateSpectreVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.glitchTimer += deltaTime;
     const gt = mesh.userData.glitchTimer;
+    const behavior = entity.userData?.behaviorContext;
     const spectralColor = this._tempColorA.setHSL(0.62 + Math.sin(gt * 0.15) * 0.015, 0.25, 0.36 + Math.sin(gt * 0.45) * 0.03);
     const accentColor = this._tempColorB.setHSL(0.58, 0.12, 0.7);
 
-    // Scanline sweep — moves up and down
+    // Scanline sweep — when colony-scan behavior, sweep rotates around colony center
     const scanline = mesh.getObjectByName('scanline');
     if (scanline) {
       scanline.material.color.copy(spectralColor);
-      const scanCycle = (gt * 0.6) % 2.4;
-      const scanY = -0.3 + (scanCycle < 1.2 ? scanCycle / 1.2 : (2.4 - scanCycle) / 1.2) * 2.1;
-      scanline.position.y = scanY;
-      const edgeFade = Math.min(1, Math.min(scanCycle, 2.4 - scanCycle) / 0.4);
-      scanline.material.opacity = 0.18 * edgeFade * entity.intensity * (1 - fadeProgress);
+      if (behavior?.type === 'colony-scan') {
+        // Radial scan sweep around the colony
+        const scanPhase = (behavior.scanPhase || gt * 0.6) % (Math.PI * 2);
+        const scanRadius = 0.5;
+        scanline.position.x = Math.cos(scanPhase) * scanRadius;
+        scanline.position.z = Math.sin(scanPhase) * scanRadius;
+        scanline.position.y = Math.sin(scanPhase * 2) * 0.3;
+        scanline.rotation.y = -scanPhase;
+        const edgeFade = Math.min(1, Math.min(scanPhase, Math.PI * 2 - scanPhase) / 0.6);
+        scanline.material.opacity = 0.22 * edgeFade * entity.intensity * (1 - fadeProgress);
+      } else {
+        // Legacy vertical sweep
+        const scanCycle = (gt * 0.6) % 2.4;
+        const scanY = -0.3 + (scanCycle < 1.2 ? scanCycle / 1.2 : (2.4 - scanCycle) / 1.2) * 2.1;
+        scanline.position.y = scanY;
+        scanline.position.x = 0;
+        scanline.position.z = 0;
+        scanline.rotation.y = 0;
+        const edgeFade = Math.min(1, Math.min(scanCycle, 2.4 - scanCycle) / 0.4);
+        scanline.material.opacity = 0.18 * edgeFade * entity.intensity * (1 - fadeProgress);
+      }
     }
 
-    // Animate scan rings — subtle breathing
+    // Animate scan rings — subtle breathing, faster when scanning
+    const scanBoost = (behavior?.type === 'colony-scan') ? 1.4 : 1.0;
     for (let i = 0; i < 5; i++) {
       const ring = mesh.getObjectByName(`scanRing_${i}`);
       if (ring) {
         ring.material.color.copy(spectralColor);
-        const breathe = 1.0 + Math.sin(gt * 2.0 + i * 0.8) * 0.06;
+        const breathe = 1.0 + Math.sin(gt * 2.0 * scanBoost + i * 0.8) * 0.06;
         ring.scale.setScalar(breathe);
-        ring.rotation.z += deltaTime * (0.2 + i * 0.05);
+        ring.rotation.z += deltaTime * (0.2 + i * 0.05) * scanBoost;
       }
     }
 
@@ -1500,8 +1519,9 @@ export class AmbientEntityManager {
       spine.material.opacity = (0.08 + Math.sin(gt * 6) * 0.04) * entity.intensity * (1 - fadeProgress);
     }
 
-    // Chromatic glitch — offset entire group briefly
-    if (Math.random() < 0.015) {
+    // Chromatic glitch — offset entire group briefly, more frequent when scanning
+    const glitchChance = (behavior?.type === 'colony-scan') ? 0.025 : 0.015;
+    if (Math.random() < glitchChance) {
       const offset = (Math.random() - 0.5) * 0.3;
       mesh.position.x += offset;
       setTimeout(() => {
@@ -1592,12 +1612,24 @@ export class AmbientEntityManager {
   updatePhantomVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.glitchTimer += deltaTime;
     mesh.userData.fadeCycleTime = (mesh.userData.fadeCycleTime || 0) + deltaTime;
-    const phantomBase = this._tempColorA.setHSL(0.72 + Math.sin(mesh.userData.glitchTimer * 0.2) * 0.015, 0.28, 0.27);
+    const behavior = entity.userData?.behaviorContext;
+    const gt = mesh.userData.glitchTimer;
+
+    // Corruption-guard phantoms shift toward angry red-purple hues
+    const isCorruptionGuard = behavior?.type === 'corruption-guard';
+    const glitchBoost = isCorruptionGuard ? 1.5 : 1.0;
+    const baseHue = isCorruptionGuard ? 0.78 : 0.72; // redder when guarding corruption
+    const phantomBase = this._tempColorA.setHSL(
+      baseHue + Math.sin(gt * 0.2 * glitchBoost) * 0.015,
+      isCorruptionGuard ? 0.38 : 0.28,
+      isCorruptionGuard ? 0.22 : 0.27
+    );
     const phantomGlow = this._tempColorB.setHSL(0.61, 0.14, 0.64);
 
-    // Random glitch teleport
-    if (Math.random() < 0.03) {
-      const offset = (Math.random() - 0.5) * 0.5;
+    // Random glitch teleport — more frequent when guarding
+    const teleportChance = isCorruptionGuard ? 0.06 : 0.03;
+    if (Math.random() < teleportChance) {
+      const offset = (Math.random() - 0.5) * (isCorruptionGuard ? 0.8 : 0.5);
       mesh.position.x += offset;
     }
 
@@ -1619,9 +1651,9 @@ export class AmbientEntityManager {
     }
 
     const flickerBase = 0.05;
-    const flickerSpeed = 8;
-    const flickerRange = 0.08;
-    const flicker = flickerBase + Math.sin(mesh.userData.glitchTimer * flickerSpeed) * flickerRange;
+    const flickerSpeed = 8 * glitchBoost;
+    const flickerRange = isCorruptionGuard ? 0.12 : 0.08;
+    const flicker = flickerBase + Math.sin(gt * flickerSpeed) * flickerRange;
     const noiseFlicker = Math.random() * 0.03;
 
     mesh.traverse((child) => {
@@ -1640,25 +1672,34 @@ export class AmbientEntityManager {
   updateWispVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.waveTime += deltaTime;
     const waveTime = Date.now() * 0.001;
-    const ribbonTint = this._tempColorA.setHSL(0.64 + Math.sin(waveTime * 0.2) * 0.02, 0.3, 0.34);
+    const behavior = entity.userData?.behaviorContext;
+    const isLinkFlow = behavior?.type === 'link-flow';
+
+    // Link-flow wisps shift toward cyan-blue, faster pulse
+    const flowBoost = isLinkFlow ? 1.5 : 1.0;
+    const baseHue = isLinkFlow ? 0.58 : 0.64;
+    const ribbonTint = this._tempColorA.setHSL(
+      baseHue + Math.sin(waveTime * 0.2 * flowBoost) * 0.02,
+      isLinkFlow ? 0.38 : 0.3,
+      isLinkFlow ? 0.38 : 0.34
+    );
     const glowTint = this._tempColorB.setHSL(0.59, 0.14, 0.72);
 
     mesh.children.forEach((child) => {
       if (child.userData.streamIndex !== undefined) {
         const offset = (child.userData.streamIndex - 2) * 0.15;
 
-        // Wave motion
-        child.position.y = Math.sin(waveTime + offset * 5) * 0.1;
-        child.rotation.z = Math.sin(waveTime * 2 + offset * 3) * 0.01;
+        // Wave motion — faster when flowing along link
+        child.position.y = Math.sin(waveTime * flowBoost + offset * 5) * 0.1;
+        child.rotation.z = Math.sin(waveTime * 2 * flowBoost + offset * 3) * 0.01;
 
-        // Scale pulse
-        const pulse = 1 + Math.sin(waveTime * 3 + offset * 2) * 0.15;
+        // Scale pulse — sync with flow speed
+        const pulse = 1 + Math.sin(waveTime * 3 * flowBoost + offset * 2) * 0.15;
         child.scale.set(1, pulse, 1);
 
-        // Color shift
+        // Color shift — brighter when in active flow
         const hueShift = Math.sin(waveTime + offset * 2) * 0.03;
-        const baseHue = 0.62;
-        const newColor = new THREE.Color().setHSL(baseHue + hueShift, 0.42, 0.28);
+        const newColor = new THREE.Color().setHSL(baseHue + hueShift, 0.42, isLinkFlow ? 0.32 : 0.28);
         if (child.material && child.material.color) {
           child.material.color.copy(newColor).lerp(glowTint, 0.25);
         }
@@ -1682,7 +1723,7 @@ export class AmbientEntityManager {
     const trailContainer = mesh.userData.trailContainer;
     if (trailContainer && Array.isArray(entity.streamTrails)) {
       let particleIndex = 0;
-      const TRAIL_LIFETIME = 0.2;
+      const TRAIL_LIFETIME = isLinkFlow ? 0.15 : 0.2;
 
       for (let streamIndex = 0; streamIndex < entity.streamTrails.length; streamIndex++) {
         const trail = entity.streamTrails[streamIndex];

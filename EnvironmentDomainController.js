@@ -545,7 +545,8 @@ export class EnvironmentDomainController {
         d.legendaryPack,
         this.instances.worldEvents,
         this.instances.weatherPack,
-        d.linkingSystem
+        d.linkingSystem,
+        this.instances.colonyExpansion || null
       );
     }
 

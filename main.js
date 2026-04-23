@@ -13129,7 +13129,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.legendaryPack,
                 this.worldEvents,
                 this.weatherPack,
-                this.linkingSystem
+                this.linkingSystem,
+                this.colonyManager || this.environmentDomain?.instances?.colonyExpansion || null
             );
         }
     }

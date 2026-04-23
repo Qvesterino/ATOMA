@@ -16,7 +16,7 @@ import * as THREE from 'three';
 export class ATOMAColorPalette {
     
     // Node Category Colors (Semantic Identification)
-    static readonly NODE_COLORS = {
+    static NODE_COLORS = {
         INPUT: {
             hex: 0x00DDFF,
             name: 'Cyan',
@@ -69,7 +69,7 @@ export class ATOMAColorPalette {
     };
     
     // State Modifiers (Applied to base colors)
-    static readonly STATE_MODIFIERS = {
+    static STATE_MODIFIERS = {
         CORRUPTION: {
             desaturation: 0.7,
             brightness: 0.6,
@@ -105,7 +105,7 @@ export class ATOMAColorPalette {
     };
     
     // Link Colors (Blended from endpoints)
-    static readonly LINK_COLORS = {
+    static LINK_COLORS = {
         BASE: {
             blendMode: 'lerp',
             blendFactor: 0.5,
@@ -129,13 +129,181 @@ export class ATOMAColorPalette {
     };
     
     // Universal Neutral Colors
-    static readonly NEUTRAL = {
+    static NEUTRAL = {
         WHITE: 0xFFFFFF,
         GREY_LIGHT: 0xCCCCCC,
         GREY: 0x888888,
         GREY_DARK: 0x444444,
         BLACK: 0x000000
     };
+
+    /**
+     * ATOMA Core Palette — The Single Source of Truth
+     * All visual systems derive from these values.
+     * Violet / purple / dark-blue / mint / ritual-white family.
+     */
+    static ATOMA_CORE = Object.freeze({
+        // Void & Depth
+        void: 0x071019,
+        voidDeep: 0x050a12,
+        midnight: 0x0a1628,
+        midnightWarm: 0x0d1a2e,
+
+        // Blues
+        deepBlue: 0x1a3a5c,
+        darkBlue: 0x142d4a,
+        slate: 0x2a3f54,
+        steel: 0x3d5a73,
+        glowBlue: 0x4fc3f7,
+        cyan: 0x6DEAFF,
+        signalCyan: 0x48f0ff,
+
+        // Violets & Purples
+        indigo: 0x3d2b5e,
+        violet: 0x5b3d8c,
+        purple: 0x7a5fb0,
+        revelationViolet: 0x8d5cff,
+        glowViolet: 0xb18aff,
+        deepViolet: 0x4a2e7a,
+
+        // Mints & Teals
+        mint: 0x77F7DB,
+        resurrectionMint: 0x89ffe4,
+        deepMint: 0x4acfa8,
+
+        // Whites & Lights
+        ritualWhite: 0xF7FBFF,
+        frost: 0xd7e8ff,
+        sacredWhite: 0xeef2f8,
+        ash: 0x8a9bb0,
+        haze: 0x5d7a99,
+
+        // Accents
+        mutedGold: 0x8d7a57,
+        amber: 0xFFB36B,
+        mutedRose: 0x8a5a6a,
+        breachRose: 0xff73cf,
+        ember: 0xff6f22,
+        ruptureRed: 0xff3333,
+
+        // Special
+        sigma: 0xD07BFF,
+        quantum: 0x00FFFF,
+        legendary: 0xFFD66B
+    });
+
+    /**
+     * Mood Colors — Canonical semantic mapping for colony / world / entity states.
+     * All systems use these; no local overrides allowed.
+     */
+    static MOOD_COLORS = Object.freeze({
+        HARMONY: 0x5b77a4,      // Calm blue-grey
+        STABILITY: 0x4a6b8a,    // Steady steel-blue
+        CORRUPTION: 0x5f4b91,   // Sick violet-purple
+        SYNERGY: 0x8d7a57,      // Warm muted gold
+        LOAD_PRESSURE: 0x8a5a6a,// Tense muted rose
+        QUANTUM: 0x4fc3f7,      // Electric glow blue
+        SIGMA: 0xb18aff,        // Mystic glow violet
+        LEGENDARY: 0xFFD66B,    // Divine gold
+        DEFAULT: 0x1a3a5c,      // Deep blue fallback
+        NEUTRAL: 0x3d5a73       // Steel neutral
+    });
+
+    /**
+     * Atmosphere Palette — Weather, ambient, background layers
+     */
+    static ATMOSPHERE = Object.freeze({
+        calm: {
+            core: 0x6DEAFF,
+            band: 0x77F7DB,
+            haze: 0x5d7a99,
+            void: 0x071019
+        },
+        pressure: {
+            core: 0xFFB36B,
+            band: 0x8d7a57,
+            haze: 0x8a5a6a,
+            void: 0x0a1628
+        },
+        resonance: {
+            core: 0xb18aff,
+            band: 0x7a5fb0,
+            haze: 0x5b3d8c,
+            void: 0x050a12
+        },
+        stormBias: {
+            core: 0xff73cf,
+            band: 0xD07BFF,
+            haze: 0x5f4b91,
+            void: 0x071019
+        },
+        ascensionHaze: {
+            core: 0xFFD66B,
+            band: 0xF7FBFF,
+            haze: 0xd7e8ff,
+            void: 0x0d1a2e
+        }
+    });
+
+    /**
+     * Storm Palette — Thought storms, consciousness layer
+     */
+    static STORM = Object.freeze({
+        atomaCyan: 0x6DEAFF,
+        mint: 0x77F7DB,
+        violet: 0xb18aff,
+        purple: 0x8d5cff,
+        rose: 0xff73cf,
+        ritualWhite: 0xF7FBFF,
+        frost: 0xd7e8ff,
+        deepVoid: 0x050a12
+    });
+
+    /**
+     * Get a core color by name.
+     * @param {string} name — key from ATOMA_CORE
+     * @returns {number} hex color
+     */
+    static getCoreColor(name) {
+        const hex = this.ATOMA_CORE[name];
+        if (hex === undefined) {
+            console.warn(`[ATOMAColorPalette] Unknown core color: ${name}`);
+            return this.ATOMA_CORE.void;
+        }
+        return hex;
+    }
+
+    /**
+     * Get a mood color by semantic name.
+     * @param {string} mood — key from MOOD_COLORS
+     * @returns {number} hex color
+     */
+    static getMoodColor(mood) {
+        const hex = this.MOOD_COLORS[mood];
+        if (hex === undefined) {
+            console.warn(`[ATOMAColorPalette] Unknown mood: ${mood}`);
+            return this.MOOD_COLORS.DEFAULT;
+        }
+        return hex;
+    }
+
+    /**
+     * Get atmosphere palette by weather key.
+     * @param {string} key — calm, pressure, resonance, stormBias, ascensionHaze
+     * @returns {Object} { core, band, haze, void }
+     */
+    static getAtmosphere(key) {
+        return this.ATMOSPHERE[key] || this.ATMOSPHERE.calm;
+    }
+
+    /**
+     * Get storm color by name.
+     * @param {string} name — key from STORM
+     * @returns {number} hex color
+     */
+    static getStormColor(name) {
+        return this.STORM[name] || this.STORM.ritualWhite;
+    }
     
     /**
      * Get color for node category
