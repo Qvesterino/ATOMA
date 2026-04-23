@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ColonyBloomOverlay } from './ColonyBloomOverlay.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SUPERNATURAL UPGRADE: Bioluminescent Alien Civilization Shaders
@@ -382,7 +383,8 @@ export class ColonyVFXManager {
       'mood-canopy': [],
       'legendary-halo': [],
       'legendary-presence': [],
-      'colony-label': []
+      'colony-label': [],
+      'colony-plaque': []
     };
 
     this.transitioningVFX = new Set();
@@ -409,6 +411,13 @@ export class ColonyVFXManager {
     this._atmoDirty = false;
     this._atmoTempMatrix = new THREE.Matrix4();
     this._atmoTempColor = new THREE.Color();
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // BLOOM OVERLAY: Sprite-based fake bloom for bioluminescent colony cores
+    // Adds volumetric glow quads that track colony cores and central glows.
+    // Non-destructive, additive-only, shared geometry, ≤1ms for 24 colonies.
+    // ═══════════════════════════════════════════════════════════════════════
+    this.bloomOverlay = new ColonyBloomOverlay(this.scene, this.vfxContainer);
   }
   
   /**
@@ -523,6 +532,203 @@ export class ColonyVFXManager {
       this._geometryCache.set(key, geo);
     }
     return geo;
+  }
+
+  _clearMoodCanopyPanels(canopy) {
+    if (!canopy || !Array.isArray(canopy.children) || canopy.children.length === 0) return;
+
+    for (let i = canopy.children.length - 1; i >= 0; i--) {
+      const panel = canopy.children[i];
+      canopy.remove(panel);
+
+      if (panel.geometry && !panel.geometry._cached) {
+        panel.geometry.dispose();
+      }
+
+      if (panel.material) {
+        if (Array.isArray(panel.material)) {
+          panel.material.forEach((material) => {
+            if (material && !material._cached) material.dispose();
+          });
+        } else if (!panel.material._cached) {
+          panel.material.dispose();
+        }
+      }
+    }
+  }
+
+  _createMoodCanopyPanelGeometry(shape, variant = 0) {
+    const silhouette = new THREE.Shape();
+    const wobble = variant % 2 === 0 ? -0.04 : 0.04;
+
+    switch (shape) {
+      case 'lotus':
+        silhouette.moveTo(0, -0.64);
+        silhouette.quadraticCurveTo(-0.26 + wobble, -0.44, -0.36 + wobble, -0.04);
+        silhouette.quadraticCurveTo(-0.48 + wobble, 0.34, -0.18 + wobble * 0.5, 0.64);
+        silhouette.quadraticCurveTo(-0.06 + wobble * 0.25, 0.86, 0, 0.98);
+        silhouette.quadraticCurveTo(0.06 - wobble * 0.25, 0.86, 0.18 - wobble * 0.5, 0.64);
+        silhouette.quadraticCurveTo(0.48 - wobble, 0.34, 0.36 - wobble, -0.04);
+        silhouette.quadraticCurveTo(0.26 - wobble, -0.44, 0, -0.64);
+        break;
+      case 'buttress':
+        silhouette.moveTo(0, -0.68);
+        silhouette.quadraticCurveTo(-0.34 + wobble * 0.5, -0.54, -0.44 + wobble, -0.08);
+        silhouette.quadraticCurveTo(-0.46 + wobble, 0.24, -0.22 + wobble * 0.4, 0.58);
+        silhouette.quadraticCurveTo(-0.1 + wobble * 0.2, 0.82, 0, 0.92);
+        silhouette.quadraticCurveTo(0.1 - wobble * 0.2, 0.82, 0.22 - wobble * 0.4, 0.58);
+        silhouette.quadraticCurveTo(0.46 - wobble, 0.24, 0.44 - wobble, -0.08);
+        silhouette.quadraticCurveTo(0.34 - wobble * 0.5, -0.54, 0, -0.68);
+        break;
+      case 'thorn':
+        silhouette.moveTo(0, -0.78);
+        silhouette.lineTo(-0.16 + wobble * 0.3, -0.18);
+        silhouette.lineTo(-0.32 + wobble * 0.2, 0.1);
+        silhouette.lineTo(-0.08 + wobble * 0.1, 0.64);
+        silhouette.lineTo(0, 1.0);
+        silhouette.lineTo(0.08 - wobble * 0.1, 0.64);
+        silhouette.lineTo(0.32 - wobble * 0.2, 0.1);
+        silhouette.lineTo(0.16 - wobble * 0.3, -0.18);
+        break;
+      case 'braid':
+        silhouette.moveTo(0, -0.58);
+        silhouette.quadraticCurveTo(-0.4 + wobble, -0.38, -0.48 + wobble, -0.04);
+        silhouette.quadraticCurveTo(-0.34 + wobble * 0.7, 0.12, -0.18 + wobble * 0.4, 0.18);
+        silhouette.quadraticCurveTo(-0.26 + wobble * 0.4, 0.48, -0.06, 0.74);
+        silhouette.quadraticCurveTo(0, 0.86, 0.06, 0.74);
+        silhouette.quadraticCurveTo(0.26 - wobble * 0.4, 0.48, 0.18 - wobble * 0.4, 0.18);
+        silhouette.quadraticCurveTo(0.34 - wobble * 0.7, 0.12, 0.48 - wobble, -0.04);
+        silhouette.quadraticCurveTo(0.4 - wobble, -0.38, 0, -0.58);
+        break;
+      case 'shroud':
+        silhouette.moveTo(0, -0.52);
+        silhouette.quadraticCurveTo(-0.42 + wobble, -0.28, -0.52 + wobble, 0.08);
+        silhouette.quadraticCurveTo(-0.44 + wobble * 0.6, 0.42, -0.2 + wobble * 0.2, 0.68);
+        silhouette.quadraticCurveTo(-0.08, 0.88, 0, 0.96);
+        silhouette.quadraticCurveTo(0.08, 0.88, 0.2 - wobble * 0.2, 0.68);
+        silhouette.quadraticCurveTo(0.44 - wobble * 0.6, 0.42, 0.52 - wobble, 0.08);
+        silhouette.quadraticCurveTo(0.42 - wobble, -0.28, 0, -0.52);
+        break;
+      default:
+        silhouette.moveTo(0, -0.6);
+        silhouette.quadraticCurveTo(-0.28 + wobble, -0.36, -0.36 + wobble, 0);
+        silhouette.quadraticCurveTo(-0.42 + wobble * 0.5, 0.36, -0.16 + wobble * 0.3, 0.66);
+        silhouette.quadraticCurveTo(-0.06, 0.86, 0, 0.96);
+        silhouette.quadraticCurveTo(0.06, 0.86, 0.16 - wobble * 0.3, 0.66);
+        silhouette.quadraticCurveTo(0.42 - wobble * 0.5, 0.36, 0.36 - wobble, 0);
+        silhouette.quadraticCurveTo(0.28 - wobble, -0.36, 0, -0.6);
+        break;
+    }
+
+    silhouette.closePath();
+    const geometry = new THREE.ShapeGeometry(silhouette, 6);
+    geometry.computeBoundingSphere();
+    return geometry;
+  }
+
+  _createColonyLabelPlaqueGeometry() {
+    const plaque = new THREE.Shape();
+    plaque.moveTo(0, 1.12);
+    plaque.quadraticCurveTo(0.18, 1.16, 0.34, 1.02);
+    plaque.quadraticCurveTo(0.54, 0.82, 0.58, 0.54);
+    plaque.quadraticCurveTo(0.68, 0.08, 0.48, -0.42);
+    plaque.quadraticCurveTo(0.28, -0.84, 0, -1.04);
+    plaque.quadraticCurveTo(-0.28, -0.84, -0.48, -0.42);
+    plaque.quadraticCurveTo(-0.68, 0.08, -0.58, 0.54);
+    plaque.quadraticCurveTo(-0.54, 0.82, -0.34, 1.02);
+    plaque.quadraticCurveTo(-0.18, 1.16, 0, 1.12);
+
+    const geometry = new THREE.ShapeGeometry(plaque, 8);
+    geometry.computeBoundingSphere();
+    return geometry;
+  }
+
+  _renderColonyLabelCanvas(canvas, lines, color = 0xdbe2ee) {
+    if (!canvas) return null;
+
+    const width = 320;
+    const height = 176;
+    if (canvas.width !== width) canvas.width = width;
+    if (canvas.height !== height) canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const accent = new THREE.Color(color);
+    const accentMuted = accent.clone().lerp(new THREE.Color(0xdbe2ee), 0.22);
+    const accentHex = `#${accentMuted.getHexString()}`;
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = 'rgba(7, 10, 16, 0.18)';
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    const shieldFill = ctx.createLinearGradient(0, 18, 0, height - 18);
+    shieldFill.addColorStop(0, 'rgba(22, 30, 44, 0.96)');
+    shieldFill.addColorStop(0.55, 'rgba(13, 18, 28, 0.98)');
+    shieldFill.addColorStop(1, 'rgba(8, 12, 18, 0.96)');
+    ctx.fillStyle = shieldFill;
+    ctx.fillRect(18, 12, width - 36, height - 24);
+
+    ctx.strokeStyle = 'rgba(219, 226, 238, 0.14)';
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(18, 12, width - 36, height - 24);
+
+    ctx.strokeStyle = accentHex;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(92, 30);
+    ctx.lineTo(160, 18);
+    ctx.lineTo(228, 30);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(219, 226, 238, 0.18)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(160, 24);
+    ctx.lineTo(160, 148);
+    ctx.stroke();
+
+    ctx.fillStyle = accentHex;
+    ctx.beginPath();
+    ctx.arc(160, 58, 5.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(6, 9, 14, 0.68)';
+    ctx.fillRect(52, 74, 216, 74);
+    ctx.strokeStyle = 'rgba(219, 226, 238, 0.16)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(52, 74, 216, 74);
+
+    ctx.font = 'bold 18px Courier New';
+    ctx.fillStyle = '#dbe2ee';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+
+    const margin = 68;
+    const lineHeight = 22;
+    const maxLines = Math.min(Array.isArray(lines) ? lines.length : 0, 4);
+    for (let i = 0; i < maxLines; i++) {
+      const y = 84 + i * lineHeight;
+      ctx.fillStyle = accentHex;
+      ctx.fillRect(62, y + 9, 8, 2);
+      ctx.fillStyle = '#dbe2ee';
+      ctx.fillText(lines[i], margin, y);
+    }
+
+    ctx.strokeStyle = 'rgba(219, 226, 238, 0.22)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(106, 146);
+    ctx.lineTo(160, 156);
+    ctx.lineTo(214, 146);
+    ctx.stroke();
+
+    ctx.restore();
+    return ctx;
   }
 
   // ─────────────────────────────────────────────────────────────────────
@@ -689,6 +895,9 @@ export class ColonyVFXManager {
     const pool = this.objectPools[type];
 
     this.resetVFXObject(object);
+    if (type === 'mood-canopy') {
+      this._clearMoodCanopyPanels(object);
+    }
     if (object.parent) {
       object.parent.remove(object);
     }
@@ -887,35 +1096,40 @@ export class ColonyVFXManager {
       canopy.visible = true;
     }
 
+    this._clearMoodCanopyPanels(canopy);
+
     const desiredPanels = spec.panelCount;
+    const shapeScaleMap = {
+      lotus: { x: 0.9, y: 1.08 },
+      buttress: { x: 1.04, y: 0.94 },
+      thorn: { x: 0.66, y: 1.24 },
+      braid: { x: 1.12, y: 0.86 },
+      shroud: { x: 1.16, y: 0.9 }
+    };
+    const shapeScale = shapeScaleMap[spec.shape] || { x: 1, y: 1 };
+
     while (canopy.children.length < desiredPanels) {
-      const panelGeometry = new THREE.PlaneGeometry(0.62, 1.24, 1, 1);
+      const panelIndex = canopy.children.length;
+      const panelGeometry = this._createMoodCanopyPanelGeometry(spec.shape, panelIndex);
       const panelMaterial = this.createBasicMaterial(color, spec.opacity, THREE.DoubleSide);
       panelMaterial.blending = THREE.AdditiveBlending;
       panelMaterial.depthWrite = false;
       const panel = new THREE.Mesh(panelGeometry, panelMaterial);
       panel.userData.type = 'mood-canopy-panel';
+      panel.userData.shapeVariant = panelIndex % 2;
       canopy.add(panel);
-    }
-
-    while (canopy.children.length > desiredPanels) {
-      const panel = canopy.children[canopy.children.length - 1];
-      if (!panel) break;
-      canopy.remove(panel);
-      if (panel.geometry) panel.geometry.dispose();
-      if (panel.material) panel.material.dispose();
     }
 
     canopy.children.forEach((panel, index) => {
       const angle = (index / desiredPanels) * Math.PI * 2;
-      const lift = spec.height + (index % 2 === 0 ? 0.06 : -0.02);
-      const localRadius = radius * (0.72 + (index % 3) * 0.08);
+      const lift = spec.height + (index % 2 === 0 ? 0.06 : -0.02) + (spec.shape === 'shroud' ? 0.03 : 0);
+      const localRadius = radius * (0.72 + (index % 3) * 0.08 + (spec.shape === 'braid' ? 0.04 : 0));
 
       panel.material.color.setHex(color);
       panel.material.opacity = spec.opacity;
       panel.scale.set(
-        0.72 * spec.panelScale * (spec.shape === 'buttress' ? 0.82 : 1),
-        1.18 * spec.panelScale * (spec.shape === 'thorn' ? 0.9 : 1),
+        0.72 * spec.panelScale * shapeScale.x,
+        1.18 * spec.panelScale * shapeScale.y,
         1
       );
 
@@ -1273,6 +1487,12 @@ export class ColonyVFXManager {
     };
 
     this.vfxContainer.add(core);
+
+    // BLOOM: Add volumetric glow overlay for the bioluminescent core
+    if (this.bloomOverlay) {
+      this.bloomOverlay.createForCore(colonyId, core, color, energyFactor, pulsePhase);
+    }
+
     return core;
   }
 
@@ -1326,6 +1546,10 @@ export class ColonyVFXManager {
       glow.geometry = geometry;
       if (glow.material) glow.material.dispose();
       glow.material = material;
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.generateMipmaps = false;
     } else {
       glow = new THREE.Mesh(geometry, material);
     }
@@ -1340,8 +1564,14 @@ export class ColonyVFXManager {
       motionBias: profile.motionBias,
       bioluminescent
     };
-    
+
     this.vfxContainer.add(glow);
+
+    // BLOOM: Add volumetric glow overlay for the central glow shell
+    if (this.bloomOverlay) {
+      this.bloomOverlay.createForGlow(colonyId, glow, color, 0.5, pulsePhase);
+    }
+
     return glow;
   }
   
@@ -1457,51 +1687,59 @@ export class ColonyVFXManager {
   }
 
   createDebugLabel(colonyId, center, lines, color = 0xdbe2ee) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 128;
-    const ctx = canvas.getContext('2d');
+    let label = this.acquireVFXObject('colony-plaque');
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = 'rgba(8, 12, 20, 0.88)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.font = 'bold 18px Courier New';
-    ctx.fillStyle = '#dbe2ee';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    const margin = 12;
-    for (let i = 0; i < lines.length; i++) {
-      ctx.fillText(lines[i], margin, margin + i * 22);
-    }
+    if (!label) {
+      const canvas = document.createElement('canvas');
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.generateMipmaps = false;
 
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
-
-    let label = this.acquireVFXObject('colony-label');
-    if (label) {
-      if (label.material.map) label.material.map.dispose();
-      label.material.map = texture;
-      label.material.color.setHex(color);
-      label.visible = true;
-    } else {
-      const material = new THREE.SpriteMaterial({
+      const geometry = this.getCachedGeometry('colony.label.plaque', () => this._createColonyLabelPlaqueGeometry());
+      const material = new THREE.MeshBasicMaterial({
         map: texture,
+        color: 0xffffff,
         transparent: true,
-        opacity: 0.95,
-        depthTest: false
+        opacity: 0.96,
+        depthTest: false,
+        depthWrite: false,
+        side: THREE.DoubleSide
       });
-      label = new THREE.Sprite(material);
-      label.scale.set(3.2, 1.5, 1);
+
+      label = new THREE.Mesh(geometry, material);
+      label.scale.set(3.4, 2.0, 1);
+      label.renderOrder = 40;
+      label.userData = {
+        type: 'colony-plaque',
+        canvas,
+        texture
+      };
     }
+
+    const canvas = label.userData.canvas;
+    const texture = label.userData.texture || label.material.map;
+    const ctx = this._renderColonyLabelCanvas(canvas, lines, color);
+
+    if (texture) {
+      texture.needsUpdate = true;
+      label.material.map = texture;
+    }
+
+    label.material.color.setHex(0xffffff);
+    label.material.opacity = 0.96;
+    label.visible = true;
 
     label.position.copy(center);
-    label.position.y += 1.4;
+    label.position.y += 1.5;
     label.userData = {
+      ...label.userData,
       colonyId,
-      type: 'colony-label',
+      type: 'colony-plaque',
       canvas,
       ctx,
+      texture,
       color,
       lines
     };
@@ -1511,26 +1749,22 @@ export class ColonyVFXManager {
 
   updateDebugLabel(label, lines, color = 0xdbe2ee) {
     if (!label || !label.userData || !label.userData.ctx) return;
-    const ctx = label.userData.ctx;
     const canvas = label.userData.canvas;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = 'rgba(8, 12, 20, 0.88)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.font = 'bold 18px Courier New';
-    ctx.fillStyle = '#dbe2ee';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    const margin = 12;
-    for (let i = 0; i < lines.length; i++) {
-      ctx.fillText(lines[i], margin, margin + i * 22);
+    const texture = label.userData.texture || label.material.map;
+
+    this._renderColonyLabelCanvas(canvas, lines, color);
+
+    if (texture) {
+      texture.needsUpdate = true;
     }
 
-    if (label.material.map) {
-      label.material.map.needsUpdate = true;
+    if (label.material) {
+      label.material.map = texture || label.material.map;
+      label.material.color.setHex(0xffffff);
     }
-    label.material.color.setHex(color);
     label.userData.lines = lines;
+    label.userData.color = color;
   }
 
   /**
@@ -2687,6 +2921,11 @@ export class ColonyVFXManager {
    * Clean up VFX for a colony
    */
   cleanupColonyVFX(colonyId, options = {}) {
+    // BLOOM: Remove bloom overlays for this colony first
+    if (this.bloomOverlay) {
+      this.bloomOverlay.removeForColony(colonyId);
+    }
+
     const children = [...this.vfxContainer.children];
     const duration = options.duration ?? 0.9;
     const delay = options.delay ?? 0;
@@ -2763,6 +3002,11 @@ export class ColonyVFXManager {
     this.updateEvents(deltaTime);
     this.updateWorldEventEffects(deltaTime);
     this.updateTransitions(deltaTime);
+
+    // BLOOM: Update sprite overlays to track colony cores/glows
+    if (this.bloomOverlay) {
+      this.bloomOverlay.update(deltaTime);
+    }
 
     // PERFORMANCE: Flush InstancedMesh buffers if any instance was updated
     if (this._atmoDirty && this._atmoInstanceMesh) {
@@ -2948,6 +3192,10 @@ export class ColonyVFXManager {
   }
 
   cleanup() {
+    if (this.bloomOverlay) {
+      this.bloomOverlay.dispose();
+      this.bloomOverlay = null;
+    }
     this.vfxContainer.clear();
     this.scene.remove(this.vfxContainer);
   }

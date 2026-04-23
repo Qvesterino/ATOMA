@@ -70,7 +70,7 @@ const buildUniformSignature = (uniforms = {}) => {
 
 /**
  * Returns a cached CanvasTexture for the given environment sprite kind.
- * All kinds produce soft circular radial gradients tuned for their visual role.
+ * Most kinds produce soft radial gradients; the field preset is clipped to an octagon to avoid square billboards.
  *
  * kinds:
  *   soft    — generic white soft dot (default)
@@ -102,6 +102,20 @@ const getEnvSpriteTexture = (kind = 'soft') => {
   const cy = size / 2;
   const r = size / 2;
   const gradient = ctx.createRadialGradient(cx, cy, r * 0.03, cx, cy, r);
+  const drawRegularPolygon = (sides, radius, rotation = 0) => {
+    ctx.beginPath();
+    for (let i = 0; i < sides; i += 1) {
+      const angle = rotation + (i / sides) * Math.PI * 2;
+      const x = cx + Math.cos(angle) * radius;
+      const y = cy + Math.sin(angle) * radius;
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.closePath();
+  };
 
   switch (kind) {
     case 'shimmer':
@@ -170,7 +184,12 @@ const getEnvSpriteTexture = (kind = 'soft') => {
   }
 
   ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, size, size);
+  if (kind === 'field') {
+    drawRegularPolygon(8, r * 0.88, Math.PI / 8);
+    ctx.fill();
+  } else {
+    ctx.fillRect(0, 0, size, size);
+  }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;

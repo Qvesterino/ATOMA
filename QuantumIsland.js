@@ -178,7 +178,7 @@ export class QuantumIsland {
       const angle = (i / edgeCount) * Math.PI * 2;
       const radius = 19.5;
       
-      const edgeGeometry = new THREE.CylinderGeometry(0.08, 0.08, 0.15, 8, 1, false);
+      const edgeGeometry = new THREE.BoxGeometry(0.8, 0.15, 0.15);
       const edgeMaterial = materialRegistry.getBasic('world.quantumisland.edgeAccent', {
         color: 0x00dddd,
         transparent: true,
@@ -748,9 +748,13 @@ export class QuantumIsland {
    */
   createFloatingShards() {
     const shardCount = 20;
-    const shardGeometry = new THREE.OctahedronGeometry(1, 0);
     
     for (let i = 0; i < shardCount; i++) {
+      const geometry = new THREE.BoxGeometry(
+        2 + Math.random() * 3,
+        0.2,
+        1 + Math.random() * 2
+      );
       
       const material = materialRegistry.getStandard('world.quantumisland.shard', {
         color: 0x2a2a3a,
@@ -762,13 +766,8 @@ export class QuantumIsland {
         emissiveIntensity: 0.1
       });
       
-      const shard = new THREE.Mesh(shardGeometry, material);
+      const shard = new THREE.Mesh(geometry, material);
       shard.renderOrder = this.AURA_BACKGROUND_ORDER;
-      shard.scale.set(
-        2 + Math.random() * 3,
-        0.18 + Math.random() * 0.08,
-        1 + Math.random() * 2
-      );
       
       const angle = Math.random() * Math.PI * 2;
       const distance = 40 + Math.random() * 40;
@@ -872,42 +871,6 @@ export class QuantumIsland {
     this.quantumParticles.userData.velocities = velocities;
     this.worldRoot.add(this.quantumParticles);
   }
-
-  _createOctagonalPlaneGeometry(width, height, widthSegments = 1, heightSegments = 1, cornerRatio = 0.28) {
-    const geometry = new THREE.PlaneGeometry(width, height, widthSegments, heightSegments);
-    const position = geometry.attributes.position;
-    const halfWidth = width * 0.5;
-    const halfHeight = height * 0.5;
-    const safeRatio = Math.max(0.05, Math.min(0.45, cornerRatio));
-    const cutX = Math.max(0.0001, halfWidth * safeRatio);
-    const cutY = Math.max(0.0001, halfHeight * safeRatio);
-    const innerX = halfWidth - cutX;
-    const innerY = halfHeight - cutY;
-
-    for (let i = 0; i < position.count; i++) {
-      const x = position.getX(i);
-      const y = position.getY(i);
-      const absX = Math.abs(x);
-      const absY = Math.abs(y);
-
-      if (absX > innerX && absY > innerY) {
-        const dx = absX - innerX;
-        const dy = absY - innerY;
-        const mix = (dx / cutX) + (dy / cutY);
-
-        if (mix > 0) {
-          const scale = 1 / mix;
-          position.setX(i, Math.sign(x) * (innerX + dx * scale));
-          position.setY(i, Math.sign(y) * (innerY + dy * scale));
-        }
-      }
-    }
-
-    position.needsUpdate = true;
-    geometry.computeVertexNormals();
-    geometry.computeBoundingSphere();
-    return geometry;
-  }
   
   /**
    * Create glitch ribbons along horizon
@@ -917,7 +880,7 @@ export class QuantumIsland {
       const angle = (i / 5) * Math.PI * 2;
       const distance = 60;
       
-      const geometry = this._createOctagonalPlaneGeometry(20, 8, 10, 5, 0.3);
+      const geometry = new THREE.PlaneGeometry(20, 8, 10, 5);
       const material = materialRegistry.getBasic('world.quantumisland.glitchRibbon', {
         color: 0x00ffff,
         transparent: true,
@@ -973,7 +936,7 @@ export class QuantumIsland {
    * Create low-density mist
    */
   createMist() {
-    const mistGeometry = this._createOctagonalPlaneGeometry(50, 50, 8, 8, 0.32);
+    const mistGeometry = new THREE.PlaneGeometry(50, 50);
     const mistMaterial = materialRegistry.getBasic('world.quantumisland.mist', {
       color: 0x5533aa,
       transparent: true,

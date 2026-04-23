@@ -24,97 +24,260 @@ import * as THREE from 'three';
 export class ProcessEnhancedVariants {
   
   /**
-   * PROCESS ENHANCED: FLOW_RECOMPOSER
-   * 
+   * PROCESS ENHANCED: FLOW_RECOMPOSER (V2 — Crystallized Recomposition)
+   *
    * Description:
-   * - Multiple floating segments or shards
-   * - Segments slowly reconfigure and change relative positions
-   * - Motion suggests continuous reassembly
-   * - No fixed center mass
-   * 
+   * - 8 refractive crystalline shards in asymmetric cloud
+   * - Edge highlights on each shard (blueprint overlay)
+   * - 3 ghost echoes suggesting recomposition state
+   * - Distorted dodecahedron core + inner seed
+   * - Data filaments connecting core to shards
+   * - Static dust field for spatial depth
+   * - NO internal motion — static, composed structure
+   *
    * Visual Style:
-   * - Dark matte, semi-translucent
+   * - Refractive glass-like shards (MeshPhysicalMaterial)
    * - Cyan/Teal emissive accents
-   * - Exploded view aesthetic
+   * - Exploded view aesthetic, now crystallized
    */
   static createProcessEnhanced_FlowRecomposer(group, color) {
     try {
+      const resolvedColor = (typeof color === 'number') ? color : 0x00eaff;
+      const colorObj = new THREE.Color(resolvedColor);
+
+      // Simple seeded RNG from nodeKey
+      const nodeKey = group?.userData?.nodeId || '204';
+      let seed = 0;
+      for (let i = 0; i < nodeKey.length; i++) seed = ((seed << 5) - seed) + nodeKey.charCodeAt(i);
+      seed = Math.abs(seed) || 204;
+      const rng = () => {
+        seed = (seed * 16807) % 2147483647;
+        return (seed - 1) / 2147483646;
+      };
+
       const shardCount = 8;
-      
-      const shardMaterial = new THREE.MeshStandardMaterial({
-        color: 0x222222,
-        metalness: 0.7,
-        roughness: 0.4,
-        emissive: color,
-        emissiveIntensity: 0.15,
+      const ghostCount = 3;
+      const filamentCount = 4;
+      const dustCount = 20;
+
+      // === MATERIALS ===
+      const shardMat = new THREE.MeshPhysicalMaterial({
+        color: 0x1a1a1a,
+        metalness: 0.6,
+        roughness: 0.18,
+        transmission: 0.35,
+        thickness: 0.5,
+        emissive: resolvedColor,
+        emissiveIntensity: 0.22,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.92
+      });
+
+      const edgeMat = new THREE.LineBasicMaterial({
+        color: resolvedColor,
+        transparent: true,
+        opacity: 0.45,
+        depthWrite: false
+      });
+
+      const ghostMat = new THREE.MeshPhysicalMaterial({
+        color: resolvedColor,
+        metalness: 0.4,
+        roughness: 0.3,
+        transmission: 0.15,
+        emissive: resolvedColor,
+        emissiveIntensity: 0.12,
+        transparent: true,
+        opacity: 0.14,
+        depthWrite: false,
         side: THREE.DoubleSide
       });
 
-      const coreMaterial = new THREE.MeshBasicMaterial({
-        color: color,
-        transparent: true,
-        opacity: 0.6,
-        wireframe: true
+      const coreMat = new THREE.MeshStandardMaterial({
+        color: 0x111111,
+        metalness: 0.7,
+        roughness: 0.2,
+        emissive: resolvedColor,
+        emissiveIntensity: 0.35
       });
 
-      // Create floating shards (irregular polygons)
+      const seedMat = new THREE.MeshStandardMaterial({
+        color: resolvedColor,
+        metalness: 0.5,
+        roughness: 0.15,
+        emissive: resolvedColor,
+        emissiveIntensity: 0.55
+      });
+
+      const filamentMat = new THREE.LineBasicMaterial({
+        color: resolvedColor,
+        transparent: true,
+        opacity: 0.22,
+        depthWrite: false
+      });
+
+      const dustMat = new THREE.PointsMaterial({
+        color: resolvedColor,
+        size: 0.025,
+        transparent: true,
+        opacity: 0.18,
+        depthWrite: false,
+        sizeAttenuation: true
+      });
+
+      [shardMat, edgeMat, ghostMat, coreMat, seedMat, filamentMat, dustMat].forEach((mat) => {
+        mat.userData = mat.userData || {};
+        mat.userData.wavePatchMode = 'DEFAULT';
+        mat.userData.ignoreWaveColor = true;
+      });
+
+      const root = new THREE.Group();
+      root.name = 'PROCESS_FLOW_RECOMPOSER_NODE';
+      root.userData.visualVariant = 'PROCESS_FLOW_RECOMPOSER_V2';
+      root.userData.nodeGeometryName = 'PROCESS_FLOW_RECOMPOSER';
+
+      const shardPositions = [];
+
+      // === SHARDS + EDGE HIGHLIGHTS ===
       for (let i = 0; i < shardCount; i++) {
-        // Create irregular shard geometry
         const shape = new THREE.Shape();
         const pts = [];
         const numPts = 5;
         for (let j = 0; j < numPts; j++) {
           const angle = (j / numPts) * Math.PI * 2;
-          const r = 0.15 + Math.random() * 0.15;
+          const r = 0.12 + rng() * 0.12;
           pts.push(new THREE.Vector2(Math.cos(angle) * r, Math.sin(angle) * r));
         }
         shape.setFromPoints(pts);
-        
+
         const extrudeSettings = {
-          depth: 0.05 + Math.random() * 0.05,
+          depth: 0.04 + rng() * 0.05,
           bevelEnabled: true,
-          bevelThickness: 0.02,
-          bevelSize: 0.02,
+          bevelThickness: 0.015,
+          bevelSize: 0.015,
           bevelSegments: 1
         };
-        
+
         const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-        const shard = new THREE.Mesh(geometry, shardMaterial);
-        
-        // Random initial position in a cloud
-        const radius = 0.4 + Math.random() * 0.3;
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.random() * Math.PI;
-        
-        shard.position.set(
+        geometry.computeBoundingSphere();
+
+        const shard = new THREE.Mesh(geometry, shardMat);
+        shard.name = `FlowShard_${i}`;
+
+        const radius = 0.35 + rng() * 0.25;
+        const theta = rng() * Math.PI * 2;
+        const phi = rng() * Math.PI;
+        const pos = new THREE.Vector3(
           radius * Math.sin(phi) * Math.cos(theta),
           radius * Math.sin(phi) * Math.sin(theta),
           radius * Math.cos(phi)
         );
-        
-        shard.lookAt(0, 0, 0);
-        shard.rotation.z = Math.random() * Math.PI * 2;
+        shard.position.copy(pos);
+        shardPositions.push(pos.clone());
 
-        // Animation metadata for "reconfiguring" motion
+        shard.lookAt(0, 0, 0);
+        shard.rotation.z = rng() * Math.PI * 2;
         shard.userData.isRecomposerShard = true;
-        shard.userData.driftSpeed = 0.1 + Math.random() * 0.2;
-        shard.userData.driftAxis = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
         shard.userData.visualCoreImmutable = true;
-        
-        group.add(shard);
+        shard.userData.ignoreWaveColor = true;
+        root.add(shard);
+
+        // Edge highlight
+        const edgesGeo = new THREE.EdgesGeometry(geometry, 10);
+        const edges = new THREE.LineSegments(edgesGeo, edgeMat);
+        edges.name = `FlowShard_${i}_Edges`;
+        edges.position.copy(shard.position);
+        edges.rotation.copy(shard.rotation);
+        edges.userData.ignoreWaveColor = true;
+        root.add(edges);
       }
 
-      // Inner "ghost" geometry representing the logic holding it together
-      const innerGeo = new THREE.IcosahedronGeometry(0.25, 0);
-      const innerMesh = new THREE.Mesh(innerGeo, coreMaterial);
-      innerMesh.userData.visualCoreImmutable = true;
-      // Animate inner core to pulse/rotate
-      innerMesh.userData.isFlowCore = true;
-      group.add(innerMesh);
+      // === GHOST ECHOES ===
+      for (let i = 0; i < ghostCount; i++) {
+        const sourceIdx = Math.floor(rng() * shardCount);
+        const sourcePos = shardPositions[sourceIdx];
+        const ghostPos = sourcePos.clone().multiplyScalar(0.82 + rng() * 0.12);
+        ghostPos.add(new THREE.Vector3((rng() - 0.5) * 0.08, (rng() - 0.5) * 0.08, (rng() - 0.5) * 0.08));
 
-      group.userData.visualCoreImmutable = true;
-      group.userData.nodeGeometryName = 'PROCESS_FLOW_RECOMPOSER';
+        const ghostGeo = new THREE.OctahedronGeometry(0.04 + rng() * 0.03, 0);
+        const ghost = new THREE.Mesh(ghostGeo, ghostMat);
+        ghost.name = `FlowGhost_${i}`;
+        ghost.position.copy(ghostPos);
+        ghost.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+        ghost.userData.visualCoreImmutable = true;
+        ghost.userData.ignoreWaveColor = true;
+        root.add(ghost);
+      }
 
+      // === CORE: distorted dodecahedron + inner seed ===
+      const coreGeo = new THREE.DodecahedronGeometry(0.18, 0);
+      const corePosAttr = coreGeo.attributes.position;
+      for (let i = 0; i < corePosAttr.count; i++) {
+        const x = corePosAttr.getX(i);
+        const y = corePosAttr.getY(i);
+        const z = corePosAttr.getZ(i);
+        corePosAttr.setXYZ(i, x * (0.9 + rng() * 0.2), y * 1.1, z * (0.85 + rng() * 0.15));
+      }
+      corePosAttr.needsUpdate = true;
+      coreGeo.computeVertexNormals();
+      coreGeo.computeBoundingSphere();
+
+      const core = new THREE.Mesh(coreGeo, coreMat);
+      core.name = 'FlowCore';
+      core.userData.isFlowCore = true;
+      core.userData.visualCoreImmutable = true;
+      core.userData.ignoreWaveColor = true;
+      root.add(core);
+
+      const seedGeo = new THREE.OctahedronGeometry(0.06, 0);
+      const coreSeed = new THREE.Mesh(seedGeo, seedMat);
+      coreSeed.name = 'FlowCoreSeed';
+      coreSeed.position.set(0.02, 0.04, -0.01);
+      coreSeed.rotation.set(0.3, 0.5, -0.2);
+      coreSeed.userData.visualCoreImmutable = true;
+      coreSeed.userData.ignoreWaveColor = true;
+      root.add(coreSeed);
+
+      // === DATA FILAMENTS ===
+      for (let i = 0; i < filamentCount; i++) {
+        const targetIdx = Math.floor(rng() * shardCount);
+        const targetPos = shardPositions[targetIdx];
+        const midPoint = new THREE.Vector3().lerpVectors(new THREE.Vector3(0, 0, 0), targetPos, 0.5 + rng() * 0.2);
+        midPoint.add(new THREE.Vector3((rng() - 0.5) * 0.06, (rng() - 0.5) * 0.06, (rng() - 0.5) * 0.06));
+
+        const filamentCurve = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(0, 0, 0),
+          midPoint,
+          targetPos.clone().multiplyScalar(0.92)
+        ]);
+        const filamentGeo = new THREE.BufferGeometry().setFromPoints(filamentCurve.getPoints(12));
+        const filament = new THREE.Line(filamentGeo, filamentMat);
+        filament.name = `FlowFilament_${i}`;
+        filament.userData.ignoreWaveColor = true;
+        root.add(filament);
+      }
+
+      // === STATIC DUST ===
+      const dustPositions = [];
+      for (let i = 0; i < dustCount; i++) {
+        const angle = (i / dustCount) * Math.PI * 2;
+        const r = 0.3 + rng() * 0.25;
+        dustPositions.push(
+          Math.cos(angle) * r + (rng() - 0.5) * 0.05,
+          (rng() - 0.5) * 0.3,
+          Math.sin(angle) * r + (rng() - 0.5) * 0.05
+        );
+      }
+      const dustGeo = new THREE.BufferGeometry();
+      dustGeo.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+      const dust = new THREE.Points(dustGeo, dustMat);
+      dust.name = 'FlowDust';
+      dust.userData.ignoreWaveColor = true;
+      root.add(dust);
+
+      root.userData.visualReady = true;
+      group.add(root);
       return group;
     } catch (err) {
       console.warn('[ProcessEnhancedVariants] FlowRecomposer creation failed:', err);

@@ -228,6 +228,15 @@ export const ENVIRONMENT_VFX_REGISTRY = Object.freeze({
       'visual-indirect'
     ),
     describeEnvironmentVfx(
+      'AIThoughtStorms2_0',
+      'Consciousness-layer thought storms that amplify network mood shifts, cluster turbulence, and rare storm bursts.',
+      'AIConsciousnessLayer',
+      'active-indirect-support',
+      ['link.active', 'node.cluster.detected', 'node.synergy.high', 'node.corruption.high'],
+      'WORLD_OVERLAY',
+      'visual-indirect'
+    ),
+    describeEnvironmentVfx(
       'SafeMetricsFX1_1',
       'Support polish layer that converts global metrics into lightweight visual modulation and feedback.',
       'main.js',

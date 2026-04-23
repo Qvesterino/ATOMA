@@ -358,6 +358,146 @@ export class MetricReactiveWorldEvents {
       ...extra
     });
   }
+
+  _createMetricBladeGeometry(length, width, { flare = 0.18, notch = 0.12, taper = 0.08 } = {}) {
+    const halfLength = Math.max(0.001, Math.abs(length)) * 0.5;
+    const halfWidth = Math.max(0.001, Math.abs(width)) * 0.5;
+    const shape = new THREE.Shape();
+
+    shape.moveTo(0, halfLength);
+    shape.quadraticCurveTo(halfWidth * (0.32 + flare), halfLength * 0.84, halfWidth * (0.54 + flare * 0.2), halfLength * 0.34);
+    shape.lineTo(halfWidth * (0.42 + taper), halfLength * 0.04);
+    shape.lineTo(halfWidth * (0.24 + notch), -halfLength * 0.34);
+    shape.lineTo(0, -halfLength);
+    shape.lineTo(-halfWidth * (0.24 + notch), -halfLength * 0.34);
+    shape.lineTo(-halfWidth * (0.42 + taper), halfLength * 0.04);
+    shape.quadraticCurveTo(-halfWidth * (0.54 + flare * 0.2), halfLength * 0.34, -halfWidth * (0.32 + flare), halfLength * 0.84);
+    shape.closePath();
+
+    const geometry = new THREE.ShapeGeometry(shape, 6);
+    geometry.computeBoundingSphere();
+    return geometry;
+  }
+
+  _createMetricPlaqueGeometry(width, height) {
+    const halfWidth = Math.max(0.001, Math.abs(width)) * 0.5;
+    const halfHeight = Math.max(0.001, Math.abs(height)) * 0.5;
+    const shape = new THREE.Shape();
+
+    shape.moveTo(0, halfHeight);
+    shape.quadraticCurveTo(halfWidth * 0.34, halfHeight * 0.98, halfWidth * 0.58, halfHeight * 0.62);
+    shape.quadraticCurveTo(halfWidth * 0.66, halfHeight * 0.1, halfWidth * 0.48, -halfHeight * 0.32);
+    shape.quadraticCurveTo(halfWidth * 0.28, -halfHeight * 0.82, 0, -halfHeight);
+    shape.quadraticCurveTo(-halfWidth * 0.28, -halfHeight * 0.82, -halfWidth * 0.48, -halfHeight * 0.32);
+    shape.quadraticCurveTo(-halfWidth * 0.66, halfHeight * 0.1, -halfWidth * 0.58, halfHeight * 0.62);
+    shape.quadraticCurveTo(-halfWidth * 0.34, halfHeight * 0.98, 0, halfHeight);
+    shape.closePath();
+
+    const geometry = new THREE.ShapeGeometry(shape, 8);
+    geometry.computeBoundingSphere();
+    return geometry;
+  }
+
+  _renderMetricGlyphCanvas(canvas, glyphChar, color, variant = 'sky') {
+    if (!canvas) return null;
+
+    const size = 512;
+    if (canvas.width !== size) canvas.width = size;
+    if (canvas.height !== size) canvas.height = size;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const isGolden = variant === 'golden';
+    const accentColor = new THREE.Color(color);
+    const glowColor = isGolden ? new THREE.Color(0xffd98a) : accentColor.clone().lerp(new THREE.Color(0xffffff), 0.18);
+
+    ctx.clearRect(0, 0, size, size);
+    ctx.save();
+    ctx.translate(size * 0.5, size * 0.5);
+
+    ctx.beginPath();
+    ctx.moveTo(0, -206);
+    ctx.quadraticCurveTo(122, -198, 190, -116);
+    ctx.quadraticCurveTo(224, -62, 220, 0);
+    ctx.quadraticCurveTo(212, 102, 154, 172);
+    ctx.quadraticCurveTo(92, 246, 0, 284);
+    ctx.quadraticCurveTo(-92, 246, -154, 172);
+    ctx.quadraticCurveTo(-212, 102, -220, 0);
+    ctx.quadraticCurveTo(-224, -62, -190, -116);
+    ctx.quadraticCurveTo(-122, -198, 0, -206);
+    ctx.closePath();
+
+    const fill = ctx.createLinearGradient(0, -220, 0, 284);
+    if (isGolden) {
+      fill.addColorStop(0, 'rgba(48, 30, 8, 0.98)');
+      fill.addColorStop(0.5, 'rgba(28, 16, 6, 0.98)');
+      fill.addColorStop(1, 'rgba(46, 26, 8, 0.98)');
+    } else {
+      fill.addColorStop(0, 'rgba(12, 22, 34, 0.98)');
+      fill.addColorStop(0.5, 'rgba(8, 14, 24, 0.98)');
+      fill.addColorStop(1, 'rgba(14, 22, 34, 0.98)');
+    }
+
+    ctx.shadowColor = isGolden ? 'rgba(255, 215, 120, 0.34)' : 'rgba(110, 220, 255, 0.32)';
+    ctx.shadowBlur = 26;
+    ctx.fillStyle = fill;
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = isGolden ? 'rgba(255, 225, 140, 0.4)' : 'rgba(210, 238, 255, 0.34)';
+    ctx.stroke();
+
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = isGolden ? 'rgba(255, 244, 194, 0.22)' : 'rgba(160, 216, 255, 0.24)';
+    ctx.beginPath();
+    ctx.moveTo(0, -158);
+    ctx.quadraticCurveTo(92, -138, 122, -84);
+    ctx.quadraticCurveTo(140, -38, 132, 0);
+    ctx.quadraticCurveTo(122, 64, 82, 122);
+    ctx.quadraticCurveTo(42, 172, 0, 206);
+    ctx.quadraticCurveTo(-42, 172, -82, 122);
+    ctx.quadraticCurveTo(-122, 64, -132, 0);
+    ctx.quadraticCurveTo(-140, -38, -122, -84);
+    ctx.quadraticCurveTo(-92, -138, 0, -158);
+    ctx.stroke();
+
+    ctx.strokeStyle = isGolden ? 'rgba(255, 225, 140, 0.26)' : 'rgba(140, 226, 255, 0.28)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, -128);
+    ctx.lineTo(0, 156);
+    ctx.moveTo(-82, -22);
+    ctx.lineTo(82, -22);
+    ctx.moveTo(-62, 46);
+    ctx.lineTo(62, 46);
+    ctx.stroke();
+
+    ctx.font = isGolden ? 'bold 246px Arial' : 'bold 236px Arial';
+    ctx.fillStyle = isGolden ? '#fff2bf' : '#effdff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = glowColor.getStyle();
+    ctx.shadowBlur = 20;
+    ctx.fillText(glyphChar, 0, 12);
+
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = isGolden ? 'rgba(255, 238, 182, 0.16)' : 'rgba(180, 240, 255, 0.18)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, 156, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.restore();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.generateMipmaps = false;
+    return texture;
+  }
   
   /**
    * Main update loop - call every frame
@@ -754,10 +894,11 @@ export class MetricReactiveWorldEvents {
     
     const texture = new THREE.CanvasTexture(canvas);
     const material = this._createGlowMaterial(0xffffff, 0.6, { map: texture });
-    const geometry = new THREE.PlaneGeometry(20, 2);
+    const geometry = this._createMetricBladeGeometry(20, 2, { flare: 0.2, notch: 0.12, taper: 0.12 });
     const mesh = new THREE.Mesh(geometry, material);
     
     mesh.position.y = 5;
+    mesh.rotation.z = Math.PI / 2;
     mesh.renderOrder = 1;
     
     return mesh;
@@ -807,7 +948,7 @@ export class MetricReactiveWorldEvents {
    * Create soft planar halo
    */
   createSoftHalo(color, intensity, duration, size) {
-    const geometry = new THREE.PlaneGeometry(size, size);
+    const geometry = new THREE.CircleGeometry(size * 0.5, 48);
     const material = this._createGlowMaterial(color, intensity);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.z = -45;
@@ -853,7 +994,7 @@ export class MetricReactiveWorldEvents {
     const group = new THREE.Group();
     group.name = 'short-beam-spikes';
     // PERFORMANCE: share one geometry + one material across all beams
-    const beamGeo = new THREE.PlaneGeometry(0.3, 4);
+    const beamGeo = this._createMetricBladeGeometry(4, 0.3, { flare: 0.24, notch: 0.18, taper: 0.12 });
     const beamMat = this._getCachedGlowMaterial(color, 0.4);
     for (let i = 0; i < count; i++) {
       const beam = new THREE.Mesh(beamGeo, beamMat);
@@ -874,7 +1015,7 @@ export class MetricReactiveWorldEvents {
     const group = new THREE.Group();
     group.name = 'fractured-ring-core';
     // PERFORMANCE: share one geometry + one material across all segments
-    const segGeo = new THREE.PlaneGeometry(0.5, 2.4);
+    const segGeo = this._createMetricBladeGeometry(2.4, 0.5, { flare: 0.3, notch: 0.22, taper: 0.18 });
     const segMat = this._getCachedGlowMaterial(color, 0.5);
     for (let i = 0; i < segmentCount; i++) {
       const segment = new THREE.Mesh(segGeo, segMat);
@@ -897,7 +1038,7 @@ export class MetricReactiveWorldEvents {
     const group = new THREE.Group();
     group.name = 'glitch-bars';
     // PERFORMANCE: share one geometry + one material across all bars
-    const barGeo = new THREE.PlaneGeometry(0.4, 3.2);
+    const barGeo = this._createMetricBladeGeometry(3.2, 0.4, { flare: 0.34, notch: 0.28, taper: 0.22 });
     const barMat = this._getCachedGlowMaterial(color, 0.45);
     for (let i = 0; i < count; i++) {
       const bar = new THREE.Mesh(barGeo, barMat);
@@ -928,12 +1069,13 @@ export class MetricReactiveWorldEvents {
     const group = new THREE.Group();
     group.name = 'pressure-bands';
     // PERFORMANCE: share one geometry + one material across all bands
-    const bandGeo = new THREE.PlaneGeometry(28, 1.2);
+    const bandGeo = this._createMetricBladeGeometry(28, 1.2, { flare: 0.12, notch: 0.08, taper: 0.2 });
     const bandMat = this._getCachedGlowMaterial(color, 0.35);
     for (let i = 0; i < count; i++) {
       const band = new THREE.Mesh(bandGeo, bandMat);
       band.position.set(0, 1.5 + i * 0.6, -32 - i * 1.5);
       band.rotation.x = -Math.PI / 2.7;
+      band.rotation.z = Math.PI / 2;
       band.userData.beamData = { duration, elapsedTime: 0 };
       group.add(band);
     }
@@ -1087,20 +1229,10 @@ export class MetricReactiveWorldEvents {
    */
   createSkyGlyph(glyphChar, duration) {
     const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
-    
-    const ctx = canvas.getContext('2d');
-    ctx.font = 'bold 200px Arial';
-    ctx.fillStyle = '#00dd99';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(glyphChar, 128, 128);
-    
-    const texture = new THREE.CanvasTexture(canvas);
+    const texture = this._renderMetricGlyphCanvas(canvas, glyphChar, 0x00dd99, 'sky');
     const material = this._createGlowMaterial(0x00dd99, 0.8, { map: texture });
     
-    const geometry = new THREE.PlaneGeometry(5, 5);
+    const geometry = this._createMetricPlaqueGeometry(5, 5);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(0, 15, -20);
     mesh.renderOrder = 1;
@@ -1187,7 +1319,7 @@ export class MetricReactiveWorldEvents {
     const texture = new THREE.CanvasTexture(canvas);
     const material = this._createGlowMaterial(0xffffff, maxIntensity, { map: texture });
     
-    const geometry = new THREE.PlaneGeometry(50, 50);
+    const geometry = new THREE.CircleGeometry(25, 64);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.z = -40;
     mesh.renderOrder = 0;
@@ -1289,25 +1421,10 @@ export class MetricReactiveWorldEvents {
    */
   createGoldenGlyph(glyphChar, duration) {
     const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
-    
-    const ctx = canvas.getContext('2d');
-    const gradient = ctx.createLinearGradient(0, 0, 0, 512);
-    gradient.addColorStop(0, '#ffff00');
-    gradient.addColorStop(0.5, '#ffdd00');
-    gradient.addColorStop(1, '#ffff00');
-    
-    ctx.font = 'bold 400px Arial';
-    ctx.fillStyle = gradient;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(glyphChar, 256, 256);
-    
-    const texture = new THREE.CanvasTexture(canvas);
+    const texture = this._renderMetricGlyphCanvas(canvas, glyphChar, 0xffdd00, 'golden');
     const material = this._createGlowMaterial(0xffdd00, 0.9, { map: texture });
     
-    const geometry = new THREE.PlaneGeometry(10, 10);
+    const geometry = this._createMetricPlaqueGeometry(10, 10);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(0, 20, -30);
     mesh.renderOrder = 2;
@@ -1321,7 +1438,7 @@ export class MetricReactiveWorldEvents {
    * Create sky beam
    */
   createSkyBeam(duration) {
-    const geometry = new THREE.PlaneGeometry(0.5, 30);
+    const geometry = this._createMetricBladeGeometry(30, 0.5, { flare: 0.14, notch: 0.12, taper: 0.1 });
     const material = this._createGlowMaterial(0xaa00ff, 0.6);
     
     const mesh = new THREE.Mesh(geometry, material);
@@ -1461,12 +1578,13 @@ export class MetricReactiveWorldEvents {
    * Apply horizon pulse
    */
   applyHorizonPulse(color, intensity, duration) {
-    const geometry = new THREE.PlaneGeometry(200, 20);
+    const geometry = this._createMetricBladeGeometry(200, 20, { flare: 0.18, notch: 0.1, taper: 0.14 });
     const material = this._createGlowMaterial(color, intensity);
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(0, 0, -50);
     mesh.position.y = 0;
+    mesh.rotation.z = Math.PI / 2;
     
     mesh.userData.pulseData = { duration, elapsedTime: 0 };
     this.overlayGroup.add(mesh);
