@@ -68,6 +68,7 @@ export class SafeWorldFXPack {
     this._tmpVecA = new THREE.Vector3();
     this._tmpVecB = new THREE.Vector3();
     this._tmpVecC = new THREE.Vector3();
+    this._tmpObject3D = new THREE.Object3D();
     this.root = new THREE.Group();
     this.root.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_BACKGROUND);
     this.root.userData = this.root.userData || {};
@@ -525,6 +526,77 @@ export class SafeWorldFXPack {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     return geometry;
+  }
+
+  _createFacetedShardCluster(sourceGeometry, {
+    key,
+    materialColor = this._getWorldFXPalette('ritualWhite'),
+    emissiveColor = materialColor,
+    opacity = 0.24,
+    baseRadius = 0.9,
+    geometryKind = 'octa',
+    scaleRange = [0.58, 1.08],
+    seedOffset = 0,
+    rotateBias = 0,
+    disposeSourceGeometry = false
+  } = {}) {
+    const positionAttr = sourceGeometry?.getAttribute?.('position');
+    const shardCount = positionAttr?.count ?? 0;
+    if (!shardCount) {
+      if (disposeSourceGeometry) sourceGeometry?.dispose?.();
+      return new THREE.Group();
+    }
+
+    const shardGeo = this._getSharedGeometry(`${key}.faceted.geo`, () => {
+      if (geometryKind === 'tetra') {
+        return new THREE.TetrahedronGeometry(baseRadius, 0);
+      }
+      if (geometryKind === 'icosa') {
+        return new THREE.IcosahedronGeometry(baseRadius, 0);
+      }
+      return new THREE.OctahedronGeometry(baseRadius, 0);
+    });
+
+    const shardMat = this._getSharedMaterial(`${key}.faceted.mat`, () => {
+      const color = new THREE.Color(materialColor);
+      const emissive = new THREE.Color(emissiveColor ?? materialColor);
+      return new THREE.MeshStandardMaterial({
+        color,
+        emissive,
+        emissiveIntensity: 0.92,
+        roughness: 0.84,
+        metalness: 0.02,
+        flatShading: true,
+        transparent: true,
+        opacity,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        fog: false,
+        side: THREE.DoubleSide
+      });
+    });
+
+    const cluster = new THREE.InstancedMesh(shardGeo, shardMat, shardCount);
+    const tempObject = this._tmpObject3D;
+
+    for (let i = 0; i < shardCount; i++) {
+      const px = positionAttr.getX(i);
+      const py = positionAttr.getY(i);
+      const pz = positionAttr.getZ(i);
+      const seed = (px * 0.0213) + (py * 0.0371) + (pz * 0.0283) + (i * 0.618) + seedOffset;
+      const scaleT = 0.5 + 0.5 * Math.sin(seed * 1.73);
+      const scale = scaleRange[0] + (scaleRange[1] - scaleRange[0]) * scaleT;
+
+      tempObject.position.set(px, py, pz);
+      tempObject.rotation.set(seed * 0.73 + rotateBias, seed * 1.17, seed * 0.51 + rotateBias * 0.5);
+      tempObject.scale.setScalar(scale);
+      tempObject.updateMatrix();
+      cluster.setMatrixAt(i, tempObject.matrix);
+    }
+
+    cluster.instanceMatrix.needsUpdate = true;
+    if (disposeSourceGeometry) sourceGeometry?.dispose?.();
+    return cluster;
   }
 
   _resolveMetricBus() {
@@ -1417,20 +1489,19 @@ export class SafeWorldFXPack {
       braidLayers.push(line);
     });
 
-    const shardGeo = this._getSharedGeometry('fractal_sky.shards.geo', () => this._createShardConstellationGeometry(92, 60, 96));
-    const shardMat = this._getSharedMaterial('fractal_sky.shards.mat', () => new THREE.PointsMaterial({
-      color: this._getWorldFXPalette('ritualWhite'),
-      map: this._getSoftPointSpriteTexture(),
-      alphaTest: 0.02,
-      transparent: true,
-      opacity: 0.24,
-      size: 1.35,
-      sizeAttenuation: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      fog: false
-    }));
-    const shardField = new THREE.Points(shardGeo, shardMat);
+    const shardSourceGeo = this._createShardConstellationGeometry(92, 60, 96);
+    const shardField = this._createFacetedShardCluster(shardSourceGeo, {
+      key: 'fractal_sky.shards',
+      materialColor: this._getWorldFXPalette('ritualWhite'),
+      emissiveColor: this._getWorldFXPalette('cyan'),
+      opacity: 0.22,
+      baseRadius: 0.9,
+      geometryKind: 'octa',
+      scaleRange: [0.54, 1.18],
+      seedOffset: 0.13,
+      rotateBias: 0.18,
+      disposeSourceGeometry: true
+    });
     this._tagWorldFXObject(shardField, 'fractal_sky_shards', 'canopy_shards');
     canopyRoot.add(shardField);
 
@@ -2029,21 +2100,20 @@ export class SafeWorldFXPack {
         strands.push(strand);
       });
 
-      const beadGeo = this._getSharedGeometry(`energy_stream.${def.role}.beads.geo`, () => this._createShardConstellationGeometry(18 + riverIndex * 6, def.baseY * 8, 36));
-      const beadMat = this._getSharedMaterial(`energy_stream.${def.role}.beads.mat`, () => new THREE.PointsMaterial({
-        color: this._getWorldFXPalette('ritualWhite'),
-        map: this._getSoftPointSpriteTexture(),
-        alphaTest: 0.02,
-        transparent: true,
-        opacity: 0.14,
-        size: def.role === 'dominant' ? 0.9 : 0.65,
-        sizeAttenuation: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        fog: false
-      }));
-      const beads = new THREE.Points(beadGeo, beadMat);
-      beads.scale.set(0.26, 0.04, 1.0);
+      const beadSourceGeo = this._createShardConstellationGeometry(18 + riverIndex * 6, def.baseY * 8, 36);
+      const beads = this._createFacetedShardCluster(beadSourceGeo, {
+        key: `energy_stream.${def.role}.beads`,
+        materialColor: this._getWorldFXPalette('ritualWhite'),
+        emissiveColor: this._getWorldFXPalette('cyan'),
+        opacity: 0.16,
+        baseRadius: 0.34,
+        geometryKind: 'tetra',
+        scaleRange: [0.42, 0.86],
+        seedOffset: def.baseY * 0.03 + riverIndex * 0.17,
+        rotateBias: def.role === 'dominant' ? 0.38 : 0.14,
+        disposeSourceGeometry: true
+      });
+      beads.scale.set(0.26, 0.08, 1.0);
       beads.userData = { isWorldFX: true, type: 'energy_stream_beads', role: def.role };
       riverRoot.add(beads);
 

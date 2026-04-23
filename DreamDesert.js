@@ -423,7 +423,7 @@ export class DreamDesert {
     });
 
     const main = new THREE.Mesh(
-      new THREE.BoxGeometry(2.2, 15, 2.2),
+      new THREE.CylinderGeometry(1.22, 1.34, 15, 6, 1, false),
       stoneBase.clone()
     );
     main.position.set(0, 7.5, 0);
@@ -431,7 +431,7 @@ export class DreamDesert {
     group.add(main);
 
     const shard = new THREE.Mesh(
-      new THREE.BoxGeometry(1.1, 9, 1.0),
+      new THREE.CylinderGeometry(0.86, 0.98, 9, 6, 1, false),
       stoneBase.clone()
     );
     shard.position.set(2.0, 4.6, -0.45);
@@ -1130,8 +1130,9 @@ export class DreamDesert {
     const fragmentCount = 8;
     
     const geometries = [
-      new THREE.BoxGeometry(2, 0.2, 2),
-      new THREE.BoxGeometry(1.5, 0.15, 3),
+      new THREE.OctahedronGeometry(1.15, 0),
+      new THREE.IcosahedronGeometry(1.05, 0),
+      new THREE.TetrahedronGeometry(1.2, 0),
       new THREE.PlaneGeometry(2, 2)
     ];
     

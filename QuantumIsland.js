@@ -178,7 +178,7 @@ export class QuantumIsland {
       const angle = (i / edgeCount) * Math.PI * 2;
       const radius = 19.5;
       
-      const edgeGeometry = new THREE.BoxGeometry(0.8, 0.15, 0.15);
+      const edgeGeometry = new THREE.CylinderGeometry(0.08, 0.08, 0.15, 8, 1, false);
       const edgeMaterial = materialRegistry.getBasic('world.quantumisland.edgeAccent', {
         color: 0x00dddd,
         transparent: true,
@@ -748,13 +748,9 @@ export class QuantumIsland {
    */
   createFloatingShards() {
     const shardCount = 20;
+    const shardGeometry = new THREE.OctahedronGeometry(1, 0);
     
     for (let i = 0; i < shardCount; i++) {
-      const geometry = new THREE.BoxGeometry(
-        2 + Math.random() * 3,
-        0.2,
-        1 + Math.random() * 2
-      );
       
       const material = materialRegistry.getStandard('world.quantumisland.shard', {
         color: 0x2a2a3a,
@@ -766,8 +762,13 @@ export class QuantumIsland {
         emissiveIntensity: 0.1
       });
       
-      const shard = new THREE.Mesh(geometry, material);
+      const shard = new THREE.Mesh(shardGeometry, material);
       shard.renderOrder = this.AURA_BACKGROUND_ORDER;
+      shard.scale.set(
+        2 + Math.random() * 3,
+        0.18 + Math.random() * 0.08,
+        1 + Math.random() * 2
+      );
       
       const angle = Math.random() * Math.PI * 2;
       const distance = 40 + Math.random() * 40;

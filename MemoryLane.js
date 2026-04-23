@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
+import { createRoundedBoxGeometry } from './RoundedEnvironmentGeometry.js';
 
 /**
  * Memory Lane - AI Data Centre Hub
@@ -281,7 +282,10 @@ export class MemoryLane {
     const towerGroup = new THREE.Group();
     
     // Main tower body
-    const towerGeometry = new THREE.BoxGeometry(size, height, size * 0.7);
+    const towerGeometry = createRoundedBoxGeometry(size, height, size * 0.7, {
+      segments: 3,
+      radiusRatio: 0.14
+    });
     const towerMaterial = materialRegistry.getStandard('world.memorylane.tower', {
       color: 0x10101c,
       roughness: 0.28,
@@ -327,7 +331,10 @@ export class MemoryLane {
       
       // Status light
       const lightColor = i % 4 === 0 ? edgeColor : i % 4 === 1 ? 0x66ccff : i % 4 === 2 ? 0xff55bb : 0x555577;
-      const lightGeometry = new THREE.BoxGeometry(size * 0.08, 0.12, size * 0.6);
+      const lightGeometry = createRoundedBoxGeometry(size * 0.08, 0.12, size * 0.6, {
+        segments: 2,
+        radiusRatio: 0.4
+      });
       const lightMaterial = materialRegistry.getBasic('world.memorylane.towerLight', {
         color: lightColor,
         transparent: true,
@@ -539,7 +546,10 @@ export class MemoryLane {
         const angle = (s / 8) * Math.PI * 2 + index * 0.2;
         const cx = Math.cos(angle) * config.radius;
         const cz = Math.sin(angle) * config.radius;
-        const platformGeo = new THREE.BoxGeometry(4.6, 0.45, 8.2);
+        const platformGeo = createRoundedBoxGeometry(4.6, 0.45, 8.2, {
+          segments: 2,
+          radiusRatio: 0.1
+        });
         const platformMat = materialRegistry.getStandard('world.memorylane.galleryPlatform', {
           color: config.color,
           roughness: 0.5,
@@ -597,8 +607,14 @@ export class MemoryLane {
       const x = i * step;
       const z = i * step;
       const h = this.hallHeight - 1.2;
-      const vertGeo = new THREE.BoxGeometry(0.12, 0.12, this.hallSize * 0.9);
-      const horizGeo = new THREE.BoxGeometry(this.hallSize * 0.9, 0.12, 0.12);
+      const vertGeo = createRoundedBoxGeometry(0.12, 0.12, this.hallSize * 0.9, {
+        segments: 2,
+        radiusRatio: 0.35
+      });
+      const horizGeo = createRoundedBoxGeometry(this.hallSize * 0.9, 0.12, 0.12, {
+        segments: 2,
+        radiusRatio: 0.35
+      });
 
       const vert = new THREE.Mesh(vertGeo, latticeMat.clone());
       vert.position.set(x, h, 0);
@@ -722,7 +738,10 @@ export class MemoryLane {
       side: THREE.DoubleSide
     });
 
-    const wallGeo = new THREE.BoxGeometry(wallLength, wallHeight, wallDepth);
+    const wallGeo = createRoundedBoxGeometry(wallLength, wallHeight, wallDepth, {
+      segments: 3,
+      radiusRatio: 0.08
+    });
     const wallOffsets = [
       { x: 0, z: -this.hallSize / 2 + wallDepth / 2, ry: 0 },
       { x: 0, z: this.hallSize / 2 - wallDepth / 2, ry: 0 },
@@ -800,7 +819,10 @@ export class MemoryLane {
     const stripLength = this.hallSize - 8;
     
     // Left strip
-    const stripGeometry = new THREE.BoxGeometry(0.15, 0.05, stripLength);
+    const stripGeometry = createRoundedBoxGeometry(0.15, 0.05, stripLength, {
+      segments: 2,
+      radiusRatio: 0.3
+    });
     const stripMaterial = materialRegistry.getBasic('world.memorylane.floorStrip', {
       color: 0x00dddd,
       transparent: true,
@@ -907,7 +929,10 @@ export class MemoryLane {
   }
 
   createWallNeonFrames() {
-    const frameGeo = new THREE.BoxGeometry(this.hallSize - 4, 0.12, 0.12);
+    const frameGeo = createRoundedBoxGeometry(this.hallSize - 4, 0.12, 0.12, {
+      segments: 2,
+      radiusRatio: 0.35
+    });
     const frameMat = materialRegistry.getBasic('world.memorylane.wallFrame', {
       color: 0x00ddff,
       emissive: 0x00ddff,
@@ -999,7 +1024,10 @@ export class MemoryLane {
     const shardCount = 10;
     
     for (let i = 0; i < shardCount; i++) {
-      const shardGeometry = new THREE.BoxGeometry(1.6, 4.5 + Math.random() * 2.5, 1.2);
+      const shardGeometry = createRoundedBoxGeometry(1.6, 4.5 + Math.random() * 2.5, 1.2, {
+        segments: 2,
+        radiusRatio: 0.12
+      });
       const shardMaterial = materialRegistry.getBasic('world.memorylane.memoryShard', {
         color: i % 3 === 0 ? 0x00ddff : i % 3 === 1 ? 0x8f5dff : 0xff0088,
         transparent: true,

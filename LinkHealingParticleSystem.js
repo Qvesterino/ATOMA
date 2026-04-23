@@ -49,11 +49,6 @@ class HealingPool {
     this.curve = new Array(capacity).fill(null);
     this.normal = new Array(capacity).fill(null); // THREE.Vector3 per particle (reused)
     this.binormal = new Array(capacity).fill(null);
-    // O(1) slot acquisition - maintain free list head
-    this._freeHead = 0;
-    this._nextSlot = new Uint16Array(capacity);
-    for (let i = 0; i < capacity; i++) this._nextSlot[i] = i + 1;
-    this._nextSlot[capacity - 1] = 0xFFFF; // sentinel
   }
 
   activate(index, opts) {
@@ -80,9 +75,6 @@ class HealingPool {
     this.active[index] = false;
     this.link[index] = null;
     this.curve[index] = null;
-    // Return slot to free list O(1)
-    this._nextSlot[index] = this._freeHead;
-    this._freeHead = index;
   }
 }
 
@@ -94,6 +86,12 @@ export class LinkHealingParticleSystem {
     this.onParticleArrival = null;
     this.pendingRequests = [];
     this._radialScratch = new THREE.Vector3();
+    this._binormalScratch = new THREE.Vector3();
+    // Free-list for O(1) slot acquisition (instead of linear scan)
+    this._freeSlots = [];
+    for (let i = poolSize - 1; i >= 0; i--) this._freeSlots.push(i);
+    // Cached per-link active count (avoids Map rebuild every frame)
+    this._activePerLink = new Map();
 
     // Geometry
     this.positions = new Float32Array(poolSize * 3);
@@ -178,10 +176,10 @@ export class LinkHealingParticleSystem {
         uniform float uSofteningRange;
 
         float hash11(float p) {
-          // Cheaper hash: 3 muls vs original 5
           p = fract(p * 0.1031);
           p *= p + 33.33;
-          return fract(p + p * p * 0.267);
+          p *= p + p;
+          return fract(p);
         }
 
         // Sharper six-petal rosette for readability.
@@ -300,8 +298,7 @@ export class LinkHealingParticleSystem {
       const pos = curve.getPointAt(progress);
       const tan = curve.getTangentAt(progress).normalize();
       const normal = this._makeNormal(tan, idx);
-      const binormal = this.pool.binormal[idx];
-      binormal.crossVectors(tan, normal).normalize();
+      const binormal = this._binormalScratch.crossVectors(tan, normal).normalize();
 
       const orbitPhase = burstPhase !== null ? burstPhase : Math.random() * Math.PI * 2.0;
       const orbitSpeed = 0.45 + Math.random() * 0.25;
@@ -352,38 +349,27 @@ export class LinkHealingParticleSystem {
 
     this.geometry.attributes.position.needsUpdate = true;
     this.geometry.attributes.aSize.needsUpdate = true;
-    // Static attributes only set once on emit - don't flag per-frame
-    // aLife, aSeed, aVariant, aTint are set only during emitBackwardsAlongLink
+    this.geometry.attributes.aLife.needsUpdate = true;
+    this.geometry.attributes.aSeed.needsUpdate = true;
+    this.geometry.attributes.aVariant.needsUpdate = true;
+    this.geometry.attributes.aTint.needsUpdate = true;
   }
 
   update(deltaTime, time) {
     const safeTime = Number.isFinite(time) ? time : ((performance?.now?.() ?? Date.now()) * 0.001);
-    // Process queued emissions with per-link cap
+    // Process queued emissions with per-link cap (uses cached _activePerLink)
     if (this.pendingRequests.length) {
-      // Build current active per link
-      const activePerLink = new Map();
-      let freeSlots = 0;
-      for (let i = 0; i < this.poolSize; i++) {
-        if (this.pool.active[i]) {
-          const id = this.pool.link[i]?.id;
-          if (id !== undefined) {
-            activePerLink.set(id, (activePerLink.get(id) || 0) + 1);
-          }
-        } else {
-          freeSlots++;
-        }
-      }
-
       // Sort requests by harmony descending (higher surplus first)
       this.pendingRequests.sort((a, b) => (b.harmony ?? 0) - (a.harmony ?? 0));
 
+      let remainingFree = this._freeSlots.length;
       for (const req of this.pendingRequests) {
-        if (freeSlots <= 0) break;
+        if (remainingFree <= 0) break;
         const linkId = req.link.id;
-        const current = activePerLink.get(linkId) || 0;
+        const current = this._activePerLink.get(linkId) || 0;
         const available = Math.max(0, PER_LINK_CAP - current);
         if (available <= 0) continue;
-        const toEmit = Math.min(req.count, available, freeSlots);
+        const toEmit = Math.min(req.count, available, remainingFree);
         if (toEmit <= 0) continue;
 
         this.emitBackwardsAlongLink(
@@ -400,14 +386,13 @@ export class LinkHealingParticleSystem {
           toEmit
         );
 
-        activePerLink.set(linkId, current + toEmit);
-        freeSlots -= toEmit;
+        this._activePerLink.set(linkId, current + toEmit);
+        remainingFree -= toEmit;
       }
       this.pendingRequests.length = 0;
     }
 
     this.material.uniforms.uTime.value = safeTime;
-    this.material.uniforms.uOpacity.value = 2.8;
     this.points.visible = true;
     let anyActive = false;
 
@@ -417,6 +402,7 @@ export class LinkHealingParticleSystem {
       const life = this.pool.life[i];
       const age = safeTime - this.pool.startTime[i];
       if (age >= life) {
+        this._releaseSlot(i);
         this.pool.deactivate(i);
         continue;
       }
@@ -426,6 +412,7 @@ export class LinkHealingParticleSystem {
 
       const curve = this.pool.curve[i];
       if (!curve) {
+        this._releaseSlot(i);
         this.pool.deactivate(i);
         continue;
       }
@@ -474,6 +461,7 @@ export class LinkHealingParticleSystem {
   clearLink(linkId) {
     for (let i = 0; i < this.poolSize; i++) {
       if (this.pool.active[i] && this.pool.link[i]?.id === linkId) {
+        this._releaseSlot(i);
         this.pool.deactivate(i);
       }
     }
@@ -486,10 +474,24 @@ export class LinkHealingParticleSystem {
   }
 
   _acquireSlot() {
-    if (this.pool._freeHead === 0xFFFF) return -1;
-    const idx = this.pool._freeHead;
-    this.pool._freeHead = this.pool._nextSlot[idx];
-    return idx;
+    // O(1) free-list pop instead of linear scan
+    return this._freeSlots.length > 0 ? this._freeSlots.pop() : -1;
+  }
+
+  _releaseSlot(idx) {
+    this._freeSlots.push(idx);
+    // Maintain cached per-link count
+    const linkId = this.pool.link[idx]?.id;
+    if (linkId !== undefined) {
+      const count = this._activePerLink.get(linkId);
+      if (count !== undefined) {
+        if (count <= 1) {
+          this._activePerLink.delete(linkId);
+        } else {
+          this._activePerLink.set(linkId, count - 1);
+        }
+      }
+    }
   }
 
   _makeNormal(tangent, idx, reuse) {

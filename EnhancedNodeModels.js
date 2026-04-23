@@ -647,6 +647,20 @@ const PROCESS_FLUX_CRUCIBLE_CACHE = {
 };
 const PROCESS_FLUX_CRUCIBLE_MATERIALS = new Map(); // keyed by color hex
 
+// PROCESS 202 caches — Catalytic Transformation Helix
+const PROCESS_TRANSFORMATION_SPINE_CACHE = {
+  helixSegmentGeometry: null,
+  helixSegmentEdgesGeometry: null,
+  shardGeometry: null,
+  shardEdgesGeometry: null,
+  arcGeometryA: null,
+  arcGeometryB: null,
+  arcGeometryC: null,
+  conduitGeometry: null,
+  dustGeometry: null
+};
+const PROCESS_TRANSFORMATION_SPINE_MATERIALS = new Map(); // keyed by color hex
+
 // INTEGRATION v4 caches
 const INTEGRATION_NEGOTIATED_CHAOS_CLASP_CACHE = {
   coreGeometry: null,
@@ -9430,6 +9444,215 @@ function _getProcessFluxCrucibleMaterials(color) {
   return mats;
 }
 
+// ---------- PROCESS 202 helpers — Catalytic Transformation Helix ----------
+function _getProcessTransformationSpineGeometries() {
+  if (!PROCESS_TRANSFORMATION_SPINE_CACHE.helixSegmentGeometry) {
+    const deformGeometry = (geometry, deformFn) => {
+      const pos = geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = pos.getZ(i);
+        const next = deformFn(x, y, z, i);
+        pos.setXYZ(i, next[0], next[1], next[2]);
+      }
+      pos.needsUpdate = true;
+      geometry.computeVertexNormals();
+      geometry.computeBoundingSphere();
+      return geometry;
+    };
+
+    // Helix segment: start from cylinder, heavily deform into twisted organic segment
+    const helixSegmentGeometry = deformGeometry(
+      new THREE.CylinderGeometry(0.38, 0.32, 0.28, 10, 4, false),
+      (x, y, z) => {
+        const yNorm = (y + 0.14) / 0.28;
+        const twist = yNorm * Math.PI * 0.35;
+        const cosT = Math.cos(twist);
+        const sinT = Math.sin(twist);
+        const nx = x * cosT - z * sinT;
+        const nz = x * sinT + z * cosT;
+        const taper = 1.0 + Math.sin(yNorm * Math.PI) * 0.12;
+        const noise = Math.sin((nx * 6.2) + (y * 8.4) + (nz * 4.1)) * 0.018;
+        const bulge = Math.max(0, 0.5 - Math.abs(yNorm - 0.5)) * 0.08;
+        return [
+          nx * taper * (1.0 + bulge) + noise,
+          y + Math.sin((nx + nz) * 5.0) * 0.012,
+          nz * taper * (1.0 + bulge * 0.8) + noise * 0.6
+        ];
+      }
+    );
+    PROCESS_TRANSFORMATION_SPINE_CACHE.helixSegmentGeometry = helixSegmentGeometry;
+    PROCESS_TRANSFORMATION_SPINE_CACHE.helixSegmentEdgesGeometry = safeCreateEdgesGeometry(helixSegmentGeometry, 12);
+
+    // Catalytic shard: octahedron with heavy displacement
+    const shardGeometry = deformGeometry(
+      new THREE.OctahedronGeometry(0.14, 1),
+      (x, y, z) => {
+        const wave = Math.sin((x * 7.3) + (y * 5.1) + (z * 6.8)) * 0.032;
+        const spike = Math.max(0, y) * 0.18;
+        return [
+          x * (0.82 + spike) + wave,
+          y * (1.12 + Math.abs(x) * 0.24) + wave * 0.5,
+          z * (0.78 + spike * 0.6) + wave * 0.8
+        ];
+      }
+    );
+    shardGeometry.scale(1.2, 0.7, 1.0);
+    PROCESS_TRANSFORMATION_SPINE_CACHE.shardGeometry = shardGeometry;
+    PROCESS_TRANSFORMATION_SPINE_CACHE.shardEdgesGeometry = safeCreateEdgesGeometry(shardGeometry, 10);
+
+    // Orbital arcs: partial torus rings with different arc lengths
+    const arcGeometryA = new THREE.TorusGeometry(0.92, 0.038, 10, 56, Math.PI * 1.68);
+    arcGeometryA.computeBoundingSphere();
+    PROCESS_TRANSFORMATION_SPINE_CACHE.arcGeometryA = arcGeometryA;
+
+    const arcGeometryB = new THREE.TorusGeometry(0.78, 0.032, 10, 48, Math.PI * 1.42);
+    arcGeometryB.computeBoundingSphere();
+    PROCESS_TRANSFORMATION_SPINE_CACHE.arcGeometryB = arcGeometryB;
+
+    const arcGeometryC = new THREE.TorusGeometry(1.06, 0.028, 10, 64, Math.PI * 1.86);
+    arcGeometryC.computeBoundingSphere();
+    PROCESS_TRANSFORMATION_SPINE_CACHE.arcGeometryC = arcGeometryC;
+
+    // Energy conduit: tube along curved CatmullRom path
+    const conduitCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.72, -0.42, 0.18),
+      new THREE.Vector3(-0.38, -0.18, 0.08),
+      new THREE.Vector3(-0.08, 0.08, -0.06),
+      new THREE.Vector3(0.28, 0.28, 0.12),
+      new THREE.Vector3(0.62, 0.48, -0.08)
+    ], false, 'catmullrom', 0.42);
+    const conduitGeometry = new THREE.TubeGeometry(conduitCurve, 40, 0.022, 6, false);
+    conduitGeometry.computeBoundingSphere();
+    PROCESS_TRANSFORMATION_SPINE_CACHE.conduitGeometry = conduitGeometry;
+
+    // Dust particles in helix volume
+    const dustPositions = [];
+    const dustCount = 64;
+    for (let i = 0; i < dustCount; i++) {
+      const t = i / dustCount;
+      const angle = t * Math.PI * 3.2 + Math.sin(i * 0.47) * 0.4;
+      const radius = 0.52 + Math.sin(i * 0.31) * 0.14 + ((i % 7) * 0.012);
+      const y = -0.58 + t * 1.28 + Math.sin(i * 0.23) * 0.08;
+      dustPositions.push(
+        Math.cos(angle) * radius + (Math.random() - 0.5) * 0.06,
+        y,
+        Math.sin(angle * 1.18) * radius * 0.72 + (Math.random() - 0.5) * 0.06
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    PROCESS_TRANSFORMATION_SPINE_CACHE.dustGeometry = dustGeometry;
+  }
+
+  return PROCESS_TRANSFORMATION_SPINE_CACHE;
+}
+
+function _getProcessTransformationSpineMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xffaa00;
+  if (PROCESS_TRANSFORMATION_SPINE_MATERIALS.has(colorHex)) {
+    return PROCESS_TRANSFORMATION_SPINE_MATERIALS.get(colorHex);
+  }
+
+  const baseColor = new THREE.Color(colorHex);
+  const hotColor = new THREE.Color(0xffffff).lerp(baseColor, 0.35);
+  const cyanAccent = new THREE.Color(0x88eeff).lerp(baseColor, 0.22);
+  const darkMetal = new THREE.Color(0x1a1e24);
+
+  // Core: MeshPhysicalMaterial with clearcoat for liquid-metal feel
+  const coreMat = new THREE.MeshPhysicalMaterial({
+    color: baseColor.clone().lerp(darkMetal, 0.18),
+    emissive: hotColor.clone(),
+    emissiveIntensity: 0.32,
+    metalness: 0.88,
+    roughness: 0.12,
+    clearcoat: 0.45,
+    clearcoatRoughness: 0.18,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  // Shard: MeshStandardMaterial with higher emissive
+  const shardMat = new THREE.MeshStandardMaterial({
+    color: hotColor.clone().lerp(baseColor, 0.42),
+    emissive: cyanAccent.clone(),
+    emissiveIntensity: 0.58,
+    metalness: 0.72,
+    roughness: 0.16,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    side: THREE.DoubleSide
+  });
+
+  // Arc: MeshBasicMaterial transparent
+  const arcMat = new THREE.MeshBasicMaterial({
+    color: cyanAccent.clone(),
+    transparent: true,
+    opacity: 0.28,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+
+  // Conduit: LineBasicMaterial for energy flow
+  const conduitMat = MaterialCache.get('process.transformationSpine.conduit.lineBasic.transparent.opacity.depthWrite.default', () => new THREE.LineBasicMaterial({
+    color: hotColor.clone(),
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false
+  }));
+
+  // Edge: LineBasicMaterial for segment edges
+  const edgeMat = MaterialCache.get('process.transformationSpine.edge.lineBasic.transparent.opacity.depthWrite.default', () => new THREE.LineBasicMaterial({
+    color: hotColor.clone().lerp(cyanAccent, 0.4),
+    transparent: true,
+    opacity: 0.48,
+    depthWrite: false
+  }));
+
+  // Dust: PointsMaterial
+  const dustMat = MaterialCache.get('process.transformationSpine.dust.points.transparent.opacity.depthWrite.sizeAttenuation.default', () => new THREE.PointsMaterial({
+    color: hotColor.clone().lerp(cyanAccent, 0.3),
+    size: 0.028,
+    transparent: true,
+    opacity: 0.52,
+    depthWrite: false,
+    sizeAttenuation: true
+  }));
+
+  // Shard edge: LineBasicMaterial
+  const shardEdgeMat = MaterialCache.get('process.transformationSpine.shardEdge.lineBasic.transparent.opacity.depthWrite.default', () => new THREE.LineBasicMaterial({
+    color: cyanAccent.clone(),
+    transparent: true,
+    opacity: 0.38,
+    depthWrite: false
+  }));
+
+  const mats = {
+    coreMat,
+    shardMat,
+    arcMat,
+    conduitMat,
+    edgeMat,
+    dustMat,
+    shardEdgeMat
+  };
+
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+  }
+
+  PROCESS_TRANSFORMATION_SPINE_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
 function _createProcessFluxCrucibleNode(group, visualCode, color) {
   const resolvedVisualCode = (typeof visualCode === 'number' && visualCode <= 4096)
     ? visualCode
@@ -17105,85 +17328,212 @@ export class EnhancedNodeModels {
    */
   static createProcessTransformationSpine(group, color) {
     try {
-      const segmentCount = 7;
-      const segmentHeight = 0.22;
-      const spineMaterial = new THREE.MeshStandardMaterial({
-        transparent: false,
-        opacity: 1,
-        depthWrite: true,
-        depthTest: true,
-        side: THREE.FrontSide,
-        color: color,
-        metalness: 0.75,
-        roughness: 0.2,
-        emissive: color,
-        emissiveIntensity: 0.25
+      const geometries = _getProcessTransformationSpineGeometries();
+      const materials = _getProcessTransformationSpineMaterials(color);
+      const nodeKey = group?.userData?.nodeId || group?.userData?.visualCode?.toString() || String(color || 0xffaa00);
+      const seedValue = hashString(nodeKey);
+      const seed = Math.abs(seedValue) || 1;
+      const rng = _mythicSeededRng(seed);
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
 
-      });
+      const processRoot = new THREE.Group();
+      processRoot.name = 'PROCESS_TRANSFORMATION_SPINE_NODE';
+      processRoot.userData.visualVariant = 'PROCESS_TRANSFORMATION_SPINE_V2';
+      processRoot.userData.nodeGeometryName = 'PROCESS_TRANSFORMATION_SPINE';
 
-      // Create segment-by-segment spine with progressive rotation
+      // ===== CORE_GROUP: twisted helix segments + catalytic shards =====
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+
+      const segmentCount = 5;
+      const segmentConfigs = [
+        { y: -0.52, rotZ: 0.18, rotY: 0.32, scale: [0.88, 0.92, 0.82] },
+        { y: -0.26, rotZ: 0.42, rotY: -0.14, scale: [1.02, 1.08, 0.96] },
+        { y: 0.0, rotZ: -0.08, rotY: 0.56, scale: [1.12, 1.0, 1.08] },
+        { y: 0.28, rotZ: 0.64, rotY: -0.38, scale: [0.96, 1.14, 0.88] },
+        { y: 0.56, rotZ: -0.28, rotY: 0.22, scale: [0.78, 1.06, 0.72] }
+      ];
+
       for (let i = 0; i < segmentCount; i++) {
-        // Create octagonal segment (8-sided, represents transformation stage)
-        const segmentGeometry = new THREE.CylinderGeometry(0.4, 0.4, segmentHeight, 8);
-        const segment = new THREE.Mesh(segmentGeometry, spineMaterial);
-        
-        // Position vertically
-        const yPos = (i - segmentCount / 2) * (segmentHeight + 0.06);
-        segment.position.y = yPos;
-        
-        // Progressive rotation (before → after effect)
-        const rotationAmount = (i / (segmentCount - 1)) * Math.PI * 0.25;
-        segment.rotation.z = rotationAmount;
-        
-        segment.userData.spineSegmentIndex = i;
-        segment.userData.visualCoreImmutable = true;
-        group.add(segment);
+        const cfg = segmentConfigs[i];
+        const segment = new THREE.Mesh(geometries.helixSegmentGeometry, materials.coreMat);
+        segment.name = `HelixSegment_${i}`;
+        segment.userData.ignoreWaveColor = true;
+        segment.position.set(
+          (rng() - 0.5) * 0.06,
+          cfg.y + (rng() - 0.5) * 0.02,
+          (rng() - 0.5) * 0.06
+        );
+        segment.rotation.set(
+          (rng() - 0.5) * 0.08,
+          cfg.rotY + (rng() - 0.5) * 0.06,
+          cfg.rotZ + (rng() - 0.5) * 0.04
+        );
+        segment.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+        segment.renderOrder = coreOrder;
+        coreGroup.add(segment);
+
+        const edges = new THREE.LineSegments(geometries.helixSegmentEdgesGeometry, materials.edgeMat);
+        edges.name = `HelixSegment_${i}_Edges`;
+        edges.userData.ignoreWaveColor = true;
+        edges.position.copy(segment.position);
+        edges.rotation.copy(segment.rotation);
+        edges.scale.copy(segment.scale);
+        edges.renderOrder = archOrder;
+        coreGroup.add(edges);
       }
 
-      // Create central connecting axis
-      const axisGeometry = new THREE.CylinderGeometry(0.08, 0.08, segmentCount * (segmentHeight + 0.06), 6);
-      const axisMaterial = new THREE.MeshStandardMaterial({
-        transparent: false,
-        opacity: 1,
-        depthWrite: true,
-        depthTest: true,
-        side: THREE.FrontSide,
-        color: color,
-        metalness: 0.9,
-        roughness: 0.1,
-        emissive: color,
-        emissiveIntensity: 0.4
+      // Catalytic shards — asymmetric, seed-based placement
+      const shardCount = 6;
+      for (let i = 0; i < shardCount; i++) {
+        const shard = new THREE.Mesh(geometries.shardGeometry, materials.shardMat);
+        const angle = (i / shardCount) * Math.PI * 2 + seed * 0.001;
+        const radius = 0.62 + rng() * 0.28;
+        shard.name = `CatalyticShard_${i}`;
+        shard.userData.ignoreWaveColor = true;
+        shard.position.set(
+          Math.cos(angle) * radius,
+          -0.38 + rng() * 0.88,
+          Math.sin(angle * 1.42) * radius * 0.82
+        );
+        shard.rotation.set(
+          rng() * Math.PI,
+          rng() * Math.PI,
+          rng() * Math.PI
+        );
+        shard.scale.set(
+          0.72 + rng() * 0.56,
+          1.08 + rng() * 0.48,
+          0.68 + rng() * 0.52
+        );
+        shard.renderOrder = coreOrder;
+        coreGroup.add(shard);
 
+        const shardEdges = new THREE.LineSegments(geometries.shardEdgesGeometry, materials.shardEdgeMat);
+        shardEdges.name = `CatalyticShard_${i}_Edges`;
+        shardEdges.userData.ignoreWaveColor = true;
+        shardEdges.position.copy(shard.position);
+        shardEdges.rotation.copy(shard.rotation);
+        shardEdges.scale.copy(shard.scale);
+        shardEdges.renderOrder = archOrder;
+        coreGroup.add(shardEdges);
+      }
+
+      processRoot.add(coreGroup);
+
+      // ===== FIELD_GROUP: orbital arcs + energy conduits =====
+      const fieldGroup = new THREE.Group();
+      fieldGroup.name = 'FIELD_GROUP';
+
+      const arcConfigs = [
+        { arc: Math.PI * 1.68, radius: 0.92, tube: 0.038, rot: [Math.PI * 0.52, Math.PI * 0.08, Math.PI * 0.06], scale: [1.0, 0.9, 1.08], axis: new THREE.Vector3(0, 1, 0), speed: 0.05, pos: [0.0, 0.02, 0.0] },
+        { arc: Math.PI * 1.42, radius: 0.78, tube: 0.032, rot: [Math.PI * 0.08, Math.PI * 0.5, -Math.PI * 0.22], scale: [1.1, 1.0, 0.94], axis: new THREE.Vector3(1, 0.15, 0), speed: 0.075, pos: [0.08, -0.04, 0.02] },
+        { arc: Math.PI * 1.86, radius: 1.06, tube: 0.028, rot: [Math.PI * 0.24, Math.PI * 0.16, Math.PI * 0.42], scale: [1.05, 0.88, 1.1], axis: new THREE.Vector3(0.35, 1, 0.45), speed: 0.095, pos: [-0.04, 0.08, -0.06] }
+      ];
+
+      const arcGeos = [geometries.arcGeometryA, geometries.arcGeometryB, geometries.arcGeometryC];
+      for (let i = 0; i < 3; i++) {
+        const cfg = arcConfigs[i];
+        const arc = new THREE.Mesh(arcGeos[i], materials.arcMat);
+        arc.name = `OrbitalArc_${i}`;
+        arc.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+        arc.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+        arc.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+        arc.userData.isOrbitArc = true;
+        arc.userData.orbitAxis = cfg.axis.clone().normalize();
+        arc.userData.orbitSpeed = cfg.speed;
+        arc.userData.visualCoreImmutable = true;
+        arc.renderOrder = archOrder;
+        fieldGroup.add(arc);
+      }
+
+      // Energy conduit
+      const conduit = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(
+          new THREE.CatmullRomCurve3([
+            new THREE.Vector3(-0.72, -0.42, 0.18),
+            new THREE.Vector3(-0.38, -0.18, 0.08),
+            new THREE.Vector3(-0.08, 0.08, -0.06),
+            new THREE.Vector3(0.28, 0.28, 0.12),
+            new THREE.Vector3(0.62, 0.48, -0.08)
+          ], false, 'catmullrom', 0.42).getPoints(40)
+        ),
+        materials.conduitMat
+      );
+      conduit.name = 'EnergyConduit';
+      conduit.userData.visualCoreImmutable = true;
+      conduit.renderOrder = archOrder;
+      fieldGroup.add(conduit);
+
+      processRoot.add(fieldGroup);
+
+      // ===== AURA_GROUP: hologram shell + edge glow + dust =====
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+
+      // Hologram shell around central segment
+      const shellTarget = new THREE.Mesh(geometries.helixSegmentGeometry, materials.coreMat);
+      shellTarget.position.set(0, 0, 0);
+      shellTarget.scale.set(1.12, 1.12, 1.12);
+      const shell = createNodeHologramShell(shellTarget, color);
+      if (shell) {
+        shell.name = 'ProcessShell';
+        shell.position.copy(shellTarget.position);
+        shell.quaternion.copy(shellTarget.quaternion);
+        shell.scale.copy(shellTarget.scale).multiplyScalar(1.08);
+        shell.frustumCulled = false;
+        shell.renderOrder = archOrder;
+        if (shell.material?.uniforms?.uOpacity) shell.material.uniforms.uOpacity.value = 0.035;
+        auraGroup.add(shell);
+      }
+
+      // Neon edge glow
+      const edgeGlow = createNodeNeonEdgeGlowShell(shellTarget, color, {
+        glowIntensity: 0.48,
+        edgeWidth: 0.038,
+        pulseAmount: 0.0
       });
-      const axis = new THREE.Mesh(axisGeometry, axisMaterial);
-      axis.userData.isSpinalAxis = true;
-      axis.userData.visualCoreImmutable = true;
-      group.add(axis);
-
-      // Add connector rings between segments for visual continuity
-      for (let i = 0; i < segmentCount - 1; i++) {
-        const ringGeometry = new THREE.TorusGeometry(0.42, 0.04, 8, 24);
-        const ringMaterial = new THREE.MeshBasicMaterial({
-          color: color,
-          transparent: true,
-          opacity: 0.4
-        });
-        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-        
-        const yPos = (i + 0.5 - segmentCount / 2) * (segmentHeight + 0.06);
-        ring.position.y = yPos;
-        ring.userData.visualCoreImmutable = true;
-        group.add(ring);
+      if (edgeGlow) {
+        edgeGlow.name = 'ProcessEdgeGlow';
+        edgeGlow.position.copy(shellTarget.position);
+        edgeGlow.quaternion.copy(shellTarget.quaternion);
+        edgeGlow.scale.copy(shellTarget.scale).multiplyScalar(1.04);
+        edgeGlow.frustumCulled = false;
+        edgeGlow.renderOrder = archOrder;
+        auraGroup.add(edgeGlow);
       }
 
-      // Store animation metadata (transform-only breathing + rotation)
-      group.userData.spineRotationSpeed = 0.08; // Very slow axial
-      group.userData.spineBreathingAmplitude = 0.02; // ±2% scale
-      group.userData.spineBreathingSpeed = 0.5;
+      // Dust particles
+      const dust = new THREE.Points(geometries.dustGeometry, materials.dustMat);
+      dust.name = 'CatalyticDust';
+      dust.userData.ignoreWaveColor = true;
+      dust.position.set(0.0, 0.02, 0.01);
+      dust.rotation.set(0.14, -0.26, 0.08);
+      dust.scale.set(0.92, 1.04, 0.88);
+      dust.frustumCulled = false;
+      dust.renderOrder = archOrder;
+      auraGroup.add(dust);
 
-      group.userData.visualCoreImmutable = true;
-      group.userData.nodeGeometryName = 'PROCESS_TRANSFORMATION_SPINE';
+      processRoot.add(auraGroup);
 
+      // Validate geometries on all meshes
+      processRoot.traverse(o => {
+        if (o?.isMesh || o?.isPoints || o?.isLine || o?.isLineSegments) {
+          validateMeshGeometry(o, o.name || 'process-spine-child');
+        }
+      });
+
+      // Store animation metadata
+      processRoot.userData.helixRotationSpeed = 0.12;
+      processRoot.userData.helixBreathingAmplitude = 0.04;
+      processRoot.userData.helixBreathingSpeed = 0.7;
+      processRoot.userData.arcOrbitSpeeds = [0.05, 0.075, 0.095];
+      processRoot.userData.shardPulseSpeed = 1.2;
+      processRoot.userData.conduitFlowSpeed = 0.9;
+      processRoot.userData.visualReady = true;
+
+      group.add(processRoot);
       return group;
     } catch (err) {
       console.error('[NodeVisualAbort]', {

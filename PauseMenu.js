@@ -913,6 +913,15 @@ export class PauseMenu {
                     window.__ATOMA_ENVIRONMENTAL_HAZARDS_PENDING__ = settings.environmentalHazards;
                 }
             }
+        } else if (settingId === 'cinematicNodeShaders') {
+            settings.cinematicNodeShaders = !settings.cinematicNodeShaders;
+            if (typeof window !== 'undefined') {
+                if (window.game?.setCinematicNodeShadersEnabled) {
+                    window.game.setCinematicNodeShadersEnabled(settings.cinematicNodeShaders);
+                } else {
+                    window.__ATOMA_CINEMATIC_NODE_SHADERS_PENDING__ = settings.cinematicNodeShaders;
+                }
+            }
         }
 
         this.profile.settings = settings;

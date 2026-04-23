@@ -16,6 +16,17 @@ import * as THREE from 'three';
  *
  * Performance: All per-frame allocations are cached.
  */
+function collectDescendants(root, predicate, out = []) {
+  if (!root) return out;
+  if (predicate(root)) out.push(root);
+  if (root.children && root.children.length) {
+    for (const child of root.children) {
+      collectDescendants(child, predicate, out);
+    }
+  }
+  return out;
+}
+
 export class CinematicUpgrade {
   constructor(scene, camera) {
     this.scene = scene;
@@ -48,6 +59,7 @@ export class CinematicUpgrade {
     this._renderer = null;
     this._postProcessing = null;
     this._baseExposure = 0.98;
+    this.nodeShadersEnabled = true;
   }
 
   /**
@@ -56,6 +68,7 @@ export class CinematicUpgrade {
   initialize() {
     this.createFloatingDustField();
     this.createHolographicEdgeGlow();
+    this._syncNodeShaderVisibility();
   }
 
   // ============================================================
@@ -127,6 +140,29 @@ export class CinematicUpgrade {
         child.material.dispose();
       }
     });
+  }
+
+  _syncNodeShaderVisibility() {
+    const enabled = this._targetOpacity > 0 && this.nodeShadersEnabled !== false;
+
+    if (typeof window !== 'undefined') {
+      window.ATOMA_VFX_ENABLE_HOLOGRAM_SHELL = enabled;
+      window.ATOMA_VFX_ENABLE_NODE_EDGE_GLOW = enabled;
+    }
+
+    const shells = collectDescendants(
+      this.scene,
+      (child) => child?.isMesh === true && (
+        child.userData?.isHologramShell === true ||
+        child.userData?.isNeonEdgeGlow === true
+      )
+    );
+
+    shells.forEach((shell) => {
+      shell.visible = enabled;
+    });
+
+    return enabled;
   }
 
   // ============================================================
@@ -313,6 +349,7 @@ export class CinematicUpgrade {
    */
   setVisible(visible) {
     this._targetOpacity = visible ? 1 : 0;
+    this._syncNodeShaderVisibility();
     if (visible) {
       // Immediately make objects visible so fade-in is visible
       this.dustParticles.forEach(p => { p.visible = true; });
@@ -325,6 +362,12 @@ export class CinematicUpgrade {
    */
   isVisible() {
     return this._targetOpacity > 0;
+  }
+
+  setNodeShadersEnabled(enabled = true) {
+    this.nodeShadersEnabled = !!enabled;
+    this._syncNodeShaderVisibility();
+    return this.nodeShadersEnabled;
   }
 
   // ============================================================

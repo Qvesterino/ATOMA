@@ -6438,6 +6438,10 @@ this.setHudDirty('nodeInspect');
             this.setEnvironmentalHazardsEnabled(!!window.__ATOMA_ENVIRONMENTAL_HAZARDS_PENDING__);
             delete window.__ATOMA_ENVIRONMENTAL_HAZARDS_PENDING__;
         }
+        if (window.__ATOMA_CINEMATIC_NODE_SHADERS_PENDING__ !== undefined) {
+            this.setCinematicNodeShadersEnabled(!!window.__ATOMA_CINEMATIC_NODE_SHADERS_PENDING__);
+            delete window.__ATOMA_CINEMATIC_NODE_SHADERS_PENDING__;
+        }
         if (window.__ATOMA_VISUAL_QUALITY_PENDING__ !== undefined) {
             this.setVisualQuality(window.__ATOMA_VISUAL_QUALITY_PENDING__);
             delete window.__ATOMA_VISUAL_QUALITY_PENDING__;
@@ -6723,6 +6727,7 @@ window.__ATOMA_SCENE__ = this.scene;
             this.postProcessing?.onWindowResize?.(this.renderer.domElement.width, this.renderer.domElement.height);
             this.postProcessingEnabled = false;
         }
+        this.cinematicNodeShadersEnabled = true;
         this.setPostProcessingEnabled = (enabled = true) => {
             const next = !!enabled;
             if (this.postProcessingEnabled !== next) {
@@ -6732,6 +6737,25 @@ window.__ATOMA_SCENE__ = this.scene;
                 }
             }
             return this.postProcessingEnabled;
+        };
+
+        this._syncCinematicNodeShaders = () => {
+            const cinematicVisible = this.cinematicUpgrade?.isVisible?.() !== false;
+            const next = cinematicVisible && this.cinematicNodeShadersEnabled !== false;
+            if (this.cinematicUpgrade?.setNodeShadersEnabled) {
+                this.cinematicUpgrade.setNodeShadersEnabled(next);
+            } else if (typeof window !== 'undefined') {
+                window.ATOMA_VFX_ENABLE_HOLOGRAM_SHELL = next;
+                window.ATOMA_VFX_ENABLE_NODE_EDGE_GLOW = next;
+            }
+            return next;
+        };
+
+        this.setCinematicNodeShadersEnabled = (enabled = true) => {
+            const next = !!enabled;
+            this.cinematicNodeShadersEnabled = next;
+            this._syncCinematicNodeShaders();
+            return this.cinematicNodeShadersEnabled;
         };
 
         this.setNodeRotationsEnabled = (enabled = true) => {
@@ -6789,6 +6813,7 @@ window.__ATOMA_SCENE__ = this.scene;
             if (this.cinematicUpgrade) {
                 this.cinematicUpgrade.setVisible(cinematicOn);
             }
+            this._syncCinematicNodeShaders();
 
             // Restore / reset renderer tone mapping based on superpack state
             if (this.renderer) {
@@ -6823,6 +6848,9 @@ window.__ATOMA_SCENE__ = this.scene;
             }
             if (bootMenuSettings.environmentalHazards !== undefined) {
                 this.setEnvironmentalHazardsEnabled(bootMenuSettings.environmentalHazards !== false);
+            }
+            if (bootMenuSettings.cinematicNodeShaders !== undefined) {
+                this.setCinematicNodeShadersEnabled(bootMenuSettings.cinematicNodeShaders !== false);
             }
             if (bootMenuSettings.visuals !== undefined) {
                 this.setVisualQuality(bootMenuSettings.visuals);
@@ -12949,6 +12977,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         // Apply color grading
         this.cinematicUpgrade.applyColorGrading(this.renderer);
+        this._syncCinematicNodeShaders();
 
         // Wire into post-processing pipeline for real bloom/vignette modulation
         if (this.postProcessing) {

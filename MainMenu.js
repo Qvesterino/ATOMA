@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS = Object.freeze({
     nodeRotations: true,
     semanticPictograms: true,
     environmentalHazards: true,
+    cinematicNodeShaders: true,
 });
 
 const MENU_MAPS = Object.freeze([
@@ -268,6 +269,7 @@ function sanitizeSettings(value) {
         nodeRotations: settings.nodeRotations !== false,
         semanticPictograms: settings.semanticPictograms !== false,
         environmentalHazards: settings.environmentalHazards !== false,
+        cinematicNodeShaders: settings.cinematicNodeShaders !== false,
     };
 }
 
@@ -1229,6 +1231,13 @@ export function getSettingsRows(settings) {
             value: `[ ${settings.environmentalHazards ? 'ON' : 'OFF'} ]`,
             description: 'Enable or disable the hazard visuals and environmental danger overlays.',
         },
+        {
+            type: 'toggle',
+            id: 'cinematicNodeShaders',
+            label: 'NODE SHADERS',
+            value: `[ ${settings.cinematicNodeShaders ? 'ON' : 'OFF'} ]`,
+            description: 'Enable or disable the CinematicUpgrade node shell and edge glow layer.',
+        },
         ...getUIVisibilitySettingsRows(),
     ];
 }
@@ -2139,6 +2148,15 @@ export class MainMenu {
                     window.game.setEnvironmentalHazardsEnabled(settings.environmentalHazards);
                 } else {
                     window.__ATOMA_ENVIRONMENTAL_HAZARDS_PENDING__ = settings.environmentalHazards;
+                }
+            }
+        } else if (settingId === 'cinematicNodeShaders') {
+            settings.cinematicNodeShaders = !settings.cinematicNodeShaders;
+            if (typeof window !== 'undefined') {
+                if (window.game?.setCinematicNodeShadersEnabled) {
+                    window.game.setCinematicNodeShadersEnabled(settings.cinematicNodeShaders);
+                } else {
+                    window.__ATOMA_CINEMATIC_NODE_SHADERS_PENDING__ = settings.cinematicNodeShaders;
                 }
             }
         }
