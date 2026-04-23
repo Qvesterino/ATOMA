@@ -493,8 +493,8 @@ import VisualTime from './src/time/VisualTime.js';
 import { FrameUpdateLoopOrderValidator_v1 } from './FrameUpdateLoopOrderValidator_v1.js';
 import { NodeEditor } from './NodeEditor.js';
 import { EnvironmentalHazards } from './EnvironmentalHazards.js';
-import { CinematicUpgrade } from './CinematicUpgrade.js';
-import { VisualUpgradeSuperpack } from './VisualUpgradeSuperpack.js';
+import { CinematicUpgrade } from './CinematicUpgrade.js?rev=2';
+import { VisualUpgradeSuperpack } from './VisualUpgradeSuperpack.js?rev=2';
 import { SafeEvolutionManager } from './_SafeEvolutionManager.js';
 // import { SafeLegendaryNodePack } from './LEGACY/_SafeLegendaryNodePack.js';
 import { SafeLegendaryLinkFX } from './_SafeLegendaryLinkFX.js';
@@ -6807,6 +6807,13 @@ window.__ATOMA_SCENE__ = this.scene;
             const superpackOn = normalized === 'MEDIUM' || normalized === 'HIGH';
             const cinematicOn = normalized === 'HIGH';
 
+            if (this.visualSuperpack?.setQualityTier) {
+                this.visualSuperpack.setQualityTier(normalized);
+            }
+            if (this.cinematicUpgrade?.setQualityTier) {
+                this.cinematicUpgrade.setQualityTier(normalized);
+            }
+
             if (this.visualSuperpack) {
                 this.visualSuperpack.setVisible(superpackOn);
             }
@@ -12959,6 +12966,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         // Apply all 8 enhancement packs
         this.visualSuperpack.applyFullUpgrade();
+        this.visualSuperpack.setQualityTier(this.visualQualityLevel || 'HIGH');
 
         // Apply renderer settings
         const settings = this.visualSuperpack.getRendererSettings();
@@ -12974,6 +12982,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         this.cinematicUpgrade = new CinematicUpgrade(this.scene, this.camera);
         this.cinematicUpgrade.frameScheduler = this.frameScheduler;
         this.cinematicUpgrade.initialize();
+        this.cinematicUpgrade.setQualityTier(this.visualQualityLevel || 'HIGH');
 
         // Apply color grading
         this.cinematicUpgrade.applyColorGrading(this.renderer);

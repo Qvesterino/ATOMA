@@ -392,6 +392,58 @@ export class SafeAIWeatherPack {
     return texture;
   }
 
+  _createMoodSilhouetteShape(type, width, height) {
+    const safeWidth = Math.max(1, Math.abs(width));
+    const safeHeight = Math.max(1, Math.abs(height));
+    const halfWidth = safeWidth * 0.5;
+    const halfHeight = safeHeight * 0.5;
+    const x = (ratio) => halfWidth * ratio;
+    const y = (ratio) => halfHeight * ratio;
+    const shape = new THREE.Shape();
+
+    switch (type) {
+      case 'pressure':
+        shape.moveTo(x(-0.94), y(-0.08));
+        shape.quadraticCurveTo(x(-1.0), y(0.24), x(-0.72), y(0.46));
+        shape.quadraticCurveTo(x(-0.46), y(0.7), x(-0.16), y(0.58));
+        shape.quadraticCurveTo(x(0.02), y(0.48), x(0.18), y(0.6));
+        shape.quadraticCurveTo(x(0.42), y(0.76), x(0.7), y(0.44));
+        shape.quadraticCurveTo(x(0.96), y(0.16), x(0.86), y(-0.14));
+        shape.quadraticCurveTo(x(0.74), y(-0.48), x(0.38), y(-0.62));
+        shape.quadraticCurveTo(x(0.12), y(-0.76), x(-0.16), y(-0.62));
+        shape.quadraticCurveTo(x(-0.44), y(-0.78), x(-0.72), y(-0.52));
+        shape.quadraticCurveTo(x(-0.96), y(-0.3), x(-0.94), y(-0.08));
+        break;
+      case 'resonance':
+        shape.moveTo(x(-0.94), y(-0.02));
+        shape.quadraticCurveTo(x(-0.72), y(0.42), x(-0.42), y(0.5));
+        shape.quadraticCurveTo(x(-0.2), y(0.64), x(-0.02), y(0.4));
+        shape.quadraticCurveTo(x(0.14), y(0.58), x(0.36), y(0.52));
+        shape.quadraticCurveTo(x(0.7), y(0.44), x(0.92), y(0.02));
+        shape.quadraticCurveTo(x(0.74), y(-0.34), x(0.44), y(-0.48));
+        shape.quadraticCurveTo(x(0.18), y(-0.58), x(0.0), y(-0.38));
+        shape.quadraticCurveTo(x(-0.2), y(-0.58), x(-0.44), y(-0.5));
+        shape.quadraticCurveTo(x(-0.74), y(-0.36), x(-0.94), y(-0.02));
+        break;
+      case 'stormBias':
+        shape.moveTo(x(-0.94), y(-0.04));
+        shape.quadraticCurveTo(x(-0.76), y(0.36), x(-0.5), y(0.56));
+        shape.quadraticCurveTo(x(-0.24), y(0.78), x(0.02), y(0.5));
+        shape.quadraticCurveTo(x(0.18), y(0.68), x(0.52), y(0.34));
+        shape.quadraticCurveTo(x(0.82), y(0.2), x(0.9), y(-0.12));
+        shape.quadraticCurveTo(x(0.78), y(-0.5), x(0.48), y(-0.66));
+        shape.quadraticCurveTo(x(0.2), y(-0.78), x(-0.04), y(-0.54));
+        shape.quadraticCurveTo(x(-0.3), y(-0.7), x(-0.58), y(-0.5));
+        shape.quadraticCurveTo(x(-0.84), y(-0.28), x(-0.94), y(-0.04));
+        break;
+      default:
+        shape.absarc(0, 0, Math.min(halfWidth, halfHeight), 0, Math.PI * 2, false);
+        break;
+    }
+
+    return shape;
+  }
+
   _releaseMaterial(material) {
     if (!material) return;
     if (this.sharedAssets?.releaseMaterial?.(material)) return;
@@ -1052,22 +1104,33 @@ export class SafeAIWeatherPack {
     let position = new THREE.Vector3(0, 18, depth);
     let rotation = new THREE.Euler(-Math.PI / 2, 0, 0);
     let size = 1.0;
+    let silhouetteWidth = 0;
+    let silhouetteHeight = 0;
     switch(type) {
       case 'calm':
         geo = this._getSharedGeometry(`silhouette.calm`, () => new THREE.CircleGeometry(58, 34));
         position.set(0, 24, depth);
         break;
       case 'pressure':
-        geo = this._getSharedGeometry(`silhouette.pressure`, () => new THREE.PlaneGeometry(240, 22));
+        silhouetteWidth = 240;
+        silhouetteHeight = 22;
+        geo = this._getSharedGeometry(`silhouette.pressure`, () => new THREE.ShapeGeometry(this._createMoodSilhouetteShape('pressure', silhouetteWidth, silhouetteHeight), 10));
         position.set(0, 18, depth);
+        rotation.z = -0.08;
         break;
       case 'resonance':
-        geo = this._getSharedGeometry(`silhouette.resonance`, () => new THREE.PlaneGeometry(280, 16));
+        silhouetteWidth = 280;
+        silhouetteHeight = 16;
+        geo = this._getSharedGeometry(`silhouette.resonance`, () => new THREE.ShapeGeometry(this._createMoodSilhouetteShape('resonance', silhouetteWidth, silhouetteHeight), 10));
         position.set(0, 24, depth);
+        rotation.z = 0.06;
         break;
       case 'stormBias':
-        geo = this._getSharedGeometry(`silhouette.stormBias`, () => new THREE.PlaneGeometry(220, 24));
+        silhouetteWidth = 220;
+        silhouetteHeight = 24;
+        geo = this._getSharedGeometry(`silhouette.stormBias`, () => new THREE.ShapeGeometry(this._createMoodSilhouetteShape('stormBias', silhouetteWidth, silhouetteHeight), 10));
         position.set(0, 20, depth);
+        rotation.z = 0.12;
         break;
       case 'ascensionHaze':
         geo = this._getSharedGeometry(`silhouette.ascensionHaze`, () => new THREE.CylinderGeometry(3.5, 3.5, 60, 6));

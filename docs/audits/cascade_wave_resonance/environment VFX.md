@@ -1,231 +1,122 @@
-Static audit je hotový. Nižšie je zoznam world/environment/background/field VFX systémov, ktoré som našiel, s aktuálnym runtime stavom a triggerom.
+# Environment VFX Audit
 
-Scope
-Zahrnul som:
+Scope: world and environment visuals that are owned, created, or orchestrated by `EnvironmentDomainController`.
 
-world-space environment efekty
-background/reference plane efekty
-field/zone/world particle efekty
-map-specific environment visuals
-Nezahrnul som:
+Excluded from the main list:
+- node-only visuals
+- LinkRendererConduit pipeline
+- pure HUD overlays unless they are wired as controller support
+- map/world geometry assets that are not part of the environment VFX runtime
 
-čisto UI/overlay systémy
-čisto link-material systémy bez world/field prejavu
-data-only utility adaptéry
-Active
+Runtime lanes used by the controller:
+- `visual` = 30Hz environment lane
+- `simulation` = 10Hz world personality / ritual lane
+- `event-driven` = coordinator or support layer without a per-frame visual loop of its own
 
-## EnvironmentDomainController
-Stav: active
-Trigger: inicializuje sa pri boote a znovu pri world rebuild-e; orchestruje environment domain systémy cez scheduler.
-Evidence: main.js:4813, main.js:4834, main.js:6289, main.js:6310, EnvironmentDomainController.js:15
-Poznámka: toto je koordinátor, nie samotný vizuálny efekt.
+## Controller-owned runtime systems
 
-## SafeWorldFXPack
-Stav: active, ale metrics-degraded
-Trigger: beží každý tick cez environment domain; robí periodické world efekty ako dimensional shifts, rift waves, quantum rifts, sigma glitches, aurora/world breathing.
-Evidence: EnvironmentDomainController.js:45, EnvironmentDomainController.js:94, _SafeWorldFXPack.js:316, _SafeWorldFXPack.js:374, _SafeWorldFXPack.js:486, _SafeWorldFXPack.js:794, _SafeWorldFXPack.js:903
-Trigger detail: časové intervaly bežia stále; synergy/legendary vetvy sú oslabené, lebo environment domain volá len update(dt) a neposúva mu nodes/linkingSystem/legendaryPack.
+| System | Status | Lane | Owner | Trigger / event names | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `SafeWorldFXPack` | active, but metrics-degraded | visual | `EnvironmentDomainController` | `global.synergy.high`, `global.loadPressure.high`, `global.corruption.high`, `global.stability.low`, `global.stability.high` | Main world ambience stack: dimensional shifts, rift waves, energy pulses, fractal sky, quantum rifts, sigma glitches, world breathing, energy streams, aurora horizon, screen overlays. The controller currently calls `update(dt)` only, so the pack does not receive the richer node/link/evolution/legendary inputs its update signature expects. |
+| `SafeAIWeatherPack` | active | visual | `EnvironmentDomainController` | `world.weather.candidate`, `link.synergy.aggregate`, `link.loadPressure.aggregate`, `world.event.active` | Weather-state atmosphere layer; gate is driven by live links, legendary count, world events, and the active mood profile. |
+| `SafeQuantumIllusionsPack1` | active, conditional runtime gating | visual | `EnvironmentDomainController` | `world.event.type.active`, `link.throughput.high`, `link.synergy.aggregate`, `node.synergy.high`, `node.motion.fast` | Illusion pack is instantiated by the controller when the required dependencies exist, then its own `runtimeEnabled` flag decides whether the illusion registry actually runs. Current update path is active. |
+| `AmbientEntityManager` | active | visual | `EnvironmentDomainController` | `world.ambient.active` | Ambient ghost-orb / spectre / swarm / phantom / wisp system. This is the only controller-owned environment file in the quick scan that still uses explicit `BoxGeometry` for the `SIGMA_PHANTOM` body parts; that box look is intentional voxel/pixel silhouette, not a missing update loop. |
+| `EmergentThoughtStorms5_0` | conditional | visual | `EnvironmentDomainController` | `system.recursiveGlyphMessaging.ready`, `system.semanticGlyphAI.ready` | Large-scale thought-storm weather. The controller only instantiates it when both dependencies are present, then passes `aiNodes` + `linkingSystem` to update. |
+| `SafeLegendaryWorldEvents` | active | visual | `EnvironmentDomainController` | `world.legendary.eventPotential.high`, `world.event.cooldown.ready`, `world.event.roll.success` | Rare world-event presentation layer for legendary reveals and high-impact environmental states. |
+| `WorldPersonalityController` | active | simulation | `EnvironmentDomainController` | `global.harmony.high`, `global.harmony.mid`, `global.loadPressure.high`, `global.stability.low`, `world.personality.aggregate.ready` | Global world mood / personality modulation. Runs on the simulation lane, not the visual lane. |
+| `MythicRitualController` | active | simulation | `EnvironmentDomainController` | `semantic.ritual.started`, `semantic.ritual.completed` | Mythic ritual staging and ceremonial world-state visuals. Simulation lane only. |
+| `MetricReactiveWorldEvents` | active | visual | `EnvironmentDomainController` | `global.metricFrame.updated`, `node.metric.updated`, `global.synergy.low|mid|high`, `global.harmony.low|mid|high`, `global.stability.low|mid|high`, `global.corruption.low|mid|high`, `global.loadPressure.low|mid|high` | Metric-driven world spectacle and lightweight visual modulation. |
+| `SafeDreamDepthPack` | active | visual | `EnvironmentDomainController` | `world.weather.active`, `world.event.active`, `world.focusTarget.present` | Low-cost dream-depth fallback layer for haze, vignette, and focus mood. |
+| `DreamDepthEffectManager` | active | visual | `EnvironmentDomainController` | weather keys `calm`, `pressure`, `resonance`, `stormBias`, `ascensionHaze`; pulse events such as `COSMIC_PULSE`, `QUANTUM_ECLIPSE`, `LUMINESCENT_BURST`, `STARFALL`, `SYNTHESIS_RITUAL`, `WEATHER_SHIFT`, `AETHER_SURGE` | Rich dream-depth overlay path. The controller wires the frame scheduler into it and keeps the focus targets/weather state synchronized. |
+| `SafeColonyExpansion2` | conditional | visual | `EnvironmentDomainController` / `SafeColonyExpansion2` | `colony.cluster.detected`, `colony.linkConnectivity.valid`, `world.event.active`, `world.weather.active` | Colony expansion VFX is created only if the class is available in the current build. |
+| `EnvironmentalHazards` | active | visual | `EnvironmentDomainController` | `global.corruption.high`, `global.loadPressure.high`, `global.stability.low`, `global.stability.high` | Hazard and anomaly layer. Uses world profile modes such as `default`, `sigma`, and `memory`. The hazard systems use rounded / faceted geometry rather than plain cubes. |
 
-## AmbientEntityManager
-Stav: active
-Trigger: beží cez environment domain; spawn pokusy robí priebežne s náhodnou šancou a zosilňuje ich aktívne počasie, legendary nodes alebo world events.
-Evidence: EnvironmentDomainController.js:60, EnvironmentDomainController.js:73, _AmbientEntityManager.js:101, _AmbientEntityManager.js:128, _AmbientEntityManager.js:156
-Vizuál: ghost orbs, spectres, swarms, phantoms, wisps.
+## Controller support systems
 
-## EnvironmentalHazards
-Stav: active, ale efekt je mode-conditional
-Trigger: systém je vytvorený v environment domain; demo hazards sa automaticky spawnujú len vo fractal mode.
-Evidence: EnvironmentDomainController.js:89, main.js:6311, EnvironmentalHazards.js:18, EnvironmentalHazards.js:115, EnvironmentalHazards.js:221
-Vizuál: electrical storms, gravitational anomalies.
+| System | Status | Lane | Owner | Trigger / event names | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `EventDramaturgyEngine` | active | visual | `EnvironmentDomainController` | `cascade.start`, `cascade.end`, `network:corruptionSpread`, `event:harmonyResonance`, `semantic.ritual.started`, `semantic.ritual.completed`, `environment.hazard.active`, `dramaturgy.phase` | 3-phase event lifecycle engine: telegraph, escalation, payoff. This is the controller-owned orchestration layer for major environment events. |
+| `EnvironmentEventCoordinator` | active | event-driven | `EnvironmentDomainController` | `global.synergy.high`, `global.harmony.high`, `global.corruption.high`, `global.stability.high`, `global.loadPressure.high`, `semantic.ritual.started`, `semantic.ritual.completed` | Coordinator that arbitrates ownership and sequencing between weather, world events, rituals, and metric-reactive layers. |
+| `ColonyVFXManager` | active indirect support | visual-indirect | `SafeColonyExpansion2` | `colony.birth`, `colony.growth`, `colony.merge`, `colony.split`, `colony.transformation`, `world.event.active` | Internal colony payload builder for halos, rings, particles, and transitions. |
+| `SafeMetricsFX1_1` | active | event-driven | `main.js` | `node.metric.updated` | Support polish layer that converts node metrics into lightweight feedback. |
+| `TemporalEventEffects` | active | hud-loop | `CoreMetricsOverlay` | `global.harmony.high`, `global.synergy.high`, `time.epoch.changed`, `time.aeon.changed` | Temporal overlay support used by HUD / metrics layers rather than world-space rendering. |
+| `CinematicUpgrade` | active | main-loop | `main.js` | `global.metricFrame.updated`, `quality.high` | Presentation-grade cinematic support layer. It is not a core environment system, but it is wired as controller support in the registry and should remain visible in the environment audit. |
 
-## WaveParticleEmitter_v1
-Stav: active, efekt conditional
-Trigger: initne sa a updatuje každý frame; emituje len keď wave field prekročí constructive/destructive/standing thresholds.
-Evidence: main.js:8553, main.js:8569, WaveParticleEmitter_v1.js:706, WaveParticleEmitter_v1.js:729, WaveParticleEmitter_v1.js:791
-Vizuál: world-space synergy/destruction/standing-wave particles, nie link mesh.
+## Environment-adjacent systems outside the controller
 
-## CascadeParticleSystem_Session120
-Stav: active
-Trigger: boot setup + visual scheduler update; spawny prichádzajú cez cascade event bridge a cascade hop-y.
-Evidence: main.js:4930, main.js:9192, main.js:3978
-Vizuál: cascade particle bursts/trails v priestore.
+These are not owned by `EnvironmentDomainController`, but they still contribute to the world/environment surface and are easy to confuse with controller-owned effects.
 
-## ResonanceCascadeVisualization_Session117B
-Stav: active
-Trigger: boot setup + visual scheduler; reaguje na cascade.start, cascade.hop, cascade.end semantic eventy.
-Evidence: main.js:4936, main.js:9285, main.js:3999, ResonanceCascadeVisualization_Session117B.js:124
-Vizuál: radial/link-propagating cascade influence, node illumination, ripple-like cascade state.
+| System | Status | Lane | Owner | Trigger / event names | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `WaveParticleEmitter_v1` | active | visual | `main.js` | `node.synergy.low|mid|high`, `node.harmony.low|mid|high`, `node.stability.low|mid|high`, `node.corruption.low|mid|high`, `node.loadPressure.low|mid|high` | World-space wave particles and standing-wave motion. |
+| `ResonanceCascadeVisualization_Session117B` | active | visual | `main.js` | `link.created`, `global.loadPressure.high` | Cascade / resonance propagation overlay for radial surges and echoes. |
+| `HarmonicHubAuraSystem_Session126` | active | visual | `main.js` | `hub.harmony.high`, `hub.harmony.mid`, `hub.harmony.low` | Shared harmonic field around hub constellations. |
+| `CanonicalTemplate3_StressVisuals` | active | main-loop | `main.js` | `global.metricFrame.updated`, `node.loadPressure.active` | Global stress-pressure ambience. |
+| `AIConsciousnessLayer` | active | visual | `main.js` | `link.active`, `link.trafficIntensity.active`, `link.harmony.active`, `link.stability.active`, `system.storms.enabled` | Cognitive atmosphere layer with thought-thread presence. |
+| `CognitiveHorizonPlane` | conditional | visual | `MapReferencePlaneFactory` | `map.referencePlane.selected`, `world.focusTarget.present`, `world.memoryPressure.active` | Map foundation plane, not controller-owned environment VFX. |
 
-## PHASE5_CascadePropagationVisuals
-Stav: active
-Trigger: inicializovaný v Phase 5 wiring-u, updatuje sa cez visual scheduler, reaguje na cascade eventy nad activation threshold.
-Evidence: main.js:8093, main.js:8121, main.js:3775, PHASE5_CascadePropagationVisuals_v1.js:84, PHASE5_CascadePropagationVisuals_v1.js:102
-Vizuál: expanding cascade rings vo world-space.
+## Geometry notes
 
-## PHASE5_CascadeVisualizationBridge
-Stav: active
-Trigger: bridge sa inicializuje a updatuje cez scheduler; číta corruption/threat/harmony cascade eventy a feeduje propagation visuals.
-Evidence: main.js:8134, main.js:8149, main.js:3777, PHASE5_CascadeVisualizationBridge_v1.js:61, PHASE5_CascadeVisualizationBridge_v1.js:108
-Poznámka: je to bridge, ale priamo drží cascade queue a riadi, čo sa vykreslí.
+### Box geometry audit
+- The only controller-owned environment system I found with explicit `BoxGeometry` in the active runtime pass is `_AmbientEntityManager.js`, inside `createSigmaPhantom()`. The boxes are intentional and update each tick.
+- `SafeWorldFXPack` no longer uses box sprites for the world-scale cluster effects. Its moving clusters are `InstancedMesh` faceted shards / beads instead.
+- The quick scan did not show `BoxGeometry` in `_SafeWorldFXPack.js`, `_SafeAIWeatherPack.js`, `DreamDepthEffectManager.js`, `EnvironmentalHazards.js`, or `_SafeQuantumIllusionsPack1.js`.
 
-## ResonanceRuptureVisualSystem_Session133
-Stav: active, efekt conditional
-Trigger: inicializuje sa a má vlastný visual tick; vizuály vznikajú len keď standing-wave trap systém akumuluje stress/rupture stav.
-Evidence: main.js:4990, main.js:11771, main.js:3885
-Vizuál: stress zones, rupture bursts, propagation scars, halo destabilization.
+### Likely moving cluster source
+- The world-space cluster that traverses the map is most likely `_SafeWorldFXPack.js`, specifically `fractal_sky.shards` and `energy_stream.*.beads`.
+- Those clusters are updated by `updateFractalSky()` and `updateEnergyStreams()`.
+- If they appear frozen in a browser, the likely cause is stale runtime wiring or a different build path, not missing animation code in the pack itself.
 
-## StandingWaveVisualRenderer_Session131
-Stav: active, efekt conditional
-Trigger: renderer sa normálne setupne a updatuje každý frame; viditeľný efekt sa objaví len keď existujú aktívne standing-wave traps/patterns.
-Evidence: main.js:4972, main.js:11605, main.js:4096, StandingWaveVisualRenderer_Session131.js:219
-Vizuál: trap zones, antinode glows, standing-wave zones.
-Poznámka: je link-adjacent, ale produkuje aj reálne world-space trap/zone prejavy, preto som ho nechal v audite.
+## Runtime conclusions
 
-HarmonicHubAuraSystem_Session126
-Stav: active, efekt conditional
-Trigger: beží runtime update; shared resonance field sa objaví len pre harmonic hubs s 2+ linkami a harmony > corruption nad threshold.
-Evidence: main.js:5073, main.js:12578, HarmonicHubAuraSystem_Session126.js:72, HarmonicHubAuraSystem_Session126.js:200, HarmonicHubAuraSystem_Session126.js:279
-Vizuál: shared hub resonance fields v priestore.
+- `SafeAIWeatherPack` is active in the current controller wiring and is no longer a dormant placeholder.
+- `SafeQuantumIllusionsPack1` is active and update-driven; it should be documented as a living environment layer, not a dead one.
+- `SafeWorldFXPack` is the highest-risk controller-owned pack because its update signature expects richer world inputs than the controller currently passes.
+- `AmbientEntityManager` is the main explicit box-geometry offender in the controller-owned environment surface, but it is intentional and animated.
 
-HarmonicPhaseSynchronization_Session146
-Stav: active, efekt conditional
-Trigger: init + registered tick; synchronizačný efekt beží len ak existujú harmonické huby/cascade pairs na zosynchronizovanie.
-Evidence: main.js:5077, main.js:12791, main.js:9596
-Vizuál: temporal phase-lock pre harmonic field vetvu, nie samostatné mesh objekty.
+## Square / quad surfaces to upgrade next
 
-HarmonicNodeResonanceHalos
-Stav: active, efekt conditional
-Trigger: setup + vlastný tick; halá sa aktivujú pre harmonic hub nodes pri activeLinkCount ≥ 2 a hubSynchronizationStrength > 0.
-Evidence: main.js:5079, main.js:9414, main.js:9602, HarmonicNodeResonanceHalos.js:6
-Vizuál: node-adjacent resonance halo field envelopes.
+These are the current square-like or quad-like environment surfaces that should be upgraded to more expressive 2D forms.
 
-DreamDepthPack
-Stav: active
-Trigger: setupnutý v boot sekvencii a updatuje sa cez visual scheduler; baseline DOF/vignette je stále, pulse-y sa spúšťajú pri synergy spike, legendary eventoch a vybraných world eventoch.
-Evidence: main.js:4838, main.js:3786, main.js:10684, SafeDreamDepthPack.js:423, SafeDreamDepthPack.js:510, SafeDreamDepthPack.js:524
-Vizuál: screen-space dream depth / vignette / pulse / glaze.
+| File | Effect / surface | Geometry currently used | Update status | Upgrade note |
+| --- | --- | --- | --- | --- |
+| [_SafeWorldFXPack.js](_SafeWorldFXPack.js) | `rift_wave` linear band | `PlaneGeometry(140, waveWidth, 1, 6)` | active | This is a major world-scale square/quad surface. It reads as a flat band right now and is the best candidate for a curved ribbon, segmented arc, or layered volumetric strip. |
+| [_SafeWorldFXPack.js](_SafeWorldFXPack.js) | `screen_overlay_flash` | `PlaneGeometry(overlayStyle.flashSize.x, overlayStyle.flashSize.y)` | active | Screen-space flash quad. Could be upgraded to a radial burst mesh, layered sprite bloom, or segmented flare card. |
+| [_SafeAIWeatherPack.js](_SafeAIWeatherPack.js) | weather veils | `PlaneGeometry(width, height, 1, 1)` | active | Repeated veil cards across weather moods. Good candidate for curved cloth strips or irregular ribbon sheets. |
+| [_SafeAIWeatherPack.js](_SafeAIWeatherPack.js) | weather seams | `PlaneGeometry(length, thickness)` | active | Flat seam bands. Best upgraded into segmented arc ribbons or beveled strip meshes. |
+| [_SafeAIWeatherPack.js](_SafeAIWeatherPack.js) | atmospheric wash | `PlaneGeometry(size, size)` | active | Full quad wash overlay. Could become a layered disk, softened radial dome, or gradient cloud sheet. |
+| [_SafeAIWeatherPack.js](_SafeAIWeatherPack.js) | haze sheets | `PlaneGeometry(width, height)` | active | Multiple atmospheric layers. These are the most obvious square cards in the weather pack. |
+| [_SafeAIWeatherPack.js](_SafeAIWeatherPack.js) | pulse clouds | `PlaneGeometry(size, size)` | active | Small square cloud cards; prime candidate for irregular blobby billboards or multi-lobed meshes. |
+| [_SafeAIWeatherPack.js](_SafeAIWeatherPack.js) | aurora ribbons | `PlaneGeometry(260, 14)` | active | Long flat ribbon cards; should probably become curved ribbon strips or segmented shells. |
+| [_SafeAIWeatherPack.js](_SafeAIWeatherPack.js) | pressure bands | `PlaneGeometry(320, 10)` | active | Similar to aurora ribbons but tighter. A strong candidate for a more organic pressure filament. |
+| [_SafeAIWeatherPack.js](_SafeAIWeatherPack.js) | mood silhouettes | `PlaneGeometry(240, 22)`, `PlaneGeometry(280, 16)`, `PlaneGeometry(220, 24)` | active | These are the clearest square/quad silhouettes in the weather pack. Upgrade path: asymmetric silhouette meshes, broken arches, or layered outline geometry. |
+| [DreamDepthEffectManager.js](DreamDepthEffectManager.js) | vignette / focus / pulse / glaze layers | `PlaneGeometry(2, 2)` | active | Classic full-screen quads. If you want them more sophisticated, this is a post-process layer redesign rather than a geometry swap. |
+| [_AmbientEntityManager.js](_AmbientEntityManager.js) | `spectre.scanline` | `PlaneGeometry(0.6, 0.04)` | active | Thin quad scanline. Could become a segmented beam or soft ribbon slice. |
+| [_AmbientEntityManager.js](_AmbientEntityManager.js) | `wisp.ribbon` | `PlaneGeometry(0.3, 2)` | active | Ribbon plane inside the wisp effect; a good candidate for curved strip geometry. |
+| [EnvironmentalHazards.js](EnvironmentalHazards.js) | shared unit plane | `PlaneGeometry(1, 1)` normalized | active support geometry | The controller-owned hazard system keeps a normalized unit plane in shared geometry. It is support-level, not a visible effect by itself, but it is a quad primitive used by the hazard layer. |
+| [_SafeQuantumIllusionsPack1.js](_SafeQuantumIllusionsPack1.js) | space drift veil / after-path ribbons / world bends sheet | `PlaneGeometry(8, 5, 16, 4)`, `PlaneGeometry(0.18, 3.5, 1, 4)`, `PlaneGeometry(0.05, 3.5, 1, 1)`, `PlaneGeometry(18, 9, 16, 8)` | active | These are the main illusion quads. The pack already animates them, but they still read as planes and could be upgraded to better 2D forms or curved layered ribbons. |
 
-DreamDepthEffectManager
-Stav: active
-Trigger: setupnutý a updatuje sa cez visual scheduler.
-Evidence: main.js:3787, main.js:10686, DreamDepthEffectManager.js:246
-Vizuál: vignette/focus/pulse/glaze overlay layers.
-Riziko: konštruktor call v main.js:10686 nepasuje presne na signatúru v DreamDepthEffectManager.js:10, takže je to active with wiring risk.
+## Upgrade priority
 
-Conditional / Map-Bound
+If you want to replace square/quad forms with more sophisticated geometry, I would start in this order:
 
-SigmaRiftChamber, DreamDesert, QuantumIsland, FractalValley, MemoryLane
-Stav: conditional
-Trigger: vytvoria sa len keď currentMode zodpovedá danej mape/world-u.
-Evidence: main.js:6318, main.js:6331, main.js:6338, main.js:6345
+1. `_SafeAIWeatherPack.js` weather veils, seams, haze sheets, pulse clouds, and mood silhouettes.
+2. `_SafeWorldFXPack.js` linear rift wave and screen-overlay flash.
+3. `SafeQuantumIllusionsPack1.js` veil planes and after-path ribbons.
+4. `DreamDepthEffectManager.js` only if you want to redesign the overlay style rather than the post-process shape itself.
+5. `_AmbientEntityManager.js` scanline and wisp ribbon, if you want to move the ambient entity layer away from flat cards.
 
-## Art Direction Sheet
+## Broader world / map quad sweep
 
-### Core visual language
-- civilization bloom
-- living lattice
-- sacred growth ring
-- pulse crown
-- coherence halo
-- organismic architecture
+These are additional quad-heavy environment systems outside the controller-owned core, but they still belong in the world/environment geometry review.
 
-### Colors
-- ATOMA cyan: `#6DEAFF`
-- growth mint: `#77F7DB`
-- ritual white: `#F7FBFF`
-- quantum violet: `#D07BFF`
-- breach rose: `#FF73CF`
-- void deep: `#05131A`
+- [CascadeResonanceWaveVisualization_Session146.js](CascadeResonanceWaveVisualization_Session146.js) and [CascadeWaveParticles.js](CascadeWaveParticles.js): resonance rings, wave particles, and orbital plane geometry.
+- [ColonyVFXManager.js](ColonyVFXManager.js): colony labels, panel cards, and atmosphere overlays built from quads.
+- [SafeDreamDepthPack.js](SafeDreamDepthPack.js) and [DreamDepthEffectManager.js](DreamDepthEffectManager.js): the low-cost and rich screen-space depth layers.
+- [SafeLegendaryWorldEvents.js](_SafeLegendaryWorldEvents.js): large banner, card, and overlay planes for rare event presentation.
+- [MetricReactiveWorldEvents.js](MetricReactiveWorldEvents.js): metric bands, bars, flashes, and several large plane overlays.
+- [WaveParticleEmitter_v1.js](WaveParticleEmitter_v1.js) and [_WorldPersonalityController.js](_WorldPersonalityController.js): world-scale pulse planes and mood bands.
+- [_MythicRitualController.js](_MythicRitualController.js): ritual fissure plane and ceremonial overlay geometry.
+- [DreamDesert.js](DreamDesert.js), [DreamDesert2.js](DreamDesert2.js), [QuantumIsland.js](QuantumIsland.js), [FractalValley.js](FractalValley.js), [SigmaRiftChamber.js](SigmaRiftChamber.js), [MemoryLane.js](MemoryLane.js), [CognitiveHorizonPlane.js](CognitiveHorizonPlane.js): map/world surfaces with large plane or sprite layers that are likely to need the same geometry upgrade pass.
 
-### Geometry palette
-- `SphereGeometry` for core / nucleus forms
-- `TorusGeometry` for growth rings
-- `RingGeometry` for status halos and sigils
-- `PlaneGeometry` for soft atmosphere sheets
-- `Points` / small `SphereGeometry` for colony particles
-- `Line` / `BufferGeometry` for coherence arcs and colony bridges
-
-### Mood mapping
-- `DEFAULT`: čistý cyan-white growth, jemný halo ring
-- `LEGENDARY`: crown + stronger core, viac white contrastu
-- `QUANTUM`: violet edges, trochu priehľadnejšie ringy
-- `SIGMA`: rose/violet crack accents, ostrejší motion
-
-> Subtílne mood states v registry by mali meniť len bias, nie celý vizuál.
-
-### Motion signature
-- colony = breathing
-- merge = resonance
-- split = cracking + new core
-- growth = orbit expansion
-- legendary = crown ignition
-
-Vizuál: map-specific background/environment geometra a world ambience.
-
-CognitiveHorizonPlane
-Stav: conditional
-Trigger: vzniká cez MapReferencePlaneFactory len v mapách, ktoré volajú initMapReferencePlane(...).
-Evidence: MapReferencePlaneFactory.js:25, MapReferencePlaneFactory.js:76, DreamDesert.js:18, FractalValley.js:20, QuantumIsland.js:19
-Vizuál: dream/quantum/logic/void reference plane pod scénou.
-
-CascadeResonanceWaveVisualization_Session146
-Stav: conditional
-Trigger: setup sa podarí len ak sú pripravené harmonicCascadeAmplification, harmonicHubAuraSystem a linkResonanceSystem; potom dostáva visual tick.
-Evidence: main.js:9243, main.js:3994, CascadeResonanceWaveVisualization_Session146.js:5
-Vizuál: ghost-level temporal resonance wave, extrémne subtílna.
-
-ds
-Stav: conditional
-Trigger: setupne sa vždy, ale update vetva je guardovaná pomalým semantic tickom a vyžaduje harmonySystem aj ruptureSystem; bez nich zostáva ticho.
-Evidence: main.js:5002, main.js:11926, main.js:9843, RegionalEquilibriumFieldSystem.js:188
-Vizuál: ambient regional haze / territorial equilibrium fields.
-
-Nonactive / Effectively Dormant In Current Wiring
-
-SafeAIWeatherPack
-Stav: nonactive v auto-trigger režime
-Dôvod: environment domain ho síce vytvorí a tickuje, ale volá len update(dt) bez legendaryPack/linkingSystem/evolutionManager/worldEvents; jeho trigger logika potom počíta potential = 0, takže nové počasie sa normálne nespustí.
-Evidence: EnvironmentDomainController.js:45, EnvironmentDomainController.js:94, _SafeAIWeatherPack.js:121, _SafeAIWeatherPack.js:147, _SafeAIWeatherPack.js:193
-Poznámka: ak by bolo počasie spustené manuálne, update vetva by vizuály renderovala.
-
-SafeQuantumIllusionsPack1
-Stav: nonactive
-Dôvod: je síce vytvorený v environment domain, ale jeho update() je natvrdo zablokovaný if (true) return;.
-Evidence: EnvironmentDomainController.js:52, SafeQuantumIllusionsPack1.js:112
-Vizuál: quantum hallucination pack je momentálne runtime vypnutý.
-
-EmergentThoughtStorms5_0
-Stav: nonactive v aktuálnom wiring-u
-Dôvod: environment domain ho vytvorí, ale scheduler mu dáva len update(dt); systém pritom potrebuje aiNodes a linkingSystem, inak hneď vracia.
-Evidence: EnvironmentDomainController.js:79, EnvironmentDomainController.js:94, _EmergentThoughtStorms5_0.js:167
-Trigger, ak by bol správne wired: thought density, synergy, corruption alebo harmony threshold v lokálnom clustri.
-
-HarmonicRecoveryVisualSystem_Session138
-Stav: nonactive
-Dôvod: systém sa inicializuje, ale v main.js som nenašiel žiadny scheduler/update hook, ktorý by mu volal update(...).
-Evidence: main.js:4996, main.js:11849, HarmonicRecoveryVisualSystem_Session138.js:169
-
-HarmonicHealingVisualSystem_Session134
-Stav: nonactive
-Dôvod: existuje setup metóda, ale bootstrap ju nevolá.
-Evidence: main.js:11874
-Trigger, ak by bol aktívny: global harmony nad threshold a vhodné linky pre healing waves.
-
-HealingParticleSystem_Session136
-Stav: nonactive
-Dôvod: vizuálny scheduler hook existuje, ale objekt sa vytvorí len v setupHarmonicHealingSystem(), ktorá sa momentálne nevolá.
-Evidence: main.js:4011, main.js:11889
-
-Najdôležitejšie zistenia
-
-StandingWaveVisualRenderer je active, nie dormant.
-SafeAIWeatherPack je v aktuálnom wiring-u prakticky neaktívny, lebo nedostáva runtime dependency argumenty.
-SafeQuantumIllusionsPack1 je explicitne runtime vypnutý.
-EmergentThoughtStorms5_0 je vytvorený, ale kvôli chýbajúcim update argumentom efektívne nespúšťa stormy.
-HarmonicHealing vetva (HarmonicHealingVisualSystem + HealingParticleSystem) sa vôbec nebootuje.
-HarmonicRecoveryVisualSystem sa síce initne, ale neupdatuje sa.
-Krátky prehľad počtov
-
-active: 14
-conditional/map-bound: 4
-nonactive/effectively dormant in current wiring: 6
+This broader list is the best next source for the square-to-more-sophisticated-2D pass once the controller-owned world effects are handled.

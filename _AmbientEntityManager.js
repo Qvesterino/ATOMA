@@ -420,7 +420,14 @@ export class AmbientEntityManager {
     group.add(spine);
 
     // Scanline sweep plane
-    const scanlineGeo = this._getSharedGeometry('spectre.scanline', () => new THREE.PlaneGeometry(0.6, 0.04));
+    const scanlineGeo = this._getSharedGeometry('spectre.scanline', () => this._createAmbientStripGeometry(0.6, 0.04, {
+      segments: 6,
+      taper: 0.18,
+      arch: 0.08,
+      wobble: 0.02,
+      skew: 0.01,
+      phase: 0.14
+    }));
     const scanlineMat = new THREE.MeshBasicMaterial({
       color: this.ambientPalette.glowBlue,
       transparent: true,
@@ -566,6 +573,51 @@ export class AmbientEntityManager {
     return new THREE.LineSegments(edges, lineMaterial);
   }
 
+  _createAmbientStripGeometry(width, height, options = {}) {
+    const safeWidth = Math.max(0.001, Math.abs(width));
+    const safeHeight = Math.max(0.001, Math.abs(height));
+    const halfWidth = safeWidth * 0.5;
+    const halfHeight = safeHeight * 0.5;
+    const segments = Math.max(4, options.segments ?? 6);
+    const taper = options.taper ?? 0.26;
+    const arch = options.arch ?? 0.16;
+    const wobble = options.wobble ?? 0.04;
+    const skew = options.skew ?? 0.03;
+    const phase = options.phase ?? 0;
+    const shape = new THREE.Shape();
+    const lowerPoints = [];
+    const upperPoints = [];
+
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const x = -halfWidth + safeWidth * t;
+      const curve = Math.sin(Math.PI * t);
+      const edgeFalloff = 1 - Math.pow(Math.abs(t - 0.5) * 2, 1.18) * taper;
+      const shimmer = Math.sin((t * Math.PI * 2) + phase) * wobble;
+      const tilt = Math.cos((t * Math.PI * 2.6) + phase * 0.5) * skew;
+
+      lowerPoints.push({
+        x: x + tilt * halfWidth * 0.04,
+        y: -halfHeight * edgeFalloff - curve * halfHeight * arch + shimmer * halfHeight * 0.14
+      });
+      upperPoints.push({
+        x: x - tilt * halfWidth * 0.04,
+        y: halfHeight * edgeFalloff + curve * halfHeight * (arch * 0.72) + shimmer * halfHeight * 0.1
+      });
+    }
+
+    shape.moveTo(lowerPoints[0].x, lowerPoints[0].y);
+    for (let i = 1; i < lowerPoints.length; i++) {
+      shape.lineTo(lowerPoints[i].x, lowerPoints[i].y);
+    }
+    for (let i = upperPoints.length - 1; i >= 0; i--) {
+      shape.lineTo(upperPoints[i].x, upperPoints[i].y);
+    }
+    shape.closePath();
+
+    return new THREE.ShapeGeometry(shape);
+  }
+
   perlinNoise(x, y, z) {
     return Math.sin(x) * Math.cos(y) * Math.sin(z);
   }
@@ -699,7 +751,14 @@ export class AmbientEntityManager {
     }
 
     // Add ribbon-like planes
-    const ribbonGeo = this._getSharedGeometry('wisp.ribbon', () => new THREE.PlaneGeometry(0.3, 2));
+    const ribbonGeo = this._getSharedGeometry('wisp.ribbon', () => this._createAmbientStripGeometry(0.3, 2, {
+      segments: 8,
+      taper: 0.34,
+      arch: 0.18,
+      wobble: 0.05,
+      skew: 0.03,
+      phase: 0.78
+    }));
     for (let i = 0; i < 2; i++) {
       const ribbonMat = new THREE.MeshBasicMaterial({
         color: this.ambientPalette.haze,

@@ -143,6 +143,8 @@ export class VisualUpgradeSuperpack {
             chromatic: null,
             shimmer: null
         };
+        this.qualityTier = 'HIGH';
+        this._qualityProfile = this._getQualityProfile(this.qualityTier);
         this._applied = false;
 
         // Smooth fade
@@ -169,6 +171,128 @@ export class VisualUpgradeSuperpack {
         if (metrics.corruption !== undefined) this._metrics.corruption = metrics.corruption;
         if (metrics.synergy !== undefined) this._metrics.synergy = metrics.synergy;
         if (metrics.stability !== undefined) this._metrics.stability = metrics.stability;
+    }
+
+    _getQualityProfile(level = 'HIGH') {
+        const normalized = typeof level === 'string' ? level.toUpperCase() : 'HIGH';
+
+        const profiles = {
+            LOW: {
+                renderer: {
+                    toneMapping: THREE.ACESFilmicToneMapping,
+                    toneMappingExposure: 1.08,
+                    outputColorSpace: THREE.SRGBColorSpace
+                },
+                volumetricOpacity: 0.88,
+                volumetricScale: 0.94,
+                fogOpacity: 0.84,
+                fogScale: 0.96,
+                edgeGlowOpacity: 0.9,
+                distortionIntensity: 0.88,
+                riftOpacity: 0.86,
+                particleOpacity: 0.9,
+                cameraAuraOpacity: 0.9,
+                colorGrading: {
+                    contrast: 1.0,
+                    saturation: 0.98,
+                    brightness: 0.96
+                },
+                postEffects: {
+                    bloom: { strength: 0.98, threshold: 0.28, radius: 0.42 },
+                    chromatic: { enabled: true, amount: 0.001, frequency: 0.3 },
+                    vignette: { enabled: true, darkness: 0.46, offset: 0.32 },
+                    shimmer: { enabled: true, intensity: 0.05, frequency: 1.8, scale: 0.96 }
+                }
+            },
+            MEDIUM: {
+                renderer: {
+                    toneMapping: THREE.ACESFilmicToneMapping,
+                    toneMappingExposure: 1.16,
+                    outputColorSpace: THREE.SRGBColorSpace
+                },
+                volumetricOpacity: 1.0,
+                volumetricScale: 1.0,
+                fogOpacity: 1.0,
+                fogScale: 1.0,
+                edgeGlowOpacity: 1.08,
+                distortionIntensity: 1.0,
+                riftOpacity: 1.02,
+                particleOpacity: 1.0,
+                cameraAuraOpacity: 1.0,
+                colorGrading: {
+                    contrast: 1.06,
+                    saturation: 1.01,
+                    brightness: 0.95
+                },
+                postEffects: {
+                    bloom: { strength: 1.2, threshold: 0.2, radius: 0.5 },
+                    chromatic: { enabled: true, amount: 0.0022, frequency: 0.3 },
+                    vignette: { enabled: true, darkness: 0.4, offset: 0.3 },
+                    shimmer: { enabled: true, intensity: 0.08, frequency: 2.0, scale: 1.0 }
+                }
+            },
+            HIGH: {
+                renderer: {
+                    toneMapping: THREE.ACESFilmicToneMapping,
+                    toneMappingExposure: 1.26,
+                    outputColorSpace: THREE.SRGBColorSpace
+                },
+                volumetricOpacity: 1.34,
+                volumetricScale: 1.08,
+                fogOpacity: 1.18,
+                fogScale: 1.06,
+                edgeGlowOpacity: 1.28,
+                distortionIntensity: 1.16,
+                riftOpacity: 1.18,
+                particleOpacity: 1.12,
+                cameraAuraOpacity: 1.18,
+                colorGrading: {
+                    contrast: 1.12,
+                    saturation: 1.06,
+                    brightness: 0.98
+                },
+                postEffects: {
+                    bloom: { strength: 1.45, threshold: 0.14, radius: 0.62 },
+                    chromatic: { enabled: true, amount: 0.0032, frequency: 0.3 },
+                    vignette: { enabled: true, darkness: 0.3, offset: 0.28 },
+                    shimmer: { enabled: true, intensity: 0.12, frequency: 2.2, scale: 1.08 }
+                }
+            }
+        };
+
+        return profiles[normalized] || profiles.HIGH;
+    }
+
+    setQualityTier(level = 'HIGH') {
+        const normalized = typeof level === 'string' ? level.toUpperCase() : 'HIGH';
+
+        if (normalized === 'LOW') {
+            this.qualityTier = 'LOW';
+        } else if (normalized === 'MEDIUM') {
+            this.qualityTier = 'MEDIUM';
+        } else {
+            this.qualityTier = 'HIGH';
+        }
+
+        this._qualityProfile = this._getQualityProfile(this.qualityTier);
+        this.colorGrading = {
+            tealMagentaBalance: {
+                shadows: new THREE.Vector3(0.92, 0.94, 1.06),
+                midtones: new THREE.Vector3(1.02, 1.0, 0.96),
+                highlights: new THREE.Vector3(1.08, 0.96, 0.88)
+            },
+            contrast: this._qualityProfile.colorGrading.contrast,
+            saturation: this._qualityProfile.colorGrading.saturation,
+            brightness: this._qualityProfile.colorGrading.brightness
+        };
+        this.postEffects = {
+            bloom: { ...this._qualityProfile.postEffects.bloom },
+            chromatic: { ...this._qualityProfile.postEffects.chromatic },
+            vignette: { ...this._qualityProfile.postEffects.vignette },
+            shimmer: { ...this._qualityProfile.postEffects.shimmer }
+        };
+
+        return this.qualityTier;
     }
 
     /**
@@ -262,6 +386,7 @@ export class VisualUpgradeSuperpack {
         this.applySigmaRiftVisualPack();
         this.applyDreamParticlesPack();
         this.applyCinematicCameraAuraPack();
+        this.setQualityTier(this.qualityTier);
     }
 
     // ============================================================
@@ -918,6 +1043,7 @@ export class VisualUpgradeSuperpack {
         }
 
         const fade = this._fadeOpacity;
+    const quality = this._qualityProfile || this._getQualityProfile(this.qualityTier);
 
         // --- Metrics-driven parameters ---
         const { harmony, corruption, synergy, stability } = this._metrics;
@@ -959,11 +1085,11 @@ export class VisualUpgradeSuperpack {
             }
 
             if (light.userData.baseScale) {
-                const scalePulse = 1 + pulse * light.userData.scalePulse;
+                const scalePulse = 1 + pulse * light.userData.scalePulse * quality.volumetricScale;
                 light.scale.setScalar(scalePulse);
             }
 
-            light.material.opacity = light.userData.baseOpacity * (0.55 + pulse * 0.45) * fade;
+            light.material.opacity = light.userData.baseOpacity * quality.volumetricOpacity * (0.55 + pulse * 0.45) * fade;
 
             if (light.material?.color && light.userData?.tint) {
                 const tint = 0.96 + pulse * 0.06;
@@ -988,14 +1114,14 @@ export class VisualUpgradeSuperpack {
             layer.position.y = layer.userData.basePosition.y + driftY;
             layer.position.z = cameraPosition.z * layer.userData.followFactor + driftZ;
             layer.rotation.z = Math.sin(this.time * 0.02 + layer.userData.phase) * 0.01;
-            layer.scale.setScalar(0.985 + pulse * 0.03);
-            layer.material.opacity = layer.userData.baseOpacity * (0.65 + pulse * 0.35) * fade;
+            layer.scale.setScalar(0.985 + pulse * 0.03 * quality.fogScale);
+            layer.material.opacity = layer.userData.baseOpacity * quality.fogOpacity * (0.65 + pulse * 0.35) * fade;
         });
 
         // Update distortion zones
         this.distortionZones.forEach(zone => {
             const pulse = Math.sin(this.time * zone.userData.frequency + zone.userData.phase) * 0.5 + 0.5;
-            zone.material.emissiveIntensity = pulse * zone.userData.intensity * 0.2;
+            zone.material.emissiveIntensity = pulse * zone.userData.intensity * 0.2 * quality.distortionIntensity;
 
             // Rotating distortion
             zone.rotation.x += visualDelta * 0.1;
@@ -1010,7 +1136,7 @@ export class VisualUpgradeSuperpack {
             const pulse = Math.sin(this.time * rift.userData.pulseSpeed + rift.userData.phase) * 0.5 + 0.5;
 
             if (rift.material.opacity !== undefined) {
-                rift.material.opacity = rift.userData.baseOpacity * (0.5 + pulse * 0.5) * fade;
+                rift.material.opacity = rift.userData.baseOpacity * quality.riftOpacity * (0.5 + pulse * 0.5) * fade;
             }
 
             if (rift.material.emissiveIntensity !== undefined) {
@@ -1054,7 +1180,7 @@ export class VisualUpgradeSuperpack {
 
             const systemPulse = Math.sin(this.time * (0.35 + system.userData.system.speed * 20) + system.id) * 0.5 + 0.5;
             if (system.material) {
-                system.material.opacity = (0.55 + systemPulse * 0.25) * fade;
+                system.material.opacity = quality.particleOpacity * (0.55 + systemPulse * 0.25) * fade;
             }
             system.rotation.y += visualDelta * 0.01;
             system.scale.setScalar(0.98 + systemPulse * 0.03);
@@ -1098,7 +1224,7 @@ export class VisualUpgradeSuperpack {
                 const fresnel = Math.abs(cameraDirection.dot(surfaceNormal));
                 const distance = this.camera.position.distanceTo(mesh.position || glow.position);
                 const distanceFactor = THREE.MathUtils.clamp(1 - distance / 260, 0.25, 1);
-                glow.material.opacity = glow.userData.baseOpacity * (0.18 + fresnel * 0.82) * distanceFactor * fade;
+                glow.material.opacity = glow.userData.baseOpacity * quality.edgeGlowOpacity * (0.18 + fresnel * 0.82) * distanceFactor * fade;
             }
         });
 
@@ -1113,7 +1239,7 @@ export class VisualUpgradeSuperpack {
             this.cameraAura.children.forEach((sprite, index) => {
                 const spritePulse = Math.sin(this.time * (0.5 + index * 0.09) + sprite.userData.phase) * 0.5 + 0.5;
                 const baseScale = sprite.userData.baseScale;
-                sprite.material.opacity = sprite.userData.baseOpacity * (0.62 + spritePulse * 0.38) * fade;
+                sprite.material.opacity = sprite.userData.baseOpacity * quality.cameraAuraOpacity * (0.62 + spritePulse * 0.38) * fade;
                 sprite.scale.set(
                     baseScale.x * (0.94 + auraPulse * 0.08),
                     baseScale.y * (0.94 + auraPulse * 0.08),
@@ -1153,9 +1279,10 @@ export class VisualUpgradeSuperpack {
      * Get renderer settings for post-processing
      */
     getRendererSettings() {
+        const quality = this._qualityProfile || this._getQualityProfile(this.qualityTier);
         return {
-            toneMapping: THREE.ACESFilmicToneMapping,
-            toneMappingExposure: 1.2,
+            toneMapping: quality.renderer.toneMapping,
+            toneMappingExposure: quality.renderer.toneMappingExposure,
             outputColorSpace: THREE.SRGBColorSpace
         };
     }

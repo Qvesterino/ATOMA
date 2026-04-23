@@ -174,7 +174,12 @@ export class EnvironmentalHazards {
     this._sharedCoreGeometry = new THREE.IcosahedronGeometry(1, 1);
     this._sharedAccentGeometry = new THREE.OctahedronGeometry(1, 0);
     this._sharedMiniAccentGeometry = new THREE.IcosahedronGeometry(1, 0);
-    this._sharedUnitPlaneGeometry = normalizeEnvironmentGeometry(new THREE.PlaneGeometry(1, 1));
+    this._sharedUnitPlaneGeometry = normalizeEnvironmentGeometry(new THREE.PlaneGeometry(1, 1), {
+      panel: {
+        radiusRatio: 0.18,
+        curveSegments: 4
+      }
+    });
 
     this._setupMetricTriggers();
   }

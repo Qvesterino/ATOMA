@@ -60,6 +60,8 @@ export class CinematicUpgrade {
     this._postProcessing = null;
     this._baseExposure = 0.98;
     this.nodeShadersEnabled = true;
+    this.qualityTier = 'HIGH';
+    this._qualityProfile = this._getQualityProfile(this.qualityTier);
   }
 
   /**
@@ -165,6 +167,87 @@ export class CinematicUpgrade {
     return enabled;
   }
 
+  _getQualityProfile(level = 'HIGH') {
+    const normalized = typeof level === 'string' ? level.toUpperCase() : 'HIGH';
+
+    const profiles = {
+      LOW: {
+        rendererExposure: 0.94,
+        dustCount: 24,
+        dustOpacity: 0.1,
+        dustScale: 0.9,
+        haloOpacity: 0.86,
+        haloScale: 0.94,
+        haloDepth: -2.85,
+        haloAccentOpacity: 0,
+        haloAccentScale: 1,
+        bloomStrength: 0.9,
+        bloomThreshold: 0.28,
+        bloomRadius: 0.38,
+        vignetteStrength: 0.18,
+        chromaticStrength: 0.0003
+      },
+      MEDIUM: {
+        rendererExposure: 1.0,
+        dustCount: 30,
+        dustOpacity: 0.15,
+        dustScale: 1.0,
+        haloOpacity: 0.98,
+        haloScale: 1.0,
+        haloDepth: -2.7,
+        haloAccentOpacity: 0,
+        haloAccentScale: 1,
+        bloomStrength: 1.02,
+        bloomThreshold: 0.2,
+        bloomRadius: 0.48,
+        vignetteStrength: 0.22,
+        chromaticStrength: 0.00045
+      },
+      HIGH: {
+        rendererExposure: 1.14,
+        dustCount: 40,
+        dustOpacity: 0.22,
+        dustScale: 1.2,
+        haloOpacity: 1.35,
+        haloScale: 1.12,
+        haloDepth: -2.05,
+        haloAccentOpacity: 1.8,
+        haloAccentScale: 1.6,
+        bloomStrength: 1.2,
+        bloomThreshold: 0.14,
+        bloomRadius: 0.62,
+        vignetteStrength: 0.28,
+        chromaticStrength: 0.00095
+      }
+    };
+
+    return profiles[normalized] || profiles.HIGH;
+  }
+
+  setQualityTier(level = 'HIGH') {
+    const normalized = typeof level === 'string' ? level.toUpperCase() : 'HIGH';
+    if (normalized === 'LOW') {
+      this.qualityTier = 'LOW';
+    } else if (normalized === 'MEDIUM') {
+      this.qualityTier = 'MEDIUM';
+    } else {
+      this.qualityTier = 'HIGH';
+    }
+
+    this._qualityProfile = this._getQualityProfile(this.qualityTier);
+
+    if (this._renderer) {
+      this._baseExposure = this._qualityProfile.rendererExposure;
+      this._renderer.toneMappingExposure = this._baseExposure;
+    }
+
+    if (this.edgeGlowPass?.group) {
+      this.edgeGlowPass.group.position.z = this._qualityProfile.haloDepth;
+    }
+
+    return this.qualityTier;
+  }
+
   // ============================================================
   // UNIQUE EFFECT: FLOATING DUST FIELD
   // ============================================================
@@ -180,8 +263,9 @@ export class CinematicUpgrade {
       [1.0, 0xffffff, 0.0]
     ], 128);
 
+    const profile = this._qualityProfile || this._getQualityProfile(this.qualityTier);
     const dustColors = [0xffffff, 0xbefcff, 0xe9d8ff, 0xfff0fb];
-    const dustCount = 28;
+    const dustCount = profile.dustCount;
     const cameraPosition = this.camera?.position || this._vec3a.set(0, 0, 0);
 
     for (let index = 0; index < dustCount; index++) {
@@ -190,7 +274,7 @@ export class CinematicUpgrade {
         map: dustTexture || null,
         color,
         transparent: true,
-        opacity: 0.14 + Math.random() * 0.12,
+        opacity: profile.dustOpacity * (0.82 + Math.random() * 0.56),
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         depthTest: false,
@@ -205,7 +289,7 @@ export class CinematicUpgrade {
         cameraPosition.y + (Math.random() - 0.4) * 30,
         cameraPosition.z + (Math.random() - 0.5) * 70
       );
-      sprite.scale.setScalar(0.45 + Math.random() * 0.95);
+      sprite.scale.setScalar((0.45 + Math.random() * 0.95) * profile.dustScale);
       sprite.userData = {
         orbitPhase: Math.random() * Math.PI * 2,
         orbitRadius: 18 + Math.random() * 26,
@@ -213,7 +297,7 @@ export class CinematicUpgrade {
         orbitSpeed: 0.015 + Math.random() * 0.03,
         pulseSpeed: 0.8 + Math.random() * 0.7,
         verticalDrift: 1.1 + Math.random() * 1.4,
-        baseScale: 0.45 + Math.random() * 0.95,
+        baseScale: (0.45 + Math.random() * 0.95) * profile.dustScale,
         baseOpacity: material.opacity,
         phaseOffset: Math.random() * Math.PI * 2
       };
@@ -231,6 +315,7 @@ export class CinematicUpgrade {
    * Create holographic edge glow effect attached to camera
    */
   createHolographicEdgeGlow() {
+    const profile = this._qualityProfile || this._getQualityProfile(this.qualityTier);
     const haloTexture = this._createRadialGradientTexture('edgeHalo', [
       [0.0, 0xffffff, 0.0],
       [0.28, 0xffffff, 0.0],
@@ -249,7 +334,7 @@ export class CinematicUpgrade {
 
     const glowGroup = new THREE.Group();
     glowGroup.name = 'CinematicEdgeGlow';
-    glowGroup.position.set(0, 0, -2.8);
+    glowGroup.position.set(0, 0, profile.haloDepth);
     glowGroup.renderOrder = 9999;
     glowGroup.userData = {
       phase: Math.random() * Math.PI * 2
@@ -280,10 +365,13 @@ export class CinematicUpgrade {
     const centralGlow = makeSprite(auraTexture, 0x8fffff, 0.14, [2.6, 2.6, 1], [0, 0, 0]);
     const violetHalo = makeSprite(haloTexture, 0xffa6f0, 0.1, [2.0, 2.0, 1], [0.12, -0.08, 0]);
     const cyanSplit = makeSprite(auraTexture, 0x69f7ff, 0.08, [1.5, 1.5, 1], [-0.16, 0.1, 0]);
+    const outerBloom = makeSprite(auraTexture, 0xffffff, 0.08, [10.6, 10.6, 1], [0, 0, 0]);
+    outerBloom.userData.accent = true;
 
     glowGroup.add(centralGlow);
     glowGroup.add(violetHalo);
     glowGroup.add(cyanSplit);
+    glowGroup.add(outerBloom);
 
     if (this.camera) {
       this.camera.add(glowGroup);
@@ -300,7 +388,7 @@ export class CinematicUpgrade {
         magenta: 0xff00ff
       },
       group: glowGroup,
-      sprites: [centralGlow, violetHalo, cyanSplit]
+      sprites: [centralGlow, violetHalo, cyanSplit, outerBloom]
     };
   }
 
@@ -314,6 +402,7 @@ export class CinematicUpgrade {
   applyColorGrading(renderer) {
     this._renderer = renderer;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this._baseExposure = (this._qualityProfile || this._getQualityProfile(this.qualityTier)).rendererExposure;
     renderer.toneMappingExposure = this._baseExposure;
   }
 
@@ -400,6 +489,7 @@ export class CinematicUpgrade {
     }
 
     const fade = this._fadeOpacity;
+  const quality = this._qualityProfile || this._getQualityProfile(this.qualityTier);
 
     // --- Metrics-driven parameters ---
     const { harmony, corruption, synergy, stability } = this._metrics;
@@ -414,10 +504,10 @@ export class CinematicUpgrade {
     // --- Post-processing parameter modulation ---
     if (this._postProcessing?.updateParams) {
       this._postProcessing.updateParams({
-        strength: 0.8 + synergy * 0.4,
-        threshold: 0.2 + corruption * 0.1,
-        vignetteStrength: 0.19 + corruption * 0.15,
-        chromaticStrength: 0.00045 + (1 - stability) * 0.001
+        strength: quality.bloomStrength + synergy * 0.4,
+        threshold: quality.bloomThreshold + corruption * 0.1,
+        vignetteStrength: quality.vignetteStrength + corruption * 0.15,
+        chromaticStrength: quality.chromaticStrength + (1 - stability) * 0.001
       });
     }
 
@@ -434,8 +524,8 @@ export class CinematicUpgrade {
       particle.position.x = cameraPosition.x + Math.cos(phase) * radius;
       particle.position.y = cameraPosition.y + height;
       particle.position.z = cameraPosition.z + Math.sin(phase) * radius;
-      particle.material.opacity = particle.userData.baseOpacity * (0.42 + pulse * 0.58) * fade;
-      particle.scale.setScalar(particle.userData.baseScale * (0.65 + pulse * 0.65));
+      particle.material.opacity = particle.userData.baseOpacity * quality.dustOpacity * (0.42 + pulse * 0.58) * fade;
+      particle.scale.setScalar(particle.userData.baseScale * quality.dustScale * (0.65 + pulse * 0.65));
       particle.material.rotation = phase * 0.25;
     });
 
@@ -443,16 +533,18 @@ export class CinematicUpgrade {
     if (this.edgeGlowPass?.group) {
       const glowPhase = this.edgeGlowPass.group.userData?.phase ?? 0;
       const haloPulse = Math.sin(this.time * 0.42 + glowPhase) * 0.5 + 0.5;
-      this.edgeGlowPass.group.position.z = -2.8 - haloPulse * 0.14;
+      this.edgeGlowPass.group.position.z = quality.haloDepth - haloPulse * 0.14;
       this.edgeGlowPass.group.rotation.z = Math.sin(this.time * 0.1 + glowPhase) * 0.02;
 
       this.edgeGlowPass.sprites.forEach((sprite, index) => {
         const spritePulse = Math.sin(this.time * (0.55 + index * 0.12) + sprite.userData.phase) * 0.5 + 0.5;
         const baseScale = sprite.userData.baseScale;
-        sprite.material.opacity = sprite.userData.baseOpacity * (0.7 + spritePulse * 0.3) * fade;
+        const accentBoost = sprite.userData.accent ? quality.haloAccentOpacity : 1;
+        const scaleBoost = sprite.userData.accent ? quality.haloAccentScale : quality.haloScale;
+        sprite.material.opacity = sprite.userData.baseOpacity * quality.haloOpacity * accentBoost * (0.7 + spritePulse * 0.3) * fade;
         sprite.scale.set(
-          baseScale.x * (0.95 + haloPulse * 0.1),
-          baseScale.y * (0.95 + haloPulse * 0.1),
+          baseScale.x * scaleBoost * (0.95 + haloPulse * 0.1),
+          baseScale.y * scaleBoost * (0.95 + haloPulse * 0.1),
           baseScale.z
         );
         sprite.material.rotation = Math.sin(this.time * 0.1 + index) * 0.06;

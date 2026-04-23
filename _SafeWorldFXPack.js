@@ -1307,7 +1307,15 @@ export class SafeWorldFXPack {
     };
 
     if (waveType === 'linear') {
-      const waveGeo = new THREE.PlaneGeometry(140, waveWidth, 1, 6);
+      const waveGeo = this._getSharedGeometry(
+        `rift_wave.linear.band.${Math.round(waveWidth * 100)}`,
+        () => this._createRiftWaveBandGeometry(140, waveWidth, {
+          segments: 12,
+          taper: 0.18,
+          waveDepth: 0.2,
+          phase: 0.32
+        })
+      );
       const waveMat = new THREE.MeshStandardMaterial({
         color: finalColor,
         emissive: finalColor,
@@ -2370,6 +2378,78 @@ export class SafeWorldFXPack {
     return new THREE.ShapeGeometry(shape);
   }
 
+  _createRiftWaveBandGeometry(width, height, options = {}) {
+    const safeWidth = Math.max(0.001, Math.abs(width));
+    const safeHeight = Math.max(0.001, Math.abs(height));
+    const halfWidth = safeWidth * 0.5;
+    const halfHeight = safeHeight * 0.5;
+    const segments = Math.max(6, options.segments ?? 10);
+    const taper = options.taper ?? 0.16;
+    const waveDepth = options.waveDepth ?? 0.18;
+    const phase = options.phase ?? 0.35;
+    const shape = new THREE.Shape();
+    const lowerPoints = [];
+    const upperPoints = [];
+
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const x = -halfWidth + safeWidth * t;
+      const centerCurve = Math.sin(Math.PI * t);
+      const ripple = Math.sin((t * Math.PI * 2) + phase) * waveDepth;
+      const shoulder = Math.cos((t * Math.PI * 3) + phase * 0.7) * waveDepth * 0.35;
+      const edgeFalloff = 1 - Math.pow(Math.abs(t - 0.5) * 2, 1.2) * taper;
+
+      lowerPoints.push({
+        x,
+        y: -halfHeight * edgeFalloff - centerCurve * halfHeight * 0.12 + ripple * 0.5 - shoulder * 0.25
+      });
+      upperPoints.push({
+        x,
+        y: halfHeight * edgeFalloff + centerCurve * halfHeight * 0.18 + ripple * 0.65 + shoulder * 0.2
+      });
+    }
+
+    shape.moveTo(lowerPoints[0].x, lowerPoints[0].y);
+    for (let i = 1; i < lowerPoints.length; i++) {
+      shape.lineTo(lowerPoints[i].x, lowerPoints[i].y);
+    }
+    for (let i = upperPoints.length - 1; i >= 0; i--) {
+      shape.lineTo(upperPoints[i].x, upperPoints[i].y);
+    }
+    shape.closePath();
+
+    return new THREE.ShapeGeometry(shape);
+  }
+
+  _createScreenFlashGeometry(width, height, options = {}) {
+    const safeWidth = Math.max(0.001, Math.abs(width));
+    const safeHeight = Math.max(0.001, Math.abs(height));
+    const halfWidth = safeWidth * 0.5;
+    const halfHeight = safeHeight * 0.5;
+    const spikeCount = Math.max(6, options.spikeCount ?? 10);
+    const innerScale = options.innerScale ?? 0.46;
+    const outerScale = options.outerScale ?? 1.0;
+    const twist = options.twist ?? 0.16;
+    const shape = new THREE.Shape();
+
+    for (let i = 0; i < spikeCount * 2; i++) {
+      const angle = (i / (spikeCount * 2)) * Math.PI * 2 - Math.PI * 0.5;
+      const spikeScale = i % 2 === 0 ? outerScale : innerScale;
+      const flare = 1 + Math.sin(angle * 3.0 + twist) * 0.08 + Math.cos(angle * 5.0 - twist * 0.7) * 0.04;
+      const x = Math.cos(angle) * halfWidth * spikeScale * flare;
+      const y = Math.sin(angle) * halfHeight * spikeScale * (1 + Math.cos(angle * 2.0) * 0.05);
+
+      if (i === 0) {
+        shape.moveTo(x, y);
+      } else {
+        shape.lineTo(x, y);
+      }
+    }
+
+    shape.closePath();
+    return new THREE.ShapeGeometry(shape);
+  }
+
   triggerScreenOverlay(eventKey, intensity = 1) {
     if (!this.screenOverlaysRoot) return;
     const white = new THREE.Color(this._getWorldFXPalette('ritualWhite'));
@@ -2722,7 +2802,15 @@ export class SafeWorldFXPack {
     ring.userData = { isWorldFX: true, type: 'screen_overlay_ring', eventKey };
     this.screenOverlaysRoot.add(ring);
 
-    const flashGeo = new THREE.PlaneGeometry(overlayStyle.flashSize.x, overlayStyle.flashSize.y);
+    const flashGeo = this._getSharedGeometry(
+      `screen_overlay.flash.${eventKey}.${Math.round(overlayStyle.flashSize.x * 100)}x${Math.round(overlayStyle.flashSize.y * 100)}`,
+      () => this._createScreenFlashGeometry(overlayStyle.flashSize.x, overlayStyle.flashSize.y, {
+        spikeCount: overlayStyle.flashSpikeCount ?? 10,
+        innerScale: overlayStyle.flashInnerScale ?? 0.44,
+        outerScale: overlayStyle.flashOuterScale ?? 1.0,
+        twist: overlayStyle.flashTwist ?? 0.16
+      })
+    );
     const flashMat = new THREE.MeshBasicMaterial({
       color: overlayStyle.flashColor,
       transparent: true,

@@ -796,6 +796,51 @@ export class SafeQuantumIllusionsPack1 {
       envelope: this.createIllusionEnvelope()
     }, lifetime);
   }
+
+  _createLayeredFieldSheetGeometry(width, height, options = {}) {
+    const safeWidth = Math.max(0.001, Math.abs(width));
+    const safeHeight = Math.max(0.001, Math.abs(height));
+    const halfWidth = safeWidth * 0.5;
+    const halfHeight = safeHeight * 0.5;
+    const segments = Math.max(6, options.segments ?? 10);
+    const taper = options.taper ?? 0.22;
+    const arch = options.arch ?? 0.2;
+    const wobble = options.wobble ?? 0.08;
+    const skew = options.skew ?? 0.06;
+    const phase = options.phase ?? 0;
+    const shape = new THREE.Shape();
+    const lowerPoints = [];
+    const upperPoints = [];
+
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const x = -halfWidth + safeWidth * t;
+      const curve = Math.sin(Math.PI * t);
+      const edgeFalloff = 1 - Math.pow(Math.abs(t - 0.5) * 2, 1.25) * taper;
+      const shimmer = Math.sin((t * Math.PI * 2) + phase) * wobble;
+      const tilt = Math.cos((t * Math.PI * 3) + phase * 0.7) * skew;
+
+      lowerPoints.push({
+        x: x + tilt * halfWidth * 0.02,
+        y: -halfHeight * edgeFalloff - curve * halfHeight * arch + shimmer * halfHeight * 0.18
+      });
+      upperPoints.push({
+        x: x - tilt * halfWidth * 0.02,
+        y: halfHeight * edgeFalloff + curve * halfHeight * (arch * 0.84) + shimmer * halfHeight * 0.12
+      });
+    }
+
+    shape.moveTo(lowerPoints[0].x, lowerPoints[0].y);
+    for (let i = 1; i < lowerPoints.length; i++) {
+      shape.lineTo(lowerPoints[i].x, lowerPoints[i].y);
+    }
+    for (let i = upperPoints.length - 1; i >= 0; i--) {
+      shape.lineTo(upperPoints[i].x, upperPoints[i].y);
+    }
+    shape.closePath();
+
+    return new THREE.ShapeGeometry(shape);
+  }
   
   /**
    * 3. SPACE DRIFT
@@ -844,7 +889,14 @@ export class SafeQuantumIllusionsPack1 {
       linewidth: 1
     });
     
-    const planeGeometry = this._getSharedGeometry('spaceDrift.veilPlaneGeo', () => new THREE.PlaneGeometry(8, 5, 16, 4));
+    const planeGeometry = this._getSharedGeometry('spaceDrift.veilPlaneGeo', () => this._createLayeredFieldSheetGeometry(8, 5, {
+      segments: 10,
+      taper: 0.24,
+      arch: 0.28,
+      wobble: 0.07,
+      skew: 0.05,
+      phase: 0.45
+    }));
     const edgeGeometry = this._getSharedGeometry('spaceDrift.veilEdgeGeo', () => new THREE.EdgesGeometry(planeGeometry));
     
     const countPlanes = 3;
@@ -915,7 +967,14 @@ export class SafeQuantumIllusionsPack1 {
     procession.position.copy(spawnPos);
     procession.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), direction);
 
-    const ribbonGeo = this._getSharedGeometry('afterPaths.ribbonGeo', () => new THREE.PlaneGeometry(0.18, 3.5, 1, 4));
+    const ribbonGeo = this._getSharedGeometry('afterPaths.ribbonGeo', () => this._createLayeredFieldSheetGeometry(0.18, 3.5, {
+      segments: 8,
+      taper: 0.38,
+      arch: 0.18,
+      wobble: 0.04,
+      skew: 0.02,
+      phase: 1.2
+    }));
     const ribbonMat = new THREE.MeshBasicMaterial({
       color: this.getModeColor(1),
       transparent: true,
@@ -946,7 +1005,14 @@ export class SafeQuantumIllusionsPack1 {
       procession.add(ghost);
     }
 
-    const highlightGeo = this._getSharedGeometry('afterPaths.highlightGeo', () => new THREE.PlaneGeometry(0.05, 3.5, 1, 1));
+    const highlightGeo = this._getSharedGeometry('afterPaths.highlightGeo', () => this._createLayeredFieldSheetGeometry(0.05, 3.5, {
+      segments: 6,
+      taper: 0.44,
+      arch: 0.12,
+      wobble: 0.02,
+      skew: 0.01,
+      phase: 0.6
+    }));
     const highlightMat = new THREE.MeshBasicMaterial({
       color: this.palette.sacredWhite,
       transparent: true,
@@ -1348,7 +1414,14 @@ export class SafeQuantumIllusionsPack1 {
     arcMesh.position.y = 0.8;
     bendRoot.add(arcMesh);
     
-    const sheetGeometry = this._getSharedGeometry('worldBends.sheetGeo', () => new THREE.PlaneGeometry(18, 9, 16, 8));
+    const sheetGeometry = this._getSharedGeometry('worldBends.sheetGeo', () => this._createLayeredFieldSheetGeometry(18, 9, {
+      segments: 12,
+      taper: 0.26,
+      arch: 0.26,
+      wobble: 0.08,
+      skew: 0.04,
+      phase: 0.25
+    }));
     const sheetMaterial = new THREE.MeshBasicMaterial({
       color: this.getModeColor(0),
       transparent: true,

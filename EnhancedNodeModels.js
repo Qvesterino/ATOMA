@@ -226,6 +226,24 @@ const STORAGE_ARCHIVE_SPINDLE_V2_CACHE = {
 };
 const STORAGE_ARCHIVE_SPINDLE_V2_MATERIALS = new Map(); // keyed by color hex
 
+const STORAGE_MNEMONIC_RELIQUARY_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  seedGeometry: null,
+  echoGeometry: null,
+  inscriptionRingGeometryA: null,
+  inscriptionRingGeometryB: null,
+  inscriptionRingGeometryC: null,
+  vaultWallGeometryA: null,
+  vaultWallGeometryB: null,
+  memoryShardGeometry: null,
+  memoryShardEdgesGeometry: null,
+  dataFlowGeometryA: null,
+  dataFlowGeometryB: null,
+  dustGeometry: null
+};
+const STORAGE_MNEMONIC_RELIQUARY_MATERIALS = new Map(); // keyed by color hex
+
 // INPUT v2 caches
 const INPUT_V2_CACHE = {
   coreGeometry: null,
@@ -5064,6 +5082,256 @@ function _getStorageArchiveSpindleV2Materials(color) {
   }
 
   STORAGE_ARCHIVE_SPINDLE_V2_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+// ---------- STORAGE 504: Mnemonic Reliquary helpers ----------
+function _getStorageMnemonicReliquaryGeometries() {
+  if (!STORAGE_MNEMONIC_RELIQUARY_CACHE.coreGeometry) {
+    // --- Core: distorted icosahedron — memory nexus ---
+    const coreGeometry = new THREE.IcosahedronGeometry(0.32, 1);
+    const corePos = coreGeometry.attributes.position;
+    for (let i = 0; i < corePos.count; i++) {
+      const x = corePos.getX(i);
+      const y = corePos.getY(i);
+      const z = corePos.getZ(i);
+      const twist = Math.sin((x * 4.2) + (y * 3.6) - (z * 2.8)) * 0.018;
+      const asymmetry = Math.max(0, x) * 0.12 - Math.max(0, -y) * 0.06;
+      corePos.setXYZ(
+        i,
+        x * (0.86 + asymmetry * 0.32) + z * 0.05 + twist,
+        y * (1.06 + Math.abs(z) * 0.14) - x * 0.04,
+        z * (0.82 + Math.max(0, -x) * 0.12) + twist * 0.32
+      );
+    }
+    corePos.needsUpdate = true;
+    coreGeometry.computeVertexNormals();
+    coreGeometry.computeBoundingSphere();
+    STORAGE_MNEMONIC_RELIQUARY_CACHE.coreGeometry = coreGeometry;
+    STORAGE_MNEMONIC_RELIQUARY_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 12);
+
+    // --- Seed: elongated octahedron — inner recursion seed ---
+    const seedGeometry = new THREE.OctahedronGeometry(0.09, 0);
+    seedGeometry.scale(0.48, 1.22, 0.44);
+    seedGeometry.rotateZ(0.22);
+    seedGeometry.rotateY(-0.12);
+    seedGeometry.computeBoundingSphere();
+    STORAGE_MNEMONIC_RELIQUARY_CACHE.seedGeometry = seedGeometry;
+
+    // --- Echo: scaled clone of core ---
+    const echoGeometry = coreGeometry.clone();
+    echoGeometry.scale(1.1, 1.04, 1.14);
+    echoGeometry.computeBoundingSphere();
+    STORAGE_MNEMONIC_RELIQUARY_CACHE.echoGeometry = echoGeometry;
+
+    // --- Inscription rings: torus arcs at asymmetric angles ---
+    STORAGE_MNEMONIC_RELIQUARY_CACHE.inscriptionRingGeometryA = new THREE.TorusGeometry(0.78, 0.028, 10, 48, Math.PI * 1.22);
+    STORAGE_MNEMONIC_RELIQUARY_CACHE.inscriptionRingGeometryB = new THREE.TorusGeometry(0.62, 0.024, 8, 40, Math.PI * 0.92);
+    STORAGE_MNEMONIC_RELIQUARY_CACHE.inscriptionRingGeometryC = new THREE.TorusGeometry(0.46, 0.018, 8, 26, Math.PI * 0.56);
+
+    // --- Vault walls: curved tube segments forming protective structure ---
+    const vaultWallCurveA = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.72, -0.14, 0.12),
+      new THREE.Vector3(-0.42, 0.28, -0.22),
+      new THREE.Vector3(0.02, 0.52, -0.28),
+      new THREE.Vector3(0.48, 0.14, 0.18),
+      new THREE.Vector3(0.78, -0.22, 0.36)
+    ], false, 'catmullrom', 0.38);
+    STORAGE_MNEMONIC_RELIQUARY_CACHE.vaultWallGeometryA = new THREE.TubeGeometry(vaultWallCurveA, 44, 0.048, 8, false);
+
+    const vaultWallCurveB = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0.64, 0.18, -0.42),
+      new THREE.Vector3(0.28, -0.32, -0.18),
+      new THREE.Vector3(-0.14, -0.52, 0.08),
+      new THREE.Vector3(-0.52, -0.12, 0.28),
+      new THREE.Vector3(-0.82, 0.22, 0.06)
+    ], false, 'catmullrom', 0.38);
+    STORAGE_MNEMONIC_RELIQUARY_CACHE.vaultWallGeometryB = new THREE.TubeGeometry(vaultWallCurveB, 44, 0.042, 8, false);
+
+    // --- Memory shards: distorted octahedron fragments ---
+    const memoryShardGeometry = new THREE.OctahedronGeometry(0.06, 0);
+    const shardPos = memoryShardGeometry.attributes.position;
+    for (let i = 0; i < shardPos.count; i++) {
+      const x = shardPos.getX(i);
+      const y = shardPos.getY(i);
+      const z = shardPos.getZ(i);
+      shardPos.setXYZ(
+        i,
+        x * (0.64 + Math.abs(y) * 0.48),
+        y * 1.28,
+        z * (0.54 + Math.abs(x) * 0.52)
+      );
+    }
+    shardPos.needsUpdate = true;
+    memoryShardGeometry.computeVertexNormals();
+    memoryShardGeometry.computeBoundingSphere();
+    STORAGE_MNEMONIC_RELIQUARY_CACHE.memoryShardGeometry = memoryShardGeometry;
+    STORAGE_MNEMONIC_RELIQUARY_CACHE.memoryShardEdgesGeometry = safeCreateEdgesGeometry(memoryShardGeometry, 8);
+
+    // --- Data flow traces: curves echoing memory paths ---
+    const buildDataFlow = (scale, tStart, tEnd, samples) => {
+      const positions = [];
+      for (let i = 0; i <= samples; i++) {
+        const t = tStart + (tEnd - tStart) * (i / samples);
+        const r = 0.42 + 0.12 * Math.cos(t);
+        const x = r * Math.cos(t) * (1 + 0.18 * Math.cos(1.2 * t));
+        const y = r * Math.sin(t) * (1 + 0.18 * Math.sin(0.8 * t));
+        const z = 0.28 * Math.sin(2.2 * t);
+        positions.push(x * scale, y * scale, z * scale);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.computeBoundingSphere();
+      return geo;
+    };
+    STORAGE_MNEMONIC_RELIQUARY_CACHE.dataFlowGeometryA = buildDataFlow(0.58, 0, Math.PI * 2.2, 52);
+    STORAGE_MNEMONIC_RELIQUARY_CACHE.dataFlowGeometryB = buildDataFlow(0.5, 0.3, Math.PI * 2.2 + 0.3, 42);
+
+    // --- Dust: ambient preservation particles ---
+    const dustPositions = [];
+    const dustCount = 36;
+    for (let i = 0; i < dustCount; i++) {
+      const angle = (i / dustCount) * Math.PI * 2;
+      const r = 0.36 + Math.sin(i * 1.38) * 0.1 + (i % 3) * 0.05;
+      dustPositions.push(
+        Math.cos(angle) * r + Math.sin(i * 0.72) * 0.05,
+        -0.12 + ((i % 5) * 0.07),
+        Math.sin(angle * 1.14) * r * 0.78
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    STORAGE_MNEMONIC_RELIQUARY_CACHE.dustGeometry = dustGeometry;
+  }
+
+  return STORAGE_MNEMONIC_RELIQUARY_CACHE;
+}
+
+function _getStorageMnemonicReliquaryMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0x88ccff;
+  if (STORAGE_MNEMONIC_RELIQUARY_MATERIALS.has(colorHex)) return STORAGE_MNEMONIC_RELIQUARY_MATERIALS.get(colorHex);
+
+  const baseColor = new THREE.Color(colorHex);
+  const spectralWhite = new THREE.Color(0xf0faff);
+  const archiveSilver = new THREE.Color(0xc8e8ff);
+  const deepArchive = new THREE.Color(0x0e1a26);
+  const memoryGold = new THREE.Color(0xffe8b8);
+
+  const coreColor = spectralWhite.clone().lerp(baseColor, 0.26);
+  const seedColor = spectralWhite.clone().lerp(archiveSilver, 0.16);
+  const inscriptionColor = spectralWhite.clone().lerp(archiveSilver, 0.3);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: coreColor,
+    emissive: baseColor.clone().lerp(archiveSilver, 0.2),
+    emissiveIntensity: 0.3,
+    metalness: 0.74,
+    roughness: 0.16,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seedMat = new THREE.MeshStandardMaterial({
+    color: seedColor,
+    emissive: spectralWhite.clone().lerp(baseColor, 0.36),
+    emissiveIntensity: 0.4,
+    metalness: 0.64,
+    roughness: 0.12,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const echoMat = MaterialCache.get('storage.mnemonicReliquary.echo.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
+    color: spectralWhite.clone().lerp(memoryGold, 0.05),
+    transparent: true,
+    opacity: 0.1,
+    depthWrite: false
+  }));
+
+  const inscriptionMatA = MaterialCache.get('storage.mnemonicReliquary.inscriptionA.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
+    color: inscriptionColor.clone().lerp(baseColor, 0.12),
+    transparent: true,
+    opacity: 0.2,
+    depthWrite: false
+  }));
+
+  const inscriptionMatB = MaterialCache.get('storage.mnemonicReliquary.inscriptionB.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
+    color: spectralWhite.clone().lerp(archiveSilver, 0.24),
+    transparent: true,
+    opacity: 0.14,
+    depthWrite: false
+  }));
+
+  const edgeMat = MaterialCache.get('storage.mnemonicReliquary.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
+    color: spectralWhite.clone().lerp(baseColor, 0.16),
+    transparent: true,
+    opacity: 0.4,
+    depthWrite: false
+  }));
+
+  const vaultWallMat = new THREE.MeshStandardMaterial({
+    color: spectralWhite.clone().lerp(baseColor, 0.2),
+    emissive: baseColor.clone().lerp(memoryGold, 0.04),
+    emissiveIntensity: 0.26,
+    metalness: 0.68,
+    roughness: 0.2,
+    transparent: true,
+    opacity: 0.78,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+
+  const memoryShardMat = new THREE.MeshStandardMaterial({
+    color: spectralWhite.clone().lerp(baseColor, 0.18),
+    emissive: baseColor.clone().lerp(memoryGold, 0.04),
+    emissiveIntensity: 0.26,
+    metalness: 0.66,
+    roughness: 0.18,
+    transparent: true,
+    opacity: 0.82,
+    depthWrite: false
+  });
+
+  const dataFlowMat = MaterialCache.get('storage.mnemonicReliquary.dataFlow.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
+    color: spectralWhite.clone().lerp(baseColor, 0.22),
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false
+  }));
+
+  const dustMat = MaterialCache.get('storage.mnemonicReliquary.dust.points.transparent.default', () => new THREE.PointsMaterial({
+    color: spectralWhite.clone().lerp(archiveSilver, 0.12),
+    size: 0.032,
+    transparent: true,
+    opacity: 0.32,
+    depthWrite: false,
+    sizeAttenuation: true
+  }));
+
+  const mats = {
+    coreMat,
+    seedMat,
+    echoMat,
+    inscriptionMatA,
+    inscriptionMatB,
+    edgeMat,
+    vaultWallMat,
+    memoryShardMat,
+    dataFlowMat,
+    dustMat
+  };
+
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+  }
+
+  STORAGE_MNEMONIC_RELIQUARY_MATERIALS.set(colorHex, mats);
   return mats;
 }
 
@@ -11561,6 +11829,255 @@ function _getIntegrationWeightSpineAnchorMaterials(color) {
   mats.loadIndicatorMat.userData.ignoreWaveColor = true;
 
   INTEGRATION_WEIGHT_SPINE_ANCHOR_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+// ---------- INTEGRATION 303 helpers ----------
+const INTEGRATION_INFINITE_LOOM_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  seedGeometry: null,
+  echoGeometry: null,
+  veilArcGeometryA: null,
+  veilArcGeometryB: null,
+  veilArcGeometryC: null,
+  driftShardGeometry: null,
+  driftShardEdgesGeometry: null,
+  witnessLineGeometryA: null,
+  witnessLineGeometryB: null,
+  dustGeometry: null
+};
+const INTEGRATION_INFINITE_LOOM_MATERIALS = new Map();
+
+function _getIntegrationInfiniteLoomGeometries() {
+  if (!INTEGRATION_INFINITE_LOOM_CACHE.coreGeometry) {
+    // --- Core: distorted icosahedron — convergence nexus ---
+    const coreGeometry = new THREE.IcosahedronGeometry(0.28, 1);
+    const corePos = coreGeometry.attributes.position;
+    for (let i = 0; i < corePos.count; i++) {
+      const x = corePos.getX(i);
+      const y = corePos.getY(i);
+      const z = corePos.getZ(i);
+      const twist = Math.sin((x * 5.8) + (y * 4.2) - (z * 3.6)) * 0.022;
+      const asymmetry = Math.max(0, x) * 0.14 - Math.max(0, -y) * 0.08;
+      corePos.setXYZ(
+        i,
+        x * (0.88 + asymmetry * 0.38) + z * 0.06 + twist,
+        y * (1.08 + Math.abs(z) * 0.16) - x * 0.05,
+        z * (0.84 + Math.max(0, -x) * 0.14) + twist * 0.38
+      );
+    }
+    corePos.needsUpdate = true;
+    coreGeometry.computeVertexNormals();
+    coreGeometry.computeBoundingSphere();
+    INTEGRATION_INFINITE_LOOM_CACHE.coreGeometry = coreGeometry;
+    INTEGRATION_INFINITE_LOOM_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(coreGeometry, 12);
+
+    // --- Seed: elongated octahedron — inner recursion seed ---
+    const seedGeometry = new THREE.OctahedronGeometry(0.1, 0);
+    seedGeometry.scale(0.52, 1.28, 0.48);
+    seedGeometry.rotateZ(0.26);
+    seedGeometry.rotateY(-0.14);
+    seedGeometry.computeBoundingSphere();
+    INTEGRATION_INFINITE_LOOM_CACHE.seedGeometry = seedGeometry;
+
+    // --- Echo: scaled clone of core ---
+    const echoGeometry = coreGeometry.clone();
+    echoGeometry.scale(1.12, 1.06, 1.16);
+    echoGeometry.computeBoundingSphere();
+    INTEGRATION_INFINITE_LOOM_CACHE.echoGeometry = echoGeometry;
+
+    // --- Veil arcs: mystical torus arcs at different angles ---
+    INTEGRATION_INFINITE_LOOM_CACHE.veilArcGeometryA = new THREE.TorusGeometry(0.82, 0.032, 10, 52, Math.PI * 1.18);
+    INTEGRATION_INFINITE_LOOM_CACHE.veilArcGeometryB = new THREE.TorusGeometry(0.66, 0.026, 8, 42, Math.PI * 0.88);
+    INTEGRATION_INFINITE_LOOM_CACHE.veilArcGeometryC = new THREE.TorusGeometry(0.48, 0.02, 8, 28, Math.PI * 0.52);
+
+    // --- Drift shards: distorted octahedron fragments ---
+    const driftShardGeometry = new THREE.OctahedronGeometry(0.065, 0);
+    const shardPos = driftShardGeometry.attributes.position;
+    for (let i = 0; i < shardPos.count; i++) {
+      const x = shardPos.getX(i);
+      const y = shardPos.getY(i);
+      const z = shardPos.getZ(i);
+      shardPos.setXYZ(
+        i,
+        x * (0.68 + Math.abs(y) * 0.42),
+        y * 1.22,
+        z * (0.58 + Math.abs(x) * 0.48)
+      );
+    }
+    shardPos.needsUpdate = true;
+    driftShardGeometry.computeVertexNormals();
+    driftShardGeometry.computeBoundingSphere();
+    INTEGRATION_INFINITE_LOOM_CACHE.driftShardGeometry = driftShardGeometry;
+    INTEGRATION_INFINITE_LOOM_CACHE.driftShardEdgesGeometry = safeCreateEdgesGeometry(driftShardGeometry, 8);
+
+    // --- Witness lines: curves tracing the knot parametric path ---
+    const knotCurve = (t) => {
+      const phases = [t, 1.3 * t, 0.7 * t];
+      const r = 0.45 + 0.15 * Math.cos(t);
+      const x = r * Math.cos(phases[0]) * (1 + 0.2 * Math.cos(phases[1]));
+      const y = r * Math.sin(phases[0]) * (1 + 0.2 * Math.sin(phases[2]));
+      const z = 0.35 * Math.sin(2.5 * t);
+      return [x, y, z];
+    };
+
+    const buildWitnessLine = (scale, tStart, tEnd, samples) => {
+      const positions = [];
+      for (let i = 0; i <= samples; i++) {
+        const t = tStart + (tEnd - tStart) * (i / samples);
+        const pt = knotCurve(t);
+        positions.push(pt[0] * scale, pt[1] * scale, pt[2] * scale);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.computeBoundingSphere();
+      return geo;
+    };
+
+    INTEGRATION_INFINITE_LOOM_CACHE.witnessLineGeometryA = buildWitnessLine(0.62, 0, Math.PI * 2.5, 56);
+    INTEGRATION_INFINITE_LOOM_CACHE.witnessLineGeometryB = buildWitnessLine(0.54, 0.3, Math.PI * 2.5 + 0.3, 44);
+
+    // --- Dust: ambient particles ---
+    const dustPositions = [];
+    const dustCount = 36;
+    for (let i = 0; i < dustCount; i++) {
+      const angle = (i / dustCount) * Math.PI * 2;
+      const r = 0.38 + Math.sin(i * 1.42) * 0.12 + (i % 3) * 0.06;
+      dustPositions.push(
+        Math.cos(angle) * r + Math.sin(i * 0.78) * 0.06,
+        -0.14 + ((i % 5) * 0.08),
+        Math.sin(angle * 1.18) * r * 0.82
+      );
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    dustGeometry.computeBoundingSphere();
+    INTEGRATION_INFINITE_LOOM_CACHE.dustGeometry = dustGeometry;
+  }
+
+  return INTEGRATION_INFINITE_LOOM_CACHE;
+}
+
+function _getIntegrationInfiniteLoomMaterials(color) {
+  const colorHex = typeof color === 'number' ? color : 0x00ff88;
+  if (INTEGRATION_INFINITE_LOOM_MATERIALS.has(colorHex)) return INTEGRATION_INFINITE_LOOM_MATERIALS.get(colorHex);
+
+  const baseColor = new THREE.Color(colorHex);
+  const spectralWhite = new THREE.Color(0xf4ffff);
+  const mintGhost = new THREE.Color(0x9fffe8);
+  const deepVoid = new THREE.Color(0x0b1f28);
+  const phantomAccent = new THREE.Color(0xff86c8);
+
+  const coreColor = spectralWhite.clone().lerp(baseColor, 0.28);
+  const seedColor = spectralWhite.clone().lerp(mintGhost, 0.18);
+  const veilColor = spectralWhite.clone().lerp(mintGhost, 0.32);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: coreColor,
+    emissive: baseColor.clone().lerp(mintGhost, 0.22),
+    emissiveIntensity: 0.32,
+    metalness: 0.72,
+    roughness: 0.18,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const seedMat = new THREE.MeshStandardMaterial({
+    color: seedColor,
+    emissive: spectralWhite.clone().lerp(baseColor, 0.38),
+    emissiveIntensity: 0.42,
+    metalness: 0.62,
+    roughness: 0.14,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
+  });
+
+  const echoMat = MaterialCache.get('integration.infiniteLoom.echo.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
+    color: spectralWhite.clone().lerp(phantomAccent, 0.06),
+    transparent: true,
+    opacity: 0.1,
+    depthWrite: false
+  }));
+
+  const veilMatA = MaterialCache.get('integration.infiniteLoom.veilA.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
+    color: veilColor.clone().lerp(baseColor, 0.14),
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false
+  }));
+
+  const veilMatB = MaterialCache.get('integration.infiniteLoom.veilB.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
+    color: spectralWhite.clone().lerp(mintGhost, 0.26),
+    transparent: true,
+    opacity: 0.16,
+    depthWrite: false
+  }));
+
+  const edgeMat = MaterialCache.get('integration.infiniteLoom.edge.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
+    color: spectralWhite.clone().lerp(baseColor, 0.18),
+    transparent: true,
+    opacity: 0.42,
+    depthWrite: false
+  }));
+
+  const driftShardMat = new THREE.MeshStandardMaterial({
+    color: spectralWhite.clone().lerp(baseColor, 0.22),
+    emissive: baseColor.clone().lerp(phantomAccent, 0.04),
+    emissiveIntensity: 0.28,
+    metalness: 0.68,
+    roughness: 0.22,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: true,
+    side: THREE.FrontSide
+  });
+
+  const witnessMat = MaterialCache.get('integration.infiniteLoom.witness.lineBasic.transparent.default', () => new THREE.LineBasicMaterial({
+    color: mintGhost.clone().lerp(baseColor, 0.16),
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false
+  }));
+
+  const dustMat = MaterialCache.get('integration.infiniteLoom.dust.points.transparent.default', () => new THREE.PointsMaterial({
+    color: mintGhost.clone().lerp(phantomAccent, 0.06),
+    size: 0.038,
+    transparent: true,
+    opacity: 0.52,
+    depthWrite: false,
+    sizeAttenuation: true
+  }));
+
+  const glowMat = MaterialCache.get('integration.infiniteLoom.glow.meshBasic.transparent.default', () => new THREE.MeshBasicMaterial({
+    color: spectralWhite.clone().lerp(mintGhost, 0.28).lerp(phantomAccent, 0.04),
+    transparent: true,
+    opacity: 0.1,
+    depthWrite: false
+  }));
+
+  const mats = {
+    coreMat,
+    seedMat,
+    echoMat,
+    veilMatA,
+    veilMatB,
+    edgeMat,
+    driftShardMat,
+    witnessMat,
+    dustMat,
+    glowMat
+  };
+  for (const mat of Object.values(mats)) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+  }
+
+  INTEGRATION_INFINITE_LOOM_MATERIALS.set(colorHex, mats);
   return mats;
 }
 
@@ -21496,215 +22013,335 @@ static createAnalyticsNode2(group, color) {
   }
 
   /**
-   * STORAGE: MNEMONIC_VAULT (NEW - Session 63)
-   * Archive tension system holding memory under visible structural stress
-   * - Faceted core suspended inside a single open tension arc
-   * - Asymmetrical fragment cluster suggesting retained data shards
-   * - Tight micro-orbit close to the core for archival activity
-   * - No full shell, no cage, no spherical enclosure
-   * 
+   * STORAGE: MNEMONIC_VAULT (504) — "Mnemonic Reliquary"
+   * Epic immortal design preserving memory through mystical architecture.
+   * - Distorted icosahedron nexus as memory core
+   * - Asymmetric inscription rings orbiting at different angles
+   * - Curved vault walls forming protective structure
+   * - Crystallized memory shards along orbital paths
+   * - Data flow traces echoing memory pathways
+   * - Edge glow + preservation dust + afterimage ghosts
+   *
    * VISUAL SAFETY: Static geometry, transform-only animation, immutable
    */
   static createStorageMnemonicVault(group, color) {
     try {
-      group.userData = group.userData || {};
-      const colorHex = new THREE.Color(color).getHex();
-      const nodeKey = group?.userData?.nodeId || group?.userData?.visualCode?.toString() || String(colorHex);
-      const seed = Math.abs(hashString(nodeKey)) || 1;
+      const resolvedColor = (typeof color === 'number') ? color : 0x88ccff;
+
+      const nodeKey = group?.userData?.nodeId || group?.userData?.visualCode?.toString() || '504';
+      const seedValue = hashString(nodeKey);
+      const seed = Math.abs(seedValue) || 504;
       const rng = _mythicSeededRng(seed);
+      const geometries = _getStorageMnemonicReliquaryGeometries();
+      const materials = _getStorageMnemonicReliquaryMaterials(resolvedColor);
 
-      if (!this.__storageMnemonicVaultCache) {
-        const coreGeometry = new THREE.DodecahedronGeometry(0.58, 0);
-        coreGeometry.scale(1.0, 0.7, 0.9);
+      const root = new THREE.Group();
+      root.name = 'STORAGE_MNEMONIC_RELIQUARY_NODE';
+      root.userData.visualVariant = 'STORAGE_MNEMONIC_RELIQUARY_V2';
+      root.userData.storageVariant = 'MNEMONIC_RELIQUARY';
+      root.userData.nodeGeometryName = 'STORAGE_MNEMONIC_VAULT';
 
-        const arcCurve = new THREE.CatmullRomCurve3([
-          new THREE.Vector3(-0.92, -0.18, 0.16),
-          new THREE.Vector3(-0.52, 0.34, -0.26),
-          new THREE.Vector3(0.02, 0.62, -0.34),
-          new THREE.Vector3(0.56, 0.16, 0.24),
-          new THREE.Vector3(0.9, -0.26, 0.42)
-        ], false, 'catmullrom', 0.42);
+      const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
+      const archOrder = EnhancedNodeModels._getArchetypeRenderOrder();
 
-        const microOrbitGeometry = new THREE.BufferGeometry();
-        const microOrbitCount = 16;
-        const microOrbitPositions = new Float32Array(microOrbitCount * 3);
-        for (let i = 0; i < microOrbitCount; i++) {
-          const angle = (i / microOrbitCount) * Math.PI * 2;
-          const radius = 0.3 + Math.sin(i * 1.73) * 0.028;
-          microOrbitPositions[i * 3 + 0] = Math.cos(angle) * radius;
-          microOrbitPositions[i * 3 + 1] = Math.cos(i * 2.11) * 0.035;
-          microOrbitPositions[i * 3 + 2] = Math.sin(angle) * (0.24 + Math.sin(i * 1.37) * 0.02);
+      const markKnotMesh = (mesh) => {
+        if (!mesh?.isMesh) return;
+        mesh.userData = mesh.userData || {};
+        mesh.userData.isInteractive = true;
+        mesh.userData.isKnotMesh = true;
+        if (mesh.raycast === null || mesh.raycast === undefined) {
+          mesh.raycast = THREE.Mesh.prototype.raycast;
         }
-        microOrbitGeometry.setAttribute('position', new THREE.BufferAttribute(microOrbitPositions, 3));
-
-        this.__storageMnemonicVaultCache = {
-          geometries: {
-            coreGeometry,
-            mainArcGeometry: new THREE.TubeGeometry(arcCurve, 40, 0.055, 8, false),
-            fragmentGeometries: [
-              new THREE.OctahedronGeometry(0.13, 1),
-              new THREE.TetrahedronGeometry(0.16, 1),
-              new THREE.DodecahedronGeometry(0.11, 0)
-            ],
-            microOrbitGeometry
-          },
-          materials: new Map()
-        };
-      }
-
-      const cache = this.__storageMnemonicVaultCache;
-      let mats = cache.materials.get(colorHex);
-      if (!mats) {
-        mats = {
-          coreMat: new THREE.MeshStandardMaterial({
-            color: colorHex,
-            metalness: 0.82,
-            roughness: 0.18,
-            emissive: colorHex,
-            emissiveIntensity: 0.92,
-            transparent: true,
-            opacity: 0.96
-          }),
-          arcMat: new THREE.MeshStandardMaterial({
-            color: colorHex,
-            metalness: 0.34,
-            roughness: 0.28,
-            emissive: colorHex,
-            emissiveIntensity: 0.46,
-            transparent: true,
-            opacity: 0.72,
-            depthWrite: false,
-            side: THREE.DoubleSide
-          }),
-          fragmentMat: new THREE.MeshStandardMaterial({
-            color: colorHex,
-            metalness: 0.58,
-            roughness: 0.24,
-            emissive: colorHex,
-            emissiveIntensity: 0.36,
-            transparent: true,
-            opacity: 0.84
-          }),
-          microOrbitMat: new THREE.PointsMaterial({
-            color: colorHex,
-            size: 0.028,
-            transparent: true,
-            opacity: 0.42,
-            depthWrite: false,
-            sizeAttenuation: true
-          })
-        };
-        cache.materials.set(colorHex, mats);
-      }
-
-      const core = new THREE.Mesh(cache.geometries.coreGeometry, mats.coreMat);
-      core.name = 'MnemonicVaultCore';
-      core.rotation.set(0.18 + rng() * 0.1, 0.22 + rng() * 0.35, -0.06 + rng() * 0.12);
-      core.userData.isInnerCore = true;
-      core.userData.isMnemonicCore = true;
-      core.userData.visualCoreImmutable = true;
-      core.userData.baseRotation = core.rotation.clone();
-      validateMeshGeometry(core, 'createStorageMnemonicVault:core');
-      group.add(core);
-
-      const mainArc = new THREE.Mesh(cache.geometries.mainArcGeometry, mats.arcMat);
-      mainArc.name = 'MnemonicVaultMainArc';
-      mainArc.position.set(0.08, 0.03, -0.06);
-      mainArc.rotation.set(Math.PI * 0.2, Math.PI * 0.31, -Math.PI * 0.16);
-      mainArc.scale.set(1.0, 0.96, 1.08);
-      mainArc.userData.isOuterShell = true;
-      mainArc.userData.isMainArc = true;
-      mainArc.userData.visualCoreImmutable = true;
-      mainArc.userData.baseRotation = mainArc.rotation.clone();
-      validateMeshGeometry(mainArc, 'createStorageMnemonicVault:mainArc');
-      group.add(mainArc);
-
-      const fragmentGroup = new THREE.Group();
-      fragmentGroup.name = 'MnemonicVaultFragments';
-      fragmentGroup.userData.visualCoreImmutable = true;
-      const fragmentCount = 5 + Math.floor(rng() * 3);
-      for (let i = 0; i < fragmentCount; i++) {
-        const fragmentGeometry = cache.geometries.fragmentGeometries[(i + Math.floor(rng() * cache.geometries.fragmentGeometries.length)) % cache.geometries.fragmentGeometries.length];
-        const fragment = new THREE.Mesh(fragmentGeometry, mats.fragmentMat);
-        const angle = (i / fragmentCount) * Math.PI * 2 + (rng() - 0.5) * 0.7;
-        const radiusX = 0.56 + rng() * 0.28;
-        const radiusZ = 0.42 + rng() * 0.24;
-        const basePosition = new THREE.Vector3(
-          Math.cos(angle) * radiusX,
-          -0.16 + rng() * 0.46,
-          Math.sin(angle) * radiusZ
-        );
-        fragment.position.copy(basePosition);
-        fragment.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
-        fragment.scale.set(0.72 + rng() * 0.45, 0.58 + rng() * 0.48, 0.7 + rng() * 0.42);
-        fragment.userData.isStorageFragment = true;
-        fragment.userData.visualCoreImmutable = true;
-        fragment.userData.basePosition = basePosition.clone();
-        fragment.userData.baseRotation = fragment.rotation.clone();
-        fragment.userData.driftPhase = rng() * Math.PI * 2;
-        fragment.userData.driftSpeed = 0.32 + rng() * 0.18;
-        fragment.userData.driftAmplitude = 0.012 + rng() * 0.016;
-        validateMeshGeometry(fragment, `createStorageMnemonicVault:fragment${i}`);
-        fragmentGroup.add(fragment);
-      }
-      group.add(fragmentGroup);
-
-      const microOrbit = new THREE.Points(cache.geometries.microOrbitGeometry, mats.microOrbitMat);
-      microOrbit.name = 'MnemonicVaultMicroOrbit';
-      microOrbit.position.set(0.02, 0.02, -0.01);
-      microOrbit.rotation.set(Math.PI * 0.2, -Math.PI * 0.12, Math.PI * 0.08);
-      microOrbit.frustumCulled = false;
-      microOrbit.userData.isMicroOrbit = true;
-      microOrbit.userData.visualCoreImmutable = true;
-      microOrbit.userData.baseRotation = microOrbit.rotation.clone();
-      group.add(microOrbit);
-
-      group.onBeforeRender = () => {
-        const t = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
-
-        core.rotation.x = core.userData.baseRotation.x + Math.sin(t * 0.19) * 0.04;
-        core.rotation.y = core.userData.baseRotation.y + t * 0.075;
-        core.rotation.z = core.userData.baseRotation.z + Math.cos(t * 0.15) * 0.025;
-
-        mainArc.rotation.x = mainArc.userData.baseRotation.x + Math.sin(t * 0.12) * 0.02;
-        mainArc.rotation.y = mainArc.userData.baseRotation.y - t * 0.055;
-        mainArc.rotation.z = mainArc.userData.baseRotation.z + Math.cos(t * 0.17) * 0.03;
-
-        fragmentGroup.children.forEach((fragment, idx) => {
-          const phase = t * fragment.userData.driftSpeed + fragment.userData.driftPhase;
-          const amplitude = fragment.userData.driftAmplitude;
-          const basePosition = fragment.userData.basePosition;
-          const baseRotation = fragment.userData.baseRotation;
-          fragment.position.set(
-            basePosition.x + Math.sin(phase) * amplitude,
-            basePosition.y + Math.cos(phase * 1.13) * amplitude * 0.7,
-            basePosition.z + Math.sin(phase * 0.87) * amplitude * 0.85
-          );
-          fragment.rotation.x = baseRotation.x + Math.sin(phase * 0.7) * 0.08;
-          fragment.rotation.y = baseRotation.y + Math.cos(phase * 0.8) * 0.08 + idx * 0.01;
-          fragment.rotation.z = baseRotation.z + Math.sin(phase * 0.65) * 0.05;
-        });
-
-        microOrbit.rotation.x = microOrbit.userData.baseRotation.x + Math.sin(t * 0.18) * 0.03;
-        microOrbit.rotation.y = microOrbit.userData.baseRotation.y + t * 0.11;
-        microOrbit.rotation.z = microOrbit.userData.baseRotation.z + Math.cos(t * 0.14) * 0.02;
       };
 
-      group.userData.mnemonicCoreRotationAxis = new THREE.Vector3(0.3, 1, -0.2).normalize();
-      group.userData.mnemonicCoreRotationSpeed = 0.04;
-      group.userData.mnemonicShellRotationAxis = new THREE.Vector3(-0.4, -0.8, 0.3).normalize();
-      group.userData.mnemonicShellRotationSpeed = -0.03;
-      group.userData.storageBreath = false;
-      group.userData.visualVariant = 'STORAGE_ARCHIVE_TENSION';
-      group.userData.visualCoreImmutable = true;
-      group.userData.nodeGeometryName = 'STORAGE_MNEMONIC_VAULT';
+      // === CORE GROUP: Memory nexus + recursion seed + ghost echo ===
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
 
+      const nexus = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      nexus.name = 'ReliquaryNexus';
+      nexus.userData.ignoreWaveColor = true;
+      nexus.position.set(0.0, 0.06, 0.0);
+      nexus.rotation.set(0.14, 0.24, -0.06);
+      nexus.renderOrder = coreOrder;
+      markKnotMesh(nexus);
+      coreGroup.add(nexus);
+
+      const nexusEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.edgeMat);
+      nexusEdges.name = 'ReliquaryNexus_Edges';
+      nexusEdges.userData.ignoreWaveColor = true;
+      nexusEdges.position.copy(nexus.position);
+      nexusEdges.rotation.copy(nexus.rotation);
+      nexusEdges.renderOrder = archOrder;
+      coreGroup.add(nexusEdges);
+
+      const recursionSeed = new THREE.Mesh(geometries.seedGeometry, materials.seedMat);
+      recursionSeed.name = 'ReliquaryRecursionSeed';
+      recursionSeed.userData.ignoreWaveColor = true;
+      recursionSeed.position.set(0.04, 0.1, -0.02);
+      recursionSeed.rotation.set(0.2, 0.44, -0.1);
+      recursionSeed.renderOrder = coreOrder;
+      markKnotMesh(recursionSeed);
+      coreGroup.add(recursionSeed);
+
+      const ghostEcho = new THREE.Mesh(geometries.echoGeometry, materials.echoMat);
+      ghostEcho.name = 'ReliquaryGhostEcho';
+      ghostEcho.userData.ignoreWaveColor = true;
+      ghostEcho.position.copy(nexus.position).add(new THREE.Vector3(0.1, -0.04, -0.06));
+      ghostEcho.rotation.copy(nexus.rotation);
+      ghostEcho.scale.set(0.94, 1.06, 0.98);
+      ghostEcho.renderOrder = archOrder;
+      coreGroup.add(ghostEcho);
+
+      root.add(coreGroup);
+
+      // === INSCRIPTION GROUP: Mystical torus arcs at asymmetric angles ===
+      const inscriptionGroup = new THREE.Group();
+      inscriptionGroup.name = 'INSCRIPTION_GROUP';
+
+      const inscriptionConfigs = [
+        {
+          name: 'InscriptionRing_A',
+          geometry: geometries.inscriptionRingGeometryA,
+          material: materials.inscriptionMatA,
+          pos: [0.02, 0.08, -0.02],
+          rot: [Math.PI * 0.48, Math.PI * 0.1, Math.PI * 0.16],
+          scale: [1.04, 0.92, 1.08],
+          axis: new THREE.Vector3(0.16, 1, 0.1),
+          speed: 0.09
+        },
+        {
+          name: 'InscriptionRing_B',
+          geometry: geometries.inscriptionRingGeometryB,
+          material: materials.inscriptionMatB,
+          pos: [-0.08, 0.04, 0.1],
+          rot: [Math.PI * 0.06, Math.PI * 0.54, -Math.PI * 0.26],
+          scale: [0.94, 1.04, 0.86],
+          axis: new THREE.Vector3(-0.3, 1, 0.22),
+          speed: -0.12
+        },
+        {
+          name: 'InscriptionRing_C',
+          geometry: geometries.inscriptionRingGeometryC,
+          material: materials.inscriptionMatA,
+          pos: [0.36, -0.06, -0.14],
+          rot: [0.92, -0.16, -0.48],
+          scale: [0.88, 0.82, 0.76],
+          axis: new THREE.Vector3(0.4, -0.8, 0.34),
+          speed: 0.07
+        }
+      ];
+      inscriptionConfigs.forEach((cfg) => {
+        const ring = new THREE.Mesh(cfg.geometry, cfg.material);
+        ring.name = cfg.name;
+        ring.userData.isOrbitRing = true;
+        ring.userData.orbitAxis = cfg.axis.clone().normalize();
+        ring.userData.orbitSpeed = cfg.speed;
+        ring.userData.ringSpeed = cfg.speed;
+        ring.userData.ignoreWaveColor = true;
+        ring.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+        ring.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+        ring.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+        ring.renderOrder = archOrder;
+        inscriptionGroup.add(ring);
+      });
+      root.userData.orbitRingCount = inscriptionConfigs.length;
+
+      root.add(inscriptionGroup);
+
+      // === VAULT GROUP: Curved tube walls forming protective structure ===
+      const vaultGroup = new THREE.Group();
+      vaultGroup.name = 'VAULT_GROUP';
+
+      const vaultWallA = new THREE.Mesh(geometries.vaultWallGeometryA, materials.vaultWallMat);
+      vaultWallA.name = 'VaultWall_A';
+      vaultWallA.userData.ignoreWaveColor = true;
+      vaultWallA.position.set(0.02, 0.04, -0.02);
+      vaultWallA.rotation.set(0.08, 0.14, -0.06);
+      vaultWallA.renderOrder = archOrder;
+      markKnotMesh(vaultWallA);
+      vaultGroup.add(vaultWallA);
+
+      const vaultWallB = new THREE.Mesh(geometries.vaultWallGeometryB, materials.vaultWallMat);
+      vaultWallB.name = 'VaultWall_B';
+      vaultWallB.userData.ignoreWaveColor = true;
+      vaultWallB.position.set(-0.04, -0.02, 0.06);
+      vaultWallB.rotation.set(-0.06, -0.1, 0.08);
+      vaultWallB.renderOrder = archOrder;
+      markKnotMesh(vaultWallB);
+      vaultGroup.add(vaultWallB);
+
+      root.add(vaultGroup);
+
+      // === MEMORY GROUP: Crystallized shards along orbital paths ===
+      const memoryGroup = new THREE.Group();
+      memoryGroup.name = 'MEMORY_GROUP';
+
+      const memoryConfigs = [
+        { name: 'MemoryShard_A', t: 0.0, offset: [0.0, 0.0, 0.0], rot: [0.32, 0.16, -0.2], scale: [0.82, 1.0, 0.68] },
+        { name: 'MemoryShard_B', t: Math.PI * 0.5, offset: [0.05, -0.03, 0.02], rot: [0.14, -0.52, 0.2], scale: [0.68, 0.86, 0.56] },
+        { name: 'MemoryShard_C', t: Math.PI, offset: [-0.03, 0.04, -0.02], rot: [-0.26, 0.26, 0.4], scale: [0.62, 0.8, 0.52] },
+        { name: 'MemoryShard_D', t: Math.PI * 1.5, offset: [0.02, -0.02, 0.04], rot: [0.6, -0.1, -0.16], scale: [0.56, 0.74, 0.48] }
+      ];
+
+      const memoryCurve = (t) => {
+        const r = 0.42 + 0.12 * Math.cos(t);
+        const x = r * Math.cos(t) * (1 + 0.18 * Math.cos(1.2 * t));
+        const y = r * Math.sin(t) * (1 + 0.18 * Math.sin(0.8 * t));
+        const z = 0.28 * Math.sin(2.2 * t);
+        return [x, y, z];
+      };
+
+      memoryConfigs.forEach((cfg, idx) => {
+        const pt = memoryCurve(cfg.t);
+        const shard = new THREE.Mesh(geometries.memoryShardGeometry, materials.memoryShardMat);
+        shard.name = cfg.name;
+        shard.userData.ignoreWaveColor = true;
+        shard.position.set(
+          pt[0] * 0.58 + cfg.offset[0] + (rng() - 0.5) * 0.03,
+          pt[1] * 0.58 + cfg.offset[1] + (rng() - 0.5) * 0.03,
+          pt[2] * 0.58 + cfg.offset[2] + (rng() - 0.5) * 0.03
+        );
+        shard.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.08,
+          cfg.rot[1] + (rng() - 0.5) * 0.08,
+          cfg.rot[2] + (rng() - 0.5) * 0.08
+        );
+        shard.scale.set(
+          cfg.scale[0] * (0.96 + rng() * 0.08),
+          cfg.scale[1] * (0.96 + rng() * 0.08),
+          cfg.scale[2] * (0.96 + rng() * 0.08)
+        );
+        shard.renderOrder = archOrder;
+        markKnotMesh(shard);
+        memoryGroup.add(shard);
+
+        if (idx < 3) {
+          const shardEdges = new THREE.LineSegments(geometries.memoryShardEdgesGeometry, materials.edgeMat);
+          shardEdges.name = `${cfg.name}_Edges`;
+          shardEdges.userData.ignoreWaveColor = true;
+          shardEdges.position.copy(shard.position);
+          shardEdges.rotation.copy(shard.rotation);
+          shardEdges.scale.copy(shard.scale);
+          shardEdges.renderOrder = archOrder;
+          memoryGroup.add(shardEdges);
+        }
+      });
+
+      root.add(memoryGroup);
+
+      // === WITNESS GROUP: Data flow traces echoing memory pathways ===
+      const witnessGroup = new THREE.Group();
+      witnessGroup.name = 'WITNESS_GROUP';
+
+      const dataFlowA = new THREE.Line(geometries.dataFlowGeometryA, materials.dataFlowMat);
+      dataFlowA.name = 'DataFlowTrace_A';
+      dataFlowA.userData.ignoreWaveColor = true;
+      dataFlowA.position.set(0.0, 0.0, 0.0);
+      dataFlowA.rotation.set(0.05, -0.08, 0.03);
+      dataFlowA.scale.set(1.06, 1.06, 1.06);
+      dataFlowA.renderOrder = archOrder;
+      witnessGroup.add(dataFlowA);
+
+      const dataFlowB = new THREE.Line(geometries.dataFlowGeometryB, materials.dataFlowMat);
+      dataFlowB.name = 'DataFlowTrace_B';
+      dataFlowB.userData.ignoreWaveColor = true;
+      dataFlowB.position.set(0.0, 0.0, 0.0);
+      dataFlowB.rotation.set(-0.04, 0.06, -0.02);
+      dataFlowB.renderOrder = archOrder;
+      witnessGroup.add(dataFlowB);
+
+      root.add(witnessGroup);
+
+      // === AURA GROUP: Edge glow + preservation dust + afterimage ghosts ===
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+
+      const edgeGlow = createNodeNeonEdgeGlowShell(nexus, resolvedColor, {
+        glowIntensity: 0.44,
+        edgeWidth: 0.04,
+        pulseAmount: 0.0
+      });
+      if (edgeGlow) {
+        edgeGlow.name = 'ReliquaryNexusEdgeGlow';
+        edgeGlow.position.copy(nexus.position);
+        edgeGlow.quaternion.copy(nexus.quaternion);
+        edgeGlow.scale.copy(nexus.scale).multiplyScalar(1.12);
+        edgeGlow.frustumCulled = false;
+        edgeGlow.renderOrder = archOrder;
+        auraGroup.add(edgeGlow);
+      }
+
+      const preservationDust = new THREE.Points(geometries.dustGeometry, materials.dustMat);
+      preservationDust.name = 'ReliquaryPreservationDust';
+      preservationDust.userData.ignoreWaveColor = true;
+      preservationDust.position.set(0.02, 0.06, -0.02);
+      preservationDust.rotation.set(0.1, -0.22, 0.06);
+      preservationDust.frustumCulled = false;
+      preservationDust.renderOrder = archOrder;
+      auraGroup.add(preservationDust);
+
+      // Afterimage ghosts — reusing echo geometry for ethereal presence
+      const afterimageConfigs = [
+        { name: 'ReliquaryAfterimage_A', pos: [0.14, 0.2, -0.08], rot: [0.26, 0.58, -0.1], scale: [0.72, 0.94, 0.68] },
+        { name: 'ReliquaryAfterimage_B', pos: [-0.1, 0.36, 0.1], rot: [0.78, -0.12, 0.2], scale: [0.62, 0.84, 0.58] }
+      ];
+      afterimageConfigs.forEach((cfg) => {
+        const ghost = new THREE.Mesh(geometries.echoGeometry, materials.echoMat);
+        ghost.name = cfg.name;
+        ghost.userData.ignoreWaveColor = true;
+        ghost.position.set(
+          cfg.pos[0] + (rng() - 0.5) * 0.04,
+          cfg.pos[1] + (rng() - 0.5) * 0.04,
+          cfg.pos[2] + (rng() - 0.5) * 0.04
+        );
+        ghost.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.08,
+          cfg.rot[1] + (rng() - 0.5) * 0.08,
+          cfg.rot[2] + (rng() - 0.5) * 0.08
+        );
+        ghost.scale.set(
+          cfg.scale[0] * (0.96 + rng() * 0.08),
+          cfg.scale[1] * (0.96 + rng() * 0.08),
+          cfg.scale[2] * (0.96 + rng() * 0.08)
+        );
+        ghost.renderOrder = archOrder;
+        auraGroup.add(ghost);
+      });
+
+      root.add(auraGroup);
+
+      // === FINALIZE ===
+      root.traverse((o) => {
+        if (o?.isMesh || o?.isPoints || o?.isLine || o?.isLineSegments) {
+          o.userData = o.userData || {};
+          if (o.userData.ignoreWaveColor !== false) o.userData.ignoreWaveColor = true;
+          if (o.isMesh) {
+            markKnotMesh(o);
+          }
+          const materialRefs = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+          for (const material of materialRefs) {
+            material.userData = {
+              ...(material.userData || {}),
+              wavePatchMode: 'DEFAULT',
+              ignoreWaveColor: true
+            };
+          }
+          validateMeshGeometry(o, o.name || 'storage-mnemonic-reliquary');
+        }
+      });
+
+      root.userData.visualReady = true;
+      group.userData = group.userData || {};
+      group.userData.visualReady = true;
+      group.userData.nodeGeometryName = 'STORAGE_MNEMONIC_VAULT';
+      group.add(root);
       return group;
     } catch (err) {
-      console.error('[NodeVisualAbort]', {
+      console.error('[NodeVisualError]', {
         model: 'createStorageMnemonicVault',
         category: 'storage',
-        reason: 'Visual build failed — fallback visuals are forbidden',
+        reason: err?.message || err,
         error: err
       });
       return null;
@@ -34612,27 +35249,11 @@ static createAnalyticsNode2(group, color) {
       });
     }
 
-    // POLISH: Animate FLOW_RECOMPOSER (floating shards + core)
+    // STABILIZED: FlowRecomposer internal motion disabled (Session 2026-04-23)
+    // The node now presents a static, composed structure.
+    // Per-node orbit rotation still applies via the standard node rotation system.
     if (nodeGroup.userData.nodeGeometryName === 'PROCESS_FLOW_RECOMPOSER') {
-      nodeGroup.children.forEach(child => {
-        if (child.userData.isRecomposerShard) {
-          // Slow drift and rotation
-          const speed = child.userData.driftSpeed || 0.1;
-          const basePosition = child.userData.basePosition || (child.userData.basePosition = child.position.clone());
-          const driftAxis = child.userData.driftAxis || (child.userData.driftAxis = new THREE.Vector3(0, 1, 0));
-          
-          // Rotate shard around its own center
-          child.rotation.z += deltaTime * speed;
-          child.rotation.x += deltaTime * speed * 0.5;
-          
-          // Keep the drift anchored to the creation pose so the cloud does not expand forever.
-          const wobble = Math.sin(time * speed) * 0.002;
-          child.position.copy(basePosition).addScaledVector(driftAxis, wobble);
-        }
-        if (child.userData.isFlowCore) {
-           child.rotation.y -= deltaTime * 0.2;
-        }
-      });
+      // Intentionally empty — shards and core hold their creation pose.
     }
 
     // POLISH: Animate TEMPORAL_SHIFTER (layer drift)
@@ -38635,27 +39256,88 @@ static createAnalyticsNode2(group, color) {
 
   /**
    * KNOT: Torus Knot (p,q) - STORAGE category
-   * (2,3) torus knot: wraps p times meridian, q times poloidal
-   * Tubular parametric mesh
+   * (2,3) torus knot with perturbed path, ghost companion, central nexus, edge glow.
+   * Silhouette preserved; complexity and life added through organic irregularity.
    */
   static createKnotTorusKnot(group, color) {
     try {
+      const resolvedColor = (typeof color === 'number') ? color : 0x88ccff;
       const p = 2;
       const q = 3;
-      const tube = this.generateTubularKnot(
+
+      // Primary knot — perturbed path, variable radius
+      const primaryTube = this.generateTubularKnot(
         (t) => {
-          const angle1 = (q * t);
-          const angle2 = (p * t);
+          const angle1 = q * t;
+          const angle2 = p * t;
           const r = 0.4 + 0.3 * Math.cos(angle1);
+          const perturbX = Math.sin(t * 7.3) * 0.022;
+          const perturbY = Math.cos(t * 5.7) * 0.018;
+          const perturbZ = Math.sin(t * 9.1) * 0.015;
           return [
-            r * Math.cos(angle2),
-            r * Math.sin(angle2),
-            0.5 * Math.sin(angle1)
+            r * Math.cos(angle2) + perturbX,
+            r * Math.sin(angle2) + perturbY,
+            0.5 * Math.sin(angle1) + perturbZ
           ];
         },
-        0, Math.PI * 2, 80, 0.18, 10, color
+        0, Math.PI * 2, 96, 0.18, 10, resolvedColor
       );
-      group.add(tube);
+      primaryTube.name = 'TorusKnotPrimary';
+      primaryTube.userData.isKnotMesh = true;
+      primaryTube.userData.isInteractive = true;
+      group.add(primaryTube);
+
+      // Ghost companion — thinner, phase-shifted, semi-transparent
+      const ghostTube = this.generateTubularKnot(
+        (t) => {
+          const offset = 0.3;
+          const angle1 = q * (t + offset);
+          const angle2 = p * (t + offset);
+          const r = 0.4 + 0.3 * Math.cos(angle1);
+          return [
+            r * Math.cos(angle2) * 0.92,
+            r * Math.sin(angle2) * 0.92,
+            0.5 * Math.sin(angle1) * 0.92
+          ];
+        },
+        0, Math.PI * 2, 80, 0.07, 8, resolvedColor
+      );
+      ghostTube.name = 'TorusKnotGhost';
+      ghostTube.userData.isKnotMesh = true;
+      ghostTube.material.transparent = true;
+      ghostTube.material.opacity = 0.22;
+      ghostTube.material.depthWrite = false;
+      ghostTube.material.emissiveIntensity = 0.1;
+      group.add(ghostTube);
+
+      // Central nexus
+      const nexusGeo = new THREE.IcosahedronGeometry(0.08, 0);
+      const nexusMat = new THREE.MeshStandardMaterial({
+        color: resolvedColor,
+        emissive: resolvedColor,
+        emissiveIntensity: 0.4,
+        metalness: 0.7,
+        roughness: 0.2,
+        transparent: true,
+        opacity: 0.8
+      });
+      const nexus = new THREE.Mesh(nexusGeo, nexusMat);
+      nexus.name = 'TorusKnotNexus';
+      nexus.userData.ignoreWaveColor = true;
+      group.add(nexus);
+
+      // Edge glow
+      const edgeGlow = createNodeNeonEdgeGlowShell(primaryTube, resolvedColor, {
+        glowIntensity: 0.35,
+        edgeWidth: 0.035,
+        pulseAmount: 0.0
+      });
+      if (edgeGlow) {
+        edgeGlow.name = 'TorusKnotEdgeGlow';
+        group.add(edgeGlow);
+      }
+
+      group.userData.nodeGeometryName = 'KNOT_TORUS_KNOT';
       return group;
     } catch (err) {
       console.error('[NodeVisualAbort]', {
@@ -38670,56 +39352,109 @@ static createAnalyticsNode2(group, color) {
 
   /**
    * KNOT: Borromean Rings - CONTROL category
-   * Three mutually linked rings, topologically inseparable
-   * Three interlocked tubular meshes forming singular composite
+   * Three mutually linked rings with path perturbation, variable radius,
+   * asymmetric offsets, ghost echoes, central nexus, and edge glow.
+   * Silhouette preserved; organic complexity replaces mathematical regularity.
    */
   static createKnotBorromean(group, color) {
     try {
+      const resolvedColor = (typeof color === 'number') ? color : 0x88ccff;
       const ringRadius = 0.35;
-      const tubeRadius = 0.12;
-      const sections = 48;
-      
-      // Create three rings at 120-degree angles
+      const sections = 56;
+
       for (let ringIndex = 0; ringIndex < 3; ringIndex++) {
-        const angle = (ringIndex * Math.PI * 2) / 3;
-        const cx = Math.cos(angle);
-        const sx = Math.sin(angle);
-        
+        const baseAngle = (ringIndex * Math.PI * 2) / 3;
+        const cx = Math.cos(baseAngle);
+        const sx = Math.sin(baseAngle);
+        const offsetPhase = ringIndex * 1.47;
+
+        // Primary ring — perturbed path, variable radius
         const points = [];
         for (let i = 0; i <= sections; i++) {
           const theta = (i / sections) * Math.PI * 2;
-          const x = cx * ringRadius * Math.cos(theta);
-          const y = sx * ringRadius * Math.cos(theta);
-          const z = ringRadius * Math.sin(theta);
+          const radiusVar = ringRadius * (1 + Math.sin(theta * 3 + offsetPhase) * 0.06);
+          const perturb = Math.sin(theta * 5 + offsetPhase) * 0.015;
+          const x = cx * radiusVar * Math.cos(theta) + perturb;
+          const y = sx * radiusVar * Math.cos(theta) + Math.cos(theta * 4 + offsetPhase) * 0.012;
+          const z = radiusVar * Math.sin(theta) + Math.sin(theta * 6 + offsetPhase) * 0.01;
           points.push(new THREE.Vector3(x, y, z));
         }
-        
+
         const curve = new THREE.CatmullRomCurve3(points);
-        const geometry = new THREE.TubeGeometry(curve, sections, tubeRadius, 6, false);
+        const tubeRadius = 0.1 + Math.sin(ringIndex * 2.1) * 0.02;
+        const geometry = new THREE.TubeGeometry(curve, sections, tubeRadius, 8, false);
         const material = new THREE.MeshStandardMaterial({
           transparent: false,
           opacity: 1,
           depthWrite: true,
           depthTest: true,
           side: THREE.FrontSide,
-          color: color,
+          color: resolvedColor,
           metalness: 0.7,
           roughness: 0.3,
-          emissive: color,
+          emissive: resolvedColor,
           emissiveIntensity: 0.3
-
         });
         const mesh = new THREE.Mesh(geometry, material);
-        
-        // [RAYCAST FIX] Ensure Borromean ring mesh is interactive
+        mesh.name = `BorromeanRing_${ringIndex}`;
         mesh.userData.isInteractive = true;
         mesh.userData.isKnotMesh = true;
         if (mesh.raycast === null || mesh.raycast === undefined) {
           mesh.raycast = THREE.Mesh.prototype.raycast;
         }
-        
         group.add(mesh);
+
+        // Ghost echo — thinner, scaled down, semi-transparent
+        const ghostPoints = points.map((pt) => pt.clone().multiplyScalar(0.88));
+        const ghostCurve = new THREE.CatmullRomCurve3(ghostPoints);
+        const ghostGeo = new THREE.TubeGeometry(ghostCurve, sections, tubeRadius * 0.45, 6, false);
+        const ghostMat = new THREE.MeshStandardMaterial({
+          color: resolvedColor,
+          metalness: 0.5,
+          roughness: 0.4,
+          emissive: resolvedColor,
+          emissiveIntensity: 0.12,
+          transparent: true,
+          opacity: 0.18,
+          depthWrite: false
+        });
+        const ghost = new THREE.Mesh(ghostGeo, ghostMat);
+        ghost.name = `BorromeanGhost_${ringIndex}`;
+        ghost.userData.isKnotMesh = true;
+        group.add(ghost);
       }
+
+      // Central nexus
+      const nexusGeo = new THREE.IcosahedronGeometry(0.06, 0);
+      const nexusMat = new THREE.MeshStandardMaterial({
+        color: resolvedColor,
+        emissive: resolvedColor,
+        emissiveIntensity: 0.35,
+        metalness: 0.7,
+        roughness: 0.2,
+        transparent: true,
+        opacity: 0.75
+      });
+      const nexus = new THREE.Mesh(nexusGeo, nexusMat);
+      nexus.name = 'BorromeanNexus';
+      nexus.userData.ignoreWaveColor = true;
+      group.add(nexus);
+
+      // Edge glow on primary ring
+      const primaryRing = group.children.find((c) => c.name === 'BorromeanRing_0');
+      if (primaryRing) {
+        const edgeGlow = createNodeNeonEdgeGlowShell(primaryRing, resolvedColor, {
+          glowIntensity: 0.3,
+          edgeWidth: 0.03,
+          pulseAmount: 0.0
+        });
+        if (edgeGlow) {
+          edgeGlow.name = 'BorromeanEdgeGlow';
+          group.add(edgeGlow);
+        }
+      }
+
+      group.userData.nodeGeometryName = 'KNOT_BORROMEAN';
       return group;
     } catch (err) {
       console.error('[NodeVisualAbort]', {
@@ -39057,18 +39792,31 @@ static createAnalyticsNode2(group, color) {
 
   /**
    * KNOT: Infinite Self-Intersecting Knot - INTEGRATION category
-   * Noble recursive structure: nexus core, primary knot, ghost echo,
-   * orbital shards, witness trace, and ambient dust.
-   * Multi-layered design for depth and presence.
+   * "Infinite Loom" — mystical recursive structure with asymmetric presence.
+   * Hierarchy:
+   * INTEGRATION_INFINITE_LOOM_NODE
+   *   - CORE_GROUP (convergence nexus + recursion seed + ghost echo)
+   *   - KNOT_GROUP (primary tubular knot + phase-shifted ghost companion)
+   *   - VEIL_GROUP (mystical torus arcs at asymmetric angles)
+   *   - DRIFT_GROUP (crystallized intersection shards along knot path)
+   *   - WITNESS_GROUP (curve traces echoing the knot silhouette)
+   *   - AURA_GROUP (edge glow + resonance dust + afterimage ghosts)
    */
   static createKnotInfiniteSelfIntersecting(group, color) {
     try {
       const resolvedColor = (typeof color === 'number') ? color : 0x00ff88;
 
+      const nodeKey = group?.userData?.nodeId || group?.userData?.visualCode?.toString() || '303';
+      const seedValue = hashString(nodeKey);
+      const seed = Math.abs(seedValue) || 303;
+      const rng = _mythicSeededRng(seed);
+      const geometries = _getIntegrationInfiniteLoomGeometries();
+      const materials = _getIntegrationInfiniteLoomMaterials(resolvedColor);
+
       const root = new THREE.Group();
-      root.name = 'INTEGRATION_INFINITE_SELF_INTERSECTING_NODE';
-      root.userData.visualVariant = 'INTEGRATION_INFINITE_SELF_INTERSECTING_V2';
-      root.userData.integrationVariant = 'INFINITE_SELF_INTERSECTING';
+      root.name = 'INTEGRATION_INFINITE_LOOM_NODE';
+      root.userData.visualVariant = 'INTEGRATION_INFINITE_LOOM_V2';
+      root.userData.integrationVariant = 'INFINITE_LOOM';
       root.userData.nodeGeometryName = 'KNOT_INFINITE_SELF_INTERSECTING';
 
       const coreOrder = EnhancedNodeModels._getCoreRenderOrder();
@@ -39094,85 +39842,48 @@ static createAnalyticsNode2(group, color) {
         return [x, y, z];
       };
 
-      // === CORE: Recursion Nexus ===
+      // === CORE GROUP: Convergence nexus + recursion seed + ghost echo ===
       const coreGroup = new THREE.Group();
       coreGroup.name = 'CORE_GROUP';
 
-      const nexusGeometry = new THREE.OctahedronGeometry(0.14, 0);
-      const nexusPos = nexusGeometry.attributes.position;
-      for (let i = 0; i < nexusPos.count; i++) {
-        const x = nexusPos.getX(i);
-        const y = nexusPos.getY(i);
-        const z = nexusPos.getZ(i);
-        const twist = Math.sin(x * 5.2 + y * 3.8 + z * 4.1) * 0.015;
-        nexusPos.setXYZ(
-          i,
-          x * (0.9 + Math.abs(z) * 0.15) + twist,
-          y * (1.0 + Math.abs(x) * 0.1),
-          z * (0.95 + Math.abs(y) * 0.12)
-        );
-      }
-      nexusPos.needsUpdate = true;
-      nexusGeometry.computeVertexNormals();
-      nexusGeometry.computeBoundingSphere();
-
-      const nexusMat = new THREE.MeshStandardMaterial({
-        color: resolvedColor,
-        emissive: resolvedColor,
-        emissiveIntensity: 0.6,
-        metalness: 0.8,
-        roughness: 0.2,
-        transparent: false,
-        depthWrite: true,
-        depthTest: true,
-        side: THREE.FrontSide
-      });
-
-      const nexus = new THREE.Mesh(nexusGeometry, nexusMat);
-      nexus.name = 'RecursionNexus';
+      const nexus = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      nexus.name = 'LoomNexus';
       nexus.userData.ignoreWaveColor = true;
-      nexus.position.set(0.0, 0.0, 0.0);
-      nexus.rotation.set(0.12, -0.18, 0.08);
+      nexus.position.set(0.0, 0.06, 0.0);
+      nexus.rotation.set(0.16, 0.28, -0.08);
       nexus.renderOrder = coreOrder;
       markKnotMesh(nexus);
       coreGroup.add(nexus);
 
-      const nexusEdges = new THREE.LineSegments(
-        safeCreateEdgesGeometry(nexusGeometry, 10),
-        new THREE.LineBasicMaterial({ color: resolvedColor, transparent: true, opacity: 0.5 })
-      );
-      nexusEdges.name = 'RecursionNexus_Edges';
+      const nexusEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.edgeMat);
+      nexusEdges.name = 'LoomNexus_Edges';
       nexusEdges.userData.ignoreWaveColor = true;
       nexusEdges.position.copy(nexus.position);
       nexusEdges.rotation.copy(nexus.rotation);
       nexusEdges.renderOrder = archOrder;
       coreGroup.add(nexusEdges);
 
-      // Inner seed — tiny luminous tetrahedron inside nexus
-      const innerSeedGeo = new THREE.TetrahedronGeometry(0.06, 0);
-      innerSeedGeo.rotateY(0.4);
-      innerSeedGeo.rotateX(-0.2);
-      innerSeedGeo.computeBoundingSphere();
-      const innerSeedMat = new THREE.MeshStandardMaterial({
-        color: resolvedColor,
-        emissive: resolvedColor,
-        emissiveIntensity: 0.9,
-        metalness: 0.9,
-        roughness: 0.1,
-        transparent: false,
-        depthWrite: true
-      });
-      const innerSeed = new THREE.Mesh(innerSeedGeo, innerSeedMat);
-      innerSeed.name = 'InnerRecursionSeed';
-      innerSeed.userData.ignoreWaveColor = true;
-      innerSeed.position.set(0.0, 0.01, 0.0);
-      innerSeed.renderOrder = coreOrder;
-      markKnotMesh(innerSeed);
-      coreGroup.add(innerSeed);
+      const recursionSeed = new THREE.Mesh(geometries.seedGeometry, materials.seedMat);
+      recursionSeed.name = 'LoomRecursionSeed';
+      recursionSeed.userData.ignoreWaveColor = true;
+      recursionSeed.position.set(0.04, 0.1, -0.02);
+      recursionSeed.rotation.set(0.22, 0.48, -0.12);
+      recursionSeed.renderOrder = coreOrder;
+      markKnotMesh(recursionSeed);
+      coreGroup.add(recursionSeed);
+
+      const ghostEcho = new THREE.Mesh(geometries.echoGeometry, materials.echoMat);
+      ghostEcho.name = 'LoomGhostEcho';
+      ghostEcho.userData.ignoreWaveColor = true;
+      ghostEcho.position.copy(nexus.position).add(new THREE.Vector3(0.12, -0.04, -0.08));
+      ghostEcho.rotation.copy(nexus.rotation);
+      ghostEcho.scale.set(0.94, 1.06, 0.98);
+      ghostEcho.renderOrder = archOrder;
+      coreGroup.add(ghostEcho);
 
       root.add(coreGroup);
 
-      // === PRIMARY KNOT: Main tubular structure ===
+      // === KNOT GROUP: Primary tubular knot + ghost companion ===
       const knotGroup = new THREE.Group();
       knotGroup.name = 'KNOT_GROUP';
 
@@ -39187,7 +39898,6 @@ static createAnalyticsNode2(group, color) {
       markKnotMesh(primaryTube);
       knotGroup.add(primaryTube);
 
-      // === GHOST ECHO: Phase-shifted companion ===
       const ghostTube = this.generateTubularKnot(
         (t) => {
           const offset = 0.4;
@@ -39204,185 +39914,196 @@ static createAnalyticsNode2(group, color) {
       ghostTube.name = 'GhostEchoKnot';
       ghostTube.userData.ignoreWaveColor = true;
       ghostTube.material.transparent = true;
-      ghostTube.material.opacity = 0.3;
+      ghostTube.material.opacity = 0.28;
       ghostTube.material.depthWrite = false;
-      ghostTube.material.emissiveIntensity = 0.15;
+      ghostTube.material.emissiveIntensity = 0.12;
       ghostTube.renderOrder = archOrder;
       markKnotMesh(ghostTube);
       knotGroup.add(ghostTube);
 
       root.add(knotGroup);
 
-      // === ORBITAL SHARDS: Fragments at key curve positions ===
-      const shardGroup = new THREE.Group();
-      shardGroup.name = 'SHARD_GROUP';
+      // === VEIL GROUP: Mystical torus arcs at asymmetric angles ===
+      const veilGroup = new THREE.Group();
+      veilGroup.name = 'VEIL_GROUP';
 
-      const shardGeometry = new THREE.OctahedronGeometry(0.06, 0);
-      shardGeometry.scale(0.7, 1.3, 0.6);
-      shardGeometry.computeBoundingSphere();
-
-      const shardMat = new THREE.MeshStandardMaterial({
-        color: resolvedColor,
-        emissive: resolvedColor,
-        emissiveIntensity: 0.4,
-        metalness: 0.7,
-        roughness: 0.3,
-        transparent: true,
-        opacity: 0.7,
-        depthWrite: true,
-        side: THREE.FrontSide
+      const veilConfigs = [
+        {
+          name: 'LoomVeil_A',
+          geometry: geometries.veilArcGeometryA,
+          material: materials.veilMatA,
+          pos: [0.02, 0.08, -0.02],
+          rot: [Math.PI * 0.52, Math.PI * 0.12, Math.PI * 0.18],
+          scale: [1.04, 0.92, 1.08],
+          axis: new THREE.Vector3(0.18, 1, 0.12),
+          speed: 0.1
+        },
+        {
+          name: 'LoomVeil_B',
+          geometry: geometries.veilArcGeometryB,
+          material: materials.veilMatB,
+          pos: [-0.08, 0.04, 0.1],
+          rot: [Math.PI * 0.08, Math.PI * 0.58, -Math.PI * 0.28],
+          scale: [0.94, 1.04, 0.86],
+          axis: new THREE.Vector3(-0.32, 1, 0.24),
+          speed: -0.14
+        },
+        {
+          name: 'LoomVeil_C',
+          geometry: geometries.veilArcGeometryC,
+          material: materials.veilMatA,
+          pos: [0.38, -0.06, -0.14],
+          rot: [0.96, -0.18, -0.52],
+          scale: [0.88, 0.82, 0.76],
+          axis: new THREE.Vector3(0.42, -0.8, 0.36),
+          speed: 0.08
+        }
+      ];
+      veilConfigs.forEach((cfg) => {
+        const veil = new THREE.Mesh(cfg.geometry, cfg.material);
+        veil.name = cfg.name;
+        veil.userData.isOrbitRing = true;
+        veil.userData.orbitAxis = cfg.axis.clone().normalize();
+        veil.userData.orbitSpeed = cfg.speed;
+        veil.userData.ringSpeed = cfg.speed;
+        veil.userData.ignoreWaveColor = true;
+        veil.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+        veil.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+        veil.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+        veil.renderOrder = archOrder;
+        veilGroup.add(veil);
       });
+      root.userData.orbitRingCount = veilConfigs.length;
 
-      const shardPositions = [
-        { t: 0.0, offset: [0.0, 0.0, 0.0] },
-        { t: Math.PI * 0.5, offset: [0.05, -0.03, 0.02] },
-        { t: Math.PI, offset: [-0.03, 0.04, -0.02] },
-        { t: Math.PI * 1.5, offset: [0.02, -0.02, 0.04] },
-        { t: Math.PI * 2.0, offset: [-0.04, 0.03, -0.01] }
+      root.add(veilGroup);
+
+      // === DRIFT GROUP: Crystallized intersection shards along knot path ===
+      const driftGroup = new THREE.Group();
+      driftGroup.name = 'DRIFT_GROUP';
+
+      const driftConfigs = [
+        { name: 'DriftShard_A', t: 0.0, offset: [0.0, 0.0, 0.0], rot: [0.36, 0.18, -0.24], scale: [0.82, 1.0, 0.68] },
+        { name: 'DriftShard_B', t: Math.PI * 0.5, offset: [0.05, -0.03, 0.02], rot: [0.16, -0.56, 0.22], scale: [0.68, 0.86, 0.56] },
+        { name: 'DriftShard_C', t: Math.PI, offset: [-0.03, 0.04, -0.02], rot: [-0.28, 0.28, 0.42], scale: [0.62, 0.8, 0.52] },
+        { name: 'DriftShard_D', t: Math.PI * 1.5, offset: [0.02, -0.02, 0.04], rot: [0.64, -0.12, -0.18], scale: [0.56, 0.74, 0.48] }
       ];
 
-      shardPositions.forEach((cfg, idx) => {
+      driftConfigs.forEach((cfg, idx) => {
         const pt = knotCurve(cfg.t);
-        const shard = new THREE.Mesh(shardGeometry, shardMat.clone());
-        shard.name = `OrbitalShard_${String.fromCharCode(65 + idx)}`;
+        const shard = new THREE.Mesh(geometries.driftShardGeometry, materials.driftShardMat);
+        shard.name = cfg.name;
         shard.userData.ignoreWaveColor = true;
         shard.position.set(
-          pt[0] * 0.6 + cfg.offset[0],
-          pt[1] * 0.6 + cfg.offset[1],
-          pt[2] * 0.6 + cfg.offset[2]
+          pt[0] * 0.6 + cfg.offset[0] + (rng() - 0.5) * 0.03,
+          pt[1] * 0.6 + cfg.offset[1] + (rng() - 0.5) * 0.03,
+          pt[2] * 0.6 + cfg.offset[2] + (rng() - 0.5) * 0.03
         );
         shard.rotation.set(
-          cfg.t * 0.3 + idx * 0.4,
-          cfg.t * 0.2 - idx * 0.3,
-          cfg.t * 0.15 + idx * 0.2
+          cfg.rot[0] + (rng() - 0.5) * 0.08,
+          cfg.rot[1] + (rng() - 0.5) * 0.08,
+          cfg.rot[2] + (rng() - 0.5) * 0.08
         );
         shard.scale.set(
-          0.8 + idx * 0.05,
-          0.9 + idx * 0.03,
-          0.7 + idx * 0.04
+          cfg.scale[0] * (0.96 + rng() * 0.08),
+          cfg.scale[1] * (0.96 + rng() * 0.08),
+          cfg.scale[2] * (0.96 + rng() * 0.08)
         );
         shard.renderOrder = archOrder;
         markKnotMesh(shard);
-        shardGroup.add(shard);
+        driftGroup.add(shard);
 
-        const shardEdges = new THREE.LineSegments(
-          safeCreateEdgesGeometry(shardGeometry, 6),
-          new THREE.LineBasicMaterial({ color: resolvedColor, transparent: true, opacity: 0.35 })
-        );
-        shardEdges.name = `OrbitalShard_${String.fromCharCode(65 + idx)}_Edges`;
-        shardEdges.userData.ignoreWaveColor = true;
-        shardEdges.position.copy(shard.position);
-        shardEdges.rotation.copy(shard.rotation);
-        shardEdges.scale.copy(shard.scale);
-        shardEdges.renderOrder = archOrder;
-        shardGroup.add(shardEdges);
+        if (idx < 3) {
+          const shardEdges = new THREE.LineSegments(geometries.driftShardEdgesGeometry, materials.edgeMat);
+          shardEdges.name = `${cfg.name}_Edges`;
+          shardEdges.userData.ignoreWaveColor = true;
+          shardEdges.position.copy(shard.position);
+          shardEdges.rotation.copy(shard.rotation);
+          shardEdges.scale.copy(shard.scale);
+          shardEdges.renderOrder = archOrder;
+          driftGroup.add(shardEdges);
+        }
       });
 
-      root.add(shardGroup);
+      root.add(driftGroup);
 
-      // === WITNESS TRACE: Thin curve echoing the knot path ===
+      // === WITNESS GROUP: Curve traces echoing the knot silhouette ===
       const witnessGroup = new THREE.Group();
       witnessGroup.name = 'WITNESS_GROUP';
 
-      const witnessPositions = [];
-      for (let i = 0; i <= 60; i++) {
-        const t = (i / 60) * Math.PI * 2.5;
-        const pt = knotCurve(t);
-        witnessPositions.push(pt[0] * 0.63, pt[1] * 0.63, pt[2] * 0.63);
-      }
-      const witnessGeo = new THREE.BufferGeometry();
-      witnessGeo.setAttribute('position', new THREE.Float32BufferAttribute(witnessPositions, 3));
-      witnessGeo.computeBoundingSphere();
+      const witnessA = new THREE.Line(geometries.witnessLineGeometryA, materials.witnessMat);
+      witnessA.name = 'LoomWitnessTrace_A';
+      witnessA.userData.ignoreWaveColor = true;
+      witnessA.position.set(0.0, 0.0, 0.0);
+      witnessA.rotation.set(0.05, -0.08, 0.03);
+      witnessA.scale.set(1.06, 1.06, 1.06);
+      witnessA.renderOrder = archOrder;
+      witnessGroup.add(witnessA);
 
-      const witnessMat = new THREE.LineBasicMaterial({
-        color: resolvedColor,
-        transparent: true,
-        opacity: 0.18
-      });
-
-      const witnessLine = new THREE.Line(witnessGeo, witnessMat);
-      witnessLine.name = 'KnotWitnessTrace';
-      witnessLine.userData.ignoreWaveColor = true;
-      witnessLine.position.set(0.0, 0.0, 0.0);
-      witnessLine.rotation.set(0.05, -0.08, 0.03);
-      witnessLine.scale.set(1.06, 1.06, 1.06);
-      witnessLine.renderOrder = archOrder;
-      witnessGroup.add(witnessLine);
-
-      // Second witness trace — slightly different scale for parallax depth
-      const witnessPositions2 = [];
-      for (let i = 0; i <= 48; i++) {
-        const t = (i / 48) * Math.PI * 2.5;
-        const pt = knotCurve(t);
-        witnessPositions2.push(pt[0] * 0.55, pt[1] * 0.55, pt[2] * 0.55);
-      }
-      const witnessGeo2 = new THREE.BufferGeometry();
-      witnessGeo2.setAttribute('position', new THREE.Float32BufferAttribute(witnessPositions2, 3));
-      witnessGeo2.computeBoundingSphere();
-
-      const witnessLine2 = new THREE.Line(witnessGeo2, witnessMat.clone());
-      witnessLine2.material.opacity = 0.1;
-      witnessLine2.name = 'KnotWitnessTrace_Inner';
-      witnessLine2.userData.ignoreWaveColor = true;
-      witnessLine2.position.set(0.0, 0.0, 0.0);
-      witnessLine2.rotation.set(-0.04, 0.06, -0.02);
-      witnessLine2.renderOrder = archOrder;
-      witnessGroup.add(witnessLine2);
+      const witnessB = new THREE.Line(geometries.witnessLineGeometryB, materials.witnessMat);
+      witnessB.name = 'LoomWitnessTrace_B';
+      witnessB.userData.ignoreWaveColor = true;
+      witnessB.position.set(0.0, 0.0, 0.0);
+      witnessB.rotation.set(-0.04, 0.06, -0.02);
+      witnessB.renderOrder = archOrder;
+      witnessGroup.add(witnessB);
 
       root.add(witnessGroup);
 
-      // === AURA: Edge glow on nexus + ambient dust ===
+      // === AURA GROUP: Edge glow + resonance dust + afterimage ghosts ===
       const auraGroup = new THREE.Group();
       auraGroup.name = 'AURA_GROUP';
 
       const edgeGlow = createNodeNeonEdgeGlowShell(nexus, resolvedColor, {
-        glowIntensity: 0.45,
-        edgeWidth: 0.04,
+        glowIntensity: 0.48,
+        edgeWidth: 0.042,
         pulseAmount: 0.0
       });
       if (edgeGlow) {
-        edgeGlow.name = 'NexusEdgeGlow';
+        edgeGlow.name = 'LoomNexusEdgeGlow';
         edgeGlow.position.copy(nexus.position);
         edgeGlow.quaternion.copy(nexus.quaternion);
-        edgeGlow.scale.copy(nexus.scale).multiplyScalar(1.15);
+        edgeGlow.scale.copy(nexus.scale).multiplyScalar(1.12);
         edgeGlow.frustumCulled = false;
         edgeGlow.renderOrder = archOrder;
         auraGroup.add(edgeGlow);
       }
 
-      // Ambient dust particles
-      const dustCount = 40;
-      const dustPositions = [];
-      for (let i = 0; i < dustCount; i++) {
-        const angle = (i / dustCount) * Math.PI * 2;
-        const r = 0.3 + Math.random() * 0.25;
-        dustPositions.push(
-          Math.cos(angle) * r + (Math.random() - 0.5) * 0.1,
-          Math.sin(angle) * r * 0.6 + (Math.random() - 0.5) * 0.1,
-          Math.sin(angle * 2.5) * 0.15 + (Math.random() - 0.5) * 0.1
+      const resonanceDust = new THREE.Points(geometries.dustGeometry, materials.dustMat);
+      resonanceDust.name = 'LoomResonanceDust';
+      resonanceDust.userData.ignoreWaveColor = true;
+      resonanceDust.position.set(0.02, 0.06, -0.02);
+      resonanceDust.rotation.set(0.1, -0.22, 0.06);
+      resonanceDust.frustumCulled = false;
+      resonanceDust.renderOrder = archOrder;
+      auraGroup.add(resonanceDust);
+
+      // Afterimage ghosts — reusing echo geometry for ethereal presence
+      const afterimageConfigs = [
+        { name: 'LoomAfterimage_A', pos: [0.16, 0.22, -0.08], rot: [0.28, 0.62, -0.12], scale: [0.72, 0.94, 0.68] },
+        { name: 'LoomAfterimage_B', pos: [-0.1, 0.38, 0.1], rot: [0.82, -0.14, 0.22], scale: [0.62, 0.84, 0.58] }
+      ];
+      afterimageConfigs.forEach((cfg) => {
+        const ghost = new THREE.Mesh(geometries.echoGeometry, materials.echoMat);
+        ghost.name = cfg.name;
+        ghost.userData.ignoreWaveColor = true;
+        ghost.position.set(
+          cfg.pos[0] + (rng() - 0.5) * 0.04,
+          cfg.pos[1] + (rng() - 0.5) * 0.04,
+          cfg.pos[2] + (rng() - 0.5) * 0.04
         );
-      }
-      const dustGeo = new THREE.BufferGeometry();
-      dustGeo.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
-      dustGeo.computeBoundingSphere();
-
-      const dustMat = new THREE.PointsMaterial({
-        color: resolvedColor,
-        size: 0.02,
-        transparent: true,
-        opacity: 0.4,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        sizeAttenuation: true
+        ghost.rotation.set(
+          cfg.rot[0] + (rng() - 0.5) * 0.08,
+          cfg.rot[1] + (rng() - 0.5) * 0.08,
+          cfg.rot[2] + (rng() - 0.5) * 0.08
+        );
+        ghost.scale.set(
+          cfg.scale[0] * (0.96 + rng() * 0.08),
+          cfg.scale[1] * (0.96 + rng() * 0.08),
+          cfg.scale[2] * (0.96 + rng() * 0.08)
+        );
+        ghost.renderOrder = archOrder;
+        auraGroup.add(ghost);
       });
-
-      const dust = new THREE.Points(dustGeo, dustMat);
-      dust.name = 'RecursionDust';
-      dust.userData.ignoreWaveColor = true;
-      dust.position.set(0.0, 0.02, 0.0);
-      dust.frustumCulled = false;
-      dust.renderOrder = archOrder;
-      auraGroup.add(dust);
 
       root.add(auraGroup);
 
@@ -39402,7 +40123,7 @@ static createAnalyticsNode2(group, color) {
               ignoreWaveColor: true
             };
           }
-          validateMeshGeometry(o, o.name || 'integration-infinite-self-intersecting');
+          validateMeshGeometry(o, o.name || 'integration-infinite-loom');
         }
       });
 
