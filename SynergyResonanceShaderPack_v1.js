@@ -108,7 +108,12 @@ class ResonanceMaterialState {
         
         const state = this;
         const originalOnBeforeCompile = this.originalOnBeforeCompile;
-        
+
+        // Preserve any existing customProgramCacheKey and chain with our suffix
+        const previousCacheKey = typeof this.material.customProgramCacheKey === 'function'
+            ? this.material.customProgramCacheKey.bind(this.material)
+            : null;
+
         this.material.onBeforeCompile = (shader) => {
             // Call original patch if exists
             if (originalOnBeforeCompile) {
@@ -343,7 +348,18 @@ class ResonanceMaterialState {
             );
         };
         
-        // Force material update
+        // Set stable customProgramCacheKey so all resonance-patched materials
+        // share a single compiled GPU program (eliminates variant explosion)
+        if (!this.material.userData) this.material.userData = {};
+        if (!this.material.userData.__resonanceProgramCacheKeyBound) {
+            this.material.customProgramCacheKey = () => {
+                const previous = previousCacheKey ? String(previousCacheKey() ?? '') : '';
+                return `${previous}|SYNERGY_RESONANCE_v1`;
+            };
+            this.material.userData.__resonanceProgramCacheKeyBound = true;
+        }
+        
+        // Force material update (triggers first compile, subsequent materials hit cache)
         this.material.needsUpdate = true;
         
         // Mark material as patched
@@ -424,6 +440,34 @@ export class SynergyResonanceShaderPack_v1 {
             }
             return false;
         }
+    }
+    
+    /**
+     * Pre-warm all link materials so shader compilation happens during
+     * bootstrap instead of causing a hitch on the first link update.
+     * Call this once after links are available (e.g. during prime phase).
+     * @param {Array} links - Array of link objects
+     * @returns {number} Count of newly primed materials
+     */
+    primeMaterials(links = []) {
+        let count = 0;
+        try {
+            for (const link of links) {
+                const materials = getConduitLinkMaterials(link);
+                for (const material of materials) {
+                    if (!material[RESONANCE_FX_PATCHED]) {
+                        this.getMaterialState(material);
+                        count++;
+                    }
+                }
+            }
+            if (this.config.debugEnabled && count > 0) {
+                console.log(`[SynergyResonanceShaderPack_v1] primed ${count} materials`);
+            }
+        } catch (err) {
+            console.warn('[SynergyResonanceShaderPack_v1] primeMaterials failed:', err);
+        }
+        return count;
     }
     
     /**

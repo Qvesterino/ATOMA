@@ -159,11 +159,34 @@ export class VisualUpgradeSuperpack {
             synergy: 0.5,
             stability: 0.5
         };
+
+        // Hero layer state machine — world-state-gated atmosphere
+        // Dormant = hero objects hidden, zero per-frame cost
+        // Active = hero objects visible, metrics modulate intensity
+        this._heroState = 'dormant'; // 'dormant' | 'activating' | 'active' | 'fading'
+        this._heroOpacity = 0;
+        this._heroTargetOpacity = 0;
+        this._heroFadeInSpeed = 2.0;   // opacity units/sec (fade in ~0.5s)
+        this._heroFadeOutSpeed = 1.0;  // opacity units/sec (fade out ~1.0s)
+        this._heroHoldTimer = 0;
+        this._heroHoldDuration = 3.0;  // seconds to stay active after trigger
+        this._heroTriggerFlags = {
+            corruption: false,
+            instability: false,
+            synergy: false,
+            manual: false
+        };
+        this._heroThresholds = {
+            corruptionHigh: 0.5,
+            stabilityLow: 0.3,
+            synergyHigh: 0.75
+        };
     }
 
     /**
      * Receive live metrics from the game loop.
      * Expected shape: { harmony, corruption, synergy, stability } (all 0..1)
+     * Also evaluates hero layer activation triggers.
      */
     setMetrics(metrics) {
         if (!metrics) return;
@@ -171,6 +194,116 @@ export class VisualUpgradeSuperpack {
         if (metrics.corruption !== undefined) this._metrics.corruption = metrics.corruption;
         if (metrics.synergy !== undefined) this._metrics.synergy = metrics.synergy;
         if (metrics.stability !== undefined) this._metrics.stability = metrics.stability;
+
+        // Evaluate hero layer triggers from metrics
+        this._heroTriggerFlags.corruption = this._metrics.corruption > this._heroThresholds.corruptionHigh;
+        this._heroTriggerFlags.instability = this._metrics.stability < this._heroThresholds.stabilityLow;
+        this._heroTriggerFlags.synergy = this._metrics.synergy > this._heroThresholds.synergyHigh;
+    }
+
+    /**
+     * Manually trigger a hero burst for a given duration.
+     * Use for world transitions, cascade events, or dramatic moments.
+     * @param {number} duration - Duration in milliseconds (default 3000)
+     */
+    triggerHeroBurst(duration = 3000) {
+        this._heroTriggerFlags.manual = true;
+        this._heroHoldDuration = duration / 1000;
+        this._heroHoldTimer = this._heroHoldDuration;
+    }
+
+    /**
+     * Get current hero layer state for debugging.
+     */
+    getHeroState() {
+        return {
+            state: this._heroState,
+            opacity: this._heroOpacity,
+            triggers: { ...this._heroTriggerFlags },
+            holdTimer: this._heroHoldTimer
+        };
+    }
+
+    /**
+     * Evaluate and transition hero state machine.
+     * Called once per update tick.
+     */
+    _evaluateHeroState(deltaTime) {
+        const anyTrigger = Object.values(this._heroTriggerFlags).some(v => v);
+
+        switch (this._heroState) {
+            case 'dormant':
+                if (anyTrigger) {
+                    this._heroState = 'activating';
+                    this._heroTargetOpacity = 1;
+                    this._showHeroObjects();
+                }
+                break;
+
+            case 'activating':
+                this._heroOpacity = Math.min(1, this._heroOpacity + this._heroFadeInSpeed * deltaTime);
+                if (this._heroOpacity >= 1) {
+                    this._heroOpacity = 1;
+                    this._heroState = 'active';
+                    this._heroHoldTimer = this._heroHoldDuration;
+                }
+                // If trigger released during fade-in, shorten hold
+                if (!anyTrigger) this._heroHoldTimer = Math.min(this._heroHoldTimer, 0.5);
+                break;
+
+            case 'active':
+                this._heroHoldTimer -= deltaTime;
+                // Reset hold timer if trigger is still active
+                if (anyTrigger) this._heroHoldTimer = this._heroHoldDuration;
+                if (this._heroHoldTimer <= 0) {
+                    this._heroState = 'fading';
+                    this._heroTargetOpacity = 0;
+                }
+                break;
+
+            case 'fading':
+                this._heroOpacity = Math.max(0, this._heroOpacity - this._heroFadeOutSpeed * deltaTime);
+                // Re-trigger during fade-out
+                if (anyTrigger) {
+                    this._heroState = 'activating';
+                    this._heroTargetOpacity = 1;
+                }
+                if (this._heroOpacity <= 0) {
+                    this._heroOpacity = 0;
+                    this._heroState = 'dormant';
+                    this._hideHeroObjects();
+                }
+                break;
+        }
+
+        // Clear manual trigger after one evaluation cycle (it's a pulse, not sustained)
+        this._heroTriggerFlags.manual = false;
+    }
+
+    /**
+     * Show all hero layer objects (volumetric, atmospheric, particles, etc.)
+     */
+    _showHeroObjects() {
+        const show = obj => { obj.visible = true; };
+        this.volumetricLights.forEach(show);
+        this.atmosphericLayers.forEach(show);
+        this.distortionZones.forEach(show);
+        this.rifts.forEach(show);
+        this.particles.forEach(show);
+        if (this.cameraAura) this.cameraAura.visible = true;
+    }
+
+    /**
+     * Hide all hero layer objects — zero GPU cost when dormant
+     */
+    _hideHeroObjects() {
+        const hide = obj => { obj.visible = false; };
+        this.volumetricLights.forEach(hide);
+        this.atmosphericLayers.forEach(hide);
+        this.distortionZones.forEach(hide);
+        this.rifts.forEach(hide);
+        this.particles.forEach(hide);
+        if (this.cameraAura) this.cameraAura.visible = false;
     }
 
     _getQualityProfile(level = 'HIGH') {
@@ -387,6 +520,10 @@ export class VisualUpgradeSuperpack {
         this.applyDreamParticlesPack();
         this.applyCinematicCameraAuraPack();
         this.setQualityTier(this.qualityTier);
+
+        // Start hero objects in dormant state (hidden, zero GPU cost)
+        // They will activate only when world-state triggers fire
+        this._hideHeroObjects();
     }
 
     // ============================================================
@@ -1014,43 +1151,86 @@ export class VisualUpgradeSuperpack {
             this.camera.getWorldDirection(cameraDirection);
         }
 
-        // --- Smooth fade interpolation ---
+        // --- Global visibility fade (setVisible / quality toggle) ---
         if (Math.abs(this._fadeOpacity - this._targetOpacity) > 0.001) {
             const fadeDir = this._targetOpacity > this._fadeOpacity ? 1 : -1;
             this._fadeOpacity += fadeDir * this._fadeSpeed * deltaTime;
             this._fadeOpacity = Math.max(0, Math.min(1, this._fadeOpacity));
 
             if (this._fadeOpacity <= 0) {
-                const hide = obj => { obj.visible = false; };
-                this.volumetricLights.forEach(hide);
-                this.atmosphericLayers.forEach(hide);
-                this.edgeGlowObjects.forEach(hide);
-                this.distortionZones.forEach(hide);
-                this.rifts.forEach(hide);
-                this.particles.forEach(hide);
-                if (this.cameraAura) this.cameraAura.visible = false;
+                this._hideHeroObjects();
+                this.edgeGlowObjects.forEach(obj => { obj.visible = false; });
                 return; // Skip rest of update when invisible
-            } else {
-                const show = obj => { obj.visible = true; };
-                this.volumetricLights.forEach(show);
-                this.atmosphericLayers.forEach(show);
-                this.edgeGlowObjects.forEach(show);
-                this.distortionZones.forEach(show);
-                this.rifts.forEach(show);
-                this.particles.forEach(show);
-                if (this.cameraAura) this.cameraAura.visible = true;
             }
         }
 
         const fade = this._fadeOpacity;
-    const quality = this._qualityProfile || this._getQualityProfile(this.qualityTier);
+
+        // --- Hero layer state machine evaluation ---
+        this._evaluateHeroState(deltaTime);
+        const heroFade = this._heroOpacity * fade; // Combined hero × global fade
+        const heroActive = this._heroState !== 'dormant';
+
+        const quality = this._qualityProfile || this._getQualityProfile(this.qualityTier);
 
         // --- Metrics-driven parameters ---
         const { harmony, corruption, synergy, stability } = this._metrics;
         const pulseMultiplier = 1 + (1 - stability) * 0.25;
 
+        // ================================================================
+        // BASELINE TIER (always-on, cheap)
+        // ================================================================
+
         // GLOBAL SAFETY: Ensure all animated objects have valid rotation order
         this.edgeGlowObjects.forEach(o => this.ensureRotationOrder(o));
+
+        // Update edge glows to follow linked meshes (baseline — always runs)
+        this.edgeGlowObjects.forEach(glow => {
+            if (!glow.userData || !glow.userData.linkedMesh) return;
+
+            const mesh = glow.userData.linkedMesh;
+
+            // Position
+            if (mesh.position) {
+                glow.position.copy(mesh.position);
+            }
+
+            // ⚠ SAFE ROTATION SYNC (bez undefined Euler.order)
+            if (mesh.quaternion) {
+                glow.quaternion.copy(mesh.quaternion);
+            } else if (mesh.rotation) {
+                const srcRot = mesh.rotation;
+                const safeOrder = srcRot.order || 'XYZ';
+                glow.rotation.set(srcRot.x, srcRot.y, srcRot.z, safeOrder);
+            }
+
+            // Scale
+            if (mesh.scale) {
+                glow.scale.copy(mesh.scale);
+            }
+
+            if (glow.userData?.baseScale) {
+                const pulse = Math.sin(this.time * 0.7 + glow.userData.pulsePhase) * 0.5 + 0.5;
+                glow.scale.multiplyScalar(0.985 + pulse * 0.03);
+            }
+
+            // Fresnel effect based on camera angle
+            if (glow.material && this.camera) {
+                const surfaceNormal = this._vec3c.set(0, 1, 0);
+                const fresnel = Math.abs(cameraDirection.dot(surfaceNormal));
+                const distance = this.camera.position.distanceTo(mesh.position || glow.position);
+                const distanceFactor = THREE.MathUtils.clamp(1 - distance / 260, 0.25, 1);
+                glow.material.opacity = glow.userData.baseOpacity * quality.edgeGlowOpacity * (0.18 + fresnel * 0.82) * distanceFactor * fade;
+            }
+        });
+
+        // ================================================================
+        // HERO TIER (world-state-gated, burst only)
+        // All loops below are SKIPPED when hero is dormant → zero cost
+        // ================================================================
+        if (!heroActive) return;
+
+        // Safety: ensure rotation orders for hero objects
         this.distortionZones.forEach(o => this.ensureRotationOrder(o));
         this.rifts.forEach(o => this.ensureRotationOrder(o));
         this.particles.forEach(o => this.ensureRotationOrder(o));
@@ -1089,7 +1269,7 @@ export class VisualUpgradeSuperpack {
                 light.scale.setScalar(scalePulse);
             }
 
-            light.material.opacity = light.userData.baseOpacity * quality.volumetricOpacity * (0.55 + pulse * 0.45) * fade;
+            light.material.opacity = light.userData.baseOpacity * quality.volumetricOpacity * (0.55 + pulse * 0.45) * heroFade;
 
             if (light.material?.color && light.userData?.tint) {
                 const tint = 0.96 + pulse * 0.06;
@@ -1115,7 +1295,7 @@ export class VisualUpgradeSuperpack {
             layer.position.z = cameraPosition.z * layer.userData.followFactor + driftZ;
             layer.rotation.z = Math.sin(this.time * 0.02 + layer.userData.phase) * 0.01;
             layer.scale.setScalar(0.985 + pulse * 0.03 * quality.fogScale);
-            layer.material.opacity = layer.userData.baseOpacity * quality.fogOpacity * (0.65 + pulse * 0.35) * fade;
+            layer.material.opacity = layer.userData.baseOpacity * quality.fogOpacity * (0.65 + pulse * 0.35) * heroFade;
         });
 
         // Update distortion zones
@@ -1136,7 +1316,7 @@ export class VisualUpgradeSuperpack {
             const pulse = Math.sin(this.time * rift.userData.pulseSpeed + rift.userData.phase) * 0.5 + 0.5;
 
             if (rift.material.opacity !== undefined) {
-                rift.material.opacity = rift.userData.baseOpacity * quality.riftOpacity * (0.5 + pulse * 0.5) * fade;
+                rift.material.opacity = rift.userData.baseOpacity * quality.riftOpacity * (0.5 + pulse * 0.5) * heroFade;
             }
 
             if (rift.material.emissiveIntensity !== undefined) {
@@ -1180,52 +1360,10 @@ export class VisualUpgradeSuperpack {
 
             const systemPulse = Math.sin(this.time * (0.35 + system.userData.system.speed * 20) + system.id) * 0.5 + 0.5;
             if (system.material) {
-                system.material.opacity = quality.particleOpacity * (0.55 + systemPulse * 0.25) * fade;
+                system.material.opacity = quality.particleOpacity * (0.55 + systemPulse * 0.25) * heroFade;
             }
             system.rotation.y += visualDelta * 0.01;
             system.scale.setScalar(0.98 + systemPulse * 0.03);
-        });
-
-        // Update edge glows to follow linked meshes
-        this.edgeGlowObjects.forEach(glow => {
-            if (!glow.userData || !glow.userData.linkedMesh) return;
-
-            const mesh = glow.userData.linkedMesh;
-
-            // Position
-            if (mesh.position) {
-                glow.position.copy(mesh.position);
-            }
-
-            // ⚠ SAFE ROTATION SYNC (bez undefined Euler.order)
-            if (mesh.quaternion) {
-                // Preferujeme quaternion – obídeme setFromEuler úplne
-                glow.quaternion.copy(mesh.quaternion);
-            } else if (mesh.rotation) {
-                const srcRot = mesh.rotation;
-                const safeOrder = srcRot.order || 'XYZ'; // fallback, ak je order undefined
-                glow.rotation.set(srcRot.x, srcRot.y, srcRot.z, safeOrder);
-            }
-
-            // Scale
-            if (mesh.scale) {
-                glow.scale.copy(mesh.scale);
-            }
-
-            if (glow.userData?.baseScale) {
-                const pulse = Math.sin(this.time * 0.7 + glow.userData.pulsePhase) * 0.5 + 0.5;
-                glow.scale.multiplyScalar(0.985 + pulse * 0.03);
-            }
-
-            // Fresnel effect based on camera angle
-            if (glow.material && this.camera) {
-                const surfaceNormal = this._vec3c.set(0, 1, 0);
-
-                const fresnel = Math.abs(cameraDirection.dot(surfaceNormal));
-                const distance = this.camera.position.distanceTo(mesh.position || glow.position);
-                const distanceFactor = THREE.MathUtils.clamp(1 - distance / 260, 0.25, 1);
-                glow.material.opacity = glow.userData.baseOpacity * quality.edgeGlowOpacity * (0.18 + fresnel * 0.82) * distanceFactor * fade;
-            }
         });
 
         // Update camera aura
@@ -1239,7 +1377,7 @@ export class VisualUpgradeSuperpack {
             this.cameraAura.children.forEach((sprite, index) => {
                 const spritePulse = Math.sin(this.time * (0.5 + index * 0.09) + sprite.userData.phase) * 0.5 + 0.5;
                 const baseScale = sprite.userData.baseScale;
-                sprite.material.opacity = sprite.userData.baseOpacity * quality.cameraAuraOpacity * (0.62 + spritePulse * 0.38) * fade;
+                sprite.material.opacity = sprite.userData.baseOpacity * quality.cameraAuraOpacity * (0.62 + spritePulse * 0.38) * heroFade;
                 sprite.scale.set(
                     baseScale.x * (0.94 + auraPulse * 0.08),
                     baseScale.y * (0.94 + auraPulse * 0.08),
@@ -1251,20 +1389,17 @@ export class VisualUpgradeSuperpack {
     }
 
     /**
-     * Toggle visibility with smooth fade transition
+     * Toggle visibility with smooth fade transition.
+     * Hero objects respect their own state machine — only baseline (edge glows)
+     * is directly toggled here. Hero objects will show/hide via _evaluateHeroState().
      */
     setVisible(visible) {
         this._targetOpacity = visible ? 1 : 0;
         if (visible) {
-            // Immediately make objects visible so fade-in is visible
-            const show = obj => { obj.visible = true; };
-            this.volumetricLights.forEach(show);
-            this.atmosphericLayers.forEach(show);
-            this.edgeGlowObjects.forEach(show);
-            this.distortionZones.forEach(show);
-            this.rifts.forEach(show);
-            this.particles.forEach(show);
-            if (this.cameraAura) this.cameraAura.visible = true;
+            // Show baseline objects immediately so fade-in is visible
+            this.edgeGlowObjects.forEach(obj => { obj.visible = true; });
+            // Hero objects are managed by the hero state machine
+            // They will become visible when a trigger fires
         }
     }
 

@@ -143,6 +143,11 @@ class SynergyMaterialState {
         if (this.material[SYNERGY_FX_PATCHED]) return;
         
         const state = this;
+
+        // Preserve any existing customProgramCacheKey and chain with our suffix
+        const previousCacheKey = typeof this.material.customProgramCacheKey === 'function'
+            ? this.material.customProgramCacheKey.bind(this.material)
+            : null;
         
         this.material.onBeforeCompile = (shader) => {
             // Call original patch if it exists
@@ -284,7 +289,18 @@ class SynergyMaterialState {
             }
         };
         
-        // Force material update
+        // Set stable customProgramCacheKey so all synergy-bonus-patched materials
+        // share a single compiled GPU program (eliminates variant explosion)
+        if (!this.material.userData) this.material.userData = {};
+        if (!this.material.userData.__synergyBonusProgramCacheKeyBound) {
+            this.material.customProgramCacheKey = () => {
+                const previous = previousCacheKey ? String(previousCacheKey() ?? '') : '';
+                return `${previous}|SYNERGY_BONUS_v1`;
+            };
+            this.material.userData.__synergyBonusProgramCacheKeyBound = true;
+        }
+        
+        // Force material update (triggers first compile, subsequent materials hit cache)
         this.material.needsUpdate = true;
         
         // Mark material as patched

@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { EnvironmentEventCoordinator } from './EnvironmentEventCoordinator.js';
 import { EventDramaturgyEngine, installDramaturgyDebugAPI } from './EventDramaturgyEngine.js';
@@ -293,6 +294,89 @@ const ENVIRONMENT_RENDER_LAYERS = Object.freeze({
   environmentalHazards: 'WORLD_OVERLAY'
 });
 
+const ENVIRONMENT_AMBIENT_VISIBILITY_POLICY = Object.freeze({
+  worldFXPack: Object.freeze({
+    focusRadius: 18,
+    activeDistance: 30,
+    farDistance: 58,
+    dormantDistance: 96,
+    activeCadenceFrames: 2,
+    farCadenceFrames: 4
+  }),
+  weatherPack: Object.freeze({
+    focusRadius: 18,
+    activeDistance: 30,
+    farDistance: 58,
+    dormantDistance: 96,
+    activeCadenceFrames: 2,
+    farCadenceFrames: 4
+  }),
+  ambientEntityManager: Object.freeze({
+    focusRadius: 14,
+    activeDistance: 24,
+    farDistance: 46,
+    dormantDistance: 72,
+    activeCadenceFrames: 3,
+    farCadenceFrames: 6
+  }),
+  quantumIllusions: Object.freeze({
+    focusRadius: 18,
+    activeDistance: 28,
+    farDistance: 52,
+    dormantDistance: 82,
+    activeCadenceFrames: 2,
+    farCadenceFrames: 4
+  }),
+  metricReactiveEvents: Object.freeze({
+    focusRadius: 16,
+    activeDistance: 28,
+    farDistance: 56,
+    dormantDistance: 92,
+    activeCadenceFrames: 2,
+    farCadenceFrames: 4
+  }),
+  safeDreamDepthPack: Object.freeze({
+    focusRadius: 20,
+    activeDistance: 30,
+    farDistance: 60,
+    dormantDistance: 96,
+    activeCadenceFrames: 2,
+    farCadenceFrames: 4
+  }),
+  dreamDepthEffectManager: Object.freeze({
+    focusRadius: 20,
+    activeDistance: 30,
+    farDistance: 60,
+    dormantDistance: 96,
+    activeCadenceFrames: 2,
+    farCadenceFrames: 4
+  }),
+  colonyExpansion: Object.freeze({
+    focusRadius: 16,
+    activeDistance: 24,
+    farDistance: 44,
+    dormantDistance: 70,
+    activeCadenceFrames: 3,
+    farCadenceFrames: 6
+  }),
+  emergentThoughtStorms: Object.freeze({
+    focusRadius: 18,
+    activeDistance: 28,
+    farDistance: 52,
+    dormantDistance: 84,
+    activeCadenceFrames: 3,
+    farCadenceFrames: 6
+  }),
+  environmentalHazards: Object.freeze({
+    focusRadius: 16,
+    activeDistance: 28,
+    farDistance: 52,
+    dormantDistance: 86,
+    activeCadenceFrames: 2,
+    farCadenceFrames: 4
+  })
+});
+
 function createSharedEnvironmentAssetRegistry() {
   const materialEntries = new Map();
   const geometryEntries = new Map();
@@ -387,6 +471,11 @@ export class EnvironmentDomainController {
     this.frameScheduler = frameScheduler;
     this.deps = deps; // camera, aiNodes, linkingSystem, etc.
     this.sharedEnvironmentAssets = createSharedEnvironmentAssetRegistry();
+    this._ambientViewProjectionMatrix = new THREE.Matrix4();
+    this._ambientVisibilityFrustum = new THREE.Frustum();
+    this._ambientVisibilitySphere = new THREE.Sphere();
+    this._ambientFocusScratch = new THREE.Vector3();
+    this._ambientVisualFrameIndex = 0;
 
     this.instances = {};
     this.schedulerId = 'visual.environmentDomain';
@@ -625,6 +714,7 @@ export class EnvironmentDomainController {
   _collectRenderRoots(system) {
     const candidates = [
       system.root,
+      system.screenOverlaysRoot,
       system.vfxContainer,
       system.screenSpaceContainer,
       system.stormContainer,
@@ -645,6 +735,121 @@ export class EnvironmentDomainController {
     }
 
     return roots;
+  }
+
+  _getAmbientFocusObject() {
+    return this.deps?.player || this.worldRoot || this.environmentRoot || this.deps?.camera || null;
+  }
+
+  _getAmbientFocusPosition(target = this._ambientFocusScratch) {
+    const focusObject = this._getAmbientFocusObject();
+    if (!focusObject || !target) return null;
+
+    if (typeof focusObject.getWorldPosition === 'function') {
+      focusObject.getWorldPosition(target);
+      return target;
+    }
+
+    if (focusObject.position?.isVector3) {
+      target.copy(focusObject.position);
+      return target;
+    }
+
+    return null;
+  }
+
+  _buildAmbientVisibilityState() {
+    const camera = this.deps?.camera;
+    const focusPosition = this._getAmbientFocusPosition(this._ambientFocusScratch);
+
+    if (!camera?.position || !focusPosition) {
+      return {
+        focusVisible: true,
+        focusDistance: 0,
+        focusPosition: null
+      };
+    }
+
+    if (typeof camera.updateMatrixWorld === 'function') {
+      camera.updateMatrixWorld(true);
+    }
+
+    this._ambientViewProjectionMatrix.multiplyMatrices(
+      camera.projectionMatrix,
+      camera.matrixWorldInverse
+    );
+    this._ambientVisibilityFrustum.setFromProjectionMatrix(this._ambientViewProjectionMatrix);
+    this._ambientVisibilitySphere.center.copy(focusPosition);
+    this._ambientVisibilitySphere.radius = 16;
+
+    return {
+      focusVisible: this._ambientVisibilityFrustum.intersectsSphere(this._ambientVisibilitySphere),
+      focusDistance: camera.position.distanceTo(focusPosition),
+      focusPosition
+    };
+  }
+
+  _getAmbientLayerPolicy(key) {
+    return ENVIRONMENT_AMBIENT_VISIBILITY_POLICY[key] || null;
+  }
+
+  _resolveAmbientLayerMode(key, ambientState, visualFrameIndex) {
+    const policy = this._getAmbientLayerPolicy(key);
+    if (!policy) return null;
+
+    const focusVisible = ambientState?.focusVisible !== false;
+    const focusDistance = Number.isFinite(ambientState?.focusDistance) ? ambientState.focusDistance : 0;
+    const cadencePhase = Math.abs(Array.from(String(key)).reduce((acc, ch) => acc + ch.charCodeAt(0), 0)) % Math.max(1, policy.farCadenceFrames || 1);
+
+    if (!focusVisible || focusDistance >= policy.dormantDistance) {
+      return {
+        visible: false,
+        shouldUpdate: false,
+        cadenceFrames: 0,
+        policy,
+        state: 'dormant'
+      };
+    }
+
+    const throttled = focusDistance >= policy.farDistance;
+    const cadenceFrames = Math.max(1, throttled ? policy.farCadenceFrames : policy.activeCadenceFrames);
+    const shouldUpdate = cadenceFrames <= 1 || ((visualFrameIndex + cadencePhase) % cadenceFrames) === 0;
+
+    return {
+      visible: true,
+      shouldUpdate,
+      cadenceFrames,
+      policy,
+      state: throttled ? 'throttled' : 'active'
+    };
+  }
+
+  _applyAmbientLayerVisibility(system, visible) {
+    if (!system) return;
+
+    for (const root of this._collectRenderRoots(system)) {
+      if (root) root.visible = visible;
+    }
+
+    if (typeof system.setVisible === 'function') {
+      try {
+        system.setVisible(visible);
+      } catch {
+        // Ignore visibility setter failures; root visibility still applies.
+      }
+    }
+
+    if (typeof system.setEnabled === 'function') {
+      try {
+        system.setEnabled(visible);
+      } catch {
+        // Ignore enable setter failures; root visibility still applies.
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(system, 'runtimeEnabled')) {
+      system.runtimeEnabled = visible;
+    }
   }
 
   _bindRenderRoot(root, renderOrder, layerId, key) {
@@ -710,10 +915,22 @@ export class EnvironmentDomainController {
     this.frameScheduler.register(
       'visual',
       (dt) => {
+        const ambientState = this._buildAmbientVisibilityState();
+        const ambientVisualFrameIndex = this._ambientVisualFrameIndex = (this._ambientVisualFrameIndex ?? 0) + 1;
+        const dreamDepthMode = this._resolveAmbientLayerMode('safeDreamDepthPack', ambientState, ambientVisualFrameIndex);
+        this._applyAmbientLayerVisibility(this.instances.safeDreamDepthPack, dreamDepthMode?.visible !== false);
+        this._applyAmbientLayerVisibility(this.instances.dreamDepthEffectManager, dreamDepthMode?.visible !== false);
+
         const worldSystems = this._buildDreamDepthWorldSystems();
 
         Object.entries(this.instances).forEach(([key, sys]) => {
           if (!sys || typeof sys.update !== 'function') return;
+
+          const ambientMode = this._resolveAmbientLayerMode(key, ambientState, ambientVisualFrameIndex);
+          if (ambientMode) {
+            this._applyAmbientLayerVisibility(sys, ambientMode.visible);
+            if (!ambientMode.shouldUpdate) return;
+          }
 
           if (key === 'weatherPack') {
             sys.update(
@@ -748,7 +965,9 @@ export class EnvironmentDomainController {
           sys.update(dt);
         });
 
-        this._updateDreamDepthPair(dt, worldSystems);
+        if (dreamDepthMode?.shouldUpdate !== false) {
+          this._updateDreamDepthPair(dt, worldSystems);
+        }
 
         // Event Dramaturgy Engine — 3-phase lifecycle tick (visual lane)
         if (this.instances.eventDramaturgy) {

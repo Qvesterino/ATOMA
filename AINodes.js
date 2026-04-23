@@ -1194,6 +1194,79 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       mat.isMeshToonMaterial
     );
   }
+
+  _primeNodeVisualTargets(node, forceRefresh = false) {
+    if (!node || typeof node.traverse !== 'function') return null;
+
+    const root = node.userData?.nodeRoot || node;
+    const userData = node.userData || (node.userData = {});
+    const cached = userData.__visualStateTargets;
+    if (!forceRefresh && !userData.__visualStateTargetsDirty && cached && cached.root === root) {
+      return cached;
+    }
+
+    const baseColor = userData.baseColor ?? userData.color ?? 0x00ffff;
+    const targets = {
+      root,
+      coreMesh: null,
+      shellMaterials: [],
+      emissiveMaterials: [],
+      selectionAura: userData.selectionAura || userData.selectionAuraGroup || null,
+      selectionAuraMesh: userData.selectionAuraMesh || userData.selectionAuraRing || null,
+      baseColor
+    };
+
+    const emissiveSet = new Set();
+    const shellMaterialSet = new Set();
+    const edgeCageSet = new Set();
+
+    root.traverse((child) => {
+      if (!child || child.isObject3D !== true) return;
+
+      if (!targets.coreMesh && child.isMesh && child.userData.visualLayer === 'CORE' && !child.userData.isHologramShell) {
+        targets.coreMesh = child;
+      }
+
+      if (child.userData?.isEdgeCage === true) {
+        edgeCageSet.add(child);
+      }
+
+      if (!child.material) return;
+
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      for (const material of materials) {
+        if (isEmissiveCapable(material)) {
+          emissiveSet.add(material);
+        }
+      }
+
+      if (child.material.isShaderMaterial && child.userData.visualLayer === 'CORE_SHELL') {
+        shellMaterialSet.add(child.material);
+      }
+    });
+
+    targets.emissiveMaterials = Array.from(emissiveSet);
+    targets.shellMaterials = Array.from(shellMaterialSet);
+
+    userData.__visualStateTargets = targets;
+    userData.__visualStateTargetsDirty = false;
+    userData.__edgeCageStateBoost = Number.isFinite(userData.__edgeCageStateBoost) ? userData.__edgeCageStateBoost : 1;
+
+    for (const edge of edgeCageSet) {
+      const edgeData = edge.userData || (edge.userData = {});
+      edgeData.__edgeCageNodeRoot = root;
+      edgeData.__edgeCageStateBoost = Number.isFinite(edgeData.__edgeCageStateBoost) ? edgeData.__edgeCageStateBoost : 1;
+    }
+
+    for (const material of targets.emissiveMaterials) {
+      const materialData = material.userData || (material.userData = {});
+      materialData.__atomaNodeBaseEmissiveColor = baseColor;
+      materialData.__atomaNodeBaseEmissiveIntensity = 0.06;
+      safeSetEmissive(material, baseColor, 0.06);
+    }
+
+    return targets;
+  }
   
   /**
    * Create nodes based on environment
@@ -2538,6 +2611,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       console.warn('[NODE_REJECT] Empty visual root');
       return null;
     }
+    this._primeNodeVisualTargets(nodeModel, true);
     this._lastSpawnResult = {
       ok: true,
       category: poolCategory,
@@ -2836,164 +2910,18 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     if (!data.activationLevel) {
       data.activationLevel = 0;
     }
-    
     const activation = data.activationLevel;
-    const interactionActive = (
-      data.hoveredState === true ||
-      data.isSelected === true ||
-      node.userData?.isSelected === true ||
-      activation > 0
-    );
-
-    // Phase B.3.B: idle path must not mutate visual baseline.
-    if (!interactionActive) {
-      return;
-    }
-    
-    // Use EnhancedNodeModels animation system
-    EnhancedNodeModels.animate(node, deltaTime, time);
-    
-    // HOLOGRAM SHELL REASSERTION GUARD - Dynamic Stabilization
-    // For EXTREME and procedural nodes that may modify meshes at runtime
-    // Use stable nodeRoot as reference point
     const nodeRoot = node.userData.nodeRoot || node;
-    const nodeCategory = data.category || node.userData.category || '';
-    const disableHologramShell = nodeRoot.userData?.disableHologramShell === true;
-    const coreMesh = findDescendantByPredicate(nodeRoot, (child) =>
-      child.isMesh && child.userData.visualLayer === 'CORE' && !child.userData.isHologramShell
-    );
-    const isRiskyNode = nodeCategory.toLowerCase().includes('extreme') || 
-                        nodeCategory.toLowerCase().includes('quantum') ||
-                        nodeCategory.toLowerCase().includes('procedural');
-    
-    if (isRiskyNode && !disableHologramShell) {
-      // Find core mesh in stable nodeRoot and verify shell integrity
-      if (coreMesh) {
-        reassertNodeHologramShell(nodeRoot, coreMesh, node.userData.color || 0x00ffff);
-      }
-    }
-
-    // Update hologram and neon edge shell materials at a fixed 10Hz cadence.
-    data.__shellUpdateAccumulator = data.__shellUpdateAccumulator || 0;
-    data.__shellUpdateAccumulator += deltaTime;
-    const SHELL_UPDATE_INTERVAL = 0.1; // 10Hz = 100ms
-    if (data.__shellUpdateAccumulator >= SHELL_UPDATE_INTERVAL) {
-      data.__shellUpdateAccumulator %= SHELL_UPDATE_INTERVAL;
-      if (coreMesh) {
-        reassertNodeNeonEdgeGlow(nodeRoot, coreMesh, node.userData.color || 0x00ffff);
-      }
-      node.traverse((child) => {
-        if (child.isMesh && child.material && child.material.isShaderMaterial && child.userData.visualLayer === 'CORE_SHELL') {
-          updateHologramShellMaterial(child.material, deltaTime);
-        }
-      });
-    }
-    
-    // Atmosphere: keep glow/halo at their configured static opacity (breathing disabled)
-    if (data.vfxGlow && !data.vfxGlow.userData?.neutralized) {
-      // Runtime renderOrder mutation disabled by Phase B.3.B
-    }
-    
-    if (data.vfxHalo && !data.vfxHalo.userData?.neutralized) {
-      // Halo opacity remains as initialized
-    }
-    
-    // ========== ULTRA EDITION: MULTI-CORE AI STRUCTURE ==========
-    // CORE A: Bright Neon Point (pulsing heart)
-    // NOTE: Core material properties are IMMUTABLE (Session 30)
-    // Rotation and position changes are allowed, but NOT material properties
-    // Core meshes removed (interaction-only proxy). Skip core-specific animation.
-    // ========== ULTRA EDITION: DYNAMIC ORBIT RINGS ==========
-    // Rings rotation speed depends on synergy/traffic (via activation)
-    // OPTIMIZED (2026-03-01): Throttled to 30Hz (every 33ms) for smooth rotation
-    if (data.vfxRings && data.vfxRings.length > 0) {
-      data.__ringUpdateAccumulator = data.__ringUpdateAccumulator || 0;
-      data.__ringUpdateAccumulator += deltaTime;
-      const RING_UPDATE_INTERVAL = 0.033; // 30Hz = 33ms
-      if (data.__ringUpdateAccumulator >= RING_UPDATE_INTERVAL) {
-        data.__ringUpdateAccumulator %= RING_UPDATE_INTERVAL;
-        data.vfxRings.forEach((ring, ringIdx) => {
-        if (ring.userData?.neutralized) return;
-        const ringData = ring.userData;
-        
-        // Rotation speed influenced by activation (slower when hovering)
-        const ringSpeedModifier = data.hoveredState ? 0.6 : 1.0;
-        const rotSpeed = ringData.rotationSpeed * ringSpeedModifier;
-        
-        // Rotate around individual axis
-        const axis = ringData.rotationAxis;
-        const rotAmount = rotSpeed * RING_UPDATE_INTERVAL; // OPTIMIZED: Use fixed interval (2026-03-01)
-        
-        // Apply quaternion rotation
-        const quaternion = new THREE.Quaternion();
-        quaternion.setFromAxisAngle(axis, rotAmount);
-        ring.quaternion.multiplyQuaternions(quaternion, ring.quaternion);
-        
-        // Interaction-only opacity modulation (no time component)
-        const ringOpacityBase = ringData.baseOpacity;
-        ring.material.opacity = ringOpacityBase + activation * 0.1;
-        });
-        data.__ringUpdateAccumulator %= RING_UPDATE_INTERVAL;
-      }
-    }
-    
-    // ========== ULTRA EDITION: ENERGY SPARK PARTICLES (increased activity) ==========
-    // OPTIMIZED (2026-03-01): Throttled to 30Hz (every 33ms) for smooth motion
-    if (data.particles && data.particles.length > 0) {
-      data.__particleUpdateAccumulator = data.__particleUpdateAccumulator || 0;
-      data.__particleUpdateAccumulator += deltaTime;
-      const PARTICLE_UPDATE_INTERVAL = 0.033; // 30Hz = 33ms
-      if (data.__particleUpdateAccumulator >= PARTICLE_UPDATE_INTERVAL) {
-        data.__particleUpdateAccumulator %= PARTICLE_UPDATE_INTERVAL;
-        data.particles.forEach((particle, idx) => {
-          if (particle.userData?.neutralized) return;
-        const pData = particle.userData;
-        
-        // Faster orbit speed based on activity
-        const orbitSpeedMod = 1 + activation * 0.5;
-        pData.orbitAngle += pData.orbitSpeed * deltaTime * orbitSpeedMod;
-        
-        // Expanded orbit on high activity
-        const orbitRadiusMod = 1 + activation * 0.3;
-        const radius = pData.orbitRadius * orbitRadiusMod;
-        
-        particle.position.x = Math.cos(pData.orbitAngle) * radius;
-        particle.position.z = Math.sin(pData.orbitAngle) * radius;
-        particle.position.y = Math.sin(pData.orbitAngle * 0.7) * 0.35;
-        
-        // Spark intensity tracks activation only (no time component)
-        const sparkBrightness = 0.6 + activation * 0.25;
-        particle.material.opacity = sparkBrightness;
-        // FIX: Only update emissive on materials that support it
-        if (this.ensureEmissiveSafe(particle.material)) particle.material.emissiveIntensity = 0.3 + activation * 0.2;
-        
-        // Particle size tracks activation only (no time component)
-        const particleScale = 0.08 * (0.8 + activation * 0.3);
-        particle.scale.setScalar(particleScale);
-        });
-        data.__particleUpdateAccumulator %= PARTICLE_UPDATE_INTERVAL;
-      }
-    }
-    
-    // ========== ULTRA EDITION: FRACTAL HOLOGRAM LAYER ==========
-    if (data.fractalHolo && !data.fractalHolo.userData?.neutralized) {
-      // Slow rotation for fractal patterns
-      const fractalSpeed = data.fractalHolo.userData.rotationSpeed;
-      data.fractalHolo.rotation.x += fractalSpeed * deltaTime * 0.3;
-      data.fractalHolo.rotation.y += fractalSpeed * deltaTime * 0.5;
-      data.fractalHolo.rotation.z += fractalSpeed * deltaTime * 0.2;
-      
-      // Opacity tracks activation only (no time component)
-      data.fractalHolo.material.opacity = 0.03 + activation * 0.03;
-    }
-    
-    // ========== ULTRA EDITION: NODE HIGHLIGHT ON HOVER ==========
-    const selectionAura = data.selectionAura || data.selectionAuraGroup || null;
+    let visualTargets = this._primeNodeVisualTargets(nodeRoot);
+    const selectionAura = visualTargets?.selectionAura || data.selectionAura || data.selectionAuraGroup || null;
     const selectionAuraMesh =
+      visualTargets?.selectionAuraMesh ||
       data.selectionAuraMesh ||
       selectionAura?.userData?.selectionAuraRing ||
       selectionAura?.children?.find((child) => child?.isMesh) ||
       null;
+    const isSelected = data.isSelected === true || node.userData?.isSelected === true;
+    const isHovered = data.hoveredState === true;
     const setSelectionAuraState = (visible, opacity = 0) => {
       if (!selectionAura) return;
       selectionAura.visible = visible;
@@ -3016,10 +2944,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     };
     const applyHoverBoost = () => {
       data.hoverBoost = Math.min((data.hoverBoost || 0) + deltaTime * 3, 0.3);
-      setSelectionAuraState(false);
+      setSelectionAuraState(true, Math.min(0.34, 0.18 + data.hoverBoost * 0.3));
     };
-    const isSelected = data.isSelected === true || node.userData?.isSelected === true;
-    const isHovered = data.hoveredState === true;
 
     if (isSelected) {
       applySelectedAura();
@@ -3030,33 +2956,223 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       data.hoverBoost = Math.max((data.hoverBoost || 0) - deltaTime * 3, 0);
     }
 
-    if (data.ultraMode) {
-      // NOTE: Core meshes removed; hover feedback limited to aura/overlay meshes
+    const stateSignal = Math.max(activation, data.hoverBoost || 0, isSelected ? 1 : 0, isHovered ? 0.35 : 0);
+    const previousStateSignal = Number.isFinite(data.__visualStateSignal) ? data.__visualStateSignal : 0;
+    data.__visualStateSignal = stateSignal;
+
+    if (!isSelected && !isHovered && stateSignal > 0 && selectionAura) {
+      setSelectionAuraState(true, Math.min(0.24, 0.08 + stateSignal * 0.12));
+    }
+
+    const nodeColor = node.userData?.color || data.baseColor || visualTargets?.baseColor || 0x00ffff;
+
+    if (visualTargets?.emissiveMaterials?.length) {
+      const emissiveIntensity = 0.04 + stateSignal * 0.4;
+      for (const material of visualTargets.emissiveMaterials) {
+        safeSetEmissive(material, nodeColor, emissiveIntensity);
+      }
+    }
+
+    if (nodeRoot.userData) {
+      nodeRoot.userData.__edgeCageStateBoost = stateSignal > 0 ? 1 + stateSignal * 0.45 : 1;
+    }
+
+    if (stateSignal <= 0) {
+      if (previousStateSignal > 0 && visualTargets?.emissiveMaterials?.length) {
+        for (const material of visualTargets.emissiveMaterials) {
+          const materialData = material.userData || (material.userData = {});
+          safeSetEmissive(
+            material,
+            materialData.__atomaNodeBaseEmissiveColor || nodeColor,
+            materialData.__atomaNodeBaseEmissiveIntensity || 0.06
+          );
+        }
+      }
+
       if (data.vfxGlow && !data.vfxGlow.userData?.neutralized) {
         if (data.originalGlowOpacity === undefined) {
           data.originalGlowOpacity = data.vfxGlow.material.opacity;
         }
-        data.vfxGlow.material.opacity = Math.min(0.9, data.originalGlowOpacity + data.hoverBoost * 0.5);
+        data.vfxGlow.material.opacity = data.originalGlowOpacity;
       }
-      if (data.vfxRings && data.vfxRings.length > 0) {
-        data.__ringUpdateAccumulator = data.__ringUpdateAccumulator || 0;
-        data.__ringUpdateAccumulator += deltaTime;
-        const RING_UPDATE_INTERVAL = 0.033; // 30Hz = 33ms (OPTIMIZED 2026-03-01)
-        if (data.__ringUpdateAccumulator >= RING_UPDATE_INTERVAL) {
-          data.__ringUpdateAccumulator = 0;
-          data.vfxRings.forEach(ring => {
-            if (ring.userData?.neutralized) return;
-            const baseOpacity = ring.userData?.baseOpacity ?? ring.material.opacity;
-            ring.material.opacity = Math.min(1, baseOpacity + data.hoverBoost * 0.3);
-          });
+
+      if (data.vfxHalo && !data.vfxHalo.userData?.neutralized) {
+        if (data.originalHaloOpacity === undefined) {
+          data.originalHaloOpacity = data.vfxHalo.material.opacity;
         }
+        data.vfxHalo.material.opacity = data.originalHaloOpacity;
+      }
+
+      if (data.light) {
+        data.light.intensity = 0;
+        data.light.distance = 10;
+      }
+
+      return;
+    }
+
+    // Use EnhancedNodeModels animation system
+    EnhancedNodeModels.animate(node, deltaTime, time);
+
+    // HOLOGRAM SHELL REASSERTION GUARD - Dynamic Stabilization
+    // For EXTREME and procedural nodes that may modify meshes at runtime
+    // Use stable nodeRoot as reference point
+    const nodeCategory = data.category || node.userData.category || '';
+    const disableHologramShell = nodeRoot.userData?.disableHologramShell === true;
+    let coreMesh = visualTargets?.coreMesh || null;
+    if (!coreMesh || !coreMesh.parent) {
+      coreMesh = findDescendantByPredicate(nodeRoot, (child) =>
+        child.isMesh && child.userData.visualLayer === 'CORE' && !child.userData.isHologramShell
+      );
+      if (coreMesh && visualTargets) {
+        visualTargets.coreMesh = coreMesh;
       }
     }
-    
-    // Point light intensity based on activation
+    const isRiskyNode = nodeCategory.toLowerCase().includes('extreme') ||
+                        nodeCategory.toLowerCase().includes('quantum') ||
+                        nodeCategory.toLowerCase().includes('procedural');
+
+    if (isRiskyNode && !disableHologramShell) {
+      if (coreMesh) {
+        reassertNodeHologramShell(nodeRoot, coreMesh, nodeColor);
+        data.__visualStateTargetsDirty = true;
+      }
+    }
+
+    // Update hologram and neon edge shell materials at a fixed 10Hz cadence.
+    data.__shellUpdateAccumulator = data.__shellUpdateAccumulator || 0;
+    data.__shellUpdateAccumulator += deltaTime;
+    const SHELL_UPDATE_INTERVAL = 0.1; // 10Hz = 100ms
+    if (data.__shellUpdateAccumulator >= SHELL_UPDATE_INTERVAL) {
+      data.__shellUpdateAccumulator %= SHELL_UPDATE_INTERVAL;
+      if (coreMesh) {
+        reassertNodeNeonEdgeGlow(nodeRoot, coreMesh, nodeColor);
+      }
+
+      const shellMaterials = visualTargets?.shellMaterials || [];
+      if (shellMaterials.length > 0) {
+        for (const shellMaterial of shellMaterials) {
+          updateHologramShellMaterial(shellMaterial, deltaTime);
+        }
+      } else {
+        node.traverse((child) => {
+          if (child.isMesh && child.material && child.material.isShaderMaterial && child.userData.visualLayer === 'CORE_SHELL') {
+            updateHologramShellMaterial(child.material, deltaTime);
+          }
+        });
+      }
+
+      data.__visualStateTargetsDirty = true;
+    }
+
+    // Atmosphere: state-driven glow and halo opacity without extra geometry.
+    if (data.vfxGlow && !data.vfxGlow.userData?.neutralized) {
+      if (data.originalGlowOpacity === undefined) {
+        data.originalGlowOpacity = data.vfxGlow.material.opacity;
+      }
+      data.vfxGlow.material.opacity = Math.min(0.76, data.originalGlowOpacity + stateSignal * 0.26);
+    }
+
+    if (data.vfxHalo && !data.vfxHalo.userData?.neutralized) {
+      if (data.originalHaloOpacity === undefined) {
+        data.originalHaloOpacity = data.vfxHalo.material.opacity;
+      }
+      data.vfxHalo.material.opacity = Math.min(0.6, data.originalHaloOpacity + stateSignal * 0.18);
+    }
+
+    // ========== ULTRA EDITION: MULTI-CORE AI STRUCTURE ==========
+    // CORE A: Bright Neon Point (pulsing heart)
+    // NOTE: Core material properties are IMMUTABLE (Session 30)
+    // Rotation and position changes are allowed, but NOT material properties
+    // Core meshes removed (interaction-only proxy). Skip core-specific animation.
+    // ========== ULTRA EDITION: DYNAMIC ORBIT RINGS ==========
+    // Rings rotation speed depends on synergy/traffic (via activation)
+    // OPTIMIZED (2026-03-01): Throttled to 30Hz (every 33ms) for smooth rotation
+    if (data.vfxRings && data.vfxRings.length > 0) {
+      data.__ringUpdateAccumulator = data.__ringUpdateAccumulator || 0;
+      data.__ringUpdateAccumulator += deltaTime;
+      const RING_UPDATE_INTERVAL = 0.033; // 30Hz = 33ms
+      if (data.__ringUpdateAccumulator >= RING_UPDATE_INTERVAL) {
+        data.__ringUpdateAccumulator %= RING_UPDATE_INTERVAL;
+        data.vfxRings.forEach((ring) => {
+          if (ring.userData?.neutralized) return;
+          const ringData = ring.userData;
+
+          // Rotation speed influenced by activation (slower when hovering)
+          const ringSpeedModifier = data.hoveredState ? 0.6 : 1.0;
+          const rotSpeed = ringData.rotationSpeed * ringSpeedModifier;
+
+          // Rotate around individual axis
+          const axis = ringData.rotationAxis;
+          const rotAmount = rotSpeed * RING_UPDATE_INTERVAL; // OPTIMIZED: Use fixed interval (2026-03-01)
+
+          // Apply quaternion rotation
+          const quaternion = new THREE.Quaternion();
+          quaternion.setFromAxisAngle(axis, rotAmount);
+          ring.quaternion.multiplyQuaternions(quaternion, ring.quaternion);
+
+          // Interaction-only opacity modulation (no time component)
+          const ringOpacityBase = ringData.baseOpacity;
+          ring.material.opacity = ringOpacityBase + stateSignal * 0.1;
+        });
+        data.__ringUpdateAccumulator %= RING_UPDATE_INTERVAL;
+      }
+    }
+
+    // ========== ULTRA EDITION: ENERGY SPARK PARTICLES (increased activity) ==========
+    // OPTIMIZED (2026-03-01): Throttled to 30Hz (every 33ms) for smooth motion
+    if (data.particles && data.particles.length > 0) {
+      data.__particleUpdateAccumulator = data.__particleUpdateAccumulator || 0;
+      data.__particleUpdateAccumulator += deltaTime;
+      const PARTICLE_UPDATE_INTERVAL = 0.033; // 30Hz = 33ms
+      if (data.__particleUpdateAccumulator >= PARTICLE_UPDATE_INTERVAL) {
+        data.__particleUpdateAccumulator %= PARTICLE_UPDATE_INTERVAL;
+        data.particles.forEach((particle) => {
+          if (particle.userData?.neutralized) return;
+          const pData = particle.userData;
+
+          // Faster orbit speed based on activity
+          const orbitSpeedMod = 1 + stateSignal * 0.5;
+          pData.orbitAngle += pData.orbitSpeed * deltaTime * orbitSpeedMod;
+
+          // Expanded orbit on high activity
+          const orbitRadiusMod = 1 + stateSignal * 0.3;
+          const radius = pData.orbitRadius * orbitRadiusMod;
+
+          particle.position.x = Math.cos(pData.orbitAngle) * radius;
+          particle.position.z = Math.sin(pData.orbitAngle) * radius;
+          particle.position.y = Math.sin(pData.orbitAngle * 0.7) * 0.35;
+
+          // Spark intensity tracks state only (no time component)
+          const sparkBrightness = 0.6 + stateSignal * 0.25;
+          particle.material.opacity = sparkBrightness;
+          // FIX: Only update emissive on materials that support it
+          if (this.ensureEmissiveSafe(particle.material)) particle.material.emissiveIntensity = 0.3 + stateSignal * 0.2;
+
+          // Particle size tracks state only (no time component)
+          const particleScale = 0.08 * (0.8 + stateSignal * 0.3);
+          particle.scale.setScalar(particleScale);
+        });
+        data.__particleUpdateAccumulator %= PARTICLE_UPDATE_INTERVAL;
+      }
+    }
+
+    // ========== ULTRA EDITION: FRACTAL HOLOGRAM LAYER ==========
+    if (data.fractalHolo && !data.fractalHolo.userData?.neutralized) {
+      // Slow rotation for fractal patterns
+      const fractalSpeed = data.fractalHolo.userData.rotationSpeed;
+      data.fractalHolo.rotation.x += fractalSpeed * deltaTime * 0.3;
+      data.fractalHolo.rotation.y += fractalSpeed * deltaTime * 0.5;
+      data.fractalHolo.rotation.z += fractalSpeed * deltaTime * 0.2;
+
+      // Opacity tracks state only (no time component)
+      data.fractalHolo.material.opacity = 0.03 + stateSignal * 0.03;
+    }
+
+    // Point light intensity based on state
     if (data.light) {
-      data.light.intensity = activation * 2;
-      data.light.distance = 10 + activation * 5;
+      data.light.intensity = stateSignal * 1.1;
+      data.light.distance = 10 + stateSignal * 2.5;
     }
   }
   
@@ -3178,6 +3294,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       obj.getWorldPosition(worldPos);
       const distance = camera.position.distanceTo(worldPos);
       const fade = smoothstep(far, near, distance);
+      const nodeRoot = obj.userData?.__edgeCageNodeRoot || null;
+      const stateBoost = Number.isFinite(nodeRoot?.userData?.__edgeCageStateBoost)
+        ? nodeRoot.userData.__edgeCageStateBoost
+        : (Number.isFinite(obj.userData?.__edgeCageStateBoost) ? obj.userData.__edgeCageStateBoost : 1);
 
       const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
       for (const mat of mats) {
@@ -3186,7 +3306,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         if (!Number.isFinite(mud.__edgeCageBaseOpacity)) {
           mud.__edgeCageBaseOpacity = Number.isFinite(mat.opacity) ? mat.opacity : 1.0;
         }
-        const targetOpacity = Math.max(minOpacityFloor, Math.min(1.0, mud.__edgeCageBaseOpacity * fade));
+        const targetOpacity = Math.max(minOpacityFloor, Math.min(1.0, mud.__edgeCageBaseOpacity * fade * stateBoost));
         mat.transparent = true;
         mat.depthWrite = false;
         mat.opacity = targetOpacity;

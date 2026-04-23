@@ -33,6 +33,7 @@ import {
   applyCoreSynergyGlowScaling,
   removeCoreSynergyGlow
 } from './NodeVisualStateBinder.js';
+import { getLinkBootstrapBudget, shouldRunLinkEffect } from './LinkRenderLayerPolicy.js';
 import { createFresnelAura } from './FresnelAuraIntegrationPatch.js';
 import { SelectedRingSystem } from './src/visual/SelectedRingSystem_v1.js';
 // REMOVED: LinkSynergyColorTransition — moved to LEGACY/april (2026-04-22)
@@ -1920,6 +1921,7 @@ export class NodeLinkingSystem {
   _fireLinkCreatedCallbacks(source, target, link = null) {
     const traceEnabled = this._isLinkTraceEnabled();
     const traceStart = traceEnabled ? performance.now() : 0;
+    const fanoutBudget = this._getLinkCreationFanoutBudget(source, target, link);
     const orderedCallbacks = Array.isArray(this.linkCreatedCallbacks)
       ? [...this.linkCreatedCallbacks]
           .map((callback, index) => ({
@@ -1932,14 +1934,17 @@ export class NodeLinkingSystem {
     if (traceEnabled) {
       this._traceLinkFlow('fireLinkCreatedCallbacks:start', {
         linkId: link?.id ?? null,
-        callbacks: orderedCallbacks.length
+        callbacks: orderedCallbacks.length,
+        tier: fanoutBudget.tier,
+        budgetCount: fanoutBudget.immediateCount,
+        budgetMs: fanoutBudget.immediateMs
       });
     }
     let processed = 0;
     let deferred = 0;
     for (const entry of orderedCallbacks) {
       const elapsed = performance.now() - traceStart;
-      const shouldDefer = processed >= this._linkCreatedCallbackBudgetCount || elapsed > this._linkCreatedCallbackBudgetMs;
+      const shouldDefer = processed >= fanoutBudget.immediateCount || elapsed > fanoutBudget.immediateMs;
       if (shouldDefer && !entry.callback.__linkWorkImmediate) {
         this._queueDeferredLinkCreatedCallback(entry.callback, source, target, link, entry.priority);
         deferred++;
@@ -1999,6 +2004,155 @@ export class NodeLinkingSystem {
     }
   }
 
+  _resolveLinkCreationTier(sourceNode, targetNode, link = null) {
+    if (!sourceNode || !targetNode) return 0;
+
+    const cachedTier = Number(link?.userData?.linkCreationTier);
+    if (Number.isFinite(cachedTier)) {
+      return Math.max(0, Math.min(3, Math.floor(cachedTier)));
+    }
+
+    const sourceCategory = sourceNode?.userData?.category || sourceNode?.userData?.type || '';
+    const targetCategory = targetNode?.userData?.category || targetNode?.userData?.type || '';
+    const specialNode = Boolean(
+      sourceNode?.userData?.isSpecial === true ||
+      targetNode?.userData?.isSpecial === true ||
+      sourceCategory === 'sigma' ||
+      targetCategory === 'sigma' ||
+      sourceCategory === 'quantum' ||
+      targetCategory === 'quantum' ||
+      sourceCategory === 'emotional' ||
+      targetCategory === 'emotional'
+    );
+
+    let synergy = Number(link?.synergyScore);
+    if (!Number.isFinite(synergy)) {
+      try {
+        synergy = this.calculateSynergy({ source: sourceNode, target: targetNode });
+      } catch {
+        synergy = 0.5;
+      }
+    }
+
+    if (specialNode || synergy >= 0.85) return 3;
+    if (synergy >= 0.7) return 2;
+    if (synergy >= 0.58) return 1;
+    return 0;
+  }
+
+  _getLinkCreationFanoutBudget(sourceNode, targetNode, link = null) {
+    const tier = this._resolveLinkCreationTier(sourceNode, targetNode, link);
+    const linkCount = (Array.isArray(this.links) ? this.links.length : 0) + 1;
+    const bootstrapBudget = getLinkBootstrapBudget(linkCount, {
+      run30: true,
+      heavyTick: tier >= 2
+    });
+
+    return {
+      tier,
+      immediateCount: tier >= 2 ? Math.max(2, bootstrapBudget) : Math.max(1, Math.min(2, bootstrapBudget)),
+      immediateMs: tier >= 2 ? 1.25 : tier >= 1 ? 0.9 : 0.65
+    };
+  }
+
+  _queueDeferredLinkCreationFanout(sourceNode, targetNode, link, tier = 0) {
+    if (!link || typeof this._queueDeferredLinkCreatedCallback !== 'function') {
+      return;
+    }
+
+    const fanoutTier = Math.max(0, Math.min(3, Number.isFinite(tier) ? Math.floor(tier) : 0));
+    const fanoutPriority = Math.max(0, 3 - fanoutTier);
+
+    this._queueDeferredLinkCreatedCallback((resolvedSource, resolvedTarget, resolvedLink) => {
+      const activeLink = resolvedLink || link;
+      if (!activeLink || activeLink.active === false) {
+        return;
+      }
+
+      const currentSource = resolvedSource || sourceNode || activeLink.source;
+      const currentTarget = resolvedTarget || targetNode || activeLink.target;
+      const currentTier = Number.isFinite(activeLink?.userData?.linkCreationTier)
+        ? activeLink.userData.linkCreationTier
+        : fanoutTier;
+
+      if (this.conduitRenderer?.nodeInterferenceManager && currentTier >= 1) {
+        this.conduitRenderer.nodeInterferenceManager.registerLinkWithNodes(
+          activeLink,
+          currentSource,
+          currentTarget
+        );
+      }
+
+      if (this.conduitRenderer?.nodeHarmonicManager && currentTier >= 2) {
+        this.conduitRenderer.nodeHarmonicManager.registerLinkWithNodes(
+          activeLink,
+          currentSource,
+          currentTarget
+        );
+      }
+
+      if (this.aiNodes?.maybeSpawnNodeFromLinkCreation && currentTier >= 1) {
+        this.aiNodes.maybeSpawnNodeFromLinkCreation({
+          linkId: activeLink.id,
+          sourceNodeId: this.getNodeId(currentSource),
+          targetNodeId: this.getNodeId(currentTarget),
+          createdAt: Date.now(),
+          totalLinks: Array.isArray(this.links) ? this.links.length : undefined
+        });
+      }
+
+      const semanticBus = this.semanticBus || (typeof globalThis !== 'undefined' ? globalThis.semanticBus : null);
+      if (semanticBus?.emit) {
+        const sourceId = this.getNodeId(currentSource);
+        const targetId = this.getNodeId(currentTarget);
+        const sourcePosition = currentSource?.position ? {
+          x: currentSource.position.x,
+          y: currentSource.position.y,
+          z: currentSource.position.z
+        } : undefined;
+        const targetPosition = currentTarget?.position ? {
+          x: currentTarget.position.x,
+          y: currentTarget.position.y,
+          z: currentTarget.position.z
+        } : undefined;
+        const payload = {
+          sourceNode: currentSource,
+          targetNode: currentTarget,
+          link: activeLink,
+          source: sourceId,
+          target: targetId,
+          linkId: activeLink.id,
+          sourceNodeId: sourceId,
+          targetNodeId: targetId,
+          sourcePosition,
+          targetPosition,
+          anchor: (currentSource?.position && currentTarget?.position)
+            ? {
+                x: (currentSource.position.x + currentTarget.position.x) * 0.5,
+                y: (currentSource.position.y + currentTarget.position.y) * 0.5,
+                z: (currentSource.position.z + currentTarget.position.z) * 0.5
+              }
+            : undefined
+        };
+        const eventPriority = semanticBus.priority?.CRITICAL ?? semanticBus.priority?.INTERACTIVE;
+        if (typeof semanticBus.emitImmediate === 'function') {
+          semanticBus.emitImmediate('link.created', payload, { priority: eventPriority });
+        } else {
+          semanticBus.emit('link.created', payload, {
+            priority: eventPriority,
+            policy: {
+              aggregateWithinMs: 0,
+              cooldownMs: 0,
+              aggregationStrategy: 'latest'
+            }
+          });
+        }
+      }
+    }, sourceNode, targetNode, link, fanoutPriority);
+
+    this._scheduleDeferredLinkCreatedCallbacks();
+  }
+
   _queueDeferredLinkCreatedCallback(callback, source, target, link, priority = 0) {
     if (typeof callback !== 'function') return;
 
@@ -2025,10 +2179,12 @@ export class NodeLinkingSystem {
       }
     };
 
-    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    if (typeof setTimeout === 'function') {
+      setTimeout(flush, 0);
+    } else if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
       window.requestAnimationFrame(flush);
     } else {
-      setTimeout(flush, 0);
+      flush();
     }
   }
 
@@ -2847,6 +3003,7 @@ export class NodeLinkingSystem {
    * Create pulse animation when link is successfully created
    */
 createLinkSuccessPulse(sourceNode, targetNode) {
+  const visualTier = this._resolveLinkCreationTier(sourceNode, targetNode, null);
   const startPos = sourceNode?.position?.clone();
   const endPos = targetNode?.position?.clone();
 
@@ -2855,11 +3012,14 @@ createLinkSuccessPulse(sourceNode, targetNode) {
     return;
   }
 
-  const pulseGeometry = new THREE.SphereGeometry(0.12, 16, 16);
+  const pulseRadius = visualTier >= 2 ? 0.14 : visualTier >= 1 ? 0.11 : 0.09;
+  const pulseDuration = visualTier >= 2 ? 0.5 : visualTier >= 1 ? 0.38 : 0.28;
+  const pulseOpacity = visualTier >= 2 ? 0.8 : visualTier >= 1 ? 0.68 : 0.56;
+  const pulseGeometry = new THREE.SphereGeometry(pulseRadius, visualTier >= 2 ? 16 : 12, visualTier >= 2 ? 16 : 12);
   const pulseMaterial = new THREE.MeshBasicMaterial({
     color: 0xaa00ff,
     transparent: true,
-    opacity: 0.8,
+    opacity: pulseOpacity,
     emissive: 0xaa00ff,
     emissiveIntensity: 0.6
   });
@@ -2872,13 +3032,19 @@ createLinkSuccessPulse(sourceNode, targetNode) {
 
   if (!this.effectOrchestrator) {
     console.warn('[LinkPulseCreate] EffectOrchestrator missing');
+    setTimeout(() => {
+      if (!pulse) return;
+      pulse.removeFromParent();
+      pulse.geometry.dispose();
+      pulse.material.dispose();
+    }, Math.max(240, Math.round(pulseDuration * 1000)));
     return;
   }
 
   const start = startPos.clone();
   const end = endPos.clone();
   let elapsed = 0;
-  const duration = 0.5;
+  const duration = pulseDuration;
 
   const effect = {
     id: `pulse-link-create-${Date.now()}`,
@@ -2895,7 +3061,7 @@ createLinkSuccessPulse(sourceNode, targetNode) {
 
       const scale = 1 + Math.sin(progress * Math.PI) * 0.5;
       pulse.scale.setScalar(scale);
-      pulse.material.opacity = 0.8 * (1 - progress);
+      pulse.material.opacity = pulseOpacity * (1 - progress);
 
       return { done: progress >= 1 };
     },
@@ -2920,6 +3086,8 @@ createLinkSuccessPulse(sourceNode, targetNode) {
   createLinkRemovalPulse(link) {
   this.triggerCrosshairPulse();
 
+  const visualTier = this._resolveLinkCreationTier(link?.source, link?.target, link);
+
   const sourcePos = link?.source?.position?.clone();
   const targetPos = link?.target?.position?.clone();
 
@@ -2928,11 +3096,14 @@ createLinkSuccessPulse(sourceNode, targetNode) {
     return;
   }
 
-  const pulseGeometry = new THREE.SphereGeometry(0.12, 16, 16);
+  const pulseRadius = visualTier >= 2 ? 0.13 : visualTier >= 1 ? 0.11 : 0.09;
+  const pulseDuration = visualTier >= 2 ? 0.42 : visualTier >= 1 ? 0.34 : 0.26;
+  const pulseOpacity = visualTier >= 2 ? 0.7 : visualTier >= 1 ? 0.62 : 0.52;
+  const pulseGeometry = new THREE.SphereGeometry(pulseRadius, visualTier >= 2 ? 16 : 12, visualTier >= 2 ? 16 : 12);
   const pulseMaterial = new THREE.MeshBasicMaterial({
     color: 0xaa00ff,
     transparent: true,
-    opacity: 0.7,
+    opacity: pulseOpacity,
     emissive: 0xaa00ff,
     emissiveIntensity: 0.5
   });
@@ -2945,13 +3116,19 @@ createLinkSuccessPulse(sourceNode, targetNode) {
 
   if (!this.effectOrchestrator) {
     console.warn('[LinkPulseRemove] EffectOrchestrator missing');
+    setTimeout(() => {
+      if (!pulse) return;
+      pulse.removeFromParent();
+      pulse.geometry.dispose();
+      pulse.material.dispose();
+    }, Math.max(240, Math.round(pulseDuration * 1000)));
     return;
   }
 
   const from = targetPos.clone();
   const to = sourcePos.clone();
   let elapsed = 0;
-  const duration = 0.4;
+  const duration = pulseDuration;
 
   const effect = {
     id: `pulse-link-remove-${Date.now()}`,
@@ -2968,7 +3145,7 @@ createLinkSuccessPulse(sourceNode, targetNode) {
 
       const scale = 0.8 + Math.sin(progress * Math.PI) * 0.4;
       pulse.scale.setScalar(scale);
-      pulse.material.opacity = 0.7 * (1 - progress);
+      pulse.material.opacity = pulseOpacity * (1 - progress);
 
       return { done: progress >= 1 };
     },
@@ -4652,29 +4829,17 @@ getLinksForNode(node) {
 
     // 4. Register with sub-systems
       this.visuals.registerLink(link.id, link.group);
-
-      // Register link with harmonic sync manager (if available)
-      if (this.conduitRenderer?.nodeHarmonicManager) {
-        this.conduitRenderer.nodeHarmonicManager.registerLinkWithNodes(
-          link,
-          link.source,
-          link.target
-        );
-      }
-      // Register link with node interference manager (if available)
-      if (this.conduitRenderer?.nodeInterferenceManager) {
-        this.conduitRenderer.nodeInterferenceManager.registerLinkWithNodes(
-          link,
-          link.source,
-          link.target
-        );
-      }
       
       LinkPrioritySystem.initializeLinkPriority(link);
       this._addLinkToIndex(link);
       
       // [Phase 2] Initialize Emission Pulsing System (supports both Legacy and Conduit links)
       LinkEmissionPulsingSystem.initializeLinkEmissionPulsing(link, link.traffic.load);
+
+      const creationTier = this._resolveLinkCreationTier(sourceNode, targetNode, link);
+      link.visualEffectTier = creationTier;
+      if (!link.userData) link.userData = {};
+      link.userData.linkCreationTier = creationTier;
       
       // Update internal map (Legacy support)
       const srcId = link.sourceNodeId;
@@ -4699,73 +4864,8 @@ getLinksForNode(node) {
     // - callback registry: legacy-compatible listeners attached via linkCreatedCallbacks
     this._fireLinkCreatedCallbacks(sourceNode, targetNode, link);
 
-    // REMOVED: LinkEventVisualCoordinator_v1.onLinkEvent — moved to LEGACY/april (2026-04-22)
-
-    if (this.aiNodes && this.aiNodes.maybeSpawnNodeFromLinkCreation) {
-      this.aiNodes.maybeSpawnNodeFromLinkCreation({
-        linkId: link.id,
-        sourceNodeId: this.getNodeId(sourceNode),
-        targetNodeId: this.getNodeId(targetNode),
-        createdAt: Date.now(),
-        totalLinks: Array.isArray(this.links) ? this.links.length : undefined
-      });
-    }
-
-    // Canonical semantic event: link created
-    const semanticBus = this.semanticBus || (typeof globalThis !== 'undefined' ? globalThis.semanticBus : null);
-    if (semanticBus?.emit) {
-      const sourceId = this.getNodeId(sourceNode);
-      const targetId = this.getNodeId(targetNode);
-      const sourcePosition = sourceNode?.position ? {
-        x: sourceNode.position.x,
-        y: sourceNode.position.y,
-        z: sourceNode.position.z
-      } : undefined;
-      const targetPosition = targetNode?.position ? {
-        x: targetNode.position.x,
-        y: targetNode.position.y,
-        z: targetNode.position.z
-      } : undefined;
-      const payload = {
-        sourceNode,
-        targetNode,
-        link,
-        source: sourceId,
-        target: targetId,
-        linkId: link.id,
-        sourceNodeId: sourceId,
-        targetNodeId: targetId,
-        sourcePosition,
-        targetPosition,
-        anchor: (sourceNode?.position && targetNode?.position)
-          ? {
-              x: (sourceNode.position.x + targetNode.position.x) * 0.5,
-              y: (sourceNode.position.y + targetNode.position.y) * 0.5,
-              z: (sourceNode.position.z + targetNode.position.z) * 0.5
-            }
-          : undefined
-      };
-      const emitLinkCreated = () => {
-        const eventPriority = semanticBus.priority?.CRITICAL ?? semanticBus.priority?.INTERACTIVE;
-        if (typeof semanticBus.emitImmediate === 'function') {
-          semanticBus.emitImmediate('link.created', payload, { priority: eventPriority });
-          return;
-        }
-        semanticBus.emit('link.created', payload, {
-          priority: eventPriority,
-          policy: {
-            aggregateWithinMs: 0,
-            cooldownMs: 0,
-            aggregationStrategy: 'latest'
-          }
-        });
-      };
-      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-        window.requestAnimationFrame(emitLinkCreated);
-      } else {
-        setTimeout(emitLinkCreated, 0);
-      }
-    }
+    // Budgeted fan-out: non-canonical listeners and expensive post-create side effects
+    this._queueDeferredLinkCreationFanout(sourceNode, targetNode, link, creationTier);
 
     if (window.ComputeSynergyScore2_0) {
       try {
@@ -6475,6 +6575,14 @@ getLinksForNode(node) {
    */
   updateLinkVFXEffects(link, time, deltaTime) {
     if (!link.vfxEnabled || !link.curve) return;
+
+    const visualTier = Number.isFinite(link?.visualEffectTier)
+      ? link.visualEffectTier
+      : Number(link?.userData?.linkCreationTier ?? 0);
+    const effectFrameIndex = link.__vfxEffectFrameIndex = (link.__vfxEffectFrameIndex ?? 0) + 1;
+    const particleGate = visualTier >= 2 || shouldRunLinkEffect(link.id, 'particleSystem', { run30: true }, effectFrameIndex);
+    const streakGate = visualTier >= 2 || shouldRunLinkEffect(link.id, 'directionalStreaks', { run30: true }, effectFrameIndex);
+    const sparkGate = visualTier >= 3 || shouldRunLinkEffect(link.id, 'sparks', { run30: true }, effectFrameIndex);
     
     // [LinkGuard] Verify nodes are still valid before accessing positions
     if (!this._isValidNodeForLink(link.source) || !this._isValidNodeForLink(link.target)) {
@@ -6526,7 +6634,7 @@ getLinksForNode(node) {
     
     // Effect #3: Holographic circuit shimmer
     // Defensive guard: verify circuit nodes and materials before mutation (authority locks)
-    if (link.circuitOverlay && link.circuitOverlay.userData.nodes) {
+    if (link.circuitOverlay && link.circuitOverlay.userData.nodes && particleGate) {
       link.circuitOverlay.userData.animationPhase += deltaTime * traffic.throughput * 2;
       const nodes = link.circuitOverlay.userData.nodes;
       
@@ -6559,7 +6667,7 @@ getLinksForNode(node) {
     
     // Effect #5: Soft particle stream flow
     // Defensive guard: verify particle materials before mutation (authority locks)
-    if (link.particleStream && link.particleStream.userData.particles) {
+    if (link.particleStream && link.particleStream.userData.particles && particleGate) {
       const particles = link.particleStream.userData.particles;
       const flowSpeed = link.particleStream.userData.flowSpeed;
       
@@ -6584,7 +6692,7 @@ getLinksForNode(node) {
     
     // Effect #6: Quantum shimmer effect (for quantum nodes)
     // Defensive guard: verify shimmer materials before mutation (authority locks)
-    if (link.quantumEffects && link.quantumEffects.userData.shimmers) {
+    if (link.quantumEffects && link.quantumEffects.userData.shimmers && sparkGate) {
       link.quantumEffects.userData.distortionPhase += deltaTime * 2;
       const shimmers = link.quantumEffects.userData.shimmers;
       
@@ -6612,7 +6720,7 @@ getLinksForNode(node) {
     
     // Effect #7: Sigma glitch effects (for Sigma nodes)
     // Defensive guard: verify fracture materials before mutation (authority locks)
-    if (link.sigmaEffects && link.sigmaEffects.userData.fractures) {
+    if (link.sigmaEffects && link.sigmaEffects.userData.fractures && streakGate) {
       link.sigmaEffects.userData.anomalyPhase += deltaTime * 4;
       const fractures = link.sigmaEffects.userData.fractures;
       
@@ -6848,7 +6956,7 @@ getLinksForNode(node) {
     }
     
     // EXTREME: Energy Vein Animation (fast-moving streaks inside beam)
-    if (link.veins && link.veins.length > 0 && link.veinAnimation && link.veinAnimation.active) {
+    if (link.veins && link.veins.length > 0 && link.veinAnimation && link.veinAnimation.active && particleGate) {
       anim.veinPhase += deltaTime * link.veinAnimation.speed * traffic.throughput;
       
       link.veins.forEach((vein, veinIdx) => {
@@ -6884,7 +6992,7 @@ getLinksForNode(node) {
     anim.bloomPhase += deltaTime * traffic.throughput * 1.5;
     
     // EXTREME: Enhanced particle movement and size
-    if (link.curve && link.particles && Array.isArray(link.particles) && link.particles.length > 0) {
+    if (link.curve && link.particles && Array.isArray(link.particles) && link.particles.length > 0 && particleGate) {
       link.particles.forEach((particle, idx) => {
         if (!particle || !particle.userData) return;
         const pData = particle.userData;
@@ -6926,7 +7034,7 @@ getLinksForNode(node) {
     }
     
     // EXTREME: Accent rings animation for special nodes
-    if (link.isSpecial && link.group && link.group.children) {
+    if (link.isSpecial && link.group && link.group.children && streakGate) {
       link.group.children.forEach(child => {
         if (child.userData && child.userData.vfxType === 'extremeRing') {
           const ringRotation = time * 0.8;
