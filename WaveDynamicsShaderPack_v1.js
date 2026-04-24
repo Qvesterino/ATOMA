@@ -144,10 +144,10 @@ float breathingScale(float standingWave, float phase, float freq, float amplitud
 const VERTEX_BREATHING_CHUNK = `
     // Standing Wave Breathing FX
     float standingEnergy = uWaveStanding * uWaveIntensity;
-    float breathingScale = breathingScale(standingEnergy, uWavePhase, uWaveDynamicsBreathFreq, uWaveDynamicsBreathAmp);
+    float breathingScaleValue = breathingScale(standingEnergy, uWavePhase, uWaveDynamicsBreathFreq, uWaveDynamicsBreathAmp);
 
     // Apply scale to vertex position (expansion from center)
-    transformed = (transformed - uWaveCenter) * breathingScale + uWaveCenter;
+    transformed = (transformed - uWaveCenter) * breathingScaleValue + uWaveCenter;
 
     // NEW: DIVINE PULSE (Božský pulz)
     if (uWaveIntensity > 0.3) {
@@ -203,6 +203,7 @@ const DYNAMICS_UNIFORM_DECLS = [
     'uniform float uWaveIntensity;',
     'uniform float uWaveStanding;',
     'uniform float uWaveConstructive;',
+    'uniform float uWaveInterference;',
     'uniform float uWaveDestructive;',
     'uniform vec3 uWaveCenter;',
     'uniform float uWaveDynamicsBreathAmp;',
@@ -484,6 +485,7 @@ export class WaveDynamicsShaderPack_v1 {
             shader.uniforms.uWaveStanding = shader.uniforms.uWaveStanding || { value: 0 };
             shader.uniforms.uWaveDestructive = shader.uniforms.uWaveDestructive || { value: 0 };
             shader.uniforms.uWaveConstructive = shader.uniforms.uWaveConstructive || { value: 0 };
+            shader.uniforms.uWaveInterference = shader.uniforms.uWaveInterference || { value: 0 };
             shader.uniforms.uWaveCenter = shader.uniforms.uWaveCenter || { value: new THREE.Vector3(0, 0, 0) };
 
             // Add dynamics-specific uniforms

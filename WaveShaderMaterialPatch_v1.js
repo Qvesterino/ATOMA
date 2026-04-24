@@ -46,11 +46,6 @@ const MATERIAL_PATCH_SYMBOL = Symbol('waveShaderMaterialPatched');
  * Applies amplitude distortion and destructive jitter
  */
 const WAVE_VERTEX_CHUNK = `
-    // Ensure uWaveCenter is declared (if not already)
-    #ifndef uWaveCenter
-    uniform vec3 uWaveCenter;
-    #endif
-
     // Wave shader effects on vertex position
     vec3 waveDistortion = vec3(0.0);
 
@@ -67,7 +62,7 @@ const WAVE_VERTEX_CHUNK = `
 
     // 4. PHASE-SHIFT TRAVEL: Animate distortion with phase
     if (uWavePhase > 0.01) {
-        float phaseTravel = sin(uWavePhase * 6.28318); // 0..2π
+        float phaseTravel = sin(uWavePhase * 6.28318); // 0..2*PI
         waveDistortion += normal * phaseTravel * uWaveIntensity * 0.05;
     }
 
@@ -110,7 +105,7 @@ const WAVE_FRAGMENT_CHUNK = `
     // 2. INTERFERENCE PATTERN: Color shifting based on interference index
     if (uWaveInterference > 0.01) {
         // Compute interference color shift (RGB cycling)
-        float hueShift = uWaveInterference * 6.28318; // 0..2π
+        float hueShift = uWaveInterference * 6.28318; // 0..2*PI
         vec3 hsvColor = vec3(hueShift, uWaveIntensity, uWaveInterference);
 
         // Simple HSV to RGB conversion (approximated)
@@ -178,6 +173,22 @@ const WAVE_FRAGMENT_CHUNK = `
  * World position varying (for fragment effects)
  */
 // vWorldPosition no longer used; fragment logic is time/uv based only.
+
+/**
+ * GLSL uniform declarations for wave shader chunks.
+ * Injected at #include <common> to avoid undeclared variable errors.
+ */
+const WAVE_UNIFORM_DECLS = [
+    'uniform float uWaveAmplitude;',
+    'uniform float uWaveConstructive;',
+    'uniform float uWaveInterference;',
+    'uniform float uWaveStanding;',
+    'uniform float uWavePhase;',
+    'uniform float uWaveSourceCount;',
+    'uniform float uWaveIntensity;',
+    'uniform vec3 uWaveCenter;',
+    'uniform float uTime;'
+];
 
 // ============================================================================
 // PROFILE CONFIGURATION
@@ -393,6 +404,26 @@ export class WaveShaderMaterialPatch_v1 {
 
             // Add time uniform
             shader.uniforms.uTime = shader.uniforms.uTime || { value: 0 };
+
+            // Inject GLSL uniform declarations at #include <common> (avoid undeclared variable errors)
+            const buildMissingDecls = (source) => {
+                if (!source) return '';
+                const missing = WAVE_UNIFORM_DECLS.filter((decl) => !source.includes(decl));
+                return missing.length ? `${missing.join('\n')}\n` : '';
+            };
+
+            const injectAtCommon = (source, injection) => {
+                if (!source || !injection) return source;
+                if (source.includes('#include <common>')) {
+                    return source.replace('#include <common>', `#include <common>\n${injection}`);
+                }
+                return `${injection}\n${source}`;
+            };
+
+            const vertexDecls = buildMissingDecls(shader.vertexShader);
+            const fragmentDecls = buildMissingDecls(shader.fragmentShader);
+            if (vertexDecls) shader.vertexShader = injectAtCommon(shader.vertexShader, vertexDecls);
+            if (fragmentDecls) shader.fragmentShader = injectAtCommon(shader.fragmentShader, fragmentDecls);
 
             // Inject wave vertex effects (before position transformation)
             shader.vertexShader = shader.vertexShader.replace(
