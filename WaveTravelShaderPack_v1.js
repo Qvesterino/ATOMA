@@ -80,7 +80,20 @@ const PROFILE_CONFIG = {
         colorGradient: 1.0,
         pulseStrength: 0.6,
         frequencyMix: [0.2, 0.3, 0.5],
-        chaotic: 0.5
+        chaotic: 0.5,
+        vortexStrength: 0.15,       // Vírová sila
+        voidTear: 0.08             // Trhliny v priestore
+    },
+    TRAVEL_ETHEREAL: {
+        name: 'Ethereal',
+        vertexTravel: 0.06,
+        uvFlow: 0.3,
+        colorGradient: 0.8,
+        pulseStrength: 0.2,
+        frequencyMix: [0.4, 0.4, 0.2],
+        chaotic: 0.02,
+        auraGlow: 0.12,            // Mystická aura
+        spectralTrail: 0.08        // Spektrálna stopa
     }
 };
 
@@ -114,6 +127,7 @@ uniform float uWaveTravelColorGradient;
 uniform float uWaveTravelPulse;
 uniform vec3 uWaveTravelFreqMix;
 uniform float uWaveTravelTime;
+uniform vec3 uWaveCenter;
 `;
 const TRAVEL_UNIFORM_LINES = TRAVEL_UNIFORM_DECLARATIONS
     .split('\n')
@@ -126,24 +140,39 @@ const TRAVEL_UNIFORM_LINES = TRAVEL_UNIFORM_DECLARATIONS
 const VERTEX_TRAVEL_CHUNK = `
     // Wave travel vertex effects
     float travelPhase = (uWavePhase + uWaveTravelTime * 0.2) * 6.28318; // Convert to radians
-    
+
     // Multi-frequency oscillation
     float oscillation = multiFreqOscillation(travelPhase, uWaveTravelFreqMix, uWaveTravelTime);
-    
+
     // Base travel offset
     float travelOffset = oscillation * uWaveTravelScale * max(0.15, uWaveIntensity + 0.15);
-    
+
     // Combine offsets
     float totalTravel = travelOffset;
-    
+
     // Apply to position along normal
     transformed += normal * totalTravel * 0.1;
-    
+
     // Additional pulse burst when interference is high
     if (uWaveInterference > 0.6) {
         float pulseMagnitude = (uWaveInterference - 0.6) * uWaveTravelPulse;
         float pulseWave = sin(uWaveTravelTime * 8.0 + length(position));
         transformed += normal * pulseWave * pulseMagnitude * 0.05;
+    }
+
+    // NEW: PHASE RIPPLE (Fázová vlna)
+    if (uWaveIntensity > 0.15) {
+        float rippleDist = length(position - uWaveCenter);
+        float ripplePhase = rippleDist * 3.0 - uWaveTravelTime * 2.0;
+        float rippleStrength = sin(ripplePhase) * 0.02 * uWaveIntensity;
+        transformed += normal * rippleStrength;
+    }
+
+    // NEW: SPECTRAL TRAIL (Spektrálna stopa)
+    if (uWaveInterference > 0.4) {
+        float trailPhase = uWaveTravelTime * 1.5;
+        float trailStrength = (sin(trailPhase) * 0.5 + 0.5) * 0.03;
+        transformed += normalize(cross(normal, vec3(0,1,0))) * trailStrength;
     }
 `;
 
@@ -156,11 +185,11 @@ const FRAGMENT_TRAVEL_CHUNK = `
         vec2 uvTravel = vUv;
         uvTravel.x += uWaveTravelTime * uWaveTravelUVFlow * uWavePhase;
         uvTravel.y += sin(uWaveTravelTime * 0.5 + uvTravel.x * 4.0) * 0.1 * uWaveTravelUVFlow;
-        
+
         // Clamp for tileable patterns
         uvTravel = fract(uvTravel);
     #endif
-    
+
     float gradientPhase = uWaveTravelTime * 0.3;
     float gradientPos = sin(gradientPhase) * 0.5 + 0.5;
     vec3 travelColor = vec3(
@@ -173,6 +202,21 @@ const FRAGMENT_TRAVEL_CHUNK = `
     if (uWaveInterference > 0.5) {
         float pulseBrightness = sin(uWaveTravelTime * 4.0) * 0.3 + 0.7;
         diffuseColor.rgb *= mix(1.0, pulseBrightness, (uWaveInterference - 0.5) * 2.0 * uWaveTravelPulse);
+    }
+
+    // NEW: VOID DISTORTION (Prázdnotné skreslenie)
+    if (uWaveDestructive > 0.3) {
+        float voidStrength = uWaveDestructive * 0.1;
+        vec3 voidColor = vec3(0.2, 0.1, 0.3); // Fialovo-čierna
+        diffuseColor.rgb = mix(diffuseColor.rgb, voidColor, voidStrength);
+    }
+
+    // NEW: ETHEREAL GLOW TRAIL (Eterická žiara)
+    if (uWaveConstructive > 0.5) {
+        float glowPhase = uWaveTravelTime * 0.8;
+        float glowStrength = (sin(glowPhase) * 0.5 + 0.5) * 0.15;
+        vec3 glowColor = vec3(0.8, 0.95, 1.0); // Nebesky modrá
+        outgoingLight += glowColor * glowStrength * uWaveConstructive;
     }
 `;
 
@@ -503,6 +547,9 @@ export class WaveTravelShaderPack_v1 {
             shader.uniforms.uWaveConstructive = shader.uniforms.uWaveConstructive || { value: 0 };
             shader.uniforms.uWaveDestructive = shader.uniforms.uWaveDestructive || { value: 0 };
             shader.uniforms.uWaveStanding = shader.uniforms.uWaveStanding || { value: 0 };
+
+            // Ensure uWaveCenter exists (needed for PHASE RIPPLE)
+            shader.uniforms.uWaveCenter = shader.uniforms.uWaveCenter || { value: new THREE.Vector3(0, 0, 0) };
 
             // Add travel-specific uniforms
             shader.uniforms.uWaveTravelScale = shader.uniforms.uWaveTravelScale || { value: config.vertexTravel };

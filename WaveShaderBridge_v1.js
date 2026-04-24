@@ -493,11 +493,18 @@ export class WaveShaderBridge_v1 {
             uniforms.uWavePhase.value = ema.phase;
             uniforms.uWaveSourceCount.value = ema.sourceCount;
             uniforms.uWaveIntensity.value = ema.intensity;
+
+            // NEW: Mystical uniforms computation
+            uniforms.uWaveAuraRadius.value = ema.sourceCount * 0.15; // More sources = larger aura
+            const nowSec = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
+            uniforms.uWaveSoulPulse.value = (Math.sin(nowSec * 3.0) * 0.5 + 0.5) * ema.intensity;
+            uniforms.uWaveDivinity.value = compactWave.standing > 0.7 ? 1.0 : compactWave.interference * 0.5;
+            uniforms.uWaveDepthLayers.value = 1.0 + compactWave.sourceCount * 0.2;
+
             if (uniforms.uWaveCenter && snapshot?.spatial?.center) {
                 const c = snapshot.spatial.center;
                 uniforms.uWaveCenter.value.set?.(c.x || 0, c.y || 0, c.z || 0);
             }
-            const nowSec = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
             if (uniforms.uTime) uniforms.uTime.value = nowSec;
             if (uniforms.uWaveTime) uniforms.uWaveTime.value = nowSec;
         } catch (e) {
@@ -609,6 +616,12 @@ export class WaveShaderBridge_v1 {
         ensureUniform('uWavePhase', { value: 0 });
         ensureUniform('uWaveSourceCount', { value: 0 });
         ensureUniform('uWaveIntensity', { value: 0 });
+
+        // NEW: Mystical uniforms (ethereal aura, divine presence)
+        ensureUniform('uWaveAuraRadius', { value: 0 });
+        ensureUniform('uWaveSoulPulse', { value: 0 });
+        ensureUniform('uWaveDivinity', { value: 0 });
+        ensureUniform('uWaveDepthLayers', { value: 1.0 });
 
         // Travel / dynamics extras
         ensureUniform('uWaveTravelFreqMix', { value: new THREE.Vector3(1, 0, 0) });

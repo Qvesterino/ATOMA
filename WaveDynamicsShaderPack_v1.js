@@ -64,33 +64,61 @@ function getConduitLinkMaterials(link) {
         DEFAULT: {
             name: 'Default Dynamics',
             breathingIntensity: 0.08,       // Node expansion scale
-        diffusionIntensity: 0.6,        // Color pulse strength
-        breathingFreq: 1.2,             // Breathing oscillation speed
-    },
-    AURA: {
-        name: 'Aura Enhanced',
-        breathingIntensity: 0.12,       // Enhanced breathing
-        diffusionIntensity: 0.8,        // Strong color diffusion
-        breathingFreq: 0.8,             // Slower, more dramatic
-    },
-    SYNERGY: {
-        name: 'Synergy Resonance',
-        breathingIntensity: 0.1,
-        diffusionIntensity: 0.7,
-        breathingFreq: 1.5,
-    },
-    MYTHIC: {
-        name: 'Mythic Extreme',
-        breathingIntensity: 0.18,       // Very strong breathing
-        diffusionIntensity: 1.0,        // Maximum color diffusion
-        breathingFreq: 2.0,             // Fast breathing
-    },
-    RIFT: {
-        name: 'Rift Chaos',
-        breathingIntensity: 0.25,       // Extreme breathing
-        diffusionIntensity: 1.0,        // Full intensity
-        breathingFreq: 3.0,             // Rapid breathing
-    }
+            diffusionIntensity: 0.6,        // Color pulse strength
+            breathingFreq: 1.2,             // Breathing oscillation speed
+            rippleIntensity: 0.1,           // Ripple amplitude
+            rippleFreq: 5.0,                // Ripple frequency
+            chaosDrive: 0.0                 // Chaos intensity
+        },
+        AURA: {
+            name: 'Aura Enhanced',
+            breathingIntensity: 0.12,       // Enhanced breathing
+            diffusionIntensity: 0.8,        // Strong color diffusion
+            breathingFreq: 0.8,             // Slower, more dramatic
+            rippleIntensity: 0.05,
+            rippleFreq: 3.0,
+            chaosDrive: 0.0
+        },
+        SYNERGY: {
+            name: 'Synergy Resonance',
+            breathingIntensity: 0.1,
+            diffusionIntensity: 0.7,
+            breathingFreq: 1.5,
+            rippleIntensity: 0.12,
+            rippleFreq: 6.0,
+            chaosDrive: 0.05
+        },
+        MYTHIC: {
+            name: 'Mythic Extreme',
+            breathingIntensity: 0.18,       // Very strong breathing
+            diffusionIntensity: 1.0,        // Maximum color diffusion
+            breathingFreq: 2.0,             // Fast breathing
+            rippleIntensity: 0.15,
+            rippleFreq: 8.0,
+            chaosDrive: 0.1
+        },
+        RIFT: {
+            name: 'Rift Chaos',
+            breathingIntensity: 0.25,       // Extreme breathing
+            diffusionIntensity: 1.0,        // Full intensity
+            breathingFreq: 3.0,             // Rapid breathing
+            rippleIntensity: 0.2,
+            rippleFreq: 12.0,
+            chaosDrive: 0.3,
+            voidTear: 0.12,                // Trhliny v priestore
+            chaosVortex: 0.08              // Vírový chaos
+        },
+        DIVINE: {
+            name: 'Divine',
+            breathingIntensity: 0.15,
+            diffusionIntensity: 0.9,
+            breathingFreq: 0.6,
+            rippleIntensity: 0.08,
+            rippleFreq: 2.0,
+            chaosDrive: 0.0,
+            holyAura: 0.18,                // Svätá aura
+            etherealBloom: 0.12            // Eterický bloom
+        }
     };
 
 // ============================================================================
@@ -117,9 +145,22 @@ const VERTEX_BREATHING_CHUNK = `
     // Standing Wave Breathing FX
     float standingEnergy = uWaveStanding * uWaveIntensity;
     float breathingScale = breathingScale(standingEnergy, uWavePhase, uWaveDynamicsBreathFreq, uWaveDynamicsBreathAmp);
-    
+
     // Apply scale to vertex position (expansion from center)
     transformed = (transformed - uWaveCenter) * breathingScale + uWaveCenter;
+
+    // NEW: DIVINE PULSE (Božský pulz)
+    if (uWaveIntensity > 0.3) {
+        float divinePhase = uWavePhase * 6.28318 + uWaveDynamicsTime;
+        float divineScale = 1.0 + sin(divinePhase) * 0.03 * uWaveIntensity;
+        transformed = (transformed - uWaveCenter) * divineScale + uWaveCenter;
+    }
+
+    // NEW: SOUL EXPANSION (Dušová expanzia)
+    if (uWaveStanding > 0.5) {
+        float soulScale = uWaveStanding * uWaveIntensity * 0.04;
+        transformed += normal * soulScale;
+    }
 `;
 
 /**
@@ -133,6 +174,28 @@ const FRAGMENT_DIFFUSION_CHUNK = `
     vec3 diffusionColor = mix(diffuseColor.rgb, vec3(0.6, 0.8, 1.0), pulseStrength * 0.3);
     diffuseColor.rgb = mix(diffuseColor.rgb, diffusionColor, min(1.0, pulseStrength));
     outgoingLight += diffuseColor.rgb * uWaveConstructive * uWaveDynamicsDiffusionAmp * 0.2;
+
+    // NEW: HOLY AURA (Svätá aura)
+    if (uWaveConstructive > 0.4) {
+        float holyStrength = uWaveConstructive * uWaveIntensity;
+        vec3 holyColor = vec3(1.0, 0.95, 0.85); // Zlatistá biela
+        diffuseColor.rgb = mix(diffuseColor.rgb, holyColor, holyStrength * 0.15);
+        outgoingLight += holyColor * holyStrength * 0.2;
+    }
+
+    // NEW: ETHEREAL BLOOM (Eterický bloom)
+    if (uWaveInterference > 0.5) {
+        float bloomStrength = uWaveInterference * 0.1;
+        vec3 bloomColor = vec3(0.8, 0.9, 1.0); // Nebesky sivá
+        diffuseColor.rgb += bloomColor * bloomStrength;
+    }
+
+    // NEW: VOID WHISPER (Šepot prázdnoty)
+    if (uWaveDestructive > 0.3) {
+        float whisperStrength = uWaveDestructive * 0.08;
+        vec3 whisperColor = vec3(0.3, 0.2, 0.4); // Tmavofialová
+        diffuseColor.rgb = mix(diffuseColor.rgb, whisperColor, whisperStrength * 0.3);
+    }
 `;
 
 const DYNAMICS_UNIFORM_DECLS = [
@@ -148,7 +211,11 @@ const DYNAMICS_UNIFORM_DECLS = [
     'uniform float uWaveDynamicsRippleFreq;',
     'uniform float uWaveDynamicsChaosDrive;',
     'uniform float uWaveDynamicsDiffusionAmp;',
-    'uniform float uWaveDynamicsTime;'
+    'uniform float uWaveDynamicsTime;',
+    'uniform float uWaveHolyAura;',
+    'uniform float uWaveEtherealBloom;',
+    'uniform float uWaveVoidTear;',
+    'uniform float uWaveChaosVortex;'
 ];
 
 /**
@@ -427,19 +494,33 @@ export class WaveDynamicsShaderPack_v1 {
                 value: config.breathingFreq
             };
             shader.uniforms.uWaveDynamicsRippleAmp = shader.uniforms.uWaveDynamicsRippleAmp || {
-                value: config.rippleIntensity
+                value: config.rippleIntensity || 0.1
             };
             shader.uniforms.uWaveDynamicsRippleFreq = shader.uniforms.uWaveDynamicsRippleFreq || {
-                value: config.rippleFreq
+                value: config.rippleFreq || 5.0
             };
             shader.uniforms.uWaveDynamicsChaosDrive = shader.uniforms.uWaveDynamicsChaosDrive || {
-                value: config.chaosDrive
+                value: config.chaosDrive || 0.0
             };
             shader.uniforms.uWaveDynamicsDiffusionAmp = shader.uniforms.uWaveDynamicsDiffusionAmp || {
                 value: config.diffusionIntensity
             };
             shader.uniforms.uWaveDynamicsTime = shader.uniforms.uWaveDynamicsTime || {
                 value: this.globalTime
+            };
+
+            // NEW: Divine-specific uniforms
+            shader.uniforms.uWaveHolyAura = shader.uniforms.uWaveHolyAura || {
+                value: config.holyAura || 0.0
+            };
+            shader.uniforms.uWaveEtherealBloom = shader.uniforms.uWaveEtherealBloom || {
+                value: config.etherealBloom || 0.0
+            };
+            shader.uniforms.uWaveVoidTear = shader.uniforms.uWaveVoidTear || {
+                value: config.voidTear || 0.0
+            };
+            shader.uniforms.uWaveChaosVortex = shader.uniforms.uWaveChaosVortex || {
+                value: config.chaosVortex || 0.0
             };
 
             // Store uniforms for future updates

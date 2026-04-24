@@ -36,6 +36,9 @@ export class SafeWorldFXPack {
     this.metricBus = this.semanticBus || this._resolveMetricBus();
     this.metricSignalTimes = new Map();
     this.frameScheduler = null;
+    this.worldContext = null;
+    this.worldMacroState = 'DORMANT';
+    this.worldAtmosphereBias = null;
 
     this.palette = {
       base: 0x05131A,
@@ -762,6 +765,7 @@ export class SafeWorldFXPack {
     const stabilityLow = this._isSignalActive('stability.low');
     const stabilityHigh = this._isSignalActive('stability.high');
     const legendaryCount = legendaryPack?.getActiveLegendaryCount?.() ?? 0;
+    const worldBias = this.worldAtmosphereBias || this._buildWorldAtmosphereBias(this.worldContext);
 
     this.atmosphereState.synergyHigh = synergyHigh;
     this.atmosphereState.loadPressureHigh = loadPressureHigh;
@@ -774,10 +778,14 @@ export class SafeWorldFXPack {
     const pressureLevel = Math.min(1, this.worldState.totalTraffic / 25 + (loadPressureHigh ? 0.2 : 0));
     const revelationLevel = Math.min(1, (corruptionHigh ? 0.5 : 0) + (legendaryCount > 0 ? 0.3 : 0));
 
-    this.atmosphereState.activityLevel = activityLevel;
-    this.atmosphereState.pressureLevel = pressureLevel;
-    this.atmosphereState.revelationLevel = revelationLevel;
-    this.atmosphereState.signalBias = (activityLevel + pressureLevel + revelationLevel) / 3;
+    this.atmosphereState.activityLevel = THREE.MathUtils.clamp(activityLevel + (worldBias?.activity || 0), 0, 1);
+    this.atmosphereState.pressureLevel = THREE.MathUtils.clamp(pressureLevel + (worldBias?.pressure || 0), 0, 1);
+    this.atmosphereState.revelationLevel = THREE.MathUtils.clamp(revelationLevel + (worldBias?.revelation || 0), 0, 1);
+    this.atmosphereState.signalBias = THREE.MathUtils.clamp(
+      (this.atmosphereState.activityLevel + this.atmosphereState.pressureLevel + this.atmosphereState.revelationLevel) / 3 + (worldBias?.signalBias || 0),
+      0,
+      1
+    );
   }
 
   _setupMetricTriggers() {
@@ -786,6 +794,40 @@ export class SafeWorldFXPack {
     this._subscribeMetricTag('global.corruption.high', 'corruption.high');
     this._subscribeMetricTag('global.stability.low', 'stability.low');
     this._subscribeMetricTag('global.stability.high', 'stability.high');
+  }
+
+  setWorldContext(worldContext) {
+    this.worldContext = worldContext ? {
+      ...worldContext,
+      macroProfile: worldContext.macroProfile ? { ...worldContext.macroProfile } : null,
+      worldContext: worldContext.worldContext ? { ...worldContext.worldContext } : null
+    } : null;
+    this.worldMacroState = String(this.worldContext?.worldMacroState || this.worldContext?.macroState || 'DORMANT').toUpperCase();
+    this.worldAtmosphereBias = this._buildWorldAtmosphereBias(this.worldContext);
+  }
+
+  _buildWorldAtmosphereBias(worldContext) {
+    const macroState = String(worldContext?.worldMacroState || worldContext?.macroState || 'DORMANT').toUpperCase();
+    const macroProfile = worldContext?.macroProfile || null;
+    const profileEnergy = THREE.MathUtils.clamp(((macroProfile?.masterScale ?? 0.68) - 0.68) / 0.5, 0, 1);
+
+    const moodBindings = {
+      DORMANT: { activity: 0.02, pressure: 0.02, revelation: 0.03, signalBias: 0.03 },
+      AWAKENING: { activity: 0.06, pressure: 0.08, revelation: 0.04, signalBias: 0.06 },
+      COMMUNION: { activity: 0.08, pressure: 0.05, revelation: 0.08, signalBias: 0.08 },
+      SCHISM: { activity: 0.06, pressure: 0.12, revelation: 0.06, signalBias: 0.1 },
+      REVELATION: { activity: 0.1, pressure: 0.06, revelation: 0.12, signalBias: 0.14 }
+    };
+
+    const bias = { ...(moodBindings[macroState] || moodBindings.DORMANT) };
+    if (macroProfile) {
+      bias.activity += profileEnergy * 0.04;
+      bias.pressure += (macroProfile.fogScale ?? 0) * 0.02;
+      bias.revelation += (macroProfile.cameraAuraScale ?? 0) * 0.03;
+      bias.signalBias += (macroProfile.distortionScale ?? 0) * 0.02;
+    }
+
+    return bias;
   }
 
   _subscribeMetricTag(eventName, signalKey) {

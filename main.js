@@ -5976,7 +5976,8 @@ this.setHudDirty('nodeInspect');
                 player: this.player,
                 audioSystem: this.audioSystem || null,
                 synergyMap: this.synergyMap || {},
-                trafficMap: this.trafficMap || {}
+                trafficMap: this.trafficMap || {},
+                worldContextProvider: () => this._getCanonicalWorldContext()
             }
         );
         this.environmentDomain.init();
@@ -8146,7 +8147,8 @@ window.__ATOMA_SCENE__ = this.scene;
                 player: this.player,
                 audioSystem: this.audioSystem || null,
                 synergyMap: this.synergyMap || {},
-                trafficMap: this.trafficMap || {}
+                trafficMap: this.trafficMap || {},
+                worldContextProvider: () => this._getCanonicalWorldContext()
             }
         );
         this.environmentDomain.init();

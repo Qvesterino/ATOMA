@@ -185,6 +185,9 @@ export class SafeAIWeatherPack {
       windVector: new THREE.Vector3(0, 0, 0),
       windStrength: 0
     };
+    this.worldContext = null;
+    this.worldMacroState = 'DORMANT';
+    this.worldMoodBias = null;
     
     // Mood state definitions
     this.moodStates = {
@@ -1203,7 +1206,7 @@ export class SafeAIWeatherPack {
     if (shouldRunInterpretation) {
       this.interpretationAccumulator = 0;
       // Check for new weather triggers periodically (interpretation layer)
-      this.checkWeatherTriggers(legendaryPack, linkingSystem, evolutionManager, worldEvents, worldMoodBias);
+      this.checkWeatherTriggers(legendaryPack, linkingSystem, evolutionManager, worldEvents, worldMoodBias || this.worldMoodBias);
     }
     
     // Update active weather if one is running
@@ -1394,8 +1397,9 @@ export class SafeAIWeatherPack {
       weights.stormBias -= 0.1;
     }
 
-    if (worldMoodBias && typeof worldMoodBias === 'object') {
-      Object.entries(worldMoodBias).forEach(([key, bias]) => {
+    const biasSource = worldMoodBias && typeof worldMoodBias === 'object' ? worldMoodBias : this.worldMoodBias;
+    if (biasSource && typeof biasSource === 'object') {
+      Object.entries(biasSource).forEach(([key, bias]) => {
         if (weights[key] !== undefined && typeof bias === 'number') {
           weights[key] += bias * 0.2;
         }
@@ -1479,6 +1483,72 @@ export class SafeAIWeatherPack {
     
     // Create initial VFX
     this.createWeatherVFX(moodState, moodDef);
+  }
+
+  setWorldContext(worldContext) {
+    this.worldContext = worldContext ? {
+      ...worldContext,
+      macroProfile: worldContext.macroProfile ? { ...worldContext.macroProfile } : null,
+      worldContext: worldContext.worldContext ? { ...worldContext.worldContext } : null
+    } : null;
+    this.worldMacroState = String(this.worldContext?.worldMacroState || this.worldContext?.macroState || 'DORMANT').toUpperCase();
+    this.worldMoodBias = this._buildWorldMoodBias(this.worldContext);
+  }
+
+  _buildWorldMoodBias(worldContext) {
+    const macroState = String(worldContext?.worldMacroState || worldContext?.macroState || 'DORMANT').toUpperCase();
+    const macroProfile = worldContext?.macroProfile || null;
+    const profileEnergy = THREE.MathUtils.clamp(((macroProfile?.masterScale ?? 0.68) - 0.68) / 0.5, 0, 1);
+
+    const moodBias = {
+      calm: 0.08,
+      pressure: 0.08,
+      resonance: 0.08,
+      stormBias: 0.08,
+      ascensionHaze: 0.08
+    };
+
+    const moodBindings = {
+      DORMANT: {
+        dominant: 'calm',
+        bias: { calm: 0.94, pressure: 0.06, resonance: 0.05, stormBias: 0.02, ascensionHaze: 0.04 }
+      },
+      AWAKENING: {
+        dominant: 'pressure',
+        bias: { calm: 0.1, pressure: 0.96, resonance: 0.1, stormBias: 0.07, ascensionHaze: 0.05 }
+      },
+      COMMUNION: {
+        dominant: 'resonance',
+        bias: { calm: 0.08, pressure: 0.08, resonance: 1.0, stormBias: 0.05, ascensionHaze: 0.14 }
+      },
+      SCHISM: {
+        dominant: 'stormBias',
+        bias: { calm: 0.05, pressure: 0.14, resonance: 0.12, stormBias: 1.02, ascensionHaze: 0.08 }
+      },
+      REVELATION: {
+        dominant: 'ascensionHaze',
+        bias: { calm: 0.06, pressure: 0.08, resonance: 0.16, stormBias: 0.08, ascensionHaze: 1.04 }
+      }
+    };
+
+    const binding = moodBindings[macroState] || moodBindings.DORMANT;
+    moodBias.calm += binding.bias.calm || 0;
+    moodBias.pressure += binding.bias.pressure || 0;
+    moodBias.resonance += binding.bias.resonance || 0;
+    moodBias.stormBias += binding.bias.stormBias || 0;
+    moodBias.ascensionHaze += binding.bias.ascensionHaze || 0;
+
+    const dominantMood = binding.dominant || 'calm';
+    moodBias[dominantMood] += 0.12 + profileEnergy * 0.18;
+
+    if (macroProfile) {
+      moodBias.resonance += (macroProfile.particleScale ?? 0) * 0.03;
+      moodBias.stormBias += (macroProfile.distortionScale ?? 0) * 0.03;
+      moodBias.ascensionHaze += (macroProfile.cameraAuraScale ?? 0) * 0.04;
+      moodBias.pressure += (macroProfile.fogScale ?? 0) * 0.02;
+    }
+
+    return moodBias;
   }
   
   /**

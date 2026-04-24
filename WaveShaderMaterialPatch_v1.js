@@ -46,26 +46,44 @@ const MATERIAL_PATCH_SYMBOL = Symbol('waveShaderMaterialPatched');
  * Applies amplitude distortion and destructive jitter
  */
 const WAVE_VERTEX_CHUNK = `
+    // Ensure uWaveCenter is declared (if not already)
+    #ifndef uWaveCenter
+    uniform vec3 uWaveCenter;
+    #endif
+
     // Wave shader effects on vertex position
     vec3 waveDistortion = vec3(0.0);
-    
+
     // 1. AMPLITUDE DISTORTION: Offset vertices based on total wave amplitude
     float amplitudeScale = uWaveAmplitude * uWaveIntensity;
     waveDistortion += normal * amplitudeScale * 0.15;
-    
+
     // 2. STANDING WAVE BREATHING: Sine modulation for expansion/contraction
     if (uWaveStanding > 0.01) {
         float breathingPhase = sin(uTime * 1.5 + length(position) * 2.0);
         float breathingScale = 0.5 + 0.5 * breathingPhase; // 0..1
         waveDistortion += normal * breathingScale * uWaveStanding * uWaveIntensity * 0.08;
     }
-    
+
     // 4. PHASE-SHIFT TRAVEL: Animate distortion with phase
     if (uWavePhase > 0.01) {
         float phaseTravel = sin(uWavePhase * 6.28318); // 0..2π
         waveDistortion += normal * phaseTravel * uWaveIntensity * 0.05;
     }
-    
+
+    // NEW: ETHEREAL EXPANSION (Nadprirodzená expanzia)
+    if (uWaveIntensity > 0.2) {
+        float etherealScale = 1.0 + uWaveConstructive * uWaveIntensity * 0.05;
+        transformed = (transformed - uWaveCenter) * etherealScale + uWaveCenter;
+    }
+
+    // NEW: SOUL RESONANCE (Dušová rezonancia)
+    if (uWaveSourceCount > 0.5) {
+        float resonancePhase = uTime * 1.2;
+        float resonanceScale = sin(resonancePhase) * 0.02 * uWaveSourceCount;
+        transformed += normal * resonanceScale;
+    }
+
     // Apply total distortion to vertex position
     transformed += waveDistortion;
 `;
@@ -76,7 +94,7 @@ const WAVE_VERTEX_CHUNK = `
  */
 const WAVE_FRAGMENT_CHUNK = `
     // Wave shader effects on fragment color & emissive
-    
+
     // 1. CONSTRUCTIVE GLOW: Boost emissive based on constructive power
     if (uWaveConstructive > 0.01) {
         float glowIntensity = uWaveConstructive * uWaveIntensity;
@@ -88,35 +106,72 @@ const WAVE_FRAGMENT_CHUNK = `
         // Add emissive component
         outgoingLight += diffuseColor.rgb * glowIntensity * 0.5;
     }
-    
+
     // 2. INTERFERENCE PATTERN: Color shifting based on interference index
     if (uWaveInterference > 0.01) {
         // Compute interference color shift (RGB cycling)
         float hueShift = uWaveInterference * 6.28318; // 0..2π
         vec3 hsvColor = vec3(hueShift, uWaveIntensity, uWaveInterference);
-        
+
         // Simple HSV to RGB conversion (approximated)
         float h = hueShift / 1.047197; // 60° segments
         float c = uWaveInterference * uWaveIntensity;
         float x = c * (1.0 - abs(mod(h, 2.0) - 1.0));
         vec3 rgb = vec3(0.0);
-        
+
         if (h < 1.0) rgb = vec3(c, x, 0.0);
         else if (h < 2.0) rgb = vec3(x, c, 0.0);
         else if (h < 3.0) rgb = vec3(0.0, c, x);
         else if (h < 4.0) rgb = vec3(0.0, x, c);
         else if (h < 5.0) rgb = vec3(x, 0.0, c);
         else rgb = vec3(c, 0.0, x);
-        
+
         diffuseColor.rgb = mix(diffuseColor.rgb, rgb, uWaveInterference * 0.5);
     }
-    
+
     // 3. PHASE-SHIFT TRAVEL: Animate overall brightness with phase
     if (uWavePhase > 0.01) {
         float phaseBrightness = 0.5 + 0.5 * sin(uWavePhase * 6.28318);
         diffuseColor.rgb *= (1.0 + (phaseBrightness - 0.5) * uWaveIntensity * 0.3);
     }
-    
+
+    // NEW: ETHEREAL AURA (Mystický svieži halo)
+    if (uWaveIntensity > 0.1) {
+        float auraStrength = uWaveConstructive * uWaveIntensity;
+
+        // Mystická sivá/zlatá záře
+        vec3 auraColor = mix(
+            vec3(0.9, 0.95, 1.0), // Strieborná
+            vec3(1.0, 0.85, 0.5),  // Zlatá
+            uWaveStanding
+        );
+
+        // Soft halo okolo
+        diffuseColor.rgb = mix(diffuseColor.rgb, auraColor, auraStrength * 0.2);
+
+        // Emissive boost pre "svieži" pocit
+        outgoingLight += auraColor * auraStrength * 0.15;
+    }
+
+    // NEW: PHANTOM SHIMMER (Duchovný záblesk)
+    if (uWaveInterference > 0.3) {
+        #ifdef USE_UV
+        float shimmerPhase = sin(uTime * 2.0 + vUv.x * 0.5) * 0.5 + 0.5;
+        float shimmerStrength = uWaveInterference * 0.08;
+
+        // Jemné mriežkovanie
+        float shimmerNoise = sin(vUv.x * 10.0 + uTime) * sin(vUv.y * 10.0 + uTime) * 0.5 + 0.5;
+        vec3 shimmerColor = vec3(0.7, 0.85, 1.0); // Modrastá
+
+        diffuseColor.rgb += shimmerColor * shimmerStrength * shimmerNoise;
+        #endif
+    }
+
+    // NEW: SPIRITUAL DRIFT (Duchovný rozplyn)
+    if (uWavePhase > 0.2) {
+        float driftStrength = sin(uWavePhase * 3.14159) * uWaveIntensity * 0.05;
+        diffuseColor.rgb *= (1.0 - driftStrength * 0.3); // Jemné stmavenie
+    }
 `;
 
 /**
@@ -314,6 +369,9 @@ export class WaveShaderMaterialPatch_v1 {
             shader.uniforms.uWavePhase = shader.uniforms.uWavePhase || { value: 0 };
             shader.uniforms.uWaveSourceCount = shader.uniforms.uWaveSourceCount || { value: 0 };
             shader.uniforms.uWaveIntensity = shader.uniforms.uWaveIntensity || { value: 0 };
+
+            // Ensure uWaveCenter exists (needed for ETHEREAL EXPANSION)
+            shader.uniforms.uWaveCenter = shader.uniforms.uWaveCenter || { value: new THREE.Vector3(0, 0, 0) };
 
             // Add profile config uniforms
             shader.uniforms.uWaveProfile = shader.uniforms.uWaveProfile || {

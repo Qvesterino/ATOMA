@@ -470,6 +470,7 @@ export class EnvironmentDomainController {
     this.environmentRoot = environmentRoot;
     this.frameScheduler = frameScheduler;
     this.deps = deps; // camera, aiNodes, linkingSystem, etc.
+    this.worldContextProvider = typeof deps?.worldContextProvider === 'function' ? deps.worldContextProvider : null;
     this.sharedEnvironmentAssets = createSharedEnvironmentAssetRegistry();
     this._ambientViewProjectionMatrix = new THREE.Matrix4();
     this._ambientVisibilityFrustum = new THREE.Frustum();
@@ -697,6 +698,7 @@ export class EnvironmentDomainController {
     installDramaturgyDebugAPI(this.instances.eventDramaturgy);
 
     this._applyRenderLayerPolicies();
+    this._syncEnvironmentWorldContext();
   }
 
   _applyRenderLayerPolicies() {
@@ -917,6 +919,7 @@ export class EnvironmentDomainController {
       (dt) => {
         const ambientState = this._buildAmbientVisibilityState();
         const ambientVisualFrameIndex = this._ambientVisualFrameIndex = (this._ambientVisualFrameIndex ?? 0) + 1;
+        const worldBinding = this._syncEnvironmentWorldContext();
         const dreamDepthMode = this._resolveAmbientLayerMode('safeDreamDepthPack', ambientState, ambientVisualFrameIndex);
         this._applyAmbientLayerVisibility(this.instances.safeDreamDepthPack, dreamDepthMode?.visible !== false);
         this._applyAmbientLayerVisibility(this.instances.dreamDepthEffectManager, dreamDepthMode?.visible !== false);
@@ -938,7 +941,8 @@ export class EnvironmentDomainController {
               this.deps.legendaryPack,
               this.deps.linkingSystem,
               this.deps.evolutionManager,
-              this.deps.worldEvents
+              this.deps.worldEvents,
+              worldBinding?.weatherMoodBias || null
             );
             return;
           }
@@ -966,7 +970,7 @@ export class EnvironmentDomainController {
         });
 
         if (dreamDepthMode?.shouldUpdate !== false) {
-          this._updateDreamDepthPair(dt, worldSystems);
+          this._updateDreamDepthPair(dt, worldSystems, worldBinding);
         }
 
         // Event Dramaturgy Engine — 3-phase lifecycle tick (visual lane)
@@ -1051,6 +1055,90 @@ export class EnvironmentDomainController {
     };
   }
 
+  _resolveEnvironmentWorldContext() {
+    if (!this.worldContextProvider) return null;
+    try {
+      const context = this.worldContextProvider();
+      if (!context || typeof context !== 'object') return null;
+      return {
+        ...context,
+        macroProfile: context.macroProfile ? { ...context.macroProfile } : null,
+        worldContext: context.worldContext ? { ...context.worldContext } : null
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  _buildEnvironmentWorldBinding(worldContext) {
+    const macroState = String(worldContext?.worldMacroState || worldContext?.macroState || 'DORMANT').toUpperCase();
+    const macroProfile = worldContext?.macroProfile || null;
+
+    const moodBias = {
+      calm: 0.08,
+      pressure: 0.08,
+      resonance: 0.08,
+      stormBias: 0.08,
+      ascensionHaze: 0.08
+    };
+
+    const stateBindings = {
+      DORMANT: {
+        weatherKey: 'calm',
+        moodBias: { calm: 0.98, pressure: 0.06, resonance: 0.05, stormBias: 0.02, ascensionHaze: 0.04 }
+      },
+      AWAKENING: {
+        weatherKey: 'pressure',
+        moodBias: { calm: 0.16, pressure: 1.0, resonance: 0.12, stormBias: 0.08, ascensionHaze: 0.06 }
+      },
+      COMMUNION: {
+        weatherKey: 'resonance',
+        moodBias: { calm: 0.1, pressure: 0.1, resonance: 1.04, stormBias: 0.06, ascensionHaze: 0.16 }
+      },
+      SCHISM: {
+        weatherKey: 'stormBias',
+        moodBias: { calm: 0.06, pressure: 0.16, resonance: 0.14, stormBias: 1.08, ascensionHaze: 0.1 }
+      },
+      REVELATION: {
+        weatherKey: 'ascensionHaze',
+        moodBias: { calm: 0.08, pressure: 0.08, resonance: 0.18, stormBias: 0.08, ascensionHaze: 1.1 }
+      }
+    };
+
+    const binding = stateBindings[macroState] || stateBindings.DORMANT;
+    const weatherMoodBias = { ...moodBias, ...(binding.moodBias || {}) };
+
+    if (macroProfile) {
+      weatherMoodBias.resonance += (macroProfile.particleScale ?? 0) * 0.03;
+      weatherMoodBias.stormBias += (macroProfile.distortionScale ?? 0) * 0.03;
+      weatherMoodBias.ascensionHaze += (macroProfile.cameraAuraScale ?? 0) * 0.04;
+      weatherMoodBias.pressure += (macroProfile.fogScale ?? 0) * 0.02;
+    }
+
+    return {
+      worldContext,
+      macroState,
+      weatherKey: binding.weatherKey,
+      weatherMoodBias,
+      macroProfile
+    };
+  }
+
+  _syncEnvironmentWorldContext(worldBinding = null) {
+    const binding = worldBinding || this._buildEnvironmentWorldBinding(this._resolveEnvironmentWorldContext());
+    const worldContext = binding?.worldContext || null;
+
+    if (this.instances.worldFXPack && typeof this.instances.worldFXPack.setWorldContext === 'function') {
+      this.instances.worldFXPack.setWorldContext(worldContext);
+    }
+
+    if (this.instances.weatherPack && typeof this.instances.weatherPack.setWorldContext === 'function') {
+      this.instances.weatherPack.setWorldContext(worldContext);
+    }
+
+    return binding;
+  }
+
   _wireDreamDepthScheduler() {
     const safe = this.instances.safeDreamDepthPack;
     const rich = this.instances.dreamDepthEffectManager;
@@ -1062,18 +1150,18 @@ export class EnvironmentDomainController {
     this._installDreamDepthDebugBridge();
   }
 
-  _syncDreamDepthInputs() {
+  _syncDreamDepthInputs(worldBinding = null) {
     const worldSystems = this._buildDreamDepthWorldSystems();
     const safe = this.instances.safeDreamDepthPack;
     const rich = this.instances.dreamDepthEffectManager;
+    const weatherKey = worldSystems.weatherRegistry?.currentWeather || worldBinding?.weatherKey || null;
 
-    if (worldSystems.weatherRegistry?.currentWeather) {
-      const weather = worldSystems.weatherRegistry.currentWeather;
+    if (weatherKey) {
       if (safe && typeof safe.setWeatherCondition === 'function') {
-        safe.setWeatherCondition(weather);
+        safe.setWeatherCondition(weatherKey);
       }
       if (rich && typeof rich.setWeatherCondition === 'function') {
-        rich.setWeatherCondition(weather);
+        rich.setWeatherCondition(weatherKey);
       }
     }
 
@@ -1111,11 +1199,11 @@ export class EnvironmentDomainController {
     return targets;
   }
 
-  _updateDreamDepthPair(dt, worldSystems) {
+  _updateDreamDepthPair(dt, worldSystems, worldBinding = null) {
     const safe = this.instances.safeDreamDepthPack;
     const rich = this.instances.dreamDepthEffectManager;
 
-    this._syncDreamDepthInputs();
+    this._syncDreamDepthInputs(worldBinding);
 
     if (safe && typeof safe.update === 'function') {
       safe.update(dt, worldSystems);
