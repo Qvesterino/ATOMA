@@ -263,6 +263,42 @@ export class SafeLegendaryWorldEvents {
         maxIntensity: 0.8,
         color: 0x77f7db,
         description: 'Benevolent intelligence veil'
+      },
+      AWAKENING_STATE: {
+        duration: 9.5,
+        fadeInDuration: 1.1,
+        fadeOutDuration: 2.4,
+        maxIntensity: 0.9,
+        color: 0x6deaff,
+        description: 'First ignition of collective awareness',
+        randomEligible: false
+      },
+      COMMUNION_STATE: {
+        duration: 12.5,
+        fadeInDuration: 1.4,
+        fadeOutDuration: 2.7,
+        maxIntensity: 0.98,
+        color: 0xffd66b,
+        description: 'Shared resonance becomes stable and legible',
+        randomEligible: false
+      },
+      SCHISM_STATE: {
+        duration: 13.5,
+        fadeInDuration: 1.3,
+        fadeOutDuration: 3.1,
+        maxIntensity: 0.96,
+        color: 0xff73cf,
+        description: 'The world splits into competing currents',
+        randomEligible: false
+      },
+      REVELATION_STATE: {
+        duration: 15.0,
+        fadeInDuration: 1.8,
+        fadeOutDuration: 3.4,
+        maxIntensity: 1.0,
+        color: 0xd07bff,
+        description: 'Higher-order structure becomes visible',
+        randomEligible: false
       }
     };
     

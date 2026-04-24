@@ -427,6 +427,82 @@ export class AIConsciousnessLayer {
     }
   }
 
+  _deriveWorldMacroState(state) {
+    if (!state) return 'DORMANT';
+
+    const networkMood = String(state.networkMood || state.moodTag || '').toUpperCase();
+    const heroPhase = String(state.heroPhase || '').toUpperCase();
+    const networkPressure = this._clamp01(state.networkPressure);
+    const heroIntensity = this._clamp01(state.heroIntensity);
+    const ritualIntensity = this._clamp01(state.ritualIntensity);
+    const coherence = this._clamp01(state.coherence);
+    const patternDensity = this._clamp01(state.patternDensity);
+    const volatility = this._clamp01(state.volatility);
+    const avgCorruption = this._clamp01(state.avgCorruption);
+    const activeLinkRatio = this._clamp01(state.activeLinkRatio);
+
+    if (
+      networkPressure >= 0.72 ||
+      avgCorruption >= 0.58 ||
+      volatility >= 0.68 ||
+      networkMood === 'CRITICAL' ||
+      networkMood === 'CHAOTIC' ||
+      heroPhase === 'DEFENSE' ||
+      heroPhase === 'FRACTURE'
+    ) {
+      return 'SCHISM';
+    }
+
+    const revelationScore = (
+      heroIntensity * 0.42 +
+      coherence * 0.28 +
+      ritualIntensity * 0.12 +
+      patternDensity * 0.12 +
+      (1 - networkPressure) * 0.06
+    );
+    if (
+      revelationScore >= 0.78 &&
+      networkPressure <= 0.58 &&
+      (networkMood === 'BALANCED' || networkMood === 'SYNERGIC' || networkMood === 'FOCUSED' || heroPhase === 'RITUAL' || heroPhase === 'CONDUCTING')
+    ) {
+      return 'REVELATION';
+    }
+
+    const communionScore = (
+      ritualIntensity * 0.45 +
+      coherence * 0.25 +
+      activeLinkRatio * 0.15 +
+      heroIntensity * 0.1 +
+      patternDensity * 0.05
+    );
+    if (
+      communionScore >= 0.7 &&
+      networkPressure <= 0.62 &&
+      (networkMood === 'SYNERGIC' || networkMood === 'BALANCED' || heroPhase === 'RITUAL' || heroPhase === 'HARMONIC_CORE')
+    ) {
+      return 'COMMUNION';
+    }
+
+    const awakeningScore = (
+      heroIntensity * 0.45 +
+      coherence * 0.2 +
+      ritualIntensity * 0.15 +
+      patternDensity * 0.1 +
+      activeLinkRatio * 0.1
+    );
+    if (
+      awakeningScore >= 0.55 ||
+      heroPhase === 'AWAKENING' ||
+      networkMood === 'TENSE' ||
+      networkMood === 'CALM' ||
+      networkMood === 'FOCUSED'
+    ) {
+      return 'AWAKENING';
+    }
+
+    return 'DORMANT';
+  }
+
   _updateConsciousnessState(metrics = {}) {
     const state = this.consciousnessState || (this.consciousnessState = {});
     const smoothing = metrics.visualDelta > 0
@@ -503,6 +579,8 @@ export class AIConsciousnessLayer {
     });
     state.moodTag = state.networkMood;
     state.heroPhase = this._deriveHeroPhase(state);
+    state.worldMacroState = this._deriveWorldMacroState(state);
+    state.macroState = state.worldMacroState;
     state.threadBias = this._clamp01(0.65 + networkHealth * 0.28 + patternDensity * 0.18 - networkPressure * 0.15);
     state.pulseBias = this._clamp01(0.6 + trafficIntensity * 0.35 + ritualIntensity * 0.22 + heroIntensity * 0.12);
     state.patternBias = this._clamp01(0.5 + patternDensity * 0.42 + ritualIntensity * 0.18 + heroIntensity * 0.08);
@@ -518,11 +596,13 @@ export class AIConsciousnessLayer {
     this.stats.patternDensity = patternDensity;
     this.stats.moodTag = state.networkMood;
     this.stats.heroPhase = state.heroPhase;
+    this.stats.worldMacroState = state.worldMacroState;
 
     if (this.consciousnessGroup?.userData) {
       this.consciousnessGroup.userData.consciousnessState = state;
       this.consciousnessGroup.userData.consciousnessMood = state.networkMood;
       this.consciousnessGroup.userData.heroPhase = state.heroPhase;
+      this.consciousnessGroup.userData.worldMacroState = state.worldMacroState;
     }
 
     const signature = [
@@ -568,6 +648,8 @@ export class AIConsciousnessLayer {
       networkMood: state.networkMood || 'CALM',
       moodTag: state.moodTag || state.networkMood || 'CALM',
       heroPhase: state.heroPhase || 'LISTENING',
+      worldMacroState: state.worldMacroState || 'DORMANT',
+      macroState: state.worldMacroState || 'DORMANT',
       networkHealth: state.networkHealth ?? 0,
       networkPressure: state.networkPressure ?? 0,
       trafficIntensity: state.trafficIntensity ?? 0,

@@ -86,6 +86,7 @@ class ResonanceMaterialState {
     constructor(material) {
         this.material = material;
         this.originalOnBeforeCompile = material.onBeforeCompile || null;
+        this.lastAppliedTier = null;
         
         // GPU uniforms
         this.uniforms = {
@@ -370,13 +371,20 @@ class ResonanceMaterialState {
      * Update all shader uniforms
      */
     updateUniforms(tier, resonance, coherence, time, multiFreqStr, chromaStr, flowSpeed) {
-        this.uniforms.uSynergyTier.value = Math.floor(tier);
+        const nextTier = Math.floor(tier);
+        if (nextTier <= 0 && this.lastAppliedTier === 0) {
+            return false;
+        }
+
+        this.lastAppliedTier = nextTier;
+        this.uniforms.uSynergyTier.value = nextTier;
         this.uniforms.uResonanceLevel.value = Math.max(0, Math.min(1, resonance));
         this.uniforms.uCoherenceLevel.value = Math.max(0, Math.min(1, coherence));
         this.uniforms.uTime.value = time;
         this.uniforms.uMultiFreqStrength.value = Math.max(0, Math.min(1, multiFreqStr));
         this.uniforms.uChromaticStrength.value = Math.max(0, Math.min(1, chromaStr));
         this.uniforms.uFlowSpeed.value = Math.max(0, Math.min(1, flowSpeed));
+        return true;
     }
 }
 

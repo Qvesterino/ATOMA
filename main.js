@@ -5021,6 +5021,19 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             if (this.visualSuperpack) {
                 const liveMetrics = typeof window !== 'undefined' ? (window.__ATOMA_LIVE_METRICS__ || null) : null;
+                const consciousnessState = this.consciousnessLayer?.getConsciousnessState?.()
+                    || this.consciousnessLayer?.consciousnessState
+                    || null;
+                const worldMoodState = this.worldPersonalityController?.getMoodState?.() || null;
+                const nextWorldMacroState = consciousnessState?.worldMacroState || consciousnessState?.macroState || this.worldMacroState || 'DORMANT';
+                this.worldMacroState = nextWorldMacroState;
+                this.visualSuperpack.setWorldContext?.({
+                    consciousnessState,
+                    worldMoodState,
+                    networkState: this.networkState || null,
+                    liveMetrics,
+                    worldMacroState: nextWorldMacroState
+                });
                 if (liveMetrics) {
                     this.visualSuperpack.setMetrics({
                         harmony: liveMetrics.harmony,
@@ -9722,6 +9735,20 @@ window.__ATOMA_SCENE__ = this.scene;
         this.linkCollapseSystem.frameScheduler = this.frameScheduler;
         this.linkCollapseSystem.semanticBus = this.semanticBus;
         this.linkingSystem.linkCollapseSystem = this.linkCollapseSystem;
+        if (this.visualSuperpack?.triggerSpectacle && typeof this.linkCollapseSystem.on === 'function') {
+            this.linkCollapseSystem.on('warning', (link, state) => {
+                this.visualSuperpack.triggerSpectacle('warning', { link, state, source: 'LinkCollapseSystem' });
+            });
+            this.linkCollapseSystem.on('critical', (link, state) => {
+                this.visualSuperpack.triggerSpectacle('critical', { link, state, source: 'LinkCollapseSystem' });
+            });
+            this.linkCollapseSystem.on('collapse', (link, state) => {
+                this.visualSuperpack.triggerSpectacle('collapse', { link, state, source: 'LinkCollapseSystem' });
+            });
+            this.linkCollapseSystem.on('recovery', (link, state) => {
+                this.visualSuperpack.triggerSpectacle('recovery', { link, state, source: 'LinkCollapseSystem' });
+            });
+        }
         if (typeof window !== 'undefined') {
             window.linkCollapseSystem = this.linkCollapseSystem;
         }
@@ -12968,6 +12995,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // Apply all 8 enhancement packs
         this.visualSuperpack.applyFullUpgrade();
         this.visualSuperpack.setQualityTier(this.visualQualityLevel || 'HIGH');
+        this.visualSuperpack.attachSemanticBus?.(this.semanticBus);
 
         // Apply renderer settings
         const settings = this.visualSuperpack.getRendererSettings();
@@ -17259,6 +17287,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     scene: this.scene || null,
                     metrics: this.coreMetricsOverlay?.currentMetrics || this.worldMetrics || this.nodeDynamicMetrics || null,
                     consciousness: consciousnessState,
+                    worldMacroState: this.worldMacroState || consciousnessState?.worldMacroState || consciousnessState?.macroState || 'DORMANT',
                     consciousnessLayer: this.consciousnessLayer || null,
                     thoughtStorms: this.consciousnessLayer?.storms || null,
                     linkCollapseSystem: this.linkCollapseSystem || null,

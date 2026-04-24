@@ -195,10 +195,32 @@ export class EnvironmentEventCoordinator {
     const state = payload.consciousnessState && typeof payload.consciousnessState === 'object'
       ? payload.consciousnessState
       : payload;
+    const macroState = String(
+      state.worldMacroState
+      || state.macroState
+      || payload.worldMacroState
+      || payload.macroState
+      || ''
+    ).toUpperCase();
     const networkMood = String(state.networkMood || state.moodTag || '').toUpperCase();
     const heroPhase = String(state.heroPhase || '').toUpperCase();
     const networkPressure = Number(state.networkPressure) || 0;
     const volatility = Number(state.volatility) || 0;
+
+    switch (macroState) {
+      case 'AWAKENING':
+        return 'AWAKENING_STATE';
+      case 'COMMUNION':
+        return 'COMMUNION_STATE';
+      case 'SCHISM':
+        return 'SCHISM_STATE';
+      case 'REVELATION':
+        return 'REVELATION_STATE';
+      case 'DORMANT':
+        return null;
+      default:
+        break;
+    }
 
     const tensionSpike =
       networkMood === 'CRITICAL' ||

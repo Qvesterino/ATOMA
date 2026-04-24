@@ -13,6 +13,212 @@ function isValidBufferAttrArray(attr) {
 
 const __edgesOffenders = new Set();
 
+const WORLD_MACRO_PROFILES = Object.freeze({
+    DORMANT: Object.freeze({
+        masterScale: 0.68,
+        edgeGlowScale: 0.72,
+        volumetricScale: 0.58,
+        fogScale: 0.62,
+        distortionScale: 0.5,
+        riftScale: 0.52,
+        particleScale: 0.56,
+        cameraAuraScale: 0.6
+    }),
+    AWAKENING: Object.freeze({
+        masterScale: 0.9,
+        edgeGlowScale: 0.92,
+        volumetricScale: 0.88,
+        fogScale: 0.92,
+        distortionScale: 0.78,
+        riftScale: 0.82,
+        particleScale: 0.9,
+        cameraAuraScale: 0.86
+    }),
+    COMMUNION: Object.freeze({
+        masterScale: 1.02,
+        edgeGlowScale: 1.0,
+        volumetricScale: 1.08,
+        fogScale: 1.06,
+        distortionScale: 0.72,
+        riftScale: 0.92,
+        particleScale: 1.04,
+        cameraAuraScale: 1.06
+    }),
+    SCHISM: Object.freeze({
+        masterScale: 1.08,
+        edgeGlowScale: 1.06,
+        volumetricScale: 0.82,
+        fogScale: 0.8,
+        distortionScale: 1.22,
+        riftScale: 1.18,
+        particleScale: 0.9,
+        cameraAuraScale: 0.86
+    }),
+    REVELATION: Object.freeze({
+        masterScale: 1.18,
+        edgeGlowScale: 1.12,
+        volumetricScale: 1.16,
+        fogScale: 1.1,
+        distortionScale: 0.68,
+        riftScale: 1.0,
+        particleScale: 1.12,
+        cameraAuraScale: 1.16
+    })
+});
+
+const SPECTACLE_PRESETS = Object.freeze({
+    generic: Object.freeze({
+        priority: 0,
+        masterScale: 1.0,
+        edgeGlowScale: 1.0,
+        volumetricScale: 1.0,
+        fogScale: 1.0,
+        distortionScale: 1.0,
+        riftScale: 1.0,
+        particleScale: 1.0,
+        cameraAuraScale: 1.0,
+        attack: 0.08,
+        sustain: 0.18,
+        release: 0.42,
+        heroBurstMs: 900
+    }),
+    'link.created': Object.freeze({
+        priority: 10,
+        masterScale: 0.68,
+        edgeGlowScale: 1.16,
+        volumetricScale: 1.05,
+        fogScale: 1.02,
+        distortionScale: 0.98,
+        riftScale: 1.04,
+        particleScale: 1.16,
+        cameraAuraScale: 1.02,
+        attack: 0.08,
+        sustain: 0.16,
+        release: 0.34,
+        heroBurstMs: 900
+    }),
+    warning: Object.freeze({
+        priority: 20,
+        masterScale: 0.42,
+        edgeGlowScale: 1.06,
+        volumetricScale: 1.03,
+        fogScale: 1.01,
+        distortionScale: 1.08,
+        riftScale: 1.03,
+        particleScale: 1.02,
+        cameraAuraScale: 1.02,
+        attack: 0.1,
+        sustain: 0.08,
+        release: 0.42,
+        heroBurstMs: 700
+    }),
+    critical: Object.freeze({
+        priority: 50,
+        masterScale: 0.88,
+        edgeGlowScale: 1.14,
+        volumetricScale: 0.96,
+        fogScale: 0.92,
+        distortionScale: 1.18,
+        riftScale: 1.18,
+        particleScale: 0.92,
+        cameraAuraScale: 0.94,
+        attack: 0.06,
+        sustain: 0.12,
+        release: 0.76,
+        heroBurstMs: 1200
+    }),
+    collapse: Object.freeze({
+        priority: 90,
+        masterScale: 1.16,
+        edgeGlowScale: 1.18,
+        volumetricScale: 0.9,
+        fogScale: 0.88,
+        distortionScale: 1.32,
+        riftScale: 1.36,
+        particleScale: 0.84,
+        cameraAuraScale: 0.9,
+        attack: 0.05,
+        sustain: 0.12,
+        release: 1.34,
+        heroBurstMs: 2000
+    }),
+    recovery: Object.freeze({
+        priority: 30,
+        masterScale: 0.84,
+        edgeGlowScale: 1.0,
+        volumetricScale: 1.08,
+        fogScale: 1.1,
+        distortionScale: 0.86,
+        riftScale: 0.94,
+        particleScale: 1.04,
+        cameraAuraScale: 1.08,
+        attack: 0.12,
+        sustain: 0.24,
+        release: 0.9,
+        heroBurstMs: 1500
+    }),
+    'cascade.start': Object.freeze({
+        priority: 60,
+        masterScale: 0.96,
+        edgeGlowScale: 1.1,
+        volumetricScale: 1.16,
+        fogScale: 1.05,
+        distortionScale: 1.08,
+        riftScale: 1.16,
+        particleScale: 1.08,
+        cameraAuraScale: 1.06,
+        attack: 0.14,
+        sustain: 0.18,
+        release: 0.82,
+        heroBurstMs: 1600
+    }),
+    'cascade.hop': Object.freeze({
+        priority: 35,
+        masterScale: 0.82,
+        edgeGlowScale: 1.05,
+        volumetricScale: 1.04,
+        fogScale: 1.01,
+        distortionScale: 1.04,
+        riftScale: 1.08,
+        particleScale: 1.02,
+        cameraAuraScale: 1.01,
+        attack: 0.06,
+        sustain: 0.08,
+        release: 0.5,
+        heroBurstMs: 650
+    }),
+    'cascade.end': Object.freeze({
+        priority: 25,
+        masterScale: 0.74,
+        edgeGlowScale: 1.02,
+        volumetricScale: 1.02,
+        fogScale: 1.02,
+        distortionScale: 0.96,
+        riftScale: 0.98,
+        particleScale: 1.01,
+        cameraAuraScale: 1.0,
+        attack: 0.1,
+        sustain: 0.14,
+        release: 0.9,
+        heroBurstMs: 1000
+    }),
+    rupture: Object.freeze({
+        priority: 80,
+        masterScale: 1.08,
+        edgeGlowScale: 1.12,
+        volumetricScale: 0.95,
+        fogScale: 0.93,
+        distortionScale: 1.22,
+        riftScale: 1.28,
+        particleScale: 0.9,
+        cameraAuraScale: 0.96,
+        attack: 0.05,
+        sustain: 0.14,
+        release: 1.12,
+        heroBurstMs: 1800
+    })
+});
+
 function logEdgeOffender(ctx = {}, reason, details = {}) {
   const meshUUID = ctx.meshUUID || 'noMesh';
   const geoUUID = ctx.geoUUID || ctx.geometry?.uuid || 'noGeo';
@@ -160,6 +366,19 @@ export class VisualUpgradeSuperpack {
             stability: 0.5
         };
 
+        this._worldContext = {
+            consciousnessState: null,
+            worldMoodState: null,
+            networkState: null,
+            worldMacroState: 'DORMANT'
+        };
+        this._macroState = 'DORMANT';
+        this._macroProfile = WORLD_MACRO_PROFILES.DORMANT;
+        this._semanticBus = null;
+        this._semanticBusUnsubs = [];
+        this._spectacleState = null;
+        this._spectacleQueue = [];
+
         // Hero layer state machine — world-state-gated atmosphere
         // Dormant = hero objects hidden, zero per-frame cost
         // Active = hero objects visible, metrics modulate intensity
@@ -201,6 +420,118 @@ export class VisualUpgradeSuperpack {
         this._heroTriggerFlags.synergy = this._metrics.synergy > this._heroThresholds.synergyHigh;
     }
 
+    setWorldContext(context = {}) {
+        const normalized = context && typeof context === 'object' ? context : {};
+        this._worldContext = {
+            consciousnessState: normalized.consciousnessState || null,
+            worldMoodState: normalized.worldMoodState || null,
+            networkState: normalized.networkState || null,
+            liveMetrics: normalized.liveMetrics || null,
+            worldMacroState: normalized.worldMacroState || normalized.consciousnessState?.worldMacroState || normalized.consciousnessState?.macroState || 'DORMANT'
+        };
+        this._macroState = this._resolveWorldMacroState(this._worldContext);
+        this._macroProfile = WORLD_MACRO_PROFILES[this._macroState] || WORLD_MACRO_PROFILES.DORMANT;
+        return this._macroState;
+    }
+
+    attachSemanticBus(semanticBus) {
+        if (semanticBus === this._semanticBus) {
+            return this;
+        }
+
+        this.detachSemanticBus();
+        this._semanticBus = semanticBus || null;
+        if (!this._semanticBus) {
+            return this;
+        }
+
+        const bind = (eventName, spectacleType) => {
+            const unsubscribe = this._bindSemanticBusEvent(this._semanticBus, eventName, (payload) => {
+                this.triggerSpectacle(spectacleType, payload);
+            });
+            if (unsubscribe) {
+                this._semanticBusUnsubs.push(unsubscribe);
+            }
+        };
+
+        bind('link.created', 'link.created');
+        bind('cascade.start', 'cascade.start');
+        bind('cascade.hop', 'cascade.hop');
+        bind('cascade.end', 'cascade.end');
+        bind('topology.rupture', 'rupture');
+
+        return this;
+    }
+
+    detachSemanticBus() {
+        while (this._semanticBusUnsubs.length > 0) {
+            const unsubscribe = this._semanticBusUnsubs.pop();
+            try {
+                unsubscribe?.();
+            } catch (error) {
+                console.warn('[VisualUpgradeSuperpack] Semantic bus cleanup failed:', error);
+            }
+        }
+        this._semanticBus = null;
+    }
+
+    triggerSpectacle(eventType, payload = {}) {
+        const preset = this._resolveSpectaclePreset(eventType);
+        const event = {
+            type: preset.type,
+            priority: preset.priority,
+            masterScale: preset.masterScale,
+            edgeGlowScale: preset.edgeGlowScale,
+            volumetricScale: preset.volumetricScale,
+            fogScale: preset.fogScale,
+            distortionScale: preset.distortionScale,
+            riftScale: preset.riftScale,
+            particleScale: preset.particleScale,
+            cameraAuraScale: preset.cameraAuraScale,
+            attack: preset.attack,
+            sustain: preset.sustain,
+            release: preset.release,
+            heroBurstMs: preset.heroBurstMs,
+            focus: this._resolveSpectacleFocus(payload),
+            payload,
+            elapsed: 0,
+            mix: 0,
+            phase: 'rise',
+            startedAt: typeof performance !== 'undefined' ? performance.now() : Date.now()
+        };
+
+        if (this._spectacleState && this._spectacleState.type === event.type) {
+            this._spectacleState = {
+                ...this._spectacleState,
+                ...event,
+                elapsed: 0,
+                mix: 0,
+                phase: 'rise'
+            };
+            if (Number.isFinite(event.heroBurstMs) && event.heroBurstMs > 0) {
+                this.triggerHeroBurst(event.heroBurstMs);
+            }
+            return this._spectacleState;
+        }
+
+        if (!this._spectacleState || event.priority >= this._spectacleState.priority || this._spectacleState.phase === 'afterglow') {
+            this._spectacleState = event;
+        } else {
+            this._spectacleQueue = this._spectacleQueue.filter((queued) => queued.type !== event.type);
+            this._spectacleQueue.push(event);
+            this._spectacleQueue.sort((a, b) => b.priority - a.priority || a.startedAt - b.startedAt);
+            if (this._spectacleQueue.length > 4) {
+                this._spectacleQueue.length = 4;
+            }
+        }
+
+        if (Number.isFinite(event.heroBurstMs) && event.heroBurstMs > 0) {
+            this.triggerHeroBurst(event.heroBurstMs);
+        }
+
+        return event;
+    }
+
     /**
      * Manually trigger a hero burst for a given duration.
      * Use for world transitions, cascade events, or dramatic moments.
@@ -210,6 +541,213 @@ export class VisualUpgradeSuperpack {
         this._heroTriggerFlags.manual = true;
         this._heroHoldDuration = duration / 1000;
         this._heroHoldTimer = this._heroHoldDuration;
+    }
+
+    _bindSemanticBusEvent(bus, eventName, handler) {
+        if (!bus || !eventName || typeof handler !== 'function') return null;
+
+        if (typeof bus.subscribe === 'function') {
+            const unsubscribe = bus.subscribe(eventName, handler);
+            if (typeof unsubscribe === 'function') {
+                return unsubscribe;
+            }
+            return () => {
+                if (typeof bus.unsubscribe === 'function') {
+                    bus.unsubscribe(eventName, handler);
+                } else if (typeof bus.off === 'function') {
+                    bus.off(eventName, handler);
+                }
+            };
+        }
+
+        if (typeof bus.on === 'function') {
+            bus.on(eventName, handler);
+            return () => {
+                if (typeof bus.off === 'function') {
+                    bus.off(eventName, handler);
+                } else if (typeof bus.unsubscribe === 'function') {
+                    bus.unsubscribe(eventName, handler);
+                }
+            };
+        }
+
+        if (typeof bus.addEventListener === 'function') {
+            bus.addEventListener(eventName, handler);
+            return () => {
+                if (typeof bus.removeEventListener === 'function') {
+                    bus.removeEventListener(eventName, handler);
+                }
+            };
+        }
+
+        return null;
+    }
+
+    _resolveWorldMacroState(context = {}) {
+        const explicitState = String(
+            context?.worldMacroState
+            || context?.consciousnessState?.worldMacroState
+            || context?.consciousnessState?.macroState
+            || ''
+        ).toUpperCase();
+
+        if (WORLD_MACRO_PROFILES[explicitState]) {
+            return explicitState;
+        }
+
+        const consciousness = context?.consciousnessState || {};
+        const mood = String(context?.worldMoodState?.mood || context?.worldMoodState?.label || consciousness.networkMood || '').toUpperCase();
+        const heroPhase = String(consciousness.heroPhase || '').toUpperCase();
+        const heroIntensity = Number(consciousness.heroIntensity) || 0;
+        const coherence = Number(consciousness.coherence) || 0;
+        const ritualIntensity = Number(consciousness.ritualIntensity) || 0;
+        const patternDensity = Number(consciousness.patternDensity) || 0;
+        const networkPressure = Number(consciousness.networkPressure) || 0;
+
+        if (networkPressure >= 0.72 || mood === 'CRITICAL' || mood === 'CHAOTIC' || heroPhase === 'FRACTURE' || heroPhase === 'DEFENSE') {
+            return 'SCHISM';
+        }
+
+        if (heroIntensity >= 0.8 && coherence >= 0.6 && ritualIntensity >= 0.35 && patternDensity >= 0.18) {
+            return 'REVELATION';
+        }
+
+        if (ritualIntensity >= 0.48 || mood === 'SYNERGIC' || heroPhase === 'RITUAL') {
+            return 'COMMUNION';
+        }
+
+        if (heroIntensity >= 0.42 || mood === 'FOCUSED' || mood === 'TENSE' || heroPhase === 'AWAKENING') {
+            return 'AWAKENING';
+        }
+
+        return 'DORMANT';
+    }
+
+    _resolveMacroProfile(macroState = this._macroState) {
+        return WORLD_MACRO_PROFILES[macroState] || WORLD_MACRO_PROFILES.DORMANT;
+    }
+
+    _resolveSpectaclePreset(eventType) {
+        const normalized = String(eventType || '').toLowerCase();
+        const alias = {
+            'link.created': 'link.created',
+            'link.warning': 'warning',
+            'link.critical': 'critical',
+            'link.collapse': 'collapse',
+            'cascade.start': 'cascade.start',
+            'cascade.hop': 'cascade.hop',
+            'cascade.end': 'cascade.end',
+            'topology.rupture': 'rupture',
+            'rupture': 'rupture',
+            'warning': 'warning',
+            'critical': 'critical',
+            'collapse': 'collapse',
+            'recovery': 'recovery'
+        };
+
+        const presetKey = alias[normalized] || normalized || 'generic';
+        const preset = SPECTACLE_PRESETS[presetKey] || SPECTACLE_PRESETS.generic;
+        return {
+            type: presetKey,
+            ...preset
+        };
+    }
+
+    _resolveSpectacleFocus(payload = {}) {
+        const extract = (candidate) => {
+            const position = candidate?.position || candidate?.worldPosition || candidate?.center || null;
+            if (!position) return null;
+            return {
+                x: Number(position.x) || 0,
+                y: Number(position.y) || 0,
+                z: Number(position.z) || 0
+            };
+        };
+
+        const link = payload?.link || null;
+        if (payload?.position) return extract(payload);
+        if (payload?.center) return extract(payload);
+        if (payload?.sourceNode?.position) return extract(payload.sourceNode);
+        if (payload?.targetNode?.position) return extract(payload.targetNode);
+        if (link?.source?.position && link?.target?.position) {
+            return {
+                x: ((link.source.position.x || 0) + (link.target.position.x || 0)) * 0.5,
+                y: ((link.source.position.y || 0) + (link.target.position.y || 0)) * 0.5,
+                z: ((link.source.position.z || 0) + (link.target.position.z || 0)) * 0.5
+            };
+        }
+
+        return null;
+    }
+
+    _getIdleSpectacleState() {
+        return {
+            type: 'idle',
+            priority: -1,
+            masterScale: 1,
+            edgeGlowScale: 1,
+            volumetricScale: 1,
+            fogScale: 1,
+            distortionScale: 1,
+            riftScale: 1,
+            particleScale: 1,
+            cameraAuraScale: 1,
+            attack: 0,
+            sustain: 0,
+            release: 0,
+            heroBurstMs: 0,
+            focus: null,
+            payload: null,
+            elapsed: 0,
+            mix: 0,
+            phase: 'idle'
+        };
+    }
+
+    _advanceSpectacleState(deltaTime) {
+        if (!this._spectacleState) {
+            return this._getIdleSpectacleState();
+        }
+
+        const current = this._spectacleState;
+        current.elapsed = Math.max(0, current.elapsed + Math.max(0, Number(deltaTime) || 0));
+
+        const attack = Math.max(0.001, Number(current.attack) || 0.001);
+        const sustain = Math.max(0, Number(current.sustain) || 0);
+        const release = Math.max(0.001, Number(current.release) || 0.001);
+        const total = attack + sustain + release;
+
+        if (current.elapsed > total) {
+            if (this._spectacleQueue.length > 0) {
+                this._spectacleState = this._spectacleQueue.shift();
+                return this._advanceSpectacleState(0);
+            }
+
+            this._spectacleState = null;
+            return this._getIdleSpectacleState();
+        }
+
+        if (current.elapsed <= attack) {
+            const progress = current.elapsed / attack;
+            current.mix = progress * progress * (3 - 2 * progress);
+            current.phase = 'rise';
+        } else if (current.elapsed <= attack + sustain) {
+            current.mix = 1;
+            current.phase = 'impact';
+        } else {
+            const progress = (current.elapsed - attack - sustain) / release;
+            current.mix = Math.max(0, 1 - (progress * progress * (3 - 2 * progress)));
+            current.phase = 'afterglow';
+        }
+
+        return current;
+    }
+
+    _applySpectacleScale(baseScale, eventScale, mix) {
+        const base = Number.isFinite(baseScale) ? baseScale : 1;
+        const target = Number.isFinite(eventScale) ? eventScale : 1;
+        const amount = Math.max(0, Math.min(1, mix || 0));
+        return base * (1 + (target - 1) * amount);
     }
 
     /**
@@ -229,7 +767,7 @@ export class VisualUpgradeSuperpack {
      * Called once per update tick.
      */
     _evaluateHeroState(deltaTime) {
-        const anyTrigger = Object.values(this._heroTriggerFlags).some(v => v);
+        const anyTrigger = Object.values(this._heroTriggerFlags).some(v => v) || this._macroState !== 'DORMANT';
 
         switch (this._heroState) {
             case 'dormant':
@@ -1168,10 +1706,22 @@ export class VisualUpgradeSuperpack {
 
         // --- Hero layer state machine evaluation ---
         this._evaluateHeroState(deltaTime);
-        const heroFade = this._heroOpacity * fade; // Combined hero × global fade
+        let heroFade = this._heroOpacity * fade; // Combined hero × global fade
         const heroActive = this._heroState !== 'dormant';
 
         const quality = this._qualityProfile || this._getQualityProfile(this.qualityTier);
+        const macroProfile = this._resolveMacroProfile();
+        const spectacle = this._advanceSpectacleState(visualDelta);
+        const spectacleMix = Math.max(0, Math.min(1, spectacle.mix ?? 0));
+        const masterScale = this._applySpectacleScale(macroProfile.masterScale, spectacle.masterScale, spectacleMix);
+        const edgeGlowScale = masterScale * this._applySpectacleScale(macroProfile.edgeGlowScale, spectacle.edgeGlowScale, spectacleMix);
+        const volumetricScale = this._applySpectacleScale(macroProfile.volumetricScale, spectacle.volumetricScale, spectacleMix);
+        const fogScale = this._applySpectacleScale(macroProfile.fogScale, spectacle.fogScale, spectacleMix);
+        const distortionScale = this._applySpectacleScale(macroProfile.distortionScale, spectacle.distortionScale, spectacleMix);
+        const riftScale = this._applySpectacleScale(macroProfile.riftScale, spectacle.riftScale, spectacleMix);
+        const particleScale = this._applySpectacleScale(macroProfile.particleScale, spectacle.particleScale, spectacleMix);
+        const cameraAuraScale = this._applySpectacleScale(macroProfile.cameraAuraScale, spectacle.cameraAuraScale, spectacleMix);
+        heroFade *= masterScale;
 
         // --- Metrics-driven parameters ---
         const { harmony, corruption, synergy, stability } = this._metrics;
@@ -1220,7 +1770,7 @@ export class VisualUpgradeSuperpack {
                 const fresnel = Math.abs(cameraDirection.dot(surfaceNormal));
                 const distance = this.camera.position.distanceTo(mesh.position || glow.position);
                 const distanceFactor = THREE.MathUtils.clamp(1 - distance / 260, 0.25, 1);
-                glow.material.opacity = glow.userData.baseOpacity * quality.edgeGlowOpacity * (0.18 + fresnel * 0.82) * distanceFactor * fade;
+                glow.material.opacity = glow.userData.baseOpacity * quality.edgeGlowOpacity * edgeGlowScale * (0.18 + fresnel * 0.82) * distanceFactor * fade;
             }
         });
 
@@ -1269,7 +1819,7 @@ export class VisualUpgradeSuperpack {
                 light.scale.setScalar(scalePulse);
             }
 
-            light.material.opacity = light.userData.baseOpacity * quality.volumetricOpacity * (0.55 + pulse * 0.45) * heroFade;
+            light.material.opacity = light.userData.baseOpacity * quality.volumetricOpacity * volumetricScale * (0.55 + pulse * 0.45) * heroFade;
 
             if (light.material?.color && light.userData?.tint) {
                 const tint = 0.96 + pulse * 0.06;
@@ -1295,13 +1845,13 @@ export class VisualUpgradeSuperpack {
             layer.position.z = cameraPosition.z * layer.userData.followFactor + driftZ;
             layer.rotation.z = Math.sin(this.time * 0.02 + layer.userData.phase) * 0.01;
             layer.scale.setScalar(0.985 + pulse * 0.03 * quality.fogScale);
-            layer.material.opacity = layer.userData.baseOpacity * quality.fogOpacity * (0.65 + pulse * 0.35) * heroFade;
+            layer.material.opacity = layer.userData.baseOpacity * quality.fogOpacity * fogScale * (0.65 + pulse * 0.35) * heroFade;
         });
 
         // Update distortion zones
         this.distortionZones.forEach(zone => {
             const pulse = Math.sin(this.time * zone.userData.frequency + zone.userData.phase) * 0.5 + 0.5;
-            zone.material.emissiveIntensity = pulse * zone.userData.intensity * 0.2 * quality.distortionIntensity;
+            zone.material.emissiveIntensity = pulse * zone.userData.intensity * 0.2 * quality.distortionIntensity * distortionScale;
 
             // Rotating distortion
             zone.rotation.x += visualDelta * 0.1;
@@ -1316,7 +1866,7 @@ export class VisualUpgradeSuperpack {
             const pulse = Math.sin(this.time * rift.userData.pulseSpeed + rift.userData.phase) * 0.5 + 0.5;
 
             if (rift.material.opacity !== undefined) {
-                rift.material.opacity = rift.userData.baseOpacity * quality.riftOpacity * (0.5 + pulse * 0.5) * heroFade;
+                rift.material.opacity = rift.userData.baseOpacity * quality.riftOpacity * riftScale * (0.5 + pulse * 0.5) * heroFade;
             }
 
             if (rift.material.emissiveIntensity !== undefined) {
@@ -1360,7 +1910,7 @@ export class VisualUpgradeSuperpack {
 
             const systemPulse = Math.sin(this.time * (0.35 + system.userData.system.speed * 20) + system.id) * 0.5 + 0.5;
             if (system.material) {
-                system.material.opacity = quality.particleOpacity * (0.55 + systemPulse * 0.25) * heroFade;
+                system.material.opacity = quality.particleOpacity * particleScale * (0.55 + systemPulse * 0.25) * heroFade;
             }
             system.rotation.y += visualDelta * 0.01;
             system.scale.setScalar(0.98 + systemPulse * 0.03);
@@ -1377,7 +1927,7 @@ export class VisualUpgradeSuperpack {
             this.cameraAura.children.forEach((sprite, index) => {
                 const spritePulse = Math.sin(this.time * (0.5 + index * 0.09) + sprite.userData.phase) * 0.5 + 0.5;
                 const baseScale = sprite.userData.baseScale;
-                sprite.material.opacity = sprite.userData.baseOpacity * quality.cameraAuraOpacity * (0.62 + spritePulse * 0.38) * heroFade;
+                sprite.material.opacity = sprite.userData.baseOpacity * quality.cameraAuraOpacity * cameraAuraScale * (0.62 + spritePulse * 0.38) * heroFade;
                 sprite.scale.set(
                     baseScale.x * (0.94 + auraPulse * 0.08),
                     baseScale.y * (0.94 + auraPulse * 0.08),
@@ -1426,6 +1976,8 @@ export class VisualUpgradeSuperpack {
      * Cleanup all effects
      */
     dispose() {
+        this.detachSemanticBus();
+
         const cleanupArray = (arr) => {
             arr.forEach(obj => {
                 if (obj.parent) {
