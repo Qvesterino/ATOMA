@@ -1686,7 +1686,11 @@ function resolveGrandCorruptionState(context) {
       ? 0.1
       : sourceEvent === 'network:corruptionSpread'
         ? 0.08
-        : 0.04;
+        : sourceEvent === 'link.collapse.collapse'
+          ? 0.12
+          : sourceEvent === 'topology.rupture'
+            ? 0.1
+            : 0.04;
 
   return {
     metrics,
@@ -1984,7 +1988,13 @@ function resolveHeroicStabilizationState(context) {
       ? 0.12
       : sourceEvent === 'node.stability.high'
         ? 0.1
-        : 0.06;
+        : sourceEvent === 'link.collapse.collapse'
+          ? 0.14
+          : sourceEvent === 'link.collapse.critical'
+            ? 0.12
+            : sourceEvent === 'link.collapse.warning'
+              ? 0.1
+              : 0.06;
 
   return {
     metrics,
@@ -2467,7 +2477,7 @@ function buildCascadeReconstructionBlueprint() {
     label: 'Cascade Reconstruction Beacon',
     tier: 'A',
     family: 'cascade',
-    sourceEvents: Object.freeze(['cascade.end', 'topology.healing']),
+    sourceEvents: Object.freeze(['cascade.end', 'topology.healing', 'link.collapse.recovery']),
     cooldownMs: 52000,
     maxConcurrent: 1,
     minScore: 0.58,
@@ -2477,7 +2487,7 @@ function buildCascadeReconstructionBlueprint() {
     trigger(context) {
       const sourceEvent = String(context?.sourceEvent || '');
       const isCascadeSignal = sourceEvent.includes('cascade');
-      const isHealingSignal = sourceEvent === 'topology.healing' || sourceEvent.includes('healing');
+      const isHealingSignal = sourceEvent === 'topology.healing' || sourceEvent.includes('healing') || sourceEvent === 'link.collapse.recovery';
 
       if (!isCascadeSignal && !isHealingSignal) return false;
 
@@ -2486,7 +2496,9 @@ function buildCascadeReconstructionBlueprint() {
 
       const collapsedLinkCount = resolveCollapsedLinkCount(context);
       const healingSignal = normalizeMetricValue(
-        context?.sourcePayload?.harmonyRestored
+        context?.sourcePayload?.recoverySignal
+          ?? context?.sourcePayload?.recoveryProgress
+          ?? context?.sourcePayload?.harmonyRestored
           ?? context?.sourcePayload?.effectiveAmount
           ?? context?.sourcePayload?.intensity
           ?? 0
@@ -3027,7 +3039,7 @@ function buildGrandCorruptionBreachBlueprint() {
     label: 'Grand Corruption Breach / Veil Fracture',
     tier: 'A',
     family: 'corruption',
-    sourceEvents: Object.freeze(['global.corruption.high', 'node.corruption.high', 'network:corruptionSpread']),
+    sourceEvents: Object.freeze(['global.corruption.high', 'node.corruption.high', 'network:corruptionSpread', 'topology.rupture', 'link.collapse.collapse']),
     cooldownMs: 84000,
     maxConcurrent: 1,
     minScore: 0.74,
@@ -3036,7 +3048,7 @@ function buildGrandCorruptionBreachBlueprint() {
     resolveScore: resolveGrandCorruptionReadabilityBudget,
     trigger(context) {
       const sourceEvent = String(context?.sourceEvent || '');
-      if (!['global.corruption.high', 'node.corruption.high', 'network:corruptionSpread'].includes(sourceEvent)) return false;
+      if (!['global.corruption.high', 'node.corruption.high', 'network:corruptionSpread', 'topology.rupture', 'link.collapse.collapse'].includes(sourceEvent)) return false;
 
       const state = resolveGrandCorruptionState(context);
       if (state.corruption < 0.58 && state.fieldPressure.topCorruption < 0.72 && state.fieldPressure.collapsedLinkCount <= 0) {
@@ -3118,7 +3130,7 @@ function buildHeroicStabilizationBlueprint() {
     label: 'Heroic Stabilization Before Collapse',
     tier: 'B',
     family: 'stability',
-    sourceEvents: Object.freeze(['global.stability.high', 'node.stability.high', 'topology.healing']),
+    sourceEvents: Object.freeze(['global.stability.high', 'node.stability.high', 'topology.healing', 'link.collapse.warning', 'link.collapse.critical', 'link.collapse.collapse']),
     cooldownMs: 76000,
     maxConcurrent: 1,
     minScore: 0.72,
@@ -3127,7 +3139,7 @@ function buildHeroicStabilizationBlueprint() {
     resolveScore: resolveHeroicStabilizationReadabilityBudget,
     trigger(context) {
       const sourceEvent = String(context?.sourceEvent || '');
-      if (!['global.stability.high', 'node.stability.high', 'topology.healing'].includes(sourceEvent)) return false;
+      if (!['global.stability.high', 'node.stability.high', 'topology.healing', 'link.collapse.warning', 'link.collapse.critical', 'link.collapse.collapse'].includes(sourceEvent)) return false;
 
       const state = resolveHeroicStabilizationState(context);
       if (sourceEvent === 'topology.healing') {

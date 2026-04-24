@@ -4319,6 +4319,13 @@ class AtomaGame {
             }
         }, 'simulation.fxPerformanceTransition');
         this.frameScheduler.register('simulation', () => {
+            if (this.audioSystem) {
+                const canonicalWorldContext = this._getCanonicalWorldContext();
+                this.audioSystem.update?.(dt, {
+                    ...canonicalWorldContext,
+                    semanticBus: this.semanticBus
+                });
+            }
             this.metricDirtyQueue?.clear();
         }, 'simulation.metricDirtyQueueReset');
         this.frameScheduler.register('simulation', (dt) => {
@@ -5021,19 +5028,9 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             if (this.visualSuperpack) {
                 const liveMetrics = typeof window !== 'undefined' ? (window.__ATOMA_LIVE_METRICS__ || null) : null;
-                const consciousnessState = this.consciousnessLayer?.getConsciousnessState?.()
-                    || this.consciousnessLayer?.consciousnessState
-                    || null;
-                const worldMoodState = this.worldPersonalityController?.getMoodState?.() || null;
-                const nextWorldMacroState = String(consciousnessState?.worldMacroState || this.worldMacroState || 'DORMANT').toUpperCase();
-                this.worldMacroState = nextWorldMacroState;
-                this.visualSuperpack.setWorldContext?.({
-                    consciousnessState,
-                    worldMoodState,
-                    networkState: this.networkState || null,
-                    liveMetrics,
-                    worldMacroState: nextWorldMacroState
-                });
+                const canonicalWorldContext = this._getCanonicalWorldContext();
+                this.worldMacroState = canonicalWorldContext.worldMacroState || this.worldMacroState || 'DORMANT';
+                this.visualSuperpack.setWorldContext?.(canonicalWorldContext);
                 if (liveMetrics) {
                     this.visualSuperpack.setMetrics({
                         harmony: liveMetrics.harmony,
@@ -5048,6 +5045,8 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             if (this.cinematicUpgrade) {
                 const liveMetrics = typeof window !== 'undefined' ? (window.__ATOMA_LIVE_METRICS__ || null) : null;
+                const canonicalWorldContext = this._getCanonicalWorldContext();
+                this.cinematicUpgrade.setWorldContext?.(canonicalWorldContext);
                 if (liveMetrics) {
                     this.cinematicUpgrade.setMetrics({
                         harmony: liveMetrics.harmony,
@@ -9729,7 +9728,8 @@ window.__ATOMA_SCENE__ = this.scene;
                 enableVisualFeedback: true,
                 debugMode: false,
                 frameScheduler: this.frameScheduler,
-                semanticBus: this.semanticBus
+                semanticBus: this.semanticBus,
+                worldContextProvider: () => this._getCanonicalWorldContext()
             }
         );
         this.linkCollapseSystem.frameScheduler = this.frameScheduler;
@@ -11525,6 +11525,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
         });
         regGuard('audioSynergyMonitor', 'simulation.audioSynergyMonitor', (dt) => {
+            if (this.audioSystem) {
+                const canonicalWorldContext = this._getCanonicalWorldContext();
+                this.audioSystem.update?.(dt, {
+                    ...canonicalWorldContext,
+                    semanticBus: this.semanticBus
+                });
+            }
             if (this.audioSystem?.initialized && this.audioModulation && this.nodeDynamicMetrics) {
                 this.audioModulation.update(dt, {
                     synergy: this.nodeDynamicMetrics.avgSynergy || 0,
@@ -12996,12 +13003,56 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         this.visualSuperpack.applyFullUpgrade();
         this.visualSuperpack.setQualityTier(this.visualQualityLevel || 'HIGH');
         this.visualSuperpack.attachSemanticBus?.(this.semanticBus);
+        this.visualSuperpack.setWorldContext?.(this._getCanonicalWorldContext());
 
         // Apply renderer settings
         const settings = this.visualSuperpack.getRendererSettings();
         this.renderer.toneMapping = settings.toneMapping;
         this.renderer.toneMappingExposure = settings.toneMappingExposure;
         this.renderer.outputColorSpace = settings.outputColorSpace;
+    }
+
+    _getCanonicalWorldContext() {
+        const consciousnessState = this.consciousnessLayer?.getConsciousnessState?.()
+            || this.consciousnessLayer?.consciousnessState
+            || null;
+        const worldMoodState = this.worldPersonalityController?.getMoodState?.() || null;
+        const liveMetrics = typeof window !== 'undefined' ? (window.__ATOMA_LIVE_METRICS__ || null) : null;
+        const visualPayload = this.visualSuperpack?.getMacroPayload?.() || null;
+        const macroState = String(
+            visualPayload?.macroState
+            || visualPayload?.worldMacroState
+            || consciousnessState?.worldMacroState
+            || this.worldMacroState
+            || 'DORMANT'
+        ).toUpperCase();
+        const worldContext = {
+            consciousnessState: consciousnessState || visualPayload?.worldContext?.consciousnessState || null,
+            worldMoodState: worldMoodState || visualPayload?.worldContext?.worldMoodState || null,
+            networkState: this.networkState || visualPayload?.worldContext?.networkState || null,
+            liveMetrics: liveMetrics || visualPayload?.worldContext?.liveMetrics || null,
+            worldMacroState: macroState,
+            macroState
+        };
+        const canonicalContext = visualPayload ? { ...visualPayload } : {};
+
+        canonicalContext.macroState = macroState;
+        canonicalContext.worldMacroState = macroState;
+        canonicalContext.macroProfile = canonicalContext.macroProfile
+            ? { ...canonicalContext.macroProfile }
+            : (visualPayload?.macroProfile ? { ...visualPayload.macroProfile } : null);
+        canonicalContext.consciousnessState = worldContext.consciousnessState;
+        canonicalContext.worldMoodState = worldContext.worldMoodState;
+        canonicalContext.networkState = worldContext.networkState;
+        canonicalContext.liveMetrics = worldContext.liveMetrics;
+        canonicalContext.metrics = liveMetrics || canonicalContext.metrics || null;
+        canonicalContext.worldContext = {
+            ...(canonicalContext.worldContext || {}),
+            ...worldContext,
+            macroProfile: canonicalContext.macroProfile || null
+        };
+
+        return canonicalContext;
     }
 
     /**
@@ -13021,6 +13072,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         if (this.postProcessing) {
             this.cinematicUpgrade.setPostProcessing(this.postProcessing);
         }
+        this.cinematicUpgrade.setWorldContext?.(this._getCanonicalWorldContext());
     }
 
     /**
@@ -15313,7 +15365,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.aiNodes,
                 this.linkingSystem,
                 this.regionalEquilibrium,
-                this.semanticBus
+                this.semanticBus,
+                () => this._getCanonicalWorldContext()
             );
             this.cascadingRuptures.frameScheduler = this.frameScheduler;
             if (Array.isArray(this.cascadingRuptures.visualEffects)) {
@@ -15339,7 +15392,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 linkingSystem: this.linkingSystem,
                 aiNodes: this.aiNodes,
                 regionalEquilibrium: this.regionalEquilibrium,
-                semanticBus: this.semanticBus
+                semanticBus: this.semanticBus,
+                worldContextProvider: () => this._getCanonicalWorldContext()
             });
             this.criticalNodeFailure.rebind?.({
                 linkingSystem: this.linkingSystem,
@@ -15364,20 +15418,29 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
             // Connect rupture cascade callbacks to semantic events + cascade particles
             if (this.cascadingRuptures) {
-                this.cascadingRuptures.onCascadeStart = (originNode, energy) => {
+                this.cascadingRuptures.onCascadeStart = (originNode, energy, worldContext = null) => {
+                    const canonicalWorldContext = worldContext || this._getCanonicalWorldContext();
                     this.semanticBus?.emit?.(
                         'cascade.start',
                         {
                             sourceNode: originNode,
                             center: originNode?.position || null,
                             intensity: energy ?? 0,
-                            value: energy ?? 0
+                            value: energy ?? 0,
+                            cascadeStage: 'start',
+                            worldContext: canonicalWorldContext,
+                            worldMacroState: canonicalWorldContext.worldMacroState || canonicalWorldContext.macroState || 'DORMANT',
+                            macroProfile: canonicalWorldContext.macroProfile || null,
+                            consciousnessState: canonicalWorldContext.consciousnessState || null,
+                            worldMoodState: canonicalWorldContext.worldMoodState || null,
+                            liveMetrics: canonicalWorldContext.liveMetrics || null
                         },
                         { priority: this.semanticBus?.priority?.INTERACTIVE ?? this.semanticBus?.priority?.NORMAL }
                     );
                 };
 
-                this.cascadingRuptures.onCascadeHop = (fromNode, toNode, energy, link, hopIndex = 0) => {
+                this.cascadingRuptures.onCascadeHop = (fromNode, toNode, energy, link, hopIndex = 0, worldContext = null) => {
+                    const canonicalWorldContext = worldContext || this._getCanonicalWorldContext();
                     if (link) {
                         if (!link.userData) link.userData = {};
                         link.userData.cascadeIntensity = Math.max(
@@ -15401,13 +15464,21 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                             link: link || null,
                             intensity: energy ?? 0,
                             value: energy ?? 0,
-                            hopIndex
+                            hopIndex,
+                            cascadeStage: 'hop',
+                            worldContext: canonicalWorldContext,
+                            worldMacroState: canonicalWorldContext.worldMacroState || canonicalWorldContext.macroState || 'DORMANT',
+                            macroProfile: canonicalWorldContext.macroProfile || null,
+                            consciousnessState: canonicalWorldContext.consciousnessState || null,
+                            worldMoodState: canonicalWorldContext.worldMoodState || null,
+                            liveMetrics: canonicalWorldContext.liveMetrics || null
                         },
                         { priority: this.semanticBus?.priority?.INTERACTIVE ?? this.semanticBus?.priority?.NORMAL }
                     );
                 };
 
-                this.cascadingRuptures.onCascadeComplete = (originNode, totalHops) => {
+                this.cascadingRuptures.onCascadeComplete = (originNode, totalHops, worldContext = null) => {
+                    const canonicalWorldContext = worldContext || this._getCanonicalWorldContext();
                     this.semanticBus?.emit?.(
                         'cascade.end',
                         {
@@ -15416,7 +15487,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                             link: null,
                             totalHops: totalHops ?? 0,
                             intensity: 0,
-                            value: 0
+                            value: 0,
+                            cascadeStage: 'end',
+                            worldContext: canonicalWorldContext,
+                            worldMacroState: canonicalWorldContext.worldMacroState || canonicalWorldContext.macroState || 'DORMANT',
+                            macroProfile: canonicalWorldContext.macroProfile || null,
+                            consciousnessState: canonicalWorldContext.consciousnessState || null,
+                            worldMoodState: canonicalWorldContext.worldMoodState || null,
+                            liveMetrics: canonicalWorldContext.liveMetrics || null
                         },
                         { priority: this.semanticBus?.priority?.NORMAL }
                     );
@@ -17273,6 +17351,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 const consciousnessState = this.consciousnessLayer?.getConsciousnessState?.()
                     || this.consciousnessLayer?.consciousnessState
                     || null;
+                const canonicalWorldContext = this._getCanonicalWorldContext();
 
                 return {
                     timestamp: performance.now(),
@@ -17285,9 +17364,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     currentMode: this.currentMode || null,
                     camera: this.camera || null,
                     scene: this.scene || null,
-                    metrics: this.coreMetricsOverlay?.currentMetrics || this.worldMetrics || this.nodeDynamicMetrics || null,
-                    consciousness: consciousnessState,
-                    worldMacroState: String(this.worldMacroState || consciousnessState?.worldMacroState || 'DORMANT').toUpperCase(),
+                    metrics: canonicalWorldContext.metrics || this.coreMetricsOverlay?.currentMetrics || this.worldMetrics || this.nodeDynamicMetrics || null,
+                    consciousness: canonicalWorldContext.consciousnessState || consciousnessState,
+                    worldMacroState: canonicalWorldContext.worldMacroState,
+                    macroProfile: canonicalWorldContext.macroProfile || null,
+                    worldContext: canonicalWorldContext,
                     consciousnessLayer: this.consciousnessLayer || null,
                     thoughtStorms: this.consciousnessLayer?.storms || null,
                     linkCollapseSystem: this.linkCollapseSystem || null,
@@ -17300,7 +17381,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     metricReactiveEvents: this.metricReactiveEvents || this.environmentDomain?.instances?.metricReactiveEvents || null,
                     linkCorruptionTransmission: this.linkCorruptionTransmission || this.corruptionTransmission || this.aiNodes?.linkCorruption || null,
                     worldPersonalityController: this.worldPersonalityController || null,
-                    worldMoodState: this.worldPersonalityController?.getMoodState?.() || null,
+                    worldMoodState: canonicalWorldContext.worldMoodState || this.worldPersonalityController?.getMoodState?.() || null,
                     worldEvents: this.worldEvents || null,
                     networkChronicle: this.networkChronicle || null,
                     chronicleStats: this.networkChronicle?.getStats?.() || null,

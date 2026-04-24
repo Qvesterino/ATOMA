@@ -575,16 +575,4 @@ export class WaveDynamicsShaderPack_v1 {
     }
 }
 
-// DEACTIVATED: WaveDynamicsShaderPack_v1 (2026-04-24)
-// export default WaveDynamicsShaderPack_v1;
-
-// Stub export to prevent import errors
-export default class WaveDynamicsShaderPack_v1_Stub {
-    constructor() { console.warn('[WaveDynamicsShaderPack_v1] DEACTIVATED (2026-04-24)'); }
-    update() {}
-    applyToMaterial() { return false; }
-    applyToNode() { return 0; }
-    applyToLink() { return 0; }
-    removeFromMaterial() { return false; }
-    dispose() {}
-}
+export default WaveDynamicsShaderPack_v1;

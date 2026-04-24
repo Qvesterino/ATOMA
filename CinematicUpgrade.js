@@ -55,6 +55,17 @@ export class CinematicUpgrade {
       stability: 0.5
     };
 
+    this._worldContext = {
+      consciousnessState: null,
+      worldMoodState: null,
+      networkState: null,
+      liveMetrics: null,
+      worldMacroState: 'DORMANT',
+      macroProfile: null
+    };
+    this._macroState = 'DORMANT';
+    this._macroProfile = null;
+
     // Post-processing integration
     this._renderer = null;
     this._postProcessing = null;
@@ -429,6 +440,43 @@ export class CinematicUpgrade {
     if (metrics.stability !== undefined) this._metrics.stability = metrics.stability;
   }
 
+  setWorldContext(context = {}) {
+    const normalized = context && typeof context === 'object' ? context : {};
+    const worldContext = normalized.worldContext && typeof normalized.worldContext === 'object'
+      ? normalized.worldContext
+      : normalized;
+    const macroState = String(
+      normalized.macroState
+      || normalized.worldMacroState
+      || worldContext.macroState
+      || worldContext.worldMacroState
+      || worldContext.consciousnessState?.worldMacroState
+      || worldContext.consciousnessState?.macroState
+      || 'DORMANT'
+    ).toUpperCase();
+    const macroProfile = normalized.macroProfile && typeof normalized.macroProfile === 'object'
+      ? normalized.macroProfile
+      : worldContext.macroProfile || null;
+
+    this._worldContext = {
+      consciousnessState: worldContext.consciousnessState || normalized.consciousnessState || null,
+      worldMoodState: worldContext.worldMoodState || normalized.worldMoodState || null,
+      networkState: worldContext.networkState || normalized.networkState || null,
+      liveMetrics: worldContext.liveMetrics || normalized.liveMetrics || normalized.metrics || null,
+      worldMacroState: macroState,
+      macroState,
+      macroProfile: macroProfile ? { ...macroProfile } : null
+    };
+    this._macroState = macroState;
+    this._macroProfile = macroProfile ? { ...macroProfile } : null;
+
+    return {
+      macroState: this._macroState,
+      macroProfile: this._macroProfile ? { ...this._macroProfile } : null,
+      worldContext: { ...this._worldContext }
+    };
+  }
+
   // ============================================================
   // VISIBILITY WITH SMOOTH FADE
   // ============================================================
@@ -490,6 +538,16 @@ export class CinematicUpgrade {
 
     const fade = this._fadeOpacity;
   const quality = this._qualityProfile || this._getQualityProfile(this.qualityTier);
+    const macroProfile = this._macroProfile || {};
+    const macroState = this._macroState || 'DORMANT';
+    const macroMasterScale = Number(macroProfile.masterScale) || 1;
+    const macroVolumetricScale = Number(macroProfile.volumetricScale) || 1;
+    const macroFogScale = Number(macroProfile.fogScale) || 1;
+    const macroDistortionScale = Number(macroProfile.distortionScale) || 1;
+    const macroRiftScale = Number(macroProfile.riftScale) || 1;
+    const macroParticleScale = Number(macroProfile.particleScale) || 1;
+    const macroCameraAuraScale = Number(macroProfile.cameraAuraScale) || 1;
+    const baseHazeStrength = Number(quality.hazeStrength) || 0.06;
 
     // --- Metrics-driven parameters ---
     const { harmony, corruption, synergy, stability } = this._metrics;
@@ -497,17 +555,32 @@ export class CinematicUpgrade {
 
     // --- Renderer exposure modulation ---
     if (this._renderer) {
-      const targetExposure = this._baseExposure + synergy * 0.08 - corruption * 0.06;
+      const targetExposure = THREE.MathUtils.clamp(
+        this._baseExposure * macroMasterScale + synergy * 0.08 - corruption * 0.06,
+        0.72,
+        1.58
+      );
       this._renderer.toneMappingExposure += (targetExposure - this._renderer.toneMappingExposure) * 0.02;
     }
 
     // --- Post-processing parameter modulation ---
     if (this._postProcessing?.updateParams) {
       this._postProcessing.updateParams({
-        strength: quality.bloomStrength + synergy * 0.4,
-        threshold: quality.bloomThreshold + corruption * 0.1,
-        vignetteStrength: quality.vignetteStrength + corruption * 0.15,
-        chromaticStrength: quality.chromaticStrength + (1 - stability) * 0.001
+        strength: quality.bloomStrength * macroVolumetricScale + synergy * 0.4,
+        threshold: THREE.MathUtils.clamp(
+          quality.bloomThreshold + corruption * 0.1 - (macroVolumetricScale - 1) * 0.035,
+          0.08,
+          0.95
+        ),
+        exposure: THREE.MathUtils.clamp(
+          this._baseExposure * macroMasterScale + synergy * 0.08 - corruption * 0.06,
+          0.72,
+          1.58
+        ),
+        radius: quality.bloomRadius * macroRiftScale,
+        vignetteStrength: quality.vignetteStrength * macroCameraAuraScale + corruption * 0.15,
+        chromaticStrength: quality.chromaticStrength * macroDistortionScale + (1 - stability) * 0.001,
+        hazeStrength: baseHazeStrength * macroFogScale + (1 - stability) * 0.01
       });
     }
 
@@ -524,8 +597,8 @@ export class CinematicUpgrade {
       particle.position.x = cameraPosition.x + Math.cos(phase) * radius;
       particle.position.y = cameraPosition.y + height;
       particle.position.z = cameraPosition.z + Math.sin(phase) * radius;
-      particle.material.opacity = particle.userData.baseOpacity * quality.dustOpacity * (0.42 + pulse * 0.58) * fade;
-      particle.scale.setScalar(particle.userData.baseScale * quality.dustScale * (0.65 + pulse * 0.65));
+      particle.material.opacity = particle.userData.baseOpacity * quality.dustOpacity * macroParticleScale * (0.42 + pulse * 0.58) * fade;
+      particle.scale.setScalar(particle.userData.baseScale * quality.dustScale * macroParticleScale * (0.65 + pulse * 0.65));
       particle.material.rotation = phase * 0.25;
     });
 
@@ -541,10 +614,11 @@ export class CinematicUpgrade {
         const baseScale = sprite.userData.baseScale;
         const accentBoost = sprite.userData.accent ? quality.haloAccentOpacity : 1;
         const scaleBoost = sprite.userData.accent ? quality.haloAccentScale : quality.haloScale;
-        sprite.material.opacity = sprite.userData.baseOpacity * quality.haloOpacity * accentBoost * (0.7 + spritePulse * 0.3) * fade;
+        const macroHaloScale = scaleBoost * macroCameraAuraScale;
+        sprite.material.opacity = sprite.userData.baseOpacity * quality.haloOpacity * accentBoost * macroCameraAuraScale * (0.7 + spritePulse * 0.3) * fade;
         sprite.scale.set(
-          baseScale.x * scaleBoost * (0.95 + haloPulse * 0.1),
-          baseScale.y * scaleBoost * (0.95 + haloPulse * 0.1),
+          baseScale.x * macroHaloScale * (0.95 + haloPulse * 0.1),
+          baseScale.y * macroHaloScale * (0.95 + haloPulse * 0.1),
           baseScale.z
         );
         sprite.material.rotation = Math.sin(this.time * 0.1 + index) * 0.06;

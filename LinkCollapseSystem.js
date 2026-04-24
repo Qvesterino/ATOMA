@@ -48,6 +48,9 @@ export class LinkCollapseSystem {
     this.linkingSystem = linkingSystem;
     this.linkQualityCalculator = linkQualityCalculator;
     this.linkDegradationSystem = linkDegradationSystem;
+    this.worldContextProvider = typeof config.worldContextProvider === 'function'
+      ? config.worldContextProvider
+      : (typeof config.getWorldContext === 'function' ? config.getWorldContext : null);
     
     // Configuration with sensible defaults
     this.config = {
@@ -107,6 +110,51 @@ export class LinkCollapseSystem {
       console.log(`[LinkCollapseSystem] ${message}`);
     }
   }
+
+  _resolveWorldContext() {
+    const snapshot = this.worldContextProvider?.() || null;
+    const worldContext = snapshot?.worldContext && typeof snapshot.worldContext === 'object'
+      ? snapshot.worldContext
+      : snapshot && typeof snapshot === 'object'
+        ? snapshot
+        : null;
+    const macroState = String(
+      snapshot?.macroState
+      || snapshot?.worldMacroState
+      || worldContext?.macroState
+      || worldContext?.worldMacroState
+      || worldContext?.consciousnessState?.worldMacroState
+      || 'DORMANT'
+    ).toUpperCase();
+    const macroProfile = snapshot?.macroProfile && typeof snapshot.macroProfile === 'object'
+      ? { ...snapshot.macroProfile }
+      : worldContext?.macroProfile && typeof worldContext.macroProfile === 'object'
+        ? { ...worldContext.macroProfile }
+        : null;
+    const consciousnessState = worldContext?.consciousnessState || snapshot?.consciousnessState || null;
+    const worldMoodState = worldContext?.worldMoodState || snapshot?.worldMoodState || null;
+    const networkState = worldContext?.networkState || snapshot?.networkState || null;
+    const liveMetrics = worldContext?.liveMetrics || snapshot?.liveMetrics || snapshot?.metrics || null;
+    const normalizedWorldContext = worldContext ? { ...worldContext } : null;
+
+    if (normalizedWorldContext) {
+      normalizedWorldContext.worldMacroState = macroState;
+      normalizedWorldContext.macroState = macroState;
+      normalizedWorldContext.macroProfile = macroProfile;
+    }
+
+    return {
+      worldContext: normalizedWorldContext,
+      worldMacroState: macroState,
+      macroState,
+      macroProfile,
+      consciousnessState,
+      worldMoodState,
+      networkState,
+      liveMetrics,
+      metrics: liveMetrics
+    };
+  }
   
   /**
    * Register event callback
@@ -125,7 +173,7 @@ export class LinkCollapseSystem {
    * Emit event to all registered handlers
    * @private
    */
-  _emit(eventType, link, state) {
+  _emit(eventType, link, state, extra = {}) {
     const handlers = this.eventHandlers[eventType];
     if (Array.isArray(handlers) && handlers.length > 0) {
       for (const handler of handlers) {
@@ -140,13 +188,25 @@ export class LinkCollapseSystem {
     const semanticBus = this.semanticBus || (typeof globalThis !== 'undefined' ? globalThis.semanticBus : null);
     if (!semanticBus?.emit) return;
 
+    const worldContextSnapshot = this._resolveWorldContext();
+
     semanticBus.emit(`link.collapse.${eventType}`, {
       link,
       state,
       eventType,
       linkId: this._getLinkId(link),
+      sourceId: link?.source?.userData?.nodeId ?? link?.source?.userData?.id ?? link?.source?.uuid ?? null,
+      targetId: link?.target?.userData?.nodeId ?? link?.target?.userData?.id ?? link?.target?.uuid ?? null,
+      stressAccumulation: state?.stressAccumulation ?? 0,
+      collapseStage: state?.collapseStage ?? null,
+      corruption: state?.lastObservedCorruption ?? 0,
+      stability: state?.lastObservedStability ?? 1,
+      loadPressure: state?.lastObservedLoad ?? 0,
+      progress: state?.progress ?? state?.stressAccumulation ?? 0,
+      ...worldContextSnapshot,
       source: 'LinkCollapseSystem',
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      ...extra
     }, {
       priority: semanticBus.priority?.NORMAL ?? semanticBus.priority?.BACKGROUND ?? 2
     });
@@ -156,8 +216,12 @@ export class LinkCollapseSystem {
     const semanticBus = this.semanticBus || (typeof globalThis !== 'undefined' ? globalThis.semanticBus : null);
     if (!semanticBus?.emit) return;
 
+    const worldContextSnapshot = this._resolveWorldContext();
+
     const linkId = this._getLinkId(link);
     const payload = {
+      link,
+      collapseState: state,
       linkId,
       sourceId: link?.source?.userData?.nodeId ?? link?.source?.userData?.id ?? link?.source?.uuid ?? null,
       targetId: link?.target?.userData?.nodeId ?? link?.target?.userData?.id ?? link?.target?.uuid ?? null,
@@ -168,6 +232,7 @@ export class LinkCollapseSystem {
       tier,
       threshold: extra.threshold ?? null,
       state: extra.state ?? 'active',
+      ...worldContextSnapshot,
       source: 'LinkCollapseSystem',
       timestamp: Date.now(),
       ...extra,
@@ -315,7 +380,7 @@ export class LinkCollapseSystem {
       } else if (state.collapseStage === 'critical' && previousStage !== 'critical') {
         this._onEnterCritical(link, state);
       } else if (state.collapseStage === 'stable' && previousStage !== 'stable') {
-        this._onRecovery(link, state);
+        this._onRecovery(link, state, previousProgress);
       }
     }
 
@@ -433,10 +498,11 @@ export class LinkCollapseSystem {
    * Link recovered from warning/critical state
    * @private
    */
-  _onRecovery(link, state) {
+  _onRecovery(link, state, previousProgress = 0) {
     const linkId = this._getLinkId(link);
     this.linkWarningStates.delete(linkId);
     this.linkCriticalStates.delete(linkId);
+    const recoverySignal = Math.max(0, Math.min(1, Number(previousProgress) || 0));
     
     if (this.config.enableVisualFeedback) {
       this._clearVisualFlags(link);
@@ -445,9 +511,16 @@ export class LinkCollapseSystem {
     this._debugLog('recovery', {
       linkId,
       stressAccumulation: state?.stressAccumulation,
+      recoverySignal,
     });
     
-    this._emit('recovery', link, state);
+    this._emit('recovery', link, state, {
+      recoverySignal,
+      recoveryProgress: recoverySignal,
+      intensity: recoverySignal,
+      value: recoverySignal,
+      source: 'LinkCollapseSystem'
+    });
   }
   
   /**

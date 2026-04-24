@@ -214,12 +214,13 @@ class CascadePropagation {
 // ============================================================================
 
 export class CascadingRuptureSystem {
-    constructor(scene, aiNodes, linkingSystem, regionalEquilibrium, semanticBus = null) {
+    constructor(scene, aiNodes, linkingSystem, regionalEquilibrium, semanticBus = null, worldContextProvider = null) {
         this.scene = scene;
         this.aiNodes = aiNodes;
         this.linkingSystem = linkingSystem;
         this.regionalEquilibrium = regionalEquilibrium;
         this.semanticBus = semanticBus;
+        this.worldContextProvider = typeof worldContextProvider === 'function' ? worldContextProvider : null;
 
         // Enable flag (default: true - activated per NETWORK_STABILITY_SYSTEMS_AUDIT)
         this.enabled = true;
@@ -250,6 +251,51 @@ export class CascadingRuptureSystem {
         this.onNodeCritical = null; // (node) => void (triggers failure system)
 
         console.log('[CascadingRuptureSystem] Initialized (disabled by default)');
+    }
+
+    _resolveWorldContext() {
+        const snapshot = this.worldContextProvider?.() || null;
+        const worldContext = snapshot?.worldContext && typeof snapshot.worldContext === 'object'
+            ? snapshot.worldContext
+            : snapshot && typeof snapshot === 'object'
+                ? snapshot
+                : null;
+        const macroState = String(
+            snapshot?.macroState
+            || snapshot?.worldMacroState
+            || worldContext?.macroState
+            || worldContext?.worldMacroState
+            || worldContext?.consciousnessState?.worldMacroState
+            || 'DORMANT'
+        ).toUpperCase();
+        const macroProfile = snapshot?.macroProfile && typeof snapshot.macroProfile === 'object'
+            ? { ...snapshot.macroProfile }
+            : worldContext?.macroProfile && typeof worldContext.macroProfile === 'object'
+                ? { ...worldContext.macroProfile }
+                : null;
+        const consciousnessState = worldContext?.consciousnessState || snapshot?.consciousnessState || null;
+        const worldMoodState = worldContext?.worldMoodState || snapshot?.worldMoodState || null;
+        const networkState = worldContext?.networkState || snapshot?.networkState || null;
+        const liveMetrics = worldContext?.liveMetrics || snapshot?.liveMetrics || snapshot?.metrics || null;
+        const normalizedWorldContext = worldContext ? { ...worldContext } : null;
+
+        if (normalizedWorldContext) {
+            normalizedWorldContext.worldMacroState = macroState;
+            normalizedWorldContext.macroState = macroState;
+            normalizedWorldContext.macroProfile = macroProfile;
+        }
+
+        return {
+            worldContext: normalizedWorldContext,
+            worldMacroState: macroState,
+            macroState,
+            macroProfile,
+            consciousnessState,
+            worldMoodState,
+            networkState,
+            liveMetrics,
+            metrics: liveMetrics
+        };
     }
 
     // ========================================================================
@@ -411,6 +457,7 @@ export class CascadingRuptureSystem {
             console.warn('[CascadingRuptureSystem] Max cascades reached, ignoring');
             return;
         }
+        const worldContextSnapshot = this._resolveWorldContext();
 
         // Calculate initial energy based on node state
         const corruption = this._readCanonicalNodeMetric(originNode, 'corruption', 0);
@@ -433,14 +480,30 @@ export class CascadingRuptureSystem {
 
         // Fire event
         if (this.onCascadeStart) {
-            this.onCascadeStart(originNode, initialEnergy);
+            this.onCascadeStart(originNode, initialEnergy, worldContextSnapshot);
         }
 
         // Emit topology rupture event for HarmonicTopologyLearningSystem
         if (this.semanticBus && originNode.position) {
             this.semanticBus.emit('topology.rupture', {
+                sourceNode: originNode,
+                sourceNodeId: this._getNodeId(originNode),
+                targetNode: null,
+                targetNodeId: null,
+                link: null,
                 position: originNode.position,
-                intensity: initialEnergy
+                intensity: initialEnergy,
+                value: initialEnergy,
+                cascadeStage: 'start',
+                depth: 0,
+                hopIndex: 0,
+                totalHops: 0,
+                worldContext: worldContextSnapshot.worldContext,
+                worldMacroState: worldContextSnapshot.worldMacroState,
+                macroProfile: worldContextSnapshot.macroProfile || null,
+                consciousnessState: worldContextSnapshot.consciousnessState || null,
+                worldMoodState: worldContextSnapshot.worldMoodState || null,
+                liveMetrics: worldContextSnapshot.liveMetrics || null
             });
         }
 
@@ -487,6 +550,7 @@ export class CascadingRuptureSystem {
     }
 
     propagateFromNode(cascade, fromNode, time) {
+        const worldContextSnapshot = this._resolveWorldContext();
         const fromNodeId = this._getNodeId(fromNode);
         const directLinks = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : [];
         const links = directLinks.filter((link) => {
@@ -525,14 +589,30 @@ export class CascadingRuptureSystem {
 
             // Fire hop event
             if (this.onCascadeHop) {
-                this.onCascadeHop(fromNode, toNode, cascade.currentEnergy, link, cascade.currentDepth);
+                this.onCascadeHop(fromNode, toNode, cascade.currentEnergy, link, cascade.currentDepth, worldContextSnapshot);
             }
 
             // Emit topology rupture event for HarmonicTopologyLearningSystem
             if (this.semanticBus && toNode.position) {
                 this.semanticBus.emit('topology.rupture', {
+                    sourceNode: fromNode,
+                    sourceNodeId: fromNodeId,
+                    targetNode: toNode,
+                    targetNodeId: toNodeId,
+                    link,
                     position: toNode.position,
-                    intensity: cascade.currentEnergy
+                    intensity: cascade.currentEnergy,
+                    value: cascade.currentEnergy,
+                    cascadeStage: 'hop',
+                    depth: cascade.currentDepth,
+                    hopIndex: cascade.totalHops,
+                    totalHops: cascade.totalHops,
+                    worldContext: worldContextSnapshot.worldContext,
+                    worldMacroState: worldContextSnapshot.worldMacroState,
+                    macroProfile: worldContextSnapshot.macroProfile || null,
+                    consciousnessState: worldContextSnapshot.consciousnessState || null,
+                    worldMoodState: worldContextSnapshot.worldMoodState || null,
+                    liveMetrics: worldContextSnapshot.liveMetrics || null
                 });
             }
 
@@ -560,9 +640,10 @@ export class CascadingRuptureSystem {
     }
 
     completeCascade(cascade) {
+        const worldContextSnapshot = this._resolveWorldContext();
         // Fire completion event
         if (this.onCascadeComplete && cascade.originNode) {
-            this.onCascadeComplete(cascade.originNode, cascade.totalHops);
+            this.onCascadeComplete(cascade.originNode, cascade.totalHops, worldContextSnapshot);
         }
 
         console.log(`[CascadingRuptureSystem] Cascade complete: ${cascade.totalHops} hops, depth ${cascade.currentDepth}`);
@@ -649,11 +730,12 @@ export class CascadingRuptureSystem {
         this.healingHistory.set(key, time);
     }
 
-    rebind({ linkingSystem = this.linkingSystem, aiNodes = this.aiNodes, regionalEquilibrium = this.regionalEquilibrium, semanticBus = null } = {}) {
+    rebind({ linkingSystem = this.linkingSystem, aiNodes = this.aiNodes, regionalEquilibrium = this.regionalEquilibrium, semanticBus = null, worldContextProvider = this.worldContextProvider } = {}) {
         if (linkingSystem) this.linkingSystem = linkingSystem;
         if (aiNodes) this.aiNodes = aiNodes;
         if (regionalEquilibrium !== undefined) this.regionalEquilibrium = regionalEquilibrium;
         if (semanticBus !== undefined) this.semanticBus = semanticBus;
+        if (typeof worldContextProvider === 'function') this.worldContextProvider = worldContextProvider;
         return this;
     }
 

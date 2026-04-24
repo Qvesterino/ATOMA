@@ -6,7 +6,7 @@
  */
 
 export const AUDIO_EVENT_MANIFEST = {
-    version: '2026-04-14',
+    version: '2026-04-24',
     events: {
         'node.synergy.high': {
             synth: 'synergySynth',
@@ -21,6 +21,12 @@ export const AUDIO_EVENT_MANIFEST = {
             cooldownMs: 900,
             priority: 'NORMAL',
             action: 'playSynergyFade'
+        },
+        'world.macroState.changed': {
+            cooldownMs: 0,
+            priority: 'INTERACTIVE',
+            action: 'playWorldMacroStateChanged',
+            passPayload: true
         },
         'worldFX.event': {
             cooldownMs: 180,

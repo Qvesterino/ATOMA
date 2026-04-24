@@ -374,6 +374,7 @@ export class VisualUpgradeSuperpack {
         };
         this._macroState = 'DORMANT';
         this._macroProfile = WORLD_MACRO_PROFILES.DORMANT;
+        this._macroPayload = null;
         this._semanticBus = null;
         this._semanticBusUnsubs = [];
         this._spectacleState = null;
@@ -427,11 +428,33 @@ export class VisualUpgradeSuperpack {
             worldMoodState: normalized.worldMoodState || null,
             networkState: normalized.networkState || null,
             liveMetrics: normalized.liveMetrics || null,
-            worldMacroState: normalized.worldMacroState || normalized.consciousnessState?.worldMacroState || 'DORMANT'
+            worldMacroState: normalized.worldMacroState || normalized.macroState || normalized.consciousnessState?.worldMacroState || 'DORMANT'
         };
         this._macroState = this._resolveWorldMacroState(this._worldContext);
         this._macroProfile = WORLD_MACRO_PROFILES[this._macroState] || WORLD_MACRO_PROFILES.DORMANT;
+        this._worldContext.worldMacroState = this._macroState;
+        this._worldContext.macroState = this._macroState;
+        return this.getMacroPayload();
+    }
+
+    getMacroState() {
         return this._macroState;
+    }
+
+    getMacroPayload() {
+        const macroProfile = this._resolveMacroProfile(this._macroState);
+        return {
+            macroState: this._macroState,
+            macroProfile: { ...macroProfile },
+            worldContext: {
+                ...this._worldContext,
+                worldMacroState: this._macroState,
+                macroState: this._macroState
+            },
+            metrics: { ...this._metrics },
+            heroState: this.getHeroState(),
+            spectacleState: this._spectacleState ? { ...this._spectacleState } : null
+        };
     }
 
     attachSemanticBus(semanticBus) {
