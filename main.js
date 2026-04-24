@@ -5025,7 +5025,7 @@ class AtomaGame {
                     || this.consciousnessLayer?.consciousnessState
                     || null;
                 const worldMoodState = this.worldPersonalityController?.getMoodState?.() || null;
-                const nextWorldMacroState = consciousnessState?.worldMacroState || consciousnessState?.macroState || this.worldMacroState || 'DORMANT';
+                const nextWorldMacroState = String(consciousnessState?.worldMacroState || this.worldMacroState || 'DORMANT').toUpperCase();
                 this.worldMacroState = nextWorldMacroState;
                 this.visualSuperpack.setWorldContext?.({
                     consciousnessState,
@@ -17287,7 +17287,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     scene: this.scene || null,
                     metrics: this.coreMetricsOverlay?.currentMetrics || this.worldMetrics || this.nodeDynamicMetrics || null,
                     consciousness: consciousnessState,
-                    worldMacroState: this.worldMacroState || consciousnessState?.worldMacroState || consciousnessState?.macroState || 'DORMANT',
+                    worldMacroState: String(this.worldMacroState || consciousnessState?.worldMacroState || 'DORMANT').toUpperCase(),
                     consciousnessLayer: this.consciousnessLayer || null,
                     thoughtStorms: this.consciousnessLayer?.storms || null,
                     linkCollapseSystem: this.linkCollapseSystem || null,

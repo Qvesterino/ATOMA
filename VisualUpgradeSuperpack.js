@@ -427,7 +427,7 @@ export class VisualUpgradeSuperpack {
             worldMoodState: normalized.worldMoodState || null,
             networkState: normalized.networkState || null,
             liveMetrics: normalized.liveMetrics || null,
-            worldMacroState: normalized.worldMacroState || normalized.consciousnessState?.worldMacroState || normalized.consciousnessState?.macroState || 'DORMANT'
+            worldMacroState: normalized.worldMacroState || normalized.consciousnessState?.worldMacroState || 'DORMANT'
         };
         this._macroState = this._resolveWorldMacroState(this._worldContext);
         this._macroProfile = WORLD_MACRO_PROFILES[this._macroState] || WORLD_MACRO_PROFILES.DORMANT;
@@ -455,6 +455,10 @@ export class VisualUpgradeSuperpack {
         };
 
         bind('link.created', 'link.created');
+        bind('link.collapse.warning', 'warning');
+        bind('link.collapse.critical', 'critical');
+        bind('link.collapse.collapse', 'collapse');
+        bind('link.collapse.recovery', 'recovery');
         bind('cascade.start', 'cascade.start');
         bind('cascade.hop', 'cascade.hop');
         bind('cascade.end', 'cascade.end');
@@ -587,7 +591,6 @@ export class VisualUpgradeSuperpack {
         const explicitState = String(
             context?.worldMacroState
             || context?.consciousnessState?.worldMacroState
-            || context?.consciousnessState?.macroState
             || ''
         ).toUpperCase();
 
@@ -634,6 +637,10 @@ export class VisualUpgradeSuperpack {
             'link.warning': 'warning',
             'link.critical': 'critical',
             'link.collapse': 'collapse',
+            'link.collapse.warning': 'warning',
+            'link.collapse.critical': 'critical',
+            'link.collapse.collapse': 'collapse',
+            'link.collapse.recovery': 'recovery',
             'cascade.start': 'cascade.start',
             'cascade.hop': 'cascade.hop',
             'cascade.end': 'cascade.end',

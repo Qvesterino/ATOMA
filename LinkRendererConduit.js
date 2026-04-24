@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { debugWarn } from './Engine/Debug/DebugLog.js';
 import { TransparentStateAuthority } from './TransparentStateAuthority.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
-import { applyLinkRenderLayer, getLinkBootstrapBudget, getLinkDistancePolicy, shouldRunLinkEffect } from './LinkRenderLayerPolicy.js';
+import { applyLinkRenderLayer, getLinkBootstrapBudget, shouldRunLinkEffect } from './LinkRenderLayerPolicy.js';
 import { LinkBeadVisualizer } from './LinkBeadSystem.js';
 import { LinkSparkSystem } from './LinkSparkSystem.js';
 import { LinkBeadTrailSystem } from './LinkBeadTrailSystem.js';
@@ -137,7 +137,6 @@ const createDefaultLinkRuntimeState = () => ({
     filamentSkipLOD: 0,
     filamentSkipHarmony: 0,
     filamentSkipBudget: 0,
-    filamentSkipDetail: 0,
     filamentKillSwitchDisabled: false,
     lastFilamentDecision: 'uninitialized',
     frenetCacheKillSwitchDisabled: false,
@@ -1827,9 +1826,6 @@ export class LinkRendererConduit {
         if (Number.isFinite(ctx.lod) && ctx.lod >= CONSERVATIVE_FILAMENT_GATING.LOD_SKIP_LEVEL) {
             return { skip: true, reason: 'lod', gatingEnabled };
         }
-        if (Number.isFinite(ctx.detailScale) && ctx.detailScale < 0.7) {
-            return { skip: true, reason: 'detail', gatingEnabled };
-        }
         const harmony = clamp01(ctx.metrics?.harmony ?? 0);
         if (harmony >= CONSERVATIVE_FILAMENT_GATING.HARMONY_SKIP_THRESHOLD) {
             return { skip: true, reason: 'harmony', gatingEnabled };
@@ -1885,7 +1881,6 @@ export class LinkRendererConduit {
             if (decision.reason === 'lod') runtime.filamentSkipLOD += 1;
             if (decision.reason === 'harmony') runtime.filamentSkipHarmony += 1;
             if (decision.reason === 'budget') runtime.filamentSkipBudget += 1;
-            if (decision.reason === 'detail') runtime.filamentSkipDetail += 1;
             if (state.strandFilaments?.mesh) {
                 state.strandFilaments.mesh.visible = false;
             }
@@ -2792,7 +2787,6 @@ export class LinkRendererConduit {
                 filamentSkipLOD: runtime.filamentSkipLOD || 0,
                 filamentSkipHarmony: runtime.filamentSkipHarmony || 0,
                 filamentSkipBudget: runtime.filamentSkipBudget || 0,
-                filamentSkipDetail: runtime.filamentSkipDetail || 0,
                 filamentKillSwitchDisabled: runtime.filamentKillSwitchDisabled === true,
                 lastFilamentDecision: runtime.lastFilamentDecision || 'uninitialized',
                 frenetCacheKillSwitchDisabled: runtime.frenetCacheKillSwitchDisabled === true,
@@ -3040,33 +3034,6 @@ export class LinkRendererConduit {
         return Number.isFinite(level) ? level : 0;
     }
 
-    _buildLinkVisualPolicy(link, start, end) {
-        const lodLevel = this._getLinkLODLevel(start, end);
-        const distancePolicy = getLinkDistancePolicy(lodLevel);
-        const rawCreationTier = Number(link?.userData?.linkCreationTier);
-        const creationTier = Number.isFinite(rawCreationTier)
-            ? Math.max(0, Math.min(3, Math.floor(rawCreationTier)))
-            : 0;
-        const tierVisualScale = [0.58, 0.72, 0.88, 1.0][creationTier] ?? 0.58;
-        const detailScale = Math.max(0.2, Math.min(1.0, distancePolicy.visualScale * tierVisualScale));
-
-        return {
-            lodLevel,
-            distancePolicy,
-            creationTier,
-            detailScale,
-            allowParticles: lodLevel < 2 && detailScale >= 0.6,
-            allowSecondaryVfx: lodLevel < 2 && detailScale >= 0.7,
-            allowDockSpray: distancePolicy.allowDockSpray === true && detailScale >= 0.7,
-            strandSegmentCount: Math.max(18, Math.round(44 * detailScale)),
-            skinSegments: detailScale >= 0.9 ? 16 : detailScale >= 0.7 ? 14 : 12,
-            dockLayerCount: Math.max(1, Math.min(3, Math.round(3 * detailScale))),
-            dockSegmentCount: Math.max(4, Math.min(7, Math.round(7 * detailScale))),
-            dockTrailCount: Math.max(1, Math.min(3, Math.round(3 * detailScale))),
-            dockSprayParticleCount: Math.max(24, Math.min(72, Math.round(72 * detailScale)))
-        };
-    }
-
     /**
      * Generate procedural gradient texture
      */
@@ -3133,11 +3100,10 @@ export class LinkRendererConduit {
         const baseColorObj = new THREE.Color(baseColor);
         const colorA = new THREE.Color(this.getCategoryColor(sourceCat));
         const colorB = new THREE.Color(this.getCategoryColor(targetCat));
-        const visualPolicy = this._buildLinkVisualPolicy(link, sourceCenter, targetCenter);
 
         // Determine structure (stable randomization): 3-5 strands per link.
-        const linkIdChar = String(link.id || 'a').charCodeAt(0);
-        const strandCount = Math.max(2, Math.round((3 + (linkIdChar % 3)) * visualPolicy.detailScale));
+        const linkIdChar = (link.id || 'a').charCodeAt(0);
+        const strandCount = 3 + (linkIdChar % 3);
 
         // Frame 0: core shell + skin mesh (requested bootstrap ordering).
         const skinMaterial = createLinkAuraMaterial({
@@ -3156,7 +3122,7 @@ export class LinkRendererConduit {
         skinMaterial.userData = {};
         skinMaterial.customProgramCacheKey = null;
         skinMaterial.onBeforeCompile = null;
-        const skinGeometry = createLinkAuraGeometry(0.4, visualPolicy.skinSegments);
+        const skinGeometry = createLinkAuraGeometry(0.4, 16);
         const skinMesh = new THREE.Mesh(skinGeometry, skinMaterial);
         skinMesh.frustumCulled = false;
         ensureUserData(skinMaterial);
@@ -3201,13 +3167,6 @@ export class LinkRendererConduit {
             baseColorObj: baseColorObj,
             colorA,
             colorB,
-            __linkVisualPolicy: visualPolicy,
-            visualDetailScale: visualPolicy.detailScale,
-            visualCreationTier: visualPolicy.creationTier,
-            dockLayerCount: visualPolicy.dockLayerCount,
-            dockSegmentCount: visualPolicy.dockSegmentCount,
-            dockTrailCount: visualPolicy.dockTrailCount,
-            dockSprayParticleCount: visualPolicy.dockSprayParticleCount,
             waveDirection: directionVec,
             waveLength: linkLength,
             wavePhaseOffset: wavePhaseOffset,
@@ -3293,7 +3252,7 @@ export class LinkRendererConduit {
                         uLocalLoad: { value: 0.0 },
                         uCorruption: { value: 0.0 },
                         uTime: { value: 0.0 },
-                        uSegmentCount: { value: visualPolicy.strandSegmentCount },
+                        uSegmentCount: { value: 44.0 },
                         uBaseColor: { value: categoryColor.clone() },
                         uAccentColor: { value: accentColor.clone() },
                         uStrandIndex: { value: i },
@@ -3702,11 +3661,9 @@ export class LinkRendererConduit {
         const sourcePortPos = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * 0.18);
         const sourceInjectionOrigin = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * 0.06);
         const lod = this._getLinkLODLevel(start, end);
-        const visualPolicy = state.__linkVisualPolicy || this._buildLinkVisualPolicy(link, start, end);
-        state.__linkVisualPolicy = visualPolicy;
-        const lodVisualScale = Math.max(0.45, visualPolicy.detailScale);
-        const lodAllowsParticles = visualPolicy.allowParticles;
-        const lodAllowsSecondaryVfx = visualPolicy.allowSecondaryVfx;
+        const lodVisualScale = lod >= 2 ? 0.45 : 1.0;
+        const lodAllowsParticles = lod < 2;
+        const lodAllowsSecondaryVfx = lod < 2;
         runtime.lastLOD = lod;
 
         frameState.geometry = { start: start.clone(), end: end.clone(), linkDir: linkDir.clone(), linkDist };
@@ -3747,16 +3704,16 @@ export class LinkRendererConduit {
                     baseRadius + radiusStep * 2,
                     baseRadius + radiusStep,
                     baseRadius * 0.7
-                ].slice(0, visualPolicy.dockLayerCount);
-                const layerSpeed = [0.20, -0.30, 0.45].slice(0, layerRadii.length);
-                const layerOpacity = [0.14, 0.17, 0.2].slice(0, layerRadii.length);
+                ];
+                const layerSpeed = [0.20, -0.30, 0.45];
+                const layerOpacity = [0.14, 0.17, 0.2];
                 const baseTubeRadius = Math.max(linkThickness * 0.28, 0.028);
                 const layerGroups = [];
 
                 for (let layerIndex = 0; layerIndex < layerRadii.length; layerIndex++) {
                     const layerGroup = new THREE.Group();
                     const layerRadius = layerRadii[layerIndex];
-                    const segmentCount = visualPolicy.dockSegmentCount;
+                    const segmentCount = 7;
                     const shellSpacing = linkThickness * 1.2;
                     layerGroup.position.set(
                         0,
@@ -3803,18 +3760,16 @@ export class LinkRendererConduit {
                     );
                     layerGroup.userData.baseTrailOpacity = trailMat.opacity;
                     layerGroup.userData.trailMaterial = trailMat;
-                    const trailRadialSegments = visualPolicy.detailScale >= 0.85 ? 6 : visualPolicy.detailScale >= 0.65 ? 5 : 4;
-                    const trailTubularSegments = visualPolicy.detailScale >= 0.85 ? 20 : visualPolicy.detailScale >= 0.65 ? 16 : 12;
                     const trailGeo = new THREE.TorusGeometry(
                         layerRadius * (1.0 + layerIndex * 0.015),
                         baseTubeRadius * 0.42,
-                        trailRadialSegments,
-                        trailTubularSegments,
+                        6,
+                        20,
                         Math.PI * 0.68
                     );
-                    for (let i = 0; i < visualPolicy.dockTrailCount; i++) {
+                    for (let i = 0; i < 3; i++) {
                         const trailPivot = new THREE.Group();
-                        trailPivot.rotation.z = (i / Math.max(1, visualPolicy.dockTrailCount)) * Math.PI * 2 + layerIndex * 0.18;
+                        trailPivot.rotation.z = (i / 3) * Math.PI * 2 + layerIndex * 0.18;
                         const trail = new THREE.Mesh(trailGeo, trailMat);
                         trail.position.y = shellLift * 0.72;
                         trail.rotation.x = shellTilt * 0.85;
@@ -3865,10 +3820,10 @@ export class LinkRendererConduit {
                 });
 
                 // Spawn a light spray burst at dock point
-                if (!state.dockSpray && visualPolicy.allowDockSpray) {
+                if (!state.dockSpray) {
                     trace('beforeDockSprayCreate');
                     const sprayOrder = VisualHierarchyRegistry.getRenderOrder('LINK_IMPACTS');
-                    state.dockSpray = createDockSpraySystem(this.scene, sprayOrder, visualPolicy.dockSprayParticleCount);
+                    state.dockSpray = createDockSpraySystem(this.scene, sprayOrder, 72);
                     if (state.dockSpray?.mesh) {
                         ensureUserData(state.dockSpray.mesh).__linkOwnerId = this._getLinkOwnerId(link);
                     }
@@ -3891,12 +3846,12 @@ export class LinkRendererConduit {
             if (dir.lengthSq() === 0) dir.set(0, 0, 1);
             ring.quaternion.setFromUnitVectors(forward, dir);
             const layerGroups = [];
-            const layerOpacity = [0.05, 0.07, 0.09].slice(0, pg.layerRadii.length);
+            const layerOpacity = [0.05, 0.07, 0.09];
             const baseTubeRadius = Math.max(pg.thickness * 0.28, 0.024);
             for (let layerIndex = 0; layerIndex < pg.layerRadii.length; layerIndex++) {
                 const layerGroup = new THREE.Group();
                 const layerRadius = pg.layerRadii[layerIndex] * 1.15;
-                const segmentCount = visualPolicy.dockSegmentCount;
+                const segmentCount = 7;
                 const shellSpacing = pg.thickness * 1.2;
                 layerGroup.position.set(
                     0,
@@ -3943,18 +3898,16 @@ export class LinkRendererConduit {
                 );
                 layerGroup.userData.baseTrailOpacity = trailMat.opacity;
                 layerGroup.userData.trailMaterial = trailMat;
-                const trailRadialSegments = visualPolicy.detailScale >= 0.85 ? 6 : visualPolicy.detailScale >= 0.65 ? 5 : 4;
-                const trailTubularSegments = visualPolicy.detailScale >= 0.85 ? 20 : visualPolicy.detailScale >= 0.65 ? 16 : 12;
                 const trailGeo = new THREE.TorusGeometry(
                     layerRadius * 1.02,
                     baseTubeRadius * 0.36,
-                    trailRadialSegments,
-                    trailTubularSegments,
+                    6,
+                    16,
                     Math.PI * 0.58
                 );
-                for (let i = 0; i < visualPolicy.dockTrailCount; i++) {
+                for (let i = 0; i < 2; i++) {
                     const trailPivot = new THREE.Group();
-                    trailPivot.rotation.z = (i / Math.max(1, visualPolicy.dockTrailCount)) * Math.PI * 2 + layerIndex * 0.24;
+                    trailPivot.rotation.z = (i * Math.PI) + layerIndex * 0.24;
                     const trail = new THREE.Mesh(trailGeo, trailMat);
                     trail.position.y = shellLift * 0.72;
                     trail.rotation.x = shellTilt * 0.85;
@@ -4050,7 +4003,7 @@ export class LinkRendererConduit {
             }
         }
 
-        if (!state.sourceInjection && lodAllowsParticles) {
+        if (!state.sourceInjection) {
             const sourceOrder = VisualHierarchyRegistry.getRenderOrder('LINK_IMPACTS');
             trace('beforeSourceInjectionCreate');
             state.sourceInjection = createSourceInjectionSystem(this.scene, sourceOrder, 28);
@@ -4083,7 +4036,7 @@ export class LinkRendererConduit {
                     trace('afterDockSprayUpdate');
                     const sprayInterval = state.dockRing.userData.sprayInterval ?? 0.12;
                     const nextSprayTime = state.dockRing.userData.nextSprayTime ?? visualTime;
-                    if (visualPolicy.allowDockSpray && visualTime >= nextSprayTime) {
+                    if (lodAllowsParticles && visualTime >= nextSprayTime) {
                         const payload = state.dockRing.userData.sprayPayload;
                         if (payload) {
                             trace('beforeDockSprayBurst');
@@ -4164,12 +4117,9 @@ export class LinkRendererConduit {
         const geometryTick = state.__backboneFrozen === true
             ? (state.__dynamicGeometryInitialized !== true)
             : ((frameStateOverride?.flags?.geometryTick ?? heavyTick) || state.__dynamicGeometryInitialized !== true);
-        const segmentDensity = 5.5 + (visualPolicy.detailScale * 2.5);
-        const segmentMin = Math.max(8, Math.round(12 * visualPolicy.detailScale));
-        const segmentMax = Math.max(segmentMin + 16, Math.round(200 * (0.55 + visualPolicy.detailScale * 0.45)));
         const segments = geometryTick
-            ? computeSegmentsFromLength(mainCurve, segmentDensity, segmentMin, segmentMax)
-            : (state.strandSegments || computeSegmentsFromLength(mainCurve, segmentDensity, segmentMin, segmentMax));
+            ? computeSegmentsFromLength(mainCurve)
+            : (state.strandSegments || computeSegmentsFromLength(mainCurve));
         let frames = state.__cachedFrenetFrames || null;
         const frenetCacheState = state.__frenetCacheState || (state.__frenetCacheState = {
             ready: false,
@@ -4249,7 +4199,7 @@ export class LinkRendererConduit {
         const flowSpeed = (0.2 + (synergy * 1.2)) * vfx.speedMul;
         const noiseBase = 0.005 * (1.0 - synergy);
         // Denser strand marks with length-scaled count to avoid sparse long links.
-        const overlaySegmentCount = THREE.MathUtils.clamp((24.0 + (linkDist * 1.2)) * visualPolicy.detailScale, 20.0, 88.0);
+        const overlaySegmentCount = THREE.MathUtils.clamp(24.0 + (linkDist * 1.2), 28.0, 88.0);
         const isInitialGeometryBuild = state.__dynamicGeometryInitialized !== true;
         const hasRenderableStrands = Array.isArray(state.strands) && state.strands.some(mesh => {
             const positionCount = mesh?.geometry?.attributes?.position?.count || 0;
@@ -4494,7 +4444,6 @@ export class LinkRendererConduit {
                 linkDist,
                 lod,
                 heavyTick,
-                detailScale: visualPolicy.detailScale,
                 runtime
             });
         }

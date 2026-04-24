@@ -264,6 +264,15 @@ export class SafeLegendaryWorldEvents {
         color: 0x77f7db,
         description: 'Benevolent intelligence veil'
       },
+      DORMANT_STATE: {
+        duration: 8.5,
+        fadeInDuration: 0.9,
+        fadeOutDuration: 2.2,
+        maxIntensity: 0.58,
+        color: 0x8ea0ad,
+        description: 'The network settles into a low-energy quiescent state',
+        randomEligible: false
+      },
       AWAKENING_STATE: {
         duration: 9.5,
         fadeInDuration: 1.1,
@@ -512,6 +521,13 @@ export class SafeLegendaryWorldEvents {
         deep: voidDeepCold,
         glow: new THREE.Color(0x72c7ff)
       },
+      DORMANT_STATE: {
+        base: new THREE.Color(0x8ea0ad),
+        accent: coreWhite,
+        aura: new THREE.Color(0xd6e1ea),
+        deep: new THREE.Color(0x04080d),
+        glow: new THREE.Color(0x5f7786)
+      },
       LEGENDARY_BOND: {
         base: new THREE.Color(0xffd66b),
         accent: new THREE.Color(0x6deaff),
@@ -731,6 +747,11 @@ export class SafeLegendaryWorldEvents {
         subtitle: 'Benevolent intelligence veil',
         description: 'A calm intelligence curtain. The system breathes in ordered light.'
       },
+      DORMANT_STATE: {
+        title: 'Dormant State',
+        subtitle: 'Quiescent world baseline',
+        description: 'The network returns to silence. Presence remains, but the world is resting.'
+      },
       LEGENDARY_BOND: {
         title: 'Legendary Bond Manifestation',
         subtitle: 'High-value link consecrated',
@@ -872,6 +893,9 @@ export class SafeLegendaryWorldEvents {
       case 'AURORA_STATE':
         this.createAuroraStateVFX(eventDef);
         break;
+      case 'DORMANT_STATE':
+        this.createDormantStateVFX(eventDef);
+        break;
     }
   }
   
@@ -934,6 +958,9 @@ export class SafeLegendaryWorldEvents {
         break;
       case 'AURORA_STATE':
         this.updateAuroraStateVFX(intensity, deltaTime);
+        break;
+      case 'DORMANT_STATE':
+        this.updateDormantStateVFX(intensity, deltaTime);
         break;
     }
   }
@@ -2294,6 +2321,157 @@ export class SafeLegendaryWorldEvents {
       particle.scale.setScalar(particle.userData.baseScale * (0.8 + beat * 0.36 + envelope.body * 0.1 + pulse * 0.14));
       particle.material.opacity = particle.userData.baseOpacity * (0.24 + beat * 0.5 + envelope.afterglow * 0.14 + pulse * 0.24);
       particle.material.color.copy(palette.base).lerp(palette.accent, beat * 0.38 + envelope.body * 0.12 + pulse * 0.08);
+    }
+  }
+
+  /**
+   * DORMANT STATE - Quiescent silence event
+   */
+  createDormantStateVFX(eventDef) {
+    const palette = this.legendaryPalettes.DORMANT_STATE;
+    const seed = this.registry.seed || 0;
+
+    const anchor = this._createLegendaryMesh(
+      new THREE.SphereGeometry(4.2, 18, 14),
+      this._createLegendaryMeshMaterial({
+        color: palette.accent,
+        opacity: 0.18,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false
+      }),
+      {
+        type: 'dormant_anchor',
+        phaseOffset: seed * 0.11,
+        baseOpacity: 0.18
+      }
+    );
+    anchor.position.set(0, 18, -92);
+    tagAllowedSphere(anchor, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
+    clampSphere(anchor);
+    this._registerLegendaryObject('meshes', anchor);
+
+    const ring = this._createLegendaryMesh(
+      new THREE.TorusGeometry(16, 0.72, 12, 112),
+      this._createLegendaryMeshMaterial({
+        color: palette.glow,
+        opacity: 0.14,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide
+      }),
+      {
+        type: 'dormant_ring',
+        phaseOffset: seed * 0.23,
+        baseOpacity: 0.14,
+        baseScale: 1
+      }
+    );
+    ring.position.set(0, 18, -92);
+    ring.rotation.x = Math.PI * 0.5;
+    ring.rotation.z = Math.PI * 0.08;
+    this._registerLegendaryObject('meshes', ring);
+
+    const shroud = this._createLegendaryBackdropSheet({
+      type: 'dormant_shroud',
+      color: palette.deep,
+      opacity: 0.06,
+      width: 500,
+      height: 220,
+      position: new THREE.Vector3(0, 16, -128),
+      rotation: new THREE.Euler(-0.14, 0, 0.02),
+      phaseOffset: seed * 0.31,
+      baseOpacity: 0.06
+    });
+    this._registerLegendaryObject('overlays', shroud);
+
+    const moteGeometry = new THREE.SphereGeometry(0.24, 8, 8);
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2 + seed * 0.05;
+      const orbitRadius = 18 + (i % 3) * 6;
+      const orbitHeight = 12 + Math.sin(angle * 1.6 + seed) * 3;
+      const mote = this._createLegendaryMesh(
+        moteGeometry.clone(),
+        this._createLegendaryMeshMaterial({
+          color: i % 2 === 0 ? palette.base : palette.glow,
+          opacity: 0.22,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          depthTest: false
+        }),
+        {
+          type: 'dormant_mote',
+          angle,
+          orbitRadius,
+          orbitHeight,
+          orbitSpeed: 0.12 + (i % 3) * 0.02,
+          pulseOffset: seed * 0.19 + i * 0.4,
+          baseScale: 0.62 + (i % 2) * 0.08,
+          baseOpacity: 0.22
+        }
+      );
+      mote.position.set(
+        Math.cos(angle) * orbitRadius,
+        orbitHeight,
+        Math.sin(angle) * orbitRadius - 92
+      );
+      tagAllowedSphere(mote, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
+      clampSphere(mote);
+      this._registerLegendaryObject('particles', mote);
+    }
+  }
+
+  /**
+   * Update dormant state VFX
+   */
+  updateDormantStateVFX(intensity, deltaTime) {
+    const beat = this._getLegendaryBeat(0.24, this.registry.seed * 0.11, 0.3, 0.68);
+    const envelope = this._getLegendaryEventEnvelope(intensity, this.registry.phase);
+    const pulse = intensity * beat;
+    const palette = this.legendaryPalettes.DORMANT_STATE;
+
+    for (let i = 0; i < this.vfxContainer.meshes.length; i++) {
+      const mesh = this.vfxContainer.meshes[i];
+      const type = mesh?.userData?.type;
+      if (!type) continue;
+
+      if (type === 'dormant_anchor') {
+        mesh.scale.setScalar(1 + pulse * 0.12 + envelope.body * 0.05);
+        mesh.rotation.y += deltaTime * 0.04;
+        mesh.material.opacity = mesh.userData.baseOpacity * (0.36 + pulse * 0.28 + envelope.afterglow * 0.1);
+        mesh.material.color.copy(palette.base).lerp(palette.accent, envelope.body * 0.18 + beat * 0.1);
+      } else if (type === 'dormant_ring') {
+        mesh.scale.setScalar(mesh.userData.baseScale * (1.02 + pulse * 0.1 + envelope.afterglow * 0.04));
+        mesh.rotation.z += deltaTime * 0.06;
+        mesh.material.opacity = mesh.userData.baseOpacity * (0.34 + pulse * 0.22 + envelope.afterglow * 0.08);
+        mesh.material.color.copy(palette.glow).lerp(palette.base, beat * 0.14 + envelope.afterglow * 0.06);
+      }
+    }
+
+    for (let i = 0; i < this.vfxContainer.overlays.length; i++) {
+      const overlay = this.vfxContainer.overlays[i];
+      if (overlay?.userData?.type !== 'dormant_shroud') continue;
+
+      overlay.material.opacity = overlay.userData.baseOpacity * (0.28 + pulse * 0.24 + envelope.afterglow * 0.12);
+      overlay.rotation.z += deltaTime * 0.01;
+      overlay.scale.setScalar(1 + pulse * 0.03 + envelope.afterglow * 0.02);
+      overlay.material.color.copy(palette.deep).lerp(palette.aura, beat * 0.1 + envelope.afterglow * 0.08);
+    }
+
+    for (let i = 0; i < this.vfxContainer.particles.length; i++) {
+      const mote = this.vfxContainer.particles[i];
+      if (mote?.userData?.type !== 'dormant_mote') continue;
+
+      mote.userData.angle += mote.userData.orbitSpeed * deltaTime * 0.35;
+      const drift = Math.sin(this.animationTime * 0.4 + mote.userData.pulseOffset) * (1.2 + pulse * 1.8);
+      const radius = mote.userData.orbitRadius + Math.sin(this.animationTime * 0.28 + mote.userData.pulseOffset) * 1.5;
+      mote.position.x = Math.cos(mote.userData.angle) * radius;
+      mote.position.z = Math.sin(mote.userData.angle) * radius - 92;
+      mote.position.y = mote.userData.orbitHeight + drift;
+      mote.scale.setScalar(mote.userData.baseScale * (0.82 + beat * 0.18 + envelope.afterglow * 0.08));
+      mote.material.opacity = mote.userData.baseOpacity * (0.18 + beat * 0.24 + pulse * 0.18 + envelope.afterglow * 0.1);
+      mote.material.color.copy(palette.base).lerp(palette.glow, beat * 0.28 + pulse * 0.12);
     }
   }
   

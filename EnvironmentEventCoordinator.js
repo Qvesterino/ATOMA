@@ -197,17 +197,13 @@ export class EnvironmentEventCoordinator {
       : payload;
     const macroState = String(
       state.worldMacroState
-      || state.macroState
       || payload.worldMacroState
-      || payload.macroState
       || ''
     ).toUpperCase();
-    const networkMood = String(state.networkMood || state.moodTag || '').toUpperCase();
-    const heroPhase = String(state.heroPhase || '').toUpperCase();
-    const networkPressure = Number(state.networkPressure) || 0;
-    const volatility = Number(state.volatility) || 0;
 
     switch (macroState) {
+      case 'DORMANT':
+        return 'DORMANT_STATE';
       case 'AWAKENING':
         return 'AWAKENING_STATE';
       case 'COMMUNION':
@@ -216,22 +212,9 @@ export class EnvironmentEventCoordinator {
         return 'SCHISM_STATE';
       case 'REVELATION':
         return 'REVELATION_STATE';
-      case 'DORMANT':
-        return null;
       default:
-        break;
+        return null;
     }
-
-    const tensionSpike =
-      networkMood === 'CRITICAL' ||
-      networkMood === 'CHAOTIC' ||
-      heroPhase === 'DEFENSE' ||
-      heroPhase === 'FRACTURE' ||
-      (networkMood === 'TENSE' && (networkPressure >= 0.58 || volatility >= 0.55));
-
-    if (!tensionSpike) return null;
-
-    return 'FRACTAL_STORM';
   }
 
   _markLegendaryEvaluation() {

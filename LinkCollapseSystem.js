@@ -127,14 +127,29 @@ export class LinkCollapseSystem {
    */
   _emit(eventType, link, state) {
     const handlers = this.eventHandlers[eventType];
-    if (!Array.isArray(handlers) || handlers.length === 0) return;
-    for (const handler of handlers) {
-      try {
-        handler(link, state);
-      } catch (err) {
-        console.warn('[LinkCollapseSystem] event handler failed:', err);
+    if (Array.isArray(handlers) && handlers.length > 0) {
+      for (const handler of handlers) {
+        try {
+          handler(link, state);
+        } catch (err) {
+          console.warn('[LinkCollapseSystem] event handler failed:', err);
+        }
       }
     }
+
+    const semanticBus = this.semanticBus || (typeof globalThis !== 'undefined' ? globalThis.semanticBus : null);
+    if (!semanticBus?.emit) return;
+
+    semanticBus.emit(`link.collapse.${eventType}`, {
+      link,
+      state,
+      eventType,
+      linkId: this._getLinkId(link),
+      source: 'LinkCollapseSystem',
+      timestamp: Date.now()
+    }, {
+      priority: semanticBus.priority?.NORMAL ?? semanticBus.priority?.BACKGROUND ?? 2
+    });
   }
 
   _emitScopedTierEvent(scope, metric, tier, link, state, extra = {}) {
