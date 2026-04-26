@@ -660,6 +660,30 @@ export class SafeLegendaryWorldEvents {
     return cage;
   }
 
+  /**
+   * Create organic plane geometry with displaced edges to avoid flat square silhouettes.
+   * Replaces raw PlaneGeometry for legendary backdrop sheets and overlays.
+   */
+  _createLegendaryOrganicPlane(width, height, wSegs = 10, hSegs = 6, edgeAmplitude = 0.05, waveFreq = 3.0) {
+    const geo = new THREE.PlaneGeometry(width, height, wSegs, hSegs);
+    const pos = geo.attributes.position;
+    const halfW = width * 0.5;
+    const halfH = height * 0.5;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const edgeDistX = Math.abs(Math.abs(x) - halfW) / Math.max(0.001, halfW);
+      const edgeDistY = Math.abs(Math.abs(y) - halfH) / Math.max(0.001, halfH);
+      const edgeFactor = 1.0 - Math.min(edgeDistX, edgeDistY);
+      const wave = Math.sin(x * waveFreq * 0.1 + y * waveFreq * 0.07) * edgeAmplitude;
+      const edgeWave = Math.sin(x * waveFreq * 0.15 + y * 0.3) * edgeAmplitude * 0.5;
+      pos.setZ(i, pos.getZ(i) + (wave * edgeFactor + edgeWave * edgeFactor * edgeFactor));
+    }
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
+    return normalizeEnvironmentGeometry(geo);
+  }
+
   _createLegendaryBackdropSheet({
     type,
     color,
@@ -679,7 +703,7 @@ export class SafeLegendaryWorldEvents {
     side = THREE.DoubleSide
   }) {
     const mesh = this._createLegendaryMesh(
-      new THREE.PlaneGeometry(width, height),
+      this._createLegendaryOrganicPlane(width, height, 12, 8, 0.04, 3.0),
       this._createLegendaryMeshMaterial({
         color,
         map,
@@ -1074,7 +1098,7 @@ export class SafeLegendaryWorldEvents {
     this._registerLegendaryObject('meshes', outerRing);
 
     const halo = this._createLegendaryMesh(
-      new THREE.PlaneGeometry(480, 480),
+      new THREE.CircleGeometry(240, 48),
       this._createLegendaryMeshMaterial({
         color: palette.aura,
         map: haloTexture,
@@ -1340,7 +1364,7 @@ export class SafeLegendaryWorldEvents {
     this._registerLegendaryObject('meshes', ring);
 
     const canopy = this._createLegendaryMesh(
-      new THREE.PlaneGeometry(520, 240),
+      this._createLegendaryOrganicPlane(520, 240, 14, 8, 0.06, 2.5),
       this._createLegendaryMeshMaterial({
         color: palette.deep,
         map: canopyTexture,
@@ -1548,7 +1572,7 @@ export class SafeLegendaryWorldEvents {
     const glitchTexture = this.legendaryMasks.sigma;
 
     const breachPlane = this._createLegendaryMesh(
-      new THREE.PlaneGeometry(540, 320),
+      this._createLegendaryOrganicPlane(540, 320, 16, 10, 0.07, 3.2),
       this._createLegendaryMeshMaterial({
         color: palette.deep,
         map: glitchTexture,
@@ -1602,7 +1626,7 @@ export class SafeLegendaryWorldEvents {
 
     for (let i = 0; i < 7; i++) {
       const band = this._createLegendaryMesh(
-        new THREE.PlaneGeometry(520, 16),
+        this._createLegendaryOrganicPlane(520, 16, 20, 3, 0.1, 4.5),
         this._createLegendaryMeshMaterial({
           color: i % 2 === 0 ? palette.base : palette.glow,
           map: glitchTexture,
@@ -1629,7 +1653,7 @@ export class SafeLegendaryWorldEvents {
     const fracturePositions = [-120, -42, 38, 118];
     for (let i = 0; i < fracturePositions.length; i++) {
       const fracture = this._createLegendaryMesh(
-        new THREE.PlaneGeometry(176, 32),
+        this._createLegendaryOrganicPlane(176, 32, 12, 4, 0.08, 3.8),
         this._createLegendaryMeshMaterial({
           color: i % 2 === 0 ? palette.aura : palette.accent,
           map: glitchTexture,
@@ -1698,7 +1722,7 @@ export class SafeLegendaryWorldEvents {
     for (let i = 0; i < 6; i++) {
       const angle = (i / 6) * Math.PI * 2 + seed * 0.13;
       const fragment = this._createLegendaryMesh(
-        new THREE.BoxGeometry(4.5, 10 + (i % 3) * 2, 1.5),
+        new THREE.CylinderGeometry(1.2, 2.2, 10 + (i % 3) * 2, 5, 1),
         this._createLegendaryMeshMaterial({
           color: i % 2 === 0 ? palette.base : palette.glow,
           opacity: 0.28,
@@ -1889,7 +1913,7 @@ export class SafeLegendaryWorldEvents {
     this._registerLegendaryObject('meshes', outerRing);
 
     const vignette = this._createLegendaryMesh(
-      new THREE.PlaneGeometry(520, 320),
+      new THREE.RingGeometry(120, 280, 48),
       this._createLegendaryMeshMaterial({
         color: palette.deep,
         map: eclipseTexture,
@@ -2126,7 +2150,7 @@ export class SafeLegendaryWorldEvents {
     this._registerLegendaryObject('meshes', beaconRing);
 
     const veilSheet = this._createLegendaryMesh(
-      new THREE.PlaneGeometry(540, 220),
+      this._createLegendaryOrganicPlane(540, 220, 14, 8, 0.05, 2.8),
       this._createLegendaryMeshMaterial({
         color: palette.deep,
         map: auroraTexture,
@@ -2148,7 +2172,7 @@ export class SafeLegendaryWorldEvents {
     this._registerLegendaryObject('overlays', veilSheet);
 
     const crownSheet = this._createLegendaryMesh(
-      new THREE.PlaneGeometry(420, 120),
+      this._createLegendaryOrganicPlane(420, 120, 12, 6, 0.06, 3.0),
       this._createLegendaryMeshMaterial({
         color: palette.base,
         map: auroraTexture,
@@ -2186,7 +2210,7 @@ export class SafeLegendaryWorldEvents {
     const curtainPositions = [-112, -42, 36, 108];
     for (let i = 0; i < curtainPositions.length; i++) {
       const curtain = this._createLegendaryMesh(
-        new THREE.PlaneGeometry(340, 148),
+        this._createLegendaryOrganicPlane(340, 148, 12, 6, 0.07, 3.5),
         this._createLegendaryMeshMaterial({
           color: i % 2 === 0 ? palette.base : palette.aura,
           map: auroraTexture,

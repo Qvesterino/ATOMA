@@ -829,6 +829,31 @@ export class SafeAIWeatherPack {
     });
   }
 
+  /**
+   * Create organic plane geometry with displaced edges to avoid flat square silhouettes.
+   * Replaces raw PlaneGeometry for atmospheric VFX layers.
+   */
+  _createOrganicPlane(width, height, wSegs = 8, hSegs = 4, edgeAmplitude = 0.06, waveFreq = 3.0) {
+    const geo = new THREE.PlaneGeometry(width, height, wSegs, hSegs);
+    const pos = geo.attributes.position;
+    const halfW = width * 0.5;
+    const halfH = height * 0.5;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const edgeDistX = Math.abs(Math.abs(x) - halfW) / Math.max(0.001, halfW);
+      const edgeDistY = Math.abs(Math.abs(y) - halfH) / Math.max(0.001, halfH);
+      const edgeFactor = 1.0 - Math.min(edgeDistX, edgeDistY);
+      // Displace Z (depth) on edge vertices to break rectangular silhouette
+      const wave = Math.sin(x * waveFreq * 0.1 + y * waveFreq * 0.07) * edgeAmplitude;
+      const edgeWave = Math.sin(x * waveFreq * 0.15 + y * 0.3) * edgeAmplitude * 0.5;
+      pos.setZ(i, pos.getZ(i) + (wave * edgeFactor + edgeWave * edgeFactor * edgeFactor));
+    }
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
+    return normalizeEnvironmentGeometry(geo);
+  }
+
   _createVeilCurtains(color, count, options = {}) {
     const veils = [];
     const width = options.width ?? 180;
@@ -839,7 +864,7 @@ export class SafeAIWeatherPack {
     const bucket = options.bucket ?? 'veils';
 
     for (let i = 0; i < count; i++) {
-      const geometry = this._getSharedGeometry(`weather.veil.${signature}.${i}`, () => new THREE.PlaneGeometry(width, height, 1, 1));
+      const geometry = this._getSharedGeometry(`weather.veil.${signature}.${i}`, () => this._createOrganicPlane(width, height, 10, 6, 0.08, 3.5));
       const material = this._createWeatherMaterial(color, 0);
       const veil = new THREE.Mesh(geometry, material);
       veil.position.set(
@@ -910,7 +935,7 @@ export class SafeAIWeatherPack {
 
     for (let i = 0; i < count; i++) {
       const length = (options.length ?? 64) * (0.82 + Math.random() * 0.45);
-      const geometry = this._getSharedGeometry(`weather.seam.${signature}.${i}`, () => new THREE.PlaneGeometry(length, options.thickness ?? 1.8));
+      const geometry = this._getSharedGeometry(`weather.seam.${signature}.${i}`, () => this._createOrganicPlane(length, options.thickness ?? 1.8, 14, 2, 0.12, 5.0));
       const material = this._createWeatherMaterial(color, 0);
       const seam = new THREE.Mesh(geometry, material);
       seam.position.set(
@@ -968,7 +993,7 @@ export class SafeAIWeatherPack {
 
   _createAtmosphericWash(color, opacity, depth) {
     const size = 320;
-    const geo = this._getSharedGeometry(`atmosphere.wash.${color}.${depth}`, () => new THREE.PlaneGeometry(size, size));
+    const geo = this._getSharedGeometry(`atmosphere.wash.${color}.${depth}`, () => new THREE.CircleGeometry(size * 0.5, 48));
     const texture = this._createGradientTexture(color, 0x05131A);
     const mat = this._getSharedMaterial(`atmosphere.washMat.${color}.${depth}`, () => new THREE.MeshBasicMaterial({
       map: texture,
@@ -990,7 +1015,7 @@ export class SafeAIWeatherPack {
     for (let i = 0; i < count; i++) {
       const width = 260 - i * 20;
       const height = 110;
-      const geo = this._getSharedGeometry(`haze.sheet.${color}.${i}`, () => new THREE.PlaneGeometry(width, height));
+      const geo = this._getSharedGeometry(`haze.sheet.${color}.${i}`, () => this._createOrganicPlane(width, height, 8, 5, 0.07, 2.8));
       const texture = this._createGradientTexture(color, 0x05131A);
       const mat = this._getSharedMaterial(`haze.sheetMat.${color}.${i}`, () => new THREE.MeshBasicMaterial({
         map: texture,
@@ -1018,7 +1043,7 @@ export class SafeAIWeatherPack {
     const clouds = [];
     for (let i = 0; i < count; i++) {
       const size = 22 + Math.random() * 16;
-      const geo = this._getSharedGeometry(`pulseCloud.${color}.${i}`, () => new THREE.PlaneGeometry(size, size));
+      const geo = this._getSharedGeometry(`pulseCloud.${color}.${i}`, () => new THREE.CircleGeometry(size * 0.5, 32));
       const texture = this._createGradientTexture(color, 0x05131A);
       const mat = new THREE.MeshBasicMaterial({
         map: texture,
@@ -1049,7 +1074,7 @@ export class SafeAIWeatherPack {
   _createAuroraRibbons(color, count) {
     const ribbons = [];
     for (let i = 0; i < count; i++) {
-      const geo = this._getSharedGeometry(`aurora.ribbon.${color}.${i}`, () => new THREE.PlaneGeometry(260, 14));
+      const geo = this._getSharedGeometry(`aurora.ribbon.${color}.${i}`, () => this._createOrganicPlane(260, 14, 20, 3, 0.1, 4.2));
       const texture = this._createGradientTexture(color, 0x05131A);
       const mat = this._getSharedMaterial(`aurora.ribbonMat.${color}.${i}`, () => new THREE.MeshBasicMaterial({
         map: texture,
@@ -1077,7 +1102,7 @@ export class SafeAIWeatherPack {
   _createPressureBands(color, count) {
     const bands = [];
     for (let i = 0; i < count; i++) {
-      const geo = this._getSharedGeometry(`pressure.band.${color}.${i}`, () => new THREE.PlaneGeometry(320, 10));
+      const geo = this._getSharedGeometry(`pressure.band.${color}.${i}`, () => this._createOrganicPlane(320, 10, 18, 2, 0.09, 3.8));
       const texture = this._createGradientTexture(color, 0x05131A);
       const mat = this._getSharedMaterial(`pressure.bandMat.${color}.${i}`, () => new THREE.MeshBasicMaterial({
         map: texture,

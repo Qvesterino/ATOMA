@@ -52,6 +52,11 @@ export class LinkCollapseSystem {
       ? config.worldContextProvider
       : (typeof config.getWorldContext === 'function' ? config.getWorldContext : null);
     
+    // Global metrics provider — reads from MetricsRuntime or __ATOMA_LIVE_METRICS__
+    this.globalMetricsProvider = typeof config.globalMetricsProvider === 'function'
+      ? config.globalMetricsProvider
+      : null;
+
     // Configuration with sensible defaults
     this.config = {
       // Scoped tier thresholds for collapse eligibility
@@ -69,6 +74,14 @@ export class LinkCollapseSystem {
       
       // Recovery rate when conditions improve (progress per second)
       stressRecoveryRate: config.stressRecoveryRate ?? 0.35,        // -0.35 per sec
+
+      // ── Global metrics influence on collapse ──────────────────────────
+      // When network-level corruption is high, collapse stress accumulates faster.
+      // When network-level stability is low, collapse stress accumulates faster.
+      // Both create a multiplier on the base stress accumulation rate.
+      globalCorruptionAccelerator: config.globalCorruptionAccelerator ?? 1.5,   // stress speed multiplier at max global corruption
+      globalStabilityAccelerator: config.globalStabilityAccelerator ?? 1.4,     // stress speed multiplier at min global stability
+      globalMetricsEnabled: config.globalMetricsEnabled ?? true,                 // set false to disable global influence
       
       // Enable visual feedback hooks
       enableVisualFeedback: config.enableVisualFeedback ?? true,
@@ -338,6 +351,60 @@ export class LinkCollapseSystem {
   }
   
   /**
+   * Read global network metrics from MetricsRuntime or __ATOMA_LIVE_METRICS__.
+   * Returns { corruption, stability } normalized to [0..1].
+   * @private
+   */
+  _readGlobalMetrics() {
+    const defaults = { corruption: 0, stability: 1 };
+
+    // Priority 1: explicit provider function
+    if (this.globalMetricsProvider) {
+      try {
+        const m = this.globalMetricsProvider();
+        if (m && typeof m === 'object') {
+          return {
+            corruption: this._clamp01(m.corruption ?? m.corruptionLevel ?? 0),
+            stability: this._clamp01(m.stability ?? 1),
+          };
+        }
+      } catch (_e) { /* fall through */ }
+    }
+
+    // Priority 2: __ATOMA_LIVE_METRICS__ global
+    try {
+      const live = (typeof globalThis !== 'undefined') ? globalThis.__ATOMA_LIVE_METRICS__ : null;
+      if (live && typeof live === 'object') {
+        return {
+          corruption: this._clamp01(live.corruptionLevel ?? live.corruption ?? 0),
+          stability: this._clamp01(live.networkStress != null ? (1 - live.networkStress) : (live.stability ?? 1)),
+        };
+      }
+    } catch (_e) { /* fall through */ }
+
+    return defaults;
+  }
+
+  /**
+   * Compute global metrics stress multiplier.
+   * When global corruption is high and global stability is low,
+   * collapse stress accumulates faster (network-wide pressure).
+   * Returns a multiplier >= 1.0.
+   * @private
+   */
+  _computeGlobalStressMultiplier() {
+    if (!this.config.globalMetricsEnabled) return 1.0;
+
+    const gm = this._readGlobalMetrics();
+    // corruption contribution: 0→1.0, 1→globalCorruptionAccelerator
+    const corruptionFactor = 1 + (gm.corruption * (this.config.globalCorruptionAccelerator - 1));
+    // stability contribution: 1→1.0, 0→globalStabilityAccelerator
+    const stabilityFactor = 1 + ((1 - gm.stability) * (this.config.globalStabilityAccelerator - 1));
+
+    return corruptionFactor * stabilityFactor;
+  }
+
+  /**
    * Update collapse state for a single link (meaning-only; enqueue collapse request)
    * @private
    */
@@ -353,12 +420,17 @@ export class LinkCollapseSystem {
 
     this._syncTierSignals(link, state, metrics, now, eligibility, options);
 
+    // Global stress multiplier — accelerates collapse under network-wide pressure
+    const globalMultiplier = this._computeGlobalStressMultiplier();
+
     if (isEligible) {
       if (state.eligibleSince == null) {
         state.eligibleSince = now;
       }
       const elapsed = Math.max(0, now - state.eligibleSince);
-      state.stressAccumulation = this._clamp01(elapsed / this.config.holdDurationMs);
+      // Base accumulation + global acceleration
+      const effectiveDuration = this.config.holdDurationMs / globalMultiplier;
+      state.stressAccumulation = this._clamp01(elapsed / effectiveDuration);
       state.lastStressTime = now;
     } else {
       const deltaMs = Math.max(0, now - (state.lastUpdatedAt ?? now));

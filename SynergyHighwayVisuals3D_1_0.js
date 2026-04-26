@@ -1094,8 +1094,22 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
         fd.material.opacity = config.clusterFieldOpacity * (0.5 + avgSynergy);
         fd.avgSynergy = avgSynergy;
       } else {
-        // Create new field
-        const geometry = new (THREE.SphereGeometry || function() {})(1, 16, 12);
+        // Create new field — organic icosahedron with vertex noise for non-square silhouette
+        const baseGeo = new (THREE.IcosahedronGeometry || function() {})(1, 3);
+        const posAttr = baseGeo.attributes?.position;
+        if (posAttr) {
+          for (let vi = 0; vi < posAttr.count; vi++) {
+            const vx = posAttr.getX(vi);
+            const vy = posAttr.getY(vi);
+            const vz = posAttr.getZ(vi);
+            const len = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1;
+            const noise = 1.0 + Math.sin(vx * 5.3 + vy * 4.1) * 0.08 + Math.cos(vz * 6.7 + vx * 3.2) * 0.06;
+            posAttr.setXYZ(vi, (vx / len) * noise, (vy / len) * noise, (vz / len) * noise);
+          }
+          posAttr.needsUpdate = true;
+          baseGeo.computeVertexNormals();
+        }
+        const geometry = baseGeo;
         const material = new (THREE.MeshBasicMaterial || function() {})({
           color,
           transparent: true,

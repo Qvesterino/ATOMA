@@ -1110,6 +1110,74 @@ export class AtomaAudioSystem {
         this.synergySynth.triggerAttackRelease("E2", "8n", now + 0.15, 0.12);
     }
 
+    // ====================================================================
+    // LINK COLLAPSE AUDIO — Multi-phase dramatic event sounds
+    // ====================================================================
+
+    /**
+     * Phase 1: Warning — Low tension drone, subtle dissonance.
+     * Link is unstable, corruption is rising.
+     */
+    playCollapseWarning(link, state) {
+        if (!this.initialized || !this.enabled) return;
+        if (!this.canTrigger('collapse:warning', 3000)) return;
+        const now = Tone.now();
+        // Dissonant minor second: B2 → C3 (uneasy tension)
+        this.eventLeadSynth.triggerAttackRelease("B2", "2n", now, 0.18);
+        this.eventLeadSynth.triggerAttackRelease("C3", "2n", now + 0.05, 0.14);
+    }
+
+    /**
+     * Phase 2: Critical — Rising tension, metallic scrape, heartbeat pulse.
+     * Link is about to collapse.
+     */
+    playCollapseCritical(link, state) {
+        if (!this.initialized || !this.enabled) return;
+        if (!this.canTrigger('collapse:critical', 2000)) return;
+        const now = Tone.now();
+        // Metallic scrape: filtered noise burst
+        this.eventNoiseSynth.triggerAttackRelease("8n", now, 0.15);
+        // Rising tension: tritone A2 → D#3 → A3 (danger escalation)
+        this.eventAccentSynth.triggerAttackRelease("A2", "8n", now + 0.1, 0.2);
+        this.eventAccentSynth.triggerAttackRelease("D#3", "16n", now + 0.2, 0.22);
+        this.eventAccentSynth.triggerAttackRelease("A3", "16n", now + 0.3, 0.18);
+        // Heartbeat thud
+        this.worldDroneSynth.triggerAttackRelease("E2", "8n", now + 0.15, 0.15);
+        this.worldDroneSynth.triggerAttackRelease("E2", "8n", now + 0.35, 0.1);
+    }
+
+    /**
+     * Phase 3: Collapse — Deep impact, resonance decay, silence after.
+     * The link breaks. This is the dramatic climax.
+     */
+    playLinkCollapse(link, state, position) {
+        if (!this.initialized || !this.enabled) return;
+        if (!this.canTrigger('collapse:final', 5000)) return;
+        const now = Tone.now();
+        // Deep impact: low C1-C2 rumble
+        this.worldDroneSynth.triggerAttackRelease("C1", "4n", now, 0.35);
+        this.worldDroneSynth.triggerAttackRelease("C2", "4n", now + 0.03, 0.28);
+        // Noise burst: energy discharge
+        this.unlinkSynth.triggerAttackRelease("4n", now, 0.3);
+        // Resonance decay: high harmonic fading
+        this.synergySynth.triggerAttackRelease("E5", "2n", now + 0.15, 0.15);
+        this.synergySynth.triggerAttackRelease("C5", "2n", now + 0.2, 0.12);
+        // Final low decay
+        this.worldDroneSynth.triggerAttackRelease("A1", "1n", now + 0.4, 0.1);
+    }
+
+    /**
+     * Recovery — Gentle resolution when link recovers from warning/critical.
+     */
+    playCollapseRecovery(link, state) {
+        if (!this.initialized || !this.enabled) return;
+        if (!this.canTrigger('collapse:recovery', 2000)) return;
+        const now = Tone.now();
+        // Gentle ascending resolution: C4 → E4 (relief)
+        this.synergySynth.triggerAttackRelease("C4", "8n", now, 0.15);
+        this.synergySynth.triggerAttackRelease("E4", "8n", now + 0.08, 0.12);
+    }
+
     playRoutedEventAudio(payload = {}, eventName = 'semantic.event') {
         if (!this.initialized || !this.enabled) return;
 

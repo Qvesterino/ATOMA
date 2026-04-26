@@ -63,6 +63,8 @@ import { CONFIG } from './config.js';
 import { FrameClock } from './FrameClock.js';
 import { FrameScheduler } from './FrameScheduler.js';
 import { LinkCollapseSystem } from './LinkCollapseSystem.js';
+import { LinkCollapseEventFX, validateLinkCollapseEventFX } from './LinkCollapseEventFX.js';
+import { AtomaLeaderboard, validateAtomaLeaderboard } from './AtomaLeaderboard.js';
 import { DistanceLODController } from './DistanceLODController.js';
 import { VFXRuntimeLoader } from './src/vfx/VFXRuntimeLoader.js';
 import { VFX_SYSTEMS } from './src/vfx/VFXSystemRegistry.js';
@@ -9731,7 +9733,11 @@ window.__ATOMA_SCENE__ = this.scene;
                 debugMode: false,
                 frameScheduler: this.frameScheduler,
                 semanticBus: this.semanticBus,
-                worldContextProvider: () => this._getCanonicalWorldContext()
+                worldContextProvider: () => this._getCanonicalWorldContext(),
+                // Global metrics provider — reads from __ATOMA_LIVE_METRICS__
+                globalMetricsEnabled: true,
+                globalCorruptionAccelerator: 1.5,
+                globalStabilityAccelerator: 1.4,
             }
         );
         this.linkCollapseSystem.frameScheduler = this.frameScheduler;
@@ -9755,6 +9761,34 @@ window.__ATOMA_SCENE__ = this.scene;
             window.linkCollapseSystem = this.linkCollapseSystem;
         }
         console.log('[main.js] LinkCollapseSystem initialized ✓');
+
+        // ===================================================================
+        // LINK COLLAPSE EVENT FX — Multi-phase visual/audio for link collapse
+        // ===================================================================
+        this.linkCollapseEventFX = new LinkCollapseEventFX(
+            this.linkCollapseSystem,
+            this.audioSystem,
+            { semanticBus: this.semanticBus, debugMode: false }
+        );
+        this.linkCollapseEventFX.attach();
+        if (typeof window !== 'undefined') {
+            window.linkCollapseEventFX = this.linkCollapseEventFX;
+        }
+        validateLinkCollapseEventFX();
+        console.log('[main.js] LinkCollapseEventFX initialized ✓');
+
+        // ===================================================================
+        // LEADERBOARD — Score calculation and persistence
+        // ===================================================================
+        this.leaderboard = new AtomaLeaderboard({
+            maxEntries: 20,
+            defaultPlayerName: 'OPERATOR',
+        });
+        if (typeof window !== 'undefined') {
+            window.atomaLeaderboard = this.leaderboard;
+        }
+        validateAtomaLeaderboard();
+        console.log('[main.js] AtomaLeaderboard initialized ✓');
         
         // REMOVED: ParticleEmissionScaler initialization — moved to LEGACY/april (2026-04-22)
 
@@ -11287,6 +11321,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             // Store score state for HUD and other consumers
             window.__ATOMA_NETWORK_TIME__ = this.visualNetworkTimeElasticity.getNetworkTime();
             window.__ATOMA_SCORE_DIRECTION__ = this.visualNetworkTimeElasticity.getDirection();
+        }
+
+        // Update LinkCollapseEventFX (shockwave animations, burst lifecycle)
+        if (this.linkCollapseEventFX) {
+            this.linkCollapseEventFX.update(deltaTime);
         }
     }
 
@@ -16418,12 +16457,36 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     }
 
     /**
-     * Handle game won — freeze simulation, show victory overlay.
+     * Handle game won — calculate score, submit to leaderboard, show victory overlay.
      */
     _handleGameWon(payload) {
         // Pause the simulation — game is won
         if (this.frameScheduler) {
             console.log('[NetworkTimeScore] Simulation paused — victory state active');
+        }
+
+        // ── Calculate score and submit to leaderboard ───────────────────
+        let leaderboardResult = null;
+        if (this.leaderboard) {
+            const sessionStats = this.visualNetworkTimeElasticity?.getSessionStats?.() ?? {};
+            const runData = {
+                gameTime: payload.gameTime ?? 0,
+                avgSynergy: payload.avgSynergy ?? 0,
+                peakNT: this.visualNetworkTimeElasticity?._peakNT ?? 0,
+                effectiveRewindSpeed: this.visualNetworkTimeElasticity?._lastEffectiveRewindSpeed ?? 3,
+                maxCombo: this.visualNetworkTimeElasticity?._comboCount ?? 0,
+                totalCollapses: this.linkCollapseSystem?.getCollapseStatistics?.()?.collapsedLinksTracked ?? 0,
+                totalRewindTime: parseFloat(sessionStats.totalRewindTime) || 0,
+                world: this.currentMode ?? 'default',
+                nodeCount: this.aiNodes?.nodes?.length ?? 0,
+                linkCount: this.linkingSystem?.links?.length ?? 0,
+            };
+            leaderboardResult = this.leaderboard.submitRun(runData);
+            console.log('%c📊 Score: ' + leaderboardResult.score.toLocaleString() + ' (Rank #' + leaderboardResult.rank + ')',
+                'color: #00d4ff; font-size: 14px; font-weight: bold;');
+            if (leaderboardResult.isNewBest) {
+                console.log('%c🌟 NEW BEST SCORE!', 'color: #ffd700; font-size: 16px; font-weight: bold;');
+            }
         }
 
         // Dispatch semantic event for other systems to react
@@ -16432,18 +16495,23 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 networkTime: 0,
                 gameTime: payload.gameTime,
                 avgSynergy: payload.avgSynergy,
+                score: leaderboardResult?.score ?? 0,
+                rank: leaderboardResult?.rank ?? -1,
+                isNewBest: leaderboardResult?.isNewBest ?? false,
                 source: 'NetworkTimeScore'
             }, { priority: this.semanticBus.priority?.CRITICAL });
         }
 
-        // Show victory overlay
-        this._showVictoryOverlay(payload);
+        // Show victory overlay with score
+        this._showVictoryOverlay(payload, leaderboardResult);
     }
 
     /**
-     * Show full-screen victory overlay with stats and Play Again button.
+     * Show full-screen victory overlay with stats, score, and Play Again button.
+     * @param {Object} payload - Win event payload
+     * @param {Object} [leaderboardResult] - { score, rank, isNewBest, breakdown }
      */
-    _showVictoryOverlay(payload) {
+    _showVictoryOverlay(payload, leaderboardResult = null) {
         // Prevent duplicate overlays
         if (document.getElementById('atoma-victory-overlay')) return;
 
@@ -16463,6 +16531,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         const worldName = this.currentMode ? String(this.currentMode).toUpperCase() : '--';
         const worldConfig = AtomaGame.WORLD_SCORE_CONFIG?.[this.currentMode];
         const difficulty = worldConfig ? `${worldConfig.sustainDuration}s / ${worldConfig.rewindSpeed}x` : 'Default';
+
+        // Score display
+        const scoreStr = leaderboardResult?.score ? leaderboardResult.score.toLocaleString() : '--';
+        const rankStr = leaderboardResult?.rank ? `#${leaderboardResult.rank}` : '--';
+        const newBestBadge = leaderboardResult?.isNewBest ? '<div style="color:#ffd700;font-size:12px;font-weight:700;letter-spacing:0.1em;margin-top:4px">★ NEW BEST ★</div>' : '';
 
         const overlay = document.createElement('div');
         overlay.id = 'atoma-victory-overlay';
@@ -16521,6 +16594,20 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     color: rgba(0, 255, 136, 0.5);
                     margin-bottom: 32px;
                 }
+                .victory-score {
+                    font-size: 36px;
+                    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+                    font-weight: 700;
+                    color: #00d4ff;
+                    text-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+                    margin-bottom: 4px;
+                }
+                .victory-rank {
+                    font-size: 11px;
+                    letter-spacing: 0.15em;
+                    color: rgba(0, 212, 255, 0.5);
+                    margin-bottom: 24px;
+                }
                 .victory-stats {
                     display: grid;
                     grid-template-columns: 1fr 1fr;
@@ -16545,6 +16632,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     font-weight: 600;
                     color: #00d4ff;
                 }
+                .victory-buttons {
+                    display: flex;
+                    gap: 12px;
+                    justify-content: center;
+                }
                 .victory-button {
                     display: inline-block;
                     padding: 12px 36px;
@@ -16565,11 +16657,25 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     border-color: rgba(0, 255, 136, 0.6);
                     box-shadow: 0 0 20px rgba(0, 255, 136, 0.15);
                 }
+                .victory-button.secondary {
+                    background: rgba(0, 212, 255, 0.08);
+                    border-color: rgba(0, 212, 255, 0.25);
+                    color: #00d4ff;
+                    padding: 12px 24px;
+                }
+                .victory-button.secondary:hover {
+                    background: rgba(0, 212, 255, 0.15);
+                    border-color: rgba(0, 212, 255, 0.5);
+                    box-shadow: 0 0 15px rgba(0, 212, 255, 0.1);
+                }
             </style>
             <div class="victory-card">
                 <div class="victory-icon">🏆</div>
                 <div class="victory-title">Network Collapsed</div>
                 <div class="victory-subtitle">Network Time reached zero</div>
+                <div class="victory-score">${scoreStr}</div>
+                <div class="victory-rank">Rank ${rankStr}</div>
+                ${newBestBadge}
                 <div class="victory-stats">
                     <div class="victory-stat">
                         <div class="victory-stat-label">⏱ Game Time</div>
@@ -16604,7 +16710,10 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                         <div class="victory-stat-value">${worldName} <span style="font-size:10px;color:rgba(200,225,245,0.4)">${difficulty}</span></div>
                     </div>
                 </div>
-                <button class="victory-button" id="atoma-victory-play-again">Play Again</button>
+                <div class="victory-buttons">
+                    <button class="victory-button" id="atoma-victory-play-again">Play Again</button>
+                    <button class="victory-button secondary" id="atoma-victory-leaderboard">Leaderboard</button>
+                </div>
             </div>
         `;
 
@@ -16617,6 +16726,16 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this._resetGame();
             });
         }
+
+        // Wire Leaderboard button
+        const leaderboardBtn = document.getElementById('atoma-victory-leaderboard');
+        if (leaderboardBtn && this.leaderboard) {
+            leaderboardBtn.addEventListener('click', () => {
+                this.leaderboard.showOverlay({
+                    highlightRank: leaderboardResult?.rank ?? null,
+                });
+            });
+        }
     }
 
     /**
@@ -16626,6 +16745,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // Remove victory overlay
         const overlay = document.getElementById('atoma-victory-overlay');
         if (overlay) overlay.remove();
+
+        // Hide leaderboard overlay if open
+        if (this.leaderboard) {
+            this.leaderboard.hideOverlay();
+        }
 
         // Reset score system
         if (this.visualNetworkTimeElasticity) {

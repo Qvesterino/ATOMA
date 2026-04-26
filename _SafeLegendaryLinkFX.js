@@ -449,7 +449,8 @@ export class SafeLegendaryLinkFX {
    * Create fractal panel
    */
   createFractalPanel(curvePoints, index, params) {
-    const geo = new THREE.BoxGeometry(0.3, 0.3, 0.02);
+    // Octahedron diamond instead of flat square
+    const geo = new THREE.OctahedronGeometry(0.16, 0);
     const mat = this.getMaterial(
       `fractal-panel-${params.panelColor}`,
       () => new THREE.MeshStandardMaterial({
@@ -664,7 +665,8 @@ export class SafeLegendaryLinkFX {
    * Create sigma glitch frame
    */
   createSigmaFrame(curvePoints, params) {
-    const geo = new THREE.BoxGeometry(0.2, 0.2, 0.01);
+    // Tetrahedron shard instead of flat square
+    const geo = new THREE.TetrahedronGeometry(0.14, 0);
     const mat = this.getMaterial(
       `sigma-frame-${params.frameColor}`,
       () => new THREE.MeshStandardMaterial({
