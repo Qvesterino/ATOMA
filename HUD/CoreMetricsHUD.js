@@ -922,8 +922,8 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
     // ── Drama Zone (Phase 4C) ──────────────────────────────────────────
     const inDramaZone = this._scoreSystem.isInDramaZone?.() ?? false;
     // Golden border on HUD container
-    if (this.container) {
-      this.container.classList.toggle('drama-zone', inDramaZone);
+    if (this.hudContainer) {
+      this.hudContainer.classList.toggle('drama-zone', inDramaZone);
     }
     // Golden sustain fill
     if (this.hudElements.sustainProgress) {

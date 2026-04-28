@@ -5,7 +5,7 @@
  *
  * 🎮 GAMEPLAY SCORE (primary):
  * - Network Time counts FORWARD at 5 units/sec (pressure)
- * - When avgSynergy >= 0.82 sustained for 7+ seconds → Network Time REWINDS at 3 units/sec
+ * - When canonical global.synergy.high is sustained for 7+ seconds → Network Time REWINDS at 3 units/sec
  * - If synergy drops → Network Time resumes FORWARD
  * - Win condition: Network Time reaches 0 → game won
  * - No game over — player can try forever
@@ -28,6 +28,10 @@
  * - Emits: score:forward, score:rewinding, score:won events via semanticBus
  */
 
+import { getDefaultMetricThresholds } from './src/metrics/MetricTierClassifier.js';
+
+const DEFAULT_REWIND_SYNERGY_THRESHOLD = getDefaultMetricThresholds('synergy').high;
+
 // Direction states
 export const SCORE_DIRECTION = Object.freeze({
   FORWARD: 'FORWARD',
@@ -43,7 +47,7 @@ export class VisualNetworkTimeElasticity_v1 {
     // ── Score configuration ─────────────────────────────────────────
     this._forwardSpeed = config.forwardSpeed ?? 5;        // base units/sec counting up
     this._rewindSpeed = config.rewindSpeed ?? 3;          // base units/sec counting down (slower = harder)
-    this._synergyThreshold = config.synergyThreshold ?? 0.82;  // aligned with MetricsRuntime global.synergy.high
+    this._synergyThreshold = config.synergyThreshold ?? DEFAULT_REWIND_SYNERGY_THRESHOLD;  // canonical global.synergy.high
     this._sustainDuration = config.sustainDuration ?? 7.0;     // seconds of sustained high synergy
 
     // ── Phase 4: Dynamic speed scaling ──────────────────────────────
@@ -690,7 +694,7 @@ export class VisualNetworkTimeElasticity_v1 {
 // Quick validation function
 export function validateVisualNetworkTimeElasticity() {
   console.log('✓ VisualNetworkTimeElasticity_v2.1 (Network Time Score + Dynamic Speeds) loaded');
-  console.log('  - Trigger: avgSynergy >= 0.82 for 7+ seconds');
+  console.log(`  - Trigger: canonical global.synergy.high (>= ${DEFAULT_REWIND_SYNERGY_THRESHOLD}) for 7+ seconds`);
   console.log('  - Forward: 5 base units/sec (escalates with Network Time)');
   console.log('  - Rewind: 3 base units/sec (scales with synergy quality above threshold)');
   console.log('  - Win: Network Time reaches 0');
@@ -699,5 +703,3 @@ export function validateVisualNetworkTimeElasticity() {
   console.log('  - Visual: time rewind at 40% speed (preserved from v1)');
   console.log('  - Events: score:forward, score:rewinding, score:won');
 }
-
-

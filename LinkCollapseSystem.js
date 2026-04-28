@@ -94,6 +94,7 @@ export class LinkCollapseSystem {
     this.collapseStates = new Map();           // linkId → collapseState
     this.linkWarningStates = new Set();        // linkIds currently in warning state
     this.linkCriticalStates = new Set();       // linkIds currently in critical state
+    this.totalCollapses = 0;                   // completed collapse events this run
     
     // Event system
     this.eventHandlers = {
@@ -603,6 +604,7 @@ export class LinkCollapseSystem {
     const linkId = this._getLinkId(link);
     this.linkWarningStates.delete(linkId);
     this.linkCriticalStates.delete(linkId);
+    this.totalCollapses += 1;
     
     if (this.config.enableVisualFeedback) {
       this._setVisualFlag(link, 'collapseWarning', false);
@@ -741,6 +743,7 @@ export class LinkCollapseSystem {
       warningLinks: this.linkWarningStates.size,
       criticalLinks: this.linkCriticalStates.size,
       collapsedLinksTracked: this.collapseStates.size,
+      totalCollapses: this.totalCollapses,
       averageStress: this._computeAverageStress(),
       averageCollapseProgress: this._computeAverageStress(),
     };
@@ -847,8 +850,8 @@ export class LinkCollapseSystem {
 
   _readNormalizedMetrics(link, metrics = null) {
     const corruption = this._clamp01(this._readMetric(
-      metrics?.corruption,
       link?.userData?.metrics?.corruption,
+      metrics?.corruption,
       link?.corruptionLevel,
       link?.corruptionIntensity
     ));
@@ -863,8 +866,8 @@ export class LinkCollapseSystem {
     );
 
     const stability = this._clamp01(this._readMetric(
-      metrics?.stability,
       link?.userData?.metrics?.stability,
+      metrics?.stability,
       link?.stability,
       link?.stabilityLevel,
       endpointStability,
@@ -875,8 +878,8 @@ export class LinkCollapseSystem {
     ));
 
     const loadPressure = this._clamp01(this._readMetric(
-      metrics?.loadPressure,
       link?.userData?.metrics?.loadPressure,
+      metrics?.loadPressure,
       link?.loadPressure,
       this._readLoadMetric(link?.source),
       this._readLoadMetric(link?.target)
@@ -993,6 +996,7 @@ export class LinkCollapseSystem {
     this.collapseStates.clear();
     this.linkWarningStates.clear();
     this.linkCriticalStates.clear();
+    this.totalCollapses = 0;
   }
   
   /**

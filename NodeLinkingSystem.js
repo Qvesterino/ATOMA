@@ -5879,11 +5879,33 @@ getLinksForNode(node) {
     const source = sourceNode.userData.metrics;
     const target = targetNode.userData.metrics;
 
+    const readMetric = (...values) => {
+      for (const value of values) {
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+      }
+      return undefined;
+    };
+
+    const sourceStability = readMetric(source.stability, 1 - source.instability, 1);
+    const targetStability = readMetric(target.stability, 1 - target.instability, 1);
+    const sourceLoad = readMetric(source.loadPressure, source.load, source.loadRatio, 0);
+    const targetLoad = readMetric(target.loadPressure, target.load, target.loadRatio, 0);
+    const sourceHarmony = readMetric(source.harmony, 0);
+    const targetHarmony = readMetric(target.harmony, 0);
+    const sourceSynergy = readMetric(source.synergy, 0);
+    const targetSynergy = readMetric(target.synergy, 0);
+    const sourceCorruption = readMetric(source.corruption, 0);
+    const targetCorruption = readMetric(target.corruption, 0);
+    const avgStability = Math.max(0, Math.min(1, (sourceStability + targetStability) * 0.5));
+
     // Calculate link metrics from node metrics
     const metrics = {
-      harmony: (source.harmony + target.harmony) * 0.5,
-      synergy: (source.synergy + target.synergy) * 0.5,
-      corruption: Math.max(source.corruption, target.corruption),
+      harmony: (sourceHarmony + targetHarmony) * 0.5,
+      synergy: (sourceSynergy + targetSynergy) * 0.5,
+      corruption: Math.max(sourceCorruption, targetCorruption),
+      stability: avgStability,
+      instability: Math.max(0, Math.min(1, 1 - avgStability)),
+      loadPressure: Math.max(0, Math.min(1, (sourceLoad + targetLoad) * 0.5)),
       energy: ((Number(source.energy) || 0) + (Number(target.energy) || 0)) * 0.5,
       __updatedAt: performance.now()
     };
@@ -6832,13 +6854,18 @@ getLinksForNode(node) {
     // Reads from: corruption engine, synergy computation, harmony stabilization
     // No computation happens here - purely wiring existing values
     if (link.id) {
+      const canonicalMetrics = link.userData?.metrics || {};
+      const snapshotMetrics = this.getLinkMetricsSnapshot?.(link) || {};
       const metrics = {
         // Corruption from existing corruption state or transmission engine
-        corruption: link.corruptionLevel ?? link.corruptionIntensity ?? 0,
+        corruption: canonicalMetrics.corruption ?? snapshotMetrics.corruption ?? link.corruptionLevel ?? link.corruptionIntensity ?? 0,
         // Synergy from existing computation engine
-        synergy: link['synergyScore'] ?? 0,
+        synergy: canonicalMetrics.synergy ?? snapshotMetrics.synergy ?? link['synergyScore'] ?? 0,
         // Harmony from existing stabilization system
-        harmony: link.harmonyScore ?? 0
+        harmony: canonicalMetrics.harmony ?? snapshotMetrics.harmony ?? link.harmonyScore ?? 0,
+        stability: canonicalMetrics.stability ?? snapshotMetrics.stability,
+        instability: canonicalMetrics.instability ?? snapshotMetrics.instability,
+        loadPressure: canonicalMetrics.loadPressure ?? snapshotMetrics.loadPressure
       };
       
       // Pass to visual system (applies color, pulse, emissive based on metrics)
@@ -7142,11 +7169,38 @@ getLinksForNode(node) {
   updateLinkMetrics(link, metrics = {}) {
     if (!link || !link.id || !this.visuals) return;
     
-    // Normalize metrics to 0-1 range if needed
+    const canonicalMetrics = link.userData?.metrics || {};
+    const readMetric = (...values) => {
+      for (const value of values) {
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+      }
+      return undefined;
+    };
+
+    const stabilityRaw = readMetric(
+      metrics.stability,
+      canonicalMetrics.stability,
+      link.stability,
+      link.stabilityLevel
+    );
+    const instabilityRaw = readMetric(
+      metrics.instability,
+      canonicalMetrics.instability,
+      link.instability,
+      link.instabilityLevel,
+      typeof stabilityRaw === 'number' ? 1 - stabilityRaw : undefined
+    );
+
+    // Normalize metrics to 0-1 range if needed. Keep the canonical link
+    // snapshot in the callback payload so collapse logic does not see a
+    // visual fallback value instead of real gameplay state.
     const normalized = {
-      corruption: this._normalizeMetric(metrics.corruption),
-      synergy: this._normalizeMetric(metrics.synergy),
-      harmony: this._normalizeMetric(metrics.harmony)
+      corruption: this._normalizeMetric(readMetric(metrics.corruption, canonicalMetrics.corruption, link.corruptionLevel, link.corruptionIntensity, 0)),
+      synergy: this._normalizeMetric(readMetric(metrics.synergy, canonicalMetrics.synergy, link['synergyScore'], 0)),
+      harmony: this._normalizeMetric(readMetric(metrics.harmony, canonicalMetrics.harmony, link.harmonyScore, 0)),
+      stability: this._normalizeMetric(readMetric(stabilityRaw, 0.5)),
+      instability: this._normalizeMetric(readMetric(instabilityRaw, 1 - (stabilityRaw ?? 0.5))),
+      loadPressure: this._normalizeMetric(readMetric(metrics.loadPressure, canonicalMetrics.loadPressure, link.loadPressure, link.traffic?.load, 0))
     };
     
     // Pass to visual system for real-time color/pulse updates
@@ -8337,6 +8391,11 @@ getLinksForNode(node) {
       reason: context.reason || 'collapse-threshold',
       severity: context.severity || 'critical',
       source: context.source || 'LinkCollapseSystem',
+      stressAccumulation: context.stressAccumulation,
+      corruption: context.corruption,
+      stability: context.stability,
+      loadPressure: context.loadPressure,
+      integrity: context.integrity,
       timestamp: Date.now(),
     };
     this.pendingCollapseRequests.push(request);

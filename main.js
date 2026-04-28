@@ -16380,7 +16380,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     
     /**
      * Setup Visual Network Time Elasticity v2.0 — Network Time Score System
-     * Gameplay score: counts UP at 5/sec, REWINDS at 3/sec when synergy >= 0.82 sustained 7s
+     * Gameplay score: counts UP at 5/sec, REWINDS at 3/sec when canonical global.synergy.high is sustained
      * Win condition: Network Time reaches 0
      * Visual: animation time reversal during rewind (preserved from v1)
      */
@@ -16438,7 +16438,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         validateVisualNetworkTimeElasticity();
         console.log('✓ Network Time Score System v2.0 initialized');
         console.log('  - Forward: 5 units/sec (pressure)');
-        console.log('  - Rewind: 3 units/sec (when synergy >= 0.82 sustained 7s)');
+        console.log('  - Rewind: 3 units/sec (when canonical global.synergy.high is sustained)');
         console.log('  - Win: Network Time reaches 0');
     }
 
@@ -16469,13 +16469,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         let leaderboardResult = null;
         if (this.leaderboard) {
             const sessionStats = this.visualNetworkTimeElasticity?.getSessionStats?.() ?? {};
+            const collapseStats = this.linkCollapseSystem?.getCollapseStatistics?.() ?? {};
             const runData = {
                 gameTime: payload.gameTime ?? 0,
                 avgSynergy: payload.avgSynergy ?? 0,
                 peakNT: this.visualNetworkTimeElasticity?._peakNT ?? 0,
                 effectiveRewindSpeed: this.visualNetworkTimeElasticity?._lastEffectiveRewindSpeed ?? 3,
                 maxCombo: this.visualNetworkTimeElasticity?._comboCount ?? 0,
-                totalCollapses: this.linkCollapseSystem?.getCollapseStatistics?.()?.collapsedLinksTracked ?? 0,
+                totalCollapses: collapseStats.totalCollapses ?? 0,
                 totalRewindTime: parseFloat(sessionStats.totalRewindTime) || 0,
                 world: this.currentMode ?? 'default',
                 nodeCount: this.aiNodes?.nodes?.length ?? 0,
