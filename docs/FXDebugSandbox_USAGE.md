@@ -155,6 +155,96 @@ FX.spawnAnimatedLinkFlow()      // Animated flow particles
 
 ---
 
+## Node FX Debug HUD
+
+The FXDebugSandbox includes a powerful HUD for toggling individual VFX systems on/off without restarting ATOMA.
+
+### Toggle HUD
+
+```javascript
+// Press 'L' key in browser
+// OR use console:
+FX.toggleNodeFxHud()
+FX.showNodeFxHud()  // Force show
+FX.hideNodeFxHud()  // Force hide
+```
+
+### System Categories in HUD
+
+The HUD organizes systems into groups:
+- **AI / Orbit** - Orbit, consciousness, cluster systems
+- **Glyph / Orbit** - Semantic, pictogram systems
+- **Link FX** - Ring, energy, fracture systems
+- **Node Core** - Evolution, node systems
+- **Corruption** - Corruption-related systems
+- **Healing / Rupture** - Healing, recovery systems
+- **Cascade / Wave** - Cascade, wave systems
+- **Waves / Particles** - Wave, particle systems
+- **Resonance** - Resonance, harmonic systems
+- **Glyph / Overlay** - Glyph, aura, overlay systems
+- **Aura / Visual** - Aura, visual systems
+- **Metrics / Overlay** - Metrics, inspect systems
+
+### Toggle Individual Systems
+
+```javascript
+// Toggle specific system (auto-detects current state)
+FX.toggleNodeFx('harmonicResonanceCoupling')
+FX.toggleNodeFx('aiConsciousnessLayer')
+FX.toggleNodeFx('linkSemanticPictogramSystem')
+FX.toggleNodeFx('cascadeResonanceWave')
+
+// Force enable/disable
+FX.toggleNodeFx('harmonicNodeResonanceHalos', true)   // Enable
+FX.toggleNodeFx('harmonicNodeResonanceHalos', false)  // Disable
+```
+
+### System States
+
+Each system shows one of four states:
+- **active** - System is enabled and running
+- **disabled** - System is present but disabled
+- **forced-off** - System is hard-disabled in code
+- **missing** - System is not present in game yet
+
+### Persistence
+
+All toggle states persist in localStorage:
+- States survive page refreshes
+- States persist across ATOMA restarts
+- Clear browser data to reset all states
+
+### View Available Systems
+
+```javascript
+// List all registered systems
+FX.listNodeFxRegistry()
+
+// Refresh registry (after game state changes)
+FX.refreshNodeFxRegistry()
+```
+
+### Key Systems from Metric Midpoint Audit
+
+These systems are now toggleable in the HUD:
+
+#### Tier 1 (High Probability)
+- `aiConsciousnessLayer` - AI Consciousness Layer (orbit LineLoop, ring stacks)
+- `linkSemanticPictogramSystem` - Link Semantic Pictogram System (orbiting glyphs)
+- `cascadeResonanceWave` - Cascade Resonance Wave (midpoint beam visualization)
+- `harmonicResonanceCoupling` - Harmonic Resonance Coupling (midpoint polyhedron)
+
+#### Tier 2 (Medium Probability)
+- `linkEnergyRingSystem` - Link Energy Ring System (ring geometries, icosahedron cores)
+
+#### Related Systems
+- `harmonicNodeResonanceHalos` - Harmonic Node Resonance Halos (metric-reactive halos)
+- `harmonicHubAuraSystem` - Harmonic Hub Aura System (hub auras)
+- `harmonicInfluencePropagation` - Harmonic Influence Propagation (influence spread)
+- `t2CorruptionVisualIntegration` - T2 Corruption Visual Integration (corruption colors)
+
+---
+
 ## System Management
 
 ### List Active Systems
@@ -174,6 +264,7 @@ FX.clear()
 ```javascript
 FX.update(deltaTime)
 ```
+  +++++++ REPLACE
 
 ---
 

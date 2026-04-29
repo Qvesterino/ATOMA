@@ -5,7 +5,7 @@ output/
 /legacy
 /LEGACY
 /docs
-
+LEGACY
 
 # Node.js dependencies and package manager output
 node_modules/

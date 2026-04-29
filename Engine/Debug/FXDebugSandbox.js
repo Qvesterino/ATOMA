@@ -359,16 +359,38 @@ class FXDebugSandbox {
 
   _guessGroupForIdentifier(identifier) {
     const id = String(identifier || '').toLowerCase();
-    if (id.includes('evolution')) return 'Node Core';
+    
+    // AI / Orbit systems
+    if (id.includes('orbit') || id.includes('consciousness') || id.includes('cluster')) return 'AI / Orbit';
+    
+    // Glyph / Orbit systems
+    if (id.includes('semantic') || id.includes('pictogram')) return 'Glyph / Orbit';
+    
+    // Link FX systems
+    if (id.includes('ring') || id.includes('energy') || id.includes('fracture')) return 'Link FX';
+    
+    // Node Core systems
+    if (id.includes('evolution') || id.includes('node')) return 'Node Core';
+    
+    // Corruption systems
     if (id.includes('corruption')) return 'Corruption';
+    
+    // Healing / Rupture systems
     if (id.includes('rupture') || id.includes('healing') || id.includes('recovery') || id.includes('restore')) return 'Healing / Rupture';
-    if (id.includes('cascade')) return 'Cascade';
-    if (id.includes('resonance') || id.includes('harmonic')) return 'Resonance';
+    
+    // Cascade / Wave systems
+    if (id.includes('cascade')) return 'Cascade / Wave';
     if (id.includes('wave') || id.includes('particle')) return 'Waves / Particles';
+    
+    // Resonance systems
+    if (id.includes('resonance') || id.includes('harmonic')) return 'Resonance';
+    
+    // Glyph / Overlay systems
     if (id.includes('glyph') || id.includes('aura') || id.includes('inspect') || id.includes('metrics') || id.includes('personality') || id.includes('shader')) return 'Glyph / Overlay';
-    if (id.includes('node')) return 'Node Core';
+    
     return 'Node FX';
   }
+ 
 
   _isLinkRelatedEntry(entry) {
     const text = `${entry?.id || ''} ${entry?.label || ''} ${entry?.group || ''}`.toLowerCase();

@@ -407,8 +407,8 @@ The persistent memory obligation is that AI tooling is designed to complement ex
 **Post-Processing (1):**
 - PostProcessing.js - Central post-processing pipeline with bloom, chromatic aberration, vignette.
 
-**Debug Systems (8):**
-- FXDebugSandbox.js - Debug sandbox for visual effects testing.
+**Debug Systems (9):**
+- FXDebugSandbox.js - Debug sandbox for visual effects testing with HUD (press 'L' to toggle). Supports individual system toggle, persistence, and comprehensive system registry.
 - VisualAudit.js - Audits visual systems for issues.
 - VisualLayerDebugger.js - Debugs visual layers and rendering.
 - VisualOverlayAuditSystem.js - Audits visual overlays and effects.
@@ -416,6 +416,45 @@ The persistent memory obligation is that AI tooling is designed to complement ex
 - ShaderVariantDetector.js - Detects shader variants and configurations.
 - HarmonicHubDebugger.js - Debugs harmonic hub systems.
 - run_vfx_audit.js - Runs VFX audits and generates reports.
+- MetricMidpointOrbitCore - Composite visual effect with vertical wireframe torus stacks, horizontal ring stacks, central polyhedron, and 30-40 orbiting glyph geometries. Color reacts to corruption/metrics. See forensic audit for component breakdown.
+
+---
+
+## FXDebugSandbox - Debug HUD System
+
+**Added:** 2026-04-29
+
+FXDebugSandbox provides a comprehensive HUD for toggling individual VFX systems on/off without restarting ATOMA.
+
+### Usage
+```javascript
+// Press 'L' key to toggle HUD
+// OR use console:
+FX.toggleNodeFxHud()
+FX.toggleNodeFx('systemId', true/false)
+FX.listNodeFxRegistry()
+```
+
+### Key Features
+- Individual system toggle (persisted in localStorage)
+- System state visualization: active, disabled, forced-off, missing
+- Automatic system discovery from game state
+- Organized by categories: AI/Orbit, Glyph/Orbit, Link FX, Node Core, Corruption, Healing/Rupture, Cascade/Wave, Waves/Particles, Resonance, Glyph/Overlay, Aura/Visual, Metrics/Overlay
+
+### Critical Systems from Metric Midpoint Audit
+These systems are now toggleable via FXDebugSandbox:
+- `aiConsciousnessLayer` - Orbit LineLoop with ring stacks around clusters
+- `linkSemanticPictogramSystem` - Orbiting glyph geometries with helical offset
+- `cascadeResonanceWave` - Explicit midpoint beam visualization
+- `harmonicResonanceCoupling` - Central Octahedron polyhedron at midpoint anchor
+- `linkEnergyRingSystem` - Ring geometries with Icosahedron cores
+
+### Documentation
+- `Engine/Debug/FXDebugSandbox.js` - Implementation
+- `docs/FXDebugSandbox_USAGE.md` - Comprehensive usage guide
+- `docs/audits/FX_DEBUG_SANDBOX_UPDATE_SUMMARY.md` - 2026-04-29 update summary
+- `docs/audits/METRIC_MIDPOINT_ORBIT_CORE_FORENSIC_REPORT.md` - Forensic audit of composite effect
+  +++++++ REPLACE
 
 **Additional VFX (30):**
 - VisualNetworkTimeElasticity_v1.js - Time-based visual elasticity effects.
