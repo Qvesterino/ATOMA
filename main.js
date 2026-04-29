@@ -4382,6 +4382,10 @@ class AtomaGame {
         }, 'simulation.cascadeEventBridge');
         this.frameScheduler.register('visual', (dt) => {
             if (this.linkCorruptionTransmission) {
+                const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
+                    ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
+                    : 0);
+                if (activeLinkCount === 0) return;
                 this.linkCorruptionTransmission.updateTransmission(dt);
             }
         }, 'visual.linkCorruptionTransmission');
@@ -4725,8 +4729,20 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.semanticGlyphAI?.update?.(dt, this.aiNodes?.nodes), 'visual.semanticGlyphAI');
         this.frameScheduler.register('visual', (dt) => this.glyphFusionOverlay?.update?.(dt), 'visual.glyphFusionOverlay');
         this.frameScheduler.register('visual', (dt) => this.linkedGlyphSync?.update?.(dt, this.aiNodes, this.linkingSystem), 'visual.linkedGlyphSync');
-        this.frameScheduler.register('visual', (dt) => this.cascadePropagationVisuals?.update?.(dt), 'visual.cascadePropagation');
-        this.frameScheduler.register('simulation', () => this.cascadePropagationVisuals?.checkCascadeEvents?.(), 'simulation.phase5CascadeEventCheck');
+        this.frameScheduler.register('visual', (dt) => {
+            const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
+                ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
+                : 0);
+            if (activeLinkCount === 0) return;
+            this.cascadePropagationVisuals?.update?.(dt);
+        }, 'visual.cascadePropagation');
+        this.frameScheduler.register('simulation', () => {
+            const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
+                ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
+                : 0);
+            if (activeLinkCount === 0) return;
+            this.cascadePropagationVisuals?.checkCascadeEvents?.();
+        }, 'simulation.phase5CascadeEventCheck');
         this.frameScheduler.register('visual', (dt) => this.evolvingLinkFX?.update?.(dt, null, null), 'visual.evolvingLinkFX');
         this.frameScheduler.register('visual', (dt) => this.linkVisualMoodSystem?.update?.(dt), 'visual.linkVisualMoodSystem');
         this.frameScheduler.register('visual', () => { if (this.linkDebugMode?.enabled) this.linkDebugMode.updateDebugVisuals(); }, 'visual.linkDebugMode');
@@ -4998,6 +5014,10 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             const resonanceCascadeVisualization = this.resonanceCascadeVisualization || this.resonanceCascade;
             if (resonanceCascadeVisualization && resonanceCascadeVisualization.enabled !== false) {
+                const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
+                    ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
+                    : 0);
+                if (activeLinkCount === 0) return;
                 resonanceCascadeVisualization.update(dt, this.aiNodes?.nodes, this.linkingSystem?.links);
             }
         }, 'visual.resonanceCascadeVisualization');
@@ -5014,6 +5034,10 @@ class AtomaGame {
         }, 'visual.harmonicHealing');
         this.frameScheduler.register('visual', (dt) => {
             if (this.harmonicRecovery) {
+                const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
+                    ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
+                    : 0);
+                if (activeLinkCount === 0) return;
                 this.harmonicRecovery.update(dt, this.time, this.networkState || {});
             }
         }, 'visual.harmonicRecovery');
@@ -8803,6 +8827,10 @@ window.__ATOMA_SCENE__ = this.scene;
             );
             this.frameScheduler.register('visual', (dt) => {
                 if (this.standingWaveRenderer) {
+                    const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
+                        ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
+                        : 0);
+                    if (activeLinkCount === 0) return;
                     this.standingWaveRenderer.update(dt, this.time);
                 }
             }, 'visual.waveStandingRenderer');
@@ -8814,13 +8842,17 @@ window.__ATOMA_SCENE__ = this.scene;
             // Corruption transmission (gameplay) — 10 Hz simulation lane
             // Avoid duplicate ticking when canonical simulation.linkCorruptionTransmission is already registered.
             if (this.aiNodes?.linkCorruption && this.frameScheduler?.isRegistered?.('simulation.linkCorruptionTransmission') !== true) {
-                this.frameScheduler.register(
-                    'simulation',
-                    (dt) => {
-                        const sys = this.aiNodes?.linkCorruption;
-                        if (sys?.updateTransmission) {
-                            sys.updateTransmission(dt);
-                        }
+            this.frameScheduler.register(
+                'simulation',
+                (dt) => {
+                    const sys = this.aiNodes?.linkCorruption;
+                    const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
+                        ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
+                        : 0);
+                    if (activeLinkCount === 0) return;
+                    if (sys?.updateTransmission) {
+                        sys.updateTransmission(dt);
+                    }
                     },
                     'simulation.corruptionTransmission'
                 );
@@ -8837,6 +8869,10 @@ window.__ATOMA_SCENE__ = this.scene;
                 'visual',
                 (dt) => {
                     if (!this.corruptionVisualFX?.applyCorruptionEffects || !this.aiNodes?.nodes) return;
+                    const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
+                        ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
+                        : 0);
+                    if (activeLinkCount === 0) return;
                     const time = this.time ?? performance.now();
                     for (const node of this.aiNodes.nodes) {
                         const visualTarget = node?.traverse ? node : (node?.mesh || node);
@@ -8852,6 +8888,10 @@ window.__ATOMA_SCENE__ = this.scene;
                                      visualTarget?.userData?.visualLayer === 'CORE';
 
                 if (corruptionLevel > 0 && isNodeVisual) {
+                    const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
+                        ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
+                        : 0);
+                    if (activeLinkCount === 0) return;
                     this.corruptionVisualFX.applyCorruptionEffects(
                         visualTarget,
                         dt,
@@ -10621,12 +10661,16 @@ window.__ATOMA_SCENE__ = this.scene;
 
             // FrameScheduler: drive particle emitter at visual cadence (30 Hz)
             this.frameScheduler?.register('visual', (dt) => {
-            this.particleEmitter?.update?.(
-                dt,
-                this.aiNodes?.nodes || [],
-                this.linkingSystem?.links || [],
-                this.waveInterferenceEngine
-            );
+                const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
+                    ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
+                    : 0);
+                if (activeLinkCount === 0) return;
+                this.particleEmitter?.update?.(
+                    dt,
+                    this.aiNodes?.nodes || [],
+                    this.linkingSystem?.links || [],
+                    this.waveInterferenceEngine
+                );
         }, 'visual.harmony.waveParticleEmitter');
         } catch (err) {
             console.warn('[main.js] WaveParticleEmitter_v1 initialization failed:', err);
@@ -11709,7 +11753,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
 
 
-        regGuard('standingWaveRenderer', 'visual.waveStandingRenderer', (dt) => this.standingWaveRenderer?.update?.(dt, this.time));
+        regGuard('standingWaveRenderer', 'visual.waveStandingRenderer', (dt) => {
+            const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
+                ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
+                : 0);
+            if (activeLinkCount === 0) return;
+            this.standingWaveRenderer?.update?.(dt, this.time);
+        });
         regGuard('nodeAuraRenderer', 'visual.nodeAuraRenderer', (dt) => {
             this.nodeAuraRenderer?.update?.(dt);
         });
@@ -11725,6 +11775,10 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             wavePatternSystem?.update?.(dt, this.time);
         });
         regGuard('waveParticleEmitter', 'visual.harmony.waveParticleEmitter', (dt) => {
+            const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
+                ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
+                : 0);
+            if (activeLinkCount === 0) return;
             this.particleEmitter?.update?.(
                 dt,
                 this.aiNodes?.nodes || [],
@@ -11762,7 +11816,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('tier4GameplayIntegration', 'simulation.tier4GameplayIntegration', (dt) => this.tier4GameplayIntegration?.update?.(dt));
         regGuard('phase5MultiNetworkOrchestrator', 'simulation.phase5MultiNetworkOrchestrator', (dt) => this.phase5MultiNetworkOrchestrator?.update?.(dt));
         regGuard('phase5InterNetworkVisualizationBridge', 'visual.phase5InterNetworkVisualizationBridge', (dt) => this.phase5InterNetworkVisualizationBridge?.update?.(dt));
-        regGuard('cascadePropagationVisuals', 'visual.cascadePropagation', (dt) => this.cascadePropagationVisuals?.update?.(dt));
+        regGuard('cascadePropagationVisuals', 'visual.cascadePropagation', (dt) => {
+            const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
+                ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
+                : 0);
+            if (activeLinkCount === 0) return;
+            this.cascadePropagationVisuals?.update?.(dt);
+        });
         regGuard('phase5CascadeVisualizationBridge', 'visual.phase5CascadeVisualizationBridge', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt));
         // REMOVED: preCascadeVisualHint regGuard — moved to LEGACY/april (2026-04-22)
         regGuard('nodeHierarchyBridge', 'simulation.nodeHierarchyBridge', () => this.nodeHierarchyBridge?.update?.());

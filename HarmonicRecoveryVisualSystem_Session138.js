@@ -831,6 +831,10 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         const mode = getAtomaVisualDebugMode();
         if (mode !== 'all' && mode !== 'recovery') return; // Ensure we are in the correct debug mode
         if (!this.enabled) return;
+        const activeLinks = Array.isArray(this.linkingSystem?.links)
+            ? this.linkingSystem.links.filter((link) => link && link.active !== false)
+            : [];
+        if (activeLinks.length === 0) return;
 
         this._decayDramaturgyModulation(deltaTime);
 

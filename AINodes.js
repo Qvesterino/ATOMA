@@ -3392,7 +3392,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     if (!Array.isArray(this._edgeCageObjects) || this._edgeCageObjects.length === 0) return;
 
     this._edgeCageFadeAccumulator += (Number.isFinite(deltaTime) ? deltaTime : 0);
-    const tickInterval = 1 / 30; // visual cadence target
+    const tickInterval = (typeof window !== 'undefined' && Number.isFinite(window.ATOMA_EDGE_FADE_TICK_SECONDS))
+      ? Math.max(0.1, window.ATOMA_EDGE_FADE_TICK_SECONDS)
+      : 2.0; // default: low-frequency update to reduce traversal cost
     if (this._edgeCageFadeAccumulator < tickInterval) return;
     this._edgeCageFadeAccumulator %= tickInterval;
 

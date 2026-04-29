@@ -2,6 +2,10 @@
 .edge-smoke-profile/
 output/
 *.log
+/legacy
+/LEGACY
+/docs
+
 
 # Node.js dependencies and package manager output
 node_modules/

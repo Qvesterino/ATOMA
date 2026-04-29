@@ -249,7 +249,9 @@ export function setupGpuSanity(renderer, options = {}) {
   if (!renderer || !renderer.info) return null;
 
   let materialRegistry = options.materialRegistry ?? null;
-  const geometryAudit = installGeometryAudit(THREE, options);
+  const geometryAudit = options.enableGeometryAudit === true
+    ? installGeometryAudit(THREE, options)
+    : null;
   let includeSceneStats = options.includeSceneStats === true;
 
   // Reuse a single snapshot object to avoid per-frame allocations
@@ -447,7 +449,7 @@ export function setupGpuSanity(renderer, options = {}) {
     geometryAudit() {
       return geometryAudit;
     },
-    start(intervalMs = 1000) {
+    start(intervalMs = 2000) {
       this.enable();
       if (intervalId) clearInterval(intervalId);
       intervalId = setInterval(logSnapshot, intervalMs);

@@ -396,6 +396,10 @@ export class StandingWaveVisualRenderer_Session131 {
      */
     update(deltaTime, currentTime) {
         if (!this.initialized) this.setup();
+        const activeLinks = Array.isArray(this.linkingSystem?.links)
+            ? this.linkingSystem.links.filter((link) => link && link.active !== false)
+            : [];
+        if (activeLinks.length === 0) return;
         
         this.time = currentTime;
 
