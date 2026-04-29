@@ -589,7 +589,7 @@ import { NetworkStressAggregator, setupNetworkStressAggregatorConsoleAPI } from 
 // REMOVED: ParticleEmissionScaler — moved to LEGACY/april (2026-04-22)
 import { mountAIAutomationHUD, updateAIAutomationHUD } from './hud/AIAutomationHUD.js';
 import { mountVariantBAdvisorHUD, updateVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
-import { UIVisibilityConfig } from './ui/config/UIVisibilityConfig.js';
+import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from './ui/config/UIVisibilityConfig.js';
 import { getSharedPostProcessingPipeline } from './PostProcessing.js';
 
 const ENABLE_SELECTED_NODE_BADGE = false;
@@ -6251,7 +6251,19 @@ this.setHudDirty('nodeInspect');
                 overlay.textContent = 'Loading Wave HUD...';
                 const mountPoint = window.document.body || window.document.documentElement;
                 mountPoint?.appendChild?.(overlay);
+                syncWaveDebugOverlayVisibility();
                 return overlay;
+            };
+
+            const syncWaveDebugOverlayVisibility = () => {
+                if (!window.document) return;
+
+                const overlay = window.document.getElementById('wave-debug-overlay');
+                if (!overlay) return;
+
+                const visible = UIVisibilityConfig.waveSystemHUD !== false;
+                overlay.style.display = visible ? 'block' : 'none';
+                overlay.setAttribute('aria-hidden', String(!visible));
             };
 
             const readWaveDebugState = () => {
@@ -6357,6 +6369,8 @@ this.setHudDirty('nodeInspect');
                     overlay.title = `Wave System Status - Links: ${state.activeLinks}, Resistant: ${state.resistantNodes}, Reflections: ${state.reflectionActive}, Pressure Zones: ${state.pressureZonesActive}, Traps: ${state.traps}, State: ${state.primaryTrapState}, Radius: ${state.primaryTrapRadius.toFixed(2)}, Avg Amp: ${state.activeTrapAverageAmplitude.toFixed(2)}, Peak Amp: ${state.activeTrapAmplitude.toFixed(2)}, Antinodes: ${state.antinodeMeshes}, Ruptures: ${state.ruptureCount}, Cascades: ${state.activeCascades}, Pre-Zones: ${state.preRuptureZones}, Recovery Zones: ${state.recoveringZones}, Wave Pool: ${state.wavePoolActive}, Halo Pool: ${state.haloPoolActive}, Particles: ${state.activeParticles}`;
                 }
 
+                syncWaveDebugOverlayVisibility();
+
                 return state;
             };
 
@@ -6367,6 +6381,11 @@ this.setHudDirty('nodeInspect');
 
             if (!window._atomaWaveDebugOverlayProbe) {
                 window._atomaWaveDebugOverlayProbe = setInterval(updateWaveDebugOverlay, 250);
+            }
+
+            if (!window._atomaWaveDebugOverlayVisibilityListener) {
+                window.addEventListener(UI_VISIBILITY_CHANGE_EVENT, syncWaveDebugOverlayVisibility);
+                window._atomaWaveDebugOverlayVisibilityListener = true;
             }
 
             if (!window._atomaPipelineProbe) {

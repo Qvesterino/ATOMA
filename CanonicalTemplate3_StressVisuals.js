@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 const TAU = Math.PI * 2;
@@ -370,8 +371,8 @@ export class CanonicalTemplate3_StressVisuals {
   }
 
   _createPressureShell() {
-    const geometry = this._createBrokenLoopGeometry(76, 38, 60, 0.4, 0.09);
-    const material = new THREE.LineBasicMaterial({
+    const geometry = new RoundedBoxGeometry(76, 38, 18, 3, 5.6);
+    const material = new THREE.MeshBasicMaterial({
       color: this.palette.calmCyan.clone(),
       transparent: true,
       opacity: 0.08,
@@ -380,12 +381,12 @@ export class CanonicalTemplate3_StressVisuals {
       blending: THREE.AdditiveBlending,
       fog: false
     });
-    const shell = new THREE.LineLoop(geometry, material);
+    const shell = new THREE.Mesh(geometry, material);
     shell.position.set(0, 12, -18);
     shell.rotation.x = Math.PI * 0.92;
     shell.rotation.z = 0.14;
     shell.renderOrder = this._getWorldRenderOrder(20);
-    shell.userData = { isStressField: true, type: 'pressure_shell' };
+    shell.userData = { isStressField: true, type: 'pressure_shell_round_prism' };
     this.root.add(shell);
     this.fieldLayers.shell = shell;
   }

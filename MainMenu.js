@@ -537,6 +537,25 @@ export function ensureMenuStyles() {
             align-items: stretch;
         }
 
+        .atoma-main-menu__content--scrollable {
+            max-height: min(46vh, 480px);
+            overflow-y: auto;
+            padding-right: 6px;
+            min-height: 0;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(108, 234, 255, 0.5) transparent;
+            overscroll-behavior: contain;
+        }
+
+        .atoma-main-menu__content--scrollable::-webkit-scrollbar {
+            width: 7px;
+        }
+
+        .atoma-main-menu__content--scrollable::-webkit-scrollbar-thumb {
+            background: rgba(108, 234, 255, 0.42);
+            border-radius: 999px;
+        }
+
         .atoma-main-menu__section {
             margin-top: 8px;
             color: rgba(119, 243, 255, 0.88);
@@ -1355,6 +1374,8 @@ export class MainMenu {
             this.loreBody.scrollTop = loreScrollTop;
         }
 
+        this._scrollSelectedEntryIntoView();
+
         this._renderFooter();
         this._rebuildBackgroundModel();
     }
@@ -1483,6 +1504,7 @@ export class MainMenu {
 
     _renderScreen() {
         this.content.textContent = '';
+        this.content.classList.toggle('atoma-main-menu__content--scrollable', this.state.screen === 'SETTINGS');
         this._focusableRefs = [];
         this.loreBody = null;
 
@@ -1569,7 +1591,7 @@ export class MainMenu {
 
             button.append(marker, label);
 
-            if (entry.type === 'setting' || entry.type === 'toggle') {
+            if (entry.type === 'setting' || entry.type === 'toggle' || entry.type === 'visibility') {
                 const value = document.createElement('span');
                 value.className = 'atoma-main-menu__value';
                 value.textContent = entry.value;
@@ -1602,6 +1624,23 @@ export class MainMenu {
         });
 
         this.content.appendChild(list);
+    }
+
+    _scrollSelectedEntryIntoView() {
+        if (this.state.screen !== 'SETTINGS' || !this.content.classList.contains('atoma-main-menu__content--scrollable')) {
+            return;
+        }
+
+        const selectedRef = this._focusableRefs.find((ref) => ref.entryIndex === this.state.selectedIndex);
+        if (!selectedRef?.element?.scrollIntoView) {
+            return;
+        }
+
+        try {
+            selectedRef.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        } catch {
+            // Ignore scroll failures in non-standard DOM environments.
+        }
     }
 
     _renderWorldCards() {

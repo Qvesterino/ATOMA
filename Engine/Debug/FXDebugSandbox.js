@@ -3,7 +3,7 @@
  * ============================================================================
  * DEBUG SANDBOX FOR VFX SYSTEMS
  *
- * ⚠️ CURRENTLY DISABLED - To enable, change 'const DISABLED = true' to 'false' at line ~661
+ * ⚠️ NODE FX DEBUG HUD - Enable/disable individual node-related FX systems.
  *
  * Provides console-accessible testing interface for all VFX systems.
  * Usage (after enabling):
@@ -68,12 +68,24 @@
 // SANDBOX CORE
 // ============================================================================
 
+const FX_DEBUG_STATE_KEY = 'atoma.fxDebugSandbox.nodeFxStates.v2';
+const FX_DEBUG_PATCH_SYMBOL = Symbol('fxDebugSandboxPatches');
+
 class FXDebugSandbox {
   constructor() {
     this.scene = null;
     this.renderer = null;
     this.activeSystems = new Map(); // name -> { system, updateFn, disposeFn }
     this.initialized = false;
+    this.hudVisible = false;
+    this.hudRoot = null;
+    this.hudList = null;
+    this._keyHandler = null;
+    this._systemRegistry = [];
+    this._registryIndex = new Map();
+    this._persistedStates = this._loadPersistedStates();
+    this._syncTimer = null;
+    this._syncIntervalMs = 1000;
   }
 
   /**
@@ -83,6 +95,10 @@ class FXDebugSandbox {
     this.scene = scene;
     this.renderer = renderer;
     this.initialized = true;
+    this._installNodeFxRegistry();
+    this._ensureHud();
+    this._bindHotkey();
+    this._startSyncLoop();
     console.log('[FXDebugSandbox] Initialized with scene:', scene);
     return this;
   }
@@ -152,6 +168,547 @@ class FXDebugSandbox {
    */
   listActive() {
     console.log('[FXDebugSandbox] Active systems:', Array.from(this.activeSystems.keys()));
+  }
+
+  _installNodeFxRegistry() {
+    this._syncNodeFxRegistry(true);
+  }
+
+  _loadPersistedStates() {
+    if (typeof window === 'undefined' || !window.localStorage) return {};
+    try {
+      const raw = window.localStorage.getItem(FX_DEBUG_STATE_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  _savePersistedStates() {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    try {
+      window.localStorage.setItem(FX_DEBUG_STATE_KEY, JSON.stringify(this._persistedStates || {}));
+    } catch {
+      // Ignore storage failures in private mode / quota cases.
+    }
+  }
+
+  _startSyncLoop() {
+    if (typeof window === 'undefined' || this._syncTimer) return;
+    this._syncTimer = window.setInterval(() => {
+      this._syncNodeFxRegistry(false);
+      if (this.hudVisible) this._refreshHud();
+    }, this._syncIntervalMs);
+  }
+
+  _syncNodeFxRegistry(forceRefresh = false) {
+    this._systemRegistry = this._buildNodeFxRegistry();
+    this._registryIndex = new Map(this._systemRegistry.map((entry) => [entry.id, entry]));
+    this._applyPersistedStatesToRegistry();
+    if (forceRefresh && this.hudVisible) {
+      this._refreshHud();
+    }
+    return this._systemRegistry;
+  }
+
+  _buildNodeFxRegistry() {
+    const manual = this._buildManualNodeFxRegistry();
+    const discovered = this._discoverNodeFxDefinitions();
+    const merged = new Map();
+
+    for (const entry of [...manual, ...discovered]) {
+      if (!entry?.id) continue;
+      if (this._isLinkRelatedEntry(entry)) continue;
+      if (merged.has(entry.id)) continue;
+      merged.set(entry.id, this._normalizeRegistryEntry(entry));
+    }
+
+    return Array.from(merged.values()).sort((a, b) => {
+      const groupA = String(a.group || '');
+      const groupB = String(b.group || '');
+      if (groupA !== groupB) return groupA.localeCompare(groupB);
+      return String(a.label || a.id).localeCompare(String(b.label || b.id));
+    });
+  }
+
+  _buildManualNodeFxRegistry() {
+    return [
+      { id: 'nodeMicroEvents', label: 'Node Micro Events', group: 'Node Core', paths: ['nodeMicroEvents'], hardDisabled: true, muteMethods: ['update', 'triggerMicroEvent', 'triggerSelectionCascade'] },
+      { id: 'evolutionManager', label: 'Evolution Manager', group: 'Node Core', paths: ['evolutionManager'], hardDisabled: true, muteMethods: ['update'] },
+      { id: 'personalityShaderEffects', label: 'Personality Shader Effects', group: 'Node Core', paths: ['personalityShaderEffects'], hardDisabled: true, muteMethods: ['registerNodeMaterial', 'registerLinkMaterial', 'applyDefaultNodeProfile', 'applyDefaultLinkProfile'] },
+      { id: 'advancedShaderFX', label: 'Advanced Node Shader FX', group: 'Node Core', paths: ['advancedShaderFX'], hardDisabled: true, muteMethods: ['update', 'setEnabled'] },
+      { id: 'personalityFX', label: 'Safe Node Personality FX', group: 'Node Core', paths: ['personalityFX'], hardDisabled: true, muteMethods: ['update'] },
+      { id: 'corruptionFeedback', label: 'Corruption Feedback', group: 'Corruption', paths: ['corruptionFeedback'], hardDisabled: true, muteMethods: ['update', 'displayCorruptionSeed', 'displayCascadeWarning', 'displayHarmonyPulse'] },
+      { id: 'phase5CascadePropagationVisuals', label: 'Cascade Propagation Visuals', group: 'Cascade', paths: ['phase5CascadePropagationVisuals', 'cascadePropagationVisuals'], hardDisabled: true, muteMethods: ['update', 'triggerCascade'] },
+      { id: 'harmonicRecovery', label: 'Harmonic Recovery', group: 'Healing / Rupture', paths: ['harmonicRecovery'], hardDisabled: true, muteMethods: ['update', 'rebind'] },
+      { id: 'resonanceRupture', label: 'Resonance Rupture', group: 'Healing / Rupture', paths: ['resonanceRupture'], muteMethods: ['update', '_triggerRupture', '_triggerNodeReactions'] },
+      { id: 'healingParticles', label: 'Healing Particles', group: 'Healing / Rupture', paths: ['healingParticles'], muteMethods: ['update', 'spawnParticle', 'emitHealingTrail', 'emitHealingBurst'] },
+      { id: 'harmonicHealing', label: 'Harmonic Healing', group: 'Healing / Rupture', paths: ['harmonicHealing'], muteMethods: ['update', 'rebind'] },
+      { id: 'cascadingRuptures', label: 'Cascading Ruptures', group: 'Healing / Rupture', paths: ['cascadingRuptures'], muteMethods: ['update', 'triggerVisualEffect', 'enable', 'disable'] },
+      { id: 'standingWaveTrap', label: 'Standing Wave Trap', group: 'Waves / Resonance', paths: ['standingWaveTrap', 'standingWaveTrapSystem'], muteMethods: ['update', 'setup', 'rebind'] },
+      { id: 'standingWaveRenderer', label: 'Standing Wave Renderer', group: 'Waves / Resonance', paths: ['standingWaveRenderer'], muteMethods: ['update', 'setup', 'rebind'] },
+      { id: 'waveInterference', label: 'Wave Interference Patterns', group: 'Waves / Resonance', paths: ['waveInterference', 'wavePatternSystem'], muteMethods: ['update', 'setup', 'rebind'] },
+      { id: 'waveInterferenceEngine', label: 'Wave Interference Engine', group: 'Waves / Resonance', paths: ['waveInterferenceEngine'], muteMethods: ['update'] },
+      { id: 'waveParticleEmitter', label: 'Wave Particle Emitter', group: 'Waves / Particles', paths: ['particleEmitter', 'waveParticleEmitter'], muteMethods: ['update'] },
+      { id: 'synergyTravelingWaveFX', label: 'Synergy Traveling Wave FX', group: 'Waves / Resonance', paths: ['synergyTravelingWaveFX'], muteMethods: ['update'] },
+      { id: 'waveShaderBridge', label: 'Wave Shader Bridge', group: 'Waves / Resonance', paths: ['waveShaderBridge'], muteMethods: ['update', 'registerNodeMaterial', 'registerLinkMaterial'] },
+      { id: 'waveShaderMaterialPatch', label: 'Wave Shader Material Patch', group: 'Waves / Resonance', paths: ['waveShaderMaterialPatch'], muteMethods: ['patch', 'update'] },
+      { id: 'waveTravelShaderPack', label: 'Wave Travel Shader Pack', group: 'Waves / Resonance', paths: ['waveTravelShaderPack'], muteMethods: ['update'] },
+      { id: 'waveDynamicsShaderPack', label: 'Wave Dynamics Shader Pack', group: 'Waves / Resonance', paths: ['waveDynamicsShaderPack'], muteMethods: ['update', 'applyToNode', 'applyToMaterial'] },
+      { id: 'resonanceEchoTrailSystem', label: 'Resonance Echo Trail System', group: 'Waves / Resonance', paths: ['resonanceEchoTrailSystem', 'resonanceEchoTrails'], muteMethods: ['update', 'spawnEchoTrail', 'spawnEcho'] },
+      { id: 'harmonicResonanceFeedbackSystem', label: 'Harmonic Resonance Feedback', group: 'Resonance', paths: ['harmonicResonanceFeedbackSystem', 'harmonicResonance'], muteMethods: ['update', 'enable', 'disable'] },
+      { id: 'harmonicResonanceCoupling', label: 'Harmonic Resonance Coupling', group: 'Resonance', paths: ['harmonicResonanceCoupling'], muteMethods: ['update'] },
+      { id: 'harmonicHubAuraSystem', label: 'Harmonic Hub Aura System', group: 'Resonance', paths: ['harmonicHubAuraSystem'], muteMethods: ['update'] },
+      { id: 'harmonicInfluencePropagation', label: 'Harmonic Influence Propagation', group: 'Resonance', paths: ['harmonicInfluencePropagation'], muteMethods: ['update'] },
+      { id: 'harmonicPhaseSynchronization', label: 'Harmonic Phase Synchronization', group: 'Resonance', paths: ['harmonicPhaseSynchronization'], muteMethods: ['update'] },
+      { id: 'harmonicCascadeAmplification', label: 'Harmonic Cascade Amplification', group: 'Resonance', paths: ['harmonicCascadeAmplification'], muteMethods: ['update'] },
+      { id: 'harmonicNodeResonanceHalos', label: 'Harmonic Node Resonance Halos', group: 'Resonance', paths: ['harmonicNodeResonanceHalos'], muteMethods: ['update', 'triggerRecoveryWave'] },
+      { id: 't2CorruptionVisualIntegration', label: 'T2 Corruption Visual Integration', group: 'Corruption', paths: ['t2CorruptionVisualIntegration'], muteMethods: ['update', 'triggerCorruptionPulse', 'triggerParticleBurst', 'displayCascadeWarning', 'displayCorruptionSeed'] },
+      { id: 't2HarmonyVisualConsumer', label: 'T2 Harmony Visual Consumer', group: 'Harmony', paths: ['t2HarmonyVisualConsumer'], muteMethods: ['update', 'setEnabled'] },
+      { id: 'adaptiveGlyphRendering', label: 'Adaptive Glyph Rendering', group: 'Glyph / Overlay', paths: ['adaptiveGlyphRendering'], muteMethods: ['update', 'setEnabled'] },
+      { id: 'glyphLayer4', label: 'Glyph Layer 4', group: 'Glyph / Overlay', paths: ['glyphLayer4'], muteMethods: ['update', 'enable', 'disable', 'cleanup'] },
+      { id: 'glyphFusionOverlay', label: 'Glyph Fusion Overlay', group: 'Glyph / Overlay', paths: ['glyphFusionOverlay'], muteMethods: ['update'] },
+      { id: 'nodeShaderActivation', label: 'Node Shader Activation', group: 'Glyph / Overlay', paths: ['nodeShaderActivation'], muteMethods: ['update'] },
+      { id: 'nodeAuraSystem', label: 'Node Aura System', group: 'Aura / Visual', paths: ['nodeAuraSystem'], muteMethods: ['update'] },
+      { id: 'nodeAuraRenderer', label: 'Node Aura Renderer', group: 'Aura / Visual', paths: ['nodeAuraRenderer'], muteMethods: ['update'] },
+      { id: 'metricsVisualFX', label: 'Metrics Visual FX', group: 'Metrics / Overlay', paths: ['metricsVisualFX'], muteMethods: ['update'] },
+      { id: 'nodeInspectOverlay', label: 'Node Inspect Overlay', group: 'Metrics / Overlay', paths: ['nodeInspectOverlay'], muteMethods: ['update', 'enable', 'disable', 'hideOverlay', 'showOverlay'] },
+      { id: 'visualNetworkTimeElasticity', label: 'Visual Network Time Elasticity', group: 'Metrics / Overlay', paths: ['visualNetworkTimeElasticity'], muteMethods: ['update'] }
+    ];
+  }
+
+  _discoverNodeFxDefinitions() {
+    const game = this._getGameRoot();
+    if (!game) return [];
+
+    const manualIds = new Set(this._buildManualNodeFxRegistry().map((entry) => entry.id));
+    const include = /(node|evolution|rupture|healing|harmonic|resonance|cascade|wave|particle|corruption|stress|stability|glyph|aura|personality|adaptive|metrics|inspect)/i;
+    const exclude = /(link|linking|bead|spark|directional|trail|runtime|scheduler|registry|authority|engine|controller|context)/i;
+    const discovered = [];
+
+    for (const [key, value] of Object.entries(game)) {
+      if (manualIds.has(key)) continue;
+      if (!value || typeof value !== 'object') continue;
+      if (!include.test(key)) continue;
+      if (exclude.test(key)) continue;
+      discovered.push({
+        id: key,
+        label: this._humanizeIdentifier(key),
+        group: this._guessGroupForIdentifier(key),
+        paths: [key],
+        muteMethods: ['update']
+      });
+    }
+
+    return discovered;
+  }
+
+  _normalizeRegistryEntry(entry) {
+    const paths = Array.isArray(entry.paths) && entry.paths.length > 0
+      ? entry.paths
+      : [entry.path || entry.id];
+
+    return {
+      id: String(entry.id),
+      label: entry.label || this._humanizeIdentifier(entry.id),
+      group: entry.group || this._guessGroupForIdentifier(entry.id),
+      paths,
+      muteMethods: Array.isArray(entry.muteMethods) ? entry.muteMethods : ['update'],
+      hardDisabled: entry.hardDisabled === true,
+      get: () => this._resolveEntrySystem(paths),
+      getState: entry.getState || null,
+      setState: entry.setState || null
+    };
+  }
+
+  _getGameRoot() {
+    if (typeof window === 'undefined') return null;
+    return window.game || globalThis.game || null;
+  }
+
+  _resolveEntrySystem(paths) {
+    const game = this._getGameRoot();
+    if (!game) return null;
+    for (const path of paths || []) {
+      const resolved = this._resolvePath(game, path);
+      if (resolved) return resolved;
+    }
+    return null;
+  }
+
+  _resolvePath(root, path) {
+    if (!root || !path) return null;
+    const parts = String(path).split('.');
+    let current = root;
+    for (const part of parts) {
+      if (current == null) return null;
+      current = current[part];
+    }
+    return current ?? null;
+  }
+
+  _humanizeIdentifier(identifier) {
+    return String(identifier || '')
+      .replace(/[_\.]+/g, ' ')
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/\b\w/g, (m) => m.toUpperCase())
+      .trim();
+  }
+
+  _guessGroupForIdentifier(identifier) {
+    const id = String(identifier || '').toLowerCase();
+    if (id.includes('evolution')) return 'Node Core';
+    if (id.includes('corruption')) return 'Corruption';
+    if (id.includes('rupture') || id.includes('healing') || id.includes('recovery') || id.includes('restore')) return 'Healing / Rupture';
+    if (id.includes('cascade')) return 'Cascade';
+    if (id.includes('resonance') || id.includes('harmonic')) return 'Resonance';
+    if (id.includes('wave') || id.includes('particle')) return 'Waves / Particles';
+    if (id.includes('glyph') || id.includes('aura') || id.includes('inspect') || id.includes('metrics') || id.includes('personality') || id.includes('shader')) return 'Glyph / Overlay';
+    if (id.includes('node')) return 'Node Core';
+    return 'Node FX';
+  }
+
+  _isLinkRelatedEntry(entry) {
+    const text = `${entry?.id || ''} ${entry?.label || ''} ${entry?.group || ''}`.toLowerCase();
+    return text.includes('link');
+  }
+
+  _applyPersistedStatesToRegistry() {
+    for (const entry of this._systemRegistry) {
+      const persisted = this._persistedStates?.[entry.id];
+      if (persisted && typeof persisted.enabled === 'boolean') {
+        this._applyEntryState(entry, persisted.enabled, { persist: false });
+      } else {
+        this._applyEntryState(entry, this._readCurrentEntryEnabled(entry), { persist: false });
+      }
+    }
+  }
+
+  _readCurrentEntryEnabled(entry) {
+    const system = entry.get();
+    if (!system) return false;
+    if (typeof entry.getState === 'function') {
+      try {
+        const value = entry.getState(system);
+        if (typeof value === 'boolean') return value;
+      } catch {
+        // ignore
+      }
+    }
+    if (typeof system.enabled === 'boolean') return system.enabled;
+    if (typeof system.active === 'boolean') return system.active;
+    if (typeof system.isEnabled === 'function') {
+      try { return !!system.isEnabled(); } catch { /* ignore */ }
+    }
+    if (system.config && typeof system.config.enabled === 'boolean') return system.config.enabled;
+    return true;
+  }
+
+  _setBooleanState(system, enabled) {
+    if (!system) return;
+    if (typeof system.setEnabled === 'function') {
+      try { system.setEnabled(enabled); } catch { /* ignore */ }
+    }
+    if (typeof system.enable === 'function' && typeof system.disable === 'function') {
+      try { enabled ? system.enable() : system.disable(); } catch { /* ignore */ }
+    }
+    if (typeof system.enabled === 'boolean' || 'enabled' in system) {
+      system.enabled = enabled;
+    }
+    if (typeof system.active === 'boolean' || 'active' in system) {
+      system.active = enabled;
+    }
+    if (system.config && typeof system.config === 'object') {
+      system.config.enabled = enabled;
+    }
+  }
+
+  _patchMethods(system, entry, enabled) {
+    if (!system) return;
+    const methods = new Set(['update', ...(entry.muteMethods || [])]);
+    const patchMap = system[FX_DEBUG_PATCH_SYMBOL] || (system[FX_DEBUG_PATCH_SYMBOL] = new Map());
+
+    methods.forEach((methodName) => {
+      const original = system[methodName];
+      if (typeof original !== 'function') return;
+
+      if (!enabled) {
+        if (!patchMap.has(methodName)) {
+          patchMap.set(methodName, original);
+        }
+        system[methodName] = function sandboxNoop() { return undefined; };
+      } else if (patchMap.has(methodName)) {
+        system[methodName] = patchMap.get(methodName);
+        patchMap.delete(methodName);
+      }
+    });
+
+    if (enabled && patchMap.size === 0) {
+      try { delete system[FX_DEBUG_PATCH_SYMBOL]; } catch { /* ignore */ }
+    }
+  }
+
+  _applyEntryState(entry, enabled, { persist = true } = {}) {
+    const system = entry.get();
+    if (!system) {
+      if (persist) {
+        this._persistedStates[entry.id] = {
+          enabled: !!enabled,
+          updatedAt: Date.now()
+        };
+        this._savePersistedStates();
+      }
+      return false;
+    }
+
+    if (typeof entry.setState === 'function') {
+      try { entry.setState(system, enabled); } catch { /* ignore */ }
+    }
+
+    this._setBooleanState(system, enabled);
+    this._patchMethods(system, entry, enabled);
+
+    if (persist) {
+      this._persistedStates[entry.id] = {
+        enabled: !!enabled,
+        updatedAt: Date.now()
+      };
+      this._savePersistedStates();
+    }
+
+    return true;
+  }
+
+  _getEntryRuntimeStatus(entry) {
+    const system = entry.get();
+    if (!system) {
+      const persisted = this._persistedStates?.[entry.id];
+      return {
+        label: 'missing',
+        enabled: typeof persisted?.enabled === 'boolean' ? persisted.enabled : false,
+        system: null
+      };
+    }
+
+    const persisted = this._persistedStates?.[entry.id];
+    const enabled = typeof persisted?.enabled === 'boolean'
+      ? persisted.enabled
+      : this._readCurrentEntryEnabled(entry);
+
+    if (entry.hardDisabled) {
+      return { label: 'forced-off', enabled: false, system };
+    }
+
+    return {
+      label: enabled ? 'active' : 'disabled',
+      enabled: !!enabled,
+      system
+    };
+  }
+
+  _toggleEntry(entry, nextEnabled) {
+    const ok = this._applyEntryState(entry, nextEnabled, { persist: true });
+    if (this.hudVisible) this._refreshHud();
+    return ok;
+  }
+
+  toggleNodeFxById(id, nextEnabled) {
+    const entry = this._registryIndex?.get?.(id) || this._systemRegistry?.find?.((item) => item.id === id);
+    if (!entry) return false;
+    const persisted = this._persistedStates[entry.id]?.enabled;
+    const next = typeof nextEnabled === 'boolean'
+      ? nextEnabled
+      : !(typeof persisted === 'boolean' ? persisted : this._readCurrentEntryEnabled(entry));
+    const ok = this._applyEntryState(entry, next, { persist: true });
+    if (this.hudVisible) this._refreshHud();
+    return ok;
+  }
+
+  listNodeFxRegistry() {
+    return Array.isArray(this._systemRegistry) ? [...this._systemRegistry] : [];
+  }
+
+  syncNodeFxRegistry(forceRefresh = false) {
+    return this._syncNodeFxRegistry(forceRefresh);
+  }
+
+  _ensureHud() {
+    if (typeof document === 'undefined' || this.hudRoot) return;
+
+    const root = document.createElement('div');
+    root.id = 'fx-debug-sandbox-hud';
+    root.style.cssText = [
+      'position:fixed',
+      'top:12px',
+      'right:12px',
+      'width:420px',
+      'max-height:74vh',
+      'overflow:auto',
+      'background:rgba(10,14,22,0.94)',
+      'border:1px solid rgba(120,160,220,0.35)',
+      'color:#d6ebff',
+      'font:12px/1.35 monospace',
+      'z-index:2147483647',
+      'display:none',
+      'padding:10px'
+    ].join(';');
+
+    const header = document.createElement('div');
+    header.textContent = 'NODE FX DEBUG SANDBOX';
+    header.style.cssText = 'font-weight:700;margin-bottom:6px;letter-spacing:0.04em;';
+
+    const summary = document.createElement('div');
+    summary.id = 'fx-debug-sandbox-summary';
+    summary.style.cssText = 'opacity:0.75;margin-bottom:8px;';
+
+    const hint = document.createElement('div');
+    hint.textContent = 'L toggles this panel. States persist in localStorage.';
+    hint.style.cssText = 'opacity:0.7;margin-bottom:10px;';
+
+    const list = document.createElement('div');
+    list.id = 'fx-debug-sandbox-list';
+    list.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+
+    root.appendChild(header);
+    root.appendChild(summary);
+    root.appendChild(hint);
+    root.appendChild(list);
+    document.body.appendChild(root);
+
+    this.hudRoot = root;
+    this.hudSummary = summary;
+    this.hudList = list;
+    this._refreshHud();
+  }
+
+  _bindHotkey() {
+    if (typeof window === 'undefined' || this._keyHandler) return;
+    this._keyHandler = (event) => {
+      if (event?.repeat) return;
+      if (event?.code === 'KeyL') {
+        this.toggleHud();
+      }
+    };
+    window.addEventListener('keydown', this._keyHandler, true);
+  }
+
+  toggleHud(force) {
+    const next = typeof force === 'boolean' ? force : !this.hudVisible;
+    this.hudVisible = next;
+    if (this.hudRoot) this.hudRoot.style.display = next ? 'block' : 'none';
+    if (next) {
+      this._syncNodeFxRegistry(true);
+      this._refreshHud();
+    }
+    return next;
+  }
+
+  _refreshHud() {
+    if (!this.hudList) return;
+    this.hudList.innerHTML = '';
+
+    const entries = this._systemRegistry || [];
+    const grouped = new Map();
+    let activeCount = 0;
+    let disabledCount = 0;
+    let forcedOffCount = 0;
+    let missingCount = 0;
+
+    for (const entry of entries) {
+      const groupKey = entry.group || 'Node FX';
+      const bucket = grouped.get(groupKey) || [];
+      bucket.push(entry);
+      grouped.set(groupKey, bucket);
+    }
+
+    const groupNames = Array.from(grouped.keys()).sort((a, b) => a.localeCompare(b));
+
+    groupNames.forEach((groupName) => {
+      const groupEntries = grouped.get(groupName) || [];
+      const header = document.createElement('div');
+      header.style.cssText = [
+        'position:sticky',
+        'top:0',
+        'z-index:1',
+        'padding:4px 0 6px',
+        'margin-top:2px',
+        'background:linear-gradient(to bottom, rgba(10,14,22,0.98), rgba(10,14,22,0.82))',
+        'color:#8fc2ff',
+        'font-size:11px',
+        'font-weight:700',
+        'letter-spacing:0.05em',
+        'text-transform:uppercase',
+        'border-bottom:1px solid rgba(255,255,255,0.08)'
+      ].join(';');
+      const activeInGroup = groupEntries.filter((entry) => this._getEntryRuntimeStatus(entry).label === 'active').length;
+      const disabledInGroup = groupEntries.filter((entry) => this._getEntryRuntimeStatus(entry).label === 'disabled').length;
+      const forcedInGroup = groupEntries.filter((entry) => this._getEntryRuntimeStatus(entry).label === 'forced-off').length;
+      const missingInGroup = groupEntries.filter((entry) => this._getEntryRuntimeStatus(entry).label === 'missing').length;
+      header.textContent = `${groupName} · ${groupEntries.length} (${activeInGroup} active, ${disabledInGroup} disabled, ${forcedInGroup} forced-off, ${missingInGroup} missing)`;
+      this.hudList.appendChild(header);
+
+      groupEntries.forEach((entry) => {
+        const status = this._getEntryRuntimeStatus(entry);
+        if (status.label === 'active') activeCount += 1;
+        else if (status.label === 'disabled') disabledCount += 1;
+        else if (status.label === 'forced-off') forcedOffCount += 1;
+        else missingCount += 1;
+
+      const row = document.createElement('div');
+      row.style.cssText = [
+        'display:flex',
+        'align-items:center',
+        'justify-content:space-between',
+        'gap:10px',
+        'padding:6px 0',
+        'border-bottom:1px solid rgba(255,255,255,0.08)'
+      ].join(';');
+
+      const left = document.createElement('div');
+      left.style.cssText = 'display:flex;flex-direction:column;min-width:0;flex:1;';
+      const name = document.createElement('div');
+      name.textContent = entry.label;
+      name.style.cssText = 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+      const meta = document.createElement('div');
+      meta.textContent = `${entry.group || 'Node FX'} · ${status.label}`;
+      meta.style.cssText = 'opacity:0.7;font-size:11px;';
+      left.appendChild(name);
+      left.appendChild(meta);
+
+      const button = document.createElement('button');
+      button.textContent = status.enabled ? 'off' : 'on';
+      button.title = status.label === 'missing'
+        ? 'System is not present yet. Toggle persists the desired state for later.'
+        : status.label === 'forced-off'
+          ? 'This system is hard-disabled in code. Toggle only persists state until the module becomes active again.'
+          : 'Toggle runtime state';
+      button.style.cssText = [
+        'background:#101826',
+        'color:#d6ebff',
+        'border:1px solid rgba(120,160,220,0.35)',
+        'padding:4px 10px',
+        'font:inherit',
+        'cursor:pointer',
+        'min-width:48px'
+      ].join(';');
+      button.onclick = () => {
+        this.toggleNodeFxById(entry.id);
+      };
+      if (status.label === 'missing') {
+        button.style.opacity = '0.7';
+      }
+
+      row.appendChild(left);
+      row.appendChild(button);
+      this.hudList.appendChild(row);
+      });
+    });
+
+    if (this.hudSummary) {
+      this.hudSummary.textContent = `active ${activeCount} · disabled ${disabledCount} · forced-off ${forcedOffCount} · missing ${missingCount}`;
+    }
   }
 }
 
@@ -657,8 +1214,8 @@ FXDebugSandbox.prototype.spawnAll = function() {
 // INITIALIZATION - DISABLED
 // ============================================================================
 
-// ⚠️ SANDBOX CURRENTLY DISABLED - To enable, change 'const DISABLED = true' to 'false'
-const DISABLED = true;
+// Sandbox export stays enabled; spawn helpers remain console-only.
+const DISABLED = false;
 
 const sandbox = new FXDebugSandbox();
 
@@ -690,9 +1247,23 @@ if (!DISABLED) {
     window.FX.trail = () => sandbox.spawnLinkTrailParticles();
     window.FX.spark = () => sandbox.spawnLinkSpark();
     window.FX.halo = () => sandbox.spawnHarmonicNodeHalos();
+    window.FX.toggleNodeFxHud = (force) => sandbox.toggleHud(force);
+    window.FX.showNodeFxHud = () => sandbox.toggleHud(true);
+    window.FX.hideNodeFxHud = () => sandbox.toggleHud(false);
+    window.FX.refreshNodeFxRegistry = () => sandbox.syncNodeFxRegistry(true);
+    window.FX.listNodeFxRegistry = () => sandbox.listNodeFxRegistry();
+    window.FX.toggleNodeFx = (id, enabled) => sandbox.toggleNodeFxById(id, enabled);
+    window.FX.nodeFx = {
+      toggle: (id, enabled) => sandbox.toggleNodeFxById(id, enabled),
+      list: () => sandbox.listNodeFxRegistry(),
+      refresh: () => sandbox.syncNodeFxRegistry(true),
+      showHud: () => sandbox.toggleHud(true),
+      hideHud: () => sandbox.toggleHud(false)
+    };
 
     console.log('[FXDebugSandbox] Loaded. Use FX.init(scene) then FX.spawn.<method>()');
     console.log('[FXDebugSandbox] Quick access: FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo()');
+    console.log('[FXDebugSandbox] Node HUD: press L or call FX.toggleNodeFxHud().');
   }
 } else {
   console.log('[FXDebugSandbox] DISABLED - To enable, change DISABLED flag to false at line ~661');

@@ -9,6 +9,7 @@ export const UIVisibilityConfig = {
   selectedHUD: true,
   aiHUD: true,
   advisorHUD: true,
+  waveSystemHUD: true,
   /** Developer mode — controls DEBUG_AUTHORING layer visibility */
   developerMode: false
 };
@@ -145,6 +146,14 @@ export function getUIVisibilitySettingsRows() {
       value: UIVisibilityConfig.advisorHUD ? '[ ON ]' : '[ OFF ]',
       description: 'Controls the advisor HUD (requires dev mode).',
       action: () => toggleUIVisibilityFlag('advisorHUD'),
+    },
+    {
+      type: 'visibility',
+      id: 'waveSystemHUD',
+      label: 'Wave System HUD',
+      value: UIVisibilityConfig.waveSystemHUD ? '[ ON ]' : '[ OFF ]',
+      description: 'Controls the wave system debug overlay in main.js.',
+      action: () => toggleUIVisibilityFlag('waveSystemHUD'),
     },
   ];
 }

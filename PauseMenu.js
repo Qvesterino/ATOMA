@@ -140,6 +140,7 @@ export class PauseMenu {
         }
 
         this._renderScreen();
+        this._scrollSelectedEntryIntoView();
         this._renderFooter();
     }
 
@@ -299,6 +300,7 @@ export class PauseMenu {
 
     _renderScreen() {
         this.content.textContent = '';
+        this.content.classList.toggle('atoma-main-menu__content--scrollable', this.state.screen === 'SETTINGS');
         this._focusableRefs = [];
         this.loreBody = null;
 
@@ -339,6 +341,23 @@ export class PauseMenu {
         this.hint.textContent = 'UP / DOWN TO SELECT  |  ENTER TO ACTIVATE  |  LEFT / RIGHT FOR BASE SETTINGS  |  ESC TO BACK';
         this.status.textContent = 'Sound level and mute are stored for boot. Settings stay scoped to the menu layer.';
         this._renderEntryList(this._screenEntries);
+    }
+
+    _scrollSelectedEntryIntoView() {
+        if (this.state.screen !== 'SETTINGS' || !this.content.classList.contains('atoma-main-menu__content--scrollable')) {
+            return;
+        }
+
+        const selectedRef = this._focusableRefs.find((ref) => ref.entryIndex === this.state.selectedIndex);
+        if (!selectedRef?.element?.scrollIntoView) {
+            return;
+        }
+
+        try {
+            selectedRef.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        } catch {
+            // Ignore scroll failures in non-standard DOM environments.
+        }
     }
 
     _renderEntryList(entries) {
@@ -383,7 +402,7 @@ export class PauseMenu {
 
             button.append(marker, label);
 
-            if (entry.type === 'setting' || entry.type === 'toggle') {
+            if (entry.type === 'setting' || entry.type === 'toggle' || entry.type === 'visibility') {
                 const value = document.createElement('span');
                 value.className = 'atoma-main-menu__value';
                 value.textContent = entry.value;
