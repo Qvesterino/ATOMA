@@ -30032,6 +30032,7 @@ static createAnalyticsNode2(group, color) {
       const root = new THREE.Group();
       root.name = 'ERROR_INTERSECTING_SOLIDS';
       root.userData.visualVariant = 'ERROR_INTERSECTING_SOLIDS_ORACLE_V2';
+      root.position.set(5, 10, 0);
 
       const jitterGeometry = (geometry, magnitude = 0.02) => {
         const g = geometry.clone();
@@ -30053,7 +30054,7 @@ static createAnalyticsNode2(group, color) {
       const bloodMat = new THREE.MeshPhysicalMaterial({
         color,
         emissive: color,
-        emissiveIntensity: 0.36,
+        emissiveIntensity: 0.14,
         metalness: 0.72,
         roughness: 0.18,
         clearcoat: 0.35,
@@ -30062,7 +30063,7 @@ static createAnalyticsNode2(group, color) {
       const antiMat = new THREE.MeshStandardMaterial({
         color: 0x070707,
         emissive: 0x120000,
-        emissiveIntensity: 0.1,
+        emissiveIntensity: 0.04,
         metalness: 0.15,
         roughness: 0.82,
         side: THREE.DoubleSide
@@ -30070,20 +30071,20 @@ static createAnalyticsNode2(group, color) {
       const antiVoidMat = new THREE.MeshBasicMaterial({
         color: 0x000000,
         transparent: true,
-        opacity: 0.92,
+        opacity: 0.58,
         side: THREE.BackSide
       });
       const cageMat = new THREE.LineBasicMaterial({
         color,
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.42,
         depthWrite: false,
         depthTest: true
       });
       const glassWireMat = new THREE.LineBasicMaterial({
         color: 0xa8f4ff,
         transparent: true,
-        opacity: 0.62,
+        opacity: 0.3,
         depthWrite: false,
         depthTest: true
       });
@@ -30171,11 +30172,11 @@ static createAnalyticsNode2(group, color) {
         new THREE.MeshStandardMaterial({
           color,
           emissive: color,
-          emissiveIntensity: 0.44,
+          emissiveIntensity: 0.18,
           metalness: 0.42,
           roughness: 0.36,
           transparent: true,
-          opacity: 0.86
+          opacity: 0.44
         })
       );
       brokenRing.name = 'CollisionBrokenTorusRing';
@@ -30730,6 +30731,7 @@ static createAnalyticsNode2(group, color) {
       const root = new THREE.Group();
       root.name = 'ERROR_TOPOLOGY_TEAR';
       root.userData.visualVariant = 'ERROR_SEVERED_CONTINUUM_RELIC_V2';
+      root.position.set(5, 10, 0);
 
       const deformRelicGeometry = (geometry, amp = 0.05) => {
         const g = geometry.clone();
@@ -30755,7 +30757,7 @@ static createAnalyticsNode2(group, color) {
       const shellMat = new THREE.MeshPhysicalMaterial({
         color: 0x0a0d14,
         emissive: 0x101827,
-        emissiveIntensity: 0.2,
+        emissiveIntensity: 0.1,
         metalness: 0.65,
         roughness: 0.3,
         clearcoat: 0.2,
@@ -30764,23 +30766,23 @@ static createAnalyticsNode2(group, color) {
       const seamMat = new THREE.MeshBasicMaterial({
         color: 0x8ff7ff,
         transparent: true,
-        opacity: 0.9
+        opacity: 0.45
       });
       const voidMat = new THREE.MeshBasicMaterial({
         color: 0x010305,
         transparent: true,
-        opacity: 0.92,
+        opacity: 0.68,
         side: THREE.BackSide
       });
       const threadMat = new THREE.MeshBasicMaterial({
         color: 0x9af4ff,
         transparent: true,
-        opacity: 0.84
+        opacity: 0.5
       });
       const wire = new THREE.LineBasicMaterial({
         color,
         transparent: true,
-        opacity: 0.86,
+        opacity: 0.48,
         depthWrite: false,
         depthTest: true
       });

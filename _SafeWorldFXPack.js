@@ -1667,7 +1667,7 @@ export class SafeWorldFXPack {
     // Chance to spawn revelation breach
     if (this.worldState.quantumTimer > interval) {
       const bias = this._getWorldFXSignalBias('quantumRift');
-      const eligible = this.atmosphereState.legendaryCount > 0 || this.atmosphereState.corruptionHigh || this.atmosphereState.signalBias > 0.45;
+      const eligible = this.atmosphereState.legendaryCount > 0 || this.atmosphereState.corruptionHigh || this.atmosphereState.signalBias > 0.25;
       const roll = Math.random();
       if (eligible && roll < bias * 1.15 + (this.atmosphereState.legendaryCount * 0.06) + (this.atmosphereState.corruptionHigh ? 0.14 : 0)) {
         this.spawnQuantumRift();
@@ -3107,7 +3107,19 @@ export class SafeWorldFXPack {
         this._releaseMeshResources(child);
       });
     }
-    
+
+    // Clear rift wave material pool
+    if (this._riftWaveMaterialPool) {
+      ['linear', 'radial'].forEach(type => {
+        const bucket = this._riftWaveMaterialPool[type];
+        if (bucket) {
+          bucket.available.forEach(mat => this._releaseMaterial(mat));
+          bucket.available.length = 0;
+          bucket.inUse.clear();
+        }
+      });
+    }
+
     // Restore original lights
     this.originalLights.forEach(lightData => {
       if (lightData.light && lightData.light.intensity !== undefined && lightData.originalIntensity !== undefined) {
