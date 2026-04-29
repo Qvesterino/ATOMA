@@ -829,7 +829,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
     
     update(deltaTime, time, networkState) {
         const mode = getAtomaVisualDebugMode();
-        if (mode !== 'all' && mode !== 'recovery') return;
+        if (mode !== 'all' && mode !== 'recovery') return; // Ensure we are in the correct debug mode
         if (!this.enabled) return;
 
         this._decayDramaturgyModulation(deltaTime);
@@ -873,7 +873,8 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         }
         
         // 2. Update Recovering Zones
-        this._updateRecoveringZones(networkState || {}, currentVisualTime);
+        const cameraPosition = this._resolveCameraPosition();
+        this._updateRecoveringZones(networkState || {}, currentVisualTime, cameraPosition);
         
         // 3. Update Visuals
         this.waveMaterial.uniforms.uTime.value = currentVisualTime;
@@ -977,7 +978,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         return true;
     }
     
-    _updateRecoveringZones(state, currentVisualTime) {
+    _updateRecoveringZones(state, currentVisualTime, cameraPosition = null) {
         const clamp01 = (value) => {
             const numeric = Number(value);
             if (!Number.isFinite(numeric)) return 0;
@@ -1019,7 +1020,6 @@ export class HarmonicRecoveryVisualSystem_Session138 {
 
                 mesh.rotation.set(-Math.PI / 2, zone.linkYaw ?? 0, 0);
             }
-            
             // 2. Link Re-Stitching (Particles) - only if not waveOnly
             if (!zone.waveOnly) {
                 const sinceLastStitch = currentVisualTime - (zone.lastStitchTime ?? zone.startTime);
@@ -1077,7 +1077,6 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             mesh.scale.set(scale, scale, scale);
             
             // Billboard
-            const cameraPosition = this._resolveCameraPosition();
             if (cameraPosition) mesh.lookAt(cameraPosition);
             
             mesh.material.uniforms.uLife.value = progress;

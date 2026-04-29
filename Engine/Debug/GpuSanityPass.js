@@ -148,6 +148,10 @@ function installGeometryAudit(threeNamespace, options = {}) {
   const inspectObject = (object, parent) => {
     if (!object || typeof object !== 'object') return;
 
+    if (object.__gpuSanityIgnore || object.userData?.__gpuSanityIgnore) {
+      return;
+    }
+
     const geometry = object.geometry;
     if (enabled && geometry?.uuid && !seenGeometryIds.has(geometry.uuid)) {
       seenGeometryIds.add(geometry.uuid);
@@ -246,6 +250,7 @@ export function setupGpuSanity(renderer, options = {}) {
 
   let materialRegistry = options.materialRegistry ?? null;
   const geometryAudit = installGeometryAudit(THREE, options);
+  let includeSceneStats = options.includeSceneStats === true;
 
   // Reuse a single snapshot object to avoid per-frame allocations
   const snapshotCache = {
@@ -405,7 +410,7 @@ export function setupGpuSanity(renderer, options = {}) {
       },
       delta,
       materialRegistry: registryNow,
-      scene: countSceneMaterials(mergedContext.scene)
+      scene: includeSceneStats ? countSceneMaterials(mergedContext.scene) : null
     };
 
     recentRenderChurn.push(event);
@@ -433,6 +438,10 @@ export function setupGpuSanity(renderer, options = {}) {
     snapshot() { return readSnapshot(); },
     setMaterialRegistry(nextRegistry) {
       materialRegistry = nextRegistry ?? null;
+      return this;
+    },
+    setIncludeSceneStats(enabledFlag = true) {
+      includeSceneStats = !!enabledFlag;
       return this;
     },
     geometryAudit() {

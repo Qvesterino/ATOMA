@@ -557,6 +557,7 @@ export class LinkRingArcDischarges {
         line.frustumCulled = false;
         const arcsOrder = VisualHierarchyRegistry.getRenderOrder('LINK_ARCS');
         line.renderOrder = arcsOrder;
+        line.userData = { ...(line.userData || {}), __gpuSanityIgnore: true, isArcDischarge: true };
         this.group.add(line);
 
         const glowGeometry = this._createGlowGeometryFromPositions(positions, normal, binormal, glowStrength);
@@ -569,6 +570,7 @@ export class LinkRingArcDischarges {
             glowLine = new THREE.Line(glowGeometry, glowMaterial);
             glowLine.frustumCulled = false;
             glowLine.renderOrder = arcsOrder - 0.05;
+            glowLine.userData = { ...(glowLine.userData || {}), __gpuSanityIgnore: true, isArcDischarge: true };
             this.group.add(glowLine);
         }
 
@@ -625,6 +627,7 @@ export class LinkRingArcDischarges {
                 const branchLine = new THREE.Line(branchGeometry, branchMaterial);
                 branchLine.frustumCulled = false;
                 branchLine.renderOrder = arcsOrder;
+                branchLine.userData = { ...(branchLine.userData || {}), __gpuSanityIgnore: true, isArcDischarge: true };
                 this.group.add(branchLine);
 
                 if (branchGlowGeometry) {
@@ -634,6 +637,7 @@ export class LinkRingArcDischarges {
                     branchGlowLine = new THREE.Line(branchGlowGeometry, branchGlowMaterial);
                     branchGlowLine.frustumCulled = false;
                     branchGlowLine.renderOrder = arcsOrder - 0.05;
+                    branchGlowLine.userData = { ...(branchGlowLine.userData || {}), __gpuSanityIgnore: true, isArcDischarge: true };
                     this.group.add(branchGlowLine);
                 }
                 

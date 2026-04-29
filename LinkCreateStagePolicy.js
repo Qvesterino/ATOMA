@@ -139,7 +139,7 @@ export const LINK_CREATE_STAGE_DEFINITIONS = Object.freeze([
       'LinkRendererConduit._runBootstrapPhase(case 9)',
       'LinkCorruptionSpreadAnimator'
     ],
-    notes: 'This is already owned by the conduit update path.'
+    notes: 'Temporarily disabled because the effect was not visibly contributing and still added update overhead. Revisit later.'
   },
   {
     phase: 10,

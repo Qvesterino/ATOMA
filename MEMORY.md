@@ -57,6 +57,7 @@ The following are confirmed and should be treated as stable:
 - Link-resonance and cascade systems must derive state from live link authority and remain tolerant of partial `link.userData.metrics` hydration.
 - Cascade and wave systems should seed from canonical link lifecycle events and preserve short-lived birth history through unlink instead of deleting it immediately.
 - Link visuals and supporting systems may be refactored, but the runtime authority and event-binding contract remain the durable memory.
+- `LinkCorruptionSpreadAnimator` was temporarily disabled because it was not visibly contributing and still added update overhead; revisit later if the visual becomes meaningful again.
 - In normal runtime, `renderer.debug.checkShaderErrors` should stay disabled and shader programs should be precompiled after world build so cold `getProgramInfoLog` work does not land in `runRenderTick()`.
 - Post-processing has its own effect scene, so shader warmup must cover `scene_scene` separately from the main world scene.
 - When meshes only differ by uniform values, reuse one `ShaderMaterial` instance and override per-mesh uniforms in `onBeforeRender` instead of cloning the material.

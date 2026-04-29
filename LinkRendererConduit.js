@@ -1466,9 +1466,9 @@ export class LinkRendererConduit {
         this.linkResonanceFlowSystem.world = this.linkSystem;
         this.linkResonanceSystem = this.linkResonanceFlowSystem; // backward-compatible alias
 
-        // Corruption spread animation system (visual only)
-        this.corruptionSpreadAnimator = new LinkCorruptionSpreadAnimator();
-        this.corruptionSpreadAnimator.attachScene?.(scene);
+        // Corruption spread animation system is temporarily disabled.
+        // It was not visibly contributing and was still adding update overhead.
+        this.corruptionSpreadAnimator = null;
 
         // Corruption particle system (visual only)
         this.corruptionParticleSystem = new LinkCorruptionParticleSystem(scene);
