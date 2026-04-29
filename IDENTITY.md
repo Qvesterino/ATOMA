@@ -74,7 +74,7 @@ These categories are the primary visual hooks for:
 
 Node visuals are stored in `EnhancedNodeModel.js` and spawn orchestration is handled by `AINodes.js` (`AINodes.js` also implements the ~15 pre-spawn initial node set and the growth rules).
 
-At game start, each map begins with about 15 pre-spawned nodes. New nodes are added over time by the spawn system: one node every 60 seconds and one node every third successful link creation.
+At game start, each map begins with about 15 pre-spawned nodes. New nodes are added over time by the spawn system: one node every 45 seconds and one node at each active-link milestone (3, 6, 9, ...) rather than on raw link-creation count.
 
 Node archetypes are layered on top of categories, but category remains the primary semantic tag.
 

@@ -235,6 +235,15 @@ ode --check after the change.
 - 2026-04-11: Fresh browser smoke after the bootstrap split stayed clean and visually readable. On one created link, the staged samples progressed as expected: first the ring was absent, then the pulse ring appeared, then ring trails + dust emitter became visible, and finally sparks joined in. Screenshot artifact: `output/web-game/fx-stack-smoke-2.png`.
 - 2026-04-11: `LinkRingArcDischarges` now boots in slices instead of all at once: constructor creates only the core group when `deferPools` is enabled, then the impact spark pool, ripple pool, and packet pool are warmed in later conduit bootstrap slices. Spawn paths can still lazy-init their pool if a pulse hits before the staged warmup completes. Browser smoke on a fresh reload stayed visually intact; the staged samples showed the ring first, then pulse ring / dust, then arc discharges, then sparks and trails.
 - 2026-04-11: Continued link FX cleanup on the directional / ring side. `LinkDirectionalStreaks` now lazily creates its color-dynamics and gradient-polish helpers and no longer emits periodic opacity logs in the normal hot path. `LinkEnergyRingSystem` now supports deferred geometry-pool initialization, and `LinkRendererConduit` boots the ring system with deferred geometry then warms the pool later in the staged link bootstrap. Browser smoke on `http://127.0.0.1:5500/index.html` stayed visually intact: one created link showed `streaks=true`, `rings=true`, `arcDischarges=true`, and a manual `emitRing()` call succeeded with `poolReady=true`. Screenshot artifact: `output/web-game/link-stack-directional-energy-smoke.png`.
+- 2026-04-29: `AINodes.js` growth-spawn authority was reworked so runtime node growth uses active-link milestones instead of raw link creation count. Spawns now happen at `3, 6, 9, ...` active links, and unlinking does not roll milestones backward.
+- 2026-04-29: Time-based growth spawn moved from `60s` to `45s`.
+- 2026-04-29: Growth spawns now preselect a random unused `visualCode` from `NodeVisualRegistry`, then queue that exact `forcedVisualCode` through the spawn queue. This keeps runtime-spawned nodes unique against all active nodes on the map.
+- 2026-04-29: Runtime spawn placement was tightened in `findSafeSpawnLocation()` with larger node/player separation and safer active-area placement around the player instead of origin-only sampling.
+- 2026-04-29: Verification:
+  - `node --check AINodes.js`
+  - `node --check main.js`
+  - `node tests/NodeGrowthSpawnChecks.js`
+  - Browser smoke on a workspace-local static server `http://127.0.0.1:5501/index.html` reached the ATOMA main menu with no new boot errors; only pre-existing AudioContext autoplay warnings remained.
 - 2026-04-12: Disabled `CanonicalTemplate3_StressVisuals` and `StressVisualShaderSystem` by default via `window.stressVisualSystemsEnabled = false` in `main.js`.
 - Added runtime toggles: `window.enableStressVisualSystems()` and `window.disableStressVisualSystems()`.
 - Verified in Edge smoke: `stressEnabled=false`, both helpers exist, stress node maps remain empty at boot.

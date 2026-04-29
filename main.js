@@ -8952,6 +8952,8 @@ window.__ATOMA_SCENE__ = this.scene;
         if (this.aiNodes.spawnGrowthState) {
             this.aiNodes.spawnGrowthState.lastTimeSpawnAt = Date.now();
             this.aiNodes.spawnGrowthState.linksSinceSpawn = 0;
+            this.aiNodes.spawnGrowthState.linkSpawnMilestone = 0;
+            this.aiNodes.spawnGrowthState.lastObservedActiveLinks = 0;
         }
 
         // Wave shader stacks: register/patch/apply after nodes exist (pre-link usage)

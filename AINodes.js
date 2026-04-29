@@ -609,6 +609,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     };
     this.spawnGrowthState = {
       linksSinceSpawn: 0,
+      linkSpawnMilestone: 0,
+      lastObservedActiveLinks: 0,
       lastTimeSpawnAt: Date.now()
     };
     this.pendingLinkJobs = [];
@@ -969,6 +971,77 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   _getUniqueArchetypeKey(category, archetype) {
     const archetypeKey = String(archetype || category || '').trim().toLowerCase();
     return archetypeKey || null;
+  }
+
+  _getActiveLinkCount(meta = {}) {
+    const hintedCount = Number(meta?.totalLinks);
+    if (Number.isFinite(hintedCount) && hintedCount >= 0) {
+      return hintedCount;
+    }
+
+    const links = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : [];
+    return links.filter((link) => link && link.active !== false).length;
+  }
+
+  _getUsedVisualCodeSet() {
+    const usedCodes = new Set();
+    const capture = (value) => {
+      const code = Number(value);
+      if (Number.isFinite(code)) {
+        usedCodes.add(code);
+      }
+    };
+
+    const nodes = Array.isArray(this.nodes) ? this.nodes : [];
+    for (const node of nodes) {
+      if (!node) continue;
+      capture(node.userData?.visualCode);
+      capture(node.userData?.spawnCycle?.visualCode);
+      capture(node.userData?.enhancedNodeModelBinding?.visualCode);
+
+      if (typeof node.traverse === 'function') {
+        node.traverse((child) => {
+          if (child?.userData?.visualCode != null) {
+            capture(child.userData.visualCode);
+          }
+        });
+      }
+    }
+
+    return usedCodes;
+  }
+
+  _getAvailableVisualEntries(categoryHint = null) {
+    const usedCodes = this._getUsedVisualCodeSet();
+    const normalizedCategoryHint = categoryHint
+      ? String(categoryHint).toLowerCase().trim()
+      : null;
+
+    return Object.entries(NODE_VISUAL_REGISTRY)
+      .map(([codeStr, def]) => ({
+        visualCode: Number(codeStr),
+        category: def?.category || null,
+        definition: def
+      }))
+      .filter((entry) => (
+        Number.isFinite(entry.visualCode) &&
+        !usedCodes.has(entry.visualCode) &&
+        entry.category &&
+        (!normalizedCategoryHint || entry.category === normalizedCategoryHint)
+      ));
+  }
+
+  _resolveGrowthSpawnCandidate(categoryHint = null) {
+    let availableEntries = this._getAvailableVisualEntries(categoryHint);
+    if (!availableEntries.length && categoryHint) {
+      availableEntries = this._getAvailableVisualEntries();
+    }
+    if (!availableEntries.length) {
+      return null;
+    }
+
+    const selectedIndex = Math.floor(Math.random() * availableEntries.length);
+    return availableEntries[selectedIndex] || null;
   }
 
   getNodeCount() {
@@ -1591,6 +1664,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       this.spawningConfig.needsRearm = false;
       if (this.spawnGrowthState) {
         this.spawnGrowthState.linksSinceSpawn = 0;
+        this.spawnGrowthState.linkSpawnMilestone = 0;
+        this.spawnGrowthState.lastObservedActiveLinks = 0;
         this.spawnGrowthState.lastTimeSpawnAt = Date.now();
       }
       this.spawningConfig.disableRuntimeSpawn = true; // HARD OFF after init
@@ -1760,6 +1835,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   createNode(category, position, index, isSpecial = false, options = {}) {
     let finalVisualCode = null;
     const canonicalCategory = String(category || 'input').toLowerCase().trim();
+    const forcedVisualCode = Number.isFinite(Number(options?.forcedVisualCode))
+      ? Number(options.forcedVisualCode)
+      : null;
+    const requireUniqueVisualCode = options?.requireUniqueVisualCode === true;
     // ============================================================
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
@@ -1870,7 +1949,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       });
     }
 
-    let selectedVisualCode = pool[idx];
+    let selectedVisualCode = forcedVisualCode ?? pool[idx];
     
     // Runtime logging for category spawn debugging
     if (window.ATOMA_FLAGS?.debug?.spawnCategory === true) {
@@ -1890,7 +1969,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     
     // Error-category anti-stuck selection:
     // use a shuffled per-category bag so repeated spawns don't keep picking one visual.
-    if (counterKey === 'error' && pool.length > 1) {
+    if (forcedVisualCode == null && counterKey === 'error' && pool.length > 1) {
       let bag = this._categoryVariantBags.get(counterKey);
       if (!Array.isArray(bag) || bag.length === 0) {
         bag = [...pool];
@@ -1903,6 +1982,14 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       this._categoryVariantBags.set(counterKey, bag);
     }
     finalVisualCode = selectedVisualCode;
+
+    if (forcedVisualCode != null && !pool.includes(forcedVisualCode)) {
+      return failClosedVisual(null, `Forced visual code ${forcedVisualCode} is not available in category ${poolCategory}`);
+    }
+
+    if (requireUniqueVisualCode && this._getUsedVisualCodeSet().has(finalVisualCode)) {
+      return failClosedVisual(null, `Forced visual code ${finalVisualCode} is already active on the map`);
+    }
 
     const debugCheckGeometry = (mesh, stage) => {
       if (!mesh || !mesh.geometry) return;
@@ -3804,7 +3891,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       targetPopulation: defaultTargetPopulation,
       // Deterministic growth rules
       linkSpawnEveryNLinks: 3,
-      timeSpawnIntervalMs: 60000,
+      timeSpawnIntervalMs: 45000,
       growthSpawnPriority: {
         linkThreshold: 3,
         timeThreshold: 2
@@ -3878,30 +3965,39 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   /**
    * Find safe spawn location (open, visible, no overlap)
    */
-  findSafeSpawnLocation() {
-    const maxAttempts = 15;
-    const minDistanceToPlayer = 5;
-    const minDistanceBetweenNodes = 2;
+  findSafeSpawnLocation(options = {}) {
+    const maxAttempts = options.maxAttempts ?? 32;
+    const minDistanceToPlayer = options.minDistanceToPlayer ?? 8;
+    const minDistanceBetweenNodes = options.minDistanceBetweenNodes ?? 5.5;
+    const minDistanceToGeometry = options.minDistanceToGeometry ?? 3;
+    const referencePosition = this.player?.position || new THREE.Vector3(0, 0, 0);
     
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      // Generate random position in world-space
+      // Generate random position around the active play area, not only the map origin.
       const angle = Math.random() * Math.PI * 2;
-      const distance = 15 + Math.random() * 40;
-      const x = Math.cos(angle) * distance;
-      const z = Math.sin(angle) * distance;
-      const y = 2 + Math.random() * 6;
+      const distance =
+        this.minSpawnDistance +
+        Math.random() * Math.max(1, (this.maxSpawnDistance - this.minSpawnDistance));
+      const x = referencePosition.x + Math.cos(angle) * distance;
+      const z = referencePosition.z + Math.sin(angle) * distance;
+      const y = Math.max(2, referencePosition.y + 2 + Math.random() * 4);
       
       const candidate = new THREE.Vector3(x, y, z);
       
       // Check distance to player (avoid spawning on player)
-      if (candidate.distanceTo(this.player.position) < minDistanceToPlayer) {
+      if (this.player?.position && candidate.distanceTo(this.player.position) < minDistanceToPlayer) {
         continue;
       }
       
       // Check for overlap with existing nodes
       let overlaps = false;
       for (const node of this.nodes) {
-        if (candidate.distanceTo(node.position) < minDistanceBetweenNodes) {
+        if (!node?.position) continue;
+        const horizontalDistance = Math.hypot(
+          candidate.x - node.position.x,
+          candidate.z - node.position.z
+        );
+        if (horizontalDistance < minDistanceBetweenNodes) {
           overlaps = true;
           break;
         }
@@ -3917,14 +4013,15 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       raycaster.far = 10;
       
       // Check intersection with scene using accelerated spatial index (O(log n) instead of O(n))
-      globalThis.console?.log?.("[RAYCAST]", "AINodes.js", "targets:", this.spatialIndex.size());
-      const intersects = acceleratedRaycast(raycaster, this.spatialIndex, false);
+      const intersects = this.spatialIndex
+        ? acceleratedRaycast(raycaster, this.spatialIndex, false)
+        : [];
       const filtered = filterRaycastIntersections(intersects);
       
       // If we hit something close below, it's likely geometry - bad spawn
       if (filtered.length > 0) {
         const hitDistance = filtered[0].distance;
-        if (hitDistance < 3) continue; // Too close to geometry
+        if (hitDistance < minDistanceToGeometry) continue; // Too close to geometry
       }
       
       // Safe location found!
@@ -4392,6 +4489,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     this.spawnRequestQueue.push({
       category: request.category || null,
       archetype: request.archetype || null,
+      position: request.position || null,
+      options: request.options || null,
       reason: request.reason || 'unspecified',
       priority: request.priority || 0,
       timestamp: performance.now()
@@ -4428,7 +4527,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       const req = this.spawnRequestQueue.shift();
       // Acquire token to allow spawnNode() to execute
       this._spawnUpdateToken = true;
-      this.#spawnNode(req.category, null, req.archetype);
+      this.#spawnNode(req.category, req.position ?? null, req.archetype, req.options || {});
       this._spawnUpdateToken = false;
       processed++;
     }
@@ -4494,7 +4593,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    * [SPAWN AUTHORITY FIX] ENFORCE ENHANCED NODE MODEL AS SINGLE SOURCE OF TRUTH
    * [SINGLE ENTRY POINT] Private method - only accessible through requestSpawn() queue
    */
-  #spawnNode(category = null, position = null, forceArchetype = null) {
+  #spawnNode(category = null, position = null, forceArchetype = null, options = {}) {
   const __diag = __ensureSpawnDiag();
   if (__diag) __diag.spawnNodeEnter++;
   if (!this.__spawnTraceCounter) this.__spawnTraceCounter = 0;
@@ -4593,7 +4692,11 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
 
     // ========== STEP 2: FIND SAFE POSITION (SYNC) ==========
-    // Position already resolved above
+    const spawnPos = position?.isVector3
+      ? position.clone()
+      : (position && Number.isFinite(position.x) && Number.isFinite(position.y) && Number.isFinite(position.z))
+        ? new THREE.Vector3(position.x, position.y, position.z)
+        : this.findSafeSpawnLocation(options.spawnPlacementOptions || {});
 
     // ========== STEP 2.5: UNIQUE ARCHETYPE ENFORCEMENT (SYNC) ==========
     const forcedUniqueKey = forceArchetype
@@ -4632,7 +4735,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     const isSpecial = this.specialNodeTypes.includes(category) || this.newNodeCategories.includes(category);
     let newNode = null;
     try {
-      newNode = this.createNode(category, spawnPos, this.nodes.length, isSpecial);
+      newNode = this.createNode(category, spawnPos, this.nodes.length, isSpecial, options);
     } catch (e) {
       if (shouldLogSpawn()) {
         console.error('[SpawnVisualError]', {
@@ -5151,13 +5254,28 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     if (this.spawningConfig?.disableRuntimeSpawn === true) return false;
     if (Number.isFinite(this.hardSpawnCap) && this.getNodeCount() >= this.hardSpawnCap) return false;
 
-    const spawnCategory = category || this.getRuntimeSpawnCategoryIntent() || 'input';
+    const spawnCandidate = this._resolveGrowthSpawnCandidate(category);
+    if (!spawnCandidate) {
+      return false;
+    }
+
+    const spawnCategory = spawnCandidate.category || category || this.getRuntimeSpawnCategoryIntent() || 'input';
     const priority = reason === 'time-threshold'
       ? (this.spawningConfig?.growthSpawnPriority?.timeThreshold ?? 2)
       : (this.spawningConfig?.growthSpawnPriority?.linkThreshold ?? 3);
 
     this.requestSpawn({
       category: spawnCategory,
+      options: {
+        forcedVisualCode: spawnCandidate.visualCode,
+        requireUniqueVisualCode: true,
+        spawnPlacementOptions: {
+          minDistanceToPlayer: 8,
+          minDistanceBetweenNodes: 5.5,
+          minDistanceToGeometry: 3,
+          maxAttempts: 32
+        }
+      },
       reason,
       priority
     });
@@ -5167,6 +5285,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         console.info('[GrowthSpawn] queued', {
           reason,
           category: spawnCategory,
+          visualCode: spawnCandidate.visualCode,
           priority,
           nodeCount: this.getNodeCount(),
           queueLength: this.spawnRequestQueue?.length ?? 0
@@ -5190,7 +5309,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     if (Number.isFinite(this.hardSpawnCap) && this.getNodeCount() >= this.hardSpawnCap) return;
 
     const now = Number.isFinite(currentTime) ? currentTime : Date.now();
-    const timeSpawnIntervalMs = this.spawningConfig?.timeSpawnIntervalMs ?? 60000;
+    const timeSpawnIntervalMs = this.spawningConfig?.timeSpawnIntervalMs ?? 45000;
     if (
       this.spawnGrowthState &&
       now - this.spawnGrowthState.lastTimeSpawnAt >= timeSpawnIntervalMs
@@ -5244,21 +5363,30 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     if (!this.spawnGrowthState) {
       this.spawnGrowthState = {
         linksSinceSpawn: 0,
+        linkSpawnMilestone: 0,
+        lastObservedActiveLinks: 0,
         lastTimeSpawnAt: Date.now()
       };
     }
 
     const threshold = this.spawningConfig?.linkSpawnEveryNLinks ?? 3;
-    this.spawnGrowthState.linksSinceSpawn += 1;
-    if (this.spawnGrowthState.linksSinceSpawn < threshold) {
+    const safeThreshold = Math.max(1, threshold);
+    const activeLinkCount = this._getActiveLinkCount(meta);
+    const milestone = Math.floor(activeLinkCount / safeThreshold);
+    const previousMilestone = this.spawnGrowthState.linkSpawnMilestone ?? 0;
+
+    this.spawnGrowthState.lastObservedActiveLinks = activeLinkCount;
+    this.spawnGrowthState.linksSinceSpawn = activeLinkCount % safeThreshold;
+
+    if (milestone <= previousMilestone) {
       return;
     }
 
-    this.spawnGrowthState.linksSinceSpawn -= threshold;
+    this.spawnGrowthState.linkSpawnMilestone = milestone;
     this._queueGrowthSpawnRequest(
       'link-threshold',
       Date.now(),
-      this.getRuntimeSpawnCategoryIntent()
+      null
     );
   }
 
