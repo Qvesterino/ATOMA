@@ -3016,10 +3016,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         selectionAuraMesh.material.opacity = visible ? opacity : 0;
       }
       if (visible) {
-        const pulse = 1 + Math.sin(time * 5.2) * 0.025;
-        selectionAura.scale.setScalar(pulse);
+        // Keep the aura static to avoid micro-drift / breathing overhead.
+        selectionAura.scale.setScalar(1);
         if (selectionAuraMesh) {
-          selectionAuraMesh.rotation.z += deltaTime * 0.6;
+          selectionAuraMesh.rotation.z = 0;
         }
       } else {
         selectionAura.scale.setScalar(1);
@@ -3044,12 +3044,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
 
     const stateSignal = Math.max(activation, data.hoverBoost || 0, isSelected ? 1 : 0, isHovered ? 0.35 : 0);
-    const previousStateSignal = Number.isFinite(data.__visualStateSignal) ? data.__visualStateSignal : 0;
     data.__visualStateSignal = stateSignal;
-
-    if (!isSelected && !isHovered && stateSignal > 0 && selectionAura) {
-      setSelectionAuraState(true, Math.min(0.24, 0.08 + stateSignal * 0.12));
-    }
 
     const nodeColor = node.userData?.color || data.baseColor || visualTargets?.baseColor || 0x00ffff;
 
