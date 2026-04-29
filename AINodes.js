@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 import { NodeSpatialIndex, acceleratedRaycast } from './NodeSpatialIndex.js';
+import * as BufferGeometryUtils from './src/utils/BufferGeometryUtils.js';
 // REMOVED: NodeCoreMaterialAuthority - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 // Stub function for compatibility
 const freezeNodeCoreState = (nodeModel) => { /* no-op */ };
@@ -22,6 +23,51 @@ function findDescendantByPredicate(root, predicate) {
 function isLinkSpawnEnabled() {
   if (typeof window === 'undefined') return false;
   return window.ATOMA_FLAGS?.runtime?.linkSpawnEnabled === true;
+}
+
+function collectMatrixLockExemptRoots(userData = {}) {
+  const roots = [];
+  const pushRoot = (value) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach(pushRoot);
+      return;
+    }
+    if (value.isObject3D === true) {
+      roots.push(value);
+    }
+  };
+
+  pushRoot(userData.selectionAura);
+  pushRoot(userData.selectionAuraGroup);
+  pushRoot(userData.selectionAuraMesh);
+  pushRoot(userData.selectionAuraRing);
+  pushRoot(userData.vfxGlow);
+  pushRoot(userData.vfxHalo);
+  pushRoot(userData.vfxHolo);
+  pushRoot(userData.vfxRings);
+  pushRoot(userData.particles);
+  pushRoot(userData.fractalHolo);
+
+  return roots;
+}
+
+function lockStaticNodeMatrices(root, exemptRoots = []) {
+  if (!root || typeof root.traverse !== 'function') return;
+
+  const exemptSet = new Set(exemptRoots.filter(Boolean));
+  root.traverse((obj) => {
+    if (!obj || obj.isObject3D !== true) return;
+
+    let current = obj;
+    while (current) {
+      if (exemptSet.has(current)) return;
+      current = current.parent;
+    }
+
+    obj.matrixAutoUpdate = false;
+    obj.updateMatrix?.();
+  });
 }
 
 if (typeof window !== "undefined") {
@@ -2269,7 +2315,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     
     // ============ SAFE VFX LAYER 5: HOLOGRAPHIC EDGE HIGHLIGHTS ============
     // FIX 2: EdgesGeometry NaN discard - prevent invalid geometries from entering scene
-    if (vfxFlag('ATOMA_VFX_ENABLE_NODE_EDGE_GLOW', true)) {
+    if (vfxFlag('ATOMA_VFX_ENABLE_NODE_EDGE_GLOW', false)) {
       // Local guard for safe EdgesGeometry creation
       function hasFinitePositions(geometry) {
           const arr = geometry?.attributes?.position?.array;
@@ -2394,8 +2440,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       
       nodeModel.traverse((child) => {
         if (child.isMesh && !child.userData.isVFX) {
-          const edgeGeometry = safeEdgesGeometry(child.geometry);
-          if (!edgeGeometry) return;
+        const edgeGeometry = safeEdgesGeometry(child.geometry);
+        if (!edgeGeometry) return;
           const edgeMaterial = new THREE.LineBasicMaterial({
             color: layerColors.secondary,
             transparent: true,
@@ -4470,6 +4516,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       node.visualObject = node.userData?.nodeRoot || node;
     }
     this._registerNodePersonalityFX(node);
+    lockStaticNodeMatrices(node, collectMatrixLockExemptRoots(node.userData));
 
     return { node, sceneAdded, renderableCount, badBoundsCount };
   }

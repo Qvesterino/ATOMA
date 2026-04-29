@@ -8003,6 +8003,8 @@ window.__ATOMA_SCENE__ = this.scene;
         }
         this.nodesRoot = new THREE.Group();
         this.nodesRoot.name = 'ATOMA_NodesRoot';
+        this.nodesRoot.matrixAutoUpdate = false;
+        this.nodesRoot.updateMatrix();
         this.scene.add(this.nodesRoot);
         this.worldLightingRoot = new THREE.Group();
         this.worldLightingRoot.name = "ATOMA_WorldLightingRoot";
