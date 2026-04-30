@@ -30032,7 +30032,6 @@ static createAnalyticsNode2(group, color) {
       const root = new THREE.Group();
       root.name = 'ERROR_INTERSECTING_SOLIDS';
       root.userData.visualVariant = 'ERROR_INTERSECTING_SOLIDS_ORACLE_V2';
-      root.position.set(5, 10, 0);
 
       const jitterGeometry = (geometry, magnitude = 0.02) => {
         const g = geometry.clone();
@@ -30731,7 +30730,6 @@ static createAnalyticsNode2(group, color) {
       const root = new THREE.Group();
       root.name = 'ERROR_TOPOLOGY_TEAR';
       root.userData.visualVariant = 'ERROR_SEVERED_CONTINUUM_RELIC_V2';
-      root.position.set(5, 10, 0);
 
       const deformRelicGeometry = (geometry, amp = 0.05) => {
         const g = geometry.clone();

@@ -124,16 +124,6 @@ export class WaveParticleEmitter_v1 {
     }
   }
 
-  _hasAnyActiveLink(links = null) {
-    if (Array.isArray(links)) {
-      return links.some((link) => link && link.active !== false);
-    }
-    if (Array.isArray(this.aiNodes?.links)) {
-      return this.aiNodes.links.some((link) => link && link.active !== false);
-    }
-    return false;
-  }
-
   /**
    * Initialize particle systems and create pool
    */
@@ -727,10 +717,6 @@ export class WaveParticleEmitter_v1 {
    */
   update(deltaTime, nodes = [], links = [], waveEngine = null) {
     try {
-      if (!this._hasAnyActiveLink(links)) {
-        return;
-      }
-
       this.time += deltaTime;
       this._pendingGeometryUploads.clear();
       this._rebuildEntityLookup(nodes, links);
@@ -785,7 +771,6 @@ export class WaveParticleEmitter_v1 {
       for (const tier of tiers) {
         const eventName = `node.${metric}.${tier}`;
         const handler = (payload = {}) => {
-          if (!this._hasAnyActiveLink()) return;
           this._directMetricTierDispatchCount += 1;
           const entry = {
             eventName,

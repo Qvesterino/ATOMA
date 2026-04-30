@@ -378,6 +378,12 @@ export class T2_CorruptionVisualIntegration_v1 {
     const node = this._resolveNodeById(nodeId);
     if (!node) return false;
 
+    // PERFORMANCE: Skip if node has no active links
+    const nodeLinks = this.linkingSystem?.links?.filter(
+      l => l && (l.source === node || l.target === node) && l.active !== false
+    ) || [];
+    if (nodeLinks.length === 0) return false;
+
     const sourceWorldPos = this._resolveWorldPosition(node);
     if (!sourceWorldPos) return false;
 

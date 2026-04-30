@@ -109,7 +109,19 @@ export class SafeEvolutionManager {
       
       // Calculate energy from links (READ ONLY from linkingSystem)
       const linkEnergy = this.calculateLinkEnergy(node, linkingSystem);
-      
+
+      // CHANGED: Skip unlinked nodes - only apply VFX to linked nodes
+      if (linkEnergy <= 0) {
+        // Force stage 0 and clear any existing VFX
+        if (state.stage !== 0) {
+          state.stage = 0;
+          state.activeMutations = [];
+        }
+        // Still call updateAllVFX to remove any existing VFX
+        this.updateAllVFX(node, state, vfx, deltaTime);
+        continue;
+      }
+
       // Update energy with decay
       this.updateEnergy(state, linkEnergy, deltaTime);
       
@@ -203,31 +215,34 @@ export class SafeEvolutionManager {
    */
   calculateLinkEnergy(node, linkingSystem) {
     if (!linkingSystem || !linkingSystem.links) return 0;
-    
+
     let totalEnergy = 0;
     let linkCount = 0;
-    
-    // Count all links connected to this node
+
+    // Count all ACTIVE links connected to this node
     linkingSystem.links.forEach(link => {
-      // Link is connected to our node?
-      if ((link.source === node || link.target === node) && link.glowData) {
-        totalEnergy += link.glowData.synergy || 0;
-        linkCount++;
+      // Link must be active and connected to our node
+      if (link.active !== false && (link.source === node || link.target === node)) {
+        if (link.glowData) {
+          totalEnergy += link.glowData.synergy || 0;
+          linkCount++;
+        }
       }
     });
-    
-    // Add traffic bonus
+
+    // Add traffic bonus only from active links
     let trafficBonus = 0;
     linkingSystem.links.forEach(link => {
-      if ((link.source === node || link.target === node) && link.traffic) {
+      // Link must be active and connected to our node
+      if (link.active !== false && (link.source === node || link.target === node) && link.traffic) {
         trafficBonus += link.traffic.load || 0;
       }
     });
-    
+
     // Weighted energy calculation
     const avgSynergy = linkCount > 0 ? totalEnergy / linkCount : 0;
     const avgTraffic = linkCount > 0 ? trafficBonus / linkCount : 0;
-    
+
     return (avgSynergy * 10) + (avgTraffic * 5);
   }
   
