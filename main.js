@@ -355,6 +355,15 @@ function timeLinkCreateCallback(label, callback) {
 
         const timingRegistry = getLinkCreateCallbackTimingRegistry();
 
+        const startedAt = performance.now();
+        try {
+            return callback(...args);
+        } finally {
+            timingRegistry.record(label, performance.now() - startedAt);
+        }
+    };
+}
+
 function ensureAudioToggleCommands() {
     if (typeof window === 'undefined') return;
 
@@ -368,7 +377,6 @@ function ensureAudioToggleCommands() {
             try {
                 audioSystem.setEnabled(nextEnabled);
             } catch {
-                // ignore audio-system specific failures and fall back to direct state writes
             }
         }
 
@@ -379,7 +387,6 @@ function ensureAudioToggleCommands() {
                 localStorage.setItem('atoma.audio.enabled', nextEnabled ? '1' : '0');
             }
         } catch {
-            // ignore persistence failures
         }
 
         const destination = window.Tone?.getDestination?.() || window.Tone?.Destination || null;
@@ -415,16 +422,6 @@ function ensureAudioToggleCommands() {
                 ? window.game.audioSystem.enabled !== false
                 : true;
         return window.setAudioEnabled?.(!currentEnabled);
-    };
-}
-        const startedAt = performance.now();
-        try {
-            return callback(...args);
-        } finally {
-            timingRegistry.record(label, performance.now() - startedAt);
-        }
-
-    ensureAudioToggleCommands();
     };
 }
 

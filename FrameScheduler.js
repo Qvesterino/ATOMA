@@ -45,27 +45,32 @@ class FrameScheduler {
                 targetHz: 60,
                 interval: 1 / 60,
                 accumulator: 0,
-                functions: []
+                functions: [],
+                _pruneCounter: 0
             },
             visual: {
                 targetHz: 30,
                 interval: 1 / 30,
                 accumulator: 0,
-                functions: []
+                functions: [],
+                _pruneCounter: 0
             },
             simulation: {
                 targetHz: 10,
                 interval: 1 / 10,
                 accumulator: 0,
-                functions: []
+                functions: [],
+                _pruneCounter: 0
             },
             background: {
                 targetHz: 2,
                 interval: 1 / 2,
                 accumulator: 0,
-                functions: []
+                functions: [],
+                _pruneCounter: 0
             }
         };
+        this._pruneThreshold = 50;
         
         this.totalRegistered = 0;
         this.tickCount = 0;
@@ -283,6 +288,17 @@ class FrameScheduler {
                 }
 
                 layer.accumulator -= layer.interval;
+            }
+
+            layer._pruneCounter++;
+            if (layer._pruneCounter >= this._pruneThreshold) {
+                const before = layer.functions.length;
+                layer.functions = layer.functions.filter(fn => fn._disabled !== true);
+                const pruned = before - layer.functions.length;
+                if (pruned > 0) {
+                    frameLog(`[FrameScheduler] Pruned ${pruned} disabled entries from ${layerName} layer`);
+                }
+                layer._pruneCounter = 0;
             }
         }
     }

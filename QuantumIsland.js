@@ -936,7 +936,7 @@ export class QuantumIsland {
    * Create low-density mist
    */
   createMist() {
-    const mistGeometry = new THREE.PlaneGeometry(50, 50);
+    const mistGeometry = new THREE.CircleGeometry(25, 48);
     const mistMaterial = materialRegistry.getBasic('world.quantumisland.mist', {
       color: 0x5533aa,
       transparent: true,

@@ -442,8 +442,8 @@ const adapter = this._createLinkSystemAdapter(
 
                 for (const link of pool) {
                     if (!link) continue;
-                    const src = link.sourceNodeId ?? this._getNodeId(link.source);
-                    const tgt = link.targetNodeId ?? this._getNodeId(link.target);
+                    const src = link.sourceNodeId ?? (link.source ? this._getNodeId(link.source) : null);
+                    const tgt = link.targetNodeId ?? (link.target ? this._getNodeId(link.target) : null);
                     if (src === nodeId || tgt === nodeId) {
                         matches.push({
                             nodeA: src,
@@ -460,8 +460,8 @@ const adapter = this._createLinkSystemAdapter(
     _normalizeLinkEntry(link) {
         if (!link) return { nodeA: null, nodeB: null };
         return {
-            nodeA: link.nodeA ?? link.sourceNodeId ?? this._getNodeId(link.source),
-            nodeB: link.nodeB ?? link.targetNodeId ?? this._getNodeId(link.target)
+            nodeA: link.nodeA ?? link.sourceNodeId ?? (link.source ? this._getNodeId(link.source) : null),
+            nodeB: link.nodeB ?? link.targetNodeId ?? (link.target ? this._getNodeId(link.target) : null)
         };
     }
 
@@ -852,13 +852,10 @@ const adapter = this._createLinkSystemAdapter(
                     link.targetNodeId ??
                     this._getNodeId(link.target ?? link.targetNode ?? link.to);
 
-                if (sourceId !== undefined && sourceId !== null) {
+                if ((sourceId !== undefined && sourceId !== null) || (targetId !== undefined && targetId !== null)) {
                     const key = String(sourceId);
-                    activeNodeIds.set(key, (activeNodeIds.get(key) || 0) + 1);
-                }
-                if (targetId !== undefined && targetId !== null) {
-                    const key = String(targetId);
-                    activeNodeIds.set(key, (activeNodeIds.get(key) || 0) + 1);
+                    if (sourceId !== undefined && sourceId !== null) activeNodeIds.set(key, (activeNodeIds.get(key) || 0) + 1);
+                    if (targetId !== undefined && targetId !== null) activeNodeIds.set(String(targetId), (activeNodeIds.get(String(targetId)) || 0) + 1);
                 }
             }
         }
