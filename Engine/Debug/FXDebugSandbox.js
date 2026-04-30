@@ -287,6 +287,7 @@ class FXDebugSandbox {
       { id: 'dreamDepthEffects', label: 'Dream Depth Effects', group: 'Environment', paths: ['dreamDepthEffects'], muteMethods: ['update'] },
       { id: 'ambientEntityManager', label: 'Ambient Entity Manager', group: 'Environment', paths: ['ambientEntityManager'], muteMethods: ['update'] },
       { id: 'recursiveGlyphSignalSystem', label: 'Recursive Glyph Signal', group: 'Glyph / Overlay', paths: ['recursiveGlyphSignalSystem'], muteMethods: ['update'] },
+      { id: 'safeEvolutionManager', label: 'Safe Evolution Manager', group: 'Node Core', paths: ['evolutionManager'], muteMethods: ['update'] },
       { id: 'networkFatigueSystem', label: 'Network Fatigue', group: 'Metrics / Overlay', paths: ['networkFatigueSystem'], muteMethods: ['update'] },
       { id: 'linkTrailParticles', label: 'Link Trail Particles', group: 'Waves / Particles', paths: ['linkTrailParticles'], muteMethods: ['update'] },
       { id: 'proceduralGlyphGenerator', label: 'Procedural Glyph Generator', group: 'Glyph / Overlay', paths: ['proceduralGlyphGenerator', 'proceduralHarmonicGlyphGenerator'], muteMethods: ['update'] },

@@ -1,6 +1,243 @@
 import * as THREE from 'three';
-import { ColonyBloomOverlay } from './ColonyBloomOverlay.js';
 import { ATOMAColorPalette } from './Engine/Visual/ATOMAColorPalette.js';
+
+const BLOOM_VERTEX = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const BLOOM_FRAGMENT = `
+  uniform float uTime;
+  uniform float uIntensity;
+  uniform vec3 uCoreColor;
+  uniform vec3 uHaloColor;
+  uniform float uPulsePhase;
+  uniform float uBreathSpeed;
+  uniform float uChromaticShift;
+
+  varying vec2 vUv;
+
+  void main() {
+    vec2 center = vUv - 0.5;
+    float dist = length(center);
+
+    if (dist > 0.5) discard;
+
+    float coreFalloff = exp(-dist * dist * 8.0);
+    float haloFalloff = exp(-dist * dist * 3.2);
+    float outerHaze = exp(-dist * dist * 1.4);
+
+    float breath = sin(uTime * uBreathSpeed + uPulsePhase) * 0.5 + 0.5;
+    float microPulse = sin(uTime * uBreathSpeed * 2.7 + uPulsePhase * 1.3) * 0.5 + 0.5;
+    float combinedPulse = 0.6 + breath * 0.3 + microPulse * 0.1;
+
+    vec3 inner = uCoreColor * coreFalloff * 1.4;
+    vec3 mid = uHaloColor * haloFalloff * 0.55;
+    vec3 outer = mix(uCoreColor, uHaloColor, uChromaticShift) * outerHaze * 0.22;
+
+    vec3 color = inner + mid + outer;
+
+    float alpha = (coreFalloff * 0.85 + haloFalloff * 0.35 + outerHaze * 0.12) * uIntensity * combinedPulse;
+
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+class ColonyBloomOverlay {
+  constructor(scene, parentGroup) {
+    this.scene = scene;
+    this.parent = parentGroup;
+
+    this.container = new THREE.Group();
+    this.container.name = 'ColonyBloomOverlay';
+    if (this.parent) {
+      this.parent.add(this.container);
+    } else if (this.scene) {
+      this.scene.add(this.container);
+    }
+
+    this._sharedGeometry = new THREE.PlaneGeometry(1, 1);
+    this._blooms = new Map();
+    this._tempColor = new THREE.Color();
+    this._tempVec3 = new THREE.Vector3();
+
+    this.config = {
+      coreScale: 3.2,
+      glowScale: 4.0,
+      breathSpeed: 1.8,
+      chromaticShift: 0.35,
+      minIntensity: 0.45,
+      maxIntensity: 1.15,
+      haloHueShift: 0.08,
+      haloSaturationBoost: 0.15,
+      haloLightnessBoost: 0.12
+    };
+  }
+
+  createForCore(colonyId, coreMesh, colorHex, energyFactor = 0.5, pulsePhase = 0) {
+    this._createOrUpdate(colonyId, coreMesh, colorHex, energyFactor, pulsePhase, 'core');
+  }
+
+  createForGlow(colonyId, glowMesh, colorHex, energyFactor = 0.5, pulsePhase = 0) {
+    this._createOrUpdate(colonyId, glowMesh, colorHex, energyFactor, pulsePhase, 'glow');
+  }
+
+  _createOrUpdate(colonyId, targetMesh, colorHex, energyFactor, pulsePhase, kind) {
+    const key = `${colonyId}_${kind}`;
+    let entry = this._blooms.get(key);
+
+    const coreColor = this._tempColor.setHex(colorHex);
+    const hsl = {};
+    coreColor.getHSL(hsl);
+
+    const haloColor = new THREE.Color().setHSL(
+      (hsl.h + this.config.haloHueShift) % 1.0,
+      Math.min(1, hsl.s + this.config.haloSaturationBoost),
+      Math.min(1, hsl.l + this.config.haloLightnessBoost)
+    );
+
+    const intensity = this.config.minIntensity +
+      (this.config.maxIntensity - this.config.minIntensity) * energyFactor;
+
+    if (!entry) {
+      const material = new THREE.ShaderMaterial({
+        vertexShader: BLOOM_VERTEX,
+        fragmentShader: BLOOM_FRAGMENT,
+        uniforms: {
+          uTime: { value: 0 },
+          uIntensity: { value: intensity },
+          uCoreColor: { value: coreColor.clone() },
+          uHaloColor: { value: haloColor.clone() },
+          uPulsePhase: { value: pulsePhase },
+          uBreathSpeed: { value: this.config.breathSpeed },
+          uChromaticShift: { value: this.config.chromaticShift }
+        },
+        transparent: true,
+        depthWrite: false,
+        depthTest: true,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        fog: false,
+        toneMapped: false
+      });
+
+      const sprite = new THREE.Mesh(this._sharedGeometry, material);
+      sprite.name = `bloom_${kind}_${colonyId}`;
+      sprite.renderOrder = 100;
+
+      this.container.add(sprite);
+
+      entry = {
+        sprite,
+        material,
+        targetMesh,
+        kind,
+        colonyId,
+        baseScale: kind === 'core' ? this.config.coreScale : this.config.glowScale,
+        intensity,
+        pulsePhase
+      };
+
+      this._blooms.set(key, entry);
+    } else {
+      entry.targetMesh = targetMesh;
+      entry.material.uniforms.uIntensity.value = intensity;
+      entry.material.uniforms.uCoreColor.value.copy(coreColor);
+      entry.material.uniforms.uHaloColor.value.copy(haloColor);
+      entry.material.uniforms.uPulsePhase.value = pulsePhase;
+      entry.baseScale = kind === 'core' ? this.config.coreScale : this.config.glowScale;
+      entry.intensity = intensity;
+    }
+  }
+
+  update(deltaTime) {
+    const time = performance.now() * 0.001;
+
+    for (const entry of this._blooms.values()) {
+      const { sprite, material, targetMesh, baseScale } = entry;
+
+      if (!targetMesh || !targetMesh.parent) {
+        sprite.visible = false;
+        continue;
+      }
+
+      sprite.visible = true;
+      targetMesh.getWorldPosition(sprite.position);
+
+      if (this._camera) {
+        sprite.lookAt(this._camera.position);
+      } else {
+        sprite.rotation.set(0, 0, 0);
+      }
+
+      const targetScale = targetMesh.scale.x || 1;
+      const scale = targetScale * baseScale * (0.9 + Math.sin(time * 1.5 + entry.pulsePhase) * 0.1);
+      sprite.scale.set(scale, scale, scale);
+
+      material.uniforms.uTime.value = time;
+    }
+  }
+
+  setCamera(camera) {
+    this._camera = camera;
+  }
+
+  removeForColony(colonyId) {
+    for (const key of this._blooms.keys()) {
+      if (key.startsWith(`${colonyId}_`)) {
+        const entry = this._blooms.get(key);
+        this._disposeEntry(entry);
+        this._blooms.delete(key);
+      }
+    }
+  }
+
+  remove(keyOrColonyId, kind) {
+    const key = kind ? `${keyOrColonyId}_${kind}` : keyOrColonyId;
+    const entry = this._blooms.get(key);
+    if (entry) {
+      this._disposeEntry(entry);
+      this._blooms.delete(key);
+    }
+  }
+
+  _disposeEntry(entry) {
+    if (!entry) return;
+    if (entry.sprite) {
+      this.container.remove(entry.sprite);
+      entry.sprite.geometry = null;
+      if (entry.sprite.material) {
+        entry.sprite.material.dispose();
+      }
+    }
+  }
+
+  dispose() {
+    for (const entry of this._blooms.values()) {
+      this._disposeEntry(entry);
+    }
+    this._blooms.clear();
+
+    if (this._sharedGeometry) {
+      this._sharedGeometry.dispose();
+      this._sharedGeometry = null;
+    }
+
+    if (this.container.parent) {
+      this.container.parent.remove(this.container);
+    }
+  }
+
+  getStats() {
+    return {
+      activeBlooms: this._blooms.size,
+      containerChildren: this.container.children.length
+    };
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SUPERNATURAL UPGRADE: Bioluminescent Alien Civilization Shaders

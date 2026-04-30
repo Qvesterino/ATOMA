@@ -1162,7 +1162,6 @@ import { CascadeWaveParticles } from './CascadeWaveParticles.js';
 // Automated detection and repair of core material mutations
 // ============================================================================
 import { CoreMaterialMutationDetector, setupCoreMutationDetectorConsoleAPI } from './Engine/Debug/CoreMaterialMutationDetector.js';
-import { CoreMaterialMutationTestSuite, setupCoreMaterialTestSuiteConsoleAPI } from './Engine/Debug/CoreMaterialMutationTestSuite.js';
 
 // ============================================================================
 // CORE MATERIAL PROPERTY LOCK v1.0 (Session 30 - Hard Enforcement)
@@ -9481,18 +9480,6 @@ window.__ATOMA_SCENE__ = this.scene;
                 maxViolationsToReport: 100,
             });
             setupCoreMutationDetectorConsoleAPI(this.coreMaterialMutationDetector);
-            
-            // Initialize test suite
-            this.coreMaterialTestSuite = new CoreMaterialMutationTestSuite(
-                this.coreMaterialMutationDetector,
-                this.scene,
-                {
-                    verbose: true,
-                    stopOnFailure: false,
-                    maxTestDuration: 5000,
-                }
-            );
-            setupCoreMaterialTestSuiteConsoleAPI(this.coreMaterialTestSuite);
             
             // Register all node cores with detector
             if (this.aiNodes?.nodes) {

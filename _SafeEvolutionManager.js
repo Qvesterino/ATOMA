@@ -36,7 +36,7 @@ export class SafeEvolutionManager {
       energyDecayRate: 0.15                    // Per second
     };
 
-    this.vfxOffset = new THREE.Vector3(5, 10, 0);
+    this.vfxOffset = new THREE.Vector3(5, 0, 0);
     this._vfxPosition = new THREE.Vector3();
   }
   

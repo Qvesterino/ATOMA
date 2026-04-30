@@ -2037,7 +2037,7 @@ export class AIConsciousnessLayer {
       
       // Regenerate geometry only when necessary, with a stable interval and more nuance for active links
       const lastUpdate = line.userData.lastThreadUpdate || 0;
-      const interval = Math.max(0.24, 0.42 - activity * 0.14 - intensity * 0.04);
+      const interval = Math.max(0.08, 0.42 - activity * 0.14 - intensity * 0.04);
       if (this.time - lastUpdate > interval) {
         const points = this._generateThreadPath(link, line.userData.threadPoints);
         line.userData.threadPoints = points;
