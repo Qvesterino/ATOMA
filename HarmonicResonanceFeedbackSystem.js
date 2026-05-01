@@ -215,6 +215,7 @@ class ResonanceField {
     // ========================================================================
     
     update(deltaTime) {
+        if (!FXDebugSandbox.isEnabled('harmonicResonanceFeedbackSystem')) return;
         if (!this.active) return;
         this.age += deltaTime;
         this.rampAge += deltaTime;
@@ -490,6 +491,7 @@ class ProbabilityCloudsRenderer {
      * Update particles based on fields
      */
     update(deltaTime, resonanceFields) {
+        if (!FXDebugSandbox.isEnabled('harmonicResonanceFeedbackSystem')) return;
         if (!this.config.enabled) return;
 
         this.time += deltaTime;
@@ -805,6 +807,7 @@ export class HarmonicResonanceFeedbackSystem {
     // ========================================================================
     
     update(deltaTime, fusionZoneManager, pictogramsArray, linkingSystem) {
+        if (!FXDebugSandbox.isEnabled('harmonicResonanceFeedbackSystem')) return;
         if (!this.enabled) return;
         
         this.updateTimer += deltaTime;

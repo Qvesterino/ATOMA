@@ -1620,8 +1620,9 @@ export class AtomaGlyphSystem4_0 {
    * Main update loop - called from main.js
    */
   update(deltaTime, nodes) {
+    if (!FXDebugSandbox.isEnabled('atomaGlyphSystem4')) return;
     if (!nodes || nodes.length === 0) return;
-    
+     
     const startTime = performance.now();
 
     if (this._timeOrigin === undefined) {

@@ -225,8 +225,9 @@ export class SemanticGlyphAI {
    * nodes: array of all AI nodes
    */
   update(dt, nodes) {
-    if (!this.enabled) return;
-    const targetNodes = this.hoverTarget ? [this.hoverTarget] : nodes;
+   if (!FXDebugSandbox.isEnabled('semanticGlyphAI')) return;
+   if (!this.enabled) return;
+   const targetNodes = this.hoverTarget ? [this.hoverTarget] : nodes;
     if (!targetNodes || targetNodes.length === 0) return;
 
     const startTime = performance.now();

@@ -2142,6 +2142,7 @@ export class GlyphLayer4_MultiFusion {
   // ============================================================
   
   update(deltaTime) {
+    if (!FXDebugSandbox.isEnabled('glyphLayer4')) return;
     if (!this.enabled) return;
     if (this.frameScheduler?.shouldRunVisual?.() === false) return;
 

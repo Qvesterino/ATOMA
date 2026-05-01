@@ -572,7 +572,9 @@ export class AtomaAudioSystem {
                 Q: 1
             }
         }).connect(this.masterReverb);
-        this.selectionSynth.volume.value = -5; // TEMP: louder selection for runtime verification
+        if (this.selectionSynth.volume) {
+            this.selectionSynth.volume.value = -5; // TEMP: louder selection for runtime verification
+        }
 
         // 1.5 HOVER ENTER (Glyph flyover)
         this.hoverSynth = new Tone.MonoSynth({
@@ -600,7 +602,9 @@ export class AtomaAudioSystem {
                 Q: 1.1
             }
         }).connect(this.masterReverb);
-        this.hoverSynth.volume.value = -15;
+        if (this.hoverSynth.volume) {
+            this.hoverSynth.volume.value = -15;
+        }
 
         // 1.6 HOVER EXIT (very subtle air fade)
         this.hoverExitSynth = new Tone.MonoSynth({
@@ -627,7 +631,9 @@ export class AtomaAudioSystem {
                 Q: 0.9
             }
         }).connect(this.masterReverb);
-        this.hoverExitSynth.volume.value = -24;
+        if (this.hoverExitSynth.volume) {
+            this.hoverExitSynth.volume.value = -24;
+        }
 
         // 1.7 PRIMARY NODE SET (anchor lock dual tone)
         this.primarySetSynth = new Tone.PolySynth(Tone.MonoSynth, {
@@ -654,7 +660,9 @@ export class AtomaAudioSystem {
                 Q: 1
             }
         }).connect(this.masterReverb);
-        this.primarySetSynth.volume.value = -12;
+        if (this.primarySetSynth.volume) {
+            this.primarySetSynth.volume.value = -12;
+        }
 
         // 1.8 INVALID LINK ATTEMPT (muted reject tick)
         this.invalidLinkSynth = new Tone.MonoSynth({
@@ -681,7 +689,9 @@ export class AtomaAudioSystem {
                 Q: 2.4
             }
         }).connect(this.masterReverb);
-        this.invalidLinkSynth.volume.value = -16;
+        if (this.invalidLinkSynth.volume) {
+            this.invalidLinkSynth.volume.value = -16;
+        }
 
         // 2. LINKING (Harmonic Convergence)
         // DuoSynth for phase alignment texture
@@ -720,7 +730,9 @@ export class AtomaAudioSystem {
                 }
             }
         }).connect(this.masterReverb);
-        this.linkSynth.volume.value = -12;
+        if (this.linkSynth.volume) {
+            this.linkSynth.volume.value = -12;
+        }
 
         // 3. UNLINKING (Diffusion)
         // Noise source with lowpass filter sweep
@@ -743,7 +755,9 @@ export class AtomaAudioSystem {
         }).connect(this.masterReverb);
         this.unlinkSynth.disconnect();
         this.unlinkSynth.connect(this.unlinkFilter);
-        this.unlinkSynth.volume.value = -7;
+        if (this.unlinkSynth.volume) {
+            this.unlinkSynth.volume.value = -7;
+        }
 
 
         // 4. SYNERGY (Harmonic Bloom)
@@ -762,7 +776,9 @@ export class AtomaAudioSystem {
                 release: 2.0
             }
         }).connect(this.masterReverb);
-        this.synergySynth.volume.value = -16;
+        if (this.synergySynth.volume) {
+            this.synergySynth.volume.value = -16;
+        }
         
         // AutoFilter for subtle movement in synergy
         this.synergyFilter = new Tone.AutoFilter({
@@ -796,7 +812,9 @@ export class AtomaAudioSystem {
                 Q: 1.6
             }
         }).connect(this.masterReverb);
-        this.eventLeadSynth.volume.value = -18;
+        if (this.eventLeadSynth.volume) {
+            this.eventLeadSynth.volume.value = -18;
+        }
 
         this.eventAccentSynth = new Tone.MonoSynth({
             oscillator: { type: "sawtooth" },
@@ -820,7 +838,9 @@ export class AtomaAudioSystem {
                 Q: 2.2
             }
         }).connect(this.masterReverb);
-        this.eventAccentSynth.volume.value = -22;
+        if (this.eventAccentSynth.volume) {
+            this.eventAccentSynth.volume.value = -22;
+        }
 
         this.eventNoiseSynth = new Tone.NoiseSynth({
             noise: { type: "pink" },
@@ -838,7 +858,9 @@ export class AtomaAudioSystem {
         }).connect(this.masterReverb);
         this.eventNoiseSynth.disconnect();
         this.eventNoiseSynth.connect(this.eventNoiseFilter);
-        this.eventNoiseSynth.volume.value = -28;
+        if (this.eventNoiseSynth.volume) {
+            this.eventNoiseSynth.volume.value = -28;
+        }
 
         this.worldDroneSynth = new Tone.PolySynth(Tone.MonoSynth, {
             oscillator: { type: 'sine' },
@@ -863,7 +885,9 @@ export class AtomaAudioSystem {
                 Q: 0.85
             }
         }).connect(this.masterReverb);
-        this.worldDroneSynth.volume.value = -37;
+        if (this.worldDroneSynth.volume) {
+            this.worldDroneSynth.volume.value = -37;
+        }
 
         this.worldImpulseSynth = new Tone.PolySynth(Tone.MonoSynth, {
             oscillator: { type: 'triangle' },
@@ -888,7 +912,9 @@ export class AtomaAudioSystem {
                 Q: 1.2
             }
         }).connect(this.masterReverb);
-        this.worldImpulseSynth.volume.value = -35;
+        if (this.worldImpulseSynth.volume) {
+            this.worldImpulseSynth.volume.value = -35;
+        }
 
         this.worldNoiseSynth = new Tone.NoiseSynth({
             noise: { type: 'pink' },
@@ -906,7 +932,9 @@ export class AtomaAudioSystem {
         }).connect(this.masterReverb);
         this.worldNoiseSynth.disconnect();
         this.worldNoiseSynth.connect(this.worldNoiseFilter);
-        this.worldNoiseSynth.volume.value = -48;
+        if (this.worldNoiseSynth.volume) {
+            this.worldNoiseSynth.volume.value = -48;
+        }
 
         // Dramaturgy spatial panner — routes event synths through position-aware panning
         this._dramaturgyPanner = new Tone.Panner(0).connect(this.masterReverb);

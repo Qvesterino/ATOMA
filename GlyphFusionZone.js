@@ -487,6 +487,7 @@ export class GlyphFusionZoneManager {
     // ========================================================================
 
     update(deltaTime, pictograms, linkingSystem, aiNodes) {
+        if (!FXDebugSandbox.isEnabled('glyphFusionZoneManager')) return;
         this.linkingSystem = linkingSystem || this.linkingSystem;
 
         // Detect convergence zones
