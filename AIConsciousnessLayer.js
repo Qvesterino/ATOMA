@@ -260,6 +260,7 @@ export class AIConsciousnessLayer {
     this.ritualFieldVeil = null;
     this.ritualFieldWitness = null;
     this._ritualWitnessBasePositions = null;
+    this._globalFieldWorldPos = new THREE.Vector3();
     this._signatureMomentSubscriptions = [];
     this._signatureBloom = {
       active: false,
@@ -881,7 +882,7 @@ export class AIConsciousnessLayer {
     const shellMaterial = RitualShaderPack.createFieldShellMaterial(
       ATOMAColorPalette.ATOMA_CORE.ritualWhite,
       ATOMAColorPalette.ATOMA_CORE.mint,
-      { intensity: 0.6, breathSpeed: 0.6, pulseIntensity: 0.4 }
+      { intensity: 0.3, breathSpeed: 0.6, pulseIntensity: 0.4 }
     );
     
     const shellMesh = new THREE.Mesh(shellGeometry, shellMaterial);
@@ -896,7 +897,7 @@ export class AIConsciousnessLayer {
       transparent: true,
       opacity: 0.09,
       blending: THREE.AdditiveBlending,
-      fog: false
+      fog: true
     });
     
     const edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial);
@@ -933,7 +934,7 @@ export class AIConsciousnessLayer {
       opacity: 0.06,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
-      fog: false
+      fog: true
     });
     const choirLines = new THREE.LineSegments(choirGeometry, choirMaterial);
     choirLines.name = 'GlobalConsciousnessChoir';
@@ -948,8 +949,8 @@ export class AIConsciousnessLayer {
       opacity: 0,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
-      side: THREE.DoubleSide,
-      fog: false
+      side: THREE.FrontSide,
+      fog: true
     });
     const veilMesh = new THREE.Mesh(veilGeometry, veilMaterial);
     veilMesh.name = 'GlobalConsciousnessRitualVeil';
@@ -979,7 +980,7 @@ export class AIConsciousnessLayer {
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       sizeAttenuation: true,
-      fog: false,
+      fog: true,
       map: getEnvSpriteTexture('aura'),
       alphaTest: 0.02
     });
@@ -2321,6 +2322,18 @@ export class AIConsciousnessLayer {
     const pulseScale = 1 + pulsePhase * 0.04 * (0.45 + networkMood * 0.45 + consciousnessState.trafficIntensity * 0.15) * this.config.intensity + bloomIntensity * (palette.hero ? 0.06 : 0.04);
     const shellOpacity = Math.min(0.22, (0.01 + avgStability * 0.01 + pressure * 0.012 + consciousnessState.patternDensity * 0.01) * this.config.intensity + Math.abs(pulsePhase) * 0.006 * this.config.intensity + ritualIntensity * 0.04 + consciousnessState.heroIntensity * 0.02 + bloomIntensity * (palette.hero ? 0.05 : 0.03));
 
+    // Keep the global field from appearing as a broken LOD artifact when the
+    // player is inside/near the origin shell.
+    let fieldDistanceFade = 1;
+    const playerPos = this.aiNodes?.player?.position;
+    if (playerPos) {
+      this.globalFieldMesh.getWorldPosition(this._globalFieldWorldPos);
+      const distanceToField = playerPos.distanceTo(this._globalFieldWorldPos);
+      const inner = this.config.globalFieldScale * 0.95;
+      const outer = this.config.globalFieldScale * 1.85;
+      fieldDistanceFade = THREE.MathUtils.smoothstep(distanceToField, inner, outer);
+    }
+
     this.globalFieldMesh.scale.setScalar(monumentScale * pulseScale);
     if (this.globalFieldEdge) {
       this.globalFieldEdge.scale.setScalar(monumentScale * (1.05 + ritualIntensity * 0.05 + consciousnessState.heroIntensity * 0.04));
@@ -2349,18 +2362,18 @@ export class AIConsciousnessLayer {
     const shellMaterial = this.globalFieldMesh.material;
     if (shellMaterial && shellMaterial.uniforms) {
       shellMaterial.uniforms.uTime.value = this.time;
-      shellMaterial.uniforms.uIntensity.value = shellOpacity;
+      shellMaterial.uniforms.uIntensity.value = shellOpacity * fieldDistanceFade;
       shellMaterial.uniforms.uRitualBlend.value = ritualIntensity;
       shellMaterial.uniforms.uBaseColor.value.copy(fieldColor);
       shellMaterial.uniforms.uRitualColor.value.copy(this.ritualState.palette.secondary);
     } else if (shellMaterial) {
       shellMaterial.color.copy(fieldColor);
-      shellMaterial.opacity = shellOpacity;
+      shellMaterial.opacity = shellOpacity * fieldDistanceFade;
     }
 
     if (this.globalFieldEdge) {
       this.globalFieldEdge.material.color.copy(edgeTint);
-      this.globalFieldEdge.material.opacity = Math.min(0.24, 0.08 + pressure * 0.05 + Math.abs(pulsePhase) * 0.02 + ritualIntensity * 0.09);
+      this.globalFieldEdge.material.opacity = Math.min(0.16, 0.08 + pressure * 0.05 + Math.abs(pulsePhase) * 0.02 + ritualIntensity * 0.09) * fieldDistanceFade;
     }
 
     if (this.globalFieldChoir) {
@@ -2374,9 +2387,9 @@ export class AIConsciousnessLayer {
       }
       this.globalFieldChoir.material.color.copy(choirColor);
       this.globalFieldChoir.material.opacity = Math.min(
-        0.28,
+        0.16,
         0.04 + networkMood * 0.05 + pressure * 0.04 + ritualIntensity * 0.08 + Math.abs(pulsePhase) * 0.018 + consciousnessState.patternDensity * 0.04 + bloomIntensity * 0.08
-      );
+      ) * fieldDistanceFade;
       this.globalFieldChoir.rotation.y += visualDelta * (0.04 + networkMood * 0.06 + ritualIntensity * 0.18 + consciousnessState.heroIntensity * 0.04 + bloomIntensity * 0.08);
       this.globalFieldChoir.rotation.x = Math.sin(this.time * 0.14 + pressure) * 0.12 * (0.4 + ritualIntensity + consciousnessState.patternDensity * 0.5 + bloomIntensity * 0.36);
       const choirScale = monumentScale * (0.98 + networkMood * 0.04 + ritualIntensity * 0.08 + consciousnessState.heroIntensity * 0.05 + bloomIntensity * 0.08);
@@ -2386,7 +2399,7 @@ export class AIConsciousnessLayer {
     if (this.ritualFieldVeil) {
       const veilColor = bloomIntensity > 0 ? palette.aurora : this.ritualState.palette.secondary;
       this.ritualFieldVeil.material.color.copy(veilColor);
-      this.ritualFieldVeil.material.opacity = Math.min(0.3, ritualIntensity * (0.05 + pressure * 0.04) + Math.abs(pulsePhase) * 0.015 * ritualIntensity + bloomIntensity * (palette.hero ? 0.16 : 0.12));
+      this.ritualFieldVeil.material.opacity = Math.min(0.3, ritualIntensity * (0.05 + pressure * 0.04) + Math.abs(pulsePhase) * 0.015 * ritualIntensity + bloomIntensity * (palette.hero ? 0.16 : 0.12)) * fieldDistanceFade;
       this.ritualFieldVeil.scale.setScalar(monumentScale * (0.94 + ritualIntensity * 0.18 + Math.abs(pulsePhase) * 0.03 + bloomIntensity * (palette.hero ? 0.16 : 0.12)));
       this.ritualFieldVeil.rotation.y += visualDelta * (0.05 + ritualIntensity * 0.18 + bloomIntensity * (palette.hero ? 0.14 : 0.12));
       this.ritualFieldVeil.rotation.x = Math.sin(this.time * 0.12 + ritualIntensity) * 0.18 * (ritualIntensity + bloomIntensity * 0.55);
@@ -2418,9 +2431,16 @@ export class AIConsciousnessLayer {
       this.ritualFieldWitness.geometry.attributes.position.needsUpdate = true;
       const witnessColor = bloomIntensity > 0 ? palette.white : this.ritualState.palette.accent;
       this.ritualFieldWitness.material.color.copy(witnessColor);
-      this.ritualFieldWitness.material.opacity = Math.min(0.6, ritualIntensity * 0.3 + pressure * 0.05 + consciousnessState.heroIntensity * 0.08 + bloomIntensity * (palette.hero ? 0.18 : 0.14));
+      this.ritualFieldWitness.material.opacity = Math.min(0.6, ritualIntensity * 0.3 + pressure * 0.05 + consciousnessState.heroIntensity * 0.08 + bloomIntensity * (palette.hero ? 0.18 : 0.14)) * fieldDistanceFade;
       this.ritualFieldWitness.material.size = 0.22 + ritualIntensity * 0.22 + consciousnessState.patternDensity * 0.05 + bloomIntensity * (palette.hero ? 0.1 : 0.08);
     }
+
+    const fieldVisible = fieldDistanceFade > 0.02;
+    this.globalFieldMesh.visible = fieldVisible;
+    if (this.globalFieldEdge) this.globalFieldEdge.visible = fieldVisible;
+    if (this.globalFieldChoir) this.globalFieldChoir.visible = fieldVisible;
+    if (this.ritualFieldVeil) this.ritualFieldVeil.visible = fieldVisible;
+    if (this.ritualFieldWitness) this.ritualFieldWitness.visible = fieldVisible;
   }
   
   /**

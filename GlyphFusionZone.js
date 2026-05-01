@@ -211,6 +211,13 @@ class CompositeGlyphInstance {
     }
 
     spawn(position, state) {
+        // Origin-position guard: prevent NCS singularities from leaking at (0,0,0)
+        // which causes a visible glitch in the center of the map
+        const ORIGIN_GUARD_SQ = 0.01;
+        if (position && position.lengthSq() < ORIGIN_GUARD_SQ) {
+            return;
+        }
+
         if (this.attachRoot && this.mesh?.parent !== this.attachRoot) {
             this.attachRoot.add(this.mesh);
         }

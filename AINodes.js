@@ -3530,10 +3530,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     const pulseMaterial = new THREE.MeshBasicMaterial({
       color: 0x88f8ff,
       transparent: true,
-      opacity: 0.72,
-      depthTest: false,
+      opacity: 0.45,
+      depthTest: true,
       depthWrite: false,
-      side: THREE.DoubleSide
+      side: THREE.FrontSide
     });
 
     const pulseMesh = new THREE.Mesh(pulseGeometry, pulseMaterial);

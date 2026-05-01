@@ -354,6 +354,13 @@ void main() {
   float alpha = (0.03 + fresnel * 0.08 + ripple * 0.04) * uIntensity * (0.8 + breath * 0.2);
   alpha = clamp(alpha, 0.0, 0.25);
 
+  // Distance-based fade: invisible when camera is inside or very close to the sphere.
+  // Prevents the broken LOD appearance at origin (0,0,0) - the sphere should not be
+  // visible when the player is within its radius.
+  float cameraDist = length(cameraPosition);
+  float innerFade = smoothstep(10.0, 25.0, cameraDist);
+  alpha *= innerFade;
+
   gl_FragColor = vec4(color, alpha);
 }
 `;
@@ -456,8 +463,8 @@ export class RitualShaderPack {
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-      fog: false
+      side: THREE.FrontSide,
+      fog: true
     });
   }
 
