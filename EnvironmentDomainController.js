@@ -173,6 +173,15 @@ export const ENVIRONMENT_VFX_REGISTRY = Object.freeze({
       'visual'
     ),
     describeEnvironmentVfx(
+      'CanonicalTemplate3_StressVisuals',
+      'Global stress-pressure ambience affecting fog, color, lighting mood, and network tension atmosphere.',
+      'main.js',
+      'active-main-owned',
+      ['global.metricFrame.updated', 'node.loadPressure.active'],
+      'WORLD_OVERLAY',
+      'main-loop'
+    ),
+    describeEnvironmentVfx(
       'AIConsciousnessLayer',
       'Global cognitive atmosphere layer with thought threads, pulse traffic, and consciousness-field presence.',
       'main.js',

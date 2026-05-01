@@ -305,6 +305,8 @@ class FXDebugSandbox {
       { id: 'harmonicTopology', label: 'Harmonic Topology', group: 'Resonance', paths: ['harmonicTopology', 'harmonicTopologyLearningSystem'], muteMethods: ['update'] },
       { id: 'linkVisualMoodSystem', label: 'Link Visual Mood', group: 'Link FX', paths: ['linkVisualMoodSystem'], muteMethods: ['update'] },
       { id: 'stressVisualShaderSystem', label: 'Stress Visual Shader', group: 'Aura / Visual', paths: ['stressVisualShaderSystem'], muteMethods: ['update'] },
+      { id: 'canonicalStressVisuals', label: 'Canonical Stress Visuals', group: 'Aura / Visual', paths: ['canonicalTemplate3StressVisuals', 'canonicalStressVisuals', 'stressVisuals', 'canonicalTemplateStressVisuals'], muteMethods: ['update', 'setEnabled', 'enable', 'disable'] },
+      { id: 'colonyVFXManager', label: 'Colony VFX Manager', group: 'Aura / Visual', paths: ['colonyVFXManager', 'colonyVfxManager'], muteMethods: ['update', 'setEnabled', 'enable', 'disable'] },
       { id: 'compositeGlyphGenerator', label: 'Composite Glyph Generator', group: 'Glyph / Overlay', paths: ['compositeGlyphGenerator'], muteMethods: ['update'] },
       { id: 'glyphFusionZoneManager', label: 'Glyph Fusion Zone', group: 'Glyph / Overlay', paths: ['glyphFusionZoneManager', 'glyphFusionZone'], muteMethods: ['update'] },
       { id: 'nodeInterferenceManager', label: 'Node Interference', group: 'Resonance', paths: ['nodeInterferenceManager'], muteMethods: ['update'] },
@@ -591,6 +593,46 @@ class FXDebugSandbox {
     return this._syncNodeFxRegistry(forceRefresh);
   }
 
+  setAllNodeFxEnabled(enabled, { includeHardDisabled = false, persist = true } = {}) {
+    const desired = !!enabled;
+    const entries = this._systemRegistry || [];
+    let applied = 0;
+
+    for (const entry of entries) {
+      if (!includeHardDisabled && entry.hardDisabled) continue;
+      const ok = this._applyEntryState(entry, entry.hardDisabled ? false : desired, { persist });
+      if (ok || persist) applied += 1;
+    }
+
+    if (persist) this._savePersistedStates();
+    if (this.hudVisible) this._refreshHud();
+    return applied;
+  }
+
+  disableAllNodeFx() {
+    return this.setAllNodeFxEnabled(false, { includeHardDisabled: true, persist: true });
+  }
+
+  resetAllNodeFx() {
+    const entries = this._systemRegistry || [];
+    const nextPersisted = {};
+
+    for (const entry of entries) {
+      const desired = entry.hardDisabled ? false : true;
+      this._applyEntryState(entry, desired, { persist: false });
+      nextPersisted[entry.id] = {
+        enabled: desired,
+        updatedAt: Date.now()
+      };
+    }
+
+    this._persistedStates = nextPersisted;
+    this._savePersistedStates();
+    this._syncNodeFxRegistry(true);
+    if (this.hudVisible) this._refreshHud();
+    return entries.length;
+  }
+
   _ensureHud() {
     if (typeof document === 'undefined' || this.hudRoot) return;
 
@@ -621,8 +663,42 @@ class FXDebugSandbox {
     summary.style.cssText = 'opacity:0.75;margin-bottom:8px;';
 
     const hint = document.createElement('div');
-    hint.textContent = 'L toggles this panel. States persist in localStorage.';
+    hint.textContent = 'L toggles this panel. States persist in localStorage. Use Disable All / Reset All for fast isolation.';
     hint.style.cssText = 'opacity:0.7;margin-bottom:10px;';
+
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;gap:8px;margin-bottom:10px;';
+
+    const disableAllButton = document.createElement('button');
+    disableAllButton.textContent = 'Disable All';
+    disableAllButton.style.cssText = [
+      'background:#2a1010',
+      'color:#ffd7d7',
+      'border:1px solid rgba(255,120,120,0.45)',
+      'padding:4px 10px',
+      'font:inherit',
+      'cursor:pointer'
+    ].join(';');
+    disableAllButton.onclick = () => {
+      this.disableAllNodeFx();
+    };
+
+    const resetAllButton = document.createElement('button');
+    resetAllButton.textContent = 'Reset All';
+    resetAllButton.style.cssText = [
+      'background:#102018',
+      'color:#d5ffe8',
+      'border:1px solid rgba(120,220,160,0.45)',
+      'padding:4px 10px',
+      'font:inherit',
+      'cursor:pointer'
+    ].join(';');
+    resetAllButton.onclick = () => {
+      this.resetAllNodeFx();
+    };
+
+    actions.appendChild(disableAllButton);
+    actions.appendChild(resetAllButton);
 
     const list = document.createElement('div');
     list.id = 'fx-debug-sandbox-list';
@@ -631,6 +707,7 @@ class FXDebugSandbox {
     root.appendChild(header);
     root.appendChild(summary);
     root.appendChild(hint);
+    root.appendChild(actions);
     root.appendChild(list);
     document.body.appendChild(root);
 
@@ -1307,13 +1384,17 @@ if (!DISABLED) {
     window.FX.toggleNodeFxHud = (force) => sandbox.toggleHud(force);
     window.FX.showNodeFxHud = () => sandbox.toggleHud(true);
     window.FX.hideNodeFxHud = () => sandbox.toggleHud(false);
-    window.FX.refreshNodeFxRegistry = () => sandbox.syncNodeFxRegistry(true);
-    window.FX.listNodeFxRegistry = () => sandbox.listNodeFxRegistry();
-    window.FX.toggleNodeFx = (id, enabled) => sandbox.toggleNodeFxById(id, enabled);
+    window.FX.refreshNodeFxRegistry = () => FXDebugSandbox.prototype.syncNodeFxRegistry.call(sandbox, true);
+    window.FX.listNodeFxRegistry = () => FXDebugSandbox.prototype.listNodeFxRegistry.call(sandbox);
+    window.FX.toggleNodeFx = (id, enabled) => FXDebugSandbox.prototype.toggleNodeFxById.call(sandbox, id, enabled);
+    window.FX.disableAllNodeFx = () => FXDebugSandbox.prototype.disableAllNodeFx.call(sandbox);
+    window.FX.resetAllNodeFx = () => FXDebugSandbox.prototype.resetAllNodeFx.call(sandbox);
     window.FX.nodeFx = {
-      toggle: (id, enabled) => sandbox.toggleNodeFxById(id, enabled),
-      list: () => sandbox.listNodeFxRegistry(),
-      refresh: () => sandbox.syncNodeFxRegistry(true),
+      toggle: (id, enabled) => FXDebugSandbox.prototype.toggleNodeFxById.call(sandbox, id, enabled),
+      list: () => FXDebugSandbox.prototype.listNodeFxRegistry.call(sandbox),
+      refresh: () => FXDebugSandbox.prototype.syncNodeFxRegistry.call(sandbox, true),
+      disableAll: () => FXDebugSandbox.prototype.disableAllNodeFx.call(sandbox),
+      resetAll: () => FXDebugSandbox.prototype.resetAllNodeFx.call(sandbox),
       showHud: () => sandbox.toggleHud(true),
       hideHud: () => sandbox.toggleHud(false)
     };
