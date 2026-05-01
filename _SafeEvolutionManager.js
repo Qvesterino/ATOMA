@@ -89,6 +89,8 @@ export class SafeEvolutionManager {
    * AFTER linkingSystem.update() completes
    */
   update(deltaTime, nodes, linkingSystem) {
+
+    
     // Ensure all visible nodes are registered
     if (nodes) {
       this.rebuildNodeLookup(nodes);

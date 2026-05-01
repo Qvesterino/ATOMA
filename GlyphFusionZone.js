@@ -24,7 +24,6 @@ import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { getLinkSynergy, getNodeCanonicalMetrics } from './SemanticMetricAdapter.js';
 import { NeuralConvergenceSingularity } from './NeuralConvergenceSingularity.js';
-import { CONFIG as GLOBAL_CONFIG } from './config.js';
 
 // ============================================================================
 // CONFIGURATION
@@ -169,8 +168,8 @@ class FusionZoneState {
 
 class CompositeGlyphInstance {
     constructor(singularity, attachRoot = null) {
-        this.singularity = singularity;  // NeuralConvergenceSingularity instance (may be null if disabled)
-        this.mesh = singularity?.group || null;   // Reference to group for compatibility
+        this.singularity = singularity;  // NeuralConvergenceSingularity instance
+        this.mesh = singularity.group;   // Reference to group for compatibility
         this.attachRoot = attachRoot;
         this.active = false;
         this.state = null;  // Reference to parent FusionZoneState
@@ -438,27 +437,23 @@ export class GlyphFusionZoneManager {
         this.root.visible = false;
 
         for (let i = 0; i < CONFIG.POOL_SIZE; i++) {
-            let singularity = null;
-            
             // NEW: Neural Convergence Singularity instead of placeholder plane
-            // Check if Neural Convergence Singularity is enabled in global config
-            if (GLOBAL_CONFIG.neuralConvergenceSingularity?.enabled !== false) {
-                singularity = new NeuralConvergenceSingularity(this.scene, {
-                    coreRadius: 0.12,
-                    coreDetail: 3,
-                    orbitalStreams: 4,
-                    orbitalParticlesPerStream: 16,
-                    tendrilCount: 3,
-                    tendrilLength: 0.8,
-                    riftOuterRadius: 0.5,
-                    pulseInterval: 3.0,
-                    enableOrbitalStreams: true,
-                    enableTendrils: true,
-                    enableRift: true,
-                    enablePulses: true
-                });
-                singularity.group.visible = false;
-            }
+            const singularity = new NeuralConvergenceSingularity(this.scene, {
+                coreRadius: 0.12,
+                coreDetail: 3,
+                orbitalStreams: 4,
+                orbitalParticlesPerStream: 16,
+                tendrilCount: 3,
+                tendrilLength: 0.8,
+                riftOuterRadius: 0.5,
+                pulseInterval: 3.0,
+                enableOrbitalStreams: true,
+                enableTendrils: true,
+                enableRift: true,
+                enablePulses: true
+            });
+            
+            singularity.group.visible = false;
 
             const instance = new CompositeGlyphInstance(singularity, container);
             this.compositeGlyphs.push(instance);
