@@ -1316,7 +1316,6 @@ import { MetricsRuntime_v1 } from './MetricsRuntime_v1.js';
 // REMOVED: PersonalityRuntime_v1 — moved to LEGACY/april (2026-04-22)
 import { MetricInterpretationLayer_v1, setupMetricInterpretationConsoleAPI } from './MetricInterpretationLayer_v1.js';
 // import { StressVisualShaderSystem } from './StressVisualShaderSystem.js';
-import { CanonicalTemplate3_StressVisuals } from './CanonicalTemplate3_StressVisuals.js';
 
 // ============================================================================
 // EXTRACTION PACK V1.1 — RUNTIME ORCHESTRATION (WORLD & FX)
@@ -4608,10 +4607,6 @@ class AtomaGame {
         }, 'simulation.networkStress');
         this.frameScheduler.register('simulation', () => {
             const stress = this.networkStressAggregator?.getStress?.() ?? 0;
-            // Feed network stress to CanonicalTemplate3_StressVisuals
-            if (this.canonicalTemplate3_StressVisuals) {
-                this.canonicalTemplate3_StressVisuals.updateNetworkStress(stress);
-            }
             const emitEvent = (eventName, payload) => {
                 if (this.semanticBus?.emit) {
                     this.semanticBus.emit(
@@ -5153,31 +5148,16 @@ class AtomaGame {
             }
         }, 'visual.harmonicResonanceFeedback');
         this.frameScheduler.register('visual', (dt) => {
-            if (this.canonicalTemplate3_StressVisuals) {
-                // Register all nodes for stress tracking
+            if (this.stressVisualShaderSystem) {
                 const nodes = this.aiNodes?.nodes || [];
                 for (const node of nodes) {
-                    if (node && this.canonicalTemplate3_StressVisuals) {
-                        this.canonicalTemplate3_StressVisuals.registerNode(node);
+                    if (node) {
+                        this.stressVisualShaderSystem.registerNode(node);
                     }
                 }
-                
-                // Feed node load pressure data (computed from node metrics)
-                for (const node of nodes) {
-                    if (node && node.userData) {
-                        // Compute load pressure based on actual node metrics
-                        const linkCount = node.userData.linkCount || 0;
-                        const activeLinks = node.userData.activeLinks || 0;
-                        const corruptionLevel = node.userData.metrics?.corruption ?? 0;
-                        // Load pressure = (activeLinks / linkCount) + (corruptionLevel * 0.5)
-                        const loadPressure = Math.min(1, (activeLinks / Math.max(1, linkCount)) + (corruptionLevel * 0.5));
-                        this.canonicalTemplate3_StressVisuals.updateNodeLoadPressure(node, loadPressure);
-                    }
-                }
-                this.canonicalTemplate3_StressVisuals.update(dt, this.time || 0);
+                this.stressVisualShaderSystem.update(dt, this.time, nodes);
             }
-        }, 'visual.canonicalTemplate3_StressVisuals');
-        // this.frameScheduler.register('visual', ..., 'visual.stressVisualShaderSystem'); // disabled
+        }, 'visual.stressVisualShaderSystem');
         this.frameScheduler.register('visual', (dt) => {
             if (this.metricInterpretationLayer) {
                 const nodes = this.aiNodes?.nodes || [];
@@ -7874,11 +7854,6 @@ window.__ATOMA_SCENE__ = this.scene;
                 this.vfxLoader.onWorldSwitch(reasonForCreate);
             }
             this.registerVisualGlyphSchedulers?.();
-
-            // Reset CanonicalTemplate3_StressVisuals on world switch
-            if (this.canonicalTemplate3_StressVisuals) {
-                this.canonicalTemplate3_StressVisuals.reset();
-            }
 
             if (this.cascadeParticleSystem && typeof this.cascadeParticleSystem.clearWorldState === 'function') {
                 this.cascadeParticleSystem.clearWorldState();
@@ -10815,29 +10790,17 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
 
         // ====================================================================
-        // STRESS VISUAL SHADER SYSTEM — disabled
-        // ====================================================================
-
-        // ====================================================================
-        // CANONICAL TEMPLATE #3: NETWORK STRESS & LOAD PRESSURE VISUALS
+        // STRESS VISUAL SHADER SYSTEM — GPU-based stress visualization
         // ====================================================================
         try {
-            this.canonicalTemplate3_StressVisuals = new CanonicalTemplate3_StressVisuals(this.scene, {
+            this.stressVisualShaderSystem = new StressVisualShaderSystem(this.scene, {
+                ambientEnabled: true,
+                nodeOverlayEnabled: true,
                 debugMode: false
             });
-            console.log('[main.js] CanonicalTemplate3_StressVisuals initialized ✓');
-            
-            // Register dispose handler for world switch
-            if (this._worldEventDisposers) {
-                this._worldEventDisposers.push(() => {
-                    if (this.canonicalTemplate3_StressVisuals) {
-                        this.canonicalTemplate3_StressVisuals.dispose();
-                        this.canonicalTemplate3_StressVisuals = null;
-                    }
-                });
-            }
+            console.log('[main.js] StressVisualShaderSystem initialized ✓');
         } catch (err) {
-            console.warn('[main.js] CanonicalTemplate3_StressVisuals failed:', err);
+            console.warn('[main.js] StressVisualShaderSystem failed:', err);
         }
 
         // REMOVED: PersonalityRuntime_v1 initialization — moved to LEGACY/april (2026-04-22)
@@ -11913,7 +11876,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('topologyViz', 'simulation.topologyViz', (dt) => {
             if (!this._runSlowSemanticPending) return;
             if (this.topologyViz?.enabled) {
-                const pressureField = this.canonicalTemplate3_StressVisuals?.getPressureFieldState?.() || {};
+                const pressureField = {};
                 const networkState = {
                     harmony: this.nodeDynamicMetrics?.avgHarmony || 0.5,
                     corruption: this.nodeDynamicMetrics?.avgCorruption || 0,

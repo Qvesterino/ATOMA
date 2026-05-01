@@ -312,7 +312,8 @@ class FXDebugSandbox {
       { id: 'nodeInterferenceManager', label: 'Node Interference', group: 'Resonance', paths: ['nodeInterferenceManager'], muteMethods: ['update'] },
       { id: 'linkStateVisualLanguage', label: 'Link State Visual Language', group: 'Link FX', paths: ['linkStateVisualLanguage'], muteMethods: ['update'] },
       { id: 'nodeHarmonicManager', label: 'Node Harmonic Manager', group: 'Resonance', paths: ['nodeHarmonicManager'], muteMethods: ['update'] },
-      { id: 'harmonicSyncEffectApplier', label: 'Harmonic Sync Effect', group: 'Resonance', paths: ['harmonicSyncEffectApplier', 'harmonicSyncEffect'], muteMethods: ['update'] }
+      { id: 'harmonicSyncEffectApplier', label: 'Harmonic Sync Effect', group: 'Resonance', paths: ['harmonicSyncEffectApplier', 'harmonicSyncEffect'], muteMethods: ['update'] },
+      { id: 'neuralConvergenceSingularity', label: 'Neural Convergence Singularity', group: 'Node Core', paths: ['neuralConvergenceSingularity', 'neuralConvergence'], muteMethods: ['update', 'setEnabled', 'enable', 'disable'], hardDisabled: true }
     ];
   }
 
@@ -436,6 +437,10 @@ class FXDebugSandbox {
 
   _applyPersistedStatesToRegistry() {
     for (const entry of this._systemRegistry) {
+      if (entry.hardDisabled) {
+        this._applyEntryState(entry, false, { persist: false });
+        continue;
+      }
       const persisted = this._persistedStates?.[entry.id];
       if (persisted && typeof persisted.enabled === 'boolean') {
         this._applyEntryState(entry, persisted.enabled, { persist: false });
