@@ -7964,6 +7964,20 @@ window.__ATOMA_SCENE__ = this.scene;
                 this.aiNodes.dispose();
             }
 
+            // Cleanup timers to prevent memory leaks
+            if (window._atomaWaveDebugOverlayProbe) {
+                clearInterval(window._atomaWaveDebugOverlayProbe);
+                window._atomaWaveDebugOverlayProbe = null;
+            }
+            if (window._atomaPipelineProbe) {
+                clearInterval(window._atomaPipelineProbe);
+                window._atomaPipelineProbe = null;
+            }
+            if (this._sceneAuditTimer) {
+                clearInterval(this._sceneAuditTimer);
+                this._sceneAuditTimer = null;
+            }
+
             // Remove previous nodesRoot (node domain only)
             if (this.nodesRoot) {
                 this.nodesRoot.clear();

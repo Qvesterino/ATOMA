@@ -37,7 +37,7 @@
  *    │  ├─ Main tube (with flowing shader)
  *    │  ├─ Glow layer (optional, higher opacity)
  *    │  └─ Halo (bloom effect, if critical)
- *    ├─ Chromatic Trail particles (Points, additive blending)
+ *    ├─ Chromatic Trail particles (Spheres, additive blending)
  *    │  └─ Per-highway particles with source→target color gradient
  *    ├─ Cluster Fields (soft wireframe spheres at category anchors)
  *    │  └─ Breathing animation, color by aggregate synergy
@@ -94,8 +94,7 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
 
   // ── Chromatic Trail state ──
   const trailParticles = [];
-  let trailPointsMesh = null;
-  let trailGeometry = null;
+  const trailSpheres = [];  // Array of THREE.Mesh sphere objects
   let trailMaterial = null;
   const trailSpawnTimers = new Map();  // highwayId → lastSpawnTime
 
@@ -884,36 +883,21 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
   // ═══════════════════════════════════════════════════════════════
 
   function initChromaticTrails() {
-    if (trailPointsMesh) return;  // Already initialized
+    // Material for all trail spheres - shared across all particles
+    if (trailMaterial) return;  // Already initialized
 
-    trailGeometry = new (THREE.BufferGeometry || function() {})();
-    const positions = new Float32Array(config.trailMaxParticles * 3);
-    const colors = new Float32Array(config.trailMaxParticles * 3);
-    trailGeometry.setAttribute('position', new (THREE.BufferAttribute || function() {})(positions, 3));
-    trailGeometry.setAttribute('color', new (THREE.BufferAttribute || function() {})(colors, 3));
-
-    trailMaterial = new (THREE.PointsMaterial || function() {})({
-      size: config.trailParticleSize,
+    trailMaterial = new (THREE.MeshBasicMaterial || function() {})({
+      color: 0xffffff,
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
-      vertexColors: true,
-      sizeAttenuation: true,
       opacity: 0.8,
       fog: false,
     });
-
-    trailPointsMesh = new (THREE.Points || function() {})(trailGeometry, trailMaterial);
-    trailPointsMesh.frustumCulled = false;
-    trailPointsMesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_BACKGROUND') + 1;
-
-    if (group) {
-      group.add(trailPointsMesh);
-    }
   }
 
   function spawnTrailParticles() {
-    if (!config.enableChromaticTrails || !trailGeometry) return;
+    if (!config.enableChromaticTrails || !trailMaterial) return;
 
     for (const highway of highways) {
       // Only spawn on synergy highways (not cascade overlays)
@@ -939,7 +923,7 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       // Spawn 1–2 particles depending on synergy strength
       const count = 1 + (highway.avgSynergy > 0.6 ? 1 : 0);
       for (let i = 0; i < count; i++) {
-        if (trailParticles.length >= config.trailMaxParticles) break;
+        if (trailSpheres.length >= config.trailMaxParticles) break;
 
         const progress = 0.1 + Math.random() * 0.8;
         const point = curve.getPoint(progress);
@@ -950,7 +934,24 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
         const cg = sourceColor.g + (targetColor.g - sourceColor.g) * progress;
         const cb = sourceColor.b + (targetColor.b - sourceColor.b) * progress;
 
+        // Create sphere geometry and mesh for each particle
+        const sphereRadius = config.trailParticleSize * 0.5;
+        const sphereGeometry = new (THREE.SphereGeometry || function() {})(sphereRadius, 8, 6);
+        const sphereMaterial = trailMaterial.clone();
+        const sphereMesh = new (THREE.Mesh || function() {})(sphereGeometry, sphereMaterial);
+
+        sphereMesh.position.set(point.x, point.y, point.z);
+        sphereMesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_BACKGROUND') + 1;
+
+        if (group) {
+          group.add(sphereMesh);
+        }
+
+        trailSpheres.push(sphereMesh);
+
         trailParticles.push({
+          mesh: sphereMesh,
+          material: sphereMaterial,
           x: point.x, y: point.y, z: point.z,
           vx: tangent.x * config.trailSpeed * (0.8 + Math.random() * 0.4),
           vy: tangent.y * config.trailSpeed * (0.8 + Math.random() * 0.4),
@@ -964,7 +965,7 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
   }
 
   function updateChromaticTrails(deltaTime) {
-    if (!config.enableChromaticTrails || !trailGeometry) return;
+    if (!config.enableChromaticTrails || !trailMaterial) return;
 
     // Spawn new particles
     spawnTrailParticles();
@@ -974,6 +975,20 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       const p = trailParticles[i];
       p.age += deltaTime;
       if (p.age >= p.life) {
+        // Remove sphere from scene and clean up
+        if (p.mesh && group) {
+          group.remove(p.mesh);
+        }
+        if (p.mesh && p.mesh.geometry) {
+          p.mesh.geometry.dispose();
+        }
+        if (p.mesh && p.mesh.material) {
+          p.mesh.material.dispose();
+        }
+        const meshIndex = trailSpheres.indexOf(p.mesh);
+        if (meshIndex > -1) {
+          trailSpheres.splice(meshIndex, 1);
+        }
         trailParticles.splice(i, 1);
         continue;
       }
@@ -981,47 +996,29 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       p.x += p.vx * deltaTime;
       p.y += p.vy * deltaTime;
       p.z += p.vz * deltaTime;
-    }
 
-    // Write to GPU buffer
-    const posAttr = trailGeometry.attributes.position;
-    const colAttr = trailGeometry.attributes.color;
-    const count = Math.min(trailParticles.length, config.trailMaxParticles);
-
-    for (let i = 0; i < config.trailMaxParticles; i++) {
-      if (i < count) {
-        const p = trailParticles[i];
+      // Update sphere mesh position and color
+      if (p.mesh) {
+        p.mesh.position.set(p.x, p.y, p.z);
         const fade = 1.0 - (p.age / p.life);
-        posAttr.array[i * 3]     = p.x;
-        posAttr.array[i * 3 + 1] = p.y;
-        posAttr.array[i * 3 + 2] = p.z;
-        colAttr.array[i * 3]     = p.cr * fade;
-        colAttr.array[i * 3 + 1] = p.cg * fade;
-        colAttr.array[i * 3 + 2] = p.cb * fade;
-      } else {
-        // Hide unused slots
-        posAttr.array[i * 3]     = 0;
-        posAttr.array[i * 3 + 1] = 0;
-        posAttr.array[i * 3 + 2] = 0;
-        colAttr.array[i * 3]     = 0;
-        colAttr.array[i * 3 + 1] = 0;
-        colAttr.array[i * 3 + 2] = 0;
+        p.mesh.material.color.setRGB(p.cr * fade, p.cg * fade, p.cb * fade);
+        p.mesh.material.opacity = fade * 0.8;
       }
     }
-    posAttr.needsUpdate = true;
-    colAttr.needsUpdate = true;
-    trailGeometry.setDrawRange(0, count);
   }
 
   function disposeChromaticTrails() {
+    // Remove all sphere meshes
+    for (const sphere of trailSpheres) {
+      if (group) group.remove(sphere);
+      if (sphere.geometry) sphere.geometry.dispose();
+      if (sphere.material) sphere.material.dispose();
+    }
+    trailSpheres.length = 0;
     trailParticles.length = 0;
     trailSpawnTimers.clear();
-    if (trailPointsMesh) {
-      if (group) group.remove(trailPointsMesh);
-      if (trailGeometry) trailGeometry.dispose();
-      if (trailMaterial) trailMaterial.dispose();
-      trailPointsMesh = null;
-      trailGeometry = null;
+    if (trailMaterial) {
+      trailMaterial.dispose();
       trailMaterial = null;
     }
   }
