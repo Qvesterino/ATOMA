@@ -83,6 +83,9 @@ export class MetricsRuntime_v1 {
      */
     constructor({ nodes, links, linkSystem, metricsSystems, options = {} }) {
         // Error tracking to prevent console spam
+        // Debug guard (Priority 4 fix)
+        this.debug = false;
+
         this._loggedErrors = new Set();
         this._liveMetricsRefreshDisposers = [];
 

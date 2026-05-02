@@ -184,6 +184,9 @@ function canWarmStart(aiNodes, linkingSystem) {
 export class SafeWorldResetFix1_0 {
   constructor() {
     // State tracking
+    // Debug guard (Priority 4 fix)
+    this.debug = false;
+
     this.isTransitioning = false;
     this.sceneReady = false;
     this.lastSceneTimestamp = 0;
@@ -210,7 +213,7 @@ export class SafeWorldResetFix1_0 {
     // VISUAL BOOTSTRAP 3.0: Protected visual promises (skip cancellation)
     this.protectedVisualPromises = new Set();
     
-    console.log('✓ Safe World Reset Fix 1.0 initialized');
+    if (this.debug) console.log('✓ Safe World Reset Fix 1.0 initialized');
   }
 
   /**
@@ -228,7 +231,7 @@ export class SafeWorldResetFix1_0 {
     });
     
     if (protectedPromises.length > 0) {
-      console.log(`[SafeWorldResetFix] Protected ${protectedPromises.length} visual promises from cancellation`);
+      if (this.debug) console.log(`[SafeWorldResetFix] Protected ${protectedPromises.length} visual promises from cancellation`);
     }
   }
   
@@ -278,7 +281,7 @@ export class SafeWorldResetFix1_0 {
       console.warn('⚠ Failed to cancel pending events:', e.message);
     }
     
-    console.log('✓ Transition phase 1 complete');
+    if (this.debug) console.log('✓ Transition phase 1 complete');
     console.groupEnd();
   }
   
@@ -346,7 +349,7 @@ export class SafeWorldResetFix1_0 {
       }
     }
     
-    console.log('✓ Scene cleanup complete');
+    if (this.debug) console.log('✓ Scene cleanup complete');
     console.groupEnd();
   }
   
@@ -406,7 +409,7 @@ if (!Array.isArray(nodeArray)) {
         
         // [WorldStateCache1_0] Try warm-start before expensive waits
         if (canWarmStart(aiNodes, linkingSystem)) {
-          console.log('✓ New scene ready via warm-start (cached state match)');
+          if (this.debug) console.log('✓ New scene ready via warm-start (cached state match)');
           this.sceneReady = true;
           resolve(true);
           return;
@@ -435,7 +438,7 @@ if (!Array.isArray(nodeArray)) {
         }
         
         // All checks passed
-        console.log(`✓ New scene ready after ${attempts * 10}ms`);
+        if (this.debug) console.log(`✓ New scene ready after ${attempts * 10}ms`);
         this.sceneReady = true;
         resolve(true);
       };
@@ -503,7 +506,7 @@ if (!Array.isArray(nodeArray)) {
       console.warn('⚠ Failed to reattach link FX:', e.message);
     }
     
-    console.log('✓ Visual systems reinitialized');
+    if (this.debug) console.log('✓ Visual systems reinitialized');
     console.groupEnd();
   }
   
@@ -521,7 +524,7 @@ if (!Array.isArray(nodeArray)) {
     // [WorldStateCache1_0] Take snapshot of successful world state for next transition
     try {
       takeWorldSnapshot(this.systemRefs.aiNodes, this.systemRefs.linkingSystem);
-      console.log('[WorldCache] Snapshot stored after successful transition');
+      if (this.debug) console.log('[WorldCache] Snapshot stored after successful transition');
     } catch (err) {
       console.warn('[WorldCache] Failed to store snapshot:', err.message);
     }
@@ -529,7 +532,7 @@ if (!Array.isArray(nodeArray)) {
     this.isTransitioning = false;
     this.sceneReady = false;
     
-    console.log('✅ MAP TRANSITION COMPLETE - All visual systems restored');
+    if (this.debug) console.log('✅ MAP TRANSITION COMPLETE - All visual systems restored');
   }
   
   // ==================== INTERNAL HELPERS ====================
@@ -544,7 +547,7 @@ if (!Array.isArray(nodeArray)) {
       overlay.temporalSystem.paused = true;
     }
     
-    console.log('  ⏸ Temporal timers paused');
+    if (this.debug) console.log('  ⏸ Temporal timers paused');
   }
   
   _resumeTemporalTimers() {
@@ -557,7 +560,7 @@ if (!Array.isArray(nodeArray)) {
       overlay.temporalSystem.paused = false;
     }
     
-    console.log('  ▶ Temporal timers resumed');
+    if (this.debug) console.log('  ▶ Temporal timers resumed');
   }
   
   _cancelPendingEvents() {
@@ -583,7 +586,7 @@ if (!Array.isArray(nodeArray)) {
       }
     }
     
-    console.log('  ⊗ Pending events cancelled');
+    if (this.debug) console.log('  ⊗ Pending events cancelled');
   }
   
   _removeMetricsOverlayVisuals() {
@@ -608,7 +611,7 @@ if (!Array.isArray(nodeArray)) {
       }
     }
     
-    console.log('  ✓ Metrics overlay visuals removed');
+    if (this.debug) console.log('  ✓ Metrics overlay visuals removed');
   }
   
   _removeWorldEventVisuals() {
@@ -639,7 +642,7 @@ if (!Array.isArray(nodeArray)) {
       }
     }
     
-    console.log('  ✓ World event visuals removed');
+    if (this.debug) console.log('  ✓ World event visuals removed');
   }
   
   _removePersonalityFXOverlays() {
@@ -651,7 +654,7 @@ if (!Array.isArray(nodeArray)) {
       personality.nodeStates.clear();
     }
     
-    console.log('  ✓ Personality FX overlays cleared');
+    if (this.debug) console.log('  ✓ Personality FX overlays cleared');
   }
   
   _removeLinkFXOverlays() {
@@ -673,7 +676,7 @@ if (!Array.isArray(nodeArray)) {
       linkFX.linkEffects = {};
     }
     
-    console.log('  ✓ Link FX overlays removed');
+    if (this.debug) console.log('  ✓ Link FX overlays removed');
   }
   
   _removeWorldFXOverlays() {
@@ -713,7 +716,7 @@ if (!Array.isArray(nodeArray)) {
       worldFX.effectGroups = {};
     }
     
-    console.log('  ✓ World FX overlays removed');
+    if (this.debug) console.log('  ✓ World FX overlays removed');
   }
 
   _removeCascadeBurstVisuals() {
@@ -730,7 +733,7 @@ if (!Array.isArray(nodeArray)) {
     }
 
     this.systemRefs.cascadeBurstVisual = null;
-    console.log('  ✓ Cascade burst visual disposed');
+    if (this.debug) console.log('  ✓ Cascade burst visual disposed');
   }
 
   _rebuildEventReferences() {
@@ -755,7 +758,7 @@ if (!Array.isArray(nodeArray)) {
     
     // Personality FX uses node references directly in update()
     // No explicit reattach needed - just ensure update() is called
-    console.log('  ✓ Personality FX ready for new nodes');
+    if (this.debug) console.log('  ✓ Personality FX ready for new nodes');
   }
   
   _reattachLinkFX() {
@@ -764,7 +767,7 @@ if (!Array.isArray(nodeArray)) {
     
     // Link FX uses link references directly in update()
     // No explicit reattach needed - just ensure update() is called
-    console.log('  ✓ Link FX ready for new links');
+    if (this.debug) console.log('  ✓ Link FX ready for new links');
   }
   
   /**
@@ -795,19 +798,19 @@ if (!Array.isArray(nodeArray)) {
 if (typeof window !== 'undefined') {
   window.worldCacheStatus = function () {
     console.group('[WorldCache] Status Report');
-    console.log('Enabled:', WorldStateCache1_0.enabled);
-    console.log('Last World ID:', WorldStateCache1_0.lastWorldId);
-    console.log('Last Node Count:', WorldStateCache1_0.lastNodeCount);
-    console.log('Last Link Count:', WorldStateCache1_0.lastLinkCount);
-    console.log('Last Ready:', WorldStateCache1_0.lastReady);
-    console.log('Snapshots Taken:', WorldStateCache1_0.snapshotsTaken);
-    console.log('Warm Starts:', WorldStateCache1_0.warmStarts);
-    console.log('Warm Starts Skipped:', WorldStateCache1_0.warmStartsSkipped);
-    console.log('Errors:', WorldStateCache1_0.errors);
+    if (this.debug) console.log('Enabled:', WorldStateCache1_0.enabled);
+    if (this.debug) console.log('Last World ID:', WorldStateCache1_0.lastWorldId);
+    if (this.debug) console.log('Last Node Count:', WorldStateCache1_0.lastNodeCount);
+    if (this.debug) console.log('Last Link Count:', WorldStateCache1_0.lastLinkCount);
+    if (this.debug) console.log('Last Ready:', WorldStateCache1_0.lastReady);
+    if (this.debug) console.log('Snapshots Taken:', WorldStateCache1_0.snapshotsTaken);
+    if (this.debug) console.log('Warm Starts:', WorldStateCache1_0.warmStarts);
+    if (this.debug) console.log('Warm Starts Skipped:', WorldStateCache1_0.warmStartsSkipped);
+    if (this.debug) console.log('Errors:', WorldStateCache1_0.errors);
     
     if (WorldStateCache1_0.snapshotsTaken > 0) {
       const ratio = WorldStateCache1_0.warmStarts / WorldStateCache1_0.snapshotsTaken;
-      console.log(`Success Ratio: ${(ratio * 100).toFixed(1)}%`);
+      if (this.debug) console.log(`Success Ratio: ${(ratio * 100).toFixed(1)}%`);
     }
     
     console.groupEnd();
@@ -815,12 +818,12 @@ if (typeof window !== 'undefined') {
 
   window.worldCacheDisable = function () {
     WorldStateCache1_0.enabled = false;
-    console.log('[WorldCache] Disabled');
+    if (this.debug) console.log('[WorldCache] Disabled');
   };
 
   window.worldCacheEnable = function () {
     WorldStateCache1_0.enabled = true;
-    console.log('[WorldCache] Enabled');
+    if (this.debug) console.log('[WorldCache] Enabled');
   };
 
   window.worldCacheReset = function () {
@@ -833,6 +836,6 @@ if (typeof window !== 'undefined') {
     WorldStateCache1_0.warmStarts = 0;
     WorldStateCache1_0.warmStartsSkipped = 0;
     WorldStateCache1_0.errors = 0;
-    console.log('[WorldCache] Reset to initial state');
+    if (this.debug) console.log('[WorldCache] Reset to initial state');
   };
 }

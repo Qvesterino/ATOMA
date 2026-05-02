@@ -42,6 +42,9 @@ import { getNodeCanonicalMetrics, getLinkSynergyVisualMetrics, getLinkCorruption
 class NodeResonanceFeedback {
     constructor() {
         // Local resonance metrics
+        // Debug guard (Priority 4 fix)
+        this.debug = false;
+
         this.localResonance = 0.0;           // 0–1, composite resonance
         this.harmonyShift = 0.0;             // float, change in harmony
         this.entropyShock = 0.0;             // float, entropy perturbation
@@ -198,7 +201,7 @@ class HarmonyFieldLinesRenderer {
         this.nodeConnections = new Map();  // node -> Set of connected nodes
 
         if (this.config.debugEnabled) {
-            console.log('[HarmonyFieldLinesRenderer] initialized ✓');
+            if (this.debug) console.log('[HarmonyFieldLinesRenderer] initialized ✓');
         }
     }
 
@@ -433,7 +436,7 @@ class HarmonyFieldLinesRenderer {
         }
 
         if (this.config.debugEnabled) {
-            console.log(`[HarmonyFieldLinesRenderer] Created ${this.fieldLines.length} field lines`);
+            if (this.debug) console.log(`[HarmonyFieldLinesRenderer] Created ${this.fieldLines.length} field lines`);
         }
     }
 
@@ -553,7 +556,7 @@ export class ResonanceFeedback_v1 {
                     debugEnabled: this.config.debugEnabled
                 });
                 if (this.config.debugEnabled) {
-                    console.log('[ResonanceFeedback_v1] Harmony Field Lines enabled ✓');
+                    if (this.debug) console.log('[ResonanceFeedback_v1] Harmony Field Lines enabled ✓');
                 }
             } catch (err) {
                 console.warn('[ResonanceFeedback_v1] Harmony Field Lines failed:', err);
@@ -561,7 +564,7 @@ export class ResonanceFeedback_v1 {
         }
 
         if (this.config.debugEnabled) {
-            console.log('[ResonanceFeedback_v1] initialized ✓');
+            if (this.debug) console.log('[ResonanceFeedback_v1] initialized ✓');
         }
     }
     
@@ -906,7 +909,7 @@ export class ResonanceFeedback_v1 {
         this.frameUpdateTime = performance.now() - startTime;
         
         if (this.config.debugEnabled && Math.random() < 0.01) {
-            console.log(
+            if (this.debug) console.log(
                 `[ResonanceFeedback_v1] processed ${this.processedNodesCount} nodes, ` +
                 `${this.processedLinksCount} links, mood: ${this.networkMood.moodState} ` +
                 `in ${this.frameUpdateTime.toFixed(3)}ms`
@@ -1010,7 +1013,7 @@ export class ResonanceFeedback_v1 {
             this.networkMood = new NetworkMood();
 
             if (this.config.debugEnabled) {
-                console.log('[ResonanceFeedback_v1] disposed ✓');
+                if (this.debug) console.log('[ResonanceFeedback_v1] disposed ✓');
             }
         } catch (err) {
             console.error('[ResonanceFeedback_v1] dispose error:', err);

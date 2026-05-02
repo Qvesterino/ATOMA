@@ -26,6 +26,9 @@ const MOTION_OFF_PHASE1 = true;
 
 export class SystemStateOverlay {
   constructor(scene, renderer, camera) {
+    // Debug guard (Priority 4 fix)
+    this.debug = false;
+
     this.scene = scene;
     this.renderer = renderer;
     this.camera = camera;
@@ -80,7 +83,7 @@ export class SystemStateOverlay {
     this.initCorruptionLayer();
     this.initRegionalHarmonyZones();
     
-    console.log('✓ System State Overlay initialized (disabled by default)');
+    if (this.debug) console.log('✓ System State Overlay initialized (disabled by default)');
   }
   
   /**
@@ -456,7 +459,7 @@ export class SystemStateOverlay {
    */
   toggle() {
     this.enabled = !this.enabled;
-    console.log(`System State Overlay: ${this.enabled ? 'ENABLED' : 'DISABLED'}`);
+    if (this.debug) console.log(`System State Overlay: ${this.enabled ? 'ENABLED' : 'DISABLED'}`);
     
     // Show/hide all layers
     if (this.layers.harmony) {
@@ -483,7 +486,7 @@ export class SystemStateOverlay {
     if (this.regionalHarmonyZones) {
       this.regionalHarmonyZones.enabled = this.regionalHarmonyZonesEnabled;
     }
-    console.log(`Regional Harmony Zones: ${this.regionalHarmonyZonesEnabled ? 'ENABLED' : 'DISABLED'}`);
+    if (this.debug) console.log(`Regional Harmony Zones: ${this.regionalHarmonyZonesEnabled ? 'ENABLED' : 'DISABLED'}`);
   }
   
   /**
@@ -502,22 +505,22 @@ export class SystemStateOverlay {
    * Debug/status output
    */
   status() {
-    console.log('=== SYSTEM STATE OVERLAY ===');
-    console.log(`Status: ${this.enabled ? '✓ ACTIVE' : '✗ INACTIVE'}`);
-    console.log(`Harmony: ${(this.metrics.harmony * 100).toFixed(1)}%`);
-    console.log(`Synergy: ${(this.metrics.synergy * 100).toFixed(1)}%`);
-    console.log(`Corruption: ${(this.metrics.corruption * 100).toFixed(1)}%`);
-    console.log(`Active Synergy Halos: ${this.layers.synergyHalos.length}`);
+    if (this.debug) console.log('=== SYSTEM STATE OVERLAY ===');
+    if (this.debug) console.log(`Status: ${this.enabled ? '✓ ACTIVE' : '✗ INACTIVE'}`);
+    if (this.debug) console.log(`Harmony: ${(this.metrics.harmony * 100).toFixed(1)}%`);
+    if (this.debug) console.log(`Synergy: ${(this.metrics.synergy * 100).toFixed(1)}%`);
+    if (this.debug) console.log(`Corruption: ${(this.metrics.corruption * 100).toFixed(1)}%`);
+    if (this.debug) console.log(`Active Synergy Halos: ${this.layers.synergyHalos.length}`);
     
     if (this.regionalHarmonyZones) {
       const zoneStatus = this.regionalHarmonyZones.getStatus();
-      console.log('--- REGIONAL HARMONY ZONES ---');
-      console.log(`Status: ${zoneStatus.enabled ? '✓ ACTIVE' : '✗ INACTIVE'}`);
-      console.log(`Active Zones: ${zoneStatus.activeZones}`);
-      console.log(`Update Frequency: every ${zoneStatus.updateFrequency} frames`);
+      if (this.debug) console.log('--- REGIONAL HARMONY ZONES ---');
+      if (this.debug) console.log(`Status: ${zoneStatus.enabled ? '✓ ACTIVE' : '✗ INACTIVE'}`);
+      if (this.debug) console.log(`Active Zones: ${zoneStatus.activeZones}`);
+      if (this.debug) console.log(`Update Frequency: every ${zoneStatus.updateFrequency} frames`);
     }
     
-    console.log(`Time: ${this.time.toFixed(2)}s`);
+    if (this.debug) console.log(`Time: ${this.time.toFixed(2)}s`);
   }
   
   /**

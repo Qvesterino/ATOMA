@@ -14,6 +14,9 @@ import { getMapConfig } from './MapConfigBase.js';
  */
 export class DreamDesert2 {
   constructor(scene, worldRoot, camera = null) {
+    // Debug guard (Priority 4 fix)
+    this.debug = false;
+
     this.scene = scene;
     this.worldRoot = worldRoot;
     this.camera = camera;
@@ -66,7 +69,7 @@ export class DreamDesert2 {
    */
   initializeMapConfig() {
     this.mapConfig = getMapConfig('DreamDesert2');
-    console.log(
+    if (this.debug) console.log(
       `[MAP INIT] ${this.mapConfig.mapId} | theme: ${this.mapConfig.theme} | referencePlane: ${this.mapConfig.referencePlane}`
     );
   }
@@ -83,7 +86,7 @@ export class DreamDesert2 {
         this.mapConfig.referencePlane
       );
       
-      console.log(
+      if (this.debug) console.log(
         `[REFERENCE PLANE] ${this.mapConfig.referencePlane} initialized for ${this.mapConfig.mapId}`
       );
     } catch (err) {
@@ -2719,7 +2722,7 @@ export class DreamDesert2 {
       colorGrading: colorGradingPass
     };
     
-    console.log('[POST-PROCESSING] Pipeline initialized with ACES, Chromatic Aberration, Vignette, and Color Grading');
+    if (this.debug) console.log('[POST-PROCESSING] Pipeline initialized with ACES, Chromatic Aberration, Vignette, and Color Grading');
   }
   
   /**

@@ -64,6 +64,9 @@ export class MythicRitualController {
   }
 
   constructor(scene, camera, renderer, worldPersonalityController, player, semanticBus) {
+    // Debug guard (Priority 4 fix)
+    this.debug = false;
+
     this.scene = scene;
     this.camera = camera;
     this.renderer = renderer;
@@ -79,7 +82,7 @@ export class MythicRitualController {
 
     // SAFETY: Early exit if rituals disabled
     if (!MythicRitualController.ENABLED) {
-      console.log('[MythicRitualController] Disabled (window.ATOMA_DISABLE_MYTHIC_RITUALS = true)');
+      if (this.debug) console.log('[MythicRitualController] Disabled (window.ATOMA_DISABLE_MYTHIC_RITUALS = true)');
       return;
     }
 
@@ -136,7 +139,7 @@ export class MythicRitualController {
 
 
 
-    console.log('✓ Mythic Ritual Controller 1.0 initialized');
+    if (this.debug) console.log('✓ Mythic Ritual Controller 1.0 initialized');
   }
 
   _getRitualPalette(ritualType) {
@@ -377,7 +380,7 @@ export class MythicRitualController {
    * Trigger a ritual
    */
   triggerRitual(ritualType, nodes) {
-    console.log(`✨ MYTHIC RITUAL TRIGGERED: ${ritualType}`);
+    if (this.debug) console.log(`✨ MYTHIC RITUAL TRIGGERED: ${ritualType}`);
 
     this.activeRitual = ritualType;
     this._currentRitualNodes = Array.isArray(nodes) ? nodes.slice() : [];
@@ -396,7 +399,7 @@ export class MythicRitualController {
     if (this.semanticBus) {
       this.semanticBus.emit('ritual.prelude', ritualPayload, { priority: this.semanticBus.priority?.INTERACTIVE });
       this.semanticBus.emit('semantic.ritual.started', ritualPayload, { priority: this.semanticBus.priority?.INTERACTIVE });
-      console.log(`✓ Ritual started event emitted: ${ritualType}`);
+      if (this.debug) console.log(`✓ Ritual started event emitted: ${ritualType}`);
     }
     this._emitMetricBridgeForRitual(ritualType, 'started');
 
@@ -430,7 +433,7 @@ export class MythicRitualController {
     if (nodes && nodes.length > 0) {
       const readyNodes = nodes.filter(n => n?.userData?.visualReady);
       if (readyNodes.length === 0) {
-        console.log(`[MythicRitualController] Delaying ritual visuals until nodes visualReady`);
+        if (this.debug) console.log(`[MythicRitualController] Delaying ritual visuals until nodes visualReady`);
         return;
       }
     }
@@ -952,7 +955,7 @@ export class MythicRitualController {
         }
       }
 
-      console.log(`Ritual phase: ${this.ritualPhase}`);
+      if (this.debug) console.log(`Ritual phase: ${this.ritualPhase}`);
     } else {
       // Ritual complete
       this.endRitual();
@@ -1264,7 +1267,7 @@ export class MythicRitualController {
    */
   endRitual() {
     const completedRitualType = this.activeRitual;
-    console.log(`✨ MYTHIC RITUAL COMPLETE: ${completedRitualType}`);
+    if (this.debug) console.log(`✨ MYTHIC RITUAL COMPLETE: ${completedRitualType}`);
 
     // Cleanup all visuals
     this.ritualVisuals.forEach((visual, key) => {
@@ -1318,7 +1321,7 @@ export class MythicRitualController {
       });
       this.semanticBus.emit('semantic.ritual.completed', completionPayload, { priority: this.semanticBus.priority.INTERACTIVE });
       this.semanticBus.emit('ritual.release', completionPayload, { priority: this.semanticBus.priority.INTERACTIVE });
-      console.log(`✓ Ritual completed event emitted: ${completedRitualType}`);
+      if (this.debug) console.log(`✓ Ritual completed event emitted: ${completedRitualType}`);
     }
     this._emitMetricBridgeForRitual(completedRitualType, 'completed');
 

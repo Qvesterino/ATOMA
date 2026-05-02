@@ -15,6 +15,9 @@ import { ATOMAColorPalette } from './Engine/Visual/ATOMAColorPalette.js';
 
 export class TemporalEventEffects {
   constructor(scene, renderer) {
+    // Debug guard (Priority 4 fix)
+    this.debug = false;
+
     this.scene = scene;
     this.renderer = renderer;
     this.enabled = true;

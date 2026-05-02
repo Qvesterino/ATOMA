@@ -77,6 +77,9 @@ const CONFIG = {
 
 class CascadeVisualEffect {
     constructor() {
+        // Debug guard (Priority 4 fix)
+        this.debug = false;
+
         this.active = false;
         this.type = null; // 'tear', 'destabilize', 'coherence_loss'
         this.position = new THREE.Vector3();
@@ -252,7 +255,7 @@ export class CascadingRuptureSystem {
         this.onCascadeComplete = null; // (originNode, totalHops) => void
         this.onNodeCritical = null; // (node) => void (triggers failure system)
 
-        console.log('[CascadingRuptureSystem] Initialized (disabled by default)');
+        if (this.debug) console.log('[CascadingRuptureSystem] Initialized (disabled by default)');
     }
 
     _resolveWorldContext() {
@@ -306,7 +309,7 @@ export class CascadingRuptureSystem {
 
     enable() {
         this.enabled = true;
-        console.log('[CascadingRuptureSystem] ENABLED - Cascades active');
+        if (this.debug) console.log('[CascadingRuptureSystem] ENABLED - Cascades active');
     }
 
     disable() {
@@ -314,7 +317,7 @@ export class CascadingRuptureSystem {
         // Clean up active cascades
         this.activeCascades.forEach(cascade => cascade.reset());
         this.visualEffects.forEach(effect => effect.reset());
-        console.log('[CascadingRuptureSystem] DISABLED');
+        if (this.debug) console.log('[CascadingRuptureSystem] DISABLED');
     }
 
     // ========================================================================
@@ -510,7 +513,7 @@ export class CascadingRuptureSystem {
         }
 
         // PATCH 6: Debug log
-        console.log("[CASCADE] triggered", originNode.id || originNode.uuid);
+        if (this.debug) console.log("[CASCADE] triggered", originNode.id || originNode.uuid);
     }
 
     // ========================================================================
@@ -648,7 +651,7 @@ export class CascadingRuptureSystem {
             this.onCascadeComplete(cascade.originNode, cascade.totalHops, worldContextSnapshot);
         }
 
-        console.log(`[CascadingRuptureSystem] Cascade complete: ${cascade.totalHops} hops, depth ${cascade.currentDepth}`);
+        if (this.debug) console.log(`[CascadingRuptureSystem] Cascade complete: ${cascade.totalHops} hops, depth ${cascade.currentDepth}`);
 
         cascade.reset();
     }
@@ -818,6 +821,6 @@ export class CascadingRuptureSystem {
         this.visualEffects.forEach(e => e.reset());
         this.ruptureHistory.clear();
         this.healingHistory.clear();
-        console.log('[CascadingRuptureSystem] Disposed');
+        if (this.debug) console.log('[CascadingRuptureSystem] Disposed');
     }
 }

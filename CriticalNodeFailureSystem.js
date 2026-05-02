@@ -88,6 +88,9 @@ const CONFIG = {
 
 class NodeFailureState {
     constructor() {
+        // Debug guard (Priority 4 fix)
+        this.debug = false;
+
         this.node = null;
         this.active = false;
         this.countdownTime = 0.0;
@@ -285,7 +288,7 @@ export class CriticalNodeFailureSystem {
         this.onLinksSevered = null; // (node, linkIds[]) => void
         this.onNodeIsolated = null; // (node) => void
 
-        console.log('[CriticalNodeFailureSystem] Initialized (disabled by default)');
+        if (this.debug) console.log('[CriticalNodeFailureSystem] Initialized (disabled by default)');
     }
 
     // ========================================================================
@@ -294,7 +297,7 @@ export class CriticalNodeFailureSystem {
 
     enable() {
         this.enabled = true;
-        console.log('[CriticalNodeFailureSystem] ENABLED - Link severing active');
+        if (this.debug) console.log('[CriticalNodeFailureSystem] ENABLED - Link severing active');
     }
 
     disable() {
@@ -302,7 +305,7 @@ export class CriticalNodeFailureSystem {
         // Clean up active failures
         this.activeFailures.forEach(f => f.reset());
         this.severVisuals.forEach(v => v.reset());
-        console.log('[CriticalNodeFailureSystem] DISABLED');
+        if (this.debug) console.log('[CriticalNodeFailureSystem] DISABLED');
     }
 
     // ========================================================================
@@ -394,7 +397,7 @@ export class CriticalNodeFailureSystem {
         // Start countdown
         failureState.startCountdown(node, links);
 
-        console.log(`[CriticalNodeFailureSystem] Node ${this._formatNodeId(node)} entering failure countdown (${links.length} links)`);
+        if (this.debug) console.log(`[CriticalNodeFailureSystem] Node ${this._formatNodeId(node)} entering failure countdown (${links.length} links)`);
 
         // Fire event
         if (this.onFailureCountdownStart) {
@@ -448,7 +451,7 @@ export class CriticalNodeFailureSystem {
         failureState.failureTriggered = true;
         const node = failureState.node;
 
-        console.log(`[CriticalNodeFailureSystem] Node ${this._formatNodeId(node)} FAILURE - severing ${failureState.linksToSever.length} links`);
+        if (this.debug) console.log(`[CriticalNodeFailureSystem] Node ${this._formatNodeId(node)} FAILURE - severing ${failureState.linksToSever.length} links`);
 
         // Sever all links simultaneously
         const severedLinkIds = [];
@@ -516,7 +519,7 @@ export class CriticalNodeFailureSystem {
         node.userData.countdownRemaining = 0;
         node.userData.stressVisualIntensity = 0;
 
-        console.log(`[CriticalNodeFailureSystem] Node ${this._formatNodeId(node)} isolated`);
+        if (this.debug) console.log(`[CriticalNodeFailureSystem] Node ${this._formatNodeId(node)} isolated`);
 
         // Fire event
         if (this.onNodeIsolated) {
@@ -639,7 +642,7 @@ export class CriticalNodeFailureSystem {
         this.severVisuals.forEach(v => v.reset());
         this.severedLinks.clear();
         this.isolatedNodes.clear();
-        console.log('[CriticalNodeFailureSystem] Disposed');
+        if (this.debug) console.log('[CriticalNodeFailureSystem] Disposed');
     }
 
     _getNodeId(node) {

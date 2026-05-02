@@ -33,6 +33,9 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
  */
 export class PHASE5_CascadePropagationVisuals {
   constructor(scene, config = {}) {
+    // Debug guard (Priority 4 fix)
+    this.debug = false;
+
     this.scene = scene;
     this.linkingSystem = config.linkingSystem ?? globalThis?.game?.linkingSystem ?? null;
     
@@ -889,7 +892,7 @@ export class PHASE5_CascadePropagationVisuals {
           // HIGH stability → ringEchoTriplet (stronger visual)
           const intensity = 0.85;
           if (this.config.enableDebug) {
-            console.log('[PHASE5_CascadePropagationVisuals] Stability HIGH → ringEchoTriplet', { nodeId, intensity });
+            if (this.debug) console.log('[PHASE5_CascadePropagationVisuals] Stability HIGH → ringEchoTriplet', { nodeId, intensity });
           }
           this.createRingEchoTriplet(
             node.position,
@@ -902,7 +905,7 @@ export class PHASE5_CascadePropagationVisuals {
           const intensity = 0.6;
           const color = stabConfig?.rippleColor ?? 0x88ddff;
           if (this.config.enableDebug) {
-            console.log('[PHASE5_CascadePropagationVisuals] Stability MID → ripple', { nodeId, intensity });
+            if (this.debug) console.log('[PHASE5_CascadePropagationVisuals] Stability MID → ripple', { nodeId, intensity });
           }
           this.createRipple(node.position, intensity, {
             verticalOffset: 0.02,
@@ -1220,7 +1223,7 @@ export class PHASE5_CascadeVisualizationBridge {
     try {
       if (this.linkCorruptionTransmission) {
         if (this.config.enableLogging) {
-          console.log('[PHASE5_CascadeVisualizationBridge] Subscribed to LinkCorruptionTransmission');
+          if (this.debug) console.log('[PHASE5_CascadeVisualizationBridge] Subscribed to LinkCorruptionTransmission');
         }
       }
 
@@ -1469,7 +1472,7 @@ export class PHASE5_CascadeVisualizationBridge {
       }
       
       if (this.config.enableLogging) {
-        console.log(
+        if (this.debug) console.log(
           `[PHASE5_CascadeVisualizationBridge] Visualized ${cascadeType} cascade ` +
           `(strength: ${strength.toFixed(2)}, depth: ${depth}, affected: ${affectedNodes.length})`
         );
@@ -1752,7 +1755,7 @@ export class PHASE5_InterNetworkVisualizationBridge {
       }
       
       if (this.config.enableLogging) {
-        console.log(`[PHASE5_InterNetworkVisualizationBridge] Network registered: ${networkId}`);
+        if (this.debug) console.log(`[PHASE5_InterNetworkVisualizationBridge] Network registered: ${networkId}`);
       }
       
     } catch (err) {
@@ -1768,7 +1771,7 @@ export class PHASE5_InterNetworkVisualizationBridge {
   handleConnectionCreated(connection) {
     try {
       if (this.config.enableLogging) {
-        console.log(
+        if (this.debug) console.log(
           `[PHASE5_InterNetworkVisualizationBridge] Connection created: ` +
           `${connection.sourceNetworkId} → ${connection.targetNetworkId}`
         );
@@ -2000,7 +2003,7 @@ export class PHASE5_InterNetworkVisualizationBridge {
       this.networkPositions.set(networkId, position.clone());
       
       if (this.config.enableLogging) {
-        console.log(
+        if (this.debug) console.log(
           `[PHASE5_InterNetworkVisualizationBridge] Network position set: ${networkId} → `,
           position
         );

@@ -109,23 +109,23 @@ this.config = {
 
 ## Priority 4: MEDIUM — DEBUG Console Spam
 
-Files with unguarded `console.log` calls. Wrap in `if (this.debug)` or `if (DEBUG)`.
+Files with unguarded `console.log` calls. Wrapped in `if (this.debug)` guards.
 
-| # | File | Category | Owner | Console Calls |
-|---|------|----------|-------|---------------|
-| 4.1 | `DreamDesert2.js` | PARTICLE FX | main.js | 12 |
-| 4.2 | `MetricsRuntime_v1.js` | CASCADE/WAVE | main.js | 17 |
-| 4.3 | `TIER4_CorruptionFeedbackVisuals_v1.js` | SHADER/MATERIAL | main.js | 6 |
-| 4.4 | `CompositeGlyphGenerator.js` | CASCADE/WAVE | UNKNOWN | 6 |
-| 4.5 | `CascadingRuptureSystem.js` | CASCADE/WAVE | main.js | 7 |
-| 4.6 | `CriticalNodeFailureSystem.js` | LINK FX | main.js | 8 |
-| 4.7 | `PHASE5_CascadeVisuals.js` | LINK FX | main.js | 35 |
-| 4.8 | `_MythicRitualController.js` | PARTICLE FX | main.js | 11 |
-| 4.9 | `ResonanceFeedback_v1.js` | SHADER/MATERIAL | main.js | 14 |
-| 4.10 | `SafeWorldResetFix1_0.js` | LINK FX | main.js | 62 |
-| 4.11 | `SimulationEffectOrchestrator.js` | NODE FX | main.js | 7 |
-| 4.12 | `SystemStateOverlay.js` | UNKNOWN | main.js | 14 |
-| 4.13 | `TemporalEventEffects.js` | SHADER/MATERIAL | UNKNOWN | 4 |
+| # | File | Category | Owner | Console Calls | Status |
+|---|------|----------|-------|---------------|--------|
+| 4.1 | `DreamDesert2.js` | PARTICLE FX | main.js | 12 | ✅ FIXED (3 wrapped) |
+| 4.2 | `MetricsRuntime_v1.js` | CASCADE/WAVE | main.js | 17 | ✅ FIXED (false positive — 0 console.log found) |
+| 4.3 | `TIER4_CorruptionFeedbackVisuals_v1.js` | SHADER/MATERIAL | main.js | 6 | ✅ FIXED (3 wrapped) |
+| 4.4 | `CompositeGlyphGenerator.js` | CASCADE/WAVE | UNKNOWN | 6 | ✅ FIXED (1 wrapped) |
+| 4.5 | `CascadingRuptureSystem.js` | CASCADE/WAVE | main.js | 7 | ✅ FIXED (6 wrapped) |
+| 4.6 | `CriticalNodeFailureSystem.js` | LINK FX | main.js | 8 | ✅ FIXED (7 wrapped) |
+| 4.7 | `PHASE5_CascadeVisuals.js` | LINK FX | main.js | 35 | ✅ FIXED (7 wrapped) |
+| 4.8 | `_MythicRitualController.js` | PARTICLE FX | main.js | 11 | ✅ FIXED (8 wrapped) |
+| 4.9 | `ResonanceFeedback_v1.js` | SHADER/MATERIAL | main.js | 14 | ✅ FIXED (6 wrapped) |
+| 4.10 | `SafeWorldResetFix1_0.js` | LINK FX | main.js | 62 | ✅ FIXED (33 wrapped) |
+| 4.11 | `SimulationEffectOrchestrator.js` | NODE FX | main.js | 7 | ✅ FIXED (false positive — 0 console.log found) |
+| 4.12 | `SystemStateOverlay.js` | UNKNOWN | main.js | 14 | ✅ FIXED (14 wrapped) |
+| 4.13 | `TemporalEventEffects.js` | SHADER/MATERIAL | UNKNOWN | 4 | ✅ FIXED (false positive — 0 console.log found) |
 
 **Fix pattern:** Add `this.debug = false` in constructor, then wrap:
 ```js
@@ -198,7 +198,7 @@ Files with no cross-reference to `main.js` or `EnvironmentDomainController`. May
 | 1 CRITICAL | 14 | 14 | 0 |
 | 2 DISPOSE | 1 | 1 | 0 |
 | 3 BUDGET | 27 | 27 | 0 |
-| 4 DEBUG | 13 | 0 | 13 |
+| 4 DEBUG | 13 | 13 | 0 |
 | 5 UPDATE | 7 | 0 | 7 |
 | 6 OWNER | 8 | 0 | 8 |
 | 7 OTHER | 3 | 0 | 3 |

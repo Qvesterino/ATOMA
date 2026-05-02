@@ -251,6 +251,9 @@ function normalizeSeedMetric(value, fallback = 0.5) {
 
 export class TIER4_CorruptionFeedbackVisuals {
   constructor(scene, config = {}) {
+    // Debug guard (Priority 4 fix)
+    this.debug = false;
+
     this.scene = scene;
     this.camera = config.camera ?? null;
     this.frameScheduler = config.frameScheduler ?? null;
@@ -893,7 +896,7 @@ export class TIER4_CorruptionFeedbackVisuals {
       this.stats.corruptionSeedsRendered++;
 
       if (this.config.enableDebug) {
-        console.log('[TIER4_CorruptionFeedbackVisuals] Corruption seed displayed at node');
+        if (this.debug) console.log('[TIER4_CorruptionFeedbackVisuals] Corruption seed displayed at node');
       }
     } catch (err) {
       console.warn('[TIER4_CorruptionFeedbackVisuals] displayCorruptionSeed error:', err);
@@ -934,7 +937,7 @@ export class TIER4_CorruptionFeedbackVisuals {
       this.stats.cascadeWarningsRendered++;
       
       if (this.config.enableDebug) {
-        console.log('[TIER4_CorruptionFeedbackVisuals] Cascade warning displayed');
+        if (this.debug) console.log('[TIER4_CorruptionFeedbackVisuals] Cascade warning displayed');
       }
       
     } catch (err) {
@@ -961,7 +964,7 @@ export class TIER4_CorruptionFeedbackVisuals {
       this.stats.harmonyPulsesRendered++;
       
       if (this.config.enableDebug) {
-        console.log('[TIER4_CorruptionFeedbackVisuals] Harmony field pulse flashed');
+        if (this.debug) console.log('[TIER4_CorruptionFeedbackVisuals] Harmony field pulse flashed');
       }
       
     } catch (err) {

@@ -33,6 +33,9 @@ const COMPOSITE_GENERATOR_LOG_THROTTLE_MS = 30000; // 30 seconds
 
 export class CompositeGlyphGenerator {
     constructor(scene = null, camera = null, network = null) {
+        // Debug guard (Priority 4 fix)
+        this.debug = false;
+
         this.scene = scene;
         this.camera = camera;
         this.network = network;
@@ -730,6 +733,6 @@ export class CompositeGlyphGenerator {
         });
         this.cache.clear();
         this.resonanceFeedback?.dispose?.();
-        console.log('[CompositeGlyphGenerator] Disposed');
+        if (this.debug) console.log('[CompositeGlyphGenerator] Disposed');
     }
 }

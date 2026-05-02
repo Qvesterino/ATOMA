@@ -30,6 +30,9 @@ import { SimulationEffectPool } from './SimulationEffectPool.js';
 
 export class SimulationEffectOrchestrator {
   constructor(scene, usePooling = true) {
+    // Debug guard (Priority 4 fix)
+    this.debug = false;
+
     this.scene = scene;
     this.effects = [];
     this.effectIdCounter = 0;
