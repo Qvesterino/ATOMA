@@ -26,6 +26,9 @@ export class ExtremeAIShaderPack {
     this.debug = options.debug || false;
     this.frameScheduler = options.frameScheduler || null;
 
+    // Budget caps
+    this.maxNodes = options.maxNodes || 100; // Max simultaneous shader-enhanced nodes
+
     // Shared shader cache to reduce compilation time
     this.shaderCache = new Map();
 

@@ -64,6 +64,11 @@ export class SemanticGlyphAI {
     
     // Configuration
     this.config = {
+      // Budget caps
+      maxTrackedNodes: 100,        // Max nodes with semantic state
+      maxEventHistoryPerNode: 10,  // Max events remembered per node
+      maxHelperMeshesPerType: 30,  // Max pooled helper meshes per type
+      
       focusedAnimSpeedMultiplier: 1.8,
       overloadedWobbleAmplitude: 0.015,
       overloadedPulseSpeed: 2.0,

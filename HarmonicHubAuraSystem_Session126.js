@@ -255,7 +255,9 @@ export class HarmonicHubAuraSystem_Session126 {
    */
   update(deltaTime) {
     if (!this.config.enabled) return;
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
     this.stats.phaseLockedNodes = 0;
 
     // ── Divine Nexus Aura: advance sacred spectrum phase ──

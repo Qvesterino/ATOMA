@@ -506,7 +506,9 @@ export class MetricReactiveWorldEvents {
     // FIXED: guard matches the scheduler lane this system runs on.
     // EnvironmentDomainController registers this in the visual lane (30Hz),
     // so we use shouldRunVisual instead of shouldRunSimulation.
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
     if (!this.enabled) return;
     
     try {

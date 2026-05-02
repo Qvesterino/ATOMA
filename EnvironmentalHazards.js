@@ -945,7 +945,10 @@ export class EnvironmentalHazards {
   }
 
   update(deltaTime) {
-    if (!this.enabled || !this.frameScheduler?.shouldRunVisual?.()) return;
+    if (!this.enabled) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
 
     this.sharedUniforms.uTime.value += Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0;
     const signals = this._getHazardSignalModifiers();

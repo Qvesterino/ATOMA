@@ -35,6 +35,9 @@ export class SimulationEffectOrchestrator {
     this.effectIdCounter = 0;
     this.frameIndex = 0;
     
+    // Budget cap
+    this.maxActiveEffects = 200; // Max concurrent active effects
+    
     // Session 37 Part 3: Effect pooling system
     this.usePooling = usePooling;
     this.effectPool = usePooling ? new SimulationEffectPool(100) : null;

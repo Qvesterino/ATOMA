@@ -202,7 +202,12 @@ export class AIConsciousnessLayer {
       fieldDistortionStrength: 0.02,
       globalFieldScale: 15,
       debugMode: false,
-      stormsEnabled: true       // NEW: Toggle emergent storms
+      stormsEnabled: true,      // Toggle emergent storms
+      
+      // Budget caps
+      maxThreadMeshes: 150,     // Max concurrent thought thread meshes
+      maxPulsePackets: 200,     // Max concurrent traveling pulses
+      maxPatternClusters: 80    // Max concurrent pattern clusters
     };
 
     this.stormProfile = {

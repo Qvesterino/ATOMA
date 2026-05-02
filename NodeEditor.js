@@ -667,7 +667,9 @@ export class NodeEditor {
    * Update animation loop
    */
   update(deltaTime) {
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
     // Update spark particles
     for (let i = this.sparkParticles.length - 1; i >= 0; i--) {
       const spark = this.sparkParticles[i];

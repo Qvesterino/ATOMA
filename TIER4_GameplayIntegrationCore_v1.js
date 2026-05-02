@@ -293,7 +293,9 @@ export class TIER4_GameplayIntegrationCore {
    * Currently all updates are event-driven
    */
   update(deltaTime) {
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
 
     // Reset frame stats
     this.stats.linksCreatedThisFrame = 0;

@@ -36,6 +36,9 @@ export class CinematicUpgrade {
     this._vec3a = new THREE.Vector3();
     this._vec3b = new THREE.Vector3();
 
+    // Budget caps
+    this.maxDustParticles = 60; // Max floating dust particles
+
     // Effect containers (only unique effects, no duplication with Superpack)
     this.dustParticles = [];
     this.edgeGlowPass = null;

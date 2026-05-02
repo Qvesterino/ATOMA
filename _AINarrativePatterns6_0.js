@@ -100,6 +100,11 @@ export class AINarrativePatterns6_0 {
     
     // Configuration
     this.config = {
+      // Budget caps
+      maxNarrativeStates: 50,         // Max tracked clusters
+      maxMotifHistoryPerCluster: 20,  // Max motifs remembered per cluster
+      maxActiveEpisodes: 30,          // Max concurrent episodes
+      
       // Episode timing
       minEpisodeDuration: 10000,      // 10 seconds
       maxEpisodeDuration: 40000,      // 40 seconds

@@ -109,7 +109,9 @@ export class PersonalityShaderBridge_v1 {
    * @param {number} deltaTime - Frame delta time (seconds)
    */
   update(deltaTime) {
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
 
     const startTime = performance.now();
     

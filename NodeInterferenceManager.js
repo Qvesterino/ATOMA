@@ -24,6 +24,7 @@ export class NodeInterferenceManager {
         this.config = {
             enabled: true,
             updateFrequency: 1.0, // Update every frame
+            maxNodes: 200,         // Max tracked interference nodes
         };
 
         this.frameCounter = 0;

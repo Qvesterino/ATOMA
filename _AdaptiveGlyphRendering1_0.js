@@ -679,4 +679,16 @@ export class AdaptiveGlyphRendering1_0 {
       console.log('✓ Adaptive Glyph Rendering cleaned up');
     }
   }
+
+  /**
+   * UNIFIED CLEANUP CONTRACT — full disposal
+   * This system is visual-only (no mesh/geometry/material creation),
+   * so disposal clears subscriptions, caches, and references.
+   */
+  dispose() {
+    this.cleanup();
+    this.enabled = false;
+    this.scene = null;
+    this.semanticBus = null;
+  }
 }

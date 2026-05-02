@@ -217,7 +217,9 @@ export class TIER4_GameplayIntegrationBridge {
    * Call from main.js animation loop
    */
   update(deltaTime) {
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
 
     if (!this.isInitialized) return;
 

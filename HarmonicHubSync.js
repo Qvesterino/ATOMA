@@ -56,6 +56,9 @@ export class NodeHarmonicSyncController {
 
         // Configuration
         this.config = {
+            // Budget caps
+            maxConnectedLinks: 20,           // Max links tracked per hub node
+            
             // Hub activation conditions
             minLinksForHub: 3,              // Minimum connected links
             minAverageSynergy: 0.5,         // Minimum average synergy

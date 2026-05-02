@@ -102,7 +102,9 @@ class CascadeVisualEffect {
 
     update(deltaTime) {
         if (!this.active) return;
-        if (!this.frameScheduler?.shouldRunVisual?.()) return;
+        if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+            if (!this.frameScheduler.shouldRunVisual()) return;
+        }
         this.progress += deltaTime / this.duration;
         
         if (this.progress >= 1.0) {

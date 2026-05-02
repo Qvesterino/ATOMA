@@ -702,7 +702,9 @@ export class ResonanceEchoTrailSystem {
     // ========================================================================
     
   update(deltaTime, compositeGlyphs) {
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
 
     if (!this.enabled) return;
     

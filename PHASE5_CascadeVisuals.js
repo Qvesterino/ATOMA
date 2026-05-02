@@ -662,7 +662,9 @@ export class PHASE5_CascadePropagationVisuals {
    * Update all active rings (call from animation loop)
    */
   update(deltaTime) {
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
 
     const updateStart = Date.now();
     this._elapsedTime = (this._elapsedTime ?? 0) + deltaTime;
@@ -1287,7 +1289,9 @@ export class PHASE5_CascadeVisualizationBridge {
    * Update cascade detection and visualization
    */
   update(deltaTime) {
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
 
     const updateStart = Date.now();
     

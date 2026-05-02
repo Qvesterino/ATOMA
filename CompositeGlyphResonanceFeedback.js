@@ -774,7 +774,9 @@ class CompositeGlyphResonanceFeedback {
     
     update(deltaTime) {
         if (!this.enabled) return;
-        if (!this.frameScheduler?.shouldRunVisual?.()) return;
+        if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+            if (!this.frameScheduler.shouldRunVisual()) return;
+        }
         this.updateCounter++;
         
         // Update all active resonance zones
