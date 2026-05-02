@@ -30053,7 +30053,7 @@ static createAnalyticsNode2(group, color) {
       const bloodMat = new THREE.MeshPhysicalMaterial({
         color,
         emissive: color,
-        emissiveIntensity: 0.14,
+        emissiveIntensity: 0.36,
         metalness: 0.72,
         roughness: 0.18,
         clearcoat: 0.35,
@@ -30062,7 +30062,7 @@ static createAnalyticsNode2(group, color) {
       const antiMat = new THREE.MeshStandardMaterial({
         color: 0x070707,
         emissive: 0x120000,
-        emissiveIntensity: 0.04,
+        emissiveIntensity: 0.1,
         metalness: 0.15,
         roughness: 0.82,
         side: THREE.DoubleSide
@@ -30070,20 +30070,20 @@ static createAnalyticsNode2(group, color) {
       const antiVoidMat = new THREE.MeshBasicMaterial({
         color: 0x000000,
         transparent: true,
-        opacity: 0.58,
+        opacity: 0.92,
         side: THREE.BackSide
       });
       const cageMat = new THREE.LineBasicMaterial({
         color,
         transparent: true,
-        opacity: 0.42,
+        opacity: 0.9,
         depthWrite: false,
         depthTest: true
       });
       const glassWireMat = new THREE.LineBasicMaterial({
         color: 0xa8f4ff,
         transparent: true,
-        opacity: 0.3,
+        opacity: 0.62,
         depthWrite: false,
         depthTest: true
       });
@@ -30171,11 +30171,11 @@ static createAnalyticsNode2(group, color) {
         new THREE.MeshStandardMaterial({
           color,
           emissive: color,
-          emissiveIntensity: 0.18,
+          emissiveIntensity: 0.44,
           metalness: 0.42,
           roughness: 0.36,
           transparent: true,
-          opacity: 0.44
+          opacity: 0.86
         })
       );
       brokenRing.name = 'CollisionBrokenTorusRing';
@@ -30755,7 +30755,7 @@ static createAnalyticsNode2(group, color) {
       const shellMat = new THREE.MeshPhysicalMaterial({
         color: 0x0a0d14,
         emissive: 0x101827,
-        emissiveIntensity: 0.1,
+        emissiveIntensity: 0.2,
         metalness: 0.65,
         roughness: 0.3,
         clearcoat: 0.2,
@@ -30764,23 +30764,23 @@ static createAnalyticsNode2(group, color) {
       const seamMat = new THREE.MeshBasicMaterial({
         color: 0x8ff7ff,
         transparent: true,
-        opacity: 0.45
+        opacity: 0.9
       });
       const voidMat = new THREE.MeshBasicMaterial({
         color: 0x010305,
         transparent: true,
-        opacity: 0.68,
+        opacity: 0.92,
         side: THREE.BackSide
       });
       const threadMat = new THREE.MeshBasicMaterial({
         color: 0x9af4ff,
         transparent: true,
-        opacity: 0.5
+        opacity: 0.84
       });
       const wire = new THREE.LineBasicMaterial({
         color,
         transparent: true,
-        opacity: 0.48,
+        opacity: 0.86,
         depthWrite: false,
         depthTest: true
       });

@@ -121,12 +121,31 @@ export class GlyphLayer4_MultiFusion {
     console.log('✓ ATOMA Glyph Layer 4.0 - Multi-Glyph Fusion initialized');
   }
   
+  // ============================================================
+  // LAYER 1: CORE GLYPH (Category-Based)
+  // ============================================================
+  
   createCoreGlyph(node, nodeId) {
+    // Core glyph intentionally disabled:
+    // keep node centers clean; hover glyph pipeline remains active via SemanticGlyphAI.
     return null;
   }
   
+  updateCoreGlyph(coreGroup, deltaTime) {
+    if (!coreGroup) return;
+    
+    // Gentle rotation
+    coreGroup.rotation.y += coreGroup.userData.rotationSpeed * deltaTime;
+    coreGroup.rotation.x += coreGroup.userData.rotationSpeed * 0.3 * deltaTime;
+    
+    // Subtle bob
+    coreGroup.userData.bobPhase += deltaTime * 2;
+    const bob = Math.sin(coreGroup.userData.bobPhase) * 0.02;
+    coreGroup.position.y = 0.08 + bob;
+  }
+  
   // ============================================================
-  // LAYER 2: EVOLUTION GLYPH (Category-Driven)
+  // LAYER 2: CATEGORY GLYPH (Category-Driven, Legacy Stage Fallback)
   // ============================================================
 
   resolveNodeCategory(node) {
@@ -1677,8 +1696,503 @@ export class GlyphLayer4_MultiFusion {
         }
       });
     }
-}
+  }
+  
+  // ============================================================
+  // LAYER 3: PERSONALITY GLYPH (Synergy/Harmony/etc)
+  // ============================================================
+  
+  getDominantPersonality(node) {
+    const metrics = node.userData?.personalityMetrics || {};
+    
+    const personalities = [
+      { name: 'synergy', value: metrics.synergy || 0 },
+      { name: 'harmony', value: metrics.harmony || 0 },
+      { name: 'stability', value: metrics.stability || 0 },
+      { name: 'corruption', value: metrics.corruption || 0 },
+      { name: 'clarity', value: metrics.stability || 0 }
+    ];
+    
+    // Find highest
+    const dominant = personalities.reduce((max, p) => 
+      p.value > max.value ? p : max
+    );
+    
+    return dominant.value > 0.3 ? dominant.name : null;
+  }
+  
+  createPersonalityGlyph(node, nodeId) {
+    const personality = this.getDominantPersonality(node);
+    if (!personality) return null;
+    
+    const persGroup = new THREE.Group();
+    persGroup.userData = {
+      glyphLayer: 'personality',
+      personality,
+      isVFX: true,
+      noEvolve: true,
+      noCleanup: true
+    };
+    persGroup.name = `glyph_pers_${nodeId}`;
+    persGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype, before links
+    
+    // Personality-specific visuals
+    const personalityConfigs = {
+      'synergy': {
+        geometry: () => new THREE.TorusGeometry(0.105, 0.012, 8, 28),
+        color: this.colors.cyan,
+        emissive: this.colors.cyan,
+        emissiveIntensity: 0.3,
+        opacity: 0.45
+      },
+      'harmony': {
+        geometry: () => new THREE.TorusGeometry(0.11, 0.01, 8, 28),
+        color: this.colors.green,
+        emissive: this.colors.green,
+        emissiveIntensity: 0.25,
+        opacity: 0.4
+      },
+      'stability': {
+        geometry: () => new THREE.TorusGeometry(0.095, 0.013, 8, 24),
+        color: this.colors.red,
+        emissive: this.colors.red,
+        emissiveIntensity: 0.3,
+        opacity: 0.5
+      },
+      'corruption': {
+        geometry: () => new THREE.TorusGeometry(0.1, 0.03, 8, 12),
+        color: this.colors.magenta,
+        emissive: this.colors.magenta,
+        emissiveIntensity: 0.25,
+        opacity: 0.45
+      },
+      'clarity': {
+        geometry: () => new THREE.TorusGeometry(0.1, 0.01, 8, 30),
+        color: this.colors.white,
+        emissive: this.colors.white,
+        emissiveIntensity: 0.2,
+        opacity: 0.4
+      }
+    };
+    
+    const config = personalityConfigs[personality] || personalityConfigs['harmony'];
+    const geo = config.geometry();
+    
+    const mat = new THREE.MeshBasicMaterial({
+      color: config.color,
+      transparent: true,
+      opacity: config.opacity,
+      emissive: config.emissive,
+      emissiveIntensity: config.emissiveIntensity,
+      fog: false
+    });
+    
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.userData = { glyphComponent: 'personalityMarker' };
+    persGroup.add(mesh);
+    
+    // Animation state
+    persGroup.userData.pulsePhase = Math.random() * Math.PI * 2;
+    persGroup.userData.rotationSpeed = 0.3;
+    
+    return persGroup;
+  }
+  
+  updatePersonalityGlyph(persGroup, deltaTime) {
+    if (!persGroup) return;
+    
+    // Gentle rotation
+    persGroup.rotation.y += persGroup.userData.rotationSpeed * deltaTime;
+    
+    // Soft pulsing opacity
+    persGroup.userData.pulsePhase += deltaTime * 1.5;
+    const pulse = (Math.sin(persGroup.userData.pulsePhase) + 1) * 0.5;
+    
+    persGroup.children.forEach(child => {
+      if (child.material) {
+        child.material.opacity = 0.3 + pulse * 0.2;
+      }
+    });
+  }
+  
+  // ============================================================
+  // LAYER 4: STATE GLYPH (Consciousness/Ascended/Mythic/etc)
+  // ============================================================
+  
+  createStateGlyph(node, nodeId) {
+    // Check state flags in order of priority
+    
+    // Consciousness state (cyan fractal hexagon)
+    if (node.userData?.consciousness === true) {
+      return this.createConsciousnessStateGlyph(node, nodeId);
+    }
+    
+    // Ascended state (orbital rings)
+    if (node.userData?.ascended === true) {
+      return this.createAscendedStateGlyph(node, nodeId);
+    }
+    
+    // Mythic seed state (triangular crystal)
+    if (node.userData?.mythicSeedActive === true) {
+      return this.createMythicStateGlyph(node, nodeId);
+    }
+    
+    // Ritual influence (rotating eclipse)
+    if (node.userData?.ritualInfluence === true) {
+      return this.createRitualStateGlyph(node, nodeId);
+    }
+    
+    // Cluster events (fractal web)
+    if (node.userData?.clusterEvent === true) {
+      return this.createClusterStateGlyph(node, nodeId);
+    }
+    
+    return null;
+  }
+  
+  createConsciousnessStateGlyph(node, nodeId) {
+    const stateGroup = new THREE.Group();
+    stateGroup.userData = {
+      glyphLayer: 'state',
+      stateType: 'consciousness',
+      isVFX: true,
+      noEvolve: true,
+      noCleanup: true
+    };
+    stateGroup.name = `glyph_state_consciousness_${nodeId}`;
+    stateGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype, before links
+    
+    // Cyan fractal hexagon (3 nested rings)
+    const hexGeometry = this.createHexagonGeometry(0.18, 0.12, 0.06);
+    const hexMat = new THREE.LineBasicMaterial({
+      color: this.colors.cyan,
+      transparent: true,
+      opacity: 0.7,
+      fog: false
+    });
+    
+    const hex = new THREE.LineSegments(hexGeometry, hexMat);
+    hex.userData = { glyphComponent: 'consciousnessHex' };
+    stateGroup.add(hex);
+    
+    // Inner pulse core
+    const coreGeo = new THREE.SphereGeometry(0.08, 6, 6);
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: this.colors.cyan,
+      transparent: true,
+      opacity: 0.5,
+      emissive: this.colors.cyan,
+      emissiveIntensity: 0.4,
+      fog: false
+    });
+    
+    const core = new THREE.Mesh(coreGeo, coreMat);
+    core.userData = { glyphComponent: 'consciousnessCore' };
+    stateGroup.add(core);
+    
+    stateGroup.userData.rotationSpeed = 0.15;
+    stateGroup.userData.pulsePhase = Math.random() * Math.PI * 2;
+    stateGroup.position.y = 0.8;
+    
+    return stateGroup;
+  }
+  
+  createAscendedStateGlyph(node, nodeId) {
+    const stateGroup = new THREE.Group();
+    stateGroup.userData = {
+      glyphLayer: 'state',
+      stateType: 'ascended',
+      isVFX: true,
+      noEvolve: true,
+      noCleanup: true
+    };
+    stateGroup.name = `glyph_state_ascended_${nodeId}`;
+    stateGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype, before links
+    
+    // 3 concentric orbital rings
+    const radii = [0.16, 0.22, 0.28];
+    const colors = [this.colors.white, this.colors.blue, this.colors.cyan];
+    const speeds = [0.3, -0.2, 0.25];
+    
+    radii.forEach((radius, idx) => {
+      const ringPoints = [];
+      const segments = 64;
+      for (let i = 0; i <= segments; i++) {
+        const angle = (i / segments) * Math.PI * 2;
+        ringPoints.push(new THREE.Vector3(
+          Math.cos(angle) * radius,
+          0,
+          Math.sin(angle) * radius
+        ));
+      }
 
+      const ringGeometry = new THREE.BufferGeometry().setFromPoints(ringPoints);
+      const mat = new THREE.LineBasicMaterial({
+        color: colors[idx],
+        transparent: true,
+        opacity: 0.6 - idx * 0.1,
+        fog: false
+      });
+      
+      const ring = new THREE.LineLoop(ringGeometry, mat);
+      ring.userData = {
+        glyphComponent: 'ascendedRing',
+        ringIndex: idx,
+        rotationSpeed: speeds[idx]
+      };
+      
+      stateGroup.add(ring);
+    });
+    
+    stateGroup.userData.ringPhases = [0, 0, 0];
+    stateGroup.position.y = 0.85;
+    
+    return stateGroup;
+  }
+  
+  createMythicStateGlyph(node, nodeId) {
+    const stateGroup = new THREE.Group();
+    stateGroup.userData = {
+      glyphLayer: 'state',
+      stateType: 'mythic',
+      isVFX: true,
+      noEvolve: true,
+      noCleanup: true
+    };
+    stateGroup.name = `glyph_state_mythic_${nodeId}`;
+    stateGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype, before links
+    
+    // 3 orbiting triangles (crystalline)
+    for (let i = 0; i < 3; i++) {
+      const triGeo = new THREE.ConeGeometry(0.07, 0.14, 3);
+      const triMat = new THREE.MeshBasicMaterial({
+        color: this.colors.violet,
+        transparent: true,
+        opacity: 0.65,
+        emissive: this.colors.magenta,
+        emissiveIntensity: 0.3,
+        fog: false
+      });
+      
+      const tri = new THREE.Mesh(triGeo, triMat);
+      tri.position.x = Math.cos((i / 3) * Math.PI * 2) * 0.2;
+      tri.position.z = Math.sin((i / 3) * Math.PI * 2) * 0.2;
+      tri.rotation.x = Math.PI / 2;
+      
+      tri.userData = {
+        glyphComponent: 'mythicTri',
+        triIndex: i,
+        orbitRadius: 0.2
+      };
+      
+      stateGroup.add(tri);
+    }
+    
+    stateGroup.userData.orbitSpeed = 1.0;
+    stateGroup.userData.breathPhase = Math.random() * Math.PI * 2;
+    stateGroup.position.y = 0.75;
+    
+    return stateGroup;
+  }
+  
+  createRitualStateGlyph(node, nodeId) {
+    const stateGroup = new THREE.Group();
+    stateGroup.userData = {
+      glyphLayer: 'state',
+      stateType: 'ritual',
+      isVFX: true,
+      noEvolve: true,
+      noCleanup: true
+    };
+    stateGroup.name = `glyph_state_ritual_${nodeId}`;
+    stateGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype, before links
+    
+    // Rotating eclipse glyph (overlapping circles)
+    const geometry = new THREE.BufferGeometry();
+    
+    // Two overlapping circles
+    const positions = [];
+    for (let i = 0; i <= 16; i++) {
+      const angle = (i / 16) * Math.PI * 2;
+      // Circle 1
+      positions.push(Math.cos(angle) * 0.1, 0, Math.sin(angle) * 0.1);
+    }
+    for (let i = 0; i <= 16; i++) {
+      const angle = (i / 16) * Math.PI * 2;
+      // Circle 2 (offset)
+      positions.push(Math.cos(angle) * 0.1 + 0.07, 0, Math.sin(angle) * 0.1);
+    }
+    
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+    
+    const mat = new THREE.LineBasicMaterial({
+      color: this.colors.gold,
+      transparent: true,
+      opacity: 0.7,
+      fog: false
+    });
+    
+    const lines = new THREE.LineSegments(geometry, mat);
+    lines.userData = { glyphComponent: 'ritualEclipse' };
+    stateGroup.add(lines);
+    
+    stateGroup.userData.rotationSpeed = 1.2;
+    stateGroup.userData.pulsePhase = Math.random() * Math.PI * 2;
+    stateGroup.position.y = 0.7;
+    
+    return stateGroup;
+  }
+  
+  createClusterStateGlyph(node, nodeId) {
+    const stateGroup = new THREE.Group();
+    stateGroup.userData = {
+      glyphLayer: 'state',
+      stateType: 'cluster',
+      isVFX: true,
+      noEvolve: true,
+      noCleanup: true
+    };
+    stateGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype, before links
+    stateGroup.name = `glyph_state_cluster_${nodeId}`;
+    
+    // Fractal web sphere (simplified)
+    const geometry = new THREE.IcosahedronGeometry(0.13, 1);
+    const mat = new THREE.LineBasicMaterial({
+      color: this.colors.pink,
+      transparent: true,
+      opacity: 0.6,
+      fog: false
+    });
+    
+    const web = new THREE.LineSegments(geometry, mat);
+    web.userData = { glyphComponent: 'clusterWeb' };
+    stateGroup.add(web);
+    
+    stateGroup.userData.rotationSpeed = 0.4;
+    stateGroup.userData.expandPhase = Math.random() * Math.PI * 2;
+    stateGroup.position.y = 0.8;
+    
+    return stateGroup;
+  }
+  
+  updateStateGlyph(stateGroup, deltaTime) {
+    if (!stateGroup) return;
+    
+    const stateType = stateGroup.userData.stateType;
+    
+    if (stateType === 'consciousness') {
+      // Rotate + pulse
+      stateGroup.rotation.y += stateGroup.userData.rotationSpeed * deltaTime;
+      
+      stateGroup.userData.pulsePhase += deltaTime * 1.5;
+      const pulse = (Math.sin(stateGroup.userData.pulsePhase) + 1) * 0.5;
+      
+      stateGroup.children.forEach(child => {
+        if (child.userData?.glyphComponent === 'consciousnessCore' && child.material) {
+          child.material.opacity = 0.3 + pulse * 0.3;
+        }
+      });
+      
+    } else if (stateType === 'ascended') {
+      // Multi-ring rotation
+      stateGroup.children.forEach((child, idx) => {
+        if (child.userData?.glyphComponent === 'ascendedRing') {
+          const speed = child.userData.rotationSpeed;
+          stateGroup.userData.ringPhases[idx] = (stateGroup.userData.ringPhases[idx] + speed * deltaTime) % (Math.PI * 2);
+          child.rotation.y = stateGroup.userData.ringPhases[idx];
+        }
+      });
+      
+    } else if (stateType === 'mythic') {
+      // Orbit + breathe
+      stateGroup.userData.orbitSpeed += deltaTime;
+      
+      stateGroup.children.forEach((child, idx) => {
+        if (child.userData?.glyphComponent === 'mythicTri') {
+          const orbitAngle = stateGroup.userData.orbitSpeed * 2 + (idx / 3) * Math.PI * 2;
+          child.position.x = Math.cos(orbitAngle) * 0.2;
+          child.position.z = Math.sin(orbitAngle) * 0.2;
+          child.rotation.y = orbitAngle;
+        }
+      });
+      
+      stateGroup.userData.breathPhase += deltaTime;
+      const breath = (Math.sin(stateGroup.userData.breathPhase) + 1) * 0.5;
+      stateGroup.scale.set(1 + breath * 0.05, 1 + breath * 0.05, 1 + breath * 0.05);
+      
+    } else if (stateType === 'ritual') {
+      // Fast rotation + pulse
+      stateGroup.rotation.z += stateGroup.userData.rotationSpeed * deltaTime;
+      
+      stateGroup.userData.pulsePhase += deltaTime * 2;
+      const pulse = (Math.sin(stateGroup.userData.pulsePhase) + 1) * 0.5;
+      
+      stateGroup.children.forEach(child => {
+        if (child.material) {
+          child.material.opacity = 0.5 + pulse * 0.2;
+        }
+      });
+      
+    } else if (stateType === 'cluster') {
+      // Expand + rotate
+      stateGroup.rotation.x += stateGroup.userData.rotationSpeed * deltaTime;
+      stateGroup.rotation.y += stateGroup.userData.rotationSpeed * 0.7 * deltaTime;
+      
+      stateGroup.userData.expandPhase += deltaTime;
+      const expand = (Math.sin(stateGroup.userData.expandPhase) + 1) * 0.5;
+      stateGroup.scale.set(1 + expand * 0.08, 1 + expand * 0.08, 1 + expand * 0.08);
+    }
+  }
+  
+  // ============================================================
+  // FALLBACK GLYPH (Neural Point Dot)
+  // ============================================================
+  
+  createFallbackGlyph(node, nodeId) {
+    const fallbackGroup = new THREE.Group();
+    fallbackGroup.userData = {
+      glyphLayer: 'fallback',
+      isVFX: true,
+      noEvolve: true,
+      noCleanup: true
+    };
+    fallbackGroup.name = `glyph_fallback_${nodeId}`;
+    fallbackGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype, before links
+    
+    // Tiny neural point dot
+    const dotGeo = new THREE.SphereGeometry(0.04, 4, 4);
+    const dotMat = new THREE.MeshBasicMaterial({
+      color: this.colors.white,
+      transparent: true,
+      opacity: 0.3,
+      emissive: this.colors.white,
+      emissiveIntensity: 0.1,
+      fog: false
+    });
+    
+    const dot = new THREE.Mesh(dotGeo, dotMat);
+    dot.userData = { glyphComponent: 'neuralPoint' };
+    fallbackGroup.add(dot);
+    
+    fallbackGroup.userData.pulsePhase = Math.random() * Math.PI * 2;
+    fallbackGroup.position.y = 0.5;
+    
+    return fallbackGroup;
+  }
+  
+  updateFallbackGlyph(fallbackGroup, deltaTime) {
+    if (!fallbackGroup) return;
+    
+    fallbackGroup.userData.pulsePhase += deltaTime * 0.6;
+    const pulse = (Math.sin(fallbackGroup.userData.pulsePhase) + 1) * 0.5;
+    
+    fallbackGroup.children.forEach(child => {
+      if (child.material) {
+        child.material.opacity = 0.15 + pulse * 0.15;
+      }
+    });
+  }
+  
   // ============================================================
   // HELPER: CREATE HEXAGON GEOMETRY
   // ============================================================
@@ -1923,21 +2437,51 @@ export class GlyphLayer4_MultiFusion {
 
     let coreGlyph = null;
     let evoGlyph = null;
+    let persGlyph = null;
+    let stateGlyph = null;
 
     if (this.hoverOnlyMode) {
+      // Hover-only mode: prefer category glyphs, fall back to ascended marker.
       evoGlyph = this.createEvolutionGlyph(node, nodeId);
       if (evoGlyph && this._safeAttachGlyph(evoGlyph, 'GLYPH_LAYER', fusionGroup, node)) {
         this.stats.byLayer.evolution++;
+      } else {
+        stateGlyph = this.createAscendedStateGlyph(node, nodeId);
+        if (stateGlyph && this._safeAttachGlyph(stateGlyph, 'STATE_GLYPH', fusionGroup, node)) {
+          this.stats.byLayer.state++;
+        }
       }
     } else {
+      // Layer 1: Core Glyph (always present)
       coreGlyph = this.createCoreGlyph(node, nodeId);
       if (coreGlyph && this._safeAttachGlyph(coreGlyph, 'GLYPH_LAYER', fusionGroup, node)) {
         this.stats.byLayer.core++;
       }
       
+      // Layer 2: Evolution Glyph (if evolution stage exists)
       evoGlyph = this.createEvolutionGlyph(node, nodeId);
       if (evoGlyph && this._safeAttachGlyph(evoGlyph, 'GLYPH_LAYER', fusionGroup, node)) {
         this.stats.byLayer.evolution++;
+      }
+      
+      // Layer 3: Personality Glyph (if personality exists)
+      persGlyph = this.createPersonalityGlyph(node, nodeId);
+      if (persGlyph && this._safeAttachGlyph(persGlyph, 'STATE_GLYPH', fusionGroup, node)) {
+        this.stats.byLayer.personality++;
+      }
+      
+      // Layer 4: State Glyph (if state flags exist)
+      stateGlyph = this.createStateGlyph(node, nodeId);
+      if (stateGlyph && this._safeAttachGlyph(stateGlyph, 'STATE_GLYPH', fusionGroup, node)) {
+        this.stats.byLayer.state++;
+      }
+    }
+    
+    // Fallback if no glyphs
+    if (fusionGroup.children.length === 0) {
+      const fallback = this.createFallbackGlyph(node, nodeId);
+      if (fallback) {
+        this._safeAttachGlyph(fallback, 'GLYPH_LAYER', fusionGroup, node);
       }
     }
 
@@ -1951,7 +2495,9 @@ export class GlyphLayer4_MultiFusion {
       visualGroup,
       layers: {
         core: coreGlyph,
-        evolution: evoGlyph
+        evolution: evoGlyph,
+        personality: persGlyph,
+        state: stateGlyph
       }
     };
     
@@ -2173,6 +2719,14 @@ export class GlyphLayer4_MultiFusion {
       // Update each layer
       if (layers.core) this.updateCoreGlyph(layers.core, deltaTime);
       if (layers.evolution) this.updateEvolutionGlyph(layers.evolution, deltaTime);
+      if (layers.personality) this.updatePersonalityGlyph(layers.personality, deltaTime);
+      if (layers.state) this.updateStateGlyph(layers.state, deltaTime);
+      
+      // Update fallback if only child
+      if (fusionGroup.children.length === 1 && 
+          fusionGroup.children[0].userData?.glyphLayer === 'fallback') {
+        this.updateFallbackGlyph(fusionGroup.children[0], deltaTime);
+      }
     }
 
     for (const [nodeId, ambientData] of this.ambientOrbitRegistry) {

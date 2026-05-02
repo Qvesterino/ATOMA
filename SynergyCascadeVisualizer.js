@@ -976,7 +976,7 @@ export class SynergyCascadeVisualizer {
       linkRef: link,
       linkId
     }, link, 'start');
-    if (!context?.anchor) return;
+    if (!context.anchor) return;
 
     const intensity = this._clamp01(Math.max(
       this._readLinkSynergy(link),
@@ -1056,10 +1056,6 @@ export class SynergyCascadeVisualizer {
         ?? preferredAnchor
         ?? this._getWorldPositionFromObject(event.node ?? event.sourceNode ?? event.targetNode ?? resolvedLink?.sourceNode ?? resolvedLink?.targetNode ?? resolvedLink?.source ?? resolvedLink?.target ?? null);
 
-      if (!anchor || this._isNearWorldOrigin(anchor)) {
-        return null;
-      }
-
       const rawIntensity = this._resolveCascadeIntensity(event);
       const minVisibleIntensity = kind === 'hop' ? 0.05 : 0.08;
       const intensity = rawIntensity > 0 ? Math.max(rawIntensity, minVisibleIntensity) : minVisibleIntensity;
@@ -1089,7 +1085,7 @@ export class SynergyCascadeVisualizer {
       linkRef: link,
       linkId: this._resolveLinkId(link) ?? event.linkId ?? event.id ?? null
     }, link, 'start');
-    if (!context?.anchor) return;
+    if (!context.anchor) return;
 
     const visualIntensity = this._clamp01(Math.max(
       this._readLinkSynergy(link),
@@ -1218,11 +1214,6 @@ export class SynergyCascadeVisualizer {
     if (!pos) return false;
     if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y) || !Number.isFinite(pos.z)) return false;
     return true;
-  }
-
-  _isNearWorldOrigin(pos, epsilon = 1e-6) {
-    if (!pos) return false;
-    return (pos.x * pos.x + pos.y * pos.y + pos.z * pos.z) <= (epsilon * epsilon);
   }
 
   _clamp01(value) {
@@ -1979,7 +1970,7 @@ export class SynergyCascadeVisualizer {
   _resolveCascadeActivation(event = {}) {
     const intensity = this._clamp01(this._resolveCascadeIntensity(event));
     const anchor = this._asVector3(event.anchor ?? event.center ?? event.position ?? event.origin);
-    if (intensity <= 0 || !anchor || this._isNearWorldOrigin(anchor)) return null;
+    if (intensity <= 0 || !anchor) return null;
     return { intensity, anchor };
   }
 
@@ -2097,7 +2088,7 @@ export class SynergyCascadeVisualizer {
   renderCascadeStart(event = {}) {
     if (event.__cascadeDirectRendered === true) return;
     const context = this._resolveCascadeSpawnContext(event, event.link ?? event.linkRef ?? null, 'start');
-    if (!context?.anchor) return;
+    if (!context.anchor) return;
 
     const { cascadeId, intensity, anchor, link } = context;
     if (link) {
@@ -2143,7 +2134,6 @@ export class SynergyCascadeVisualizer {
   renderCascadeHop(event = {}) {
     if (event.__cascadeDirectRendered === true) return;
     const context = this._resolveCascadeSpawnContext(event, event.link ?? event.linkRef ?? null, 'hop');
-    if (!context?.anchor) return;
     const { link, cascadeId, intensity, anchor, sourcePosition: startPosition, targetPosition } = context;
     if (!link && (!startPosition || !targetPosition) && !anchor) return;
 

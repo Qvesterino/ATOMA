@@ -1524,15 +1524,9 @@ export class AmbientEntityManager {
     if (Math.random() < glitchChance) {
       const offset = (Math.random() - 0.5) * 0.3;
       mesh.position.x += offset;
-      mesh.userData.glitchOffset = offset;
-      mesh.userData.glitchOffsetTime = 60;
-    }
-    if (mesh.userData.glitchOffset && mesh.userData.glitchOffsetTime > 0) {
-      mesh.userData.glitchOffsetTime -= deltaTime * 1000;
-      if (mesh.userData.glitchOffsetTime <= 0) {
-        mesh.position.x -= mesh.userData.glitchOffset;
-        mesh.userData.glitchOffset = 0;
-      }
+      setTimeout(() => {
+        if (mesh.userData) mesh.position.x -= offset;
+      }, 60);
     }
 
     // Overall opacity flicker
@@ -1571,7 +1565,7 @@ export class AmbientEntityManager {
       fragment.rotation.x += deltaTime * 0.5;
       fragment.rotation.y += deltaTime * 0.7;
 
-      const trail = trailParticles[childIndex];
+      const trail = trailParticles[i];
       if (Array.isArray(trail)) {
         trail.push({ pos: fragment.position.clone(), age: 0 });
         while (trail.length > TRAIL_LENGTH) {
@@ -1778,10 +1772,9 @@ export class AmbientEntityManager {
    * Clean up despawned entities
    */
   cleanupDespawnedEntities() {
-    const entityIds = Object.keys(this.registry.entities);
-    for (const id of entityIds) {
+    for (let id in this.registry.entities) {
       const entity = this.registry.entities[id];
-      if (!entity || !entity.isActive) {
+      if (!entity.isActive) {
         const mesh = this.entityMeshes[id];
         if (mesh && mesh.parent) {
           mesh.traverse((child) => {
@@ -1860,7 +1853,6 @@ export class AmbientEntityManager {
       }
     }
 
-    // Dispose shared geometries and clear cache
     for (const geometry of this.sharedGeometrySet) {
       geometry?.dispose?.();
     }

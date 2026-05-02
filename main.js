@@ -355,15 +355,6 @@ function timeLinkCreateCallback(label, callback) {
 
         const timingRegistry = getLinkCreateCallbackTimingRegistry();
 
-        const startedAt = performance.now();
-        try {
-            return callback(...args);
-        } finally {
-            timingRegistry.record(label, performance.now() - startedAt);
-        }
-    };
-}
-
 function ensureAudioToggleCommands() {
     if (typeof window === 'undefined') return;
 
@@ -377,6 +368,7 @@ function ensureAudioToggleCommands() {
             try {
                 audioSystem.setEnabled(nextEnabled);
             } catch {
+                // ignore audio-system specific failures and fall back to direct state writes
             }
         }
 
@@ -387,6 +379,7 @@ function ensureAudioToggleCommands() {
                 localStorage.setItem('atoma.audio.enabled', nextEnabled ? '1' : '0');
             }
         } catch {
+            // ignore persistence failures
         }
 
         const destination = window.Tone?.getDestination?.() || window.Tone?.Destination || null;
@@ -423,7 +416,7 @@ function ensureAudioToggleCommands() {
                 : true;
         return window.setAudioEnabled?.(!currentEnabled);
     };
-
+}
         const startedAt = performance.now();
         try {
             return callback(...args);
@@ -433,6 +426,7 @@ function ensureAudioToggleCommands() {
 
     ensureAudioToggleCommands();
     };
+}
 
 if (typeof window !== 'undefined') {
     // Link growth reactivation defaults
@@ -1168,6 +1162,7 @@ import { CascadeWaveParticles } from './CascadeWaveParticles.js';
 // Automated detection and repair of core material mutations
 // ============================================================================
 import { CoreMaterialMutationDetector, setupCoreMutationDetectorConsoleAPI } from './Engine/Debug/CoreMaterialMutationDetector.js';
+// import { CoreMaterialMutationTestSuite, setupCoreMaterialTestSuiteConsoleAPI } from './Engine/Debug/CoreMaterialMutationTestSuite.js';
 
 // ============================================================================
 // CORE MATERIAL PROPERTY LOCK v1.0 (Session 30 - Hard Enforcement)
@@ -1324,7 +1319,8 @@ import { WaveParticleEmitter_v1 } from './WaveParticleEmitter_v1.js';
 import { MetricsRuntime_v1 } from './MetricsRuntime_v1.js';
 // REMOVED: PersonalityRuntime_v1 — moved to LEGACY/april (2026-04-22)
 import { MetricInterpretationLayer_v1, setupMetricInterpretationConsoleAPI } from './MetricInterpretationLayer_v1.js';
-// import { StressVisualShaderSystem } from './StressVisualShaderSystem.js';
+import { StressVisualShaderSystem } from './StressVisualShaderSystem.js';
+import { CanonicalTemplate3_StressVisuals } from './CanonicalTemplate3_StressVisuals.js';
 
 // ============================================================================
 // EXTRACTION PACK V1.1 — RUNTIME ORCHESTRATION (WORLD & FX)
@@ -4386,10 +4382,6 @@ class AtomaGame {
         }, 'simulation.cascadeEventBridge');
         this.frameScheduler.register('visual', (dt) => {
             if (this.linkCorruptionTransmission) {
-                const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                    ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                    : 0);
-                if (activeLinkCount === 0) return;
                 this.linkCorruptionTransmission.updateTransmission(dt);
             }
         }, 'visual.linkCorruptionTransmission');
@@ -4616,6 +4608,10 @@ class AtomaGame {
         }, 'simulation.networkStress');
         this.frameScheduler.register('simulation', () => {
             const stress = this.networkStressAggregator?.getStress?.() ?? 0;
+            // Feed network stress to CanonicalTemplate3_StressVisuals
+            if (this.canonicalTemplate3_StressVisuals) {
+                this.canonicalTemplate3_StressVisuals.updateNetworkStress(stress);
+            }
             const emitEvent = (eventName, payload) => {
                 if (this.semanticBus?.emit) {
                     this.semanticBus.emit(
@@ -4729,20 +4725,8 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.semanticGlyphAI?.update?.(dt, this.aiNodes?.nodes), 'visual.semanticGlyphAI');
         this.frameScheduler.register('visual', (dt) => this.glyphFusionOverlay?.update?.(dt), 'visual.glyphFusionOverlay');
         this.frameScheduler.register('visual', (dt) => this.linkedGlyphSync?.update?.(dt, this.aiNodes, this.linkingSystem), 'visual.linkedGlyphSync');
-        this.frameScheduler.register('visual', (dt) => {
-            const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                : 0);
-            if (activeLinkCount === 0) return;
-            this.cascadePropagationVisuals?.update?.(dt);
-        }, 'visual.cascadePropagation');
-        this.frameScheduler.register('simulation', () => {
-            const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                : 0);
-            if (activeLinkCount === 0) return;
-            this.cascadePropagationVisuals?.checkCascadeEvents?.();
-        }, 'simulation.phase5CascadeEventCheck');
+        this.frameScheduler.register('visual', (dt) => this.cascadePropagationVisuals?.update?.(dt), 'visual.cascadePropagation');
+        this.frameScheduler.register('simulation', () => this.cascadePropagationVisuals?.checkCascadeEvents?.(), 'simulation.phase5CascadeEventCheck');
         this.frameScheduler.register('visual', (dt) => this.evolvingLinkFX?.update?.(dt, null, null), 'visual.evolvingLinkFX');
         this.frameScheduler.register('visual', (dt) => this.linkVisualMoodSystem?.update?.(dt), 'visual.linkVisualMoodSystem');
         this.frameScheduler.register('visual', () => { if (this.linkDebugMode?.enabled) this.linkDebugMode.updateDebugVisuals(); }, 'visual.linkDebugMode');
@@ -5014,10 +4998,6 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             const resonanceCascadeVisualization = this.resonanceCascadeVisualization || this.resonanceCascade;
             if (resonanceCascadeVisualization && resonanceCascadeVisualization.enabled !== false) {
-                const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                    ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                    : 0);
-                if (activeLinkCount === 0) return;
                 resonanceCascadeVisualization.update(dt, this.aiNodes?.nodes, this.linkingSystem?.links);
             }
         }, 'visual.resonanceCascadeVisualization');
@@ -5034,10 +5014,6 @@ class AtomaGame {
         }, 'visual.harmonicHealing');
         this.frameScheduler.register('visual', (dt) => {
             if (this.harmonicRecovery) {
-                const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                    ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                    : 0);
-                if (activeLinkCount === 0) return;
                 this.harmonicRecovery.update(dt, this.time, this.networkState || {});
             }
         }, 'visual.harmonicRecovery');
@@ -5156,6 +5132,31 @@ class AtomaGame {
                 );
             }
         }, 'visual.harmonicResonanceFeedback');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.canonicalTemplate3_StressVisuals) {
+                // Register all nodes for stress tracking
+                const nodes = this.aiNodes?.nodes || [];
+                for (const node of nodes) {
+                    if (node && this.canonicalTemplate3_StressVisuals) {
+                        this.canonicalTemplate3_StressVisuals.registerNode(node);
+                    }
+                }
+                
+                // Feed node load pressure data (computed from node metrics)
+                for (const node of nodes) {
+                    if (node && node.userData) {
+                        // Compute load pressure based on actual node metrics
+                        const linkCount = node.userData.linkCount || 0;
+                        const activeLinks = node.userData.activeLinks || 0;
+                        const corruptionLevel = node.userData.metrics?.corruption ?? 0;
+                        // Load pressure = (activeLinks / linkCount) + (corruptionLevel * 0.5)
+                        const loadPressure = Math.min(1, (activeLinks / Math.max(1, linkCount)) + (corruptionLevel * 0.5));
+                        this.canonicalTemplate3_StressVisuals.updateNodeLoadPressure(node, loadPressure);
+                    }
+                }
+                this.canonicalTemplate3_StressVisuals.update(dt, this.time || 0);
+            }
+        }, 'visual.canonicalTemplate3_StressVisuals');
         this.frameScheduler.register('visual', (dt) => {
             if (this.stressVisualShaderSystem) {
                 const nodes = this.aiNodes?.nodes || [];
@@ -7864,6 +7865,11 @@ window.__ATOMA_SCENE__ = this.scene;
             }
             this.registerVisualGlyphSchedulers?.();
 
+            // Reset CanonicalTemplate3_StressVisuals on world switch
+            if (this.canonicalTemplate3_StressVisuals) {
+                this.canonicalTemplate3_StressVisuals.reset();
+            }
+
             if (this.cascadeParticleSystem && typeof this.cascadeParticleSystem.clearWorldState === 'function') {
                 this.cascadeParticleSystem.clearWorldState();
             }
@@ -7938,20 +7944,6 @@ window.__ATOMA_SCENE__ = this.scene;
                 this.aiNodes.dispose();
             }
 
-            // Cleanup timers to prevent memory leaks
-            if (window._atomaWaveDebugOverlayProbe) {
-                clearInterval(window._atomaWaveDebugOverlayProbe);
-                window._atomaWaveDebugOverlayProbe = null;
-            }
-            if (window._atomaPipelineProbe) {
-                clearInterval(window._atomaPipelineProbe);
-                window._atomaPipelineProbe = null;
-            }
-            if (this._sceneAuditTimer) {
-                clearInterval(this._sceneAuditTimer);
-                this._sceneAuditTimer = null;
-            }
-
             // Remove previous nodesRoot (node domain only)
             if (this.nodesRoot) {
                 this.nodesRoot.clear();
@@ -8011,8 +8003,6 @@ window.__ATOMA_SCENE__ = this.scene;
         }
         this.nodesRoot = new THREE.Group();
         this.nodesRoot.name = 'ATOMA_NodesRoot';
-        this.nodesRoot.matrixAutoUpdate = false;
-        this.nodesRoot.updateMatrix();
         this.scene.add(this.nodesRoot);
         this.worldLightingRoot = new THREE.Group();
         this.worldLightingRoot.name = "ATOMA_WorldLightingRoot";
@@ -8687,8 +8677,8 @@ window.__ATOMA_SCENE__ = this.scene;
                     targetPosition: targetPos ? { x: targetPos.x, y: targetPos.y, z: targetPos.z } : null,
                     center: midpoint,
                     anchor: midpoint,
-                    position: null,
-                    origin: null,
+                    position: midpoint,
+                    origin: midpoint,
                     phaseSyncStrength,
                     phaseSyncStability,
                     intensity,
@@ -8811,10 +8801,6 @@ window.__ATOMA_SCENE__ = this.scene;
             );
             this.frameScheduler.register('visual', (dt) => {
                 if (this.standingWaveRenderer) {
-                    const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                        ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                        : 0);
-                    if (activeLinkCount === 0) return;
                     this.standingWaveRenderer.update(dt, this.time);
                 }
             }, 'visual.waveStandingRenderer');
@@ -8826,17 +8812,13 @@ window.__ATOMA_SCENE__ = this.scene;
             // Corruption transmission (gameplay) — 10 Hz simulation lane
             // Avoid duplicate ticking when canonical simulation.linkCorruptionTransmission is already registered.
             if (this.aiNodes?.linkCorruption && this.frameScheduler?.isRegistered?.('simulation.linkCorruptionTransmission') !== true) {
-            this.frameScheduler.register(
-                'simulation',
-                (dt) => {
-                    const sys = this.aiNodes?.linkCorruption;
-                    const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                        ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                        : 0);
-                    if (activeLinkCount === 0) return;
-                    if (sys?.updateTransmission) {
-                        sys.updateTransmission(dt);
-                    }
+                this.frameScheduler.register(
+                    'simulation',
+                    (dt) => {
+                        const sys = this.aiNodes?.linkCorruption;
+                        if (sys?.updateTransmission) {
+                            sys.updateTransmission(dt);
+                        }
                     },
                     'simulation.corruptionTransmission'
                 );
@@ -8853,10 +8835,6 @@ window.__ATOMA_SCENE__ = this.scene;
                 'visual',
                 (dt) => {
                     if (!this.corruptionVisualFX?.applyCorruptionEffects || !this.aiNodes?.nodes) return;
-                    const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                        ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                        : 0);
-                    if (activeLinkCount === 0) return;
                     const time = this.time ?? performance.now();
                     for (const node of this.aiNodes.nodes) {
                         const visualTarget = node?.traverse ? node : (node?.mesh || node);
@@ -8872,10 +8850,6 @@ window.__ATOMA_SCENE__ = this.scene;
                                      visualTarget?.userData?.visualLayer === 'CORE';
 
                 if (corruptionLevel > 0 && isNodeVisual) {
-                    const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                        ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                        : 0);
-                    if (activeLinkCount === 0) return;
                     this.corruptionVisualFX.applyCorruptionEffects(
                         visualTarget,
                         dt,
@@ -9465,6 +9439,18 @@ window.__ATOMA_SCENE__ = this.scene;
                 maxViolationsToReport: 100,
             });
             setupCoreMutationDetectorConsoleAPI(this.coreMaterialMutationDetector);
+            
+            // Initialize test suite
+            this.coreMaterialTestSuite = new CoreMaterialMutationTestSuite(
+                this.coreMaterialMutationDetector,
+                this.scene,
+                {
+                    verbose: true,
+                    stopOnFailure: false,
+                    maxTestDuration: 5000,
+                }
+            );
+            setupCoreMaterialTestSuiteConsoleAPI(this.coreMaterialTestSuite);
             
             // Register all node cores with detector
             if (this.aiNodes?.nodes) {
@@ -10633,16 +10619,12 @@ window.__ATOMA_SCENE__ = this.scene;
 
             // FrameScheduler: drive particle emitter at visual cadence (30 Hz)
             this.frameScheduler?.register('visual', (dt) => {
-                const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                    ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                    : 0);
-                if (activeLinkCount === 0) return;
-                this.particleEmitter?.update?.(
-                    dt,
-                    this.aiNodes?.nodes || [],
-                    this.linkingSystem?.links || [],
-                    this.waveInterferenceEngine
-                );
+            this.particleEmitter?.update?.(
+                dt,
+                this.aiNodes?.nodes || [],
+                this.linkingSystem?.links || [],
+                this.waveInterferenceEngine
+            );
         }, 'visual.harmony.waveParticleEmitter');
         } catch (err) {
             console.warn('[main.js] WaveParticleEmitter_v1 initialization failed:', err);
@@ -10810,6 +10792,28 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.log('[main.js] StressVisualShaderSystem initialized ✓');
         } catch (err) {
             console.warn('[main.js] StressVisualShaderSystem failed:', err);
+        }
+
+        // ====================================================================
+        // CANONICAL TEMPLATE #3: NETWORK STRESS & LOAD PRESSURE VISUALS
+        // ====================================================================
+        try {
+            this.canonicalTemplate3_StressVisuals = new CanonicalTemplate3_StressVisuals(this.scene, {
+                debugMode: false
+            });
+            console.log('[main.js] CanonicalTemplate3_StressVisuals initialized ✓');
+            
+            // Register dispose handler for world switch
+            if (this._worldEventDisposers) {
+                this._worldEventDisposers.push(() => {
+                    if (this.canonicalTemplate3_StressVisuals) {
+                        this.canonicalTemplate3_StressVisuals.dispose();
+                        this.canonicalTemplate3_StressVisuals = null;
+                    }
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] CanonicalTemplate3_StressVisuals failed:', err);
         }
 
         // REMOVED: PersonalityRuntime_v1 initialization — moved to LEGACY/april (2026-04-22)
@@ -11703,13 +11707,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
 
 
-        regGuard('standingWaveRenderer', 'visual.waveStandingRenderer', (dt) => {
-            const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                : 0);
-            if (activeLinkCount === 0) return;
-            this.standingWaveRenderer?.update?.(dt, this.time);
-        });
+        regGuard('standingWaveRenderer', 'visual.waveStandingRenderer', (dt) => this.standingWaveRenderer?.update?.(dt, this.time));
         regGuard('nodeAuraRenderer', 'visual.nodeAuraRenderer', (dt) => {
             this.nodeAuraRenderer?.update?.(dt);
         });
@@ -11725,10 +11723,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             wavePatternSystem?.update?.(dt, this.time);
         });
         regGuard('waveParticleEmitter', 'visual.harmony.waveParticleEmitter', (dt) => {
-            const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                : 0);
-            if (activeLinkCount === 0) return;
             this.particleEmitter?.update?.(
                 dt,
                 this.aiNodes?.nodes || [],
@@ -11766,13 +11760,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('tier4GameplayIntegration', 'simulation.tier4GameplayIntegration', (dt) => this.tier4GameplayIntegration?.update?.(dt));
         regGuard('phase5MultiNetworkOrchestrator', 'simulation.phase5MultiNetworkOrchestrator', (dt) => this.phase5MultiNetworkOrchestrator?.update?.(dt));
         regGuard('phase5InterNetworkVisualizationBridge', 'visual.phase5InterNetworkVisualizationBridge', (dt) => this.phase5InterNetworkVisualizationBridge?.update?.(dt));
-        regGuard('cascadePropagationVisuals', 'visual.cascadePropagation', (dt) => {
-            const activeLinkCount = this.aiNodes?._getActiveLinkCount?.() ?? (Array.isArray(this.linkingSystem?.links)
-                ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
-                : 0);
-            if (activeLinkCount === 0) return;
-            this.cascadePropagationVisuals?.update?.(dt);
-        });
+        regGuard('cascadePropagationVisuals', 'visual.cascadePropagation', (dt) => this.cascadePropagationVisuals?.update?.(dt));
         regGuard('phase5CascadeVisualizationBridge', 'visual.phase5CascadeVisualizationBridge', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt));
         // REMOVED: preCascadeVisualHint regGuard — moved to LEGACY/april (2026-04-22)
         regGuard('nodeHierarchyBridge', 'simulation.nodeHierarchyBridge', () => this.nodeHierarchyBridge?.update?.());
@@ -11885,7 +11873,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('topologyViz', 'simulation.topologyViz', (dt) => {
             if (!this._runSlowSemanticPending) return;
             if (this.topologyViz?.enabled) {
-                const pressureField = {};
+                const pressureField = this.canonicalTemplate3_StressVisuals?.getPressureFieldState?.() || {};
                 const networkState = {
                     harmony: this.nodeDynamicMetrics?.avgHarmony || 0.5,
                     corruption: this.nodeDynamicMetrics?.avgCorruption || 0,

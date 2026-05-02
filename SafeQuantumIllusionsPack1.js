@@ -1140,17 +1140,12 @@ export class SafeQuantumIllusionsPack1 {
    * Screen-space iris focus effect
    */
   updateHyperfocusMoment() {
-    const strongState = this.lastAwakenTime < 1 || this.quantumStormActive || this.synergy > 0.75 || this.highTrafficBurst || this._dramaturgySpawnBoost > 0.2;
-    const activeFocus = this.registry.getIllusionsByType('focusEffects');
     if (!this.config.hyperfocus.enabled || !this.isModeActive('hyperfocus')) return;
 
-    if (!strongState) {
-      for (let i = activeFocus.length - 1; i >= 0; i--) {
-        this.registry.unregisterIllusion('focusEffects', i);
-      }
-      return;
-    }
+    const strongState = this.lastAwakenTime < 1 || this.quantumStormActive || this.synergy > 0.75 || this.highTrafficBurst || this._dramaturgySpawnBoost > 0.2;
+    if (!strongState) return;
 
+    const activeFocus = this.registry.getIllusionsByType('focusEffects');
     if (activeFocus.length > 0) return;
 
     const focusGroup = new THREE.Group();

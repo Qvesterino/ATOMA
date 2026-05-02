@@ -863,14 +863,6 @@ export class TIER4_CorruptionFeedbackVisuals {
   displayCorruptionSeed(node, link = null) {
     if (!node || !this.config.showCorruptionSeedPulse) return;
 
-    // PERFORMANCE: Skip if node has no active links (unless link is explicitly provided)
-    if (!link) {
-      const nodeLinks = this.linkingSystem?.links?.filter(
-        l => l && (l.source === node || l.target === node) && l.active !== false
-      ) || [];
-      if (nodeLinks.length === 0) return;
-    }
-
     try {
       if (this.camera && node.position.distanceTo(this.camera.position) > this.config.corruptionSeedCullDistance) {
         return;
@@ -914,12 +906,6 @@ export class TIER4_CorruptionFeedbackVisuals {
    */
   displayCascadeWarning(node) {
     if (!node || !this.config.showCascadeWarning) return;
-
-    // PERFORMANCE: Skip if node has no active links
-    const nodeLinks = this.linkingSystem?.links?.filter(
-      l => l && (l.source === node || l.target === node) && l.active !== false
-    ) || [];
-    if (nodeLinks.length === 0) return;
     
     try {
       const mesh = new THREE.Mesh(

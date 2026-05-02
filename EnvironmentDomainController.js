@@ -661,7 +661,6 @@ export class EnvironmentDomainController {
     this.instances.environmentalHazards.frameScheduler = this.frameScheduler;
 
     // Add Colony system to environment domain for centralized visual+update lifecycle
-    // NOTE: SafeColonyExpansion2 is optional - silently skipped if class unavailable
     if (typeof d.SafeColonyExpansion2 === 'function') {
       this.instances.colonyExpansion = new d.SafeColonyExpansion2(
         this.scene,
@@ -961,17 +960,6 @@ export class EnvironmentDomainController {
               dt,
               this.deps.aiNodes,
               this.deps.linkingSystem
-            );
-            return;
-          }
-
-          if (key === 'worldFXPack') {
-            sys.update(
-              dt,
-              this.deps.aiNodes?.nodes || null,
-              this.deps.linkingSystem || null,
-              this.deps.evolutionManager || null,
-              this.deps.legendaryPack || null
             );
             return;
           }

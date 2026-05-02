@@ -47,11 +47,6 @@ export const CONFIG = {
     rippleCount: 3
   },
   
-  // Neural Convergence Singularity - disabled for system stability
-  neuralConvergenceSingularity: {
-    enabled: false
-  },
-  
   // Node settings - fewer, more purposeful
   nodes: {
     count: 12,

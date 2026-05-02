@@ -4,7 +4,7 @@ import { normalizeEnvironmentGeometry } from './RoundedEnvironmentGeometry.js';
 import { getEnvSpriteTexture } from './EnvironmentPointFXBase.js';
 
 const TAU = Math.PI * 2;
-const SIGNAL_LIFETIME_MS = 6000;
+const SIGNAL_LIFETIME_MS = 5000;
 const HAZARD_WORLD_BACKGROUND_ORDER = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_BACKGROUND);
 const HAZARD_WORLD_OVERLAY_ORDER = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_OVERLAY);
 const HAZARD_TYPE_LIMITS = {

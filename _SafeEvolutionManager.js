@@ -35,9 +35,6 @@ export class SafeEvolutionManager {
       decayDuration: 7.0,                      // Total decay time
       energyDecayRate: 0.15                    // Per second
     };
-
-    this.vfxOffset = new THREE.Vector3(5, 0, 0);
-    this._vfxPosition = new THREE.Vector3();
   }
   
   /**
@@ -89,8 +86,6 @@ export class SafeEvolutionManager {
    * AFTER linkingSystem.update() completes
    */
   update(deltaTime, nodes, linkingSystem) {
-
-    
     // Ensure all visible nodes are registered
     if (nodes) {
       this.rebuildNodeLookup(nodes);
@@ -111,19 +106,7 @@ export class SafeEvolutionManager {
       
       // Calculate energy from links (READ ONLY from linkingSystem)
       const linkEnergy = this.calculateLinkEnergy(node, linkingSystem);
-
-      // CHANGED: Skip unlinked nodes - only apply VFX to linked nodes
-      if (linkEnergy <= 0) {
-        // Force stage 0 and clear any existing VFX
-        if (state.stage !== 0) {
-          state.stage = 0;
-          state.activeMutations = [];
-        }
-        // Still call updateAllVFX to remove any existing VFX
-        this.updateAllVFX(node, state, vfx, deltaTime);
-        continue;
-      }
-
+      
       // Update energy with decay
       this.updateEnergy(state, linkEnergy, deltaTime);
       
@@ -196,11 +179,6 @@ export class SafeEvolutionManager {
     }
   }
 
-  getVfxPosition(node) {
-    if (!node?.position) return null;
-    return this._vfxPosition.copy(node.position).add(this.vfxOffset);
-  }
-
   isSceneAttached(node) {
     if (!node) return false;
 
@@ -217,34 +195,31 @@ export class SafeEvolutionManager {
    */
   calculateLinkEnergy(node, linkingSystem) {
     if (!linkingSystem || !linkingSystem.links) return 0;
-
+    
     let totalEnergy = 0;
     let linkCount = 0;
-
-    // Count all ACTIVE links connected to this node
+    
+    // Count all links connected to this node
     linkingSystem.links.forEach(link => {
-      // Link must be active and connected to our node
-      if (link.active !== false && (link.source === node || link.target === node)) {
-        if (link.glowData) {
-          totalEnergy += link.glowData.synergy || 0;
-          linkCount++;
-        }
+      // Link is connected to our node?
+      if ((link.source === node || link.target === node) && link.glowData) {
+        totalEnergy += link.glowData.synergy || 0;
+        linkCount++;
       }
     });
-
-    // Add traffic bonus only from active links
+    
+    // Add traffic bonus
     let trafficBonus = 0;
     linkingSystem.links.forEach(link => {
-      // Link must be active and connected to our node
-      if (link.active !== false && (link.source === node || link.target === node) && link.traffic) {
+      if ((link.source === node || link.target === node) && link.traffic) {
         trafficBonus += link.traffic.load || 0;
       }
     });
-
+    
     // Weighted energy calculation
     const avgSynergy = linkCount > 0 ? totalEnergy / linkCount : 0;
     const avgTraffic = linkCount > 0 ? trafficBonus / linkCount : 0;
-
+    
     return (avgSynergy * 10) + (avgTraffic * 5);
   }
   
@@ -381,12 +356,9 @@ export class SafeEvolutionManager {
     }
     
     // Update position and intensity
-    const position = this.getVfxPosition(node);
-    if (!position) return;
-
-    vfx.glowSphere.position.copy(position);
-    vfx.glowSphere.material.opacity = 0.12 + intensity * 0.18;
-    vfx.glowSphere.material.emissiveIntensity = 0.16 + intensity * 0.22;
+    vfx.glowSphere.position.copy(node.position);
+    vfx.glowSphere.material.opacity = 0.25 + intensity * 0.45;   // 0.25 → 0.7
+    vfx.glowSphere.material.emissiveIntensity = 0.3 + intensity * 0.5;
   }
   
   removeGlow(vfx) {
@@ -430,11 +402,8 @@ export class SafeEvolutionManager {
     }
     
     // Update position and appearance
-    const position = this.getVfxPosition(node);
-    if (!position) return;
-
-    vfx.coreHologram.position.copy(position);
-    vfx.coreHologram.material.opacity = 0.18 + intensity * 0.24;
+    vfx.coreHologram.position.copy(node.position);
+    vfx.coreHologram.material.opacity = intensity * 0.7;
     
     // Rotate
     const axis = vfx.coreHologram.userData.rotationAxis;
@@ -485,12 +454,9 @@ export class SafeEvolutionManager {
     }
     
     // Update all rings
-    const position = this.getVfxPosition(node);
-    if (!position) return;
-
     vfx.orbitRings.forEach(ring => {
-      ring.position.copy(position);
-      ring.material.opacity = 0.12 + intensity * 0.18;
+      ring.position.copy(node.position);
+      ring.material.opacity = intensity * 0.6;
       
       // Rotate
       const axis = ring.userData.rotationAxis;
@@ -514,9 +480,7 @@ export class SafeEvolutionManager {
    * PARTICLES MUTATION - Orbiting energy sparks
    */
   updateParticles(node, vfx, color, intensity, deltaTime) {
-    const particleCount = 4 + Math.floor(intensity * 2);
-    const position = this.getVfxPosition(node);
-    if (!position) return;
+    const particleCount = 6 + Math.floor(intensity * 4);
     
     // Add particles if needed
     while (vfx.orbiterParticles.length < particleCount) {
@@ -559,12 +523,12 @@ export class SafeEvolutionManager {
       const z = Math.sin(particle.userData.orbitAngle) * particle.userData.orbitRadius;
       const y = Math.sin(particle.userData.orbitAngle * 0.5) * 0.3;
       
-      particle.position.copy(position);
+      particle.position.copy(node.position);
       particle.position.x += x;
       particle.position.y += y;
       particle.position.z += z;
       
-      particle.material.opacity = 0.16 + intensity * 0.24;
+      particle.material.opacity = intensity * 0.8;
     });
   }
   
@@ -609,15 +573,12 @@ export class SafeEvolutionManager {
       color: this.getNodeColor(node),
       transparent: true,
       emissive: this.getNodeColor(node),
-      emissiveIntensity: 0.35,
+      emissiveIntensity: 1.0,
       fog: false
     });
     
     const burst = new THREE.Mesh(geo, mat);
-    const position = this.getVfxPosition(node);
-    if (position) {
-      burst.position.copy(position);
-    }
+    burst.position.copy(node.position);
     burst.userData = {
       isEvolutionVFX: true,
       isStageUpBurst: true,
@@ -638,8 +599,8 @@ export class SafeEvolutionManager {
       const progress = Math.min(1, elapsed / burst.userData.duration);
       
       // Expand and fade out
-      burst.scale.setScalar(0.92 + progress * 1.4);
-      burst.material.opacity = 0.72 - progress * 0.72;
+      burst.scale.setScalar(1 + progress * 2);
+      burst.material.opacity = 1 - progress;
       
       // Remove when done
       if (progress >= 1) {

@@ -663,10 +663,6 @@ export class PHASE5_CascadePropagationVisuals {
    */
   update(deltaTime) {
     if (!this.frameScheduler?.shouldRunVisual?.()) return;
-    const activeLinks = Array.isArray(this.linkingSystem?.links)
-      ? this.linkingSystem.links.filter((link) => link && link.active !== false)
-      : [];
-    if (activeLinks.length === 0) return;
 
     const updateStart = Date.now();
     this._elapsedTime = (this._elapsedTime ?? 0) + deltaTime;
