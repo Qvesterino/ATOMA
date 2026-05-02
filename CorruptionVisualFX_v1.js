@@ -230,6 +230,11 @@ export class CorruptionVisualFX_v1 {
     );
   }
 
+  _hasActiveNodeLinks(nodeModel) {
+    const links = nodeModel?.userData?.links;
+    return Array.isArray(links) && links.some((link) => link && link.active !== false);
+  }
+
   /**
    * Apply all corruption effects to a node
    * Timing: expects realtime visual time (RAF). VisualTime is available for Phase 2 enforcement.
@@ -261,6 +266,11 @@ export class CorruptionVisualFX_v1 {
     }
 
     if (!isHighCorruption) {
+      this.restoreNodeVisualBaseline(nodeModel);
+      return;
+    }
+
+    if (!this._hasActiveNodeLinks(nodeModel)) {
       this.restoreNodeVisualBaseline(nodeModel);
       return;
     }

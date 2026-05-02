@@ -176,6 +176,7 @@ export class SynergyCascadeVisualizer {
     this._forcedBurstCooldownByLinkId = new Map();
     this._forcedFlowCooldownByLinkId = new Map();
     this._flowCooldownByLinkId = new Map();
+    this._globalRippleCooldown = new Map();
     
     // Frame counter
     this.frameCounter = 0;
@@ -336,6 +337,8 @@ export class SynergyCascadeVisualizer {
       if (!anchor) continue;
 
       if (this.config.visualizations.rippleEffect && this._canTriggerLinkEffect(this._rippleCooldownByLinkId, linkId, band.rippleCooldownSeconds)) {
+        const globalKey = `ripple:${linkId || 'global'}`;
+        if (!this._canTriggerGlobalRipple(globalKey, 0.50)) continue;
         this._spawnRippleCluster(anchor, Math.max(0.1, linkIntensity), band.rippleCount, { ...band, flatRipple: true });
       }
 
@@ -523,6 +526,8 @@ export class SynergyCascadeVisualizer {
 
     const intensity = this._clamp01(Number(event.intensity ?? event.value ?? event.synergy ?? 0) || 0.28);
     if (tier === 'low') {
+      const globalKey = `ripple:${this._getSynergyNodeCooldownKey(event) || 'global'}`;
+      if (!this._canTriggerGlobalRipple(globalKey, 0.50)) return;
       this._spawnRippleCluster(anchor, Math.max(0.12, intensity * 0.78), 1, {
         radiusScale: 0.92,
         opacityScale: 0.78,
@@ -534,6 +539,8 @@ export class SynergyCascadeVisualizer {
     }
 
     if (tier === 'mid') {
+      const globalKey = `ripple:${this._getSynergyNodeCooldownKey(event) || 'global'}`;
+      if (!this._canTriggerGlobalRipple(globalKey, 0.50)) return;
       this._spawnRippleCluster(anchor, Math.max(0.18, intensity * 0.92), 2, {
         radiusScale: 1.08,
         opacityScale: 0.92,
@@ -545,6 +552,8 @@ export class SynergyCascadeVisualizer {
     }
 
     if (tier === 'high') {
+      const globalKey = `ripple:${this._getSynergyNodeCooldownKey(event) || 'global'}`;
+      if (!this._canTriggerGlobalRipple(globalKey, 0.50)) return;
       this._spawnEchoRippleCluster(anchor, Math.max(0.24, intensity * 1.05), 2, {
         colorPalette: [
           this.config.cascadeColor,
@@ -563,6 +572,8 @@ export class SynergyCascadeVisualizer {
       return;
     }
 
+    const globalKey = `ripple:${this._getSynergyNodeCooldownKey(event) || 'global'}`;
+    if (!this._canTriggerGlobalRipple(globalKey, 0.50)) return;
     this._spawnRippleCluster(anchor, Math.max(0.16, intensity * 0.88), 1, {
       radiusScale: 1.0,
       opacityScale: 0.84,
@@ -825,6 +836,17 @@ export class SynergyCascadeVisualizer {
     return true;
   }
 
+  _canTriggerGlobalRipple(key, cooldownSeconds) {
+    if (!key) return true;
+    const now = this._nowSeconds();
+    const last = this._globalRippleCooldown.get(key);
+    if (last !== undefined && (now - last) < cooldownSeconds) {
+      return false;
+    }
+    this._globalRippleCooldown.set(key, now);
+    return true;
+  }
+
   _spawnRippleCluster(anchor, intensity, count, options = {}) {
     const rippleCount = Math.max(1, Math.min(3, Math.floor(Number(count) || 1)));
     const radiusStep = Number(options.radiusStep ?? 0.06) || 0;
@@ -929,6 +951,8 @@ export class SynergyCascadeVisualizer {
         0.18,
         (this.config.topologyBiasRippleOpacityScale ?? 0.3) * (0.74 - i * 0.08)
       );
+      const globalKey = `ripple:${key || 'global'}`;
+      if (!this._canTriggerGlobalRipple(globalKey, 0.50)) continue;
       this._spawnEchoRippleCluster(position, intensity, Math.min(2, rippleCount), {
         color: rippleColor,
         colorPalette: [
@@ -990,6 +1014,8 @@ export class SynergyCascadeVisualizer {
 
     this._getOrCreateCascade(context.cascadeId, Math.max(0.1, intensity));
     this._seedCascadeHistory(link, intensity, context.anchor);
+    const globalKey = `ripple:${linkId || 'global'}`;
+    if (!this._canTriggerGlobalRipple(globalKey, 0.50)) return;
     this._spawnEchoRippleCluster(context.anchor, Math.max(0.12, intensity), this.config.echoRippleCount, {
       intensityScale: 1.1,
       spacing: this.config.echoRippleSpacing,
@@ -1114,6 +1140,8 @@ export class SynergyCascadeVisualizer {
     cascade.hops.push(hop);
 
     if (this.config.visualizations.rippleEffect && this._canTriggerLinkEffect(this._rippleCooldownByLinkId, linkId, band.rippleCooldownSeconds)) {
+      const globalKey = `ripple:${linkId || 'global'}`;
+      if (!this._canTriggerGlobalRipple(globalKey, 0.50)) return;
       this._spawnRippleCluster(context.anchor, Math.max(0.1, visualIntensity), band.rippleCount, band);
     }
 
@@ -2101,6 +2129,8 @@ export class SynergyCascadeVisualizer {
       this._seedCascadeHistory(link, visualIntensity, anchor);
 
       if (this.config.visualizations.rippleEffect && this._canTriggerLinkEffect(this._rippleCooldownByLinkId, linkId, band.rippleCooldownSeconds)) {
+        const globalKey = `ripple:${linkId || 'global'}`;
+        if (!this._canTriggerGlobalRipple(globalKey, 0.50)) return;
         this._spawnRippleCluster(anchor, Math.max(0.1, visualIntensity), band.rippleCount, { ...band, flatRipple: true });
       }
 
@@ -2158,6 +2188,8 @@ export class SynergyCascadeVisualizer {
       });
 
       if (anchor && this.config.visualizations.rippleEffect && this._canTriggerLinkEffect(this._rippleCooldownByLinkId, linkId, band.rippleCooldownSeconds)) {
+        const globalKey = `ripple:${linkId || 'global'}`;
+        if (!this._canTriggerGlobalRipple(globalKey, 0.50)) return;
         this._spawnRippleCluster(anchor, Math.max(0.1, visualIntensity), band.rippleCount, { ...band, flatRipple: true });
       }
       if (anchor && this.config.visualizations.burstParticles) {
@@ -2253,6 +2285,8 @@ export class SynergyCascadeVisualizer {
             const synergy = this._readLinkSynergy(hopLink);
             const band = this._getSynergyCascadeBand(synergy);
             if (band && hopLink && this._canTriggerLinkEffect(this._rippleCooldownByLinkId, this._resolveLinkId(hopLink), band.rippleCooldownSeconds)) {
+              const globalKey = `ripple:${this._resolveLinkId(hopLink) || 'global'}`;
+              if (!this._canTriggerGlobalRipple(globalKey, 0.50)) continue;
               this._spawnRippleCluster(hop.targetPosition, Math.max(0.1, synergy), band.rippleCount, band);
             } else {
               this.createRipple(hop.targetPosition, hop.intensity * 0.5);
