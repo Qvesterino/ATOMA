@@ -37,6 +37,7 @@ export class CompositeGlyphGenerator {
         this.camera = camera;
         this.network = network;
         this.cache = new Map(); // compositeSig -> geometry
+        this.maxCacheSize = 100; // Budget cap for cached composite geometries
         this.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE);
         this.resonanceFeedback = new CompositeGlyphResonanceFeedback();
         this._lifecycleLogTimes = new Map();

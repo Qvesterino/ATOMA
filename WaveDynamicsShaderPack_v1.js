@@ -235,10 +235,11 @@ export class WaveDynamicsShaderPack_v1 {
      * @param {boolean} config.enableDebug - Console logging
      * @param {boolean} config.enableWarnings - Warning logs
      */
-    constructor({ enableDebug = false, enableWarnings = false } = {}) {
+    constructor({ enableDebug = false, enableWarnings = false, maxMaterials = 300 } = {}) {
         try {
             this.debugEnabled = enableDebug;
             this.warningsEnabled = enableWarnings;
+            this.maxMaterials = maxMaterials; // Budget cap for registered materials
 
             // Track materials
             this.registeredMaterials = new WeakSet();

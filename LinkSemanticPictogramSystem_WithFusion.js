@@ -21,6 +21,9 @@ export class LinkSemanticPictogramSystem_WithFusion {
         this.linkingSystem = linkingSystem;
         this.camera = camera;
 
+        // Budget caps
+        this.maxTrackedLinks = 100; // Max links with fusion tracking
+
         // Base pictogram system
         this.pictogramSystem = new LinkSemanticPictogramSystem_Enhanced(
             scene,

@@ -124,7 +124,9 @@ export class SafeDreamDepthPack {
       sacredRing: { baseRadius: 0.38, breathSpeed: 0.35, rotationSpeed: 0.04, opacity: 0.035 },
       neuralLace: { lineCount: 7, pulseSpeed: 0.7, baseOpacity: 0.025, edgeMargin: 0.08 },
       dreamMotes: { count: 28, driftSpeed: 0.015, baseOpacity: 0.045, respawnRadius: 1.1 },
-      chromaticTear: { offset: 0.0025, intensity: 0.055, stormMultiplier: 2.2 }
+      chromaticTear: { offset: 0.0025, intensity: 0.055, stormMultiplier: 2.2 },
+      maxFocusTargets: 20,
+      maxPulseQueue: 10
     };
 
     this.setupOverlayQuad();

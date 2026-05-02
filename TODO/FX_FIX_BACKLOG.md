@@ -62,39 +62,39 @@ if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'funct
 | 3.8 | `SimulationEffectOrchestrator.js` | main.js | DEBUG: 7 calls | ✅ FIXED |
 
 ### Batch B: Link FX (6 files)
-| # | File | Owner | Also Fails |
-|---|------|-------|------------|
-| 3.9 | `_AmbientEntityManager.js` | main.js | — |
-| 3.10 | `_LinkedGlyphSynchronization1_0.js` | main.js | — |
-| 3.11 | `HarmonicHealingVisualSystem_Session134.js` | main.js | — |
-| 3.12 | `LinkRingArcDischarges.js` | LinkRendererConduit | — |
-| 3.13 | `LinkSemanticPictogramSystem_WithFusion.js` | LinkRendererConduit | — |
-| 3.14 | `SafeWorldResetFix1_0.js` | main.js | DEBUG: 62 calls |
+| # | File | Owner | Also Fails | Status |
+|---|------|-------|------------|--------|
+| 3.9 | `_AmbientEntityManager.js` | main.js | — | ✅ FIXED (already had `maxEntities: 30`) |
+| 3.10 | `_LinkedGlyphSynchronization1_0.js` | main.js | — | ✅ FIXED |
+| 3.11 | `HarmonicHealingVisualSystem_Session134.js` | main.js | — | ✅ FIXED (already had `maxWaves: 120`) |
+| 3.12 | `LinkRingArcDischarges.js` | LinkRendererConduit | — | ✅ FIXED |
+| 3.13 | `LinkSemanticPictogramSystem_WithFusion.js` | LinkRendererConduit | — | ✅ FIXED |
+| 3.14 | `SafeWorldResetFix1_0.js` | main.js | DEBUG: 62 calls | ✅ FIXED |
 
 ### Batch C: Environment FX (4 files)
-| # | File | Owner | Also Fails |
-|---|------|-------|------------|
-| 3.15 | `_SafeLegendaryWorldEvents.js` | main.js | — |
-| 3.16 | `SafeDreamDepthPack.js` | main.js | — |
-| 3.17 | `SafeQuantumIllusionsPack1.js` | main.js | — |
-| 3.18 | `SystemStateOverlay.js` | main.js | DEBUG: 14 calls |
+| # | File | Owner | Also Fails | Status |
+|---|------|-------|------------|--------|
+| 3.15 | `_SafeLegendaryWorldEvents.js` | main.js | — | ✅ FIXED |
+| 3.16 | `SafeDreamDepthPack.js` | main.js | — | ✅ FIXED |
+| 3.17 | `SafeQuantumIllusionsPack1.js` | main.js | — | ✅ FIXED (already had `maxActive` per type) |
+| 3.18 | `SystemStateOverlay.js` | main.js | DEBUG: 14 calls | ✅ FIXED |
 
 ### Batch D: Shader/Material FX (5 files)
-| # | File | Owner | Also Fails |
-|---|------|-------|------------|
-| 3.19 | `ArchetypeShaderModes_v1.js` | main.js | — |
-| 3.20 | `HarmonicRecoveryVisualSystem_Session138.js` | main.js | — |
-| 3.21 | `LinkVisualStateAdapter.js` | LinkRendererConduit | OWNER |
-| 3.22 | `VisualEchoTrails_v1_Integration.js` | main.js | UPDATE |
-| 3.23 | `WaveDynamicsShaderPack_v1.js` | main.js | OWNER |
+| # | File | Owner | Also Fails | Status |
+|---|------|-------|------------|--------|
+| 3.19 | `ArchetypeShaderModes_v1.js` | main.js | — | ✅ FIXED (WeakMap, self-managing) |
+| 3.20 | `HarmonicRecoveryVisualSystem_Session138.js` | main.js | — | ✅ FIXED (already had `maxActiveZones: 10`) |
+| 3.21 | `LinkVisualStateAdapter.js` | LinkRendererConduit | OWNER | ✅ FIXED (stateless adapter) |
+| 3.22 | `VisualEchoTrails_v1_Integration.js` | main.js | UPDATE | ✅ FIXED |
+| 3.23 | `WaveDynamicsShaderPack_v1.js` | main.js | OWNER | ✅ FIXED |
 
 ### Batch E: Cascade/Wave + Particle FX (4 files)
-| # | File | Owner | Also Fails |
-|---|------|-------|------------|
-| 3.24 | `CompositeGlyphGenerator.js` | UNKNOWN | UPDATE, DEBUG |
-| 3.25 | `PulseIntersectionImpulseAdapter_v1.js` | UNKNOWN | — |
-| 3.26 | `_MythicRitualController.js` | main.js | DEBUG: 11 calls |
-| 3.27 | `BeadDebugUtils.js` | UNKNOWN | UPDATE |
+| # | File | Owner | Also Fails | Status |
+|---|------|-------|------------|--------|
+| 3.24 | `CompositeGlyphGenerator.js` | UNKNOWN | UPDATE, DEBUG | ✅ FIXED |
+| 3.25 | `PulseIntersectionImpulseAdapter_v1.js` | UNKNOWN | — | ✅ FIXED |
+| 3.26 | `_MythicRitualController.js` | main.js | DEBUG: 11 calls | ✅ FIXED |
+| 3.27 | `BeadDebugUtils.js` | UNKNOWN | UPDATE | ✅ FIXED |
 
 **Fix pattern:** Add a `MAX_*` constant or `poolSize` config near the constructor:
 ```js
@@ -197,7 +197,7 @@ Files with no cross-reference to `main.js` or `EnvironmentDomainController`. May
 |----------|-------|-------|-----------|
 | 1 CRITICAL | 14 | 14 | 0 |
 | 2 DISPOSE | 1 | 1 | 0 |
-| 3 BUDGET | 27 | 8 | 19 |
+| 3 BUDGET | 27 | 27 | 0 |
 | 4 DEBUG | 13 | 0 | 13 |
 | 5 UPDATE | 7 | 0 | 7 |
 | 6 OWNER | 8 | 0 | 8 |

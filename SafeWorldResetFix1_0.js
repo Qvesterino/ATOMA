@@ -188,6 +188,9 @@ export class SafeWorldResetFix1_0 {
     this.sceneReady = false;
     this.lastSceneTimestamp = 0;
     
+    // Budget cap
+    this.maxCleanupQueueSize = 200; // Max deferred cleanup items
+    
     // System references (managed by main game)
     this.systemRefs = {
       coreMetricsOverlay: null,

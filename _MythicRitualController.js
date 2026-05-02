@@ -110,6 +110,11 @@ export class MythicRitualController {
     this._ritualVisualId = 0;
     this.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_OVERLAY);
 
+    // Budget caps
+    this.maxRitualVisuals = 50;
+    this.maxNodeGlowBoosts = 100;
+    this.maxCreatedObjects = 200;
+
     // UNIFIED CLEANUP CONTRACT - Track all created objects
     this._createdObjects = [];
 

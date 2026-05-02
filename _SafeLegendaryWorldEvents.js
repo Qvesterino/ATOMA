@@ -318,7 +318,14 @@ export class SafeLegendaryWorldEvents {
       minLegendaryNodesForEvent: 0,       // Allow world events even without legacy legendary node pack
       maxConcurrentEvents: 1,             // Only 1 event at a time
       noEventCooldown: 30.0,              // 30 seconds between events
-      eventInterpretationInterval: 0.25   // Phase B pilot: ~4 Hz semantic evaluation (visuals stay 60 Hz)
+      eventInterpretationInterval: 0.25,  // Phase B pilot: ~4 Hz semantic evaluation (visuals stay 60 Hz)
+      maxShockwaves: 10,
+      maxParticles: 100,
+      maxMeshes: 50,
+      maxTrails: 30,
+      maxBeams: 20,
+      maxOverlays: 15,
+      maxDistortionQuads: 10
     };
     
     // Tracking

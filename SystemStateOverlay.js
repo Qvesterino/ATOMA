@@ -33,6 +33,9 @@ export class SystemStateOverlay {
     // Enable/disable flag (disabled by default)
     this.enabled = false;
     
+    // Budget cap
+    this.maxSynergyHalos = 50;
+    
     // Render order constants
     this.LAYER_HARMONY = 1;
     this.LAYER_SYNERGY = 2;

@@ -421,6 +421,9 @@ export class VisualEchoTrails_v1_Integration {
     // Track materials that have been enhanced with echo trails
     this.echoMaterials = new Map(); // linkId → [materials]
     
+    // Budget cap
+    this.maxEchoMaterials = 200; // Max tracked links with echo materials
+    
     this.enabled = true;
   }
 

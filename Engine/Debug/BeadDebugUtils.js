@@ -24,6 +24,7 @@ export class BeadDebugController {
     this.showPaths = false;
     this.scene = null;
     this.debugObjects = [];
+    this.maxDebugObjects = 50; // Budget cap for debug visual objects
   }
   
   /**

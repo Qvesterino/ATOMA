@@ -46,8 +46,9 @@ export class LinkRingArcDischarges {
         this.root = this.group;
         this.ensureAttached(this._attachRoot);
         
-        // Configuration (unchanged)
+        // Configuration
         this.config = {
+            maxActiveArcs: 60,        // Budget cap for concurrent arcs
             spawnInterval: 0.28 + Math.random() * 0.04,      // (legacy, unused in new logic)
             arcsPerBurst: 5,          // Base arc count
             arcLifetime: 0.6,         // Longer visibility (whip linger)

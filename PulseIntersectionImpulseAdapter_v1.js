@@ -35,6 +35,10 @@ class SegmentIntersectionDetector {
     // Per-segment cooldown: `${linkId}-${segmentIdx}` → lastFiredTime
     this.segmentCooldowns = new Map();
     
+    // Budget caps
+    this.maxTrackedLinks = 200;
+    this.maxCooldownEntries = 1000;
+    
     // Default cooldown (ms)
     this.baseCooldown = 150;
   }

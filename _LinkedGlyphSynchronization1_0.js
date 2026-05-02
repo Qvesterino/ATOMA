@@ -66,6 +66,10 @@ export class LinkedGlyphSynchronization1_0 {
     
     // Configuration for sync calculations
     this.config = {
+      // Budget caps
+      maxSyncedLinks: 100,          // Max tracked link sync states
+      maxPhaseAlignments: 200,      // Max tracked node phase alignments
+      
       // Synchronization base parameters
       minDriftMs: 0,        // Perfect sync minimum
       maxDriftMs: 120,      // Maximum visible de-sync
