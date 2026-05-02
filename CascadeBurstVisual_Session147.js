@@ -35,6 +35,7 @@ const MAX_BURSTS = 8;
 const BURST_DURATION = 1.2; // seconds
 const RAY_COUNT = 12;
 const RAY_LENGTH = 3.0;
+const STABILITY_BURST_COOLDOWN = 2.0; // seconds between stability-triggered bursts
 
 export class CascadeBurstVisual_Session147 {
   /**
@@ -117,7 +118,12 @@ export class CascadeBurstVisual_Session147 {
 
     // Semantic event subscription
     this._boundCascadeStart = null;
+    this._boundStabilityLow = null;
     this._semanticBusAttached = null;
+
+    // Stability burst cooldown tracking
+    this._stabilityBurstCooldown = 0;
+    this._stabilityBurstCooldownUntil = 0;
 
     // Initialize pool
     this._initPool();
@@ -771,6 +777,29 @@ export class CascadeBurstVisual_Session147 {
     };
 
     bus.on('cascade.start', this._boundCascadeStart);
+
+    // ── Stability Low Burst Subscription ──
+    // Triggers burst when a node's stability drops below threshold
+    // Cooldown: 2 seconds between stability-triggered bursts
+    this._boundStabilityLow = (event) => {
+      if (!this.config.enabled) return;
+
+      const now = performance.now() * 0.001;
+      if (now < this._stabilityBurstCooldownUntil) return; // Cooldown active
+
+      const position = event.sourcePosition || event.position || (event.node?.position);
+      const strength = Math.max(0.4, Math.min(1, event.value || event.strength || 0.5));
+
+      if (position) {
+        this._vec3A.set(position.x || 0, position.y || 0, position.z || 0);
+        this.triggerBurst(this._vec3A, strength);
+
+        // Set cooldown
+        this._stabilityBurstCooldownUntil = now + STABILITY_BURST_COOLDOWN;
+      }
+    };
+
+    bus.on('node.stability.low', this._boundStabilityLow);
     this._semanticBusAttached = bus;
   }
 
@@ -1101,6 +1130,9 @@ export class CascadeBurstVisual_Session147 {
     const bus = this._semanticBusAttached || globalThis?.semanticBus;
     if (bus?.off && this._boundCascadeStart) {
       bus.off('cascade.start', this._boundCascadeStart);
+    }
+    if (bus?.off && this._boundStabilityLow) {
+      bus.off('node.stability.low', this._boundStabilityLow);
     }
 
     // Remove all meshes from scene

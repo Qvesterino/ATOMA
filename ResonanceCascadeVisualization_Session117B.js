@@ -491,7 +491,8 @@ export class ResonanceCascadeVisualization_Session117B {
       );
     }
 
-    return new THREE.Vector3(0, 0, 0);
+    // FIX: Return null instead of (0,0,0) so caller can retry with delay
+    return null;
   }
 
   _getLinkEndpoints(linkOrId, sourceNode = null, targetNode = null) {
@@ -724,7 +725,10 @@ export class ResonanceCascadeVisualization_Session117B {
 
     const rawIntensity = event?.intensity ?? event?.value ?? event?.strength ?? 1;
     const impulseIntensity = Math.max(0.35, this._clamp01(rawIntensity));
-    const pos = this._resolveCascadeAnchor(event);
+
+    // FIX: Use pre-resolved anchor from event (passed from _flushPendingLinkBirthCascades)
+    // before falling back to _resolveCascadeAnchor
+    const pos = this._asValidPosition(event?.anchor) ?? this._resolveCascadeAnchor(event);
     if (!pos) return;
 
     const cascade = new CascadeWave(pos, impulseIntensity, 'radial');
@@ -861,8 +865,15 @@ export class ResonanceCascadeVisualization_Session117B {
       const payload = pending.event ?? {};
       const link = payload.link ?? payload.linkRef ?? null;
       const linkKey = pending.linkKey ?? this._getLinkBirthKey(payload);
-      if (!link || !link.userData) {
+
+      // FIX: Allow cascade even when link.userData is missing (early spawn race)
+      if (!link) {
         continue;
+      }
+
+      // Ensure userData exists (create if missing)
+      if (!link.userData) {
+        link.userData = {};
       }
 
       if (link.userData.__resonanceCascadeBirthSeeded === true) {
@@ -873,10 +884,12 @@ export class ResonanceCascadeVisualization_Session117B {
       }
 
       const anchor = this._resolveCascadeAnchor(payload);
-      if (!anchor) {
+      // FIX: _resolveCascadeAnchor always returns at least (0,0,0), so check for valid position
+      if (!anchor || (anchor.x === 0 && anchor.y === 0 && anchor.z === 0)) {
+        // Retry with delay in case nodes haven't been positioned yet
         remaining.push({
           ...pending,
-          dueAt: now + 0.1
+          dueAt: now + 0.15
         });
         continue;
       }

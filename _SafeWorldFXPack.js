@@ -99,6 +99,7 @@ export class SafeWorldFXPack {
     // VFX Containers
     this.vfxLayers = {
       canopyField: null,
+      stressPressureField: null,      // Wavy plane geometry from CanonicalTemplate3
       horizonVeils: [],
       flowRivers: [],
       ruptureEvents: [],
@@ -115,6 +116,49 @@ export class SafeWorldFXPack {
       auroraHorizons: [],
       screenOverlays: []
     };
+
+    // Stress pressure field state (from CanonicalTemplate3_StressVisuals)
+    this.stressPressureState = {
+      networkStress: 0,
+      nodeStressMap: new Map(),
+      elapsedTime: 0,
+      pressureState: {
+        targetPressure: 0,
+        currentPressure: 0,
+        targetLoadBias: 0,
+        currentLoadBias: 0,
+        averageNodeLoad: 0,
+        stressedNodeRatio: 0,
+        pulse: 0,
+        turbulence: 0,
+        phase: 'detection',
+        phaseTime: 0,
+        lastPressure: 0,
+        burstHold: 0,
+        residueHold: 0,
+        burstEcho: 0
+      }
+    };
+
+    // Palette for stress pressure field (from CanonicalTemplate3)
+    this.stressPalette = {
+      calmDeep: new THREE.Color(0x071722),
+      calmCyan: new THREE.Color(0x63dff6),
+      calmMint: new THREE.Color(0x7bf4d5),
+      pressureAmber: new THREE.Color(0xffb06b),
+      pressureRose: new THREE.Color(0xff78bd),
+      pressureViolet: new THREE.Color(0xd07bff),
+      ruptureRed: new THREE.Color(0xff534f),
+      ritualWhite: new THREE.Color(0xf7fbff),
+      fogBase: new THREE.Color(0x152634)
+    };
+
+    this.stressColorLow = { r: 0.2, g: 0.4, b: 0.6 };
+    this.stressColorMid = { r: 0.8, g: 0.5, b: 0.2 };
+    this.stressColorHigh = { r: 1.0, g: 0.2, b: 0.2 };
+
+    this._stressColorScratchA = new THREE.Color();
+    this._stressColorScratchB = new THREE.Color();
     
     // State tracking
     this.worldState = {
@@ -481,6 +525,38 @@ export class SafeWorldFXPack {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
+  /**
+   * STRESS PRESSURE FIELD - Wavy plane geometry builder from CanonicalTemplate3_StressVisuals
+   * Creates wavy veil strip geometry with sin-based deformation
+   */
+  _createStressVeilStripGeometry(width, height, segments, amplitude, seed) {
+    const positions = [];
+    const indices = [];
+
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const x = (t - 0.5) * width;
+      const curve = Math.sin(t * Math.PI * 2 + seed) * amplitude;
+      const secondary = Math.sin(t * Math.PI * 5 + seed * 0.7) * amplitude * 0.24;
+      positions.push(x, height * 0.5 + curve, secondary);
+      positions.push(x, -height * 0.5 + curve * 0.4, secondary - amplitude * 0.16);
+    }
+
+    for (let i = 0; i < segments; i++) {
+      const a = i * 2;
+      const b = a + 1;
+      const c = a + 2;
+      const d = a + 3;
+      indices.push(a, b, c, b, d, c);
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
     return geometry;
@@ -950,6 +1026,9 @@ export class SafeWorldFXPack {
     
     // Create energy streams
     this.createEnergyStreams();
+
+    // Create stress pressure field (wavy plane geometry from CanonicalTemplate3)
+    this.createStressPressureField();
   }
   
   /**
@@ -980,6 +1059,7 @@ export class SafeWorldFXPack {
     this.updateWorldBreathing(deltaTime);
     this.updateEnergyStreams(deltaTime);
     this.updateAuroraHorizon(deltaTime);
+    this.updateStressPressureField(deltaTime);
     this.updateScreenOverlays(deltaTime);
   }
   
@@ -3037,6 +3117,207 @@ export class SafeWorldFXPack {
   }
   
   /**
+   * STRESS PRESSURE FIELD - Network stress and load pressure management
+   * From CanonicalTemplate3_StressVisuals
+   */
+  updateNetworkStress(stressValue) {
+    const numericStress = Number(stressValue ?? 0);
+    if (!Number.isFinite(numericStress)) {
+      this.stressPressureState.networkStress = 0;
+      return;
+    }
+    const normalizedStress = numericStress > 1 ? (numericStress / 100) : numericStress;
+    this.stressPressureState.networkStress = Math.max(0, Math.min(1, normalizedStress));
+  }
+
+  registerStressNode(node) {
+    if (!node) return;
+    const nodeId = node.id || node.uuid || `node_${Math.random()}`;
+    if (!this.stressPressureState.nodeStressMap.has(nodeId)) {
+      this.stressPressureState.nodeStressMap.set(nodeId, {
+        loadPressure: 0,
+        node
+      });
+    }
+  }
+
+  unregisterStressNode(node) {
+    if (!node) return;
+    const nodeId = node.id || node.uuid || `node_${Math.random()}`;
+    if (!this.stressPressureState.nodeStressMap.has(nodeId)) return;
+    if (node.userData) {
+      delete node.userData.stressPulseRate;
+      delete node.userData.stressPulsePhase;
+      delete node.userData.stressIntensity;
+      delete node.userData.stressFieldBias;
+      delete node.userData.stressFieldTension;
+      delete node.userData.stressFieldColor;
+    }
+    this.stressPressureState.nodeStressMap.delete(nodeId);
+  }
+
+  updateNodeLoadPressure(node, loadPressure) {
+    if (!node) return;
+    const nodeId = node.id || node.uuid || `node_${Math.random()}`;
+    const clampedLoad = Math.max(0, Math.min(1, Number(loadPressure ?? 0)));
+    if (!this.stressPressureState.nodeStressMap.has(nodeId)) {
+      this.stressPressureState.nodeStressMap.set(nodeId, {
+        loadPressure: 0,
+        node
+      });
+    }
+    const stressData = this.stressPressureState.nodeStressMap.get(nodeId);
+    stressData.loadPressure = clampedLoad;
+    stressData.node = node;
+  }
+
+  _updateStressPressureTargets() {
+    let totalLoad = 0;
+    let activeCount = 0;
+    let stressedNodes = 0;
+    const staleNodeIds = [];
+
+    for (const [nodeId, stressData] of this.stressPressureState.nodeStressMap.entries()) {
+      const node = stressData.node;
+      if (!node || !node.parent) {
+        staleNodeIds.push(nodeId);
+        continue;
+      }
+      const loadPressure = Math.max(0, Math.min(1, stressData.loadPressure || 0));
+      totalLoad += loadPressure;
+      activeCount++;
+      if (loadPressure > 0.58) stressedNodes++;
+    }
+
+    for (const nodeId of staleNodeIds) {
+      this.stressPressureState.nodeStressMap.delete(nodeId);
+    }
+
+    const averageNodeLoad = activeCount > 0 ? totalLoad / activeCount : 0;
+    const stressedNodeRatio = activeCount > 0 ? stressedNodes / activeCount : 0;
+    const loadBias = Math.min(1, averageNodeLoad * 0.78 + stressedNodeRatio * 0.32);
+    const targetPressure = Math.min(1, this.stressPressureState.networkStress * 0.68 + loadBias * 0.32);
+
+    const state = this.stressPressureState.pressureState;
+    state.averageNodeLoad = averageNodeLoad;
+    state.stressedNodeRatio = stressedNodeRatio;
+    state.targetLoadBias = loadBias;
+    state.targetPressure = targetPressure;
+    state.currentPressure += (targetPressure - state.currentPressure) * 0.055;
+    state.currentLoadBias += (loadBias - state.currentLoadBias) * 0.075;
+
+    const time = this.stressPressureState.elapsedTime || 0;
+    state.pulse = Math.sin(time * (0.42 + state.currentPressure * 0.38) + state.currentLoadBias * Math.PI * 1.7);
+    state.turbulence = Math.cos(time * 0.26 + state.currentPressure * Math.PI * 1.1);
+  }
+
+  /**
+   * STRESS PRESSURE FIELD - Wavy plane geometry from CanonicalTemplate3_StressVisuals
+   * Creates canopy veils with wavy geometry, colors, render order and animations
+   */
+  createStressPressureField() {
+    if (this.vfxLayers.stressPressureField) return;
+
+    const fieldRoot = new THREE.Group();
+    fieldRoot.name = 'StressPressureFieldRoot';
+    fieldRoot.renderOrder = this.root.renderOrder + 1;
+    fieldRoot.userData = {
+      isWorldFX: true,
+      type: 'stress_pressure_field',
+      __environmentLayerId: VisualHierarchyRegistry.LAYER_WORLD_BACKGROUND,
+      __environmentOwner: 'worldFXPack'
+    };
+
+    const specs = [
+      { width: 170, height: 46, y: 42, z: -58, rotX: -0.84, rotY: -0.1, opacity: 0.085, key: 'calm' },
+      { width: 152, height: 38, y: 30, z: -44, rotX: -0.76, rotY: 0.12, opacity: 0.095, key: 'mid' },
+      { width: 126, height: 32, y: 20, z: -36, rotX: -0.7, rotY: -0.18, opacity: 0.11, key: 'pressure' }
+    ];
+
+    const veils = [];
+    specs.forEach((spec, index) => {
+      const geometry = this._createStressVeilStripGeometry(spec.width, spec.height, 28, 8 + index * 2, index * 1.17);
+      const material = new THREE.MeshBasicMaterial({
+        color: this.stressPalette.calmCyan.clone(),
+        transparent: true,
+        opacity: spec.opacity,
+        depthWrite: false,
+        depthTest: true,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        fog: false
+      });
+      this.freezeMaterialFlags(material, `stress_pressure_field.veil.${index}`);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(0, spec.y, spec.z);
+      mesh.rotation.set(spec.rotX, spec.rotY, index % 2 === 0 ? -0.12 : 0.09);
+      mesh.renderOrder = this.root.renderOrder + 1 + index;
+      mesh.userData = {
+        isWorldFX: true,
+        type: 'stress_pressure_veil',
+        key: spec.key,
+        basePosition: mesh.position.clone(),
+        baseRotation: mesh.rotation.clone()
+      };
+      fieldRoot.add(mesh);
+      veils.push(mesh);
+    });
+
+    this.root.add(fieldRoot);
+    this.vfxLayers.stressPressureField = {
+      root: fieldRoot,
+      veils: veils
+    };
+  }
+
+  /**
+   * Update stress pressure field - animations, colors, render order
+   */
+  updateStressPressureField(deltaTime) {
+    const field = this.vfxLayers.stressPressureField;
+    if (!field) return;
+
+    // Update elapsed time and pressure targets
+    this.stressPressureState.elapsedTime += deltaTime;
+    this._updateStressPressureTargets();
+
+    const state = this.stressPressureState;
+    const time = state.elapsedTime;
+    const pressure = state.pressureState.currentPressure;
+    const loadBias = state.pressureState.currentLoadBias;
+    const pulse = state.pressureState.pulse;
+    const turbulence = state.pressureState.turbulence;
+
+    const calm = this.stressPalette.calmMint;
+    const seam = this.stressPalette.calmCyan;
+    const tension = this.stressPalette.pressureAmber;
+    const fracture = this.stressPalette.pressureRose;
+    const voidViolet = this.stressPalette.pressureViolet;
+    const rupture = this.stressPalette.ruptureRed;
+
+    field.veils.forEach((veil, index) => {
+      const basePosition = veil.userData?.basePosition;
+      const baseRotation = veil.userData?.baseRotation;
+      const opacity = 0.11 + pressure * 0.14 + loadBias * 0.055 + index * 0.014;
+      const color = calm.clone()
+        .lerp(seam, 0.32 + index * 0.08)
+        .lerp(tension, pressure * 0.32)
+        .lerp(fracture, Math.max(0, pressure - 0.5) * 0.34)
+        .lerp(voidViolet, loadBias * 0.28)
+        .lerp(rupture, pressure > 0.76 ? 0.14 : 0)
+        .lerp(this.stressPalette.ritualWhite, pressure > 0.3 ? 0.06 : 0);
+      veil.material.color.copy(color);
+      veil.material.opacity = Math.min(0.42, opacity);
+      veil.rotation.z = baseRotation.z + Math.sin(time * 0.22 + index * 1.8) * (0.015 + pressure * 0.02);
+      veil.rotation.y = baseRotation.y + Math.sin(time * 0.13 + index * 1.1) * (0.06 + pressure * 0.16);
+      veil.position.y = basePosition.y + Math.sin(time * 0.22 + index * 1.8) * (0.015 + pressure * 0.02);
+      veil.position.z = basePosition.z + Math.cos(time * 0.12 + index) * (1.2 + pressure * 2.8);
+      veil.position.x = basePosition.x + Math.sin(time * 0.08 + index) * (2.8 + pressure * 4.2 + loadBias * 2.2);
+      veil.scale.set(1 + pressure * 0.08, 1 + loadBias * 0.12 + Math.abs(turbulence) * 0.05, 1);
+    });
+  }
+
+  /**
    * Cleanup all world FX
    */
   disableAll() {
@@ -3099,6 +3380,12 @@ export class SafeWorldFXPack {
       this._releaseMeshResources(aurora);
     });
 
+    // Clean stress pressure field
+    if (this.vfxLayers.stressPressureField?.root) {
+      this.root.remove(this.vfxLayers.stressPressureField.root);
+      this._releaseMeshResources(this.vfxLayers.stressPressureField.root);
+    }
+
     // Clean screen overlays
     if (this.screenOverlaysRoot) {
       const children = this.screenOverlaysRoot.children.slice();
@@ -3140,7 +3427,8 @@ export class SafeWorldFXPack {
       sigmaGlitches: [],
       energyStreams: [],
       auroraHorizons: [],
-      screenOverlays: []
+      screenOverlays: [],
+      stressPressureField: null
     };
   }
 
@@ -3176,6 +3464,7 @@ export class SafeWorldFXPack {
       this.vfxLayers.screenOverlays.length = 0;
     }
     this.vfxLayers.fractalSky = null;
+    this.vfxLayers.stressPressureField = null;
 
     if (this.screenOverlaysRoot) {
       this.screenOverlaysRoot.children.slice().forEach(child => {
@@ -3196,6 +3485,27 @@ export class SafeWorldFXPack {
       this.worldState.glitchTimer = 0;
       this.worldState.quantumTimer = 0;
       this.worldState.breathingPhase = 0;
+    }
+
+    // Clear stress pressure state
+    if (this.stressPressureState) {
+      this.stressPressureState.networkStress = 0;
+      this.stressPressureState.nodeStressMap.clear();
+      this.stressPressureState.elapsedTime = 0;
+      this.stressPressureState.pressureState.targetPressure = 0;
+      this.stressPressureState.pressureState.currentPressure = 0;
+      this.stressPressureState.pressureState.targetLoadBias = 0;
+      this.stressPressureState.pressureState.currentLoadBias = 0;
+      this.stressPressureState.pressureState.averageNodeLoad = 0;
+      this.stressPressureState.pressureState.stressedNodeRatio = 0;
+      this.stressPressureState.pressureState.pulse = 0;
+      this.stressPressureState.pressureState.turbulence = 0;
+      this.stressPressureState.pressureState.phase = 'detection';
+      this.stressPressureState.pressureState.phaseTime = 0;
+      this.stressPressureState.pressureState.lastPressure = 0;
+      this.stressPressureState.pressureState.burstHold = 0;
+      this.stressPressureState.pressureState.residueHold = 0;
+      this.stressPressureState.pressureState.burstEcho = 0;
     }
 
     // Clear lights array
