@@ -27,6 +27,8 @@ export class CanonicalTemplate3_StressVisuals {
   constructor(scene, config = {}) {
     this.scene = scene;
     this.debugMode = config.debugMode || false;
+    this.frameScheduler = config.frameScheduler || null;
+    this.enabled = true;
 
     this.networkStress = 0;
     this.nodeStressMap = new Map();
@@ -92,7 +94,15 @@ export class CanonicalTemplate3_StressVisuals {
       contourOpacity: 0.16,
       veilOpacity: 0.11,
       witnessOpacity: 0.085,
-      riftVeinOpacity: 0.095
+      riftVeinOpacity: 0.095,
+      enableCanopy: true,
+      enableHorizon: true,
+      enableLattice: true,
+      enableSeamCrowns: true,
+      enableWitnessArcs: true,
+      enableRiftVeins: true,
+      enableShell: false,
+      enableDust: false
     };
 
     this.root = null;
@@ -171,6 +181,10 @@ export class CanonicalTemplate3_StressVisuals {
   }
 
   update(deltaTime = 1 / 60, currentTime = 0) {
+    if (!this.enabled) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
     this.elapsedTime = currentTime;
     this._setFieldVisibility(true);
     this._refreshLightRegistry();
@@ -194,17 +208,17 @@ export class CanonicalTemplate3_StressVisuals {
     this.root.userData.pressurePhase = this.pressureState.phase;
     this.scene.add(this.root);
 
-    this._createCanopyVeils();
-    this._createHorizonSeams();
-    this._createLatticeContours();
-    this._createSeamCrowns();
-    this._createWitnessArcs();
-    this._createRiftVeins();
-    this._createPressureShell();
-    this._createShardDust();
+    if (this.config.enableCanopy) this._createCanopyVeils();
+    if (this.config.enableHorizon) this._createHorizonSeams();
+    if (this.config.enableLattice) this._createLatticeContours();
+    if (this.config.enableSeamCrowns) this._createSeamCrowns();
+    if (this.config.enableWitnessArcs) this._createWitnessArcs();
+    if (this.config.enableRiftVeins) this._createRiftVeins();
+    if (this.config.enableShell) this._createPressureShell();
+    if (this.config.enableDust) this._createShardDust();
 
-    this.ambientStressMaterial = this.fieldLayers.shell?.material ?? null;
-    this.nodeStressOverlay = this.fieldLayers.dust ?? null;
+    this.ambientStressMaterial = (this.config.enableShell && this.fieldLayers.shell) ? this.fieldLayers.shell.material : null;
+    this.nodeStressOverlay = (this.config.enableDust && this.fieldLayers.dust) ? this.fieldLayers.dust : null;
   }
 
   _createCanopyVeils() {

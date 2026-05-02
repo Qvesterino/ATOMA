@@ -2077,7 +2077,9 @@ export class CanonicalGeometryFamilies {
           geo.computeBoundingSphere();
         }
       } catch (err) {
-        console.error('[CanonicalGeometryFamilies] Failed to compute bounding sphere:', err);
+        if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+          console.error('[CanonicalGeometryFamilies] Failed to compute bounding sphere:', err);
+        }
       }
 
       // 2. Compute bounding box
@@ -2086,7 +2088,9 @@ export class CanonicalGeometryFamilies {
           geo.computeBoundingBox();
         }
       } catch (err) {
-        console.warn('[CanonicalGeometryFamilies] Bounding box computation failed:', err);
+        if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+          console.warn('[CanonicalGeometryFamilies] Bounding box computation failed:', err);
+        }
       }
 
       // 3. Compute vertex normals
@@ -2095,7 +2099,9 @@ export class CanonicalGeometryFamilies {
           geo.computeVertexNormals();
         }
       } catch (err) {
-        console.warn('[CanonicalGeometryFamilies] Vertex normal computation failed:', err);
+        if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+          console.warn('[CanonicalGeometryFamilies] Vertex normal computation failed:', err);
+        }
       }
 
       // 4. Mark immutability via userData (NOT Object.freeze)

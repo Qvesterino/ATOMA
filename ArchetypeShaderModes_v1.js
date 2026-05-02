@@ -63,6 +63,7 @@ export class ArchetypeShaderModes_v1 {
         this.nodeAuraSystem = config.nodeAuraSystem;
         this.linkAuraSystem = config.linkAuraSystem;
         this.debugEnabled = config.debugEnabled || false;
+        this.frameScheduler = config.frameScheduler || null;
 
         // Per-node/link shader mode state (WeakMap for automatic GC)
         this.nodeStates = new WeakMap();
@@ -371,6 +372,11 @@ export class ArchetypeShaderModes_v1 {
      * Main update loop (call once per frame, AFTER archetypeColorFX.update)
      */
     update(deltaTime = 0.016) {
+        // FrameScheduler gate
+        if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+            if (!this.frameScheduler.shouldRunVisual()) return;
+        }
+
         const startTime = performance.now();
 
         try {

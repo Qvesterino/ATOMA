@@ -178,11 +178,13 @@ const SIGNATURE_MYTHIC_STAGE_PRESETS = Object.freeze({
  */
 
 export class AIConsciousnessLayer {
-  constructor(scene, linkingSystem, aiNodes, glyphLayer4) {
+  constructor(scene, linkingSystem, aiNodes, glyphLayer4, options = {}) {
     this.scene = scene;
     this.linkingSystem = linkingSystem;
     this.aiNodes = aiNodes;
     this.glyphLayer4 = glyphLayer4;
+    this.frameScheduler = options.frameScheduler || null;
+    this.debugMode = options.debug || false;
     
     // Main container for all consciousness visuals
     this.consciousnessGroup = new THREE.Group();
@@ -712,10 +714,14 @@ export class AIConsciousnessLayer {
 
         this.storms.config.enabled = this.config.stormsEnabled;
         this.storms.stormLayerSource = 'AIConsciousnessLayer';
-        console.log('✓ Thought Storms initialized');
+        if (this.debugMode) {
+          console.log('✓ Thought Storms initialized');
+        }
       }
     } catch (e) {
-      console.error('Failed to initialize Thought Storms:', e);
+      if (this.debugMode) {
+        console.error('Failed to initialize Thought Storms:', e);
+      }
     }
   }
   
@@ -1952,6 +1958,11 @@ export class AIConsciousnessLayer {
   update(dt) {
     // dt is intentionally ignored: timing follows the canonical VisualTime source.
     if (!this.config.enabled) return;
+    
+    // FrameScheduler gate
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
 
     const startTime = performance.now();
     
@@ -2717,7 +2728,9 @@ export class AIConsciousnessLayer {
     // Remove container
     this.scene.remove(this.consciousnessGroup);
     
-    console.log('AIConsciousnessLayer 2.0 disposed ✓');
+    if (this.debugMode) {
+      console.log('AIConsciousnessLayer 2.0 disposed ✓');
+    }
   }
 }
 
@@ -2729,29 +2742,42 @@ export function setupAIConsciousnessConsoleAPI(consciousnessLayer) {
     debug: () => consciousnessLayer.debug(),
     enable: () => {
       consciousnessLayer.enable();
-      console.log('🟢 AI Consciousness Layer ENABLED');
+      if (consciousnessLayer.debugMode) {
+        console.log('🟢 AI Consciousness Layer ENABLED');
+      }
     },
     disable: () => {
       consciousnessLayer.disable();
-      console.log('🔴 AI Consciousness Layer DISABLED');
+      if (consciousnessLayer.debugMode) {
+        console.log('🔴 AI Consciousness Layer DISABLED');
+      }
     },
     setIntensity: (value) => {
       consciousnessLayer.setIntensity(value);
-      console.log(`Consciousness Intensity: ${value.toFixed(2)}`);
+      if (consciousnessLayer.debugMode) {
+        console.log(`Consciousness Intensity: ${value.toFixed(2)}`);
+      }
     },
     setParticleDensity: (value) => {
       consciousnessLayer.setParticleDensity(value);
-      console.log(`Particle Density: ${value.toFixed(2)}`);
+      if (consciousnessLayer.debugMode) {
+        console.log(`Particle Density: ${value.toFixed(2)}`);
+      }
     },
     enableStorms: () => {
       consciousnessLayer.enableStorms();
-      console.log('🌩️ Thought Storms ENABLED');
+      if (consciousnessLayer.debugMode) {
+        console.log('🌩️ Thought Storms ENABLED');
+      }
     },
     disableStorms: () => {
       consciousnessLayer.disableStorms();
-      console.log('⛈️ Thought Storms DISABLED');
+      if (consciousnessLayer.debugMode) {
+        console.log('⛈️ Thought Storms DISABLED');
+      }
     },
     status: () => {
+      if (!consciousnessLayer.debugMode) return;
       console.log('%c--- AI CONSCIOUSNESS 2.0 STATUS ---', 'color: #00ffff');
       console.log(`Enabled: ${consciousnessLayer.config.enabled}`);
       const state = consciousnessLayer.getConsciousnessState?.() || {};
@@ -2769,6 +2795,8 @@ export function setupAIConsciousnessConsoleAPI(consciousnessLayer) {
     }
   };
   
-  console.log('%c✓ conscious API ready (v2.0 with Emergent Storms)', 'color: #00ff00; font-weight: bold;');
-  console.log('Commands: conscious.enable(), disable(), setIntensity(0-1), setParticleDensity(0-1), enableStorms(), disableStorms(), debug(), status()');
+  if (consciousnessLayer.debugMode) {
+    console.log('%c✓ conscious API ready (v2.0 with Emergent Storms)', 'color: #00ff00; font-weight: bold;');
+    console.log('Commands: conscious.enable(), disable(), setIntensity(0-1), setParticleDensity(0-1), enableStorms(), disableStorms(), debug(), status()');
+  }
 }
