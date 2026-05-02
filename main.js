@@ -423,7 +423,16 @@ function ensureAudioToggleCommands() {
                 : true;
         return window.setAudioEnabled?.(!currentEnabled);
     };
-}
+
+        const startedAt = performance.now();
+        try {
+            return callback(...args);
+        } finally {
+            timingRegistry.record(label, performance.now() - startedAt);
+        }
+
+    ensureAudioToggleCommands();
+    };
 
 if (typeof window !== 'undefined') {
     // Link growth reactivation defaults

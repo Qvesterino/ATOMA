@@ -785,7 +785,9 @@ export class AtomaAudioSystem {
             frequency: 0.2,
             baseFrequency: 300,
             octaves: 2
-        }).connect(this.masterReverb).start();
+        });
+        this.synergyFilter.connect(this.masterReverb);
+        this.synergyFilter.start();
         this.synergySynth.disconnect();
         this.synergySynth.connect(this.synergyFilter);
 
@@ -937,7 +939,13 @@ export class AtomaAudioSystem {
         }
 
         // Dramaturgy spatial panner — routes event synths through position-aware panning
-        this._dramaturgyPanner = new Tone.Panner(0).connect(this.masterReverb);
+        // FIX: Tone.Panner removed in Tone.js v14+; replaced with Tone.Panner3D
+        this._dramaturgyPanner = new Tone.Panner3D({
+            panningModel: 'equalpower',
+            positionX: 0,
+            positionY: 0,
+            positionZ: 0
+        }).connect(this.masterReverb);
         this._dramaturgySpatialOrigin = null; // { x, y, z } or null
         this._dramaturgyCamera = null;
         this._dramaturgyRoutingActive = false;
@@ -1425,11 +1433,11 @@ export class AtomaAudioSystem {
     _routeDramaturgySpatial(panValue) {
         if (this._dramaturgyRoutingActive) {
             // Already routed — just update pan
-            this._dramaturgyPanner.pan.value = panValue;
+            this._dramaturgyPanner.positionX.value = panValue;
             return;
         }
 
-        this._dramaturgyPanner.pan.value = panValue;
+        this._dramaturgyPanner.positionX.value = panValue;
 
         // Route event synths through panner
         try {
