@@ -15,10 +15,12 @@ import { ATOMAColorPalette } from './Engine/Visual/ATOMAColorPalette.js';
  */
 
 export class AmbientEntityManager {
-  constructor(scene, environmentRoot, camera) {
+  constructor(scene, environmentRoot, camera, frameScheduler = null, options = {}) {
     this.scene = scene;
     this.root = environmentRoot || scene; // fallback to scene for backward compatibility
     this.camera = camera;
+    this.frameScheduler = frameScheduler;
+    this.debug = options.debug || false;
     
     // Registry for all entities
     this.registry = new AmbientEntityRegistry();
@@ -188,7 +190,9 @@ export class AmbientEntityManager {
    * Main update loop
    */
   update(deltaTime) {
-    if (this.frameScheduler?.shouldRunVisual?.() === false) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
     
     // Phase B pilot: mood/interpretation at ~4 Hz, ambient motion/visuals remain 60 Hz (mirrors weatherPack gating)
     this.interpretationAccumulator += deltaTime;

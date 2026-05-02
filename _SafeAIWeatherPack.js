@@ -158,12 +158,15 @@ const WEATHER_BACKGROUND_ORDER = VisualHierarchyRegistry.getRenderOrder(VisualHi
 const WEATHER_RENDER_ORDER = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_OVERLAY);
 
 export class SafeAIWeatherPack {
-  constructor(scene, worldRoot, environmentRoot, camera, sharedAssets = null) {
+  constructor(scene, worldRoot, environmentRoot, camera, sharedAssets = null, options = {}) {
     this.scene = scene;
     this.worldRoot = worldRoot || scene;
     this.environmentRoot = environmentRoot || this.worldRoot;
     this.camera = camera;
     this.sharedAssets = sharedAssets ?? null;
+    this.frameScheduler = options.frameScheduler || null;
+    this.debugMode = options.debug || false;
+    this.enabled = true;
     this.root = new THREE.Group();
     this.root.renderOrder = WEATHER_BACKGROUND_ORDER;
     this.root.userData = {
@@ -1218,6 +1221,13 @@ export class SafeAIWeatherPack {
    * Main update loop (called once per frame)
    */
   update(deltaTime, legendaryPack, linkingSystem, evolutionManager, worldEvents, worldMoodBias) {
+    if (!this.enabled) return;
+    
+    // FrameScheduler gate
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
+    
     this._ensureResidueCouplingSubscription();
     this.animationTime += deltaTime;
     this.windPhase += deltaTime;

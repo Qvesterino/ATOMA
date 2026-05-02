@@ -53,11 +53,13 @@
 import * as THREE from 'three';
 
 export class RecursiveGlyphMessaging4_0 {
-  constructor(scene, worldRoot, semanticGlyphAI) {
+  constructor(scene, worldRoot, semanticGlyphAI, options = {}) {
     this.scene = scene;
     this.worldRoot = worldRoot;
     this.semanticGlyphAI = semanticGlyphAI;
     this.linkedGlyphMessaging = null;
+    this.frameScheduler = options.frameScheduler || null;
+    this.debugMode = options.debug || false;
     const attachRoot = worldRoot || scene;
     
     // Enable/disable
@@ -161,6 +163,9 @@ export class RecursiveGlyphMessaging4_0 {
       spiral: null
     };
     
+    // Track dissolve timeouts for cleanup
+    this._dissolveTimeouts = [];
+    
     this.initializeGlyphShapes();
   }
   
@@ -219,7 +224,9 @@ export class RecursiveGlyphMessaging4_0 {
     
     if (this.linkedGlyphMessaging) {
       this.linkedGlyphMessaging.setRecursiveGlyphMessaging?.(this);
-      console.log('✓ RecursiveGlyphMessaging4_0 linked to LinkedGlyphMessaging3_0');
+      if (this.debugMode) {
+        console.log('✓ RecursiveGlyphMessaging4_0 linked to LinkedGlyphMessaging3_0');
+      }
     }
     
     return this;
@@ -870,6 +877,11 @@ export class RecursiveGlyphMessaging4_0 {
   update(deltaTime, aiNodes, linkingSystem) {
     if (!this.enabled || !linkingSystem) return;
     
+    // FrameScheduler gate
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
+    
     const startTime = performance.now();
     
     // Throttle updates
@@ -1045,13 +1057,14 @@ export class RecursiveGlyphMessaging4_0 {
       }
     }
     
-    // Schedule removal
-    setTimeout(() => {
+    // Schedule removal (track for cleanup)
+    const timeoutId = setTimeout(() => {
       for (const mesh of chain.meshes) {
-        this.chainContainer.remove(mesh);
+        this.chainContainer?.remove(mesh);
       }
       chain.meshes = [];
     }, 500);
+    this._dissolveTimeouts.push(timeoutId);
   }
   
   /**
@@ -1087,6 +1100,12 @@ export class RecursiveGlyphMessaging4_0 {
    * Clean up on world transition
    */
   cleanup() {
+    // Cancel all pending dissolve timeouts
+    for (const timeoutId of this._dissolveTimeouts) {
+      clearTimeout(timeoutId);
+    }
+    this._dissolveTimeouts = [];
+    
     this.clearAllChains();
     this.chainContainer.clear();
   }
@@ -1111,6 +1130,7 @@ export class RecursiveGlyphMessaging4_0 {
    * Debug: Print status report
    */
   printStatusReport() {
+    if (!this.debugMode) return;
     console.log('═══════════════════════════════════════════════════════════');
     console.log('✓ RECURSIVE GLYPH MESSAGING 4.0 — RECURSIVE MEANING CHAINS');
     console.log('═══════════════════════════════════════════════════════════');
@@ -1153,6 +1173,12 @@ export class RecursiveGlyphMessaging4_0 {
   }
 
   dispose() {
+    // Cancel all pending dissolve timeouts
+    for (const timeoutId of this._dissolveTimeouts) {
+      clearTimeout(timeoutId);
+    }
+    this._dissolveTimeouts = [];
+    
     this.cleanup();
 
     this.root?.traverse(obj => {

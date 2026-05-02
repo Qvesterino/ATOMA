@@ -27,9 +27,11 @@ import VisualTime from './src/time/VisualTime.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class AtomaGlyphSystem4_0 {
-  constructor(scene, camera) {
+  constructor(scene, camera, options = {}) {
     this.scene = scene;
     this.camera = camera;
+    this.debug = options.debug || false;
+    this.maxGlyphsPerFrame = options.maxGlyphsPerFrame || 50;
     
     // Master glyph container
     this.glyphContainer = new THREE.Group();
@@ -134,10 +136,19 @@ export class AtomaGlyphSystem4_0 {
     this.clusterSyncDuration = 1.5; // seconds
     this.lastClusterCheck = 0;
     
-    console.log('✓ ATOMA Glyph System 4.0 (Animated Meaning Edition) initialized');
+    if (this.debug) {
+      console.log('✓ ATOMA Glyph System 4.0 (Animated Meaning Edition) initialized');
+    }
   }
 
   dispose() {
+    // Cancel all pending fade-out animations
+    if (this._pendingAnimations) {
+      for (const rafId of this._pendingAnimations.values()) {
+        cancelAnimationFrame(rafId);
+      }
+      this._pendingAnimations.clear();
+    }
     const root = this.root || this.glyphContainer;
     if (!root) return;
     root.traverse((obj) => {
@@ -152,6 +163,9 @@ export class AtomaGlyphSystem4_0 {
         }
       }
     });
+    if (root.parent) {
+      root.parent.remove(root);
+    }
   }
   
   // ============================================================
@@ -1654,14 +1668,24 @@ export class AtomaGlyphSystem4_0 {
       this.lastClusterCheck = 0;
     }
     
-    // Update all active glyphs
+    // Update all active glyphs (budget-capped)
+    let glyphsProcessed = 0;
     for (const [nodeId, glyphData] of this.glyphRegistry) {
+      if (glyphsProcessed >= this.maxGlyphsPerFrame) break;
       const { node, glyphGroup, glyphType } = glyphData;
       
       if (!node || !glyphGroup || !glyphGroup.parent) {
         this.disposeGlyph(nodeId);
         continue;
       }
+      
+      // Dead-node guard
+      if (node.userData?.disposed || node.userData?.isAlive === false) {
+        this.disposeGlyph(nodeId);
+        continue;
+      }
+      
+      glyphsProcessed++;
       
       const context = this.analyzeContext(node, nodeId);
       const animState = this.animationState.get(nodeId);
@@ -1727,6 +1751,12 @@ export class AtomaGlyphSystem4_0 {
     
     const { glyphGroup } = glyphData;
     
+    // Cancel any pending fade-out animation for this node
+    if (this._pendingAnimations?.has(nodeId)) {
+      cancelAnimationFrame(this._pendingAnimations.get(nodeId));
+      this._pendingAnimations.delete(nodeId);
+    }
+    
     const fadeOutDuration = 0.4;
     let elapsed = 0;
     
@@ -1748,20 +1778,30 @@ export class AtomaGlyphSystem4_0 {
         );
       }
       
-      if (progress < 1.0) {
-        requestAnimationFrame(animateOut);
+      if (progress < 1.0 && this._pendingAnimations?.has(nodeId)) {
+        const rafId = requestAnimationFrame(animateOut);
+        this._pendingAnimations.set(nodeId, rafId);
       } else {
+        this._pendingAnimations?.delete(nodeId);
         this.disposeGlyph(nodeId);
       }
     };
     
-    animateOut();
+    const initialRafId = requestAnimationFrame(animateOut);
+    if (!this._pendingAnimations) this._pendingAnimations = new Map();
+    this._pendingAnimations.set(nodeId, initialRafId);
   }
   
   /**
    * Dispose glyph completely
    */
   disposeGlyph(nodeId) {
+    // Cancel any pending fade-out animation
+    if (this._pendingAnimations?.has(nodeId)) {
+      cancelAnimationFrame(this._pendingAnimations.get(nodeId));
+      this._pendingAnimations.delete(nodeId);
+    }
+    
     const glyphData = this.glyphRegistry.get(nodeId);
     if (!glyphData) return;
     
@@ -1818,7 +1858,9 @@ export class AtomaGlyphSystem4_0 {
       this.corruptionDimmingConfig.minOpacityFactor = Math.max(0, Math.min(1, config.minOpacityFactor));
     }
     
-    console.log('✓ Corruption glyph dimming config updated:', this.corruptionDimmingConfig);
+    if (this.debug) {
+      console.log('✓ Corruption glyph dimming config updated:', this.corruptionDimmingConfig);
+    }
   }
   
   /**
@@ -1848,6 +1890,7 @@ export class AtomaGlyphSystem4_0 {
    * Print debug info
    */
   printStatus() {
+    if (!this.debug) return;
     const status = this.getStatus();
     console.group('🌈 ATOMA Glyph System 4.0 (Animated Meaning Edition) Status');
     console.log(`Active Glyphs: ${status.activeGlyphs}`);
@@ -1911,7 +1954,9 @@ export class AtomaGlyphSystem4_0 {
       removedCount++;
     });
     
-    console.log(`✓ Removed ${removedCount} legacy cyan hexagon glyphs`);
+    if (this.debug) {
+      console.log(`✓ Removed ${removedCount} legacy cyan hexagon glyphs`);
+    }
     return removedCount;
   }
   
@@ -1919,6 +1964,13 @@ export class AtomaGlyphSystem4_0 {
    * Cleanup all glyphs
    */
   cleanup() {
+    // Cancel all pending fade-out animations
+    if (this._pendingAnimations) {
+      for (const rafId of this._pendingAnimations.values()) {
+        cancelAnimationFrame(rafId);
+      }
+      this._pendingAnimations.clear();
+    }
     for (const nodeId of this.glyphRegistry.keys()) {
       this.disposeGlyph(nodeId);
     }
@@ -1934,6 +1986,8 @@ export class AtomaGlyphSystem4_0 {
       lastUpdateTime: 0
     };
     
-    console.log('✓ ATOMA Glyph System 4.0 cleaned up');
+    if (this.debug) {
+      console.log('✓ ATOMA Glyph System 4.0 cleaned up');
+    }
   }
 }

@@ -49,11 +49,14 @@ function normalizeSemanticValue(value, fallback = 0) {
 }
 
 export class GlyphFusionOverlay4_1 {
-  constructor(scene, worldRoot, semanticGlyphAI, semanticBus) {
+  constructor(scene, worldRoot, semanticGlyphAI, semanticBus, options = {}) {
     this.scene = scene;
     this.worldRoot = worldRoot;
     this.semanticGlyphAI = semanticGlyphAI;
     this.semanticBus = semanticBus;
+    this.debug = options.debug || false;
+    this.frameScheduler = options.frameScheduler || null;
+    this.maxFusionsPerFrame = options.maxFusionsPerFrame || 50;
     const attachRoot = worldRoot || scene;
     
     // Master container for all fusion glyphs
@@ -97,6 +100,9 @@ export class GlyphFusionOverlay4_1 {
       pulseFrequency: 2.0          // Hz
     };
     
+    // Pending timeout tracking (for boostFusionIntensity leak prevention)
+    this._pendingTimeouts = new Map(); // nodeId → timeoutId
+    
     // Enable/disable flag
     this.enabled = true;
     
@@ -127,7 +133,9 @@ export class GlyphFusionOverlay4_1 {
     
     this.initializePools();
     
-    console.log('✓ Glyph Fusion Overlay 4.1 initialized');
+    if (this.debug) {
+      console.log('✓ Glyph Fusion Overlay 4.1 initialized');
+    }
   }
   
   /**
@@ -355,6 +363,9 @@ export class GlyphFusionOverlay4_1 {
    */
   update(dt) {
     if (!this.enabled) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
     
     const startTime = performance.now();
     
@@ -370,7 +381,17 @@ export class GlyphFusionOverlay4_1 {
    * Semantic state is updated via events
    */
   updateSubtleAnimations(dt) {
+    let processed = 0;
     for (const [nodeId, fusionData] of this.nodeFusionMap) {
+      if (processed >= this.maxFusionsPerFrame) break;
+      
+      // Dead-node guard
+      if (fusionData.node?.userData?.disposed || fusionData.node?.userData?.isAlive === false) {
+        this.removeFusionGlyph(nodeId);
+        continue;
+      }
+      
+      processed++;
       this.updateFusionFadeInAnimation(nodeId, dt);
       this.updateFusionRotationAnimation(nodeId, dt);
       this.updateFusionScaleBreathing(nodeId, dt);
@@ -823,6 +844,12 @@ export class GlyphFusionOverlay4_1 {
    * Remove fusion glyph from a node
    */
   removeFusionGlyph(nodeId) {
+    // Cancel any pending boost timeout for this node
+    if (this._pendingTimeouts?.has(nodeId)) {
+      clearTimeout(this._pendingTimeouts.get(nodeId));
+      this._pendingTimeouts.delete(nodeId);
+    }
+    
     const fusionData = this.nodeFusionMap.get(nodeId);
     if (!fusionData) return;
     
@@ -851,6 +878,14 @@ export class GlyphFusionOverlay4_1 {
    * Clean up all fusion glyphs
    */
   cleanup() {
+    // Cancel all pending boost timeouts
+    if (this._pendingTimeouts) {
+      for (const timeoutId of this._pendingTimeouts.values()) {
+        clearTimeout(timeoutId);
+      }
+      this._pendingTimeouts.clear();
+    }
+    
     const nodeIds = Array.from(this.nodeFusionMap.keys());
     for (const nodeId of nodeIds) {
       this.removeFusionGlyph(nodeId);
@@ -863,6 +898,7 @@ export class GlyphFusionOverlay4_1 {
    * Debug: Show fusion glyph status for a node
    */
   debugFusionGlyph(nodeIndex) {
+    if (!this.debug) return;
     const fusionData = this.nodeFusionMap.get(nodeIndex);
     if (!fusionData) {
       console.log(`No fusion glyph for node ${nodeIndex}`);
@@ -882,6 +918,7 @@ export class GlyphFusionOverlay4_1 {
    * Debug: Show overall fusion glyph statistics
    */
   debugFusionStats() {
+    if (!this.debug) return;
     console.log('=== GLYPH FUSION OVERLAY 4.1 STATISTICS ===');
     console.log(`Total fusion glyphs created: ${this.stats.totalFusionGlyphs}`);
     console.log(`Active fusion glyphs: ${this.stats.activeFusionGlyphs}`);
@@ -996,14 +1033,26 @@ export class GlyphFusionOverlay4_1 {
     
     if (!fusionData || !animState) return;
     
+    // Cancel any existing pending timeout for this node
+    if (this._pendingTimeouts?.has(nodeId)) {
+      clearTimeout(this._pendingTimeouts.get(nodeId));
+    }
+    
     // Temporarily boost fade phase
     const originalTarget = animState.currentFadeTarget;
     animState.currentFadeTarget = Math.min(1, originalTarget * boostFactor);
     
-    // Restore after duration
-    setTimeout(() => {
-      animState.currentFadeTarget = originalTarget;
+    // Restore after duration (tracked for cancellation)
+    const timeoutId = setTimeout(() => {
+      this._pendingTimeouts?.delete(nodeId);
+      if (this.animationState.has(nodeId)) {
+        const currentAnimState = this.animationState.get(nodeId);
+        currentAnimState.currentFadeTarget = originalTarget;
+      }
     }, duration * 1000);
+    
+    if (!this._pendingTimeouts) this._pendingTimeouts = new Map();
+    this._pendingTimeouts.set(nodeId, timeoutId);
   }
   
   /**
@@ -1305,5 +1354,6 @@ export class GlyphFusionOverlay4_1 {
     this.nodeFusionMap.clear();
     this.animationState.clear();
     this.materialPools.clear();
+    this._pendingTimeouts?.clear();
   }
 }

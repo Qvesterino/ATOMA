@@ -47,8 +47,10 @@
 import * as THREE from 'three';
 
 export class LinkedGlyphSynchronization1_0 {
-  constructor(scene) {
+  constructor(scene, options = {}) {
     this.scene = scene;
+    this.frameScheduler = options.frameScheduler || null;
+    this.debugMode = options.debug || false;
     
     // Enable/disable sync
     this.enabled = true;
@@ -104,13 +106,15 @@ export class LinkedGlyphSynchronization1_0 {
     this.debugMode = false;
     this.debugSyncId = null;
     
-    console.log('✓ Linked Glyph Synchronization 1.0 initialized');
-    console.log('  - Coordinates glyph animations across linked nodes');
-    console.log('  - Perfect sync: high synergy (≥70)');
-    console.log('  - Medium sync: medium synergy (30-69)');
-    console.log('  - Loose sync: low synergy (<30)');
-    console.log('  - Corruption adds phase inversion');
-    console.log('  - Use debugGlyphSync() to inspect');
+    if (this.debugMode) {
+      console.log('✓ Linked Glyph Synchronization 1.0 initialized');
+      console.log('  - Coordinates glyph animations across linked nodes');
+      console.log('  - Perfect sync: high synergy (≥70)');
+      console.log('  - Medium sync: medium synergy (30-69)');
+      console.log('  - Loose sync: low synergy (<30)');
+      console.log('  - Corruption adds phase inversion');
+      console.log('  - Use debugGlyphSync() to inspect');
+    }
   }
 
   _resolveLinkEndpoints(link, sourceNode = null, targetNode = null) {
@@ -268,6 +272,9 @@ export class LinkedGlyphSynchronization1_0 {
    */
   update(deltaTime, aiNodes, linkingSystem) {
     if (!this.enabled || !aiNodes) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
     
     const startTime = performance.now();
     
@@ -533,10 +540,12 @@ export class LinkedGlyphSynchronization1_0 {
    */
   setEnabled(enabled) {
     this.enabled = enabled;
-    if (enabled) {
-      console.log('✓ Linked Glyph Synchronization enabled');
-    } else {
-      console.log('✗ Linked Glyph Synchronization disabled');
+    if (this.debugMode) {
+      if (enabled) {
+        console.log('✓ Linked Glyph Synchronization enabled');
+      } else {
+        console.log('✗ Linked Glyph Synchronization disabled');
+      }
     }
   }
   
@@ -554,7 +563,13 @@ export class LinkedGlyphSynchronization1_0 {
     this.linkSyncState.clear();
     this.nodePhaseAlignment.clear();
     this.stats.totalFrames = 0;
-    console.log('✓ Linked Glyph Synchronization cleaned up');
+    if (this.debugMode) {
+      console.log('✓ Linked Glyph Synchronization cleaned up');
+    }
+  }
+
+  dispose() {
+    this.cleanup();
   }
   
   /**
@@ -578,6 +593,7 @@ export class LinkedGlyphSynchronization1_0 {
    * Print detailed status report
    */
   printStatusReport() {
+    if (!this.debugMode) return;
     const stats = this.getStatistics();
     console.group('═══ LINKED GLYPH SYNCHRONIZATION 1.0 STATUS ═══');
     console.log(`Status: ${stats.enabled ? '🔗 ACTIVE' : '⊗ DISABLED'}`);
@@ -596,11 +612,15 @@ export class LinkedGlyphSynchronization1_0 {
    * Call this if sync gets out of phase
    */
   resyncAllGlyphs() {
-    console.log('🔄 Resyncing all linked glyphs...');
+    if (this.debugMode) {
+      console.log('🔄 Resyncing all linked glyphs...');
+    }
     this.lastSyncUpdateTime = 0; // Force immediate sync
     this.linkSyncState.forEach((syncData) => {
       syncData.updateCounter = 0;
     });
-    console.log('✓ All glyphs resynced');
+    if (this.debugMode) {
+      console.log('✓ All glyphs resynced');
+    }
   }
 }

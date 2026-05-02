@@ -66,7 +66,7 @@
 import * as THREE from 'three';
 
 export class AINarrativePatterns6_0 {
-  constructor(scene, linkedGlyphMessaging, recursiveMessaging, thoughtStorms, semanticAI) {
+  constructor(scene, linkedGlyphMessaging, recursiveMessaging, thoughtStorms, semanticAI, options = {}) {
     this.scene = scene;
     this.linkedGlyph = linkedGlyphMessaging;
     this.recursiveMessaging = recursiveMessaging;
@@ -75,6 +75,9 @@ export class AINarrativePatterns6_0 {
     
     // Enabled flag
     this.enabled = true;
+    
+    // Debug flag — no console spam unless explicitly enabled
+    this.debug = options.debug || false;
     
     // Cluster-level narrative states (clusterId → narrativeState)
     this.narrativeStates = new Map();
@@ -783,11 +786,12 @@ export class AINarrativePatterns6_0 {
     let synergy = 0, harmony = 0, corruption = 0, stability = 0, consciousness = 0;
     
     for (const node of cluster.nodes) {
-      synergy += node.synergy || 0;
-      harmony += node.harmony || 0;
-      corruption += node?.userData?.metrics?.corruption ?? node?.userData?.corruption ?? 0;
-      stability += node.stability || 0;
-      consciousness += node.consciousness || 0;
+      const metrics = node?.userData?.metrics || {};
+      synergy += metrics.synergy ?? node.synergy ?? 0;
+      harmony += metrics.harmony ?? node.harmony ?? 0;
+      corruption += metrics.corruption ?? node?.userData?.corruption ?? 0;
+      stability += metrics.stability ?? node.stability ?? 0;
+      consciousness += metrics.consciousness ?? node.consciousness ?? 0;
     }
     
     const count = cluster.nodes.length || 1;
@@ -1179,7 +1183,9 @@ export class AINarrativePatterns6_0 {
    */
   toggleDebugVisualization() {
     this.debugContainer.visible = !this.debugContainer.visible;
-    console.log(`Narrative debug visualization: ${this.debugContainer.visible ? 'ON' : 'OFF'}`);
+    if (this.debug) {
+      console.log(`Narrative debug visualization: ${this.debugContainer.visible ? 'ON' : 'OFF'}`);
+    }
   }
   
   /**
@@ -1212,16 +1218,21 @@ export class AINarrativePatterns6_0 {
     this.motifHistory.clear();
     this.episodeTimings.clear();
     this.interpretationAccumulator = 0; // Phase B pilot: avoid delayed first evaluation after reset
-    console.log('✓ All narratives reset');
+    if (this.debug) {
+      console.log('✓ All narratives reset');
+    }
   }
   
   resetForWorldSwitch() {
+    this._disposeDebugContainer();
     this.cleanup();
     this.interpretationAccumulator = this.interpretationInterval;
     if (this.debugContainer && !this.debugContainer.parent && this.scene) {
       this.scene.add(this.debugContainer);
     }
-    console.log('[AINarrativePatterns6_0] resetForWorldSwitch');
+    if (this.debug) {
+      console.log('[AINarrativePatterns6_0] resetForWorldSwitch');
+    }
   }
   
   /**
@@ -1231,7 +1242,38 @@ export class AINarrativePatterns6_0 {
     this.narrativeStates.clear();
     this.motifHistory.clear();
     this.episodeTimings.clear();
-    this.debugContainer.clear();
+    this._disposeDebugContainer();
     this.interpretationAccumulator = 0; // Phase B pilot: avoid delayed evaluation after cleanup
+    if (this.debug) {
+      console.log('[AINarrativePatterns6_0] cleanup complete');
+    }
+  }
+
+  /**
+   * Dispose debug container and its children from scene
+   */
+  _disposeDebugContainer() {
+    if (!this.debugContainer) return;
+    
+    // Remove from scene if attached
+    if (this.debugContainer.parent) {
+      this.debugContainer.parent.remove(this.debugContainer);
+    }
+    
+    // Dispose geometries and materials
+    this.debugContainer.traverse((child) => {
+      if (child.geometry) {
+        child.geometry.dispose();
+      }
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => m.dispose());
+        } else {
+          child.material.dispose();
+        }
+      }
+    });
+    
+    this.debugContainer.clear();
   }
 }

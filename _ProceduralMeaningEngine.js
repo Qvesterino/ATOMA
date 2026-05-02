@@ -32,8 +32,10 @@
 import * as THREE from 'three';
 
 export class ProceduralMeaningEngine {
-  constructor(scene) {
+  constructor(scene, options = {}) {
     this.scene = scene;
+    this.frameScheduler = options.frameScheduler || null;
+    this.debugMode = options.debug || false;
     
     // Registry: nodeId → { node, glyphGroup, glyphType, fadeTimer }
     this.glyphRegistry = new Map();
@@ -80,7 +82,9 @@ export class ProceduralMeaningEngine {
     // Initialize geometry pools
     this.initializeGeometryPools();
     
-    console.log('✓ Procedural Meaning Engine 1.0 initialized');
+    if (this.debugMode) {
+      console.log('✓ Procedural Meaning Engine 1.0 initialized');
+    }
   }
   
   /**
@@ -123,11 +127,11 @@ export class ProceduralMeaningEngine {
     this.scene.traverse((child) => {
       if (child.userData) {
         // Old 2D hex detection
-        if (child.userData.glyphLayer3 || 
+        if (child.userData.glyphLayer3 ||
             child.userData.isOldHexGlyph ||
-            (child.geometry && 
+            (child.geometry &&
              child.geometry.type === 'PlaneGeometry' &&
-             child.material && 
+             child.material &&
              child.material.color &&
              child.material.color.getHex() === 0x00FFFF)) {
           toRemove.push(child);
@@ -154,7 +158,7 @@ export class ProceduralMeaningEngine {
       }
     });
     
-    if (toRemove.length > 0) {
+    if (toRemove.length > 0 && this.debugMode) {
       console.log(`✓ Removed ${toRemove.length} legacy cyan hexagon glyphs`);
     }
   }
@@ -712,7 +716,16 @@ export class ProceduralMeaningEngine {
     }
     
     this.glyphRegistry.clear();
-    console.log('✓ Procedural Meaning Engine cleaned up');
+    if (this.debugMode) {
+      console.log('✓ Procedural Meaning Engine cleaned up');
+    }
+  }
+  
+  /**
+   * Dispose all resources (API completeness wrapper)
+   */
+  dispose() {
+    this.cleanup();
   }
   
   /**
@@ -720,6 +733,11 @@ export class ProceduralMeaningEngine {
    */
   update(dt, nodes, semanticGlyphAI) {
     if (!this.enabled) return;
+    
+    // FrameScheduler gate
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
     
     const startTime = performance.now();
     
@@ -776,6 +794,7 @@ export class ProceduralMeaningEngine {
    * Debug function - inspect all glyphs
    */
   debugRemoveLegacyHex() {
+    if (!this.debugMode) return;
     console.log('🔍 Scanning for legacy 2D cyan hexagon glyphs...');
     this.removeLegacyHexagons();
     console.log(`✓ Cleanup complete`);

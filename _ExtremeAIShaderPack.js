@@ -18,11 +18,13 @@ import * as THREE from 'three';
  */
 
 export class ExtremeAIShaderPack {
-  constructor(semanticBus = null) {
+  constructor(semanticBus = null, options = {}) {
     this.nodeMap = new Map(); // node → shader data
     this.nodeIdMap = new Map(); // nodeId(string) → node
     this.time = 0;
     this.enabled = true;
+    this.debug = options.debug || false;
+    this.frameScheduler = options.frameScheduler || null;
 
     // Shared shader cache to reduce compilation time
     this.shaderCache = new Map();
@@ -35,7 +37,9 @@ export class ExtremeAIShaderPack {
     this._unsubscribeMetricUpdated = null;
     this._setupMetricSubscription();
 
-    console.log('[ExtremeAIShaderPack] Initialized - 12 archetype shaders ready');
+    if (this.debug) {
+      console.log('[ExtremeAIShaderPack] Initialized - 12 archetype shaders ready');
+    }
   }
 
   _setupMetricSubscription() {
@@ -113,7 +117,7 @@ export class ExtremeAIShaderPack {
 
       return true;
     } catch (err) {
-      console.error('[ExtremeAIShaderPack] Error registering node:', err);
+      if (this.debug) console.error('[ExtremeAIShaderPack] Error registering node:', err);
       return false;
     }
   }
@@ -149,7 +153,9 @@ export class ExtremeAIShaderPack {
    */
   update(deltaTime) {
     if (!this.enabled || !this.nodeMap.size) return;
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
     
     this.time += deltaTime;
 
@@ -1003,7 +1009,7 @@ export class ExtremeAIShaderPack {
    */
   setEnabled(enabled) {
     this.enabled = !!enabled;
-    console.log(`[ExtremeAIShaderPack] ${enabled ? 'Enabled' : 'Disabled'}`);
+    if (this.debug) console.log(`[ExtremeAIShaderPack] ${enabled ? 'Enabled' : 'Disabled'}`);
   }
 
   /**
@@ -1022,6 +1028,7 @@ export class ExtremeAIShaderPack {
    * Debug output
    */
   debugLog() {
+    if (!this.debug) return;
     const stats = this.getStats();
     console.group('[ExtremeAIShaderPack] Debug Stats');
     console.log('Total Shaded Nodes:', stats.totalShadedNodes);
@@ -1040,11 +1047,31 @@ export class ExtremeAIShaderPack {
       }
     }
 
+    // Dispose all tracked materials and detach from nodes
+    for (const [node, shaderData] of this.nodeMap.entries()) {
+      if (shaderData.materials) {
+        shaderData.materials.forEach(mat => {
+          if (mat && typeof mat.dispose === 'function') {
+            mat.dispose();
+          }
+        });
+      }
+      // Restore original materials on node.visualGroup if possible
+      if (node && node.visualGroup) {
+        node.visualGroup.traverse(child => {
+          if (child.userData?.isExtremVFX && child.userData._originalMaterial) {
+            child.material = child.userData._originalMaterial;
+          }
+        });
+      }
+    }
+
     this._unsubscribeMetricUpdated = null;
     this._metricUpdatedHandler = null;
     this._eventDrivenEnabled = false;
     this.dirtyNodes.clear();
     this.nodeIdMap.clear();
+    this.nodeMap.clear();
   }
 }
 
@@ -1052,15 +1079,20 @@ export class ExtremeAIShaderPack {
  * INTEGRATION HELPER
  * Call this to attach shader pack to game instance
  */
-export function attachExtremeShaderPackToGame(gameInstance) {
+export function attachExtremeShaderPackToGame(gameInstance, options = {}) {
   if (!gameInstance) {
     console.warn('[attachExtremeShaderPackToGame] Invalid gameInstance');
     return;
   }
 
   try {
-    gameInstance.extremeAIShaderPack = new ExtremeAIShaderPack();
-    console.log('[attachExtremeShaderPackToGame] Successfully attached ExtremeAIShaderPack');
+    gameInstance.extremeAIShaderPack = new ExtremeAIShaderPack(
+      gameInstance.semanticBus || null,
+      options
+    );
+    if (options.debug) {
+      console.log('[attachExtremeShaderPackToGame] Successfully attached ExtremeAIShaderPack');
+    }
     return gameInstance.extremeAIShaderPack;
   } catch (err) {
     console.error('[attachExtremeShaderPackToGame] Error:', err);

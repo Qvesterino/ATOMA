@@ -19,9 +19,14 @@
  */
 
 export class AIEmotionalFeed3_1 {
-  constructor(aiNodes = null, aiThoughtStorms = null) {
+  constructor(aiNodes = null, aiThoughtStorms = null, frameScheduler = null, options = {}) {
     this.aiNodes = aiNodes;
     this.aiThoughtStorms = aiThoughtStorms;
+    this.frameScheduler = frameScheduler;
+    
+    // Enable/disable flag
+    this.enabled = options.enabled !== undefined ? options.enabled : true;
+    this.debug = options.debug || false;
     
     // Timing
     this.updateInterval = 0; // Will be randomized on each generation
@@ -157,7 +162,10 @@ export class AIEmotionalFeed3_1 {
    * Update - call from main loop
    */
   update(deltaTime) {
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (!this.enabled) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
     
     this.timeSinceUpdate += deltaTime;
     
@@ -208,7 +216,6 @@ export class AIEmotionalFeed3_1 {
       metrics.harmony = this.aiNodes.metrics.harmony || 0.5;
       metrics.stability = this.aiNodes.metrics.stability || 0.3;
       metrics.corruption = this.aiNodes.metrics.corruption || 0.2;
-      metrics.stability = this.aiNodes.metrics.stability || 0.6;
       metrics.load = this.aiNodes.metrics.load || 0.4;
     }
     
@@ -319,6 +326,16 @@ export class AIEmotionalFeed3_1 {
           this.feedElement.style.opacity = '0';
         }
       }, this.updateInterval * 1000 - 500);
+    }
+  }
+  
+  /**
+   * Enable/disable the feed
+   */
+  setEnabled(enabled) {
+    this.enabled = enabled;
+    if (this.debug) {
+      console.log(`AI Emotional Feed ${enabled ? 'enabled' : 'disabled'}`);
     }
   }
   

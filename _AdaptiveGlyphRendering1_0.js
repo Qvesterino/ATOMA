@@ -34,11 +34,14 @@ import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
 
 export class AdaptiveGlyphRendering1_0 {
-  constructor(scene, semanticBus = null) {
+  constructor(scene, semanticBus = null, options = {}) {
     this.scene = scene;
     
     // Enable/disable adaptivity
     this.enabled = true;
+    
+    // Debug flag — no console spam unless explicitly enabled
+    this.debug = options.debug || false;
     
     // Animation state per node (shared across glyphs)
     this.nodeAnimationState = new Map(); // nodeId → { baseScale, huePhase, motionPhase, etc }
@@ -70,7 +73,10 @@ export class AdaptiveGlyphRendering1_0 {
       pulseFromCorruption: 0.15,   // Phase distortion amplitude
       pulseSpeed: 0.8,             // Hz (slow)
       breathingFromHarmony: 0.08,  // Scale breathing amplitude
-      breathingSpeed: 1.2          // Hz
+      breathingSpeed: 1.2,         // Hz
+      
+      // Budget cap per frame to prevent spike on dense nodes
+      maxAdaptationsPerFrame: 200
     };
     
     // Statistics
@@ -91,7 +97,9 @@ export class AdaptiveGlyphRendering1_0 {
     this._unsubscribeMetricUpdated = null;
     this._setupMetricSubscription();
     
-    console.log('✓ Adaptive Glyph Rendering 1.0 initialized');
+    if (this.debug) {
+      console.log('✓ Adaptive Glyph Rendering 1.0 initialized');
+    }
   }
 
   _setupMetricSubscription() {
@@ -413,6 +421,7 @@ export class AdaptiveGlyphRendering1_0 {
     this.globalTime = currentGlyphTime;
     
     let processedCount = 0;
+    const maxAdaptations = this.config.maxAdaptationsPerFrame;
 
     let nodesToProcess = nodes;
     if (this._eventDrivenEnabled) {
@@ -436,6 +445,7 @@ export class AdaptiveGlyphRendering1_0 {
     
     nodesToProcess.forEach((node, nodeIndex) => {
       if (!node || !node.visualGroup) return;
+      if (node.userData?.disposed || node.userData?.isAlive === false) return;
       
       const nodeId = this.getNodeId(node, nodeIndex);
       if (!nodeId) return;
@@ -485,6 +495,10 @@ export class AdaptiveGlyphRendering1_0 {
             this.applyAdaptiveRotation(child.parent || child, glyphDelta, rotationSpeed, pulse);
             
             processedCount++;
+            if (processedCount >= maxAdaptations) {
+              // Budget exhausted for this frame
+              return;
+            }
           });
         }
       });
@@ -571,7 +585,9 @@ export class AdaptiveGlyphRendering1_0 {
    */
   setEnabled(enabled) {
     this.enabled = enabled;
-    console.log(`✓ Adaptive Glyph Rendering ${enabled ? 'enabled' : 'disabled'}`);
+    if (this.debug) {
+      console.log(`✓ Adaptive Glyph Rendering ${enabled ? 'enabled' : 'disabled'}`);
+    }
   }
 
   /**
@@ -659,6 +675,8 @@ export class AdaptiveGlyphRendering1_0 {
     this.dirtyNodes.clear();
     this.metricCache.clear();
     this.nodeAnimationState.clear();
-    console.log('✓ Adaptive Glyph Rendering cleaned up');
+    if (this.debug) {
+      console.log('✓ Adaptive Glyph Rendering cleaned up');
+    }
   }
 }

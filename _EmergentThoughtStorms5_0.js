@@ -51,11 +51,13 @@ import * as THREE from 'three';
 import { ATOMAColorPalette } from './Engine/Visual/ATOMAColorPalette.js';
 
 export class EmergentThoughtStorms5_0 {
-  constructor(scene, environmentRoot, recursiveGlyphMessaging, semanticGlyphAI) {
+  constructor(scene, environmentRoot, recursiveGlyphMessaging, semanticGlyphAI, options = {}) {
     this.scene = scene;
     this.root = environmentRoot || scene;
     this.recursiveGlyphMessaging = recursiveGlyphMessaging;
     this.semanticGlyphAI = semanticGlyphAI;
+    this.debug = options.debug || false;
+    this.frameScheduler = options.frameScheduler || null;
     
     // Enable/disable
     this.enabled = true;
@@ -606,6 +608,9 @@ export class EmergentThoughtStorms5_0 {
    */
   update(deltaTime, aiNodes, linkingSystem) {
     if (!this.enabled || !aiNodes || !linkingSystem) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
     
     const startTime = performance.now();
     
@@ -1379,10 +1384,13 @@ export class EmergentThoughtStorms5_0 {
       return;
     }
 
-    // Schedule removal
-    setTimeout(() => {
+    // Schedule removal with tracked timeout
+    const timeoutId = setTimeout(() => {
+      this._pendingTimeouts?.delete(timeoutId);
       this._removeStormMeshes(allMeshes);
     }, 300);
+    if (!this._pendingTimeouts) this._pendingTimeouts = new Set();
+    this._pendingTimeouts.add(timeoutId);
   }
 
   /**
@@ -1392,9 +1400,18 @@ export class EmergentThoughtStorms5_0 {
     for (const mesh of meshes) {
       if (mesh) {
         this.stormContainer.remove(mesh);
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach(m => m?.dispose?.());
+          } else {
+            mesh.material.dispose?.();
+          }
+        }
         if (mesh.userData?.geometryPoolKind === 'arc' && mesh.geometry) {
           this._releaseArcGeometry(mesh.geometry);
           mesh.geometry = null;
+        } else if (mesh.geometry && mesh.userData?.geometryPoolKind !== 'arc') {
+          mesh.geometry.dispose?.();
         }
       }
     }
@@ -1449,6 +1466,13 @@ export class EmergentThoughtStorms5_0 {
    * Clear all storms
    */
   clearAllStorms() {
+    // Cancel all pending dissolution timeouts
+    if (this._pendingTimeouts) {
+      for (const timeoutId of this._pendingTimeouts) {
+        clearTimeout(timeoutId);
+      }
+      this._pendingTimeouts.clear();
+    }
     for (const [clusterId, storms] of this.activeStorms.entries()) {
       for (const storm of storms) {
         this.dissolveStorm(storm, true);
@@ -1481,6 +1505,14 @@ export class EmergentThoughtStorms5_0 {
   cleanup() {
     this.clearAllStorms();
   }
+
+  dispose() {
+    this.cleanup();
+    if (this.stormContainer && this.stormContainer.parent) {
+      this.stormContainer.parent.remove(this.stormContainer);
+    }
+    this.stormContainer?.clear?.();
+  }
   
   /**
    * Get statistics
@@ -1500,6 +1532,7 @@ export class EmergentThoughtStorms5_0 {
    * Print status report
    */
   printStatusReport() {
+    if (!this.debug) return;
     console.log('═══════════════════════════════════════════════════════════');
     console.log('✓ EMERGENT AI THOUGHT STORMS 5.0 — SPECTACULAR COLLISIONS');
     console.log('═══════════════════════════════════════════════════════════');

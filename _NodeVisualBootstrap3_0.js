@@ -23,6 +23,7 @@ export class NodeVisualBootstrap3_0 {
   constructor(config = {}) {
     this.enabled = true;
     this.debugMode = config.debugMode || false;
+    this.frameScheduler = config.frameScheduler || null;
     
     // Fallback detection state
     this.frameMonitor = new Map(); // node → { framesSinceBoot, lastMaterial }
@@ -305,7 +306,9 @@ export class NodeVisualBootstrap3_0 {
    */
   setDebugMode(enabled) {
     this.debugMode = enabled;
-    console.log(`[NodeVisualBootstrap3_0] Debug mode: ${enabled ? 'ON' : 'OFF'}`);
+    if (this.debugMode) {
+      console.log(`[NodeVisualBootstrap3_0] Debug mode: ${enabled ? 'ON' : 'OFF'}`);
+    }
   }
 
   /**
@@ -313,7 +316,23 @@ export class NodeVisualBootstrap3_0 {
    */
   setEnabled(enabled) {
     this.enabled = enabled;
-    console.log(`[NodeVisualBootstrap3_0] Bootstrap: ${enabled ? 'ENABLED' : 'DISABLED'}`);
+    if (this.debugMode) {
+      console.log(`[NodeVisualBootstrap3_0] Bootstrap: ${enabled ? 'ENABLED' : 'DISABLED'}`);
+    }
+  }
+
+  /**
+   * Dispose all resources and clear state
+   */
+  dispose() {
+    this.frameMonitor.clear();
+    this.pendingPromises.clear();
+    this.systems = {
+      visuals: null,
+      profile: null,
+      shaders: null,
+      effects: null
+    };
   }
 }
 

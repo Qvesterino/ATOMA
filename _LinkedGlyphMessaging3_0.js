@@ -52,7 +52,7 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { getLinkCanonicalMetrics, getNodeCanonicalMetrics } from './SemanticMetricAdapter.js';
 
 export class LinkedGlyphMessaging3_0 {
-  constructor(scene, worldRoot, semanticGlyphAI) {
+  constructor(scene, worldRoot, semanticGlyphAI, options = {}) {
     this.scene = scene;
     this.worldRoot = worldRoot;
     this.semanticGlyphAI = semanticGlyphAI;
@@ -63,7 +63,8 @@ export class LinkedGlyphMessaging3_0 {
     
     // Enable/disable messaging
     this.enabled = true;
-    this.frameScheduler = null;
+    this.frameScheduler = options.frameScheduler || null;
+    this.debugMode = options.debug || false;
     
     // Active messages on links (linkId → messageArray)
     this.activeMessages = new Map();
@@ -1487,7 +1488,9 @@ export class LinkedGlyphMessaging3_0 {
    */
   update(deltaTime, aiNodes, linkingSystem) {
     if (!this.enabled || !aiNodes || !linkingSystem) return;
-    if (this.frameScheduler?.shouldRunVisual?.() === false) return;
+    if (this.frameScheduler && typeof this.frameScheduler.shouldRunVisual === 'function') {
+      if (!this.frameScheduler.shouldRunVisual()) return;
+    }
 
     // Throttle to ~30 Hz on the visual layer
     this._updateAccum += deltaTime;
@@ -1574,7 +1577,9 @@ export class LinkedGlyphMessaging3_0 {
     this.stats.linksActive = 0;
     this._updateAccum = 0;
     this.messageContainer.clear?.();
-    console.log('✓ Linked Glyph Messaging 3.0 cleaned up');
+    if (this.debugMode) {
+      console.log('✓ Linked Glyph Messaging 3.0 cleaned up');
+    }
   }
   
   /**
@@ -1657,13 +1662,17 @@ export class LinkedGlyphMessaging3_0 {
    * Clear all active messages (emergency cleanup)
    */
   clearAllMessages() {
-    console.log('Clearing all active glyph messages...');
+    if (this.debugMode) {
+      console.log('Clearing all active glyph messages...');
+    }
     this.activeMessages.forEach((messages) => {
       messages.forEach(msg => this.despawnMessage(msg));
     });
     this.activeMessages.clear();
     this.stats.messagesActive = 0;
-    console.log('All messages cleared');
+    if (this.debugMode) {
+      console.log('All messages cleared');
+    }
   }
 
   dispose() {

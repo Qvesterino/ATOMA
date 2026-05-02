@@ -30,10 +30,12 @@ import * as THREE from 'three';
  */
 
 export class AIThoughtStorms2_0 {
-  constructor(consciousnessGroup, linkingSystem, aiNodes = null) {
+  constructor(consciousnessGroup, linkingSystem, aiNodes = null, options = {}) {
     this.consciousnessGroup = consciousnessGroup;
     this.linkingSystem = linkingSystem;
     this.aiNodes = aiNodes;
+    this.debug = options.debug || false;
+    this.maxStormVisuals = options.maxStormVisuals || 10;
     
     // Create dedicated storm group (additive, non-destructive)
     this.stormGroup = new THREE.Group();
@@ -237,11 +239,8 @@ export class AIThoughtStorms2_0 {
         this.stormVisuals.synergyArcs.push(arc);
       }
       
-      // Accelerate pulse packets on this link temporarily
-      if (link.tempPulseBoost === undefined) {
-        link.tempPulseBoost = 1.5;
-        link.tempBoostLife = 2.0;
-      }
+      // NOTE: Link state mutation removed to preserve read-only contract.
+      // If pulse boost is needed, it should be handled by a dedicated link modulation system.
     }
   }
   
@@ -375,7 +374,7 @@ export class AIThoughtStorms2_0 {
       
       return line;
     } catch (e) {
-      console.error('Arc creation error:', e);
+      if (this.debug) console.error('Arc creation error:', e);
       return null;
     }
   }
@@ -419,7 +418,7 @@ export class AIThoughtStorms2_0 {
         strokes.push(line);
       }
     } catch (e) {
-      console.error('Stroke creation error:', e);
+      if (this.debug) console.error('Stroke creation error:', e);
     }
     
     return strokes;
@@ -441,7 +440,7 @@ export class AIThoughtStorms2_0 {
       
       return new THREE.Line(geometry, material);
     } catch (e) {
-      console.error('Beam creation error:', e);
+      if (this.debug) console.error('Beam creation error:', e);
       return null;
     }
   }
@@ -466,7 +465,7 @@ export class AIThoughtStorms2_0 {
       
       return ring;
     } catch (e) {
-      console.error('Ring creation error:', e);
+      if (this.debug) console.error('Ring creation error:', e);
       return null;
     }
   }
@@ -553,18 +552,9 @@ export class AIThoughtStorms2_0 {
    * Update temporary link boosts (pulse acceleration)
    */
   _updateLinkBoosts(dt) {
-    const links = this.linkingSystem?.links || [];
-    
-    for (const link of links) {
-      if (link.tempBoostLife !== undefined) {
-        link.tempBoostLife -= dt;
-        
-        if (link.tempBoostLife <= 0) {
-          link.tempPulseBoost = 1.0;
-          delete link.tempBoostLife;
-        }
-      }
-    }
+    // DEPRECATED: Link state mutation removed to preserve read-only contract.
+    // This method is kept for API compatibility but does nothing.
+    // If link pulse modulation is needed, use a dedicated link modulation system.
   }
   
   /**
@@ -673,19 +663,20 @@ export class AIThoughtStorms2_0 {
    */
   forceStorm(type) {
     if (!['synergy', 'stability', 'focus', 'critical'].includes(type)) {
-      console.warn(`Unknown storm type: ${type}`);
+      if (this.debug) console.warn(`Unknown storm type: ${type}`);
       return;
     }
     
     this._endStorm();
     this._startStorm(type);
-    console.log(`✨ Forced storm: ${type}`);
+    if (this.debug) console.log(`✨ Forced storm: ${type}`);
   }
   
   /**
    * PUBLIC API - Debug status
    */
   debugState() {
+    if (!this.debug) return;
     console.log('%c=== THOUGHT STORMS DEBUG ===', 'color: #ff00ff; font-weight: bold;');
     console.log(`Status: ${this.config.enabled ? '🟢 ENABLED' : '🔴 DISABLED'}`);
     console.log(`Mood: ${this.stormState.currentMood}`);
@@ -754,7 +745,7 @@ export class AIThoughtStorms2_0 {
     // Remove storm group
     this.consciousnessGroup.remove(this.stormGroup);
     
-    console.log('AIThoughtStorms2_0 disposed ✓');
+    if (this.debug) console.log('AIThoughtStorms2_0 disposed ✓');
   }
 }
 
