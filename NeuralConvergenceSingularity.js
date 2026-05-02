@@ -1291,7 +1291,6 @@ export class NeuralConvergenceSingularity {
     // ========================================================================
     
     update(deltaTime, context = {}) {
-        if (!FXDebugSandbox.isEnabled('neuralConvergenceSingularity')) return;
         if (!this.active) return;
         
         this.time += deltaTime;

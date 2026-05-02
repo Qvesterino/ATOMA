@@ -719,9 +719,8 @@ export class ProceduralMeaningEngine {
    * Main update loop - call from main.js animate()
    */
   update(dt, nodes, semanticGlyphAI) {
-    if (!FXDebugSandbox.isEnabled('proceduralMeaningEngine')) return;
     if (!this.enabled) return;
-     
+    
     const startTime = performance.now();
     
     this.stats.createdThisFrame = 0;
