@@ -3,6 +3,7 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { safeSetEmissive } from './_EmissiveUtils.js';
 import { normalizeEnvironmentGeometry } from './RoundedEnvironmentGeometry.js';
 import { getEnvSpriteTexture } from './EnvironmentPointFXBase.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 /**
  * SAFE WORLD FX PACK 3.0
@@ -837,14 +838,15 @@ export class SafeWorldFXPack {
       this.metricSignalTimes.set(signalKey, performance.now());
     };
 
-    if (typeof bus.on === 'function') {
-      bus.on(eventName, handler);
-      return;
-    }
-
-    if (typeof bus.subscribe === 'function') {
-      bus.subscribe(eventName, handler);
-    }
+    // Registry-wrapped subscription for observability
+    const disposer = eventRegistrationRegistry.register(
+      'SafeWorldFXPack',
+      eventName,
+      handler,
+      bus
+    );
+    if (!this._regDisposers) this._regDisposers = [];
+    this._regDisposers.push(disposer);
   }
 
   _isSignalActive(signalKey, lifetimeMs = 6000) {
@@ -3198,6 +3200,13 @@ export class SafeWorldFXPack {
   }
 
   dispose() {
+    // Registry cleanup (preferred)
+    if (Array.isArray(this._regDisposers)) {
+      for (const d of this._regDisposers) {
+        try { d(); } catch (_) {}
+      }
+      this._regDisposers.length = 0;
+    }
     this.disableAll();
     if (this.root?.parent) {
       this.root.parent.remove(this.root);

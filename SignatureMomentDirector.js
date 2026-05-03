@@ -1,3 +1,5 @@
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
+
 const SYNERGY_APEX_MOMENT_ID = 'synergy.apex.network-resonance-surge';
 const CASCADE_RECONSTRUCTION_MOMENT_ID = 'cascade.reconstruction.beacon';
 const MEMORY_RECOVERY_MOMENT_ID = 'memory.recovery.archive-reassembly';
@@ -3520,35 +3522,29 @@ export class SignatureMomentDirector {
   _subscribe(eventName, handler) {
     if (!this.semanticBus || !eventName || typeof handler !== 'function') return null;
 
-    if (typeof this.semanticBus.on === 'function') {
-      this.semanticBus.on(eventName, handler);
-      return () => {
-        try {
-          if (typeof this.semanticBus.off === 'function') {
-            this.semanticBus.off(eventName, handler);
-          } else if (typeof this.semanticBus.unsubscribe === 'function') {
-            this.semanticBus.unsubscribe(eventName, handler);
-          }
-        } catch (_) {
-          /* silent fail */
+    // Registry-wrapped subscription for observability
+    const regDisposer = eventRegistrationRegistry.register(
+      'SignatureMomentDirector',
+      eventName,
+      handler,
+      this.semanticBus
+    );
+    // Fallback: manual cleanup wrapper
+    const fallbackDisposer = () => {
+      try {
+        if (typeof this.semanticBus.off === 'function') {
+          this.semanticBus.off(eventName, handler);
+        } else if (typeof this.semanticBus.unsubscribe === 'function') {
+          this.semanticBus.unsubscribe(eventName, handler);
         }
-      };
-    }
-
-    if (typeof this.semanticBus.subscribe === 'function') {
-      this.semanticBus.subscribe(eventName, handler);
-      return () => {
-        try {
-          if (typeof this.semanticBus.unsubscribe === 'function') {
-            this.semanticBus.unsubscribe(eventName, handler);
-          }
-        } catch (_) {
-          /* silent fail */
-        }
-      };
-    }
-
-    return null;
+      } catch (_) {
+        /* silent fail */
+      }
+    };
+    return () => {
+      regDisposer();
+      fallbackDisposer();
+    };
   }
 
   _handleSignal(eventName, payload) {

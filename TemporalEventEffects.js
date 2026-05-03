@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RitualShaderPack } from './RitualShaderPack.js';
 import { ATOMAColorPalette } from './Engine/Visual/ATOMAColorPalette.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 /**
  * TEMPORAL EVENT EFFECTS
@@ -1349,13 +1350,24 @@ export class TemporalEventEffects {
     const bus = this.metricBus;
     if (!bus || !eventName || typeof handler !== 'function') return;
 
-    if (typeof bus.on === 'function') {
-      bus.on(eventName, handler);
-      return;
-    }
+    // Registry-wrapped subscription for observability
+    const disposer = eventRegistrationRegistry.register(
+      'TemporalEventEffects',
+      eventName,
+      handler,
+      bus
+    );
+    if (!this._regDisposers) this._regDisposers = [];
+    this._regDisposers.push(disposer);
+  }
 
-    if (typeof bus.subscribe === 'function') {
-      bus.subscribe(eventName, handler);
+  dispose() {
+    // Registry cleanup
+    if (Array.isArray(this._regDisposers)) {
+      for (const d of this._regDisposers) {
+        try { d(); } catch (_) {}
+      }
+      this._regDisposers.length = 0;
     }
   }
 }

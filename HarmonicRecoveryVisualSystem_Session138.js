@@ -27,6 +27,7 @@
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 function getAtomaVisualDebugMode() {
     const mode = (typeof window !== 'undefined' && window.__ATOMA_VISUAL_DEBUG_MODE__)
@@ -483,55 +484,40 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             this._handleHarmonyMid(payload);
         };
 
-        const unsubHigh = this.semanticBus.subscribe('link.harmony.high', this._onHarmonyHigh);
-        const unsubMid = this.semanticBus.subscribe('link.harmony.mid', this._onHarmonyMid);
+        // Registry-wrapped subscriptions for observability
+        this._regDisposers = [];
+        const reg = (tag, handler) => {
+            const disposer = eventRegistrationRegistry.register('HarmonicRecoveryVisualSystem', tag, handler, this.semanticBus);
+            this._regDisposers.push(disposer);
+        };
 
-        if (typeof unsubHigh === 'function') {
-            this._unsubscribeHarmonyHigh = unsubHigh;
-        } else if (typeof this.semanticBus.unsubscribe === 'function') {
-            this._unsubscribeHarmonyHigh = () => {
-                this.semanticBus.unsubscribe('link.harmony.high', this._onHarmonyHigh);
-            };
-        }
-
-        if (typeof unsubMid === 'function') {
-            this._unsubscribeHarmonyMid = unsubMid;
-        } else if (typeof this.semanticBus.unsubscribe === 'function') {
-            this._unsubscribeHarmonyMid = () => {
-                this.semanticBus.unsubscribe('link.harmony.mid', this._onHarmonyMid);
-            };
-        }
+        reg('link.harmony.high', this._onHarmonyHigh);
+        reg('link.harmony.mid', this._onHarmonyMid);
 
         // Canonical metric tier: stability returning to mid = recovery trigger
         this._onLinkStabilityMid = (payload = {}) => {
             this._handleLinkStabilityMid(payload);
         };
-        const unsubLinkStabilityMid = this.semanticBus.subscribe('link.stability.mid', this._onLinkStabilityMid);
-        if (typeof unsubLinkStabilityMid === 'function') {
-            this._unsubscribeLinkStabilityMid = unsubLinkStabilityMid;
-        } else if (typeof this.semanticBus.unsubscribe === 'function') {
-            this._unsubscribeLinkStabilityMid = () => {
-                this.semanticBus.unsubscribe('link.stability.mid', this._onLinkStabilityMid);
-            };
-        }
+        reg('link.stability.mid', this._onLinkStabilityMid);
 
         // Canonical metric tier: node instability = prepare recovery halos
         this._onNodeStabilityLow = (payload = {}) => {
             this._handleNodeStabilityLow(payload);
         };
-        const unsubNodeStabilityLow = this.semanticBus.subscribe('node.stability.low', this._onNodeStabilityLow);
-        if (typeof unsubNodeStabilityLow === 'function') {
-            this._unsubscribeNodeStabilityLow = unsubNodeStabilityLow;
-        } else if (typeof this.semanticBus.unsubscribe === 'function') {
-            this._unsubscribeNodeStabilityLow = () => {
-                this.semanticBus.unsubscribe('node.stability.low', this._onNodeStabilityLow);
-            };
-        }
+        reg('node.stability.low', this._onNodeStabilityLow);
 
         this._eventDrivenEnabled = true;
     }
 
     _teardownEventSubscriptions() {
+        // Registry disposers (preferred)
+        if (Array.isArray(this._regDisposers)) {
+            for (const disposer of this._regDisposers) {
+                try { disposer(); } catch (_) {}
+            }
+            this._regDisposers.length = 0;
+        }
+        // Fallback: legacy unsubscribers
         if (typeof this._unsubscribeHarmonyHigh === 'function') {
             this._unsubscribeHarmonyHigh();
         }

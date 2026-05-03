@@ -20,6 +20,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { LinkPointFXBase } from './LinkPointFXBase.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 export class WaveParticleEmitter_v1 {
   constructor(config = {}) {
@@ -785,7 +786,17 @@ export class WaveParticleEmitter_v1 {
             this._pendingMetricTierEvents.push(entry);
           }
         };
-        bus.subscribe(eventName, handler, { priority: bus.priority?.CRITICAL ?? bus.priority?.INTERACTIVE ?? bus.priority?.NORMAL });
+        // Registry-wrapped subscription for observability (preserves priority)
+        const priorityOpts = { priority: bus.priority?.CRITICAL ?? bus.priority?.INTERACTIVE ?? bus.priority?.NORMAL };
+        const regDisposer = eventRegistrationRegistry.register(
+          'WaveParticleEmitter_v1',
+          eventName,
+          handler,
+          bus,
+          priorityOpts
+        );
+        this._directMetricTierDisposers.push(regDisposer);
+        // Fallback: manual unsubscribe
         this._directMetricTierDisposers.push(() => {
           try {
             bus.unsubscribe(eventName, handler);

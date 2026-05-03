@@ -28,7 +28,7 @@ class EventRegistrationRegistry {
    * @param {object} bus    - The event bus instance (semanticBus, bus, etc.)
    * @returns {Function} Disposer function — call to unsubscribe
    */
-  register(owner, tag, handler, bus) {
+  register(owner, tag, handler, bus, options) {
     if (!owner || typeof owner !== 'string') {
       console.warn('[EventRegistrationRegistry] register() called with invalid owner:', owner);
       return () => {};
@@ -54,7 +54,9 @@ class EventRegistrationRegistry {
         nativeDisposer = maybeUnsub;
       }
     } else if (typeof bus.subscribe === 'function') {
-      const maybeUnsub = bus.subscribe(tag, handler);
+      const maybeUnsub = options
+        ? bus.subscribe(tag, handler, options)
+        : bus.subscribe(tag, handler);
       if (typeof maybeUnsub === 'function') {
         nativeDisposer = maybeUnsub;
       }

@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { setMetric } from './src/metrics/NodeMetricEngine.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 function getAtomaVisualDebugMode() {
     const mode = (typeof window !== 'undefined' && window.__ATOMA_VISUAL_DEBUG_MODE__)
@@ -319,33 +320,16 @@ export class HarmonicHealingVisualSystem_Session134 {
             this._handleHarmonyLow(payload);
         };
 
-        const unsubHigh = this.semanticBus.subscribe('link.harmony.high', this._onHarmonyHigh);
-        const unsubMid = this.semanticBus.subscribe('link.harmony.mid', this._onHarmonyMid);
-        const unsubLow = this.semanticBus.subscribe('link.harmony.low', this._onHarmonyLow);
+        // Registry-wrapped subscriptions for observability
+        this._regDisposers = [];
+        const reg = (tag, handler) => {
+            const disposer = eventRegistrationRegistry.register('HarmonicHealingVisualSystem', tag, handler, this.semanticBus);
+            this._regDisposers.push(disposer);
+        };
 
-        if (typeof unsubHigh === 'function') {
-            this._unsubscribeHarmonyHigh = unsubHigh;
-        } else if (typeof this.semanticBus.unsubscribe === 'function') {
-            this._unsubscribeHarmonyHigh = () => {
-                this.semanticBus.unsubscribe('link.harmony.high', this._onHarmonyHigh);
-            };
-        }
-
-        if (typeof unsubMid === 'function') {
-            this._unsubscribeHarmonyMid = unsubMid;
-        } else if (typeof this.semanticBus.unsubscribe === 'function') {
-            this._unsubscribeHarmonyMid = () => {
-                this.semanticBus.unsubscribe('link.harmony.mid', this._onHarmonyMid);
-            };
-        }
-
-        if (typeof unsubLow === 'function') {
-            this._unsubscribeHarmonyLow = unsubLow;
-        } else if (typeof this.semanticBus.unsubscribe === 'function') {
-            this._unsubscribeHarmonyLow = () => {
-                this.semanticBus.unsubscribe('link.harmony.low', this._onHarmonyLow);
-            };
-        }
+        reg('link.harmony.high', this._onHarmonyHigh);
+        reg('link.harmony.mid', this._onHarmonyMid);
+        reg('link.harmony.low', this._onHarmonyLow);
 
         // Canonical metric tier subscriptions — healing responds to corruption & instability
         this._onLinkCorruptionHigh = (payload = {}) => {
@@ -360,33 +344,9 @@ export class HarmonicHealingVisualSystem_Session134 {
             this._handleNodeCorruptionHigh(payload);
         };
 
-        const unsubLinkCorruption = this.semanticBus.subscribe('link.corruption.high', this._onLinkCorruptionHigh);
-        const unsubLinkStability = this.semanticBus.subscribe('link.stability.low', this._onLinkStabilityLow);
-        const unsubNodeCorruption = this.semanticBus.subscribe('node.corruption.high', this._onNodeCorruptionHigh);
-
-        if (typeof unsubLinkCorruption === 'function') {
-            this._unsubscribeLinkCorruptionHigh = unsubLinkCorruption;
-        } else if (typeof this.semanticBus.unsubscribe === 'function') {
-            this._unsubscribeLinkCorruptionHigh = () => {
-                this.semanticBus.unsubscribe('link.corruption.high', this._onLinkCorruptionHigh);
-            };
-        }
-
-        if (typeof unsubLinkStability === 'function') {
-            this._unsubscribeLinkStabilityLow = unsubLinkStability;
-        } else if (typeof this.semanticBus.unsubscribe === 'function') {
-            this._unsubscribeLinkStabilityLow = () => {
-                this.semanticBus.unsubscribe('link.stability.low', this._onLinkStabilityLow);
-            };
-        }
-
-        if (typeof unsubNodeCorruption === 'function') {
-            this._unsubscribeNodeCorruptionHigh = unsubNodeCorruption;
-        } else if (typeof this.semanticBus.unsubscribe === 'function') {
-            this._unsubscribeNodeCorruptionHigh = () => {
-                this.semanticBus.unsubscribe('node.corruption.high', this._onNodeCorruptionHigh);
-            };
-        }
+        reg('link.corruption.high', this._onLinkCorruptionHigh);
+        reg('link.stability.low', this._onLinkStabilityLow);
+        reg('node.corruption.high', this._onNodeCorruptionHigh);
 
         this._eventDrivenEnabled = true;
     }
@@ -925,6 +885,14 @@ export class HarmonicHealingVisualSystem_Session134 {
     }
 
     dispose() {
+        // Registry disposers (preferred)
+        if (Array.isArray(this._regDisposers)) {
+            for (const disposer of this._regDisposers) {
+                try { disposer(); } catch (_) {}
+            }
+            this._regDisposers.length = 0;
+        }
+        // Fallback: legacy unsubscribers
         if (typeof this._unsubscribeHarmonyHigh === 'function') {
             this._unsubscribeHarmonyHigh();
         }

@@ -1,3 +1,5 @@
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
+
 /**
  * ATOMA LANGUAGE ENGINE 3.0
  * Procedural AI Poetry — Emergent Whispers from the Dream Network
@@ -836,11 +838,15 @@ export class AtomaLanguageEngine3_0 {
     const bus = this._getSemanticBus();
     if (!bus || !handler) return;
 
-    if (bus.on) {
-      bus.on(eventName, handler);
-    } else if (bus.subscribe) {
-      bus.subscribe(eventName, handler);
-    }
+    // Registry-wrapped subscription for observability
+    const disposer = eventRegistrationRegistry.register(
+      'AtomaLanguageEngine3_0',
+      eventName,
+      handler,
+      bus
+    );
+    if (!this._regDisposers) this._regDisposers = [];
+    this._regDisposers.push(disposer);
 
     this._semanticHandlers.set(eventName, handler);
   }
@@ -1551,6 +1557,20 @@ export class AtomaLanguageEngine3_0 {
         ? (this.stats.generationTime / (this.stats.nodePoetryGenerated + this.stats.linkWhispersGenerated)).toFixed(3) + 'ms'
         : '0ms'
     };
+  }
+
+  dispose() {
+    // Registry cleanup
+    if (Array.isArray(this._regDisposers)) {
+      for (const d of this._regDisposers) {
+        try { d(); } catch (_) {}
+      }
+      this._regDisposers.length = 0;
+    }
+    // Legacy semantic unsubscription
+    this._unsubscribeSemanticSubscriptions();
+    this._disposeDOM();
+    this.enabled = false;
   }
 }
 

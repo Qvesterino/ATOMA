@@ -1,3 +1,5 @@
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
+
 export class EnvironmentEventCoordinator {
   constructor(config = {}) {
     this.semanticBus = config.semanticBus || this._resolveBus();
@@ -122,26 +124,25 @@ export class EnvironmentEventCoordinator {
   _subscribe(eventName, handler) {
     if (!this.semanticBus || !eventName || typeof handler !== 'function') return;
 
-    if (typeof this.semanticBus.on === 'function') {
-      this.semanticBus.on(eventName, handler);
-      this._subscriptions.push(() => {
+    // Registry-wrapped subscription for observability
+    const disposer = eventRegistrationRegistry.register(
+      'EnvironmentEventCoordinator',
+      eventName,
+      handler,
+      this.semanticBus
+    );
+    this._subscriptions.push(() => {
+      try {
+        disposer();
+      } catch (_) {
+        // Fallback: native off/unsubscribe
         if (typeof this.semanticBus.off === 'function') {
-          this.semanticBus.off(eventName, handler);
+          try { this.semanticBus.off(eventName, handler); } catch (__) {}
         } else if (typeof this.semanticBus.unsubscribe === 'function') {
-          this.semanticBus.unsubscribe(eventName, handler);
+          try { this.semanticBus.unsubscribe(eventName, handler); } catch (__) {}
         }
-      });
-      return;
-    }
-
-    if (typeof this.semanticBus.subscribe === 'function') {
-      this.semanticBus.subscribe(eventName, handler);
-      this._subscriptions.push(() => {
-        if (typeof this.semanticBus.unsubscribe === 'function') {
-          this.semanticBus.unsubscribe(eventName, handler);
-        }
-      });
-    }
+      }
+    });
   }
 
   _routeMetricTag(worldEventType, eventName) {

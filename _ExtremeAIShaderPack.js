@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 /**
  * EXTREME AI GPU SHADER PACK — SAFE EDITION
@@ -57,18 +58,13 @@ export class ExtremeAIShaderPack {
       this.dirtyNodes.add(String(nodeId));
     };
 
-    const maybeUnsubscribe = this.semanticBus.subscribe(
+    // Registry-wrapped subscription for observability
+    this._regDisposer = eventRegistrationRegistry.register(
+      'ExtremeAIShaderPack',
       'node.metric.updated',
-      this._metricUpdatedHandler
+      this._metricUpdatedHandler,
+      this.semanticBus
     );
-
-    if (typeof maybeUnsubscribe === 'function') {
-      this._unsubscribeMetricUpdated = maybeUnsubscribe;
-    } else if (typeof this.semanticBus.unsubscribe === 'function') {
-      this._unsubscribeMetricUpdated = () => {
-        this.semanticBus.unsubscribe('node.metric.updated', this._metricUpdatedHandler);
-      };
-    }
 
     this._eventDrivenEnabled = true;
   }
@@ -1042,6 +1038,12 @@ export class ExtremeAIShaderPack {
   }
 
   dispose() {
+    // Registry disposer (preferred)
+    if (this._regDisposer) {
+      try { this._regDisposer(); } catch (_) {}
+      this._regDisposer = null;
+    }
+    // Fallback: legacy unsubscriber
     if (typeof this._unsubscribeMetricUpdated === 'function') {
       try {
         this._unsubscribeMetricUpdated();

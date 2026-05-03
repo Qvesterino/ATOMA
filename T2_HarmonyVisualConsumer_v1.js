@@ -20,6 +20,7 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 const HARMONY_FIELD_VERTEX_SHADER = `
 varying vec2 vUv;
@@ -540,8 +541,14 @@ export class T2_HarmonyVisualConsumer_v1 {
       return;
     }
 
-    subscribe('node.harmony.high', this._boundNodeHarmonyHigh);
-    subscribe('node.harmony.mid', this._boundNodeHarmonyMid);
+    // Registry-wrapped subscriptions for observability
+    this._regDisposers = [];
+    const reg = (tag, handler) => {
+      const disposer = eventRegistrationRegistry.register('T2_HarmonyVisualConsumer', tag, handler, this.semanticBus);
+      this._regDisposers.push(disposer);
+    };
+    reg('node.harmony.high', this._boundNodeHarmonyHigh);
+    reg('node.harmony.mid', this._boundNodeHarmonyMid);
     this._semanticSubscriptions.push(
       { type: 'node.harmony.high', handler: this._boundNodeHarmonyHigh },
       { type: 'node.harmony.mid', handler: this._boundNodeHarmonyMid }
@@ -549,24 +556,26 @@ export class T2_HarmonyVisualConsumer_v1 {
   }
 
   _teardownSemanticSubscriptions() {
-    if (!this.semanticBus || this._semanticSubscriptions.length === 0) return;
-
-    const unsubscribe = typeof this.semanticBus.off === 'function'
-      ? this.semanticBus.off.bind(this.semanticBus)
-      : typeof this.semanticBus.unsubscribe === 'function'
-        ? this.semanticBus.unsubscribe.bind(this.semanticBus)
-        : null;
-
-    if (!unsubscribe) {
-      this._semanticSubscriptions = [];
-      return;
+    // Registry disposers (preferred)
+    if (Array.isArray(this._regDisposers)) {
+      for (const disposer of this._regDisposers) {
+        try { disposer(); } catch (_) {}
+      }
+      this._regDisposers.length = 0;
     }
 
-    for (const subscription of this._semanticSubscriptions) {
-      try {
-        unsubscribe(subscription.type, subscription.handler);
-      } catch (err) {
-        // ignore errors during cleanup
+    // Fallback: native unsubscribe
+    if (this.semanticBus && this._semanticSubscriptions.length > 0) {
+      const unsubscribe = typeof this.semanticBus.off === 'function'
+        ? this.semanticBus.off.bind(this.semanticBus)
+        : typeof this.semanticBus.unsubscribe === 'function'
+          ? this.semanticBus.unsubscribe.bind(this.semanticBus)
+          : null;
+
+      if (unsubscribe) {
+        for (const subscription of this._semanticSubscriptions) {
+          try { unsubscribe(subscription.type, subscription.handler); } catch (_) {}
+        }
       }
     }
 

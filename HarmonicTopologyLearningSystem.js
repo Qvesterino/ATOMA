@@ -53,6 +53,7 @@
  */
 
 import * as THREE from 'three';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 // ============================================================================
 // CONFIGURATION
@@ -354,19 +355,27 @@ export class HarmonicTopologyLearningSystem {
             return;
         }
         
-        // Listen for rupture events
-        this.semanticBus.on('topology.rupture', (data) => {
+        this._regDisposers = [];
+
+        // Registry-wrapped: Listen for rupture events
+        const ruptureHandler = (data) => {
             if (data.position && typeof data.intensity === 'number') {
                 this.recordRupture(data.position, data.intensity);
             }
-        });
+        };
+        this._regDisposers.push(
+            eventRegistrationRegistry.register('HarmonicTopologyLearningSystem', 'topology.rupture', ruptureHandler, this.semanticBus)
+        );
         
-        // Listen for healing events
-        this.semanticBus.on('topology.healing', (data) => {
+        // Registry-wrapped: Listen for healing events
+        const healingHandler = (data) => {
             if (data.position && typeof data.harmonyRestored === 'number') {
                 this.recordHealing(data.position, data.harmonyRestored);
             }
-        });
+        };
+        this._regDisposers.push(
+            eventRegistrationRegistry.register('HarmonicTopologyLearningSystem', 'topology.healing', healingHandler, this.semanticBus)
+        );
         
         console.log('[HarmonicTopologyLearningSystem] Event bus connected');
     }
@@ -816,6 +825,15 @@ export class HarmonicTopologyLearningSystem {
             maturedHubs,
             totalCapacity: CONFIG.POOL_SIZE
         };
+    }
+    dispose() {
+        // Registry cleanup
+        if (Array.isArray(this._regDisposers)) {
+            for (const d of this._regDisposers) {
+                try { d(); } catch (_) {}
+            }
+            this._regDisposers.length = 0;
+        }
     }
 }
 

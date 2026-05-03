@@ -60,6 +60,7 @@ import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { CoreMetricsCalculator } from './hud/CoreMetricsCalculator.js';
 import { buildScopedMetricEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './src/metrics/MetricTierClassifier.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 export class HarmonicHubAuraSystem_Session126 {
   constructor(scene, worldRoot, world, nodeAuraSystem, linkResonanceSystem, config = {}) {
@@ -243,10 +244,15 @@ export class HarmonicHubAuraSystem_Session126 {
     this.root = this.fieldGroup;
     this._hubDebugMarkerGeometry = new THREE.SphereGeometry(1, 10, 10);
 
-    if (this.semanticBus?.subscribe) {
-      this.semanticBus.subscribe('hub.harmony.high', this._boundHandleHarmonyHigh);
-      this.semanticBus.subscribe('hub.harmony.mid', this._boundHandleHarmonyMid);
-      this.semanticBus.subscribe('hub.harmony.low', this._boundHandleHarmonyLow);
+    if (this.semanticBus) {
+      this._regDisposers = [];
+      const reg = (tag, handler) => {
+        const disposer = eventRegistrationRegistry.register('HarmonicHubAuraSystem', tag, handler, this.semanticBus);
+        this._regDisposers.push(disposer);
+      };
+      reg('hub.harmony.high', this._boundHandleHarmonyHigh);
+      reg('hub.harmony.mid', this._boundHandleHarmonyMid);
+      reg('hub.harmony.low', this._boundHandleHarmonyLow);
     }
   }
   
@@ -1527,6 +1533,14 @@ export class HarmonicHubAuraSystem_Session126 {
    * Cleanup
    */
   dispose() {
+    // Registry disposers (preferred)
+    if (Array.isArray(this._regDisposers)) {
+      for (const disposer of this._regDisposers) {
+        try { disposer(); } catch (_) {}
+      }
+      this._regDisposers.length = 0;
+    }
+    // Fallback: native unsubscribe
     if (this.semanticBus?.unsubscribe) {
       this.semanticBus.unsubscribe('hub.harmony.high', this._boundHandleHarmonyHigh);
       this.semanticBus.unsubscribe('hub.harmony.mid', this._boundHandleHarmonyMid);

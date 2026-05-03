@@ -1,3 +1,5 @@
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
+
 /**
  * PHASE 8: NETWORK RITUAL VISUAL ORCHESTRATION
  * ==============================================
@@ -271,10 +273,23 @@ class Phase8RitualVisualOrchestration {
 
     // Try to subscribe to ritual lifecycle events
     if (this.rituals && typeof this.rituals.on === 'function') {
-      this.rituals.on('ritual:start', (e) => this._onRitualStart(e));
-      this.rituals.on('ritual:progress', (e) => this._onRitualProgress(e));
-      this.rituals.on('ritual:complete', (e) => this._onRitualComplete(e));
-      this.rituals.on('ritual:abort', (e) => this._onRitualAbort(e));
+      // Registry-wrapped ritual subscriptions for observability
+      const ritualEvents = [
+        ['ritual:start', (e) => this._onRitualStart(e)],
+        ['ritual:progress', (e) => this._onRitualProgress(e)],
+        ['ritual:complete', (e) => this._onRitualComplete(e)],
+        ['ritual:abort', (e) => this._onRitualAbort(e)],
+      ];
+      for (const [tag, handler] of ritualEvents) {
+        const disposer = eventRegistrationRegistry.register(
+          'Phase8RitualVisualOrchestration',
+          tag,
+          handler,
+          this.rituals
+        );
+        if (!this._regDisposers) this._regDisposers = [];
+        this._regDisposers.push(disposer);
+      }
     } else {
       // Fallback: Try to poll ritual state if event system unavailable
       this._setupPollingFallback();
@@ -837,20 +852,17 @@ if (state.stage === this.ritualStages.PRELUDE && elapsed > RITUAL_VISUAL_CONFIG.
     const bus = this.metricBus;
     if (!bus || !eventName || typeof handler !== 'function') return;
 
-    if (typeof bus.on === 'function') {
-      const unsubscribe = bus.on(eventName, handler);
-      if (typeof unsubscribe === 'function') {
-        this.metricSubscriptions.push(unsubscribe);
-      }
-      return;
-    }
-
-    if (typeof bus.subscribe === 'function') {
-      const unsubscribe = bus.subscribe(eventName, handler);
-      if (typeof unsubscribe === 'function') {
-        this.metricSubscriptions.push(unsubscribe);
-      }
-    }
+    // Registry-wrapped subscription for observability
+    const disposer = eventRegistrationRegistry.register(
+      'Phase8RitualVisualOrchestration',
+      eventName,
+      handler,
+      bus
+    );
+    if (!this._regDisposers) this._regDisposers = [];
+    this._regDisposers.push(disposer);
+    // Also push to legacy metricSubscriptions for backward compat
+    this.metricSubscriptions.push(disposer);
   }
 
   _setMetricSignal(key, value) {
@@ -901,6 +913,24 @@ if (state.stage === this.ritualStages.PRELUDE && elapsed > RITUAL_VISUAL_CONFIG.
       ),
       stressDamping: Math.min(0.8, RITUAL_VISUAL_CONFIG.ACTIVE.stressDamping + stressBoost),
     };
+  }
+
+  dispose() {
+    // Registry cleanup
+    if (Array.isArray(this._regDisposers)) {
+      for (const d of this._regDisposers) {
+        try { d(); } catch (_) {}
+      }
+      this._regDisposers.length = 0;
+    }
+    // Legacy metric subscriptions cleanup
+    if (Array.isArray(this.metricSubscriptions)) {
+      for (const unsub of this.metricSubscriptions) {
+        try { unsub?.(); } catch (_) {}
+      }
+      this.metricSubscriptions.length = 0;
+    }
+    this.listenerSetup = false;
   }
 }
 

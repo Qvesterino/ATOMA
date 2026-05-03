@@ -217,6 +217,8 @@ function createHaloMaterial() {
  * HarmonicNodeResonanceHalos
  * Manages resonance halos for harmonic hubs
  */
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
+
 export class HarmonicNodeResonanceHalos {
   constructor(semanticBus = null) {
     this.nodeHalos = new Map();
@@ -319,33 +321,16 @@ export class HarmonicNodeResonanceHalos {
       this._setCooldown(id, 'low');
     };
 
-    const unsubHigh = this.semanticBus.subscribe('node.harmony.high', this._harmonyHighHandler);
-    const unsubMid = this.semanticBus.subscribe('node.harmony.mid', this._harmonyMidHandler);
-    const unsubLow = this.semanticBus.subscribe('node.harmony.low', this._harmonyLowHandler);
+    // Registry-wrapped subscriptions for observability
+    this._regDisposers = [];
+    const reg = (tag, handler) => {
+      const disposer = eventRegistrationRegistry.register('HarmonicNodeResonanceHalos', tag, handler, this.semanticBus);
+      this._regDisposers.push(disposer);
+    };
 
-    if (typeof unsubHigh === 'function') {
-      this._unsubscribeHarmonyHigh = unsubHigh;
-    } else if (typeof this.semanticBus.unsubscribe === 'function') {
-      this._unsubscribeHarmonyHigh = () => {
-        this.semanticBus.unsubscribe('node.harmony.high', this._harmonyHighHandler);
-      };
-    }
-
-    if (typeof unsubMid === 'function') {
-      this._unsubscribeHarmonyMid = unsubMid;
-    } else if (typeof this.semanticBus.unsubscribe === 'function') {
-      this._unsubscribeHarmonyMid = () => {
-        this.semanticBus.unsubscribe('node.harmony.mid', this._harmonyMidHandler);
-      };
-    }
-
-    if (typeof unsubLow === 'function') {
-      this._unsubscribeHarmonyLow = unsubLow;
-    } else if (typeof this.semanticBus.unsubscribe === 'function') {
-      this._unsubscribeHarmonyLow = () => {
-        this.semanticBus.unsubscribe('node.harmony.low', this._harmonyLowHandler);
-      };
-    }
+    reg('node.harmony.high', this._harmonyHighHandler);
+    reg('node.harmony.mid', this._harmonyMidHandler);
+    reg('node.harmony.low', this._harmonyLowHandler);
 
     this._eventDrivenEnabled = true;
   }
@@ -953,20 +938,22 @@ export class HarmonicNodeResonanceHalos {
    * Dispose all halos
    */
   dispose() {
+    // Registry disposers (preferred)
+    if (Array.isArray(this._regDisposers)) {
+      for (const disposer of this._regDisposers) {
+        try { disposer(); } catch (_) {}
+      }
+      this._regDisposers.length = 0;
+    }
+    // Fallback: legacy unsubscribers
     if (typeof this._unsubscribeHarmonyHigh === 'function') {
-      try {
-        this._unsubscribeHarmonyHigh();
-      } catch (e) {}
+      try { this._unsubscribeHarmonyHigh(); } catch (e) {}
     }
     if (typeof this._unsubscribeHarmonyMid === 'function') {
-      try {
-        this._unsubscribeHarmonyMid();
-      } catch (e) {}
+      try { this._unsubscribeHarmonyMid(); } catch (e) {}
     }
     if (typeof this._unsubscribeHarmonyLow === 'function') {
-      try {
-        this._unsubscribeHarmonyLow();
-      } catch (e) {}
+      try { this._unsubscribeHarmonyLow(); } catch (e) {}
     }
 
     this._unsubscribeHarmonyHigh = null;

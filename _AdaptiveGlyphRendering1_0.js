@@ -32,6 +32,7 @@
 
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 export class AdaptiveGlyphRendering1_0 {
   constructor(scene, semanticBus = null, options = {}) {
@@ -133,18 +134,13 @@ export class AdaptiveGlyphRendering1_0 {
       this.dirtyNodes.add(id);
     };
 
-    const maybeUnsubscribe = this.semanticBus.subscribe(
+    // Registry-wrapped subscription for observability
+    this._regDisposer = eventRegistrationRegistry.register(
+      'AdaptiveGlyphRendering',
       'node.metric.updated',
-      this._metricUpdatedHandler
+      this._metricUpdatedHandler,
+      this.semanticBus
     );
-
-    if (typeof maybeUnsubscribe === 'function') {
-      this._unsubscribeMetricUpdated = maybeUnsubscribe;
-    } else if (typeof this.semanticBus.unsubscribe === 'function') {
-      this._unsubscribeMetricUpdated = () => {
-        this.semanticBus.unsubscribe('node.metric.updated', this._metricUpdatedHandler);
-      };
-    }
 
     this._eventDrivenEnabled = true;
   }
@@ -661,6 +657,12 @@ export class AdaptiveGlyphRendering1_0 {
    * Clear animation state for cleanup
    */
   cleanup() {
+    // Registry disposer (preferred)
+    if (this._regDisposer) {
+      try { this._regDisposer(); } catch (_) {}
+      this._regDisposer = null;
+    }
+    // Fallback: legacy unsubscriber
     if (typeof this._unsubscribeMetricUpdated === 'function') {
       try {
         this._unsubscribeMetricUpdated();

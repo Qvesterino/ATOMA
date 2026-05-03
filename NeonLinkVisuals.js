@@ -4,6 +4,7 @@ import { SynergyStateResolver, SynergyState } from './SynergyStateResolver.js';
 import { CONFIG } from './config.js';
 import VisualTime from './src/time/VisualTime.js';
 import { isVisualLocked } from './Engine/authority/VisualAuthorityFlag.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 // NeonLinkVisuals is FX-only layer.
 // Metrics uniforms are owned exclusively by LinkRendererConduit.
@@ -2255,7 +2256,8 @@ export class NeonLinkVisuals {
       this.triggerSynergyBurstEffect(data.nodeId);
     };
 
-    on('node.synergy.high', handleSynergyBurst, { priority: bus.priority?.NORMAL });
+    const regDisposer = eventRegistrationRegistry.register('NeonLinkVisuals', 'node.synergy.high', handleSynergyBurst, bus);
+    this._regDisposer = regDisposer;
     this._semanticSubscriptions.push(['node.synergy.high', handleSynergyBurst]);
   }
 
@@ -2292,6 +2294,12 @@ export class NeonLinkVisuals {
    * Cleanup - dispose of all materials
    */
   dispose() {
+    // Registry disposer (preferred)
+    if (this._regDisposer) {
+      try { this._regDisposer(); } catch (_) {}
+      this._regDisposer = null;
+    }
+    // Fallback: native off/unsubscribe
     const bus = this._getSemanticBus();
     const off = bus?.off?.bind(bus) || bus?.unsubscribe?.bind(bus);
     if (off) {

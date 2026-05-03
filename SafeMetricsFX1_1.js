@@ -1,4 +1,5 @@
 import { isVisualLocked } from './Engine/authority/VisualAuthorityFlag.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 /**
  * SAFE METRICS FX 1.1
@@ -55,20 +56,13 @@ export class SafeMetricsFX1_1 {
       this.dirtyNodes.add(String(nodeId));
     };
 
-    const maybeUnsubscribe = this.semanticBus.subscribe(
+    // Registry-wrapped subscription for observability
+    this._regDisposer = eventRegistrationRegistry.register(
+      'SafeMetricsFX1_1',
       'node.metric.updated',
-      this._metricNodeUpdatedHandler
+      this._metricNodeUpdatedHandler,
+      this.semanticBus
     );
-
-    if (typeof maybeUnsubscribe === 'function') {
-      this._unsubscribeMetricNodeUpdated = maybeUnsubscribe;
-    } else if (typeof this.semanticBus.unsubscribe === 'function') {
-      this._unsubscribeMetricNodeUpdated = () => {
-        this.semanticBus.unsubscribe('node.metric.updated', this._metricNodeUpdatedHandler);
-      };
-    } else {
-      this._unsubscribeMetricNodeUpdated = null;
-    }
 
     this._eventDrivenEnabled = true;
   }
@@ -434,12 +428,14 @@ export class SafeMetricsFX1_1 {
   }
 
   dispose() {
+    // Registry disposer (preferred)
+    if (this._regDisposer) {
+      try { this._regDisposer(); } catch (_) {}
+      this._regDisposer = null;
+    }
+    // Fallback: legacy unsubscriber
     if (typeof this._unsubscribeMetricNodeUpdated === 'function') {
-      try {
-        this._unsubscribeMetricNodeUpdated();
-      } catch (e) {
-        // Skip silently
-      }
+      try { this._unsubscribeMetricNodeUpdated(); } catch (e) {}
     }
 
     this._unsubscribeMetricNodeUpdated = null;

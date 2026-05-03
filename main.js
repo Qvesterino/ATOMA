@@ -36,6 +36,7 @@ window.ATOMA_ENABLE_AINODES = false;
 // VISUAL BASELINE MODE (Soft Disable — Reversible)
 // ============================================================================
 import { debugLog } from './Engine/Debug/DebugLog.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 import * as THREE from 'three';
 import { systemRegistry } from './Engine/SystemRegistry.js';
 window.THREE = THREE;
@@ -11161,6 +11162,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.log('[LOADWORLD] start', worldId);
             // Cleanup old world event listeners
             this.disposeWorldListeners();
+
+            // Hard cleanup: dispose all registry-tracked event subscriptions
+            eventRegistrationRegistry.disposeAll();
 
             // Dispose systems that have explicit cleanup
             this.phase5InterNetworkVisualizationBridge?.dispose?.();

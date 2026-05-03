@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 import { normalizeEnvironmentGeometry } from './RoundedEnvironmentGeometry.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 // Legacy aura overlays kill-switch
 const ENABLE_LEGACY_AURAS = false;
@@ -2760,19 +2761,30 @@ export class SafeLegendaryWorldEvents {
     const bus = this.metricBus;
     if (!bus || !eventName || typeof handler !== 'function') return;
 
-    if (typeof bus.on === 'function') {
-      bus.on(eventName, handler);
-      return;
-    }
-
-    if (typeof bus.subscribe === 'function') {
-      bus.subscribe(eventName, handler);
-    }
+    // Registry-wrapped subscription for observability
+    const disposer = eventRegistrationRegistry.register(
+      'SafeLegendaryWorldEvents',
+      eventName,
+      handler,
+      bus
+    );
+    if (!this._regDisposers) this._regDisposers = [];
+    this._regDisposers.push(disposer);
   }
 
   _triggerMetricMappedEvent(eventType) {
     if (this.registry.activeEvent || !eventType) return;
     this.forceEvent(eventType);
+  }
+
+  dispose() {
+    // Registry cleanup
+    if (Array.isArray(this._regDisposers)) {
+      for (const d of this._regDisposers) {
+        try { d(); } catch (_) {}
+      }
+      this._regDisposers.length = 0;
+    }
   }
 }
 

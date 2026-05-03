@@ -41,6 +41,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { applyLinkRenderLayer, getLinkRenderLayerOrder } from './LinkRenderLayerPolicy.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 const MICRO_IMPULSE_LAYER = VisualHierarchyRegistry?.LAYER_LINK_SPARKS ?? 'LINK_SPARKS';
 const MICRO_IMPULSE_RENDER_ORDER = (() => {
@@ -468,10 +469,18 @@ export class LinkMicroImpulseAdapter {
     if (!subscribeFn) return;
 
     const bind = (tag, handler) => {
-      const unsub = subscribeFn(tag, handler, { priority: this.semanticBus.priority?.NORMAL });
-      if (typeof unsub === 'function') {
-        this._semanticUnsubscribers.push(unsub);
-      } else if (unsubscribeFn) {
+      // Registry-wrapped subscription for observability (preserves priority)
+      const priorityOpts = { priority: this.semanticBus.priority?.NORMAL };
+      const regDisposer = eventRegistrationRegistry.register(
+        'LinkMicroImpulseAdapter',
+        tag,
+        handler,
+        this.semanticBus,
+        priorityOpts
+      );
+      this._semanticUnsubscribers.push(regDisposer);
+      // Fallback: manual unsubscribe
+      if (unsubscribeFn) {
         this._semanticUnsubscribers.push(() => unsubscribeFn(tag, handler));
       }
     };
