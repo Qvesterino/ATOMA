@@ -36,6 +36,7 @@
 // FIX 1: Use proper ESM import instead of unreliable window.THREE fallback
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 /**
  * Configuration for cascade behavior
@@ -164,19 +165,31 @@ export class ResonanceCascadeVisualization_Session117B {
   }
 
   _subscribeSemanticBus() {
-    if (!this.semanticBus?.on || this._semanticEventsBound) return;
-    this.semanticBus.on('link.created', this._boundHandleLinkCreated);
-    this.semanticBus.on('global.loadPressure.high', this._boundHandleLoadPressureHigh);
+    if (this._semanticEventsBound) return;
+    if (!this.semanticBus) return;
+    this._regDisposerLinkCreated = eventRegistrationRegistry.register(
+      'ResonanceCascadeVisualization', 'link.created', this._boundHandleLinkCreated, this.semanticBus
+    );
+    this._regDisposerLoadPressure = eventRegistrationRegistry.register(
+      'ResonanceCascadeVisualization', 'global.loadPressure.high', this._boundHandleLoadPressureHigh, this.semanticBus
+    );
     this._semanticEventsBound = true;
   }
 
   _unsubscribeSemanticBus() {
     if (!this._semanticEventsBound) return;
-    if (this.semanticBus?.unsubscribe) {
+    if (typeof this._regDisposerLinkCreated === 'function') {
+      this._regDisposerLinkCreated();
+    } else if (this.semanticBus?.unsubscribe) {
       this.semanticBus.unsubscribe('link.created', this._boundHandleLinkCreated);
-      this.semanticBus.unsubscribe('global.loadPressure.high', this._boundHandleLoadPressureHigh);
     } else if (this.semanticBus?.off) {
       this.semanticBus.off('link.created', this._boundHandleLinkCreated);
+    }
+    if (typeof this._regDisposerLoadPressure === 'function') {
+      this._regDisposerLoadPressure();
+    } else if (this.semanticBus?.unsubscribe) {
+      this.semanticBus.unsubscribe('global.loadPressure.high', this._boundHandleLoadPressureHigh);
+    } else if (this.semanticBus?.off) {
       this.semanticBus.off('global.loadPressure.high', this._boundHandleLoadPressureHigh);
     }
     this._semanticEventsBound = false;

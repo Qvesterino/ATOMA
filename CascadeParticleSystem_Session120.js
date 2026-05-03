@@ -35,6 +35,7 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { resolveLinkCategoryColor } from './LinkCategoryColorContract.js';
 import { createLogger, isDebugEnabled } from './src/utils/DebugLogger.js';
 import { LinkPointFXBase } from './LinkPointFXBase.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 export class CascadeParticleSystem_Session120 {
   constructor(scene, config = {}) {
@@ -706,17 +707,10 @@ export class CascadeParticleSystem_Session120 {
     };
 
     const bind = (eventName, handler) => {
-      if (typeof bus.on === 'function') {
-        bus.on(eventName, handler);
-        this._semanticUnsubscribers.push(() => {
-          try { bus.off?.(eventName, handler); } catch (_) {}
-        });
-      } else if (typeof bus.subscribe === 'function') {
-        const unsub = bus.subscribe(eventName, handler);
-        if (typeof unsub === 'function') {
-          this._semanticUnsubscribers.push(unsub);
-        }
-      }
+      const disposer = eventRegistrationRegistry.register(
+        'CascadeParticleSystem', eventName, handler, bus
+      );
+      this._semanticUnsubscribers.push(disposer);
     };
 
     bind('cascade.hop', onCascadeHop);
@@ -1495,16 +1489,11 @@ export class CascadeParticleSystem_Session120 {
     this.semanticBus = bus;
     this._topologyBiasAccentBound = (payload = {}) => this._handleTopologyBiasSnapshot(payload);
 
-    if (typeof bus.on === 'function') {
-      bus.on('topology.bias.snapshot', this._topologyBiasAccentBound);
-      this._topologyBiasAccentUnsubscribers.push(() => {
-        try { bus.off?.('topology.bias.snapshot', this._topologyBiasAccentBound); } catch (_) {}
-      });
-    } else if (typeof bus.subscribe === 'function') {
-      const unsub = bus.subscribe('topology.bias.snapshot', this._topologyBiasAccentBound);
-      if (typeof unsub === 'function') {
-        this._topologyBiasAccentUnsubscribers.push(unsub);
-      }
+    {
+      const disposer = eventRegistrationRegistry.register(
+        'CascadeParticleSystem', 'topology.bias.snapshot', this._topologyBiasAccentBound, bus
+      );
+      this._topologyBiasAccentUnsubscribers.push(disposer);
     }
   }
 

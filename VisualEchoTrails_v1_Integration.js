@@ -39,6 +39,7 @@
 
 // FIX 1: Proper ESM import — THREE was never imported, causing ReferenceError everywhere
 import * as THREE from 'three';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 export class VisualEchoTrails_v1 {
   constructor() {
@@ -458,12 +459,16 @@ export class VisualEchoTrails_v1_Integration {
   _unbindSemanticBus() {
     this._semanticLinkCreatedFanoutUnsubscribe?.();
     this._semanticLinkCreatedFanoutUnsubscribe = null;
-    if (!this._semanticLinkCreatedHandler || !this._semanticBusAttached) return;
-    const bus = this._semanticBusAttached;
-    if (bus?.unsubscribe) {
-      bus.unsubscribe('link.created', this._semanticLinkCreatedHandler);
-    } else if (bus?.off) {
-      bus.off('link.created', this._semanticLinkCreatedHandler);
+    if (typeof this._regDisposerLinkCreated === 'function') {
+      this._regDisposerLinkCreated();
+      this._regDisposerLinkCreated = null;
+    } else if (this._semanticLinkCreatedHandler && this._semanticBusAttached) {
+      const bus = this._semanticBusAttached;
+      if (bus?.unsubscribe) {
+        bus.unsubscribe('link.created', this._semanticLinkCreatedHandler);
+      } else if (bus?.off) {
+        bus.off('link.created', this._semanticLinkCreatedHandler);
+      }
     }
     this._semanticBusAttached = null;
     this._semanticLinkCreatedHandler = null;
@@ -511,7 +516,9 @@ export class VisualEchoTrails_v1_Integration {
         priority: semanticBus.priority?.NORMAL
       });
     } else {
-      semanticBus.on('link.created', this._semanticLinkCreatedHandler);
+      this._regDisposerLinkCreated = eventRegistrationRegistry.register(
+        'VisualEchoTrailsIntegration', 'link.created', this._semanticLinkCreatedHandler, semanticBus
+      );
     }
   }
   

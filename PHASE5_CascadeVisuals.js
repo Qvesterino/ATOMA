@@ -23,6 +23,7 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 // ============================================================================
 // SECTION 1: CASCADE PROPAGATION VISUALS
@@ -844,8 +845,15 @@ export class PHASE5_CascadePropagationVisuals {
         });
       };
       
-      this.semanticBus.on('cascade.hop', this._boundCascadeHopHandler);
-      this.semanticBus.on('cascade.start', this._boundCascadeHopHandler);
+      // Registry-wrapped subscriptions
+      this._regDisposers = [];
+      const reg = (tag, handler) => {
+        const disposer = eventRegistrationRegistry.register('PHASE5_CascadePropagationVisuals', tag, handler, this.semanticBus);
+        this._regDisposers.push(disposer);
+      };
+
+      reg('cascade.hop', this._boundCascadeHopHandler);
+      reg('cascade.start', this._boundCascadeHopHandler);
 
       this._boundLinkHarmonyHandler = (event) => {
         if (!event) return;
@@ -871,9 +879,9 @@ export class PHASE5_CascadePropagationVisuals {
         });
       };
 
-      this.semanticBus.on('link.harmony.low', this._boundLinkHarmonyHandler);
-      this.semanticBus.on('link.harmony.mid', this._boundLinkHarmonyHandler);
-      this.semanticBus.on('link.harmony.high', this._boundLinkHarmonyHandler);
+      reg('link.harmony.low', this._boundLinkHarmonyHandler);
+      reg('link.harmony.mid', this._boundLinkHarmonyHandler);
+      reg('link.harmony.high', this._boundLinkHarmonyHandler);
 
       this._boundStabilityHandler = (event) => {
         if (!event) return;
@@ -916,8 +924,8 @@ export class PHASE5_CascadePropagationVisuals {
         }
         // LOW stability → no visual (too noisy)
       };
-      this.semanticBus.on('node.stability.mid', this._boundStabilityHandler);
-      this.semanticBus.on('node.stability.high', this._boundStabilityHandler);
+      reg('node.stability.mid', this._boundStabilityHandler);
+      reg('node.stability.high', this._boundStabilityHandler);
       this._semanticEventsBound = true;
       
     } catch (err) {
@@ -929,36 +937,43 @@ export class PHASE5_CascadePropagationVisuals {
 
   _unsubscribeSemanticCascadeEvents() {
     if (!this._semanticEventsBound) return;
-    const bus = this.semanticBus;
-    if (!bus) {
-      this._semanticEventsBound = false;
-      return;
+
+    // Prefer registry disposers
+    if (Array.isArray(this._regDisposers)) {
+      for (const disposer of this._regDisposers) {
+        try { disposer(); } catch (_) {}
+      }
+      this._regDisposers.length = 0;
     }
 
-    try {
-      if (typeof bus.off === 'function') {
-        bus.off('cascade.hop', this._boundCascadeHopHandler);
-        bus.off('cascade.start', this._boundCascadeHopHandler);
-        bus.off('link.harmony.low', this._boundLinkHarmonyHandler);
-        bus.off('link.harmony.mid', this._boundLinkHarmonyHandler);
-        bus.off('link.harmony.high', this._boundLinkHarmonyHandler);
-        bus.off('node.stability.low', this._boundStabilityHandler);
-        bus.off('node.stability.mid', this._boundStabilityHandler);
-        bus.off('node.stability.high', this._boundStabilityHandler);
-      }
-      if (typeof bus.unsubscribe === 'function') {
-        bus.unsubscribe('cascade.hop', this._boundCascadeHopHandler);
-        bus.unsubscribe('cascade.start', this._boundCascadeHopHandler);
-        bus.unsubscribe('link.harmony.low', this._boundLinkHarmonyHandler);
-        bus.unsubscribe('link.harmony.mid', this._boundLinkHarmonyHandler);
-        bus.unsubscribe('link.harmony.high', this._boundLinkHarmonyHandler);
-        bus.unsubscribe('node.stability.low', this._boundStabilityHandler);
-        bus.unsubscribe('node.stability.mid', this._boundStabilityHandler);
-        bus.unsubscribe('node.stability.high', this._boundStabilityHandler);
-      }
-    } catch (err) {
-      if (this.config.enableDebug) {
-        console.warn('[PHASE5_CascadePropagationVisuals] Semantic unsubscribe error:', err);
+    // Fallback: native off/unsubscribe for safety
+    const bus = this.semanticBus;
+    if (bus) {
+      try {
+        if (typeof bus.off === 'function') {
+          bus.off('cascade.hop', this._boundCascadeHopHandler);
+          bus.off('cascade.start', this._boundCascadeHopHandler);
+          bus.off('link.harmony.low', this._boundLinkHarmonyHandler);
+          bus.off('link.harmony.mid', this._boundLinkHarmonyHandler);
+          bus.off('link.harmony.high', this._boundLinkHarmonyHandler);
+          bus.off('node.stability.low', this._boundStabilityHandler);
+          bus.off('node.stability.mid', this._boundStabilityHandler);
+          bus.off('node.stability.high', this._boundStabilityHandler);
+        }
+        if (typeof bus.unsubscribe === 'function') {
+          bus.unsubscribe('cascade.hop', this._boundCascadeHopHandler);
+          bus.unsubscribe('cascade.start', this._boundCascadeHopHandler);
+          bus.unsubscribe('link.harmony.low', this._boundLinkHarmonyHandler);
+          bus.unsubscribe('link.harmony.mid', this._boundLinkHarmonyHandler);
+          bus.unsubscribe('link.harmony.high', this._boundLinkHarmonyHandler);
+          bus.unsubscribe('node.stability.low', this._boundStabilityHandler);
+          bus.unsubscribe('node.stability.mid', this._boundStabilityHandler);
+          bus.unsubscribe('node.stability.high', this._boundStabilityHandler);
+        }
+      } catch (err) {
+        if (this.config.enableDebug) {
+          console.warn('[PHASE5_CascadePropagationVisuals] Semantic unsubscribe error:', err);
+        }
       }
     }
 
@@ -1232,36 +1247,36 @@ export class PHASE5_CascadeVisualizationBridge {
           this._eventRefreshRequested = true;
         };
 
-        const unsubMetric = this.semanticBus.subscribe('node.metric.updated', requestRefresh);
+        // Registry-wrapped subscriptions for observability
+        const regDisposer = (tag, handler) => {
+          const disposer = eventRegistrationRegistry.register('PHASE5_CascadeVisualizationBridge', tag, handler, this.semanticBus);
+          this._semanticUnsubscribers.push(disposer);
+        };
+
+        regDisposer('node.metric.updated', requestRefresh);
         const unsubLink = this.semanticBus.registerLinkCreatedConsumer
           ? this.semanticBus.registerLinkCreatedConsumer(requestRefresh, {
               id: 'PHASE5_CascadeVisuals.requestRefresh',
               priority: this.semanticBus.priority?.NORMAL
             })
-          : this.semanticBus.subscribe('link.created', requestRefresh);
-        const unsubSpawn = this.semanticBus.subscribe('node.spawned', requestRefresh);
-        const unsubCorruptionCascade = this.semanticBus.subscribe('event:corruptionCascade', (payload) => {
+          : (() => { const d = eventRegistrationRegistry.register('PHASE5_CascadeVisualizationBridge', 'link.created', requestRefresh, this.semanticBus); this._semanticUnsubscribers.push(d); return d; })();
+        if (typeof unsubLink === 'function') this._semanticUnsubscribers.push(unsubLink);
+        regDisposer('node.spawned', requestRefresh);
+        regDisposer('event:corruptionCascade', (payload) => {
           this._eventRefreshRequested = true;
           const cascadeEvent = this._normalizeSemanticCascadeEvent(payload, 'corruption');
           if (cascadeEvent) this.queueCascadeEvent(cascadeEvent);
         });
-        const unsubLinkCollapse = this.semanticBus.subscribe('event:linkCollapse', (payload) => {
+        regDisposer('event:linkCollapse', (payload) => {
           this._eventRefreshRequested = true;
           const cascadeEvent = this._normalizeSemanticCascadeEvent(payload, 'threat');
           if (cascadeEvent) this.queueCascadeEvent(cascadeEvent);
         });
-        const unsubCorruptionSpread = this.semanticBus.subscribe('event:networkCorruptionSpread', (payload) => {
+        regDisposer('event:networkCorruptionSpread', (payload) => {
           this._eventRefreshRequested = true;
           const cascadeEvent = this._normalizeSemanticCascadeEvent(payload, 'corruption');
           if (cascadeEvent) this.queueCascadeEvent(cascadeEvent);
         });
-
-        if (typeof unsubMetric === 'function') this._semanticUnsubscribers.push(unsubMetric);
-        if (typeof unsubLink === 'function') this._semanticUnsubscribers.push(unsubLink);
-        if (typeof unsubSpawn === 'function') this._semanticUnsubscribers.push(unsubSpawn);
-        if (typeof unsubCorruptionCascade === 'function') this._semanticUnsubscribers.push(unsubCorruptionCascade);
-        if (typeof unsubLinkCollapse === 'function') this._semanticUnsubscribers.push(unsubLinkCollapse);
-        if (typeof unsubCorruptionSpread === 'function') this._semanticUnsubscribers.push(unsubCorruptionSpread);
       }
     } catch (err) {
       if (this.config.enableDebug) {

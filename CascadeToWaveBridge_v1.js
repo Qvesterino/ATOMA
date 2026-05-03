@@ -6,6 +6,7 @@
  * No renderer, no scheduler, no visual logic.
  * It only listens to cascade.hop and forwards burst intents.
  */
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value ?? 0));
@@ -122,16 +123,22 @@ export class CascadeToWaveBridge_v1 {
       this._writeFallbackWaveField(event, intensity);
     };
 
-    bus.on('cascade.hop', this._boundCascadeHopHandler);
+    this._regDisposerCascadeHop = eventRegistrationRegistry.register(
+      'CascadeToWaveBridge', 'cascade.hop', this._boundCascadeHopHandler, bus
+    );
   }
 
   _unbind() {
     if (!this._boundCascadeHopHandler || !this._semanticBusAttached) return;
-    const bus = this._semanticBusAttached;
-    if (bus?.unsubscribe) {
-      bus.unsubscribe('cascade.hop', this._boundCascadeHopHandler);
-    } else if (bus?.off) {
-      bus.off('cascade.hop', this._boundCascadeHopHandler);
+    if (typeof this._regDisposerCascadeHop === 'function') {
+      this._regDisposerCascadeHop();
+    } else {
+      const bus = this._semanticBusAttached;
+      if (bus?.unsubscribe) {
+        bus.unsubscribe('cascade.hop', this._boundCascadeHopHandler);
+      } else if (bus?.off) {
+        bus.off('cascade.hop', this._boundCascadeHopHandler);
+      }
     }
     this._semanticBusAttached = null;
     this._boundCascadeHopHandler = null;

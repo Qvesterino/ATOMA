@@ -9,6 +9,7 @@ import {
 import { PauseMenu } from './PauseMenu.js';
 import { loadUIVisibilityConfig } from './ui/config/UIVisibilityConfig.js';
 import { mountVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 const PREBOOT_BODY_CLASS = 'atoma-preboot';
 const AUDIO_ENABLED_STORAGE_KEY = 'atoma.audio.enabled';
@@ -217,3 +218,9 @@ class AtomaBootController {
 }
 
 new AtomaBootController();
+
+// Registration consolidation debug API (Phase 2)
+// Call __ATOMA_REG_REPORT__() in console to see active event registrations
+window.__ATOMA_REG_REPORT__ = () => eventRegistrationRegistry.report();
+window.__ATOMA_REG_DISPOSE_ALL__ = () => eventRegistrationRegistry.disposeAll();
+window.__ATOMA_REG_DISPOSE_OWNER__ = (owner) => eventRegistrationRegistry.disposeOwner(owner);

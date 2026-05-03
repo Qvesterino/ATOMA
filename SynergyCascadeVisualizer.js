@@ -33,6 +33,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { LinkPointFXBase } from './LinkPointFXBase.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 export class SynergyCascadeVisualizer {
   constructor(scene, linkingSystem, camera) {
@@ -445,9 +446,16 @@ export class SynergyCascadeVisualizer {
       onNodeSynergyHigh: (event = {}) => this.renderNodeSynergyRipple({ ...event, tier: 'high' }),
       onTopologyBiasSnapshot: (event = {}) => this.applyTopologyBiasSnapshot(event)
     };
-    on('cascade.hop', this._semanticHandlers.onCascadeHop);
-    on('cascade.start', this._semanticHandlers.onCascadeStart);
-    on('cascade.end', this._semanticHandlers.onCascadeEnd);
+    // Registry-wrapped subscriptions for observability
+    this._regDisposers = [];
+    const reg = (tag, handler) => {
+      const disposer = eventRegistrationRegistry.register('SynergyCascadeVisualizer', tag, handler, semanticBus);
+      this._regDisposers.push(disposer);
+    };
+
+    reg('cascade.hop', this._semanticHandlers.onCascadeHop);
+    reg('cascade.start', this._semanticHandlers.onCascadeStart);
+    reg('cascade.end', this._semanticHandlers.onCascadeEnd);
     this._linkCreatedFanoutUnsubscribe?.();
     this._linkCreatedFanoutUnsubscribe = null;
     if (registerLinkCreatedConsumer) {
@@ -456,15 +464,15 @@ export class SynergyCascadeVisualizer {
         priority: semanticBus.priority?.NORMAL
       });
     } else {
-      on('link.created', this._semanticHandlers.onLinkCreated);
+      reg('link.created', this._semanticHandlers.onLinkCreated);
     }
-    on('link.harmony.low', this._semanticHandlers.onLinkHarmonyTier);
-    on('link.harmony.mid', this._semanticHandlers.onLinkHarmonyTier);
-    on('link.harmony.high', this._semanticHandlers.onLinkHarmonyTier);
-    on('node.synergy.low', this._semanticHandlers.onNodeSynergyLow);
-    on('node.synergy.mid', this._semanticHandlers.onNodeSynergyMid);
-    on('node.synergy.high', this._semanticHandlers.onNodeSynergyHigh);
-    on('topology.bias.snapshot', this._semanticHandlers.onTopologyBiasSnapshot);
+    reg('link.harmony.low', this._semanticHandlers.onLinkHarmonyTier);
+    reg('link.harmony.mid', this._semanticHandlers.onLinkHarmonyTier);
+    reg('link.harmony.high', this._semanticHandlers.onLinkHarmonyTier);
+    reg('node.synergy.low', this._semanticHandlers.onNodeSynergyLow);
+    reg('node.synergy.mid', this._semanticHandlers.onNodeSynergyMid);
+    reg('node.synergy.high', this._semanticHandlers.onNodeSynergyHigh);
+    reg('topology.bias.snapshot', this._semanticHandlers.onTopologyBiasSnapshot);
   }
 
   _unbindSemanticEvents() {
@@ -472,21 +480,31 @@ export class SynergyCascadeVisualizer {
     const handlers = this._semanticHandlers;
     this._linkCreatedFanoutUnsubscribe?.();
     this._linkCreatedFanoutUnsubscribe = null;
-    if (!bus || !handlers) return;
 
-    const off = bus.off?.bind(bus) || bus.unsubscribe?.bind(bus);
-    if (off) {
-      try { off('cascade.hop', handlers.onCascadeHop); } catch (_) {}
-      try { off('cascade.start', handlers.onCascadeStart); } catch (_) {}
-      try { off('cascade.end', handlers.onCascadeEnd); } catch (_) {}
-      try { off('link.created', handlers.onLinkCreated); } catch (_) {}
-      try { off('link.harmony.low', handlers.onLinkHarmonyTier); } catch (_) {}
-      try { off('link.harmony.mid', handlers.onLinkHarmonyTier); } catch (_) {}
-      try { off('link.harmony.high', handlers.onLinkHarmonyTier); } catch (_) {}
-      try { off('node.synergy.low', handlers.onNodeSynergyLow); } catch (_) {}
-      try { off('node.synergy.mid', handlers.onNodeSynergyMid); } catch (_) {}
-      try { off('node.synergy.high', handlers.onNodeSynergyHigh); } catch (_) {}
-      try { off('topology.bias.snapshot', handlers.onTopologyBiasSnapshot); } catch (_) {}
+    // Prefer registry disposers
+    if (Array.isArray(this._regDisposers)) {
+      for (const disposer of this._regDisposers) {
+        try { disposer(); } catch (_) {}
+      }
+      this._regDisposers.length = 0;
+    }
+
+    // Fallback: native off() for safety
+    if (bus && handlers) {
+      const off = bus.off?.bind(bus) || bus.unsubscribe?.bind(bus);
+      if (off) {
+        try { off('cascade.hop', handlers.onCascadeHop); } catch (_) {}
+        try { off('cascade.start', handlers.onCascadeStart); } catch (_) {}
+        try { off('cascade.end', handlers.onCascadeEnd); } catch (_) {}
+        try { off('link.created', handlers.onLinkCreated); } catch (_) {}
+        try { off('link.harmony.low', handlers.onLinkHarmonyTier); } catch (_) {}
+        try { off('link.harmony.mid', handlers.onLinkHarmonyTier); } catch (_) {}
+        try { off('link.harmony.high', handlers.onLinkHarmonyTier); } catch (_) {}
+        try { off('node.synergy.low', handlers.onNodeSynergyLow); } catch (_) {}
+        try { off('node.synergy.mid', handlers.onNodeSynergyMid); } catch (_) {}
+        try { off('node.synergy.high', handlers.onNodeSynergyHigh); } catch (_) {}
+        try { off('topology.bias.snapshot', handlers.onTopologyBiasSnapshot); } catch (_) {}
+      }
     }
 
     this._semanticBus = null;

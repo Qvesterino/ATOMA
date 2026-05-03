@@ -28,6 +28,7 @@
  */
 
 import * as THREE from 'three';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { getEnvSpriteTexture } from './EnvironmentPointFXBase.js';
 
@@ -776,7 +777,9 @@ export class CascadeBurstVisual_Session147 {
       }
     };
 
-    bus.on('cascade.start', this._boundCascadeStart);
+    this._regDisposerCascadeStart = eventRegistrationRegistry.register(
+      'CascadeBurstVisual', 'cascade.start', this._boundCascadeStart, bus
+    );
 
     // ── Stability Low Burst Subscription ──
     // Triggers burst when a node's stability drops below threshold
@@ -799,7 +802,9 @@ export class CascadeBurstVisual_Session147 {
       }
     };
 
-    bus.on('node.stability.low', this._boundStabilityLow);
+    this._regDisposerStabilityLow = eventRegistrationRegistry.register(
+      'CascadeBurstVisual', 'node.stability.low', this._boundStabilityLow, bus
+    );
     this._semanticBusAttached = bus;
   }
 
@@ -1128,13 +1133,22 @@ export class CascadeBurstVisual_Session147 {
    * Dispose all resources
    */
   dispose() {
-    // Unsubscribe from semantic bus
-    const bus = this._semanticBusAttached || globalThis?.semanticBus;
-    if (bus?.off && this._boundCascadeStart) {
-      bus.off('cascade.start', this._boundCascadeStart);
+    // Unsubscribe via registration registry
+    if (typeof this._regDisposerCascadeStart === 'function') {
+      this._regDisposerCascadeStart();
+    } else {
+      const bus = this._semanticBusAttached || globalThis?.semanticBus;
+      if (bus?.off && this._boundCascadeStart) {
+        bus.off('cascade.start', this._boundCascadeStart);
+      }
     }
-    if (bus?.off && this._boundStabilityLow) {
-      bus.off('node.stability.low', this._boundStabilityLow);
+    if (typeof this._regDisposerStabilityLow === 'function') {
+      this._regDisposerStabilityLow();
+    } else {
+      const bus = this._semanticBusAttached || globalThis?.semanticBus;
+      if (bus?.off && this._boundStabilityLow) {
+        bus.off('node.stability.low', this._boundStabilityLow);
+      }
     }
 
     // Remove all meshes from scene

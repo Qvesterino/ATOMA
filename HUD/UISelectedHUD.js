@@ -61,6 +61,7 @@
 
 import { LinkPrioritySystem } from '../LinkPrioritySystem.js';
 import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from '../ui/config/UIVisibilityConfig.js';
+import { eventRegistrationRegistry } from '../Engine/EventRegistrationRegistry.js';
 
 export class UISelectedHUD {
     // Curated charset: tech + symbolism + visual density
@@ -139,6 +140,13 @@ export class UISelectedHUD {
     _unbindSemanticBus() {
         if (!this._semanticLinkCreatedHandler || !this._semanticBusAttached) return;
 
+        // Prefer registry disposer
+        if (this._regDisposer) {
+            try { this._regDisposer(); } catch (_) {}
+            this._regDisposer = null;
+        }
+
+        // Fallback: native unsubscribe/off
         const bus = this._semanticBusAttached;
         if (bus?.unsubscribe) {
             bus.unsubscribe('link.created', this._semanticLinkCreatedHandler);
@@ -176,7 +184,12 @@ export class UISelectedHUD {
                 this.updateDisplay(this.selectedNode);
             }
         };
-        semanticBus.on('link.created', this._semanticLinkCreatedHandler);
+        this._regDisposer = eventRegistrationRegistry.register(
+            'UISelectedHUD',
+            'link.created',
+            this._semanticLinkCreatedHandler,
+            semanticBus
+        );
     }
     
     /**

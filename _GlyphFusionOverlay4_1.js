@@ -34,6 +34,7 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value));
@@ -193,12 +194,19 @@ export class GlyphFusionOverlay4_1 {
         return;
       }
 
-      this.semanticBus.subscribe?.(tag, handler, opts);
-      if (off) {
-        this._semanticUnsubscribers.push(() => {
-          try { off(tag, handler); } catch (_) {}
-        });
-      }
+      // Registry-wrapped subscription for observability
+      const regDisposer = eventRegistrationRegistry.register(
+        'GlyphFusionOverlay4_1',
+        tag,
+        handler,
+        this.semanticBus
+      );
+      this._semanticUnsubscribers.push(() => {
+        try { regDisposer(); } catch (_) {
+          // Fallback: try native unsubscribe
+          try { off?.(tag, handler); } catch (__) {}
+        }
+      });
     };
 
     const onLinkCreated = (evt) => {

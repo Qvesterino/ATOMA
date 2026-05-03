@@ -8,6 +8,7 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 export class RecursiveGlyphSignalSystem {
   constructor(scene, {
@@ -153,12 +154,16 @@ export class RecursiveGlyphSignalSystem {
   }
 
   _unbindSemanticBus() {
-    if (!this._semanticLinkCreatedHandler || !this._semanticBusAttached) return;
-    const bus = this._semanticBusAttached;
-    if (bus?.unsubscribe) {
-      bus.unsubscribe('link.created', this._semanticLinkCreatedHandler);
-    } else if (bus?.off) {
-      bus.off('link.created', this._semanticLinkCreatedHandler);
+    if (typeof this._regDisposerLinkCreated === 'function') {
+      this._regDisposerLinkCreated();
+      this._regDisposerLinkCreated = null;
+    } else if (this._semanticLinkCreatedHandler && this._semanticBusAttached) {
+      const bus = this._semanticBusAttached;
+      if (bus?.unsubscribe) {
+        bus.unsubscribe('link.created', this._semanticLinkCreatedHandler);
+      } else if (bus?.off) {
+        bus.off('link.created', this._semanticLinkCreatedHandler);
+      }
     }
     this._semanticBusAttached = null;
     this._semanticLinkCreatedHandler = null;
@@ -178,7 +183,9 @@ export class RecursiveGlyphSignalSystem {
       if (!source || !target) return;
       this.triggerResidueSignal(source, target, 'resonance');
     };
-    semanticBus.on('link.created', this._semanticLinkCreatedHandler);
+    this._regDisposerLinkCreated = eventRegistrationRegistry.register(
+      'RecursiveGlyphSignalSystem', 'link.created', this._semanticLinkCreatedHandler, semanticBus
+    );
   }
 
   setDynamicsContext({ isBurstActive = null, isFieldActive = null } = {}) {

@@ -21,6 +21,7 @@ import * as THREE from 'three';
 import { AtomaLanguageEngine2_0 } from './_AtomaLanguageEngine2_0.js';
 import { atomaNamingEngine } from './_AtomaNamingEngine.js';
 import { NodeSpatialIndex } from './NodeSpatialIndex.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 const METRIC_DISPLAY_MODES = Object.freeze({
   NUMERIC: 'numeric',
@@ -111,11 +112,17 @@ export class NodeInspectOverlay1_0 {
 
     const semanticBus = globalThis.semanticBus;
     if (semanticBus?.subscribe) {
-      this._linkCreatedDismissDisposer = semanticBus.subscribe('link.created', (payload = {}) => {
+      const handler = (payload = {}) => {
         void payload;
         this.hideOverlay();
         this.currentNode = null;
-      });
+      };
+      this._regDisposer = eventRegistrationRegistry.register(
+        'NodeInspectOverlay1_0',
+        'link.created',
+        handler,
+        semanticBus
+      );
     }
 
     const linkingSystem = this.game?.linkingSystem || this.game?.nodeLinking || null;
@@ -1407,5 +1414,42 @@ export class NodeInspectOverlay1_0 {
   forceHide() {
     this.hideOverlay();
     this.currentNode = null;
+  }
+
+  /**
+   * Full resource cleanup — dispose all subscriptions and DOM elements
+   */
+  dispose() {
+    // Registry disposer (preferred)
+    if (this._regDisposer) {
+      try { this._regDisposer(); } catch (_) {}
+      this._regDisposer = null;
+    }
+    // Fallback: native disposer
+    if (this._linkCreatedDismissDisposer) {
+      try { this._linkCreatedDismissDisposer(); } catch (_) {}
+      this._linkCreatedDismissDisposer = null;
+    }
+    // Unregister linking system callback
+    const linkingSystem = this.game?.linkingSystem || this.game?.nodeLinking || null;
+    if (linkingSystem?.unregisterLinkCreatedCallback && this._linkCreatedCallback) {
+      try { linkingSystem.unregisterLinkCreatedCallback(this._linkCreatedCallback); } catch (_) {}
+      this._linkCreatedCallback = null;
+    }
+    // Stop fallback poll
+    if (this._fallbackPollHandle) {
+      clearInterval(this._fallbackPollHandle);
+      this._fallbackPollHandle = null;
+    }
+    // Remove HUD DOM
+    this.hideOverlay();
+    this.hudPanel?.remove?.();
+    this.hudPanel = null;
+    // Clear console API
+    if (typeof window !== 'undefined') {
+      delete window.nodeInspect1;
+    }
+    this.currentNode = null;
+    this.enabled = false;
   }
 }
