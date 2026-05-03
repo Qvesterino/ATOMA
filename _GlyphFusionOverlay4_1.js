@@ -105,6 +105,8 @@ export class GlyphFusionOverlay4_1 {
     
     // Enable/disable flag
     this.enabled = true;
+    this._eventsSubscribed = false;
+    this._semanticUnsubscribers = [];
     
     // Color palette
     this.colors = {
@@ -175,65 +177,113 @@ export class GlyphFusionOverlay4_1 {
       console.warn('GlyphFusionOverlay4_1: No semanticBus provided - event-driven disabled');
       return;
     }
-    
-    // Network events - trigger exploring state
-    this.semanticBus.subscribe('link.created', (evt) => {
+    if (this._eventsSubscribed) return;
+
+    const off = this.semanticBus.unsubscribe?.bind(this.semanticBus)
+      || this.semanticBus.off?.bind(this.semanticBus)
+      || null;
+    const bind = (tag, handler, opts = {}) => {
+      if (tag === 'link.created' && typeof this.semanticBus.registerLinkCreatedConsumer === 'function') {
+        const unsub = this.semanticBus.registerLinkCreatedConsumer(handler, {
+          id: `GlyphFusionOverlay4_1.${tag}`,
+          priority: this.semanticBus.priority?.NORMAL,
+          ...opts
+        });
+        if (typeof unsub === 'function') this._semanticUnsubscribers.push(unsub);
+        return;
+      }
+
+      this.semanticBus.subscribe?.(tag, handler, opts);
+      if (off) {
+        this._semanticUnsubscribers.push(() => {
+          try { off(tag, handler); } catch (_) {}
+        });
+      }
+    };
+
+    const onLinkCreated = (evt) => {
       if (!this.enabled) return;
       this.handleLinkCreated(evt);
-    });
-    
-    this.semanticBus.subscribe('network.link.destroyed', (evt) => {
+    };
+    const onNetworkLinkDestroyed = (evt) => {
       if (!this.enabled) return;
       this.handleLinkDestroyed(evt);
-    });
-    this.semanticBus.subscribe('link:collapsed', (evt) => {
+    };
+    const onLinkCollapsed = (evt) => {
       if (!this.enabled) return;
       this.handleLinkDestroyed(evt);
-    });
-    
-    // Semantic events - trigger appropriate fusion forms
-    this.semanticBus.subscribe('semantic.state.changed', (evt) => {
+    };
+    const onSemanticStateChanged = (evt) => {
       if (!this.enabled) return;
       this.handleSemanticStateChanged(evt);
-    });
-    
-    this.semanticBus.subscribe('semantic.cluster.sync', (evt) => {
+    };
+    const onSemanticClusterSync = (evt) => {
       if (!this.enabled) return;
       this.handleClusterSync(evt);
-    });
-    
-    this.semanticBus.subscribe('semantic.ascension', (evt) => {
+    };
+    const onSemanticAscension = (evt) => {
       if (!this.enabled) return;
       this.handleAscension(evt);
-    });
-    this.semanticBus.subscribe('node:ascended', (evt) => {
+    };
+    const onNodeAscended = (evt) => {
       if (!this.enabled) return;
       this.handleAscension(evt);
-    });
-    
-    this.semanticBus.subscribe('semantic.ritual.started', (evt) => {
+    };
+    const onRitualStarted = (evt) => {
       if (!this.enabled) return;
       this.handleRitualStarted(evt);
-    });
-    
-    this.semanticBus.subscribe('semantic.ritual.completed', (evt) => {
+    };
+    const onRitualCompleted = (evt) => {
       if (!this.enabled) return;
       this.handleRitualCompleted(evt);
-    });
-    
-    // Selection event - immediate response
-    this.semanticBus.subscribe('node.selection', (evt) => {
+    };
+    const onNodeSelection = (evt) => {
       if (!this.enabled) return;
       if (evt.type === 'select') {
         this.handleNodeSelected(evt.nodeId);
       } else if (evt.type === 'deselect') {
         this.handleNodeDeselected(evt.nodeId);
       }
-    });
-    this.semanticBus.subscribe('node:selected', (evt) => {
+    };
+    const onNodeSelected = (evt) => {
       if (!this.enabled) return;
       this.handleNodeSelected(evt.nodeId);
-    });
+    };
+    
+    // Network events - trigger exploring state
+    bind('link.created', onLinkCreated);
+    
+    bind('network.link.destroyed', onNetworkLinkDestroyed);
+    bind('link:collapsed', onLinkCollapsed);
+    
+    // Semantic events - trigger appropriate fusion forms
+    bind('semantic.state.changed', onSemanticStateChanged);
+    
+    bind('semantic.cluster.sync', onSemanticClusterSync);
+    
+    bind('semantic.ascension', onSemanticAscension);
+    bind('node:ascended', onNodeAscended);
+    
+    bind('semantic.ritual.started', onRitualStarted);
+    
+    bind('semantic.ritual.completed', onRitualCompleted);
+    
+    // Selection event - immediate response
+    bind('node.selection', onNodeSelection);
+    bind('node:selected', onNodeSelected);
+    this._eventsSubscribed = true;
+  }
+
+  _unsubscribeSemanticEvents() {
+    if (!Array.isArray(this._semanticUnsubscribers) || this._semanticUnsubscribers.length === 0) {
+      this._eventsSubscribed = false;
+      return;
+    }
+    for (const unsub of this._semanticUnsubscribers) {
+      try { unsub?.(); } catch (_) {}
+    }
+    this._semanticUnsubscribers.length = 0;
+    this._eventsSubscribed = false;
   }
   
   /**
@@ -817,6 +867,11 @@ export class GlyphFusionOverlay4_1 {
   }
 
   resetForWorldSwitch({ scene = this.scene, worldRoot = this.worldRoot, semanticGlyphAI = this.semanticGlyphAI, semanticBus = this.semanticBus, aiNodes = null } = {}) {
+    const semanticBusChanged = semanticBus !== this.semanticBus;
+    if (semanticBusChanged) {
+      this._unsubscribeSemanticEvents();
+    }
+
     this.scene = scene;
     this.worldRoot = worldRoot;
     this.semanticGlyphAI = semanticGlyphAI;
@@ -835,6 +890,10 @@ export class GlyphFusionOverlay4_1 {
       : (Array.isArray(aiNodes?.nodes) ? aiNodes.nodes : null);
     if (nodes) {
       this.initializeForNodes(nodes);
+    }
+
+    if (semanticBusChanged) {
+      this.subscribeToEvents();
     }
 
     return this;
@@ -1328,6 +1387,7 @@ export class GlyphFusionOverlay4_1 {
    * Full resource cleanup
    */
   dispose() {
+    this._unsubscribeSemanticEvents();
     this.cleanup();
     
     // Dispose materials

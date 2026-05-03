@@ -1547,6 +1547,14 @@ class SemanticEventBus {
     constructor() {
         this.handlers = new Map();
         this.prefixListeners = [];
+        this.linkCreatedFanout = {
+            edgeBound: false,
+            edgeHandler: null,
+            edgeUnsubscribe: null,
+            idSeq: 0,
+            consumers: [new Map(), new Map(), new Map(), new Map()]
+        };
+        this.stormGovernanceTags = new Set(['cascade.start', 'cascade.hop', 'node.selection']);
         this.eventAliasRegistry = new Map();
         this.metricAliasCatalog = {
             tier: [],
@@ -1605,12 +1613,34 @@ class SemanticEventBus {
         // Phase E.4: semantic escalation / suppression defaults
         this.eventPolicies = new Map([
             ['metrics.spike', { decayStages: [{ afterMs: 500, priority: this.priority.INTERACTIVE }, { afterMs: 1500, priority: this.priority.NORMAL }], expiresMs: 2200, cooldownMs: 120, aggregateWithinMs: 500, aggregationStrategy: 'latest', escalate: { threshold: 2, toPriority: this.priority.CRITICAL, windowMs: 800, maxLevel: 1 }, suppress: { ifOverload: true, maxQueueDepth: 120, dropRateThreshold: 0.25 } }],
-            ['node.selection', { decayStages: [{ afterMs: 300, priority: this.priority.INTERACTIVE }, { afterMs: 1200, priority: this.priority.NORMAL }], expiresMs: 2000, cooldownMs: 200, aggregateWithinMs: 250, aggregationStrategy: 'latest', escalate: { threshold: 3, toPriority: this.priority.CRITICAL, windowMs: 900, maxLevel: 1 }, suppress: { ifOverload: true, maxQueueDepth: 140 } }],
+            ['node.selection', {
+                decayStages: [{ afterMs: 240, priority: this.priority.INTERACTIVE }, { afterMs: 1000, priority: this.priority.NORMAL }],
+                expiresMs: 1800,
+                cooldownMs: 110,
+                aggregateWithinMs: 120,
+                aggregationStrategy: 'latest',
+                escalate: { threshold: 3, toPriority: this.priority.CRITICAL, windowMs: 800, maxLevel: 1 },
+                suppress: { ifOverload: true, maxQueueDepth: 120, dropRateThreshold: 0.2 }
+            }],
             ['hud.visibility.change', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 250, aggregateWithinMs: 300, aggregationStrategy: 'latest', escalate: { threshold: 2, toPriority: this.priority.INTERACTIVE, windowMs: 700, maxLevel: 1 }, suppress: { ifOverload: true, maxQueueDepth: 120 } }],
             ['camera.motion', { decayStages: [{ afterMs: 700, priority: this.priority.NORMAL }], expiresMs: 1800, cooldownMs: 120, aggregateWithinMs: 300, aggregationStrategy: 'sum', escalate: { threshold: 4, toPriority: this.priority.INTERACTIVE, windowMs: 600, maxLevel: 1 }, suppress: { ifOverload: true, maxQueueDepth: 160 } }],
             ['link.created', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
-            ['cascade.start', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
-            ['cascade.hop', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
+            ['cascade.start', {
+                decayStages: [{ afterMs: 400, priority: this.priority.NORMAL }],
+                expiresMs: 1400,
+                cooldownMs: 80,
+                aggregateWithinMs: 100,
+                aggregationStrategy: 'latest',
+                suppress: { ifOverload: true, maxQueueDepth: 140, dropRateThreshold: 0.25 }
+            }],
+            ['cascade.hop', {
+                decayStages: [{ afterMs: 360, priority: this.priority.NORMAL }],
+                expiresMs: 1200,
+                cooldownMs: 70,
+                aggregateWithinMs: 90,
+                aggregationStrategy: 'latest',
+                suppress: { ifOverload: true, maxQueueDepth: 140, dropRateThreshold: 0.25 }
+            }],
             ['cascade.end', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
             ['network.link.destroyed', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
             ['node.spawned', { decayStages: [{ afterMs: 700, priority: this.priority.NORMAL }], expiresMs: 2000, cooldownMs: 150, aggregateWithinMs: 150, aggregationStrategy: 'latest' }],
@@ -2136,27 +2166,130 @@ class SemanticEventBus {
         }
         const handlerPriority = this.normalizePriority(opts.priority);
         this.handlers.get(tag).push({ fn: handler, priority: handlerPriority });
+        return () => this.unsubscribe(tag, handler);
     }
     on(tag, handler, opts = {}) {
-        this.subscribe(tag, handler, opts);
+        return this.subscribe(tag, handler, opts);
     }
     onPrefix(prefix, handler, opts = {}) {
-        if (typeof prefix !== 'string' || typeof handler !== 'function') return;
+        if (typeof prefix !== 'string' || typeof handler !== 'function') return () => {};
         const handlerPriority = this.normalizePriority(opts.priority);
-        this.prefixListeners.push({ prefix, fn: handler, priority: handlerPriority });
+        const entry = { prefix, fn: handler, priority: handlerPriority };
+        this.prefixListeners.push(entry);
+        return () => {
+            const idx = this.prefixListeners.indexOf(entry);
+            if (idx >= 0) this.prefixListeners.splice(idx, 1);
+        };
     }
     unsubscribe(tag, handler) {
         const list = this.handlers.get(tag);
-        if (!list || list.length === 0) return;
+        if (!list || list.length === 0) return false;
         const next = list.filter(entry => entry.fn !== handler);
         if (next.length === 0) {
             this.handlers.delete(tag);
-            return;
+            return true;
         }
+        if (next.length === list.length) return false;
         this.handlers.set(tag, next);
+        return true;
     }
     off(tag, handler) {
         this.unsubscribe(tag, handler);
+    }
+    _getLinkCreatedFanoutCount() {
+        if (!this.linkCreatedFanout?.consumers) return 0;
+        let total = 0;
+        for (const bucket of this.linkCreatedFanout.consumers) {
+            total += bucket?.size || 0;
+        }
+        return total;
+    }
+    _teardownLinkCreatedFanoutEdge() {
+        const fanout = this.linkCreatedFanout;
+        if (!fanout?.edgeBound) return;
+        try {
+            fanout.edgeUnsubscribe?.();
+        } catch (_) {}
+        fanout.edgeBound = false;
+        fanout.edgeHandler = null;
+        fanout.edgeUnsubscribe = null;
+    }
+    _ensureLinkCreatedFanoutEdge() {
+        const fanout = this.linkCreatedFanout;
+        if (!fanout || fanout.edgeBound) return;
+
+        const edgeHandler = (event = {}) => {
+            this.dispatchLinkCreatedFanout(event);
+        };
+
+        let edgeUnsubscribe = null;
+        if (typeof this.subscribe === 'function') {
+            this.subscribe('link.created', edgeHandler, { priority: this.priority.INTERACTIVE });
+            edgeUnsubscribe = () => this.unsubscribe('link.created', edgeHandler);
+        } else if (typeof this.on === 'function') {
+            this.on('link.created', edgeHandler, { priority: this.priority.INTERACTIVE });
+            edgeUnsubscribe = () => this.off?.('link.created', edgeHandler);
+        }
+
+        if (!edgeUnsubscribe) return;
+
+        fanout.edgeBound = true;
+        fanout.edgeHandler = edgeHandler;
+        fanout.edgeUnsubscribe = edgeUnsubscribe;
+    }
+    dispatchLinkCreatedFanout(event = {}) {
+        const fanout = this.linkCreatedFanout;
+        if (!fanout?.consumers) return;
+
+        for (let priority = 0; priority < fanout.consumers.length; priority++) {
+            const bucket = fanout.consumers[priority];
+            if (!bucket || bucket.size === 0) continue;
+            for (const consumer of bucket.values()) {
+                try {
+                    consumer?.handler?.(event);
+                } catch (err) {
+                    console.warn('[SemanticEventBus] link.created fanout consumer failed:', consumer?.id, err);
+                }
+            }
+        }
+    }
+    registerLinkCreatedConsumer(handler, opts = {}) {
+        if (typeof handler !== 'function') return () => {};
+
+        const fanout = this.linkCreatedFanout;
+        const priority = this.normalizePriority(opts.priority);
+        const id = String(opts.id || `link.created.consumer.${++fanout.idSeq}`);
+
+        this.unregisterLinkCreatedConsumer(id);
+        fanout.consumers[priority].set(id, {
+            id,
+            priority,
+            handler
+        });
+
+        this._ensureLinkCreatedFanoutEdge();
+
+        return () => {
+            this.unregisterLinkCreatedConsumer(id);
+        };
+    }
+    unregisterLinkCreatedConsumer(id) {
+        if (!id) return false;
+        const fanout = this.linkCreatedFanout;
+        const targetId = String(id);
+        let removed = false;
+
+        for (const bucket of fanout.consumers) {
+            if (!bucket?.has(targetId)) continue;
+            bucket.delete(targetId);
+            removed = true;
+        }
+
+        if (removed && this._getLinkCreatedFanoutCount() === 0) {
+            this._teardownLinkCreatedFanoutEdge();
+        }
+
+        return removed;
     }
     registerEventAlias(aliasTag, targetResolver, opts = {}) {
         if (typeof aliasTag !== 'string' || !aliasTag) return;
@@ -2228,6 +2361,15 @@ class SemanticEventBus {
                 console.warn(`[SemanticEventBus] Legacy compatibility event tag emitted: ${tag}. Prefer scoped metric tier events for new wiring.`);
             }
         }
+        const eventPriority = this.normalizePriority(opts.priority);
+        const shouldFastLaneImmediate = this.stormGovernanceTags.has(tag)
+            && eventPriority <= this.priority.INTERACTIVE
+            && opts.deferCritical !== true;
+        if (shouldFastLaneImmediate) {
+            this.emitImmediate(tag, payload, { ...opts, expandAliases: opts.expandAliases !== false });
+            return;
+        }
+
         const allowAliasExpansion = opts.expandAliases !== false;
         const aliasTargets = allowAliasExpansion ? this.resolveEventAliases(tag, payload, opts) : [];
         const exactHandlers = this.handlers.get(tag) || [];
@@ -2244,7 +2386,6 @@ class SemanticEventBus {
             ? (prefixHandlers.length > 0 ? exactHandlers.concat(prefixHandlers) : exactHandlers)
             : prefixHandlers;
         if ((!list || list.length === 0) && aliasTargets.length === 0) return;
-        const eventPriority = this.normalizePriority(opts.priority);
         const now = performance.now();
         const basePolicy = opts.policy || this.eventPolicies.get(tag);
         const policy = basePolicy ? { ...basePolicy } : undefined;
@@ -4055,6 +4196,8 @@ class AtomaGame {
         const loreEngine = new LoreUnlockEngine();
         this.loreEngine = loreEngine;
         this._loreUnlockBridgeBound = false;
+        this._loreUnlockBridgeUnsub = null;
+        this._loreUnlockBridgeBus = null;
         this._setupLoreUnlockBridge();
         this.metricDirtyQueue = globalThis.__ATOMA_METRIC_DIRTY_QUEUE__ || createMetricDirtyQueue();
         globalThis.__ATOMA_METRIC_DIRTY_QUEUE__ = this.metricDirtyQueue;
@@ -14596,12 +14739,22 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     }
 
     _setupLoreUnlockBridge() {
-        if (this._loreUnlockBridgeBound || !this.semanticBus?.on) {
+        if (!this.semanticBus?.on) {
             return;
         }
 
+        if (this._loreUnlockBridgeBound && this._loreUnlockBridgeBus === this.semanticBus) {
+            return;
+        }
+
+        try {
+            this._loreUnlockBridgeUnsub?.();
+        } catch (_) {}
+        this._loreUnlockBridgeUnsub = null;
+
         this._loreUnlockBridgeBound = true;
-        this.semanticBus.on('lore.unlocked', ({ id } = {}) => {
+        this._loreUnlockBridgeBus = this.semanticBus;
+        this._loreUnlockBridgeUnsub = this.semanticBus.on('lore.unlocked', ({ id } = {}) => {
             const key = LORE_TO_LANGUAGE[id];
             if (!key) {
                 return;

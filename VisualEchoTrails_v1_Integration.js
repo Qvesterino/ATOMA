@@ -456,6 +456,8 @@ export class VisualEchoTrails_v1_Integration {
   }
 
   _unbindSemanticBus() {
+    this._semanticLinkCreatedFanoutUnsubscribe?.();
+    this._semanticLinkCreatedFanoutUnsubscribe = null;
     if (!this._semanticLinkCreatedHandler || !this._semanticBusAttached) return;
     const bus = this._semanticBusAttached;
     if (bus?.unsubscribe) {
@@ -503,7 +505,14 @@ export class VisualEchoTrails_v1_Integration {
       this.onLinkCreated(link);
     };
 
-    semanticBus.on('link.created', this._semanticLinkCreatedHandler);
+    if (semanticBus.registerLinkCreatedConsumer) {
+      this._semanticLinkCreatedFanoutUnsubscribe = semanticBus.registerLinkCreatedConsumer(this._semanticLinkCreatedHandler, {
+        id: 'VisualEchoTrails_v1_Integration.linkCreated',
+        priority: semanticBus.priority?.NORMAL
+      });
+    } else {
+      semanticBus.on('link.created', this._semanticLinkCreatedHandler);
+    }
   }
   
   /**

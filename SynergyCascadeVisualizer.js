@@ -47,6 +47,8 @@ export class SynergyCascadeVisualizer {
     this.activeCascades = [];        // Active cascade propagations
     this.cascadeHistory = new Map(); // link → cascade history for visuals
     this.cascadeId = 0;             // Unique cascade identifiers
+    this._linkCreatedConsumerId = `SynergyCascadeVisualizer.linkCreated.${Math.random().toString(36).slice(2)}`;
+    this._linkCreatedFanoutUnsubscribe = null;
     
     // Performance tracking
     this.stats = {
@@ -422,6 +424,7 @@ export class SynergyCascadeVisualizer {
     const semanticBus = globalThis?.semanticBus;
     if (!semanticBus) return;
     const on = semanticBus.on?.bind(semanticBus);
+    const registerLinkCreatedConsumer = semanticBus.registerLinkCreatedConsumer?.bind(semanticBus);
     if (!on) return;
 
     if (this._semanticBus === semanticBus && this._semanticHandlers) {
@@ -445,7 +448,16 @@ export class SynergyCascadeVisualizer {
     on('cascade.hop', this._semanticHandlers.onCascadeHop);
     on('cascade.start', this._semanticHandlers.onCascadeStart);
     on('cascade.end', this._semanticHandlers.onCascadeEnd);
-    on('link.created', this._semanticHandlers.onLinkCreated);
+    this._linkCreatedFanoutUnsubscribe?.();
+    this._linkCreatedFanoutUnsubscribe = null;
+    if (registerLinkCreatedConsumer) {
+      this._linkCreatedFanoutUnsubscribe = registerLinkCreatedConsumer(this._semanticHandlers.onLinkCreated, {
+        id: this._linkCreatedConsumerId,
+        priority: semanticBus.priority?.NORMAL
+      });
+    } else {
+      on('link.created', this._semanticHandlers.onLinkCreated);
+    }
     on('link.harmony.low', this._semanticHandlers.onLinkHarmonyTier);
     on('link.harmony.mid', this._semanticHandlers.onLinkHarmonyTier);
     on('link.harmony.high', this._semanticHandlers.onLinkHarmonyTier);
@@ -458,6 +470,8 @@ export class SynergyCascadeVisualizer {
   _unbindSemanticEvents() {
     const bus = this._semanticBus;
     const handlers = this._semanticHandlers;
+    this._linkCreatedFanoutUnsubscribe?.();
+    this._linkCreatedFanoutUnsubscribe = null;
     if (!bus || !handlers) return;
 
     const off = bus.off?.bind(bus) || bus.unsubscribe?.bind(bus);

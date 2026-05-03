@@ -307,4 +307,209 @@ This means **scoped metric tier events** (`node.*.high/mid/low`, `link.*.high/mi
 
 ---
 
-*Audit completed by agent. `semantic_event_mapper.py` scan appended to findings. No code changes made.*
+## 10. Phase 1 Live Baseline + Truth-Source Validation (2026-05-03)
+
+Runtime used: `http://127.0.0.1:5501/` (live gameplay session)
+
+Method:
+- Read truth-source directly from runtime bus internals:
+  - `window.semanticBus.handlers`
+  - `window.semanticBus.prefixListeners`
+  - `window.semanticBus.resolveEventAliases(...)`
+  - `window.semanticBus.stats`
+- Captured one 10s idle window and one 10s stress window.
+
+### 10.1 Live Handler Counts (Truth Source)
+
+Tracked hot events:
+
+| Event | Exact handlers (live) | Prefix listeners (live) | Effective potential |
+|-------|------------------------|--------------------------|---------------------|
+| `link.created` | **20** | 0 | 20 |
+| `cascade.start` | **9** | 0 | 9 |
+| `cascade.hop` | **7** | 0 | 7 |
+| `node.selection` | **3** | 0 | 3 |
+
+Key correction:
+- The previous static audit claim (`link.created` = 103 subscribers) is **not reflected in this live runtime instance**.
+- Live truth-source at measurement time is **20 exact handlers** for `link.created`.
+
+### 10.2 Queue Pressure (10s Idle vs 10s Stress)
+
+Idle 10s window:
+- Queue depth end: p0=0, p1=0, p2=0, p3=0
+- Stats delta: essentially flat (no suppression/drop/budget pressure)
+
+Stress 10s window (3 smoke links + synthetic `node.selection` + `cascade.hop` at 25Hz):
+- Queue depth end: p0=0, **p1=237**, p2=0, p3=0
+- Stats delta:
+  - `droppedEvents`: **+424**
+  - `decayedEvents`: **+640**
+  - `aggregatedEvents`: **+75**
+  - `budgetDeferredEvents`: **+351**
+  - `budgetOverflows`: **+34**
+  - `starvedEventsRecovered`: **+1019**
+  - `starvationSkips`: **+302**
+  - `fairnessBoostsApplied`: **+1604**
+
+Interpretation:
+- Under pressure, the bus **does** enter fairness/budget mitigation and starts dropping/deferring events.
+- Risk is real, but in this run it manifests more as **queue pressure + budget contention** than as raw `link.created` handler explosion.
+
+### 10.3 False-Positive Classification (Do Not Cut Blindly)
+
+#### Confirmed false positives from prior static-only view
+
+- `consciousness.state.changed`:
+  - Live handlers: 2
+  - Not orphan in runtime.
+
+- `world.macroState.changed`:
+  - Live handlers: 1
+  - Not orphan in runtime.
+
+- `lore.unlocked`, `link.removed`, `wave.burst.lifecycle`, `semantic.state.changed`, `semantic.cluster.sync`:
+  - Live handlers present (non-zero in this run).
+  - Not dead in current runtime instance.
+
+- `metric:corruptionRise`:
+  - Live exact handlers: 0
+  - Alias target resolves to `node.corruption.high`
+  - Static "orphan" label is partially misleading due to alias wiring.
+
+#### Still likely true or environment-dependent
+
+- `consciousness.snapshot`: 0 live handlers in this run.
+- `healing.arrival`: 0 live handlers in this run.
+- `signature.moment.nudge`: 0 live handlers in this run.
+- `node.click`: 0 live handlers in this run.
+- `network.node.created`: 0 live handlers in this run.
+- `metric.tier.changed`: 0 live handlers in this run (appears diagnostics/internal lane).
+
+Important caveat:
+- Zero live handlers in one runtime sample does **not** always mean dead forever; some listeners are world/system-conditional.
+
+### 10.4 Phase 1 Outcome
+
+Completed:
+- Baseline live handler count captured.
+- Queue-pressure and budget-pressure measured under stress.
+- False-positive set identified using runtime truth-source.
+
+Next (Phase 2 candidate):
+- Implement `link.created` load-shed/fanout bridge based on live count truth (20 exact handlers), while preserving behavior and prioritizing cleanup/idempotent binding.
+
+---
+
+## 11. Phase 4 Implementation + Phase 5 Regression Gate (2026-05-03)
+
+Scope of this section:
+- Document post-implementation behavior after Phase 2/3/4 semantic-bus hardening.
+- Compare Phase 1 baseline stress behavior with Phase 5 post-change measurements.
+- Confirm no visible FX regression on `link.created` cascade path.
+
+### 11.1 Implemented Runtime Changes (Already Landed in Code)
+
+- `main.js`:
+  - Added storm-governance targeting for hot tags (`cascade.start`, `cascade.hop`, `node.selection`).
+  - Added immediate fast-lane handling for critical/interactive hot tags to reduce backlog latency.
+  - Tuned mitigation path to prefer suppression/deferral over hard drop under sustained storms.
+  - Added `link.created` fanout edge support and stronger disposer semantics.
+
+- Migrated heavy `link.created` consumers to fanout + hard unbind lifecycle:
+  - `PHASE5_CascadeVisuals.js`
+  - `SynergyCascadeVisualizer.js`
+  - `VisualEchoTrails_v1_Integration.js`
+
+- Subscriber hygiene hardening:
+  - `_GlyphFusionOverlay4_1.js`: idempotent bind + explicit unbind on reset/dispose
+  - `LoreUnlockEngine.js`: tracked unsubscribers + disposal guard
+
+### 11.2 Regression Measurements (Live Runtime)
+
+Runtime used: `http://127.0.0.1:5501/`.
+
+#### A) Idle 10s (post-Phase 4, clean session)
+
+- Queue depth end: p0=0, p1=0, p2=0, p3=0
+- Stats delta:
+  - `droppedEvents`: +0
+  - `decayedEvents`: +0
+  - `aggregatedEvents`: +0
+  - `suppressedEvents`: +0
+  - `budgetDeferredEvents`: +50
+  - `budgetOverflows`: +0
+- Handler counts now:
+  - `link.created`: 16
+  - `cascade.start`: 9
+  - `cascade.hop`: 7
+  - `node.selection`: 3
+- Fanout state:
+  - `edgeBound`: true
+  - `fanoutConsumers`: 4
+
+Result: idle remains stable (no queue accumulation, no drops).
+
+#### B) Stress 10s apples-to-apples (post-Phase 4)
+
+Load shape (matched to Phase 1):
+- 3 smoke links
+- Synthetic `node.selection` + `cascade.hop` at 25Hz for 10s
+
+Post-change stress snapshot:
+- Queue depth end: p0=0, p1=888, p2=39, p3=0
+- Stats delta:
+  - `droppedEvents`: +16
+  - `decayedEvents`: +0
+  - `aggregatedEvents`: +8
+  - `suppressedEvents`: +96
+  - `budgetDeferredEvents`: +253
+  - `budgetOverflows`: +24
+  - `starvedEventsRecovered`: +1250
+  - `starvationSkips`: +252
+  - `fairnessBoostsApplied`: +2149
+- Processed delta (10s): [40, 1269, 0, 0]
+- FX gate:
+  - `cascadeHistory`: increased during run
+  - `link.created` fanout edge remained bound with 4 consumers
+
+#### C) Before vs After (Phase 1 baseline vs post-Phase 4)
+
+| Metric (10s stress) | Phase 1 baseline | Post-Phase 4 | Direction |
+|---------------------|------------------|---------------|-----------|
+| `droppedEvents` | 424 | 16 | ✅ Major improvement |
+| `decayedEvents` | 640 | 0 | ✅ Major improvement |
+| `aggregatedEvents` | 75 | 8 | ✅ Lower merge pressure |
+| `budgetDeferredEvents` | 351 | 253 | ✅ Reduced |
+| `budgetOverflows` | 34 | 24 | ✅ Reduced |
+| `starvedEventsRecovered` | 1019 | 1250 | ⚠️ Higher recovery activity |
+| `fairnessBoostsApplied` | 1604 | 2149 | ⚠️ More fairness intervention |
+| Queue depth end p1 | 237 | 888 | ⚠️ Higher backlog in this run |
+
+Interpretation:
+- The governance path shifted storm handling away from drop/decay and toward suppression/defer/fairness.
+- Hard-drop pressure is substantially lower under equivalent synthetic load.
+- Backlog can still grow under sustained stress; this is now primarily a queue management concern, not immediate event loss.
+
+### 11.3 Phase 5 Gate Verdict
+
+Gate status: **PASS WITH RISK**
+
+Pass criteria met:
+- No new runtime crashes observed in measured windows.
+- `link.created` fanout path is active and functional (`edgeBound=true`, 4 consumers).
+- Cascade visual path still reacts under load (`cascadeHistory` advances).
+- Drop/decay pressure materially reduced vs Phase 1 baseline.
+
+Residual risks:
+- Priority-1 backlog can still accumulate during sustained synthetic storms.
+- Fairness intervention remains high, indicating the system is still operating near budget edges in stress scenarios.
+
+Optional next tuning pass (not required for this phase completion):
+1. Increase adaptive drain allowance when p1 backlog exceeds threshold.
+2. Add bounded sampling on non-critical `cascade.hop` payload fields before enqueue.
+3. Add automated perf gate script to replay this exact stress profile and fail CI on regression thresholds.
+
+---
+
+*Audit updated by agent. Includes static scan findings and Phase 1-5 live runtime verification snapshots.*

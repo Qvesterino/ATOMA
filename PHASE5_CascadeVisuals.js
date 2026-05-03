@@ -1233,7 +1233,12 @@ export class PHASE5_CascadeVisualizationBridge {
         };
 
         const unsubMetric = this.semanticBus.subscribe('node.metric.updated', requestRefresh);
-        const unsubLink = this.semanticBus.subscribe('link.created', requestRefresh);
+        const unsubLink = this.semanticBus.registerLinkCreatedConsumer
+          ? this.semanticBus.registerLinkCreatedConsumer(requestRefresh, {
+              id: 'PHASE5_CascadeVisuals.requestRefresh',
+              priority: this.semanticBus.priority?.NORMAL
+            })
+          : this.semanticBus.subscribe('link.created', requestRefresh);
         const unsubSpawn = this.semanticBus.subscribe('node.spawned', requestRefresh);
         const unsubCorruptionCascade = this.semanticBus.subscribe('event:corruptionCascade', (payload) => {
           this._eventRefreshRequested = true;

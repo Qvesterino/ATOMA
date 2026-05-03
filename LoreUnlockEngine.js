@@ -41,9 +41,11 @@ export default class LoreUnlockEngine {
       unlocked: new Set()
     };
     this._subscribedTriggers = new Set();
+    this._triggerUnsubscribers = new Map();
     this._unlockQueue = [];
     this._unlockQueueTimer = null;
     this._unlockQueueSpacingMs = 900;
+    this._disposed = false;
     this._subscribe();
   }
 
@@ -56,6 +58,7 @@ export default class LoreUnlockEngine {
   }
 
   unlock(id) {
+    if (this._disposed) return false;
     if (this.state.unlocked.has(id)) return false;
 
     this.state.unlocked.add(id);
@@ -85,6 +88,7 @@ export default class LoreUnlockEngine {
   }
 
   _subscribe() {
+    if (this._disposed) return;
     const semanticBus = getSemanticBus();
     if (!semanticBus?.on) return;
 
@@ -96,14 +100,34 @@ export default class LoreUnlockEngine {
         if (this._subscribedTriggers.has(trigger)) continue;
 
         this._subscribedTriggers.add(trigger);
-        semanticBus.on(trigger, (eventData = {}) => {
+        const unsub = semanticBus.on(trigger, (eventData = {}) => {
           this._handleTrigger(trigger, eventData);
         });
+        if (typeof unsub === 'function') {
+          this._triggerUnsubscribers.set(trigger, unsub);
+        }
       }
     }
   }
 
+  _unsubscribeAll() {
+    if (!this._triggerUnsubscribers || this._triggerUnsubscribers.size === 0) {
+      this._subscribedTriggers.clear();
+      return;
+    }
+
+    for (const unsub of this._triggerUnsubscribers.values()) {
+      try {
+        unsub?.();
+      } catch (_) {}
+    }
+
+    this._triggerUnsubscribers.clear();
+    this._subscribedTriggers.clear();
+  }
+
   _handleTrigger(trigger, eventData = {}) {
+    if (this._disposed) return;
     for (const entry of getRegistryEntries()) {
       const triggers = getUnlockTriggers(entry);
       if (triggers.length === 0 || !triggers.includes(trigger)) continue;
@@ -116,5 +140,18 @@ export default class LoreUnlockEngine {
         this.unlock(entry.id);
       }
     }
+  }
+
+  dispose() {
+    if (this._disposed) return;
+    this._disposed = true;
+
+    if (this._unlockQueueTimer) {
+      clearTimeout(this._unlockQueueTimer);
+      this._unlockQueueTimer = null;
+    }
+
+    this._unlockQueue.length = 0;
+    this._unsubscribeAll();
   }
 }
