@@ -32,7 +32,7 @@ import { NeuralConvergenceSingularity } from './NeuralConvergenceSingularity.js'
 const CONFIG = {
     // Zone detection
     FUSION_RADIUS: 1.5,
-    CONVERGENCE_THRESHOLD: 2,  // Min glyphs to trigger fusion
+    CONVERGENCE_THRESHOLD: 3,  // Require a real hub, not a simple 2-link pass-through
     
     // Timing
     APPROACH_DURATION: 1.2,    // Slowing + compression phase
@@ -55,7 +55,7 @@ const CONFIG = {
     HARMONIC_HUB_MULTIPLIER: 1.5,     // Lasts 1.5× longer in hubs
     
     // Separation
-    SEPARATION_TRIGGER_THRESHOLD: 2,  // Links must be < 2 to separate
+    SEPARATION_TRIGGER_THRESHOLD: 3,  // Links must be < 3 to separate
     
     // Performance
     MAX_ZONES_PER_SCENE: 20,
@@ -295,6 +295,7 @@ export class GlyphFusionZoneManager {
         // Update timer
         this.updateTimer = 0.0;
         this._lifecycleLogTimes = new Map();
+        this.enabled = true;
 
         console.log('[GlyphFusionZoneManager] Initialized');
     }
@@ -487,6 +488,8 @@ export class GlyphFusionZoneManager {
     // ========================================================================
 
     update(deltaTime, pictograms, linkingSystem, aiNodes) {
+        if (this.enabled === false) return;
+
         this.linkingSystem = linkingSystem || this.linkingSystem;
 
         // Detect convergence zones
@@ -497,6 +500,26 @@ export class GlyphFusionZoneManager {
 
         // Update composite glyphs
         this.updateCompositeGlyphs(deltaTime);
+    }
+
+    enable() {
+        this.enabled = true;
+        return this.enabled;
+    }
+
+    disable({ clear = true } = {}) {
+        this.enabled = false;
+
+        if (clear) {
+            this.zones.forEach((zone) => {
+                if (!zone.active) return;
+                const nodeKey = zone.nodeKey || this._getNodeKey(zone.node);
+                this._clearNodeZoneMapping(nodeKey, zone);
+                zone.reset();
+            });
+        }
+
+        return this.enabled;
     }
 
     // ========================================================================
@@ -541,15 +564,6 @@ export class GlyphFusionZoneManager {
             }
         }
 
-        this.zones.forEach((zone) => {
-            if (!zone.active || !zone.nodeKey) return;
-            const liveLinkCount = liveLinkCountByNode.get(zone.nodeKey) ?? 0;
-            if (liveLinkCount >= CONFIG.CONVERGENCE_THRESHOLD) return;
-
-            this._clearNodeZoneMapping(zone.nodeKey, zone);
-            zone.reset();
-        });
-
         // Build node-to-glyphs map
         const nodeGlyphMap = new Map();
 
@@ -566,6 +580,27 @@ export class GlyphFusionZoneManager {
                 nodeGlyphMap.set(nodeId, []);
             }
             nodeGlyphMap.get(nodeId).push(endpoint);
+        });
+
+        // Prune zones that no longer have enough live endpoint glyphs.
+        // Link count alone is not sufficient here: a node can still have links
+        // while the converging glyph condition has already disappeared.
+        this.zones.forEach((zone) => {
+            if (!zone.active || !zone.nodeKey) return;
+
+            const liveLinkCount = liveLinkCountByNode.get(zone.nodeKey) ?? 0;
+            const glyphsAtNode = nodeGlyphMap.get(zone.nodeKey) || [];
+
+            if (
+                liveLinkCount >= CONFIG.CONVERGENCE_THRESHOLD &&
+                glyphsAtNode.length >= CONFIG.CONVERGENCE_THRESHOLD
+            ) {
+                return;
+            }
+
+            const nodeKey = zone.nodeKey || this._getNodeKey(zone.node);
+            this._clearNodeZoneMapping(nodeKey, zone);
+            zone.reset();
         });
 
         // Check fusion conditions

@@ -74,7 +74,7 @@ export class SafeDreamDepthPack {
     this.vfxContainer = new THREE.Group();
     this.vfxContainer.name = 'dream-depth-vfx';
     this.vfxContainer.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_OVERLAY');
-    this.root.add(this.vfxContainer);
+    this.vfxContainer.userData.screenSpace = true;
 
     this.vignetteTexture = this.createVignetteMask();
     this.focusTexture = this.createFocusMask();
@@ -131,6 +131,7 @@ export class SafeDreamDepthPack {
 
     this.setupOverlayQuad();
     this.setupMysticalOverlays();
+    this.attachToCameraOverlay();
 
     this.isActive = true;
     this.currentFocus = null;
@@ -145,6 +146,33 @@ export class SafeDreamDepthPack {
 
     this.lodLevel = 'HIGH';
     this.fpsTarget = 60;
+  }
+
+  attachToCameraOverlay() {
+    if (!this.vfxContainer || !this.camera) return;
+    this.root?.remove?.(this.vfxContainer);
+    this.camera.add(this.vfxContainer);
+    this.vfxContainer.position.set(0, 0, -1);
+    this.vfxContainer.rotation.set(0, 0, 0);
+    this.vfxContainer.frustumCulled = false;
+    this.vfxContainer.traverse((child) => {
+      if (!child) return;
+      child.frustumCulled = false;
+      child.userData = {
+        ...(child.userData || {}),
+        screenSpace: true
+      };
+    });
+    this.updateOverlayLayout();
+  }
+
+  updateOverlayLayout() {
+    if (!this.vfxContainer || !this.camera) return;
+    const distance = Math.abs(this.vfxContainer.position.z || -1);
+    const fovRadians = THREE.MathUtils.degToRad(this.camera.fov || 60);
+    const height = 2 * Math.tan(fovRadians * 0.5) * distance;
+    const width = height * (this.camera.aspect || 1);
+    this.vfxContainer.scale.set(width * 0.5, height * 0.5, 1);
   }
 
   setupOverlayQuad() {
@@ -758,6 +786,7 @@ export class SafeDreamDepthPack {
     this._lastVisualTime = currentTime;
     this.time = currentTime;
     this.lastFrameTime = visualDelta;
+    this.updateOverlayLayout();
 
     this.updateCameraVelocity();
 
@@ -924,9 +953,8 @@ export class SafeDreamDepthPack {
 
     if (this.vfxContainer) {
       this.vfxContainer.clear();
-      if (this.root && typeof this.root.remove === 'function') {
-        this.root.remove(this.vfxContainer);
-      }
+      this.root?.remove?.(this.vfxContainer);
+      this.camera?.remove?.(this.vfxContainer);
       this.vfxContainer = null;
     }
 

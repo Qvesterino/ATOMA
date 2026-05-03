@@ -402,6 +402,28 @@ Subsystem safety rule:
 - change only the subsystem the task actually concerns unless broader impact is necessary
 - do not create hidden dependencies between subsystems
 
+### Mandatory Event Registration Lifecycle
+
+Every FX module that subscribes to semantic bus events **must** follow this lifecycle:
+
+1. **`bind()` / `init()` / constructor**: call `eventRegistrationRegistry.register(owner, tag, handler, bus)` for each subscription
+2. **`dispose()` / `unbind()` / cleanup**: call the returned disposer function or `eventRegistrationRegistry.disposeOwner(owner)`
+
+Owner string convention: use the class name (e.g. `'CascadeBurstVisual'`, `'SafeWorldFXPack'`).
+
+Registry API: `Engine/EventRegistrationRegistry.js`
+- `register(owner, tag, handler, bus, options?)` → disposer fn
+- `disposeOwner(owner)` → hard cleanup all handlers for owner
+- `disposeAll()` → cleanup all owners (used on world switch)
+- `report()` → returns `{ owner, tag, count }[]`
+
+Debug console: `__ATOMA_REG_REPORT__()`, `__ATOMA_REG_DISPOSE_ALL__()`, `__ATOMA_REG_DISPOSE_OWNER__(name)`
+
+When reviewing or creating a new FX module, verify:
+- ✅ All `bus.on()` / `bus.subscribe()` calls go through `eventRegistrationRegistry.register()`
+- ✅ `dispose()` calls the registry disposer or `disposeOwner()`
+- ✅ No bare `bus.on()` without registry tracking
+
 ---
 
 ## Task Intent Override

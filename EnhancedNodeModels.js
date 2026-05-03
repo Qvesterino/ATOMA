@@ -20857,21 +20857,21 @@ static createAnalyticsNode2(group, color) {
         const planeWidth = 0.7 - i * 0.08;
         const planeHeight = 0.5 + i * 0.1;
         const planeGeometry = new THREE.PlaneGeometry(planeWidth, planeHeight, 10, 8);
-        
+
         const plane = new THREE.Mesh(planeGeometry, planeMaterial);
-        
+
         // Position planes in different orientations (NO intersection with core)
         const angle = (i / planeCount) * Math.PI * 2;
-        
+
         // Position away from center to avoid intersection
         plane.position.x = Math.cos(angle) * 0.45;
         plane.position.z = Math.sin(angle) * 0.45;
-        
+
         // Tilt each plane differently for multi-dimensional perception
         plane.rotation.y = angle;
         plane.rotation.x = Math.PI / 6 + i * 0.15;
         plane.rotation.z = Math.PI / 8 - i * 0.1;
-        
+
         plane.userData.isObservationPlane = true;
         plane.userData.planeIndex = i;
         plane.userData.baseAngle = angle;

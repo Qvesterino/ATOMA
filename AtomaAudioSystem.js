@@ -939,13 +939,8 @@ export class AtomaAudioSystem {
         }
 
         // Dramaturgy spatial panner — routes event synths through position-aware panning
-        // FIX: Tone.Panner removed in Tone.js v14+; replaced with Tone.Panner3D
-        this._dramaturgyPanner = new Tone.Panner3D({
-            panningModel: 'equalpower',
-            positionX: 0,
-            positionY: 0,
-            positionZ: 0
-        }).connect(this.masterReverb);
+        // FIX: Tone.Panner3D does not exist in Tone.js v14; use Tone.Panner (stereo pan -1..1)
+        this._dramaturgyPanner = new Tone.Panner(0).connect(this.masterReverb);
         this._dramaturgySpatialOrigin = null; // { x, y, z } or null
         this._dramaturgyCamera = null;
         this._dramaturgyRoutingActive = false;
@@ -1433,11 +1428,11 @@ export class AtomaAudioSystem {
     _routeDramaturgySpatial(panValue) {
         if (this._dramaturgyRoutingActive) {
             // Already routed — just update pan
-            this._dramaturgyPanner.positionX.value = panValue;
+            this._dramaturgyPanner.pan.value = panValue;
             return;
         }
 
-        this._dramaturgyPanner.positionX.value = panValue;
+        this._dramaturgyPanner.pan.value = panValue;
 
         // Route event synths through panner
         try {

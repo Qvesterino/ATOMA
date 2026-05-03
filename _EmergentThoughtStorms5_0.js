@@ -758,6 +758,19 @@ export class EmergentThoughtStorms5_0 {
    * Determine if storm should spawn
    */
   shouldSpawnStorm(metrics) {
+    const hasNetworkActivity =
+      (metrics.linkCount || 0) > 0 ||
+      (metrics.nodeCount || 0) > 1 ||
+      (metrics.activeChainCount || 0) > 0 ||
+      (metrics.chainCount || 0) > 0 ||
+      (metrics.thoughtDensity || 0) > 0;
+
+    // Keep storms tied to actual network behavior. A solitary high-corruption node
+    // should not emit a full storm package before any links or chain activity exist.
+    if (!hasNetworkActivity) {
+      return false;
+    }
+
     // Dramaturgy threshold modulation — events lower/raise thresholds
     const thresholdMod = this._getDramaturgyThresholdMultiplier();
 
@@ -829,6 +842,15 @@ export class EmergentThoughtStorms5_0 {
     const clusters = this.activeStorms.get(clusterId);
     if (clusters.length >= 2) {
       return; // Max 2 storms per node cluster
+    }
+
+    const duplicateActiveStorm = clusters.some((storm) =>
+      storm?.active &&
+      storm.stormType === stormType &&
+      (storm.progress ?? 0) < 0.82
+    );
+    if (duplicateActiveStorm) {
+      return;
     }
     
     // Create storm

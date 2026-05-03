@@ -82,12 +82,13 @@ export class DreamDepthEffectManager {
     this.layerContainer = new THREE.Group();
     this.layerContainer.name = 'dream-depth-layers';
     this.layerContainer.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_OVERLAY');
-    this.root.add(this.layerContainer);
+    this.layerContainer.userData.screenSpace = true;
 
     this.layerContainer.add(this.vignetteLayer.mesh);
     this.layerContainer.add(this.focusLayer.mesh);
     this.layerContainer.add(this.pulseLayer.mesh);
     this.layerContainer.add(this.glazeLayer.mesh);
+    this.attachToCameraOverlay();
 
     this.effects = {
       vignette: { intensity: 0, target: 0.12 },
@@ -120,6 +121,33 @@ export class DreamDepthEffectManager {
 
     this.intensityScale = 1.0;
     this.lodLevel = 'HIGH';
+  }
+
+  attachToCameraOverlay() {
+    if (!this.layerContainer || !this.camera) return;
+    this.root?.remove?.(this.layerContainer);
+    this.camera.add(this.layerContainer);
+    this.layerContainer.position.set(0, 0, -1);
+    this.layerContainer.rotation.set(0, 0, 0);
+    this.layerContainer.frustumCulled = false;
+    this.layerContainer.traverse((child) => {
+      if (!child) return;
+      child.frustumCulled = false;
+      child.userData = {
+        ...(child.userData || {}),
+        screenSpace: true
+      };
+    });
+    this.updateOverlayLayout();
+  }
+
+  updateOverlayLayout() {
+    if (!this.layerContainer || !this.camera) return;
+    const distance = Math.abs(this.layerContainer.position.z || -1);
+    const fovRadians = THREE.MathUtils.degToRad(this.camera.fov || 60);
+    const height = 2 * Math.tan(fovRadians * 0.5) * distance;
+    const width = height * (this.camera.aspect || 1);
+    this.layerContainer.scale.set(width * 0.5, height * 0.5, 1);
   }
 
   setFrameScheduler(scheduler) {
@@ -275,6 +303,7 @@ export class DreamDepthEffectManager {
       if (!this._fallbackMode) return;
     }
     this.time += dt;
+    this.updateOverlayLayout();
 
     this.updateCameraVelocity();
     const stability = this.getStabilityFactor();
@@ -656,9 +685,8 @@ export class DreamDepthEffectManager {
 
     if (this.layerContainer) {
       this.layerContainer.clear();
-      if (this.root && typeof this.root.remove === 'function') {
-        this.root.remove(this.layerContainer);
-      }
+      this.root?.remove?.(this.layerContainer);
+      this.camera?.remove?.(this.layerContainer);
     }
 
     this.vignetteLayer = null;
