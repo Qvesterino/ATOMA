@@ -48,6 +48,7 @@ import * as THREE from 'three';
 export class HarmonicHubCollapseController {
     constructor(harmonicSyncController) {
         this.harmonicController = harmonicSyncController;
+        this.maxTrackedHubs = 20;
 
         // Collapse state (0 = healthy, 1 = fully collapsed)
         this.collapseFactor = 0.0;

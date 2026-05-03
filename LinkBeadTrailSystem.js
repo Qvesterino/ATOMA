@@ -10,6 +10,11 @@ import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
  * - Adds visual emphasis to high-value/speed beads (Medium & Large)
  * - Creates a "comet tail" effect
  * 
+ * TRIGGER:
+ * - Activated by LinkBeadSystem when beads of Medium or Large size travel along links
+ * - Trail emission is triggered per-bead via emitTrail() call from the bead update loop
+ * - spawnEnabled flag in update() controls whether new trails are emitted
+ * 
  * IMPLEMENTATION:
  * - Single BufferGeometry with pre-allocated attributes
  * - Ring buffer logic for cyclic emission

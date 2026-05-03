@@ -42,7 +42,12 @@ import * as THREE from 'three';
 
 export class VisualEchoTrails_v1 {
   constructor() {
+    this.debug = false;
     this.enabled = true;
+    
+    // Budget cap
+    this.maxTrailsPerLink = 10;
+    this.maxTotalTrails = 200;
     
     // Default shader parameters
     // These are the values recommended in design spec
@@ -515,7 +520,7 @@ export class VisualEchoTrails_v1_Integration {
       this.initializeLink(link);
     }
     
-    console.log(`[EchoTrails] Initialized ${this.linkingSystem.links.length} links`);
+    if (this.debug) console.log(`[EchoTrails] Initialized ${this.linkingSystem.links.length} links`);
   }
   
   /**
@@ -854,7 +859,7 @@ export function setupVisualEchoTrailsIntegration(
     });
   }
   
-  console.log('[EchoTrails] Integration complete');
+  if (this.debug) console.log('[EchoTrails] Integration complete');
   
   return integration;
 }

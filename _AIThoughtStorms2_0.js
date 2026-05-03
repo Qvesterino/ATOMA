@@ -677,11 +677,11 @@ export class AIThoughtStorms2_0 {
    */
   debugState() {
     if (!this.debug) return;
-    console.log('%c=== THOUGHT STORMS DEBUG ===', 'color: #ff00ff; font-weight: bold;');
-    console.log(`Status: ${this.config.enabled ? '🟢 ENABLED' : '🔴 DISABLED'}`);
-    console.log(`Mood: ${this.stormState.currentMood}`);
-    console.log(`Active Storm: ${this.stormState.activeStorm || 'None'}`);
-    console.log(`Network Metrics:`, {
+    if (this.debug) console.log('%c=== THOUGHT STORMS DEBUG ===', 'color: #ff00ff; font-weight: bold;');
+    if (this.debug) console.log(`Status: ${this.config.enabled ? '🟢 ENABLED' : '🔴 DISABLED'}`);
+    if (this.debug) console.log(`Mood: ${this.stormState.currentMood}`);
+    if (this.debug) console.log(`Active Storm: ${this.stormState.activeStorm || 'None'}`);
+    if (this.debug) console.log(`Network Metrics:`, {
       synergy: this.stormState.networkMetrics.avgSynergy.toFixed(2),
       harmony: this.stormState.networkMetrics.avgHarmony.toFixed(2),
       stability: this.stormState.networkMetrics.avgStability.toFixed(2),
@@ -689,7 +689,7 @@ export class AIThoughtStorms2_0 {
       activeLinks: this.stormState.networkMetrics.activeLinks,
       totalLinks: this.stormState.networkMetrics.totalLinks
     });
-    console.log(`Frame Time: ${this.stats.frameTime.toFixed(3)}ms`);
+    if (this.debug) console.log(`Frame Time: ${this.stats.frameTime.toFixed(3)}ms`);
   }
   
   /**
@@ -756,15 +756,15 @@ export function setupAIThoughtStormsConsoleAPI(storms) {
   window.consciousStorms = {
     enable: () => {
       storms.enable();
-      console.log('🌩️ Thought Storms ENABLED');
+      if (this.debug) console.log('🌩️ Thought Storms ENABLED');
     },
     disable: () => {
       storms.disable();
-      console.log('⛈️ Thought Storms DISABLED');
+      if (this.debug) console.log('⛈️ Thought Storms DISABLED');
     },
     setIntensity: (value) => {
       storms.setIntensity(value);
-      console.log(`Storm Intensity: ${value.toFixed(2)}`);
+      if (this.debug) console.log(`Storm Intensity: ${value.toFixed(2)}`);
     },
     force: (type) => {
       storms.forceStorm(type);
@@ -774,23 +774,23 @@ export function setupAIThoughtStormsConsoleAPI(storms) {
     },
     getMood: () => {
       const mood = storms.getMood();
-      console.log(`Current Network Mood: ${mood}`);
+      if (this.debug) console.log(`Current Network Mood: ${mood}`);
       return mood;
     },
     getMetrics: () => {
       const metrics = storms.getMetrics();
-      console.log('Network Metrics:', metrics);
+      if (this.debug) console.log('Network Metrics:', metrics);
       return metrics;
     },
     status: () => {
-      console.log('%c--- THOUGHT STORMS STATUS ---', 'color: #ff00ff');
-      console.log(`Enabled: ${storms.config.enabled}`);
-      console.log(`Mood: ${storms.stormState.currentMood}`);
-      console.log(`Active Storm: ${storms.stormState.activeStorm || 'None'}`);
-      console.log(`Frame Time: ${storms.stats.frameTime.toFixed(3)}ms`);
+      if (this.debug) console.log('%c--- THOUGHT STORMS STATUS ---', 'color: #ff00ff');
+      if (this.debug) console.log(`Enabled: ${storms.config.enabled}`);
+      if (this.debug) console.log(`Mood: ${storms.stormState.currentMood}`);
+      if (this.debug) console.log(`Active Storm: ${storms.stormState.activeStorm || 'None'}`);
+      if (this.debug) console.log(`Frame Time: ${storms.stats.frameTime.toFixed(3)}ms`);
     }
   };
   
-  console.log('%c✓ consciousStorms API ready', 'color: #ff00ff; font-weight: bold;');
-  console.log('Commands: enable(), disable(), setIntensity(0-2), force("synergy"|"stability"|"focus"|"critical"), debugState(), getMood(), getMetrics(), status()');
+  if (this.debug) console.log('%c✓ consciousStorms API ready', 'color: #ff00ff; font-weight: bold;');
+  if (this.debug) console.log('Commands: enable(), disable(), setIntensity(0-2), force("synergy"|"stability"|"focus"|"critical"), debugState(), getMood(), getMetrics(), status()');
 }

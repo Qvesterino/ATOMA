@@ -199,6 +199,21 @@ Files with no cross-reference to `main.js` or `EnvironmentDomainController`. May
 | 2 DISPOSE | 1 | 1 | 0 |
 | 3 BUDGET | 27 | 27 | 0 |
 | 4 DEBUG | 13 | 13 | 0 |
-| 5 UPDATE | 7 | 0 | 7 |
-| 6 OWNER | 8 | 0 | 8 |
-| 7 OTHER | 3 | 0 | 3 |
+| 5 UPDATE | 7 | 7 | 0 |
+| 6 OWNER | 8 | 8 | 0 |
+| 7 OTHER | 3 | 3 | 0 |
+
+### LOW Priority Audit (2026-05-03)
+
+Full audit report: [`LOW_PRIORITY_AUDIT_REPORT.md`](./LOW_PRIORITY_AUDIT_REPORT.md)
+
+**Audited:** 17 unique files (1 duplicate removed, 2 in subdirectories)
+- 4 FALSE POSITIVES (factory/base class/pipeline — no update() needed)
+- 1 OK (adapter with update() and dispose())
+- 12 NEEDS FIX → ALL FIXED
+
+**Fixes applied:**
+- 72 console.log calls wrapped in `if (this.debug)` guards across 6 files
+- 5 budget caps added (3 files already had caps)
+- 1 update() method added to CorruptionVisualFX_v1.js (4 files were false positives — already had update())
+- 3 gate/trigger/purpose documentation added

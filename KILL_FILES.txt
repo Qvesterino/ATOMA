@@ -1,0 +1,91 @@
+KILL FILES: 89
+
+1. undefined | cat=SHADER/MATERIAL | owner=UNKNOWN | risk=11 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+2. undefined | cat=UNKNOWN | owner=UNKNOWN | risk=11 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+3. undefined | cat=CASCADE/WAVE | owner=UNKNOWN | risk=10 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+4. undefined | cat=NODE FX | owner=UNKNOWN | risk=9 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+5. undefined | cat=SHADER/MATERIAL | owner=UNKNOWN | risk=9 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+6. undefined | cat=UNKNOWN | owner=UNKNOWN | risk=9 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+7. undefined | cat=SHADER/MATERIAL | owner=UNKNOWN | risk=9 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+8. undefined | cat=CASCADE/WAVE | owner=UNKNOWN | risk=9 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+9. undefined | cat=NODE FX | owner=UNKNOWN | risk=9 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+10. undefined | cat=PARTICLE FX | owner=main.js (heuristic) | risk=8 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+11. undefined | cat=UNKNOWN | owner=main.js | risk=8 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+12. undefined | cat=ENVIRONMENT FX | owner=main.js | risk=8 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+13. undefined | cat=LINK FX | owner=main.js (heuristic) | risk=8 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+14. undefined | cat=NODE FX | owner=UNKNOWN | risk=8 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+15. undefined | cat=NODE FX | owner=main.js (heuristic) | risk=8 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+16. undefined | cat=UNKNOWN | owner=UNKNOWN | risk=7 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+17. undefined | cat=UNKNOWN | owner=UNKNOWN | risk=7 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+18. undefined | cat=NODE FX | owner=UNKNOWN | risk=7 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+19. undefined | cat=UNKNOWN | owner=UNKNOWN | risk=7 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+20. undefined | cat=ENVIRONMENT FX | owner=main.js | risk=7 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+21. undefined | cat=CASCADE/WAVE | owner=UNKNOWN | risk=7 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+22. undefined | cat=NODE FX | owner=UNKNOWN | risk=7 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+23. undefined | cat=UNKNOWN | owner=UNKNOWN | risk=7 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+24. undefined | cat=CASCADE/WAVE | owner=LinkRendererConduit (heuristic) | risk=7 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+25. undefined | cat=PARTICLE FX | owner=UNKNOWN | risk=7 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+26. undefined | cat=NODE FX | owner=UNKNOWN | risk=7 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+27. undefined | cat=NODE FX | owner=main.js | risk=7 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+28. undefined | cat=UNKNOWN | owner=main.js | risk=6 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+29. undefined | cat=UNKNOWN | owner=main.js | risk=6 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+30. undefined | cat=CASCADE/WAVE | owner=main.js | risk=6 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+31. undefined | cat=SHADER/MATERIAL | owner=main.js | risk=6 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+32. undefined | cat=LINK FX | owner=LinkRendererConduit (heuristic) | risk=6 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+33. undefined | cat=SHADER/MATERIAL | owner=LinkRendererConduit (heuristic) | risk=6 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+34. undefined | cat=SHADER/MATERIAL | owner=LinkRendererConduit (heuristic) | risk=6 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+35. undefined | cat=SHADER/MATERIAL | owner=LinkRendererConduit (heuristic) | risk=6 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+36. undefined | cat=UNKNOWN | owner=UNKNOWN | risk=6 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+37. undefined | cat=SHADER/MATERIAL | owner=UNKNOWN | risk=6 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+38. undefined | cat=NODE FX | owner=main.js (heuristic) | risk=6 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+39. undefined | cat=LINK FX | owner=main.js | risk=6 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+40. undefined | cat=ENVIRONMENT FX | owner=main.js | risk=6 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+41. undefined | cat=SHADER/MATERIAL | owner=main.js | risk=6 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+42. undefined | cat=SHADER/MATERIAL | owner=UNKNOWN | risk=6 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+43. undefined | cat=UNKNOWN | owner=UNKNOWN | risk=6 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+44. undefined | cat=SHADER/MATERIAL | owner=main.js | risk=6 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+45. undefined | cat=NODE FX | owner=UNKNOWN | risk=5 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+46. undefined | cat=CASCADE/WAVE | owner=UNKNOWN | risk=5 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+47. undefined | cat=NODE FX | owner=main.js | risk=5 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+48. undefined | cat=NODE FX | owner=UNKNOWN | risk=5 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+49. undefined | cat=NODE FX | owner=main.js | risk=5 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+50. undefined | cat=SHADER/MATERIAL | owner=UNKNOWN | risk=5 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+51. undefined | cat=UNKNOWN | owner=main.js | risk=5 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+52. undefined | cat=CASCADE/WAVE | owner=UNKNOWN | risk=5 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+53. undefined | cat=LINK FX | owner=LinkRendererConduit (heuristic) | risk=5 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+54. undefined | cat=LINK FX | owner=main.js (heuristic) | risk=5 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+55. undefined | cat=NODE FX | owner=main.js | risk=5 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+56. undefined | cat=LINK FX | owner=main.js | risk=5 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+57. undefined | cat=PARTICLE FX | owner=main.js | risk=5 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+58. undefined | cat=NODE FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+59. undefined | cat=NODE FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+60. undefined | cat=NODE FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+61. undefined | cat=NODE FX | owner=main.js (heuristic) | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+62. undefined | cat=NODE FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+63. undefined | cat=ENVIRONMENT FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+64. undefined | cat=NODE FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+65. undefined | cat=LINK FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+66. undefined | cat=LINK FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+67. undefined | cat=LINK FX | owner=UNKNOWN | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+68. undefined | cat=SHADER/MATERIAL | owner=UNKNOWN | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+69. undefined | cat=NODE FX | owner=UNKNOWN | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+70. undefined | cat=ENVIRONMENT FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+71. undefined | cat=SHADER/MATERIAL | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+72. undefined | cat=ENVIRONMENT FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+73. undefined | cat=PARTICLE FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+74. undefined | cat=LINK FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+75. undefined | cat=NODE FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+76. undefined | cat=CASCADE/WAVE | owner=UNKNOWN | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+77. undefined | cat=SHADER/MATERIAL | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+78. undefined | cat=ENVIRONMENT FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+79. undefined | cat=NODE FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+80. undefined | cat=LINK FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+81. undefined | cat=NODE FX | owner=main.js (heuristic) | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+82. undefined | cat=NODE FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+83. undefined | cat=LINK FX | owner=UNKNOWN | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+84. undefined | cat=LINK FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+85. undefined | cat=SHADER/MATERIAL | owner=UNKNOWN | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+86. undefined | cat=SHADER/MATERIAL | owner=UNKNOWN | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+87. undefined | cat=SHADER/MATERIAL | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+88. undefined | cat=SHADER/MATERIAL | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG
+89. undefined | cat=NODE FX | owner=main.js | risk=4 | fails: PURPOSE, OWNER, TRIGGER, GATE, UPDATE, BUDGET, LIFETIME, DISPOSE, DEBUG

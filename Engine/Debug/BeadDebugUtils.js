@@ -18,6 +18,7 @@ import { printDiagnostics } from '../../BeadEdgeCaseHandler.js';
  */
 export class BeadDebugController {
   constructor() {
+    this.debug = false;
     this.enabled = false;
     this.showStats = false;
     this.showBounds = false;
@@ -44,7 +45,7 @@ export class BeadDebugController {
     window.beadDebug = {
       help: () => this.printHelp(),
       stats: () => this.printGlobalStats(),
-      grade: () => console.log('Performance Grade:', getBeadPerformanceGrade()),
+      if (this.debug) grade: () => console.log('Performance Grade:', getBeadPerformanceGrade()),
       showStats: () => this.toggleStats(true),
       hideStats: () => this.toggleStats(false),
       showBounds: () => this.toggleBounds(true),
@@ -57,8 +58,8 @@ export class BeadDebugController {
       config: () => this.printConfig()
     };
     
-    console.log('%c🔵 Bead Debug API Ready', 'color: #00ffff; font-weight: bold');
-    console.log('Use window.beadDebug.help() for commands');
+    if (this.debug) console.log('%c🔵 Bead Debug API Ready', 'color: #00ffff; font-weight: bold');
+    if (this.debug) console.log('Use window.beadDebug.help() for commands');
   }
   
   /**
@@ -66,19 +67,19 @@ export class BeadDebugController {
    */
   printHelp() {
     console.group('%c📖 Bead Debug Commands', 'color: #00ffff; font-weight: bold');
-    console.log('window.beadDebug.help()           - Show this help');
-    console.log('window.beadDebug.stats()          - Show performance stats');
-    console.log('window.beadDebug.grade()          - Show performance grade');
-    console.log('window.beadDebug.showStats()      - Enable stats overlay');
-    console.log('window.beadDebug.hideStats()      - Disable stats overlay');
-    console.log('window.beadDebug.showBounds()     - Show bead bounds');
-    console.log('window.beadDebug.hideBounds()     - Hide bead bounds');
-    console.log('window.beadDebug.showPaths()      - Show link curves');
-    console.log('window.beadDebug.hidePaths()      - Hide link curves');
-    console.log('window.beadDebug.diagnostics(link) - Diagnose specific link');
-    console.log('window.beadDebug.allDiagnostics() - Diagnose all links');
-    console.log('window.beadDebug.beadCounts()     - Show bead counts per link');
-    console.log('window.beadDebug.config()         - Print current config');
+    if (this.debug) console.log('window.beadDebug.help()           - Show this help');
+    if (this.debug) console.log('window.beadDebug.stats()          - Show performance stats');
+    if (this.debug) console.log('window.beadDebug.grade()          - Show performance grade');
+    if (this.debug) console.log('window.beadDebug.showStats()      - Enable stats overlay');
+    if (this.debug) console.log('window.beadDebug.hideStats()      - Disable stats overlay');
+    if (this.debug) console.log('window.beadDebug.showBounds()     - Show bead bounds');
+    if (this.debug) console.log('window.beadDebug.hideBounds()     - Hide bead bounds');
+    if (this.debug) console.log('window.beadDebug.showPaths()      - Show link curves');
+    if (this.debug) console.log('window.beadDebug.hidePaths()      - Hide link curves');
+    if (this.debug) console.log('window.beadDebug.diagnostics(link) - Diagnose specific link');
+    if (this.debug) console.log('window.beadDebug.allDiagnostics() - Diagnose all links');
+    if (this.debug) console.log('window.beadDebug.beadCounts()     - Show bead counts per link');
+    if (this.debug) console.log('window.beadDebug.config()         - Print current config');
     console.groupEnd();
   }
   
@@ -128,8 +129,8 @@ export class BeadDebugController {
    */
   printConfig() {
     const { BEAD_CONFIG } = require('../../LinkBeadSystem.js');
-    console.log('Current Bead Configuration:');
-    console.log(JSON.stringify(BEAD_CONFIG, null, 2));
+    if (this.debug) console.log('Current Bead Configuration:');
+    if (this.debug) console.log(JSON.stringify(BEAD_CONFIG, null, 2));
   }
   
   /**
@@ -156,12 +157,12 @@ export class BeadDebugController {
     const links = window.game.linkingSystem.links;
     
     for (let i = 0; i < Math.min(links.length, 5); i++) {
-      console.log(`\n--- Link ${i + 1} ---`);
+      if (this.debug) console.log(`\n--- Link ${i + 1} ---`);
       printDiagnostics(links[i]);
     }
     
     if (links.length > 5) {
-      console.log(`\n(Showing 5 of ${links.length} links)`);
+      if (this.debug) console.log(`\n(Showing 5 of ${links.length} links)`);
     }
   }
   
@@ -170,7 +171,7 @@ export class BeadDebugController {
    */
   toggleStats(enabled) {
     this.showStats = enabled;
-    console.log(`Stats overlay ${enabled ? 'enabled' : 'disabled'}`);
+    if (this.debug) console.log(`Stats overlay ${enabled ? 'enabled' : 'disabled'}`);
   }
   
   /**
@@ -179,7 +180,7 @@ export class BeadDebugController {
   toggleBounds(enabled) {
     this.showBounds = enabled;
     this.updateDebugVisuals();
-    console.log(`Bounds visualization ${enabled ? 'enabled' : 'disabled'}`);
+    if (this.debug) console.log(`Bounds visualization ${enabled ? 'enabled' : 'disabled'}`);
   }
   
   /**
@@ -188,7 +189,7 @@ export class BeadDebugController {
   togglePaths(enabled) {
     this.showPaths = enabled;
     this.updateDebugVisuals();
-    console.log(`Path visualization ${enabled ? 'enabled' : 'disabled'}`);
+    if (this.debug) console.log(`Path visualization ${enabled ? 'enabled' : 'disabled'}`);
   }
   
   /**
@@ -295,11 +296,11 @@ export function logBeadInfo(link) {
   
   if (pool) {
     const active = pool.getActiveBead();
-    console.log(`Link: ${link.id?.substring(0, 8)}`);
-    console.log(`  Active Beads: ${active.length}/${pool.maxBeads}`);
-    console.log(`  Synergy: ${(link['synergyScore'] ?? 0.5).toFixed(2)}`);
-    console.log(`  Traffic: ${(link.traffic?.load ?? 0).toFixed(2)}`);
-    console.log(`  Activity: ${pool.getActivityLevel().toFixed(2)}`);
+    if (this.debug) console.log(`Link: ${link.id?.substring(0, 8)}`);
+    if (this.debug) console.log(`  Active Beads: ${active.length}/${pool.maxBeads}`);
+    if (this.debug) console.log(`  Synergy: ${(link['synergyScore'] ?? 0.5).toFixed(2)}`);
+    if (this.debug) console.log(`  Traffic: ${(link.traffic?.load ?? 0).toFixed(2)}`);
+    if (this.debug) console.log(`  Activity: ${pool.getActivityLevel().toFixed(2)}`);
   }
 }
 

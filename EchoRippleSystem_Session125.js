@@ -1,3 +1,31 @@
+/**
+ * EchoRippleSystem_Session125.js
+ * ============================================================================
+ *
+ * ECHO RIPPLE VISUAL FX SYSTEM
+ * Renders propagating ripple rings from node events (link creation, corruption
+ * spikes, harmony pulses). Ripples travel along links and create interference
+ * patterns when they overlap.
+ *
+ * PURPOSE:
+ * - Visual feedback for resonance events in the node/link network
+ * - Ripple propagation along links with configurable depth and branching
+ * - Interference patterns where ripples overlap
+ * - Impact absorption at destination nodes via NodeImpactManager
+ *
+ * TRIGGER:
+ * - triggerRipple(nodeId, options) called by external systems on semantic events
+ * - Auto-propagation via _propagateRipple() when ripple reaches a connected node
+ * - Cooldown-gated per node and per link to prevent visual spam
+ *
+ * GATE:
+ * - config.enabled master switch
+ * - config.globalCooldownSeconds between any ripples
+ * - config.nodeCooldownSeconds per-node cooldown
+ * - config.linkCooldownSeconds per-link cooldown
+ * - config.minPropagationIntensity threshold for propagation
+ */
+
 import * as THREE from 'three';
 import { ImpactManagerCollection } from './NodeImpactManager.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';

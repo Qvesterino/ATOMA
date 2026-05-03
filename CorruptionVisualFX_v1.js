@@ -71,6 +71,10 @@ export class CorruptionVisualFX_v1 {
     this._particleGeometry = new THREE.TetrahedronGeometry(0.06, 0);
     this._particleSpawnOffset = new THREE.Vector3();
     
+    // Budget cap
+    this.maxParticles = 256;
+    this.maxTrackedNodes = 100;
+
     // Performance settings
     this.updateInterval = 1 / 30; // 30Hz updates for performance
     this.lastUpdateTime = 0;
@@ -826,6 +830,16 @@ export class CorruptionVisualFX_v1 {
   }
 
   /**
+   * Per-frame update — drives particle animation.
+   * Conforms to FX contract: update(deltaTime) entry point.
+   */
+  update(deltaTime) {
+    const dt = Number.isFinite(deltaTime) && deltaTime > 0 ? deltaTime : this.visualTime.delta;
+    this.lastUpdateTime += dt;
+    this.updateParticles(dt);
+  }
+
+  /**
    * Render corruption particles (visual debug/demonstration)
    */
   renderCorruptionParticles(scene, camera, renderer) {
@@ -850,7 +864,7 @@ export class CorruptionVisualFX_v1 {
         if (!node.userData.gameplay) node.userData.gameplay = {};
         node.userData.gameplay.corruptionLevel = Math.min(1, 
           (node.userData.gameplay.corruptionLevel || 0) + amount);
-        console.log(`%c[Corruption +${amount}] Level: ${node.userData.gameplay.corruptionLevel.toFixed(2)}`, 
+        if (this.debugMode) console.log(`%c[Corruption +${amount}] Level: ${node.userData.gameplay.corruptionLevel.toFixed(2)}`,
           'color: #ff4400;');
       },
 
@@ -858,14 +872,14 @@ export class CorruptionVisualFX_v1 {
         if (!node.userData.gameplay) node.userData.gameplay = {};
         node.userData.gameplay.corruptionLevel = Math.max(0,
           (node.userData.gameplay.corruptionLevel || 0) - amount);
-        console.log(`%c[Cleaned -${amount}] Level: ${node.userData.gameplay.corruptionLevel.toFixed(2)}`,
+        if (this.debugMode) console.log(`%c[Cleaned -${amount}] Level: ${node.userData.gameplay.corruptionLevel.toFixed(2)}`,
           'color: #00ff88;');
       },
 
       setCorruption: (node, value) => {
         if (!node.userData.gameplay) node.userData.gameplay = {};
         node.userData.gameplay.corruptionLevel = Math.max(0, Math.min(1, value));
-        console.log(`%c[Set Corruption] Level: ${value.toFixed(2)}`, 'color: #ffaa00;');
+        if (this.debugMode) console.log(`%c[Set Corruption] Level: ${value.toFixed(2)}`, 'color: #ffaa00;');
       },
 
       pulse: (node) => {
@@ -874,25 +888,25 @@ export class CorruptionVisualFX_v1 {
         setTimeout(() => {
           node.userData.gameplay.corruptionLevel = 0.0;
         }, 500);
-        console.log('%c[Corruption Pulse] 0 → 1 → 0', 'color: #ff0000; font-weight: bold;');
+        if (this.debugMode) console.log('%c[Corruption Pulse] 0 → 1 → 0', 'color: #ff0000; font-weight: bold;');
       },
 
       particles: () => {
         const particleCount = (window.corruptionFX?.activeParticles?.length) || 0;
-        console.log(`%c[Particles] Active: ${particleCount}`, 'color: #ffaa00;');
+        if (this.debugMode) console.log(`%c[Particles] Active: ${particleCount}`, 'color: #ffaa00;');
       },
 
       stats: () => {
         const states = window.corruptionFX?.nodeVisualState?.size || 0;
         const particles = window.corruptionFX?.activeParticles?.length || 0;
-        console.log('%c[Corruption FX Stats]', 'color: #ff4400; font-weight: bold;', {
+        if (this.debugMode) console.log('%c[Corruption FX Stats]', 'color: #ff4400; font-weight: bold;', {
           trackedNodes: states,
           activeParticles: particles
         });
       }
     };
 
-    console.log('%c[CorruptionVisualDebug] API available: window.corruptionVisualDebug', 
+    if (this.debugMode) console.log('%c[CorruptionVisualDebug] API available: window.corruptionVisualDebug',
       'color: #ff4400;');
   }
 

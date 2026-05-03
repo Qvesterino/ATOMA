@@ -445,6 +445,7 @@ export class ImpactManagerCollection {
   constructor() {
     this.managers = new Map();  // nodeId → NodeImpactManager
     this.profile = EnergyVisualProfile;
+    this.maxManagers = 100; // Budget cap for tracked node managers
   }
 
   /**

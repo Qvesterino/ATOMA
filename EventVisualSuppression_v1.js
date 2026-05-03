@@ -47,6 +47,7 @@ import * as THREE from 'three';
 
 export class EventVisualSuppression_v1 {
   constructor(config = {}) {
+    this.debug = false;
     this.config = {
       debugEnabled: config.debugEnabled ?? false,
       enableLogging: config.enableLogging ?? false,
@@ -103,7 +104,7 @@ export class EventVisualSuppression_v1 {
       });
 
       if (this.config.enableLogging) {
-        console.log(`[EventSuppression] Registered event source:`, sourceLabel);
+        if (this.debug) console.log(`[EventSuppression] Registered event source:`, sourceLabel);
       }
     } catch (e) {
       // Silent failure
@@ -136,7 +137,7 @@ export class EventVisualSuppression_v1 {
       }
 
       if (this.config.enableLogging && nodes.length > 0) {
-        console.log(`[EventSuppression] Suppressed VFX for ${nodes.length} nodes`);
+        if (this.debug) console.log(`[EventSuppression] Suppressed VFX for ${nodes.length} nodes`);
       }
     } catch (e) {
       // Silent failure
@@ -184,7 +185,7 @@ export class EventVisualSuppression_v1 {
       }
 
       if (this.config.enableLogging) {
-        console.log(`[EventSuppression] Redirected intensity: ${clampedIntensity} → aura: ${auraModulation}`);
+        if (this.debug) console.log(`[EventSuppression] Redirected intensity: ${clampedIntensity} → aura: ${auraModulation}`);
       }
 
       return auraModulation;
@@ -219,7 +220,7 @@ export class EventVisualSuppression_v1 {
       coreAuthority.protectCoreMaterial(node);
 
       if (this.config.enableLogging) {
-        console.log(`[EventSuppression] Protected core from event: ${eventLabel}`);
+        if (this.debug) console.log(`[EventSuppression] Protected core from event: ${eventLabel}`);
       }
     } catch (e) {
       // Silent failure
@@ -280,7 +281,7 @@ export class EventVisualSuppression_v1 {
       const valid = issues.length === 0;
 
       if (this.config.enableLogging || (this.config.debugEnabled && !valid)) {
-        console.log(`[EventSuppression] Visual validation:`, {
+        if (this.debug) console.log(`[EventSuppression] Visual validation:`, {
           total: nodes.length,
           issues: issues.length,
           valid: valid,
@@ -417,14 +418,14 @@ export function setupEventSuppressionConsoleAPI(suppression) {
   return {
     checkNode(node) {
       if (!node) {
-        console.log('[DEBUG] No node provided');
+        if (this.debug) console.log('[DEBUG] No node provided');
         return;
       }
 
       const suppressed = suppression.getSuppressedEffects(node);
       const redirected = suppression.getRedirectedIntensity(node);
 
-      console.log('[DEBUG] Event Suppression Status:', {
+      if (this.debug) console.log('[DEBUG] Event Suppression Status:', {
         nodeId: node.userData?.id,
         suppressed: !!suppressed,
         suppressedEffects: suppressed,
@@ -439,17 +440,17 @@ export function setupEventSuppressionConsoleAPI(suppression) {
 
     validateAll(nodes) {
       if (!nodes || !Array.isArray(nodes)) {
-        console.log('[DEBUG] Invalid nodes array');
+        if (this.debug) console.log('[DEBUG] Invalid nodes array');
         return;
       }
 
       const result = suppression.validateEventVisuals(nodes);
-      console.log('[DEBUG] Visual Validation Result:', result);
+      if (this.debug) console.log('[DEBUG] Visual Validation Result:', result);
     },
 
     getStats() {
       const stats = suppression.getStats();
-      console.log('[DEBUG] Event Suppression Statistics:', stats);
+      if (this.debug) console.log('[DEBUG] Event Suppression Statistics:', stats);
     }
   };
 }

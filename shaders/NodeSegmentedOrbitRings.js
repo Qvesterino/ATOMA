@@ -1,5 +1,20 @@
 import * as THREE from "three";
 
+/**
+ * NodeSegmentedOrbitRings.js
+ * ============================================================================
+ *
+ * SEGMENTED ORBIT RING VISUAL FX
+ * Renders animated segmented rings orbiting around a node center.
+ * Each segment is a small plane with shader-driven animation.
+ *
+ * GATE:
+ * - this.energy (0-1) controls visibility and animation intensity
+ * - Rings are invisible when energy < 0.05
+ * - Rings fade in/out smoothly with energy changes
+ * - Set energy via setEnergy(value) or through options.initialEnergy
+ */
+
 export class NodeSegmentedOrbitRings {
 
 constructor(scene, center, options={}){
@@ -10,9 +25,8 @@ this.center = center;
 
 this.segmentCount = options.segmentCount || 64;
 this.radius = options.radius || 1.7;
-
-this.clock = new THREE.Clock();
-this.energy = 0.5; // Default energy level (0-1)
+this.maxRingsPerNode = options.maxRingsPerNode || 6; // Budget cap
+this.energy = options.initialEnergy ?? 0.5; // Gate: energy level (0-1)
 
 // SACRED_ORBIT: Thicker segments for more visual presence (was 0.72, 0.42)
 const geometry = new THREE.PlaneGeometry(0.88, 0.56);

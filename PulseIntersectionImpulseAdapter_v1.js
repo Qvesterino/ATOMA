@@ -29,6 +29,7 @@ import * as THREE from 'three';
  */
 class SegmentIntersectionDetector {
   constructor() {
+    this.debug = false;
     // Per-link segment cache: linkId → [{ startT, endT, type }]
     this.segmentCache = new Map();
     
@@ -534,22 +535,22 @@ export function setupPulseIntersectionImpulseConsoleAPI(adapter) {
   window.pulseImpulse = {
     enable: () => {
       adapter.setEnabled(true);
-      console.log('✅ Pulse intersection impulses ENABLED');
+      if (this.debug) console.log('✅ Pulse intersection impulses ENABLED');
     },
     disable: () => {
       adapter.setEnabled(false);
-      console.log('❌ Pulse intersection impulses DISABLED');
+      if (this.debug) console.log('❌ Pulse intersection impulses DISABLED');
     },
     debugOn: () => {
       adapter.setDebugMode(true);
-      console.log('🔍 Pulse intersection debug mode ON');
+      if (this.debug) console.log('🔍 Pulse intersection debug mode ON');
     },
     debugOff: () => {
       adapter.setDebugMode(false);
-      console.log('🔍 Pulse intersection debug mode OFF');
+      if (this.debug) console.log('🔍 Pulse intersection debug mode OFF');
     },
     status: () => {
-      console.log(`⚡ Pulse Intersection Impulse Status:
+      if (this.debug) console.log(`⚡ Pulse Intersection Impulse Status:
   Enabled: ${adapter.enabled}
   Debug: ${adapter.debugMode}
   Active Impulses: ${adapter.spawner.activeImpulses.length}
@@ -557,7 +558,7 @@ export function setupPulseIntersectionImpulseConsoleAPI(adapter) {
   Active Pulses: ${adapter.activePulses.size}`);
     },
     help: () => {
-      console.log(`⚡ Pulse Intersection Console API:
+      if (this.debug) console.log(`⚡ Pulse Intersection Console API:
   pulseImpulse.enable()         — Enable intersection impulses
   pulseImpulse.disable()        — Disable intersection impulses
   pulseImpulse.debugOn()        — Enable debug logging
@@ -567,5 +568,5 @@ export function setupPulseIntersectionImpulseConsoleAPI(adapter) {
     },
   };
 
-  console.log('✅ [PulseIntersectionImpulseAdapter] Console API ready (pulseImpulse.help())');
+  if (this.debug) console.log('✅ [PulseIntersectionImpulseAdapter] Console API ready (pulseImpulse.help())');
 }
