@@ -16927,6 +16927,48 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         window.__DEBUG.createLinkById = (idA, idB) => window.__DEBUG.getLinkingSystem()?.createLinkById?.(idA, idB) ?? null;
         window.__DEBUG.createLink = (nodeA, nodeB) => window.__DEBUG.getLinkingSystem()?.createLink?.(nodeA, nodeB) ?? null;
         window.__DEBUG.getNodeById = (id) => window.__DEBUG.getLinkingSystem()?._resolveNodeById?.(id) ?? null;
+        window.__DEBUG.listNodeIds = (limit = 20) => {
+            const nodes = Array.isArray(this.aiNodes?.nodes) ? this.aiNodes.nodes : [];
+            return nodes
+                .map((node) => node?.userData?.nodeId ?? node?.id ?? null)
+                .filter((id) => id !== null && id !== undefined)
+                .slice(0, Math.max(1, Number(limit) || 20));
+        };
+        window.__DEBUG.startFxAuditWindow = (durationMs = 5000, label = 'fx-smoke') => {
+            if (typeof window !== 'undefined') {
+                window.ATOMA_FX_AUDIT = true;
+            }
+            return this.frameScheduler?.startFxAuditWindow?.(durationMs, label) ?? null;
+        };
+        window.__DEBUG.dumpFxAudit = (label = 'manual-dump') => this.frameScheduler?.dumpFxAuditToConsole?.(label) ?? null;
+        window.__DEBUG.clearFxAuditSession = () => this.frameScheduler?.clearFxAuditSession?.() ?? null;
+        window.__DEBUG.getFxAuditSnapshot = () => this.frameScheduler?.getFxAuditSnapshot?.() ?? null;
+        window.__DEBUG.createSmokeLinks = (linkCount = 3) => {
+            const linkingSystem = window.__DEBUG.getLinkingSystem();
+            if (!linkingSystem?.createLinkById) return { created: [], attempted: 0 };
+
+            const nodes = Array.isArray(this.aiNodes?.nodes) ? this.aiNodes.nodes : [];
+            const ids = nodes
+                .map((node) => node?.userData?.nodeId ?? node?.id ?? null)
+                .filter((id) => id !== null && id !== undefined);
+
+            const maxLinks = Math.max(0, Math.min(Number(linkCount) || 0, Math.max(0, ids.length - 1)));
+            const created = [];
+            for (let i = 0; i < maxLinks; i++) {
+                const idA = ids[i];
+                const idB = ids[i + 1];
+                if (idA === undefined || idB === undefined || idA === idB) continue;
+                const result = linkingSystem.createLinkById(idA, idB);
+                if (result) {
+                    created.push({ idA, idB });
+                }
+            }
+
+            return {
+                attempted: maxLinks,
+                created
+            };
+        };
         window.__DEBUG.spawnLinkResonancePulseOnce = (linkIdOrLink, options = {}) => {
             const system = window.__DEBUG.getLinkResonanceFlowSystem();
             if (!system?.spawnSinglePulse) return null;

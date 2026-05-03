@@ -10,6 +10,7 @@ export class MemoryLane {
   constructor(scene, worldRoot) {
     this.scene = scene;
     this.worldRoot = worldRoot;
+    this.enabled = true;
 
     // Atmosphere: exponential fog for depth and scene cohesion
     if (this.scene) {
@@ -1247,9 +1248,83 @@ export class MemoryLane {
   }
   
   /**
+   * Enable or disable Memory Lane updates and rendering
+   */
+  setEnabled(enabled) {
+    this.enabled = !!enabled;
+  }
+
+  /**
+   * Dispose all Memory Lane objects and clean up GPU resources
+   */
+  dispose() {
+    const disposeObject = (obj) => {
+      if (!obj) return;
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(m => m?.dispose());
+        } else {
+          obj.material.dispose();
+        }
+      }
+      if (obj.parent) obj.parent.remove(obj);
+    };
+
+    const disposeArray = (arr) => {
+      if (!arr) return;
+      arr.forEach(item => {
+        if (item && item.traverse) item.traverse(child => disposeObject(child));
+        disposeObject(item);
+      });
+      arr.length = 0;
+    };
+
+    disposeArray(this.serverTowers);
+    disposeArray(this.serverClusters);
+    disposeArray(this.coolingTowers);
+    disposeArray(this.dataCables);
+    disposeArray(this.coreRings);
+    disposeArray(this.galleries);
+    disposeArray(this.ceilingPanels);
+    disposeArray(this.ceilingLattice);
+    disposeArray(this.dataDisplays);
+    disposeArray(this.dataStreams);
+    disposeArray(this.memoryCrystals);
+    disposeArray(this.hallBeams);
+    disposeArray(this.zoneFogLayers);
+    disposeArray(this.holograms);
+    disposeArray(this.memoryShards);
+    disposeArray(this.glitchWalls);
+    disposeArray(this.neonStrips);
+    disposeArray(this.arcs);
+
+    disposeObject(this.floor);
+    disposeObject(this.floorRing);
+    disposeObject(this.coreStalk);
+    disposeObject(this.coreShell);
+    disposeObject(this.innerCore);
+    disposeObject(this.coreActivityColumn);
+    disposeObject(this.coreLight);
+    disposeObject(this.particles);
+
+    if (this.scene) this.scene.fog = null;
+
+    this.floor = null;
+    this.floorRing = null;
+    this.coreStalk = null;
+    this.coreShell = null;
+    this.innerCore = null;
+    this.coreActivityColumn = null;
+    this.coreLight = null;
+    this.particles = null;
+  }
+
+  /**
    * Update Memory Lane animations
    */
   update(deltaTime, time) {
+    if (!this.enabled) return;
     const corePulse = Math.sin(time * 1.1) * 0.5 + 0.5;
 
     if (this.coreStalk) {

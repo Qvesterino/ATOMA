@@ -42,6 +42,28 @@ export function getStableHologramGeometry(radius = 1, detail = 2) {
   return HOLOGRAM_GEOMETRY_CACHE.get(cacheKey);
 }
 
+// ============================================================
+// HOLOGRAM SHELL REGISTRY — OWNER, BUDGET, LIFETIME
+// ============================================================
+const HOLOGRAM_SHELL_REGISTRY = new Set();
+const HOLOGRAM_SHELL_BUDGET = 500;
+let hologramShellEnabled = true;
+
+function registerHologramShell(shell) {
+  if (HOLOGRAM_SHELL_REGISTRY.size >= HOLOGRAM_SHELL_BUDGET) {
+    console.warn('[CoreHologramShader] Budget exceeded. Shell not registered.');
+    return false;
+  }
+  HOLOGRAM_SHELL_REGISTRY.add(shell);
+  shell.userData.hologramShellRegistered = true;
+  return true;
+}
+
+function unregisterHologramShell(shell) {
+  HOLOGRAM_SHELL_REGISTRY.delete(shell);
+  if (shell) shell.userData.hologramShellRegistered = false;
+}
+
 /**
  * CORE IDENTITY MATERIAL - STABLE IDENTITY LAYER
  * 
@@ -84,7 +106,8 @@ export function createHologramShellMaterial(baseColor = 0x00ffff) {
     uColor: { value: color },
     uOpacity: { value: 0.15 },     // Base opacity (subtle)
     uRimPower: { value: 3.0 },     // High power = thinner rim
-    uRimIntensity: { value: 1.5 }  // Brightness multiplier
+    uRimIntensity: { value: 1.5 }, // Brightness multiplier
+    uTime: { value: 0 }            // For animated updates
   };
 
   const vertexShader = `
@@ -156,14 +179,21 @@ export function setupAuraDebugAPI() {
   console.log('[AURA DEBUG] Ready. Use window.AuraDebug');
 }
 
-// Auto-initialize debug API on module load
-setupAuraDebugAPI();
+// Debug API is no longer auto-initialized. Call setupAuraDebugAPI() explicitly if needed.
 
 
 /**
  * Update hologram shell uniforms (for animation)
  */
-export function updateHologramShellMaterial(material, deltaTime) {
+export function updateHologramShellMaterial(material, deltaTime, time = 0) {
+  if (!material || !material.uniforms) return material;
+  if (material.uniforms.uTime) {
+    material.uniforms.uTime.value = time;
+  }
+  // Subtle breathing pulse on rim intensity
+  if (material.uniforms.uRimIntensity) {
+    material.uniforms.uRimIntensity.value = 1.5 + Math.sin(time * 2) * 0.05;
+  }
   return material;
 }
 
@@ -192,6 +222,7 @@ export function updateHologramShellMaterial(material, deltaTime) {
  * @returns {THREE.Mesh} Hologram shell mesh with locked properties
  */
 export function createNodeHologramShell(coreMesh, baseColor = 0x00ffff, hologramDetail = 2) {
+  if (!hologramShellEnabled) return null;
   if (!vfxFlag('ATOMA_VFX_ENABLE_HOLOGRAM_SHELL', true)) return null;
 
   // Extract radius from core mesh (if available)
@@ -233,6 +264,13 @@ export function createNodeHologramShell(coreMesh, baseColor = 0x00ffff, hologram
   shell.userData.visualLayer = 'CORE_SHELL';
   shell.userData.isHologramShell = true;
 
+  // Register for ownership / budget / lifetime tracking
+  if (!registerHologramShell(shell)) {
+    shell.geometry?.dispose();
+    shell.material?.dispose();
+    return null;
+  }
+
   return shell;
 }
 
@@ -251,6 +289,7 @@ export function createNodeHologramShell(coreMesh, baseColor = 0x00ffff, hologram
  * @returns {boolean} true if shell is valid, false if reasserted
  */
 export function reassertNodeHologramShell(nodeGroup, coreMesh, baseColor = 0x00ffff) {
+  if (!hologramShellEnabled) return null;
   if (!vfxFlag('ATOMA_VFX_ENABLE_HOLOGRAM_SHELL', true)) return null;
 
   if (!nodeGroup || !coreMesh) {
@@ -316,4 +355,49 @@ export function reassertNodeHologramShell(nodeGroup, coreMesh, baseColor = 0x00f
   existingShell.userData.isHologramShell = true;
 
   return isValid;
+}
+
+/**
+ * Dispose a single hologram shell
+ */
+export function disposeHologramShell(shell) {
+  if (!shell) return;
+  unregisterHologramShell(shell);
+  shell.geometry?.dispose();
+  shell.material?.dispose();
+  if (shell.parent) shell.parent.remove(shell);
+}
+
+/**
+ * Dispose all registered hologram shells
+ */
+export function disposeAllHologramShells() {
+  HOLOGRAM_SHELL_REGISTRY.forEach(shell => {
+    shell.geometry?.dispose();
+    shell.material?.dispose();
+    if (shell.parent) shell.parent.remove(shell);
+  });
+  HOLOGRAM_SHELL_REGISTRY.clear();
+}
+
+/**
+ * Enable / disable hologram shell creation globally
+ */
+export function setHologramShellEnabled(enabled) {
+  hologramShellEnabled = !!enabled;
+}
+
+export function isHologramShellEnabled() {
+  return hologramShellEnabled;
+}
+
+/**
+ * Debug stats for hologram shell system
+ */
+export function getHologramShellStats() {
+  return {
+    enabled: hologramShellEnabled,
+    count: HOLOGRAM_SHELL_REGISTRY.size,
+    budget: HOLOGRAM_SHELL_BUDGET,
+  };
 }

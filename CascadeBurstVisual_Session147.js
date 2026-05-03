@@ -1016,6 +1016,9 @@ export class CascadeBurstVisual_Session147 {
       rig.distortion.material.uniforms.uOpacity.value = this.config.distortionEnabled ? this.config.distortionOpacity * decayT * rig.strength : 0;
       rig.distortion.material.uniforms.uStrength.value = rig.strength;
 
+      // ── Core flash (declared early — also used by lighting flash below) ──
+      const coreIntensity = Math.max(0, 1 - t * 3);
+
       // ── Lighting flash animation ──
       const flashIntensity = this.config.lightingFlashEnabled ? this.config.lightingFlashIntensity * coreIntensity * rig.strength * 2.0 : 0;
       rig.flashLight.intensity = flashIntensity;
@@ -1062,7 +1065,6 @@ export class CascadeBurstVisual_Session147 {
       }
 
       // ── Core flash ──
-      const coreIntensity = Math.max(0, 1 - t * 3);
       const coreScale = this.config.coreFlashSize * coreIntensity * rig.strength * lodScale;
       rig.core.scale.setScalar(Math.max(0.01, coreScale));
       rig.core.material.uniforms.uTime.value = now;

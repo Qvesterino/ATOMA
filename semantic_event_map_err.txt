@@ -1,0 +1,4 @@
+usage: semantic_event_mapper.py [-h] [--workspace WORKSPACE]
+                                [--output {text,json,html}] [--file FILE]
+                                {scan,report,validate}
+semantic_event_mapper.py: error: unrecognized arguments: ; echo EXIT CODE: $LASTEXITCODE

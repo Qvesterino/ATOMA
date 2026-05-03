@@ -80,6 +80,247 @@ class FrameScheduler {
         
         // Phase B: Track registered systems with IDs for management
         this.registeredSystems = {}; // id -> { layer, entry }
+
+        // Runtime smoke instrumentation (opt-in via window.ATOMA_FX_AUDIT)
+        this._fxAuditState = this._createFxAuditState();
+    }
+
+    _createFxAuditState() {
+        return {
+            enabled: false,
+            initializedAt: null,
+            sessionStartedAt: null,
+            sessionLabel: null,
+            entries: [],
+            byKey: new Map(),
+            seq: 0,
+            totalCalls: 0,
+            totalErrors: 0,
+            windowTimer: null,
+            windowDurationMs: 0
+        };
+    }
+
+    _isFxAuditFlagEnabled() {
+        return typeof window !== 'undefined' && window.ATOMA_FX_AUDIT === true;
+    }
+
+    _syncFxAuditFlag() {
+        if (!this._isFxAuditFlagEnabled()) return;
+        if (!this._fxAuditState.enabled) {
+            this.enableFxAudit();
+            this.startFxAuditWindow(5000, 'auto-5s-smoke');
+        }
+    }
+
+    _ensureEntryAuditMeta(entry, layerName) {
+        if (!entry) return null;
+        if (entry._fxAuditMeta) return entry._fxAuditMeta;
+
+        const state = this._fxAuditState;
+        const key = entry.id || `${layerName}.anonymous.${++state.seq}`;
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        const meta = {
+            key,
+            id: entry.id || null,
+            layer: layerName,
+            registeredAt: now,
+            callCount: 0,
+            firstCallAt: null,
+            lastCallAt: null,
+            errorCount: 0,
+            disabled: false,
+            crashed: false,
+            lastErrorMessage: null,
+            lastErrorAt: null
+        };
+
+        entry._fxAuditMeta = meta;
+        state.entries.push(meta);
+        state.byKey.set(meta.key, meta);
+        return meta;
+    }
+
+    _markFxAuditCall(entry, layerName) {
+        if (!this._fxAuditState.enabled || !entry) return;
+        const meta = this._ensureEntryAuditMeta(entry, layerName);
+        if (!meta) return;
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        meta.callCount += 1;
+        meta.lastCallAt = now;
+        if (meta.firstCallAt === null) {
+            meta.firstCallAt = now;
+        }
+        this._fxAuditState.totalCalls += 1;
+    }
+
+    _markFxAuditError(entry, layerName, error) {
+        if (!this._fxAuditState.enabled || !entry) return;
+        const meta = this._ensureEntryAuditMeta(entry, layerName);
+        if (!meta) return;
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        meta.errorCount += 1;
+        meta.disabled = true;
+        meta.crashed = true;
+        meta.lastErrorAt = now;
+        meta.lastErrorMessage = String(error?.message || error || 'Unknown error');
+        this._fxAuditState.totalErrors += 1;
+    }
+
+    enableFxAudit() {
+        if (!this._isFxAuditFlagEnabled() && typeof window !== 'undefined') {
+            window.ATOMA_FX_AUDIT = true;
+        }
+
+        const state = this._fxAuditState;
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        if (!state.initializedAt) {
+            state.initializedAt = now;
+        }
+        state.enabled = true;
+
+        for (const [layerName, layer] of Object.entries(this.layers)) {
+            for (const entry of layer.functions) {
+                this._ensureEntryAuditMeta(entry, layerName);
+            }
+        }
+    }
+
+    clearFxAuditSession() {
+        const state = this._fxAuditState;
+        if (state.windowTimer) {
+            clearTimeout(state.windowTimer);
+            state.windowTimer = null;
+        }
+        state.sessionStartedAt = null;
+        state.sessionLabel = null;
+        state.windowDurationMs = 0;
+        state.totalCalls = 0;
+        state.totalErrors = 0;
+        for (const meta of state.entries) {
+            meta.callCount = 0;
+            meta.firstCallAt = null;
+            meta.lastCallAt = null;
+            meta.errorCount = 0;
+            meta.disabled = false;
+            meta.crashed = false;
+            meta.lastErrorMessage = null;
+            meta.lastErrorAt = null;
+        }
+        return true;
+    }
+
+    startFxAuditWindow(durationMs = 5000, label = 'fx-smoke') {
+        this.enableFxAudit();
+
+        const state = this._fxAuditState;
+        if (state.windowTimer) {
+            clearTimeout(state.windowTimer);
+            state.windowTimer = null;
+        }
+
+        this.clearFxAuditSession();
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        state.sessionStartedAt = now;
+        state.sessionLabel = String(label || 'fx-smoke');
+        state.windowDurationMs = Math.max(0, Number(durationMs) || 0);
+
+        state.windowTimer = setTimeout(() => {
+            this.dumpFxAuditToConsole(`${state.sessionLabel} (${state.windowDurationMs}ms)`);
+            state.windowTimer = null;
+        }, state.windowDurationMs);
+
+        return {
+            startedAt: state.sessionStartedAt,
+            durationMs: state.windowDurationMs,
+            label: state.sessionLabel
+        };
+    }
+
+    getFxAuditSnapshot() {
+        const state = this._fxAuditState;
+        const entries = state.entries.map((meta) => ({ ...meta }));
+        const totalRegistered = entries.length;
+        const calledSystems = entries.filter((meta) => meta.callCount > 0).length;
+        const silentSystems = entries.filter((meta) => meta.callCount === 0).length;
+        const crashedSystems = entries.filter((meta) => meta.crashed === true).length;
+
+        return {
+            enabled: state.enabled,
+            initializedAt: state.initializedAt,
+            sessionStartedAt: state.sessionStartedAt,
+            sessionLabel: state.sessionLabel,
+            windowDurationMs: state.windowDurationMs,
+            totalRegistered,
+            calledSystems,
+            silentSystems,
+            crashedSystems,
+            totalCalls: state.totalCalls,
+            totalErrors: state.totalErrors,
+            entries
+        };
+    }
+
+    listFxAuditSilentSystems() {
+        return this._fxAuditState.entries
+            .filter((meta) => meta.callCount === 0)
+            .map((meta) => ({
+                key: meta.key,
+                id: meta.id,
+                layer: meta.layer,
+                registeredAt: meta.registeredAt
+            }));
+    }
+
+    dumpFxAuditToConsole(label = 'fx-audit') {
+        const snapshot = this.getFxAuditSnapshot();
+        const title = `[ATOMA FX AUDIT] ${label}`;
+        console.group(title);
+        console.log({
+            totalRegistered: snapshot.totalRegistered,
+            calledSystems: snapshot.calledSystems,
+            silentSystems: snapshot.silentSystems,
+            crashedSystems: snapshot.crashedSystems,
+            totalCalls: snapshot.totalCalls,
+            totalErrors: snapshot.totalErrors,
+            windowDurationMs: snapshot.windowDurationMs,
+            sessionStartedAt: snapshot.sessionStartedAt
+        });
+
+        const byLayer = snapshot.entries.reduce((acc, entry) => {
+            const key = entry.layer || 'unknown';
+            if (!acc[key]) {
+                acc[key] = { total: 0, called: 0, silent: 0, calls: 0 };
+            }
+            acc[key].total += 1;
+            acc[key].calls += entry.callCount;
+            if (entry.callCount > 0) acc[key].called += 1;
+            else acc[key].silent += 1;
+            return acc;
+        }, {});
+
+        console.log('Layer summary:', byLayer);
+        console.table(snapshot.entries
+            .slice()
+            .sort((a, b) => b.callCount - a.callCount)
+            .map((entry) => ({
+                id: entry.id || entry.key,
+                layer: entry.layer,
+                calls: entry.callCount,
+                errors: entry.errorCount,
+                crashed: entry.crashed
+            })));
+
+        const silent = this.listFxAuditSilentSystems();
+        if (silent.length > 0) {
+            console.log('Silent systems (registered but never called):', silent.length);
+            console.table(silent.map((entry) => ({
+                id: entry.id || entry.key,
+                layer: entry.layer
+            })));
+        }
+        console.groupEnd();
+        return snapshot;
     }
 
     /**
@@ -123,6 +364,8 @@ class FrameScheduler {
      * @returns {boolean} - True if registration successful, false otherwise
      */
     register(layerName, fn, id = undefined) {
+        this._syncFxAuditFlag();
+
         if (!this.layers[layerName]) {
             frameWarn(`[FrameScheduler] Unknown layer: ${layerName}. Available layers: realtime, visual, simulation, background`);
             return false;
@@ -149,6 +392,10 @@ class FrameScheduler {
             category: this.categorizeSystem(id),
             lastRun: -Infinity
         };
+
+        if (this._fxAuditState.enabled) {
+            this._ensureEntryAuditMeta(entry, layerName);
+        }
 
         if (id) {
             this.registeredSystems[id] = {
@@ -241,6 +488,7 @@ class FrameScheduler {
      * @param {number} deltaTime - Time since last frame in seconds
      */
     tick(deltaTime) {
+        this._syncFxAuditFlag();
         this.tickCount++;
 
         // Process each layer
@@ -270,8 +518,14 @@ class FrameScheduler {
                                 layer: layerName
                             };
                         }
+                        if (this._fxAuditState.enabled) {
+                            this._markFxAuditCall(entry, layerName);
+                        }
                         entry.fn(layer.interval);
                     } catch (error) {
+                        if (this._fxAuditState.enabled) {
+                            this._markFxAuditError(entry, layerName, error);
+                        }
                         const jobId = entry.id || entry.fn?.name || 'visual-task';
                         if (!entry._warned) {
                             frameWarn(`[FrameScheduler] Job crashed: ${jobId}`, error);

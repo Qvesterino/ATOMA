@@ -1569,7 +1569,7 @@ export class AmbientEntityManager {
       fragment.rotation.x += deltaTime * 0.5;
       fragment.rotation.y += deltaTime * 0.7;
 
-      const trail = trailParticles[i];
+      const trail = trailParticles[childIndex];
       if (Array.isArray(trail)) {
         trail.push({ pos: fragment.position.clone(), age: 0 });
         while (trail.length > TRAIL_LENGTH) {

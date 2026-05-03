@@ -148,8 +148,8 @@ class BiasVectorInstance {
         // Interpolate position
         this.position.lerp(this.targetPosition, interpFactor);
 
-        // Interpolate direction (spherical interpolation for smooth rotation)
-        this.direction.slerp(this.targetDirection, interpFactor);
+        // Interpolate direction (linear interpolation for smooth rotation)
+        this.direction.lerp(this.targetDirection, interpFactor);
 
         // Interpolate strength with fade speed
         const strengthDiff = this.targetStrength - this.strength;

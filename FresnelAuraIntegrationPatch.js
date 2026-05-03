@@ -37,6 +37,10 @@ const patchConfig = {
   fresnelMax: 1.0,
 };
 
+// Fresnel aura ownership registry
+const FRESNEL_AURA_REGISTRY = new Set();
+const FRESNEL_AURA_BUDGET = 500;
+
 /**
  * Configure the patch before applying
  */
@@ -153,6 +157,16 @@ export function createFresnelAura(nodeData, options = {}) {
   aura.castShadow = false;
   aura.receiveShadow = false;
 
+  // Register for ownership / budget tracking
+  if (FRESNEL_AURA_REGISTRY.size >= FRESNEL_AURA_BUDGET) {
+    aura.geometry.dispose();
+    aura.material?.dispose();
+    console.warn('[FresnelAura] Budget exceeded. Aura not created.');
+    return null;
+  }
+  FRESNEL_AURA_REGISTRY.add(aura);
+  aura.userData.fresnelAuraRegistered = true;
+
   return aura;
 }
 
@@ -208,6 +222,7 @@ function createDefaultAura(nodeData, options = {}) {
 let _fresnelAuraTimeOrigin;
 
 export function updateFresnelAuraUniforms(auraMesh, time, state = {}, camera = null) {
+  if (!patchConfig.enabled) return;
   if (!auraMesh || !auraMesh.material || !auraMesh.material.uniforms) {
     return;
   }
@@ -347,6 +362,40 @@ export function printFresnelAuraDiagnostics() {
   console.log('=====================================');
 }
 
+/**
+ * Dispose a single fresnel aura
+ */
+export function disposeFresnelAura(aura) {
+  if (!aura) return;
+  FRESNEL_AURA_REGISTRY.delete(aura);
+  aura.geometry?.dispose();
+  aura.material?.dispose();
+  if (aura.parent) aura.parent.remove(aura);
+}
+
+/**
+ * Dispose all registered fresnel auras
+ */
+export function disposeAllFresnelAuras() {
+  FRESNEL_AURA_REGISTRY.forEach(aura => {
+    aura.geometry?.dispose();
+    aura.material?.dispose();
+    if (aura.parent) aura.parent.remove(aura);
+  });
+  FRESNEL_AURA_REGISTRY.clear();
+}
+
+/**
+ * Debug stats for fresnel aura system
+ */
+export function getFresnelAuraStats() {
+  return {
+    enabled: patchConfig.enabled,
+    count: FRESNEL_AURA_REGISTRY.size,
+    budget: FRESNEL_AURA_BUDGET,
+  };
+}
+
 // Export everything
 export default {
   patch: patchAINodesToUseFresnelAuras,
@@ -356,4 +405,7 @@ export default {
   batchUpdate: batchUpdateFresnelAuraUniforms,
   verify: verifyFresnelAuraIntegration,
   diagnostics: printFresnelAuraDiagnostics,
+  dispose: disposeFresnelAura,
+  disposeAll: disposeAllFresnelAuras,
+  stats: getFresnelAuraStats,
 };
