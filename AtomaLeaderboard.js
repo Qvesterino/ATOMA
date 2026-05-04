@@ -9,14 +9,15 @@
  * back to zero.
  *
  * SCORE FORMULA:
- *   baseScore = gameTimeWeight / max(gameTime, 1)
+ *   timeBonus = (1 - min(gameTime, gameTimeCap) / gameTimeCap) * timeWeight
  *   synergyBonus = avgSynergy * synergyWeight
+ *   rewindUptimeBonus = clamp(totalRewindTime / max(gameTime, 1), 0, 1) * rewindUptimeWeight
  *   efficiencyBonus = (1 - peakNT / maxNT) * efficiencyWeight
- *   speedBonus = (rewindSpeed / maxRewindSpeed) * speedWeight
+ *   rewindQualityBonus = clamp(averageRewindSynergy, 0, 1) * rewindQualityWeight
  *   comboBonus = maxCombo * comboWeight
  *   collapsePenalty = totalCollapses * collapsePenaltyWeight
  *
- *   finalScore = (baseScore + synergyBonus + efficiencyBonus + speedBonus + comboBonus - collapsePenalty) * difficultyMultiplier
+ *   finalScore = max(0, round(sumPositive - collapsePenalty))
  *
  * All weights are configurable. No hardcoded magic numbers.
  *
@@ -33,37 +34,30 @@
 
 export class AtomaLeaderboard {
     constructor(config = {}) {
-        // ── Scoring weights (all easily tunable) ────────────────────────
+        // ── Scoring weights (mastery-biased for release) ──────────────────
         this.scoring = {
-            // Base score: inversely proportional to game time (faster = better)
-            gameTimeWeight: config.gameTimeWeight ?? 10000,
-            gameTimeCap: config.gameTimeCap ?? 600,       // max seconds for score calc
+            // Faster completion still matters, but less than network mastery.
+            gameTimeWeight: config.gameTimeWeight ?? 1500,
+            gameTimeCap: config.gameTimeCap ?? 600,
 
-            // Synergy bonus: higher sustained synergy = better score
-            synergyWeight: config.synergyWeight ?? 3000,
+            // Primary mastery signal: sustain high-quality synergy.
+            synergyWeight: config.synergyWeight ?? 4500,
 
-            // Efficiency bonus: lower peak NT = better (less pressure accumulated)
-            efficiencyWeight: config.efficiencyWeight ?? 2000,
-            maxNTForScore: config.maxNTForScore ?? 500,   // NT value considered "max" for scoring
+            // Reward keeping the network in recovery instead of just surviving.
+            rewindUptimeWeight: config.rewindUptimeWeight ?? 2500,
 
-            // Speed bonus: faster rewind speed = better
-            speedWeight: config.speedWeight ?? 1500,
-            maxRewindSpeed: config.maxRewindSpeed ?? 10,   // units/sec considered "max" for scoring
+            // Lower peak NT means cleaner stabilization under pressure.
+            efficiencyWeight: config.efficiencyWeight ?? 1500,
+            maxNTForScore: config.maxNTForScore ?? 500,
 
-            // Combo bonus: consecutive rewind sessions
-            comboWeight: config.comboWeight ?? 500,
+            // Reward cleaner rewind windows.
+            rewindQualityWeight: config.rewindQualityWeight ?? 1200,
 
-            // Collapse penalty: each link collapse reduces score
-            collapsePenaltyWeight: config.collapsePenaltyWeight ?? 200,
+            // Consecutive rewind sessions are still valuable.
+            comboWeight: config.comboWeight ?? 700,
 
-            // Difficulty multiplier per world
-            difficultyMultipliers: config.difficultyMultipliers ?? {
-                default: 1.0,
-                easy: 0.8,
-                normal: 1.0,
-                hard: 1.3,
-                extreme: 1.8,
-            },
+            // Each collapse materially hurts the run quality.
+            collapsePenaltyWeight: config.collapsePenaltyWeight ?? 250,
         };
 
         // ── Leaderboard config ──────────────────────────────────────────
@@ -90,10 +84,11 @@ export class AtomaLeaderboard {
      * @param {number} runData.gameTime - Total game time in seconds
      * @param {number} runData.avgSynergy - Average synergy at win moment [0..1]
      * @param {number} runData.peakNT - Highest Network Time reached
-     * @param {number} runData.effectiveRewindSpeed - Average rewind speed
+     * @param {number} runData.averageRewindSynergy - Average synergy during rewind windows [0..1]
      * @param {number} runData.maxCombo - Highest combo count achieved
      * @param {number} runData.totalCollapses - Total link collapses during run
      * @param {number} runData.totalRewindTime - Total time spent rewinding
+     * @param {number} runData.rewindUptimeRatio - Fraction of run spent rewinding [0..1]
      * @param {string} runData.world - World/mode name
      * @param {number} runData.nodeCount - Active nodes at win
      * @param {number} runData.linkCount - Active links at win
@@ -103,25 +98,27 @@ export class AtomaLeaderboard {
         const gameTime = Math.max(1, runData.gameTime ?? 1);
         const avgSynergy = Math.max(0, Math.min(1, runData.avgSynergy ?? 0));
         const peakNT = Math.max(0, runData.peakNT ?? 0);
-        const rewindSpeed = Math.max(0, runData.effectiveRewindSpeed ?? 3);
+        const averageRewindSynergy = Math.max(0, Math.min(1, runData.averageRewindSynergy ?? avgSynergy));
         const maxCombo = Math.max(0, runData.maxCombo ?? 0);
         const totalCollapses = Math.max(0, runData.totalCollapses ?? 0);
-        const world = String(runData.world ?? 'default').toLowerCase();
+        const totalRewindTime = Math.max(0, runData.totalRewindTime ?? 0);
+        const rewindUptimeRatio = Math.max(
+            0,
+            Math.min(1, runData.rewindUptimeRatio ?? (totalRewindTime / gameTime))
+        );
 
-        // Base score: faster completion = higher score
+        // Faster completion matters, but mastery is weighted above it.
         const cappedTime = Math.min(gameTime, this.scoring.gameTimeCap);
-        const baseScore = this.scoring.gameTimeWeight * (1 - cappedTime / this.scoring.gameTimeCap);
+        const timeBonus = this.scoring.gameTimeWeight * (1 - cappedTime / this.scoring.gameTimeCap);
 
-        // Synergy bonus
+        // Mastery bonuses
         const synergyBonus = avgSynergy * this.scoring.synergyWeight;
+        const rewindUptimeBonus = rewindUptimeRatio * this.scoring.rewindUptimeWeight;
+        const rewindQualityBonus = averageRewindSynergy * this.scoring.rewindQualityWeight;
 
         // Efficiency bonus: lower peak NT = more efficient
         const efficiencyRatio = 1 - Math.min(1, peakNT / this.scoring.maxNTForScore);
         const efficiencyBonus = efficiencyRatio * this.scoring.efficiencyWeight;
-
-        // Speed bonus: faster rewind = better
-        const speedRatio = Math.min(1, rewindSpeed / this.scoring.maxRewindSpeed);
-        const speedBonus = speedRatio * this.scoring.speedWeight;
 
         // Combo bonus
         const comboBonus = maxCombo * this.scoring.comboWeight;
@@ -129,24 +126,25 @@ export class AtomaLeaderboard {
         // Collapse penalty
         const collapsePenalty = totalCollapses * this.scoring.collapsePenaltyWeight;
 
-        // Difficulty multiplier
-        const difficultyMultiplier = this.scoring.difficultyMultipliers[world]
-            ?? this.scoring.difficultyMultipliers.default
-            ?? 1.0;
-
-        const rawScore = baseScore + synergyBonus + efficiencyBonus + speedBonus + comboBonus - collapsePenalty;
-        const finalScore = Math.max(0, Math.round(rawScore * difficultyMultiplier));
+        const rawScore = timeBonus
+            + synergyBonus
+            + rewindUptimeBonus
+            + efficiencyBonus
+            + rewindQualityBonus
+            + comboBonus
+            - collapsePenalty;
+        const finalScore = Math.max(0, Math.round(rawScore));
 
         return {
             score: finalScore,
             breakdown: {
-                baseScore: Math.round(baseScore),
+                timeBonus: Math.round(timeBonus),
                 synergyBonus: Math.round(synergyBonus),
+                rewindUptimeBonus: Math.round(rewindUptimeBonus),
                 efficiencyBonus: Math.round(efficiencyBonus),
-                speedBonus: Math.round(speedBonus),
+                rewindQualityBonus: Math.round(rewindQualityBonus),
                 comboBonus: Math.round(comboBonus),
                 collapsePenalty: Math.round(collapsePenalty),
-                difficultyMultiplier,
                 rawScore: Math.round(rawScore),
             },
         };
@@ -179,6 +177,8 @@ export class AtomaLeaderboard {
                 maxCombo: runData.maxCombo ?? 0,
                 totalCollapses: runData.totalCollapses ?? 0,
                 totalRewindTime: runData.totalRewindTime ?? 0,
+                averageRewindSynergy: runData.averageRewindSynergy ?? 0,
+                rewindUptimeRatio: runData.rewindUptimeRatio ?? 0,
                 nodeCount: runData.nodeCount ?? 0,
                 linkCount: runData.linkCount ?? 0,
             },

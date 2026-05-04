@@ -11149,14 +11149,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         });
     }
 
-    // ── Per-world score difficulty config (mirrors MENU_MAPS scoreConfig) ──
+    // ── Unified release score config (mirrors MENU_MAPS scoreConfig) ──
     static WORLD_SCORE_CONFIG = Object.freeze({
-        fractal:  { sustainDuration: 5,  rewindSpeed: 4   },  // easiest
-        desert:   { sustainDuration: 6,  rewindSpeed: 3.5 },  // easy
-        desert2:  { sustainDuration: 7,  rewindSpeed: 3   },  // default
-        quantum:  { sustainDuration: 7,  rewindSpeed: 3   },  // default
-        memory:   { sustainDuration: 6,  rewindSpeed: 3.5 },  // easy
-        sigma:    { sustainDuration: 10, rewindSpeed: 2   },  // hardest
+        fractal:  { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },
+        desert:   { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },
+        desert2:  { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },
+        quantum:  { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },
+        memory:   { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },
+        sigma:    { sustainDuration: 5, rewindSpeed: 3.5, forwardSpeed: 5 },
     });
 
     loadWorld(worldId) {
@@ -11539,7 +11539,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
     visualNetworkTimeElasticityTick(deltaTime) {
         // Update Network Time Score system (score counter + visual time elasticity)
-        // Score: counts UP at 5/sec, REWINDS at 3/sec when synergy >= 0.82 sustained 7s
+        // Score: counts UP at 5/sec, REWINDS at 3.5/sec when canonical global.synergy.high is sustained 5s
         // Visual: animation time reversal during rewind
         if (this.visualNetworkTimeElasticity) {
             const visualMetrics = getCachedVisualMetrics() || this.nodeDynamicMetrics || {};
@@ -16603,7 +16603,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     
     /**
      * Setup Visual Network Time Elasticity v2.0 — Network Time Score System
-     * Gameplay score: counts UP at 5/sec, REWINDS at 3/sec when canonical global.synergy.high is sustained
+     * Gameplay score: counts UP at 5/sec, REWINDS at 3.5/sec when canonical global.synergy.high is sustained for 5s
      * Win condition: Network Time reaches 0
      * Visual: animation time reversal during rewind (preserved from v1)
      */
@@ -16661,7 +16661,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         validateVisualNetworkTimeElasticity();
         console.log('✓ Network Time Score System v2.0 initialized');
         console.log('  - Forward: 5 units/sec (pressure)');
-        console.log('  - Rewind: 3 units/sec (when canonical global.synergy.high is sustained)');
+        console.log('  - Rewind: 3.5 units/sec (when canonical global.synergy.high is sustained for 5 seconds)');
         console.log('  - Win: Network Time reaches 0');
     }
 
@@ -16697,10 +16697,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 gameTime: payload.gameTime ?? 0,
                 avgSynergy: payload.avgSynergy ?? 0,
                 peakNT: this.visualNetworkTimeElasticity?._peakNT ?? 0,
-                effectiveRewindSpeed: this.visualNetworkTimeElasticity?._lastEffectiveRewindSpeed ?? 3,
                 maxCombo: this.visualNetworkTimeElasticity?._comboCount ?? 0,
                 totalCollapses: collapseStats.totalCollapses ?? 0,
                 totalRewindTime: parseFloat(sessionStats.totalRewindTime) || 0,
+                averageRewindSynergy: parseFloat(sessionStats.averageRewindSynergy) || 0,
+                rewindUptimeRatio: parseFloat(sessionStats.rewindUptimeRatio) || 0,
                 world: this.currentMode ?? 'default',
                 nodeCount: this.aiNodes?.nodes?.length ?? 0,
                 linkCount: this.linkingSystem?.links?.length ?? 0,
@@ -16754,7 +16755,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         const gamesWon = sessionStats.gamesWon ?? '--';
         const worldName = this.currentMode ? String(this.currentMode).toUpperCase() : '--';
         const worldConfig = AtomaGame.WORLD_SCORE_CONFIG?.[this.currentMode];
-        const difficulty = worldConfig ? `${worldConfig.sustainDuration}s / ${worldConfig.rewindSpeed}x` : 'Default';
+        const scoreRule = worldConfig
+            ? `GLOBAL ${worldConfig.sustainDuration}s / ${worldConfig.rewindSpeed}x`
+            : 'GLOBAL 5s / 3.5x';
 
         // Score display
         const scoreStr = leaderboardResult?.score ? leaderboardResult.score.toLocaleString() : '--';
@@ -16930,8 +16933,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                         <div class="victory-stat-value">${gamesWon} / ${gamesPlayed}</div>
                     </div>
                     <div class="victory-stat">
-                        <div class="victory-stat-label">🌍 World</div>
-                        <div class="victory-stat-value">${worldName} <span style="font-size:10px;color:rgba(200,225,245,0.4)">${difficulty}</span></div>
+                        <div class="victory-stat-label">🌍 World / Score Rule</div>
+                        <div class="victory-stat-value">${worldName} <span style="font-size:10px;color:rgba(200,225,245,0.4)">${scoreRule}</span></div>
                     </div>
                 </div>
                 <div class="victory-buttons">

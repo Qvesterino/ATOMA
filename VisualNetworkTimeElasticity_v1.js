@@ -5,7 +5,7 @@
  *
  * 🎮 GAMEPLAY SCORE (primary):
  * - Network Time counts FORWARD at 5 units/sec (pressure)
- * - When canonical global.synergy.high is sustained for 7+ seconds → Network Time REWINDS at 3 units/sec
+ * - When canonical global.synergy.high is sustained for 5+ seconds → Network Time REWINDS at 3.5 units/sec
  * - If synergy drops → Network Time resumes FORWARD
  * - Win condition: Network Time reaches 0 → game won
  * - No game over — player can try forever
@@ -17,7 +17,7 @@
  *
  * 📊 SCORE DIRECTION STATES:
  *   FORWARD  — default, Network Time increments (pressure)
- *   REWIND   — synergy.high sustained 7s, Network Time decrements (reward)
+ *   REWIND   — synergy.high sustained 5s, Network Time decrements (reward)
  *   WON      — Network Time reached 0 (victory)
  *
  * 🔒 CONTRACTS:
@@ -46,9 +46,9 @@ export class VisualNetworkTimeElasticity_v1 {
 
     // ── Score configuration ─────────────────────────────────────────
     this._forwardSpeed = config.forwardSpeed ?? 5;        // base units/sec counting up
-    this._rewindSpeed = config.rewindSpeed ?? 3;          // base units/sec counting down (slower = harder)
+    this._rewindSpeed = config.rewindSpeed ?? 3.5;        // base units/sec counting down (slower = harder)
     this._synergyThreshold = config.synergyThreshold ?? DEFAULT_REWIND_SYNERGY_THRESHOLD;  // canonical global.synergy.high
-    this._sustainDuration = config.sustainDuration ?? 7.0;     // seconds of sustained high synergy
+    this._sustainDuration = config.sustainDuration ?? 5.0;     // seconds of sustained high synergy
 
     // ── Phase 4: Dynamic speed scaling ──────────────────────────────
     this._synergyQualityScale = config.synergyQualityScale ?? 5.0;   // rewind bonus per unit synergy above threshold
@@ -102,15 +102,6 @@ export class VisualNetworkTimeElasticity_v1 {
     this._fadeOutDuration = config.fadeOutDuration ?? 1.0;
     this._visualRewindSpeed = config.visualRewindSpeed ?? 0.4;
 
-    // ── Session stats ───────────────────────────────────────────────
-    this._sessionStats = {
-      bestNetworkTime: 0,         // lowest (best) network time achieved during rewind
-      totalRewindTime: 0,         // total seconds spent in REWIND direction
-      maxSynergyAchieved: 0,      // highest synergy ever seen
-      gamesWon: 0,
-      gamesPlayed: 0,
-    };
-
     // ── Event system ────────────────────────────────────────────────
     this._eventHandlers = {
       'score:forward': [],
@@ -120,15 +111,27 @@ export class VisualNetworkTimeElasticity_v1 {
       'score:milestone': []
     };
 
-    // ── Session stats ───────────────────────────────────────────────
-    this._sessionStats = {
-      bestNetworkTime: 0,
-      totalRewindTime: 0,
-      maxSynergyAchieved: 0,
+    // ── Persistent session stats ────────────────────────────────────
+    this._persistentStats = {
       gamesWon: 0,
       gamesPlayed: 0,
     };
+
+    // ── Per-run stats (reset every playthrough) ─────────────────────
+    this._runStats = this._createRunStats();
     this.loadSessionStats();
+  }
+
+  _createRunStats() {
+    return {
+      bestNetworkTime: 0,
+      totalRewindTime: 0,
+      maxSynergyAchieved: 0,
+      rewindActivations: 0,
+      totalHighSynergyTime: 0,
+      rewindSynergyIntegral: 0,
+      lastGameTime: 0,
+    };
   }
 
   // ================================================================
@@ -216,7 +219,11 @@ export class VisualNetworkTimeElasticity_v1 {
         : '1.00',
       escalationFactor: (1 + (this._networkTimeCounter / this._escalationDivisor)).toFixed(2),
       combo: this._comboCount,
-      comboMultiplier: this._comboMultiplier.toFixed(1)
+      comboMultiplier: this._comboMultiplier.toFixed(1),
+      rewindActivations: this._runStats.rewindActivations,
+      totalHighSynergyTime: this._runStats.totalHighSynergyTime.toFixed(1),
+      averageRewindSynergy: this.getSessionStats().averageRewindSynergy,
+      rewindUptimeRatio: this.getSessionStats().rewindUptimeRatio
     };
   }
 
@@ -355,11 +362,12 @@ export class VisualNetworkTimeElasticity_v1 {
     const synergyHigh = this.avgSynergy >= this._synergyThreshold;
 
     // Track max synergy achieved
-    if (this.avgSynergy > this._sessionStats.maxSynergyAchieved) {
-      this._sessionStats.maxSynergyAchieved = this.avgSynergy;
+    if (this.avgSynergy > this._runStats.maxSynergyAchieved) {
+      this._runStats.maxSynergyAchieved = this.avgSynergy;
     }
 
     if (synergyHigh) {
+      this._runStats.totalHighSynergyTime += dt;
       // Accumulate sustain timer
       if (this._highSynergyStartTime === null) {
         this._highSynergyStartTime = gameTime;
@@ -389,6 +397,7 @@ export class VisualNetworkTimeElasticity_v1 {
       if (this._direction === SCORE_DIRECTION.REWIND) {
         // Phase 5A: Increment combo on each new rewind session
         this._comboCount++;
+        this._runStats.rewindActivations++;
         this._lastRewindStartNT = this._networkTimeCounter;
         this._comboMultiplier = this._comboMultipliers[
           Math.min(this._comboCount, this._comboMultipliers.length - 1)
@@ -436,7 +445,8 @@ export class VisualNetworkTimeElasticity_v1 {
       this._networkTimeCounter -= effectiveRewindSpeed * dt;
 
       // Track total rewind time
-      this._sessionStats.totalRewindTime += dt;
+      this._runStats.totalRewindTime += dt;
+      this._runStats.rewindSynergyIntegral += this.avgSynergy * dt;
 
       // Check win condition
       if (this._networkTimeCounter <= 0) {
@@ -445,7 +455,7 @@ export class VisualNetworkTimeElasticity_v1 {
         this._won = true;
 
         // Track win stats
-        this._sessionStats.gamesWon++;
+        this._persistentStats.gamesWon++;
         this._saveSessionStats();
 
         this._emit('score:won', {
@@ -459,8 +469,8 @@ export class VisualNetworkTimeElasticity_v1 {
 
     // Track best network time (highest pressure reached)
     const currentTime = this.getNetworkTime();
-    if (currentTime > this._sessionStats.bestNetworkTime) {
-      this._sessionStats.bestNetworkTime = currentTime;
+    if (currentTime > this._runStats.bestNetworkTime) {
+      this._runStats.bestNetworkTime = currentTime;
     }
 
     // ============================================================
@@ -546,6 +556,7 @@ export class VisualNetworkTimeElasticity_v1 {
     }
 
     this._gameTime = gameTime;
+    this._runStats.lastGameTime = gameTime;
 
     // ── Phase 6B: Record NT history for sparkline ──────────────────
     this._ntHistorySampleAcc += dt;
@@ -571,7 +582,7 @@ export class VisualNetworkTimeElasticity_v1 {
   // ================================================================
 
   /**
-   * Apply per-world difficulty config.
+   * Apply score config.
    * @param {Object} config - { sustainDuration, rewindSpeed, forwardSpeed?, synergyThreshold? }
    */
   applyWorldConfig(config = {}) {
@@ -580,8 +591,8 @@ export class VisualNetworkTimeElasticity_v1 {
     if (config.forwardSpeed != null) this._forwardSpeed = config.forwardSpeed;
     if (config.synergyThreshold != null) this._synergyThreshold = config.synergyThreshold;
 
-    // Reset state for new world
-    this.reset();
+    // Reset run state for new world without incrementing games played.
+    this.reset({ countGamePlayed: false });
 
     console.log(`[NetworkTimeScore] World config applied:`, {
       sustainDuration: this._sustainDuration,
@@ -599,12 +610,22 @@ export class VisualNetworkTimeElasticity_v1 {
    * Get session statistics (for display and persistence).
    */
   getSessionStats() {
+    const averageRewindSynergy = this._runStats.totalRewindTime > 0
+      ? this._runStats.rewindSynergyIntegral / this._runStats.totalRewindTime
+      : 0;
+    const rewindUptimeRatio = this._runStats.lastGameTime > 0
+      ? Math.min(1, this._runStats.totalRewindTime / this._runStats.lastGameTime)
+      : 0;
     return {
-      bestNetworkTime: this._sessionStats.bestNetworkTime,
-      totalRewindTime: this._sessionStats.totalRewindTime.toFixed(1),
-      maxSynergyAchieved: this._sessionStats.maxSynergyAchieved.toFixed(3),
-      gamesWon: this._sessionStats.gamesWon,
-      gamesPlayed: this._sessionStats.gamesPlayed,
+      bestNetworkTime: this._runStats.bestNetworkTime,
+      totalRewindTime: this._runStats.totalRewindTime.toFixed(1),
+      maxSynergyAchieved: this._runStats.maxSynergyAchieved.toFixed(3),
+      rewindActivations: this._runStats.rewindActivations,
+      totalHighSynergyTime: this._runStats.totalHighSynergyTime.toFixed(1),
+      averageRewindSynergy: averageRewindSynergy.toFixed(3),
+      rewindUptimeRatio: rewindUptimeRatio.toFixed(3),
+      gamesWon: this._persistentStats.gamesWon,
+      gamesPlayed: this._persistentStats.gamesPlayed,
     };
   }
 
@@ -617,11 +638,8 @@ export class VisualNetworkTimeElasticity_v1 {
       const stored = localStorage.getItem('atoma.score.sessionStats');
       if (!stored) return;
       const parsed = JSON.parse(stored);
-      if (parsed.bestNetworkTime != null) this._sessionStats.bestNetworkTime = parsed.bestNetworkTime;
-      if (parsed.totalRewindTime != null) this._sessionStats.totalRewindTime = parsed.totalRewindTime;
-      if (parsed.maxSynergyAchieved != null) this._sessionStats.maxSynergyAchieved = parsed.maxSynergyAchieved;
-      if (parsed.gamesWon != null) this._sessionStats.gamesWon = parsed.gamesWon;
-      if (parsed.gamesPlayed != null) this._sessionStats.gamesPlayed = parsed.gamesPlayed;
+      if (parsed.gamesWon != null) this._persistentStats.gamesWon = parsed.gamesWon;
+      if (parsed.gamesPlayed != null) this._persistentStats.gamesPlayed = parsed.gamesPlayed;
     } catch (_e) {
       // Silent — localStorage not available
     }
@@ -633,7 +651,7 @@ export class VisualNetworkTimeElasticity_v1 {
   _saveSessionStats() {
     try {
       if (typeof localStorage === 'undefined') return;
-      localStorage.setItem('atoma.score.sessionStats', JSON.stringify(this._sessionStats));
+      localStorage.setItem('atoma.score.sessionStats', JSON.stringify(this._persistentStats));
     } catch (_e) {
       // Silent
     }
@@ -659,9 +677,12 @@ export class VisualNetworkTimeElasticity_v1 {
   /**
    * Reset for new game (preserves session stats).
    */
-  reset() {
-    // Track game played
-    this._sessionStats.gamesPlayed++;
+  reset(options = {}) {
+    const countGamePlayed = options.countGamePlayed ?? true;
+    if (countGamePlayed) {
+      this._persistentStats.gamesPlayed++;
+      this._saveSessionStats();
+    }
 
     this._networkTimeCounter = 0;
     this._direction = SCORE_DIRECTION.FORWARD;
@@ -679,6 +700,7 @@ export class VisualNetworkTimeElasticity_v1 {
     this._lastRewindStartNT = 0;
     this._milestonesTriggered.clear();
     this._peakNT = 0;
+    this._runStats = this._createRunStats();
     if (typeof window !== 'undefined') window.__ATOMA_DRAMA_ZONE__ = false;
   }
 
@@ -687,16 +709,16 @@ export class VisualNetworkTimeElasticity_v1 {
    */
   dispose() {
     this._eventHandlers = { 'score:forward': [], 'score:rewinding': [], 'score:won': [], 'score:dramaZone': [], 'score:milestone': [] };
-    this.reset();
+    this.reset({ countGamePlayed: false });
   }
 }
 
 // Quick validation function
 export function validateVisualNetworkTimeElasticity() {
   console.log('✓ VisualNetworkTimeElasticity_v2.1 (Network Time Score + Dynamic Speeds) loaded');
-  console.log(`  - Trigger: canonical global.synergy.high (>= ${DEFAULT_REWIND_SYNERGY_THRESHOLD}) for 7+ seconds`);
+  console.log(`  - Trigger: canonical global.synergy.high (>= ${DEFAULT_REWIND_SYNERGY_THRESHOLD}) for 5+ seconds`);
   console.log('  - Forward: 5 base units/sec (escalates with Network Time)');
-  console.log('  - Rewind: 3 base units/sec (scales with synergy quality above threshold)');
+  console.log('  - Rewind: 3.5 base units/sec (scales with synergy quality above threshold)');
   console.log('  - Win: Network Time reaches 0');
   console.log('  - Phase 4A: Synergy Quality Multiplier — higher synergy = faster rewind');
   console.log('  - Phase 4B: Pressure Escalation — higher NT = faster forward pressure');

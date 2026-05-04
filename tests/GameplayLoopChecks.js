@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { VisualNetworkTimeElasticity_v1, SCORE_DIRECTION } from '../VisualNetworkTimeElasticity_v1.js';
+import { AtomaLeaderboard } from '../AtomaLeaderboard.js';
 import { LinkCollapseSystem } from '../LinkCollapseSystem.js';
 import { getDefaultMetricThresholds } from '../src/metrics/MetricTierClassifier.js';
 
@@ -8,20 +10,22 @@ function test(name, fn) {
   tests.push({ name, fn });
 }
 
-test('Network Time rewinds from canonical global.synergy.high threshold', () => {
+test('Network Time rewinds after 5s of canonical global.synergy.high sustain', () => {
   const threshold = getDefaultMetricThresholds('synergy').high;
   const score = new VisualNetworkTimeElasticity_v1({
     forwardSpeed: 5,
-    rewindSpeed: 3,
-    sustainDuration: 7,
+    rewindSpeed: 3.5,
+    sustainDuration: 5,
     synergyQualityScale: 0
   });
 
   score.setAverageSynergy(threshold);
-  for (let t = 1; t <= 8; t++) {
+  for (let t = 1; t <= 5; t++) {
     score.update(1, t);
   }
 
+  assert.strictEqual(score.getDirection(), SCORE_DIRECTION.FORWARD);
+  score.update(1, 6);
   assert.strictEqual(score.getDirection(), SCORE_DIRECTION.REWIND);
   assert(score.getNetworkTime() > 0, 'Network Time should accumulate before rewind starts');
 });
@@ -30,8 +34,8 @@ test('Network Time stays forward below canonical global.synergy.high threshold',
   const threshold = getDefaultMetricThresholds('synergy').high;
   const score = new VisualNetworkTimeElasticity_v1({
     forwardSpeed: 5,
-    rewindSpeed: 3,
-    sustainDuration: 7
+    rewindSpeed: 3.5,
+    sustainDuration: 5
   });
 
   score.setAverageSynergy(threshold - 0.01);
@@ -40,6 +44,164 @@ test('Network Time stays forward below canonical global.synergy.high threshold',
   }
 
   assert.strictEqual(score.getDirection(), SCORE_DIRECTION.FORWARD);
+});
+
+test('Network Time sustain resets cleanly when synergy drops before 5s', () => {
+  const threshold = getDefaultMetricThresholds('synergy').high;
+  const score = new VisualNetworkTimeElasticity_v1({
+    forwardSpeed: 5,
+    rewindSpeed: 3.5,
+    sustainDuration: 5,
+    synergyQualityScale: 0
+  });
+
+  score.setAverageSynergy(threshold);
+  for (let t = 1; t <= 4; t++) {
+    score.update(1, t);
+  }
+  assert(score.getSustainProgress() > 0 && score.getSustainProgress() < 5);
+
+  score.setAverageSynergy(threshold - 0.05);
+  score.update(1, 5);
+  assert.strictEqual(score.getSustainProgress(), 0);
+  assert.strictEqual(score.getDirection(), SCORE_DIRECTION.FORWARD);
+
+  score.setAverageSynergy(threshold);
+  for (let t = 6; t <= 9; t++) {
+    score.update(1, t);
+  }
+  assert.strictEqual(score.getDirection(), SCORE_DIRECTION.FORWARD);
+
+  score.update(1, 10);
+  score.update(1, 11);
+  assert.strictEqual(score.getDirection(), SCORE_DIRECTION.REWIND);
+});
+
+test('Network Time win triggers exactly when counter reaches zero', () => {
+  const threshold = getDefaultMetricThresholds('synergy').high;
+  const score = new VisualNetworkTimeElasticity_v1({
+    forwardSpeed: 5,
+    rewindSpeed: 3.5,
+    sustainDuration: 5,
+    synergyQualityScale: 0
+  });
+
+  score._networkTimeCounter = 3;
+  score._sustainedDuration = 5;
+  score._highSynergyStartTime = 0;
+  score.setAverageSynergy(threshold);
+  score.update(1, 6);
+
+  assert.strictEqual(score.isWon(), true);
+  assert.strictEqual(score.getDirection(), SCORE_DIRECTION.WON);
+  assert.strictEqual(score.getNetworkTime(), 0);
+});
+
+test('Network Time keeps pressure escalation, combo, and drama zone behaviors', () => {
+  const threshold = getDefaultMetricThresholds('synergy').high;
+  const score = new VisualNetworkTimeElasticity_v1({
+    forwardSpeed: 5,
+    rewindSpeed: 3.5,
+    sustainDuration: 0.1,
+    synergyQualityScale: 0,
+    dramaZoneThreshold: 20
+  });
+
+  score.setAverageSynergy(threshold - 0.05);
+  score._networkTimeCounter = 150;
+  score.update(1, 1);
+  assert(score._networkTimeCounter > 155, 'forward pressure should escalate as NT rises');
+
+  score._networkTimeCounter = 10;
+  score.setAverageSynergy(threshold);
+  score.update(0.1, 2);
+  score.update(0.1, 2.1);
+  assert.strictEqual(score.getDirection(), SCORE_DIRECTION.REWIND);
+  assert.strictEqual(score.getScoreState().combo, 1);
+  assert.strictEqual(score.isInDramaZone(), true);
+
+  score.setAverageSynergy(threshold - 0.05);
+  score.update(0.05, 3);
+  score.setAverageSynergy(threshold);
+  score.update(0.1, 4);
+  score.update(0.1, 4.2);
+  assert.strictEqual(score.getScoreState().combo, 2);
+});
+
+test('Unified release score config is mirrored in main and menu definitions', () => {
+  const mainSource = fs.readFileSync(new URL('../main.js', import.meta.url), 'utf8');
+  const menuSource = fs.readFileSync(new URL('../MainMenu.js', import.meta.url), 'utf8');
+
+  const mainMatches = mainSource.match(/sustainDuration:\s*5,\s*rewindSpeed:\s*3\.5,\s*forwardSpeed:\s*5/g) ?? [];
+  const menuMatches = menuSource.match(/sustainDuration:\s*5,\s*rewindSpeed:\s*3\.5,\s*forwardSpeed:\s*5/g) ?? [];
+
+  assert(mainMatches.length >= 6, 'main.js should define unified release score config for all worlds');
+  assert(menuMatches.length >= 6, 'MainMenu.js should mirror the unified release score config for all worlds');
+  assert(!mainSource.includes('sustainDuration: 10'), 'old per-world score drift should be removed from main.js');
+  assert(!menuSource.includes('sustainDuration: 10'), 'old per-world score drift should be removed from MainMenu.js');
+});
+
+test('Leaderboard scoring prefers synergy mastery over a slightly faster weak run', () => {
+  const leaderboard = new AtomaLeaderboard();
+  const masteryRun = leaderboard.calculateScore({
+    gameTime: 170,
+    avgSynergy: 0.88,
+    peakNT: 160,
+    maxCombo: 3,
+    totalCollapses: 0,
+    totalRewindTime: 80,
+    averageRewindSynergy: 0.9,
+    rewindUptimeRatio: 0.47
+  });
+  const weakFastRun = leaderboard.calculateScore({
+    gameTime: 150,
+    avgSynergy: 0.52,
+    peakNT: 260,
+    maxCombo: 0,
+    totalCollapses: 1,
+    totalRewindTime: 28,
+    averageRewindSynergy: 0.55,
+    rewindUptimeRatio: 0.19
+  });
+
+  assert(masteryRun.score > weakFastRun.score);
+});
+
+test('Leaderboard scoring rewards rewind uptime and penalizes collapses', () => {
+  const leaderboard = new AtomaLeaderboard();
+  const lowUptime = leaderboard.calculateScore({
+    gameTime: 200,
+    avgSynergy: 0.72,
+    peakNT: 210,
+    maxCombo: 1,
+    totalCollapses: 0,
+    totalRewindTime: 20,
+    averageRewindSynergy: 0.72,
+    rewindUptimeRatio: 0.10
+  });
+  const highUptime = leaderboard.calculateScore({
+    gameTime: 200,
+    avgSynergy: 0.72,
+    peakNT: 210,
+    maxCombo: 1,
+    totalCollapses: 0,
+    totalRewindTime: 70,
+    averageRewindSynergy: 0.85,
+    rewindUptimeRatio: 0.35
+  });
+  const collapseHeavy = leaderboard.calculateScore({
+    gameTime: 200,
+    avgSynergy: 0.72,
+    peakNT: 210,
+    maxCombo: 1,
+    totalCollapses: 4,
+    totalRewindTime: 70,
+    averageRewindSynergy: 0.85,
+    rewindUptimeRatio: 0.35
+  });
+
+  assert(highUptime.score > lowUptime.score);
+  assert(collapseHeavy.score < highUptime.score);
 });
 
 test('LinkCollapseSystem uses canonical link metrics instead of stale visual fallback metrics', () => {
