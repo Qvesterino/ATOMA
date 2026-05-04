@@ -571,7 +571,7 @@ import { LinkedGlyphSynchronization1_0 } from './_LinkedGlyphSynchronization1_0.
 import { LinkedGlyphMessaging3_0 } from './_LinkedGlyphMessaging3_0.js';
 import { RecursiveGlyphMessaging4_0 } from './_RecursiveGlyphMessaging4_0.js';
 import { RecursiveGlyphSignalSystem } from './_RecursiveGlyphSignalSystem.js';
-import { EmergentThoughtStorms5_0 } from './_EmergentThoughtStorms5_0.js';
+// import { EmergentThoughtStorms5_0 } from './_EmergentThoughtStorms5_0.js';
 import { AINarrativePatterns6_0 } from './_AINarrativePatterns6_0.js';
 // REMOVED: ExtremeAIShaderTestSuite - moved to LEGACY (2026-04-03)
 // REMOVED: _SafeNewNodeCategories1_0 - moved to LEGACY (2026-04-03)
@@ -4820,7 +4820,7 @@ class AtomaGame {
             this.phase5InterNetworkVisualizationBridge?.update?.(dt);
         }, 'visual.phase5InterNetworkVisualizationBridge');
         this.frameScheduler.register('visual', (dt) => {
-            this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem);
+            // EmergentThoughtStorms5_0 hard-disabled for release stabilization.
         }, 'visual.emergentThoughtStorms');
         this.frameScheduler.register('simulation', (dt) => {
             this.colonyManager?.update?.(dt);
@@ -6010,11 +6010,11 @@ this.setHudDirty('nodeInspect');
         // Recursive Glyph Signal System (attention-driven, transient SIGNAL language)
         this.recursiveGlyphSignalSystem = null; // Initialized after semantic AI + linking + selection ready
 
-        // Emergent Thought Storms 5.0 (chain collision phenomena)
-        this.emergentThoughtStorms = null; // Initialized after recursive messaging ready
+        // Emergent Thought Storms 5.0 hard-disabled for release stabilization.
+        this.emergentThoughtStorms = null;
 
         // AI Narrative Patterns 6.0 (narrative structure layer)
-        this.narrativePatterns = null; // Initialized after emergent storms ready
+        this.narrativePatterns = null; // Initialized after recursive messaging ready
 
         // Extreme AI Shader Test Suite (comprehensive diagnostics)
         this.extremeShaderTestSuite = null; // Initialized after scene ready
@@ -6129,7 +6129,7 @@ this.setHudDirty('nodeInspect');
                 SafeAIWeatherPack,
                 SafeQuantumIllusionsPack1,
                 AmbientEntityManager,
-                EmergentThoughtStorms5_0,
+                // EmergentThoughtStorms5_0,
                 EnvironmentalHazards,
                 SafeLegendaryWorldEvents,
                 WorldPersonalityController,
@@ -6165,7 +6165,7 @@ this.setHudDirty('nodeInspect');
         this.dreamDepthEffects = this.environmentDomain?.instances?.dreamDepthEffectManager || this.dreamDepthEffects;
         this.quantumIllusions = this.environmentDomain?.instances?.quantumIllusions || this.quantumIllusions;
         this.ambientEntityManager = this.environmentDomain?.instances?.ambientEntityManager || this.ambientEntityManager;
-        this.emergentThoughtStorms = this.environmentDomain?.instances?.emergentThoughtStorms || this.emergentThoughtStorms;
+        this.emergentThoughtStorms = null;
         this.colonyManager = this.environmentDomain?.instances?.colonyExpansion || this.colonyManager;
         this.hazards = this.environmentDomain?.instances?.environmentalHazards || this.hazards;
         this._syncDreamDepthRefs();
@@ -8335,7 +8335,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 SafeAIWeatherPack,
                 SafeQuantumIllusionsPack1,
                 AmbientEntityManager,
-                EmergentThoughtStorms5_0,
+                // EmergentThoughtStorms5_0,
                 EnvironmentalHazards,
                 SafeLegendaryWorldEvents,
                 WorldPersonalityController,
@@ -8370,7 +8370,7 @@ window.__ATOMA_SCENE__ = this.scene;
         this.dreamDepthEffects = this.environmentDomain?.instances?.dreamDepthEffectManager || this.dreamDepthEffects;
         this.quantumIllusions = this.environmentDomain?.instances?.quantumIllusions || this.quantumIllusions;
         this.ambientEntityManager = this.environmentDomain?.instances?.ambientEntityManager || this.ambientEntityManager;
-        this.emergentThoughtStorms = this.environmentDomain?.instances?.emergentThoughtStorms || this.emergentThoughtStorms;
+        this.emergentThoughtStorms = null;
         this.colonyManager = this.environmentDomain?.instances?.colonyExpansion || this.colonyManager;
         this.hazards = this.environmentDomain?.instances?.environmentalHazards || this.hazards;
         this.setEnvironmentalHazardsEnabled?.(this.environmentalHazardsEnabled ?? true);
@@ -9381,7 +9381,11 @@ window.__ATOMA_SCENE__ = this.scene;
             if (linkId) {
                 this.linkedGlyphMessaging?.unregisterLink?.(linkId);
             }
+            this.standingWaveTrapSystem?.clearLink?.(link ?? linkId);
             this.standingWaveRenderer?.clearLink?.(link ?? linkId, link?.source ?? null, link?.target ?? null);
+            this.linkResonanceFlowSystem?.clearLink?.(link ?? linkId);
+            this.linkSemanticPictograms?.clearLink?.(link ?? linkId);
+            this.linkRendererConduit?.clearLinkAuxVisuals?.(link ?? linkId);
             this.cascadeVisualizer?.clearLink?.(link ?? linkId, link?.source ?? null, link?.target ?? null);
             this.resonanceCascadeVisualization?.clearLink?.(link ?? linkId, link?.source ?? null, link?.target ?? null);
             this.resonanceCascadeVisualization?.handleCascadeEnd?.({
@@ -11997,7 +12001,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.worldFXPack?.update?.(dt, this.scene, this.camera);
         });
         regGuard('ambientEntityManager', 'visual.ambientEntityManager', (dt) => this.ambientEntityManager?.update?.(dt));
-        regGuard('emergentThoughtStorms', 'visual.emergentThoughtStorms', (dt) => this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem));
+        // regGuard('emergentThoughtStorms', 'visual.emergentThoughtStorms', (dt) => this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem));
         regGuard('colonyManager', 'simulation.colonyManager', (dt) => this.colonyManager?.update?.(dt));
         regGuard('dreamDepthPack', 'visual.dreamDepthPack', (dt) => {
             if (this.environmentDomain?.instances?.safeDreamDepthPack) return;
@@ -14512,7 +14516,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         this.recursiveGlyphSignalSystem.setSelectionCore(this.linkingSystem);
         this.recursiveGlyphSignalSystem.setLinkingSystem(this.linkingSystem);
         this.recursiveGlyphSignalSystem.setDynamicsContext({
-            isBurstActive: () => Boolean(this.emergentThoughtStorms?.activeStorms?.size),
+            isBurstActive: () => false,
             isFieldActive: () => Boolean(this.regionalEquilibrium?.regions?.size)
         });
         this.recursiveGlyphSignalSystem.setEnabled(true);
@@ -14588,26 +14592,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * Chain collision phenomena with spectacular visual effects
      */
     setupEmergentThoughtStorms() {
-        if (!this.recursiveGlyphMessaging || !this.semanticGlyphAI) {
-            console.warn('Recursive Glyph Messaging not initialized, deferring Thought Storms setup');
-            return;
-        }
-
-        this.emergentThoughtStorms = new EmergentThoughtStorms5_0(
-            this.scene,
-            this.environmentRoot,
-            this.recursiveGlyphMessaging,
-            this.semanticGlyphAI
-        );
-        this.emergentThoughtStorms.setEnabled(true);
-
-        console.log('✓ Emergent Thought Storms 5.0 active');
-        console.log('  - Chain collision detection');
-        console.log('  - 4 storm types (coherence, chaotic, corruption, ascended)');
-        console.log('  - Swirling glyphs & fractal patterns');
-        console.log('  - Expanding ripple waves');
-        console.log('  - Use debugThoughtStorms() to view statistics');
-        console.log('  - Use toggleThoughtStorms() to enable/disable');
+        // Hard-disabled for release stabilization. Keep the source file orphaned
+        // on disk, but do not import, instantiate, or wire it into runtime.
+        this.emergentThoughtStorms = null;
     }
 
     /**
@@ -14615,7 +14602,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * Visual narrative structure layer with emergent story arcs
      */
     setupAINarrativePatterns() {
-        if (!this.emergentThoughtStorms || !this.recursiveGlyphMessaging ||
+        if (!this.recursiveGlyphMessaging ||
             !this.linkedGlyphMessaging || !this.semanticGlyphAI) {
             console.warn('Glyph messaging systems not initialized, deferring Narrative Patterns setup');
             return;
@@ -14625,7 +14612,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.scene,
             this.linkedGlyphMessaging,
             this.recursiveGlyphMessaging,
-            this.emergentThoughtStorms,
+            null,
             this.semanticGlyphAI
         );
         this.narrativePatterns.enabled = true;
@@ -14903,29 +14890,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * When EmergentThoughtStorms spawn, the lore emitter shows dream fragments.
      */
     _wireThoughtStormLoreBridge() {
-        // Deferred wiring — thought storms may not exist yet
-        const wire = () => {
-            const storms = this.emergentThoughtStorms;
-            if (storms && typeof storms.onStormSpawned !== 'undefined') {
-                storms.onStormSpawned = (stormType) => {
-                    this.loreFragmentEmitter?.handleThoughtStorm(stormType);
-                };
-                console.log('%c✓ Thought Storm → Dream Lore bridge wired (P1.7.5)', 'color: #e0c0ff;');
-                return true;
-            }
-            return false;
-        };
-
-        // Try immediately
-        if (!wire()) {
-            // Retry after a short delay (thought storms initialize late)
-            setTimeout(() => {
-                if (!wire()) {
-                    // Final attempt after longer delay
-                    setTimeout(wire, 3000);
-                }
-            }, 1000);
-        }
+        return false;
     }
 
     /**
@@ -17300,48 +17265,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.log('All recursive glyph signals cleared');
         };
 
-        // Emergent Thought Storms 5.0 commands
-        window.toggleThoughtStorms = () => {
-            if (!window.atoma.emergentThoughtStorms) {
-                console.warn('Emergent Thought Storms not initialized');
-                return;
-            }
-            const enabled = window.atoma.emergentThoughtStorms.isEnabled();
-            window.atoma.emergentThoughtStorms.setEnabled(!enabled);
-            console.log(`✓ Thought storms ${!enabled ? 'ENABLED' : 'DISABLED'}`);
-        };
-
-        window.debugThoughtStorms = () => {
-            if (!window.atoma.emergentThoughtStorms) {
-                console.warn('Emergent Thought Storms not initialized');
-                return;
-            }
-            window.atoma.emergentThoughtStorms.printStatusReport();
-            const stats = window.atoma.emergentThoughtStorms.getStats();
-            console.group('🌪️ Thought Storms Stats');
-            console.table(stats);
-            console.groupEnd();
-        };
-
-        window.clearThoughtStorms = () => {
-            if (!window.atoma.emergentThoughtStorms) {
-                console.warn('Emergent Thought Storms not initialized');
-                return;
-            }
-            window.atoma.emergentThoughtStorms.clearAllStorms();
-            console.log('✓ All thought storms cleared');
-        };
-
-        window.triggerStormDemo = (stormType = 'coherence') => {
-            if (!window.atoma.emergentThoughtStorms || !window.atoma.player) {
-                console.warn('Thought Storms or Player not initialized');
-                return;
-            }
-            const types = ['coherence', 'chaotic', 'corruption', 'ascended', 'balanced'];
-            const type = types.includes(stormType) ? stormType : 'balanced';
-            window.atoma.emergentThoughtStorms.triggerStorm(type, window.atoma.player);
-            console.log(`✓ Triggered ${type} storm demo`);
-        };
+        // Emergent Thought Storms 5.0 commands hard-disabled for release stabilization.
 
         // AI Narrative Patterns 6.0 commands
         window.toggleNarrativePatterns = () => {
@@ -17380,10 +17304,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         console.log('  - toggleRecursiveGlyphSignals()');
         console.log('  - debugRecursiveGlyphSignals()');
         console.log('  - clearRecursiveGlyphSignals()');
-        console.log('  - toggleThoughtStorms()');
-        console.log('  - debugThoughtStorms()');
-        console.log('  - clearThoughtStorms()');
-        console.log('  - triggerStormDemo(type)');
         console.log('  - toggleNarrativePatterns()');
         console.log('  - debugNarrativePatterns()');
         console.log('  - resetNarrativePatterns()');
@@ -17740,10 +17660,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.log('  - Cognitive pulse packets flowing');
             console.log('  - Semantic thought patterns');
             console.log('  - Global consciousness field');
-            console.log('  - Emergent Thought Storms (mood-reactive)');
             console.log('  - Use conscious.debug() for detailed status');
             console.log('  - Use conscious.enableStorms() / disableStorms()');
-            console.log('  - Use consciousStorms.debugState() for storms status');
         } catch (err) {
             console.warn('AIConsciousnessLayer initialization failed:', err);
         }

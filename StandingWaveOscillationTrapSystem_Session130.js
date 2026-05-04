@@ -125,6 +125,88 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         return result;
     }
 
+    _resolveLinkId(linkOrId) {
+        if (!linkOrId) return null;
+        if (typeof linkOrId === 'string' || typeof linkOrId === 'number') {
+            return String(linkOrId);
+        }
+
+        return (
+            linkOrId.userData?.id ??
+            linkOrId.userData?.linkId ??
+            linkOrId.id ??
+            linkOrId.uuid ??
+            null
+        );
+    }
+
+    clearLink(linkOrId) {
+        const linkId = this._resolveLinkId(linkOrId);
+        if (!linkId) return false;
+
+        let cleared = false;
+
+        for (let i = 0; i < this.oscillationTraps.length; i++) {
+            const trap = this.oscillationTraps[i];
+            if (!trap || trap.linkId !== linkId) continue;
+            trap.active = false;
+            trap.linkId = null;
+            trap.nodeA = null;
+            trap.nodeB = null;
+            trap.amplitude = 0;
+            trap.frequency = 0;
+            trap.energyStorage = 0;
+            trap.resolution = null;
+            cleared = true;
+        }
+
+        this.trapZones = this.trapZones.filter((zone) => zone?.linkId !== linkId);
+        this.interferencePatterns = this.interferencePatterns.filter((pattern) => pattern?.trapId !== linkId);
+        this.resolutionEvents = this.resolutionEvents.filter((event) => event?.trapId !== linkId);
+        this.reflectionHistory.delete(linkId);
+        this.lastReflectionTime.delete(linkId);
+
+        for (const [key, pair] of this.opposingNodePairs.entries()) {
+            const pairLinkId = this._resolveLinkId(pair?.link);
+            if (pairLinkId === linkId) {
+                this.opposingNodePairs.delete(key);
+            }
+        }
+
+        return cleared;
+    }
+
+    _pruneDeadLinkState() {
+        const liveLinkIds = new Set(
+            Array.isArray(this.linkingSystem?.links)
+                ? this.linkingSystem.links
+                    .map((link) => this._resolveLinkId(link))
+                    .filter((id) => id !== null && id !== undefined)
+                    .map((id) => String(id))
+                : []
+        );
+
+        for (let i = 0; i < this.oscillationTraps.length; i++) {
+            const trap = this.oscillationTraps[i];
+            if (!trap?.active) continue;
+            const trapLinkId = this._resolveLinkId(trap.linkId);
+            if (!trapLinkId || liveLinkIds.has(String(trapLinkId))) continue;
+            this.clearLink(trapLinkId);
+        }
+
+        for (const linkId of Array.from(this.reflectionHistory.keys())) {
+            if (!liveLinkIds.has(String(linkId))) {
+                this.reflectionHistory.delete(linkId);
+            }
+        }
+
+        for (const linkId of Array.from(this.lastReflectionTime.keys())) {
+            if (!liveLinkIds.has(String(linkId))) {
+                this.lastReflectionTime.delete(linkId);
+            }
+        }
+    }
+
     /**
      * Setup - initialize pooled objects and references
      */
@@ -188,6 +270,9 @@ export class StandingWaveOscillationTrapSystem_Session130 {
 
         // Canonical wave/resonance defaults before writing this frame.
         this._resetWaveResonanceCanonical();
+
+        // Unlinked trap state must die immediately instead of lingering visually.
+        this._pruneDeadLinkState();
         
         // Step 1: Detect standing wave conditions
         this._detectStandingWaveCandidates(deltaTime);
@@ -521,6 +606,11 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         for (let i = 0; i < this.oscillationTraps.length; i++) {
             const trap = this.oscillationTraps[i];
             if (!trap.active) continue;
+
+            if (!this._getLinkById(trap.linkId)) {
+                trap.active = false;
+                continue;
+            }
 
             // Deactivate if no reflections for 2 seconds
             if (this.time - trap.lastReflectionTime > 2.0) {

@@ -63,15 +63,6 @@ export const ENVIRONMENT_VFX_REGISTRY = Object.freeze({
       'visual'
     ),
     describeEnvironmentVfx(
-      'EmergentThoughtStorms5_0',
-      'Large-scale thought-storm phenomena that externalize AI mood as weather.',
-      'EnvironmentDomainController',
-      'conditional-domain-owned',
-      ['system.recursiveGlyphMessaging.ready', 'system.semanticGlyphAI.ready'],
-      'WORLD_OVERLAY',
-      'visual'
-    ),
-    describeEnvironmentVfx(
       'SafeLegendaryWorldEvents',
       'High-impact world event presentation layer for rare environmental states and event reveals.',
       'EnvironmentDomainController',
@@ -283,9 +274,6 @@ const ENVIRONMENT_RENDER_LAYERS = Object.freeze({
   worldPersonalityController: 'WORLD_OVERLAY',
   metricReactiveEvents: 'WORLD_OVERLAY',
   ambientEntityManager: 'WORLD_OVERLAY',
-  // EmergentThoughtStorms5_0 renders ABOVE colony VFX so storms sit on top
-  // of civilization halos/rings but BELOW UI/HUD.
-  emergentThoughtStorms: 'WORLD_FOREGROUND',
   safeDreamDepthPack: 'WORLD_OVERLAY',
   dreamDepthEffectManager: 'WORLD_OVERLAY',
   colonyExpansion: 'WORLD_OVERLAY',
@@ -356,14 +344,6 @@ const ENVIRONMENT_AMBIENT_VISIBILITY_POLICY = Object.freeze({
     activeDistance: 24,
     farDistance: 44,
     dormantDistance: 70,
-    activeCadenceFrames: 3,
-    farCadenceFrames: 6
-  }),
-  emergentThoughtStorms: Object.freeze({
-    focusRadius: 18,
-    activeDistance: 28,
-    farDistance: 52,
-    dormantDistance: 84,
     activeCadenceFrames: 3,
     farCadenceFrames: 6
   }),
@@ -640,18 +620,7 @@ export class EnvironmentDomainController {
       );
     }
 
-    if (d.recursiveGlyphMessaging && d.semanticGlyphAI) {
-      this.instances.emergentThoughtStorms =
-        new d.EmergentThoughtStorms5_0(
-          this.scene,
-          this.environmentRoot,
-          d.recursiveGlyphMessaging,
-          d.semanticGlyphAI
-        );
-      if (this.instances.emergentThoughtStorms.setEnabled) {
-        this.instances.emergentThoughtStorms.setEnabled(true);
-      }
-    }
+    // EmergentThoughtStorms5_0 hard-disabled for release stabilization.
 
     this.instances.environmentalHazards =
       new d.EnvironmentalHazards(
@@ -956,14 +925,7 @@ export class EnvironmentDomainController {
             );
             return;
           }
-          if (key === 'emergentThoughtStorms') {
-            sys.update(
-              dt,
-              this.deps.aiNodes,
-              this.deps.linkingSystem
-            );
-            return;
-          }
+          // EmergentThoughtStorms5_0 hard-disabled for release stabilization.
 
           if (key === 'worldFXPack') {
             sys.update(

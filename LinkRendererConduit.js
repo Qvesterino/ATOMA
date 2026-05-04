@@ -2485,6 +2485,26 @@ export class LinkRendererConduit {
             || this.links
             || [];
 
+        const liveLinkIds = new Set();
+        for (const link of list) {
+            const ownerId = this._getLinkOwnerId(link);
+            if (ownerId !== null && ownerId !== undefined) {
+                liveLinkIds.add(String(ownerId));
+            }
+        }
+
+        const previousLiveCount = this._lastLiveLinkCount ?? liveLinkIds.size;
+        if (
+            liveLinkIds.size === 0 ||
+            liveLinkIds.size < previousLiveCount ||
+            !this._lastOrphanAuxGcTime ||
+            (time - this._lastOrphanAuxGcTime) >= 0.25
+        ) {
+            this._garbageCollectOrphanAuxVisuals(liveLinkIds);
+            this._lastOrphanAuxGcTime = time;
+        }
+        this._lastLiveLinkCount = liveLinkIds.size;
+
         // Canonical write: ensure wave metrics exist for all active links
         for (const link of list) {
             this._canonicalWriteLinkWaveMetrics(link);
@@ -6142,9 +6162,35 @@ const makeWaveSlice = () => {
             const toRemove = [];
             root.traverse((obj) => {
                 if (obj?.userData?.__linkOwnerId === ownerId) {
+                    if (obj.parent?.userData?.__linkOwnerId === ownerId) return;
                     toRemove.push(obj);
                 }
             });
+            toRemove.forEach((obj) => {
+                obj.parent?.remove?.(obj);
+                this._disposeObjectTree(obj);
+                removed += 1;
+            });
+        });
+
+        return removed;
+    }
+
+    _garbageCollectOrphanAuxVisuals(liveLinkIds = new Set()) {
+        let removed = 0;
+        const roots = [this.scene, this.conduitRoot].filter(Boolean);
+
+        roots.forEach((root) => {
+            const toRemove = [];
+            root.traverse((obj) => {
+                const ownerId = obj?.userData?.__linkOwnerId;
+                if (ownerId === null || ownerId === undefined) return;
+                const ownerKey = String(ownerId);
+                if (liveLinkIds.has(ownerKey)) return;
+                if (obj.parent?.userData?.__linkOwnerId === ownerId) return;
+                toRemove.push(obj);
+            });
+
             toRemove.forEach((obj) => {
                 obj.parent?.remove?.(obj);
                 this._disposeObjectTree(obj);

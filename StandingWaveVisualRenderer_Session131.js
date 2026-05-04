@@ -736,6 +736,29 @@ export class StandingWaveVisualRenderer_Session131 {
             antinode.expireTime = now;
             antinode.nextRefreshTime = now + this.config.antinodeCooldownSeconds;
         });
+
+        this.trapZoneMeshPool.forEach((zone) => {
+            if (!zone) return;
+            if (zone.linkId !== linkId) return;
+
+            zone.active = false;
+            zone.linkId = null;
+            if (zone.group) {
+                zone.group.visible = false;
+                zone.group.scale.setScalar(0.001);
+                zone.group.position.set(0, -9999, 0);
+                zone.group.parent?.remove?.(zone.group);
+            }
+            if (zone.coreMesh?.material) zone.coreMesh.material.opacity = 0;
+            if (zone.orbitAMesh?.material) zone.orbitAMesh.material.opacity = 0;
+            if (zone.orbitBMesh?.material) zone.orbitBMesh.material.opacity = 0;
+            if (zone.haloMesh?.material) zone.haloMesh.material.opacity = 0;
+            zone.lastSeenTime = now;
+        });
+
+        this.linkWaveStates.delete(linkId);
+        this.resolutionAnimators.delete(linkId);
+        this._syncRenderRootPresence();
     }
 
     _resolveLinkId(linkOrId) {
