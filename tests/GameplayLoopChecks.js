@@ -95,6 +95,277 @@ test('LinkCollapseSystem uses canonical link metrics instead of stale visual fal
   }
 });
 
+test('LinkCollapseSystem collapses after sustained high corruption alone in OR mode', () => {
+  const originalDateNow = Date.now;
+  let now = 2000;
+  Date.now = () => now;
+
+  try {
+    const collapseRequests = [];
+    const source = { userData: { nodeId: 'c' } };
+    const target = { userData: { nodeId: 'd' } };
+    const link = {
+      id: 'link-c-d',
+      active: true,
+      source,
+      target,
+      userData: {
+        metrics: {
+          corruption: 0.9,
+          stability: 0.8,
+          loadPressure: 0.1
+        }
+      }
+    };
+
+    const linkingSystem = {
+      links: [link],
+      onLinkCreated() {},
+      onLinkUpdated() {},
+      onLinkRemoved() {},
+      enqueueCollapseRequest(targetLink, context) {
+        collapseRequests.push({ targetLink, context });
+      }
+    };
+
+    const collapseSystem = new LinkCollapseSystem(linkingSystem, null, null, {
+      holdDurationMs: 1000,
+      corruptionHighThreshold: 0.8,
+      stabilityLowThreshold: 0.2,
+      enableVisualFeedback: false,
+      globalMetricsEnabled: false
+    });
+
+    collapseSystem.onLinkMetricsUpdated(link, { corruption: 0.9, stability: 0.8 }, { silent: true });
+    now += 1000;
+    collapseSystem.onLinkMetricsUpdated(link, { corruption: 0.9, stability: 0.8 }, { silent: true });
+
+    assert.strictEqual(collapseRequests.length, 1);
+    assert.strictEqual(collapseRequests[0].context.reason, 'collapse-threshold');
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
+
+test('LinkCollapseSystem collapses after sustained low stability alone in OR mode', () => {
+  const originalDateNow = Date.now;
+  let now = 3000;
+  Date.now = () => now;
+
+  try {
+    const collapseRequests = [];
+    const source = { userData: { nodeId: 'e' } };
+    const target = { userData: { nodeId: 'f' } };
+    const link = {
+      id: 'link-e-f',
+      active: true,
+      source,
+      target,
+      userData: {
+        metrics: {
+          corruption: 0.1,
+          stability: 0.1,
+          loadPressure: 0.3
+        }
+      }
+    };
+
+    const linkingSystem = {
+      links: [link],
+      onLinkCreated() {},
+      onLinkUpdated() {},
+      onLinkRemoved() {},
+      enqueueCollapseRequest(targetLink, context) {
+        collapseRequests.push({ targetLink, context });
+      }
+    };
+
+    const collapseSystem = new LinkCollapseSystem(linkingSystem, null, null, {
+      holdDurationMs: 1000,
+      corruptionHighThreshold: 0.8,
+      stabilityLowThreshold: 0.2,
+      enableVisualFeedback: false,
+      globalMetricsEnabled: false
+    });
+
+    collapseSystem.onLinkMetricsUpdated(link, { corruption: 0.1, stability: 0.1 }, { silent: true });
+    now += 1000;
+    collapseSystem.onLinkMetricsUpdated(link, { corruption: 0.1, stability: 0.1 }, { silent: true });
+
+    assert.strictEqual(collapseRequests.length, 1);
+    assert.strictEqual(collapseRequests[0].context.stability, 0.1);
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
+
+test('LinkCollapseSystem does not collapse for short spike below hold duration', () => {
+  const originalDateNow = Date.now;
+  let now = 4000;
+  Date.now = () => now;
+
+  try {
+    const collapseRequests = [];
+    const source = { userData: { nodeId: 'g' } };
+    const target = { userData: { nodeId: 'h' } };
+    const link = {
+      id: 'link-g-h',
+      active: true,
+      source,
+      target,
+      userData: {
+        metrics: {
+          corruption: 0.85,
+          stability: 0.5,
+          loadPressure: 0.1
+        }
+      }
+    };
+
+    const linkingSystem = {
+      links: [link],
+      onLinkCreated() {},
+      onLinkUpdated() {},
+      onLinkRemoved() {},
+      enqueueCollapseRequest(targetLink, context) {
+        collapseRequests.push({ targetLink, context });
+      }
+    };
+
+    const collapseSystem = new LinkCollapseSystem(linkingSystem, null, null, {
+      holdDurationMs: 1000,
+      corruptionHighThreshold: 0.8,
+      stabilityLowThreshold: 0.2,
+      enableVisualFeedback: false,
+      globalMetricsEnabled: false
+    });
+
+    collapseSystem.onLinkMetricsUpdated(link, { corruption: 0.85, stability: 0.5 }, { silent: true });
+    now += 750;
+    collapseSystem.onLinkMetricsUpdated(link, { corruption: 0.85, stability: 0.5 }, { silent: true });
+
+    assert.strictEqual(collapseRequests.length, 0);
+    assert(collapseSystem.getCollapseProgress(link) < 1, 'progress should remain below collapse threshold');
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
+
+test('LinkCollapseSystem recovers and resets progress when metrics return to normal', () => {
+  const originalDateNow = Date.now;
+  let now = 5000;
+  Date.now = () => now;
+
+  try {
+    const collapseRequests = [];
+    const source = { userData: { nodeId: 'i' } };
+    const target = { userData: { nodeId: 'j' } };
+    const link = {
+      id: 'link-i-j',
+      active: true,
+      source,
+      target,
+      userData: {
+        metrics: {
+          corruption: 0.9,
+          stability: 0.6,
+          loadPressure: 0.2
+        }
+      }
+    };
+
+    const linkingSystem = {
+      links: [link],
+      onLinkCreated() {},
+      onLinkUpdated() {},
+      onLinkRemoved() {},
+      enqueueCollapseRequest(targetLink, context) {
+        collapseRequests.push({ targetLink, context });
+      }
+    };
+
+    const collapseSystem = new LinkCollapseSystem(linkingSystem, null, null, {
+      holdDurationMs: 1000,
+      corruptionHighThreshold: 0.8,
+      stabilityLowThreshold: 0.2,
+      stressRecoveryRate: 1.0,
+      enableVisualFeedback: false,
+      globalMetricsEnabled: false
+    });
+
+    collapseSystem.onLinkMetricsUpdated(link, { corruption: 0.9, stability: 0.6 }, { silent: true });
+    now += 600;
+    collapseSystem.onLinkMetricsUpdated(link, { corruption: 0.9, stability: 0.6 }, { silent: true });
+    const midProgress = collapseSystem.getCollapseProgress(link);
+    assert(midProgress > 0, 'progress should accumulate while stressed');
+
+    link.userData.metrics.corruption = 0.1;
+    link.userData.metrics.stability = 0.8;
+    now += 1000;
+    collapseSystem.onLinkMetricsUpdated(link, { corruption: 0.1, stability: 0.8 }, { silent: true });
+
+    assert.strictEqual(collapseRequests.length, 0);
+    assert.strictEqual(collapseSystem.getCollapseState(link).eligibleSince, null);
+    assert.strictEqual(collapseSystem.getCollapseProgress(link), 0);
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
+
+test('LinkCollapseSystem enqueues collapse only once per link collapse event', () => {
+  const originalDateNow = Date.now;
+  let now = 6000;
+  Date.now = () => now;
+
+  try {
+    const collapseRequests = [];
+    const source = { userData: { nodeId: 'k' } };
+    const target = { userData: { nodeId: 'l' } };
+    const link = {
+      id: 'link-k-l',
+      active: true,
+      source,
+      target,
+      userData: {
+        metrics: {
+          corruption: 0.9,
+          stability: 0.6,
+          loadPressure: 0.25
+        }
+      }
+    };
+
+    const linkingSystem = {
+      links: [link],
+      onLinkCreated() {},
+      onLinkUpdated() {},
+      onLinkRemoved() {},
+      enqueueCollapseRequest(targetLink, context) {
+        collapseRequests.push({ targetLink, context });
+      }
+    };
+
+    const collapseSystem = new LinkCollapseSystem(linkingSystem, null, null, {
+      holdDurationMs: 1000,
+      corruptionHighThreshold: 0.8,
+      stabilityLowThreshold: 0.2,
+      enableVisualFeedback: false,
+      globalMetricsEnabled: false
+    });
+
+    collapseSystem.onLinkMetricsUpdated(link, { corruption: 0.9, stability: 0.6 }, { silent: true });
+    now += 1000;
+    collapseSystem.onLinkMetricsUpdated(link, { corruption: 0.9, stability: 0.6 }, { silent: true });
+    now += 1000;
+    collapseSystem.onLinkMetricsUpdated(link, { corruption: 0.9, stability: 0.6 }, { silent: true });
+
+    assert.strictEqual(collapseRequests.length, 1);
+    assert.strictEqual(collapseSystem.getCollapseStatistics().totalCollapses, 1);
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
+
 for (const { name, fn } of tests) {
   try {
     fn();

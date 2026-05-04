@@ -78,7 +78,8 @@ export class PersonalityShaderBridge_v1 {
       meshScanInterval: 30,
       
       // Uniform value smoothing (lerp factor for smooth transitions)
-      uniformLerpFactor: options.uniformLerpFactor ?? 0.2
+      uniformLerpFactor: options.uniformLerpFactor ?? 0.2,
+      zeroEpsilon: options.zeroEpsilon ?? 0.001
     };
     
     // Internal state
@@ -96,7 +97,18 @@ export class PersonalityShaderBridge_v1 {
       missingPersonalityData: 0,
       averageTimeMs: 0,
       totalTimeMs: 0,
-      hooksInstalled: 0
+      hooksInstalled: 0,
+      lastUpdateMs: 0,
+      trackedNodeMeshes: 0,
+      trackedLinkMeshes: 0,
+      activeNodeSignals: 0,
+      activeLinkSignals: 0,
+      dormantNodeSignals: 0,
+      dormantLinkSignals: 0,
+      activeNodeMaterials: 0,
+      activeLinkMaterials: 0,
+      personalityUniformMaterials: 0,
+      linkUniformMaterials: 0
     };
     
     if (this.config.enableDebug) {
@@ -116,6 +128,16 @@ export class PersonalityShaderBridge_v1 {
     const startTime = performance.now();
     
     try {
+      this.stats.meshesUpdated = 0;
+      this.stats.uniformsUpdated = 0;
+      this.stats.missingPersonalityData = 0;
+      this.stats.activeNodeSignals = 0;
+      this.stats.activeLinkSignals = 0;
+      this.stats.dormantNodeSignals = 0;
+      this.stats.dormantLinkSignals = 0;
+      this.stats.activeNodeMaterials = 0;
+      this.stats.activeLinkMaterials = 0;
+
       // Periodically scan for new meshes in scene
       if (this.stats.updateCount % this.config.meshScanInterval === 0) {
         this._scanSceneForMeshes();
@@ -124,23 +146,44 @@ export class PersonalityShaderBridge_v1 {
       // Update uniforms for all tracked nodes
       if (this.aiNodes?.nodes) {
         for (const node of this.aiNodes.nodes) {
-          if (this.nodeMeshMap.has(node.id)) {
-            const meshes = this.nodeMeshMap.get(node.id);
-            for (const mesh of meshes) {
-              this._updateNodeUniforms(node, mesh, deltaTime);
+          const meshes = this.nodeMeshMap.get(node.id);
+          if (!meshes || meshes.length === 0) continue;
+
+          const pv = node.userData?.personalityVisual || null;
+          const vm = node.userData?.visualMetrics || null;
+          const hasSignal = this._hasPersonalitySignal(pv, vm);
+          let updatedAnyMesh = false;
+          for (const mesh of meshes) {
+            if (this._updateNodeUniforms(node, mesh, deltaTime, pv, vm, hasSignal)) {
+              updatedAnyMesh = true;
             }
+          }
+          if (updatedAnyMesh) {
+            this.stats.activeNodeSignals++;
+          } else {
+            this.stats.dormantNodeSignals++;
           }
         }
       }
       
       // Update uniforms for all tracked links (optional)
-      if (this.aiNodes?.links) {
+      if (this.linkMeshMap.size > 0 && this.aiNodes?.links) {
         for (const link of this.aiNodes.links) {
-          if (this.linkMeshMap.has(link.id)) {
-            const meshes = this.linkMeshMap.get(link.id);
-            for (const mesh of meshes) {
-              this._updateLinkUniforms(link, mesh, deltaTime);
+          const meshes = this.linkMeshMap.get(link.id);
+          if (!meshes || meshes.length === 0) continue;
+
+          const visualGlow = link.userData?.visualGlow || null;
+          const hasSignal = this._hasLinkSignal(visualGlow);
+          let updatedAnyMesh = false;
+          for (const mesh of meshes) {
+            if (this._updateLinkUniforms(link, mesh, deltaTime, visualGlow, hasSignal)) {
+              updatedAnyMesh = true;
             }
+          }
+          if (updatedAnyMesh) {
+            this.stats.activeLinkSignals++;
+          } else {
+            this.stats.dormantLinkSignals++;
           }
         }
       }
@@ -149,6 +192,7 @@ export class PersonalityShaderBridge_v1 {
       
       // Track timing
       const elapsed = performance.now() - startTime;
+      this.stats.lastUpdateMs = elapsed;
       this.stats.totalTimeMs += elapsed;
       this.stats.averageTimeMs = this.stats.totalTimeMs / this.stats.updateCount;
       
@@ -172,6 +216,8 @@ export class PersonalityShaderBridge_v1 {
   _scanSceneForMeshes() {
     try {
       const nodes = this.aiNodes?.nodes || [];
+      let trackedNodeMeshes = 0;
+      let personalityUniformMaterials = 0;
       
       for (const node of nodes) {
         if (!node.visualObject) continue;
@@ -182,13 +228,19 @@ export class PersonalityShaderBridge_v1 {
         
         if (meshes.length > 0) {
           this.nodeMeshMap.set(node.id, meshes);
+          trackedNodeMeshes += meshes.length;
           
           // Ensure material hooks are installed
           for (const mesh of meshes) {
-            this._ensureMaterialHook(mesh);
+            personalityUniformMaterials += this._ensureMaterialHook(mesh);
           }
         }
       }
+
+      this.stats.trackedNodeMeshes = trackedNodeMeshes;
+      this.stats.trackedLinkMeshes = this._countTrackedMeshes(this.linkMeshMap);
+      this.stats.personalityUniformMaterials = personalityUniformMaterials;
+      this.stats.linkUniformMaterials = 0;
     } catch (err) {
       if (this.config.enableWarnings) {
         console.warn('[PersonalityShaderBridge_v1] Mesh scan error:', err);
@@ -216,13 +268,13 @@ export class PersonalityShaderBridge_v1 {
    * @private
    */
   _ensureMaterialHook(mesh) {
-    if (!mesh?.material) return;
+    if (!mesh?.material) return 0;
     
     const material = mesh.material;
     
     // Skip if already patched (material-level guard)
     if (material[PERSONALITY_BRIDGE_PATCHED]) {
-      return;
+      return 1;
     }
     
     // Initialize material data storage
@@ -293,25 +345,18 @@ export class PersonalityShaderBridge_v1 {
     if (this.config.enableDebug) {
       console.log(`[PersonalityShaderBridge_v1] Shader hook installed on material`);
     }
+
+    return 1;
   }
 
   /**
    * Update node uniforms based on personality signals and visual metrics
    * @private
    */
-  _updateNodeUniforms(node, mesh, deltaTime) {
+  _updateNodeUniforms(node, mesh, deltaTime, personalityVisual = null, visualMetrics = null, hasSignal = false) {
     if (!mesh?.material) return;
     
     const material = mesh.material;
-    const personalityVisual = node.userData?.personalityVisual;
-    const visualMetrics = node.userData?.visualMetrics;
-    
-    // Graceful degradation
-    if (!personalityVisual && !visualMetrics) {
-      this.stats.missingPersonalityData++;
-      return;
-    }
-    
     const pv = personalityVisual || {};
     const vm = visualMetrics || {};
     
@@ -325,6 +370,11 @@ export class PersonalityShaderBridge_v1 {
       };
       this.materialMap.set(material, entry);
     }
+
+    if (!hasSignal && !this._entryHasPersonalityActivity(entry.lastPersonalityValues)) {
+      this.stats.missingPersonalityData++;
+      return false;
+    }
     
     // Apply personality uniforms with smoothing
     this._applyPersonalityUniforms(
@@ -337,37 +387,40 @@ export class PersonalityShaderBridge_v1 {
     
     this.stats.uniformsUpdated++;
     this.stats.meshesUpdated++;
+    this.stats.activeNodeMaterials++;
+    return true;
   }
 
   /**
    * Update link uniforms (optional – for future link visual effects)
    * @private
    */
-  _updateLinkUniforms(link, mesh, deltaTime) {
+  _updateLinkUniforms(link, mesh, deltaTime, visualGlow = null, hasSignal = false) {
     if (!mesh?.material) return;
     
     const material = mesh.material;
-    const visualGlow = link.userData?.visualGlow;
-    
-    if (!visualGlow) {
-      return; // No glow data, skip
-    }
     
     const entry = this.materialMap.get(material) || {
       material,
       lastPersonalityValues: {},
       lastLinkValues: {}
     };
+
+    if (!hasSignal && !this._entryHasLinkActivity(entry.lastLinkValues)) {
+      return false;
+    }
     
     // Apply link uniforms
     this._applyLinkUniforms(
       material.userData.linkUniforms,
-      visualGlow,
+      visualGlow || {},
       entry.lastLinkValues,
       deltaTime
     );
     
     this.stats.uniformsUpdated++;
+    this.stats.activeLinkMaterials++;
+    return true;
   }
 
   /**
@@ -451,8 +504,73 @@ export class PersonalityShaderBridge_v1 {
       ...this.stats,
       materialCount: this.materialMap.size,
       nodeTracking: this.nodeMeshMap.size,
-      linkTracking: this.linkMeshMap.size
+      linkTracking: this.linkMeshMap.size,
+      linkEffectsRuntimeStatus: this.linkMeshMap.size > 0 ? 'tracked' : 'dormant-unwired',
+      effectsPackRuntimeStatus: this._resolveEffectsPackStatus(),
     };
+  }
+
+  _hasPersonalitySignal(personalityVisual, visualMetrics) {
+    const epsilon = this.config.zeroEpsilon;
+    const pv = personalityVisual || {};
+    const vm = visualMetrics || {};
+    return (
+      Math.abs(pv.clarityBoost ?? 0) > epsilon ||
+      Math.abs(pv.resonanceBoost ?? 0) > epsilon ||
+      Math.abs(pv.entropyPenalty ?? 0) > epsilon ||
+      Math.abs(pv.focusShift ?? 0) > epsilon ||
+      Math.abs(pv.corruptionSignal ?? 0) > epsilon ||
+      Math.abs(vm.energyNorm ?? 0) > epsilon ||
+      Math.abs(vm.qualityNorm ?? 0) > epsilon
+    );
+  }
+
+  _hasLinkSignal(visualGlow) {
+    const epsilon = this.config.zeroEpsilon;
+    const glow = visualGlow || {};
+    return (
+      Math.abs(glow.glowIntensity ?? 0) > epsilon ||
+      Math.abs(glow.qualityNorm ?? 0) > epsilon ||
+      Math.abs(glow.corruptionPulse ?? 0) > epsilon
+    );
+  }
+
+  _entryHasPersonalityActivity(lastValues = {}) {
+    const epsilon = this.config.zeroEpsilon;
+    return (
+      Math.abs(lastValues.uClarity ?? 0) > epsilon ||
+      Math.abs(lastValues.uResonance ?? 0) > epsilon ||
+      Math.abs(lastValues.uEntropy ?? 0) > epsilon ||
+      Math.abs(lastValues.uFocus ?? 0) > epsilon ||
+      Math.abs(lastValues.uCorruption ?? 0) > epsilon ||
+      Math.abs(lastValues.uEnergy ?? 0) > epsilon ||
+      Math.abs(lastValues.uQuality ?? 0) > epsilon
+    );
+  }
+
+  _entryHasLinkActivity(lastValues = {}) {
+    const epsilon = this.config.zeroEpsilon;
+    return (
+      Math.abs(lastValues.uLinkGlow ?? 0) > epsilon ||
+      Math.abs(lastValues.uLinkQuality ?? 0) > epsilon ||
+      Math.abs(lastValues.uLinkCorruption ?? 0) > epsilon
+    );
+  }
+
+  _countTrackedMeshes(meshMap) {
+    let total = 0;
+    for (const meshes of meshMap.values()) {
+      total += Array.isArray(meshes) ? meshes.length : 0;
+    }
+    return total;
+  }
+
+  _resolveEffectsPackStatus() {
+    const effectsPack = typeof globalThis !== 'undefined' ? globalThis.game?.personalityShaderEffects : null;
+    if (!effectsPack) return 'missing';
+    if (effectsPack.runtimeStatus) return effectsPack.runtimeStatus;
+    if (effectsPack.enabled === false) return 'dormant';
+    return 'active';
   }
 
   /**

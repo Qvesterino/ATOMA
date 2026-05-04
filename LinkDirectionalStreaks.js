@@ -253,7 +253,7 @@ export class LinkDirectionalStreaks {
         );
         
         // Update harmonic hub phase synchronization
-        if (link && link.source && link.target) {
+        if (link && link.source && link.target && this.pulseInjector.phaseSync.hasRuntimeWork(linkGroup)) {
             this.pulseInjector.phaseSync.update(
                 linkGroup,
                 this.pulseInjector,

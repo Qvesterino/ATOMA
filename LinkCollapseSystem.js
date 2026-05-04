@@ -13,10 +13,10 @@
  * - Network feels alive and fragile under abuse
  * - Collapse is consequence, not random event
  * 
- * COLLAPSE CONDITIONS (ALL must be true):
- * 1. Link corruption is high (`link.corruption.high`)
+ * COLLAPSE CONDITIONS (release default):
+ * 1. Link corruption is high (`link.corruption.high`) OR
  * 2. Link stability is low (`link.stability.low`)
- * 3. Both conditions must persist for the full hold duration
+ * 3. The active condition must persist for the full hold duration
  * 4. Collapse threshold reached → link disconnects
  * 
  * COLLAPSE PROCESS (NOT instant):
@@ -64,8 +64,8 @@ export class LinkCollapseSystem {
       stabilityLowThreshold: config.stabilityLowThreshold ?? 0.2,
       
       // Temporal requirements (milliseconds)
-      holdDurationMs: config.holdDurationMs ?? config.collapseWindowMs ?? config.minStressAccumulation ?? 10000,
-      maxStressWindow: config.maxStressWindow ?? 10000,              // Upper bound for stale state cleanup
+      holdDurationMs: config.holdDurationMs ?? config.collapseWindowMs ?? config.minStressAccumulation ?? 5000,
+      maxStressWindow: config.maxStressWindow ?? 5000,               // Upper bound for stale state cleanup
       
       // Collapse progression (0.0 - 1.0 scale)
       warningThreshold: config.warningThreshold ?? 0.3,
@@ -418,6 +418,7 @@ export class LinkCollapseSystem {
     state.lastObservedLoad = metrics.loadPressure ?? 0;
     state.lastObservedCorruption = metrics.corruption ?? 0;
     state.lastObservedStability = metrics.stability ?? 1;
+    state.activeEligibilityReason = eligibility.activeReason;
 
     this._syncTierSignals(link, state, metrics, now, eligibility, options);
 
@@ -470,10 +471,10 @@ export class LinkCollapseSystem {
   
   /**
    * Check if link is eligible for collapse
-   * ALL of these must be true:
-   * 1. Corruption is in the high tier
+   * Release default:
+   * 1. Corruption is in the high tier OR
    * 2. Stability is in the low tier
-   * 3. The paired condition has been held continuously
+   * 3. The active condition has been held continuously
    * @private
    */
   _isCollapseEligible(link, metrics, state) {
@@ -502,7 +503,10 @@ export class LinkCollapseSystem {
       stability,
       corruptionHigh,
       stabilityLow,
-      isEligible: corruptionHigh && stabilityLow,
+      isEligible: corruptionHigh || stabilityLow,
+      activeReason: corruptionHigh
+        ? 'corruption-high'
+        : (stabilityLow ? 'stability-low' : null),
     };
   }
   
@@ -780,6 +784,7 @@ export class LinkCollapseSystem {
       lastObservedLoad: 0,
       lastObservedCorruption: 0,
       lastObservedStability: 1,
+      activeEligibilityReason: null,
       corruptionHighActive: false,
       stabilityLowActive: false,
       hasCollapsed: false,
@@ -984,7 +989,7 @@ export class LinkCollapseSystem {
       }
     }
 
-    if (!corruptionHigh || !stabilityLow) {
+    if (!corruptionHigh && !stabilityLow) {
       state.eligibleSince = null;
     }
   }

@@ -396,7 +396,7 @@ export class LinkPulseWaveInjector {
         };
         
         // Apply harmonic hub phase synchronization if present
-        if (linkGroup) {
+        if (linkGroup && this.phaseSync.hasRuntimeWork(linkGroup)) {
             effect = this.phaseSync.getPhaseAdjustedEffect(effect, linkGroup, time) || effect;
         }
         

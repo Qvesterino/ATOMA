@@ -9943,7 +9943,7 @@ window.__ATOMA_SCENE__ = this.scene;
             {
                 corruptionHighThreshold: 0.8,
                 stabilityLowThreshold: 0.2,
-                holdDurationMs: 10000,
+                holdDurationMs: 5000,
                 warningThreshold: 0.3,
                 criticalThreshold: 0.7,
                 collapseThreshold: 1.0,
@@ -10533,6 +10533,10 @@ window.__ATOMA_SCENE__ = this.scene;
                     enableWarnings: false
                 }
             );
+            if (typeof window !== 'undefined') {
+                window.__ATOMA_PERSONALITY_SHADER_REPORT__ = () =>
+                    this.personalityShaderBridge?.getStats?.() ?? null;
+            }
             console.log('[main.js] PersonalityShaderBridge_v1 initialized ✓');
         } catch (err) {
             console.warn('[main.js] Failed to initialize PersonalityShaderBridge_v1:', err);
@@ -10549,6 +10553,8 @@ window.__ATOMA_SCENE__ = this.scene;
                 enableDebug: false,
                 enableWarnings: false
             });
+            this.personalityShaderEffects.enabled = false;
+            this.personalityShaderEffects.runtimeStatus = 'dormant-unwired';
             console.log('[main.js] PersonalityShaderEffects_Pack_v1 initialized ✓');
         } catch (err) {
             console.warn('[main.js] Failed to initialize PersonalityShaderEffects_Pack_v1:', err);

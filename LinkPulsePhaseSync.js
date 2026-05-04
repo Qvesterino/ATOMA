@@ -53,6 +53,11 @@ export class LinkPulsePhaseSync {
         this._hsl = {};
     }
 
+    hasRuntimeWork(linkGroup) {
+        const syncState = linkGroup?.userData?.conduitState?.pulsePhaseSyncState;
+        return !!(syncState && syncState.hubController);
+    }
+
     /**
      * Initialize pulse phase sync for a link connected to a hub
      * 
@@ -81,6 +86,7 @@ export class LinkPulsePhaseSync {
             beatAmplitude: 0.0,
             isHubSync: !!hubController,
             hasCollapseController: !!collapseController,
+            decoupleFactor: hubController ? 1.0 : 0.0,
         };
     }
 
