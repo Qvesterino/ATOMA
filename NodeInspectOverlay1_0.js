@@ -81,9 +81,9 @@ export class NodeInspectOverlay1_0 {
       updates: 0,
       lastUpdateFrameTime: 0
     };
-    // Timing control (20-30Hz max = every 33-50ms)
+    // Timing control: keep this lightweight HUD at 10Hz.
     this.lastCheckTime = 0;
-    this.checkInterval = 1 / 25; // ~40ms (25Hz - reduced from 30Hz)
+    this.checkInterval = 0.1;
     
     // Current inspection state
     this.currentNode = null;
@@ -478,7 +478,7 @@ export class NodeInspectOverlay1_0 {
   }
 
   /**
-   * Update inspection state (called from game loop, max 30Hz)
+   * Update inspection state (called from game loop, max 10Hz)
    * Checks for node targeting via raycast or proximity
    */
   update(deltaTime) {
@@ -1252,7 +1252,6 @@ export class NodeInspectOverlay1_0 {
     this.lastSnapshot = snapshot;
     this._lastExternalTickAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
     // reuse throttling interval: run one update pass per simulation tick
-    console.log("NODE INSPECT UPDATE");
     this.update(this.checkInterval);
   }
 

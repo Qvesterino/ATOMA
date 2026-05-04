@@ -905,10 +905,6 @@ export class SynergyCascadeVisualizer {
   }
 
   _spawnRippleCluster(anchor, intensity, count, options = {}) {
-    if (!this._canSpawnSharedLineRipple(anchor, options)) {
-      return;
-    }
-
     const rippleCount = Math.max(1, Math.min(3, Math.floor(Number(count) || 1)));
     const radiusStep = Number(options.radiusStep ?? 0.06) || 0;
     const heightStep = Number(options.heightStep ?? 0.018) || 0;
@@ -929,10 +925,6 @@ export class SynergyCascadeVisualizer {
   }
 
   _spawnEchoRippleCluster(anchor, intensity, count = 3, options = {}) {
-    if (!this._canSpawnSharedLineRipple(anchor, options)) {
-      return;
-    }
-
     const rippleCount = Math.max(1, Math.min(3, Math.floor(Number(count) || this.config.echoRippleCount || 3)));
     const spacing = Math.max(0.12, Number(options.spacing ?? this.config.echoRippleSpacing ?? 0.46) || 0.46);
     const verticalOffset = Math.max(0.02, Number(options.verticalOffset ?? this.config.echoRippleVerticalOffset ?? 0.07) || 0.07);
@@ -1017,8 +1009,6 @@ export class SynergyCascadeVisualizer {
         (this.config.topologyBiasRippleOpacityScale ?? 0.3) * (0.74 - i * 0.08)
       );
       this._spawnEchoRippleCluster(position, intensity, Math.min(2, rippleCount), {
-        cooldownKey: key,
-        cooldownSeconds: this.config.sharedLineRippleCooldownSeconds,
         color: rippleColor,
         colorPalette: [
           new THREE.Color(0x18265f),

@@ -13877,8 +13877,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     runNodeInspectOverlayTick(deltaTime) {
         if (!this.nodeInspectOverlay) return;
         if (!UIVisibilityConfig.nodeInspect) return;
+        this._nodeInspectOverlayAcc = (this._nodeInspectOverlayAcc || 0) + deltaTime;
+        if (this._nodeInspectOverlayAcc < 0.1) return;
+        const tickDelta = this._nodeInspectOverlayAcc;
+        this._nodeInspectOverlayAcc = 0;
         const start = performance.now();
-        this.nodeInspectOverlay.update(deltaTime);
+        this.nodeInspectOverlay.update(tickDelta);
         this.updateValidator?.markSystemUpdate(
             'nodeInspectOverlay.update',
             performance.now() - start

@@ -149,6 +149,11 @@ export class NodeLinkedAuraSystem {
       harmonicSyncStrength: 0.15,
       harmonicPhaseBlend: 0.08
     };
+
+    // Heavy vertex flame deformation runs on a slower cadence than
+    // opacity/orbit updates to keep linked nodes visually alive at lower cost.
+    this.flameMotionInterval = Math.max(1 / 60, options.flameMotionInterval ?? (1 / 15));
+    this._flameMotionAcc = 0;
     
     // Shared noise offsets (for subtle global coherence)
     this.globalTime = 0;
@@ -284,8 +289,14 @@ export class NodeLinkedAuraSystem {
     const startTime = performance.now();
     
     this.globalTime += deltaTime * 1.8; // Increased motion speed
+    this._flameMotionAcc += deltaTime;
     this._frameCounter++;
     let activeCount = 0;
+    const shouldRunFlameMotion = this._flameMotionAcc >= this.flameMotionInterval;
+    const flameMotionDelta = shouldRunFlameMotion ? this._flameMotionAcc : 0;
+    if (shouldRunFlameMotion) {
+      this._flameMotionAcc = 0;
+    }
     
     // Update existing auras and check for new nodes
     for (const node of nodes) {
@@ -305,7 +316,7 @@ export class NodeLinkedAuraSystem {
       }
       
       // Update aura
-      this.updateAura(node, linkCount, deltaTime);
+      this.updateAura(node, linkCount, deltaTime, flameMotionDelta);
       activeCount++;
     }
     
@@ -406,6 +417,7 @@ export class NodeLinkedAuraSystem {
       // Animation state
       motionAmplitude: this.motionParams.baseAmplitude,
       targetAmplitude: this.motionParams.baseAmplitude,
+      flameMotionInitialized: false,
       
       // Link spike state
       spikeActive: false,
@@ -464,7 +476,7 @@ export class NodeLinkedAuraSystem {
   /**
    * Update aura motion and appearance
    */
-  updateAura(node, linkCount, deltaTime) {
+  updateAura(node, linkCount, deltaTime, flameMotionDelta = 0) {
     const auraData = this.nodeAuras.get(node);
     if (!auraData) return;
     
@@ -619,8 +631,12 @@ export class NodeLinkedAuraSystem {
       auraData.material.uniforms.uTime.value = this.globalTime;
     }
     
-    // Apply flame-like motion to vertices
-    this.applyFlameMotion(auraData, deltaTime);
+    // Apply heavy flame-like vertex deformation at a reduced cadence while
+    // keeping cheaper transform/opacity/orbit updates on the visual cadence.
+    if (!auraData.flameMotionInitialized || flameMotionDelta > 0) {
+      this.applyFlameMotion(auraData, flameMotionDelta > 0 ? flameMotionDelta : deltaTime);
+      auraData.flameMotionInitialized = true;
+    }
     
     // Update opacity based on link count
     let targetOpacity = THREE.MathUtils.lerp(

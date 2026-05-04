@@ -2485,26 +2485,6 @@ export class LinkRendererConduit {
             || this.links
             || [];
 
-        const liveLinkIds = new Set();
-        for (const link of list) {
-            const ownerId = this._getLinkOwnerId(link);
-            if (ownerId !== null && ownerId !== undefined) {
-                liveLinkIds.add(String(ownerId));
-            }
-        }
-
-        const previousLiveCount = this._lastLiveLinkCount ?? liveLinkIds.size;
-        if (
-            liveLinkIds.size === 0 ||
-            liveLinkIds.size < previousLiveCount ||
-            !this._lastOrphanAuxGcTime ||
-            (time - this._lastOrphanAuxGcTime) >= 0.25
-        ) {
-            this._garbageCollectOrphanAuxVisuals(liveLinkIds);
-            this._lastOrphanAuxGcTime = time;
-        }
-        this._lastLiveLinkCount = liveLinkIds.size;
-
         // Canonical write: ensure wave metrics exist for all active links
         for (const link of list) {
             this._canonicalWriteLinkWaveMetrics(link);
@@ -3022,7 +3002,7 @@ export class LinkRendererConduit {
         const visualDelta = VisualTime.delta;
         const visualNow = VisualTime.now;
         const particleFrameIndex = this._trailParticleFrameIndex = (this._trailParticleFrameIndex ?? 0) + 1;
-        if (this.trailParticles && shouldRunLinkEffect('conduit', 'particleSystem', { run30: true }, particleFrameIndex)) {
+        if (this.trailParticles && shouldRunLinkEffect('conduit', 'trailParticles', { run30: true }, particleFrameIndex)) {
             this.trailParticles.update(visualDelta, visualNow);
         }
     }
@@ -3035,7 +3015,7 @@ export class LinkRendererConduit {
         const visualDelta = VisualTime.delta;
         const visualNow = VisualTime.now;
         const particleFrameIndex = this._healingParticleFrameIndex = (this._healingParticleFrameIndex ?? 0) + 1;
-        if (this.healingParticles && shouldRunLinkEffect('conduit', 'particleSystem', { run30: true }, particleFrameIndex)) {
+        if (this.healingParticles && shouldRunLinkEffect('conduit', 'healingParticles', { run30: true }, particleFrameIndex)) {
             this.healingParticles.update(visualDelta, visualNow);
         }
     }
