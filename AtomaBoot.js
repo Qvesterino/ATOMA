@@ -10,6 +10,7 @@ import { PauseMenu } from './PauseMenu.js';
 import { loadUIVisibilityConfig } from './ui/config/UIVisibilityConfig.js';
 import { mountVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
 import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
+import { getSharedAtomaLoadingOverlay } from './AtomaLoadingOverlay.js';
 
 const PREBOOT_BODY_CLASS = 'atoma-preboot';
 const AUDIO_ENABLED_STORAGE_KEY = 'atoma.audio.enabled';
@@ -22,6 +23,7 @@ class AtomaBootController {
         this._booting = false;
         this._hudMounted = false;
         this.pauseMenu = null;
+        this.loadingOverlay = getSharedAtomaLoadingOverlay();
         this._handleGlobalKeyDown = (event) => this._onGlobalKeyDown(event);
 
         this.menu = new MainMenu({
@@ -45,11 +47,11 @@ class AtomaBootController {
     }
 
     startNew(worldId, selectedMapId, settings) {
-        this._launch({
+        void this._launch({
             startupWorld: worldId,
             selectedMapId,
             settings,
-        });
+        }).catch(() => {});
     }
 
     resume(snapshot, settings) {
@@ -58,12 +60,12 @@ class AtomaBootController {
             return;
         }
 
-        this._launch({
+        void this._launch({
             startupWorld: snapshot.worldId,
             selectedMapId: snapshot.selectedMapId || snapshot.worldId,
             continueSnapshot: snapshot,
             settings,
-        });
+        }).catch(() => {});
     }
 
     exit() {
@@ -78,7 +80,7 @@ class AtomaBootController {
         this.menu.refresh();
     }
 
-    _launch({ startupWorld, selectedMapId, continueSnapshot = null, settings = null }) {
+    async _launch({ startupWorld, selectedMapId, continueSnapshot = null, settings = null }) {
         if (this._booting || this.game) {
             return;
         }
@@ -91,23 +93,56 @@ class AtomaBootController {
             savedAt: Date.now(),
         });
 
-        this._persistBootSettings(settings);
-        document.body.classList.remove(PREBOOT_BODY_CLASS);
-        this.menu.hide();
-
         try {
-            this.game = startAtomaGame({
-                startupWorld,
-                continueSnapshot: continueSnapshot || nextSnapshot,
-                menuSettings: settings,
+            await this.loadingOverlay.run(async ({ setPhase, yieldFrame }) => {
+                this._persistBootSettings(settings);
+                document.body.classList.remove(PREBOOT_BODY_CLASS);
+                this.menu.hide();
+
+                setPhase({
+                    title: continueSnapshot ? 'RESUMING ATOMA' : 'INITIALIZING ATOMA',
+                    subtitle: 'Preparing the world shell and initial field state.',
+                    phase: 'INITIALIZING WORLD',
+                    variant: continueSnapshot ? 'resume' : 'boot',
+                });
+                await yieldFrame();
+
+                this.game = startAtomaGame({
+                    startupWorld,
+                    continueSnapshot: continueSnapshot || nextSnapshot,
+                    menuSettings: settings,
+                });
+
+                setPhase({
+                    title: continueSnapshot ? 'RESUMING ATOMA' : 'INITIALIZING ATOMA',
+                    subtitle: 'Binding runtime systems and visual authorities.',
+                    phase: 'BINDING SYSTEMS',
+                    variant: continueSnapshot ? 'resume' : 'boot',
+                });
+
+                this._ensurePauseMenu();
+                this._mountRuntimeHud();
+                await this.game?.waitForVisualTransitions?.();
+                this.menu.dispose();
+
+                setPhase({
+                    title: continueSnapshot ? 'RESUMING ATOMA' : 'INITIALIZING ATOMA',
+                    subtitle: 'Returning to the live simulation field.',
+                    phase: 'ENTERING SIMULATION',
+                    variant: continueSnapshot ? 'resume' : 'boot',
+                });
+                await yieldFrame();
+            }, {
+                title: continueSnapshot ? 'RESUMING ATOMA' : 'INITIALIZING ATOMA',
+                subtitle: 'Preparing the world shell and initial field state.',
+                phase: 'INITIALIZING WORLD',
+                variant: continueSnapshot ? 'resume' : 'boot',
             });
-            this._ensurePauseMenu();
-            this._mountRuntimeHud();
-            this.menu.dispose();
         } catch (error) {
             document.body.classList.add(PREBOOT_BODY_CLASS);
             this.menu.show();
             this._booting = false;
+            console.error('[AtomaBoot] launch failed:', error);
             throw error;
         }
 
@@ -137,20 +172,25 @@ class AtomaBootController {
         this.game.resume?.();
     }
 
-    _switchWorldFromPause({ worldId, selectedMapId, settings }) {
+    async _switchWorldFromPause({ worldId, selectedMapId, settings }) {
         if (!this.game) {
             return;
         }
 
-        saveContinueSnapshot({
-            worldId,
-            selectedMapId: selectedMapId || worldId,
-            savedAt: Date.now(),
-        });
-        this._persistBootSettings(settings);
-        this.pauseMenu?.hide();
-        this.game.switchWorld?.(worldId);
-        this.game.resume?.();
+        try {
+            saveContinueSnapshot({
+                worldId,
+                selectedMapId: selectedMapId || worldId,
+                savedAt: Date.now(),
+            });
+            this._persistBootSettings(settings);
+            this.pauseMenu?.hide();
+            await this.game.switchWorld?.(worldId);
+            this.game.resume?.();
+        } catch (error) {
+            console.error('[AtomaBoot] pause world switch failed:', error);
+            this.pauseMenu?.show();
+        }
     }
 
     _ensurePauseMenu() {
@@ -161,7 +201,7 @@ class AtomaBootController {
         this.pauseMenu = new PauseMenu({
             actions: {
                 resume: () => this.resumeGame(),
-                switchWorld: (payload) => this._switchWorldFromPause(payload),
+                switchWorld: (payload) => void this._switchWorldFromPause(payload),
                 endGame: () => this.exit(),
             },
         });

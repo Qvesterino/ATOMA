@@ -60,6 +60,7 @@ import { NODE_VISUAL_REGISTRY } from './NodeVisualRegistry.js';
 import { AtomaAudioSystem } from './AtomaAudioSystem.js';
 import { AtomaAudioModulation } from './AtomaAudioModulation.js';
 import { registerAtomaAudioEventManifest } from './AtomaAudioEventManifest.js';
+import { getSharedAtomaLoadingOverlay } from './AtomaLoadingOverlay.js';
 import NodeLinkingSystem, { warmUpArchetypeShaders } from './NodeLinkingSystem.js';
 import { CONFIG } from './config.js';
 import { FrameClock } from './FrameClock.js';
@@ -6668,11 +6669,11 @@ this.setHudDirty('nodeInspect');
         // Expose AtomaGame instance and subsystems globally (debug-safe)
         window.game = this;
         if (window.__ATOMA_POSTPROCESSING_PENDING__ !== undefined) {
-            this.setPostProcessingEnabled(!!window.__ATOMA_POSTPROCESSING_PENDING__);
+            void this.setPostProcessingEnabled(!!window.__ATOMA_POSTPROCESSING_PENDING__, { showLoading: false });
             delete window.__ATOMA_POSTPROCESSING_PENDING__;
         }
         if (window.__ATOMA_LUMINOSITY_BLOOM_PENDING__ !== undefined) {
-            this.setLuminosityBloomEnabled(!!window.__ATOMA_LUMINOSITY_BLOOM_PENDING__);
+            void this.setLuminosityBloomEnabled(!!window.__ATOMA_LUMINOSITY_BLOOM_PENDING__, { showLoading: false });
             delete window.__ATOMA_LUMINOSITY_BLOOM_PENDING__;
         }
         if (window.__ATOMA_NODE_ROTATIONS_PENDING__ !== undefined) {
@@ -6981,35 +6982,147 @@ window.__ATOMA_SCENE__ = this.scene;
             this.luminosityBloom?.onWindowResize?.(this.renderer.domElement.width, this.renderer.domElement.height);
             this.luminosityBloomEnabled = false;
         }
-        this.cinematicNodeShadersEnabled = true;
-        this.setPostProcessingEnabled = (enabled = true) => {
-            const next = !!enabled;
-            if (this.postProcessingEnabled !== next) {
-                this.postProcessingEnabled = next;
-                if (next) {
-                    void this.postProcessing?.warmup?.(this.renderer);
-                    if (this.luminosityBloomEnabled) {
-                        void this.luminosityBloom?.warmup?.(this.renderer);
-                    }
-                } else {
-                    this.postProcessing?.setBloomTexture?.(null);
-                }
+        this.loadingOverlay = getSharedAtomaLoadingOverlay();
+        this._visualTransitionChain = Promise.resolve();
+        this._visualTransitionPromises = new Set();
+        this._trackVisualTransition = (promise) => {
+            if (!promise || typeof promise.then !== 'function') {
+                return promise;
             }
-            return this.postProcessingEnabled;
+            this._visualTransitionPromises.add(promise);
+            const cleanup = () => this._visualTransitionPromises.delete(promise);
+            promise.then(cleanup, cleanup);
+            return promise;
+        };
+        this.waitForVisualTransitions = async () => {
+            const pending = Array.from(this._visualTransitionPromises);
+            if (pending.length === 0) {
+                return [];
+            }
+            return Promise.allSettled(pending);
+        };
+        this._runVisualTransition = (task, overlayConfig = null) => {
+            const runTask = async () => {
+                if (overlayConfig) {
+                    return this.loadingOverlay.run(task, overlayConfig);
+                }
+                return task({
+                    token: null,
+                    setPhase: () => {},
+                    yieldFrame: async () => {},
+                });
+            };
+
+            const transitionPromise = this._visualTransitionChain
+                .catch(() => {})
+                .then(runTask);
+            this._visualTransitionChain = transitionPromise.catch(() => {});
+            return this._trackVisualTransition(transitionPromise);
+        };
+        this.cinematicNodeShadersEnabled = true;
+        this.setPostProcessingEnabled = (enabled = true, options = {}) => {
+            const next = !!enabled;
+            if (this.postProcessingEnabled === next) {
+                return Promise.resolve(this.postProcessingEnabled);
+            }
+
+            this.postProcessingEnabled = next;
+            if (!next) {
+                this.postProcessing?.setBloomTexture?.(null);
+                return Promise.resolve(this.postProcessingEnabled);
+            }
+
+            const showLoading = options.showLoading !== false;
+            return this._runVisualTransition(
+                async ({ setPhase, yieldFrame }) => {
+                    setPhase({
+                        title: 'POST-PROCESSING ONLINE',
+                        subtitle: 'Waking the cinematic composite lattice.',
+                        phase: 'WARMING POST-PROCESSING',
+                        variant: 'post-processing',
+                    });
+                    await yieldFrame();
+                    await this.postProcessing?.warmup?.(this.renderer);
+
+                    if (this.luminosityBloomEnabled) {
+                        setPhase({
+                            title: 'POST-PROCESSING ONLINE',
+                            subtitle: 'Stitching auxiliary bloom into the composite.',
+                            phase: 'COMPILING VISUAL PASSES',
+                            variant: 'post-processing',
+                        });
+                        await yieldFrame();
+                        await this.luminosityBloom?.warmup?.(this.renderer);
+                    }
+
+                    setPhase({
+                        title: 'POST-PROCESSING ONLINE',
+                        subtitle: 'Returning control to the live field.',
+                        phase: 'RETURNING TO SIMULATION',
+                        variant: 'post-processing',
+                    });
+                    await yieldFrame();
+                    return this.postProcessingEnabled;
+                },
+                showLoading ? {
+                    title: 'POST-PROCESSING ONLINE',
+                    subtitle: 'Waking the cinematic composite lattice.',
+                    phase: 'WARMING POST-PROCESSING',
+                    variant: 'post-processing',
+                } : null,
+            );
         };
 
-        this.setLuminosityBloomEnabled = (enabled = true) => {
+        this.setLuminosityBloomEnabled = (enabled = true, options = {}) => {
             const next = !!enabled;
-            if (this.luminosityBloomEnabled !== next) {
-                this.luminosityBloomEnabled = next;
-                if (next && this.postProcessingEnabled) {
-                    void this.luminosityBloom?.warmup?.(this.renderer);
-                }
-                if (!next) {
-                    this.postProcessing?.setBloomTexture?.(null);
-                }
+            if (this.luminosityBloomEnabled === next) {
+                return Promise.resolve(this.luminosityBloomEnabled);
             }
-            return this.luminosityBloomEnabled;
+
+            this.luminosityBloomEnabled = next;
+            if (!next) {
+                this.postProcessing?.setBloomTexture?.(null);
+                return Promise.resolve(this.luminosityBloomEnabled);
+            }
+
+            if (!this.postProcessingEnabled) {
+                return Promise.resolve(this.luminosityBloomEnabled);
+            }
+
+            const showLoading = options.showLoading !== false;
+            return this._runVisualTransition(
+                async ({ setPhase, yieldFrame }) => {
+                    setPhase({
+                        title: 'LUMINOSITY BLOOM ONLINE',
+                        subtitle: 'Charging the selective bloom field.',
+                        phase: 'WARMING LUMINOSITY BLOOM',
+                        variant: 'luminosity-bloom',
+                    });
+                    await yieldFrame();
+                    await this.luminosityBloom?.warmup?.(this.renderer);
+                    setPhase({
+                        title: 'LUMINOSITY BLOOM ONLINE',
+                        subtitle: 'Binding bloom energy back into the live composite.',
+                        phase: 'BINDING BLOOM CHAIN',
+                        variant: 'luminosity-bloom',
+                    });
+                    await yieldFrame();
+                    setPhase({
+                        title: 'LUMINOSITY BLOOM ONLINE',
+                        subtitle: 'Returning control to the live field.',
+                        phase: 'RETURNING TO SIMULATION',
+                        variant: 'luminosity-bloom',
+                    });
+                    await yieldFrame();
+                    return this.luminosityBloomEnabled;
+                },
+                showLoading ? {
+                    title: 'LUMINOSITY BLOOM ONLINE',
+                    subtitle: 'Charging the selective bloom field.',
+                    phase: 'WARMING LUMINOSITY BLOOM',
+                    variant: 'luminosity-bloom',
+                } : null,
+            );
         };
 
         this._syncCinematicNodeShaders = () => {
@@ -7121,10 +7234,10 @@ window.__ATOMA_SCENE__ = this.scene;
         const bootMenuSettings = this.bootOptions?.menuSettings || null;
         if (bootMenuSettings) {
             if (bootMenuSettings.postProcessing !== undefined) {
-                this.setPostProcessingEnabled(bootMenuSettings.postProcessing !== false);
+                void this.setPostProcessingEnabled(bootMenuSettings.postProcessing !== false, { showLoading: false });
             }
             if (bootMenuSettings.luminosityBloom !== undefined) {
-                this.setLuminosityBloomEnabled(bootMenuSettings.luminosityBloom === true);
+                void this.setLuminosityBloomEnabled(bootMenuSettings.luminosityBloom === true, { showLoading: false });
             }
             if (bootMenuSettings.nodeRotations !== undefined) {
                 this.setNodeRotationsEnabled(bootMenuSettings.nodeRotations !== false);
@@ -11318,17 +11431,48 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
     switchWorld(worldId) {
         console.log('[SWITCHWORLD] called');
-        if (worldId) {
-            this.loadWorld(worldId);
-            return;
-        }
         const order = ["fractal", "quantum", "desert", "desert2", "memory", "chamber", "sigma"];
+        const nextWorldId = worldId || order[(order.indexOf(this.currentMode) + 1) % order.length];
+        const wasPaused = this.isPaused === true;
+        this.pause();
 
-        const currentIndex = order.indexOf(this.currentMode);
-        const nextIndex = (currentIndex + 1) % order.length;
-        const nextWorldId = order[nextIndex];
-
-        this.loadWorld(nextWorldId);
+        return this._runVisualTransition(
+            async ({ setPhase, yieldFrame }) => {
+                setPhase({
+                    title: 'WORLD TRANSITION',
+                    subtitle: 'Collapsing the previous field geometry.',
+                    phase: 'COLLAPSING WORLD',
+                    variant: 'world-switch',
+                });
+                await yieldFrame();
+                setPhase({
+                    title: 'WORLD TRANSITION',
+                    subtitle: 'Weaving the next world lattice.',
+                    phase: 'WEAVING NEW FIELD',
+                    variant: 'world-switch',
+                });
+                await yieldFrame();
+                this.loadWorld(nextWorldId);
+                setPhase({
+                    title: 'WORLD TRANSITION',
+                    subtitle: 'Restoring spatial rhythm and simulation authority.',
+                    phase: 'RESTORING SIMULATION',
+                    variant: 'world-switch',
+                });
+                await yieldFrame();
+                return true;
+            },
+            {
+                title: 'WORLD TRANSITION',
+                subtitle: 'Collapsing the previous field geometry.',
+                phase: 'COLLAPSING WORLD',
+                variant: 'world-switch',
+            },
+        ).finally(() => {
+            if (!wasPaused) {
+                this.resume();
+            }
+        });
     }
 
     pause() {

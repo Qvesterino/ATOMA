@@ -65,6 +65,7 @@ export class PauseMenu {
         this._rafId = 0;
         this._lastFrameTime = 0;
         this._isVisible = false;
+        this._transitionLocked = false;
 
         this._handleKeyDown = (event) => this._onKeyDown(event);
         this._handleKeyUp = (event) => this._onKeyUp(event);
@@ -181,8 +182,16 @@ export class PauseMenu {
         return true;
     }
 
-    activateSelected() {
-        this._activateCurrentEntry();
+    async activateSelected() {
+        if (this._transitionLocked) {
+            return;
+        }
+
+        try {
+            await this._activateCurrentEntry();
+        } catch (error) {
+            console.warn('[PauseMenu] activateSelected failed:', error);
+        }
     }
 
     _buildDom() {
@@ -422,7 +431,7 @@ export class PauseMenu {
 
             button.addEventListener('click', () => {
                 this.setSelectedIndex(index);
-                this.activateSelected();
+                void this.activateSelected();
             });
 
             list.appendChild(button);
@@ -520,7 +529,7 @@ export class PauseMenu {
             });
             card.addEventListener('click', () => {
                 this.setSelectedIndex(index);
-                this.activateSelected();
+                void this.activateSelected();
             });
 
             grid.appendChild(card);
@@ -809,7 +818,7 @@ export class PauseMenu {
         }
     }
 
-    _activateCurrentEntry() {
+    async _activateCurrentEntry() {
         const entry = this._getSelectedEntry();
         if (!entry) {
             return;
@@ -842,7 +851,7 @@ export class PauseMenu {
             return;
         }
 
-        this._cycleSetting(entry.id, 1);
+        await this._cycleSetting(entry.id, 1);
     }
 
     _activateMainEntry(entryId) {
@@ -871,10 +880,15 @@ export class PauseMenu {
         }
     }
 
-    _cycleSetting(settingId, direction) {
+    async _cycleSetting(settingId, direction) {
+        if (this._transitionLocked) {
+            return;
+        }
+
         const settings = { ...this.profile.settings };
         const soundLevels = [0, 20, 40, 60, 80, 100];
         const visualLevels = ['LOW', 'MEDIUM', 'HIGH'];
+        let transitionPromise = null;
 
         if (settingId === 'sound') {
             const currentIndex = soundLevels.indexOf(settings.soundLevel);
@@ -900,7 +914,7 @@ export class PauseMenu {
             settings.postProcessing = !settings.postProcessing;
             if (typeof window !== 'undefined') {
                 if (window.game?.setPostProcessingEnabled) {
-                    window.game.setPostProcessingEnabled(settings.postProcessing);
+                    transitionPromise = window.game.setPostProcessingEnabled(settings.postProcessing);
                 } else {
                     window.__ATOMA_POSTPROCESSING_PENDING__ = settings.postProcessing;
                 }
@@ -909,7 +923,7 @@ export class PauseMenu {
             settings.luminosityBloom = !settings.luminosityBloom;
             if (typeof window !== 'undefined') {
                 if (window.game?.setLuminosityBloomEnabled) {
-                    window.game.setLuminosityBloomEnabled(settings.luminosityBloom);
+                    transitionPromise = window.game.setLuminosityBloomEnabled(settings.luminosityBloom);
                 } else {
                     window.__ATOMA_LUMINOSITY_BLOOM_PENDING__ = settings.luminosityBloom;
                 }
@@ -954,6 +968,19 @@ export class PauseMenu {
 
         this.profile.settings = settings;
         this.profile = saveMenuProfile(this.profile);
+        if (transitionPromise && typeof transitionPromise.then === 'function') {
+            this._transitionLocked = true;
+            try {
+                await transitionPromise;
+            } catch (error) {
+                console.warn('[PauseMenu] setting transition failed:', error);
+            } finally {
+                this._transitionLocked = false;
+                this.refresh();
+            }
+            return;
+        }
+
         this.refresh();
     }
 
@@ -985,6 +1012,11 @@ export class PauseMenu {
 
     _onKeyDown(event) {
         if (!this._isVisible) {
+            return;
+        }
+
+        if (this._transitionLocked) {
+            event.preventDefault();
             return;
         }
 
@@ -1040,7 +1072,7 @@ export class PauseMenu {
 
         if (event.key === 'Enter') {
             event.preventDefault();
-            this.activateSelected();
+            void this.activateSelected();
             return;
         }
 
@@ -1062,7 +1094,7 @@ export class PauseMenu {
                 return;
             }
 
-            this._cycleSetting(entry.id, event.key === 'ArrowLeft' ? -1 : 1);
+            void this._cycleSetting(entry.id, event.key === 'ArrowLeft' ? -1 : 1);
         }
     }
 

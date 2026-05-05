@@ -1301,6 +1301,7 @@ export class MainMenu {
         this._rafId = 0;
         this._lastFrameTime = 0;
         this._isVisible = false;
+        this._transitionLocked = false;
         this._dpr = 1;
         this._backgroundWidth = 0;
         this._backgroundHeight = 0;
@@ -1620,7 +1621,7 @@ export class MainMenu {
 
             button.addEventListener('click', () => {
                 this.setSelectedIndex(index);
-                this.activateSelected();
+                void this.activateSelected();
             });
 
             list.appendChild(button);
@@ -1744,7 +1745,7 @@ export class MainMenu {
             });
             card.addEventListener('click', () => {
                 this.setSelectedIndex(index);
-                this.activateSelected();
+                void this.activateSelected();
             });
 
             grid.appendChild(card);
@@ -2038,8 +2039,16 @@ export class MainMenu {
         return true;
     }
 
-    activateSelected() {
-        this._activateCurrentEntry();
+    async activateSelected() {
+        if (this._transitionLocked) {
+            return;
+        }
+
+        try {
+            await this._activateCurrentEntry();
+        } catch (error) {
+            console.warn('[MainMenu] activateSelected failed:', error);
+        }
     }
 
     _moveSelection(delta) {
@@ -2061,7 +2070,7 @@ export class MainMenu {
         }
     }
 
-    _activateCurrentEntry() {
+    async _activateCurrentEntry() {
         const entry = this._getSelectedEntry();
         if (!entry) {
             return;
@@ -2090,7 +2099,7 @@ export class MainMenu {
                 return;
             }
 
-            this._cycleSetting(entry.id, 1);
+            await this._cycleSetting(entry.id, 1);
         }
     }
 
@@ -2139,8 +2148,13 @@ export class MainMenu {
         }
     }
 
-    _cycleSetting(settingId, direction) {
+    async _cycleSetting(settingId, direction) {
+        if (this._transitionLocked) {
+            return;
+        }
+
         const settings = { ...this.profile.settings };
+        let transitionPromise = null;
 
         if (settingId === 'sound') {
             const currentIndex = SOUND_LEVELS.indexOf(settings.soundLevel);
@@ -2166,7 +2180,7 @@ export class MainMenu {
             settings.postProcessing = !settings.postProcessing;
             if (typeof window !== 'undefined') {
                 if (window.game?.setPostProcessingEnabled) {
-                    window.game.setPostProcessingEnabled(settings.postProcessing);
+                    transitionPromise = window.game.setPostProcessingEnabled(settings.postProcessing);
                 } else {
                     window.__ATOMA_POSTPROCESSING_PENDING__ = settings.postProcessing;
                 }
@@ -2175,7 +2189,7 @@ export class MainMenu {
             settings.luminosityBloom = !settings.luminosityBloom;
             if (typeof window !== 'undefined') {
                 if (window.game?.setLuminosityBloomEnabled) {
-                    window.game.setLuminosityBloomEnabled(settings.luminosityBloom);
+                    transitionPromise = window.game.setLuminosityBloomEnabled(settings.luminosityBloom);
                 } else {
                     window.__ATOMA_LUMINOSITY_BLOOM_PENDING__ = settings.luminosityBloom;
                 }
@@ -2220,6 +2234,19 @@ export class MainMenu {
 
         this.profile.settings = settings;
         this.profile = saveMenuProfile(this.profile);
+        if (transitionPromise && typeof transitionPromise.then === 'function') {
+            this._transitionLocked = true;
+            try {
+                await transitionPromise;
+            } catch (error) {
+                console.warn('[MainMenu] setting transition failed:', error);
+            } finally {
+                this._transitionLocked = false;
+                this.refresh();
+            }
+            return;
+        }
+
         this.refresh();
     }
 
@@ -2233,6 +2260,11 @@ export class MainMenu {
 
     _onKeyDown(event) {
         if (!this._isVisible) {
+            return;
+        }
+
+        if (this._transitionLocked) {
+            event.preventDefault();
             return;
         }
 
@@ -2286,7 +2318,7 @@ export class MainMenu {
 
         if (event.key === 'Enter') {
             event.preventDefault();
-            this.activateSelected();
+            void this.activateSelected();
             return;
         }
 
@@ -2304,7 +2336,7 @@ export class MainMenu {
             if (!entry) {
                 return;
             }
-            this._cycleSetting(entry.id, event.key === 'ArrowLeft' ? -1 : 1);
+            void this._cycleSetting(entry.id, event.key === 'ArrowLeft' ? -1 : 1);
         }
     }
 
