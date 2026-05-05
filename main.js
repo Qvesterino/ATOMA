@@ -55,6 +55,7 @@ import { MemoryLane } from './MemoryLane.js';
 import { EnvironmentDomainController } from './EnvironmentDomainController.js';
 import { AINodes } from './AINodes.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
+import { NODE_VISUAL_REGISTRY } from './NodeVisualRegistry.js';
 // REMOVED: ArchetypeVisualProfiles, ArchetypeVisualDifferentiationSystem, patchArchetypeVisuals — moved to LEGACY/april (2026-04-22)
 import { AtomaAudioSystem } from './AtomaAudioSystem.js';
 import { AtomaAudioModulation } from './AtomaAudioModulation.js';
@@ -17103,6 +17104,102 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             return {
                 attempted: maxLinks,
                 created
+            };
+        };
+        window.__DEBUG.createReachabilitySmokeLinks = (linkCount = 6) => {
+            const linkingSystem = window.__DEBUG.getLinkingSystem();
+            if (!linkingSystem?.createLinkById) return { created: [], attempted: 0, candidates: [] };
+
+            const preferredCategories = new Set(['input', 'storage', 'control', 'sigma', 'prime']);
+            const deriveReachabilityTarget = (metrics = {}) => {
+                const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
+                const harmony = clamp01(metrics.harmony);
+                const stability = clamp01(metrics.stability);
+                const corruption = clamp01(metrics.corruption);
+                const loadPressure = clamp01(metrics.loadPressure ?? metrics.load ?? metrics.pressure);
+                const derived = harmony * stability * (1 - corruption * 0.70) * (1 - loadPressure * 0.50);
+                const archetypeBase = clamp01(metrics.synergy ?? derived);
+                return clamp01((archetypeBase * 0.72) + (derived * 0.28));
+            };
+            const nodes = Array.isArray(this.aiNodes?.nodes) ? this.aiNodes.nodes : [];
+            const candidates = nodes
+                .map((node) => {
+                    const nodeId = node?.userData?.nodeId ?? node?.id ?? null;
+                    const registryCode = Number(nodeId);
+                    const registryDef = Number.isFinite(registryCode) ? NODE_VISUAL_REGISTRY[registryCode] : null;
+                    const category = node?.userData?.category ?? registryDef?.category ?? null;
+                    if (!nodeId || !category || category === 'error') return null;
+
+                    const metrics = registryDef?.metrics ?? node?.userData?.archetypeMetrics ?? node?.userData?.metrics ?? {};
+                    const synergy = Number(metrics.synergy ?? 0);
+                    const corruption = Number(metrics.corruption ?? 1);
+                    const loadPressure = Number(metrics.loadPressure ?? metrics.load ?? metrics.pressure ?? 1);
+                    const reachabilityTarget = deriveReachabilityTarget(metrics);
+                    return {
+                        node,
+                        nodeId,
+                        category,
+                        reachabilityTarget,
+                        synergy: Number.isFinite(synergy) ? synergy : 0,
+                        corruption: Number.isFinite(corruption) ? corruption : 1,
+                        loadPressure: Number.isFinite(loadPressure) ? loadPressure : 1
+                    };
+                })
+                .filter(Boolean)
+                .sort((a, b) => {
+                    const preferredBonusA = preferredCategories.has(a.category) ? 0.01 : 0;
+                    const preferredBonusB = preferredCategories.has(b.category) ? 0.01 : 0;
+                    const scoreA = preferredBonusA + (a.reachabilityTarget * 1.8) + (a.synergy * 0.4) - (a.corruption * 1.0) - (a.loadPressure * 0.6);
+                    const scoreB = preferredBonusB + (b.reachabilityTarget * 1.8) + (b.synergy * 0.4) - (b.corruption * 1.0) - (b.loadPressure * 0.6);
+                    return scoreB - scoreA;
+                });
+
+            const maxLinks = Math.max(0, Number(linkCount) || 0);
+            const targetNodeCount = Math.max(4, Math.min(candidates.length, Math.min(Math.max(5, maxLinks - 1), maxLinks + 1)));
+            const selected = candidates.slice(0, targetNodeCount);
+            if (selected.length < 2) {
+                return { attempted: maxLinks, created: [], candidates: selected.map((entry) => entry.nodeId) };
+            }
+
+            const pairs = [];
+            for (let i = 0; i < selected.length - 1; i++) {
+                pairs.push([selected[i].nodeId, selected[i + 1].nodeId]);
+            }
+            for (let i = 0; i < selected.length - 2; i++) {
+                pairs.push([selected[i].nodeId, selected[i + 2].nodeId]);
+            }
+            if (selected.length >= 4) {
+                pairs.push([selected[0].nodeId, selected[selected.length - 1].nodeId]);
+            }
+            if (selected.length >= 5) {
+                pairs.push([selected[1].nodeId, selected[3].nodeId]);
+            }
+
+            const created = [];
+            const seenPairs = new Set();
+            for (const [idA, idB] of pairs) {
+                if (created.length >= maxLinks) break;
+                if (idA === undefined || idB === undefined || idA === idB) continue;
+                const pairKey = [idA, idB].sort().join('::');
+                if (seenPairs.has(pairKey)) continue;
+                seenPairs.add(pairKey);
+                const result = linkingSystem.createLinkById(idA, idB);
+                if (result) {
+                    created.push({ idA, idB });
+                }
+            }
+
+            return {
+                attempted: maxLinks,
+                created,
+                candidates: selected.map((entry) => ({
+                    id: entry.nodeId,
+                    category: entry.category,
+                    reachabilityTarget: Number(entry.reachabilityTarget.toFixed(3)),
+                    synergy: Number(entry.synergy.toFixed(3)),
+                    corruption: Number(entry.corruption.toFixed(3)),
+                    loadPressure: Number(entry.loadPressure.toFixed(3))
+                }))
             };
         };
         window.__DEBUG.spawnLinkResonancePulseOnce = (linkIdOrLink, options = {}) => {

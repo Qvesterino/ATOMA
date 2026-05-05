@@ -105,8 +105,8 @@ const UNLINKED_DAMPING_FACTOR = 0.1;
 
 const SYNERGY_DERIVATION = {
   smoothing: 0.25,
-  corruptionDamping: 0.85,
-  loadDamping: 0.65,
+  corruptionDamping: 0.70,
+  loadDamping: 0.50,
   resonanceHarmonyThreshold: 0.75,
   resonanceStabilityThreshold: 0.65,
   resonanceScale: 0.35
@@ -426,9 +426,9 @@ function deriveSynergyTarget(metrics, archetypeMetrics = null) {
   // This prevents synergy from collapsing to near-zero for all archetypes
   const archetypeBase = archetypeMetrics?.synergy ?? derived;
 
-  // Blend: 60% archetype DNA + 40% runtime derived
-  // This balances archetype identity with dynamic gameplay behavior
-  const target = archetypeBase * 0.60 + derived * 0.40;
+  // Blend: preserve more archetype synergy so "good" nodes stay naturally viable,
+  // while still allowing runtime conditions to meaningfully pull the target.
+  const target = archetypeBase * 0.72 + derived * 0.28;
 
   return clamp01(target);
 }

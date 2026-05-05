@@ -17,6 +17,26 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
 - `DreamDesert2.js` was softened visually: muted dune palette, less white ridge highlights, reduced lighting intensity, quieter cloud layers, and a gentler moving sun/glow so the scene reads as one unified terrain instead of a high-contrast neon field.
 - `FractalValley.js` now keeps only the unbroken hero bridge; the distant/broken bridge was removed from the spawn list so the valley reads as one clean crossing.
 
+## 2026-05-05
+- Reachability balance pass landed for the release gameplay loop.
+- `NodeMetricEngine` now preserves more archetype synergy when deriving node synergy (`0.72 archetype / 0.28 derived`) and is less punitive on corruption/load damping.
+- `NetworkMetricsAggregator.compute()` is now the single hybrid quality-sensitive runtime path:
+  - no random fallback mutation for missing node metrics
+  - no unconditional audit spam
+  - normalized link quality support across `normalizedScore`, `quality`, `score`, and `qualityScore`
+  - weighted node contributions plus stronger, fairer link influence
+- Added `window.__DEBUG.createReachabilitySmokeLinks(count = 6)` in `main.js` for deterministic QA smoke setup.
+- Local verification passed:
+  - `node --check src/metrics/NodeMetricEngine.js`
+  - `node --check src/metrics/NetworkMetricsAggregator.js`
+  - `node --check main.js`
+  - `node tests/MetricsAuthority.test.js`
+  - `node tests/GameplayLoopChecks.js`
+- Browser smoke status:
+  - raw gameplay synergy now crosses `0.45` reliably in the deterministic helper smoke
+  - visible Playwright run confirmed `REWIND` after sustained high raw synergy
+  - full `WON` was not made fully reliable in every long smoke yet; if human runtime still feels too strict, next pass should be a small follow-up sensitivity tweak, not another authority refactor
+
 ## 2026-04-08
 - `FractalValley.js` river composition was simplified: the secondary flow overlay was reduced so the map reads as one dominant river channel, and bridge placements were nudged to sit more cleanly on that axis.
 - `FractalValley.js` got a composition pass: bridge placements were nudged, bridge decks sit higher above the river cut, and the terrain now carves a corridor around bridges so the valley reads as one river crossing instead of layered clutter.

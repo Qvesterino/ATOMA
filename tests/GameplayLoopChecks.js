@@ -5,6 +5,7 @@ import { AtomaLeaderboard } from '../AtomaLeaderboard.js';
 import { LinkCollapseSystem } from '../LinkCollapseSystem.js';
 import { getDefaultMetricThresholds } from '../src/metrics/MetricTierClassifier.js';
 import { NODE_VISUAL_REGISTRY } from '../NodeVisualRegistry.js';
+import { NetworkMetricsAggregator } from '../src/metrics/NetworkMetricsAggregator.js';
 import { onLinkCreated, onLinkRemoved } from '../src/metrics/NodeMetricEngine.js';
 
 const tests = [];
@@ -14,6 +15,60 @@ function test(name, fn) {
 
 function assertNear(actual, expected, epsilon = 1e-9) {
   assert(Math.abs(actual - expected) <= epsilon, `expected ${actual} to be within ${epsilon} of ${expected}`);
+}
+
+function deriveReachabilityTarget(metrics) {
+  const clamp01 = (value) => Math.max(0, Math.min(1, value));
+  const harmony = clamp01(metrics.harmony ?? 0);
+  const stability = clamp01(metrics.stability ?? 0);
+  const corruption = clamp01(metrics.corruption ?? 0);
+  const loadPressure = clamp01(metrics.loadPressure ?? 0);
+  const derived = harmony * stability * (1 - corruption * 0.70) * (1 - loadPressure * 0.50);
+  const archetypeBase = metrics.synergy ?? derived;
+  return clamp01(archetypeBase * 0.72 + derived * 0.28);
+}
+
+function createTestNode(nodeId, category, metrics) {
+  return {
+    id: nodeId,
+    userData: {
+      nodeId,
+      category,
+      metrics: { ...metrics },
+      archetypeMetrics: { ...metrics }
+    }
+  };
+}
+
+function createAggregatorHarness({ nodes, links }) {
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+  const linkList = links.map((link, index) => {
+    const source = nodeMap.get(link.a);
+    const target = nodeMap.get(link.b);
+    return {
+      id: link.id ?? `link-${index}`,
+      source,
+      target,
+      quality: link.quality,
+      userData: link.userData ? { ...link.userData } : {}
+    };
+  });
+
+  return new NetworkMetricsAggregator({
+    networkResolver: {
+      nodeMap,
+      resolve() {},
+      getNetworks() {
+        return new Map([['network-0', new Set(nodes.map((node) => node.id))]]);
+      },
+      linkSystem: {
+        links: linkList,
+        getLinksForNode(nodeId) {
+          return linkList.filter((link) => link.source?.id === nodeId || link.target?.id === nodeId);
+        }
+      }
+    }
+  });
 }
 
 test('Network Time rewinds after 5s of canonical global.synergy.high sustain', () => {
@@ -171,6 +226,16 @@ test('Balance-first DNA offsets only lift storage, input, and control baselines'
   assertNear(analyticsNode.metrics.loadPressure, 0.402817);
 });
 
+test('Reachability derivation keeps input, storage, and control nodes near viable baseline synergy', () => {
+  const inputTarget = deriveReachabilityTarget(NODE_VISUAL_REGISTRY[111].metrics);
+  const storageTarget = deriveReachabilityTarget(NODE_VISUAL_REGISTRY[516].metrics);
+  const controlTarget = deriveReachabilityTarget(NODE_VISUAL_REGISTRY[619].metrics);
+
+  assert(inputTarget >= 0.43, `expected input target >= 0.43, got ${inputTarget}`);
+  assert(storageTarget >= 0.44, `expected storage target >= 0.44, got ${storageTarget}`);
+  assert(controlTarget >= 0.49, `expected control target >= 0.49, got ${controlTarget}`);
+});
+
 test('Link create and remove impulses improve stability and only mildly punish cross-category links', () => {
   const nodeA = {
     userData: {
@@ -228,6 +293,62 @@ test('Link create and remove impulses improve stability and only mildly punish c
   assert(nodeA.userData.metrics.stability < postCreateStabilityA);
   assert(nodeA.userData.metrics.harmony < postCreateHarmonyA);
   assert(nodeA.userData.metrics.loadPressure < postCreateLoadA);
+});
+
+test('Hybrid network aggregator normalizes quality and favors high-quality mixed networks', () => {
+  const inputNode = createTestNode('111', 'input', {
+    ...NODE_VISUAL_REGISTRY[111].metrics,
+    synergy: deriveReachabilityTarget(NODE_VISUAL_REGISTRY[111].metrics)
+  });
+  const storageNode = createTestNode('516', 'storage', {
+    ...NODE_VISUAL_REGISTRY[516].metrics,
+    synergy: deriveReachabilityTarget(NODE_VISUAL_REGISTRY[516].metrics)
+  });
+  const controlNode = createTestNode('619', 'control', {
+    ...NODE_VISUAL_REGISTRY[619].metrics,
+    synergy: deriveReachabilityTarget(NODE_VISUAL_REGISTRY[619].metrics)
+  });
+
+  const goodAggregator = createAggregatorHarness({
+    nodes: [inputNode, storageNode, controlNode],
+    links: [
+      { a: '111', b: '516', userData: { quality: { normalizedScore: 0.85 } } },
+      { a: '516', b: '619', userData: { quality: { score: 82 } } },
+      { a: '111', b: '619', quality: 0.8 }
+    ]
+  });
+
+  const weakAggregator = createAggregatorHarness({
+    nodes: [inputNode, storageNode, controlNode],
+    links: [
+      { a: '111', b: '516', userData: { quality: { normalizedScore: 0.35 } } },
+      { a: '516', b: '619', userData: { quality: { score: 38 } } },
+      { a: '111', b: '619', quality: 0.3 }
+    ]
+  });
+
+  const goodResult = goodAggregator.compute();
+  const weakResult = weakAggregator.compute();
+
+  assert(goodResult.networkSynergy >= 0.45, `expected good mixed network >= 0.45, got ${goodResult.networkSynergy}`);
+  assert(goodResult.avgLinkQuality > 0.75, `expected normalized quality > 0.75, got ${goodResult.avgLinkQuality}`);
+  assert.strictEqual(goodResult.aggregatorMode, 'hybrid');
+  assert(goodResult.networkSynergy > weakResult.networkSynergy, 'high-quality network should outperform weak network');
+});
+
+test('Hybrid network aggregator never mutates missing node metrics with random fallback values', () => {
+  const nodeA = { id: 'a', userData: { category: 'input' } };
+  const nodeB = { id: 'b', userData: { category: 'storage' } };
+  const aggregator = createAggregatorHarness({
+    nodes: [nodeA, nodeB],
+    links: [{ a: 'a', b: 'b', quality: 0.8 }]
+  });
+
+  const result = aggregator.compute();
+
+  assert.strictEqual(result.networkSynergy, 0);
+  assert.strictEqual(nodeA.userData.metrics, undefined);
+  assert.strictEqual(nodeB.userData.metrics, undefined);
 });
 
 test('Leaderboard scoring prefers synergy mastery over a slightly faster weak run', () => {
