@@ -18,7 +18,7 @@ class ToneNode {
 
   connect(node) {
     this._connectedTo = node || null;
-    return node || this;
+    return this;
   }
 
   toDestination() {
@@ -40,6 +40,14 @@ class ToneSynthBase extends ToneNode {
   constructor() {
     super();
     this.volume = new ToneParam(0, -Infinity, 0);
+  }
+
+  set(options = {}) {
+    this.options = {
+      ...(this.options || {}),
+      ...options
+    };
+    return this;
   }
 
   triggerAttackRelease() {
@@ -68,11 +76,17 @@ class Reverb extends ToneNode {
     super();
     this.decay = options.decay ?? 1.5;
     this.preDelay = options.preDelay ?? 0.01;
-    this.wet = options.wet ?? 0.15;
+    this.wet = new ToneParam(options.wet ?? 0.15, 0, 1);
   }
 }
 
 class AutoFilter extends Filter {
+  constructor(options = {}) {
+    super(options);
+    this.baseFrequency = options.baseFrequency ?? 300;
+    this.octaves = options.octaves ?? 2;
+  }
+
   start() {
     this.started = true;
     return this;
@@ -135,12 +149,50 @@ const ToneTransport = {
   }
 };
 
+class ToneDestination extends ToneNode {
+  constructor() {
+    super();
+    this.mute = false;
+  }
+}
+
+class Panner extends ToneNode {
+  constructor(pan = 0) {
+    super();
+    this.pan = new ToneParam(pan, -1, 1);
+  }
+}
+
+class PanVol extends ToneNode {
+  constructor(options = {}) {
+    super();
+    this.pan = new ToneParam(options.pan ?? 0, -1, 1);
+    this.volume = new ToneParam(options.volume ?? 0, -Infinity, 0);
+  }
+}
+
+class Channel extends PanVol {}
+
+export const __ATOMA_TONE_STUB__ = true;
+export const version = 'atoma-tone-stub';
 export const context = {
   state: 'running'
 };
+export const Destination = new ToneDestination();
+
+export function getDestination() {
+  return Destination;
+}
+
+export function getContext() {
+  return {
+    state: context.state,
+    rawContext: null
+  };
+}
 
 export const Transport = ToneTransport;
-export { ToneParam as Param, Filter, Limiter, Reverb, MonoSynth, Synth, NoiseSynth, DuoSynth, PolySynth, AutoFilter, LFO };
+export { ToneParam as Param, Filter, Limiter, Reverb, MonoSynth, Synth, NoiseSynth, DuoSynth, PolySynth, AutoFilter, LFO, Panner, PanVol, Channel };
 
 export function now() {
   return (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
@@ -162,8 +214,16 @@ export default {
   PolySynth,
   AutoFilter,
   LFO,
+  Panner,
+  PanVol,
+  Channel,
   Transport,
   context,
+  Destination,
+  getDestination,
+  getContext,
+  __ATOMA_TONE_STUB__,
+  version,
   now,
   start
 };

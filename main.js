@@ -5390,7 +5390,92 @@ this.setHudDirty('nodeInspect');
         this.audioModulation = null; // Constructed lazily after first user gesture (autoplay-safe)
         this.previousSynergyState = 'none'; // 'none', 'active', 'fading'
         this.audioStartInProgress = false;
-        
+        this.audioStartFatalLocked = false;
+        this.audioStartLastError = null;
+        this.audioOptionalErrors = [];
+        this.audioStartupDiagnostics = null;
+
+        this._summarizeAudioError = (stage, error, fatal = false) => ({
+            stage,
+            fatal,
+            name: error?.name || 'Error',
+            message: error?.message || String(error)
+        });
+
+        this._pushOptionalAudioError = (stage, error) => {
+            const summary = this._summarizeAudioError(stage, error, false);
+            this.audioOptionalErrors = [summary, ...this.audioOptionalErrors].slice(0, 5);
+            this.audioStartLastError = summary;
+            return summary;
+        };
+
+        this._refreshAudioDiagnostics = () => {
+            const coreStatus = this.audioSystem?.getStatus?.() || {};
+            this.audioStartupDiagnostics = {
+                backend: coreStatus.backend || this.audioSystem?.audioBackend || 'unknown',
+                exists: !!this.audioSystem,
+                initialized: !!coreStatus.initialized,
+                coreReady: !!coreStatus.coreReady,
+                enabled: this.audioSystem?.enabled !== false,
+                muted: !!coreStatus.muted,
+                toneState: coreStatus.toneState ?? 'unknown',
+                modulationReady: !!this.audioModulation,
+                harmonicReady: !!this.harmonicAudio?.initialized,
+                zoneReady: !!this.zoneAudioReactivity,
+                fatalLocked: !!this.audioStartFatalLocked,
+                lastError: this.audioStartLastError || coreStatus.lastStartError || null,
+                optionalErrors: [...this.audioOptionalErrors]
+            };
+            return this.audioStartupDiagnostics;
+        };
+
+        this._startAudioSubsystems = async (source = 'interaction') => {
+            if (!this.audioSystem) return false;
+            if (this.audioSystem.enabled === false) {
+                this._refreshAudioDiagnostics();
+                return false;
+            }
+            if (this.audioStartFatalLocked) {
+                console.warn(`[ATOMA AUDIO] Start blocked after fatal init failure (${source})`);
+                this._refreshAudioDiagnostics();
+                return false;
+            }
+
+            let coreReady = false;
+            try {
+                coreReady = await this.audioSystem.start();
+            } catch (error) {
+                this.audioStartFatalLocked = true;
+                this.audioStartLastError = this._summarizeAudioError('core-start', error, true);
+                this._refreshAudioDiagnostics();
+                throw error;
+            }
+
+            try {
+                if (!this.audioModulation) {
+                    this.audioModulation = new AtomaAudioModulation(this.audioSystem);
+                }
+            } catch (error) {
+                console.warn('[ATOMA AUDIO] Audio modulation init degraded:', error);
+                this._pushOptionalAudioError('modulation-init', error);
+                this.audioModulation = null;
+            }
+
+            try {
+                if (this.harmonicAudio?.start) {
+                    await this.harmonicAudio.start();
+                }
+            } catch (error) {
+                console.warn('[ATOMA AUDIO] Harmonic audio init degraded:', error);
+                this._pushOptionalAudioError('harmonic-audio-start', error);
+            }
+
+            this._refreshAudioDiagnostics();
+            return coreReady;
+        };
+
+        this._refreshAudioDiagnostics();
+
         // Early audio diagnostics API (available even if later debug setup is interrupted).
         window.startAtomaAudio = async () => {
             if (!this.audioSystem) return false;
@@ -5399,29 +5484,22 @@ this.setHudDirty('nodeInspect');
                 return false;
             }
             try {
-                await this.audioSystem.start();
-                if (!this.audioModulation) {
-                    this.audioModulation = new AtomaAudioModulation(this.audioSystem);
-                }
-                if (this.harmonicAudio?.start) {
-                    await this.harmonicAudio.start();
-                }
+                const started = await this._startAudioSubsystems('manual');
                 console.log('[ATOMA AUDIO] Manual start successful');
-                return true;
+                return started;
             } catch (err) {
                 console.error('[ATOMA AUDIO] Manual start failed:', err);
                 return false;
             }
         };
-        window.audioStatus = () => ({
-            exists: !!this.audioSystem,
-            initialized: !!this.audioSystem?.initialized,
-            enabled: !!this.audioSystem?.enabled,
-            muted: !!window.Tone?.getDestination?.()?.mute,
-            toneState: (window.Tone?.getContext?.().state ?? 'unknown'),
-            modulationReady: !!this.audioModulation,
-            harmonicReady: !!this.harmonicAudio?.initialized
-        });
+        window.audioStatus = () => ({ ...this._refreshAudioDiagnostics() });
+        window.resetAtomaAudioStartLock = () => {
+            this.audioStartFatalLocked = false;
+            this.audioStartLastError = null;
+            this.audioOptionalErrors = [];
+            this.audioSystem.lastStartError = null;
+            return window.audioStatus();
+        };
         window.testAudio = (soundName = 'selection') => {
             const audio = this.audioSystem;
             if (!audio) return console.warn('[ATOMA AUDIO] audioSystem missing');
@@ -5498,24 +5576,21 @@ this.setHudDirty('nodeInspect');
             if (this.audioSystem.enabled === false) return false;
             if (this.audioSystem.initialized) return;
             if (this.audioStartInProgress) return;
+            if (this.audioStartFatalLocked) return false;
             this.audioStartInProgress = true;
 
             try {
-                await this.audioSystem.start();
-                if (!this.audioModulation) {
-                    this.audioModulation = new AtomaAudioModulation(this.audioSystem);
-                }
-                if (this.harmonicAudio?.start) {
-                    await this.harmonicAudio.start();
-                }
+                const started = await this._startAudioSubsystems('first-interaction');
+                if (!started) return false;
                 document.removeEventListener('pointerdown', startAudioOnFirstInteraction);
                 document.removeEventListener('click', startAudioOnFirstInteraction);
                 document.removeEventListener('keydown', startAudioOnFirstInteraction);
                 console.log('[ATOMA AUDIO] AudioContext started successfully');
             } catch (error) {
-                console.error('[Audio] Failed to start AudioContext:', error);
+                console.error('[Audio] Failed to start AudioContext:', this.audioStartLastError || error);
             } finally {
                 this.audioStartInProgress = false;
+                this._refreshAudioDiagnostics();
             }
         };
         this.ensureAudioStarted = startAudioOnFirstInteraction;
@@ -18964,16 +19039,27 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
         // Show audio system status
         window.audioStatus = function () {
-            if (window.game && window.game.audioSystem) {
-                const audio = window.game.audioSystem;
+            if (window.game && typeof window.game._refreshAudioDiagnostics === 'function') {
+                const status = window.game._refreshAudioDiagnostics();
                 console.group('🔊 ATOMA Audio System Status');
-                console.log('Initialized:', audio.initialized);
-                console.log('Enabled:', audio.enabled);
-                console.log('Muted:', !!window.Tone?.getDestination?.()?.mute);
+                console.log('Backend:', status.backend);
+                console.log('Initialized:', status.initialized);
+                console.log('Core Ready:', status.coreReady);
+                console.log('Enabled:', status.enabled);
+                console.log('Muted:', status.muted);
+                console.log('Tone State:', status.toneState);
+                console.log('Modulation Ready:', status.modulationReady);
+                console.log('Harmonic Ready:', status.harmonicReady);
+                console.log('Zone Ready:', status.zoneReady);
+                console.log('Fatal Locked:', status.fatalLocked);
+                console.log('Last Error:', status.lastError);
+                console.log('Optional Errors:', status.optionalErrors);
                 console.log('Synergy Threshold:', window.game.synergyActivationThreshold);
                 console.log('Current Synergy State:', window.game.previousSynergyState);
                 console.groupEnd();
+                return status;
             }
+            return null;
         };
 
         // ========== ATOMA AUDIO MODULATION DEBUG COMMANDS ==========

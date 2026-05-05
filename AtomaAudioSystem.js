@@ -157,10 +157,17 @@ const WORLD_MACRO_AUDIO_PROFILES = {
 
 export class AtomaAudioSystem {
     constructor() {
+        if (typeof window !== 'undefined' && !window.Tone) {
+            window.Tone = Tone;
+        }
+
         this.initialized = false;
         this.storageKey = 'atoma.audio.enabled';
         this.enabled = this._readEnabledPreference();
         this.lastTriggerAt = new Map();
+        this.audioBackend = Tone.__ATOMA_TONE_STUB__ ? 'fallback' : 'real-tone';
+        this.lastStartError = null;
+        this._audioWarnings = new Set();
         this._worldContext = {
             consciousnessState: null,
             worldMoodState: null,
@@ -201,6 +208,135 @@ export class AtomaAudioSystem {
         // All Tone.js synths and effects will be created in createSynths()
         // This prevents AudioContext warning before user gesture
         console.log('[Audio] System Constructed (Waiting for user interaction)');
+    }
+
+    _warnAudioIssue(tag, error) {
+        if (this._audioWarnings.has(tag)) return;
+        this._audioWarnings.add(tag);
+        console.warn(`[Audio] ${tag}`, error);
+    }
+
+    _createAudioNode(tag, factory, { critical = false } = {}) {
+        try {
+            return factory();
+        } catch (error) {
+            this._warnAudioIssue(`Node creation failed: ${tag}`, error);
+            if (critical) throw error;
+            return null;
+        }
+    }
+
+    _connectNode(node, target, tag = 'audio connection') {
+        if (!node || !target || typeof node.connect !== 'function') return node;
+        try {
+            node.connect(target);
+        } catch (error) {
+            this._warnAudioIssue(`Connect failed: ${tag}`, error);
+        }
+        return node;
+    }
+
+    _disconnectNode(node, target = undefined, tag = 'audio disconnect') {
+        if (!node || typeof node.disconnect !== 'function') return node;
+        try {
+            if (target !== undefined) {
+                node.disconnect(target);
+            } else {
+                node.disconnect();
+            }
+        } catch (error) {
+            this._warnAudioIssue(`Disconnect failed: ${tag}`, error);
+        }
+        return node;
+    }
+
+    _routeToDestination(node, tag = 'audio destination') {
+        if (!node || typeof node.toDestination !== 'function') return node;
+        try {
+            node.toDestination();
+        } catch (error) {
+            this._warnAudioIssue(`Destination routing failed: ${tag}`, error);
+        }
+        return node;
+    }
+
+    _routeToMaster(node, tag = 'audio master route') {
+        if (!node) return node;
+        const target = this.masterReverb || this.masterLimiter || null;
+        if (target) {
+            this._connectNode(node, target, tag);
+        } else {
+            this._routeToDestination(node, `${tag}:fallbackDestination`);
+        }
+        return node;
+    }
+
+    _hasWritableParam(param) {
+        return !!param && typeof param === 'object' && 'value' in param;
+    }
+
+    _setParamValue(param, value, tag = 'audio param') {
+        if (this._hasWritableParam(param)) {
+            try {
+                param.value = value;
+                return true;
+            } catch (error) {
+                this._warnAudioIssue(`Param write failed: ${tag}`, error);
+            }
+        }
+        if (param && typeof param.rampTo === 'function') {
+            try {
+                param.rampTo(value, 0.01);
+                return true;
+            } catch (error) {
+                this._warnAudioIssue(`Param ramp failed: ${tag}`, error);
+            }
+        }
+        return false;
+    }
+
+    _setNodeVolume(node, value, tag = 'audio volume') {
+        return this._setParamValue(node?.volume, value, tag);
+    }
+
+    _safeNodeSet(node, payload, tag = 'audio node set') {
+        if (!node || typeof node.set !== 'function') return false;
+        try {
+            node.set(payload);
+            return true;
+        } catch (error) {
+            this._warnAudioIssue(`Node set failed: ${tag}`, error);
+            return false;
+        }
+    }
+
+    _recordStartError(stage, error) {
+        this.lastStartError = {
+            stage,
+            name: error?.name || 'Error',
+            message: error?.message || String(error)
+        };
+        return this.lastStartError;
+    }
+
+    getStatus() {
+        const destination = typeof Tone.getDestination === 'function'
+            ? Tone.getDestination()
+            : Tone.Destination;
+        const toneContext = typeof Tone.getContext === 'function'
+            ? Tone.getContext()
+            : Tone.context || null;
+
+        return {
+            backend: this.audioBackend,
+            exists: true,
+            initialized: this.initialized === true,
+            coreReady: this.initialized === true,
+            enabled: this.enabled !== false,
+            muted: !!destination?.mute,
+            toneState: toneContext?.state ?? 'unknown',
+            lastStartError: this.lastStartError
+        };
     }
 
     _readEnabledPreference() {
@@ -277,7 +413,7 @@ export class AtomaAudioSystem {
 
     _setDramaturgyPanValue(value) {
         if (!this._dramaturgyPanner || !this._dramaturgyPanner.pan) return;
-        this._dramaturgyPanner.pan.value = Math.max(-1, Math.min(1, value));
+        this._setParamValue(this._dramaturgyPanner.pan, Math.max(-1, Math.min(1, value)), 'dramaturgy.pan');
     }
 
     setEnabled(enabled) {
@@ -438,8 +574,8 @@ export class AtomaAudioSystem {
         mix.eventNoiseQ = this._lerp(mix.eventNoiseQ, profile.noiseQ, blend);
 
         if (this.worldDroneSynth) {
-            this.worldDroneSynth.volume.value = mix.droneVolume;
-            this.worldDroneSynth.set({
+            this._setNodeVolume(this.worldDroneSynth, mix.droneVolume, 'worldDroneSynth.mixVolume');
+            this._safeNodeSet(this.worldDroneSynth, {
                 oscillator: { type: profile.oscillatorType || 'sine' },
                 filterEnvelope: {
                     baseFrequency: mix.droneFrequency,
@@ -449,12 +585,12 @@ export class AtomaAudioSystem {
                 filter: {
                     Q: mix.droneQ
                 }
-            });
+            }, 'worldDroneSynth.mixSet');
         }
 
         if (this.worldImpulseSynth) {
-            this.worldImpulseSynth.volume.value = mix.impulseVolume;
-            this.worldImpulseSynth.set({
+            this._setNodeVolume(this.worldImpulseSynth, mix.impulseVolume, 'worldImpulseSynth.mixVolume');
+            this._safeNodeSet(this.worldImpulseSynth, {
                 oscillator: { type: profile.oscillatorType || 'triangle' },
                 filterEnvelope: {
                     baseFrequency: mix.impulseFrequency,
@@ -464,20 +600,20 @@ export class AtomaAudioSystem {
                 filter: {
                     Q: mix.impulseQ
                 }
-            });
+            }, 'worldImpulseSynth.mixSet');
         }
 
         if (this.worldNoiseSynth) {
-            this.worldNoiseSynth.volume.value = mix.noiseVolume;
+            this._setNodeVolume(this.worldNoiseSynth, mix.noiseVolume, 'worldNoiseSynth.mixVolume');
         }
         if (this.worldNoiseFilter) {
-            this.worldNoiseFilter.frequency.value = mix.noiseFrequency;
-            this.worldNoiseFilter.Q.value = mix.noiseQ;
+            this._setParamValue(this.worldNoiseFilter.frequency, mix.noiseFrequency, 'worldNoiseFilter.frequency');
+            this._setParamValue(this.worldNoiseFilter.Q, mix.noiseQ, 'worldNoiseFilter.Q');
         }
 
         if (this.eventLeadSynth) {
-            this.eventLeadSynth.volume.value = mix.eventLeadVolume;
-            this.eventLeadSynth.set({
+            this._setNodeVolume(this.eventLeadSynth, mix.eventLeadVolume, 'eventLeadSynth.mixVolume');
+            this._safeNodeSet(this.eventLeadSynth, {
                 filterEnvelope: {
                     baseFrequency: mix.eventLeadFrequency,
                     octaves: profile.impulseOctaves ?? 2.0,
@@ -486,11 +622,11 @@ export class AtomaAudioSystem {
                 filter: {
                     Q: mix.eventLeadQ
                 }
-            });
+            }, 'eventLeadSynth.mixSet');
         }
         if (this.eventAccentSynth) {
-            this.eventAccentSynth.volume.value = mix.eventAccentVolume;
-            this.eventAccentSynth.set({
+            this._setNodeVolume(this.eventAccentSynth, mix.eventAccentVolume, 'eventAccentSynth.mixVolume');
+            this._safeNodeSet(this.eventAccentSynth, {
                 filterEnvelope: {
                     baseFrequency: mix.eventAccentFrequency,
                     octaves: profile.noiseOctaves ?? 2.8,
@@ -499,14 +635,14 @@ export class AtomaAudioSystem {
                 filter: {
                     Q: mix.eventAccentQ
                 }
-            });
+            }, 'eventAccentSynth.mixSet');
         }
         if (this.eventNoiseSynth) {
-            this.eventNoiseSynth.volume.value = mix.eventNoiseVolume;
+            this._setNodeVolume(this.eventNoiseSynth, mix.eventNoiseVolume, 'eventNoiseSynth.mixVolume');
         }
         if (this.eventNoiseFilter) {
-            this.eventNoiseFilter.frequency.value = mix.eventNoiseFrequency;
-            this.eventNoiseFilter.Q.value = mix.eventNoiseQ;
+            this._setParamValue(this.eventNoiseFilter.frequency, mix.eventNoiseFrequency, 'eventNoiseFilter.frequency');
+            this._setParamValue(this.eventNoiseFilter.Q, mix.eventNoiseQ, 'eventNoiseFilter.Q');
         }
     }
 
@@ -563,10 +699,15 @@ export class AtomaAudioSystem {
         if (!this.initialized || !this.enabled || !this.worldNoiseSynth) return;
         const now = Tone.now();
         const velocity = Math.max(0.05, Math.min(0.32, Number(intensity) || profile.noiseVelocity || 0.12));
-        this.worldNoiseSynth.volume.value = this._lerp(this.worldNoiseSynth.volume.value, profile.noiseVolume, 0.25);
+        const currentNoiseVolume = Number(this.worldNoiseSynth?.volume?.value);
+        this._setNodeVolume(
+            this.worldNoiseSynth,
+            this._lerp(Number.isFinite(currentNoiseVolume) ? currentNoiseVolume : profile.noiseVolume, profile.noiseVolume, 0.25),
+            'worldNoiseSynth.triggerVolume'
+        );
         if (this.worldNoiseFilter) {
-            this.worldNoiseFilter.frequency.value = profile.noiseFrequency;
-            this.worldNoiseFilter.Q.value = profile.noiseQ;
+            this._setParamValue(this.worldNoiseFilter.frequency, profile.noiseFrequency, 'worldNoiseFilter.triggerFrequency');
+            this._setParamValue(this.worldNoiseFilter.Q, profile.noiseQ, 'worldNoiseFilter.triggerQ');
         }
         this.worldNoiseSynth.triggerAttackRelease(profile.noiseDuration || '32n', now, velocity);
     }
@@ -593,18 +734,20 @@ export class AtomaAudioSystem {
      */
     createSynths() {
         // Master Effects
-        this.masterLimiter = new Tone.Limiter(-1).toDestination();
-        this.masterReverb = new Tone.Reverb({
+        this.masterLimiter = this._createAudioNode('masterLimiter', () => new Tone.Limiter(-1), { critical: true });
+        this._routeToDestination(this.masterLimiter, 'masterLimiter');
+        this.masterReverb = this._createAudioNode('masterReverb', () => new Tone.Reverb({
             decay: 1.5,
             preDelay: 0.01,
             wet: 0.15
-        }).connect(this.masterLimiter);
+        }), { critical: true });
+        this._connectNode(this.masterReverb, this.masterLimiter, 'masterReverb->masterLimiter');
 
         // --- SYNTHS ---
 
         // 1. SELECTION / DESELECTION (Digital Breath / Pulse)
         // PolySynth to handle rapid clicks without cutting off
-        this.selectionSynth = new Tone.PolySynth(Tone.MonoSynth, {
+        this.selectionSynth = this._createAudioNode('selectionSynth', () => new Tone.PolySynth(Tone.MonoSynth, {
             oscillator: {
                 type: "sine"
             },
@@ -628,13 +771,12 @@ export class AtomaAudioSystem {
                 rolloff: -12,
                 Q: 1
             }
-        }).connect(this.masterReverb);
-        if (this.selectionSynth.volume) {
-            this.selectionSynth.volume.value = -5; // TEMP: louder selection for runtime verification
-        }
+        }));
+        this._routeToMaster(this.selectionSynth, 'selectionSynth');
+        this._setNodeVolume(this.selectionSynth, -5, 'selectionSynth.volume');
 
         // 1.5 HOVER ENTER (Glyph flyover)
-        this.hoverSynth = new Tone.MonoSynth({
+        this.hoverSynth = this._createAudioNode('hoverSynth', () => new Tone.MonoSynth({
             oscillator: {
                 type: "triangle"
             },
@@ -658,13 +800,12 @@ export class AtomaAudioSystem {
                 rolloff: -12,
                 Q: 1.1
             }
-        }).connect(this.masterReverb);
-        if (this.hoverSynth.volume) {
-            this.hoverSynth.volume.value = -15;
-        }
+        }));
+        this._routeToMaster(this.hoverSynth, 'hoverSynth');
+        this._setNodeVolume(this.hoverSynth, -15, 'hoverSynth.volume');
 
         // 1.6 HOVER EXIT (very subtle air fade)
-        this.hoverExitSynth = new Tone.MonoSynth({
+        this.hoverExitSynth = this._createAudioNode('hoverExitSynth', () => new Tone.MonoSynth({
             oscillator: {
                 type: "triangle"
             },
@@ -687,13 +828,12 @@ export class AtomaAudioSystem {
                 rolloff: -12,
                 Q: 0.9
             }
-        }).connect(this.masterReverb);
-        if (this.hoverExitSynth.volume) {
-            this.hoverExitSynth.volume.value = -24;
-        }
+        }));
+        this._routeToMaster(this.hoverExitSynth, 'hoverExitSynth');
+        this._setNodeVolume(this.hoverExitSynth, -24, 'hoverExitSynth.volume');
 
         // 1.7 PRIMARY NODE SET (anchor lock dual tone)
-        this.primarySetSynth = new Tone.PolySynth(Tone.MonoSynth, {
+        this.primarySetSynth = this._createAudioNode('primarySetSynth', () => new Tone.PolySynth(Tone.MonoSynth, {
             oscillator: {
                 type: "triangle"
             },
@@ -716,13 +856,12 @@ export class AtomaAudioSystem {
                 rolloff: -12,
                 Q: 1
             }
-        }).connect(this.masterReverb);
-        if (this.primarySetSynth.volume) {
-            this.primarySetSynth.volume.value = -12;
-        }
+        }));
+        this._routeToMaster(this.primarySetSynth, 'primarySetSynth');
+        this._setNodeVolume(this.primarySetSynth, -12, 'primarySetSynth.volume');
 
         // 1.8 INVALID LINK ATTEMPT (muted reject tick)
-        this.invalidLinkSynth = new Tone.MonoSynth({
+        this.invalidLinkSynth = this._createAudioNode('invalidLinkSynth', () => new Tone.MonoSynth({
             oscillator: {
                 type: "square"
             },
@@ -745,14 +884,13 @@ export class AtomaAudioSystem {
                 rolloff: -12,
                 Q: 2.4
             }
-        }).connect(this.masterReverb);
-        if (this.invalidLinkSynth.volume) {
-            this.invalidLinkSynth.volume.value = -16;
-        }
+        }));
+        this._routeToMaster(this.invalidLinkSynth, 'invalidLinkSynth');
+        this._setNodeVolume(this.invalidLinkSynth, -16, 'invalidLinkSynth.volume');
 
         // 2. LINKING (Harmonic Convergence)
         // DuoSynth for phase alignment texture
-        this.linkSynth = new Tone.DuoSynth({
+        this.linkSynth = this._createAudioNode('linkSynth', () => new Tone.DuoSynth({
             vibratoAmount: 0,
             vibratoRate: 0,
             harmonicity: 1.005, // Slight detune for phasing
@@ -786,14 +924,13 @@ export class AtomaAudioSystem {
                     release: 0.1
                 }
             }
-        }).connect(this.masterReverb);
-        if (this.linkSynth.volume) {
-            this.linkSynth.volume.value = -12;
-        }
+        }));
+        this._routeToMaster(this.linkSynth, 'linkSynth');
+        this._setNodeVolume(this.linkSynth, -12, 'linkSynth.volume');
 
         // 3. UNLINKING (Diffusion)
         // Noise source with lowpass filter sweep
-        this.unlinkSynth = new Tone.NoiseSynth({
+        this.unlinkSynth = this._createAudioNode('unlinkSynth', () => new Tone.NoiseSynth({
             noise: {
                 type: "pink"
             },
@@ -802,24 +939,24 @@ export class AtomaAudioSystem {
                 decay: 0.3,
                 sustain: 0
             }
-        }).connect(this.masterReverb);
+        }));
+        this._routeToMaster(this.unlinkSynth, 'unlinkSynth');
         
         // Filter for unlinking
-        this.unlinkFilter = new Tone.Filter({
+        this.unlinkFilter = this._createAudioNode('unlinkFilter', () => new Tone.Filter({
             type: "lowpass",
             frequency: 1400,
             Q: 1.2
-        }).connect(this.masterReverb);
-        this.unlinkSynth.disconnect();
-        this.unlinkSynth.connect(this.unlinkFilter);
-        if (this.unlinkSynth.volume) {
-            this.unlinkSynth.volume.value = -7;
-        }
+        }));
+        this._routeToMaster(this.unlinkFilter, 'unlinkFilter');
+        this._disconnectNode(this.unlinkSynth, undefined, 'unlinkSynth:clearDefaultRoute');
+        this._connectNode(this.unlinkSynth, this.unlinkFilter, 'unlinkSynth->unlinkFilter');
+        this._setNodeVolume(this.unlinkSynth, -7, 'unlinkSynth.volume');
 
 
         // 4. SYNERGY (Harmonic Bloom)
         // PolySynth with Triangle waves for warmth
-        this.synergySynth = new Tone.PolySynth(Tone.Synth, {
+        this.synergySynth = this._createAudioNode('synergySynth', () => new Tone.PolySynth(Tone.Synth, {
             oscillator: {
                 type: "fatcustom",
                 partials: [0.2, 1, 0, 0.5, 0.1],
@@ -832,24 +969,27 @@ export class AtomaAudioSystem {
                 sustain: 0.3,
                 release: 2.0
             }
-        }).connect(this.masterReverb);
-        if (this.synergySynth.volume) {
-            this.synergySynth.volume.value = -16;
-        }
+        }));
+        this._routeToMaster(this.synergySynth, 'synergySynth');
+        this._setNodeVolume(this.synergySynth, -16, 'synergySynth.volume');
         
         // AutoFilter for subtle movement in synergy
-        this.synergyFilter = new Tone.AutoFilter({
+        this.synergyFilter = this._createAudioNode('synergyFilter', () => new Tone.AutoFilter({
             frequency: 0.2,
             baseFrequency: 300,
             octaves: 2
-        });
-        this.synergyFilter.connect(this.masterReverb);
-        this.synergyFilter.start();
-        this.synergySynth.disconnect();
-        this.synergySynth.connect(this.synergyFilter);
+        }));
+        this._routeToMaster(this.synergyFilter, 'synergyFilter');
+        try {
+            this.synergyFilter?.start?.();
+        } catch (error) {
+            this._warnAudioIssue('synergyFilter.start failed', error);
+        }
+        this._disconnectNode(this.synergySynth, undefined, 'synergySynth:clearDefaultRoute');
+        this._connectNode(this.synergySynth, this.synergyFilter, 'synergySynth->synergyFilter');
 
         // 5. WORLD / HAZARD EVENT ROUTING
-        this.eventLeadSynth = new Tone.PolySynth(Tone.MonoSynth, {
+        this.eventLeadSynth = this._createAudioNode('eventLeadSynth', () => new Tone.PolySynth(Tone.MonoSynth, {
             oscillator: { type: "triangle" },
             envelope: {
                 attack: 0.01,
@@ -870,12 +1010,11 @@ export class AtomaAudioSystem {
                 rolloff: -12,
                 Q: 1.6
             }
-        }).connect(this.masterReverb);
-        if (this.eventLeadSynth.volume) {
-            this.eventLeadSynth.volume.value = -18;
-        }
+        }));
+        this._routeToMaster(this.eventLeadSynth, 'eventLeadSynth');
+        this._setNodeVolume(this.eventLeadSynth, -18, 'eventLeadSynth.volume');
 
-        this.eventAccentSynth = new Tone.MonoSynth({
+        this.eventAccentSynth = this._createAudioNode('eventAccentSynth', () => new Tone.MonoSynth({
             oscillator: { type: "sawtooth" },
             envelope: {
                 attack: 0.004,
@@ -896,12 +1035,11 @@ export class AtomaAudioSystem {
                 rolloff: -12,
                 Q: 2.2
             }
-        }).connect(this.masterReverb);
-        if (this.eventAccentSynth.volume) {
-            this.eventAccentSynth.volume.value = -22;
-        }
+        }));
+        this._routeToMaster(this.eventAccentSynth, 'eventAccentSynth');
+        this._setNodeVolume(this.eventAccentSynth, -22, 'eventAccentSynth.volume');
 
-        this.eventNoiseSynth = new Tone.NoiseSynth({
+        this.eventNoiseSynth = this._createAudioNode('eventNoiseSynth', () => new Tone.NoiseSynth({
             noise: { type: "pink" },
             envelope: {
                 attack: 0.01,
@@ -909,19 +1047,19 @@ export class AtomaAudioSystem {
                 sustain: 0.0,
                 release: 0.18
             }
-        }).connect(this.masterReverb);
-        this.eventNoiseFilter = new Tone.Filter({
+        }));
+        this._routeToMaster(this.eventNoiseSynth, 'eventNoiseSynth');
+        this.eventNoiseFilter = this._createAudioNode('eventNoiseFilter', () => new Tone.Filter({
             type: "bandpass",
             frequency: 900,
             Q: 1.4
-        }).connect(this.masterReverb);
-        this.eventNoiseSynth.disconnect();
-        this.eventNoiseSynth.connect(this.eventNoiseFilter);
-        if (this.eventNoiseSynth.volume) {
-            this.eventNoiseSynth.volume.value = -28;
-        }
+        }));
+        this._routeToMaster(this.eventNoiseFilter, 'eventNoiseFilter');
+        this._disconnectNode(this.eventNoiseSynth, undefined, 'eventNoiseSynth:clearDefaultRoute');
+        this._connectNode(this.eventNoiseSynth, this.eventNoiseFilter, 'eventNoiseSynth->eventNoiseFilter');
+        this._setNodeVolume(this.eventNoiseSynth, -28, 'eventNoiseSynth.volume');
 
-        this.worldDroneSynth = new Tone.PolySynth(Tone.MonoSynth, {
+        this.worldDroneSynth = this._createAudioNode('worldDroneSynth', () => new Tone.PolySynth(Tone.MonoSynth, {
             oscillator: { type: 'sine' },
             envelope: {
                 attack: 0.7,
@@ -943,12 +1081,11 @@ export class AtomaAudioSystem {
                 rolloff: -12,
                 Q: 0.85
             }
-        }).connect(this.masterReverb);
-        if (this.worldDroneSynth.volume) {
-            this.worldDroneSynth.volume.value = -37;
-        }
+        }));
+        this._routeToMaster(this.worldDroneSynth, 'worldDroneSynth');
+        this._setNodeVolume(this.worldDroneSynth, -37, 'worldDroneSynth.volume');
 
-        this.worldImpulseSynth = new Tone.PolySynth(Tone.MonoSynth, {
+        this.worldImpulseSynth = this._createAudioNode('worldImpulseSynth', () => new Tone.PolySynth(Tone.MonoSynth, {
             oscillator: { type: 'triangle' },
             envelope: {
                 attack: 0.004,
@@ -970,12 +1107,11 @@ export class AtomaAudioSystem {
                 rolloff: -12,
                 Q: 1.2
             }
-        }).connect(this.masterReverb);
-        if (this.worldImpulseSynth.volume) {
-            this.worldImpulseSynth.volume.value = -35;
-        }
+        }));
+        this._routeToMaster(this.worldImpulseSynth, 'worldImpulseSynth');
+        this._setNodeVolume(this.worldImpulseSynth, -35, 'worldImpulseSynth.volume');
 
-        this.worldNoiseSynth = new Tone.NoiseSynth({
+        this.worldNoiseSynth = this._createAudioNode('worldNoiseSynth', () => new Tone.NoiseSynth({
             noise: { type: 'pink' },
             envelope: {
                 attack: 0.01,
@@ -983,21 +1119,21 @@ export class AtomaAudioSystem {
                 sustain: 0,
                 release: 0.22
             }
-        }).connect(this.masterReverb);
-        this.worldNoiseFilter = new Tone.Filter({
+        }));
+        this._routeToMaster(this.worldNoiseSynth, 'worldNoiseSynth');
+        this.worldNoiseFilter = this._createAudioNode('worldNoiseFilter', () => new Tone.Filter({
             type: 'bandpass',
             frequency: 220,
             Q: 0.9
-        }).connect(this.masterReverb);
-        this.worldNoiseSynth.disconnect();
-        this.worldNoiseSynth.connect(this.worldNoiseFilter);
-        if (this.worldNoiseSynth.volume) {
-            this.worldNoiseSynth.volume.value = -48;
-        }
+        }));
+        this._routeToMaster(this.worldNoiseFilter, 'worldNoiseFilter');
+        this._disconnectNode(this.worldNoiseSynth, undefined, 'worldNoiseSynth:clearDefaultRoute');
+        this._connectNode(this.worldNoiseSynth, this.worldNoiseFilter, 'worldNoiseSynth->worldNoiseFilter');
+        this._setNodeVolume(this.worldNoiseSynth, -48, 'worldNoiseSynth.volume');
 
         // Dramaturgy spatial panner — routes event synths through position-aware panning.
         this._dramaturgyPanner = this._createDramaturgyPanner();
-        this._dramaturgyPanner.connect(this.masterReverb);
+        this._connectNode(this._dramaturgyPanner, this.masterReverb, '_dramaturgyPanner->masterReverb');
         this._dramaturgySpatialOrigin = null; // { x, y, z } or null
         this._dramaturgyCamera = null;
         this._dramaturgyRoutingActive = false;
@@ -1011,23 +1147,31 @@ export class AtomaAudioSystem {
      * Call this on first click/key press.
      */
     async start() {
-        if (this.initialized) return;
+        if (this.initialized) return true;
         if (!this.enabled) return false;
-        
-        // First, start the AudioContext (requires user gesture)
-        await Tone.start();
-        
-        // Then create all synths and effects after AudioContext is running
-        this.createSynths();
-        
-        this.initialized = true;
-        this._applyWorldMacroMix(this._worldMacroProfile || this._resolveWorldMacroProfile(this._worldMacroState), 1);
-        this._primeWorldMacroAudio(this._worldMacroProfile || this._resolveWorldMacroProfile(this._worldMacroState), Number(this._worldMacroProfile?.transitionIntensity) || 0.4);
-        console.log('[Audio] AudioContext Started');
-        
-        // Play a very faint "boot" sound to confirm
-        this.playSelection(true); 
-        return true;
+
+        this.lastStartError = null;
+
+        try {
+            // First, start the AudioContext (requires user gesture)
+            await Tone.start();
+
+            // Then create all synths and effects after AudioContext is running
+            this.createSynths();
+
+            this.initialized = true;
+            this._applyWorldMacroMix(this._worldMacroProfile || this._resolveWorldMacroProfile(this._worldMacroState), 1);
+            this._primeWorldMacroAudio(this._worldMacroProfile || this._resolveWorldMacroProfile(this._worldMacroState), Number(this._worldMacroProfile?.transitionIntensity) || 0.4);
+            console.log('[Audio] AudioContext Started');
+
+            // Play a very faint "boot" sound to confirm
+            this.playSelection(true);
+            return true;
+        } catch (error) {
+            this.initialized = false;
+            this._recordStartError('core-start', error);
+            throw error;
+        }
     }
 
     // --- TASK 1: Node Selection (Listening) ---
@@ -1091,8 +1235,13 @@ export class AtomaAudioSystem {
         if (!this.initialized || !this.enabled) return;
         if (!this.canTrigger('linkBroken', 80)) return;
         // Filtered noise sweep down
-        this.unlinkFilter.frequency.value = 1800;
-        this.unlinkFilter.frequency.rampTo(160, 0.14);
+        this._setParamValue(this.unlinkFilter?.frequency, 1800, 'unlinkFilter.frequency');
+        try {
+            this.unlinkFilter?.frequency?.rampTo?.(160, 0.14);
+        } catch (error) {
+            this._warnAudioIssue('unlinkFilter.frequency ramp failed', error);
+            this._setParamValue(this.unlinkFilter?.frequency, 160, 'unlinkFilter.frequency:fallback');
+        }
         this.unlinkSynth.triggerAttackRelease("16n");
     }
 
@@ -1372,8 +1521,8 @@ export class AtomaAudioSystem {
         const worldVelocity = Math.max(0.12, Math.min(0.62, Number(intensity) || profile.transitionIntensity || 0.4));
 
         if (this.worldDroneSynth) {
-            this.worldDroneSynth.volume.value = profile.droneVolume;
-            this.worldDroneSynth.set({
+            this._setNodeVolume(this.worldDroneSynth, profile.droneVolume, 'worldDroneSynth.transitionVolume');
+            this._safeNodeSet(this.worldDroneSynth, {
                 oscillator: { type: profile.oscillatorType || 'triangle' },
                 filterEnvelope: {
                     baseFrequency: profile.droneFrequency,
@@ -1383,13 +1532,13 @@ export class AtomaAudioSystem {
                 filter: {
                     Q: profile.droneQ
                 }
-            });
+            }, 'worldDroneSynth.transitionSet');
             this.worldDroneSynth.triggerAttackRelease(droneNotes, profile.droneDuration || '2n', now, worldVelocity * 0.82);
         }
 
         if (this.worldImpulseSynth) {
-            this.worldImpulseSynth.volume.value = profile.impulseVolume;
-            this.worldImpulseSynth.set({
+            this._setNodeVolume(this.worldImpulseSynth, profile.impulseVolume, 'worldImpulseSynth.transitionVolume');
+            this._safeNodeSet(this.worldImpulseSynth, {
                 oscillator: { type: profile.oscillatorType || 'triangle' },
                 filterEnvelope: {
                     baseFrequency: profile.impulseFrequency,
@@ -1399,22 +1548,27 @@ export class AtomaAudioSystem {
                 filter: {
                     Q: profile.impulseQ
                 }
-            });
+            }, 'worldImpulseSynth.transitionSet');
             this.worldImpulseSynth.triggerAttackRelease(impulseNotes, profile.impulseDuration || '16n', now + 0.02, worldVelocity * 0.62);
         }
 
         if (this.worldNoiseSynth) {
-            this.worldNoiseSynth.volume.value = profile.noiseVolume;
+            this._setNodeVolume(this.worldNoiseSynth, profile.noiseVolume, 'worldNoiseSynth.transitionVolume');
             if (this.worldNoiseFilter) {
-                this.worldNoiseFilter.frequency.value = profile.noiseFrequency;
-                this.worldNoiseFilter.Q.value = profile.noiseQ;
+                this._setParamValue(this.worldNoiseFilter.frequency, profile.noiseFrequency, 'worldNoiseFilter.transitionFrequency');
+                this._setParamValue(this.worldNoiseFilter.Q, profile.noiseQ, 'worldNoiseFilter.transitionQ');
             }
             this.worldNoiseSynth.triggerAttackRelease(profile.noiseDuration || '32n', now + 0.01, Math.max(0.05, Math.min(0.28, worldVelocity * 0.45)));
         }
 
         if (this.eventLeadSynth) {
             const routedLead = routedProfile || this._resolveRoutedEventProfile('world-state-transition', 'world-state-transition', Math.max(0.12, intensity));
-            this.eventLeadSynth.volume.value = this._lerp(this.eventLeadSynth.volume.value, routedLead.leadDb, 0.35);
+            const currentLeadDb = Number(this.eventLeadSynth?.volume?.value);
+            this._setNodeVolume(
+                this.eventLeadSynth,
+                this._lerp(Number.isFinite(currentLeadDb) ? currentLeadDb : routedLead.leadDb, routedLead.leadDb, 0.35),
+                'eventLeadSynth.transitionVolume'
+            );
         }
     }
 
@@ -1492,14 +1646,12 @@ export class AtomaAudioSystem {
         this._setDramaturgyPanValue(panValue);
 
         // Route event synths through panner
-        try {
-            this.eventLeadSynth.disconnect(this.masterReverb);
-            this.eventLeadSynth.connect(this._dramaturgyPanner);
-            this.eventAccentSynth.disconnect(this.masterReverb);
-            this.eventAccentSynth.connect(this._dramaturgyPanner);
-            this.eventNoiseFilter.disconnect(this.masterReverb);
-            this.eventNoiseFilter.connect(this._dramaturgyPanner);
-        } catch (_) { /* ignore disconnect errors */ }
+        this._disconnectNode(this.eventLeadSynth, this.masterReverb, 'eventLeadSynth<-masterReverb');
+        this._connectNode(this.eventLeadSynth, this._dramaturgyPanner, 'eventLeadSynth->_dramaturgyPanner');
+        this._disconnectNode(this.eventAccentSynth, this.masterReverb, 'eventAccentSynth<-masterReverb');
+        this._connectNode(this.eventAccentSynth, this._dramaturgyPanner, 'eventAccentSynth->_dramaturgyPanner');
+        this._disconnectNode(this.eventNoiseFilter, this.masterReverb, 'eventNoiseFilter<-masterReverb');
+        this._connectNode(this.eventNoiseFilter, this._dramaturgyPanner, 'eventNoiseFilter->_dramaturgyPanner');
 
         this._dramaturgyRoutingActive = true;
 
@@ -1512,14 +1664,12 @@ export class AtomaAudioSystem {
 
     _restoreDramaturgyRouting() {
         if (!this._dramaturgyRoutingActive) return;
-        try {
-            this.eventLeadSynth.disconnect(this._dramaturgyPanner);
-            this.eventLeadSynth.connect(this.masterReverb);
-            this.eventAccentSynth.disconnect(this._dramaturgyPanner);
-            this.eventAccentSynth.connect(this.masterReverb);
-            this.eventNoiseFilter.disconnect(this._dramaturgyPanner);
-            this.eventNoiseFilter.connect(this.masterReverb);
-        } catch (_) { /* ignore disconnect errors */ }
+        this._disconnectNode(this.eventLeadSynth, this._dramaturgyPanner, 'eventLeadSynth<-dramaturgyPanner');
+        this._connectNode(this.eventLeadSynth, this.masterReverb, 'eventLeadSynth->masterReverb');
+        this._disconnectNode(this.eventAccentSynth, this._dramaturgyPanner, 'eventAccentSynth<-dramaturgyPanner');
+        this._connectNode(this.eventAccentSynth, this.masterReverb, 'eventAccentSynth->masterReverb');
+        this._disconnectNode(this.eventNoiseFilter, this._dramaturgyPanner, 'eventNoiseFilter<-dramaturgyPanner');
+        this._connectNode(this.eventNoiseFilter, this.masterReverb, 'eventNoiseFilter->masterReverb');
         this._dramaturgyRoutingActive = false;
         this._dramaturgyRoutingTimeout = null;
     }
@@ -1793,8 +1943,8 @@ export class AtomaAudioSystem {
 
     _applyRoutedEventMix(profile, intensity) {
         if (this.eventLeadSynth?.set) {
-            this.eventLeadSynth.volume.value = profile.leadDb;
-            this.eventLeadSynth.set({
+            this._setNodeVolume(this.eventLeadSynth, profile.leadDb, 'eventLeadSynth.routedVolume');
+            this._safeNodeSet(this.eventLeadSynth, {
                 filter: {
                     type: "bandpass",
                     rolloff: -12,
@@ -1808,12 +1958,12 @@ export class AtomaAudioSystem {
                     baseFrequency: profile.leadBaseFrequency,
                     octaves: profile.leadOctaves
                 }
-            });
+            }, 'eventLeadSynth.routedSet');
         }
 
         if (this.eventAccentSynth?.set) {
-            this.eventAccentSynth.volume.value = profile.accentDb;
-            this.eventAccentSynth.set({
+            this._setNodeVolume(this.eventAccentSynth, profile.accentDb, 'eventAccentSynth.routedVolume');
+            this._safeNodeSet(this.eventAccentSynth, {
                 filter: {
                     type: "bandpass",
                     rolloff: -12,
@@ -1827,14 +1977,14 @@ export class AtomaAudioSystem {
                     baseFrequency: profile.accentBaseFrequency,
                     octaves: profile.accentOctaves
                 }
-            });
+            }, 'eventAccentSynth.routedSet');
         }
 
         if (this.eventNoiseSynth) {
-            this.eventNoiseSynth.volume.value = profile.noiseDb - Math.max(0, 0.4 - intensity * 0.08);
+            this._setNodeVolume(this.eventNoiseSynth, profile.noiseDb - Math.max(0, 0.4 - intensity * 0.08), 'eventNoiseSynth.routedVolume');
         }
         if (this.eventNoiseFilter) {
-            this.eventNoiseFilter.Q.value = profile.noiseQ;
+            this._setParamValue(this.eventNoiseFilter.Q, profile.noiseQ, 'eventNoiseFilter.routedQ');
         }
     }
 
@@ -1853,8 +2003,8 @@ export class AtomaAudioSystem {
         if (layer === 'digital-shear') targetFrequency *= 1.35;
         if (layer === 'sigil-bells') targetFrequency *= 1.1;
 
-        this.eventNoiseFilter.frequency.value = Math.max(120, Math.min(4200, targetFrequency));
-        this.eventNoiseFilter.Q.value = Math.max(0.8, Math.min(4, 1.1 + intensity * 1.2));
+        this._setParamValue(this.eventNoiseFilter.frequency, Math.max(120, Math.min(4200, targetFrequency)), 'eventNoiseFilter.triggerFrequency');
+        this._setParamValue(this.eventNoiseFilter.Q, Math.max(0.8, Math.min(4, 1.1 + intensity * 1.2)), 'eventNoiseFilter.triggerQ');
         this.eventNoiseSynth.triggerAttackRelease(duration, undefined, Math.max(0.025, Math.min(0.16, 0.035 + intensity * 0.05)));
     }
 }

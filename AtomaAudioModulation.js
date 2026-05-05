@@ -52,6 +52,7 @@ export class AtomaAudioModulation {
     constructor(audioSystem) {
         this.audioSystem = audioSystem;
         this.enabled = true;
+        this.backend = Tone.__ATOMA_TONE_STUB__ ? 'fallback' : 'real-tone';
         
         // Current metric values (smoothed)
         this.smoothedSynergy = 0;
@@ -82,7 +83,7 @@ export class AtomaAudioModulation {
                 release: 0.8
             }
         });
-        this.synergySynth.volume.value = -35; // Very subtle
+        this.setParamValue(this.synergySynth?.volume, -35); // Very subtle
         
         // === LAYER 2: HARMONY MODULATION ===
         // Global ambient motion driver
@@ -109,7 +110,7 @@ export class AtomaAudioModulation {
                 release: 2.0
             }
         });
-        this.harmonyNoise.volume.value = -40; // Very subtle background
+        this.setParamValue(this.harmonyNoise?.volume, -40); // Very subtle background
         
         // === LAYER 3: CORRUPTION MODULATION ===
         // Phase stability generator
@@ -126,7 +127,7 @@ export class AtomaAudioModulation {
                 release: 1.5
             }
         });
-        this.corruptionNoise.volume.value = -45; // Very subtle
+        this.setParamValue(this.corruptionNoise?.volume, -45); // Very subtle
         
         // === ROUTING SETUP ===
         // All modulation synths connect to master reverb (already in audioSystem)
@@ -149,6 +150,23 @@ export class AtomaAudioModulation {
         this.harmonyNoiseDuration = 2.8; // 2.8s attack+sustain envelope
         
         console.log('[Audio Modulation] System initialized (3 layers: synergy, harmony, corruption)');
+    }
+
+    setParamValue(param, value) {
+        if (!param) return false;
+        try {
+            if ('value' in param) {
+                param.value = value;
+                return true;
+            }
+            if (typeof param.rampTo === 'function') {
+                param.rampTo(value, 0.01);
+                return true;
+            }
+        } catch (_) {
+            return false;
+        }
+        return false;
     }
     
     /**
@@ -238,13 +256,7 @@ export class AtomaAudioModulation {
             return true;
         } catch (error) {
             // Fallback: if ramp still fails, attempt direct assignment
-            try {
-                param.value = targetValue;
-                return true;
-            } catch (err) {
-                // Parameter is truly non-writable; skip silently
-                return false;
-            }
+            return this.setParamValue(param, targetValue);
         }
     }
     

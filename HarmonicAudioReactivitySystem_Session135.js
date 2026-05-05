@@ -64,9 +64,15 @@ export class HarmonicAudioReactivitySystem_Session135 {
     }
 
     async start() {
-        if (this.initialized) return;
+        if (this.initialized) return true;
 
-        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextCtor) {
+            console.warn('[S135] AudioContext unavailable - harmonic audio disabled');
+            return false;
+        }
+
+        this.audioContext = new AudioContextCtor();
         if (this.audioContext.state === 'suspended') {
             await this.audioContext.resume();
         }
@@ -103,6 +109,7 @@ export class HarmonicAudioReactivitySystem_Session135 {
         }
         this.initialized = true;
         console.log('✓ [S135] HarmonicAudioReactivitySystem started');
+        return true;
     }
     
     /**
