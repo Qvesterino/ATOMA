@@ -656,8 +656,16 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
    * Create a canonical metric snapshot for display tweening.
    */
   _buildMetricSnapshot(source = {}) {
+    const scoreSynergy = this.clamp01(
+      this._scoreSystem?.avgSynergy
+      ?? source?.gameplayNetworkSynergy
+      ?? source?.rawNetworkSynergy
+      ?? source?.networkSynergy
+      ?? source?.synergy
+      ?? 0
+    );
     return {
-      synergy: this.clamp01(source?.networkSynergy ?? source?.synergy ?? 0),
+      synergy: scoreSynergy,
       harmony: this.clamp01(source?.harmonyFlow ?? source?.harmony ?? 0),
       stability: this.clamp01(source?.networkStress ?? source?.stability ?? 0),
       corruption: this.clamp01(source?.corruptionLevel ?? source?.corruption ?? 0),

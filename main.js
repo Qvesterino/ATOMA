@@ -11542,8 +11542,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // Score: counts UP at 5/sec, REWINDS at 3.5/sec when canonical global.synergy.high is sustained 5s
         // Visual: animation time reversal during rewind
         if (this.visualNetworkTimeElasticity) {
-            const visualMetrics = getCachedVisualMetrics() || this.nodeDynamicMetrics || {};
-            const avgSynergy = visualMetrics.avgSynergy ?? visualMetrics.networkSynergy ?? 0.0;
+            const rawNetworkMetrics = this.metricsRuntime_v1?.getRawNetworkMetrics?.() || null;
+            const avgSynergy = rawNetworkMetrics?.networkSynergy ?? 0.0;
             this.visualNetworkTimeElasticity.setAverageSynergy(avgSynergy);
             this.visualNetworkTimeElasticity.update(deltaTime, this.time);
             
@@ -14111,6 +14111,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
     _buildHudMetricsSnapshot() {
         const liveMetrics = window?.__ATOMA_LIVE_METRICS__ || {};
+        const rawNetworkMetrics = this.metricsRuntime_v1?.getRawNetworkMetrics?.() || null;
         const links = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : [];
         const totalLinks = links.length;
         const degradationStats = this.linkDegradationSystem?.getDegradationStatistics?.() || null;
@@ -14118,7 +14119,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             ? this._clampHud01((this.networkStressAggregator.getStress() || 0) / 100)
             : 0;
 
-        const networkSynergy = this._clampHud01(liveMetrics.networkSynergy ?? 0);
+        const networkSynergy = this._clampHud01(rawNetworkMetrics?.networkSynergy ?? liveMetrics.networkSynergy ?? 0);
         const harmonyFlow = this._clampHud01(liveMetrics.harmonyFlow ?? 0);
         const networkStress = this._clampHud01(
             Number.isFinite(liveMetrics.networkStress) ? liveMetrics.networkStress : stressFallback

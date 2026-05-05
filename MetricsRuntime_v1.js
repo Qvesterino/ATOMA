@@ -126,6 +126,17 @@ export class MetricsRuntime_v1 {
             corruptionLevel: 0,
             loadPressure: 0
         };
+        this._rawNetworkMetricsSnapshot = {
+            networkSynergy: 0,
+            harmonyFlow: 0,
+            networkStress: 0,
+            corruptionLevel: 0,
+            loadPressure: 0,
+            nodeCount: 0,
+            linkCount: 0,
+            source: 'empty',
+            timestamp: 0
+        };
         this._liveMetricsPublishAccumulator = 0;
         this._liveMetricsPublishInterval = Math.max(0.1, Number(runtimeOptions.liveMetricsPublishInterval ?? 0.2));
         this._liveMetricsPublishRequested = true;
@@ -355,10 +366,15 @@ export class MetricsRuntime_v1 {
             }
 
             // 4. Publish live metrics once per fixed tick
+            const rawNetworkMetrics = this._refreshRawNetworkMetricsSnapshot();
             this._captureSimulationSnapshot(nodeList);
             if (typeof this.onSimulationTick === 'function') {
                 this.onSimulationTick(this.lastSimulationSnapshot);
             }
+            this._emitCanonicalSemanticMetrics(rawNetworkMetrics, {
+                nodeCount: rawNetworkMetrics.nodeCount,
+                linkCount: rawNetworkMetrics.linkCount
+            });
             this._publishLiveMetrics(dt);
 
         } catch (err) {
@@ -499,6 +515,86 @@ const adapter = this._createLinkSystemAdapter(
             this._logOnce('NetworkMetricsAggregator entered ERROR state', err);
             this._clearNetworkMetricsOverride();
         }
+    }
+
+    _createNetworkMetricsSnapshot(metricsPayload = {}) {
+        const now = typeof performance !== 'undefined' && typeof performance.now === 'function'
+            ? performance.now()
+            : Date.now();
+        return {
+            networkSynergy: this._clamp01(metricsPayload.networkSynergy ?? metricsPayload.synergy ?? 0),
+            harmonyFlow: this._clamp01(metricsPayload.harmonyFlow ?? metricsPayload.harmony ?? 0),
+            networkStress: this._clamp01(metricsPayload.networkStress ?? (1 - (metricsPayload.stability ?? 0))),
+            corruptionLevel: this._clamp01(metricsPayload.corruptionLevel ?? metricsPayload.corruption ?? 0),
+            loadPressure: this._clamp01(metricsPayload.loadPressure ?? metricsPayload.load ?? metricsPayload.pressure ?? 0),
+            nodeCount: Number.isFinite(metricsPayload.nodeCount) ? metricsPayload.nodeCount : 0,
+            linkCount: Number.isFinite(metricsPayload.linkCount) ? metricsPayload.linkCount : 0,
+            source: metricsPayload.source ?? 'unknown',
+            timestamp: Number.isFinite(metricsPayload.timestamp) ? metricsPayload.timestamp : now
+        };
+    }
+
+    _isUsableNetworkMetricsResult(metricsPayload, currentLinkCount = 0) {
+        if (!metricsPayload || typeof metricsPayload !== 'object') return false;
+        if (!Number.isFinite(currentLinkCount) || currentLinkCount <= 0) return false;
+
+        const hasCoreMetrics = (
+            Number.isFinite(metricsPayload.networkSynergy ?? metricsPayload.synergy) &&
+            Number.isFinite(metricsPayload.harmonyFlow ?? metricsPayload.harmony) &&
+            Number.isFinite(metricsPayload.networkStress ?? (1 - (metricsPayload.stability ?? 0))) &&
+            Number.isFinite(metricsPayload.corruptionLevel ?? metricsPayload.corruption) &&
+            Number.isFinite(metricsPayload.loadPressure ?? metricsPayload.load ?? metricsPayload.pressure)
+        );
+
+        if (!hasCoreMetrics) return false;
+
+        return Number.isFinite(metricsPayload.nodeCount)
+            ? metricsPayload.nodeCount > 0
+            : true;
+    }
+
+    _resolveRawNetworkMetricsSnapshot() {
+        const currentLinkCount = this._countLinks();
+        if (!Number.isFinite(currentLinkCount) || currentLinkCount <= 0) {
+            return this._createNetworkMetricsSnapshot({
+                source: 'empty',
+                linkCount: 0
+            });
+        }
+
+        const aggregatorResult = this._lastNetworkMetricsResult;
+        if (this._isUsableNetworkMetricsResult(aggregatorResult, currentLinkCount)) {
+            return this._createNetworkMetricsSnapshot({
+                ...aggregatorResult,
+                linkCount: currentLinkCount,
+                source: 'aggregator'
+            });
+        }
+
+        const fallbackResult = this._aggregateNodeMetrics();
+        if (this._isUsableNetworkMetricsResult(fallbackResult, currentLinkCount)) {
+            return this._createNetworkMetricsSnapshot({
+                ...fallbackResult,
+                linkCount: currentLinkCount,
+                source: 'fallback'
+            });
+        }
+
+        return this._createNetworkMetricsSnapshot({
+            source: 'empty',
+            linkCount: currentLinkCount
+        });
+    }
+
+    _refreshRawNetworkMetricsSnapshot() {
+        this._rawNetworkMetricsSnapshot = this._resolveRawNetworkMetricsSnapshot();
+        return this._rawNetworkMetricsSnapshot;
+    }
+
+    getRawNetworkMetrics() {
+        return {
+            ...(this._rawNetworkMetricsSnapshot || this._createNetworkMetricsSnapshot())
+        };
     }
 
     _buildNodeMap() {
@@ -1617,9 +1713,7 @@ const adapter = this._createLinkSystemAdapter(
         this._liveMetricsPublishAccumulator = 0;
         this._liveMetricsPublishRequested = false;
 
-        const fallbackResult = this._aggregateNodeMetrics();
-        const currentLinkCount = this._countLinks();
-        const result = fallbackResult;
+        const result = this._refreshRawNetworkMetricsSnapshot();
 
         // Raw targets from aggregation
         const rawMetrics = {
@@ -1646,7 +1740,7 @@ const adapter = this._createLinkSystemAdapter(
             corruptionLevel: this._clamp01(this._smoothedMetrics.corruptionLevel),
             loadPressure:    this._clamp01(this._smoothedMetrics.loadPressure),
             nodeCount: Number.isFinite(result.nodeCount) ? result.nodeCount : 0,
-            linkCount: currentLinkCount
+            linkCount: Number.isFinite(result.linkCount) ? result.linkCount : 0
         });
     }
 

@@ -128,6 +128,72 @@ test('MetricsRuntime_v1 publishes canonical global metric shape', () => {
   assert.strictEqual(globalThis.world.metrics.globalMetrics.load, globalThis.__ATOMA_LIVE_METRICS__.loadPressure);
 });
 
+test('MetricsRuntime_v1 raw network metrics prefer aggregator while public live metrics stay smoothed', () => {
+  globalThis.__ATOMA_LIVE_METRICS__ = undefined;
+  globalThis.world = {};
+  globalThis.globalMetrics = undefined;
+
+  const runtime = new MetricsRuntime_v1({ nodes: [], links: [], linkSystem: null, metricsSystems: {} });
+  runtime._countLinks = () => 2;
+  runtime._aggregateNodeMetrics = () => ({
+    networkSynergy: 0.34,
+    harmonyFlow: 0.28,
+    networkStress: 0.52,
+    corruptionLevel: 0.08,
+    loadPressure: 0.22,
+    nodeCount: 2
+  });
+  runtime._lastNetworkMetricsResult = {
+    networkSynergy: 0.82,
+    harmonyFlow: 0.61,
+    networkStress: 0.19,
+    corruptionLevel: 0.07,
+    loadPressure: 0.26,
+    nodeCount: 2,
+    networkCount: 1
+  };
+
+  runtime._publishLiveMetrics(0, true);
+
+  const raw = runtime.getRawNetworkMetrics();
+  assert.strictEqual(raw.source, 'aggregator');
+  assert.ok(Math.abs(raw.networkSynergy - 0.82) < 1e-6, 'Expected raw gameplay snapshot to use aggregator value');
+  assert.ok(globalThis.__ATOMA_LIVE_METRICS__.networkSynergy > 0, 'Expected smoothed live metric to move above zero');
+  assert.ok(globalThis.__ATOMA_LIVE_METRICS__.networkSynergy < raw.networkSynergy, 'Expected public live metric to remain smoothed below raw gameplay metric');
+});
+
+test('MetricsRuntime_v1 raw network metrics fall back to node aggregation when aggregator is unusable', () => {
+  globalThis.__ATOMA_LIVE_METRICS__ = undefined;
+  globalThis.world = {};
+  globalThis.globalMetrics = undefined;
+
+  const runtime = new MetricsRuntime_v1({ nodes: [], links: [], linkSystem: null, metricsSystems: {} });
+  runtime._countLinks = () => 3;
+  runtime._aggregateNodeMetrics = () => ({
+    networkSynergy: 0.41,
+    harmonyFlow: 0.38,
+    networkStress: 0.44,
+    corruptionLevel: 0.06,
+    loadPressure: 0.18,
+    nodeCount: 3
+  });
+  runtime._lastNetworkMetricsResult = {
+    networkSynergy: 0,
+    harmonyFlow: 0,
+    networkStress: 0,
+    corruptionLevel: 0,
+    loadPressure: 0,
+    nodeCount: 0,
+    networkCount: 0
+  };
+
+  runtime._publishLiveMetrics(0, true);
+
+  const raw = runtime.getRawNetworkMetrics();
+  assert.strictEqual(raw.source, 'fallback');
+  assert.ok(Math.abs(raw.networkSynergy - 0.41) < 1e-6, 'Expected raw gameplay snapshot to fall back to node aggregation');
+});
+
 test('MetricsRuntime_v1 prefers canonical metrics container over legacy top-level aliases when aggregating active nodes', () => {
   globalThis.__ATOMA_LIVE_METRICS__ = undefined;
   globalThis.world = {};
