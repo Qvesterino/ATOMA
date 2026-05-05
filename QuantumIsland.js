@@ -33,6 +33,7 @@ export class QuantumIsland {
     this.singularitySprite = null;
     this.singularityParticles = null;
     this.singularityData = null;
+    this._quantumSpriteTextures = new Map();
     this.collisionObjects = [];
     this.playerGroundOffset = 1;
     this.islandRadius = 20;
@@ -394,6 +395,8 @@ export class QuantumIsland {
     particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const particleMaterial = new THREE.PointsMaterial({
+      map: this._getQuantumSpriteTexture('softOctoMote'),
+      alphaTest: 0.02,
       size: 0.18,
       vertexColors: true,
       transparent: true,
@@ -413,6 +416,163 @@ export class QuantumIsland {
       heights,
       particleCount
     };
+  }
+
+  _getQuantumSpriteTexture(kind) {
+    if (this._quantumSpriteTextures.has(kind)) {
+      return this._quantumSpriteTextures.get(kind);
+    }
+
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const half = size * 0.5;
+    ctx.clearRect(0, 0, size, size);
+
+    const makePolygon = (radiusX, radiusY, sides, rotation = 0) => {
+      ctx.beginPath();
+      for (let i = 0; i < sides; i++) {
+        const angle = rotation + (i / sides) * Math.PI * 2;
+        const x = half + Math.cos(angle) * radiusX;
+        const y = half + Math.sin(angle) * radiusY;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+    };
+
+    switch (kind) {
+      case 'softOctoMote': {
+        const glow = ctx.createRadialGradient(half, half, size * 0.08, half, half, size * 0.42);
+        glow.addColorStop(0, 'rgba(255,255,255,1)');
+        glow.addColorStop(0.34, 'rgba(180,255,255,0.95)');
+        glow.addColorStop(0.72, 'rgba(138,214,255,0.45)');
+        glow.addColorStop(1, 'rgba(138,214,255,0)');
+        ctx.fillStyle = glow;
+        makePolygon(size * 0.28, size * 0.28, 8, Math.PI / 8);
+        ctx.fill();
+        break;
+      }
+      case 'cometCapsule': {
+        const tail = ctx.createLinearGradient(size * 0.18, half, size * 0.88, half);
+        tail.addColorStop(0, 'rgba(160,255,255,0)');
+        tail.addColorStop(0.28, 'rgba(160,255,255,0.28)');
+        tail.addColorStop(0.72, 'rgba(215,255,255,0.92)');
+        tail.addColorStop(1, 'rgba(255,255,255,1)');
+        ctx.fillStyle = tail;
+        ctx.beginPath();
+        ctx.ellipse(half, half, size * 0.31, size * 0.12, -0.18, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case 'diamondShard': {
+        const fill = ctx.createLinearGradient(half, size * 0.18, half, size * 0.86);
+        fill.addColorStop(0, 'rgba(255,255,255,0.95)');
+        fill.addColorStop(0.42, 'rgba(176,244,255,0.85)');
+        fill.addColorStop(1, 'rgba(140,120,255,0.18)');
+        ctx.fillStyle = fill;
+        ctx.beginPath();
+        ctx.moveTo(half, size * 0.12);
+        ctx.lineTo(size * 0.77, half);
+        ctx.lineTo(half, size * 0.88);
+        ctx.lineTo(size * 0.23, half);
+        ctx.closePath();
+        ctx.fill();
+        break;
+      }
+      case 'hexMote': {
+        const fill = ctx.createRadialGradient(half, half, size * 0.04, half, half, size * 0.36);
+        fill.addColorStop(0, 'rgba(255,255,255,1)');
+        fill.addColorStop(0.48, 'rgba(168,246,255,0.88)');
+        fill.addColorStop(1, 'rgba(120,204,255,0)');
+        ctx.fillStyle = fill;
+        makePolygon(size * 0.27, size * 0.25, 6, Math.PI / 6);
+        ctx.fill();
+        break;
+      }
+      case 'dataPacketLozenge': {
+        const fill = ctx.createLinearGradient(size * 0.18, half, size * 0.84, half);
+        fill.addColorStop(0, 'rgba(120,220,255,0)');
+        fill.addColorStop(0.26, 'rgba(120,220,255,0.35)');
+        fill.addColorStop(0.68, 'rgba(194,255,255,0.92)');
+        fill.addColorStop(1, 'rgba(255,255,255,1)');
+        ctx.fillStyle = fill;
+        ctx.beginPath();
+        ctx.moveTo(size * 0.16, half);
+        ctx.lineTo(size * 0.38, size * 0.33);
+        ctx.lineTo(size * 0.82, size * 0.33);
+        ctx.lineTo(size * 0.94, half);
+        ctx.lineTo(size * 0.82, size * 0.67);
+        ctx.lineTo(size * 0.38, size * 0.67);
+        ctx.closePath();
+        ctx.fill();
+        break;
+      }
+      default: {
+        const glow = ctx.createRadialGradient(half, half, size * 0.06, half, half, size * 0.4);
+        glow.addColorStop(0, 'rgba(255,255,255,1)');
+        glow.addColorStop(0.5, 'rgba(180,255,255,0.8)');
+        glow.addColorStop(1, 'rgba(180,255,255,0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(half, half, size * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    this._quantumSpriteTextures.set(kind, texture);
+    return texture;
+  }
+
+  _createQuantumParticleLayer(count, spriteKind, size, opacity, colorA, colorB) {
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const velocities = new Float32Array(count * 3);
+
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * 50;
+      const height = Math.random() * 30 - 10;
+      const idx = i * 3;
+      positions[idx] = Math.cos(angle) * radius;
+      positions[idx + 1] = height;
+      positions[idx + 2] = Math.sin(angle) * radius;
+
+      const color = colorA.clone().lerp(colorB, Math.random());
+      colors[idx] = color.r;
+      colors[idx + 1] = color.g;
+      colors[idx + 2] = color.b;
+
+      const spiralSpeed = 0.1;
+      velocities[idx] = -Math.sin(angle) * spiralSpeed;
+      velocities[idx + 1] = Math.random() * 0.05 - 0.02;
+      velocities[idx + 2] = Math.cos(angle) * spiralSpeed;
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const material = new THREE.PointsMaterial({
+      map: this._getQuantumSpriteTexture(spriteKind),
+      alphaTest: 0.02,
+      size,
+      vertexColors: true,
+      transparent: true,
+      opacity,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    const points = new THREE.Points(geometry, material);
+    points.renderOrder = this.AURA_BACKGROUND_ORDER;
+    points.userData.velocities = velocities;
+
+    return { points, geometry, velocities };
   }
   
   /**
@@ -673,6 +833,8 @@ export class QuantumIsland {
     trailGeometry.setAttribute('aFade', new THREE.BufferAttribute(fadeLevels, 1));
 
     const trailMaterial = new THREE.PointsMaterial({
+      map: this._getQuantumSpriteTexture('cometCapsule'),
+      alphaTest: 0.02,
       size: 0.2,
       vertexColors: true,
       transparent: true,
@@ -750,11 +912,13 @@ export class QuantumIsland {
     const shardCount = 20;
     
     for (let i = 0; i < shardCount; i++) {
-      const geometry = new THREE.BoxGeometry(
-        2 + Math.random() * 3,
-        0.2,
-        1 + Math.random() * 2
-      );
+      const width = 2 + Math.random() * 3;
+      const depth = 1 + Math.random() * 2;
+      const thickness = 0.18 + Math.random() * 0.08;
+      const isTriWedge = i % 3 === 2;
+      const geometry = isTriWedge
+        ? new THREE.CylinderGeometry(0.74, 1.0, 1.1, 3, 1)
+        : new THREE.CylinderGeometry(1.0, 0.92, 1.0, 6, 1);
       
       const material = materialRegistry.getStandard('world.quantumisland.shard', {
         color: 0x2a2a3a,
@@ -768,6 +932,7 @@ export class QuantumIsland {
       
       const shard = new THREE.Mesh(geometry, material);
       shard.renderOrder = this.AURA_BACKGROUND_ORDER;
+      shard.scale.set(width * 0.5, thickness, depth * 0.5);
       
       const angle = Math.random() * Math.PI * 2;
       const distance = 40 + Math.random() * 40;
@@ -783,6 +948,7 @@ export class QuantumIsland {
       );
       
       shard.userData = {
+        shardFamily: isTriWedge ? 'triWedgePrism' : 'hexSlab',
         floatSpeed: 0.1 + Math.random() * 0.1,
         floatOffset: Math.random() * Math.PI * 2,
         rotationSpeed: 0.05 + Math.random() * 0.05,
@@ -822,54 +988,22 @@ export class QuantumIsland {
    * Create quantum particles in slow spirals
    */
   createQuantumParticles() {
-    const geometry = new THREE.BufferGeometry();
-    const positions = [];
-    const colors = [];
-    const velocities = [];
-    
-    const particleCount = 300;
-    
     const color1 = new THREE.Color(0x8800ff);
     const color2 = new THREE.Color(0x00dddd);
-    
-    for (let i = 0; i < particleCount; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const radius = Math.random() * 50;
-      const height = Math.random() * 30 - 10;
-      
-      positions.push(
-        Math.cos(angle) * radius,
-        height,
-        Math.sin(angle) * radius
-      );
-      
-      const color = color1.clone().lerp(color2, Math.random());
-      colors.push(color.r, color.g, color.b);
-      
-      // Spiral velocity
-      const spiralSpeed = 0.1;
-      velocities.push(
-        -Math.sin(angle) * spiralSpeed,
-        Math.random() * 0.05 - 0.02,
-        Math.cos(angle) * spiralSpeed
-      );
-    }
-    
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    
-    const material = new THREE.PointsMaterial({
-      size: 0.15,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.6,
-      blending: THREE.AdditiveBlending
-    });
-    
-    this.quantumParticles = new THREE.Points(geometry, material);
-    this.quantumParticles.renderOrder = this.AURA_BACKGROUND_ORDER;
-    this.quantumParticles.userData.velocities = velocities;
-    this.worldRoot.add(this.quantumParticles);
+
+    const layers = [
+      this._createQuantumParticleLayer(120, 'softOctoMote', 0.14, 0.58, color1, color2),
+      this._createQuantumParticleLayer(105, 'diamondShard', 0.18, 0.62, color1, color2),
+      this._createQuantumParticleLayer(75, 'hexMote', 0.17, 0.56, color1, color2)
+    ];
+
+    const group = new THREE.Group();
+    group.renderOrder = this.AURA_BACKGROUND_ORDER;
+    group.userData.layers = layers;
+    layers.forEach(({ points }) => group.add(points));
+
+    this.quantumParticles = group;
+    this.worldRoot.add(group);
   }
   
   /**
@@ -1010,6 +1144,8 @@ export class QuantumIsland {
     flowGeometry.setAttribute('aCurve', new THREE.BufferAttribute(curveIndices, 1));
     
     const flowMaterial = new THREE.PointsMaterial({
+      map: this._getQuantumSpriteTexture('dataPacketLozenge'),
+      alphaTest: 0.02,
       size: 0.3,
       vertexColors: true,
       transparent: true,
@@ -1019,6 +1155,7 @@ export class QuantumIsland {
     });
     
     const flowPoints = new THREE.Points(flowGeometry, flowMaterial);
+    flowPoints.renderOrder = this.AURA_BACKGROUND_ORDER;
     this.worldRoot.add(flowPoints);
     this.circuitFlowPoints = flowPoints;
     this.circuitFlowData = {
@@ -1186,30 +1323,31 @@ export class QuantumIsland {
     
     // Quantum particles spiral
     if (this.quantumParticles) {
-      const positions = this.quantumParticles.geometry.attributes.position.array;
-      const velocities = this.quantumParticles.userData.velocities;
       const speedScale = 1 + this.quantumPulse * 0.25;
-      
-      for (let i = 0; i < positions.length; i += 3) {
-        positions[i] += velocities[i] * deltaTime * 5 * speedScale;
-        positions[i + 1] += velocities[i + 1] * deltaTime * 5 * speedScale;
-        positions[i + 2] += velocities[i + 2] * deltaTime * 5 * speedScale;
-        
-        // Spiral inward/outward
-        const x = positions[i];
-        const z = positions[i + 2];
-        const dist = Math.sqrt(x * x + z * z);
-        
-        if (dist > 60 || dist < 5) {
-          const angle = Math.random() * Math.PI * 2;
-          const radius = 20 + Math.random() * 30;
-          positions[i] = Math.cos(angle) * radius;
-          positions[i + 1] = Math.random() * 30 - 10;
-          positions[i + 2] = Math.sin(angle) * radius;
+
+      this.quantumParticles.userData.layers?.forEach(({ points, velocities }) => {
+        const positions = points.geometry.attributes.position.array;
+
+        for (let i = 0; i < positions.length; i += 3) {
+          positions[i] += velocities[i] * deltaTime * 5 * speedScale;
+          positions[i + 1] += velocities[i + 1] * deltaTime * 5 * speedScale;
+          positions[i + 2] += velocities[i + 2] * deltaTime * 5 * speedScale;
+
+          const x = positions[i];
+          const z = positions[i + 2];
+          const dist = Math.sqrt(x * x + z * z);
+
+          if (dist > 60 || dist < 5) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 20 + Math.random() * 30;
+            positions[i] = Math.cos(angle) * radius;
+            positions[i + 1] = Math.random() * 30 - 10;
+            positions[i + 2] = Math.sin(angle) * radius;
+          }
         }
-      }
-      
-      this.quantumParticles.geometry.attributes.position.needsUpdate = true;
+
+        points.geometry.attributes.position.needsUpdate = true;
+      });
       this.quantumParticles.rotation.y += deltaTime * 0.1;
     }
 

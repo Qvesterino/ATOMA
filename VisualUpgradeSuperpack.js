@@ -341,6 +341,7 @@ export class VisualUpgradeSuperpack {
         this.distortionZones = [];
         this.rifts = [];
         this.particles = [];
+        this.spectralCaustics = [];
         this.cameraAura = null;
         this.sharedTextures = {};
         this.postEffects = {
@@ -858,6 +859,7 @@ export class VisualUpgradeSuperpack {
         this.distortionZones.forEach(show);
         this.rifts.forEach(show);
         this.particles.forEach(show);
+        this.spectralCaustics.forEach(show);
         if (this.cameraAura) this.cameraAura.visible = true;
     }
 
@@ -871,6 +873,7 @@ export class VisualUpgradeSuperpack {
         this.distortionZones.forEach(hide);
         this.rifts.forEach(hide);
         this.particles.forEach(hide);
+        this.spectralCaustics.forEach(hide);
         if (this.cameraAura) this.cameraAura.visible = false;
     }
 
@@ -889,9 +892,11 @@ export class VisualUpgradeSuperpack {
                 fogOpacity: 0.84,
                 fogScale: 0.96,
                 edgeGlowOpacity: 0.9,
+                edgeGlowMaxObjects: 10,
                 distortionIntensity: 0.88,
                 riftOpacity: 0.86,
                 particleOpacity: 0.9,
+                causticOpacity: 0.72,
                 cameraAuraOpacity: 0.9,
                 colorGrading: {
                     contrast: 1.0,
@@ -916,9 +921,11 @@ export class VisualUpgradeSuperpack {
                 fogOpacity: 1.0,
                 fogScale: 1.0,
                 edgeGlowOpacity: 1.08,
+                edgeGlowMaxObjects: 18,
                 distortionIntensity: 1.0,
                 riftOpacity: 1.02,
                 particleOpacity: 1.0,
+                causticOpacity: 1.0,
                 cameraAuraOpacity: 1.0,
                 colorGrading: {
                     contrast: 1.06,
@@ -943,9 +950,11 @@ export class VisualUpgradeSuperpack {
                 fogOpacity: 1.18,
                 fogScale: 1.06,
                 edgeGlowOpacity: 1.28,
+                edgeGlowMaxObjects: 28,
                 distortionIntensity: 1.16,
                 riftOpacity: 1.18,
                 particleOpacity: 1.12,
+                causticOpacity: 1.22,
                 cameraAuraOpacity: 1.18,
                 colorGrading: {
                     contrast: 1.12,
@@ -1052,6 +1061,154 @@ export class VisualUpgradeSuperpack {
         return texture;
     }
 
+    _createMysticSpriteTexture(cacheKey, kind, size = 256) {
+        if (this.sharedTextures[cacheKey]) {
+            return this.sharedTextures[cacheKey];
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+
+        const cx = size * 0.5;
+        const cy = size * 0.5;
+        ctx.clearRect(0, 0, size, size);
+        ctx.globalCompositeOperation = 'source-over';
+
+        const radial = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 0.5);
+        radial.addColorStop(0, 'rgba(255,255,255,1)');
+        radial.addColorStop(0.32, 'rgba(255,255,255,0.72)');
+        radial.addColorStop(0.74, 'rgba(255,255,255,0.14)');
+        radial.addColorStop(1, 'rgba(255,255,255,0)');
+
+        if (kind === 'anamorphicStreak') {
+            const streak = ctx.createLinearGradient(0, cy, size, cy);
+            streak.addColorStop(0, 'rgba(255,255,255,0)');
+            streak.addColorStop(0.38, 'rgba(255,255,255,0.16)');
+            streak.addColorStop(0.5, 'rgba(255,255,255,0.9)');
+            streak.addColorStop(0.62, 'rgba(255,255,255,0.16)');
+            streak.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = streak;
+            ctx.fillRect(0, cy - size * 0.085, size, size * 0.17);
+            ctx.fillStyle = radial;
+            ctx.fillRect(0, 0, size, size);
+        } else if (kind === 'causticVeil') {
+            ctx.fillStyle = radial;
+            ctx.fillRect(0, 0, size, size);
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+            ctx.lineWidth = size * 0.01;
+            for (let i = 0; i < 7; i++) {
+                const y = size * (0.22 + i * 0.09);
+                ctx.beginPath();
+                ctx.moveTo(size * 0.12, y);
+                ctx.bezierCurveTo(size * 0.32, y - size * 0.13, size * 0.58, y + size * 0.16, size * 0.88, y - size * 0.04);
+                ctx.stroke();
+            }
+        } else if (kind === 'softStarKernel') {
+            ctx.fillStyle = radial;
+            ctx.fillRect(0, 0, size, size);
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.strokeStyle = 'rgba(255,255,255,0.62)';
+            ctx.lineWidth = size * 0.018;
+            for (let i = 0; i < 8; i++) {
+                const a = i * Math.PI / 4;
+                ctx.beginPath();
+                ctx.moveTo(cx + Math.cos(a) * size * 0.08, cy + Math.sin(a) * size * 0.08);
+                ctx.lineTo(cx + Math.cos(a) * size * 0.42, cy + Math.sin(a) * size * 0.42);
+                ctx.stroke();
+            }
+        } else if (kind === 'runeSpark') {
+            ctx.fillStyle = radial;
+            ctx.fillRect(0, 0, size, size);
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.strokeStyle = 'rgba(255,255,255,0.76)';
+            ctx.lineWidth = size * 0.024;
+            ctx.beginPath();
+            ctx.moveTo(cx, size * 0.23);
+            ctx.lineTo(size * 0.66, cy);
+            ctx.lineTo(cx, size * 0.77);
+            ctx.lineTo(size * 0.34, cy);
+            ctx.closePath();
+            ctx.stroke();
+        } else {
+            ctx.fillStyle = radial;
+            ctx.fillRect(0, 0, size, size);
+            ctx.globalCompositeOperation = 'destination-in';
+            ctx.beginPath();
+            for (let i = 0; i < 8; i++) {
+                const a = -Math.PI / 2 + i * Math.PI / 4;
+                const r = size * (i % 2 === 0 ? 0.46 : 0.39);
+                const x = cx + Math.cos(a) * r;
+                const y = cy + Math.sin(a) * r;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.needsUpdate = true;
+        texture.generateMipmaps = false;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        this.sharedTextures[cacheKey] = texture;
+        return texture;
+    }
+
+    _createOrganicVeilGeometry(width, height, seed = 0, points = 28) {
+        const vertices = [0, 0, 0];
+        const indices = [];
+        const halfW = width * 0.5;
+        const halfH = height * 0.5;
+
+        for (let i = 0; i < points; i++) {
+            const t = i / points;
+            const angle = t * Math.PI * 2;
+            const axisX = Math.cos(angle) >= 0 ? halfW : -halfW;
+            const axisY = Math.sin(angle) >= 0 ? halfH : -halfH;
+            const cornerBlend = 0.72 + 0.18 * Math.sin(seed + i * 1.73);
+            const x = Math.cos(angle) * Math.abs(axisX) * cornerBlend + Math.sin(seed * 0.7 + i * 2.1) * width * 0.035;
+            const y = Math.sin(angle) * Math.abs(axisY) * cornerBlend + Math.cos(seed * 0.9 + i * 1.9) * height * 0.035;
+            vertices.push(x, y, 0);
+        }
+
+        for (let i = 1; i <= points; i++) {
+            indices.push(0, i, i === points ? 1 : i + 1);
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+        return geometry;
+    }
+
+    _createCausticLineGeometry(radius, layers = 3, segments = 72, seed = 0) {
+        const vertices = [];
+        for (let layer = 0; layer < layers; layer++) {
+            const r = radius * (0.72 + layer * 0.18);
+            for (let i = 0; i < segments; i++) {
+                if (i % 5 === 4) continue;
+                const a0 = (i / segments) * Math.PI * 2;
+                const a1 = ((i + 0.68) / segments) * Math.PI * 2;
+                const warp0 = 1 + Math.sin(seed + layer * 1.7 + i * 0.41) * 0.055;
+                const warp1 = 1 + Math.cos(seed + layer * 1.3 + i * 0.37) * 0.055;
+                vertices.push(Math.cos(a0) * r * warp0, Math.sin(a0) * r * warp0, 0);
+                vertices.push(Math.cos(a1) * r * warp1, Math.sin(a1) * r * warp1, 0);
+            }
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        return geometry;
+    }
+
     _disposeObject3D(object3D) {
         if (!object3D) return;
 
@@ -1079,6 +1236,7 @@ export class VisualUpgradeSuperpack {
         if (this._applied) return;
         this._applied = true;
 
+        this.applyHolographicEdgeGlowPack();
         this.applyVolumetricLightPack();
         this.applyAmbientFogPack();
         this.applyCinematicColorGradingPack();
@@ -1086,6 +1244,7 @@ export class VisualUpgradeSuperpack {
         this.applyQuantumDistortionPack();
         this.applySigmaRiftVisualPack();
         this.applyDreamParticlesPack();
+        this.applySpectralCausticFieldPack();
         this.applyCinematicCameraAuraPack();
         this.setQualityTier(this.qualityTier);
 
@@ -1104,6 +1263,8 @@ export class VisualUpgradeSuperpack {
             [0.42, 0xffffff, 0.28],
             [1.0, 0xffffff, 0.0]
         ], 256);
+        const causticTexture = this._createMysticSpriteTexture('vsuCausticVeil', 'causticVeil', 256);
+        const streakTexture = this._createMysticSpriteTexture('vsuAnamorphicStreak', 'anamorphicStreak', 256);
 
         // SACRED_SUPERPACK: Sacred spectral volumetric light colors
         const lightConfigs = [
@@ -1175,6 +1336,7 @@ export class VisualUpgradeSuperpack {
             cone.rotation.set(config.rotation.x, config.rotation.y, config.rotation.z, "XYZ");
             cone.renderOrder = 10;
             cone.userData = {
+                isVisualSuperpack: true,
                 kind: 'volumetricCone',
                 baseOpacity: config.intensity * 0.55,
                 baseScale: 1,
@@ -1185,13 +1347,13 @@ export class VisualUpgradeSuperpack {
             this.root.add(cone);
             this.volumetricLights.push(cone);
 
-            const rayGeometry = new THREE.PlaneGeometry(config.size * 0.8, config.size * 1.5);
+            const rayGeometry = this._createOrganicVeilGeometry(config.size * 0.92, config.size * 1.72, motionSeed + 0.9, 22);
             const rayMaterial = new THREE.MeshBasicMaterial({
                 color: config.color,
-                map: glowTexture || null,
-                alphaMap: glowTexture || null,
+                map: causticTexture || glowTexture || null,
+                alphaMap: causticTexture || glowTexture || null,
                 transparent: true,
-                opacity: config.intensity * 0.35,
+                opacity: config.intensity * 0.42,
                 blending: THREE.AdditiveBlending,
                 side: THREE.DoubleSide,
                 depthWrite: false,
@@ -1205,8 +1367,9 @@ export class VisualUpgradeSuperpack {
             rays.rotation.x -= Math.PI / 6;
             rays.renderOrder = 11;
             rays.userData = {
+                isVisualSuperpack: true,
                 kind: 'volumetricRays',
-                baseOpacity: config.intensity * 0.35,
+                baseOpacity: config.intensity * 0.42,
                 baseScale: 1,
                 color: config.color,
                 baseRotation: {
@@ -1219,6 +1382,47 @@ export class VisualUpgradeSuperpack {
 
             this.root.add(rays);
             this.volumetricLights.push(rays);
+
+            for (let band = 0; band < 2; band++) {
+                const bandGeometry = this._createOrganicVeilGeometry(config.size * (1.6 + band * 0.55), config.size * 0.18, motionSeed + band * 2.7, 18);
+                const bandMaterial = new THREE.MeshBasicMaterial({
+                    color: band === 0 ? 0xfff0d0 : config.color,
+                    map: streakTexture || glowTexture || null,
+                    alphaMap: streakTexture || glowTexture || null,
+                    transparent: true,
+                    opacity: config.intensity * (0.18 - band * 0.035),
+                    blending: THREE.AdditiveBlending,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                    fog: false,
+                    toneMapped: false
+                });
+                const bandMesh = new THREE.Mesh(bandGeometry, bandMaterial);
+                bandMesh.position.copy(config.pos);
+                bandMesh.rotation.set(
+                    config.rotation.x - Math.PI / 7 + band * 0.09,
+                    config.rotation.y + band * 0.18,
+                    config.rotation.z + Math.PI / 2 + band * 0.32,
+                    "XYZ"
+                );
+                bandMesh.renderOrder = 11 + band;
+                bandMesh.userData = {
+                    isVisualSuperpack: true,
+                    kind: 'cathedralLightBand',
+                    baseOpacity: config.intensity * (0.18 - band * 0.035),
+                    baseScale: 1,
+                    color: band === 0 ? 0xfff0d0 : config.color,
+                    baseRotation: {
+                        x: config.rotation.x - Math.PI / 7 + band * 0.09,
+                        y: config.rotation.y + band * 0.18,
+                        z: config.rotation.z + Math.PI / 2 + band * 0.32
+                    },
+                    ...motion
+                };
+
+                this.root.add(bandMesh);
+                this.volumetricLights.push(bandMesh);
+            }
 
             const core = new THREE.Mesh(
                 new THREE.SphereGeometry(config.size * 0.14, 16, 16),
@@ -1237,6 +1441,7 @@ export class VisualUpgradeSuperpack {
             core.position.copy(config.pos);
             core.renderOrder = 12;
             core.userData = {
+                isVisualSuperpack: true,
                 kind: 'volumetricCore',
                 baseOpacity: config.intensity * 0.85,
                 baseScale: 1,
@@ -1259,6 +1464,7 @@ export class VisualUpgradeSuperpack {
             [0.68, 0xffffff, 0.05],
             [1.0, 0xffffff, 0.0]
         ], 512);
+        const veilTexture = this._createMysticSpriteTexture('vsuDreamStrataVeil', 'causticVeil', 512);
 
         // SACRED_SUPERPACK: Sacred spectral mist colors
         const fogLayers = [
@@ -1297,11 +1503,11 @@ export class VisualUpgradeSuperpack {
         ];
 
         fogLayers.forEach(layer => {
-            const geometry = new THREE.PlaneGeometry(layer.size, layer.size);
+            const geometry = this._createOrganicVeilGeometry(layer.size * 1.18, layer.size * 0.82, Math.random() * 1000, 34);
             const material = new THREE.MeshBasicMaterial({
                 color: layer.color,
-                map: mistTexture || null,
-                alphaMap: mistTexture || null,
+                map: veilTexture || mistTexture || null,
+                alphaMap: veilTexture || mistTexture || null,
                 transparent: true,
                 opacity: layer.opacity,
                 blending: THREE.AdditiveBlending,
@@ -1315,6 +1521,7 @@ export class VisualUpgradeSuperpack {
             plane.position.y = layer.height;
             plane.rotation.x = -Math.PI / 2;
             plane.userData = {
+                isVisualSuperpack: true,
                 layer: layer.name,
                 baseOpacity: layer.opacity,
                 pulseSpeed: layer.speed,
@@ -1336,12 +1543,17 @@ export class VisualUpgradeSuperpack {
     // PACK 3: HOLOGRAPHIC EDGE GLOW PACK
     // ============================================================
     applyHolographicEdgeGlowPack() {
+        if (this.edgeGlowObjects.length > 0) return;
+        const quality = this._qualityProfile || this._getQualityProfile(this.qualityTier);
+        const maxEdgeObjects = Math.max(0, Math.min(32, quality.edgeGlowMaxObjects || 18));
+        let edgeCount = 0;
+
         // Create edge glow overlays for scene geometry
         // SACRED_SUPERPACK: Sacred teal edge glow (was 0x00ffff)
-        const edgeGlowMaterial = new THREE.LineBasicMaterial({
+        const edgeGlowMaterialTemplate = new THREE.LineBasicMaterial({
             color: 0x40E0D0,
             transparent: true,
-            opacity: 0.7,
+            opacity: 0.38,
             linewidth: 1.5,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
@@ -1351,9 +1563,13 @@ export class VisualUpgradeSuperpack {
 
         // Scan scene for geometric objects and add edge glows
         this.scene.traverse(child => {
-            if (child.isMesh && child.geometry && !child.userData.isVolumetric) {
+            if (edgeCount >= maxEdgeObjects) return;
+            if (child.isMesh && child.geometry && !child.userData.isVolumetric && child.userData?.isVisualSuperpack !== true) {
                 // Skip certain objects
-                if (child.name.includes('Particle') || child.name.includes('particle')) return;
+                const name = child.name || '';
+                if (name.includes('Particle') || name.includes('particle') || name.includes('HUD') || name.includes('Overlay')) return;
+                if (child.isSprite || child.isPoints || child.userData?.isHUD || child.userData?.isParticleSystem) return;
+                if (child.material?.transparent && child.material?.opacity < 0.35) return;
 
                 try {
                     const ctx = {
@@ -1364,6 +1580,7 @@ export class VisualUpgradeSuperpack {
                     };
                     const edges = safeEdgesGeometry(child.geometry, ctx);
                     if (!edges) return;
+                    const edgeGlowMaterial = edgeGlowMaterialTemplate.clone();
                     const wireframe = new THREE.LineSegments(edges, edgeGlowMaterial);
                     wireframe.position.copy(child.position);
                     if (child.quaternion) {
@@ -1372,6 +1589,7 @@ export class VisualUpgradeSuperpack {
                     wireframe.scale.copy(child.scale);
                     wireframe.renderOrder = 20;
                     wireframe.userData = {
+                        isVisualSuperpack: true,
                         linkedMesh: child,
                         baseOpacity: 0.55,
                         fresnel: true,
@@ -1381,11 +1599,14 @@ export class VisualUpgradeSuperpack {
 
                     this.root.add(wireframe);
                     this.edgeGlowObjects.push(wireframe);
+                    edgeCount += 1;
                 } catch (e) {
                     // Skip geometries that can't be converted to edges
                 }
             }
         });
+
+        edgeGlowMaterialTemplate.dispose();
     }
 
     // ============================================================
@@ -1559,6 +1780,9 @@ export class VisualUpgradeSuperpack {
     // PACK 8: DREAM PARTICLES PACK
     // ============================================================
     applyDreamParticlesPack() {
+        const spectralMoteTexture = this._createMysticSpriteTexture('vsuSpectralMote', 'spectralMote', 128);
+        const starKernelTexture = this._createMysticSpriteTexture('vsuSoftStarKernel', 'softStarKernel', 128);
+        const runeSparkTexture = this._createMysticSpriteTexture('vsuRuneSpark', 'runeSpark', 128);
         const particleTexture = this._createRadialGradientTexture('vsuDreamParticle', [
             [0.0, 0xffffff, 0.9],
             [0.2, 0xffffff, 0.45],
@@ -1573,21 +1797,24 @@ export class VisualUpgradeSuperpack {
                 height: new THREE.Vector2(5, 40),
                 color: 0xFFD700,    // Sacred gold (was 0xffc8dd)
                 speed: 0.008,
-                size: 0.12
+                size: 0.12,
+                texture: starKernelTexture || particleTexture
             },
             {
                 count: 150,
                 height: new THREE.Vector2(20, 60),
                 color: 0x40E0D0,    // Celestial teal (was 0xffb8d8)
                 speed: 0.006,
-                size: 0.08
+                size: 0.08,
+                texture: spectralMoteTexture || particleTexture
             },
             {
                 count: 100,
                 height: new THREE.Vector2(40, 80),
                 color: 0x9466EB,    // Mystic violet (was 0xffffff)
                 speed: 0.004,
-                size: 0.06
+                size: 0.06,
+                texture: runeSparkTexture || particleTexture
             }
         ];
 
@@ -1612,20 +1839,22 @@ export class VisualUpgradeSuperpack {
 
             const material = new THREE.PointsMaterial({
                 color: system.color,
-                map: particleTexture || null,
-                alphaMap: particleTexture || null,
+                map: system.texture || null,
+                alphaMap: system.texture || null,
                 size: system.size * 1.55,
                 sizeAttenuation: true,
                 transparent: true,
                 opacity: 0.75,
                 blending: THREE.AdditiveBlending,
                 depthWrite: false,
+                alphaTest: 0.02,
                 fog: true,
                 toneMapped: false
             });
 
             const points = new THREE.Points(geometry, material);
             points.userData = {
+                isVisualSuperpack: true,
                 velocities: velocities,
                 bounds: 150,
                 system: system
@@ -1633,6 +1862,49 @@ export class VisualUpgradeSuperpack {
 
             this.root.add(points);
             this.particles.push(points);
+        });
+    }
+
+    // ============================================================
+    // PACK 8B: HERO SPECTRAL CAUSTIC FIELD
+    // ============================================================
+    applySpectralCausticFieldPack() {
+        if (this.spectralCaustics.length > 0) return;
+
+        const causticConfigs = [
+            { pos: new THREE.Vector3(0, 22, -38), radius: 34, color: 0x40e0d0, opacity: 0.28, tilt: -0.42 },
+            { pos: new THREE.Vector3(42, 32, 36), radius: 28, color: 0xffd700, opacity: 0.22, tilt: -0.28 },
+            { pos: new THREE.Vector3(-46, 28, 24), radius: 31, color: 0x9466eb, opacity: 0.24, tilt: -0.36 }
+        ];
+
+        causticConfigs.forEach((config, index) => {
+            const geometry = this._createCausticLineGeometry(config.radius, 3, 64, index * 17.31);
+            const material = new THREE.LineBasicMaterial({
+                color: config.color,
+                transparent: true,
+                opacity: config.opacity,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                fog: false,
+                toneMapped: false
+            });
+
+            const field = new THREE.LineSegments(geometry, material);
+            field.position.copy(config.pos);
+            field.rotation.set(config.tilt, index * 0.42, Math.PI * (0.16 + index * 0.18), "XYZ");
+            field.renderOrder = 13;
+            field.userData = {
+                isVisualSuperpack: true,
+                type: 'spectralCausticField',
+                baseOpacity: config.opacity,
+                baseScale: 1,
+                pulseSpeed: 0.18 + index * 0.04,
+                spinSpeed: 0.006 + index * 0.002,
+                phase: Math.random() * Math.PI * 2
+            };
+
+            this.root.add(field);
+            this.spectralCaustics.push(field);
         });
     }
 
@@ -1816,6 +2088,7 @@ export class VisualUpgradeSuperpack {
         this.particles.forEach(o => this.ensureRotationOrder(o));
         this.volumetricLights.forEach(o => this.ensureRotationOrder(o));
         this.atmosphericLayers.forEach(o => this.ensureRotationOrder(o));
+        this.spectralCaustics.forEach(o => this.ensureRotationOrder(o));
 
         // Update volumetric lights
         this.volumetricLights.forEach(light => {
@@ -1854,9 +2127,9 @@ export class VisualUpgradeSuperpack {
             if (light.material?.color && light.userData?.tint) {
                 const tint = 0.96 + pulse * 0.06;
                 light.material.color.setRGB(
-                    THREE.MathUtils.clamp(light.userData.tint.r * tint, 0, 1),
-                    THREE.MathUtils.clamp(light.userData.tint.g * tint, 0, 1),
-                    THREE.MathUtils.clamp(light.userData.tint.b * tint, 0, 1)
+                    THREE.MathUtils.clamp(light.userData.tint.r * tint + harmony * 0.045 + corruption * 0.025, 0, 1),
+                    THREE.MathUtils.clamp(light.userData.tint.g * tint + synergy * 0.045, 0, 1),
+                    THREE.MathUtils.clamp(light.userData.tint.b * tint + corruption * 0.075 + (1 - stability) * 0.025, 0, 1)
                 );
             }
 
@@ -1906,6 +2179,18 @@ export class VisualUpgradeSuperpack {
             // Fractal motion
             rift.rotation.x += visualDelta * 0.05;
             rift.rotation.z += visualDelta * 0.08;
+        });
+
+        // Update hero caustic fields
+        this.spectralCaustics.forEach(field => {
+            if (!field.userData?.pulseSpeed) return;
+            const pulse = Math.sin(this.time * field.userData.pulseSpeed + field.userData.phase) * 0.5 + 0.5;
+            field.rotation.z += visualDelta * field.userData.spinSpeed * (1 + spectacleMix * 1.8);
+            field.rotation.x += Math.sin(this.time * 0.05 + field.userData.phase) * 0.00025;
+            field.scale.setScalar(0.94 + pulse * 0.08 + spectacleMix * 0.045);
+            if (field.material) {
+                field.material.opacity = field.userData.baseOpacity * quality.causticOpacity * masterScale * (0.48 + pulse * 0.52) * heroFade;
+            }
         });
 
         // Update dream particles
@@ -2026,6 +2311,7 @@ export class VisualUpgradeSuperpack {
         cleanupArray(this.distortionZones);
         cleanupArray(this.rifts);
         cleanupArray(this.particles);
+        cleanupArray(this.spectralCaustics);
 
         if (this.cameraAura) {
             if (this.cameraAura.parent) {

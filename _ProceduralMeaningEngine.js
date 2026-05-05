@@ -17,7 +17,7 @@
  * 1. CONSCIOUSNESS - Fractal loop ring + pulsating tetra core
  * 2. STABILITY - Jittering broken-plane shards
  * 3. SYNERGY - Twin-orbit rings + lotus petals
- * 4. CORRUPTION - Fractured semi-transparent cube
+ * 4. CORRUPTION - Fractured semi-transparent wedge cluster
  * 5. HARMONY - Floating six-petal lotus + golden glow
  * 
  * STRICT SAFETY:
@@ -98,7 +98,7 @@ export class ProceduralMeaningEngine {
     
     // Pre-create cube geometries (corruption)
     for (let i = 0; i < 12; i++) {
-      this.geometryPools.cubes.push(new THREE.BoxGeometry(0.08, 0.08, 0.08));
+      this.geometryPools.cubes.push(this._createCorruptionWedgeGeometry());
     }
     
     // Pre-create torus geometries (rings for synergy)
@@ -108,13 +108,28 @@ export class ProceduralMeaningEngine {
     
     // Pre-create plane geometries (stability shards)
     for (let i = 0; i < 20; i++) {
-      this.geometryPools.planes.push(new THREE.PlaneGeometry(0.05, 0.08));
+      this.geometryPools.planes.push(this._createStabilityShardGeometry());
     }
     
     // Pre-create cone geometries (harmony petals)
     for (let i = 0; i < 18; i++) {
       this.geometryPools.pyramids.push(new THREE.ConeGeometry(0.04, 0.12, 4));
     }
+  }
+
+  _createStabilityShardGeometry() {
+    const shape = new THREE.Shape();
+    shape.moveTo(-0.022, -0.04);
+    shape.lineTo(0.01, -0.036);
+    shape.lineTo(0.026, 0.005);
+    shape.lineTo(0.006, 0.04);
+    shape.lineTo(-0.02, 0.016);
+    shape.closePath();
+    return new THREE.ShapeGeometry(shape, 1);
+  }
+
+  _createCorruptionWedgeGeometry() {
+    return new THREE.CylinderGeometry(0.024, 0.034, 0.068, 3, 1);
   }
   
   /**
@@ -302,7 +317,7 @@ export class ProceduralMeaningEngine {
   }
   
   /**
-   * STABILITY - Jittering broken-plane shards
+   * STABILITY - Jittering fractured kite shards
    * red/violet gradient, chaotic motion
    */
   createStabilityGlyph() {
@@ -313,7 +328,7 @@ export class ProceduralMeaningEngine {
     for (let i = 0; i < shardCount; i++) {
       const shardGeo = this.geometryPools.planes.length > 0
         ? this.geometryPools.planes.pop()
-        : new THREE.PlaneGeometry(0.05, 0.08);
+        : this._createStabilityShardGeometry();
       
       // Gradient: red to violet
       const lerpFactor = i / shardCount;
@@ -434,13 +449,13 @@ export class ProceduralMeaningEngine {
   }
   
   /**
-   * CORRUPTION - Fractured semi-transparent cube
+   * CORRUPTION - Fractured semi-transparent wedge cluster
    * black/purple blend, flickering opacity
    */
   createCorruptionGlyph() {
     const group = new THREE.Group();
     
-    // Main fractured cube (split into 6 pieces)
+    // Main fractured wedge cluster (split into 6 pieces)
     const cubeSize = 0.08;
     const pieceSize = cubeSize * 0.6;
     
@@ -457,7 +472,7 @@ export class ProceduralMeaningEngine {
     for (let i = 0; i < 6; i++) {
       const fragGeo = this.geometryPools.cubes.length > 0
         ? this.geometryPools.cubes.pop()
-        : new THREE.BoxGeometry(pieceSize * 0.8, pieceSize * 0.8, pieceSize * 0.8);
+        : this._createCorruptionWedgeGeometry();
       
       const fragMat = new THREE.MeshBasicMaterial({
         color: i % 2 === 0 ? 0x330033 : 0x660066,
@@ -469,6 +484,12 @@ export class ProceduralMeaningEngine {
       
       const fragment = new THREE.Mesh(fragGeo, fragMat);
       fragment.position.copy(offsets[i]);
+      fragment.scale.setScalar(0.8 + (pieceSize * 2.2));
+      fragment.rotation.set(
+        (i % 3) * 0.35,
+        (i * Math.PI) / 3,
+        (i % 2 === 0 ? 1 : -1) * 0.2
+      );
       fragment.userData.role = `fragment_${i}`;
       fragment.userData.basePos = { ...offsets[i] };
       group.add(fragment);

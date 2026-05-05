@@ -18,6 +18,29 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
 - `FractalValley.js` now keeps only the unbroken hero bridge; the distant/broken bridge was removed from the spawn list so the valley reads as one clean crossing.
 
 ## 2026-05-05
+- Quantum primitive cleanup (P0 + P1 + P2) landed without widening into a full quad redesign.
+- `QuantumIsland.js`
+  - added cached canvas sprite masks for `softOctoMote`, `cometCapsule`, `diamondShard`, `hexMote`, and `dataPacketLozenge`
+  - `singularityParticles`, `orbitingRockTrails`, and `circuitFlowPoints` now use mapped point sprites instead of bare square `PointsMaterial`
+  - `quantumParticles` was split into 3 persistent point buckets:
+    - 120 `softOctoMote`
+    - 105 `diamondShard`
+    - 75 `hexMote`
+  - `floatingShards` no longer use flat boxes; they now use a 2:1 low-profile prism family (`hexSlab`, `triWedgePrism`)
+- `_SafeNodePersonalityFX.js`
+  - analytical orbit symbols no longer use `PlaneGeometry(0.4, 0.4)`
+  - they now share one cached clipped hex-chip `ShapeGeometry`
+- `_ProceduralMeaningEngine.js`
+  - `geometryPools.planes` now stores irregular kite shard `ShapeGeometry`
+  - `geometryPools.cubes` now stores triangular corruption wedge prisms instead of box cubes
+  - stability/corruption glyph builders now use those replacement families while preserving counts and animation behavior
+- Verification:
+  - `node --check QuantumIsland.js`
+  - `node --check _SafeNodePersonalityFX.js`
+  - `node --check _ProceduralMeaningEngine.js`
+  - static grep confirmed removal of the targeted `PlaneGeometry(0.4, 0.4)`, `PlaneGeometry(0.05, 0.08)`, and `BoxGeometry(0.08, 0.08, 0.08)` instantiations
+- Note:
+  - this pass intentionally stayed static-only per current request; no browser/Playwright smoke was run for this cleanup
 - Release-safe shutdown for `CanonicalTemplate3_StressVisuals` landed.
 - `main.js` no longer imports, instantiates, updates, resets, or reads pressure-field state from `CanonicalTemplate3_StressVisuals`.
 - `StressVisualShaderSystem` bootstrap/update path is also hard-disabled for release.

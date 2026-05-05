@@ -37,11 +37,12 @@ export class CinematicUpgrade {
     this._vec3b = new THREE.Vector3();
 
     // Budget caps
-    this.maxDustParticles = 60; // Max floating dust particles
+    this.maxDustParticles = 72; // Max floating dust particles
 
     // Effect containers (only unique effects, no duplication with Superpack)
     this.dustParticles = [];
     this.edgeGlowPass = null;
+    this.lensStack = null;
     this.sharedTextures = {};
     this.time = 0;
 
@@ -84,6 +85,7 @@ export class CinematicUpgrade {
   initialize() {
     this.createFloatingDustField();
     this.createHolographicEdgeGlow();
+    this.createCinematicLensStack();
     this._syncNodeShaderVisibility();
   }
 
@@ -134,6 +136,84 @@ export class CinematicUpgrade {
     texture.wrapS = THREE.ClampToEdgeWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
 
+    this.sharedTextures[textureKey] = texture;
+    return texture;
+  }
+
+  _createCinematicMaskTexture(textureKey, kind, size = 256) {
+    if (this.sharedTextures[textureKey]) {
+      return this.sharedTextures[textureKey];
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const cx = size * 0.5;
+    const cy = size * 0.5;
+    ctx.clearRect(0, 0, size, size);
+
+    if (kind === 'anamorphicStreak') {
+      const line = ctx.createLinearGradient(0, cy, size, cy);
+      line.addColorStop(0, 'rgba(255,255,255,0)');
+      line.addColorStop(0.32, 'rgba(255,255,255,0.08)');
+      line.addColorStop(0.5, 'rgba(255,255,255,0.95)');
+      line.addColorStop(0.68, 'rgba(255,255,255,0.08)');
+      line.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = line;
+      ctx.fillRect(0, cy - size * 0.065, size, size * 0.13);
+      const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 0.32);
+      core.addColorStop(0, 'rgba(255,255,255,0.7)');
+      core.addColorStop(0.55, 'rgba(255,255,255,0.16)');
+      core.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = core;
+      ctx.fillRect(0, 0, size, size);
+    } else if (kind === 'lensGhost') {
+      const ring = ctx.createRadialGradient(cx, cy, size * 0.15, cx, cy, size * 0.5);
+      ring.addColorStop(0, 'rgba(255,255,255,0)');
+      ring.addColorStop(0.42, 'rgba(255,255,255,0.45)');
+      ring.addColorStop(0.55, 'rgba(255,255,255,0.1)');
+      ring.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = ring;
+      ctx.fillRect(0, 0, size, size);
+    } else if (kind === 'nearMote') {
+      const mote = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 0.5);
+      mote.addColorStop(0, 'rgba(255,255,255,1)');
+      mote.addColorStop(0.18, 'rgba(255,255,255,0.72)');
+      mote.addColorStop(0.5, 'rgba(255,255,255,0.18)');
+      mote.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = mote;
+      ctx.fillRect(0, 0, size, size);
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const a = -Math.PI / 2 + i * Math.PI / 4;
+        const r = size * (i % 2 === 0 ? 0.45 : 0.38);
+        const x = cx + Math.cos(a) * r;
+        const y = cy + Math.sin(a) * r;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      const haze = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 0.5);
+      haze.addColorStop(0, 'rgba(255,255,255,0.86)');
+      haze.addColorStop(0.36, 'rgba(255,255,255,0.24)');
+      haze.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = haze;
+      ctx.fillRect(0, 0, size, size);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
     this.sharedTextures[textureKey] = texture;
     return texture;
   }
@@ -190,11 +270,15 @@ export class CinematicUpgrade {
         dustCount: 24,
         dustOpacity: 0.1,
         dustScale: 0.9,
+        nearDustRatio: 0.28,
         haloOpacity: 0.86,
         haloScale: 0.94,
         haloDepth: -2.85,
         haloAccentOpacity: 0,
         haloAccentScale: 1,
+        lensOpacity: 0.18,
+        lensScale: 0.82,
+        lensStreakOpacity: 0.16,
         bloomStrength: 0.9,
         bloomThreshold: 0.28,
         bloomRadius: 0.38,
@@ -203,14 +287,18 @@ export class CinematicUpgrade {
       },
       MEDIUM: {
         rendererExposure: 1.0,
-        dustCount: 30,
-        dustOpacity: 0.15,
+        dustCount: 34,
+        dustOpacity: 0.17,
         dustScale: 1.0,
+        nearDustRatio: 0.34,
         haloOpacity: 0.98,
         haloScale: 1.0,
         haloDepth: -2.7,
         haloAccentOpacity: 0,
         haloAccentScale: 1,
+        lensOpacity: 0.28,
+        lensScale: 0.94,
+        lensStreakOpacity: 0.24,
         bloomStrength: 1.02,
         bloomThreshold: 0.2,
         bloomRadius: 0.48,
@@ -219,14 +307,18 @@ export class CinematicUpgrade {
       },
       HIGH: {
         rendererExposure: 1.14,
-        dustCount: 40,
-        dustOpacity: 0.22,
-        dustScale: 1.2,
+        dustCount: 56,
+        dustOpacity: 0.26,
+        dustScale: 1.28,
+        nearDustRatio: 0.42,
         haloOpacity: 1.35,
         haloScale: 1.12,
         haloDepth: -2.05,
         haloAccentOpacity: 1.8,
         haloAccentScale: 1.6,
+        lensOpacity: 0.52,
+        lensScale: 1.18,
+        lensStreakOpacity: 0.48,
         bloomStrength: 1.2,
         bloomThreshold: 0.14,
         bloomRadius: 0.62,
@@ -258,6 +350,9 @@ export class CinematicUpgrade {
     if (this.edgeGlowPass?.group) {
       this.edgeGlowPass.group.position.z = this._qualityProfile.haloDepth;
     }
+    if (this.lensStack) {
+      this.lensStack.position.z = this._qualityProfile.haloDepth + 0.12;
+    }
 
     return this.qualityTier;
   }
@@ -270,25 +365,32 @@ export class CinematicUpgrade {
    * Create a subtle floating dust field around the camera
    */
   createFloatingDustField() {
-    const dustTexture = this._createRadialGradientTexture('dustField', [
+    const deepDustTexture = this._createRadialGradientTexture('dustField', [
       [0.0, 0xffffff, 0.9],
       [0.2, 0xffffff, 0.42],
       [0.55, 0xffffff, 0.08],
       [1.0, 0xffffff, 0.0]
     ], 128);
+    const nearDustTexture = this._createCinematicMaskTexture('nearLensMote', 'nearMote', 128);
+    const ghostDustTexture = this._createCinematicMaskTexture('deepLensGhostMote', 'lensGhost', 128);
 
     const profile = this._qualityProfile || this._getQualityProfile(this.qualityTier);
     const dustColors = [0xffffff, 0xbefcff, 0xe9d8ff, 0xfff0fb];
-    const dustCount = profile.dustCount;
+    const dustCount = Math.min(this.maxDustParticles, profile.dustCount);
+    const nearStart = Math.max(0, Math.floor(dustCount * (1 - profile.nearDustRatio)));
     const cameraPosition = this.camera?.position || this._vec3a.set(0, 0, 0);
 
     for (let index = 0; index < dustCount; index++) {
+      const isNear = index >= nearStart;
       const color = dustColors[index % dustColors.length];
+      const texture = isNear
+        ? nearDustTexture || deepDustTexture
+        : (index % 3 === 0 ? ghostDustTexture || deepDustTexture : deepDustTexture);
       const material = new THREE.SpriteMaterial({
-        map: dustTexture || null,
+        map: texture || null,
         color,
         transparent: true,
-        opacity: profile.dustOpacity * (0.82 + Math.random() * 0.56),
+        opacity: isNear ? 0.74 + Math.random() * 0.5 : 0.46 + Math.random() * 0.34,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         depthTest: false,
@@ -299,19 +401,20 @@ export class CinematicUpgrade {
       const sprite = new THREE.Sprite(material);
       sprite.renderOrder = 18;
       sprite.position.set(
-        cameraPosition.x + (Math.random() - 0.5) * 70,
-        cameraPosition.y + (Math.random() - 0.4) * 30,
-        cameraPosition.z + (Math.random() - 0.5) * 70
+        cameraPosition.x + (Math.random() - 0.5) * (isNear ? 32 : 86),
+        cameraPosition.y + (Math.random() - 0.4) * (isNear ? 18 : 34),
+        cameraPosition.z + (Math.random() - 0.5) * (isNear ? 32 : 86)
       );
-      sprite.scale.setScalar((0.45 + Math.random() * 0.95) * profile.dustScale);
+      sprite.scale.setScalar((isNear ? 0.72 + Math.random() * 1.2 : 0.34 + Math.random() * 0.82) * profile.dustScale);
       sprite.userData = {
+        bucket: isNear ? 'nearLensMote' : 'deepParallaxDust',
         orbitPhase: Math.random() * Math.PI * 2,
-        orbitRadius: 18 + Math.random() * 26,
-        orbitHeight: (Math.random() - 0.5) * 18,
-        orbitSpeed: 0.015 + Math.random() * 0.03,
-        pulseSpeed: 0.8 + Math.random() * 0.7,
-        verticalDrift: 1.1 + Math.random() * 1.4,
-        baseScale: (0.45 + Math.random() * 0.95) * profile.dustScale,
+        orbitRadius: isNear ? 6 + Math.random() * 14 : 22 + Math.random() * 34,
+        orbitHeight: (Math.random() - 0.5) * (isNear ? 10 : 22),
+        orbitSpeed: (isNear ? 0.028 : 0.011) + Math.random() * (isNear ? 0.034 : 0.024),
+        pulseSpeed: (isNear ? 1.0 : 0.58) + Math.random() * 0.72,
+        verticalDrift: (isNear ? 0.8 : 1.4) + Math.random() * 1.4,
+        baseScale: sprite.scale.x,
         baseOpacity: material.opacity,
         phaseOffset: Math.random() * Math.PI * 2
       };
@@ -407,6 +510,68 @@ export class CinematicUpgrade {
   }
 
   // ============================================================
+  // UNIQUE EFFECT: HIGH-TIER CAMERA LENS STACK
+  // ============================================================
+
+  createCinematicLensStack() {
+    if (this.lensStack) return;
+
+    const profile = this._qualityProfile || this._getQualityProfile(this.qualityTier);
+    const streakTexture = this._createCinematicMaskTexture('cinematicAnamorphicStreak', 'anamorphicStreak', 256);
+    const ghostTexture = this._createCinematicMaskTexture('cinematicLensGhost', 'lensGhost', 256);
+    const moteTexture = this._createCinematicMaskTexture('cinematicNearMote', 'nearMote', 128);
+
+    const group = new THREE.Group();
+    group.name = 'CinematicLensStack';
+    group.position.set(0, 0, profile.haloDepth + 0.12);
+    group.renderOrder = 10000;
+    group.userData = {
+      phase: Math.random() * Math.PI * 2
+    };
+
+    const makeSprite = (texture, color, opacity, scale, offset, role) => {
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: texture || null,
+        color,
+        transparent: true,
+        opacity,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+        fog: false,
+        toneMapped: false
+      }));
+      sprite.scale.set(scale[0], scale[1], 1);
+      sprite.position.set(offset[0], offset[1], offset[2]);
+      sprite.userData = {
+        role,
+        baseOpacity: opacity,
+        baseScale: new THREE.Vector3(scale[0], scale[1], 1),
+        basePosition: new THREE.Vector3(offset[0], offset[1], offset[2]),
+        phase: Math.random() * Math.PI * 2
+      };
+      group.add(sprite);
+      return sprite;
+    };
+
+    makeSprite(streakTexture, 0xfff0d0, 0.12, [7.8, 0.42, 1], [0, 0.03, 0], 'primaryStreak');
+    makeSprite(streakTexture, 0x69f7ff, 0.08, [5.4, 0.26, 1], [-0.24, -0.14, 0], 'cyanSplit');
+    makeSprite(streakTexture, 0xff8be8, 0.055, [4.9, 0.22, 1], [0.28, 0.18, 0], 'violetSplit');
+    makeSprite(ghostTexture, 0xffd700, 0.09, [1.2, 1.2, 1], [-0.68, 0.28, 0], 'goldGhost');
+    makeSprite(ghostTexture, 0x9466eb, 0.07, [0.82, 0.82, 1], [0.72, -0.22, 0], 'violetGhost');
+    makeSprite(moteTexture, 0xffffff, 0.11, [0.18, 0.18, 1], [-0.34, -0.32, 0], 'nearMote');
+    makeSprite(moteTexture, 0x9fffff, 0.08, [0.13, 0.13, 1], [0.38, 0.34, 0], 'nearMote');
+
+    if (this.camera) {
+      this.camera.add(group);
+    } else {
+      this.scene.add(group);
+    }
+
+    this.lensStack = group;
+  }
+
+  // ============================================================
   // POST-PROCESSING INTEGRATION
   // ============================================================
 
@@ -494,6 +659,7 @@ export class CinematicUpgrade {
       // Immediately make objects visible so fade-in is visible
       this.dustParticles.forEach(p => { p.visible = true; });
       if (this.edgeGlowPass?.group) this.edgeGlowPass.group.visible = true;
+      if (this.lensStack) this.lensStack.visible = true;
     }
   }
 
@@ -532,15 +698,17 @@ export class CinematicUpgrade {
       if (this._fadeOpacity <= 0) {
         this.dustParticles.forEach(p => { p.visible = false; });
         if (this.edgeGlowPass?.group) this.edgeGlowPass.group.visible = false;
+        if (this.lensStack) this.lensStack.visible = false;
         return; // Skip rest of update when invisible
       } else {
         this.dustParticles.forEach(p => { p.visible = true; });
         if (this.edgeGlowPass?.group) this.edgeGlowPass.group.visible = true;
+        if (this.lensStack) this.lensStack.visible = true;
       }
     }
 
     const fade = this._fadeOpacity;
-  const quality = this._qualityProfile || this._getQualityProfile(this.qualityTier);
+    const quality = this._qualityProfile || this._getQualityProfile(this.qualityTier);
     const macroProfile = this._macroProfile || {};
     const macroState = this._macroState || 'DORMANT';
     const macroMasterScale = Number(macroProfile.masterScale) || 1;
@@ -555,13 +723,16 @@ export class CinematicUpgrade {
     // --- Metrics-driven parameters ---
     const { harmony, corruption, synergy, stability } = this._metrics;
     const pulseMultiplier = 1 + (1 - stability) * 0.3; // faster with instability
+    const harmonyLift = THREE.MathUtils.clamp(harmony * 0.42 + synergy * 0.34, 0, 0.76);
+    const corruptionSplit = THREE.MathUtils.clamp(corruption * 0.82 + (1 - stability) * 0.36, 0, 1.08);
+    const revelationBoost = macroState === 'REVELATION' ? 0.24 : macroState === 'COMMUNION' ? 0.14 : 0;
 
     // --- Renderer exposure modulation ---
     if (this._renderer) {
       const targetExposure = THREE.MathUtils.clamp(
-        this._baseExposure * macroMasterScale + synergy * 0.08 - corruption * 0.06,
+        this._baseExposure * macroMasterScale + synergy * 0.1 + harmony * 0.045 - corruption * 0.055,
         0.72,
-        1.58
+        1.66
       );
       this._renderer.toneMappingExposure += (targetExposure - this._renderer.toneMappingExposure) * 0.02;
     }
@@ -576,13 +747,13 @@ export class CinematicUpgrade {
           0.95
         ),
         exposure: THREE.MathUtils.clamp(
-          this._baseExposure * macroMasterScale + synergy * 0.08 - corruption * 0.06,
+          this._baseExposure * macroMasterScale + synergy * 0.1 + harmony * 0.045 - corruption * 0.055,
           0.72,
-          1.58
+          1.66
         ),
-        radius: quality.bloomRadius * macroRiftScale,
-        vignetteStrength: quality.vignetteStrength * macroCameraAuraScale + corruption * 0.15,
-        chromaticStrength: quality.chromaticStrength * macroDistortionScale + (1 - stability) * 0.001,
+        radius: quality.bloomRadius * macroRiftScale + revelationBoost * 0.12,
+        vignetteStrength: quality.vignetteStrength * macroCameraAuraScale + corruption * 0.13,
+        chromaticStrength: quality.chromaticStrength * macroDistortionScale + corruptionSplit * 0.00115,
         hazeStrength: baseHazeStrength * macroFogScale + (1 - stability) * 0.01
       });
     }
@@ -594,15 +765,16 @@ export class CinematicUpgrade {
     this.dustParticles.forEach(particle => {
       const phase = particle.userData.orbitPhase + this.time * particle.userData.orbitSpeed * pulseMultiplier;
       const pulse = Math.sin(this.time * particle.userData.pulseSpeed + particle.userData.phaseOffset) * 0.5 + 0.5;
-      const radius = particle.userData.orbitRadius + Math.sin(this.time * 0.33 + particle.userData.phaseOffset) * 2.2;
+      const isNear = particle.userData.bucket === 'nearLensMote';
+      const radius = particle.userData.orbitRadius + Math.sin(this.time * (isNear ? 0.48 : 0.33) + particle.userData.phaseOffset) * (isNear ? 1.1 : 2.2);
       const height = particle.userData.orbitHeight + Math.cos(this.time * 0.28 + particle.userData.phaseOffset) * particle.userData.verticalDrift;
 
       particle.position.x = cameraPosition.x + Math.cos(phase) * radius;
       particle.position.y = cameraPosition.y + height;
       particle.position.z = cameraPosition.z + Math.sin(phase) * radius;
-      particle.material.opacity = particle.userData.baseOpacity * quality.dustOpacity * macroParticleScale * (0.42 + pulse * 0.58) * fade;
-      particle.scale.setScalar(particle.userData.baseScale * quality.dustScale * macroParticleScale * (0.65 + pulse * 0.65));
-      particle.material.rotation = phase * 0.25;
+      particle.material.opacity = particle.userData.baseOpacity * macroParticleScale * (isNear ? quality.lensOpacity : quality.dustOpacity) * (0.42 + pulse * 0.58) * fade;
+      particle.scale.setScalar(particle.userData.baseScale * quality.dustScale * macroParticleScale * (isNear ? 0.74 + pulse * 0.78 : 0.65 + pulse * 0.65));
+      particle.material.rotation = phase * (isNear ? 0.42 : 0.25);
     });
 
     // --- Update camera halo glow ---
@@ -615,16 +787,54 @@ export class CinematicUpgrade {
       this.edgeGlowPass.sprites.forEach((sprite, index) => {
         const spritePulse = Math.sin(this.time * (0.55 + index * 0.12) + sprite.userData.phase) * 0.5 + 0.5;
         const baseScale = sprite.userData.baseScale;
-        const accentBoost = sprite.userData.accent ? quality.haloAccentOpacity : 1;
+        const accentBoost = sprite.userData.accent ? quality.haloAccentOpacity + revelationBoost : 1;
         const scaleBoost = sprite.userData.accent ? quality.haloAccentScale : quality.haloScale;
         const macroHaloScale = scaleBoost * macroCameraAuraScale;
-        sprite.material.opacity = sprite.userData.baseOpacity * quality.haloOpacity * accentBoost * macroCameraAuraScale * (0.7 + spritePulse * 0.3) * fade;
+        sprite.material.opacity = sprite.userData.baseOpacity * quality.haloOpacity * accentBoost * macroCameraAuraScale * (0.7 + spritePulse * 0.3 + harmonyLift * 0.12) * fade;
         sprite.scale.set(
           baseScale.x * macroHaloScale * (0.95 + haloPulse * 0.1),
           baseScale.y * macroHaloScale * (0.95 + haloPulse * 0.1),
           baseScale.z
         );
         sprite.material.rotation = Math.sin(this.time * 0.1 + index) * 0.06;
+      });
+    }
+
+    // --- Update premium lens stack ---
+    if (this.lensStack) {
+      const lensPhase = this.lensStack.userData?.phase ?? 0;
+      const lensPulse = Math.sin(this.time * 0.38 + lensPhase) * 0.5 + 0.5;
+      const splitPulse = 0.72 + corruptionSplit * 0.16 + lensPulse * 0.12;
+      this.lensStack.position.z = quality.haloDepth + 0.12 - lensPulse * 0.08;
+      this.lensStack.rotation.z = Math.sin(this.time * 0.07 + lensPhase) * 0.018;
+
+      this.lensStack.children.forEach((sprite, index) => {
+        const role = sprite.userData.role || 'lens';
+        const rolePulse = Math.sin(this.time * (0.44 + index * 0.08) + sprite.userData.phase) * 0.5 + 0.5;
+        const baseScale = sprite.userData.baseScale;
+        const isStreak = role.includes('Streak') || role.includes('Split');
+        const isGhost = role.includes('Ghost');
+        const isMote = role === 'nearMote';
+        const roleOpacity = isStreak
+          ? quality.lensStreakOpacity
+          : isGhost
+            ? quality.lensOpacity * 0.72
+            : quality.lensOpacity * 0.52;
+        const corruptionBoost = role.includes('violet') ? 1 + corruptionSplit * 0.42 : 1;
+        const harmonyBoost = role.includes('gold') || role === 'primaryStreak' ? 1 + harmonyLift * 0.28 + revelationBoost : 1;
+        const scaleBoost = quality.lensScale * macroCameraAuraScale * (isStreak ? 1 + harmonyLift * 0.08 : 1 + rolePulse * 0.08);
+
+        sprite.material.opacity = sprite.userData.baseOpacity * roleOpacity * corruptionBoost * harmonyBoost * (0.58 + rolePulse * 0.42) * fade;
+        sprite.scale.set(
+          baseScale.x * scaleBoost * (isStreak ? splitPulse : 1),
+          baseScale.y * scaleBoost * (isMote ? 0.86 + rolePulse * 0.36 : 0.94 + rolePulse * 0.12),
+          1
+        );
+        if (sprite.userData.basePosition) {
+          sprite.position.x = sprite.userData.basePosition.x + Math.sin(this.time * 0.21 + index) * 0.018;
+          sprite.position.y = sprite.userData.basePosition.y + Math.cos(this.time * 0.19 + index) * 0.014;
+        }
+        sprite.material.rotation = Math.sin(this.time * 0.11 + index) * (isStreak ? 0.035 : 0.09);
       });
     }
   }
@@ -642,9 +852,22 @@ export class CinematicUpgrade {
       this._disposeObject3D(particle);
     });
 
-    if (this.edgeGlowPass?.group && this.camera?.remove) {
-      this.camera.remove(this.edgeGlowPass.group);
+    if (this.edgeGlowPass?.group) {
+      if (this.edgeGlowPass.group.parent) {
+        this.edgeGlowPass.group.parent.remove(this.edgeGlowPass.group);
+      } else {
+        this.scene.remove(this.edgeGlowPass.group);
+      }
       this._disposeObject3D(this.edgeGlowPass.group);
+    }
+
+    if (this.lensStack) {
+      if (this.lensStack.parent) {
+        this.lensStack.parent.remove(this.lensStack);
+      } else {
+        this.scene.remove(this.lensStack);
+      }
+      this._disposeObject3D(this.lensStack);
     }
 
     Object.values(this.sharedTextures).forEach(texture => {
@@ -655,6 +878,7 @@ export class CinematicUpgrade {
 
     this.dustParticles = [];
     this.edgeGlowPass = null;
+    this.lensStack = null;
     this.sharedTextures = {};
   }
 }

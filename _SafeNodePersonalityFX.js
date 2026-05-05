@@ -23,6 +23,7 @@ export class SafeNodePersonalityFX {
     // EXTERNAL STATE - Never touch node internals
     this.registry = {};
     this.vfxContainers = {};
+    this._analyticalSymbolGeometry = null;
     
     // Personality definitions with behavioral parameters
     this.personalityTypes = {
@@ -596,7 +597,7 @@ export class SafeNodePersonalityFX {
     while (vfx.holoSymbols.length < 3) {
       const symbolIndex = vfx.holoSymbols.length;
       
-      const geo = new THREE.PlaneGeometry(0.4, 0.4);
+      const geo = this._getAnalyticalSymbolGeometry();
       const mat = new THREE.MeshBasicMaterial({
         color: params.color,
         transparent: true,
@@ -628,6 +629,23 @@ export class SafeNodePersonalityFX {
       const pulse = 0.5 + Math.sin(vfx.animationTime * params.pulseSpeed) * 0.3;
       symbol.material.opacity = pulse * params.glowIntensity * moodMult.glowMult;
     });
+  }
+
+  _getAnalyticalSymbolGeometry() {
+    if (this._analyticalSymbolGeometry) return this._analyticalSymbolGeometry;
+
+    const shape = new THREE.Shape();
+    shape.moveTo(-0.16, 0.1);
+    shape.lineTo(-0.04, 0.18);
+    shape.lineTo(0.13, 0.18);
+    shape.lineTo(0.2, 0.04);
+    shape.lineTo(0.14, -0.16);
+    shape.lineTo(-0.08, -0.18);
+    shape.lineTo(-0.2, -0.04);
+    shape.closePath();
+
+    this._analyticalSymbolGeometry = new THREE.ShapeGeometry(shape, 1);
+    return this._analyticalSymbolGeometry;
   }
   
   /**
@@ -766,7 +784,7 @@ export class SafeNodePersonalityFX {
     // Clean up symbols
     vfx.holoSymbols?.forEach(symbol => {
       this.scene.remove(symbol);
-      if (symbol.geometry) symbol.geometry.dispose();
+      if (symbol.geometry && symbol.geometry !== this._analyticalSymbolGeometry) symbol.geometry.dispose();
       if (symbol.material) symbol.material.dispose();
     });
     
@@ -837,5 +855,9 @@ export class SafeNodePersonalityFX {
     this.registry = {};
     this.vfxContainers = {};
     this.interpretationAccumulator = this.interpretationInterval; // Force immediate semantic pass on re-enable
+    if (this._analyticalSymbolGeometry) {
+      this._analyticalSymbolGeometry.dispose();
+      this._analyticalSymbolGeometry = null;
+    }
   }
 }
