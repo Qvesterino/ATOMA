@@ -905,6 +905,15 @@ export class PauseMenu {
                     window.__ATOMA_POSTPROCESSING_PENDING__ = settings.postProcessing;
                 }
             }
+        } else if (settingId === 'luminosityBloom') {
+            settings.luminosityBloom = !settings.luminosityBloom;
+            if (typeof window !== 'undefined') {
+                if (window.game?.setLuminosityBloomEnabled) {
+                    window.game.setLuminosityBloomEnabled(settings.luminosityBloom);
+                } else {
+                    window.__ATOMA_LUMINOSITY_BLOOM_PENDING__ = settings.luminosityBloom;
+                }
+            }
         } else if (settingId === 'nodeRotations') {
             settings.nodeRotations = !settings.nodeRotations;
             if (typeof window !== 'undefined') {

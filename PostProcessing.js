@@ -58,6 +58,14 @@ export class BloomPass {
       gain: options.gain ?? 1.03,
       hazeStrength: options.hazeStrength ?? 0.065,
       hazeColor: options.hazeColor ?? 0x8ecfff,
+      anamorphicStrength: options.anamorphicStrength ?? 0.18,
+      anamorphicSpread: options.anamorphicSpread ?? 0.72,
+      bloomGhostStrength: options.bloomGhostStrength ?? 0.08,
+      bloomDirtStrength: options.bloomDirtStrength ?? 0.055,
+      lightWrapStrength: options.lightWrapStrength ?? 0.12,
+      warmLiftStrength: options.warmLiftStrength ?? 0.08,
+      cyanShadowStrength: options.cyanShadowStrength ?? 0.06,
+      corruptionSplitStrength: options.corruptionSplitStrength ?? 0.00035,
       bloomLayerIndex: options.bloomLayerIndex ?? 1,
       bloomLayerRefreshInterval: options.bloomLayerRefreshInterval ?? 12,
       selectiveBloomEnabled: options.selectiveBloomEnabled ?? true,
@@ -82,6 +90,8 @@ export class BloomPass {
       loadPressure: 0.15,
       luminanceHint: 0.5
     };
+    this._adaptiveHazeColor = new THREE.Color(this.options.hazeColor);
+    this._adaptiveTintColor = new THREE.Color(0xffffff);
 
     // Scene size
     const initialSize = getRendererBufferSize(renderer);
@@ -377,7 +387,7 @@ export class BloomPass {
     const tintStrength = THREE.MathUtils.clamp(
       this.options.tintStrength + this._smoothedAdaptive.synergy * 0.035 + this._smoothedAdaptive.corruption * 0.025,
       0,
-      0.09
+      0.12
     );
     const chromaticStrength = THREE.MathUtils.clamp(
       this.options.chromaticStrength + this._smoothedAdaptive.corruption * 0.0012 + pressure * 0.0004,
@@ -415,19 +425,62 @@ export class BloomPass {
       1.12
     );
     const hazeStrength = THREE.MathUtils.clamp(
-      this.options.hazeStrength + pressure * 0.03 + this._smoothedAdaptive.corruption * 0.02 + (1 - this._smoothedAdaptive.stability) * 0.025 - this._smoothedAdaptive.synergy * 0.008,
+      this.options.hazeStrength + pressure * 0.034 + this._smoothedAdaptive.corruption * 0.024 + (1 - this._smoothedAdaptive.stability) * 0.026 - this._smoothedAdaptive.synergy * 0.006,
       0,
-      0.12
+      0.15
     );
-    const hazeColor = new THREE.Color(this.options.hazeColor);
+    const warmMetric = THREE.MathUtils.clamp(this._smoothedAdaptive.synergy * 0.55 + this._smoothedAdaptive.harmony * 0.45, 0, 1);
+    const pressureMetric = THREE.MathUtils.clamp(this._smoothedAdaptive.corruption * 0.68 + this._smoothedAdaptive.loadPressure * 0.46 + (1 - this._smoothedAdaptive.stability) * 0.24, 0, 1);
+    const anamorphicStrength = THREE.MathUtils.clamp(
+      this.options.anamorphicStrength + warmMetric * 0.22 + brightness * 0.06 - pressureMetric * 0.035,
+      0,
+      0.55
+    );
+    const anamorphicSpread = THREE.MathUtils.clamp(
+      this.options.anamorphicSpread + warmMetric * 0.22 + pressureMetric * 0.1,
+      0.28,
+      1.45
+    );
+    const bloomGhostStrength = THREE.MathUtils.clamp(
+      this.options.bloomGhostStrength + warmMetric * 0.12 + brightness * 0.04,
+      0,
+      0.32
+    );
+    const bloomDirtStrength = THREE.MathUtils.clamp(
+      this.options.bloomDirtStrength + pressureMetric * 0.06 + brightness * 0.02,
+      0,
+      0.18
+    );
+    const lightWrapStrength = THREE.MathUtils.clamp(
+      this.options.lightWrapStrength + warmMetric * 0.14 + brightness * 0.05 - pressureMetric * 0.035,
+      0,
+      0.36
+    );
+    const warmLiftStrength = THREE.MathUtils.clamp(
+      this.options.warmLiftStrength + warmMetric * 0.16 - pressureMetric * 0.035,
+      0,
+      0.34
+    );
+    const cyanShadowStrength = THREE.MathUtils.clamp(
+      this.options.cyanShadowStrength + this._smoothedAdaptive.stability * 0.045 + this._smoothedAdaptive.harmony * 0.035 + pressureMetric * 0.025,
+      0,
+      0.26
+    );
+    const corruptionSplitStrength = THREE.MathUtils.clamp(
+      this.options.corruptionSplitStrength + pressureMetric * 0.0024,
+      0,
+      0.0042
+    );
+
+    const hazeColor = this._adaptiveHazeColor.set(this.options.hazeColor);
     hazeColor.r = THREE.MathUtils.clamp(hazeColor.r * (1.0 + this._smoothedAdaptive.corruption * 0.02 - this._smoothedAdaptive.synergy * 0.01), 0, 1.1);
     hazeColor.g = THREE.MathUtils.clamp(hazeColor.g * (1.0 + this._smoothedAdaptive.harmony * 0.025 + this._smoothedAdaptive.stability * 0.015), 0, 1.1);
     hazeColor.b = THREE.MathUtils.clamp(hazeColor.b * (1.0 + this._smoothedAdaptive.synergy * 0.04 + this._smoothedAdaptive.stability * 0.02), 0, 1.15);
 
-    const tintColor = new THREE.Color(0xffffff);
-    tintColor.r = THREE.MathUtils.clamp(1.0 + this._smoothedAdaptive.corruption * 0.08 + this._smoothedAdaptive.synergy * 0.02, 0, 1.1);
+    const tintColor = this._adaptiveTintColor.set(0xffffff);
+    tintColor.r = THREE.MathUtils.clamp(1.0 + this._smoothedAdaptive.corruption * 0.08 + this._smoothedAdaptive.synergy * 0.035 + this._smoothedAdaptive.harmony * 0.028, 0, 1.12);
     tintColor.g = THREE.MathUtils.clamp(1.0 + this._smoothedAdaptive.harmony * 0.02 - this._smoothedAdaptive.corruption * 0.06, 0, 1.1);
-    tintColor.b = THREE.MathUtils.clamp(1.0 + this._smoothedAdaptive.synergy * 0.08 + this._smoothedAdaptive.stability * 0.03, 0, 1.1);
+    tintColor.b = THREE.MathUtils.clamp(1.0 + this._smoothedAdaptive.synergy * 0.08 + this._smoothedAdaptive.stability * 0.03 - warmMetric * 0.018, 0, 1.1);
 
     return {
       scale: targetScale,
@@ -446,7 +499,15 @@ export class BloomPass {
       gain,
       hazeStrength,
       hazeColor,
-      tintColor
+      tintColor,
+      anamorphicStrength,
+      anamorphicSpread,
+      bloomGhostStrength,
+      bloomDirtStrength,
+      lightWrapStrength,
+      warmLiftStrength,
+      cyanShadowStrength,
+      corruptionSplitStrength
     };
   }
 
@@ -480,6 +541,14 @@ export class BloomPass {
     this.materials.composite.uniforms.hazeStrength.value = state.hazeStrength;
     this.materials.composite.uniforms.hazeColor.value.copy(state.hazeColor);
     this.materials.composite.uniforms.tintColor.value.copy(state.tintColor);
+    this.materials.composite.uniforms.anamorphicStrength.value = state.anamorphicStrength;
+    this.materials.composite.uniforms.anamorphicSpread.value = state.anamorphicSpread;
+    this.materials.composite.uniforms.bloomGhostStrength.value = state.bloomGhostStrength;
+    this.materials.composite.uniforms.bloomDirtStrength.value = state.bloomDirtStrength;
+    this.materials.composite.uniforms.lightWrapStrength.value = state.lightWrapStrength;
+    this.materials.composite.uniforms.warmLiftStrength.value = state.warmLiftStrength;
+    this.materials.composite.uniforms.cyanShadowStrength.value = state.cyanShadowStrength;
+    this.materials.composite.uniforms.corruptionSplitStrength.value = state.corruptionSplitStrength;
     this.materials.composite.uniforms.time.value = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
 
     return state;
@@ -548,13 +617,13 @@ export class BloomPass {
         uniform float smoothWidth;
         varying vec2 vUv;
 
-        float luminance(vec3 color) {
+        float atomaBloomLuma(vec3 color) {
           return dot(color, vec3(0.299, 0.587, 0.114));
         }
 
         void main() {
           vec4 color = texture2D(tDiffuse, vUv);
-          float lum = luminance(color.rgb);
+          float lum = atomaBloomLuma(color.rgb);
           float smoothed = smoothstep(threshold - smoothWidth, threshold + smoothWidth, lum);
           gl_FragColor = vec4(color.rgb * smoothed, color.a);
         }
@@ -572,6 +641,7 @@ export class BloomPass {
       uniforms: {
         tScene: { value: null },
         tBloom: { value: null },
+        resolution: { value: new THREE.Vector2(this.width, this.height) },
         strength: { value: this.options.strength },
         exposure: { value: this.options.exposure },
         vignetteStrength: { value: this.options.vignetteStrength },
@@ -586,6 +656,14 @@ export class BloomPass {
         gain: { value: this.options.gain },
         hazeStrength: { value: this.options.hazeStrength },
         hazeColor: { value: new THREE.Color(this.options.hazeColor) },
+        anamorphicStrength: { value: this.options.anamorphicStrength },
+        anamorphicSpread: { value: this.options.anamorphicSpread },
+        bloomGhostStrength: { value: this.options.bloomGhostStrength },
+        bloomDirtStrength: { value: this.options.bloomDirtStrength },
+        lightWrapStrength: { value: this.options.lightWrapStrength },
+        warmLiftStrength: { value: this.options.warmLiftStrength },
+        cyanShadowStrength: { value: this.options.cyanShadowStrength },
+        corruptionSplitStrength: { value: this.options.corruptionSplitStrength },
         time: { value: 0 }
       },
       vertexShader: `
@@ -598,6 +676,7 @@ export class BloomPass {
       fragmentShader: `
         uniform sampler2D tScene;
         uniform sampler2D tBloom;
+        uniform vec2 resolution;
         uniform float strength;
         uniform float exposure;
         uniform float vignetteStrength;
@@ -612,6 +691,14 @@ export class BloomPass {
         uniform float gain;
         uniform float hazeStrength;
         uniform vec3 hazeColor;
+        uniform float anamorphicStrength;
+        uniform float anamorphicSpread;
+        uniform float bloomGhostStrength;
+        uniform float bloomDirtStrength;
+        uniform float lightWrapStrength;
+        uniform float warmLiftStrength;
+        uniform float cyanShadowStrength;
+        uniform float corruptionSplitStrength;
         uniform float time;
         varying vec2 vUv;
 
@@ -619,13 +706,60 @@ export class BloomPass {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
         }
 
+        float atomaCompositeLuma(vec3 color) {
+          return dot(color, vec3(0.299, 0.587, 0.114));
+        }
+
+        float softDirt(vec2 uv) {
+          vec2 p = uv * vec2(9.0, 5.0);
+          float a = hash(floor(p));
+          float b = hash(floor(p * 1.73 + 4.1));
+          float vign = smoothstep(0.05, 0.86, distance(uv, vec2(0.5)));
+          return mix(a, b, 0.42) * (0.28 + vign * 0.72);
+        }
+
         vec3 sampleChromatic(vec2 uv) {
           vec2 centered = uv - vec2(0.5);
-          vec2 offset = centered * chromaticStrength * 1.5;
+          vec2 drift = vec2(sin(time * 0.23), cos(time * 0.19)) * corruptionSplitStrength * 0.55;
+          vec2 axis = normalize(centered + drift + vec2(0.0001, 0.0001));
+          vec2 offset = axis * (chromaticStrength * 1.45 + corruptionSplitStrength * (1.0 + dot(centered, centered) * 2.4));
           float r = texture2D(tScene, uv + offset).r;
           float g = texture2D(tScene, uv).g;
           float b = texture2D(tScene, uv - offset).b;
           return vec3(r, g, b);
+        }
+
+        vec3 sampleAnamorphicBloom(vec2 uv) {
+          vec3 accum = vec3(0.0);
+          float total = 0.0;
+          float spread = (0.0025 + anamorphicSpread * 0.0065) * (resolution.y / max(resolution.x, 1.0));
+          for (int i = -4; i <= 4; i++) {
+            float fi = float(i);
+            float w = exp(-abs(fi) * 0.72);
+            vec2 suv = uv + vec2(fi * spread, 0.0);
+            accum += texture2D(tBloom, clamp(suv, vec2(0.001), vec2(0.999))).rgb * w;
+            total += w;
+          }
+          return accum / max(total, 0.001);
+        }
+
+        vec3 sampleBloomGhosts(vec2 uv) {
+          vec2 centered = uv - vec2(0.5);
+          vec3 g1 = texture2D(tBloom, clamp(vec2(0.5) - centered * 0.62, vec2(0.001), vec2(0.999))).rgb;
+          vec3 g2 = texture2D(tBloom, clamp(vec2(0.5) + centered * 0.36 + vec2(0.012, -0.008), vec2(0.001), vec2(0.999))).rgb;
+          vec3 g3 = texture2D(tBloom, clamp(vec2(0.5) - centered * 0.24 + vec2(-0.018, 0.014), vec2(0.001), vec2(0.999))).rgb;
+          float edgeFade = smoothstep(0.02, 0.58, length(centered)) * (1.0 - smoothstep(0.62, 0.92, length(centered)));
+          return (g1 * 0.44 + g2 * 0.34 + g3 * 0.22) * edgeFade;
+        }
+
+        vec3 applyCinematicLift(vec3 color, float sceneLuma, float bloomLuma) {
+          vec3 warm = vec3(1.12, 1.02, 0.84);
+          vec3 cyan = vec3(0.78, 1.04, 1.14);
+          float highlightMask = smoothstep(0.38, 1.1, sceneLuma + bloomLuma * 0.65);
+          float shadowMask = 1.0 - smoothstep(0.08, 0.46, sceneLuma);
+          color = mix(color, color * warm, warmLiftStrength * highlightMask);
+          color = mix(color, color * cyan, cyanShadowStrength * shadowMask);
+          return color;
         }
 
         vec3 applyContrast(vec3 color, float amount) {
@@ -645,7 +779,9 @@ export class BloomPass {
 
         vec3 filmicTonemap(vec3 color) {
           color = max(color, vec3(0.0));
-          return clamp((color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14), 0.0, 1.0);
+          vec3 mapped = (color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14);
+          vec3 shoulder = color / (color + vec3(1.0));
+          return clamp(mix(mapped, shoulder, 0.18), 0.0, 1.0);
         }
 
         void main() {
@@ -654,16 +790,28 @@ export class BloomPass {
             sceneColor = sampleChromatic(vUv);
           }
           vec4 bloom = texture2D(tBloom, vUv);
+          vec3 anamorphicBloom = sampleAnamorphicBloom(vUv);
+          vec3 bloomGhosts = sampleBloomGhosts(vUv);
+          float dirt = softDirt(vUv + vec2(time * 0.003, -time * 0.002));
           
           // Apply exposure to bloom
           vec3 bloomColor = bloom.rgb * strength * exposure;
+          bloomColor += anamorphicBloom * anamorphicStrength * exposure;
+          bloomColor += bloomGhosts * bloomGhostStrength * exposure;
+          bloomColor *= 1.0 + dirt * bloomDirtStrength;
           
           // Additive blend
           vec3 finalColor = sceneColor + bloomColor;
-          float finalLuma = dot(finalColor, vec3(0.299, 0.587, 0.114));
-          float bloomLuma = dot(bloomColor, vec3(0.299, 0.587, 0.114));
+          float finalLuma = atomaCompositeLuma(finalColor);
+          float bloomLuma = atomaCompositeLuma(bloomColor);
+
+          // Light-wrap haze: bright regions bleed into nearby atmosphere without another pass.
+          vec3 wrapColor = mix(hazeColor, vec3(1.0, 0.9, 0.66), warmLiftStrength * 0.75);
+          float wrapMask = smoothstep(0.03, 0.42, bloomLuma) * (0.62 + softDirt(vUv * 0.73) * 0.38);
+          finalColor += wrapColor * wrapMask * lightWrapStrength;
 
           // Subtle cinematic tinting / grading
+          finalColor = applyCinematicLift(finalColor, finalLuma, bloomLuma);
           finalColor = mix(finalColor, finalColor * tintColor, tintStrength);
           finalColor = applyContrast(finalColor, contrast);
           finalColor = applySaturation(finalColor, saturation);
@@ -776,7 +924,7 @@ export class BloomPass {
       {
         target: rt.luminosity,
         scene: this.scene_scene,
-        camera: this.camera,
+        camera: this.screenCamera,
         label: 'bloom.luminosity',
         before: () => {
           setVisibility('luminosity');
@@ -786,7 +934,7 @@ export class BloomPass {
       {
         target: rt.blurred[0],
         scene: this.scene_scene,
-        camera: this.camera,
+        camera: this.screenCamera,
         label: 'bloom.blurH',
         before: () => {
           setVisibility('blurH');
@@ -797,7 +945,7 @@ export class BloomPass {
       {
         target: rt.blurred[1],
         scene: this.scene_scene,
-        camera: this.camera,
+        camera: this.screenCamera,
         label: 'bloom.blurV',
         before: () => {
           setVisibility('blurV');
@@ -811,9 +959,9 @@ export class BloomPass {
   /**
    * Get final composite scene/camera for a screen render
    */
-  getCompositeOutput(sourceRenderTarget) {
+  getCompositeOutput(sourceRenderTarget, bloomTexture = null) {
     this.materials.composite.uniforms.tScene.value = sourceRenderTarget.texture;
-    this.materials.composite.uniforms.tBloom.value = this.renderTargets.blurred[1].texture;
+    this.materials.composite.uniforms.tBloom.value = bloomTexture || this.renderTargets.blurred[1].texture;
     Object.entries(this.planes).forEach(([key, mesh]) => {
       mesh.visible = key === 'composite';
     });
@@ -839,7 +987,7 @@ export class BloomPass {
     }
 
     const scene = this.bloomPass?.scene_scene;
-    const camera = this.bloomPass?.camera ?? this.camera ?? this.screenCamera;
+    const camera = this.bloomPass?.screenCamera ?? this.screenCamera;
     if (!scene || !camera) {
       return null;
     }
@@ -947,6 +1095,38 @@ export class BloomPass {
       this.options.tintColor = params.tintColor;
       this.materials.composite.uniforms.tintColor.value.set(params.tintColor);
     }
+    if (params.anamorphicStrength !== undefined) {
+      this.options.anamorphicStrength = params.anamorphicStrength;
+      this.materials.composite.uniforms.anamorphicStrength.value = params.anamorphicStrength;
+    }
+    if (params.anamorphicSpread !== undefined) {
+      this.options.anamorphicSpread = params.anamorphicSpread;
+      this.materials.composite.uniforms.anamorphicSpread.value = params.anamorphicSpread;
+    }
+    if (params.bloomGhostStrength !== undefined) {
+      this.options.bloomGhostStrength = params.bloomGhostStrength;
+      this.materials.composite.uniforms.bloomGhostStrength.value = params.bloomGhostStrength;
+    }
+    if (params.bloomDirtStrength !== undefined) {
+      this.options.bloomDirtStrength = params.bloomDirtStrength;
+      this.materials.composite.uniforms.bloomDirtStrength.value = params.bloomDirtStrength;
+    }
+    if (params.lightWrapStrength !== undefined) {
+      this.options.lightWrapStrength = params.lightWrapStrength;
+      this.materials.composite.uniforms.lightWrapStrength.value = params.lightWrapStrength;
+    }
+    if (params.warmLiftStrength !== undefined) {
+      this.options.warmLiftStrength = params.warmLiftStrength;
+      this.materials.composite.uniforms.warmLiftStrength.value = params.warmLiftStrength;
+    }
+    if (params.cyanShadowStrength !== undefined) {
+      this.options.cyanShadowStrength = params.cyanShadowStrength;
+      this.materials.composite.uniforms.cyanShadowStrength.value = params.cyanShadowStrength;
+    }
+    if (params.corruptionSplitStrength !== undefined) {
+      this.options.corruptionSplitStrength = params.corruptionSplitStrength;
+      this.materials.composite.uniforms.corruptionSplitStrength.value = params.corruptionSplitStrength;
+    }
     if (params.scale !== undefined) {
       this.options.scale = params.scale;
       this.baseScale = Math.max(2, Math.round(params.scale));
@@ -978,6 +1158,7 @@ export class BloomPass {
     
     // Recreate render targets with new size
     this.renderTargets.composite.setSize(width, height);
+    this.materials.composite.uniforms.resolution.value.set(width, height);
     this._resizeBloomTargets();
   }
 
@@ -1067,6 +1248,9 @@ export class PostProcessingPipeline {
     this.scene = scene;
     this.camera = camera;
     this.sceneMetrics = null;
+    const initialSize = getRendererBufferSize(renderer);
+    this.width = initialSize.width;
+    this.height = initialSize.height;
     this.renderTargetSamples = this.renderer?.capabilities?.isWebGL2
       ? Math.max(0, Math.min(4, this.renderer?.capabilities?.maxSamples ?? 4))
       : 0;
@@ -1085,6 +1269,12 @@ export class PostProcessingPipeline {
       threshold: options.bloomThreshold ?? options.threshold ?? 0.84,
       ...options
     });
+    this._neutralBloomTexture = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1, THREE.RGBAFormat);
+    this._neutralBloomTexture.needsUpdate = true;
+    this._neutralBloomTexture.generateMipmaps = false;
+    this._neutralBloomTexture.minFilter = THREE.NearestFilter;
+    this._neutralBloomTexture.magFilter = THREE.NearestFilter;
+    this._activeBloomTexture = this._neutralBloomTexture;
 
     this.enabled = options.enabled !== false;
     this._shaderWarmupComplete = false;
@@ -1124,18 +1314,8 @@ export class PostProcessingPipeline {
 
     if (typeof this.bloomPass?.updateSceneMetrics === 'function') {
       this.bloomPass.updateSceneMetrics(this.sceneMetrics || undefined);
-    }
-
-    if (this.bloomPass) {
       this.bloomPass.scene = this.scene;
       this.bloomPass.camera = this.camera;
-      if (typeof this.bloomPass._refreshSelectiveBloomTargets === 'function') {
-        const shouldForceBloomRefresh =
-          this.bloomPass._selectiveBloomStats?.refreshedAt === 0 ||
-          this.bloomPass._lastSelectiveBloomScene !== this.scene;
-        this.bloomPass._lastSelectiveBloomScene = this.scene;
-        this.bloomPass._refreshSelectiveBloomTargets(shouldForceBloomRefresh);
-      }
     }
 
     // 1) Render base scene into main render target
@@ -1148,31 +1328,8 @@ export class PostProcessingPipeline {
       }
     ];
 
-    const useSelectiveBloom = this.bloomPass?.options?.selectiveBloomEnabled !== false && !!this.bloomPass?.renderTargets?.selectiveBloom;
-    if (useSelectiveBloom) {
-      const bloomLayerIndex = this.bloomPass._getBloomLayerIndex();
-      operations.push({
-        target: this.bloomPass.renderTargets.selectiveBloom,
-        scene: this.scene,
-        camera: this.camera,
-        label: 'bloom.selectiveSource',
-        before: () => {
-          this.bloomPass._pendingBloomCameraLayerMask = this.bloomPass._saveCameraLayerMask(this.camera);
-          this.camera?.layers?.set?.(bloomLayerIndex);
-        },
-        after: () => {
-          this.bloomPass._restoreCameraLayerMask(this.camera, this.bloomPass._pendingBloomCameraLayerMask);
-          this.bloomPass._pendingBloomCameraLayerMask = null;
-        }
-      });
-    }
-
-    // 2) Bloom passes (luminosity + blurs)
-    const bloomSourceTarget = useSelectiveBloom ? this.bloomPass.renderTargets.selectiveBloom : this.mainRenderTarget;
-    operations.push(...this.bloomPass.getPasses(bloomSourceTarget));
-
     // 3) Prepare composite for screen render
-    const output = this.bloomPass.getCompositeOutput(this.mainRenderTarget);
+    const output = this.getCompositeOutput(this.mainRenderTarget);
 
     return {
       operations,
@@ -1193,6 +1350,15 @@ export class PostProcessingPipeline {
    */
   updateParams(params) {
     this.bloomPass.updateParams(params);
+  }
+
+  setBloomTexture(texture = null) {
+    this._activeBloomTexture = texture || this._neutralBloomTexture;
+    return this._activeBloomTexture;
+  }
+
+  getCompositeOutput(sourceRenderTarget = this.mainRenderTarget) {
+    return this.bloomPass.getCompositeOutput(sourceRenderTarget, this._activeBloomTexture || this._neutralBloomTexture);
   }
 
   updateSceneMetrics(metrics = null) {
@@ -1230,6 +1396,7 @@ export class PostProcessingPipeline {
   dispose() {
     this.mainRenderTarget.dispose();
     this.bloomPass.dispose();
+    this._neutralBloomTexture?.dispose?.();
   }
 }
 

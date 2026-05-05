@@ -599,6 +599,7 @@ import { mountAIAutomationHUD, updateAIAutomationHUD } from './hud/AIAutomationH
 import { mountVariantBAdvisorHUD, updateVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
 import { UIVisibilityConfig, UI_VISIBILITY_CHANGE_EVENT } from './ui/config/UIVisibilityConfig.js';
 import { getSharedPostProcessingPipeline } from './PostProcessing.js';
+import { getSharedLuminosityBloomPipeline } from './LuminosityBloomPipeline.js';
 
 const ENABLE_SELECTED_NODE_BADGE = false;
 
@@ -6595,6 +6596,10 @@ this.setHudDirty('nodeInspect');
             this.setPostProcessingEnabled(!!window.__ATOMA_POSTPROCESSING_PENDING__);
             delete window.__ATOMA_POSTPROCESSING_PENDING__;
         }
+        if (window.__ATOMA_LUMINOSITY_BLOOM_PENDING__ !== undefined) {
+            this.setLuminosityBloomEnabled(!!window.__ATOMA_LUMINOSITY_BLOOM_PENDING__);
+            delete window.__ATOMA_LUMINOSITY_BLOOM_PENDING__;
+        }
         if (window.__ATOMA_NODE_ROTATIONS_PENDING__ !== undefined) {
             this.setNodeRotationsEnabled(!!window.__ATOMA_NODE_ROTATIONS_PENDING__);
             delete window.__ATOMA_NODE_ROTATIONS_PENDING__;
@@ -6896,6 +6901,11 @@ window.__ATOMA_SCENE__ = this.scene;
             this.postProcessing?.onWindowResize?.(this.renderer.domElement.width, this.renderer.domElement.height);
             this.postProcessingEnabled = false;
         }
+        if (!this.luminosityBloom) {
+            this.luminosityBloom = getSharedLuminosityBloomPipeline(this.renderer, this.scene, this.camera);
+            this.luminosityBloom?.onWindowResize?.(this.renderer.domElement.width, this.renderer.domElement.height);
+            this.luminosityBloomEnabled = false;
+        }
         this.cinematicNodeShadersEnabled = true;
         this.setPostProcessingEnabled = (enabled = true) => {
             const next = !!enabled;
@@ -6903,9 +6913,28 @@ window.__ATOMA_SCENE__ = this.scene;
                 this.postProcessingEnabled = next;
                 if (next) {
                     void this.postProcessing?.warmup?.(this.renderer);
+                    if (this.luminosityBloomEnabled) {
+                        void this.luminosityBloom?.warmup?.(this.renderer);
+                    }
+                } else {
+                    this.postProcessing?.setBloomTexture?.(null);
                 }
             }
             return this.postProcessingEnabled;
+        };
+
+        this.setLuminosityBloomEnabled = (enabled = true) => {
+            const next = !!enabled;
+            if (this.luminosityBloomEnabled !== next) {
+                this.luminosityBloomEnabled = next;
+                if (next && this.postProcessingEnabled) {
+                    void this.luminosityBloom?.warmup?.(this.renderer);
+                }
+                if (!next) {
+                    this.postProcessing?.setBloomTexture?.(null);
+                }
+            }
+            return this.luminosityBloomEnabled;
         };
 
         this._syncCinematicNodeShaders = () => {
@@ -7009,12 +7038,18 @@ window.__ATOMA_SCENE__ = this.scene;
 
         if (this.postProcessingEnabled) {
             void this.postProcessing?.warmup?.(this.renderer);
+            if (this.luminosityBloomEnabled) {
+                void this.luminosityBloom?.warmup?.(this.renderer);
+            }
         }
 
         const bootMenuSettings = this.bootOptions?.menuSettings || null;
         if (bootMenuSettings) {
             if (bootMenuSettings.postProcessing !== undefined) {
                 this.setPostProcessingEnabled(bootMenuSettings.postProcessing !== false);
+            }
+            if (bootMenuSettings.luminosityBloom !== undefined) {
+                this.setLuminosityBloomEnabled(bootMenuSettings.luminosityBloom === true);
             }
             if (bootMenuSettings.nodeRotations !== undefined) {
                 this.setNodeRotationsEnabled(bootMenuSettings.nodeRotations !== false);
@@ -11467,6 +11502,7 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.postProcessing?.onWindowResize?.(this.renderer.domElement.width, this.renderer.domElement.height);
+        this.luminosityBloom?.onWindowResize?.(this.renderer.domElement.width, this.renderer.domElement.height);
     }
 
     visualNetworkTimeElasticityTick(deltaTime) {
@@ -12593,8 +12629,27 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 if (result && Array.isArray(result.operations) && result.operations.length > 0) {
                     const totalStart = performance.now();
                     let baseSceneDuration = 0;
+                    let operations = result.operations;
+                    let bloomTexture = null;
 
-                    for (const op of result.operations) {
+                    if (
+                        this.luminosityBloomEnabled &&
+                        this.luminosityBloom &&
+                        typeof this.luminosityBloom.apply === 'function'
+                    ) {
+                        const bloomResult = this.luminosityBloom.apply(
+                            this.postProcessing.mainRenderTarget,
+                            this.scene,
+                            this.camera,
+                            liveMetrics
+                        );
+                        if (bloomResult && Array.isArray(bloomResult.operations) && bloomResult.operations.length > 0) {
+                            operations = operations.concat(bloomResult.operations);
+                            bloomTexture = bloomResult.outputTexture || null;
+                        }
+                    }
+
+                    for (const op of operations) {
                         if (!op) continue;
 
                         const opStart = performance.now();
@@ -12618,7 +12673,8 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                     this.renderer.resetState?.();
                     this.renderer.setViewport(0, 0, this.renderer.domElement.width, this.renderer.domElement.height);
                     this.renderer.setScissorTest(false);
-                    this.postProcessing?.bloomPass?.getCompositeOutput?.(this.postProcessing.mainRenderTarget);
+                    this.postProcessing?.setBloomTexture?.(bloomTexture);
+                    this.postProcessing?.getCompositeOutput?.(this.postProcessing.mainRenderTarget);
 
                     this.renderer.setRenderTarget(null);
                     const finalStart = performance.now();
@@ -13291,6 +13347,9 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
         // Wire into post-processing pipeline for real bloom/vignette modulation
         if (this.postProcessing) {
             this.cinematicUpgrade.setPostProcessing(this.postProcessing);
+        }
+        if (this.luminosityBloom) {
+            this.cinematicUpgrade.setLuminosityBloom?.(this.luminosityBloom);
         }
         this.cinematicUpgrade.setWorldContext?.(this._getCanonicalWorldContext());
     }

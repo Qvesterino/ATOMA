@@ -73,6 +73,7 @@ export class CinematicUpgrade {
     // Post-processing integration
     this._renderer = null;
     this._postProcessing = null;
+    this._luminosityBloom = null;
     this._baseExposure = 0.98;
     this.nodeShadersEnabled = true;
     this.qualityTier = 'HIGH';
@@ -592,6 +593,10 @@ export class CinematicUpgrade {
     this._postProcessing = pipeline;
   }
 
+  setLuminosityBloom(pipeline) {
+    this._luminosityBloom = pipeline;
+  }
+
   // ============================================================
   // METRICS REACTIVITY
   // ============================================================
@@ -738,23 +743,34 @@ export class CinematicUpgrade {
     }
 
     // --- Post-processing parameter modulation ---
+    const bloomStrength = quality.bloomStrength * macroVolumetricScale + synergy * 0.4;
+    const bloomThreshold = THREE.MathUtils.clamp(
+      quality.bloomThreshold + corruption * 0.1 - (macroVolumetricScale - 1) * 0.035,
+      0.08,
+      0.95
+    );
+    const bloomRadius = quality.bloomRadius * macroRiftScale + revelationBoost * 0.12;
+    const exposure = THREE.MathUtils.clamp(
+      this._baseExposure * macroMasterScale + synergy * 0.1 + harmony * 0.045 - corruption * 0.055,
+      0.72,
+      1.66
+    );
+
     if (this._postProcessing?.updateParams) {
       this._postProcessing.updateParams({
-        strength: quality.bloomStrength * macroVolumetricScale + synergy * 0.4,
-        threshold: THREE.MathUtils.clamp(
-          quality.bloomThreshold + corruption * 0.1 - (macroVolumetricScale - 1) * 0.035,
-          0.08,
-          0.95
-        ),
-        exposure: THREE.MathUtils.clamp(
-          this._baseExposure * macroMasterScale + synergy * 0.1 + harmony * 0.045 - corruption * 0.055,
-          0.72,
-          1.66
-        ),
-        radius: quality.bloomRadius * macroRiftScale + revelationBoost * 0.12,
+        strength: bloomStrength,
+        exposure,
         vignetteStrength: quality.vignetteStrength * macroCameraAuraScale + corruption * 0.13,
         chromaticStrength: quality.chromaticStrength * macroDistortionScale + corruptionSplit * 0.00115,
         hazeStrength: baseHazeStrength * macroFogScale + (1 - stability) * 0.01
+      });
+    }
+
+    if (this._luminosityBloom?.updateParams) {
+      this._luminosityBloom.updateParams({
+        strength: bloomStrength,
+        threshold: bloomThreshold,
+        radius: bloomRadius
       });
     }
 

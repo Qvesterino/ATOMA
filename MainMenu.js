@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS = Object.freeze({
     particles: true,
     audioMuted: false,
     postProcessing: false,
+    luminosityBloom: false,
     nodeRotations: true,
     semanticPictograms: true,
     environmentalHazards: true,
@@ -266,6 +267,7 @@ function sanitizeSettings(value) {
         particles: settings.particles !== false,
         audioMuted,
         postProcessing: settings.postProcessing === true,
+        luminosityBloom: settings.luminosityBloom === true,
         nodeRotations: settings.nodeRotations !== false,
         semanticPictograms: settings.semanticPictograms !== false,
         environmentalHazards: settings.environmentalHazards !== false,
@@ -1227,7 +1229,14 @@ export function getSettingsRows(settings) {
             id: 'postProcessing',
             label: 'POSTPROCESSING',
             value: `[ ${settings.postProcessing ? 'ON' : 'OFF'} ]`,
-            description: 'Enable or disable bloom/composite postprocessing effects.',
+            description: 'Enable or disable the premium composite grading stack.',
+        },
+        {
+            type: 'toggle',
+            id: 'luminosityBloom',
+            label: 'LUMINOSITY BLOOM',
+            value: `[ ${settings.luminosityBloom ? 'ON' : 'OFF'} ]`,
+            description: 'Enable or disable the separate selective luminosity bloom layer.',
         },
         {
             type: 'toggle',
@@ -2160,6 +2169,15 @@ export class MainMenu {
                     window.game.setPostProcessingEnabled(settings.postProcessing);
                 } else {
                     window.__ATOMA_POSTPROCESSING_PENDING__ = settings.postProcessing;
+                }
+            }
+        } else if (settingId === 'luminosityBloom') {
+            settings.luminosityBloom = !settings.luminosityBloom;
+            if (typeof window !== 'undefined') {
+                if (window.game?.setLuminosityBloomEnabled) {
+                    window.game.setLuminosityBloomEnabled(settings.luminosityBloom);
+                } else {
+                    window.__ATOMA_LUMINOSITY_BLOOM_PENDING__ = settings.luminosityBloom;
                 }
             }
         } else if (settingId === 'nodeRotations') {
