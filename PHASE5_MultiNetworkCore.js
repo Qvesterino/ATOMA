@@ -20,6 +20,18 @@
 
 import { setNodeCorruption } from './src/utils/nodeCorruptionAccessor.js';
 
+function getCanonicalNodeCorruption(node) {
+  return node?.userData?.metrics?.corruption ?? node?.userData?.corruption ?? 0;
+}
+
+function getCanonicalNodeHarmony(node) {
+  return node?.userData?.metrics?.harmony ?? node?.userData?.harmonyLevel ?? 0;
+}
+
+function getCanonicalLinkCorruption(link) {
+  return link?.userData?.metrics?.corruption ?? link?.userData?.corruptionLevel ?? 0;
+}
+
 // ============================================================================
 // SECTION 1: MULTI-NETWORK MANAGER
 // ============================================================================
@@ -198,8 +210,8 @@ export class PHASE5_MultiNetworkManager {
       let totalHarmony = 0;
       
       for (const node of network.aiNodes.nodes) {
-        totalCorruption += node.userData?.metrics?.corruption ?? 0;
-        totalHarmony += node.userData?.harmonyLevel ?? 0;
+        totalCorruption += getCanonicalNodeCorruption(node);
+        totalHarmony += getCanonicalNodeHarmony(node);
       }
       
       const nodeCount = network.aiNodes.nodes.length || 1;
@@ -394,8 +406,8 @@ export class PHASE5_NetworkSynchronization {
           const targetNode = targetNetwork.aiNodes.nodes.find(n => n.userData?.id === nodeId);
           
           if (sourceNode && targetNode) {
-            const sourceCorruption = sourceNode.userData?.corruption ?? 0;
-            const targetCorruption = targetNode.userData?.corruption ?? 0;
+            const sourceCorruption = getCanonicalNodeCorruption(sourceNode);
+            const targetCorruption = getCanonicalNodeCorruption(targetNode);
             
             if (Math.abs(sourceCorruption - targetCorruption) > 0.1) {
               conflicts.push({
@@ -479,7 +491,7 @@ export class PHASE5_NetworkSynchronization {
       
       let totalCorruption = 0;
       for (const link of network.linkingSystem.links) {
-        totalCorruption += link.userData?.corruptionLevel ?? 0;
+        totalCorruption += getCanonicalLinkCorruption(link);
       }
       
       return totalCorruption / network.linkingSystem.links.length;
@@ -504,7 +516,7 @@ export class PHASE5_NetworkSynchronization {
     try {
       if (network.aiNodes?.nodes) {
         for (const node of network.aiNodes.nodes) {
-          const corruption = node.userData?.metrics?.corruption ?? node.userData?.corruption;
+          const corruption = getCanonicalNodeCorruption(node);
           if (typeof corruption === 'number') {
             if (corruption < 0 || corruption > 1) {
               setNodeCorruption(node, Math.max(0, Math.min(1, corruption)), { source: 'phase5-network-synchronization' });

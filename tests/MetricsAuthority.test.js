@@ -3,6 +3,7 @@ import { applyMetricImpulse, ensureMetrics, setMetric } from '../src/metrics/Nod
 import { MetricsRuntime_v1 } from '../MetricsRuntime_v1.js';
 import { LinkQualityCalculator } from '../LinkQualityCalculator.js';
 import { HarmonicHubAuraSystem_Session126 } from '../HarmonicHubAuraSystem_Session126.js';
+import { getAuthorityReport } from '../src/metrics/MetricAuthorityGuard.js';
 import { buildScopedMetricEventName } from '../src/metrics/MetricTierClassifier.js';
 import { aggregateNetworkCanonicalMetrics, projectHudMetrics, withGlobalMetricAliases, updateHudMetrics } from '../SemanticMetricAdapter.js';
 
@@ -192,6 +193,18 @@ test('MetricsRuntime_v1 raw network metrics fall back to node aggregation when a
   const raw = runtime.getRawNetworkMetrics();
   assert.strictEqual(raw.source, 'fallback');
   assert.ok(Math.abs(raw.networkSynergy - 0.41) < 1e-6, 'Expected raw gameplay snapshot to fall back to node aggregation');
+});
+
+test('MetricAuthorityGuard report is scope-aware and excludes stale ComputeSynergyScore2_1 node authority', () => {
+  const report = getAuthorityReport();
+  const canonicalNodeWriterNames = report.canonicalNodeWriters.map((entry) => entry.name);
+  const canonicalGlobalWriterNames = report.canonicalGlobalWriters.map((entry) => entry.name);
+  const linkLocalWriterNames = report.linkLocalWriters.map((entry) => entry.name);
+
+  assert.ok(canonicalNodeWriterNames.includes('NodeMetricEngine'), 'Expected NodeMetricEngine as canonical node writer');
+  assert.ok(canonicalGlobalWriterNames.includes('MetricsRuntime_v1'), 'Expected MetricsRuntime_v1 as canonical global writer');
+  assert.ok(linkLocalWriterNames.includes('ComputeSynergyScore2_0'), 'Expected active synergy scorer to be classified as link-local');
+  assert.ok(!canonicalNodeWriterNames.includes('ComputeSynergyScore2_1'), 'Expected stale ComputeSynergyScore2_1 to be absent from canonical node writers');
 });
 
 test('MetricsRuntime_v1 prefers canonical metrics container over legacy top-level aliases when aggregating active nodes', () => {

@@ -10942,6 +10942,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
   this.nodeInspectPanel?.onSimulationTick?.(snapshot);
 };
 
+this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
+
   console.log('[main.js] MetricsRuntime_v1 initialized ✓');
   // 🔗 Inject canonical link system into NetworkMetricsAggregator
   this.metricsRuntime_v1?.networkMetricsAggregator?.setLinkSource?.(
@@ -13849,6 +13851,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      */
     setupCoreMetricsOverlay() {
         this.coreMetricsOverlay = new CoreMetricsOverlay(this.scene, this.renderer);
+        this.coreMetricsOverlay.setMetricsRuntime?.(this.metricsRuntime_v1);
 
         // Wire score system to HUD (score system may already be created)
         this._wireScoreSystemToHUD();

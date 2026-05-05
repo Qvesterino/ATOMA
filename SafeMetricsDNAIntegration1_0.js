@@ -5,18 +5,13 @@
  * ONLY adds node.userData.metrics based on archetype
  * ZERO impact on physics, visuals, shaders, movement, links, or update loops
  * 
- * Metrics are READ-ONLY reference data
+ * Metrics are spawn-time seed data only.
+ * Canonical runtime guarding/writes belong to NodeMetricEngine.
  */
 
 import { NODE_VISUAL_REGISTRY } from './NodeVisualRegistry.js';
 
 export class SafeMetricsDNAIntegration1_0 {
-  static _ALLOWED_WRITERS = [
-    'SafeMetricsDNAIntegration1_0.js',
-    'NodeMetricEngine.js',
-    'MetricsRuntime_v1.js',
-  ];
-
   static _METRIC_KEYS = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure'];
 
   static _ALIASES = {
@@ -34,28 +29,6 @@ export class SafeMetricsDNAIntegration1_0 {
   });
 
   static _CATEGORY_PRESET_CACHE = null;
-
-  static _wrapMetricsWithGuard(metricsObj) {
-    if (!metricsObj || metricsObj.__guarded) return metricsObj;
-    const warnedProps = new Set();
-    const proxy = new Proxy(metricsObj, {
-      set(target, prop, value) {
-        const stack = new Error().stack || '';
-        const isAllowed = SafeMetricsDNAIntegration1_0._ALLOWED_WRITERS.some(marker => stack.includes(marker));
-        if (!isAllowed) {
-          const key = String(prop);
-          if (!warnedProps.has(key)) {
-            console.warn('[MetricAuthorityGuard] external metrics write detected', { prop: key, stack });
-            warnedProps.add(key);
-          }
-        }
-        target[prop] = value;
-        return true;
-      }
-    });
-    metricsObj.__guarded = true;
-    return proxy;
-  }
 
   static _clamp01(value) {
     if (!Number.isFinite(value)) return 0;
@@ -212,8 +185,6 @@ export class SafeMetricsDNAIntegration1_0 {
     _isMetricSnapshot: true,
   };
 
-  // Attach authority guard (logging only, no behavior change)
-  node.userData.metrics = this._wrapMetricsWithGuard(node.userData.metrics);
 }
 
   /**

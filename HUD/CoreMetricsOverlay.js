@@ -12,7 +12,7 @@ import VisualTime from '../src/time/VisualTime.js';
  * 100% visual-only, non-intrusive overlay.
  * 
  * Features:
- * - Real-time metric calculation (Synergy, Harmony, stability, Corruption, Network Load)
+ * - Real-time global metric display from canonical runtime authority
  * - Temporal tracking (Cycle / Epoch / Aeon)
  * - Diegetic HUD display
  * - Subtle temporal event effects
@@ -42,7 +42,7 @@ export class CoreMetricsOverlay {
     this._nodeMetricCache = new Map();
     this._metricSubscriptionDisposer = null;
     this._hasMetricSubscription = false;
-    this._initMetricSubscription();
+    this.metricsRuntime = null;
     
     // Cached data
     this.currentMetrics = {
@@ -117,6 +117,28 @@ export class CoreMetricsOverlay {
   _getNodeMetricKey(node) {
     const key = node?.userData?.nodeId ?? node?.id ?? node?.uuid ?? null;
     return key === null ? null : String(key);
+  }
+
+  setMetricsRuntime(metricsRuntime) {
+    this.metricsRuntime = metricsRuntime || null;
+  }
+
+  _getCanonicalGlobalMetrics() {
+    const liveMetrics = (typeof window !== 'undefined' && window.__ATOMA_LIVE_METRICS__) || {};
+    const rawMetrics = this.metricsRuntime?.getRawNetworkMetrics?.() || null;
+    return withGlobalMetricAliases({
+      networkSynergy: rawMetrics?.networkSynergy ?? liveMetrics.networkSynergy ?? 0,
+      rawNetworkSynergy: rawMetrics?.networkSynergy ?? 0,
+      gameplayNetworkSynergy: rawMetrics?.networkSynergy ?? 0,
+      harmonyFlow: liveMetrics.harmonyFlow ?? rawMetrics?.harmonyFlow ?? 0,
+      networkStress: liveMetrics.networkStress ?? rawMetrics?.networkStress ?? 0,
+      stability: liveMetrics.stability ?? rawMetrics?.stability ?? (1 - (liveMetrics.networkStress ?? rawMetrics?.networkStress ?? 0)),
+      corruptionLevel: liveMetrics.corruptionLevel ?? rawMetrics?.corruptionLevel ?? 0,
+      loadPressure: liveMetrics.loadPressure ?? rawMetrics?.loadPressure ?? 0,
+      nodeCount: liveMetrics.nodeCount ?? rawMetrics?.nodeCount ?? 0,
+      linkCount: rawMetrics?.linkCount ?? 0,
+      source: rawMetrics?.source ?? 'public-live'
+    });
   }
 
   _getEventDrivenMetrics(aiNodes, linkingSystem = null) {
@@ -236,13 +258,8 @@ export class CoreMetricsOverlay {
     try {
       const startTime = performance.now();
       
-      // Update metrics (event-fed when available, polling fallback otherwise)
-      if (this._hasMetricSubscription) {
-        this.currentMetrics = this._getEventDrivenMetrics(aiNodes, linkingSystem);
-      } else {
-        this.metricsCalculator.update(visualDelta, aiNodes, linkingSystem, nodeEvolution, nodeArchetypes);
-        this.currentMetrics = withGlobalMetricAliases(this.metricsCalculator.getMetrics());
-      }
+      // Strict global authority: Core HUD must reflect canonical runtime global metrics only.
+      this.currentMetrics = this._getCanonicalGlobalMetrics();
       
       // Update temporal system
       const temporalEvents = this.temporalSystem.update(visualDelta);
@@ -391,9 +408,6 @@ export class CoreMetricsOverlay {
    * Cleanup resources
    */
   cleanup() {
-    if (typeof this._metricSubscriptionDisposer === 'function') {
-      this._metricSubscriptionDisposer();
-    }
     this._metricSubscriptionDisposer = null;
     this._nodeMetricCache.clear();
     this.hud.destroy();

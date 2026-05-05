@@ -671,7 +671,10 @@ HUD nesmie:
 
 Ak hladas jednu vetu:
 
-- Node metriky idu z `NodeVisualRegistry` cez `SafeMetricsDNAIntegration1_0` do `node.userData.metrics`, potom ich runtime writer `NodeMetricEngine` meni pri ticku a linkoch, `MetricsRuntime_v1` z nich sklada global/network payload, `SemanticMetricAdapter` ich cisti pre UI, `CoreMetricsOverlay/CoreMetricsHUD` ich zobrazuju a `EnvironmentEventCoordinator` preklapa global tier eventy typu `global.corruption.high` do world eventov typu `SIGMA_INVASION`.
+- Node metriky idu z `NodeVisualRegistry` cez `SafeMetricsDNAIntegration1_0` do `node.userData.metrics`, ale ich jediny canonical node writer je `NodeMetricEngine`.
+- `MetricsRuntime_v1` je jediny canonical global writer pre network/global payload.
+- `CoreMetricsOverlay/CoreMetricsHUD` maju citat len canonical global runtime payload; `NodeInspectOverlay` ma citat len selected node `node.userData.metrics` (pripadne simulation snapshot toho isteho node).
+- Link / hub / visual systemy si mozu drzat `link.userData.metrics`, `visualState` alebo mirrors, ale tieto nesmu byt prezentovane ako canonical node/global authority.
 
 ---
 
@@ -686,4 +689,3 @@ Ak bude treba dalsi audit, najviac relevantne su:
 - `EnvironmentEventCoordinator.js`
 - `HarmonicHubAuraSystem_Session126.js`
 - `LinkQualityCalculator.js`
-

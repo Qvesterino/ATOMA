@@ -4,7 +4,7 @@
  * Does not touch visuals or HUDs; intended as a lightweight, event-driven updater.
  */
 
-import { assertMetricAuthority, traceMetricMutation } from './MetricAuthorityGuard.js';
+import { assertMetricAuthority, METRIC_AUTHORITY_SCOPE, reportScopeViolation, traceMetricMutation } from './MetricAuthorityGuard.js';
 import { buildScopedMetricEventName, classifyMetricTier, getDefaultMetricThresholds, normalizeMetricTier } from './MetricTierClassifier.js';
 
 const DEFAULT_METRICS = {
@@ -32,10 +32,7 @@ const STEP = {
   relaxRate: 0.1 // per second toward defaults
 };
 
-const ALLOWED_WRITERS = [
-  'SafeMetricsDNAIntegration1_0.js',
-  'NodeMetricEngine.js',
-];
+const ALLOWED_WRITERS = ['NodeMetricEngine.js'];
 
 const FIXED_TICK_BASE = 0.1;
 
@@ -315,7 +312,7 @@ function emitNodeThresholdEvents(node) {
   state.corruptionSpikeActive = corruptionActive;
 }
 
-function writeMetric(metrics, key, nextValue, targetId = 'unknown-node', node = null) {
+function writeMetric(metrics, key, nextValue, targetId = 'unknown-node', node = null, sourceSystem = 'NodeMetricEngine') {
   const before = metrics[key];
   const after = clamp01(nextValue);
   if (before === after) return false;
@@ -324,7 +321,11 @@ function writeMetric(metrics, key, nextValue, targetId = 'unknown-node', node = 
     metrics.load = after;
     metrics.loadRatio = after;
   }
-  traceMetricMutation('NodeMetricEngine', `node.${key}`, before, after, targetId);
+  traceMetricMutation('NodeMetricEngine', `node.${key}`, before, after, targetId, {
+    targetScope: METRIC_AUTHORITY_SCOPE.NODE,
+    requestedBy: sourceSystem,
+    canonicalWriter: 'NodeMetricEngine'
+  });
   emitNodeMetricUpdated(key, after, targetId);
   emitMetricTierChanged(node, key, before, after, targetId);
   emitSemanticMetricEvent(key, before, after, targetId);
@@ -491,7 +492,7 @@ function wrapMetricsWithGuard(metricsObj) {
       if (!isAllowed) {
         const key = String(prop);
         if (!warnedProps.has(key)) {
-          console.warn('[MetricAuthorityGuard] external metrics write detected', { prop: key, stack });
+          reportScopeViolation('UNKNOWN_STACK_WRITER', `node.${key}`, METRIC_AUTHORITY_SCOPE.NODE, { stack });
           warnedProps.add(key);
         }
       }
@@ -755,10 +756,10 @@ export function ensureMetrics(node) {
   return node.userData.metrics;
 }
 
-function adjust(metrics, key, delta, targetId = 'unknown-node', node = null) {
+function adjust(metrics, key, delta, targetId = 'unknown-node', node = null, sourceSystem = 'NodeMetricEngine') {
   assertMetricAuthority('NodeMetricEngine', key);
   const clampedDelta = Math.max(-MAX_IMPULSE, Math.min(MAX_IMPULSE, delta));
-  writeMetric(metrics, key, (metrics[key] ?? 0) + clampedDelta, targetId, node);
+  writeMetric(metrics, key, (metrics[key] ?? 0) + clampedDelta, targetId, node, sourceSystem);
 }
 
 function deriveSynergy(node, dtScale = 1) {
@@ -999,7 +1000,7 @@ export function applyMetricImpulse(node, deltas = {}, options = {}) {
   const keys = ['harmony', 'stability', 'corruption', 'loadPressure'];
   for (const key of keys) {
     if (typeof deltas[key] === 'number' && Number.isFinite(deltas[key])) {
-      adjust(m, key, deltas[key] * impulseScale, id, node);
+      adjust(m, key, deltas[key] * impulseScale, id, node, source);
     }
   }
   if (typeof deltas.synergy === 'number' && Number.isFinite(deltas.synergy)) {
@@ -1051,7 +1052,7 @@ export function setMetric(node, metric, value, options = {}) {
   }
 
   const after = clamp01(nextValue);
-  writeMetric(m, canonicalMetric, after, id, node);
+  writeMetric(m, canonicalMetric, after, id, node, source);
   deriveSynergy(node);
   applyArchetypeClamp(node);
   syncLoadAliases(node);
