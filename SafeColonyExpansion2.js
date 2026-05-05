@@ -1225,4 +1225,23 @@ export class SafeColonyExpansion2 {
     this.registry.nodeToColony = {};
     this.registry.colonyVFX = {};
   }
+
+  /**
+   * Dispose — full lifecycle cleanup for world rebuild.
+   * Uses dispose() on vfxManager for complete GPU resource release.
+   */
+  dispose() {
+    if (this.vfxManager && typeof this.vfxManager.dispose === 'function') {
+      this.vfxManager.dispose();
+    } else {
+      this.shutdown();
+    }
+
+    if (this.registry) {
+      this.registry.cleanupEmptyColonies();
+      this.registry.colonies = {};
+      this.registry.nodeToColony = {};
+      this.registry.colonyVFX = {};
+    }
+  }
 }

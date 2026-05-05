@@ -18,6 +18,20 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
 - `FractalValley.js` now keeps only the unbroken hero bridge; the distant/broken bridge was removed from the spawn list so the valley reads as one clean crossing.
 
 ## 2026-05-05
+- Release-safe shutdown for `CanonicalTemplate3_StressVisuals` landed.
+- `main.js` no longer imports, instantiates, updates, resets, or reads pressure-field state from `CanonicalTemplate3_StressVisuals`.
+- `StressVisualShaderSystem` bootstrap/update path is also hard-disabled for release.
+- `CanonicalTemplate3_StressVisuals.js` was moved to `LEGACY/` and marked as release-disabled legacy reference.
+- `_SafeWorldFXPack.js` now owns a geometry-only `releaseStressAtmosphere` layer that preserves the wanted Template 3 canopy/horizon mood without node `userData` writes or stress event emission.
+- `EnvironmentDomainController.js` no longer advertises `CanonicalTemplate3_StressVisuals` as an active environment system; `SafeWorldFXPack` description now covers the release canopy/horizon atmosphere.
+- Verification:
+  - `node --check main.js`
+  - `node --check _SafeWorldFXPack.js`
+  - `node --check LEGACY/CanonicalTemplate3_StressVisuals.js`
+  - static grep confirms no live runtime usage of `CanonicalTemplate3_StressVisuals` or `StressVisualShaderSystem`
+  - repo-local Playwright smoke on `http://localhost:5173/` booted gameplay (`Enter` from menu), produced `output/web-game/template3-release-migration/quantum-after-enter.png`, and did not show the old center-origin Template 3 stress cluster
+- Note:
+  - the official `develop-web-game` Playwright client was attempted first but is currently blocked by its own separate browser cache/runtime mismatch; fallback verification used the repo's working `playwright` runtime instead
 - Reachability balance pass landed for the release gameplay loop.
 - `NodeMetricEngine` now preserves more archetype synergy when deriving node synergy (`0.72 archetype / 0.28 derived`) and is less punitive on corruption/load damping.
 - `NetworkMetricsAggregator.compute()` is now the single hybrid quality-sensitive runtime path:

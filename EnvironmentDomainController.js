@@ -28,7 +28,7 @@ export const ENVIRONMENT_VFX_REGISTRY = Object.freeze({
   core: Object.freeze([
     describeEnvironmentVfx(
       'SafeWorldFXPack',
-      'Foundational world ambience, breathing layers, haze, rifts, and macro background motion.',
+      'Foundational world ambience, breathing layers, haze, rifts, macro background motion, and the release canopy/horizon atmosphere.',
       'EnvironmentDomainController',
       'active-domain-owned',
       ['global.synergy.high', 'global.loadPressure.high', 'global.corruption.high', 'global.stability.low', 'global.stability.high'],
@@ -162,15 +162,6 @@ export const ENVIRONMENT_VFX_REGISTRY = Object.freeze({
       ['hub.harmony.high', 'hub.harmony.mid', 'hub.harmony.low'],
       'WORLD_OVERLAY',
       'visual'
-    ),
-    describeEnvironmentVfx(
-      'CanonicalTemplate3_StressVisuals',
-      'Global stress-pressure ambience affecting fog, color, lighting mood, and network tension atmosphere.',
-      'main.js',
-      'active-main-owned',
-      ['global.metricFrame.updated', 'node.loadPressure.active'],
-      'WORLD_OVERLAY',
-      'main-loop'
     ),
     describeEnvironmentVfx(
       'AIConsciousnessLayer',
@@ -606,7 +597,8 @@ export class EnvironmentDomainController {
       new d.AmbientEntityManager(
         this.scene,
         this.environmentRoot,
-        d.camera
+        d.camera,
+        this.frameScheduler
       );
 
     if (this.instances.ambientEntityManager?.registerWorldSystems &&

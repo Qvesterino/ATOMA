@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from '../VisualHierarchyRegistry.js';
 
+function vfxFlag(name, def = true) {
+  const v = (typeof window !== 'undefined') ? window[name] : undefined;
+  return (v === undefined) ? def : !!v;
+}
+
 function collectDescendants(root, predicate, out = []) {
   if (!root) return out;
   if (predicate(root)) out.push(root);
@@ -122,6 +127,7 @@ export function createNeonEdgeGlowMaterial(options = {}) {
  * Mirrors the hologram shell flow but stays edge-focused and static.
  */
 export function createNodeNeonEdgeGlowShell(coreMesh, baseColor = 0x00ddff, options = {}) {
+  if (!vfxFlag('ATOMA_VFX_ENABLE_NODE_EDGE_GLOW', true)) return null;
   if (!coreMesh || !coreMesh.geometry) return null;
 
   const material = createNeonEdgeGlowMaterial({
@@ -168,6 +174,17 @@ export function updateNeonEdgeGlowTime(material, deltaTime) {
  * Reassert a node neon edge glow shell if runtime mutation removed it.
  */
 export function reassertNodeNeonEdgeGlow(nodeGroup, coreMesh, baseColor = 0x00ddff) {
+  if (!vfxFlag('ATOMA_VFX_ENABLE_NODE_EDGE_GLOW', true)) {
+    const existingShells = collectDescendants(
+      nodeGroup,
+      (child) => child?.isMesh === true && child.userData?.isNeonEdgeGlow === true
+    );
+    existingShells.forEach((shell) => {
+      shell.visible = false;
+    });
+    return null;
+  }
+
   if (!nodeGroup || !coreMesh) {
     return false;
   }

@@ -1663,12 +1663,38 @@ export class MetricReactiveWorldEvents {
   }
   
   /**
-   * Cleanup
+   * Cleanup overlay group (partial reset).
    */
   cleanup() {
     this.overlayGroup.clear();
     this.scene.remove(this.overlayGroup);
     console.log('✓ Metric-Reactive Events cleaned up');
+  }
+
+  /**
+   * Dispose — full lifecycle cleanup for world rebuild.
+   * Delegates to cleanup() then removes root and disposes all GPU resources.
+   */
+  dispose() {
+    this.cleanup();
+
+    // Traverse and dispose all GPU resources under root
+    if (this.root) {
+      this.root.traverse((child) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach(m => m.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+      });
+      this.root.removeFromParent();
+    }
+
+    this.eventStates = {};
+    this.enabled = false;
   }
 
   _resolveMetricBus() {

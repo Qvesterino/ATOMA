@@ -1715,8 +1715,32 @@ export class WorldPersonalityController {
     if (this.scene.background && this.baseWorldState.backgroundColor) {
       this.scene.background.copy(this.baseWorldState.backgroundColor);
     }
+  }
 
+  /**
+   * Dispose controller — full lifecycle cleanup for world rebuild.
+   * Delegates to destroy() then removes scene graph nodes.
+   */
+  dispose() {
+    this.destroy();
 
+    // Remove root from world
+    if (this.root) {
+      this.root.traverse((child) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach(m => m.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+      });
+      this.root.removeFromParent();
+    }
+
+    this.activeEventVisuals.clear();
+    this.currentPersonality = null;
   }
   
   /**

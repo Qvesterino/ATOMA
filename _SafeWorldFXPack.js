@@ -101,6 +101,7 @@ export class SafeWorldFXPack {
     this.vfxLayers = {
       canopyField: null,
       horizonVeils: [],
+      releaseStressAtmosphere: null,
       flowRivers: [],
       ruptureEvents: [],
       revelationEvents: [],
@@ -499,6 +500,54 @@ export class SafeWorldFXPack {
         Math.sin(angle * 2.0) * 0.18,
         Math.sin(angle) * warpedRadius
       ));
+    }
+    return new THREE.BufferGeometry().setFromPoints(points);
+  }
+
+  _createReleaseStressVeilGeometry(width, height, segments, amplitude, seed) {
+    const positions = [];
+    const uvs = [];
+    const indices = [];
+
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const x = (t - 0.5) * width;
+      const curve = Math.sin(t * Math.PI * 2 + seed) * amplitude;
+      const secondary = Math.sin(t * Math.PI * 5 + seed * 0.7) * amplitude * 0.24;
+      positions.push(x, height * 0.5 + curve, secondary);
+      positions.push(x, -height * 0.5 + curve * 0.4, secondary - amplitude * 0.16);
+      uvs.push(t, 1);
+      uvs.push(t, 0);
+    }
+
+    for (let i = 0; i < segments; i++) {
+      const a = i * 2;
+      const b = a + 1;
+      const c = a + 2;
+      const d = a + 3;
+      indices.push(a, b, c, b, d, c);
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
+  _createReleaseStressLoopGeometry(radiusX, radiusY, segments, seed = 0, breakBias = 0.14) {
+    const points = [];
+    for (let i = 0; i < segments; i++) {
+      const t = i / segments;
+      const angle = t * Math.PI * 2;
+      const bias = 1 + Math.sin(angle * 3 + seed) * 0.06 + Math.cos(angle * 5 + seed * 0.7) * 0.04;
+      const x = Math.cos(angle) * radiusX * bias;
+      const y = Math.sin(angle) * radiusY * (1 + Math.cos(angle * 2.4 + seed) * 0.08);
+      if ((i + Math.floor(seed * 10)) % Math.max(5, Math.round(segments * breakBias)) === 0) {
+        points.push(new THREE.Vector3(x * 0.92, y * 0.92, 0));
+      }
+      points.push(new THREE.Vector3(x, y, 0));
     }
     return new THREE.BufferGeometry().setFromPoints(points);
   }
@@ -949,6 +998,9 @@ export class SafeWorldFXPack {
     
     // Create aurora horizon
     this.createAuroraHorizon();
+
+    // Create release-safe canopy / horizon atmosphere migrated from Template 3
+    this.createReleaseStressAtmosphere();
     
     // Create energy streams
     this.createEnergyStreams();
@@ -982,6 +1034,7 @@ export class SafeWorldFXPack {
     this.updateWorldBreathing(deltaTime);
     this.updateEnergyStreams(deltaTime);
     this.updateAuroraHorizon(deltaTime);
+    this.updateReleaseStressAtmosphere(deltaTime);
     this.updateScreenOverlays(deltaTime);
   }
   
@@ -2328,6 +2381,163 @@ export class SafeWorldFXPack {
     });
   }
 
+  createReleaseStressAtmosphere() {
+    const root = new THREE.Group();
+    root.name = 'SafeWorldFXPack_ReleaseStressAtmosphere';
+    this._tagWorldFXObject(root, 'release_stress_atmosphere', 'template3_canopy_horizon_release');
+
+    const canopySpecs = [
+      { key: 'calm', width: 170, height: 46, y: 42, z: -58, rotX: -0.84, rotY: -0.1, rotZ: -0.12, opacity: 0.085 },
+      { key: 'mid', width: 152, height: 38, y: 30, z: -44, rotX: -0.76, rotY: 0.12, rotZ: 0.09, opacity: 0.095 },
+      { key: 'pressure', width: 126, height: 32, y: 20, z: -36, rotX: -0.7, rotY: -0.18, rotZ: -0.12, opacity: 0.11 }
+    ];
+    const canopyVeils = canopySpecs.map((spec, index) => {
+      const geometry = this._getSharedGeometry(
+        `release_stress_atmosphere.canopy.${spec.key}.geo`,
+        () => this._createReleaseStressVeilGeometry(spec.width, spec.height, 28, 8 + index * 2, index * 1.17)
+      );
+      const material = this._getSharedMaterial(`release_stress_atmosphere.canopy.${spec.key}.mat`, () => {
+        const mat = new THREE.MeshBasicMaterial({
+          color: this._getWorldFXPalette('cyan'),
+          transparent: true,
+          opacity: spec.opacity,
+          depthWrite: false,
+          depthTest: true,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending,
+          fog: false
+        });
+        this.freezeMaterialFlags(mat, `release_stress_atmosphere.canopy.${spec.key}`);
+        return mat;
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(0, spec.y, spec.z);
+      mesh.rotation.set(spec.rotX, spec.rotY, spec.rotZ);
+      mesh.renderOrder = this.root.renderOrder + 2 + index;
+      mesh.userData = {
+        ...(mesh.userData || {}),
+        basePosition: mesh.position.clone(),
+        baseRotationY: spec.rotY
+      };
+      this._tagWorldFXObject(mesh, 'release_stress_canopy', spec.key);
+      root.add(mesh);
+      return mesh;
+    });
+
+    const horizonSpecs = [
+      { key: 'outer', radiusX: 110, radiusY: 24, y: 6, z: -84, rotZ: -0.04, opacity: 0.12 },
+      { key: 'far', radiusX: 132, radiusY: 29, y: 11, z: -96, rotZ: 0.07, opacity: 0.09 },
+      { key: 'inner', radiusX: 90, radiusY: 18, y: 2, z: -70, rotZ: -0.04, opacity: 0.14 }
+    ];
+    const horizonSeams = horizonSpecs.map((spec, index) => {
+      const geometry = this._getSharedGeometry(
+        `release_stress_atmosphere.horizon.${spec.key}.geo`,
+        () => this._createReleaseStressLoopGeometry(spec.radiusX, spec.radiusY, 54, index * 0.82, 0.12 + index * 0.03)
+      );
+      const material = this._getSharedMaterial(`release_stress_atmosphere.horizon.${spec.key}.mat`, () => {
+        const mat = new THREE.LineBasicMaterial({
+          color: this._getWorldFXPalette('mint'),
+          transparent: true,
+          opacity: spec.opacity,
+          depthWrite: false,
+          depthTest: true,
+          blending: THREE.AdditiveBlending,
+          fog: false
+        });
+        this.installOpacityUniform(mat, spec.opacity, 'line', `release_stress_atmosphere.horizon.${spec.key}`);
+        this.freezeMaterialFlags(mat, `release_stress_atmosphere.horizon.${spec.key}`);
+        return mat;
+      });
+      const line = new THREE.LineLoop(geometry, material);
+      line.position.set(0, spec.y, spec.z);
+      line.rotation.x = Math.PI * 0.49;
+      line.rotation.z = spec.rotZ;
+      line.renderOrder = this.root.renderOrder + 5 + index;
+      line.userData = {
+        ...(line.userData || {}),
+        basePosition: line.position.clone(),
+        baseRotationZ: spec.rotZ
+      };
+      this._tagWorldFXObject(line, 'release_stress_horizon', spec.key);
+      root.add(line);
+      return line;
+    });
+
+    this.root.add(root);
+    this.vfxLayers.releaseStressAtmosphere = {
+      root,
+      canopyVeils,
+      horizonSeams
+    };
+  }
+
+  updateReleaseStressAtmosphere(deltaTime) {
+    const layer = this.vfxLayers.releaseStressAtmosphere;
+    if (!layer?.root) return;
+
+    const pressure = THREE.MathUtils.clamp(
+      this.atmosphereState.pressureLevel * 0.78 + this.atmosphereState.activityLevel * 0.22,
+      0,
+      1
+    );
+    const loadBias = this.atmosphereState.loadPressureHigh
+      ? 0.48 + this.atmosphereState.signalBias * 0.12
+      : this.atmosphereState.pressureLevel * 0.16;
+    const pulse = Math.sin(this.worldState.time * (0.42 + pressure * 0.38) + loadBias * Math.PI * 1.7);
+    const turbulence = Math.cos(this.worldState.time * 0.26 + pressure * Math.PI * 1.1);
+
+    const calm = new THREE.Color(this._getWorldFXPalette('mint'));
+    const seam = new THREE.Color(this._getWorldFXPalette('cyan'));
+    const tension = new THREE.Color(0xffb06b);
+    const fracture = new THREE.Color(this._getWorldFXPalette('rose'));
+    const voidViolet = new THREE.Color(this._getWorldFXPalette('violet'));
+    const ritualWhite = new THREE.Color(this._getWorldFXPalette('ritualWhite'));
+
+    layer.root.position.y = Math.sin(this.worldState.time * 0.16 + turbulence * 0.4) * (0.12 + pressure * 0.34);
+    layer.root.rotation.z = Math.sin(this.worldState.time * 0.07 + loadBias * 1.3) * (0.008 + pressure * 0.018);
+    layer.root.rotation.y = Math.sin(this.worldState.time * 0.05) * (pressure * 0.02);
+
+    layer.canopyVeils.forEach((veil, index) => {
+      const basePosition = veil.userData?.basePosition;
+      const baseRotationY = veil.userData?.baseRotationY ?? 0;
+      const opacity = 0.11 + pressure * 0.12 + loadBias * 0.04 + index * 0.014;
+      const color = calm.clone()
+        .lerp(seam, 0.32 + index * 0.08)
+        .lerp(tension, pressure * 0.24)
+        .lerp(fracture, Math.max(0, pressure - 0.58) * 0.22)
+        .lerp(voidViolet, loadBias * 0.18)
+        .lerp(ritualWhite, this.atmosphereState.stabilityHigh ? 0.05 : 0);
+
+      veil.material.color.copy(color);
+      veil.material.opacity = Math.min(0.34, opacity);
+      veil.rotation.z += deltaTime * (0.022 + index * 0.007 + pressure * 0.01);
+      veil.rotation.y = baseRotationY + Math.sin(this.worldState.time * 0.13 + index * 1.1) * (0.06 + pressure * 0.16);
+      veil.position.y = (basePosition?.y ?? veil.position.y) + Math.sin(this.worldState.time * 0.22 + index * 1.8) * (0.015 + pressure * 0.02);
+      veil.position.z = (basePosition?.z ?? veil.position.z) + Math.cos(this.worldState.time * 0.12 + index) * (1.2 + pressure * 2.8);
+      veil.position.x = (basePosition?.x ?? 0) + Math.sin(this.worldState.time * 0.08 + index) * (2.8 + pressure * 4.2 + loadBias * 2.2);
+      veil.scale.set(1 + pressure * 0.08, 1 + loadBias * 0.12 + Math.abs(turbulence) * 0.05, 1);
+    });
+
+    layer.horizonSeams.forEach((line, index) => {
+      const basePosition = line.userData?.basePosition;
+      const baseRotationZ = line.userData?.baseRotationZ ?? 0;
+      const opacity = 0.05 + pressure * 0.22 + Math.abs(pulse) * 0.04 + index * 0.016;
+      const color = seam.clone()
+        .lerp(calm, 0.18)
+        .lerp(tension, pressure * 0.28)
+        .lerp(fracture, Math.max(0, pressure - 0.64) * 0.24)
+        .lerp(voidViolet, loadBias * 0.16)
+        .lerp(ritualWhite, this.atmosphereState.synergyHigh ? 0.06 : 0);
+
+      this.setMaterialColors(line.material, color);
+      this.setOpacity(line.material, Math.min(0.3, opacity), `release_stress_atmosphere.horizon.${index}`);
+      line.rotation.z = baseRotationZ + Math.sin(this.worldState.time * 0.06 + index) * 0.012;
+      line.position.x = (basePosition?.x ?? 0) + Math.sin(this.worldState.time * 0.09 + index * 1.7) * (0.8 + pressure * 2.8);
+      line.scale.x = 1 + pressure * 0.09 + index * 0.018;
+      line.scale.y = 1 + loadBias * 0.14 + Math.abs(turbulence) * 0.08 + Math.max(0, pressure - 0.6) * 0.08;
+    });
+  }
+
   /**
    * SCREEN OVERLAYS - Camera-level revelation layer
    */
@@ -3088,6 +3298,12 @@ export class SafeWorldFXPack {
       this.root.remove(this.vfxLayers.fractalSky);
       this._releaseMeshResources(this.vfxLayers.fractalSky);
     }
+
+    // Clean release stress atmosphere
+    if (this.vfxLayers.releaseStressAtmosphere?.root) {
+      this.root.remove(this.vfxLayers.releaseStressAtmosphere.root);
+      this._releaseMeshResources(this.vfxLayers.releaseStressAtmosphere.root);
+    }
     
     // Clean energy streams
     this.vfxLayers.energyStreams.forEach(stream => {
@@ -3122,6 +3338,9 @@ export class SafeWorldFXPack {
     
     // Clear all tracking
     this.vfxLayers = {
+      canopyField: null,
+      horizonVeils: [],
+      releaseStressAtmosphere: null,
       dimensionalShifts: [],
       riftWaves: [],
       energyPulses: [],
@@ -3165,6 +3384,9 @@ export class SafeWorldFXPack {
     if (Array.isArray(this.vfxLayers.screenOverlays)) {
       this.vfxLayers.screenOverlays.length = 0;
     }
+    this.vfxLayers.canopyField = null;
+    this.vfxLayers.horizonVeils = [];
+    this.vfxLayers.releaseStressAtmosphere = null;
     this.vfxLayers.fractalSky = null;
 
     if (this.screenOverlaysRoot) {
