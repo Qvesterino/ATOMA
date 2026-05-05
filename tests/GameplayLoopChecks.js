@@ -4,10 +4,16 @@ import { VisualNetworkTimeElasticity_v1, SCORE_DIRECTION } from '../VisualNetwor
 import { AtomaLeaderboard } from '../AtomaLeaderboard.js';
 import { LinkCollapseSystem } from '../LinkCollapseSystem.js';
 import { getDefaultMetricThresholds } from '../src/metrics/MetricTierClassifier.js';
+import { NODE_VISUAL_REGISTRY } from '../NodeVisualRegistry.js';
+import { onLinkCreated, onLinkRemoved } from '../src/metrics/NodeMetricEngine.js';
 
 const tests = [];
 function test(name, fn) {
   tests.push({ name, fn });
+}
+
+function assertNear(actual, expected, epsilon = 1e-9) {
+  assert(Math.abs(actual - expected) <= epsilon, `expected ${actual} to be within ${epsilon} of ${expected}`);
 }
 
 test('Network Time rewinds after 5s of canonical global.synergy.high sustain', () => {
@@ -139,6 +145,89 @@ test('Unified release score config is mirrored in main and menu definitions', ()
   assert(menuMatches.length >= 6, 'MainMenu.js should mirror the unified release score config for all worlds');
   assert(!mainSource.includes('sustainDuration: 10'), 'old per-world score drift should be removed from main.js');
   assert(!menuSource.includes('sustainDuration: 10'), 'old per-world score drift should be removed from MainMenu.js');
+});
+
+test('Balance-first DNA offsets only lift storage, input, and control baselines', () => {
+  const storageNode = NODE_VISUAL_REGISTRY[501];
+  const inputNode = NODE_VISUAL_REGISTRY[101];
+  const controlNode = NODE_VISUAL_REGISTRY[601];
+  const analyticsNode = NODE_VISUAL_REGISTRY[401];
+
+  assertNear(storageNode.metrics.synergy, 0.374731);
+  assertNear(storageNode.metrics.harmony, 0.458263);
+  assertNear(storageNode.metrics.stability, 0.643847);
+  assertNear(storageNode.metrics.loadPressure, 0.208473);
+
+  assertNear(inputNode.metrics.synergy, 0.412741);
+  assertNear(inputNode.metrics.harmony, 0.481283);
+  assertNear(inputNode.metrics.stability, 0.433817);
+
+  assertNear(controlNode.metrics.synergy, 0.412847);
+  assertNear(controlNode.metrics.harmony, 0.593721);
+
+  assertNear(analyticsNode.metrics.synergy, 0.538174);
+  assertNear(analyticsNode.metrics.harmony, 0.392847);
+  assertNear(analyticsNode.metrics.stability, 0.318263);
+  assertNear(analyticsNode.metrics.loadPressure, 0.402817);
+});
+
+test('Link create and remove impulses improve stability and only mildly punish cross-category links', () => {
+  const nodeA = {
+    userData: {
+      nodeId: 'test-a',
+      category: 'input',
+      archetypeMetrics: {
+        synergy: 0.42,
+        harmony: 0.48,
+        stability: 0.43,
+        corruption: 0.04,
+        loadPressure: 0.21
+      },
+      metrics: {
+        synergy: 0.42,
+        harmony: 0.48,
+        stability: 0.43,
+        corruption: 0.04,
+        loadPressure: 0.21
+      }
+    }
+  };
+  const nodeB = {
+    userData: {
+      nodeId: 'test-b',
+      category: 'storage',
+      archetypeMetrics: {
+        synergy: 0.37,
+        harmony: 0.46,
+        stability: 0.64,
+        corruption: 0.02,
+        loadPressure: 0.21
+      },
+      metrics: {
+        synergy: 0.37,
+        harmony: 0.46,
+        stability: 0.64,
+        corruption: 0.02,
+        loadPressure: 0.21
+      }
+    }
+  };
+
+  onLinkCreated(nodeA, nodeB);
+  assert(nodeA.userData.metrics.harmony > 0.48);
+  assert(nodeA.userData.metrics.stability > 0.43);
+  assert(nodeA.userData.metrics.loadPressure > 0.21 && nodeA.userData.metrics.loadPressure < 0.22);
+  assert(nodeA.userData.metrics.corruption < 0.04, 'link should still lower corruption overall on source node');
+  assert(nodeB.userData.metrics.corruption < 0.03, 'cross-category penalty should stay mild on target node');
+
+  const postCreateStabilityA = nodeA.userData.metrics.stability;
+  const postCreateHarmonyA = nodeA.userData.metrics.harmony;
+  const postCreateLoadA = nodeA.userData.metrics.loadPressure;
+
+  onLinkRemoved(nodeA, nodeB);
+  assert(nodeA.userData.metrics.stability < postCreateStabilityA);
+  assert(nodeA.userData.metrics.harmony < postCreateHarmonyA);
+  assert(nodeA.userData.metrics.loadPressure < postCreateLoadA);
 });
 
 test('Leaderboard scoring prefers synergy mastery over a slightly faster weak run', () => {

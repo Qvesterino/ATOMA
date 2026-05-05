@@ -147,6 +147,25 @@ export const NODE_VISUAL_REGISTRY = {
   1207: { category: 'emotional', factoryName: 'createEmotionalNodeStyled_v2', archetypeTag: 'amplifier', metrics: { synergy: 0.670343, harmony: 0.477511, stability: 0.418009, corruption: 0.158652, loadPressure: 0.494091 } },
 };
 
+const CATEGORY_BALANCE_OFFSETS = Object.freeze({
+  storage: Object.freeze({ synergy: 0.09, harmony: 0.04, stability: 0.02, loadPressure: -0.01 }),
+  input: Object.freeze({ synergy: 0.03, harmony: 0.02, stability: 0.01 }),
+  control: Object.freeze({ synergy: 0.02, harmony: 0.01 }),
+});
+
+function clamp01(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
+for (const def of Object.values(NODE_VISUAL_REGISTRY)) {
+  const offsets = CATEGORY_BALANCE_OFFSETS[def?.category];
+  if (!offsets || !def?.metrics) continue;
+
+  for (const [key, delta] of Object.entries(offsets)) {
+    def.metrics[key] = clamp01(Number(def.metrics[key] ?? 0) + delta);
+  }
+}
+
 export const CATEGORY_POOLS = {};
 for (const [codeStr, def] of Object.entries(NODE_VISUAL_REGISTRY)) {
   const code = Number(codeStr);

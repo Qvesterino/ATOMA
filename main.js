@@ -4988,10 +4988,10 @@ class AtomaGame {
         // Cross-layer tick bridges
         this.frameScheduler.register('realtime', (dt) => this.nodeInteractionEngine?.update?.(dt), 'realtime.nodeInteraction');
         this.frameScheduler.register('realtime', (dt) => this.hitProxySystem?.update?.(dt), 'realtime.hitProxy');
-        this.frameScheduler.register('simulation', () => {
+        this.frameScheduler.register('simulation', (dt) => {
             if (this._runElasticityPending) {
                 this._runElasticityPending = false;
-                this.visualNetworkTimeElasticityTick(this._pendingElasticityDt);
+                this.visualNetworkTimeElasticityTick(dt);
             }
         }, 'simulation.visualNetworkTimeElasticity');
         // REMOVED: synergyPulseVisuals frame scheduler — moved to LEGACY/april (2026-04-22)
@@ -11754,10 +11754,10 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('linkMetricsToVisualBridge', 'visual.linkMetricsToVisualBridge', (dt) => this.linkMetricsToVisualBridge?.update?.(dt));
         // regGuard('stressBasedParticleScaler', 'visual.stressBasedParticleScaler', (dt) => this.stressBasedParticleScaler?.update?.(dt));  // LEGACY/april
         regGuard('cascadeVisualizerTick', 'visual.cascadeVisualizer', (dt) => { if (!this._runCascadeVisualizerPending) this.cascadeVisualizerTick?.(dt); });
-        regGuard('visualNetworkTimeElasticity', 'simulation.visualNetworkTimeElasticity', (_dt) => {
+        regGuard('visualNetworkTimeElasticity', 'simulation.visualNetworkTimeElasticity', (dt) => {
             if (this._runElasticityPending) {
                 this._runElasticityPending = false;
-                this.visualNetworkTimeElasticityTick?.(this._pendingElasticityDt);
+                this.visualNetworkTimeElasticityTick?.(dt);
             }
         });
         // REMOVED: synergyPulseVisuals regGuard — moved to LEGACY/april (2026-04-22)

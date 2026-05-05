@@ -23,8 +23,9 @@ const MAX_IMPULSE = 0.25;
 
 // TODO: Replace placeholder step sizes with design-approved values.
 const STEP = {
-  linkBoost: 0.02,
-  linkStress: 0.01,
+  linkBoost: 0.035,
+  linkStress: 0.006,
+  linkStability: 0.01,
   overloadLoadScale: 0.1,
   overloadCorruptionScale: 0.05,
   overloadStabilityLoss: 0.02,
@@ -74,7 +75,7 @@ const LINK_EQUALIZE = {
 // Rebalanced per METRICS_REBALANCE_V2_FINAL.md R3
 // Synergy steady-state is 0.26-0.51 after A2 fix, so thresholds must match
 const SYNERGY_RESONANCE = {
-  threshold: 0.50,
+  threshold: 0.45,
   harmonyGain: 0.003,
   stabilityGain: 0.0015,
   maxHarmonyPerTick: 0.012,
@@ -82,7 +83,7 @@ const SYNERGY_RESONANCE = {
 };
 
 const SYNERGY_BURST = {
-  threshold: 0.60,
+  threshold: 0.55,
   cooldownTicks: 80,
   selfHarmonyBoost: 0.025,
   selfStabilityBoost: 0.012,
@@ -1085,6 +1086,7 @@ export function onLinkCreated(nodeA, nodeB, linkContext) {
     if (!m) continue;
     const id = getNodeId(node);
     adjust(m, 'harmony', STEP.linkBoost, id);
+    adjust(m, 'stability', STEP.linkStability, id);
     adjust(m, 'loadPressure', STEP.linkStress, id);
     adjust(m, 'corruption', -STEP.linkBoost * 0.5, id);
     deriveSynergy(node);
@@ -1095,8 +1097,8 @@ export function onLinkCreated(nodeA, nodeB, linkContext) {
     const mB = ensureMetrics(nodeB);
     const idA = nodeA?.userData?.nodeId || nodeA?.uuid || nodeA?.id || 'unknown-node';
     const idB = nodeB?.userData?.nodeId || nodeB?.uuid || nodeB?.id || 'unknown-node';
-    if (mA) adjust(mA, 'corruption', 0.02, idA);
-    if (mB) adjust(mB, 'corruption', 0.02, idB);
+    if (mA) adjust(mA, 'corruption', 0.01, idA);
+    if (mB) adjust(mB, 'corruption', 0.01, idB);
   }
   
   applyArchetypeClamp(nodeA);
@@ -1118,6 +1120,7 @@ export function onLinkRemoved(nodeA, nodeB) {
     if (!m) continue;
     const id = getNodeId(node);
     adjust(m, 'harmony', -STEP.linkBoost * 0.5, id);
+    adjust(m, 'stability', -STEP.linkStability * 0.5, id);
     adjust(m, 'loadPressure', -STEP.linkStress * 1.5, id);
     deriveSynergy(node);
   }
