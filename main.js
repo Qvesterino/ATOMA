@@ -13703,13 +13703,14 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
 
         // Register world systems (read-only)
         if (this.legendaryPack && this.worldEvents && this.weatherPack && this.linkingSystem) {
-            this.ambientEntityManager.registerWorldSystems(
-                this.legendaryPack,
-                this.worldEvents,
-                this.weatherPack,
-                this.linkingSystem,
-                this.colonyManager || this.environmentDomain?.instances?.colonyExpansion || null
-            );
+            this.ambientEntityManager.registerWorldSystems({
+                legendaryPack: this.legendaryPack,
+                worldEvents: this.worldEvents,
+                weatherPack: this.weatherPack,
+                linkingSystem: this.linkingSystem,
+                colonyExpansion: this.colonyManager || this.environmentDomain?.instances?.colonyExpansion || null,
+                semanticBus: this.semanticBus || null
+            });
         }
     }
 

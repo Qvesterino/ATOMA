@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { AmbientEntityRegistry } from './_AmbientEntityRegistry.js';
 import { ATOMAColorPalette } from './Engine/Visual/ATOMAColorPalette.js';
+import eventRegistrationRegistry from './Engine/EventRegistrationRegistry.js';
 
 /**
  * AMBIENT ENTITY MANAGER
@@ -21,6 +22,25 @@ export class AmbientEntityManager {
     this.camera = camera;
     this.frameScheduler = frameScheduler;
     this.debug = options.debug || false;
+    this.semanticBus = options.semanticBus || null;
+    this.controllerWorldContext = null;
+    this.atmosphereProfile = null;
+    this.atmosphereState = {
+      macroState: 'DORMANT',
+      weatherKey: 'calm',
+      calm: 0.78,
+      pressure: 0.12,
+      resonance: 0.2,
+      fracture: 0.08,
+      ascension: 0.06
+    };
+    this._ambientOwner = 'AmbientEntityManager';
+    this._semanticWindows = {
+      global: new Map(),
+      colonies: new Map()
+    };
+    this._pendingSemanticSpawns = [];
+    this._semanticSpawnCooldowns = new Map();
     
     // Registry for all entities
     this.registry = new AmbientEntityRegistry();
@@ -39,6 +59,7 @@ export class AmbientEntityManager {
     this._tempColorA = new THREE.Color();
     this._tempColorB = new THREE.Color();
     this._tempColorC = new THREE.Color();
+    this._tempColorD = new THREE.Color();
     this._tempVectorA = new THREE.Vector3();
     this._tempVectorB = new THREE.Vector3();
     this._tempVectorC = new THREE.Vector3();
@@ -64,6 +85,7 @@ export class AmbientEntityManager {
       worldEvents: null,
       weatherPack: null,
       linkingSystem: null,
+      colonyExpansion: null,
       synergy: 0
     };
     
@@ -90,11 +112,31 @@ export class AmbientEntityManager {
    * Register world systems (read-only)
    */
   registerWorldSystems(legendary, events, weather, linking, colonyExpansion = null) {
-    this.worldSystems.legendaryPack = legendary;
-    this.worldSystems.worldEvents = events;
-    this.worldSystems.weatherPack = weather;
-    this.worldSystems.linkingSystem = linking;
-    this.worldSystems.colonyExpansion = colonyExpansion;
+    const config = this._normalizeWorldSystemRegistration(
+      legendary,
+      events,
+      weather,
+      linking,
+      colonyExpansion
+    );
+
+    this.worldSystems.legendaryPack = config.legendaryPack;
+    this.worldSystems.worldEvents = config.worldEvents;
+    this.worldSystems.weatherPack = config.weatherPack;
+    this.worldSystems.linkingSystem = config.linkingSystem;
+    this.worldSystems.colonyExpansion = config.colonyExpansion;
+
+    if (config.semanticBus) {
+      this.attachSemanticBus(config.semanticBus);
+    } else if (!this.semanticBus) {
+      this.attachSemanticBus(this._resolveSemanticBus());
+    }
+
+    if (config.worldContext) {
+      this.setEnvironmentWorldContext(config.worldContext);
+    } else if (config.atmosphereProfile) {
+      this.setAtmosphereProfile(config.atmosphereProfile);
+    }
 
     // Keep interpretation snapshot aligned with current inputs
     this.refreshAmbientInterpretation();
@@ -107,10 +149,141 @@ export class AmbientEntityManager {
     this.worldSystems.synergy = synergy;
   }
 
+  _normalizeWorldSystemRegistration(legendary, events, weather, linking, colonyExpansion) {
+    if (
+      legendary &&
+      typeof legendary === 'object' &&
+      (
+        'legendaryPack' in legendary ||
+        'worldEvents' in legendary ||
+        'weatherPack' in legendary ||
+        'linkingSystem' in legendary ||
+        'colonyExpansion' in legendary ||
+        'semanticBus' in legendary ||
+        'atmosphereProfile' in legendary ||
+        'worldContext' in legendary
+      )
+    ) {
+      return {
+        legendaryPack: legendary.legendaryPack || null,
+        worldEvents: legendary.worldEvents || null,
+        weatherPack: legendary.weatherPack || null,
+        linkingSystem: legendary.linkingSystem || null,
+        colonyExpansion: legendary.colonyExpansion || null,
+        semanticBus: legendary.semanticBus || null,
+        atmosphereProfile: legendary.atmosphereProfile || null,
+        worldContext: legendary.worldContext || null
+      };
+    }
+
+    return {
+      legendaryPack: legendary || null,
+      worldEvents: events || null,
+      weatherPack: weather || null,
+      linkingSystem: linking || null,
+      colonyExpansion: colonyExpansion || null,
+      semanticBus: null,
+      atmosphereProfile: null,
+      worldContext: null
+    };
+  }
+
+  attachSemanticBus(bus) {
+    const nextBus = bus || null;
+    if (this.semanticBus === nextBus) return;
+
+    eventRegistrationRegistry.disposeOwner(this._ambientOwner);
+    this.semanticBus = nextBus;
+    this._bindSemanticEvents();
+  }
+
+  _resolveSemanticBus() {
+    if (globalThis?.ATOMA_BUS || globalThis?.semanticBus) {
+      return globalThis.ATOMA_BUS || globalThis.semanticBus || null;
+    }
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    return browserWindow?.ATOMA_BUS || browserWindow?.semanticBus || null;
+  }
+
+  _bindSemanticEvents() {
+    if (!this.semanticBus) return;
+
+    const tags = [
+      'environment.colony.birth',
+      'environment.colony.growth',
+      'environment.colony.merge.complete',
+      'environment.colony.split.complete',
+      'environment.colony.transform',
+      'environment.colony.rebirth',
+      'environment.colony.mood.changed',
+      'environment.colony.pressure.active',
+      'global.synergy.mid',
+      'global.synergy.high',
+      'global.harmony.mid',
+      'global.harmony.high',
+      'global.stability.mid',
+      'global.stability.high',
+      'global.corruption.mid',
+      'global.corruption.high',
+      'global.loadPressure.mid',
+      'global.loadPressure.high'
+    ];
+
+    for (const tag of tags) {
+      eventRegistrationRegistry.register(
+        this._ambientOwner,
+        tag,
+        (payload = {}) => this._handleSemanticEvent(tag, payload),
+        this.semanticBus
+      );
+    }
+  }
+
+  setAtmosphereProfile(profile) {
+    const nextProfile = profile && typeof profile === 'object'
+      ? {
+          ...profile,
+          vector: profile.vector ? { ...profile.vector } : null
+        }
+      : null;
+
+    this.atmosphereProfile = nextProfile;
+    const vector = nextProfile?.vector || {};
+    this.atmosphereState = {
+      macroState: nextProfile?.macroState || 'DORMANT',
+      weatherKey: nextProfile?.weatherKey || 'calm',
+      calm: THREE.MathUtils.clamp(vector.calm ?? 0.78, 0, 1),
+      pressure: THREE.MathUtils.clamp(vector.pressure ?? 0.12, 0, 1),
+      resonance: THREE.MathUtils.clamp(vector.resonance ?? 0.2, 0, 1),
+      fracture: THREE.MathUtils.clamp(vector.fracture ?? 0.08, 0, 1),
+      ascension: THREE.MathUtils.clamp(vector.ascension ?? 0.06, 0, 1)
+    };
+  }
+
+  setEnvironmentWorldContext(worldContext) {
+    this.controllerWorldContext = worldContext && typeof worldContext === 'object'
+      ? {
+          ...worldContext,
+          releaseAtmosphere: worldContext.releaseAtmosphere
+            ? {
+                ...worldContext.releaseAtmosphere,
+                vector: worldContext.releaseAtmosphere.vector
+                  ? { ...worldContext.releaseAtmosphere.vector }
+                  : null
+              }
+            : null
+        }
+      : null;
+
+    this.setAtmosphereProfile(this.controllerWorldContext?.releaseAtmosphere || null);
+  }
+
   /**
    * Low-frequency ambient interpretation (Phase B pilot)
    */
   refreshAmbientInterpretation() {
+    this._pruneSemanticWindows();
+
     const activeWeather = this.worldSystems.weatherPack?.getActiveWeather?.();
     this.interpretationState.canSpawnFromWeather = Array.isArray(activeWeather) && activeWeather.length > 0;
 
@@ -139,6 +312,7 @@ export class AmbientEntityManager {
             id: colonyId,
             center: colony.center,
             mood: colony.mood,
+            moodNormalized: this._normalizeMood(colony.mood),
             stage: colony.stage,
             type: colony.type,
             energy: colony.energy || 0
@@ -154,7 +328,9 @@ export class AmbientEntityManager {
    */
   _refreshLinkSnapshot() {
     const links = this.worldSystems.linkingSystem?.links || [];
-    this._linkSnapshot = links.filter(l => l?.active !== false && l.nodeA?.position && l.nodeB?.position);
+    this._linkSnapshot = links
+      .map((link) => this._resolveLinkEndpoints(link))
+      .filter((link) => link && link.active !== false);
   }
 
   /**
@@ -163,6 +339,251 @@ export class AmbientEntityManager {
   _pickRandomLink() {
     if (!this._linkSnapshot?.length) return null;
     return this._linkSnapshot[Math.floor(Math.random() * this._linkSnapshot.length)];
+  }
+
+  _normalizeMood(mood) {
+    const normalized = String(mood || 'HARMONY').toUpperCase();
+    if (normalized === 'HOSTILE') return 'CORRUPTION';
+    return normalized;
+  }
+
+  _clonePositionLike(position) {
+    if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y) || !Number.isFinite(position.z)) {
+      return null;
+    }
+    return { x: position.x, y: position.y, z: position.z };
+  }
+
+  _resolveNodePositionRef(nodeRef) {
+    const position = nodeRef?.position || nodeRef?.userData?.position || nodeRef || null;
+    return this._clonePositionLike(position);
+  }
+
+  _resolveLinkEndpoints(link) {
+    if (!link) return null;
+    const start = this._resolveNodePositionRef(
+      link.nodeA || link.sourceNode || link.source || link.from
+    );
+    const end = this._resolveNodePositionRef(
+      link.nodeB || link.targetNode || link.target || link.to
+    );
+
+    if (!start || !end) return null;
+
+    const dirX = end.x - start.x;
+    const dirY = end.y - start.y;
+    const dirZ = end.z - start.z;
+    const length = Math.sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ) || 1;
+
+    return {
+      raw: link,
+      active: link.active,
+      start,
+      end,
+      midpoint: {
+        x: (start.x + end.x) * 0.5,
+        y: (start.y + end.y) * 0.5,
+        z: (start.z + end.z) * 0.5
+      },
+      direction: {
+        x: dirX / length,
+        y: dirY / length,
+        z: dirZ / length
+      },
+      length
+    };
+  }
+
+  _handleSemanticEvent(tag, payload = {}) {
+    if (!tag) return;
+
+    if (tag.startsWith('environment.colony.')) {
+      this._applyColonySemanticWindow(tag, payload);
+      this._queueSemanticSpawnFromEvent(tag, payload);
+      return;
+    }
+
+    const globalMatch = tag.match(/^global\.(synergy|harmony|stability|corruption|loadPressure)\.(mid|high)$/);
+    if (globalMatch) {
+      const [, metric, tier] = globalMatch;
+      this._applyGlobalSemanticWindow(metric, tier);
+    }
+  }
+
+  _applyGlobalSemanticWindow(metric, tier) {
+    const duration = tier === 'high' ? 10500 : 7000;
+    const strength = tier === 'high' ? 0.95 : 0.58;
+    const now = Date.now();
+    const existing = this._semanticWindows.global.get(metric) || null;
+    if (
+      existing &&
+      existing.expiresAt > now &&
+      existing.tier === 'high' &&
+      tier === 'mid'
+    ) {
+      existing.expiresAt = Math.max(existing.expiresAt, now + duration * 0.66);
+      return;
+    }
+
+    this._semanticWindows.global.set(metric, {
+      metric,
+      tier,
+      strength,
+      expiresAt: now + duration
+    });
+  }
+
+  _applyColonySemanticWindow(tag, payload = {}) {
+    const colonyId = payload.colonyId;
+    if (!colonyId) return;
+
+    const eventDurations = {
+      'environment.colony.birth': 9000,
+      'environment.colony.growth': 6500,
+      'environment.colony.merge.complete': 8000,
+      'environment.colony.split.complete': 8000,
+      'environment.colony.transform': 10000,
+      'environment.colony.rebirth': 11000,
+      'environment.colony.mood.changed': 7000,
+      'environment.colony.pressure.active': 6000
+    };
+
+    const eventIntensities = {
+      'environment.colony.birth': 0.82,
+      'environment.colony.growth': 0.68,
+      'environment.colony.merge.complete': 0.88,
+      'environment.colony.split.complete': 0.76,
+      'environment.colony.transform': 0.92,
+      'environment.colony.rebirth': 1.0,
+      'environment.colony.mood.changed': 0.62,
+      'environment.colony.pressure.active': 0.9
+    };
+
+    const center = this._clonePositionLike(payload.center);
+    if (!center) return;
+
+    this._semanticWindows.colonies.set(colonyId, {
+      colonyId,
+      center,
+      mood: this._normalizeMood(payload.mood),
+      stage: Number.isFinite(payload.stage) ? payload.stage : 0,
+      energy: Number.isFinite(payload.energy) ? payload.energy : 0,
+      nodeCount: Number.isFinite(payload.nodeCount) ? payload.nodeCount : 0,
+      pressureScore: Number.isFinite(payload.pressureScore) ? payload.pressureScore : 0,
+      eventType: tag,
+      intensity: eventIntensities[tag] ?? 0.64,
+      expiresAt: Date.now() + (eventDurations[tag] ?? 6000)
+    });
+  }
+
+  _queueSemanticSpawnFromEvent(tag, payload = {}) {
+    const center = this._clonePositionLike(payload.center);
+    if (!center) return;
+
+    const cooldownKey = `${tag}:${payload.colonyId || 'global'}`;
+    const now = Date.now();
+    const lastQueuedAt = this._semanticSpawnCooldowns.get(cooldownKey) || 0;
+    if (now - lastQueuedAt < 1400) return;
+    this._semanticSpawnCooldowns.set(cooldownKey, now);
+
+    const mood = this._normalizeMood(payload.mood);
+    const types = this.registry.TYPES;
+    let type = null;
+
+    switch (tag) {
+      case 'environment.colony.birth':
+      case 'environment.colony.growth':
+        type = mood === 'SYNERGY' ? types.QUANTUM_WISP : types.GHOST_ORB;
+        break;
+      case 'environment.colony.merge.complete':
+        type = types.QUANTUM_WISP;
+        break;
+      case 'environment.colony.split.complete':
+        type = types.FRAGMENT_SWARM;
+        break;
+      case 'environment.colony.transform':
+      case 'environment.colony.rebirth':
+        type = mood === 'CORRUPTION' ? types.AI_SPECTRE : types.GHOST_ORB;
+        break;
+      case 'environment.colony.pressure.active':
+        type = mood === 'CORRUPTION' ? types.SIGMA_PHANTOM : types.QUANTUM_WISP;
+        break;
+      case 'environment.colony.mood.changed':
+        if (mood === 'CORRUPTION') type = types.SIGMA_PHANTOM;
+        else if (mood === 'LOAD_PRESSURE') type = types.QUANTUM_WISP;
+        else type = types.GHOST_ORB;
+        break;
+      default:
+        break;
+    }
+
+    if (!type) return;
+
+    this._pendingSemanticSpawns.push({
+      type,
+      position: center,
+      sourceTag: tag,
+      mood,
+      expiresAt: now + 2500
+    });
+
+    if (this._pendingSemanticSpawns.length > 12) {
+      this._pendingSemanticSpawns.splice(0, this._pendingSemanticSpawns.length - 12);
+    }
+  }
+
+  _pruneSemanticWindows(now = Date.now()) {
+    for (const [metric, state] of this._semanticWindows.global.entries()) {
+      if (!state || state.expiresAt <= now) {
+        this._semanticWindows.global.delete(metric);
+      }
+    }
+
+    for (const [colonyId, state] of this._semanticWindows.colonies.entries()) {
+      if (!state || state.expiresAt <= now) {
+        this._semanticWindows.colonies.delete(colonyId);
+      }
+    }
+
+    this._pendingSemanticSpawns = this._pendingSemanticSpawns.filter((spawn) => spawn?.expiresAt > now);
+
+    for (const [key, value] of this._semanticSpawnCooldowns.entries()) {
+      if (now - value > 16000) {
+        this._semanticSpawnCooldowns.delete(key);
+      }
+    }
+  }
+
+  _getMetricBiasStrength(metric) {
+    const semanticStrength = this._semanticWindows.global.get(metric)?.strength ?? 0;
+    const profileStrength = {
+      harmony: this.atmosphereState.calm * 0.48 + this.atmosphereState.ascension * 0.22,
+      synergy: this.atmosphereState.resonance * 0.54 + this.atmosphereState.ascension * 0.18,
+      stability: this.atmosphereState.calm * 0.42,
+      corruption: this.atmosphereState.fracture * 0.62,
+      loadPressure: this.atmosphereState.pressure * 0.68
+    }[metric] ?? 0;
+
+    return THREE.MathUtils.clamp(Math.max(semanticStrength, profileStrength), 0, 1);
+  }
+
+  _getDominantColonyWindow(preferredMood = null) {
+    this._pruneSemanticWindows();
+
+    let strongest = null;
+    for (const colonyState of this._semanticWindows.colonies.values()) {
+      if (!colonyState) continue;
+      if (preferredMood && colonyState.mood !== preferredMood) continue;
+      if (!strongest || colonyState.intensity > strongest.intensity) {
+        strongest = colonyState;
+      }
+    }
+
+    if (!strongest && preferredMood) {
+      return this._getDominantColonyWindow(null);
+    }
+
+    return strongest;
   }
 
   /**
@@ -220,6 +641,8 @@ export class AmbientEntityManager {
    * Each entity type spawns in context of world state, not random Brownian.
    */
   updateSpawning() {
+    this._pruneSemanticWindows();
+
     const now = Date.now();
     if (now - this.lastSpawnTime < this.spawnCooldown) {
       return;
@@ -234,8 +657,12 @@ export class AmbientEntityManager {
       return;
     }
 
+    if (this._spawnQueuedSemanticEntity()) {
+      return;
+    }
+
     // Random spawn chance
-    if (Math.random() > this.spawnChance) {
+    if (Math.random() > this.spawnChance * this._getSpawnChanceMultiplier()) {
       return;
     }
 
@@ -257,25 +684,56 @@ export class AmbientEntityManager {
   _selectEcosystemSpawnType() {
     const weights = new Map();
     const types = this.registry.TYPES;
+    const harmonyBias = this._getMetricBiasStrength('harmony');
+    const synergyBias = this._getMetricBiasStrength('synergy');
+    const stabilityBias = this._getMetricBiasStrength('stability');
+    const corruptionBias = this._getMetricBiasStrength('corruption');
+    const loadPressureBias = this._getMetricBiasStrength('loadPressure');
+    const colonyFocus = this._getDominantColonyWindow();
 
     // Ghost orbs: more likely when colonies exist
     const colonyCount = this._colonySnapshot?.length || 0;
-    weights.set(types.GHOST_ORB, 0.3 + colonyCount * 0.15);
+    weights.set(types.GHOST_ORB, 0.3 + colonyCount * 0.15 + harmonyBias * 0.5 + stabilityBias * 0.2 + this.atmosphereState.calm * 0.18);
 
     // Quantum wisps: more likely when links exist
     const linkCount = this._linkSnapshot?.length || 0;
-    weights.set(types.QUANTUM_WISP, 0.2 + Math.min(1, linkCount * 0.02));
+    weights.set(types.QUANTUM_WISP, 0.2 + Math.min(1, linkCount * 0.02) + synergyBias * 0.52 + loadPressureBias * 0.46 + this.atmosphereState.resonance * 0.2);
 
     // Sigma phantoms: more likely when corruption colonies exist
-    const corruptionColonies = this._colonySnapshot?.filter(c => c.mood === 'CORRUPTION').length || 0;
-    weights.set(types.SIGMA_PHANTOM, 0.15 + corruptionColonies * 0.25);
+    const corruptionColonies = this._colonySnapshot?.filter(c => c.moodNormalized === 'CORRUPTION').length || 0;
+    weights.set(types.SIGMA_PHANTOM, 0.15 + corruptionColonies * 0.25 + corruptionBias * 0.7 + this.atmosphereState.fracture * 0.28);
 
     // AI spectre: more likely when corruption or high-stage colonies exist
     const highStageColonies = this._colonySnapshot?.filter(c => c.stage >= 3).length || 0;
-    weights.set(types.AI_SPECTRE, 0.1 + corruptionColonies * 0.2 + highStageColonies * 0.1);
+    weights.set(types.AI_SPECTRE, 0.1 + corruptionColonies * 0.2 + highStageColonies * 0.1 + loadPressureBias * 0.18 + corruptionBias * 0.24);
 
     // Fragment swarm: always possible, neutral
-    weights.set(types.FRAGMENT_SWARM, 0.25);
+    weights.set(types.FRAGMENT_SWARM, 0.25 + stabilityBias * 0.16 + this.atmosphereState.resonance * 0.08);
+
+    if (colonyFocus) {
+      switch (colonyFocus.mood) {
+        case 'SYNERGY':
+          weights.set(types.QUANTUM_WISP, (weights.get(types.QUANTUM_WISP) || 0) + 0.45);
+          weights.set(types.GHOST_ORB, (weights.get(types.GHOST_ORB) || 0) + 0.14);
+          break;
+        case 'HARMONY':
+          weights.set(types.GHOST_ORB, (weights.get(types.GHOST_ORB) || 0) + 0.52);
+          weights.set(types.FRAGMENT_SWARM, (weights.get(types.FRAGMENT_SWARM) || 0) + 0.08);
+          break;
+        case 'STABILITY':
+          weights.set(types.GHOST_ORB, (weights.get(types.GHOST_ORB) || 0) + 0.18);
+          weights.set(types.FRAGMENT_SWARM, (weights.get(types.FRAGMENT_SWARM) || 0) + 0.18);
+          break;
+        case 'LOAD_PRESSURE':
+          weights.set(types.QUANTUM_WISP, (weights.get(types.QUANTUM_WISP) || 0) + 0.32);
+          weights.set(types.AI_SPECTRE, (weights.get(types.AI_SPECTRE) || 0) + 0.18);
+          break;
+        case 'CORRUPTION':
+          weights.set(types.SIGMA_PHANTOM, (weights.get(types.SIGMA_PHANTOM) || 0) + 0.42);
+          weights.set(types.AI_SPECTRE, (weights.get(types.AI_SPECTRE) || 0) + 0.26);
+          break;
+      }
+    }
 
     // Normalize and roll
     let total = 0;
@@ -293,10 +751,11 @@ export class AmbientEntityManager {
    */
   _selectEcosystemSpawnPosition(type) {
     const types = this.registry.TYPES;
+    const colonyFocus = this._getDominantColonyWindow();
 
     // Ghost orbs: spawn near a colony center, offset for elliptical orbit
     if (type === types.GHOST_ORB) {
-      const colony = this._pickColonyCenter();
+      const colony = this._pickColonyCenter(colonyFocus?.mood === 'CORRUPTION' ? null : colonyFocus?.mood);
       if (colony) {
         const orbitRadius = 3 + Math.random() * 4;
         const angle = Math.random() * Math.PI * 2;
@@ -310,9 +769,9 @@ export class AmbientEntityManager {
 
     // Quantum wisps: spawn at a link endpoint
     if (type === types.QUANTUM_WISP) {
-      const link = this._pickRandomLink();
-      if (link?.nodeA?.position) {
-        const pos = link.nodeA.position;
+      const link = this._pickPreferredLink(colonyFocus?.center || null);
+      if (link?.start) {
+        const pos = link.start;
         return {
           x: pos.x + (Math.random() - 0.5) * 2,
           y: pos.y + Math.random() * 2,
@@ -337,7 +796,7 @@ export class AmbientEntityManager {
 
     // AI spectre: spawn near high-stage or corruption colony
     if (type === types.AI_SPECTRE) {
-      const colony = this._pickColonyCenter('CORRUPTION') || this._pickColonyCenter();
+      const colony = this._pickColonyCenter('CORRUPTION') || this._pickColonyCenter(colonyFocus?.mood || null) || this._pickColonyCenter();
       if (colony) {
         const scanRadius = 2 + Math.random() * 3;
         const angle = Math.random() * Math.PI * 2;
@@ -360,21 +819,61 @@ export class AmbientEntityManager {
       z: playerPos.z + Math.sin(angle) * spawnDist
     };
   }
+
+  _getSpawnChanceMultiplier() {
+    const pressure = this._getMetricBiasStrength('loadPressure');
+    const harmony = this._getMetricBiasStrength('harmony');
+    const synergy = this._getMetricBiasStrength('synergy');
+    const colonyBoost = this._getDominantColonyWindow() ? 0.16 : 0;
+    const profileBoost = this.atmosphereState.resonance * 0.18 + this.atmosphereState.pressure * 0.22;
+    return THREE.MathUtils.clamp(0.92 + pressure * 0.36 + harmony * 0.12 + synergy * 0.14 + colonyBoost + profileBoost, 0.85, 1.75);
+  }
+
+  _spawnQueuedSemanticEntity() {
+    if (!this._pendingSemanticSpawns.length) return false;
+    const spawn = this._pendingSemanticSpawns.shift();
+    if (!spawn) return false;
+
+    const position = this._selectSemanticSpawnPosition(spawn);
+    if (!position) return false;
+
+    this.spawnEntity(spawn.type, position, {
+      semanticOrigin: spawn.sourceTag || 'semantic',
+      spawnMood: spawn.mood || null
+    });
+    return true;
+  }
+
+  _selectSemanticSpawnPosition(spawn) {
+    const base = this._clonePositionLike(spawn.position);
+    if (!base) return this._selectEcosystemSpawnPosition(spawn.type);
+
+    const jitter = spawn.type === this.registry.TYPES.QUANTUM_WISP ? 1.3 : 2.4;
+    return {
+      x: base.x + (Math.random() - 0.5) * jitter,
+      y: base.y + Math.random() * 1.8,
+      z: base.z + (Math.random() - 0.5) * jitter
+    };
+  }
   
   /**
    * Spawn a new ambient entity
    */
-  spawnEntity(type, position) {
+  spawnEntity(type, position, overrides = {}) {
     const lifetime = 20 + Math.random() * 30; // 20-50s
 
     // ECOSYSTEM: behavior context per entity type
-    const behaviorContext = this._buildBehaviorContext(type, position);
+    const behaviorContext = this._buildBehaviorContext(type, position, overrides);
 
     const entity = this.registry.createEntity(type, position, {
       velocity: behaviorContext.velocity,
-      lifetime,
-      intensity: behaviorContext.intensity,
-      userData: behaviorContext
+      lifetime: overrides.lifetime || lifetime,
+      intensity: overrides.intensity || behaviorContext.intensity,
+      userData: {
+        behaviorContext,
+        semanticOrigin: overrides.semanticOrigin || 'passive',
+        spawnMood: overrides.spawnMood || null
+      }
     });
 
     // Create visual representation
@@ -385,8 +884,9 @@ export class AmbientEntityManager {
    * Build behavior context for each entity type.
    * Replaces random Brownian motion with meaningful ecosystem behavior.
    */
-  _buildBehaviorContext(type, position) {
+  _buildBehaviorContext(type, position, overrides = {}) {
     const types = this.registry.TYPES;
+    const colonyWindow = this._getDominantColonyWindow();
 
     // Ghost orb: elliptical orbit around nearest colony
     if (type === types.GHOST_ORB) {
@@ -406,7 +906,8 @@ export class AmbientEntityManager {
           orbitSpeed,
           orbitPhase: Math.atan2(dz, dx),
           orbitTilt: (Math.random() - 0.5) * 0.3,
-          behavior: 'colony-orbit'
+          spawnMood: overrides.spawnMood || colony.moodNormalized || null,
+          type: 'colony-orbit'
         };
       }
     }
@@ -414,23 +915,24 @@ export class AmbientEntityManager {
     // Quantum wisp: flow along a link as energy packet
     if (type === types.QUANTUM_WISP) {
       const link = this._findNearestLink(position);
-      if (link?.nodeA?.position && link?.nodeB?.position) {
-        const start = link.nodeA.position;
-        const end = link.nodeB.position;
-        const dirX = end.x - start.x;
-        const dirY = end.y - start.y;
-        const dirZ = end.z - start.z;
-        const len = Math.sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ) || 1;
+      if (link?.start && link?.end) {
         const flowSpeed = 1.2 + Math.random() * 1.5;
         return {
-          velocity: { x: (dirX / len) * flowSpeed, y: (dirY / len) * flowSpeed, z: (dirZ / len) * flowSpeed },
+          velocity: {
+            x: link.direction.x * flowSpeed,
+            y: link.direction.y * flowSpeed,
+            z: link.direction.z * flowSpeed
+          },
           intensity: 0.8 + Math.random() * 0.2,
-          linkStart: { x: start.x, y: start.y, z: start.z },
-          linkEnd: { x: end.x, y: end.y, z: end.z },
-          linkDir: { x: dirX / len, y: dirY / len, z: dirZ / len },
+          linkStart: { ...link.start },
+          linkEnd: { ...link.end },
+          linkDirection: { ...link.direction },
+          linkMidpoint: { ...link.midpoint },
+          linkLength: link.length,
           flowSpeed,
           flowProgress: 0,
-          behavior: 'link-flow'
+          spawnMood: overrides.spawnMood || colonyWindow?.mood || null,
+          type: 'link-flow'
         };
       }
     }
@@ -449,7 +951,8 @@ export class AmbientEntityManager {
           guardRadius: dist,
           guardAngle: Math.atan2(dz, dx),
           glitchIntensity: 0.3 + Math.random() * 0.5,
-          behavior: 'corruption-guard'
+          spawnMood: overrides.spawnMood || colony.moodNormalized || 'CORRUPTION',
+          type: 'corruption-guard'
         };
       }
     }
@@ -466,7 +969,8 @@ export class AmbientEntityManager {
           scanRadius: 2 + Math.random() * 3,
           scanPhase: Math.random() * Math.PI * 2,
           scanSpeed: 0.4 + Math.random() * 0.3,
-          behavior: 'colony-scan'
+          spawnMood: overrides.spawnMood || colony.moodNormalized || null,
+          type: 'colony-scan'
         };
       }
     }
@@ -479,7 +983,8 @@ export class AmbientEntityManager {
         z: (Math.random() - 0.5) * 0.8
       },
       intensity: 0.5 + Math.random() * 0.5,
-      behavior: 'neutral-swarm'
+      spawnMood: overrides.spawnMood || null,
+      type: 'neutral-swarm'
     };
   }
 
@@ -490,7 +995,8 @@ export class AmbientEntityManager {
     if (!this._colonySnapshot?.length) return null;
     let candidates = this._colonySnapshot;
     if (preferMood) {
-      const filtered = candidates.filter(c => c.mood === preferMood);
+      const moodKey = this._normalizeMood(preferMood);
+      const filtered = candidates.filter(c => c.moodNormalized === moodKey);
       if (filtered.length) candidates = filtered;
     }
     let nearest = null;
@@ -516,12 +1022,9 @@ export class AmbientEntityManager {
     let nearest = null;
     let nearestDist = Infinity;
     for (const link of this._linkSnapshot) {
-      const midX = (link.nodeA.position.x + link.nodeB.position.x) * 0.5;
-      const midY = (link.nodeA.position.y + link.nodeB.position.y) * 0.5;
-      const midZ = (link.nodeA.position.z + link.nodeB.position.z) * 0.5;
-      const dx = midX - position.x;
-      const dy = midY - position.y;
-      const dz = midZ - position.z;
+      const dx = link.midpoint.x - position.x;
+      const dy = link.midpoint.y - position.y;
+      const dz = link.midpoint.z - position.z;
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
       if (dist < nearestDist) {
         nearestDist = dist;
@@ -529,6 +1032,26 @@ export class AmbientEntityManager {
       }
     }
     return nearest;
+  }
+
+  _pickPreferredLink(focusCenter = null) {
+    if (!this._linkSnapshot?.length) return null;
+    if (!focusCenter) return this._pickRandomLink();
+
+    let nearest = null;
+    let nearestDist = Infinity;
+    for (const link of this._linkSnapshot) {
+      const dx = link.midpoint.x - focusCenter.x;
+      const dy = link.midpoint.y - focusCenter.y;
+      const dz = link.midpoint.z - focusCenter.z;
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearest = link;
+      }
+    }
+
+    return nearest || this._pickRandomLink();
   }
   
   /**
@@ -624,6 +1147,21 @@ export class AmbientEntityManager {
     ring.rotation.x = Math.PI * 0.5;
     group.add(ring);
 
+    const haloGeo = this._getSharedGeometry('ghostOrb.halo', () => new THREE.TorusGeometry(0.48, 0.012, 10, 48));
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: this.ambientPalette.haze,
+      transparent: true,
+      opacity: 0.1,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const halo = new THREE.Mesh(haloGeo, haloMat);
+    halo.name = 'caretakerHalo';
+    halo.rotation.z = Math.PI * 0.22;
+    halo.rotation.x = Math.PI * 0.38;
+    halo.userData.originalOpacity = haloMat.opacity;
+    group.add(halo);
+
     group.userData.type = 'GHOST_ORB';
     group.userData.floatAmplitude = 0.2 + Math.random() * 0.3;
     group.userData.floatSpeed = 0.4 + Math.random() * 1.0;
@@ -700,6 +1238,21 @@ export class AmbientEntityManager {
     scanline.position.y = 0.5;
     group.add(scanline);
 
+    const haloGeo = this._getSharedGeometry('spectre.halo', () => new THREE.TorusGeometry(0.42, 0.01, 8, 36));
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: this.ambientPalette.frost,
+      transparent: true,
+      opacity: 0.08,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const halo = new THREE.Mesh(haloGeo, haloMat);
+    halo.name = 'scanHalo';
+    halo.rotation.x = Math.PI * 0.5;
+    halo.position.y = 0.72;
+    halo.userData.originalOpacity = haloMat.opacity;
+    group.add(halo);
+
     group.userData.type = 'AI_SPECTRE';
     group.userData.glitchTimer = 0;
     group.userData.glitchIntensity = 0;
@@ -725,16 +1278,17 @@ export class AmbientEntityManager {
       let geometry;
       const shapeType = Math.floor(Math.random() * 3);
       const size = 0.08 + Math.random() * 0.15;
+      const quantizedSize = Math.max(0.06, Math.round(size * 20) / 20);
 
       switch (shapeType) {
         case SHAPES.OCTAHEDRON:
-          geometry = new THREE.OctahedronGeometry(size, 0);
+          geometry = this._getSharedGeometry(`swarm.octa.${quantizedSize.toFixed(2)}`, () => new THREE.OctahedronGeometry(quantizedSize, 0));
           break;
         case SHAPES.DODECAHEDRON:
-          geometry = new THREE.DodecahedronGeometry(size * 0.8, 0);
+          geometry = this._getSharedGeometry(`swarm.dodeca.${(quantizedSize * 0.8).toFixed(2)}`, () => new THREE.DodecahedronGeometry(quantizedSize * 0.8, 0));
           break;
         default:
-          geometry = new THREE.TetrahedronGeometry(size, 0);
+          geometry = this._getSharedGeometry(`swarm.tetra.${quantizedSize.toFixed(2)}`, () => new THREE.TetrahedronGeometry(quantizedSize, 0));
           break;
       }
 
@@ -1053,7 +1607,7 @@ export class AmbientEntityManager {
       const expired = this.registry.updateEntityAge(entity.id, deltaTime);
       if (expired) continue;
 
-      const behavior = entity.userData?.behaviorContext;
+      const behavior = this._getBehaviorContext(entity);
       if (behavior) {
         this._applyBehaviorMovement(entity, behavior, deltaTime);
       } else {
@@ -1071,6 +1625,18 @@ export class AmbientEntityManager {
         mesh.position.copy(entity.position);
       }
     }
+  }
+
+  _getBehaviorContext(entity) {
+    const behavior = entity?.userData?.behaviorContext || null;
+    if (behavior && typeof behavior === 'object') return behavior;
+
+    const legacyBehavior = entity?.userData;
+    if (legacyBehavior && typeof legacyBehavior === 'object' && typeof legacyBehavior.behavior === 'string') {
+      legacyBehavior.type = legacyBehavior.type || legacyBehavior.behavior;
+      return legacyBehavior;
+    }
+    return null;
   }
 
   /**
@@ -1138,7 +1704,9 @@ export class AmbientEntityManager {
           const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
           if (dist > behavior.linkLength * 0.7) {
             // Teleport back to start of flow
-            pos.copy(behavior.linkStart);
+            pos.x = behavior.linkStart.x;
+            pos.y = behavior.linkStart.y;
+            pos.z = behavior.linkStart.z;
             behavior.flowProgress = 0;
           }
         }
@@ -1218,9 +1786,14 @@ export class AmbientEntityManager {
    * Apply forces from world systems (read-only)
    */
   applyWorldForces(entity, deltaTime) {
-    const behavior = entity.userData?.behaviorContext;
+    const behavior = this._getBehaviorContext(entity);
     const pos = entity.position;
     const vel = entity.velocity;
+    const harmonyBias = this._getMetricBiasStrength('harmony');
+    const synergyBias = this._getMetricBiasStrength('synergy');
+    const stabilityBias = this._getMetricBiasStrength('stability');
+    const corruptionBias = this._getMetricBiasStrength('corruption');
+    const loadPressureBias = this._getMetricBiasStrength('loadPressure');
 
     // Colony-centric forces (ecosystem-driven)
     if (behavior) {
@@ -1298,7 +1871,7 @@ export class AmbientEntityManager {
           // Fragment swarms are repelled by corruption colonies
           if (this._colonySnapshot) {
             for (const colony of this._colonySnapshot) {
-              if (colony.mood === 'corruption' || colony.mood === 'hostile') {
+              if (colony.moodNormalized === 'CORRUPTION') {
                 const cdx = pos.x - colony.center.x;
                 const cdz = pos.z - colony.center.z;
                 const cDist = Math.sqrt(cdx * cdx + cdz * cdz);
@@ -1320,8 +1893,8 @@ export class AmbientEntityManager {
     if (activeWeather && activeWeather.length > 0) {
       const weather = activeWeather[0];
       if (weather.windVector) {
-        vel.x += weather.windVector.x * 0.01;
-        vel.z += weather.windVector.z * 0.01;
+        vel.x += weather.windVector.x * (0.006 + loadPressureBias * 0.004);
+        vel.z += weather.windVector.z * (0.006 + loadPressureBias * 0.004);
       }
     }
 
@@ -1344,10 +1917,36 @@ export class AmbientEntityManager {
       }
     }
 
+    if (harmonyBias > 0.12 || stabilityBias > 0.12) {
+      const damping = 1 - Math.min(0.12, harmonyBias * 0.035 + stabilityBias * 0.04);
+      vel.x *= damping;
+      vel.y *= 1 - Math.min(0.08, stabilityBias * 0.03);
+      vel.z *= damping;
+    }
+
+    if (synergyBias > 0.12 && behavior?.type === 'link-flow') {
+      vel.x *= 1 + synergyBias * 0.08;
+      vel.y *= 1 + synergyBias * 0.04;
+      vel.z *= 1 + synergyBias * 0.08;
+    }
+
+    if (loadPressureBias > 0.12) {
+      vel.x *= 1 + loadPressureBias * 0.05;
+      vel.y *= 1 + loadPressureBias * 0.03;
+      vel.z *= 1 + loadPressureBias * 0.05;
+    }
+
+    if (corruptionBias > 0.18 && behavior?.type !== 'neutral-swarm') {
+      const turbulence = 0.015 * corruptionBias;
+      vel.x += (Math.random() - 0.5) * turbulence;
+      vel.z += (Math.random() - 0.5) * turbulence;
+    }
+
     // World events intensity modulation
     const activeEvents = this.worldSystems.worldEvents?.getActiveEvents?.();
     if (activeEvents && activeEvents.length > 0) {
-      entity.intensity = 0.7 + Math.random() * 0.3;
+      const eventBoost = Math.min(0.22, activeEvents.length * 0.04);
+      entity.intensity = THREE.MathUtils.clamp(entity.intensity + eventBoost, 0.45, 1);
     }
   }
   
@@ -1399,7 +1998,10 @@ export class AmbientEntityManager {
   updateGhostOrbVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.floatTime = (mesh.userData.floatTime || 0) + deltaTime;
     const ft = mesh.userData.floatTime;
-    const behavior = entity.userData?.behaviorContext;
+    const behavior = this._getBehaviorContext(entity);
+    const harmonyBias = this._getMetricBiasStrength('harmony');
+    const synergyBias = this._getMetricBiasStrength('synergy');
+    const corruptionBias = this._getMetricBiasStrength('corruption');
 
     // Float up / wobble — stronger when orbiting a colony
     const floatOffset = Math.sin(ft * mesh.userData.floatSpeed) * mesh.userData.floatAmplitude;
@@ -1411,10 +2013,10 @@ export class AmbientEntityManager {
     mesh.rotation.y += deltaTime * 0.25 * orbitBoost;
 
     // Color shift — slow drift inside the ATOMA dark palette
-    const hue = 0.63 + Math.sin(ft * 0.18) * 0.02;
-    const color = this._tempColorA.setHSL(hue, 0.38, 0.24 + Math.sin(ft * 0.7) * 0.025);
-    const ringColor = this._tempColorB.setHSL(0.6 + Math.sin(ft * 0.22) * 0.018, 0.24, 0.44 + Math.sin(ft * 1.2) * 0.025);
-    const coreColor = this._tempColorC.setHSL(0.61, 0.12, 0.76 + Math.sin(ft * 3.0) * 0.03);
+    const hue = 0.63 + harmonyBias * 0.025 - corruptionBias * 0.03 + Math.sin(ft * 0.18) * 0.02;
+    const color = this._tempColorA.setHSL(hue, 0.34 + harmonyBias * 0.12, 0.24 + Math.sin(ft * 0.7) * 0.025);
+    const ringColor = this._tempColorB.setHSL(0.6 + synergyBias * 0.015 + Math.sin(ft * 0.22) * 0.018, 0.24, 0.44 + Math.sin(ft * 1.2) * 0.025);
+    const coreColor = this._tempColorC.setHSL(0.61 + harmonyBias * 0.01, 0.12 + harmonyBias * 0.08, 0.76 + Math.sin(ft * 3.0) * 0.03);
 
     const midCage = mesh.getObjectByName('midCage');
     if (midCage) {
@@ -1425,7 +2027,8 @@ export class AmbientEntityManager {
 
     const outerShell = mesh.getObjectByName('outerShell');
     if (outerShell) {
-      outerShell.material.color.copy(color).lerp(new THREE.Color(this.ambientPalette.void), 0.22);
+      outerShell.material.color.copy(color);
+      outerShell.material.color.lerp(this._tempColorD.set(this.ambientPalette.void), 0.22);
       const breathe = 1.0 + Math.sin(ft * 1.5) * 0.08;
       outerShell.scale.setScalar(breathe);
     }
@@ -1458,6 +2061,15 @@ export class AmbientEntityManager {
       }
     }
 
+    const halo = mesh.getObjectByName('caretakerHalo');
+    if (halo) {
+      halo.material.color.copy(coreColor).lerp(ringColor, 0.35);
+      halo.rotation.y += deltaTime * (0.18 + harmonyBias * 0.1);
+      halo.rotation.z += deltaTime * 0.08;
+      const haloPulse = 1 + Math.sin(ft * (1.9 + harmonyBias * 0.5)) * 0.05;
+      halo.scale.setScalar(haloPulse);
+    }
+
     // Fade visibility
     mesh.children.forEach((child) => {
       if (child.material && child.material.transparent) {
@@ -1473,9 +2085,11 @@ export class AmbientEntityManager {
   updateSpectreVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.glitchTimer += deltaTime;
     const gt = mesh.userData.glitchTimer;
-    const behavior = entity.userData?.behaviorContext;
-    const spectralColor = this._tempColorA.setHSL(0.62 + Math.sin(gt * 0.15) * 0.015, 0.25, 0.36 + Math.sin(gt * 0.45) * 0.03);
-    const accentColor = this._tempColorB.setHSL(0.58, 0.12, 0.7);
+    const behavior = this._getBehaviorContext(entity);
+    const corruptionBias = this._getMetricBiasStrength('corruption');
+    const loadPressureBias = this._getMetricBiasStrength('loadPressure');
+    const spectralColor = this._tempColorA.setHSL(0.62 + corruptionBias * 0.05 + Math.sin(gt * 0.15) * 0.015, 0.25 + corruptionBias * 0.08, 0.36 + Math.sin(gt * 0.45) * 0.03);
+    const accentColor = this._tempColorB.setHSL(0.58 + loadPressureBias * 0.02, 0.12, 0.7);
 
     // Scanline sweep — when colony-scan behavior, sweep rotates around colony center
     const scanline = mesh.getObjectByName('scanline');
@@ -1523,6 +2137,13 @@ export class AmbientEntityManager {
       spine.material.opacity = (0.08 + Math.sin(gt * 6) * 0.04) * entity.intensity * (1 - fadeProgress);
     }
 
+    const halo = mesh.getObjectByName('scanHalo');
+    if (halo) {
+      halo.material.color.copy(accentColor).lerp(spectralColor, 0.5);
+      halo.rotation.z += deltaTime * (0.2 + loadPressureBias * 0.12);
+      halo.scale.setScalar(1 + Math.sin(gt * 1.8) * 0.05);
+    }
+
     // Chromatic glitch — offset entire group briefly, more frequent when scanning
     const glitchChance = (behavior?.type === 'colony-scan') ? 0.025 : 0.015;
     if (Math.random() < glitchChance) {
@@ -1550,6 +2171,9 @@ export class AmbientEntityManager {
     const time = mesh.userData.orbitTime;
     const trailContainer = mesh.userData.trailContainer;
     const trailParticles = entity.trailParticles || [];
+    const stabilityBias = this._getMetricBiasStrength('stability');
+    const harmonyBias = this._getMetricBiasStrength('harmony');
+    const corruptionBias = this._getMetricBiasStrength('corruption');
     const TRAIL_LENGTH = 8;
     const TRAIL_LIFETIME = 0.3;
 
@@ -1562,9 +2186,10 @@ export class AmbientEntityManager {
       const orbitPhase = fragment.userData.orbitPhase;
       const tilt = fragment.userData.orbitTilt;
 
-      fragment.position.x = basePos.x + Math.sin(time * orbitSpeed + orbitPhase) * orbitRadius;
-      fragment.position.z = basePos.z + Math.cos(time * orbitSpeed + orbitPhase) * orbitRadius;
-      fragment.position.y = basePos.y + Math.sin(time * orbitSpeed * 0.7 + orbitPhase) * orbitRadius * tilt;
+      const shoalTightness = 1 - stabilityBias * 0.18 + corruptionBias * 0.08;
+      fragment.position.x = basePos.x + Math.sin(time * orbitSpeed + orbitPhase) * orbitRadius * shoalTightness;
+      fragment.position.z = basePos.z + Math.cos(time * orbitSpeed + orbitPhase) * orbitRadius * shoalTightness;
+      fragment.position.y = basePos.y + Math.sin(time * orbitSpeed * 0.7 + orbitPhase) * orbitRadius * tilt * (1 - harmonyBias * 0.12);
 
       fragment.rotation.x += deltaTime * 0.5;
       fragment.rotation.y += deltaTime * 0.7;
@@ -1580,6 +2205,7 @@ export class AmbientEntityManager {
       const ageFactor = 1.0 - (entity.age / entity.maxLifetime);
       if (fragment.material && fragment.material.opacity !== undefined) {
         fragment.material.opacity = 0.7 * ageFactor * entity.intensity;
+        fragment.material.color.setHSL(0.63 + corruptionBias * 0.06 - harmonyBias * 0.02, 0.28 + corruptionBias * 0.08, 0.3 + stabilityBias * 0.04);
       }
     }
 
@@ -1616,7 +2242,7 @@ export class AmbientEntityManager {
   updatePhantomVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.glitchTimer += deltaTime;
     mesh.userData.fadeCycleTime = (mesh.userData.fadeCycleTime || 0) + deltaTime;
-    const behavior = entity.userData?.behaviorContext;
+    const behavior = this._getBehaviorContext(entity);
     const gt = mesh.userData.glitchTimer;
 
     // Corruption-guard phantoms shift toward angry red-purple hues
@@ -1676,16 +2302,18 @@ export class AmbientEntityManager {
   updateWispVisuals(mesh, entity, fadeProgress, deltaTime) {
     mesh.userData.waveTime += deltaTime;
     const waveTime = Date.now() * 0.001;
-    const behavior = entity.userData?.behaviorContext;
+    const behavior = this._getBehaviorContext(entity);
     const isLinkFlow = behavior?.type === 'link-flow';
+    const synergyBias = this._getMetricBiasStrength('synergy');
+    const loadPressureBias = this._getMetricBiasStrength('loadPressure');
 
     // Link-flow wisps shift toward cyan-blue, faster pulse
-    const flowBoost = isLinkFlow ? 1.5 : 1.0;
-    const baseHue = isLinkFlow ? 0.58 : 0.64;
+    const flowBoost = (isLinkFlow ? 1.5 : 1.0) + synergyBias * 0.35 + loadPressureBias * 0.28;
+    const baseHue = (isLinkFlow ? 0.58 : 0.64) - synergyBias * 0.025;
     const ribbonTint = this._tempColorA.setHSL(
       baseHue + Math.sin(waveTime * 0.2 * flowBoost) * 0.02,
-      isLinkFlow ? 0.38 : 0.3,
-      isLinkFlow ? 0.38 : 0.34
+      (isLinkFlow ? 0.38 : 0.3) + synergyBias * 0.08,
+      (isLinkFlow ? 0.38 : 0.34) + loadPressureBias * 0.05
     );
     const glowTint = this._tempColorB.setHSL(0.59, 0.14, 0.72);
 
@@ -1703,7 +2331,7 @@ export class AmbientEntityManager {
 
         // Color shift — brighter when in active flow
         const hueShift = Math.sin(waveTime + offset * 2) * 0.03;
-        const newColor = new THREE.Color().setHSL(baseHue + hueShift, 0.42, isLinkFlow ? 0.32 : 0.28);
+        const newColor = this._tempColorC.setHSL(baseHue + hueShift, 0.42 + synergyBias * 0.06, (isLinkFlow ? 0.32 : 0.28) + loadPressureBias * 0.04);
         if (child.material && child.material.color) {
           child.material.color.copy(newColor).lerp(glowTint, 0.25);
         }
@@ -1816,6 +2444,10 @@ export class AmbientEntityManager {
     this.entityMeshes = {};
     this.entityParticles = {};
     this.entityTrailParticles = {};
+    this._semanticWindows.global.clear();
+    this._semanticWindows.colonies.clear();
+    this._pendingSemanticSpawns = [];
+    this._semanticSpawnCooldowns.clear();
     this.interpretationAccumulator = this.interpretationInterval;
     this.refreshAmbientInterpretation();
   }
@@ -1824,6 +2456,8 @@ export class AmbientEntityManager {
    * Dispose — clean up all resources and remove from scene
    */
   dispose() {
+    eventRegistrationRegistry.disposeOwner(this._ambientOwner);
+
     // Remove all entity meshes
     for (const id in this.entityMeshes) {
       const mesh = this.entityMeshes[id];
@@ -1862,5 +2496,9 @@ export class AmbientEntityManager {
     }
     this.sharedGeometrySet.clear();
     this.sharedGeometryCache.clear();
+    this._semanticWindows.global.clear();
+    this._semanticWindows.colonies.clear();
+    this._pendingSemanticSpawns = [];
+    this._semanticSpawnCooldowns.clear();
   }
 }

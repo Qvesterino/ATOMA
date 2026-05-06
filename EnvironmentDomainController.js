@@ -603,13 +603,14 @@ export class EnvironmentDomainController {
 
     if (this.instances.ambientEntityManager?.registerWorldSystems &&
         d.legendaryPack && this.instances.worldEvents && this.instances.weatherPack && d.linkingSystem) {
-      this.instances.ambientEntityManager.registerWorldSystems(
-        d.legendaryPack,
-        this.instances.worldEvents,
-        this.instances.weatherPack,
-        d.linkingSystem,
-        this.instances.colonyExpansion || null
-      );
+      this.instances.ambientEntityManager.registerWorldSystems({
+        legendaryPack: d.legendaryPack,
+        worldEvents: this.instances.worldEvents,
+        weatherPack: this.instances.weatherPack,
+        linkingSystem: d.linkingSystem,
+        colonyExpansion: this.instances.colonyExpansion || null,
+        semanticBus: d.semanticBus || null
+      });
     }
 
     // EmergentThoughtStorms5_0 hard-disabled for release stabilization.
@@ -646,6 +647,18 @@ export class EnvironmentDomainController {
           semanticBus: d.semanticBus || null
         };
         this.instances.colonyExpansion.initialize(worldSystems);
+      }
+
+      if (this.instances.ambientEntityManager?.registerWorldSystems &&
+          d.legendaryPack && this.instances.worldEvents && this.instances.weatherPack && d.linkingSystem) {
+        this.instances.ambientEntityManager.registerWorldSystems({
+          legendaryPack: d.legendaryPack,
+          worldEvents: this.instances.worldEvents,
+          weatherPack: this.instances.weatherPack,
+          linkingSystem: d.linkingSystem,
+          colonyExpansion: this.instances.colonyExpansion,
+          semanticBus: d.semanticBus || null
+        });
       }
     }
 
@@ -1332,6 +1345,12 @@ export class EnvironmentDomainController {
 
     if (this.instances.environmentalHazards && typeof this.instances.environmentalHazards.setAtmosphereProfile === 'function') {
       this.instances.environmentalHazards.setAtmosphereProfile(releaseAtmosphere);
+    }
+
+    if (this.instances.ambientEntityManager && typeof this.instances.ambientEntityManager.setEnvironmentWorldContext === 'function') {
+      this.instances.ambientEntityManager.setEnvironmentWorldContext(binding);
+    } else if (this.instances.ambientEntityManager && typeof this.instances.ambientEntityManager.setAtmosphereProfile === 'function') {
+      this.instances.ambientEntityManager.setAtmosphereProfile(releaseAtmosphere);
     }
 
     return binding;
