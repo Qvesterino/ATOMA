@@ -951,6 +951,11 @@ export class EnvironmentDomainController {
       'simulation',
       (dt) => {
         if (this.instances.worldPersonalityController?.update) {
+          if (typeof this.instances.worldPersonalityController.setDramaturgyModulation === 'function') {
+            this.instances.worldPersonalityController.setDramaturgyModulation(
+              this._resolveEnvironmentDramaturgyState()
+            );
+          }
           this.instances.worldPersonalityController.update(
             dt,
             this.deps.aiNodes?.nodes,
@@ -1036,70 +1041,296 @@ export class EnvironmentDomainController {
     }
   }
 
-  _buildEnvironmentWorldBinding(worldContext) {
-    const macroState = String(worldContext?.worldMacroState || worldContext?.macroState || 'DORMANT').toUpperCase();
-    const macroProfile = worldContext?.macroProfile || null;
+  _readEnvironmentLiveMetrics() {
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    const liveMetrics = browserWindow?.__ATOMA_LIVE_METRICS__;
+    if (!liveMetrics || typeof liveMetrics !== 'object') {
+      return {
+        synergy: 0,
+        harmony: 0,
+        stability: 0.5,
+        corruption: 0,
+        loadPressure: 0
+      };
+    }
 
-    const moodBias = {
-      calm: 0.08,
-      pressure: 0.08,
-      resonance: 0.08,
-      stormBias: 0.08,
-      ascensionHaze: 0.08
+    const clampMetric = (value, fallback = 0) => THREE.MathUtils.clamp(
+      Number.isFinite(value) ? value : fallback,
+      0,
+      1
+    );
+
+    const networkStress = Number.isFinite(liveMetrics.networkStress)
+      ? THREE.MathUtils.clamp(liveMetrics.networkStress, 0, 1)
+      : null;
+
+    return {
+      synergy: clampMetric(liveMetrics.avgSynergy ?? liveMetrics.synergy ?? liveMetrics.synergyFlow, 0),
+      harmony: clampMetric(liveMetrics.avgHarmony ?? liveMetrics.harmony ?? liveMetrics.harmonyFlow, 0),
+      stability: clampMetric(
+        liveMetrics.avgStability
+          ?? liveMetrics.stability
+          ?? (networkStress === null ? null : 1 - networkStress),
+        0.5
+      ),
+      corruption: clampMetric(liveMetrics.avgCorruption ?? liveMetrics.corruption ?? liveMetrics.corruptionLevel, 0),
+      loadPressure: clampMetric(liveMetrics.avgLoadPressure ?? liveMetrics.loadPressure, 0)
     };
+  }
 
-    const stateBindings = {
+  _resolveEnvironmentMoodState() {
+    const moodState = this.instances.worldPersonalityController?.getMoodState?.() || null;
+    return {
+      mood: moodState?.mood || null,
+      label: moodState?.mood?.label || 'NEUTRAL',
+      intensity: THREE.MathUtils.clamp(moodState?.mood?.intensity ?? 0, 0, 1),
+      visualContext: moodState?.mood?.visualContext || null
+    };
+  }
+
+  _resolveEnvironmentDramaturgyState() {
+    const engine = this.instances.eventDramaturgy;
+    const baseState = engine?.getState?.() || null;
+    const activeSequences = engine?.getActiveSequences?.() || [];
+    let dominantPhase = null;
+
+    if (Array.isArray(activeSequences) && activeSequences.length > 0) {
+      let strongest = null;
+      for (const sequence of activeSequences) {
+        if (!sequence || !sequence.family) continue;
+        if (!strongest || (sequence.intensity ?? 0) > (strongest.intensity ?? 0)) {
+          strongest = sequence;
+        }
+      }
+      dominantPhase = strongest?.phase || null;
+    }
+
+    return {
+      ...(baseState || {}),
+      dominantPhase
+    };
+  }
+
+  _resolveControllerMetricAccents(metrics = this._readEnvironmentLiveMetrics()) {
+    const clamp = (value) => THREE.MathUtils.clamp(value, 0, 1);
+    return {
+      synergyHigh: metrics.synergy >= 0.72,
+      harmonyHigh: metrics.harmony >= 0.7,
+      stabilityHigh: metrics.stability >= 0.72,
+      stabilityLow: metrics.stability <= 0.38,
+      corruptionHigh: metrics.corruption >= 0.62,
+      loadPressureHigh: metrics.loadPressure >= 0.68,
+      synergy: clamp(metrics.synergy),
+      harmony: clamp(metrics.harmony),
+      stability: clamp(metrics.stability),
+      corruption: clamp(metrics.corruption),
+      loadPressure: clamp(metrics.loadPressure)
+    };
+  }
+
+  _buildReleaseAtmosphereProfile(macroState, macroProfile, moodState, dramaturgyState, metricAccents) {
+    const clamp = (value, min = 0, max = 1) => THREE.MathUtils.clamp(value, min, max);
+    const baseProfiles = {
       DORMANT: {
         weatherKey: 'calm',
-        moodBias: { calm: 0.98, pressure: 0.06, resonance: 0.05, stormBias: 0.02, ascensionHaze: 0.04 }
+        vector: { calm: 0.94, pressure: 0.08, resonance: 0.12, fracture: 0.03, ascension: 0.04 }
       },
       AWAKENING: {
         weatherKey: 'pressure',
-        moodBias: { calm: 0.16, pressure: 1.0, resonance: 0.12, stormBias: 0.08, ascensionHaze: 0.06 }
+        vector: { calm: 0.18, pressure: 0.78, resonance: 0.28, fracture: 0.14, ascension: 0.08 }
       },
       COMMUNION: {
         weatherKey: 'resonance',
-        moodBias: { calm: 0.1, pressure: 0.1, resonance: 1.04, stormBias: 0.06, ascensionHaze: 0.16 }
+        vector: { calm: 0.32, pressure: 0.16, resonance: 0.86, fracture: 0.06, ascension: 0.2 }
       },
       SCHISM: {
         weatherKey: 'stormBias',
-        moodBias: { calm: 0.06, pressure: 0.16, resonance: 0.14, stormBias: 1.08, ascensionHaze: 0.1 }
+        vector: { calm: 0.08, pressure: 0.62, resonance: 0.18, fracture: 0.82, ascension: 0.08 }
       },
       REVELATION: {
         weatherKey: 'ascensionHaze',
-        moodBias: { calm: 0.08, pressure: 0.08, resonance: 0.18, stormBias: 0.08, ascensionHaze: 1.1 }
+        vector: { calm: 0.2, pressure: 0.18, resonance: 0.52, fracture: 0.14, ascension: 0.92 }
       }
     };
 
-    const binding = stateBindings[macroState] || stateBindings.DORMANT;
-    const weatherMoodBias = { ...moodBias, ...(binding.moodBias || {}) };
+    const baseProfile = baseProfiles[macroState] || baseProfiles.DORMANT;
+    const vector = { ...baseProfile.vector };
+    const moodLabel = String(moodState?.label || 'NEUTRAL').toUpperCase();
+    const moodIntensity = clamp(moodState?.intensity ?? 0);
+    const dramaturgyIntensity = clamp(dramaturgyState?.dominantIntensity ?? 0);
+    const dramaturgyFamily = dramaturgyState?.dominantFamily || null;
+    const dramaturgyPhase = dramaturgyState?.dominantPhase || null;
+
+    switch (moodLabel) {
+      case 'HARMONIC_CALM':
+        vector.calm += 0.18 * moodIntensity;
+        vector.resonance += 0.08 * moodIntensity;
+        break;
+      case 'FOCUSED_ANALYSIS':
+        vector.resonance += 0.16 * moodIntensity;
+        vector.pressure += 0.06 * moodIntensity;
+        break;
+      case 'RADIANT_STORM':
+        vector.pressure += 0.16 * moodIntensity;
+        vector.fracture += 0.12 * moodIntensity;
+        break;
+      case 'QUANTUM_CHAOS':
+        vector.fracture += 0.2 * moodIntensity;
+        vector.pressure += 0.08 * moodIntensity;
+        break;
+      case 'UMBRA_PRESSURE':
+        vector.pressure += 0.18 * moodIntensity;
+        vector.fracture += 0.16 * moodIntensity;
+        break;
+      case 'ECHO_DRIFT':
+        vector.resonance += 0.1 * moodIntensity;
+        vector.calm += 0.04 * moodIntensity;
+        break;
+      case 'ASCENDED_ALIGNMENT':
+        vector.ascension += 0.22 * moodIntensity;
+        vector.resonance += 0.14 * moodIntensity;
+        break;
+      default:
+        break;
+    }
+
+    if (dramaturgyFamily === 'corruption' || dramaturgyFamily === 'hazard') {
+      vector.fracture += 0.14 * dramaturgyIntensity;
+      vector.pressure += 0.1 * dramaturgyIntensity;
+    } else if (dramaturgyFamily === 'cascade') {
+      vector.pressure += 0.08 * dramaturgyIntensity;
+      vector.resonance += 0.08 * dramaturgyIntensity;
+    } else if (dramaturgyFamily === 'resonance' || dramaturgyFamily === 'ritual') {
+      vector.resonance += 0.12 * dramaturgyIntensity;
+      vector.ascension += 0.1 * dramaturgyIntensity;
+    }
+
+    if (dramaturgyPhase === 'payoff') {
+      vector.calm += 0.08 * dramaturgyIntensity;
+      vector.ascension += 0.05 * dramaturgyIntensity;
+      vector.fracture -= 0.05 * dramaturgyIntensity;
+    } else if (dramaturgyPhase === 'escalation') {
+      vector.pressure += 0.08 * dramaturgyIntensity;
+    }
+
+    vector.resonance += metricAccents.synergy * 0.12 + metricAccents.harmony * 0.12;
+    vector.calm += metricAccents.stability * 0.1;
+    vector.pressure += metricAccents.loadPressure * 0.16;
+    vector.fracture += metricAccents.corruption * 0.18 + (metricAccents.stabilityLow ? 0.08 : 0);
+    vector.ascension += metricAccents.harmonyHigh ? 0.06 : 0;
 
     if (macroProfile) {
-      weatherMoodBias.resonance += (macroProfile.particleScale ?? 0) * 0.03;
-      weatherMoodBias.stormBias += (macroProfile.distortionScale ?? 0) * 0.03;
-      weatherMoodBias.ascensionHaze += (macroProfile.cameraAuraScale ?? 0) * 0.04;
-      weatherMoodBias.pressure += (macroProfile.fogScale ?? 0) * 0.02;
+      vector.resonance += (macroProfile.particleScale ?? 0) * 0.03;
+      vector.fracture += (macroProfile.distortionScale ?? 0) * 0.04;
+      vector.ascension += (macroProfile.cameraAuraScale ?? 0) * 0.05;
+      vector.pressure += (macroProfile.fogScale ?? 0) * 0.03;
     }
+
+    Object.keys(vector).forEach((key) => {
+      vector[key] = clamp(vector[key]);
+    });
+
+    const weatherMoodBias = {
+      calm: clamp(vector.calm),
+      pressure: clamp(vector.pressure),
+      resonance: clamp(vector.resonance),
+      stormBias: clamp(vector.fracture),
+      ascensionHaze: clamp(vector.ascension)
+    };
+
+    return {
+      version: 'release-atmosphere-v1',
+      macroState,
+      weatherKey: baseProfile.weatherKey,
+      influenceOrder: ['controller', 'dramaturgy', 'accents'],
+      vector,
+      mood: {
+        label: moodLabel,
+        intensity: moodIntensity,
+        dominantSignature: moodState?.visualContext?.dominantSignature || 'neutral_balance',
+        visualTone: moodState?.visualContext?.visualTone || null
+      },
+      dramaturgy: {
+        family: dramaturgyFamily,
+        phase: dramaturgyPhase,
+        intensity: dramaturgyIntensity,
+        glow: clamp(dramaturgyState?.glow ?? 0),
+        vignette: clamp(dramaturgyState?.vignette ?? 0),
+        fogShift: clamp((dramaturgyState?.fogShift ?? 0) + 0.1, 0, 1),
+        activeCount: Math.max(0, dramaturgyState?.activeCount ?? 0)
+      },
+      metrics: metricAccents,
+      worldFX: {
+        activityTarget: clamp(vector.resonance * 0.54 + vector.calm * 0.18 + vector.pressure * 0.12 + metricAccents.synergy * 0.12),
+        pressureTarget: clamp(vector.pressure * 0.56 + vector.fracture * 0.18 + metricAccents.loadPressure * 0.18),
+        revelationTarget: clamp(vector.ascension * 0.5 + vector.fracture * 0.18 + vector.resonance * 0.16 + dramaturgyIntensity * 0.08),
+        signalBiasTarget: clamp(vector.resonance * 0.18 + vector.pressure * 0.18 + vector.fracture * 0.16 + vector.ascension * 0.16 + dramaturgyIntensity * 0.12),
+        canopyEmphasis: clamp(0.58 + vector.calm * 0.14 + vector.resonance * 0.1 + vector.ascension * 0.12 - vector.fracture * 0.08),
+        horizonEmphasis: clamp(0.56 + vector.resonance * 0.16 + vector.pressure * 0.08 + vector.ascension * 0.08),
+        veilDensity: clamp(0.2 + vector.pressure * 0.16 + vector.resonance * 0.08 + vector.ascension * 0.1 - vector.calm * 0.04),
+        veilDrift: clamp(0.18 + vector.pressure * 0.18 + vector.fracture * 0.14 + dramaturgyIntensity * 0.1),
+        pulseCadence: clamp(0.34 + vector.resonance * 0.18 + metricAccents.synergy * 0.12 + metricAccents.harmony * 0.08),
+        riftWaveFrequency: clamp(0.16 + vector.pressure * 0.22 + vector.fracture * 0.18 + metricAccents.loadPressure * 0.1),
+        screenOverlayRestraint: clamp(0.9 - vector.ascension * 0.08 - vector.fracture * 0.08 + vector.calm * 0.06 + metricAccents.stability * 0.05, 0.35, 1)
+      },
+      hazards: {
+        intensity: clamp(0.48 + vector.pressure * 0.26 + vector.fracture * 0.24 - vector.calm * 0.08 - vector.ascension * 0.04),
+        density: clamp(0.34 + vector.pressure * 0.18 + vector.fracture * 0.16 - vector.calm * 0.08),
+        fractureBias: clamp(vector.fracture * 0.72 + metricAccents.corruption * 0.18 + metricAccents.loadPressure * 0.08),
+        stabilityShield: clamp(vector.calm * 0.24 + metricAccents.stability * 0.32 + (metricAccents.stabilityHigh ? 0.14 : 0))
+      }
+    };
+  }
+
+  _buildEnvironmentWorldBinding(worldContext) {
+    const macroState = String(worldContext?.worldMacroState || worldContext?.macroState || 'DORMANT').toUpperCase();
+    const macroProfile = worldContext?.macroProfile || null;
+    const moodState = this._resolveEnvironmentMoodState();
+    const dramaturgyState = this._resolveEnvironmentDramaturgyState();
+    const metricAccents = this._resolveControllerMetricAccents();
+    const releaseAtmosphere = this._buildReleaseAtmosphereProfile(
+      macroState,
+      macroProfile,
+      moodState,
+      dramaturgyState,
+      metricAccents
+    );
 
     return {
       worldContext,
       macroState,
-      weatherKey: binding.weatherKey,
-      weatherMoodBias,
-      macroProfile
+      weatherKey: releaseAtmosphere.weatherKey,
+      weatherMoodBias: releaseAtmosphere.vector ? {
+        calm: releaseAtmosphere.vector.calm,
+        pressure: releaseAtmosphere.vector.pressure,
+        resonance: releaseAtmosphere.vector.resonance,
+        stormBias: releaseAtmosphere.vector.fracture,
+        ascensionHaze: releaseAtmosphere.vector.ascension
+      } : null,
+      macroProfile,
+      releaseAtmosphere
     };
   }
 
   _syncEnvironmentWorldContext(worldBinding = null) {
     const binding = worldBinding || this._buildEnvironmentWorldBinding(this._resolveEnvironmentWorldContext());
     const worldContext = binding?.worldContext || null;
+    const releaseAtmosphere = binding?.releaseAtmosphere || null;
 
     if (this.instances.worldFXPack && typeof this.instances.worldFXPack.setWorldContext === 'function') {
       this.instances.worldFXPack.setWorldContext(worldContext);
     }
 
+    if (this.instances.worldFXPack && typeof this.instances.worldFXPack.setAtmosphereProfile === 'function') {
+      this.instances.worldFXPack.setAtmosphereProfile(releaseAtmosphere);
+    }
+
     if (this.instances.weatherPack && typeof this.instances.weatherPack.setWorldContext === 'function') {
       this.instances.weatherPack.setWorldContext(worldContext);
+    }
+
+    if (this.instances.environmentalHazards && typeof this.instances.environmentalHazards.setAtmosphereProfile === 'function') {
+      this.instances.environmentalHazards.setAtmosphereProfile(releaseAtmosphere);
     }
 
     return binding;

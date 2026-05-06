@@ -40,6 +40,7 @@ export class SafeWorldFXPack {
     this.worldContext = null;
     this.worldMacroState = 'DORMANT';
     this.worldAtmosphereBias = null;
+    this.atmosphereProfile = null;
 
     this.palette = {
       base: 0x05131A,
@@ -60,7 +61,15 @@ export class SafeWorldFXPack {
       activityLevel: 0,
       pressureLevel: 0,
       revelationLevel: 0,
-      signalBias: 0
+      signalBias: 0,
+      calmLevel: 0,
+      canopyEmphasis: 0.72,
+      horizonEmphasis: 0.72,
+      veilDensity: 0.28,
+      veilDrift: 0.24,
+      pulseCadence: 0.48,
+      riftWaveFrequency: 0.34,
+      screenOverlayRestraint: 0.9
     };
 
     this.sharedWorldUniforms = {
@@ -697,13 +706,14 @@ export class SafeWorldFXPack {
 
   _getWorldFXSignalBias(effectName) {
     const state = this.atmosphereState || {};
+    const overlayRestraint = THREE.MathUtils.clamp(state.screenOverlayRestraint ?? 0.9, 0.25, 1);
     const weights = {
-      dimensionalShift: 0.14 + (state.stabilityLow ? 0.18 : 0) + (state.loadPressureHigh ? 0.12 : 0) + (state.revelationLevel * 0.08) + (state.activityLevel * 0.05),
-      riftWave: 0.18 + (state.loadPressureHigh ? 0.14 : 0) + (state.activityLevel * 0.1),
-      energyPulse: 0.08 + (state.synergyHigh ? 0.16 : 0) + (state.activityLevel * 0.14),
+      dimensionalShift: 0.08 + (state.stabilityLow ? 0.18 : 0) + (state.loadPressureHigh ? 0.1 : 0) + (state.revelationLevel * 0.06) + (state.activityLevel * 0.04) + (state.veilDrift ?? 0) * 0.16,
+      riftWave: 0.08 + (state.loadPressureHigh ? 0.12 : 0) + (state.activityLevel * 0.08) + (state.riftWaveFrequency ?? 0) * 0.22,
+      energyPulse: 0.05 + (state.synergyHigh ? 0.14 : 0) + (state.activityLevel * 0.1) + (state.pulseCadence ?? 0) * 0.18,
       quantumRift: 0.01 + (state.corruptionHigh ? 0.22 : 0) + (state.legendaryCount > 0 ? 0.25 : 0) + (state.revelationLevel * 0.08),
       sigmaGlitch: 0.003 + (state.corruptionHigh ? 0.02 : 0) + (state.loadPressureHigh ? 0.015 : 0),
-      screenOverlay: 0.01 + (state.revelationLevel * 0.2) + (state.pressureLevel * 0.08)
+      screenOverlay: (0.01 + (state.revelationLevel * 0.18) + (state.pressureLevel * 0.06)) * overlayRestraint
     };
     return Math.min(1, weights[effectName] ?? 0.05);
   }
@@ -816,6 +826,8 @@ export class SafeWorldFXPack {
     const stabilityHigh = this._isSignalActive('stability.high');
     const legendaryCount = legendaryPack?.getActiveLegendaryCount?.() ?? 0;
     const worldBias = this.worldAtmosphereBias || this._buildWorldAtmosphereBias(this.worldContext);
+    const conductorWorldFX = this.atmosphereProfile?.worldFX || null;
+    const conductorVector = this.atmosphereProfile?.vector || null;
 
     this.atmosphereState.synergyHigh = synergyHigh;
     this.atmosphereState.loadPressureHigh = loadPressureHigh;
@@ -827,15 +839,45 @@ export class SafeWorldFXPack {
     const activityLevel = Math.min(1, this.worldState.totalSynergy / 30);
     const pressureLevel = Math.min(1, this.worldState.totalTraffic / 25 + (loadPressureHigh ? 0.2 : 0));
     const revelationLevel = Math.min(1, (corruptionHigh ? 0.5 : 0) + (legendaryCount > 0 ? 0.3 : 0));
+    const activityTarget = conductorWorldFX?.activityTarget;
+    const pressureTarget = conductorWorldFX?.pressureTarget;
+    const revelationTarget = conductorWorldFX?.revelationTarget;
+    const signalBiasTarget = conductorWorldFX?.signalBiasTarget;
 
-    this.atmosphereState.activityLevel = THREE.MathUtils.clamp(activityLevel + (worldBias?.activity || 0), 0, 1);
-    this.atmosphereState.pressureLevel = THREE.MathUtils.clamp(pressureLevel + (worldBias?.pressure || 0), 0, 1);
-    this.atmosphereState.revelationLevel = THREE.MathUtils.clamp(revelationLevel + (worldBias?.revelation || 0), 0, 1);
-    this.atmosphereState.signalBias = THREE.MathUtils.clamp(
-      (this.atmosphereState.activityLevel + this.atmosphereState.pressureLevel + this.atmosphereState.revelationLevel) / 3 + (worldBias?.signalBias || 0),
+    this.atmosphereState.activityLevel = THREE.MathUtils.clamp(
+      activityLevel * 0.46 + (worldBias?.activity || 0) * 0.18 + (Number.isFinite(activityTarget) ? activityTarget * 0.54 : 0),
       0,
       1
     );
+    this.atmosphereState.pressureLevel = THREE.MathUtils.clamp(
+      pressureLevel * 0.42 + (worldBias?.pressure || 0) * 0.16 + (Number.isFinite(pressureTarget) ? pressureTarget * 0.58 : 0),
+      0,
+      1
+    );
+    this.atmosphereState.revelationLevel = THREE.MathUtils.clamp(
+      revelationLevel * 0.38 + (worldBias?.revelation || 0) * 0.14 + (Number.isFinite(revelationTarget) ? revelationTarget * 0.62 : 0),
+      0,
+      1
+    );
+    this.atmosphereState.signalBias = THREE.MathUtils.clamp(
+      (
+        this.atmosphereState.activityLevel +
+        this.atmosphereState.pressureLevel +
+        this.atmosphereState.revelationLevel
+      ) / 3 +
+      (worldBias?.signalBias || 0) * 0.5 +
+      (Number.isFinite(signalBiasTarget) ? signalBiasTarget * 0.24 : 0),
+      0,
+      1
+    );
+    this.atmosphereState.calmLevel = THREE.MathUtils.clamp(conductorVector?.calm ?? (stabilityHigh ? 0.74 : 0.28), 0, 1);
+    this.atmosphereState.canopyEmphasis = THREE.MathUtils.clamp(conductorWorldFX?.canopyEmphasis ?? 0.72, 0.4, 1);
+    this.atmosphereState.horizonEmphasis = THREE.MathUtils.clamp(conductorWorldFX?.horizonEmphasis ?? 0.72, 0.4, 1);
+    this.atmosphereState.veilDensity = THREE.MathUtils.clamp(conductorWorldFX?.veilDensity ?? 0.28, 0.08, 1);
+    this.atmosphereState.veilDrift = THREE.MathUtils.clamp(conductorWorldFX?.veilDrift ?? 0.24, 0.08, 1);
+    this.atmosphereState.pulseCadence = THREE.MathUtils.clamp(conductorWorldFX?.pulseCadence ?? 0.48, 0.15, 1);
+    this.atmosphereState.riftWaveFrequency = THREE.MathUtils.clamp(conductorWorldFX?.riftWaveFrequency ?? 0.34, 0.12, 1);
+    this.atmosphereState.screenOverlayRestraint = THREE.MathUtils.clamp(conductorWorldFX?.screenOverlayRestraint ?? 0.9, 0.25, 1);
   }
 
   _setupMetricTriggers() {
@@ -856,7 +898,22 @@ export class SafeWorldFXPack {
     this.worldAtmosphereBias = this._buildWorldAtmosphereBias(this.worldContext);
   }
 
+  setAtmosphereProfile(atmosphereProfile) {
+    this.atmosphereProfile = atmosphereProfile || null;
+    this.worldAtmosphereBias = this._buildWorldAtmosphereBias(this.worldContext);
+  }
+
   _buildWorldAtmosphereBias(worldContext) {
+    if (this.atmosphereProfile?.worldFX) {
+      const worldFX = this.atmosphereProfile.worldFX;
+      return {
+        activity: THREE.MathUtils.clamp((worldFX.activityTarget ?? 0) * 0.18, 0, 0.18),
+        pressure: THREE.MathUtils.clamp((worldFX.pressureTarget ?? 0) * 0.2, 0, 0.22),
+        revelation: THREE.MathUtils.clamp((worldFX.revelationTarget ?? 0) * 0.22, 0, 0.24),
+        signalBias: THREE.MathUtils.clamp((worldFX.signalBiasTarget ?? 0) * 0.18, 0, 0.18)
+      };
+    }
+
     const macroState = String(worldContext?.worldMacroState || worldContext?.macroState || 'DORMANT').toUpperCase();
     const macroProfile = worldContext?.macroProfile || null;
     const profileEnergy = THREE.MathUtils.clamp(((macroProfile?.masterScale ?? 0.68) - 0.68) / 0.5, 0, 1);
@@ -1254,7 +1311,8 @@ export class SafeWorldFXPack {
    */
   updateRiftWaves(deltaTime) {
     this.worldState.riftWaveTimer += deltaTime;
-    const interval = Math.max(8, this.config.riftWaveInterval * (1 - this.atmosphereState.signalBias * 0.2));
+    const frequencyBias = this.atmosphereState.riftWaveFrequency ?? 0.34;
+    const interval = Math.max(8, this.config.riftWaveInterval * (1 - this.atmosphereState.signalBias * 0.12 - frequencyBias * 0.22));
     
     // Spawn new rift wave
     if (this.worldState.riftWaveTimer > interval) {
@@ -1386,7 +1444,7 @@ export class SafeWorldFXPack {
 
     const waveOpacity = 0.28 + synergyBoost * 0.35 + conflictBoost * 0.2;
     const waveIntensity = 1 + synergyBoost + conflictBoost;
-    const waveSpeed = this.config.riftWaveSpeed * (waveType === 'linear' ? 1 : 0.72) * (1 + (this.atmosphereState.stabilityLow ? 0.14 : 0));
+    const waveSpeed = this.config.riftWaveSpeed * (waveType === 'linear' ? 1 : 0.72) * (1 + (this.atmosphereState.stabilityLow ? 0.14 : 0) + (this.atmosphereState.riftWaveFrequency ?? 0.34) * 0.12);
     const waveWidth = this.config.riftWaveWidth * (waveType === 'linear' ? 1.4 : 0.85);
     const phaseOffset = Math.random() * Math.PI * 2;
 
@@ -1474,7 +1532,8 @@ export class SafeWorldFXPack {
     // Calculate pulse strength from network activity
     const activityLevel = Math.min(1, this.worldState.totalSynergy / 30);
     const synergyBoost = this._isSignalActive('synergy.high') ? 0.25 : 0;
-    const pulseInterval = this.config.pulseInterval / (0.5 + activityLevel + synergyBoost);
+    const cadenceBias = this.atmosphereState.pulseCadence ?? 0.48;
+    const pulseInterval = this.config.pulseInterval / (0.42 + activityLevel + synergyBoost + cadenceBias * 0.48);
     
     // Trigger pulse
     if (this.worldState.pulseTimer > pulseInterval) {
@@ -2475,16 +2534,22 @@ export class SafeWorldFXPack {
     const layer = this.vfxLayers.releaseStressAtmosphere;
     if (!layer?.root) return;
 
+    const canopyEmphasis = this.atmosphereState.canopyEmphasis ?? 0.72;
+    const horizonEmphasis = this.atmosphereState.horizonEmphasis ?? 0.72;
+    const veilDensity = this.atmosphereState.veilDensity ?? 0.28;
+    const veilDrift = this.atmosphereState.veilDrift ?? 0.24;
     const pressure = THREE.MathUtils.clamp(
-      this.atmosphereState.pressureLevel * 0.78 + this.atmosphereState.activityLevel * 0.22,
+      this.atmosphereState.pressureLevel * 0.58 +
+      this.atmosphereState.activityLevel * 0.16 +
+      veilDensity * 0.26,
       0,
       1
     );
     const loadBias = this.atmosphereState.loadPressureHigh
-      ? 0.48 + this.atmosphereState.signalBias * 0.12
-      : this.atmosphereState.pressureLevel * 0.16;
-    const pulse = Math.sin(this.worldState.time * (0.42 + pressure * 0.38) + loadBias * Math.PI * 1.7);
-    const turbulence = Math.cos(this.worldState.time * 0.26 + pressure * Math.PI * 1.1);
+      ? 0.34 + this.atmosphereState.signalBias * 0.08 + veilDrift * 0.16
+      : this.atmosphereState.pressureLevel * 0.1 + veilDrift * 0.12;
+    const pulse = Math.sin(this.worldState.time * (0.38 + pressure * 0.34 + veilDrift * 0.12) + loadBias * Math.PI * 1.7);
+    const turbulence = Math.cos(this.worldState.time * (0.22 + veilDrift * 0.16) + pressure * Math.PI * 1.1);
 
     const calm = new THREE.Color(this._getWorldFXPalette('mint'));
     const seam = new THREE.Color(this._getWorldFXPalette('cyan'));
@@ -2493,14 +2558,14 @@ export class SafeWorldFXPack {
     const voidViolet = new THREE.Color(this._getWorldFXPalette('violet'));
     const ritualWhite = new THREE.Color(this._getWorldFXPalette('ritualWhite'));
 
-    layer.root.position.y = Math.sin(this.worldState.time * 0.16 + turbulence * 0.4) * (0.12 + pressure * 0.34);
+    layer.root.position.y = Math.sin(this.worldState.time * 0.16 + turbulence * 0.4) * (0.08 + pressure * 0.22 + veilDensity * 0.14);
     layer.root.rotation.z = Math.sin(this.worldState.time * 0.07 + loadBias * 1.3) * (0.008 + pressure * 0.018);
     layer.root.rotation.y = Math.sin(this.worldState.time * 0.05) * (pressure * 0.02);
 
     layer.canopyVeils.forEach((veil, index) => {
       const basePosition = veil.userData?.basePosition;
       const baseRotationY = veil.userData?.baseRotationY ?? 0;
-      const opacity = 0.11 + pressure * 0.12 + loadBias * 0.04 + index * 0.014;
+      const opacity = (0.08 + pressure * 0.1 + loadBias * 0.03 + index * 0.012) * canopyEmphasis;
       const color = calm.clone()
         .lerp(seam, 0.32 + index * 0.08)
         .lerp(tension, pressure * 0.24)
@@ -2511,17 +2576,17 @@ export class SafeWorldFXPack {
       veil.material.color.copy(color);
       veil.material.opacity = Math.min(0.34, opacity);
       veil.rotation.z += deltaTime * (0.022 + index * 0.007 + pressure * 0.01);
-      veil.rotation.y = baseRotationY + Math.sin(this.worldState.time * 0.13 + index * 1.1) * (0.06 + pressure * 0.16);
+      veil.rotation.y = baseRotationY + Math.sin(this.worldState.time * 0.13 + index * 1.1) * (0.04 + pressure * 0.12 + veilDrift * 0.1);
       veil.position.y = (basePosition?.y ?? veil.position.y) + Math.sin(this.worldState.time * 0.22 + index * 1.8) * (0.015 + pressure * 0.02);
-      veil.position.z = (basePosition?.z ?? veil.position.z) + Math.cos(this.worldState.time * 0.12 + index) * (1.2 + pressure * 2.8);
-      veil.position.x = (basePosition?.x ?? 0) + Math.sin(this.worldState.time * 0.08 + index) * (2.8 + pressure * 4.2 + loadBias * 2.2);
-      veil.scale.set(1 + pressure * 0.08, 1 + loadBias * 0.12 + Math.abs(turbulence) * 0.05, 1);
+      veil.position.z = (basePosition?.z ?? veil.position.z) + Math.cos(this.worldState.time * 0.12 + index) * (0.9 + pressure * 1.8 + veilDrift * 1.2);
+      veil.position.x = (basePosition?.x ?? 0) + Math.sin(this.worldState.time * 0.08 + index) * (2.0 + pressure * 2.8 + loadBias * 1.4 + veilDrift * 1.8);
+      veil.scale.set(1 + pressure * 0.06 + canopyEmphasis * 0.04, 1 + loadBias * 0.08 + Math.abs(turbulence) * 0.04 + veilDensity * 0.06, 1);
     });
 
     layer.horizonSeams.forEach((line, index) => {
       const basePosition = line.userData?.basePosition;
       const baseRotationZ = line.userData?.baseRotationZ ?? 0;
-      const opacity = 0.05 + pressure * 0.22 + Math.abs(pulse) * 0.04 + index * 0.016;
+      const opacity = (0.04 + pressure * 0.18 + Math.abs(pulse) * 0.03 + index * 0.014) * horizonEmphasis;
       const color = seam.clone()
         .lerp(calm, 0.18)
         .lerp(tension, pressure * 0.28)
@@ -2532,9 +2597,9 @@ export class SafeWorldFXPack {
       this.setMaterialColors(line.material, color);
       this.setOpacity(line.material, Math.min(0.3, opacity), `release_stress_atmosphere.horizon.${index}`);
       line.rotation.z = baseRotationZ + Math.sin(this.worldState.time * 0.06 + index) * 0.012;
-      line.position.x = (basePosition?.x ?? 0) + Math.sin(this.worldState.time * 0.09 + index * 1.7) * (0.8 + pressure * 2.8);
-      line.scale.x = 1 + pressure * 0.09 + index * 0.018;
-      line.scale.y = 1 + loadBias * 0.14 + Math.abs(turbulence) * 0.08 + Math.max(0, pressure - 0.6) * 0.08;
+      line.position.x = (basePosition?.x ?? 0) + Math.sin(this.worldState.time * 0.09 + index * 1.7) * (0.6 + pressure * 2.0 + veilDrift * 1.1);
+      line.scale.x = 1 + pressure * 0.07 + horizonEmphasis * 0.04 + index * 0.016;
+      line.scale.y = 1 + loadBias * 0.1 + Math.abs(turbulence) * 0.06 + Math.max(0, pressure - 0.6) * 0.06;
     });
   }
 

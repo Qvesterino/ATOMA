@@ -150,6 +150,7 @@ export class EnvironmentalHazards {
     this.lastSpawnAtByType = new Map();
     this.lastSignalSpawnAt = new Map();
     this.metricSignalBias = 0;
+    this.atmosphereProfile = null;
     this.frameScheduler = null;
 
     this.hazardEnvelope = {
@@ -182,6 +183,10 @@ export class EnvironmentalHazards {
     });
 
     this._setupMetricTriggers();
+  }
+
+  setAtmosphereProfile(atmosphereProfile) {
+    this.atmosphereProfile = atmosphereProfile || null;
   }
 
   createElectricalStorm(position, radius = 18, intensity = 1) {
@@ -952,11 +957,15 @@ export class EnvironmentalHazards {
 
     this.sharedUniforms.uTime.value += Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0;
     const signals = this._getHazardSignalModifiers();
+    const conductorHazards = this.atmosphereProfile?.hazards || null;
     this.metricSignalBias =
       (signals.corruptionHigh ? 0.34 : 0) +
       (signals.loadPressureHigh ? 0.24 : 0) +
       (signals.stabilityLow ? 0.18 : 0) -
-      (signals.stabilityHigh ? 0.15 : 0);
+      (signals.stabilityHigh ? 0.15 : 0) +
+      ((conductorHazards?.fractureBias ?? 0) * 0.18) +
+      ((conductorHazards?.intensity ?? 0) * 0.08) -
+      ((conductorHazards?.stabilityShield ?? 0) * 0.12);
     this.sharedUniforms.uSignalBias.value = this.metricSignalBias;
     this._updateResidueScars(deltaTime, signals);
 
@@ -1370,13 +1379,29 @@ export class EnvironmentalHazards {
 
     const position = this._sampleHazardSpawnPosition(spawnType);
     if (!position) return;
+    const conductorHazards = this.atmosphereProfile?.hazards || null;
+    const intensityScale = THREE.MathUtils.clamp((conductorHazards?.intensity ?? 0.6) * 0.7 + 0.58, 0.7, 1.5);
+    const fractureBias = conductorHazards?.fractureBias ?? 0;
+    const stabilityShield = conductorHazards?.stabilityShield ?? 0;
 
     if (spawnType === 'electricalStorm') {
-      this.createElectricalStorm(position, 16 + Math.random() * 8, 0.9 + Math.random() * 0.45);
+      this.createElectricalStorm(
+        position,
+        (16 + Math.random() * 8) * (0.94 + fractureBias * 0.12),
+        (0.9 + Math.random() * 0.45) * intensityScale
+      );
     } else if (spawnType === 'gravitationalAnomaly') {
-      this.createGravitationalAnomaly(position, 14 + Math.random() * 7, 0.95 + Math.random() * 0.35);
+      this.createGravitationalAnomaly(
+        position,
+        (14 + Math.random() * 7) * (0.92 + fractureBias * 0.16),
+        (0.95 + Math.random() * 0.35) * intensityScale
+      );
     } else if (spawnType === 'chronoBloom') {
-      this.createChronoBloom(position, 15 + Math.random() * 6, 0.8 + Math.random() * 0.25);
+      this.createChronoBloom(
+        position,
+        (15 + Math.random() * 6) * (0.92 + stabilityShield * 0.12),
+        (0.8 + Math.random() * 0.25) * THREE.MathUtils.clamp(0.9 + stabilityShield * 0.18, 0.8, 1.2)
+      );
     }
 
     this.lastSignalSpawnAt.set(signalKey, now);
@@ -1402,7 +1427,9 @@ export class EnvironmentalHazards {
   }
 
   _getMaxHazardCount() {
-    return 5;
+    const density = this.atmosphereProfile?.hazards?.density;
+    if (!Number.isFinite(density)) return 5;
+    return THREE.MathUtils.clamp(Math.round(3 + density * 3), 3, 6);
   }
 
   _sampleHazardSpawnPosition(type) {
@@ -2238,6 +2265,12 @@ export class EnvironmentalHazards {
     if (this._isSignalActive('loadPressure.high')) scale += 0.2;
     if (this._isSignalActive('stability.low')) scale += 0.15;
     if (this._isSignalActive('stability.high')) scale -= 0.18;
+    const conductorHazards = this.atmosphereProfile?.hazards || null;
+    if (conductorHazards) {
+      scale += (conductorHazards.intensity ?? 0) * 0.28;
+      scale += (conductorHazards.fractureBias ?? 0) * 0.18;
+      scale -= (conductorHazards.stabilityShield ?? 0) * 0.22;
+    }
     return Math.max(0.65, Math.min(1.55, scale));
   }
 
