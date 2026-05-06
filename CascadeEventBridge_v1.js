@@ -17,9 +17,8 @@
  * EVENT MAPPINGS:
  * - 'node.synergy.high' → cascadeIntensity = max(current, 0.7), conflictType = 'specialization_drift'
  * - 'node.corruption.high' → cascadeIntensity = max(current, 0.9), conflictType = 'corruption'
- * - 'node.synergy.high' → normalized entry point for synergy high phases
- * - 'link:collapsed' → cascadeIntensity = 1.0, conflictType = 'destructive'
- * - 'node.hover' → cascadeIntensity = max(current, 0.3), conflictType = 'oscillatory_balance'
+ * - 'link.harmony.mid' → bounded harmony flow emphasis without becoming metric authority
+ * - 'link.harmony.high' → stronger harmony flow emphasis for visible cascade continuity
  * 
  * DECAY:
  * - cascadeIntensity decays on the maintenance tick (dt-scaled, visual lane)
@@ -28,6 +27,8 @@
  * @author VFX Technical Director — ATOMA Project Session 120
  * @version 1.0.0
  */
+
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 export class CascadeEventBridge_v1 {
   constructor(config = {}) {
@@ -48,6 +49,7 @@ export class CascadeEventBridge_v1 {
     this._activeLinks = new Set();
     this._recentPhaseSignals = new Map();
     this._phaseSignalDedupMs = config.phaseSignalDedupMs ?? 350;
+    this._registryOwner = 'CascadeEventBridge_v1';
 
     // State
     this._isInitialized = false;
@@ -84,8 +86,8 @@ export class CascadeEventBridge_v1 {
     this._boundHandlers = {
       handleNodeSynergyHigh: this._handleNodeSynergyHigh.bind(this),
       handleMetricCorruptionRise: this._handleMetricCorruptionRise.bind(this),
-      handleLinkCollapsed: this._handleLinkCollapsed.bind(this),
-      handleNodeHover: this._handleNodeHover.bind(this),
+      handleLinkHarmonyMid: (event = {}) => this._handleLinkHarmonyTier(event, 'mid'),
+      handleLinkHarmonyHigh: (event = {}) => this._handleLinkHarmonyTier(event, 'high'),
       decayUpdate: this._decayUpdate.bind(this)
     };
   }
@@ -95,36 +97,29 @@ export class CascadeEventBridge_v1 {
    */
   _subscribeToEvents() {
     const bus = this.semanticBus;
-    const on = bus?.on?.bind(bus);
-    const subscribe = bus?.subscribe?.bind(bus);
-    
-    if (typeof on === 'function') {
-      // Prefer on() method for event subscription
-      on('node.synergy.high', this._boundHandlers.handleNodeSynergyHigh);
-      on('node.corruption.high', this._boundHandlers.handleMetricCorruptionRise);
-      on('link:collapsed', this._boundHandlers.handleLinkCollapsed);
-      on('node.hover', this._boundHandlers.handleNodeHover);
-      
-      this._subscriptions.push(
-        () => bus.off?.('node.synergy.high', this._boundHandlers.handleNodeSynergyHigh),
-        () => bus.off?.('node.corruption.high', this._boundHandlers.handleMetricCorruptionRise),
-        () => bus.off?.('link:collapsed', this._boundHandlers.handleLinkCollapsed),
-        () => bus.off?.('node.hover', this._boundHandlers.handleNodeHover)
+    if (!bus) return;
+
+    const register = (eventName, handler) => {
+      const disposer = eventRegistrationRegistry.register(
+        this._registryOwner,
+        eventName,
+        handler,
+        bus
       );
-    } else if (typeof subscribe === 'function') {
-      // Fallback to subscribe() method
-      const unsub1 = subscribe('node.synergy.high', this._boundHandlers.handleNodeSynergyHigh);
-      const unsub2 = subscribe('node.corruption.high', this._boundHandlers.handleMetricCorruptionRise);
-      const unsub3 = subscribe('link:collapsed', this._boundHandlers.handleLinkCollapsed);
-      const unsub4 = subscribe('node.hover', this._boundHandlers.handleNodeHover);
-      
-      this._subscriptions.push(unsub1, unsub2, unsub3, unsub4);
-    }
+      this._subscriptions.push(disposer);
+    };
+
+    register('node.synergy.high', this._boundHandlers.handleNodeSynergyHigh);
+    register('node.corruption.high', this._boundHandlers.handleMetricCorruptionRise);
+    register('link.harmony.mid', this._boundHandlers.handleLinkHarmonyMid);
+    register('link.harmony.high', this._boundHandlers.handleLinkHarmonyHigh);
   }
   
   _queueCascadeLink(link) {
     if (!link) return;
 
+    link.userData ??= {};
+    link.userData.cascadeAuthorityOwner = this._registryOwner;
     this._dirtyLinks.add(link);
     this._activeLinks.add(link);
   }
@@ -237,50 +232,35 @@ export class CascadeEventBridge_v1 {
       }
     }
   }
-  
-  /**
-   * Handle link:collapsed event
-   */
-  _handleLinkCollapsed(event = {}) {
+
+  _handleLinkHarmonyTier(event = {}, tier = 'mid') {
     if (!this.config.enabled) return;
 
-    const linkId = event.linkId;
-    const link = this._getLinkById(linkId);
+    const sourceNodeId = event.sourceNodeId ?? event.nodeId ?? event.fromId ?? null;
+    const targetNodeId = event.targetNodeId ?? event.toId ?? null;
+    const links = targetNodeId
+      ? this._getLinksForPair(sourceNodeId, targetNodeId)
+      : this._getLinksForNode(sourceNodeId);
+    if (!Array.isArray(links) || links.length === 0) return;
 
-    if (link) {
-      if (!link.userData) link.userData = {};
-      if (!link.userData.flowState) link.userData.flowState = {};
-
-      // Write to shared flowState (single source of truth)
-      const flowState = link.userData.flowState;
-      flowState.intensity = 1.0;
-      flowState.type = 'destructive';
-      flowState.energy = 1.0;
-      flowState.direction = -1.0; // Collapse causes backflow
-      this._queueCascadeLink(link);
-      this._emitCascadeHop(link, flowState);
-    }
-  }
-  
-  /**
-   * Handle node.hover event
-   */
-  _handleNodeHover(event = {}) {
-    if (!this.config.enabled) return;
-
-    const nodeId = event.nodeId;
-    const links = this._getLinksForNode(nodeId);
+    const value = Math.max(0, Math.min(1, Number(event.value ?? event.intensity ?? event.strength ?? 0) || 0));
+    const baseIntensity = tier === 'high' ? 0.65 : 0.48;
+    const baseEnergy = tier === 'high' ? 0.58 : 0.4;
 
     for (const link of links) {
-      if (!link.userData) link.userData = {};
+      if (!link?.userData) link.userData = {};
       if (!link.userData.flowState) link.userData.flowState = {};
 
-      // Write to shared flowState (single source of truth)
       const flowState = link.userData.flowState;
-      flowState.intensity = Math.max(flowState.intensity ?? 0, 0.3);
-      flowState.type = 'oscillatory_balance';
-      flowState.energy = Math.max(flowState.energy ?? 0, 0.4);
+      flowState.intensity = Math.max(flowState.intensity ?? 0, Math.max(baseIntensity, value));
+      flowState.type = 'resolved_harmony';
+      flowState.energy = Math.max(flowState.energy ?? 0, Math.max(baseEnergy, value * 0.7));
+      flowState.direction = 1.0;
       this._queueCascadeLink(link);
+
+      if ((flowState.intensity ?? 0) >= this.config.cascadeWaveThreshold) {
+        this._emitCascadeHop(link, flowState);
+      }
     }
   }
 
@@ -452,6 +432,25 @@ export class CascadeEventBridge_v1 {
     
     return nodeLinks;
   }
+
+  _getLinksForPair(sourceNodeId, targetNodeId) {
+    if (!this.linkingSystem || !sourceNodeId || !targetNodeId) return [];
+
+    const links = this.linkingSystem.links || [];
+    const pairLinks = [];
+
+    for (const link of links) {
+      const sourceId = this.linkingSystem.getNodeId?.(link.source ?? link.sourceNode ?? link.from) ?? null;
+      const targetId = this.linkingSystem.getNodeId?.(link.target ?? link.targetNode ?? link.to) ?? null;
+      const directMatch = sourceId === sourceNodeId && targetId === targetNodeId;
+      const reverseMatch = sourceId === targetNodeId && targetId === sourceNodeId;
+      if (directMatch || reverseMatch) {
+        pairLinks.push(link);
+      }
+    }
+
+    return pairLinks;
+  }
   
   /**
    * Get link by ID
@@ -510,6 +509,8 @@ export class CascadeEventBridge_v1 {
     };
 
     return {
+      authorityOwner: this._registryOwner,
+      eventFamily: 'cascade',
       cascadeId: lifecycle.cascadeId,
       id: lifecycle.cascadeId,
       link,

@@ -547,7 +547,8 @@ export class EnvironmentDomainController {
         this.worldRoot,
         this.environmentRoot,
         d.renderer,
-        d.coreMetricsOverlay
+        d.coreMetricsOverlay,
+        d.semanticBus
       );
     if (this.instances.metricReactiveEvents) {
       this.instances.metricReactiveEvents.frameScheduler = this.frameScheduler;
@@ -1006,7 +1007,8 @@ export class EnvironmentDomainController {
         this.worldRoot,
         this.environmentRoot,
         this.deps.renderer,
-        coreMetricsOverlay
+        coreMetricsOverlay,
+        this.deps.semanticBus
       );
       if (this.instances.metricReactiveEvents) {
         this.instances.metricReactiveEvents.frameScheduler = this.frameScheduler;

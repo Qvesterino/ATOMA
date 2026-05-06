@@ -694,6 +694,7 @@ export class CascadeParticleSystem_Session120 {
     };
 
     const onCascadeHop = (event = {}) => {
+      if (!this._isAuthoritativeCascadeEvent(event)) return;
       const linkId = event.linkId ?? event.link?.uuid ?? event.link?.id ?? event.link?.name;
       if (!linkId) return;
 
@@ -714,9 +715,11 @@ export class CascadeParticleSystem_Session120 {
     };
 
     bind('cascade.hop', onCascadeHop);
-    bind('node.metric.updated', requestRefresh);
-    bind('link.created', requestRefresh);
-    bind('node.spawned', requestRefresh);
+  }
+
+  _isAuthoritativeCascadeEvent(event = {}) {
+    const authorityOwner = event?.authorityOwner ?? event?.link?.userData?.cascadeAuthorityOwner ?? null;
+    return authorityOwner === 'CascadeEventBridge_v1';
   }
 
   _getLinkSemanticKey(link) {

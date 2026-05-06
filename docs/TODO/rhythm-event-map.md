@@ -21,7 +21,8 @@ Týmto sa má zredukovať chaos pri práci so svetovými eventami, ktoré sú te
 
 2. **Global event / metric-driven world effects**
    - Sem patria `SafeLegendaryWorldEvents` a `MetricReactiveWorldEvents`.
-   - Tieto sú riadené metrickými thresholdmi a emitujú globálne tagy ako `global.synergy.high`.
+   - Tieto sú riadené canonical scoped metric tagmi z `MetricsRuntime_v1`.
+   - `MetricReactiveWorldEvents` je world-VFX consumer, nie ďalšia threshold autorita ani emitter canonical `global.*.<tier>` tagov.
 
 3. **Mood / ambient atmosphere layer**
    - `WorldPersonalityController.js`.
@@ -83,9 +84,9 @@ Týmto sa má zredukovať chaos pri práci so svetovými eventami, ktoré sú te
 - Mal by byť triggovaný cez globálne metrické eventy.
 
 ### `MetricReactiveWorldEvents.js`
-- Priamo reaguje na metrické prahy.
-- Vytvára world eventy/zmeny, keď sa metriky posunú do vysokých/stredných pásiem.
-- Je vhodný na emitovanie globálnych tagov, ktoré môžu spotrebovať iné vizuálne vrstvy.
+- Reaguje na canonical `global.<metric>.<tier>` transitions.
+- Vytvára world spectacle a lokálnu phase dramaturgiu (`rising / peak / decay / afterglow`) bez toho, aby znovu klasifikoval globálne metriky.
+- Nie je vhodný na emitovanie canonical globálnych tagov; tie zostávajú v `MetricsRuntime_v1`.
 
 ### `WorldPersonalityController.js`
 - Číta node metriky, určuje global mood a animuje svetovú atmosféru.
@@ -125,15 +126,15 @@ Týmto sa má zredukovať chaos pri práci so svetovými eventami, ktoré sú te
 
 - `EnvironmentDomainController` = vizuálny domov systémov.
 - `SafeLegendaryWorldEvents` = strategické eventy.
-- `MetricReactiveWorldEvents` = metrics-to-event logika.
+- `MetricReactiveWorldEvents` = world spectacle consumer nad canonical `global.*.<tier>`.
 - `WorldPersonalityController` = mood / aura.
 - `NetworkRituals` / `MythicRitualController` / `Phase8RitualVisualOrchestration` = rituálna logika + ceremony visuals.
 - `AINarrativePatterns6_0` = narrative glyph storytelling.
 
 ### Povrchová logika spúšťania
 
-1. Metriky sa vyhodnocujú v `MetricsRuntime` / `MetricReactiveWorldEvents` / `WorldPersonalityController`.
-2. Pri dosiahnutí thresholdu sa emitujú tagy ako `global.synergy.high`.
+1. Metriky sa vyhodnocujú v `MetricsRuntime_v1`, zatiaľ čo `WorldPersonalityController` ich číta pre mood/atmosféru a `MetricReactiveWorldEvents` ich už iba konzumuje cez canonical globálne tagy.
+2. `MetricsRuntime_v1` pri canonical tier transitions emituje tagy ako `global.synergy.high`.
 3. `SafeLegendaryWorldEvents` a `Phase8RitualVisualOrchestration` môžu tieto tagy zachytiť.
 4. `NetworkRituals` prináša konkrétne rituálne eventy, ktoré vizuálne orchestrácie použijú.
 5. `EnvironmentDomainController` je potom miesto, kde bežia environmentálne vizuálne systémy, ktoré môžu tieto eventy zobrazovať.
@@ -171,13 +172,13 @@ Týmto sa má zredukovať chaos pri práci so svetovými eventami, ktoré sú te
 ## 7. Ako to prepojiť rýchlo
 
 ### V `MythicRitualController.js`
-- `triggerRitual()` emitovať `this.semanticBus?.emit('global.<metric>.<tier>', {...})`
+- `triggerRitual()` nemá emitovať canonical `global.<metric>.<tier>` tagy; tie zostávajú výhradne v canonical metric writer vrstve
 - pri každom `create...Visuals()` emitovať `ritual.visual.<name>.started`
 - `endRitual()` emitovať `ritual:complete|failure` + cleanup tagy
 
 ### V `MetricReactiveWorldEvents.js`
-- pri detekcii prahu emitovať `global.synergy.high`, `global.harmony.high`, `global.loadPressure.high`, atď.
-- zachovať `MetricReactiveWorldEvents` ako primárny zdroj globálneho metric-to-event pre procesy.
+- subscribovať na canonical `global.synergy|harmony|stability|corruption|loadPressure.low|mid|high`
+- zachovať `MetricReactiveWorldEvents` ako consumer world spectacle vrstvy, nie ako druhý globálny metric-to-event writer
 
 ### V `Phase8RitualVisualOrchestration.js`
 - subscribe na `NetworkRituals` eventy: `ritual:start`, `ritual:progress`, `ritual:complete`, `ritual:abort`
@@ -197,9 +198,9 @@ Týmto sa má zredukovať chaos pri práci so svetovými eventami, ktoré sú te
 ## 8. Odporúčanie
 
 1. Nechať `EnvironmentDomainController` ako vizuálny container, nie event orchestrator.
-2. `MetricReactiveWorldEvents` použiť ako hlavnú metricky riadenú event vrstvu.
+2. `MetricReactiveWorldEvents` používať ako canonical consumer pre world spectacle, nie ako paralelnú threshold autoritu.
 3. `Phase8RitualVisualOrchestration` použiť na vizuálnu orchestration rituálov, nie na výpočet prahov.
-4. `MythicRitualController` nechať rozhodovať o type rituálu a emitovať udalosti.
+4. `MythicRitualController` nechať rozhodovať o type rituálu a emitovať len ritual/local eventy.
 5. `WorldPersonalityController` nechať fungovať paralelne ako mood/atmosphere layer.
 
 ---
@@ -209,7 +210,8 @@ Týmto sa má zredukovať chaos pri práci so svetovými eventami, ktoré sú te
 - `main.js` → inicializácia + registrácia schedulerov
 - `EnvironmentDomainController.js` → environmentálna vizuálna agregácia
 - `SafeLegendaryWorldEvents.js` → veľké globálne world eventy
-- `MetricReactiveWorldEvents.js` → metrics-to-event logika
+- `MetricReactiveWorldEvents.js` → canonical-global-driven world spectacle consumer
+- `MetricsRuntime_v1.js` → canonical writer pre `global.<metric>.<tier>`
 - `WorldPersonalityController.js` → mood / aura / ambient
 - `AINarrativePatterns6_0.js` → glyph narrative, nie primárne environment
 - `NetworkRituals_v1.js` → rituálna lifecycle event pipeline

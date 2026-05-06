@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { getEnvSpriteTexture } from './EnvironmentPointFXBase.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 /**
  * CascadeResonanceWaveVisualization_Session146.js
@@ -300,6 +301,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
     this._semanticUnsubscribers = [];
     this._semanticBusRef = null;
     this._semanticSubscribed = false;
+    this._registryOwner = 'CascadeResonanceWaveVisualization_Session146';
     this._subscribeCascadeEvents();
     
     // Phase 1: Initialize ring system
@@ -1076,10 +1078,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
 
     this._clearCascadeSubscriptions();
 
-    const on = bus?.on?.bind(bus);
-    if (typeof on !== 'function') return;
-
     const onCascadeStart = (event = {}) => {
+      if (!this._isAuthoritativeCascadeEvent(event)) return;
       const activation = this._resolveWaveActivation(event);
       if (!activation) return;
 
@@ -1114,6 +1114,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
 
     const onCascadeHop = (event = {}) => {
       if (!event) return;
+      if (!this._isAuthoritativeCascadeEvent(event)) return;
       const activation = this._resolveWaveActivation(event);
       if (!activation) return;
 
@@ -1151,18 +1152,25 @@ export class CascadeResonanceWaveVisualization_Session146 {
       });
     };
 
-    on('cascade.start', onCascadeStart);
-    on('cascade.hop', onCascadeHop);
+    const register = (eventName, handler) => {
+      const disposer = eventRegistrationRegistry.register(
+        this._registryOwner,
+        eventName,
+        handler,
+        bus
+      );
+      this._semanticUnsubscribers.push(disposer);
+    };
+
+    register('cascade.start', onCascadeStart);
+    register('cascade.hop', onCascadeHop);
     this._semanticBusRef = bus;
     this._semanticSubscribed = true;
+  }
 
-    if (typeof bus?.off === 'function') {
-      this._semanticUnsubscribers.push(() => bus.off('cascade.start', onCascadeStart));
-      this._semanticUnsubscribers.push(() => bus.off('cascade.hop', onCascadeHop));
-    } else if (typeof bus?.unsubscribe === 'function') {
-      this._semanticUnsubscribers.push(() => bus.unsubscribe('cascade.start', onCascadeStart));
-      this._semanticUnsubscribers.push(() => bus.unsubscribe('cascade.hop', onCascadeHop));
-    }
+  _isAuthoritativeCascadeEvent(event = {}) {
+    const authorityOwner = event?.authorityOwner ?? event?.link?.userData?.cascadeAuthorityOwner ?? null;
+    return authorityOwner === 'CascadeEventBridge_v1';
   }
 
   rebind(config = {}) {

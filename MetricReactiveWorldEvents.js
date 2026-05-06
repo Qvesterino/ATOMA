@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
-import { projectHudMetrics } from './SemanticMetricAdapter.js';
+import { eventRegistrationRegistry } from './Engine/EventRegistrationRegistry.js';
 
 const METRIC_PALETTE = {
   synergy: ['#6DEAFF', '#F7FBFF'],
@@ -28,7 +28,7 @@ const METRIC_PALETTE = {
  */
 
 export class MetricReactiveWorldEvents {
-  constructor(scene, worldRoot, environmentRoot, renderer, coreMetricsOverlay) {
+  constructor(scene, worldRoot, environmentRoot, renderer, coreMetricsOverlay, semanticBus = null) {
     this.scene = scene;
     this.worldRoot = worldRoot || scene;
     this.environmentRoot = environmentRoot || this.worldRoot;
@@ -44,7 +44,6 @@ export class MetricReactiveWorldEvents {
     this.metricConfig = {
       synergy: {
         metric: 'synergy',
-        thresholds: { low: 55, mid: 70, high: 85 },
         cooldown: 10,
         afterglowDelay: 2.0,
         peakHold: 1.0,
@@ -86,7 +85,6 @@ export class MetricReactiveWorldEvents {
       },
       harmony: {
         metric: 'harmony',
-        thresholds: { low: 50, mid: 68, high: 85 },
         cooldown: 10,
         afterglowDelay: 2.0,
         peakHold: 1.0,
@@ -128,7 +126,6 @@ export class MetricReactiveWorldEvents {
       },
       stability: {
         metric: 'stability',
-        thresholds: { low: 40, mid: 58, high: 75 },
         cooldown: 8,
         afterglowDelay: 1.8,
         peakHold: 0.9,
@@ -170,7 +167,6 @@ export class MetricReactiveWorldEvents {
       },
       corruption: {
         metric: 'corruption',
-        thresholds: { low: 20, mid: 45, high: 65 },
         cooldown: 12,
         afterglowDelay: 2.2,
         peakHold: 1.0,
@@ -212,7 +208,6 @@ export class MetricReactiveWorldEvents {
       },
       loadPressure: {
         metric: 'loadPressure',
-        thresholds: { low: 55, mid: 70, high: 85 },
         cooldown: 12,
         afterglowDelay: 2.0,
         peakHold: 1.0,
@@ -263,10 +258,14 @@ export class MetricReactiveWorldEvents {
           lastValue: 0,
           lastTierAt: 0,
           lastSignalAt: 0,
-          lastPhaseAt: 0
+          lastPhaseAt: 0,
+          decayTier: null,
+          decayStartedAt: 0,
+          afterglowTriggeredAt: 0
         }
       ])
     );
+    this.eventStates = this.metricState;
 
     this.eventEnvelope = {
       rising: 'rising',
@@ -284,7 +283,36 @@ export class MetricReactiveWorldEvents {
     };
 
     this.reactiveSignalTag = 'metric.reactive.signal';
-    this.tierChangedTag = 'metric.tier.changed';
+    this.semanticOwner = 'MetricReactiveWorldEvents';
+    this.semanticBus = null;
+    this._canonicalMetricSubscriptions = [];
+    this._metricEffectDispatch = Object.freeze({
+      synergy: Object.freeze({
+        low: () => this.triggerCoherenceWave(),
+        mid: () => this.triggerUnityPulse(),
+        high: () => this.triggerCoherenceApex()
+      }),
+      harmony: Object.freeze({
+        low: () => this.triggerHarmonicDrift(),
+        mid: () => this.triggerCalmBloom(),
+        high: () => this.triggerHarmonicAscension()
+      }),
+      stability: Object.freeze({
+        low: () => this.triggerTensionVector(),
+        mid: () => this.triggerDistortionDrift(),
+        high: () => this.triggerCollapseVector()
+      }),
+      corruption: Object.freeze({
+        low: () => this.triggerShadowFlicker(),
+        mid: () => this.triggerUmbraEcho(),
+        high: () => this.triggerEntropyFracture()
+      }),
+      loadPressure: Object.freeze({
+        low: () => this.triggerOverlinkGlow(),
+        mid: () => this.triggerNetworkSurge(),
+        high: () => this.triggerSignalPressure()
+      })
+    });
 
     // Active effects tracking
     this.activeEffects = new Map();
@@ -305,7 +333,8 @@ export class MetricReactiveWorldEvents {
       window.__ATOMA_SPHERE_POLICY__?.registerRoot?.(this.overlayGroup, 'metric-reactive-overlays');
     }
 
-    this.metricBus = this._resolveMetricBus();
+    this.metricBus = semanticBus ?? this._resolveMetricBus();
+    this.setSemanticBus(this.metricBus);
     
     console.log('✓ Metric-Reactive World Events 1.0 initialized');
   }
@@ -513,27 +542,12 @@ export class MetricReactiveWorldEvents {
     
     try {
       const startTime = performance.now();
-      
-      // Get current metrics
-      if (!this.coreMetricsOverlay) return;
-      
-      const metrics = this.coreMetricsOverlay.getMetrics();
-      const displayMetrics = projectHudMetrics(metrics);
-      const normalizedMetrics = {
-        synergy: displayMetrics.networkSynergy ?? metrics.synergy,
-        harmony: displayMetrics.harmonyFlow ?? metrics.harmony,
-        instability: displayMetrics.networkStress ?? metrics.instability,
-        corruption: displayMetrics.corruptionLevel ?? metrics.corruption,
-        networkLoad: displayMetrics.loadPressure ?? metrics.networkLoad
-      };
-      const currentTime = performance.now() / 1000; // Convert to seconds
+      const currentTime = performance.now() / 1000;
       
       // Update active effects and visual modulation
       this.updateActiveEffects(deltaTime);
       this.updateVisualModulation(deltaTime);
-
-      // Process all metrics through a shared signal model
-      this.processMetricSignals(normalizedMetrics, currentTime);
+      this._advanceMetricSignalEnvelopes(currentTime);
       
       // Monitor performance
       const elapsed = performance.now() - startTime;
@@ -573,92 +587,158 @@ export class MetricReactiveWorldEvents {
       console.warn('Error triggering temporal events:', error);
     }
   }
-  
-  /**
-   * Process all metric signals through a unified tier model.
-   */
-  processMetricSignals(normalizedMetrics, currentTime) {
-    this._processMetricSignal('synergy', normalizedMetrics.synergy, currentTime);
-    this._processMetricSignal('harmony', normalizedMetrics.harmony, currentTime);
-    this._processMetricSignal('stability', normalizedMetrics.instability, currentTime);
-    this._processMetricSignal('corruption', normalizedMetrics.corruption, currentTime);
-    this._processMetricSignal('loadPressure', normalizedMetrics.networkLoad, currentTime);
+
+  setSemanticBus(semanticBus) {
+    if (semanticBus === this.semanticBus && this._canonicalMetricSubscriptions.length > 0) {
+      return;
+    }
+
+    this._disposeSemanticSubscriptions();
+    this.semanticBus = semanticBus ?? this._resolveMetricBus();
+    this.metricBus = this.semanticBus;
+    if (!this.semanticBus) return;
+
+    const bind = (metric, tier) => {
+      const tag = `global.${metric}.${tier}`;
+      const handler = (payload = {}) => this._handleCanonicalMetricTier(metric, tier, payload);
+      const disposer = eventRegistrationRegistry.register(
+        this.semanticOwner,
+        tag,
+        handler,
+        this.semanticBus
+      );
+      this._canonicalMetricSubscriptions.push(disposer);
+    };
+
+    for (const metric of Object.keys(this.metricConfig)) {
+      bind(metric, 'low');
+      bind(metric, 'mid');
+      bind(metric, 'high');
+    }
   }
 
-  _processMetricSignal(metricKey, rawValue, currentTime) {
+  _disposeSemanticSubscriptions() {
+    while (this._canonicalMetricSubscriptions.length > 0) {
+      const disposer = this._canonicalMetricSubscriptions.pop();
+      try {
+        disposer?.();
+      } catch (_) {
+        // no-op
+      }
+    }
+    eventRegistrationRegistry.disposeOwner(this.semanticOwner);
+  }
+
+  _handleCanonicalMetricTier(metricKey, tier, payload = {}) {
     const config = this.metricConfig[metricKey];
-    if (!config) return;
-
-    const value = this._clampPercent(rawValue);
     const state = this.metricState[metricKey];
-    const nextTier = this._resolveMetricTier(config.thresholds, value);
-    const tierChanged = nextTier !== state.currentTier;
-    const phase = this._resolveMetricPhase(state, nextTier, value, currentTime, config);
+    if (!config || !state || !tier) return;
 
-    if (tierChanged) {
-      const tierPayload = this._buildMetricPayload(metricKey, nextTier, value, phase || this.eventEnvelope.rising, config);
-      this._emitMetricTag(this.tierChangedTag, value, tierPayload);
-      if (nextTier) {
-        const globalTag = `global.${config.metric}.${nextTier}`;
-        this._emitMetricTag(globalTag, value, tierPayload);
-      }
-      state.currentTier = nextTier;
-      state.currentPhase = phase || this.eventEnvelope.rising;
-      state.lastTierAt = currentTime;
-      state.lastPhaseAt = currentTime;
-      this._scheduleVisualModulation(tierPayload);
+    const currentTime = performance.now() / 1000;
+    const value = this._normalizeMetricPayloadValue(payload, tier);
+    const previousTier = state.currentTier;
+
+    if (previousTier && previousTier !== tier) {
+      state.decayTier = previousTier;
+      state.decayStartedAt = currentTime;
+      state.afterglowTriggeredAt = 0;
+      const decayPayload = this._buildMetricPayload(metricKey, previousTier, state.lastValue, this.eventEnvelope.decay, config, payload);
+      this._emitMetricEvent(decayPayload);
+      this._scheduleVisualModulation(decayPayload);
     }
 
-    if (phase && this._shouldTriggerMetricEvent(metricKey, nextTier, phase, currentTime, config)) {
-      const eventPayload = this._buildMetricPayload(metricKey, nextTier, value, phase, config);
-      this._emitMetricEvent(eventPayload);
-      state.currentPhase = phase;
-      state.lastSignalAt = currentTime;
-      state.lastPhaseAt = currentTime;
-      this._scheduleVisualModulation(eventPayload);
+    if (previousTier === tier && currentTime - state.lastSignalAt < config.cooldown) {
+      return;
     }
 
+    const phase = previousTier === tier ? this.eventEnvelope.peak : this.eventEnvelope.rising;
+    const eventPayload = this._buildMetricPayload(metricKey, tier, value, phase, config, payload);
+    state.currentTier = tier;
+    state.currentPhase = phase;
     state.lastValue = value;
-  }
+    state.lastTierAt = currentTime;
+    state.lastSignalAt = currentTime;
+    state.lastPhaseAt = currentTime;
 
-  _resolveMetricTier(thresholds, value) {
-    if (value >= thresholds.high) return 'high';
-    if (value >= thresholds.mid) return 'mid';
-    if (value >= thresholds.low) return 'low';
-    return null;
-  }
-
-  _resolveMetricPhase(state, tier, value, currentTime, config) {
-    if (tier && tier !== state.currentTier) {
-      return this.eventEnvelope.rising;
+    if (phase === this.eventEnvelope.rising) {
+      this._dispatchMetricTierEffect(metricKey, tier, eventPayload);
     }
 
-    if (tier && state.currentTier === tier) {
-      if (state.currentPhase === this.eventEnvelope.rising && currentTime - state.lastPhaseAt > config.peakHold) {
-        return this.eventEnvelope.peak;
+    this._emitMetricEvent(eventPayload);
+    this._scheduleVisualModulation(eventPayload);
+  }
+
+  _advanceMetricSignalEnvelopes(currentTime) {
+    for (const [metricKey, state] of Object.entries(this.metricState)) {
+      const config = this.metricConfig[metricKey];
+      if (!config) continue;
+
+      if (
+        state.currentTier &&
+        state.currentPhase === this.eventEnvelope.rising &&
+        currentTime - state.lastPhaseAt >= config.peakHold
+      ) {
+        const peakPayload = this._buildMetricPayload(
+          metricKey,
+          state.currentTier,
+          state.lastValue,
+          this.eventEnvelope.peak,
+          config
+        );
+        state.currentPhase = this.eventEnvelope.peak;
+        state.lastPhaseAt = currentTime;
+        this._emitMetricEvent(peakPayload);
+        this._scheduleVisualModulation(peakPayload);
       }
-      return null;
-    }
 
-    if (!tier && state.currentTier) {
-      if (state.currentPhase === this.eventEnvelope.decay && currentTime - state.lastPhaseAt > config.afterglowDelay) {
-        return this.eventEnvelope.afterglow;
+      if (
+        state.decayTier &&
+        state.afterglowTriggeredAt === 0 &&
+        currentTime - state.decayStartedAt >= config.afterglowDelay
+      ) {
+        const afterglowPayload = this._buildMetricPayload(
+          metricKey,
+          state.decayTier,
+          state.lastValue,
+          this.eventEnvelope.afterglow,
+          config
+        );
+        state.afterglowTriggeredAt = currentTime;
+        this._emitMetricEvent(afterglowPayload);
+        this._scheduleVisualModulation(afterglowPayload);
       }
-      return this.eventEnvelope.decay;
+
+      if (
+        state.decayTier &&
+        state.afterglowTriggeredAt > 0 &&
+        currentTime - state.afterglowTriggeredAt >= Math.max(0.8, config.peakHold)
+      ) {
+        state.decayTier = null;
+        state.decayStartedAt = 0;
+        state.afterglowTriggeredAt = 0;
+      }
+    }
+  }
+
+  _normalizeMetricPayloadValue(payload, tier) {
+    const raw = Number(payload?.value);
+    if (Number.isFinite(raw)) {
+      return raw <= 1 ? this._clampPercent(raw * 100) : this._clampPercent(raw);
     }
 
-    return null;
+    switch (tier) {
+      case 'high':
+        return 92;
+      case 'mid':
+        return 68;
+      case 'low':
+        return 38;
+      default:
+        return 0;
+    }
   }
 
-  _shouldTriggerMetricEvent(metricKey, tier, phase, currentTime, config) {
-    const state = this.metricState[metricKey];
-    if (!phase) return false;
-    if (currentTime - state.lastSignalAt < config.cooldown) return false;
-    if (phase === this.eventEnvelope.decay && state.currentPhase === this.eventEnvelope.decay) return false;
-    return true;
-  }
-
-  _buildMetricPayload(metricKey, tier, value, phase, config) {
+  _buildMetricPayload(metricKey, tier, value, phase, config, extra = {}) {
     const eventDefinition = tier ? config.events[tier] : null;
     return {
       source: 'MetricReactiveWorldEvents',
@@ -667,6 +747,7 @@ export class MetricReactiveWorldEvents {
       tier,
       phase,
       value,
+      canonicalTag: tier ? `global.${config.metric}.${tier}` : null,
       title: eventDefinition?.title || `${config.metric} ${phase}`,
       subtitle: eventDefinition?.subtitle || `${phase} phase engaged`,
       description: eventDefinition?.description || `Metric ${config.metric} transitioned to ${phase}.`,
@@ -676,12 +757,21 @@ export class MetricReactiveWorldEvents {
       motionBias: eventDefinition?.motionBias || 0,
       intensity: eventDefinition?.intensity || 0,
       eventKey: eventDefinition?.eventKey || `${config.metric}.${tier || 'none'}.${phase}`,
-      timestamp: performance.now()
+      timestamp: performance.now(),
+      previousTier: extra?.previousTier ?? null,
+      originalSource: extra?.source ?? extra?.originalSource ?? null
     };
   }
 
   _emitMetricEvent(payload) {
     this._emitMetricTag(this.reactiveSignalTag, payload.value, payload);
+  }
+
+  _dispatchMetricTierEffect(metricKey, tier, payload) {
+    const handler = this._metricEffectDispatch?.[metricKey]?.[tier];
+    if (typeof handler === 'function') {
+      handler(payload);
+    }
   }
 
   _scheduleVisualModulation(payload) {
@@ -748,6 +838,15 @@ export class MetricReactiveWorldEvents {
     this.applyBloomPulse(0.08, 0.25, 0.6);
   }
 
+  triggerCoherenceApex() {
+    if (this.debugMode) console.log('► Coherence Apex triggered');
+
+    this.triggerUnityPulse();
+    this.createConcentricRings(4, 3.1, METRIC_PALETTE.synergy[1], 3.4);
+    this.createSoftHalo(METRIC_PALETTE.synergy[1], 0.16, 3.0, 18);
+    this.createShortBeamSpikes(6, 2.4, METRIC_PALETTE.synergy[0]);
+  }
+
   /**
    * ==================== HARMONY EVENTS ====================
    */
@@ -761,6 +860,14 @@ export class MetricReactiveWorldEvents {
     this.createThinArcBands(2, accent, 12, 3);
     this.createSoftHalo(coreColor, 0.12, 2.5, 15);
     this.applyBloomPulse(0.1, 0.3, 0.7);
+  }
+
+  triggerHarmonicDrift() {
+    if (this.debugMode) console.log('► Harmonic Drift triggered');
+
+    this.createSoftHalo(METRIC_PALETTE.harmony[0], 0.08, 2.2, 12);
+    this.createThinArcBands(1.8, METRIC_PALETTE.harmony[0], 10, 2);
+    this.applyBloomPulse(0.06, 0.2, 0.45);
   }
 
   triggerHarmonicAscension() {
@@ -785,12 +892,27 @@ export class MetricReactiveWorldEvents {
     this.applyBloomPulse(0.05, 0.2, 0.5);
   }
 
+  triggerTensionVector() {
+    if (this.debugMode) console.log('► Tension Vector triggered');
+
+    this.createThinArcBands(1.8, METRIC_PALETTE.stability[0], 8.5, 2);
+    this.createShortBeamSpikes(3, 1.8, METRIC_PALETTE.stability[0]);
+  }
+
   triggerQuantumSpiral() {
     if (this.debugMode) console.log('► Quantum Spiral triggered');
 
     const color = METRIC_PALETTE.stability[1];
     this.createConcentricRings(4, 3.0, color, 3.5);
     this.createThinArcBands(2, color, 11, 3);
+  }
+
+  triggerCollapseVector() {
+    if (this.debugMode) console.log('► Collapse Vector triggered');
+
+    this.triggerQuantumSpiral();
+    this.createPressureBands(3, 2.4, METRIC_PALETTE.stability[1]);
+    this.applyBloomPulse(0.1, 0.25, 0.65);
   }
 
   /**
@@ -817,6 +939,14 @@ export class MetricReactiveWorldEvents {
     this.createDarkShroud(METRIC_PALETTE.corruption[2], 0.14, 2.4);
   }
 
+  triggerEntropyFracture() {
+    if (this.debugMode) console.log('► Entropy Fracture triggered');
+
+    this.triggerUmbraEcho();
+    this.createGlitchBars(6, 2.3, METRIC_PALETTE.corruption[1]);
+    this.createPressureBands(2, 2.0, METRIC_PALETTE.corruption[0]);
+  }
+
   /**
    * ==================== LOAD EVENTS ====================
    */
@@ -840,6 +970,14 @@ export class MetricReactiveWorldEvents {
     this.createPressureBands(4, 2.5, coreColor);
     this.createShortBeamSpikes(7, 2.4, coreColor);
     this.createThinArcBands(2.4, METRIC_PALETTE.loadPressure[2], 12, 3);
+  }
+
+  triggerSignalPressure() {
+    if (this.debugMode) console.log('► Signal Pressure triggered');
+
+    this.triggerNetworkSurge();
+    this.createPressureBands(5, 2.8, METRIC_PALETTE.loadPressure[1]);
+    this.applyBloomPulse(0.12, 0.25, 0.75);
   }
   
   /**
@@ -1632,6 +1770,9 @@ export class MetricReactiveWorldEvents {
    */
   enable() {
     this.enabled = true;
+    if (!this.semanticBus) {
+      this.setSemanticBus(this._resolveMetricBus());
+    }
     console.log('✓ Metric-Reactive Events enabled');
   }
   
@@ -1676,6 +1817,9 @@ export class MetricReactiveWorldEvents {
    * Delegates to cleanup() then removes root and disposes all GPU resources.
    */
   dispose() {
+    this._disposeSemanticSubscriptions();
+    this.semanticBus = null;
+    this.metricBus = null;
     this.cleanup();
 
     // Traverse and dispose all GPU resources under root
