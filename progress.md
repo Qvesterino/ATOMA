@@ -112,6 +112,38 @@ Original prompt: tak jako composite glyphy mali lietať po orbite nodov ako Glyp
 - `HarmonicRecoveryVisualSystem_Session138` now reattaches its pooled meshes and healing particle scene ownership when the world scene changes, so the visuals do not stay pinned to an old world root.
 
 ## 2026-04-02
+
+## 2026-05-06
+- Colony semantic backbone + visual polish pass landed.
+- `SafeColonyExpansion2.js`
+  - colonies now emit transition-safe semantic events through the shared semantic bus for:
+    - `environment.colony.birth`
+    - `environment.colony.growth`
+    - `environment.colony.merge.start`
+    - `environment.colony.merge.complete`
+    - `environment.colony.split.start`
+    - `environment.colony.split.complete`
+    - `environment.colony.transform`
+    - `environment.colony.rebirth`
+    - `environment.colony.mood.changed`
+    - `environment.colony.pressure.active`
+  - added per-colony semantic memory so event emission is transition-driven and non-spammy
+  - canonical metric-tier mirror emits now derive from resolved colony truth (`mood`, `stage`, `energy`, node count, avg traffic/synergy) and only publish `global.*.mid/high` on real tier transitions
+  - `semanticBus` is now accepted in the colony world-systems init payload
+- `ColonyVFXManager.js`
+  - added a new reusable `field-membrane` layer as a mid-stack colony atmosphere accent
+  - membrane reacts to colony mood/stage/energy and rides the existing world-event pulse/color infrastructure
+  - membrane cleanup, LOD visibility, split/merge transition fade, and soft fade-out are wired into the existing colony VFX lifecycle
+- `ColonyRegistry.js`
+  - colony VFX bundle shape now includes `fieldMembrane`
+- `EnvironmentDomainController.js`
+  - colony subsystem init now passes `semanticBus` into `SafeColonyExpansion2`
+- Verification:
+  - `node --check SafeColonyExpansion2.js`
+  - `node --check ColonyVFXManager.js`
+  - `node --check ColonyRegistry.js`
+  - `node --check EnvironmentDomainController.js`
+  - `git diff --check -- SafeColonyExpansion2.js ColonyVFXManager.js ColonyRegistry.js EnvironmentDomainController.js`
 - `ResonanceCascadeVisualization_Session117B` is now fully functional in runtime and visibly spawns a readable scene ripple.
 - The cascade now has a flat ripple plane and a thicker torus-based ring so it reads clearly without needing a link-specific debug path.
 - Manual runtime verification confirmed the cascade root is attached to the scene and the visual spawn path is live.

@@ -124,6 +124,7 @@ export class ColonyRegistry {
       rings: [],
       particles: [],
       glows: [],
+      fieldMembrane: null,
       core: null,
       crown: null,
       sigils: [],

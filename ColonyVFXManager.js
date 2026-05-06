@@ -673,6 +673,7 @@ export class ColonyVFXManager {
       'sigil-ring': [],
       'ascension-beam': [],
       'mood-canopy': [],
+      'field-membrane': [],
       'legendary-halo': [],
       'legendary-presence': [],
       'colony-label': [],
@@ -1497,6 +1498,97 @@ export class ColonyVFXManager {
 
     this.vfxContainer.add(canopy);
     return canopy;
+  }
+
+  createFieldMembrane(colonyId, center, stage, mood, colonyType, energy) {
+    const profile = this.getMoodProfile(mood);
+    const seeds = this.getColonyVisualSeeds(colonyId);
+    const baseColor = this.getColorForMood(mood, colonyType);
+    const color = this.blendColor(baseColor, profile.colorBias, 0.3);
+    const energyFactor = Math.min(1, energy / 100);
+    const radius = this.getRadiusForStage(stage) * (0.9 + energyFactor * 0.16);
+
+    let membrane = this.acquireVFXObject('field-membrane');
+    if (!membrane) {
+      membrane = new THREE.Group();
+      membrane.name = `colony-field-membrane-${colonyId}`;
+
+      const shell = new THREE.Mesh(
+        this.getCachedGeometry('field.membrane.shell', () => new THREE.IcosahedronGeometry(1, 1)),
+        this.createBasicMaterial(color, 0.16, THREE.DoubleSide)
+      );
+      shell.userData.role = 'membrane-shell';
+      membrane.add(shell);
+
+      const ringA = new THREE.Mesh(
+        this.getCachedGeometry('field.membrane.ring.a', () => new THREE.TorusGeometry(1, 0.085, 12, 56)),
+        this.createBasicMaterial(color, 0.18, THREE.DoubleSide)
+      );
+      ringA.rotation.x = Math.PI / 2;
+      ringA.userData.role = 'membrane-ring-a';
+      membrane.add(ringA);
+
+      const ringB = new THREE.Mesh(
+        this.getCachedGeometry('field.membrane.ring.b', () => new THREE.TorusGeometry(1, 0.05, 10, 40)),
+        this.createBasicMaterial(this.blendColor(color, this.palette.frost, 0.14), 0.12, THREE.DoubleSide)
+      );
+      ringB.rotation.x = Math.PI / 2 - 0.42;
+      ringB.rotation.z = 0.34;
+      ringB.userData.role = 'membrane-ring-b';
+      membrane.add(ringB);
+    } else {
+      membrane.visible = true;
+    }
+
+    const [shell, ringA, ringB] = membrane.children;
+    if (shell?.material) {
+      shell.material.color.setHex(color);
+      shell.material.opacity = 0.16 + energyFactor * 0.08;
+      shell.userData.baseOpacity = shell.material.opacity;
+    }
+    if (ringA?.material) {
+      ringA.material.color.setHex(color);
+      ringA.material.opacity = 0.18 + profile.motionBias * 0.04;
+      ringA.userData.baseOpacity = ringA.material.opacity;
+    }
+    if (ringB?.material) {
+      ringB.material.color.setHex(this.blendColor(color, this.palette.frost, 0.14));
+      ringB.material.opacity = 0.12 + energyFactor * 0.05;
+      ringB.userData.baseOpacity = ringB.material.opacity;
+    }
+
+    if (shell) {
+      shell.scale.set(radius * 0.88, radius * 0.58, radius * 0.88);
+    }
+    if (ringA) {
+      ringA.scale.set(radius, radius, Math.max(0.22, radius * 0.2));
+    }
+    if (ringB) {
+      ringB.scale.set(radius * 0.8, radius * 0.8, Math.max(0.18, radius * 0.16));
+    }
+
+    membrane.position.copy(center);
+    membrane.visible = true;
+    membrane.userData = {
+      colonyId,
+      type: 'field-membrane',
+      mood,
+      stage,
+      radius,
+      baseColor: color,
+      visualColor: color,
+      energyFactor,
+      motionBias: profile.motionBias,
+      pulsePhase: seeds.phaseSeed * Math.PI * 2,
+      spin: 0.08 + profile.motionBias * 0.06 + seeds.ringSpeedBias * 0.1,
+      shellOpacity: 0.16 + energyFactor * 0.08,
+      ringOpacity: 0.18 + profile.motionBias * 0.04,
+      accentOpacity: 0.12 + energyFactor * 0.05,
+      fractureBias: mood === 'CORRUPTION' ? 1 : mood === 'LOAD_PRESSURE' ? 0.55 : 0
+    };
+
+    this.vfxContainer.add(membrane);
+    return membrane;
   }
 
   createQuantumEdge(colonyId, center, stage, mood, colonyType, energy) {
@@ -2378,6 +2470,74 @@ export class ColonyVFXManager {
       }
     }
   }
+
+  updateFieldMembranes(deltaTime) {
+    const time = performance.now() * 0.001;
+    for (const child of this.vfxContainer.children) {
+      if (!child.visible) continue;
+      if (child.userData?.type !== 'field-membrane') continue;
+
+      const userData = child.userData;
+      userData.pulsePhase += deltaTime * (0.52 + (userData.motionBias ?? 0.35) * 0.28);
+      if (userData.eventColorShift) {
+        userData.eventColorShift.timer += deltaTime;
+        if (userData.eventColorShift.timer >= userData.eventColorShift.duration) {
+          delete userData.eventColorShift;
+        }
+      }
+      child.rotation.y += deltaTime * (userData.spin ?? 0.08);
+
+      const pulse = 1 + Math.sin(userData.pulsePhase) * (0.045 + (userData.motionBias ?? 0.35) * 0.018);
+      const stressFlutter = Math.sin(time * (2.4 + (userData.fractureBias ?? 0) * 1.2) + userData.pulsePhase) * (0.025 + (userData.fractureBias ?? 0) * 0.045);
+      child.scale.setScalar(pulse);
+
+      const visualColor = userData.eventColorShift
+        ? new THREE.Color(userData.visualColor ?? userData.baseColor).lerp(
+            new THREE.Color(userData.eventColorShift.targetColor),
+            Math.sin(Math.min(1, userData.eventColorShift.timer / userData.eventColorShift.duration) * Math.PI * 0.5)
+          ).getHex()
+        : (userData.visualColor ?? userData.baseColor);
+
+      for (const part of child.children) {
+        const role = part.userData?.role;
+        if (!part.material) continue;
+
+        if (role === 'membrane-shell') {
+          part.rotation.y += deltaTime * (0.11 + (userData.motionBias ?? 0.35) * 0.08);
+          part.rotation.x += deltaTime * 0.05;
+          part.scale.set(
+            (userData.radius ?? 1) * 0.88 * (1 + stressFlutter * 0.35),
+            (userData.radius ?? 1) * 0.58 * (1 - stressFlutter * 0.2),
+            (userData.radius ?? 1) * 0.88 * (1 + stressFlutter * 0.35)
+          );
+          part.material.color.setHex(visualColor);
+          part.material.opacity = Math.max(0.04, (userData.shellOpacity ?? 0.16) + Math.sin(userData.pulsePhase) * 0.03);
+          part.userData.baseOpacity = part.material.opacity;
+        } else if (role === 'membrane-ring-a') {
+          part.rotation.z += deltaTime * (0.16 + (userData.motionBias ?? 0.35) * 0.12);
+          part.scale.set(
+            (userData.radius ?? 1) * (1 + stressFlutter * 0.1),
+            (userData.radius ?? 1) * (1 + stressFlutter * 0.1),
+            Math.max(0.22, (userData.radius ?? 1) * 0.2)
+          );
+          part.material.color.setHex(visualColor);
+          part.material.opacity = Math.max(0.05, (userData.ringOpacity ?? 0.18) + Math.cos(userData.pulsePhase * 1.2) * 0.035);
+          part.userData.baseOpacity = part.material.opacity;
+        } else if (role === 'membrane-ring-b') {
+          part.rotation.y -= deltaTime * (0.12 + (userData.motionBias ?? 0.35) * 0.08);
+          part.rotation.x += deltaTime * 0.04 * (1 + (userData.fractureBias ?? 0) * 0.8);
+          part.scale.set(
+            (userData.radius ?? 1) * 0.8 * (1 + stressFlutter * 0.16),
+            (userData.radius ?? 1) * 0.8 * (1 + stressFlutter * 0.16),
+            Math.max(0.18, (userData.radius ?? 1) * 0.16)
+          );
+          part.material.color.setHex(this.blendColor(visualColor, this.palette.frost, 0.18 + (userData.fractureBias ?? 0) * 0.12));
+          part.material.opacity = Math.max(0.04, (userData.accentOpacity ?? 0.12) + Math.sin(userData.pulsePhase * 1.5) * 0.028);
+          part.userData.baseOpacity = part.material.opacity;
+        }
+      }
+    }
+  }
   
   /**
    * Update orbit rings (rotation + opacity pulse)
@@ -2703,6 +2863,36 @@ export class ColonyVFXManager {
         panel.material.color.setHex(vfx.canopy.userData.color);
         panel.material.opacity = Math.min(0.42, canopyOpacity + profile.motionBias * 0.05);
       }
+    }
+
+    if (vfx.fieldMembrane && vfx.fieldMembrane.userData?.type === 'field-membrane') {
+      const membraneToneMap = {
+        HARMONY: this.blendColor(color, 0x9ef3dd, 0.22),
+        STABILITY: this.blendColor(color, 0xd7e2f2, 0.18),
+        SYNERGY: this.blendColor(color, this.palette.frost, 0.28),
+        LOAD_PRESSURE: this.blendColor(color, 0xffc18a, 0.22),
+        CORRUPTION: this.blendColor(color, 0xd36cff, 0.24)
+      };
+      const membraneColor = membraneToneMap[colony.mood] || this.blendColor(color, breathingColor.getHex(), 0.22);
+      const membraneOpacityBias = colony.mood === 'CORRUPTION'
+        ? 0.06
+        : colony.mood === 'LOAD_PRESSURE'
+          ? 0.04
+          : colony.mood === 'SYNERGY'
+            ? 0.03
+            : 0;
+
+      vfx.fieldMembrane.userData.stage = colony.stage;
+      vfx.fieldMembrane.userData.mood = colony.mood;
+      vfx.fieldMembrane.userData.energyFactor = energyFactor;
+      vfx.fieldMembrane.userData.motionBias = profile.motionBias;
+      vfx.fieldMembrane.userData.visualColor = membraneColor;
+      vfx.fieldMembrane.userData.radius = this.getRadiusForStage(colony.stage) * (0.9 + energyFactor * 0.16 + (envelope.attack ?? 0) * 0.03);
+      vfx.fieldMembrane.userData.shellOpacity = Math.min(0.34, 0.11 + colony.stage * 0.018 + energyFactor * 0.08 + membraneOpacityBias);
+      vfx.fieldMembrane.userData.ringOpacity = Math.min(0.38, 0.13 + (envelope.crest ?? 0) * 0.08 + profile.motionBias * 0.05 + membraneOpacityBias);
+      vfx.fieldMembrane.userData.accentOpacity = Math.min(0.26, 0.08 + energyFactor * 0.06 + (envelope.attack ?? 0) * 0.05 + membraneOpacityBias * 0.8);
+      vfx.fieldMembrane.userData.fractureBias = colony.mood === 'CORRUPTION' ? 1 : colony.mood === 'LOAD_PRESSURE' ? 0.55 : 0;
+      vfx.fieldMembrane.userData.spin = 0.06 + profile.motionBias * 0.08 + (envelope.attack ?? 0) * 0.04;
     }
     
     if (vfx.core && vfx.core.material) {
@@ -3482,6 +3672,12 @@ export class ColonyVFXManager {
 
         if (child.material) {
           child.material.opacity = opacity;
+        } else if (userData.type === 'field-membrane') {
+          for (const part of child.children) {
+            if (part.material) {
+              part.material.opacity = Math.max(0, (part.userData?.baseOpacity ?? part.material.opacity ?? 1) * (1 - fadeProgress));
+            }
+          }
         }
 
         if (fadeProgress >= 1) {
@@ -3619,6 +3815,10 @@ export class ColonyVFXManager {
       vfx.canopy.visible = lodProfile.allowCanopy === true;
     }
 
+    if (vfx.fieldMembrane) {
+      vfx.fieldMembrane.visible = level <= 1;
+    }
+
     if (vfx.beam) {
       vfx.beam.visible = lodProfile.allowBeam === true;
     }
@@ -3689,6 +3889,7 @@ export class ColonyVFXManager {
     this.updateParticles(deltaTime);
     this.updateAtmospheres(deltaTime);
     this.updateMoodCanopies(deltaTime);
+    this.updateFieldMembranes(deltaTime);
     this.updateRings(deltaTime);
     this.updateCentralGlows(deltaTime);
     this.updateCores(deltaTime);
@@ -3800,6 +4001,12 @@ export class ColonyVFXManager {
         child.position.lerpVectors(userData.transition.startPosition, userData.transition.targetCenter, ease);
         if (child.material) {
           child.material.opacity = Math.max(0, userData.transition.startOpacity * (1 - ease));
+        } else if (userData.type === 'field-membrane') {
+          for (const part of child.children) {
+            if (part.material) {
+              part.material.opacity = Math.max(0, (part.userData?.baseOpacity ?? part.material.opacity ?? 1) * (1 - ease));
+            }
+          }
         }
       }
 
@@ -3808,6 +4015,12 @@ export class ColonyVFXManager {
         child.rotation.y += deltaTime * 1.4;
         if (child.material) {
           child.material.opacity = Math.max(0, userData.transition.startOpacity * (1 - ease * 1.2));
+        } else if (userData.type === 'field-membrane') {
+          for (const part of child.children) {
+            if (part.material) {
+              part.material.opacity = Math.max(0, (part.userData?.baseOpacity ?? part.material.opacity ?? 1) * (1 - ease * 1.2));
+            }
+          }
         }
       }
 
@@ -3831,7 +4044,7 @@ export class ColonyVFXManager {
     for (const child of this.vfxContainer.children) {
       if (child.userData?.colonyId !== colonyId) continue;
       const type = child.userData.type;
-      if (['atmosphere', 'orbit-ring', 'sigil-ring', 'ascension-beam', 'core', 'central-glow', 'legendary-halo', 'mood-canopy'].includes(type)) {
+      if (['atmosphere', 'orbit-ring', 'sigil-ring', 'ascension-beam', 'core', 'central-glow', 'legendary-halo', 'mood-canopy', 'field-membrane'].includes(type)) {
         child.userData.eventPulse = {
           intensity,
           duration,
@@ -3849,7 +4062,17 @@ export class ColonyVFXManager {
    */
   triggerEventColorShift(colonyId, targetColor, duration = 1.2) {
     for (const child of this.vfxContainer.children) {
-      if (child.userData?.colonyId !== colonyId || !child.material) continue;
+      if (child.userData?.colonyId !== colonyId) continue;
+      if (child.userData.type === 'field-membrane') {
+        child.userData.eventColorShift = {
+          targetColor,
+          baseColor: child.userData.visualColor ?? child.userData.baseColor ?? targetColor,
+          duration,
+          timer: 0
+        };
+        continue;
+      }
+      if (!child.material) continue;
       child.userData.eventColorShift = {
         targetColor,
         baseColor: child.userData.baseColor ?? child.material.color.getHex(),

@@ -31,12 +31,15 @@ export class SafeColonyExpansion2 {
     this.weatherRegistry = null;
     this.worldEvents = null;
     this.evolutionRegistry = null;
+    this.semanticBus = null;
     
     // Timing
     this.time = 0;
     this.clusteringTimer = 0;
     this.moodUpdateTimer = 0;
     this.pendingMergeTransactions = new Map();
+    this._colonySemanticState = new Map();
+    this._pressureRefreshCooldownMs = 3500;
 
     // CPU OPTIMIZATION: throttle non-visual colony logic to ~5Hz
     // Visual animation (updateVFX) stays at full 30Hz for smooth rendering
@@ -87,6 +90,7 @@ export class SafeColonyExpansion2 {
     this.evolutionRegistry = worldSystems.evolutionRegistry || null;
     this.synergyMap = worldSystems.synergyMap || {};
     this.trafficMap = worldSystems.trafficMap || {};
+    this.semanticBus = worldSystems.semanticBus || this.semanticBus || null;
 
     if (worldSystems.frameScheduler) {
       this.setFrameScheduler(worldSystems.frameScheduler);
@@ -105,6 +109,243 @@ export class SafeColonyExpansion2 {
     if (typeof node === 'string') return node;
 
     return node.userData?.nodeId || node.uuid || null;
+  }
+
+  _nowMs() {
+    return typeof performance !== 'undefined' ? performance.now() : Date.now();
+  }
+
+  _resolveSemanticBus() {
+    if (this.semanticBus) return this.semanticBus;
+    if (typeof globalThis !== 'undefined') {
+      return globalThis.ATOMA_BUS || globalThis.semanticBus || globalThis.window?.ATOMA_BUS || globalThis.window?.semanticBus || null;
+    }
+    return null;
+  }
+
+  _emitSemanticEvent(eventName, payload = {}, priorityName = 'NORMAL') {
+    const bus = this._resolveSemanticBus();
+    if (!bus || !eventName) return false;
+
+    const fullPayload = {
+      source: 'SafeColonyExpansion2',
+      timestamp: this._nowMs(),
+      ...payload
+    };
+
+    if (typeof bus.emit === 'function') {
+      const priority = bus.priority?.[priorityName];
+      if (priority !== undefined) {
+        bus.emit(eventName, fullPayload, { priority });
+      } else {
+        bus.emit(eventName, fullPayload);
+      }
+      return true;
+    }
+
+    if (typeof bus.publish === 'function') {
+      bus.publish(eventName, fullPayload);
+      return true;
+    }
+
+    return false;
+  }
+
+  _getSemanticState(colonyId) {
+    if (!this._colonySemanticState.has(colonyId)) {
+      this._colonySemanticState.set(colonyId, {
+        mood: null,
+        stage: null,
+        pressureActive: false,
+        lastPressureEmitAt: -Infinity,
+        mirroredTiers: {
+          synergy: null,
+          harmony: null,
+          stability: null,
+          corruption: null,
+          loadPressure: null
+        }
+      });
+    }
+    return this._colonySemanticState.get(colonyId);
+  }
+
+  _forgetSemanticState(colonyId) {
+    this._colonySemanticState.delete(colonyId);
+  }
+
+  _buildColonyPayload(colony, extra = {}) {
+    const snapshot = this._getColonyMetricSnapshot(colony);
+    return {
+      colonyId: colony.id,
+      mood: colony.mood,
+      stage: colony.stage,
+      energy: colony.energy,
+      type: colony.type,
+      nodeCount: colony.nodes?.size || 0,
+      center: colony.center ? {
+        x: Number(colony.center.x.toFixed(3)),
+        y: Number(colony.center.y.toFixed(3)),
+        z: Number(colony.center.z.toFixed(3))
+      } : null,
+      avgSynergy: snapshot.avgSynergy,
+      avgTraffic: snapshot.avgTraffic,
+      pressureScore: snapshot.pressureScore,
+      ...extra
+    };
+  }
+
+  _getColonyMetricSnapshot(colony) {
+    if (!colony) {
+      return { avgSynergy: 0, avgTraffic: 0, energyNorm: 0, pressureScore: 0 };
+    }
+
+    let totalSynergy = 0;
+    let totalTraffic = 0;
+    let count = 0;
+
+    for (const nodeId of colony.nodes || []) {
+      totalSynergy += this.synergyMap[nodeId] || 0;
+      totalTraffic += this.trafficMap[nodeId] || 0;
+      count++;
+    }
+
+    const avgSynergy = count > 0 ? totalSynergy / count : 0;
+    const avgTraffic = count > 0 ? totalTraffic / count : 0;
+    const energyNorm = this.clamp01(colony.energy / 100);
+    const stageNorm = this.clamp01((colony.stage || 0) / 4);
+    const pressureScore = this.clamp01(
+      Math.max(
+        avgTraffic,
+        stageNorm * 0.34 +
+          energyNorm * 0.32 +
+          (colony.mood === 'LOAD_PRESSURE' ? 0.28 : 0) +
+          (colony.type === 'SIGMA' ? 0.06 : 0)
+      )
+    );
+
+    return {
+      avgSynergy,
+      avgTraffic,
+      energyNorm,
+      pressureScore
+    };
+  }
+
+  clamp01(value) {
+    return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+  }
+
+  _resolveMirroredMetricTiers(colony, snapshot) {
+    const stage = colony.stage || 0;
+    const nodeCount = colony.nodes?.size || 0;
+    const energyNorm = snapshot.energyNorm ?? this.clamp01(colony.energy / 100);
+    const tiers = {
+      synergy: null,
+      harmony: null,
+      stability: null,
+      corruption: null,
+      loadPressure: null
+    };
+
+    const highStage = stage >= 4 || nodeCount >= 12;
+    const midStage = stage >= 2 || nodeCount >= 6;
+
+    switch (colony.mood) {
+      case 'SYNERGY':
+        if (midStage) tiers.synergy = 'mid';
+        if (highStage || energyNorm >= 0.62 || snapshot.avgSynergy >= 0.82 || (colony.type === 'QUANTUM' && stage >= 3)) {
+          tiers.synergy = 'high';
+        }
+        break;
+      case 'STABILITY':
+        if (midStage) tiers.stability = 'mid';
+        if ((highStage && energyNorm >= 0.45) || nodeCount >= 14) {
+          tiers.stability = 'high';
+        }
+        break;
+      case 'LOAD_PRESSURE':
+        if (midStage) tiers.loadPressure = 'mid';
+        if (highStage || snapshot.avgTraffic >= 0.88 || energyNorm >= 0.72 || (colony.type === 'SIGMA' && stage >= 3)) {
+          tiers.loadPressure = 'high';
+        }
+        break;
+      case 'CORRUPTION':
+        if (midStage) tiers.corruption = 'mid';
+        if (highStage || colony.type === 'SIGMA' || energyNorm >= 0.7) {
+          tiers.corruption = 'high';
+        }
+        break;
+      case 'HARMONY':
+      default:
+        if (midStage) tiers.harmony = 'mid';
+        if (highStage || energyNorm >= 0.68 || snapshot.avgSynergy >= 0.58) {
+          tiers.harmony = 'high';
+        }
+        break;
+    }
+
+    return tiers;
+  }
+
+  _syncColonyMetricMirrors(colony, state, extra = {}) {
+    const snapshot = this._getColonyMetricSnapshot(colony);
+    const nextTiers = this._resolveMirroredMetricTiers(colony, snapshot);
+    const metricNames = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure'];
+
+    for (const metric of metricNames) {
+      const previousTier = state.mirroredTiers?.[metric] ?? null;
+      const nextTier = nextTiers[metric] ?? null;
+      if (previousTier === nextTier) continue;
+
+      state.mirroredTiers[metric] = nextTier;
+      if (!nextTier) continue;
+
+      this._emitSemanticEvent(`global.${metric}.${nextTier}`, {
+        scope: 'global',
+        metric,
+        tier: nextTier,
+        previousTier,
+        ...this._buildColonyPayload(colony, extra)
+      });
+    }
+
+    return snapshot;
+  }
+
+  _syncColonyPressureState(colony, state, extra = {}) {
+    const snapshot = this._getColonyMetricSnapshot(colony);
+    const nowMs = this._nowMs();
+    const active = snapshot.pressureScore >= 0.72;
+    const shouldEmit = active && (!state.pressureActive || nowMs - state.lastPressureEmitAt >= this._pressureRefreshCooldownMs);
+
+    if (shouldEmit) {
+      this._emitSemanticEvent('environment.colony.pressure.active', {
+        ...this._buildColonyPayload(colony, extra),
+        pressureScore: snapshot.pressureScore
+      });
+      state.lastPressureEmitAt = nowMs;
+    }
+
+    state.pressureActive = active;
+    return snapshot;
+  }
+
+  _syncColonySemanticSnapshot(colony, extra = {}) {
+    if (!colony) return;
+    const state = this._getSemanticState(colony.id);
+    state.stage = colony.stage;
+    state.mood = colony.mood;
+    this._syncColonyMetricMirrors(colony, state, extra);
+    this._syncColonyPressureState(colony, state, extra);
+  }
+
+  _pruneSemanticState() {
+    for (const colonyId of Array.from(this._colonySemanticState.keys())) {
+      if (!this.registry?.colonies?.[colonyId]) {
+        this._colonySemanticState.delete(colonyId);
+      }
+    }
   }
   
   /**
@@ -422,6 +663,16 @@ export class SafeColonyExpansion2 {
           energy
         )
       : null;
+    vfx.fieldMembrane = stage >= 1
+      ? this.vfxManager.createFieldMembrane(
+          colonyId,
+          colony.center,
+          stage,
+          mood,
+          type,
+          energy
+        )
+      : null;
     vfx.core = stage >= 2
       ? this.vfxManager.createCentralGlow(
           colonyId,
@@ -527,6 +778,8 @@ export class SafeColonyExpansion2 {
       if (colony.stage > previousStage) {
         this.triggerColonyGrowth(colonyId, previousStage, colony.stage);
       }
+
+      this._syncColonySemanticSnapshot(colony, { semanticReason: 'energy-stage-sync' });
     }
   }
   
@@ -537,6 +790,7 @@ export class SafeColonyExpansion2 {
     for (const colonyId in this.registry.colonies) {
       const colony = this.registry.colonies[colonyId];
       if (this.isColonyTransitionLocked(colony)) continue;
+      const previousMood = colony.mood;
       
       // Check if world event is active
       const eventActive = this.worldEvents && this.worldEvents.isEventActive();
@@ -553,6 +807,20 @@ export class SafeColonyExpansion2 {
         weatherCondition,
         eventActive
       );
+
+      if (colony.mood !== previousMood) {
+        const state = this._getSemanticState(colonyId);
+        state.mood = colony.mood;
+        this._emitSemanticEvent('environment.colony.mood.changed', {
+          ...this._buildColonyPayload(colony, {
+            previousMood,
+            nextMood: colony.mood,
+            semanticReason: 'mood-change'
+          })
+        });
+      }
+
+      this._syncColonySemanticSnapshot(colony, { semanticReason: 'mood-sync' });
     }
   }
   
@@ -644,6 +912,14 @@ export class SafeColonyExpansion2 {
         const connectivity = this.calculateColonyConnectivity(colony);
         
         if (connectivity < this.registry.config.splitLinkFactor) {
+          this._emitSemanticEvent('environment.colony.split.start', {
+            ...this._buildColonyPayload(colony, {
+              childCount: subClusters.length,
+              connectivity,
+              semanticReason: 'split-start'
+            })
+          });
+
           // Dramatic split rupture moment before creating child colonies
           this.vfxManager.triggerSplitRupture(colonyId, colony.center, 1.5, 1.0);
 
@@ -658,14 +934,30 @@ export class SafeColonyExpansion2 {
 
             for (const newId of newIds) {
               this.createColonyVFX(newId);
-              this.vfxManager.triggerColonyTransformation(newId, this.registry.colonies[newId].center, 0.9);
-              this.vfxManager.triggerRebirthEvent(newId, this.registry.colonies[newId].center, 0.9);
+              this.triggerColonyTransformation(newId, this.registry.colonies[newId].center, 0.9);
+              this.triggerColonyRebirth(newId, this.registry.colonies[newId].center, 0.9);
             }
             
             this.vfxManager.triggerSplitTransition(colonyId, 1.2, targetCenters);
             this.vfxManager.cleanupColonyVFX(colonyId, { soft: true, duration: 1.2 });
             
             this.triggerColonySplit(colonyId, newIds);
+            for (const newId of newIds) {
+              const newColony = this.registry.getColony(newId);
+              if (newColony) {
+                this._syncColonySemanticSnapshot(newColony, {
+                  parentColonyId: colonyId,
+                  semanticReason: 'split-child'
+                });
+              }
+            }
+            this._emitSemanticEvent('environment.colony.split.complete', {
+              ...this._buildColonyPayload(colony, {
+                childIds: newIds.slice(),
+                childCount: newIds.length,
+                semanticReason: 'split-complete'
+              })
+            });
             this.retireColonyRecord(colonyId, { reason: 'split', clearNodes: true });
             
             this.stats.coloniesSplit++;
@@ -798,6 +1090,10 @@ export class SafeColonyExpansion2 {
       vfx.core.position.copy(colony.center);
     }
 
+    if (vfx.fieldMembrane) {
+      vfx.fieldMembrane.position.copy(colony.center);
+    }
+
     if (vfx.crown) {
       vfx.crown.position.copy(colony.center);
     }
@@ -832,6 +1128,10 @@ export class SafeColonyExpansion2 {
       for (const sigil of vfx.sigils) {
         if (sigil) sigil.position.copy(colony.center).add(offset);
       }
+    }
+
+    if (vfx.fieldMembrane) {
+      vfx.fieldMembrane.position.copy(colony.center).add(offset.clone().multiplyScalar(0.45));
     }
 
     if (vfx.beam) {
@@ -1017,6 +1317,12 @@ export class SafeColonyExpansion2 {
     
     const color = this.vfxManager.getColorForMood(colony.mood, colony.type);
     this.vfxManager.triggerBirthEvent(colonyId, colony.center, color);
+    this._emitSemanticEvent('environment.colony.birth', {
+      ...this._buildColonyPayload(colony, {
+        semanticReason: 'birth'
+      })
+    });
+    this._syncColonySemanticSnapshot(colony, { semanticReason: 'birth' });
   }
   
   /**
@@ -1028,11 +1334,20 @@ export class SafeColonyExpansion2 {
 
     const color = this.vfxManager.getColorForMood(colony.mood, colony.type);
     this.vfxManager.triggerGrowthEvent(colonyId, colony.center, color, toStage);
+    this._emitSemanticEvent('environment.colony.growth', {
+      ...this._buildColonyPayload(colony, {
+        fromStage,
+        toStage,
+        semanticReason: 'growth'
+      })
+    });
 
     if (toStage >= 4 && !colony.stage4AscensionPlayed) {
       this.vfxManager.triggerAscensionMoment(colonyId, colony.center, toStage, colony.mood, colony.type, colony.energy, 1.2);
       colony.stage4AscensionPlayed = true;
     }
+
+    this._syncColonySemanticSnapshot(colony, { semanticReason: 'growth' });
 
     if (this.debugMode) {
       console.log(`[Civilization] Growth: ${colonyId} from stage ${fromStage} to ${toStage}`);
@@ -1058,6 +1373,12 @@ export class SafeColonyExpansion2 {
 
     const color = this.vfxManager.getColorForMood(colony.mood, colony.type);
     this.vfxManager.triggerMergeEvent(colonyId, colony.center, color);
+    this._emitSemanticEvent('environment.colony.merge.complete', {
+      ...this._buildColonyPayload(colony, {
+        semanticReason: 'merge-complete'
+      })
+    });
+    this._syncColonySemanticSnapshot(colony, { semanticReason: 'merge-complete' });
 
     if (this.debugMode) {
       console.log(`[Civilization] Merge event for ${colonyId}`);
@@ -1112,6 +1433,18 @@ export class SafeColonyExpansion2 {
     };
 
     this.pendingMergeTransactions.set(mergeKey, transaction);
+    this._emitSemanticEvent('environment.colony.merge.start', {
+      colonyIds: transaction.sourceIds.slice(),
+      sourceTypes: [colony1.type, colony2.type],
+      sourceMoods: [colony1.mood, colony2.mood],
+      sourceStages: [colony1.stage, colony2.stage],
+      mergedCenter: {
+        x: Number(mergedCenter.x.toFixed(3)),
+        y: Number(mergedCenter.y.toFixed(3)),
+        z: Number(mergedCenter.z.toFixed(3))
+      },
+      semanticReason: 'merge-start'
+    });
 
     this.vfxManager.triggerMergeFlash(colony1.id, colony1.center, duration);
     this.vfxManager.triggerMergeFlash(colony2.id, colony2.center, duration);
@@ -1136,9 +1469,13 @@ export class SafeColonyExpansion2 {
         const mergedColony = this.registry.getColony(mergedId);
         if (mergedColony) {
           this.createColonyVFX(mergedId);
-          this.vfxManager.triggerColonyTransformation(mergedId, mergedColony.center, 1.1);
-          this.vfxManager.triggerRebirthEvent(mergedId, mergedColony.center, 0.9);
+          this.triggerColonyTransformation(mergedId, mergedColony.center, 1.1);
+          this.triggerColonyRebirth(mergedId, mergedColony.center, 0.9);
           this.triggerColonyMerge(mergedId);
+          this._syncColonySemanticSnapshot(mergedColony, {
+            mergedFrom: transaction.sourceIds.slice(),
+            semanticReason: 'merge-result'
+          });
         }
 
         this.retireColonyRecord(sourceId1, { reason: 'merge', clearNodes: true });
@@ -1170,6 +1507,7 @@ export class SafeColonyExpansion2 {
     colony.pendingMerge = false;
     colony.retired = true;
     colony.retirementReason = reason;
+    this._forgetSemanticState(colonyId);
   }
 
   triggerColonyTransformation(colonyId, targetCenter, duration = 1.0) {
@@ -1177,12 +1515,34 @@ export class SafeColonyExpansion2 {
     if (!colony) return;
     this.vfxManager.triggerTransformationEvent(colonyId, targetCenter, duration);
     this.vfxManager.triggerEventPulse(colonyId, 0.8, duration * 0.9);
+    this._emitSemanticEvent('environment.colony.transform', {
+      ...this._buildColonyPayload(colony, {
+        targetCenter: targetCenter ? {
+          x: Number(targetCenter.x.toFixed(3)),
+          y: Number(targetCenter.y.toFixed(3)),
+          z: Number(targetCenter.z.toFixed(3))
+        } : null,
+        duration,
+        semanticReason: 'transform'
+      })
+    });
   }
 
   triggerColonyRebirth(colonyId, targetCenter, duration = 0.9) {
     const colony = this.registry.getColony(colonyId);
     if (!colony) return;
     this.vfxManager.triggerRebirthEvent(colonyId, targetCenter, duration);
+    this._emitSemanticEvent('environment.colony.rebirth', {
+      ...this._buildColonyPayload(colony, {
+        targetCenter: targetCenter ? {
+          x: Number(targetCenter.x.toFixed(3)),
+          y: Number(targetCenter.y.toFixed(3)),
+          z: Number(targetCenter.z.toFixed(3))
+        } : null,
+        duration,
+        semanticReason: 'rebirth'
+      })
+    });
   }
   
   /**
@@ -1191,6 +1551,7 @@ export class SafeColonyExpansion2 {
   cleanup() {
     // Remove empty colonies
     this.registry.cleanupEmptyColonies();
+    this._pruneSemanticState();
     
     // Cleanup expired VFX
     for (const colonyId in this.registry.colonies) {
@@ -1224,6 +1585,7 @@ export class SafeColonyExpansion2 {
     this.registry.colonies = {};
     this.registry.nodeToColony = {};
     this.registry.colonyVFX = {};
+    this._colonySemanticState.clear();
   }
 
   /**
@@ -1243,5 +1605,6 @@ export class SafeColonyExpansion2 {
       this.registry.nodeToColony = {};
       this.registry.colonyVFX = {};
     }
+    this._colonySemanticState.clear();
   }
 }

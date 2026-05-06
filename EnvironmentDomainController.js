@@ -642,7 +642,8 @@ export class EnvironmentDomainController {
           worldEvents: this.instances.worldEvents || this.deps.worldEvents || null,
           evolutionRegistry: this.deps.evolutionManager?.registry || null,
           synergyMap: this.deps.synergyMap || {},
-          trafficMap: this.deps.trafficMap || {}
+          trafficMap: this.deps.trafficMap || {},
+          semanticBus: d.semanticBus || null
         };
         this.instances.colonyExpansion.initialize(worldSystems);
       }

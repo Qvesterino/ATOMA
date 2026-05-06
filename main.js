@@ -13757,7 +13757,8 @@ this.coreMetricsOverlay?.setMetricsRuntime?.(this.metricsRuntime_v1);
                 worldEvents: this.worldEvents,
                 evolutionRegistry: this.evolutionManager?.registry || null,
                 synergyMap: this.synergyMap || {},
-                trafficMap: this.trafficMap || {}
+                trafficMap: this.trafficMap || {},
+                semanticBus: this.semanticBus || null
             };
 
             this.colonyManager.initialize(worldSystems);
